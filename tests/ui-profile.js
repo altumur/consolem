@@ -6,6 +6,11 @@
 UiCheck(async ({ ok, until }) => {
   goApp("hw");
   const hidden = (el) => !!el && getComputedStyle(el).display === "none";
+  // Нет возможности assist — поиск по-прежнему пишет «Ничего не найдено»
+  goInput("нетТакогоОбъекта");
+  ok(!document.getElementById("goAsk") && /Ничего не найдено/.test(document.getElementById("gopop").textContent), "без ассистента кнопки в поиске нет");
+  goClose();
+  clearTreeQ();
   ok(!can("createDomain") && !can("getDiscovery") && !can("listLicenses") && can("patchDevice"), "возможности прочитаны: операций " + CAPS.operations.size);
   ok(domains.length === 1 && licenses.length === 0, "один домен, лицензий не читали");
   ok(Object.keys(WIZ).join() === "video" && WIZ.video.types.map((t) => t[0]).join() === "camera", "мастер добавления — только камеры: " + Object.keys(WIZ).join());

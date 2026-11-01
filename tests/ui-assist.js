@@ -1,13 +1,21 @@
 /* Сценарии интерфейса: ассистент. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
-  ok(getComputedStyle(document.getElementById("hdAssist")).display !== "none", "кнопка ассистента видна");
+  // Вход — из поиска: вместо «Ничего не найдено» кнопка, набранное уходит просьбой, запрос поиска снимается
+  const inp = document.getElementById("gq");
+  inp.value = "выключи запись Главный вход";
+  goInput(inp.value);
+  ok(document.getElementById("goAsk") && !/Ничего не найдено/.test(document.getElementById("gopop").textContent), "вместо «Ничего не найдено» — кнопка ассистента");
+  asstFromSearch();
+  ok(await until(() => document.getElementById("asstApply")), "из поиска — сразу план");
+  ok(inp.value === "" && treeQ === "", "запрос поиска снят");
+  closeBulkModal();
   const camId = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
   const before = (await API.get(`/devices/${camId}`)).recordMode;
   const say = (t) => { asst.text = t; document.getElementById("asstSend").click(); };
   const body = () => document.getElementById("bmBody").textContent;
 
   // Вопрос и ответ
-  asstOpen();
+  asstOpen("");
   ok(document.getElementById("bmodal").classList.contains("open"), "окно ассистента открыто");
   say("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "ассистент спросил");
