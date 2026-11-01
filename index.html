@@ -1778,6 +1778,12 @@ onEv.key=(...keys)=>[".key",...keys];
   // false — остановиться: служебный шаг не пропустил событие
   function run(el,ev,type){
     const calls=JSON.parse(el.getAttribute("data-on-"+type));
+    // Слушатель один, на документе, а обработчики читают e.currentTarget, как при onclick:
+    // на время их вызова это элемент с data-on-…, потом снова как у браузера
+    Object.defineProperty(ev,"currentTarget",{value:el,configurable:true});
+    try{runCalls(el,ev,type,calls)}finally{delete ev.currentTarget}
+  }
+  function runCalls(el,ev,type,calls){
     for(const [name,...args] of calls){
       if(name===".stop"){ev.stopPropagation();continue}
       if(name===".prevent"){ev.preventDefault();continue}
@@ -18439,10 +18445,10 @@ function bulkScopeHtml(all){
 const CREDS_TYPES=new Set(["camera","ipsrv","acfa","eventsrc"]);
 function canCreds(n){return CREDS_TYPES.has(n.type)}
 function canFolder(n){return devicePool.includes(n)}
-// Параметры типа: у начинки — DEV_PARAMS, у служб и детекторов — свои.
+// Параметры типа: у начинки — из справочника, у служб и детекторов — свои.
 function typeParams(kind){
-  if(kind==="spk:srv"||kind==="spk")return DEV_PARAMS.spk;
-  if(DEV_PARAMS[kind])return DEV_PARAMS[kind];
+  const own=devParams(kind==="spk:srv"?"spk":kind);
+  if(own.length)return own;
   return{email:[["mode","Режим",["Облачный AxxonNet","SMTP сервер"]],["smtp","SMTP сервер",""],["port","Порт",25],["ssl","SSL",["вкл","выкл"]],["from","От кого",""],["to","Получатели",""]],
     sms:[["gateway","Шлюз / API",""]],export:[["path","Папка",""],["format","Формат",["MP4","AVI"]]],
     det:[["kind","Тип",DET_TYPES],["sens","Чувствительность",12]]}[kind]||[];
