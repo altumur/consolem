@@ -919,7 +919,7 @@
           "hardware"
         ],
         "summary": "Изменить устройство",
-        "description": "Сразу, без очереди: переименование в дереве. План карточки уходит операцией (POST /operations). Над объектом идёт групповая операция (POST /operations) — 409 BUSY, какой объект — в params.targetId",
+        "description": "Сразу, без очереди: переименование в дереве. План карточки уходит операцией (POST /operations). Над объектом идёт групповая операция (POST /operations) — 409 BUSY, какой объект — в params.targetId. Поле вне capabilities.writableFields вида и любое поле ipsrv с derived: true — 422 NOT_SUPPORTED с field",
         "parameters": [
           {
             "name": "deviceId",
@@ -994,8 +994,8 @@
         "tags": [
           "hardware"
         ],
-        "summary": "Удалить устройство вместе с дочерними",
-        "description": "Убирает его из папок и из записи по детекторам у камер. Над ним, дочерним или камерой, что записывает по его детектору, идёт групповая операция — 409 BUSY, какой объект — в params.targetId",
+        "summary": "Удалить устройство",
+        "description": "Вместе с дочерними; у ipsrv с записью устройства камеры остаются и теряют только родителя (parentId: null, entity.changed). Убирает его из папок и из записи по детекторам у камер. Над ним, дочерним или камерой, что записывает по его детектору, идёт групповая операция — 409 BUSY, какой объект — в params.targetId. Вид из capabilities.foundDeviceTypes и ipsrv с derived: true — 422 NOT_SUPPORTED, field: type",
         "parameters": [
           {
             "name": "deviceId",
@@ -1036,6 +1036,9 @@
             "$ref": "#/components/responses/Problem"
           },
           "default": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
             "$ref": "#/components/responses/Problem"
           }
         }
@@ -4899,7 +4902,7 @@
           },
           "subtype": {
             "type": "string",
-            "description": "Подтип IP-сервера (ipsrv)",
+            "description": "Подтип IP-сервера (ipsrv). Сервер выводит его из описания устройства, выбор в мастере на него не влияет",
             "enum": [
               "nvr",
               "io",
@@ -5010,11 +5013,11 @@
           },
           "videoChannel": {
             "type": "integer",
-            "description": "Видеоканал камеры регистратора"
+            "description": "Видеоканал камеры регистратора, с 1"
           },
           "channel": {
             "type": "integer",
-            "description": "Номер входа, выхода, канала"
+            "description": "Номер входа, выхода, канала: внутри своего вида, с 1. Сквозной по устройству, поэтому у камеры бывает не с 1 и с пропусками (3, 7)"
           },
           "lat": {
             "type": [
@@ -5053,11 +5056,7 @@
           },
           "sizeBytes": {
             "type": "integer",
-            "description": "Объём встроенного хранилища"
-          },
-          "onServer": {
-            "type": "boolean",
-            "description": "Динамик сервера — служба сервера, а не устройство"
+            "description": "Объём встроенного хранилища. Устройство может его не сообщать: тогда поля нет"
           },
           "cameraId": {
             "type": [
@@ -5097,7 +5096,8 @@
             "type": "string"
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Папка агента экспорта; адрес единицы СКУД в системе СКУД"
           },
           "format": {
             "type": "string"
@@ -5139,22 +5139,8 @@
             "enum": [
               "open",
               "closed"
-            ]
-          },
-          "pulse": {
-            "type": "integer"
-          },
-          "debounce": {
-            "type": "integer"
-          },
-          "gain": {
-            "type": "integer"
-          },
-          "acodec": {
-            "type": "string"
-          },
-          "vol": {
-            "type": "integer"
+            ],
+            "description": "Нормальное состояние контакта: начало и конец тревоги считаются сравнением сигнала с ним"
           },
           "version": {
             "type": "string",
@@ -5194,6 +5180,10 @@
             "type": "integer",
             "minimum": 0,
             "description": "Титры источника событий: сколько держать на экране, с"
+          },
+          "derived": {
+            "type": "boolean",
+            "description": "ipsrv выведен из устройства, своей записи нет: PATCH, DELETE и folderIds — 422 NOT_SUPPORTED. Нет поля — запись есть"
           }
         },
         "additionalProperties": false,
@@ -7545,7 +7535,7 @@
             "items": {
               "$ref": "#/components/schemas/DeviceType"
             },
-            "description": "Виды устройств, которые есть в системе. Создать устройство другого вида — 422 NOT_SUPPORTED (в групповых — по строке)"
+            "description": "Виды устройств, которые есть в системе и в данных. Создать устройство другого вида — 422 NOT_SUPPORTED (в групповых — по строке)"
           },
           "features": {
             "type": "array",
@@ -7553,6 +7543,31 @@
               "$ref": "#/components/schemas/Feature"
             },
             "description": "Необязательные возможности, которые есть. Незнакомый код клиент пропускает"
+          },
+          "foundDeviceTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceType"
+            },
+            "description": "Виды, которые есть в данных, но не создаются оператором: их находит сервер по описанию устройства. Записи появляются и пропадают сами (entity.created, entity.deleted). POST /devices, шаг create операции и DELETE — 422 NOT_SUPPORTED, field: type"
+          },
+          "unitTypes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceType"
+            },
+            "description": "Единицы СКУД: заводит оператор под родителем из СКУД, в папки не входят. Вид из foundDeviceTypes в этом списке создаётся только так, иначе 422 NOT_SUPPORTED"
+          },
+          "writableFields": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": "Вид устройства → поля DevicePatch, которые у него правятся. Вид не назван — все. Остальное — 422 NOT_SUPPORTED с field, у вида с пустым списком — field: type. Интерфейс показывает такие поля только для чтения"
           }
         }
       },
@@ -7744,10 +7759,13 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "device.signal — пропала или вернулась связь (online), device.fault — причина без связи",
+            "description": "device.signal — пропала или вернулась связь (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId)",
             "enum": [
               "device.signal",
-              "device.fault"
+              "device.fault",
+              "device.found",
+              "device.lost",
+              "device.parent"
             ]
           },
           "deviceId": {
@@ -7767,6 +7785,34 @@
               "conn",
               "drv"
             ]
+          },
+          "found": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "name"
+            ],
+            "properties": {
+              "type": {
+                "$ref": "#/components/schemas/DeviceType"
+              },
+              "name": {
+                "type": "string"
+              },
+              "channel": {
+                "type": "integer"
+              }
+            },
+            "description": "device.found: что нашёл сервер"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "device.parent: новый родитель"
           }
         },
         "additionalProperties": false,
@@ -7781,6 +7827,11 @@
         "properties": {
           "applied": {
             "type": "boolean"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "device.found: созданная запись"
           }
         },
         "additionalProperties": false,
@@ -7792,16 +7843,6 @@
         "type": "object",
         "additionalProperties": false,
         "properties": {
-          "acodec": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "archiveId": {
             "type": [
               "string",
@@ -7890,16 +7931,6 @@
               }
             ]
           },
-          "debounce": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "detectorKind": {
             "anyOf": [
               {
@@ -7975,16 +8006,6 @@
             "anyOf": [
               {
                 "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "gain": {
-            "anyOf": [
-              {
-                "type": "integer"
               },
               {
                 "type": "null"
@@ -8103,17 +8124,6 @@
               }
             ]
           },
-          "onServer": {
-            "anyOf": [
-              {
-                "type": "boolean",
-                "description": "Динамик сервера — служба сервера, а не устройство"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "password": {
             "anyOf": [
               {
@@ -8146,16 +8156,6 @@
             ]
           },
           "preRecordSec": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "pulse": {
             "anyOf": [
               {
                 "type": "integer"
@@ -8336,16 +8336,6 @@
               {
                 "type": "integer",
                 "description": "Видеоканал камеры регистратора"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "vol": {
-            "anyOf": [
-              {
-                "type": "integer"
               },
               {
                 "type": "null"
@@ -9458,9 +9448,6 @@
           "name"
         ],
         "properties": {
-          "acodec": {
-            "type": "string"
-          },
           "archiveId": {
             "type": [
               "string",
@@ -9514,9 +9501,6 @@
               "template"
             ]
           },
-          "debounce": {
-            "type": "integer"
-          },
           "detectorKind": {
             "type": "string",
             "enum": [
@@ -9548,9 +9532,6 @@
           },
           "from": {
             "type": "string"
-          },
-          "gain": {
-            "type": "integer"
           },
           "gateway": {
             "type": "string"
@@ -9601,24 +9582,18 @@
               "closed"
             ]
           },
-          "onServer": {
-            "type": "boolean",
-            "description": "Динамик сервера — служба сервера, а не устройство"
-          },
           "password": {
             "type": "string",
             "description": "Пароль устройства; в ответах его нет"
           },
           "path": {
-            "type": "string"
+            "type": "string",
+            "description": "Папка агента экспорта; адрес единицы СКУД в системе СКУД"
           },
           "port": {
             "type": "integer"
           },
           "preRecordSec": {
-            "type": "integer"
-          },
-          "pulse": {
             "type": "integer"
           },
           "recordDetectorIds": {
@@ -9692,9 +9667,6 @@
           "videoChannel": {
             "type": "integer",
             "description": "Видеоканал камеры регистратора"
-          },
-          "vol": {
-            "type": "integer"
           },
           "words": {
             "type": "array",

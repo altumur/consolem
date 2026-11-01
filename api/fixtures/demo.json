@@ -1536,19 +1536,6 @@
    "version": "1"
   },
   {
-   "id": "30000004-0000-4000-8000-000000000000",
-   "type": "spk",
-   "parentId": null,
-   "domainId": "10000001-0000-4000-8000-000000000000",
-   "name": "Динамик сервера",
-   "short": "12",
-   "onServer": true,
-   "online": true,
-   "serverId": "20000001-0000-4000-8000-000000000000",
-   "enabled": true,
-   "version": "1"
-  },
-  {
    "id": "30000005-0000-4000-8000-000000000000",
    "type": "email",
    "parentId": null,
@@ -1593,19 +1580,6 @@
    "version": "1"
   },
   {
-   "id": "30000008-0000-4000-8000-000000000000",
-   "type": "spk",
-   "parentId": null,
-   "domainId": "10000001-0000-4000-8000-000000000000",
-   "short": "16",
-   "online": true,
-   "name": "Динамик — проходная",
-   "onServer": true,
-   "serverId": "20000001-0000-4000-8000-000000000000",
-   "enabled": true,
-   "version": "1"
-  },
-  {
    "id": "30000009-0000-4000-8000-000000000000",
    "type": "email",
    "parentId": null,
@@ -1645,19 +1619,6 @@
    "path": "E:\\Export\\security",
    "format": "AVI",
    "fault": "conn",
-   "serverId": "20000001-0000-4000-8000-000000000000",
-   "enabled": true,
-   "version": "1"
-  },
-  {
-   "id": "30000012-0000-4000-8000-000000000000",
-   "type": "spk",
-   "parentId": null,
-   "domainId": "10000001-0000-4000-8000-000000000000",
-   "short": "20",
-   "online": true,
-   "name": "Динамик — склад",
-   "onServer": true,
    "serverId": "20000001-0000-4000-8000-000000000000",
    "enabled": true,
    "version": "1"
@@ -2129,7 +2090,6 @@
    "name": "Встроенное хранилище",
    "short": "16.1",
    "online": true,
-   "sizeBytes": 274877906944,
    "enabled": true,
    "version": "1"
   },
@@ -5769,6 +5729,95 @@
    "serverId": "20000031-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
+   "version": "1"
+  },
+  {
+   "id": "30000279-0000-4000-8000-000000000000",
+   "type": "ipsrv",
+   "parentId": null,
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Регистратор склада",
+   "online": true,
+   "enabled": true,
+   "subtype": "nvr",
+   "short": "60",
+   "identifier": "60",
+   "ip": "192.168.1.110",
+   "port": 80,
+   "vendor": "Hikvision",
+   "model": "DS-2CD2347G2",
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "derived": true,
+   "version": "1"
+  },
+  {
+   "id": "30000280-0000-4000-8000-000000000000",
+   "type": "camera",
+   "parentId": "30000279-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Склад, канал 1",
+   "online": true,
+   "enabled": true,
+   "short": "60.1",
+   "videoChannel": 1,
+   "archiveId": null,
+   "recordMode": "none",
+   "armed": false,
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "version": "1"
+  },
+  {
+   "id": "30000281-0000-4000-8000-000000000000",
+   "type": "camera",
+   "parentId": "30000279-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Склад, канал 2",
+   "online": true,
+   "enabled": true,
+   "short": "60.2",
+   "videoChannel": 2,
+   "archiveId": null,
+   "recordMode": "none",
+   "armed": false,
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "version": "1"
+  },
+  {
+   "id": "30000282-0000-4000-8000-000000000000",
+   "type": "channel",
+   "parentId": "30000279-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Блок входов 1",
+   "online": true,
+   "enabled": true,
+   "short": "60.3",
+   "channel": 1,
+   "version": "1"
+  },
+  {
+   "id": "30000283-0000-4000-8000-000000000000",
+   "type": "sensor",
+   "parentId": "30000282-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Ворота склада",
+   "online": true,
+   "enabled": true,
+   "short": "60.3.1",
+   "channel": 1,
+   "norm": "open",
+   "version": "1"
+  },
+  {
+   "id": "30000284-0000-4000-8000-000000000000",
+   "type": "relay",
+   "parentId": "30000282-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Сирена склада",
+   "online": true,
+   "enabled": true,
+   "short": "60.3.2",
+   "channel": 1,
+   "norm": "open",
    "version": "1"
   }
  ],
@@ -27198,10 +27247,7 @@
     "types": [
      "ipsrv-io",
      "ipsrv-sip",
-     "ipsrv-mic",
-     "sensor",
-     "relay",
-     "mic"
+     "ipsrv-mic"
     ]
    },
    {
@@ -27228,8 +27274,7 @@
     "types": [
      "email",
      "sms",
-     "export",
-     "spk"
+     "export"
     ]
    }
   ],
@@ -27339,10 +27384,6 @@
       "open",
       "closed"
      ]
-    },
-    {
-     "key": "pulse",
-     "default": 500
     }
    ],
    "sensor": [
@@ -27351,36 +27392,6 @@
      "options": [
       "open",
       "closed"
-     ]
-    },
-    {
-     "key": "debounce",
-     "default": 200
-    }
-   ],
-   "mic": [
-    {
-     "key": "gain",
-     "default": 0
-    },
-    {
-     "key": "acodec",
-     "options": [
-      "G.711",
-      "AAC"
-     ]
-    }
-   ],
-   "spk": [
-    {
-     "key": "vol",
-     "default": 70
-    },
-    {
-     "key": "acodec",
-     "options": [
-      "G.711",
-      "AAC"
      ]
     }
    ]
@@ -28191,7 +28202,54 @@
     "serverNetwork",
     "archiveEncryption",
     "assist"
-   ]
+   ],
+   "foundDeviceTypes": [
+    "channel",
+    "sensor",
+    "relay",
+    "mic",
+    "spk",
+    "storage"
+   ],
+   "unitTypes": [
+    "acfa_sensor",
+    "acfa_lock",
+    "acfa_fence",
+    "relay"
+   ],
+   "writableFields": {
+    "channel": [],
+    "storage": [],
+    "sensor": [
+     "name",
+     "enabled",
+     "norm"
+    ],
+    "relay": [
+     "name",
+     "enabled",
+     "norm",
+     "path"
+    ],
+    "mic": [
+     "name",
+     "enabled"
+    ],
+    "spk": [
+     "name",
+     "enabled"
+    ],
+    "ipsrv": [
+     "name",
+     "enabled",
+     "lat",
+     "lon",
+     "azimuth",
+     "mac",
+     "login",
+     "password"
+    ]
+   }
   }
  }
 }

@@ -522,7 +522,26 @@ def capabilities():
     ops = [o["operationId"] for item in spec["paths"].values() for m, o in item.items()
            if m in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", [])]
     schemas = spec["components"]["schemas"]
-    return {"operations": ops, "deviceTypes": schemas["DeviceType"]["enum"], "features": schemas["Feature"]["enum"]}
+    return {"operations": ops, "deviceTypes": schemas["DeviceType"]["enum"], "features": schemas["Feature"]["enum"],
+            "foundDeviceTypes": FOUND_TYPES, "unitTypes": UNIT_TYPES, "writableFields": writable_fields(schemas)}
+
+
+# Виды, которые находит сервер, и единицы СКУД, которые заводит оператор: ADR-0102 доп. (7), запрос 9, дополнение п. 1
+FOUND_TYPES = ["channel", "sensor", "relay", "mic", "spk", "storage"]
+UNIT_TYPES = ["acfa_sensor", "acfa_lock", "acfa_fence", "relay"]
+
+
+def writable_fields(schemas):
+    """Что правится у вида. Виды с записью оператора — всё, кроме своего вычитаемого (поле из поиска, чтение)."""
+    return {
+        "channel": [],
+        "storage": [],
+        "sensor": ["name", "enabled", "norm"],
+        "relay": ["name", "enabled", "norm", "path"],
+        "mic": ["name", "enabled"],
+        "spk": ["name", "enabled"],
+        "ipsrv": ["name", "enabled", "lat", "lon", "azimuth", "mac", "login", "password"],
+    }
 
 
 # Поля действия: имя в макете → имя в контракте (to — роль у «Открыть раскладку», адрес у письма)

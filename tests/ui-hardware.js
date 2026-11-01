@@ -59,8 +59,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await viaApi("титры: задержка и длительность",async()=>{const r=await API.get("/devices/"+ev.id);return r.overlayDelayMs===250&&r.overlayDurationSec===7});
   ok(document.querySelector('[data-df="Задержка, мс"]')?.value==="250","карточка показывает значение сервера");
   const kid=first("relay")||first("sensor");
-  pick(kid.id,{force:true});goTab("gen");setFld("Канал","5");
-  await viaApi("канал начинки",async()=>(await API.get("/devices/"+kid.id)).channel===5);
+  pick(kid.id,{force:true});goTab("gen");setFld("Имя","Выход из сценария");
+  await viaApi("имя начинки",async()=>(await API.get("/devices/"+kid.id)).name==="Выход из сценария");
+  ok(!document.querySelector('[data-df="Номер"]'),"номер начинки только для чтения");
   // Детектор: в карточке камеры — у выбранного детектора; новый остаётся выбранным после «Применить»
   pick(cam.id,{force:true});goTab("det");
   const d0=camDetectors(cam)[0];detSel=d0.id;gear();

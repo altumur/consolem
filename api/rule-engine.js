@@ -254,7 +254,7 @@
         out.push(p);
         x = p;
       }
-      if (x.onServer || SERVICES.has(x.type)) {
+      if (SERVICES.has(x.type)) {
         const s = srvById(x.serverId);
         if (s) out.push(Object.assign({ kind: "server" }, s));
       }

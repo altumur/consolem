@@ -169,6 +169,9 @@ def build(demo):
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
     caps["deviceTypes"] = list(DEVICE_TYPES)
+    caps["foundDeviceTypes"] = [t for t in caps["foundDeviceTypes"] if t in DEVICE_TYPES]
+    caps["unitTypes"] = [t for t in caps["unitTypes"] if t in DEVICE_TYPES]
+    caps["writableFields"] = {t: v for t, v in caps["writableFields"].items() if t in DEVICE_TYPES}
     caps["features"] = list(FEATURES)
     return fx
 

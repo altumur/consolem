@@ -493,7 +493,7 @@ def check_capabilities(rep, spec, fixtures):
         if "createDomain" not in ops and len(fx["domains"]) > 1:
             problems.append(f"{name}: доменов {len(fx['domains'])} без createDomain")
     demo = fixtures["demo"]["reference"]["capabilities"]
-    if demo != {"operations": product, "deviceTypes": types, "features": features}:
+    if {k: demo[k] for k in ("operations", "deviceTypes", "features")} != {"operations": product, "deviceTypes": types, "features": features} or set(demo.get("foundDeviceTypes", [])) - set(types):
         problems.append("demo: возможности — не весь контракт (соберите: tools/fixture_normalize.capabilities())")
     rep.check("Возможности в наборах: из контракта, demo — весь контракт, данные не противоречат объявленному", problems,
               "; ".join(f"{n}: операций {len(f['reference']['capabilities']['operations'])}" for n, f in fixtures.items()))

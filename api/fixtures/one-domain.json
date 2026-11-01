@@ -13053,10 +13053,6 @@
       "open",
       "closed"
      ]
-    },
-    {
-     "key": "pulse",
-     "default": 500
     }
    ],
    "sensor": [
@@ -13065,36 +13061,6 @@
      "options": [
       "open",
       "closed"
-     ]
-    },
-    {
-     "key": "debounce",
-     "default": 200
-    }
-   ],
-   "mic": [
-    {
-     "key": "gain",
-     "default": 0
-    },
-    {
-     "key": "acodec",
-     "options": [
-      "G.711",
-      "AAC"
-     ]
-    }
-   ],
-   "spk": [
-    {
-     "key": "vol",
-     "default": 70
-    },
-    {
-     "key": "acodec",
-     "options": [
-      "G.711",
-      "AAC"
      ]
     }
    ]
@@ -13876,7 +13842,10 @@
     "camera",
     "det"
    ],
-   "features": []
+   "features": [],
+   "foundDeviceTypes": [],
+   "unitTypes": [],
+   "writableFields": {}
   }
  }
 }

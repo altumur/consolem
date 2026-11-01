@@ -1953,7 +1953,7 @@ const SVIEW_SW={...SVIEW_SW_RU};
 const SVIEW_IC={cam:"camera",sys:"svcs"};
 const TF_CAM=[["ipsrv","IP-сервер"],["eventsrc","Источник событий"],["camera","Камера"],["mic","Микрофон"],["spk","Динамик"],["channel","Канал"],["sensor","Датчик"],["relay","Реле"],["ptz","PTZ"]];
 const TF_ACFA=[["acfa","ACFA-устройства"],["acfa_sensor","Датчики"],["acfa_lock","Замки"],["acfa_fence","Шлейфы"],["relay","Реле"]];
-const TF_SVC=[["email","Email-оповещатели"],["sms","SMS-оповещатели"],["export","Агенты экспорта"],["spk","Динамики сервера"]];
+const TF_SVC=[["email","Email-оповещатели"],["sms","SMS-оповещатели"],["export","Агенты экспорта"]];
 const TYPE_FILTERS={
   all:[...TF_CAM,...TF_SVC.filter(([t])=>t!=="spk")],
   cam:TF_CAM,acfa:TF_ACFA,srv:[],arch:[],det:[]
@@ -1967,7 +1967,7 @@ const WIZ={
   io:{view:"cam",label:"Ввод-вывод и аудио",types:[["ipsrv-io","I/O устройство","Датчики и реле без камер"],["ipsrv-sip","SIP / аудио","Микрофон и динамик"],["ipsrv-mic","Аудио-шлюз","Только микрофоны"],["sensor","Датчик","На камеру или канал"],["relay","Реле","На камеру или канал"],["mic","Микрофон","На камеру или канал"]]},
   integ:{view:"cam",label:"Интеграции",types:[["eventsrc","Источник событий","POS, кассы, титры"]]},
   acfa:{view:"acfa",label:"ACFA-устройства",types:[["acfa","ACFA-устройство","СКУД или пожарная защита"],["acfa_sensor","Датчик ACFA","Внутри ACFA-устройства"],["acfa_lock","Замок","Внутри ACFA-устройства"],["acfa_fence","Шлейф","Внутри ACFA-устройства"],["relay","Реле","Внутри замка или ACFA-устройства"]]},
-  svc:{view:"sys",label:"Службы",types:[["email","Email-оповещатель","Для правил автоматизации"],["sms","SMS-оповещатель","Для правил автоматизации"],["export","Агент экспорта","Экспорт по правилу"],["spk","Динамик сервера","Голосовые уведомления"]]}
+  svc:{view:"sys",label:"Службы",types:[["email","Email-оповещатель","Для правил автоматизации"],["sms","SMS-оповещатель","Для правил автоматизации"],["export","Агент экспорта","Экспорт по правилу"]]}
 };
 const DEVICE_MODELS={
   Axis:["generic","P3245-LV","M3067-P","A1001","Q1656"],
@@ -2131,7 +2131,27 @@ const API=(()=>{
 // Что умеет система — GET /reference → capabilities. Неподдержанное интерфейс
 // не показывает: пункты меню и кнопки — по can(), разметка с data-needs —
 // скрыта стилем (capsApply). needs: operationId, "type:<вид>", "feature:<код>".
-const CAPS={operations:new Set(),deviceTypes:new Set(),features:new Set()};
+const CAPS={operations:new Set(),deviceTypes:new Set(),features:new Set(),found:new Set(),units:new Set(),writable:{}};
+const ACS_TYPES=new Set(["acfa","acfa_sensor","acfa_lock","acfa_fence"]);
+// Может ли оператор завести вид. Вид из foundDeviceTypes находит сервер; единицу из unitTypes — только в СКУД
+function canAdd(type,inAcs){
+  const t=type.split("-")[0];
+  if(!can("type:"+t))return false;
+  return!CAPS.found.has(t)||(CAPS.units.has(t)&&!!inAcs);
+}
+// Правится ли поле записи: capabilities.writableFields; у выведенного ipsrv — ничего
+function canWrite(n,field){
+  if(!n||n.derived)return false;
+  const w=CAPS.writable[n.type];
+  return!w||w.includes(field);
+}
+function isUnitNode(n){return!!n&&CAPS.units.has(n.type)&&(!CAPS.found.has(n.type)||ACS_TYPES.has(find(n.id)?.p?.type))}
+// Находки сервера и выведенный ipsrv не удаляются; единицу СКУД заводит и снимает оператор
+function canDeleteNode(n){return!!n&&!n.derived&&(!CAPS.found.has(n.type)||isUnitNode(n))}
+// В папках — камеры, регистраторы с записью, источники, СКУД; не входы, не выходы, не единицы
+function canFolder(n){return!!n&&!n.derived&&!CAPS.found.has(n.type)&&!CAPS.units.has(n.type)}
+// Поле карточки: правится или только для чтения
+function devFld(n,l,k,v,tp){return canWrite(n,k)?fld(l,v,tp):fldRo(l,v)}
 function can(need){
   if(need.startsWith("type:"))return CAPS.deviceTypes.has(need.slice(5));
   if(need.startsWith("feature:"))return CAPS.features.has(need.slice(8));
@@ -2141,11 +2161,12 @@ async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
   autoRef(ref);
   CAPS.operations=new Set(c.operations);CAPS.deviceTypes=new Set(c.deviceTypes);CAPS.features=new Set(c.features);
+  CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
   capsApply();
 }
 function capsApply(){
   // Мастер добавления: только виды устройств системы («ipsrv-nvr» — вид ipsrv)
-  Object.keys(WIZ).forEach(k=>{WIZ[k].types=WIZ[k].types.filter(t=>can("type:"+t[0].split("-")[0]));if(!WIZ[k].types.length)delete WIZ[k]});
+  Object.keys(WIZ).forEach(k=>{WIZ[k].types=WIZ[k].types.filter(t=>canAdd(t[0],k==="acfa"));if(!WIZ[k].types.length)delete WIZ[k]});
   if(!can("listLicenses"))sysOpts.splice(0,sysOpts.length,...sysOpts.filter(o=>o.id!=="lic"));
   const spec=window.CONSOLEM_OPENAPI,needs=[];
   if(spec)Object.values(spec.paths).forEach(item=>Object.values(item).forEach(o=>{if(o&&o.operationId&&!can(o.operationId))needs.push(o.operationId)}));
@@ -2169,7 +2190,7 @@ const EMAIL_MODE_RU={axxonnet:"Облачный AxxonNet",smtp:"SMTP серве�
 const EMAIL_MODE_CODE={"AxxonNet":"axxonnet","Облачный AxxonNet":"axxonnet","SMTP сервер":"smtp"};
 // Поле API → свойство объекта кэша
 const DEV_KEY={serverId:"srvId",archiveId:"arch",recordMode:"rec",recordDetectorIds:"recDets",fault:"err",disabledByRuleId:"ruleOff",
-  videoChannel:"vch",channel:"ch",onServer:"server",cameraId:"camera",login:"user",preRecordSec:"pre"};
+  videoChannel:"vch",channel:"ch",cameraId:"camera",login:"user",preRecordSec:"pre"};
 const DEV_API=Object.fromEntries(Object.entries(DEV_KEY).map(([k,v])=>[v,k]));
 // Поля, у которых в объекте нет своего свойства: карточка хранит их в n._f по подписи поля
 const DEV_FLD={rtspUrl:"RTSP",codec:"Кодек",res:"Разрешение",fps:"к/с",bitrate:"Битрейт",overlayDelayMs:"Задержка, мс",overlayDurationSec:"Длительность, с"};
@@ -2187,7 +2208,7 @@ function devNode(r){
     if(DEV_SKIP.has(k))return;
     if(k in DEV_FLD){(n._f||(n._f={}))[DEV_FLD[k]]=String(v);return}
     // Служба лежит в списке своего сервера, а не ссылается на него
-    if(k==="serverId"&&(SVC_TYPES.has(r.type)||r.onServer))return;
+    if(k==="serverId"&&SVC_TYPES.has(r.type))return;
     if(k==="enabled"){if(v===false)n.enabled=false;return}
     if(k==="detectorKind")n.kind=DET_KIND_RU[v]||v;
     else if(k==="sensitivity")n.sens=String(v);
@@ -2248,7 +2269,7 @@ function hwFill(L){
   L.devices.forEach(r=>{
     ver(r);const n=devNode(r);byId.set(r.id,n);
     if(r.parentId){const p=byId.get(r.parentId);(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(r.type)||r.onServer)byId.get(r.serverId).devices.push(n);
+    else if(SVC_TYPES.has(r.type))byId.get(r.serverId).devices.push(n);
     else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
   });
   L.folders.forEach(r=>{ver(r);const f=folderNode(r);byId.set(r.id,f);(r.parentId?byId.get(r.parentId).folders:folders).push(f)});
@@ -2315,8 +2336,17 @@ function hwFresh(n,fresh,keep){
   });
 }
 const KEEP_DEVICE=new Set(["devices","_f"]),KEEP_SERVER=new Set(["devices"]),KEEP_ARCH=new Set(["vols"]),KEEP_NONE=new Set();
+// Запись сменила родителя: устройство назвало каналы — появился ipsrv, запись регистратора сняли — камера без родителя
+function hwReparent(n,parentId,domainId){
+  const f=find(n.id),list=f?.p?f.p.devices:devicePool;
+  const i=list?list.indexOf(n):-1;if(i>=0)list.splice(i,1);
+  if(parentId){const p=find(parentId)?.n;if(!p)return hwReloadSoon();(p.devices||(p.devices=[])).push(n);delete DEVICE_DOMAIN[n.id]}
+  else{devicePool.push(n);DEVICE_DOMAIN[n.id]=domainId}
+  remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
+}
 function hwApplyDevice(r){
-  const n=find(r.id)?.n;if(!n)return;
+  const was=find(r.id),n=was?.n;if(!n)return;
+  if((was.p?.id||null)!==(r.parentId||null)&&!SVC_TYPES.has(r.type))hwReparent(n,r.parentId,r.domainId);
   const fresh=devNode(r);
   hwFresh(n,fresh,KEEP_DEVICE);
   Object.values(DEV_FLD).forEach(l=>{if(fresh._f&&l in fresh._f)(n._f||(n._f={}))[l]=fresh._f[l];else if(n._f)delete n._f[l]});
@@ -2345,7 +2375,7 @@ function hwAddDevices(list,flds){
     hwVer.set(r.id,r.version);
     const n=devNode(r);
     if(r.parentId){const p=find(r.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(r.type)||r.onServer)servers.find(s=>s.id===r.serverId)?.devices.push(n);
+    else if(SVC_TYPES.has(r.type))servers.find(s=>s.id===r.serverId)?.devices.push(n);
     else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
   });
   (flds||[]).forEach(hwApplyFolder);
@@ -2366,6 +2396,7 @@ function hwRemoveFolder(id){
 // Удалённое устройство (ответ сервера): из дерева, папок и записи по детекторам
 function hwRemoveDevice(id){
   const f=find(id);if(!f)return;
+  if(f.n.type==="ipsrv")ipsrvCameras(f.n).forEach(c=>hwReparent(c,null,nodeDomainId(f.n)));
   const gone=new Set();walk(n=>gone.add(n.id),[f.n],null);gone.add(id);
   const list=f.p?f.p.devices:devicePool.includes(f.n)?devicePool:servers.find(s=>s.devices.includes(f.n))?.devices;
   if(list){const i=list.indexOf(f.n);if(i>=0)list.splice(i,1)}
@@ -2384,7 +2415,7 @@ function nodeCreate(n){
   });
   Object.entries(n._f||{}).forEach(([l,v])=>{const k=DEV_FLD_API[l];if(k&&v!=="")out[k]=apiVal(k,v)});
   if(n.enabled!==false)delete out.enabled;
-  const kids=(n.devices||[]).map(nodeCreate);if(kids.length)out.children=kids;
+  const kids=(n.devices||[]).filter(d=>canAdd(d.type,ACS_TYPES.has(n.type))).map(nodeCreate);if(kids.length)out.children=kids;
   return out;
 }
 // Добавить устройства одним запросом: строки — { node, domainId, parentId, folderId, candidateId }
@@ -2955,10 +2986,11 @@ async function appLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]);
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={};
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
+  refParams=ref.deviceParams||{};
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
   (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
   (ref.monitors||[]).forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
@@ -3683,8 +3715,8 @@ const CARD_PROP={enabled:"Включено",rec:"Режим записи",arch:"
   codec:"Кодек",res:"Разрешение",fps:"к/с",bitrate:"Битрейт",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
 // Поле карточки → свойство объекта, куда его запишет «Применить».
 const CARD_FLD_PROP={"Имя":"name","Короткое имя":"short","IP":"ip","Порт":"port","Производитель":"vendor","Модель":"model",
-  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","Номер канала":"ch","Роль":"role",
-  "Канал":"ch","Папка":"path","Формат":"format","Режим":"mode","SMTP сервер":"smtp","От кого":"from","Получатели":"to","Шлюз / API":"gateway"};
+  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Номер канала":"ch","Роль":"role",
+  "Канал":"ch","Номер":"ch","Папка":"path","Формат":"format","Режим":"mode","SMTP сервер":"smtp","От кого":"from","Получатели":"to","Шлюз / API":"gateway"};
 function cardFmt(k,v){
   if(k==="enabled")return v===false?i18n("выкл"):i18n("вкл");
   if(v===undefined||v===null||v==="")return"—";
@@ -3893,7 +3925,7 @@ function addContext(){
   }
   return{node:n,domain,server,parent,view:tview};
 }
-function isSvc(n){return SYS.has(n.type)||!!n.server}
+function isSvc(n){return SYS.has(n.type)}
 function treeKind(n){
   if(n.type==="det"||n.type==="domain"||n.type==="unalloc"||n.type==="folder")return null;
   if(n.type==="archive"||n.type==="vol"||n.type==="norec"||n.type==="nofolder"||n.type==="gpu")return null;
@@ -3904,9 +3936,6 @@ function treeKind(n){
 }
 function matchesType(n){
   if(!typeFilts.size)return true;
-  if(n.type==="spk"){
-    if(slice==="cam")return typeFilts.has("spk")&&!n.server;
-  }
   return typeFilts.has(n.type);
 }
 function isSignalOnly(n){
@@ -3990,12 +4019,12 @@ function statusMarkHtml(n){
   return dot?`<span class="n-tail">${dot}</span>`:"";
 }
 function enabledToggleHtml(n){
-  if(!canToggleEnabled(n))return"";
+  if(!canToggleEnabled(n)||!canWrite(n,"enabled"))return"";
   const on=n.enabled!==false;
   return`<div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${on?i18n("Выключить"):i18n("Включить")}" ${onEv("click",["toggleNodeEnabled",`${n.id}`,onEv.el])}></div></div>`;
 }
 function toggleNodeEnabled(id,el){
-  const f=find(id);if(!f||!canToggleEnabled(f.n)||!el)return;
+  const f=find(id);if(!f||!canToggleEnabled(f.n)||!canWrite(f.n,"enabled")||!el)return;
   const on=el.classList.toggle("on");
   el.setAttribute("aria-checked",on?"true":"false");
   f.n.enabled=on;
@@ -5032,9 +5061,6 @@ function typeCount(t){
   const q=qval();let n=0;
   walkAll(node=>{
     if(node.type!==t||!matchesDomain(node)||!inSlice(node)||!matchesStatus(node))return;
-    if(t==="spk"){
-      if(slice==="cam"&&node.server)return;
-    }
     if(q&&!matchesSearch(node,q))return;
     n++;
   });
@@ -5934,7 +5960,8 @@ function canTreeCtxAdd(n){
 function canTreeCtxDelete(n){
   if(!n)return false;
   if(n.type==="archive"||n.type==="vol")return false;   // у хранилища и тома своё удаление
-  if(n.type==="ipsrv"||n.type==="camera"||n.type==="acfa")return true;
+  if(!canDeleteNode(n))return false;
+  if(n.type==="ipsrv"||n.type==="camera"||n.type==="acfa"||isUnitNode(n))return true;
   return isSvc(n);
 }
 // Папка хранит ссылки: очистка папки не удаляет сами объекты
@@ -7870,6 +7897,7 @@ function removeDeviceFromFolder(fid,id){
 // Выбор папки в списке: добавить и сбросить список к подсказке
 function addDeviceToFolderPick(el,id){addDeviceToFolder(el.value,id);el.value=""}
 function deviceFoldersCardHtml(n){
+  if(!canFolder(n))return"";
   const sv=srv(n.id);
   return listCard({
     key:"devfld:"+n.id,
@@ -8282,7 +8310,7 @@ function formBase(n){
         unit:"служба|службы|служб",
         head:`<button class="btn s btn-icon" aria-label="${i18n("Добавить службу")}" title="${i18n("Добавить службу")}" ${onEv("click",["openW","svc"])}>${lu("plus")}</button>`
       })+
-      `<p class="sub">Email, SMS, агент экспорта и динамик. В дереве — вкладка «Службы».</p>`;
+      `<p class="sub">Email, SMS и агент экспорта. В дереве — вкладка «Службы».</p>`;
     const svc=(n.devices||[]).filter(d=>isSvc(d)).length;
     const recCams=serverCameras(n.id).filter(isRecording);
     return card("Общие",`${bdg(n)}${n.online===false?` <span class="sub">${i18n("нет связи")}</span>`:` <span class="sub">${i18n("ведёт запись и службы")}</span>`}
@@ -8302,14 +8330,14 @@ function formBase(n){
       (n.subtype==="nvr"?`<p class="sub">NVR отображается как IP-сервер с камерами и каналами. Под каналом — датчики и реле.</p>`:
       n.subtype==="io"?`<p class="sub">I/O-устройство без камер: датчики и реле под каналом.</p>`:
       n.subtype==="sip"||n.subtype==="mic"?`<p class="sub">Аудио-устройство: микрофоны и/или динамики без видеоканалов.</p>`:"");
-    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fldRo("ID",deviceIdentifierValue(n)||"—")}${fld("IP",n.ip)}${fld("Порт",n.port||80,"number")}
-      ${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${sl("Тип",[IPSUB[n.subtype]||"IP-сервер"])}</div>
-      <div class="g" style="margin-top:10px">${fld("Широта",n.lat??"")}${fld("Долгота",n.lon??"")}${fld("Азимут",n.azimuth??"","number")}</div>
+    return card("Подключение",`${bdg(n)}${n.derived?`<p class="sub">${i18n("Регистратор выведен из устройства, своей записи у него нет: имя, адрес и состав задаёт устройство, удалить его нельзя.")}</p>`:""}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("ID",deviceIdentifierValue(n)||"—")}${devFld(n,"IP","ip",n.ip)}${devFld(n,"Порт","port",n.port||80,"number")}
+      ${devFld(n,"Производитель","vendor",n.vendor)}${devFld(n,"Модель","model",n.model)}${devFld(n,"MAC","mac",n.mac||"")}${fldRo("Тип",IPSUB[n.subtype]||"IP-сервер")}</div>
+      <div class="g" style="margin-top:10px">${devFld(n,"Широта","lat",n.lat??"")}${devFld(n,"Долгота","lon",n.lon??"")}${devFld(n,"Азимут","azimuth",n.azimuth??"","number")}</div>
       <div class="ln"><div>Отправлять настройки устройству</div><div class="sw on" ${onEv("click",["swToggle",onEv.el])}></div></div>`)
       +deviceFoldersCardHtml(n)+card("Дерево объектов",ipsrvObjTreeHtml(n),`<button class="btn s btn-icon" aria-label="${i18n("Добавить")}" title="${i18n("Добавить")}" ${onEv("click",["openW"])}>${lu("plus")}</button>`)}
   if(n.type==="channel"){
     if(tab==="kids")return childListCard(n,{key:"io",title:"Датчики и реле",filter:d=>d.type==="sensor"||d.type==="relay",empty:"Нет датчиков и реле"});
-    return card("Канал",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Номер канала",n.ch??0,"number")}</div>`)+childListCard(n)}
+    return card("Канал",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("Номер канала",n.ch??"—")}</div>`)+childListCard(n)}
   if(n.type==="eventsrc"){
     if(tab==="overlay")return card("Область титров",`${sl("Камера",["— не выбрана —","Главный вход","Парковка"],n.camera?"Главный вход":"— не выбрана —")}
       <div class="vid"><span class="sub">Предпросмотр области текста на видео</span></div>
@@ -8373,13 +8401,13 @@ function formBase(n){
     return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}</div>`)+childListCard(n,{title:"Дочерние"});
   if(n.type==="storage"){
     const owner=find(n.id)?.p;
-    return card("Встроенное хранилище",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${fldRo("Объём",n.size||"—")}</div>
+    return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${fldRo("Объём",n.size||"—")}</div>
       <p class="sub">${i18n("Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера — режим «Репликация встроенного архива» на вкладке «Архив» камеры.")}</p>`)+
       (owner&&owner.type==="camera"?card("Камера",`<div class="it" ${onEv("click",["pick",`${owner.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(owner))}<small>${i18n(recordModeLabel(owner.rec))}</small></span></div>`):"");
   }
   if(n.type==="spk")
-    return card("Динамик",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Канал",n.ch??"","number")}</div>${devParamsHtml(n)}`);
-  return card("Устройство",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${sl("Тип",[LB[n.type]||n.type])}${fld("Канал",n.ch??"","number")}</div>${devParamsHtml(n)}`)}
+    return card("Динамик",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Номер","channel",n.ch??"—")}</div>${devParamsHtml(n)}`);
+  return card("Устройство",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("Тип",i18n(LB[n.type]||n.type))}${devFld(n,"Номер","channel",n.ch??"—")}</div>${devParamsHtml(n)}`)}
 
 // ── Автоматизация ──────────────────────────────────────────────
 // Каталог — это граница, а не удобство. Форма строится из него, поэтому
@@ -15783,13 +15811,9 @@ function edgeStorageCardHtml(owner){
       <div class="mc"><span>${i18n("Состояние")}</span><b>${state}</b></div>
       <div class="mc"><span>${i18n("Репликация")}</span><b>${rep?i18n("идёт"):i18n("не настроена")}</b></div>
     </div>
-    ${enabledToggleHtml(e)}
     <p class="sub">${i18n(nvr?"Диск внутри регистратора. Записи с него забирает сервер в режиме «Репликация встроенного архива» — сразу для всех камер регистратора."
       :"Карта памяти внутри камеры. Записи с неё забирает сервер в режиме «Репликация встроенного архива», а после обрыва связи — восполняет пропуски в архиве.")}</p>
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">
-      <button class="btn s" ${onEv("click",["toast",i18n("Выгрузка записей поставлена в очередь")])}>${i18n("Выгрузить записи за период…")}</button>
-      <button class="btn s" ${onEv("click",["toast",i18n("Форматирование — после подтверждения на устройстве")])}>${i18n("Форматировать")}</button>
-    </div>`);
+`);
 }
 function camRecSelectHtml(n){
   const has=!!recEdge(n),cur=n.rec||"none";
@@ -16268,7 +16292,7 @@ function inferCsvDeviceKind(row){
   return{type:"camera",subtype:null};
 }
 function cloneIpsrvChildDevices(source,parentId,shortPrefix){
-  return(source||[]).map((d,i)=>{
+  return(source||[]).filter(d=>canAdd(d.type)).map((d,i)=>{
     const id=parentId+"c"+i+Math.floor(Math.random()*1000);
     if(d.type==="camera"){
       const short=shortPrefix?(shortPrefix+(String(shortPrefix).endsWith(".")?"":".")+(d.short?.split(".").pop()||i+1)):d.short??"";
@@ -16757,7 +16781,7 @@ function deviceManualHtml(){
     <div class="dev-grid">
       <div class="full"><label>Тип устройства</label><select ${onEv("change",["changeManualType",onEv.value])}>
         <option value="camera" ${m.type==="camera"?"selected":""}>IP-устройство</option>
-        ${can("type:storage")?`<option value="storage" ${m.type==="storage"?"selected":""}>IP-устройство с хранилищем</option>`:""}
+        ${canAdd("storage")?`<option value="storage" ${m.type==="storage"?"selected":""}>IP-устройство с хранилищем</option>`:""}
         ${can("type:eventsrc")?`<option value="eventsrc" ${m.type==="eventsrc"?"selected":""}>Источник событий</option>`:""}
         ${can("type:acfa")?`<option value="acfa" ${m.type==="acfa"?"selected":""}>Устройство ACFA</option>`:""}
       </select></div>
@@ -17271,7 +17295,6 @@ function wnx(){
   const ch=(document.getElementById("wizChannel")||{}).value;if(ch!=="undefined"&&ch!=null&&ch!=="")node.ch=+ch;
   if(rawType==="export")node.path=(document.getElementById("wizPath")||{}).value||"D:\\Export";
   if(rawType==="email")node.smtp=(document.getElementById("wizSmtp")||{}).value||"";
-  if(rawType==="spk")node.server=true;
   const parent=wizd.parentId?find(wizd.parentId)?.n:s;
   // Служба — сервера, объект — под родителем или в папке; домен — их
   if(svcFlow&&!wizd.parentId)node.srvId=s.id;
@@ -18044,7 +18067,7 @@ function bulkSoloHtml(solo,only){
   const why=`<ul class="bk-miss">${kinds.map(([k,c])=>`<li><b>${escHtml(kindLabel(k))}</b> (${c}) — ${i18n(BULK_SOLO_WHY[k]||"настраиваются по одному")}</li>`).join("")}</ul>`;
   const cams=bulkSoloCams(solo),arcOnly=solo.every(n=>n.type==="archive");
   const srvs=solo.filter(n=>n.type==="server"&&!isUnallocated(n.id)&&domainOf(n.id));
-  const ren=solo.filter(bulkCanRename),del=solo.filter(n=>n.type!=="server"&&n.type!=="domain");
+  const ren=solo.filter(bulkCanRename),del=solo.filter(n=>n.type!=="server"&&n.type!=="domain"&&canDeleteNode(n));
   const un=bulkUnallocServers(solo);
   const btns=[cams.length?`<button type="button" class="btn s" title="${i18n("Выборка заменится этими камерами — с «Отменить»")}" ${onEv("click",["bulkMarkSoloCams"])}>${i18n(arcOnly?"Отметить камеры, что пишут сюда":"Отметить их камеры")} (${cams.length})</button>`:"",
     ren.length?`<button type="button" class="btn s" ${onEv("click",["bulkRenameDialog"])}>${i18n("Переименовать по шаблону…")}${ren.length<solo.length?` (${ren.length})`:""}</button>`:"",
@@ -18593,6 +18616,8 @@ function opsToItems(ops){
         const one=isApiDevice(n)?keyToApi(n,k,n[k]):hwKeyToApi(n,k,n[k]);if(!one)return null;
         Object.assign(set,one);
       }
+      // Что у записи не правится, в операцию не идёт: выборка смешанная, запись остаётся как есть
+      if(isApiDevice(n))Object.keys(set).forEach(k=>{if(!canWrite(n,k))delete set[k]});
       const was=new Set((before.devices||[]).map(x=>x.id)),made=(n.devices||[]).filter(x=>!was.has(x.id));
       const fNow=cardFolders(n.id),moved=JSON.stringify(fNow)!==JSON.stringify(fBefore);
       const kinds=[Object.keys(set).length>0,made.length>0,moved].filter(Boolean).length;
@@ -18990,8 +19015,8 @@ function deleteSelected(only){
   const src=Array.isArray(only)?only:[...treeSel];
   const all=src.filter(id=>{const f=find(id);return f&&canMultiPick(f.n)});
   const skipped=all.map(id=>find(id).n).filter(n=>DEL_SOLO.has(n.type));
-  const ids=all.filter(id=>!DEL_SOLO.has(find(id).n.type));
-  if(!ids.length){toast(skipped.length?"Серверы исключают из домена, домены удаляют по одному из их меню":"Нечего удалять");return}
+  const ids=all.filter(id=>{const n=find(id).n;return!DEL_SOLO.has(n.type)&&canDeleteNode(n)});
+  if(!ids.length){toast(skipped.length?"Серверы исключают из домена, домены удаляют по одному из их меню":all.length?"Эти записи ведёт сервер, они не удаляются":"Нечего удалять");return}
   const idSet=new Set(ids);
   const roots=ids.filter(id=>{const n=find(id).n;if(n.type==="vol"&&idSet.has(n.archId))return false;return!path(id).slice(0,-1).some(x=>idSet.has(x.id))}).filter(id=>!pendingDelHas(id));
   if(!roots.length){toast("Выбранное уже в очереди на удаление");return}
@@ -19000,13 +19025,14 @@ function deleteSelected(only){
 function confirmDeleteNodes(roots,back,skipped){
   const nodes=roots.map(id=>find(id).n);
   const used=ruleUsersOf(nodes);
-  const cams=[];nodes.forEach(n=>walk(x=>{if(x.type==="camera")cams.push(x)},[n]));
+  // Запись регистратора снимается, его камеры остаются и теряют только родителя
+  const cams=[];nodes.filter(n=>n.type!=="ipsrv").forEach(n=>walk(x=>{if(x.type==="camera")cams.push(x)},[n]));
   const rec=cams.filter(isRecording).length,dets=cams.reduce((s,c)=>s+camDetectors(c).length,0);
   const nvr=nodes.filter(n=>n.type==="ipsrv").length;
   const fold=new Set();nodes.filter(n=>!bulkSolo(n)).forEach(n=>foldersOfDevice(n.id).forEach(f=>fold.add(f.id)));
   const count=roots.length,one=count===1?nodes[0]:null;
-  const lines=[one?`${escHtml(i18n(LB[one.type]||"Объект"))} «${escHtml(locName(one))}»${one.type==="ipsrv"&&ipsrvCameras(one).length?` — ${i18n("вместе с его камерами")}`:""}`
-    :`${count} ${i18n(plural(count,"объект|объекта|объектов"))}${nvr?` (${i18n("регистраторов")}: ${nvr} — ${i18n("вместе с их камерами")})`:""}`];
+  const lines=[one?`${escHtml(i18n(LB[one.type]||"Объект"))} «${escHtml(locName(one))}»${one.type==="ipsrv"&&ipsrvCameras(one).length?` — ${i18n("его камеры останутся без родителя")}`:""}`
+    :`${count} ${i18n(plural(count,"объект|объекта|объектов"))}${nvr?` (${i18n("регистраторов")}: ${nvr} — ${i18n("их камеры останутся без родителя")})`:""}`];
   if(cams.length)lines.push(`${i18n("камер")}: ${cams.length}, ${i18n("из них пишут в архив")}: ${rec} — ${i18n("запись остановится, архив останется")}`);
   if(dets)lines.push(`${i18n("детекторов")}: ${dets} — ${i18n("удалятся вместе с правилами")}`);
   if(used.length)lines.push(`${i18n("правил автоматизации перестанут работать")}: ${used.length} (${used.slice(0,3).map(r=>`«${escHtml(r.name)}»`).join(", ")}${used.length>3?`, ${i18n("и ещё")} ${used.length-3}`:""}) — ${i18n("в них удалённое устройство или область отметятся как удалённые")}`);
@@ -19116,17 +19142,13 @@ function bulkCopyBtn(n){
   const tip=n.type==="camera"?"Скопировать настройки этой камеры на другие":"Скопировать настройки на другие устройства того же типа";
   return`<button type="button" class="btn s" title="${i18n(tip)}" ${onEv("click",["openCopyDialog",`${n.id}`])}>${i18n("Применить к другим")}…</button>`;
 }
-// Параметры устройств без своей карточки: их и показывает форма, и копирует окно.
-const DEV_PARAMS={
-  relay:[["norm","Нормальное состояние",["Разомкнуто","Замкнуто"]],["pulse","Импульс, мс",500]],
-  sensor:[["norm","Нормальное состояние",["Разомкнуто","Замкнуто"]],["debounce","Задержка срабатывания, мс",200]],
-  mic:[["gain","Усиление, дБ",0],["acodec","Аудиокодек",["G.711","AAC"]]],
-  spk:[["vol","Громкость, %",70],["acodec","Аудиокодек",["G.711","AAC"]]]
-};
-function devParamDef(n,k){return(DEV_PARAMS[n?.type]||[]).find(x=>x[0]===k)||null}
+// Параметры устройств без своей карточки — что отдал reference.deviceParams: их и показывает форма, и копирует окно.
+const DEV_PARAM_LB={norm:"Нормальное состояние"};
+function devParams(t){return(refParams[t]||[]).filter(p=>DEV_PARAM_LB[p.key]).map(p=>[p.key,DEV_PARAM_LB[p.key],p.options?p.options.map(o=>p.key==="norm"?NORM_RU[o]||o:o):p.default])}
+function devParamDef(n,k){return devParams(n?.type).find(x=>x[0]===k)||null}
 // Значения пишутся в объект сразу: «Применить к другим» копирует то, что видно.
 function devParamsHtml(n){
-  const ps=DEV_PARAMS[n.type];if(!ps)return"";
+  const ps=devParams(n.type).filter(p=>canWrite(n,p[0]));if(!ps.length)return"";
   return`<div class="g" style="margin-top:10px">${ps.map(([k,l,d])=>`<div><label>${i18n(l)}</label>${Array.isArray(d)
     ?`<select ${onEv("change",["devParamSet",`${n.id}`,`${k}`,onEv.value])}>${d.map(x=>`<option value="${escHtml(x)}" ${x===cpVal(n,k)?"selected":""}>${i18n(x)}</option>`).join("")}</select>`
     :`<input type="number" value="${escHtml(cpVal(n,k))}" ${onEv("input",["devParamSet",`${n.id}`,`${k}`,onEv.value])}>`}</div>`).join("")}</div>`;
@@ -19140,10 +19162,8 @@ const CP_FIELDS={
   email:[{key:"smtp",label:"SMTP",fields:["mode","smtp","port","ssl"]},{key:"rcpt",label:"Получатели",fields:["from","to"]}],
   sms:[{key:"gw",label:"Шлюз",fields:["gateway"]}],
   export:[{key:"exp",label:"Папка и формат",fields:["path","format"]}],
-  relay:[{key:"params",label:"Параметры реле",fields:["norm","pulse"]}],
-  sensor:[{key:"params",label:"Параметры датчика",fields:["norm","debounce"]}],
-  mic:[{key:"params",label:"Параметры микрофона",fields:["gain","acodec"]}],
-  spk:[{key:"params",label:"Параметры динамика",fields:["vol","acodec"]}]
+  relay:[{key:"params",label:"Параметры реле",fields:["norm"]}],
+  sensor:[{key:"params",label:"Параметры датчика",fields:["norm"]}]
 };
 const CP_DEFAULT={mode:"SMTP сервер",port:25,ssl:false,from:"noreply@vms.local",to:"admin@company.ru",format:"MP4"};
 function cpVal(n,k){

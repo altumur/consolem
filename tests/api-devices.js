@@ -39,8 +39,8 @@
   test("Добавить: дочерний объект под камерой и служба сервера; повтор с тем же ключом — второй раз не создаёт", async () => {
     const env = await makeEnv();
     const s = FX.servers.find((x) => x.allocated && x.online);
-    // Дочерний — датчик или, если датчиков в системе нет, детектор; служба — если есть email-оповещатели
-    const child = ApiTest.can("type:sensor") ? { type: "sensor", name: "Датчик двери", channel: 3 } : { type: "det", name: "Детектор — тест", detectorKind: "motion" };
+    // Дочерний — детектор: датчики находит сервер; служба — если есть email-оповещатели
+    const child = { type: "det", name: "Детектор — тест", detectorKind: "motion" };
     const rows = [{ device: child, domainId: cam.domainId, parentId: cam.id, folderId: null }];
     if (ApiTest.can("type:email")) rows.push({ device: { type: "email", name: "Email — тест", serverId: s.id, smtp: "smtp.local" }, domainId: s.domainId, parentId: null, folderId: null });
     const body = create(rows);
@@ -133,6 +133,90 @@
     assert.eq(stopped.state, "stopped", "остановлен");
     assert.status(await env.call("DELETE", "/domains/10009999-0000-4000-8000-000000000000/discovery"), 404, "NOT_FOUND");
   }, { needs: ["startDiscovery", "getDiscovery", "stopDiscovery"] });
+
+  /* ===== Виды, которые находит сервер ===== */
+
+  const typed = (type, name, fn) => test(name, fn, { needs: [`type:${type}`] });
+  const anyOf = async (env, type, more) => (await env.list("/devices")).find((d) => d.type === type && (!more || more(d)));
+
+  typed("sensor", "Находки сервера: не создаются и не удаляются, 422 NOT_SUPPORTED, field: type", async () => {
+    const env = await makeEnv();
+    const parent = await anyOf(env, "camera");
+    const res = await env.ok("POST", "/devices", create([{ device: { type: "sensor", name: "Датчик", channel: 3 }, domainId: parent.domainId, parentId: parent.id, folderId: null }]));
+    assert.eq([res.done.length, res.failed[0].code, res.failed[0].field], [0, "NOT_SUPPORTED", "type"], "строкой в failed");
+    const nested = await env.ok("POST", "/devices", create([{ device: newCam({ children: [{ type: "mic", name: "Микрофон" }] }), domainId: cam.domainId, parentId: null, folderId: null }]));
+    assert.eq(nested.failed[0].code, "NOT_SUPPORTED", "и в children");
+    const step = await env.call("POST", "/operations", { idempotencyKey: key(), items: [{ targetId: parent.id, create: { type: "relay", name: "Реле" } }], expectedVersions: { [parent.id]: parent.version } });
+    assert.status(step, 422, "NOT_SUPPORTED", "шаг create — до выполнения");
+    const s = await anyOf(env, "sensor");
+    const del = await env.call("DELETE", `/devices/${s.id}`, undefined, { "If-Match": `"${s.version}"` });
+    assert.status(del, 422, "NOT_SUPPORTED", "DELETE");
+    assert.eq(del.body.field, "type", "field");
+    const bulk = await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: [{ id: s.id, version: s.version }] });
+    assert.eq(bulk.failed[0].code, "NOT_SUPPORTED", "пакетом");
+  });
+
+  typed("sensor", "Находки сервера: правятся только поля из writableFields, у вида без полей — field: type", async () => {
+    const env = await makeEnv();
+    const s = await anyOf(env, "sensor");
+    const h = { "If-Match": `"${s.version}"` };
+    const bad = await env.call("PATCH", `/devices/${s.id}`, { channel: 9 }, h);
+    assert.status(bad, 422, "NOT_SUPPORTED", "номер не правится");
+    assert.eq(bad.body.field, "channel", "поле названо");
+    const ok = await env.ok("PATCH", `/devices/${s.id}`, { name: "Ворота", enabled: false, norm: "closed" }, h);
+    assert.eq([ok.name, ok.enabled, ok.norm], ["Ворота", false, "closed"], "имя, включение, norm");
+    const ch = await anyOf(env, "channel");
+    const none = await env.call("PATCH", `/devices/${ch.id}`, { name: "x" }, { "If-Match": `"${ch.version}"` });
+    assert.status(none, 422, "NOT_SUPPORTED", "у канала ничего");
+    assert.eq(none.body.field, "type", "field: type");
+    const st = await anyOf(env, "storage");
+    assert.status(await env.call("PATCH", `/devices/${st.id}`, { enabled: false }, { "If-Match": `"${st.version}"` }), 422, "NOT_SUPPORTED", "у хранилища ничего");
+  });
+
+  typed("sensor", "Справочник: deviceParams не предлагает pulse, debounce, gain, vol, acodec", async () => {
+    const env = await makeEnv();
+    const p = (await env.ok("GET", "/reference")).deviceParams;
+    assert.eq([p.sensor.map((x) => x.key), p.relay.map((x) => x.key), p.mic, p.spk], [["norm"], ["norm"], undefined, undefined], "только norm");
+  });
+
+  typed("ipsrv", "ipsrv: с записью устройства создаётся, правится своими полями, DELETE оставляет камеры без родителя", async () => {
+    const env = await makeEnv();
+    const nvr = await anyOf(env, "ipsrv", (d) => !d.derived && d.subtype === "nvr");
+    const cams = (await env.list("/devices")).filter((d) => d.parentId === nvr.id && d.type === "camera");
+    assert.ok(cams.length > 0, "у регистратора есть камеры");
+    const bad = await env.call("PATCH", `/devices/${nvr.id}`, { ip: "10.0.0.1" }, { "If-Match": `"${nvr.version}"` });
+    assert.status(bad, 422, "NOT_SUPPORTED", "адрес не правится");
+    const same = await env.ok("PATCH", `/devices/${nvr.id}`, { lat: 55.1, mac: "00:11:22:33:44:66" }, { "If-Match": `"${nvr.version}"` });
+    assert.eq([same.lat, same.mac], [55.1, "00:11:22:33:44:66"], "координаты и mac");
+    assert.status(await env.call("DELETE", `/devices/${nvr.id}`, undefined, { "If-Match": `"${same.version}"` }), 204);
+    const after = await env.ok("GET", `/devices/${cams[0].id}`);
+    assert.eq(after.parentId, null, "камера осталась без родителя");
+    assert.status(await env.call("GET", `/devices/${nvr.id}`), 404, "NOT_FOUND", "записи нет");
+    const made = await env.ok("POST", "/devices", create([{ device: { type: "ipsrv", subtype: "io", name: "Блок входов", ip: "10.0.0.2", port: 80 }, domainId: nvr.domainId, parentId: null, folderId: null }]));
+    assert.eq(made.done[0].devices[0].type, "ipsrv", "создаётся");
+  });
+
+  typed("ipsrv", "ipsrv без записи: PATCH, DELETE, folderIds — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv();
+    const nvr = await anyOf(env, "ipsrv", (d) => d.derived);
+    const h = { "If-Match": `"${nvr.version}"` };
+    assert.status(await env.call("PATCH", `/devices/${nvr.id}`, { name: "x" }, h), 422, "NOT_SUPPORTED", "PATCH");
+    assert.status(await env.call("DELETE", `/devices/${nvr.id}`, undefined, h), 422, "NOT_SUPPORTED", "DELETE");
+    const step = await env.call("POST", "/operations", { idempotencyKey: key(), items: [{ targetId: nvr.id, folderIds: [] }], expectedVersions: { [nvr.id]: nvr.version } });
+    assert.status(step, 422, "NOT_SUPPORTED", "folderIds");
+  });
+
+  typed("ipsrv", "Записи появляются и пропадают сами, у камеры меняется родитель", async () => {
+    const env = await makeEnv();
+    const c = await anyOf(env, "camera", (d) => !d.parentId);
+    const res = await env.ok("POST", "/test/events", { type: "device.found", deviceId: c.id, found: { type: "sensor", name: "Вход 7", channel: 7 } });
+    assert.eq((await env.ok("GET", `/devices/${res.deviceId}`)).channel, 7, "запись появилась, номер с пропуском");
+    await env.ok("POST", "/test/events", { type: "device.lost", deviceId: res.deviceId });
+    assert.status(await env.call("GET", `/devices/${res.deviceId}`), 404, "NOT_FOUND", "пропала");
+    const nvr = await anyOf(env, "ipsrv");
+    await env.ok("POST", "/test/events", { type: "device.parent", deviceId: c.id, parentId: nvr.id });
+    assert.eq((await env.ok("GET", `/devices/${c.id}`)).parentId, nvr.id, "родитель сменился");
+  });
 
   ApiTest.loaded("api-devices.js");
 })();

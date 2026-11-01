@@ -199,6 +199,33 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Виды устройств: что находит сервер, что заводит оператор ----- */
+
+    const found = (type) => (caps().foundDeviceTypes || []).includes(type);
+    const unitType = (type) => (caps().unitTypes || []).includes(type);
+    const ACS = new Set(["acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]);
+    // Единица СКУД: вид acfa_* или вид-единица под родителем из СКУД (реле замка)
+    const isUnit = (d) => {
+      if (!unitType(d.type)) return false;
+      if (!found(d.type)) return true;
+      const p = d.parentId ? byId("devices", d.parentId) : null;
+      return !!p && ACS.has(p.type);
+    };
+    // Вид, который можно создать под этим родителем. parent — запись или описание родителя из children
+    const creatable = (spec, parent) => caps().deviceTypes.includes(spec.type) && (!found(spec.type) || (unitType(spec.type) && !!parent && ACS.has(parent.type)));
+    const alienType = (spec, parent) => !creatable(spec, parent) || (spec.children || []).some((c) => alienType(c, spec));
+    // В папках лежат камеры, регистраторы с записью, источники событий, СКУД; входы, выходы и единицы — нет
+    const folderable = (d) => !found(d.type) && !unitType(d.type) && !d.derived;
+    // Что можно менять у записи: capabilities.writableFields; у выведенного ipsrv — ничего
+    function fieldProblem(rec, patch) {
+      const w = (caps().writableFields || {})[rec.type];
+      if (!rec.derived && !w) return null;
+      if (rec.derived || !w.length) return problem(422, "NOT_SUPPORTED", "У этой записи нет правок", { field: "type" });
+      const field = Object.keys(patch).find((k) => !w.includes(k) || (k === "path" && !isUnit(rec)));
+      return field ? problem(422, "NOT_SUPPORTED", `Поле ${field} у этого вида не правится`, { field }) : null;
+    }
+    const deleteProblem = (d) => (d.derived || (found(d.type) && !isUnit(d)) ? problem(422, "NOT_SUPPORTED", "Запись не удаляется: её ведёт сервер", { field: "type" }) : null);
+
     // Проверка изменения до выполнения: ссылки ведут в существующие записи, имя не пустое
     function patchProblem(patch) {
       if ("name" in patch && !String(patch.name || "").trim()) return problem(422, "NAME_REQUIRED", "Имя не может быть пустым", { field: "name" });
@@ -282,7 +309,7 @@
         }
       }
       if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      return featureProblem(t.kind, patch) || patchProblem(patch);
+      return (t.kind === "device" ? fieldProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
     }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
@@ -321,17 +348,17 @@
       return String(Math.max(0, ...db.devices.filter((d) => NUMBERED.has(d.type)).map((d) => Number(numberOf(d)) || 0)) + 1);
     }
     function createProblem(spec, domainId, parentId, folderId) {
-      const alien = (s) => !caps().deviceTypes.includes(s.type) || (s.children || []).some(alien);
-      if (alien(spec)) return { code: "NOT_SUPPORTED", field: "type" };
       if (!byId("domains", domainId)) return { code: "NOT_FOUND", field: "domainId" };
       if (parentId) {
         const p = byId("devices", parentId);
         if (!p) return { code: "NOT_FOUND", field: "parentId" };
         if (p.domainId !== domainId) return { code: "PARENT_MISMATCH", field: "parentId" };
       }
+      if (alienType(spec, parentId ? byId("devices", parentId) : null)) return { code: "NOT_SUPPORTED", field: "type" };
       if (folderId) {
         const f = byId("folders", folderId);
         if (!f || f.domainId !== domainId) return { code: "VALIDATION_FAILED", field: "folderId" };
+        if (!folderable(spec)) return { code: "NOT_SUPPORTED", field: "folderId" };
       }
       const bad = patchProblem(spec);
       if (bad) return { code: bad.body.code, field: bad.body.field };
@@ -379,9 +406,21 @@
       }
       return { devices, folders };
     }
+    // Что пропадает с записью: дочерние. Камеры регистратора остаются — снимается только запись устройства
+    function goneWith(rec) {
+      const gone = withChildren(rec.id);
+      if (rec.type !== "ipsrv") return gone;
+      db.devices.filter((d) => d.parentId === rec.id && d.type === "camera").forEach((c) => withChildren(c.id).forEach((x) => gone.delete(x)));
+      return gone;
+    }
     // Вместе с дочерними; ссылки на него убираются из папок и из записи по детекторам
     function removeDevice(id) {
-      const gone = withChildren(id);
+      const gone = goneWith(byId("devices", id));
+      db.devices.filter((d) => d.parentId === id && !gone.has(d.id)).forEach((c) => {
+        c.parentId = null;
+        bump(c);
+        changed("device", c);
+      });
       const names = new Map(db.devices.filter((d) => gone.has(d.id)).map((d) => [d.id, d.name]));
       db.devices = db.devices.filter((d) => !gone.has(d.id));
       rulesGone(names);
@@ -938,7 +977,7 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || patchProblem(body);
+          const bad = precondition(rec, headers) || fieldProblem(rec, body) || patchProblem(body);
           if (bad) return bad;
           const before = applyPatch(rec, body);
           changed("device", rec);
@@ -1131,6 +1170,7 @@
             return !d || d.domainId !== f.domainId;
           });
           if (alien) return problem(422, "VALIDATION_FAILED", `Устройства ${alien} нет в домене папки`, { field: "deviceIds" });
+          if ((body.deviceIds || []).some((id) => !folderable(byId("devices", id)) && !f.deviceIds.includes(id))) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "deviceIds" });
           // Состав папки — это папки устройства: добавить или убрать устройство групповой операции нельзя
           if (body.deviceIds) {
             const moved = body.deviceIds.filter((id) => !f.deviceIds.includes(id)).concat(f.deviceIds.filter((id) => !body.deviceIds.includes(id)));
@@ -1339,7 +1379,7 @@
         (p, q, body, headers) => {
           const d = byId("devices", p.id);
           if (!d) return notFound("Устройство");
-          const bad = precondition(d, headers) || lockedProblem(touchedBy("devices", d), held);
+          const bad = precondition(d, headers) || deleteProblem(d) || lockedProblem(touchedBy("devices", d), held);
           if (bad) return bad;
           removeDevice(d.id);
           recordSingle([{ targetId: d.id, version: d.version, before: { deleted: true } }]);
@@ -1386,6 +1426,7 @@
             if (!table) return done.includes(x.id) || wasRemoved.has(x.id) ? done.push(x.id) : failed.push({ id: x.id, code: "NOT_FOUND" });
             const rec = byId(table, x.id);
             if (rec.version !== x.version) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
+            if (table === "devices" && deleteProblem(rec)) return failed.push({ id: x.id, code: "NOT_SUPPORTED" });
             if (lockedProblem(touchedBy(table, rec), held)) return failed.push({ id: x.id, code: "BUSY" });
             kinds[table](rec);
             done.push(x.id);
@@ -1808,6 +1849,7 @@
                 return !folder || folder.domainId !== dev.domainId;
               });
               if (wrong) return problem(422, "VALIDATION_FAILED", `Папки ${wrong} нет в домене устройства`, { field: `items[${i}].folderIds` });
+              if (!folderable(dev)) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "folderIds" });
             }
           }
           const targets = [...new Set(body.items.map((r) => r.targetId))];
@@ -1974,6 +2016,24 @@
         (p, q, body) => {
           const dev = byId("devices", body.deviceId);
           if (!dev) return notFound("Устройство");
+          // Сервер сам находит и теряет записи, когда устройство ответило иначе
+          if (body.type === "device.found") {
+            if (!body.found) return problem(422, "VALIDATION_FAILED", "Нужно found", { field: "found" });
+            const d = Object.assign({ id: uuid("device"), type: body.found.type, parentId: dev.id, domainId: dev.domainId, name: body.found.name, online: true, enabled: true, version: newVersion() }, body.found.channel != null ? { channel: body.found.channel } : {});
+            db.devices.push(d);
+            send("entity.created", { kind: "device", entityId: d.id, version: d.version });
+            return { status: 200, body: { applied: true, deviceId: d.id } };
+          }
+          if (body.type === "device.lost") {
+            removeDevice(dev.id);
+            return { status: 200, body: { applied: true } };
+          }
+          if (body.type === "device.parent") {
+            dev.parentId = body.parentId || null;
+            bump(dev);
+            changed("device", dev);
+            return { status: 200, body: { applied: true } };
+          }
           if (body.type === "device.signal") {
             if (typeof body.online !== "boolean") return problem(422, "VALIDATION_FAILED", "Нужно online", { field: "online" });
             dev.online = body.online;
