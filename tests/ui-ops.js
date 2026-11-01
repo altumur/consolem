@@ -34,6 +34,17 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => btn("data-redo", younger)), "и снова повторяется");
   await API.patch(`/devices/${cam.id}`, { short: "C" }, hwVer.get(cam.id));
   ok(await until(() => !document.querySelector("[data-redo]")), "новая правка очищает повтор");
+  // Хранилище и том — в той же стопке: строка называет их, размер тома не возвращается
+  const remote = arch.find((a) => a.kind === "remote" && a.vols.length);
+  await API.patch(`/archives/${remote.id}`, { retentionDays: 77 }, hwVer.get(remote.id));
+  ok(await until(() => logOps[0]?.items[0]?.targetId === remote.id), "правка хранилища в журнале операций");
+  ok(document.getElementById("main").textContent.includes(locName(remote)), "строка называет хранилище");
+  const volV = remote.vols[0], volR = await API.get(`/volumes/${volV.id}`);
+  await API.patch(`/volumes/${volV.id}`, { sizeBytes: volR.sizeBytes + 1024 ** 3 }, volR.version);
+  ok(await until(() => logOps[0]?.items[0]?.targetId === volV.id && btn("data-op", logOps[0])), "правка тома — верхняя");
+  const volOp = logOps[0];
+  btn("data-op", volOp).click();
+  ok(await until(() => /не выполнено/.test(document.getElementById("tt")?.textContent || "")), "размер тома не вернулся: «не выполнено» в тосте");
   // Висячий id в папке: устройство удалено, папка ещё его называет — дерево его пропускает
   goApp("hw");
   const f = folders[0];

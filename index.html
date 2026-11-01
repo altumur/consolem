@@ -2041,7 +2041,7 @@ const STATUS_FILTERS_EN=[["run","Running"],["nosignal","No signal"],["off","Off"
 const STATUS_FILTERS=[...STATUS_FILTERS_RU];
 const tblFilt={cams:{},acfa:{}};
 const CAMS_TBL_COLS=[["ip","IP-адрес",112],["port","Порт",48],["vendor","Производитель",108],["model","Модель",108],["name","Название",180],["id","ID",68],["lat","Широта",78],["lon","Долгота",78],["azimuth","Азимут",72]];
-const DEVICE_CSV_SPEC=[["ip","IP-адрес"],["port","Порт"],["vendor","Производитель"],["model","Модель"],["user","Логин"],["pass","Пароль"],["identifier","ID"],["short","Короткое имя"],["name","Имя объекта"],["lat","Широта"],["lon","Долгота"],["azimuth","Азимут"],["archive","Имя архива"],["record","Режим записи"],["group","Папка"]];
+const DEVICE_CSV_SPEC=[["ip","IP-адрес"],["port","Порт"],["vendor","Производитель"],["model","Модель"],["user","Логин"],["pass","Пароль"],["identifier","ID"],["short","Короткое имя"],["name","Имя объекта"],["lat","Широта"],["lon","Долгота"],["azimuth","Азимут"],["archive","Имя архива"],["record","Режим записи"],["group","Папка"],["rtspUrl","Адрес RTSP"]];
 const CSV_HEADER_TO_KEY=(()=>{const m={};DEVICE_CSV_SPEC.forEach(([k,l])=>{m[l.toLowerCase()]=k;m[k.toLowerCase()]=k});m["название"]="name";m["азимут"]="azimuth";m["тип строки"]="rowKind";m["импорт"]="importFlag";return m})();
 let camsColWidths=CAMS_TBL_COLS.map(([, ,w])=>w);
 let camsColDrag=null;
@@ -7173,6 +7173,7 @@ function deviceCsvObjectFromNode(n,tableRow){
     archive:archName,
     record:recordModeLabel(n.rec||"none"),
     group:groupName,
+    rtspUrl:n._f?.RTSP||"",
   };
 }
 function deviceCsvLineFromObject(o){return DEVICE_CSV_SPEC.map(([k])=>csvEscapeCell(o[k]??"")).join(",")}
@@ -16625,8 +16626,9 @@ function toggleDevPassVisibility(e){
   btn.classList.toggle("on",show);
   btn.innerHTML=devPassIconSvg(show);
 }
+// Камера подключается по адресу RTSP или по адресу с производителем и моделью
 function csvRowHasImportRequired(row){
-  return!!String(row.ip||"").trim()&&!!String(row.vendor||"").trim()&&!!String(row.model||"").trim();
+  return!!String(row.rtspUrl||"").trim()||(!!String(row.ip||"").trim()&&!!String(row.vendor||"").trim()&&!!String(row.model||"").trim());
 }
 function inferCsvDeviceKind(row){
   const model=String(row.model||""),vendor=String(row.vendor||"");
@@ -16738,6 +16740,7 @@ function deviceNodeFromData(r,server,opts={}){
     node.templateId=template.id;
   }
   if(r.arch)node.arch=r.arch;
+  if(r.rtspUrl)node._f={RTSP:r.rtspUrl};
   if(s?.type==="server"&&(node.type==="camera"||node.type==="ipsrv"))node.srvId=s.id;
   else bindArchServer(node);
   node.rec=r.arch&&r.record==="always"?"always":r.arch&&r.record==="motion"?"motion":"none";
@@ -17178,8 +17181,9 @@ function csvColMapFromHeader(headerCols){
   headerCols.forEach((h,i)=>{const key=CSV_HEADER_TO_KEY[String(h||"").trim().toLowerCase()];if(key!=null&&map[key]==null)map[key]=i});
   return map;
 }
+// Есть заголовок — столбец только по заголовку: номер столбца годится лишь файлу без заголовка
 function csvPick(cols,map,key,fallback){
-  if(map&&map[key]!=null)return cols[map[key]]??"";
+  if(map)return map[key]!=null?cols[map[key]]??"":"";
   return fallback!=null?cols[fallback]??"":"";
 }
 function csvRowFrom(cols,index,colMap){
@@ -17200,7 +17204,8 @@ function csvRowFrom(cols,index,colMap){
   const archiveName=legacy?(oldLegacy?cols[11]:cols[12]):csvPick(cols,colMap,"archive",12);
   const recordName=legacy?(oldLegacy?cols[12]:cols[13]):csvPick(cols,colMap,"record",13);
   const groupName=legacy?"":csvPick(cols,colMap,"group");
-  const row={id:"csv"+index,ip,port:+port||80,vendor,model,user,pass,identifier,short:shortName,name,lat,lon,azimuth,arch:"",record:"motion",group:"",errors:[],skipImport:false};
+  const rtspUrl=legacy?"":String(csvPick(cols,colMap,"rtspUrl")||"").trim();
+  const row={id:"csv"+index,ip,port:+port||80,vendor,model,user,pass,identifier,short:shortName,name,lat,lon,azimuth,arch:"",record:"motion",group:"",rtspUrl,errors:[],skipImport:false};
   if(!csvRowHasImportRequired(row)){row.skipImport=true;return row;}
   const kind=inferCsvDeviceKind(row);
   if(!row.name)row.name=kind.type==="ipsrv"?(row.model||"IP-сервер"):`Камера ${ip||index}`;

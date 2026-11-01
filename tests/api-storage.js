@@ -134,5 +134,81 @@
     assert.eq((await env.ok("GET", `/volumes/${vol.id}`)).sizeBytes, 100 * GB, "том изменён");
   });
 
+  // Откат: правки хранилищ и томов — в той же стопке, что правки устройств
+  const undo = async (env, op) => env.finished((await env.ok("POST", `/operations/${op.id}/revert`)).id);
+  // Верхняя в стопке: самая новая строка списка может быть сам откат
+  const top = async (env) => (await env.ok("GET", "/operations")).items.find((x) => x.revertible);
+
+  test("Откат: правка хранилища и имени тома — одиночные операции, значения возвращаются", async () => {
+    const env = await makeEnv();
+    const a = FX.archives.find((x) => x.kind === "remote");
+    const vol = FX.volumes.find((x) => x.archiveId === a.id);
+    await env.ok("PATCH", `/archives/${a.id}`, { retentionDays: 90 }, v(a));
+    const opA = await top(env);
+    assert.eq([opA.single, opA.revertible, opA.items[0].targetId], [true, true, a.id], "правка хранилища — в стопке");
+    await env.ok("PATCH", `/volumes/${vol.id}`, { name: "Том — другое имя" }, v(vol));
+    const opV = await top(env);
+    assert.eq([opV.single, opV.items[0].targetId], [true, vol.id], "правка тома — в стопке");
+    assert.eq((await undo(env, opV)).ok, 1, "имя тома возвращено");
+    assert.eq((await env.ok("GET", `/volumes/${vol.id}`)).name, vol.name, "имя как было");
+    assert.eq((await undo(env, opA)).ok, 1, "срок возвращён");
+    assert.eq((await env.ok("GET", `/archives/${a.id}`)).retentionDays, a.retentionDays, "срок как был");
+  });
+
+  test("Откат: адрес и размер тома — шаг fail NOT_SUPPORTED; прочие шаги той же операции идут", async () => {
+    const env = await makeEnv();
+    const a = FX.archives.find((x) => x.kind === "remote");
+    const vol = FX.volumes.find((x) => x.archiveId === a.id);
+    const op = await env.runOperation({ idempotencyKey: key(), items: [
+      { targetId: a.id, set: { retentionDays: 120 } },
+      { targetId: vol.id, set: { disk: "\\\\nas99\\vms" } },
+      { targetId: vol.id, set: { login: "VMS\\svc9" } },
+    ], expectedVersions: { [a.id]: a.version, [vol.id]: vol.version } });
+    const back = await undo(env, op);
+    assert.eq(back.items.map((x) => [x.state, x.code]), [["ok", null], ["fail", "NOT_SUPPORTED"], ["ok", null]], "по шагам, назад");
+    const now = await env.ok("GET", `/volumes/${vol.id}`);
+    assert.eq([now.disk, now.login], ["\\\\nas99\\vms", vol.login], "адрес остался, логин вернулся");
+    assert.eq((await env.ok("GET", `/archives/${a.id}`)).retentionDays, a.retentionDays, "срок вернулся");
+    const big = await env.ok("PATCH", `/volumes/${vol.id}`, { sizeBytes: now.sizeBytes + GB }, { "If-Match": `"${now.version}"` });
+    const size = await undo(env, await top(env));
+    assert.eq(size.items.map((x) => [x.state, x.code]), [["fail", "NOT_SUPPORTED"]], "размер не возвращается");
+    assert.eq((await env.ok("GET", `/volumes/${vol.id}`)).sizeBytes, big.sizeBytes, "размер остался");
+  });
+
+  test("Откат: созданное хранилище и том снимаются; с записью камеры или изменённое — NOT_SUPPORTED", async () => {
+    const env = await makeEnv();
+    const made = await env.ok("POST", "/archives", local());
+    const added = await env.ok("POST", `/archives/${made.archive.id}/volumes`, { name: freeDisks[1], disk: freeDisks[1], sizeBytes: GB, mode: "dir", dir: `${freeDisks[1]}\\A` });
+    assert.eq((await undo(env, await top(env))).ok, 1, "том снят");
+    assert.status(await env.call("GET", `/volumes/${added.id}`), 404, "NOT_FOUND", "тома нет");
+    assert.eq((await undo(env, await top(env))).ok, 1, "хранилище снято");
+    assert.status(await env.call("GET", `/archives/${made.archive.id}`), 404, "NOT_FOUND", "хранилища нет");
+    assert.status(await env.call("GET", `/volumes/${made.volumes[0].id}`), 404, "NOT_FOUND", "и его первого тома");
+    // Хранилище, в которое уже пишет камера, откат не снимает: привязка не откатилась — шаг менял пароль
+    const second = await env.ok("POST", "/archives", local({ name: "С камерой" }));
+    const create = await top(env);
+    const cam = FX.devices.find((d) => d.type === "camera" && !d.archiveId && !d.parentId);
+    await env.ok("PATCH", `/devices/${cam.id}`, { archiveId: second.archive.id, recordMode: "always", password: "новый" }, v(cam));
+    assert.eq((await undo(env, await top(env))).items.map((x) => x.code), ["NOT_SUPPORTED"], "пароль не возвращается");
+    assert.eq((await undo(env, create)).items.map((x) => [x.state, x.code]), [["fail", "NOT_SUPPORTED"]], "камера всё ещё пишет туда");
+    assert.status(await env.call("GET", `/archives/${second.archive.id}`), 200, null, "хранилище на месте");
+    // Созданное меняли: откат правки вернул значение, но запись уже не та, что создана
+    const third = await env.ok("POST", "/archives", local({ name: "Третье", firstVolume: { name: freeDisks[2], disk: freeDisks[2], sizeBytes: GB, mode: "dir", dir: `${freeDisks[2]}\\A` } }));
+    const make = await top(env);
+    await env.ok("PATCH", `/archives/${third.archive.id}`, { retentionDays: 3 }, v(third.archive));
+    await undo(env, await top(env));
+    assert.eq((await undo(env, make)).items.map((x) => [x.state, x.code]), [["fail", "NOT_SUPPORTED"]], "изменённое не снимается");
+  }, { needs: ["createVolume"] });
+
+  test("Откат: удаление хранилища и тома, форматирование — в стопке, шаг fail NOT_SUPPORTED", async () => {
+    const env = await makeEnv();
+    const vol = FX.volumes.find((x) => x.usedPercent > 0 && x.archiveId !== FX.volumes[0].archiveId);
+    await env.ok("POST", `/volumes/${vol.id}/format`);
+    assert.eq((await undo(env, await top(env))).items.map((x) => x.code), ["NOT_SUPPORTED"], "записи не возвращаются");
+    const a = FX.archives.find((x) => x.kind === "remote");
+    assert.status(await env.call("DELETE", `/archives/${a.id}`, undefined, v(a)), 204);
+    assert.eq((await undo(env, await top(env))).items.map((x) => x.code), ["NOT_SUPPORTED"], "хранилище не возвращается");
+  });
+
   ApiTest.loaded("api-storage.js");
 })();

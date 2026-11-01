@@ -404,13 +404,28 @@
     assert.eq(done.items.map((x) => [x.state, x.code]), [["fail", "VERSION_MISMATCH"]], "шаг не выполнен");
     assert.eq((await env.ok("GET", `/servers/${s.id}`)).name, "Чужое имя", "чужая правка цела");
     const c = await env.ok("GET", `/devices/${cam.id}`);
-    // Создание с правкой той же камеры: откат создания не прошёл (версия камеры другая) — шаг не повторяется
+    // Создание с правкой той же камеры: откат создания сверяет созданный детектор, а не камеру — снимается и он
     const made = await env.runOperation(plan([{ targetId: cam.id, create: { type: "det", name: "Новый", detectorKind: "motion", sensitivity: 5 } }, { targetId: cam.id, set: { short: "1z" } }], { [cam.id]: c.version }));
     const back = await undo(env, made);
-    assert.eq(back.items.map((x) => x.state), ["ok", "fail"], "откатилось только поле");
+    assert.eq(back.items.map((x) => [x.state, x.code]), [["ok", null], ["ok", null]], "откатились и поле, и создание");
+    assert.status(await env.call("GET", `/devices/${made.items[0].createdId}`), 404, "NOT_FOUND", "детектора нет");
     const again = await redo(env, made);
-    assert.eq(again.items.map((x) => [x.state, x.code]), [["ok", null]], "повторён только откатившийся шаг");
+    assert.eq(again.items.map((x) => [x.state, x.code]), [["fail", "NOT_SUPPORTED"], ["ok", null]], "создание не повторяется, поле повторено");
     assert.eq((await env.ok("GET", `/devices/${cam.id}`)).short, "1z", "поле повторено");
+    // Созданное меняли после: откат его не снимает, этот шаг и не повторяется
+    const c2 = await env.ok("GET", `/devices/${cam.id}`);
+    const kept = await env.runOperation(plan([{ targetId: cam.id, create: { type: "det", name: "Живой", detectorKind: "motion", sensitivity: 5 } }, { targetId: cam.id, set: { short: "2z" } }], { [cam.id]: c2.version }));
+    const live = kept.items[0].createdId;
+    const edited = await env.ok("PATCH", `/devices/${live}`, { name: "Живой-2" }, { "If-Match": `"${(await env.ok("GET", `/devices/${live}`)).version}"` });
+    const rename = (await env.ok("GET", "/operations")).items[0];
+    assert.eq((await undo(env, rename)).ok, 1, "сначала — правка детектора");
+    const part = await undo(env, kept);
+    assert.eq(part.items.map((x) => [x.state, x.code]), [["ok", null], ["fail", "NOT_SUPPORTED"]], "поле вернулось, изменённое созданное осталось");
+    assert.status(await env.call("GET", `/devices/${live}`), 200, null, "детектор на месте");
+    assert.ok(edited.version !== (await env.ok("GET", `/devices/${live}`)).version, "у него своя версия");
+    const third = await redo(env, kept);
+    assert.eq(third.items.map((x) => [x.state, x.code]), [["ok", null]], "повторён только откатившийся шаг");
+    assert.eq((await env.ok("GET", `/devices/${cam.id}`)).short, "2z", "поле повторено");
     // Создание, которое откат снял, заново не создаётся
     const v = (await env.ok("GET", `/devices/${cam.id}`)).version;
     const one = await env.runOperation(plan([{ targetId: cam.id, create: { type: "det", name: "Второй", detectorKind: "motion", sensitivity: 5 } }], { [cam.id]: v }));

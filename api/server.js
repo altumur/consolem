@@ -1007,10 +1007,22 @@
       trimOps();
       send("operation.finished", { kind: "operation", entityId: op.id, payload: { state: "done", ok: op.items.length, failed: 0, cancelled: 0 } });
     }
+    // Шаг, который снимет созданное: у созданного своя версия, цель шага — родитель или сама запись
+    const createdStep = (rec) => ({ targetId: rec.id, version: rec.version, createdId: rec.id, createdVersion: rec.version, before: { remove: rec.id } });
+    function removeCreated(t) {
+      if (t.kind === "device") removeDevice(t.rec.id);
+      else if (t.kind === "archive") removeArchive(t.rec);
+      else removeVolume(t.rec);
+    }
+    // В хранилище уже пишут камеры: снять его откатом — значит снять и запись
+    const archiveWritten = (a) => db.devices.some((d) => d.archiveId === a.id || (d.extraArchives || []).some((x) => x.archiveId === a.id));
     function trimOps() {
       const done = [...ops.values()].filter((op) => op.state === "done");
       done.slice(0, Math.max(0, done.length - UNDO_KEEP)).forEach((op) => ops.delete(op.id));
     }
+    // Адрес и объём тома откат не возвращает: записи на нём уже стёрты или лежат по новому адресу
+    const VOLUME_FIXED = ["sizeBytes", "disk", "mode", "dir", "file", "bucket", "region", "path", "host", "port", "proto", "endpoint", "style", "account"];
+    const volumeFixed = (step) => !!step.before.set && !!byId("volumes", step.targetId) && VOLUME_FIXED.some((k) => k in step.before.set);
     const setStep = (rec, set, before) => ({ targetId: rec.id, version: rec.version, before: { set: before }, after: fieldsOf(rec, set), secret: "password" in set || "secret" in set });
     const opView = (op) => ({
       id: op.id,
@@ -1069,7 +1081,12 @@
       const t = targetOf(item.targetId);
       if (!t) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
       const rec = t.rec;
-      if (item.req.expect !== undefined && rec.version !== item.req.expect) return Object.assign(item, { state: "fail", code: "VERSION_MISMATCH" });
+      // Снять можно только то, что осталось как создано: сверяется созданная запись, а не родитель из цели шага
+      if (item.req.remove) {
+        const made = targetOf(item.req.remove);
+        if (!made) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
+        if (made.rec.version !== item.req.expect || (made.kind === "archive" && archiveWritten(made.rec))) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" });
+      }
       if (item.req.expectFields && !sameFields(rec, item.req.expectFields)) return Object.assign(item, { state: "fail", code: "VERSION_MISMATCH" });
       // Изменение устройства применяет его сервер, изменение сервера — сам сервер; домен — без сервера
       const archiveServer = (a) => (a && a.serverId ? byId("servers", a.serverId) : null);
@@ -1089,9 +1106,10 @@
         const res = createDevice(item.req.create, rec.domainId, rec.id, null);
         if (res.code) return Object.assign(item, { state: "fail", code: res.code });
         item.createdId = res.devices[0].id;
+        item.createdVersion = res.devices[0].version;
         item.before = { remove: item.createdId };
       } else if (item.req.remove) {
-        if (byId("devices", item.req.remove)) removeDevice(item.req.remove);
+        removeCreated(targetOf(item.req.remove));
         item.before = {};
       } else {
         item.before = { folderIds: setFolders(rec.id, item.req.folderIds) };
@@ -1574,6 +1592,7 @@
           const v = newVolume(a, body.firstVolume);
           send("entity.created", { kind: "archive", entityId: a.id, version: a.version });
           send("entity.created", { kind: "volume", entityId: v.id, version: v.version });
+          recordSingle([createdStep(a)]);
           return { status: 201, body: { archive: clone(a), volumes: [volume(v)] } };
         },
       ],
@@ -1595,8 +1614,9 @@
           if (!t || t.kind !== "archive") return notFound("Хранилище");
           const bad = precondition(t.rec, headers) || setProblem(t, body);
           if (bad) return bad;
-          applyPatch(t.rec, body);
+          const before = applyPatch(t.rec, body);
           changed("archive", t.rec);
+          recordSingle([setStep(t.rec, body, before)]);
           return one(clone(t.rec));
         },
       ],
@@ -1609,6 +1629,7 @@
           const bad = precondition(a, headers) || lockedProblem(touchedBy("archives", a), held);
           if (bad) return bad;
           removeArchive(a);
+          recordSingle([{ targetId: a.id, version: a.version, before: { deleted: true } }]);
           return { status: 204, body: null };
         },
       ],
@@ -1622,6 +1643,7 @@
           if (bad) return bad;
           const v = newVolume(a, body);
           send("entity.created", { kind: "volume", entityId: v.id, version: v.version });
+          recordSingle([createdStep(v)]);
           return one(volume(v), 201);
         },
       ],
@@ -1633,8 +1655,9 @@
           if (!t || t.kind !== "volume") return notFound("Том");
           const bad = precondition(t.rec, headers) || setProblem(t, body);
           if (bad) return bad;
-          applyPatch(t.rec, body);
+          const before = applyPatch(t.rec, body);
           changed("volume", t.rec);
+          recordSingle([setStep(t.rec, body, before)]);
           return one(volume(t.rec));
         },
       ],
@@ -1647,6 +1670,7 @@
           const bad = precondition(v, headers);
           if (bad) return bad;
           removeVolume(v);
+          recordSingle([{ targetId: v.id, version: v.version, before: { deleted: true } }]);
           return { status: 204, body: null };
         },
       ],
@@ -1663,6 +1687,8 @@
           bump(v);
           formatting.set(v.id, now() + FORMAT_MS);
           changed("volume", v);
+          // Записи стёрты: форматирование в стопке, но назад не возвращается
+          recordSingle([{ targetId: v.id, version: v.version, before: { deleted: true } }]);
           return one(volume(v), 202);
         },
       ],
@@ -1683,7 +1709,7 @@
               if (d) d.candidateIds = d.candidateIds.filter((c) => c !== x.candidateId);
             }
             done.push({ index, devices: res.devices.map(device), folders: res.folders.map(clone) });
-            recordSingle([{ targetId: res.devices[0].id, version: res.devices[0].version, createdId: res.devices[0].id, before: { remove: res.devices[0].id } }]);
+            recordSingle([createdStep(res.devices[0])]);
           });
           return { status: 200, body: { done, failed } };
         },
@@ -1780,7 +1806,7 @@
             if (lockedProblem(touchedBy(table, rec), held)) return failed.push({ id: x.id, code: "BUSY" });
             kinds[table](rec);
             done.push(x.id);
-            if (table === "devices") steps.push({ targetId: rec.id, version: rec.version, before: { deleted: true } });
+            if (table === "devices" || table === "archives" || table === "volumes") steps.push({ targetId: rec.id, version: rec.version, before: { deleted: true } });
           });
           wasRemoved.clear();
           recordSingle(steps);
@@ -2333,20 +2359,20 @@
           if (reason) return problem(409, "NOT_REVERTIBLE", "Откатить нельзя", { params: { reason } });
           const done = op.items.filter((x) => x.state === "ok");
           // Кроме самих объектов — то, что откат удалит: созданное шагом устройство с дочерними
-          const removes = done.map((x) => x.before.remove && byId("devices", x.before.remove)).filter(Boolean);
-          const lockedRevert = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)).concat(removes.flatMap((d) => touchedBy("devices", d))), held);
+          const removes = done.map((x) => x.before.remove && targetOf(x.before.remove)).filter(Boolean);
+          const lockedRevert = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)).concat(removes.flatMap((t) => touchedBy(t.table, t.rec))), held);
           if (lockedRevert) return lockedRevert;
           op.reverted = true;
           // Шаги — в обратном порядке. Шаг сверяет значения своих полей с записанными: другое значение — объект
-          // меняли после, шаг не выполняется. Удаление, папки и секреты назад не возвращаются
+          // меняли после, шаг не выполняется. Удаление, папки, секреты, адрес и объём тома назад не возвращаются
           const requests = done.slice().reverse().map((x) =>
             stripUndefined({
               targetId: x.targetId,
               set: x.before.set,
               remove: x.before.remove,
-              expect: x.before.remove ? x.version : undefined,
+              expect: x.before.remove ? x.createdVersion : undefined,
               expectFields: x.after,
-              undoable: x.before.deleted || x.before.folderIds || x.secret ? false : undefined,
+              undoable: x.before.deleted || x.before.folderIds || x.secret || volumeFixed(x) ? false : undefined,
             })
           );
           return { status: 202, body: opView(startOperation(requests, { revertOf: op.id })) };

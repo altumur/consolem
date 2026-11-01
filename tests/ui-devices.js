@@ -45,6 +45,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nvrRec = await API.get("/devices/" + nvr.id);
   const kids = (await API.get("/devices")).items.filter((d) => d.parentId === nvr.id);
   ok(kids.length > 0 && kids.every((k) => String(k.short || "").startsWith(nvrRec.identifier + ".")), "каналы: " + kids.map((k) => k.short).join(", ") + " — от номера " + nvrRec.identifier);
+  // Столбец «Адрес RTSP»: камера по адресу заводится без производителя и модели, выгрузка его отдаёт
+  const rtsp = "rtsp://10.6.6.8:554/main";
+  wizd.csvRows = parseCsvDeviceRows(`IP-адрес,Имя объекта,Адрес RTSP\n10.6.6.8,Камера по адресу,${rtsp}\n`);
+  ok(wizd.csvRows[0]?.rtspUrl === rtsp && csvImportableRows(wizd.csvRows).length === 1, "строка с адресом RTSP принята");
+  importCsvDevices();
+  ok(await until(() => wizd.csvRows[0].added), "камера по адресу импортирована");
+  ok((await API.get("/devices/" + wizd.csvRows[0].addedId)).rtspUrl === rtsp, "на сервере — rtspUrl");
+  ok(deviceCsvHeaders().includes("Адрес RTSP") && deviceCsvObjectFromNode(find(wizd.csvRows[0].addedId).n).rtspUrl === rtsp, "выгрузка CSV отдаёт адрес");
   // Детектор из карточки камеры: шаг create, затем удаление
   const cam = devicePool.find((n) => n.type === "camera" && n.name === "Главный вход");
   const dets0 = camDetectors(cam).length;
