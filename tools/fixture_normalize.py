@@ -536,7 +536,7 @@ def writable_fields(schemas):
     patch = list(schemas["DevicePatch"]["properties"])
     without = lambda *fields: [k for k in patch if k not in fields]
     return {
-        "camera": without("mac"),
+        "camera": without("mac", "codec"),
         "eventsrc": without("mac"),
         "acfa": without("mac"),
         "channel": [],

@@ -1044,6 +1044,257 @@
         }
       }
     },
+    "/devices/{deviceId}/live": {
+      "post": {
+        "operationId": "startLive",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Живое видео для настройки",
+        "description": "Поток под размер окна выбирает сервер, клиент подключается по WebRTC на whepUrl с token. Нужно для настройки детекторов и пресетов; просмотр — другая часть консоли. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveResult"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/streams": {
+      "post": {
+        "operationId": "createStream",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Добавить поток камеры",
+        "description": "Ответ — камера целиком. Не камера — 422 NOT_SUPPORTED",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Создано",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/streams/{streamId}": {
+      "patch": {
+        "operationId": "patchStream",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Изменить поток камеры",
+        "description": "Правка основного потока меняет Device.res, Device.fps. Ответ — камера целиком",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "streamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteStream",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Удалить поток камеры",
+        "description": "Основной поток — 422 NOT_SUPPORTED, field: streamId. Поток, по которому идёт запись или детектор, — 422 VALIDATION_FAILED, field: stream. Ответ — камера целиком",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "streamId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/folders": {
       "get": {
         "operationId": "listFolders",
@@ -4854,7 +5105,8 @@
             "type": [
               "string",
               "null"
-            ]
+            ],
+            "description": "Поток записи: id из Device.streams"
           }
         },
         "additionalProperties": false,
@@ -4992,7 +5244,8 @@
             "$ref": "#/components/schemas/RecordMode"
           },
           "stream": {
-            "type": "string"
+            "type": "string",
+            "description": "Поток записи: id из Device.streams. Нет такого — 422 VALIDATION_FAILED, field: stream"
           },
           "extraArchives": {
             "type": "array",
@@ -5124,16 +5377,17 @@
             "type": "string"
           },
           "codec": {
-            "type": "string"
+            "type": "string",
+            "description": "Только чтение: что отдаёт устройство"
           },
           "res": {
-            "type": "string"
+            "type": "string",
+            "pattern": "^[0-9]+x[0-9]+$",
+            "description": "Разрешение основного потока: ширина x высота, латинская x. Значение вне resOptions — 422 VALIDATION_FAILED"
           },
           "fps": {
-            "type": "integer"
-          },
-          "bitrate": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Частота кадров основного потока"
           },
           "norm": {
             "type": "string",
@@ -5185,6 +5439,20 @@
           "derived": {
             "type": "boolean",
             "description": "ipsrv выведен из устройства, своей записи нет: PATCH, DELETE и folderIds — 422 NOT_SUPPORTED. Нет поля — запись есть"
+          },
+          "streams": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeviceStream"
+            },
+            "description": "Потоки камеры. Правятся операциями /devices/{id}/streams"
+          },
+          "resOptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Только чтение: допустимые разрешения основного потока. Нет поля — ввод руками: до первого ответа устройства и у моделей без описания список неизвестен"
           }
         },
         "additionalProperties": false,
@@ -7862,16 +8130,6 @@
               "null"
             ]
           },
-          "bitrate": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "buffering": {
             "anyOf": [
               {
@@ -7914,7 +8172,8 @@
           "codec": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "description": "Только чтение: 422 NOT_SUPPORTED"
               },
               {
                 "type": "null"
@@ -8198,7 +8457,9 @@
           "res": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "pattern": "^[0-9]+x[0-9]+$",
+                "description": "Разрешение: ширина x высота, латинская x. Настройка, сервер передаёт её драйверу"
               },
               {
                 "type": "null"
@@ -8673,7 +8934,7 @@
           "IP_RANGE_TOO_LARGE": "Диапазон больше лимита поиска (422)",
           "LAST_DOMAIN": "Последний домен удалить нельзя (409)",
           "SERVER_OFFLINE": "Сервер без связи: изменение не применено (409, или по объекту в групповой операции)",
-          "DEVICE_OFFLINE": "Устройство без связи (по объекту в групповой операции): учётные данные и видео не применить. Встроенный сервер так не отказывает — см. api/BACKEND.md",
+          "DEVICE_OFFLINE": "Устройство без связи: команда не дошла (409, или по объекту в групповой операции). Встроенный сервер так отказывает живому видео и PTZ; учётные данные и видео к устройству без связи применяет — см. api/BACKEND.md",
           "LICENSE_EXCEEDED": "Лицензия превышена (по объекту в групповой операции)",
           "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту)",
           "LOGIN_TAKEN": "Логин уже занят (409)",
@@ -9466,9 +9727,6 @@
               "number",
               "null"
             ]
-          },
-          "bitrate": {
-            "type": "integer"
           },
           "buffering": {
             "type": "string"
@@ -12509,6 +12767,136 @@
           }
         },
         "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, error"
+      },
+      "DeviceStream": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "description": "Поток камеры. Первый — основной, его res и fps — это Device.res, Device.fps",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Его принимают Device.stream и ExtraArchive.stream"
+          },
+          "name": {
+            "type": "string"
+          },
+          "res": {
+            "type": "string",
+            "pattern": "^[0-9]+x[0-9]+$",
+            "description": "Разрешение: ширина x высота, латинская x. Настройка, сервер передаёт её драйверу"
+          },
+          "fps": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "codec": {
+            "type": "string",
+            "description": "Только чтение: что отдаёт устройство"
+          },
+          "width": {
+            "type": "integer",
+            "description": "Только чтение"
+          },
+          "height": {
+            "type": "integer",
+            "description": "Только чтение"
+          },
+          "online": {
+            "type": "boolean",
+            "description": "Только чтение"
+          },
+          "resOptions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Допустимые разрешения этого потока. Нет поля — ввод руками"
+          }
+        }
+      },
+      "StreamCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "res": {
+            "type": "string",
+            "pattern": "^[0-9]+x[0-9]+$",
+            "description": "Разрешение: ширина x высота, латинская x. Настройка, сервер передаёт её драйверу"
+          },
+          "fps": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "StreamPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "res": {
+            "type": "string",
+            "pattern": "^[0-9]+x[0-9]+$",
+            "description": "Разрешение: ширина x высота, латинская x. Настройка, сервер передаёт её драйверу"
+          },
+          "fps": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "LiveRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "width",
+          "height"
+        ],
+        "description": "Размер окна: поток под него выбирает сервер",
+        "properties": {
+          "width": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "height": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      },
+      "LiveResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "whepUrl",
+          "token",
+          "expiresAt"
+        ],
+        "properties": {
+          "whepUrl": {
+            "type": "string",
+            "description": "Адрес WHEP: клиент подключается по WebRTC"
+          },
+          "token": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       }
     }
   }

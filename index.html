@@ -466,6 +466,8 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .nt{padding:10px;background:var(--one-info-bg);border:1px solid var(--one-info-icon);border-radius:8px;color:var(--x-link);margin-bottom:12px;font-size:12px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
+.live-frame{overflow:hidden;user-select:none}.live-scene{position:absolute;inset:0;width:100%;height:100%}
+.live-note{position:absolute;left:8px;bottom:6px;font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
 button.mc{font:inherit;color:inherit;cursor:pointer;width:100%}
@@ -2179,9 +2181,9 @@ const DEV_KEY={serverId:"srvId",archiveId:"arch",recordMode:"rec",recordDetector
   videoChannel:"vch",channel:"ch",cameraId:"camera",login:"user",preRecordSec:"pre"};
 const DEV_API=Object.fromEntries(Object.entries(DEV_KEY).map(([k,v])=>[v,k]));
 // Поля, у которых в объекте нет своего свойства: карточка хранит их в n._f по подписи поля
-const DEV_FLD={rtspUrl:"RTSP",codec:"Кодек",res:"Разрешение",fps:"к/с",bitrate:"Битрейт",overlayDelayMs:"Задержка, мс",overlayDurationSec:"Длительность, с"};
+const DEV_FLD={rtspUrl:"RTSP",codec:"Кодек",res:"Разрешение",fps:"к/с",overlayDelayMs:"Задержка, мс",overlayDurationSec:"Длительность, с"};
 const DEV_FLD_API=Object.fromEntries(Object.entries(DEV_FLD).map(([k,v])=>[v,k]));
-const DEV_NUM=new Set(["port","fps","bitrate","preRecordSec","channel","videoChannel","sensitivity","pulse","debounce","gain","vol","overlayDelayMs","overlayDurationSec"]);
+const DEV_NUM=new Set(["port","fps","preRecordSec","channel","videoChannel","sensitivity","overlayDelayMs","overlayDurationSec"]);
 const DEV_SKIP=new Set(["id","type","parentId","domainId","version","hasPassword"]);
 const NORM_RU={open:"Разомкнуто",closed:"Замкнуто"};
 const NORM_CODE={"Разомкнуто":"open","Замкнуто":"closed"};
@@ -3705,7 +3707,7 @@ function cardFld(el){
 const CARD_PROP={enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
-  codec:"Кодек",res:"Разрешение",fps:"к/с",bitrate:"Битрейт",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
+  codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
 // Поле карточки → свойство объекта, куда его запишет «Применить».
 const CARD_FLD_PROP={"Имя":"name","Короткое имя":"short","IP":"ip","Порт":"port","Производитель":"vendor","Модель":"model",
   "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Номер канала":"ch","Роль":"role",
@@ -8086,6 +8088,65 @@ function camDetectorsHtml(n){
       `<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${n.id}`,`${cur.id}`])}>${i18n("Удалить")}</button>`)+
     ruleUsesCardHtml(cur)+detZoneCardHtml(n,cur);
 }
+// ── Живое видео для настройки ─────────────────────────────────────────────
+// POST /devices/{id}/live даёт адрес и токен, клиент подключается по WebRTC. Встроенный сервер отвечает
+// заглушкой, а форма показывает вместо видео картинку-кадр: рамки зоны и пресеты настраиваются по ней так же
+const liveSessions=new Map();
+function liveEnsure(n){
+  if(!n||n.online===false||!can("startLive")||!hwVer.has(n.id))return;
+  const s=liveSessions.get(n.id);
+  if(s&&(s.busy||s.error||Date.parse(s.expiresAt)>Date.now()+5000))return;
+  liveSessions.set(n.id,{busy:true});
+  API.post(`/devices/${n.id}/live`,{width:640,height:360}).then(r=>{
+    liveSessions.set(n.id,r);
+    if(find(sel)?.n?.id===n.id&&!cardDraft)gear();
+  }).catch(e=>liveSessions.set(n.id,{error:problemText(e)}));
+}
+// Кадр-заглушка: улица и здание. Над ним рисуются зоны детекторов
+function liveSceneSvg(){
+  return`<svg class="live-scene" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true"><rect width="160" height="50" fill="#2c3a4d"/><rect y="50" width="160" height="40" fill="#39424e"/><rect x="18" y="22" width="52" height="34" fill="#4a5a70"/><rect x="26" y="30" width="10" height="10" fill="#8fa4bd"/><rect x="44" y="30" width="10" height="10" fill="#8fa4bd"/><rect x="104" y="30" width="30" height="26" fill="#55657c"/><path d="M0 76 L160 62" stroke="#c8ced6" stroke-width=".8" stroke-dasharray="6 5"/></svg>`;
+}
+function liveFrameHtml(n,inner=""){
+  liveEnsure(n);
+  const s=liveSessions.get(n?.id),off=n?.online===false;
+  const note=off?i18n("Камера без связи"):!can("startLive")?i18n("Живое видео недоступно"):s?.error||(s&&!s.busy?i18n("Кадр-заглушка: встроенный сервер видео не отдаёт"):i18n("Подключаемся…"));
+  return`<div class="vid live-frame" data-live="${escHtml(n?.id||"")}">${off?"":liveSceneSvg()}${inner}<span class="live-note">${escHtml(note)}</span></div>`;
+}
+// Потоки камеры: первый — основной, Device.res и Device.fps — это он
+function camStreams(n){return n?.streams?.length?n.streams:[{id:"main",name:"Основной"}]}
+function camStreamName(n,id){return camStreams(n).find(s=>s.id===id)?.name||id}
+function resInput(opts,cur,on){
+  return opts?.length?`<select ${onEv("change",on)}>${[...new Set(["",cur||"",...opts])].map(o=>`<option value="${escHtml(o)}" ${o===(cur||"")?"selected":""}>${escHtml(o||"—")}</option>`).join("")}</select>`
+    :`<input value="${escHtml(cur||"")}" placeholder="1920x1080" ${onEv("change",on)}>`;
+}
+function camVideoHtml(n){
+  const f=n._f||{},rows=camStreams(n).map((s,i)=>`<tr data-stream="${escHtml(s.id)}"><td><input value="${escHtml(s.name)}" aria-label="${i18n("Имя потока")}" ${onEv("change",["streamSet",`${n.id}`,`${s.id}`,"name",onEv.value])}></td>
+    <td>${resInput(s.resOptions||(i?null:n.resOptions),s.res,["streamSet",`${n.id}`,`${s.id}`,"res",onEv.value])}</td>
+    <td><input type="number" min="1" value="${escHtml(s.fps??"")}" aria-label="${i18n("к/с")}" ${onEv("change",["streamSet",`${n.id}`,`${s.id}`,"fps",onEv.value])}></td>
+    <td>${escHtml(s.codec||"—")}</td><td>${s.online===false?`<span class="pf-st bad">${i18n("нет сигнала")}</span>`:`<span class="pf-st ok">${i18n("работает")}</span>`}</td>
+    <td class="ca-x">${i?`<button type="button" class="btn s" ${onEv("click",["streamDel",`${n.id}`,`${s.id}`])}>${i18n("Удалить")}</button>`:`<span class="sub">${i18n("основной")}</span>`}</td></tr>`).join("");
+  return card("Видео",`${bdg(n)}${liveFrameHtml(n)}
+      <div class="g" style="margin-top:10px">${n.resOptions?.length?sl("Разрешение",["",...n.resOptions],f["Разрешение"]||""):fld("Разрешение",f["Разрешение"]||"")}${fld("к/с",f["к/с"]||"","number")}${fldRo("Кодек",f["Кодек"]||"—")}</div>
+      <p class="sub">${i18n("Детекторы видеоаналитики — на вкладке")} <button class="lk" ${onEv("click",["goTab","det"])}>${i18n("Детекторы")}</button>.</p>`)+
+    card("Потоки",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Разрешение")}</th><th>${i18n("к/с")}</th><th>${i18n("Кодек")}</th><th>${i18n("Состояние")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="ca-foot"><button type="button" class="btn s" ${onEv("click",["streamAdd",`${n.id}`])}>${lu("plus")}${i18n("Поток")}</button></div>`,`<span class="sub" style="font-weight:400">${camStreams(n).length}</span>`);
+}
+function streamAdd(id){
+  const n=find(id)?.n;if(!n)return;
+  API.post(`/devices/${id}/streams`,{name:`${i18n("Поток")} ${camStreams(n).length+1}`}).then(r=>{hwApplyDevice(r);gear()}).catch(e=>toast(problemText(e,n)));
+}
+function streamSet(id,sid,k,v){
+  const n=find(id)?.n;if(!n)return;
+  const val=k==="fps"?Number(v):String(v).trim();
+  if(k==="fps"&&!(val>0)||!val)return gear();
+  API.patch(`/devices/${id}/streams/${sid}`,{[k]:val}).then(r=>{hwApplyDevice(r);gear()}).catch(e=>{toast(problemText(e,n));gear()});
+}
+function streamDel(id,sid){
+  const n=find(id)?.n,s=camStreams(n).find(x=>x.id===sid);if(!s)return;
+  askConfirm("Удалить поток?",`<ul class="bk-del"><li>${i18n("Будет удалён поток")} «${escHtml(s.name)}»</li><li>${i18n("Камера и основной поток останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`${id}/${sid}`],{label:`${i18n("Поток")} «${s.name}»`,commit:()=>{
+    API.del(`/devices/${id}/streams/${sid}`).then(r=>{hwApplyDevice(r);gear();toast(i18n("Поток удалён"))}).catch(e=>toast(problemText(e,n)));
+  }}),{html:true,typeCount:1});
+}
 function lanTabOpen(n){
   if(!n)return false;
   if(n.type==="folder")return tab==="lan";
@@ -8357,10 +8418,7 @@ function formBase(n){
     <p class="sub">Системный объект сервера. Вызывается из правил автоматизации для SMS-оповещений.</p>`);
   if(n.type==="camera"){
     const a=arch.find(x=>x.id===n.arch)||null;
-    if(tab==="vid")return card("Видео",`${bdg(n)}<div class="vid">${n.online?'<span style="position:absolute;left:10px;top:8px;color:var(--one-palette-red-hover);font-size:11px">● LIVE</span>':''}<span style="opacity:.35;font-size:28px">◉</span></div>
-      <div class="mx"><div class="mc"><span>Поток</span><b>1920×1080 · 25</b></div><div class="mc"><span>Кодек</span><b>H.265</b></div></div>
-      <div class="g" style="margin-top:10px">${sl("Кодек",["H.265","H.264"])}${sl("Разрешение",["1920×1080","4K"])}${fld("к/с","25","number")}${fld("Битрейт","4096","number")}</div>
-      <p class="sub">${i18n("Детекторы видеоаналитики — на вкладке")} <button class="lk" ${onEv("click",["goTab","det"])}>${i18n("Детекторы")}</button>.</p>`);
+    if(tab==="vid")return camVideoHtml(n);
     if(tab==="det")return camDetectorsHtml(n);
     if(tab==="io")return periphCardHtml(n);
     if(tab==="acc")return accCamAccessHtml(n);
@@ -16184,7 +16242,7 @@ function camArchsCardHtml(n){
     const a=archById(x.arch),opts=archChoicesFor(n).filter(o=>o.id===x.arch||!used.has(o.id));
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
         ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`}</td>
-      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}><option value="main" ${x.stream!=="sub"?"selected":""}>${i18n("Основной")}</option><option value="sub" ${x.stream==="sub"?"selected":""}>${i18n("Второй")}</option></select></td>
+      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
       <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${REC_MODES.filter(([v])=>v!=="none").map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
       <td class="ca-x"><button type="button" class="btn s" title="${i18n("Отвязать от хранилища")}" ${onEv("click",["camArchRowDel",`${n.id}`,i])}>${i18n("Отвязать")}</button></td></tr>`;
   }).join("");
@@ -18169,8 +18227,10 @@ function bulkRecHtml(nodes){
 function bulkVidHtml(nodes,st){
   if(st.models.length>1)return card("Видео",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Параметры видео доступны, если выбрать камеры одной модели.")}</div>
     <div class="bk-keep">${st.models.map(([k,c])=>`<button type="button" class="btn s" title="${i18n("Выборка останется целой — правка пойдёт только камерам этой модели")}" ${onEv("click",["bulkFiltSet",{kind:"camera",model:k}])}>${i18n("Править только")} ${escHtml(k)} (${c})</button>`).join("")}</div>`);
-  const codecD=countBy(nodes,n=>n.codec||"H.265"),resD=countBy(nodes,n=>n.res||"1920×1080"),fpsD=countBy(nodes,n=>n.fps||25),brD=countBy(nodes,n=>n.bitrate||4096);
-  return card("Видео",`<div class="g">${bkSelect("Кодек","codec",[["H.265","H.265"],["H.264","H.264"]],codecD)}${bkSelect("Разрешение","res",[["1920×1080","1920×1080"],["4K","4K"]],resD)}${bkInput("к/с","fps","number",fpsD)}${bkInput("Битрейт","bitrate","number",brD)}</div>
+  const resD=countBy(nodes,n=>n._f?.["Разрешение"]||"—"),fpsD=countBy(nodes,n=>n._f?.["к/с"]||"—");
+  // Варианты — пересечение resOptions выборки; у кого списка нет, тому разрешение вводят руками
+  const opts=nodes.every(n=>n.resOptions?.length)?nodes[0].resOptions.filter(o=>nodes.every(n=>n.resOptions.includes(o))):null;
+  return card("Видео",`<div class="g">${opts?bkSelect("Разрешение","res",opts.map(o=>[o,o]),resD):bkInput("Разрешение","res","text",resD)}${bkInput("к/с","fps","number",fpsD)}</div>
     <p class="sub">${i18n("Одна модель")}: ${escHtml(st.models[0][0])}. ${i18n("Значения проверяются по пересечению допустимых диапазонов выбранных камер; поток переоткроется, поэтому через план.")}</p>`);
 }
 function bulkDetHtml(nodes,st){
@@ -18299,9 +18359,9 @@ function bulkChanges(draft){
     step("rec",`Режим записи «${i18n(recordModeLabel(d.rec))}»`,ops,sk?`${sk} ${i18n(plural(sk,"камера|камеры|камер"))} ${i18n("будут пропущены")}`:"");
   }
   if(d.pre)step("pre",`Предзапись ${d.pre} с`,nodes.filter(n=>n.type==="camera"&&String(n.pre??5)!==String(d.pre)).map(n=>{const prev=n.pre;return mkOp(n,`Предзапись ${d.pre} с`,"rec",()=>{n.pre=Number(d.pre)},null,()=>{n.pre=prev})}));
-  const vid=["codec","res","fps","bitrate"].filter(k=>d[k]);
+  const vid=["res","fps"].filter(k=>d[k]);
   const sameModel=n=>!d.onlyModel||modelOf(n)===d.onlyModel;
-  if(vid.length)step("video",`Видео: ${vid.map(k=>({codec:"кодек",res:"разрешение",fps:"к/с",bitrate:"битрейт"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"||k==="bitrate"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток переоткроется, запись прервётся на секунды")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
+  if(vid.length)step("video",`Видео: ${vid.map(k=>({res:"разрешение",fps:"к/с"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток переоткроется, запись прервётся на секунды")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   [...(d.addDet?[d.addDet]:[]),...(d.addDetMany||[])].forEach(kind=>{
     step("addDet:"+kind,`Детектор «${i18n(kind)}»`,nodes.filter(n=>n.type==="camera"&&!camDetectors(n).some(x=>(x.kind||DET_TYPES[0])===kind)).map(n=>mkOp(n,`Детектор «${i18n(kind)}»`,"det",()=>{
       (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});
@@ -19188,7 +19248,7 @@ function cpGroups(src){
     return[
       {key:"arch",label:"Привязка к архиву",value:a?locName(a):i18n("архив не задан"),tag:cpArchScope(a),off:!a},
       {key:"rec",label:"Настройки записи",value:`${i18n(recordModeLabel(src.rec||"none"))} · ${i18n("предзапись")} ${src.pre??5} ${i18n("с")}`},
-      {key:"video",label:"Видео",value:`${src.codec||"H.265"} · ${src.res||"1920×1080"} · ${src.fps||25} ${i18n("к/с")} · ${src.bitrate||4096}`,tag:i18n("только та же модель")},
+      {key:"video",label:"Видео",value:`${src._f?.["Разрешение"]||"—"} · ${src._f?.["к/с"]||"—"} ${i18n("к/с")}`,tag:i18n("только та же модель")},
       en,fGroup,
       {key:"creds",label:"Учётные данные",value:i18n("логин и пароль источника (пароль не показывается)")}
     ];
@@ -19341,7 +19401,7 @@ function cpShowPlan(){
   if(g.has("enabled"))d.enabled=src.enabled!==false?"on":"off";
   if(g.has("folders"))d.folderAddMany=foldersOfDevice(src.id).filter(f=>f.items.includes(src.id)).map(f=>f.id);
   if(g.has("creds")){d.user=src.user||"admin";d.pass="********";d.passCopied=true}
-  if(g.has("video")){d.codec=src.codec||"H.265";d.res=src.res||"1920×1080";d.fps=String(src.fps||25);d.bitrate=String(src.bitrate||4096)}
+  if(g.has("video")){if(src._f?.["Разрешение"])d.res=src._f["Разрешение"];if(src._f?.["к/с"])d.fps=String(src._f["к/с"])}
   const dets=camDetectors(src).filter(x=>cp.dets.has(x.id));
   if(dets.length){d.copyDets=dets.map(x=>({name:locName(x),kind:x.kind||DET_TYPES[0],sens:x.sens||"12",builtin:!!x.builtin}));d.detModel=modelOf(src)}
   if(g.has("video"))d.onlyModel=modelOf(src);

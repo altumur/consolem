@@ -1170,7 +1170,41 @@
    "azimuth": 180.0,
    "armed": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000016-0000-4000-8000-000000000000",
@@ -1349,7 +1383,41 @@
    "azimuth": 45.0,
    "armed": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000039-0000-4000-8000-000000000000",
@@ -1387,7 +1455,41 @@
    "disabledByRuleId": "70000007-0000-4000-8000-000000000000",
    "disabledByRuleAt": "2026-10-29T06:05:00Z",
    "version": "1",
-   "rtspUrl": "rtsp://192.168.1.26:554/Streaming/Channels/101"
+   "rtspUrl": "rtsp://192.168.1.26:554/Streaming/Channels/101",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000043-0000-4000-8000-000000000000",
@@ -1410,7 +1512,41 @@
    "azimuth": 270.0,
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000044-0000-4000-8000-000000000000",
@@ -1433,7 +1569,32 @@
    "lon": 37.61945,
    "azimuth": 135.0,
    "armed": false,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000151-0000-4000-8000-000000000000",
@@ -1451,7 +1612,32 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000152-0000-4000-8000-000000000000",
@@ -1469,7 +1655,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000153-0000-4000-8000-000000000000",
@@ -1487,7 +1707,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000155-0000-4000-8000-000000000000",
@@ -1505,7 +1759,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000156-0000-4000-8000-000000000000",
@@ -1523,7 +1811,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000157-0000-4000-8000-000000000000",
@@ -1542,7 +1864,32 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false
+    }
+   ]
   },
   {
    "id": "30000158-0000-4000-8000-000000000000",
@@ -1560,7 +1907,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000160-0000-4000-8000-000000000000",
@@ -1578,7 +1959,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000161-0000-4000-8000-000000000000",
@@ -1596,7 +2011,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000162-0000-4000-8000-000000000000",
@@ -1614,7 +2063,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000163-0000-4000-8000-000000000000",
@@ -1633,7 +2116,32 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false
+    }
+   ]
   },
   {
    "id": "30000165-0000-4000-8000-000000000000",
@@ -1651,7 +2159,41 @@
    "serverId": "20000004-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000166-0000-4000-8000-000000000000",
@@ -1669,7 +2211,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000167-0000-4000-8000-000000000000",
@@ -1687,7 +2263,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000168-0000-4000-8000-000000000000",
@@ -1705,7 +2315,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000170-0000-4000-8000-000000000000",
@@ -1723,7 +2367,32 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000171-0000-4000-8000-000000000000",
@@ -1742,7 +2411,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000172-0000-4000-8000-000000000000",
@@ -1760,7 +2463,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000173-0000-4000-8000-000000000000",
@@ -1778,7 +2515,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000175-0000-4000-8000-000000000000",
@@ -1796,7 +2567,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000176-0000-4000-8000-000000000000",
@@ -1814,7 +2619,32 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000177-0000-4000-8000-000000000000",
@@ -1833,7 +2663,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000178-0000-4000-8000-000000000000",
@@ -1851,7 +2715,41 @@
    "serverId": "20000005-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000180-0000-4000-8000-000000000000",
@@ -1869,7 +2767,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000181-0000-4000-8000-000000000000",
@@ -1887,7 +2819,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000182-0000-4000-8000-000000000000",
@@ -1905,7 +2871,32 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000183-0000-4000-8000-000000000000",
@@ -1923,7 +2914,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000185-0000-4000-8000-000000000000",
@@ -1942,7 +2967,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000186-0000-4000-8000-000000000000",
@@ -1960,7 +3019,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000187-0000-4000-8000-000000000000",
@@ -1978,7 +3071,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000188-0000-4000-8000-000000000000",
@@ -1996,7 +3123,32 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000190-0000-4000-8000-000000000000",
@@ -2014,7 +3166,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000191-0000-4000-8000-000000000000",
@@ -2033,7 +3219,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000192-0000-4000-8000-000000000000",
@@ -2051,7 +3271,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000193-0000-4000-8000-000000000000",
@@ -2069,7 +3323,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000195-0000-4000-8000-000000000000",
@@ -2087,7 +3375,32 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000196-0000-4000-8000-000000000000",
@@ -2105,7 +3418,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000197-0000-4000-8000-000000000000",
@@ -2124,7 +3471,41 @@
    "serverId": "20000006-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000198-0000-4000-8000-000000000000",
@@ -2142,7 +3523,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000200-0000-4000-8000-000000000000",
@@ -2160,7 +3575,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000201-0000-4000-8000-000000000000",
@@ -2178,7 +3627,32 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000202-0000-4000-8000-000000000000",
@@ -2196,7 +3670,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000203-0000-4000-8000-000000000000",
@@ -2215,7 +3723,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000205-0000-4000-8000-000000000000",
@@ -2233,7 +3775,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000206-0000-4000-8000-000000000000",
@@ -2251,7 +3827,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000207-0000-4000-8000-000000000000",
@@ -2269,7 +3879,32 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000208-0000-4000-8000-000000000000",
@@ -2287,7 +3922,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000210-0000-4000-8000-000000000000",
@@ -2306,7 +3975,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": false
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": false,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000211-0000-4000-8000-000000000000",
@@ -2324,7 +4027,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000212-0000-4000-8000-000000000000",
@@ -2342,7 +4079,41 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000213-0000-4000-8000-000000000000",
@@ -2360,7 +4131,32 @@
    "serverId": "20000007-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000252-0000-4000-8000-000000000000",
@@ -2378,7 +4174,32 @@
    "serverId": "20000025-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000253-0000-4000-8000-000000000000",
@@ -2396,7 +4217,41 @@
    "serverId": "20000025-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000254-0000-4000-8000-000000000000",
@@ -2414,7 +4269,41 @@
    "serverId": "20000025-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000255-0000-4000-8000-000000000000",
@@ -2432,7 +4321,41 @@
    "serverId": "20000026-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000257-0000-4000-8000-000000000000",
@@ -2450,7 +4373,41 @@
    "serverId": "20000026-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000258-0000-4000-8000-000000000000",
@@ -2468,7 +4425,32 @@
    "serverId": "20000026-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000259-0000-4000-8000-000000000000",
@@ -2486,7 +4468,41 @@
    "serverId": "20000026-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000260-0000-4000-8000-000000000000",
@@ -2504,7 +4520,41 @@
    "serverId": "20000027-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000262-0000-4000-8000-000000000000",
@@ -2522,7 +4572,41 @@
    "serverId": "20000027-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000263-0000-4000-8000-000000000000",
@@ -2540,7 +4624,41 @@
    "serverId": "20000027-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000264-0000-4000-8000-000000000000",
@@ -2558,7 +4676,32 @@
    "serverId": "20000028-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000265-0000-4000-8000-000000000000",
@@ -2576,7 +4719,41 @@
    "serverId": "20000028-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000267-0000-4000-8000-000000000000",
@@ -2594,7 +4771,41 @@
    "serverId": "20000028-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000268-0000-4000-8000-000000000000",
@@ -2612,7 +4823,41 @@
    "serverId": "20000029-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000269-0000-4000-8000-000000000000",
@@ -2630,7 +4875,41 @@
    "serverId": "20000029-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000270-0000-4000-8000-000000000000",
@@ -2648,7 +4927,32 @@
    "serverId": "20000029-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000272-0000-4000-8000-000000000000",
@@ -2666,7 +4970,41 @@
    "serverId": "20000030-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000273-0000-4000-8000-000000000000",
@@ -2684,7 +5022,41 @@
    "serverId": "20000030-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000274-0000-4000-8000-000000000000",
@@ -2702,7 +5074,41 @@
    "serverId": "20000030-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000275-0000-4000-8000-000000000000",
@@ -2720,7 +5126,41 @@
    "serverId": "20000030-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   },
   {
    "id": "30000277-0000-4000-8000-000000000000",
@@ -2738,7 +5178,32 @@
    "serverId": "20000031-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true
+    }
+   ]
   },
   {
    "id": "30000278-0000-4000-8000-000000000000",
@@ -2756,7 +5221,41 @@
    "serverId": "20000031-0000-4000-8000-000000000000",
    "armed": false,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "res": "1920x1080",
+   "fps": 25,
+   "codec": "H.264",
+   "streams": [
+    {
+     "id": "main",
+     "name": "Основной",
+     "res": "1920x1080",
+     "fps": 25,
+     "codec": "H.264",
+     "width": 1920,
+     "height": 1080,
+     "online": true
+    },
+    {
+     "id": "sub",
+     "name": "Второй",
+     "res": "640x360",
+     "fps": 12,
+     "codec": "H.264",
+     "width": 640,
+     "height": 360,
+     "online": true,
+     "resOptions": [
+      "640x360",
+      "1280x720"
+     ]
+    }
+   ],
+   "resOptions": [
+    "2560x1440",
+    "1920x1080",
+    "1280x720"
+   ]
   }
  ],
  "folders": [
@@ -13758,6 +16257,10 @@
     "getDevice",
     "patchDevice",
     "deleteDevice",
+    "startLive",
+    "createStream",
+    "patchStream",
+    "deleteStream",
     "listFolders",
     "createFolder",
     "getFolder",
@@ -13832,12 +16335,10 @@
     "camera": [
      "archiveId",
      "azimuth",
-     "bitrate",
      "buffering",
      "builtin",
      "cameraId",
      "channel",
-     "codec",
      "configMode",
      "detectorKind",
      "enabled",

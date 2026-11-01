@@ -41,6 +41,27 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(noUrl.id);
   ok(document.querySelector('[data-df="RTSP"]')?.value === "", "адреса нет — поле пустое, а не собранное из IP");
 
+  // Видео: своего не подставляем, потоки строками, разрешение — из вариантов
+  const video = of("camera", (d) => d.resOptions && d.online);
+  open(video.id, "vid");
+  ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "SELECT" && !/H\.265|4096|Битрейт/.test(main().textContent), "разрешение — выбор из resOptions, H.265 и битрейта нет");
+  ok(await until(() => liveSessions.get(video.id)?.whepUrl), "живое видео запрошено через POST /devices/{id}/live");
+  ok(await until(() => /Кадр-заглушка/.test(main().textContent)), "вместо видео — кадр-заглушка");
+  const free = of("camera", (d) => !d.resOptions && !d.parentId);
+  open(free.id, "vid");
+  ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "INPUT", "нет вариантов — ввод руками");
+  open(video.id, "vid");
+  const rowsBefore = main().querySelectorAll("[data-stream]").length;
+  streamAdd(video.id);
+  ok(await until(() => main().querySelectorAll("[data-stream]").length === rowsBefore + 1), "поток добавлен строкой");
+  const added = find(video.id).n.streams.at(-1);
+  streamDel(video.id, added.id);
+  ok(await until(() => document.getElementById("confirmCountInp")), "удаление потока — с вводом числа");
+  await confirmWith(1);
+  ok(await until(() => find(video.id).n.streams.length === rowsBefore), "поток удалён после отсчёта");
+  open(video.id, "rec");
+  ok(!main().querySelector("select") || [...main().querySelectorAll("option")].some((o) => o.textContent === "Второй") || !camArchs(find(video.id).n).length, "поток записи — из потоков камеры");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

@@ -199,6 +199,34 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Потоки камеры ----- */
+
+    const RES = /^(\d+)x(\d+)$/;
+    const sizeOf = (res) => {
+      const m = RES.exec(res || "");
+      return m ? { width: Number(m[1]), height: Number(m[2]) } : {};
+    };
+    const streamsOf = (rec) => rec.streams || [];
+    // Разрешение — из вариантов устройства, если устройство их назвало
+    const resProblem = (options, res) => (res != null && options && !options.includes(res) ? problem(422, "VALIDATION_FAILED", `Разрешение ${res} камера не поддерживает`, { field: "res" }) : null);
+    // Поток записи — один из потоков камеры
+    function streamRefProblem(rec, patch) {
+      if (!rec.streams) return null;
+      const known = (id) => id == null || rec.streams.some((s) => s.id === id);
+      if ("stream" in patch && !known(patch.stream)) return problem(422, "VALIDATION_FAILED", `Нет потока ${patch.stream}`, { field: "stream" });
+      return (patch.extraArchives || []).some((x) => !known(x.stream)) ? problem(422, "VALIDATION_FAILED", "Нет такого потока", { field: "extraArchives" }) : null;
+    }
+    // Новый состав потоков: основной поток — это Device.res, Device.fps. Правка — одиночная операция в стопке
+    function setStreams(rec, next) {
+      const patch = { streams: next };
+      const main = next[0];
+      if (main) ["res", "fps"].forEach((k) => { if (main[k] !== rec[k]) patch[k] = main[k] == null ? null : main[k]; });
+      const before = applyPatch(rec, patch);
+      changed("device", rec);
+      recordSingle([setStep(rec, patch, before)]);
+      return one(device(rec));
+    }
+
     /* ----- Виды устройств: что находит сервер, что заводит оператор ----- */
 
     const found = (type) => (caps().foundDeviceTypes || []).includes(type);
@@ -229,6 +257,14 @@
       if (rec.type !== "camera" || rec.parentId || !["rtspUrl", "vendor", "model"].some((k) => k in patch)) return null;
       return hasAddress(Object.assign({}, rec, patch)) ? null : problem(422, "VALIDATION_FAILED", "Нужен адрес камеры или производитель и модель", { field: "rtspUrl" });
     };
+    const videoProblem = (rec, patch) => resProblem(rec.resOptions, patch.res) || streamRefProblem(rec, patch);
+    // Device.res, Device.fps — это основной поток
+    function syncMain(rec, patch) {
+      const main = streamsOf(rec)[0];
+      if (!main || !("res" in patch || "fps" in patch)) return;
+      ["res", "fps"].forEach((k) => { if (k in rec) main[k] = rec[k]; else delete main[k]; });
+      Object.assign(main, sizeOf(main.res));
+    }
     const deleteProblem = (d) => (d.derived || (found(d.type) && !isUnit(d)) ? problem(422, "NOT_SUPPORTED", "Запись не удаляется: её ведёт сервер", { field: "type" }) : null);
 
     // Проверка изменения до выполнения: ссылки ведут в существующие записи, имя не пустое
@@ -314,7 +350,7 @@
         }
       }
       if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
+      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
     }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
@@ -397,6 +433,7 @@
         if (!parent && NUMBERED.has(s.type) && (d.identifier == null || d.identifier === "")) d.identifier = nextIdentifier();
         if (!("enabled" in d)) d.enabled = true;
         d.online = true;
+        if (s.type === "camera") d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
         d.version = newVersion();
         db.devices.push(d);
         devices.push(d);
@@ -879,6 +916,7 @@
       if (item.req.set) {
         if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
         item.before = { set: applyPatch(rec, item.req.set) };
+        if (t.kind === "device") syncMain(rec, item.req.set);
         item.after = fieldsOf(rec, item.req.set);
         item.secret = "password" in item.req.set || "secret" in item.req.set;
         changed(t.kind, rec);
@@ -997,12 +1035,71 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || patchProblem(body);
+          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || patchProblem(body);
           if (bad) return bad;
           const before = applyPatch(rec, body);
+          syncMain(rec, body);
           changed("device", rec);
           recordSingle([setStep(rec, body, before)]);
           return one(device(rec));
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/live",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Живое видео — только у камеры", { field: "type" });
+          if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера без связи");
+          // Встроенный сервер видео не отдаёт: адрес-заглушка, форма показывает картинку
+          return { status: 200, body: { whepUrl: `stub://live/${rec.id}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + 60000) } };
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/streams",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Потоки — только у камеры", { field: "type" });
+          if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя потока", { field: "name" });
+          const locked = lockedProblem([rec.id]);
+          if (locked) return locked;
+          let n = 1;
+          while (streamsOf(rec).some((s) => s.id === `s${n}`)) n++;
+          const res = setStreams(rec, streamsOf(rec).concat(Object.assign({ id: `s${n}`, online: true }, clone(body), { name: body.name.trim() }, sizeOf(body.res))));
+          return Object.assign(res, { status: 201 });
+        },
+      ],
+      [
+        "PATCH",
+        "/devices/{id}/streams/{streamId}",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          const st = streamsOf(rec).find((s) => s.id === p.streamId);
+          if (!st) return notFound("Поток");
+          if ("name" in body && !String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя потока", { field: "name" });
+          const bad = resProblem(st.resOptions, body.res) || lockedProblem([rec.id]);
+          if (bad) return bad;
+          return setStreams(rec, streamsOf(rec).map((s) => (s === st ? Object.assign(clone(s), clone(body), sizeOf(body.res)) : clone(s))));
+        },
+      ],
+      [
+        "DELETE",
+        "/devices/{id}/streams/{streamId}",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          const i = streamsOf(rec).findIndex((s) => s.id === p.streamId);
+          if (i < 0) return notFound("Поток");
+          if (i === 0) return problem(422, "NOT_SUPPORTED", "Основной поток не удаляется", { field: "streamId" });
+          const used = rec.stream === p.streamId || (rec.extraArchives || []).some((x) => x.stream === p.streamId) || db.devices.some((d) => d.parentId === rec.id && d.stream === p.streamId);
+          if (used) return problem(422, "VALIDATION_FAILED", "Поток используется записью или детектором", { field: "stream" });
+          const locked = lockedProblem([rec.id]);
+          if (locked) return locked;
+          return setStreams(rec, streamsOf(rec).filter((s) => s.id !== p.streamId));
         },
       ],
       /* ----- Домены ----- */
@@ -1376,6 +1473,7 @@
             const bad = setProblem(t, x.set);
             if (bad) return failed.push(Object.assign({ deviceId: x.deviceId, code: bad.body.code }, bad.body.field ? { field: bad.body.field } : {}));
             const before = applyPatch(t.rec, x.set);
+            syncMain(t.rec, x.set);
             changed("device", t.rec);
             steps.push(setStep(t.rec, x.set, before));
             done.push(device(t.rec));

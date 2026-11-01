@@ -243,5 +243,62 @@
     assert.eq(bad.body.field, "mac", "поле");
   });
 
+  /* ===== Потоки, разрешение, живое видео ===== */
+
+  test("Потоки: добавить, изменить, удалить; основной — это Device.res и fps; запись ссылается на id потока", async () => {
+    const env = await makeEnv();
+    const c = (await env.list("/devices")).find((d) => d.type === "camera" && d.streams?.length >= 2 && d.online);
+    const add = await env.call("POST", `/devices/${c.id}/streams`, { name: "Для облака", res: "1280x720", fps: 10 });
+    assert.status(add, 201);
+    const st = add.body.streams.at(-1);
+    assert.eq([st.name, st.width, st.height, st.fps], ["Для облака", 1280, 720, 10], "поток с размером");
+    const named = await env.ok("PATCH", `/devices/${c.id}/streams/${st.id}`, { name: "Облако" });
+    assert.eq(named.streams.at(-1).name, "Облако", "имя");
+    const main = await env.ok("PATCH", `/devices/${c.id}/streams/${c.streams[0].id}`, { fps: 15 });
+    assert.eq(main.fps, 15, "основной поток — это Device.fps");
+    const again = await env.ok("PATCH", `/devices/${c.id}`, { fps: 20 }, v(main));
+    assert.eq(again.streams[0].fps, 20, "и наоборот");
+    assert.status(await env.call("PATCH", `/devices/${c.id}`, { stream: "нет-такого" }, v(again)), 422, "VALIDATION_FAILED", "неизвестный поток");
+    const used = await env.ok("PATCH", `/devices/${c.id}`, { stream: st.id }, v(again));
+    assert.status(await env.call("DELETE", `/devices/${c.id}/streams/${st.id}`), 422, "VALIDATION_FAILED", "по потоку идёт запись");
+    await env.ok("PATCH", `/devices/${c.id}`, { stream: c.streams[0].id }, v(used));
+    const left = await env.ok("DELETE", `/devices/${c.id}/streams/${st.id}`);
+    assert.eq(left.streams.length, c.streams.length, "удалён");
+    assert.status(await env.call("DELETE", `/devices/${c.id}/streams/${c.streams[0].id}`), 422, "NOT_SUPPORTED", "основной остаётся");
+    assert.status(await env.call("DELETE", `/devices/${c.id}/streams/нет`), 404, "NOT_FOUND");
+    const s = await env.list("/devices");
+    const det = s.find((d) => d.type === "det");
+    assert.status(await env.call("POST", `/devices/${det.id}/streams`, { name: "x" }), 422, "NOT_SUPPORTED", "только у камеры");
+  });
+
+  test("Разрешение: латинская x, из resOptions; нет списка — ввод руками; codec только чтение, у потока откат", async () => {
+    const env = await makeEnv();
+    const list = await env.list("/devices");
+    const c = list.find((d) => d.type === "camera" && d.resOptions);
+    assert.status(await env.call("PATCH", `/devices/${c.id}`, { res: "1920×1080" }, v(c)), 422, "VALIDATION_FAILED", "кириллический знак умножения не проходит");
+    assert.status(await env.call("PATCH", `/devices/${c.id}`, { res: "7680x4320" }, v(c)), 422, "VALIDATION_FAILED", "вне вариантов");
+    const bad = await env.call("PATCH", `/devices/${c.id}`, { codec: "H.265" }, v(c));
+    assert.status(bad, 422, "NOT_SUPPORTED", "кодек только чтение");
+    const free = list.find((d) => d.type === "camera" && !d.resOptions);
+    assert.eq((await env.ok("PATCH", `/devices/${free.id}`, { res: "1024x768" }, v(free))).res, "1024x768", "руками");
+    const before = free.streams.length;
+    await env.ok("POST", `/devices/${free.id}/streams`, { name: "Новый" });
+    const op = (await env.ok("GET", "/operations")).items[0];
+    await env.finished((await env.ok("POST", `/operations/${op.id}/revert`)).id);
+    assert.eq((await env.ok("GET", `/devices/${free.id}`)).streams.length, before, "правка потока откатывается");
+  });
+
+  test("Живое видео: адрес, токен, срок; без связи — 409 DEVICE_OFFLINE; не камера — 422", async () => {
+    const env = await makeEnv();
+    const list = await env.list("/devices");
+    const c = list.find((d) => d.type === "camera" && d.online);
+    const live = await env.ok("POST", `/devices/${c.id}/live`, { width: 640, height: 360 });
+    assert.ok(live.whepUrl && live.token && Date.parse(live.expiresAt) > 0, "ответ");
+    const off = list.find((d) => d.type === "camera" && d.online === false);
+    assert.status(await env.call("POST", `/devices/${off.id}/live`, { width: 640, height: 360 }), 409, "DEVICE_OFFLINE");
+    const det = list.find((d) => d.type === "det");
+    assert.status(await env.call("POST", `/devices/${det.id}/live`, { width: 640, height: 360 }), 422, "NOT_SUPPORTED");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();
