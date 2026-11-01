@@ -67,6 +67,10 @@
       "description": "Журнал"
     },
     {
+      "name": "assist",
+      "description": "Ассистент конфигурирования: разговор и план правок. Модель и проверка плана — на бэкенде"
+    },
+    {
       "name": "stream",
       "description": "Поток событий"
     },
@@ -4068,6 +4072,47 @@
         ]
       }
     },
+    "/assist/turns": {
+      "post": {
+        "operationId": "assistTurn",
+        "tags": [
+          "assist"
+        ],
+        "summary": "Ход разговора с ассистентом (SSE)",
+        "description": "Ответ — поток text/event-stream: на сообщение строка data: (AssistEvent), без event: и без id:. Ход длится от десятков секунд до нескольких минут. Закрыть поток — отменить ход. Оборванный поток не продолжается: клиент повторяет запрос. Поток без завершающего сообщения — обрыв, UPSTREAM_UNAVAILABLE. «Применить» — обычный POST /devices/update с items плана и новым idempotencyKey; устройство изменилось после плана — его строка в failed с VERSION_MISMATCH. Без него ничего не пишется.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssistTurnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "text/event-stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssistEvent"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/stream": {
       "get": {
         "operationId": "stream",
@@ -7371,13 +7416,15 @@
         "enum": [
           "serverRoles",
           "serverNetwork",
-          "archiveEncryption"
+          "archiveEncryption",
+          "assist"
         ],
         "description": "Необязательная возможность системы: без неё поле есть в записи, но менять его нельзя (422 NOT_SUPPORTED)",
         "x-enum-descriptions": {
           "serverRoles": "Роль сервера (role в ServerPatch): основной, узел, резервный",
           "serverNetwork": "Сетевые настройки сервера (netmask, gateway, dns в ServerPatch)",
-          "archiveEncryption": "Шифрование хранилища (encrypted: true в ArchiveCreate и ArchivePatch)"
+          "archiveEncryption": "Шифрование хранилища (encrypted: true в ArchiveCreate и ArchivePatch)",
+          "assist": "Ассистент конфигурирования (POST /assist/turns): без него режим ассистента в интерфейсе скрыт"
         }
       },
       "Capabilities": {
@@ -7447,7 +7494,8 @@
           },
           "at": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Время события на сервере, а не отправки сообщения. У изменений записей — когда изменение принято хранилищем. При досылке после переподключения — прежнее"
           },
           "kind": {
             "type": "string",
@@ -8490,7 +8538,8 @@
           "NOT_SUPPORTED",
           "RULE_INVALID",
           "BUILTIN",
-          "NOT_RUNNABLE"
+          "NOT_RUNNABLE",
+          "UPSTREAM_UNAVAILABLE"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
         "x-enum-descriptions": {
@@ -8523,7 +8572,8 @@
           "NOT_SUPPORTED": "Система этого не поддерживает: вид устройства или настройка вне GET /reference → capabilities (422; в групповых — по объекту)",
           "RULE_INVALID": "Включённое правило с ошибкой не сохраняется: что не так — в params.issue (422)",
           "BUILTIN": "Встроенное («Всегда», «Никогда», системный режим) не правится и не удаляется (409)",
-          "NOT_RUNNABLE": "Правило сейчас нельзя запустить: выключено, с ошибкой или только по событию — в params.reason (409)"
+          "NOT_RUNNABLE": "Правило сейчас нельзя запустить: выключено, с ошибкой или только по событию — в params.reason (409)",
+          "UPSTREAM_UNAVAILABLE": "Бэкенд недоступен, не ответил вовремя или занят (502, 503, 504; при 503 — Retry-After). Запись могла пройти: повтор — с тем же idempotencyKey или после перечитывания"
         }
       },
       "ServerPatch": {
@@ -12218,6 +12268,148 @@
           "window",
           "schedule"
         ]
+      },
+      "AssistTurnRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "text"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Что написал человек"
+          },
+          "context": {
+            "type": "string",
+            "description": "Непрозрачная строка из прошлого ответа этого разговора, клиент возвращает её как есть. Первый запрос разговора — без неё"
+          },
+          "secrets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Пароли из отдельных полей ассистента. Номер секрета — место в массиве, с 1. В context их нет: клиент держит их в памяти до конца разговора и присылает в каждом запросе, никуда не сохраняет"
+          }
+        },
+        "description": "Ход разговора с ассистентом. Своего состояния у бэкенда нет: разговор держит клиент"
+      },
+      "AssistChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "field",
+          "after",
+          "why"
+        ],
+        "properties": {
+          "field": {
+            "type": "string",
+            "description": "Поле DevicePatch"
+          },
+          "before": {
+            "description": "Значение до правки. Нет у секретов: их значение не показывается"
+          },
+          "after": {
+            "description": "Значение после правки. У секрета — только его номер: «новый (секрет № 2)»"
+          },
+          "why": {
+            "type": "string"
+          }
+        }
+      },
+      "AssistPlanItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "version",
+          "set",
+          "name",
+          "changes"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[!#-~]+$",
+            "description": "Версия, по которой построен план"
+          },
+          "set": {
+            "$ref": "#/components/schemas/DevicePatch"
+          },
+          "name": {
+            "type": "string"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistChange"
+            }
+          }
+        },
+        "description": "deviceId, version, set — ровно элемент DevicesUpdateRequest.items; name и changes — пояснение для человека"
+      },
+      "AssistEvent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "progress",
+              "question",
+              "plan",
+              "refused",
+              "error"
+            ],
+            "x-enum-descriptions": {
+              "progress": "Что ассистент делает сейчас: text. Может приходить много раз",
+              "question": "Нужно уточнение: text, context. Ответ человека — новый запрос с этим context",
+              "plan": "План: summary, context, items. Частичных планов нет: не может всё — refused",
+              "refused": "Не может: text, context, field",
+              "error": "Ошибка: code, message"
+            }
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Момент, когда бэкенд произвёл событие"
+          },
+          "text": {
+            "type": "string"
+          },
+          "context": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string",
+            "description": "Коротко: кого выбрали и сколько"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistPlanItem"
+            }
+          },
+          "field": {
+            "type": "string"
+          },
+          "code": {
+            "$ref": "#/components/schemas/ProblemCode"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, error"
       }
     }
   }

@@ -89,6 +89,10 @@
       const item = spec.paths[r.template];
       const op = item && item[r.method.toLowerCase()];
       if (!op) return out.push(`${r.method} ${r.template}: нет в контракте`);
+      if (r.kind === "sse") {
+        check(spec, op.responses["200"].content["text/event-stream"].schema, r.body, `${r.method} ${r.template} ${r.body && r.body.type}`, out);
+        return;
+      }
       const res = op.responses[String(r.status)] || op.responses.default;
       if (!res) return out.push(`${r.method} ${r.template}: код ${r.status} не описан`);
       const resolved = res.$ref ? spec.components.responses[res.$ref.split("/").pop()] : res;

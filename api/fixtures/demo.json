@@ -28159,6 +28159,7 @@
     "patchSettings",
     "listLicenses",
     "listJournal",
+    "assistTurn",
     "stream",
     "deleteObjects",
     "applyAccess",
@@ -28186,7 +28187,8 @@
    "features": [
     "serverRoles",
     "serverNetwork",
-    "archiveEncryption"
+    "archiveEncryption",
+    "assist"
    ]
   }
  }

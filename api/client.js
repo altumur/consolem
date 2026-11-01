@@ -63,7 +63,36 @@
           source.close();
         };
       };
-      return wrap(raw, subscribe);
+      // Поток ответа на POST: fetch, а не EventSource. Сообщения — строками data:, закрыть поток — signal
+      const stream = async (path, data, onEvent, signal) => {
+        const res = await fetch(base + path, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
+          body: JSON.stringify(data),
+          credentials: "include",
+          signal,
+        });
+        if (res.status === 401 && opts.onUnauthorized) opts.onUnauthorized();
+        if (res.status !== 200) {
+          const text = await res.text();
+          throw { status: res.status, problem: text ? JSON.parse(text) : null };
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let tail = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          tail += done ? "\n\n" : decoder.decode(value, { stream: true });
+          const blocks = tail.split("\n\n");
+          tail = blocks.pop();
+          blocks.forEach((block) => {
+            const lines = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim());
+            if (lines.length) onEvent(JSON.parse(lines.join("\n")));
+          });
+          if (done) return;
+        }
+      };
+      return wrap(raw, subscribe, stream);
     }
 
     const server = opts.server;
@@ -75,12 +104,31 @@
         return later({ status: res.status, body: copy(res.body), headers: got });
       });
     const subscribe = (fn) => server.subscribe((message) => (latency ? setTimeout(() => fn(copy(message)), latency) : fn(copy(message))));
-    return wrap(raw, subscribe);
+    // Встроенный сервер отдаёт поток массивом сообщений: по одному, как по сети
+    const stream = async (path, data, onEvent, signal) => {
+      const res = await raw("POST", path, data);
+      if (res.status !== 200) throw { status: res.status, problem: res.body };
+      for (const message of res.body) {
+        await new Promise((resolve) => setTimeout(resolve, Math.max(latency, 1)));
+        if (signal && signal.aborted) throw { name: "AbortError" };
+        onEvent(message);
+      }
+    };
+    return wrap(raw, subscribe, stream);
   }
 
   // raw — ответ как есть: { status, body, headers }. Остальные методы отдают тело, ошибку — исключением.
   // withEtag — тело и версия: { body, etag }
-  function wrap(raw, subscribe) {
+  // stream — поток ответа на POST; завершающее сообщение ends(m). Поток без него — обрыв
+  function wrap(raw, subscribe, streamRaw) {
+    const stream = async (path, data, onEvent, opts) => {
+      let ended = false;
+      await streamRaw(path, data, (m) => {
+        if (opts && opts.ends && opts.ends(m)) ended = true;
+        onEvent(m);
+      }, opts && opts.signal);
+      if (opts && opts.ends && !ended) throw { status: 0, problem: { code: "UPSTREAM_UNAVAILABLE" } };
+    };
     const request = (method, path, body, headers) =>
       raw(method, path, body, headers).then((res) => {
         if (res.status >= 400) throw { status: res.status, problem: res.body };
@@ -101,6 +149,7 @@
       patch: (path, data, version) => body(request("PATCH", path, data || {}, ifMatch(version))),
       del: (path, version) => body(request("DELETE", path, undefined, ifMatch(version))),
       subscribe,
+      stream,
     };
   }
 

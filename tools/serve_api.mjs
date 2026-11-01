@@ -109,6 +109,11 @@ http
       const out = server.handle(req.method, req.url, body, req.headers);
       Object.entries(out.headers || {}).forEach(([k, v]) => res.setHeader(k, v));
       if (out.status === 204 || out.body === null || out.body === undefined) return res.writeHead(out.status).end();
+      // Ход ассистента: встроенный сервер отдаёт поток массивом, по HTTP это строки data:
+      if (out.headers && out.headers["Content-Type"] === "text/event-stream") {
+        res.writeHead(out.status, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+        return res.end(out.body.map((m) => `data: ${JSON.stringify(m)}\n\n`).join(""));
+      }
       res.writeHead(out.status, { "Content-Type": out.status >= 400 ? "application/problem+json" : "application/json" });
       res.end(JSON.stringify(out.body));
     });

@@ -43,7 +43,7 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 86 операций и 3 служебные
+## Карта API — 87 операций и 3 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
@@ -59,6 +59,7 @@
 | `automation` — расписания, режимы | `GET`, `POST /schedules`, `GET`, `PUT`, `DELETE /schedules/{id}`; то же — `/day-groups` (особые дни) и `/maintenance-windows` (окно — вместе со своим расписанием); `GET`, `PUT /modes` (режимы объекта списком); `GET`, `POST /modes/current` (текущий режим, вручную) |
 | `access` | `GET /access` — снимок прав; `POST /access/apply` — черновик пакетом; `POST /access/catalogs/{id}/sync` |
 | `settings`, `journal` | `GET`, `PATCH /settings`; `GET /licenses`; `GET /journal` |
+| `assist` | `POST /assist/turns` — ход разговора с ассистентом, ответ потоком (SSE), возможность `assist` |
 | `stream` | `GET /stream` — поток событий (SSE) |
 | `test-support` | `POST /test/reset`, `/test/clock`, `/test/events` — только на тестовом стенде |
 

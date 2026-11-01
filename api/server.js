@@ -1712,6 +1712,9 @@
       ["GET", "/settings", () => one(clone(db.settings))],
       ["GET", "/licenses", () => items(clone(db.licenses))],
       ["GET", "/journal", (p, q) => items(db.journal.filter((e) => !q.category || e.category === q.category).map(clone))],
+      // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
+      // клиент отдаёт их по одному, петля пишет строками data:
+      ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["GET", "/stream", () => problem(404, "NO_ROUTE", "Поток событий встроенного сервера — subscribe()")],
 
@@ -1905,6 +1908,37 @@
         },
       ],
     ];
+
+    // Заглушка ассистента: разбор — по словам просьбы, чтобы сценарии были предсказуемы. Это не модель, план здесь
+    // никто не проверяет: у бэкенда проверяет код. «сбой» — error, «маска сети» — refused, нет действия или камер — question
+    const ASSIST_STOP = ["камер", "запис", "включ", "выклу", "парол", "секре", "смени", "всех", "этаж"];
+    function assistStub(body) {
+      const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
+      const low = said.toLowerCase();
+      const context = `stub:${said}`;
+      const at = iso(now());
+      const out = [{ type: "progress", at, text: "читаю камеры" }];
+      const last = (e) => out.concat(Object.assign({ at }, e));
+      if (/сбой/.test(low)) return last({ type: "error", code: "UPSTREAM_UNAVAILABLE", message: "модель не отвечает" });
+      if (/маск[аиу] сети/.test(low)) return last({ type: "refused", text: "Маски сети нет среди полей устройства.", context, field: "netmask" });
+      const secret = (low.match(/секрет\D*(\d+)/) || [])[1];
+      const set = /парол/.test(low) ? null : /выключи.*запис/.test(low) ? { recordMode: "none" } : /включи.*запис/.test(low) ? { recordMode: "always" } : /выключи/.test(low) ? { enabled: false } : /включи/.test(low) ? { enabled: true } : undefined;
+      if (set === undefined) return last({ type: "question", text: "Что изменить на камерах?", context });
+      if (!set && !(body.secrets || [])[Number(secret) - 1]) return last({ type: "question", text: "Какой секрет поставить паролем?", context });
+      const words = low.split(/[^а-яёa-z0-9]+/).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w));
+      const found = db.devices.filter((d) => d.type === "camera" && words.some((w) => d.name.toLowerCase().includes(w)));
+      if (!found.length) return last({ type: "question", text: "На каких камерах?", context });
+      out.push({ type: "progress", at, text: "проверяю план" });
+      const items = found.map((d) => {
+        if (!set) {
+          return { deviceId: d.id, version: d.version, set: { password: body.secrets[Number(secret) - 1] }, name: d.name,
+            changes: [{ field: "password", after: `новый (секрет № ${secret})`, why: "просьба" }] };
+        }
+        const [[field, after]] = Object.entries(set);
+        return { deviceId: d.id, version: d.version, set, name: d.name, changes: [{ field, before: d[field], after, why: "просьба" }] };
+      });
+      return last({ type: "plan", summary: `Камеры: ${found.length}`, context, items });
+    }
 
     const compile = (list, test) =>
       list.map(([method, template, fn]) => {

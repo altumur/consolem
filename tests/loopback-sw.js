@@ -40,6 +40,9 @@ async function answer(request, path) {
   const text = await request.text();
   const res = server.handle(request.method, path, text ? JSON.parse(text) : undefined, headers);
   const out = new Headers(res.headers || {});
+  if (out.get("Content-Type") === "text/event-stream") {
+    return new Response(res.body.map((m) => `data: ${JSON.stringify(m)}\n\n`).join(""), { status: res.status, headers: out });
+  }
   if (res.status === 204 || res.body === null || res.body === undefined) return new Response(null, { status: res.status, headers: out });
   out.set("Content-Type", res.status >= 400 ? "application/problem+json" : "application/json");
   return new Response(JSON.stringify(res.body), { status: res.status, headers: out });

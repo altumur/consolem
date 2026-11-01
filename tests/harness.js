@@ -92,6 +92,15 @@
         if (res.status >= 400) throw new Failure(`${method} ${path} → ${res.status} ${res.body && res.body.code} ${res.body && res.body.message}`);
         return res.body;
       },
+      // Поток ответа на POST: сообщения по порядку; каждое сверяется со схемой
+      async stream(path, body) {
+        const got = [];
+        await api.stream(path, body, (m) => {
+          got.push(m);
+          recorded.push({ method: "POST", template: path, status: 200, body: m, kind: "sse" });
+        });
+        return got;
+      },
       list: async (path) => (await env.ok("GET", path)).items,
       // Версия записи для If-Match — из ETag свежего чтения, как у клиента, который только что её открыл
       async etag(path) {

@@ -360,5 +360,10 @@ window.I18N_EN={
 "Перестанут писать камер:":"Cameras that will stop recording:","Сами камеры останутся в системе — в разделе «Без записи».":"The cameras stay in the system, under “Not recording”.","Архив удалён":"Archive deleted",
 "Создать сетевой архив":"Create network archive","Создать архив":"Create archive",
 // Прототип 09: кнопка темы в шапке.
-"Сменить тему":"Switch theme"
+"Сменить тему":"Switch theme",
+// Ассистент (запрос w2c).
+"Ассистент":"Assistant","Просьба":"Request","Ваш ответ":"Your answer","Секрет":"Secret","Отправить":"Send",
+"Пароль — только сюда, не в текст просьбы":"Passwords go here only, not into the request text","думаю…":"thinking…",
+"Отказаться":"Decline","Спросить заново":"Ask again","Напишите просьбу":"Write a request","Итог":"Result","применено":"applied",
+"Было":"Before","Стало":"After","Почему":"Why","Поле":"Field","сервер недоступен, повторите":"server unavailable, try again"
 };
