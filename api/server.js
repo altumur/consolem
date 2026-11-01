@@ -92,6 +92,8 @@
     let secrets = new Map();
     const seq = {};
     let ops = new Map();
+    // Стопка повтора: отменённые операции, последняя отменённая — в конце
+    let redoStack = [];
     const answered = new Map();
 
     function load(fixture) {
@@ -103,6 +105,7 @@
       me = db.me.userId;
       secrets = new Map();
       ops = new Map();
+      redoStack = [];
       formatting = new Map();
       searches = new Map();
       syncing = new Map();
@@ -715,8 +718,22 @@
     // чтобы ход был живым и при этом повторялся от прогона к прогону
     const stepMs = (i) => 90 + ((i * 53) % 141);
     // Почему операцию нельзя откатить: null — можно
+    const undoing = (x) => (x.revertOf || x.redoOf) && x.state !== "done";
+    // Стопка отката — законченные операции с удачными шагами, не откачанные и не сами откаты. Откатить можно только
+    // верхнюю: самую новую по концу, при равенстве — созданную позже. Пока идёт откат, верхней нет
+    function undoTop() {
+      const all = [...ops.values()];
+      if (all.some(undoing)) return null;
+      return all.filter((x) => x.state === "done" && !x.revertOf && !x.reverted && x.items.some((i) => i.state === "ok"))
+        .reduce((top, x) => (!top || Date.parse(x.finishedAt) >= Date.parse(top.finishedAt) ? x : top), null);
+    }
     const revertReason = (op) =>
-      op.state !== "done" ? "running" : op.reverted ? "reverted" : !op.items.some((x) => x.state === "ok") ? "empty" : now() - Date.parse(op.finishedAt) > UNDO_MS ? "expired" : null;
+      op.revertOf ? "isRevert" : op.state !== "done" ? "running" : op.reverted ? "reverted" : !op.items.some((x) => x.state === "ok") ? "empty" : now() - Date.parse(op.finishedAt) > UNDO_MS ? "expired" : undoTop() !== op ? "notLast" : null;
+    // Почему отменённую операцию нельзя повторить: null — можно. Очищенное и просроченное — stale
+    function redoReason(op) {
+      if (!redoStack.includes(op.id) || now() - Date.parse(op.finishedAt) > UNDO_MS) return "stale";
+      return redoStack[redoStack.length - 1] !== op.id || [...ops.values()].some(undoing) ? "notLast" : null;
+    }
     // Поля записи, которые изменил шаг: откат сверяет именно их
     const fieldsOf = (rec, set) => Object.fromEntries(Object.keys(set).filter((k) => k !== "password" && k !== "secret").map((k) => [k, k in rec ? clone(rec[k]) : null]));
     const sameFields = (rec, want) => Object.entries(want).every(([k, v]) => JSON.stringify(k in rec ? rec[k] : null) === JSON.stringify(v));
@@ -725,7 +742,8 @@
     function recordSingle(steps) {
       if (!steps.length) return;
       const at = iso(now());
-      const op = { id: uuid("operation"), state: "done", createdAt: at, finishedAt: at, revertOf: null, retryOf: null, single: true, nextAt: 0,
+      redoStack = [];
+      const op = { id: uuid("operation"), state: "done", createdAt: at, finishedAt: at, revertOf: null, redoOf: null, retryOf: null, single: true, nextAt: 0,
         items: steps.map((x, index) => Object.assign({ index, state: "ok", code: null, req: {} }, x)) };
       ops.set(op.id, op);
       trimOps();
@@ -742,9 +760,11 @@
       createdAt: op.createdAt,
       finishedAt: op.finishedAt,
       revertOf: op.revertOf,
+      redoOf: op.redoOf || null,
       retryOf: op.retryOf,
       single: !!op.single,
       revertible: !revertReason(op),
+      redoable: !redoReason(op),
       total: op.items.length,
       done: op.items.filter((x) => x.state !== "wait" && x.state !== "run").length,
       ok: op.items.filter((x) => x.state === "ok").length,
@@ -764,6 +784,8 @@
     const held = (id) => busy(id) || pending((x) => (x.req.folderIds || []).includes(id) || (x.req.set || {}).archiveId === id || ((x.req.set || {}).extraArchives || []).some((e) => e.archiveId === id));
 
     function startOperation(requests, extra) {
+      // Новая правка очищает повтор; откат и повтор сами стопку не трогают
+      if (!extra || !(extra.revertOf || extra.redoOf)) redoStack = [];
       const op = Object.assign(
         {
           id: uuid("operation"),
@@ -818,6 +840,8 @@
     function finish(op, fired) {
       op.state = "done";
       op.finishedAt = iso(now());
+      // Отмена, которая что-то вернула, открывает повтор
+      if (op.revertOf && op.items.some((x) => x.state === "ok")) redoStack.push(op.revertOf);
       trimOps();
       const v = opView(op);
       send("operation.finished", { kind: "operation", entityId: op.id, payload: { state: v.state, ok: v.ok, failed: v.failed, cancelled: v.cancelled } });
@@ -1878,6 +1902,24 @@
             })
           );
           return { status: 202, body: opView(startOperation(requests, { revertOf: op.id })) };
+        },
+      ],
+      [
+        "POST",
+        "/operations/{id}/redo",
+        (p) => {
+          const op = opById(p.id);
+          if (!op) return notFound("Операция");
+          const reason = redoReason(op);
+          if (reason) return problem(409, "NOT_REVERTIBLE", "Повторить нельзя", { params: { reason } });
+          const undo = [...ops.values()].filter((x) => x.revertOf === op.id).pop();
+          // Только то, что отмена вернула: её удачные шаги в исходном порядке. Откат снял созданное — заново не создаётся
+          const done = undo.items.filter((x) => x.state === "ok").reverse();
+          const locked = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)), held);
+          if (locked) return locked;
+          redoStack.pop();
+          const requests = done.map((x) => (x.req.remove ? { targetId: x.targetId, undoable: false } : { targetId: x.targetId, set: x.req.expectFields, expectFields: x.req.set }));
+          return { status: 202, body: opView(startOperation(requests, { redoOf: op.id })) };
         },
       ],
     ];

@@ -362,7 +362,7 @@ window.I18N_EN={
 // Прототип 09: кнопка темы в шапке.
 "Сменить тему":"Switch theme",
 // Ассистент (запрос w2c).
-"Весь домен":"Whole domain","откат":"rollback","правка":"edit","групповая":"group","не выполнено":"not done","Операции":"Operations","Операций нет":"No operations","Имя устройства…":"Device name…","этого не вернуть":"this cannot be undone","откатить нельзя: срок вышел или уже откачено":"cannot roll back: too old or already rolled back","Ассистент":"Assistant","Отправить запрос ассистенту":"Send the request to the assistant","Просьба":"Request","Ваш ответ":"Your answer","Секрет":"Secret","Отправить":"Send",
+"Весь домен":"Whole domain","откат":"rollback","повтор":"redo","Повторить":"Redo","Повторено":"Redone","откатить можно только последнюю операцию":"only the latest operation can be rolled back","правка":"edit","групповая":"group","не выполнено":"not done","Операции":"Operations","Операций нет":"No operations","Имя устройства…":"Device name…","этого не вернуть":"this cannot be undone","откатить нельзя: срок вышел или уже откачено":"cannot roll back: too old or already rolled back","Ассистент":"Assistant","Отправить запрос ассистенту":"Send the request to the assistant","Просьба":"Request","Ваш ответ":"Your answer","Секрет":"Secret","Отправить":"Send",
 "Пароль — только сюда, не в текст просьбы":"Passwords go here only, not into the request text","думаю…":"thinking…",
 "Отказаться":"Decline","Спросить заново":"Ask again","Напишите просьбу":"Write a request","Итог":"Result","применено":"applied",
 "Было":"Before","Стало":"After","Почему":"Why","Поле":"Field","сервер недоступен, повторите":"server unavailable, try again"

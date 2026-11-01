@@ -13832,6 +13832,7 @@
     "cancelOperation",
     "retryFailedOperation",
     "revertOperation",
+    "redoOperation",
     "listRules",
     "createRule",
     "getRule",

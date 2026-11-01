@@ -2509,7 +2509,7 @@ function problemText(e,n){
     IP_RANGE_TOO_LARGE:i18n("Слишком много адресов за раз"),
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
-    NOT_REVERTIBLE:i18n("откатить нельзя: срок вышел или уже откачено"),
+    NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("откатить можно только последнюю операцию"):i18n("откатить нельзя: срок вышел или уже откачено"),
     NOT_SUPPORTED:i18n("этого не вернуть"),
   }[code]||(e?.status===0||!code?i18n("сервер не ответил"):`${i18n("ошибка")}: ${code}`);
 }
@@ -15299,7 +15299,7 @@ function flashSetting(){
 // Записи — с сервера (GET /journal): appLoad
 const LOG_ROWS=[];
 const LOG_BY_CAT={all:[],audit:[],alarm:[],info:[]};
-// Операции: групповые и одиночные правки оборудования. Откатываются цепочкой назад, по одной
+// Операции: групповые и одиночные правки оборудования. Откатывается только последняя: кнопка — у строки с revertible
 let logOps=[];
 function logOpsLoad(){
   if(!can("listOperations"))return Promise.resolve();
@@ -15309,13 +15309,27 @@ function opTitle(op){
   const names=[...new Set(op.items.map(x=>find(x.targetId)?locName(find(x.targetId).n):i18n("удалён")))];
   return`${names.slice(0,3).join(", ")}${names.length>3?` … ${names.length}`:""}`;
 }
+// Откат и повтор — строки истории без своих кнопок: «Отменить» и «Повторить» стоят у исходной правки
+function opRoot(op){while(op.redoOf){const up=logOps.find(x=>x.id===op.redoOf);if(!up)break;op=up}return op}
+function opChain(op){return logOps.filter(x=>!x.revertOf&&opRoot(x)===op)}
+function opActsHtml(op){
+  if(op.revertOf||(op.redoOf&&opRoot(op)!==op))return"";
+  const chain=opChain(op),undo=chain.find(x=>x.revertible),redo=chain.find(x=>x.redoable);
+  return`${undo?`<button type="button" class="btn s" data-op="${undo.id}" data-root="${op.id}" ${onEv("click",["opRevert",`${undo.id}`])}>${i18n("Отменить")}</button>`:""}${redo?`<button type="button" class="btn s" data-redo="${redo.id}" data-root="${op.id}" ${onEv("click",["opRedo",`${redo.id}`])}>${i18n("Повторить")}</button>`:""}`;
+}
 function opRow(op){
-  const res=op.revertOf?i18n("откат"):op.single?i18n("правка"):i18n("групповая");
-  return`<tr><td>${escHtml(clockText(op.finishedAt||op.createdAt,false))}</td><td>${escHtml(res)}</td><td>${escHtml(opTitle(op))}</td><td>${op.ok}${op.failed?` · ${i18n("не выполнено")} ${op.failed}`:""}</td><td>${op.revertible?`<button type="button" class="btn s" data-op="${op.id}" ${onEv("click",["opRevert",`${op.id}`])}>${i18n("Отменить")}</button>`:""}</td></tr>`;
+  const res=op.revertOf?i18n("откат"):op.redoOf?i18n("повтор"):op.single?i18n("правка"):i18n("групповая");
+  return`<tr><td>${escHtml(clockText(op.finishedAt||op.createdAt,false))}</td><td>${escHtml(res)}</td><td>${escHtml(opTitle(op))}</td><td>${op.ok}${op.failed?` · ${i18n("не выполнено")} ${op.failed}`:""}</td><td>${opActsHtml(op)}</td></tr>`;
 }
 function opRevert(id){
   API.post(`/operations/${id}/revert`).then(op=>opWait.set(op.id,p=>{
     toast(p.failed?`${i18n("Возвращено")}: ${p.ok} · ${i18n("не выполнено")} ${p.failed}`:`${i18n("Возвращено")}: ${p.ok}`);
+    logOpsLoad();
+  })).catch(e=>toast(problemText(e)));
+}
+function opRedo(id){
+  API.post(`/operations/${id}/redo`).then(op=>opWait.set(op.id,p=>{
+    toast(p.failed?`${i18n("Повторено")}: ${p.ok} · ${i18n("не выполнено")} ${p.failed}`:`${i18n("Повторено")}: ${p.ok}`);
     logOpsLoad();
   })).catch(e=>toast(problemText(e)));
 }

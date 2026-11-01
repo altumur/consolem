@@ -28122,6 +28122,7 @@
     "cancelOperation",
     "retryFailedOperation",
     "revertOperation",
+    "redoOperation",
     "getDiscovery",
     "startDiscovery",
     "stopDiscovery",
