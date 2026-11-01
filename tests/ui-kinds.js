@@ -114,7 +114,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const ptz = of("camera", (d) => d.ptz && d.presets?.length);
   open(ptz.id, "vid");
   ok(main().textContent.includes("Пресеты") && main().querySelector("[data-preset]"), "карточка пресетов");
-  ok(!main().querySelector("[data-preset] input"), "имя пресета не вводится: его пишет драйвер");
+  ok(!!main().querySelector("[data-preset] input") && !!main().querySelector("[data-preset-max]"), "имя вводится, предел номера виден");
   ok(!(TF_CAM.some((t) => t[0] === "ptz")), "вида PTZ в фильтрах нет");
   const calls = [];
   const realPut = API.put, realDel = API.del;
@@ -129,13 +129,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   API.del = realDel;
   const count = ptz.presets.length;
   presetAdd(ptz.id);
-  ok(await until(() => find(ptz.id).n.presets.length === count + 1), "пресет добавлен");
+  ok(await until(() => presetRows(find(ptz.id).n).length === count + 1 && !!main().querySelector(`[data-preset="${count + 1}"]`)), "пресет добавлен строкой с первым свободным номером");
+  ok(find(ptz.id).n.presets.length === count, "безымянный в Device.presets не попал");
+  presetName(ptz.id, count + 1, "Ворота");
+  ok(await until(() => find(ptz.id).n.presets.length === count + 1), "имя задано: пресет в Device.presets");
   const newest = find(ptz.id).n.presets.find((p) => !ptz.presets.some((x) => x.n === p.n));
   presetDel(ptz.id, newest.n);
   ok(await until(() => document.getElementById("confirmCountInp")), "удаление пресета — с вводом числа");
   await confirmWith(1);
   ok(await until(() => find(ptz.id).n.presets.length === count), "пресет удалён после отсчёта");
-  ok(rulePresetOpts({ ref: ptz.id })?.[0]?.[1] === "1 · Вход", "в правиле пресет — из списка камеры");
+  ok(rulePresetOpts({ ref: ptz.id })?.[0]?.[1] === "1 · Вход" && rulePresetOpts({ ref: ptz.id }).length === ptz.presetMax, "в правиле пресет — номера до предела, с именами");
   ok(rulePresetOpts({ ref: of("camera", (d) => !d.ptz).id }) === null, "нет списка — номер руками");
 
   // Источник событий: сервер, камера из списка, слова правятся

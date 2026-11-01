@@ -1777,10 +1777,6 @@
     {
      "n": 2,
      "name": "Парковка"
-    },
-    {
-     "n": 3,
-     "name": ""
     }
    ],
    "labels": [
@@ -1795,7 +1791,8 @@
    "faultText": "Запись остановлена: на сервере нет места",
    "audioDeviceId": "30000034-0000-4000-8000-000000000000",
    "retentionDays": 45,
-   "minDepthDays": 14
+   "minDepthDays": 14,
+   "presetMax": 16
   },
   {
    "id": "30000014-0000-4000-8000-000000000000",
@@ -2404,7 +2401,8 @@
    ],
    "ptz": true,
    "presets": [],
-   "recordState": "running"
+   "recordState": "running",
+   "presetMax": 8
   },
   {
    "id": "30000042-0000-4000-8000-000000000000",

@@ -1291,10 +1291,6 @@
     {
      "n": 2,
      "name": "Парковка"
-    },
-    {
-     "n": 3,
-     "name": ""
     }
    ],
    "labels": [
@@ -1308,7 +1304,8 @@
    "recordReason": "На сервере нет места",
    "faultText": "Запись остановлена: на сервере нет места",
    "retentionDays": 45,
-   "minDepthDays": 14
+   "minDepthDays": 14,
+   "presetMax": 16
   },
   {
    "id": "30000016-0000-4000-8000-000000000000",
@@ -1757,7 +1754,8 @@
    ],
    "ptz": true,
    "presets": [],
-   "recordState": "running"
+   "recordState": "running",
+   "presetMax": 8
   },
   {
    "id": "30000043-0000-4000-8000-000000000000",

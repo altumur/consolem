@@ -1471,15 +1471,18 @@
       [
         "PUT",
         "/devices/{id}/presets/{n}",
-        (p) => {
+        (p, q, body) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
           const n = Number(p.n);
           const bad = ptzProblem(rec) || lockedProblem([rec.id]);
           if (bad) return bad;
           if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
-          const was = (rec.presets || []).find((x) => x.n === n);
-          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat({ n, name: was ? was.name : "" }));
+          if (rec.presetMax != null && n > rec.presetMax) return notFound("Пресет");
+          // Без имени — положение: встроенный сервер камерами не движет, запись не меняется. С именем — только имя
+          if (!("name" in body)) return one(device(rec));
+          const name = String(body.name).trim();
+          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat(name ? [{ n, name }] : []));
         },
       ],
       [
@@ -1490,7 +1493,9 @@
           if (!rec) return notFound("Устройство");
           const bad = ptzProblem(rec) || lockedProblem([rec.id]);
           if (bad) return bad;
-          if (!(rec.presets || []).some((x) => x.n === Number(p.n))) return notFound("Пресет");
+          if (rec.presetMax != null && Number(p.n) > rec.presetMax) return notFound("Пресет");
+          // Снимается и положение, и имя; без имени в записи ничего не меняется
+          if (!(rec.presets || []).some((x) => x.n === Number(p.n))) return one(device(rec));
           return setPresets(rec, rec.presets.filter((x) => x.n !== Number(p.n)).map(clone));
         },
       ],

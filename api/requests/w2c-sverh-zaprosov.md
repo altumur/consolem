@@ -30,7 +30,7 @@
 
 ## Контракт
 
-- **`PresetWrite` без `name`.** Этап 3 дал поле имени, запрос его не просил: по ADR-0107 имя из устройства. Снято: тело `PUT /devices/{id}/presets/{n}` пустое, имя в запросе — `422 VALIDATION_FAILED`.
+- **`Device.presetMax`.** ADR-0112 доп. (2): `Device.presets` только названные, предел номера — новое поле, номер выше него — `404` у `PUT` и `DELETE`. `PresetWrite.name` необязателен: без него положение, с ним только имя.
 - **`NOT_REVERTIBLE`** с `params.reason`: запрос предлагал выбрать код.
 - **`Operation.single`, `Operation.revertible`, `Operation.redoable`, `Operation.redoOf`, `GET /operations`, `POST /operations/{id}/redo`.**
 

@@ -1302,7 +1302,7 @@
           "hardware"
         ],
         "summary": "Задать пресет",
-        "description": "Запоминает нынешнее положение камеры под номером n. Камера без ptz — 422 NOT_SUPPORTED, field: ptz; без связи — 409 DEVICE_OFFLINE. Ответ — камера целиком",
+        "description": "Без name запоминает нынешнее положение камеры под номером n, с name только задаёт имя: камера не движется. Номер больше presetMax — 404 NOT_FOUND. Камера без ptz — 422 NOT_SUPPORTED, field: ptz; без связи — 409 DEVICE_OFFLINE. Ответ — камера целиком",
         "parameters": [
           {
             "name": "deviceId",
@@ -1372,7 +1372,7 @@
           "hardware"
         ],
         "summary": "Удалить пресет",
-        "description": "Ответ — камера целиком",
+        "description": "Снимает пресет вместе с именем. Номер больше presetMax — 404 NOT_FOUND. Ответ — камера целиком",
         "parameters": [
           {
             "name": "deviceId",
@@ -6078,7 +6078,7 @@
             "items": {
               "$ref": "#/components/schemas/DevicePreset"
             },
-            "description": "Только чтение: пресеты камеры. Правятся операциями /devices/{id}/presets/{n}"
+            "description": "Только названные пресеты. Без имени пресет ведётся номером до presetMax"
           },
           "faultText": {
             "type": "string",
@@ -6171,6 +6171,11 @@
             ],
             "format": "uuid",
             "description": "Какой микрофон пишется в архив: id записи mic этой камеры. null — первый микрофон"
+          },
+          "presetMax": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Только чтение: предел номера пресета"
           }
         },
         "additionalProperties": false,
@@ -14064,15 +14069,20 @@
           },
           "name": {
             "type": "string",
-            "description": "Только чтение: имя пишет драйвер. Имена есть не у всех драйверов: тогда пусто"
+            "description": "Имя: оператора или драйвера. Имя оператора старше"
           }
         }
       },
       "PresetWrite": {
         "type": "object",
         "additionalProperties": false,
-        "properties": {},
-        "description": "Тело пустое: пресет запоминает нынешнее положение камеры. Имя пишет драйвер, оно приходит в Device.presets только для чтения"
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Только имя, положение не меняется. Пустое снимает имя"
+          }
+        },
+        "description": "Без name — запомнить нынешнее положение камеры, с name — только имя: камера не движется"
       },
       "PtzMove": {
         "type": "object",
