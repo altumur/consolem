@@ -8167,10 +8167,10 @@ function liveEnsure(n){
   const s=liveSessions.get(n.id);
   if(s&&(s.busy||s.error||Date.parse(s.expiresAt)>Date.now()+5000))return;
   liveSessions.set(n.id,{busy:true});
+  const note=t=>document.querySelectorAll(`[data-live="${n.id}"] .live-note`).forEach(el=>{el.textContent=t});
   API.post(`/devices/${n.id}/live`,{width:640,height:360}).then(r=>{
-    liveSessions.set(n.id,r);
-    if(find(sel)?.n?.id===n.id&&!cardDraft)gear();
-  }).catch(e=>liveSessions.set(n.id,{error:problemText(e)}));
+    liveSessions.set(n.id,r);note(i18n("Кадр-заглушка: встроенный сервер видео не отдаёт"));
+  }).catch(e=>{const error=problemText(e);liveSessions.set(n.id,{error});note(error)});
 }
 // Кадр-заглушка: улица и здание. Над ним рисуются зоны детекторов
 function liveSceneSvg(){
