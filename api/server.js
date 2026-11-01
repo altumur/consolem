@@ -1107,6 +1107,55 @@
         return a.groups.some((g) => g.memberIds.includes(u.id) && live(g.rolesUntil) && g.roleIds.some((r) => unr.has(r)));
       });
     }
+    // Что система не объявила, в черновик не проходит: уровни, функции, запреты и плагины — из
+    // reference.access, части прав — из capabilities.features. Встроенная роль судится отдельно
+    function accessPartProblem(a) {
+      const ref = db.reference.access;
+      const on = (f) => db.reference.capabilities.features.includes(f);
+      const no = (field, id, what) => problem(422, "NOT_SUPPORTED", `Система этого не поддерживает: ${what}`, { field, params: { id } });
+      const lv = (kind, v) => (ref.levels[kind] || []).includes(v);
+      const lowest = (v) => v === "FORBID" || v === "NO";
+      const fields = (map, r, name) => {
+        for (const [key, row] of Object.entries(map)) {
+          if (key.startsWith("plug:") && !ref.plugins.includes(key.slice(5))) return no(name, r.id, `плагин ${key.slice(5)}`);
+          for (const [f, v] of Object.entries(row)) if (!lv(f, v)) return no(`${name}.${f}`, r.id, `уровень ${v}`);
+        }
+        return null;
+      };
+      for (const r of a.roles) {
+        const g = r.global;
+        if (g.unr) continue;
+        const bad = g.feat.find((x) => !ref.features.includes(x));
+        if (bad) return no("global.feat", r.id, `функция ${bad}`);
+        const kinds = Object.fromEntries(ref.defaults.concat(ref.globals).map((x) => [x.key, x.levels]));
+        for (const k of Object.keys(g)) {
+          if (!/^(d[A-Z]|map$|alert$|bm$)/.test(k)) continue;
+          if (kinds[k] ? !lv(kinds[k], g[k]) : !lowest(g[k])) return no(`global.${k}`, r.id, `уровень ${g[k]}`);
+        }
+        const f = fields(r.folderAccess, r, "folderAccess") || fields(r.objectAccess, r, "objectAccess");
+        if (f) return f;
+        const restr = Object.keys(g.restr).filter((k) => g.restr[k]);
+        if (restr.length && !on("accessRestrictions")) return no("global.restr", r.id, "запреты роли");
+        if (restr.some((k) => !ref.restrictions.includes(k))) return no("global.restr", r.id, "запрет");
+        if (g.depth && !on("accessDepth")) return no("global.depth", r.id, "глубина архива");
+        const urFree = on("accessUserRights");
+        if (urFree ? !lv("ur", g.ur) : g.ur !== (g.feat.includes("USERS_RIGHTS_SETUP") ? "ALL" : "NO")) return no("global.ur", r.id, "права на права пользователей");
+        if (!ref.loginSchedules.includes(r.loginSchedule) || (r.loginSchedule && !on("accessLoginSchedule"))) return no("loginSchedule", r.id, "расписание входа");
+        if ((r.supervision.roleId || r.supervision.login || r.supervision.export) && !on("accessSupervision")) return no("supervision", r.id, "подтверждение входа и экспорта");
+      }
+      if (!on("accessSessions")) {
+        const u = a.users.find((x) => x.webSessions || x.mobileSessions);
+        if (u) return no(u.webSessions ? "webSessions" : "mobileSessions", u.id, "лимиты сессий");
+      }
+      if (!on("accessCatalogs")) {
+        if (a.catalogs.length) return no("catalogs", a.catalogs[0].id, "каталоги");
+        const g = a.groups.find((x) => x.source);
+        if (g) return no("source", g.id, "группа из каталога");
+        const u = a.users.find((x) => x.catalogId);
+        if (u) return no("catalogId", u.id, "пользователь из каталога");
+      }
+      return null;
+    }
     function accessProblem(a) {
       const dup = (list, key, code, what) => {
         const seen = new Set();
@@ -1141,6 +1190,8 @@
         const e = miss(g.roleIds.every((x) => roles.has(x)), "groups.roleIds") || miss(g.memberIds.every((x) => users.has(x)), "memberIds") || miss(!g.source || cats.has(g.source.catalogId), "source.catalogId");
         if (e) return e;
       }
+      const part = accessPartProblem(a);
+      if (part) return part;
       // Защита от самоблокировки: администратор остаётся, и текущий — среди них
       const left = admins(a);
       if (!left.length) return problem(409, "SELF_LOCKOUT", "Не останется ни одного администратора с неограниченным доступом");

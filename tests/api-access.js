@@ -73,11 +73,73 @@
     const env = await makeEnv();
     assert.status(await env.call("POST", "/access/apply", { access: draft(), history: [], cellHistory: [] }), 428, "PRECONDITION_REQUIRED");
     assert.status(await apply(env, draft(), { version: "stale" }), 412, "VERSION_MISMATCH");
+  });
+
+  test("Каталог: состояние синхронизации от клиента не берётся", async () => {
+    const env = await makeEnv();
     const d = draft();
     d.catalogs[0].status = "err";
     d.catalogs[0].message = "подделка";
     const res = await apply(env, d);
     assert.eq([res.body.access.catalogs[0].status, res.body.access.catalogs[0].message], [A.catalogs[0].status, A.catalogs[0].message], "у сервера");
+  }, { needs: ["feature:accessCatalogs"] });
+
+  test("Части прав: возможности нет — 422 NOT_SUPPORTED с полем; значение по умолчанию проходит", async () => {
+    const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { catalogs: [], groups: [] } } });
+    const base = await env.ok("GET", "/access");
+    const fresh = () => {
+      const a = JSON.parse(JSON.stringify(base));
+      a.users.forEach((u) => { u.webSessions = 0; u.mobileSessions = 0; u.catalogId = null; delete u.syncedGroupId; });
+      a.roles.forEach((r) => {
+        r.loginSchedule = 0;
+        r.supervision = { roleId: null, login: false, export: false };
+        r.global.depth = 0;
+        r.global.restr = {};
+        if (!r.global.unr) r.global.ur = r.global.feat.includes("USERS_RIGHTS_SETUP") ? "ALL" : "NO";
+      });
+      return { roles: a.roles, users: a.users, groups: a.groups, catalogs: a.catalogs };
+    };
+    const send = (d) => env.call("POST", "/access/apply", { access: d, history: [], cellHistory: [] }, { "If-Match": `"${base.version}"` });
+    const role = (d) => d.roles.find((r) => !r.global.unr);
+    const cases = [
+      ["global.depth", (d) => (role(d).global.depth = 24)],
+      ["global.restr", (d) => (role(d).global.restr = { watermark: true })],
+      ["global.ur", (d) => (role(d).global.ur = "ALL")],
+      ["loginSchedule", (d) => (role(d).loginSchedule = 1)],
+      ["supervision", (d) => (role(d).supervision.login = true)],
+      ["webSessions", (d) => (d.users[0].webSessions = 2)],
+      ["mobileSessions", (d) => (d.users[0].mobileSessions = 2)],
+    ];
+    for (const [field, spoil] of cases) {
+      const d = fresh();
+      spoil(d);
+      const res = await send(d);
+      assert.status(res, 422, "NOT_SUPPORTED", field);
+      assert.eq(res.body.field, field, "путь поля");
+    }
+    assert.status(await send(fresh()), 200);
+  });
+
+  test("Справочник: уровень, функция, запрет, плагин вне reference.access — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv({ fixturePatch: { reference: { access: { levels: { cam: FX.reference.access.levels.cam.filter((x) => x !== "ONLY_ARCHIVE") } } } } });
+    const cases = [
+      ["folderAccess.cam", (r) => (r.folderAccess[FX.domains[0].id] = { cam: "ONLY_ARCHIVE" })],
+      ["objectAccess.cam", (r) => (r.objectAccess[FX.devices.find((x) => x.type === "camera").id] = { cam: "ONLY_ARCHIVE" })],
+      ["global.dCam", (r) => (r.global.dCam = "ONLY_ARCHIVE")],
+      ["global.feat", (r) => r.global.feat.push("NO_SUCH_FEATURE")],
+      ["objectAccess", (r) => (r.objectAccess["plug:no-such"] = {})],
+    ];
+    for (const [field, spoil] of cases) {
+      const d = draft();
+      d.roles.filter((r) => !r.global.unr).forEach((r) => {
+        if (r.global.dCam === "ONLY_ARCHIVE") r.global.dCam = "FORBID";
+        [r.folderAccess, r.objectAccess].forEach((m) => Object.values(m).forEach((row) => { if (row.cam === "ONLY_ARCHIVE") row.cam = "FORBID"; }));
+      });
+      spoil(d.roles.find((r) => !r.global.unr));
+      const res = await apply(env, d);
+      assert.status(res, 422, "NOT_SUPPORTED", field);
+      assert.eq(res.body.field, field, "путь поля");
+    }
   });
 
   test("Синхронизация каталога: сразу run, через 1,5 с ok и время; во время — 409; группа отдельно", async () => {
@@ -100,7 +162,7 @@
     await env.ok("POST", `/access/catalogs/${c.id}/sync`, { groupId: g.id });
     assert.eq((await env.ok("GET", "/access")).catalogs.find((x) => x.id === c.id).status, "ok", "каталог не трогается при синхронизации группы");
     assert.status(await env.call("POST", "/access/catalogs/bfff9999-0000-4000-8000-000000000000/sync", { groupId: null }), 404, "NOT_FOUND");
-  });
+  }, { needs: ["syncCatalog"] });
 
   test("Учётки потоков: создать, пароль один раз, отключить, новый пароль, удалить", async () => {
     const env = await makeEnv();

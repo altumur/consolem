@@ -5025,7 +5025,7 @@
           "access"
         ],
         "summary": "Применить черновик прав",
-        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; остаётся хотя бы один включённый администратор с неограниченным доступом и действующим назначением, и текущий администратор его не теряет (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора",
+        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; уровни, функции, запреты и плагины есть в справочнике, а части прав объявлены возможностями (иначе 422 NOT_SUPPORTED, field — путь поля, params.id — запись); остаётся хотя бы один включённый администратор с неограниченным доступом и действующим назначением, и текущий администратор его не теряет (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора",
         "parameters": [
           {
             "name": "If-Match",
@@ -7555,7 +7555,7 @@
           },
           "ur": {
             "type": "string",
-            "description": "Права на права пользователей",
+            "description": "Права на права пользователей (levels.ur)",
             "enum": [
               "NO",
               "DEV",
@@ -8606,7 +8606,7 @@
                     "type": "string"
                   }
                 },
-                "description": "Вид объекта → уровни от меньшего к большему: по порядку считается «наибольшее»"
+                "description": "Вид объекта → уровни от меньшего к большему: по порядку считается «наибольшее». Уровень вне списка в POST /access/apply — 422 NOT_SUPPORTED"
               },
               "defaults": {
                 "type": "array",
@@ -8760,7 +8760,8 @@
               "staleDays",
               "expiringSoonDays",
               "passwordPolicy"
-            ]
+            ],
+            "description": "Что есть в правах этой системы. Интерфейс строит списки только отсюда: вида нет в levels — нет столбца, уровня нет — нет в выборе, функции нет в features — нет галочки, запрета нет в restrictions, плагина нет в plugins — их тоже нет. Подписи и подсказки интерфейс держит у себя по коду, незнакомый код показывает как есть"
           },
           "limits": {
             "type": "object",
@@ -8937,14 +8938,28 @@
           "serverRoles",
           "serverNetwork",
           "archiveEncryption",
-          "assist"
+          "assist",
+          "accessCatalogs",
+          "accessSupervision",
+          "accessLoginSchedule",
+          "accessSessions",
+          "accessDepth",
+          "accessRestrictions",
+          "accessUserRights"
         ],
         "description": "Необязательная возможность системы: без неё поле есть в записи, но менять его нельзя (422 NOT_SUPPORTED)",
         "x-enum-descriptions": {
           "serverRoles": "Роль сервера (role в ServerPatch): основной, узел, резервный",
           "serverNetwork": "Сетевые настройки сервера (netmask, gateway, dns в ServerPatch)",
           "archiveEncryption": "Шифрование хранилища (encrypted: true в ArchiveCreate и ArchivePatch)",
-          "assist": "Ассистент конфигурирования (POST /assist/turns): без него режим ассистента в интерфейсе скрыт"
+          "assist": "Ассистент конфигурирования (POST /assist/turns): без него режим ассистента в интерфейсе скрыт",
+          "accessCatalogs": "Каталоги LDAP: Access.catalogs, UserGroup.source, AccessUser.catalogId, POST /access/catalogs/{id}/sync. Без неё каталогов в интерфейсе нет, непустое значение — 422 NOT_SUPPORTED, field — путь поля",
+          "accessSupervision": "Подтверждение входа и экспорта второй ролью: Role.supervision. Без неё значение не по умолчанию — 422 NOT_SUPPORTED",
+          "accessLoginSchedule": "Расписание входа: Role.loginSchedule. Без неё значение не 0 — 422 NOT_SUPPORTED",
+          "accessSessions": "Лимиты сессий: AccessUser.webSessions, mobileSessions. Без неё значение не 0 — 422 NOT_SUPPORTED",
+          "accessDepth": "Глубина просмотра архива: RoleGlobal.depth. Без неё значение не 0 — 422 NOT_SUPPORTED",
+          "accessRestrictions": "Запреты роли: RoleGlobal.restr. Без неё непустое значение — 422 NOT_SUPPORTED",
+          "accessUserRights": "Права на права пользователей: выбор RoleGlobal.ur. Без неё ur следует за функцией: ALL при USERS_RIGHTS_SETUP, иначе NO; другое значение — 422 NOT_SUPPORTED"
         }
       },
       "Capabilities": {

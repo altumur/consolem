@@ -2154,6 +2154,7 @@ function can(need){
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
   autoRef(ref);
+  accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.deviceTypes=new Set(c.deviceTypes);CAPS.features=new Set(c.features);
   CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
   capsApply();
@@ -2164,7 +2165,7 @@ function capsApply(){
   if(!can("listLicenses"))sysOpts.splice(0,sysOpts.length,...sysOpts.filter(o=>o.id!=="lic"));
   const spec=window.CONSOLEM_OPENAPI,needs=[];
   if(spec)Object.values(spec.paths).forEach(item=>Object.values(item).forEach(o=>{if(o&&o.operationId&&!can(o.operationId))needs.push(o.operationId)}));
-  ["serverRoles","serverNetwork","archiveEncryption","assist"].forEach(f=>{if(!can("feature:"+f))needs.push("feature:"+f)});
+  ["serverRoles","serverNetwork","archiveEncryption","assist","accessCatalogs","accessSupervision","accessLoginSchedule","accessSessions","accessDepth","accessRestrictions","accessUserRights"].forEach(f=>{if(!can("feature:"+f))needs.push("feature:"+f)});
   const st=document.createElement("style");st.id="capsStyle";
   st.textContent=needs.map(n=>`[data-needs~="${n}"]{display:none!important}`).join("\n");
   document.head.appendChild(st);
@@ -12157,6 +12158,7 @@ function ruleHistRestore(id,v){
 // Роли с неограниченным доступом запускают всегда и в список не идут.
 function ruleRunners(r){
   const dom=(domains[0]||{}).id;
+  if(!ACC_LV.macro)return[];
   return accRoles().filter(x=>!x.g.unr).map(x=>({r:x,...accRoleLevel(x,"macro:"+r.id,"macro",dom)})).filter(x=>x.lv==="FULL");
 }
 function ruleRunnersHtml(r){
@@ -12505,7 +12507,8 @@ function ruleFromLink(){
 let ACC_ME="";
 // Доступ к функциям — по группам, как их читает администратор, а не как они
 // лежат в EFeatureAccess.
-const ACC_FEATURES=[
+// Подписи и группы функций по коду. Что есть в системе — reference.access.features
+const ACC_FEATURE_TEXT=[
   ["WEB_UI_LOGIN","Вход в веб-интерфейс","Вход и клиент"],["IS_GUARD_ROLE","Роль охранника: клиент в режиме поста","Вход и клиент"],
   ["MINMAX_BUTTON_ALLOWED","Сворачивать клиент в трей","Вход и клиент"],["SHOW_ERROR_MESSAGES","Показывать системные сообщения","Вход и клиент"],
   ["ALLOW_BUTTON_MENU_CAMERA","Меню камеры","Вход и клиент"],["ALLOW_SHOW_TITLES","Показывать титры","Вход и клиент"],
@@ -12521,11 +12524,13 @@ const ACC_FEATURES=[
   ["CONFIDENTIAL_BOOKMARKS","Конфиденциальные закладки","Архив и экспорт"],
   ["SYSTEM_JOURNAL","Журнал событий","Журнал"]
 ];
-const ACC_FEAT_GROUPS=["Вход и клиент","Настройка","Раскладки и PTZ","Архив и экспорт","Журнал"];
+let ACC_FEATURES=ACC_FEATURE_TEXT;
+const ACC_FEAT_GROUPS=["Вход и клиент","Настройка","Раскладки и PTZ","Архив и экспорт","Журнал","Прочее"];
 const ACC_FEAT_SHORT={WEB_UI_LOGIN:"Вход в веб",DEVICES_SETUP:"Устройства",ARCHIVES_SETUP:"Архивы",DETECTORS_SETUP:"Детекторы",USERS_RIGHTS_SETUP:"Права",PROGRAMMING_SETUP:"Автоматизация",SETTINGS_SETUP:"Настройки",SYSTEM_JOURNAL:"Журнал",DOMAIN_MANAGING_OPS:"Домен",EXPORT:"Экспорт",SEARCH:"Поиск",LAYOUTS_TAB:"Раскладки"};
-// Уровни — от наименьшего доступа к наибольшему: «наибольший» в расчётах
-// считается по этому порядку. Пустое значение — «Не задано».
-const ACC_LV={
+// Подписи уровней по коду. Сами уровни и их порядок — reference.access.levels:
+// от наименьшего доступа к наибольшему, «наибольший» считается по этому порядку.
+// Пустое значение — «Не задано».
+const ACC_LV_TEXT={
   cam:[["FORBID","Нет"],["ONLY_ARCHIVE","Просмотр архива"],["MON_PROT","Просмотр на охране"],["MON","Просмотр"],["ARCHIVE","Просмотр и архив"],["ARCH_MANAGE","Просмотр и управление архивом"],["FULL","Полный"]],
   tel:[["NO","Нет"],["LOWEST","Самый низкий приоритет"],["LOW","Низкий приоритет"],["NORMAL","Обычный приоритет"],["HIGH","Высокий приоритет"],["HIGHEST","Самый высокий приоритет"]],
   mic:[["FORBID","Нет"],["MON","Прослушивание"],["FULL","Прослушивание и архив"]],
@@ -12543,6 +12548,7 @@ const ACC_LV={
   bm:[["NO","Нет"],["CREATE","Создавать"],["PROTECT","Создавать и защищать"],["EDIT","Создавать, защищать, править и удалять"]],
   ur:[["NO","Нет"],["DEV","Права на папки и объекты"],["ALL","Все"]]
 };
+let ACC_LV=ACC_LV_TEXT;
 const ACC_LV_HINT={cam:{FORBID:"Камеры нет в списке",ONLY_ARCHIVE:"Только записи, без живого видео",MON_PROT:"Живое видео, пока камера на охране",MON:"Живое видео",ARCHIVE:"Живое видео и записи",ARCH_MANAGE:"Записи можно защищать и удалять",FULL:"Всё, включая PTZ и настройки"},
   sens:{VIEW:"Видеть состояние и события",MANAGE:"Ставить на охрану и снимать"},relay:{VIEW:"Видеть состояние",MANAGE:"Включать и выключать"},
   pos:{TITLES:"Титры поверх живого видео",SEARCH:"Титры и поиск по чекам в архиве"},plug:{READ:"Смотреть данные плагина",WRITE:"Менять настройки и данные"}};
@@ -12550,20 +12556,24 @@ const ACC_LV_HINT={cam:{FORBID:"Камеры нет в списке",ONLY_ARCHIV
 // порог, с которого объект вообще показывается пользователю. Архивы,
 // видеостены, плагины и правила автоматизации в папках не лежат — только умолчание и
 // права на объект.
-const ACC_GF=[["cam","Камеры","Видео"],["tel","Телеметрия","Видео"],["mic","Микрофоны","Звук"],["spk","Динамики","Звук"],["sens","Датчики","Автоматика"],["relay","Реле","Автоматика"],["pos","POS и события","Автоматика"],["acfa","СКУД","Безопасность"]];
-const ACC_GF_DEF={cam:"dCam",tel:"dTel",mic:"dMic",spk:"dSpk",sens:"dSens",relay:"dRelay",pos:"dPos",acfa:"dAcfa",arch:"dArch",vw:"dVw",plug:"dPlug",macro:"dMacro"};
-const ACC_VIS={cam:"ONLY_ARCHIVE",tel:"LOWEST",mic:"MON",spk:"PLAY",sens:"VIEW",relay:"VIEW",pos:"TITLES",acfa:"VIEW",arch:"FULL",vw:"FULL",plug:"READ",macro:"FULL"};
-const ACC_DEFS=[["dCam","Камеры","cam","Видео"],["dTel","Телеметрия","tel","Видео"],["dArch","Архивы","arch","Видео"],
+const ACC_GF_TEXT=[["cam","Камеры","Видео"],["tel","Телеметрия","Видео"],["mic","Микрофоны","Звук"],["spk","Динамики","Звук"],["sens","Датчики","Автоматика"],["relay","Реле","Автоматика"],["pos","POS и события","Автоматика"],["acfa","СКУД","Безопасность"]];
+let ACC_GF=ACC_GF_TEXT;
+let ACC_GF_DEF={cam:"dCam",tel:"dTel",mic:"dMic",spk:"dSpk",sens:"dSens",relay:"dRelay",pos:"dPos",acfa:"dAcfa",arch:"dArch",vw:"dVw",plug:"dPlug",macro:"dMacro"};
+let ACC_VIS={cam:"ONLY_ARCHIVE",tel:"LOWEST",mic:"MON",spk:"PLAY",sens:"VIEW",relay:"VIEW",pos:"TITLES",acfa:"VIEW",arch:"FULL",vw:"FULL",plug:"READ",macro:"FULL"};
+const ACC_DEF_TEXT=[["dCam","Камеры","cam","Видео"],["dTel","Телеметрия","tel","Видео"],["dArch","Архивы","arch","Видео"],
   ["dMic","Микрофоны","mic","Звук"],["dSpk","Динамики","spk","Звук"],
   ["dSens","Датчики","sens","Автоматика"],["dRelay","Реле","relay","Автоматика"],["dPos","POS и источники событий","pos","Автоматика"],["dMacro","Правила автоматизации","macro","Автоматика"],
   ["dAcfa","СКУД","acfa","Безопасность"],["dVw","Видеостены","vw","Клиент"],["dPlug","Плагины","plug","Клиент"]];
-const ACC_DEF_GROUPS=["Видео","Звук","Автоматика","Безопасность","Клиент"];
-const ACC_GLOB=[["map","Карты","map"],["alert","Тревоги","alert"],["bm","Закладки в архиве","bm"]];
-const ACC_RESTR=[["watermark","Водяной знак с логином на видео"],["noFaces","Запрет распознавания лиц"],["noLpr","Запрет распознавания номеров"],["noVehicles","Запрет распознавания транспорта"],["noSimilar","Запрет поиска похожих"],["noPwdChange","Запрет смены пароля"],["noClientOpts","Запрет спецнастроек клиента"]];
-const ACC_FIELD_NAME=Object.fromEntries([...ACC_GF.map(([k,t])=>[k,t]),["arch","Архив"],["vw","Видеостена"],["plug","Плагин"],["macro","Правило автоматизации"]]);
+let ACC_DEFS=ACC_DEF_TEXT;
+const ACC_DEF_GROUPS=["Видео","Звук","Автоматика","Безопасность","Клиент","Прочее"];
+const ACC_GLOB_TEXT=[["map","Карты","map"],["alert","Тревоги","alert"],["bm","Закладки в архиве","bm"]];
+let ACC_GLOB=ACC_GLOB_TEXT;
+const ACC_RESTR_TEXT=[["watermark","Водяной знак с логином на видео"],["noFaces","Запрет распознавания лиц"],["noLpr","Запрет распознавания номеров"],["noVehicles","Запрет распознавания транспорта"],["noSimilar","Запрет поиска похожих"],["noPwdChange","Запрет смены пароля"],["noClientOpts","Запрет спецнастроек клиента"]];
+let ACC_RESTR=ACC_RESTR_TEXT;
+const ACC_FIELD_NAME=Object.fromEntries([...ACC_GF_TEXT.map(([k,t])=>[k,t]),["arch","Архив"],["vw","Видеостена"],["plug","Плагин"],["macro","Правило автоматизации"]]);
 // Объект → какие типы доступа к нему применимы; первый — главный, по нему
 // считается «видит / не видит».
-function accObjFields(n){
+function accObjFieldsAll(n){
   switch(n.type){
     case"camera":return["cam","tel"];
     case"mic":return["mic"];
@@ -12580,25 +12590,20 @@ function accObjFields(n){
   return null;
 }
 // Что не лежит в папках, наследует только умолчание роли.
+function accObjFields(n){const f=accObjFieldsAll(n)?.filter(x=>ACC_LV[x]);return f&&f.length?f:null}
 const ACC_NOFOLDER=new Set(["archive","videowall","plugin","macro"]);
-const ACC_PLUGINS=[["faces","Распознавание лиц"],["lpr","Распознавание номеров"],["pos","Отчёты POS"],["maps","Карты и планы"],["bi","Дашборды"]];
+const ACC_PLUGIN_TEXT=[["faces","Распознавание лиц"],["lpr","Распознавание номеров"],["pos","Отчёты POS"],["maps","Карты и планы"],["bi","Дашборды"]];
+let ACC_PLUGINS=ACC_PLUGIN_TEXT;
 const ACC_TZ=["В любое время","Рабочие дни 08:00–20:00","Ночная смена 20:00–08:00"];
 // Шаблоны мастера «Новая роль» встроены в продукт: списка, страницы и истории
 // у них нет, править их из интерфейса нельзя. Мастер лишь заполняет по ним права.
-// Функции разделов, общие для нескольких ролей, — небольшие списки-константы.
-const F_LOGIN=["WEB_UI_LOGIN"];
-const F_CLIENT=["LAYOUTS_TAB","ALLOW_BUTTON_MENU_CAMERA","ALLOW_SHOW_TITLES","GROUP_PANEL","OBJECT_PANEL_AND_CAMERA_SEARCH_PANEL","SEARCH"];
-const F_SETUP=["DEVICES_SETUP","ARCHIVES_SETUP","DETECTORS_SETUP","EDIT_PTZ_PRESETS"];
-const F_JOURNAL=["SYSTEM_JOURNAL"];
-const F_RIGHTS=["USERS_RIGHTS_SETUP"];
-const F_EXPORT=["EXPORT","COMMENT"];
-const ACC_TPL={
-  commissioner:["Пусконаладчик",{feat:[...F_LOGIN,...F_SETUP],dCam:"FULL",dArch:"FULL",dMacro:"FULL",dSens:"MANAGE",dRelay:"MANAGE"}],
-  operator:["Оператор",{feat:[...F_LOGIN,...F_CLIENT],dCam:"MON",dArch:"FULL",dPos:"TITLES",map:"VIEW",alert:"FULL",bm:"CREATE"}],
-  viewer:["Только просмотр",{feat:[...F_LOGIN],dCam:"MON",map:"VIEW",alert:"VIEW"}]
-};
-const ACC_STALE=90;      // дней без входа — учётная запись считается забытой
-const ACC_SOON=7;        // дней до конца срока — предупреждаем заранее
+const ACC_TPL_NAME={commissioner:"Пусконаладчик",operator:"Оператор",viewer:"Только просмотр"};
+let ACC_TPL={};
+let ACC_TZ_CODES=[0,1,2];
+let ACC_PWD={minLength:8,letter:true,digit:true,notLogin:true};
+function accTzText(c){return ACC_TZ[c]!=null?i18n(ACC_TZ[c]):String(c)}
+let ACC_STALE=90;      // дней без входа — учётная запись считается забытой
+let ACC_SOON=7;        // дней до конца срока — предупреждаем заранее
 // Значки раздела — в том же стиле, что и у объектов «Оборудования».
 Object.assign(IC,{
   acc_role:lu("user"),
@@ -12623,7 +12628,32 @@ const accSetting={};
 open.add("acc-x:users");
 function accClone(x){return JSON.parse(JSON.stringify(x))}
 function accNoRights(){const o={unr:false,feat:[],ur:"NO",map:"FORBID",alert:"FORBID",bm:"NO",depth:0,restr:{}};ACC_DEFS.forEach(([k,,kind])=>o[k]=ACC_LV[kind][0][0]);return o}
-function accTplOwn(t){return{...accNoRights(),...accClone(ACC_TPL[t][1])}}
+// Шаблон — из справочника; чего система не объявила, в роль не попадает
+function accTplOwn(t){
+  const o=accClone(ACC_TPL[t][1]),kinds=Object.fromEntries([...ACC_DEFS,...ACC_GLOB].map(x=>[x[0],x[2]]));
+  o.feat=(o.feat||[]).filter(k=>ACC_FEATURES.some(f=>f[0]===k));
+  Object.keys(o).forEach(k=>{if(k!=="feat"&&!(ACC_LV[kinds[k]]||[]).some(l=>l[0]===o[k]))delete o[k]});
+  return{...accNoRights(),...o};
+}
+// Справочник прав: что есть в этой системе. Подписи — у формы по коду, незнакомый код показывается как есть
+function accRefApply(a){
+  if(!a)return;
+  const by=list=>Object.fromEntries(list.map(x=>[x[0],x]));
+  ACC_LV=Object.fromEntries(Object.entries(a.levels).map(([k,v])=>[k,v.map(c=>[c,ACC_LV_TEXT[k]?.find(x=>x[0]===c)?.[1]||c])]));
+  const ft=by(ACC_FEATURE_TEXT),gf=by(ACC_GF_TEXT),df=by(ACC_DEF_TEXT),gl=by(ACC_GLOB_TEXT),rs=by(ACC_RESTR_TEXT),pl=by(ACC_PLUGIN_TEXT);
+  ACC_FEATURES=a.features.map(c=>ft[c]||[c,c,"Прочее"]);
+  ACC_VIS={...a.visibleFrom};ACC_GF_DEF={...a.fieldDefaults};
+  ACC_GF=a.folderFields.filter(f=>a.levels[f]).map(f=>gf[f]||[f,f,"Прочее"]);
+  ACC_DEFS=a.defaults.filter(d=>a.levels[d.levels]).map(d=>df[d.key]||[d.key,d.key,d.levels,"Прочее"]);
+  ACC_GLOB=a.globals.filter(d=>a.levels[d.levels]).map(d=>gl[d.key]||[d.key,d.key,d.levels]);
+  ACC_RESTR=a.restrictions.map(c=>rs[c]||[c,c]);
+  ACC_PLUGINS=a.plugins.map(c=>pl[c]||[c,c]);
+  ACC_TZ_CODES=a.loginSchedules.slice();
+  ACC_TPL=Object.fromEntries(a.roleTemplates.map(t=>[t.id,[ACC_TPL_NAME[t.id]||t.id,t.rights]]));
+  ACC_STALE=a.staleDays;ACC_SOON=a.expiringSoonDays;ACC_PWD=a.passwordPolicy;
+}
+// Без возможности accessUserRights выбора нет: ur следует за функцией «Настройка прав пользователей»
+function accOwnOut(o){const c=accClone(o);if(!c.unr&&!can("feature:accessUserRights"))c.ur=c.feat.includes("USERS_RIGHTS_SETUP")?"ALL":"NO";return c}
 // Сравнение без учёта порядка ключей и пустых значений: «не задано» и
 // отсутствующий ключ — одно и то же.
 function accCanon(o){
@@ -12711,7 +12741,7 @@ function accToApi(st){
   const catId=Object.fromEntries(st.cats.map(c=>[c.n,c.id]));
   return{
     roles:st.roles.map(r=>({id:r.id,name:r.n,comment:r.comment||"",loginSchedule:r.tz||0,supervision:{roleId:r.sup?.role||null,login:!!r.sup?.login,export:!!r.sup?.export},
-      global:accClone(r.own),folderAccess:accClone(r.groups||{}),objectAccess:accClone(r.objs||{})})),
+      global:accOwnOut(r.own),folderAccess:accClone(r.groups||{}),objectAccess:accClone(r.objs||{})})),
     users:st.users.map(u=>Object.assign({id:u.id,login:u.login,name:u.name,email:u.email||"",enabled:!!u.on,roleIds:u.roles.slice(),roleUntil:{...(u.until||{})},
       lastLoginDate:u.last||null,expiresDate:u.expires||null,webSessions:u.web||0,mobileSessions:u.mobile||0,catalogId:u.ldap?catId[u.ldap]||null:null},
       u.synced?{syncedGroupId:u.synced}:{},u.created?{createdDate:u.created}:{})),
@@ -12819,8 +12849,8 @@ function accSummary(g){
   const rest=keys.length-main.length;
   return main.join(", ")+(rest?` ${i18n("и ещё")} ${rest}`:"");
 }
-function accLv(kind,v){if(!v)return i18n("Не задано");const x=ACC_LV[kind].find(l=>l[0]===v);return x?i18n(x[1]):v}
-function accRank(kind,v){return v?ACC_LV[kind].findIndex(l=>l[0]===v):-1}
+function accLv(kind,v){if(!v)return i18n("Не задано");const x=ACC_LV[kind]?.find(l=>l[0]===v);return x?i18n(x[1]):v}
+function accRank(kind,v){return v&&ACC_LV[kind]?ACC_LV[kind].findIndex(l=>l[0]===v):-1}
 function accMax(kind,vals){let b="";vals.forEach(v=>{if(v&&accRank(kind,v)>accRank(kind,b))b=v});return b}
 function accVisible(field,lv){return accRank(field,lv)>=accRank(field,ACC_VIS[field])}
 function accDepthText(h){return!h?i18n("без ограничения"):h%24===0?`${h/24} ${plural(h/24,"день|дня|дней")}`:`${h} ${plural(h,"час|часа|часов")}`}
@@ -12865,7 +12895,8 @@ function accObjects(dom){
   (domains.find(d=>d.id===dom)?.servers||[]).forEach(s=>out.push({id:"vw:"+s.id,type:"videowall",name:`${i18n("Видеостена")} · ${locName(s)}`}));
   ACC_PLUGINS.forEach(([k,n])=>out.push({id:"plug:"+k,type:"plugin",name:n}));
   rules.forEach(r=>out.push({id:"macro:"+r.id,type:"macro",name:r.name}));
-  accObjCache.set(dom,out);return out;
+  const known=out.filter(n=>accObjFields(n));
+  accObjCache.set(dom,known);return known;
 }
 function accCams(dom){return accObjects(dom).filter(n=>n.type==="camera")}
 function accObj(id){for(const d of domains){const o=accObjects(d.id).find(x=>x.id===id);if(o)return o}return null}
@@ -13048,7 +13079,7 @@ function accUserDiff(uid){
 }
 function accRolesText(u){return u.roles.length?u.roles.map(id=>"«"+escHtml(accRoleName(id))+"»"+(accDirUntil(u,id)?` ${i18n("до")} ${accFmt(accDirUntil(u,id))}`:"")).join(", "):i18n("нет")}
 function accSupText(r,raw){const s=r.sup||{};if(!s.role||(!s.login&&!s.export))return i18n("без подтверждения");const n=accRoleName(s.role);return`${[s.login?i18n("вход"):"",s.export?i18n("экспорт"):""].filter(Boolean).join(` ${i18n("и")} `)} ${i18n("подтверждает")} «${raw?n:escHtml(n)}»`}
-function accCardText(r){return`«${escHtml(r.n)}»${r.comment?" — "+escHtml(r.comment):""}; ${i18n("вход")}: ${i18n(ACC_TZ[r.tz||0]).toLowerCase()}; ${accSupText(r)}`}
+function accCardText(r){return`«${escHtml(r.n)}»${r.comment?" — "+escHtml(r.comment):""}${can("feature:accessLoginSchedule")?`; ${i18n("вход")}: ${accTzText(r.tz||0).toLowerCase()}`:""}${can("feature:accessSupervision")?`; ${accSupText(r)}`:""}`}
 const ACC_TREE_USERS=12;  // сколько пользователей перечисляет дерево слева без запроса
 let accPlanMeta=[];       // для строк плана-«массовок»: кого они затрагивают (нужно журналу)
 const ACC_AGG=5;  // сколько пользователей с одной и той же правкой ещё перечисляются по одному
@@ -13294,7 +13325,7 @@ function treeRoles(){
   h+=sec("ugroups","Группы пользователей","acc_group",ugs.length,"ugroups");
   if(!open.has("acc-x:ugroups")){
     h+=ugs.filter(g=>matchesText(q,g.n)).map(g=>`<div class="n ${accSel==="ug:"+g.id?"on":""}" style="--l:1" data-go="ug:${g.id}" ${onEv("click",["accGo",`ug:${g.id}`])} title="${escHtml(g.src?`${i18n("Из каталога")} ${accCat(g.src.cat)?.n||""}`:i18n("Вручную"))} · ${g.members.length} ${i18n(plural(g.members.length,"участник|участника|участников"))}"><span class="tw"></span>${ic(g.src?"acc_cat":"acc_group")}<span class="nm">${hlText(g.n,q)}</span>${accUGDiff(g.id)?`<span class="acc-mod">●</span>`:""}${treeTail({cnt:treeCntHtml(g.members.length)})}</div>`).join("");
-    if(!q||matchesText(q,"Каталоги"))h+=`<div class="n ${accSel==="cats"||accSel.startsWith("cat:")?"on":""}" style="--l:1" data-go="acc:cats" ${onEv("click",["accGo","cats"])}><span class="tw"></span>${ic("acc_cat")}<span class="nm">${i18n("Каталоги")}</span>${treeTail({cnt:treeCntHtml(cats.length)})}</div>`;
+    if(can("feature:accessCatalogs")&&(!q||matchesText(q,"Каталоги")))h+=`<div class="n ${accSel==="cats"||accSel.startsWith("cat:")?"on":""}" style="--l:1" data-go="acc:cats" ${onEv("click",["accGo","cats"])}><span class="tw"></span>${ic("acc_cat")}<span class="nm">${i18n("Каталоги")}</span>${treeTail({cnt:treeCntHtml(cats.length)})}</div>`;
     if(can("listStreamAccounts")&&(!q||matchesText(q,"Учётки потоков")))h+=`<div class="n ${accSel==="streams"?"on":""}" style="--l:1" data-go="acc:streams" ${onEv("click",["accGo","streams"])}><span class="tw"></span>${ic("acc_user")}<span class="nm">${i18n("Учётки потоков")}</span>${treeTail({})}</div>`;
   }
   const gs=accGroups(domainFilter);
@@ -13360,7 +13391,7 @@ function accUI(){
   if(accSel.startsWith("cat:")&&accCat(accSel.slice(4)))return accCatUI(accCat(accSel.slice(4)));
   if(accSel==="streams")return accStreamsUI();
   if(accSel==="ugroups")return accUGroupsUI();
-  if(accSel==="cats")return accCatsUI();
+  if(accSel==="cats"&&can("feature:accessCatalogs"))return accCatsUI();
   if(accSel==="users")return accUsersUI();
   if(accSel==="groups")return accGroupsUI();
   if(accSel==="check")return accCheckUI();
@@ -13396,7 +13427,8 @@ function accRolesUI(){
     +`<div class="sc">${ordinary.length?"":`<div class="nt">${i18n("Ролей нет, кроме администратора. Создайте роль")}</div>`}
       ${card("Роли",`<table class="acc-tbl"><tr><th>${i18n("Роль")}</th><th>${i18n("Действующие пользователи")}</th><th>${i18n("Функции")}</th></tr>${rows}</table>`)}</div>`);
 }
-const ACC_UFILT=[["all","Все"],["noroles","Без действующих ролей"],["off","Выключены"],["stale","Не входили 90 дней"],["expired","Срок истёк"],["soon","Срок истекает"],["ldap","Из LDAP"],["multi","Несколько ролей"]];
+const ACC_UFILT_ALL=[["all","Все"],["noroles","Без действующих ролей"],["off","Выключены"],["stale","Не входили 90 дней"],["expired","Срок истёк"],["soon","Срок истекает"],["ldap","Из LDAP"],["multi","Несколько ролей"]];
+function accUFilt(){return ACC_UFILT_ALL.filter(([id])=>id!=="ldap"||can("feature:accessCatalogs"))}
 function accUserMatch(u,f){
   switch(f){
     case"noroles":return!accUserRoles(u,true).length;
@@ -13442,7 +13474,7 @@ function accUsersUI(){
   const alive=new Set(all.map(u=>u.id));
   [...accUserSel].forEach(id=>{if(!alive.has(id)||id===meId)accUserSel.delete(id)});
   const us=all.filter(accUserMatchAll),base=all.filter(accUserRSMatch);  // чипы считают с учётом селектов «Роль» и «Источник»
-  const chips=ACC_UFILT.map(([id,t])=>{const n=id==="all"?base.length:base.filter(u=>accUserMatch(u,id)).length;
+  const chips=accUFilt().map(([id,t])=>{const n=id==="all"?base.length:base.filter(u=>accUserMatch(u,id)).length;
     return`<button type="button" class="acc-filt ${accUserFilt===id?"on":""}" ${n||id==="all"?"":"disabled"} ${onEv("click",["accUserFiltSet","filt",id])}>${i18n(t)} <b>${n}</b></button>`}).join("");
   const sels=`<select class="acc-fsel" aria-label="${i18n("Роль")}" ${onEv("change",["accUserFiltSet","role",onEv.value])}><option value="">${i18n("Роль: все")}</option>${accRoles().map(r=>`<option value="${r.id}" ${accUserRoleFilt===r.id?"selected":""}>${i18n("Роль")}: ${escHtml(r.n)}</option>`).join("")}</select>
     <select class="acc-fsel" aria-label="${i18n("Источник")}" ${onEv("change",["accUserFiltSet","src",onEv.value])}>${[["","Источник: все"],["local","Источник: локальные"],["ldap","Источник: LDAP"]].map(([v,t])=>`<option value="${v}" ${accUserSrcFilt===v?"selected":""}>${i18n(t)}</option>`).join("")}</select>
@@ -13661,7 +13693,7 @@ function accRoleUI(r){
   const seg=inPerm?`<div class="acc-subnav" role="tablist" aria-label="${i18n("Права роли")}">${pill(ACC_RPERM[0],0)}<span class="acc-subnav-sep"></span><span class="acc-subnav-lb">${i18n("Доступ к устройствам")}:</span>${ACC_RPERM.slice(1).map((t,i)=>pill(t,i+1)).join(`<span class="acc-subnav-ar" aria-hidden="true">→</span>`)}</div>`:"";
   const cr=`<button type="button" class="cr-link" ${onEv("click",["accGo","roles"])}>${i18n("Права")}</button><span class="cr-sep">/</span><button type="button" class="cr-link" ${onEv("click",["accGo","roles"])}>${i18n("Роли")}</button>`;
   const title=`<span class="hd-ic">${ic(r.g.unr?"acc_admin":"acc_role")}</span>${i18n("Роль")} «${escHtml(r.n)}»${own?` <span class="acc-own">${i18n("ваша роль")}</span>`:""}${d.isNew?` <span class="acc-own">${i18n("в черновике")}</span>`:""}`;
-  const sub=[escHtml(r.comment),`${i18n("вход:")} ${i18n(ACC_TZ[r.tz||0]).toLowerCase()}`,r.sup?.role&&(r.sup.login||r.sup.export)?accSupText(r):""].filter(Boolean).join(" · ");
+  const sub=[escHtml(r.comment),can("feature:accessLoginSchedule")?`${i18n("вход:")} ${accTzText(r.tz||0).toLowerCase()}`:"",r.sup?.role&&(r.sup.login||r.sup.export)?accSupText(r):""].filter(Boolean).join(" · ");
   const note=own?`<div class="nt">${i18n("Вы не можете менять права своей роли")}</div>`:"";
   const acts=accRoleActionsHtml(r.id);
   const body={global:accGlobalHtml,defs:accDefsHtml,groups:accGroupsTabHtml,objects:accObjectsHtml,members:accMembersHtml,history:accRoleHistoryHtml}[accTab](r,ro);
@@ -13695,24 +13727,25 @@ function accGlobalHtml(r,ro){
   const dis=ro||g.unr;
   const warn=[];
   if(!accCanSignIn(g))warn.push(`<div class="nt err">${i18n("Роль без права «Вход в веб-интерфейс» не даст пользователям войти")}</div>`);
-  const featGroups=ACC_FEAT_GROUPS.map(gr=>`<div class="acc-fgrp"><div class="acc-fgrp-h">${i18n(gr)}</div>${ACC_FEATURES.filter(f=>f[2]===gr).map(([k,t])=>{
+  const featGroups=ACC_FEAT_GROUPS.filter(gr=>ACC_FEATURES.some(f=>f[2]===gr)).map(gr=>`<div class="acc-fgrp"><div class="acc-fgrp-h">${i18n(gr)}</div>${ACC_FEATURES.filter(f=>f[2]===gr).map(([k,t])=>{
     return`<div class="ln ln-sw">${accSw(g.feat.includes(k),`accFeat('${r.id}','${k}')`,dis,t)}<div>${i18n(t)}${k==="DEVICES_SETUP"?`<small>${i18n("Просмотр и правка камер: эти два действия одним правом не разделяются")}</small>`:""}</div></div>`}).join("")}</div>`).join("");
   const sel=(k,t,kind)=>`<div><label>${i18n(t)}</label>${accSelect(kind,g[k],`accSetOwnField('${r.id}','${k}',this.value)`,dis,false,t)}</div>`;
   const admins=accAdminCount(accSt());
   const sup=r.sup||{role:"",login:false,export:false};
   const supRoles=accRoles().filter(x=>x.id!==r.id);
   const restr=ACC_RESTR.map(([k,t])=>`<div class="ln ln-sw">${accSw(!!g.restr?.[k],`accRestr('${r.id}','${k}')`,ro,t)}<div>${i18n(t)}</div></div>`).join("");
+  const parts=[can("feature:accessDepth")?`<div><label>${i18n("Глубина просмотра архива")}</label><div class="acc-pwd"><input type="number" min="0" step="1" value="${g.depth?Math.round(g.depth/24):0}" ${ro?"disabled":""} style="max-width:120px" ${onEv("change",["accDepthSet",r.id,onEv.value])}><span class="sub" style="align-self:center">${i18n("дней; 0 — без ограничения")}</span></div></div>`:"",can("feature:accessSupervision")?(sup.role||!ro?`<div><label>${i18n("Подтверждение супервизором")}</label><select ${ro?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"role",onEv.value])}><option value="">${i18n("не требуется")}</option>${supRoles.map(x=>`<option value="${x.id}" ${x.id===sup.role?"selected":""}>${i18n("роль")} «${escHtml(x.n)}»</option>`).join("")}</select>
+        <div class="acc-chips" style="margin-top:6px"><label class="acc-chk"><input type="checkbox" ${sup.login?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"login",onEv.checked])}> ${i18n("вход")}</label><label class="acc-chk"><input type="checkbox" ${sup.export?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"export",onEv.checked])}> ${i18n("экспорт")}</label></div></div>`:""):""].filter(Boolean).join("");
+  const showRestr=can("feature:accessRestrictions")&&ACC_RESTR.length;
+  const limits=parts||showRestr?card("Ограничения",`${parts?`<div class="g">${parts}</div>`:""}${showRestr?`<div class="acc-feats" style="margin-top:10px">${restr}</div>`:""}`):"";
   return`${warn.join("")}
     ${card("Неограниченный доступ",`<div class="ln ln-sw">${accSw(g.unr,`accUnr('${r.id}')`,ro,"Неограниченный доступ")}<div>${i18n("Неограниченный доступ")}<small>${i18n("Обходит все проверки прав, включая папки и объекты. Выдать его может только пользователь с таким же доступом")}. ${i18n("Сейчас он есть у")} ${admins} ${plural(admins,"пользователя|пользователей|пользователей")}</small></div></div>
       ${g.unr?`<div class="nt err" style="margin:8px 0 0">${i18n("Пользователи роли увидят и смогут изменить всё")}</div>`:""}`)}
     ${card("Доступ к функциям",`<div class="acc-feats acc-g2">${featGroups}</div>`)}
     ${card("Карты, тревоги, закладки",`<div class="g acc-g3">${ACC_GLOB.map(([k,t,kind])=>sel(k,t,kind)).join("")}</div>`)}
-    ${card("Права на управление правами",`<div class="g"><div><label>${i18n("Уровень")}</label>${accSelect("ur",g.ur,`accSetOwnField('${r.id}','ur',this.value)`,dis,false,"Права на управление правами")}</div>
-      <p class="sub" style="margin:22px 0 0">${i18n("«Права на папки и объекты» — только доступ к устройствам: папки устройств и исключения; «Все» — ещё роли и пользователи")}</p></div>`)}
-    ${card("Ограничения",`<div class="g"><div><label>${i18n("Глубина просмотра архива")}</label><div class="acc-pwd"><input type="number" min="0" step="1" value="${g.depth?Math.round(g.depth/24):0}" ${ro?"disabled":""} style="max-width:120px" ${onEv("change",["accDepthSet",r.id,onEv.value])}><span class="sub" style="align-self:center">${i18n("дней; 0 — без ограничения")}</span></div></div>
-      ${sup.role||!ro?`<div><label>${i18n("Подтверждение супервизором")}</label><select ${ro?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"role",onEv.value])}><option value="">${i18n("не требуется")}</option>${supRoles.map(x=>`<option value="${x.id}" ${x.id===sup.role?"selected":""}>${i18n("роль")} «${escHtml(x.n)}»</option>`).join("")}</select>
-        <div class="acc-chips" style="margin-top:6px"><label class="acc-chk"><input type="checkbox" ${sup.login?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"login",onEv.checked])}> ${i18n("вход")}</label><label class="acc-chk"><input type="checkbox" ${sup.export?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"export",onEv.checked])}> ${i18n("экспорт")}</label></div></div>`:""}</div>
-      <div class="acc-feats" style="margin-top:10px">${restr}</div>`)}`;
+    ${can("feature:accessUserRights")?card("Права на управление правами",`<div class="g"><div><label>${i18n("Уровень")}</label>${accSelect("ur",g.ur,`accSetOwnField('${r.id}','ur',this.value)`,dis,false,"Права на управление правами")}</div>
+      <p class="sub" style="margin:22px 0 0">${i18n("«Права на папки и объекты» — только доступ к устройствам: папки устройств и исключения; «Все» — ещё роли и пользователи")}</p></div>`):""}
+    ${limits}`;
 }
 function accFeat(rid,k){
   const r=accRole(rid);if(!r)return;
@@ -13737,7 +13770,7 @@ function accSup(rid,k,v){const r=accRole(rid);if(!r)return;r.sup=r.sup||{role:""
 function accDefsHtml(r,ro){
   const g=r.g,dis=ro||g.unr;
   const sel=(k,t,kind)=>`<div data-def="${k}"><label>${i18n(t)}</label>${accSelect(kind,g[k],`accSetOwnField('${r.id}','${k}',this.value)`,dis,false,t)}</div>`;
-  const defGroups=ACC_DEF_GROUPS.map(gr=>`<div class="acc-fgrp-h">${i18n(gr)}</div><div class="g acc-g3">${ACC_DEFS.filter(d=>d[3]===gr).map(([k,t,kind])=>sel(k,t,kind)).join("")}</div>`).join("");
+  const defGroups=ACC_DEF_GROUPS.filter(gr=>ACC_DEFS.some(d=>d[3]===gr)).map(gr=>`<div class="acc-fgrp-h">${i18n(gr)}</div><div class="g acc-g3">${ACC_DEFS.filter(d=>d[3]===gr).map(([k,t,kind])=>sel(k,t,kind)).join("")}</div>`).join("");
   return`${g.unr?`<div class="nt">${i18n("У роли неограниченный доступ: права на устройства не проверяются")}</div>`:""}
     ${accForbidsDef(g)?`<div class="nt">${i18n("Камеры по умолчанию — «Нет»: новые камеры этой роли не будут видны. Выдайте права на папку или измените право по умолчанию")}</div>`:""}
     <p class="acc-hint">${i18n("Действует на объект, если ни его папки устройств, ни исключение не задают своего значения")}</p>
@@ -14173,7 +14206,7 @@ function accUserGenHtml(u){
   const rows=srcs.map(e=>{const id=e.rid,r=accRole(id),ex=accExpired(u,id),direct=!e.via;
     return`<tr class="${ex?"off":""}"><td><button type="button" class="lk" ${onEv("click",["accGo",`role:${id}`,"global"])}>${escHtml(r.n)}</button>${ex?` <span class="acc-chip exp sm">${i18n("срок истёк")}</span>`:accSoon(u,id)?` <span class="acc-chip warn sm">${i18n("истекает")}</span>`:""}</td>
       <td class="sub">${accViaHtml(e)}</td>
-      <td class="sub">${escHtml(accSummary(r.g))}</td><td class="sub">${i18n(ACC_TZ[r.tz||0])}${r.sup?.role&&(r.sup.login||r.sup.export)?`<br>${accSupText(r)}`:""}</td><td>${accUntilInput(u,id,me)}</td>
+      <td class="sub">${escHtml(accSummary(r.g))}</td><td class="sub">${can("feature:accessLoginSchedule")?accTzText(r.tz||0):""}${r.sup?.role&&(r.sup.login||r.sup.export)?`<br>${accSupText(r)}`:""}</td><td>${accUntilInput(u,id,me)}</td>
       <td style="text-align:right">${me||!direct?"":`<button type="button" class="btn s" ${onEv("click",["accAssign",`${u.id}`,`${id}`,false])}>${i18n("Снять")}</button>`}</td></tr>`}).join("");
   const add=me?"":`<select style="width:auto;min-width:220px" ${onEv("change",onEv.ifValue,["accAssign",u.id,onEv.value,true])}><option value="">${i18n("Назначить роль…")}</option>${others.map(r=>`<option value="${r.id}">${escHtml(r.n)}</option>`).join("")}</select>`;
   const mine=accGroupsOf(u),addable=accGroupsAll().filter(g=>!g.src&&!g.members.includes(u.id));
@@ -14192,8 +14225,8 @@ function accUserGenHtml(u){
     ${u.ldap?`<p class="acc-hint" style="margin:8px 0 0">${i18n("Имя, e-mail и пароль приходят из каталога")} ${escHtml(u.ldap)}; ${i18n("здесь меняются только роли, сроки и лимиты")}</p>`:""}
     <div class="ln ln-sw" style="margin-top:8px">${accSw(u.on,`accUserOn('${u.id}')`,me,"Включён",me?i18n("Себя выключить нельзя"):"")}<div>${i18n(u.on?"Включён":"Выключен")}${me?`<small>${i18n("Себя выключить нельзя")}</small>`:""}</div></div>
     ${u.pwdReset?`<div class="nt" style="margin:10px 0 0">${i18n("Сброс пароля в черновике: после применения")} ${u.email?i18n("на e-mail придёт ссылка для смены"):i18n("новый пароль сообщит администратор")}</div>`:""}`)}
-    ${card("Одновременные подключения",`<p class="acc-hint">${i18n("Сколько сеансов может быть открыто одновременно; 0 — без лимита. Защищает от передачи одной учётной записи нескольким людям")}</p>
-      <div class="g"><div><label>${i18n("Веб-клиент и настольный клиент")}</label><input type="number" min="0" max="99" value="${u.web||0}" ${onEv("change",["accSetUser",`${u.id}`,"web",onEv.value,onEv.el])}></div><div><label>${i18n("Мобильные приложения")}</label><input type="number" min="0" max="99" value="${u.mobile||0}" ${onEv("change",["accSetUser",`${u.id}`,"mobile",onEv.value,onEv.el])}></div></div>`)}
+    ${can("feature:accessSessions")?card("Одновременные подключения",`<p class="acc-hint">${i18n("Сколько сеансов может быть открыто одновременно; 0 — без лимита. Защищает от передачи одной учётной записи нескольким людям")}</p>
+      <div class="g"><div><label>${i18n("Веб-клиент и настольный клиент")}</label><input type="number" min="0" max="99" value="${u.web||0}" ${onEv("change",["accSetUser",`${u.id}`,"web",onEv.value,onEv.el])}></div><div><label>${i18n("Мобильные приложения")}</label><input type="number" min="0" max="99" value="${u.mobile||0}" ${onEv("change",["accSetUser",`${u.id}`,"mobile",onEv.value,onEv.el])}></div></div>`):""}
     ${card(`${i18n("Роли")} (${srcs.length})`,srcs.length?`<table class="acc-tbl"><tr><th>${i18n("Роль")}</th><th>${i18n("Откуда")}</th><th>${i18n("Функции")}</th><th>${i18n("Расписание и подтверждение")}</th><th>${i18n("Роль действует до")}</th><th></th></tr>${rows}</table>`:`<p class="sub">${i18n("Ролей нет")}</p>`,add)}
     ${card(`${i18n("Группы пользователей")} (${mine.length})`,mine.length?`<table class="acc-tbl"><tr><th>${i18n("Группа")}</th><th>${i18n("Состав")}</th><th>${i18n("Роли группы")}</th><th>${i18n("Срок")}</th><th></th></tr>${grows}</table>`:`<p class="sub">${i18n("Не состоит ни в одной группе")}</p>`,gadd)}`;
 }
@@ -14332,17 +14365,17 @@ let accUGFilt="all";
 function accUGFiltSet(v){accUGFilt=v;resetPage("accug");accUI()}
 function accUGroupsUI(){
   const all=accGroupsAll();
-  const chips=ACC_GFILT.map(([id,t])=>{const n=all.filter(g=>accUGMatch(g,id)).length;
+  const chips=ACC_GFILT.filter(([id])=>can("feature:accessCatalogs")||(id!=="dir"&&id!=="err"&&id!=="manual")).map(([id,t])=>{const n=all.filter(g=>accUGMatch(g,id)).length;
     return`<button type="button" class="acc-filt ${accUGFilt===id?"on":""}" ${n||id==="all"?"":"disabled"} ${onEv("click",["accUGFiltSet",id])}>${i18n(t)} <b>${n}</b></button>`}).join("");
   const items=all.filter(g=>accUGMatch(g,accUGFilt));
   const body=listCard({key:"accug",how:"acc",title:"Группы пользователей",items,
     text:g=>[g.n,g.comment,g.src?.dn,accCat(g.src?.cat)?.n,...g.roles.map(id=>accRoleName(id))],
     row:g=>`<tr class="click" ${onEv("click",["accGo",`ug:${g.id}`])}><td><button type="button" class="lk">${escHtml(g.n)}</button> ${accSrcChip(g)}${accUGDiff(g.id)?` <span class="acc-mod">●</span>`:""}${g.comment?`<small class="acc-cmt">${escHtml(g.comment)}</small>`:""}</td>
       <td><button type="button" class="lk" ${onEv("click",onEv.stop,["accGo",`ug:${g.id}`,"gmem"])}>${g.members.length}</button></td>
-      <td>${accGRoleChips(g)}</td><td>${accGUntilText(g)}</td><td>${g.src?accSyncHtml(g.src):`<span class="sub">—</span>`}</td></tr>`,
-    wrap:rows=>`<table class="acc-tbl"><tr><th>${i18n("Группа")}</th><th>${i18n("Участники")}</th><th>${i18n("Роли")}</th><th>${i18n("Срок")}</th><th>${i18n("Синхронизация")}</th></tr>${rows}</table>`,
+      <td>${accGRoleChips(g)}</td><td>${accGUntilText(g)}</td>${can("feature:accessCatalogs")?`<td>${g.src?accSyncHtml(g.src):`<span class="sub">—</span>`}</td>`:""}</tr>`,
+    wrap:rows=>`<table class="acc-tbl"><tr><th>${i18n("Группа")}</th><th>${i18n("Участники")}</th><th>${i18n("Роли")}</th><th>${i18n("Срок")}</th>${can("feature:accessCatalogs")?`<th>${i18n("Синхронизация")}</th>`:""}</tr>${rows}</table>`,
     ph:"Поиск по названию, каталогу и роли",unit:"группа|группы|групп",empty:all.length?"Таких групп нет":"Групп нет"});
-  paintMain(mainHd("",i18n("Права"),ACC_SUB,accListTabs(),accActsHtml()+`<button type="button" class="btn s" ${onEv("click",["accGo","cats"])}>${i18n("Каталоги")}</button><button type="button" class="btn s pri" ${onEv("click",["accUgOpen"])}>${i18n("Новая группа пользователей")}</button>`)
+  paintMain(mainHd("",i18n("Права"),ACC_SUB,accListTabs(),accActsHtml()+`${can("feature:accessCatalogs")?`<button type="button" class="btn s" ${onEv("click",["accGo","cats"])}>${i18n("Каталоги")}</button>`:""}<button type="button" class="btn s pri" ${onEv("click",["accUgOpen"])}>${i18n("Новая группа пользователей")}</button>`)
     +`<div class="sc"><p class="acc-hint">${i18n("Группа пользователей — только список людей и ролей, своих прав у неё нет. Участники получают роли группы вместе с личными, а доступ считается по наибольшему из всех ролей. Состав либо ведёте вы, либо его берёт из каталога синхронизация")}</p><div class="acc-filts">${chips}</div>${body}</div>`);
 }
 
@@ -14850,13 +14883,13 @@ function accCmpUI(){
     const add=(sec,label,va,vb)=>rows.push({sec,label,va,vb,diff:va!==vb});
     const yn=v=>v?i18n("да"):"—";
     add("Глобальные",i18n("Неограниченный доступ"),yn(a.g.unr),yn(b.g.unr));
-    add("Глобальные",i18n("Управление правами"),accLv("ur",a.g.ur),accLv("ur",b.g.ur));
+    if(can("feature:accessUserRights"))add("Глобальные",i18n("Управление правами"),accLv("ur",a.g.ur),accLv("ur",b.g.ur));
     ACC_GLOB.forEach(([k,t,kind])=>add("Глобальные",i18n(t),accLv(kind,a.g[k]),accLv(kind,b.g[k])));
-    add("Глобальные",i18n("Глубина архива"),accDepthText(a.g.depth),accDepthText(b.g.depth));
-    add("Глобальные",i18n("Расписание входа"),i18n(ACC_TZ[a.tz||0]),i18n(ACC_TZ[b.tz||0]));
-    add("Глобальные",i18n("Супервизор"),accSupText(a,true),accSupText(b,true));
+    if(can("feature:accessDepth"))add("Глобальные",i18n("Глубина архива"),accDepthText(a.g.depth),accDepthText(b.g.depth));
+    if(can("feature:accessLoginSchedule"))add("Глобальные",i18n("Расписание входа"),accTzText(a.tz||0),accTzText(b.tz||0));
+    if(can("feature:accessSupervision"))add("Глобальные",i18n("Супервизор"),accSupText(a,true),accSupText(b,true));
     ACC_FEATURES.forEach(([k,t])=>add("Доступ к функциям",i18n(t),yn(a.g.feat.includes(k)),yn(b.g.feat.includes(k))));
-    ACC_RESTR.forEach(([k,t])=>add("Ограничения",i18n(t),yn(a.g.restr?.[k]),yn(b.g.restr?.[k])));
+    if(can("feature:accessRestrictions"))ACC_RESTR.forEach(([k,t])=>add("Ограничения",i18n(t),yn(a.g.restr?.[k]),yn(b.g.restr?.[k])));
     ACC_DEFS.forEach(([k,t,kind])=>add("По умолчанию",i18n(t),accLv(kind,a.g[k]),accLv(kind,b.g[k])));
     const gtxt=(r,gid)=>{const o=r.groups[gid]||{};const bits=ACC_GF.filter(([f])=>o[f]).map(([f,t])=>`${i18n(t)}: ${accLv(f,o[f])}`);return bits.join(" · ")||"—"};
     accGroups(domainFilter).forEach(g=>{if(a.groups[g.id]||b.groups[g.id])add(`${i18n("На папки устройств")} · ${domainLabel(g.dom)}`,g.root?accGroupName(g.id):"  ".repeat(g.depth)+g.name,gtxt(a,g.id),gtxt(b,g.id))});
@@ -15004,12 +15037,15 @@ function accDrawerClose(id){
   document.getElementById(id+"Bd").innerHTML="";
   if(id==="accWiz")accWz=null;if(id==="accUd")accUd=null;if(id==="accBulk")accBk=null;if(id==="accImp")accIm=null;if(id==="accAdd")accAd=null;if(id==="accUg")accUgd=null;if(id==="accGm")accGm=null;if(id==="accCg")accCg=null;if(id==="accCt")accCt=null;
 }
-const ACC_PWD_MIN=8;
 function accPwdRulesOf(pwd,login){
   const l=login.trim().toLowerCase();
-  return[[`${i18n("не короче")} ${ACC_PWD_MIN} ${i18n("знаков")}`,pwd.length>=ACC_PWD_MIN],
-    [i18n("хотя бы одна буква и одна цифра"),/\p{L}/u.test(pwd)&&/\d/.test(pwd)],
-    [i18n("без логина внутри"),!l||!pwd.toLowerCase().includes(l)]];
+  const P=ACC_PWD,out=[[`${i18n("не короче")} ${P.minLength} ${i18n("знаков")}`,pwd.length>=P.minLength]];
+  const L=/\p{L}/u.test(pwd),D=/\d/.test(pwd);
+  if(P.letter&&P.digit)out.push([i18n("хотя бы одна буква и одна цифра"),L&&D]);
+  else if(P.letter)out.push([i18n("хотя бы одна буква"),L]);
+  else if(P.digit)out.push([i18n("хотя бы одна цифра"),D]);
+  if(P.notLogin)out.push([i18n("без логина внутри"),!l||!pwd.toLowerCase().includes(l)]);
+  return out;
 }
 function accPwdRulesHtmlOf(pwd,login){return accPwdRulesOf(pwd,login).map(([t,ok])=>`<span class="${pwd?(ok?"ok":"bad"):""}">${ok&&pwd?lu("check",12):"•"} ${t}</span>`).join("")}
 function accGenPwd(){
@@ -15121,11 +15157,10 @@ function accWzRole(){
   return`<div class="acc-wz-f"><label>${i18n("Имя роли")}</label><input type="text" value="${escHtml(w.name)}" placeholder="${i18n("Например, Диспетчер")}" ${onEv("input",["accWzSet","name",onEv.value])}>${accErr("name")}</div>
     ${accWzBaseHtml()}
     <div class="acc-wz-f"><label>${i18n("Комментарий")}</label><input type="text" value="${escHtml(w.comment)}" ${onEv("input",["accWzField","comment",onEv.value])}></div>
-    <div class="acc-wz-f"><label>${i18n("Расписание входа")}</label><select ${onEv("change",["accWzTz",onEv.value])}>${ACC_TZ.map((t,i)=>`<option value="${i}" ${i===w.tz?"selected":""}>${i18n(t)}</option>`).join("")}</select>
-      <p class="acc-hint" style="margin-top:6px">${i18n("Вне расписания пользователи роли не смогут войти. Срок, после которого роль перестаёт действовать, задаётся назначению на шаге «Кому»")}</p></div>
-    <div class="acc-wz-f"><label>${i18n("Подтверждение супервизором")}</label><select ${onEv("change",["accWzSupRole",onEv.value])}><option value="">${i18n("не требуется")}</option>${accRoles().map(x=>`<option value="${x.id}" ${x.id===sup.role?"selected":""}>${i18n("роль")} «${escHtml(x.n)}»</option>`).join("")}</select>
-      ${sup.role?`<div class="acc-chips" style="margin-top:6px"><label class="acc-chk"><input type="checkbox" ${sup.login?"checked":""} ${onEv("change",["accWzSup","login",onEv.checked])}> ${i18n("вход")}</label><label class="acc-chk"><input type="checkbox" ${sup.export?"checked":""} ${onEv("change",["accWzSup","export",onEv.checked])}> ${i18n("экспорт")}</label></div>`:""}
-      <p class="acc-hint" style="margin-top:6px">${i18n("Пользователь роли сможет войти или выгрузить видео только после подтверждения кем-то из выбранной роли")}</p></div>`;
+    ${can("feature:accessLoginSchedule")?`<div class="acc-wz-f"><label>${i18n("Расписание входа")}</label><select ${onEv("change",["accWzTz",onEv.value])}>${ACC_TZ_CODES.map(c=>`<option value="${c}" ${c===w.tz?"selected":""}>${accTzText(c)}</option>`).join("")}</select>
+      <p class="acc-hint" style="margin-top:6px">${i18n("Вне расписания пользователи роли не смогут войти. Срок, после которого роль перестаёт действовать, задаётся назначению на шаге «Кому»")}</p></div>`:""}
+    ${can("feature:accessSupervision")?`<div class="acc-wz-f"><label>${i18n("Подтверждение супервизором")}</label><select ${onEv("change",["accWzSupRole",onEv.value])}><option value="">${i18n("не требуется")}</option>${accRoles().map(x=>`<option value="${x.id}" ${x.id===sup.role?"selected":""}>${i18n("роль")} «${escHtml(x.n)}»</option>`).join("")}</select>
+      ${sup.role?`<div class="acc-chips" style="margin-top:6px"><label class="acc-chk"><input type="checkbox" ${sup.login?"checked":""} ${onEv("change",["accWzSup","login",onEv.checked])}> ${i18n("вход")}</label><label class="acc-chk"><input type="checkbox" ${sup.export?"checked":""} ${onEv("change",["accWzSup","export",onEv.checked])}> ${i18n("экспорт")}</label></div>`:""}<p class="acc-hint" style="margin-top:6px">${i18n("Пользователь роли сможет войти или выгрузить видео только после подтверждения кем-то из выбранной роли")}</p></div>`:""}`;
 }
 function accWzBaseHtml(){
   const w=accWz;
@@ -15313,7 +15348,7 @@ function accWzPlan(){
   const w=accWz,steps=[],g=accWzG();
   const nm=escHtml(w.name.trim()),until=w.until?` ${i18n("до")} ${accFmt(w.until)}`:"";
   const supTxt=accSupText({sup:w.sup});
-  steps.push(`${i18n("Роль")} «${nm}»${w.comment.trim()?` — ${escHtml(w.comment.trim())}`:""}; ${i18n("вход")}: ${i18n(ACC_TZ[w.tz]).toLowerCase()}; ${supTxt}`);
+  steps.push(`${i18n("Роль")} «${nm}»${w.comment.trim()?` — ${escHtml(w.comment.trim())}`:""}${can("feature:accessLoginSchedule")?`; ${i18n("вход")}: ${accTzText(w.tz).toLowerCase()}`:""}${can("feature:accessSupervision")?`; ${supTxt}`:""}`);
   if(w.who==="new"){
     steps.push(`${i18n("Пользователь")} <b>${escHtml(w.login)}</b>${w.uname.trim()?` (${escHtml(w.uname.trim())})`:""}${w.email.trim()?`, ${escHtml(w.email.trim())}`:""}, ${i18n(w.on?"включён":"выключен")}${w.expires?`, ${i18n("учётная запись до")} ${accFmt(w.expires)}`:""}, ${i18n("пароль задан")}${w.must?`, ${i18n("сменить при первом входе")}`:""}`);
     steps.push(`${i18n("Назначение")}: «${nm}» → <b>${escHtml(w.login)}</b>${until}`);
@@ -15375,7 +15410,7 @@ function accUdRender(){
       <div><label>E-mail</label><input type="text" value="${escHtml(u.email)}" ${onEv("input",["accUdSet","email",onEv.value])}>${accUdErr("email")}</div>
       <div><label>${i18n("Состояние")}</label><div class="ln ln-sw" style="padding:6px 0">${accSw(u.on,"accUd.on=!accUd.on;accUdRender()",false,"Включён")}<div>${i18n(u.on?"Включён":"Выключен")}</div></div></div>
       <div><label>${i18n("Учётная запись действует до")}</label><input type="date" value="${u.expires}" ${onEv("change",["accUdSet","expires",onEv.value])}>${accUdErr("expires")}</div>
-      <div><label>${i18n("Лимит подключений: веб / мобильные")}</label><div class="acc-pwd"><input type="number" min="0" max="99" value="${u.web}" ${onEv("change",["accUdLimit",onEv.el,"web"])}><input type="number" min="0" max="99" value="${u.mobile}" ${onEv("change",["accUdLimit",onEv.el,"mobile"])}></div></div>
+      ${can("feature:accessSessions")?`<div><label>${i18n("Лимит подключений: веб / мобильные")}</label><div class="acc-pwd"><input type="number" min="0" max="99" value="${u.web}" ${onEv("change",["accUdLimit",onEv.el,"web"])}><input type="number" min="0" max="99" value="${u.mobile}" ${onEv("change",["accUdLimit",onEv.el,"mobile"])}></div></div>`:""}
     </div>
     ${accPwdFieldHtml(u,"accUdSet('pwd',this.value)","accPwdGen('ud')","accPwdShow('ud')",accUdErr)}
     <div class="wsec">${i18n("Роли")}</div><div class="acc-ulist">${roles}</div>
@@ -15579,8 +15614,8 @@ function accImpRun(){
       if(accCanon(finalRoles)!==accCanon(cur.roles)||accCanon(nu)!==accCanon(cur.until||{})){p.roles=finalRoles;p.until=nu}
     }
     if(acct&&acct!==(cur.expires||""))p.expires=acct;
-    if(web!=null&&web!==(cur.web||0))p.web=web;
-    if(mob!=null&&mob!==(cur.mobile||0))p.mobile=mob;
+    if(can("feature:accessSessions")&&web!=null&&web!==(cur.web||0))p.web=web;
+    if(can("feature:accessSessions")&&mob!=null&&mob!==(cur.mobile||0))p.mobile=mob;
     const had=accGroupsAll().filter(x=>!x.src&&x.members.includes(cur.id)).map(x=>x.id);
     let add=[],del=[];
     if(g("groups")&&accCanon(gTarget)!==accCanon(had)){p.groups=gTarget;add=gTarget.filter(id=>!had.includes(id));del=had.filter(id=>!gTarget.includes(id))}

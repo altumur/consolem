@@ -23,7 +23,7 @@ OUT = "api/fixtures/one-domain.json"
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
-MISSING = ["listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery"]
+MISSING = ["listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 FEATURES = []
 
 
@@ -175,6 +175,48 @@ def build(demo):
         role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if obj_kept(k)}
 
     ref = fx["reference"]
+    # Права: система объявляет меньше, как w2c: без вида tel, без MON_PROT и DEV, без части функций,
+    # запретов, плагинов и каталогов. Значений, которых система не знает, в ролях не остаётся
+    acc = ref["access"]
+    del acc["levels"]["tel"]
+    acc["levels"]["cam"] = [x for x in acc["levels"]["cam"] if x != "MON_PROT"]
+    acc["levels"]["ur"] = [x for x in acc["levels"]["ur"] if x != "DEV"]
+    acc["defaults"] = [x for x in acc["defaults"] if x["levels"] != "tel"]
+    acc["folderFields"] = [x for x in acc["folderFields"] if x != "tel"]
+    del acc["fieldDefaults"]["tel"]
+    del acc["visibleFrom"]["tel"]
+    acc["features"] = [x for x in acc["features"] if x not in ("IS_GUARD_ROLE", "ALLOW_SHOW_FACES_IN_LIVE")]
+    acc["restrictions"] = []
+    acc["plugins"] = []
+
+    def levels_of(row):
+        row.pop("tel", None)
+        if row.get("cam") == "MON_PROT":
+            row["cam"] = "MON"
+        return row
+
+    fx["access"]["catalogs"] = []
+    for g in fx["access"]["groups"]:
+        g["source"] = None
+    for u in fx["access"]["users"]:
+        u["catalogId"], u["webSessions"], u["mobileSessions"] = None, 0, 0
+        u.pop("syncedGroupId", None)
+    for role in fx["access"]["roles"]:
+        role["loginSchedule"] = 0
+        role["supervision"] = {"roleId": None, "login": False, "export": False}
+        g = role["global"]
+        g.pop("dTel", None)
+        g["depth"], g["restr"] = 0, {}
+        g["feat"] = [x for x in g["feat"] if x in acc["features"]]
+        if g.get("dCam") == "MON_PROT":
+            g["dCam"] = "MON"
+        if not g["unr"]:
+            g["ur"] = "ALL" if "USERS_RIGHTS_SETUP" in g["feat"] else "NO"
+        role["folderAccess"] = {k: levels_of(v) for k, v in role["folderAccess"].items()}
+        role["objectAccess"] = {k: levels_of(v) for k, v in role["objectAccess"].items() if not k.startswith("plug:")}
+        role["folderAccess"] = {k: v for k, v in role["folderAccess"].items() if v}
+        role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if v}
+
     kinds = []
     for g in ref["deviceKinds"]:
         types = [t for t in g["types"] if t.split("-")[0] in DEVICE_TYPES]

@@ -8339,7 +8339,6 @@
      "unr": true,
      "feat": [
       "WEB_UI_LOGIN",
-      "IS_GUARD_ROLE",
       "MINMAX_BUTTON_ALLOWED",
       "SHOW_ERROR_MESSAGES",
       "ALLOW_BUTTON_MENU_CAMERA",
@@ -8364,7 +8363,6 @@
       "ALLOW_UNPROTECTED_EXPORT",
       "ALLOW_DELETE_RECORDS",
       "ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE",
-      "ALLOW_SHOW_FACES_IN_LIVE",
       "CONFIDENTIAL_BOOKMARKS",
       "SYSTEM_JOURNAL"
      ],
@@ -8375,7 +8373,6 @@
      "depth": 0,
      "restr": {},
      "dCam": "FULL",
-     "dTel": "HIGHEST",
      "dArch": "FULL",
      "dMic": "FULL",
      "dSpk": "PLAY",
@@ -8394,10 +8391,10 @@
     "id": "80000002-0000-4000-8000-000000000000",
     "name": "Пусконаладчик",
     "comment": "Монтаж и наладка оборудования",
-    "loginSchedule": 1,
+    "loginSchedule": 0,
     "supervision": {
-     "roleId": "80000001-0000-4000-8000-000000000000",
-     "login": true,
+     "roleId": null,
+     "login": false,
      "export": false
     },
     "global": {
@@ -8416,7 +8413,6 @@
      "depth": 0,
      "restr": {},
      "dCam": "FULL",
-     "dTel": "NO",
      "dArch": "FULL",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8458,10 +8454,9 @@
      "map": "VIEW",
      "alert": "FULL",
      "bm": "PROTECT",
-     "depth": 720,
+     "depth": 0,
      "restr": {},
      "dCam": "MON",
-     "dTel": "LOW",
      "dArch": "FULL",
      "dMic": "FORBID",
      "dSpk": "PLAY",
@@ -8481,7 +8476,6 @@
      },
      "40000020-0000-4000-8000-000000000000": {
       "cam": "ARCHIVE",
-      "tel": "NORMAL",
       "sens": "VIEW"
      },
      "40000028-0000-4000-8000-000000000000": {
@@ -8528,11 +8522,8 @@
      "alert": "FULL",
      "bm": "NO",
      "depth": 0,
-     "restr": {
-      "watermark": true
-     },
+     "restr": {},
      "dCam": "FORBID",
-     "dTel": "NO",
      "dArch": "FULL",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8552,14 +8543,12 @@
       "cam": "ARCH_MANAGE",
       "mic": "FULL",
       "acfa": "MANAGE",
-      "tel": "HIGH",
       "sens": "MANAGE",
       "relay": "MANAGE",
       "spk": "PLAY"
      },
      "40000020-0000-4000-8000-000000000000": {
       "cam": "FULL",
-      "tel": "HIGHEST",
       "sens": "MANAGE"
      },
      "40000021-0000-4000-8000-000000000000": {
@@ -8570,8 +8559,7 @@
     },
     "objectAccess": {
      "30000038-0000-4000-8000-000000000000": {
-      "cam": "FULL",
-      "tel": "HIGHEST"
+      "cam": "FULL"
      },
      "vw:20000005-0000-4000-8000-000000000000": {
       "vw": "FULL"
@@ -8603,14 +8591,13 @@
       "EXPORT",
       "COMMENT"
      ],
-     "ur": "DEV",
+     "ur": "ALL",
      "map": "FULL",
      "alert": "FULL",
      "bm": "PROTECT",
      "depth": 0,
      "restr": {},
      "dCam": "MON",
-     "dTel": "NO",
      "dArch": "FORBID",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8654,15 +8641,8 @@
      "alert": "VIEW",
      "bm": "NO",
      "depth": 0,
-     "restr": {
-      "watermark": true,
-      "noFaces": true,
-      "noLpr": true,
-      "noSimilar": true,
-      "noVehicles": true
-     },
+     "restr": {},
      "dCam": "MON",
-     "dTel": "NO",
      "dArch": "FORBID",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8682,9 +8662,6 @@
     "objectAccess": {
      "vw:20000001-0000-4000-8000-000000000000": {
       "vw": "FULL"
-     },
-     "plug:bi": {
-      "plug": "READ"
      }
     }
    },
@@ -8708,7 +8685,6 @@
      "depth": 0,
      "restr": {},
      "dCam": "FORBID",
-     "dTel": "NO",
      "dArch": "FORBID",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8721,21 +8697,17 @@
      "dPlug": "FORBID"
     },
     "folderAccess": {},
-    "objectAccess": {
-     "plug:pos": {
-      "plug": "READ"
-     }
-    }
+    "objectAccess": {}
    },
    {
     "id": "80000008-0000-4000-8000-000000000000",
     "name": "Подрядчик",
     "comment": "Временный доступ на время работ",
-    "loginSchedule": 2,
+    "loginSchedule": 0,
     "supervision": {
-     "roleId": "80000001-0000-4000-8000-000000000000",
-     "login": true,
-     "export": true
+     "roleId": null,
+     "login": false,
+     "export": false
     },
     "global": {
      "unr": false,
@@ -8750,15 +8722,8 @@
      "alert": "FORBID",
      "bm": "NO",
      "depth": 0,
-     "restr": {
-      "noFaces": true,
-      "noLpr": true,
-      "noSimilar": true,
-      "noVehicles": true,
-      "noPwdChange": true
-     },
+     "restr": {},
      "dCam": "FULL",
-     "dTel": "NO",
      "dArch": "FULL",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8795,7 +8760,6 @@
      "depth": 0,
      "restr": {},
      "dCam": "MON",
-     "dTel": "NO",
      "dArch": "FORBID",
      "dMic": "FORBID",
      "dSpk": "FORBID",
@@ -8856,7 +8820,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000004-0000-4000-8000-000000000000",
@@ -8886,7 +8850,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -8918,9 +8882,9 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 2,
-    "mobileSessions": 1,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "webSessions": 0,
+    "mobileSessions": 0,
+    "catalogId": null
    },
    {
     "id": "90000008-0000-4000-8000-000000000000",
@@ -8936,9 +8900,9 @@
     },
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 2,
-    "mobileSessions": 1,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "webSessions": 0,
+    "mobileSessions": 0,
+    "catalogId": null
    },
    {
     "id": "90000009-0000-4000-8000-000000000000",
@@ -8952,7 +8916,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000010-0000-4000-8000-000000000000",
@@ -8966,7 +8930,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000011-0000-4000-8000-000000000000",
@@ -8980,7 +8944,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000012-0000-4000-8000-000000000000",
@@ -9011,8 +8975,8 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 3,
-    "mobileSessions": 2,
+    "webSessions": 0,
+    "mobileSessions": 0,
     "catalogId": null
    },
    {
@@ -9027,7 +8991,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9043,7 +9007,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9059,7 +9023,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9075,7 +9039,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9091,7 +9055,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9107,7 +9071,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9123,7 +9087,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-04-12",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9139,7 +9103,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9169,7 +9133,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9186,7 +9150,7 @@
     "lastLoginDate": "2026-07-24",
     "expiresDate": null,
     "webSessions": 0,
-    "mobileSessions": 1,
+    "mobileSessions": 0,
     "catalogId": null
    },
    {
@@ -9215,7 +9179,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": "2026-11-03",
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9243,7 +9207,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9257,7 +9221,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9271,7 +9235,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9285,7 +9249,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9299,7 +9263,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9313,7 +9277,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9327,7 +9291,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9341,7 +9305,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9355,7 +9319,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9369,7 +9333,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9383,7 +9347,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9397,7 +9361,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9411,7 +9375,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9425,7 +9389,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9439,7 +9403,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9453,7 +9417,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9467,7 +9431,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9481,7 +9445,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9495,7 +9459,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9509,7 +9473,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9525,7 +9489,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000049-0000-4000-8000-000000000000",
@@ -9539,7 +9503,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000050-0000-4000-8000-000000000000",
@@ -9553,7 +9517,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000051-0000-4000-8000-000000000000",
@@ -9567,7 +9531,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000052-0000-4000-8000-000000000000",
@@ -9581,7 +9545,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000053-0000-4000-8000-000000000000",
@@ -9595,7 +9559,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000054-0000-4000-8000-000000000000",
@@ -9609,7 +9573,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000055-0000-4000-8000-000000000000",
@@ -9623,7 +9587,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000056-0000-4000-8000-000000000000",
@@ -9637,7 +9601,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000057-0000-4000-8000-000000000000",
@@ -9651,7 +9615,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000058-0000-4000-8000-000000000000",
@@ -9663,7 +9627,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9677,7 +9641,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-07-06",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9691,7 +9655,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9705,7 +9669,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9719,7 +9683,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9733,7 +9697,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9747,7 +9711,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9761,7 +9725,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9775,7 +9739,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9789,7 +9753,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9803,7 +9767,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9817,7 +9781,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9831,7 +9795,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9845,7 +9809,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9859,7 +9823,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9873,7 +9837,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9887,7 +9851,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9901,7 +9865,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9915,7 +9879,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9929,7 +9893,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -9945,7 +9909,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000079-0000-4000-8000-000000000000",
@@ -9959,7 +9923,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000080-0000-4000-8000-000000000000",
@@ -9973,7 +9937,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000081-0000-4000-8000-000000000000",
@@ -9987,7 +9951,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000082-0000-4000-8000-000000000000",
@@ -10001,7 +9965,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000083-0000-4000-8000-000000000000",
@@ -10015,7 +9979,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000084-0000-4000-8000-000000000000",
@@ -10029,7 +9993,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000085-0000-4000-8000-000000000000",
@@ -10043,7 +10007,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000086-0000-4000-8000-000000000000",
@@ -10057,7 +10021,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000087-0000-4000-8000-000000000000",
@@ -10071,7 +10035,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000088-0000-4000-8000-000000000000",
@@ -10085,7 +10049,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10101,7 +10065,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10117,7 +10081,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10133,7 +10097,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10149,7 +10113,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10165,7 +10129,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10181,7 +10145,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10197,7 +10161,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10213,7 +10177,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10229,7 +10193,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10245,7 +10209,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10261,7 +10225,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10277,7 +10241,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10293,7 +10257,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10309,7 +10273,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10325,7 +10289,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10341,7 +10305,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10357,7 +10321,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10373,7 +10337,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10389,7 +10353,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10405,7 +10369,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000109-0000-4000-8000-000000000000",
@@ -10419,7 +10383,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000110-0000-4000-8000-000000000000",
@@ -10433,7 +10397,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000111-0000-4000-8000-000000000000",
@@ -10447,7 +10411,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000112-0000-4000-8000-000000000000",
@@ -10461,7 +10425,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000113-0000-4000-8000-000000000000",
@@ -10475,7 +10439,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000114-0000-4000-8000-000000000000",
@@ -10489,7 +10453,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000115-0000-4000-8000-000000000000",
@@ -10503,7 +10467,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000116-0000-4000-8000-000000000000",
@@ -10517,7 +10481,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000117-0000-4000-8000-000000000000",
@@ -10531,7 +10495,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000118-0000-4000-8000-000000000000",
@@ -10545,7 +10509,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10561,7 +10525,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10577,7 +10541,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10593,7 +10557,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10609,7 +10573,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10625,7 +10589,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10641,7 +10605,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10657,7 +10621,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10673,7 +10637,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10689,7 +10653,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10705,7 +10669,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10721,7 +10685,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10737,7 +10701,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10753,7 +10717,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10769,7 +10733,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10785,7 +10749,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10801,7 +10765,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10817,7 +10781,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10833,7 +10797,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10849,7 +10813,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -10865,7 +10829,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000139-0000-4000-8000-000000000000",
@@ -10879,7 +10843,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000140-0000-4000-8000-000000000000",
@@ -10893,7 +10857,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000141-0000-4000-8000-000000000000",
@@ -10907,7 +10871,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000142-0000-4000-8000-000000000000",
@@ -10921,7 +10885,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000143-0000-4000-8000-000000000000",
@@ -10935,7 +10899,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000144-0000-4000-8000-000000000000",
@@ -10949,7 +10913,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000145-0000-4000-8000-000000000000",
@@ -10963,7 +10927,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000146-0000-4000-8000-000000000000",
@@ -10977,7 +10941,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000147-0000-4000-8000-000000000000",
@@ -10991,7 +10955,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000148-0000-4000-8000-000000000000",
@@ -11005,7 +10969,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11021,7 +10985,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11037,7 +11001,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11053,7 +11017,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11069,7 +11033,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11085,7 +11049,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11101,7 +11065,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11117,7 +11081,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11133,7 +11097,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11149,7 +11113,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11165,7 +11129,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11181,7 +11145,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-07-13",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11197,7 +11161,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11213,7 +11177,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11229,7 +11193,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11245,7 +11209,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11261,7 +11225,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11277,7 +11241,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11293,7 +11257,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11309,7 +11273,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11325,7 +11289,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000169-0000-4000-8000-000000000000",
@@ -11339,7 +11303,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000170-0000-4000-8000-000000000000",
@@ -11353,7 +11317,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000171-0000-4000-8000-000000000000",
@@ -11367,7 +11331,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000172-0000-4000-8000-000000000000",
@@ -11381,7 +11345,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000173-0000-4000-8000-000000000000",
@@ -11395,7 +11359,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000174-0000-4000-8000-000000000000",
@@ -11409,7 +11373,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000175-0000-4000-8000-000000000000",
@@ -11423,7 +11387,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000176-0000-4000-8000-000000000000",
@@ -11437,7 +11401,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000177-0000-4000-8000-000000000000",
@@ -11451,7 +11415,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000178-0000-4000-8000-000000000000",
@@ -11465,7 +11429,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11481,7 +11445,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11497,7 +11461,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11513,7 +11477,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11529,7 +11493,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11545,7 +11509,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11561,7 +11525,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11577,7 +11541,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11593,7 +11557,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11609,7 +11573,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11625,7 +11589,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11641,7 +11605,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11657,7 +11621,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11673,7 +11637,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11689,7 +11653,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11705,7 +11669,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11721,7 +11685,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11737,7 +11701,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11753,7 +11717,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11769,7 +11733,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11785,7 +11749,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000199-0000-4000-8000-000000000000",
@@ -11799,7 +11763,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000200-0000-4000-8000-000000000000",
@@ -11813,7 +11777,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000201-0000-4000-8000-000000000000",
@@ -11827,7 +11791,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000202-0000-4000-8000-000000000000",
@@ -11841,7 +11805,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000203-0000-4000-8000-000000000000",
@@ -11855,7 +11819,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000204-0000-4000-8000-000000000000",
@@ -11869,7 +11833,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000205-0000-4000-8000-000000000000",
@@ -11883,7 +11847,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000206-0000-4000-8000-000000000000",
@@ -11897,7 +11861,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000207-0000-4000-8000-000000000000",
@@ -11911,7 +11875,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000208-0000-4000-8000-000000000000",
@@ -11925,7 +11889,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11941,7 +11905,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-05-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11957,7 +11921,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11973,7 +11937,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -11989,7 +11953,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12005,7 +11969,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12021,7 +11985,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12037,7 +12001,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12053,7 +12017,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12069,7 +12033,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12085,7 +12049,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12101,7 +12065,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12117,7 +12081,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12133,7 +12097,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12149,7 +12113,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12165,7 +12129,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12181,7 +12145,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12197,7 +12161,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12213,7 +12177,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12229,7 +12193,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12245,7 +12209,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000229-0000-4000-8000-000000000000",
@@ -12259,7 +12223,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000230-0000-4000-8000-000000000000",
@@ -12273,7 +12237,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000231-0000-4000-8000-000000000000",
@@ -12287,7 +12251,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000232-0000-4000-8000-000000000000",
@@ -12301,7 +12265,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000233-0000-4000-8000-000000000000",
@@ -12315,7 +12279,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000234-0000-4000-8000-000000000000",
@@ -12329,7 +12293,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000235-0000-4000-8000-000000000000",
@@ -12343,7 +12307,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000236-0000-4000-8000-000000000000",
@@ -12357,7 +12321,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000237-0000-4000-8000-000000000000",
@@ -12371,7 +12335,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000238-0000-4000-8000-000000000000",
@@ -12385,7 +12349,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12401,7 +12365,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12417,7 +12381,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12433,7 +12397,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12449,7 +12413,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12465,7 +12429,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12481,7 +12445,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12497,7 +12461,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12513,7 +12477,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12529,7 +12493,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12545,7 +12509,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12561,7 +12525,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12577,7 +12541,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12593,7 +12557,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12609,7 +12573,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12625,7 +12589,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12641,7 +12605,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12657,7 +12621,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12673,7 +12637,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12689,7 +12653,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12705,7 +12669,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000259-0000-4000-8000-000000000000",
@@ -12719,7 +12683,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000260-0000-4000-8000-000000000000",
@@ -12733,7 +12697,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000261-0000-4000-8000-000000000000",
@@ -12747,7 +12711,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000262-0000-4000-8000-000000000000",
@@ -12761,7 +12725,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000263-0000-4000-8000-000000000000",
@@ -12775,7 +12739,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000264-0000-4000-8000-000000000000",
@@ -12789,7 +12753,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000265-0000-4000-8000-000000000000",
@@ -12803,7 +12767,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000266-0000-4000-8000-000000000000",
@@ -12817,7 +12781,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000267-0000-4000-8000-000000000000",
@@ -12831,7 +12795,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000268-0000-4000-8000-000000000000",
@@ -12845,7 +12809,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12861,7 +12825,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12877,7 +12841,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12893,7 +12857,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12909,7 +12873,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12925,7 +12889,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12941,7 +12905,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12957,7 +12921,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12973,7 +12937,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -12989,7 +12953,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13005,7 +12969,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13021,7 +12985,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13037,7 +13001,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13053,7 +13017,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13069,7 +13033,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13085,7 +13049,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13101,7 +13065,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13117,7 +13081,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13133,7 +13097,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13149,7 +13113,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13165,7 +13129,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000289-0000-4000-8000-000000000000",
@@ -13179,7 +13143,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000290-0000-4000-8000-000000000000",
@@ -13193,7 +13157,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000291-0000-4000-8000-000000000000",
@@ -13207,7 +13171,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000292-0000-4000-8000-000000000000",
@@ -13221,7 +13185,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000293-0000-4000-8000-000000000000",
@@ -13235,7 +13199,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000294-0000-4000-8000-000000000000",
@@ -13249,7 +13213,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000295-0000-4000-8000-000000000000",
@@ -13263,7 +13227,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000296-0000-4000-8000-000000000000",
@@ -13277,7 +13241,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000297-0000-4000-8000-000000000000",
@@ -13291,7 +13255,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000298-0000-4000-8000-000000000000",
@@ -13305,7 +13269,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13321,7 +13285,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13337,7 +13301,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13353,7 +13317,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13369,7 +13333,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13385,7 +13349,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13401,7 +13365,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13417,7 +13381,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13433,7 +13397,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13449,7 +13413,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13465,7 +13429,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13481,7 +13445,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-06-03",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13497,7 +13461,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13513,7 +13477,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13529,7 +13493,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13545,7 +13509,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13561,7 +13525,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13577,7 +13541,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13593,7 +13557,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13609,7 +13573,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13625,7 +13589,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000319-0000-4000-8000-000000000000",
@@ -13639,7 +13603,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000320-0000-4000-8000-000000000000",
@@ -13653,7 +13617,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000321-0000-4000-8000-000000000000",
@@ -13667,7 +13631,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000322-0000-4000-8000-000000000000",
@@ -13681,7 +13645,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000323-0000-4000-8000-000000000000",
@@ -13695,7 +13659,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000324-0000-4000-8000-000000000000",
@@ -13709,7 +13673,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000325-0000-4000-8000-000000000000",
@@ -13723,7 +13687,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000326-0000-4000-8000-000000000000",
@@ -13737,7 +13701,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000327-0000-4000-8000-000000000000",
@@ -13751,7 +13715,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000328-0000-4000-8000-000000000000",
@@ -13765,7 +13729,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13781,7 +13745,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13797,7 +13761,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13813,7 +13777,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13829,7 +13793,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13845,7 +13809,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13861,7 +13825,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13877,7 +13841,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13893,7 +13857,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13909,7 +13873,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13925,7 +13889,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13941,7 +13905,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13957,7 +13921,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13973,7 +13937,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -13989,7 +13953,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14005,7 +13969,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14021,7 +13985,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14037,7 +14001,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14053,7 +14017,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14069,7 +14033,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14085,7 +14049,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000349-0000-4000-8000-000000000000",
@@ -14099,7 +14063,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000350-0000-4000-8000-000000000000",
@@ -14113,7 +14077,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000351-0000-4000-8000-000000000000",
@@ -14127,7 +14091,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000352-0000-4000-8000-000000000000",
@@ -14141,7 +14105,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000353-0000-4000-8000-000000000000",
@@ -14155,7 +14119,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000354-0000-4000-8000-000000000000",
@@ -14169,7 +14133,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000355-0000-4000-8000-000000000000",
@@ -14183,7 +14147,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000356-0000-4000-8000-000000000000",
@@ -14197,7 +14161,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000357-0000-4000-8000-000000000000",
@@ -14211,7 +14175,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000358-0000-4000-8000-000000000000",
@@ -14225,7 +14189,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14241,7 +14205,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-04-17",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14257,7 +14221,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14273,7 +14237,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14289,7 +14253,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14305,7 +14269,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14321,7 +14285,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14337,7 +14301,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14353,7 +14317,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14369,7 +14333,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14385,7 +14349,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14401,7 +14365,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14417,7 +14381,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14433,7 +14397,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14449,7 +14413,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14465,7 +14429,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14481,7 +14445,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-27",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14497,7 +14461,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-26",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14513,7 +14477,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-29",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14529,7 +14493,7 @@
     "roleUntil": {},
     "lastLoginDate": "2026-10-28",
     "expiresDate": null,
-    "webSessions": 1,
+    "webSessions": 0,
     "mobileSessions": 0,
     "catalogId": null
    },
@@ -14545,7 +14509,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000379-0000-4000-8000-000000000000",
@@ -14559,7 +14523,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000380-0000-4000-8000-000000000000",
@@ -14573,7 +14537,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000381-0000-4000-8000-000000000000",
@@ -14587,7 +14551,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000382-0000-4000-8000-000000000000",
@@ -14601,7 +14565,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000383-0000-4000-8000-000000000000",
@@ -14615,7 +14579,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000384-0000-4000-8000-000000000000",
@@ -14629,7 +14593,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000385-0000-4000-8000-000000000000",
@@ -14643,7 +14607,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000386-0000-4000-8000-000000000000",
@@ -14657,7 +14621,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    },
    {
     "id": "90000387-0000-4000-8000-000000000000",
@@ -14671,7 +14635,7 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": "b0000001-0000-4000-8000-000000000000"
+    "catalogId": null
    }
   ],
   "groups": [
@@ -14762,14 +14726,7 @@
      "90000382-0000-4000-8000-000000000000",
      "90000383-0000-4000-8000-000000000000"
     ],
-    "source": {
-     "catalogId": "b0000001-0000-4000-8000-000000000000",
-     "dn": "CN=VMS-Operators",
-     "kind": "group",
-     "status": "ok",
-     "at": "2026-10-29T08:55:00Z",
-     "message": ""
-    }
+    "source": null
    },
    {
     "id": "a0000002-0000-4000-8000-000000000000",
@@ -14829,14 +14786,7 @@
      "90000386-0000-4000-8000-000000000000",
      "90000387-0000-4000-8000-000000000000"
     ],
-    "source": {
-     "catalogId": "b0000001-0000-4000-8000-000000000000",
-     "dn": "CN=VMS-Viewers",
-     "kind": "group",
-     "status": "ok",
-     "at": "2026-10-29T08:55:00Z",
-     "message": ""
-    }
+    "source": null
    },
    {
     "id": "a0000003-0000-4000-8000-000000000000",
@@ -14849,14 +14799,7 @@
     "memberIds": [
      "90000003-0000-4000-8000-000000000000"
     ],
-    "source": {
-     "catalogId": "b0000001-0000-4000-8000-000000000000",
-     "dn": "CN=IT-Admins",
-     "kind": "group",
-     "status": "err",
-     "at": "2026-10-26T09:00:00Z",
-     "message": "Нет доступа к каталогу: истёк пароль учётной записи svc-vms"
-    }
+    "source": null
    },
    {
     "id": "a0000004-0000-4000-8000-000000000000",
@@ -14974,222 +14917,7 @@
     "source": null
    }
   ],
-  "catalogs": [
-   {
-    "id": "b0000001-0000-4000-8000-000000000000",
-    "name": "corp.local",
-    "host": "dc1.corp.local",
-    "port": 636,
-    "ssl": true,
-    "bindDn": "svc-vms@corp.local",
-    "hasPassword": true,
-    "baseDn": "DC=corp,DC=local",
-    "filter": "(objectClass=user)",
-    "loginAttr": "sAMAccountName",
-    "nameAttr": "displayName",
-    "importOthers": false,
-    "schedule": {
-     "every": "day",
-     "at": "03:00",
-     "days": [
-      1,
-      2,
-      3,
-      4,
-      5,
-      6,
-      7
-     ],
-     "tz": "Europe/Moscow"
-    },
-    "status": "ok",
-    "lastSyncAt": "2026-10-29T08:55:00Z",
-    "nextSyncAt": "2026-10-30T00:00:00Z",
-    "durationSec": 12,
-    "message": "",
-    "entries": [
-     {
-      "dn": "CN=VMS-Operators",
-      "name": "VMS-Operators",
-      "kind": "group",
-      "logins": [
-       "ivan",
-       "olga",
-       "petr",
-       "anna",
-       "marina",
-       "s1.op1",
-       "s1.op2",
-       "s1.op3",
-       "s1.op4",
-       "s1.op5",
-       "s1.op6",
-       "s2.op1",
-       "s2.op2",
-       "s2.op3",
-       "s2.op4",
-       "s2.op5",
-       "s2.op6",
-       "s3.op1",
-       "s3.op2",
-       "s3.op3",
-       "s3.op4",
-       "s3.op5",
-       "s3.op6",
-       "s4.op1",
-       "s4.op2",
-       "s4.op3",
-       "s4.op4",
-       "s4.op5",
-       "s4.op6",
-       "s5.op1",
-       "s5.op2",
-       "s5.op3",
-       "s5.op4",
-       "s5.op5",
-       "s5.op6",
-       "s6.op1",
-       "s6.op2",
-       "s6.op3",
-       "s6.op4",
-       "s6.op5",
-       "s6.op6",
-       "s7.op1",
-       "s7.op2",
-       "s7.op3",
-       "s7.op4",
-       "s7.op5",
-       "s7.op6",
-       "s8.op1",
-       "s8.op2",
-       "s8.op3",
-       "s8.op4",
-       "s8.op5",
-       "s8.op6",
-       "s9.op1",
-       "s9.op2",
-       "s9.op3",
-       "s9.op4",
-       "s9.op5",
-       "s9.op6",
-       "s10.op1",
-       "s10.op2",
-       "s10.op3",
-       "s10.op4",
-       "s10.op5",
-       "s10.op6",
-       "s11.op1",
-       "s11.op2",
-       "s11.op3",
-       "s11.op4",
-       "s11.op5",
-       "s11.op6",
-       "s12.op1",
-       "s12.op2",
-       "s12.op3",
-       "s12.op4",
-       "s12.op5",
-       "s12.op6"
-      ]
-     },
-     {
-      "dn": "CN=VMS-Viewers",
-      "name": "VMS-Viewers",
-      "kind": "group",
-      "logins": [
-       "s1.view1",
-       "s1.view2",
-       "s1.view3",
-       "s1.view4",
-       "s2.view1",
-       "s2.view2",
-       "s2.view3",
-       "s2.view4",
-       "s3.view1",
-       "s3.view2",
-       "s3.view3",
-       "s3.view4",
-       "s4.view1",
-       "s4.view2",
-       "s4.view3",
-       "s4.view4",
-       "s5.view1",
-       "s5.view2",
-       "s5.view3",
-       "s5.view4",
-       "s6.view1",
-       "s6.view2",
-       "s6.view3",
-       "s6.view4",
-       "s7.view1",
-       "s7.view2",
-       "s7.view3",
-       "s7.view4",
-       "s8.view1",
-       "s8.view2",
-       "s8.view3",
-       "s8.view4",
-       "s9.view1",
-       "s9.view2",
-       "s9.view3",
-       "s9.view4",
-       "s10.view1",
-       "s10.view2",
-       "s10.view3",
-       "s10.view4",
-       "s11.view1",
-       "s11.view2",
-       "s11.view3",
-       "s11.view4",
-       "s12.view1",
-       "s12.view2",
-       "s12.view3",
-       "s12.view4"
-      ]
-     },
-     {
-      "dn": "CN=IT-Admins",
-      "name": "IT-Admins",
-      "kind": "group",
-      "logins": [
-       "it.chief"
-      ]
-     },
-     {
-      "dn": "OU=Склад",
-      "name": "Склад",
-      "kind": "ou",
-      "logins": [
-       "wh.op1",
-       "wh.op2",
-       "wh.op3",
-       "wh.op4",
-       "wh.op5",
-       "wh.op6"
-      ]
-     },
-     {
-      "dn": "CN=HR",
-      "name": "HR",
-      "kind": "group",
-      "logins": [
-       "hr.ivanova",
-       "hr.petrov"
-      ]
-     },
-     {
-      "dn": "CN=Finance",
-      "name": "Finance",
-      "kind": "group",
-      "logins": [
-       "fin.sidorova",
-       "fin.kuznetsov",
-       "fin.smirnov"
-      ]
-     }
-    ]
-   }
-  ],
+  "catalogs": [],
   "history": [
    {
     "id": "e0000001-0000-4000-8000-000000000000",
@@ -16741,7 +16469,6 @@
   "access": {
    "features": [
     "WEB_UI_LOGIN",
-    "IS_GUARD_ROLE",
     "MINMAX_BUTTON_ALLOWED",
     "SHOW_ERROR_MESSAGES",
     "ALLOW_BUTTON_MENU_CAMERA",
@@ -16766,7 +16493,6 @@
     "ALLOW_UNPROTECTED_EXPORT",
     "ALLOW_DELETE_RECORDS",
     "ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE",
-    "ALLOW_SHOW_FACES_IN_LIVE",
     "CONFIDENTIAL_BOOKMARKS",
     "SYSTEM_JOURNAL"
    ],
@@ -16774,19 +16500,10 @@
     "cam": [
      "FORBID",
      "ONLY_ARCHIVE",
-     "MON_PROT",
      "MON",
      "ARCHIVE",
      "ARCH_MANAGE",
      "FULL"
-    ],
-    "tel": [
-     "NO",
-     "LOWEST",
-     "LOW",
-     "NORMAL",
-     "HIGH",
-     "HIGHEST"
     ],
     "mic": [
      "FORBID",
@@ -16854,7 +16571,6 @@
     ],
     "ur": [
      "NO",
-     "DEV",
      "ALL"
     ]
    },
@@ -16862,10 +16578,6 @@
     {
      "key": "dCam",
      "levels": "cam"
-    },
-    {
-     "key": "dTel",
-     "levels": "tel"
     },
     {
      "key": "dArch",
@@ -16924,7 +16636,6 @@
    ],
    "folderFields": [
     "cam",
-    "tel",
     "mic",
     "spk",
     "sens",
@@ -16934,7 +16645,6 @@
    ],
    "fieldDefaults": {
     "cam": "dCam",
-    "tel": "dTel",
     "mic": "dMic",
     "spk": "dSpk",
     "sens": "dSens",
@@ -16948,7 +16658,6 @@
    },
    "visibleFrom": {
     "cam": "ONLY_ARCHIVE",
-    "tel": "LOWEST",
     "mic": "MON",
     "spk": "PLAY",
     "sens": "VIEW",
@@ -16960,22 +16669,8 @@
     "plug": "READ",
     "macro": "FULL"
    },
-   "restrictions": [
-    "watermark",
-    "noFaces",
-    "noLpr",
-    "noVehicles",
-    "noSimilar",
-    "noPwdChange",
-    "noClientOpts"
-   ],
-   "plugins": [
-    "faces",
-    "lpr",
-    "pos",
-    "maps",
-    "bi"
-   ],
+   "restrictions": [],
+   "plugins": [],
    "roleTemplates": [
     {
      "id": "commissioner",
@@ -17141,7 +16836,6 @@
     "stream",
     "deleteObjects",
     "applyAccess",
-    "syncCatalog",
     "listStreamAccounts",
     "createStreamAccount",
     "patchStreamAccount",

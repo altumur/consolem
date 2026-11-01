@@ -34140,7 +34140,14 @@
     "serverRoles",
     "serverNetwork",
     "archiveEncryption",
-    "assist"
+    "assist",
+    "accessCatalogs",
+    "accessSupervision",
+    "accessLoginSchedule",
+    "accessSessions",
+    "accessDepth",
+    "accessRestrictions",
+    "accessUserRights"
    ],
    "foundDeviceTypes": [
     "channel",

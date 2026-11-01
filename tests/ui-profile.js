@@ -35,6 +35,26 @@ UiCheck(async ({ ok, until }) => {
   goTab("gen");
   ok(!document.querySelector('[data-df="Роль"]') && !/>Роль</.test(document.querySelector("main")?.innerHTML || document.body.innerHTML), "в карточке сервера нет роли");
 
+  // Права: списки — из reference.access, части — из capabilities.features
+  ok(!ACC_LV.tel && !ACC_LV.cam.some((l) => l[0] === "MON_PROT") && !ACC_LV.ur.some((l) => l[0] === "DEV"), "уровни из справочника: без tel, MON_PROT, DEV");
+  ok(!ACC_GF.some((f) => f[0] === "tel") && !ACC_DEFS.some((f) => f[0] === "dTel"), "вида нет — нет столбца и умолчания");
+  ok(!ACC_FEATURES.some((f) => f[0] === "IS_GUARD_ROLE") && !ACC_RESTR.length && !ACC_PLUGINS.length, "функции, запреты, плагины — из справочника");
+  goApp("acc");
+  const accRoleOp = accRoles().find((r) => !r.g.unr);
+  accGo("role:" + accRoleOp.id, "global");
+  const roleText = document.querySelector("#main, main")?.textContent || document.body.textContent;
+  ok(!/Глубина просмотра архива|Подтверждение супервизором|Водяной знак|Права на управление правами/.test(roleText), "в роли нет глубины, супервизора, запретов, прав на права");
+  ok(!/вход:/.test(roleText), "в шапке роли нет расписания входа");
+  accGo("ugroups");
+  ok(!/Каталоги/.test(document.querySelector("#main, main")?.textContent || "") && !document.querySelector('[data-go="acc:cats"]'), "каталогов нет");
+  const accCam = accObjects(domains[0].id).find((o) => o.type === "camera");
+  ok(accObjFields(accCam).join() === "cam", "поля камеры — только объявленные: " + accObjFields(accCam).join());
+  accRoleOp.own.feat = accRoleOp.own.feat.concat("USERS_RIGHTS_SETUP");
+  ok(accToApi(accSt()).roles.find((r) => r.id === accRoleOp.id).global.ur === "ALL", "ur следует за функцией");
+  accRoleOp.own.feat = accRoleOp.own.feat.filter((x) => x !== "USERS_RIGHTS_SETUP");
+  accResolveAll();
+  goApp("hw");
+
   // Хранилище: без шифрования и без «＋ Том»; в меню тома — без «Удалить том»
   const a = arch.find((x) => x.vols.length);
   pick(a.id);
