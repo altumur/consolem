@@ -30,7 +30,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(a.history[0].actor === ACC_ME && accSrv().log[0].who === ACC_ME, "история — с автором " + ACC_ME + ": «" + a.history[0].text.slice(0, 50) + "»");
   ok(!accPlanLines().length, "черновик чист");
   // Отказ сервера: без администраторов — 409, снимок не меняется
-  accSt().roles.forEach((r) => (r.own.unr = false));
+  const admRole = accRoles().find((r) => r.own.unr);
+  accSt().users.forEach((x) => (x.roles = x.roles.filter((id) => id !== admRole.id)));
+  accSt().groups.forEach((x) => (x.roles = x.roles.filter((id) => id !== admRole.id)));
   accEdited();
   accPlan();
   await confirmWith(null);
@@ -38,6 +40,21 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(accVer === v1 && accSrv().roles.some((r) => r.own.unr), "на сервере не изменилось");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();
+  // Встроенная роль «Администратор»: переключателя нет, права не меняются, удалить нельзя, назначать можно
+  accGo("role:" + admRole.id, "global");
+  const mainText = () => document.querySelector("#main, main")?.textContent || document.body.textContent;
+  ok(!/Неограниченный доступ/.test(mainText()) && /Встроенная роль/.test(mainText()), "переключателя нет, надпись о встроенной роли");
+  ok(accRoles().filter((r) => r.own.unr).length === 1, "встроенная роль одна");
+  accDeleteRole(admRole.id);
+  ok(/удалить нельзя/.test(toastText()), "удалить нельзя: «" + toastText() + "»");
+  accTabGo("members");
+  ok(document.querySelector("#main, main")?.querySelector("button"), "вкладка «Пользователи» открыта");
+  accTabGo("global");
+  ok(accIssues().every((x) => !x.act || !x.act[1].includes("accDeleteRole('" + admRole.id)), "в «Проверке» встроенную роль удалить не предлагают");
+  // Срок у последнего администратора: «Проверка» считает только бессрочных, правка с ним не проходит
+  const others = accUsers().filter((x) => accProven(x) && x.login !== ACC_ME);
+  ok(accAdminCount() >= 1, "бессрочных администраторов: " + accAdminCount());
+  ok(!accGuard((st) => st.users.forEach((x) => { if (accProven(x, st)) x.expires = accIso(30); })), "срок всем администраторам — отказ формы, бессрочных: " + others.length);
   // Удаление пользователя: число, отсчёт, затем — в черновик
   const del = accUsers().find((x) => x.login === "tester");
   accDeleteUser(del.id);

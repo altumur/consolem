@@ -1097,7 +1097,7 @@
       const p = new Intl.DateTimeFormat("en-CA", { timeZone: db.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(now()));
       return p;
     }
-    // Кто сейчас администратор с неограниченным доступом: включён, роль с unr — личная или группы, срок не истёк
+    // Кто сейчас администратор: включён, встроенная роль (unr) — личная или группы, срок не истёк
     function admins(a) {
       const unr = new Set(a.roles.filter((r) => r.global.unr).map((r) => r.id));
       const t = today();
@@ -1157,6 +1157,33 @@
       }
       return null;
     }
+    // Сравнение без учёта порядка ключей
+    const sorted = (x) => (Array.isArray(x) ? x.map(sorted) : x && typeof x === "object" ? Object.keys(x).sort().reduce((o, k) => ((o[k] = sorted(x[k])), o), {}) : x);
+    const sameJson = (x, y) => JSON.stringify(sorted(x)) === JSON.stringify(sorted(y));
+    // Администратор, на которого можно положиться: включён, без срока учётной записи и без срока
+    // назначения, личного или через группу. Со сроком последним не считается: система запиралась бы сама
+    function provenAdmins(a) {
+      const unr = new Set(a.roles.filter((r) => r.global.unr).map((r) => r.id));
+      return a.users.filter((u) => {
+        if (!u.enabled || u.expiresDate) return false;
+        if (u.roleIds.some((r) => unr.has(r) && !u.roleUntil[r])) return true;
+        return a.groups.some((g) => g.memberIds.includes(u.id) && !g.rolesUntil && g.roleIds.some((r) => unr.has(r)));
+      });
+    }
+    // Встроенная роль: меняются только назначения. unr у другой роли не бывает
+    function builtinProblem(a) {
+      const was = db.access.roles.find((r) => r.global.unr);
+      const other = a.roles.find((r) => r.global.unr && (!was || r.id !== was.id));
+      if (other) return problem(422, "NOT_SUPPORTED", "Администратор — только встроенная роль", { field: "global.unr", params: { id: other.id } });
+      if (!was) return null;
+      const r = a.roles.find((x) => x.id === was.id);
+      if (!r) return problem(409, "BUILTIN", "Встроенную роль удалить нельзя");
+      if (!r.global.unr) return problem(422, "NOT_SUPPORTED", "Снять у встроенной роли «Администратор» нельзя", { field: "global.unr", params: { id: r.id } });
+      for (const k of ["name", "comment", "loginSchedule", "supervision", "global", "folderAccess", "objectAccess"]) {
+        if (!sameJson(r[k], was[k])) return problem(409, "BUILTIN", "У встроенной роли меняются только назначения", { field: k });
+      }
+      return null;
+    }
     function accessProblem(a) {
       const dup = (list, key, code, what) => {
         const seen = new Set();
@@ -1191,12 +1218,13 @@
         const e = miss(g.roleIds.every((x) => roles.has(x)), "groups.roleIds") || miss(g.memberIds.every((x) => users.has(x)), "memberIds") || miss(!g.source || cats.has(g.source.catalogId), "source.catalogId");
         if (e) return e;
       }
-      const part = accessPartProblem(a);
+      const part = builtinProblem(a) || accessPartProblem(a);
       if (part) return part;
-      // Защита от самоблокировки: администратор остаётся, и текущий — среди них
-      const left = admins(a);
-      if (!left.length) return problem(409, "SELF_LOCKOUT", "Не останется ни одного администратора с неограниченным доступом");
-      if (!left.some((u) => u.id === me)) return problem(409, "SELF_LOCKOUT", "Вы потеряете неограниченный доступ или вход");
+      // Защита от самоблокировки: бессрочный администратор остаётся, текущий свой доступ и вход не теряет
+      if (!provenAdmins(a).length) return problem(409, "SELF_LOCKOUT", "Не останется ни одного включённого бессрочного администратора");
+      const self = a.users.find((u) => u.id === me);
+      if (!self || !self.enabled) return problem(409, "SELF_LOCKOUT", "Вы потеряете вход");
+      if (admins(db.access).some((u) => u.id === me) && !admins(a).some((u) => u.id === me)) return problem(409, "SELF_LOCKOUT", "Вы перестанете быть администратором");
       return null;
     }
 

@@ -57,8 +57,10 @@
 
   test("Права: защита от самоблокировки — без администраторов и без себя нельзя", async () => {
     const env = await makeEnv();
+    const adm = A.roles.find((r) => r.global.unr);
     let d = draft();
-    d.roles.forEach((r) => (r.global.unr = false));
+    d.users.forEach((u) => (u.roleIds = u.roleIds.filter((x) => x !== adm.id)));
+    d.groups.forEach((g) => (g.roleIds = g.roleIds.filter((x) => x !== adm.id)));
     assert.status(await apply(env, d), 409, "SELF_LOCKOUT", "ни одного администратора");
     d = draft();
     d.users.find((u) => u.id === meId).enabled = false;
@@ -67,6 +69,59 @@
     d.users = d.users.filter((u) => u.id !== meId);
     d.groups.forEach((g) => (g.memberIds = g.memberIds.filter((x) => x !== meId)));
     assert.status(await apply(env, d), 409, "SELF_LOCKOUT", "себя удалить");
+  });
+
+  test("Встроенная роль: меняются только назначения; имя, описание, права, удаление — 409 BUILTIN; unr у другой и снятие — 422", async () => {
+    const env = await makeEnv();
+    const adm = A.roles.find((r) => r.global.unr);
+    const spoil = (fn) => { const d = draft(); fn(d, d.roles.find((r) => r.id === adm.id)); return d; };
+    assert.status(await apply(env, spoil((d, r) => (r.name = "Главный"))), 409, "BUILTIN", "имя");
+    assert.status(await apply(env, spoil((d, r) => (r.comment = "другое"))), 409, "BUILTIN", "описание");
+    assert.status(await apply(env, spoil((d, r) => (r.global.feat = ["WEB_UI_LOGIN"]))), 409, "BUILTIN", "права");
+    assert.status(await apply(env, spoil((d, r) => (r.objectAccess = { [FX.devices[0].id]: { cam: "FORBID" } }))), 409, "BUILTIN", "исключение на встроенной");
+    assert.status(await apply(env, spoil((d) => {
+      d.roles = d.roles.filter((r) => r.id !== adm.id);
+      d.roles.forEach((r) => { if (r.supervision.roleId === adm.id) r.supervision = { roleId: null, login: false, export: false }; });
+      d.users.forEach((u) => { u.roleIds = u.roleIds.filter((x) => x !== adm.id); delete u.roleUntil[adm.id]; });
+      d.groups.forEach((g) => (g.roleIds = g.roleIds.filter((x) => x !== adm.id)));
+    })), 409, "BUILTIN", "удаление");
+    const off = await apply(env, spoil((d, r) => (r.global.unr = false)));
+    assert.status(off, 422, "NOT_SUPPORTED", "снять у встроенной");
+    assert.eq(off.body.field, "global.unr", "поле");
+    const on = await apply(env, spoil((d) => (d.roles.find((r) => r.id !== adm.id).global.unr = true)));
+    assert.status(on, 422, "NOT_SUPPORTED", "у другой роли");
+    assert.eq(on.body.field, "global.unr", "поле");
+    const other = A.users.find((u) => u.id !== meId && !u.roleIds.includes(adm.id));
+    const res = await apply(env, spoil((d) => d.users.find((u) => u.id === other.id).roleIds.push(adm.id)));
+    assert.status(res, 200);
+    assert.ok(res.body.access.users.find((u) => u.id === other.id).roleIds.includes(adm.id), "назначение меняется");
+  });
+
+  test("Последний администратор: срок учётной записи, назначения, ролей группы не считается — 409 SELF_LOCKOUT", async () => {
+    const env = await makeEnv();
+    const adm = A.roles.find((r) => r.global.unr);
+    const only = (fn) => {
+      const d = draft();
+      d.users.filter((u) => u.id !== meId).forEach((u) => (u.roleIds = u.roleIds.filter((x) => x !== adm.id)));
+      d.groups.forEach((g) => (g.roleIds = g.roleIds.filter((x) => x !== adm.id)));
+      fn(d, d.users.find((u) => u.id === meId));
+      return d;
+    };
+    const far = "2099-01-01";
+    assert.status(await apply(env, only((d, u) => (u.expiresDate = far))), 409, "SELF_LOCKOUT", "срок учётной записи");
+    assert.status(await apply(env, only((d, u) => (u.roleUntil[adm.id] = far))), 409, "SELF_LOCKOUT", "срок назначения");
+    assert.status(await apply(env, only(() => {})), 200);
+  });
+
+  test("Самоблокировка: снять с себя «Администратора» нельзя и при втором администраторе", async () => {
+    const env = await makeEnv();
+    const adm = A.roles.find((r) => r.global.unr);
+    const d = draft();
+    d.users.find((u) => u.id !== meId).roleIds.push(adm.id);
+    const me = d.users.find((u) => u.id === meId);
+    me.roleIds = me.roleIds.filter((x) => x !== adm.id);
+    d.groups.forEach((g) => (g.memberIds = g.roleIds.includes(adm.id) ? g.memberIds.filter((x) => x !== meId) : g.memberIds));
+    assert.status(await apply(env, d), 409, "SELF_LOCKOUT");
   });
 
   test("Права: без версии — 428, старая — 412; состояние синхронизации от клиента не берётся", async () => {

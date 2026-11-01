@@ -100,7 +100,7 @@
 
 ## П. 16. Виды архивов от сервера — сделано, `9533a6d`
 
-`reference.archiveKinds` — объекты: `{kind, serverRequired, encryption, check, recordModes}`, как предложено, и ещё `address`, `replicaSource`, `serverWide`, `archiveModes`, `admits`. `address` нужен затем, что ваш `remote` — бакет, а наш — папка NAS: форма берёт поля тома из него, а не из кода вида, `remote` и `cloud` не сводит. `kind` открыт, вид вне списка — `422 NOT_SUPPORTED`, `field: kind`. `edge`: `serverWide: true`, один на сервер, второй — `422 VALIDATION_FAILED`, `field: serverId`; `Archive.recordMode` `always` или `backup`, по умолчанию `backup`; у камеры строка `readOnly` в `extraArchives`, посылать её нельзя. `incidents`: камеры не привязываются. Выбор архива у камеры учитывает `recordModes`.
+`reference.archiveKinds` — объекты: `{kind, serverRequired, encryption, check, recordModes}`, как предложено, и ещё `address`, `replicaSource`, `serverWide`, `archiveModes`, `admits`. `address` нужен затем, что `network` у разных систем разный: бакет или папка NAS, форма берёт поля тома из него, а не из кода вида. По ADR-0112 доп. (5) п. 2 виды теперь `local`, `network`, `backup`, `edge`, `incidents`, `cloud` не объявляется. `kind` открыт, вид вне списка — `422 NOT_SUPPORTED`, `field: kind`. `edge`: `serverWide: true`, один на сервер, второй — `422 VALIDATION_FAILED`, `field: serverId`; `Archive.recordMode` `always` или `backup`, по умолчанию `backup`; у камеры строка `readOnly` в `extraArchives`, посылать её нельзя. `incidents`: камеры не привязываются. Выбор архива у камеры учитывает `recordModes`.
 
 ## П. 18. Срок на запись — сделано, `2ae28b5`
 
