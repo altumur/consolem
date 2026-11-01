@@ -2527,6 +2527,7 @@ function problemText(e,n){
     PARENT_MISMATCH:i18n("Родительский объект — в другом домене"),
     CONNECTION_FAILED:i18n("Не удалось подключиться"),
     IP_RANGE_TOO_LARGE:i18n("Слишком много адресов за раз"),
+    DEVICE_REFUSED:`${i18n("устройство отказало")}${(e?.problem?.params?.reason)==="noOperation"?`: ${i18n("такой команды нет")}`:""}`,
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
     NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("откатить можно только последнюю операцию"):i18n("откатить нельзя: срок вышел или уже откачено"),
@@ -3711,7 +3712,7 @@ const CARD_PROP={zone:"Зона",enabled:"Включено",rec:"Режим за
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
 // Поле карточки → свойство объекта, куда его запишет «Применить».
 const CARD_FLD_PROP={"Имя":"name","Короткое имя":"short","IP":"ip","Порт":"port","Производитель":"vendor","Модель":"model",
-  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Адрес кассы или сервера":"ip","Номер канала":"ch","Роль":"role",
+  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Адрес кассы или сервера":"ip","Адрес":"path","Номер канала":"ch","Роль":"role",
   "Канал":"ch","Номер":"ch","Папка":"path","Формат":"format","Режим":"mode","SMTP сервер":"smtp","От кого":"from","Получатели":"to","Шлюз / API":"gateway"};
 function cardFmt(k,v){
   if(k==="zone"&&!v)return zoneText(v);
@@ -6187,6 +6188,7 @@ function openTreeCtx(n,xy){
     }
     if(canFav(n))rest.push(tctxItem(isFav(n.id)?i18n("Убрать из избранного"):i18n("В избранное"),`toggleFav('${n.id}',${selCtx?`'${selCtx}'`:"null"})`,tctxStarIcon()));
     if(n.type==="unalloc")rest.push(tctxItem(i18n("Обновить"),`refreshUnalloc('${n.domainId}')`));
+    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))rest.push(tctxItem(i18n("Добавить единицу СКУД"),`closeTreeCtx();pick('${n.id}');openW('unit')`,tctxPlusIcon()));
     if(canTreeCtxDelete(n))rest.push(tctxItem(i18n("Удалить"),`deleteTreeNode('${n.id}')`));
     main=[...parts];
     const mark=markInsideItems(n);
@@ -8273,6 +8275,26 @@ function wordsEdit(id,fn){const n=find(id)?.n;if(!n)return;n.words=fn((n.words||
 function wordSet(id,i,k,v){wordsEdit(id,l=>{if(l[i])l[i][k]=k==="msg"?String(v).trim():v;return l})}
 function wordAdd(id){wordsEdit(id,l=>l.concat({msg:`${i18n("Слово")} ${l.length+1}`,color:"#ff4444",bg:"#000000"}))}
 function wordDel(id,i){wordsEdit(id,l=>l.filter((w,j)=>j!==i))}
+// ── Единицы СКУД ──────────────────────────────────────────────────────────
+function unitOptionsOf(n){for(let p=n;p;p=find(p.id)?.p)if(p.unitOptions)return p.unitOptions;return[]}
+function unitOption(n){return n?unitOptionsOf(find(n.id)?.p||n).find(o=>o.model===n.model&&o.type===n.type)||null:null}
+const UNIT_OPS={open:"Открыть",close:"Закрыть",block:"Заблокировать",arm:"На охрану",disarm:"Снять с охраны",on:"Включить",off:"Выключить"};
+function unitOpLabel(x){return i18n(UNIT_OPS[x]||x)}
+function unitCardHtml(n){
+  const o=unitOption(n),off=n.online===false;
+  const props=(o?.properties||[]).map(p=>{const v=(n.properties||{})[p.key]??p.default??p.options?.[0]??"";
+    return`<div><label>${escHtml(p.key)}</label>${p.options?`<select ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>${p.options.map(x=>`<option value="${escHtml(x)}" ${x===v?"selected":""}>${escHtml(x)}</option>`).join("")}</select>`:`<input type="number" value="${escHtml(v)}" ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>`}</div>`}).join("");
+  const ops=(n.operations||[]).map(x=>`<button type="button" class="btn s" data-unit-op="${escHtml(x)}" ${off?"disabled":""} ${onEv("click",["unitRun",`${n.id}`,`${x}`])}>${escHtml(unitOpLabel(x))}</button>`).join("");
+  return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Адрес","path",n.path||"")}${fldRo("Шаблон",o?.name||n.model||"—")}</div>
+    ${props?`<div class="g" style="margin-top:10px">${props}</div>`:""}
+    ${ops?`<p class="sub">${i18n("Команды — для проверки настройки")}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${ops}</div>`:""}`)+childListCard(n,{title:"Дочерние"});
+}
+function unitPropSet(id,k,v){const n=find(id)?.n;if(!n)return;n.properties={...(n.properties||{}),[k]:v===""||Number.isNaN(Number(v))?v:Number(v)};setD(true)}
+function unitRun(id,op){
+  const n=find(id)?.n;
+  API.post(`/devices/${id}/operations/${encodeURIComponent(op)}`,{}).then(()=>toast(`${unitOpLabel(op)}: ${i18n("выполнено")}`)).catch(e=>toast(problemText(e,n)));
+}
+function unitAddBtn(){return WIZ.acfa?`<button class="btn s btn-icon" aria-label="${i18n("Добавить единицу")}" title="${i18n("Добавить единицу")}" ${onEv("click",["openW","unit"])}>${lu("plus")}</button>`:""}
 function streamAdd(id){
   const n=find(id)?.n;if(!n)return;
   API.post(`/devices/${id}/streams`,{name:`${i18n("Поток")} ${camStreams(n).length+1}`}).then(r=>{hwApplyDevice(r);gear()}).catch(e=>toast(problemText(e,n)));
@@ -8522,7 +8544,7 @@ function formBase(n){
       <p class="sub">${i18n("Устройства не привязаны к серверу — они в разделе")} <button class="lk" ${onEv("click",["goApp","hw"])}>${i18n("Устройства")}</button>. ${i18n("Сервер появляется у камеры только через архив, на котором ведётся запись.")}</p>`)}
   if(n.type==="ipsrv"){
     if(tab==="rec")return nvrRecCardHtml(n);
-    if(tab==="kids")return childListCard(n,{filter:d=>d.type!=="storage",head:`<button class="btn s btn-icon" aria-label="${i18n("Добавить")}" title="${i18n("Добавить")}" ${onEv("click",["openW"])}>${lu("plus")}</button>`})+
+    if(tab==="kids")return childListCard(n,{filter:d=>d.type!=="storage",head:`<button class="btn s btn-icon" aria-label="${i18n("Добавить")}" title="${i18n("Добавить")}" ${onEv("click",["openW"])}>${lu("plus")}</button>${unitAddBtn()}`})+
       (n.subtype==="nvr"?`<p class="sub">NVR отображается как IP-сервер с камерами и каналами. Под каналом — датчики и реле.</p>`:
       n.subtype==="io"?`<p class="sub">I/O-устройство без камер: датчики и реле под каналом.</p>`:
       n.subtype==="sip"||n.subtype==="mic"?`<p class="sub">Аудио-устройство: микрофоны и/или динамики без видеоканалов.</p>`:"");
@@ -8552,10 +8574,13 @@ function formBase(n){
       ${fld("Адрес кассы или сервера",n.ip)}${fld("Порт",n.port,"number")}${sourceServerHtml(n)}${fldRo("MAC",n.mac||"—")}</div>
       <p class="sub">${i18n("Принимает события от внешних систем (POS, кассы). Источник работает на одном сервере, переноса при падении нет. Адрес — сервера или имя кассы, не 0.0.0.0.")}</p>`)+deviceFoldersCardHtml(n)}
   if(n.type==="acfa"){
-    if(tab==="kids"){const types=["acfa_sensor","acfa_lock","acfa_fence"];
-      return types.map(tp=>childListCard(n,{key:tp,title:LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет"})).join("")+
+    const nested=!!find(n.id)?.p;
+    if(tab==="kids"){const types=["acfa","acfa_sensor","acfa_lock","acfa_fence"];
+      return types.map(tp=>childListCard(n,{key:tp,title:tp==="acfa"?"Контроллеры":LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет",head:tp==="acfa"?unitAddBtn():""})).join("")+
         `<p class="sub">ACFA-устройства (пожарная защита, СКУД): датчики, замки, шлейфы и другие подобъекты с собственной иерархией.</p>`}
-    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${fld("IP",n.ip)}</div>`)+deviceFoldersCardHtml(n)}
+    if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Адрес",n.path||"")}</div>
+      <p class="sub">${i18n("Контроллер работает через родительское устройство, своего подключения у него нет.")}</p>`);
+    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${fld("IP",n.ip)}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
   if(n.type==="export")return card("Экспорт видео",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Папка",n.path)}${sl("Формат",["MP4","AVI"],n.format)}</div>
     <p class="sub">Используется в правилах автоматизации: при срабатывании экспортирует фрагмент в указанную папку на сервере.</p>`);
   if(n.type==="email"){
@@ -8596,8 +8621,7 @@ function formBase(n){
       ${cam?detServerNoteHtml(cam,n):""}`)+
       (cam?card("Камера",`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${cam.id}`],["goTab","det"])}><span>${ic("camera")}</span><span>${escHtml(locName(cam))}<small>${i18n(recordModeLabel(cam.rec))}</small></span></div>`):"");
   }
-  if(n.type==="acfa_lock"||n.type==="acfa_sensor"||n.type==="acfa_fence")
-    return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}</div>`)+childListCard(n,{title:"Дочерние"});
+  if(n.type==="acfa_lock"||n.type==="acfa_sensor"||n.type==="acfa_fence"||(n.type==="relay"&&isUnitNode(n)))return unitCardHtml(n);
   if(n.type==="storage"){
     const owner=find(n.id)?.p;
     return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${fldRo("Объём",n.size||"—")}</div>
@@ -8622,6 +8646,7 @@ const TRIGGER_KINDS=[
   {sub:"det",kind:"lpr",label:"Детектор: номер",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Вид",opts:[],pre:"вид",dyn:ruleDetOthers}]},
   {sub:"vms",kind:"text",label:"Источник событий: текст",unitLabel:"Источник",devTypes:["eventsrc"],match:[{id:"word",label:"Сообщение",opts:[],pre:"сообщение",dyn:ruleWordOpts}]},
+  {sub:"vms",kind:"unit",label:"Единица СКУД: событие",unitLabel:"Единица",devTypes:["acfa_sensor","acfa_lock","acfa_fence"],match:[{id:"word",label:"Слово",opts:[],pre:"слово",dyn:ruleUnitWords}]},
   {sub:"vms",kind:"silent",label:"Камера пропала",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"rec",kind:"segment.lost",label:"Пропал сегмент записи",unitLabel:"Камера",devTypes:["camera"],match:[]}];
 // grp — группа в списке видов (STEP_GROUPS). devTypes:[] — действие без устройства (поле не рисуется, ref нет);
@@ -8656,6 +8681,7 @@ const ACTION_KINDS=[
    fields:[{id:"to",label:"Кому"},{id:"subj",label:"Тема",tpl:true},{id:"body",label:"Текст письма (необязательно)",tpl:true}]},
   {grp:"Уведомления",sub:"ntf",action:"tg",label:"Сообщение в Telegram",short:"Telegram",devTypes:[],
    fields:[{id:"chat",label:"Чат"},{id:"text",label:"Текст сообщения",tpl:true}]},
+  {grp:"Другое",sub:"vms",action:"unit",label:"Команда единицы СКУД",short:"Команда",devTypes:["acfa_lock","acfa_sensor","acfa_fence","relay"],fields:[{id:"ref",label:"Единица"},{id:"operation",label:"Команда",dyn:ruleUnitOps}]},
   {grp:"Другое",sub:"vms",action:"output",label:"Щёлкнуть реле",devTypes:["relay"],def:{state:"pulse",pulse_ms:1000},
    fields:[{id:"ref",label:"Устройство"},
            {id:"pulse_ms",label:"Импульс, мс"}]},
@@ -8811,7 +8837,7 @@ function actionKind(a){return ACTION_KINDS.find(k=>k.sub===a.sub&&k.action===a.a
 // "folder:<id>" / "server:<id>" / "domain:<id>" | "set:<элемент>,<элемент>,-<id>" — несколько
 // областей и устройств вместе, «-id» — исключение. Область динамическая (новые устройства папки,
 // сервера или домена войдут сами); отдельное устройство и исключение — фиксированные.
-const RULE_DEVTYPES=["camera","sensor","acfa_sensor","relay","eventsrc"];
+const RULE_DEVTYPES=["camera","sensor","acfa_sensor","acfa_lock","acfa_fence","relay","eventsrc"];
 // Раскрытие областей дорого (дерево обходится целиком), а подписи просят его на каждую строку списка:
 // снимок дерева и раскрытые ссылки живут до следующей отрисовки (paint сбрасывает их).
 let ruleIdx=null;
@@ -9039,6 +9065,17 @@ function ruleWordOpts(ref){
   if(one?.words)one.words.forEach(w=>out.add(w.msg));
   else walkAll(n=>{if(n.type==="eventsrc")(n.words||[]).forEach(w=>out.add(w.msg))});
   return[...out].map(x=>[x,x]);
+}
+// Слова событий единицы и её команды — из шаблона; цель не выбрана — все слова шаблонов
+function ruleUnitWords(ref){
+  const one=ref?refNode(ref):null,o=one?unitOption(one):null,out=new Set();
+  if(o)(o.events||[]).forEach(w=>out.add(w));
+  else walkAll(n=>(n.unitOptions||[]).forEach(u=>(u.events||[]).forEach(w=>out.add(w))));
+  return[...out].map(x=>[x,x]);
+}
+function ruleUnitOps(a){
+  const list=refNode(a.ref)?.operations;
+  return list?.length?list.map(x=>[x,unitOpLabel(x)]):null;
 }
 function ruleDetOthers(){
   const out=new Map();
@@ -17244,8 +17281,9 @@ function openW(preset){
   const c=addContext(),n=c.node;
   const existing=n?.type==="server"&&isUnallocated(n.id)?n.id:null;
   const serverOnly=preset==="server"||preset==="manual"||n?.type==="domain"||n?.type==="unalloc";
-  const deviceWizard=!serverOnly&&preset!=="svc"&&c.view!=="sys";
-  wizd=deviceWizard?initDeviceWizard(c):{
+  const unit=preset==="unit";
+  const deviceWizard=!serverOnly&&preset!=="svc"&&!unit&&c.view!=="sys";
+  wizd=unit?{mode:null,cat:null,lockedCat:"acfa",type:null,view:"acfa",unit:true,domain:nodeDomainId(n)||domains[0]?.id,parentId:n?.id||null}:deviceWizard?initDeviceWizard(c):{
       mode:preset==="manual"?"server-manual":(serverOnly?"server-list":null),
       existing,cat:preset==="svc"?"svc":null,lockedCat:preset==="svc"?"svc":null,type:null,
       view:preset==="svc"?"sys":c.view,
@@ -17391,18 +17429,42 @@ function ipBulkHtml(){
     <div class="ip-sum"><span>${i18n("Опрошено адресов:")} ${rows.length}</span>${counts?`<span>· ${counts}</span>`:""}${wizd.ipOver?`<span style="color:var(--one-warning-icon)">· ${i18n("список обрезан до")} ${IP_SCAN_LIMIT}</span>`:""}</div>`;
 }
 function needsParent(type){
-  return["sensor","relay","mic","acfa_sensor","acfa_lock","acfa_fence"].includes(type);
+  return["acfa_sensor","acfa_lock","acfa_fence"].includes(type)||!!wizd.unit;
 }
-function parentOpts(s,type){
-  const out=[],acfaMode=wizd.view==="acfa";
-  walk(d=>{
-    if(["acfa_sensor","acfa_lock","acfa_fence"].includes(type)&&d.type==="acfa")out.push(d);
-    else if(type==="relay"&&acfaMode&&(d.type==="acfa"||d.type==="acfa_lock"))out.push(d);
-    else if(["sensor","relay","mic"].includes(type)&&!acfaMode&&(d.type==="camera"||d.type==="channel"||(d.type==="ipsrv"&&d.subtype!=="nvr")))out.push(d);
-  },s?.devices||[],s);
+// Родитель единицы: acfa и контроллер, домофон-камера, регистратор. Реле — в СКУД, контроллер — в acfa
+function parentOpts(type){
+  const out=[];
+  walkAll(d=>{
+    if(nodeDomainId(d)!==wizd.domain)return;
+    if(type==="acfa"?d.type==="acfa":type==="relay"?ACS_TYPES.has(d.type):["acfa","camera","ipsrv"].includes(d.type))out.push(d);
+  });
   return out;
 }
+function unitStepHtml(){
+  const label=WIZ[wizd.cat]?.types.find(t=>t[0]===wizd.type)?.[1]||"Объект",opts=parentOpts(wizd.type);
+  if(!wizd.parentId||!opts.some(o=>o.id===wizd.parentId))wizd.parentId=opts[0]?.id||null;
+  const tpls=wizd.parentId?unitOptionsOf(find(wizd.parentId).n).filter(o=>o.type===wizd.type):[];
+  return`<div class="wsec">${i18n("Куда добавить")}</div><div class="g"><div><label>${i18n("Родительский объект")}</label><select id="wizParent" ${onEv("change",["wizParentSet",onEv.value])}>
+    ${opts.length?opts.map(o=>`<option value="${o.id}" ${o.id===wizd.parentId?"selected":""}>${escHtml(locName(o))} (${escHtml(i18n(LB[o.type]))})</option>`).join(""):`<option value="">${i18n("Нет подходящих объектов")}</option>`}</select></div></div>
+    <div class="wsec">${i18n("Параметры")}: ${escHtml(i18n(label))}</div><div class="g">
+    <div><label>${i18n("Имя")}</label><input id="wizName" value="${escHtml(`${i18n("Новый")} ${i18n(label).toLowerCase()}`)}"></div>
+    <div><label>${i18n("Адрес")}</label><input id="wizPath" value=""></div>
+    ${tpls.length?`<div><label>${i18n("Шаблон")}</label><select id="wizUnitModel">${tpls.map(o=>`<option value="${escHtml(o.model)}">${escHtml(o.name)}</option>`).join("")}</select></div>`:""}</div>`;
+}
+function unitAdd(){
+  if(!wizd.parentId){toast("Нет подходящего родительского объекта");return}
+  const parent=find(wizd.parentId).n,name=document.getElementById("wizName")?.value.trim()||"Новый объект",path=document.getElementById("wizPath")?.value.trim(),model=document.getElementById("wizUnitModel")?.value;
+  const node={id:"obj"+Date.now(),type:wizd.type,name,online:true,devices:[]};
+  if(path)node.path=path;
+  if(model)node.model=model;
+  devicesCreate([{node,domainId:nodeDomainId(parent),parentId:parent.id,folderId:null}]).then(res=>{
+    if(!res.done.length){toast(problemText(res.failed[0]?.code));return}
+    open.add(parent.id);sel=res.done[0].devices[0].id;tab="gen";treeMatchCache.clear();searchMatchCache.clear();
+    document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
+  }).catch(e=>toast(problemText(e)));
+}
 function wizardTitle(){
+  if(wizd.unit)return"Добавить единицу СКУД";
   if(wizd.mode==="device-add")return"Добавить устройство";
   if(wizd.mode==="server-manual")return"Добавить серверы по IP";
   if(wizd.serverOnly)return"Добавить сервер";
@@ -17460,6 +17522,8 @@ function wd(){
     if(!wizd.mode)h+=`<p class="sub">Выберите, что нужно добавить.</p>`;
   }else if(wizd.mode==="server-manual"){
     h+=ipBulkHtml();
+  }else if(wizd.unit){
+    h+=unitStepHtml();
   }else{
     const svcFlow=wizd.view==="sys"||wizd.cat==="svc";
     const list=svcFlow?wizardServerOptions():[];
@@ -17474,18 +17538,11 @@ function wd(){
         ${list.map(x=>`<option value="${x.id}" ${x.id===wizd.server?"selected":""}>${x.name} · ${x.ip||"без IP"}</option>`).join("")}</select></div>`
         :`<div class="g"><div><label>Папка</label><select id="wizFolder" ${onEv("change",["wizPlace","folder",onEv.value])}>
         ${folderOptionGroups(wizd.folder)}</select></div>`;
-      if(needsParent(wizd.type)){
-        const opts=parentOpts(s,wizd.type);
-        if(!wizd.parentId||!opts.some(o=>o.id===wizd.parentId))wizd.parentId=opts[0]?.id||null;
-        h+=`<div><label>Родительский объект</label><select id="wizParent" ${onEv("change",["wizParentSet",onEv.value])}>
-          ${opts.length?opts.map(o=>`<option value="${o.id}" ${o.id===wizd.parentId?"selected":""}>${o.name} (${LB[o.type]})</option>`).join(""):`<option value="">Нет подходящих объектов</option>`}</select></div>`;
-      }
       h+=`</div><div class="wsec">Параметры: ${label}</div><div class="g">
         <div><label>Имя</label><input id="wizName" value="Новый ${label.toLowerCase()}"></div>
         ${["camera","ipsrv-nvr","ipsrv-io","ipsrv-sip","ipsrv-mic","eventsrc","acfa"].includes(wizd.type)?`<div><label>IP-адрес</label><input id="wizObjIp" value="192.168.1.50"></div>`:""}
         ${wizd.type==="export"?`<div><label>Папка</label><input id="wizPath" value="D:\\Export"></div>`:""}
         ${wizd.type==="email"?`<div><label>SMTP</label><input id="wizSmtp" value=""></div>`:""}
-        ${needsParent(wizd.type)&&wizd.view==="cam"?`<div><label>Канал</label><input id="wizChannel" type="number" value="1"></div>`:""}
       </div>`;
     }
   }
@@ -17501,6 +17558,7 @@ function wnx(){
     if(wizd.ipPhase==="done"){addProbedServers();return}
     runIpProbe();return;
   }
+  if(wizd.unit){unitAdd();return}
   const svcFlow=wizd.view==="sys"||wizd.cat==="svc";
   const s=svcFlow?domains.flatMap(d=>d.servers).find(x=>x.id===wizd.server):deviceTarget();
   if(!s){toast(svcFlow?"Выберите сервер":"Выберите папку");return}

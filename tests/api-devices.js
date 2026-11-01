@@ -411,5 +411,78 @@
     assert.eq([t.deviceTypes, t.match[0].id], [["eventsrc"], "word"], "вид объявлен");
   }, { needs: ["type:eventsrc"] });
 
+  /* ===== Единицы СКУД ===== */
+
+  const acs = async (env) => {
+    const list = await env.list("/devices");
+    return { list, root: list.find((d) => d.type === "acfa" && !d.parentId), lock: list.find((d) => d.type === "acfa_lock" && d.operations?.length) };
+  };
+  const unit = (env, device, parent, folderId = null) => env.ok("POST", "/devices", create([{ device, domainId: parent.domainId, parentId: parent.id, folderId }]));
+  const inAcs = { needs: ["type:acfa"] };
+
+  test("Единица СКУД: шаблон из unitOptions, адрес path, правка model — 422; в папку нельзя; родитель — acfa, камера, ipsrv", async () => {
+    const env = await makeEnv();
+    const { root, list } = await acs(env);
+    const res = await unit(env, { type: "acfa_lock", name: "Дверь", model: "tmpl.door", path: "door/9" }, root);
+    const d = res.done[0].devices[0];
+    assert.eq([d.model, d.path], ["tmpl.door", "door/9"], "создана");
+    const bad = await env.call("PATCH", `/devices/${d.id}`, { model: "tmpl.zone" }, v(d));
+    assert.status(bad, 422, "NOT_SUPPORTED", "шаблон не правится");
+    assert.eq(bad.body.field, "model", "поле");
+    assert.eq((await env.ok("PATCH", `/devices/${d.id}`, { path: "door/10", properties: { mode: "locked" } }, v(d))).path, "door/10", "адрес правится");
+    assert.eq((await unit(env, { type: "acfa_lock", name: "Нет шаблона", model: "нет" }, root)).failed[0].field, "model", "шаблона нет");
+    const f = FX.folders.find((x) => x.domainId === root.domainId);
+    assert.eq((await unit(env, { type: "acfa_sensor", name: "В папку" }, root, f.id)).failed[0].code, "NOT_SUPPORTED", "папки нет");
+    const cam = list.find((x) => x.type === "camera");
+    assert.eq((await unit(env, { type: "acfa_sensor", name: "Считыватель" }, cam)).done.length, 1, "под камерой");
+    const ip = list.find((x) => x.type === "ipsrv" && !x.derived);
+    assert.eq((await unit(env, { type: "acfa_lock", name: "Замок" }, ip)).done.length, 1, "под ipsrv");
+    const sensor = list.find((x) => x.type === "sensor");
+    assert.eq((await unit(env, { type: "acfa_lock", name: "Нельзя" }, sensor)).failed[0].code, "PARENT_MISMATCH", "под датчиком — нет");
+  }, inAcs);
+
+  test("Реле: в СКУД заводит оператор, вне СКУД — 422; контроллер: acfa с родителем, без своего подключения, снимается с вложенным", async () => {
+    const env = await makeEnv();
+    const { root, lock, list } = await acs(env);
+    assert.eq((await unit(env, { type: "relay", name: "Реле двери", path: "r/1" }, lock)).done.length, 1, "под замком");
+    const cam = list.find((x) => x.type === "camera");
+    assert.eq((await unit(env, { type: "relay", name: "Реле" }, cam)).failed[0].code, "NOT_SUPPORTED", "под камерой — находка сервера");
+    assert.eq((await unit(env, { type: "acfa", name: "Контроллер", ip: "10.0.0.5" }, root)).failed[0].field, "ip", "адреса нет");
+    const c = (await unit(env, { type: "acfa", name: "Контроллер", path: "c/1" }, root)).done[0].devices[0];
+    assert.status(await env.call("PATCH", `/devices/${c.id}`, { vendor: "x" }, v(c)), 422, "NOT_SUPPORTED", "подключения нет");
+    const kid = (await unit(env, { type: "acfa_lock", name: "Дверь" }, c)).done[0].devices[0];
+    assert.status(await env.call("DELETE", `/devices/${c.id}`, undefined, v(c)), 204);
+    assert.status(await env.call("GET", `/devices/${kid.id}`), 404, "NOT_FOUND", "вложенное снято");
+  }, inAcs);
+
+  test("Команда единицы: выполняется, нет команды — 409 DEVICE_REFUSED, без связи — 409 DEVICE_OFFLINE", async () => {
+    const env = await makeEnv();
+    const { lock, list } = await acs(env);
+    assert.eq((await env.ok("POST", `/devices/${lock.id}/operations/${lock.operations[0]}`, {})).done, true, "выполнено");
+    const no = await env.call("POST", `/devices/${lock.id}/operations/fly`, {});
+    assert.status(no, 409, "DEVICE_REFUSED", "команды нет");
+    assert.eq(no.body.params.reason, "noOperation", "причина");
+    const cam = list.find((x) => x.type === "camera");
+    assert.status(await env.call("POST", `/devices/${cam.id}/operations/open`, {}), 422, "NOT_SUPPORTED", "у камеры команд нет");
+    await env.ok("POST", "/test/events", { type: "device.signal", deviceId: lock.id, online: false, fault: "conn" });
+    assert.status(await env.call("POST", `/devices/${lock.id}/operations/${lock.operations[0]}`, {}), 409, "DEVICE_OFFLINE");
+  }, inAcs);
+
+  test("Правило: действие unit с operation, вид unit с word; output на реле двери — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    assert.ok(ref.ruleTriggers.some((x) => x.kind === "unit") && ref.ruleActions.some((x) => x.action === "unit"), "объявлены");
+    const { list } = await acs(env);
+    const by = new Map(list.map((d) => [d.id, d]));
+    const relay = list.find((d) => d.type === "relay" && by.get(d.parentId)?.type === "acfa_lock");
+    const cur = (await env.list("/rules"))[0];
+    const CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat", "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain"];
+    const body = (steps) => Object.assign(Object.fromEntries(CONTENT.map((k) => [k, cur[k]])), { steps });
+    const target = { include: [{ kind: "device", id: relay.id }], exclude: [], gone: [], fromEvent: false };
+    const res = await env.call("PUT", `/rules/${cur.id}`, body([{ source: "vms", action: "output", target, pulseMs: 500 }]), { "If-Match": `"${cur.version}"` });
+    assert.status(res, 422, "NOT_SUPPORTED", "команда идёт операцией");
+    await env.ok("PUT", `/rules/${cur.id}`, body([{ source: "vms", action: "unit", target, operation: "on" }]), { "If-Match": `"${cur.version}"` });
+  }, inAcs);
+
   ApiTest.loaded("api-devices.js");
 })();

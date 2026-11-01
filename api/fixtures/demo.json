@@ -3444,7 +3444,75 @@
    "ip": "192.168.1.80",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "unitOptions": [
+    {
+     "model": "tmpl.door",
+     "name": "Дверь с замком",
+     "type": "acfa_lock",
+     "properties": [
+      {
+       "key": "mode",
+       "options": [
+        "normal",
+        "locked"
+       ]
+      }
+     ],
+     "events": [
+      "opened",
+      "closed",
+      "forced"
+     ],
+     "operations": [
+      "open",
+      "close",
+      "block"
+     ]
+    },
+    {
+     "model": "tmpl.reader",
+     "name": "Считыватель",
+     "type": "acfa_sensor",
+     "events": [
+      "granted",
+      "denied",
+      "failure"
+     ],
+     "operations": []
+    },
+    {
+     "model": "tmpl.zone",
+     "name": "Шлейф охраны",
+     "type": "acfa_fence",
+     "properties": [
+      {
+       "key": "threshold",
+       "default": 5
+      }
+     ],
+     "events": [
+      "alarm",
+      "failure",
+      "guarded",
+      "disabled"
+     ],
+     "operations": [
+      "arm",
+      "disarm"
+     ]
+    },
+    {
+     "model": "tmpl.relay",
+     "name": "Реле двери",
+     "type": "relay",
+     "events": [],
+     "operations": [
+      "on",
+      "off"
+     ]
+    }
+   ]
   },
   {
    "id": "30000084-0000-4000-8000-000000000000",
@@ -3455,7 +3523,9 @@
    "short": "8.1",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/1"
   },
   {
    "id": "30000085-0000-4000-8000-000000000000",
@@ -3466,7 +3536,9 @@
    "short": "8.2",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/2"
   },
   {
    "id": "30000086-0000-4000-8000-000000000000",
@@ -3477,7 +3549,9 @@
    "short": "8.3",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/3"
   },
   {
    "id": "30000087-0000-4000-8000-000000000000",
@@ -3488,7 +3562,14 @@
    "short": "8.4",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/1",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000088-0000-4000-8000-000000000000",
@@ -3500,7 +3581,13 @@
    "online": true,
    "enabled": true,
    "version": "1",
-   "channel": 1
+   "channel": 1,
+   "model": "tmpl.relay",
+   "path": "relay/1",
+   "operations": [
+    "on",
+    "off"
+   ]
   },
   {
    "id": "30000089-0000-4000-8000-000000000000",
@@ -3511,7 +3598,14 @@
    "short": "8.5",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/2",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000090-0000-4000-8000-000000000000",
@@ -3522,7 +3616,13 @@
    "short": "8.6",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/1",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000091-0000-4000-8000-000000000000",
@@ -3533,7 +3633,13 @@
    "short": "8.7",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/2",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000092-0000-4000-8000-000000000000",
@@ -3544,7 +3650,13 @@
    "short": "8.8",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/3",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000093-0000-4000-8000-000000000000",
@@ -3555,7 +3667,9 @@
    "short": "8.113",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/4"
   },
   {
    "id": "30000094-0000-4000-8000-000000000000",
@@ -3566,7 +3680,9 @@
    "short": "8.114",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/5"
   },
   {
    "id": "30000095-0000-4000-8000-000000000000",
@@ -3577,7 +3693,9 @@
    "short": "8.115",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/6"
   },
   {
    "id": "30000096-0000-4000-8000-000000000000",
@@ -3589,7 +3707,9 @@
    "online": false,
    "fault": "conn",
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/7"
   },
   {
    "id": "30000097-0000-4000-8000-000000000000",
@@ -3600,7 +3720,9 @@
    "short": "8.117",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/8"
   },
   {
    "id": "30000098-0000-4000-8000-000000000000",
@@ -3611,7 +3733,9 @@
    "short": "8.118",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/9"
   },
   {
    "id": "30000099-0000-4000-8000-000000000000",
@@ -3622,7 +3746,9 @@
    "short": "8.119",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/10"
   },
   {
    "id": "30000100-0000-4000-8000-000000000000",
@@ -3633,7 +3759,9 @@
    "short": "8.1110",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/11"
   },
   {
    "id": "30000101-0000-4000-8000-000000000000",
@@ -3644,7 +3772,9 @@
    "short": "8.1111",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.reader",
+   "path": "sensor/12"
   },
   {
    "id": "30000102-0000-4000-8000-000000000000",
@@ -3655,7 +3785,14 @@
    "short": "8.92",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/3",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000103-0000-4000-8000-000000000000",
@@ -3666,7 +3803,14 @@
    "short": "8.93",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/4",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000104-0000-4000-8000-000000000000",
@@ -3677,7 +3821,14 @@
    "short": "8.94",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/5",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000105-0000-4000-8000-000000000000",
@@ -3688,7 +3839,14 @@
    "short": "8.95",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/6",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000106-0000-4000-8000-000000000000",
@@ -3700,7 +3858,14 @@
    "online": false,
    "fault": "conn",
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/7",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000107-0000-4000-8000-000000000000",
@@ -3711,7 +3876,14 @@
    "short": "8.97",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/8",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000108-0000-4000-8000-000000000000",
@@ -3722,7 +3894,14 @@
    "short": "8.98",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/9",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000109-0000-4000-8000-000000000000",
@@ -3733,7 +3912,14 @@
    "short": "8.99",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/10",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000110-0000-4000-8000-000000000000",
@@ -3744,7 +3930,14 @@
    "short": "8.910",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/11",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000111-0000-4000-8000-000000000000",
@@ -3755,7 +3948,14 @@
    "short": "8.911",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.door",
+   "path": "lock/12",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ]
   },
   {
    "id": "30000112-0000-4000-8000-000000000000",
@@ -3766,7 +3966,13 @@
    "short": "8.103",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/4",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000113-0000-4000-8000-000000000000",
@@ -3777,7 +3983,13 @@
    "short": "8.104",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/5",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000114-0000-4000-8000-000000000000",
@@ -3788,7 +4000,13 @@
    "short": "8.105",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/6",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000115-0000-4000-8000-000000000000",
@@ -3800,7 +4018,13 @@
    "online": false,
    "fault": "conn",
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/7",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000116-0000-4000-8000-000000000000",
@@ -3811,7 +4035,13 @@
    "short": "8.107",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/8",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000117-0000-4000-8000-000000000000",
@@ -3822,7 +4052,13 @@
    "short": "8.108",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/9",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000118-0000-4000-8000-000000000000",
@@ -3833,7 +4069,13 @@
    "short": "8.109",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/10",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000119-0000-4000-8000-000000000000",
@@ -3844,7 +4086,13 @@
    "short": "8.1010",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/11",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000120-0000-4000-8000-000000000000",
@@ -3855,7 +4103,13 @@
    "short": "8.1011",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "model": "tmpl.zone",
+   "path": "fence/12",
+   "operations": [
+    "arm",
+    "disarm"
+   ]
   },
   {
    "id": "30000121-0000-4000-8000-000000000000",
@@ -4007,6 +4261,74 @@
     "2560x1440",
     "1920x1080",
     "1280x720"
+   ],
+   "unitOptions": [
+    {
+     "model": "tmpl.door",
+     "name": "Дверь с замком",
+     "type": "acfa_lock",
+     "properties": [
+      {
+       "key": "mode",
+       "options": [
+        "normal",
+        "locked"
+       ]
+      }
+     ],
+     "events": [
+      "opened",
+      "closed",
+      "forced"
+     ],
+     "operations": [
+      "open",
+      "close",
+      "block"
+     ]
+    },
+    {
+     "model": "tmpl.reader",
+     "name": "Считыватель",
+     "type": "acfa_sensor",
+     "events": [
+      "granted",
+      "denied",
+      "failure"
+     ],
+     "operations": []
+    },
+    {
+     "model": "tmpl.zone",
+     "name": "Шлейф охраны",
+     "type": "acfa_fence",
+     "properties": [
+      {
+       "key": "threshold",
+       "default": 5
+      }
+     ],
+     "events": [
+      "alarm",
+      "failure",
+      "guarded",
+      "disabled"
+     ],
+     "operations": [
+      "arm",
+      "disarm"
+     ]
+    },
+    {
+     "model": "tmpl.relay",
+     "name": "Реле двери",
+     "type": "relay",
+     "events": [],
+     "operations": [
+      "on",
+      "off"
+     ]
+    }
    ]
   },
   {
@@ -10857,6 +11179,64 @@
    "detectorKind": "other",
    "template": "tmpl.tamper",
    "version": "1"
+  },
+  {
+   "id": "30000290-0000-4000-8000-000000000000",
+   "type": "acfa",
+   "parentId": "30000083-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Контроллер этажа",
+   "online": true,
+   "enabled": true,
+   "path": "ctrl/1",
+   "version": "1"
+  },
+  {
+   "id": "30000291-0000-4000-8000-000000000000",
+   "type": "acfa_lock",
+   "parentId": "30000290-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Дверь серверной",
+   "online": true,
+   "enabled": true,
+   "model": "tmpl.door",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ],
+   "path": "ctrl/1/door/1",
+   "version": "1"
+  },
+  {
+   "id": "30000292-0000-4000-8000-000000000000",
+   "type": "acfa_sensor",
+   "parentId": "30000290-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Считыватель серверной",
+   "online": true,
+   "enabled": true,
+   "model": "tmpl.reader",
+   "operations": [],
+   "path": "ctrl/1/reader/1",
+   "version": "1"
+  },
+  {
+   "id": "30000293-0000-4000-8000-000000000000",
+   "type": "acfa_lock",
+   "parentId": "30000122-0000-4000-8000-000000000000",
+   "domainId": "10000002-0000-4000-8000-000000000000",
+   "name": "Замок домофона",
+   "online": true,
+   "enabled": true,
+   "model": "tmpl.door",
+   "operations": [
+    "open",
+    "close",
+    "block"
+   ],
+   "path": "door/intercom",
+   "version": "1"
   }
  ],
  "folders": [
@@ -12753,7 +13133,7 @@
    "steps": [
     {
      "source": "vms",
-     "action": "output",
+     "action": "unit",
      "target": {
       "include": [
        {
@@ -12765,8 +13145,7 @@
       "gone": [],
       "fromEvent": false
      },
-     "state": "pulse",
-     "pulseMs": 3000
+     "operation": "on"
     },
     {
      "source": "rule",
@@ -32413,6 +32792,21 @@
       "options": []
      }
     ]
+   },
+   {
+    "source": "vms",
+    "kind": "unit",
+    "deviceTypes": [
+     "acfa_sensor",
+     "acfa_lock",
+     "acfa_fence"
+    ],
+    "match": [
+     {
+      "id": "word",
+      "options": []
+     }
+    ]
    }
   ],
   "ruleActions": [
@@ -32642,6 +33036,24 @@
     "fields": [
      {
       "id": "ruleId"
+     }
+    ]
+   },
+   {
+    "source": "vms",
+    "action": "unit",
+    "deviceTypes": [
+     "acfa_lock",
+     "acfa_sensor",
+     "acfa_fence",
+     "relay"
+    ],
+    "fields": [
+     {
+      "id": "target"
+     },
+     {
+      "id": "operation"
      }
     ]
    }
@@ -33077,6 +33489,7 @@
     "deletePreset",
     "putPtz",
     "deletePtz",
+    "runDeviceOperation",
     "listFolders",
     "createFolder",
     "getFolder",
@@ -33236,7 +33649,8 @@
      "overlayDelayMs",
      "overlayDurationSec",
      "zone",
-     "params"
+     "params",
+     "properties"
     ],
     "eventsrc": [
      "archiveId",
@@ -33288,7 +33702,8 @@
      "overlayDelayMs",
      "overlayDurationSec",
      "zone",
-     "params"
+     "params",
+     "properties"
     ],
     "acfa": [
      "archiveId",
@@ -33340,7 +33755,8 @@
      "overlayDelayMs",
      "overlayDurationSec",
      "zone",
-     "params"
+     "params",
+     "properties"
     ],
     "channel": [],
     "storage": [],
@@ -33353,7 +33769,26 @@
      "name",
      "enabled",
      "norm",
-     "path"
+     "path",
+     "properties"
+    ],
+    "acfa_sensor": [
+     "name",
+     "enabled",
+     "path",
+     "properties"
+    ],
+    "acfa_lock": [
+     "name",
+     "enabled",
+     "path",
+     "properties"
+    ],
+    "acfa_fence": [
+     "name",
+     "enabled",
+     "path",
+     "properties"
     ],
     "mic": [
      "name",

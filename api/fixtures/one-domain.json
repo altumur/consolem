@@ -15955,6 +15955,21 @@
       "options": []
      }
     ]
+   },
+   {
+    "source": "vms",
+    "kind": "unit",
+    "deviceTypes": [
+     "acfa_sensor",
+     "acfa_lock",
+     "acfa_fence"
+    ],
+    "match": [
+     {
+      "id": "word",
+      "options": []
+     }
+    ]
    }
   ],
   "ruleActions": [
@@ -16184,6 +16199,24 @@
     "fields": [
      {
       "id": "ruleId"
+     }
+    ]
+   },
+   {
+    "source": "vms",
+    "action": "unit",
+    "deviceTypes": [
+     "acfa_lock",
+     "acfa_sensor",
+     "acfa_fence",
+     "relay"
+    ],
+    "fields": [
+     {
+      "id": "target"
+     },
+     {
+      "id": "operation"
      }
     ]
    }
@@ -16737,7 +16770,8 @@
      "overlayDelayMs",
      "overlayDurationSec",
      "zone",
-     "params"
+     "params",
+     "properties"
     ]
    }
   }

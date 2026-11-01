@@ -200,6 +200,42 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Единицы СКУД ----- */
+
+    const ACS_UNITS = new Set(["acfa_sensor", "acfa_lock", "acfa_fence"]);
+    const OWN_LINK = ["ip", "port", "vendor"];
+    // Родитель единицы: acfa (контроллер тоже), домофон-камера, регистратор. Реле — только в СКУД, контроллер — только в acfa
+    const parentFits = (type, parent) => {
+      if (ACS_UNITS.has(type)) return !!parent && ["acfa", "camera", "ipsrv"].includes(parent.type);
+      if (type === "acfa") return !parent || parent.type === "acfa";
+      return true;
+    };
+    // Шаблоны единиц — у ближайшего родителя, который их назвал
+    function unitOptionsFor(parent) {
+      for (let p = parent; p; p = parentOf(p)) if (p.unitOptions) return p.unitOptions;
+      return null;
+    }
+    function unitCreateProblem(spec, parent) {
+      if (!ACS_UNITS.has(spec.type) && !(spec.type === "relay" && parent && ACS.has(parent.type)) && spec.type !== "acfa") return null;
+      if (!parentFits(spec.type, parent)) return { code: "PARENT_MISMATCH", field: "parentId" };
+      if (spec.type === "acfa" && parent) {
+        const field = OWN_LINK.find((k) => k in spec);
+        return field ? { code: "NOT_SUPPORTED", field } : null;
+      }
+      const list = spec.type === "acfa" ? null : unitOptionsFor(parent);
+      if (list && spec.model != null && !list.some((o) => o.model === spec.model && o.type === spec.type)) return { code: "VALIDATION_FAILED", field: "model" };
+      return null;
+    }
+    // Команда на реле двери идёт операцией единицы
+    function doorRelayIssue(c) {
+      const hit = (t) => (t ? t.include : []).some((x) => {
+        const d = x.kind === "device" ? byId("devices", x.id) : null;
+        return !!d && d.type === "relay" && isUnit(d);
+      });
+      const walk = (l) => l.some((a) => (a.action === "output" && hit(a.target)) || walk(a.yes || []) || walk(a.no || []));
+      return walk(c.steps) ? problem(422, "NOT_SUPPORTED", "Реле двери управляется операцией единицы", { field: "steps" }) : null;
+    }
+
     /* ----- Источник событий ----- */
 
     // Касса подключается к адресу сервера или к имени кассы: «все адреса» склеили бы источники
@@ -327,9 +363,13 @@
     const creatable = (spec, parent) => caps().deviceTypes.includes(spec.type) && (!found(spec.type) || (unitType(spec.type) && !!parent && ACS.has(parent.type)));
     const alienType = (spec, parent) => !creatable(spec, parent) || (spec.children || []).some((c) => alienType(c, spec));
     // В папках лежат камеры, регистраторы с записью, источники событий, СКУД; входы, выходы и единицы — нет
-    const folderable = (d) => !found(d.type) && !unitType(d.type) && !d.derived;
+    const folderable = (d) => !found(d.type) && !unitType(d.type) && !d.derived && !(d.type === "acfa" && d.parentId);
     // Что можно менять у записи: capabilities.writableFields; у выведенного ipsrv — ничего
     function fieldProblem(rec, patch) {
+      if (rec.type === "acfa" && rec.parentId) {
+        const link = OWN_LINK.find((k) => k in patch);
+        if (link) return problem(422, "NOT_SUPPORTED", "У контроллера нет своего подключения", { field: link });
+      }
       const w = (caps().writableFields || {})[rec.type];
       if (!rec.derived && !w) return null;
       if (rec.derived || !w.length) return problem(422, "NOT_SUPPORTED", "У этой записи нет правок", { field: "type" });
@@ -485,7 +525,7 @@
       if (folderId) {
         const f = byId("folders", folderId);
         if (!f || f.domainId !== domainId) return { code: "VALIDATION_FAILED", field: "folderId" };
-        if (!folderable(spec)) return { code: "NOT_SUPPORTED", field: "folderId" };
+        if (!folderable(Object.assign({ parentId }, spec))) return { code: "NOT_SUPPORTED", field: "folderId" };
       }
       const bad = patchProblem(spec);
       if (bad) return { code: bad.body.code, field: bad.body.field };
@@ -493,6 +533,8 @@
       const det = detCreateProblem(spec, parentId ? byId("devices", parentId) : null);
       if (det) return det;
       if (posProblem(spec.type, spec)) return { code: "VALIDATION_FAILED", field: "ip" };
+      const unit = unitCreateProblem(spec, parentId ? byId("devices", parentId) : null);
+      if (unit) return unit;
       if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
         if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
       }
@@ -716,6 +758,8 @@
     }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
+      const door = doorRelayIssue(c);
+      if (door) return door;
       const port = portIssue(c);
       if (port) return problem(422, "RULE_INVALID", "Номер входа или выхода не совпал с записью", { params: { issue: { code: port, params: {} } } });
       if (c.enabled) {
@@ -1240,6 +1284,18 @@
           if (!rec) return notFound("Устройство");
           ptzLeases.delete(`${rec.id}:${me}`);
           return { status: 204, body: null };
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/operations/{operation}",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (!isUnit(rec)) return problem(422, "NOT_SUPPORTED", "Команды — только у единиц СКУД", { field: "type" });
+          if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Единица без связи");
+          if (!(rec.operations || []).includes(p.operation)) return problem(409, "DEVICE_REFUSED", "Такой команды у единицы нет", { params: { reason: "noOperation", operation: p.operation } });
+          return { status: 200, body: { done: true } };
         },
       ],
       /* ----- Домены ----- */

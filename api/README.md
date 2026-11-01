@@ -45,14 +45,14 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 97 операций и 3 служебные
+## Карта API — 98 операций и 3 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
 | `session`, `reference` | `GET /me` — кто вошёл, часы и часовой пояс сервера; `GET /reference` — справочники кодами |
 | `hardware` — домены | `GET`, `POST /domains`; `GET`, `PATCH`, `DELETE /domains/{id}` (удаление с переносом содержимого `?moveTo=`) |
 | `hardware` — серверы | `GET`, `POST /servers`; `POST /servers/probe` (опросить адреса); `POST /servers/assign` (в домен и из него, группой); `GET`, `PATCH /servers/{id}` |
-| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `GET`, `PATCH`, `DELETE /devices/{id}` |
+| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `GET`, `PATCH`, `DELETE /devices/{id}` |
 | `hardware` — папки | `GET`, `POST /folders`; `GET`, `PATCH`, `DELETE /folders/{id}`; `POST /objects/delete` (групповое удаление любых объектов) |
 | `storage` | `GET`, `POST /archives` (с первым томом); `POST /archives/check`; `GET`, `PATCH`, `DELETE /archives/{id}`; `POST /archives/{id}/volumes`; `GET /volumes`; `GET`, `PATCH`, `DELETE /volumes/{id}`; `POST /volumes/{id}/format` |
 | `operations` | `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo` |

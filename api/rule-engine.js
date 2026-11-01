@@ -15,7 +15,7 @@
   const RULE_DEPTH = 2;
   const RULE_ESC_MAX = 5;
   const TPL_VARS = ["камера", "устройство", "событие", "время", "правило"];
-  const RULE_DEVTYPES = ["camera", "sensor", "acfa_sensor", "relay", "eventsrc"];
+  const RULE_DEVTYPES = ["camera", "sensor", "acfa_sensor", "acfa_lock", "acfa_fence", "relay", "eventsrc"];
   // Справочники кодами: виды событий, условий, действий и шагов хода выполнения
   const TRIGGERS = [
     { source: "vms", kind: "io.input", deviceTypes: ["sensor", "acfa_sensor"], ends: true },
@@ -24,6 +24,7 @@
     { source: "det", kind: "lpr", deviceTypes: ["camera"] },
     { source: "det", kind: "other", deviceTypes: ["camera"] },
     { source: "vms", kind: "text", deviceTypes: ["eventsrc"] },
+    { source: "vms", kind: "unit", deviceTypes: ["acfa_sensor", "acfa_lock", "acfa_fence"] },
     { source: "vms", kind: "silent", deviceTypes: ["camera"] },
     { source: "rec", kind: "segment.lost", deviceTypes: ["camera"] },
   ];
@@ -48,6 +49,7 @@
     { source: "ntf", action: "email", deviceTypes: [], fields: ["to", "subject"], tpl: ["subject", "body"], via: "email" },
     { source: "ntf", action: "tg", deviceTypes: [], fields: ["chat", "text"], tpl: ["text"] },
     { source: "vms", action: "output", deviceTypes: ["relay"], fields: ["pulseMs"] },
+    { source: "vms", action: "unit", deviceTypes: ["acfa_lock", "acfa_sensor", "acfa_fence", "relay"], fields: ["operation"] },
     { source: "net", action: "http", deviceTypes: [], fields: ["url"], tpl: ["url"] },
     { source: "rule", action: "runrule", deviceTypes: [], fields: ["ruleId"] },
   ];

@@ -161,6 +161,31 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   wizd.manual.type = "eventsrc";
   ok(/Выберет система/.test(deviceManualHtml()), "в мастере — выбор сервера источника");
 
+  // СКУД: мастер единиц, адрес, шаблон, команды, вложенный контроллер, единица под камерой
+  const acfaRoot = of("acfa", (d) => !d.parentId);
+  open(acfaRoot.id, "kids");
+  ok(main().textContent.includes("Контроллер этажа"), "вложенный контроллер виден в подобъектах");
+  pick(acfaRoot.id, { force: true });
+  openW("unit");
+  chooseAdd("object", "acfa", "acfa_lock");
+  wnx();
+  ok(!!document.getElementById("wizPath") && !document.getElementById("wizFolder"), "у единицы адрес, папку не предлагаем");
+  ok([...document.getElementById("wizParent").options].some((o) => /камера|Камера/.test(o.textContent)), "родитель — и камера");
+  ok(!!document.getElementById("wizUnitModel"), "шаблон — из unitOptions");
+  document.getElementById("wizPath").value = "door/20";
+  wnx();
+  ok(await until(() => find(sel)?.n?.path === "door/20"), "единица заведена, адрес на месте");
+  const lockNow = find(sel).n;
+  ok(!!canTreeCtxDelete(lockNow), "единицу можно снять");
+  const readyLock = of("acfa_lock", (d) => d.operations?.length);
+  open(readyLock.id);
+  ok(!!main().querySelector('[data-df="Адрес"]') && [...main().querySelectorAll("input[disabled]")].some((i) => i.value === "Дверь с замком"), "карточка единицы: адрес и шаблон");
+  main().querySelector('[data-unit-op="open"]').click();
+  ok(await until(() => /выполнено/.test(document.body.textContent)), "команда выполнена");
+  ok(/такой команды нет/.test(problemText({ problem: { code: "DEVICE_REFUSED", params: { reason: "noOperation" } } })), "отказ своими словами");
+  ok(TRIGGER_KINDS.some((k) => k.kind === "unit") && ACTION_KINDS.some((k) => k.action === "unit") && ruleUnitOps({ ref: readyLock.id })?.length === readyLock.operations.length, "в правиле вид и действие unit, команды единицы");
+  ok(ruleUnitWords(readyLock.id).some((x) => x[0] === "forced"), "слова события — из шаблона");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);
