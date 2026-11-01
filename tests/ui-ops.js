@@ -45,6 +45,26 @@ UiCheck(async ({ ok, until }) => {
   const volOp = logOps[0];
   btn("data-op", volOp).click();
   ok(await until(() => /не выполнено/.test(document.getElementById("tt")?.textContent || "")), "размер тома не вернулся: «не выполнено» в тосте");
+  // Откат — тоже операция: пока он идёт, объект занят, правка отказывает до запроса, потом снова можно
+  goApp("log");
+  logGo("ops");
+  const plan = await API.post("/operations", { idempotencyKey: "ui-ops-busy", items: ["D", "E", "F", "G", "H", "I", "J", "K"].map((short) => ({ targetId: cam.id, set: { short } })), expectedVersions: { [cam.id]: hwVer.get(cam.id) } });
+  ok(await until(() => logOps[0]?.id === plan.id && btn("data-op", logOps[0])), "операция из восьми шагов — верхняя");
+  const posts = [];
+  const patch0 = API.patch;
+  API.patch = (...a) => (posts.push(a[0]), patch0(...a));
+  btn("data-op", logOps[0]).click();
+  ok(await until(() => busyIds().has(cam.id)), "идёт откат: камера занята");
+  ok(busyRefuse(cam.id) && /групповая операция/.test(document.getElementById("tt")?.textContent || ""), "правка отказывает тостом");
+  pick(cam.id, { force: true });
+  goApp("hw");
+  ok(/Над объектом выполняется групповая операция/.test(document.getElementById("main").textContent), "в карточке — надпись");
+  ok(!posts.length, "до сервера правка не дошла");
+  API.patch = patch0;
+  ok(await until(() => !busyIds().size), "откат закончился");
+  ok(!busyRefuse(cam.id) && !/Над объектом выполняется/.test(document.getElementById("main").textContent), "после окончания снова можно");
+  goApp("log");
+  logGo("ops");
   // Висячий id в папке: устройство удалено, папка ещё его называет — дерево его пропускает
   goApp("hw");
   const f = folders[0];
