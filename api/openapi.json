@@ -1295,6 +1295,229 @@
         }
       }
     },
+    "/devices/{deviceId}/presets/{n}": {
+      "put": {
+        "operationId": "putPreset",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Задать пресет",
+        "description": "Запоминает нынешнее положение камеры под номером n. Камера без ptz — 422 NOT_SUPPORTED, field: ptz; без связи — 409 DEVICE_OFFLINE. Ответ — камера целиком",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "n",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresetWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePreset",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Удалить пресет",
+        "description": "Ответ — камера целиком",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "n",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/devices/{deviceId}/ptz": {
+      "put": {
+        "operationId": "putPtz",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Начать движение или продлить его",
+        "description": "Аренда на человека и камеру: движение идёт до срока, клиент повторяет PUT раньше конца срока, пока держит кнопку. Нет продления — камера останавливается сама. Двое на одной камере — действует последняя сменившаяся аренда. Для задания пресетов; движение в работе — часть просмотра",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PtzMove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PtzLease"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePtz",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Остановить движение",
+        "description": "Снимает свою аренду. Аренды нет — тоже 204",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Остановлено"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/folders": {
       "get": {
         "operationId": "listFolders",
@@ -5475,6 +5698,17 @@
           "params": {
             "type": "string",
             "description": "Настройки серверного детектора строкой"
+          },
+          "ptz": {
+            "type": "boolean",
+            "description": "Только чтение: камера поворачивается. PTZ — свойство камеры, своей записи нет"
+          },
+          "presets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DevicePreset"
+            },
+            "description": "Только чтение: пресеты камеры. Правятся операциями /devices/{id}/presets/{n}"
           }
         },
         "additionalProperties": false,
@@ -13043,6 +13277,83 @@
               }
             },
             "description": "Точки [x, y], доли кадра от 0 до 1"
+          }
+        }
+      },
+      "DevicePreset": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "n",
+          "name"
+        ],
+        "properties": {
+          "n": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Имена есть не у всех драйверов: тогда пусто"
+          }
+        }
+      },
+      "PresetWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "description": "Пресет запоминает нынешнее положение камеры"
+      },
+      "PtzMove": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ttlSec"
+        ],
+        "description": "Аренда движения: скорости осей от -1 до 1, 0 — ось стоит",
+        "properties": {
+          "pan": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "tilt": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "zoom": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "focus": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "ttlSec": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Срок аренды, с. Нет продления — камера останавливается сама"
+          }
+        }
+      },
+      "PtzLease": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "expiresAt"
+        ],
+        "properties": {
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

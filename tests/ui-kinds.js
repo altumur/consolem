@@ -110,6 +110,33 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/несовместим/.test(clash), "несовместимый детектор: " + clash);
   ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
 
+  // Пресеты: движение арендой, пресет запоминается, в правиле — выбор из списка
+  const ptz = of("camera", (d) => d.ptz && d.presets?.length);
+  open(ptz.id, "vid");
+  ok(main().textContent.includes("Пресеты") && main().querySelector("[data-preset]"), "карточка пресетов");
+  ok(!(TF_CAM.some((t) => t[0] === "ptz")), "вида PTZ в фильтрах нет");
+  const calls = [];
+  const realPut = API.put, realDel = API.del;
+  API.put = (p, ...a) => (calls.push("PUT " + p), realPut(p, ...a));
+  API.del = (p, ...a) => (calls.push("DEL " + p), realDel(p, ...a));
+  main().querySelector('[data-ptz="0"]').dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  ok(await until(() => calls.includes(`PUT /devices/${ptz.id}/ptz`)), "кнопка нажата — аренда");
+  ok(!!ptzMove, "держим — продлевается");
+  window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
+  ok(await until(() => calls.includes(`DEL /devices/${ptz.id}/ptz`)) && !ptzMove, "отпустили — стоп");
+  API.put = realPut;
+  API.del = realDel;
+  const count = ptz.presets.length;
+  presetAdd(ptz.id);
+  ok(await until(() => find(ptz.id).n.presets.length === count + 1), "пресет добавлен");
+  const newest = find(ptz.id).n.presets.find((p) => !ptz.presets.some((x) => x.n === p.n));
+  presetDel(ptz.id, newest.n);
+  ok(await until(() => document.getElementById("confirmCountInp")), "удаление пресета — с вводом числа");
+  await confirmWith(1);
+  ok(await until(() => find(ptz.id).n.presets.length === count), "пресет удалён после отсчёта");
+  ok(rulePresetOpts({ ref: ptz.id })?.[0]?.[1] === "1 · Вход", "в правиле пресет — из списка камеры");
+  ok(rulePresetOpts({ ref: of("camera", (d) => !d.ptz).id }) === null, "нет списка — номер руками");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

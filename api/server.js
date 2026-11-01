@@ -106,6 +106,7 @@
       secrets = new Map();
       ops = new Map();
       redoStack = [];
+      ptzLeases = new Map();
       formatting = new Map();
       searches = new Map();
       syncing = new Map();
@@ -198,6 +199,22 @@
       return null;
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
+
+    /* ----- PTZ: свойство камеры ----- */
+
+    // Аренда — на человека и камеру. Встроенный сервер камерами не движет: только срок
+    let ptzLeases = new Map();
+    function ptzProblem(rec) {
+      if (rec.type !== "camera" || !rec.ptz) return problem(422, "NOT_SUPPORTED", "У камеры нет PTZ", { field: "ptz" });
+      return rec.online === false ? problem(409, "DEVICE_OFFLINE", "Камера без связи") : null;
+    }
+    function setPresets(rec, next) {
+      const patch = { presets: next.sort((a, b) => a.n - b.n) };
+      const before = applyPatch(rec, patch);
+      changed("device", rec);
+      recordSingle([setStep(rec, patch, before)]);
+      return one(device(rec));
+    }
 
     /* ----- Детекторы ----- */
 
@@ -1153,6 +1170,55 @@
           const locked = lockedProblem([rec.id]);
           if (locked) return locked;
           return setStreams(rec, streamsOf(rec).filter((s) => s.id !== p.streamId));
+        },
+      ],
+      [
+        "PUT",
+        "/devices/{id}/presets/{n}",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          const n = Number(p.n);
+          const bad = ptzProblem(rec) || lockedProblem([rec.id]);
+          if (bad) return bad;
+          if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
+          const was = (rec.presets || []).find((x) => x.n === n);
+          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat({ n, name: body.name ?? (was ? was.name : "") }));
+        },
+      ],
+      [
+        "DELETE",
+        "/devices/{id}/presets/{n}",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          const bad = ptzProblem(rec) || lockedProblem([rec.id]);
+          if (bad) return bad;
+          if (!(rec.presets || []).some((x) => x.n === Number(p.n))) return notFound("Пресет");
+          return setPresets(rec, rec.presets.filter((x) => x.n !== Number(p.n)).map(clone));
+        },
+      ],
+      [
+        "PUT",
+        "/devices/{id}/ptz",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          const bad = ptzProblem(rec);
+          if (bad) return bad;
+          const expiresAt = iso(now() + body.ttlSec * 1000);
+          ptzLeases.set(`${rec.id}:${me}`, expiresAt);
+          return { status: 200, body: { expiresAt } };
+        },
+      ],
+      [
+        "DELETE",
+        "/devices/{id}/ptz",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          ptzLeases.delete(`${rec.id}:${me}`);
+          return { status: 204, body: null };
         },
       ],
       /* ----- Домены ----- */

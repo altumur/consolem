@@ -1252,6 +1252,21 @@
       "tmpl.tamper"
      ]
     }
+   ],
+   "ptz": true,
+   "presets": [
+    {
+     "n": 1,
+     "name": "Вход"
+    },
+    {
+     "n": 2,
+     "name": "Парковка"
+    },
+    {
+     "n": 3,
+     "name": ""
+    }
    ]
   },
   {
@@ -1690,7 +1705,9 @@
       "tmpl.tamper"
      ]
     }
-   ]
+   ],
+   "ptz": true,
+   "presets": []
   },
   {
    "id": "30000043-0000-4000-8000-000000000000",
@@ -16583,6 +16600,10 @@
     "createStream",
     "patchStream",
     "deleteStream",
+    "putPreset",
+    "deletePreset",
+    "putPtz",
+    "deletePtz",
     "listFolders",
     "createFolder",
     "getFolder",

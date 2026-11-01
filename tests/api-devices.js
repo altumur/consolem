@@ -351,5 +351,40 @@
     assert.eq((await env.ok("PATCH", `/devices/${a.id}`, { zone: null }, v(z))).zone, undefined, "сброшена");
   });
 
+  /* ===== PTZ ===== */
+
+  const ptzCam = async (env) => (await env.list("/devices")).find((d) => d.ptz && d.online);
+
+  test("Пресеты: задать, переименовать, удалить, откат; камера без PTZ — 422", async () => {
+    const env = await makeEnv();
+    const c = await ptzCam(env);
+    const was = c.presets.length;
+    const set = await env.ok("PUT", `/devices/${c.id}/presets/9`, { name: "Ворота" });
+    assert.eq(set.presets.at(-1), { n: 9, name: "Ворота" }, "задан, номера по порядку");
+    assert.ok(set.version !== c.version, "версия записи изменилась");
+    const same = await env.ok("PUT", `/devices/${c.id}/presets/9`, {});
+    assert.eq(same.presets.at(-1).name, "Ворота", "без имени — положение, имя прежнее");
+    const gone = await env.ok("DELETE", `/devices/${c.id}/presets/9`);
+    assert.eq(gone.presets.length, was, "удалён");
+    assert.status(await env.call("DELETE", `/devices/${c.id}/presets/9`), 404, "NOT_FOUND");
+    const flat = (await env.list("/devices")).find((d) => d.type === "camera" && !d.ptz);
+    const no = await env.call("PUT", `/devices/${flat.id}/presets/1`, {});
+    assert.status(no, 422, "NOT_SUPPORTED", "без PTZ");
+    assert.eq(no.body.field, "ptz", "поле");
+  });
+
+  test("Аренда PTZ: срок от ttlSec, продление, стоп, скорости от -1 до 1", async () => {
+    const env = await makeEnv();
+    const c = await ptzCam(env);
+    const a = await env.ok("PUT", `/devices/${c.id}/ptz`, { pan: 0.5, tilt: -0.5, ttlSec: 3 });
+    assert.ok(Date.parse(a.expiresAt) > 0, "срок");
+    assert.status(await env.call("PUT", `/devices/${c.id}/ptz`, { pan: 2, ttlSec: 3 }), 422, "VALIDATION_FAILED", "скорость вне диапазона");
+    assert.status(await env.call("PUT", `/devices/${c.id}/ptz`, { zoom: 1 }), 422, "VALIDATION_FAILED", "срок обязателен");
+    assert.status(await env.call("DELETE", `/devices/${c.id}/ptz`), 204);
+    assert.status(await env.call("DELETE", `/devices/${c.id}/ptz`), 204, null, "аренды нет — тоже стоп");
+    await env.ok("POST", "/test/events", { type: "device.signal", deviceId: c.id, online: false, fault: "conn" });
+    assert.status(await env.call("PUT", `/devices/${c.id}/ptz`, { pan: 1, ttlSec: 1 }), 409, "DEVICE_OFFLINE", "без связи");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();

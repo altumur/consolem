@@ -466,7 +466,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .nt{padding:10px;background:var(--one-info-bg);border:1px solid var(--one-info-icon);border-radius:8px;color:var(--x-link);margin-bottom:12px;font-size:12px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
-.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
+.ptz-pad{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
 .live-note{position:absolute;left:8px;bottom:6px;font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
@@ -1953,7 +1953,7 @@ const SVIEW_SW_RU={cam:"Камеры",sys:"Службы"};
 const SVIEW_SW_EN={cam:"Cameras",sys:"Services"};
 const SVIEW_SW={...SVIEW_SW_RU};
 const SVIEW_IC={cam:"camera",sys:"svcs"};
-const TF_CAM=[["ipsrv","IP-сервер"],["eventsrc","Источник событий"],["camera","Камера"],["mic","Микрофон"],["spk","Динамик"],["channel","Канал"],["sensor","Датчик"],["relay","Реле"],["ptz","PTZ"]];
+const TF_CAM=[["ipsrv","IP-сервер"],["eventsrc","Источник событий"],["camera","Камера"],["mic","Микрофон"],["spk","Динамик"],["channel","Канал"],["sensor","Датчик"],["relay","Реле"]];
 const TF_ACFA=[["acfa","ACFA-устройства"],["acfa_sensor","Датчики"],["acfa_lock","Замки"],["acfa_fence","Шлейфы"],["relay","Реле"]];
 const TF_SVC=[["email","Email-оповещатели"],["sms","SMS-оповещатели"],["export","Агенты экспорта"]];
 const TYPE_FILTERS={
@@ -8201,7 +8201,60 @@ function camVideoHtml(n){
       <div class="g" style="margin-top:10px">${n.resOptions?.length?sl("Разрешение",["",...n.resOptions],f["Разрешение"]||""):fld("Разрешение",f["Разрешение"]||"")}${fld("к/с",f["к/с"]||"","number")}${fldRo("Кодек",f["Кодек"]||"—")}</div>
       <p class="sub">${i18n("Детекторы видеоаналитики — на вкладке")} <button class="lk" ${onEv("click",["goTab","det"])}>${i18n("Детекторы")}</button>.</p>`)+
     card("Потоки",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Разрешение")}</th><th>${i18n("к/с")}</th><th>${i18n("Кодек")}</th><th>${i18n("Состояние")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
-      <div class="ca-foot"><button type="button" class="btn s" ${onEv("click",["streamAdd",`${n.id}`])}>${lu("plus")}${i18n("Поток")}</button></div>`,`<span class="sub" style="font-weight:400">${camStreams(n).length}</span>`);
+      <div class="ca-foot"><button type="button" class="btn s" ${onEv("click",["streamAdd",`${n.id}`])}>${lu("plus")}${i18n("Поток")}</button></div>`,`<span class="sub" style="font-weight:400">${camStreams(n).length}</span>`)+ptzCardHtml(n);
+}
+// ── Пресеты и движение для их настройки ───────────────────────────────────
+// Камеру наводят по кадру и запоминают положение. Пока кнопка нажата, аренда продлевается раньше срока;
+// отпустили — стоп. Страницу закрыли или связь оборвалась — камера остановится по сроку
+const PTZ_TTL=3,PTZ_RENEW_MS=1500;
+const PTZ_PAD=[["▲","Вверх",{tilt:.5}],["▼","Вниз",{tilt:-.5}],["◀","Влево",{pan:-.5}],["▶","Вправо",{pan:.5}],["＋","Приблизить",{zoom:.5}],["－","Отдалить",{zoom:-.5}],["F+","Фокус ближе",{focus:.5}],["F−","Фокус дальше",{focus:-.5}]];
+let ptzMove=null;
+function ptzStart(id,i){
+  ptzStop();
+  const n=find(id)?.n,body={...PTZ_PAD[i][2],ttlSec:PTZ_TTL};
+  const put=()=>API.put(`/devices/${id}/ptz`,body).catch(e=>{toast(problemText(e,n));ptzStop()});
+  ptzMove={id,timer:setInterval(put,PTZ_RENEW_MS)};
+  put();
+  window.addEventListener("mouseup",ptzStop,{once:true});
+}
+function ptzStop(){
+  if(!ptzMove)return;
+  clearInterval(ptzMove.timer);
+  const{id}=ptzMove;ptzMove=null;
+  API.del(`/devices/${id}/ptz`).catch(()=>{});
+}
+function ptzCardHtml(n){
+  if(!n.ptz)return"";
+  const list=n.presets||[],off=n.online===false;
+  const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
+    <td class="ca-x"><button type="button" class="btn s" ${off?"disabled":""} title="${i18n("Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
+  return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
+    <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
+    ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
+    <div class="ca-foot"><button type="button" class="btn s" ${off?"disabled":""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button></div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
+}
+function presetPut(id,no,body){
+  const n=find(id)?.n;
+  return API.put(`/devices/${id}/presets/${no}`,body).then(r=>{hwApplyDevice(r);gear()}).catch(e=>{toast(problemText(e,n));gear()});
+}
+function presetAdd(id){
+  const list=find(id)?.n?.presets||[];let no=1;
+  while(list.some(p=>p.n===no))no++;
+  presetPut(id,no,{name:""});
+}
+function presetSave(id,no){presetPut(id,no,{}).then(()=>toast(`${i18n("Пресет")} ${no}: ${i18n("положение запомнено")}`))}
+function presetName(id,no,v){presetPut(id,no,{name:String(v).trim()})}
+function presetDel(id,no){
+  const n=find(id)?.n,p=(n?.presets||[]).find(x=>x.n===no);if(!p)return;
+  const name=p.name||`${i18n("Пресет")} ${no}`;
+  askConfirm("Удалить пресет?",`<ul class="bk-del"><li>${i18n("Будет удалён пресет")} «${escHtml(name)}»</li><li>${i18n("Правила с этим номером перестанут наводить камеру")}</li><li>${i18n("Камера и другие пресеты останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`${id}#${no}`],{label:`«${name}»`,commit:()=>{
+    API.del(`/devices/${id}/presets/${no}`).then(r=>{hwApplyDevice(r);gear();toast(i18n("Пресет удалён"))}).catch(e=>toast(problemText(e,n)));
+  }}),{html:true,typeCount:1});
+}
+// Правило: номер пресета — из списка камеры; цель не одна камера или списка нет — вводится руками
+function rulePresetOpts(a){
+  const n=refNode(a.ref),list=n?.presets;
+  return list?.length?list.map(p=>[String(p.n),p.name?`${p.n} · ${p.name}`:String(p.n)]):null;
 }
 function streamAdd(id){
   const n=find(id)?.n;if(!n)return;
@@ -8558,7 +8611,7 @@ const ACTION_KINDS=[
   {grp:"Камера",sub:"vms",action:"arm",label:"Поставить на охрану",short:"На охрану",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
   {grp:"Камера",sub:"vms",action:"disarm",label:"Снять с охраны",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
   {grp:"Камера",sub:"vms",action:"preset",label:"Встать в пресет",devTypes:["camera"],
-   fields:[{id:"ref",label:"Камера"},{id:"n",label:"Пресет №"}]},
+   fields:[{id:"ref",label:"Камера"},{id:"n",label:"Пресет №",dyn:rulePresetOpts}]},
   {grp:"Камера",sub:"rec",action:"record",label:"Записывать",devTypes:["camera"],def:{dur:"min"},
    fields:[{id:"ref",label:"Камера"},{id:"dur",label:"Сколько",req:false,opts:[["min","на заданное число минут"],["event","пока идёт событие"]]},
            {id:"minutes",label:"Минут",on:a=>a.dur!=="event"},{id:"after",label:"Ещё после конца, с",req:false,on:a=>a.dur==="event"},
@@ -9964,6 +10017,8 @@ function actFieldsHtml(a,ps){
     if(f.id==="ref")return refFieldHtml("then",ps,a.ref);
     const v=a[f.id]??"",on=`setActionField('${ps}','${f.id}',this.value)`;
     if(f.tpl)return tplFieldHtml(r,a,ps,f);
+    const dyn=f.dyn?f.dyn(a):null;
+    if(dyn)return`<div class="rl-f">${selHtml(v===""?[["","Выберите…"],...dyn]:dyn,v,on,f.label)}</div>`;
     if(f.sel||f.opts){
       let opts=f.sel==="layout"?RULE_LAYOUTS.map(x=>[x,x]):f.sel==="role"?accRoles().map(x=>[x.id,x.n]):f.sel==="rule"?rules.filter(x=>x.id!==r.id).map(x=>[x.id,x.name])
         :f.opts.map(o=>Array.isArray(o)?o:[o,o]);
@@ -17711,8 +17766,8 @@ function selDescendants(n,withParts){
 // «Отметить внутри» по типу — как узлы Cameras / Inputs / Outputs у Milestone
 // и однотипные группы: галочка контейнера берёт камеры и регистраторы, а
 // реле, датчики и прочую начинку отмечают отсюда — все сразу, но одного типа.
-const MARK_TYPE_ORDER=["camera","ipsrv","channel","relay","sensor","mic","spk","ptz","eventsrc"];
-const MARK_TYPE_RU={camera:"Камеры",ipsrv:"IP-серверы",channel:"Каналы",relay:"Реле",sensor:"Датчики",mic:"Микрофоны",spk:"Динамики",ptz:"PTZ",eventsrc:"Источники событий"};
+const MARK_TYPE_ORDER=["camera","ipsrv","channel","relay","sensor","mic","spk","eventsrc"];
+const MARK_TYPE_RU={camera:"Камеры",ipsrv:"IP-серверы",channel:"Каналы",relay:"Реле",sensor:"Датчики",mic:"Микрофоны",spk:"Динамики",eventsrc:"Источники событий"};
 function markTypeLabel(t){return i18n(MARK_TYPE_RU[t]||LB[t]||t)}
 function markTypeRank(t){const i=MARK_TYPE_ORDER.indexOf(t);return i<0?99:i}
 function insideByType(n){
