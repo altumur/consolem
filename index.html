@@ -8400,7 +8400,7 @@ function unitRun(id,op){
 }
 function unitAddBtn(){return WIZ.acfa?`<button class="btn s btn-icon" aria-label="${i18n("Добавить единицу")}" title="${i18n("Добавить единицу")}" ${onEv("click",["openW","unit"])}>${lu("plus")}</button>`:""}
 // ── Метки серверов и тревожные виды ───────────────────────────────────────
-const EVENT_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",silent:"Камера пропала","io.input":"Вход",text:"Текст источника",unit:"Единица СКУД"};
+const EVENT_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",silent:"Обрыв потока камеры","io.input":"Вход",text:"Текст источника",unit:"Единица СКУД"};
 function chipsHtml(all,cur,fn,...args){
   const set=new Set(cur||[]);
   return`<div class="pf-chips">${[...new Set([...all,...(cur||[])])].map(x=>`<button type="button" class="pf-chip${set.has(x)?" on":""}" data-chip="${escHtml(x)}" ${onEv("click",[fn,...args,`${x}`])}>${escHtml(i18n(EVENT_RU[x]||x))}</button>`).join("")||`<span class="sub">${i18n("Не задано")}</span>`}</div>`;
@@ -8798,7 +8798,7 @@ const TRIGGER_KINDS=[
   {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Вид",opts:[],pre:"вид",dyn:ruleDetOthers}]},
   {sub:"vms",kind:"text",label:"Источник событий: текст",unitLabel:"Источник",devTypes:["eventsrc"],match:[{id:"word",label:"Сообщение",opts:[],pre:"сообщение",dyn:ruleWordOpts}]},
   {sub:"vms",kind:"unit",label:"Единица СКУД: событие",unitLabel:"Единица",devTypes:["acfa_sensor","acfa_lock","acfa_fence"],match:[{id:"word",label:"Слово",opts:[],pre:"слово",dyn:ruleUnitWords}]},
-  {sub:"vms",kind:"silent",label:"Камера пропала",unitLabel:"Камера",devTypes:["camera"],match:[]},
+  {sub:"vms",kind:"silent",label:"Обрыв потока камеры",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"rec",kind:"segment.lost",label:"Пропал сегмент записи",unitLabel:"Камера",devTypes:["camera"],match:[]}];
 // grp — группа в списке видов (STEP_GROUPS). devTypes:[] — действие без устройства (поле не рисуется, ref нет);
 // via — устройство, через которое оно идёт (письмо — «Email-оповещатель»). def — значения нового пункта.
@@ -9308,7 +9308,7 @@ function ruleSummary(r,bare,full){
 }
 // Имя для правила «с нуля» берётся из первого события и первого действия, пока
 // человек не придумал своё: коротко, без чисел — «Главный вход: движение → запись».
-const RULE_KIND_SHORT={"io.input":"вход","motion":"движение","linecross":"пересечение линии","lpr":"номер","silent":"пропала","segment.lost":"пропал сегмент"};
+const RULE_KIND_SHORT={"io.input":"вход","motion":"движение","linecross":"пересечение линии","lpr":"номер","silent":"обрыв потока","segment.lost":"пропал сегмент"};
 const RULE_ACT_SHORT={output:"реле",preset:"пресет",record:"запись",disable:"выключение камеры",arm:"охрана",disarm:"снятие с охраны",alarm:"тревога",alarmclose:"закрытие тревоги",
   layout:"раскладка",wall:"видеостена",email:"письмо",tg:"Telegram",http:"веб-запрос",runrule:"запуск правила"};
 function ruleAutoName(r){
@@ -9658,7 +9658,7 @@ function ruleGoDevice(id){
 
 // ── Создание ──
 const RULE_STARTS=[
-  ["event","По событию","Сработает, когда в системе что-то случится: открылась дверь, есть движение, пропала камера."],
+  ["event","По событию","Сработает, когда в системе что-то случится: открылась дверь, есть движение, оборвался поток камеры."],
   ["sched","По расписанию","Запустится само в заданные дни и время."],
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
@@ -9669,7 +9669,7 @@ const RULE_TPL=[
   {id:"night",start:"event",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
    make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"lost",start:"event",name:"Камера пропала — писать соседнюю",sub:"Когда камера перестала отвечать, другая записывает 15 минут",
+  {id:"lost",start:"event",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
    make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
   {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
@@ -10531,7 +10531,7 @@ const RULE_LOGKIND=[
   [/open|разомкн|дверь/i,{sub:"vms",kind:"io.input",match:{value:"active"}}],
   [/пересечение/i,{sub:"det",kind:"linecross",match:{}}],
   [/движение/i,{sub:"det",kind:"motion",match:{}}],
-  [/нет связи|пропал/i,{sub:"vms",kind:"silent",match:{}}]];
+  [/обрыв потока/i,{sub:"vms",kind:"silent",match:{}}]];
 // Журнал знает только текст — вид события по нему угадываем (грубо, как ruleFromLog).
 function ruleLogKind(text){const h=RULE_LOGKIND.find(([re])=>re.test(text));return h?h[1]:null}
 function ruleLogDevice(text){
@@ -10711,7 +10711,7 @@ function ruleAuditBuild(){
   const out=[],add=(kind,r,what,todo,others)=>out.push({kind,r,what,todo,others:others||[]});
   const live=rules.filter(r=>!rulePendingIds().has(r.id));
   live.forEach(r=>ruleIssues(r).forEach(x=>add("err",r,i18n(x),i18n("Исправьте в карточке правила"))));
-  // Петли: щёлкнули реле — сработал вход того же устройства; выключили камеру — «камера пропала».
+  // Петли: щёлкнули реле — сработал вход того же устройства; выключили камеру — обрыв потока.
   // Одна строка на действие: все правила, которые оно может запустить, перечислены в ней.
   live.forEach(a=>ruleActs(a).forEach(({it:act})=>{
     if(act.ref==="$src")return;
@@ -10731,8 +10731,8 @@ function ruleAuditBuild(){
       const relay=hosts.get(ruleHostId(first)),host=ruleNodeById(ruleHostId(first));
       add("loop",a,`${i18n("Щёлкает")} «${locName(relay)}» — ${i18n("срабатывает вход на том же устройстве")}${host?` «${locName(host)}»`:""} ${i18n("и может запустить")} ${names}`,
         i18n("Проверьте, не замыкает ли реле эти входы: иначе правила будут запускать друг друга по кругу. Если замыкает — выберите другое реле"),others);
-    }else add("loop",a,`${i18n("Выключение камеры")} «${locName(first)}» ${i18n("вызовет событие «Камера пропала» в")} ${names}`,
-      i18n("Исключите эту камеру из события «Камера пропала» или не включайте оба правила вместе"),others);
+    }else add("loop",a,`${i18n("Выключение камеры")} «${locName(first)}» ${i18n("вызовет событие «Обрыв потока камеры» в")} ${names}`,
+      i18n("Исключите эту камеру из события «Обрыв потока камеры» или не включайте оба правила вместе"),others);
   }));
   // Петли через «Запустить правило»: A запускает B, B запускает A. Цепочка оборвётся на глубине RULE_CHAIN_MAX, но это не замысел.
   // Правило с chain:false в цепочку не входит (там ошибка правила-источника).

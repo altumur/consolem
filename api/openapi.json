@@ -6168,7 +6168,7 @@
           },
           "online": {
             "type": "boolean",
-            "description": "Есть связь"
+            "description": "Соединение держателя с устройством: состояния running, idle, held. Это состояние, а не проба: простаивающая камера без потока не опрашивается и остаётся online. Идёт ли видео, поле не говорит"
           },
           "enabled": {
             "type": "boolean"
@@ -6809,7 +6809,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "Вид события из справочника ruleTriggers"
+            "description": "Вид события из справочника ruleTriggers. silent — обрыв открытого потока камеры, а не потеря связи с устройством: у камеры без потока его нет"
           },
           "target": {
             "anyOf": [
@@ -8488,6 +8488,7 @@
             "description": "Параметры начинки по видам: ключ, варианты или значение по умолчанию"
           },
           "ruleTriggers": {
+            "description": "События для запуска правил. Каждый вид своим кодом: io.input, motion и другие; silent — обрыв открытого потока камеры, а не потеря связи с устройством: у камеры без потока его нет",
             "type": "array",
             "items": {
               "type": "object",
@@ -9195,7 +9196,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "device.signal — пропала или вернулась связь (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId)",
+            "description": "device.signal — пропало или вернулось соединение с устройством (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId)",
             "enum": [
               "device.signal",
               "device.fault",

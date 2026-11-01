@@ -22,7 +22,7 @@ window.I18N_EN={
 "Детектор: движение":"Detector: motion",
 "Детектор: пересечение линии":"Detector: line crossing",
 "Детектор: номер":"Detector: plate",
-"Камера пропала":"Camera went silent",
+"Обрыв потока камеры":"Camera stream broken",
 "Пропал сегмент записи":"Recording segment lost",
 "Щёлкнуть реле":"Pulse a relay",
 "Встать в пресет":"Go to preset",

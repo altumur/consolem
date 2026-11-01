@@ -153,7 +153,7 @@
     assert.ok(f.steps.length && f.steps.every((s) => (s.action || s.label) && ["ok", "fail", "skip", "would"].includes(s.state)), "шаги: действие или подпись кодом, исход");
     if (r1.steps.some((s) => s.control)) assert.ok(f.steps.some((s) => s.control && s.label.code === "ctl.waitEvent"), "шаг хода выполнения — кодом");
     assert.ok((await env.list(`/rules/${r1.id}/fires`)).some((x) => x.id === f.id), "в журнале запусков");
-    const off = rule("Камера пропала — писать соседнюю");
+    const off = rule("Обрыв потока — писать соседнюю");
     const no = await env.call("POST", `/rules/${off.id}/run`, { idempotencyKey: key() });
     assert.status(no, 409, "NOT_RUNNABLE");
     assert.eq(no.body.params.reason.code, "off", "почему — кодом");
