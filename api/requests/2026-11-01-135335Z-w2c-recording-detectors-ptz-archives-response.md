@@ -84,6 +84,48 @@
 
 Параметры и поля как предложено. В форме — отбор над списком. Встроенный сервер права не проверяет, `withheldCount` у него 0.
 
+## П. 1. `replica`: источник — сделано, `2e77c07`
+
+`Device.replicaFrom`, `ExtraArchive.replicaFrom`: `null` — встроенное хранилище, иначе `archiveId` другого архива этой камеры. Форма разрешает режим, если у камеры есть встроенное хранилище или другой архив. В строке дополнительного архива `replica` значит то, что вы поняли: архив строки забирает из `replicaFrom`. Со встроенного — только основной поток, `sub` — `422 NOT_SUPPORTED`, `field: stream`, форма его не предлагает. Цикл и забор у самого себя — `422 VALIDATION_FAILED`, `field: replicaFrom`, цикл форма не предлагает. Источник сняли — запись ждёт, `recordState: waiting`, в строке причина, забранное живёт своим сроком.
+
+Камера без потребителя: `online` значит «устройство отвечает», а не «идёт видео». `silent` судит то же: пропала связь с устройством. Живое видео по запросу с задержкой на первый кадр форма выдерживает.
+
+## П. 2. `recordMode: backup` — сделано, `9533a6d`
+
+Как предложено: только в `extraArchives`, на архиве, где `backup` есть в `recordModes` вида. У основного — `422 NOT_SUPPORTED`, `field: recordMode`. Подпись — «Резерв при сбое».
+
+## П. 3. Период и отставание — сделано, `2e77c07`
+
+Настройки периода нет: период выбирает сервер. Отставание — `replicaLagSec` у `Device` и `ExtraArchive`, только чтение, показ — в строке записи на вкладке «Архив». Потеря минут: запись `replica.lost` в журнале и слово в `recordReason` или `reason`. «Источник больше архива назначения» — то же слово в той же строке.
+
+## П. 16. Виды архивов от сервера — сделано, `9533a6d`
+
+`reference.archiveKinds` — объекты: `{kind, serverRequired, encryption, check, recordModes}`, как предложено, и ещё `address`, `replicaSource`, `serverWide`, `archiveModes`, `admits`. `address` нужен затем, что ваш `remote` — бакет, а наш — папка NAS: форма берёт поля тома из него, а не из кода вида, `remote` и `cloud` не сводит. `kind` открыт, вид вне списка — `422 NOT_SUPPORTED`, `field: kind`. `edge`: `serverWide: true`, один на сервер, второй — `422 VALIDATION_FAILED`, `field: serverId`; `Archive.recordMode` `always` или `backup`, по умолчанию `backup`; у камеры строка `readOnly` в `extraArchives`, посылать её нельзя. `incidents`: камеры не привязываются. Выбор архива у камеры учитывает `recordModes`.
+
+## П. 18. Срок на запись — сделано, `2ae28b5`
+
+`Device.retentionDays`, `ExtraArchive.retentionDays`. `Archive.retentionDays` — умолчание, запись без своего срока идёт по нему.
+
+## П. 19. Глубина не меньше — сделано, `2ae28b5`
+
+`Device.minDepthDays`, `ExtraArchive.minDepthDays`. Больше срока — `422 VALIDATION_FAILED`, `field: minDepthDays`.
+
+## П. 23. Том — сделано, `9533a6d`
+
+`VolumePatch.confirmShrinkBytes` равен новому `sizeBytes`, иначе меньшая квота — `422 VALIDATION_FAILED`, `field: sizeBytes`. `Volume.shrinkPendingBytes` — объявленная и не подтверждённая квота, форма показывает её и даёт подтвердить. `VolumePatch.enabled`: `false` — состояние `off`. `Archive.admits` правится, новые привязки к закрытому архиву — `422 VALIDATION_FAILED`, у `incidents` всегда `false`.
+
+## П. 25. Обход архива устройства — сделано, `c6bbaa4`
+
+`GET`, `POST /archive-watches`, `PATCH`, `DELETE /archive-watches/{id}`, поля как предложено, плюс `params`, `mask`, `alarms`, `labels`. Чтение `through`, `overrunSec`. Камера без архива устройства — `422 NOT_SUPPORTED`, `field: deviceId`. Один обход на камеру и вид. `mask` — зона того же вида, что `Device.zone`: ADR-0112 доп. (1) п. 3 уже переводит её в маску.
+
+## П. 28. Микрофон записи — сделано, `2ae28b5`
+
+`Device.audioDeviceId`, `null` — первый микрофон, чужая запись — `422 VALIDATION_FAILED`. Выбор на вкладке «Архив», если у камеры есть микрофоны.
+
+## П. 31. Скан архива — сделано, `c6bbaa4`
+
+`GET`, `POST /archive-scans`, `DELETE /archive-scans/{id}`, итог `result: {end, covered, asked, events, partial}`, плюс `why`. Новые виды `archiveWatch`, `archiveScan` в `StreamMessage.kind`. Как действие правила — п. 29, на этапе автоматизации.
+
 ## Чего пока нет
 
-Пп. 1–3, 16, 18, 19, 23, 25, 28, 31 — этап записи и архива. П. 24 и п. 29 — этап автоматизации. Клиента WebRTC в форме нет: только кадр-заглушка.
+П. 24 и п. 29 — этап автоматизации. Клиента WebRTC в форме нет: только кадр-заглушка.
