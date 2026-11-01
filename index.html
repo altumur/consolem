@@ -2058,8 +2058,8 @@ const typeFilts=new Set(),searchFields=new Set(),treeTags=new Set(["ip"]);
 // Что раскрыто при первом показе, задаёт старт (appReady): данные приходят с сервера
 const open=new Set();
 const treeMatchCache=new Map(),searchMatchCache=new Map();
-const sysOptsRU=[{id:"ntp",n:"Время",i:"clock"},{id:"sec",n:"Безопасность",i:"lock"},{id:"mail",n:"Уведомления",i:"mail"},{id:"lic",n:"Лицензии",i:"clipboard-list"}];
-const sysOptsEN=[{id:"ntp",n:"Time",i:"clock"},{id:"sec",n:"Security",i:"lock"},{id:"mail",n:"Notifications",i:"mail"},{id:"lic",n:"Licenses",i:"clipboard-list"}];
+const sysOptsRU=[{id:"ntp",n:"Время",i:"clock"},{id:"sec",n:"Безопасность",i:"lock"},{id:"mail",n:"Уведомления",i:"mail"},{id:"keep",n:"Хранение",i:"clock"},{id:"lic",n:"Лицензии",i:"clipboard-list"}];
+const sysOptsEN=[{id:"ntp",n:"Time",i:"clock"},{id:"sec",n:"Security",i:"lock"},{id:"mail",n:"Notifications",i:"mail"},{id:"keep",n:"Retention",i:"clock"},{id:"lic",n:"Licenses",i:"clipboard-list"}];
 const sysOpts=sysOptsRU.map(o=>({...o}));
 const logCatsRU=[{id:"all",n:"Все события"},{id:"audit",n:"Аудит"},{id:"alarm",n:"Тревоги"},{id:"info",n:"Информация"},{id:"ops",n:"Операции"}];
 const logCatsEN=[{id:"all",n:"All events"},{id:"audit",n:"Audit"},{id:"alarm",n:"Alarms"},{id:"info",n:"Information"},{id:"ops",n:"Operations"}];
@@ -2189,7 +2189,7 @@ const DEV_API=Object.fromEntries(Object.entries(DEV_KEY).map(([k,v])=>[v,k]));
 // Поля, у которых в объекте нет своего свойства: карточка хранит их в n._f по подписи поля
 const DEV_FLD={rtspUrl:"RTSP",codec:"Кодек",res:"Разрешение",fps:"к/с",overlayDelayMs:"Задержка, мс",overlayDurationSec:"Длительность, с"};
 const DEV_FLD_API=Object.fromEntries(Object.entries(DEV_FLD).map(([k,v])=>[v,k]));
-const DEV_NUM=new Set(["port","fps","preRecordSec","channel","videoChannel","sensitivity","overlayDelayMs","overlayDurationSec"]);
+const DEV_NUM=new Set(["retentionDays","minDepthDays","port","fps","preRecordSec","channel","videoChannel","sensitivity","overlayDelayMs","overlayDurationSec"]);
 const DEV_SKIP=new Set(["id","type","parentId","domainId","version","hasPassword"]);
 const NORM_RU={open:"Разомкнуто",closed:"Замкнуто"};
 const NORM_CODE={"Разомкнуто":"open","Замкнуто":"closed"};
@@ -2209,7 +2209,7 @@ function devNode(r){
     else if(k==="sizeBytes")n.size=bytesText(v);
     else if(k==="lat"||k==="lon")n[k]=v==null?"":v.toFixed(6);
     else if(k==="azimuth")n[k]=v==null?"":String(v);
-    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{}),...("replicaFrom" in x?{replicaFrom:x.replicaFrom}:{}),...(x.replicaLagSec!=null?{lag:x.replicaLagSec}:{})}));
+    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{}),...("replicaFrom" in x?{replicaFrom:x.replicaFrom}:{}),...(x.replicaLagSec!=null?{lag:x.replicaLagSec}:{}),...(x.retentionDays!=null?{retentionDays:x.retentionDays}:{}),...(x.minDepthDays!=null?{minDepthDays:x.minDepthDays}:{})}));
     else if(k==="mode"&&r.type==="email")n.mode=EMAIL_MODE_RU[v]||v;
     else if(k==="norm")n.norm=NORM_RU[v]||v;
     else if(k==="disabledByRuleAt")n.ruleOffAt=v?clockText(v,true):"";
@@ -2768,7 +2768,7 @@ function isRecording(n){return n&&n.type==="camera"&&!!n.arch&&n.rec&&n.rec!=="n
 function camArchs(n){
   if(!n||n.type!=="camera")return[];
   if(!n.arch)return(n.archx||[]).map(x=>({...x}));
-  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason,replicaFrom:n.replicaFrom,lag:n.replicaLagSec},...(n.archx||[]).map(x=>({...x}))];
+  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason,replicaFrom:n.replicaFrom,lag:n.replicaLagSec,retentionDays:n.retentionDays,minDepthDays:n.minDepthDays},...(n.archx||[]).map(x=>({...x}))];
 }
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
 function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWritesTo(n,aid))out.push(n)});return out}
@@ -2976,7 +2976,8 @@ function settingsApply(s){
   SETTINGS.forEach(st=>{const v=s.values[st.id];if(v===undefined)return;st.value=st.id==="sec.2fa"?TWO_FA_RU[v]||v:String(v)});
 }
 function settingSet(id,v){
-  const val=id==="sec.2fa"?TWO_FA_CODE[v]||v:id==="sec.pwdage"?(/^\d+$/.test(v)?Number(v):v):v;
+  const num=id==="sec.pwdage"||SETTINGS.find(x=>x.id===id)?.num;
+  const val=id==="sec.2fa"?TWO_FA_CODE[v]||v:num?(/^\d+$/.test(v)?Number(v):v):v;
   API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false)}).catch(e=>{toast(problemText(e));sysUI()});
 }
 let licenses=[];
@@ -3745,7 +3746,7 @@ function cardFld(el){
   setD(true);if(!cardDraft)return;
   if(String(el.value)===String(orig))delete cardDraft.fields[l];else cardDraft.fields[l]={from:orig,to:el.value};
 }
-const CARD_PROP={replicaFrom:"Откуда забирать",size:"Объём",recordMode:"Когда писать",admits:"Принимает записи",zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
+const CARD_PROP={recordScheduleId:"Расписание записи",retentionDays:"Срок записи, дней",minDepthDays:"Глубина не меньше, дней",audioDeviceId:"Микрофон записи",replicaFrom:"Откуда забирать",size:"Объём",recordMode:"Когда писать",admits:"Принимает записи",zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
@@ -3759,6 +3760,8 @@ function cardFmt(k,v){
   if(v===undefined||v===null||v==="")return"—";
   if(k==="enabled"||k==="enc"||k==="ssl")return v===false?i18n("выкл"):i18n("вкл");
   if(k==="rec")return i18n(recordModeLabel(v));
+  if(k==="recordScheduleId")return SCHEDS.find(s=>s.id===v)?.name||String(v);
+  if(k==="audioDeviceId")return locName(find(v)?.n||{name:String(v)});
   if(k==="replicaFrom")return v?locName(archById(v)||{name:v}):i18n("Встроенное хранилище");
   if(k==="recordMode")return i18n(ARCH_MODE_RU[v]||v);
   if(k==="admits")return v===false?i18n("нет"):i18n("да");
@@ -8726,7 +8729,7 @@ function formBase(n){
     if(tab==="acc")return accCamAccessHtml(n);
     if(tab==="rec"){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
-      return camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}</div>
+      return camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}${recSchedHtml(n)}${recMicHtml(n)}</div>
       ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет: репликация забирает записи только из другого архива этой камеры.")}</p>`}
       ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры лежат на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("оттуда их и забирает сервер.")} `:""}${i18n("Сервер забирает записи к себе без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Период выбирает сервер, отставание видно в строке записи. Минуты, которые источник стёр раньше, чем их забрали, пропадают: об этом говорит строка и журнал.")}</div>`:""}
       ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое: живой поток идёт сюда, только пока основная запись должна идти и не идёт.")}</div>`:""}
@@ -15717,7 +15720,9 @@ const SETTINGS=[
   {id:"sec.pwdage",page:"sec",card:"Политика",label:"Срок пароля, дн",type:"text"},
   {id:"sec.2fa",page:"sec",card:"Политика",label:"Двухфакторная аутентификация",type:"select",opts:["Нет","Обязательно админам"]},
   {id:"mail.smtp",page:"mail",card:"Каналы",label:"SMTP-сервер",type:"text"},
-  {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text"}
+  {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text"},
+  {id:"events.retentionDays",page:"keep",card:"Срок хранения",label:"События, дней",type:"text",num:true},
+  {id:"alarms.retentionDays",page:"keep",card:"Срок хранения",label:"Тревоги, дней",type:"text",num:true}
 ];
 let settingHighlight=null;
 function settingFieldHtml(st){
@@ -15728,7 +15733,8 @@ function settingFieldHtml(st){
 }
 function sysUI(){
   const o=sysOpts.find(x=>x.id===sys)||sysOpts[0];
-  const own=SETTINGS.filter(x=>x.page===o.id);
+  // Показывается то, что отдал сервер: система без настройки поля не получает
+  const own=SETTINGS.filter(x=>x.page===o.id&&x.value!==undefined);
   const cards={};
   own.forEach(st=>{(cards[st.card]=cards[st.card]||[]).push(st)});
   let body=Object.entries(cards).map(([title,list])=>card(title,`<div class="g">${list.map(settingFieldHtml).join("")}</div>`)).join("");
@@ -16316,6 +16322,7 @@ function setNvrRec(id,v){
     c.rec=v;
     if(v==="motion")c.recDets=camDetectors(c).map(d=>d.id);
     if(v!=="none"&&!c.arch){pinCamServer(c);c.arch=archChoicesFor(c)[0]?.id||null;bindArchServer(c)}
+    camReplicaSync(c);
   });
   treeMatchCache.clear();searchMatchCache.clear();setD(true);
   toast(`${i18n("Режим записи задан камерам:")} ${cams.length}`);
@@ -16688,6 +16695,7 @@ function replicaStream(n,x,list){
 // Строка стала replica или её источник изменился: источник и поток приводятся к тому, что можно
 function camReplicaSync(n){
   const off=n.arch?1:0,rowOf=i=>off&&i===0?n:(n.archx||[])[i-off];
+  if(camArchs(n).some(x=>x.rec==="sched")){if(!n.recordScheduleId&&recSchedules()[0])n.recordScheduleId=recSchedules()[0].id}else delete n.recordScheduleId;
   camArchs(n).forEach((x,i)=>{
     const row=rowOf(i);if(!row)return;
     if(x.rec!=="replica"){delete row.replicaFrom;return}
@@ -16701,11 +16709,29 @@ function camReplicaSync(n){
     if((row.stream||camStreams(n)[0]?.id)!==need)row.stream=need;
   });
 }
+// Расписания записи: те, что заведены отдельно, а не принадлежат правилу или окну
+function recSchedules(){return SCHEDS.filter(s=>!s.own)}
+function recSchedHtml(n){
+  if(!camArchs(n).some(x=>x.rec==="sched"))return"";
+  return`<div data-rec-sched><label>${i18n("Расписание записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"recordScheduleId",onEv.value])}>${recSchedules().map(s=>`<option value="${escHtml(s.id)}" ${s.id===n.recordScheduleId?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
+}
+function recMicHtml(n){
+  const mics=(n.devices||[]).filter(d=>d.type==="mic");
+  if(!mics.length)return"";
+  return`<div data-rec-mic><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
+}
+function camRecSet(id,k,v){const n=find(id)?.n;if(!n)return;if(v)n[k]=v;else delete n[k];setD(true);paint()}
 function replicaSrcHtml(n,x,i){
   if(x.rec!=="replica")return"";
   const can=replicaSources(n,x),gone=x.replicaFrom&&!can.some(s=>s.id===x.replicaFrom);
   return`<div class="ca-src" data-replica-src><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
 }
+// Срок и наименьшая глубина — свои у каждой записи; пустой срок — как у хранилища
+function recDepthHtml(n,x,i,a){
+  const inp=(l,k,ph)=>`<div><label>${i18n(l)}</label><input type="number" min="0" value="${x[k]??""}" placeholder="${escHtml(ph)}" data-rec-field="${k}" ${onEv("change",["camArchRowSet",`${n.id}`,i,k,onEv.value])}></div>`;
+  return`<div class="ca-depth" data-rec-depth>${inp("Срок, дней","retentionDays",a?String(a.days):"")}${inp("Глубина не меньше, дней","minDepthDays","")}</div>`;
+}
+function archDaysText(a,x){const d=x.retentionDays??a?.days;return d?d+" "+i18n("дн."):i18n("без ограничения")}
 function camArchsCardHtml(n){
   const list=camArchs(n),used=new Set(list.map(x=>x.arch));
   const free=(n.arch?archRowChoices(n):archChoicesFor(n)).filter(a=>!used.has(a.id));
@@ -16715,9 +16741,9 @@ function camArchsCardHtml(n){
       <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec:recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true);
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
-        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recStateHtml(x)}</td>
+        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x)}</td>
       <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
-      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!replicaSources(n,x).length?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
+      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${(v==="replica"&&!replicaSources(n,x).length)||(v==="sched"&&!recSchedules().length)?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
       <td class="ca-x"><button type="button" class="btn s" title="${i18n("Отвязать от хранилища")}" ${onEv("click",["camArchRowDel",`${n.id}`,i])}>${i18n("Отвязать")}</button></td></tr>`;
   }).join("");
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
@@ -16743,6 +16769,7 @@ function camArchRowSet(id,i,k,v){
   const f=find(id);if(!f)return;const n=f.n;
   const row=n.arch&&i===0?n:(n.archx||[])[i-(n.arch?1:0)];if(!row)return;
   if(k==="replicaFrom"){if(v)row.replicaFrom=v;else delete row.replicaFrom}
+  else if(k==="retentionDays"||k==="minDepthDays"){if(v==="")delete row[k];else row[k]=Math.max(0,Number(v)||0)}
   else row[k]=v;
   if(k==="arch"){
     if(row===n){pinCamServer(n);bindArchServer(n)}
@@ -16761,6 +16788,7 @@ function setCamRec(id,v){
   const f=find(id);if(!f)return;
   f.n.rec=v;
   if(v!=="none"&&!f.n.arch){pinCamServer(f.n);f.n.arch=archChoicesFor(f.n)[0]?.id||null;bindArchServer(f.n)}
+  camReplicaSync(f.n);
   treeMatchCache.clear();searchMatchCache.clear();setD(true);paint();
 }
 function setCamArch(id,v){
@@ -19330,7 +19358,7 @@ function keyToApi(node,key,v){
   if(key==="size")return{sizeBytes:v===undefined?null:Math.round(sizeTb(v)*TB)};
   if(key==="kind"&&node.type==="det")return{detectorKind:v===undefined?null:DET_KIND_CODE[v]||v};
   if(key==="sens")return{sensitivity:apiVal("sensitivity",v)};
-  if(key==="archx")return{extraArchives:v===undefined?null:v.filter(x=>!x.ro).map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{}),...(x.rec==="replica"?{replicaFrom:x.replicaFrom??null}:{})}))};
+  if(key==="archx")return{extraArchives:v===undefined?null:v.filter(x=>!x.ro).map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{}),...(x.rec==="replica"?{replicaFrom:x.replicaFrom??null}:{}),...(x.retentionDays!=null?{retentionDays:x.retentionDays}:{}),...(x.minDepthDays!=null?{minDepthDays:x.minDepthDays}:{})}))};
   if(key==="mode"&&node.type==="email")return{mode:v===undefined?null:EMAIL_MODE_CODE[v]||v};
   if(key==="pass")return{password:v===undefined?null:v};
   if(key==="norm")return{norm:v===undefined?null:NORM_CODE[v]||v};

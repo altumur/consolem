@@ -228,5 +228,59 @@
     assert.ok(!(await env.list("/archives")).some((a) => a.id === cardRec.id), "в GET /archives её нет");
   }, needs);
 
+  // Запись по расписанию, срок и глубина строки, микрофон
+  const plainCam = () => FX.devices.find((d) => d.type === "camera" && d.archiveId && d.recordMode === "always" && !d.extraArchives && !d.parentId);
+
+  test("По расписанию: recordScheduleId обязателен, неизвестный — отказ; расписание сняли — запись ждёт", async () => {
+    const env = await makeEnv();
+    const c = await env.ok("GET", `/devices/${plainCam().id}`);
+    const sc = FX.schedules.find((s) => !s.builtin && !s.owner);
+    field(await put(env, c, { recordMode: "sched" }), "VALIDATION_FAILED", "recordScheduleId", "без расписания");
+    field(await put(env, c, { recordMode: "sched", recordScheduleId: "f0009999-0000-4000-8000-000000000000" }), "VALIDATION_FAILED", "recordScheduleId", "неизвестное");
+    const ok = await env.ok("PATCH", `/devices/${c.id}`, { recordMode: "sched", recordScheduleId: sc.id }, v(c));
+    assert.eq(ok.recordScheduleId, sc.id, "записано");
+    const fresh = await env.ok("GET", `/schedules/${sc.id}`);
+    assert.status(await env.call("DELETE", `/schedules/${sc.id}`, undefined, v(fresh)), 204);
+    const now = await env.ok("GET", `/devices/${c.id}`);
+    assert.eq([now.recordState, /Расписание снято/.test(now.recordReason)], ["waiting", true], "запись ждёт, причина словами");
+    assert.status(await put(env, now, { preRecordSec: 3 }), 200, null, "прочие правки идут");
+  });
+
+  test("Срок и глубина: у записи свои, глубина больше срока — отказ; срок архива их не трогает", async () => {
+    const env = await makeEnv();
+    const c = await env.ok("GET", `/devices/${plainCam().id}`);
+    const a = await env.ok("GET", `/archives/${c.archiveId}`);
+    const res = await env.ok("PATCH", `/devices/${c.id}`, { retentionDays: 10, minDepthDays: 5 }, v(c));
+    assert.eq([res.retentionDays, res.minDepthDays], [10, 5], "основная запись");
+    field(await put(env, res, { minDepthDays: 11 }), "VALIDATION_FAILED", "minDepthDays", "глубина больше срока");
+    await env.ok("PATCH", `/archives/${a.id}`, { retentionDays: 3 }, v(a));
+    assert.eq((await env.ok("GET", `/devices/${c.id}`)).retentionDays, 10, "срок записи не изменился");
+    const other = FX.archives.find((x) => x.id !== c.archiveId && x.kind === "remote" && x.domainId === c.domainId && x.admits !== false);
+    const fresh = await env.ok("GET", `/devices/${c.id}`);
+    const row = await env.ok("PATCH", `/devices/${c.id}`, { extraArchives: [{ archiveId: other.id, recordMode: "always", stream: "main", retentionDays: 90, minDepthDays: 30 }] }, v(fresh));
+    assert.eq([row.extraArchives[0].retentionDays, row.extraArchives[0].minDepthDays], [90, 30], "строка");
+  });
+
+  test("Микрофон записи: запись mic этой камеры, null — первый", async () => {
+    const env = await makeEnv();
+    const c = FX.devices.find((d) => d.type === "camera" && FX.devices.filter((x) => x.type === "mic" && x.parentId === d.id).length > 1);
+    const fresh = await env.ok("GET", `/devices/${c.id}`);
+    const mics = FX.devices.filter((x) => x.type === "mic" && x.parentId === c.id);
+    assert.eq(fresh.audioDeviceId, mics[1].id, "в наборе — второй");
+    const res = await env.ok("PATCH", `/devices/${c.id}`, { audioDeviceId: mics[0].id }, v(fresh));
+    assert.eq(res.audioDeviceId, mics[0].id, "выбран");
+    field(await put(env, res, { audioDeviceId: FX.devices.find((x) => x.type === "mic" && x.parentId !== c.id).id }), "VALIDATION_FAILED", "audioDeviceId", "чужой микрофон");
+    assert.ok(!("audioDeviceId" in (await env.ok("PATCH", `/devices/${c.id}`, { audioDeviceId: null }, v(res)))), "null — поля нет, первый");
+  }, needs);
+
+  test("Настройки: сроки событий и тревог", async () => {
+    const env = await makeEnv();
+    const s = await env.ok("GET", "/settings");
+    assert.eq([s.values["events.retentionDays"], s.values["alarms.retentionDays"]], [90, 365], "в наборе");
+    const res = await env.ok("PATCH", "/settings", { values: { "events.retentionDays": 30 } }, v(s));
+    assert.eq(res.values["events.retentionDays"], 30, "записано");
+    assert.status(await env.call("PATCH", "/settings", { values: { "alarms.retentionDays": -1 } }, v(res)), 422, "VALIDATION_FAILED");
+  });
+
   ApiTest.loaded("api-archive.js");
 })();

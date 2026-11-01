@@ -105,6 +105,28 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open((await API.get("/devices")).items.find((d) => d.type === "storage" && !d.writableFields).id, "gen");
   ok(!main().querySelector("[data-card-mode]") && !main().querySelector("[data-card-size]"), "обычное встроенное — только чтение");
 
+  // Срок и глубина строки, запись по расписанию, микрофон
+  const all2 = (await API.get("/devices")).items;
+  const sc = all2.find((d) => d.type === "camera" && d.archiveId && d.recordMode === "always" && !d.parentId && d.serverId && !d.extraArchives && servers.find((x) => x.id === d.serverId)?.online !== false && !hasNoSignal(domainOf(d.serverId) || {}));
+  const sn = find(sc.id).n;
+  open(sc.id, "rec");
+  ok(!!main().querySelector("[data-rec-depth]"), "у строки — срок и глубина");
+  camArchRowSet(sc.id, 0, "retentionDays", "12");
+  camArchRowSet(sc.id, 0, "minDepthDays", "5");
+  camArchRowSet(sc.id, 0, "rec", "sched");
+  ok(!!main().querySelector("[data-rec-sched]") && sn.recordScheduleId === recSchedules()[0].id, "у «По расписанию» подставлено расписание");
+  cardApply();
+  ok(await until(() => bq && bq.finished) && !bq.fail, "план выполнен");
+  const ss = await API.get("/devices/" + sc.id);
+  ok(ss.recordMode === "sched" && ss.recordScheduleId === recSchedules()[0].id && ss.retentionDays === 12 && ss.minDepthDays === 5, "на сервере — режим, расписание, срок, глубина");
+  const micCam = all2.find((d) => d.audioDeviceId);
+  open(micCam.id, "rec");
+  ok(main().querySelector("[data-rec-mic] select")?.value === micCam.audioDeviceId, "микрофон записи показан");
+  camRecSet(micCam.id, "audioDeviceId", "");
+  cardApply();
+  ok(await until(() => bq && bq.finished), "план: первый микрофон");
+  ok(!("audioDeviceId" in (await API.get("/devices/" + micCam.id))), "на сервере — первый");
+
   // Хранилище не принимает записи
   const closed = list.find((a) => a.admits === false && a.kind !== "incidents");
   if (closed) {

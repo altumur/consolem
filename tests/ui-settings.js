@@ -17,4 +17,16 @@ UiCheck(async ({ ok, until }) => {
   goApp("log");
   ok(LOG_ROWS.length === 25 && /^\d\d:\d\d$/.test(LOG_ROWS[0][0]), "журнал с сервера: " + LOG_ROWS.length + ", первое в " + LOG_ROWS[0][0]);
   ok(LOG_BY_CAT.alarm.length > 0 && LOG_BY_CAT.alarm.every((x) => x[1] === "Тревога"), "по категориям");
+  // Хранение: сроки событий и тревог; ключа нет у сервера — поля нет
+  sys = "keep";
+  goApp("sys");
+  ok(!!document.querySelector('[data-set="events.retentionDays"]') && !!document.querySelector('[data-set="alarms.retentionDays"]'), "страница «Хранение»");
+  settingSet("events.retentionDays", "30");
+  ok(await until(() => SETTINGS.find((x) => x.id === "events.retentionDays").value === "30"), "значение пришло с сервера");
+  ok((await API.get("/settings")).values["events.retentionDays"] === 30, "на сервере — число");
+  const al = SETTINGS.find((x) => x.id === "alarms.retentionDays"), keep = al.value;
+  al.value = undefined;
+  sysUI();
+  ok(!document.querySelector('[data-set="alarms.retentionDays"]'), "ключа нет у сервера — поля нет");
+  al.value = keep;
 });

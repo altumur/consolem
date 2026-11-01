@@ -1306,7 +1306,9 @@
    ],
    "recordState": "waiting",
    "recordReason": "На сервере нет места",
-   "faultText": "Запись остановлена: на сервере нет места"
+   "faultText": "Запись остановлена: на сервере нет места",
+   "retentionDays": 45,
+   "minDepthDays": 14
   },
   {
    "id": "30000016-0000-4000-8000-000000000000",
@@ -1869,14 +1871,18 @@
      "stream": "main",
      "replicaFrom": "50000001-0000-4000-8000-000000000000",
      "replicaLagSec": 420,
-     "state": "running"
+     "state": "running",
+     "retentionDays": 60,
+     "minDepthDays": 7
     },
     {
      "archiveId": "50000024-0000-4000-8000-000000000000",
      "recordMode": "backup",
      "stream": "main"
     }
-   ]
+   ],
+   "minDepthDays": 30,
+   "recordReason": "Глубина ниже наименьшей: 21 дн. из 30"
   },
   {
    "id": "30000044-0000-4000-8000-000000000000",
@@ -2175,7 +2181,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000156-0000-4000-8000-000000000000",
@@ -2327,7 +2334,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000160-0000-4000-8000-000000000000",
@@ -2486,7 +2494,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000163-0000-4000-8000-000000000000",
@@ -2744,7 +2753,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000170-0000-4000-8000-000000000000",
@@ -2896,7 +2906,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000173-0000-4000-8000-000000000000",
@@ -3046,7 +3057,8 @@
      "online": true
     }
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000177-0000-4000-8000-000000000000",
@@ -4060,7 +4072,8 @@
      "online": true
     }
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000202-0000-4000-8000-000000000000",
@@ -4221,7 +4234,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000206-0000-4000-8000-000000000000",
@@ -4371,7 +4385,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000210-0000-4000-8000-000000000000",
@@ -4532,7 +4547,8 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "recordScheduleId": "f0000001-0001-4000-8000-000000000000"
   },
   {
    "id": "30000213-0000-4000-8000-000000000000",
@@ -15709,7 +15725,9 @@
    "sec.pwdage": 90,
    "sec.2fa": "off",
    "mail.smtp": "smtp.local",
-   "mail.hook": "https://…"
+   "mail.hook": "https://…",
+   "events.retentionDays": 90,
+   "alarms.retentionDays": 365
   }
  },
  "licenses": [],
@@ -17189,7 +17207,11 @@
      "properties",
      "labels",
      "alarmKinds",
-     "replicaFrom"
+     "replicaFrom",
+     "retentionDays",
+     "minDepthDays",
+     "recordScheduleId",
+     "audioDeviceId"
     ]
    }
   },

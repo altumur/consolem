@@ -5701,6 +5701,16 @@
             "type": "integer",
             "minimum": 0,
             "description": "Только чтение: на сколько секунд replica отстаёт от источника. Период выбирает сервер, настройки нет"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Срок хранения этой записи, дней; 0 — без ограничения. Поля нет — Archive.retentionDays: умолчание новой записи"
+          },
+          "minDepthDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Наименьшая глубина этой записи, дней: ниже неё тревога. Больше срока — 422 VALIDATION_FAILED, field: minDepthDays"
           }
         },
         "additionalProperties": false,
@@ -6135,6 +6145,32 @@
               "type": "string"
             },
             "description": "Только чтение: что правится у этой записи, если не то, что у её вида в capabilities.writableFields. Карта камеры w2c: запись storage с recordMode и sizeBytes"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Срок хранения этой записи, дней; 0 — без ограничения. Поля нет — Archive.retentionDays: умолчание новой записи"
+          },
+          "minDepthDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Наименьшая глубина этой записи, дней: ниже неё тревога. Больше срока — 422 VALIDATION_FAILED, field: minDepthDays"
+          },
+          "recordScheduleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Расписание режима sched. У sched обязательно: нет — 422 VALIDATION_FAILED, field: recordScheduleId. Расписание сняли — запись ждёт и говорит причину"
+          },
+          "audioDeviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Какой микрофон пишется в архив: id записи mic этой камеры. null — первый микрофон"
           }
         },
         "additionalProperties": false,
@@ -7840,6 +7876,16 @@
               },
               "mail.hook": {
                 "type": "string"
+              },
+              "events.retentionDays": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Срок хранения событий, дней"
+              },
+              "alarms.retentionDays": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Срок хранения тревог, дней"
               }
             },
             "additionalProperties": false,
@@ -9480,6 +9526,54 @@
                 "type": "null"
               }
             ]
+          },
+          "retentionDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Срок хранения этой записи, дней; 0 — без ограничения. Поля нет — Archive.retentionDays: умолчание новой записи"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "minDepthDays": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Наименьшая глубина этой записи, дней: ниже неё тревога. Больше срока — 422 VALIDATION_FAILED, field: minDepthDays"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recordScheduleId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "Расписание режима sched. У sched обязательно: нет — 422 VALIDATION_FAILED, field: recordScheduleId. Расписание сняли — запись ждёт и говорит причину"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "audioDeviceId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "Какой микрофон пишется в архив: id записи mic этой камеры. null — первый микрофон"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "description": "Изменение устройства (JSON Merge Patch, RFC 7396): переданные поля заменяются, null убирает поле"
@@ -10870,6 +10964,32 @@
             ],
             "format": "uuid",
             "description": "Откуда забирает режим replica: как Device.replicaFrom"
+          },
+          "retentionDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Срок хранения этой записи, дней; 0 — без ограничения. Поля нет — Archive.retentionDays: умолчание новой записи"
+          },
+          "minDepthDays": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Наименьшая глубина этой записи, дней: ниже неё тревога. Больше срока — 422 VALIDATION_FAILED, field: minDepthDays"
+          },
+          "recordScheduleId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Расписание режима sched. У sched обязательно: нет — 422 VALIDATION_FAILED, field: recordScheduleId. Расписание сняли — запись ждёт и говорит причину"
+          },
+          "audioDeviceId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Какой микрофон пишется в архив: id записи mic этой камеры. null — первый микрофон"
           }
         },
         "description": "Новое устройство вместе с дочерними. Домен и родителя задаёт запрос (DevicesCreateRequest), id выдаёт сервер"
@@ -11415,6 +11535,16 @@
               },
               "mail.hook": {
                 "type": "string"
+              },
+              "events.retentionDays": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Срок хранения событий, дней"
+              },
+              "alarms.retentionDays": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Срок хранения тревог, дней"
               }
             }
           }

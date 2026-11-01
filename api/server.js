@@ -200,7 +200,10 @@
       if (miss && !out.faultText) out.faultText = `Нет сервера с меткой ${miss}`;
       const edge = serverWideRows(rec);
       if (edge.length) out.extraArchives = (out.extraArchives || []).concat(edge);
-      if (rec.type === "camera") replicaView(out);
+      if (rec.type === "camera") {
+        replicaView(out);
+        if ((out.recordMode === "sched" || (out.extraArchives || []).some((x) => x.recordMode === "sched")) && out.recordScheduleId && !byId("schedules", out.recordScheduleId)) Object.assign(out, { recordState: "waiting", recordReason: "Расписание снято: запись ждёт" });
+      }
       return out;
     }
     // replica: поля только у этого режима; источник сняли — запись ждёт, уже забранное живёт своим сроком
@@ -263,10 +266,27 @@
         const bad = archiveRowProblem(x, false, archiveWrites(rec, x.archiveId));
         if (bad) return bad;
       }
-      const rows = (next.archiveId ? [{ archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream, replicaFrom: next.replicaFrom }] : []).concat(next.extraArchives || []);
-      return replicaProblem(rec, rows);
+      const rows = (next.archiveId ? [{ archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream, replicaFrom: next.replicaFrom, retentionDays: next.retentionDays, minDepthDays: next.minDepthDays }] : []).concat(next.extraArchives || []);
+      return replicaProblem(rec, rows) || scheduleProblem(rec, next, rows) || depthProblem(rows) || micProblem(rec, patch);
     }
-    const RECORD_FIELDS = ["archiveId", "recordMode", "stream", "extraArchives", "replicaFrom"];
+    // Режим sched без своего расписания записывать нечем. Снятое позже — запись ждёт
+    function scheduleProblem(rec, next, rows) {
+      if (!rows.some((x) => x.recordMode === "sched")) return null;
+      if (next.recordScheduleId && byId("schedules", next.recordScheduleId)) return null;
+      if (next.recordScheduleId && next.recordScheduleId === rec.recordScheduleId) return null;
+      return problem(422, "VALIDATION_FAILED", "Для записи по расписанию нужно расписание", { field: "recordScheduleId" });
+    }
+    function depthProblem(rows) {
+      const days = (x) => (x.retentionDays != null ? x.retentionDays : (byId("archives", x.archiveId) || {}).retentionDays || 0);
+      const bad = rows.some((x) => x.minDepthDays != null && days(x) > 0 && x.minDepthDays > days(x));
+      return bad ? problem(422, "VALIDATION_FAILED", "Наименьшая глубина больше срока хранения", { field: "minDepthDays" }) : null;
+    }
+    function micProblem(rec, patch) {
+      if (patch.audioDeviceId == null || !rec.id) return null;
+      const m = byId("devices", patch.audioDeviceId);
+      return m && m.type === "mic" && m.parentId === rec.id ? null : problem(422, "VALIDATION_FAILED", "Микрофон — запись mic этой камеры", { field: "audioDeviceId" });
+    }
+    const RECORD_FIELDS = ["archiveId", "recordMode", "stream", "extraArchives", "replicaFrom", "recordScheduleId", "retentionDays", "minDepthDays", "audioDeviceId"];
     // Карта камеры w2c: режим самой карты и её объём
     function cardProblem(patch) {
       if ("recordMode" in patch && !["always", "backup"].includes(patch.recordMode)) return problem(422, "VALIDATION_FAILED", "У карты — постоянно или только при сбое", { field: "recordMode" });
@@ -818,7 +838,7 @@
           const next = i >= 0 ? extra.splice(i, 1)[0] : null;
           if (next) Object.assign(d, { archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream });
           else Object.assign(d, { archiveId: null, recordMode: "none" });
-          ["replicaFrom", "replicaLagSec"].forEach((k) => {
+          ["replicaFrom", "replicaLagSec", "retentionDays", "minDepthDays"].forEach((k) => {
             if (next && k in next) d[k] = next[k];
             else delete d[k];
           });
@@ -969,7 +989,8 @@
     // Где используется расписание: режимы, условия «Время», окна обслуживания
     const scheduleUsed = (id) =>
       db.modes.items.some((m) => m.scheduleId === id) || db.maintenanceWindows.some((w) => w.scheduleId === id) ||
-      db.rules.some((r) => r.conditions.some((c) => c.kind === "time" && c.scheduleId === id));
+      db.rules.some((r) => r.conditions.some((c) => c.kind === "time" && c.scheduleId === id)) ||
+      db.devices.some((d) => d.recordScheduleId === id);
     const never = () => (db.schedules.find((s) => s.builtin && s.kind === "never") || {}).id || null;
     function removeSchedule(sc) {
       db.schedules = db.schedules.filter((x) => x !== sc);

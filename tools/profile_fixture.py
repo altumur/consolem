@@ -69,6 +69,8 @@ def build(demo):
             d["archiveId"], d["recordMode"] = None, "none"
         if "extraArchives" in d:
             d["extraArchives"] = [x for x in d["extraArchives"] if x["archiveId"] in aids]
+        if d.get("audioDeviceId") and d["audioDeviceId"] not in kept:
+            del d["audioDeviceId"]
         if "recordDetectorIds" in d:
             d["recordDetectorIds"] = [x for x in d["recordDetectorIds"] if x in kept]
         if d.get("cameraId") and d["cameraId"] not in kept:
