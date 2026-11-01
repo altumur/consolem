@@ -26,11 +26,14 @@
     assert.eq((await env.ok("GET", `/volumes/${volumes[0].id}`)).archiveId, archive.id, "том в списке");
   });
 
-  test("Хранилище: блочное не шифруется; облачное — всегда объектное; раздел целиком — неотформатирован", async () => {
-    const env = await makeEnv();
+  // Вид с адресом bucket: система может объявить network и так, форма и сервер судят по адресу
+  const BUCKET = { fixturePatch: { reference: { archiveKinds: FX.reference.archiveKinds.map((k) => (k.kind === "network" ? { ...k, address: "bucket" } : k)) } } };
+
+  test("Хранилище: блочное не шифруется; бакет — всегда объектное; раздел целиком — неотформатирован", async () => {
+    const env = await makeEnv(BUCKET);
     const block = await env.ok("POST", "/archives", local({ storage: "block", encrypted: enc(), firstVolume: { name: freeDisks[0], disk: freeDisks[0], sizeBytes: 4096 * GB, mode: "part" } }));
     assert.eq([block.archive.encrypted, block.volumes[0].state], [false, "unfmt"], "блочное, раздел");
-    const cloud = await env.ok("POST", "/archives", { name: "Облако", kind: "cloud", storage: "block", encrypted: enc(), retentionDays: 30, provider: "s3", serverId: null, domainId: FX.domains[0].id,
+    const cloud = await env.ok("POST", "/archives", { name: "Облако", kind: "network", storage: "block", encrypted: enc(), retentionDays: 30, provider: "s3", serverId: null, domainId: FX.domains[0].id,
       firstVolume: { name: "s3://b/v", disk: "s3", sizeBytes: 10240 * GB, bucket: "b", region: "eu-central-1", path: "v", keyId: "AKIA", secret: "s" } });
     assert.eq([cloud.archive.storage, cloud.archive.encrypted, cloud.volumes[0].hasSecret, "secret" in cloud.volumes[0]], ["object", enc(), true, false], "облачное, секрет скрыт");
   });
@@ -40,7 +43,9 @@
     assert.status(await env.call("POST", "/archives", local({ name: " " })), 422, "NAME_REQUIRED");
     assert.status(await env.call("POST", "/archives", local({ domainId: FX.domains[0].id })), 422, "VALIDATION_FAILED", "два владельца");
     assert.status(await env.call("POST", "/archives", local({ serverId: null, domainId: FX.domains[0].id })), 422, "VALIDATION_FAILED", "локальное — на сервере");
-    assert.status(await env.call("POST", "/archives", { ...local(), kind: "cloud", provider: "s3", firstVolume: { name: "x", disk: "s3", sizeBytes: GB } }), 422, "VALIDATION_FAILED", "без бакета");
+    const bucket = await makeEnv(BUCKET);
+    assert.status(await bucket.call("POST", "/archives", { ...local(), kind: "network", provider: "s3", firstVolume: { name: "x", disk: "s3", sizeBytes: GB } }), 422, "VALIDATION_FAILED", "без бакета");
+    await makeEnv();
     assert.status(await env.call("POST", "/archives", local({ firstVolume: { name: "Z:", disk: "Z:", sizeBytes: GB, mode: "dir" } })), 422, "VALIDATION_FAILED", "нет такого диска");
     assert.status(await env.call("POST", "/archives", local({ serverId: "20009999-0000-4000-8000-000000000000" })), 404, "NOT_FOUND");
   });
@@ -59,11 +64,11 @@
 
   test("Хранилище и том: PATCH с версией; пароль NAS — только запись", async () => {
     const env = await makeEnv();
-    const a = FX.archives.find((x) => x.kind === "remote");
+    const a = FX.archives.find((x) => x.kind === "network");
     const res = await env.ok("PATCH", `/archives/${a.id}`, { name: "NAS — главный", retentionDays: 90 }, v(a));
     assert.eq([res.name, res.retentionDays], ["NAS — главный", 90], "хранилище");
     assert.ok(res.version !== a.version, "версия изменилась");
-    assert.status(await env.call("PATCH", `/archives/${a.id}`, { kind: "cloud" }, { "If-Match": `"${res.version}"` }), 422, "VALIDATION_FAILED", "вид не меняют");
+    assert.status(await env.call("PATCH", `/archives/${a.id}`, { kind: "local" }, { "If-Match": `"${res.version}"` }), 422, "VALIDATION_FAILED", "вид не меняют");
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
     const pv = await env.ok("PATCH", `/volumes/${vol.id}`, { login: "VMS\\svc2", password: "p@ss", sizeBytes: 2048 * GB, confirmShrinkBytes: 2048 * GB }, v(vol));
     assert.eq([pv.login, pv.hasPassword, "password" in pv, pv.sizeBytes], ["VMS\\svc2", true, false, 2048 * GB], "том");
@@ -116,14 +121,15 @@
   test("Проверка подключения: NAS без пользователя и облако без бакета — не подключились", async () => {
     const env = await makeEnv();
     const nas = { name: "\\\\nas\\v", disk: "\\\\nas\\v", sizeBytes: GB };
-    assert.eq(await env.ok("POST", "/archives/check", { kind: "remote", provider: null, volume: { ...nas, login: "svc" } }), { ok: true, code: null }, "NAS");
-    assert.eq(await env.ok("POST", "/archives/check", { kind: "remote", provider: null, volume: nas }), { ok: false, code: "CONNECTION_FAILED" }, "NAS без пользователя");
-    assert.eq((await env.ok("POST", "/archives/check", { kind: "cloud", provider: "s3", volume: { name: "x", disk: "s3", sizeBytes: GB } })).ok, false, "облако без бакета");
+    assert.eq(await env.ok("POST", "/archives/check", { kind: "network", provider: null, volume: { ...nas, login: "svc" } }), { ok: true, code: null }, "NAS");
+    assert.eq(await env.ok("POST", "/archives/check", { kind: "network", provider: null, volume: nas }), { ok: false, code: "CONNECTION_FAILED" }, "NAS без пользователя");
+    const bucket = await makeEnv(BUCKET);
+    assert.eq((await bucket.ok("POST", "/archives/check", { kind: "network", provider: "s3", volume: { name: "x", disk: "s3", sizeBytes: GB } })).ok, false, "бакета нет");
   });
 
   test("Операция: план карточек хранилища и тома; хранилище сервера без связи — fail SERVER_OFFLINE", async () => {
     const env = await makeEnv();
-    const a = FX.archives.find((x) => x.kind === "remote");
+    const a = FX.archives.find((x) => x.kind === "network");
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
     const op = await env.runOperation({ idempotencyKey: key(), items: [
       { targetId: a.id, set: { retentionDays: 120 } },
@@ -141,7 +147,7 @@
 
   test("Откат: правка хранилища и имени тома — одиночные операции, значения возвращаются", async () => {
     const env = await makeEnv();
-    const a = FX.archives.find((x) => x.kind === "remote");
+    const a = FX.archives.find((x) => x.kind === "network");
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
     await env.ok("PATCH", `/archives/${a.id}`, { retentionDays: 90 }, v(a));
     const opA = await top(env);
@@ -157,7 +163,7 @@
 
   test("Откат: адрес и размер тома — шаг fail NOT_SUPPORTED; прочие шаги той же операции идут", async () => {
     const env = await makeEnv();
-    const a = FX.archives.find((x) => x.kind === "remote");
+    const a = FX.archives.find((x) => x.kind === "network");
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
     const op = await env.runOperation({ idempotencyKey: key(), items: [
       { targetId: a.id, set: { retentionDays: 120 } },
@@ -205,7 +211,7 @@
     const vol = FX.volumes.find((x) => x.usedPercent > 0 && x.archiveId !== FX.volumes[0].archiveId);
     await env.ok("POST", `/volumes/${vol.id}/format`);
     assert.eq((await undo(env, await top(env))).items.map((x) => x.code), ["NOT_SUPPORTED"], "записи не возвращаются");
-    const a = FX.archives.find((x) => x.kind === "remote");
+    const a = FX.archives.find((x) => x.kind === "network");
     assert.status(await env.call("DELETE", `/archives/${a.id}`, undefined, v(a)), 204);
     assert.eq((await undo(env, await top(env))).items.map((x) => x.code), ["NOT_SUPPORTED"], "хранилище не возвращается");
   });

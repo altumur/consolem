@@ -44,7 +44,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok((await API.get("/archives/" + a.id)).retentionDays === 45, "на сервере");
   // Проверка подключения: NAS без пользователя — не подключились
   addArchive(srvFree.id);
-  anSet("kind", "remote");
+  anSet("kind", "network");
   an.vol.user = "";
   anCheck();
   ok(await until(() => /подключиться/i.test(toastText())), "NAS без пользователя: «" + toastText() + "»");

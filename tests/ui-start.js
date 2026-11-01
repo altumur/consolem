@@ -43,7 +43,7 @@ UiCheck(async ({ ok, until }) => {
   const before = (await API.get("/archives")).items.length;
   const dom = domains[0];
   addArchive(dom.id);
-  anSet("kind", "cloud");
+  anSet("kind", "network");
   anSet("name", "Бакет домена", true);
   ok(!an.server && !/Выберите сервер/.test(anBlock() || ""), "удалённому хранилищу сервер не нужен");
   ok(/Весь домен/.test(document.getElementById("bmBody").textContent), "вариант «Весь домен»");

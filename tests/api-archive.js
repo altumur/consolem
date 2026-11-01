@@ -22,7 +22,7 @@
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
     assert.ok(ref.archiveKinds.every((k) => typeof k === "object" && Array.isArray(k.recordModes) && Array.isArray(k.archiveModes)), "объекты");
-    assert.ok(["local", "remote", "backup", "edge", "incidents"].every((k) => ref.archiveKinds.some((x) => x.kind === k)), "наши виды");
+    assert.eq(ref.archiveKinds.map((x) => x.kind).sort(), ["backup", "edge", "incidents", "local", "network"], "пять видов, cloud не объявляется");
     assert.ok(ref.recordModes.includes("backup"), "значение backup в reference.recordModes");
     field(await env.call("POST", "/archives", body({ kind: "tape" })), "NOT_SUPPORTED", "kind", "вид вне списка");
     field(await env.call("POST", "/archives/check", { kind: "tape", provider: null, volume: { name: "x", disk: "x", sizeBytes: GB } }), "NOT_SUPPORTED", "kind", "проверка вида вне списка");
@@ -132,7 +132,7 @@
   const hasStorage = (d) => devs.some((x) => x.type === "storage" && x.parentId === d.id);
   const free = devs.find((d) => d.type === "camera" && d.archiveId && !d.extraArchives && !d.parentId && hasStorage(d) && d.recordMode === "always" && d.streams?.length > 1) || null;
   const bare = devs.find((d) => d.type === "camera" && d.archiveId && !d.parentId && !hasStorage(d) && !d.extraArchives && d.streams?.length) || null;
-  const second = (d) => FX.archives.find((a) => a.id !== d.archiveId && a.domainId === d.domainId && a.kind === "remote" && a.admits !== false);
+  const second = (d) => FX.archives.find((a) => a.id !== d.archiveId && a.domainId === d.domainId && a.kind === "network" && a.admits !== false);
   const put = (env, d, set) => env.call("PATCH", `/devices/${d.id}`, set, v(d));
   const needs = { needs: ["type:storage"] };
 
@@ -255,7 +255,7 @@
     field(await put(env, res, { minDepthDays: 11 }), "VALIDATION_FAILED", "minDepthDays", "глубина больше срока");
     await env.ok("PATCH", `/archives/${a.id}`, { retentionDays: 3 }, v(a));
     assert.eq((await env.ok("GET", `/devices/${c.id}`)).retentionDays, 10, "срок записи не изменился");
-    const other = FX.archives.find((x) => x.id !== c.archiveId && x.kind === "remote" && x.domainId === c.domainId && x.admits !== false);
+    const other = FX.archives.find((x) => x.id !== c.archiveId && x.kind === "network" && x.domainId === c.domainId && x.admits !== false);
     const fresh = await env.ok("GET", `/devices/${c.id}`);
     const row = await env.ok("PATCH", `/devices/${c.id}`, { extraArchives: [{ archiveId: other.id, recordMode: "always", stream: "main", retentionDays: 90, minDepthDays: 30 }] }, v(fresh));
     assert.eq([row.extraArchives[0].retentionDays, row.extraArchives[0].minDepthDays], [90, 30], "строка");

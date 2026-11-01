@@ -385,7 +385,7 @@ window.I18N_EN={
 "Папка на NAS.":"NAS folder.",
 "Бакет провайдера.":"Provider bucket.",
 "Только при сбое":"Only on failure",
-"Удалённое (бакет)":"Remote (bucket)",
+"Удалённое":"Remote",
 "Расписание записи":"Recording schedule",
 "Срок записи, дней":"Recording retention, days",
 "Глубина не меньше, дней":"Minimum depth, days",

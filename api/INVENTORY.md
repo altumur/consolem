@@ -30,7 +30,7 @@
 | — периферия, службы, ACFA, eventsrc | там же | `ch`; `reference.deviceParams` (`norm`); email `mode/smtp/port/ssl/from/to`, sms `gateway`, export `path/format`; `words[]` у eventsrc | службы → сервер | `email.mode` хранится разнобойными строками → код |
 | — storage (встроенное) | добавляется при загрузке 2148 | `size` («128 ГБ») | → камера | Демо-логика 2126–2159 (вывод `kind`, удаление `ip` у каналов NVR, встроенные хранилища, `err`) «запекается» в эталонный набор |
 | **Folder** | `folders` 1941 | `name`, `items[]` (id устройств; одно устройство может быть в нескольких папках), `folders[]` | `domainId` (у корневых), `parentId` | id `"f"+счётчик` зависит от порядка построения |
-| **Archive** (хранилище) | `arch` 2035, 2050, 2136 | `name`, `kind` local/remote/cloud, `storage` block/object, `enc`, `days`, `provider` | владелец — `serverId` или `domainId` (сетевое) | `kind` и `storage` сейчас выводятся на клиенте |
+| **Archive** (хранилище) | `arch` 2035, 2050, 2136 | `name`, `kind` из `reference.archiveKinds`, `storage` block/object, `enc`, `days`, `provider` | владелец — `serverId` или `domainId` (сетевое) | `kind` и `storage` сейчас выводятся на клиенте |
 | **Volume** (том) | `a.vols[]`, `addVol` 2059 | `disk`, `size` («4 ТБ»), `used` («68%»), `online`, `mode` part/file/dir, `dir/file`, `state` (unfmt/format/ready/maint/error); у NAS `user/pass`; у облака `bucket/region/path/keyId/secret/host/port/proto/endpoint/style` | → Archive | Размеры станут числами (байты), занятость — `usedBytes` |
 | **ServerDisk** | `serverDisks()` 2096 — подделка по хешу id | диск, размер, свободно | → Server | Станет данными набора |
 | **Gpu** | `SERVER_GPU` 2217 | `model`, `mem`, `load` | → Server | Только чтение |

@@ -17,9 +17,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   anSet("kind", "local");
   ok(!/Когда писать/.test(body()), "у локального режима нет");
   const keep = refArchKinds;
-  refArchKinds = [{ ...keep.find((k) => k.kind === "remote"), address: "bucket" }, keep.find((k) => k.kind === "local")];
-  anSet("kind", "remote");
-  ok(!body().includes("Облачное") && /Бакет/.test(body()) && !/Путь к папке/.test(body()), "вид remote с адресом bucket: поля бакета, «Облачного» в списке нет");
+  refArchKinds = [{ ...keep.find((k) => k.kind === "network"), address: "bucket" }, keep.find((k) => k.kind === "local")];
+  anSet("kind", "network");
+  ok(!body().includes("Облачное") && /Бакет/.test(body()) && !/Путь к папке/.test(body()), "вид network с адресом bucket: поля бакета, «Облачного» в списке нет");
   closeBulkModal();
   an = null;
   refArchKinds = keep;
@@ -82,7 +82,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(bare.id, "rec");
   ok(/Встроенного хранилища нет/.test(main().textContent), "сказано: только из другого архива");
   ok(main().querySelectorAll("tbody tr select")[2].querySelector('option[value="replica"]').disabled, "основной архив один — забирать неоткуда");
-  const nasArch = archRowChoices(bn).find((a) => a.kind === "remote");
+  const nasArch = archRowChoices(bn).find((a) => a.kind === "network");
   camArchRowAdd(bare.id, nasArch.id);
   ok(!main().querySelectorAll("tbody tr")[1].querySelectorAll("select")[2].querySelector('option[value="replica"]').disabled, "у второй строки источник есть");
   camArchRowSet(bare.id, 1, "rec", "replica");

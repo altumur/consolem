@@ -359,26 +359,38 @@
     const env = await makeEnv();
     const c = await ptzCam(env);
     const was = c.presets.length;
-    // Без имени — только положение: в списке лишь названные
+    const at = (r, n) => r.presets.find((x) => x.n === n);
+    // PUT {} сохраняет положение и создаёт запись без подписи
     const pos = await env.ok("PUT", `/devices/${c.id}/presets/9`, {});
-    assert.eq(pos.presets.length, was, "безымянного в списке нет");
+    assert.eq(at(pos, 9), { n: 9, name: "" }, "сохранённый без имени виден");
     assert.ok(c.presetMax >= 9, "предел в записи");
     const set = await env.ok("PUT", `/devices/${c.id}/presets/9`, { name: "Ворота" });
     assert.eq(set.presets.at(-1), { n: 9, name: "Ворота" }, "имя задано, номера по порядку");
     assert.ok(set.version !== c.version, "версия записи изменилась");
     const same = await env.ok("PUT", `/devices/${c.id}/presets/9`, {});
-    assert.eq(same.presets.at(-1).name, "Ворота", "без имени — положение, имя прежнее");
+    assert.eq(at(same, 9).name, "Ворота", "без имени — положение, имя прежнее");
+    const blank = await env.ok("PUT", `/devices/${c.id}/presets/9`, { name: "" });
+    assert.eq(at(blank, 9), { n: 9, name: "" }, "пустое снимает подпись, запись остаётся");
+    const made = await env.ok("PUT", `/devices/${c.id}/presets/8`, { name: "" });
+    assert.eq(at(made, 8), { n: 8, name: "" }, "PUT {name} создаёт запись, пустое имя тоже");
     assert.status(await env.call("PUT", `/devices/${c.id}/presets/${c.presetMax + 1}`, {}), 404, "NOT_FOUND", "выше предела");
     assert.status(await env.call("DELETE", `/devices/${c.id}/presets/${c.presetMax + 1}`), 404, "NOT_FOUND", "и удаление");
+    await env.ok("DELETE", `/devices/${c.id}/presets/8`);
     const gone = await env.ok("DELETE", `/devices/${c.id}/presets/9`);
-    assert.eq(gone.presets.length, was, "снят вместе с именем");
-    assert.eq((await env.ok("DELETE", `/devices/${c.id}/presets/9`)).presets.length, was, "безымянный снимается без отказа");
-    const off = await env.ok("PUT", `/devices/${c.id}/presets/${c.presets[0].n}`, { name: "" });
-    assert.eq(off.presets.length, was - 1, "пустое имя снимает имя");
+    assert.eq(gone.presets.length, was, "снимает запись только DELETE");
+    assert.eq((await env.ok("DELETE", `/devices/${c.id}/presets/9`)).presets.length, was, "записи нет — отказа нет");
     const flat = (await env.list("/devices")).find((d) => d.type === "camera" && !d.ptz);
     const no = await env.call("PUT", `/devices/${flat.id}/presets/1`, {});
     assert.status(no, 422, "NOT_SUPPORTED", "без PTZ");
     assert.eq(no.body.field, "ptz", "поле");
+    assert.eq((await env.ok("PUT", `/devices/${flat.id}/presets/1`, { name: "Без PTZ" })).presets[0].name, "Без PTZ", "имя ptz не судит");
+    assert.status(await env.call("PUT", `/devices/${flat.id}/presets/1`, { name: "" }), 200);
+    assert.eq((await env.ok("DELETE", `/devices/${flat.id}/presets/1`)).presets.length, 0, "DELETE снимает запись и без ptz");
+    const offline = await env.ok("POST", "/test/events", { type: "device.signal", deviceId: c.id, online: false });
+    assert.eq(offline.applied, true, "камера без связи");
+    assert.status(await env.call("PUT", `/devices/${c.id}/presets/7`, {}), 409, "DEVICE_OFFLINE", "положение судит связь");
+    assert.status(await env.call("PUT", `/devices/${c.id}/presets/7`, { name: "Ночь" }), 200);
+    assert.status(await env.call("DELETE", `/devices/${c.id}/presets/7`), 200);
   });
 
   test("Аренда PTZ: срок от ttlSec, продление, стоп, скорости от -1 до 1", async () => {

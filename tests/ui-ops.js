@@ -35,7 +35,7 @@ UiCheck(async ({ ok, until }) => {
   await API.patch(`/devices/${cam.id}`, { short: "C" }, hwVer.get(cam.id));
   ok(await until(() => !document.querySelector("[data-redo]")), "новая правка очищает повтор");
   // Хранилище и том — в той же стопке: строка называет их, размер тома не возвращается
-  const remote = arch.find((a) => a.kind === "remote" && a.vols.length);
+  const remote = arch.find((a) => a.kind === "network" && a.vols.length);
   await API.patch(`/archives/${remote.id}`, { retentionDays: 77 }, hwVer.get(remote.id));
   ok(await until(() => logOps[0]?.items[0]?.targetId === remote.id), "правка хранилища в журнале операций");
   ok(document.getElementById("main").textContent.includes(locName(remote)), "строка называет хранилище");

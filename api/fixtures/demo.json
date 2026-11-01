@@ -130,7 +130,8 @@
    "labels": [
     "gpu",
     "archive"
-   ]
+   ],
+   "class": "server"
   },
   {
    "id": "20000002-0000-4000-8000-000000000000",
@@ -182,7 +183,8 @@
    "version": "1",
    "labels": [
     "gpu"
-   ]
+   ],
+   "class": "server"
   },
   {
    "id": "20000003-0000-4000-8000-000000000000",
@@ -228,7 +230,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000004-0000-4000-8000-000000000000",
@@ -280,7 +283,8 @@
    "version": "1",
    "labels": [
     "gpu"
-   ]
+   ],
+   "class": "server"
   },
   {
    "id": "20000005-0000-4000-8000-000000000000",
@@ -326,7 +330,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000006-0000-4000-8000-000000000000",
@@ -372,7 +377,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000007-0000-4000-8000-000000000000",
@@ -418,7 +424,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000008-0000-4000-8000-000000000000",
@@ -470,7 +477,8 @@
    "version": "1",
    "labels": [
     "gpu"
-   ]
+   ],
+   "class": "server"
   },
   {
    "id": "20000009-0000-4000-8000-000000000000",
@@ -516,7 +524,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000010-0000-4000-8000-000000000000",
@@ -562,7 +571,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000011-0000-4000-8000-000000000000",
@@ -608,7 +618,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000012-0000-4000-8000-000000000000",
@@ -654,7 +665,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000013-0000-4000-8000-000000000000",
@@ -700,7 +712,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "camera"
   },
   {
    "id": "20000014-0000-4000-8000-000000000000",
@@ -746,7 +759,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000015-0000-4000-8000-000000000000",
@@ -792,7 +806,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "camera"
   },
   {
    "id": "20000016-0000-4000-8000-000000000000",
@@ -838,7 +853,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000017-0000-4000-8000-000000000000",
@@ -884,7 +900,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000018-0000-4000-8000-000000000000",
@@ -930,7 +947,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000019-0000-4000-8000-000000000000",
@@ -976,7 +994,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000020-0000-4000-8000-000000000000",
@@ -1022,7 +1041,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000021-0000-4000-8000-000000000000",
@@ -1068,7 +1088,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000022-0000-4000-8000-000000000000",
@@ -1114,7 +1135,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000023-0000-4000-8000-000000000000",
@@ -1160,7 +1182,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000024-0000-4000-8000-000000000000",
@@ -1206,7 +1229,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000025-0000-4000-8000-000000000000",
@@ -1252,7 +1276,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000026-0000-4000-8000-000000000000",
@@ -1298,7 +1323,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000027-0000-4000-8000-000000000000",
@@ -1344,7 +1370,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000028-0000-4000-8000-000000000000",
@@ -1390,7 +1417,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "camera"
   },
   {
    "id": "20000029-0000-4000-8000-000000000000",
@@ -1436,7 +1464,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000030-0000-4000-8000-000000000000",
@@ -1482,7 +1511,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   },
   {
    "id": "20000031-0000-4000-8000-000000000000",
@@ -1528,7 +1558,8 @@
     }
    ],
    "version": "1",
-   "labels": []
+   "labels": [],
+   "class": "server"
   }
  ],
  "devices": [
@@ -12253,7 +12284,7 @@
   {
    "id": "50000009-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — NAS",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 60,
@@ -12266,7 +12297,7 @@
   {
    "id": "50000010-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Склад",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 45,
@@ -12279,7 +12310,7 @@
   {
    "id": "50000011-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Резерв",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 14,
@@ -12292,7 +12323,7 @@
   {
    "id": "50000012-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Долгосрочный",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 30,
@@ -12305,7 +12336,7 @@
   {
    "id": "50000013-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Тревоги",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 45,
@@ -12318,7 +12349,7 @@
   {
    "id": "50000014-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Проходная",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 60,
@@ -12331,7 +12362,7 @@
   {
    "id": "50000015-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Парковка",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 90,
@@ -12344,7 +12375,7 @@
   {
    "id": "50000016-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Цех",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 14,
@@ -12357,7 +12388,7 @@
   {
    "id": "50000017-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — КПП",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 30,
@@ -12370,7 +12401,7 @@
   {
    "id": "50000018-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Ангар",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 45,
@@ -12383,7 +12414,7 @@
   {
    "id": "50000019-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Склад ЗИП",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 60,
@@ -12396,7 +12427,7 @@
   {
    "id": "50000020-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Экспорт",
-   "kind": "remote",
+   "kind": "network",
    "storage": "block",
    "encrypted": false,
    "retentionDays": 90,
@@ -12409,7 +12440,7 @@
   {
    "id": "50000021-0000-4000-8000-000000000000",
    "name": "Сетевое хранилище — Отчётность",
-   "kind": "remote",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 14,
@@ -12421,12 +12452,12 @@
   },
   {
    "id": "50000022-0000-4000-8000-000000000000",
-   "name": "Облачное хранилище — Amazon S3",
-   "kind": "cloud",
+   "name": "Удалённое хранилище — центр",
+   "kind": "network",
    "storage": "object",
    "encrypted": true,
    "retentionDays": 90,
-   "provider": "s3",
+   "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
    "version": "1",
@@ -12434,12 +12465,12 @@
   },
   {
    "id": "50000023-0000-4000-8000-000000000000",
-   "name": "Хранилище — MinIO склада",
-   "kind": "cloud",
+   "name": "Удалённое хранилище — склад",
+   "kind": "network",
    "storage": "object",
    "encrypted": false,
    "retentionDays": 30,
-   "provider": "minio",
+   "provider": null,
    "serverId": "20000002-0000-4000-8000-000000000000",
    "domainId": null,
    "version": "1",
@@ -12929,50 +12960,38 @@
   {
    "id": "60000036-0000-4000-8000-000000000000",
    "archiveId": "50000022-0000-4000-8000-000000000000",
-   "name": "s3://axxon-d1-archive/vms/main",
-   "disk": "s3",
+   "name": "\\nas-center\\vms\\vms-main",
+   "disk": "\\nas-center\\vms\\vms-main",
    "sizeBytes": 21990232555520,
    "usedPercent": 14,
    "state": "ready",
    "online": true,
-   "bucket": "axxon-d1-archive",
-   "region": "eu-central-1",
-   "path": "vms/main",
-   "keyId": "AKIA4XQ7Z2EXAMPLE",
-   "version": "1"
+   "version": "1",
+   "login": "VMS\\svc_archive"
   },
   {
    "id": "60000037-0000-4000-8000-000000000000",
    "archiveId": "50000022-0000-4000-8000-000000000000",
-   "name": "s3://axxon-d1-archive/vms/reserve",
-   "disk": "s3",
+   "name": "\\nas-center\\vms\\vms-reserve",
+   "disk": "\\nas-center\\vms\\vms-reserve",
    "sizeBytes": 21990232555520,
    "usedPercent": 3,
    "state": "ready",
    "online": true,
-   "bucket": "axxon-d1-archive",
-   "region": "eu-central-1",
-   "path": "vms/reserve",
-   "keyId": "AKIA4XQ7Z2EXAMPLE",
-   "version": "1"
+   "version": "1",
+   "login": "VMS\\svc_archive"
   },
   {
    "id": "60000038-0000-4000-8000-000000000000",
    "archiveId": "50000023-0000-4000-8000-000000000000",
-   "name": "10.20.2.40:9000/wh-video/cams",
-   "disk": "minio",
+   "name": "\\nas-wh\\vms\\cams",
+   "disk": "\\nas-wh\\vms\\cams",
    "sizeBytes": 17592186044416,
    "usedPercent": 27,
    "state": "ready",
    "online": true,
-   "bucket": "wh-video",
-   "region": "us-east-1",
-   "path": "cams",
-   "keyId": "vms-writer",
-   "host": "10.20.2.40",
-   "port": 9000,
-   "proto": "https",
-   "version": "1"
+   "version": "1",
+   "login": "VMS\\svc_archive"
   },
   {
    "id": "60000039-0000-4000-8000-000000000000",
@@ -33131,25 +33150,8 @@
     "serverWide": false,
     "archiveModes": [],
     "admits": true,
-    "kind": "remote",
+    "kind": "network",
     "address": "nas"
-   },
-   {
-    "serverRequired": false,
-    "encryption": true,
-    "check": true,
-    "recordModes": [
-     "always",
-     "motion",
-     "sched",
-     "replica"
-    ],
-    "replicaSource": true,
-    "serverWide": false,
-    "archiveModes": [],
-    "admits": true,
-    "kind": "cloud",
-    "address": "bucket"
    },
    {
     "serverRequired": true,

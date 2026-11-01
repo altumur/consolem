@@ -421,6 +421,7 @@
       if (rec.type !== "camera" || !rec.ptz) return problem(422, "NOT_SUPPORTED", "У камеры нет PTZ", { field: "ptz" });
       return rec.online === false ? problem(409, "DEVICE_OFFLINE", "Камера без связи") : null;
     }
+    const presetCameraProblem = (rec) => (rec.type === "camera" ? null : problem(422, "NOT_SUPPORTED", "Пресеты бывают только у камеры", { field: "ptz" }));
     function setPresets(rec, next) {
       const patch = { presets: next.sort((a, b) => a.n - b.n) };
       const before = applyPatch(rec, patch);
@@ -1595,14 +1596,17 @@
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
           const n = Number(p.n);
-          const bad = ptzProblem(rec) || lockedProblem([rec.id]);
+          // Имя устройству не идёт: связь и ptz его не судят
+          const named = "name" in body;
+          const bad = (named ? presetCameraProblem(rec) : ptzProblem(rec)) || lockedProblem([rec.id]);
           if (bad) return bad;
           if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
           if (rec.presetMax != null && n > rec.presetMax) return notFound("Пресет");
-          // Без имени — положение: встроенный сервер камерами не движет, запись не меняется. С именем — только имя
-          if (!("name" in body)) return one(device(rec));
-          const name = String(body.name).trim();
-          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat(name ? [{ n, name }] : []));
+          const had = (rec.presets || []).find((x) => x.n === n);
+          // Без имени — положение: встроенный сервер камерами не движет, запись появляется с пустым именем
+          if (!named && had) return one(device(rec));
+          const name = named ? String(body.name).trim() : "";
+          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat([{ n, name }]));
         },
       ],
       [
@@ -1611,10 +1615,10 @@
         (p) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = ptzProblem(rec) || lockedProblem([rec.id]);
+          const bad = presetCameraProblem(rec) || lockedProblem([rec.id]);
           if (bad) return bad;
           if (rec.presetMax != null && Number(p.n) > rec.presetMax) return notFound("Пресет");
-          // Снимается и положение, и имя; без имени в записи ничего не меняется
+          // Запись снимается всегда; просьба камере забыть положение у встроенного сервера не моделируется
           if (!(rec.presets || []).some((x) => x.n === Number(p.n))) return one(device(rec));
           return setPresets(rec, rec.presets.filter((x) => x.n !== Number(p.n)).map(clone));
         },
@@ -1742,6 +1746,7 @@
             role: "node",
             domainId: body.domainId,
             allocated: false,
+            class: "server",
             online: true,
             telemetry: { cpu: 5, ram: 18, net: 2, disk: 0 },
             gpu: null,

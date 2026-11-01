@@ -130,9 +130,12 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const count = ptz.presets.length;
   presetAdd(ptz.id);
   ok(await until(() => presetRows(find(ptz.id).n).length === count + 1 && !!main().querySelector(`[data-preset="${count + 1}"]`)), "пресет добавлен строкой с первым свободным номером");
-  ok(find(ptz.id).n.presets.length === count, "безымянный в Device.presets не попал");
+  ok(find(ptz.id).n.presets.length === count + 1 && presetFree(find(ptz.id).n) === count + 2, "без подписи — в Device.presets, номер занят");
+  ok(main().querySelector(`[data-preset="${count + 1}"] input`).placeholder.includes(String(count + 1)), "без подписи показан номером");
   presetName(ptz.id, count + 1, "Ворота");
-  ok(await until(() => find(ptz.id).n.presets.length === count + 1), "имя задано: пресет в Device.presets");
+  ok(await until(() => find(ptz.id).n.presets.some((p) => p.name === "Ворота")), "имя задано");
+  presetName(ptz.id, count + 1, "");
+  ok(await until(() => find(ptz.id).n.presets.some((p) => p.n === count + 1 && !p.name)), "пустое снимает подпись, запись остаётся");
   const newest = find(ptz.id).n.presets.find((p) => !ptz.presets.some((x) => x.n === p.n));
   presetDel(ptz.id, newest.n);
   ok(await until(() => document.getElementById("confirmCountInp")), "удаление пресета — с вводом числа");

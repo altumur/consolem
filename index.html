@@ -2228,6 +2228,7 @@ function srvNode(r){
   const s={id:r.id,type:"server",name:r.name,ip:r.ip};
   if(r.port!==20111)s.port=r.port;
   s.online=r.online;s.role=ROLE_RU[r.role]||r.role;
+  if(r.class)s.cls=r.class;
   if(r.labels?.length)s.labels=r.labels;
   Object.assign(s,r.telemetry);s.devices=[];
   Object.entries(SRV_FLD).forEach(([k,l])=>{if(k in r)(s._f||(s._f={}))[l]=r[k]});
@@ -2636,12 +2637,12 @@ const arch=[];
 // нагрузкой; объектное — объём тома меняется на ходу, том можно зашифровать.
 // Срок — «глубина, дней», 0 — без ограничения. Том больше 30 ТБ не советуют.
 // Виды — то, что отдал сервер (reference.archiveKinds), с полями этого вида. Подпись и описание — по коду, вид
-// вне подписей показывается кодом. Адрес тома (address) решает, какие поля у него есть: remote бывает и бакетом.
-const ARCH_LABEL={local:"Локальное",remote:"Сетевое (NAS)",cloud:"Облачное",backup:"Резерв на сбой",edge:"Карта сервера",incidents:"Инциденты"};
-const ARCH_TAG={local:"локальное",remote:"сетевое",backup:"резерв",edge:"карта",incidents:"инциденты"};
-const ARCH_DESC={local:"Диски сервера: папка на диске или, у блочного, раздел целиком.",remote:"Папка на NAS по SMB/NFS. Том — файл заданного размера.",cloud:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure.",
+// вне подписей показывается кодом. Адрес тома (address) решает, какие поля у него есть: network бывает и бакетом.
+const ARCH_LABEL={local:"Локальное",network:"Удалённое",backup:"Резерв на сбой",edge:"Карта сервера",incidents:"Инциденты"};
+const ARCH_TAG={local:"локальное",network:"удалённое",backup:"резерв",edge:"карта",incidents:"инциденты"};
+const ARCH_DESC={local:"Диски сервера: папка на диске или, у блочного, раздел целиком.",network:"Папка на NAS по SMB/NFS. Том — файл заданного размера.",
   backup:"Только для резерва: сюда пишется живой поток, пока основная запись должна идти и не идёт.",edge:"Карта или флеш маленькой коробки. Одна на сервер, сразу работает со всеми его камерами.",incidents:"Для копий отмеченных записей. Камеры сюда не пишут."};
-const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет провайдера."};
+const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure."};
 const ARCH_MODE_RU={always:"Постоянно",backup:"Только при сбое"};
 const CLOUD_PROVIDERS=[["s3","Amazon S3"],["s3c","S3-совместимое"],["minio","MinIO"],["wasabi","Wasabi"],["huawei","Huawei Cloud"],["lyve","Seagate Lyve Cloud"],["azure","Microsoft Azure"]];
 const ARCH_STORAGE=[["block","Блочное"],["object","Объектное"]];
@@ -2649,14 +2650,14 @@ const VOL_STATES={ready:"Готов",format:"Форматируется",open:"�
 // Размер тома вводят числом в гигабайтах; храним строкой, как и прежние тома.
 function gbOf(size){return Math.round(sizeTb(size)*1024)}
 function gbStr(n){n=Math.max(1,Math.round(Number(n)||0));return n>=1024?fmtTb(n/1024):n+" "+i18n("ГБ")}
-function archKind(a){return a?.kind||(a?.server?"local":"remote")}
+function archKind(a){return a?.kind||(a?.server?"local":"network")}
 let refArchKinds=[];
 const ARCH_KIND_NONE={address:"disk",recordModes:[],archiveModes:[],admits:true};
 function kindOf(k){return refArchKinds.find(x=>x.kind===k)||{...ARCH_KIND_NONE,kind:k}}
 function archSpec(a){return kindOf(archKind(a))}
 function archAddr(a){return archSpec(a).address}
-function archKindName(k){return kindOf(k).address==="bucket"&&k==="remote"?"Удалённое (бакет)":ARCH_LABEL[k]||k}
-function archKindDesc(k){return ARCH_DESC[k]&&!(k==="remote"&&kindOf(k).address!=="nas")?ARCH_DESC[k]:ARCH_ADDR_DESC[kindOf(k).address]}
+function archKindName(k){return ARCH_LABEL[k]||k}
+function archKindDesc(k){return ARCH_DESC[k]&&!(k==="network"&&kindOf(k).address!=="nas")?ARCH_DESC[k]:ARCH_ADDR_DESC[kindOf(k).address]}
 // Камера может писать сюда: основным — вид с режимом кроме backup, дополнительным — вид с любым режимом
 function archMainOk(a){return archSpec(a).recordModes.some(m=>m!=="backup")&&a.admits!==false}
 function archRowOk(a){return archSpec(a).recordModes.length>0&&a.admits!==false}
@@ -3525,7 +3526,7 @@ function serversAssign(list){
 }
 const unallocDisplayCache={};
 function unallocRowFrom(s,added){
-  return{id:s.id,name:s.name,ip:s.ip||"",online:s.online!==false,port:s.port,added:!!added};
+  return{id:s.id,name:s.name,ip:s.ip||"",online:s.online!==false,port:s.port,added:!!added,cls:s.cls};
 }
 function resetUnallocDisplay(domainId){
   if(domainId)delete unallocDisplayCache[domainId];
@@ -7960,7 +7961,7 @@ function unallocServersHtml(domainId,wizard){
     return `<div class="it"${rowClick}>
     ${chk}
     <span>${ic("server")}</span>
-    <span style="flex:1;min-width:0">${r.name}<small>${r.ip||""}</small></span>
+    <span style="flex:1;min-width:0">${r.name}<small>${[r.ip,r.cls?i18n(r.cls==="camera"?"камера":"сервер"):""].filter(Boolean).join(" · ")}</small></span>
     ${btn}
   </div>`}).join("");
   const body=rows||`<p class="sub">${i18n("Ничего не найдено")}</p>`;
@@ -8327,19 +8328,15 @@ function ptzCardHtml(n){
   return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
     <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
-    <div class="ca-foot"><button type="button" class="btn s" ${off||full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
+    <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
 }
 function presetPut(id,no,body){
   const n=find(id)?.n;
   return API.put(`/devices/${id}/presets/${no}`,body).then(r=>{hwApplyDevice(r);gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
-// Device.presets — только названные. Безымянный пресет ведётся номером: строка живёт, пока открыта форма
-const presetNums=new Map();
-function presetRows(n){
-  const named=n.presets||[],nums=[...(presetNums.get(n.id)||[])].filter(no=>!named.some(p=>p.n===no));
-  return[...named,...nums.map(no=>({n:no,name:""}))].sort((a,b)=>a.n-b.n);
-}
-// Первый свободный номер до presetMax; null — номеров нет
+// Device.presets — все сохранённые номера: без подписи имя пустое, форма показывает номер
+function presetRows(n){return[...(n.presets||[])].sort((a,b)=>a.n-b.n)}
+// Первый свободный номер до presetMax, занятые без подписи тоже считаются; null — номеров нет
 function presetFree(n){
   const list=presetRows(n);let no=1;
   while(list.some(p=>p.n===no))no++;
@@ -8348,9 +8345,8 @@ function presetFree(n){
 function presetAdd(id){
   const n=find(id)?.n;if(!n)return;
   const no=presetFree(n);if(no==null){toast("Все номера заняты");return}
-  if(!presetNums.has(id))presetNums.set(id,new Set());
-  presetNums.get(id).add(no);
-  presetPut(id,no,{});
+  // Кнопка заводит строку и положения не трогает: его пишет «Запомнить здесь»
+  presetPut(id,no,{name:""});
 }
 function presetSave(id,no){presetPut(id,no,{}).then(()=>toast(`${i18n("Пресет")} ${no}: ${i18n("положение запомнено")}`))}
 function presetName(id,no,v){presetPut(id,no,{name:String(v).trim()})}
@@ -8358,7 +8354,7 @@ function presetDel(id,no){
   const n=find(id)?.n,p=n&&presetRows(n).find(x=>x.n===no);if(!p)return;
   const name=p.name||`${i18n("Пресет")} ${no}`;
   askConfirm("Удалить пресет?",`<ul class="bk-del"><li>${i18n("Будет удалён пресет")} «${escHtml(name)}»</li><li>${i18n("Правила с этим номером перестанут наводить камеру")}</li><li>${i18n("Камера и другие пресеты останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`${id}#${no}`],{label:`«${name}»`,commit:()=>{
-    API.del(`/devices/${id}/presets/${no}`).then(r=>{presetNums.get(id)?.delete(no);hwApplyDevice(r);gear();toast(i18n("Пресет удалён"))}).catch(e=>toast(problemText(e,n)));
+    API.del(`/devices/${id}/presets/${no}`).then(r=>{hwApplyDevice(r);gear();toast(i18n("Пресет удалён"))}).catch(e=>toast(problemText(e,n)));
   }}),{html:true,typeCount:1});
 }
 // Правило: номер пресета — из списка камеры; цель не одна камера или списка нет — вводится руками
