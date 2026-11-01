@@ -259,7 +259,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
         "domains": "Domain", "servers": "Server", "devices": "Device", "folders": "Folder",
         "archives": "Archive", "volumes": "Volume", "rules": "Rule", "ruleFires": "RuleFire", "ruleVersions": "RuleVersion",
         "schedules": "Schedule", "dayGroups": "DayGroup", "maintenanceWindows": "MaintenanceWindow",
-        "licenses": "License", "journal": "JournalEvent", "streamAccounts": "StreamAccount",
+        "licenses": "License", "journal": "JournalEvent", "streamAccounts": "StreamAccount", "archiveWatches": "ArchiveWatch", "archiveScans": "ArchiveScan",
     }
     singles = {"access": "Access", "settings": "Settings", "reference": "Reference", "modes": "Modes"}
     problems = []

@@ -127,6 +127,35 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => bq && bq.finished), "план: первый микрофон");
   ok(!("audioDeviceId" in (await API.get("/devices/" + micCam.id))), "на сервере — первый");
 
+  // Обход и скан — на вкладке «Архив»
+  const wd = (await API.get("/archive-watches")).items[0];
+  open(wd.deviceId, "rec");
+  ok(await until(() => !!main().querySelector(`[data-watch="${wd.id}"]`)), "обход в карточке");
+  ok(/стёрло раньше/.test(main().textContent), "сказано, что устройство стёрло раньше");
+  rwWatchToggle(wd.id);
+  ok(await until(() => rw.watches[0]?.enabled === false), "выключен");
+  rwWatchEdit(wd.deviceId, "");
+  ok(/Начало обхода/.test(body()) && /Тревожные виды/.test(body()) && /Метки серверов/.test(body()) && /Маска/.test(body()) && /Настройки детектора/.test(body()), "окно обхода: все поля");
+  rwSet("detectorKind", "lpr");
+  rwSet("keep", "hits");
+  rwChip("alarms", "lpr");
+  rwChip("labels", refLabels[0]);
+  rwSet("params", "plate=ru");
+  rwSave();
+  ok(await until(() => rw.watches.length === 2), "заведён");
+  const made = rw.watches.find((x) => x.detectorKind === "lpr");
+  ok(made.keep === "hits" && made.archiveId === find(wd.deviceId).n.arch && made.alarms[0] === "lpr" && made.labels.length === 1 && made.params === "plate=ru", "на сервере — поля");
+  rwWatchDel(made.id);
+  await confirmWith(null);
+  ok(await until(() => rw.watches.length === 1), "снят");
+  rwScanNew(wd.deviceId);
+  ok(/Скан архива/.test(document.getElementById("bmTitle")?.textContent || "Скан архива") && /Метки серверов/.test(body()), "окно скана");
+  rwSave();
+  ok(await until(() => rw.scans.some((x) => x.result)), "скан кончился, итог пришёл событием");
+  ok(await until(() => /событий/.test(main().textContent)), "итог в карточке");
+  rwScanDel(rw.scans[0].id);
+  ok(await until(() => !rw.scans.length), "итог убран");
+
   // Хранилище не принимает записи
   const closed = list.find((a) => a.admits === false && a.kind !== "incidents");
   if (closed) {

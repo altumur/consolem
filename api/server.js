@@ -53,7 +53,7 @@
   // Вид записи — первая цифра UUID (api/README.md, «Идентификаторы»): сервер продолжает номера набора
   const KIND = { operation: "0", domain: "1", server: "2", device: "3", folder: "4", archive: "5", volume: "6", rule: "7", fire: "d", history: "e",
     // «Автоматизация»: первая цифра «f», вид — во второй группе UUID
-    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005" };
+    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007" };
   const TABLES = { domains: "domain", servers: "server", devices: "device", folders: "folder", archives: "archive", volumes: "volume", rules: "rule" };
   // Ответ на запрос с ключом повтора помнится 10 минут: повтор получает его же и ничего не выполняет снова
   const IDEMPOTENCY_MS = 10 * 60 * 1000;
@@ -108,6 +108,9 @@
       redoStack = [];
       ptzLeases = new Map();
       formatting = new Map();
+      scanning = new Map();
+      db.archiveWatches = db.archiveWatches || [];
+      db.archiveScans = db.archiveScans || [];
       searches = new Map();
       syncing = new Map();
       answered.clear();
@@ -580,6 +583,9 @@
     // Форматирование идёт по часам сервера: том → когда закончится
     const FORMAT_MS = 1500;
     let formatting = new Map();
+    // Скан кончается по часам сервера: задача → когда закончится
+    const SCAN_MS = 1500;
+    let scanning = new Map();
     function volume(rec) {
       const out = clone(rec);
       if (secrets.has(rec.id)) out.hasPassword = true;
@@ -798,6 +804,8 @@
       });
       const names = new Map(db.devices.filter((d) => gone.has(d.id)).map((d) => [d.id, d.name]));
       db.devices = db.devices.filter((d) => !gone.has(d.id));
+      db.archiveWatches.filter((w) => gone.has(w.deviceId)).forEach(dropWatch);
+      db.archiveScans.filter((x) => gone.has(x.deviceId)).forEach(dropScan);
       rulesGone(names);
       db.folders.forEach((f) => {
         if (!f.deviceIds.some((x) => gone.has(x))) return;
@@ -850,6 +858,12 @@
       db.archives = db.archives.filter((x) => x !== a);
       send("entity.deleted", { kind: "archive", entityId: a.id });
       if (specOf(a).serverWide) serverWideChanged(a);
+      // Минуты из обхода сохранять больше некуда: обход остаётся и только ищет
+      db.archiveWatches.filter((w) => w.archiveId === a.id).forEach((w) => {
+        Object.assign(w, { archiveId: null, keep: "none" });
+        bump(w);
+        send("entity.changed", { kind: "archiveWatch", entityId: w.id, version: w.version });
+      });
     }
     // Правило — с историей версий и своими расписаниями, если они больше нигде не используются;
     // журнал его запусков остаётся
@@ -858,6 +872,53 @@
       db.ruleVersions = db.ruleVersions.filter((v) => v.ruleId !== r.id);
       send("entity.deleted", { kind: "rule", entityId: r.id });
       db.schedules.filter((sc) => sc.owner && sc.owner.kind === "rule" && sc.owner.id === r.id && !scheduleUsed(sc.id)).forEach(removeSchedule);
+    }
+    function dropWatch(w) {
+      db.archiveWatches = db.archiveWatches.filter((x) => x !== w);
+      send("entity.deleted", { kind: "archiveWatch", entityId: w.id });
+    }
+    function dropScan(x) {
+      scanning.delete(x.id);
+      db.archiveScans = db.archiveScans.filter((y) => y !== x);
+      send("entity.deleted", { kind: "archiveScan", entityId: x.id });
+    }
+    /* ----- Обход и скан архива ----- */
+
+    const fieldBad = (field, text) => problem(422, "VALIDATION_FAILED", text, { field });
+    const kindKnown = (k) => (db.reference.detectorKinds || []).includes(k);
+    const cameraArchive = (cam, id) => !!rowOf(cam, id) || serverWideRows(cam).some((x) => x.archiveId === id);
+    function jobProblem(x) {
+      if (x.mask && zoneProblem(x.mask)) return fieldBad("mask", "Маска задана неверно");
+      const known = db.reference.eventKinds || [];
+      if ((x.alarms || []).some((a) => !known.includes(a))) return fieldBad("alarms", "Нет такого вида события");
+      return null;
+    }
+    function watchProblem(w, was) {
+      const cam = byId("devices", w.deviceId);
+      if (!cam || cam.type !== "camera") return fieldBad("deviceId", "Обход — у камеры");
+      if (!hasBuiltIn(cam)) return problem(422, "NOT_SUPPORTED", "У камеры нет архива устройства", { field: "deviceId" });
+      if (!kindKnown(w.detectorKind)) return fieldBad("detectorKind", "Нет такого вида детектора");
+      if (db.archiveWatches.some((x) => x !== was && x.deviceId === w.deviceId && x.detectorKind === w.detectorKind)) return fieldBad("detectorKind", "Такой обход у камеры уже есть");
+      if (w.keep === "hits" && (!w.archiveId || !cameraArchive(cam, w.archiveId))) return fieldBad("archiveId", "Найденное сохраняется в архив этой камеры");
+      return jobProblem(w);
+    }
+    function scanProblem(b) {
+      const cam = byId("devices", b.deviceId);
+      if (!cam || cam.type !== "camera") return fieldBad("deviceId", "Скан — по записи камеры");
+      if (!cameraArchive(cam, b.archiveId)) return fieldBad("archiveId", "Архив не этой камеры");
+      if (!kindKnown(b.detectorKind)) return fieldBad("detectorKind", "Нет такого вида детектора");
+      if (!(Date.parse(b.from) < Date.parse(b.to))) return fieldBad("to", "Конец отрезка раньше начала");
+      return jobProblem(b);
+    }
+    // Встроенный сервер записей не смотрит: итог считается от длины отрезка, камера без связи — неудача
+    function finishScan(x) {
+      const asked = (Date.parse(x.to) - Date.parse(x.from)) / 1000;
+      const cam = byId("devices", x.deviceId);
+      const off = !cam || cam.online === false;
+      x.state = off ? "failed" : "done";
+      x.result = off ? { end: "failed", covered: 0, asked, events: 0, partial: [], why: "Камера без связи" } : { end: "done", covered: asked, asked, events: Math.floor(asked / 600), partial: [] };
+      bump(x);
+      send("entity.changed", { kind: "archiveScan", entityId: x.id, version: x.version });
     }
     function removeVolume(v) {
       db.volumes = db.volumes.filter((x) => x !== v);
@@ -1333,6 +1394,14 @@
         bump(v);
         changed("volume", v);
         fired.push({ kind: "volume", id });
+      });
+      scanning.forEach((at, id) => {
+        if (at > now()) return;
+        scanning.delete(id);
+        const x = byId("archiveScans", id);
+        if (!x) return;
+        finishScan(x);
+        fired.push({ kind: "archiveScan", id });
       });
       ops.forEach((op) => {
         while (op.state === "running" && op.nextAt <= now()) {
@@ -2400,6 +2469,71 @@
         },
       ],
       /* ----- Учётки потоков ----- */
+      ["GET", "/archive-watches", (p, q) => items(db.archiveWatches.filter((w) => !q.deviceId || w.deviceId === q.deviceId).map(clone))],
+      [
+        "POST",
+        "/archive-watches",
+        (p, q, body) => {
+          const w = Object.assign({ start: "now", keep: "none", archiveId: null, preSec: 5, postSec: 5, joinSec: 30, enabled: true, alarms: [], labels: [] }, clone(body), { through: null, overrunSec: 0 });
+          const bad = watchProblem(w, null);
+          if (bad) return bad;
+          w.id = uuid("archiveWatch");
+          w.version = newVersion();
+          db.archiveWatches.push(w);
+          send("entity.created", { kind: "archiveWatch", entityId: w.id, version: w.version });
+          return one(clone(w), 201);
+        },
+      ],
+      [
+        "PATCH",
+        "/archive-watches/{id}",
+        (p, q, body, headers) => {
+          const w = byId("archiveWatches", p.id);
+          if (!w) return notFound("Обход");
+          const bad = precondition(w, headers) || watchProblem(Object.assign({}, w, body), w);
+          if (bad) return bad;
+          Object.assign(w, clone(body));
+          bump(w);
+          send("entity.changed", { kind: "archiveWatch", entityId: w.id, version: w.version });
+          return one(clone(w));
+        },
+      ],
+      [
+        "DELETE",
+        "/archive-watches/{id}",
+        (p, q, body, headers) => {
+          const w = byId("archiveWatches", p.id);
+          if (!w) return notFound("Обход");
+          const bad = precondition(w, headers);
+          if (bad) return bad;
+          dropWatch(w);
+          return { status: 204, body: null };
+        },
+      ],
+      ["GET", "/archive-scans", (p, q) => items(db.archiveScans.filter((x) => !q.deviceId || x.deviceId === q.deviceId).map(clone))],
+      [
+        "POST",
+        "/archive-scans",
+        (p, q, body) => {
+          const bad = scanProblem(body);
+          if (bad) return bad;
+          const x = Object.assign({ alarms: [], labels: [] }, clone(body), { id: uuid("archiveScan"), state: "running", result: null, version: newVersion() });
+          db.archiveScans.push(x);
+          scanning.set(x.id, now() + SCAN_MS);
+          send("entity.created", { kind: "archiveScan", entityId: x.id, version: x.version });
+          return one(clone(x), 201);
+        },
+      ],
+      [
+        "DELETE",
+        "/archive-scans/{id}",
+        (p) => {
+          const x = byId("archiveScans", p.id);
+          if (!x) return notFound("Скан");
+          dropScan(x);
+          return { status: 204, body: null };
+        },
+      ],
       ["GET", "/stream-accounts", () => items(db.streamAccounts.map(clone))],
       [
         "POST",

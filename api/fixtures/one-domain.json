@@ -17146,7 +17146,10 @@
     "createStreamAccount",
     "patchStreamAccount",
     "deleteStreamAccount",
-    "resetStreamAccountPassword"
+    "resetStreamAccountPassword",
+    "listArchiveScans",
+    "createArchiveScan",
+    "deleteArchiveScan"
    ],
    "deviceTypes": [
     "camera",
@@ -17243,6 +17246,32 @@
    "disabled": true,
    "at": "2026-09-02T12:00:00Z",
    "by": "root"
+  }
+ ],
+ "archiveWatches": [],
+ "archiveScans": [
+  {
+   "id": "f0000001-0007-4000-8000-000000000000",
+   "deviceId": "30000013-0000-4000-8000-000000000000",
+   "archiveId": "50000001-0000-4000-8000-000000000000",
+   "detectorKind": "lpr",
+   "from": "2026-10-28T10:00:00Z",
+   "to": "2026-10-28T11:00:00Z",
+   "alarms": [
+    "lpr"
+   ],
+   "labels": [
+    "gpu"
+   ],
+   "state": "done",
+   "result": {
+    "end": "done",
+    "covered": 3540,
+    "asked": 3600,
+    "events": 7,
+    "partial": []
+   },
+   "version": "1"
   }
  ]
 }

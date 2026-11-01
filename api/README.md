@@ -45,7 +45,7 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 103 операции и 3 служебные
+## Карта API — 110 операций и 3 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
@@ -55,6 +55,7 @@
 | `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `GET`, `PATCH`, `DELETE /devices/{id}` |
 | `hardware` — папки | `GET`, `POST /folders`; `GET`, `PATCH`, `DELETE /folders/{id}`; `POST /objects/delete` (групповое удаление любых объектов) |
 | `storage` | `GET`, `POST /archives` (с первым томом); `POST /archives/check`; `GET`, `PATCH`, `DELETE /archives/{id}`; `POST /archives/{id}/volumes`; `GET /volumes`; `GET`, `PATCH`, `DELETE /volumes/{id}`; `POST /volumes/{id}/format` |
+| `storage` — обход и скан | `GET`, `POST /archive-watches`; `PATCH`, `DELETE /archive-watches/{id}`; `GET`, `POST /archive-scans`; `DELETE /archive-scans/{id}` |
 | `operations` | `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo` |
 | `discovery` | `GET`, `POST`, `DELETE /domains/{id}/discovery` — поиск устройств в сети домена |
 | `automation` — правила | `GET`, `POST /rules`; `GET`, `PUT /rules/{id}`; `POST /rules/update` (состояние и приглушение группой); `POST /rules/reorder`; `GET /rules/{id}/versions` (история); `GET /rules/{id}/fires` (журнал запусков); `POST /rules/{id}/run`; `POST /rules/test` (пробный запуск, в том числе черновика); `POST /rules/{id}/fires/{fireId}/retry`; удаление — `POST /objects/delete` |

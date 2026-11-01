@@ -23,7 +23,7 @@ OUT = "api/fixtures/one-domain.json"
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
-MISSING = ["runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery"]
+MISSING = ["listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery"]
 FEATURES = []
 
 
@@ -156,6 +156,9 @@ def build(demo):
         if d.get("disabledByRuleId") and d["disabledByRuleId"] not in rids:
             d["disabledByRuleId"], d["disabledByRuleAt"] = None, None
 
+    # Обход смотрит архив устройства: встроенных хранилищ в профиле нет
+    fx["archiveWatches"] = []
+    fx["archiveScans"] = [x for x in fx["archiveScans"] if x["deviceId"] in kept and x["archiveId"] in aids]
     fx["licenses"] = []
     fx["network"] = []
     fx["discovery"] = []

@@ -282,5 +282,64 @@
     assert.status(await env.call("PATCH", "/settings", { values: { "alarms.retentionDays": -1 } }, v(res)), 422, "VALIDATION_FAILED");
   });
 
+  // Обход и скан
+  const watched = FX.archiveWatches?.[0];
+  const wbody = (over) => ({ deviceId: free.id, detectorKind: "lpr", ...over });
+
+  test("Обход архива: завести, умолчания, правка, снять; отказы", async () => {
+    const env = await makeEnv();
+    const list = (await env.ok("GET", `/archive-watches?deviceId=${watched.deviceId}`)).items;
+    assert.eq([list.length, list[0].through, list[0].overrunSec], [1, list[0].through, 120], "в наборе: дошёл, стёрто 120 с");
+    const w = await env.ok("POST", "/archive-watches", wbody({ params: "plate=ru", alarms: ["lpr"], labels: ["gpu"], mask: { shape: "rect", points: [[0, 0], [1, 1]] } }));
+    assert.eq([w.start, w.keep, w.preSec, w.postSec, w.joinSec, w.enabled, w.through, w.overrunSec, w.params, w.mask.shape, w.alarms, w.labels], ["now", "none", 5, 5, 30, true, null, 0, "plate=ru", "rect", ["lpr"], ["gpu"]], "умолчания и поля");
+    field(await env.call("POST", "/archive-watches", wbody()), "VALIDATION_FAILED", "detectorKind", "тот же вид у той же камеры");
+    field(await env.call("POST", "/archive-watches", wbody({ detectorKind: "tape" })), "VALIDATION_FAILED", "detectorKind", "нет такого вида");
+    field(await env.call("POST", "/archive-watches", wbody({ detectorKind: "motion", keep: "hits" })), "VALIDATION_FAILED", "archiveId", "сохранять некуда");
+    field(await env.call("POST", "/archive-watches", wbody({ detectorKind: "motion", keep: "hits", archiveId: FX.archives.find((a) => a.id !== free.archiveId && a.kind === "local").id })), "VALIDATION_FAILED", "archiveId", "архив не этой камеры");
+    field(await env.call("POST", "/archive-watches", wbody({ detectorKind: "motion", mask: { shape: "rect", points: [[0, 0]] } })), "VALIDATION_FAILED", "mask", "маска");
+    field(await env.call("POST", "/archive-watches", wbody({ detectorKind: "motion", alarms: ["нет"] })), "VALIDATION_FAILED", "alarms", "вид события");
+    field(await env.call("POST", "/archive-watches", wbody({ deviceId: bare.id, detectorKind: "motion" })), "NOT_SUPPORTED", "deviceId", "нет архива устройства");
+    const up = await env.ok("PATCH", `/archive-watches/${w.id}`, { keep: "hits", archiveId: free.archiveId, enabled: false }, v(w));
+    assert.eq([up.keep, up.archiveId, up.enabled], ["hits", free.archiveId, false], "правка");
+    assert.status(await env.call("PATCH", `/archive-watches/${w.id}`, { deviceId: bare.id }, v(up)), 422, "VALIDATION_FAILED", "камера не меняется");
+    assert.status(await env.call("PATCH", `/archive-watches/${w.id}`, { enabled: true }, v(w)), 412, "VERSION_MISMATCH");
+    assert.status(await env.call("DELETE", `/archive-watches/${w.id}`), 428, "PRECONDITION_REQUIRED");
+    assert.status(await env.call("DELETE", `/archive-watches/${w.id}`, undefined, v(up)), 204);
+    assert.ok(!(await env.ok("GET", "/archive-watches")).items.some((x) => x.id === w.id), "снят");
+  }, { needs: ["createArchiveWatch", "type:storage"] });
+
+  test("Обход архива: снята камера — снят и он; снят архив — только ищет", async () => {
+    const env = await makeEnv();
+    const a = await env.ok("GET", `/archives/${watched.archiveId}`);
+    assert.status(await env.call("DELETE", `/archives/${a.id}`, undefined, v(a)), 204);
+    const w = (await env.ok("GET", "/archive-watches")).items[0];
+    assert.eq([w.keep, w.archiveId], ["none", null], "сохранять некуда");
+    const c = await env.ok("GET", `/devices/${watched.deviceId}`);
+    assert.status(await env.call("DELETE", `/devices/${c.id}`, undefined, v(c)), 204);
+    assert.eq((await env.ok("GET", "/archive-watches")).items.length, 0, "обхода нет");
+  }, { needs: ["createArchiveWatch", "type:storage"] });
+
+  test("Скан архива: итог приходит по часам, поля задачи, отказы, отмена", async () => {
+    const env = await makeEnv();
+    const c = FX.devices.find((d) => d.type === "camera" && d.archiveId && d.online);
+    const span = { deviceId: c.id, archiveId: c.archiveId, detectorKind: "motion", from: "2026-10-28T10:00:00Z", to: "2026-10-28T12:00:00Z" };
+    const x = await env.ok("POST", "/archive-scans", { ...span, params: "p", alarms: ["motion"], labels: ["gpu"], mask: { shape: "rect", points: [[0, 0], [1, 1]] } });
+    assert.eq([x.state, x.result, x.params, x.alarms, x.labels, x.mask.shape], ["running", null, "p", ["motion"], ["gpu"], "rect"], "идёт");
+    if (env.frozen) {
+      const fired = await env.advance(2);
+      assert.ok(fired.some((f) => f.kind === "archiveScan" && f.id === x.id), "итог в ответе часов");
+    }
+    const done = await env.until(async () => {
+      const it = (await env.ok("GET", `/archive-scans?deviceId=${c.id}`)).items.find((y) => y.id === x.id);
+      return it.state !== "running" && it;
+    }, "скан закончился");
+    assert.eq([done.state, done.result.end, done.result.asked, done.result.covered, done.result.events], ["done", "done", 7200, 7200, 12], "итог");
+    field(await env.call("POST", "/archive-scans", { ...span, archiveId: FX.archives.find((a) => a.id !== c.archiveId).id }), "VALIDATION_FAILED", "archiveId", "архив не этой камеры");
+    field(await env.call("POST", "/archive-scans", { ...span, to: span.from }), "VALIDATION_FAILED", "to", "пустой отрезок");
+    field(await env.call("POST", "/archive-scans", { ...span, detectorKind: "tape" }), "VALIDATION_FAILED", "detectorKind", "нет такого вида");
+    assert.status(await env.call("DELETE", `/archive-scans/${x.id}`), 204);
+    assert.status(await env.call("DELETE", `/archive-scans/${x.id}`), 404, "NOT_FOUND");
+  });
+
   ApiTest.loaded("api-archive.js");
 })();

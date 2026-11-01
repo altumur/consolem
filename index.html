@@ -2495,6 +2495,7 @@ function apiOnEvent(m){
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false}
   if(m.type==="stream.reset"||m.type==="test.reset"){apiReload();return}
   if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
+  if(m.kind==="archiveWatch"||m.kind==="archiveScan"){rwReload();return}
   if(m.kind==="operation"){opOnEvent(m);return}
   if(m.kind==="discovery"){discOnEvent(m);return}
   if(m.kind==="access"&&m.version!==accVer&&m.version!==accLast?.version){accRefresh().catch(()=>{});return}
@@ -3010,14 +3011,14 @@ async function appLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[];
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[];
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   if(ref.archiveKinds?.length)refArchKinds=ref.archiveKinds;
   if(ref.recordModes?.length)refRecModes=ref.recordModes;
   refParams=ref.deviceParams||{};
-  refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];
+  refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];refDetKinds=ref.detectorKinds||[];
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Что умеет событие — из справочника: варианты уточнения отдаёт сервер, подписи — по коду
@@ -8753,7 +8754,7 @@ function formBase(n){
           :i18n("Привяжите камеру к хранилищу, чтобы включить запись. Камера ещё не подключена к серверу — подключится к серверу выбранного хранилища."))
         :i18n("Основное хранилище задаёт сервер камеры; дополнительные пишут тот же или второй поток — например, основной поток в локальное хранилище, второй в облако.")}</p>
       ${ipsrvOwnerNode(n)?`<p class="sub">${i18n("Камера входит в регистратор")} <button class="lk" ${onEv("click",["pick",`${ipsrvOwnerNode(n).id}`],["goTab","rec"])}>${escHtml(locName(ipsrvOwnerNode(n)))}</button> — ${i18n("там режим задаётся сразу для всех его камер.")}</p>`:""}`)
-      +edgeStorageCardHtml(n)+(list.some(x=>x.rec==="motion")?camRecDetsHtml(n):"");
+      +edgeStorageCardHtml(n)+(list.some(x=>x.rec==="motion")?camRecDetsHtml(n):"")+rwCardsHtml(n);
     }
     const ips=ipsrvOwnerNode(n);
     const underIpsrv=!!ips;
@@ -16737,6 +16738,95 @@ function recMicHtml(n){
   return`<div data-rec-mic><label>${i18n("Микрофон записи")}</label><select ${onEv("change",["camRecSet",`${n.id}`,"audioDeviceId",onEv.value])}><option value="">${i18n("Первый микрофон")}</option>${mics.map(m=>`<option value="${escHtml(m.id)}" ${m.id===n.audioDeviceId?"selected":""}>${escHtml(locName(m))}</option>`).join("")}</select></div>`;
 }
 function camRecSet(id,k,v){const n=find(id)?.n;if(!n)return;if(v)n[k]=v;else delete n[k];setD(true);paint()}
+// Обход архива устройства и скан отрезка записи: задачи камеры, карточки на вкладке «Архив»
+let rw={deviceId:null,watches:[],scans:[]},rwEd=null;
+function rwLoad(id){
+  const get=(op,path)=>can(op)?API.get(path,{deviceId:id}).then(r=>r.items):Promise.resolve([]);
+  return Promise.all([get("listArchiveWatches","/archive-watches"),get("listArchiveScans","/archive-scans")]).then(([watches,scans])=>{
+    if(rw.deviceId!==id)return;
+    rw.watches=watches;rw.scans=scans;rw.loaded=true;
+    if(app==="hw"&&sel===id&&tab==="rec"&&!cardDraft)gear();
+  }).catch(e=>toast(problemText(e)));
+}
+function rwReload(){if(rw.deviceId)rwLoad(rw.deviceId)}
+function rwOpen(n){if(rw.deviceId!==n.id){rw={deviceId:n.id,watches:[],scans:[]};rwLoad(n.id)}}
+function detKindRu(k){return i18n(DET_KIND_RU[k]||k)}
+function rwMaskOpts(n,cur){
+  const dets=camDetectors(n).filter(d=>d.zone);
+  return`<option value="">${i18n("Без маски")}</option>${cur&&!dets.some(d=>JSON.stringify(d.zone)===JSON.stringify(cur))?`<option value="__keep" selected>${i18n("Своя маска")}</option>`:""}${dets.map(d=>`<option value="${d.id}" ${JSON.stringify(d.zone)===JSON.stringify(cur)?"selected":""}>${i18n("Зона детектора")} «${escHtml(locName(d))}»</option>`).join("")}`;
+}
+function rwArchOpts(n,cur,all){
+  return camArchs(n).map(x=>archById(x.arch)).filter(Boolean).map(a=>`<option value="${a.id}" ${a.id===cur?"selected":""}>${escHtml(locName(a))}</option>`).join("");
+}
+function rwSel(k,opts){return`<select data-rw="${k}" ${onEv("change",["rwSet",`${k}`,onEv.value])}>${opts}</select>`}
+function rwInp(k,type,v){return`<input type="${type}" data-rw="${k}" value="${escHtml(v??"")}" ${onEv("change",["rwSet",`${k}`,onEv.value])}>`}
+function rwFld(l,body){return`<div><label>${i18n(l)}</label>${body}</div>`}
+function rwSet(k,v){
+  if(!rwEd)return;
+  if(k==="mask"){if(v!=="__keep"){const d=camDetectors(find(rwEd.deviceId).n).find(x=>x.id===v);rwEd.mask=d?d.zone:null}}
+  else rwEd[k]=["preSec","postSec","joinSec"].includes(k)?Math.max(0,Math.min(600,Number(v)||0)):v;
+  rwModal();
+}
+function rwChip(k,x){if(rwEd){rwEd[k]=listToggled(rwEd[k],x);rwModal()}}
+const RW_START={now:"С этого момента",earliest:"С самого раннего в архиве устройства"},RW_KEEP={none:"Только события",hits:"Минуты вокруг находок"};
+function rwOpt(map,cur){return Object.entries(map).map(([v,l])=>`<option value="${v}" ${v===cur?"selected":""}>${i18n(l)}</option>`).join("")}
+function rwKinds(cur){return refDetKinds.map(k=>`<option value="${k}" ${k===cur?"selected":""}>${escHtml(detKindRu(k))}</option>`).join("")}
+function rwCommon(n){
+  return rwFld("Маска",rwSel("mask",rwMaskOpts(n,rwEd.mask)))+rwFld("Настройки детектора",rwInp("params","text",rwEd.params))+
+    `<div class="full">${rwFld("Тревожные виды",chipsHtml(refEvents,rwEd.alarms,"rwChip","alarms"))}</div><div class="full">${rwFld("Метки серверов",chipsHtml(refLabels,rwEd.labels,"rwChip","labels"))}</div>`;
+}
+function rwModal(){
+  const e=rwEd,n=find(e.deviceId)?.n;if(!n)return;
+  const foot=`<button type="button" class="btn" ${onEv("click",["rwClose"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><button type="button" class="btn pri" id="rwSave" ${onEv("click",["rwSave"])}>${i18n(e.id?"Сохранить":e.what==="scan"?"Запустить":"Завести")}</button>`;
+  if(e.what==="watch")openBulkModal(i18n("Обход архива устройства"),`<div class="g">
+    ${e.id?fldRo("Вид детектора",detKindRu(e.detectorKind)):rwFld("Вид детектора",rwSel("detectorKind",rwKinds(e.detectorKind)))}
+    ${rwFld("Начало обхода",rwSel("start",rwOpt(RW_START,e.start)))}${rwFld("Сохранять",rwSel("keep",rwOpt(RW_KEEP,e.keep)))}
+    ${e.keep==="hits"?rwFld("Запись для найденного",rwSel("archiveId",rwArchOpts(n,e.archiveId))):""}
+    ${rwFld("Секунд до",rwInp("preSec","number",e.preSec))}${rwFld("Секунд после",rwInp("postSec","number",e.postSec))}${rwFld("Склеивать ближе, с",rwInp("joinSec","number",e.joinSec))}
+    ${rwCommon(n)}</div>`,foot,"bbox-wide");
+  else openBulkModal(i18n("Скан архива"),`<div class="g">
+    ${rwFld("Архив",rwSel("archiveId",rwArchOpts(n,e.archiveId)))}${rwFld("Вид детектора",rwSel("detectorKind",rwKinds(e.detectorKind)))}
+    ${rwFld("С",rwInp("from","datetime-local",e.from))}${rwFld("По",rwInp("to","datetime-local",e.to))}
+    ${rwCommon(n)}</div>`,foot,"bbox-wide");
+}
+function rwClose(){rwEd=null;closeBulkModal()}
+function rwWatchEdit(id,wid){
+  const n=find(id)?.n,w=rw.watches.find(x=>x.id===wid);
+  rwEd=w?{...w,what:"watch"}:{what:"watch",deviceId:id,detectorKind:refDetKinds[0],start:"now",keep:"none",archiveId:null,preSec:5,postSec:5,joinSec:30,params:"",mask:null,alarms:[],labels:[]};
+  if(!rwEd.archiveId&&n?.arch)rwEd.archiveId=n.arch;
+  rwModal();
+}
+function rwScanNew(id){
+  const n=find(id)?.n;
+  const fmt=d=>new Date(d-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  const to=new Date();
+  rwEd={what:"scan",deviceId:id,archiveId:n?.arch||camArchs(n)[0]?.arch||null,detectorKind:refDetKinds[0],from:fmt(new Date(to-3600000)),to:fmt(to),params:"",mask:null,alarms:[],labels:[]};
+  rwModal();
+}
+function rwSave(){
+  const e=rwEd;if(!e)return;
+  const job={alarms:e.alarms,labels:e.labels,...(e.params?{params:e.params}:{}),...(e.mask?{mask:e.mask}:{})};
+  const iso=v=>new Date(v).toISOString().replace(/\.\d+Z$/,"Z");
+  const done=()=>{rwClose();return rwLoad(e.deviceId)},fail=x=>toast(problemText(x));
+  if(e.what==="scan")return API.post("/archive-scans",{deviceId:e.deviceId,archiveId:e.archiveId,detectorKind:e.detectorKind,from:iso(e.from),to:iso(e.to),...job}).then(done).catch(fail);
+  const body={start:e.start,keep:e.keep,archiveId:e.keep==="hits"?e.archiveId:null,preSec:e.preSec,postSec:e.postSec,joinSec:e.joinSec,...job};
+  return(e.id?API.patch(`/archive-watches/${e.id}`,body,e.version):API.post("/archive-watches",{deviceId:e.deviceId,detectorKind:e.detectorKind,...body})).then(done).catch(fail);
+}
+function rwWatchToggle(id){const w=rw.watches.find(x=>x.id===id);if(w)API.patch(`/archive-watches/${id}`,{enabled:!w.enabled},w.version).then(()=>rwLoad(w.deviceId)).catch(e=>toast(problemText(e)))}
+function rwWatchDel(id){
+  const w=rw.watches.find(x=>x.id===id);if(!w)return;
+  askConfirm("Снять обход?",`${i18n("Обход")}: ${detKindRu(w.detectorKind)}.`,i18n("Найденное раньше останется."),"Снять",()=>API.del(`/archive-watches/${id}`,w.version).then(()=>rwLoad(w.deviceId)).catch(e=>toast(problemText(e))),{rawMsg:true});
+}
+function rwScanDel(id){const x=rw.scans.find(y=>y.id===id);if(x)API.del(`/archive-scans/${id}`).then(()=>rwLoad(x.deviceId)).catch(e=>toast(problemText(e)))}
+function rwCardsHtml(n){
+  rwOpen(n);
+  const out=[];
+  if(can("listArchiveWatches")&&recEdge(n))out.push(card("Обход архива устройства",`<p class="sub">${i18n("Детектор смотрит архив устройства постоянно, без потока на сервер.")}</p>${rw.watches.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Дошёл до")}</th><th>${i18n("Сохраняет")}</th><th></th></tr></thead><tbody>${rw.watches.map(w=>`<tr data-watch="${w.id}"><td>${escHtml(detKindRu(w.detectorKind))}</td><td>${w.through?escHtml(clockText(w.through,false)):"—"}${w.overrunSec?`<div class="bk-hint">${i18n("устройство стёрло раньше")}: ${escHtml(lagText(w.overrunSec))}</div>`:""}</td><td>${i18n(RW_KEEP[w.keep]||w.keep)}${w.archiveId?`<div class="bk-hint">${escHtml(locName(archById(w.archiveId)||{name:""}))}</div>`:""}</td><td class="ca-x"><div class="sw ${w.enabled?"on":""}" ${onEv("click",["rwWatchToggle",`${w.id}`])}></div> <button type="button" class="btn s" ${onEv("click",["rwWatchEdit",`${n.id}`,`${w.id}`])}>${i18n("Изменить")}</button> <button type="button" class="btn s" ${onEv("click",["rwWatchDel",`${w.id}`])}>${i18n("Снять")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
+    `<button type="button" class="btn s" data-needs="createArchiveWatch" data-watch-add ${onEv("click",["rwWatchEdit",`${n.id}`,""])}>${lu("plus")}${i18n("Обход")}</button>`));
+  if(can("listArchiveScans")&&camArchs(n).length)out.push(card("Скан архива",`<p class="sub">${i18n("Проверка детектором отрезка записи. Итог приходит, когда задача кончится.")}</p>${rw.scans.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Отрезок")}</th><th>${i18n("Итог")}</th><th></th></tr></thead><tbody>${rw.scans.map(x=>`<tr data-scan="${x.id}"><td>${escHtml(detKindRu(x.detectorKind))}</td><td>${escHtml(clockText(x.from,false))} – ${escHtml(clockText(x.to,false))}</td><td>${x.result?`${i18n(x.result.end==="done"?"готово":"не вышло")}: ${i18n("событий")} ${x.result.events}, ${Math.round(x.result.covered/x.result.asked*100)||0}%${x.result.why?` · ${escHtml(x.result.why)}`:""}`:i18n("идёт")}</td><td class="ca-x"><button type="button" class="btn s" ${onEv("click",["rwScanDel",`${x.id}`])}>${i18n(x.result?"Убрать":"Отменить")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
+    `<button type="button" class="btn s" data-needs="createArchiveScan" data-scan-add ${onEv("click",["rwScanNew",`${n.id}`])}>${lu("plus")}${i18n("Скан")}</button>`));
+  return out.join("");
+}
 function replicaSrcHtml(n,x,i){
   if(x.rec!=="replica")return"";
   const can=replicaSources(n,x),gone=x.replicaFrom&&!can.some(s=>s.id===x.replicaFrom);

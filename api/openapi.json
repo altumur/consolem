@@ -5344,6 +5344,351 @@
           }
         }
       }
+    },
+    "/archive-watches": {
+      "get": {
+        "operationId": "listArchiveWatches",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Обходы архива устройства",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Только этой камеры"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ArchiveWatch"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createArchiveWatch",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Завести обход",
+        "description": "Камера без архива устройства — 422 NOT_SUPPORTED, field: deviceId. Второй обход той же камеры и вида — 422 VALIDATION_FAILED, field: detectorKind. keep: hits без архива этой камеры — 422 VALIDATION_FAILED, field: archiveId",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveWatchCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveWatch"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/archive-watches/{id}": {
+      "patch": {
+        "operationId": "patchArchiveWatch",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Изменить обход",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "Версия записи из ETag как есть: \"v3k\". Нет — 428, не совпала — 412",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveWatchPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveWatch"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteArchiveWatch",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Снять обход",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "description": "Версия записи из ETag как есть: \"v3k\". Нет — 428, не совпала — 412",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Снят"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/archive-scans": {
+      "get": {
+        "operationId": "listArchiveScans",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Сканы архива",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Только этой камеры"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Список",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ArchiveScan"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createArchiveScan",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Запустить скан отрезка записи",
+        "description": "Итог приходит событием entity.changed с kind: archiveScan. Архив не этой камеры — 422 VALIDATION_FAILED, field: archiveId; from не раньше to — field: to",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveScanCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveScan"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/archive-scans/{id}": {
+      "delete": {
+        "operationId": "deleteArchiveScan",
+        "tags": [
+          "storage"
+        ],
+        "summary": "Отменить скан или убрать его итог",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Снят"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8717,7 +9062,9 @@
               "modes",
               "objectMode",
               "maintenanceWindow",
-              "streamAccounts"
+              "streamAccounts",
+              "archiveWatch",
+              "archiveScan"
             ]
           },
           "entityId": {
@@ -14335,6 +14682,514 @@
           "admits": {
             "type": "boolean",
             "description": "false — архив этого вида записи камер не принимает никогда: Archive.admits всегда false"
+          }
+        }
+      },
+      "ArchiveWatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Обход архива устройства: детектор смотрит архив камеры или регистратора постоянно, без потока на сервер. Один на камеру и вид детектора",
+        "required": [
+          "id",
+          "deviceId",
+          "detectorKind",
+          "start",
+          "keep",
+          "archiveId",
+          "preSec",
+          "postSec",
+          "joinSec",
+          "enabled",
+          "alarms",
+          "labels",
+          "through",
+          "overrunSec",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Камера со встроенным хранилищем или камера регистратора с ним"
+          },
+          "detectorKind": {
+            "type": "string",
+            "description": "Вид детектора из reference.detectorKinds"
+          },
+          "start": {
+            "type": "string",
+            "enum": [
+              "now",
+              "earliest"
+            ],
+            "description": "С чего начать в первый раз: now — с этого момента, earliest — с самого раннего в архиве устройства"
+          },
+          "keep": {
+            "type": "string",
+            "enum": [
+              "none",
+              "hits"
+            ],
+            "description": "none — только события, hits — сохранять минуты вокруг находок в archiveId"
+          },
+          "archiveId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Архив этой камеры для найденного: обязателен при keep: hits"
+          },
+          "preSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд до находки"
+          },
+          "postSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд после находки"
+          },
+          "joinSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Находки ближе этого — один отрезок"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки модели одной строкой, как Device.params"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Маска: зона в тех же долях кадра, что Device.zone. Бэкенд переводит её в маску модели"
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Какие виды событий считать тревогой: варианты — reference.eventKinds"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels"
+          },
+          "through": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Только чтение: до какого времени записи обход дошёл"
+          },
+          "overrunSec": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Только чтение: сколько секунд устройство стёрло раньше, чем обход дошёл"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[!#-~]+$",
+            "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          }
+        }
+      },
+      "ArchiveWatchCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "detectorKind"
+        ],
+        "description": "Новый обход. Умолчания: start now, keep none, 5, 5 и 30 с, включён",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "detectorKind": {
+            "type": "string"
+          },
+          "start": {
+            "type": "string",
+            "enum": [
+              "now",
+              "earliest"
+            ],
+            "description": "С чего начать в первый раз: now — с этого момента, earliest — с самого раннего в архиве устройства"
+          },
+          "keep": {
+            "type": "string",
+            "enum": [
+              "none",
+              "hits"
+            ],
+            "description": "none — только события, hits — сохранять минуты вокруг находок в archiveId"
+          },
+          "archiveId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Архив этой камеры для найденного: обязателен при keep: hits"
+          },
+          "preSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд до находки"
+          },
+          "postSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд после находки"
+          },
+          "joinSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Находки ближе этого — один отрезок"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки модели одной строкой, как Device.params"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Маска: зона в тех же долях кадра, что Device.zone. Бэкенд переводит её в маску модели"
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Какие виды событий считать тревогой: варианты — reference.eventKinds"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels"
+          }
+        }
+      },
+      "ArchiveWatchPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Изменение обхода. Камера и вид не меняются",
+        "properties": {
+          "start": {
+            "type": "string",
+            "enum": [
+              "now",
+              "earliest"
+            ],
+            "description": "С чего начать в первый раз: now — с этого момента, earliest — с самого раннего в архиве устройства"
+          },
+          "keep": {
+            "type": "string",
+            "enum": [
+              "none",
+              "hits"
+            ],
+            "description": "none — только события, hits — сохранять минуты вокруг находок в archiveId"
+          },
+          "archiveId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Архив этой камеры для найденного: обязателен при keep: hits"
+          },
+          "preSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд до находки"
+          },
+          "postSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Секунд после находки"
+          },
+          "joinSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Находки ближе этого — один отрезок"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки модели одной строкой, как Device.params"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Маска: зона в тех же долях кадра, что Device.zone. Бэкенд переводит её в маску модели"
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Какие виды событий считать тревогой: варианты — reference.eventKinds"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels"
+          }
+        }
+      },
+      "ArchiveScanResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "end",
+          "covered",
+          "asked",
+          "events"
+        ],
+        "properties": {
+          "end": {
+            "type": "string",
+            "enum": [
+              "done",
+              "failed"
+            ]
+          },
+          "covered": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Секунд записи просмотрено"
+          },
+          "asked": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Секунд в отрезке"
+          },
+          "events": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "partial": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Что не дождались: том или кусок устройства"
+          },
+          "why": {
+            "type": "string",
+            "description": "Почему не вышло"
+          }
+        }
+      },
+      "ArchiveScan": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Скан архива: проверка детектором отрезка записи. Задача кончается, итог — result",
+        "required": [
+          "id",
+          "deviceId",
+          "archiveId",
+          "detectorKind",
+          "from",
+          "to",
+          "alarms",
+          "labels",
+          "state",
+          "result",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archiveId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Архив этой камеры: чью запись смотреть"
+          },
+          "detectorKind": {
+            "type": "string",
+            "description": "Вид детектора из reference.detectorKinds"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки модели одной строкой, как Device.params"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Маска: зона в тех же долях кадра, что Device.zone. Бэкенд переводит её в маску модели"
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Какие виды событий считать тревогой: варианты — reference.eventKinds"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "done",
+              "failed"
+            ]
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ArchiveScanResult"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Только чтение: итог, пока идёт — null"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[!#-~]+$",
+            "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          }
+        }
+      },
+      "ArchiveScanCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "archiveId",
+          "detectorKind",
+          "from",
+          "to"
+        ],
+        "description": "Новый скан",
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "archiveId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Архив этой камеры: чью запись смотреть"
+          },
+          "detectorKind": {
+            "type": "string",
+            "description": "Вид детектора из reference.detectorKinds"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки модели одной строкой, как Device.params"
+          },
+          "mask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Маска: зона в тех же долях кадра, что Device.zone. Бэкенд переводит её в маску модели"
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Какие виды событий считать тревогой: варианты — reference.eventKinds"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels"
           }
         }
       }
