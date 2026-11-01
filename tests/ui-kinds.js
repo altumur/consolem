@@ -62,6 +62,54 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(video.id, "rec");
   ok(!main().querySelector("select") || [...main().querySelectorAll("option")].some((o) => o.textContent === "Второй") || !camArchs(find(video.id).n).length, "поток записи — из потоков камеры");
 
+  // Детекторы: встроенный — из того, что умеет камера; зона рисуется мышью и уходит на сервер
+  const camD = devices.find((d) => d.detectorOptions && devices.some((x) => x.parentId === d.id && x.type === "det" && x.detectorKind === "linecross" && x.builtin));
+  open(camD.id, "det");
+  addDetector(camD.id);
+  const draftId = detSel;
+  ok(!!main().textContent.includes("Где работает"), "новый детектор: выбор, где работает");
+  detPlace(camD.id, draftId, "tmpl.tamper");
+  ok(![...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность"), "у шаблона без чувствительности поля нет");
+  detPlace(camD.id, draftId, "tmpl.line");
+  ok([...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность") && /1–100/.test(main().textContent), "диапазон шаблона показан");
+  ok(/линия/i.test(main().textContent), "детектору линии без линии — подсказка");
+  zoneMode(draftId, "line");
+  const svg = () => main().querySelector(`[data-zone="${draftId}"]`);
+  ok(!!svg(), "кадр с зоной");
+  const at = (t, fx, fy, el = svg()) => {
+    const r = el.getBoundingClientRect();
+    (t === "mousedown" ? el : window).dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, clientX: r.left + r.width * fx, clientY: r.top + r.height * fy }));
+  };
+  const box = svg().getBoundingClientRect();
+  ok(box.width > 0 && box.height > 0, "кадр занял место: " + Math.round(box.width) + "×" + Math.round(box.height));
+  at("mousedown", 0.25, 0.5);
+  at("mousemove", 0.5, 0.6);
+  at("mouseup", 0.75, 0.5);
+  const dz = camDetectors(find(camD.id).n).find((d) => d.id === draftId);
+  ok(dz.zone?.shape === "line" && Math.abs(dz.zone.points[0][0] - 0.25) < 0.01 && Math.abs(dz.zone.points[1][0] - 0.75) < 0.01, "линия нарисована мышью, в долях кадра");
+  cardApply();
+  const made = async () => (await API.get("/devices")).items.find((d) => d.parentId === camD.id && d.template === "tmpl.line" && d.zone?.shape === "line");
+  await until(() => !bq || bq.finished);
+  const rec = await made();
+  ok(!!rec && rec.builtin === true, "создан встроенный детектор с шаблоном и зоной");
+  // Полигон на готовом детекторе, «Сбросить»
+  const line = devices.find((d) => d.parentId === camD.id && d.type === "det" && !d.builtin);
+  open(line.id);
+  zoneMode(line.id, "polygon");
+  const pg = () => main().querySelector(`[data-zone="${line.id}"]`);
+  [[0.2, 0.2], [0.8, 0.2], [0.5, 0.8]].forEach(([x, y]) => at("mousedown", x, y, pg()));
+  zoneClose(line.id);
+  ok(find(line.id).n.zone?.shape === "polygon" && find(line.id).n.zone.points.length === 3, "полигон из трёх точек");
+  ok(/Показать план/.test(document.getElementById("cardFoot")?.textContent || ""), "зона — в черновике карточки");
+  cardApply();
+  await until(() => !bq || bq.finished);
+  ok((await API.get(`/devices/${line.id}`)).zone?.points.length === 3, "зона на сервере");
+  open(line.id);
+  // Несовместимый: отказ сказан своими словами
+  const clash = problemText({ problem: { code: "BUSY", params: { reason: "incompatible", with: line.id } } });
+  ok(/несовместим/.test(clash), "несовместимый детектор: " + clash);
+  ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

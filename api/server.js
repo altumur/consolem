@@ -199,6 +199,54 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Детекторы ----- */
+
+    const parentOf = (d) => (d.parentId ? byId("devices", d.parentId) : null);
+    const detOption = (d, cam) => ((cam || parentOf(d) || {}).detectorOptions || []).find((o) => o.template === d.template) || null;
+    function zoneProblem(z) {
+      if (!z) return null;
+      const n = z.points.length;
+      const fits = (z.shape === "polygon" ? n >= 3 : n === 2) && z.points.every((p) => p.length === 2 && p.every((v) => v >= 0 && v <= 1));
+      return fits ? null : problem(422, "VALIDATION_FAILED", "Зона: rect и line — две точки, polygon — от трёх, доли от 0 до 1", { field: "zone" });
+    }
+    // Чувствительность — своя у детектора; настройки нет — и поля нет
+    function sensProblem(d, value, cam) {
+      const o = detOption(d, cam);
+      if (value == null || !o) return null;
+      if (o.sensitivityMin == null) return problem(422, "NOT_SUPPORTED", "У детектора нет чувствительности", { field: "sensitivity" });
+      return value < o.sensitivityMin || value > o.sensitivityMax ? problem(422, "VALIDATION_FAILED", `Чувствительность от ${o.sensitivityMin} до ${o.sensitivityMax}`, { field: "sensitivity" }) : null;
+    }
+    // Включённый детектор, с которым этот на одном канале вместе не работает
+    function conflictWith(d, cam) {
+      const own = detOption(d, cam);
+      if (!own) return null;
+      return db.devices.find((x) => {
+        if (x.parentId !== (cam ? cam.id : d.parentId) || x.id === d.id || x.type !== "det" || x.enabled === false) return false;
+        const o = detOption(x, cam);
+        return !!o && ((own.conflicts || []).includes(o.template) || (o.conflicts || []).includes(own.template));
+      }) || null;
+    }
+    const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
+    const detProblem = (rec, patch) => (rec.type === "det" ? zoneProblem(patch.zone) || sensProblem(rec, patch.sensitivity) : null);
+    // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
+    function clashProblem(rec, patch) {
+      const x = rec.type === "det" && patch.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
+      return x ? problem(409, "BUSY", "Детектор несовместим с включённым на этом канале", { field: "enabled", params: conflictParams(x) }) : null;
+    }
+    // Новый детектор: шаблон из того, что умеет камера. cam — запись родителя, если она уже есть
+    function detCreateProblem(spec, cam) {
+      if (spec.type !== "det") return null;
+      const bad = zoneProblem(spec.zone);
+      if (bad) return { code: "VALIDATION_FAILED", field: "zone" };
+      if (!spec.builtin || !cam) return null;
+      if (!cam.detectorOptions) return { code: "NOT_SUPPORTED", field: "builtin" };
+      if (!detOption(spec, cam)) return { code: "VALIDATION_FAILED", field: "template" };
+      const s = sensProblem(spec, spec.sensitivity, cam);
+      if (s) return { code: s.body.code, field: "sensitivity" };
+      if (spec.enabled !== false && conflictWith(spec, cam)) return { code: "BUSY", field: "enabled" };
+      return null;
+    }
+
     /* ----- Потоки камеры ----- */
 
     const RES = /^(\d+)x(\d+)$/;
@@ -350,7 +398,7 @@
         }
       }
       if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
+      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) || detProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
     }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
@@ -406,6 +454,8 @@
       const bad = patchProblem(spec);
       if (bad) return { code: bad.body.code, field: bad.body.field };
       if (spec.type === "camera" && !parentId && !hasAddress(spec)) return { code: "VALIDATION_FAILED", field: "rtspUrl" };
+      const det = detCreateProblem(spec, parentId ? byId("devices", parentId) : null);
+      if (det) return det;
       if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
         if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
       }
@@ -870,6 +920,7 @@
         const out = { index: x.index, targetId: x.targetId, state: x.state, code: x.code };
         if (x.version !== undefined) out.version = x.version;
         if (x.createdId) out.createdId = x.createdId;
+        if (x.params) out.params = x.params;
         return out;
       }),
     });
@@ -915,6 +966,8 @@
       if (offline(via)) return Object.assign(item, { state: "fail", code: "SERVER_OFFLINE" });
       if (item.req.set) {
         if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
+        const clash = rec.type === "det" && item.req.set.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
+        if (clash) return Object.assign(item, { state: "fail", code: "BUSY", params: conflictParams(clash) });
         item.before = { set: applyPatch(rec, item.req.set) };
         if (t.kind === "device") syncMain(rec, item.req.set);
         item.after = fieldsOf(rec, item.req.set);
@@ -1035,7 +1088,7 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || patchProblem(body);
+          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body);
           if (bad) return bad;
           const before = applyPatch(rec, body);
           syncMain(rec, body);
@@ -1470,7 +1523,7 @@
             if (!t || t.kind !== "device") return failed.push({ deviceId: x.deviceId, code: "NOT_FOUND" });
             if (t.rec.version !== x.version) return failed.push({ deviceId: x.deviceId, code: "VERSION_MISMATCH" });
             if (busy(x.deviceId)) return failed.push({ deviceId: x.deviceId, code: "BUSY" });
-            const bad = setProblem(t, x.set);
+            const bad = setProblem(t, x.set) || clashProblem(t.rec, x.set);
             if (bad) return failed.push(Object.assign({ deviceId: x.deviceId, code: bad.body.code }, bad.body.field ? { field: bad.body.field } : {}));
             const before = applyPatch(t.rec, x.set);
             syncMain(t.rec, x.set);

@@ -5245,7 +5245,7 @@
           },
           "stream": {
             "type": "string",
-            "description": "Поток записи: id из Device.streams. Нет такого — 422 VALIDATION_FAILED, field: stream"
+            "description": "Поток записи камеры или поток, по которому считает детектор: id из Device.streams камеры"
           },
           "extraArchives": {
             "type": "array",
@@ -5298,15 +5298,18 @@
               "linecross",
               "abandoned",
               "disappeared",
-              "crowd"
-            ]
+              "crowd",
+              "lpr",
+              "other"
+            ],
+            "description": "Вид детектора. other — вид вне перечня, подпись — name из detectorOptions по template"
           },
           "sensitivity": {
             "type": "integer"
           },
           "builtin": {
             "type": "boolean",
-            "description": "Детектор работает на камере"
+            "description": "Детектор работает на камере. Заводит оператор, потока на сервер не требует"
           },
           "sizeBytes": {
             "type": "integer",
@@ -5453,6 +5456,25 @@
               "type": "string"
             },
             "description": "Только чтение: допустимые разрешения основного потока. Нет поля — ввод руками: до первого ответа устройства и у моделей без описания список неизвестен"
+          },
+          "detectorOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DetectorOption"
+            },
+            "description": "Только чтение: встроенные детекторы камеры. Нет поля — встроенный детектор не предлагать"
+          },
+          "template": {
+            "type": "string",
+            "description": "det с builtin: true: шаблон из detectorOptions камеры. Задаётся при создании"
+          },
+          "zone": {
+            "$ref": "#/components/schemas/DetectorZone",
+            "description": "Зона детектора, у встроенного и серверного. Нет поля — вся картинка"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки серверного детектора строкой"
           }
         },
         "additionalProperties": false,
@@ -5745,6 +5767,10 @@
               "value": {
                 "type": "string",
                 "description": "Для io.input: active — начало тревоги, normal — конец. Считается сравнением сигнала с Device.norm, а не словом контакта"
+              },
+              "template": {
+                "type": "string",
+                "description": "Для det/other: шаблон из detectorOptions"
               }
             },
             "additionalProperties": false,
@@ -8204,8 +8230,11 @@
                   "linecross",
                   "abandoned",
                   "disappeared",
-                  "crowd"
-                ]
+                  "crowd",
+                  "lpr",
+                  "other"
+                ],
+                "description": "Вид детектора. other — вид вне перечня, подпись — name из detectorOptions по template"
               },
               {
                 "type": "null"
@@ -8645,6 +8674,26 @@
                 "type": "null"
               }
             ]
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DetectorZone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "params": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "description": "Изменение устройства (JSON Merge Patch, RFC 7396): переданные поля заменяются, null убирает поле"
@@ -8774,6 +8823,12 @@
             "type": "string",
             "format": "uuid",
             "description": "Созданное шагом create устройство"
+          },
+          "params": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true,
+            "description": "Подробности отказа шага: как params в Problem"
           }
         }
       },
@@ -8936,7 +8991,7 @@
           "SERVER_OFFLINE": "Сервер без связи: изменение не применено (409, или по объекту в групповой операции)",
           "DEVICE_OFFLINE": "Устройство без связи: команда не дошла (409, или по объекту в групповой операции). Встроенный сервер так отказывает живому видео и PTZ; учётные данные и видео к устройству без связи применяет — см. api/BACKEND.md",
           "LICENSE_EXCEEDED": "Лицензия превышена (по объекту в групповой операции)",
-          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту)",
+          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, — params.reason: incompatible, params.with — id того детектора",
           "LOGIN_TAKEN": "Логин уже занят (409)",
           "PASSWORD_POLICY": "Пароль не соответствует политике (422). Встроенный сервер пароли не проверяет — см. api/BACKEND.md",
           "SELF_LOCKOUT": "Изменение оставит систему без администратора или лишит вас входа (409)",
@@ -9771,8 +9826,11 @@
               "linecross",
               "abandoned",
               "disappeared",
-              "crowd"
-            ]
+              "crowd",
+              "lpr",
+              "other"
+            ],
+            "description": "Вид детектора. other — вид вне перечня, подпись — name из detectorOptions по template"
           },
           "enabled": {
             "type": "boolean"
@@ -9947,6 +10005,18 @@
             "type": "integer",
             "minimum": 0,
             "description": "Титры источника событий: сколько держать на экране, с"
+          },
+          "template": {
+            "type": "string",
+            "description": "det с builtin: true: шаблон из detectorOptions камеры. Задаётся при создании"
+          },
+          "zone": {
+            "$ref": "#/components/schemas/DetectorZone",
+            "description": "Зона детектора, у встроенного и серверного. Нет поля — вся картинка"
+          },
+          "params": {
+            "type": "string",
+            "description": "Настройки серверного детектора строкой"
           }
         },
         "description": "Новое устройство вместе с дочерними. Домен и родителя задаёт запрос (DevicesCreateRequest), id выдаёт сервер"
@@ -12895,6 +12965,84 @@
           "expiresAt": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "DetectorOption": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "template",
+          "name",
+          "kind"
+        ],
+        "description": "Встроенный детектор, который умеет камера. Говорит драйвер",
+        "properties": {
+          "template": {
+            "type": "string",
+            "description": "Шаблон: уходит в POST /devices у det"
+          },
+          "name": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "motion",
+              "linecross",
+              "abandoned",
+              "disappeared",
+              "crowd",
+              "lpr",
+              "other"
+            ],
+            "description": "Вид детектора. other — вид вне перечня, подпись — name из detectorOptions по template"
+          },
+          "sensitivityMin": {
+            "type": "integer",
+            "description": "Нет поля — настройки нет: запись sensitivity — 422 NOT_SUPPORTED, поле скрыто"
+          },
+          "sensitivityMax": {
+            "type": "integer"
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Шаблоны, с которыми нельзя включить вместе на одном канале: 409 BUSY, params.reason: incompatible"
+          }
+        }
+      },
+      "DetectorZone": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "shape",
+          "points"
+        ],
+        "description": "Зона детектора в долях кадра",
+        "properties": {
+          "shape": {
+            "type": "string",
+            "enum": [
+              "rect",
+              "polygon",
+              "line"
+            ],
+            "description": "rect, line — две точки, polygon — от трёх. Иначе 422 VALIDATION_FAILED, field: zone"
+          },
+          "points": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "description": "Точки [x, y], доли кадра от 0 до 1"
           }
         }
       }

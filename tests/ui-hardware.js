@@ -71,7 +71,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const tmp=detSel;
   cardApply();
   ok(await until(()=>bq.finished&&detSel!==tmp&&hwVer.has(detSel)),"новый детектор после «Применить» — выбран, с id сервера");
-  ok([...document.querySelectorAll('input[data-df="Имя"]')].some(x=>x.value===i18n("Новый детектор"))&&locName(find(detSel).n)===i18n("Новый детектор"),"в карточке — параметры нового детектора");
+  ok([...document.querySelectorAll('input[data-df="Имя детектора"]')].some(x=>x.value===i18n("Новый детектор"))&&locName(find(detSel).n)===i18n("Новый детектор"),"в карточке — параметры нового детектора");
   // Неприменённый детектор удаляется из черновика, без запроса
   addDetector(cam.id);
   const draftDet=detSel;

@@ -466,7 +466,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .nt{padding:10px;background:var(--one-info-bg);border:1px solid var(--one-info-icon);border-radius:8px;color:var(--x-link);margin-bottom:12px;font-size:12px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
-.live-frame{overflow:hidden;user-select:none}.live-scene{position:absolute;inset:0;width:100%;height:100%}
+.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
 .live-note{position:absolute;left:8px;bottom:6px;font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
@@ -2172,7 +2172,7 @@ const SERVER_DISKS={};
 // свои данные: «4 ТБ», «Движение», «55.751244».
 const GB=1024**3,TB=1024**4;
 function bytesText(b){return b%TB===0?`${b/TB} ТБ`:`${Math.round(b/GB)} ГБ`}
-const DET_KIND_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей"};
+const DET_KIND_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",other:"Другой"};
 const DET_KIND_CODE=Object.fromEntries(Object.entries(DET_KIND_RU).map(([k,v])=>[v,k]));
 const EMAIL_MODE_RU={axxonnet:"Облачный AxxonNet",smtp:"SMTP сервер"};
 const EMAIL_MODE_CODE={"AxxonNet":"axxonnet","Облачный AxxonNet":"axxonnet","SMTP сервер":"smtp"};
@@ -2403,6 +2403,7 @@ function nodeCreate(n){
   });
   Object.entries(n._f||{}).forEach(([l,v])=>{const k=DEV_FLD_API[l];if(k&&v!=="")out[k]=apiVal(k,v)});
   if(n.enabled!==false)delete out.enabled;
+  if(n.template)out.template=n.template;
   const kids=(n.devices||[]).filter(d=>canAdd(d.type,ACS_TYPES.has(n.type))).map(nodeCreate);if(kids.length)out.children=kids;
   return out;
 }
@@ -2512,7 +2513,7 @@ function problemText(e,n){
     LICENSE_EXCEEDED:i18n("лицензия превышена — камера останется выключенной"),
     DEVICE_OFFLINE:i18n("устройство не отвечает — проверьте сеть и учётные данные"),
     VERSION_MISMATCH:i18n("объект изменился — откройте его заново"),
-    BUSY:i18n("над объектом уже выполняется операция"),
+    BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом уже выполняется операция"),
     NAME_REQUIRED:i18n("Укажите имя"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
     ADDRESS_TAKEN:i18n("Сервер с таким адресом уже есть"),
@@ -3704,7 +3705,7 @@ function cardFld(el){
   setD(true);if(!cardDraft)return;
   if(String(el.value)===String(orig))delete cardDraft.fields[l];else cardDraft.fields[l]={from:orig,to:el.value};
 }
-const CARD_PROP={enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
+const CARD_PROP={zone:"Зона",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
@@ -3713,6 +3714,7 @@ const CARD_FLD_PROP={"Имя":"name","Короткое имя":"short","IP":"ip"
   "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Номер канала":"ch","Роль":"role",
   "Канал":"ch","Номер":"ch","Папка":"path","Формат":"format","Режим":"mode","SMTP сервер":"smtp","От кого":"from","Получатели":"to","Шлюз / API":"gateway"};
 function cardFmt(k,v){
+  if(k==="zone"&&!v)return zoneText(v);
   if(k==="enabled")return v===false?i18n("выкл"):i18n("вкл");
   if(v===undefined||v===null||v==="")return"—";
   if(k==="enabled"||k==="enc"||k==="ssl")return v===false?i18n("выкл"):i18n("вкл");
@@ -3720,6 +3722,7 @@ function cardFmt(k,v){
   if(k==="arch"){const a=archById(v);return a?locName(a):String(v)}
   if(k==="srvId"){const s=servers.find(x=>x.id===v);return s?locName(s):String(v)}
   if(k==="pass")return"••••••••";
+  if(k==="zone")return zoneText(v);
   if(Array.isArray(v))return v.length?`${v.length} ${i18n("шт.")}`:"—";
   if(typeof v==="object")return"…";
   return String(v);
@@ -7991,9 +7994,12 @@ function folderCardHtml(f){
     card("Папка",`<div class="g">${fld("Имя",locName(f))}${fldRo("Путь",folderFullName(f.id))}</div>
       <p class="sub">${i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`);
 }
-const DET_TYPES=["Движение","Пересечение линии","Оставленный предмет","Исчезновение предмета","Скопление людей"];
+const DET_TYPES=["Движение","Пересечение линии","Оставленный предмет","Исчезновение предмета","Скопление людей","Номер"];
 function camDetectors(n){return(n.devices||[]).filter(d=>d.type==="det")}
 function detTitle(d){return locName(d)}
+// Что умеет камера: detectorOptions. Вид вне перечня подписан именем шаблона
+function detOption(cam,d){return(cam?.detectorOptions||[]).find(o=>o.template===d?.template)||null}
+function detKindText(d,cam){const o=detOption(cam||find(d.id)?.p,d);return d.kind==="Другой"&&o?o.name:i18n(d.kind||DET_TYPES[0])}
 function addDetector(camId){
   const f=find(camId);if(!f||f.n.type!=="camera")return;
   const d={id:"det"+Date.now(),type:"det",name:i18n("Новый детектор"),kind:DET_TYPES[0],sens:"12",online:true,devices:[]};
@@ -8023,31 +8029,71 @@ function deleteDetectorDraft(f,detId){
 }
 // Зона детектора рисуется прямо на карточке, без отдельной вкладки
 function detGo(id){detSel=id;gear()}
-function detZoneShapeSvg(kind){
-  if(kind==="Пересечение линии")
-    return`<line x1="18" y1="78" x2="82" y2="30" stroke="var(--bl)" stroke-width="2" stroke-linecap="round"/>
-      <path d="M50 54 l10 -13" stroke="var(--bl)" stroke-width="2" stroke-linecap="round" marker-end="url(#zar)"/>
-      <circle cx="18" cy="78" r="2.6" fill="var(--bl)"/><circle cx="82" cy="30" r="2.6" fill="var(--bl)"/>`;
-  if(kind==="Движение")
-    return`<rect x="16" y="20" width="68" height="58" rx="2" fill="var(--bl)" fill-opacity=".14" stroke="var(--bl)" stroke-width="2"/>
-      ${[[16,20],[84,20],[16,78],[84,78]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.6" fill="var(--bl)"/>`).join("")}`;
-  return`<polygon points="22,72 34,26 70,22 84,58 58,80" fill="var(--pu)" fill-opacity=".14" stroke="var(--pu)" stroke-width="2" stroke-linejoin="round"/>
-    ${[[22,72],[34,26],[70,22],[84,58],[58,80]].map(([x,y])=>`<circle cx="${x}" cy="${y}" r="2.6" fill="var(--pu)"/>`).join("")}`;
+// Зона хранится в долях кадра; на экране — проценты рамки, поэтому одна разметка на любой размер
+function zoneText(z){return!z?i18n("вся картинка"):z.shape==="line"?i18n("Линия"):z.shape==="rect"?i18n("Прямоугольник"):`${i18n("Полигон")}, ${z.points.length} ${i18n("точек")}`}
+function zoneShapeSvg(z){
+  if(!z||!z.points.length)return"";
+  const p=z.points.map(([x,y])=>[+(x*100).toFixed(2),+(y*100).toFixed(2)]);
+  const dots=p.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="1.4" fill="var(--bl)" vector-effect="non-scaling-stroke"/>`).join("");
+  const line=(a,b)=>`<line x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="var(--bl)" stroke-width="2" vector-effect="non-scaling-stroke"/>`;
+  if(z.shape==="line"||p.length<2)return(p.length>1?line(p[0],p[1]):"")+dots;
+  if(z.shape==="rect"){
+    const[[x0,y0],[x1,y1]]=p;
+    return`<rect x="${Math.min(x0,x1)}" y="${Math.min(y0,y1)}" width="${Math.abs(x1-x0)}" height="${Math.abs(y1-y0)}" fill="var(--bl)" fill-opacity=".16" stroke="var(--bl)" stroke-width="2" vector-effect="non-scaling-stroke"/>${dots}`;
+  }
+  return`<polygon points="${p.map(q=>q.join(",")).join(" ")}" fill="var(--bl)" fill-opacity=".16" stroke="var(--bl)" stroke-width="2" vector-effect="non-scaling-stroke"/>${dots}`;
+}
+// Рисование: прямоугольник и линия — протяжкой, полигон — щелчками, замыкается кнопкой или щелчком в первую точку
+let zoneDraw=null;
+const ZONE_SHAPES=[["rect","Прямоугольник"],["polygon","Полигон"],["line","Линия"]];
+function detNodeOf(id){return find(id)?.n||null}
+function zoneMode(id,shape){zoneDraw=zoneDraw?.id===id&&zoneDraw.shape===shape?null:{id,shape,pts:[]};gear()}
+function zoneSave(id,z){
+  const d=detNodeOf(id);if(!d)return;
+  if(z)d.zone=z;else delete d.zone;
+  zoneDraw=null;setD(true);gear();
+}
+function zoneClear(id){zoneSave(id,null)}
+function zonePoint(el,e){
+  const r=el.getBoundingClientRect(),v=(a,b)=>+Math.min(1,Math.max(0,a/b)).toFixed(4);
+  return[v(e.clientX-r.left,r.width),v(e.clientY-r.top,r.height)];
+}
+function zoneShow(el,z){const g=el.querySelector("[data-zone-draft]");if(g)g.innerHTML=zoneShapeSvg(z)}
+function zoneDown(el,e,id){
+  if(!zoneDraw||zoneDraw.id!==id)return;
+  e.preventDefault();
+  const p=zonePoint(el,e),{shape}=zoneDraw;
+  if(shape==="polygon"){
+    const pts=zoneDraw.pts,first=pts[0];
+    if(pts.length>=3&&Math.hypot(p[0]-first[0],p[1]-first[1])<.03){zoneClose(id);return}
+    pts.push(p);zoneShow(el,{shape:pts.length>2?"polygon":"line",points:pts});
+    const done=document.querySelector("[data-zone-close]");if(done)done.disabled=pts.length<3;
+    return;
+  }
+  const move=ev=>{zoneDraw.pts=[p,zonePoint(el,ev)];zoneShow(el,{shape,points:zoneDraw.pts})};
+  const up=ev=>{
+    window.removeEventListener("mousemove",move);window.removeEventListener("mouseup",up);
+    const q=zonePoint(el,ev);
+    if(Math.hypot(q[0]-p[0],q[1]-p[1])<.01){zoneDraw.pts=[];zoneShow(el,null);return}
+    zoneSave(id,{shape,points:[p,q]});
+  };
+  window.addEventListener("mousemove",move);window.addEventListener("mouseup",up);
+}
+function zoneClose(id){
+  if(zoneDraw?.id===id&&zoneDraw.pts.length>=3)zoneSave(id,{shape:"polygon",points:zoneDraw.pts});
 }
 function detZoneCardHtml(cam,d){
-  const kind=d.kind||DET_TYPES[0];
-  return card("Зона",`<div class="vid" style="position:relative">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
-        <defs><marker id="zar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0 L10 5 L0 10z" fill="var(--bl)"/></marker></defs>
-        ${detZoneShapeSvg(kind)}
-      </svg>
-      <span class="sub" style="position:absolute;left:10px;bottom:8px">${escHtml(cam?locName(cam):"")} · ${escHtml(i18n(kind))}</span>
-    </div>
+  const kind=d.kind||DET_TYPES[0],draw=zoneDraw?.id===d.id?zoneDraw:null;
+  const svg=`<svg class="zone-svg${draw?" on":""}" data-zone="${escHtml(d.id)}" viewBox="0 0 100 100" preserveAspectRatio="none" ${onEv("mousedown",["zoneDown",onEv.el,onEv.event,`${d.id}`])}><g>${draw?"":zoneShapeSvg(d.zone)}</g><g data-zone-draft></g></svg>`;
+  return card("Зона",`${liveFrameHtml(cam,svg)}
+    ${kind==="Пересечение линии"&&d.zone?.shape!=="line"?`<div class="nt">${i18n("Детектору линии нужна линия: нарисуйте её на кадре.")}</div>`:""}
+    <p class="sub">${draw?i18n(draw.shape==="polygon"?"Щёлкайте по кадру: точка за точкой, замкнуть — в первую точку или кнопкой.":"Проведите мышью по кадру."):`${i18n("Зона")}: ${escHtml(zoneText(d.zone))}`}</p>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn s">${i18n("Прямоугольник")}</button><button class="btn s">${i18n("Полигон")}</button>
-      <button class="btn s">${i18n("Линия")}</button><button class="btn s">${i18n("Сбросить")}</button>
+      ${ZONE_SHAPES.map(([s,l])=>`<button type="button" class="btn s${draw?.shape===s?" pri":""}" data-zone-shape="${s}" ${onEv("click",["zoneMode",`${d.id}`,`${s}`])}>${i18n(l)}</button>`).join("")}
+      ${draw?.shape==="polygon"?`<button type="button" class="btn s" data-zone-close disabled ${onEv("click",["zoneClose",`${d.id}`])}>${i18n("Замкнуть")}</button>`:""}
+      <button type="button" class="btn s" data-zone-clear ${onEv("click",["zoneClear",`${d.id}`])}>${i18n("Сбросить")}</button>
     </div>`,
-    `<span class="sub" style="font-weight:400">${escHtml(i18n(kind))}</span>`);
+    `<span class="sub" style="font-weight:400">${escHtml(detKindText(d,cam))}</span>`);
 }
 // Детектор считается на сервере; по умолчанию — там же, где архив камеры
 function detServerSelectHtml(cam,d){
@@ -8057,6 +8103,33 @@ function detServerSelectHtml(cam,d){
     <option value="" ${!d.srvId?"selected":""}>${escHtml(autoLb)}</option>
     ${servers.filter(x=>!isUnallocated(x.id)).map(x=>`<option value="${x.id}" ${d.srvId===x.id?"selected":""}>${escHtml(locName(x))}${serverGpu(x)?" · GPU":""}</option>`).join("")}
   </select></div>`;
+}
+// Параметры детектора: где работает, вид, чувствительность по диапазону шаблона, поток и настройки серверного
+function detFieldsHtml(cam,d,nameLb){
+  const opt=detOption(cam,d),draft=!hwVer.has(d.id),opts=cam?.detectorOptions||[];
+  const place=draft&&opts.length?`<div><label>${i18n("Где работает")}</label><select ${onEv("change",["detPlace",`${cam.id}`,`${d.id}`,onEv.value])}><option value="" ${d.template?"":"selected"}>${i18n("На сервере")}</option>${opts.map(o=>`<option value="${escHtml(o.template)}" ${o.template===d.template?"selected":""}>${escHtml(i18n("На камере"))}: ${escHtml(o.name)}</option>`).join("")}</select></div>`
+    :fldRo("Где работает",i18n(d.builtin?"На камере":"На сервере"));
+  const kind=d.builtin?fldRo("Тип",detKindText(d,cam)):sl("Тип",DET_TYPES,d.kind||DET_TYPES[0]);
+  const noSens=!!opt&&opt.sensitivityMin==null;
+  const sens=noSens?"":fld(opt?`Чувствительность`:"Чувствительность",d.sens||"");
+  const streams=!d.builtin&&cam?sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id):"";
+  return`<div class="g">${fld(nameLb,locName(d))}${place}${kind}${sens}${d.builtin?"":detServerSelectHtml(cam,d)}${streams}</div>
+    ${opt&&!noSens?`<p class="sub">${i18n("Чувствительность")}: ${opt.sensitivityMin}–${opt.sensitivityMax}</p>`:""}
+    ${d.builtin?"":`<div style="margin-top:10px">${fld("Настройки детектора",d.params||"")}</div>`}
+    <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
+}
+function detEnable(id){
+  const n=find(id)?.n;if(!n)return;
+  if(n.enabled===false)delete n.enabled;else n.enabled=false;
+  setD(true);gear();
+}
+// Новый детектор: на сервере или встроенный — из того, что умеет камера
+function detPlace(camId,detId,v){
+  const cam=find(camId)?.n,d=camDetectors(cam).find(x=>x.id===detId);if(!d)return;
+  const o=(cam.detectorOptions||[]).find(x=>x.template===v);
+  if(o){d.template=o.template;d.builtin=true;d.kind=DET_KIND_RU[o.kind]||o.kind;if(o.sensitivityMin==null)delete d.sens;else d.sens=String(o.sensitivityMin)}
+  else{delete d.template;delete d.builtin;d.kind=DET_TYPES[0];d.sens="12"}
+  setD(true);gear();
 }
 function detServerNoteHtml(cam,d){
   const sid=detServerId(cam,d),sv=sid?servers.find(x=>x.id===sid):null;
@@ -8076,13 +8149,12 @@ function camDetectorsHtml(n){
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0])],
-    row:d=>`<div class="it ${d.id===cur.id?"on":""}" ${onEv("click",["detGo",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(i18n(d.kind||DET_TYPES[0]))}${d.builtin?" · "+i18n("на камере"):""}</small></span>${bdg(d)}</div>`,
+    row:d=>`<div class="it ${d.id===cur.id?"on":""}" ${onEv("click",["detGo",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))}${d.builtin?" · "+i18n("на камере"):""}</small></span>${bdg(d)}</div>`,
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
     head:addBtn
   })+
-    card("Параметры детектора",`<div class="g">${fld("Имя",locName(cur))}${sl("Тип",DET_TYPES,cur.kind||DET_TYPES[0])}${fld("Чувствительность",cur.sens||"12")}${detServerSelectHtml(n,cur)}</div>
-      <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${cur.online!==false?"on":""}" ${onEv("click",["swToggle",onEv.el])}></div></div>
+    card("Параметры детектора",`${detFieldsHtml(n,cur,"Имя детектора")}
       ${detServerNoteHtml(n,cur)}
       <p class="sub">${i18n("События детектора →")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button> · <button type="button" class="lk" ${onEv("click",["ruleFromDevice",`${cur.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,
       `<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${n.id}`,`${cur.id}`])}>${i18n("Удалить")}</button>`)+
@@ -8443,8 +8515,7 @@ function formBase(n){
         :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+periphSummaryHtml(n)}
   if(n.type==="det"){
     const cam=find(n.id)?.p;
-    return detZoneCardHtml(cam,n)+card("Параметры",`<div class="g">${fld("Имя",locName(n))}${sl("Тип",DET_TYPES,n.kind||DET_TYPES[0])}${fld("Чувствительность",n.sens||"12")}${cam?detServerSelectHtml(cam,n):""}</div>
-      <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${n.online!==false?"on":""}" ${onEv("click",["swToggle",onEv.el])}></div></div>
+    return detZoneCardHtml(cam,n)+card("Параметры",`${detFieldsHtml(cam,n,"Имя")}
       ${cam?detServerNoteHtml(cam,n):""}`)+
       (cam?card("Камера",`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${cam.id}`],["goTab","det"])}><span>${ic("camera")}</span><span>${escHtml(locName(cam))}<small>${i18n(recordModeLabel(cam.rec))}</small></span></div>`):"");
   }
@@ -8472,6 +8543,7 @@ const TRIGGER_KINDS=[
   {sub:"det",kind:"motion",label:"Детектор: движение",unitLabel:"Камера",devTypes:["camera"],match:[],ends:true,endsWord:"движение",endsOf:"движения"},
   {sub:"det",kind:"linecross",label:"Детектор: пересечение линии",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"lpr",label:"Детектор: номер",unitLabel:"Камера",devTypes:["camera"],match:[]},
+  {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Вид",opts:[],pre:"вид",dyn:ruleDetOthers}]},
   {sub:"vms",kind:"silent",label:"Камера пропала",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"rec",kind:"segment.lost",label:"Пропал сегмент записи",unitLabel:"Камера",devTypes:["camera"],match:[]}];
 // grp — группа в списке видов (STEP_GROUPS). devTypes:[] — действие без устройства (поле не рисуется, ref нет);
@@ -8552,7 +8624,7 @@ const CTL_KINDS=[
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
      return`<div class="rl-f">${selHtml(TRIGGER_KINDS.map((x,j)=>[j,x.label]),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
-       ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`)}${ctlSecHtml(c,ps)}`;
+       ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
   {ctl:"ask",label:"Спросить оператора",grp:"Ход выполнения",br:[["yes","если подтвердил"],["no","если отклонил"]],
@@ -8881,7 +8953,13 @@ function ruleBroken(r){return ruleRefItems(r).filter(it=>refBroken(it.ref)).map(
 
 // ── Человеческие подписи ──
 const RULE_DAYS=["пн","вт","ср","чт","пт","сб","вс"];
-function matchOptLabel(m,v){return m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
+function matchOptLabel(m,v){return m.dyn?(m.dyn(null).find(x=>x[0]===v)||[v,v])[1]:m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
+// Вид вне перечня: варианты — из того, что умеют камеры (detectorOptions)
+function ruleDetOthers(){
+  const out=new Map();
+  walkAll(n=>{(n.detectorOptions||[]).filter(o=>o.kind==="other").forEach(o=>out.set(o.template,o.name))});
+  return[...out];
+}
 function matchPhrase(k,match){
   return k.match.filter(m=>(match||{})[m.id]).map(m=>matchOptLabel(m,match[m.id])).join(" ");
 }
@@ -9820,13 +9898,13 @@ function triggerRowHtml(t,i,n){
     <div class="rl-n">${n}</div>
     <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
     ${refFieldHtml("when",i,t.ref)}
-    ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`)}
+    ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`,t.ref)}
     <button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${onEv("click",["delTrigger",i])}>${lu("x")}</button>
   </div>`;
 }
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
-function matchSelsHtml(k,match,on){
-  return k.match.map(m=>`<div class="rl-f">${selHtml([["",""+i18n("любое")]].concat(m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+function matchSelsHtml(k,match,on,ref){
+  return k.match.map(m=>`<div class="rl-f">${selHtml([["",""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -16449,7 +16527,7 @@ function deviceNodeFromData(r,server,opts={}){
   if(r.lat!=""&&r.lat!=null)node.lat=r.lat;else node.lat="0";
   if(r.lon!=""&&r.lon!=null)node.lon=r.lon;else node.lon="0";
   if(r.azimuth)node.azimuth=r.azimuth;
-  if(node.rec==="motion")node.devices.push({id:id+"det",type:"det",name:"Детектор движения",online:true,builtin:["Hikvision","Dahua","Axis"].includes(node.vendor)});
+  if(node.rec==="motion")node.devices.push({id:id+"det",type:"det",name:"Детектор движения",online:true});
   if(opts.disabled)node.enabled=false;
   return node;
 }
@@ -16816,7 +16894,7 @@ function commitManualDevice(disabled){
   else if(m.type==="eventsrc")node={...common,type:"eventsrc"};
   else if(m.type==="acfa")node={...common,type:"acfa"};
   else node={...common,type:"camera",arch:m.arch||null,rec:m.record==="always"?"always":m.record==="motion"?"motion":"none",lat:m.lat,lon:m.lon,azimuth:m.azimuth};
-  if(node.type==="camera"&&m.record==="motion")node.devices.push({id:node.id+"det",type:"det",name:"Детектор движения",online:true,builtin:["Hikvision","Dahua","Axis"].includes(m.vendor)});
+  if(node.type==="camera"&&m.record==="motion")node.devices.push({id:node.id+"det",type:"det",name:"Детектор движения",online:true});
   if(s.type==="server")setDevServer(node,s.id);else bindArchServer(node);
   const fid=node.type==="camera"?(m.group||wizd.folder||null):null;
   devicesCreate([{node,domainId:folderDomain(m.group||wizd.folder)||folderDomain(s.id),folderId:fid}]).then(res=>{
@@ -16853,7 +16931,7 @@ function deviceManualHtml(){
       <div><label>Широта</label><input value="${escHtml(m.lat)}" ${onEv("input",["updateManual","lat",onEv.value])}></div>
       <div><label>Долгота</label><input value="${escHtml(m.lon)}" ${onEv("input",["updateManual","lon",onEv.value])}></div>
       <div><label>Азимут</label><input type="number" value="${escHtml(m.azimuth)}" ${onEv("input",["updateManual","azimuth",onEv.value])}></div>
-      ${m.record==="motion"?`<p class="motion-note">Предзапись — 3 секунды. Для поддерживаемых моделей создаётся встроенный детектор, для остальных — детектор движения Интеллект X.</p>`:""}`:""}
+      ${m.record==="motion"?`<p class="motion-note">Предзапись — 3 секунды. Создаётся серверный детектор движения; встроенный можно завести в карточке камеры, когда устройство ответит.</p>`:""}`:""}
     </div>
   </div>${wizd.manualAddedId?`<div class="nt ok">Устройство добавлено в конфигурацию</div>`:""}`;
 }
@@ -18372,7 +18450,7 @@ function bulkChanges(draft){
   (d.copyDets||[]).forEach((x,i)=>{
     const has=n=>camDetectors(n).some(y=>(y.kind||DET_TYPES[0])===x.kind&&locName(y)===x.name);
     const ops=nodes.filter(n=>n.type==="camera"&&!has(n)).map(n=>mkOp(n,`Детектор «${x.name}»`,"det",()=>{
-      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,builtin:x.builtin,online:true,devices:[]});
+      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});
     },x.builtin&&modelOf(n)!==d.detModel?`${i18n("встроенный детектор, другая модель")}: ${modelOf(n)||"—"}`:null));
     step("copyDet:"+i,`Детектор «${x.name}» (${i18n(x.kind)})`,ops,
       (x.builtin?`${i18n("встроен в камеру — только для модели")} ${d.detModel}`:i18n("считается на сервере — для любой модели"))+`; ${i18n("зону детекции задают на каждой камере отдельно")}`);
@@ -18783,7 +18861,7 @@ function fldToApi(label,prop,v){
 }
 // Поля детектора в карточке: у детектора — его собственные, у камеры (вкладка
 // «Детекторы») — выбранного в списке детектора
-const DET_FLD={"Тип":"kind","Чувствительность":"sens"};
+const DET_FLD={"Тип":"kind","Чувствительность":"sens","Имя детектора":"name","Поток":"stream","Настройки детектора":"params"};
 function cardFldTarget(n,r){
   if(!DET_FLD[r.fld])return null;
   if(n.type==="det")return n;
@@ -18811,6 +18889,8 @@ function keyToApi(node,key,v){
 function cardApiItems(n,d){
   if(!isApiTarget(n))return null;
   const items=[];
+  // Поля ещё не созданного детектора идут вместе с ним, шагом create
+  d.filter(r=>r.fld&&DET_FLD[r.fld]).forEach(r=>{const x=cardFldTarget(r.node||n,r);if(x&&!hwVer.has(x.id))x[DET_FLD[r.fld]]=r.to});
   if(!isApiDevice(n)){
     for(const r of d){
       if(r.node&&r.node!==n)return null;
@@ -18826,7 +18906,7 @@ function cardApiItems(n,d){
     if(r.add){items.push({targetId:target.id,create:nodeCreate(r.add)});continue}
     if(r.folders){items.push({targetId:n.id,folderIds:r.folders});continue}
     const det=r.fld?cardFldTarget(target,r):null;
-    if(det){if(!isApiDevice(det))return null;items.push({targetId:det.id,set:keyToApi(det,DET_FLD[r.fld],r.to)});continue}
+    if(det){if(!isApiDevice(det))continue;items.push({targetId:det.id,set:keyToApi(det,DET_FLD[r.fld],r.to)});continue}
     if(r.fld==="Камера"&&target.type==="eventsrc"){const set=overlayCamToApi(target,r.to);if(!set)return null;items.push({targetId:target.id,set});continue}
     const set=r.fld?fldToApi(r.fld,r.prop,r.to):keyToApi(target,r.key,r.to);
     if(!set)return null;
@@ -19403,7 +19483,7 @@ function cpShowPlan(){
   if(g.has("creds")){d.user=src.user||"admin";d.pass="********";d.passCopied=true}
   if(g.has("video")){if(src._f?.["Разрешение"])d.res=src._f["Разрешение"];if(src._f?.["к/с"])d.fps=String(src._f["к/с"])}
   const dets=camDetectors(src).filter(x=>cp.dets.has(x.id));
-  if(dets.length){d.copyDets=dets.map(x=>({name:locName(x),kind:x.kind||DET_TYPES[0],sens:x.sens||"12",builtin:!!x.builtin}));d.detModel=modelOf(src)}
+  if(dets.length){d.copyDets=dets.map(x=>({name:locName(x),kind:x.kind||DET_TYPES[0],sens:x.sens||"12",builtin:!!x.builtin,template:x.template}));d.detModel=modelOf(src)}
   if(g.has("video"))d.onlyModel=modelOf(src);
   const ids=[...cp.picked];
   cp=null;closeBulkModal();

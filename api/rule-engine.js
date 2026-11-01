@@ -22,6 +22,7 @@
     { source: "det", kind: "motion", deviceTypes: ["camera"], ends: true },
     { source: "det", kind: "linecross", deviceTypes: ["camera"] },
     { source: "det", kind: "lpr", deviceTypes: ["camera"] },
+    { source: "det", kind: "other", deviceTypes: ["camera"] },
     { source: "vms", kind: "silent", deviceTypes: ["camera"] },
     { source: "rec", kind: "segment.lost", deviceTypes: ["camera"] },
   ];

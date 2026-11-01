@@ -300,5 +300,56 @@
     assert.status(await env.call("POST", `/devices/${det.id}/live`, { width: 640, height: 360 }), 422, "NOT_SUPPORTED");
   });
 
+  /* ===== Детекторы ===== */
+
+  const optsCam = async (env) => (await env.list("/devices")).find((d) => d.detectorOptions);
+  const addDet = async (env, c, device) => env.ok("POST", "/devices", create([{ device: { type: "det", ...device }, domainId: c.domainId, parentId: c.id, folderId: null }]));
+
+  test("Встроенный детектор: шаблон из detectorOptions, без них — 422; чувствительность по диапазону, нет настройки — 422", async () => {
+    const env = await makeEnv();
+    const c = await optsCam(env);
+    const bad = await addDet(env, c, { name: "Нет такого", builtin: true, template: "нет" });
+    assert.eq([bad.failed[0].code, bad.failed[0].field], ["VALIDATION_FAILED", "template"], "шаблона нет");
+    const noOpts = (await env.list("/devices")).find((d) => d.type === "camera" && !d.detectorOptions);
+    assert.eq((await addDet(env, noOpts, { name: "Нельзя", builtin: true })).failed[0].field, "builtin", "камера не умеет");
+    const res = await addDet(env, c, { name: "Лица", builtin: true, template: "tmpl.face", detectorKind: "other", sensitivity: 50, enabled: false });
+    const d = res.done[0].devices[0];
+    assert.status(await env.call("PATCH", `/devices/${d.id}`, { sensitivity: 95 }, v(d)), 422, "VALIDATION_FAILED", "вне диапазона");
+    const t = (await env.list("/devices")).find((x) => x.template === "tmpl.tamper");
+    const none = await env.call("PATCH", `/devices/${t.id}`, { sensitivity: 5 }, v(t));
+    assert.status(none, 422, "NOT_SUPPORTED", "настройки нет");
+    assert.eq(none.body.field, "sensitivity", "поле");
+  });
+
+  test("Несовместимые детекторы: включение — 409 BUSY с params.reason, шаг операции — fail BUSY", async () => {
+    const env = await makeEnv();
+    const c = await optsCam(env);
+    const list = await env.list("/devices");
+    const t = list.find((x) => x.parentId === c.id && x.template === "tmpl.tamper") || (await addDet(env, c, { name: "Корпус", builtin: true, template: "tmpl.tamper", detectorKind: "other" })).done[0].devices[0];
+    const face = (await addDet(env, c, { name: "Лица", builtin: true, template: "tmpl.face", detectorKind: "other", enabled: false })).done[0].devices[0];
+    const res = await env.call("PATCH", `/devices/${face.id}`, { enabled: true }, v(face));
+    assert.status(res, 409, "BUSY", "вместе нельзя");
+    assert.eq([res.body.params.reason, res.body.params.with], ["incompatible", t.id], "причина и с кем");
+    const op = await env.runOperation({ idempotencyKey: key(), items: [{ targetId: face.id, set: { enabled: true } }], expectedVersions: { [face.id]: face.version } });
+    assert.eq([op.items[0].code, op.items[0].params.reason], ["BUSY", "incompatible"], "по шагу");
+    const off = await env.ok("PATCH", `/devices/${t.id}`, { enabled: false }, v(t));
+    assert.eq(off.enabled, false, "выключили первый");
+    assert.eq((await env.ok("PATCH", `/devices/${face.id}`, { enabled: true }, v(face))).enabled, true, "теперь можно");
+  });
+
+  test("Зона: rect, polygon, line в долях кадра, неверная — 422 field: zone; два детектора одного вида; stream и params серверного", async () => {
+    const env = await makeEnv();
+    const c = await optsCam(env);
+    const a = (await addDet(env, c, { name: "Линия 1", detectorKind: "linecross", zone: { shape: "line", points: [[0.1, 0.1], [0.9, 0.9]] } })).done[0].devices[0];
+    const b = (await addDet(env, c, { name: "Линия 2", detectorKind: "linecross", stream: c.streams?.[0]?.id, params: "a=1" })).done[0].devices[0];
+    assert.eq([a.zone.shape, b.params], ["line", "a=1"], "две записи одного вида, у каждой своё");
+    const h = v(a);
+    assert.status(await env.call("PATCH", `/devices/${a.id}`, { zone: { shape: "polygon", points: [[0, 0], [1, 1]] } }, h), 422, "VALIDATION_FAILED", "мало точек");
+    assert.status(await env.call("PATCH", `/devices/${a.id}`, { zone: { shape: "line", points: [[0, 0], [1.2, 1]] } }, h), 422, "VALIDATION_FAILED", "за кадром");
+    const z = await env.ok("PATCH", `/devices/${a.id}`, { zone: { shape: "rect", points: [[0.2, 0.2], [0.4, 0.4]] } }, h);
+    assert.eq(z.zone.shape, "rect", "сохранена");
+    assert.eq((await env.ok("PATCH", `/devices/${a.id}`, { zone: null }, v(z))).zone, undefined, "сброшена");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();

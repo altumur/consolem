@@ -1204,6 +1204,54 @@
     "2560x1440",
     "1920x1080",
     "1280x720"
+   ],
+   "detectorOptions": [
+    {
+     "template": "tmpl.motion",
+     "name": "Движение на камере",
+     "kind": "motion",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.line",
+     "name": "Линия на камере",
+     "kind": "linecross",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.crowd",
+     "name": "Толпа на камере",
+     "kind": "crowd",
+     "sensitivityMin": 1,
+     "sensitivityMax": 50
+    },
+    {
+     "template": "tmpl.abandoned",
+     "name": "Оставленный предмет на камере",
+     "kind": "abandoned",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.tamper",
+     "name": "Вскрытие корпуса",
+     "kind": "other",
+     "conflicts": [
+      "tmpl.face"
+     ]
+    },
+    {
+     "template": "tmpl.face",
+     "name": "Лица",
+     "kind": "other",
+     "sensitivityMin": 10,
+     "sensitivityMax": 90,
+     "conflicts": [
+      "tmpl.tamper"
+     ]
+    }
    ]
   },
   {
@@ -1216,7 +1264,22 @@
    "detectorKind": "motion",
    "sensitivity": 12,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "zone": {
+    "shape": "rect",
+    "points": [
+     [
+      0.1,
+      0.15
+     ],
+     [
+      0.9,
+      0.85
+     ]
+    ]
+   },
+   "stream": "sub",
+   "params": "minObjectPercent=2"
   },
   {
    "id": "30000017-0000-4000-8000-000000000000",
@@ -1229,7 +1292,21 @@
    "detectorKind": "linecross",
    "sensitivity": 18,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "template": "tmpl.line",
+   "zone": {
+    "shape": "line",
+    "points": [
+     [
+      0.2,
+      0.75
+     ],
+     [
+      0.8,
+      0.3
+     ]
+    ]
+   }
   },
   {
    "id": "30000018-0000-4000-8000-000000000000",
@@ -1242,7 +1319,33 @@
    "detectorKind": "crowd",
    "sensitivity": 8,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "template": "tmpl.crowd",
+   "zone": {
+    "shape": "polygon",
+    "points": [
+     [
+      0.2,
+      0.7
+     ],
+     [
+      0.35,
+      0.25
+     ],
+     [
+      0.7,
+      0.2
+     ],
+     [
+      0.85,
+      0.6
+     ],
+     [
+      0.55,
+      0.8
+     ]
+    ]
+   }
   },
   {
    "id": "30000019-0000-4000-8000-000000000000",
@@ -1294,7 +1397,8 @@
    "detectorKind": "abandoned",
    "sensitivity": 12,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "template": "tmpl.abandoned"
   },
   {
    "id": "30000023-0000-4000-8000-000000000000",
@@ -1346,7 +1450,8 @@
    "detectorKind": "motion",
    "sensitivity": 16,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "template": "tmpl.motion"
   },
   {
    "id": "30000027-0000-4000-8000-000000000000",
@@ -1417,6 +1522,54 @@
     "2560x1440",
     "1920x1080",
     "1280x720"
+   ],
+   "detectorOptions": [
+    {
+     "template": "tmpl.motion",
+     "name": "Движение на камере",
+     "kind": "motion",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.line",
+     "name": "Линия на камере",
+     "kind": "linecross",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.crowd",
+     "name": "Толпа на камере",
+     "kind": "crowd",
+     "sensitivityMin": 1,
+     "sensitivityMax": 50
+    },
+    {
+     "template": "tmpl.abandoned",
+     "name": "Оставленный предмет на камере",
+     "kind": "abandoned",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.tamper",
+     "name": "Вскрытие корпуса",
+     "kind": "other",
+     "conflicts": [
+      "tmpl.face"
+     ]
+    },
+    {
+     "template": "tmpl.face",
+     "name": "Лица",
+     "kind": "other",
+     "sensitivityMin": 10,
+     "sensitivityMax": 90,
+     "conflicts": [
+      "tmpl.tamper"
+     ]
+    }
    ]
   },
   {
@@ -1489,6 +1642,54 @@
     "2560x1440",
     "1920x1080",
     "1280x720"
+   ],
+   "detectorOptions": [
+    {
+     "template": "tmpl.motion",
+     "name": "Движение на камере",
+     "kind": "motion",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.line",
+     "name": "Линия на камере",
+     "kind": "linecross",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.crowd",
+     "name": "Толпа на камере",
+     "kind": "crowd",
+     "sensitivityMin": 1,
+     "sensitivityMax": 50
+    },
+    {
+     "template": "tmpl.abandoned",
+     "name": "Оставленный предмет на камере",
+     "kind": "abandoned",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.tamper",
+     "name": "Вскрытие корпуса",
+     "kind": "other",
+     "conflicts": [
+      "tmpl.face"
+     ]
+    },
+    {
+     "template": "tmpl.face",
+     "name": "Лица",
+     "kind": "other",
+     "sensitivityMin": 10,
+     "sensitivityMax": 90,
+     "conflicts": [
+      "tmpl.tamper"
+     ]
+    }
    ]
   },
   {
@@ -1546,6 +1747,54 @@
     "2560x1440",
     "1920x1080",
     "1280x720"
+   ],
+   "detectorOptions": [
+    {
+     "template": "tmpl.motion",
+     "name": "Движение на камере",
+     "kind": "motion",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.line",
+     "name": "Линия на камере",
+     "kind": "linecross",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.crowd",
+     "name": "Толпа на камере",
+     "kind": "crowd",
+     "sensitivityMin": 1,
+     "sensitivityMax": 50
+    },
+    {
+     "template": "tmpl.abandoned",
+     "name": "Оставленный предмет на камере",
+     "kind": "abandoned",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.tamper",
+     "name": "Вскрытие корпуса",
+     "kind": "other",
+     "conflicts": [
+      "tmpl.face"
+     ]
+    },
+    {
+     "template": "tmpl.face",
+     "name": "Лица",
+     "kind": "other",
+     "sensitivityMin": 10,
+     "sensitivityMax": 90,
+     "conflicts": [
+      "tmpl.tamper"
+     ]
+    }
    ]
   },
   {
@@ -1593,6 +1842,54 @@
      "width": 640,
      "height": 360,
      "online": true
+    }
+   ],
+   "detectorOptions": [
+    {
+     "template": "tmpl.motion",
+     "name": "Движение на камере",
+     "kind": "motion",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.line",
+     "name": "Линия на камере",
+     "kind": "linecross",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.crowd",
+     "name": "Толпа на камере",
+     "kind": "crowd",
+     "sensitivityMin": 1,
+     "sensitivityMax": 50
+    },
+    {
+     "template": "tmpl.abandoned",
+     "name": "Оставленный предмет на камере",
+     "kind": "abandoned",
+     "sensitivityMin": 1,
+     "sensitivityMax": 100
+    },
+    {
+     "template": "tmpl.tamper",
+     "name": "Вскрытие корпуса",
+     "kind": "other",
+     "conflicts": [
+      "tmpl.face"
+     ]
+    },
+    {
+     "template": "tmpl.face",
+     "name": "Лица",
+     "kind": "other",
+     "sensitivityMin": 10,
+     "sensitivityMax": 90,
+     "conflicts": [
+      "tmpl.tamper"
+     ]
     }
    ]
   },
@@ -5256,6 +5553,19 @@
     "1920x1080",
     "1280x720"
    ]
+  },
+  {
+   "id": "30000289-0000-4000-8000-000000000000",
+   "type": "det",
+   "parentId": "30000013-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Вскрытие корпуса",
+   "online": true,
+   "enabled": true,
+   "builtin": true,
+   "detectorKind": "other",
+   "template": "tmpl.tamper",
+   "version": "1"
   }
  ],
  "folders": [
@@ -15468,7 +15778,9 @@
    "linecross",
    "abandoned",
    "disappeared",
-   "crowd"
+   "crowd",
+   "lpr",
+   "other"
   ],
   "recordModes": [
    "none",
@@ -15588,6 +15900,16 @@
     "source": "det",
     "kind": "linecross",
     "match": []
+   },
+   {
+    "source": "det",
+    "kind": "other",
+    "match": [
+     {
+      "id": "template",
+      "options": []
+     }
+    ]
    },
    {
     "source": "det",
@@ -16379,7 +16701,9 @@
      "videoChannel",
      "words",
      "overlayDelayMs",
-     "overlayDurationSec"
+     "overlayDurationSec",
+     "zone",
+     "params"
     ]
    }
   }
