@@ -15942,6 +15942,19 @@
     "source": "rec",
     "kind": "segment.lost",
     "match": []
+   },
+   {
+    "source": "vms",
+    "kind": "text",
+    "deviceTypes": [
+     "eventsrc"
+    ],
+    "match": [
+     {
+      "id": "word",
+      "options": []
+     }
+    ]
    }
   ],
   "ruleActions": [

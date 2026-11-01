@@ -15,7 +15,7 @@
   const RULE_DEPTH = 2;
   const RULE_ESC_MAX = 5;
   const TPL_VARS = ["камера", "устройство", "событие", "время", "правило"];
-  const RULE_DEVTYPES = ["camera", "sensor", "acfa_sensor", "relay"];
+  const RULE_DEVTYPES = ["camera", "sensor", "acfa_sensor", "relay", "eventsrc"];
   // Справочники кодами: виды событий, условий, действий и шагов хода выполнения
   const TRIGGERS = [
     { source: "vms", kind: "io.input", deviceTypes: ["sensor", "acfa_sensor"], ends: true },
@@ -23,6 +23,7 @@
     { source: "det", kind: "linecross", deviceTypes: ["camera"] },
     { source: "det", kind: "lpr", deviceTypes: ["camera"] },
     { source: "det", kind: "other", deviceTypes: ["camera"] },
+    { source: "vms", kind: "text", deviceTypes: ["eventsrc"] },
     { source: "vms", kind: "silent", deviceTypes: ["camera"] },
     { source: "rec", kind: "segment.lost", deviceTypes: ["camera"] },
   ];

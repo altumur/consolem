@@ -137,6 +137,30 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(rulePresetOpts({ ref: ptz.id })?.[0]?.[1] === "1 · Вход", "в правиле пресет — из списка камеры");
   ok(rulePresetOpts({ ref: of("camera", (d) => !d.ptz).id }) === null, "нет списка — номер руками");
 
+  // Источник событий: сервер, камера из списка, слова правятся
+  const src = of("eventsrc");
+  open(src.id);
+  ok(/Адрес кассы или сервера/.test(main().textContent) && !!main().querySelector('[data-df="Адрес кассы или сервера"]'), "адрес подписан как адрес кассы или сервера");
+  ok([...main().querySelectorAll("label")].some((l) => l.textContent === "Сервер"), "сервер выбирается");
+  open(src.id, "overlay");
+  const camSel = main().querySelector("select");
+  ok([...camSel.options].length > 3 && !/Парковка/.test([...camSel.options].slice(0, 1)[0].textContent), "камера титров — из списка камер");
+  const pickCam = find(camSel.options[1].value)?.n;
+  overlaySetCam(src.id, pickCam.id);
+  open(src.id, "words");
+  const wordsWas = find(src.id).n.words.length;
+  wordAdd(src.id);
+  ok(main().querySelectorAll("[data-word]").length === wordsWas + 1, "слово добавлено строкой");
+  wordSet(src.id, wordsWas, "msg", "ВОЗВРАТ");
+  cardApply();
+  await until(() => !bq || bq.finished);
+  const srcNow = await API.get(`/devices/${src.id}`);
+  ok(srcNow.cameraId === pickCam.id && srcNow.words.at(-1).msg === "ВОЗВРАТ", "камера и слово на сервере");
+  ok(TRIGGER_KINDS.some((k) => k.kind === "text") && ruleWordOpts(src.id).some((x) => x[0] === "ВОЗВРАТ"), "в правиле вид text, слова выбранного источника");
+  wizd = initDeviceWizard(addContext());
+  wizd.manual.type = "eventsrc";
+  ok(/Выберет система/.test(deviceManualHtml()), "в мастере — выбор сервера источника");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

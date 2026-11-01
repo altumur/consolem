@@ -3711,7 +3711,7 @@ const CARD_PROP={zone:"Зона",enabled:"Включено",rec:"Режим за
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
 // Поле карточки → свойство объекта, куда его запишет «Применить».
 const CARD_FLD_PROP={"Имя":"name","Короткое имя":"short","IP":"ip","Порт":"port","Производитель":"vendor","Модель":"model",
-  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Номер канала":"ch","Роль":"role",
+  "Широта":"lat","Долгота":"lon","Азимут":"azimuth","MAC":"mac","Адрес кассы или сервера":"ip","Номер канала":"ch","Роль":"role",
   "Канал":"ch","Номер":"ch","Папка":"path","Формат":"format","Режим":"mode","SMTP сервер":"smtp","От кого":"from","Получатели":"to","Шлюз / API":"gateway"};
 function cardFmt(k,v){
   if(k==="zone"&&!v)return zoneText(v);
@@ -4031,6 +4031,10 @@ function toggleNodeEnabled(id,el){
   applyFiltersFromState();
 }
 function objectStatusNotesHtml(n){
+  const said=n?.faultText?`<div class="nt" role="status" data-fault-text>${escHtml(n.faultText)}</div>`:"";
+  return said+objectStateNotesHtml(n);
+}
+function objectStateNotesHtml(n){
   const e=n&&devErr(n);
   const errNote=e?`<div class="nt err dev-err-nt" role="status"><span class="n-err e-${e}">${devErrIc(e)}</span><span><b>${i18n("Нет сигнала")}: ${i18n(DEV_ERR[e].t)}.</b> ${i18n(DEV_ERR[e].fix)}${e==="auth"&&tab!=="gen"?` <button type="button" class="lk lk-act" ${onEv("click",["goTab","gen"])}>${i18n("К подключению")}</button>`:""}</span></div>`:"";
   if(!n||n.type!=="camera")return errNote;
@@ -8256,6 +8260,19 @@ function rulePresetOpts(a){
   const n=refNode(a.ref),list=n?.presets;
   return list?.length?list.map(p=>[String(p.n),p.name?`${p.n} · ${p.name}`:String(p.n)]):null;
 }
+// Источник событий: сервер, камера титров, слова
+function sourceServerHtml(n){
+  const list=allocatedServers(nodeDomainId(n));
+  return`<div><label>${i18n("Сервер")}</label><select ${onEv("change",["sourceSetServer",`${n.id}`,onEv.value])}>${n.srvId?"":`<option value="" selected>${i18n("Выберет система")}</option>`}${list.map(s=>`<option value="${s.id}" ${s.id===n.srvId?"selected":""}>${escHtml(locName(s))}</option>`).join("")}</select></div>`;
+}
+function sourceSetServer(id,v){const n=find(id)?.n;if(!n||!v)return;n.srvId=v;setD(true);gear()}
+function overlayCameras(n){const out=[],did=nodeDomainId(n);walkAll(x=>{if(x.type==="camera"&&nodeDomainId(x)===did)out.push(x)});return out}
+function overlaySetCam(id,v){const n=find(id)?.n;if(!n)return;if(v)n.camera=v;else delete n.camera;setD(true);gear()}
+function colorFull(c){return/^#[0-9a-f]{3}$/i.test(c||"")?"#"+[...c.slice(1)].map(x=>x+x).join(""):c||"#000000"}
+function wordsEdit(id,fn){const n=find(id)?.n;if(!n)return;n.words=fn((n.words||[]).map(w=>({...w})));setD(true);gear()}
+function wordSet(id,i,k,v){wordsEdit(id,l=>{if(l[i])l[i][k]=k==="msg"?String(v).trim():v;return l})}
+function wordAdd(id){wordsEdit(id,l=>l.concat({msg:`${i18n("Слово")} ${l.length+1}`,color:"#ff4444",bg:"#000000"}))}
+function wordDel(id,i){wordsEdit(id,l=>l.filter((w,j)=>j!==i))}
 function streamAdd(id){
   const n=find(id)?.n;if(!n)return;
   API.post(`/devices/${id}/streams`,{name:`${i18n("Поток")} ${camStreams(n).length+1}`}).then(r=>{hwApplyDevice(r);gear()}).catch(e=>toast(problemText(e,n)));
@@ -8518,15 +8535,22 @@ function formBase(n){
     if(tab==="kids")return childListCard(n,{key:"io",title:"Датчики и реле",filter:d=>d.type==="sensor"||d.type==="relay",empty:"Нет датчиков и реле"});
     return card("Канал",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("Номер канала",n.ch??"—")}</div>`)+childListCard(n)}
   if(n.type==="eventsrc"){
-    if(tab==="overlay")return card("Область титров",`${sl("Камера",["— не выбрана —","Главный вход","Парковка"],n.camera?"Главный вход":"— не выбрана —")}
-      <div class="vid"><span class="sub">Предпросмотр области текста на видео</span></div>
-      <div class="g">${fld("Задержка, мс","0")}${fld("Длительность, с","10")}</div>`);
-    if(tab==="words")return card("Подсветка слов",`<table><tr><th>Сообщение</th><th>Цвет</th><th>Фон</th></tr>
-      ${(n.words||[]).map(w=>`<tr><td>${w.msg}</td><td><span style="color:${w.color}">●</span> ${w.color}</td><td>${w.bg}</td></tr>`).join("")}</table>
-      <button class="btn s" style="margin-top:8px" ${onEv("click",["setD",true])}>${lu("plus")}Слово</button>`);
+    if(tab==="overlay"){
+      const cam=n.camera?find(n.camera)?.n:null;
+      return card("Область титров",`<div class="g"><div><label>${i18n("Камера")}</label><select ${onEv("change",["overlaySetCam",`${n.id}`,onEv.value])}><option value="">${i18n("— не выбрана —")}</option>${overlayCameras(n).map(c=>`<option value="${escHtml(c.id)}" ${c.id===n.camera?"selected":""}>${escHtml(locName(c))}</option>`).join("")}</select></div></div>
+      ${cam?liveFrameHtml(cam):`<div class="vid"><span class="sub">${i18n("Выберите камеру")}</span></div>`}
+      <div class="g">${fld("Задержка, мс","")}${fld("Длительность, с","")}</div>
+      <p class="sub">${i18n("Здесь только настройка. Титры рисует консоль просмотра поверх живого видео и архива, в видео текст не вжигается.")}</p>`);
+    }
+    if(tab==="words")return card("Подсветка слов",`<table class="ca-tbl"><thead><tr><th>${i18n("Сообщение")}</th><th>${i18n("Цвет")}</th><th>${i18n("Фон")}</th><th></th></tr></thead><tbody>
+      ${(n.words||[]).map((w,i)=>`<tr data-word="${i}"><td><input value="${escHtml(w.msg)}" aria-label="${i18n("Сообщение")}" ${onEv("change",["wordSet",`${n.id}`,i,"msg",onEv.value])}></td>
+        <td><input type="color" value="${escHtml(colorFull(w.color))}" aria-label="${i18n("Цвет")}" ${onEv("change",["wordSet",`${n.id}`,i,"color",onEv.value])}></td>
+        <td><input type="color" value="${escHtml(colorFull(w.bg))}" aria-label="${i18n("Фон")}" ${onEv("change",["wordSet",`${n.id}`,i,"bg",onEv.value])}></td>
+        <td class="ca-x"><button type="button" class="btn s" ${onEv("click",["wordDel",`${n.id}`,i])}>${i18n("Убрать")}</button></td></tr>`).join("")}</tbody></table>
+      <div class="ca-foot"><button class="btn s" ${onEv("click",["wordAdd",`${n.id}`])}>${lu("plus")}${i18n("Слово")}</button></div>`);
     return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}
-      ${fld("IP",n.ip)}${fld("Порт",n.port,"number")}</div>
-      <p class="sub">Принимает события от внешних систем (POS, кассы) и выводит титры на выбранную камеру.</p>`)}
+      ${fld("Адрес кассы или сервера",n.ip)}${fld("Порт",n.port,"number")}${sourceServerHtml(n)}${fldRo("MAC",n.mac||"—")}</div>
+      <p class="sub">${i18n("Принимает события от внешних систем (POS, кассы). Источник работает на одном сервере, переноса при падении нет. Адрес — сервера или имя кассы, не 0.0.0.0.")}</p>`)+deviceFoldersCardHtml(n)}
   if(n.type==="acfa"){
     if(tab==="kids"){const types=["acfa_sensor","acfa_lock","acfa_fence"];
       return types.map(tp=>childListCard(n,{key:tp,title:LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет"})).join("")+
@@ -8597,6 +8621,7 @@ const TRIGGER_KINDS=[
   {sub:"det",kind:"linecross",label:"Детектор: пересечение линии",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"lpr",label:"Детектор: номер",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Вид",opts:[],pre:"вид",dyn:ruleDetOthers}]},
+  {sub:"vms",kind:"text",label:"Источник событий: текст",unitLabel:"Источник",devTypes:["eventsrc"],match:[{id:"word",label:"Сообщение",opts:[],pre:"сообщение",dyn:ruleWordOpts}]},
   {sub:"vms",kind:"silent",label:"Камера пропала",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"rec",kind:"segment.lost",label:"Пропал сегмент записи",unitLabel:"Камера",devTypes:["camera"],match:[]}];
 // grp — группа в списке видов (STEP_GROUPS). devTypes:[] — действие без устройства (поле не рисуется, ref нет);
@@ -8786,7 +8811,7 @@ function actionKind(a){return ACTION_KINDS.find(k=>k.sub===a.sub&&k.action===a.a
 // "folder:<id>" / "server:<id>" / "domain:<id>" | "set:<элемент>,<элемент>,-<id>" — несколько
 // областей и устройств вместе, «-id» — исключение. Область динамическая (новые устройства папки,
 // сервера или домена войдут сами); отдельное устройство и исключение — фиксированные.
-const RULE_DEVTYPES=["camera","sensor","acfa_sensor","relay"];
+const RULE_DEVTYPES=["camera","sensor","acfa_sensor","relay","eventsrc"];
 // Раскрытие областей дорого (дерево обходится целиком), а подписи просят его на каждую строку списка:
 // снимок дерева и раскрытые ссылки живут до следующей отрисовки (paint сбрасывает их).
 let ruleIdx=null;
@@ -9008,6 +9033,13 @@ function ruleBroken(r){return ruleRefItems(r).filter(it=>refBroken(it.ref)).map(
 const RULE_DAYS=["пн","вт","ср","чт","пт","сб","вс"];
 function matchOptLabel(m,v){return m.dyn?(m.dyn(null).find(x=>x[0]===v)||[v,v])[1]:m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
 // Вид вне перечня: варианты — из того, что умеют камеры (detectorOptions)
+// Текст источника: варианты — слова выбранного источника; цель не выбрана — слова всех
+function ruleWordOpts(ref){
+  const one=ref?refNode(ref):null,out=new Set();
+  if(one?.words)one.words.forEach(w=>out.add(w.msg));
+  else walkAll(n=>{if(n.type==="eventsrc")(n.words||[]).forEach(w=>out.add(w.msg))});
+  return[...out].map(x=>[x,x]);
+}
 function ruleDetOthers(){
   const out=new Map();
   walkAll(n=>{(n.detectorOptions||[]).filter(o=>o.kind==="other").forEach(o=>out.set(o.template,o.name))});
@@ -16946,7 +16978,7 @@ function commitManualDevice(disabled){
   }
   let node;
   if(m.type==="storage")node={...common,type:"ipsrv",subtype:"nvr",devices:[{id:common.id+"storage",type:"storage",name:"Встроенное хранилище",online:true,devices:[]}]};
-  else if(m.type==="eventsrc")node={...common,type:"eventsrc"};
+  else if(m.type==="eventsrc")node={...common,type:"eventsrc",...(m.server?{srvId:m.server}:{})};
   else if(m.type==="acfa")node={...common,type:"acfa"};
   else node={...common,type:"camera",arch:m.arch||null,rec:m.record==="always"?"always":m.record==="motion"?"motion":"none",lat:m.lat,lon:m.lon,azimuth:m.azimuth};
   if(node.type==="camera"&&m.record==="motion")node.devices.push({id:node.id+"det",type:"det",name:"Детектор движения",online:true});
@@ -16970,7 +17002,8 @@ function deviceManualHtml(){
         ${can("type:eventsrc")?`<option value="eventsrc" ${m.type==="eventsrc"?"selected":""}>Источник событий</option>`:""}
         ${can("type:acfa")?`<option value="acfa" ${m.type==="acfa"?"selected":""}>Устройство ACFA</option>`:""}
       </select></div>
-      <div><label>IP-адрес</label><input value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
+      <div><label>${m.type==="eventsrc"?"Адрес кассы или сервера":"IP-адрес"}</label><input value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
+      ${m.type==="eventsrc"?`<div><label>Сервер</label><select ${onEv("change",["updateManual","server",onEv.value])}><option value="">Выберет система</option>${allocatedServers(wizd.domain).map(x=>`<option value="${x.id}" ${x.id===m.server?"selected":""}>${escHtml(locName(x))}</option>`).join("")}</select></div>`:""}
       <div><label>Порт</label><input type="number" value="${m.port}" ${onEv("input",["updateManual","port",onEv.value])}></div>
       <div><label>Производитель</label><input list="devVendorList" value="${escHtml(m.vendor)}" ${onEv("change",["changeManualVendor",onEv.value])}><datalist id="devVendorList">${Object.keys(DEVICE_MODELS).map(v=>`<option value="${escHtml(v)}"></option>`).join("")}</datalist></div>
       <div><label>Модель</label><div class="inline-field"><input list="devModelList" value="${escHtml(m.model)}" ${onEv("input",["updateManual","model",onEv.value])}><datalist id="devModelList">${models.map(x=>`<option value="${escHtml(x)}"></option>`).join("")}</datalist><button type="button" class="btn s" title="Определить модель по данным подключения" ${onEv("click",["detectManualModel"])}>${ic("search")} Определить</button></div></div>
@@ -18923,12 +18956,6 @@ function cardFldTarget(n,r){
   if(n.type!=="camera")return null;
   const ds=camDetectors(n);return ds.find(d=>d.id===detSel)||ds[0]||null;
 }
-// «Камера» титров — по имени из списка карточки
-function overlayCamToApi(n,v){
-  if(v==="— не выбрана —")return{cameraId:null};
-  const c=devicePool.find(x=>x.type==="camera"&&locName(x)===v&&nodeDomainId(x)===nodeDomainId(n));
-  return c&&isApiDevice(c)?{cameraId:c.id}:null;
-}
 function keyToApi(node,key,v){
   if(key==="enabled")return{enabled:v!==false};
   if(key==="kind"&&node.type==="det")return{detectorKind:v===undefined?null:DET_KIND_CODE[v]||v};
@@ -18962,7 +18989,6 @@ function cardApiItems(n,d){
     if(r.folders){items.push({targetId:n.id,folderIds:r.folders});continue}
     const det=r.fld?cardFldTarget(target,r):null;
     if(det){if(!isApiDevice(det))continue;items.push({targetId:det.id,set:keyToApi(det,DET_FLD[r.fld],r.to)});continue}
-    if(r.fld==="Камера"&&target.type==="eventsrc"){const set=overlayCamToApi(target,r.to);if(!set)return null;items.push({targetId:target.id,set});continue}
     const set=r.fld?fldToApi(r.fld,r.prop,r.to):keyToApi(target,r.key,r.to);
     if(!set)return null;
     items.push({targetId:target.id,set});

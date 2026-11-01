@@ -5399,7 +5399,7 @@
           },
           "serverId": {
             "type": "string",
-            "description": "Сервер: к которому подключены камера и регистратор (выводится из хранилища записи), сервер расчёта детектора, сервер службы",
+            "description": "Сервер: к которому подключены камера и регистратор (выводится из хранилища записи), сервер расчёта детектора, сервер службы. У eventsrc — запись: без него сервер выбирает система и предупреждает в faultText, переноса при падении нет",
             "format": "uuid"
           },
           "name": {
@@ -5414,7 +5414,8 @@
             "description": "Номер устройства в системе («16», «3/1» у канала регистратора)"
           },
           "ip": {
-            "type": "string"
+            "type": "string",
+            "description": "Адрес. У eventsrc — адрес сервера или имя кассы, у драйвера, что подключается сам, — адрес кассы; 0.0.0.0 и :: — 422 VALIDATION_FAILED, field: ip"
           },
           "port": {
             "type": "integer"
@@ -5543,7 +5544,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "eventsrc: камера титров. Здесь только настройка: титры рисует клиент просмотра поверх живого видео и архива"
           },
           "words": {
             "type": "array",
@@ -5709,6 +5711,10 @@
               "$ref": "#/components/schemas/DevicePreset"
             },
             "description": "Только чтение: пресеты камеры. Правятся операциями /devices/{id}/presets/{n}"
+          },
+          "faultText": {
+            "type": "string",
+            "description": "Только чтение: почему устройство не работает, словами сервера"
           }
         },
         "additionalProperties": false,
@@ -6005,6 +6011,10 @@
               "template": {
                 "type": "string",
                 "description": "Для det/other: шаблон из detectorOptions"
+              },
+              "word": {
+                "type": "string",
+                "description": "Для text: сообщение из Device.words источника; для unit: слово единицы"
               }
             },
             "additionalProperties": false,
@@ -7640,6 +7650,13 @@
                       "options"
                     ]
                   }
+                },
+                "deviceTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Какие устройства бывают целью. Нет поля — как в ruleActions: камера или вход"
                 }
               },
               "additionalProperties": false,

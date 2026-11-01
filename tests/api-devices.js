@@ -386,5 +386,30 @@
     assert.status(await env.call("PUT", `/devices/${c.id}/ptz`, { pan: 1, ttlSec: 1 }), 409, "DEVICE_OFFLINE", "без связи");
   });
 
+  /* ===== Источник событий ===== */
+
+  const pos = (over) => create([{ device: { type: "eventsrc", name: "Касса", vendor: "PosXml", model: "PosXml Device", ip: "10.3.3.3", port: 2600, ...over }, domainId: d1.id, parentId: null, folderId: null }]);
+
+  test("Источник: 0.0.0.0 и :: — 422 field: ip; без сервера выбирает система и предупреждает; второй на порт не запустится", async () => {
+    const env = await makeEnv();
+    assert.eq((await env.ok("POST", "/devices", pos({ ip: "0.0.0.0" }))).failed[0].field, "ip", "все адреса");
+    assert.eq((await env.ok("POST", "/devices", pos({ ip: "::" }))).failed[0].code, "VALIDATION_FAILED", "и в IPv6");
+    const a = (await env.ok("POST", "/devices", pos())).done[0].devices[0];
+    assert.ok(a.serverId && a.faultText, "сервер выбран, предупреждение есть");
+    assert.status(await env.call("PATCH", `/devices/${a.id}`, { ip: "::" }, v(a)), 422, "VALIDATION_FAILED", "и при правке");
+    const s = FX.servers.find((x) => x.allocated && x.online && x.id !== a.serverId) || FX.servers.find((x) => x.id === a.serverId);
+    const b = (await env.ok("POST", "/devices", pos({ serverId: a.serverId }))).done[0].devices[0];
+    assert.eq([b.online, /занят/.test(b.faultText)], [false, true], "второй на порт — причина в состоянии");
+    const moved = await env.ok("PATCH", `/devices/${a.id}`, { serverId: s.id }, v(a));
+    assert.eq(moved.serverId, s.id, "сервер источника — запись");
+  }, { needs: ["type:eventsrc"] });
+
+  test("Правило: вид text у источника, match по слову; номера нет", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    const t = ref.ruleTriggers.find((x) => x.kind === "text");
+    assert.eq([t.deviceTypes, t.match[0].id], [["eventsrc"], "word"], "вид объявлен");
+  }, { needs: ["type:eventsrc"] });
+
   ApiTest.loaded("api-devices.js");
 })();

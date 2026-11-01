@@ -3410,7 +3410,7 @@
    "short": "7",
    "vendor": "PosXml",
    "model": "PosXml Device",
-   "ip": "0.0.0.0",
+   "ip": "192.168.1.70",
    "port": 2555,
    "online": true,
    "cameraId": null,
@@ -3427,7 +3427,10 @@
     }
    ],
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "overlayDelayMs": 0,
+   "overlayDurationSec": 10
   },
   {
    "id": "30000083-0000-4000-8000-000000000000",
@@ -32397,6 +32400,19 @@
     "source": "rec",
     "kind": "segment.lost",
     "match": []
+   },
+   {
+    "source": "vms",
+    "kind": "text",
+    "deviceTypes": [
+     "eventsrc"
+    ],
+    "match": [
+     {
+      "id": "word",
+      "options": []
+     }
+    ]
    }
   ],
   "ruleActions": [

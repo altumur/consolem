@@ -200,6 +200,25 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Источник событий ----- */
+
+    // Касса подключается к адресу сервера или к имени кассы: «все адреса» склеили бы источники
+    const wildIp = (ip) => ip === "0.0.0.0" || ip === "::";
+    const posProblem = (type, patch) => (type === "eventsrc" && wildIp(patch.ip) ? problem(422, "VALIDATION_FAILED", "Нужен адрес сервера или имя кассы", { field: "ip" }) : null);
+    // Сервер источника: не задан — выбирает система; второй на тот же порт сервера не запустится
+    function placeSource(d) {
+      if (!d.serverId) {
+        const s = db.servers.find((x) => x.domainId === d.domainId && x.allocated && x.online);
+        if (s) d.serverId = s.id;
+        d.faultText = "Сервер выбран системой, переноса при падении нет";
+      }
+      if (db.devices.some((x) => x !== d && x.type === "eventsrc" && x.serverId === d.serverId && x.port === d.port)) {
+        d.online = false;
+        d.fault = "conn";
+        d.faultText = `Порт ${d.port} на этом сервере занят другим источником`;
+      }
+    }
+
     /* ----- PTZ: свойство камеры ----- */
 
     // Аренда — на человека и камеру. Встроенный сервер камерами не движет: только срок
@@ -244,7 +263,7 @@
       }) || null;
     }
     const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
-    const detProblem = (rec, patch) => (rec.type === "det" ? zoneProblem(patch.zone) || sensProblem(rec, patch.sensitivity) : null);
+    const detProblem = (rec, patch) => posProblem(rec.type, patch) || (rec.type === "det" ? zoneProblem(patch.zone) || sensProblem(rec, patch.sensitivity) : null);
     // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
     function clashProblem(rec, patch) {
       const x = rec.type === "det" && patch.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
@@ -473,6 +492,7 @@
       if (spec.type === "camera" && !parentId && !hasAddress(spec)) return { code: "VALIDATION_FAILED", field: "rtspUrl" };
       const det = detCreateProblem(spec, parentId ? byId("devices", parentId) : null);
       if (det) return det;
+      if (posProblem(spec.type, spec)) return { code: "VALIDATION_FAILED", field: "ip" };
       if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
         if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
       }
@@ -503,6 +523,7 @@
         if (s.type === "camera") d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
         d.version = newVersion();
         db.devices.push(d);
+        if (d.type === "eventsrc") placeSource(d);
         devices.push(d);
         send("entity.created", { kind: "device", entityId: d.id, version: d.version });
         (s.children || []).forEach((c) => make(c, d.id));
