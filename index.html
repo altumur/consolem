@@ -2734,7 +2734,8 @@ function detectorsOnServer(sid){
   const out=[];
   walkAll(n=>{
     if(n.type!=="camera")return;
-    camDetectors(n).forEach(d=>{if(detServerId(n,d)===sid)out.push({cam:n,det:d})});
+    // Встроенный считает сама камера: на GPU сервера его нет
+    camDetectors(n).forEach(d=>{if(!d.builtin&&detServerId(n,d)===sid)out.push({cam:n,det:d})});
   });
   return out;
 }
@@ -3406,6 +3407,8 @@ function find(id){
 function norecId(did){return"norec:"+did}
 function norecNode(did){return{id:norecId(did),type:"norec",name:"Без записи",domainId:did,online:true}}
 function norecList(did){return unrecordedCameras(did)}
+// Устройства верхнего уровня без сервера: в раскладке по серверам стоят прямо под доменом
+function serverlessDevices(did){return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!cameraTreeServer(d.id))}
 function cam(id){let x;walkAll(n=>{if(n.id===id)x=n});return x}
 // Сервер устройства: у камеры и регистратора — тот, к которому они подключены;
 // у прочих — через архив, на котором ведётся запись (у служб — владелец)
@@ -4161,11 +4164,12 @@ function selfInView(n){
 function filtKey(){return[...typeFilts].sort().join(",")+"|"+[...searchFields].sort().join(",")+"|"+[...statusFilts].sort().join(",")+"|"+strictIdSearch+"|"+domainFilter}
 function hasTreeIn(n){
   const key=slice+"|"+group()+"|"+filtKey()+"|"+n.id;if(treeMatchCache.has(key))return treeMatchCache.get(key);
-  if(n.type==="det"&&slice!=="det")return false;
+  // Встроенный детектор работает на камере и стоит под ней; серверный — под GPU и в срезе «Детекторы»
+  if(n.type==="det"&&slice!=="det")return!!n.builtin&&(slice==="all"||slice==="cam")&&matchesDomain(n)&&matchesStatus(n)&&matchesType(n);
   const hit=selfInView(n)||kids(n).some(hasTreeIn);
   treeMatchCache.set(key,hit);return hit;
 }
-function treeKids(n){return(n.devices||[]).filter(d=>d.type!=="det"&&hasTreeIn(d))}
+function treeKids(n){return(n.devices||[]).filter(d=>(d.type!=="det"||d.builtin)&&hasTreeIn(d))}
 function hasTreeKids(n){return treeKids(n).length>0}
 // Число объектов среза под каждым родителем, независимо от раскрытия ветвей.
 // Set не даёт считать объект дважды при нескольких вхождениях в папки.
@@ -4208,9 +4212,14 @@ function addCtx(){return srv(sel)}
 function expandTo(id,ctx){
   let f=find(id);if(!f)return;
   let p=f.p?find(f.p.id):null;
-  // Детектор виден под GPU, а не под камерой на сервере: её не раскрываем.
-  if(f.n.type==="det"&&p)p=p.p?find(p.p.id):null;
+  // Серверный детектор виден под GPU, а не под камерой на сервере: её не раскрываем. Встроенный — под камерой
+  if(f.n.type==="det"&&!f.n.builtin&&p)p=p.p?find(p.p.id):null;
   while(p){open.add(p.n.id);p=p.p?find(p.p.id):null}
+  // Без сервера: стоит прямо под доменом
+  if(!["domain","server","unalloc","folder","archive","vol","gpu","norec","nofolder","found","founddev"].includes(f.n.type)&&!cameraTreeServer(id)){
+    const home=deviceDomain(id);
+    if(home)open.add(home);
+  }
   // Раскрываем только ту ветку, по которой кликнули
   if(ctx){
     const[kind,key]=[ctx.slice(0,ctx.indexOf(":")),ctx.slice(ctx.indexOf(":")+1)];
@@ -4235,7 +4244,7 @@ function expandTo(id,ctx){
   let node=find(id)?.n;
   if(node&&node.type==="camera"&&node.arch&&!archServer(archById(node.arch)))open.add(node.arch);
   // Детектор виден в ветке GPU того сервера, где он считается
-  if(node&&node.type==="det"){
+  if(node&&node.type==="det"&&!node.builtin){
     const cam=find(id)?.p,sid=cam?detServerId(cam,node):null;
     const gs=sid?servers.find(x=>x.id===sid):null;
     if(gs){open.add(gs.id);const dm=domainOf(gs.id);if(dm)open.add(dm.id);if(serverGpu(gs))open.add(gpuId(gs.id))}
@@ -4248,6 +4257,25 @@ function expandTo(id,ctx){
 function openCamDets(cam,gs){
   if(gs&&serverGpu(gs))open.add("gpu:"+gs.id+"|"+cam.id);
   if(slice==="det"){open.add(cam.id);const fd=foldersOfDevice(cam.id)[0];if(fd)open.add("f:"+fd.id+"|"+cam.id)}
+}
+// Цель перехода — видимая строка дерева, прокрученная к ней. Нет строки в этом срезе и раскладке, а фильтры ни при
+// чём — срез и раскладка меняются на те, где она есть: карточка без строки в дереве теряет место
+function treeRowOf(id){return document.querySelector(`#tree .n.on[data-pick="${id}"]`)||document.querySelector(`#tree .n[data-pick="${id}"]`)}
+function revealSel(){
+  if(app!=="hw"||!sel)return;
+  if(!treeRowOf(sel)&&!hasActiveFilters()){
+    const was=slice;
+    const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);renderTree();return!!treeRowOf(sel)};
+    const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].some(g=>{
+      const gw=groupBy[s];
+      slice=s;groupBy[s]=g;syncViews();
+      if(look())return true;
+      groupBy[s]=gw;return false;
+    }));
+    if(hit)aside();
+    else{slice=was;syncViews();look()}
+  }
+  treeRowOf(sel)?.scrollIntoView({block:"nearest"});
 }
 function pushRecent(id){recent=recent.filter(x=>x!==id);recent.unshift(id);if(recent.length>8)recent.pop()}
 function setFocus(id,keepSel){if(!keepSel){const s=servers.find(x=>x.id===id);sel=s?.devices?.find(d=>treeKind(d)===tview)?.id||id}expandTo(sel);paint()}
@@ -4275,7 +4303,7 @@ function openNode(id,opts={}){
   if(opts.view)tview=opts.view;
   else if(f.n.type!=="server"&&f.n.type!=="domain"&&f.n.type!=="unalloc")tview=treeKind(f.n)||tview;
   clearGearFilters();filtPop=false;expandTo(id);sel=id;pushRecent(id);
-  paint();
+  paint();revealSel();
 }
 function goAddServer(domainId){
   const id=unallocId(domainId);
@@ -4379,6 +4407,8 @@ function jumpToNode(n){
     if(k&&!inSlice(n))slice=k==="sys"?"srv":k;
     syncViews();
   }
+  if(n.type==="det"&&!n.builtin&&slice!=="all"&&slice!=="det"){slice="det";syncViews()}
+  if(n.type==="det"&&n.builtin&&slice!=="all"&&slice!=="cam"&&slice!=="det"){slice="cam";syncViews()}
   if((n.type==="archive"||n.type==="vol")&&!["all","cam","srv","arch"].includes(slice)){slice="srv";syncViews()}
   if(n.type==="server"&&group()!=="server")groupBy[slice]=sliceGroups().includes("server")?"server":group();
   if(n.type==="folder"&&group()!=="folder")groupBy[slice]=sliceGroups().includes("folder")?"folder":group();
@@ -4386,7 +4416,7 @@ function jumpToNode(n){
   sel=n.id;selCtx=null;tab="gen";setD(false);expandTo(n.id);
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
   expandSubtree(n);
-  pushRecent(n.id);paint();
+  pushRecent(n.id);paint();revealSel();
   if(wasFiltered)toast(i18n("Фильтры сброшены, чтобы показать найденное"));
 }
 function expandSubtree(n){
@@ -5215,7 +5245,7 @@ function crumbsHtml(id){
     const sv=srv(id),a=arch.find(x=>x.id===f.n.arch);
     const d=sv?domainOf(sv.id):domains.find(x=>x.id===deviceDomain(id));
     if(sv&&a)parts=[d,sv,a,...parts].filter(Boolean);
-    else if(d)parts=[d,norecNode(d.id),...parts];
+    else if(d)parts=[d,...(hasNoSignal(d)?[]:[norecNode(d.id)]),...parts];
   }
   // Ветка записи и ветка расположения обе начинаются с домена — в пути он
   // должен быть один раз, а не дважды.
@@ -5720,7 +5750,7 @@ function pick(id,opts){
     gear();return
   }
   if(fromLink)hwFlashLanding();
-  paint();
+  paint();revealSel();
 }
 // Переход по ссылке из карточки, пути, списка, поиска или тоста — как в
 // «Правах»: место, куда пришли, моргает — заголовок, вкладка и строка дерева.
@@ -6280,9 +6310,10 @@ function treeCtx(e,id){
 }
 function nrow(n,l,ctx){
   const q=qval();
-  if(n.type==="det"||treeKind(n)!==tview)return"";
+  const det=n.type==="det";
+  if(det?!n.builtin:treeKind(n)!==tview)return"";
   if(q&&!vis(n,q))return"";
-  if(!selfInView(n)&&!kids(n).some(hasTreeIn))return"";
+  if(!det&&!selfInView(n)&&!kids(n).some(hasTreeIn))return"";
   const k=treeKids(n),hasKids=k.length>0,op=open.has(n.id)||(autoExpand()&&hasKids);
   const shown=k.filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
   const st=nodeStatus(n);
@@ -6319,7 +6350,10 @@ function srow(s,l=1,bare=false){
   // Камеры стоят под сервером (и без записи, и на сетевом хранилище);
   // под хранилищем их в дереве нет — только счётчик.
   const cams=offline?[]:serverCameras(s.id);
+  // Устройства сервера без камер: блок входов, SIP, источник событий. Регистратор с камерами стоит через них
+  const others=offline||srvSlice?[]:devicePool.filter(x=>x.type!=="camera"&&!isSvc(x)&&cameraTreeServer(x.id)?.id===s.id&&!(x.type==="ipsrv"&&cams.some(c=>ipsrvOwnerNode(c)===x)));
   const kidsHtml=(srvSlice?"":recordedCameraRows(cams,l+1,"srv:"+s.id))
+    +others.map(x=>nrow(x,l+1,"srv:"+s.id)).join("")
     +archs.map(a=>arow(a,l+1)).join("")
     +(gpu?gpurow(s,l+1):"")+svcHtml;
   if(!srvHit&&!kidsHtml)return"";
@@ -6337,9 +6371,9 @@ function drow(d){
   const selfHit=matchesStatus(d)&&matchesSearch(d,q);
   const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
   const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
-  // ОПС/СКД не записываются в архив: без сервера они остаются под доменом.
-  const acfaHtml=slice==="acfa"&&!offline?devicePool.filter(n=>deviceDomain(n.id)===d.id&&!srv(n.id)&&hasTreeIn(n)&&(!q||vis(n,q))).map(n=>nrow(n,1)).join(""):"";
-  const uaHtml=offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+acfaHtml);
+  // Устройство без сервера стоит прямо под доменом, после серверов и их групп
+  const looseHtml=slice!=="srv"&&!offline?serverlessDevices(d.id).filter(n=>hasTreeIn(n)&&(!q||vis(n,q))).map(n=>nrow(n,1)).join(""):"";
+  const uaHtml=offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+looseHtml);
   if(!selfHit&&!childHtml&&!uaHtml)return"";
   const hasKids=!!(childHtml||uaHtml);
   const op=hasKids&&(open.has(d.id)||autoExpand());

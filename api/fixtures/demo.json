@@ -3433,7 +3433,6 @@
    "port": 5060,
    "online": false,
    "fault": "conn",
-   "serverId": "20000001-0000-4000-8000-000000000000",
    "enabled": true,
    "version": "1"
   },
