@@ -4661,7 +4661,7 @@
         "tags": [
           "journal"
         ],
-        "summary": "Журнал событий, новые первыми",
+        "summary": "Журнал событий, новые первыми, с отбором",
         "responses": {
           "200": {
             "description": "Готово",
@@ -4675,6 +4675,15 @@
                       "items": {
                         "$ref": "#/components/schemas/JournalEvent"
                       }
+                    },
+                    "truncated": {
+                      "type": "boolean",
+                      "description": "Отобрано больше, чем limit"
+                    },
+                    "withheldCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Сколько записей скрыто правами"
                     }
                   },
                   "additionalProperties": false,
@@ -4706,6 +4715,56 @@
               ]
             },
             "description": "Категория; без неё — все"
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Устройство"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не раньше"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не позже"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Подсистема"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк, по умолчанию 1000"
           }
         ]
       }
@@ -5077,6 +5136,212 @@
           }
         }
       }
+    },
+    "/stream-accounts": {
+      "get": {
+        "operationId": "listStreamAccounts",
+        "tags": [
+          "access"
+        ],
+        "summary": "Учётки потоков",
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StreamAccount"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createStreamAccount",
+        "tags": [
+          "access"
+        ],
+        "summary": "Создать учётку потока",
+        "description": "В ответе пароль: он показывается один раз. Занятое имя — 409 NAME_TAKEN",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamAccountCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Создано",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamAccountSecret"
+                }
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/stream-accounts/{name}": {
+      "patch": {
+        "operationId": "patchStreamAccount",
+        "tags": [
+          "access"
+        ],
+        "summary": "Включить или отключить учётку",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamAccountPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamAccount"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteStreamAccount",
+        "tags": [
+          "access"
+        ],
+        "summary": "Удалить учётку",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Удалено"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/stream-accounts/{name}/password": {
+      "post": {
+        "operationId": "resetStreamAccountPassword",
+        "tags": [
+          "access"
+        ],
+        "summary": "Новый пароль учётки",
+        "description": "Пароль показывается один раз",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamAccountSecret"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -5354,6 +5619,13 @@
           "dns": {
             "type": "string",
             "description": "DNS"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Метки сервера: по ним размещаются камеры, детекторы, записи, правила"
           }
         },
         "additionalProperties": false,
@@ -5395,6 +5667,21 @@
               "null"
             ],
             "description": "Поток записи: id из Device.streams"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "state": {
+            "type": "string",
+            "description": "Только чтение: состояние записи"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Только чтение: почему запись не идёт"
           }
         },
         "additionalProperties": false,
@@ -5785,6 +6072,28 @@
             "properties": {},
             "additionalProperties": true,
             "description": "Настройки единицы СКУД: ключи — из unitOptions"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "alarmKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Что считать тревогой у камеры и детектора: варианты из reference.eventKinds. Это о классе события, а не о жизни тревоги"
+          },
+          "recordState": {
+            "type": "string",
+            "description": "Только чтение: состояние основной записи, слово сервера"
+          },
+          "recordReason": {
+            "type": "string",
+            "description": "Только чтение: почему запись не идёт, словами сервера"
           }
         },
         "additionalProperties": false,
@@ -6401,6 +6710,13 @@
             "type": "string",
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
           }
         },
         "additionalProperties": false,
@@ -7530,6 +7846,29 @@
           },
           "text": {
             "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда случилось; at — когда записано"
+          },
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "source": {
+            "type": "string",
+            "description": "Подсистема"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Вид события, код"
+          },
+          "fields": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": true,
+            "description": "Подробности события"
           }
         },
         "additionalProperties": false,
@@ -8070,6 +8409,20 @@
               ]
             },
             "description": "Мониторы видеостены — для «Показать на видеостене»"
+          },
+          "serverLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Известные метки серверов: то, что можно выбрать"
+          },
+          "eventKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Классы событий: варианты Device.alarmKinds"
           }
         },
         "additionalProperties": false,
@@ -8252,7 +8605,8 @@
               "dayGroup",
               "modes",
               "objectMode",
-              "maintenanceWindow"
+              "maintenanceWindow",
+              "streamAccounts"
             ]
           },
           "entityId": {
@@ -9014,6 +9368,34 @@
                 "type": "null"
               }
             ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alarmKinds": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Что считать тревогой у камеры и детектора: варианты из reference.eventKinds. Это о классе события, а не о жизни тревоги"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "description": "Изменение устройства (JSON Merge Patch, RFC 7396): переданные поля заменяются, null убирает поле"
@@ -9380,6 +9762,20 @@
             "anyOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "labels": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Метки сервера: по ним размещаются камеры, детекторы, записи, правила"
               },
               {
                 "type": "null"
@@ -10343,6 +10739,20 @@
             "properties": {},
             "additionalProperties": true,
             "description": "Настройки единицы СКУД: ключи — из unitOptions"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "alarmKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Что считать тревогой у камеры и детектора: варианты из reference.eventKinds. Это о классе события, а не о жизни тревоги"
           }
         },
         "description": "Новое устройство вместе с дочерними. Домен и родителя задаёт запрос (DevicesCreateRequest), id выдаёт сервер"
@@ -10821,6 +11231,13 @@
               "code"
             ],
             "description": "Пометка версии истории: restore — восстановлена версия params.number, undo — отмена изменения"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
           }
         },
         "additionalProperties": false,
@@ -11553,6 +11970,13 @@
           "allowChain": {
             "type": "boolean",
             "description": "Разрешить запуск этого правила другими правилами («Запустить правило»)"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
           }
         },
         "additionalProperties": false,
@@ -11742,6 +12166,13 @@
           "allowChain": {
             "type": "boolean",
             "description": "Разрешить запуск этого правила другими правилами («Запустить правило»)"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
           }
         },
         "additionalProperties": false,
@@ -13510,6 +13941,73 @@
               "type": "string"
             },
             "description": "Команды шаблона"
+          }
+        }
+      },
+      "StreamAccount": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "disabled"
+        ],
+        "description": "Учётка потока: имя и пароль внешнего клиента для подключения к потоку. Пароль приходит один раз. Доступ к камерам — как у пользователя, через Access",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда изменена"
+          },
+          "by": {
+            "type": "string",
+            "description": "Кем"
+          }
+        }
+      },
+      "StreamAccountCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "StreamAccountPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "disabled"
+        ],
+        "properties": {
+          "disabled": {
+            "type": "boolean"
+          }
+        }
+      },
+      "StreamAccountSecret": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "password"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string",
+            "description": "Показывается один раз"
           }
         }
       }

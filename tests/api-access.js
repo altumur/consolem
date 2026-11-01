@@ -102,5 +102,23 @@
     assert.status(await env.call("POST", "/access/catalogs/bfff9999-0000-4000-8000-000000000000/sync", { groupId: null }), 404, "NOT_FOUND");
   });
 
+  test("Учётки потоков: создать, пароль один раз, отключить, новый пароль, удалить", async () => {
+    const env = await makeEnv();
+    const was = (await env.list("/stream-accounts")).length;
+    const made = await env.call("POST", "/stream-accounts", { name: "wall-2" });
+    assert.status(made, 201);
+    assert.ok(made.body.password, "пароль в ответе");
+    const row = (await env.list("/stream-accounts")).find((x) => x.name === "wall-2");
+    assert.eq([row.disabled, row.password], [false, undefined], "в списке пароля нет");
+    assert.status(await env.call("POST", "/stream-accounts", { name: "WALL-2" }), 409, "NAME_TAKEN", "имя занято");
+    assert.status(await env.call("POST", "/stream-accounts", { name: "  " }), 422, "NAME_REQUIRED", "пустое");
+    assert.eq((await env.ok("PATCH", "/stream-accounts/wall-2", { disabled: true })).disabled, true, "отключена");
+    const next = await env.ok("POST", "/stream-accounts/wall-2/password", {});
+    assert.ok(next.password && next.password !== made.body.password, "новый пароль");
+    assert.status(await env.call("DELETE", "/stream-accounts/wall-2"), 204);
+    assert.eq((await env.list("/stream-accounts")).length, was, "удалена");
+    assert.status(await env.call("PATCH", "/stream-accounts/wall-2", { disabled: false }), 404, "NOT_FOUND");
+  });
+
   ApiTest.loaded("api-access.js");
 })();

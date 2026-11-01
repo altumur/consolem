@@ -194,6 +194,56 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(deviceTemplates().length > 0 && deviceTemplates().every((c) => c.model === model.model), "источник профиля — камера той же модели");
   ok(!deviceAddModes().some((m) => /буферизац|Прочее/.test(m.hint)), "подсказка без буферизации и «Прочего»");
 
+  // Метки, тревожные виды, состояние записи
+  const lab = of("camera", (d) => !d.parentId && d.vendor && d.online && !d.alarmKinds && !d.labels);
+  open(lab.id);
+  ok(/Размещение и тревоги/.test(main().textContent), "карточка размещения и тревог");
+  listToggle(lab.id, "labels", "gpu");
+  listToggle(lab.id, "alarmKinds", "motion");
+  cardApply();
+  await until(() => !bq || bq.finished);
+  const labNow = await API.get(`/devices/${lab.id}`);
+  ok(labNow.labels?.includes("gpu") && labNow.alarmKinds?.includes("motion"), "метка и тревожный вид на сервере");
+  const stopped = of("camera", (d) => d.recordReason && d.online);
+  open(stopped.id, "rec");
+  ok(!!main().querySelector("[data-rec-state]") && main().textContent.includes(stopped.recordReason), "вкладка «Архив» говорит, почему запись не идёт");
+  ok(main().textContent.includes(stopped.faultText) || !!main().querySelector("[data-fault-text]"), "причина словами сервера");
+  const dLab = of("det", (d) => !d.builtin);
+  open(dLab.id);
+  ok(!/Сервер детектора/.test(main().textContent) && /где считать/.test(main().textContent), "у детектора метки вместо выбора сервера");
+  pick(servers.find((s) => !isUnallocated(s.id)).id, { force: true });
+  goTab("gen");
+  ok(/Метки сервера/.test(main().textContent), "метки в карточке сервера");
+
+  // Журнал: отбор на сервере
+  goApp("log");
+  logGo("all");
+  ok(!!document.querySelector(".log-filter"), "отбор журнала");
+  const rowsAll = (await API.get("/journal")).items.length;
+  logSet("limit", "50");
+  logQ.limit = "";
+  logSet("source", "backend");
+  ok(await until(() => logRes && logRes.items.every((e) => e.source === "backend") && logRes.items.length < rowsAll), "подсистема отобрана на сервере");
+  logReset();
+  ok(await until(() => logRes === null), "отбор снят");
+
+  // Учётки потоков: пароль один раз, удаление с вводом числа
+  goApp("acc");
+  accGo("streams");
+  ok(await until(() => document.querySelector("[data-stream-acc]")), "учётки в «Правах»");
+  streamDraftSet("wall-ui");
+  streamAccAdd();
+  ok(await until(() => document.querySelector("[data-stream-pass]")), "пароль показан один раз");
+  closeBulkModal();
+  ok(await until(() => document.querySelector('[data-stream-acc="wall-ui"]')), "учётка в списке");
+  streamAccOn("wall-ui", false);
+  ok(await until(() => /Отключена/.test(document.querySelector('[data-stream-acc="wall-ui"]')?.textContent || "")), "отключена");
+  streamAccDel("wall-ui");
+  ok(await until(() => document.getElementById("confirmCountInp")), "удаление учётки — с вводом числа");
+  await confirmWith(1);
+  ok(await until(() => !document.querySelector('[data-stream-acc="wall-ui"]')), "удалена после отсчёта");
+  goApp("hw");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

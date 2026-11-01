@@ -196,5 +196,25 @@
     assert.ok(seen.filter((m) => m.type === "entity.changed").length >= 2, `в потоке — изменения записи: ${seen.length}`);
   });
 
+  test("Журнал: отбор по устройству, подсистеме, времени, limit; truncated и withheldCount", async () => {
+    const env = await makeEnv();
+    const all = await env.ok("GET", "/journal");
+    assert.eq([all.items.length, all.truncated, all.withheldCount], [FX.journal.length, false, 0], "без отбора — всё");
+    const some = FX.journal.find((e) => e.deviceId);
+    if (some) {
+      const by = await env.ok("GET", `/journal?deviceId=${some.deviceId}`);
+      assert.ok(by.items.length > 0 && by.items.every((e) => e.deviceId === some.deviceId), "по устройству");
+    }
+    const src = await env.ok("GET", "/journal?source=backend");
+    assert.ok(src.items.every((e) => e.source === "backend"), "по подсистеме");
+    const one = await env.ok("GET", "/journal?limit=1");
+    assert.eq([one.items.length, one.truncated], [1, FX.journal.length > 1], "limit");
+    const at = all.items[0].occurredAt || all.items[0].at;
+    const late = await env.ok("GET", `/journal?from=${at}`);
+    assert.ok(late.items.length >= 1, "со времени");
+    const none = await env.ok("GET", "/journal?to=2000-01-01T00:00:00Z");
+    assert.eq(none.items.length, 0, "по время");
+  }, { needs: ["listJournal"] });
+
   ApiTest.loaded("api-read.js");
 })();

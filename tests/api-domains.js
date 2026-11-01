@@ -192,5 +192,18 @@
     assert.status(await env.call("DELETE", `/folders/${rootFolder.id}`, undefined, v(rootFolder)), 404, "NOT_FOUND", "второй раз");
   });
 
+  test("Метки сервера: PATCH, попадают в reference.serverLabels; детектор просит метку, сервера нет — faultText", async () => {
+    const env = await makeEnv();
+    const s = FX.servers.find((x) => x.allocated && x.online);
+    const res = await env.ok("PATCH", `/servers/${s.id}`, { labels: ["hall"] }, { "If-Match": `"${s.version}"` });
+    assert.eq(res.labels, ["hall"], "метка на сервере");
+    assert.ok((await env.ok("GET", "/reference")).serverLabels.includes("hall"), "в справочнике");
+    const c = FX.devices.find((d) => d.type === "camera" && d.domainId === s.domainId);
+    const made = await env.ok("POST", "/devices", { idempotencyKey: ApiTest.key(), items: [{ device: { type: "det", name: "Метка", detectorKind: "motion", labels: ["нет-такой"] }, domainId: c.domainId, parentId: c.id, folderId: null }] });
+    assert.ok(/нет-такой/.test(made.done[0].devices[0].faultText || ""), "причина словами");
+    const auto = await env.ok("POST", "/devices", { idempotencyKey: ApiTest.key(), items: [{ device: { type: "det", name: "Без меток", detectorKind: "motion" }, domainId: c.domainId, parentId: c.id, folderId: null }] });
+    assert.eq(auto.done[0].devices[0].labels, ["gpu"], "по умолчанию просит gpu");
+  });
+
   ApiTest.loaded("api-domains.js");
 })();

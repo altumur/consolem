@@ -504,5 +504,17 @@
     assert.eq((await env.ok("POST", "/devices", row(newCam({ configMode: "template" })))).failed[0].field, "templateId", "нет источника");
   });
 
+  test("Метки, тревожные виды, строка записи: хранятся; состояние только чтение", async () => {
+    const env = await makeEnv();
+    const c = (await env.list("/devices")).find((d) => d.type === "camera" && d.archiveId);
+    const res = await env.ok("PATCH", `/devices/${c.id}`, { labels: ["gpu"], alarmKinds: ["motion"] }, v(c));
+    assert.eq([res.labels, res.alarmKinds], [["gpu"], ["motion"]], "камера");
+    const ref = await env.ok("GET", "/reference");
+    assert.ok(ref.eventKinds.includes("motion") && ref.serverLabels.length > 0, "варианты из справочника");
+    const a = FX.archives.find((x) => x.id !== c.archiveId);
+    const x = await env.ok("PATCH", `/devices/${c.id}`, { extraArchives: [{ archiveId: a.id, recordMode: "always", labels: ["archive"] }] }, v(res));
+    assert.eq(x.extraArchives[0].labels, ["archive"], "метка строки записи");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();

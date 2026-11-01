@@ -2203,7 +2203,7 @@ function devNode(r){
     else if(k==="sizeBytes")n.size=bytesText(v);
     else if(k==="lat"||k==="lon")n[k]=v==null?"":v.toFixed(6);
     else if(k==="azimuth")n[k]=v==null?"":String(v);
-    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream}));
+    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{})}));
     else if(k==="mode"&&r.type==="email")n.mode=EMAIL_MODE_RU[v]||v;
     else if(k==="norm")n.norm=NORM_RU[v]||v;
     else if(k==="disabledByRuleAt")n.ruleOffAt=v?clockText(v,true):"";
@@ -2221,6 +2221,7 @@ function srvNode(r){
   const s={id:r.id,type:"server",name:r.name,ip:r.ip};
   if(r.port!==20111)s.port=r.port;
   s.online=r.online;s.role=ROLE_RU[r.role]||r.role;
+  if(r.labels?.length)s.labels=r.labels;
   Object.assign(s,r.telemetry);s.devices=[];
   Object.entries(SRV_FLD).forEach(([k,l])=>{if(k in r)(s._f||(s._f={}))[l]=r[k]});
   if(r.gpu)SERVER_GPU[r.id]={model:r.gpu.model,mem:bytesText(r.gpu.memoryBytes),load:r.gpu.load};else delete SERVER_GPU[r.id];
@@ -2481,6 +2482,7 @@ function apiOnEvent(m){
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false}
   if(m.type==="stream.reset"||m.type==="test.reset"){apiReload();return}
+  if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
   if(m.kind==="operation"){opOnEvent(m);return}
   if(m.kind==="discovery"){discOnEvent(m);return}
   if(m.kind==="access"&&m.version!==accVer&&m.version!==accLast?.version){accRefresh().catch(()=>{});return}
@@ -2722,12 +2724,6 @@ function gpuCameras(sid){
   });
   return[...seen.values()];
 }
-function setDetServer(camId,detId,v){
-  const f=find(camId);if(!f)return;
-  const d=camDetectors(f.n).find(x=>x.id===detId);if(!d)return;
-  d.srvId=v||null;
-  setD(true);gear();
-}
 function archServer(a){return a?servers.find(x=>x.id===a.server)||null:null}
 function archDomain(a){return a?domains.find(x=>x.id===a.domain)||null:null}
 function archIsNetwork(a){return!!a&&!a.server&&!!a.domain}
@@ -2741,7 +2737,7 @@ function isRecording(n){return n&&n.type==="camera"&&!!n.arch&&n.rec&&n.rec!=="n
 // режимом — как запись основного и второго потока в разные архивы у Axxon One.
 function camArchs(n){
   if(!n||n.type!=="camera"||!n.arch)return[];
-  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true},...(n.archx||[]).map(x=>({...x}))];
+  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason},...(n.archx||[]).map(x=>({...x}))];
 }
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
 function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWritesTo(n,aid))out.push(n)});return out}
@@ -2966,7 +2962,9 @@ async function appLoad(){
   accSetSnapshot(acc);accLast=acc;
   settingsApply(st);
   licenses=lic.items;
-  LOG_ROWS.length=0;jr.items.forEach(e=>LOG_ROWS.push([clockText(e.at,false),LOG_KIND_RU[e.category]||e.category,e.text]));
+  LOG_ROWS.length=0;jr.items.forEach(e=>LOG_ROWS.push(logRow(e)));
+  logSources.clear();jr.items.forEach(e=>{if(e.source)logSources.add(e.source)});
+  logDevices.clear();jr.items.forEach(e=>{if(e.deviceId)logDevices.add(e.deviceId)});
   Object.keys(LOG_BY_CAT).forEach(k=>{LOG_BY_CAT[k].length=0;LOG_BY_CAT[k].push(...LOG_ROWS.filter(r=>k==="all"||r[1]===LOG_KIND_RU[k]))});
 }
 // ── «Автоматизация» — с сервера ───────────────────────────────────────────
@@ -2976,11 +2974,12 @@ async function appLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={};
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[];
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   refParams=ref.deviceParams||{};
+  refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Что умеет событие — из справочника: варианты уточнения отдаёт сервер, подписи — по коду
@@ -3065,7 +3064,7 @@ function ruleContentNode(r,id){
   const n={id,name:r.name,on:r.enabled,start:r.start==="schedule"?"sched":r.start,run:{mode:r.runMode,modes:[]},menu:r.operatorMenu,rate:r.ratePerMinute,within:r.windowSec,
     sched:r.runAt?{days:r.runAt.days.slice(),at:r.runAt.time}:null,repeat:r.repeat,
     when:r.triggers.map(trigNode),cond:r.conditions.map(condNode),then:r.steps.map(stepNode),
-    owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain};
+    owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[]};
   if(r.logOnlySince)n.watchSince=r.logOnlySince;
   return n;
 }
@@ -3079,7 +3078,7 @@ function ruleBody(n){
   return{name:n.name,enabled:!!n.on,logOnly:!!n.watch,logOnlySince:n.watchSince||null,start:n.start==="sched"?"schedule":n.start,runMode:n.run&&n.run.mode==="manual"?"manual":"always",
     operatorMenu:!!n.menu,ratePerMinute:+n.rate||0,windowSec:+n.within||0,runAt:n.start==="sched"&&n.sched?{days:(n.sched.days||[]).slice(),time:n.sched.at||""}:null,
     repeat:n.repeat||"skip",triggers:(n.when||[]).map(trigBody),conditions:(n.cond||[]).map(condBody),steps:(n.then||[]).map(stepBody),
-    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false};
+    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false,...(n.labels?.length?{labels:n.labels}:{})};
 }
 // Ответ сервера → правило в кэше. Открыт черновик этого правила — нетронутые поля берут новое значение,
 // правки пользователя остаются поверх (как у карточки «Оборудования»)
@@ -3706,7 +3705,7 @@ function cardFld(el){
   setD(true);if(!cardDraft)return;
   if(String(el.value)===String(orig))delete cardDraft.fields[l];else cardDraft.fields[l]={from:orig,to:el.value};
 }
-const CARD_PROP={zone:"Зона",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
+const CARD_PROP={zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
@@ -6686,7 +6685,7 @@ function norow(d,l){
 function treeServers(){return scopedDomains().map(d=>drow(d)).join("")}
 // Пункт «Опций» и раздел журнала в дереве
 function optGo(id){sys=id;tab="gen";paint()}
-function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();paint()}
+function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();else if(logQOn())logQueryRun();paint()}
 function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).map(o=>
   `<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span></div>`).join("")}
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
@@ -8101,15 +8100,6 @@ function detZoneCardHtml(cam,d){
     </div>`,
     `<span class="sub" style="font-weight:400">${escHtml(detKindText(d,cam))}</span>`);
 }
-// Детектор считается на сервере; по умолчанию — там же, где архив камеры
-function detServerSelectHtml(cam,d){
-  const auto=srv(cam.id);
-  const autoLb=auto?`${i18n("Как у архива")} — ${locName(auto)}`:i18n("Как у архива — не задан");
-  return `<div><label>${i18n("Сервер детектора")}</label><select ${onEv("change",["setDetServer",`${cam.id}`,`${d.id}`,onEv.value])}>
-    <option value="" ${!d.srvId?"selected":""}>${escHtml(autoLb)}</option>
-    ${servers.filter(x=>!isUnallocated(x.id)).map(x=>`<option value="${x.id}" ${d.srvId===x.id?"selected":""}>${escHtml(locName(x))}${serverGpu(x)?" · GPU":""}</option>`).join("")}
-  </select></div>`;
-}
 // Параметры детектора: где работает, вид, чувствительность по диапазону шаблона, поток и настройки серверного
 function detFieldsHtml(cam,d,nameLb){
   const opt=detOption(cam,d),draft=!hwVer.has(d.id),opts=cam?.detectorOptions||[];
@@ -8119,9 +8109,10 @@ function detFieldsHtml(cam,d,nameLb){
   const noSens=!!opt&&opt.sensitivityMin==null;
   const sens=noSens?"":fld(opt?`Чувствительность`:"Чувствительность",d.sens||"");
   const streams=!d.builtin&&cam?sl("Поток",camStreams(cam).map(s=>s.id),d.stream||camStreams(cam)[0].id):"";
-  return`<div class="g">${fld(nameLb,locName(d))}${place}${kind}${sens}${d.builtin?"":detServerSelectHtml(cam,d)}${streams}</div>
+  return`<div class="g">${fld(nameLb,locName(d))}${place}${kind}${sens}${streams}</div>
     ${opt&&!noSens?`<p class="sub">${i18n("Чувствительность")}: ${opt.sensitivityMin}–${opt.sensitivityMax}</p>`:""}
-    ${d.builtin?"":`<div style="margin-top:10px">${fld("Настройки детектора",d.params||"")}</div>`}
+    ${d.builtin?"":`<div style="margin-top:10px">${fld("Настройки детектора",d.params||"")}</div><label class="sub" style="display:block;margin-top:10px">${i18n("Метки серверов: где считать")}</label>${chipsHtml(refLabels,d.labels,"listToggle",`${d.id}`,"labels")}`}
+    <label class="sub" style="display:block;margin-top:10px">${i18n("Что считать тревогой")}</label>${chipsHtml(refEvents,d.alarmKinds,"listToggle",`${d.id}`,"alarmKinds")}
     <div class="ln ln-sw"><div>${i18n("Включён")}</div><div class="sw ${d.enabled!==false?"on":""}" role="switch" aria-checked="${d.enabled!==false}" data-det-on="${escHtml(d.id)}" ${onEv("click",["detEnable",`${d.id}`])}></div></div>`;
 }
 function detEnable(id){
@@ -8139,7 +8130,8 @@ function detPlace(camId,detId,v){
 }
 function detServerNoteHtml(cam,d){
   const sid=detServerId(cam,d),sv=sid?servers.find(x=>x.id===sid):null;
-  if(!sv)return`<p class="sub">${i18n("Сервер не определён: у камеры не настроена запись, назначьте сервер детектора вручную.")}</p>`;
+  if(d.builtin)return"";
+  if(!sv)return`<p class="sub">${i18n("Сервер выберет система по меткам.")}</p>`;
   const g=serverGpu(sv);
   return`<p class="sub">${i18n("Считается на сервере")} <b>${escHtml(locName(sv))}</b>${g?` · <button class="lk" ${onEv("click",["goApp","hw"],["setSrvView","cam"],["pick",`${gpuId(sv.id)}`])}>${escHtml(g.model)} →</button>`:` · ${i18n("без видеоускорителя, расчёт на ЦПУ")}`}</p>`;
 }
@@ -8295,6 +8287,39 @@ function unitRun(id,op){
   API.post(`/devices/${id}/operations/${encodeURIComponent(op)}`,{}).then(()=>toast(`${unitOpLabel(op)}: ${i18n("выполнено")}`)).catch(e=>toast(problemText(e,n)));
 }
 function unitAddBtn(){return WIZ.acfa?`<button class="btn s btn-icon" aria-label="${i18n("Добавить единицу")}" title="${i18n("Добавить единицу")}" ${onEv("click",["openW","unit"])}>${lu("plus")}</button>`:""}
+// ── Метки серверов и тревожные виды ───────────────────────────────────────
+const EVENT_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",silent:"Камера пропала","io.input":"Вход",text:"Текст источника",unit:"Единица СКУД"};
+function chipsHtml(all,cur,fn,...args){
+  const set=new Set(cur||[]);
+  return`<div class="pf-chips">${[...new Set([...all,...(cur||[])])].map(x=>`<button type="button" class="pf-chip${set.has(x)?" on":""}" data-chip="${escHtml(x)}" ${onEv("click",[fn,...args,`${x}`])}>${escHtml(i18n(EVENT_RU[x]||x))}</button>`).join("")||`<span class="sub">${i18n("Не задано")}</span>`}</div>`;
+}
+function listToggled(list,x){const set=new Set(list||[]);set.has(x)?set.delete(x):set.add(x);return[...set]}
+function listToggle(id,key,x){
+  const n=find(id)?.n;if(!n)return;
+  const next=listToggled(n[key],x);
+  if(next.length)n[key]=next;else delete n[key];
+  setD(true);paint();
+}
+function placeCardHtml(n){
+  return card("Размещение и тревоги",`<label class="sub">${i18n("Метки серверов: где работает")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
+    <label class="sub" style="display:block;margin-top:10px">${i18n("Что считать тревогой")}</label>${chipsHtml(refEvents,n.alarmKinds,"listToggle",`${n.id}`,"alarmKinds")}`);
+}
+function serverLabelAdd(id,v){
+  const n=find(id)?.n,x=String(v||"").trim();if(!n||!x)return;
+  if(!(n.labels||[]).includes(x))n.labels=[...(n.labels||[]),x];
+  setD(true);paint();
+}
+function camArchRowLabel(id,i,x){
+  const n=find(id)?.n,row=n?.archx?.[i-1];if(!row)return;
+  const next=listToggled(row.labels,x);
+  if(next.length)row.labels=next;else delete row.labels;
+  setD(true);paint();
+}
+const REC_STATE_RU={running:"идёт",waiting:"ждёт",stopped:"остановлена"};
+function recStateHtml(x){
+  if(!x.state&&!x.reason)return"";
+  return`<div class="bk-hint" data-rec-state>${x.state?`${i18n("запись")}: ${escHtml(i18n(REC_STATE_RU[x.state]||x.state))}`:""}${x.reason?` · ${escHtml(x.reason)}`:""}</div>`;
+}
 function streamAdd(id){
   const n=find(id)?.n;if(!n)return;
   API.post(`/devices/${id}/streams`,{name:`${i18n("Поток")} ${camStreams(n).length+1}`}).then(r=>{hwApplyDevice(r);gear()}).catch(e=>toast(problemText(e,n)));
@@ -8534,6 +8559,8 @@ function formBase(n){
     return card("Общие",`${bdg(n)}${n.online===false?` <span class="sub">${i18n("нет связи")}</span>`:` <span class="sub">${i18n("ведёт запись и службы")}</span>`}
       <div class="g" style="margin-top:10px">${fld("Имя",locName(n))}${fld("IP",n.ip)}${can("feature:serverRoles")?sl("Роль",[n.role||"Узел","Резервный"]):""}</div>
       ${serverLoadHtml(n)}
+      <label class="sub" style="display:block;margin-top:10px">${i18n("Метки сервера")}</label>${chipsHtml(refLabels,n.labels,"listToggle",`${n.id}`,"labels")}
+      <div class="g" style="margin-top:6px"><div><input placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["serverLabelAdd",`${n.id}`,onEv.value])}></div></div>
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","svc"])}><span>${i18n("Службы сервера")}</span><b>${svc}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","disk"])}><span>${i18n("Камер пишется")}</span><b>${recCams.length}</b></button>
@@ -8614,7 +8641,7 @@ function formBase(n){
     return card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Короткое имя",n.short??"")}${camIdFld}${vchFld}</div>`)
       +(underIpsrv&&!n.ip?card("Подключение",`<div class="g">${fldRo("Регистратор",locName(ips))}${fldRo("IP регистратора",ips.ip||"—")}${fldRo("RTSP",cardFldOrig("RTSP","")||"—")}</div>
         <p class="sub">${i18n("Своего IP у камеры регистратора нет: сервер забирает её видео через регистратор, по номеру канала. Адрес и учётные данные — в карточке")} <button class="lk" ${onEv("click",["pick",`${ips.id}`])}>${escHtml(locName(ips))}</button>.</p>`)
-        :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+periphSummaryHtml(n)}
+        :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+placeCardHtml(n)+periphSummaryHtml(n)}
   if(n.type==="det"){
     const cam=find(n.id)?.p;
     return detZoneCardHtml(cam,n)+card("Параметры",`${detFieldsHtml(cam,n,"Имя")}
@@ -9060,6 +9087,7 @@ const RULE_DAYS=["пн","вт","ср","чт","пт","сб","вс"];
 function matchOptLabel(m,v){return m.dyn?(m.dyn(null).find(x=>x[0]===v)||[v,v])[1]:m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
 // Вид вне перечня: варианты — из того, что умеют камеры (detectorOptions)
 // Текст источника: варианты — слова выбранного источника; цель не выбрана — слова всех
+function ruleLabelToggle(x){ruleEdit(r=>{r.labels=listToggled(r.labels,x)})}
 function ruleWordOpts(ref){
   const one=ref?refNode(ref):null,out=new Set();
   if(one?.words)one.words.forEach(w=>out.add(w.msg));
@@ -11923,6 +11951,7 @@ function rulePassportBody(r){
       <div><label>${i18n("Назначение")}</label><input type="text" value="${escHtml(r.purpose||"")}" placeholder="${i18n("Одной фразой: что и зачем делает правило")}" ${onEv("change",["setRuleField","purpose",onEv.value])}></div>
       <div><label>${i18n("Выполняется на сервере")}</label>${selHtml(svs.map(x=>[x.id,locName(x)]),r.server,"setRuleField('server',this.value)","Выполняется на сервере")}</div>
       <div><label>${i18n("Выполняется от имени")}</label>${selHtml([["system","Система"],...accRoles().map(x=>[x.id,x.n])],r.runAs,"setRuleField('runAs',this.value)","Выполняется от имени")}</div>
+      <div><label>${i18n("Метки серверов")}</label>${chipsHtml(refLabels,r.labels,"ruleLabelToggle")}</div>
       <div><label>${i18n("Создано")}</label><input type="text" value="${who(r.created)}" readonly disabled></div>
       <div><label>${i18n("Изменено")}</label><input type="text" value="${who(r.changed)}" readonly disabled></div>
     </div>
@@ -13142,6 +13171,7 @@ function treeRoles(){
   if(!open.has("acc-x:ugroups")){
     h+=ugs.filter(g=>matchesText(q,g.n)).map(g=>`<div class="n ${accSel==="ug:"+g.id?"on":""}" style="--l:1" data-go="ug:${g.id}" ${onEv("click",["accGo",`ug:${g.id}`])} title="${escHtml(g.src?`${i18n("Из каталога")} ${accCat(g.src.cat)?.n||""}`:i18n("Вручную"))} · ${g.members.length} ${i18n(plural(g.members.length,"участник|участника|участников"))}"><span class="tw"></span>${ic(g.src?"acc_cat":"acc_group")}<span class="nm">${hlText(g.n,q)}</span>${accUGDiff(g.id)?`<span class="acc-mod">●</span>`:""}${treeTail({cnt:treeCntHtml(g.members.length)})}</div>`).join("");
     if(!q||matchesText(q,"Каталоги"))h+=`<div class="n ${accSel==="cats"||accSel.startsWith("cat:")?"on":""}" style="--l:1" data-go="acc:cats" ${onEv("click",["accGo","cats"])}><span class="tw"></span>${ic("acc_cat")}<span class="nm">${i18n("Каталоги")}</span>${treeTail({cnt:treeCntHtml(cats.length)})}</div>`;
+    if(can("listStreamAccounts")&&(!q||matchesText(q,"Учётки потоков")))h+=`<div class="n ${accSel==="streams"?"on":""}" style="--l:1" data-go="acc:streams" ${onEv("click",["accGo","streams"])}><span class="tw"></span>${ic("acc_user")}<span class="nm">${i18n("Учётки потоков")}</span>${treeTail({})}</div>`;
   }
   const gs=accGroups(domainFilter);
   h+=sec("groups","Папки устройств","folder",gs.filter(g=>!g.root).length,"groups");
@@ -13158,6 +13188,37 @@ function treeRoles(){
 }
 function accUserFind(id){accGo("user:"+id)}
 // ── Страницы ──
+// ── Учётки потоков: имя и пароль внешнего клиента. Пароль приходит один раз ──
+let streamAccs=null,streamDraft="";
+function streamAccsLoad(){
+  if(!can("listStreamAccounts"))return Promise.resolve();
+  return API.get("/stream-accounts").then(r=>{streamAccs=r.items;if(app==="acc"&&accSel==="streams")accStreamsUI()}).catch(e=>toast(problemText(e)));
+}
+function streamPassShow(r){
+  openBulkModal(`${i18n("Пароль учётки")} «${escHtml(r.name)}»`,`<p class="sub">${i18n("Пароль показывается один раз. Скопируйте его сейчас.")}</p><p data-stream-pass>${copyChipHtml(r.password,"Пароль")}</p>`,`<button type="button" class="btn pri" ${onEv("click",["closeBulkModal"])}>${i18n("Готово")}</button>`);
+}
+function streamAccAdd(){
+  const name=streamDraft.trim();if(!name){toast("Укажите имя учётки");return}
+  API.post("/stream-accounts",{name}).then(r=>{streamDraft="";streamPassShow(r);return streamAccsLoad()}).catch(e=>toast(problemText(e)));
+}
+function streamDraftSet(v){streamDraft=v}
+function streamAccPass(name){API.post(`/stream-accounts/${encodeURIComponent(name)}/password`,{}).then(r=>{streamPassShow(r);return streamAccsLoad()}).catch(e=>toast(problemText(e)))}
+function streamAccOn(name,on){API.patch(`/stream-accounts/${encodeURIComponent(name)}`,{disabled:!on}).then(streamAccsLoad).catch(e=>toast(problemText(e)))}
+function streamAccDel(name){
+  askConfirm("Удалить учётку?",`<ul class="bk-del"><li>${i18n("Будет удалена учётка")} «${escHtml(name)}»</li><li>${i18n("Внешние клиенты с этим именем перестанут получать видео")}</li><li>${i18n("Сами потоки и камеры останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`stream:${name}`],{label:`${i18n("Учётка")} «${name}»`,commit:()=>{
+    API.del(`/stream-accounts/${encodeURIComponent(name)}`).then(streamAccsLoad).catch(e=>toast(problemText(e)));
+  }}),{html:true,typeCount:1});
+}
+function accStreamsUI(){
+  if(!streamAccs){streamAccs=[];streamAccsLoad()}
+  const rows=streamAccs.map(a=>`<tr data-stream-acc="${escHtml(a.name)}"><td>${escHtml(a.name)}</td><td>${i18n(a.disabled?"Отключена":"Включена")}</td><td class="sub">${a.at?escHtml(clockText(a.at,false)):"—"}</td><td class="sub">${escHtml(a.by||"—")}</td><td class="ca-x">
+    <button type="button" class="btn s" ${onEv("click",["streamAccPass",`${a.name}`])}>${i18n("Новый пароль")}</button>
+    <button type="button" class="btn s" ${onEv("click",["streamAccOn",`${a.name}`,!!a.disabled])}>${i18n(a.disabled?"Включить":"Отключить")}</button>
+    <button type="button" class="btn s" ${onEv("click",["streamAccDel",`${a.name}`])}>${i18n("Удалить")}</button></td></tr>`).join("");
+  paintMain(mainHd("",i18n("Учётки потоков"),i18n("Для подключения внешних клиентов к потоку. Доступ к камерам — как у пользователя, через права"),accListTabs(),accActsHtml())+
+    `<div class="sc">${card("Учётки потоков",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Состояние")}</th><th>${i18n("Изменена")}</th><th>${i18n("Кем")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="ca-foot"><input placeholder="${i18n("Имя учётки")}" aria-label="${i18n("Имя учётки")}" value="${escHtml(streamDraft)}" ${onEv("input",["streamDraftSet",onEv.value])}> <button type="button" class="btn s" ${onEv("click",["streamAccAdd"])}>${lu("plus")}${i18n("Учётка")}</button></div>`,`<span class="sub" style="font-weight:400">${streamAccs.length}</span>`)}</div>`);
+}
 function accUI(){
   accGroupCache.clear();accObjGroupCache.clear();accObjCache.clear();accData();
   if(accSel.startsWith("role:")&&accSelRole())return accRoleUI(accSelRole());
@@ -13165,6 +13226,7 @@ function accUI(){
   if(accSel.startsWith("grp:")&&accGroupRow(accSel.slice(4)))return accGroupUI(accSel.slice(4));
   if(accSel.startsWith("ug:")&&accUG(accSel.slice(3)))return accUGroupUI(accUG(accSel.slice(3)));
   if(accSel.startsWith("cat:")&&accCat(accSel.slice(4)))return accCatUI(accCat(accSel.slice(4)));
+  if(accSel==="streams")return accStreamsUI();
   if(accSel==="ugroups")return accUGroupsUI();
   if(accSel==="cats")return accCatsUI();
   if(accSel==="users")return accUsersUI();
@@ -13176,7 +13238,7 @@ function accUI(){
 const ACC_SUB="Роли, пользователи и группы пользователей домена. Права выдаются роли на папки устройств (те же, что в «Оборудовании») и на отдельные объекты; пользователь получает наибольшее по всем своим действующим ролям — личным и полученным через группы";
 function accListTabs(){
   const cur=accSel.startsWith("grp:")?"groups":/^(ugroups|ug:|cats|cat:)/.test(accSel)?"ugroups":accSel;
-  return[["roles","Роли"],["users","Пользователи"],["ugroups","Группы пользователей"],["groups","Папки устройств"],["check","Проверка"]].map(([id,x])=>`<button class="tab ${cur===id?"on":""}" ${onEv("click",["accGo",`${id}`])}>${i18n(x)}${id==="check"&&accIssues().length?` <span class="acc-tabcnt warn">${accIssues().length}</span>`:""}</button>`).join("");
+  return[["roles","Роли"],["users","Пользователи"],["ugroups","Группы пользователей"],["groups","Папки устройств"],...(can("listStreamAccounts")?[["streams","Учётки потоков"]]:[]),["check","Проверка"]].map(([id,x])=>`<button class="tab ${cur===id?"on":""}" ${onEv("click",["accGo",`${id}`])}>${i18n(x)}${id==="check"&&accIssues().length?` <span class="acc-tabcnt warn">${accIssues().length}</span>`:""}</button>`).join("");
 }
 function accGroupsUI(){
   const items=accGroups(domainFilter);
@@ -15579,6 +15641,34 @@ function flashSetting(){
 // Записи — с сервера (GET /journal): appLoad
 const LOG_ROWS=[];
 const LOG_BY_CAT={all:[],audit:[],alarm:[],info:[]};
+function logRow(e){return[clockText(e.occurredAt||e.at,false),LOG_KIND_RU[e.category]||e.category,e.text]}
+// Отбор журнала — на сервере: устройство, подсистема, время, сколько строк
+const logSources=new Set(),logDevices=new Set();
+let logQ={deviceId:"",source:"",from:"",to:"",limit:""},logRes=null;
+function logQOn(){return Object.values(logQ).some(Boolean)}
+function logSet(k,v){logQ={...logQ,[k]:v};logQueryRun()}
+function logReset(){logQ={deviceId:"",source:"",from:"",to:"",limit:""};logQueryRun()}
+function logQueryRun(){
+  if(!logQOn()){logRes=null;logUI();return Promise.resolve()}
+  const iso=v=>new Date(v).toISOString().replace(/\.\d+Z$/,"Z"),q={};
+  if(logQ.deviceId)q.deviceId=logQ.deviceId;
+  if(logQ.source)q.source=logQ.source;
+  if(logQ.from)q.from=iso(logQ.from);
+  if(logQ.to)q.to=iso(logQ.to);
+  if(logQ.limit)q.limit=logQ.limit;
+  if(LOG_BY_CAT[logFilt]&&logFilt!=="all")q.category=logFilt;
+  return API.get("/journal",q).then(r=>{logRes=r;logUI()}).catch(e=>toast(problemText(e)));
+}
+function logFilterHtml(){
+  const dev=id=>locName(find(id)?.n||{name:id});
+  return`<div class="g log-filter" style="margin-bottom:10px">
+    <div><label>${i18n("Устройство")}</label>${selHtml([["",i18n("Все")],...[...logDevices].filter(id=>find(id)).map(id=>[id,dev(id)])],logQ.deviceId,["logSet","deviceId",onEv.value],"Устройство")}</div>
+    <div><label>${i18n("Подсистема")}</label>${selHtml([["",i18n("Все")],...[...logSources].map(x=>[x,x])],logQ.source,["logSet","source",onEv.value],"Подсистема")}</div>
+    <div><label>${i18n("С")}</label><input type="datetime-local" value="${escHtml(logQ.from)}" ${onEv("change",["logSet","from",onEv.value])}></div>
+    <div><label>${i18n("По")}</label><input type="datetime-local" value="${escHtml(logQ.to)}" ${onEv("change",["logSet","to",onEv.value])}></div>
+    <div><label>${i18n("Строк")}</label>${selHtml([["",i18n("Все")],["50","50"],["200","200"],["1000","1000"]],logQ.limit,["logSet","limit",onEv.value],"Строк")}</div>
+    </div>${logQOn()?`<p class="sub"><button type="button" class="lk lk-act" ${onEv("click",["logReset"])}>${i18n("Сбросить отбор")}</button>${logRes?.truncated?` · <span data-log-truncated>${i18n("показаны не все, уточните отбор")}</span>`:""}${logRes?.withheldCount?` · ${i18n("скрыто правами")}: ${logRes.withheldCount}`:""}</p>`:""}`;
+}
 // Операции: групповые и одиночные правки оборудования. Откатывается только последняя: кнопка — у строки с revertible
 let logOps=[];
 function logOpsLoad(){
@@ -15623,9 +15713,9 @@ function logUI(){const cat=logCats.find(x=>x.id===logFilt)||logCats[0];
       })}</div>`);
     return;
   }
-  const rows=LOG_BY_CAT[cat.id]||LOG_ROWS;
+  const rows=logRes?logRes.items.map(logRow):LOG_BY_CAT[cat.id]||LOG_ROWS;
   paintMain(mainHd("Журнал",`<span class="hd-ic">${lu("scroll-text")}</span>${cat.n}`,"Диагностика и аудит")+
-    `<div class="sc">${listCard({
+    `<div class="sc">${logFilterHtml()}${listCard({
       key:"log:"+cat.id,
       title:"События",
       items:rows,
@@ -16444,7 +16534,7 @@ function camArchsCardHtml(n){
   const rows=list.map((x,i)=>{
     const a=archById(x.arch),opts=archChoicesFor(n).filter(o=>o.id===x.arch||!used.has(o.id));
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
-        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`}</td>
+        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${recStateHtml(x)}</td>
       <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
       <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${REC_MODES.filter(([v])=>v!=="none").map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
       <td class="ca-x"><button type="button" class="btn s" title="${i18n("Отвязать от хранилища")}" ${onEv("click",["camArchRowDel",`${n.id}`,i])}>${i18n("Отвязать")}</button></td></tr>`;
@@ -17637,7 +17727,7 @@ function navTitle(){
     else if(accSel.startsWith("grp:"))t=accGroupName(accSel.slice(4));
     else if(accSel.startsWith("ug:"))t=`${i18n("Группа пользователей")} «${accUGName(accSel.slice(3))}»`;
     else if(accSel.startsWith("cat:"))t=`${i18n("Каталог")} ${accCat(accSel.slice(4))?.n||""}`;
-    else t=i18n({roles:"Роли",users:"Пользователи",ugroups:"Группы пользователей",groups:"Папки устройств",cats:"Каталоги",check:"Проверка",compare:"Сравнение ролей"}[accSel]||"");
+    else t=i18n({roles:"Роли",users:"Пользователи",ugroups:"Группы пользователей",groups:"Папки устройств",cats:"Каталоги",streams:"Учётки потоков",check:"Проверка",compare:"Сравнение ролей"}[accSel]||"");
   }
   return t?`${sec} › ${t}`:sec;
 }
@@ -19019,7 +19109,7 @@ function keyToApi(node,key,v){
   if(key==="enabled")return{enabled:v!==false};
   if(key==="kind"&&node.type==="det")return{detectorKind:v===undefined?null:DET_KIND_CODE[v]||v};
   if(key==="sens")return{sensitivity:apiVal("sensitivity",v)};
-  if(key==="archx")return{extraArchives:v===undefined?null:v.map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null}))};
+  if(key==="archx")return{extraArchives:v===undefined?null:v.map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{})}))};
   if(key==="mode"&&node.type==="email")return{mode:v===undefined?null:EMAIL_MODE_CODE[v]||v};
   if(key==="pass")return{password:v===undefined?null:v};
   if(key==="norm")return{norm:v===undefined?null:NORM_CODE[v]||v};

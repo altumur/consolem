@@ -61,7 +61,7 @@
   const Engine = typeof window !== "undefined" && window.ConsolemRuleEngine ? window.ConsolemRuleEngine : require("./rule-engine.js");
   // Содержимое правила: то, что правит администратор и что хранят версии истории
   const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
-    "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain"];
+    "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels"];
   const STREAM_DEPTH = 500;
   // Стопка отката: сколько операций и как долго сервер помнит, что вернуть
   const UNDO_KEEP = 50;
@@ -156,6 +156,10 @@
       return () => listeners.delete(fn);
     }
 
+    // Пароль учётки потока: сервер его не хранит в открытую, отдаёт один раз
+    let secretSeq = 0;
+    const newSecret = () => `s-${(++secretSeq).toString(36)}-${(now() % 1679616).toString(36)}`;
+
     /* ===== Ответы ===== */
 
     function problem(status, code, message, extra) {
@@ -191,6 +195,9 @@
     function device(rec) {
       const out = clone(rec);
       if (secrets.has(rec.id)) out.hasPassword = true;
+      // Детектор просит метку: нет сервера с ней — считать негде, причина словами
+      const miss = rec.type === "det" && !rec.builtin ? (rec.labels || []).find((l) => !db.servers.some((s) => s.domainId === rec.domainId && (s.labels || []).includes(l))) : null;
+      if (miss && !out.faultText) out.faultText = `Нет сервера с меткой ${miss}`;
       return out;
     }
     // Сервер устройства: свой (камера, регистратор, детектор, служба) или ближайшего родителя
@@ -584,6 +591,7 @@
         if (!("enabled" in d)) d.enabled = true;
         d.online = true;
         applyProfile(d, s);
+        if (s.type === "det" && !s.builtin && !("labels" in s)) d.labels = ["gpu"];
         if (s.type === "camera" && !d.streams) d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
         d.version = newVersion();
         db.devices.push(d);
@@ -1178,7 +1186,11 @@
           return { status: 200, body: { userId: u.id, login: u.login, name: u.name, serverTime: iso(now()), timezone: db.timezone } };
         },
       ],
-      ["GET", "/reference", () => ({ status: 200, body: clone(db.reference) })],
+      ["GET", "/reference", () => {
+        const ref = clone(db.reference);
+        ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
+        return { status: 200, body: ref };
+      }],
       ...getter("domains", "Домен"),
       ...getter("servers", "Сервер"),
       ...getter("devices", "Устройство"),
@@ -2155,7 +2167,63 @@
       ["GET", "/access", () => one(clone(db.access))],
       ["GET", "/settings", () => one(clone(db.settings))],
       ["GET", "/licenses", () => items(clone(db.licenses))],
-      ["GET", "/journal", (p, q) => items(db.journal.filter((e) => !q.category || e.category === q.category).map(clone))],
+      [
+        "GET",
+        "/journal",
+        (p, q) => {
+          const when = (e) => Date.parse(e.occurredAt || e.at);
+          const hit = db.journal.filter((e) => (!q.category || e.category === q.category) && (!q.deviceId || e.deviceId === q.deviceId) && (!q.source || e.source === q.source) &&
+            (!q.from || when(e) >= Date.parse(q.from)) && (!q.to || when(e) <= Date.parse(q.to)));
+          const limit = Number(q.limit) || 1000;
+          // Встроенный сервер права на журнал не проверяет: скрытых записей у него нет
+          return { status: 200, body: { items: hit.slice(0, limit).map(clone), truncated: hit.length > limit, withheldCount: 0 } };
+        },
+      ],
+      /* ----- Учётки потоков ----- */
+      ["GET", "/stream-accounts", () => items(db.streamAccounts.map(clone))],
+      [
+        "POST",
+        "/stream-accounts",
+        (p, q, body) => {
+          const name = String(body.name).trim();
+          if (!name) return problem(422, "NAME_REQUIRED", "Укажите имя учётки", { field: "name" });
+          if (db.streamAccounts.some((a) => a.name.toLowerCase() === name.toLowerCase())) return problem(409, "NAME_TAKEN", "Учётка с таким именем уже есть", { field: "name" });
+          db.streamAccounts.push({ name, disabled: false, at: iso(now()), by: myLogin() });
+          send("entity.changed", { kind: "streamAccounts" });
+          return { status: 201, body: { name, password: newSecret() } };
+        },
+      ],
+      [
+        "PATCH",
+        "/stream-accounts/{name}",
+        (p, q, body) => {
+          const a = db.streamAccounts.find((x) => x.name === p.name);
+          if (!a) return notFound("Учётка");
+          Object.assign(a, { disabled: body.disabled, at: iso(now()), by: myLogin() });
+          send("entity.changed", { kind: "streamAccounts" });
+          return { status: 200, body: clone(a) };
+        },
+      ],
+      [
+        "DELETE",
+        "/stream-accounts/{name}",
+        (p) => {
+          if (!db.streamAccounts.some((x) => x.name === p.name)) return notFound("Учётка");
+          db.streamAccounts = db.streamAccounts.filter((x) => x.name !== p.name);
+          send("entity.changed", { kind: "streamAccounts" });
+          return { status: 204, body: null };
+        },
+      ],
+      [
+        "POST",
+        "/stream-accounts/{name}/password",
+        (p) => {
+          const a = db.streamAccounts.find((x) => x.name === p.name);
+          if (!a) return notFound("Учётка");
+          Object.assign(a, { at: iso(now()), by: myLogin() });
+          return { status: 200, body: { name: a.name, password: newSecret() } };
+        },
+      ],
       // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
       // клиент отдаёт их по одному, петля пишет строками data:
       ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
