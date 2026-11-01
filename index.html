@@ -2149,7 +2149,7 @@ function isUnitNode(n){return!!n&&CAPS.units.has(n.type)&&(!CAPS.found.has(n.typ
 // Находки сервера и выведенный ipsrv не удаляются; единицу СКУД заводит и снимает оператор
 function canDeleteNode(n){return!!n&&!n.derived&&(!CAPS.found.has(n.type)||isUnitNode(n))}
 // В папках — камеры, регистраторы с записью, источники, СКУД; не входы, не выходы, не единицы
-function canFolder(n){return!!n&&!n.derived&&!CAPS.found.has(n.type)&&!CAPS.units.has(n.type)}
+function inFolders(n){return!!n&&!n.derived&&!CAPS.found.has(n.type)&&!CAPS.units.has(n.type)}
 // Поле карточки: правится или только для чтения
 function devFld(n,l,k,v,tp){return canWrite(n,k)?fld(l,v,tp):fldRo(l,v)}
 function can(need){
@@ -2991,6 +2991,11 @@ function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   refParams=ref.deviceParams||{};
+  // Что умеет событие — из справочника: варианты уточнения отдаёт сервер, подписи — по коду
+  (ref.ruleTriggers||[]).forEach(t=>{
+    const k=TRIGGER_KINDS.find(x=>x.sub===t.source&&x.kind===t.kind);
+    if(k)k.match.forEach(m=>{const r=t.match.find(x=>x.id===m.id);if(r)m.opts=r.options});
+  });
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
   (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
   (ref.monitors||[]).forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
@@ -7897,7 +7902,7 @@ function removeDeviceFromFolder(fid,id){
 // Выбор папки в списке: добавить и сбросить список к подсказке
 function addDeviceToFolderPick(el,id){addDeviceToFolder(el.value,id);el.value=""}
 function deviceFoldersCardHtml(n){
-  if(!canFolder(n))return"";
+  if(!inFolders(n))return"";
   const sv=srv(n.id);
   return listCard({
     key:"devfld:"+n.id,
@@ -8417,8 +8422,7 @@ function formBase(n){
 // техническими (closed/open), по-человечески они подписаны только на экране.
 const TRIGGER_KINDS=[
   {sub:"vms",kind:"io.input",label:"Вход устройства",unitLabel:"Устройство",devTypes:["sensor","acfa_sensor"],ends:true,endsWord:"сигнал на входе",endsOf:"сигнала на входе",
-   match:[{id:"port",label:"Вход №",opts:["1","2","3","4"],pre:"вход"},
-          {id:"value",label:"Состояние",opts:["closed","open"],names:{closed:"замкнут",open:"разомкнут"}}]},
+   match:[{id:"value",label:"Состояние",opts:[],names:{active:"сработал",normal:"вернулся в норму"}}]},
   {sub:"det",kind:"motion",label:"Детектор: движение",unitLabel:"Камера",devTypes:["camera"],match:[],ends:true,endsWord:"движение",endsOf:"движения"},
   {sub:"det",kind:"linecross",label:"Детектор: пересечение линии",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"lpr",label:"Детектор: номер",unitLabel:"Камера",devTypes:["camera"],match:[]},
@@ -8456,8 +8460,8 @@ const ACTION_KINDS=[
    fields:[{id:"to",label:"Кому"},{id:"subj",label:"Тема",tpl:true},{id:"body",label:"Текст письма (необязательно)",tpl:true}]},
   {grp:"Уведомления",sub:"ntf",action:"tg",label:"Сообщение в Telegram",short:"Telegram",devTypes:[],
    fields:[{id:"chat",label:"Чат"},{id:"text",label:"Текст сообщения",tpl:true}]},
-  {grp:"Другое",sub:"vms",action:"output",label:"Щёлкнуть реле",devTypes:["relay"],def:{port:1,state:"pulse",pulse_ms:1000},
-   fields:[{id:"ref",label:"Устройство"},{id:"port",label:"Выход №",opts:["1","2","3","4"]},
+  {grp:"Другое",sub:"vms",action:"output",label:"Щёлкнуть реле",devTypes:["relay"],def:{state:"pulse",pulse_ms:1000},
+   fields:[{id:"ref",label:"Устройство"},
            {id:"pulse_ms",label:"Импульс, мс"}]},
   {grp:"Другое",sub:"net",action:"http",label:"Веб-запрос",devTypes:[],def:{method:"GET"},
    fields:[{id:"method",label:"Метод",req:false,opts:["GET","POST"]},{id:"url",label:"Адрес (URL)",tpl:true}]},
@@ -8849,7 +8853,7 @@ function actionRest(a,o){
     else if(a.minutes)rest.push(`${a.minutes} ${i18n("мин")}`);
   }
   if(k.action==="disable"&&a.minutes)rest.push(`${a.minutes} ${i18n("мин")}`);
-  if(k.action==="output"&&a.port)rest.push(`${i18n("выход")} ${a.port}`);
+  if(k.action==="output"&&find(a.ref)?.n?.ch!=null)rest.push(`${i18n("выход")} ${find(a.ref).n.ch}`);
   if(k.action==="output"&&a.pulse_ms)rest.push(`${i18n("импульс")} ${a.pulse_ms} ${i18n("мс")}`);
   if(k.action==="preset"&&a.n)rest.push(`${i18n("пресет")} ${a.n}`);
   if(k.action==="alarm"&&a.prio==="high")rest.push(i18n("приоритет высокий"));
@@ -8917,7 +8921,7 @@ function ruleAutoName(r){
   let head;
   if(t){
     const k=triggerKind(t),v=(t.match||{}).value;
-    head=`${td}: ${i18n(k.kind==="io.input"&&v?(k.match[1].names[v]||v):RULE_KIND_SHORT[k.kind]||k.label)}`;
+    head=`${td}: ${i18n(k.kind==="io.input"&&v?(k.match[0].names[v]||v):RULE_KIND_SHORT[k.kind]||k.label)}`;
   }else head=i18n(r.start==="sched"?"По расписанию":"Вручную");
   let tail="";
   if(a){
@@ -9262,18 +9266,18 @@ const RULE_STARTS=[
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 const RULE_TPL=[
   {id:"door",start:"event",name:"Дверь открыта — сирена",sub:"Вход датчика «разомкнут» включает реле на 5 секунд",
-   make:()=>({when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"open"}}],
-              then:[{sub:"vms",action:"output",ref:"",port:1,state:"pulse",pulse_ms:5000}]})},
+   make:()=>({when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+              then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
   {id:"night",start:"event",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
    make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
-              then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",port:1,state:"pulse",pulse_ms:1000}]})},
+              then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"lost",start:"event",name:"Камера пропала — писать соседнюю",sub:"Когда камера перестала отвечать, другая записывает 15 минут",
    make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
   {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
-   make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",port:1,state:"pulse",pulse_ms:1000}]})},
+   make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
-   make:()=>({menu:true,then:[{sub:"vms",action:"output",ref:"",port:1,state:"pulse",pulse_ms:3000}]})}];
+   make:()=>({menu:true,then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})}];
 let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
 // событие или действие, и шаблон тогда не обязателен.
@@ -10124,7 +10128,7 @@ function ruleTraceRetry(id,k){
 // та же трасса, но действия в ней «сработало бы». Ничего не выполняется.
 let rck=null;   // {src:"log"|"hand", pick, rows:[{kind,ref}], cands, time, nowTime, rec}
 const RULE_LOGKIND=[
-  [/open|разомкн|дверь/i,{sub:"vms",kind:"io.input",match:{value:"open"}}],
+  [/open|разомкн|дверь/i,{sub:"vms",kind:"io.input",match:{value:"active"}}],
   [/пересечение/i,{sub:"det",kind:"linecross",match:{}}],
   [/движение/i,{sub:"det",kind:"motion",match:{}}],
   [/нет связи|пропал/i,{sub:"vms",kind:"silent",match:{}}]];
@@ -12052,8 +12056,8 @@ function ruleCtx(e,id){
 function rulePresetFor(n){
   if(!n)return null;
   if(n.type==="camera")return{start:"event",when:[{sub:"det",kind:"motion",ref:n.id,match:{}}]};
-  if(n.type==="sensor"||n.type==="acfa_sensor")return{start:"event",when:[{sub:"vms",kind:"io.input",ref:n.id,match:{value:"open"}}]};
-  if(n.type==="relay")return{start:"event",then:[{sub:"vms",action:"output",ref:n.id,port:1,state:"pulse",pulse_ms:1000}]};
+  if(n.type==="sensor"||n.type==="acfa_sensor")return{start:"event",when:[{sub:"vms",kind:"io.input",ref:n.id,match:{value:"active"}}]};
+  if(n.type==="relay")return{start:"event",then:[{sub:"vms",action:"output",ref:n.id,state:"pulse",pulse_ms:1000}]};
   if(n.type==="det"){
     const cam=find(n.id)?.p;
     if(!cam||cam.type!=="camera")return null;
@@ -12071,7 +12075,7 @@ function ruleFromDevice(id){
 // Журнал не знает устройства, только текст: событие угадываем по нему, ref выберут в карточке.
 function ruleFromLog(text){
   const t=String(text||"");
-  const w=/open|разомкн|дверь/i.test(t)?{sub:"vms",kind:"io.input",ref:"",match:{value:"open"}}
+  const w=/open|разомкн|дверь/i.test(t)?{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}
     :/пересечение/i.test(t)?{sub:"det",kind:"linecross",ref:"",match:{}}
     :{sub:"det",kind:"motion",ref:"",match:{}};
   ruleQuiet=true;setApp("rules");ruleQuiet=false;

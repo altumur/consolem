@@ -45,7 +45,7 @@
     { source: "client", action: "wall", deviceTypes: ["camera"], fields: [] },
     { source: "ntf", action: "email", deviceTypes: [], fields: ["to", "subject"], tpl: ["subject", "body"], via: "email" },
     { source: "ntf", action: "tg", deviceTypes: [], fields: ["chat", "text"], tpl: ["text"] },
-    { source: "vms", action: "output", deviceTypes: ["relay"], fields: ["port", "pulseMs"] },
+    { source: "vms", action: "output", deviceTypes: ["relay"], fields: ["pulseMs"] },
     { source: "net", action: "http", deviceTypes: [], fields: ["url"], tpl: ["url"] },
     { source: "rule", action: "runrule", deviceTypes: [], fields: ["ruleId"] },
   ];

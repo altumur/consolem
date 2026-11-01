@@ -5470,10 +5470,12 @@
             "type": "object",
             "properties": {
               "port": {
-                "type": "string"
+                "type": "string",
+                "description": "Необязательно. Номер берётся из записи (Device.channel); если поле есть, значит то же самое, расхождение — 422 RULE_INVALID"
               },
               "value": {
-                "type": "string"
+                "type": "string",
+                "description": "Для io.input: active — начало тревоги, normal — конец. Считается сравнением сигнала с Device.norm, а не словом контакта"
               }
             },
             "additionalProperties": false,
@@ -5579,7 +5581,8 @@
           },
           "port": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Необязательно. Номер выхода берётся из записи (Device.channel); если поле есть, значит то же самое, расхождение — 422 RULE_INVALID"
           },
           "state": {
             "type": "string"

@@ -287,5 +287,23 @@
     assert.status(await env.call("PATCH", "/settings", { values: {} }), 428, "PRECONDITION_REQUIRED");
   });
 
+  test("Правило: номер входа и выхода — из записи, расхождение с полем правила — 422 RULE_INVALID", async () => {
+    const env = await makeEnv();
+    const rule = FX.rules[0];
+    const cur = await env.ok("GET", `/rules/${rule.id}`);
+    const relay = (await env.list("/devices")).find((d) => d.type === "relay" && d.channel);
+    const step = (port) => ({ source: "vms", action: "output", pulseMs: 500, target: { include: [{ kind: "device", id: relay.id }], exclude: [], gone: [], fromEvent: false }, port });
+    const res = await env.call("PUT", `/rules/${rule.id}`, body(cur, { steps: [step(relay.channel + 1)] }), etag(cur));
+    assert.status(res, 422, "RULE_INVALID", "номер не совпал");
+    assert.eq(res.body.params.issue.code, "action.portMismatch", "что не так");
+    await env.ok("PUT", `/rules/${rule.id}`, body(cur, { steps: [step(relay.channel)] }), etag(cur));
+  }, { needs: ["type:relay"] });
+
+  test("Правило: варианты уточнения входа — начало и конец тревоги, номера нет", async () => {
+    const env = await makeEnv();
+    const t = (await env.ok("GET", "/reference")).ruleTriggers.find((x) => x.kind === "io.input");
+    assert.eq(t.match, [{ id: "value", options: ["active", "normal"] }], "варианты");
+  });
+
   ApiTest.loaded("api-rules.js");
 })();

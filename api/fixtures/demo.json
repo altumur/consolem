@@ -1834,7 +1834,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Динамик вызова",
    "short": "1.3",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1871,7 +1871,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле замка",
    "short": "1.6",
-   "channel": 3,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1883,7 +1883,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле подсветки",
    "short": "1.7",
-   "channel": 4,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1895,7 +1895,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Кнопка выхода",
    "short": "1.8",
-   "channel": 5,
+   "channel": 3,
    "online": false,
    "fault": "conn",
    "enabled": true,
@@ -1908,7 +1908,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Микрофон панели",
    "short": "1.9",
-   "channel": 6,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1920,7 +1920,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик прохода",
    "short": "1.10",
-   "channel": 7,
+   "channel": 4,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1932,7 +1932,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле турникета",
    "short": "1.11",
-   "channel": 8,
+   "channel": 3,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -1944,7 +1944,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Геркон калитки",
    "short": "1.12",
-   "channel": 9,
+   "channel": 5,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2223,7 +2223,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 0",
    "short": "3.3.1",
-   "channel": 0,
+   "channel": 1,
    "online": false,
    "fault": "conn",
    "enabled": true,
@@ -2236,7 +2236,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 1",
    "short": "3.3.2",
-   "channel": 1,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2248,7 +2248,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 0",
    "short": "3.3.3",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2260,7 +2260,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 1",
    "short": "3.3.4",
-   "channel": 1,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2272,7 +2272,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 2",
    "short": "3.3.5",
-   "channel": 2,
+   "channel": 3,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2308,7 +2308,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 5",
    "short": "3.3.8",
-   "channel": 5,
+   "channel": 4,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2320,7 +2320,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 6",
    "short": "3.3.9",
-   "channel": 6,
+   "channel": 5,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2332,7 +2332,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 7",
    "short": "3.3.10",
-   "channel": 7,
+   "channel": 5,
    "online": false,
    "fault": "conn",
    "enabled": true,
@@ -2345,7 +2345,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 8",
    "short": "3.3.11",
-   "channel": 8,
+   "channel": 6,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2357,7 +2357,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 9",
    "short": "3.3.12",
-   "channel": 9,
+   "channel": 6,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2484,7 +2484,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Канал",
    "short": "4.1",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2496,7 +2496,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 0",
    "short": "4.1.1",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2508,7 +2508,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 1",
    "short": "4.1.2",
-   "channel": 1,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2520,7 +2520,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Датчик 2",
    "short": "4.1.3",
-   "channel": 2,
+   "channel": 3,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2532,7 +2532,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 0",
    "short": "4.1.4",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2544,7 +2544,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Реле 1",
    "short": "4.1.5",
-   "channel": 1,
+   "channel": 2,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2574,7 +2574,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Микрофон",
    "short": "5.1",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2586,7 +2586,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Динамик",
    "short": "5.2",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2598,7 +2598,7 @@
    "domainId": "10000001-0000-4000-8000-000000000000",
    "name": "Канал",
    "short": "5.3",
-   "channel": 0,
+   "channel": 1,
    "online": true,
    "enabled": true,
    "version": "1"
@@ -2698,7 +2698,8 @@
    "short": "8.4.1",
    "online": true,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "channel": 1
   },
   {
    "id": "30000089-0000-4000-8000-000000000000",
@@ -5819,6 +5820,54 @@
    "channel": 1,
    "norm": "open",
    "version": "1"
+  },
+  {
+   "id": "30000286-0000-4000-8000-000000000000",
+   "type": "sensor",
+   "parentId": "30000048-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Вход 3",
+   "online": true,
+   "enabled": true,
+   "channel": 3,
+   "norm": "open",
+   "version": "1"
+  },
+  {
+   "id": "30000287-0000-4000-8000-000000000000",
+   "type": "sensor",
+   "parentId": "30000048-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Вход 7",
+   "online": true,
+   "enabled": true,
+   "channel": 7,
+   "norm": "closed",
+   "version": "1"
+  },
+  {
+   "id": "30000285-0000-4000-8000-000000000000",
+   "type": "channel",
+   "parentId": "30000046-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Блок входов 2",
+   "online": true,
+   "enabled": true,
+   "short": "3.20",
+   "channel": 2,
+   "version": "1"
+  },
+  {
+   "id": "30000288-0000-4000-8000-000000000000",
+   "type": "sensor",
+   "parentId": "30000285-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Вход 8",
+   "online": true,
+   "enabled": true,
+   "channel": 8,
+   "norm": "open",
+   "version": "1"
   }
  ],
  "folders": [
@@ -7311,8 +7360,7 @@
       "fromEvent": false
      },
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      }
     }
    ],
@@ -7376,7 +7424,6 @@
       "gone": [],
       "fromEvent": false
      },
-     "port": 2,
      "state": "pulse",
      "pulseMs": 500
     },
@@ -7397,8 +7444,7 @@
        "fromEvent": false
       },
       "match": {
-       "port": "1",
-       "value": "closed"
+       "value": "active"
       }
      },
      "sec": 30,
@@ -7473,7 +7519,7 @@
       "fromEvent": false
      },
      "match": {
-      "value": "open"
+      "value": "normal"
      }
     }
    ],
@@ -7498,7 +7544,6 @@
       "gone": [],
       "fromEvent": false
      },
-     "port": 1,
      "state": "pulse",
      "pulseMs": 10000
     },
@@ -7589,7 +7634,7 @@
       "fromEvent": false
      },
      "match": {
-      "value": "closed"
+      "value": "active"
      }
     }
    ],
@@ -7731,7 +7776,6 @@
       "gone": [],
       "fromEvent": false
      },
-     "port": 1,
      "state": "pulse",
      "pulseMs": 3000
     },
@@ -7789,7 +7833,6 @@
       "gone": [],
       "fromEvent": false
      },
-     "port": 1,
      "state": "pulse",
      "pulseMs": 1000
     }
@@ -7903,7 +7946,7 @@
       "fromEvent": false
      },
      "match": {
-      "value": "open"
+      "value": "normal"
      }
     }
    ],
@@ -7928,7 +7971,6 @@
       "gone": [],
       "fromEvent": false
      },
-     "port": 2,
      "state": "pulse",
      "pulseMs": 30000
     }
@@ -8084,7 +8126,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      }
@@ -8147,8 +8188,7 @@
        "fromEvent": false
       },
       "match": {
-       "port": "1",
-       "value": "closed"
+       "value": "active"
       }
      }
     ],
@@ -8192,7 +8232,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      }
@@ -8255,8 +8294,7 @@
        "fromEvent": false
       },
       "match": {
-       "port": "1",
-       "value": "closed"
+       "value": "active"
       }
      }
     ],
@@ -8320,7 +8358,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      }
@@ -8383,8 +8420,7 @@
        "fromEvent": false
       },
       "match": {
-       "port": "1",
-       "value": "closed"
+       "value": "active"
       }
      }
     ],
@@ -8448,7 +8484,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -8469,8 +8504,7 @@
         "fromEvent": false
        },
        "match": {
-        "port": "1",
-        "value": "closed"
+        "value": "active"
        }
       },
       "sec": 30,
@@ -8548,7 +8582,7 @@
        "fromEvent": false
       },
       "match": {
-       "value": "open"
+       "value": "normal"
       }
      }
     ],
@@ -8568,7 +8602,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 5000
      }
@@ -8615,7 +8648,7 @@
        "fromEvent": false
       },
       "match": {
-       "value": "open"
+       "value": "normal"
       }
      }
     ],
@@ -8635,7 +8668,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -8689,7 +8721,7 @@
        "fromEvent": false
       },
       "match": {
-       "value": "open"
+       "value": "normal"
       }
      }
     ],
@@ -8714,7 +8746,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -8770,7 +8801,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T20:20:11Z"
@@ -8816,7 +8847,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -8977,7 +9007,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T20:03:18Z"
@@ -9023,7 +9053,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -9206,7 +9235,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T19:46:25Z"
@@ -9252,7 +9281,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -9454,7 +9482,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T19:29:32Z"
@@ -9500,7 +9528,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -9661,7 +9688,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T19:12:39Z"
@@ -9707,7 +9734,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -9890,7 +9916,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:55:46Z"
@@ -9936,7 +9962,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -10146,7 +10171,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:50:11Z"
@@ -10285,7 +10310,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:38:53Z"
@@ -10331,7 +10356,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -10500,7 +10524,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:33:18Z"
@@ -10587,7 +10611,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:21:00Z"
@@ -10633,7 +10657,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -10824,7 +10847,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:16:25Z"
@@ -10969,7 +10992,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-23T18:04:07Z"
@@ -11015,7 +11038,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -11225,7 +11247,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T17:59:32Z"
@@ -11387,7 +11409,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T17:42:39Z"
@@ -11538,7 +11560,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T17:25:46Z"
@@ -11685,7 +11707,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T17:08:53Z"
@@ -11832,7 +11854,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T16:51:00Z"
@@ -11927,7 +11949,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T16:34:07Z"
@@ -12089,7 +12111,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T16:17:14Z"
@@ -12235,7 +12257,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T16:00:21Z"
@@ -12330,7 +12352,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000074-0000-4000-8000-000000000000",
      "at": "2026-10-23T15:43:28Z"
@@ -12482,7 +12504,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 3000
      },
@@ -12600,7 +12621,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 3000
      },
@@ -12718,7 +12738,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 3000
      },
@@ -13078,8 +13097,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T04:50:11Z"
@@ -13243,7 +13261,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -13266,8 +13283,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -13399,8 +13415,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T04:33:18Z"
@@ -13564,7 +13579,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -13587,8 +13601,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -13660,8 +13673,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T04:16:25Z"
@@ -13825,7 +13837,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -13848,8 +13859,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -13967,8 +13977,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T03:59:32Z"
@@ -14132,7 +14141,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -14155,8 +14163,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -14228,8 +14235,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T03:42:39Z"
@@ -14393,7 +14399,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -14419,8 +14424,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -14492,8 +14496,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T03:25:46Z"
@@ -14657,7 +14660,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -14680,8 +14682,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -14799,8 +14800,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T03:08:53Z"
@@ -14972,7 +14972,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -14998,8 +14997,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -15077,8 +15075,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T02:51:00Z"
@@ -15242,7 +15239,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -15265,8 +15261,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -15338,8 +15333,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T02:34:07Z"
@@ -15503,7 +15497,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -15526,8 +15519,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -15645,8 +15637,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T02:17:14Z"
@@ -15810,7 +15801,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -15836,8 +15826,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -15909,8 +15898,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T02:00:21Z"
@@ -16074,7 +16062,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -16097,8 +16084,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -16170,8 +16156,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T01:43:28Z"
@@ -16335,7 +16320,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -16358,8 +16342,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -16477,8 +16460,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T01:26:35Z"
@@ -16642,7 +16624,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -16665,8 +16646,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -16738,8 +16718,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T01:09:42Z"
@@ -16911,7 +16890,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -16937,8 +16915,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -17016,8 +16993,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T00:52:49Z"
@@ -17181,7 +17157,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -17207,8 +17182,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -17326,8 +17300,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "port": "1",
-      "value": "closed"
+      "value": "active"
      },
      "deviceId": "30000015-0000-4000-8000-000000000000",
      "at": "2026-10-23T00:35:56Z"
@@ -17491,7 +17464,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 2,
       "state": "pulse",
       "pulseMs": 500
      },
@@ -17514,8 +17486,7 @@
         "source": "vms",
         "kind": "io.input",
         "match": {
-         "port": "1",
-         "value": "closed"
+         "value": "active"
         }
        },
        "target": {
@@ -17579,7 +17550,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-20T23:50:14Z"
@@ -17637,7 +17608,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -17814,7 +17784,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-20T23:30:21Z"
@@ -17872,7 +17842,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -18074,7 +18043,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-20T23:10:28Z"
@@ -18132,7 +18101,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -18356,7 +18324,7 @@
      "source": "vms",
      "kind": "io.input",
      "match": {
-      "value": "open"
+      "value": "normal"
      },
      "deviceId": "30000073-0000-4000-8000-000000000000",
      "at": "2026-10-20T22:50:35Z"
@@ -18402,7 +18370,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 10000
      },
@@ -18586,7 +18553,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 1000
      },
@@ -18643,7 +18609,6 @@
        "gone": [],
        "fromEvent": false
       },
-      "port": 1,
       "state": "pulse",
       "pulseMs": 1000
      },
@@ -27402,19 +27367,10 @@
     "kind": "io.input",
     "match": [
      {
-      "id": "port",
-      "options": [
-       "1",
-       "2",
-       "3",
-       "4"
-      ]
-     },
-     {
       "id": "value",
       "options": [
-       "closed",
-       "open"
+       "active",
+       "normal"
       ]
      }
     ]
@@ -27641,15 +27597,6 @@
     "fields": [
      {
       "id": "target"
-     },
-     {
-      "id": "port",
-      "options": [
-       "1",
-       "2",
-       "3",
-       "4"
-      ]
      },
      {
       "id": "pulseMs"

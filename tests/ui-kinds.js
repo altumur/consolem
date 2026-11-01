@@ -36,6 +36,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/своей записи у него нет/.test(main().textContent) && !main().querySelector("[data-df]"), "выведенный регистратор: подпись, поля только для чтения");
   ok(deviceFoldersCardHtml(find(derived.id).n) === "", "папку выведенному не предлагаем");
 
+  // Вход сквозной по устройству: номера с пропуском, правило берёт его из записи
+  const gap = devices.filter((d) => d.type === "sensor" && d.channel === 7);
+  ok(gap.length > 0 && !!find(gap[0].id), "вход с номером 7 в дереве");
+  const k = TRIGGER_KINDS.find((x) => x.kind === "io.input");
+  ok(k.match.length === 1 && k.match[0].id === "value" && k.match[0].opts.join() === "active,normal", "уточнение входа — из справочника, номера нет");
+  ok(!ACTION_KINDS.find((x) => x.action === "output").fields.some((x) => x.id === "port"), "у реле нет поля «Выход №»");
+
   // Запись регистратора снимается, камеры остаются
   const nvr = of("ipsrv", (d) => d.subtype === "nvr" && !d.derived);
   const cam = devices.find((d) => d.parentId === nvr.id && d.type === "camera");

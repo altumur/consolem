@@ -571,8 +571,20 @@
       db.ruleVersions.push({ id: uuid("ruleVersion"), ruleId: r.id, number: h.length ? h[h.length - 1].number + 1 : 1, at: iso(now()), by: myLogin(), note: note || null, rule: content(r), was: was || null });
     }
     const versionView = (v) => { const out = clone(v); delete out.was; return out; };
+    // Номер входа и выхода — в записи. Поле правила, если оно есть, значит то же самое
+    function portIssue(c) {
+      const off = (target, port) => (target ? target.include : []).some((x) => {
+        const d = x.kind === "device" ? byId("devices", x.id) : null;
+        return !!d && d.channel != null && d.channel !== Number(port);
+      });
+      if (c.triggers.some((t) => t.kind === "io.input" && t.match.port != null && off(t.target, t.match.port))) return "trigger.portMismatch";
+      const walk = (l) => l.some((a) => (a.action === "output" && a.port != null && off(a.target, a.port)) || walk(a.yes || []) || walk(a.no || []));
+      return walk(c.steps) ? "action.portMismatch" : null;
+    }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
+      const port = portIssue(c);
+      if (port) return problem(422, "RULE_INVALID", "Номер входа или выхода не совпал с записью", { params: { issue: { code: port, params: {} } } });
       if (c.enabled) {
         const why = engine.issue(Object.assign({ id: null }, c));
         if (why) return problem(422, "RULE_INVALID", "Правило с ошибкой нельзя включить: исправьте ошибку или выключите правило", { params: { issue: why } });

@@ -13071,19 +13071,10 @@
     "kind": "io.input",
     "match": [
      {
-      "id": "port",
-      "options": [
-       "1",
-       "2",
-       "3",
-       "4"
-      ]
-     },
-     {
       "id": "value",
       "options": [
-       "closed",
-       "open"
+       "active",
+       "normal"
       ]
      }
     ]
@@ -13310,15 +13301,6 @@
     "fields": [
      {
       "id": "target"
-     },
-     {
-      "id": "port",
-      "options": [
-       "1",
-       "2",
-       "3",
-       "4"
-      ]
      },
      {
       "id": "pulseMs"
