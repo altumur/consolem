@@ -15,6 +15,6 @@ UiCheck(async ({ ok, until }) => {
   ok(/48\/64/.test(document.body.textContent), "лицензии с сервера");
   // Журнал
   goApp("log");
-  ok(LOG_ROWS.length === 24 && /^\d\d:\d\d$/.test(LOG_ROWS[0][0]), "журнал с сервера: " + LOG_ROWS.length + ", первое в " + LOG_ROWS[0][0]);
+  ok(LOG_ROWS.length === 25 && /^\d\d:\d\d$/.test(LOG_ROWS[0][0]), "журнал с сервера: " + LOG_ROWS.length + ", первое в " + LOG_ROWS[0][0]);
   ok(LOG_BY_CAT.alarm.length > 0 && LOG_BY_CAT.alarm.every((x) => x[1] === "Тревога"), "по категориям");
 });

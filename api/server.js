@@ -200,8 +200,24 @@
       if (miss && !out.faultText) out.faultText = `Нет сервера с меткой ${miss}`;
       const edge = serverWideRows(rec);
       if (edge.length) out.extraArchives = (out.extraArchives || []).concat(edge);
+      if (rec.type === "camera") replicaView(out);
       return out;
     }
+    // replica: поля только у этого режима; источник сняли — запись ждёт, уже забранное живёт своим сроком
+    function replicaView(out) {
+      const has = (id) => out.archiveId === id || (out.extraArchives || []).some((x) => x.archiveId === id);
+      if (out.recordMode !== "replica") {
+        delete out.replicaFrom;
+        delete out.replicaLagSec;
+      } else if (out.replicaFrom && !has(out.replicaFrom)) Object.assign(out, { recordState: "waiting", recordReason: SOURCE_GONE });
+      (out.extraArchives || []).forEach((x) => {
+        if (x.recordMode !== "replica") {
+          delete x.replicaFrom;
+          delete x.replicaLagSec;
+        } else if (x.replicaFrom && !has(x.replicaFrom)) Object.assign(x, { state: "waiting", reason: SOURCE_GONE });
+      });
+    }
+    const SOURCE_GONE = "Источник снят: запись ждёт";
     /* ----- Виды хранилищ: что отдал сервер ----- */
 
     const kindSpec = (kind) => (db.reference.archiveKinds || []).find((k) => k.kind === kind) || null;
@@ -238,13 +254,58 @@
       return null;
     }
     function recordingProblem(rec, patch) {
-      if (rec.type !== "camera" || !["archiveId", "recordMode", "extraArchives"].some((k) => k in patch)) return null;
+      if (rec.type === "storage") return cardProblem(patch);
+      if (rec.type !== "camera" || !RECORD_FIELDS.some((k) => k in patch)) return null;
       const next = Object.assign({}, rec, patch);
       const main = next.archiveId ? archiveRowProblem({ archiveId: next.archiveId, recordMode: next.recordMode }, true, next.archiveId === rec.archiveId) : next.recordMode === "backup" ? problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" }) : null;
       if (main) return main;
       for (const x of next.extraArchives || []) {
         const bad = archiveRowProblem(x, false, archiveWrites(rec, x.archiveId));
         if (bad) return bad;
+      }
+      const rows = (next.archiveId ? [{ archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream, replicaFrom: next.replicaFrom }] : []).concat(next.extraArchives || []);
+      return replicaProblem(rec, rows);
+    }
+    const RECORD_FIELDS = ["archiveId", "recordMode", "stream", "extraArchives", "replicaFrom"];
+    // Карта камеры w2c: режим самой карты и её объём
+    function cardProblem(patch) {
+      if ("recordMode" in patch && !["always", "backup"].includes(patch.recordMode)) return problem(422, "VALIDATION_FAILED", "У карты — постоянно или только при сбое", { field: "recordMode" });
+      return null;
+    }
+    // Встроенное хранилище — под самой камерой или под её регистратором
+    const hasBuiltIn = (rec) => db.devices.some((d) => d.type === "storage" && (d.parentId === rec.id || (rec.parentId && d.parentId === rec.parentId)));
+    const rowOf = (rec, archiveId) => (rec.archiveId === archiveId ? rec : (rec.extraArchives || []).find((x) => x.archiveId === archiveId)) || null;
+    function replicaProblem(rec, rows) {
+      const bad = (text) => problem(422, "VALIDATION_FAILED", text, { field: "replicaFrom" });
+      const main = (streamsOf(rec)[0] || {}).id;
+      const sources = rows.concat(serverWideRows(rec));
+      for (const x of rows) {
+        if (x.recordMode !== "replica") continue;
+        const from = x.replicaFrom == null ? null : x.replicaFrom;
+        if (from === null) {
+          // У новой камеры хранилище ещё не найдено: запись дождётся
+          if (rec.id && !hasBuiltIn(rec)) return bad("У камеры нет встроенного хранилища: назовите другой архив");
+          if (x.stream != null && main != null && x.stream !== main) return problem(422, "NOT_SUPPORTED", "Со встроенного хранилища забирается только основной поток", { field: "stream" });
+          continue;
+        }
+        if (from === x.archiveId) return bad("Архив не забирает записи у самого себя");
+        const src = sources.find((y) => y.archiveId === from);
+        if (!src) {
+          const was = rowOf(rec, x.archiveId);
+          if (was && was.replicaFrom === from) continue;
+          return bad("Источник — другой архив этой камеры");
+        }
+        const a = byId("archives", from);
+        if (!a || !specOf(a).replicaSource) return bad("Этот архив источником не бывает");
+        if ((src.stream == null ? main : src.stream) !== (x.stream == null ? main : x.stream)) return problem(422, "VALIDATION_FAILED", "Забирать можно только поток источника", { field: "stream" });
+      }
+      const next = new Map(rows.filter((x) => x.recordMode === "replica" && x.replicaFrom).map((x) => [x.archiveId, x.replicaFrom]));
+      for (const start of next.keys()) {
+        const seen = new Set();
+        for (let at = start; next.has(at); at = next.get(at)) {
+          if (seen.has(at)) return bad("Архивы забирают записи друг у друга");
+          seen.add(at);
+        }
       }
       return null;
     }
@@ -444,7 +505,7 @@
         const link = OWN_LINK.find((k) => k in patch);
         if (link) return problem(422, "NOT_SUPPORTED", "У контроллера нет своего подключения", { field: link });
       }
-      const w = (caps().writableFields || {})[rec.type];
+      const w = rec.writableFields || (caps().writableFields || {})[rec.type];
       if (!rec.derived && !w) return null;
       if (rec.derived || !w.length) return problem(422, "NOT_SUPPORTED", "У этой записи нет правок", { field: "type" });
       const field = Object.keys(patch).find((k) => !w.includes(k) || (k === "path" && !isUnit(rec)));
@@ -586,9 +647,21 @@
       return null;
     }
     // Значения до изменения — для отката: поля, которых не было, — null
+    // Что говорит о строке записи сервер, правка строки не стирает; в запись это не попадает
+    function keepRows(rec, patch) {
+      if (!patch.extraArchives) return patch;
+      const rows = patch.extraArchives.map((x) => {
+        const was = (rec.extraArchives || []).find((y) => y.archiveId === x.archiveId);
+        const row = Object.assign({}, x);
+        ["state", "reason", "replicaLagSec", "readOnly"].forEach((k) => delete row[k]);
+        if (was) ["state", "reason", "replicaLagSec"].forEach((k) => { if (k in was) row[k] = was[k]; });
+        return row;
+      });
+      return Object.assign({}, patch, { extraArchives: rows });
+    }
     function applyPatch(rec, patch) {
       const before = {};
-      Object.entries(patch).forEach(([k, v]) => {
+      Object.entries(keepRows(rec, patch)).forEach(([k, v]) => {
         if (k === "password" || k === "secret") {
           const sk = k === "password" ? rec.id : rec.id + ":secret";
           before[k] = secrets.has(sk) ? secrets.get(sk) : null;
@@ -745,6 +818,10 @@
           const next = i >= 0 ? extra.splice(i, 1)[0] : null;
           if (next) Object.assign(d, { archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream });
           else Object.assign(d, { archiveId: null, recordMode: "none" });
+          ["replicaFrom", "replicaLagSec"].forEach((k) => {
+            if (next && k in next) d[k] = next[k];
+            else delete d[k];
+          });
         }
         bump(d);
         changed("device", d);

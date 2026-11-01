@@ -110,8 +110,7 @@
     field(await env.call("PATCH", `/volumes/${vol.id}`, { sizeBytes: less, confirmShrinkBytes: less + 1 }, v(vol)), "VALIDATION_FAILED", "confirmShrinkBytes", "другое число");
     const res = await env.ok("PATCH", `/volumes/${vol.id}`, { sizeBytes: less, confirmShrinkBytes: less }, v(vol));
     assert.eq([res.sizeBytes, "confirmShrinkBytes" in res], [less, false], "применено");
-    const op = await env.ok("POST", "/operations", { idempotencyKey: key(), items: [{ targetId: vol.id, set: { sizeBytes: less - GB } }], expectedVersions: { [vol.id]: res.version } }).catch(() => null);
-    assert.ok(op === null, "в операции то же правило");
+    field(await env.call("POST", "/operations", { idempotencyKey: key(), items: [{ targetId: vol.id, set: { sizeBytes: less - GB } }], expectedVersions: { [vol.id]: res.version } }), "VALIDATION_FAILED", "sizeBytes", "в операции то же правило");
   });
 
   test("Том: объявленное уменьшение ждёт подтверждения; выключение — состояние off", async () => {
@@ -127,6 +126,107 @@
     const on = await env.ok("GET", `/volumes/${vol.id}`);
     assert.eq([on.state, on.enabled ?? true], ["ready", true], "снова готов");
   });
+
+  // replica: источник — встроенное хранилище или другой архив этой камеры
+  const devs = FX.devices;
+  const hasStorage = (d) => devs.some((x) => x.type === "storage" && x.parentId === d.id);
+  const free = devs.find((d) => d.type === "camera" && d.archiveId && !d.extraArchives && !d.parentId && hasStorage(d) && d.recordMode === "always" && d.streams?.length > 1) || null;
+  const bare = devs.find((d) => d.type === "camera" && d.archiveId && !d.parentId && !hasStorage(d) && !d.extraArchives && d.streams?.length) || null;
+  const second = (d) => FX.archives.find((a) => a.id !== d.archiveId && a.domainId === d.domainId && a.kind === "remote" && a.admits !== false);
+  const put = (env, d, set) => env.call("PATCH", `/devices/${d.id}`, set, v(d));
+  const needs = { needs: ["type:storage"] };
+
+  test("replica: со встроенного — основной поток, поток sub — 422 NOT_SUPPORTED, field: stream", async () => {
+    const env = await makeEnv();
+    const c = await env.ok("GET", `/devices/${free.id}`);
+    const main = c.streams[0].id, sub = c.streams[1].id;
+    const ok = await env.ok("PATCH", `/devices/${c.id}`, { recordMode: "replica", replicaFrom: null }, v(c));
+    assert.eq([ok.recordMode, ok.replicaFrom ?? null], ["replica", null], "основная забирает со встроенного");
+    field(await put(env, ok, { stream: sub }), "NOT_SUPPORTED", "stream", "второй поток");
+    const a = second(c);
+    field(await put(env, ok, { extraArchives: [{ archiveId: a.id, recordMode: "replica", stream: sub, replicaFrom: null }] }), "NOT_SUPPORTED", "stream", "в строке так же");
+    assert.status(await put(env, ok, { extraArchives: [{ archiveId: a.id, recordMode: "replica", stream: main, replicaFrom: null }] }), 200, null, "основной поток можно");
+  }, needs);
+
+  test("replica: другой архив камеры, тот же поток; чужой архив, сам у себя, цикл, резерв — 422 VALIDATION_FAILED", async () => {
+    const env = await makeEnv();
+    const c = await env.ok("GET", `/devices/${free.id}`);
+    const main = c.streams[0].id, sub = c.streams[1].id;
+    const a = second(c), row = (over) => ({ archiveId: a.id, recordMode: "replica", stream: main, replicaFrom: c.archiveId, ...over });
+    const b = FX.archives.find((x) => x.kind === "backup" && x.serverId === c.serverId) || backup;
+    assert.status(await put(env, c, { extraArchives: [row()] }), 200, null, "из основного архива");
+    const c2 = await env.ok("GET", `/devices/${c.id}`);
+    assert.eq(c2.extraArchives[0].replicaFrom, c.archiveId, "источник записан");
+    field(await put(env, c2, { extraArchives: [row({ stream: sub })] }), "VALIDATION_FAILED", "stream", "другой поток");
+    field(await put(env, c2, { extraArchives: [row({ replicaFrom: FX.archives.find((x) => x.id !== c.archiveId && x.id !== a.id && x.kind === "local").id })] }), "VALIDATION_FAILED", "replicaFrom", "архив не этой камеры");
+    field(await put(env, c2, { extraArchives: [row({ replicaFrom: a.id })] }), "VALIDATION_FAILED", "replicaFrom", "сам у себя");
+    field(await put(env, c2, { recordMode: "replica", replicaFrom: a.id }), "VALIDATION_FAILED", "replicaFrom", "забирают друг у друга");
+    field(await put(env, c2, { extraArchives: [{ archiveId: b.id, recordMode: "backup", stream: main }, row({ replicaFrom: b.id })] }), "VALIDATION_FAILED", "replicaFrom", "резерв источником не бывает");
+  }, needs);
+
+  test("replica: без встроенного хранилища — только из другого архива; источник сняли — запись ждёт и говорит причину", async () => {
+    const env = await makeEnv();
+    const c = await env.ok("GET", `/devices/${bare.id}`);
+    const a = second(c);
+    field(await put(env, c, { recordMode: "replica" }), "VALIDATION_FAILED", "replicaFrom", "забирать неоткуда");
+    const main = c.streams[0].id;
+    assert.status(await put(env, c, { extraArchives: [{ archiveId: a.id, recordMode: "replica", stream: main, replicaFrom: c.archiveId }] }), 200, null, "из основного архива");
+    const c2 = await env.ok("GET", `/devices/${c.id}`);
+    // Сняли основной архив: строка осталась, источник пропал
+    const src = await env.ok("GET", `/archives/${c.archiveId}`);
+    assert.status(await env.call("DELETE", `/archives/${src.id}`, undefined, v(src)), 204);
+    const c3 = await env.ok("GET", `/devices/${c.id}`);
+    assert.eq([c3.recordState === "waiting" || c3.extraArchives?.some((x) => x.state === "waiting"), /Источник снят/.test(JSON.stringify(c3))], [true, true], "запись ждёт, причина словами");
+    assert.ok(c2.version !== c3.version, "камера изменилась");
+  });
+
+  test("replica в наборе: источник из архива, отставание, слово о потере и журнал; план по шагам проверяется целиком", async () => {
+    const env = await makeEnv();
+    const list = await env.list("/devices");
+    const lag = list.find((d) => (d.extraArchives || []).some((x) => x.recordMode === "replica" && x.replicaFrom && x.replicaLagSec != null));
+    const row = lag.extraArchives.find((x) => x.replicaFrom);
+    assert.ok(row.replicaLagSec > 0 && row.replicaFrom === lag.archiveId, "строка забирает из основного");
+    const lost = list.find((d) => d.recordMode === "replica" && /Потеряно/.test(d.recordReason || ""));
+    assert.ok(lost && lost.replicaLagSec > 0, "слово о потере и отставание у камеры");
+    const j = await env.ok("GET", `/journal?deviceId=${lost.id}`);
+    assert.ok(j.items.some((e) => e.kind === "replica.lost"), "потеря — в журнале");
+    // Шаги одного плана: сначала режим, потом источник. Проверка — по итогу, а не по шагу
+    const a = second(free);
+    const c = await env.ok("GET", `/devices/${bare.id}`);
+    const main = c.streams[0].id;
+    const op = await env.runOperation({ idempotencyKey: key(), items: [
+      { targetId: c.id, set: { extraArchives: [{ archiveId: a.id, recordMode: "always", stream: main }] } },
+      { targetId: c.id, set: { recordMode: "replica" } },
+      { targetId: c.id, set: { replicaFrom: a.id } },
+    ], expectedVersions: { [c.id]: c.version } });
+    assert.eq(op.ok, 3, "план выполнен");
+    assert.eq((await env.ok("GET", `/devices/${c.id}`)).replicaFrom, a.id, "источник на месте");
+  }, needs);
+
+  test("Режим не replica: источника и отставания в записи нет; поля сервера правка строки не стирает", async () => {
+    const env = await makeEnv();
+    const c = (await env.list("/devices")).find((d) => (d.extraArchives || []).some((x) => x.replicaLagSec != null && !x.readOnly));
+    const rows = c.extraArchives.filter((x) => !x.readOnly);
+    const res = await env.ok("PATCH", `/devices/${c.id}`, { preRecordSec: 9, extraArchives: rows.map((x) => ({ archiveId: x.archiveId, recordMode: x.recordMode, stream: x.stream, replicaFrom: x.replicaFrom, labels: ["gpu"] })) }, v(c));
+    const r = res.extraArchives.find((x) => x.replicaLagSec != null);
+    assert.ok(r && r.labels.length === 1, "отставание осталось, метка записана");
+    const row = (await env.ok("PATCH", `/devices/${c.id}`, { extraArchives: rows.map((x) => ({ archiveId: x.archiveId, recordMode: x.recordMode === "replica" ? "always" : x.recordMode, stream: x.stream })) }, v(res))).extraArchives;
+    assert.ok(row.every((x) => x.recordMode !== "always" || (!("replicaFrom" in x) && !("replicaLagSec" in x))), "у другого режима этих полей нет");
+  }, needs);
+
+  test("Карта камеры w2c: запись storage, recordMode и sizeBytes правятся, остальное — нет; обычная только чтение", async () => {
+    const env = await makeEnv();
+    const list = await env.list("/devices");
+    const cardRec = list.find((d) => d.type === "storage" && d.writableFields);
+    assert.eq([cardRec.writableFields, list.filter((d) => d.type === "storage" && d.writableFields).length], [["recordMode", "sizeBytes"], 1], "одна карта в наборе");
+    const res = await env.ok("PATCH", `/devices/${cardRec.id}`, { recordMode: "always", sizeBytes: cardRec.sizeBytes * 2 }, v(cardRec));
+    assert.eq([res.recordMode, res.sizeBytes], ["always", cardRec.sizeBytes * 2], "режим и объём");
+    field(await env.call("PATCH", `/devices/${cardRec.id}`, { recordMode: "motion" }, v(res)), "VALIDATION_FAILED", "recordMode", "только постоянно или при сбое");
+    field(await env.call("PATCH", `/devices/${cardRec.id}`, { name: "Другая" }, v(res)), "NOT_SUPPORTED", "name", "имя постоянное");
+    const plain = list.find((d) => d.type === "storage" && !d.writableFields);
+    field(await env.call("PATCH", `/devices/${plain.id}`, { sizeBytes: GB }, v(plain)), "NOT_SUPPORTED", "type", "обычное — только чтение");
+    assert.ok(!(await env.list("/archives")).some((a) => a.id === cardRec.id), "в GET /archives её нет");
+  }, needs);
 
   ApiTest.loaded("api-archive.js");
 })();

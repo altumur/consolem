@@ -73,6 +73,16 @@ def build(demo):
             d["recordDetectorIds"] = [x for x in d["recordDetectorIds"] if x in kept]
         if d.get("cameraId") and d["cameraId"] not in kept:
             d["cameraId"] = None
+    # Встроенного хранилища в профиле нет: забирать записи не откуда
+    def live(x, flag):
+        if x.get("recordMode") == "replica" and not x.get("replicaFrom"):
+            x["recordMode"] = "always"
+            for k in ("replicaFrom", "replicaLagSec", "state", "reason") if flag else ("replicaFrom", "replicaLagSec", "recordState", "recordReason"):
+                x.pop(k, None)
+    for d in devices:
+        live(d, False)
+        for x in d.get("extraArchives", []):
+            live(x, True)
     fx["devices"] = devices
 
     folders = [f for f in fx["folders"] if f["domainId"] == did]

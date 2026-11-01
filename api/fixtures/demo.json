@@ -2520,7 +2520,22 @@
      ]
     }
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "extraArchives": [
+    {
+     "archiveId": "50000009-0000-4000-8000-000000000000",
+     "recordMode": "replica",
+     "stream": "main",
+     "replicaFrom": "50000001-0000-4000-8000-000000000000",
+     "replicaLagSec": 420,
+     "state": "running"
+    },
+    {
+     "archiveId": "50000024-0000-4000-8000-000000000000",
+     "recordMode": "backup",
+     "stream": "main"
+    }
+   ]
   },
   {
    "id": "30000044-0000-4000-8000-000000000000",
@@ -2617,7 +2632,9 @@
      ]
     }
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "replicaFrom": null,
+   "replicaLagSec": 95
   },
   {
    "id": "30000045-0000-4000-8000-000000000000",
@@ -2715,7 +2732,10 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "replicaFrom": null,
+   "replicaLagSec": 5400,
+   "recordReason": "Потеряно 12 мин: источник стёр записи раньше, чем их забрали"
   },
   {
    "id": "30000049-0000-4000-8000-000000000000",
@@ -2879,7 +2899,10 @@
     "1920x1080",
     "1280x720"
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "replicaFrom": null,
+   "replicaLagSec": 1800,
+   "recordReason": "Записей у источника больше, чем вмещает архив назначения"
   },
   {
    "id": "30000052-0000-4000-8000-000000000000",
@@ -10178,12 +10201,17 @@
    "type": "storage",
    "parentId": "30000255-0000-4000-8000-000000000000",
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "name": "Встроенное хранилище",
+   "name": "Карта камеры",
    "short": "1.1",
    "online": true,
    "sizeBytes": 137438953472,
    "enabled": true,
-   "version": "1"
+   "version": "1",
+   "recordMode": "backup",
+   "writableFields": [
+    "recordMode",
+    "sizeBytes"
+   ]
   },
   {
    "id": "30000257-0000-4000-8000-000000000000",
@@ -32598,6 +32626,19 @@
    "fields": {}
   },
   {
+   "id": "c0000025-0000-4000-8000-000000000000",
+   "at": "2026-10-28T18:40:00Z",
+   "category": "alarm",
+   "text": "Коридор 1: потеряно 12 мин записи, источник стёр их раньше копии",
+   "source": "rec",
+   "kind": "replica.lost",
+   "occurredAt": "2026-10-28T18:40:00Z",
+   "deviceId": "30000048-0000-4000-8000-000000000000",
+   "fields": {
+    "minutes": 12
+   }
+  },
+  {
    "id": "c0000002-0000-4000-8000-000000000000",
    "at": "2026-10-28T18:33:00Z",
    "category": "alarm",
@@ -34126,7 +34167,8 @@
      "params",
      "properties",
      "labels",
-     "alarmKinds"
+     "alarmKinds",
+     "replicaFrom"
     ],
     "eventsrc": [
      "archiveId",
@@ -34177,7 +34219,8 @@
      "params",
      "properties",
      "labels",
-     "alarmKinds"
+     "alarmKinds",
+     "replicaFrom"
     ],
     "acfa": [
      "archiveId",
@@ -34228,7 +34271,8 @@
      "params",
      "properties",
      "labels",
-     "alarmKinds"
+     "alarmKinds",
+     "replicaFrom"
     ],
     "channel": [],
     "storage": [],

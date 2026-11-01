@@ -63,6 +63,48 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => bq && bq.finished), "план выполнен: не ок " + bq?.fail);
   ok((await API.get("/devices/" + cam.id)).extraArchives?.some((x) => x.archiveId === bak.id && x.recordMode === "backup"), "на сервере — строка резерва");
 
+  // Репликация: источник — встроенное хранилище или другой архив этой камеры; поток — тот, что можно
+  const gate = (await API.get("/devices")).items.find((d) => (d.extraArchives || []).some((x) => x.recordMode === "replica" && x.replicaFrom && x.replicaLagSec));
+  const gn = find(gate.id).n;
+  open(gate.id, "rec");
+  ok(!!main().querySelector("[data-replica-src]") && /Откуда забирать/.test(main().textContent), "у строки — откуда забирать");
+  ok(main().querySelector("[data-rec-lag]")?.textContent.includes("7 мин"), "отставание в строке: " + main().querySelector("[data-rec-lag]")?.textContent);
+  ok(!!main().querySelector("[data-replica-note]") && !!main().querySelector("[data-backup-note]"), "слова о репликации и резерве");
+  const rowEl = [...main().querySelectorAll("tbody tr")].find((tr) => tr.querySelector("[data-replica-src]"));
+  ok([...rowEl.querySelector("[data-replica-src] select").options].some((o) => o.value === gn.arch), "источник — другой архив камеры");
+  ok(![...rowEl.querySelector("[data-replica-src] select").options].some((o) => o.textContent === locName(of("backup"))), "резерв источником не предлагается");
+  const streamOpts = [...rowEl.querySelectorAll("td")[1].querySelectorAll("option")];
+  ok(streamOpts.length === 1, "поток — только поток источника");
+  // Камера без встроенного хранилища: режим по другому архиву
+  const all = (await API.get("/devices")).items;
+  const bare = all.find((d) => d.type === "camera" && d.archiveId && d.recordMode === "always" && !d.parentId && !(d.extraArchives || []).length && !all.some((x) => x.type === "storage" && x.parentId === d.id) && d.serverId !== srvFree.id && servers.find((x) => x.id === d.serverId)?.online !== false && !hasNoSignal(domainOf(d.serverId) || {}));
+  const bn = find(bare.id).n;
+  open(bare.id, "rec");
+  ok(/Встроенного хранилища нет/.test(main().textContent), "сказано: только из другого архива");
+  ok(main().querySelectorAll("tbody tr select")[2].querySelector('option[value="replica"]').disabled, "основной архив один — забирать неоткуда");
+  const nasArch = archRowChoices(bn).find((a) => a.kind === "remote");
+  camArchRowAdd(bare.id, nasArch.id);
+  ok(!main().querySelectorAll("tbody tr")[1].querySelectorAll("select")[2].querySelector('option[value="replica"]').disabled, "у второй строки источник есть");
+  camArchRowSet(bare.id, 1, "rec", "replica");
+  ok(bn.archx[0].replicaFrom === bn.arch, "источник подставлен");
+  ok(replicaSources(bn, camArchs(bn)[0]).length === 0, "основная не может забирать у того, кто забирает у неё");
+  cardApply();
+  ok(await until(() => bq && bq.finished) && !bq.fail, "план выполнен: " + (bq?.steps.flatMap((x) => x.ops).map((o) => o.msg).join() || "без отказов"));
+  const bs = await API.get("/devices/" + bare.id);
+  ok(bs.extraArchives?.[0]?.replicaFrom === bare.archiveId, "на сервере — строка забирает из основного: " + JSON.stringify(bs.extraArchives));
+  // Карта камеры w2c
+  const cardDev = (await API.get("/devices")).items.find((d) => d.type === "storage" && d.writableFields);
+  open(cardDev.id, "gen");
+  ok(!!main().querySelector("[data-card-mode]") && !!main().querySelector("[data-card-size]"), "карта камеры: режим и объём правятся");
+  storageSet(cardDev.id, "rec", "always");
+  storageSet(cardDev.id, "size", "512");
+  cardApply();
+  ok(await until(() => bq && bq.finished), "план карты: не ок " + bq?.fail);
+  const cs = await API.get("/devices/" + cardDev.id);
+  ok(cs.recordMode === "always" && cs.sizeBytes === 512 * 1024 ** 3, "на сервере — режим и объём");
+  open((await API.get("/devices")).items.find((d) => d.type === "storage" && !d.writableFields).id, "gen");
+  ok(!main().querySelector("[data-card-mode]") && !main().querySelector("[data-card-size]"), "обычное встроенное — только чтение");
+
   // Хранилище не принимает записи
   const closed = list.find((a) => a.admits === false && a.kind !== "incidents");
   if (closed) {

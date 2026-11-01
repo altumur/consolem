@@ -5683,11 +5683,24 @@
           },
           "reason": {
             "type": "string",
-            "description": "Только чтение: почему запись не идёт"
+            "description": "Только чтение: слово сервера о записи: почему не идёт, потеря минут, источник больше архива назначения"
           },
           "readOnly": {
             "type": "boolean",
             "description": "Только чтение: архив на весь сервер (serverWide), строку показывает сервер. В запись такую строку не посылают: 422 NOT_SUPPORTED, field: extraArchives"
+          },
+          "replicaFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Откуда забирает режим replica: null — встроенное хранилище камеры (у камеры w2c — её карта), иначе archiveId другого архива этой камеры, вид с replicaSource. С встроенного — только основной поток: другой — 422 NOT_SUPPORTED, field: stream. Из архива — только его поток: другой — 422 VALIDATION_FAILED, field: stream. Нет источника, архив забирает у самого себя, цикл — 422 VALIDATION_FAILED, field: replicaFrom. Источник сняли позже: запись ждёт и говорит причину, уже забранное живёт своим сроком"
+          },
+          "replicaLagSec": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Только чтение: на сколько секунд replica отстаёт от источника. Период выбирает сервер, настройки нет"
           }
         },
         "additionalProperties": false,
@@ -5898,7 +5911,7 @@
           },
           "sizeBytes": {
             "type": "integer",
-            "description": "Объём встроенного хранилища. Устройство может его не сообщать: тогда поля нет"
+            "description": "Объём встроенного хранилища. Устройство может его не сообщать: тогда поля нет. У карты камеры w2c правится"
           },
           "cameraId": {
             "type": [
@@ -6097,11 +6110,31 @@
           },
           "recordState": {
             "type": "string",
-            "description": "Только чтение: состояние основной записи, слово сервера"
+            "description": "Только чтение: состояние основной записи, слово сервера: running, waiting, stopped"
           },
           "recordReason": {
             "type": "string",
-            "description": "Только чтение: почему запись не идёт, словами сервера"
+            "description": "Только чтение: слово сервера о записи: почему не идёт, потеря минут, когда источник стёр старое раньше копии, источник больше архива назначения"
+          },
+          "replicaFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Откуда забирает режим replica: null — встроенное хранилище камеры (у камеры w2c — её карта), иначе archiveId другого архива этой камеры, вид с replicaSource. С встроенного — только основной поток: другой — 422 NOT_SUPPORTED, field: stream. Из архива — только его поток: другой — 422 VALIDATION_FAILED, field: stream. Нет источника, архив забирает у самого себя, цикл — 422 VALIDATION_FAILED, field: replicaFrom. Источник сняли позже: запись ждёт и говорит причину, уже забранное живёт своим сроком"
+          },
+          "replicaLagSec": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Только чтение: на сколько секунд replica отстаёт от источника. Период выбирает сервер, настройки нет"
+          },
+          "writableFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Только чтение: что правится у этой записи, если не то, что у её вида в capabilities.writableFields. Карта камеры w2c: запись storage с recordMode и sizeBytes"
           }
         },
         "additionalProperties": false,
@@ -9423,6 +9456,30 @@
                 "type": "null"
               }
             ]
+          },
+          "replicaFrom": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid",
+                "description": "Откуда забирает режим replica: как Device.replicaFrom"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "description": "Объём карты камеры w2c"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "description": "Изменение устройства (JSON Merge Patch, RFC 7396): переданные поля заменяются, null убирает поле"
@@ -10805,6 +10862,14 @@
               "type": "string"
             },
             "description": "Что считать тревогой у камеры и детектора: варианты из reference.eventKinds. Это о классе события, а не о жизни тревоги"
+          },
+          "replicaFrom": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Откуда забирает режим replica: как Device.replicaFrom"
           }
         },
         "description": "Новое устройство вместе с дочерними. Домен и родителя задаёт запрос (DevicesCreateRequest), id выдаёт сервер"

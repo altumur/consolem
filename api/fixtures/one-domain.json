@@ -1861,7 +1861,22 @@
      ]
     }
    ],
-   "recordState": "running"
+   "recordState": "running",
+   "extraArchives": [
+    {
+     "archiveId": "50000009-0000-4000-8000-000000000000",
+     "recordMode": "replica",
+     "stream": "main",
+     "replicaFrom": "50000001-0000-4000-8000-000000000000",
+     "replicaLagSec": 420,
+     "state": "running"
+    },
+    {
+     "archiveId": "50000024-0000-4000-8000-000000000000",
+     "recordMode": "backup",
+     "stream": "main"
+    }
+   ]
   },
   {
    "id": "30000044-0000-4000-8000-000000000000",
@@ -1878,7 +1893,7 @@
    "online": true,
    "enabled": false,
    "archiveId": "50000001-0000-4000-8000-000000000000",
-   "recordMode": "replica",
+   "recordMode": "always",
    "serverId": "20000001-0000-4000-8000-000000000000",
    "lat": 55.75078,
    "lon": 37.61945,
@@ -1957,8 +1972,7 @@
       "tmpl.tamper"
      ]
     }
-   ],
-   "recordState": "running"
+   ]
   },
   {
    "id": "30000151-0000-4000-8000-000000000000",
@@ -15712,6 +15726,19 @@
    "fields": {}
   },
   {
+   "id": "c0000025-0000-4000-8000-000000000000",
+   "at": "2026-10-28T18:40:00Z",
+   "category": "alarm",
+   "text": "Коридор 1: потеряно 12 мин записи, источник стёр их раньше копии",
+   "source": "rec",
+   "kind": "replica.lost",
+   "occurredAt": "2026-10-28T18:40:00Z",
+   "deviceId": "30000048-0000-4000-8000-000000000000",
+   "fields": {
+    "minutes": 12
+   }
+  },
+  {
    "id": "c0000002-0000-4000-8000-000000000000",
    "at": "2026-10-28T18:33:00Z",
    "category": "alarm",
@@ -17161,7 +17188,8 @@
      "params",
      "properties",
      "labels",
-     "alarmKinds"
+     "alarmKinds",
+     "replicaFrom"
     ]
    }
   },

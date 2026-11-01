@@ -2136,7 +2136,7 @@ function canAdd(type,inAcs){
 // Правится ли поле записи: capabilities.writableFields; у выведенного ipsrv — ничего
 function canWrite(n,field){
   if(!n||n.derived)return false;
-  const w=CAPS.writable[n.type];
+  const w=n.writableFields||CAPS.writable[n.type];
   return!w||w.includes(field);
 }
 function isUnitNode(n){return!!n&&CAPS.units.has(n.type)&&(!CAPS.found.has(n.type)||ACS_TYPES.has(find(n.id)?.p?.type))}
@@ -2209,7 +2209,7 @@ function devNode(r){
     else if(k==="sizeBytes")n.size=bytesText(v);
     else if(k==="lat"||k==="lon")n[k]=v==null?"":v.toFixed(6);
     else if(k==="azimuth")n[k]=v==null?"":String(v);
-    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{})}));
+    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{}),...("replicaFrom" in x?{replicaFrom:x.replicaFrom}:{}),...(x.replicaLagSec!=null?{lag:x.replicaLagSec}:{})}));
     else if(k==="mode"&&r.type==="email")n.mode=EMAIL_MODE_RU[v]||v;
     else if(k==="norm")n.norm=NORM_RU[v]||v;
     else if(k==="disabledByRuleAt")n.ruleOffAt=v?clockText(v,true):"";
@@ -2767,8 +2767,8 @@ function isRecording(n){return n&&n.type==="camera"&&!!n.arch&&n.rec&&n.rec!=="n
 // режимом — как запись основного и второго потока в разные архивы у Axxon One.
 function camArchs(n){
   if(!n||n.type!=="camera")return[];
-  if(!n.arch)return(n.archx||[]).filter(x=>x.ro).map(x=>({...x}));
-  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason},...(n.archx||[]).map(x=>({...x}))];
+  if(!n.arch)return(n.archx||[]).map(x=>({...x}));
+  return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason,replicaFrom:n.replicaFrom,lag:n.replicaLagSec},...(n.archx||[]).map(x=>({...x}))];
 }
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
 function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWritesTo(n,aid))out.push(n)});return out}
@@ -2777,8 +2777,9 @@ function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWrit
 function camAddArch(n,aid,rec){
   if(!n||camArchs(n).some(x=>x.arch===aid))return;
   const a=archById(aid),mode=rec||recModesOf(a)[0]?.[0]||"always";
-  if(!isRecording(n)&&archMainOk(a)){pinCamServer(n);n.arch=aid;n.rec=mode;bindArchServer(n);return}
+  if(!isRecording(n)&&archMainOk(a)){pinCamServer(n);n.arch=aid;n.rec=mode;bindArchServer(n);camReplicaSync(n);return}
   (n.archx||(n.archx=[])).push({arch:aid,rec:mode,stream:"main"});
+  camReplicaSync(n);
 }
 // Отвязать от хранилища: снялось основное — основным становится следующее.
 function camDropArch(n,aid){
@@ -3716,7 +3717,7 @@ function cancelEdits(){editClear();setD(false);paint();toast("Отменено")
 // внизу — «Сбросить · Показать план». План перечисляет «было → станет», дальше
 // та же очередь и отчёт: сервер без связи не примет правку, и это будет видно.
 let cardBase=null,cardDraft=null,cardFootRaf=0;
-const CARD_SKIP=new Set(["devices","online","cpu","ram","net","disk","bytes","shrink"]);
+const CARD_SKIP=new Set(["devices","online","cpu","ram","net","disk","bytes","shrink","replicaLagSec","recordState","recordReason","writableFields"]);
 function cardClone(n){try{return JSON.parse(JSON.stringify(n))}catch(e){return{}}}
 function cardEnsureBase(n){
   if(cardDraft&&cardDraft.id!==n.id){
@@ -3744,7 +3745,7 @@ function cardFld(el){
   setD(true);if(!cardDraft)return;
   if(String(el.value)===String(orig))delete cardDraft.fields[l];else cardDraft.fields[l]={from:orig,to:el.value};
 }
-const CARD_PROP={recordMode:"Когда писать",admits:"Принимает записи",zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
+const CARD_PROP={replicaFrom:"Откуда забирать",size:"Объём",recordMode:"Когда писать",admits:"Принимает записи",zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
@@ -3758,6 +3759,7 @@ function cardFmt(k,v){
   if(v===undefined||v===null||v==="")return"—";
   if(k==="enabled"||k==="enc"||k==="ssl")return v===false?i18n("выкл"):i18n("вкл");
   if(k==="rec")return i18n(recordModeLabel(v));
+  if(k==="replicaFrom")return v?locName(archById(v)||{name:v}):i18n("Встроенное хранилище");
   if(k==="recordMode")return i18n(ARCH_MODE_RU[v]||v);
   if(k==="admits")return v===false?i18n("нет"):i18n("да");
   if(k==="arch"){const a=archById(v);return a?locName(a):String(v)}
@@ -8406,9 +8408,11 @@ function camArchRowLabel(id,i,x){
   setD(true);paint();
 }
 const REC_STATE_RU={running:"идёт",waiting:"ждёт",stopped:"остановлена"};
+// Отставание replica от источника: период выбирает сервер, настройки нет
+function lagText(s){return s<60?`${s} ${i18n("с")}`:s<3600?`${Math.round(s/60)} ${i18n("мин")}`:s<86400?`${Math.round(s/360)/10} ${i18n("ч")}`:`${Math.round(s/8640)/10} ${i18n("дн.")}`}
 function recStateHtml(x){
-  if(!x.state&&!x.reason)return"";
-  return`<div class="bk-hint" data-rec-state>${x.state?`${i18n("запись")}: ${escHtml(i18n(REC_STATE_RU[x.state]||x.state))}`:""}${x.reason?` · ${escHtml(x.reason)}`:""}</div>`;
+  if(!x.state&&!x.reason&&x.lag==null)return"";
+  return`<div class="bk-hint" data-rec-state>${x.state?`${i18n("запись")}: ${escHtml(i18n(REC_STATE_RU[x.state]||x.state))}`:""}${x.lag!=null&&x.rec==="replica"?`<span data-rec-lag> · ${i18n("отставание")} ${escHtml(lagText(x.lag))}</span>`:""}${x.reason?` · ${escHtml(x.reason)}`:""}</div>`;
 }
 function streamAdd(id){
   const n=find(id)?.n;if(!n)return;
@@ -8437,6 +8441,7 @@ function lanTabOpen(n){
 function form(n){return formBase(n)+ruleUsesFor(n)}
 // Переключатель карточки: вид меняется сразу, значение уходит с «Применить»
 function swToggle(el){el.classList.toggle("on");setD(true)}
+function storageSet(id,k,v){const n=find(id)?.n;if(!n)return;n[k]=k==="size"?gbStr(v):v;setD(true);if(k!=="size")gear()}
 function archEncToggle(el,id){archSet(id,"enc",!el.classList.contains("on"))}
 function archAdmitsToggle(el,id){const a=archById(id);if(!a)return;if(el.classList.contains("on"))a.admits=false;else delete a.admits;setD(true);gear()}
 function formBase(n){
@@ -8722,8 +8727,9 @@ function formBase(n){
     if(tab==="rec"){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
       return camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}</div>
-      ${edge?"":`<p class="sub">${i18n("Встроенное хранилище не найдено — репликация недоступна.")}</p>`}
-      ${list.some(x=>x.rec==="replica")?`<div class="nt">${!edgeStorage(n)&&edge?`${i18n("Записи этой камеры лежат на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("оттуда их и забирает сервер.")} `:""}${i18n("Сервер периодически забирает записи со встроенного хранилища. Постоянный поток на сервер не идёт: канал нагружается только на время репликации, а пропуски в архиве восполняются после обрыва связи.")}</div>`:""}
+      ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет: репликация забирает записи только из другого архива этой камеры.")}</p>`}
+      ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры лежат на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("оттуда их и забирает сервер.")} `:""}${i18n("Сервер забирает записи к себе без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Период выбирает сервер, отставание видно в строке записи. Минуты, которые источник стёр раньше, чем их забрали, пропадают: об этом говорит строка и журнал.")}</div>`:""}
+      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое: живой поток идёт сюда, только пока основная запись должна идти и не идёт.")}</div>`:""}
       <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Привяжите камеру к хранилищу, чтобы включить запись. Без хранилища камера остаётся под своим сервером, просто не пишется.")
           :i18n("Привяжите камеру к хранилищу, чтобы включить запись. Камера ещё не подключена к серверу — подключится к серверу выбранного хранилища."))
         :i18n("Основное хранилище задаёт сервер камеры; дополнительные пишут тот же или второй поток — например, основной поток в локальное хранилище, второй в облако.")}</p>
@@ -8747,8 +8753,10 @@ function formBase(n){
   if(n.type==="acfa_lock"||n.type==="acfa_sensor"||n.type==="acfa_fence"||(n.type==="relay"&&isUnitNode(n)))return unitCardHtml(n);
   if(n.type==="storage"){
     const owner=find(n.id)?.p;
-    return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${fldRo("Объём",n.size||"—")}</div>
-      <p class="sub">${i18n("Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера — режим «Репликация встроенного архива» на вкладке «Архив» камеры.")}</p>`)+
+    const sizeF=canWrite(n,"sizeBytes")?`<div data-card-size><label>${i18n("Объём")}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(n.size)||""}" ${onEv("input",["storageSet",`${n.id}`,"size",onEv.value])}><span>${i18n("ГБ")}</span></div></div>`:fldRo("Объём",n.size||"—");
+    const modeF=canWrite(n,"recordMode")?`<div data-card-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
+    return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${sizeF}${modeF}</div>
+      <p class="sub">${i18n(canWrite(n,"sizeBytes")?"Карта этой камеры: заводится сама, в список архивов не попадает. Запись с неё — режим «Репликация», источник «Встроенное хранилище».":"Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера — режим «Репликация» на вкладке «Архив» камеры.")}</p>`)+
       (owner&&owner.type==="camera"?card("Камера",`<div class="it" ${onEv("click",["pick",`${owner.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(owner))}<small>${i18n(recordModeLabel(owner.rec))}</small></span></div>`):"");
   }
   if(n.type==="spk")
@@ -16257,19 +16265,20 @@ function recEdge(n){return edgeStorage(n)||(n?.type==="camera"?edgeStorage(ipsrv
 function edgeStorageCardHtml(owner){
   const e=edgeStorage(owner);if(!e)return"";
   const nvr=owner.type==="ipsrv";
-  const rep=nvr?ipsrvCameras(owner).some(c=>c.rec==="replica"):owner.rec==="replica";
+  const fromHere=c=>camArchs(c).some(x=>x.rec==="replica"&&!x.replicaFrom);
+  const rep=nvr?ipsrvCameras(owner).some(fromHere):fromHere(owner);
   const state=e.online===false?i18n("нет связи"):e.enabled===false?i18n("выключено"):i18n("доступно");
   return card("Встроенное хранилище",`<div class="mx">
       <div class="mc"><span>${i18n("Объём")}</span><b>${escHtml(e.size||"—")}</b></div>
       <div class="mc"><span>${i18n("Состояние")}</span><b>${state}</b></div>
       <div class="mc"><span>${i18n("Репликация")}</span><b>${rep?i18n("идёт"):i18n("не настроена")}</b></div>
     </div>
-    <p class="sub">${i18n(nvr?"Диск внутри регистратора. Записи с него забирает сервер в режиме «Репликация встроенного архива» — сразу для всех камер регистратора."
-      :"Карта памяти внутри камеры. Записи с неё забирает сервер в режиме «Репликация встроенного архива», а после обрыва связи — восполняет пропуски в архиве.")}</p>
+    <p class="sub">${i18n(nvr?"Диск внутри регистратора. Записи с него забирает сервер в режиме «Репликация» — сразу для всех камер регистратора."
+      :"Карта памяти внутри камеры. Записи с неё забирает сервер в режиме «Репликация», а после обрыва связи — восполняет пропуски в архиве.")}</p>
 `);
 }
 function camRecSelectHtml(n){
-  const has=!!recEdge(n),cur=n.rec||"none";
+  const has=replicaSources(n,camArchs(n)[0]||{arch:n.arch}).length>0,cur=n.rec||"none";
   return `<div><label>${i18n("Режим")}</label><select ${onEv("change",["setCamRec",`${n.id}`,onEv.value])}>${
     recModes().map(([v,l])=>`<option value="${v}" ${cur===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
 }
@@ -16654,8 +16663,51 @@ function archChoicesNote(n){
 }
 // Хранилища камеры списком: у каждой строки своё хранилище, поток и режим.
 // Первая строка — основное хранилище, через него камера получает сервер.
+// Откуда строка может забирать: встроенное хранилище или другой архив этой камеры, вид с replicaSource.
+// Источник, который сам забирает у этой строки, не предлагается: это был бы цикл
+function replicaReaches(list,from,to){
+  const seen=new Set();
+  for(let at=from;at&&!seen.has(at);at=list.find(y=>y.arch===at&&y.rec==="replica")?.replicaFrom){if(at===to)return true;seen.add(at)}
+  return false;
+}
+function replicaSources(n,x){
+  const list=camArchs(n),out=recEdge(n)?[{id:"",name:i18n("Встроенное хранилище")}]:[];
+  list.forEach(o=>{
+    const a=archById(o.arch);
+    if(o.arch!==x.arch&&a&&archSpec(a).replicaSource&&!replicaReaches(list,o.arch,x.arch))out.push({id:o.arch,name:locName(a)});
+  });
+  return out;
+}
+// Поток строки replica: со встроенного — основной, из архива — поток источника
+function replicaStream(n,x,list){
+  const main=camStreams(n)[0]?.id;
+  if(!x.replicaFrom)return main;
+  const src=(list||camArchs(n)).find(o=>o.arch===x.replicaFrom);
+  return src?(src.stream||main):x.stream||main;
+}
+// Строка стала replica или её источник изменился: источник и поток приводятся к тому, что можно
+function camReplicaSync(n){
+  const off=n.arch?1:0,rowOf=i=>off&&i===0?n:(n.archx||[])[i-off];
+  camArchs(n).forEach((x,i)=>{
+    const row=rowOf(i);if(!row)return;
+    if(x.rec!=="replica"){delete row.replicaFrom;return}
+    const can=replicaSources(n,x);
+    if(can.length&&!can.some(s=>s.id===(x.replicaFrom||""))&&(!x.replicaFrom||archById(x.replicaFrom))){if(can[0].id)row.replicaFrom=can[0].id;else delete row.replicaFrom}
+    if(row.replicaFrom===null)delete row.replicaFrom;
+  });
+  camArchs(n).forEach((x,i)=>{
+    const row=rowOf(i);if(!row||x.rec!=="replica")return;
+    const need=replicaStream(n,x);
+    if((row.stream||camStreams(n)[0]?.id)!==need)row.stream=need;
+  });
+}
+function replicaSrcHtml(n,x,i){
+  if(x.rec!=="replica")return"";
+  const can=replicaSources(n,x),gone=x.replicaFrom&&!can.some(s=>s.id===x.replicaFrom);
+  return`<div class="ca-src" data-replica-src><label>${i18n("Откуда забирать")}</label><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"replicaFrom",onEv.value])}>${gone?`<option value="${escHtml(x.replicaFrom)}" selected>${i18n("источник снят")}</option>`:""}${can.map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.replicaFrom||"")?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></div>`;
+}
 function camArchsCardHtml(n){
-  const list=camArchs(n),has=!!recEdge(n),used=new Set(list.map(x=>x.arch));
+  const list=camArchs(n),used=new Set(list.map(x=>x.arch));
   const free=(n.arch?archRowChoices(n):archChoicesFor(n)).filter(a=>!used.has(a.id));
   const rows=list.map((x,i)=>{
     const a=archById(x.arch),opts=(x.main?archChoicesFor(n):archRowChoices(n)).filter(o=>o.id===x.arch||!used.has(o.id));
@@ -16663,9 +16715,9 @@ function camArchsCardHtml(n){
       <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec:recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true);
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
-        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${recStateHtml(x)}</td>
-      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
-      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
+        ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recStateHtml(x)}</td>
+      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).filter(s=>x.rec!=="replica"||s.id===replicaStream(n,x,list)).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
+      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!replicaSources(n,x).length?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
       <td class="ca-x"><button type="button" class="btn s" title="${i18n("Отвязать от хранилища")}" ${onEv("click",["camArchRowDel",`${n.id}`,i])}>${i18n("Отвязать")}</button></td></tr>`;
   }).join("");
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
@@ -16684,19 +16736,21 @@ function camArchRowDel(id,i){
   const f=find(id);if(!f)return;
   const x=camArchs(f.n)[i];if(!x)return;
   camDropArch(f.n,x.arch);
+  camReplicaSync(f.n);
   treeMatchCache.clear();searchMatchCache.clear();setD(true);paint();
 }
 function camArchRowSet(id,i,k,v){
   const f=find(id);if(!f)return;const n=f.n;
-  if(i===0){
-    if(k==="arch"){pinCamServer(n);n.arch=v;bindArchServer(n);if(!recModesOf(archById(v)).some(([m])=>m===n.rec))n.rec=recModesOf(archById(v))[0]?.[0]||"none"}
-    else if(k==="rec"){n.rec=v;if(v==="motion"&&!Array.isArray(n.recDets))n.recDets=camDetectors(n).map(d=>d.id)}
-    else n.stream=v;
-  }else{
-    const x=(n.archx||[])[i-1];if(!x)return;
-    x[k]=v;
-    if(k==="arch"&&!recModesOf(archById(v)).some(([m])=>m===x.rec))x.rec=recModesOf(archById(v))[0]?.[0]||"none";
+  const row=n.arch&&i===0?n:(n.archx||[])[i-(n.arch?1:0)];if(!row)return;
+  if(k==="replicaFrom"){if(v)row.replicaFrom=v;else delete row.replicaFrom}
+  else row[k]=v;
+  if(k==="arch"){
+    if(row===n){pinCamServer(n);bindArchServer(n)}
+    const modes=recModesOf(archById(v)).map(x=>x[0]).filter(m=>row!==n||m!=="backup");
+    if(!modes.includes(row.rec))row.rec=modes[0]||"none";
   }
+  if(k==="rec"&&row===n&&v==="motion"&&!Array.isArray(n.recDets))n.recDets=camDetectors(n).map(d=>d.id);
+  camReplicaSync(n);
   treeMatchCache.clear();searchMatchCache.clear();setD(true);paint();
 }
 function camArchSelectHtml(n){
@@ -18691,7 +18745,8 @@ function bulkRecHtml(nodes){
   const archD=countBy(nodes,n=>{const a=arch.find(x=>x.id===n.arch);return a?locName(a):i18n("не задан")});
   const recD=countBy(nodes,n=>i18n(recordModeLabel(n.rec||"none")));
   const preD=countBy(nodes,n=>n.pre??5);
-  const edgeAll=nodes.every(n=>!!recEdge(n)),edgeN=nodes.filter(n=>!!recEdge(n)).length;
+  const canRep=n=>replicaSources(n,camArchs(n)[0]||{arch:n.arch}).length>0;
+  const edgeAll=nodes.every(canRep),edgeN=nodes.filter(canRep).length;
   // Хранилище сервера подходит только камерам этого сервера: в списке те, что
   // подходят хоть одной камере выборки, с тем, скольким именно.
   const cams=nodes.filter(n=>n.type==="camera");
@@ -18699,7 +18754,7 @@ function bulkRecHtml(nodes){
     .map(([a,k])=>[a.id,locName(a)+(k<cams.length?` — ${i18n("подходит")} ${k} ${i18n("из")} ${cams.length}`:"")])];
   const recOpts=recModes().map(([v,l])=>[v,i18n(l),v==="replica"&&!edgeAll]);
   return card("Архив и запись",`<div class="g">${bkSelect("Архив","arch",archOpts,archD)}${bkSelect("Режим","rec",recOpts,recD)}${bkInput("Предзапись, с","pre","number",preD)}</div>
-    <p class="sub">${i18n("Камера под сервером пишет только в хранилища своего сервера или в сетевые хранилища домена: камеры другого сервера в плане будут пропущены. Камера без сервера подключается к серверу выбранного хранилища, поэтому смена идёт через план. Всё применяется через план, после — «Отменить».")} ${edgeAll?"":`${i18n("Репликация недоступна: встроенное хранилище есть у")} ${edgeN} ${i18n("из")} ${nodes.length}.`}</p>`);
+    <p class="sub">${i18n("Камера под сервером пишет только в хранилища своего сервера или в сетевые хранилища домена: камеры другого сервера в плане будут пропущены. Камера без сервера подключается к серверу выбранного хранилища, поэтому смена идёт через план. Всё применяется через план, после — «Отменить».")} ${edgeAll?"":`${i18n("Репликация недоступна: откуда забирать, есть у")} ${edgeN} ${i18n("из")} ${nodes.length}.`}</p>`);
 }
 function bulkVidHtml(nodes,st){
   if(st.models.length>1)return card("Видео",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Параметры видео доступны, если выбрать камеры одной модели.")}</div>
@@ -18826,12 +18881,13 @@ function bulkChanges(draft){
   }
   if(d.rec){
     const ops=nodes.filter(n=>n.type==="camera"&&(n.rec||"none")!==d.rec).map(n=>{
-      const prev={rec:n.rec,arch:n.arch,srvId:n.srvId};
+      const prev={rec:n.rec,arch:n.arch,srvId:n.srvId,replicaFrom:n.replicaFrom,stream:n.stream};
       // Архив из поля «Архив» — только если он доступен камере; иначе первый доступный
       const want=d.arch&&d.arch!=="__none__"&&archChoicesFor(n).some(a=>a.id===d.arch)?d.arch:null;
       return mkOp(n,`Режим «${i18n(recordModeLabel(d.rec))}»`,"rec",()=>{
       n.rec=d.rec;if(d.rec!=="none"&&!n.arch){pinCamServer(n);n.arch=(want||archChoicesFor(n)[0]?.id)||null;bindArchServer(n)}
-    },d.rec==="replica"&&!recEdge(n)?i18n("нет встроенного хранилища"):(d.rec!=="none"&&!n.arch&&!want?i18n("архив не задан — сначала привяжите камеру к архиву"):null),()=>{n.rec=prev.rec;n.arch=prev.arch;n.srvId=prev.srvId})});
+      camReplicaSync(n);
+    },d.rec==="replica"&&!replicaSources(n,camArchs(n)[0]||{arch:n.arch}).length?i18n("нет источника: ни встроенного хранилища, ни другого архива"):(d.rec!=="none"&&!n.arch&&!want?i18n("архив не задан — сначала привяжите камеру к архиву"):null),()=>{Object.assign(n,prev);if(prev.replicaFrom===undefined)delete n.replicaFrom;if(prev.stream===undefined)delete n.stream})});
     const sk=ops.filter(o=>o.skip).length;
     step("rec",`Режим записи «${i18n(recordModeLabel(d.rec))}»`,ops,sk?`${sk} ${i18n(plural(sk,"камера|камеры|камер"))} ${i18n("будут пропущены")}`:"");
   }
@@ -19271,9 +19327,10 @@ function cardFldTarget(n,r){
 }
 function keyToApi(node,key,v){
   if(key==="enabled")return{enabled:v!==false};
+  if(key==="size")return{sizeBytes:v===undefined?null:Math.round(sizeTb(v)*TB)};
   if(key==="kind"&&node.type==="det")return{detectorKind:v===undefined?null:DET_KIND_CODE[v]||v};
   if(key==="sens")return{sensitivity:apiVal("sensitivity",v)};
-  if(key==="archx")return{extraArchives:v===undefined?null:v.filter(x=>!x.ro).map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{})}))};
+  if(key==="archx")return{extraArchives:v===undefined?null:v.filter(x=>!x.ro).map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{}),...(x.rec==="replica"?{replicaFrom:x.replicaFrom??null}:{})}))};
   if(key==="mode"&&node.type==="email")return{mode:v===undefined?null:EMAIL_MODE_CODE[v]||v};
   if(key==="pass")return{password:v===undefined?null:v};
   if(key==="norm")return{norm:v===undefined?null:NORM_CODE[v]||v};
