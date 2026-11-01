@@ -2121,7 +2121,12 @@ const API=(()=>{
   const q=new URLSearchParams(location.search),base=q.get("api")||pageMeta("consolem-api"),latency=+q.get("latency")||0;
   if(base)return ConsolemApi.create({baseUrl:base,latency,onUnauthorized:apiUnauthorized});
   const all=window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE};
-  return ConsolemApi.create({server:ConsolemServer.create({fixture:all[q.get("fixture")]||all.demo,fixtures:all,openapi:window.CONSOLEM_OPENAPI}),latency});
+  // ?drop=op1,op2 — система, которая не объявила эти операции: так проверяется запуск без необязательного
+  const drop=new Set((q.get("drop")||"").split(",").filter(Boolean));
+  const fx=all[q.get("fixture")]||all.demo;
+  const fixture=drop.size?JSON.parse(JSON.stringify(fx)):fx;
+  if(drop.size){const c=fixture.reference.capabilities;c.operations=c.operations.filter(o=>!drop.has(o))}
+  return ConsolemApi.create({server:ConsolemServer.create({fixture,fixtures:all,openapi:window.CONSOLEM_OPENAPI}),latency});
 })();
 // Что умеет система — GET /reference → capabilities. Неподдержанное интерфейс
 // не показывает: пункты меню и кнопки — по can(), разметка с data-needs —
@@ -2253,8 +2258,9 @@ function hwFill(L){
   treeMatchCache.clear();searchMatchCache.clear();
 }
 const HW_LISTS=["domains","servers","devices","folders","archives","volumes"];
+const HW_OPS={domains:"listDomains",servers:"listServers",devices:"listDevices",folders:"listFolders",archives:"listArchives",volumes:"listVolumes"};
 async function hwLoad(){
-  const lists=await Promise.all(HW_LISTS.map(p=>API.get("/"+p).then(r=>r.items)));
+  const lists=await Promise.all(HW_LISTS.map(p=>can(HW_OPS[p])?API.get("/"+p).then(r=>r.items):[]));
   const L=Object.fromEntries(HW_LISTS.map((p,i)=>[p,lists[i]]));
   const disc=can("getDiscovery")?await Promise.all(L.domains.map(d=>API.get(`/domains/${d.id}/discovery`))):[];
   const keep=cardKeepBefore();
@@ -2923,8 +2929,16 @@ function settingSet(id,v){
 let licenses=[];
 const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 // Этап А: правила — ещё константы макета; на этапе Б appLoad читает и их
+// Разделы, которых нет: система их не объявила, а права могут быть закрыты конкретному человеку (403)
+let accDenied=false;
+const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
+function appsShown(){
+  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):true);
+}
 async function appLoad(){
-  const [me,st,lic,jr,acc]=await Promise.all([API.get("/me"),API.get("/settings"),can("listLicenses")?API.get("/licenses"):{items:[]},API.get("/journal"),API.get("/access")]);
+  const get=(op,path,empty)=>can(op)?API.get(path):empty;
+  const access=()=>Promise.resolve(get("getAccess","/access",ACC_EMPTY)).catch(e=>{if(e?.status!==403)throw e;accDenied=true;return ACC_EMPTY});
+  const [me,st,lic,jr,acc]=await Promise.all([API.get("/me"),get("getSettings","/settings",{version:"1",values:{}}),get("listLicenses","/licenses",{items:[]}),get("listJournal","/journal",{items:[]}),access()]);
   sysTz=me.timezone||sysTz;ACC_ME=me.login;
   accSetSnapshot(acc);accLast=acc;
   settingsApply(st);
@@ -2938,7 +2952,11 @@ async function appLoad(){
 // черновик правила и расписания в редакторе — у клиента.
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
+// Типы хранения — что система умеет, из справочника; подпись — своя
+let refStorage=ARCH_STORAGE.map(x=>x[0]);
+function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
+  if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
   (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
   (ref.monitors||[]).forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
@@ -3231,8 +3249,10 @@ function winBody(w){return{name:(w.name||"").trim(),scheduleId:w.sched,ruleIds:w
 function winSet(x){const n=pendKeep(winNode(x)),i=MAINT_WINDOWS.findIndex(w=>w.id===x.id);if(i>=0)MAINT_WINDOWS[i]=Object.assign(n,MAINT_WINDOWS[i]._pend?{_pend:true}:{});else MAINT_WINDOWS.push(n);autoVer.set(x.id,x.version);return n}
 // Всё «Автоматизации» заново: при старте и когда поток потерян
 async function autoLoad(){
-  const [rl,sc,dg,M,cur,mw]=await Promise.all(["/rules","/schedules","/day-groups","/modes","/modes/current","/maintenance-windows"].map(p=>API.get(p)));
-  modesApply(M);modeCurApply(cur);
+  const [rl,sc,dg,M,cur,mw]=await Promise.all([["listRules","/rules"],["listSchedules","/schedules"],["listDayGroups","/day-groups"],["getModes","/modes"],["getModeCurrent","/modes/current"],["listMaintenanceWindows","/maintenance-windows"]]
+    .map(([op,p])=>can(op)?API.get(p):{items:[]}));
+  if(can("getModes"))modesApply(M);
+  if(can("getModeCurrent"))modeCurApply(cur);
   SCHEDS.length=0;sc.items.forEach(x=>schSet(x));
   DAY_GROUPS.length=0;dg.items.forEach(grpSet);
   MAINT_WINDOWS.length=0;mw.items.forEach(winSet);
@@ -4230,7 +4250,7 @@ function applyDeepLink(){
 const jumpSources=[];
 function registerJumpSource(fn){jumpSources.push(fn)}
 let goSel=0,goHits=[],goNav=false;
-registerJumpSource(()=>APPS_LIST.map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",
+registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",
   go(){goApp(a.id)}})));
 registerJumpSource(()=>Object.entries(SLICE_SW).map(([id,l])=>({kind:"Срез",title:i18n(l),sub:SLICE[id],icon:SLICE_IC[id],
   go(){goApp("hw");setSlice(id)}})));
@@ -4339,7 +4359,7 @@ function goSearch(v){
       sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
     const favIds=new Set(favs.map(f=>f.id));
     const rec=recent.filter(id=>!favIds.has(id)).map(id=>{const f=find(id);return f?jumpNodeTarget(f.n):null}).filter(Boolean).slice(0,6);
-    const apps=APPS_LIST.map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",go(){goApp(a.id)}}));
+    const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",go(){goApp(a.id)}}));
     goHits=[...fav,...rec,...apps];
     let i=0;
     const sect=(head,list)=>list.length?`<div class="gohead">${head}</div>`+list.map(t=>goRowHtml(t,i++,"")).join(""):"";
@@ -5202,7 +5222,7 @@ function renderDomainMenu(){
   if(domainPop){placeDomainPop();document.addEventListener("click",onDomainOutside);window.addEventListener("resize",placeDomainPop)}
 }
 function appSwitchHtml(){
-  return APPS_LIST.map(a=>
+  return appsShown().map(a=>
     `<button type="button" class="asw ${app===a.id?"on":""}" data-a="${a.id}" role="tab" aria-selected="${app===a.id?"true":"false"}" title="${i18n(a.label)}" ${onEv("click",["goApp",`${a.id}`])}>${ic(a.ic)}<span class="asw-lb">${i18n(a.label)}</span></button>`
   ).join("");
 }
@@ -15886,7 +15906,7 @@ let an=null;
 function addArchive(ownerId){
   const f=find(ownerId);if(!f)return;
   const dom=f.n.type==="domain"?f.n.id:SERVER_DOMAIN[f.n.id];
-  an={domain:dom,server:f.n.type==="server"?f.n.id:"",kind:"local",provider:"s3",name:"",days:30,storage:"object",enc:false};
+  an={domain:dom,server:f.n.type==="server"?f.n.id:"",kind:"local",provider:"s3",name:"",days:30,storage:refStorage.includes("object")?"object":refStorage[0],enc:false};
   anReset();renderArchNew();
 }
 function anDraft(){return{kind:an.kind,provider:an.provider,name:an.name,storage:an.storage,server:an.server||null,vols:[]}}
@@ -15912,7 +15932,8 @@ function anSet(k,v,quiet){
 // Что мешает создать: не выбран сервер, пустые обязательные поля.
 function anBlock(){
   const v=an.vol;
-  if(!an.server)return i18n("Выберите сервер");
+  // Сервер обязателен только дискам; удалённое хранилище — на весь домен, его берёт любой сервер
+  if(!an.server&&an.kind==="local")return i18n("Выберите сервер");
   if(an.kind==="local"){
     if(!v.disk)return i18n("Нет свободного диска");
     if(v.mode!=="part"&&!String(v.dir||"").trim())return i18n("Укажите папку на диске");
@@ -15939,12 +15960,12 @@ function renderArchNew(){
   const canEnc=an.kind==="cloud"||an.storage==="object";
   openBulkModal(`${i18n("Новое хранилище")}${dom?" · "+escHtml(locName(dom)):""}`,
     `<div class="an-body">
-    <div class="g an-srv"><div><label>${i18n("Сервер")}</label><select ${onEv("change",["anSet","server",onEv.value])}>${an.server?"":`<option value="" selected>${i18n("— выберите сервер —")}</option>`}${srvs.map(s=>`<option value="${s.id}" ${an.server===s.id?"selected":""}>${escHtml(locName(s))}${hasNoSignal(s)?" — "+i18n("нет связи"):""}</option>`).join("")}</select>${an.server?"":`<div class="bk-hint">${i18n("хранилище всегда принадлежит серверу — он ведёт запись")}</div>`}</div></div>
+    <div class="g an-srv"><div><label>${i18n("Сервер")}</label><select ${onEv("change",["anSet","server",onEv.value])}>${an.kind!=="local"?`<option value="" ${an.server?"":"selected"}>${i18n("Весь домен")}</option>`:an.server?"":`<option value="" selected>${i18n("— выберите сервер —")}</option>`}${srvs.map(s=>`<option value="${s.id}" ${an.server===s.id?"selected":""}>${escHtml(locName(s))}${hasNoSignal(s)?" — "+i18n("нет связи"):""}</option>`).join("")}</select>${an.server?"":`<div class="bk-hint">${i18n("хранилище всегда принадлежит серверу — он ведёт запись")}</div>`}</div></div>
     <div class="an-kinds">${kinds}</div>${provs}
     <div class="g" style="margin-top:12px">
       <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(an.kind==="cloud"?cloudLabel(an.provider):i18n(an.kind==="remote"?"Сетевое хранилище":"Хранилище"))}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
       <div><label>${i18n("Глубина, дней")}</label><input type="number" value="${an.days}" ${onEv("input",["anSet","days",onEv.value,true])}><div class="bk-hint">${i18n("0 — без ограничения")}</div></div>
-      ${an.kind==="cloud"?fldRo("Тип хранения",i18n("Облачное")):`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${ARCH_STORAGE.map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
+      ${an.kind==="cloud"?fldRo("Тип хранения",i18n("Облачное")):`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
       <div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>
     </div>
     <div class="an-vol-h">${i18n("Первый том")}<span class="sub">${i18n("остальные — «＋ Том» в карточке хранилища")}</span></div>
@@ -15968,7 +15989,7 @@ function anArchive(){
   // volLabel берёт вид хранилища по archId — у формы его нет, поэтому имя тома собирается на черновике
   const draft={id:"",type:"archive",kind:an.kind,provider:an.provider,server:an.server,vols:[]};
   return{name,kind:an.kind,storage:an.kind==="cloud"?"object":an.storage,encrypted:!!an.enc,retentionDays:an.days,
-    provider:an.kind==="cloud"?an.provider:null,serverId:an.server||null,domainId:null,firstVolume:volSpec(draft,vol)};
+    provider:an.kind==="cloud"?an.provider:null,serverId:an.server||null,domainId:an.server?null:an.domain,firstVolume:volSpec(draft,vol)};
 }
 // «Проверить подключение» к NAS или бакету — запросом к серверу
 function anCheck(){
