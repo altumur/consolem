@@ -2067,8 +2067,8 @@ const treeMatchCache=new Map(),searchMatchCache=new Map();
 const sysOptsRU=[{id:"ntp",n:"Время",i:"clock"},{id:"sec",n:"Безопасность",i:"lock"},{id:"mail",n:"Уведомления",i:"mail"},{id:"lic",n:"Лицензии",i:"clipboard-list"}];
 const sysOptsEN=[{id:"ntp",n:"Time",i:"clock"},{id:"sec",n:"Security",i:"lock"},{id:"mail",n:"Notifications",i:"mail"},{id:"lic",n:"Licenses",i:"clipboard-list"}];
 const sysOpts=sysOptsRU.map(o=>({...o}));
-const logCatsRU=[{id:"all",n:"Все события"},{id:"audit",n:"Аудит"},{id:"alarm",n:"Тревоги"},{id:"info",n:"Информация"}];
-const logCatsEN=[{id:"all",n:"All events"},{id:"audit",n:"Audit"},{id:"alarm",n:"Alarms"},{id:"info",n:"Information"}];
+const logCatsRU=[{id:"all",n:"Все события"},{id:"audit",n:"Аудит"},{id:"alarm",n:"Тревоги"},{id:"info",n:"Информация"},{id:"ops",n:"Операции"}];
+const logCatsEN=[{id:"all",n:"All events"},{id:"audit",n:"Audit"},{id:"alarm",n:"Alarms"},{id:"info",n:"Information"},{id:"ops",n:"Operations"}];
 const logCats=logCatsRU.map(c=>({...c}));
 function syncLocalePack(){
   const en=uiLang==="en";
@@ -2509,6 +2509,8 @@ function problemText(e,n){
     IP_RANGE_TOO_LARGE:i18n("Слишком много адресов за раз"),
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
+    NOT_REVERTIBLE:i18n("откатить нельзя: срок вышел или уже откачено"),
+    NOT_SUPPORTED:i18n("этого не вернуть"),
   }[code]||(e?.status===0||!code?i18n("сервер не ответил"):`${i18n("ошибка")}: ${code}`);
 }
 // ── Модель w2c ─────────────────────────────────────────────────────────────
@@ -4270,7 +4272,7 @@ registerJumpSource(()=>accCats().map(c=>({kind:"Каталог",title:c.n,sub:c.
 registerJumpSource(()=>rules.map(r=>({kind:"Правило",title:r.name,sub:i18n(r.on?(r.watch?"Только журнал":"Работает"):"Выключено"),icon:"svcs",goId:"rule:"+r.id,
   go(){goApp("rules");ruleOpen(r.id,true)}})));
 registerJumpSource(()=>logCats.map(c=>({kind:"Журнал",title:c.n,sub:i18n("Категория журнала"),icon:"svcs",goId:"log:"+c.id,
-  go(){goApp("log");logFilt=c.id;paint()}})));
+  go(){goApp("log");logGo(c.id)}})));
 registerJumpSource(()=>{                          // закладки выбранного объекта
   const f=find(sel);if(!f)return[];
   return tabsFor(f.n).map(([id,label])=>({kind:"Закладка",title:i18n(label),sub:locName(f.n),icon:f.n.type,
@@ -6653,7 +6655,7 @@ function norow(d,l){
 function treeServers(){return scopedDomains().map(d=>drow(d)).join("")}
 // Пункт «Опций» и раздел журнала в дереве
 function optGo(id){sys=id;tab="gen";paint()}
-function logGo(id){logFilt=id;paint()}
+function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();paint()}
 function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).map(o=>
   `<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span></div>`).join("")}
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
@@ -15297,7 +15299,36 @@ function flashSetting(){
 // Записи — с сервера (GET /journal): appLoad
 const LOG_ROWS=[];
 const LOG_BY_CAT={all:[],audit:[],alarm:[],info:[]};
+// Операции: групповые и одиночные правки оборудования. Откатываются цепочкой назад, по одной
+let logOps=[];
+function logOpsLoad(){
+  if(!can("listOperations"))return Promise.resolve();
+  return API.get("/operations").then(r=>{logOps=r.items;if(app==="log"&&logFilt==="ops")logUI()});
+}
+function opTitle(op){
+  const names=[...new Set(op.items.map(x=>find(x.targetId)?locName(find(x.targetId).n):i18n("удалён")))];
+  return`${names.slice(0,3).join(", ")}${names.length>3?` … ${names.length}`:""}`;
+}
+function opRow(op){
+  const res=op.revertOf?i18n("откат"):op.single?i18n("правка"):i18n("групповая");
+  return`<tr><td>${escHtml(clockText(op.finishedAt||op.createdAt,false))}</td><td>${escHtml(res)}</td><td>${escHtml(opTitle(op))}</td><td>${op.ok}${op.failed?` · ${i18n("не выполнено")} ${op.failed}`:""}</td><td>${op.revertible?`<button type="button" class="btn s" data-op="${op.id}" ${onEv("click",["opRevert",`${op.id}`])}>${i18n("Отменить")}</button>`:""}</td></tr>`;
+}
+function opRevert(id){
+  API.post(`/operations/${id}/revert`).then(op=>opWait.set(op.id,p=>{
+    toast(p.failed?`${i18n("Возвращено")}: ${p.ok} · ${i18n("не выполнено")} ${p.failed}`:`${i18n("Возвращено")}: ${p.ok}`);
+    logOpsLoad();
+  })).catch(e=>toast(problemText(e)));
+}
 function logUI(){const cat=logCats.find(x=>x.id===logFilt)||logCats[0];
+  if(cat.id==="ops"){
+    paintMain(mainHd("Журнал",`<span class="hd-ic">${lu("scroll-text")}</span>${cat.n}`,"Диагностика и аудит")+
+      `<div class="sc">${listCard({
+        key:"log:ops",title:"Операции",items:logOps,text:op=>[opTitle(op)],row:opRow,
+        wrap:b=>`<table><tr><th>${i18n("Время")}</th><th>${i18n("Тип")}</th><th>${i18n("Что")}</th><th>${i18n("Итог")}</th><th></th></tr>${b}</table>`,
+        empty:"Операций нет",ph:"Имя устройства…",unit:"операция|операции|операций"
+      })}</div>`);
+    return;
+  }
   const rows=LOG_BY_CAT[cat.id]||LOG_ROWS;
   paintMain(mainHd("Журнал",`<span class="hd-ic">${lu("scroll-text")}</span>${cat.n}`,"Диагностика и аудит")+
     `<div class="sc">${listCard({
@@ -18467,19 +18498,24 @@ function asstApply(){
     if(asst!==a)return;
     const why=new Map(res.failed.map(f=>[f.deviceId,f.code]));
     const rows=p.items.map(x=>({name:x.name,ok:!why.has(x.deviceId),why:why.has(x.deviceId)?problemText(why.get(x.deviceId)):""}));
-    // «Отменить» — обратный запрос: значения «было», версии — из ответа. Секреты назад не возвращаются
-    const undo=res.done.map(d=>{const x=p.items.find(i=>i.deviceId===d.id);return x.changes.every(c=>"before" in c)?{deviceId:d.id,version:d.version,set:Object.fromEntries(x.changes.map(c=>[c.field,c.before]))}:null});
-    a.plan=null;a.result={rows,again:res.failed.length>0,undo:undo.length&&undo.every(Boolean)?undo:null};
+    // «Отменить» — откат операции этой правки: id из списка, ответ правки его не несёт
+    a.plan=null;a.result={rows,again:res.failed.length>0,undo:null};
+    const ids=new Set(res.done.map(d=>d.id));
+    if(ids.size&&can("listOperations"))return API.get("/operations",{limit:5}).then(l=>{
+      if(asst!==a)return;
+      a.result.undo=l.items.find(o=>o.single&&o.revertible&&o.items.every(x=>ids.has(x.targetId))&&o.items.length===ids.size)?.id||null;
+      asstRender();
+    });
     asstRender();
   }).catch(e=>toast(problemText(e)));
 }
 function asstUndo(){
-  const a=asst,items=a?.result?.undo;if(!items)return;
-  API.post("/devices/update",{idempotencyKey:opKey(),items}).then(res=>{
+  const a=asst,id=a?.result?.undo;if(!id)return;
+  API.post(`/operations/${id}/revert`).then(op=>opWait.set(op.id,p=>{
     if(asst!==a)return;
     a.result.undo=null;asstRender();
-    toast(res.failed.length?problemText(res.failed[0].code):`${i18n("Возвращено")}: ${res.done.length}`);
-  }).catch(e=>toast(problemText(e)));
+    toast(p.failed?`${i18n("не выполнено")}: ${p.failed}`:`${i18n("Возвращено")}: ${p.ok}`);
+  })).catch(e=>toast(problemText(e)));
 }
 function bulkBusyGuard(){
   if(bq&&!bq.finished){toast("Очередь ещё выполняется — дождитесь её конца");return true}
@@ -18731,6 +18767,7 @@ function apiQueue(steps,title,opts,call,apiOps,noopOps){
 }
 function opOnEvent(m){
   const w=opWait.get(m.entityId);
+  if(m.type==="operation.finished"&&app==="log"&&logFilt==="ops")logOpsLoad();
   if(w&&m.type==="operation.finished"){opWait.delete(m.entityId);w(m.payload);return}
   if(!bq)return;
   if(bq.api==="pending"){opEarly.push(m);return}

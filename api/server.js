@@ -63,6 +63,9 @@
   const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain"];
   const STREAM_DEPTH = 500;
+  // Стопка отката: сколько операций и как долго сервер помнит, что вернуть
+  const UNDO_KEEP = 50;
+  const UNDO_MS = 7 * 86400000;
 
   function create(opts) {
     const SPEC = opts.openapi || null;
@@ -711,6 +714,28 @@
     // Шаг выполняется за 90–230 мс: столько, сколько в макете шла очередь. Разброс — от номера шага,
     // чтобы ход был живым и при этом повторялся от прогона к прогону
     const stepMs = (i) => 90 + ((i * 53) % 141);
+    // Почему операцию нельзя откатить: null — можно
+    const revertReason = (op) =>
+      op.state !== "done" ? "running" : op.reverted ? "reverted" : !op.items.some((x) => x.state === "ok") ? "empty" : now() - Date.parse(op.finishedAt) > UNDO_MS ? "expired" : null;
+    // Поля записи, которые изменил шаг: откат сверяет именно их
+    const fieldsOf = (rec, set) => Object.fromEntries(Object.keys(set).filter((k) => k !== "password" && k !== "secret").map((k) => [k, k in rec ? clone(rec[k]) : null]));
+    const sameFields = (rec, want) => Object.entries(want).every(([k, v]) => JSON.stringify(k in rec ? rec[k] : null) === JSON.stringify(v));
+    // Одиночная правка — законченная операция из одного шага. Так откат идёт цепочкой назад и через правки
+    // по одной. Ответ правки не меняется, id — из GET /operations
+    function recordSingle(steps) {
+      if (!steps.length) return;
+      const at = iso(now());
+      const op = { id: uuid("operation"), state: "done", createdAt: at, finishedAt: at, revertOf: null, retryOf: null, single: true, nextAt: 0,
+        items: steps.map((x, index) => Object.assign({ index, state: "ok", code: null, req: {} }, x)) };
+      ops.set(op.id, op);
+      trimOps();
+      send("operation.finished", { kind: "operation", entityId: op.id, payload: { state: "done", ok: op.items.length, failed: 0, cancelled: 0 } });
+    }
+    function trimOps() {
+      const done = [...ops.values()].filter((op) => op.state === "done");
+      done.slice(0, Math.max(0, done.length - UNDO_KEEP)).forEach((op) => ops.delete(op.id));
+    }
+    const setStep = (rec, set, before) => ({ targetId: rec.id, version: rec.version, before: { set: before }, after: fieldsOf(rec, set), secret: "password" in set || "secret" in set });
     const opView = (op) => ({
       id: op.id,
       state: op.state,
@@ -718,6 +743,8 @@
       finishedAt: op.finishedAt,
       revertOf: op.revertOf,
       retryOf: op.retryOf,
+      single: !!op.single,
+      revertible: !revertReason(op),
       total: op.items.length,
       done: op.items.filter((x) => x.state !== "wait" && x.state !== "run").length,
       ok: op.items.filter((x) => x.state === "ok").length,
@@ -757,10 +784,12 @@
     // Отказы — как в очереди макета: сервер устройства без связи не примет изменение; включить
     // камеру с превышенной лицензией нельзя; версия объекта для отката не совпала — его меняли после
     function runItem(op, item) {
+      if (item.req.undoable === false) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" });
       const t = targetOf(item.targetId);
       if (!t) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
       const rec = t.rec;
       if (item.req.expect !== undefined && rec.version !== item.req.expect) return Object.assign(item, { state: "fail", code: "VERSION_MISMATCH" });
+      if (item.req.expectFields && !sameFields(rec, item.req.expectFields)) return Object.assign(item, { state: "fail", code: "VERSION_MISMATCH" });
       // Изменение устройства применяет его сервер, изменение сервера — сам сервер; домен — без сервера
       const archiveServer = (a) => (a && a.serverId ? byId("servers", a.serverId) : null);
       const via =
@@ -769,6 +798,8 @@
       if (item.req.set) {
         if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
         item.before = { set: applyPatch(rec, item.req.set) };
+        item.after = fieldsOf(rec, item.req.set);
+        item.secret = "password" in item.req.set || "secret" in item.req.set;
         changed(t.kind, rec);
       } else if (item.req.create) {
         const res = createDevice(item.req.create, rec.domainId, rec.id, null);
@@ -787,6 +818,7 @@
     function finish(op, fired) {
       op.state = "done";
       op.finishedAt = iso(now());
+      trimOps();
       const v = opView(op);
       send("operation.finished", { kind: "operation", entityId: op.id, payload: { state: v.state, ok: v.ok, failed: v.failed, cancelled: v.cancelled } });
       if (fired) fired.push({ kind: "operation", id: op.id });
@@ -884,8 +916,9 @@
           if (!rec) return notFound("Устройство");
           const bad = precondition(rec, headers) || patchProblem(body);
           if (bad) return bad;
-          applyPatch(rec, body);
+          const before = applyPatch(rec, body);
           changed("device", rec);
+          recordSingle([setStep(rec, body, before)]);
           return one(device(rec));
         },
       ],
@@ -1237,6 +1270,7 @@
               if (d) d.candidateIds = d.candidateIds.filter((c) => c !== x.candidateId);
             }
             done.push({ index, devices: res.devices.map(device), folders: res.folders.map(clone) });
+            recordSingle([{ targetId: res.devices[0].id, version: res.devices[0].version, createdId: res.devices[0].id, before: { remove: res.devices[0].id } }]);
           });
           return { status: 200, body: { done, failed } };
         },
@@ -1247,6 +1281,7 @@
         (p, q, body) => {
           const done = [];
           const failed = [];
+          const steps = [];
           body.items.forEach((x) => {
             const t = targetOf(x.deviceId);
             if (!t || t.kind !== "device") return failed.push({ deviceId: x.deviceId, code: "NOT_FOUND" });
@@ -1254,10 +1289,12 @@
             if (busy(x.deviceId)) return failed.push({ deviceId: x.deviceId, code: "BUSY" });
             const bad = setProblem(t, x.set);
             if (bad) return failed.push(Object.assign({ deviceId: x.deviceId, code: bad.body.code }, bad.body.field ? { field: bad.body.field } : {}));
-            applyPatch(t.rec, x.set);
+            const before = applyPatch(t.rec, x.set);
             changed("device", t.rec);
+            steps.push(setStep(t.rec, x.set, before));
             done.push(device(t.rec));
           });
+          recordSingle(steps);
           return { status: 200, body: { done, failed } };
         },
       ],
@@ -1281,6 +1318,7 @@
           const bad = precondition(d, headers) || lockedProblem(touchedBy("devices", d), held);
           if (bad) return bad;
           removeDevice(d.id);
+          recordSingle([{ targetId: d.id, version: d.version, before: { deleted: true } }]);
           return { status: 204, body: null };
         },
       ],
@@ -1316,6 +1354,7 @@
         (p, q, body) => {
           const done = [];
           const failed = [];
+          const steps = [];
           const kinds = { devices: (r) => removeDevice(r.id), folders: removeFolder, archives: removeArchive, volumes: removeVolume, rules: removeRule };
           body.items.forEach((x) => {
             const table = Object.keys(kinds).find((k) => byId(k, x.id));
@@ -1326,8 +1365,10 @@
             if (lockedProblem(touchedBy(table, rec), held)) return failed.push({ id: x.id, code: "BUSY" });
             kinds[table](rec);
             done.push(x.id);
+            if (table === "devices") steps.push({ targetId: rec.id, version: rec.version, before: { deleted: true } });
           });
           wasRemoved.clear();
+          recordSingle(steps);
           return { status: 200, body: { done, failed } };
         },
       ],
@@ -1757,6 +1798,7 @@
           return { status: 202, body: opView(startOperation(body.items.map(clone))) };
         },
       ],
+      ["GET", "/operations", (p, q) => items([...ops.values()].reverse().slice(0, Number(q.limit) || UNDO_KEEP).map(opView))],
       ["GET", "/operations/{id}", (p) => (opById(p.id) ? { status: 200, body: opView(opById(p.id)) } : notFound("Операция"))],
       [
         "POST",
@@ -1815,27 +1857,24 @@
         (p) => {
           const op = opById(p.id);
           if (!op) return notFound("Операция");
+          const reason = revertReason(op);
+          if (reason) return problem(409, "NOT_REVERTIBLE", "Откатить нельзя", { params: { reason } });
           const done = op.items.filter((x) => x.state === "ok");
-          if (op.state !== "done" || !done.length || op.reverted) return problem(409, "BUSY", "Откатывать нечего: операция не завершена, ничего не выполнено или уже отменена");
           // Кроме самих объектов — то, что откат удалит: созданное шагом устройство с дочерними
           const removes = done.map((x) => x.before.remove && byId("devices", x.before.remove)).filter(Boolean);
-          const lockedRevert = lockedProblem(done.map((x) => x.targetId).concat(removes.flatMap((d) => touchedBy("devices", d))), held);
+          const lockedRevert = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)).concat(removes.flatMap((d) => touchedBy("devices", d))), held);
           if (lockedRevert) return lockedRevert;
           op.reverted = true;
-          // Шаги — в обратном порядке: последнее изменение откатывается первым. Каждый ждёт версию,
-          // которую объект получил после шага; если его меняли после, шаг отката не выполняется
-          const later = done.slice().reverse();
-          const expectAfter = (x) => {
-            const after = done.filter((y) => y.targetId === x.targetId);
-            return after[after.length - 1] === x ? x.version : undefined;
-          };
-          const requests = later.map((x, i) =>
+          // Шаги — в обратном порядке. Шаг сверяет значения своих полей с записанными: другое значение — объект
+          // меняли после, шаг не выполняется. Удаление, папки и секреты назад не возвращаются
+          const requests = done.slice().reverse().map((x) =>
             stripUndefined({
               targetId: x.targetId,
               set: x.before.set,
-              folderIds: x.before.folderIds,
               remove: x.before.remove,
-              expect: i === later.findIndex((y) => y.targetId === x.targetId) ? expectAfter(x) : undefined,
+              expect: x.before.remove ? x.version : undefined,
+              expectFields: x.after,
+              undoable: x.before.deleted || x.before.folderIds || x.secret ? false : undefined,
             })
           );
           return { status: 202, body: opView(startOperation(requests, { revertOf: op.id })) };

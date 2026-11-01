@@ -241,23 +241,64 @@
     assert.status(res, 202);
     assert.eq(res.body.revertOf, op.id, "чья отмена");
     const back = await env.finished(res.body.id);
-    assert.eq([back.ok, back.failed], [2, 0], "откат выполнен");
+    assert.eq([back.ok, back.failed], [1, 1], "поля вернулись, папки вне отката");
+    assert.eq(back.items.map((x) => x.code), ["NOT_SUPPORTED", null], "шаг папок — fail");
     const d = await env.ok("GET", `/devices/${cam.id}`);
     assert.eq([d.name, d.recordMode], [cam.name, cam.recordMode], "поля вернулись");
-    assert.eq((await env.ok("GET", `/folders/${otherFolder.id}`)).deviceIds.includes(cam.id), false, "из папки убрано");
-    assert.status(await env.call("POST", `/operations/${op.id}/revert`), 409, "BUSY", "второй раз");
+    const twice = await env.call("POST", `/operations/${op.id}/revert`);
+    assert.status(twice, 409, "NOT_REVERTIBLE", "второй раз");
+    assert.eq(twice.body.params.reason, "reverted", "причина");
     assert.status(await env.call("GET", `/operations/${UNKNOWN}`), 404, "NOT_FOUND");
   });
 
-  test("Операция: «Отменить» после чужой правки — шаг отката fail VERSION_MISMATCH, чужое не затирается", async () => {
+  test("Операция: «Отменить» после чужой правки того же поля — шаг отката fail VERSION_MISMATCH, чужое не затирается", async () => {
+    const env = await makeEnv();
+    const op = await env.runOperation(plan([{ targetId: cam.id, set: { name: "Моё имя" } }], { [cam.id]: cam.version }));
+    await env.ok("PATCH", `/devices/${cam.id}`, { name: "Чужое имя" }, { "If-Match": `"${op.items[0].version}"` });
+    const res = await env.ok("POST", `/operations/${op.id}/revert`);
+    const done = await env.finished(res.id);
+    assert.eq(done.items.map((x) => [x.state, x.code]), [["fail", "VERSION_MISMATCH"]], "откат не выполнен");
+    assert.eq((await env.ok("GET", `/devices/${cam.id}`)).name, "Чужое имя", "чужая правка цела");
+  });
+
+  test("Операция: правка другого поля откату не мешает", async () => {
     const env = await makeEnv();
     const op = await env.runOperation(plan([{ targetId: cam.id, set: { name: "Моё имя" } }], { [cam.id]: cam.version }));
     await env.ok("PATCH", `/devices/${cam.id}`, { short: "чужое" }, { "If-Match": `"${op.items[0].version}"` });
     const res = await env.ok("POST", `/operations/${op.id}/revert`);
-    const done = await env.finished(res.id);
-    assert.eq(done.items.map((x) => [x.state, x.code]), [["fail", "VERSION_MISMATCH"]], "откат не выполнен");
+    assert.eq((await env.finished(res.id)).ok, 1, "откат выполнен");
     const d = await env.ok("GET", `/devices/${cam.id}`);
-    assert.eq([d.name, d.short], ["Моё имя", "чужое"], "чужая правка цела");
+    assert.eq([d.name, d.short], [cam.name, "чужое"], "своё вернулось, чужое цело");
+  });
+
+  test("Одиночная правка — операция из одного шага: откат цепочкой назад до групповой", async () => {
+    const env = await makeEnv();
+    const group = await env.runOperation(plan([{ targetId: cam.id, set: { name: "Групповое" } }], { [cam.id]: cam.version }));
+    const one = await env.ok("PATCH", `/devices/${cam.id}`, { name: "Одиночное" }, { "If-Match": `"${group.items[0].version}"` });
+    const list = await env.ok("GET", "/operations", undefined);
+    assert.eq(list.items[0].single, true, "новая сверху, одиночная");
+    assert.eq([list.items[0].total, list.items[0].state, list.items[0].items[0].targetId], [1, "done", cam.id], "форма операции");
+    // Старшая раньше младшей: её поле занято — fail, ничего не меняется
+    const early = await env.ok("POST", `/operations/${group.id}/revert`);
+    assert.eq((await env.finished(early.id)).items[0].code, "VERSION_MISMATCH", "младшая не откачена");
+    assert.eq((await env.ok("GET", `/devices/${cam.id}`)).name, one.name, "не тронуто");
+    const back = await env.ok("POST", `/operations/${list.items[0].id}/revert`);
+    await env.finished(back.id);
+    assert.eq((await env.ok("GET", `/devices/${cam.id}`)).name, "Групповое", "назад на шаг");
+  });
+
+  test("Откат одиночных правок: создание снимается, удаление и пароль — NOT_SUPPORTED, операции без шагов нет", async () => {
+    const env = await makeEnv();
+    const c = (await env.list("/devices")).find((d) => d.type === "camera" && d.id !== cam.id);
+    await env.ok("PATCH", `/devices/${c.id}`, { password: "новый" }, { "If-Match": `"${c.version}"` });
+    const op = (await env.ok("GET", "/operations")).items[0];
+    const back = await env.ok("POST", `/operations/${op.id}/revert`);
+    assert.eq((await env.finished(back.id)).items[0].code, "NOT_SUPPORTED", "пароль не возвращается");
+    const fresh = await env.ok("GET", `/devices/${c.id}`);
+    await env.call("DELETE", `/devices/${c.id}`, undefined, { "If-Match": `"${fresh.version}"` });
+    const del = (await env.ok("GET", "/operations")).items[0];
+    const res = await env.ok("POST", `/operations/${del.id}/revert`);
+    assert.eq((await env.finished(res.id)).items[0].code, "NOT_SUPPORTED", "удаление не возвращается");
   });
 
   ApiTest.loaded("api-hardware.js");

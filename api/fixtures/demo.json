@@ -28114,6 +28114,7 @@
     "patchVolume",
     "deleteVolume",
     "formatVolume",
+    "listOperations",
     "createOperation",
     "getOperation",
     "pauseOperation",

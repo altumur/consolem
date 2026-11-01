@@ -13824,6 +13824,7 @@
     "getVolume",
     "patchVolume",
     "formatVolume",
+    "listOperations",
     "createOperation",
     "getOperation",
     "pauseOperation",

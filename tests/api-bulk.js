@@ -49,10 +49,8 @@
     assert.ok((await env.ok("GET", `/folders/${f.id}`)).deviceIds.includes(cams[1].id), "в папке");
     const back = await env.ok("POST", `/operations/${op.id}/revert`);
     const done = await env.finished(back.id);
-    assert.eq([done.ok, done.failed], [6, 0], "откат выполнен");
-    assert.ok(!(await env.ok("GET", `/folders/${f.id}`)).deviceIds.some((id) => cams.some((c) => c.id === id)), "из папки убраны");
-    const c0 = await env.ok("GET", `/devices/${cams[0].id}`);
-    assert.eq([c0.login, !!c0.hasPassword], [cams[0].login, !!cams[0].hasPassword], "учётные данные вернулись");
+    assert.eq([done.ok, done.failed], [2, 4], "детекторы сняты; папки и пароли вне отката");
+    assert.eq(done.items.filter((x) => x.state === "fail").every((x) => x.code === "NOT_SUPPORTED"), true, "причина шага");
     const kids = (await env.list("/devices")).filter((d) => d.parentId === cams[0].id && d.detectorKind === "linecross" && d.name === "Пересечение линии");
     assert.eq(kids.length, 0, "созданные детекторы удалены");
   });
