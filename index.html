@@ -1969,22 +1969,8 @@ const WIZ={
   acfa:{view:"acfa",label:"ACFA-устройства",types:[["acfa","ACFA-устройство","СКУД или пожарная защита"],["acfa_sensor","Датчик ACFA","Внутри ACFA-устройства"],["acfa_lock","Замок","Внутри ACFA-устройства"],["acfa_fence","Шлейф","Внутри ACFA-устройства"],["relay","Реле","Внутри замка или ACFA-устройства"]]},
   svc:{view:"sys",label:"Службы",types:[["email","Email-оповещатель","Для правил автоматизации"],["sms","SMS-оповещатель","Для правил автоматизации"],["export","Агент экспорта","Экспорт по правилу"]]}
 };
-const DEVICE_MODELS={
-  Axis:["generic","P3245-LV","M3067-P","A1001","Q1656"],
-  Bosch:["NBN-73023","FLEXIDOME IP 3000i","AUTODOME IP 5000i"],
-  Canon:["VB-R11","VB-H47","VB-M641VE"],
-  Dahua:["IPC-HFW5241","IPC-HFW5831","NVR5216"],
-  Grundig:["GD-CI-AP4746P"],
-  Hikvision:["generic","DS-2CD2143G2","DS-2CD2347G2","DS-2DE7220IW-AE"],
-  IDIS:["DC-S3538HRX","DC-S3583HRX"],
-  "ONVIF generic":["generic"],
-  Panasonic:["WV-S1131","WV-SFN631L"],
-  Sony:["SNC-VB632D","SNC-EM632RC"],
-  Uniview:["IPC322LR3","IPC3615SB-ADF28KM-I0"],
-  Vivotek:["generic","FD9387-HTV","IB9387-HT"],
-  Virtual:["Virtual IP server","TestDevice","generic"],
-  Zet:["HR-FD2030C"]
-};
+// Производители и модели — reference.deviceModels: список от сервера, может быть пуст и бывает на тысячи строк
+const DEVICE_MODELS={};
 const DEVICE_STATUS_LABELS={ok:"Полностью поддерживается",manual:"Требует ручной настройки",bad:"Работа не гарантируется"};
 const DEV_VIEW_MODES=[
   ["compact","Компактный вид","Производитель, Модель, Логин, Пароль"],
@@ -2991,6 +2977,8 @@ function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   refParams=ref.deviceParams||{};
+  Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
+  (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Что умеет событие — из справочника: варианты уточнения отдаёт сервер, подписи — по коду
   (ref.ruleTriggers||[]).forEach(t=>{
     const k=TRIGGER_KINDS.find(x=>x.sub===t.source&&x.kind===t.kind);
@@ -8392,9 +8380,9 @@ function formBase(n){
     const camIdFld=fldRo("ID",deviceIdentifierValue(n)||"—");
     const vchFld=underIpsrv?fldRo("Номер видеоканала",ipsrvCameraVideoChannel(n,ips)):"";
     return card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Короткое имя",n.short??"")}${camIdFld}${vchFld}</div>`)
-      +(underIpsrv&&!n.ip?card("Подключение",`<div class="g">${fldRo("Регистратор",locName(ips))}${fldRo("IP регистратора",ips.ip||"—")}${fldRo("RTSP",`rtsp://${ips.ip||"—"}:554/ch${ipsrvCameraVideoChannel(n,ips)}`)}</div>
+      +(underIpsrv&&!n.ip?card("Подключение",`<div class="g">${fldRo("Регистратор",locName(ips))}${fldRo("IP регистратора",ips.ip||"—")}${fldRo("RTSP",cardFldOrig("RTSP","")||"—")}</div>
         <p class="sub">${i18n("Своего IP у камеры регистратора нет: сервер забирает её видео через регистратор, по номеру канала. Адрес и учётные данные — в карточке")} <button class="lk" ${onEv("click",["pick",`${ips.id}`])}>${escHtml(locName(ips))}</button>.</p>`)
-        :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP",`rtsp://${n.ip}:554/main`)}</div>`))+deviceFoldersCardHtml(n)+periphSummaryHtml(n)}
+        :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+periphSummaryHtml(n)}
   if(n.type==="det"){
     const cam=find(n.id)?.p;
     return detZoneCardHtml(cam,n)+card("Параметры",`<div class="g">${fld("Имя",locName(n))}${sl("Тип",DET_TYPES,n.kind||DET_TYPES[0])}${fld("Чувствительность",n.sens||"12")}${cam?detServerSelectHtml(cam,n):""}</div>
@@ -15414,7 +15402,7 @@ function initDeviceWizard(c){
     devMode:"current",templateId:"",devResults:[],devFieldsPop:false,devViewMode:defaultDevViewMode(),devSelected:new Set(),
     bulkEditOpen:false,tplPop:false,modePop:false,tplFilter:"",bulkEdit:{vendor:"",model:"",user:"",pass:"",name:"",arch:"",group:"",record:""},
     bulkUser:"",bulkPass:"",
-    manual:{type:"camera",ip:"",port:80,mac:"",vendor:"Hikvision",model:DEVICE_MODELS.Hikvision[0],user:"",pass:"",name:"",short:"",identifier:"",arch:"",group:"",record:"motion",lat:"0",lon:"0",azimuth:"0"},
+    manual:{type:"camera",ip:"",port:80,vendor:Object.keys(DEVICE_MODELS)[0]||"",model:Object.values(DEVICE_MODELS)[0]?.[0]||"",rtsp:"",user:"",pass:"",name:"",short:"",identifier:"",arch:"",group:"",record:"motion",lat:"0",lon:"0",azimuth:"0"},
     csvRows:[],csvName:"",csvError:""
   };
   // Архив по умолчанию — первый из доступных в этом мастере (домен, сервер),
@@ -16746,7 +16734,8 @@ function addManualDevice(){
   const m=wizd.manual,s=deviceTarget();
   if(!s){toast("Выберите папку");return}
   if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
-  if(!m.ip||!m.vendor||!m.model){toast("Заполните IP, производителя и модель");return}
+  if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Заполните производителя и модель или адрес RTSP");return}
+  if(m.type!=="camera"&&(!m.ip||!m.vendor||!m.model)){toast("Заполните IP, производителя и модель");return}
   if(missingManualCredentials(m)){askAddWithoutCredentials(()=>commitManualDevice(true));return}
   commitManualDevice(false);
 }
@@ -16758,7 +16747,8 @@ function commitManualDevice(disabled){
   const autoName=isDefaultDeviceName(m.name.trim())?(LB[m.type]||"Камера"):m.name.trim();
   const configMode=wizd.devMode||"current";
   const template=configMode==="template"?deviceTemplates().find(x=>x.id===wizd.templateId):null;
-  const common={id:"obj"+Date.now(),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,mac:m.mac||"",vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",online:true,devices:[],configMode};
+  const common={id:"obj"+Date.now(),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",online:true,devices:[],configMode};
+  if(m.rtsp)common._f={RTSP:m.rtsp};
   if(disabled)common.enabled=false;
   if(configMode==="template"&&template){
     common.templateId=template.id;common.firmware=template.firmware||"как у шаблона";common.streamProfile=template.streamProfile||"как у шаблона";common.buffering=template.buffering||"как у шаблона";
@@ -16791,9 +16781,9 @@ function deviceManualHtml(){
       </select></div>
       <div><label>IP-адрес</label><input value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
       <div><label>Порт</label><input type="number" value="${m.port}" ${onEv("input",["updateManual","port",onEv.value])}></div>
-      <div><label>MAC-адрес</label><input value="${escHtml(m.mac||"")}" placeholder="00:11:22:33:44:55" ${onEv("input",["updateManual","mac",onEv.value])}></div>
-      <div><label>Производитель</label><select ${onEv("change",["changeManualVendor",onEv.value])}>${Object.keys(DEVICE_MODELS).map(v=>`<option ${v===m.vendor?"selected":""}>${v}</option>`).join("")}</select></div>
-      <div><label>Модель</label><div class="inline-field"><select ${onEv("change",["updateManual","model",onEv.value])}>${models.map(x=>`<option ${x===m.model?"selected":""}>${x}</option>`).join("")}</select><button type="button" class="btn s" title="Определить модель по данным подключения" ${onEv("click",["detectManualModel"])}>${ic("search")} Определить</button></div></div>
+      <div><label>Производитель</label><input list="devVendorList" value="${escHtml(m.vendor)}" ${onEv("change",["changeManualVendor",onEv.value])}><datalist id="devVendorList">${Object.keys(DEVICE_MODELS).map(v=>`<option value="${escHtml(v)}"></option>`).join("")}</datalist></div>
+      <div><label>Модель</label><div class="inline-field"><input list="devModelList" value="${escHtml(m.model)}" ${onEv("input",["updateManual","model",onEv.value])}><datalist id="devModelList">${models.map(x=>`<option value="${escHtml(x)}"></option>`).join("")}</datalist><button type="button" class="btn s" title="Определить модель по данным подключения" ${onEv("click",["detectManualModel"])}>${ic("search")} Определить</button></div></div>
+      ${camera?`<div class="full"><label>RTSP</label><input value="${escHtml(m.rtsp||"")}" placeholder="rtsp://адрес:554/поток" ${onEv("input",["updateManual","rtsp",onEv.value])}></div>`:""}
       <div><label>Имя пользователя</label><input value="${escHtml(m.user)}" placeholder="Авто" ${onEv("input",["updateManual","user",onEv.value])}></div>
       <div><label>Пароль</label>${devPassFieldHtml(m.pass,false,"updateManual('pass',this.value)")}</div>
       <div><label>ID</label><input value="${escHtml(idVal)}" placeholder="Авто" ${idLocked?"readonly disabled":""} ${onEv("input",["updateManual","identifier",onEv.value])}></div>
@@ -16861,7 +16851,7 @@ function csvRowFrom(cols,index,colMap){
   const kind=inferCsvDeviceKind(row);
   if(!row.name)row.name=kind.type==="ipsrv"?(row.model||"IP-сервер"):`Камера ${ip||index}`;
   const errors=row.errors;
-  if(vendor&&!DEVICE_MODELS[vendor]&&kind.type!=="ipsrv")errors.push("неизвестный производитель");
+  if(vendor&&Object.keys(DEVICE_MODELS).length&&!DEVICE_MODELS[vendor]&&kind.type!=="ipsrv")errors.push("неизвестный производитель");
   if(vendor&&model&&DEVICE_MODELS[vendor]&&!DEVICE_MODELS[vendor].includes(model)&&kind.type!=="ipsrv")errors.push("неизвестная модель");
   if(identifier&&identifier!=="Авто"&&!/^[A-Za-z0-9_]+$/.test(identifier))errors.push("некорректный ID");
   if(legacy&&cols.length<4)errors.push("недостаточно столбцов");

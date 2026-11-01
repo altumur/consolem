@@ -4945,7 +4945,8 @@
             "type": "integer"
           },
           "mac": {
-            "type": "string"
+            "type": "string",
+            "description": "MAC. У камеры, источника событий и СКУД — только из поиска: при создании с candidateId, иначе принимается и не хранится; PATCH — 422 NOT_SUPPORTED. У ipsrv с записью устройства правится"
           },
           "vendor": {
             "type": "string"
@@ -5149,7 +5150,7 @@
           },
           "rtspUrl": {
             "type": "string",
-            "description": "Адрес видеопотока, если он задан вручную"
+            "description": "Адрес камеры, чтение и запись. Создание камеры без rtspUrl и без vendor, model — 422 VALIDATION_FAILED, field: rtspUrl. Камере под регистратором адрес не нужен: она идёт через него"
           },
           "disabledByRuleId": {
             "type": [
@@ -6950,7 +6951,8 @@
                 "vendor",
                 "models"
               ]
-            }
+            },
+            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками"
           },
           "deviceKinds": {
             "type": "array",
@@ -8207,7 +8209,7 @@
             "anyOf": [
               {
                 "type": "string",
-                "description": "Адрес видеопотока, если он задан вручную"
+                "description": "Адрес камеры, чтение и запись. Создание камеры без rtspUrl и без vendor, model — 422 VALIDATION_FAILED, field: rtspUrl. Камере под регистратором адрес не нужен: она идёт через него"
               },
               {
                 "type": "null"
@@ -9615,7 +9617,7 @@
           },
           "rtspUrl": {
             "type": "string",
-            "description": "Адрес видеопотока, если он задан вручную"
+            "description": "Адрес камеры, чтение и запись. Создание камеры без rtspUrl и без vendor, model — 422 VALIDATION_FAILED, field: rtspUrl. Камере под регистратором адрес не нужен: она идёт через него"
           },
           "sensitivity": {
             "type": "integer"

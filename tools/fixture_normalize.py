@@ -533,7 +533,12 @@ UNIT_TYPES = ["acfa_sensor", "acfa_lock", "acfa_fence", "relay"]
 
 def writable_fields(schemas):
     """Что правится у вида. Виды с записью оператора — всё, кроме своего вычитаемого (поле из поиска, чтение)."""
+    patch = list(schemas["DevicePatch"]["properties"])
+    without = lambda *fields: [k for k in patch if k not in fields]
     return {
+        "camera": without("mac"),
+        "eventsrc": without("mac"),
+        "acfa": without("mac"),
         "channel": [],
         "storage": [],
         "sensor": ["name", "enabled", "norm"],

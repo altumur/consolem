@@ -218,5 +218,30 @@
     assert.eq((await env.ok("GET", `/devices/${c.id}`)).parentId, nvr.id, "родитель сменился");
   });
 
+  test("Адрес камеры: без rtspUrl и без vendor, model — 422, rtspUrl читается и пишется, снять последний адрес нельзя", async () => {
+    const env = await makeEnv();
+    const row = (device) => create([{ device, domainId: d1.id, parentId: null, folderId: null }]);
+    const none = await env.ok("POST", "/devices", row({ type: "camera", name: "Без адреса", ip: "10.1.1.1", port: 80 }));
+    assert.eq([none.failed[0].code, none.failed[0].field], ["VALIDATION_FAILED", "rtspUrl"], "нужен адрес");
+    const res = await env.ok("POST", "/devices", row({ type: "camera", name: "По адресу", rtspUrl: "rtsp://10.1.1.1/main" }));
+    const c = res.done[0].devices[0];
+    assert.eq(c.rtspUrl, "rtsp://10.1.1.1/main", "адрес в записи");
+    const bad = await env.call("PATCH", `/devices/${c.id}`, { rtspUrl: null }, v(c));
+    assert.status(bad, 422, "VALIDATION_FAILED", "адрес один, снять нельзя");
+    assert.eq(bad.body.field, "rtspUrl", "поле");
+    const next = await env.ok("PATCH", `/devices/${c.id}`, { rtspUrl: "rtsp://10.1.1.2/main" }, v(c));
+    assert.eq(next.rtspUrl, "rtsp://10.1.1.2/main", "правится");
+  });
+
+  test("MAC камеры — только из поиска: без candidateId не хранится, PATCH — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv();
+    const res = await env.ok("POST", "/devices", create([{ device: newCam({ mac: "00:11:22:33:44:77" }), domainId: d1.id, parentId: null, folderId: null }]));
+    const c = res.done[0].devices[0];
+    assert.eq(c.mac, undefined, "принят и не сохранён");
+    const bad = await env.call("PATCH", `/devices/${c.id}`, { mac: "00:11:22:33:44:88" }, v(c));
+    assert.status(bad, 422, "NOT_SUPPORTED", "правки нет");
+    assert.eq(bad.body.field, "mac", "поле");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();

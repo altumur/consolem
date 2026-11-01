@@ -28,6 +28,19 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!/Форматировать|Выгрузить записи/.test(main().textContent), "кнопок без операций нет");
   ok(!/IP-устройство с хранилищем/.test(deviceManualHtmlSafe()), "пункта «IP-устройство с хранилищем» нет");
 
+  // Производители и модели — из справочника, своё вводится руками; адрес — rtspUrl
+  const ref = await API.get("/reference");
+  ok(Object.keys(DEVICE_MODELS).length === ref.deviceModels.length, "модели из reference.deviceModels");
+  wizd = initDeviceWizard(addContext());
+  ok(/<datalist id="devModelList"/.test(deviceManualHtml()) && /RTSP/.test(deviceManualHtml()), "модель с подсказками, поле RTSP в ручном добавлении");
+  ok(!/MAC-адрес/.test(deviceManualHtml()), "MAC вручную не вводится: он только из поиска");
+  const withUrl = of("camera", (d) => d.rtspUrl);
+  open(withUrl.id);
+  ok(document.querySelector('[data-df="RTSP"]')?.value === withUrl.rtspUrl, "карточка показывает rtspUrl");
+  const noUrl = of("camera", (d) => !d.rtspUrl && !d.parentId);
+  open(noUrl.id);
+  ok(document.querySelector('[data-df="RTSP"]')?.value === "", "адреса нет — поле пустое, а не собранное из IP");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

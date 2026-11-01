@@ -224,6 +224,11 @@
       const field = Object.keys(patch).find((k) => !w.includes(k) || (k === "path" && !isUnit(rec)));
       return field ? problem(422, "NOT_SUPPORTED", `Поле ${field} у этого вида не правится`, { field }) : null;
     }
+    // Правка не оставляет камеру без адреса
+    const addressProblem = (rec, patch) => {
+      if (rec.type !== "camera" || rec.parentId || !["rtspUrl", "vendor", "model"].some((k) => k in patch)) return null;
+      return hasAddress(Object.assign({}, rec, patch)) ? null : problem(422, "VALIDATION_FAILED", "Нужен адрес камеры или производитель и модель", { field: "rtspUrl" });
+    };
     const deleteProblem = (d) => (d.derived || (found(d.type) && !isUnit(d)) ? problem(422, "NOT_SUPPORTED", "Запись не удаляется: её ведёт сервер", { field: "type" }) : null);
 
     // Проверка изменения до выполнения: ссылки ведут в существующие записи, имя не пустое
@@ -309,7 +314,7 @@
         }
       }
       if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      return (t.kind === "device" ? fieldProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
+      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
     }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
@@ -347,6 +352,8 @@
     function nextIdentifier() {
       return String(Math.max(0, ...db.devices.filter((d) => NUMBERED.has(d.type)).map((d) => Number(numberOf(d)) || 0)) + 1);
     }
+    // Адрес камеры: свой rtspUrl или адрес драйвера по производителю и модели
+    const hasAddress = (d) => !!d.rtspUrl || (!!d.vendor && !!d.model);
     function createProblem(spec, domainId, parentId, folderId) {
       if (!byId("domains", domainId)) return { code: "NOT_FOUND", field: "domainId" };
       if (parentId) {
@@ -362,6 +369,7 @@
       }
       const bad = patchProblem(spec);
       if (bad) return { code: bad.body.code, field: bad.body.field };
+      if (spec.type === "camera" && !parentId && !hasAddress(spec)) return { code: "VALIDATION_FAILED", field: "rtspUrl" };
       if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
         if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
       }
@@ -989,7 +997,7 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || fieldProblem(rec, body) || patchProblem(body);
+          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || patchProblem(body);
           if (bad) return bad;
           const before = applyPatch(rec, body);
           changed("device", rec);
@@ -1339,6 +1347,8 @@
           const done = [];
           const failed = [];
           body.items.forEach((x, index) => {
+            // MAC камеры, источника и СКУД — только из поиска
+            if (!x.candidateId && ["camera", "eventsrc", "acfa"].includes(x.device.type)) delete x.device.mac;
             const res = createDevice(x.device, x.domainId, x.parentId, x.folderId);
             if (res.code) return failed.push(Object.assign({ index, code: res.code }, res.field ? { field: res.field } : {}));
             if (x.candidateId) {
