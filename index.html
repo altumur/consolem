@@ -1288,6 +1288,19 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gojump-hint{flex:none;font-size:10px;color:var(--mu);border:1px solid var(--ln);border-radius:4px;padding:1px 5px;letter-spacing:.04em}
 .gopop{display:none;position:absolute;left:-1px;right:-1px;top:calc(100% + 6px);z-index:60;max-height:min(60vh,520px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;padding:6px}
 .gopop.open{display:block}
+.gopop.asst{padding:10px}
+.asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
+.asst-line{font-size:12px;color:var(--mu);margin:6px 0}
+.asst-msg{font-size:13px;margin:6px 0}
+.asst-msg.err{color:var(--one-danger)}
+.asst-sum{font-size:13px;font-weight:600;margin:6px 0}
+.asst-dev{font-size:13px;margin-top:6px}
+.asst-chg{font-size:12px;color:var(--mu);overflow-wrap:anywhere}
+.asst-ta{width:100%;min-height:52px;margin-top:6px;padding:6px 8px;resize:vertical;background:var(--p2);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;font-size:13px}
+.asst-sec{margin-top:6px}
+.asst-sec input{width:100%}
+.asst-act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
+.asst-act .asst-gap{flex:1}
 .gores{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;border-left:3px solid transparent}
 .gores:hover,.gores.on{background:var(--one-selected-neutral);border-left-color:var(--bl)}
 .gores .gomain{flex:1;min-width:0}
@@ -4317,6 +4330,7 @@ function treeShownKeys(){
 }
 function goSearch(v){
   const pop=document.getElementById("gopop");if(!pop)return;
+  if(asst)goClose();                              // вернулись к поиску: ассистент уступает список
   const q=String(v||"").trim();
   goSel=0;goNav=false;
   if(!q){                                         // просто клик — недавнее и разделы
@@ -4376,7 +4390,10 @@ function goPick(i){
   hwJumpFlash=false;
   updateFiltChrome();
 }
-function goClose(){document.getElementById("gopop")?.classList.remove("open")}
+function goClose(){
+  document.getElementById("gopop")?.classList.remove("open","asst");
+  if(asst){asst.abort?.abort();asst=null}
+}
 function goKey(e){
   const pop=document.getElementById("gopop"),open_=pop&&pop.classList.contains("open");
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){
@@ -18339,10 +18356,7 @@ function openBulkModal(title,body,foot,cls){
   m.querySelector(".bbox").className="cbox bbox"+(cls?" "+cls:"");
   m.classList.add("open");
 }
-function closeBulkModal(){
-  document.getElementById("bmodal")?.classList.remove("open");
-  if(asst){asst.abort?.abort();asst=null}
-}
+function closeBulkModal(){document.getElementById("bmodal")?.classList.remove("open")}
 // ── Ассистент ───────────────────────────────────────────────────────────
 // Модель и проверка плана — на бэкенде, здесь только разговор и показ плана. Разговор держит клиент:
 // context возвращается как есть, секреты живут в памяти до конца разговора и никуда не сохраняются.
@@ -18361,40 +18375,43 @@ function asstOpen(text){
   asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null};
   if(asst.text){asstSend();return}
   asstRender();
-  setTimeout(()=>document.getElementById("asstText")?.focus(),0);
 }
 function asstVal(v){return v===undefined||v===null?"—":typeof v==="object"?JSON.stringify(v):String(v)}
 function asstPlanHtml(p){
-  return`<div class="asst-plan"><b>${escHtml(p.summary)}</b><table><tr><th>${i18n("Устройство")}</th><th>${i18n("Поле")}</th><th>${i18n("Было")}</th><th>${i18n("Стало")}</th><th>${i18n("Почему")}</th></tr>${
-    p.items.map(x=>x.changes.map((c,i)=>`<tr><td>${i?"":escHtml(x.name)}</td><td>${escHtml(c.field)}</td><td>${escHtml(asstVal(c.before))}</td><td>${escHtml(asstVal(c.after))}</td><td>${escHtml(c.why)}</td></tr>`).join("")).join("")}</table></div>`;
+  return`<div class="asst-sum">${escHtml(p.summary)}</div>${p.items.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div>${
+    x.changes.map(c=>`<div class="asst-chg">${escHtml(c.field)}: ${escHtml(asstVal(c.before))} → ${escHtml(asstVal(c.after))} · ${escHtml(c.why)}</div>`).join("")}`).join("")}`;
 }
 function asstResultHtml(r){
-  return`<div class="asst-plan"><table><tr><th>${i18n("Устройство")}</th><th>${i18n("Итог")}</th></tr>${
-    r.rows.map(x=>`<tr><td>${escHtml(x.name)}</td><td>${x.ok?i18n("применено"):escHtml(x.why)}</td></tr>`).join("")}</table></div>`;
+  return r.rows.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div><div class="asst-chg">${x.ok?i18n("применено"):escHtml(x.why)}</div>`).join("");
 }
+// Ассистент занимает место списка поиска, его размеры и его правила: закрывается кликом мимо и Esc
 function asstRender(){
-  const a=asst;if(!a)return;
-  const box=[
-    a.said.length?`<div class="sub">${a.said.map(t=>`<div>› ${escHtml(t)}</div>`).join("")}</div>`:"",
-    a.line?`<div class="nt" id="asstLine">${escHtml(a.line)}</div>`:"",
-    a.ask?`<div class="nt" id="asstAsk">${escHtml(a.ask)}</div>`:"",
-    a.refused?`<div class="nt err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
-    a.err?`<div class="nt err" id="asstErr">${escHtml(a.err)}</div>`:"",
+  const a=asst,pop=document.getElementById("gopop");if(!a||!pop)return;
+  pop.innerHTML=[
+    a.said.length?`<div class="asst-said">${a.said.map(t=>`<div>› ${escHtml(t)}</div>`).join("")}</div>`:"",
+    a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
+    a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
+    a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
+    a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.plan?asstPlanHtml(a.plan):"",
     a.result?asstResultHtml(a.result):"",
-    `<div style="margin-top:10px"><label>${i18n(a.ask?"Ваш ответ":"Просьба")}</label><textarea id="asstText" class="ip-bulk-ta" ${onEv("input",["asstInput",onEv.value])}>${escHtml(a.text)}</textarea></div>`,
-    a.secrets.map((v,i)=>`<div style="margin-top:6px"><label>${i18n("Секрет")} № ${i+1}</label><input type="password" autocomplete="off" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
-    `<div style="margin-top:6px"><button type="button" class="btn s" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button><span class="sub"> ${i18n("Пароль — только сюда, не в текст просьбы")}</span></div>`
+    a.plan?"":`<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
+    a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
+    `<div class="asst-act">`,
+    a.plan?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
+    `<span class="asst-gap"></span>`,
+    a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
+    a.result?.undo?`<button type="button" class="btn s" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
+    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s pri" id="asstApply" ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
+      :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSend"])}>${i18n("Отправить")}</button>`,
+    `</div>`
   ].join("");
-  const foot=[
-    `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Закрыть")}</button>`,
-    `<span class="tfoot-gap"></span>`,
-    a.result?.again?`<button type="button" class="btn" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
-    a.result?.undo?`<button type="button" class="btn" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
-    a.plan?`<button type="button" class="btn" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn pri" id="asstApply" ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
-      :`<button type="button" class="btn pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSend"])}>${i18n("Отправить")}</button>`
-  ].join("");
-  openBulkModal(i18n("Ассистент"),box,foot,"bbox-wide");
+  pop.classList.add("open","asst");
+  pop.scrollTop=pop.scrollHeight;
+  if(!a.busy)document.getElementById("asstText")?.focus();
+}
+function asstKey(e){
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSend()}
 }
 function asstInput(v){if(asst)asst.text=v}
 function asstSecret(i,v){if(asst)asst.secrets[i]=v}

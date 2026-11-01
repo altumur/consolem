@@ -8,15 +8,16 @@ UiCheck(async ({ ok, until }) => {
   asstFromSearch();
   ok(await until(() => document.getElementById("asstApply")), "из поиска — сразу план");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
-  closeBulkModal();
+  goClose();
   const camId = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
   const before = (await API.get(`/devices/${camId}`)).recordMode;
   const say = (t) => { asst.text = t; document.getElementById("asstSend").click(); };
-  const body = () => document.getElementById("bmBody").textContent;
+  const body = () => document.getElementById("gopop").textContent;
 
   // Вопрос и ответ
   asstOpen("");
-  ok(document.getElementById("bmodal").classList.contains("open"), "окно ассистента открыто");
+  ok(document.getElementById("gopop").classList.contains("asst") && !document.getElementById("bmodal").classList.contains("open"), "ассистент на месте списка, окна нет");
+  ok(document.activeElement.id === "asstText", "курсор в поле просьбы");
   say("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "ассистент спросил");
   // Ответ строит план, без «Применить» ничего не записано
@@ -38,7 +39,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => document.getElementById("asstRefused")), "отказ показан");
   ok(!document.getElementById("asstApply"), "плана нет");
   // Устаревший план: строка failed и «Спросить заново»
-  closeBulkModal();
+  goClose();
   asstOpen();
   say("выключи запись Главный вход");
   ok(await until(() => document.getElementById("asstApply")), "новый план");
@@ -47,6 +48,6 @@ UiCheck(async ({ ok, until }) => {
   document.getElementById("asstApply").click();
   ok(await until(() => document.getElementById("asstAgain")), "устройство изменилось — предложено спросить заново");
   // Закрыть окно — отменить ход
-  closeBulkModal();
-  ok(asst === null, "разговор закрыт, секреты забыты");
+  document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  ok(asst === null && !document.getElementById("gopop").classList.contains("open"), "клик мимо закрыл, секреты забыты");
 });

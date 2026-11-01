@@ -1926,7 +1926,9 @@
       if (set === undefined) return last({ type: "question", text: "Что изменить на камерах?", context });
       if (!set && !(body.secrets || [])[Number(secret) - 1]) return last({ type: "question", text: "Какой секрет поставить паролем?", context });
       const words = low.split(/[^а-яёa-z0-9]+/).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w));
-      const found = db.devices.filter((d) => d.type === "camera" && words.some((w) => d.name.toLowerCase().includes(w)));
+      // Частичных правок и пустых строк в плане нет: камера, где значение уже такое, в план не идёт
+      const already = (d) => set && Object.entries(set).every(([k, v]) => d[k] === v);
+      const found = db.devices.filter((d) => d.type === "camera" && words.some((w) => d.name.toLowerCase().includes(w)) && !already(d));
       if (!found.length) return last({ type: "question", text: "На каких камерах?", context });
       out.push({ type: "progress", at, text: "проверяю план" });
       const items = found.map((d) => {
