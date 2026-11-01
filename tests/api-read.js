@@ -64,7 +64,7 @@
   test("Справочники: коды, без подписей", async () => {
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
-    assert.eq(ref.recordModes, ["none", "always", "motion", "sched", "replica"], "режимы записи");
+    assert.eq(ref.recordModes, ["none", "always", "motion", "sched", "replica", "backup"], "режимы записи");
     assert.ok(ref.deviceModels.some((v) => v.vendor === "Hikvision"), "модели по производителям");
     assert.ok(!JSON.stringify(ref.detectorKinds).match(/[а-яё]/i), "виды детекторов — кодами");
   });

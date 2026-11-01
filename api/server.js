@@ -198,7 +198,55 @@
       // Детектор просит метку: нет сервера с ней — считать негде, причина словами
       const miss = rec.type === "det" && !rec.builtin ? (rec.labels || []).find((l) => !db.servers.some((s) => s.domainId === rec.domainId && (s.labels || []).includes(l))) : null;
       if (miss && !out.faultText) out.faultText = `Нет сервера с меткой ${miss}`;
+      const edge = serverWideRows(rec);
+      if (edge.length) out.extraArchives = (out.extraArchives || []).concat(edge);
       return out;
+    }
+    /* ----- Виды хранилищ: что отдал сервер ----- */
+
+    const kindSpec = (kind) => (db.reference.archiveKinds || []).find((k) => k.kind === kind) || null;
+    const NO_KIND = { address: "disk", recordModes: [], archiveModes: [], serverWide: false, encryption: false, admits: true };
+    const specOf = (a) => kindSpec(a.kind) || NO_KIND;
+    // Архив на весь сервер работает со всеми его камерами: привязывать не надо, строка только для чтения
+    function serverWideRows(rec) {
+      if (rec.type !== "camera") return [];
+      const s = serverOf(rec);
+      if (!s) return [];
+      const main = (streamsOf(rec)[0] || {}).id;
+      return db.archives.filter((a) => a.serverId === s.id && specOf(a).serverWide).map((a) => stripUndefined({ archiveId: a.id, recordMode: a.recordMode, stream: main, readOnly: true }));
+    }
+    // Строки на весь сервер видны у всех его камер: их изменение меняет запись камеры
+    function serverWideChanged(a) {
+      if (!a.serverId) return;
+      db.devices.filter((d) => d.type === "camera" && (serverOf(d) || {}).id === a.serverId).forEach((d) => {
+        bump(d);
+        changed("device", d);
+      });
+    }
+    const archiveWrites = (d, id) => d.archiveId === id || (d.extraArchives || []).some((x) => x.archiveId === id);
+    // Запись камеры и вид хранилища: камера привязывается только туда, где её режим допустим. Основной бывает
+    // только на виде с режимом кроме backup. Новая привязка к архиву, который не принимает записи, — отказ
+    function archiveRowProblem(x, main, was) {
+      const a = byId("archives", x.archiveId);
+      if (!a) return null;
+      const spec = specOf(a);
+      const field = main ? "archiveId" : "extraArchives";
+      if (main && x.recordMode === "backup") return problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" });
+      if (main ? !spec.recordModes.some((m) => m !== "backup") : !spec.recordModes.length) return problem(422, "NOT_SUPPORTED", `На архив вида ${a.kind} камера не привязывается`, { field });
+      if (x.recordMode && x.recordMode !== "none" && !spec.recordModes.includes(x.recordMode)) return problem(422, "NOT_SUPPORTED", `Режим ${x.recordMode} на архиве вида ${a.kind} недоступен`, { field: "recordMode" });
+      if (a.admits === false && !was) return problem(422, "VALIDATION_FAILED", "Архив не принимает записи", { field });
+      return null;
+    }
+    function recordingProblem(rec, patch) {
+      if (rec.type !== "camera" || !["archiveId", "recordMode", "extraArchives"].some((k) => k in patch)) return null;
+      const next = Object.assign({}, rec, patch);
+      const main = next.archiveId ? archiveRowProblem({ archiveId: next.archiveId, recordMode: next.recordMode }, true, next.archiveId === rec.archiveId) : next.recordMode === "backup" ? problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" }) : null;
+      if (main) return main;
+      for (const x of next.extraArchives || []) {
+        const bad = archiveRowProblem(x, false, archiveWrites(rec, x.archiveId));
+        if (bad) return bad;
+      }
+      return null;
     }
     // Сервер устройства: свой (камера, регистратор, детектор, служба) или ближайшего родителя
     function serverOf(dev) {
@@ -461,11 +509,12 @@
     // в этом хранилище; у облачного — бакет
     function volumeProblem(a, v) {
       if (!String(v.disk || "").trim()) return problem(422, "VALIDATION_FAILED", "Укажите диск или путь", { field: "disk" });
-      if (a.kind === "cloud" && !String(v.bucket || "").trim()) return problem(422, "VALIDATION_FAILED", "Укажите бакет", { field: "bucket" });
-      if (a.kind !== "local") return null;
+      const address = specOf(a).address;
+      if (address === "bucket" && !String(v.bucket || "").trim()) return problem(422, "VALIDATION_FAILED", "Укажите бакет", { field: "bucket" });
+      if (address !== "disk") return null;
       const s = byId("servers", a.serverId);
       if (!s.disks.some((d) => d.disk === v.disk)) return problem(422, "VALIDATION_FAILED", `На сервере нет диска ${v.disk}`, { field: "disk" });
-      const onDisk = db.volumes.filter((x) => x.disk === v.disk && db.archives.some((y) => y.id === x.archiveId && y.kind === "local" && y.serverId === a.serverId));
+      const onDisk = db.volumes.filter((x) => x.disk === v.disk && db.archives.some((y) => y.id === x.archiveId && specOf(y).address === "disk" && y.serverId === a.serverId));
       if (onDisk.some((x) => x.archiveId === a.id || x.mode === "part") || (v.mode === "part" && onDisk.length))
         return problem(409, "DISK_TAKEN", `Диск ${v.disk} занят`, { field: "disk" });
       return null;
@@ -473,7 +522,7 @@
     function newVolume(a, spec) {
       const v = { id: uuid("volume"), archiveId: a.id, name: spec.name, disk: spec.disk, sizeBytes: spec.sizeBytes, usedPercent: 0,
         // Раздел целиком подключают неотформатированным: форматируют отдельно, когда решат
-        state: a.kind === "local" && spec.mode === "part" ? "unfmt" : "ready", online: true };
+        state: specOf(a).address === "disk" && spec.mode === "part" ? "unfmt" : "ready", online: true };
       Object.entries(spec).forEach(([k, x]) => {
         if (k === "password") secrets.set(v.id, x);
         else if (k === "secret") secrets.set(v.id + ":secret", x);
@@ -483,6 +532,29 @@
       db.volumes.push(v);
       return v;
     }
+    // Меньшая квота стирает старое: применяется, только если подтверждение называет то же число
+    function volumePatchProblem(rec, patch) {
+      if ("confirmShrinkBytes" in patch && patch.confirmShrinkBytes !== patch.sizeBytes) return problem(422, "VALIDATION_FAILED", "Подтверждение не совпадает с новым объёмом", { field: "confirmShrinkBytes" });
+      if (patch.sizeBytes != null && patch.sizeBytes < rec.sizeBytes && patch.confirmShrinkBytes !== patch.sizeBytes) return problem(422, "VALIDATION_FAILED", "Уменьшение стирает старые записи: нужно подтверждение", { field: "sizeBytes" });
+      return null;
+    }
+    // Изменение тома → поля записи: подтверждение не хранится, включение меняет состояние, подтверждённое снимает ожидание
+    function volumeSet(rec, set) {
+      const out = Object.assign({}, set);
+      delete out.confirmShrinkBytes;
+      if ("enabled" in out && (rec.state === "ready" || rec.state === "off")) out.state = out.enabled === false ? "off" : "ready";
+      if (rec.shrinkPendingBytes != null && out.sizeBytes != null && out.sizeBytes <= rec.shrinkPendingBytes) out.shrinkPendingBytes = null;
+      return out;
+    }
+    const setOf = (t, set) => (t.kind === "volume" ? volumeSet(t.rec, set) : set);
+    // Режим, приём записей и шифрование — как у вида
+    function archivePatchProblem(a, patch) {
+      const spec = specOf(a);
+      if ("recordMode" in patch && !spec.archiveModes.includes(patch.recordMode)) return problem(422, "NOT_SUPPORTED", `У вида ${a.kind} такого режима нет`, { field: "recordMode" });
+      if (patch.admits === true && !spec.admits) return problem(422, "VALIDATION_FAILED", "Этот вид записи не принимает", { field: "admits" });
+      if (patch.encrypted === true && !spec.encryption) return problem(422, "NOT_SUPPORTED", "У этого вида нет шифрования", { field: "encrypted" });
+      return null;
+    }
     function domainNameProblem(name, exceptId) {
       const v = String(name || "").trim();
       if (!v) return problem(422, "NAME_REQUIRED", "Укажите имя домена", { field: "name" });
@@ -491,7 +563,8 @@
     }
     // Изменение — по схеме своего вида и по смыслу: ссылки ведут в существующие записи, имя не пустое,
     // имя домена не занято
-    function setProblem(t, patch) {
+    // whole — всё, что план меняет у этой записи: запись камеры проверяется целиком, а не по шагам
+    function setProblem(t, patch, whole) {
       if (SPEC && window.ConsolemContract) {
         const errs = window.ConsolemContract.check(SPEC, { $ref: `#/components/schemas/${t.schema}` }, patch, "set", []);
         if (errs.length) {
@@ -500,7 +573,9 @@
         }
       }
       if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) || detProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch);
+      if (t.kind === "volume") return volumePatchProblem(t.rec, patch);
+      if (t.kind === "archive") return archivePatchProblem(t.rec, patch) || featureProblem(t.kind, patch) || patchProblem(patch);
+      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) || detProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch) || (t.kind === "device" ? recordingProblem(t.rec, whole || patch) : null);
     }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
@@ -556,6 +631,8 @@
       const bad = patchProblem(spec);
       if (bad) return { code: bad.body.code, field: bad.body.field };
       if (spec.type === "camera" && !parentId && !hasAddress(spec)) return { code: "VALIDATION_FAILED", field: "rtspUrl" };
+      const rec = recordingProblem({ type: spec.type }, spec);
+      if (rec) return { code: rec.body.code, field: rec.body.field };
       const det = detCreateProblem(spec, parentId ? byId("devices", parentId) : null);
       if (det) return det;
       if (posProblem(spec.type, spec)) return { code: "VALIDATION_FAILED", field: "ip" };
@@ -663,7 +740,9 @@
         if (!main && extra.length === (d.extraArchives || []).length) return;
         if (d.extraArchives) d.extraArchives = extra;
         if (main) {
-          const next = extra.shift();
+          // Резерв на сбой основным не становится
+          const i = extra.findIndex((x) => x.recordMode !== "backup");
+          const next = i >= 0 ? extra.splice(i, 1)[0] : null;
           if (next) Object.assign(d, { archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream });
           else Object.assign(d, { archiveId: null, recordMode: "none" });
         }
@@ -673,6 +752,7 @@
       db.volumes.filter((v) => v.archiveId === a.id).forEach(removeVolume);
       db.archives = db.archives.filter((x) => x !== a);
       send("entity.deleted", { kind: "archive", entityId: a.id });
+      if (specOf(a).serverWide) serverWideChanged(a);
     }
     // Правило — с историей версий и своими расписаниями, если они больше нигде не используются;
     // журнал его запусков остаётся
@@ -993,7 +1073,7 @@
       return redoStack[redoStack.length - 1] !== op.id || [...ops.values()].some(undoing) ? "notLast" : null;
     }
     // Поля записи, которые изменил шаг: откат сверяет именно их
-    const fieldsOf = (rec, set) => Object.fromEntries(Object.keys(set).filter((k) => k !== "password" && k !== "secret").map((k) => [k, k in rec ? clone(rec[k]) : null]));
+    const fieldsOf = (rec, set) => Object.fromEntries(Object.keys(set).filter((k) => k !== "password" && k !== "secret" && k !== "confirmShrinkBytes").map((k) => [k, k in rec ? clone(rec[k]) : null]));
     const sameFields = (rec, want) => Object.entries(want).every(([k, v]) => JSON.stringify(k in rec ? rec[k] : null) === JSON.stringify(v));
     // Одиночная правка — законченная операция из одного шага. Так откат идёт цепочкой назад и через правки
     // по одной. Ответ правки не меняется, id — из GET /operations
@@ -1015,7 +1095,7 @@
       else removeVolume(t.rec);
     }
     // В хранилище уже пишут камеры: снять его откатом — значит снять и запись
-    const archiveWritten = (a) => db.devices.some((d) => d.archiveId === a.id || (d.extraArchives || []).some((x) => x.archiveId === a.id));
+    const archiveWritten = (a) => db.devices.some((d) => archiveWrites(d, a.id));
     function trimOps() {
       const done = [...ops.values()].filter((op) => op.state === "done");
       done.slice(0, Math.max(0, done.length - UNDO_KEEP)).forEach((op) => ops.delete(op.id));
@@ -1097,8 +1177,9 @@
         if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
         const clash = rec.type === "det" && item.req.set.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
         if (clash) return Object.assign(item, { state: "fail", code: "BUSY", params: conflictParams(clash) });
-        item.before = { set: applyPatch(rec, item.req.set) };
+        item.before = { set: applyPatch(rec, setOf(t, item.req.set)) };
         if (t.kind === "device") syncMain(rec, item.req.set);
+        if (t.kind === "archive" && "recordMode" in item.req.set) serverWideChanged(rec);
         item.after = fieldsOf(rec, item.req.set);
         item.secret = "password" in item.req.set || "secret" in item.req.set;
         changed(t.kind, rec);
@@ -1222,7 +1303,7 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body);
+          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
           if (bad) return bad;
           const before = applyPatch(rec, body);
           syncMain(rec, body);
@@ -1570,28 +1651,35 @@
           if ((body.serverId == null) === (body.domainId == null)) return problem(422, "VALIDATION_FAILED", "Владелец — ровно один из serverId и domainId", { field: "serverId" });
           if (body.serverId && !byId("servers", body.serverId)) return notFound("Сервер");
           if (body.domainId && !byId("domains", body.domainId)) return notFound("Домен");
-          if (body.kind === "local" && !body.serverId) return problem(422, "VALIDATION_FAILED", "Локальное хранилище — на сервере", { field: "serverId" });
-          const unsupported = featureProblem("archive", body);
+          const spec = kindSpec(body.kind);
+          if (!spec) return problem(422, "NOT_SUPPORTED", `Вид ${body.kind} система не заводит`, { field: "kind" });
+          if (spec.serverRequired && !body.serverId) return problem(422, "VALIDATION_FAILED", "Это хранилище — на сервере", { field: "serverId" });
+          if (spec.serverWide && db.archives.some((x) => x.kind === body.kind && x.serverId === body.serverId)) return problem(422, "VALIDATION_FAILED", "На сервере уже есть такой архив: он один на сервер", { field: "serverId" });
+          const unsupported = featureProblem("archive", body) || (body.recordMode != null || body.admits != null || body.encrypted ? archivePatchProblem(body, stripUndefined({ recordMode: body.recordMode === null ? undefined : body.recordMode, admits: body.admits === null ? undefined : body.admits, encrypted: body.encrypted || undefined })) : null);
           if (unsupported) return unsupported;
+          const bucket = spec.address === "bucket";
           const a = {
             id: uuid("archive"),
             name: body.name.trim(),
             kind: body.kind,
-            storage: body.kind === "cloud" ? "object" : body.storage,
-            // Шифрование — только у объектного и облачного
-            encrypted: !!body.encrypted && (body.kind === "cloud" || body.storage === "object"),
+            storage: bucket ? "object" : body.storage,
+            // Шифрование — только у объектного и бакета
+            encrypted: !!body.encrypted && spec.encryption && (bucket || body.storage === "object"),
             retentionDays: body.retentionDays,
-            provider: body.kind === "cloud" ? body.provider : null,
+            provider: bucket ? body.provider : null,
             serverId: body.serverId,
             domainId: body.domainId,
+            admits: spec.admits && body.admits !== false,
             version: newVersion(),
           };
+          if (spec.archiveModes.length) a.recordMode = body.recordMode || spec.archiveModes[0];
           const bad = volumeProblem(a, body.firstVolume);
           if (bad) return bad;
           db.archives.push(a);
           const v = newVolume(a, body.firstVolume);
           send("entity.created", { kind: "archive", entityId: a.id, version: a.version });
           send("entity.created", { kind: "volume", entityId: v.id, version: v.version });
+          if (spec.serverWide) serverWideChanged(a);
           recordSingle([createdStep(a)]);
           return { status: 201, body: { archive: clone(a), volumes: [volume(v)] } };
         },
@@ -1602,7 +1690,9 @@
         (p, q, body) => {
           // Встроенный сервер не ходит в сеть: подключение «удаётся», если заполнено то, без чего не подключиться
           const v = body.volume;
-          const missing = body.kind === "remote" ? !v.disk.trim() || !String(v.login || "").trim() : body.kind === "cloud" ? !String(v.bucket || "").trim() : false;
+          const spec = kindSpec(body.kind);
+          if (!spec || !spec.check) return problem(422, "NOT_SUPPORTED", `У вида ${body.kind} нет проверки подключения`, { field: "kind" });
+          const missing = spec.address === "nas" ? !v.disk.trim() || !String(v.login || "").trim() : spec.address === "bucket" ? !String(v.bucket || "").trim() : false;
           return { status: 200, body: { ok: !missing, code: missing ? "CONNECTION_FAILED" : null } };
         },
       ],
@@ -1616,6 +1706,7 @@
           if (bad) return bad;
           const before = applyPatch(t.rec, body);
           changed("archive", t.rec);
+          if ("recordMode" in body) serverWideChanged(t.rec);
           recordSingle([setStep(t.rec, body, before)]);
           return one(clone(t.rec));
         },
@@ -1655,7 +1746,7 @@
           if (!t || t.kind !== "volume") return notFound("Том");
           const bad = precondition(t.rec, headers) || setProblem(t, body);
           if (bad) return bad;
-          const before = applyPatch(t.rec, body);
+          const before = applyPatch(t.rec, volumeSet(t.rec, body));
           changed("volume", t.rec);
           recordSingle([setStep(t.rec, body, before)]);
           return one(volume(t.rec));
@@ -2265,7 +2356,8 @@
             const t = targetOf(r.targetId);
             if (!t) return problem(404, "NOT_FOUND", `Объект ${r.targetId} не найден`, { params: { targetId: r.targetId } });
             if (r.set) {
-              const bad = setProblem(t, r.set);
+              const whole = Object.assign({}, ...body.items.filter((x) => x.targetId === r.targetId && x.set).map((x) => x.set));
+              const bad = setProblem(t, r.set, whole);
               if (bad) return bad;
             }
             if (r.create) {

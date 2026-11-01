@@ -65,7 +65,7 @@
     assert.ok(res.version !== a.version, "версия изменилась");
     assert.status(await env.call("PATCH", `/archives/${a.id}`, { kind: "cloud" }, { "If-Match": `"${res.version}"` }), 422, "VALIDATION_FAILED", "вид не меняют");
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
-    const pv = await env.ok("PATCH", `/volumes/${vol.id}`, { login: "VMS\\svc2", password: "p@ss", sizeBytes: 2048 * GB }, v(vol));
+    const pv = await env.ok("PATCH", `/volumes/${vol.id}`, { login: "VMS\\svc2", password: "p@ss", sizeBytes: 2048 * GB, confirmShrinkBytes: 2048 * GB }, v(vol));
     assert.eq([pv.login, pv.hasPassword, "password" in pv, pv.sizeBytes], ["VMS\\svc2", true, false, 2048 * GB], "том");
     assert.status(await env.call("PATCH", `/volumes/${vol.id}`, { state: "ready" }, { "If-Match": `"${pv.version}"` }), 422, "VALIDATION_FAILED", "состояние — только «Форматировать»");
     assert.status(await env.call("PATCH", `/volumes/${vol.id}`, { name: "x" }), 428, "PRECONDITION_REQUIRED");
@@ -127,7 +127,7 @@
     const vol = FX.volumes.find((x) => x.archiveId === a.id);
     const op = await env.runOperation({ idempotencyKey: key(), items: [
       { targetId: a.id, set: { retentionDays: 120 } },
-      { targetId: vol.id, set: { sizeBytes: 100 * GB } },
+      { targetId: vol.id, set: { sizeBytes: 100 * GB, confirmShrinkBytes: 100 * GB } },
       { targetId: offlineArch.id, set: { retentionDays: 1 } },
     ], expectedVersions: { [a.id]: a.version, [vol.id]: vol.version, [offlineArch.id]: offlineArch.version } });
     assert.eq(op.items.map((x) => [x.state, x.code]), [["ok", null], ["ok", null], ["fail", "SERVER_OFFLINE"]], "по шагам");

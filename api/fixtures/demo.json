@@ -12100,7 +12100,8 @@
    "provider": null,
    "serverId": "20000001-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000002-0000-4000-8000-000000000000",
@@ -12112,7 +12113,8 @@
    "provider": null,
    "serverId": "20000002-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000003-0000-4000-8000-000000000000",
@@ -12124,7 +12126,8 @@
    "provider": null,
    "serverId": "20000003-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000004-0000-4000-8000-000000000000",
@@ -12136,7 +12139,8 @@
    "provider": null,
    "serverId": "20000004-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000005-0000-4000-8000-000000000000",
@@ -12148,7 +12152,8 @@
    "provider": null,
    "serverId": "20000008-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000006-0000-4000-8000-000000000000",
@@ -12160,7 +12165,8 @@
    "provider": null,
    "serverId": "20000009-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000007-0000-4000-8000-000000000000",
@@ -12172,7 +12178,8 @@
    "provider": null,
    "serverId": "20000005-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000008-0000-4000-8000-000000000000",
@@ -12184,7 +12191,8 @@
    "provider": null,
    "serverId": "20000010-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000009-0000-4000-8000-000000000000",
@@ -12196,7 +12204,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000010-0000-4000-8000-000000000000",
@@ -12208,7 +12217,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000002-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000011-0000-4000-8000-000000000000",
@@ -12220,7 +12230,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000012-0000-4000-8000-000000000000",
@@ -12232,7 +12243,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000013-0000-4000-8000-000000000000",
@@ -12244,7 +12256,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000014-0000-4000-8000-000000000000",
@@ -12256,7 +12269,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000015-0000-4000-8000-000000000000",
@@ -12268,7 +12282,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000016-0000-4000-8000-000000000000",
@@ -12280,7 +12295,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000017-0000-4000-8000-000000000000",
@@ -12292,7 +12308,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000018-0000-4000-8000-000000000000",
@@ -12304,7 +12321,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000019-0000-4000-8000-000000000000",
@@ -12316,7 +12334,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000020-0000-4000-8000-000000000000",
@@ -12328,7 +12347,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000021-0000-4000-8000-000000000000",
@@ -12340,7 +12360,8 @@
    "provider": null,
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": false
   },
   {
    "id": "50000022-0000-4000-8000-000000000000",
@@ -12352,7 +12373,8 @@
    "provider": "s3",
    "serverId": null,
    "domainId": "10000001-0000-4000-8000-000000000000",
-   "version": "1"
+   "version": "1",
+   "admits": true
   },
   {
    "id": "50000023-0000-4000-8000-000000000000",
@@ -12364,7 +12386,48 @@
    "provider": "minio",
    "serverId": "20000002-0000-4000-8000-000000000000",
    "domainId": null,
-   "version": "1"
+   "version": "1",
+   "admits": true
+  },
+  {
+   "id": "50000024-0000-4000-8000-000000000000",
+   "name": "Резерв на сбой — Офис",
+   "kind": "backup",
+   "storage": "block",
+   "encrypted": false,
+   "retentionDays": 7,
+   "provider": null,
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "domainId": null,
+   "version": "1",
+   "admits": true
+  },
+  {
+   "id": "50000025-0000-4000-8000-000000000000",
+   "name": "Карта сервера — Столовая",
+   "kind": "edge",
+   "storage": "block",
+   "encrypted": false,
+   "retentionDays": 3,
+   "provider": null,
+   "serverId": "20000026-0000-4000-8000-000000000000",
+   "domainId": null,
+   "version": "1",
+   "admits": true,
+   "recordMode": "backup"
+  },
+  {
+   "id": "50000026-0000-4000-8000-000000000000",
+   "name": "Инциденты — Ангар",
+   "kind": "incidents",
+   "storage": "block",
+   "encrypted": false,
+   "retentionDays": 365,
+   "provider": null,
+   "serverId": "20000006-0000-4000-8000-000000000000",
+   "domainId": null,
+   "version": "1",
+   "admits": false
   }
  ],
  "volumes": [
@@ -12573,7 +12636,8 @@
    "online": true,
    "mode": "dir",
    "dir": "E:\\AxxonArchive\\Цех",
-   "version": "1"
+   "version": "1",
+   "shrinkPendingBytes": 3298534883328
   },
   {
    "id": "60000017-0000-4000-8000-000000000000",
@@ -12852,6 +12916,45 @@
    "host": "10.20.2.40",
    "port": 9000,
    "proto": "https",
+   "version": "1"
+  },
+  {
+   "id": "60000039-0000-4000-8000-000000000000",
+   "archiveId": "50000024-0000-4000-8000-000000000000",
+   "name": "P:\\Backup",
+   "disk": "P:",
+   "sizeBytes": 536870912000,
+   "usedPercent": 3,
+   "state": "ready",
+   "online": true,
+   "mode": "dir",
+   "dir": "P:\\Backup",
+   "version": "1"
+  },
+  {
+   "id": "60000040-0000-4000-8000-000000000000",
+   "archiveId": "50000025-0000-4000-8000-000000000000",
+   "name": "D:\\Edge",
+   "disk": "D:",
+   "sizeBytes": 274877906944,
+   "usedPercent": 41,
+   "state": "ready",
+   "online": true,
+   "mode": "dir",
+   "dir": "D:\\Edge",
+   "version": "1"
+  },
+  {
+   "id": "60000041-0000-4000-8000-000000000000",
+   "archiveId": "50000026-0000-4000-8000-000000000000",
+   "name": "D:\\Incidents",
+   "disk": "D:",
+   "sizeBytes": 1099511627776,
+   "usedPercent": 12,
+   "state": "ready",
+   "online": true,
+   "mode": "dir",
+   "dir": "D:\\Incidents",
    "version": "1"
   }
  ],
@@ -32922,12 +33025,102 @@
    "always",
    "motion",
    "sched",
-   "replica"
+   "replica",
+   "backup"
   ],
   "archiveKinds": [
-   "local",
-   "remote",
-   "cloud"
+   {
+    "serverRequired": true,
+    "encryption": true,
+    "check": false,
+    "recordModes": [
+     "always",
+     "motion",
+     "sched",
+     "replica"
+    ],
+    "replicaSource": true,
+    "serverWide": false,
+    "archiveModes": [],
+    "admits": true,
+    "kind": "local",
+    "address": "disk"
+   },
+   {
+    "serverRequired": false,
+    "encryption": true,
+    "check": true,
+    "recordModes": [
+     "always",
+     "motion",
+     "sched",
+     "replica"
+    ],
+    "replicaSource": true,
+    "serverWide": false,
+    "archiveModes": [],
+    "admits": true,
+    "kind": "remote",
+    "address": "nas"
+   },
+   {
+    "serverRequired": false,
+    "encryption": true,
+    "check": true,
+    "recordModes": [
+     "always",
+     "motion",
+     "sched",
+     "replica"
+    ],
+    "replicaSource": true,
+    "serverWide": false,
+    "archiveModes": [],
+    "admits": true,
+    "kind": "cloud",
+    "address": "bucket"
+   },
+   {
+    "serverRequired": true,
+    "encryption": false,
+    "check": false,
+    "recordModes": [
+     "backup"
+    ],
+    "replicaSource": false,
+    "serverWide": false,
+    "archiveModes": [],
+    "admits": true,
+    "kind": "backup",
+    "address": "disk"
+   },
+   {
+    "serverRequired": true,
+    "encryption": false,
+    "check": false,
+    "recordModes": [],
+    "replicaSource": true,
+    "serverWide": true,
+    "archiveModes": [
+     "backup",
+     "always"
+    ],
+    "admits": true,
+    "kind": "edge",
+    "address": "disk"
+   },
+   {
+    "serverRequired": true,
+    "encryption": false,
+    "check": false,
+    "recordModes": [],
+    "replicaSource": false,
+    "serverWide": false,
+    "archiveModes": [],
+    "admits": false,
+    "kind": "incidents",
+    "address": "disk"
+   }
   ],
   "storageTypes": [
    "block",

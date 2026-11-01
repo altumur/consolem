@@ -1921,7 +1921,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Вид — из reference.archiveKinds, вне списка — 422 NOT_SUPPORTED, field: kind. serverRequired без serverId и второй архив serverWide на сервере — 422 VALIDATION_FAILED, field: serverId"
       }
     },
     "/archives/check": {
@@ -1961,7 +1962,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Вид без проверки подключения (check: false) — 422 NOT_SUPPORTED, field: kind"
       }
     },
     "/archives/{archiveId}": {
@@ -5682,6 +5684,10 @@
           "reason": {
             "type": "string",
             "description": "Только чтение: почему запись не идёт"
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Только чтение: архив на весь сервер (serverWide), строку показывает сервер. В запись такую строку не посылают: 422 NOT_SUPPORTED, field: extraArchives"
           }
         },
         "additionalProperties": false,
@@ -5696,8 +5702,10 @@
           "always",
           "motion",
           "sched",
-          "replica"
-        ]
+          "replica",
+          "backup"
+        ],
+        "description": "Режим записи. replica — забирать записи без постоянного потока. backup — живой поток только на время сбоя основной записи: только в extraArchives, на архиве, где это значение есть в recordModes его вида"
       },
       "EventWord": {
         "type": "object",
@@ -5826,7 +5834,7 @@
           },
           "extraArchives": {
             "type": "array",
-            "description": "Дополнительные хранилища записи",
+            "description": "Дополнительные хранилища записи. Строки readOnly показывает сервер: архив на весь сервер работает со всеми его камерами",
             "items": {
               "$ref": "#/components/schemas/ExtraArchive"
             }
@@ -6167,11 +6175,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "local",
-              "remote",
-              "cloud"
-            ]
+            "description": "Код вида из reference.archiveKinds"
           },
           "storage": {
             "type": "string",
@@ -6215,6 +6219,18 @@
             "type": "string",
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          },
+          "recordMode": {
+            "type": "string",
+            "enum": [
+              "always",
+              "backup"
+            ],
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+          },
+          "admits": {
+            "type": "boolean",
+            "description": "Принимает ли архив записи камер. false — новые привязки не принимаются, камера выбрать его не может"
           }
         },
         "additionalProperties": false,
@@ -6228,7 +6244,8 @@
           "provider",
           "serverId",
           "domainId",
-          "version"
+          "version",
+          "admits"
         ],
         "description": "Хранилище записи"
       },
@@ -6339,6 +6356,15 @@
             "type": "string",
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "false — том выключен, состояние off. Поля нет — включён"
+          },
+          "shrinkPendingBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Только чтение: объявленная меньшая квота, которую ещё не подтвердили. Подтверждение — PATCH с sizeBytes и confirmShrinkBytes, равными ей"
           }
         },
         "additionalProperties": false,
@@ -7965,8 +7991,9 @@
           "archiveKinds": {
             "type": "array",
             "items": {
-              "type": "string"
-            }
+              "$ref": "#/components/schemas/ArchiveKind"
+            },
+            "description": "Виды хранилищ: форма показывает то, что отдал сервер, с полями этого вида"
           },
           "storageTypes": {
             "type": "array",
@@ -10124,7 +10151,7 @@
       "VolumePatch": {
         "type": "object",
         "additionalProperties": false,
-        "description": "Изменение тома (JSON Merge Patch). Состояние меняет «Форматировать»",
+        "description": "Изменение тома (JSON Merge Patch). Состояние меняет «Форматировать» и enabled. Уменьшение стирает старое: нужно confirmShrinkBytes",
         "properties": {
           "name": {
             "type": "string"
@@ -10308,6 +10335,15 @@
                 "type": "null"
               }
             ]
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Выключить или включить том"
+          },
+          "confirmShrinkBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Второе подтверждение уменьшения: равно новому sizeBytes. Меньшая квота без него — 422 VALIDATION_FAILED, field: sizeBytes. Не хранится"
           }
         }
       },
@@ -10333,6 +10369,18 @@
               "block",
               "object"
             ]
+          },
+          "recordMode": {
+            "type": "string",
+            "enum": [
+              "always",
+              "backup"
+            ],
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+          },
+          "admits": {
+            "type": "boolean",
+            "description": "Принимает ли архив записи камер. false — новые привязки не принимаются, камера выбрать его не может"
           }
         }
       },
@@ -10357,11 +10405,7 @@
           },
           "kind": {
             "type": "string",
-            "enum": [
-              "local",
-              "remote",
-              "cloud"
-            ]
+            "description": "Код вида из reference.archiveKinds"
           },
           "storage": {
             "type": "string",
@@ -10403,6 +10447,18 @@
           },
           "firstVolume": {
             "$ref": "#/components/schemas/VolumeCreate"
+          },
+          "recordMode": {
+            "type": "string",
+            "enum": [
+              "always",
+              "backup"
+            ],
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+          },
+          "admits": {
+            "type": "boolean",
+            "description": "Принимает ли архив записи камер. false — новые привязки не принимаются, камера выбрать его не может"
           }
         }
       },
@@ -10437,11 +10493,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "local",
-              "remote",
-              "cloud"
-            ]
+            "description": "Код вида из reference.archiveKinds"
           },
           "provider": {
             "type": [
@@ -14008,6 +14060,80 @@
           "password": {
             "type": "string",
             "description": "Показывается один раз"
+          }
+        }
+      },
+      "ArchiveKind": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "serverRequired",
+          "encryption",
+          "check",
+          "address",
+          "recordModes",
+          "replicaSource",
+          "serverWide",
+          "archiveModes",
+          "admits"
+        ],
+        "description": "Вид хранилища, который заводит система: что умеет и какие поля у него есть. Подпись и описание — в форме, по коду; неизвестный код форма показывает как есть. Вид вне списка не заводится: 422 NOT_SUPPORTED, field: kind",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "Код вида: открытый список, его отдаёт сервер"
+          },
+          "serverRequired": {
+            "type": "boolean",
+            "description": "serverId обязателен. false — хранилище на весь домен, сервер по желанию"
+          },
+          "encryption": {
+            "type": "boolean",
+            "description": "Тома вида можно шифровать, если система умеет шифрование (feature archiveEncryption): у дисков и NAS только при storage: object"
+          },
+          "check": {
+            "type": "boolean",
+            "description": "Есть проверка подключения: POST /archives/check"
+          },
+          "address": {
+            "type": "string",
+            "enum": [
+              "disk",
+              "nas",
+              "bucket"
+            ],
+            "description": "Поля тома: disk — диск сервера, nas — папка NAS с учётной записью, bucket — бакет провайдера"
+          },
+          "recordModes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecordMode"
+            },
+            "description": "Режимы записи камеры на этом виде. Пусто — камеры не привязываются. Только backup — архив бывает лишь дополнительным"
+          },
+          "replicaSource": {
+            "type": "boolean",
+            "description": "Архив вида бывает источником replica"
+          },
+          "serverWide": {
+            "type": "boolean",
+            "description": "Один на сервер и сразу работает со всеми камерами этого сервера: привязывать не надо, выключить одной камере нельзя, у камеры в extraArchives он только для чтения"
+          },
+          "archiveModes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "always",
+                "backup"
+              ]
+            },
+            "description": "Значения Archive.recordMode, первое — умолчание. Пусто — поля у архива нет"
+          },
+          "admits": {
+            "type": "boolean",
+            "description": "false — архив этого вида записи камер не принимает никогда: Archive.admits всегда false"
           }
         }
       }

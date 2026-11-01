@@ -2203,7 +2203,7 @@ function devNode(r){
     else if(k==="sizeBytes")n.size=bytesText(v);
     else if(k==="lat"||k==="lon")n[k]=v==null?"":v.toFixed(6);
     else if(k==="azimuth")n[k]=v==null?"":String(v);
-    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{})}));
+    else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{})}));
     else if(k==="mode"&&r.type==="email")n.mode=EMAIL_MODE_RU[v]||v;
     else if(k==="norm")n.norm=NORM_RU[v]||v;
     else if(k==="disabledByRuleAt")n.ruleOffAt=v?clockText(v,true):"";
@@ -2234,6 +2234,8 @@ function archNode(r){
   if(r.serverId)a.server=r.serverId;else a.domain=r.domainId;
   Object.assign(a,{days:r.retentionDays,enc:r.encrypted,vols:[],kind:r.kind,storage:r.storage});
   if(r.provider)a.provider=r.provider;
+  if(r.recordMode)a.recordMode=r.recordMode;
+  if(r.admits===false)a.admits=false;
   return a;
 }
 const VOL_COPY=["mode","dir","file","bucket","region","path","keyId","host","port","proto","endpoint","style","account"];
@@ -2242,6 +2244,9 @@ function volNode(r){
   VOL_COPY.forEach(k=>{if(k in r)v[k]=r[k]});
   if(r.state!=="ready")v.state=r.state;
   if("login" in r)v.user=r.login;
+  v.bytes=r.sizeBytes;
+  if(r.enabled===false)v.enabled=false;
+  if(r.shrinkPendingBytes!=null)v.shrink=r.shrinkPendingBytes;
   return v;
 }
 // Весь кэш «Оборудования» заново: при старте и когда поток потерян (stream.reset)
@@ -2621,7 +2626,14 @@ const arch=[];
 // Тип хранения у локального и сетевого: блочное — меньше задержка под
 // нагрузкой; объектное — объём тома меняется на ходу, том можно зашифровать.
 // Срок — «глубина, дней», 0 — без ограничения. Том больше 30 ТБ не советуют.
-const ARCH_KINDS=[["local","Локальное"],["remote","Сетевое (NAS)"],["cloud","Облачное"]];
+// Виды — то, что отдал сервер (reference.archiveKinds), с полями этого вида. Подпись и описание — по коду, вид
+// вне подписей показывается кодом. Адрес тома (address) решает, какие поля у него есть: remote бывает и бакетом.
+const ARCH_LABEL={local:"Локальное",remote:"Сетевое (NAS)",cloud:"Облачное",backup:"Резерв на сбой",edge:"Карта сервера",incidents:"Инциденты"};
+const ARCH_TAG={local:"локальное",remote:"сетевое",backup:"резерв",edge:"карта",incidents:"инциденты"};
+const ARCH_DESC={local:"Диски сервера: папка на диске или, у блочного, раздел целиком.",remote:"Папка на NAS по SMB/NFS. Том — файл заданного размера.",cloud:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure.",
+  backup:"Только для резерва: сюда пишется живой поток, пока основная запись должна идти и не идёт.",edge:"Карта или флеш маленькой коробки. Одна на сервер, сразу работает со всеми его камерами.",incidents:"Для копий отмеченных записей. Камеры сюда не пишут."};
+const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет провайдера."};
+const ARCH_MODE_RU={always:"Постоянно",backup:"Только при сбое"};
 const CLOUD_PROVIDERS=[["s3","Amazon S3"],["s3c","S3-совместимое"],["minio","MinIO"],["wasabi","Wasabi"],["huawei","Huawei Cloud"],["lyve","Seagate Lyve Cloud"],["azure","Microsoft Azure"]];
 const ARCH_STORAGE=[["block","Блочное"],["object","Объектное"]];
 const VOL_STATES={ready:"Готов",format:"Форматируется",open:"Открывается",off:"Выключен",maint:"Обслуживание",broken:"Нужно форматировать или восстановить",unfmt:"Не отформатирован",error:"Ошибка"};
@@ -2629,38 +2641,48 @@ const VOL_STATES={ready:"Готов",format:"Форматируется",open:"�
 function gbOf(size){return Math.round(sizeTb(size)*1024)}
 function gbStr(n){n=Math.max(1,Math.round(Number(n)||0));return n>=1024?fmtTb(n/1024):n+" "+i18n("ГБ")}
 function archKind(a){return a?.kind||(a?.server?"local":"remote")}
+let refArchKinds=[];
+const ARCH_KIND_NONE={address:"disk",recordModes:[],archiveModes:[],admits:true};
+function kindOf(k){return refArchKinds.find(x=>x.kind===k)||{...ARCH_KIND_NONE,kind:k}}
+function archSpec(a){return kindOf(archKind(a))}
+function archAddr(a){return archSpec(a).address}
+function archKindName(k){return kindOf(k).address==="bucket"&&k==="remote"?"Удалённое (бакет)":ARCH_LABEL[k]||k}
+function archKindDesc(k){return ARCH_DESC[k]&&!(k==="remote"&&kindOf(k).address!=="nas")?ARCH_DESC[k]:ARCH_ADDR_DESC[kindOf(k).address]}
+// Камера может писать сюда: основным — вид с режимом кроме backup, дополнительным — вид с любым режимом
+function archMainOk(a){return archSpec(a).recordModes.some(m=>m!=="backup")&&a.admits!==false}
+function archRowOk(a){return archSpec(a).recordModes.length>0&&a.admits!==false}
 function cloudLabel(p){return(CLOUD_PROVIDERS.find(x=>x[0]===p)||[0,"S3"])[1]}
-function archKindLabel(a){const k=archKind(a);return k==="cloud"?`${i18n("Облачное")} · ${cloudLabel(a.provider)}`:i18n((ARCH_KINDS.find(x=>x[0]===k)||ARCH_KINDS[0])[1])}
+function archKindLabel(a){const k=archKind(a);return archAddr(a)==="bucket"?`${i18n(archKindName(k))} · ${cloudLabel(a.provider)}`:i18n(archKindName(k))}
 function archKindTag(a){
   const k=archKind(a);
-  if(k==="cloud")return a.provider==="azure"?"Azure":a.provider==="minio"?"MinIO":a.provider==="s3c"?i18n("S3-совм."):"S3";
-  return k==="remote"?i18n("сетевое"):i18n("локальное");
+  if(archAddr(a)==="bucket")return a.provider==="azure"?"Azure":a.provider==="minio"?"MinIO":a.provider==="s3c"?i18n("S3-совм."):"S3";
+  return i18n(ARCH_TAG[k]||k);
 }
-function archCanEncrypt(a){return archKind(a)==="cloud"||a.storage==="object"}
+function archCanEncrypt(a){return !!archSpec(a).encryption&&(archAddr(a)==="bucket"||a.storage==="object")}
 // Диски сервера: системный C: и диски под запись.
 function serverDisks(sid){return(SERVER_DISKS[sid]||[]).map(d=>({...d}))}
 // Чем занят диск: раздел хранилища занимает его целиком, папки и файлы — нет.
 function diskUse(sid,disk){
   const vols=[];
-  serverArchives(sid).filter(a=>archKind(a)==="local").forEach(a=>archVols(a).forEach(v=>{if(v.disk===disk)vols.push({a,v})}));
+  serverArchives(sid).filter(a=>archAddr(a)==="disk").forEach(a=>archVols(a).forEach(v=>{if(v.disk===disk)vols.push({a,v})}));
   return{vols,part:vols.find(x=>x.v.mode==="part")||null};
 }
 function volLabel(v){return volLabelOf(archById(v.archId),v)}
 function volLabelOf(a,v){
-  const k=archKind(a);
-  if(k==="cloud"){
+  const k=archAddr(a);
+  if(k==="bucket"){
     if(a.provider==="azure")return`azure://${v.bucket||"контейнер"}/${v.path||""}`;
     const host=a.provider==="minio"?`${v.host||"minio"}:${v.port||9000}/`:a.provider==="s3c"?`${String(v.endpoint||"endpoint").replace(/^https?:\/\//,"").replace(/\/$/,"")}/`:"s3://";
     return`${host}${v.bucket||"бакет"}/${v.path||""}`;
   }
-  if(k==="local"&&v.mode==="file")return`${v.dir||v.disk}\\${v.file||"axxon.afs"}`;
-  if(k==="local"&&v.mode==="dir")return v.dir||v.disk;
+  if(k==="disk"&&v.mode==="file")return`${v.dir||v.disk}\\${v.file||"axxon.afs"}`;
+  if(k==="disk"&&v.mode==="dir")return v.dir||v.disk;
   return v.disk;
 }
 function volDesc(v){
-  const a=archById(v.archId),k=archKind(a);
-  if(k==="cloud")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
-  if(k==="remote")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
+  const a=archById(v.archId),k=archAddr(a);
+  if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
+  if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
   return v.mode==="file"?`${i18n("файл")} ${v.size}`:v.mode==="dir"?`${i18n("папка на")} ${v.disk} · ${v.size}`:`${i18n("раздел")} ${v.disk} ${i18n("целиком")} · ${v.size}`;
 }
 function volStateText(v){return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
@@ -2736,7 +2758,8 @@ function isRecording(n){return n&&n.type==="camera"&&!!n.arch&&n.rec&&n.rec!=="n
 // получает сервер) и дополнительные (n.archx), каждое со своим потоком и
 // режимом — как запись основного и второго потока в разные архивы у Axxon One.
 function camArchs(n){
-  if(!n||n.type!=="camera"||!n.arch)return[];
+  if(!n||n.type!=="camera")return[];
+  if(!n.arch)return(n.archx||[]).filter(x=>x.ro).map(x=>({...x}));
   return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason},...(n.archx||[]).map(x=>({...x}))];
 }
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
@@ -2745,15 +2768,17 @@ function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWrit
 // иначе — дополнительным.
 function camAddArch(n,aid,rec){
   if(!n||camArchs(n).some(x=>x.arch===aid))return;
-  if(!isRecording(n)){pinCamServer(n);n.arch=aid;n.rec=rec||"always";bindArchServer(n);return}
-  (n.archx||(n.archx=[])).push({arch:aid,rec:rec||"always",stream:"main"});
+  const a=archById(aid),mode=rec||recModesOf(a)[0]?.[0]||"always";
+  if(!isRecording(n)&&archMainOk(a)){pinCamServer(n);n.arch=aid;n.rec=mode;bindArchServer(n);return}
+  (n.archx||(n.archx=[])).push({arch:aid,rec:mode,stream:"main"});
 }
 // Отвязать от хранилища: снялось основное — основным становится следующее.
 function camDropArch(n,aid){
   if(!n)return;
   n.archx=(n.archx||[]).filter(x=>x.arch!==aid);
   if(n.arch===aid){
-    const next=n.archx.shift();
+    // Строка только для чтения и резерв на сбой основной не становятся
+    const i=n.archx.findIndex(x=>!x.ro&&x.rec!=="backup"),next=i>=0?n.archx.splice(i,1)[0]:null;
     if(next){n.arch=next.arch;n.rec=next.rec;n.stream=next.stream}else{n.arch=null;n.rec="none"}
   }
 }
@@ -2978,6 +3003,8 @@ let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[];
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
+  if(ref.archiveKinds?.length)refArchKinds=ref.archiveKinds;
+  if(ref.recordModes?.length)refRecModes=ref.recordModes;
   refParams=ref.deviceParams||{};
   refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
@@ -3677,7 +3704,7 @@ function cancelEdits(){editClear();setD(false);paint();toast("Отменено")
 // внизу — «Сбросить · Показать план». План перечисляет «было → станет», дальше
 // та же очередь и отчёт: сервер без связи не примет правку, и это будет видно.
 let cardBase=null,cardDraft=null,cardFootRaf=0;
-const CARD_SKIP=new Set(["devices","online","cpu","ram","net","disk"]);
+const CARD_SKIP=new Set(["devices","online","cpu","ram","net","disk","bytes","shrink"]);
 function cardClone(n){try{return JSON.parse(JSON.stringify(n))}catch(e){return{}}}
 function cardEnsureBase(n){
   if(cardDraft&&cardDraft.id!==n.id){
@@ -3705,7 +3732,7 @@ function cardFld(el){
   setD(true);if(!cardDraft)return;
   if(String(el.value)===String(orig))delete cardDraft.fields[l];else cardDraft.fields[l]={from:orig,to:el.value};
 }
-const CARD_PROP={zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
+const CARD_PROP={recordMode:"Когда писать",admits:"Принимает записи",zone:"Зона",labels:"Метки",alarmKinds:"Тревожные виды",enabled:"Включено",rec:"Режим записи",arch:"Архив",archx:"Дополнительные архивы",pre:"Предзапись, с",srvId:"Сервер",
   recDets:"Запись по детекторам",name:"Имя",short:"Короткое имя",ip:"IP",port:"Порт",vendor:"Производитель",model:"Модель",
   days:"Глубина, дней",enc:"Шифрование",storage:"Тип хранения",vols:"Тома",kind:"Тип",sens:"Чувствительность",license:"Лицензия",
   codec:"Кодек",res:"Разрешение",fps:"к/с",stream:"Поток",lat:"Широта",lon:"Долгота",azimuth:"Азимут",user:"Имя пользователя",pass:"Пароль"};
@@ -3719,6 +3746,8 @@ function cardFmt(k,v){
   if(v===undefined||v===null||v==="")return"—";
   if(k==="enabled"||k==="enc"||k==="ssl")return v===false?i18n("выкл"):i18n("вкл");
   if(k==="rec")return i18n(recordModeLabel(v));
+  if(k==="recordMode")return i18n(ARCH_MODE_RU[v]||v);
+  if(k==="admits")return v===false?i18n("нет"):i18n("да");
   if(k==="arch"){const a=archById(v);return a?locName(a):String(v)}
   if(k==="srvId"){const s=servers.find(x=>x.id===v);return s?locName(s):String(v)}
   if(k==="pass")return"••••••••";
@@ -3800,10 +3829,17 @@ function cardPlan(){
      <p class="sub" style="margin:10px 0 0">${i18n("Так же, как правка выборки: изменения уходят на сервер очередью, итог — в отчёте; после применения — «Отменить».")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${onEv("click",["closeBulkModal"],["cardApply"])}>${i18n("Применить")} (${d.length})</button>`,"bbox-wide");
 }
-function cardApply(){
+function cardApply(ok){
   const d=cardDiff();if(!d.length)return;
   const n=find(cardDraft.id).n;
   const items=cardApiItems(n,d);
+  // Меньший объём тома стирает старое: без второго слова сервер откажет
+  const less=(items||[]).filter(x=>x.set?.sizeBytes!=null&&volById(x.targetId)?.bytes>x.set.sizeBytes);
+  if(less.length&&!ok){
+    askConfirm("Уменьшить том",`${i18n("Новый объём меньше прежнего")}: ${less.map(x=>escHtml(bytesText(x.set.sizeBytes))).join(", ")}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>cardApply(true),{rawMsg:true});
+    return;
+  }
+  less.forEach(x=>{x.set.confirmShrinkBytes=x.set.sizeBytes});
   if(items){
     cardRestore();
     const label=r=>r.add?r.label:`${r.label}: ${r.toT}`;
@@ -6662,7 +6698,7 @@ function arow(a,l){
   const cnt=inventory?allCams.length:hasSliceContext()?sliceParentCount(a.id):cams.length;
   let h=`<div class="n srv stor ${sel===a.id?"on":""}${inventory?"":sliceParentClass(a.id)}${treeRenameId===a.id?" renaming":""}" style="--l:${l}"${treeRowPick(a.id)}${treeCtxAttr(a.id)}${treeExpandMeta(a.id,"srv",hasKids)}>
     ${hasKids?treeChevron(a.id,"srv",hasKids,op):'<span class="tw"></span>'}
-    ${ic("storage")}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:`<span class="tag ${archKind(a)==="cloud"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
+    ${ic("storage")}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
   if(op)h+=children;
   return h;
 }
@@ -6697,7 +6733,8 @@ function tabsFor(n){
   if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[]);
   // Хранилище открывают ради камер, что в него пишут: «Устройства» — первая
   // вкладка и открывается по умолчанию, параметры и тома — во второй.
-  if(n.type==="archive")return[["cams","Устройства"],["arch","Хранилище"]];
+  // Вид, на который камеры не привязываются (карта сервера, инциденты), — только параметры и тома.
+  if(n.type==="archive")return archRowOk(n)||archSpec(n).recordModes.length?[["cams","Устройства"],["arch","Хранилище"]]:[["arch","Хранилище"]];
   if(n.type==="vol")return[];
   if(n.type==="norec"||n.type==="nofolder"||n.type==="gpu"||n.type==="det")return[];
   if(n.type==="found"||n.type==="founddev")return[];
@@ -7221,11 +7258,11 @@ function lanIsPlace(n){return lanIsFolder(n)||lanIsDomain(n)}
 // Архивы, в которые ведёт эта закладка: у архива он один, у сервера — все его.
 function lanTargets(n){
   if(lanIsFolder(n))return[];
-  if(lanIsArch(n))return[n];
+  if(lanIsArch(n))return archRowOk(n)?[n]:[];
   // У домена это все его архивы — сетевые и на его серверах: туда и может
-  // писать устройство, заведённое здесь.
-  if(lanIsDomain(n))return arch.filter(a=>archDomainId(a)===n.id);
-  return serverArchives(n.id);
+  // писать устройство, заведённое здесь. Резерв, карта сервера и инциденты отсюда не выбираются
+  if(lanIsDomain(n))return arch.filter(a=>archDomainId(a)===n.id&&archMainOk(a));
+  return serverArchives(n.id).filter(archMainOk);
 }
 function lanDomainOf(n){
   if(!n)return null;
@@ -7518,7 +7555,8 @@ function lanBind(key,opts={}){
   // Уже пишет в другое хранилище — это хранилище добавляется к нему.
   const cams=node.type==="ipsrv"?ipsrvCameras(node):[node];
   return devicesMutate([node,...cams.filter(c=>c!==node)],()=>{
-    cams.forEach(c=>camAddArch(c,lan.arch,lan.rec||"always"));
+    const modes=recModesOf(archById(lan.arch)).map(x=>x[0]);
+    cams.forEach(c=>camAddArch(c,lan.arch,modes.includes(lan.rec)?lan.rec:modes[0]));
     if(n.type==="server"&&!node.srvId)setDevServer(node,n.id);
     bindArchServer(node);
   }).then(res=>{if(res.failed.length)toast(problemText(res.failed[0].code,node));return done(r.id)});
@@ -7635,7 +7673,7 @@ function lanTargetHtml(n){
         :`<option>${i18n("нет архивов")}</option>`}</select>`
     :`<input value="${escHtml(locName(n))}" readonly disabled>`;
   const recHtml=`<select ${onEv("change",["lanSetRec",onEv.value])} ${targets.length?"":"disabled"}>${
-    REC_MODES.filter(([v])=>v!=="none").map(([v,l])=>`<option value="${v}" ${v===lan.rec?"selected":""}>${i18n(l)}</option>`).join("")}</select>`;
+    (lanIsArch(n)?recModesOf(n):recModes().filter(([v])=>v!=="none")).map(([v,l])=>`<option value="${v}" ${v===lan.rec?"selected":""}>${i18n(l)}</option>`).join("")}</select>`;
   // У хранилища выбирать архив нечего — поле было бы его же именем.
   return`${many?`<div class="lan-arch"><label>${i18n("Архив")}</label>${archHtml}</div>`:""}
     <div class="lan-arch"><label>${i18n("Режим записи")}</label>${recHtml}</div>`;
@@ -8340,7 +8378,8 @@ function streamDel(id,sid){
 function lanTabOpen(n){
   if(!n)return false;
   if(n.type==="folder")return tab==="lan";
-  if(n.type==="archive"||n.type==="domain")return tab==="cams";
+  if(n.type==="archive")return tab==="cams"&&archSpec(n).recordModes.length>0;
+  if(n.type==="domain")return tab==="cams";
   return n.type==="server"&&!isUnallocated(n.id)&&tab==="cams";
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
@@ -8348,23 +8387,27 @@ function form(n){return formBase(n)+ruleUsesFor(n)}
 // Переключатель карточки: вид меняется сразу, значение уходит с «Применить»
 function swToggle(el){el.classList.toggle("on");setD(true)}
 function archEncToggle(el,id){archSet(id,"enc",!el.classList.contains("on"))}
+function archAdmitsToggle(el,id){const a=archById(id);if(!a)return;if(el.classList.contains("on"))a.admits=false;else delete a.admits;setD(true);gear()}
 function formBase(n){
   if(lanTabOpen(n)&&n.type!=="archive"&&n.type!=="domain")return lanCardHtml(n);
   if(n.type==="found")return foundCardHtml(n.domainId);
   if(n.type==="founddev")return foundDeviceCardHtml(n);
   if(n.type==="archive"){
-    const sv=archServer(n),cams=archCameras(n.id),net=archIsNetwork(n),vols=archVols(n),k=archKind(n);
-    if(tab==="cams")return lanCardHtml(n);
+    const sv=archServer(n),cams=archCameras(n.id),net=archIsNetwork(n),vols=archVols(n),k=archAddr(n),spec=archSpec(n);
+    if(tab==="cams"&&spec.recordModes.length)return lanCardHtml(n);
     const canEnc=archCanEncrypt(n);
-    const rules={local:"На одном диске у хранилища один том: раздел целиком (диск отформатирован в SolidStore и заполняется до конца) или файл заданного размера. Системный диск целиком не отдаётся.",
-      remote:"Том — файл заданного размера в папке NAS (SMB2/SMB3, NFS, CIFS, iSCSI). Пользователь — с префиксом домена или компьютера: домен\\имя. В Windows к одному NAS одновременно подключается один пользователь.",
-      cloud:"Том — бакет (у Azure — контейнер), заведённый заранее в консоли провайдера. Томов может быть несколько, объём не ограничен и меняется без перезапуска; тома одного размера — иначе при записи по кругу глубина архива поплывёт."}[k];
+    const rules={disk:"На одном диске у хранилища один том: раздел целиком (диск отформатирован в SolidStore и заполняется до конца) или файл заданного размера. Системный диск целиком не отдаётся.",
+      nas:"Том — файл заданного размера в папке NAS (SMB2/SMB3, NFS, CIFS, iSCSI). Пользователь — с префиксом домена или компьютера: домен\\имя. В Windows к одному NAS одновременно подключается один пользователь.",
+      bucket:"Том — бакет (у Azure — контейнер), заведённый заранее в консоли провайдера. Томов может быть несколько, объём не ограничен и меняется без перезапуска; тома одного размера — иначе при записи по кругу глубина архива поплывёт."}[k];
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
       <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="cloud"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задаётся при создании и не меняется — тома размечены под него")}</div></div>
+        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задаётся при создании и не меняется — тома размечены под него")}</div></div>
+        ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${spec.archiveModes.map(m=>`<option value="${m}" ${n.recordMode===m?"selected":""}>${i18n(ARCH_MODE_RU[m]||m)}</option>`).join("")}</select></div>`:""}
       </div>
-      <div class="ln ln-sw" data-needs="feature:archiveEncryption"><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>
+      ${spec.serverWide?`<div class="nt">${i18n("Один на сервер, работает со всеми его камерами: привязывать их не надо, выключить одной камере нельзя.")}</div>`:""}
+      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено — новые камеры сюда не привязываются")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры сюда не пишут: только копии отмеченных записей.")}</div>`}
+      ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","cams"])}><span>${i18n("Камер пишется")}</span><b>${cams.length}</b></button>
         <div class="mc"><span>${i18n("Томов")}</span><b>${vols.length}</b></div>
@@ -8372,7 +8415,7 @@ function formBase(n){
         <div class="mc"><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
       </div>
       <p class="sub" style="margin-top:10px">${net?i18n("Камеры сетевого хранилища не закреплены за сервером — запись ведёт любой сервер домена.")
-        :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>. ${i18n("Камера попадает под сервер именно через хранилище.")}`}</p>`)+
+        :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>.${spec.recordModes.some(m=>m!=="backup")?` ${i18n("Камера попадает под сервер именно через хранилище.")}`:""}`}</p>`)+
       listCard({
         key:"avol:"+n.id,
         title:"Тома",
@@ -8387,15 +8430,16 @@ function formBase(n){
       `<p class="sub">${i18n(rules)}</p>`;
   }
   if(n.type==="vol"){
-    const a=archById(n.archId),k=archKind(a);
-    return card("Том хранилища",`${n.state==="unfmt"?`<div class="nt err">${i18n("Раздел не отформатирован — записывать на него нельзя. Отформатируйте его, когда будете готовы: данные на диске пропадут.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
+    const a=archById(n.archId),k=archAddr(a),spec=archSpec(a);
+    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Старые записи будут стёрты, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${n.state==="unfmt"?`<div class="nt err">${i18n("Раздел не отформатирован — записывать на него нельзя. Отформатируйте его, когда будете готовы: данные на диске пропадут.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
       ${volFieldsHtml(a,n,["volSet",n.id])}
+      <div class="ln ln-sw" data-vol-enabled><div>${i18n("Том включён")}</div><div class="sw ${n.enabled===false?"":"on"}" ${onEv("click",["volEnabledToggle",onEv.el,n.id])}></div></div>
       <div class="mx" style="margin-top:10px">
         <div class="mc"><span>${i18n("Состояние")}</span><b style="font-size:14px">${escHtml(volStateText(n))}</b></div>
         <div class="mc"><span>${i18n("Томов в хранилище")}</span><b>${archVols(a).length}</b></div>
       </div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px">
-        ${k==="local"?(n.mode==="part"?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""):`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="cloud"?"Проверить подключение":"Подключиться")}</button>`}
+        ${k==="disk"&&n.mode==="part"?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
         <button type="button" class="btn s" data-needs="deleteVolume" ${onEv("click",["deleteVolume",`${n.id}`])}>${i18n("Удалить том")}</button>
       </div>
       <p class="sub" style="margin-top:10px">${i18n("Глубина и шифрование задаются на хранилище; у тома — где он лежит и какого он размера.")}</p>`);
@@ -16105,7 +16149,11 @@ function lanArchFixed(){
   const n=find(wizd.lanOwner)?.n;
   return lanIsArch(n)?n:null;
 }
-const REC_MODES=[["none","Нет"],["always","Всегда"],["motion","По детектору"],["sched","По расписанию"],["replica","Репликация встроенного архива"]];
+const REC_MODES_ALL=[["none","Нет"],["always","Всегда"],["motion","По детектору"],["sched","По расписанию"],["replica","Репликация"],["backup","Резерв при сбое"]];
+// Что система умеет — reference.recordModes; backup бывает только в строке дополнительного архива
+let refRecModes=REC_MODES_ALL.map(x=>x[0]);
+function recModes(){return REC_MODES_ALL.filter(([v])=>v!=="backup"&&refRecModes.includes(v))}
+function recModesOf(a){const m=archSpec(a).recordModes;return REC_MODES_ALL.filter(([v])=>m.includes(v)&&refRecModes.includes(v))}
 // Запись по детектору: пишем по срабатыванию конкретных детекторов камеры.
 // Пустой список recDets означает «все детекторы камеры».
 function camRecDets(n){
@@ -16138,7 +16186,7 @@ function camRecDetsHtml(n){
   });
 }
 function recordModeLabel(rec){
-  return(REC_MODES.find(([v])=>v===rec)||REC_MODES[0])[1];
+  return(REC_MODES_ALL.find(([v])=>v===rec)||REC_MODES_ALL[0])[1];
 }
 // Репликация возможна, только если у камеры есть встроенное хранилище (SD/eMMC)
 function edgeStorage(n){return(n?.devices||[]).find(d=>d.type==="storage")||null}
@@ -16164,7 +16212,7 @@ function edgeStorageCardHtml(owner){
 function camRecSelectHtml(n){
   const has=!!recEdge(n),cur=n.rec||"none";
   return `<div><label>${i18n("Режим")}</label><select ${onEv("change",["setCamRec",`${n.id}`,onEv.value])}>${
-    REC_MODES.map(([v,l])=>`<option value="${v}" ${cur===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
+    recModes().map(([v,l])=>`<option value="${v}" ${cur===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
 }
 function ipsrvCameras(n){return(n?.devices||[]).filter(d=>d.type==="camera")}
 function nvrCanReplicate(n){
@@ -16216,7 +16264,7 @@ function archSet(id,k,v,quiet){
   a[k]=v;setD(true);
   // Сменили тип хранения — тома локального хранилища меняют размещение:
   // у объектного это папка на диске, у блочного — файл в той же папке.
-  if(k==="storage"&&archKind(a)==="local")archVols(a).forEach(x=>{
+  if(k==="storage"&&archAddr(a)==="disk")archVols(a).forEach(x=>{
     if(v==="object"){if(x.mode!=="dir"){x.dir=x.dir||x.disk+"\\AxxonArchive";x.mode="dir"}}
     else if(x.mode==="dir"){x.mode="file";x.file=x.file||a.name+".afs"}
     x.name=volLabel(x);
@@ -16230,11 +16278,11 @@ const CLOUD_REGIONS={s3:["eu-central-1","eu-west-1","us-east-1","us-west-1","ap-
 // Локальное объектное — папка на диске; блочное — раздел целиком или файл
 // в папке. Размер — числом в гигабайтах.
 function volFieldsHtml(a,v,set){
-  const k=archKind(a),inp=(label,key,type,hint,ph)=>`<div><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
+  const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   const sel=(label,key,opts,hint)=>`<div><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
   const gb=(label,hint)=>`<div><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   const dir=hint=>`<div><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
-  if(k==="local"){
+  if(k==="disk"){
     const sid=a.server;
     if(!sid)return`<div class="nt" style="margin-top:10px">${i18n("Сначала выберите сервер — тома локального хранилища лежат на его дисках.")}</div>`;
     const disks=serverDisks(sid),obj=a.storage==="object";
@@ -16251,7 +16299,7 @@ function volFieldsHtml(a,v,set){
         v.mode==="part"?i18n("занимает весь диск; неотформатированный диск форматируют отдельно — кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой; FAT32 — не больше 4 ГБ"))}
       ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("файл тома создаётся в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
   }
-  if(k==="remote")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — всегда файл")}
+  if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — всегда файл")}
       ${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>`;
   const p=a.provider||"s3";
   if(p==="azure")return`<div class="g" style="margin-top:10px">${inp("Учётная запись хранилища","account")}${inp("Ключ доступа","secret","password")}${inp("Контейнер","bucket","text","создаётся заранее в портале Azure")}${inp("Путь в контейнере","path")}${gb("Объём")}</div>`;
@@ -16281,7 +16329,7 @@ function volSet(id,k,val,quiet){
   const v=volById(id);if(!v)return;
   volApply(v,k,val);
   const a=archById(v.archId);
-  if(archKind(a)==="local"&&v.mode==="part"&&(k==="disk"||k==="mode"))v.size=serverDisks(a.server).find(d=>d.disk===v.disk)?.size||v.size;
+  if(archAddr(a)==="disk"&&v.mode==="part"&&(k==="disk"||k==="mode"))v.size=serverDisks(a.server).find(d=>d.disk===v.disk)?.size||v.size;
   if(k==="mode"&&v.mode==="file"){v.dir=v.dir||v.disk+"\\Axxon";v.file=v.file||a.name+".afs"}
   v.name=volLabel(v);
   setD(true);
@@ -16289,6 +16337,14 @@ function volSet(id,k,val,quiet){
 }
 // Форматирование — отдельное действие тома: хранилище подключают и к
 // неотформатированному разделу, а форматируют, когда решат.
+function volEnabledToggle(el,id){const v=volById(id);if(!v)return;if(el.classList.contains("on"))v.enabled=false;else delete v.enabled;setD(true);gear()}
+// Объявленное уменьшение: второе слово человека, то же число
+function volShrinkConfirm(id){
+  const v=volById(id);if(!v||v.shrink==null)return;
+  askConfirm("Уменьшить том",`${i18n("Том")} «${escHtml(v.disk)}» ${i18n("станет")} ${escHtml(bytesText(v.shrink))}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>{
+    API.patch(`/volumes/${id}`,{sizeBytes:v.shrink,confirmShrinkBytes:v.shrink},hwVer.get(id)).then(r=>{hwApplyVolume(r);setD(false);gear()}).catch(e=>toast(problemText(e)));
+  },{rawMsg:true});
+}
 function formatVolume(id){
   const v=volById(id),a=v&&archById(v.archId);if(!v||!a)return;
   askConfirm("Форматировать том",`${i18n("Диск")} ${escHtml(v.disk)} ${i18n("будет отформатирован в SolidStore для хранилища")} «${escHtml(locName(a))}».`,
@@ -16299,8 +16355,8 @@ function formatVolume(id){
 }
 // Новый том того же типа: у локального — следующий свободный диск сервера.
 function volDefaults(a){
-  const k=archKind(a);
-  if(k==="local"){
+  const k=archAddr(a);
+  if(k==="disk"){
     if(!a.server)return{disk:"",mode:"dir",size:"500 ГБ"};
     const free=serverDisks(a.server).sort((x,y)=>x.sys-y.sys).find(d=>{const u=diskUse(a.server,d.disk);return!u.part&&!u.vols.some(x=>x.a===a)&&(a.vols||[]).every(v=>v.disk!==d.disk)});
     if(!free)return null;
@@ -16309,7 +16365,7 @@ function volDefaults(a){
     const empty=!diskUse(a.server,free.disk).vols.length&&!free.sys;
     return empty?{disk:free.disk,mode:"part",size:free.size,state:"unfmt"}:{disk:free.disk,mode:"file",dir:`${free.disk}\\Axxon`,size:"500 ГБ",file:nm+".afs"};
   }
-  if(k==="remote"){const n=(a.vols||[]).length+1;return{disk:"\\\\nas01\\vms"+(n>1?n:""),size:"1 ТБ",user:"",pass:""}}
+  if(k==="nas"){const n=(a.vols||[]).length+1;return{disk:"\\\\nas01\\vms"+(n>1?n:""),size:"1 ТБ",user:"",pass:""}}
   const f=(a.vols||[])[0]||{};
   return{disk:a.provider||"s3",size:f.size||"10 ТБ",region:f.region||(CLOUD_REGIONS[a.provider]||CLOUD_REGIONS.s3)[0],bucket:f.bucket||"",path:"vms"+((a.vols||[]).length?"/vol"+((a.vols||[]).length+1):""),
     keyId:f.keyId||"",secret:"",host:f.host||"",port:f.port||9000,proto:f.proto||"https",account:f.account||"",endpoint:f.endpoint||"",style:f.style||"path"};
@@ -16321,21 +16377,22 @@ let an=null;
 function addArchive(ownerId){
   const f=find(ownerId);if(!f)return;
   const dom=f.n.type==="domain"?f.n.id:SERVER_DOMAIN[f.n.id];
-  an={domain:dom,server:f.n.type==="server"?f.n.id:"",kind:"local",provider:"s3",name:"",days:30,storage:refStorage.includes("object")?"object":refStorage[0],enc:false};
+  an={domain:dom,server:f.n.type==="server"?f.n.id:"",kind:(refArchKinds.find(x=>x.kind==="local")||refArchKinds[0])?.kind||"local",provider:"s3",name:"",days:30,storage:refStorage.includes("object")?"object":refStorage[0],enc:false,recordMode:null};
   anReset();renderArchNew();
 }
 function anDraft(){return{kind:an.kind,provider:an.provider,name:an.name,storage:an.storage,server:an.server||null,vols:[]}}
 function anReset(){an.vol=volDefaults(anDraft())||{disk:"",mode:an.storage==="object"?"dir":"file",size:"500 ГБ"}}
 function anSet(k,v,quiet){
   if(!an)return;
-  if(k in{kind:1,provider:1,name:1,days:1,storage:1,enc:1,server:1}){
+  if(k in{kind:1,provider:1,name:1,days:1,storage:1,enc:1,server:1,recordMode:1}){
     an[k]=k==="days"?Math.max(0,Number(v)||0):v;
-    if(k==="kind"){an.storage=an.kind==="cloud"?"object":an.storage}
-    if(an.storage==="block"&&an.kind!=="cloud")an.enc=false;
+    const spec=kindOf(an.kind);
+    if(k==="kind"){an.storage=spec.address==="bucket"?"object":an.storage;an.recordMode=null;if(spec.serverRequired&&!an.server)an.server=""}
+    if((an.storage==="block"&&spec.address!=="bucket")||!spec.encryption)an.enc=false;
     if(k==="kind"||k==="provider"||k==="server"||k==="storage")anReset();
   }else{
     volApply(an.vol,k,v);
-    if(an.kind==="local"&&(k==="disk"||k==="mode")){
+    if(kindOf(an.kind).address==="disk"&&(k==="disk"||k==="mode")){
       const d=serverDisks(an.server).find(x=>x.disk===an.vol.disk);
       if(an.vol.mode==="part"){an.vol.size=d?.size||an.vol.size;an.vol.state="unfmt"}
       else{delete an.vol.state;if(k==="mode")an.vol.size="500 ГБ";an.vol.dir=an.vol.dir||an.vol.disk+"\\Axxon"}
@@ -16346,18 +16403,19 @@ function anSet(k,v,quiet){
 }
 // Что мешает создать: не выбран сервер, пустые обязательные поля.
 function anBlock(){
-  const v=an.vol;
-  // Сервер обязателен только дискам; удалённое хранилище — на весь домен, его берёт любой сервер
-  if(!an.server&&an.kind==="local")return i18n("Выберите сервер");
-  if(an.kind==="local"){
+  const v=an.vol,spec=kindOf(an.kind),addr=spec.address;
+  // Сервер обязателен виду, которому он нужен; удалённое хранилище — на весь домен, его берёт любой сервер
+  if(!an.server&&spec.serverRequired)return i18n("Выберите сервер");
+  if(spec.serverWide&&arch.some(a=>a.kind===an.kind&&a.server===an.server))return i18n("На этом сервере такой архив уже есть: он один на сервер");
+  if(addr==="disk"){
     if(!v.disk)return i18n("Нет свободного диска");
     if(v.mode!=="part"&&!String(v.dir||"").trim())return i18n("Укажите папку на диске");
   }
-  if(an.kind!=="local"||v.mode!=="part")if(!gbOf(v.size))return i18n("Укажите размер в ГБ");
-  if(an.kind==="remote"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Укажите путь и пользователя");
-  if(an.kind==="cloud"&&!String(v.bucket||"").trim())return i18n(an.provider==="azure"?"Укажите контейнер":"Укажите бакет");
-  if(an.kind==="cloud"&&an.provider==="minio"&&!String(v.host||"").trim())return i18n("Укажите хост MinIO");
-  if(an.kind==="cloud"&&an.provider==="s3c"&&!String(v.endpoint||"").trim())return i18n("Укажите endpoint");
+  if(addr!=="disk"||v.mode!=="part")if(!gbOf(v.size))return i18n("Укажите размер в ГБ");
+  if(addr==="nas"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Укажите путь и пользователя");
+  if(addr==="bucket"&&!String(v.bucket||"").trim())return i18n(an.provider==="azure"?"Укажите контейнер":"Укажите бакет");
+  if(addr==="bucket"&&an.provider==="minio"&&!String(v.host||"").trim())return i18n("Укажите хост MinIO");
+  if(addr==="bucket"&&an.provider==="s3c"&&!String(v.endpoint||"").trim())return i18n("Укажите endpoint");
   return"";
 }
 function anSetEnc(v){anSet("enc",v==="1")}
@@ -16367,26 +16425,26 @@ function renderArchNew(){
   const dom=domains.find(d=>d.id===an.domain),a=anDraft(),why=anBlock();
   const srvs=(dom?.servers||servers.filter(s=>!isUnallocated(s.id)));
   const keep=document.querySelector("#bmBody .an-body")?.scrollTop||0;
-  const kinds=ARCH_KINDS.map(([k,l])=>{
-    const desc={local:"Диски сервера: папка на диске или, у блочного, раздел целиком.",remote:"Папка на NAS по SMB/NFS. Том — файл заданного размера.",cloud:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure."}[k];
-    return`<label class="an-kind ${an.kind===k?"on":""}"><input type="radio" name="anKind" ${an.kind===k?"checked":""} ${onEv("change",["anSet","kind",`${k}`])}><span><b>${i18n(l)}</b><small>${i18n(desc)}</small></span></label>`;
-  }).join("");
-  const provs=an.kind==="cloud"?`<div class="bk-chips an-provs">${CLOUD_PROVIDERS.map(([p,l])=>`<button type="button" class="stchip ${an.provider===p?"on":""}" ${onEv("click",["anSet","provider",`${p}`])}><span class="stchip-lab">${i18n(l)}</span></button>`).join("")}</div>`:"";
-  const canEnc=an.kind==="cloud"||an.storage==="object";
+  const spec=kindOf(an.kind),addr=spec.address;
+  const kinds=refArchKinds.map(({kind:k})=>`<label class="an-kind ${an.kind===k?"on":""}"><input type="radio" name="anKind" ${an.kind===k?"checked":""} ${onEv("change",["anSet","kind",`${k}`])}><span><b>${i18n(archKindName(k))}</b><small>${i18n(archKindDesc(k))}</small></span></label>`).join("");
+  const provs=addr==="bucket"?`<div class="bk-chips an-provs">${CLOUD_PROVIDERS.map(([p,l])=>`<button type="button" class="stchip ${an.provider===p?"on":""}" ${onEv("click",["anSet","provider",`${p}`])}><span class="stchip-lab">${i18n(l)}</span></button>`).join("")}</div>`:"";
+  const canEnc=spec.encryption&&(addr==="bucket"||an.storage==="object");
+  const defName=addr==="bucket"?cloudLabel(an.provider):i18n(an.kind==="local"?"Хранилище":archKindName(an.kind));
   openBulkModal(`${i18n("Новое хранилище")}${dom?" · "+escHtml(locName(dom)):""}`,
     `<div class="an-body">
-    <div class="g an-srv"><div><label>${i18n("Сервер")}</label><select ${onEv("change",["anSet","server",onEv.value])}>${an.kind!=="local"?`<option value="" ${an.server?"":"selected"}>${i18n("Весь домен")}</option>`:an.server?"":`<option value="" selected>${i18n("— выберите сервер —")}</option>`}${srvs.map(s=>`<option value="${s.id}" ${an.server===s.id?"selected":""}>${escHtml(locName(s))}${hasNoSignal(s)?" — "+i18n("нет связи"):""}</option>`).join("")}</select>${an.server?"":`<div class="bk-hint">${i18n("хранилище всегда принадлежит серверу — он ведёт запись")}</div>`}</div></div>
+    <div class="g an-srv"><div><label>${i18n("Сервер")}</label><select ${onEv("change",["anSet","server",onEv.value])}>${!spec.serverRequired?`<option value="" ${an.server?"":"selected"}>${i18n("Весь домен")}</option>`:an.server?"":`<option value="" selected>${i18n("— выберите сервер —")}</option>`}${srvs.map(s=>`<option value="${s.id}" ${an.server===s.id?"selected":""}>${escHtml(locName(s))}${hasNoSignal(s)?" — "+i18n("нет связи"):""}</option>`).join("")}</select>${an.server?"":`<div class="bk-hint">${i18n("хранилище всегда принадлежит серверу — он ведёт запись")}</div>`}</div></div>
     <div class="an-kinds">${kinds}</div>${provs}
     <div class="g" style="margin-top:12px">
-      <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(an.kind==="cloud"?cloudLabel(an.provider):i18n(an.kind==="remote"?"Сетевое хранилище":"Хранилище"))}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
+      <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(defName)}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
       <div><label>${i18n("Глубина, дней")}</label><input type="number" value="${an.days}" ${onEv("input",["anSet","days",onEv.value,true])}><div class="bk-hint">${i18n("0 — без ограничения")}</div></div>
-      ${an.kind==="cloud"?fldRo("Тип хранения",i18n("Облачное")):`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
-      <div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>
+      ${spec.archiveModes.length?`<div><label>${i18n("Когда писать")}</label><select ${onEv("change",["anSet","recordMode",onEv.value])}>${spec.archiveModes.map(m=>`<option value="${m}" ${(an.recordMode||spec.archiveModes[0])===m?"selected":""}>${i18n(ARCH_MODE_RU[m]||m)}</option>`).join("")}</select></div>`:""}
+      ${addr==="bucket"?fldRo("Тип хранения",i18n("Облачное")):spec.serverWide?"":`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
+      ${spec.encryption?`<div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>`:""}
     </div>
     <div class="an-vol-h">${i18n("Первый том")}<span class="sub">${i18n("остальные — «＋ Том» в карточке хранилища")}</span></div>
-    ${an.kind==="local"&&an.server&&!an.vol.disk?`<div class="nt err">${i18n("Свободных дисков на сервере нет: на каждом уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}
+    ${addr==="disk"&&an.server&&!an.vol.disk?`<div class="nt err">${i18n("Свободных дисков на сервере нет: на каждом уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}
     </div>`,
-    `<button type="button" class="btn" ${onEv("click",["archNewCancel"])}>${i18n("Отмена")}</button>${an.kind==="local"?"":`<button type="button" class="btn" ${onEv("click",["anCheck"])}>${i18n("Проверить подключение")}</button>`}<span class="tfoot-gap"></span><button type="button" class="btn pri" id="anCreate" ${onEv("click",["createArchive"])} ${why?"disabled":""} title="${escHtml(why)}">${i18n("Создать")}</button>`,"bbox-wide bbox-an");
+    `<button type="button" class="btn" ${onEv("click",["archNewCancel"])}>${i18n("Отмена")}</button>${spec.check?`<button type="button" class="btn" ${onEv("click",["anCheck"])}>${i18n("Проверить подключение")}</button>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" id="anCreate" ${onEv("click",["createArchive"])} ${why?"disabled":""} title="${escHtml(why)}">${i18n("Создать")}</button>`,"bbox-wide bbox-an");
   const b=document.querySelector("#bmBody .an-body");if(b)b.scrollTop=keep;
 }
 // Том из формы → тело запроса (VolumeCreate): размер — байтами, имя — как его покажет дерево
@@ -16398,26 +16456,27 @@ function volSpec(a,vol){
   return spec;
 }
 function anArchive(){
-  const name=an.name.trim()||(an.kind==="cloud"?`${i18n("Облачное хранилище")} — ${cloudLabel(an.provider)}`:i18n(an.kind==="remote"?"Новое сетевое хранилище":"Новое хранилище"));
-  const vol=Object.assign({},an.vol,{disk:an.kind==="cloud"?an.provider:an.vol.disk});
-  if(an.kind==="local"&&vol.mode==="file"&&!vol.file)vol.file=name+".afs";
+  const spec=kindOf(an.kind),addr=spec.address;
+  const name=an.name.trim()||(addr==="bucket"?`${i18n("Облачное хранилище")} — ${cloudLabel(an.provider)}`:i18n(addr==="nas"?"Новое сетевое хранилище":an.kind==="local"?"Новое хранилище":archKindName(an.kind)));
+  const vol=Object.assign({},an.vol,{disk:addr==="bucket"?an.provider:an.vol.disk});
+  if(addr==="disk"&&vol.mode==="file"&&!vol.file)vol.file=name+".afs";
   // volLabel берёт вид хранилища по archId — у формы его нет, поэтому имя тома собирается на черновике
   const draft={id:"",type:"archive",kind:an.kind,provider:an.provider,server:an.server,vols:[]};
-  return{name,kind:an.kind,storage:an.kind==="cloud"?"object":an.storage,encrypted:!!an.enc,retentionDays:an.days,
-    provider:an.kind==="cloud"?an.provider:null,serverId:an.server||null,domainId:an.server?null:an.domain,firstVolume:volSpec(draft,vol)};
+  return{name,kind:an.kind,storage:addr==="bucket"?"object":an.storage,encrypted:!!an.enc,retentionDays:an.days,
+    provider:addr==="bucket"?an.provider:null,serverId:an.server||null,domainId:an.server?null:an.domain,firstVolume:volSpec(draft,vol),...(spec.archiveModes.length?{recordMode:an.recordMode||spec.archiveModes[0]}:{})};
 }
 // «Проверить подключение» к NAS или бакету — запросом к серверу
 function anCheck(){
   if(!an)return;
   const body=anArchive();
   API.post("/archives/check",{kind:body.kind,provider:body.provider,volume:body.firstVolume})
-    .then(r=>toast(r.ok?i18n(an.kind==="cloud"?"Подключение к бакету проверено":"Подключение к NAS проверено"):problemText(r.code)))
+    .then(r=>toast(r.ok?i18n(kindOf(an.kind).address==="bucket"?"Подключение к бакету проверено":"Подключение к NAS проверено"):problemText(r.code)))
     .catch(e=>toast(problemText(e)));
 }
 function volCheck(id){
   const v=volById(id),a=v&&archById(v.archId);if(!v||!a)return;
   API.post("/archives/check",{kind:a.kind,provider:a.provider||null,volume:volSpec(a,v)})
-    .then(r=>toast(r.ok?i18n(a.kind==="cloud"?"Подключение к бакету проверено":"Подключение к NAS проверено"):problemText(r.code)))
+    .then(r=>toast(r.ok?i18n(archAddr(a)==="bucket"?"Подключение к бакету проверено":"Подключение к NAS проверено"):problemText(r.code)))
     .catch(e=>toast(problemText(e)));
 }
 function createArchive(){
@@ -16499,7 +16558,7 @@ function nvrRecCardHtml(n){
   const archSel=`<div><label>${i18n("Архив")}</label><select ${onEv("change",["setNvrArch",`${n.id}`,onEv.value])}>${mixOpt(arc)}<option value="" ${arc===""?"selected":""}>${i18n("Не задан")}</option>${
     archChoicesForAll(cams).map(a=>`<option value="${a.id}" ${a.id===arc?"selected":""}>${escHtml(locName(a))}</option>`).join("")}</select></div>`;
   const modeSel=`<div><label>${i18n("Режим")}</label><select ${onEv("change",["setNvrRec",`${n.id}`,onEv.value])}>${mixOpt(mode)}${
-    REC_MODES.map(([v,l])=>`<option value="${v}" ${mode===v?"selected":""} ${v==="replica"&&!canRep?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
+    recModes().map(([v,l])=>`<option value="${v}" ${mode===v?"selected":""} ${v==="replica"&&!canRep?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
   const note=edge
     ?`<div class="nt">${i18n("У регистратора есть встроенный архив")} (${escHtml(edge.size||"—")}). ${i18n("В режиме репликации сервер заберёт записи с самого регистратора — одной настройкой для всех его камер, без потока с каждой камеры отдельно.")}</div>`
     :`<p class="sub">${i18n("Встроенного архива у регистратора нет — репликация недоступна. Камеры пишутся на сервер потоком.")}</p>`;
@@ -16515,10 +16574,13 @@ function nvrRecCardHtml(n){
 // Камера под сервером пишет только на этот сервер: в его хранилища или в
 // сетевые хранилища домена. Хранилище другого сервера её туда не переносит.
 // Камера без сервера (без записи или на сетевом хранилище) выбирает любое.
-function archChoicesFor(n){
+function archReach(n){
   const s=cameraTreeServer(n.id);
   return s?[...serverArchives(s.id),...domainArchives(SERVER_DOMAIN[s.id])]:arch;
 }
+// Основным: вид, где камера пишет постоянно; резерв, карта сервера и инциденты основными не бывают
+function archChoicesFor(n){return archReach(n).filter(archMainOk)}
+function archRowChoices(n){return archReach(n).filter(archRowOk)}
 function archChoicesForAll(nodes){return arch.filter(a=>nodes.every(n=>archChoicesFor(n).includes(a)))}
 function archForeignReason(n,a){
   if(!a||archChoicesFor(n).includes(a))return null;
@@ -16533,13 +16595,16 @@ function archChoicesNote(n){
 // Первая строка — основное хранилище, через него камера получает сервер.
 function camArchsCardHtml(n){
   const list=camArchs(n),has=!!recEdge(n),used=new Set(list.map(x=>x.arch));
-  const free=archChoicesFor(n).filter(a=>!used.has(a.id));
+  const free=(n.arch?archRowChoices(n):archChoicesFor(n)).filter(a=>!used.has(a.id));
   const rows=list.map((x,i)=>{
-    const a=archById(x.arch),opts=archChoicesFor(n).filter(o=>o.id===x.arch||!used.has(o.id));
+    const a=archById(x.arch),opts=(x.main?archChoicesFor(n):archRowChoices(n)).filter(o=>o.id===x.arch||!used.has(o.id));
+    if(x.ro)return`<tr data-arch-ro="${x.arch}"><td>${escHtml(a?locName(a):x.arch)} · ${escHtml(a?archKindTag(a):"")}<div class="bk-hint">${i18n("работает со всеми камерами сервера, у камеры только для чтения")}</div>${recStateHtml(x)}</td>
+      <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec:recordModeLabel(x.rec)))}</td><td></td></tr>`;
+    const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true);
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
         ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>`:`<div class="bk-hint">${a?`${a.days?a.days+" "+i18n("дн."):i18n("без ограничения")}`:""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${recStateHtml(x)}</td>
       <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"stream",onEv.value])}>${camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.id===(x.stream||camStreams(n)[0].id)?"selected":""}>${escHtml(s.name)}</option>`).join("")}</select></td>
-      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${REC_MODES.filter(([v])=>v!=="none").map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
+      <td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"rec",onEv.value])}>${recOpts.map(([v,l])=>`<option value="${v}" ${x.rec===v?"selected":""} ${v==="replica"&&!has?"disabled":""}>${i18n(l)}</option>`).join("")}${x.rec==="none"?`<option value="none" selected>${i18n("Нет")}</option>`:""}</select></td>
       <td class="ca-x"><button type="button" class="btn s" title="${i18n("Отвязать от хранилища")}" ${onEv("click",["camArchRowDel",`${n.id}`,i])}>${i18n("Отвязать")}</button></td></tr>`;
   }).join("");
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
@@ -16550,7 +16615,7 @@ function camArchsCardHtml(n){
 }
 function camArchRowAdd(id,aid){
   const f=find(id);if(!f)return;
-  camAddArch(f.n,aid,"always");
+  camAddArch(f.n,aid);
   treeMatchCache.clear();searchMatchCache.clear();setD(true);paint();
   toast(`${i18n("Камера привязана к хранилищу")} «${locName(archById(aid))}»`);
 }
@@ -16563,10 +16628,14 @@ function camArchRowDel(id,i){
 function camArchRowSet(id,i,k,v){
   const f=find(id);if(!f)return;const n=f.n;
   if(i===0){
-    if(k==="arch"){pinCamServer(n);n.arch=v;bindArchServer(n)}
+    if(k==="arch"){pinCamServer(n);n.arch=v;bindArchServer(n);if(!recModesOf(archById(v)).some(([m])=>m===n.rec))n.rec=recModesOf(archById(v))[0]?.[0]||"none"}
     else if(k==="rec"){n.rec=v;if(v==="motion"&&!Array.isArray(n.recDets))n.recDets=camDetectors(n).map(d=>d.id)}
     else n.stream=v;
-  }else{const x=(n.archx||[])[i-1];if(x)x[k]=v}
+  }else{
+    const x=(n.archx||[])[i-1];if(!x)return;
+    x[k]=v;
+    if(k==="arch"&&!recModesOf(archById(v)).some(([m])=>m===x.rec))x.rec=recModesOf(archById(v))[0]?.[0]||"none";
+  }
   treeMatchCache.clear();searchMatchCache.clear();setD(true);paint();
 }
 function camArchSelectHtml(n){
@@ -18542,7 +18611,7 @@ function bulkRecHtml(nodes){
   const cams=nodes.filter(n=>n.type==="camera");
   const archOpts=[["__none__",i18n("Не задан")],...arch.map(a=>[a,cams.filter(n=>archChoicesFor(n).includes(a)).length]).filter(([,k])=>k)
     .map(([a,k])=>[a.id,locName(a)+(k<cams.length?` — ${i18n("подходит")} ${k} ${i18n("из")} ${cams.length}`:"")])];
-  const recOpts=REC_MODES.map(([v,l])=>[v,i18n(l),v==="replica"&&!edgeAll]);
+  const recOpts=recModes().map(([v,l])=>[v,i18n(l),v==="replica"&&!edgeAll]);
   return card("Архив и запись",`<div class="g">${bkSelect("Архив","arch",archOpts,archD)}${bkSelect("Режим","rec",recOpts,recD)}${bkInput("Предзапись, с","pre","number",preD)}</div>
     <p class="sub">${i18n("Камера под сервером пишет только в хранилища своего сервера или в сетевые хранилища домена: камеры другого сервера в плане будут пропущены. Камера без сервера подключается к серверу выбранного хранилища, поэтому смена идёт через план. Всё применяется через план, после — «Отменить».")} ${edgeAll?"":`${i18n("Репликация недоступна: встроенное хранилище есть у")} ${edgeN} ${i18n("из")} ${nodes.length}.`}</p>`);
 }
@@ -19048,6 +19117,7 @@ const VOL_API={size:"sizeBytes",user:"login",pass:"password"};
 function volFieldToApi(k,v){
   const f=VOL_API[k]||k;
   if(!VOLUME_PATCH.has(f))return null;
+  if(f==="enabled")return{enabled:v!==false};
   if(f==="sizeBytes")return{sizeBytes:Math.round(sizeTb(v)*TB)};
   return{[f]:v===undefined?null:f==="port"?apiVal("port",v):v};
 }
@@ -19076,6 +19146,7 @@ function srvRowToApi(n,r){
   if(n.type==="archive"){
     if(!r.key)return null;
     const k=ARCH_API[r.key]||r.key;
+    if(k==="admits")return{admits:r.to!==false};
     return ARCHIVE_PATCH.has(k)?{[k]:k==="retentionDays"?apiVal("port",r.to):r.to}:null;
   }
   if(n.type==="domain"){
@@ -19116,7 +19187,7 @@ function keyToApi(node,key,v){
   if(key==="enabled")return{enabled:v!==false};
   if(key==="kind"&&node.type==="det")return{detectorKind:v===undefined?null:DET_KIND_CODE[v]||v};
   if(key==="sens")return{sensitivity:apiVal("sensitivity",v)};
-  if(key==="archx")return{extraArchives:v===undefined?null:v.map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{})}))};
+  if(key==="archx")return{extraArchives:v===undefined?null:v.filter(x=>!x.ro).map(x=>({archiveId:x.arch,recordMode:x.rec??null,stream:x.stream??null,...(x.labels?.length?{labels:x.labels}:{})}))};
   if(key==="mode"&&node.type==="email")return{mode:v===undefined?null:EMAIL_MODE_CODE[v]||v};
   if(key==="pass")return{password:v===undefined?null:v};
   if(key==="norm")return{norm:v===undefined?null:NORM_CODE[v]||v};
