@@ -186,6 +186,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(TRIGGER_KINDS.some((k) => k.kind === "unit") && ACTION_KINDS.some((k) => k.action === "unit") && ruleUnitOps({ ref: readyLock.id })?.length === readyLock.operations.length, "в правиле вид и действие unit, команды единицы");
   ok(ruleUnitWords(readyLock.id).some((x) => x[0] === "forced"), "слова события — из шаблона");
 
+  // Профиль при добавлении: только та же модель, в тексте — то, что копируется на самом деле
+  wizd = initDeviceWizard(addContext());
+  wizd.deviceTab = "manual";
+  const model = of("camera", (d) => d.model && !d.parentId);
+  Object.assign(wizd.manual, { vendor: model.vendor, model: model.model });
+  ok(deviceTemplates().length > 0 && deviceTemplates().every((c) => c.model === model.model), "источник профиля — камера той же модели");
+  ok(!deviceAddModes().some((m) => /буферизац|Прочее/.test(m.hint)), "подсказка без буферизации и «Прочего»");
+
   // Удаление: находка и выведенный регистратор — нет
   ok(!canTreeCtxDelete(find(s.id).n), "датчик не удаляется");
   const derived = of("ipsrv", (d) => d.derived);

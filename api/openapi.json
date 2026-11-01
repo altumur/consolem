@@ -5650,25 +5650,9 @@
           "format": {
             "type": "string"
           },
-          "configMode": {
-            "type": "string",
-            "enum": [
-              "current",
-              "default",
-              "template"
-            ]
-          },
-          "templateId": {
-            "type": "string"
-          },
           "firmware": {
-            "type": "string"
-          },
-          "streamProfile": {
-            "type": "string"
-          },
-          "buffering": {
-            "type": "string"
+            "type": "string",
+            "description": "Версия драйвера. Обновления прошивки нет"
           },
           "codec": {
             "type": "string",
@@ -8497,16 +8481,6 @@
               "null"
             ]
           },
-          "buffering": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "builtin": {
             "anyOf": [
               {
@@ -8555,7 +8529,8 @@
                   "current",
                   "default",
                   "template"
-                ]
+                ],
+                "description": "Только при создании: 422 NOT_SUPPORTED"
               },
               {
                 "type": "null"
@@ -8910,16 +8885,6 @@
               }
             ]
           },
-          "streamProfile": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "subtype": {
             "anyOf": [
               {
@@ -8940,7 +8905,8 @@
           "templateId": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "description": "Только при создании: 422 NOT_SUPPORTED"
               },
               {
                 "type": "null"
@@ -10139,9 +10105,6 @@
               "null"
             ]
           },
-          "buffering": {
-            "type": "string"
-          },
           "builtin": {
             "type": "boolean",
             "description": "Детектор работает на камере"
@@ -10173,7 +10136,8 @@
               "current",
               "default",
               "template"
-            ]
+            ],
+            "description": "Разовый выбор при добавлении, в записи не хранится. current — на камере ничего не меняется; default — умолчания модели уходят на камеру, камера без модели — 422 VALIDATION_FAILED, field: configMode; template — копия с камеры templateId той же модели"
           },
           "detectorKind": {
             "type": "string",
@@ -10199,7 +10163,8 @@
             }
           },
           "firmware": {
-            "type": "string"
+            "type": "string",
+            "description": "Версия драйвера. Обновления прошивки нет"
           },
           "format": {
             "type": "string"
@@ -10316,9 +10281,6 @@
           "stream": {
             "type": "string"
           },
-          "streamProfile": {
-            "type": "string"
-          },
           "subtype": {
             "type": "string",
             "description": "Подтип IP-сервера (ipsrv)",
@@ -10330,7 +10292,9 @@
             ]
           },
           "templateId": {
-            "type": "string"
+            "type": "string",
+            "format": "uuid",
+            "description": "configMode: template. Копируются разрешение и частота кадров потоков, сами потоки, firmware. Адрес, логин, пароль, имя, записи, папки, детекторы, norm — нет. Другая модель или нет камеры — 422 VALIDATION_FAILED, field: templateId"
           },
           "to": {
             "type": "string"

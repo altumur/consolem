@@ -200,6 +200,25 @@
     }
     const offline = (s) => !!s && s.online === false && s.allocated;
 
+    /* ----- Профиль при добавлении ----- */
+
+    // Встроенный сервер описаний драйверов не имеет: умолчания модели одни на всех
+    const MODEL_DEFAULT = { res: "1920x1080", fps: 25 };
+    function profileProblem(spec) {
+      if (spec.configMode === "default" && !(spec.vendor && spec.model)) return { code: "VALIDATION_FAILED", field: "configMode" };
+      if (spec.configMode !== "template") return null;
+      const src = spec.templateId ? byId("devices", spec.templateId) : null;
+      return src && src.type === "camera" && src.vendor === spec.vendor && src.model === spec.model ? null : { code: "VALIDATION_FAILED", field: "templateId" };
+    }
+    // Разовая копия: связи с источником после создания нет
+    function applyProfile(d, s) {
+      if (s.configMode === "default") Object.assign(d, MODEL_DEFAULT);
+      if (s.configMode !== "template") return;
+      const src = byId("devices", s.templateId);
+      ["res", "fps", "firmware"].forEach((k) => { if (k in src) d[k] = src[k]; });
+      if (src.streams) d.streams = src.streams.map(({ id, name, res, fps, width, height }) => stripUndefined({ id, name, res, fps, width, height, online: true }));
+    }
+
     /* ----- Единицы СКУД ----- */
 
     const ACS_UNITS = new Set(["acfa_sensor", "acfa_lock", "acfa_fence"]);
@@ -535,6 +554,8 @@
       if (posProblem(spec.type, spec)) return { code: "VALIDATION_FAILED", field: "ip" };
       const unit = unitCreateProblem(spec, parentId ? byId("devices", parentId) : null);
       if (unit) return unit;
+      const profile = profileProblem(spec);
+      if (profile) return profile;
       if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
         if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
       }
@@ -552,7 +573,7 @@
       const make = (s, parent) => {
         const d = { id: uuid("device"), type: s.type, parentId: parent, domainId };
         Object.entries(s).forEach(([k, v]) => {
-          if (k === "children" || k === "type") return;
+          if (k === "children" || k === "type" || k === "configMode" || k === "templateId") return;
           if (k === "password") {
             if (v) secrets.set(d.id, v);
             return;
@@ -562,7 +583,8 @@
         if (!parent && NUMBERED.has(s.type) && (d.identifier == null || d.identifier === "")) d.identifier = nextIdentifier();
         if (!("enabled" in d)) d.enabled = true;
         d.online = true;
-        if (s.type === "camera") d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
+        applyProfile(d, s);
+        if (s.type === "camera" && !d.streams) d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
         d.version = newVersion();
         db.devices.push(d);
         if (d.type === "eventsrc") placeSource(d);

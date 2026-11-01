@@ -15747,7 +15747,8 @@ function addressDeviceDuplicate(r){
 function deviceTemplates(){
   const s=deviceTarget(),out=[];
   if(!s)return out;
-  walk(n=>{if(n.type==="camera"&&n.model)out.push(n)},s.devices||[],s);
+  const m=wizd.deviceTab==="manual"?wizd.manual:null;
+  walk(n=>{if(n.type==="camera"&&n.model&&(!m||(n.vendor===m.vendor&&n.model===m.model)))out.push(n)},s.devices||[],s);
   return out;
 }
 function deviceFilterMatch(r,q){
@@ -15823,9 +15824,9 @@ function onDeviceFiltOutside(e){
 function setDeviceStatus(k,v){wizd.devStatuses[k]=v;renderDeviceWizard()}
 function deviceAddModes(){
   return[
-    {id:"current",label:"Как на устройстве",hint:"Профиль берётся с самой камеры (из её web-интерфейса). Поля в таблице ниже не меняются."},
-    {id:"default",label:"По умолчанию",hint:"Применяется профиль ПО: прошивка, видеопотоки, буферизация и «Прочее». Текущий профиль на камере будет изменён."},
-    {id:"template",label:"С другой камеры",hint:"Копируется профиль уже добавленной камеры той же модели: прошивка, видеопотоки, буферизация и «Прочее»."}
+    {id:"current",label:"Как на устройстве",hint:"На камере ничего не меняется: её настройки остаются такими, как заданы на ней самой."},
+    {id:"default",label:"По умолчанию",hint:"Умолчания модели: разрешение и частота кадров потоков. Настройки на камере будут изменены. Камере без модели недоступно."},
+    {id:"template",label:"С другой камеры",hint:"Разовая копия с уже добавленной камеры той же модели: потоки, их разрешение и частота кадров, версия драйвера. Адрес, учётные данные, имя, записи, папки, детекторы и настройки входов не копируются."}
   ];
 }
 function setDeviceMode(v){
@@ -16642,7 +16643,7 @@ function deviceNodeFromData(r,server,opts={}){
   const identifier=isAutoIdentifier(r.identifier)?"":String(r.identifier).trim();
   const node={id,type:r.type||"camera",name:autoName,identifier,short:r.short??"",ip:r.ip,port:+r.port||80,mac:r.mac||"",vendor:r.vendor||"",model:r.model||"",online:true,user:r.user&&r.user!=="Авто"?r.user:"",pass:r.pass||"",devices:[],configMode};
   if(node.configMode==="template"&&template){
-    node.templateId=template.id;node.firmware=template.firmware||"как у шаблона";node.streamProfile=template.streamProfile||"как у шаблона";node.buffering=template.buffering||"как у шаблона";
+    node.templateId=template.id;
   }
   if(r.arch)node.arch=r.arch;
   if(s?.type==="server"&&(node.type==="camera"||node.type==="ipsrv"))node.srvId=s.id;
@@ -17011,7 +17012,7 @@ function commitManualDevice(disabled){
   if(m.rtsp)common._f={RTSP:m.rtsp};
   if(disabled)common.enabled=false;
   if(configMode==="template"&&template){
-    common.templateId=template.id;common.firmware=template.firmware||"как у шаблона";common.streamProfile=template.streamProfile||"как у шаблона";common.buffering=template.buffering||"как у шаблона";
+    common.templateId=template.id;
   }
   let node;
   if(m.type==="storage")node={...common,type:"ipsrv",subtype:"nvr",devices:[{id:common.id+"storage",type:"storage",name:"Встроенное хранилище",online:true,devices:[]}]};

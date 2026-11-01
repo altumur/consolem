@@ -484,5 +484,25 @@
     await env.ok("PUT", `/rules/${cur.id}`, body([{ source: "vms", action: "unit", target, operation: "on" }]), { "If-Match": `"${cur.version}"` });
   }, inAcs);
 
+  /* ===== Профиль при добавлении ===== */
+
+  test("Профиль при добавлении: разовый выбор, в записи его нет; default — умолчания; template — копия с камеры той же модели", async () => {
+    const env = await makeEnv();
+    const row = (device) => create([{ device, domainId: d1.id, parentId: null, folderId: null }]);
+    const cur = (await env.ok("POST", "/devices", row(newCam({ configMode: "current" })))).done[0].devices[0];
+    assert.eq([cur.configMode, cur.res], [undefined, undefined], "current: ничего не меняет, в ответе поля нет");
+    const bad = await env.call("PATCH", `/devices/${cur.id}`, { configMode: "default" }, v(cur));
+    assert.status(bad, 422, "NOT_SUPPORTED", "PATCH");
+    const def = (await env.ok("POST", "/devices", row(newCam({ configMode: "default" })))).done[0].devices[0];
+    assert.ok(def.res && def.fps, "default: умолчания модели");
+    assert.eq((await env.ok("POST", "/devices", row({ type: "camera", name: "Только адрес", rtspUrl: "rtsp://1", configMode: "default" }))).failed[0].field, "configMode", "без модели — нельзя");
+    const src = (await env.list("/devices")).find((d) => d.type === "camera" && d.streams?.length > 1 && d.vendor && d.model && !d.parentId);
+    const good = (await env.ok("POST", "/devices", row(newCam({ vendor: src.vendor, model: src.model, configMode: "template", templateId: src.id })))).done[0].devices[0];
+    assert.eq([good.res, good.fps, good.streams.length, good.templateId], [src.res, src.fps, src.streams.length, undefined], "копия потоков, связи нет");
+    assert.ok(good.ip !== src.ip && good.name !== src.name && !good.recordDetectorIds, "адрес, имя, записи не копируются");
+    assert.eq((await env.ok("POST", "/devices", row(newCam({ model: "Другая", configMode: "template", templateId: src.id })))).failed[0].field, "templateId", "другая модель");
+    assert.eq((await env.ok("POST", "/devices", row(newCam({ configMode: "template" })))).failed[0].field, "templateId", "нет источника");
+  });
+
   ApiTest.loaded("api-devices.js");
 })();
