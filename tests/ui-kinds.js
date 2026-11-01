@@ -114,6 +114,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const ptz = of("camera", (d) => d.ptz && d.presets?.length);
   open(ptz.id, "vid");
   ok(main().textContent.includes("Пресеты") && main().querySelector("[data-preset]"), "карточка пресетов");
+  ok(!main().querySelector("[data-preset] input"), "имя пресета не вводится: его пишет драйвер");
   ok(!(TF_CAM.some((t) => t[0] === "ptz")), "вида PTZ в фильтрах нет");
   const calls = [];
   const realPut = API.put, realDel = API.del;

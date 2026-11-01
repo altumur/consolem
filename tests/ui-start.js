@@ -25,6 +25,20 @@ UiCheck(async ({ ok, until }) => {
   accDenied = false;
   await appLoad();
 
+  // Снимок прав не пришёл (5xx, нет связи с доменом): запуск идёт, раздел говорит словами и спрашивает снова
+  API.get = (p, ...a) => (p === "/access" ? Promise.reject({ status: 503 }) : get(p, ...a));
+  let startErr = null;
+  await appLoad().catch((e) => (startErr = e));
+  ok(!startErr && accDown && !accDenied && appsShown().some((a) => a.id === "hw"), "503 на права не роняет запуск");
+  goApp("acc");
+  ok(!!document.querySelector("[data-acc-down]"), "в разделе — «Права сейчас недоступны»");
+  await until(() => !accRetrying);
+  goApp("hw");
+  API.get = get;
+  goApp("acc");
+  ok(await until(() => !accDown && !document.querySelector("[data-acc-down]") && app === "acc"), "новый заход повторил запрос, раздел открылся");
+  goApp("hw");
+
   // Удалённое хранилище — на весь домен, без сервера
   const before = (await API.get("/archives")).items.length;
   const dom = domains[0];

@@ -359,11 +359,15 @@
     const env = await makeEnv();
     const c = await ptzCam(env);
     const was = c.presets.length;
-    const set = await env.ok("PUT", `/devices/${c.id}/presets/9`, { name: "Ворота" });
-    assert.eq(set.presets.at(-1), { n: 9, name: "Ворота" }, "задан, номера по порядку");
+    const set = await env.ok("PUT", `/devices/${c.id}/presets/9`, {});
+    assert.eq(set.presets.at(-1), { n: 9, name: "" }, "задан, номера по порядку, имя — от драйвера");
+    assert.status(await env.call("PUT", `/devices/${c.id}/presets/9`, { name: "Ворота" }), 422, "VALIDATION_FAILED", "имя не пишется");
     assert.ok(set.version !== c.version, "версия записи изменилась");
     const same = await env.ok("PUT", `/devices/${c.id}/presets/9`, {});
-    assert.eq(same.presets.at(-1).name, "Ворота", "без имени — положение, имя прежнее");
+    const named = c.presets.find((p) => p.name);
+    const again = await env.ok("PUT", `/devices/${c.id}/presets/${named.n}`, {});
+    assert.eq(again.presets.find((p) => p.n === named.n).name, named.name, "положение запомнено, имя драйвера осталось");
+    assert.eq(same.presets.at(-1).n, 9, "повтор — тот же пресет");
     const gone = await env.ok("DELETE", `/devices/${c.id}/presets/9`);
     assert.eq(gone.presets.length, was, "удалён");
     assert.status(await env.call("DELETE", `/devices/${c.id}/presets/9`), 404, "NOT_FOUND");

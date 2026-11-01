@@ -13869,19 +13869,15 @@
           },
           "name": {
             "type": "string",
-            "description": "Имена есть не у всех драйверов: тогда пусто"
+            "description": "Только чтение: имя пишет драйвер. Имена есть не у всех драйверов: тогда пусто"
           }
         }
       },
       "PresetWrite": {
         "type": "object",
         "additionalProperties": false,
-        "properties": {
-          "name": {
-            "type": "string"
-          }
-        },
-        "description": "Пресет запоминает нынешнее положение камеры"
+        "properties": {},
+        "description": "Тело пустое: пресет запоминает нынешнее положение камеры. Имя пишет драйвер, оно приходит в Device.presets только для чтения"
       },
       "PtzMove": {
         "type": "object",

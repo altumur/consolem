@@ -2975,14 +2975,15 @@ let licenses=[];
 const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 // Этап А: правила — ещё константы макета; на этапе Б appLoad читает и их
 // Разделы, которых нет: система их не объявила, а права могут быть закрыты конкретному человеку (403)
-let accDenied=false;
+let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
 function appsShown(){
   return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):true);
 }
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
-  const access=()=>Promise.resolve(get("getAccess","/access",ACC_EMPTY)).catch(e=>{if(e?.status!==403)throw e;accDenied=true;return ACC_EMPTY});
+  // 403 — раздела нет. Другой отказ (без связи с доменом это штатно) запуск не роняет: раздел говорит, что права недоступны, и спросит снова при заходе
+  const access=()=>Promise.resolve(get("getAccess","/access",ACC_EMPTY)).then(a=>{accDown=false;return a}).catch(e=>{if(e?.status===403)accDenied=true;else accDown=true;return ACC_EMPTY});
   const [me,st,lic,jr,acc]=await Promise.all([API.get("/me"),get("getSettings","/settings",{version:"1",values:{}}),get("listLicenses","/licenses",{items:[]}),get("listJournal","/journal",{items:[]}),access()]);
   sysTz=me.timezone||sysTz;ACC_ME=me.login;
   accSetSnapshot(acc);accLast=acc;
@@ -8297,7 +8298,7 @@ function ptzStop(){
 function ptzCardHtml(n){
   if(!n.ptz)return"";
   const list=n.presets||[],off=n.online===false;
-  const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
+  const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td>${escHtml(p.name||`${i18n("Пресет")} ${p.n}`)}</td>
     <td class="ca-x"><button type="button" class="btn s" ${off?"disabled":""} title="${i18n("Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
   return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
     <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
@@ -8311,10 +8312,9 @@ function presetPut(id,no,body){
 function presetAdd(id){
   const list=find(id)?.n?.presets||[];let no=1;
   while(list.some(p=>p.n===no))no++;
-  presetPut(id,no,{name:""});
+  presetPut(id,no,{});
 }
 function presetSave(id,no){presetPut(id,no,{}).then(()=>toast(`${i18n("Пресет")} ${no}: ${i18n("положение запомнено")}`))}
-function presetName(id,no,v){presetPut(id,no,{name:String(v).trim()})}
 function presetDel(id,no){
   const n=find(id)?.n,p=(n?.presets||[]).find(x=>x.n===no);if(!p)return;
   const name=p.name||`${i18n("Пресет")} ${no}`;
@@ -13298,7 +13298,15 @@ function accStreamsUI(){
     `<div class="sc">${card("Учётки потоков",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Состояние")}</th><th>${i18n("Изменена")}</th><th>${i18n("Кем")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       <div class="ca-foot"><input placeholder="${i18n("Имя учётки")}" aria-label="${i18n("Имя учётки")}" value="${escHtml(streamDraft)}" ${onEv("input",["streamDraftSet",onEv.value])}> <button type="button" class="btn s" ${onEv("click",["streamAccAdd"])}>${lu("plus")}${i18n("Учётка")}</button></div>`,`<span class="sub" style="font-weight:400">${streamAccs.length}</span>`)}</div>`);
 }
+// Снимок прав не пришёл: строка вместо раздела, запрос повторяется при новом заходе
+function accDownUI(){
+  paintMain(mainHd("",i18n("Права"),ACC_SUB,"","")+`<div class="sc"><div class="nt err" data-acc-down>${i18n("Права сейчас недоступны")}</div></div>`);
+  if(accRetrying)return;
+  accRetrying=true;
+  API.get("/access").then(a=>{accDown=false;accSetSnapshot(a);accLast=a;if(app==="acc")paint()}).catch(e=>{if(e?.status===403){accDenied=true;accDown=false;if(app==="acc")setApp("hw");else renderRail()}}).then(()=>{accRetrying=false});
+}
 function accUI(){
+  if(accDown)return accDownUI();
   accGroupCache.clear();accObjGroupCache.clear();accObjCache.clear();accData();
   if(accSel.startsWith("role:")&&accSelRole())return accRoleUI(accSelRole());
   if(accSel.startsWith("user:")&&accUser(accSel.slice(5)))return accUserUI(accUser(accSel.slice(5)));

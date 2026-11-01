@@ -1373,7 +1373,7 @@
       [
         "PUT",
         "/devices/{id}/presets/{n}",
-        (p, q, body) => {
+        (p) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
           const n = Number(p.n);
@@ -1381,7 +1381,7 @@
           if (bad) return bad;
           if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
           const was = (rec.presets || []).find((x) => x.n === n);
-          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat({ n, name: body.name ?? (was ? was.name : "") }));
+          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat({ n, name: was ? was.name : "" }));
         },
       ],
       [
