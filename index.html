@@ -15644,11 +15644,13 @@ const LOG_BY_CAT={all:[],audit:[],alarm:[],info:[]};
 function logRow(e){return[clockText(e.occurredAt||e.at,false),LOG_KIND_RU[e.category]||e.category,e.text]}
 // Отбор журнала — на сервере: устройство, подсистема, время, сколько строк
 const logSources=new Set(),logDevices=new Set();
-let logQ={deviceId:"",source:"",from:"",to:"",limit:""},logRes=null;
+let logQ={deviceId:"",source:"",from:"",to:"",limit:""},logRes=null,logSeq=0;
 function logQOn(){return Object.values(logQ).some(Boolean)}
 function logSet(k,v){logQ={...logQ,[k]:v};logQueryRun()}
 function logReset(){logQ={deviceId:"",source:"",from:"",to:"",limit:""};logQueryRun()}
 function logQueryRun(){
+  // Отвечает последний отбор: ответ на прежний, пришедший позже по сети, не считается
+  const seq=++logSeq;
   if(!logQOn()){logRes=null;logUI();return Promise.resolve()}
   const iso=v=>new Date(v).toISOString().replace(/\.\d+Z$/,"Z"),q={};
   if(logQ.deviceId)q.deviceId=logQ.deviceId;
@@ -15657,7 +15659,7 @@ function logQueryRun(){
   if(logQ.to)q.to=iso(logQ.to);
   if(logQ.limit)q.limit=logQ.limit;
   if(LOG_BY_CAT[logFilt]&&logFilt!=="all")q.category=logFilt;
-  return API.get("/journal",q).then(r=>{logRes=r;logUI()}).catch(e=>toast(problemText(e)));
+  return API.get("/journal",q).then(r=>{if(seq!==logSeq)return;logRes=r;logUI()}).catch(e=>toast(problemText(e)));
 }
 function logFilterHtml(){
   const dev=id=>locName(find(id)?.n||{name:id});

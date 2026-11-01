@@ -221,7 +221,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!!document.querySelector(".log-filter"), "отбор журнала");
   const rowsAll = (await API.get("/journal")).items.length;
   logSet("limit", "50");
-  logQ.limit = "";
+  logSet("limit", "");
   logSet("source", "backend");
   ok(await until(() => logRes && logRes.items.every((e) => e.source === "backend") && logRes.items.length < rowsAll), "подсистема отобрана на сервере");
   logReset();
