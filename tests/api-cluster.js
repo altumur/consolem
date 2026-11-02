@@ -21,10 +21,12 @@
   }, { needs: ["putRecordingTarget"] });
 
   test("Копии записи: список серверов, порядок значим; копия — кластер: повтор, чужой, кластер основного и два сервера кластера — 422", async () => {
-    const env = await makeEnv({ fixturePatch: withCam() });
+    // Свои серверы: кластер — начало имени, наборы называют серверы по-разному
+    const names = ["К1/Сервер а", "К1/Сервер б", "К2/Сервер а", "К2/Сервер б", "К3/Сервер а", "Сервер один"];
+    const made = names.map((name, i) => Object.assign({}, server, { id: `2000aaa${i}-0000-4000-8000-000000000000`, name, fingerprint: undefined }));
+    const env = await makeEnv({ fixturePatch: Object.assign(withCam(), { servers: FX.servers.concat(JSON.parse(JSON.stringify(made))) }) });
     const put = (b) => env.call("PUT", `/devices/${w2c().id}/recording-target`, b);
-    const by = (name) => FX.servers.find((s) => s.name === name).id;
-    const main = by("Центр/Сервер — Офис"), twin = by("Центр/Сервер — Цех"), a = by("Склады/Сервер — Ангар"), a2 = by("Склады/Сервер — КПП"), b = by("Периметр/Сервер — Парковка"), solo = FX.servers.find((s) => s.allocated && s.online && !s.name.includes("/")).id;
+    const [main, twin, a, a2, b, solo] = made.map((s) => s.id);
     const res = await put({ serverId: main, copies: [b, a, solo] });
     assert.eq(res.body.recordingTarget, { serverId: main, copies: [b, a, solo] }, "порядок как прислан");
     assert.eq((await env.ok("GET", `/devices/${w2c().id}`)).recordingTarget.copies, [b, a, solo], "и на чтении");
