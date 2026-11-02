@@ -18,7 +18,7 @@
 
 Живое видео: `POST /devices/{id}/live {width, height}` → `{whepUrl, token, expiresAt}`.
 
-WebRTC — сделано, этап 8, часть 1, ADR-0112 доп. (13). Клиент WHEP в форме: закладка «Просмотр» в карточке камеры, вкладка «Видео», «Зона» детектора, область титров. Контракт шире запроса: `LiveRequest.network`, `streamId`, `LiveResult.gateway`, `409 OTHER_NETWORK` с `params.labels`, `PUT /devices/{id}/live` переразмещает раздачу. Повторы и отбой — V/08.3 Н1.2. Настоящего видео на стенде нет: подставной WHEP с тестовой картинкой, `api/whep-stub.js`, подпись на кадре. `BACKEND.md`, «Живое видео»; `tests/ui-live.js`, `tools/check_live.py`.
+WebRTC — сделано, `d4cc116`, `94633de`, части 2–4 — `19a6212`, `b8c05c5`; этап 8, ADR-0112 доп. (13). Клиент WHEP в форме: закладка «Просмотр» в карточке камеры, вкладка «Видео», «Зона» детектора, область титров. Контракт шире запроса: `LiveRequest.network`, `streamId`, `LiveResult.gateway`, `409 OTHER_NETWORK` с `params.labels`, `PUT /devices/{id}/live` переразмещает раздачу. Повторы и отбой — V/08.3 Н1.2. Настоящего видео на стенде нет: подставной WHEP с тестовой картинкой, `api/whep-stub.js`, подпись на кадре. `BACKEND.md`, «Живое видео»; `tests/ui-live.js`, `tools/check_live.py`.
 
 Зона: `Device.zone: {shape: rect | polygon | line, points: [[x, y], …]}` в долях кадра, у встроенных и серверных. `rect`, `line` — две точки, `polygon` — от трёх, иначе `422 VALIDATION_FAILED`, `field: zone`. В карточке «Зона» фигура рисуется мышью по кадру и уходит с «Применить». `BACKEND.md`, «Детекторы»; `tests/ui-kinds.js`.
 
