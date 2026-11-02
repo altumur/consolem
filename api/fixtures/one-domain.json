@@ -17602,7 +17602,9 @@
     "resetStreamAccountPassword",
     "listArchiveScans",
     "createArchiveScan",
-    "deleteArchiveScan"
+    "deleteArchiveScan",
+    "listRulePrompts",
+    "answerRulePrompt"
    ],
    "deviceTypes": [
     "camera",

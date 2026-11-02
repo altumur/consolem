@@ -492,6 +492,11 @@ def check_capabilities(rep, spec, fixtures):
             problems.append(f"{name}: итоги поиска без getDiscovery")
         if "createDomain" not in ops and len(fx["domains"]) > 1:
             problems.append(f"{name}: доменов {len(fx['domains'])} без createDomain")
+    # Шаги ожидания оператора объявляются только вместе с дверью ответа
+    for name, fx in fixtures.items():
+        ops_ = fx["reference"]["capabilities"]["operations"]
+        if any(c["control"] in ("ask", "escalate") for c in fx["reference"]["ruleControls"]) and not {"listRulePrompts", "answerRulePrompt"} <= set(ops_):
+            problems.append(f"{name}: шаги ask, escalate объявлены без listRulePrompts, answerRulePrompt")
     demo = fixtures["demo"]["reference"]["capabilities"]
     if {k: demo[k] for k in ("operations", "deviceTypes", "features")} != {"operations": product, "deviceTypes": types, "features": features} or set(demo.get("foundDeviceTypes", [])) - set(types):
         problems.append("demo: возможности — не весь контракт (соберите: tools/fixture_normalize.capabilities())")

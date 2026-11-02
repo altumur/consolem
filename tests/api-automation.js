@@ -241,5 +241,237 @@
     assert.eq(none.body.field, "runAsRoleId", "поле");
   });
 
+  /* ----- Ход с ответом оператора ----- */
+
+  const base = FX.rules.find((r) => r.name === "Тревога на периметре");
+  const other = FX.access.users.find((u) => u.login === "commissioning");
+  const act = (id) => ({ source: "rec", action: "record", target: dev(id), duration: "min", minutes: id === cam.id ? 5 : 6 });
+  const ask = (over) => Object.assign({ control: "ask", text: "Подтвердить: {правило}?", roleId: guardRole, sec: 60, default: "no", yes: [act(cam.id)], no: [] }, over || {});
+  const levels = (a, b) => [{ roleId: a, via: "client", waitMin: 5 }, { roleId: b, via: "client", waitMin: 10 }];
+  const escalate = (over) => Object.assign({ control: "escalate", levels: levels(guardRole, other.roleIds[0]), stop: "ack" }, over || {});
+  // Правило набора с нужными шагами: заводить его через API нельзя — автор и оператор разные люди
+  const patched = (over) => ({ rules: FX.rules.map((r) => (r.id === base.id ? Object.assign({}, r, { start: "manual", runMode: "manual", triggers: [], conditions: [], windowSec: 0, repeat: "skip", logOnly: false, logOnlySince: null, mute: null }, over) : r)) });
+  const envWith = (over, who) => makeEnv({ fixturePatch: patched(over), actAs: (who || guard).login });
+  const run = (env, id) => env.ok("POST", `/rules/${id || base.id}/run`, { idempotencyKey: ApiTest.key() });
+  const fireOf = async (env, id) => (await env.list(`/rules/${base.id}/fires`)).find((f) => f.id === id);
+  const PROMPTS = ["listRulePrompts", "answerRulePrompt"];
+
+  test("Вопрос: запуск встаёт на шаге, вопрос виден со всеми полями, в потоке — prompt.opened", async () => {
+    const env = await envWith({ steps: [ask()] });
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => m.kind === "rulePrompt" && seen.push(m));
+    await ApiTest.settle();
+    const f = await run(env);
+    assert.eq([f.result, f.steps.map((s) => s.state)], ["waiting", ["waiting"]], "запуск ждёт");
+    const [p, ...rest] = await env.list("/rule-prompts");
+    assert.eq(rest.length, 0, "один вопрос");
+    assert.eq([p.ruleId, p.fireId, p.step, p.kind, p.text, p.roleId, p.level, p.canAnswer], [base.id, f.id, "0", "ask", `Подтвердить: ${base.name}?`, guardRole, null, true], "поля");
+    assert.eq(Date.parse(p.until) - Date.parse(p.openedAt), 60000, "срок — sec шага");
+    await ApiTest.settle();
+    stop();
+    assert.eq(seen.map((m) => [m.type, m.entityId, m.payload.fireId, m.payload.roleId]), [["prompt.opened", p.id, f.id, guardRole]], "поток");
+  }, { needs: PROMPTS });
+
+  test("Вопрос: первый ответ считается — ветка идёт, запись запуска та же, вопрос закрыт, повтор — 409", async () => {
+    const env = await envWith({ steps: [ask()] });
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => (m.kind === "rulePrompt" || m.kind === "ruleFire") && seen.push(m));
+    await ApiTest.settle();
+    const f = await run(env);
+    const [p] = await env.list("/rule-prompts");
+    const res = await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
+    assert.status(res, 202);
+    assert.eq(await env.list("/rule-prompts"), [], "вопрос закрыт");
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.filter((s) => s.action).map((s) => s.state)], ["ok", ["ok"]], "ветка «да» выполнена");
+    const row = now.steps.find((s) => s.control && !s.skip);
+    assert.eq([row.state, row.note.code, row.note.params.answer, row.note.params.login], ["ok", "ask.answer", "yes", guard.login], "кто ответил");
+    const again = await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" });
+    assert.status(again, 409, "BUSY");
+    assert.eq(again.body.params.reason, "answered", "уже ответили");
+    assert.eq((await fireOf(env, f.id)).result, "ok", "второй ответ ничего не меняет");
+    await ApiTest.settle();
+    stop();
+    const closed = seen.find((m) => m.type === "prompt.closed");
+    assert.eq([closed.entityId, closed.payload.reason, closed.payload.answer, closed.payload.by], [p.id, "answered", "yes", guard.login], "prompt.closed");
+    assert.ok(seen.some((m) => m.type === "entity.changed" && m.kind === "ruleFire" && m.entityId === f.id && m.payload.ruleId === base.id), "запуск изменился — событие");
+  }, { needs: PROMPTS });
+
+  test("Вопрос: ответ «нет» — ветка «нет», «да» пропущена", async () => {
+    const env = await envWith({ steps: [ask({ yes: [], no: [act(cam.id)] })] });
+    const f = await run(env);
+    const [p] = await env.list("/rule-prompts");
+    assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" }), 202);
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.some((s) => s.path === "0.yes" && s.skip), now.steps.filter((s) => s.action).length], ["ok", true, 1], "ветка");
+  }, { needs: PROMPTS });
+
+  test("Вопрос: чужая роль — 403, canAnswer false; не тот вид ответа — 422, вопрос открыт; нет вопроса — 404", async () => {
+    const env = await envWith({ steps: [ask()] }, other);
+    await run(env);
+    const [p] = await env.list("/rule-prompts");
+    assert.eq(p.canAnswer, false, "роли нет");
+    const no = await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
+    assert.status(no, 403, "PERMISSION_DENIED");
+    assert.eq((await env.list("/rule-prompts")).length, 1, "вопрос открыт");
+    assert.status(await env.call("POST", "/rule-prompts/f0009999-0008-4000-8000-000000000000/answer", { answer: "yes" }), 404, "NOT_FOUND");
+    const own = await envWith({ steps: [ask()] });
+    await run(own);
+    const [q] = await own.list("/rule-prompts");
+    const kind = await own.call("POST", `/rule-prompts/${q.id}/answer`, { answer: "ack" });
+    assert.status(kind, 422, "VALIDATION_FAILED");
+    assert.eq(kind.body.field, "answer", "поле");
+    assert.status(await own.call("POST", `/rule-prompts/${q.id}/answer`, { answer: "maybe" }), 422, "VALIDATION_FAILED", "не из списка");
+    assert.eq((await own.list("/rule-prompts")).length, 1, "вопрос открыт");
+  }, { needs: PROMPTS });
+
+  test("Вопрос: срок вышел — ветка default, вопрос закрыт, ответ после срока не действует", async () => {
+    const env = await envWith({ steps: [ask({ sec: 30, default: "yes" })] });
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => m.kind === "rulePrompt" && seen.push(m));
+    await ApiTest.settle();
+    const f = await run(env);
+    const [p] = await env.list("/rule-prompts");
+    await env.advance(29);
+    assert.eq((await env.list("/rule-prompts")).length, 1, "срок не вышел");
+    await env.advance(1);
+    assert.eq(await env.list("/rule-prompts"), [], "закрыт по сроку");
+    const late = await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" });
+    assert.status(late, 409, "NOT_RUNNABLE");
+    assert.eq(late.body.params.reason.code, "over", "не ждёт");
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.find((s) => s.control && !s.skip).note.code, now.steps.filter((s) => s.action).length], ["ok", "ask.noAnswer", 1], "пошло по default");
+    await ApiTest.settle();
+    stop();
+    assert.eq(seen.filter((m) => m.type === "prompt.closed").map((m) => m.payload.reason), ["expired"], "причина");
+  }, { needs: [...PROMPTS, "clock"] });
+
+  test("Вопрос: шаг за шагом — второй вопрос после первого, вложенный в ветку", async () => {
+    const env = await envWith({ steps: [ask({ yes: [ask({ text: "Ещё раз?", yes: [act(cam.id)] })] }), step] });
+    const f = await run(env);
+    const [p] = await env.list("/rule-prompts");
+    await env.ok("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
+    const [q, ...more] = await env.list("/rule-prompts");
+    assert.eq([q.step, q.text, more.length, (await fireOf(env, f.id)).result], ["0.yes.0", "Ещё раз?", 0, "waiting"], "второй вопрос");
+    await env.ok("POST", `/rule-prompts/${q.id}/answer`, { answer: "yes" });
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 2], "дошло до конца: и следующий шаг");
+  }, { needs: PROMPTS });
+
+  test("Вопрос: «Только журнал» спрашивает так же, действий нет; пробный запуск вопросов не открывает", async () => {
+    const env = await envWith({ logOnly: true, steps: [ask()] });
+    const r = await env.ok("GET", `/rules/${base.id}`);
+    const t = await env.ok("POST", "/rules/test", { ruleId: base.id, rule: body(r), events: [], at: null, branches: { 0: "yes" }, log: false });
+    assert.ok(t.result !== "waiting", "пробный запуск не ждёт");
+    assert.eq(await env.list("/rule-prompts"), [], "вопросов нет");
+    const f = await run(env);
+    assert.eq(f.result, "waiting", "ждёт");
+    const [p] = await env.list("/rule-prompts");
+    await env.ok("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.filter((s) => s.action).map((s) => s.state)], ["watch", ["would"]], "только журнал");
+  }, { needs: PROMPTS });
+
+  test("Эскалация: уровни по сроку, прежний остаётся открыт, ack на любом останавливает, уровень в трассе", async () => {
+    const env = await envWith({ steps: [escalate(), step] });
+    const f = await run(env);
+    let list = await env.list("/rule-prompts");
+    assert.eq(list.map((p) => [p.kind, p.level, p.roleId, p.text, p.step]), [["escalate", 1, guardRole, "", "0"]], "первый уровень");
+    assert.eq(Date.parse(list[0].until) - Date.parse(list[0].openedAt), 15 * 60000, "срок — вся эскалация");
+    await env.advance(5 * 60);
+    list = await env.list("/rule-prompts");
+    assert.eq(list.map((p) => [p.level, p.roleId, p.canAnswer]), [[1, guardRole, true], [2, other.roleIds[0], false]], "второй уровень открылся, первый открыт");
+    assert.eq((await fireOf(env, f.id)).result, "waiting", "ждёт");
+    const bad = await env.call("POST", `/rule-prompts/${list[0].id}/answer`, { answer: "yes" });
+    assert.status(bad, 422, "VALIDATION_FAILED", "эскалации отвечают ack");
+    assert.status(await env.call("POST", `/rule-prompts/${list[1].id}/answer`, { answer: "ack" }), 403, "PERMISSION_DENIED", "уровень чужой роли");
+    assert.status(await env.call("POST", `/rule-prompts/${list[0].id}/answer`, { answer: "ack" }), 202);
+    assert.eq(await env.list("/rule-prompts"), [], "закрыты все уровни");
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 1], "пошёл дальше");
+    assert.ok(now.steps.some((s) => s.label && s.label.code === "esc.ack" && s.label.params.login === guard.login), "кто квитировал");
+  }, { needs: [...PROMPTS, "clock"] });
+
+  test("Эскалация: никто не квитировал — конец последнего уровня, запуск идёт дальше", async () => {
+    const env = await envWith({ steps: [escalate({ levels: [{ roleId: guardRole, via: "client", waitMin: 1 }, { roleId: guardRole, via: "client", waitMin: 0 }] }), step] });
+    const f = await run(env);
+    await env.advance(60);
+    assert.eq(await env.list("/rule-prompts"), [], "закрыто");
+    const now = await fireOf(env, f.id);
+    assert.eq([now.result, now.steps.some((s) => s.label && s.label.code === "esc.none")], ["ok", true], "итог");
+  }, { needs: [...PROMPTS, "clock"] });
+
+  test("Эскалация: stop: reset — конец события останавливает, вопросы закрываются с reason: reset", async () => {
+    const sensor = FX.devices.find((d) => d.type === "sensor");
+    const tr = { source: "vms", kind: "io.input", target: dev(sensor.id), match: { value: "active" } };
+    const env = await envWith({ start: "event", runMode: "always", triggers: [tr], steps: [escalate({ stop: "reset" }), step] });
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => m.type === "prompt.closed" && seen.push(m.payload.reason));
+    await ApiTest.settle();
+    const before = (await env.list(`/rules/${base.id}/fires`)).length;
+    assert.status(await env.call("POST", "/test/events", { type: "io.input", deviceId: sensor.id, value: "active" }), 200);
+    const fires = await env.list(`/rules/${base.id}/fires`);
+    assert.eq([fires.length, fires[0].result, fires[0].by], [before + 1, "waiting", "event"], "запуск по событию ждёт");
+    assert.eq((await env.list("/rule-prompts")).length, 1, "вопрос открыт");
+    assert.status(await env.call("POST", "/test/events", { type: "io.input", deviceId: sensor.id, value: "normal" }), 200);
+    assert.eq(await env.list("/rule-prompts"), [], "закрыт");
+    const now = await fireOf(env, fires[0].id);
+    assert.eq([now.result, now.steps.some((s) => s.label && s.label.code === "esc.reset")], ["ok", true], "итог");
+    await ApiTest.settle();
+    stop();
+    assert.eq(seen, ["reset"], "причина");
+  }, { needs: [...PROMPTS, "type:sensor"] });
+
+  test("Ход: правку, выключение, удаление правила запуск не переживает — вопросы закрыты, ответ не действует", async () => {
+    const off = async (change) => {
+      const env = await envWith({ steps: [ask()] }, { login: "root" });
+      const f = await run(env);
+      const [p] = await env.list("/rule-prompts");
+      const seen = [];
+      const stop = ApiTest.subscribeForTest((m) => m.type === "prompt.closed" && seen.push(m.payload.reason));
+      await ApiTest.settle();
+      await change(env, await env.ok("GET", `/rules/${base.id}`));
+      assert.eq(await env.list("/rule-prompts"), [], "вопросов нет");
+      await ApiTest.settle();
+      stop();
+      assert.eq(seen, ["stopped"], "причина");
+      const fires = await env.list(`/rules/${base.id}/fires`).catch(() => null);
+      if (fires) assert.ok(fires.find((x) => x.id === f.id).result !== "waiting", "запуск снят");
+      return p;
+    };
+    await off((env, r) => env.ok("PUT", `/rules/${r.id}`, body(r, { purpose: "другое" }), etag(r)));
+    await off((env, r) => env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { enabled: false } }] }));
+    await off((env, r) => env.ok("POST", "/objects/delete", { idempotencyKey: ApiTest.key(), items: [{ id: r.id, version: r.version }] }));
+    const env = await envWith({ steps: [ask()] }, { login: "root" });
+    await run(env);
+    const r = await env.ok("GET", `/rules/${base.id}`);
+    await env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { mute: { until: new Date(env.now + 3600000).toISOString().replace(/\.\d+Z$/, "Z"), reason: "" } } }] });
+    assert.eq((await env.list("/rule-prompts")).length, 1, "приглушение запуск не снимает");
+  }, { needs: PROMPTS });
+
+  test("Ход: repeat — skip пропускает, restart снимает прежний, queue идёт следом, сверх 16 — как skip", async () => {
+    let env = await envWith({ repeat: "skip", steps: [ask()] });
+    await run(env);
+    const s = await run(env);
+    assert.eq([s.result, s.checks.find((c) => c.code === "busy").reason.code, (await env.list("/rule-prompts")).length], ["skip", "busy.skip", 1], "skip");
+    env = await envWith({ repeat: "restart", steps: [ask()] });
+    const a = await run(env);
+    const [p] = await env.list("/rule-prompts");
+    const b = await run(env);
+    const [q, ...more] = await env.list("/rule-prompts");
+    assert.eq([b.result, q.fireId, more.length, q.id !== p.id], ["waiting", b.id, 0, true], "restart: новый вопрос");
+    assert.ok((await fireOf(env, a.id)).result !== "waiting", "прежний снят");
+    env = await envWith({ repeat: "queue", steps: [ask(), step] });
+    const first = await run(env);
+    const second = await run(env);
+    assert.eq([second.result, second.steps.length, second.checks.find((c) => c.code === "busy").reason.code, (await env.list("/rule-prompts")).length], ["waiting", 0, "busy.queue", 1], "queue: ждёт очереди, вопроса нет");
+    const [x] = await env.list("/rule-prompts");
+    await env.ok("POST", `/rule-prompts/${x.id}/answer`, { answer: "yes" });
+    const [y] = await env.list("/rule-prompts");
+    assert.eq([y.fireId, (await fireOf(env, first.id)).result], [second.id, "ok"], "очередь пошла концом прежнего");
+    for (let i = 0; i < 15; i++) assert.eq((await run(env)).result, i < 15 ? "waiting" : "skip", "место в очереди");
+    assert.eq((await run(env)).result, "skip", "сверх 16 — как skip");
+  }, { needs: PROMPTS });
+
   ApiTest.loaded("api-automation.js");
 })();

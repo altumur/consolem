@@ -5721,6 +5721,100 @@
         },
         "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
       }
+    },
+    "/rule-prompts": {
+      "get": {
+        "operationId": "listRulePrompts",
+        "tags": [
+          "automation"
+        ],
+        "summary": "Открытые вопросы операторам",
+        "description": "Вопросы шагов ask и уровней escalate, которые сейчас ждут ответа, всех ролей: canAnswer говорит, может ли ответить спросивший. Закрытых здесь нет: итог — в RuleFire. Новые и закрытые приходят потоком: prompt.opened, prompt.closed. Объявляется вместе с шагами ask, escalate в reference.ruleControls",
+        "responses": {
+          "200": {
+            "description": "Список",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RulePrompt"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/rule-prompts/{promptId}/answer": {
+      "post": {
+        "operationId": "answerRulePrompt",
+        "tags": [
+          "automation"
+        ],
+        "summary": "Ответить на вопрос оператору",
+        "description": "Отвечает человек с ролью шага: нет роли — 403 PERMISSION_DENIED. Считается первый ответ по времени: на закрытый ответом вопрос — 409 BUSY, params.reason: answered, в том числе повтор того же человека. Срок вышел или запуск снят — 409 NOT_RUNNABLE, params.reason.code: over, ответ не действует. Ответ не того вида — 422 VALIDATION_FAILED, field: answer. 202 — ответ принят, итог приходит событием prompt.closed и виден в RuleFire: система вправе судить ответы своим проходом, поэтому 202 не обещает, что засчитан именно этот",
+        "parameters": [
+          {
+            "name": "promptId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RulePromptAnswer"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Ответ принят"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7140,7 +7234,7 @@
               "restart",
               "queue"
             ],
-            "description": "Новое событие, пока идёт прежний запуск"
+            "description": "Новое событие, пока идёт прежний запуск. skip — пропустить. restart — снять прежний, его вопросы закрываются. queue — очередь до 16 запусков, сверх — как skip; запуск из очереди начинается концом прежнего"
           },
           "triggers": {
             "type": "array",
@@ -7432,7 +7526,8 @@
                     "ok",
                     "fail",
                     "skip",
-                    "would"
+                    "would",
+                    "waiting"
                   ]
                 },
                 "reason": {
@@ -7482,8 +7577,10 @@
               "part",
               "fail",
               "skip",
-              "watch"
-            ]
+              "watch",
+              "waiting"
+            ],
+            "description": "ok, part, fail, skip, watch — итог. waiting — запуск стоит на шаге ожидания или в очереди repeat: queue; когда пойдёт дальше, запись меняется, entity.changed с kind ruleFire. Правка, выключение, удаление правила снимают идущий запуск"
           }
         },
         "additionalProperties": false,
@@ -9205,7 +9302,9 @@
               "operation.progress",
               "operation.finished",
               "discovery.progress",
-              "discovery.finished"
+              "discovery.finished",
+              "prompt.opened",
+              "prompt.closed"
             ],
             "x-enum-descriptions": {
               "stream.reset": "Пропущенное не дослать (Last-Event-ID слишком старый): клиент перечитывает всё",
@@ -9216,7 +9315,9 @@
               "operation.progress": "Шаг операции завершён: kind=operation, entityId — операция, payload — шаг (OperationItem) и счётчики",
               "operation.finished": "Операция завершена: payload — итог (state, ok, failed, cancelled)",
               "discovery.progress": "Поиск в сети нашёл устройство: kind=discovery, entityId — домен, payload — progress и candidate",
-              "discovery.finished": "Поиск в сети закончился или остановлен: payload — state"
+              "discovery.finished": "Поиск в сети закончился или остановлен: payload — state",
+              "prompt.opened": "Открыт вопрос оператору: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, roleId, level. Клиент перечитывает GET /rule-prompts",
+              "prompt.closed": "Вопрос закрыт: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, reason: answered, expired, reset, stopped; при answered ещё answer и by — кто ответил"
             }
           },
           "at": {
@@ -9247,7 +9348,8 @@
               "maintenanceWindow",
               "streamAccounts",
               "archiveWatch",
-              "archiveScan"
+              "archiveScan",
+              "rulePrompt"
             ]
           },
           "entityId": {
@@ -9378,13 +9480,14 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "device.signal — пропало или вернулось соединение с устройством (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId)",
+            "description": "device.signal — пропало или вернулось соединение с устройством (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId), io.input — сигнал входа deviceId (value): active запускает включённые правила по этому событию, normal кончает событие: эскалация с stop: reset останавливается",
             "enum": [
               "device.signal",
               "device.fault",
               "device.found",
               "device.lost",
-              "device.parent"
+              "device.parent",
+              "io.input"
             ]
           },
           "deviceId": {
@@ -9432,6 +9535,14 @@
             ],
             "format": "uuid",
             "description": "device.parent: новый родитель"
+          },
+          "value": {
+            "type": "string",
+            "enum": [
+              "active",
+              "normal"
+            ],
+            "description": "io.input: начало или конец сигнала"
           }
         },
         "additionalProperties": false,
@@ -11952,7 +12063,7 @@
               "restart",
               "queue"
             ],
-            "description": "Новое событие, пока идёт прежний запуск"
+            "description": "Новое событие, пока идёт прежний запуск. skip — пропустить. restart — снять прежний, его вопросы закрываются. queue — очередь до 16 запусков, сверх — как skip; запуск из очереди начинается концом прежнего"
           },
           "triggers": {
             "type": "array",
@@ -12458,7 +12569,8 @@
           },
           "sec": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Включённое правило: 1…3600, иначе 422 RULE_INVALID, control.sec"
           }
         },
         "additionalProperties": false,
@@ -12482,7 +12594,8 @@
           },
           "sec": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Включённое правило: 1…3600, иначе 422 RULE_INVALID, control.sec"
           },
           "yes": {
             "type": "array",
@@ -12528,7 +12641,8 @@
           },
           "sec": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "Включённое правило: 1…3600, иначе 422 RULE_INVALID, control.sec. Нет ответа за это время — как default"
           },
           "default": {
             "type": "string",
@@ -12561,7 +12675,7 @@
           "yes",
           "no"
         ],
-        "description": "Спросить оператора роли roleId"
+        "description": "Спросить оператора роли roleId. Запуск ждёт: вопрос — RulePrompt, ответ — POST /rule-prompts/{id}/answer. Запуск «Только журнал» спрашивает так же"
       },
       "RuleEscalate": {
         "type": "object",
@@ -12594,7 +12708,8 @@
                 },
                 "waitMin": {
                   "type": "integer",
-                  "minimum": 0
+                  "minimum": 0,
+                  "description": "Включённое правило: 1…120, у последнего уровня 0…120, иначе 422 RULE_INVALID, escalate.wait"
                 }
               },
               "additionalProperties": false,
@@ -12603,7 +12718,8 @@
                 "via",
                 "waitMin"
               ]
-            }
+            },
+            "description": "Уровни по очереди, не больше 5. Уровень стоит waitMin минут. Вопрос уровня — RulePrompt: ответ ack останавливает эскалацию, ответить можно на любом открытом уровне"
           },
           "stop": {
             "type": "string",
@@ -12611,7 +12727,7 @@
               "ack",
               "reset"
             ],
-            "description": "Остановить, когда тревогу квитируют или когда закончится событие"
+            "description": "ack — остановить, когда квитируют. reset — ещё и когда кончится событие: сигнал того же входа вернулся в норму, триггер io.input"
           }
         },
         "additionalProperties": false,
@@ -12620,7 +12736,7 @@
           "levels",
           "stop"
         ],
-        "description": "Уведомлять роли по очереди, пока не квитируют"
+        "description": "Уведомлять роли по очереди, пока не квитируют. Тревога — событие журнала, а не запись: квитируется шаг эскалации, закрывать нечего. Срок всей эскалации — сумма waitMin"
       },
       "RuleStep": {
         "anyOf": [
@@ -12734,7 +12850,7 @@
               "restart",
               "queue"
             ],
-            "description": "Новое событие, пока идёт прежний запуск"
+            "description": "Новое событие, пока идёт прежний запуск. skip — пропустить. restart — снять прежний, его вопросы закрываются. queue — очередь до 16 запусков, сверх — как skip; запуск из очереди начинается концом прежнего"
           },
           "triggers": {
             "type": "array",
@@ -12936,7 +13052,7 @@
               "restart",
               "queue"
             ],
-            "description": "Новое событие, пока идёт прежний запуск"
+            "description": "Новое событие, пока идёт прежний запуск. skip — пропустить. restart — снять прежний, его вопросы закрываются. queue — очередь до 16 запусков, сверх — как skip; запуск из очереди начинается концом прежнего"
           },
           "triggers": {
             "type": "array",
@@ -15597,6 +15713,99 @@
           "reason"
         ],
         "description": "Что сервер знает о правиле сейчас. Наблюдение: в версию записи не входит, события потока не шлёт"
+      },
+      "RulePrompt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ruleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fireId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Запуск: RuleFire.id"
+          },
+          "step": {
+            "type": "string",
+            "description": "Путь шага в steps правила: «0», «2.no.1»"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "ask",
+              "escalate"
+            ],
+            "description": "ask — вопрос, ответ yes или no; escalate — уровень эскалации, ответ ack"
+          },
+          "text": {
+            "type": "string",
+            "description": "ask: вопрос с подставленными значениями запуска. escalate: пусто, своего текста у шага нет"
+          },
+          "roleId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Кто отвечает: роль шага или уровня"
+          },
+          "level": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "description": "escalate: номер уровня с 1. ask: null"
+          },
+          "openedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "until": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Срок: после него ответ не действует. ask — конец ожидания шага, escalate — конец последнего уровня: уровень, до которого дошло, остаётся открыт, пока идёт эскалация"
+          },
+          "canAnswer": {
+            "type": "boolean",
+            "description": "Есть ли роль шага у того, кто спрашивает"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "ruleId",
+          "fireId",
+          "step",
+          "kind",
+          "text",
+          "roleId",
+          "level",
+          "openedAt",
+          "until",
+          "canAnswer"
+        ],
+        "description": "Открытый вопрос оператору: запуск стоит на шаге ask или на уровне escalate"
+      },
+      "RulePromptAnswer": {
+        "type": "object",
+        "properties": {
+          "answer": {
+            "type": "string",
+            "enum": [
+              "yes",
+              "no",
+              "ack"
+            ],
+            "description": "ask: yes, no. escalate: ack, квитировать на уровне вопроса"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "answer"
+        ]
       }
     }
   }

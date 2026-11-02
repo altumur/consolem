@@ -53,7 +53,7 @@
   // Вид записи — первая цифра UUID (api/README.md, «Идентификаторы»): сервер продолжает номера набора
   const KIND = { operation: "0", domain: "1", server: "2", device: "3", folder: "4", archive: "5", volume: "6", rule: "7", fire: "d", history: "e",
     // «Автоматизация»: первая цифра «f», вид — во второй группе UUID
-    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007" };
+    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007", prompt: "f-0008" };
   const TABLES = { domains: "domain", servers: "server", devices: "device", folders: "folder", archives: "archive", volumes: "volume", rules: "rule" };
   // Ответ на запрос с ключом повтора помнится 10 минут: повтор получает его же и ничего не выполняет снова
   const IDEMPOTENCY_MS = 10 * 60 * 1000;
@@ -63,6 +63,8 @@
   const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels", "validForSec"];
   const STREAM_DEPTH = 500;
+  // Запусков одного правила на строке хода: идущий и очередь (repeat: queue), сверх — как skip
+  const RUNS_MAX = 16;
   // Стопка отката: сколько операций и как долго сервер помнит, что вернуть
   const UNDO_KEEP = 50;
   const UNDO_MS = 7 * 86400000;
@@ -103,6 +105,8 @@
       db.dayGroups = clone(fixture.dayGroups || []);
       lastMode = null;
       me = db.me.userId;
+      ruleRuns = [];
+      prompts = [];
       secrets = new Map();
       ops = new Map();
       redoStack = [];
@@ -885,6 +889,7 @@
     function removeRule(r) {
       db.rules = db.rules.filter((x) => x !== r);
       db.ruleVersions = db.ruleVersions.filter((v) => v.ruleId !== r.id);
+      runsStop(r.id);
       send("entity.deleted", { kind: "rule", entityId: r.id });
       db.schedules.filter((sc) => sc.owner && sc.owner.kind === "rule" && sc.owner.id === r.id && !scheduleUsed(sc.id)).forEach(removeSchedule);
     }
@@ -1070,6 +1075,108 @@
     }
     const stateNote = (r) => ({ code: "state", params: { mode: !r.enabled ? "off" : r.logOnly ? "watch" : "on" } });
     const sysToday = () => engine.stamp(now()).slice(0, 10);
+    /* ----- Ход правил: запуски, которые ждут человека, и вопросы им (ask, escalate) -----
+       Запуск встал — запись RuleFire с result: waiting и строка в ruleRuns. Ответ или срок решают шаг: запуск
+       считается заново тем же движком с записанными исходами, запись обновляется. Настоящий бэкенд держит
+       это в строке запуска и переживает перезапуск; здесь — в памяти до /test/reset */
+    let ruleRuns = [], prompts = [];
+    const runRec = (run) => db.ruleFires.find((x) => x.id === run.fireId);
+    const promptView = (p) => ({ id: p.id, ruleId: p.ruleId, fireId: p.fireId, step: p.step, kind: p.kind, text: p.text, roleId: p.roleId, level: p.level,
+      openedAt: p.openedAt, until: p.until, canAnswer: myRoleIds().includes(p.roleId) });
+    function promptOpen(run, f) {
+      const p = Object.assign({ id: uuid("prompt"), ruleId: run.ruleId, fireId: run.fireId, step: run.pause.key, openedAt: iso(now()), until: iso(run.pause.until), closed: null }, f);
+      prompts.push(p);
+      send("prompt.opened", { kind: "rulePrompt", entityId: p.id, payload: { ruleId: p.ruleId, fireId: p.fireId, step: p.step, roleId: p.roleId, level: p.level } });
+    }
+    function promptsClose(run, reason, extra) {
+      prompts.filter((p) => p.fireId === run.fireId && !p.closed).forEach((p) => {
+        p.closed = reason;
+        send("prompt.closed", { kind: "rulePrompt", entityId: p.id, payload: Object.assign({ ruleId: p.ruleId, fireId: p.fireId, step: p.step, reason }, extra || {}) });
+      });
+    }
+    function runPause(run, pause) {
+      const c = pause.control, t = now();
+      run.pause = { key: pause.key, control: c };
+      if (c.control === "ask") {
+        run.pause.until = t + c.sec * 1000;
+        return promptOpen(run, { kind: "ask", text: engine.fillText(c.text, run.rule, runRec(run)), roleId: c.roleId, level: null });
+      }
+      let at = t;
+      run.pause.levels = c.levels.map((l) => {
+        const x = { at, roleId: l.roleId };
+        at += l.waitMin * 60000;
+        return x;
+      });
+      run.pause.until = at;
+      run.pause.reached = 0;
+      runLevels(run);
+    }
+    // Уровни, до которых дошло время: вопрос прежнего остаётся открытым до конца эскалации
+    function runLevels(run) {
+      const p = run.pause;
+      while (p.reached < p.levels.length && now() >= p.levels[p.reached].at) {
+        p.reached += 1;
+        promptOpen(run, { kind: "escalate", text: "", roleId: p.levels[p.reached - 1].roleId, level: p.reached });
+      }
+    }
+    // Шаг решён: запуск идёт дальше до следующего ожидания или до конца
+    function runDecide(run, outcome, who) {
+      run.br[run.pause.key] = outcome;
+      if (who) run.who[run.pause.key] = who;
+      run.pause = null;
+      runGo(run);
+    }
+    function runGo(run) {
+      const rec = runRec(run);
+      const f = engine.fire(run.rule, { via: run.via, by: rec.by, at: run.at, now: true, i: 0, live: true, br: run.br, who: run.who, events: run.events, src: run.src, checks: rec.checks, watch: rec.logOnly });
+      Object.assign(rec, { at: f.at, steps: f.steps, result: f.result });
+      send("entity.changed", { kind: "ruleFire", entityId: rec.id, payload: { ruleId: rec.ruleId } });
+      if (f.pause) return runPause(run, f.pause);
+      ruleRuns = ruleRuns.filter((x) => x !== run);
+      const next = ruleRuns.find((x) => x.ruleId === run.ruleId && x.queued);
+      if (next && !ruleRuns.some((x) => x.ruleId === run.ruleId && !x.queued)) {
+        next.queued = false;
+        next.at = now();
+        runGo(next);
+      }
+    }
+    // Запуск снят правкой правила или repeat: restart: итог — по тому, что успело выполниться
+    function runStop(run) {
+      promptsClose(run, "stopped");
+      ruleRuns = ruleRuns.filter((x) => x !== run);
+      const rec = runRec(run);
+      rec.steps = rec.steps.map((s) => (s.state === "waiting" ? Object.assign({}, s, { state: "skip", reason: { code: "run.stopped", params: {} } }) : s));
+      rec.result = run.queued ? "skip" : engine.outcome(rec.steps, rec.logOnly);
+      send("entity.changed", { kind: "ruleFire", entityId: rec.id, payload: { ruleId: rec.ruleId } });
+    }
+    const runsStop = (ruleId) => ruleRuns.filter((x) => x.ruleId === ruleId).forEach(runStop);
+    function runDue() {
+      return ruleRuns.filter((x) => x.pause).flatMap((x) => [x.pause.until, ...(x.pause.levels || []).slice(x.pause.reached).map((l) => l.at)]);
+    }
+    function runTick() {
+      ruleRuns.slice().forEach((run) => {
+        const p = run.pause;
+        if (!p) return;
+        if (p.levels) runLevels(run);
+        if (now() < p.until) return;
+        promptsClose(run, "expired");
+        runDecide(run, "none", p.levels ? { level: p.levels.length, at: iso(now()) } : null);
+      });
+    }
+    // Новый запуск: repeat судит идущий, запуск встаёт на первом ожидании (V/07.4)
+    function ruleStart(r, o) {
+      const busy = ruleRuns.filter((x) => x.ruleId === r.id), rp = r.repeat || "skip";
+      const over = rp === "queue" && busy.length >= RUNS_MAX, queued = !!busy.length && rp === "queue" && !over;
+      if (busy.length && rp === "restart") busy.forEach(runStop);
+      const rule = clone(r), at = now();
+      const f = engine.fire(rule, Object.assign({ at, now: true, i: 0, live: true, busy: !!busy.length, busyAs: over ? "skip" : undefined, queued }, o));
+      const rec = storeFire(f);
+      if (!queued && !f.pause) return rec;
+      const run = { ruleId: r.id, fireId: rec.id, rule, via: o.via, at, events: rec.events, src: rec.sourceDeviceIds, br: {}, who: {}, pause: null, queued };
+      ruleRuns.push(run);
+      if (f.pause) runPause(run, f.pause);
+      return rec;
+    }
     function storeFire(f) {
       const rec = Object.assign({ id: uuid("fire") }, f);
       db.ruleFires.push(rec);
@@ -1579,6 +1686,7 @@
         fired.push({ kind: "catalog", id: cid });
       });
       tickDiscovery(fired);
+      runTick();
       modeTick();
       formatting.forEach((at, id) => {
         if (at > now()) return;
@@ -2288,6 +2396,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const bad = precondition(r, headers) || ruleRightProblem(body) || ruleProblem(body);
           if (bad) return bad;
           const was = ruleMeta(r);
+          runsStop(r.id);
           RULE_CONTENT.forEach((k) => (r[k] = clone(body[k])));
           Object.assign(r, { changedAt: iso(now()), changedBy: myLogin() });
           bump(r);
@@ -2431,6 +2540,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
               if (next.enabled && next.logOnly && !(r.enabled && r.logOnly)) next.logOnlySince = sysToday();
               if (next.enabled && !next.logOnly) next.logOnlySince = null;
               ["enabled", "logOnly", "logOnlySince"].forEach((k) => (r[k] = next[k]));
+              runsStop(r.id);
               Object.assign(r, { changedAt: iso(now()), changedBy: myLogin() });
             }
             if ("mute" in set) r.mute = set.mute ? { since: iso(now()), until: set.mute.until, by: myLogin(), reason: set.mute.reason || "" } : null;
@@ -2491,7 +2601,25 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const out = engine.undeclared(r, db.reference);
           const why = !r.enabled ? { code: "off" } : out ? out.issue : engine.issue(r);
           if (why) return problem(409, "NOT_RUNNABLE", "Правило сейчас не запустить", { params: { reason: why } });
-          return { status: 201, body: storeFire(engine.fire(r, { via: "manual", at: now(), now: true, i: 0 })) };
+          return { status: 201, body: clone(ruleStart(r, { via: "manual" })) };
+        },
+      ],
+      ["GET", "/rule-prompts", () => items(prompts.filter((x) => !x.closed).map(promptView))],
+      [
+        "POST",
+        "/rule-prompts/{id}/answer",
+        (p, q, body) => {
+          const pr = prompts.find((x) => x.id === p.id);
+          if (!pr) return notFound("Вопрос");
+          if (!myRoleIds().includes(pr.roleId)) return problem(403, "PERMISSION_DENIED", "Отвечает человек с ролью шага", { params: { roleId: pr.roleId } });
+          if (pr.closed === "answered") return problem(409, "BUSY", "На вопрос уже ответили", { params: { reason: "answered" } });
+          if (pr.closed) return problem(409, "NOT_RUNNABLE", "Запуск больше не ждёт ответа", { params: { reason: { code: "over" } } });
+          if (!(pr.kind === "ask" ? ["yes", "no"] : ["ack"]).includes(body.answer)) return problem(422, "VALIDATION_FAILED", "Ответ не этого вида", { field: "answer" });
+          const run = ruleRuns.find((x) => x.fireId === pr.fireId), who = { login: myLogin(), at: iso(now()) };
+          if (pr.kind === "escalate") who.level = run.pause.reached;
+          promptsClose(run, "answered", { answer: body.answer, by: who.login });
+          runDecide(run, pr.kind === "ask" ? body.answer : `ack:${pr.level}`, who);
+          return { status: 202 };
         },
       ],
       ["GET", "/rules/{id}/versions", (p) => (byId("rules", p.id) ? items(db.ruleVersions.filter((v) => v.ruleId === p.id).map(versionView)) : notFound("Правило"))],
@@ -3001,7 +3129,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const fired = [];
           const target = now() + ms;
           for (let t = now(); ; ) {
-            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at));
+            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at), ...runDue());
             if (clock.frozenAt != null) clock.frozenAt = Math.max(t, due);
             else clock.offset += Math.max(t, due) - now();
             fired.push(...tick());
@@ -3027,6 +3155,22 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           }
           if (body.type === "device.lost") {
             removeDevice(dev.id);
+            return { status: 200, body: { applied: true } };
+          }
+          // Сигнал входа: начало запускает правила с одним событием io.input, конец останавливает эскалацию с stop: reset
+          if (body.type === "io.input") {
+            if (!body.value) return problem(422, "VALIDATION_FAILED", "Нужно value", { field: "value" });
+            const at = iso(now());
+            if (body.value === "active") {
+              const ev = { source: "vms", kind: "io.input", match: { value: "active" }, deviceId: dev.id, at };
+              db.rules.filter((r) => r.enabled && r.start === "event" && r.runMode !== "manual" && r.triggers.length === 1 && (r.triggers[0].match.value || "active") === "active" && engine.hears(r.triggers[0], "io.input", dev.id))
+                .forEach((r) => ruleStart(r, { via: "event", events: [ev], src: [dev.id] }));
+            } else
+              ruleRuns.filter((x) => x.pause && x.pause.control.stop === "reset" && x.events.some((e) => e.kind === "io.input" && e.deviceId === dev.id)).forEach((x) => {
+                const level = x.pause.reached;
+                promptsClose(x, "reset");
+                runDecide(x, "reset", { level, at });
+              });
             return { status: 200, body: { applied: true } };
           }
           if (body.type === "device.parent") {

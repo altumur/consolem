@@ -3184,7 +3184,7 @@ function sysParts(iso){
 }
 // Запуск: трасса кодами → запись раздела с подписями (label, why, note), как её строил макет
 const STEP_WHY={"relay.timeout":"реле не ответило за 2 с","target.gone":"устройство удалено","target.areaGone":"область удалена","target.deviceGone":"устройство удалено",
-  "notifier.gone":"оповещатель удалён","target.noRecord":"запись не ведётся: проверять нечего","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
+  "run.stopped":"запуск снят: правило изменили или запустили заново","notifier.gone":"оповещатель удалён","target.noRecord":"запись не ведётся: проверять нечего","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
   skipped:"запуск пропущен","chain.ruleGone":"правило удалено","chain.ruleOff":"правило выключено","busy.skip":"новое событие пропущено",
   "busy.restart":"прежний запуск остановлен, начат заново","busy.queue":"запуск поставлен в очередь после текущего","event.none":"событие не получено"};
 function fireDev(id){const n=id?find(id)?.n:null;return n}
@@ -3254,6 +3254,7 @@ function fireNote(m){
   if(m.code==="waitEvent.came")return`${i18n("пришло через")} ${p.sec} ${i18n("с")}`;
   if(m.code==="waitEvent.timeout")return`${i18n("не пришло за")} ${p.sec} ${i18n("с")}`;
   if(m.code==="ask.answer")return`${i18n(p.answer==="yes"?"подтвердил":"отклонил")} ${p.login} ${i18n("в")} ${ck(p.at)}`;
+  if(m.code==="ask.waiting")return i18n("ждёт ответа оператора");
   if(m.code==="ask.noAnswer")return`${i18n("нет ответа за")} ${p.sec} ${i18n("с")} — ${i18n("засчитано")} «${i18n(p.counted==="yes"?"подтвердил":"отклонил")}»`;
   if(m.code==="escalate.until")return i18n(p.stop==="reset"?"пока не закончится событие":"пока тревогу не квитируют");
   if(m.code==="clock")return ck(p.at);
@@ -3377,7 +3378,8 @@ function autoEvent(m){
   if(m.type==="entity.changed"&&m.version&&autoVer.get(m.entityId)===m.version)return;
   if(m.type==="entity.created"&&autoVer.has(m.entityId))return;
   if(m.type==="entity.deleted"&&!autoVer.has(m.entityId)&&m.kind!=="ruleFire")return;
-  if(m.kind==="ruleFire"){const id=m.payload&&m.payload.ruleId;if(id&&!(ruleFires[id]||[]).some(f=>f.id===m.entityId))autoDirty.add("fires:"+id)}
+  // Запуск, который ждал, меняется на месте: событие приходит и об известной записи
+  if(m.kind==="ruleFire"){const id=m.payload&&m.payload.ruleId;if(id&&(m.type==="entity.changed"||!(ruleFires[id]||[]).some(f=>f.id===m.entityId)))autoDirty.add("fires:"+id)}
   else if(m.kind==="rule"&&m.type==="entity.changed")autoDirty.add("rule:"+m.entityId);
   else autoDirty.add(m.kind);
   clearTimeout(autoT);autoT=setTimeout(autoFlush,60);
@@ -10551,6 +10553,7 @@ function ruleStepGood(f){return ruleActSteps(f).filter(s=>s.st==="ok"||s.st==="w
 // Итог запуска одним словом: значок, текст, класс цвета.
 function ruleResInfo(f){
   const n=ruleActSteps(f).length,g=ruleStepGood(f);
+  if(f.res==="waiting")return[lu("clock"),i18n("ждёт ответа"),"watch"];
   if(f.res==="ok")return[lu("check"),i18n("выполнено"),"ok"];
   if(f.res==="part")return[lu("contrast"),`${i18n("частично")} ${g} ${i18n("из")} ${n}`,"part"];
   if(f.res==="skip")return[lu("minus"),i18n("пропущено"),"skip"];
@@ -10571,7 +10574,7 @@ function ruleDevLink(ref,modal,t){
   return`<button type="button" class="lk" ${onEv("click",go,["ruleGoDevice",n.id])}>${escHtml(locName(n))}</button>`
     +(n.type==="camera"&&t?` <button type="button" class="lk" ${onEv("click",go,["ruleGoArchive",n.id,t])}>${i18n("Архив на")} ${escHtml(t)}</button>`:"");
 }
-const RULE_STEP_SYM={ok:[lu("check"),"выполнено"],fail:[lu("x"),"не выполнено"],skip:[lu("minus"),"пропущено"],would:[lu("eye"),"выполнилось бы"]};
+const RULE_STEP_SYM={waiting:[lu("clock"),"ждёт ответа"],ok:[lu("check"),"выполнено"],fail:[lu("x"),"не выполнено"],skip:[lu("minus"),"пропущено"],would:[lu("eye"),"выполнилось бы"]};
 function ruleTraceHtml(f,modal){
   const li=(sym,cls,label,inner,pad)=>`<li${pad?` style="margin-left:${pad*18}px"`:""}><span class="rl-sym ${cls}" role="img" aria-label="${escHtml(label)}" title="${escHtml(label)}">${sym}</span><span>${inner}</span></li>`;
   const ev=f.ev.length?`<div class="rl-th">${i18n("Событие")}</div><ul class="rl-tl">${f.ev.map(e=>li(lu("zap"),"",i18n("Событие"),`${escHtml(e.label)} · ${ruleDevLink(e.ref,modal,e.t)} · <span class="sub">${escHtml(e.t)}</span>`)).join("")}</ul>`:"";
@@ -12383,6 +12386,7 @@ function ruleRunNow(){
         ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";
         paint();
         if(rec.res==="skip"){const c=rec.checks.find(x=>!x.ok);toast(`${i18n("Запуск пропущен")}: ${c?ruleCondTail(c):""}`);return}
+        if(rec.res==="waiting"){toast(`${i18n("Правило запущено и ждёт ответа оператора")}: ${g} ${i18n("из")} ${n}`);return}
         toast(`${i18n(r.watch?"Записано в журнал: выполнилось бы":"Правило выполнено:")} ${g} ${i18n("из")} ${n}`);
       }).catch(e=>toast(problemText(e)));
     },{html:true,rawTitle:true,cancelLabel:"Отменить",okOff:bad.length?"Условия не выполнены: запуск был бы пропущен":""});

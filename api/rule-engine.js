@@ -500,7 +500,7 @@
       if (!l.length) return msg("escalate.noLevels");
       if (l.length > RULE_ESC_MAX) return msg("escalate.tooMany", { max: RULE_ESC_MAX });
       if (l.some((x) => !roleOk(x.roleId))) return msg("control.noRole", { control: c.control });
-      if (l.slice(0, -1).some((x) => !(x.waitMin >= 1 && x.waitMin <= 120))) return msg("escalate.wait");
+      if (l.slice(0, -1).some((x) => !(x.waitMin >= 1 && x.waitMin <= 120)) || !(l[l.length - 1].waitMin >= 0 && l[l.length - 1].waitMin <= 120)) return msg("escalate.wait");
       if (c.stop === "reset" && !hasEnds(r)) return msg("escalate.resetNoEnd");
       return null;
     }
@@ -598,7 +598,7 @@
         else c.push({ code: "rate", params: { n: o.rateN || 1, max: r.ratePerMinute }, ok: true, reason: null });
       }
       if (o.busy) {
-        const rp = r.repeat || "skip";
+        const rp = o.busyAs || r.repeat || "skip";
         c.push(rp === "skip" ? { code: "busy", params: {}, ok: false, reason: msg("busy.skip") } : { code: "busy", params: {}, ok: true, reason: msg("busy." + rp) });
       }
       return c;
@@ -634,15 +634,20 @@
         return { label: msg("ctl.waitEvent", { event: { source: c.event.source, kind: c.event.kind, match: c.event.match || {} }, target: c.event.target }), deviceId: n ? n.id : null, pick,
           note: pick === "yes" ? msg("waitEvent.came", { sec: s }) : msg("waitEvent.timeout", { sec: c.sec }) };
       }
+      const who = o.who && o.who[o.key];
       if (c.control === "ask") {
-        const out = (o.br && o.br[o.key]) || (!o.test && i % 5 === 4 ? "none" : !o.test && i % 3 === 1 ? "no" : "yes");
+        if (o.live && !(o.br && o.br[o.key])) return { label: msg("ctl.ask", { text: c.text, roleId: c.roleId }), pause: true, note: msg("ask.waiting") };
+        const out = (o.br && o.br[o.key]) || (o.noHuman ? "none" : !o.test && i % 5 === 4 ? "none" : !o.test && i % 3 === 1 ? "no" : "yes");
         const pick = out === "none" ? (c.default === "yes" ? "yes" : "no") : out;
         const s = Math.max(1, Math.min((c.sec || 1) - 1, 4 + ((i * 11) % 40)));
         return { label: msg("ctl.ask", { text: c.text, roleId: c.roleId }), pick,
-          note: out === "none" ? msg("ask.noAnswer", { sec: c.sec, counted: pick }) : msg("ask.answer", { answer: out, login: roleUser(c.roleId), at: instant(addSec(o.at, s)) }) };
+          note: out === "none" ? msg("ask.noAnswer", { sec: c.sec, counted: pick }) : msg("ask.answer", { answer: out, login: who ? who.login : roleUser(c.roleId), at: who ? who.at : instant(addSec(o.at, s)) }) };
       }
-      const L = c.levels || [], out = (o.br && o.br[o.key]) || (!o.test ? (i % 3 === 0 ? "ack:1" : i % 3 === 1 ? "ack:2" : c.stop === "reset" ? "reset" : "none") : "ack:1");
-      const stopAt = out === "none" ? L.length : out === "reset" ? 1 : Math.min(+out.split(":")[1], L.length), subs = [];
+      const L = c.levels || [];
+      if (o.live && !(o.br && o.br[o.key])) return { label: msg("ctl.escalate", { roleIds: L.map((l) => l.roleId) }), pause: true, note: msg("escalate.until", { stop: c.stop === "reset" ? "reset" : "ack" }) };
+      const out = (o.br && o.br[o.key]) || (o.noHuman ? "none" : !o.test ? (i % 3 === 0 ? "ack:1" : i % 3 === 1 ? "ack:2" : c.stop === "reset" ? "reset" : "none") : "ack:1");
+      // Запуск с настоящим ответом: на каком уровне остановились — докуда дошло, а не кто квитировал
+      const stopAt = who && who.level ? Math.min(who.level, L.length) : out === "none" ? L.length : out === "reset" ? 1 : Math.min(+out.split(":")[1], L.length), subs = [];
       let t = 0;
       L.forEach((l, j) => {
         if (j >= stopAt) {
@@ -653,7 +658,8 @@
         const last = j === stopAt - 1, wait = (l.waitMin || 0) * 60;
         if (last && out !== "none") {
           const w = Math.max(1, Math.min(wait ? wait - 1 : 600, 50 + ((i * 37) % 240)));
-          subs.push({ label: out === "reset" ? msg("esc.reset", { at: instant(addSec(o.at, t + w)) }) : msg("esc.ack", { login: roleUser(l.roleId), at: instant(addSec(o.at, t + w)) }) });
+          const when = who ? who.at : instant(addSec(o.at, t + w));
+          subs.push({ label: out === "reset" ? msg("esc.reset", { at: when }) : msg("esc.ack", { login: who ? who.login : roleUser(l.roleId), at: when }) });
         } else if (last) subs.push({ label: msg("esc.none") });
         else subs.push({ label: msg("esc.wait", { min: l.waitMin }) });
         t += wait;
@@ -670,10 +676,16 @@
     function stepsFor(r, o) {
       const out = [];
       const walk = (list, pre, depth) => list.forEach((a, i) => {
+        if (o.halt && o.halt.at) return;
         const path = [...pre, i], key = path.join(".");
         if (a.control) {
-          const res = controlRun(a, Object.assign({}, o, { key })), st = o.watch ? "would" : "ok";
+          const res = controlRun(a, Object.assign({}, o, { key })), st = res.pause ? "waiting" : o.watch ? "would" : "ok";
           out.push({ path: key, deviceId: res.deviceId || null, action: null, label: res.label, control: true, skip: false, state: st, reason: null, note: res.note || null, depth });
+          // Запуск встал на вопросе: дальше — когда ответят или выйдет срок
+          if (res.pause) {
+            o.halt.at = { key, control: a };
+            return;
+          }
           (res.subs || []).forEach((x) => out.push({ path: key, deviceId: null, action: null, label: x.label, control: true, skip: !!x.skip, state: x.skip ? "skip" : st, reason: null, note: x.note || null, depth: depth + 1 }));
           branchesOf(a).forEach((b) => {
             if (b === res.pick) walk(a[b] || [], [...path, b], depth + 1);
@@ -704,7 +716,7 @@
           if (t && !why) note = msg("chain.level", { level: lvl, max: RULE_CHAIN_MAX });
           mk(null, why);
           if (t && !why)
-            stepsFor(t, { src: o.src, watch: o.watch || t.logOnly, date: o.date, at: o.at, now: o.now, i: o.i, test: o.test, via: "chain", chain: lvl })
+            stepsFor(t, { src: o.src, watch: o.watch || t.logOnly, date: o.date, at: o.at, now: o.now, i: o.i, test: o.test, via: "chain", chain: lvl, noHuman: o.live })
               .forEach((x) => out.push(Object.assign({}, x, { control: true, path: "", depth: x.depth + depth + 1 })));
           return;
         }
@@ -724,7 +736,10 @@
        manual | test; at — момент (мс); now — запуск сейчас (иначе — запись истории); i — номер запуска (исходы
        демо: какое событие из области, ответ оператора); events, pre — события и их проверки пробного запуска;
        src, only — устройства из событий и пути шагов повтора; br — исходы ветвлений; rateN, rateHit, busy,
-       flaky — демо-история набора (tools/fixture_fires.js) */
+       flaky — демо-история набора (tools/fixture_fires.js).
+       Ход с людьми: live — шаг ask, escalate без исхода в br останавливает запуск: result waiting, в невидимом
+       поле pause — { key, control }; who — кто и когда решил шаг по ключу пути; checks — проверки уже идущего
+       запуска; queued — запуск встал в очередь; busyAs — как судить занятость вместо r.repeat */
     function fire(r, o) {
       const at = o.at, d = wall(at), via = o.via || (r.start === "schedule" ? "sched" : r.start), i = o.i || 0, watch = o.watch !== undefined ? o.watch : !!r.logOnly;
       let ev = o.events;
@@ -738,15 +753,29 @@
           });
       }
       const src = o.src || ev.map((e) => e.deviceId).filter(Boolean);
-      const checks = checksFor(r, Object.assign({}, o, { via, date: d }));
+      const checks = o.checks || checksFor(r, Object.assign({}, o, { via, date: d }));
       const skip = checks.some((c) => !c.ok);
       const endAt = addSec(d, 25 + ((i * 13) % 40));
-      let steps = stepsFor(r, { src, watch, only: o.only, flaky: o.flaky, at: d, date: d, now: o.now, i, br: o.br, test: o.by === "test", via, endAt });
+      const halt = {}, live = !!o.live && !skip;
+      let steps = o.queued ? [] : stepsFor(r, { src, watch, only: o.only, flaky: o.flaky, at: d, date: d, now: o.now, i, br: o.br, test: o.by === "test", via, endAt, live, halt, who: o.who });
       if (skip) steps = steps.map((s) => Object.assign({}, s, { state: "skip", reason: msg("skipped") }));
-      const acts = steps.filter((s) => !s.control), n = acts.length, good = acts.filter((s) => s.state === "ok" || s.state === "would").length;
-      const result = skip ? "skip" : watch ? (good || !n ? "watch" : "fail") : good === n ? "ok" : good ? "part" : "fail";
-      return { ruleId: r.id, at: instant(d), by: o.by || via, logOnly: watch, sourceDeviceIds: src, events: ev, checks, steps, result };
+      const result = skip ? "skip" : halt.at || o.queued ? "waiting" : outcome(steps, watch);
+      const out = { ruleId: r.id, at: instant(d), by: o.by || via, logOnly: watch, sourceDeviceIds: src, events: ev, checks, steps, result };
+      if (halt.at) Object.defineProperty(out, "pause", { value: halt.at });
+      return out;
     }
+    function outcome(steps, watch) {
+      const acts = steps.filter((s) => !s.control), n = acts.length, good = acts.filter((s) => s.state === "ok" || s.state === "would").length;
+      return watch ? (good || !n ? "watch" : "fail") : good === n ? "ok" : good ? "part" : "fail";
+    }
+    // Значения подстановок запуска — в тексте вопроса оператору
+    function fillText(text, r, f) {
+      const n = (f.sourceDeviceIds[0] && devById(f.sourceDeviceIds[0])) || null, ev = f.events[f.events.length - 1];
+      const v = { камера: n ? n.name : "", устройство: n ? n.id : "", событие: ev ? ev.kind : "", время: stamp(wall(Date.parse(f.at))), правило: r.name };
+      return String(text || "").replace(/\{([^{}]+)\}/g, (m, k) => (k in v ? v[k] : m));
+    }
+    // Событие подходит правилу: вид и устройство
+    const hears = (t, kind, id) => t.kind === kind && covers(t.target, id, triggerKind(t).deviceTypes);
 
     // Повтор невыполненного: те же шаги (действия, как они были в том запуске) — на нынешних устройствах
     const retryable = (s) => s.state === "fail" && !s.control && s.action && s.action.action !== "runrule";
@@ -783,7 +812,7 @@
       return unchecked.length ? { state: "unchecked", reason: [...new Set(unchecked)].join("; ") } : { state: "watching", reason: "" };
     }
 
-    return { fire, retry, retryable, issue, undeclared, status, forbidden, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    return { fire, retry, retryable, outcome, fillText, hears, issue, undeclared, status, forbidden, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
   // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние

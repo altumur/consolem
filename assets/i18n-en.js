@@ -570,6 +570,10 @@ window.I18N_EN={
 "Нет права на то, что называет правило":"No right to what the rule names",
 "Система этого не исполняет":"The system does not perform this",
 "нет права у роли":"the role has no right",
+"ждёт ответа":"awaiting an answer",
+"ждёт ответа оператора":"awaiting the operator's answer",
+"Правило запущено и ждёт ответа оператора":"The rule started and awaits the operator's answer",
+"запуск снят: правило изменили или запустили заново":"run stopped: the rule was changed or restarted",
 "Поля события":"Event fields",
 "Поля события, JSON":"Event fields, JSON",
 "Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"

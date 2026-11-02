@@ -120,6 +120,20 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const f5 = ruleFires["70000005-0000-4000-8000-000000000000"][0];
   ok(f5.by === "manual" && f5.steps.length && f5.steps.every((s) => s.label), "шаги с подписями: " + f5.steps.map((s) => s.label).join(" | "));
 
+  // Запуск с вопросом оператору: трасса говорит, что он ждёт; снятие приходит потоком. Экрана ответа в форме нет
+  const askRule = await API.post("/rules", { name: "Вопрос из сценария", enabled: true, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0, runAt: null, repeat: "skip",
+    triggers: [], conditions: [], steps: [{ control: "ask", text: "Открыть?", roleId: "80000004-0000-4000-8000-000000000000", sec: 60, default: "no", yes: [{ source: "rec", action: "record", target: { include: [{ kind: "device", id: CAM }], exclude: [], gone: [], fromEvent: false }, duration: "min", minutes: 5 }], no: [] }],
+    owner: "admin", purpose: "", serverId: null, runAsRoleId: null, allowChain: true });
+  ok(await until(() => r(askRule.id)), "правило с вопросом пришло потоком");
+  ruleOpen(askRule.id);
+  const asked = await ruleFireRun(r(askRule.id));
+  ok(asked.res === "waiting" && ruleResInfo(asked)[1] === "ждёт ответа", "запуск ждёт: " + ruleResInfo(asked)[1]);
+  ok(/ждёт ответа оператора/.test(ruleTraceHtml(asked)), "в трассе — почему");
+  ok((await API.get("/rule-prompts")).items.length === 1, "вопрос на сервере");
+  await API.post("/rules/update", { idempotencyKey: opKey(), items: [{ ruleId: askRule.id, version: autoVer.get(askRule.id), set: { enabled: false } }] });
+  ok(await until(() => ruleFires[askRule.id][0].res !== "waiting"), "запуск снят, запись обновилась потоком: " + ruleFires[askRule.id][0].res);
+  ok(/запуск снят/.test(ruleTraceHtml(ruleFires[askRule.id][0])), "в трассе — причина");
+
   // Пробный запуск: считает сервер, «Записать в журнал» — тоже на сервере
   ruleOpen(R1);
   ruleCheckOpen();

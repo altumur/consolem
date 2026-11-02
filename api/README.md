@@ -45,7 +45,7 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 110 операций и 3 служебные
+## Карта API — 112 операций и 3 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
@@ -58,7 +58,7 @@
 | `storage` — обход и скан | `GET`, `POST /archive-watches`; `PATCH`, `DELETE /archive-watches/{id}`; `GET`, `POST /archive-scans`; `DELETE /archive-scans/{id}` |
 | `operations` | `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo` |
 | `discovery` | `GET`, `POST`, `DELETE /domains/{id}/discovery` — поиск устройств в сети домена |
-| `automation` — правила | `GET`, `POST /rules`; `GET`, `PUT /rules/{id}`; `POST /rules/update` (состояние и приглушение группой); `POST /rules/reorder`; `GET /rules/{id}/versions` (история); `GET /rules/{id}/fires` (журнал запусков); `POST /rules/{id}/run`; `POST /rules/test` (пробный запуск, в том числе черновика); `POST /rules/{id}/fires/{fireId}/retry`; удаление — `POST /objects/delete` |
+| `automation` — правила | `GET /rule-prompts` (открытые вопросы операторам); `POST /rule-prompts/{id}/answer`; `GET`, `POST /rules`; `GET`, `PUT /rules/{id}`; `POST /rules/update` (состояние и приглушение группой); `POST /rules/reorder`; `GET /rules/{id}/versions` (история); `GET /rules/{id}/fires` (журнал запусков); `POST /rules/{id}/run`; `POST /rules/test` (пробный запуск, в том числе черновика); `POST /rules/{id}/fires/{fireId}/retry`; удаление — `POST /objects/delete` |
 | `automation` — расписания, режимы | `GET`, `POST /schedules`, `GET`, `PUT`, `DELETE /schedules/{id}`; то же — `/day-groups` (особые дни) и `/maintenance-windows` (окно — вместе со своим расписанием); `GET`, `PUT /modes` (режимы объекта списком); `GET`, `POST /modes/current` (текущий режим, вручную) |
 | `access` | `GET /access` — снимок прав; `POST /access/apply` — черновик пакетом; `POST /access/catalogs/{id}/sync` |
 | `settings`, `journal` | `GET`, `PATCH /settings`; `GET /licenses`; `GET /journal` |
