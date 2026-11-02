@@ -121,6 +121,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   nameInput.dispatchEvent(new Event("change", { bubbles: true }));
   ok(await until(() => presetPuts.length === 1), "подпись ушла");
   ok(presetPuts[0].name === label && Object.keys(presetPuts[0]).join() === "name", "только имя: положение не трогается");
+  // Запрос замечен при отправке: по HTTP чтение обогнало бы ответ. Ответ применён — тогда и спрашивать сервер
+  ok(await until(() => presetRows(find(ptz.id).n).find((x) => x.n === presetNo)?.name === label), "подпись пришла в форму");
   ok((await API.get("/devices/" + ptz.id)).presets.find((x) => x.n === presetNo).name === label, "подпись сохранена на сервере");
   API.put = putBefore;
   ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id, direct: false }) === "камера за NAT: связи с ней нет, действие недоступно", "problemText: за NAT без обещания входа");
