@@ -661,7 +661,8 @@
       const who = o.who && o.who[o.key];
       if (c.control === "ask") {
         if (o.live && !(o.br && o.br[o.key])) return { label: msg("ctl.ask", { text: c.text, roleId: c.roleId }), pause: true, note: msg("ask.waiting") };
-        const out = (o.br && o.br[o.key]) || (o.noHuman ? "none" : !o.test && i % 5 === 4 ? "none" : !o.test && i % 3 === 1 ? "no" : "yes");
+        const silent = o.noHuman || (o.watch && !o.test);
+        const out = (o.br && o.br[o.key]) || (silent ? "none" : !o.test && i % 5 === 4 ? "none" : !o.test && i % 3 === 1 ? "no" : "yes");
         const pick = out === "none" ? (c.default === "yes" ? "yes" : "no") : out;
         const s = Math.max(1, Math.min((c.sec || 1) - 1, 4 + ((i * 11) % 40)));
         return { label: msg("ctl.ask", { text: c.text, roleId: c.roleId }), pick,
@@ -669,7 +670,7 @@
       }
       const L = c.levels || [];
       if (o.live && !(o.br && o.br[o.key])) return { label: msg("ctl.escalate", { roleIds: L.map((l) => l.roleId) }), pause: true, note: msg("escalate.until", { stop: c.stop === "reset" ? "reset" : "ack" }) };
-      const out = (o.br && o.br[o.key]) || (o.noHuman ? "none" : !o.test ? (i % 3 === 0 ? "ack:1" : i % 3 === 1 ? "ack:2" : c.stop === "reset" ? "reset" : "none") : "ack:1");
+      const out = (o.br && o.br[o.key]) || (o.noHuman || (o.watch && !o.test) ? "none" : !o.test ? (i % 3 === 0 ? "ack:1" : i % 3 === 1 ? "ack:2" : c.stop === "reset" ? "reset" : "none") : "ack:1");
       // Запуск с настоящим ответом: на каком уровне остановились — докуда дошло, а не кто квитировал
       const stopAt = who && who.level ? Math.min(who.level, L.length) : out === "none" ? L.length : out === "reset" ? 1 : Math.min(+out.split(":")[1], L.length), subs = [];
       let t = 0;

@@ -1086,8 +1086,17 @@
        это в строке запуска и переживает перезапуск; здесь — в памяти до /test/reset */
     let ruleRuns = [], prompts = [];
     const runRec = (run) => db.ruleFires.find((x) => x.id === run.fireId);
+    // Память о закрытом вопросе: имя запуска живёт в done, потом — 404 вместо 409. Срок стенда условный: в нормах это
+    // вытеснение из done, а не часы
+    const PROMPT_KEEP_MS = 86400000;
+    // Роль без строк грантов не видна двери ответа: предел, ADR-0112 доп. (9) п. 4. Встроенный сервер судит это по строкам роли
+    const roleSeen = (id) => {
+      const r = db.access.roles.find((x) => x.id === id);
+      return !!r && (r.global.unr || Object.keys(r.folderAccess || {}).length + Object.keys(r.objectAccess || {}).length > 0);
+    };
+    const mayAnswer = (p) => myRoleIds().includes(p.roleId) && roleSeen(p.roleId);
     const promptView = (p) => ({ id: p.id, ruleId: p.ruleId, fireId: p.fireId, step: p.step, kind: p.kind, text: p.text, roleId: p.roleId, level: p.level,
-      openedAt: p.openedAt, until: p.until, canAnswer: myRoleIds().includes(p.roleId) });
+      openedAt: p.openedAt, until: p.until, canAnswer: mayAnswer(p) });
     function promptOpen(run, f) {
       const p = Object.assign({ id: uuid("prompt"), ruleId: run.ruleId, fireId: run.fireId, step: run.pause.key, openedAt: iso(now()), until: iso(run.pause.until), closed: null }, f);
       prompts.push(p);
@@ -1096,14 +1105,18 @@
     function promptsClose(run, reason, extra) {
       prompts.filter((p) => p.fireId === run.fireId && !p.closed).forEach((p) => {
         p.closed = reason;
+        p.closedAt = now();
         send("prompt.closed", { kind: "rulePrompt", entityId: p.id, payload: Object.assign({ ruleId: p.ruleId, fireId: p.fireId, step: p.step, reason }, extra || {}) });
       });
     }
     function runPause(run, pause) {
       const c = pause.control, t = now();
       run.pause = { key: pause.key, control: c };
+      // «Только журнал» никого не трогает: срок идёт, вопроса нет, ask кончается веткой default, escalate — последним уровнем
+      const silent = runRec(run).logOnly;
       if (c.control === "ask") {
         run.pause.until = t + c.sec * 1000;
+        if (silent) return null;
         return promptOpen(run, { kind: "ask", text: engine.fillText(c.text, run.rule, runRec(run)), roleId: c.roleId, level: null });
       }
       let at = t;
@@ -1113,7 +1126,7 @@
         return x;
       });
       run.pause.until = at;
-      run.pause.reached = 0;
+      run.pause.reached = silent ? run.pause.levels.length : 0;
       runLevels(run);
     }
     // Уровни, до которых дошло время: вопрос прежнего остаётся открытым до конца эскалации
@@ -2618,8 +2631,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "/rule-prompts/{id}/answer",
         (p, q, body) => {
           const pr = prompts.find((x) => x.id === p.id);
-          if (!pr) return notFound("Вопрос");
-          if (!myRoleIds().includes(pr.roleId)) return problem(403, "PERMISSION_DENIED", "Отвечает человек с ролью шага", { params: { roleId: pr.roleId } });
+          if (!pr || (pr.closed && now() - pr.closedAt >= PROMPT_KEEP_MS)) return notFound("Вопрос");
+          if (!mayAnswer(pr)) return problem(403, "PERMISSION_DENIED", "Отвечает человек с ролью шага", { params: { roleId: pr.roleId } });
           if (pr.closed === "answered") return problem(409, "BUSY", "На вопрос уже ответили", { params: { reason: "answered" } });
           if (pr.closed) return problem(409, "NOT_RUNNABLE", "Запуск больше не ждёт ответа", { params: { reason: { code: "over" } } });
           if (!(pr.kind === "ask" ? ["yes", "no"] : ["ack"]).includes(body.answer)) return problem(422, "VALIDATION_FAILED", "Ответ не этого вида", { field: "answer" });

@@ -358,19 +358,48 @@
     assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 2], "дошло до конца: и следующий шаг");
   }, { needs: PROMPTS });
 
-  test("Вопрос: «Только журнал» спрашивает так же, действий нет; пробный запуск вопросов не открывает", async () => {
+  test("Вопрос: «Только журнал» никого не спрашивает: срок, ветка default, действий нет; пробный запуск вопросов не открывает", async () => {
     const env = await envWith({ logOnly: true, steps: [ask()] });
     const r = await env.ok("GET", `/rules/${base.id}`);
     const t = await env.ok("POST", "/rules/test", { ruleId: base.id, rule: body(r), events: [], at: null, branches: { 0: "yes" }, log: false });
     assert.ok(t.result !== "waiting", "пробный запуск не ждёт");
     assert.eq(await env.list("/rule-prompts"), [], "вопросов нет");
     const f = await run(env);
-    assert.eq(f.result, "waiting", "ждёт");
-    const [p] = await env.list("/rule-prompts");
-    await env.ok("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
+    assert.eq(f.result, "waiting", "ждёт свой срок");
+    assert.eq(await env.list("/rule-prompts"), [], "настоящий запуск вопроса не завёл");
+    await env.advance(ask().sec + 1);
     const now = await fireOf(env, f.id);
-    assert.eq([now.result, now.steps.filter((s) => s.action).map((s) => s.state)], ["watch", ["would"]], "только журнал");
-  }, { needs: PROMPTS });
+    assert.eq(now.result, "watch", "только журнал");
+    assert.ok(JSON.stringify(now.steps).includes("ask.noAnswer"), "в трассе — без ответа, веткой default");
+    assert.ok(now.steps.filter((s) => s.action).every((s) => s.state === "would"), "действия не исполнены");
+  }, { needs: PROMPTS.concat("clock") });
+
+  test("Эскалация: «Только журнал» никого не спрашивает и кончается сроком последнего уровня", async () => {
+    const env = await envWith({ logOnly: true, steps: [escalate(), step] });
+    const f = await run(env);
+    assert.eq([f.result, await env.list("/rule-prompts")], ["waiting", []], "ждёт, вопросов нет");
+    await env.advance(5 * 60);
+    assert.eq(await env.list("/rule-prompts"), [], "второй уровень тоже молчит");
+    assert.eq((await fireOf(env, f.id)).result, "waiting", "ждёт дальше");
+    await env.advance(10 * 60 + 1);
+    assert.eq((await fireOf(env, f.id)).result, "watch", "кончилась сроком");
+  }, { needs: PROMPTS.concat("clock") });
+
+  test("Вопрос: роль без строк грантов не видна — canAnswer ложь, 403; закрытый вопрос после ухода из памяти — 404", async () => {
+    const roles = FX.access.roles.map((r) => (r.id === guardRole ? Object.assign({}, r, { folderAccess: {}, objectAccess: {} }) : r));
+    const env = await makeEnv({ fixturePatch: Object.assign(patched({ steps: [ask()] }), { access: { roles } }), actAs: guard.login });
+    await run(env);
+    const [hidden] = await env.list("/rule-prompts");
+    assert.eq(hidden.canAnswer, false, "не видна");
+    assert.status(await env.call("POST", `/rule-prompts/${hidden.id}/answer`, { answer: "yes" }), 403, "PERMISSION_DENIED");
+    const live = await envWith({ steps: [ask()] });
+    await run(live);
+    const [p] = await live.list("/rule-prompts");
+    await live.advance(ask().sec + 1);
+    assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 409, "NOT_RUNNABLE", "кончился, имя в памяти");
+    await live.advance(86400);
+    assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "имя ушло");
+  }, { needs: PROMPTS.concat("clock") });
 
   test("Эскалация: уровни по сроку, прежний остаётся открыт, ack на любом останавливает, уровень в трассе", async () => {
     const env = await envWith({ steps: [escalate(), step] });
