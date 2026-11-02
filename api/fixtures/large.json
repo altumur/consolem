@@ -9660,7 +9660,9 @@
     "putStreamWatch",
     "getScenarios",
     "putScenarios",
-    "getScenariosStatus"
+    "getScenariosStatus",
+    "listRelays",
+    "getRelay"
    ],
    "deviceTypes": [
     "camera",
@@ -9789,7 +9791,9 @@
    "servers": 500,
    "folders": 300,
    "serverCameras": 50000,
-   "firstBranch": 1000
+   "firstBranch": 1000,
+   "clusters": 40,
+   "relayed": 5
   }
  }
 }

@@ -646,5 +646,15 @@ window.I18N_EN={
 "кластер":"cluster",
 "правлены на месте":"edited locally",
 "ещё не дошли":"not reached yet",
-"не применены":"not applied"
+"не применены":"not applied",
+"Нет связи с доменом, показано только своё":"No connection to the domain, only own data is shown",
+"Топология":"Topology",
+"Уровень":"Level",
+"узлов":"nodes",
+"связей":"links",
+"Сервер ещё не в домене: связей нет":"The server is not in the domain yet: no links",
+"В домене нет серверов":"No servers in the domain",
+"Тянуть узел — двигать · колесо — масштаб · клик — открыть в дереве · фон — сдвиг":"Drag a node to move · wheel to zoom · click to open in the tree · drag the background to pan",
+"Узлы списком":"Nodes as a list",
+"Кластер":"Cluster"
 };

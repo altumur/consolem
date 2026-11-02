@@ -382,6 +382,8 @@ h1{margin:4px 0 10px;font-size:20px;display:flex;align-items:center;gap:10px}
 .ici-server{color:var(--one-fg-muted)}
 .ici-svcs{color:var(--one-fg-muted)}
 .ici-domain{color:var(--one-fg-muted)}
+.n-more .sub,.n-path{color:var(--mu);font-size:11px}
+.n-path{display:block;font-weight:400}
 .ici-unalloc,.ici-norec,.ici-nofolder{color:var(--one-fg-muted)}
 .asst-plan{margin-top:10px}
 .ici-ipsrv{color:var(--one-fg-muted)}
@@ -4357,13 +4359,14 @@ function domainFresh(n){
   hwReadAt=Date.now();
   API.get(`/domains/${n.id}`).then(r=>{const was=JSON.stringify(n.summary);n.summary=r.stateSummary||null;if(sel===n.id&&was!==JSON.stringify(n.summary)&&app==="hw")gear()}).catch(()=>{});
 }
+function domainLostHtml(n){return n.online===false?`<div class="nt bk-warn" id="domLost">${i18n("Нет связи с доменом, показано только своё")}</div>`:""}
 function domainSummaryHtml(n){
   const s=n.summary;if(!s)return"";
   const num=x=>Number(x).toLocaleString("ru-RU");
   return`<div class="nt" id="domSummary">${i18n("Всего")} ${num(s.total)} · ${i18n("без связи")} ${num(s.offline)} · ${i18n("без сигнала")} ${num(s.silent)} · ${i18n("на")} ${clockText(s.at,true)}${s.unread>0?` · <b>${i18n("данные неполные")}</b>`:""}</div>`;
 }
 function objectStatusNotesHtml(n){
-  if(n.type==="domain"&&n.summary)return domainSummaryHtml(n)+objectStatusNotesRest(n);
+  if(n.type==="domain")return domainLostHtml(n)+domainSummaryHtml(n)+objectStatusNotesRest(n);
   return objectStatusNotesRest(n);
 }
 function objectStatusNotesRest(n){
@@ -6933,7 +6936,8 @@ function srow(s,l=1,bare=false){
   return h}
 function drow(d){
   const q=qval();
-  const offline=hasNoSignal(d);
+  // Без связи с доменом ответы несут только своё: показываем, что есть, чужое не считаем удалённым
+  const offline=false;
   const selfHit=matchesStatus(d)&&matchesSearch(d,q);
   const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
   const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
@@ -6947,6 +6951,7 @@ function drow(d){
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeRowMeta(d,q,domainServerCount(d),op)}</div>`;
   if(op){
+    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
     if(childHtml)h+=childHtml;
     h+=uaHtml+treeMoreRow(d.id,1);
   }
@@ -9756,9 +9761,12 @@ function refGoneName(ref){
   if(ref.startsWith("domain:"))return i18n("домен");
   return i18n("неизвестное устройство");
 }
+// Связь с доменом потеряна: чужая цель пропала из ответов, но она не удалена
+function domainLost(){return domains.some(d=>d.online===false)}
 function refTokBroken(t){
   if(!t||t==="$src")return false;
   if(t.startsWith("gone:"))return true;
+  if(domainLost())return false;
   if(t.startsWith("folder:"))return!folderById(t.slice(7));
   if(t.startsWith("server:"))return!servers.some(s=>s.id===t.slice(7));
   if(t.startsWith("domain:"))return!domains.some(d=>d.id===t.slice(7));

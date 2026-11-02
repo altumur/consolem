@@ -442,7 +442,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Серверы всех кластеров домена, имя — <кластер>/<сервер>. Списки зависят от того, кто спрашивает: записи кластера без прав не видны. Без связи с доменом — только свой кластер."
       },
       "post": {
         "operationId": "createServer",
@@ -7150,6 +7151,108 @@
           }
         }
       }
+    },
+    "/domains/{domainId}/relays": {
+      "get": {
+        "operationId": "listRelays",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Ретрансляторы домена",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RelayMember"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/domains/{domainId}/relays/{name}": {
+      "get": {
+        "operationId": "getRelay",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Кто за ретранслятором",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Relay"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7264,7 +7367,8 @@
             "description": "Лицензия домена; пусто — общая"
           },
           "online": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": "false — сервер, через который вошли, потерял связь с доменом: ответы несут только свой кластер. Чужие записи пропадают из ответов, это не удаление: entity.deleted нет. Сигнал — entity.changed домена и stream.reset, то же при возврате связи"
           },
           "version": {
             "type": "string",
@@ -10947,7 +11051,8 @@
               "device.lost",
               "device.parent",
               "io.input",
-              "scenario.outcome"
+              "scenario.outcome",
+              "domain.link"
             ]
           },
           "deviceId": {
@@ -10955,7 +11060,8 @@
             "format": "uuid"
           },
           "online": {
-            "type": "boolean"
+            "type": "boolean",
+            "description": ""
           },
           "fault": {
             "type": [
@@ -17996,6 +18102,38 @@
           "decidedWithout": {
             "type": "integer",
             "minimum": 0
+          }
+        }
+      },
+      "RelayMember": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Relay": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "members"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Имена членов за ретранслятором по возрастанию, до 5000"
           }
         }
       }

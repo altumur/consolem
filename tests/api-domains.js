@@ -208,5 +208,30 @@
     assert.eq(auto.done[0].devices[0].labels, ["gpu"], "по умолчанию просит gpu");
   });
 
+  test("Домен: потеря связи — только свой кластер, чужое не удалено, stream.reset; ретрансляторы", async () => {
+    const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
+    if (!d) return "ретрансляторов в наборе нет";
+    const env = await makeEnv();
+    const relays = (await env.ok("GET", `/domains/${d.id}/relays`)).items;
+    assert.ok(relays.length > 0, "ретранслятор есть");
+    const one = await env.ok("GET", `/domains/${d.id}/relays/${encodeURIComponent(relays[0].name)}`);
+    assert.eq(one.members, one.members.slice().sort(), "имена по возрастанию");
+    assert.status(await env.call("GET", `/domains/${d.id}/relays/нет`), 404, "NOT_FOUND");
+    const all = await env.list("/servers");
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => seen.push(m));
+    await ApiTest.settle();
+    await env.ok("POST", "/test/events", { type: "domain.link", domainId: d.id, online: false });
+    await ApiTest.settle();
+    assert.ok(seen.some((m) => m.type === "stream.reset"), "stream.reset");
+    assert.ok(!seen.some((m) => m.type === "entity.deleted"), "это не удаление");
+    assert.eq((await env.ok("GET", `/domains/${d.id}`)).online, false, "Domain.online");
+    const part = await env.list("/servers");
+    assert.ok(part.length < all.length && part.length > 0, "только свой кластер");
+    await env.ok("POST", "/test/events", { type: "domain.link", domainId: d.id, online: true });
+    assert.eq((await env.list("/servers")).length, all.length, "связь вернулась");
+    stop();
+  }, { needs: ["listRelays", "getRelay"] });
+
   ApiTest.loaded("api-domains.js");
 })();

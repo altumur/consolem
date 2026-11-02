@@ -2029,7 +2029,8 @@
       const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true";
       const inFolder = noFolder ? new Set(db.folders.flatMap((f) => f.deviceIds)) : null;
       const filtered = !!(q.q || types || words || q.domainId || noFolder || noRecord);
-      const hit = (d) => (!q.domainId || d.domainId === q.domainId) && (!types || types.includes(d.type)) && (!words || statusHit(d, words)) &&
+      const hidden = hiddenServers();
+      const hit = (d) => !hidden.has(d.serverId) && (!q.domainId || d.domainId === q.domainId) && (!types || types.includes(d.type)) && (!words || statusHit(d, words)) &&
         (!q.q || textHit(q.q, d.name, d.short, d.identifier, d.ip, d.vendor, d.model)) &&
         (!noFolder || (!d.parentId && folderable(d) && !inFolder.has(d.id))) && (!noRecord || (d.type === "camera" && !recording(d)));
       // Один член: порядок по имени, разделы ни при чём
@@ -2200,7 +2201,9 @@
       const dom = db.domains[0].id;
       const uuidOf = (kind, n) => `${kind}${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
       const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
-      db.servers = Array.from({ length: L.servers }, (x, i) => Object.assign({}, base, { id: uuidOf("2", 1000 + i), name: `Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
+      db.servers = Array.from({ length: L.servers }, (x, i) => Object.assign({}, base, { id: uuidOf("2", 1000 + i), name: `Кластер ${(i % L.clusters) + 1}/Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
+      // Ретранслятор: кластеры и камеры за ним. Камеры в составе не совпадут с именами кластеров
+      db.relays = { [dom]: { "Кластер 1": Array.from({ length: L.relayed }, (x, i) => `Кластер ${L.clusters - i}`).concat(Array.from({ length: 3000 }, (x, i) => `cam-${i}`)) } };
       db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
       db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
       db.folders = Array.from({ length: L.folders }, (x, i) => ({ id: uuidOf("4", 1000 + i), name: `Папка ${i + 1}`, domainId: dom, parentId: null, deviceIds: [], version: "v0" }));
@@ -2239,7 +2242,19 @@
       ];
     }
 
+    // Без связи с доменом сервер входа видит только свой кластер: первый сервер домена, если стенд не сказал иначе
+    function hiddenServers() {
+      const out = new Set();
+      db.domains.filter((d) => d.online === false && d.stand !== "own").forEach((d) => {
+        const mine = db.servers.filter((s) => s.domainId === d.id && s.allocated);
+        if (!mine.length || !mine[0].name.includes("/")) return;
+        const own = mine[0].name.slice(0, mine[0].name.indexOf("/"));
+        mine.forEach((s) => { if (!s.name.startsWith(own + "/")) out.add(s.id); });
+      });
+      return out;
+    }
     const LISTS = {
+      servers: () => { const hidden = hiddenServers(); return items(db.servers.filter((s) => !hidden.has(s.id)).map(clone)); },
       devices: (p, q) => devicesPage(q),
       folders: (p, q) => {
         const rows = db.folders.filter((f) => (q.parentId === undefined || (f.parentId || "") === q.parentId) && (!q.domainId || f.domainId === q.domainId) && (!q.q || textHit(q.q, f.name)));
@@ -2264,6 +2279,11 @@
         const ref = clone(db.reference);
         ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
         return { status: 200, body: ref };
+      }],
+      ["GET", "/domains/{id}/relays", (p) => (byId("domains", p.id) ? items(Object.keys((db.relays || {})[p.id] || {}).sort().map((name) => ({ name }))) : notFound("Домен"))],
+      ["GET", "/domains/{id}/relays/{name}", (p) => {
+        const r = byId("domains", p.id) && ((db.relays || {})[p.id] || {})[p.name];
+        return r ? { status: 200, body: { name: p.name, members: r.slice().sort() } } : notFound("Ретранслятор");
       }],
       ["GET", "/domains/{id}/scenarios", (p) => (byId("domains", p.id) ? one(clone(scenarioDoc(p.id))) : notFound("Домен"))],
       ["PUT", "/domains/{id}/scenarios", (p, q, body, headers) => {
@@ -3728,6 +3748,16 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "POST",
         "/test/events",
         (p, q, body) => {
+          // Связь с доменом: видно только свой кластер, чужое пропадает из ответов без entity.deleted
+          if (body.type === "domain.link") {
+            const dm = byId("domains", body.domainId);
+            if (!dm) return notFound("Домен");
+            dm.online = body.online;
+            bump(dm);
+            changed("domain", dm);
+            send("stream.reset", { payload: {} });
+            return { status: 200, body: { applied: true } };
+          }
           if (body.type === "scenario.outcome") {
             if (!byId("domains", body.domainId)) return notFound("Домен");
             db.scenarioStatus = db.scenarioStatus || {};

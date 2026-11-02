@@ -27,7 +27,7 @@ OUT = "api/fixtures/one-domain.json"
 OUT_LARGE = "api/fixtures/large.json"
 # Камер всего, серверов, папок; под серверами из них 50 000, из них на первом — ветка больше страницы.
 # Остальные 200 000 — камеры-кластеры: без сервера и родителя, лежат прямо под доменом
-LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 50000, "firstBranch": 1000}
+LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 50000, "firstBranch": 1000, "clusters": 40, "relayed": 5}
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
@@ -269,6 +269,7 @@ def build_large(demo):
     fx["stand"] = {"large": LARGE}
     for k in ("servers", "archives", "volumes", "devices", "folders", "rules", "ruleVersions", "ruleFires", "archiveScans", "archiveWatches", "journal"):
         fx[k] = []
+    fx.pop("relays", None)
     for w in fx["maintenanceWindows"]:
         if w["ruleIds"] is not None:
             w["ruleIds"] = []

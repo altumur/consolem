@@ -90,6 +90,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/\d/.test(String(LIM.selectMax)), "предел из reference.limits: " + LIM.selectMax);
   renderTree();
   setSelMode(false);
+  // Нет связи с доменом: плашка, чужое не удалено
+  d.online = false;
+  pick(d.id, { force: true });
+  ok(await until(() => /показано только своё/.test(document.getElementById("domLost")?.textContent || "")), "плашка на домене");
+  ok(/показано только своё/.test(document.getElementById("tree").textContent), "строка в дереве");
+  ok(!refBroken(alien.id) || find(alien.id), "цели правил не считаются удалёнными");
+  d.online = true;
   // Разделы читают своё при заходе
   ok(!logLoaded && !licLoaded, "журнал и лицензии при старте не читались");
   goApp("log");
