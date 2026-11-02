@@ -21305,7 +21305,8 @@ function asstMode(a){
   return a?.stub?"stub":"on";
 }
 function asstSvcHtml(a,mode){
-  if(mode==="off")return"";
+  // Отвечает модель — обычный случай, отдельной строки нет. Пишется только то, что отличается
+  if(mode==="off"||mode==="on"&&!asstCodeGet(asstServiceUrl()))return"";
   const word={fixture:"Служба работает только с демо-набором: здесь отвечает заглушка, не модель",
     nocode:"Сейчас отвечает заглушка, не модель. Модель — по коду доступа",
     stub:"В этом окне отвечает заглушка, не модель",
