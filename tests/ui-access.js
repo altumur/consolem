@@ -21,7 +21,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(null);
   ok(await until(() => accVer !== v0), "применено, версия " + accVer);
   const v1 = accVer;
-  const a = await API.get("/access");
+  const a = await uiAccess();
   ok(a.users.find((x) => x.id === u.id).email === "olga@new.local", "на сервере — новый e-mail");
   ok(a.users.some((x) => x.id === nu.id && x.login === "tester" && x.roleIds[0] === op.id), "новый пользователь с UUID и ролью");
   ok(a.history[0].actor === ACC_ME && accSrv().log[0].who === ACC_ME, "история — с автором " + ACC_ME + ": «" + a.history[0].text.slice(0, 50) + "»");
@@ -146,7 +146,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accPlan();
   await confirmWith(null);
   ok(await until(() => accVer !== v2), "применено");
-  const b = await API.get("/access");
+  const b = await uiAccess();
   ok(!b.users.some((x) => x.id === del.id) && !b.roles.some((x) => x.id === ext.id), "на сервере — ни пользователя, ни роли");
   // Синхронизация каталога
   const c = accCats()[0];

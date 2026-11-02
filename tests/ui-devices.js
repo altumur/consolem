@@ -4,6 +4,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goApp("hw");
   const d1 = domains[0];
   // Поиск в сети домена: на сервере, найденное — по одному
+  await discLoad(d1.id);
   ensureFoundWizard(d1.id);
   const before = wizd.devResults.length;
   ok(before > 0 && /^f/.test(wizd.devResults[0].id), "итог прошлого поиска — с сервера: " + before);
@@ -43,7 +44,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nvr = find(wizd.csvRows[1].addedId)?.n;
   ok(devicePool.length === pool0 + 2 && nvr?.type === "ipsrv", "камера и регистратор в кэше");
   const nvrRec = await API.get("/devices/" + nvr.id);
-  const kids = (await API.get("/devices")).items.filter((d) => d.parentId === nvr.id);
+  const kids = (await uiDevices()).filter((d) => d.parentId === nvr.id);
   ok(kids.length > 0 && kids.every((k) => String(k.short || "").startsWith(nvrRec.identifier + ".")), "каналы: " + kids.map((k) => k.short).join(", ") + " — от номера " + nvrRec.identifier);
   // Столбец «Адрес RTSP»: камера по адресу заводится без производителя и модели, выгрузка его отдаёт
   const rtsp = "rtsp://10.6.6.8:554/main";

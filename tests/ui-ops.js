@@ -1,6 +1,6 @@
 /* Сценарии интерфейса: журнал операций и откат цепочкой. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
-  const cam = (await API.get("/devices")).items.find((d) => d.type === "camera");
+  const cam = (await uiDevices()).find((d) => d.type === "camera");
   const a = await API.patch(`/devices/${cam.id}`, { short: "A" }, cam.version);
   await API.patch(`/devices/${cam.id}`, { short: "B" }, a.version);
   goApp("log");
@@ -48,7 +48,9 @@ UiCheck(async ({ ok, until }) => {
   // Откат — тоже операция: пока он идёт, объект занят, правка отказывает до запроса, потом снова можно
   goApp("log");
   logGo("ops");
-  const plan = await API.post("/operations", { idempotencyKey: "ui-ops-busy", items: ["D", "E", "F", "G", "H", "I", "J", "K"].map((short) => ({ targetId: cam.id, set: { short } })), expectedVersions: { [cam.id]: hwVer.get(cam.id) } });
+  // Камера не наблюдается: версию берём у сервера
+  const camNow = (await API.get(`/devices/${cam.id}`)).version;
+  const plan = await API.post("/operations", { idempotencyKey: "ui-ops-busy", items: ["D", "E", "F", "G", "H", "I", "J", "K"].map((short) => ({ targetId: cam.id, set: { short } })), expectedVersions: { [cam.id]: camNow } });
   ok(await until(() => logOps[0]?.id === plan.id && btn("data-op", logOps[0])), "операция из восьми шагов — верхняя");
   const posts = [];
   const patch0 = API.patch;

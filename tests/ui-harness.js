@@ -7,9 +7,9 @@
   const ok = (c, m) => log.push((c ? "PASS  " : "FAIL  ") + m);
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Ждать условия: ответ сервера и событие потока приходят не сразу
+  // Срок — числом ожиданий, а не часами: в самопроверке сценарии делят один поток, чужая долгая работа не должна съедать срок
   async function until(fn, ms = 20000) {
-    const t = Date.now();
-    while (Date.now() - t < ms) {
+    for (let i = 0; i < ms / 25; i++) {
       try {
         if (fn()) return true;
       } catch (e) {}
@@ -61,7 +61,41 @@
   }
   window.UiCheck = (fn) =>
     window.appReady
+      .then(() => (window.UI_RAW_CACHE ? null : window.uiCacheAll()))
       .then(() => fn({ ok, until, sleep, confirmWith }))
       .catch((e) => ok(false, "исключение: " + e.message + " " + (e.stack || "").split("\n")[1]))
       .then(report);
 })();
+/* Кэш формы неполный (режим один на любом размере). Старые сценарии проверяют карточки, папки и правки на всём наборе:
+   перед ними кэш дочитывается теми же дверями, что у формы, полными записями. Новое поведение — tests/ui-tree.js без этого шага. */
+window.uiCacheAll = async () => {
+  const ids = [];
+  let cursor = null;
+  do {
+    const r = await API.get("/devices", { limit: 1000, cursor });
+    r.items.forEach((d) => ids.push(d.id));
+    cursor = r.nextCursor || null;
+  } while (cursor);
+  await hwEnsure(ids);
+  await hwFullAll(ids);
+  await Promise.all([accLoad(), autoFull(), journalLoad(), licLoad()]);
+  renderTree();
+};
+// Полные записи всех устройств и права целиком — для сверки с сервером: тесту можно дочитать до конца
+window.uiDevices = async () => {
+  const rows = [];
+  let cursor = null;
+  do {
+    const r = await API.get("/devices", { limit: 1000, cursor });
+    rows.push(...r.items);
+    cursor = r.nextCursor || null;
+  } while (cursor);
+  // Порядок перечня выбирает сервер, сценарию нужен постоянный
+  return Promise.all(rows.map((d) => API.get(`/devices/${d.id}`))).then((l) => l.sort((a, b) => (a.id < b.id ? -1 : 1)));
+};
+window.uiAccess = async () => {
+  const a = await API.get("/access");
+  const [users, groups, history] = await Promise.all(["users", "groups", "history"].map((k) => API.get(`/access/${k}`, { limit: 1000 }).then((r) => r.items)));
+  return Object.assign(a, { users, groups, history });
+};
+window.uiFolderIds = async (id) => (await API.get("/devices", { folderId: id, limit: 1000 })).items.map((d) => d.id);

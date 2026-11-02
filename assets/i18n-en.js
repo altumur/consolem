@@ -599,5 +599,21 @@ window.I18N_EN={
 "записано телом окна":"written with the window",
 "Поля события":"Event fields",
 "Поля события, JSON":"Event fields, JSON",
-"Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"
+"Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}",
+"Не прочитано":"Not read",
+"Загрузка…":"Loading…",
+"Показать ещё":"Show more",
+"Ищем дальше…":"Searching further…",
+"Искать дальше":"Search further",
+"Найдено не всё:":"Not all found:",
+"Ищем дальше, уже":"Searching further, so far",
+"Всего":"Total",
+"без связи":"offline",
+"без сигнала":"no signal",
+"на":"as of",
+"данные неполные":"data incomplete",
+"Отмечено не больше":"No more than",
+"остальное — следующей операцией, у каждой свой откат":"can be selected: the rest goes in the next operation, each with its own undo",
+"папки вне отката: состав папки не возвращается":"folders are outside undo: the folder contents are not restored",
+"сверяется только строка камеры: чужая правка записи или детектора удаление не остановит":"only the camera row is checked: someone else's edit of recording or a detector will not stop the deletion"
 };

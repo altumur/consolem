@@ -1,6 +1,6 @@
 /* Сценарии интерфейса: виды устройств, которые находит сервер, карточки только для чтения. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until, confirmWith }) => {
-  const devices = (await API.get("/devices")).items;
+  const devices = (await uiDevices());
   const of = (t, more) => devices.find((d) => d.type === t && (!more || more(d)));
   const main = () => document.getElementById("main");
   const open = (id, t = "gen") => { pick(id, { force: true }); goTab(t); };
@@ -88,7 +88,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const dz = camDetectors(find(camD.id).n).find((d) => d.id === draftId);
   ok(dz.zone?.shape === "line" && Math.abs(dz.zone.points[0][0] - 0.25) < 0.01 && Math.abs(dz.zone.points[1][0] - 0.75) < 0.01, "линия нарисована мышью, в долях кадра");
   cardApply();
-  const made = async () => (await API.get("/devices")).items.find((d) => d.parentId === camD.id && d.template === "tmpl.line" && d.zone?.shape === "line");
+  const made = async () => (await uiDevices()).find((d) => d.parentId === camD.id && d.template === "tmpl.line" && d.zone?.shape === "line");
   await until(() => !bq || bq.finished);
   const rec = await made();
   ok(!!rec && rec.builtin === true, "создан встроенный детектор с шаблоном и зоной");

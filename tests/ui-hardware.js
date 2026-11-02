@@ -78,7 +78,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   deleteDetector(cam.id,draftDet);
   await confirmWith(1);
   ok(await until(()=>!camDetectors(cam).some(d=>d.id===draftDet),20000),"неприменённый детектор удалён");
-  ok(cardDiff().length===0,"черновик пуст");
+  ok(await until(()=>cardDiff().length===0,2000),"черновик пуст");
   // Черновик карточки переживает перечитывание всего кэша (удаление другого объекта, потеря потока)
   setCamRec(cam.id,cam.rec==="motion"?"always":"motion");
   const want=cam.rec;

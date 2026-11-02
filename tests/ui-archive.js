@@ -35,7 +35,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const e = arch[arch.length - 1];
   const srvE = await API.get("/archives/" + e.id);
   ok(srvE.kind === "edge" && srvE.recordMode === "always", "на сервере: вид и режим");
-  const camE = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.serverId === srvFree.id);
+  const camE = (await uiDevices()).find((d) => d.type === "camera" && d.serverId === srvFree.id);
   if (camE) {
     ok(await until(() => find(camE.id).n.archx?.some((x) => x.arch === e.id && x.ro)), "у камеры сервера — строка");
     open(camE.id, "rec");
@@ -48,7 +48,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
 
   // Выбор архива у камеры: вид и режим
   const inc = of("incidents"), bak = of("backup");
-  const cam = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.serverId === bak.server && !d.extraArchives && d.archiveId && d.recordMode === "always");
+  const cam = (await uiDevices()).find((d) => d.type === "camera" && d.serverId === bak.server && !d.extraArchives && d.archiveId && d.recordMode === "always");
   const c = find(cam.id).n;
   ok(!archChoicesFor(c).includes(bak) && !archChoicesFor(c).includes(inc) && !archChoicesFor(c).includes(of("edge")), "основным резерв, инциденты и карту не выбрать");
   ok(archRowChoices(c).includes(bak) && !archRowChoices(c).includes(inc), "дополнительным — резерв да, инциденты нет");
@@ -64,7 +64,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok((await API.get("/devices/" + cam.id)).extraArchives?.some((x) => x.archiveId === bak.id && x.recordMode === "backup"), "на сервере — строка резерва");
 
   // Репликация: источник — встроенное хранилище или другой архив этой камеры; поток — тот, что можно
-  const gate = (await API.get("/devices")).items.find((d) => (d.extraArchives || []).some((x) => x.recordMode === "replica" && x.replicaFrom && x.replicaLagSec));
+  const gate = (await uiDevices()).find((d) => (d.extraArchives || []).some((x) => x.recordMode === "replica" && x.replicaFrom && x.replicaLagSec));
   const gn = find(gate.id).n;
   open(gate.id, "rec");
   ok(!!main().querySelector("[data-replica-src]") && /Откуда забирать/.test(main().textContent), "у строки — откуда забирать");
@@ -76,7 +76,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const streamOpts = [...rowEl.querySelectorAll("td")[1].querySelectorAll("option")];
   ok(streamOpts.length === 1, "поток — только поток источника");
   // Камера без встроенного хранилища: режим по другому архиву
-  const all = (await API.get("/devices")).items;
+  const all = (await uiDevices());
   const bare = all.find((d) => d.type === "camera" && d.archiveId && d.recordMode === "always" && !d.parentId && !(d.extraArchives || []).length && !all.some((x) => x.type === "storage" && x.parentId === d.id) && d.serverId !== srvFree.id && servers.find((x) => x.id === d.serverId)?.online !== false && !hasNoSignal(domainOf(d.serverId) || {}));
   const bn = find(bare.id).n;
   open(bare.id, "rec");
@@ -93,7 +93,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const bs = await API.get("/devices/" + bare.id);
   ok(bs.extraArchives?.[0]?.replicaFrom === bare.archiveId, "на сервере — строка забирает из основного: " + JSON.stringify(bs.extraArchives));
   // Карта камеры w2c
-  const cardDev = (await API.get("/devices")).items.find((d) => d.type === "storage" && d.writableFields);
+  const cardDev = (await uiDevices()).find((d) => d.type === "storage" && d.writableFields);
   open(cardDev.id, "gen");
   ok(!!main().querySelector("[data-card-mode]") && !!main().querySelector("[data-card-size]"), "карта камеры: режим и объём правятся");
   storageSet(cardDev.id, "rec", "always");
@@ -102,11 +102,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => bq && bq.finished), "план карты: не ок " + bq?.fail);
   const cs = await API.get("/devices/" + cardDev.id);
   ok(cs.recordMode === "always" && cs.sizeBytes === 512 * 1024 ** 3, "на сервере — режим и объём");
-  open((await API.get("/devices")).items.find((d) => d.type === "storage" && !d.writableFields).id, "gen");
+  open((await uiDevices()).find((d) => d.type === "storage" && !d.writableFields).id, "gen");
   ok(!main().querySelector("[data-card-mode]") && !main().querySelector("[data-card-size]"), "обычное встроенное — только чтение");
 
   // Срок и глубина строки, запись по расписанию, микрофон
-  const all2 = (await API.get("/devices")).items;
+  const all2 = (await uiDevices());
   const sc = all2.find((d) => d.type === "camera" && d.archiveId && d.recordMode === "always" && !d.parentId && d.serverId && !d.extraArchives && servers.find((x) => x.id === d.serverId)?.online !== false && !hasNoSignal(domainOf(d.serverId) || {}));
   const sn = find(sc.id).n;
   open(sc.id, "rec");

@@ -9,7 +9,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => document.getElementById("asstApply")), "из поиска — сразу план");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
   goClose();
-  const camId = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
+  const camId = (await uiDevices()).find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
   const before = (await API.get(`/devices/${camId}`)).recordMode;
   const say = (t) => { asst.text = t; document.getElementById("asstSend").click(); };
   const body = () => document.getElementById("gopop").textContent;

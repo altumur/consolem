@@ -78,7 +78,10 @@ UiCheck(async ({ ok, until }) => {
   closeWizard();
 
   // Поддержанное работает: переименовать камеру — запрос, ответ, кэш
-  const camId = (await API.get("/devices")).items.find((x) => x.type === "camera").id;
+  const camId = (await uiDevices()).find((x) => x.type === "camera").id;
+  // События устройств приходят только по наблюдаемым: открытая карточка наблюдается
+  pick(camId);
+  await until(() => watchLast.includes(camId));
   const before = (await API.get("/devices/" + camId)).version;
   const res = await API.patch("/devices/" + camId, { name: "Камера — профиль" }, before);
   ok(res.name === "Камера — профиль", "переименование через API");

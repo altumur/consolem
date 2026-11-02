@@ -18,7 +18,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(cams.every((c) => c.user !== "op"), "кэш не меняется до ответа сервера");
   ok(await until(() => bq.finished), "операция завершилась: ok " + bq.ok + ", не ок " + bq.fail);
   ok(await until(() => cams.every((c) => c.enabled === false && c.rec === "motion" && c.user === "op")), "кэш обновлён из потока");
-  ok(cams.every((c) => folder.items.includes(c.id)), "в папке");
+  ok(await until(() => cams.every((c) => folder.items.includes(c.id))), "в папке");
   ok(detCams.length > 0 && (await until(() => detCams.every((c, i) => camDetectors(c).length === dets0[i] + 1))), "детекторы созданы: " + detCams.length);
   const r0 = await API.get("/devices/" + cams[0].id);
   ok(r0.enabled === false && r0.recordMode === "motion" && r0.login === "op" && r0.hasPassword, "на сервере — изменено, пароль задан");
@@ -27,6 +27,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const many = devicePool.filter((n) => n.type === "camera" && online(n)).slice(0, 12);
   treeSel.clear();
   many.forEach((c) => treeSel.add(c.id));
+  // Версии до операции: камеры вне наблюдения, кэш узнаёт о шагах после её конца
+  const verOf = Object.fromEntries(await Promise.all(many.map(async (c) => [c.id, (await API.get("/devices/" + c.id)).version])));
   bulkRun(bulkChanges({ pre: "9" }));
   ok(await until(() => bq.api && bq.api !== "pending" && bq.done > 0), "идёт: " + bq.done + " из " + bq.total);
   if (typeof queuePause === "function") {
@@ -45,8 +47,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(left.length > 0 && left.every((n) => blockedId(n.id)), "объекты операции заняты: " + left.length);
     ok(busyRefuse(left[0].id) === true, "правка занятого объекта отклонена");
     const last = left[left.length - 1];
-    const refused = await API.patch("/devices/" + last.id, { name: last.name }, hwVer.get(last.id)).then(() => null, (e) => e);
-    ok(refused && refused.problem && refused.problem.code === "BUSY", "сервер: правка занятого объекта — " + (refused && refused.problem ? refused.problem.code : "принята"));
+    const opId = bq.api;
+    const refused = await API.patch("/devices/" + last.id, { name: last.name }, verOf[last.id]).then(() => null, (e) => e);
+    // Шаг мог успеть раньше запроса на занятой странице: тогда операция уже кончилась, а версия ушла вперёд. Пока она идёт — только BUSY
+    const running = (await API.get("/operations/" + opId)).state === "running";
+    ok(refused && refused.problem && (refused.problem.code === "BUSY" || (!running && refused.problem.code === "VERSION_MISMATCH")), "сервер: правка занятого объекта — " + (refused && refused.problem ? refused.problem.code : "принята"));
     queueCancel();
     ok(await until(() => bq.finished), "отмена оставшегося: ok " + bq.ok + ", отменено " + bq.steps[0].ops.filter((o) => o.state === "cancel").length);
     ok(many.every((c) => !blockedId(c.id)), "после окончания объекты свободны");

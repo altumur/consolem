@@ -2041,8 +2041,10 @@ let domainFilter="",domainPop=false;
 // и под хранилищем — это одно устройство, но отмечено оно там, где щёлкнули.
 // selWhere помнит контекст строки; null — место не задано (основное вхождение).
 const selWhere=new Map();
+let selOver=false;
 const treeSel=new (class extends Set{
-  add(id,ctx){if(ctx!==undefined||!this.has(id))selWhere.set(id,ctx||null);return super.add(id)}
+  // Предел выбора: больше selectMax не отмечается, такое проводится несколькими операциями
+  add(id,ctx){if(!this.has(id)&&this.size>=LIM.selectMax){selOver=true;return this}if(ctx!==undefined||!this.has(id))selWhere.set(id,ctx||null);return super.add(id)}
   delete(id){selWhere.delete(id);return super.delete(id)}
   clear(){selWhere.clear();super.clear()}
 })();
@@ -2159,6 +2161,7 @@ function can(need){
 }
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
+  Object.assign(LIM,ref.limits);
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.deviceTypes=new Set(c.deviceTypes);CAPS.features=new Set(c.features);
@@ -2176,6 +2179,8 @@ function capsApply(){
   st.textContent=needs.map(n=>`[data-needs~="${n}"]{display:none!important}`).join("\n");
   document.head.appendChild(st);
 }
+// Пределы контракта — из reference.limits, не вшиваются
+const LIM={pageMax:1000,idsMax:200,selectMax:500,watchMax:200};
 const servers=[],domains=[];
 // Версия записи — для If-Match и плана операции. В объекты кэша не кладётся:
 // иначе она попала бы в «было → станет» карточки.
@@ -2197,7 +2202,7 @@ const DEV_API=Object.fromEntries(Object.entries(DEV_KEY).map(([k,v])=>[v,k]));
 const DEV_FLD={rtspUrl:"RTSP",codec:"Кодек",res:"Разрешение",fps:"к/с",overlayDelayMs:"Задержка, мс",overlayDurationSec:"Длительность, с"};
 const DEV_FLD_API=Object.fromEntries(Object.entries(DEV_FLD).map(([k,v])=>[v,k]));
 const DEV_NUM=new Set(["retentionDays","minDepthDays","port","fps","preRecordSec","channel","videoChannel","sensitivity","overlayDelayMs","overlayDurationSec"]);
-const DEV_SKIP=new Set(["id","type","parentId","domainId","version","hasPassword"]);
+const DEV_SKIP=new Set(["id","type","parentId","domainId","version","hasPassword","folderIds","hasChildren"]);
 const NORM_RU={open:"Разомкнуто",closed:"Замкнуто"};
 const NORM_CODE={"Разомкнуто":"open","Замкнуто":"closed"};
 const SVC_TYPES=new Set(["export","email","sms"]);
@@ -2242,7 +2247,8 @@ function srvNode(r){
   SERVER_DISKS[r.id]=r.disks.map(d=>({disk:d.disk,size:bytesText(d.sizeBytes),sys:d.system}));
   return s;
 }
-function folderNode(r){return{id:r.id,type:"folder",name:r.name,domain:r.parentId?null:r.domainId,items:r.deviceIds.slice(),folders:[]}}
+// Состав папки в кэше неполный: только то, что уже читали
+function folderNode(r){return{id:r.id,type:"folder",name:r.name,domain:r.parentId?null:r.domainId,items:[],folders:[]}}
 function archNode(r){
   const a={id:r.id,type:"archive",name:r.name};
   if(r.serverId)a.server=r.serverId;else a.domain=r.domainId;
@@ -2263,7 +2269,8 @@ function volNode(r){
   if(r.shrinkPendingBytes!=null)v.shrink=r.shrinkPendingBytes;
   return v;
 }
-// Весь кэш «Оборудования» заново: при старте и когда поток потерян (stream.reset)
+// Кэш «Оборудования» неполный: домены и серверы целиком (их мало), папки, хранилища и тома — первой страницей,
+// устройства — только то, что раскрыли, нашли или открыли. Режим один на любом размере.
 function hwFill(L){
   [servers,domains,devicePool,folders,arch].forEach(x=>x.length=0);
   [SERVER_DOMAIN,DEVICE_DOMAIN,SERVER_GPU,SERVER_DISKS].forEach(x=>Object.keys(x).forEach(k=>delete x[k]));
@@ -2271,31 +2278,45 @@ function hwFill(L){
   const ver=r=>hwVer.set(r.id,r.version);
   const byId=new Map();
   L.servers.forEach(r=>{ver(r);const s=srvNode(r);byId.set(r.id,s);servers.push(s);SERVER_DOMAIN[r.id]=r.domainId});
-  L.domains.forEach(r=>{ver(r);domains.push({id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,
+  L.domains.forEach(r=>{ver(r);domains.push({id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,summary:r.stateSummary||null,
     servers:L.servers.filter(s=>s.domainId===r.id&&s.allocated).map(s=>byId.get(s.id)),
     unallocServers:L.servers.filter(s=>s.domainId===r.id&&!s.allocated).map(s=>byId.get(s.id))})});
-  L.devices.forEach(r=>{
-    ver(r);const n=devNode(r);byId.set(r.id,n);
-    if(r.parentId){const p=byId.get(r.parentId);(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(r.type))byId.get(r.serverId).devices.push(n);
-    else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
-  });
-  L.folders.forEach(r=>{ver(r);const f=folderNode(r);byId.set(r.id,f);(r.parentId?byId.get(r.parentId).folders:folders).push(f)});
-  L.archives.forEach(r=>{ver(r);const a=archNode(r);byId.set(r.id,a);arch.push(a)});
-  L.volumes.forEach(r=>{ver(r);byId.get(r.archiveId).vols.push(volNode(r))});
+  folderAdd(L.folders);
+  L.archives.forEach(archAdd);
+  L.volumes.forEach(volAdd);
   remakeAcfa();
   treeMatchCache.clear();searchMatchCache.clear();
 }
-const HW_LISTS=["domains","servers","devices","folders","archives","volumes"];
-const HW_OPS={domains:"listDomains",servers:"listServers",devices:"listDevices",folders:"listFolders",archives:"listArchives",volumes:"listVolumes"};
-async function hwLoad(){
-  const lists=await Promise.all(HW_LISTS.map(p=>can(HW_OPS[p])?API.get("/"+p).then(r=>r.items):[]));
-  const L=Object.fromEntries(HW_LISTS.map((p,i)=>[p,lists[i]]));
-  const disc=can("getDiscovery")?await Promise.all(L.domains.map(d=>API.get(`/domains/${d.id}/discovery`))):[];
-  const keep=cardKeepBefore();
+// Папки и хранилища дописываются страницами: родителя может ещё не быть, тогда папка ждёт его чтения
+function folderAdd(list){
+  const left=list.filter(r=>{
+    if(folderById(r.id))return false;
+    if(r.parentId&&!folderById(r.parentId))return true;
+    hwVer.set(r.id,r.version);
+    const f=folderNode(r);(r.parentId?folderById(r.parentId).folders:folders).push(f);
+    return false;
+  });
+  if(left.length&&left.length<list.length)folderAdd(left);
+  return left;
+}
+function archAdd(r){if(archById(r.id))return;hwVer.set(r.id,r.version);arch.push(archNode(r))}
+function volAdd(r){const a=archById(r.archiveId);if(!a||a.vols.some(v=>v.id===r.id))return;hwVer.set(r.id,r.version);a.vols.push(volNode(r))}
+// Дочитаны ли перечни до конца: нет — запись по чужому id читается отдельно
+const hwDone={folders:false,archives:false,volumes:false};
+let hwTotal=null,hwReadAt=0;
+async function hwLoad(){hwPut(await hwRead())}
+async function hwRead(){
+  const page=(op,path,key)=>can(op)?API.get(path).then(r=>{if(key)hwDone[key]=!r.nextCursor;return r}):{items:[]};
+  const[dm,sv,fl,ar,vl]=await Promise.all([page("listDomains","/domains"),page("listServers","/servers"),page("listFolders","/folders","folders"),page("listArchives","/archives","archives"),page("listVolumes","/volumes","volumes")]);
+  return{domains:dm.items,servers:sv.items,folders:fl.items,archives:ar.items,volumes:vl.items};
+}
+function hwPut(L){
   hwFill(L);
-  seedFound(disc);
-  cardKeepAfter(keep);
+  // Оценка числа камер — из итога домена, отдельного запроса на старте нет
+  hwTotal=L.domains.some(d=>d.stateSummary)?L.domains.reduce((s,d)=>s+(d.stateSummary?.total||0),0):null;
+  hwReadAt=Date.now();
+  treeReset();
+  archCamIds.clear();volsDone.clear();
 }
 // Кэш перечитан целиком, а у открытой карточки есть черновик: «до» — свежая
 // запись сервера, правки пользователя — поверх, как при hwFresh одной записи
@@ -2343,7 +2364,7 @@ function hwFresh(n,fresh,keep){
     if(v===undefined)delete n[k];else n[k]=v;
   });
 }
-const KEEP_DEVICE=new Set(["devices","_f"]),KEEP_SERVER=new Set(["devices"]),KEEP_ARCH=new Set(["vols"]),KEEP_NONE=new Set();
+const KEEP_DEVICE=new Set(["devices","_f"]),KEEP_ROW=new Set(["devices","_f","_more","_nf","_nr"]),KEEP_SERVER=new Set(["devices"]),KEEP_ARCH=new Set(["vols"]),KEEP_NONE=new Set();
 // Запись сменила родителя: устройство назвало каналы — появился ipsrv, запись регистратора сняли — камера без родителя
 function hwReparent(n,parentId,domainId){
   const f=find(n.id),list=f?.p?f.p.devices:devicePool;
@@ -2356,7 +2377,8 @@ function hwApplyDevice(r){
   const was=find(r.id),n=was?.n;if(!n)return;
   if((was.p?.id||null)!==(r.parentId||null)&&!SVC_TYPES.has(r.type))hwReparent(n,r.parentId,r.domainId);
   const fresh=devNode(r);
-  hwFresh(n,fresh,KEEP_DEVICE);
+  hwFresh(n,fresh,KEEP_ROW);
+  hwFolderIds(r);
   Object.values(DEV_FLD).forEach(l=>{if(fresh._f&&l in fresh._f)(n._f||(n._f={}))[l]=fresh._f[l];else if(n._f)delete n._f[l]});
   hwVer.set(r.id,r.version);
 }
@@ -2373,7 +2395,7 @@ function hwApplyServer(r){
 }
 function hwApplyDomain(r){
   const d=domainById(r.id);if(!d)return;
-  d.name=r.name;d.license=r.license;d.online=r.online;
+  d.name=r.name;d.license=r.license;d.online=r.online;d.summary=r.stateSummary||null;
   hwVer.set(r.id,r.version);
 }
 // Созданные устройства (ответ сервера): родитель первым, дочерние — за ним
@@ -2385,9 +2407,75 @@ function hwAddDevices(list,flds){
     if(r.parentId){const p=find(r.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
     else if(SVC_TYPES.has(r.type))servers.find(s=>s.id===r.serverId)?.devices.push(n);
     else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+    hwFolderIds(r);
   });
   (flds||[]).forEach(hwApplyFolder);
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
+}
+// Полная запись называет папки устройства: состав папок в кэше дополняется ими
+function hwFolderIds(r){
+  if(!r.folderIds)return;
+  const node=find(r.id)?.n;if(node)node._nf=!r.folderIds.length;
+  walkFolders(f=>{
+    const has=f.items.includes(r.id),want=r.folderIds.includes(f.id);
+    if(want&&!has)f.items.push(r.id);
+    else if(!want&&has)f.items=f.items.filter(x=>x!==r.id);
+  });
+}
+// Строка перечня (DeviceRow): запись кэша без подробностей, _row — полную ещё не читали, _more — могут быть дети
+function hwAddRow(r){
+  const was=find(r.id);
+  if(was){
+    const n=was.n;
+    ["name","online"].forEach(k=>{if(k in r)n[k]=r[k]});
+    if(r.licenseExceeded)n.licenseExceeded=true;else delete n.licenseExceeded;
+    if(r.enabled===false)n.enabled=false;else delete n.enabled;
+    if(r.fault)n.err=r.fault;else delete n.err;
+    if(n._row)hwVer.set(r.id,r.version);
+    if(r.hasChildren&&!(n.devices||[]).length)n._more=true;
+    return n;
+  }
+  const row=Object.assign({},r);
+  ["fault","serverId","parentId"].forEach(k=>{if(row[k]==null)delete row[k]});
+  if(!row.licenseExceeded)delete row.licenseExceeded;
+  const n=devNode(row);
+  n._row=true;if(r.hasChildren)n._more=true;
+  hwVer.set(r.id,r.version);
+  if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n)}
+  else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s)s.devices.push(n)}
+  else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+  return n;
+}
+// Вход по чужому id (поиск, журнал, правило, права): запись сперва дочитывается, родители — раньше детей
+async function hwEnsure(ids){
+  const need=[...new Set(ids.filter(Boolean))].filter(id=>!find(id));
+  for(let i=0;i<need.length;i+=LIM.idsMax){
+    const rows=(await API.get("/devices",{ids:need.slice(i,i+LIM.idsMax).join(",")})).items;
+    await hwEnsure(rows.map(r=>r.parentId));
+    rows.forEach(hwAddRow);
+  }
+  if(need.length){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear()}
+}
+// Полная запись открытой карточки
+const hwFullBusy=new Map();
+function hwFull(id){
+  if(hwFullBusy.has(id))return hwFullBusy.get(id);
+  const p=hwEnsure([id]).then(()=>API.get(`/devices/${id}`)).then(async r=>{
+    // Чужие ссылки записи: хранилища и папки могут быть не в кэше
+    await Promise.all([r.archiveId,...(r.extraArchives||[]).map(x=>x.archiveId)].filter(Boolean).map(a=>archEnsure(a).catch(()=>{})));
+    await Promise.all((r.folderIds||[]).map(f=>folderEnsure(f).catch(()=>{})));
+    const n=find(id)?.n;if(!n)return null;
+    hwApplyDevice(r);delete n._row;hwVer.set(r.id,r.version);
+    treeMatchCache.clear();searchMatchCache.clear();
+    return n;
+  }).finally(()=>hwFullBusy.delete(id));
+  hwFullBusy.set(id,p);
+  return p;
+}
+// Несколько полных записей: выборка перед правкой, у строк камеры-кластера версия другая
+async function hwFullAll(ids){
+  const left=ids.filter(id=>find(id)?.n?._row);
+  for(let i=0;i<left.length;i+=16)await Promise.all(left.slice(i,i+16).map(hwFull));
 }
 // Папка удалена (своим удалением или чужим) — из кэша вместе с подпапками и их версиями:
 // иначе событие entity.deleted сочтёт кэш устаревшим и перечитает всё, с потерей черновиков
@@ -2454,7 +2542,32 @@ function devicesMutate(nodes,mutate){
 // Состав папки — PATCH папки, кэш — по ответу
 function folderSetItems(fid,ids){
   if(busyHit(fid)||ids.some(id=>busyIds().has(id)))return Promise.reject({problem:{code:"BUSY"}});
-  return API.patch(`/folders/${fid}`,{deviceIds:ids},hwVer.get(fid)).then(r=>{hwApplyFolder(r);treeMatchCache.clear();searchMatchCache.clear();return r});
+  const f=folderById(fid),was=f?f.items:[];
+  return folderChange(fid,ids.filter(x=>!was.includes(x)),was.filter(x=>!ids.includes(x)));
+}
+// Очистить папку: состав читается дверью единиц, кэш знает не всё
+async function folderClear(f){
+  const ids=[];let cursor=null;
+  do{const r=await API.get("/devices",{folderId:f.id,cursor,limit:LIM.pageMax});r.items.forEach(x=>ids.push(x.id));cursor=r.nextCursor||null}while(cursor);
+  return folderChange(f.id,[],ids);
+}
+// Состав папки меняется изменениями: кэш знает не весь состав. Больше selectMax — несколькими запросами
+async function folderChange(fid,add,remove){
+  let res=null;
+  const rows=[...add.map(x=>["add",x]),...remove.map(x=>["remove",x])];
+  for(let i=0;i===0||i<rows.length;i+=LIM.selectMax){
+    const part=rows.slice(i,i+LIM.selectMax);
+    res=await API.post(`/folders/${fid}/devices`,{add:part.filter(x=>x[0]==="add").map(x=>x[1]),remove:part.filter(x=>x[0]==="remove").map(x=>x[1])});
+    hwApplyFolder(res);
+  }
+  const f=folderById(fid);
+  if(f)f.items=f.items.filter(x=>!remove.includes(x)).concat(add.filter(x=>!f.items.includes(x)));
+  treeMatchCache.clear();searchMatchCache.clear();
+  return res;
+}
+// Хранилище на весь сервер: у камер этого сервера появилась или ушла строка, а наблюдаются они не все
+function archServerTouched(a){
+  if(a?.server&&archSpec(a).serverWide)hwTouched(serverCameras(a.server).map(c=>c.id));
 }
 function hwApplyArchive(r){
   const a=archById(r.id);if(!a)return;
@@ -2476,7 +2589,7 @@ function hwApplyVolume(r){
 const volFormatting=new Set();
 function hwApplyFolder(r){
   const f=folderById(r.id);if(!f)return;
-  f.name=r.name;f.items=r.deviceIds.slice();
+  f.name=r.name;
   hwVer.set(r.id,r.version);
 }
 const HW_EVENT={device:["/devices",hwApplyDevice],folder:["/folders",hwApplyFolder],server:["/servers",hwApplyServer],domain:["/domains",hwApplyDomain],
@@ -2499,34 +2612,82 @@ function hwReloadSoon(m){
 // Поток событий: изменения (свои и чужие), ход операций. Запись перечитывается
 // по id; если поток потерян — весь кэш заново.
 function apiOnEvent(m){
+  if(m.type==="stream.hello"){streamClient=m.clientId;watchLast="";watchSoon();return}
+  if(m.type==="tree.changed"){treeChanged(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
-  if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false}
+  if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
+  if(m.type==="test.reset")hwRowsDrop();
   if(m.type==="stream.reset"||m.type==="test.reset"){apiReload();return}
   if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
   if(m.kind==="archiveWatch"||m.kind==="archiveScan"){rwReload();return}
   if(m.kind==="operation"){opOnEvent(m);return}
   if(m.kind==="discovery"){discOnEvent(m);return}
-  if(m.kind==="access"&&m.version!==accVer&&m.version!==accLast?.version){accRefresh().catch(()=>{});return}
+  if(m.kind==="access"&&!accApplying&&m.version!==accVer&&m.version!==accLast?.version){accRefresh().catch(()=>{});return}
   if(m.kind==="settings"&&m.version!==settingsVer){API.get("/settings").then(s=>{settingsApply(s);if(app==="sys")paint()}).catch(()=>{});return}
   if(AUTO_KINDS.has(m.kind)){autoEvent(m);return}
   const h=HW_EVENT[m.kind];
   if(!h)return;
   if(m.type==="entity.created"&&m.kind==="device"&&!hwVer.has(m.entityId)){
     // Чужое новое устройство — одной записью, если его родитель уже в кэше
-    API.get(`/devices/${m.entityId}`).then(r=>{if(r.parentId&&!find(r.parentId))return hwReloadSoon();hwAddDevices([r]);renderTree()}).catch(()=>{});
+    API.get(`/devices/${m.entityId}`).then(r=>{if(r.parentId&&!find(r.parentId))return;hwAddDevices([r]);renderTree()}).catch(()=>{});
     return;
   }
   if(m.type==="entity.deleted"&&m.kind==="device"&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTree();if(sel===m.entityId)paint();return}
   if(m.type==="entity.deleted"&&m.kind==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTree();if(own)paint();return}
+  // Устройства нет в кэше — читать нечего: кэш неполный, перечитывание целиком отменено
+  if(m.kind==="device"&&m.type!=="entity.changed")return;
   if(m.type==="entity.created"||m.type==="entity.deleted"){if((m.type==="entity.created")!==hwVer.has(m.entityId))hwReloadSoon(m);return}
   if(m.type!=="entity.changed")return;
   if(hwVer.get(m.entityId)===m.version&&!m.payload?.status)return;
+  if(m.kind==="device"&&!hwVer.has(m.entityId))return;
   API.get(`${h[0]}/${m.entityId}`).then(r=>{
     h[1](r);treeMatchCache.clear();searchMatchCache.clear();
     renderTree();if(sel===m.entityId&&!cardDraft&&!(bq&&!bq.finished))paint();
   }).catch(()=>{});
 }
-function apiReload(){Promise.all([hwLoad(),appLoad()]).then(autoLoad).then(()=>{if(!find(sel))sel=domains[0]?.id||null;paint()})}
+// Поток потерян: перечитывается только то, что есть в кэше. Весь перечень не читается никогда
+function apiReload(){
+  return Promise.all([hwReload(),appLoad()]).then(autoLoad).then(()=>accShown&&accLoad()).then(()=>treeNeed()).then(()=>{
+    if(sel&&!find(sel)&&!hwVer.has(sel))sel=domains[0]?.id||null;
+    watchSoon();paint();
+  });
+}
+// Перечитать то, что есть в кэше: строки — строками, открытое полными записями
+async function hwReload(){
+  const ids=hwCachedIds(),full=ids.filter(id=>!find(id)?.n?._row),disc=[...discRead];
+  // Сначала всё читается, потом кэш меняется одним шагом: иначе дерево и карточка видели бы его пустым
+  const L=await hwRead();
+  const rows=[],recs=[];
+  for(let i=0;i<ids.length;i+=LIM.idsMax)rows.push(...(await API.get("/devices",{ids:ids.slice(i,i+LIM.idsMax).join(",")})).items);
+  for(let i=0;i<full.length;i+=16)recs.push(...await Promise.all(full.slice(i,i+16).map(id=>API.get(`/devices/${id}`).catch(()=>null))));
+  const keep=cardKeepBefore();
+  hwPut(L);
+  for(let left=rows;left.length;){
+    const next=left.filter(r=>r.parentId&&!find(r.parentId)&&left.some(x=>x.id===r.parentId));
+    left.filter(r=>!next.includes(r)).forEach(hwAddRow);
+    if(next.length===left.length)break;
+    left=next;
+  }
+  recs.filter(Boolean).forEach(r=>{const n=find(r.id)?.n;if(!n)return;hwApplyDevice(r);delete n._row;hwVer.set(r.id,r.version)});
+  remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
+  cardKeepAfter(keep);
+  discRead.clear();
+  await Promise.all(disc.map(discLoad));
+  await treeNeed();
+}
+// Шаги операции и каскады меняют записи вне наблюдения: перечитываются те, что есть в кэше
+async function hwTouched(ids){
+  // Открытая карточка наблюдается и приходит событием: второе чтение спорило бы с её черновиком
+  const list=[...new Set(ids)].filter(id=>id!==sel&&hwVer.has(id)&&find(id)&&!HW_NOT_DEVICE.has(find(id).n.type));
+  for(let i=0;i<list.length;i+=16)await Promise.all(list.slice(i,i+16).map(id=>API.get(`/devices/${id}`).then(hwApplyDevice).catch(()=>{})));
+  if(!list.length)return;
+  treeMatchCache.clear();searchMatchCache.clear();
+  if(app==="hw"){renderTree();if(list.includes(sel)&&!cardDraft&&!(bq&&!bq.finished))paint()}
+}
+function hwCachedIds(){return hwRowsDropped?[]:(()=>{const out=[];walk(n=>out.push(n.id),devicePool,null);servers.forEach(s=>walk(n=>out.push(n.id),s.devices,s));return out})()}
+// Стенд сброшен: прежние id ничего не значат
+let hwRowsDropped=false;
+function hwRowsDrop(){hwRowsDropped=true;setTimeout(()=>hwRowsDropped=false,0)}
 // Код ошибки сервера → текст для показа: интерфейс говорит своими словами
 function problemText(e,n){
   const code=e?.problem?.code||e?.code||e;
@@ -2558,7 +2719,7 @@ function problemText(e,n){
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
     NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("откатить можно только последнюю операцию"):i18n("откатить нельзя: срок вышел или уже откачено"),
-    NOT_SUPPORTED:e?.problem?.params?.issue?i18n("Система этого не исполняет"):i18n("этого не вернуть"),
+    NOT_SUPPORTED:e?.problem?.params?.reason==="folders"||e?.params?.reason==="folders"?i18n("папки вне отката: состав папки не возвращается"):e?.problem?.params?.issue?i18n("Система этого не исполняет"):i18n("этого не вернуть"),
   }[code]||(e?.status===0||!code?i18n("сервер не ответил"):`${i18n("ошибка")}: ${code}`);
 }
 // ── Модель w2c ─────────────────────────────────────────────────────────────
@@ -2609,6 +2770,13 @@ function flatFolders(){const out=[];walkFolders(f=>out.push(f));return out}
 function foldersOfDevice(id){
   const own=new Set();let f=find(id);
   while(f){own.add(f.n.id);f=f.p?find(f.p.id):null}
+  if(findMemo){
+    if(!findMemo.folderOf){
+      const m=findMemo.folderOf=new Map();
+      walkFolders(fd=>fd.items.forEach(x=>(m.get(x)||m.set(x,[]).get(x)).push(fd)));
+    }
+    return[...new Set([...own].flatMap(x=>findMemo.folderOf.get(x)||[]))];
+  }
   return flatFolders().filter(fd=>fd.items.some(x=>own.has(x)));
 }
 function folderDeviceNodes(f){return(f.items||[]).map(id=>find(id)?.n).filter(Boolean)}
@@ -2620,10 +2788,11 @@ function folderAddDevice(fid,deviceId){
 // Псевдоузлы дерева: собственные у каждого домена
 function nofolderId(did){return"nofolder:"+did}
 function nofolderNode(did){return{id:nofolderId(did),type:"nofolder",name:"Без папки",domainId:did,online:true}}
+// Кэш неполный: что устройство вне папок, знает полная запись или фильтр noFolder, а не перебор
 function unfolderedDevices(did){
   const inF=new Set();
   walkFolders(f=>{if(f.domain===did||folderDomain(f.id)===did)f.items.forEach(id=>inF.add(id))});
-  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id));
+  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf);
 }
 // Хранилище живёт на сервере или в домене (сетевое). Камера пишет только в
 // хранилище своего сервера или в сетевое хранилище домена — поэтому у КПП и
@@ -2739,7 +2908,21 @@ function setDevServer(node,sid){
 // Сервер камеры без поиска по дереву: свой, иначе — через хранилище записи
 function camSrvId(n){return n.srvId||(isRecording(n)?archById(n.arch)?.server:null)||null}
 // Камера внутри регистратора наследует его сервер
+let srvCamMemo=null;
 function serverCameras(sid){
+  // Сервер за сервером — квадрат: на одну отрисовку раскладка считается один раз
+  if(findMemo){
+    if(!srvCamMemo){
+      srvCamMemo=new Map();const via=new Map();
+      walkAll((n,p)=>{
+        const s=((n.type==="camera"||n.type==="ipsrv")&&n.srvId)||(p&&via.get(p.id))||null;
+        if(s)via.set(n.id,s);
+        const k=n.type==="camera"?(s||camSrvId(n)):null;
+        if(k)(srvCamMemo.get(k)||srvCamMemo.set(k,[]).get(k)).push(n);
+      });
+    }
+    return srvCamMemo.get(sid)||[];
+  }
   const via=new Map(),out=[];
   walkAll((n,p)=>{
     const s=((n.type==="camera"||n.type==="ipsrv")&&n.srvId)||(p&&via.get(p.id))||null;
@@ -2789,7 +2972,23 @@ function camArchs(n){
   return[{arch:n.arch,rec:n.rec||"none",stream:n.stream||"main",main:true,state:n.recordState,reason:n.recordReason,replicaFrom:n.replicaFrom,lag:n.replicaLagSec,retentionDays:n.retentionDays,minDepthDays:n.minDepthDays},...(n.archx||[]).map(x=>({...x}))];
 }
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
-function archCameras(aid){const out=[];walkAll(n=>{if(n.type==="camera"&&camWritesTo(n,aid))out.push(n)});return out}
+// Камеры хранилища: у строки кэша записи нет, поэтому — и то, что прочитано дверью archiveId
+const archCamIds=new Map();
+function archCameras(aid){const ids=archCamIds.get(aid)?.ids,out=[];walkAll(n=>{if(n.type==="camera"&&(camWritesTo(n,aid)||ids?.has(n.id)))out.push(n)});return out}
+async function archCamsLoad(aid,more){
+  let b=archCamIds.get(aid);
+  if(b&&(!more||b.busy||b.done))return;
+  if(!b)archCamIds.set(aid,b={ids:new Set(),cursor:null,busy:false,done:false});
+  b.busy=true;
+  try{
+    const r=await API.get("/devices",{archiveId:aid,cursor:b.cursor});
+    await hwEnsure(r.items.map(x=>x.parentId));
+    r.items.forEach(x=>{hwAddRow(x);b.ids.add(x.id)});
+    b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
+    if(r.items.length&&sel===aid&&app==="hw"){renderTree();gear()}
+  }catch(e){b.done=true}
+  finally{b.busy=false}
+}
 // Привязать камеру к хранилищу, не трогая прежние: без записи — основным,
 // иначе — дополнительным.
 function camAddArch(n,aid,rec){
@@ -2809,7 +3008,9 @@ function camDropArch(n,aid){
     if(next){n.arch=next.arch;n.rec=next.rec;n.stream=next.stream}else{n.arch=null;n.rec="none"}
   }
 }
-function unrecordedCameras(did){const out=[];walkAll(n=>{if(n.type==="camera"&&!isRecording(n)&&(!did||deviceDomain(n.id)===did))out.push(n)});return out}
+// Виртуальная группа: на сервере её нет, это отбор noRecord. У строки кэша записи нет, поэтому в группе то, что отбор
+// вернул, и полные записи без записи
+function unrecordedCameras(did){const out=[];walkAll(n=>{if(n.type==="camera"&&(n._row?n._nr:!isRecording(n))&&(!did||deviceDomain(n.id)===did))out.push(n)});return out}
 // Правило — не три строки текста, а форма, которую умеет исполнить система:
 // СОБЫТИЯ (одно или несколько, и тогда — окно, в котором они считаются
 // совпавшими) и ДЕЙСТВИЯ из каталога. Каждое действие — это заявка, которую
@@ -3011,15 +3212,25 @@ async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
   // 403 — раздела нет. Другой отказ (без связи с доменом это штатно) запуск не роняет: раздел говорит, что права недоступны, и спросит снова при заходе
   const access=()=>Promise.resolve(get("getAccess","/access",ACC_EMPTY)).then(a=>{accDown=false;return a}).catch(e=>{if(e?.status===403)accDenied=true;else accDown=true;return ACC_EMPTY});
-  const [me,st,lic,jr,acc]=await Promise.all([API.get("/me"),get("getSettings","/settings",{version:"1",values:{}}),get("listLicenses","/licenses",{items:[]}),get("listJournal","/journal",{items:[]}),access()]);
+  const [me,st,acc]=await Promise.all([API.get("/me"),get("getSettings","/settings",{version:"1",values:{}}),access()]);
   sysTz=me.timezone||sysTz;ACC_ME=me.login;
-  accSetSnapshot(acc);accLast=acc;
+  accSetSnapshot(accSkeleton(acc));accLast=accSkeleton(acc);
   settingsApply(st);
-  licenses=lic.items;
-  LOG_ROWS.length=0;jr.items.forEach(e=>LOG_ROWS.push(logRow(e)));
-  logSources.clear();jr.items.forEach(e=>{if(e.source)logSources.add(e.source)});
-  logDevices.clear();jr.items.forEach(e=>{if(e.deviceId)logDevices.add(e.deviceId)});
-  Object.keys(LOG_BY_CAT).forEach(k=>{LOG_BY_CAT[k].length=0;LOG_BY_CAT[k].push(...LOG_ROWS.filter(r=>k==="all"||r[1]===LOG_KIND_RU[k]))});
+}
+// Журнал и лицензии при старте не нужны: читаются при заходе в раздел
+let logLoaded=null,licLoaded=null;
+function journalLoad(){
+  if(logLoaded)return logLoaded;
+  return logLoaded=Promise.resolve(can("listJournal")?API.get("/journal"):{items:[]}).then(jr=>{
+    LOG_ROWS.length=0;jr.items.forEach(e=>LOG_ROWS.push(logRow(e)));
+    logSources.clear();jr.items.forEach(e=>{if(e.source)logSources.add(e.source)});
+    logDevices.clear();jr.items.forEach(e=>{if(e.deviceId)logDevices.add(e.deviceId)});
+    Object.keys(LOG_BY_CAT).forEach(k=>{LOG_BY_CAT[k].length=0;LOG_BY_CAT[k].push(...LOG_ROWS.filter(r=>k==="all"||r[1]===LOG_KIND_RU[k]))});
+  },()=>{logLoaded=null});
+}
+function licLoad(){
+  if(licLoaded)return licLoaded;
+  return licLoaded=Promise.resolve(can("listLicenses")?API.get("/licenses"):{items:[]}).then(l=>{licenses=l.items},()=>{licLoaded=null});
 }
 // ── «Автоматизация» — с сервера ───────────────────────────────────────────
 // Правила с историей и запусками, расписания, особые дни, режимы объекта, окна обслуживания читаются через
@@ -3344,14 +3555,15 @@ function winNode(w){return{id:w.id,name:w.name,sched:w.scheduleId,scope:w.ruleId
 function winBody(w){return{name:(w.name||"").trim(),scheduleId:w.sched,ruleIds:w.scope==="all"?null:(w.scope||[]).slice(),enabled:!!w.on}}
 function winSet(x){const n=pendKeep(winNode(x)),i=MAINT_WINDOWS.findIndex(w=>w.id===x.id);if(i>=0)MAINT_WINDOWS[i]=Object.assign(n,MAINT_WINDOWS[i]._pend?{_pend:true}:{});else MAINT_WINDOWS.push(n);autoVer.set(x.id,x.version);return n}
 // Всё «Автоматизации» заново: при старте и когда поток потерян
+// При старте — правила и расписания: на них ссылаются карточки. Остальное — при заходе в раздел (autoFull)
+let autoFullP=null;
+function autoFull(){
+  if(autoFullP)return autoFullP;
+  return autoFullP=autoRest().catch(e=>{autoFullP=null;throw e});
+}
 async function autoLoad(){
-  const [rl,sc,dg,M,cur,mw]=await Promise.all([["listRules","/rules"],["listSchedules","/schedules"],["listDayGroups","/day-groups"],["getModes","/modes"],["getModeCurrent","/modes/current"],["listMaintenanceWindows","/maintenance-windows"]]
-    .map(([op,p])=>can(op)?API.get(p):{items:[]}));
-  if(can("getModes"))modesApply(M);
-  if(can("getModeCurrent"))modeCurApply(cur);
+  const [rl,sc]=await Promise.all([["listRules","/rules"],["listSchedules","/schedules"]].map(([op,p])=>can(op)?API.get(p):{items:[]}));
   SCHEDS.length=0;sc.items.forEach(x=>schSet(x));
-  DAY_GROUPS.length=0;dg.items.forEach(grpSet);
-  MAINT_WINDOWS.length=0;mw.items.forEach(winSet);
   // Черновик правила переживает перечитывание: «до» — запись сервера, правки — поверх
   const dr=ruleDraft&&rules.find(r=>r.id===ruleDraft.id),drLive=dr?ruleClone(dr):null;
   rules.length=0;rl.items.forEach(x=>ruleSet(x));
@@ -3369,6 +3581,17 @@ async function autoLoad(){
   if(!schLast||!SCHEDS.some(s=>s.id===schLast))schLast=(SCHEDS.find(s=>!s.builtin)||{}).id||null;
   Object.keys(ruleFires).forEach(k=>delete ruleFires[k]);Object.keys(ruleHist).forEach(k=>delete ruleHist[k]);
   ruleFireSeq=0;
+  // Раздел уже открывали: перечитывается то, что в нём было
+  if(autoFullP){autoFullP=null;await autoFull()}
+}
+async function autoRest(){
+  if(can("listRules"))await hwEnsure([...ruleDeviceIds((await API.get("/rules")).items,new Set())]);
+  const [dg,M,cur,mw]=await Promise.all([["listDayGroups","/day-groups"],["getModes","/modes"],["getModeCurrent","/modes/current"],["listMaintenanceWindows","/maintenance-windows"]]
+    .map(([op,p])=>can(op)?API.get(p):{items:[]}));
+  if(can("getModes"))modesApply(M);
+  if(can("getModeCurrent"))modeCurApply(cur);
+  DAY_GROUPS.length=0;dg.items.forEach(grpSet);
+  MAINT_WINDOWS.length=0;mw.items.forEach(winSet);
   // Порядок номеров записей — как у макета: правило за правилом, новые запуски первыми
   for(const r of rules){await firesLoad(r.id)}
   await Promise.all(rules.map(r=>ruleHistLoad(r.id)));
@@ -3428,8 +3651,17 @@ function walkAll(fn){
 const ACFA_NODE_IDS=new Set();
 function markAcfa(list,inside=false){(list||[]).forEach(n=>{const under=inside||n.type==="acfa";if(under)ACFA_NODE_IDS.add(n.id);markAcfa(n.devices,under)})}
 function remakeAcfa(){ACFA_NODE_IDS.clear();markAcfa(devicePool);servers.forEach(s=>markAcfa(s.devices))}
+// Перебор кэша на каждый find в отрисовке — квадрат: на время одной отрисовки кэш не меняется, карта собирается один раз
+let findMemo=null;
+function withFind(fn){
+  if(findMemo)return fn();
+  const m=new Map();walkAll((n,p)=>m.set(n.id,{n,p}));
+  findMemo=m;
+  try{return fn()}finally{findMemo=null}
+}
 function find(id){
-  let o;walkAll((n,p)=>{if(n.id===id)o={n,p}});
+  let o;
+  if(findMemo)o=findMemo.get(id);else walkAll((n,p)=>{if(n.id===id)o={n,p}});
   if(!o){const f=folderById(id);if(f)o={n:f,p:folderParent(id)}}
   if(!o){const a=archById(id);if(a)o={n:a,p:archOwner(a)}}
   if(!o){const v=volById(id);if(v)o={n:v,p:archById(v.archId)}}
@@ -3649,7 +3881,8 @@ function addDomain(){
 function domainDeviceCount(d){
   let n=0;
   walk(x=>{if(x.type!=="det"&&deviceDomain(x.id)===d.id)n++},devicePool,null);
-  return n;
+  // Кэш неполный: итог домена знает больше
+  return Math.max(n,d.summary?.total||0);
 }
 function domainFolderCount(did){
   let n=0;walkFolders(f=>{if(folderDomain(f.id)===did)n++});
@@ -3683,7 +3916,7 @@ function deleteDomain(id){
     scheduleDelete([id],{label:`${i18n("Домен")} «${locName(d)}»`,commit:()=>{
     if(!domainById(id))return;
     // Отсчёт кончился — запрос уходит; не удалось — домен остаётся на месте
-    API.del(`/domains/${id}${items.length&&to?`?moveTo=${to}`:""}`,hwVer.get(id)).then(()=>hwLoad()).then(()=>{
+    API.del(`/domains/${id}${items.length&&to?`?moveTo=${to}`:""}`,hwVer.get(id)).then(()=>hwReload()).then(()=>{
     open.delete(id);delete found[id];resetUnallocDisplay(id);
     delete unallocPick[id];
     treeMatchCache.clear();searchMatchCache.clear();
@@ -4115,7 +4348,22 @@ function toggleNodeEnabled(id,el){
   setD(true);
   applyFiltersFromState();
 }
+// Итог домена живёт кругом вида: на карточке домена — свежий, отставание пишется временем
+function domainFresh(n){
+  if(!can("getDomain")||Date.now()-hwReadAt<60000)return;
+  hwReadAt=Date.now();
+  API.get(`/domains/${n.id}`).then(r=>{const was=JSON.stringify(n.summary);n.summary=r.stateSummary||null;if(sel===n.id&&was!==JSON.stringify(n.summary)&&app==="hw")gear()}).catch(()=>{});
+}
+function domainSummaryHtml(n){
+  const s=n.summary;if(!s)return"";
+  const num=x=>Number(x).toLocaleString("ru-RU");
+  return`<div class="nt" id="domSummary">${i18n("Всего")} ${num(s.total)} · ${i18n("без связи")} ${num(s.offline)} · ${i18n("без сигнала")} ${num(s.silent)} · ${i18n("на")} ${clockText(s.at,true)}${s.unread>0?` · <b>${i18n("данные неполные")}</b>`:""}</div>`;
+}
 function objectStatusNotesHtml(n){
+  if(n.type==="domain"&&n.summary)return domainSummaryHtml(n)+objectStatusNotesRest(n);
+  return objectStatusNotesRest(n);
+}
+function objectStatusNotesRest(n){
   const said=n?.faultText?`<div class="nt" role="status" data-fault-text>${escHtml(n.faultText)}</div>`:"";
   return said+objectStateNotesHtml(n);
 }
@@ -4244,7 +4492,7 @@ function prepareSliceBranches(){
     const own=foldersOfDevice(n.id);
     own.forEach(f=>folderPath(f.id).forEach(parent=>add(parent.id,n.id)));
     if(!own.length)add(nofolderId(deviceDomain(n.id)),n.id);
-    if(camera){if(isRecording(camera))add(camera.arch,n.id);else add(norecId(deviceDomain(camera.id)),n.id)}
+    if(camera){if(isRecording(camera))add(camera.arch,n.id);else if(!camera._row||camera._nr)add(norecId(deviceDomain(camera.id)),n.id)}
   });
   if(slice==="cam")servers.forEach(s=>gpuCameras(s.id).forEach(({cam})=>{
     if(selfInView(cam)&&matchesSearch(cam,q))add(gpuId(s.id),cam.id);
@@ -4309,6 +4557,7 @@ function openCamDets(cam,gs){
 // чём — срез и раскладка меняются на те, где она есть: карточка без строки в дереве теряет место
 function treeRowOf(id){return document.querySelector(`#tree .n.on[data-pick="${id}"]`)||document.querySelector(`#tree .n[data-pick="${id}"]`)}
 function revealSel(){
+  revealAt=Date.now();
   if(app!=="hw"||!sel)return;
   if(!treeRowOf(sel)&&!hasActiveFilters()){
     const was=slice;
@@ -4341,7 +4590,8 @@ function jumpTo(id){
   closeJump();
 }
 function openNode(id,opts={}){
-  const f=find(id);if(!f)return;
+  const f=find(id);
+  if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))openNode(id,opts)}).catch(()=>{});return}
   // Переход из поиска к устройству уводит из «Автоматизации»: черновик правила не теряем молча.
   if(app==="rules"&&(opts.app||app)!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>openNode(id,opts)))return;
   selCtx=null;
@@ -4378,7 +4628,8 @@ function applyDeepLink(){
   const raw=location.hash.replace(/^#/,"");
   if(!raw)return false;
   const p=new URLSearchParams(raw),id=p.get("node");
-  if(!id||!find(id))return false;
+  if(!id)return false;
+  if(!find(id)){hwEnsure([id]).then(()=>{if(find(id))applyDeepLink()}).catch(()=>{});return false}
   // Новые ссылки: #node=…&slice=…&group=…&tab=…; старые (app=dev|srvs&view=…)
   // читаются тем же кодом — адрес, разосланный коллегам, не должен протухать.
   const sl=normSlice(p.get("slice")||({dev:"cam",srvs:"srv"}[p.get("app")||""])||(p.get("view")==="sys"?"srv":p.get("view"))||null);
@@ -4494,7 +4745,25 @@ function treeShownKeys(){
   document.querySelectorAll("#tree [data-go]").forEach(el=>keys.add(el.dataset.go));
   return keys;
 }
+// В шапке ищется кэш, а затем один запрос к серверу: найденное попадает в кэш и в список
+let goNetT=0,goNetQ="";
+function goNet(q){
+  clearTimeout(goNetT);
+  if(q.length<2||q===goNetQ||!can("listDevices"))return;
+  goNetT=setTimeout(async()=>{
+    goNetQ=q;
+    try{
+      const r=await API.get("/devices",{q,limit:20});
+      if(!r.items.length)return;
+      await hwEnsure(r.items.map(x=>x.parentId));
+      r.items.forEach(hwAddRow);
+      const inp=document.getElementById("gq");
+      if(inp&&inp.value.trim()===q&&document.getElementById("gopop")?.classList.contains("open"))goSearch(q);
+    }catch(e){}
+  },250);
+}
 function goSearch(v){
+  goNet(String(v||"").trim());
   const pop=document.getElementById("gopop");if(!pop)return;
   if(asst)goClose();                              // вернулись к поиску: ассистент уступает список
   const q=String(v||"").trim();
@@ -4722,11 +4991,20 @@ function setApp(a){
   if(a==="rules"&&was!=="rules"&&!ruleSpecial(rule)&&!rules.some(r=>r.id===rule))rule="overview";
   app=a;
   closeUserMenu();
+  sectionLoad(a);
   paint();
   // Ссылка из другого раздела («Автоматизация» в карточке детектора) — место прихода моргает.
   if(a==="rules"&&was!=="rules"&&typeof ruleFromLink==="function"&&ruleFromLink())ruleFlashLanding();
 }
 function goApp(a){setApp(a)}
+// Что читается при заходе в раздел. Раздел рисуется сразу, данные дописываются
+function sectionLoad(a){
+  const again=()=>{if(app===a)paint()};
+  if(a==="rules"&&!autoFullP)autoFull().then(again).catch(e=>toast(problemText(e)));
+  if(a==="log"&&!logLoaded)journalLoad().then(again);
+  if(a==="sys"&&!licLoaded)licLoad().then(again);
+  if(a==="acc"&&!accShown)accLoad().then(again);
+}
 function toggleUserMenu(e){
   e.stopPropagation();
   const pop=document.getElementById("upop"),btn=document.getElementById("ubtn");
@@ -4836,7 +5114,10 @@ function searchHitFields(n,q){
   }
   return[];
 }
-function matchesSearch(n,q){return!q||searchHitFields(n,q).length>0}
+function matchesSearch(n,q){
+  if(fs&&!HW_NOT_DEVICE.has(n.type))return!q||fs.hits.has(n.id);
+  return!q||searchHitFields(n,q).length>0;
+}
 function hlText(text,q){
   const src=String(text??"");
   if(!q||!src)return escHtml(src);
@@ -5035,6 +5316,7 @@ function walkSliceObjects(fn){
   walkAll(visit);if(slice==="arch")arch.forEach(n=>visit(n,archOwner(n)));
 }
 function countFiltered(){
+  if(fs)return fs.hits.size;
   const q=qval();let n=0;
   walkSliceObjects((node,p)=>{if(slice==="det"){if(matchesStatus(node)&&detSliceHit(node,p,q))n++;return}
     if(node.type==="det"||node.type==="domain"||node.type==="unalloc")return;if(selfInView(node)&&matchesSearch(node,q))n++});
@@ -5084,11 +5366,11 @@ function updateFiltChrome(){
     const label=btn.querySelector(".ph-status-label");if(label)label.textContent=statusLabel(st);
   }
   document.querySelectorAll("#aside [data-slice] .ph-cnt").forEach(el=>{
-    el.textContent=sliceCount(el.closest("[data-slice]").dataset.slice);
+    el.textContent=sliceCountText(el.closest("[data-slice]").dataset.slice);
   });
   syncGoInput();
   if(tags)tags.innerHTML=tagsHtml();
-  if(hint)hint.textContent=hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
+  if(hint)hint.textContent=filtHint();
 }
 // Поле живёт в шапке и переживает перерисовку панели, поэтому запрос ему
 // возвращают отдельно: сбросить фильтры может и кнопка, и смена среза.
@@ -5407,7 +5689,7 @@ function aside(){
   const gearScope=app==="hw"?panelHeadHtml():"";
   const gearBody=app==="hw"?`<div class="gear-body"><div class="gear-tree-head"><div class="sq-wrap">
       <div class="filt-tags" id="filtTags">${tagsHtml()}</div>
-      <div class="filt-hint" id="filtHint">${hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:""}</div>
+      <div class="filt-hint" id="filtHint">${filtHint()}</div>
       ${filtPopHtml()}
     </div></div><div class="tree" id="tree"></div>
     <div class="sel-bar" id="selBar" role="toolbar" aria-label="${i18n("Отмеченные объекты")}" hidden></div></div>`:"";
@@ -5628,10 +5910,236 @@ function paintMain(html){
 }
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
   const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog}[app];
-  paintInto(treeEl,fn?fn():"",`${app}|${slice}|${group()}`,treeSeen);
+  srvCamMemo=null;
+  const html=withFind(()=>fn?fn():"");
+  paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
   decorateTreeSel();renderSelBar();
+  if(app==="hw"){treeNeed();filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
 }
+// ── Дерево по запросу ───────────────────────────────────────────────────
+// Отрисовка идёт по кэшу, как раньше. Открытая ветка, которую ещё не читали, читается страницей и дорисовывается:
+// open меняют десятки мест, поэтому чтение решается здесь, после отрисовки, а не у каждого. Сервер отдаёт порядок сам.
+const treeBr=new Map();
+function treeLayout(){return slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
+function treeReset(){treeBr.clear();fs=null}
+function treeOpenable(id,layout){
+  if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
+  // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
+  if(id.startsWith("nofolder:"))return layout==="folders";
+  if(id.startsWith("norec:"))return layout==="servers";
+  if(domains.some(d=>d.id===id))return true;
+  if(servers.some(s=>s.id===id))return layout==="servers"||layout==="detectors"||(layout==="archives"&&!hwDone.archives);
+  if(folderById(id))return layout==="folders";
+  return!!find(id)?.n?._more;
+}
+function treeUnread(id){
+  const layout=treeLayout();
+  if(!treeOpenable(id,layout))return false;
+  const b=treeBr.get(layout+"|"+id);
+  return!b||!b.done;
+}
+function treeCount(id){const b=treeBr.get(treeLayout()+"|"+id);return b&&b.count!=null&&!hasActiveFilters()?b.count:null}
+async function treeAdd(items,parent,layout){
+  const rows=items.filter(x=>x.kind==="device").map(x=>x.row);
+  const missing=items.filter(x=>x.kind==="folder"&&!folderById(x.id));
+  if(missing.length)await Promise.all(missing.map(x=>folderEnsure(x.id)));
+  await hwEnsure(rows.map(r=>r.parentId));
+  rows.forEach(hwAddRow);
+  const f=folderById(parent);
+  if(f)rows.forEach(r=>{if(!f.items.includes(r.id))f.items.push(r.id)});
+  if(parent.startsWith("nofolder:"))rows.forEach(r=>{const n=find(r.id)?.n;if(n)n._nf=true});
+  if(parent.startsWith("norec:"))rows.forEach(r=>{const n=find(r.id)?.n;if(n)n._nr=true});
+  if(rows.length){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear()}
+}
+// Папка и хранилище по чужому id: родитель читается раньше
+async function folderEnsure(id){
+  if(folderById(id))return;
+  const r=await API.get(`/folders/${id}`);
+  if(r.parentId)await folderEnsure(r.parentId);
+  folderAdd([r]);
+}
+async function archEnsure(id){if(!archById(id))archAdd(await API.get(`/archives/${id}`))}
+async function treeRead(layout,id,cursor){
+  const viaFilter=(q)=>API.get("/devices",Object.assign(q,{cursor})).then(r=>({items:r.items.map(row=>({id:row.id,kind:"device",row})),nextCursor:r.nextCursor}));
+  if(id.startsWith("nofolder:"))return viaFilter({domainId:id.slice(9),noFolder:true});
+  if(id.startsWith("norec:"))return viaFilter({domainId:id.slice(6),noRecord:true});
+  return API.get("/tree/children",{layout,parentId:id,cursor});
+}
+// Одна страница ветки. Пустая страница с живым nextCursor законна: читаем дальше, пока не наберётся или не кончится
+async function treeLoad(layout,id){
+  const key=layout+"|"+id;
+  const b=treeBr.get(key)||{cursor:null,done:false,busy:false,count:null};
+  if(b.busy||b.done)return;
+  b.busy=true;treeBr.set(key,b);
+  try{
+    for(;;){
+      let r;
+      try{r=await treeRead(layout,id,b.cursor)}
+      catch(e){if(e?.problem?.code!=="INVALID_CURSOR"||!b.cursor)throw e;b.cursor=null;continue}
+      if(treeBr.get(key)!==b)return;
+      await treeAdd(r.items,id,layout);
+      if(r.parentCount!=null)b.count=r.parentCount;
+      b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
+      if(b.done||r.items.length)break;
+    }
+    if(!hwDone.archives&&servers.some(s=>s.id===id))(await API.get("/archives",{serverId:id,limit:LIM.pageMax})).items.forEach(archAdd);
+    if(b.done){const n=find(id)?.n;if(n&&n._more&&!(n.devices||[]).length)n._more=false}
+  }catch(e){b.done=true;b.failed=true}
+  finally{b.busy=false}
+}
+const volsDone=new Set();
+async function volsEnsure(a){
+  if(hwDone.volumes||volsDone.has(a.id))return;
+  volsDone.add(a.id);
+  let cursor=null;
+  do{const r=await API.get("/volumes",{archiveId:a.id,cursor});r.items.forEach(volAdd);cursor=r.nextCursor||null}while(cursor);
+}
+async function treeNeed(){
+  const layout=treeLayout();let any=false;
+  for(;;){
+    const jobs=[];
+    open.forEach(raw=>{
+      const s=String(raw),id=s.slice(s.lastIndexOf("|")+1);
+      if(!treeBr.has(layout+"|"+id)&&treeOpenable(id,layout))jobs.push(treeLoad(layout,id));
+    });
+    if(!jobs.length)break;
+    any=true;
+    await Promise.all(jobs);
+  }
+  if(any&&app==="hw"&&document.getElementById("tree")){
+    renderTree();
+    // Ветка дочиталась после перехода: цель перехода снова прокручивается к окну
+    if(Date.now()-revealAt<3000)document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
+  }
+}
+let revealAt=0;
+// Строка конца ветки: читается или есть продолжение
+function treeMoreRow(id,l){
+  const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
+  if(!treeOpenable(id,layout)||(b&&b.done&&!b.failed))return"";
+  if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
+  const scan=treeVirtual(id);
+  if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
+  return`<div class="n n-more n-more-go" style="--l:${l}" ${onEv("click",onEv.stop,["treeMore",id])}><span class="tw"></span><span class="nm sub">${i18n(scan?"Искать дальше":"Показать ещё")}</span></div>`;
+}
+function treeVirtual(id){return id.startsWith("nofolder:")||id.startsWith("norec:")}
+// Счётчик виртуальной группы — только по загруженному: полного числа нет, пока отбор не дошёл до конца
+function groupCntHtml(id,n){
+  const shown=hasSliceContext()?sliceParentCount(id):n;
+  return treeUnread(id)?(shown?treeCntHtml(`${shown}+`):""):treeCntHtml(shown);
+}
+function treeMore(id){
+  const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
+  if(!b||b.busy||b.done)return Promise.resolve();
+  const p=treeLoad(layout,id).then(renderTree);
+  renderTree();
+  return p;
+}
+// Прокрутка к концу дерева подгружает то же, что кнопка
+document.addEventListener("scroll",e=>{
+  const el=e.target;if(!el||!el.querySelector)return;
+  const row=el.querySelector("#tree .n-more-go")||(el.id==="tree"?el.querySelector(".n-more-go"):null);
+  if(row&&row.getBoundingClientRect().top<el.getBoundingClientRect().bottom+200)row.click();
+},true);
+// tree.changed: ветка изменилась вне наблюдения. Загруженная и открытая перечитывается, закрытая — при раскрытии
+function treeChanged(m){
+  (m.parentIds||[]).forEach(id=>{
+    const key=m.layout+"|"+id;
+    if(!treeBr.has(key))return;
+    treeBr.delete(key);
+  });
+  if(app==="hw"&&document.getElementById("tree"))treeNeed();
+}
+// Поток: раскрытые ветки и открытая карточка, не больше watchMax. Свежее важнее: при переполнении уходят старые
+let streamClient=null,watchLast="",watchQ=false;
+function watchIds(){
+  const out=[];
+  if(sel&&hwVer.has(sel))out.push(sel);
+  [...open].reverse().forEach(id=>{const s=String(id);const k=s.slice(s.lastIndexOf("|")+1);if(hwVer.has(k)&&!out.includes(k))out.push(k)});
+  return out.slice(0,LIM.watchMax);
+}
+function watchSoon(){
+  if(watchQ||!streamClient||!can("putStreamWatch"))return;
+  watchQ=true;
+  Promise.resolve().then(()=>{
+    watchQ=false;
+    const ids=watchIds(),k=ids.join();
+    if(k===watchLast)return;
+    watchLast=k;
+    API.put(`/stream/${streamClient}/watch`,{ids}).catch(()=>{watchLast=""});
+  });
+}
+// ── Поиск и фильтр волнами ──────────────────────────────────────────────
+// Индекса нет: запрос с фильтром смотрит ограниченную часть вида, страница бывает пустой. Форма спрашивает сама, пока
+// не наберёт страницу, найденное дописывается. Поиск дошёл до конца и найдено до idsMax — дерево, как раньше. Иначе — плоский список с путём
+let fs=null;
+const FILT_PAGE=200;
+function filtOn(){return app==="hw"&&["all","cam","acfa","det"].includes(slice)&&(!!qval()||!!typeFilts.size||!!statusFilts.size)}
+function filtKeyNow(){return filtOn()?JSON.stringify([qval(),[...typeFilts].sort(),[...statusFilts].sort(),domainFilter,slice,group()]):""}
+function filtSync(){
+  const key=filtKeyNow();
+  if(key===(fs?.key||""))return;
+  fs=key?{key,hits:new Set(),order:[],paths:new Map(),cursor:null,done:false,busy:false,want:FILT_PAGE,flat:true}:null;
+  treeMatchCache.clear();searchMatchCache.clear();
+  if(fs)filtWave(fs);
+}
+function filtParams(run){
+  const out={limit:FILT_PAGE,cursor:run.cursor};
+  if(qval())out.q=treeQ.trim();
+  if(typeFilts.size)out.type=[...typeFilts].join(",");
+  if(statusFilts.size)out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
+  if(domainFilter)out.domainId=domainFilter;
+  return out;
+}
+async function filtWave(run){
+  if(run.busy)return;
+  run.busy=true;
+  try{
+    while(run===fs&&!run.done&&run.hits.size<run.want){
+      let r;
+      try{r=await API.get("/devices",filtParams(run))}
+      catch(e){if(e?.problem?.code!=="INVALID_CURSOR"||!run.cursor)throw e;run.cursor=null;continue}
+      if(run!==fs)return;
+      await hwEnsure(r.items.map(x=>x.parentId));
+      r.items.forEach(x=>{hwAddRow(x);if(!run.hits.has(x.id)){run.hits.add(x.id);run.order.push(x.id)}});
+      await filtPaths(run,r.items.map(x=>x.id));
+      run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
+      if(run===fs){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
+    }
+    if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
+  }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
+  finally{run.busy=false;if(run===fs)filtPaint()}
+}
+// Цепочки найденного: подпись в плоском списке, раскрытие и папки в дереве
+async function filtPaths(run,ids){
+  if(!ids.length||!can("getTreePaths"))return;
+  const res=await API.get("/tree/paths",{layout:treeLayout(),ids:ids.join(",")});
+  for(const x of res.items){
+    run.paths.set(x.id,(x.chains[0]||[]).slice(0,-1).map(s=>s.name).join(" / "));
+    for(const c of x.chains)for(const s of c)if(s.kind==="folder"){
+      await folderEnsure(s.id).catch(()=>{});
+      const f=folderById(s.id),top=c[c.findIndex(y=>y===s)+1];
+      if(f&&top&&top.kind==="device"&&!f.items.includes(top.id))f.items.push(top.id);
+    }
+    if(treeLayout()==="folders"&&x.chains.every(c=>!c.some(s=>s.kind==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
+  }
+}
+function filtPaint(){if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
+function filtMore(){if(!fs||fs.done)return;fs.want=fs.hits.size+FILT_PAGE;filtWave(fs);filtPaint()}
+function filtHint(){
+  if(!fs)return hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
+  if(fs.failed)return`${i18n("Найдено не всё:")} ${fs.hits.size}`;
+  return fs.done?`${i18n("Найдено:")} ${fs.hits.size}`:`${i18n("Ищем дальше, уже")} ${fs.hits.size}`;
+}
+function treeFlat(){
+  const q=qval();
+  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+    <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
+  const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
+  return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
+}
+function selfOrDet(n){return n.type==="det"?slice==="det":selfInView(n)}
 // Срезы, группировка и статус — один набор кнопок.
 // «Папки» переключаются независимо от выбранного среза.
 function curStatus(){return statusFilts.size?[...statusFilts][0]:""}
@@ -5692,10 +6200,12 @@ function sliceCount(id){
   try{walkSliceObjects((x,p)=>{if(id==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))n++})}finally{slice=prev}
   return n;
 }
+// Без фильтра — оценка сервера со знаком «≈», иначе считается загруженное
+function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
 function panelHeadHtml(){
   const foldersOn=group()==="folder",st=curStatus();
   return`<div class="ph"><div class="ph-row" role="group" aria-label="${i18n("Срез дерева")}">
-    ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCount(id)}</span></button>`).join("")}
+    ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`).join("")}
     <button type="button" class="ph-choice ph-folders ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" title="${i18n("Группировка")}: ${GROUP_HINT[group()]}" ${onEv("click",["toggleFolders"])}>${i18n("Папки")}</button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
   </div></div>`;
@@ -5765,7 +6275,8 @@ function pick(id,opts){
   }
   const fromLink=hwFromLink();
   closeTreeCtx();
-  const f=find(id);if(!f)return;
+  const f=find(id);
+  if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))pick(id,opts)}).catch(()=>{});return}
   // Ушли с объекта с неприменёнными правками — спрашиваем, а не теряем молча.
   if(!opts?.force&&cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>pick(id,{...(opts||{}),force:true}));return}
   const range=!!opts?.range,additive=!!opts?.additive,multi=range||additive;
@@ -5873,11 +6384,11 @@ function treeToggleId(id){
   if(id===FAV_NODE)renderFavs();else renderTree();
 }
 function treeNodeHasKids(n){
-  if(n.type==="folder")return!!(n.folders||[]).length||!!(n.items||[]).length;
+  if(n.type==="folder")return!!(n.folders||[]).length||!!(n.items||[]).length||treeUnread(n.id);
   if(n.type==="unalloc")return true;
   if(n.type==="domain")return !hasNoSignal(n);
-  if(n.type==="server")return !isUnallocated(n.id)&&!hasNoSignal(n)&&!!(n.devices||[]).length;
-  return treeKids(n).length>0;
+  if(n.type==="server")return !isUnallocated(n.id)&&!hasNoSignal(n)&&(!!(n.devices||[]).length||treeUnread(n.id));
+  return treeKids(n).length>0||!!n._more;
 }
 function treeChevron(id,kind,hasKids,op){
   if(!hasKids)return`<span class="tw"></span>`;
@@ -6088,7 +6599,7 @@ function clearFolder(folderId){
   if(!count){toast(i18n("Папка пуста"));return}
   if(busyRefuse(folderId))return;
   askConfirm("Убрать все объекты из папки?",`${i18n("Из папки будет убрано объектов:")} ${count}.`,i18n("Сами устройства останутся в системе."),i18n("Убрать"),()=>{
-    API.patch(`/folders/${f.id}`,{deviceIds:[]},hwVer.get(f.id)).then(r=>{
+    folderClear(f).then(r=>{
       hwApplyFolder(r);
       treeMatchCache.clear();searchMatchCache.clear();
       sel=folderId;tab="gen";setD(false);
@@ -6365,14 +6876,14 @@ function nrow(n,l,ctx){
   if(det?!n.builtin:treeKind(n)!==tview)return"";
   if(q&&!vis(n,q))return"";
   if(!det&&!selfInView(n)&&!kids(n).some(hasTreeIn))return"";
-  const k=treeKids(n),hasKids=k.length>0,op=open.has(n.id)||(autoExpand()&&hasKids);
+  const k=treeKids(n),hasKids=k.length>0||!!n._more,op=open.has(n.id)||(autoExpand()&&hasKids);
   const shown=k.filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
   const st=nodeStatus(n);
   const childOff=canToggleEnabled(n)&&st.off;
   let h=`<div class="n ${treeRowHi(n.id,ctx)} ${childOff?"off":""}${n.type==="ipsrv"?sliceParentClass(n.id):""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",hasKids)}>
     ${treeChevron(n.id,"node",hasKids,op)}
     ${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
-  if(op)h+=shown.map(x=>nrow(x,l+1,ctx)).join("");
+  if(op)h+=shown.map(x=>nrow(x,l+1,ctx)).join("")+treeMoreRow(n.id,l+1);
   return h}
 function svcrow(n,l){
   const q=qval();
@@ -6407,14 +6918,15 @@ function srow(s,l=1,bare=false){
     +others.map(x=>nrow(x,l+1,"srv:"+s.id)).join("")
     +archs.map(a=>arow(a,l+1)).join("")
     +(gpu?gpurow(s,l+1):"")+svcHtml;
-  if(!srvHit&&!kidsHtml)return"";
-  const cnt=srvSlice?devs.length:cams.length;
-  const hasKids=!!kidsHtml;
+  const unread=!offline&&!srvSlice&&treeUnread(s.id);
+  if(!srvHit&&!kidsHtml&&!unread)return"";
+  const cnt=srvSlice?devs.length:(treeCount(s.id)??cams.length);
+  const hasKids=!!kidsHtml||unread;
   const op=hasKids&&(open.has(s.id)||autoExpand());
   let h=`<div class="n srv ${sel===s.id?"on":""}${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}${treeExpandMeta(s.id,"srv",hasKids)}>
     ${treeChevron(s.id,"srv",hasKids,op)}
     ${treeIconHtml(s)}<span class="nm">${treeNameCell(s,q)}</span>${treeRowMeta(s,q,cnt,op)}</div>`;
-  if(op)h+=kidsHtml;
+  if(op)h+=kidsHtml+treeMoreRow(s.id,l+1);
   return h}
 function drow(d){
   const q=qval();
@@ -6426,14 +6938,14 @@ function drow(d){
   const looseHtml=slice!=="srv"&&!offline?serverlessDevices(d.id).filter(n=>hasTreeIn(n)&&(!q||vis(n,q))).map(n=>nrow(n,1)).join(""):"";
   const uaHtml=offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+looseHtml);
   if(!selfHit&&!childHtml&&!uaHtml)return"";
-  const hasKids=!!(childHtml||uaHtml);
+  const hasKids=!!(childHtml||uaHtml)||(!offline&&treeUnread(d.id));
   const op=hasKids&&(open.has(d.id)||autoExpand());
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeRowMeta(d,q,domainServerCount(d),op)}</div>`;
   if(op){
     if(childHtml)h+=childHtml;
-    h+=uaHtml;
+    h+=uaHtml+treeMoreRow(d.id,1);
   }
   return h}
 function urow(l,domain){
@@ -6463,6 +6975,7 @@ function folderCount(f){
 }
 function folderHasTreeIn(f){
   if(!(f.items||[]).length&&!(f.folders||[]).length)return true;// пустая папка видна всегда
+  if(treeUnread(f.id)&&!qval()&&!typeFilts.size&&!statusFilts.size)return true;// не читали — может быть что угодно
   if(folderDeviceNodes(f).some(hasTreeIn))return true;
   return(f.folders||[]).some(folderHasTreeIn);
 }
@@ -6475,14 +6988,14 @@ function frow(f,l){
   const devs=folderDeviceNodes(f).filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
   if(statusFilts.size&&!subs&&!devs.length)return"";
   if(!selfHit&&!subs&&!devs.length)return"";
-  const hasKids=!!subs||!!devs.length;
+  const hasKids=!!subs||!!devs.length||treeUnread(f.id);
   const op=hasKids&&(open.has(f.id)||(autoExpand()&&(!!subs||!!devs.length)));
   let h=`<div class="n srv fld ${sel===f.id?"on":""}${sliceParentClass(f.id)}${treeRenameId===f.id?" renaming":""}" style="--l:${l}"${treeRowPick(f.id)}${treeCtxAttr(f.id)}${treeExpandMeta(f.id,"dom",hasKids)}>
     ${treeChevron(f.id,"dom",hasKids,op)}
-    ${ic(op?"folderOpen":"folder")}<span class="nm">${treeNameCell(f,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(f.id):folderCount(f)),acts:f.id})}</div>`;
+    ${ic(op?"folderOpen":"folder")}<span class="nm">${treeNameCell(f,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(f.id):(treeCount(f.id)??folderCount(f))),acts:f.id})}</div>`;
   if(op){
     h+=subs;
-    h+=devs.map(d=>nrow(d,l+1,"f:"+f.id)).join("");
+    h+=devs.map(d=>nrow(d,l+1,"f:"+f.id)).join("")+treeMoreRow(f.id,l+1);
   }
   return h;
 }
@@ -6493,15 +7006,15 @@ function nfrow(d,l){
   const all=unfolderedDevices(d.id).filter(hasTreeIn);
   // Пустая «Без папки» — не структура, а шум: узел появляется, только когда
   // объект действительно остался без папки.
-  if(!all.length&&!(retainEmptySliceParents()&&unfolderedDevices(d.id).length))return"";
+  if(!all.length&&!treeUnread(node.id)&&!(retainEmptySliceParents()&&unfolderedDevices(d.id).length))return"";
   const selfHit=matchesText(q,locName(node));
   if(!devs.length&&!selfHit)return"";
-  const hasKids=!!all.length;
+  const hasKids=!!all.length||treeUnread(node.id);
   const op=hasKids&&(open.has(node.id)||(autoExpand()&&!!devs.length));
   let h=`<div class="n srv fld ${sel===node.id?"on":""}${sliceParentClass(node.id)}" style="--l:${l}"${treeRowPick(node.id)}${treeExpandMeta(node.id,"dom",hasKids)}>
     ${treeChevron(node.id,"dom",hasKids,op)}
-    ${ic("nofolder")}<span class="nm">${locName(node)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(node.id):all.length)})}</div>`;
-  if(op)h+=devs.map(x=>nrow(x,l+1,"nf:"+d.id)).join("");
+    ${ic("nofolder")}<span class="nm">${locName(node)}</span>${treeTail({cnt:groupCntHtml(node.id,all.length)})}</div>`;
+  if(op)h+=devs.map(x=>nrow(x,l+1,"nf:"+d.id)).join("")+treeMoreRow(node.id,l+1);
   return h;
 }
 // ── «Найденные» ───────────────────────────────────────────────────────────
@@ -6617,7 +7130,7 @@ function dfrow(d){
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
-  if(op)h+=kidsHtml;
+  if(op)h+=kidsHtml+treeMoreRow(d.id,1);
   return h;
 }
 function addFolderRow(level,domainId){
@@ -6628,6 +7141,7 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 // Одно дерево на весь раздел: срез решает, что показать, группировка — как
 // разложить. Домены — верхний уровень в обеих раскладках.
 function treeHw(){
+  if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
   if(slice==="arch")return treeArchives();
   if(slice==="det")return treeDetectors();
@@ -6641,12 +7155,12 @@ function treeHw(){
 function scamrow(n,l,ctx){
   const q=qval();
   if(q?!vis(n,q):!hasTreeIn(n))return"";
-  const shown=treeKids(n).filter(d=>!q||vis(d,q)),hasKids=shown.length>0;
+  const shown=treeKids(n).filter(d=>!q||vis(d,q)),hasKids=shown.length>0||!!n._more;
   const op=hasKids&&(open.has(n.id)||autoExpand());
   const childOff=canToggleEnabled(n)&&nodeStatus(n).off;
   let h=`<div class="n ${rowOn(n.id,ctx)} ${childOff?"off":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",hasKids)}>
     ${treeChevron(n.id,"node",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
-  if(op)h+=shown.map(x=>nrow(x,l+1)).join("");
+  if(op)h+=shown.map(x=>nrow(x,l+1)).join("")+treeMoreRow(n.id,l+1);
   return h;
 }
 // Камеры регистратора показываем под ним: репликация встроенного архива
@@ -6696,7 +7210,7 @@ function gcamrow(cam,dets,l,ctx){
   const selfHit=(slice==="cam"?selfInView(cam):matchesStatus(cam))&&parentHit;
   const shown=parentHit?available:vis;
   if(!selfHit&&!shown.length)return"";
-  const hasKids=!!shown.length;
+  const hasKids=!!shown.length||!!cam._more;
   // Камера стоит и под сервером, и под его GPU (и в нескольких папках среза
   // «Детекторы»): раскрытие помним по месту, иначе вторая копия раскрывается сама.
   const ok=ctx?ctx+"|"+cam.id:cam.id;
@@ -6704,15 +7218,15 @@ function gcamrow(cam,dets,l,ctx){
   let h=`<div class="n ${rowOn(cam.id,ctx)}${slice==="det"?sliceParentClass(cam.id):""}" style="--l:${l}"${treeRowPick(cam.id,ctx)}${treeCtxAttr(cam.id)}${treeExpandMeta(ok,"node",hasKids)}>
     ${treeChevron(ok,"node",hasKids,op)}
     ${treeIconHtml(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
-  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("");
+  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1);
   return h;
 }
 // Узкие срезы сохраняют домены и выбранную группировку, исключая остальные
 // устройства, службы, GPU и промежуточные IP-серверы.
 function sliceBranchRow(n,l,children,count,ctx){
-  const hasKids=!!children,op=hasKids&&(open.has(n.id)||autoExpand());
+  const hasKids=!!children||treeUnread(n.id),op=hasKids&&(open.has(n.id)||autoExpand());
   return`<div class="n srv ${rowOn(n.id,ctx)}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
-    ${treeChevron(n.id,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children:""}`;
+    ${treeChevron(n.id,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children+treeMoreRow(n.id,l+1):""}`;
 }
 function treeArchives(){
   const q=qval();
@@ -6731,7 +7245,7 @@ function treeArchives(){
 function treeDetectors(){
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
-  const branch=(n,l,children)=>children||retainEmptySliceParents()||(qval()&&matchesSearch(n,qval())&&matchesStatus(n))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
+  const branch=(n,l,children)=>children||retainEmptySliceParents()||treeUnread(n.id)||(qval()&&matchesSearch(n,qval())&&matchesStatus(n))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
     const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},folderDeviceNodes(f));
     const children=(f.folders||[]).map(x=>folderRow(x,l+1)).join("")+rows(direct,l+1,"f:"+f.id);
@@ -6739,6 +7253,7 @@ function treeDetectors(){
   }
   return scopedDomains().map(d=>{
     let children="";
+    // Строки кэша без полей: детекторы видны по родителю и по раскрытию
     if(group()==="folder"){
       children=domainFolders(d.id).map(f=>folderRow(f,1)).join("");
       children+=rows(cameras.filter(c=>deviceDomain(c.id)===d.id&&!foldersOfDevice(c.id).length),1);
@@ -6792,15 +7307,15 @@ function arow(a,l){
 function norow(d,l){
   const q=qval(),cams=norecList(d.id).filter(selfInView),vis=cams.filter(c=>matchesSearch(c,q));
   const n=norecNode(d.id);
-  if(statusFilts.size&&!cams.length)return"";
+  if(statusFilts.size&&!cams.length&&!treeUnread(n.id))return"";
   const selfHit=matchesText(q,locName(n));
   if(!selfHit&&!vis.length)return"";
-  const hasKids=!!cams.length;
+  const hasKids=!!cams.length||treeUnread(n.id);
   const op=hasKids&&(open.has(n.id)||(autoExpand()&&!!vis.length));
   let h=`<div class="n srv norec ${sel===n.id?"on":""}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}
-    ${ic("norec")}<span class="nm">${locName(n)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(n.id):cams.length)})}</div>`;
-  if(op)h+=vis.map(c=>scamrow(c,l+1,"norec:"+d.id)).join("");
+    ${ic("norec")}<span class="nm">${locName(n)}</span>${treeTail({cnt:groupCntHtml(n.id,cams.length)})}</div>`;
+  if(op)h+=vis.map(c=>scamrow(c,l+1,"norec:"+d.id)).join("")+treeMoreRow(n.id,l+1);
   return h;
 }
 function treeServers(){return scopedDomains().map(d=>drow(d)).join("")}
@@ -6842,6 +7357,16 @@ function gear(){
   if(bulkActive()&&!bulkPeek){paintMain(bulkCardHtml());return}
   const f=find(sel);if(!f){paintMain(`<div class='sc'>${i18n("Выберите объект в дереве")}</div>`);return}
   const n=f.n,tabs=tabsFor(n);
+  // Строка перечня: полная запись читается по клику, коротко показываем загрузку
+  if(n._row){
+    paintMain(mainHd(crumbsHtml(sel),objectTitle(n),"","","",true)+`<div class="sc sub">${i18n("Загрузка…")}</div>`);
+    hwFull(sel).then(()=>{if(sel===n.id)gear()}).catch(e=>toast(problemText(e)));
+    return;
+  }
+  if(n.type==="archive")archCamsLoad(n.id);
+  if(n.type==="archive")volsEnsure(n).then(()=>{}).catch(()=>{});
+  if(n.type==="domain")domainFresh(n);
+  if(n.type==="server")serverArchives(n.id).forEach(a=>volsEnsure(a).catch(()=>{}));
   if(tabs.length&&!tabs.some(([id])=>id===tab))tab=tabs[0][0];
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
   // Слева направо — откуда берут устройство: из сети, руками, из файла; дальше
@@ -8043,7 +8568,19 @@ function deviceFoldersCardHtml(n){
      <p class="sub">${sv?i18n("Запись ведётся на сервер:")+` <b>${escHtml(locName(sv))}</b>`:i18n("Запись не настроена — сервер объекту не нужен.")}</p>`
   });
 }
+// Итог прошлого поиска читается только в окне поиска, страницами
+const discRead=new Set();
+async function discLoad(did){
+  if(discRead.has(did)||!can("getDiscovery"))return;
+  discRead.add(did);
+  const whole={domainId:did,candidates:[]};
+  let cursor=null;
+  do{const r=await API.get(`/domains/${did}/discovery`,{cursor,limit:LIM.pageMax});whole.candidates.push(...r.candidates);cursor=r.nextCursor||null}while(cursor);
+  seedFound([whole]);
+  if(wizd&&wizd.foundDomain===did&&wizd.devState==="done"){wizd.devResults=foundAll(did);if(app==="hw")gear()}
+}
 function ensureFoundWizard(did){
+  discLoad(did);
   if(wizd&&wizd.mode==="device-add"&&wizd.foundDomain===did&&wizd.foundView===tview)return;
   stopDeviceSearch();                              // чужой поиск дописывал бы в этот список
   const d=domains.find(x=>x.id===did)||domains[0];
@@ -8587,7 +9124,7 @@ function formBase(n){
       items:cams,
       text:c=>[locName(c),c.ip,deviceFolderNote(c.id)],
       row:c=>`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${c.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(c))}<small>${escHtml(deviceFolderNote(c.id))}</small></span>${bdg(c)}</div>`,
-      empty:"Все камеры пишутся",
+      empty:treeUnread(n.id)?"Ищем дальше…":"Все камеры пишутся",
       ph:"Имя, IP или папка…",
       unit:"камера|камеры|камер"
     })+
@@ -9098,6 +9635,29 @@ const RULE_DEVTYPES=["camera","sensor","acfa_sensor","acfa_lock","acfa_fence","r
 let ruleIdx=null;
 const ruleAreaMemo=new Map();
 function ruleIdxDrop(){ruleIdx=null;ruleAreaMemo.clear()}
+// Выбор цели правила: кэш неполный, устройства этого вида дочитываются страницей. Остальное — поиском в шапке выбора
+const ruleTypesRead=new Set();
+async function ruleTypesNeed(dt){
+  const k=dt.join();
+  if(ruleTypesRead.has(k)||!can("listDevices"))return;
+  ruleTypesRead.add(k);
+  try{
+    let r,cursor=null;
+    do{r=await API.get("/devices",{type:k,limit:200,cursor});cursor=r.nextCursor||null}while(!r.items.length&&cursor);
+    const fresh=r.items.filter(x=>!find(x.id));
+    if(!fresh.length)return;
+    await hwEnsure(fresh.map(x=>x.parentId));
+    fresh.forEach(hwAddRow);
+    ruleIdxDrop();
+    if(app==="rules")paint();
+  }catch(e){ruleTypesRead.delete(k)}
+}
+// Цели правил: устройства, на которые они ссылаются, должны быть в кэше
+function ruleDeviceIds(x,out){
+  if(Array.isArray(x))x.forEach(v=>ruleDeviceIds(v,out));
+  else if(x&&typeof x==="object"){if(x.kind==="device"&&x.id)out.add(x.id);Object.values(x).forEach(v=>ruleDeviceIds(v,out))}
+  return out;
+}
 function ruleIdxGet(){
   if(!ruleIdx){
     const byId=new Map();
@@ -9138,6 +9698,7 @@ function ruleDevSrv(n){
 }
 function ruleUniverse(dt){
   return ruleMemo("u|"+dt.join(),()=>{
+    ruleTypesNeed(dt);
     const seen=new Set(),out=[];
     walkAll(n=>{if(dt.includes(n.type)&&!seen.has(n.id)){seen.add(n.id);out.push(n)}});
     return out;
@@ -12905,6 +13466,61 @@ function accToApi(st){
       durationSec:c.dur||0,message:c.msg||"",entries:(c.avail||[]).map(e=>({dn:e.dn,name:e.n,kind:e.kind,logins:e.logins.slice()}))}))
   };
 }
+// При старте — только версия, роли и каталоги. Люди, группы, история и объекты ролей читаются при заходе в раздел
+function accSkeleton(a){
+  return Object.assign({users:[],groups:[],history:[],cellHistory:[]},a,{roles:(a.roles||[]).map(({objectAccessCount,...r})=>Object.assign({objectAccess:{}},r))});
+}
+let accShown=false,accApplying=false;
+const accCursor={users:null,groups:null,history:null};
+// Снимок и первые страницы перечней: история и люди растут, до конца не дочитываются
+async function accFetch(){
+  const a=accSkeleton(await API.get("/access"));
+  const page=(k,field)=>API.get(`/access/${k}`,{limit:LIM.pageMax}).then(r=>{a[field]=r.items;accCursor[field]=r.nextCursor||null});
+  await Promise.all([page("users","users"),page("groups","groups"),page("history","history"),page("cell-history","cellHistory")]);
+  const raw=await API.get("/access");
+  await Promise.all(raw.roles.filter(r=>r.objectAccessCount).map(r=>API.get(`/access/roles/${r.id}/objects`,{limit:LIM.pageMax}).then(l=>{
+    a.roles.find(x=>x.id===r.id).objectAccess=Object.fromEntries(l.items.map(x=>[x.objectId,x.levels]));
+  })));
+  return a;
+}
+async function accLoad(){
+  if(accDenied||!can("getAccess"))return;
+  accShown=true;
+  try{const a=await accFetch();accDown=false;if(!accPlanLines().length)accSetSnapshot(a);accLast=a}
+  catch(e){if(e?.status===403)accDenied=true;else accDown=true}
+}
+// «Ещё» в списке людей: кэш прав тоже неполный, правка уходит изменениями
+async function accUsersMore(){
+  if(!accCursor.users)return;
+  const r=await API.get("/access/users",{limit:LIM.pageMax,cursor:accCursor.users});
+  accCursor.users=r.nextCursor||null;
+  const srv=accFromApi(Object.assign(accSkeleton({version:accVer,roles:accLast.roles,catalogs:accLast.catalogs}),{users:r.items,groups:accLast.groups}));
+  accBoth(st=>{srv.users.forEach(u=>{if(!st.users.some(x=>x.id===u.id))st.users.push(accClone(u))})});
+  accLast.users=accLast.users.concat(r.items);
+  paint();
+}
+// Изменения вместо снимка: сравниваются записи, которые форма читала и правила
+function accChanges(from,to){
+  const out=[];
+  const row=r=>{const{objectAccess,...x}=r;return Object.assign(x,{objectAccessCount:Object.keys(objectAccess||{}).length})};
+  const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+  const list=(kind,a,b,show)=>{
+    const was=new Map(a.map(x=>[x.id,x]));
+    b.forEach(x=>{if(!was.has(x.id)||!same(show(was.get(x.id)),show(x)))out.push({kind,id:x.id,op:"set",value:show(x)})});
+    a.forEach(x=>{if(!b.some(y=>y.id===x.id))out.push({kind,id:x.id,op:"delete"})});
+  };
+  list("role",from.roles,to.roles,r=>r&&row(r));
+  to.roles.forEach(r=>{
+    const a=from.roles.find(x=>x.id===r.id)?.objectAccess||{},b=r.objectAccess||{};
+    Object.keys(b).forEach(k=>{if(!same(a[k],b[k]))out.push({kind:"roleObject",id:r.id,op:"set",value:{objectId:k,levels:b[k]}})});
+    Object.keys(a).forEach(k=>{if(!(k in b))out.push({kind:"roleObject",id:r.id,op:"set",value:{objectId:k,levels:null}})});
+  });
+  list("user",from.users,to.users,u=>u);
+  list("group",from.groups,to.groups,g=>g);
+  list("catalog",from.catalogs,to.catalogs,c=>c);
+  if(to.streamGrants&&!same(from.streamGrants||[],to.streamGrants))out.push({kind:"streamGrants",id:"grants",op:"set",value:{grants:to.streamGrants}});
+  return out;
+}
 function accSetSnapshot(a){
   accVer=a.version;
   const srv=accFromApi(a);
@@ -12922,7 +13538,7 @@ function accNoSync(a){
 let accLast=null;
 const accSyncWait=new Map();
 function accRefresh(){
-  return API.getWithEtag("/access").then(({body:a})=>{
+  return(accShown?accFetch():API.get("/access").then(accSkeleton)).then(a=>{
     const clean=!accPlanLines().length,onlySync=accLast&&accNoSync(accLast)===accNoSync(a);
     if(clean)accSetSnapshot(a);
     else{
@@ -13422,8 +14038,10 @@ function accPlan(){
     const history=accLogPlan(lines);
     const cellHistory=[];accRoles().forEach(r=>accCellDiff(r.id,"groups").forEach(c=>cellHistory.unshift({roleId:r.id,key:c.id,field:c.f,from:c.from??null,to:c.to??null})));
     // Черновик целиком — одним пакетом; новый снимок прав приходит в ответе
-    API.post("/access/apply",{access:accToApi(accSt()),history,cellHistory},{"If-Match":`"${accVer}"`}).then(res=>{
-      accSetSnapshot(res.access);accLast=res.access;Object.keys(accCatPwd).forEach(k=>delete accCatPwd[k]);
+    // Событие своей записи не должно обогнать чтение снимка: пока идёт применение, поток прав молчит
+    accApplying=true;
+    API.post("/access/apply",{version:accVer,changes:accChanges(accToApi(accData().srv),accToApi(accSt())),history,cellHistory}).then(()=>accFetch()).finally(()=>{accApplying=false}).then(a=>{
+      accSetSnapshot(a);accLast=a;Object.keys(accCatPwd).forEach(k=>delete accCatPwd[k]);
       accOvNote=null;toast(i18n("Изменения применены"));paint();
     }).catch(e=>{toast(problemText(e));paint()});
   },{html:true,cancelLabel:"Закрыть"});
@@ -13600,7 +14218,7 @@ function accDownUI(){
   paintMain(mainHd("",i18n("Права"),ACC_SUB,"","")+`<div class="sc"><div class="nt err" data-acc-down>${i18n("Права сейчас недоступны")}</div></div>`);
   if(accRetrying)return;
   accRetrying=true;
-  API.get("/access").then(a=>{accDown=false;accSetSnapshot(a);accLast=a;if(app==="acc")paint()}).catch(e=>{if(e?.status===403){accDenied=true;accDown=false;if(app==="acc")setApp("hw");else renderRail()}}).then(()=>{accRetrying=false});
+  accFetch().then(a=>{accDown=false;accSetSnapshot(a);accLast=a;if(app==="acc")paint()}).catch(e=>{if(e?.status===403){accDenied=true;accDown=false;if(app==="acc")setApp("hw");else renderRail()}}).then(()=>{accRetrying=false});
 }
 function accUI(){
   if(accDown)return accDownUI();
@@ -16118,7 +16736,9 @@ function opRow(op){
 }
 function opRevert(id){
   API.post(`/operations/${id}/revert`).then(op=>opFollow(op,p=>{
-    toast(p.failed?`${i18n("Возвращено")}: ${p.ok} · ${i18n("не выполнено")} ${p.failed}`:`${i18n("Возвращено")}: ${p.ok}`);
+    const say=why=>toast(p.failed?`${i18n("Возвращено")}: ${p.ok} · ${i18n("не выполнено")} ${p.failed}${why?` — ${why}`:""}`:`${i18n("Возвращено")}: ${p.ok}`);
+    // Шаг, который вернуть нельзя, говорит словом: папки вне отката
+    if(p.failed)API.get(`/operations/${op.id}`).then(o=>{const x=o.items.find(y=>y.params?.reason==="folders");say(x?problemText({problem:{code:x.code,params:x.params}}):"")}).catch(()=>say(""));else say("");
     logOpsLoad();
   })).catch(e=>toast(problemText(e)));
 }
@@ -16867,6 +17487,7 @@ function createArchive(){
   const a=archById(res.archive.id)||archNode(res.archive);
   if(!arch.includes(a))arch.push(a);
   res.volumes.forEach(r=>{hwVer.set(r.id,r.version);if(!volById(r.id))a.vols.push(volNode(r))});
+  archServerTouched(a);
   const v=a.vols[0];
   an=null;closeBulkModal();
   open.add(a.server);sel=a.id;tab="arch";setD(true);
@@ -16920,7 +17541,7 @@ function deleteArchive(id){
     (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Сами камеры останутся в системе — в разделе «Без записи».")} `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`«${locName(a)}»`,commit:()=>{
       // Камеры, что писали сюда, сервер переводит на следующее хранилище или выключает им запись
-      API.del(`/archives/${id}`,hwVer.get(id)).then(()=>hwLoad()).then(()=>{
+      API.del(`/archives/${id}`,hwVer.get(id)).then(()=>hwReload()).then(()=>{
       if(sel===id){sel=a.server||a.domain||sel;tab="gen"}
       open.delete(id);setD(false);treeMatchCache.clear();searchMatchCache.clear();
       toast(i18n("Хранилище удалено"));
@@ -18756,7 +19377,9 @@ function afterSelChange(id,ctx){
 function selectAllFiltered(){
   const all=selCandidates();if(!all.length){toast("В срезе нечего отметить");return}
   selMode=true;
+  selOver=false;
   all.forEach(x=>treeSel.add(x.id));
+  if(selOver)toast(`${i18n("Отмечено не больше")} ${LIM.selectMax}: ${i18n("остальное — следующей операцией, у каждой свой откат")}`);
   afterSelChange(all[0].id);
 }
 function selectAllVisible(){
@@ -18807,7 +19430,7 @@ function renderSelBar(){
   host.classList.toggle("sel-peek",peek);
   host.innerHTML=`<span class="sel-ic" aria-hidden="true">${SEL_IC}</span>${peek
     ?`<button type="button" class="sel-back" title="${i18n("Открыт объект; выборка сохранена")}" ${onEv("click",["bulkBack"])}>${i18n("К выборке")} (${n}) →</button>`
-    :`<span class="sel-cnt">${n?`${i18n("Отмечено")} <b class="${bump?"bump":""}">${n}</b>`:i18n("Отметьте объекты")}</span>`}
+    :`<span class="sel-cnt">${n?`${i18n("Отмечено")} <b class="${bump?"bump":""}">${n}</b> ${i18n("из")} ${LIM.selectMax}`:i18n("Отметьте объекты")}</span>`}
     ${total&&!allOn?`<button type="button" class="lk lk-act" title="${i18n("Выбрать все")} ${total} ${scope}" ${onEv("click",["selectAllFiltered"])}>${i18n("Все")} ${total}</button>`:""}
     ${n?`<button type="button" class="lk lk-act" ${onEv("click",["clearTreeSel"])}>${i18n("Снять")}</button>`:""}
     <span class="sel-gap"></span>
@@ -19769,6 +20392,8 @@ function opsToItems(ops){
 }
 function bulkRun(ch,opts,nodesIn){
   const nodes=nodesIn||bulkScopeNodes();
+  // Группа правит полные записи: у строки камеры-кластера нет Device.version
+  if(nodes.some(n=>n._row)){hwFullAll(nodes.filter(n=>n._row).map(n=>n.id)).then(()=>bulkRun(ch,opts,nodes)).catch(e=>toast(problemText(e)));return}
   const excluded=new Set(bulkStats(nodes).offline.map(n=>n.id));
   const steps=ch.map(c=>({label:c.label,ops:c.ops.map(o=>({...o,state:o.skip?"skip":excluded.has(o.n.id)?"excl":"wait",msg:o.skip||(excluded.has(o.n.id)?i18n("сервер без связи"):""),done:!!o.skip||excluded.has(o.n.id)}))}));
   const title=`${nodes.length} ${i18n(plural(nodes.length,"объект|объекта|объектов"))}`;
@@ -19938,7 +20563,10 @@ function apiQueue(steps,title,opts,call,apiOps,noopOps){
     if(bq===q)queueFinish();
   });
 }
+const opTouched=new Set();
 function opOnEvent(m){
+  if(m.type==="operation.progress"&&m.payload?.item?.targetId)opTouched.add(m.payload.item.targetId);
+  if(m.type==="operation.finished"&&opTouched.size){const ids=[...opTouched];opTouched.clear();hwTouched(ids)}
   const w=opWait.get(m.entityId);
   if(m.type==="operation.finished"&&app==="log"&&logFilt==="ops")logOpsLoad();
   if(w&&m.type==="operation.finished"){opWait.delete(m.entityId);w(m.payload);return}
@@ -20170,6 +20798,8 @@ function confirmDeleteNodes(roots,back,skipped){
   if(dets)lines.push(`${i18n("детекторов")}: ${dets} — ${i18n("удалятся вместе с правилами")}`);
   if(used.length)lines.push(`${i18n("правил автоматизации перестанут работать")}: ${used.length} (${used.slice(0,3).map(r=>`«${escHtml(r.name)}»`).join(", ")}${used.length>3?`, ${i18n("и ещё")} ${used.length-3}`:""}) — ${i18n("в них удалённое устройство или область отметятся как удалённые")}`);
   if(fold.size)lines.push(`${i18n("папок, из которых пропадут объекты")}: ${fold.size}`);
+  // Версия r<revision> сверяет только строку камеры: об этом пределе форма не молчит
+  if(nodes.some(n=>/^r\d+$/.test(hwVer.get(n.id)||"")))lines.push(i18n("сверяется только строка камеры: чужая правка записи или детектора удаление не остановит"));
   const fl=nodes.filter(n=>n.type==="folder"),ar=nodes.filter(n=>n.type==="archive"),vl=nodes.filter(n=>n.type==="vol");
   if(fl.length&&!one)lines.push(`${i18n("папок")}: ${fl.length} — ${i18n("устройства из них останутся в системе")}`);
   if(ar.length){const k=new Set(ar.flatMap(a=>archCameras(a.id).map(c=>c.id))).size;lines.push(`${i18n("хранилищ")}: ${ar.length}, ${i18n("вместе с томами")}${k?` — ${i18n("перестанут писать камер")}: ${k}, ${i18n("сами камеры останутся в «Без записи»")}`:""}`)}
@@ -20215,9 +20845,9 @@ function commitDelete(key){
   if(p.commit){p.commit();return}
   const kinds=new Set(p.ids.map(id=>find(id)?.n.type));
   // Отсчёт кончился — удаляет сервер, одним запросом; каскады (дочерние, тома,
-  // запись камер) — его, поэтому кэш «Оборудования» перечитывается целиком
+  // запись камер) — его, поэтому перечитывается то, что есть в кэше
   const items=p.ids.filter(id=>hwVer.has(id)).map(id=>({id,version:hwVer.get(id)}));
-  API.post("/objects/delete",{idempotencyKey:opKey(),items}).then(res=>hwLoad().then(()=>res)).then(res=>{
+  API.post("/objects/delete",{idempotencyKey:opKey(),items}).then(res=>hwReload().then(()=>res)).then(res=>{
     const n=res.done.length;
     p.ids.forEach(id=>open.delete(id));if(selFolder&&!folderById(selFolder))selFolder=null;
     if(!find(sel)){const b=p.back&&(find(p.back)||folderById(p.back))?p.back:domains[0]?.id;sel=b||sel;tab="gen";resetTreeSel(sel);expandTo(sel)}
@@ -20531,12 +21161,13 @@ function cpApplyGeneric(){
 // Старт: данные с сервера, затем первая отрисовка. Раскрыто то же, что в
 // макете на константах: первый и третий домен, нераспределённые первого,
 // первый сервер, первое хранилище, первая папка с подпапкой.
-window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(autoLoad).then(()=>{
+window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(autoLoad).then(async()=>{
   sel=domains[0]?.id||null;appSel.srvs=sel;
   [domains[0]?.id,domains[2]?.id,domains[0]&&unallocId(domains[0].id),servers[0]?.id,arch[0]?.id].forEach(x=>{if(x)open.add(x)});
   [folders[0],folders[0]?.folders?.[0]].forEach(f=>{if(f)open.add(f.id)});
   domains.forEach(d=>{open.add(d.id);open.add("accg:"+d.id)});
   API.subscribe(apiOnEvent,apiReload);
+  await treeNeed();
   syncLocalePack();applyStaticUi();
   if(!applyDeepLink()){resetTreeSel(sel);paint();}
 }).catch(e=>{

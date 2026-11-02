@@ -21,7 +21,7 @@ UiCheck(async ({ ok, until, sleep }) => {
     closeTreeCtx();
   }
   const open = (id) => { goApp("hw"); pick(id, { force: true }); };
-  const cam = (await API.get("/devices")).items.find((d) => d.type === "camera");
+  const cam = (await uiDevices()).find((d) => d.type === "camera");
   open(domains[0].id);
   await check("домен", button("#main"));
   open(servers.find((s) => !isUnallocated(s.id)).id);
@@ -36,7 +36,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   await check("правило", button("#main"));
   // Выборка: две камеры
   open(cam.id);
-  const other = (await API.get("/devices")).items.find((d) => d.type === "camera" && d.id !== cam.id);
+  const other = (await uiDevices()).find((d) => d.type === "camera" && d.id !== cam.id);
   treeSel.clear();
   treeSel.add(cam.id); treeSel.add(other.id);
   selMode = true;

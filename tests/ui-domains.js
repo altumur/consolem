@@ -57,7 +57,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const full=flatFolders().find(f=>f.items.length>1&&folderDomain(f.id)===d1.id);
   clearFolder(full.id);await confirmWith(null);
   ok(await until(()=>full.items.length===0),"папка очищена");
-  ok((await API.get("/folders/"+full.id)).deviceIds.length===0,"на сервере — пусто");
+  ok((await uiFolderIds(full.id)).length===0,"на сервере — пусто");
   addSubfolder(nf.id);
   ok(await until(()=>(nf.folders||[]).length===1),"в ней подпапка");
   treeRenameId=null;

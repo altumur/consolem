@@ -1,8 +1,8 @@
 /* Сценарий интерфейса: поиск и путь приводят к объекту: цель — видимая строка дерева, прокрученная к ней,
    при любом срезе. Запуск — tools/check_ui.py. */
-UiCheck(async ({ ok, sleep }) => {
+UiCheck(async ({ ok, sleep, until }) => {
   const serverOfDet = (d) => cameraTreeServer(d.parentId)?.id;
-  const devices = (await API.get("/devices")).items.filter((d) => find(d.id));
+  const devices = (await uiDevices()).filter((d) => find(d.id));
   const shown = (id) => {
     const box = document.getElementById("tree").getBoundingClientRect();
     return [...document.querySelectorAll(`#tree .n[data-pick="${id}"]`)].some((el) => {
@@ -18,14 +18,15 @@ UiCheck(async ({ ok, sleep }) => {
   for (const d of devices) {
     goApp("hw");
     jumpToNode(find(d.id).n);
-    await sleep(1);
+    // Ветка могла ещё читаться: строка появляется после неё
+    await until(() => shown(d.id), 300);
     if (!shown(d.id)) note(noJump, `${d.type}/${slice}/${group()}`, d.name);
     document.querySelectorAll(".cr-it[data-id]:not(.cr-last)").forEach((el) => crumbs.add(el.dataset.id));
     // Родитель: один раз на родителя, сразу после перехода к его ребёнку
     if (d.parentId && !parents.has(d.parentId)) {
       parents.add(d.parentId);
       pick(d.parentId, { force: true });
-      await sleep(1);
+      await until(() => shown(d.parentId), 300);
       if (sel !== d.parentId || !shown(d.parentId)) note(noParent, `${d.type}/${slice}`, d.name);
     }
   }
@@ -35,7 +36,7 @@ UiCheck(async ({ ok, sleep }) => {
     if (!find(id)) continue;
     goApp("hw");
     pick(id, { force: true });
-    await sleep(1);
+    await until(() => shown(id), 300);
     if (!shown(id)) note(noCrumb, `${find(id).n.type}/${slice}`, id);
   }
   ok(crumbs.size > 0 && !Object.keys(noCrumb).length, `шаги пути: ${crumbs.size}` + (Object.keys(noCrumb).length ? ": " + report(noCrumb) : ""));

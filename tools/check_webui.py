@@ -66,7 +66,8 @@ def main():
     csp = sorted({l for l in lines if l.startswith("CSP-VIOLATION")})
     report = [l for l in lines if not l.startswith(("CSP-VIOLATION", "Стенд:"))]
     passed = bool(report) and report[-1].strip() == "RESULT pass"
-    for l in [l for l in report if not l.startswith("PASS")][-15:]:
+    # Строки FAIL: многострочные подписи сценариев не вытесняют их из хвоста
+    for l in [l for l in report if l.startswith("FAIL")] + report[-2:]:
         print(l)
     if not report:
         print(f"отчёт самопроверки не пришёл за {WAIT_SEC} с")
