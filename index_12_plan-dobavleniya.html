@@ -1062,7 +1062,20 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .btn-split>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
 .btn-split>.btn-split-arrow{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;padding-left:6px;padding-right:6px}
 .btn-split>.btn:hover{position:relative;z-index:1}
-.plan-cnt{font-variant-numeric:tabular-nums}
+.plan-cnt{margin-left:6px;padding:1px 7px;border-radius:9px;background:var(--one-accent);color:var(--one-accent-on);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
+.plan-cnt:empty{display:none}
+/* Поле с автокомплитом: одна строка, длинное значение — с многоточием; полное — в подсказке и в списке */
+.combo{position:relative;display:block;width:100%;min-width:0}
+.combo input{width:100%;padding-right:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.combo-chev{position:absolute;right:6px;top:50%;transform:translateY(-50%);display:flex;color:var(--mu);pointer-events:none}
+.combo-pop{position:fixed;z-index:80;max-height:300px;overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 10px 28px #000a;padding:4px 0;scrollbar-width:thin}
+.combo-opt{display:block;width:100%;border:0;background:0;color:var(--tx);padding:5px 10px;font-size:12px;line-height:1.35;text-align:left;cursor:pointer;overflow-wrap:anywhere}
+.combo-opt:hover,.combo-opt.on{background:var(--one-control-hover)}
+.combo-opt.cur{font-weight:600}
+.combo-sub{display:block;font-weight:400;font-size:11px;color:var(--mu)}
+.combo-g{padding:6px 10px 2px;font-size:11px;font-weight:600;color:var(--mu)}
+.combo-note{padding:6px 10px;font-size:12px;color:var(--mu)}
+.lan-arch .combo{width:220px}
 .plan-tab:focus-visible,.plan-row-main:focus-visible,.plan-x:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .plan-srv{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:12px}
 .plan-srv label{margin:0;color:var(--mu)}
@@ -1073,6 +1086,9 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .plan-left-body{flex:1;min-height:0;display:flex;flex-direction:column}
 .plan-left-body>.dev-wrap{height:auto;flex:1}
 .plan-tabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ln)}
+.plan-left-ft{flex:none;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding-top:10px;border-top:1px solid var(--ln)}
+.csv-drop.csv-file{display:flex;align-items:center;gap:8px;flex:none;flex-wrap:wrap;text-align:left;padding:8px 12px}.csv-file-name{flex:1;min-width:160px;overflow-wrap:anywhere}
+.csv-preview.dev-results-scroll{flex:1;min-height:120px}.csv-preview thead th{position:sticky;top:0;z-index:1;background:var(--p2)}.csv-preview .csv-chk{width:28px}
 .plan-tab{border:0;border-bottom:2px solid transparent;background:0;color:var(--mu);padding:7px 12px;font-size:13px;cursor:pointer}
 .plan-tab:hover{color:var(--tx)}
 .plan-tab.on{color:var(--tx);border-bottom-color:var(--bl);font-weight:600}
@@ -1115,6 +1131,8 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
   .dr.device-wizard .db{overflow:auto}
   .plan-split{flex:none;flex-direction:column;min-height:auto}
   .plan-left{flex:none;min-height:460px}
+  .plan-left-ft{position:sticky;bottom:0;z-index:2;background:var(--p);padding-bottom:4px}
+  .plan-left .dev-search-head{position:sticky;top:-16px;z-index:2;background:var(--p);padding:8px 0}
   .plan-right{width:auto;max-height:480px;min-height:240px}
 }
 @media(max-width:1100px){.dev-card{grid-template-columns:repeat(3,minmax(120px,1fr));width:100%}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dr.device-wizard{width:min(1180px,calc(100vw - 48px))}}
@@ -2205,10 +2223,18 @@ function withCloudKind(fx){
   const i=kinds.indexOf(nas)+1;
   return{...fx,reference:{...fx.reference,archiveKinds:[...kinds.slice(0,i),{...nas,kind:"cloud",address:"bucket"},...kinds.slice(i)]}};
 }
+// Прототип 12: производители драйвер-пака (PROJ/ipint.driverspack_git, Drivers/**/*.rep, <brand>, коммит 5141226; без джойстиков и служебной записи),
+// как если бы их отдал сервер в reference.deviceModels. Модели у них не заданы: модель вводят вручную.
+const DRIVERPACK_VENDORS=["360Vision","3S","Abron","ABUS","ACTi","Acumen","Adino","Advantech","Aebell","AEVision","AGRG","AiMobile","Alinking","AlphaOTM","Amatek","AMG","Ampleye B.V.","AMTK","Andy","Arecont Vision","ARH","Arlotto","Asoni","ASTR","Astra","Astrohn","Aver","AverDVR","Avgit","AVIGILON","AVIGILON generic","AVIOSYS","AVTech","AVTS","Avycon","Axis","AxyCam","Balter","Basler","BCS","BestDigital","BestDVR","BestNVR","Beward","BikInform","BlacklineSafety","BOLID","Bolin Technology","Bosch","Bosch Generic","Brickcom","BSP","Byterg","Cametron","Canon","CaptureDevice","Cellinx","CERTIS","Cisco","CloudClient","CNB","Commax","Commax Complex Server","Commax generic","Commbox","ComOnyx","Compotrol","Corwus","CP Plus","D-Link","Dahua","DahuaDSS","DahuaNetSDK","DahuaSDK","Digiever","DiGieyes","DigitalWatchdog","DSSL","Dynacolor","EasyN","ECHD","Eneo","EPI","Ericsson","Etrovision","Etz","EverFocus","Everview","EVG","eVidence","EVS","FFMPEG","FINE","FineCCTV","FlexWatch","Flir","FlirAXSeries","G4S","GAI-Tronics","Ganz","GBT28181","Geovision","GFE","GIGA","GIT","Glosav","Grandstream","Grundig","Grundig CVion","Grundig SMART Line","Gunnebo","Hanwha Techwin","Hanwha Techwin generic","HawkEye","HikCentralPro","HikConnect","Hikvision","HiWatch","Holowits","Homeland Safety Systems","Honeywell","HttpListener","Huawei","HuaweiIVS","Hunda","Hunt","IDIS","iFlow","IMOU","Inaxsys Legend","Inaxsys STORM","IndigoVision","Infiniti","Infinity","Infinova","Infralan","InHot","InMotion","Intel","Intelbras","Intellico","Intelliko","Interop","Intralogic Solutions","InVid","IOBoard","IPDROM","IPDROM generic","IPS","IPTRONIC","IPux","IPV Halo Smart Sensors","IPVideo Corporation","IQeye","IRLab","iZett","J2000IP","Jasamarga","Jassun","Jovision","JVC","JVC NVR","K-New","KernelChip","KONEKT","LegacySDK","Legrand","Lesohranitel","LevelOne","LG","Li-Lin","LILIN","Linceo","Live Eye","Logitech","LTS","LTS Platinum","LTV","Luminys Basic","Luminys generic","LuminysSDK","Luna","Mago","Mango","March","Master","Mediatronix","MeritLilin","Messoa","MicroDigital","Milesight","MilesightToF","Mitsubishi","Mobotix","MOXA","Naziraty","NexusIP","NIC Tehnologii","NicTechGeneric","Nikiret","Novicam","Novus","Olvia","OlviaFTP","OMNY","OncamGrandeye","ONVIF 2.X","ONVIF generic","Optelecom","OTN Systems","Panasonic","Panasonic generic","Partizan","Patronus Laboratories Corporation","Pelco","Perfect-4","Pinetron","Pixeye","Pixord","Planet","POSLegacy","PosXml","PRESENTCO","Probe","Probe Digital","PROENG","Promelit","Provision","PSIA","Q-cam","QNAP","REDLINE","RIVA","ROKA","Rostec","RS","RTP stream device","RTSP","Rubetek","RVi","Samsung","SamsungTW","Santec","Sanyo","SCS","SEEnergy","Selea","SenstarSymphony","Sentry360","Sentryway","SenturianServerGeneric","SERVICE TELEMATIKA","SerVision","Sieza","SightlineApplications","SimpleIP","Singtel","Sinkross","SIP","SIP and RTSP","SIP Device","SIP with RTSP","SIP with Video","Smartec","SMAVID","SNR","Sony","Sophus","Spark","Spezvision","Sprut","ST","StarDot","Stkomplex","STORM","StreamLabs","Stretch","Sunell","Sunkwang","Svplus","Takex","Tamron","Tantos","Targa Systems","TARGET","Tattile","TBK","TcpListener","Teb","Techpro Security","Tecnosens","TEDD","TeleEye","Tiandy","Tibbo","Tibet","TrendNet","Trezor","True IP","TruVision","TVHelp","TVT","Tyco","Typhoon","UDP","Uniarch","Uniview","V1netIP","Vandi","Veilux","Verint","Vesta","Video Intelligent","Videosec","Videotec","ViDigi","Vido","VidoNet","Vigilate","Virtual","Virtual bench","Virtual Generic","Visiocom","Vision","VisionTek","VisioWave","VisualGate","Visualint","VITEK","Vivotek","VivotekNVR","VMsistemos","VniiaRadiation","VWEB","WatchNET","Webgate","WebPlayer","Witson","WuT","Xenics","XeronVision","Y-cam","Youngkook","Yuan","Yudor","Zavio","Zenosys"];
+function withDriverVendors(fx){
+  const known=new Set(fx.reference.deviceModels.map(x=>x.vendor.toLowerCase()));
+  const add=DRIVERPACK_VENDORS.filter(v=>!known.has(v.toLowerCase())).map(vendor=>({vendor,models:[]}));
+  return{...fx,reference:{...fx.reference,deviceModels:[...fx.reference.deviceModels,...add]}};
+}
 const API=(()=>{
   const q=new URLSearchParams(location.search),base=q.get("api")||pageMeta("consolem-api"),latency=+q.get("latency")||0;
   if(base)return ConsolemApi.create({baseUrl:base,latency,onUnauthorized:apiUnauthorized});
-  const all=Object.fromEntries(Object.entries(window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE}).map(([n,fx])=>[n,withCloudKind(fx)]));
+  const all=Object.fromEntries(Object.entries(window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE}).map(([n,fx])=>[n,withDriverVendors(withCloudKind(fx))]));
   // ?drop=op1,op2 — система, которая не объявила эти операции: так проверяется запуск без необязательного
   const drop=new Set((q.get("drop")||"").split(",").filter(Boolean));
   const fx=all[q.get("fixture")]||all.demo;
@@ -4968,8 +4994,8 @@ const ESC_LAYERS=[
   {is:()=>document.getElementById("bmodal")?.classList.contains("open"),off:closeBulkModal},
   {is:()=>document.getElementById("confirm")?.classList.contains("open"),off:closeConfirm},
   {is:()=>typeof schDlgIsOpen==="function"&&schDlgIsOpen(),off:()=>schDlgCancel()},
-  {is:()=>wizOpen()&&wizd?.mode==="device-add"&&(wizd.devFiltPop||wizd.modePop||wizd.devFieldsPop),
-   off(){wizd.devFiltPop=wizd.modePop=wizd.devFieldsPop=false;wizd.tplFilter="";renderDeviceWizard()}},
+  {is:()=>wizOpen()&&wizd?.mode==="device-add"&&(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop),
+   off(){wizd.devFiltPop=wizd.csvFiltPop=wizd.modePop=wizd.devFieldsPop=false;wizd.tplFilter="";renderDeviceWizard()}},
   {is:wizOpen,off:()=>closeWizard()},
   {is:()=>document.getElementById("jump")?.classList.contains("open"),off:closeJump},
   {is:()=>document.getElementById("tctx")?.classList.contains("open"),off:closeTreeCtx},
@@ -6824,8 +6850,9 @@ function toggleMainFull(){setMainFull(!mainFull)}
 function inspectorAddBtn(n){
   if(!canInspectorAdd(n))return"";
   const lb=n.type==="server"?i18n("Службу"):addTreeLabel(n);
-  const act=n.type==="domain"?"openW('server')":(n.type==="server"?"openW('svc')":"openW()");
-  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}</button>`;
+  const act=n.type==="domain"?"openW('server')":((n.type==="server"||isSvc(n))?"openW('svc')":"openW()");
+  // openW() ведёт в план: метка та же, что у кнопки сервера, иначе отсюда план кажется пустым
+  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}${act==="openW()"?planCntHtml():""}</button>`;
 }
 function canWizardAdd(n){return n&&(n.type==="domain"||n.type==="server")}
 function canTreeCtx(n){
@@ -8538,9 +8565,7 @@ function lanTargetHtml(n){
   const targets=lanTargets(n);
   const many=!lanIsArch(n);
   const archHtml=many
-    ?`<select ${onEv("change",["lanSetArch",onEv.value])} ${targets.length?"":"disabled"}>${targets.length
-        ?targets.map(a=>`<option value="${a.id}" ${a.id===lan.arch?"selected":""}>${escHtml(locName(a))}</option>`).join("")
-        :`<option>${i18n("нет архивов")}</option>`}</select>`
+    ?comboHtml({src:"arch",ctx:{lan:n.id},value:lan.arch,on:["lanSetArch"],inline:false,lock:!targets.length,ph:i18n("нет архивов")})
     :`<input value="${escHtml(locName(n))}" readonly disabled>`;
   const recHtml=`<select ${onEv("change",["lanSetRec",onEv.value])} ${targets.length?"":"disabled"}>${
     (lanIsArch(n)?recModesOf(n):recModes().filter(([v])=>v!=="none")).map(([v,l])=>`<option value="${v}" ${v===lan.rec?"selected":""}>${i18n(l)}</option>`).join("")}</select>`;
@@ -8887,10 +8912,10 @@ function foundDeviceCardHtml(n){
         <button class="btn s" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти к объекту →</button>`)
       :card("Добавить",`<div class="g">
         <div><label>Имя</label><input value="${escHtml(r.name||"")}" placeholder="${escHtml(r.discoveredName||"")}" ${onEv("input",["foundCardField",`${r.id}`,"name",onEv.value])}></div>
-        <div><label>Папка</label><select ${onEv("change",["foundCardField",`${r.id}`,"group",onEv.value])}>${groupOptions(r.group)}</select></div>
+        <div><label>Папка</label>${comboGroupHtml(r.group,["foundCardField",`${r.id}`,"group"],{inline:false})}</div>
         <div><label>Логин</label><input value="${escHtml(r.user||"")}" ${onEv("input",["foundCardField",`${r.id}`,"user",onEv.value])}></div>
         <div><label>Пароль</label><input type="password" value="${escHtml(r.pass||"")}" ${onEv("input",["foundCardField",`${r.id}`,"pass",onEv.value])}></div>
-        <div><label>Привязать к архиву</label><select ${onEv("change",["foundCardField",`${r.id}`,"arch",onEv.value])}>${archiveOptions(r.arch)}</select></div>
+        <div><label>Привязать к архиву</label>${comboArchHtml(r.arch,["foundCardField",`${r.id}`,"arch"],{inline:false})}</div>
         <div><label>Режим записи</label>${hasLinkedArchive(r.arch)
           ?`<select ${onEv("change",["foundCardField",`${r.id}`,"record",onEv.value])}>${foundRecordOptions(r)}</select>`
           :`<select disabled tabindex="-1"><option>—</option></select>`}</div>
@@ -17235,7 +17260,7 @@ function initDeviceWizard(c){
     bulkEditOpen:false,tplPop:false,modePop:false,tplFilter:"",bulkEdit:{vendor:"",model:"",user:"",pass:"",name:"",arch:"",group:"",record:""},
     bulkUser:"",bulkPass:"",
     manual:{type:"camera",ip:"",port:80,vendor:Object.keys(DEVICE_MODELS)[0]||"",model:Object.values(DEVICE_MODELS)[0]?.[0]||"",rtsp:"",user:"",pass:"",name:"",short:"",identifier:"",arch:"",group:"",record:"motion",lat:"0",lon:"0",azimuth:"0"},
-    csvRows:[],csvName:"",csvError:""
+    csvRows:[],csvName:"",csvError:"",csvSel:new Set(),csvFilter:"",csvFiltPop:false,csvSelOnly:false,csvStatuses:{ok:true,manual:true,bad:true}
   };
   // Архив по умолчанию — первый из доступных в этом мастере (домен, сервер),
   // а не первый в системе: тот мог оказаться хранилищем чужого сервера.
@@ -17274,10 +17299,14 @@ function deviceArchiveWarning(){
   return arch.length?"":`<div class="archive-warning"><span>В системе не создано ни одного архива. Камеры можно добавить, но запись будет недоступна.</span><button type="button" class="lk lk-act" ${onEv("click",["goDeviceArchives"])}>Перейти к архивам</button></div>`;
 }
 function goDeviceArchives(){closeWizard();goApp("srvs");setSrvView("cam")}
+// Списки на вкладках — разные, а место прокрутки восстанавливается по одному классу
+function devListToTop(){document.querySelectorAll(".dev-results-scroll").forEach(e=>{e.scrollTop=0})}
 function setDeviceTab(tab){
+  const changed=wizd.deviceTab!==tab;
   wizd.deviceTab=tab;
   if(tab==="search")wizd.deviceStep=1;
   renderDeviceWizard();
+  if(changed)devListToTop();
 }
 function goDeviceStep(step){
   if(step===1){wizd.deviceStep=1;renderDeviceWizard();return}
@@ -17396,6 +17425,7 @@ function onDeviceFiltOutside(e){
   const filt=document.getElementById("devFiltWrap"),mode=document.getElementById("devModeWrap"),fields=document.getElementById("devFieldsWrap");
   let changed=false;
   if(wizd.devFiltPop&&!(filt&&filt.contains(e.target))){wizd.devFiltPop=false;changed=true}
+  if(wizd.csvFiltPop&&!document.getElementById("csvFiltWrap")?.contains(e.target)){wizd.csvFiltPop=false;changed=true}
   if(wizd.modePop&&!(mode&&mode.contains(e.target))){wizd.modePop=false;wizd.tplFilter="";changed=true}
   if(wizd.devFieldsPop&&!(fields&&fields.contains(e.target))){wizd.devFieldsPop=false;changed=true}
   if(changed)renderDeviceWizard();
@@ -17532,25 +17562,13 @@ function updateFoundDevice(id,key,value){
   r[key]=value;
   if(key==="arch"){if(!hasLinkedArchive(value))r.record="none";foundFieldsRepaint()}
 }
-function foundVendorOptions(vendor){
-  const keys=Object.keys(DEVICE_MODELS);
-  if(vendor&&!keys.includes(vendor))keys.unshift(vendor);
-  return keys;
-}
-function foundModelOptions(vendor,model){
-  const list=[...(DEVICE_MODELS[vendor]||[])];
-  if(model&&!list.includes(model))list.unshift(model);
-  return list;
-}
 function foundVendorField(r){
   if(r.status==="bad")return `<select class="dev-inline-select" disabled ${onEv("click",onEv.stop)}><option>не определено</option></select>`;
-  const vendors=foundVendorOptions(r.vendor);
-  return `<select class="dev-inline-select" ${r.added?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("change",["changeFoundVendor",`${r.id}`,onEv.value])}>${vendors.map(v=>`<option ${v===r.vendor?"selected":""}>${escHtml(v)}</option>`).join("")}</select>`;
+  return comboVendorHtml(r.vendor,["changeFoundVendor",`${r.id}`],{lock:r.added});
 }
 function foundModelField(r){
   if(r.status==="bad")return `<select class="dev-inline-select" disabled ${onEv("click",onEv.stop)}><option>не определено</option></select>`;
-  const models=foundModelOptions(r.vendor,r.model);
-  return `<select class="dev-inline-select" ${r.added?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("change",["updateFoundDevice",`${r.id}`,"model",onEv.value])}>${models.map(m=>`<option ${m===r.model?"selected":""}>${escHtml(m)}</option>`).join("")}</select>`;
+  return comboModelHtml(r.vendor,r.model,["updateFoundDevice",`${r.id}`,"model"],{lock:r.added});
 }
 function changeFoundVendor(id,vendor){
   const r=wizd.devResults.find(x=>x.id===id);if(!r)return;
@@ -17565,12 +17583,6 @@ function wizArchList(){
   if(!wizd)return arch;
   if(wizd.server)return[...serverArchives(wizd.server),...domainArchives(SERVER_DOMAIN[wizd.server])];
   return wizd.domain?arch.filter(a=>archDomainId(a)===wizd.domain):arch;
-}
-function archiveOptions(selected,list){
-  const all=list||wizArchList();
-  const unset=`<option value="" ${!selected?"selected":""}>Не задано</option>`;
-  if(!all.length)return unset+`<option value="" disabled>Архивы не созданы</option>`;
-  return unset+all.map(a=>`<option value="${a.id}" ${a.id===selected?"selected":""}>${escHtml(a.name)}</option>`).join("");
 }
 // Какие архивы вообще можно выбрать в карточке найденного. В мастере — любые,
 // а в закладке объекта выбор сужен до того, о чём эта закладка: у сервера его
@@ -18290,11 +18302,6 @@ function devPassIconSvg(visible){
   if(visible)return lu("eye-off",16);
   return lu("eye",16);
 }
-function groupOptions(selected){
-  const def=wizd&&wizd.folder&&folderById(wizd.folder);
-  const label=def?`${i18n("По умолчанию")} — ${folderPathName(def.id)}`:i18n("Папка мастера");
-  return `<option value="">${escHtml(label)}</option>`+folderOptionGroups(selected);
-}
 function devPassToggleBtn(disabled){
   return `<button type="button" class="dev-pass-toggle" title="Показать пароль" aria-pressed="false" ${disabled?"disabled":""} ${onEv("click",["toggleDevPassVisibility",onEv.event])}>${devPassIconSvg(false)}</button>`;
 }
@@ -18517,19 +18524,6 @@ function updateBulkEditField(key,value,rerender){
   if(key==="vendor"){wizd.bulkEdit.model="";if(rerender!==false)renderDeviceWizard()}
   else if(key==="arch"){if(!bulkEditArchEnablesRecord(wizd.bulkEdit))wizd.bulkEdit.record="";if(rerender!==false)renderDeviceWizard()}
 }
-function bulkEditVendorOptions(){
-  return `<option value="">— не менять —</option>${Object.keys(DEVICE_MODELS).map(v=>`<option value="${escHtml(v)}" ${v===wizd.bulkEdit.vendor?"selected":""}>${escHtml(v)}</option>`).join("")}`;
-}
-function bulkEditModelOptions(){
-  const vendor=wizd.bulkEdit.vendor,list=vendor?manualModels(vendor):[];
-  return `<option value="">— не менять —</option>${list.map(m=>`<option value="${escHtml(m)}" ${m===wizd.bulkEdit.model?"selected":""}>${escHtml(m)}</option>`).join("")}`;
-}
-function bulkEditArchiveOptions(){
-  return `<option value="">— не менять —</option><option value="__none__" ${wizd.bulkEdit.arch==="__none__"?"selected":""}>Не задано</option>${wizArchList().map(a=>`<option value="${a.id}" ${a.id===wizd.bulkEdit.arch?"selected":""}>${escHtml(a.name)}</option>`).join("")}`;
-}
-function bulkEditGroupOptions(){
-  return `<option value="">— не менять —</option><option value="__none__" ${wizd.bulkEdit.group==="__none__"?"selected":""}>${i18n("Папка мастера")}</option>`+folderOptionGroups(wizd.bulkEdit.group);
-}
 function bulkEditRecordOptions(){
   const r=wizd.bulkEdit.record;
   return `<option value="">— не менять —</option><option value="none" ${r==="none"?"selected":""}>Нет</option><option value="always" ${r==="always"?"selected":""}>Всегда</option><option value="motion" ${r==="motion"?"selected":""}>По детектору</option>`;
@@ -18561,8 +18555,8 @@ function deviceBulkEditHtml(count){
   const badge=`<span class="dev-bulk-badge">${count} ${count===1?"устройство":count<5?"устройства":"устройств"}</span>`;
   const sidePh=mode==="compact"?`<span class="dev-bulk-badge dev-bulk-size-ph">${count} ${count===1?"устройство":count<5?"устройства":"устройств"}</span>`:`<div class="dev-field dev-net-mac"><label>MAC-адрес</label><div class="dev-ro">FF:FF:FF:FF:FF:FF</div></div>`;
   const side=`<div class="dev-bulk-col1 dev-gc1r1 ${mode!=="compact"?"dev-bulk-side-2r":""}"><div class="dev-bulk-col1-size" aria-hidden="true"><div class="dev-net-group"><div class="dev-field dev-net-ip"><label>IP-адрес</label><div class="dev-ro">192.168.255.255</div></div><div class="dev-field dev-net-port"><label>Порт</label><div class="dev-ro">8080</div></div></div>${sidePh}</div><div class="dev-bulk-side"><b>Массовое редактирование</b>${badge}</div></div>`;
-  const vendor=`<div class="dev-field dev-gc2r1"><label>Производитель</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","vendor",onEv.value])}>${bulkEditVendorOptions()}</select></div>`;
-  const model=`<div class="dev-field dev-gc${mode==="compact"?"3":"2"}r${mode==="compact"?"1":"2"}">${b.vendor?`<label>Модель</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","model",onEv.value])}>${bulkEditModelOptions()}</select>`:devDisabledFieldHtml("Модель")}</div>`;
+  const vendor=`<div class="dev-field dev-gc2r1"><label>Производитель</label>${comboVendorHtml(b.vendor,["updateBulkEditField","vendor"],{head:[["","— не менять —"]]})}</div>`;
+  const model=`<div class="dev-field dev-gc${mode==="compact"?"3":"2"}r${mode==="compact"?"1":"2"}">${b.vendor?`<label>Модель</label>${comboModelHtml(b.vendor,b.model,["updateBulkEditField","model"],{head:[["","— не менять —"]]})}`:devDisabledFieldHtml("Модель")}</div>`;
   const user=`<div class="dev-field dev-gc${mode==="compact"?"4":"3"}r1"><label>Имя пользователя</label><input class="dev-inline-input" value="${escHtml(b.user)}" placeholder="Авто" ${onEv("input",["updateBulkEditField","user",onEv.value,false])}></div>`;
   const pass=`<div class="dev-field dev-gc${mode==="compact"?"5":"3"}r${mode==="compact"?"1":"2"}"><label>Пароль</label>${devPassFieldHtml(b.pass,false,"updateBulkEditField('pass',this.value,false)")}</div>`;
   const parts=[side,vendor,model,user,pass];
@@ -18570,8 +18564,8 @@ function deviceBulkEditHtml(count){
   if(mode!=="compact"){
     rowCls="dev-card-2row";
     parts.push(`<div class="dev-field dev-gc4r1"><label>Название</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","name",onEv.value,false])}>${bulkEditNameOptions()}</select></div>`);
-    parts.push(`<div class="dev-field dev-gc4r2"><label>Папка</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","group",onEv.value,false])}>${bulkEditGroupOptions()}</select></div>`);
-    parts.push(`<div class="dev-field dev-gc5r1"><label>Привязать к архиву</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","arch",onEv.value])}>${bulkEditArchiveOptions()}</select></div>`);
+    parts.push(`<div class="dev-field dev-gc4r2"><label>Папка</label>${comboFolderHtml(b.group,["updateBulkEditField","group"],{head:[["","— не менять —"],["__none__",i18n("Папка мастера")]]})}</div>`);
+    parts.push(`<div class="dev-field dev-gc5r1"><label>Привязать к архиву</label>${comboHtml({src:"arch",value:b.arch,on:["updateBulkEditField","arch"],head:[["","— не менять —"],["__none__",i18n("Не задано")]]})}</div>`);
     parts.push(`<div class="dev-field dev-gc5r2">${bulkEditArchEnablesRecord(b)?`<label>Режим записи</label><select class="dev-inline-select" ${onEv("change",["updateBulkEditField","record",onEv.value,false])}>${bulkEditRecordOptions()}</select>`:devDisabledFieldHtml("Режим записи")}</div>`);
   }
   return `<div class="dev-bulk-edit">
@@ -18615,11 +18609,11 @@ function devCardFieldHtml(r,lock,type){
   const id=lock?`<div class="dev-ro">${escHtml(deviceIdentifierPreview(r)||"—")}</div>`:`<input class="dev-inline-input" value="${escHtml(r.identifier||"")}" placeholder="Авто" ${onEv("click",onEv.stop)} ${onEv("input",["updateFoundDevice",`${r.id}`,"identifier",onEv.value])}>`;
   switch(type){
     case"name":return `<label>Название</label><input class="dev-inline-input" value="${escHtml(isDefaultDeviceName(r.name)?"":(r.name||""))}" placeholder="По умолчанию" ${lock?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("input",["updateFoundDevice",`${r.id}`,"name",onEv.value])}>`;
-    case"group":return `<label>Папка</label><select class="dev-inline-select" ${lock?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("change",["updateFoundDevice",`${r.id}`,"group",onEv.value])}>${groupOptions(r.group)}</select>`;
+    case"group":return `<label>Папка</label>${comboGroupHtml(r.group,["updateFoundDevice",`${r.id}`,"group"],{lock})}`;
     case"arch":{
       const fixed=lanArchFixed();
       if(fixed)return `<label>Привязать к архиву</label><div class="dev-ro">${escHtml(locName(fixed))}</div>`;
-      return `<label>Привязать к архиву</label><select class="dev-inline-select" ${lock?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("change",["updateFoundDevice",`${r.id}`,"arch",onEv.value])}>${archiveOptions(r.arch,lanArchScope())}</select>`;
+      return `<label>Привязать к архиву</label>${comboArchHtml(r.arch,["updateFoundDevice",`${r.id}`,"arch"],{lock})}`;
     }
     case"record":return foundRecordFieldHtml(r,lock);
     case"id":return `<label>ID</label>${id}`;
@@ -18750,7 +18744,10 @@ function deviceSearchHtml(){
   </div>
   <div class="dev-results-scroll"><div class="dev-results">${resultsHtml}</div></div>`;
 }
-function manualModels(vendor){return DEVICE_MODELS[vendor]||[]}
+function manualModels(vendor){return Object.hasOwn(DEVICE_MODELS,vendor||"")?DEVICE_MODELS[vendor]:[]}
+// Камеру с производителем RTSP подключают по адресу потока: вместо IP и порта — одно поле RTSP
+function isRtspVendor(v){return /^rtsp$/i.test(String(v||"").trim())}
+function manualIsRtsp(m){return m.type==="camera"&&isRtspVendor(m.vendor)}
 function updateManual(key,value){
   wizd.manual[key]=value;
   if(key==="arch"&&!hasLinkedArchive(value))wizd.manual.record="none";
@@ -18817,7 +18814,7 @@ function commitManualDevice(disabled){
   }).catch(e=>toast(problemText(e)));
 }
 function deviceManualHtml(){
-  const m=wizd.manual,models=manualModels(m.vendor),camera=m.type==="camera";
+  const m=wizd.manual,camera=m.type==="camera",rtsp=manualIsRtsp(m);
   const idLocked=!!wizd.manualAddedId;
   const idVal=idLocked?deviceIdentifierValue(cam(wizd.manualAddedId))||"—":m.identifier;
   return `${deviceArchiveWarning()}<div class="dev-manual">
@@ -18828,20 +18825,20 @@ function deviceManualHtml(){
         ${can("type:eventsrc")?`<option value="eventsrc" ${m.type==="eventsrc"?"selected":""}>Источник событий</option>`:""}
         ${can("type:acfa")?`<option value="acfa" ${m.type==="acfa"?"selected":""}>Устройство ACFA</option>`:""}
       </select></div>
-      <div><label>${m.type==="eventsrc"?"Адрес кассы или сервера":"IP-адрес"}</label><input id="devManIp" value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
+      <div><label>Производитель</label>${comboVendorHtml(m.vendor,["changeManualVendor"],{inline:false})}</div>
+      <div><label>Модель</label><div class="inline-field">${comboModelHtml(m.vendor,m.model,["updateManual","model"],{inline:false,ph:rtsp?i18n("Необязательно"):""})}${rtsp?"":`<button type="button" class="btn s" title="Определить модель по данным подключения" ${onEv("click",["detectManualModel"])}>${ic("search")} Определить</button>`}</div></div>
+      ${rtsp?`<div class="full"><label>RTSP</label><input id="devManIp" value="${escHtml(m.rtsp||"")}" placeholder="rtsp://адрес:554/поток" ${onEv("input",["updateManual","rtsp",onEv.value])}></div>`
+      :`<div><label>${m.type==="eventsrc"?"Адрес кассы или сервера":"IP-адрес"}</label><input id="devManIp" value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
       ${m.type==="eventsrc"?`<div><label>Сервер</label><select ${onEv("change",["updateManual","server",onEv.value])}><option value="">Выберет система</option>${allocatedServers(wizd.domain).map(x=>`<option value="${x.id}" ${x.id===m.server?"selected":""}>${escHtml(locName(x))}</option>`).join("")}</select></div>`:""}
-      <div><label>Порт</label><input type="number" value="${m.port}" ${onEv("input",["updateManual","port",onEv.value])}></div>
-      <div><label>Производитель</label><input list="devVendorList" value="${escHtml(m.vendor)}" ${onEv("change",["changeManualVendor",onEv.value])}><datalist id="devVendorList">${Object.keys(DEVICE_MODELS).map(v=>`<option value="${escHtml(v)}"></option>`).join("")}</datalist></div>
-      <div><label>Модель</label><div class="inline-field"><input list="devModelList" value="${escHtml(m.model)}" ${onEv("input",["updateManual","model",onEv.value])}><datalist id="devModelList">${models.map(x=>`<option value="${escHtml(x)}"></option>`).join("")}</datalist><button type="button" class="btn s" title="Определить модель по данным подключения" ${onEv("click",["detectManualModel"])}>${ic("search")} Определить</button></div></div>
-      ${camera?`<div class="full"><label>RTSP</label><input value="${escHtml(m.rtsp||"")}" placeholder="rtsp://адрес:554/поток" ${onEv("input",["updateManual","rtsp",onEv.value])}></div>`:""}
+      <div><label>Порт</label><input type="number" value="${m.port}" ${onEv("input",["updateManual","port",onEv.value])}></div>`}
       <div><label>Имя пользователя</label><input value="${escHtml(m.user)}" placeholder="Авто" ${onEv("input",["updateManual","user",onEv.value])}></div>
       <div><label>Пароль</label>${devPassFieldHtml(m.pass,false,"updateManual('pass',this.value)")}</div>
       <div><label>ID</label><input value="${escHtml(idVal)}" placeholder="Авто" ${idLocked?"readonly disabled":""} ${onEv("input",["updateManual","identifier",onEv.value])}></div>
       <div><label>Короткое имя</label><input value="${escHtml(m.short)}" placeholder="Авто" ${onEv("input",["updateManual","short",onEv.value])}></div>
       <div><label>Название</label><input value="${escHtml(m.name)}" placeholder="По умолчанию" ${onEv("input",["updateManual","name",onEv.value])}></div>
-      ${camera?`<div><label>Архив</label><select ${onEv("change",["updateManual","arch",onEv.value])}>${archiveOptions(m.arch)}</select></div>
+      ${camera?`<div><label>Архив</label>${comboArchHtml(m.arch,["updateManual","arch"],{inline:false})}</div>
       <div>${hasLinkedArchive(m.arch)?`<label>Запись</label><select class="dev-inline-select" ${onEv("change",["updateManual","record",onEv.value])}><option value="none" ${(!m.record||m.record==="none")?"selected":""}>Нет</option><option value="always" ${m.record==="always"?"selected":""}>Всегда</option><option value="motion" ${m.record==="motion"?"selected":""}>По детектору</option></select>`:devDisabledFieldHtml("Запись")}</div>
-      <div><label>Папка</label><select ${onEv("change",["updateManual","group",onEv.value])}>${groupOptions(m.group)}</select></div>
+      <div><label>Папка</label>${comboGroupHtml(m.group,["updateManual","group"],{inline:false})}</div>
       <div><label>Широта</label><input value="${escHtml(m.lat)}" ${onEv("input",["updateManual","lat",onEv.value])}></div>
       <div><label>Долгота</label><input value="${escHtml(m.lon)}" ${onEv("input",["updateManual","lon",onEv.value])}></div>
       <div><label>Азимут</label><input type="number" value="${escHtml(m.azimuth)}" ${onEv("input",["updateManual","azimuth",onEv.value])}></div>
@@ -18869,6 +18866,7 @@ function decodeCsvBuffer(buf){
   }
   return new TextDecoder("utf-8").decode(b).replace(/^\uFEFF/,"");
 }
+function vendorKnownName(v){const k=String(v||"").trim().toLowerCase();return k?Object.keys(DEVICE_MODELS).find(x=>x.toLowerCase()===k)||"":""}
 function csvColMapFromHeader(headerCols){
   const map={};
   headerCols.forEach((h,i)=>{const key=CSV_HEADER_TO_KEY[String(h||"").trim().toLowerCase()];if(key!=null&&map[key]==null)map[key]=i});
@@ -18903,8 +18901,15 @@ function csvRowFrom(cols,index,colMap){
   const kind=inferCsvDeviceKind(row);
   if(!row.name)row.name=kind.type==="ipsrv"?(row.model||"IP-сервер"):`Камера ${ip||index}`;
   const errors=row.errors;
-  if(vendor&&Object.keys(DEVICE_MODELS).length&&!DEVICE_MODELS[vendor]&&kind.type!=="ipsrv")errors.push("неизвестный производитель");
-  if(vendor&&model&&DEVICE_MODELS[vendor]&&!DEVICE_MODELS[vendor].includes(model)&&kind.type!=="ipsrv")errors.push("неизвестная модель");
+  // Регистр в файле — не ошибка. Производитель или модель вне списка — предупреждение: строку поправят в плане
+  row.warns=[];
+  const known=vendorKnownName(vendor);
+  if(known)row.vendor=known;
+  if(kind.type!=="ipsrv"&&!rtspUrl){
+    if(isRtspVendor(row.vendor))row.warns.push("нет адреса RTSP");
+    else if(vendor&&!known&&Object.keys(DEVICE_MODELS).length)row.warns.push("производителя нет в списке");
+    else if(known&&model&&manualModels(known).length&&!manualModels(known).includes(model))row.warns.push("модели нет в справочнике");
+  }
   if(identifier&&identifier!=="Авто"&&!/^[A-Za-z0-9_]+$/.test(identifier))errors.push("некорректный ID");
   if(legacy&&cols.length<4)errors.push("недостаточно столбцов");
   const a=arch.find(x=>x.name===archiveName||x.id===archiveName);
@@ -18924,7 +18929,13 @@ function parseCsvDeviceRows(text){
   const hasHeader=colMap.ip!=null||/^ip[- ]?адрес/i.test(String(first[0]||""));
   const dataLines=hasHeader?lines.slice(1):lines;
   const map=hasHeader?colMap:null;
-  return dataLines.map((line,i)=>csvRowFrom(splitCsvLine(line),i+1,map));
+  const rows=dataLines.map((line,i)=>csvRowFrom(splitCsvLine(line),i+1,map)),seen=new Set();
+  rows.forEach(r=>{
+    if(r.skipImport)return;
+    const k=planAddrKey(r,"");
+    if(seen.has(k))r.errors.push("адрес повторяется в файле");else seen.add(k);
+  });
+  return rows;
 }
 function csvImportableRows(rows){return rows.filter(r=>!r.skipImport&&!r.errors.length&&!r.added&&!r.planned)}
 async function handleCsvFiles(files){
@@ -18935,7 +18946,10 @@ async function handleCsvFiles(files){
     wizd.csvRows=parseCsvDeviceRows(text);
     if(!wizd.csvRows.length)wizd.csvError="Файл не содержит данных";
   }catch(e){wizd.csvRows=[];wizd.csvError="Не удалось прочитать CSV-файл"}
+  // Новый файл — новый выбор: поиск и отметки прежнего к нему не относятся
+  Object.assign(wizd,{csvSel:new Set(),csvFilter:"",csvSelOnly:false,csvFiltPop:false,csvStatuses:{ok:true,manual:true,bad:true}});
   renderDeviceWizard();
+  devListToTop();
 }
 function csvDrop(e){e.preventDefault();e.currentTarget.classList.remove("over");handleCsvFiles(e.dataTransfer.files)}
 function downloadCsvExample(){
@@ -18975,37 +18989,102 @@ function importCsvDevices(){
 }
 // Подсветка зоны, над которой тащат файл
 function dropOver(el,on){el.classList.toggle("over",on)}
+// Что есть в файле: готово, поправят в плане, в план не пойдёт. Значки — те же, что у найденных в сети
+const CSV_STATUS_LABELS={ok:"Готово",manual:"Поправить в плане",bad:"Ошибка или пропуск"};
+function csvRowKind(r){return r.skipImport||r.errors.length?"bad":r.warns?.length?"manual":"ok"}
+function csvVisibleRows(){
+  const q=(wizd.csvFilter||"").trim().toLowerCase(),only=wizd.csvSelOnly&&csvPickedRows().length>0;
+  return wizd.csvRows.filter(r=>{
+    if(!wizd.csvStatuses[csvRowKind(r)])return false;
+    if(only&&!wizd.csvSel.has(r.id))return false;
+    return!q||deviceFilterMatch(r,q)||[r.identifier,r.short,r.rtspUrl].some(v=>String(v||"").toLowerCase().includes(q));
+  });
+}
+// В план уходят отмеченные, в том числе скрытые поиском: кнопка считает именно их
+function csvPickedRows(){return csvImportableRows(wizd.csvRows).filter(r=>wizd.csvSel.has(r.id))}
+function csvSelChanged(){
+  if(!csvPickedRows().length)wizd.csvSelOnly=false;
+  renderDeviceWizard();
+}
+function toggleCsvRow(id,on){
+  if(on)wizd.csvSel.add(id);else wizd.csvSel.delete(id);
+  csvSelChanged();
+}
+function toggleCsvAll(on){
+  csvImportableRows(csvVisibleRows()).forEach(r=>{if(on)wizd.csvSel.add(r.id);else wizd.csvSel.delete(r.id)});
+  csvSelChanged();
+}
+function toggleCsvSelOnly(){wizd.csvSelOnly=!wizd.csvSelOnly&&csvPickedRows().length>0;renderDeviceWizard()}
+function setCsvFilter(v){
+  const pos=document.activeElement?.selectionStart;wizd.csvFilter=v;renderDeviceWizard();
+  const el=document.getElementById("csvFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
+}
+function setCsvStatus(k,v){wizd.csvStatuses[k]=v;renderDeviceWizard()}
+function toggleCsvFiltPop(e){e.stopPropagation();wizd.csvFiltPop=!wizd.csvFiltPop;renderDeviceWizard()}
+function csvSyncAll(){
+  const el=document.getElementById("csvSelectAll");if(!el)return;
+  const vis=csvImportableRows(csvVisibleRows()),n=vis.filter(r=>wizd.csvSel.has(r.id)).length;
+  el.checked=vis.length>0&&n===vis.length;
+  el.indeterminate=n>0&&n<vis.length;
+}
+function csvFilterFieldHtml(picked){
+  const q=wizd.csvFilter||"",st=wizd.csvStatuses,open=!!wizd.csvFiltPop,hot=!st.ok||!st.manual||!st.bad,on=wizd.csvSelOnly&&picked>0;
+  const focusText=on?"Показать все строки файла":`Показать только выбранные (${picked})`;
+  return`<div class="dev-sq-wrap" id="csvFiltWrap">
+    <div class="sq">
+      <span class="sq-lead" aria-hidden="true">${lu("search")}</span>
+      <input id="csvFilter" value="${escHtml(q)}" placeholder="Поиск в файле" aria-label="Поиск в файле" ${onEv("input",["setCsvFilter",onEv.value])} autocomplete="off">
+      <button type="button" class="sq-clear ${q.trim()?"":"hide"}" title="Очистить" ${onEv("click",["setCsvFilter",""])}>${lu("x")}</button>
+      <span class="sq-focus-wrap ${picked?"":"is-reserved"}"><button type="button" class="sq-focus ${on?"on":""}" id="csvFocusBtn" title="${focusText}" aria-label="${focusText}" aria-pressed="${on}" ${onEv("click",["toggleCsvSelOnly"])} ${picked?"":"disabled tabindex=\"-1\""}>${deviceFocusIconSvg()}</button></span>
+      <span class="sq-focus-wrap sq-filt-wrap"><button type="button" class="sq-focus ${open?"on":""} ${hot?"hot":""}" id="csvFiltBtn" title="Фильтры${hot?" — применены":""}" aria-pressed="${open}" ${onEv("click",["toggleCsvFiltPop",onEv.event])}>${lu("funnel")}</button></span>
+    </div>
+    <div class="dev-filt-pop ${open?"open":""}" id="csvFiltPop" ${onEv("click",onEv.stop)}><div class="dev-statuses">${Object.entries(CSV_STATUS_LABELS).map(([k,n])=>`<label><input type="checkbox" ${st[k]?"checked":""} ${onEv("change",["setCsvStatus",`${k}`,onEv.checked])}><span class="dev-dot ${k}"></span>${n}</label>`).join("")}</div></div>
+  </div>`;
+}
+function csvRowHtml(r){
+  const can=csvImportableRows([r]).length>0;
+  const st=r.added?`Добавлено · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти</button>`:r.planned?`В плане · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>Убрать</button>`:r.skipImport?"Пропуск (отчёт)":r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:r.warns?.length?`Готово · ${escHtml(r.warns.join(", "))}: исправьте в плане`:"Готово";
+  const cls=r.added||r.planned?"ok":r.skipImport?"":r.errors.length?"err":"ok";
+  const why=r.added?"Уже добавлено":r.planned?"Уже в плане":can?"":"Эта строка в план не пойдёт";
+  return`<tr class="${cls}"><td class="csv-chk"><input type="checkbox" aria-label="Выбрать ${escHtml(r.ip||r.name||r.id)}" ${wizd.csvSel.has(r.id)&&can?"checked":""} ${can?"":`disabled title="${why}"`} ${onEv("change",["toggleCsvRow",`${r.id}`,onEv.checked])}></td><td>${escHtml(r.id.replace("csv",""))}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`;
+}
+function csvListHtml(){
+  const all=wizd.csvRows,vis=csvVisibleRows(),picked=csvPickedRows().length,avail=csvImportableRows(vis).length;
+  const valid=csvImportableRows(all).length,skipped=all.filter(r=>r.skipImport).length;
+  return`<div class="csv-drop csv-file" ${onEv("dragover",onEv.prevent,["dropOver",onEv.el,true])} ${onEv("dragleave",["dropOver",onEv.el,false])} ${onEv("drop",["csvDrop",onEv.event])}>
+    <span class="csv-file-name">${escHtml(wizd.csvName)} · строк: ${all.length} · можно добавить: ${valid}${skipped?` · пропуск: ${skipped}`:""}</span>
+    <label class="btn s" style="display:inline-flex">Другой файл<input type="file" accept=".csv,text/csv" ${onEv("change",["handleCsvFiles",onEv.files])}></label>
+  </div>
+  <div class="dev-search-head"><div class="dev-toolbar"><div class="dev-toolbar-row">
+    <input type="checkbox" id="csvSelectAll" aria-label="Выбрать все строки файла" ${avail?"":"disabled"} ${onEv("change",["toggleCsvAll",onEv.checked])}>
+    <span class="dev-list-head-spacer" aria-hidden="true"></span>
+    ${csvFilterFieldHtml(picked)}
+    <div class="dev-toolbar-actions"><button type="button" class="btn pri s" id="csvToPlan" ${onEv("click",["planAddCsv"])} ${picked?"":`disabled title="Отметьте строки в списке"`}>В план (${picked})</button></div>
+  </div></div></div>
+  ${vis.length?`<div class="csv-preview dev-results-scroll"><table><thead><tr><th class="csv-chk"></th><th>Строка</th><th>IP:порт</th><th>Производитель</th><th>Модель</th><th>Название</th><th>Статус</th></tr></thead><tbody>${vis.map(csvRowHtml).join("")}</tbody></table></div>`:`<div class="dev-empty">Ничего не найдено</div>`}`;
+}
 function deviceCsvHtml(){
-  const rows=wizd.csvRows,valid=csvImportableRows(rows).length,skipped=rows.filter(r=>r.skipImport).length;
+  if(wizd.csvRows.length)return`${deviceArchiveWarning()}${wizd.csvError?`<div class="nt err">${wizd.csvError}</div>`:""}${csvListHtml()}`;
   return `${deviceArchiveWarning()}<div class="csv-drop" ${onEv("dragover",onEv.prevent,["dropOver",onEv.el,true])} ${onEv("dragleave",["dropOver",onEv.el,false])} ${onEv("drop",["csvDrop",onEv.event])}>
     <b>Перетащите CSV-файл сюда</b><p class="sub">или выберите файл. Поддерживаются UTF-8 BOM и UTF-32 BOM.</p>
     <label class="btn pri" style="display:inline-flex;color:var(--one-accent-on)">Выбрать CSV<input type="file" accept=".csv,text/csv" ${onEv("change",["handleCsvFiles",onEv.files])}></label>
     <button type="button" class="btn" ${onEv("click",["downloadCsvExample"])}>Скачать пример</button>
     <p class="sub" style="margin:10px 0 0">Обязательны для импорта: IP-адрес, производитель, модель. Строки без них — отчёт (камеры под IP-сервером: пустые IP/производитель/модель, в ID — «3/1»: ID сервера / номер видеоканала). IP-сервер импортируется одной строкой.</p>
-  </div>${wizd.csvError?`<div class="nt err">${wizd.csvError}</div>`:""}
-  ${rows.length?`<div class="csv-summary"><span>${escHtml(wizd.csvName)} · строк: ${rows.length} · к импорту: ${valid}${skipped?` · пропуск: ${skipped}`:""}</span></div>
-  <div class="csv-preview"><table><thead><tr><th>Строка</th><th>IP:порт</th><th>Производитель</th><th>Модель</th><th>Название</th><th>Статус</th></tr></thead><tbody>${rows.map((r,i)=>{const st=r.added?`Добавлено · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти</button>`:r.planned?`В плане · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>Убрать</button>`:r.skipImport?"Пропуск (отчёт)":r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:"Готово";const cls=r.added||r.planned?"ok":r.skipImport?"":r.errors.length?"err":"ok";return `<tr class="${cls}"><td>${i+1}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`}).join("")}</tbody></table></div>`:""}`;
+  </div>${wizd.csvError?`<div class="nt err">${wizd.csvError}</div>`:""}`;
 }
 function renderDeviceWizardFooter(){
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot"),wb=document.getElementById("wb"),wn=document.getElementById("wn");
   if(!df||!foot||!wb||!wn)return;
-  df.style.display="";df.classList.add("device-footer");wb.style.display="none";wn.style.display="none";
-  // Вкладки слева переключают источник; здесь — только то, что кладёт набранное в план
-  if(wizd.deviceTab==="manual"){
-    const templateMissing=wizd.devMode==="template"&&!wizd.templateId;
-    foot.innerHTML=`<div class="dev-footer-left"></div>
-      <div class="dev-footer-right dev-footer-manual">${wizd.manualAddedId?`<div class="dev-action-btns dev-action-btns-inline">${devAddedActionsHtml(wizd.manualAddedId)}</div>`:`${deviceAddParamsHtml()}<button class="btn pri" ${onEv("click",["planAddManual"])} ${templateMissing?"disabled":""}>В план</button>`}</div>`;
-    return;
-  }
-  if(wizd.deviceTab==="csv"){
-    const valid=csvImportableRows(wizd.csvRows||[]).length;
-    foot.innerHTML=`<div class="dev-footer-left"></div>
-      <div class="dev-footer-right">${valid?`<button class="btn pri" ${onEv("click",["planAddCsv"])}>В план (${valid})</button>`:""}</div>`;
-    return;
-  }
-  // «В сети»: «В план» — одна, в строке над списком
-  foot.innerHTML=`<div class="dev-footer-left"></div><div class="dev-footer-right"></div>`;
+  // Действия — на своей вкладке, рядом с тем, что добавляют: общему подвалу под планом делать нечего
+  df.style.display="none";foot.innerHTML="";wb.style.display="none";wn.style.display="none";
 }
+// «В план» формы «По адресу» — под самой формой: она прокручивается, кнопка видна всегда
+function planManualFootHtml(){
+  const templateMissing=wizd.devMode==="template"&&!wizd.templateId;
+  return`<div class="plan-left-ft dev-footer-manual">${wizd.manualAddedId?`<div class="dev-action-btns dev-action-btns-inline">${devAddedActionsHtml(wizd.manualAddedId)}</div>`:`${deviceAddParamsHtml()}<button class="btn pri" id="manualToPlan" ${onEv("click",["planAddManual"])} ${templateMissing?"disabled":""}>В план</button>`}</div>`;
+}
+// Список прокручивается сам, а строка управления над ним остаётся на месте; форма и пустая вкладка файла прокручиваются целиком
+function devWrapCls(){return wizd.deviceTab==="search"||(wizd.deviceTab==="csv"&&wizd.csvRows.length)?"":" dev-wrap-scroll"}
 // Панель найденных устройств живёт в двух местах: в ящике мастера и на
 // основной панели, когда выбран узел «Найденные». Разметка одна и та же —
 // иначе два экрана начнут расходиться в мелочах, а чинить придётся оба.
@@ -19018,8 +19097,9 @@ function renderDeviceWizardInline(host){
   planRemark();
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
   const st=viewState(host);
-  host.innerHTML=`<div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${planServerBarHtml()}${body}</div>`;
+  host.innerHTML=`<div class="dev-wrap${devWrapCls()}">${planServerBarHtml()}${body}</div>`;
   restoreView(host,st);
+  csvSyncAll();
   const allCb=document.getElementById("devSelectAll");
   if(allCb){
     const selectable=selectableDeviceResults();
@@ -19030,7 +19110,7 @@ function renderDeviceWizardInline(host){
   const foot=document.getElementById("foundFoot");
   if(foot)foot.innerHTML=foundFootHtml();
   document.removeEventListener("mousedown",onDeviceFiltOutside);
-  if(wizd.devFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
+  if(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
 }
 // На панели «Найденных» вкладок нет: вернуться из формы к поиску в сети можно ссылкой
 function devTabBackHtml(){
@@ -19040,11 +19120,202 @@ function foundFootHtml(){
   if(wizd.deviceTab!=="search")
     return`${devTabBackHtml()}
       <span style="flex:1"></span>
-      ${wizd.deviceTab==="manual"
-        ?`${wizd.manualAddedId?devAddedActionsHtml(wizd.manualAddedId):`<button class="btn pri" ${onEv("click",["planAddManual"])}>В план</button>`}`
-        :`${csvImportableRows(wizd.csvRows||[]).length?`<button class="btn pri" ${onEv("click",["planAddCsv"])}>В план (${csvImportableRows(wizd.csvRows||[]).length})</button>`:""}`}`;
+      ${wizd.deviceTab==="manual"?`${wizd.manualAddedId?devAddedActionsHtml(wizd.manualAddedId):`<button class="btn pri" ${onEv("click",["planAddManual"])}>В план</button>`}`:""}`;
   // Всё управление списком — в его же строке, подвалу здесь делать нечего.
   return"";
+}
+// ── Поле с автокомплитом ─────────────────────────────────────────────────────
+// Длинный список — папки, архивы, производители, модели: вводят часть имени, выбирают из общего всплывающего
+// списка. Он поверх окна, поэтому не обрезается краем ящика. Значение уходит вызовом on с дописанным в конец значением.
+// free — можно оставить своё значение (производитель, модель); иначе выбор только из списка, ввод — лишь поиск.
+const COMBO_MAX=100;
+let combo=null;
+function comboArchNote(a){
+  const owner=a.server?find(a.server)?.n:domains.find(d=>d.id===archDomainId(a));
+  return[archKindLabel(a),owner?locName(owner):""].filter(Boolean).join(" · ");
+}
+// Варианты считаются при открытии: в разметке карточки нужна только подпись значения
+function comboOptions(spec){
+  const c=spec.ctx||{};
+  let list=[];
+  if(spec.src==="folder"){
+    const many=domains.length>1;
+    list=domains.flatMap(d=>flatFolders().filter(f=>folderDomain(f.id)===d.id).map(f=>({v:f.id,l:folderPathName(f.id),g:many?locName(d):""})));
+  }else if(spec.src==="arch"){
+    const all=c.sid?planAllowedArchives(c.sid,c.did):c.lan?lanTargets(find(c.lan)?.n):wizArchList();
+    list=(all||[]).map(a=>({v:a.id,l:locName(a),sub:comboArchNote(a)}));
+  }else if(spec.src==="vendor")list=Object.keys(DEVICE_MODELS).sort((a,b)=>a.localeCompare(b)).map(v=>({v,l:v}));
+  else if(spec.src==="model")list=manualModels(c.vendor).map(v=>({v,l:v}));
+  return[...(spec.head||[]).map(([v,l])=>({v,l})),...list];
+}
+function comboLabel(spec,value){
+  const head=(spec.head||[]).find(x=>x[0]===(value??""));
+  if(head)return head[1];
+  if(!value)return"";
+  if(spec.src==="folder")return folderById(value)?folderPathName(value):"";
+  if(spec.src==="arch"){const a=archById(value);return a?locName(a):""}
+  return String(value);
+}
+function comboHtml(o){
+  const spec={src:o.src,on:o.on,...(o.ctx?{ctx:o.ctx}:{}),...(o.head?{head:o.head}:{}),...(o.free?{free:true}:{})};
+  const text=comboLabel(spec,o.value);
+  return`<span class="combo"><input class="${o.inline===false?"":"dev-inline-input"}" role="combobox" aria-autocomplete="list" aria-haspopup="listbox" aria-expanded="false" autocomplete="off" spellcheck="false"
+    value="${escHtml(text)}" title="${escHtml(text)}" placeholder="${escHtml(o.ph||i18n("Начните вводить…"))}" data-combo="${escHtml(JSON.stringify(spec))}" data-cv="${escHtml(o.value??"")}" data-ck="${escHtml(o.on.join("|"))}"
+    ${o.pf?`data-pf="${o.pf}"`:""} ${o.aria?`aria-label="${o.aria}"`:""} ${o.lock?"disabled":""} ${onEv("click",onEv.stop,["comboClick",onEv.el])} ${onEv("input",["comboInput",onEv.el])} ${onEv("keydown",["comboKey",onEv.event])} ${onEv("blur",["comboBlur",onEv.el])}><span class="combo-chev" aria-hidden="true">${CHEV_BTN}</span></span>`;
+}
+function comboFolderHtml(value,on,o={}){return comboHtml({src:"folder",value,on,...o})}
+function comboGroupHtml(value,on,o={}){
+  const def=wizd&&wizd.folder&&folderById(wizd.folder);
+  return comboFolderHtml(value,on,{head:[["",def?`${i18n("По умолчанию")} — ${folderPathName(def.id)}`:i18n("Папка мастера")]],...o});
+}
+function comboArchHtml(value,on,o={}){return comboHtml({src:"arch",value,on,head:[["",i18n("Не задано")]],...o})}
+function comboVendorHtml(value,on,o={}){return comboHtml({src:"vendor",value,on,free:true,...o})}
+function comboModelHtml(vendor,value,on,o={}){return comboHtml({src:"model",ctx:{vendor},value,on,free:true,...o})}
+function comboPop(){
+  let p=document.getElementById("comboPop");
+  if(!p){
+    p=document.createElement("div");p.id="comboPop";p.className="combo-pop";p.setAttribute("role","listbox");
+    p.setAttribute("data-on-mousedown",JSON.stringify([[".prevent"]]));   // список не забирает фокус у поля
+    document.body.appendChild(p);
+  }
+  return p;
+}
+function comboPlace(){
+  if(!combo)return;
+  const p=comboPop(),r=combo.inp.getBoundingClientRect(),w=Math.max(r.width,280);
+  p.style.width=w+"px";
+  p.style.left=Math.max(8,Math.min(r.left,innerWidth-w-8))+"px";
+  const below=innerHeight-r.bottom-12,above=r.top-12,h=Math.min(p.scrollHeight,300),up=h>below&&above>below;
+  const max=Math.min(300,Math.max(120,up?above:below));
+  p.style.maxHeight=max+"px";
+  p.style.top=(up?Math.max(8,r.top-Math.min(h,max)-4):r.bottom+4)+"px";
+}
+function comboRender(){
+  const c=combo;if(!c)return;
+  const q=normText(c.q).trim(),words=q.split(/\s+/).filter(Boolean);
+  let list=c.all;
+  if(words.length){
+    list=list.filter(o=>{const hay=normText(`${o.l} ${o.g||""} ${o.sub||""}`);return words.every(w=>hay.includes(w))});
+    const rank=o=>{const l=normText(o.l);return l===q?0:l.startsWith(words[0])?1:2};
+    list=[...list].sort((a,b)=>rank(a)-rank(b));
+  }
+  c.list=list;
+  // Enter берёт подсвеченное: производителя выбирают по части имени, а модель может быть своя — её подменять нельзя
+  if(c.typed){c.typed=false;c.idx=!q||(c.spec.src==="model"&&normText(list[0]?.l)!==q)?-1:0}
+  if(c.idx>=list.length)c.idx=list.length-1;
+  let g="";
+  const rows=list.slice(0,COMBO_MAX).map((o,i)=>{
+    const head=!words.length&&o.g&&o.g!==g?`<div class="combo-g">${escHtml(o.g)}</div>`:"";
+    if(o.g)g=o.g;
+    return`${head}<div id="comboO${i}" role="option" aria-selected="${i===c.idx}" class="combo-opt ${i===c.idx?"on":""} ${o.v===c.cv?"cur":""}" ${onEv("click",onEv.stop,["comboPick",i])}>${hlText(o.l,c.q)}${o.sub?`<span class="combo-sub">${hlText(o.sub,c.q)}</span>`:""}</div>`;
+  }).join("");
+  const none=list.length?"":`<div class="combo-note">${i18n(c.spec.free&&q?"В списке нет: останется то, что введено":c.spec.src==="arch"&&!q?"Архивы не созданы":"Ничего не найдено")}</div>`;
+  const more=list.length>COMBO_MAX?`<div class="combo-note">${i18n("Показаны первые")} ${COMBO_MAX} ${i18n("из")} ${list.length}: ${i18n("уточните запрос")}</div>`:"";
+  const p=comboPop();
+  p.innerHTML=rows+none+more;
+  p.style.display="block";
+  c.inp.setAttribute("aria-activedescendant",c.idx>=0?`comboO${c.idx}`:"");
+  comboPlace();
+}
+function comboOpen(el){
+  if(el.disabled)return;
+  if(combo&&combo.inp===el)return;
+  comboClose();
+  const spec=JSON.parse(el.dataset.combo),cv=el.dataset.cv||"";
+  let all=comboOptions(spec),idx=all.findIndex(o=>o.v===cv);
+  // Текущее значение дальше показанных строк — ставим первым, иначе его не видно и стрелки начинают с пустоты
+  if(idx>=COMBO_MAX){all=[all[idx],...all.slice(0,idx),...all.slice(idx+1)];idx=0}
+  combo={inp:el,spec,all,cv,q:"",idx,list:all};
+  el.setAttribute("aria-expanded","true");el.setAttribute("aria-controls","comboPop");
+  comboRender();
+  document.getElementById(`comboO${combo.idx}`)?.scrollIntoView({block:"nearest"});
+  // Окно могли перерисовать, пока список открыт (поиск в сети шлёт события): находим поле заново и продолжаем
+  combo.mo=new MutationObserver(comboRebind);
+  combo.mo.observe(document.body,{childList:true,subtree:true});
+  addEventListener("scroll",comboOnScroll,true);addEventListener("resize",comboPlace);
+}
+function comboClose(){
+  if(!combo)return;
+  const c=combo;combo=null;
+  c.mo?.disconnect();
+  removeEventListener("scroll",comboOnScroll,true);removeEventListener("resize",comboPlace);
+  c.inp.setAttribute("aria-expanded","false");c.inp.removeAttribute("aria-activedescendant");
+  const p=document.getElementById("comboPop");if(p){p.style.display="none";p.innerHTML=""}
+}
+function comboOnScroll(e){if(e.target?.id!=="comboPop")comboPlace()}
+function comboFind(ck){return[...document.querySelectorAll("input[data-ck]")].find(x=>x.dataset.ck===ck)||null}
+function comboRebind(){
+  if(!combo||combo.inp.isConnected)return;
+  const c=combo,el=comboFind(c.inp.dataset.ck);
+  if(!el||el.disabled){comboClose();return}
+  el.value=c.inp.value;c.inp=el;
+  el.setAttribute("aria-expanded","true");el.setAttribute("aria-controls","comboPop");
+  el.focus();
+  comboPlace();
+}
+function comboClick(el){const was=combo&&combo.inp===el;comboOpen(el);if(!was)el.select()}
+function comboInput(el){
+  comboOpen(el);if(!combo)return;
+  combo.q=el.value;combo.typed=true;
+  comboRender();
+}
+function comboMove(d){
+  const c=combo,n=Math.min(c.list.length,COMBO_MAX);if(!n)return;
+  c.idx=c.idx<0&&d<0?n-1:(c.idx+d+n)%n;
+  comboRender();
+  document.getElementById(`comboO${c.idx}`)?.scrollIntoView({block:"nearest"});
+}
+function comboCommit(el,spec,v){
+  const text=comboLabel(spec,v);
+  el.value=text;el.title=text;el.dataset.cv=v;
+  const[fn,...args]=spec.on;
+  window[fn](...args,v);
+}
+function comboPick(i){
+  const c=combo,o=c&&c.list[i];if(!o)return;
+  const el=c.inp,ck=el.dataset.ck;
+  comboClose();
+  if(o.v===c.cv)el.value=comboLabel(c.spec,c.cv);else comboCommit(el,c.spec,o.v);
+  (el.isConnected?el:comboFind(ck))?.focus();
+}
+// Что осталось в поле, когда из него ушли: своё значение — у free, иначе прежний выбор
+function comboSettle(c){
+  const el=c.inp,text=el.value.trim();
+  if(!c.spec.free||text===comboLabel(c.spec,c.cv)){el.value=comboLabel(c.spec,c.cv);return}
+  // Совпало с вариантом с точностью до регистра — берём вариант: так rtsp станет RTSP
+  const same=c.all.find(o=>normText(o.l)===normText(text));
+  comboCommit(el,c.spec,same?same.v:text);
+}
+function comboKey(e){
+  const el=e.currentTarget,on=combo&&combo.inp===el;
+  if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    e.preventDefault();
+    if(on)comboMove(e.key==="ArrowDown"?1:-1);else comboOpen(el);
+    return;
+  }
+  if(e.key==="Enter"&&on){
+    e.preventDefault();e.stopPropagation();
+    if(combo.idx>=0){comboPick(combo.idx);return}
+    const c=combo;comboClose();comboSettle(c);
+    return;
+  }
+  if(e.key==="Escape"&&on){
+    e.stopPropagation();
+    el.value=comboLabel(combo.spec,combo.cv);
+    comboClose();
+    return;
+  }
+  // Первая буква заменяет значение и открывает список
+  if(!on&&e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){el.select();comboOpen(el)}
+}
+function comboBlur(el){
+  const c=combo;if(!c||c.inp!==el)return;
+  // Отложено: фокус мог уйти из-за перерисовки окна, тогда поле заново найдёт comboRebind
+  Promise.resolve().then(()=>{
+    if(combo!==c||c.inp!==el||!el.isConnected||document.activeElement===el)return;
+    comboClose();
+    comboSettle(c);
+  });
 }
 // ── План добавления устройств ────────────────────────────────────────────────
 // Всё, что набирают в «Добавить устройства» — найденное в сети, адрес руками, строки
@@ -19056,8 +19327,14 @@ let planSeq=0;
 window.addEventListener("beforeunload",e=>{if(addPlan.rows.length){e.preventDefault();e.returnValue=""}});
 // Набор строк изменился — прежний ключ запроса уже не про этот набор
 function planTouch(){addPlan.key=null;addPlan.keySig=null}
-function planBtnCount(){return addPlan.rows.length?` · ${addPlan.rows.length}`:""}
-function planHeadSync(){document.querySelectorAll(".plan-cnt").forEach(el=>{el.textContent=planBtnCount()})}
+// Метка на кнопке: цифра сама по себе не говорит, что это несохранённый план
+function planBtnCount(){return addPlan.rows.length?`${i18n("В плане")}: ${addPlan.rows.length}`:""}
+function planBtnHint(){
+  const n=addPlan.rows.length;
+  return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n("В системе их ещё нет: откройте и нажмите «Применить план»")}`:"";
+}
+function planCntHtml(){return`<span class="plan-cnt" title="${escHtml(planBtnHint())}">${planBtnCount()}</span>`}
+function planHeadSync(){document.querySelectorAll(".plan-cnt").forEach(el=>{el.textContent=planBtnCount();el.title=planBtnHint()})}
 // Адрес считается в пределах домена: один IP в двух доменах — два устройства
 function planAddrKey(r,did){return`${did||""}|${r.ip||r.rtspUrl||r.rtsp||""}:${r.port||80}`}
 function planFindByAddr(r,did){const k=planAddrKey(r,did);return addPlan.rows.find(x=>planAddrKey(x.r,x.domainId)===k)||null}
@@ -19116,6 +19393,8 @@ function planFixArch(row){
     r.arch=ok[0]?.id||"";if(!r.arch)r.record="none";
   }
 }
+// Адрес правят только в строках, набранных руками или из файла: найденное в сети отвечает по своему адресу
+function planShowsAddr(source){return source==="manual"||source==="csv"}
 function planPush(source,r0,x={}){
   if(addPlan.applying){toast(i18n("Идёт применение плана"));return null}
   const did0=x.domainId||wizd.foundDomain||wizd.domain;
@@ -19126,7 +19405,9 @@ function planPush(source,r0,x={}){
   if(!sid){toast(i18n("В домене нет сервера для добавления"));return null}
   const did=x.domainId||SERVER_DOMAIN[sid]||wizd.domain;
   wizardFolder();
-  const r={...r0};delete r.planned;delete r.errors;
+  const r={...r0};delete r.planned;delete r.errors;delete r.warns;
+  // У производителя RTSP адрес — только поток: IP и порта в строке нет, значит, и в запросе им быть незачем
+  if(planShowsAddr(source)&&(r.type||"camera")==="camera"&&isRtspVendor(r.vendor)){r.ip="";r.port=80}
   const folder=x.folderId!==undefined?x.folderId:(wizd.folder&&folderDomain(wizd.folder)===did?wizd.folder:null);
   const row={pid:"pl"+(++planSeq),source,r,serverId:sid,domainId:did,folderId:folder,state:"plan",src:x.src||null,candidateId:x.candidateId||null};
   planFixArch(row);
@@ -19144,6 +19425,15 @@ function planRemark(){
     const row=by.get(x.id);
     if(row){x.planned=row.pid;if(!row.src)row.src=x}
   }));
+  // Строку файла узнаём по адресу: кандидата у неё нет, а отправить тот же адрес второй раз план всё равно не даст
+  if(wizd?.csvRows?.length){
+    const did=SERVER_DOMAIN[planServerId()]||wizd.domain;
+    wizd.csvRows.forEach(x=>{
+      if(x.planned||x.added||x.skipImport||x.errors.length)return;
+      const row=planFindByAddr(x,did);
+      if(row){x.planned=row.pid;wizd.csvSel.delete(x.id)}
+    });
+  }
 }
 function planUnmark(pid){
   [wizd?.devResults,wizd?.csvRows,lan.net,...Object.values(found)].forEach(l=>(l||[]).forEach(x=>{if(x.planned===pid)delete x.planned}));
@@ -19188,10 +19478,13 @@ function planAddManual(){
   if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
   const m=wizd.manual;
   if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
-  if(m.type==="camera"&&!m.ip&&!m.rtsp){toast("Укажите IP-адрес или адрес RTSP");return}
-  if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Заполните производителя и модель или адрес RTSP");return}
+  const rtsp=manualIsRtsp(m);
+  if(rtsp&&!String(m.rtsp||"").trim()){toast("Укажите адрес RTSP");return}
+  if(m.type==="camera"&&!rtsp&&!m.ip){toast("Укажите IP-адрес");return}
+  if(m.type==="camera"&&!rtsp&&(!m.vendor||!m.model)){toast("Заполните производителя и модель");return}
   if(m.type!=="camera"&&(!m.ip||!m.vendor||!m.model)){toast("Заполните IP, производителя и модель");return}
-  const r={...m,rtspUrl:m.rtsp||"",status:"ok"};
+  // Уходит только адрес, который виден в форме: набранный раньше другой адрес в строку не попадает
+  const r={...m,ip:rtsp?"":m.ip,port:rtsp?80:m.port,rtsp:rtsp?m.rtsp:"",rtspUrl:rtsp?m.rtsp:"",status:"ok"};
   const sid=planServerId();
   if(planFindByAddr(r,SERVER_DOMAIN[sid]||wizd.domain)){planDone(0,1);return}
   const row=planPush("manual",r);
@@ -19206,14 +19499,15 @@ function planAddManual(){
 }
 function planAddCsv(){
   if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
-  const valid=csvImportableRows(wizd.csvRows||[]);
-  if(!valid.length){toast("Нет корректных строк для импорта");return}
+  const picked=csvPickedRows();
+  if(!picked.length){toast("Отметьте строки в списке");return}
   const did=SERVER_DOMAIN[planServerId()]||wizd.domain;
   let n=0,dup=0;
-  valid.forEach(r0=>{
-    if(planFindByAddr(r0,did)){dup++;return}
-    if(planPush("csv",r0,{src:r0}))n++;
+  picked.forEach(r0=>{
+    if(planFindByAddr(r0,did)){wizd.csvSel.delete(r0.id);dup++;return}
+    if(planPush("csv",r0,{src:r0})){wizd.csvSel.delete(r0.id);n++}
   });
+  if(!csvPickedRows().length)wizd.csvSelOnly=false;
   planDone(n,dup);
 }
 // Строка таблицы «Устройства»: объект, на котором стоим, подсказывает сервер, папку и архив
@@ -19251,7 +19545,7 @@ function planClear(){
       &&!(x.src&&addPlan.rows.some(y=>y.src===x.src))
       &&!((x.source==="manual"||x.source==="csv")&&planFindByAddr(x.r,x.domainId)));
     addPlan.rows=back.concat(addPlan.rows);planTouch();
-    back.forEach(x=>{if(x.src)x.src.planned=x.pid});
+    back.forEach(x=>{if(x.src){x.src.planned=x.pid;wizd?.csvSel?.delete(x.src.id)}});
     planRemark();
     if(back.length<snap.length)toast(`${i18n("Не возвращено")}: ${snap.length-back.length}`);
     planRepaint();
@@ -19261,12 +19555,21 @@ function planClear(){
 function planToggle(pid){const row=planByPid(pid);if(row){row.open=!row.open;planRender()}}
 function planEdit(pid,key,value){
   const row=planByPid(pid);if(!row||addPlan.applying)return;
+  const was=row.r[key];
   row.r[key]=value;
+  if(key==="vendor"){
+    // Адрес следует за производителем, модель другого производителя теряет смысл
+    if(planShowsAddr(row.source)&&(row.r.type||"camera")==="camera"){
+      if(isRtspVendor(value)){row.r.ip="";row.r.port=80}
+      else if(isRtspVendor(was)){row.r.rtspUrl="";row.r.rtsp=""}
+    }
+    if(value!==was&&manualModels(value).length&&!manualModels(value).includes(row.r.model))row.r.model=manualModels(value)[0];
+  }
   if(key==="arch"){if(!value)row.r.record="none";row.archWas=null}
   if(key==="rtspUrl")row.r.rtsp=value;
   if(row.state==="fail")row.code=null;   // правка снимает прежнюю причину отказа
   planTouch();
-  if(key==="arch"||key==="record"){planRender();return}
+  if(key==="arch"||key==="record"||key==="vendor"){planRender();return}
   planSyncRow(row);
 }
 // Поле правят на ходу: перерисовываем только то, что от него зависит, а не поле под курсором
@@ -19291,11 +19594,13 @@ function planConnError(row){
     return"";
   }
   if((r.type||"camera")==="camera"&&(r.rtspUrl||r.rtsp))return"";
+  if((r.type||"camera")==="camera"&&isRtspVendor(r.vendor))return"Укажите адрес RTSP";
   if(!r.ip)return"Укажите IP-адрес";
   if(!r.vendor||!r.model)return"Укажите производителя и модель";
   return"";
 }
 // Камера ли строка: у регистратора из файла архива нет
+function planIsRtsp(r){return!!(r.rtspUrl||r.rtsp)||((r.type||"camera")==="camera"&&isRtspVendor(r.vendor))}
 function planIsCam(row){return(row.r.type||"camera")==="camera"&&!(row.source==="csv"&&inferCsvDeviceKind(row.r)?.type==="ipsrv")}
 // Сервер, который уйдёт в запросе: у источника событий — выбранный в форме (или «выберет система»), у СКУД — никакой
 function planRowServer(row){
@@ -19308,6 +19613,10 @@ function planRowServer(row){
 function planRowIssues(row){
   const r=row.r,out=[],err=t=>out.push({err:true,text:i18n(t)}),warn=t=>out.push({err:false,text:i18n(t)});
   const conn=planConnError(row);if(conn)err(conn);
+  // Производитель решает, какой драйвер возьмёт устройство: не из списка — поправить здесь же, в строке
+  const typed=planIsCam(row)&&!planIsRtsp(r);
+  const keys=Object.keys(DEVICE_MODELS).length;
+  if(!conn&&typed&&keys&&!Object.hasOwn(DEVICE_MODELS,r.vendor))err("Такого производителя нет в списке драйверов: выберите из списка");
   const sid=planRowServer(row);
   if(sid){const s=find(sid)?.n;if(!s)err("Сервер не найден");else if(s.online===false)err("Сервер не отвечает")}
   const id=isAutoIdentifier(r.identifier)?"":String(r.identifier).trim();
@@ -19327,6 +19636,7 @@ function planRowIssues(row){
       const noUser=!r.user||r.user==="Авто",noPass=!r.pass;
       warn(`${noUser&&noPass?"Нет логина и пароля":noPass?"Нет пароля":"Нет логина"} — добавится выключенным`);
     }
+    if(typed&&keys&&manualModels(r.vendor).length&&!manualModels(r.vendor).includes(r.model))warn("Модели нет в справочнике: проверьте, что драйвер её поддерживает");
     if(planIsCam(row)&&!r.arch)warn("Без архива: записи не будет");
     if(row.archWas)warn(`${i18n("Архив")} «${row.archWas}» ${i18n("недоступен выбранному серверу")} — ${r.arch?i18n("выбран другой"):i18n("архив не задан")}`);
   }
@@ -19449,21 +19759,22 @@ function planRowHeadHtml(row){
 }
 function planRowHtml(row){
   const r=row.r,lock=addPlan.applying,dis=lock?"disabled":"";
-  const free=row.source==="manual"||row.source==="csv";
+  const rtsp=planIsRtsp(r);
   const who=planRowTitle(row).title,al=l=>escHtml(`${i18n(l)} · ${who}`);   // подпись поля называет и строку: полей «Название» в плане много
   const inp=(k,label,val,ph)=>`<div class="dev-field"><label>${i18n(label)}</label><input class="dev-inline-input" data-pf="${k}" aria-label="${al(label)}" value="${escHtml(val??"")}" placeholder="${escHtml(ph||"")}" ${dis} ${onEv("input",["planEdit",row.pid,k,onEv.value])}></div>`;
   let body="";
   if(row.open){
     body=`<div class="plan-edit"><div class="plan-issues">${planIssuesHtml(row)}</div>
       ${inp("name","Название",isDefaultDeviceName(r.name)?"":r.name,i18n("По умолчанию"))}
-      ${free?`<div class="plan-two">${inp("ip","IP-адрес",r.ip)}${inp("port","Порт",r.port)}</div>
-      <div class="plan-two">${inp("vendor","Производитель",r.vendor)}${inp("model","Модель",r.model)}</div>`:""}
+      <div class="plan-two"><div class="dev-field"><label>${i18n("Производитель")}</label>${comboVendorHtml(r.vendor,["planEdit",row.pid,"vendor"],{lock,pf:"vendor",aria:al("Производитель")})}</div>
+      <div class="dev-field"><label>${i18n("Модель")}</label>${comboModelHtml(r.vendor,r.model,["planEdit",row.pid,"model"],{lock,pf:"model",aria:al("Модель")})}</div></div>
+      ${planShowsAddr(row.source)?`${rtsp?inp("rtspUrl","RTSP",r.rtspUrl||r.rtsp,"rtsp://адрес:554/поток"):""}${!rtsp||r.ip?`<div class="plan-two">${inp("ip","IP-адрес",r.ip)}${inp("port","Порт",r.port)}</div>`:""}`:""}
       ${inp("identifier","ID",isAutoIdentifier(r.identifier)?"":r.identifier,i18n("Авто"))}
       <div class="plan-two">${inp("user","Имя пользователя",r.user,i18n("Авто"))}
       <div class="dev-field"><label>${i18n("Пароль")}</label>${devPassFieldHtml(r.pass||"",lock,`planEdit('${row.pid}','pass',this.value)`,`${i18n("Пароль")} · ${who}`,"pass")}</div></div>
-      ${planIsCam(row)?`<div class="dev-field"><label>${i18n("Архив")}</label><select class="dev-inline-select" data-pf="arch" aria-label="${al("Архив")}" ${dis} ${onEv("change",["planEdit",row.pid,"arch",onEv.value])}>${archiveOptions(r.arch,planAllowedArchives(row.serverId,row.domainId))}</select></div>
+      ${planIsCam(row)?`<div class="dev-field"><label>${i18n("Архив")}</label>${comboArchHtml(r.arch,["planEdit",row.pid,"arch"],{ctx:{sid:row.serverId,did:row.domainId},lock,pf:"arch",aria:al("Архив")})}</div>
       ${r.arch?`<div class="dev-field"><label>${i18n("Режим записи")}</label><select class="dev-inline-select" data-pf="record" aria-label="${al("Режим записи")}" ${dis} ${onEv("change",["planEdit",row.pid,"record",onEv.value])}>${foundRecordOptions(r)}</select></div>`:""}
-      <div class="dev-field"><label>${i18n("Папка")}</label><select class="dev-inline-select" data-pf="group" aria-label="${al("Папка")}" ${dis} ${onEv("change",["planEdit",row.pid,"group",onEv.value])}>${groupOptions(r.group)}</select></div>`:""}
+      <div class="dev-field"><label>${i18n("Папка")}</label>${comboGroupHtml(r.group,["planEdit",row.pid,"group"],{lock,pf:"group",aria:al("Папка")})}</div>`:""}
     </div>`;
   }
   return`<div class="plan-row ${row.state==="fail"?"fail":""} ${row.open?"open":""}" data-pid="${row.pid}"><div class="plan-row-hd">${planRowHeadHtml(row)}</div>${body}</div>`;
@@ -19527,7 +19838,7 @@ function addSplitItems(n){
 }
 function addSplitBtn(n){
   if(!lanHost(n)&&n?.type!=="found")return"";
-  const lb=`${lu("plus")}${i18n("Добавить устройства")}<span class="plan-cnt">${planBtnCount()}</span>`;
+  const lb=`${lu("plus")}${i18n("Добавить устройства")}${planCntHtml()}`;
   const items=addSplitItems(n);
   if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
   return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
@@ -19558,8 +19869,9 @@ function renderDeviceWizard(){
   document.getElementById("wizDr").classList.remove("server-list");
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
   // Слева — откуда берём (вкладки), справа — один план на все источники
-  wbd.innerHTML=`${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div></div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
+  wbd.innerHTML=`${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
   restoreView(wbd,wst);
+  csvSyncAll();
   const allCb=document.getElementById("devSelectAll");
   if(allCb){
     const selectable=selectableDeviceResults();
@@ -19569,7 +19881,7 @@ function renderDeviceWizard(){
   }
   renderDeviceWizardFooter();
   document.removeEventListener("mousedown",onDeviceFiltOutside);
-  if(wizd.devFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
+  if(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
   const tplFilter=document.getElementById("devTplFilter");
   if(wizd.modePop&&tplFilter)tplFilter.focus();
 }
@@ -19832,8 +20144,7 @@ function wd(){
       h+=svcFlow
         ?`<div class="g"><div><label>Сервер</label><select id="wizServer" ${onEv("change",["wizPlace","server",onEv.value])}>
         ${list.map(x=>`<option value="${x.id}" ${x.id===wizd.server?"selected":""}>${x.name} · ${x.ip||"без IP"}</option>`).join("")}</select></div>`
-        :`<div class="g"><div><label>Папка</label><select id="wizFolder" ${onEv("change",["wizPlace","folder",onEv.value])}>
-        ${folderOptionGroups(wizd.folder)}</select></div>`;
+        :`<div class="g"><div><label>Папка</label>${comboFolderHtml(wizd.folder,["wizPlace","folder"],{inline:false})}</div>`;
       h+=`</div><div class="wsec">Параметры: ${label}</div><div class="g">
         <div><label>Имя</label><input id="wizName" value="Новый ${label.toLowerCase()}"></div>
         ${["camera","ipsrv-nvr","ipsrv-io","ipsrv-sip","ipsrv-mic","eventsrc","acfa"].includes(wizd.type)?`<div><label>IP-адрес</label><input id="wizObjIp" value="192.168.1.50"></div>`:""}
