@@ -451,4 +451,55 @@ UiCheck(async ({ ok, until }) => {
   mouse(row);
   ok(!popOpen() && app === "rules", "строка мышью: список закрыт, переход выполнен");
   goApp("hw");
+
+  // Отбор (found): просьба из строки поиска — дерево показывает отобранное тегом над деревом, условия словами
+  const tag = () => document.getElementById("asstTag");
+  const treeIds = () => [...document.querySelectorAll("#tree .n[data-pick]")].map((x) => x.dataset.pick);
+  // Камера бывает в дереве дважды: под сервером и в группе «Без записи»
+  const camRows = () => [...new Set(treeIds().filter((id) => find(id)?.n.type === "camera"))];
+  const all0 = treeIds().length;
+  const sliceWas = slice;
+  const camsAll = (await uiDevices()).filter((d) => d.type === "camera");
+  const noRec = camsAll.filter((d) => (d.recordMode || "none") === "none");
+  typeQ("выведи камеры без записи");
+  ok(askBtn() && askBtn().hasAttribute("data-empty"), "поиск ничего не нашёл — кнопка ассистента");
+  mouse(askBtn());
+  ok(await until(() => tag() && fs?.pick && fs.done), "отбор пришёл, тег над деревом");
+  ok(tag().textContent.startsWith(`Ассистент: ${noRec.length} · тип: камера · запись: нет`), "тег: число и условия словами — " + tag().textContent);
+  ok(/Отобрано ассистентом: \d+/.test(document.getElementById("filtHint")?.textContent || ""), "подсказка над деревом: " + document.getElementById("filtHint")?.textContent);
+  const want = new Set(asst.found.ids);
+  ok(want.size === noRec.length && noRec.every((d) => want.has(d.id)), "отобраны камеры без записи");
+  ok(await until(() => camRows().length === want.size) && camRows().every((id) => want.has(id)), "в дереве только отобранные камеры: " + camRows().length + " из " + want.size);
+  ok(document.getElementById("asstFound")?.textContent === asst.found.text && /условия — над деревом/.test(document.getElementById("asstFoundNote")?.textContent || ""), "в панели текст и подпись отбора");
+  ok(/тип: камера · запись: нет/.test(document.getElementById("asstFoundWhy")?.textContent || "") && /В дереве: \d+/.test(document.getElementById("asstFoundCount")?.textContent || ""), "в панели условия и число");
+  ok(!document.getElementById("asstApply") && document.getElementById("asstFoundPick") && document.getElementById("asstFoundOpen"), "«Применить» нет: отбор ничего не пишет; «Выбрать всё», «Показать в дереве»");
+  // «Выбрать всё» мышью — всё отобранное в выборе, групповая карточка
+  press(document.getElementById("asstFoundPick"));
+  ok(await until(() => treeSel.size === want.size), "«Выбрать всё»: отмечено " + treeSel.size);
+  ok([...treeSel].every((id) => want.has(id)) && bulkActive(), "выбор — отобранное, открыта групповая карточка");
+  ok(await until(() => new RegExp(`${want.size} камер`).test(document.getElementById("main")?.textContent || "")), "карточка выборки называет число");
+  // Крестик тега мышью: дерево как было, выбор остался
+  press(tag().querySelector("button"));
+  ok(!asstPick && !tag() && slice === sliceWas, "тег снят, срез прежний");
+  ok(await until(() => treeIds().length >= all0), "дерево как было: строк " + treeIds().length);
+  ok(treeSel.size === want.size, "выбор остался: это правка человека");
+  setSelMode(false);
+  // «Показать в дереве» возвращает отбор
+  press(inp);
+  press(document.getElementById("asstFoundOpen"));
+  ok(await until(() => tag() && camRows().length === want.size), "«Показать в дереве» вернул отбор");
+  // Разговор продолжается с context: уточнить отбор в поле под ответом
+  say("а только Axis");
+  const axis = noRec.filter((d) => d.vendor === "Axis");
+  ok(await until(() => asst.found && asst.found.conditions.length === 3 && tag()?.textContent.includes("производитель: Axis")), "уточнение: третье условие — " + tag()?.textContent);
+  ok(await until(() => camRows().length === axis.length) && camRows().every((id) => axis.some((d) => d.id === id)), "дерево сузилось до уточнённого: " + camRows().length);
+  // Пусто — тоже отбор: тег с нулём, «Выбрать всё» неактивна
+  say("покажи камеры с именем «такого нет»");
+  ok(await until(() => asst.found && asst.found.ids.length === 0 && tag()?.textContent.startsWith("Ассистент: 0")), "пустой отбор: " + tag()?.textContent);
+  ok(await until(() => camRows().length === 0) && document.getElementById("asstFoundPick")?.disabled, "дерево пустое, выбирать нечего");
+  ok(document.getElementById("asstFound")?.textContent === "Ничего не отобрано.", "словами: " + document.getElementById("asstFound")?.textContent);
+  // Сбросить фильтры снимает и отбор
+  resetAllFilters();
+  ok(!asstPick && !tag(), "«Сбросить фильтры» снимает отбор");
+  goClose();
 });

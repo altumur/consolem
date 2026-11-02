@@ -298,6 +298,43 @@ UiCheck(async ({ ok, until }) => {
   API.stream = streamWas;
   ok(calls.length === nStub, "служба не вызывалась");
 
+  // Отбор службы (found): ids с total и truncated; filter — форма листает GET /devices сама; лишний kind пропущен
+  ok(asstEnds({ type: "found" }), "found — конечное событие");
+  goApp("hw");
+  const tagT = () => el("asstTag")?.textContent || "";
+  const camIds = (await uiDevices()).filter((d) => d.type === "camera").map((d) => d.id);
+  open();
+  answer = sse({ type: "progress", kind: "found", text: "отбираю" }, { type: "found", kind: "found", text: "Отобрано 700, показаны первые 5.", context: "b1:отбор", ids: camIds.slice(0, 5), total: 700, truncated: true, conditions: ["запись: нет"] });
+  say("выведи камеры без записи");
+  ok(await until(() => el("asstTag") && fs?.pick && fs.done), "отбор службы — тег над деревом");
+  ok(tagT().startsWith("Ассистент: 5 из 700 · запись: нет"), "тег: 5 из 700 и условие — " + tagT());
+  ok(/показаны первые 5 из 700/.test(el("filtHint")?.textContent || ""), "truncated словами: " + el("filtHint")?.textContent);
+  ok(/В дереве: 5 из 700/.test(el("asstFoundCount")?.textContent || "") && !el("asstErr"), "в панели число, kind не мешает");
+  answer = sse({ type: "found", text: "Уточнила.", context: "b1:отбор2", ids: camIds.slice(0, 2), total: 2, conditions: ["запись: нет", "производитель: Axis"] });
+  say("а только Axis");
+  ok(await until(() => tagT().startsWith("Ассистент: 2 · запись: нет · производитель: Axis")), "уточнение отбора: " + tagT());
+  ok(lastCall().body.context === "b1:отбор", "разговор идёт с context отбора");
+  // Форма filter: те же фильтры GET /devices, листается ограниченным проходом
+  const gets = [], getWas = API.get;
+  API.get = (p, q) => { if (p === "/devices" && q && q.noRecord) gets.push(q); return getWas(p, q); };
+  const noRecIds = (await uiDevices()).filter((d) => d.type === "camera" && (d.recordMode || "none") === "none").map((d) => d.id);
+  answer = sse({ type: "found", text: "Камер без записи много: листаю фильтром.", context: "b1:фильтр", filter: { type: "camera", noRecord: true }, truncated: true, conditions: ["тип: камера", "запись: нет"] });
+  say("выведи все камеры без записи");
+  ok(await until(() => fs?.pick && fs.filter && fs.done), "форма filter: дерево листает сама");
+  ok(gets.length && gets.every((q) => q.type === "camera" && q.noRecord === "true" && !("ids" in q)), "запросы GET /devices с фильтром отбора: " + JSON.stringify(gets[0]));
+  ok(fs.hits.size === noRecIds.length && noRecIds.every((id) => fs.hits.has(id)), "отобраны камеры без записи: " + fs.hits.size);
+  ok(tagT().startsWith(`Ассистент: ${noRecIds.length}`) && tagT().includes("тип: камера · запись: нет"), "тег формы filter: " + tagT());
+  API.get = getWas;
+  press(el("asstFoundPick"));
+  ok(await until(() => treeSel.size === noRecIds.length), "«Выбрать всё» — загруженное отобранное: " + treeSel.size);
+  setSelMode(false);
+  answer = sse({ type: "found", text: "Ничего.", context: "b1:пусто", ids: [], total: 0, conditions: ["имя содержит: такого нет"] });
+  say("покажи камеры с именем «такого нет»");
+  ok(await until(() => tagT().startsWith("Ассистент: 0")) && el("asstFoundPick")?.disabled, "пустой отбор — тег с нулём, выбирать нечего");
+  press(el("asstTag").querySelector("button"));
+  ok(!asstPick && !el("asstTag"), "тег снят крестиком");
+  close();
+
   // Пароль наружу не уходит: ни полем, ни словами, ни ответом на вопрос
   const n0 = calls.length;
   open();

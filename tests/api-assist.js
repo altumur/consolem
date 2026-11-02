@@ -80,12 +80,12 @@
     }
   }, NEED);
 
-  test("Вопрос о системе: «сколько», «покажи», «дай список» — answer без плана; в одном разговоре и вопрос, и правка; типа в событиях нет", async () => {
+  test("Вопрос о системе: «сколько», «какие» — answer без плана; в одном разговоре и вопрос, и правка; типа в событиях нет", async () => {
     const env = await makeEnv();
     const ask = (text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
     const seen = [];
     const devices = (await env.list("/devices")).length, ctx = [];
-    for (const text of ["сколько камер", "покажи камеры", "дай список устройств"]) {
+    for (const text of ["сколько камер", "сколько устройств", "какие устройства есть"]) {
       const got = await ask(text);
       seen.push(...got);
       const end = lastOf(got);
@@ -105,6 +105,67 @@
     assert.ok(lastOf(rule).type === "plan" && lastOf(rule).rules.length, "дальше — план правил");
     assert.ok(seen.every((m) => !("kind" in m)), "поля kind в событиях нет");
     return `событий ${seen.length}`;
+  }, NEED);
+
+  test("Отбор: «дай список», «покажи», «выведи» — found, отбирает код по полям, ids по имени без повторов, условия словами", async () => {
+    const env = await makeEnv();
+    const ask = (text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
+    const all = await env.list("/devices");
+    const byName = (list) => list.slice().sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1)).map((d) => d.id);
+    const cams = all.filter((d) => d.type === "camera");
+    const before = JSON.stringify(cams.map((d) => d.version));
+    const check = async (text, words, want) => {
+      const got = await ask(text);
+      const end = lastOf(got);
+      assert.eq(types(got), "progress,found", `«${text}» — отбор`);
+      assert.eq(end.conditions, words, `условия словами: «${text}»`);
+      assert.eq(end.ids, byName(want), `ids по имени: «${text}»`);
+      assert.eq([end.total, new Set(end.ids).size, "truncated" in end, "filter" in end, "kind" in end], [want.length, end.ids.length, false, false, false], "total, без повторов, одна форма");
+      return end;
+    };
+    const none = await check("выведи камеры без записи", ["тип: камера", "запись: нет"], cams.filter((d) => (d.recordMode || "none") === "none"));
+    assert.ok(none.ids.length > 0 && /Отобрано: \d+/.test(none.text), "текст: " + none.text);
+    await check("дай список камер Axis", ["тип: камера", "производитель: Axis"], cams.filter((d) => d.vendor === "Axis"));
+    await check("покажи выключенные камеры", ["тип: камера", "включена: нет"], cams.filter((d) => d.enabled === false));
+    await check("выведи камеры не на связи", ["тип: камера", "на связи: нет"], cams.filter((d) => d.online === false));
+    const folder = FX.folders.find((f) => f.name === "Склад хозчасти"), inside = await env.folderIds(folder.id);
+    await check("покажи камеры в папке Склад хозчасти", ["тип: камера", "папка: Склад хозчасти"], cams.filter((d) => inside.includes(d.id)));
+    await check("выведи камеры с именем «вход»", ["тип: камера", "имя содержит: вход"], cams.filter((d) => d.name.toLowerCase().includes("вход")));
+    // Без детектора движения — по выводному полю камеры
+    const noMotion = await check("выведи камеры без детектора движения", ["тип: камера", "детектор движения: нет"], cams.filter((d) => !d.detectorKinds.includes("motion")));
+    assert.ok(noMotion.ids.length > 0 && noMotion.ids.length < cams.length, "есть и с детектором, и без: " + noMotion.ids.length + " из " + cams.length);
+    // Найдено 0 — тоже found, не отказ
+    const empty = lastOf(await ask("покажи камеры с именем «такого нет»"));
+    assert.eq([empty.type, empty.ids, empty.total, empty.text], ["found", [], 0, "Ничего не отобрано."], "пусто — found с пустым ids");
+    // Разговор продолжается с context: уточнить отбор
+    const more = lastOf(await ask("а только Axis", { context: none.context }));
+    assert.eq(more.conditions, ["тип: камера", "запись: нет", "производитель: Axis"], "уточнение с context");
+    assert.eq(more.ids, byName(cams.filter((d) => (d.recordMode || "none") === "none" && d.vendor === "Axis")), "уточнённый отбор");
+    // Не понял условие — вопрос
+    const q = lastOf(await ask("покажи что-нибудь"));
+    assert.eq(q.type, "question", "без условия — вопрос");
+    // Отбор ничего не пишет
+    assert.eq(JSON.stringify((await env.list("/devices")).filter((d) => d.type === "camera").map((d) => d.version)), before, "версии камер прежние");
+    return `отобрано без записи ${none.ids.length}`;
+  }, NEED);
+
+  test("Камера: выводное поле detectorKinds; GET /devices?noDetector — камеры без детектора вида, ограниченным проходом", async () => {
+    const env = await makeEnv();
+    const all = await env.list("/devices");
+    const cams = all.filter((d) => d.type === "camera");
+    assert.ok(cams.every((d) => Array.isArray(d.detectorKinds) && new Set(d.detectorKinds).size === d.detectorKinds.length), "у каждой камеры detectorKinds без повторов");
+    assert.ok(all.filter((d) => d.type !== "camera").every((d) => !("detectorKinds" in d)), "у прочих поля нет");
+    const dets = all.filter((d) => d.type === "det");
+    const kindsOf = (id) => new Set(dets.filter((x) => x.parentId === id || x.cameraId === id).map((x) => x.detectorKind));
+    assert.ok(cams.every((d) => JSON.stringify([...kindsOf(d.id)].sort()) === JSON.stringify(d.detectorKinds.slice().sort())), "виды встроенных и серверных детекторов камеры");
+    const rows = await env.pages("/devices?noDetector=motion&limit=1000");
+    const want = cams.filter((d) => !d.detectorKinds.includes("motion")).map((d) => d.id).sort();
+    assert.eq(rows.map((r) => r.id).sort(), want, "noDetector=motion — камеры без детектора движения");
+    assert.ok(rows.every((r) => r.type === "camera") && want.length < cams.length, "только камеры, не все");
+    const page = await env.ok("GET", "/devices?noDetector=motion&limit=5");
+    assert.ok(!("total" in page), "полного числа нет: ограниченный проход");
+    assert.status(await env.call("GET", "/devices?noDetector=nope"), 422, "VALIDATION_FAILED");
+    return `без детектора движения ${want.length} из ${cams.length}`;
   }, NEED);
 
   test("План правил: новое правило — запись плана словами контракта, ход ничего не пишет, заведено logOnly", async () => {

@@ -346,10 +346,27 @@
       const edge = serverWideRows(rec);
       if (edge.length) out.extraArchives = (out.extraArchives || []).concat(edge);
       if (rec.type === "camera") {
+        out.detectorKinds = [...detKindsOf(rec.id)];
         replicaView(out);
         if ((out.recordMode === "sched" || (out.extraArchives || []).some((x) => x.recordMode === "sched")) && out.recordScheduleId && !byId("schedules", out.recordScheduleId)) Object.assign(out, { recordState: "waiting", recordReason: "Расписание снято: запись ждёт" });
       }
       return out;
+    }
+    const DET_KINDS = ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "other"];
+    // Выводное поле камеры «детекторы»: виды встроенных и серверных (cameraId) детекторов, без повторов
+    function detKindsOf(camId, all) {
+      const kinds = new Set();
+      (all || db.devices).forEach((d) => d.type === "det" && (d.parentId === camId || d.cameraId === camId) && d.detectorKind && kinds.add(d.detectorKind));
+      return kinds;
+    }
+    // Для прохода по многим камерам: камера → виды её детекторов, одним проходом
+    function detKindsMap() {
+      const m = new Map();
+      db.devices.forEach((d) => {
+        if (d.type !== "det" || !d.detectorKind) return;
+        [d.parentId, d.cameraId].filter(Boolean).forEach((c) => (m.get(c) || m.set(c, new Set()).get(c)).add(d.detectorKind));
+      });
+      return m;
     }
     // replica: поля только у этого режима; источник сняли — запись ждёт, уже забранное живёт своим сроком
     function replicaView(out) {
@@ -2125,7 +2142,7 @@
       const on = d.enabled !== false, lic = !!d.licenseExceeded, sig = d.online !== false;
       return words.some((w) => (w === "off" ? !on : w === "license" ? on && lic : w === "nosignal" ? on && !lic && !sig : w === "run" ? on && !lic && sig : false));
     }
-    // Запрос с q, type, status, domainId, noFolder, noRecord: не больше scanPartsMax разделов, порядок — разделы
+    // Запрос с q, type, status, domainId, noFolder, noRecord, noDetector: не больше scanPartsMax разделов, порядок — разделы
     function devicesPage(q) {
       const limit = limitOf(q);
       if (limit === null) return limitBad();
@@ -2151,13 +2168,16 @@
       }
       const words = q.status ? String(q.status).split(",") : null;
       const types = q.type ? String(q.type).split(",") : null;
-      const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true";
+      const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true", noDet = q.noDetector || null;
+      if (noDet && !DET_KINDS.includes(noDet)) return problem(422, "VALIDATION_FAILED", "Такого вида детектора нет", { field: "noDetector" });
       const inFolder = noFolder ? new Set(db.folders.flatMap((f) => f.deviceIds)) : null;
-      const filtered = !!(q.q || types || words || q.domainId || noFolder || noRecord);
+      const dets = noDet ? detKindsMap() : null;
+      const filtered = !!(q.q || types || words || q.domainId || noFolder || noRecord || noDet);
       const hidden = hiddenServers();
       const hit = (d) => !hidden.has(d.serverId) && (!q.domainId || d.domainId === q.domainId) && (!types || types.includes(d.type)) && (!words || statusHit(d, words)) &&
         (!q.q || textHit(q.q, d.name, d.short, d.identifier, d.ip, d.vendor, d.model)) &&
-        (!noFolder || (!d.parentId && folderable(d) && !inFolder.has(d.id))) && (!noRecord || (d.type === "camera" && !recording(d)));
+        (!noFolder || (!d.parentId && folderable(d) && !inFolder.has(d.id))) && (!noRecord || (d.type === "camera" && !recording(d))) &&
+        (!noDet || (d.type === "camera" && !(dets.get(d.id) || new Set()).has(noDet)));
       // Один член: порядок по имени, разделы ни при чём
       const member = q.serverId !== undefined || q.parentId !== undefined || q.archiveId !== undefined;
       if (member) {
@@ -4232,9 +4252,43 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
     // Выбранное держит в себе, в событиях его нет
     function assistKindOf(said) {
       const low = said.toLowerCase();
-      if (/сколько|покажи|дай список/.test(low)) return "explain";
+      if (/дай список|покажи|выведи/.test(low)) return "found";
+      if (/сколько|почему|какой|какая|какие/.test(low)) return "explain";
       if (/правил|при движени|эскалац|спроси|окно обслуживания|расписани|услови|детектор на время|провер\S* архив|лимит/.test(low)) return "rules";
       return "config";
+    }
+    // Отбор: простые условия по словам просьбы, отбирает код по полям записей, не модель. Только читает. ids по имени,
+    // без повторов, до selectMax; больше — первые и truncated. Найдено 0 — тоже found
+    function assistFoundStub(said, context, at) {
+      const low = said.toLowerCase();
+      const conditions = [], tests = [];
+      const add = (word, fn) => (conditions.push(word), tests.push(fn));
+      if (/камер/.test(low)) add("тип: камера", (d) => d.type === "camera");
+      const recOff = /без записи|запис\S* выключ|выключенн\S* запис|не пиш/.test(low);
+      if (recOff) add("запись: нет", (d) => d.type === "camera" && (d.recordMode || "none") === "none");
+      else if (/запис\S* всегда|пишут всегда/.test(low)) add("запись: всегда", (d) => d.recordMode === "always");
+      else if (/по движени/.test(low)) add("запись: по движению", (d) => d.recordMode === "motion");
+      if (!recOff && /выключенн|камер\S* выключен/.test(low)) add("включена: нет", (d) => d.enabled === false);
+      else if (!recOff && /(^|[^ы])включенн/.test(low)) add("включена: да", (d) => d.enabled !== false);
+      if (/не на связи|без связи|офлайн|оффлайн/.test(low)) add("на связи: нет", (d) => d.online === false);
+      else if (/на связи|онлайн/.test(low)) add("на связи: да", (d) => d.online !== false);
+      const vendor = [...new Set(db.devices.map((d) => d.vendor).filter(Boolean))].find((v) => low.includes(v.toLowerCase()));
+      if (vendor) add(`производитель: ${vendor}`, (d) => d.vendor === vendor);
+      const folder = /папк/.test(low) ? db.folders.filter((f) => low.includes(f.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0] : null;
+      if (folder) add(`папка: ${folder.name}`, (d) => folder.deviceIds.includes(d.id));
+      const name = ((low.match(/(?:имя содержит|с именем|в имени)\s*«?([^»,.]+)/) || [])[1] || "").trim();
+      if (name) add(`имя содержит: ${name}`, (d) => d.name.toLowerCase().includes(name));
+      const dets = /детектор\S* движени/.test(low) && /без|не настроен|нет/.test(low) ? detKindsMap() : null;
+      if (dets) add("детектор движения: нет", (d) => d.type === "camera" && !(dets.get(d.id) || new Set()).has("motion"));
+      const out = [{ type: "progress", at, text: "отбираю" }];
+      if (!tests.length) return out.concat({ type: "question", at, text: "По какому условию отобрать?", context });
+      const hidden = hiddenServers();
+      const all = db.devices.filter((d) => !hidden.has(d.serverId) && tests.every((t) => t(d))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
+      const max = db.reference.limits.selectMax, ids = [...new Set(all.map((d) => d.id))];
+      const e = { type: "found", at, context, conditions, ids: ids.slice(0, max), total: ids.length };
+      if (ids.length > max) e.truncated = true;
+      e.text = !ids.length ? "Ничего не отобрано." : `Отобрано: ${ids.length}.${ids.length > max ? ` Показаны первые ${max}.` : ""}`;
+      return out.concat(e);
     }
     // Вопрос о системе: только чтение, конечное событие answer, плана нет
     function assistExplainStub(said, context, at) {
@@ -4247,6 +4301,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       const kind = assistKindOf(said);
       if (kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
       if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));
+      if (kind === "found") return assistFoundStub(said, `stub:${said}`, iso(now()));
       const low = said.toLowerCase();
       const context = `stub:${said}`;
       const at = iso(now());

@@ -5171,7 +5171,9 @@ function serverLoadHtml(s){
   </div>${offline?`<p class="sub">${i18n("Сервер не на связи — показатели недоступны.")}</p>`:""}`;
 }
 // Запрос один на все разделы — тот, что набран в шапке.
-function qval(){return treeQ.trim().toLowerCase()}
+// Отбор ассистента сужает дерево, как запрос: дерево фильтрует по q. Пустой запрос при отборе — метка, а не слово
+const ASST_Q="\u0000asst";
+function qval(){const q=treeQ.trim().toLowerCase();return!q&&asstPick&&fs?.pick?ASST_Q:q}
 function escHtml(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]))}
 function fieldText(n,fieldId){
   if(fieldId==="name")return n.name||"";
@@ -5217,7 +5219,7 @@ function matchesText(q,...fields){
   return queryWords(q).some(words=>matchWords(words,vals));
 }
 function searchHitFields(n,q){
-  if(!q)return[];
+  if(!q||q===ASST_Q)return[];
   if(strictIdSearch)return String(fieldText(n,"id")).trim()===String(q).trim()?["id"]:[];
   const scope=searchScopeFields();
   const vals=scope.map(f=>fieldText(n,f));
@@ -5229,10 +5231,13 @@ function searchHitFields(n,q){
   return[];
 }
 function matchesSearch(n,q){
+  if(q===ASST_Q)q="";
+  if(fs?.pick)return!HW_NOT_DEVICE.has(n.type)&&fs.hits.has(n.id)&&(!q||searchHitFields(n,q).length>0);
   if(fs&&!HW_NOT_DEVICE.has(n.type))return!q||fs.hits.has(n.id);
   return!q||searchHitFields(n,q).length>0;
 }
 function hlText(text,q){
+  if(q===ASST_Q)q="";
   const src=String(text??"");
   if(!q||!src)return escHtml(src);
   const hay=normText(src);
@@ -5429,8 +5434,8 @@ function cancelTreeRename(){
 }
 // Когда действует запрос или фильтр, ветки с попаданиями раскрываются сами:
 // иначе результат поиска приходится искать второй раз, уже мышкой.
-function autoExpand(){return!!qval()||!!typeFilts.size||!!statusFilts.size}
-function hasActiveFilters(){return!!domainFilter||!!typeFilts.size||!!searchFields.size||!!statusFilts.size||!!treeQ.trim()}
+function autoExpand(){return!!qval()||!!typeFilts.size||!!statusFilts.size||!!asstPick}
+function hasActiveFilters(){return!!domainFilter||!!typeFilts.size||!!searchFields.size||!!statusFilts.size||!!treeQ.trim()||!!asstPick}
 function walkSliceObjects(fn){
   const visit=(n,p)=>{if(matchesDomain(n))fn(n,p)};
   walkAll(visit);if(slice==="arch")arch.forEach(n=>visit(n,archOwner(n)));
@@ -5445,12 +5450,13 @@ function countFiltered(){
 function filterTags(){
   const tags=[];
   [...typeFilts].forEach(id=>{const lab=(TYPE_FILTERS[slice].find(x=>x[0]===id)||[])[1]||id;tags.push({id:"type:"+id,label:i18n(lab)})});
+  if(asstPick)tags.unshift({id:"asst",label:asstPickLabel()});
   if(strictIdSearch)tags.push({id:"strict-id",label:i18n("Фильтр строго по id")});
   else [...searchFields].forEach(id=>tags.push({id:"field:"+id,label:i18n(FIELD_LABELS[id]||id)}));
   // Выбранный статус уже подписан на основной кнопке.
   return tags;
 }
-function tagsHtml(){return filterTags().map(tag=>`<span class="ftag"><span title="${tag.label}">${tag.label}</span><button type="button" ${onEv("click",onEv.stop,["clearFilterTag",`${tag.id}`])} title="${i18n("Снять")}">${lu("x")}</button></span>`).join("")}
+function tagsHtml(){return filterTags().map(tag=>`<span class="ftag"${tag.id==="asst"?` id="asstTag"`:""}><span title="${tag.label}">${tag.label}</span><button type="button" ${onEv("click",onEv.stop,["clearFilterTag",`${tag.id}`])} title="${i18n("Снять")}">${lu("x")}</button></span>`).join("")}
 // Молчаливая подмена выбранного объекта — худшее, что может сделать фильтр:
 // оператор считает, что смотрит на одно, а правит другое. Поэтому выбор
 // остаётся, а инспектор объясняет, почему объекта нет в дереве.
@@ -5518,6 +5524,7 @@ function clearTreeQ(e){
   if(inp&&e)inp.focus();
 }
 function clearFilterTag(id){
+  if(id==="asst"){asstPickClear();return}
   if(id==="strict-id")strictIdSearch=false;
   else if(id.startsWith("type:"))typeFilts.delete(id.slice(5));
   else if(id.startsWith("field:"))searchFields.delete(id.slice(6));
@@ -5639,6 +5646,7 @@ function toggleTreeTag(id,e){
   updateFiltChrome();renderTree();refreshFiltPop(true);
 }
 function resetAllFilters(){
+  if(asstPick)asstPickDrop();
   clearGearFilters();filtPop=false;applyFiltersFromState();aside();
 }
 function onFiltOutside(e){
@@ -6378,16 +6386,21 @@ function g7Click(id){
 // не наберёт страницу, найденное дописывается. Поиск дошёл до конца и найдено до idsMax — дерево, как раньше. Иначе — плоский список с путём
 let fs=null;
 const FILT_PAGE=200;
-function filtOn(){return app==="hw"&&["all","cam","acfa","det"].includes(slice)&&(!!qval()||!!typeFilts.size||!!statusFilts.size)}
-function filtKeyNow(){return filtOn()?JSON.stringify([qval(),[...typeFilts].sort(),[...statusFilts].sort(),domainFilter,slice,group()]):""}
+const PICK_SLICES=["all","cam","acfa","det"];
+function filtOn(){return app==="hw"&&PICK_SLICES.includes(slice)&&(!!treeQ.trim()||!!typeFilts.size||!!statusFilts.size||!!asstPick)}
+function filtKeyNow(){return filtOn()?JSON.stringify([treeQ.trim().toLowerCase(),[...typeFilts].sort(),[...statusFilts].sort(),domainFilter,slice,group(),asstPick?.key||""]):""}
 function filtSync(){
   const key=filtKeyNow();
   if(key===(fs?.key||""))return;
-  fs=key?{key,hits:new Set(),order:[],paths:new Map(),cursor:null,done:false,busy:false,want:FILT_PAGE,flat:true}:null;
+  // Отбор ассистента: список готов, дочитываются записи и цепочки. До idsMax — дерево, больше — плоский список страницами
+  fs=key&&asstPick?.filter?{key,pick:true,filter:asstPick.filter,hits:new Set(),order:[],paths:new Map(),cursor:null,done:false,busy:false,want:FILT_PAGE,flat:true}
+    :key&&asstPick?{key,pick:true,hits:new Set(asstPick.ids),order:asstPick.ids.slice(),paths:new Map(),at:0,done:false,busy:false,want:FILT_PAGE,flat:asstPick.ids.length>LIM.idsMax}
+    :key?{key,hits:new Set(),order:[],paths:new Map(),cursor:null,done:false,busy:false,want:FILT_PAGE,flat:true}:null;
   treeMatchCache.clear();searchMatchCache.clear();
   if(fs)filtWave(fs);
 }
 function filtParams(run){
+  if(run.filter)return Object.assign({limit:FILT_PAGE,cursor:run.cursor},Object.fromEntries(Object.entries(run.filter).map(([k,v])=>[k,String(v)])));
   const out={limit:FILT_PAGE,cursor:run.cursor};
   if(qval())out.q=treeQ.trim();
   if(typeFilts.size)out.type=[...typeFilts].join(",");
@@ -6396,6 +6409,7 @@ function filtParams(run){
   return out;
 }
 async function filtWave(run){
+  if(run.pick&&!run.filter)return pickWave(run);
   if(run.busy)return;
   run.busy=true;
   try{
@@ -6412,7 +6426,23 @@ async function filtWave(run){
     }
     if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs)filtPaint()}
+  finally{run.busy=false;if(run===fs){filtPaint();if(run.pick)asstPickLoaded()}}
+}
+async function pickWave(run){
+  if(run.busy)return;
+  run.busy=true;
+  try{
+    while(run===fs&&run.at<run.order.length&&(!run.flat||run.at<run.want)){
+      const part=run.order.slice(run.at,run.at+LIM.idsMax);
+      await hwEnsure(part);
+      if(run!==fs)return;
+      await filtPaths(run,part);
+      run.at+=part.length;
+      if(run===fs){treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
+    }
+    run.done=run.at>=run.order.length;
+  }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
+  finally{run.busy=false;if(run===fs){filtPaint();asstPickLoaded()}}
 }
 // Цепочки найденного: подпись в плоском списке, раскрытие и папки в дереве
 async function filtPaths(run,ids){
@@ -6429,17 +6459,52 @@ async function filtPaths(run,ids){
   }
 }
 function filtPaint(){if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
-function filtMore(){if(!fs||fs.done)return;fs.want=fs.hits.size+FILT_PAGE;filtWave(fs);filtPaint()}
+// ── Отбор ассистента над деревом ─────────────────────────────────────────
+// Дерево показывает только отобранное ассистентом: тег над деревом со словами отбора, крестик снимает его, срез
+// возвращается как был. Общий механизм для плана настройки и отбора (found). Список готов: записи и цепочки
+// дочитываются волнами, как у поиска
+let asstPick=null;
+function asstPickCount(){const p=asstPick;return!p?0:p.filter?(fs?.pick?fs.hits.size:0):p.ids.length}
+function asstPickLabel(){
+  const p=asstPick;if(!p)return"";
+  const k=asstPickCount(),more=p.total!=null&&p.total>k?` ${i18n("из")} ${p.total}`:p.filter&&!(fs?.pick&&fs.done)||p.truncated?"+":"";
+  const n=`${i18n("Ассистент")}: ${k}${more}`;
+  return[n,...(p.conditions||[])].join(" · ");
+}
+function asstPickSet(p){
+  const prev=asstPick?.prev||{slice};
+  if(app!=="hw")goApp("hw");
+  setMainFull(false);
+  if(!PICK_SLICES.includes(slice))setSlice("all");
+  asstPick=Object.assign({ids:[],filter:null,total:null,conditions:[],truncated:false},p,{prev,key:opKey()});
+  treeMatchCache.clear();searchMatchCache.clear();
+  filtSync();applyFiltersFromState();
+}
+// Снять отбор: дерево как было. Черновик карточки и выбор остаются — это правка человека
+function asstPickDrop(){
+  const prev=asstPick?.prev;asstPick=null;if(fs?.pick)fs=null;
+  if(prev&&prev.slice!==slice&&app==="hw"){const keep=[...treeSel];setSlice(prev.slice);keep.forEach(id=>treeSel.add(id))}
+  treeMatchCache.clear();searchMatchCache.clear();
+}
+function asstPickClear(){asstPickDrop();filtSync();applyFiltersFromState();aside()}
+function asstPickLoaded(){const p=asstPick;if(p?.loaded){const f=p.loaded;p.loaded=null;f()}}
+function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaint()}
 function filtHint(){
+  if(fs?.pick&&asstPick){
+    const p=asstPick;
+    if(p.filter)return`${i18n("Отобрано ассистентом:")} ${fs.hits.size}${fs.failed?` · ${i18n("найдено не всё")}`:fs.done?"":` · ${i18n("листаем дальше")}`}`;
+    const cut=p.truncated?` · ${i18n("показаны первые")} ${p.ids.length}${p.total!=null?` ${i18n("из")} ${p.total}`:""}`:"";
+    return`${i18n("Отобрано ассистентом:")} ${fs.hits.size}${cut}${fs.done?"":` · ${i18n("загружено")} ${fs.at}`}`;
+  }
   if(!fs)return hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
   if(fs.failed)return`${i18n("Найдено не всё:")} ${fs.hits.size}`;
   return fs.done?`${i18n("Найдено:")} ${fs.hits.size}`:`${i18n("Ищем дальше, уже")} ${fs.hits.size}`;
 }
 function treeFlat(){
   const q=qval();
-  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
     <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
-  const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
+  const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.pick&&!fs.filter?(fs.busy?"Загружаем…":"Показать ещё"):fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
   return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
 }
 function selfOrDet(n){return n.type==="det"?slice==="det":selfInView(n)}
@@ -21268,7 +21333,7 @@ function closeBulkModal(){document.getElementById("bmodal")?.classList.remove("o
 // context возвращается как есть, секреты живут в памяти до конца разговора и никуда не сохраняются.
 // Без «Применить» ничего не пишется.
 let asst=null;
-const ASST_END=new Set(["question","plan","refused","answer","error"]);
+const ASST_END=new Set(["question","plan","refused","answer","found","error"]);
 const asstEnds=m=>ASST_END.has(m.type);
 /* ----- Служба ассистента демо-страницы -----
    Страница статическая, сервер живёт в браузере, а модель — за службой. Адрес — ?assist=URL или метка
@@ -21402,10 +21467,41 @@ async function asstServiceTurn(a,body){
   if(a.abort.signal.aborted)throw{name:"AbortError"};
   await ConsolemApi.assistTurn(url,asstCodeGet(url),{...body,world},m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal});
 }
+// Отбор ассистента (found): дерево показывает отобранное тегом над деревом, условия словами. Ничего не пишет.
+// ids — список готов; filter — фильтры GET /devices, форма листает их сама. Выбрать разом — для групповой правки
+function asstFoundToTree(m){
+  asstPickSet({ids:m.filter?[]:(m.ids||[]).slice(0,LIM.selectMax),filter:m.filter||null,total:m.total??null,truncated:!!m.truncated,conditions:m.conditions||[],src:m,
+    loaded:()=>{if(asst?.found===m)asstRender()}});
+}
+function asstFoundCount(m){return m.filter?(asstPick?.src===m&&fs?.pick?fs.hits.size:0):(m.ids||[]).length}
+function asstFoundHtml(m){
+  const k=asstFoundCount(m),n=m.filter?`${i18n("Отбор по фильтру: листается в дереве")}${k?`, ${i18n("уже")} ${k}`:""}`
+    :`${i18n("В дереве")}: ${k}${m.total!=null&&m.total>k?` ${i18n("из")} ${m.total}`:m.truncated?` (${i18n("первые; всего больше")})`:""}`;
+  return`<div class="asst-note" id="asstFoundNote">${i18n("Отбор ассистента: условия — над деревом, проверьте их")}</div>`+
+    (m.text?`<div class="asst-msg" id="asstFound">${escHtml(m.text)}</div>`:"")+
+    `<div class="asst-line" id="asstFoundCount">${n}</div>`+
+    ((m.conditions||[]).length?`<div class="asst-line" id="asstFoundWhy">${m.conditions.map(escHtml).join(" · ")}</div>`:"");
+}
+// Человек снял тег или ушёл из раздела: отбор возвращается в дерево
+function asstFoundOpen(){const m=asst?.found;if(m)asstFoundToTree(m)}
+// Всё отобранное — в выбор для групповой правки, не больше selectMax. Записи сперва дочитываются
+async function asstFoundPick(){
+  const a=asst,m=a?.found;if(!m)return;
+  if(asstPick?.src!==m)asstFoundToTree(m);
+  const ids=(m.filter?(fs?.pick?fs.order:[]):(m.ids||[])).slice(0,LIM.selectMax);
+  if(!ids.length)return;
+  try{await hwEnsure(ids)}catch(e){toast(problemText(e));return}
+  if(asst!==a)return;
+  treeSel.clear();ids.forEach(id=>find(id)&&treeSel.add(id));
+  selMode=treeSel.size>1;bulkPeek=false;treeAnchor=ids[0];
+  if(treeSel.size===1){sel=ids[0];tab="gen"}
+  aside();gear();
+  toast(`${i18n("Отмечено")}: ${treeSel.size}`);
+}
 // Пароль наружу не уходит: ни полем секрета, ни в словах просьбы, ни ответом на вопрос о пароле. Разговор о нём
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
-  Object.assign(a,{text:"",ask:"",answer:"",context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
+  Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
 // Вход — из строки поиска: то, что поиск не нашёл, уходит ассистенту. Запрос поиска снимается:
@@ -21423,7 +21519,7 @@ function asstOpen(text){
   if(!can("feature:assist"))return;
   promptPanel(false);
   asstEnd();
-  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
+  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
   const t=String(text||"").trim();
   if(t){asstSend(null,t);return}
   asstRender();
@@ -21772,6 +21868,7 @@ function asstRender(){
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
     a.answer?`<div class="asst-note" id="asstAnswerNote">${i18n("Ответ ассистента, проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
+    a.found?asstFoundHtml(a.found):"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
@@ -21784,6 +21881,7 @@ function asstRender(){
     `<span class="asst-gap"></span>`,
     a.busy&&a.live?`<button type="button" class="btn s" id="asstCancel" ${onEv("click",["asstCancel"])}>${i18n("Отменить ход")}</button>`:"",
     a.down&&!a.busy?`<button type="button" class="btn s" id="asstToStub" ${onEv("click",["asstToStub"])}>${i18n("Работать с заглушкой")}</button>`:"",
+    a.found&&!a.busy?`<button type="button" class="btn s" id="asstFoundOpen" ${onEv("click",["asstFoundOpen"])}>${i18n("Показать в дереве")}</button><button type="button" class="btn s" id="asstFoundPick" ${asstFoundCount(a.found)?"":"disabled"} ${onEv("click",["asstFoundPick"])}>${i18n("Выбрать всё")}</button>`:"",
     a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
     a.result?.undo?`<button type="button" class="btn s" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
     a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
@@ -21810,6 +21908,7 @@ function asstEvent(a,m){
   if("context" in m)a.context=m.context;
   if(m.type==="question")a.ask=m.text;
   if(m.type==="answer")a.answer=m.text;
+  if(m.type==="found"){a.found=m;asstFoundToTree(m)}
   if(m.type==="refused")a.refused=m.text;
   if(m.type==="error"){
     if(a.live)asstServiceError(a,m);
@@ -21834,7 +21933,7 @@ function asstSend(again,said){
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
   const dropped=a.plan?[{note:i18n("План снят")}]:[];
-  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
     .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
