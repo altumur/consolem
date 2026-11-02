@@ -4,7 +4,11 @@
    сообщением от страницы-сценария. */
 (() => {
   const log = [];
-  const ok = (c, m) => log.push((c ? "PASS  " : "FAIL  ") + m);
+  // Каждая проверка видна самопроверке сразу: сценарий, который не дошёл до конца, называет, где остановился
+  const ok = (c, m) => {
+    log.push((c ? "PASS  " : "FAIL  ") + m);
+    if (window.parent !== window) window.parent.postMessage({ uiCheck: true, name: window.UI_CHECK_NAME || "", step: String(m).slice(0, 160) }, "*");
+  };
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   // Ждать условия: ответ сервера и событие потока приходят не сразу
   // Срок — числом ожиданий, а не часами: в самопроверке сценарии делят один поток, чужая долгая работа не должна съедать срок
@@ -60,7 +64,7 @@
     if (window.parent !== window) window.parent.postMessage({ uiCheck: true, name: window.UI_CHECK_NAME || "", log }, "*");
   }
   window.UiCheck = (fn) =>
-    window.appReady
+    (window.UI_CHECK_STARTED = true) && window.appReady
       .then(() => (window.UI_RAW_CACHE ? null : window.uiCacheAll()))
       .then(() => fn({ ok, until, sleep, confirmWith }))
       .catch((e) => ok(false, "исключение: " + e.message + " " + (e.stack || "").split("\n")[1]))

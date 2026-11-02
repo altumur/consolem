@@ -3,8 +3,6 @@
    сценария: в index.html её нет. На стенде (?api=, сборка консоли) служба не работает, и это тоже проверяется.
    Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
-  // В самопроверке копии страниц делят один фокус: окно ассистента забирало бы его у переименования в ui-domains.js
-  if (window.parent !== window) HTMLElement.prototype.focus = () => {};
   const SVC = "https://assist.example.test", CODE = "k0d-DOSTUPA";
   const params = new URLSearchParams(location.search);
   const onStand = !!(params.get("api") || pageMeta("consolem-api"));

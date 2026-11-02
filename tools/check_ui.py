@@ -30,6 +30,9 @@ PAGE = "index.html"
 
 # Помощники сценариев — те же, что у самопроверки прототипа (?selftest)
 HELPERS = '<script src="tests/ui-harness.js"></script>'
+# Самопроверка: виртуальный срок больше срока сценариев в tests/selftest.js, настоящий — с запасом на занятую машину
+SELFTEST_BUDGET_SEC = 800
+SELFTEST_WAIT_SEC = 900
 
 
 def fixture_of():
@@ -70,8 +73,16 @@ def selftest(query):
         url = "file://" + os.path.join(ROOT, PAGE) + "?selftest" + query.replace("?", "&")
         res = subprocess.run(
             [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files",
-             f"--user-data-dir={tmp}/profile", "--window-size=1600,1000", "--virtual-time-budget=300000", "--dump-dom", url],
-            capture_output=True, text=True, timeout=400, env=dict(os.environ, TZ=TZ))
+             f"--user-data-dir={tmp}/profile", "--window-size=1600,1000", "--virtual-time-budget=" + str(SELFTEST_BUDGET_SEC * 1000), "--dump-dom", "--enable-logging=stderr", url],
+            capture_output=True, text=True, timeout=SELFTEST_WAIT_SEC, env=dict(os.environ, TZ=TZ))
+    except subprocess.TimeoutExpired as e:
+        log = e.stderr.decode(errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
+        done = set(re.findall(r"SELFTEST done ([\w.-]+)", log))
+        with open(os.path.join(ROOT, "tests", "selftest.js"), encoding="utf-8") as f:
+            names = re.findall(r'"(ui-[\w-]+\.js)"', re.search(r"const SCENARIOS = \[(.*?)\];", f.read()).group(1))
+        print(f"Самопроверка не кончилась за {SELFTEST_WAIT_SEC} с, не отчитались: {', '.join(n for n in names if n not in done) or 'все отчитались, итога нет'}")
+        print("RESULT fail")
+        return 1
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     state = re.search(r'data-selftest="(\w+)"', res.stdout)

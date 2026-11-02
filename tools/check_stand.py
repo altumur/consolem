@@ -29,7 +29,7 @@ import time
 import urllib.parse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WAIT_SEC = 400
+WAIT_SEC = 900
 
 
 def free_port():

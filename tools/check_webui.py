@@ -23,7 +23,7 @@ import threading
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-WAIT_SEC = 600
+WAIT_SEC = 900
 
 
 def free_port():

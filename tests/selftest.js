@@ -4,6 +4,9 @@
    встроенным сервером на эталонном наборе, все параллельно; итог приходит сообщением. Отчёт — панель
    поверх страницы, итог — data-selftest="pass|fail" у <html>. С ?latency=300 сценарии идут с задержкой
    ответа. Отсчёты удаления настоящие, поэтому прогон занимает около минуты.
+   Копии делят один фокус браузера: поле имени в дереве закрывается по blur, а его снимает любая соседняя копия, поставив
+   курсор. Сценарии с таким полем (FOCUS_ALONE) идут по одному, после остальных: честная очередь, а не подмена focus.
+   Сценарий, не отчитавшийся за LIMIT_SEC, — отказ со словом, где он остановился: отчёт приходит всегда.
    С ?api=<стенд> — против тестового стенда бэкенда: сценарии идут по одному, перед каждым — POST /test/reset
    с идущими часами (данные у стенда одни на всех). С ?report=<адрес> итог уходит туда POST-запросом. */
 (() => {
@@ -12,6 +15,8 @@
   // Сценарии не на эталонном наборе: страница сценария открывается с ?fixture=, стенд сбрасывается на него.
   // Отсюда же берёт наборы tools/check_ui.py
   const FIXTURE_OF = { "ui-profile.js": "one-domain" };
+  const FOCUS_ALONE = ["ui-hardware.js", "ui-domains.js", "ui-storage.js"];
+  const LIMIT_SEC = 240;
   const load = (src) =>
     new Promise((resolve, reject) => {
       const s = document.createElement("script");
@@ -25,9 +30,12 @@
   const one = q.get("selftest-run");
   if (one) {
     window.UI_CHECK_NAME = one;
+    const fail = (m) => window.parent.postMessage({ uiCheck: true, name: one, log: [`FAIL  ${m}`] }, "*");
     load("tests/ui-harness.js")
       .then(() => load(`tests/${one}`))
-      .catch((e) => window.parent.postMessage({ uiCheck: true, name: one, log: [`FAIL  ${e.message}`] }, "*"));
+      // Ошибка разбора сценария не мешает onload: UiCheck просто не вызван
+      .then(() => window.UI_CHECK_STARTED || fail("сценарий не запустился: ошибка в его тексте"))
+      .catch((e) => fail(e.message));
     return;
   }
 
@@ -102,12 +110,19 @@
     }
   }
   const waiting = {};
+  const lastStep = {};
+  function finish(name, log) {
+    if (results[name]) return;
+    results[name] = log;
+    console.log(`SELFTEST done ${name}`);
+    render(Object.keys(results).length === SCENARIOS.length);
+    if (waiting[name]) waiting[name]();
+  }
   window.addEventListener("message", (e) => {
     const d = e.data;
     if (!d || !d.uiCheck || !SCENARIOS.includes(d.name)) return;
-    results[d.name] = d.log;
-    render(Object.keys(results).length === SCENARIOS.length);
-    if (waiting[d.name]) waiting[d.name]();
+    if (d.step) lastStep[d.name] = d.step;
+    else finish(d.name, d.log);
   });
   const base = location.href.split("?")[0].split("#")[0];
   // Стенд — ?api=… или адрес API в разметке сборки (<meta name="consolem-api">): его страницы сценариев берут сами
@@ -119,11 +134,17 @@
     f.title = `Самопроверка: ${name}`;
     f.style.cssText = "position:absolute;left:-20000px;top:0;width:1600px;height:1000px;border:0";
     document.body.appendChild(f);
-    return new Promise((resolve) => (waiting[name] = () => (f.remove(), resolve())));
+    const limit = setTimeout(
+      () => finish(name, [`FAIL  не отчитался за ${LIMIT_SEC} с, последняя проверка: ${lastStep[name] || "ни одной"}`]),
+      LIMIT_SEC * 1000
+    );
+    return new Promise((resolve) => (waiting[name] = () => (clearTimeout(limit), f.remove(), resolve())));
   };
   render(false);
-  if (!stand) SCENARIOS.forEach(frame);
-  else
+  if (!stand) {
+    const inTurn = (list) => list.reduce((p, name) => p.then(() => frame(name)), Promise.resolve());
+    Promise.all(SCENARIOS.filter((n) => !FOCUS_ALONE.includes(n)).map(frame)).then(() => inTurn(FOCUS_ALONE));
+  } else
     SCENARIOS.reduce(
       (p, name) =>
         p
