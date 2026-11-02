@@ -216,9 +216,10 @@
     const changed = (kind, rec) => send("entity.changed", { kind, entityId: rec.id, version: rec.version });
     // Переподключение с Last-Event-ID: пропущенное досылается; если его уже нет — stream.reset,
     // и клиент перечитывает всё
-    function subscribe(fn, lastEventId) {
+    // watch — список наблюдаемых из запроса открытия, GET /stream?watch=…
+    function subscribe(fn, lastEventId, watch) {
       const clientId = `c${(++clientSeq).toString(36)}`;
-      const client = { fn, watch: new Set() };
+      const client = { fn, watch: new Set(watch || []) };
       setTimeout(() => fn({ id: String(seqEvent), type: "stream.hello", at: iso(now()), clientId }), 0);
       if (lastEventId != null && lastEventId !== "") {
         const i = history.findIndex((m) => m.id === String(lastEventId));
@@ -3592,12 +3593,16 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
         const c = clients.get(p.clientId);
-        if (!c) return notFound("Поток");
+        if (!c || c.elsewhere) return notFound("Поток");
         if (body.ids.length > db.reference.limits.watchMax) return problem(422, "VALIDATION_FAILED", "Больше, чем watchMax", { field: "ids" });
         c.watch = new Set(body.ids);
         return { status: 204, body: null };
       }],
-      ["GET", "/stream", () => problem(404, "NO_ROUTE", "Поток событий встроенного сервера — subscribe()")],
+      // Предел watch судится здесь, поток по HTTP перед открытием спрашивает этот маршрут
+      ["GET", "/stream", (p, q) => {
+        if (String(q.watch || "").split(",").filter(Boolean).length > db.reference.limits.watchMax) return problem(422, "VALIDATION_FAILED", "Больше, чем watchMax", { field: "watch" });
+        return problem(404, "NO_ROUTE", "Поток событий встроенного сервера — subscribe()");
+      }],
 
       [
         "POST",
@@ -3773,6 +3778,11 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           return { status: 200, body: { fixture: body.fixture, now: iso(now()), frozen: clock.frozenAt != null } };
         },
       ],
+      // Второй экземпляр консоли: поток идёт, а PUT наблюдения попадает туда, где его нет
+      ["POST", "/test/stream-elsewhere", () => {
+        clients.forEach((c) => (c.elsewhere = true));
+        return { status: 204, body: null };
+      }],
       [
         "POST",
         "/test/clock",

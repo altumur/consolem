@@ -21,13 +21,16 @@ self.addEventListener("fetch", (event) => {
 async function answer(request, path) {
   // Поток событий: каждое сообщение — без строки event:, id: — его номер, data: — JSON (StreamMessage)
   if (request.method === "GET" && path.split("?")[0] === "/stream") {
+    const refused = server.handle("GET", path);
+    if (refused.status === 422) return new Response(JSON.stringify(refused.body), { status: 422, headers: { "Content-Type": "application/problem+json" } });
+    const watch = new URL(path, "http://loopback").searchParams.get("watch");
     let stop;
     const body = new ReadableStream({
       start(controller) {
         const enc = new TextEncoder();
         controller.enqueue(enc.encode(": loopback\n\n"));
         // Переподключение: браузер шлёт Last-Event-ID — сервер досылает пропущенное или stream.reset
-        stop = server.subscribe((m) => controller.enqueue(enc.encode(`id: ${m.id}\ndata: ${JSON.stringify(m)}\n\n`)), request.headers.get("Last-Event-ID"));
+        stop = server.subscribe((m) => controller.enqueue(enc.encode(`id: ${m.id}\ndata: ${JSON.stringify(m)}\n\n`)), request.headers.get("Last-Event-ID"), watch ? watch.split(",") : []);
       },
       cancel() {
         if (stop) stop();

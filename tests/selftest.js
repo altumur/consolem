@@ -8,7 +8,7 @@
    с идущими часами (данные у стенда одни на всех). С ?report=<адрес> итог уходит туда POST-запросом. */
 (() => {
   const q = new URLSearchParams(location.search);
-  const SCENARIOS = ["ui-tree.js", "ui-cluster.js", "ui-topology.js", "ui-between.js", "ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-archive.js", "ui-devices.js", "ui-bulk.js", "ui-rule-links.js", "ui-rules.js", "ui-settings.js", "ui-assist.js", "ui-assist-service.js", "ui-start.js", "ui-kinds.js", "ui-jump.js", "ui-menus.js", "ui-ops.js", "ui-access.js", "ui-profile.js"];
+  const SCENARIOS = ["ui-tree.js", "ui-stream.js", "ui-cluster.js", "ui-topology.js", "ui-between.js", "ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-archive.js", "ui-devices.js", "ui-bulk.js", "ui-rule-links.js", "ui-rules.js", "ui-settings.js", "ui-assist.js", "ui-assist-service.js", "ui-start.js", "ui-kinds.js", "ui-jump.js", "ui-menus.js", "ui-ops.js", "ui-access.js", "ui-profile.js"];
   // Сценарии не на эталонном наборе: страница сценария открывается с ?fixture=, стенд сбрасывается на него.
   // Отсюда же берёт наборы tools/check_ui.py
   const FIXTURE_OF = { "ui-profile.js": "one-domain" };

@@ -99,19 +99,21 @@
       // Обрыв связи браузер переподключает сам. Ответ не 200 (в том числе 401) он не переподключает и кода
       // не показывает: поток закрыт. Тогда — GET /me: 401 уходит в onUnauthorized, иначе через 3 с новое
       // подключение (Last-Event-ID у нового нет — данные перечитываются по onReconnect)
+      // reopen(ids) — новый поток со списком наблюдаемых в запросе открытия: PUT наблюдения пришёл на другой экземпляр
+      // (404). Браузер при обрыве переподключается по этому же адресу, актуальный список форма присылает после hello
       const subscribe = (fn, onReconnect) => {
         let source = null;
         let dropped = false;
         let stopped = false;
+        let watch = [];
         const open = () => {
-          source = new EventSource(`${base}/stream`, { withCredentials: true });
+          const mine = new EventSource(`${base}/stream${watch.length ? `?watch=${watch.map(encodeURIComponent).join(",")}` : ""}`, { withCredentials: true });
+          const again = () => source === mine && !stopped && setTimeout(() => source === mine && !stopped && open(), 3000);
+          source = mine;
           source.onerror = () => {
             dropped = true;
-            if (source.readyState !== EventSource.CLOSED || stopped) return;
-            raw("GET", "/me").then(
-              (res) => res.status !== 401 && !stopped && setTimeout(() => !stopped && open(), 3000),
-              () => !stopped && setTimeout(() => !stopped && open(), 3000)
-            );
+            if (mine.readyState !== EventSource.CLOSED || stopped) return;
+            raw("GET", "/me").then((res) => res.status !== 401 && again(), again);
           };
           source.onopen = () => {
             if (dropped && onReconnect) onReconnect();
@@ -121,10 +123,17 @@
           source.onmessage = (e) => fn(JSON.parse(e.data));
         };
         open();
-        return () => {
+        const stop = () => {
           stopped = true;
           source.close();
         };
+        stop.reopen = (ids) => {
+          watch = ids;
+          dropped = false;
+          source.close();
+          open();
+        };
+        return stop;
       };
       // Поток ответа на POST: fetch, а не EventSource. Сообщения — строками data:, закрыть поток — signal
       const stream = async (path, data, onEvent, signal) => {
@@ -153,7 +162,16 @@
         Object.entries(res.headers || {}).forEach(([name, value]) => (got[name.toLowerCase()] = String(value)));
         return later({ status: res.status, body: copy(res.body), headers: got });
       });
-    const subscribe = (fn) => server.subscribe((message) => (latency ? setTimeout(() => fn(copy(message)), latency) : fn(copy(message))));
+    const subscribe = (fn) => {
+      const deliver = (message) => (latency ? setTimeout(() => fn(copy(message)), latency) : fn(copy(message)));
+      let close = server.subscribe(deliver);
+      const stop = () => close();
+      stop.reopen = (ids) => {
+        close();
+        close = server.subscribe(deliver, undefined, ids);
+      };
+      return stop;
+    };
     // Встроенный сервер отдаёт поток массивом сообщений: по одному, как по сети
     const stream = async (path, data, onEvent, signal) => {
       const res = await raw("POST", path, data);

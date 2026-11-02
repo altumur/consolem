@@ -47,7 +47,7 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 112 операций и 3 служебные
+## Карта API — 112 операций и 4 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
@@ -66,7 +66,7 @@
 | `settings`, `journal` | `GET`, `PATCH /settings`; `GET /licenses`; `GET /journal` |
 | `assist` | `POST /assist/turns` — ход разговора с ассистентом, ответ потоком (SSE), возможность `assist` |
 | `stream` | `GET /stream` — поток событий (SSE) |
-| `test-support` | `POST /test/reset`, `/test/clock`, `/test/events` — только на тестовом стенде |
+| `test-support` | `POST /test/reset`, `/test/clock`, `/test/events`, `/test/stream-elsewhere` — только на тестовом стенде |
 
 ## Договорённости
 
@@ -151,7 +151,8 @@
 
 - `POST /test/reset` — загрузить набор по имени (`fixture`: `demo` или `one-domain`; `fixturePatch` — изменения на прогон в формате JSON Merge Patch, `actAs` — от имени другого логина), остановить часы (`freezeClock: false` — пусть идут);
 - `POST /test/clock` — сдвинуть часы на `advanceSec` и выполнить всё, что за это время наступило: шаги операций, форматирование, поиск в сети, синхронизацию каталогов;
-- `POST /test/events` — событие извне: устройство потеряло или вернуло связь, сменилась причина.
+- `POST /test/events` — событие извне: устройство потеряло или вернуло связь, сменилась причина;
+- `POST /test/stream-elsewhere` — открытые потоки ушли на другой экземпляр: `PUT /stream/{clientId}/watch` на них отвечает `404`.
 
 ## Проверки
 

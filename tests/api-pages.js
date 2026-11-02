@@ -247,6 +247,36 @@
     stop();
   });
 
+  test("Поток: PUT не тому экземпляру — 404, новый поток держит список из запроса открытия, предел watch", async () => {
+    const env = await makeEnv();
+    const cam = FX.devices.find((d) => d.type === "camera" && !d.parentId && d.serverId);
+    const other = FX.devices.find((d) => d.type === "camera" && !d.parentId && d.serverId && d.serverId !== cam.serverId);
+    const seen = [], hellos = [];
+    const stop = ApiTest.subscribeForTest((m) => {
+      if (m.type === "stream.hello") hellos.push(m.clientId);
+      seen.push(m);
+    });
+    await ApiTest.settle();
+    assert.status(await env.call("GET", `/stream?watch=${Array.from({ length: 201 }, (x, i) => i).join(",")}`), 422, "VALIDATION_FAILED", "больше watchMax");
+    const big = await env.call("GET", `/stream?watch=${Array.from({ length: 201 }, (x, i) => i).join(",")}`);
+    assert.eq(big.body.field, "watch", "поле");
+    assert.status(await env.call("POST", "/test/stream-elsewhere"), 204);
+    assert.status(await env.call("PUT", `/stream/${hellos[0]}/watch`, { ids: [cam.id] }), 404, "NOT_FOUND", "поток на другом экземпляре");
+    stop.reopen([cam.id]);
+    await ApiTest.settle();
+    assert.eq(hellos.length, 2, "новый поток — новый hello");
+    assert.ok(hellos[1] !== hellos[0], "новый clientId");
+    seen.length = 0;
+    const rename = async (d, name) => env.ok("PATCH", `/devices/${d.id}`, { name }, { "If-Match": await env.etag(`/devices/${d.id}`) });
+    await rename(cam, "А");
+    await rename(other, "Б");
+    await ApiTest.settle();
+    const dev = seen.filter((m) => m.kind === "device").map((m) => m.entityId);
+    assert.ok(dev.includes(cam.id) && !dev.includes(other.id), "список из запроса работает без PUT");
+    assert.status(await env.call("PUT", `/stream/${hellos[1]}/watch`, { ids: [other.id] }), 204);
+    stop();
+  });
+
   test("Права: снимок без людей, перечни страницами, объекты роли, apply изменениями, чужая правка — 412", async () => {
     const env = await makeEnv();
     const acc = await env.ok("GET", "/access");

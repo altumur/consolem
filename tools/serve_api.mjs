@@ -118,9 +118,15 @@ http
         return;
       }
       if (req.method === "GET" && req.url.split("?")[0] === "/stream") {
+        const refused = server.handle("GET", req.url);
+        if (refused.status === 422) {
+          res.writeHead(422, { "Content-Type": "application/problem+json" });
+          return res.end(JSON.stringify(refused.body));
+        }
         res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache", Connection: "keep-alive" });
         res.write(": stand\n\n");
-        const stop = server.subscribe((m) => res.write(`id: ${m.id}\ndata: ${JSON.stringify(m)}\n\n`), req.headers["last-event-id"]);
+        const watch = new URL(req.url, "http://stand").searchParams.get("watch");
+        const stop = server.subscribe((m) => res.write(`id: ${m.id}\ndata: ${JSON.stringify(m)}\n\n`), req.headers["last-event-id"], watch ? watch.split(",") : []);
         // Соединение закрылось — отписаться (у запроса «close» приходит сразу после тела, у ответа — при обрыве)
         res.on("close", stop);
         return;

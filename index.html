@@ -2634,7 +2634,12 @@ function hwReloadSoon(m){
 // Поток событий: изменения (свои и чужие), ход операций. Запись перечитывается
 // по id; если поток потерян — весь кэш заново.
 function apiOnEvent(m){
-  if(m.type==="stream.hello"){streamClient=m.clientId;watchLast="";watchSoon();return}
+  if(m.type==="stream.hello"){
+    // Поток уже держит список из запроса открытия. Браузер переподключается по старому адресу: разошёлся с актуальным — уйдёт PUT
+    streamClient=m.clientId;watchLast=watchOpened;watchSoon();
+    if(watchMissed){watchMissed=false;apiReload()}
+    return;
+  }
   if(m.type==="tree.changed"){treeChanged(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
@@ -6085,7 +6090,7 @@ function treeChanged(m){
   if(app==="hw"&&document.getElementById("tree"))treeNeed();
 }
 // Поток: раскрытые ветки и открытая карточка, не больше watchMax. Свежее важнее: при переполнении уходят старые
-let streamClient=null,watchLast="",watchQ=false;
+let apiStream=null,streamClient=null,watchLast="",watchQ=false,watchOpened="",watchMissed=false;
 function watchIds(){
   const out=[];
   if(sel&&hwVer.has(sel))out.push(sel);
@@ -6097,11 +6102,23 @@ function watchSoon(){
   watchQ=true;
   Promise.resolve().then(()=>{
     watchQ=false;
-    const ids=watchIds(),k=ids.join();
-    if(k===watchLast)return;
+    const ids=watchIds(),k=ids.join(),client=streamClient;
+    if(!client||k===watchLast)return;
     watchLast=k;
-    API.put(`/stream/${streamClient}/watch`,{ids}).catch(()=>{watchLast=""});
+    API.put(`/stream/${client}/watch`,{ids}).catch(e=>{
+      watchLast="";
+      if(e?.status!==404)return;
+      if(client===streamClient)watchReopen();else watchSoon();
+    });
   });
+}
+// PUT пришёл не на тот экземпляр консоли: 404. Список держит поток, поэтому новый поток — со списком в запросе. Без
+// Last-Event-ID он мог пропустить события: после hello кэш перечитывается, как при stream.reset. Новый поток список уже
+// держит, ещё один PUT не нужен: иначе без липкости запросов 404 и переоткрытие шли бы по кругу
+function watchReopen(){
+  const ids=watchIds();
+  streamClient=null;watchOpened=ids.join();watchMissed=true;
+  apiStream.reopen(ids);
 }
 // ── Топология: граф домена ──────────────────────────────────────────────
 // Как устроено взаимодействие серверов и кластеров: домен, кластер, сервер. Кластер — начало имени сервера, записи у него
@@ -21681,7 +21698,7 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
   [domains[0]?.id,domains[2]?.id,domains[0]&&unallocId(domains[0].id),servers[0]?.id,arch[0]?.id].forEach(x=>{if(x)open.add(x)});
   [folders[0],folders[0]?.folders?.[0]].forEach(f=>{if(f)open.add(f.id)});
   domains.forEach(d=>{open.add(d.id);open.add("accg:"+d.id)});
-  API.subscribe(apiOnEvent,apiReload);
+  apiStream=API.subscribe(apiOnEvent,apiReload);
   await treeNeed();
   syncLocalePack();applyStaticUi();
   if(!applyDeepLink()){resetTreeSel(sel);paint();}
