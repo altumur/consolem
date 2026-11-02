@@ -7,8 +7,71 @@
      Ответ 401 — сессии нет: вызывается onUnauthorized (интерфейс ведёт на вход).
    Ответы всегда приходят обещанием, как по сети, и копируются: интерфейс не может поменять данные
    сервера. Ошибка — объект { status, problem }. Версия записи уходит в If-Match, приходит в ETag.
-   latency — искусственная задержка ответа, мс (?latency=300): интерфейс должен её выдерживать. */
+   latency — искусственная задержка ответа, мс (?latency=300): интерфейс должен её выдерживать.
+   assistTurn — отдельно от обоих режимов: ход в службу ассистента демо-страницы, со своим адресом и кодом. */
 (() => {
+  // Сообщения потока ответа на POST: строки data:, закрыть поток — signal запроса
+  async function readSse(res, onEvent) {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let tail = "";
+    for (;;) {
+      const { done, value } = await reader.read();
+      tail += done ? "\n\n" : decoder.decode(value, { stream: true });
+      const blocks = tail.split("\n\n");
+      tail = blocks.pop();
+      blocks.forEach((block) => {
+        const lines = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim());
+        if (lines.length) onEvent(JSON.parse(lines.join("\n")));
+      });
+      if (done) return;
+    }
+  }
+
+  /* Ход в службу ассистента демо-страницы: POST <url>/assist/turns с заголовком X-Assist-Code, ответ потоком.
+     Служба — не бэкенд консоли: куки не уходят, а 401 здесь значит «неверный код», это не выход из системы,
+     поэтому onUnauthorized сюда не подключён. secrets не уходят никогда, что бы ни пришло в data.
+     Отказ службы — исключение { status, problem, retryAfter }: retryAfter, с — из Retry-After, если заголовок виден
+     странице (CORS: Access-Control-Expose-Headers), иначе 0. Нет соединения, обрыв и поток без завершающего
+     сообщения — { status: 0, problem: { code: "UPSTREAM_UNAVAILABLE" } }. Отмена — исключение AbortError. */
+  async function assistTurn(url, code, data, onEvent, opts) {
+    const { secrets, ...body } = data;
+    const signal = opts && opts.signal;
+    const down = (e) => {
+      if (e && e.name === "AbortError") return e;
+      return { status: 0, problem: { code: "UPSTREAM_UNAVAILABLE" } };
+    };
+    let res;
+    try {
+      res = await fetch(`${url.replace(/\/$/, "")}/assist/turns`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-Assist-Code": code },
+        body: JSON.stringify(body),
+        credentials: "omit",
+        signal,
+      });
+    } catch (e) {
+      throw down(e);
+    }
+    if (res.status !== 200) {
+      let problem = null;
+      try {
+        problem = JSON.parse(await res.text());
+      } catch (e) {}
+      throw { status: res.status, problem, retryAfter: Number(res.headers.get("Retry-After")) || 0 };
+    }
+    let ended = false;
+    try {
+      await readSse(res, (m) => {
+        if (opts && opts.ends && opts.ends(m)) ended = true;
+        onEvent(m);
+      });
+    } catch (e) {
+      throw down(e);
+    }
+    if (!ended) throw down();
+  }
+
   function create(opts) {
     const copy = (v) => (v === undefined || v === null ? v : JSON.parse(JSON.stringify(v)));
     const latency = Math.max(0, Number(opts.latency) || 0);
@@ -77,20 +140,7 @@
           const text = await res.text();
           throw { status: res.status, problem: text ? JSON.parse(text) : null };
         }
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let tail = "";
-        for (;;) {
-          const { done, value } = await reader.read();
-          tail += done ? "\n\n" : decoder.decode(value, { stream: true });
-          const blocks = tail.split("\n\n");
-          tail = blocks.pop();
-          blocks.forEach((block) => {
-            const lines = block.split("\n").filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trim());
-            if (lines.length) onEvent(JSON.parse(lines.join("\n")));
-          });
-          if (done) return;
-        }
+        await readSse(res, onEvent);
       };
       return wrap(raw, subscribe, stream);
     }
@@ -162,5 +212,5 @@
     };
   }
 
-  window.ConsolemApi = { create };
+  window.ConsolemApi = { create, assistTurn };
 })();
