@@ -13,7 +13,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!head.some((t) => /^(Найденные|Вручную|Из файла)$|^Хранилище/.test(t)), "в шапке нет «Найденные», «Вручную», «Из файла», «Хранилище»");
   document.querySelector("#main .btn-split-arrow").click();
   let menu = document.getElementById("tctx");
-  ok(menu.classList.contains("open") && /Сервер…/.test(menu.textContent) && !/Хранилище/.test(menu.textContent), "меню стрелки у домена — без хранилища: " + menu.textContent.trim().replace(/\s+/g, " "));
+  ok(menu.classList.contains("open") && /Сервер…/.test(menu.textContent) && /Сетевое хранилище…/.test(menu.textContent), "меню стрелки у домена: " + menu.textContent.trim().replace(/\s+/g, " "));
   closeTreeCtx();
   const srv = servers.find((s) => !isUnallocated(s.id) && SERVER_DOMAIN[s.id] === d1.id) || servers.find((s) => !isUnallocated(s.id));
   pick(srv.id);
@@ -423,45 +423,68 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addPlan.rows = [];
   planTouch();
 
-  // Срез 2. Любое хранилище, сетевое тоже, создают на сервере; с домена входа нет
+  // Срез 2. Хранилище создают и на сервере, и на домене: с домена — только общее, которому сервер не нужен
   const d2Nas = (n) => ["", "", "nas" + n, "vms"].join(String.fromCharCode(92));
   const d2Dom = domains[0];
   const d2Srv = servers.find((s) => !isUnallocated(s.id) && SERVER_DOMAIN[s.id] === d2Dom.id);
   const srvMenu = (n) => { openTreeCtx(n, { x: 10, y: 10 }); const t = document.getElementById("tctx").textContent; closeTreeCtx(); return t; };
-  ok(!/Создать хранилище/.test(srvMenu(d2Dom)), "хранилище: в меню дерева домена его нет");
+  const d2Main = () => document.querySelector("#main");
+  const d2DomBtns = () => [...d2Main().querySelectorAll("button")].filter((b) => /Сетевое хранилище…/.test(b.textContent));
+  ok(/Создать сетевое хранилище/.test(srvMenu(d2Dom)), "хранилище: в меню дерева домена есть");
   ok(/Создать хранилище/.test(srvMenu(d2Srv)), "хранилище: в меню дерева сервера есть");
   pick(d2Dom.id);
   goTab("gen");
-  ok(!/Хранилище/.test(document.querySelector(".dom-acts").textContent), "хранилище: в «Действиях» домена его нет");
-  ok(addSplitItems(d2Dom).every(([l]) => !/Хранилище/.test(l)), "хранилище: в меню кнопки домена его нет");
+  ok(/Сетевое хранилище…/.test(document.querySelector(".dom-acts").textContent), "хранилище: в «Действиях» домена есть");
+  ok(addSplitItems(d2Dom).some(([l]) => /Сетевое хранилище…/.test(l)), "хранилище: в меню кнопки домена есть");
   ok(addSplitItems(d2Dom).some(([l]) => /Серверы по IP/.test(l)), "в меню кнопки домена — серверы по IP");
-  ok(addSplitItems(d2Srv).some(([l]) => /Хранилище/.test(l)), "хранилище: в меню кнопки сервера есть");
+  ok(addSplitItems(d2Srv).some(([l]) => /Хранилище…/.test(l)), "хранилище: в меню кнопки сервера есть");
   goTab("srvs");
-  const d2Main = () => document.querySelector("#main");
-  const d2CreateBtns = () => [...d2Main().querySelectorAll("button")].filter((b) => /хранилище/i.test(b.textContent));
-  ok(d2CreateBtns().length === 0, "вкладка «Серверы» домена: кнопок создания хранилища нет");
-  ok(/создают на сервере/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "вкладка «Серверы» домена: подсказка, где создавать");
+  ok(d2DomBtns().length === 1, "вкладка «Серверы» домена: одна кнопка над списком");
+  const d2Opened = (what) => { ok(an && an.shared && an.domain === d2Dom.id, what + " открывает диалог домена"); archNewCancel(); };
+  const d2MenuItem = (re) => [...document.querySelectorAll("#tctx button")].find((b) => re.test(b.textContent));
+  openTreeCtx(d2Dom, { x: 10, y: 10 });
+  d2MenuItem(/Создать сетевое хранилище/).click();
+  d2Opened("меню дерева");
+  goTab("gen");
+  d2Main().querySelector(".btn-split-arrow").click();
+  d2MenuItem(/Сетевое хранилище…/).click();
+  d2Opened("меню кнопки");
+  [...document.querySelectorAll(".dom-acts button")].find((b) => /Сетевое хранилище…/.test(b.textContent)).click();
+  d2Opened("«Действия»");
+  goTab("srvs");
+  ok(/на самом сервере/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "вкладка «Серверы» домена: подсказка, где создают диски");
 
-  // Созданные раньше хранилища домена не пропадают; нет их — нет и списка
-  const d2List = () => /Сетевые хранилища домена/.test(d2Main().textContent);
-  const d2Had = domainArchives(d2Dom.id).length;
-  ok(d2List() === (d2Had > 0), "список хранилищ домена — только когда они есть: " + d2Had);
-  addArchive(d2Dom.id);
-  anSet("name", "Старое хранилище домена", true);
+  // С домена: только виды без обязательного сервера, выбора сервера нет, владелец — домен
+  const d2Body = () => document.getElementById("bmBody");
+  d2DomBtns()[0].click();
+  ok(an && an.shared && !an.server && kindOf(an.kind).serverRequired === false, "диалог домена: вид без обязательного сервера — " + (an && an.kind));
+  ok(d2Body().querySelectorAll(".an-kind").length === refArchKinds.filter((k) => !k.serverRequired).length, "диалог домена: только виды домена");
+  ok(/Весь домен/.test(d2Body().textContent) && !d2Body().querySelector(".an-srv select"), "диалог домена: «Весь домен», выбора сервера нет");
+  ok(/на самом сервере/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог домена: подсказка, где создают диски");
+  ok(/Новое сетевое хранилище/.test(document.getElementById("bmTitle").textContent) && document.getElementById("bmTitle").textContent.includes(locName(d2Dom)), "диалог домена: заголовок про сетевое и домен");
+  anSet("name", "Общее хранилище — срез 2", true);
   anSet("disk", d2Nas(79), true);
   anSet("user", "svc", true);
-  const d2Body0 = anArchive();
-  archNewCancel();
-  const d2Shared = await API.post("/archives", d2Body0);
-  ok(await until(() => domainArchives(d2Dom.id).some((a) => a.id === d2Shared.archive.id)), "хранилище домена пришло событием");
-  paint();
-  ok(d2List() && d2Main().textContent.includes("Старое хранилище домена"), "созданное раньше хранилище домена видно в списке");
+  ok(!anBlock(), "диалог домена: можно создать — " + anBlock());
+  ok(anArchive().serverId === null && anArchive().domainId === d2Dom.id, "диалог домена: в запросе домен, сервера нет");
+  open.delete(d2Dom.id);
+  createArchive();
+  ok(await until(() => !an && arch.some((a) => a.name === "Общее хранилище — срез 2")), "диалог домена: хранилище создано, диалог закрыт");
+  ok(open.has(d2Dom.id) && !open.has(undefined) && document.querySelectorAll("#tree .n.on").length === 1, "созданное видно и выделено в дереве, домен раскрыт");
+  const d2Made = arch.find((a) => a.name === "Общее хранилище — срез 2");
+  const d2SharedRec = await API.get("/archives/" + d2Made.id);
+  ok(!d2SharedRec.serverId && d2SharedRec.domainId === d2Dom.id && domainArchives(d2Dom.id).includes(d2Made), "на сервере — хранилище домена, оно в его списке");
+  pick(d2Dom.id);
+  goTab("srvs");
+  ok(d2Main().textContent.includes("из " + domainArchives(d2Dom.id).length + " хранилищ"), "созданное учтено в списке домена: всего " + domainArchives(d2Dom.id).length);
 
+  // Список виден и пустым: над ним кнопка. Домен без серверов — сначала добавить сервер
+  const d2List = () => /Сетевые хранилища домена/.test(d2Main().textContent);
   const d2Empty = domains.find((x) => !domainArchives(x.id).length);
   ok(!!d2Empty, "есть домен без своих хранилищ");
   pick(d2Empty.id);
   goTab("srvs");
-  ok(!d2List(), "у домена без хранилищ списка нет");
+  ok(d2List() && d2DomBtns().length === 1, "домен без хранилищ: список с кнопкой");
   const d2Srvs = d2Empty.servers;
   d2Empty.servers = [];
   paint();
@@ -469,8 +492,27 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   d2Empty.servers = d2Srvs;
   paint();
 
+  // Система без видов на весь домен: на домене нет ни одной точки создания, пустого списка тоже
+  const d2Kinds = refArchKinds;
+  refArchKinds = d2Kinds.filter((k) => k.serverRequired);
+  paint();
+  ok(!d2List() && d2DomBtns().length === 0, "нет видов домена: нет кнопки и пустого списка");
+  ok(!/сетевое хранилище/i.test(srvMenu(d2Empty)) && addSplitItems(d2Empty).every(([l]) => !/хранилище/i.test(l)), "нет видов домена: в меню нет");
+  goTab("gen");
+  ok(!/хранилище/i.test(document.querySelector(".dom-acts").textContent), "нет видов домена: в «Действиях» нет");
+  addArchive(d2Empty.id);
+  ok(!an, "нет видов домена: диалог с домена не открывается");
+  refArchKinds = d2Kinds;
+  // Созданные раньше хранилища видны и тогда
+  pick(d2Dom.id);
+  goTab("srvs");
+  refArchKinds = d2Kinds.filter((k) => k.serverRequired);
+  paint();
+  ok(d2List() && d2DomBtns().length === 0, "нет видов домена: созданные раньше видны, кнопки нет");
+  refArchKinds = d2Kinds;
+  paint();
+
   // С сервера: все виды, сервер подставлен и не меняется, «Весь домен» нет; сетевое привязано к нему
-  const d2Body = () => document.getElementById("bmBody");
   addArchive(d2Srv.id);
   ok(d2Body().querySelectorAll(".an-kind").length === refArchKinds.length && an.server === d2Srv.id && !an.shared, "диалог сервера: все виды, сервер подставлен");
   ok(!d2Body().querySelector(".an-srv select") && !/Весь домен/.test(d2Body().textContent), "диалог сервера: сервер не выбирают, «Весь домен» нет");
@@ -478,8 +520,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(locName(d2Srv) && document.getElementById("bmTitle").textContent.includes(locName(d2Srv)), "диалог сервера: сервер в заголовке");
   ok(!d2Body().querySelector("[data-arch-where]"), "диалог сервера: у локального подсказки нет");
   anSet("kind", "network");
-  ok(/только этот сервер/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог сервера: у сетевого видно, что оно этого сервера");
+  ok(/только этот сервер.*в домене/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог сервера: у сетевого видно, что оно этого сервера, а общее — в домене");
   ok(!d2Body().querySelector(".an-srv select") && an.server === d2Srv.id, "диалог сервера: смена вида сервер не сбрасывает");
+  const d2KindsAll = refArchKinds;
+  refArchKinds = d2KindsAll.map((k) => ({ ...k, serverRequired: true }));
+  renderArchNew();
+  ok(/только этот сервер/.test(d2Body().querySelector("[data-arch-where]")?.textContent || "") && !/в домене/.test(d2Body().querySelector("[data-arch-where]").textContent), "диалог сервера: на домене создать нельзя — про домен не пишем");
+  refArchKinds = d2KindsAll;
+  renderArchNew();
   anSet("disk", d2Nas(78), true);
   anSet("user", "svc", true);
   anSet("name", "Сетевое на сервере — срез 2", true);
@@ -502,9 +550,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!/Создать хранилище/.test(srvMenu(d2Srv)) && addSplitItems(d2Srv).every(([l]) => !/Хранилище/.test(l)), "без операции: в меню сервера нет");
   paint();
   ok(![...d2Main().querySelectorAll("button")].some((b) => /Хранилище…/.test(b.textContent)), "без операции: кнопки на вкладке дисков нет");
-  pick(d2Dom.id);
+  pick(d2Empty.id);
   goTab("srvs");
+  ok(!d2List() && d2DomBtns().length === 0, "без операции: на вкладке домена нет кнопки и пустого списка");
   ok(!d2Main().querySelector("[data-arch-where]"), "без операции: подсказки на домене нет");
+  ok(!/сетевое хранилище/i.test(srvMenu(d2Empty)) && addSplitItems(d2Empty).every(([l]) => !/хранилище/i.test(l)), "без операции: в меню домена нет");
+  goTab("gen");
+  ok(!/хранилище/i.test(document.querySelector(".dom-acts").textContent), "без операции: в «Действиях» домена нет");
   CAPS.operations = d2Can;
   goTab("gen");
 });

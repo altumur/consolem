@@ -7026,6 +7026,7 @@ function openTreeCtx(n,xy){
       addItems.push(tctxItem(i18n("Добавить сервер"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.id}')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Создать папку"),`addSubfolder(null,'${n.id}')`,tctxPlusIcon()));
+      if(canDomainArch())addItems.push(tctxItem(i18n("Создать сетевое хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
     }else if(n.type==="server"&&!isUnallocated(n.id)){
       // Как у домена: всё, что заводит карточка сервера. Устройства — одним
       // входом, дальше службы и хранилище этого сервера.
@@ -9433,9 +9434,8 @@ function formBase(n){
         unit:"сервер|сервера|серверов"
       });
     if(tab==="srvs")return domainServersCard(n)+
-      (can("createArchive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Хранилища создают на сервере: выберите его в списке выше.":"Хранилища создают на сервере: сначала добавьте сервер.")}</p>`:"")+
-      // Созданные раньше хранилища на весь домен остаются видны; новых с домена не заводят
-      (!domainArchives(n.id).length?"":listCard({
+      (can("createArchive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Диски и хранилище одного сервера создают на самом сервере: выберите его в списке выше.":"Диски и хранилище одного сервера создают на самом сервере: сначала добавьте сервер.")}</p>`:"")+
+      (!domainArchives(n.id).length&&!canDomainArch()?"":listCard({
         key:"darc:"+n.id,
         title:"Сетевые хранилища домена",
         items:domainArchives(n.id),
@@ -9443,7 +9443,8 @@ function formBase(n){
         row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${ic("storage")}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
         empty:"Сетевых хранилищ нет",
         ph:"Имя или путь…",
-        unit:"хранилище|хранилища|хранилищ"
+        unit:"хранилище|хранилища|хранилищ",
+        head:canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:""
       }));
     const hw=n.servers.reduce((a,s)=>a+(s.devices||[]).filter(x=>x.type!=="det").length,0);// службы серверов домена
     const unN=(n.unallocServers||[]).length,arcN=domainArchives(n.id).length;
@@ -9462,6 +9463,7 @@ function formBase(n){
         <button type="button" class="btn s" ${onEv("click",["openW","server"])}>${lu("plus")}${i18n("Сервер")}</button>
         <button type="button" class="btn s" data-needs="probeServers" ${onEv("click",["openFindServerByIp",`${n.id}`])}>${i18n("Добавить серверы по IP")}</button>
         <button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${n.id}`])}>${lu("plus")}${i18n("Папка")}</button>
+        ${canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:""}
         <span style="flex:1"></span>
         <button type="button" class="btn s" data-needs="createDomain" ${onEv("click",["addDomain"])}>${lu("plus")}${i18n("Домен")}</button>
         <button type="button" class="btn s danger" data-needs="deleteDomain" ${onEv("click",["deleteDomain",`${n.id}`])} ${canDeleteDomain()?"":"disabled title=\""+i18n("Последний домен удалить нельзя")+"\""}>${i18n("Удалить домен")}</button>
@@ -17802,10 +17804,11 @@ function volDefaults(a){
     keyId:f.keyId||"",secret:"",host:f.host||"",port:f.port||9000,proto:f.proto||"https",account:f.account||"",endpoint:f.endpoint||"",style:f.style||"path"};
 }
 // ── Новое хранилище: сервер, тип, первый том ─────────────────────────────
-// Как «Создать…» в ветке сервера у Axxon One: любое хранилище создают на сервере, он и подставлен.
-// Входа с домена в интерфейсе нет; addArchive(домен) оставлен для общего сценария tests/ui-start.js.
+// Как «Создать…» в ветке сервера у Axxon One: хранилище создают на сервере, он и подставлен.
+// С домена — только то, чему сервер не нужен: общее хранилище, которое может взять любой сервер.
 let an=null;
 function domainArchKinds(){return refArchKinds.filter(x=>!x.serverRequired)}
+function canDomainArch(){return can("createArchive")&&domainArchKinds().length>0}
 function addArchive(ownerId){
   const f=find(ownerId);if(!f)return;
   const shared=f.n.type==="domain",kinds=shared?domainArchKinds():refArchKinds;
@@ -17838,7 +17841,7 @@ function anSet(k,v,quiet){
 // Что мешает создать: не выбран сервер, пустые обязательные поля.
 function anBlock(){
   const v=an.vol,spec=kindOf(an.kind),addr=spec.address;
-  // Из интерфейса сервер всегда подставлен; проверка — для addArchive(домен), там виду может быть нужен сервер
+  // Сервер обязателен виду, которому он нужен: с сервера он подставлен, с домена таких видов нет
   if(!an.server&&spec.serverRequired)return i18n("Выберите сервер");
   if(spec.serverWide&&arch.some(a=>a.kind===an.kind&&a.server===an.server))return i18n("На этом сервере такой архив уже есть: он один на сервер");
   if(addr==="disk"){
@@ -17866,7 +17869,7 @@ function renderArchNew(){
   const defName=addr==="bucket"?cloudLabel(an.provider):i18n(an.kind==="local"?"Хранилище":archKindName(an.kind));
   openBulkModal(`${i18n(an.shared?"Новое сетевое хранилище":"Новое хранилище")}${owner?" · "+escHtml(locName(owner)):""}`,
     `<div class="an-body">
-    ${an.shared?`<div class="an-srv bk-hint" data-arch-where>${i18n("Весь домен: хранилище может взять любой сервер домена.")}</div>`:`<div class="g an-srv">${fldRo("Сервер",srv?locName(srv)+(hasNoSignal(srv)?" — "+i18n("нет связи"):""):"—")}</div>${addr==="disk"?"":`<div class="an-srv bk-hint" data-arch-where>${i18n("Писать в него будет только этот сервер.")}</div>`}`}
+    ${an.shared?`<div class="an-srv bk-hint" data-arch-where>${i18n("Весь домен: хранилище может взять любой сервер домена. Диски сервера создают на самом сервере.")}</div>`:`<div class="g an-srv">${fldRo("Сервер",srv?locName(srv)+(hasNoSignal(srv)?" — "+i18n("нет связи"):""):"—")}</div>${addr==="disk"?"":`<div class="an-srv bk-hint" data-arch-where>${i18n(canDomainArch()?"Писать в него будет только этот сервер. Общее для всех серверов создают в домене.":"Писать в него будет только этот сервер.")}</div>`}`}
     <div class="an-kinds">${kinds}</div>${provs}
     <div class="g" style="margin-top:12px">
       <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(defName)}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
@@ -17923,9 +17926,9 @@ function createArchive(){
   archServerTouched(a);
   const v=a.vols[0];
   an=null;closeBulkModal();
-  open.add(a.server);sel=a.id;tab="arch";setD(true);
+  open.add(a.server||a.domain);sel=a.id;tab="arch";setD(true);
   toast(v.state==="unfmt"?i18n("Хранилище создано. Раздел не отформатирован — отформатируйте его у тома, когда будете готовы"):i18n("Хранилище создано"));
-  paint();
+  paint();revealSel();
   }).catch(e=>toast(problemText(e)));
 }
 function addVolume(archId){
@@ -19499,6 +19502,7 @@ function addSplitItems(n){
   if(n.type==="domain"){
     items.push(["Сервер…","openW('server')"]);
     if(can("probeServers"))items.push(["Серверы по IP…",`openFindServerByIp('${n.id}')`]);
+    if(canDomainArch())items.push(["Сетевое хранилище…",`addArchive('${n.id}')`]);
   }
   if(n.type==="server"&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
   if(n.type==="server"&&can("createArchive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
