@@ -4633,7 +4633,9 @@ function goAddServer(domainId){
   if(!find(id))return;
   openNode(id,{app:"hw",view:"cam",tab:"gen"});
 }
+// POST /servers и /servers/probe система может не объявлять: коробка приходит сама
 function openFindServerByIp(domainId){
+  if(!can("probeServers")&&!can("createServer")){toast("Серверы приходят сами: смотрите «Нераспределённые серверы»");return}
   const did=domainId||addContext().domain?.id||domains[0]?.id;
   if(!did)return;
   const ua=unallocId(did);
@@ -6098,9 +6100,16 @@ function watchSoon(){
 }
 // ── Топология: граф домена ──────────────────────────────────────────────
 // Как устроено взаимодействие серверов и кластеров: домен, кластер, сервер. Кластер — начало имени сервера, записи у него
-// нет; через кого он подключён, говорят ретрансляторы. Уровень 1 — кластеры напрямую, 2 — плюс кластеры через другие,
-// 3 — плюс все серверы. Камер и устройств нет. Серверы все из /servers: их до 500, граф всегда полный.
-const G7={pos:new Map(),hover:-1,zoom:1,px:0,py:0,raf:0,g:null,level:{domain:1,server:3},sel:null,openCl:new Set(),relays:new Map(),root:null};
+// нет; через кого он подключён, говорят ретрансляторы. Уровень 1 — кластеры напрямую, 2 — плюс их серверы и кластеры за их
+// ретрансляторами, 3 — плюс серверы этих кластеров: все кластеры и все серверы. Камер и устройств нет. Серверы все из /servers: их до 500, граф всегда полный.
+const G7={pos:new Map(),hover:-1,zoom:1,px:0,py:0,raf:0,g:null,chosen:new Map(),sel:null,openCl:new Set(),relays:new Map(),root:null};
+// Умолчание: домен — 1; сервер кластера напрямую — 2; сервер за ретранслятором — 3, иначе его не видно
+function g7Level(n){
+  if(G7.chosen.has(n.id))return G7.chosen.get(n.id);
+  if(n.type!=="server")return 1;
+  const d=g7DomainOf(n),via=d&&G7.relays.get(d.id),c=g7ClusterOf(n);
+  return via&&c&&via.has(c)&&d.servers.some(s=>g7ClusterOf(s)===via.get(c))?3:2;
+}
 function g7ClusterOf(s){const i=String(s.name).indexOf("/");return i>0?s.name.slice(0,i):null}
 function g7ShortName(s){const i=String(s.name).indexOf("/");return i>0?s.name.slice(i+1):s.name}
 function g7ClusterId(did,c){return`cl:${did}:${c}`}
@@ -6124,31 +6133,30 @@ function g7Build(n){
   add(d.id,"domain",locName(d),d.id);
   const by=new Map();d.servers.forEach(s=>{const c=g7ClusterOf(s);(by.get(c)||by.set(c,[]).get(c)).push(s)});
   const names=[...by.keys()].filter(Boolean),many=names.length>1,via=G7.relays.get(d.id)||new Map();
-  const level=G7.level[n.type]||3;
+  const level=g7Level(n);
   const known=c=>via.has(c)&&by.has(via.get(c))?via.get(c):null;
   const direct=names.filter(c=>!known(c));
   const clAdd=c=>{if(at.has(g7ClusterId(d.id,c)))return;const v=known(c);if(v)clAdd(v);add(g7ClusterId(d.id,c),"cluster",c,c,v?g7ClusterId(d.id,v):d.id)};
   const srvAdd=s=>{const c=g7ClusterOf(s);if(many&&c)clAdd(c);add(s.id,"server",g7ShortName(s),s.id,many&&c?g7ClusterId(d.id,c):d.id)};
   if(many){
     direct.forEach(clAdd);
-    if(level>=2)names.forEach(clAdd);
+    // Узел за ретранслятором висит на том ретрансляторе, что дал via, сколько бы переходов ни было
+    if(level>=2){direct.forEach(c=>by.get(c).forEach(srvAdd));(by.get(null)||[]).forEach(srvAdd);names.forEach(clAdd)}
     if(level>=3)d.servers.forEach(srvAdd);
     G7.openCl.forEach(k=>{const c=k.slice(d.id.length+4);if(k.startsWith(g7ClusterId(d.id,""))&&by.has(c)){clAdd(c);by.get(c).forEach(srvAdd)}});
-    // Текущий узел и его цепочка видны всегда
-    if(n.type==="server")srvAdd(n);
   }else d.servers.forEach(srvAdd);
   return{nodes,edges,alone:false};
 }
 function g7Html(n){
   const d=g7DomainOf(n),alone=n.type==="server"&&!d?.servers.includes(n);
   const empty=alone?i18n("Сервер ещё не в домене: связей нет"):!d.servers.length?i18n("В домене нет серверов"):"";
-  const lv=G7.level[n.type]||3;
+  const lv=g7Level(n);
   return`<div class="g7-wrap" id="g7Wrap"><div class="g7-hd"><span id="g7Info" class="g7-info"></span>${alone?"":`<div class="g7-bar"><span class="g7-lab">${i18n("Уровень")}</span>${[1,2,3].map(x=>`<button type="button" class="${lv===x?"on":""}" ${onEv("click",["g7SetLevel",x])}>${x}</button>`).join("")}</div>`}</div>
     ${empty?`<div class="nt" id="g7Empty">${empty}</div>`:""}
     <div class="g7-stage"><canvas id="g7c" role="img" aria-label="${i18n("Топология")}"></canvas><div class="g7-tip" id="g7Tip"></div><div class="g7-hint">${i18n("Тянуть узел — двигать · колесо — масштаб · клик — открыть в дереве · фон — сдвиг")}</div></div>
     <details class="g7-list"><summary>${i18n("Узлы списком")}</summary><div id="g7List"></div></details></div>`;
 }
-function g7SetLevel(x){const n=find(sel)?.n;if(!n)return;G7.level[n.type]=x;gear()}
+function g7SetLevel(x){const n=find(sel)?.n;if(!n)return;G7.chosen.set(n.id,x);gear()}
 function g7Tok(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()}
 function g7Colors(){return{domain:g7Tok("--tx"),cluster:g7Tok("--one-palette-amber")||g7Tok("--one-warning-icon"),server:g7Tok("--bl"),bad:g7Tok("--one-danger"),line:g7Tok("--mu"),text:g7Tok("--tx"),on:g7Tok("--bl"),ring:g7Tok("--tx")}}
 function g7Stop(){cancelAnimationFrame(G7.raf);G7.raf=0;if(G7.g)G7.g.nodes.forEach(n=>G7.pos.set(n.id,{x:n.x,y:n.y}))}
@@ -6159,6 +6167,12 @@ function g7Start(n){
   if(d&&!G7.relays.has(d.id))g7RelaysLoad(d).catch(()=>{});
   const cv=document.getElementById("g7c");if(!cv)return;
   const G=g7Build(n);G7.g=G;G7.alpha=1;G7.hover=-1;G7.fitted=false;G7.col=g7Colors();
+  // Узла нет на выбранном уровне: выделение остаётся на родителе или домене, карточка та же
+  if(!G.nodes.some(x=>x.id===G7.sel)&&n.type==="server"){
+    const dm=g7DomainOf(n),c=g7ClusterOf(n),cid=dm&&c?g7ClusterId(dm.id,c):null;
+    const via=dm&&c?G7.relays.get(dm.id)?.get(c):null,vid=via?g7ClusterId(dm.id,via):null;
+    G7.sel=[cid,vid,dm?.id].find(x=>G.nodes.some(y=>y.id===x))||G7.sel;
+  }
   const info=document.getElementById("g7Info");if(info)info.textContent=`${G.nodes.length} ${i18n("узлов")}, ${G.edges.length} ${i18n("связей")}`;
   const list=document.getElementById("g7List");
   if(list)list.innerHTML=G.nodes.map(x=>`<button type="button" class="lk lk-act" data-g7="${escHtml(x.id)}" ${onEv("click",["g7Click",x.id])}>${escHtml(x.name)}</button>`).join(" ");
@@ -6245,15 +6259,14 @@ function g7Click(id){
     if(root){g7Stop();const keep=G7.sel;g7Start(root);G7.sel=keep}
     return;
   }
-  const wasRaf=!!G7.raf;
+  // Граф на новой карточке тот же: уровень переходит с узла на узел
+  const lv=G7.root?g7Level(G7.root):null;
   g7Stop();
-  G7.pendingTopo=true;
+  if(lv!=null)G7.chosen.set(id,lv);
   hwJumpFlash=true;
   pick(id,{force:true});
   hwJumpFlash=false;
-  G7.pendingTopo=false;
   tab="topo";gear();
-  if(!wasRaf&&!document.getElementById("g7c"))return;
 }
 // ── Поиск и фильтр волнами ──────────────────────────────────────────────
 // Индекса нет: запрос с фильтром смотрит ограниченную часть вида, страница бывает пустой. Форма спрашивает сама, пока
@@ -8618,7 +8631,7 @@ function acfaTableHtml(server){
 }
 function unallocIpBtn(domainId,wizard){
   const click=wizard?"event.stopPropagation();wizGoIp(true)":`event.stopPropagation();openFindServerByIp('${domainId}')`;
-  return `<button type="button" class="btn pri unalloc-ip" ${onEv("click",click)}>${ic("search")}<span>${i18n("Добавить серверы по IP")}</span></button>`;
+  return `<button type="button" class="btn pri unalloc-ip" data-needs="probeServers" ${onEv("click",click)}>${ic("search")}<span>${i18n("Добавить серверы по IP")}</span></button>`;
 }
 function unallocIpFoot(domainId,wizard){
   return `<div class="unalloc-foot">
@@ -9389,7 +9402,7 @@ function formBase(n){
       </div>`)+
       card("Действия",`<div class="dom-acts">
         <button type="button" class="btn s" ${onEv("click",["openW","server"])}>${lu("plus")}${i18n("Сервер")}</button>
-        <button type="button" class="btn s" ${onEv("click",["openFindServerByIp",`${n.id}`])}>${i18n("Добавить серверы по IP")}</button>
+        <button type="button" class="btn s" data-needs="probeServers" ${onEv("click",["openFindServerByIp",`${n.id}`])}>${i18n("Добавить серверы по IP")}</button>
         <button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${n.id}`])}>${lu("plus")}${i18n("Папка")}</button>
         <button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Хранилище")}…</button>
         <span style="flex:1"></span>

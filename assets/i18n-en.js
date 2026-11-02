@@ -667,5 +667,6 @@ window.I18N_EN={
 "Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую":"Compare with the fingerprint on the box itself. Without the check, a foreign box can join the domain",
 "Отпечаток совпал, добавить":"Fingerprint matches, add",
 "камера другого кластера: откройте вход через него":"camera of another cluster: open the entry through it",
-"отпечаток не совпал":"fingerprint mismatch"
+"отпечаток не совпал":"fingerprint mismatch",
+"Серверы приходят сами: смотрите «Нераспределённые серверы»":"Servers come by themselves: see Unallocated servers"
 };
