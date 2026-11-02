@@ -33,6 +33,7 @@ UiCheck(async ({ ok, until }) => {
   const text = () => el("gopop").textContent;
   const mode = () => el("asstSvc")?.dataset.asstMode;
   const close = () => goClose();
+  const lastCall = () => calls[calls.length - 1];
   const open = () => { close(); asstOpen(""); };
   const say = (t) => { asst.text = t; el("asstSend").click(); };
   const press = (e) => ["mousedown", "mouseup", "click"].forEach((type) => e.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })));
@@ -194,17 +195,27 @@ UiCheck(async ({ ok, until }) => {
   // Тип выбрала служба: показан словом, выбор из трёх
   const kinds = () => [...el("gopop").querySelectorAll("[data-asst-kind]")];
   const kindBtn = (k) => el("gopop").querySelector(`[data-asst-kind="${k}"]`);
-  const lastCall = () => calls[calls.length - 1];
   open();
   ok(!el("asstKind"), "до хода типа нет");
   answer = sse({ type: "progress", text: "читаю" }, { type: "question", text: "На какой камере?", context: "b1:без-типа" });
   say("выключи запись");
   ok(await until(() => el("asstAsk")), "progress без kind");
   ok(!el("asstKind"), "служба не назвала тип — панели типа нет");
+  // Спорная просьба: question без progress с kind, типа ещё нет. Строка типа приходит следующим ходом
+  open();
+  answer = sse({ type: "question", text: "Настроить или спросить?", context: "b1:спор" });
+  say("камеры входа");
+  ok(await until(() => el("asstAsk")?.textContent === "Настроить или спросить?"), "спорное: вопрос без progress показан");
+  ok(!el("asstKind") && !asst.busy && !el("asstErr"), "без строки «Тип», ход кончился, ошибки нет");
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Камер входа две.", context: "b1:спор2" });
+  say("спросить");
+  ok(await until(() => /Тип: Вопрос о системе/.test(el("asstKind")?.textContent || "")), "тип пришёл следующим ходом");
+  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:спор", "следующий ход: auto, context спорного вопроса");
   open();
   answer = sse({ type: "progress", kind: "config", text: "читаю" }, { type: "progress", kind: "rules", text: "ещё" }, { type: "question", text: "На какой камере?", context: "b1:тип" });
   say("выключи запись");
   ok(await until(() => el("asstKind")), "тип показан");
+  ok(lastCall().body.kind === "auto", "до выбора человека — auto");
   ok(/Тип: Настройка/.test(el("asstKind").textContent), "по первому progress: " + el("asstKind").textContent);
   ok(kinds().map((b) => b.textContent).join() === "Настройка,Правила,Вопрос о системе", "выбор: " + kinds().map((b) => b.textContent).join());
   ok(kindBtn("config").getAttribute("aria-pressed") === "true", "текущий отмечен");
@@ -233,6 +244,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstAnswer")), "ответ показан");
   ok(lastCall().body.kind === "explain", "явный explain");
   ok(el("asstAnswer").textContent === "Серверов: 12.\nЛицензий хватает.", "текст ответа");
+  ok(el("asstAnswerNote").textContent === "Ответ ассистента, проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
   ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
   ok(await until(() => !asst.busy), "ход кончился");
   ok(el("asstText") && !el("asstApply") && !asst.plan && !el("asstDecline"), "поле ввода есть, «Применить» нет");

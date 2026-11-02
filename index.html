@@ -21704,7 +21704,8 @@ function asstRender(){
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
     asstKindHtml(a),
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
-    a.answer?`<div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
+    // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
+    a.answer?`<div class="asst-note" id="asstAnswerNote">${i18n("Ответ ассистента, проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",

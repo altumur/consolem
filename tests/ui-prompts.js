@@ -66,6 +66,16 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(panel() && !asst && !el("gopop").classList.contains("open"), "вопросы открылись — ассистент закрыт");
   press(el("promptClose"));
 
+  // Английские подписи: файл подписей разбирается, колокольчик и панель переведены
+  ok(Object.keys(window.I18N_EN || {}).length > 1000, "английские подписи загружены");
+  setUiLang("en");
+  ok(el("promptBell").title === "Operator questions" && el("promptSound").title === "Escalation sound is on", "английские подписи колокольчика");
+  press(el("promptBell"));
+  ok(/No open questions/.test(el("promptPop").textContent), "английские подписи панели");
+  press(el("promptClose"));
+  setUiLang("ru");
+  ok(el("promptBell").title === "Вопросы операторам", "русские вернулись");
+
   // ask: вопрос, счётчик виден с другого раздела, «Да», ветка пошла дальше. Звука нет
   await runByForm(ASK);
   ok(await until(() => count() === 1), "запуск кнопкой формы поднял вопрос: счётчик 1");
