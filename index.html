@@ -2209,7 +2209,7 @@ function devNode(r){
     if(k==="enabled"){if(v===false)n.enabled=false;return}
     if(k==="detectorKind")n.kind=DET_KIND_RU[v]||v;
     else if(k==="sensitivity")n.sens=String(v);
-    else if(k==="sizeBytes")n.size=bytesText(v);
+    else if(k==="sizeBytes"){n.size=bytesText(v);n.bytes=v}
     else if(k==="lat"||k==="lon")n[k]=v==null?"":v.toFixed(6);
     else if(k==="azimuth")n[k]=v==null?"":String(v);
     else if(k==="extraArchives")n.archx=v.map(x=>({arch:x.archiveId,rec:x.recordMode,stream:x.stream,...(x.labels?{labels:x.labels}:{}),...(x.state?{state:x.state}:{}),...(x.reason?{reason:x.reason}:{}),...(x.readOnly?{ro:true}:{}),...("replicaFrom" in x?{replicaFrom:x.replicaFrom}:{}),...(x.replicaLagSec!=null?{lag:x.replicaLagSec}:{}),...(x.retentionDays!=null?{retentionDays:x.retentionDays}:{}),...(x.minDepthDays!=null?{minDepthDays:x.minDepthDays}:{})}));
@@ -3862,10 +3862,10 @@ function cardApply(ok){
   if(busyRefuse(cardDraft.id))return;
   const n=find(cardDraft.id).n;
   const items=cardApiItems(n,d);
-  // Меньший объём тома стирает старое: без второго слова сервер откажет
-  const less=(items||[]).filter(x=>x.set?.sizeBytes!=null&&volById(x.targetId)?.bytes>x.set.sizeBytes);
+  // Меньший объём тома или карты камеры стирает старое: без второго слова сервер откажет
+  const less=(items||[]).filter(x=>x.set?.sizeBytes!=null&&(volById(x.targetId)||find(x.targetId)?.n)?.bytes>x.set.sizeBytes);
   if(less.length&&!ok){
-    askConfirm("Уменьшить том",`${i18n("Новый объём меньше прежнего")}: ${less.map(x=>escHtml(bytesText(x.set.sizeBytes))).join(", ")}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>cardApply(true),{rawMsg:true});
+    askConfirm(less.every(x=>volById(x.targetId))?"Уменьшить том":"Уменьшить карту",`${i18n("Новый объём меньше прежнего")}: ${less.map(x=>escHtml(bytesText(x.set.sizeBytes))).join(", ")}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>cardApply(true),{rawMsg:true});
     return;
   }
   less.forEach(x=>{x.set.confirmShrinkBytes=x.set.sizeBytes});

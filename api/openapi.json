@@ -10012,6 +10012,11 @@
                 "type": "null"
               }
             ]
+          },
+          "confirmShrinkBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Второе подтверждение уменьшения карты камеры w2c: равно новому sizeBytes. Меньший sizeBytes без него — 422 VALIDATION_FAILED, field: sizeBytes; другое число — field: confirmShrinkBytes. Не хранится"
           }
         },
         "description": "Изменение устройства (JSON Merge Patch, RFC 7396): переданные поля заменяются, null убирает поле"

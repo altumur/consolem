@@ -214,6 +214,25 @@
     assert.ok(row.every((x) => x.recordMode !== "always" || (!("replicaFrom" in x) && !("replicaLagSec" in x))), "у другого режима этих полей нет");
   }, needs);
 
+  test("Карта камеры w2c: уменьшение только с подтверждением; поле не хранится; откат объёма не возвращает, как у тома", async () => {
+    const env = await makeEnv();
+    const cardRec = (await env.list("/devices")).find((d) => d.type === "storage" && d.writableFields);
+    const size = cardRec.sizeBytes, less = size - 1024 ** 3, ver = (x) => ({ "If-Match": `"${x.version}"` });
+    const noWord = await env.call("PATCH", `/devices/${cardRec.id}`, { sizeBytes: less }, ver(cardRec));
+    assert.status(noWord, 422, "VALIDATION_FAILED", "меньше без подтверждения");
+    assert.eq(noWord.body.field, "sizeBytes", "поле");
+    const wrong = await env.call("PATCH", `/devices/${cardRec.id}`, { sizeBytes: less, confirmShrinkBytes: less + 1 }, ver(cardRec));
+    assert.status(wrong, 422, "VALIDATION_FAILED", "другое число");
+    assert.eq(wrong.body.field, "confirmShrinkBytes", "поле");
+    const small = await env.ok("PATCH", `/devices/${cardRec.id}`, { sizeBytes: less, confirmShrinkBytes: less }, ver(cardRec));
+    assert.eq([small.sizeBytes, "confirmShrinkBytes" in small], [less, false], "применено, поле не хранится");
+    const big = await env.ok("PATCH", `/devices/${cardRec.id}`, { sizeBytes: size }, ver(small));
+    assert.eq(big.sizeBytes, size, "больше — без подтверждения");
+    const back = await env.finished((await env.ok("POST", `/operations/${(await env.ok("GET", "/operations")).items[0].id}/revert`, {})).id);
+    assert.eq([back.failed, back.items[0].code], [1, "NOT_SUPPORTED"], "шаг отказал, сервер не упал");
+    assert.eq((await env.ok("GET", `/devices/${cardRec.id}`)).sizeBytes, size, "объём на месте");
+  }, { needs: ["type:storage"] });
+
   test("Карта камеры w2c: запись storage, recordMode и sizeBytes правятся, остальное — нет; обычная только чтение", async () => {
     const env = await makeEnv();
     const list = await env.list("/devices");

@@ -110,6 +110,19 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/несовместим/.test(clash), "несовместимый детектор: " + clash);
   ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
 
+  // Карта камеры w2c: меньший объём — со вторым подтверждением
+  const cardN = of("storage", (d) => d.writableFields);
+  if (cardN) {
+    const was = (await API.get(`/devices/${cardN.id}`)).sizeBytes;
+    open(cardN.id, "gen");
+    storageSet(cardN.id, "size", String(Math.round(was / 1024 ** 3) - 8));
+    cardApply();
+    ok(await until(() => /Уменьшить карту/.test(document.body.textContent)), "спрашивает подтверждение");
+    await confirmWith(null);
+    ok(await until(() => find(cardN.id).n.bytes < was), "объём уменьшен");
+    ok((await API.get(`/devices/${cardN.id}`)).sizeBytes < was, "на сервере меньше");
+  }
+
   // Пресеты: движение арендой, пресет запоминается, в правиле — выбор из списка
   const ptz = of("camera", (d) => d.ptz && d.presets?.length);
   open(ptz.id, "vid");

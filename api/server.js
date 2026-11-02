@@ -260,7 +260,7 @@
       return null;
     }
     function recordingProblem(rec, patch) {
-      if (rec.type === "storage") return cardProblem(patch);
+      if (rec.type === "storage") return cardProblem(rec, patch);
       if (rec.type !== "camera" || !RECORD_FIELDS.some((k) => k in patch)) return null;
       const next = Object.assign({}, rec, patch);
       const main = next.archiveId ? archiveRowProblem({ archiveId: next.archiveId, recordMode: next.recordMode }, true, next.archiveId === rec.archiveId) : next.recordMode === "backup" ? problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" }) : null;
@@ -291,9 +291,9 @@
     }
     const RECORD_FIELDS = ["archiveId", "recordMode", "stream", "extraArchives", "replicaFrom", "recordScheduleId", "retentionDays", "minDepthDays", "audioDeviceId"];
     // Карта камеры w2c: режим самой карты и её объём
-    function cardProblem(patch) {
+    function cardProblem(rec, patch) {
       if ("recordMode" in patch && !["always", "backup"].includes(patch.recordMode)) return problem(422, "VALIDATION_FAILED", "У карты — постоянно или только при сбое", { field: "recordMode" });
-      return null;
+      return volumePatchProblem(rec, patch);
     }
     // Встроенное хранилище — под самой камерой или под её регистратором
     const hasBuiltIn = (rec) => db.devices.some((d) => d.type === "storage" && (d.parentId === rec.id || (rec.parentId && d.parentId === rec.parentId)));
@@ -532,7 +532,7 @@
       const w = rec.writableFields || (caps().writableFields || {})[rec.type];
       if (!rec.derived && !w) return null;
       if (rec.derived || !w.length) return problem(422, "NOT_SUPPORTED", "У этой записи нет правок", { field: "type" });
-      const field = Object.keys(patch).find((k) => !w.includes(k) || (k === "path" && !isUnit(rec)));
+      const field = Object.keys(patch).find((k) => k !== "confirmShrinkBytes" && (!w.includes(k) || (k === "path" && !isUnit(rec))));
       return field ? problem(422, "NOT_SUPPORTED", `Поле ${field} у этого вида не правится`, { field }) : null;
     }
     // Правка не оставляет камеру без адреса
@@ -634,7 +634,8 @@
       if (rec.shrinkPendingBytes != null && out.sizeBytes != null && out.sizeBytes <= rec.shrinkPendingBytes) out.shrinkPendingBytes = null;
       return out;
     }
-    const setOf = (t, set) => (t.kind === "volume" ? volumeSet(t.rec, set) : set);
+    const noConfirm = (set) => { const out = Object.assign({}, set); delete out.confirmShrinkBytes; return out; };
+    const setOf = (t, set) => (t.kind === "volume" ? volumeSet(t.rec, set) : noConfirm(set));
     // Режим, приём записей и шифрование — как у вида
     function archivePatchProblem(a, patch) {
       const spec = specOf(a);
@@ -1428,9 +1429,14 @@
       const done = [...ops.values()].filter((op) => op.state === "done");
       done.slice(0, Math.max(0, done.length - UNDO_KEEP)).forEach((op) => ops.delete(op.id));
     }
-    // Адрес и объём тома откат не возвращает: записи на нём уже стёрты или лежат по новому адресу
+    // Адрес и объём тома откат не возвращает: записи на нём уже стёрты или лежат по новому адресу.
+    // Объём карты камеры w2c — так же: откат увеличения был бы уменьшением без подтверждения
     const VOLUME_FIXED = ["sizeBytes", "disk", "mode", "dir", "file", "bucket", "region", "path", "host", "port", "proto", "endpoint", "style", "account"];
-    const volumeFixed = (step) => !!step.before.set && !!byId("volumes", step.targetId) && VOLUME_FIXED.some((k) => k in step.before.set);
+    const volumeFixed = (step) => {
+      if (!step.before.set) return false;
+      if (byId("volumes", step.targetId)) return VOLUME_FIXED.some((k) => k in step.before.set);
+      return (byId("devices", step.targetId) || {}).type === "storage" && "sizeBytes" in step.before.set;
+    };
     const setStep = (rec, set, before) => ({ targetId: rec.id, version: rec.version, before: { set: before }, after: fieldsOf(rec, set), secret: "password" in set || "secret" in set });
     const opView = (op) => ({
       id: op.id,
@@ -1641,10 +1647,11 @@
           if (!rec) return notFound("Устройство");
           const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
           if (bad) return bad;
-          const before = applyPatch(rec, body);
-          syncMain(rec, body);
+          const set = noConfirm(body);
+          const before = applyPatch(rec, set);
+          syncMain(rec, set);
           changed("device", rec);
-          recordSingle([setStep(rec, body, before)]);
+          recordSingle([setStep(rec, set, before)]);
           return one(device(rec));
         },
       ],
