@@ -543,6 +543,54 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goTab("disk");
   ok([...d2Main().querySelectorAll("button")].some((b) => /Хранилище…/.test(b.textContent)), "вкладка дисков сервера: кнопка создания");
 
+  // Шестой вид — «Облачное» (S3): только на этой странице, общий набор его не объявляет
+  ok(Object.values(window.CONSOLEM_FIXTURES).every((fx) => fx.reference.archiveKinds.every((k) => k.kind !== "cloud")), "S3: общие наборы не тронуты");
+  ok(refArchKinds.map((k) => k.kind).join() === "local,network,cloud,backup,edge,incidents", "S3: шесть видов, облачное рядом с удалённым — " + refArchKinds.map((k) => k.kind));
+  addArchive(d2Srv.id);
+  const d2Cards = () => [...d2Body().querySelectorAll(".an-kind")];
+  ok(d2Cards().length === 6, "S3: на сервере шесть карточек");
+  ok(new Set(d2Cards().map((c) => c.offsetTop)).size === 2 && new Set(d2Cards().map((c) => c.offsetLeft)).size === 3, "S3: сетка три на два, без одинокой карточки");
+  ok(/Облачное/.test(d2Cards()[2].textContent) && /Amazon S3/.test(d2Cards()[2].textContent), "S3: в карточке вида есть название и S3: " + d2Cards()[2].textContent);
+  anSet("kind", "cloud");
+  ok(d2Body().querySelectorAll(".an-provs button").length === CLOUD_PROVIDERS.length, "S3: на выбор все провайдеры");
+  ok([...d2Body().querySelectorAll(".g label")].some((l) => l.textContent.trim() === "Бакет") && !/Путь к папке/.test(d2Body().textContent), "S3: поле бакета вместо полей NAS");
+  ok(/Проверить подключение/.test(d2Body().parentElement.textContent), "S3: есть проверка подключения");
+  ok(/Укажите бакет/.test(anBlock()), "S3: без бакета создать нельзя — " + anBlock());
+  anSet("bucket", "vms-archive", true);
+  anSet("name", "S3 на сервере — срез 2", true);
+  ok(!anBlock(), "S3: с бакетом можно создать — " + anBlock());
+  createArchive();
+  ok(await until(() => !an && arch.some((a) => a.name === "S3 на сервере — срез 2")), "S3: создано с сервера");
+  const d2S3 = arch.find((a) => a.name === "S3 на сервере — срез 2");
+  const d2S3Rec = await API.get("/archives/" + d2S3.id);
+  ok(d2S3Rec.kind === "cloud" && d2S3Rec.provider === "s3" && d2S3Rec.storage === "object" && d2S3Rec.serverId === d2Srv.id, "S3: сервер записал вид, провайдера и владельца — " + d2S3Rec.kind + ", " + d2S3Rec.provider);
+  ok(document.querySelector("#tree .n.on .tag-cloud")?.textContent === "S3" && serverArchives(d2Srv.id).includes(d2S3), "S3: метка S3 в дереве, хранилище в списке сервера");
+  ok(/^s3:\/\/vms-archive\//.test(archDiskLabel(d2S3)), "S3: в строке списка адрес бакета, а не код провайдера — " + archDiskLabel(d2S3));
+  deleteVolume(archVols(d2S3)[0].id);
+  ok(/s3:\/\/vms-archive\//.test(document.getElementById("confirmMsg").textContent), "S3: в удалении тома адрес бакета — " + document.getElementById("confirmMsg").textContent);
+  document.getElementById("confirmCancel").click();
+  addArchive(d2Dom.id);
+  ok(d2Cards().length === 2 && an.kind === "network", "S3: на домене два вида, сначала удалённое");
+  anSet("storage", "block");
+  anSet("kind", "cloud");
+  ok(an.storage === "object", "S3: бакет всегда объектный");
+  anSet("kind", "network");
+  ok(an.storage === "block", "S3: выбор «Блочное» вернулся при уходе с облачного");
+  ok(getComputedStyle(d2Body().querySelector(".an-kinds")).gridTemplateColumns.split(" ").length === 2, "S3: на домене две колонки, пустого места нет");
+  anSet("kind", "cloud");
+  anSet("provider", "minio");
+  ok(/Укажите бакет/.test(anBlock()), "S3 с домена: без бакета создать нельзя — " + anBlock());
+  anSet("bucket", "shared", true);
+  ok(/Укажите хост MinIO/.test(anBlock()), "S3 с домена: MinIO просит хост — " + anBlock());
+  anSet("host", "minio.local", true);
+  anSet("name", "S3 на домене — срез 2", true);
+  createArchive();
+  ok(await until(() => !an && arch.some((a) => a.name === "S3 на домене — срез 2")), "S3: создано с домена");
+  const d2S3Dom = await API.get("/archives/" + arch.find((a) => a.name === "S3 на домене — срез 2").id);
+  ok(d2S3Dom.kind === "cloud" && d2S3Dom.provider === "minio" && !d2S3Dom.serverId && d2S3Dom.domainId === d2Dom.id, "S3 с домена: владелец — домен, провайдер MinIO");
+  pick(d2Srv.id);
+  goTab("disk");
+
   // Нет операции createArchive — нигде не предлагается
   const d2Can = CAPS.operations;
   CAPS.operations = new Set([...d2Can].filter((o) => o !== "createArchive"));
