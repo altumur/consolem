@@ -574,6 +574,9 @@ window.I18N_EN={
 "ждёт ответа оператора":"awaiting the operator's answer",
 "Правило запущено и ждёт ответа оператора":"The rule started and awaits the operator's answer",
 "запуск снят: правило изменили или запустили заново":"run stopped: the rule was changed or restarted",
+"Что считать тревогой на весь домен":"What counts as an alarm across the domain",
+"при целях из нескольких доменов не выполняется":"is not performed for targets in several domains",
+"Цели правила — в другом домене, чем его сервер: выберите сервер этого домена":"The rule's targets are in another domain than its server: choose a server of that domain",
 "Поля события":"Event fields",
 "Поля события, JSON":"Event fields, JSON",
 "Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"

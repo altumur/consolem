@@ -473,5 +473,34 @@
     assert.eq((await run(env)).result, "skip", "сверх 16 — как skip");
   }, { needs: PROMPTS });
 
+  /* ----- Домен ----- */
+
+  test("Тревожные виды на весь домен: Settings.values, только из reference.eventKinds", async () => {
+    const env = await makeEnv();
+    const s = await env.ok("GET", "/settings");
+    const kinds = (await env.ok("GET", "/reference")).eventKinds;
+    const done = await env.ok("PATCH", "/settings", { values: { "alarms.domain": kinds.slice(0, 2) } }, etag(s));
+    assert.eq(done.values["alarms.domain"], kinds.slice(0, 2), "сохранено");
+    const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["нет такого"] } }, etag(done));
+    assert.status(bad, 422, "VALIDATION_FAILED");
+    assert.eq(bad.body.field, "alarms.domain", "поле");
+  });
+
+  test("Правило на несколько доменов: только объявленные шаги, прочее — 422 NOT_SUPPORTED, field: steps; сервер выбирает домен", async () => {
+    const cams = (d) => FX.devices.filter((x) => x.type === "camera" && x.domainId === d.id);
+    const [a, b] = FX.domains.filter((d) => cams(d).length).map((d) => cams(d)[0]);
+    const env = await makeEnv();
+    const preset = (id) => ({ source: "vms", action: "preset", target: dev(id), preset: 1 });
+    assert.status(await env.call("POST", "/rules", blank({ steps: [preset(a.id), preset(b.id)] })), 201, null, "пресеты");
+    const bad = await env.call("POST", "/rules", blank({ steps: [preset(a.id), Object.assign({}, step, { target: dev(b.id) })] }));
+    assert.status(bad, 422, "NOT_SUPPORTED");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.step], ["steps", "rule.crossDomain", "record"], "шаг");
+    assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [preset(a.id), Object.assign({}, step, { target: dev(b.id) })] })), 201, null, "выключенное хранится");
+    const srv = FX.servers.find((s) => s.domainId !== b.domainId);
+    const home = await env.call("POST", "/rules", blank({ serverId: srv.id, steps: [Object.assign({}, step, { target: dev(b.id) })] }));
+    assert.status(home, 422, "VALIDATION_FAILED");
+    assert.eq(home.body.field, "serverId", "цели в другом домене");
+  }, { needs: ["createDomain"] });
+
   ApiTest.loaded("api-automation.js");
 })();

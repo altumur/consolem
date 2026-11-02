@@ -7266,7 +7266,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Домен, где живёт правило: сервер выбирает его. Цели только из другого домена у включённого правила — 422 VALIDATION_FAILED, field: serverId. null — домен целей. Цели из нескольких доменов — reference.ruleCrossDomainActions"
           },
           "runAsRoleId": {
             "type": [
@@ -8424,6 +8425,13 @@
                 "type": "integer",
                 "minimum": 0,
                 "description": "Срок хранения тревог, дней"
+              },
+              "alarms.domain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Что считать тревогой на весь домен: значения из reference.eventKinds, как Device.alarmKinds. Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
               }
             },
             "additionalProperties": false,
@@ -9141,6 +9149,13 @@
               "fromEvent"
             ],
             "description": "Какие цели понимает система. Другая цель в правиле — как шаг вне справочника (описание ruleActions)"
+          },
+          "ruleCrossDomainActions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Что исполняет правило с целями из нескольких доменов: виды действий. Другой шаг в таком включённом правиле — 422 NOT_SUPPORTED, field: steps, params.issue: rule.crossDomain. Поля нет — ограничения нет"
           }
         },
         "additionalProperties": false,
@@ -12095,7 +12110,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Домен, где живёт правило: сервер выбирает его. Цели только из другого домена у включённого правила — 422 VALIDATION_FAILED, field: serverId. null — домен целей. Цели из нескольких доменов — reference.ruleCrossDomainActions"
           },
           "runAsRoleId": {
             "type": [
@@ -12211,6 +12227,13 @@
                 "type": "integer",
                 "minimum": 0,
                 "description": "Срок хранения тревог, дней"
+              },
+              "alarms.domain": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Что считать тревогой на весь домен: значения из reference.eventKinds, как Device.alarmKinds. Другое значение — 422 VALIDATION_FAILED, field: alarms.domain"
               }
             }
           }
@@ -12882,7 +12905,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Домен, где живёт правило: сервер выбирает его. Цели только из другого домена у включённого правила — 422 VALIDATION_FAILED, field: serverId. null — домен целей. Цели из нескольких доменов — reference.ruleCrossDomainActions"
           },
           "runAsRoleId": {
             "type": [
@@ -13084,7 +13108,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Домен, где живёт правило: сервер выбирает его. Цели только из другого домена у включённого правила — 422 VALIDATION_FAILED, field: serverId. null — домен целей. Цели из нескольких доменов — reference.ruleCrossDomainActions"
           },
           "runAsRoleId": {
             "type": [

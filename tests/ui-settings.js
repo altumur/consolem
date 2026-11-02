@@ -25,6 +25,13 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => SETTINGS.find((x) => x.id === "events.retentionDays").value === "30"), "значение пришло с сервера");
   ok((await API.get("/settings")).values["events.retentionDays"] === 30, "на сервере — число");
   const al = SETTINGS.find((x) => x.id === "alarms.retentionDays"), keep = al.value;
+  // Тревожные виды на весь домен: чипы из reference.eventKinds, ключа нет — поля нет
+  const ad = SETTINGS.find((x) => x.id === "alarms.domain");
+  ok(!!document.querySelector('[data-set="alarms.domain"] [data-chip="motion"]'), "виды — чипами");
+  document.querySelector('[data-set="alarms.domain"] [data-chip="motion"]').click();
+  ok(await until(() => (ad.value || []).includes("motion")), "вид отмечен");
+  ok((await API.get("/settings")).values["alarms.domain"].join() === "motion", "на сервере — списком");
+  ok(await until(() => document.querySelector('[data-set="alarms.domain"] [data-chip="motion"].on')), "страница показывает отмеченное");
   al.value = undefined;
   sysUI();
   ok(!document.querySelector('[data-set="alarms.retentionDays"]'), "ключа нет у сервера — поля нет");

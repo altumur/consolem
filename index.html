@@ -2989,12 +2989,12 @@ let settingsVer=null;
 const TWO_FA_RU={off:"Нет",admins:"Обязательно админам"},TWO_FA_CODE={"Нет":"off","Обязательно админам":"admins"};
 function settingsApply(s){
   settingsVer=s.version;
-  SETTINGS.forEach(st=>{const v=s.values[st.id];if(v===undefined)return;st.value=st.id==="sec.2fa"?TWO_FA_RU[v]||v:String(v)});
+  SETTINGS.forEach(st=>{const v=s.values[st.id];if(v===undefined)return;st.value=st.id==="sec.2fa"?TWO_FA_RU[v]||v:Array.isArray(v)?v.slice():String(v)});
 }
 function settingSet(id,v){
   const num=id==="sec.pwdage"||SETTINGS.find(x=>x.id===id)?.num;
   const val=id==="sec.2fa"?TWO_FA_CODE[v]||v:num?(/^\d+$/.test(v)?Number(v):v):v;
-  API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false)}).catch(e=>{toast(problemText(e));sysUI()});
+  API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false);if(Array.isArray(val))sysUI()}).catch(e=>{toast(problemText(e));sysUI()});
 }
 let licenses=[];
 const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
@@ -3026,7 +3026,7 @@ async function appLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[];
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[],refRuleCross=null;
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
@@ -3038,6 +3038,7 @@ function autoRef(ref){
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
   // сервер, подписи — по коду, незнакомый код показывается как есть
+  refRuleCross=ref.ruleCrossDomainActions||null;
   Object.assign(RULE_REF,{starts:ref.ruleStarts||null,triggers:ref.ruleTriggers||null,actions:ref.ruleActions||null,conds:ref.ruleConditions||null,ctls:ref.ruleControls||null,targets:ref.ruleTargets||null});
   (ref.ruleTriggers||[]).forEach(t=>{
     const k=triggerKind({sub:t.source,kind:t.kind});
@@ -8850,6 +8851,14 @@ function ruleFieldShown(k,f,a){return!(f.req===false||/необязательн�
 function kindOpts(list,ok,cur,val){
   return list.map((k,j)=>[k,j]).filter(([k])=>ok(k)||k===cur).map(([k,j])=>[val?val(k):j,ok(k)?k.label:`${i18n(k.label)} (${i18n(RULE_OFF)})`]);
 }
+// Домены целей правила: цели из нескольких доменов исполняют только объявленные шаги
+function ruleDomains(r){
+  const out=new Set(),one=ref=>{if(!ref||ref==="$src")return;refParts(ref).inc.forEach(t=>{const a=t.indexOf(":"),k=a>0?t.slice(0,a):"",id=a>0?t.slice(a+1):t;
+    if(k==="gone")return;const d=k==="domain"?id:k==="folder"?folderDomain(id):k==="server"?domainOf(id)?.id:deviceDomain(id);if(d)out.add(d)})};
+  (r.when||[]).forEach(t=>one(t.ref));(r.cond||[]).forEach(c=>one(c.ref));
+  ruleItems(r).forEach(({it})=>{one(it.ref);if(it.ev)one(it.ev.ref)});
+  return out;
+}
 // Что в правиле вне каталога: текст первого такого места
 function ruleOutOfCat(r){
   const off=l=>`«${i18n(l)}»: ${i18n(RULE_OFF)}`;
@@ -9432,6 +9441,9 @@ function ruleAutoName(r){
 // порядке, а потом — в журнале, через час, чужим текстом.
 function ruleProblem(r){
   const off=ruleOutOfCat(r);if(off)return off;
+  const doms=ruleDomains(r);
+  if(r.on&&r.server&&doms.size===1&&domainOf(r.server)&&!doms.has(domainOf(r.server).id))return"Цели правила — в другом домене, чем его сервер: выберите сервер этого домена";
+  if(refRuleCross&&doms.size>1){const x=ruleItems(r).find(({it})=>!refRuleCross.includes(it.action));if(x)return`«${i18n(x.it.ctl?ctlKind(x.it).label:actionKind(x.it).label)}»: ${i18n("при целях из нескольких доменов не выполняется")}`}
   if(r.start==="event"){
     if(!r.when.length)return"Нужно хотя бы одно событие: правило без «если» не сработает";
     if(r.when.length>1&&!r.within)return"Двум событиям нужно окно: в пределах скольких секунд они считаются совпавшими";
@@ -16011,11 +16023,13 @@ const SETTINGS=[
   {id:"mail.smtp",page:"mail",card:"Каналы",label:"SMTP-сервер",type:"text"},
   {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text"},
   {id:"events.retentionDays",page:"keep",card:"Срок хранения",label:"События, дней",type:"text",num:true},
-  {id:"alarms.retentionDays",page:"keep",card:"Срок хранения",label:"Тревоги, дней",type:"text",num:true}
+  {id:"alarms.retentionDays",page:"keep",card:"Срок хранения",label:"Тревоги, дней",type:"text",num:true},
+  {id:"alarms.domain",page:"keep",card:"Тревоги",label:"Что считать тревогой на весь домен",type:"kinds"}
 ];
 let settingHighlight=null;
+function settingKindToggle(id,k){const st=SETTINGS.find(x=>x.id===id);settingSet(id,listToggled(st.value,k))}
 function settingFieldHtml(st){
-  const body=st.type==="select"
+  const body=st.type==="kinds"?chipsHtml(refEvents,st.value,"settingKindToggle",`${st.id}`):st.type==="select"
     ?`<select ${onEv("change",["settingSet",`${st.id}`,onEv.value])}>${st.opts.map(o=>`<option value="${escHtml(o)}" ${o===st.value?"selected":""}>${i18n(o)}</option>`).join("")}</select>`
     :`<input type="text" value="${escHtml(st.value??"")}" ${onEv("input",["setD",true])} ${onEv("change",["settingSet",`${st.id}`,onEv.value])}>`;
   return`<div data-set="${st.id}"><label>${i18n(st.label)}</label>${body}</div>`;

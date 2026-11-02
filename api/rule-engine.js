@@ -405,6 +405,30 @@
       }) || null;
     }
 
+    /* ===== Домены правила ===== */
+
+    // Домены целей: события, условия, шаги. Домен контракта — кластер правила (ADR-0111 пп. 8, 10)
+    function domainsOf(r) {
+      const out = new Set(), one = (x) => {
+        const rec = x.kind === "device" ? devById(x.id) : x.kind === "domain" ? { domainId: x.id } : (x.kind === "server" ? world.servers() : world.folders()).find((y) => y.id === x.id);
+        if (rec && rec.domainId) out.add(rec.domainId);
+      };
+      const add = (t) => t && t.include.forEach(one);
+      r.triggers.forEach((t) => add(t.target));
+      r.conditions.forEach((c) => add(c.target));
+      items(r).forEach(({ it }) => {
+        add(it.target);
+        if (it.event) add(it.event.target);
+      });
+      return [...out];
+    }
+    // Шаг, которого правило с целями из нескольких доменов не исполняет, или null
+    function crossDomain(r, ref) {
+      if (!ref.ruleCrossDomainActions || domainsOf(r).length < 2) return null;
+      const bad = items(r).find(({ it }) => !ref.ruleCrossDomainActions.includes(it.action));
+      return bad ? msg("rule.crossDomain", { step: bad.it.action || bad.it.control }) : null;
+    }
+
     /* ===== Проверка правила ===== */
 
     const ruleById = (id) => world.rules().find((r) => r.id === id) || null;
@@ -794,7 +818,7 @@
 
     // Что сервер знает о включённом правиле сейчас (Rule.status). Встроенный сервер сверяет только то, что есть в его записях
     function status(r, ref) {
-      const out = undeclared(r, ref), why = out ? out.issue : issue(r);
+      const out = undeclared(r, ref), why = out ? out.issue : crossDomain(r, ref) || issue(r);
       if (why) return { state: "refused", reason: why.code };
       const unfit = [], unchecked = [];
       const name = (n) => `«${n.name}»`;
@@ -812,7 +836,7 @@
       return unchecked.length ? { state: "unchecked", reason: [...new Set(unchecked)].join("; ") } : { state: "watching", reason: "" };
     }
 
-    return { fire, retry, retryable, outcome, fillText, hears, issue, undeclared, status, forbidden, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    return { fire, retry, retryable, outcome, fillText, hears, issue, undeclared, status, forbidden, domainsOf, crossDomain, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
   // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние

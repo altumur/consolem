@@ -33309,7 +33309,8 @@
    "mail.smtp": "smtp.local",
    "mail.hook": "https://…",
    "events.retentionDays": 90,
-   "alarms.retentionDays": 365
+   "alarms.retentionDays": 365,
+   "alarms.domain": []
   }
  },
  "licenses": [
@@ -35161,7 +35162,11 @@
     "domain"
    ],
    "fromEvent": true
-  }
+  },
+  "ruleCrossDomainActions": [
+   "preset",
+   "output"
+  ]
  },
  "streamAccounts": [
   {

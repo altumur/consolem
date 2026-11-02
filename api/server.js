@@ -1068,6 +1068,10 @@
       if (c.enabled) {
         const out = engine.undeclared(c, db.reference);
         if (out) return problem(422, "NOT_SUPPORTED", "Система этого не исполняет: правило вне каталога", { field: out.field, params: { issue: out.issue } });
+        const cross = engine.crossDomain(c, db.reference);
+        if (cross) return problem(422, "NOT_SUPPORTED", "Правило с целями из нескольких доменов этого не исполняет", { field: "steps", params: { issue: cross } });
+        const home = c.serverId ? byId("servers", c.serverId) : null, doms = engine.domainsOf(c);
+        if (home && doms.length === 1 && doms[0] !== home.domainId) return problem(422, "VALIDATION_FAILED", "Цели правила — в другом домене, чем его сервер", { field: "serverId" });
         const why = engine.issue(Object.assign({ id: null }, c));
         if (why) return problem(422, "RULE_INVALID", "Правило с ошибкой нельзя включить: исправьте ошибку или выключите правило", { params: { issue: why } });
       }
@@ -2412,6 +2416,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const s = db.settings;
           const bad = precondition(s, headers);
           if (bad) return bad;
+          const kinds = body.values["alarms.domain"];
+          if (kinds && kinds.some((k) => !(db.reference.eventKinds || []).includes(k))) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: "alarms.domain" });
           Object.assign(s.values, clone(body.values));
           bump(s);
           send("entity.changed", { kind: "settings", version: s.version });
@@ -2534,7 +2540,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (r.version !== x.version) return failed.push({ ruleId: x.ruleId, code: "VERSION_MISMATCH" });
             const set = x.set, was = stateNote(r).params.mode, meta = ruleMeta(r);
             const next = Object.assign({}, r, "enabled" in set ? { enabled: set.enabled } : {}, "logOnly" in set ? { logOnly: set.logOnly } : {});
-            if (next.enabled && !r.enabled && engine.undeclared(next, db.reference)) return failed.push({ ruleId: x.ruleId, code: "NOT_SUPPORTED" });
+            if (next.enabled && !r.enabled && (engine.undeclared(next, db.reference) || engine.crossDomain(next, db.reference))) return failed.push({ ruleId: x.ruleId, code: "NOT_SUPPORTED" });
             if (next.enabled && !r.enabled && engine.issue(next)) return failed.push({ ruleId: x.ruleId, code: "RULE_INVALID" });
             if ("enabled" in set || "logOnly" in set) {
               if (next.enabled && next.logOnly && !(r.enabled && r.logOnly)) next.logOnlySince = sysToday();

@@ -71,6 +71,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const dsaved = await API.get("/rules/" + rules.find((x) => x.name === "Детектор из сценария").id);
   ok(dsaved.steps[0].source === "det" && dsaved.steps[1].afterSec === 90 && dsaved.steps[1].beforeSec === 30, "на сервере: " + JSON.stringify(dsaved.steps[1]));
 
+  // Цели из нескольких доменов: только объявленные шаги, форма говорит заранее
+  const OTHER = devicePool.find((d) => d.type === "camera" && deviceDomain(d.id) && deviceDomain(d.id) !== deviceDomain(CAM)).id;
+  const cross = { start: "manual", on: true, when: [], cond: [], rate: 6, then: [{ sub: "vms", action: "preset", ref: CAM, n: 1 }, { sub: "rec", action: "record", ref: OTHER, minutes: 5 }] };
+  ok(ruleDomains(cross).size === 2 && /нескольких доменов/.test(ruleProblem(cross)), "запись на чужой домен — ошибка заранее: " + ruleProblem(cross));
+  ok(!ruleProblem({ ...cross, then: [{ sub: "vms", action: "preset", ref: CAM, n: 1 }, { sub: "vms", action: "preset", ref: OTHER, n: 1 }] }), "пресеты на двух доменах — можно");
+  ok(/другом домене/.test(ruleProblem({ ...cross, server: servers.find((x) => domainOf(x.id) && domainOf(x.id).id !== deviceDomain(OTHER)).id, then: [{ sub: "vms", action: "preset", ref: OTHER, n: 1 }] })), "сервер другого домена — ошибка заранее");
+
   // Отказы сервера словами: чужое устройство называется по имени
   ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { kind: "device", id: CAM } } } })), "403 правила называет устройство");
   ok(/не исполняет/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { issue: { code: "action.notDeclared", params: {} } } } })), "422 вне каталога — своими словами");
