@@ -16109,6 +16109,9 @@
               "rules"
             ],
             "description": "Тип запроса: config — настройка устройств, rules — правила автоматизации. Нет поля — config. Тип называет вызывающий: бэкенд текст просьбы не разбирает, чтобы его угадать"
+          },
+          "world": {
+            "$ref": "#/components/schemas/AssistWorld"
           }
         },
         "description": "Ход разговора с ассистентом. Своего состояния у бэкенда нет: разговор держит клиент"
@@ -18259,6 +18262,66 @@
             "minimum": 1
           }
         }
+      },
+      "AssistWorld": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "devices",
+          "folders",
+          "rules",
+          "schedules",
+          "modes",
+          "maintenanceWindows"
+        ],
+        "properties": {
+          "reference": {
+            "$ref": "#/components/schemas/Reference"
+          },
+          "devices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Device"
+            },
+            "description": "Все устройства полными записями, как GET /devices/{deviceId}. Состав папок — Device.folderIds"
+          },
+          "folders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Folder"
+            },
+            "description": "Все папки"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Rule"
+            },
+            "description": "Все правила"
+          },
+          "schedules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Schedule"
+            },
+            "description": "Все расписания"
+          },
+          "modes": {
+            "$ref": "#/components/schemas/Modes"
+          },
+          "maintenanceWindows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MaintenanceWindow"
+            },
+            "description": "Все окна обслуживания"
+          },
+          "me": {
+            "$ref": "#/components/schemas/Me"
+          }
+        },
+        "description": "Только демо-страница. Снимок встроенного сервера: у службы ассистента демо-страницы своих данных нет, сервер живёт в браузере. Массивы целиком, страниц нет. V/11 это поле не принимает и не отдаёт: бэкенд читает свою систему сам"
       }
     }
   }
