@@ -11998,8 +11998,8 @@ function scenFormHtml(){
     <label class="chk"><input type="checkbox" ${r.enabled!==false?"checked":""} ${onEv("change",["scenSet","enabled",onEv.checked])}> ${i18n("Включён")}</label>
   </div><div class="rl-foot"><button type="button" class="btn s pri" id="scenSave" ${onEv("click",["scenSave"])}>${i18n("Применить")}</button> <button type="button" class="btn s" ${onEv("click",["scenCancel"])}>${i18n("Отмена")}</button></div>`);
 }
-function scenNew(){SCEN.found={when:[],then:[]};SCEN.edit={i:null,row:{name:"",when:{deviceId:null,kind:(refScenKinds||[])[0]||"motion"},then:{deviceId:null,action:"preset",n:1},enabled:true}};paint()}
-function scenEdit(i){SCEN.found={when:[],then:[]};SCEN.edit={i,row:JSON.parse(JSON.stringify(SCEN.doc.items[i]))};paint()}
+function scenNew(){SCEN.found={when:[],then:[]};SCEN.edit={i:null,base:SCEN.doc,row:{name:"",when:{deviceId:null,kind:(refScenKinds||[])[0]||"motion"},then:{deviceId:null,action:"preset",n:1},enabled:true}};paint()}
+function scenEdit(i){SCEN.found={when:[],then:[]};SCEN.edit={i,name:SCEN.doc.items[i].name,base:SCEN.doc,row:JSON.parse(JSON.stringify(SCEN.doc.items[i]))};paint()}
 function scenCancel(){SCEN.edit=null;paint()}
 function scenSet(k,v){
   const r=SCEN.edit.row,t=r.then;
@@ -12023,24 +12023,27 @@ function scenCamFind(side,q){
   },200);
 }
 function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[];paint()}
-async function scenWrite(items,after){
+// base — документ, с которого начата правка: чтение из потока может подменить SCEN.doc под открытой
+// правкой, и запись по свежей версии молча затёрла бы чужое
+async function scenWrite(items,after,base=SCEN.doc){
   try{
-    SCEN.doc=await API.put(`/domains/${SCEN.did}/scenarios`,{items},SCEN.doc.version);
+    SCEN.doc=await API.put(`/domains/${SCEN.did}/scenarios`,{items},base.version);
     SCEN.note="";after&&after();paint();
   }catch(e){
     if(e?.problem?.code!=="VERSION_MISMATCH"){toast(problemText(e));return}
     // Документ пишется целиком: конфликт правок разных сценариев — предел. Показываем, что изменилось
-    const was=new Map(SCEN.doc.items.map(x=>[x.name,JSON.stringify(x)]));
+    const was=new Map(base.items.map(x=>[x.name,JSON.stringify(x)]));
     await scenLoad(SCEN.did);
+    if(SCEN.edit)SCEN.edit.base=SCEN.doc;
     const now=SCEN.doc.items,diff=[...now.filter(x=>was.get(x.name)!==JSON.stringify(x)).map(x=>x.name),...[...was.keys()].filter(n=>!now.some(x=>x.name===n))];
     SCEN.note=`${i18n("Документ изменился, ваша правка не записана. Изменились:")} ${diff.join(", ")||"—"}`;
     paint();
   }
 }
 function scenSave(){
-  const e=SCEN.edit,items=SCEN.doc.items.map(x=>x);
-  if(e.i==null)items.push(e.row);else items[e.i]=e.row;
-  scenWrite(items,()=>{SCEN.edit=null;toast(i18n("Сценарий записан"))});
+  const e=SCEN.edit,items=e.base.items.map(x=>x),at=e.i==null?-1:items.findIndex(x=>x.name===e.name);
+  if(at<0)items.push(e.row);else items[at]=e.row;
+  scenWrite(items,()=>{SCEN.edit=null;toast(i18n("Сценарий записан"))},e.base);
 }
 function scenDelAsk(i){
   const x=SCEN.doc.items[i];

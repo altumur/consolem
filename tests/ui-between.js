@@ -29,10 +29,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => SCEN.found.when.some((x) => x.id === cams[0].id)), "камера найдена поиском");
   scenCancel();
   // Чужая правка: 412 — перечитать и сказать, что изменилось
-  const stale = SCEN.doc.version;
-  await API.put(`/domains/${SCEN.did}/scenarios`, { items: [Object.assign({}, srv.items[0], { name: "Чужое" })] }, stale);
-  SCEN.doc.version = stale;
+  const base = SCEN.doc;
+  await API.put(`/domains/${SCEN.did}/scenarios`, { items: [Object.assign({}, srv.items[0], { name: "Чужое" })] }, base.version);
+  ok(await until(() => SCEN.doc.items[0].name === "Чужое"), "чужая правка пришла потоком");
+  SCEN.doc = base;
   scenEdit(0);
+  // Чтение из потока пришло под открытой правкой: запись всё равно судится версией, с которой она начата
+  await scenLoad(SCEN.did);
+  ok(SCEN.doc !== base && SCEN.edit.base === base, "правка держится за свой документ");
   scenSet("name", "Моё");
   scenSave();
   ok(await until(() => /Документ изменился/.test(SCEN.note)), "конфликт: " + SCEN.note);
