@@ -8211,6 +8211,13 @@
             "items": {
               "$ref": "#/components/schemas/AccessCellEntry"
             }
+          },
+          "streamGrants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StreamGrant"
+            },
+            "description": "Доступ учёток потоков к камерам. Удаление учётки, папки или камеры убирает их отсюда"
           }
         },
         "additionalProperties": false,
@@ -9006,7 +9013,8 @@
           "accessSessions",
           "accessDepth",
           "accessRestrictions",
-          "accessUserRights"
+          "accessUserRights",
+          "streamGrants"
         ],
         "description": "Необязательная возможность системы: без неё поле есть в записи, но менять его нельзя (422 NOT_SUPPORTED)",
         "x-enum-descriptions": {
@@ -9020,7 +9028,8 @@
           "accessSessions": "Лимиты сессий: AccessUser.webSessions, mobileSessions. Без неё значение не 0 — 422 NOT_SUPPORTED",
           "accessDepth": "Глубина просмотра архива: RoleGlobal.depth. Без неё значение не 0 — 422 NOT_SUPPORTED",
           "accessRestrictions": "Запреты роли: RoleGlobal.restr. Без неё непустое значение — 422 NOT_SUPPORTED",
-          "accessUserRights": "Права на права пользователей: выбор RoleGlobal.ur. Без неё ur следует за функцией: ALL при USERS_RIGHTS_SETUP, иначе NO; другое значение — 422 NOT_SUPPORTED"
+          "accessUserRights": "Права на права пользователей: выбор RoleGlobal.ur. Без неё ur следует за функцией: ALL при USERS_RIGHTS_SETUP, иначе NO; другое значение — 422 NOT_SUPPORTED",
+          "streamGrants": "Доступ учёток потоков к камерам: Access.streamGrants. Без неё непустой список — 422 NOT_SUPPORTED, field: streamGrants"
         }
       },
       "Capabilities": {
@@ -12066,6 +12075,13 @@
             "items": {
               "$ref": "#/components/schemas/Catalog"
             }
+          },
+          "streamGrants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StreamGrant"
+            },
+            "description": "Список целиком. Нет поля — не меняется. Учётка не из /stream-accounts, повтор учётки, чужая папка, не камера — 422 VALIDATION_FAILED, field: streamGrants"
           }
         }
       },
@@ -15379,6 +15395,43 @@
           "catalogId"
         ],
         "description": "Пользователь в черновике. hasPassword и passwordByAdmin ведёт сервер, присланное не берётся"
+      },
+      "StreamGrant": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "account",
+          "all",
+          "folderIds",
+          "deviceIds"
+        ],
+        "description": "На какие камеры учётка потока получает поток. Как права пользователя, но без ролей: строки только складываются, исключений и запрета нет. Учётки нет в списке — камер у неё нет",
+        "properties": {
+          "account": {
+            "type": "string",
+            "description": "Имя учётки из /stream-accounts"
+          },
+          "all": {
+            "type": "boolean",
+            "description": "Все камеры домена"
+          },
+          "folderIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Папки: камеры в них и в подпапках"
+          },
+          "deviceIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Отдельные камеры"
+          }
+        }
       }
     }
   }

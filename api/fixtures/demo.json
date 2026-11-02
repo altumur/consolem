@@ -33281,7 +33281,19 @@
     "roleId": "80000001-0000-4000-8000-000000000000"
    }
   ],
-  "cellHistory": []
+  "cellHistory": [],
+  "streamGrants": [
+   {
+    "account": "videowall",
+    "all": false,
+    "folderIds": [
+     "40000003-0000-4000-8000-000000000000"
+    ],
+    "deviceIds": [
+     "30000038-0000-4000-8000-000000000000"
+    ]
+   }
+  ]
  },
  "me": {
   "userId": "90000001-0000-4000-8000-000000000000"
@@ -34807,7 +34819,8 @@
     "accessSessions",
     "accessDepth",
     "accessRestrictions",
-    "accessUserRights"
+    "accessUserRights",
+    "streamGrants"
    ],
    "foundDeviceTypes": [
     "channel",

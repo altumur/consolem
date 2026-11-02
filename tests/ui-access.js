@@ -85,6 +85,24 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => /сначала смените его/.test(toastText())), "отказ сервера с подсказкой");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();
+  // Учётка потока: доступ к камерам — черновиком, через «Применить»
+  if (can("feature:streamGrants")) {
+    await streamAccsLoad();
+    accGo("streams");
+    ok(/папк|камер/.test(document.querySelector('[data-stream-acc="videowall"]')?.textContent || ""), "в списке учёток — сводка доступа");
+    accGo("stream:videowall");
+    const domS = domainFilter || domains[0].id;
+    const beforeN = accStreamCams(accStream("videowall"), domS).length;
+    ok(beforeN > 0, "учётка видит камер: " + beforeN);
+    accStreamAll("videowall", true);
+    ok(accStreamCams(accStream("videowall"), domS).length === accCams(domS).length, "все камеры");
+    ok(accPlanLines().some((x) => /Доступ учётки потока/.test(x)), "строка плана");
+    const vs0 = accVer;
+    accPlan();
+    await confirmWith(null);
+    ok(await until(() => accVer !== vs0), "применено");
+    ok((await API.get("/access")).streamGrants.find((x) => x.account === "videowall").all === true, "на сервере — все камеры");
+  }
   // Итог считается как may: исключение только внутри своей роли, между ролями наибольшее
   const dom0 = domains[0].id, cam0 = accCams(dom0)[0];
   const fx = (over) => {

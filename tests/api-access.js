@@ -271,6 +271,47 @@
     assert.status(await env.call("DELETE", `/folders/${f.id}`, undefined, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "удалить");
   });
 
+  test("Учётки потоков: доступ к камерам через Access; ссылки проверяются; удаление учётки, камеры и папки убирает доступ", async () => {
+    const env = await makeEnv();
+    const a = await env.ok("GET", "/access");
+    const g = a.streamGrants.find((x) => x.account === "videowall");
+    assert.ok(g && g.folderIds.length && g.deviceIds.length, "из набора");
+    const send = async (list) => {
+      const now = await env.ok("GET", "/access");
+      const d = { roles: now.roles, users: now.users, groups: now.groups, catalogs: now.catalogs };
+      if (list) d.streamGrants = list;
+      return env.call("POST", "/access/apply", { access: d, history: [], cellHistory: [] }, { "If-Match": `"${now.version}"` });
+    };
+    const res = await send([{ account: "videowall", all: true, folderIds: [], deviceIds: [] }]);
+    assert.status(res, 200);
+    assert.eq(res.body.access.streamGrants[0].all, true, "все камеры");
+    assert.eq((await (await send()).body.access).streamGrants.length, 1, "нет поля — не меняется");
+    assert.status(await send([{ account: "нет такой", all: true, folderIds: [], deviceIds: [] }]), 422, "VALIDATION_FAILED", "учётки нет");
+    const two = { account: "videowall", all: true, folderIds: [], deviceIds: [] };
+    assert.status(await send([two, two]), 422, "VALIDATION_FAILED", "повтор");
+    const notCam = FX.devices.find((x) => x.type !== "camera");
+    assert.status(await send([{ account: "videowall", all: false, folderIds: [], deviceIds: [notCam.id] }]), 422, "VALIDATION_FAILED", "не камера");
+    assert.status(await send([{ account: "videowall", all: false, folderIds: ["bfff9999-0000-4000-8000-000000000000"], deviceIds: [] }]), 422, "VALIDATION_FAILED", "папки нет");
+    assert.status(await send([g]), 200);
+    assert.status(await env.call("DELETE", `/devices/${g.deviceIds[0]}`, undefined, { "If-Match": `"${(await env.ok("GET", `/devices/${g.deviceIds[0]}`)).version}"` }), 204);
+    assert.eq((await env.ok("GET", "/access")).streamGrants[0].deviceIds, [], "камеры нет");
+    const v = (await env.ok("GET", "/access")).version;
+    assert.status(await env.call("DELETE", "/stream-accounts/videowall"), 204);
+    const after = await env.ok("GET", "/access");
+    assert.eq(after.streamGrants, [], "учётки нет — доступа нет");
+    assert.ok(after.version !== v, "версия снимка сдвинулась");
+  }, { needs: ["feature:streamGrants"] });
+
+  test("Учётки потоков: без возможности непустой список — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { streamGrants: [], catalogs: [], groups: [] } } });
+    const now = await env.ok("GET", "/access");
+    now.users.forEach((u) => { u.webSessions = 0; u.mobileSessions = 0; u.catalogId = null; delete u.syncedGroupId; });
+    now.roles.forEach((r) => { r.loginSchedule = 0; r.supervision = { roleId: null, login: false, export: false }; r.global.depth = 0; r.global.restr = {}; if (!r.global.unr) r.global.ur = r.global.feat.includes("USERS_RIGHTS_SETUP") ? "ALL" : "NO"; });
+    const res = await env.call("POST", "/access/apply", { access: { roles: now.roles, users: now.users, groups: now.groups, catalogs: now.catalogs, streamGrants: [{ account: "videowall", all: true, folderIds: [], deviceIds: [] }] }, history: [], cellHistory: [] }, { "If-Match": `"${now.version}"` });
+    assert.status(res, 422, "NOT_SUPPORTED");
+    assert.eq(res.body.field, "streamGrants", "поле");
+  }, { needs: ["listStreamAccounts"] });
+
   test("Права: без версии — 428, старая — 412; состояние синхронизации от клиента не берётся", async () => {
     const env = await makeEnv();
     assert.status(await env.call("POST", "/access/apply", { access: draft(), history: [], cellHistory: [] }), 428, "PRECONDITION_REQUIRED");
@@ -287,7 +328,7 @@
   }, { needs: ["feature:accessCatalogs"] });
 
   test("Части прав: возможности нет — 422 NOT_SUPPORTED с полем; значение по умолчанию проходит", async () => {
-    const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { catalogs: [], groups: [] } } });
+    const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { catalogs: [], groups: [], streamGrants: [] } } });
     const base = await env.ok("GET", "/access");
     const fresh = () => {
       const a = JSON.parse(JSON.stringify(base));

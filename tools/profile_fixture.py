@@ -196,6 +196,7 @@ def build(demo):
         return row
 
     fx["access"]["catalogs"] = []
+    fx["access"].pop("streamGrants", None)
     for g in fx["access"]["groups"]:
         g["source"] = None
     for u in fx["access"]["users"]:

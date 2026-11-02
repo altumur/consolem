@@ -796,6 +796,17 @@
       return gone;
     }
     // Вместе с дочерними; ссылки на него убираются из папок и из записи по детекторам
+    // Удалённое уходит из доступа учёток потоков, снимок прав меняется
+    function dropStreamGrants(fn) {
+      const list = db.access.streamGrants;
+      if (!list) return;
+      const was = JSON.stringify(list);
+      list.forEach(fn);
+      db.access.streamGrants = list.filter((g) => g.account);
+      if (JSON.stringify(db.access.streamGrants) === was) return;
+      bump(db.access);
+      send("entity.changed", { kind: "access", version: db.access.version });
+    }
     function removeDevice(id) {
       const gone = goneWith(byId("devices", id));
       db.devices.filter((d) => d.parentId === id && !gone.has(d.id)).forEach((c) => {
@@ -805,6 +816,7 @@
       });
       const names = new Map(db.devices.filter((d) => gone.has(d.id)).map((d) => [d.id, d.name]));
       db.devices = db.devices.filter((d) => !gone.has(d.id));
+      dropStreamGrants((g) => { g.deviceIds = g.deviceIds.filter((x) => !gone.has(x)); });
       db.archiveWatches.filter((w) => gone.has(w.deviceId)).forEach(dropWatch);
       db.archiveScans.filter((x) => gone.has(x.deviceId)).forEach(dropScan);
       rulesGone(names);
@@ -831,6 +843,7 @@
     function removeFolder(f) {
       const gone = withSubfolders(f);
       db.folders = db.folders.filter((x) => !gone.has(x.id));
+      dropStreamGrants((g) => { g.folderIds = g.folderIds.filter((x) => !gone.has(x)); });
       gone.forEach((id) => send("entity.deleted", { kind: "folder", entityId: id }));
     }
     // Хранилище — с томами. Камеры остаются: основным становится первое дополнительное хранилище, без него
@@ -1216,6 +1229,7 @@
       const users = [...new Set([...wu.keys(), ...nu.keys()])].filter(userChanged);
       const groups = [...new Set([...wg.keys(), ...ng.keys()])].filter(groupChanged);
       const roles = [...new Set([...wr.keys(), ...nr.keys()])].filter(roleChanged);
+      if (!sameJson(was.streamGrants || [], next.streamGrants || []) && !managesUsers(was, me)) return problem(403, "PERMISSION_DENIED", "Нет права менять права");
       if (!users.length && !groups.length && !roles.length && !sameJson(was.catalogs, next.catalogs)) return problem(403, "PERMISSION_DENIED", "Нет права менять права");
       if (!users.length && !groups.length && !roles.length) return null;
       if (!managesUsers(was, me)) return problem(403, "PERMISSION_DENIED", "Нет права менять права");
@@ -1243,6 +1257,21 @@
       const a = clone(db.access);
       if (!holdsAdmin(a, me) && !managesUsers(a, me)) a.users.forEach((u) => { if (u.id !== me) u.email = ""; });
       return a;
+    }
+    function streamGrantProblem(a) {
+      const list = a.streamGrants || [];
+      if (!list.length) return null;
+      if (!db.reference.capabilities.features.includes("streamGrants")) return problem(422, "NOT_SUPPORTED", "Система этого не поддерживает: доступ учёток потоков", { field: "streamGrants" });
+      const bad = (what) => problem(422, "VALIDATION_FAILED", `Доступ учёток потоков: ${what}`, { field: "streamGrants" });
+      const seen = new Set();
+      for (const g of list) {
+        if (seen.has(g.account)) return bad(`учётка ${g.account} повторяется`);
+        seen.add(g.account);
+        if (!db.streamAccounts.some((x) => x.name === g.account)) return bad(`учётки ${g.account} нет`);
+        if (!g.folderIds.every((id) => db.folders.some((f) => f.id === id))) return bad("папки нет");
+        if (!g.deviceIds.every((id) => db.devices.some((d) => d.id === id && d.type === "camera"))) return bad("это не камера");
+      }
+      return null;
     }
     function accessProblem(a) {
       const dup = (list, key, code, what) => {
@@ -1278,7 +1307,7 @@
         const e = miss(g.roleIds.every((x) => roles.has(x)), "groups.roleIds") || miss(g.memberIds.every((x) => users.has(x)), "memberIds") || miss(!g.source || cats.has(g.source.catalogId), "source.catalogId");
         if (e) return e;
       }
-      const part = builtinProblem(a) || accessPartProblem(a);
+      const part = builtinProblem(a) || accessPartProblem(a) || streamGrantProblem(a);
       if (part) return part;
       // Защита от самоблокировки: бессрочный администратор остаётся, текущий свой доступ и вход не теряет
       if (!provenAdmins(a).length) return problem(409, "SELF_LOCKOUT", "Не останется ни одного включённого бессрочного администратора");
@@ -2262,6 +2291,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           if (bad) return bad;
           const next = clone(body.access);
           // Состояние синхронизации ведёт сервер: у существующих каталогов и групп — его значения
+          if (!next.streamGrants && a.streamGrants) next.streamGrants = clone(a.streamGrants);
           next.catalogs.forEach((c) => {
             const was = a.catalogs.find((x) => x.id === c.id);
             if (was) ["status", "lastSyncAt", "nextSyncAt", "durationSec", "message", "entries"].forEach((k) => (c[k] = clone(was[k])));
@@ -2741,6 +2771,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p) => {
           if (!db.streamAccounts.some((x) => x.name === p.name)) return notFound("Учётка");
           db.streamAccounts = db.streamAccounts.filter((x) => x.name !== p.name);
+          dropStreamGrants((g) => { if (g.account === p.name) g.account = ""; });
           send("entity.changed", { kind: "streamAccounts" });
           return { status: 204, body: null };
         },

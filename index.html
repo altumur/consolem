@@ -1155,7 +1155,7 @@ h1.acc-flash,.tab.acc-flash,.n.acc-flash{border-radius:6px}
 .acc-bar{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:12px}
 label.acc-chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tx);margin:0;cursor:pointer}
 label.acc-chk.dim{color:var(--mu)}
-.acc-chk input{width:auto;height:auto;margin:0;accent-color:var(--bl);flex:none}
+.acc-chk input{margin:0;accent-color:var(--bl);flex:none}.acc-chk input:not([type="checkbox"]):not([type="radio"]){width:auto;height:auto}
 .acc-chips{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .acc-chip{display:inline-flex;align-items:center;gap:4px;font-size:12px;padding:3px 9px;border-radius:99px;background:var(--p2);border:1px solid var(--ln);margin:0 6px 6px 0;white-space:nowrap}
 .acc-chips .acc-chip{margin:0}
@@ -2167,7 +2167,7 @@ function capsApply(){
   if(!can("listLicenses"))sysOpts.splice(0,sysOpts.length,...sysOpts.filter(o=>o.id!=="lic"));
   const spec=window.CONSOLEM_OPENAPI,needs=[];
   if(spec)Object.values(spec.paths).forEach(item=>Object.values(item).forEach(o=>{if(o&&o.operationId&&!can(o.operationId))needs.push(o.operationId)}));
-  ["serverRoles","serverNetwork","archiveEncryption","assist","accessCatalogs","accessSupervision","accessLoginSchedule","accessSessions","accessDepth","accessRestrictions","accessUserRights"].forEach(f=>{if(!can("feature:"+f))needs.push("feature:"+f)});
+  ["serverRoles","serverNetwork","archiveEncryption","assist","accessCatalogs","accessSupervision","accessLoginSchedule","accessSessions","accessDepth","accessRestrictions","accessUserRights","streamGrants"].forEach(f=>{if(!can("feature:"+f))needs.push("feature:"+f)});
   const st=document.createElement("style");st.id="capsStyle";
   st.textContent=needs.map(n=>`[data-needs~="${n}"]{display:none!important}`).join("\n");
   document.head.appendChild(st);
@@ -12733,6 +12733,7 @@ function accFromApi(a){
     log:a.history.map(h=>Object.assign({t:localStamp(h.at),who:h.actor,text:h.text},h.roleId?{role:h.roleId}:{},h.roleIds?{roles:h.roleIds.slice()}:{},h.userId?{user:h.userId}:{},h.groupId?{group:h.groupId}:{},{h:localStamp(h.at).slice(11)})),
     groups:a.groups.map(g=>({id:g.id,n:g.name,comment:g.comment,roles:g.roleIds.slice(),until:g.rolesUntil||"",
       src:g.source?{cat:g.source.catalogId,dn:g.source.dn,kind:g.source.kind,status:g.source.status,at:localStamp(g.source.at),msg:g.source.message}:null,members:g.memberIds.slice()})),
+    streams:(a.streamGrants||[]).map(g=>({name:g.account,all:g.all,folders:g.folderIds.slice(),cams:g.deviceIds.slice()})),
     cats:a.catalogs.map(c=>({id:c.id,n:c.name,server:c.host,port:c.port,ssl:c.ssl,bind:c.bindDn,baseDn:c.baseDn,filter:c.filter,attrLogin:c.loginAttr,attrName:c.nameAttr,
       importOthers:c.importOthers,schedule:accClone(c.schedule),status:c.status,at:localStamp(c.lastSyncAt),next:localStamp(c.nextSyncAt),dur:c.durationSec,msg:c.message,
       avail:c.entries.map(e=>({dn:e.dn,n:e.name,kind:e.kind,logins:e.logins.slice()}))}))
@@ -12750,6 +12751,7 @@ function accToApi(st){
       u.synced?{syncedGroupId:u.synced}:{},u.created?{createdDate:u.created}:{},u.pwd?{password:u.pwd}:{})),
     groups:st.groups.map(g=>({id:g.id,name:g.n,comment:g.comment||"",roleIds:g.roles.slice(),rolesUntil:g.until||null,memberIds:g.members.slice(),
       source:g.src?{catalogId:g.src.cat,dn:g.src.dn,kind:g.src.kind,status:g.src.status,at:stampIso(g.src.at),message:g.src.msg||""}:null})),
+    ...(can("feature:streamGrants")?{streamGrants:(st.streams||[]).filter(g=>g.all||g.folders.length||g.cams.length).map(g=>({account:g.name,all:!!g.all,folderIds:g.folders.slice(),deviceIds:g.cams.slice()}))}:{}),
     catalogs:st.cats.map(c=>({id:c.id,name:c.n,host:c.server,port:c.port,ssl:!!c.ssl,bindDn:c.bind,hasPassword:true,baseDn:c.baseDn,filter:c.filter,loginAttr:c.attrLogin,
       nameAttr:c.attrName,importOthers:!!c.importOthers,schedule:accClone(c.schedule),status:c.status,lastSyncAt:stampIso(c.at),nextSyncAt:stampIso(c.next),
       durationSec:c.dur||0,message:c.msg||"",entries:(c.avail||[]).map(e=>({dn:e.dn,name:e.n,kind:e.kind,logins:e.logins.slice()}))}))
@@ -13136,6 +13138,8 @@ function accCellDiffText(rid,kind){
 function accPlanLines(){
   const out=[],srv=accSrv();
   accPlanMeta=[];
+  (accSt().streams||[]).forEach(g=>{const w=(srv.streams||[]).find(x=>x.name===g.name);
+    if(accCanon({a:!!g.all,f:g.folders,c:g.cams})!==accCanon({a:!!w?.all,f:w?.folders||[],c:w?.cams||[]}))out.push(`${i18n("Доступ учётки потока")} «${escHtml(g.name)}»: ${accStreamSum(g)}`)});
   accRoles().forEach(r=>{
     const d=accRoleDiff(r.id),n=`«${escHtml(r.n)}»`;
     if(d.isNew){out.push(`${i18n("Создать роль")} ${accCardText(r)}: ${escHtml(accSummary(r.g))}`);
@@ -13362,7 +13366,7 @@ function treeRoles(){
   if(!open.has("acc-x:ugroups")){
     h+=ugs.filter(g=>matchesText(q,g.n)).map(g=>`<div class="n ${accSel==="ug:"+g.id?"on":""}" style="--l:1" data-go="ug:${g.id}" ${onEv("click",["accGo",`ug:${g.id}`])} title="${escHtml(g.src?`${i18n("Из каталога")} ${accCat(g.src.cat)?.n||""}`:i18n("Вручную"))} · ${g.members.length} ${i18n(plural(g.members.length,"участник|участника|участников"))}"><span class="tw"></span>${ic(g.src?"acc_cat":"acc_group")}<span class="nm">${hlText(g.n,q)}</span>${accUGDiff(g.id)?`<span class="acc-mod">●</span>`:""}${treeTail({cnt:treeCntHtml(g.members.length)})}</div>`).join("");
     if(can("feature:accessCatalogs")&&(!q||matchesText(q,"Каталоги")))h+=`<div class="n ${accSel==="cats"||accSel.startsWith("cat:")?"on":""}" style="--l:1" data-go="acc:cats" ${onEv("click",["accGo","cats"])}><span class="tw"></span>${ic("acc_cat")}<span class="nm">${i18n("Каталоги")}</span>${treeTail({cnt:treeCntHtml(cats.length)})}</div>`;
-    if(can("listStreamAccounts")&&(!q||matchesText(q,"Учётки потоков")))h+=`<div class="n ${accSel==="streams"?"on":""}" style="--l:1" data-go="acc:streams" ${onEv("click",["accGo","streams"])}><span class="tw"></span>${ic("acc_user")}<span class="nm">${i18n("Учётки потоков")}</span>${treeTail({})}</div>`;
+    if(can("listStreamAccounts")&&(!q||matchesText(q,"Учётки потоков")))h+=`<div class="n ${accSel==="streams"||accSel.startsWith("stream:")?"on":""}" style="--l:1" data-go="acc:streams" ${onEv("click",["accGo","streams"])}><span class="tw"></span>${ic("acc_user")}<span class="nm">${i18n("Учётки потоков")}</span>${treeTail({})}</div>`;
   }
   const gs=accGroups(domainFilter);
   h+=sec("groups","Папки устройств","folder",gs.filter(g=>!g.root).length,"groups");
@@ -13400,14 +13404,47 @@ function streamAccDel(name){
     API.del(`/stream-accounts/${encodeURIComponent(name)}`).then(streamAccsLoad).catch(e=>toast(problemText(e)));
   }}),{html:true,typeCount:1});
 }
+// Доступ учётки к камерам: как права пользователя, но без ролей. Складывается и правится в черновике
+function accStream(name,st){return((st||accSt()).streams||[]).find(g=>g.name===name)}
+function accStreamEdit(name){const st=accSt();st.streams=st.streams||[];let g=accStream(name);if(!g){g={name,all:false,folders:[],cams:[]};st.streams.push(g)}return g}
+function accStreamCams(g,dom){
+  if(!g)return[];
+  const cams=accCams(dom);if(g.all)return cams;
+  const fs=new Set(g.folders);
+  return cams.filter(c=>g.cams.includes(c.id)||accObjGroups(c.id,dom).some(f=>accChain(f,dom).some(x=>fs.has(x))));
+}
+function accStreamSum(g){
+  if(!g||(!g.all&&!g.folders.length&&!g.cams.length))return i18n("нет камер");
+  if(g.all)return i18n("все камеры");
+  return[g.folders.length?`${g.folders.length} ${plural(g.folders.length,"папка|папки|папок")}`:"",g.cams.length?`${g.cams.length} ${plural(g.cams.length,"камера|камеры|камер")}`:""].filter(Boolean).join(", ");
+}
+function accStreamAll(name,on){accStreamEdit(name).all=on;accEdited()}
+function accStreamFolder(name,id,on){const g=accStreamEdit(name);g.folders=on?[...new Set([...g.folders,id])]:g.folders.filter(x=>x!==id);accEdited()}
+function accStreamCam(name,id,on){const g=accStreamEdit(name);g.cams=on?[...new Set([...g.cams,id])]:g.cams.filter(x=>x!==id);accEdited()}
+function accStreamUI(name){
+  const g=accStream(name)||{name,all:false,folders:[],cams:[]},dom=domainFilter||domains[0]?.id,acc=(streamAccs||[]).find(x=>x.name===name);
+  const seen=accStreamCams(g,dom),on=new Set(seen.map(c=>c.id));
+  const cr=`<button type="button" class="cr-link" ${onEv("click",["accGo","roles"])}>${i18n("Права")}</button><span class="cr-sep">/</span><button type="button" class="cr-link" ${onEv("click",["accGo","streams"])}>${i18n("Учётки потоков")}</button>`;
+  const folders=accGroups(dom).filter(x=>!x.root).map(x=>`<div style="padding:2px 0 2px ${x.depth*16}px"><label class="acc-chk"><input type="checkbox" ${g.folders.includes(x.id)?"checked":""} ${g.all?"disabled":""} ${onEv("change",["accStreamFolder",`${name}`,`${x.id}`,onEv.checked])}> ${escHtml(x.name)}</label></div>`).join("");
+  const cams=listCard({key:"accstream",how:"acc",title:`${i18n("Камеры")} · ${accDomName(dom)}`,items:accCams(dom),
+    text:c=>[c.short!=null?String(c.short):"",locName(c)],
+    row:c=>`<tr data-stream-cam="${escHtml(c.id)}"><td class="acc-num">${escHtml(c.short??"")}</td><td class="acc-cam">${accObjIc(c)} ${escHtml(locName(c))}</td><td><label class="acc-chk"><input type="checkbox" ${g.cams.includes(c.id)?"checked":""} ${g.all?"disabled":""} ${onEv("change",["accStreamCam",`${name}`,`${c.id}`,onEv.checked])}> ${i18n("отдельно")}</label></td><td class="sub">${on.has(c.id)?i18n("есть доступ"):"—"}</td></tr>`,
+    wrap:rows=>`<table class="acc-tbl"><tr><th>№</th><th>${i18n("Камера")}</th><th>${i18n("Выдано")}</th><th>${i18n("Итог")}</th></tr>${rows}</table>`,
+    ph:"Поиск по камерам",unit:"камера|камеры|камер",empty:"Камер нет"});
+  paintMain(mainHd(cr,`<span class="hd-ic">${ic("acc_user")}</span>${escHtml(name)}`,`${i18n("Доступ к камерам")}: ${accStreamSum(g)} · ${i18n("видит")} ${seen.length} ${plural(seen.length,"камеру|камеры|камер")}${acc?.disabled?` · ${i18n("отключена")}`:""}`,accListTabs(),accActsHtml())+
+    `<div class="sc"><p class="acc-hint">${i18n("Учётка получает поток тех камер, что здесь выданы. Доступ только складывается: запрета и исключений у учётки нет")}</p>
+      ${card("Все камеры",`<div class="ln ln-sw">${accSw(g.all,`accStreamAll('${name}',${!g.all})`,false,"Все камеры")}<div>${i18n("Все камеры домена, в том числе новые")}</div></div>`)}
+      ${card("Папки устройств",folders||`<p class="sub">${i18n("Папок нет")}</p>`)}${cams}</div>`);
+}
 function accStreamsUI(){
   if(!streamAccs){streamAccs=[];streamAccsLoad()}
-  const rows=streamAccs.map(a=>`<tr data-stream-acc="${escHtml(a.name)}"><td>${escHtml(a.name)}</td><td>${i18n(a.disabled?"Отключена":"Включена")}</td><td class="sub">${a.at?escHtml(clockText(a.at,false)):"—"}</td><td class="sub">${escHtml(a.by||"—")}</td><td class="ca-x">
+  const grants=can("feature:streamGrants");
+  const rows=streamAccs.map(a=>`<tr data-stream-acc="${escHtml(a.name)}"><td>${grants?`<button type="button" class="lk" ${onEv("click",["accGo",`stream:${a.name}`])}>${escHtml(a.name)}</button>`:escHtml(a.name)}</td><td>${i18n(a.disabled?"Отключена":"Включена")}</td>${grants?`<td class="sub">${accStreamSum(accStream(a.name))}</td>`:""}<td class="sub">${a.at?escHtml(clockText(a.at,false)):"—"}</td><td class="sub">${escHtml(a.by||"—")}</td><td class="ca-x">
     <button type="button" class="btn s" ${onEv("click",["streamAccPass",`${a.name}`])}>${i18n("Новый пароль")}</button>
     <button type="button" class="btn s" ${onEv("click",["streamAccOn",`${a.name}`,!!a.disabled])}>${i18n(a.disabled?"Включить":"Отключить")}</button>
     <button type="button" class="btn s" ${onEv("click",["streamAccDel",`${a.name}`])}>${i18n("Удалить")}</button></td></tr>`).join("");
-  paintMain(mainHd("",i18n("Учётки потоков"),i18n("Для подключения внешних клиентов к потоку. Доступ к камерам — как у пользователя, через права"),accListTabs(),accActsHtml())+
-    `<div class="sc">${card("Учётки потоков",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Состояние")}</th><th>${i18n("Изменена")}</th><th>${i18n("Кем")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
+  paintMain(mainHd("",i18n("Учётки потоков"),i18n(grants?"Для подключения внешних клиентов к потоку. Доступ к камерам выдаётся здесь и применяется вместе с правами":"Для подключения внешних клиентов к потоку"),accListTabs(),accActsHtml())+
+    `<div class="sc">${card("Учётки потоков",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Состояние")}</th>${grants?`<th>${i18n("Камеры")}</th>`:""}<th>${i18n("Изменена")}</th><th>${i18n("Кем")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       <div class="ca-foot"><input placeholder="${i18n("Имя учётки")}" aria-label="${i18n("Имя учётки")}" value="${escHtml(streamDraft)}" ${onEv("input",["streamDraftSet",onEv.value])}> <button type="button" class="btn s" ${onEv("click",["streamAccAdd"])}>${lu("plus")}${i18n("Учётка")}</button></div>`,`<span class="sub" style="font-weight:400">${streamAccs.length}</span>`)}</div>`);
 }
 // Снимок прав не пришёл: строка вместо раздела, запрос повторяется при новом заходе
@@ -13426,6 +13463,7 @@ function accUI(){
   if(accSel.startsWith("ug:")&&accUG(accSel.slice(3)))return accUGroupUI(accUG(accSel.slice(3)));
   if(accSel.startsWith("cat:")&&accCat(accSel.slice(4)))return accCatUI(accCat(accSel.slice(4)));
   if(accSel==="streams")return accStreamsUI();
+  if(accSel.startsWith("stream:")&&can("feature:streamGrants"))return accStreamUI(accSel.slice(7));
   if(accSel==="ugroups")return accUGroupsUI();
   if(accSel==="cats"&&can("feature:accessCatalogs"))return accCatsUI();
   if(accSel==="users")return accUsersUI();
@@ -13436,7 +13474,7 @@ function accUI(){
 }
 const ACC_SUB="Роли, пользователи и группы пользователей домена. Права выдаются роли на папки устройств (те же, что в «Оборудовании») и на отдельные объекты; пользователь получает наибольшее по всем своим действующим ролям — личным и полученным через группы";
 function accListTabs(){
-  const cur=accSel.startsWith("grp:")?"groups":/^(ugroups|ug:|cats|cat:)/.test(accSel)?"ugroups":accSel;
+  const cur=accSel.startsWith("grp:")?"groups":accSel.startsWith("stream:")?"streams":/^(ugroups|ug:|cats|cat:)/.test(accSel)?"ugroups":accSel;
   return[["roles","Роли"],["users","Пользователи"],["ugroups","Группы пользователей"],["groups","Папки устройств"],...(can("listStreamAccounts")?[["streams","Учётки потоков"]]:[]),["check","Проверка"]].map(([id,x])=>`<button class="tab ${cur===id?"on":""}" ${onEv("click",["accGo",`${id}`])}>${i18n(x)}${id==="check"&&accIssues().length?` <span class="acc-tabcnt warn">${accIssues().length}</span>`:""}</button>`).join("");
 }
 function accGroupsUI(){
