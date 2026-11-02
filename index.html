@@ -1325,7 +1325,6 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gopop.asst{padding:10px;z-index:19}
 #asstBlock{max-height:min(40vh,320px);overflow:auto;padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--ln)}
 #asstBlock[hidden]{display:none}
-.asst-hint{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
 .asst-said .asst-dropped{font-style:italic}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
@@ -1338,13 +1337,12 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .rec-copy-name{flex:1;min-width:0;overflow-wrap:anywhere}
 .rec-copies input{width:100%;margin-top:6px}
 .rec-pick{display:flex;align-items:center;gap:6px;width:100%;margin-top:4px;text-align:left}
-.asst-kind{font-size:12px;color:var(--mu);margin:6px 0}
-.asst-kinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .asst-sum{font-size:13px;font-weight:600;margin:6px 0}
 .asst-dev{font-size:13px;margin-top:6px}
 .asst-chg{font-size:12px;color:var(--mu);overflow-wrap:anywhere}
 .asst-chg.bad{color:var(--one-danger)}
 .asst-note{font-size:12px;margin-top:4px;font-weight:600}
+.asst-ta{width:100%;min-height:52px;margin-top:6px;padding:6px 8px;resize:vertical;background:var(--p2);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;font-size:13px}
 .asst-sec{margin-top:6px}
 .asst-sec input{width:100%}
 .asst-act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
@@ -4931,7 +4929,7 @@ function goPick(i){
   hwJumpFlash=false;
   updateFiltChrome();
 }
-// Закрывается только окно: разговор и идущий ход живут, клик в строке поиска вернёт их. Конец разговора — asstEnd
+// Закрывается только окно: разговор и идущий ход живут, клик в строке поиска вернёт их. Конец разговора — новая просьба из строки поиска
 function goClose(){
   document.getElementById("gopop")?.classList.remove("open","asst");
   if(asst)asst.show=false;
@@ -4957,8 +4955,6 @@ function goKey(e){
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
-    // Ассистент ждёт: набранное — ответ или уточнение в том же разговоре, пустое никуда не уходит
-    if(asstWaits()){if(e.target.value.trim())asstFromSearch();return}
     // Поиск ничего не дал: набранное — просьба, а фильтр оставил бы пустое дерево
     if(open_&&document.getElementById("goAsk")){asstFromSearch();return}
     goClose();e.target.blur();
@@ -21326,7 +21322,7 @@ function asstCodeKey(e){
   if(e.key==="Enter"){e.preventDefault();asstCodeApply()}
 }
 // Разговор заглушки и разговор службы — разные: context одного другому не годится
-function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false,kind:"",kindPick:"",kindTurn:false,kindNext:""})}
+function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false,kind:""})}
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
@@ -21406,24 +21402,25 @@ async function asstServiceTurn(a,body){
 // Пароль наружу не уходит: ни полем секрета, ни в словах просьбы, ни ответом на вопрос о пароле. Разговор о нём
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
-  Object.assign(a,{ask:"",answer:"",context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
+  Object.assign(a,{text:"",ask:"",answer:"",context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
 // Вход — из строки поиска: то, что поиск не нашёл, уходит ассистенту. Запрос поиска снимается:
-// он сузил бы дерево до пустого
+// он сузил бы дерево до пустого. Просьба из строки поиска — всегда новый разговор: прежний context, план и
+// секреты забыты, идущий ход снят. Ответ и уточнение пишут в поле под ответом
 function asstFromSearch(){
   const inp=document.getElementById("gq"),text=(inp?.value||"").trim();
   if(!text){toast("Напишите просьбу");return}
   if(inp)inp.value="";
   clearTreeQ();
-  if(asst){asst.show=true;asstSend(null,text)}else asstOpen(text);
+  asstOpen(text);
   goSearch("");
 }
 function asstOpen(text){
   if(!can("feature:assist"))return;
   promptPanel(false);
   asstEnd();
-  asst={said:[],context:null,secrets:[],busy:false,line:"",ask:"",answer:"",kind:"",kindPick:"",kindTurn:false,kindNext:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
+  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",kind:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
   const t=String(text||"").trim();
   if(t){asstSend(null,t);return}
   asstRender();
@@ -21437,24 +21434,6 @@ function asstEnd(){
   const block=document.getElementById("asstBlock");
   if(block){block.innerHTML="";block.hidden=true}
   document.getElementById("gopop")?.classList.remove("asst");
-  asstHint();
-}
-function asstNew(){
-  asstEnd();
-  const inp=document.getElementById("gq");
-  inp?.focus();
-  goSearch(inp?.value||"");
-}
-// Ждёт ответа: Enter в строке поиска уходит ассистенту, а не в поиск. Новый разговор ждёт первую просьбу
-function asstWaits(){
-  const a=asst;
-  return!!a&&!a.busy&&!a.saving&&(!!a.ask||!!a.plan||!!a.answer||!a.said.length);
-}
-// Строка поиска подсказывает, что ждёт ассистент: своего поля ввода у него нет
-function asstHint(){
-  const inp=document.getElementById("gq"),a=asst;if(!inp)return;
-  const word=!a?"":a.busy?"Ассистент думает…":a.plan?"Уточните план и нажмите Enter":a.ask?"Ответьте ассистенту и нажмите Enter":a.answer?"Спросите ещё и нажмите Enter":!a.said.length?"Напишите просьбу и нажмите Enter":"";
-  inp.placeholder=i18n(word||inp.getAttribute("data-i18n-placeholder"));
 }
 function asstVal(v){return v===undefined||v===null?"—":typeof v==="object"?JSON.stringify(v):String(v)}
 function asstPlanHtml(p){
@@ -21772,18 +21751,20 @@ async function asstRulesApply(a,p){
   a.plan=null;a.result={rows,again:rows.some(x=>!x.ok),undo:null};
   asstRender();
 }
-// Панель ассистента — верх окна поиска, под ней обычные секции поиска. Ввод один, строка поиска; клик мимо и Esc скрывают
-// панель, разговор и ход живут дальше. Служба шлёт строки хода и при скрытой панели: окно само не открывается
+// Панель ассистента — верх окна поиска, под ней обычные секции поиска. Ответ и уточнение — в поле под ответом, новая
+// просьба — в строке поиска; клик мимо и Esc скрывают панель, разговор и ход живут дальше. Служба шлёт строки хода и
+// при скрытой панели: окно само не открывается
 function asstRender(){
-  asstHint();
   const a=asst,pop=document.getElementById("gopop"),block=document.getElementById("asstBlock");if(!a||!pop||!block)return;
-  const keep=document.activeElement?.id,mode=asstMode(a);
+  // Служба шлёт строки хода и пока посетитель печатает: поле не теряет курсор. Курсор в карточке или в строке поиска
+  // с набранным запросом: ответ ассистента его не забирает
+  const act=document.activeElement,keep=act?.id,mode=asstMode(a);
+  const mine=!act||act===document.body||!!act.closest("#asstBlock")||act.id==="gq"&&!act.value;
   block.hidden=false;
   block.innerHTML=[
     asstSvcHtml(a,mode),
     a.said.length?`<div class="asst-said">${a.said.map(t=>typeof t==="string"?`<div>› ${escHtml(t)}</div>`:`<div class="asst-dropped" data-asst-dropped="1">${escHtml(t.note)}</div>`).join("")}</div>`:"",
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
-    asstKindHtml(a),
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
     a.answer?`<div class="asst-note" id="asstAnswerNote">${i18n("Ответ ассистента, проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
@@ -21792,16 +21773,17 @@ function asstRender(){
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
     a.plan?(a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)):"",
     a.result?asstResultHtml(a.result):"",
-    !a.said.length&&!a.err?`<div class="asst-hint" id="asstHintWord">${i18n("Напишите просьбу в строке поиска и нажмите Enter")}</div>`:"",
+    `<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
-    `<div class="asst-act"><button type="button" class="btn s" id="asstNew" ${onEv("click",["asstNew"])}>${i18n("Новый разговор")}</button>`,
+    `<div class="asst-act">`,
     a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
     `<span class="asst-gap"></span>`,
     a.busy&&a.live?`<button type="button" class="btn s" id="asstCancel" ${onEv("click",["asstCancel"])}>${i18n("Отменить ход")}</button>`:"",
     a.down&&!a.busy?`<button type="button" class="btn s" id="asstToStub" ${onEv("click",["asstToStub"])}>${i18n("Работать с заглушкой")}</button>`:"",
     a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
     a.result?.undo?`<button type="button" class="btn s" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
-    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`:"",
+    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
+      :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Отправить")}</button>`,
     `</div>`
   ].join("");
   if(a.show)pop.classList.add("open","asst");
@@ -21809,31 +21791,19 @@ function asstRender(){
   const code=document.getElementById("asstCode");
   if(code)code.value=a.codeDraft;
   if(keep==="asstCode")code?.focus();
+  else if(mine&&(!a.busy||keep==="asstText"))document.getElementById("asstText")?.focus();
 }
-// Тип хода, который выбрала служба, и выбор человека. Только при живой службе: у заглушки типа нет
-function asstKindHtml(a){
-  if(!a.live||!ASST_KIND[a.kind])return"";
-  return`<div class="asst-kind" id="asstKind">${i18n("Тип")}: <b>${i18n(ASST_KIND[a.kind])}</b><div class="asst-kinds" role="group" aria-label="${i18n("Сменить тип")}">${
-    Object.entries(ASST_KIND).map(([k,w])=>`<button type="button" class="btn s ${k===a.kind?"pri":""}" data-asst-kind="${k}" aria-pressed="${k===a.kind}" ${onEv("click",["asstKindPick",k])}>${i18n(w)}</button>`).join("")}</div></div>`;
+function asstKey(e){
+  if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSendText()}
 }
-// Смена типа — новый запрос: тот же текст, явный тип, без context. Идущий ход снимается, новый уходит, когда он снят
-function asstKindPick(k){
-  const a=asst;if(!a||k===a.kind)return;
-  if(a.busy){a.kindNext=k;a.abort?.abort();return}
-  asstKindGo(a,k);
-}
-function asstKindGo(a,k){
-  a.kindPick=k;a.kind=k;a.context=null;
-  asstSend(a.last);
-}
+function asstInput(v){if(asst)asst.text=v}
+function asstSendText(){if(asst)asst.text.trim()?asstSend(null,asst.text):toast("Напишите просьбу")}
 function asstSecret(i,v){if(asst)asst.secrets[i]=v}
 function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
 function asstEvent(a,m){
-  if(m.type==="progress"){
-    a.line=m.text;
-    // Первое слово хода о типе: дальше он в этом ходе не меняется
-    if(a.live&&ASST_KIND[m.kind]&&!a.kindTurn){a.kind=m.kind;a.kindTurn=true}
-  }
+  if(m.type==="progress")a.line=m.text;
+  // Тип хода служба ставит в событиях; форма его не показывает, а читает: на вопрос о системе план не применяется
+  if(a.live&&ASST_KIND[m.kind])a.kind=m.kind;
   if("context" in m)a.context=m.context;
   if(m.type==="question")a.ask=m.text;
   if(m.type==="answer")a.answer=m.text;
@@ -21858,24 +21828,22 @@ function asstSend(again,said){
   const live=asstMode(a)==="on";
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
-  // Служба выбирает тип сама, раздел его не решает; выбор человека держится до конца разговора. Бэкенд текст не
-  // разбирает: тип называет вызывающий, в разделе правил просьба — о правилах. Панель переживает переход, поэтому
-  // раздел — на момент хода
-  if(live)body.kind=a.kindPick||"auto";
+  // Служба выбирает тип сама, раздел его не решает, ручного выбора нет. Бэкенд текст не разбирает: тип называет
+  // вызывающий, в разделе правил просьба — о правилах. Панель переживает переход, поэтому раздел — на момент хода
+  if(live)body.kind="auto";
   else if(app==="rules")body.kind="rules";
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
   const dropped=a.plan?[{note:i18n("План снят")}]:[];
-  Object.assign(a,{said:a.said.concat(dropped,text),last:text,busy:true,line:i18n("думаю…"),ask:"",answer:"",kindTurn:false,refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",kind:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
     .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
     .then(()=>{
       if(asst!==a)return;
       a.busy=false;a.line="";
-      const next=a.kindNext;a.kindNext="";
-      if(next)asstKindGo(a,next);else asstRender();
+      asstRender();
     });
 }
 function asstAgain(){asstSend(asst?.last)}
