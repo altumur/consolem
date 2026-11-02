@@ -1480,8 +1480,38 @@
     function accessSnapshot() {
       const a = clone(db.access);
       ["users", "groups", "history", "cellHistory"].forEach((k) => delete a[k]);
-      a.roles = a.roles.map(({ objectAccess, ...r }) => Object.assign(r, { objectAccessCount: Object.keys(objectAccess || {}).length }));
+      a.roles = a.roles.map(({ objectAccess, ...r }) => Object.assign(r, { objectAccessCount: Object.keys(objectAccess || {}).length }, (a.spread || {})[r.id] ? { spread: a.spread[r.id] } : {}));
+      delete a.spread;
       return a;
+    }
+    // Кластер — начало имени сервера. Записи кластера в контракте нет
+    const clusterOf = (s) => (s.name.includes("/") ? s.name.slice(0, s.name.indexOf("/")) : null);
+    const clusterNames = () => [...new Set(db.servers.filter((s) => s.allocated).map(clusterOf).filter(Boolean))];
+    // Роль, у которой поменялись права: они расходятся по кластерам, имя и назначения пишутся одной записью
+    function rolesTouched(a, next) {
+      const part = (r) => JSON.stringify([r.global, r.folderAccess, r.objectAccess]);
+      return next.roles.filter((r) => { const was = a.roles.find((x) => x.id === r.id); return !was || part(was) !== part(r); }).map((r) => r.id);
+    }
+    // Групповая операция по кластерам: отказ одного не откатывает прочие, расхождение остаётся видно у роли.
+    // Отказ задаёт стенд: stand.refuseClusters
+    function roleSpread(roleIds, again) {
+      const refuse = db.stand.refuseClusters || [];
+      db.access.spread = db.access.spread || {};
+      const out = [];
+      const stamp = iso(now());
+      const mark = (roleId, cluster) => {
+        const list = (db.access.spread[roleId] = (db.access.spread[roleId] || []).filter((x) => x.cluster !== cluster));
+        if (!refuse.includes(cluster)) return;
+        list.push({ cluster, state: "refused", at: stamp });
+        const srv = db.servers.find((s) => clusterOf(s) === cluster);
+        out.push(Object.assign({ cluster, roleId, code: "SERVER_OFFLINE" }, srv ? { serverId: srv.id } : {}));
+        const role = db.access.roles.find((r) => r.id === roleId);
+        db.access.history.unshift({ id: uuid("history"), at: stamp, actor: "система", text: `права роли «${role.name}» на кластере ${cluster} не применены`, roleId });
+      };
+      roleIds.forEach((id) => clusterNames().forEach((c) => mark(id, c)));
+      Object.keys(db.access.spread).forEach((id) => (db.access.spread[id] || []).map((x) => x.cluster).filter((c) => again.includes(c)).forEach((c) => mark(id, c)));
+      Object.keys(db.access.spread).forEach((id) => { if (!db.access.spread[id].length) delete db.access.spread[id]; });
+      return out;
     }
     // Изменения поверх нынешнего: всё, чего нет в changes, остаётся как есть
     function accessNext(a, changes) {
@@ -2941,6 +2971,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           if (body.version !== a.version) return problem(412, "VERSION_MISMATCH", "Запись изменилась с момента чтения", { current: accessSnapshot() });
           const next = accessNext(a, body.changes);
           if (next.status) return next;
+          const touched = rolesTouched(a, next);
           // Состояние синхронизации ведёт сервер: у существующих каталогов и групп — его значения
           if (!next.streamGrants && a.streamGrants) next.streamGrants = clone(a.streamGrants);
           next.catalogs.forEach((c) => {
@@ -2976,6 +3007,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (weak) return weak;
           }
           if (body.dryRun) return { status: 200, body: { applied: false, access: null }, headers: { ETag: etag(a) } };
+          // Повтор на кластеры без изменений записей: версия снимка не меняется, меняется расхождение
+          const again = body.retryClusters || [];
           const refused = applierProblem(a, next, passwords) || passwordProblem(a, next, passwords);
           if (refused) return refused;
           const admin = holdsAdmin(a, me);
@@ -2991,9 +3024,10 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             history: body.history.map((h) => stamp("history", h)).concat(a.history),
             cellHistory: body.cellHistory.map((h) => stamp("history", h)).concat(a.cellHistory || []),
           });
+          const spread = roleSpread(touched, again);
           bump(a);
           send("entity.changed", { kind: "access", version: a.version });
-          return { status: 200, body: { applied: true, access: accessSnapshot() }, headers: { ETag: etag(a) } };
+          return { status: 200, body: Object.assign({ applied: true, access: accessSnapshot(), clusters: clusterNames().length }, spread.length ? { notApplied: spread } : {}), headers: { ETag: etag(a) } };
         },
       ],
       [

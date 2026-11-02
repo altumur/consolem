@@ -617,6 +617,7 @@ window.I18N_EN={
 "папки вне отката: состав папки не возвращается":"folders are outside undo: the folder contents are not restored",
 "сверяется только строка камеры: чужая правка записи или детектора удаление не остановит":"only the camera row is checked: someone else's edit of recording or a detector will not stop the deletion",
 "Между камерами":"Between cameras",
+"Сценарий между камерами":"Scenario between cameras",
 "Сценарии":"Scenarios",
 "Сценариев нет":"No scenarios",
 "Новый сценарий":"New scenario",
@@ -639,5 +640,11 @@ window.I18N_EN={
 "отказ":"refused",
 "работает":"running",
 "Документ изменился, ваша правка не записана. Изменились:":"The document has changed, your edit was not saved. Changed:",
-"Событие одной камеры — действие на камере другого кластера. Это не правило: сценарии живут в документе домена":"An event of one camera triggers an action on a camera of another cluster. This is not a rule: scenarios live in the domain document"
+"Событие одной камеры — действие на камере другого кластера. Это не правило: сценарии живут в документе домена":"An event of one camera triggers an action on a camera of another cluster. This is not a rule: scenarios live in the domain document",
+"Применено не везде":"Not applied everywhere",
+"кластеров":"clusters",
+"кластер":"cluster",
+"правлены на месте":"edited locally",
+"ещё не дошли":"not reached yet",
+"не применены":"not applied"
 };

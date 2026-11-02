@@ -159,4 +159,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accPlan();
   await confirmWith(null);
   ok(await until(() => accVer !== vs), "после синхронизации «Применить» проходит: версия " + vs + " → " + accVer);
+  // Роль на весь домен: применено не везде — форма говорит это и даёт повтор
+  const realPost = API.post;
+  const role = accRoles().find((r) => !r.own.unr);
+  accLast.roles.find((r) => r.id === role.id).spread = [{ cluster: "Кластер2", state: "refused" }];
+  paint();
+  ok(await until(() => /Применено не везде/.test(document.getElementById("accSpread")?.textContent || "") && /Кластер2/.test(document.getElementById("accSpread").textContent)), "расхождение видно в разделе");
+  let sent = null;
+  API.post = (path, data) => (path === "/access/apply" ? ((sent = data), Promise.resolve({ applied: true, notApplied: [{ cluster: "Кластер2", code: "SERVER_OFFLINE" }], clusters: 2 })) : realPost(path, data));
+  document.getElementById("accRetry").click();
+  ok(await until(() => sent && /Применено не везде/.test(toastText())), "повтор: «применено» не говорим");
+  ok(sent.retryClusters[0] === "Кластер2" && !sent.changes.length, "повтор идёт только на кластер");
+  API.post = realPost;
 });

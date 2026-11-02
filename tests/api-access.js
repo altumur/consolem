@@ -456,5 +456,32 @@
     assert.status(await env.call("PATCH", "/stream-accounts/wall-2", { disabled: false }), 404, "NOT_FOUND");
   });
 
+  test("Роль на весь домен: запись одна, отказ одного кластера не откатывает прочие, расхождение видно, повтор", async () => {
+    const names = (i) => (i % 2 ? `Кластер2/Сервер ${i}` : `Кластер1/Сервер ${i}`);
+    const servers = FX.servers.map((s, i) => Object.assign({}, s, { name: names(i) }));
+    const env = await makeEnv({ fixturePatch: { servers, stand: { refuseClusters: ["Кластер2"] } } });
+    const a = await env.access();
+    const d = JSON.parse(JSON.stringify(a));
+    const role = d.roles.find((r) => !r.global.unr);
+    role.global.feat = role.global.feat.includes("WEB_UI_LOGIN") ? role.global.feat.filter((x) => x !== "WEB_UI_LOGIN") : role.global.feat.concat("WEB_UI_LOGIN");
+    const res = await apply(env, d, { base: a });
+    assert.status(res, 200);
+    const raw = await env.ok("GET", "/access");
+    assert.eq(raw.roles.filter((r) => r.spread).map((r) => [r.id, r.spread.map((x) => [x.cluster, x.state])]), [[role.id, [["Кластер2", "refused"]]]], "расхождение у роли, один кластер");
+    assert.eq(raw.roles.filter((r) => r.id === role.id).length, 1, "роль одна");
+    assert.ok((await env.pages("/access/history"))[0].text.includes("на кластере Кластер2 не применены"), "строка истории от системы");
+    const body = (over) => Object.assign({ version: raw.version, changes: [], history: [], cellHistory: [] }, over);
+    const again = await env.ok("POST", "/access/apply", body({ retryClusters: ["Кластер2"] }));
+    assert.eq([again.applied, again.notApplied.map((x) => x.cluster)], [true, ["Кластер2"]], "повтор: кластер всё ещё отказывает");
+    assert.ok(again.clusters >= 2, "итог по числу кластеров");
+    const healed = await makeEnv({ fixturePatch: { servers } });
+    const h = await healed.access();
+    const x = JSON.parse(JSON.stringify(h));
+    x.roles.find((r) => !r.global.unr).comment = "только имя и описание";
+    const plain = await apply(healed, x, { base: h });
+    assert.status(plain, 200);
+    assert.ok(!plain.body.notApplied, "сама роль пишется одной записью");
+  });
+
   ApiTest.loaded("api-access.js");
 })();

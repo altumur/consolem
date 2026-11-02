@@ -10269,7 +10269,7 @@ function rulePlan(){
   const rows=d.map((x,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(x.label)}</td><td class="bk-note">${escHtml(x.fromT)}</td><td><b>${escHtml(x.toT)}</b></td></tr>`).join("");
   openBulkModal(`${i18n("План")}: «${escHtml(r.name)}», ${d.length} ${i18n(plural(d.length,"изменение|изменения|изменений"))}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Параметр")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
-     ${why.length?`<div class="nt bk-warn">${lu("triangle-alert")} ${r.on?i18n("Правило с ошибкой нельзя применить включённым — исправьте ошибку или выключите правило"):i18n("В правиле есть ошибка: оно применится выключенным и не заработает, пока её не исправят")}: ${why.map(x=>escHtml(i18n(x))).join("; ")}</div>`:""}
+     ${why.length?`<div class="nt bk-warn">${why.some(x=>/нескольких доменов/.test(x))&&can("getScenarios")?`<button type="button" class="lk lk-act" ${onEv("click",["closeBulkModal"],["ruleOpen","between"])}>${i18n("Сценарий между камерами")}</button> `:""}${lu("triangle-alert")} ${r.on?i18n("Правило с ошибкой нельзя применить включённым — исправьте ошибку или выключите правило"):i18n("В правиле есть ошибка: оно применится выключенным и не заработает, пока её не исправят")}: ${why.map(x=>escHtml(i18n(x))).join("; ")}</div>`:""}
      ${live?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("С этого момента правило будет выполнять действия")}: ${escHtml(ruleActs(r).map(x=>actionLabel(x.it,{r})).join("; ")||"—")}</div>`:""}
      ${wide.map(x=>`<div class="nt bk-warn" role="alert">${lu("triangle-alert")} ${i18n("Действие")} «${escHtml(actionLabelBare(x.a))}» ${i18n("коснётся")} ${escHtml(ruleCntOf(x.n,x.k.devTypes))}</div>`).join("")}
      ${ask.length?`<label class="rl-opt" style="margin-top:10px"><input type="checkbox" ${onEv("change",["rpApplyGate",block?false:onEv.checked])}><span>${i18n("Понимаю, что действие коснётся")} ${escHtml(ruleCntOf(top.n,top.k.devTypes))}</span></label>`:""}
@@ -13608,6 +13608,31 @@ async function accUsersMore(){
   accLast.users=accLast.users.concat(r.items);
   paint();
 }
+// Роль на весь домен: итог по кластерам. Отказ одного кластера не откатывает прочие, повтор идёт только туда
+let accNotApplied=[];
+function accSpreadRows(){
+  const out=[];
+  (accLast?.roles||[]).forEach(r=>(r.spread||[]).forEach(x=>out.push({role:r,cluster:x.cluster,state:x.state})));
+  return out;
+}
+const ACC_SPREAD_RU={local:"правлены на месте",pending:"ещё не дошли",refused:"не применены"};
+function accSpreadHtml(){
+  const rows=accSpreadRows();if(!rows.length)return"";
+  return`<div class="nt bk-warn" id="accSpread"><b>${i18n("Применено не везде")}</b>${rows.map(x=>`<div>${escHtml(x.role.name)} · ${i18n("кластер")} ${escHtml(x.cluster)}: ${i18n(ACC_SPREAD_RU[x.state]||x.state)}</div>`).join("")}
+    <button type="button" class="btn s" id="accRetry" ${onEv("click",["accRetry"])}>${i18n("Повторить")}</button></div>`;
+}
+async function accRetry(){
+  const clusters=[...new Set(accSpreadRows().map(x=>x.cluster))];
+  if(!clusters.length)return;
+  accApplying=true;
+  try{
+    const res=await API.post("/access/apply",{version:accVer,changes:[],history:[],cellHistory:[],retryClusters:clusters});
+    accNotApplied=res.notApplied||[];
+    const a=await accFetch();accSetSnapshot(a);accLast=a;
+    toast(accNotApplied.length?i18n("Применено не везде"):i18n("Изменения применены"));
+  }catch(e){toast(problemText(e))}
+  finally{accApplying=false;paint()}
+}
 // Изменения вместо снимка: сравниваются записи, которые форма читала и правила
 function accChanges(from,to){
   const out=[];
@@ -14149,9 +14174,12 @@ function accPlan(){
     // Черновик целиком — одним пакетом; новый снимок прав приходит в ответе
     // Событие своей записи не должно обогнать чтение снимка: пока идёт применение, поток прав молчит
     accApplying=true;
-    API.post("/access/apply",{version:accVer,changes:accChanges(accToApi(accData().srv),accToApi(accSt())),history,cellHistory}).then(()=>accFetch()).finally(()=>{accApplying=false}).then(a=>{
+    let notApplied=[],total=0;
+    API.post("/access/apply",{version:accVer,changes:accChanges(accToApi(accData().srv),accToApi(accSt())),history,cellHistory}).then(res=>{notApplied=res.notApplied||[];total=res.clusters||0;return accFetch()}).finally(()=>{accApplying=false}).then(a=>{
       accSetSnapshot(a);accLast=a;Object.keys(accCatPwd).forEach(k=>delete accCatPwd[k]);
-      accOvNote=null;toast(i18n("Изменения применены"));paint();
+      accOvNote=null;accNotApplied=notApplied;
+      // Роль одна на весь домен, но расходится по кластерам: «применено» говорим только когда применено везде
+      toast(notApplied.length?`${i18n("Применено не везде")}: ${new Set(notApplied.map(x=>x.cluster)).size} ${i18n("из")} ${total} ${i18n("кластеров")}`:i18n("Изменения применены"));paint();
     }).catch(e=>{toast(problemText(e));paint()});
   },{html:true,cancelLabel:"Закрыть"});
 }
@@ -14332,6 +14360,12 @@ function accDownUI(){
 function accUI(){
   if(accDown)return accDownUI();
   accGroupCache.clear();accObjGroupCache.clear();accObjCache.clear();accData();
+  accUIBody();
+  // Расхождение роли видно в разделе всегда, пока оно есть
+  const sc=document.querySelector("#main .sc");
+  if(sc&&accSpreadRows().length&&!document.getElementById("accSpread"))sc.insertAdjacentHTML("afterbegin",accSpreadHtml());
+}
+function accUIBody(){
   if(accSel.startsWith("role:")&&accSelRole())return accRoleUI(accSelRole());
   if(accSel.startsWith("user:")&&accUser(accSel.slice(5)))return accUserUI(accUser(accSel.slice(5)));
   if(accSel.startsWith("grp:")&&accGroupRow(accSel.slice(4)))return accGroupUI(accSel.slice(4));

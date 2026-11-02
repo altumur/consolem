@@ -9274,6 +9274,35 @@
               "description": "Поле объекта → уровень"
             },
             "description": "Исключения для объектов: id устройства или хранилища, vw:<id сервера>, macro:<id правила>, plug:<код плагина> → поля. Исключение действует внутри своей роли: внутри роли — исключение объекта, иначе ближайшая папка, где значение задано, иначе право по умолчанию; между ролями — наибольшее. Понижение бывает, но не отнимает того, что даёт другая роль"
+          },
+          "spread": {
+            "type": "array",
+            "description": "Расхождение роли: кластеры, где права не совпадают с ролью домена. Нет поля — совпадают везде. local — правлены на месте, pending — ещё не дошли, refused — не применены",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cluster",
+                "state"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "local",
+                    "pending",
+                    "refused"
+                  ]
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
           }
         },
         "additionalProperties": false,
@@ -13789,7 +13818,7 @@
           "history",
           "cellHistory"
         ],
-        "description": "Применить изменения прав. Всё остальное не меняется. version — от GET /access, чужая правка даёт 412 VERSION_MISMATCH. dryRun: true — только проверить, ничего не записывая",
+        "description": "Применить изменения прав. Всё остальное не меняется. version — от GET /access, чужая правка даёт 412 VERSION_MISMATCH. dryRun: true — только проверить, ничего не записывая. Роль одна на весь домен: права расходятся по кластерам групповой операцией, отказ одного не откатывает прочие, итог — notApplied. Люди, группы и сами роли пишутся одной записью",
         "properties": {
           "dryRun": {
             "type": "boolean"
@@ -13815,6 +13844,13 @@
             "items": {
               "$ref": "#/components/schemas/AccessChange"
             }
+          },
+          "retryClusters": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Повторить расход прав ролей на эти кластеры. changes может быть пустым"
           }
         }
       },
@@ -13840,6 +13876,41 @@
               }
             ],
             "description": "Новый снимок прав; при dryRun — null"
+          },
+          "notApplied": {
+            "type": "array",
+            "description": "Роль на весь домен: запись одна, расходится по кластерам групповой операцией. Здесь — кластеры, где права роли не применились: отказ одного не откатывает прочие. Нет поля или пусто — применено везде",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cluster",
+                "code"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string",
+                  "description": "Имя кластера, как в начале имени сервера"
+                },
+                "serverId": {
+                  "type": "string",
+                  "format": "uuid",
+                  "description": "Сервер этого кластера, если он виден"
+                },
+                "roleId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "code": {
+                  "$ref": "#/components/schemas/ProblemCode"
+                }
+              }
+            }
+          },
+          "clusters": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "На сколько кластеров расходилась правка"
           }
         }
       },
@@ -17569,6 +17640,35 @@
             "type": "integer",
             "minimum": 0,
             "description": "Сколько объектов в исключениях. Сами — GET /access/roles/{id}/objects"
+          },
+          "spread": {
+            "type": "array",
+            "description": "Расхождение роли: кластеры, где права не совпадают с ролью домена. Нет поля — совпадают везде. local — правлены на месте, pending — ещё не дошли, refused — не применены",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cluster",
+                "state"
+              ],
+              "properties": {
+                "cluster": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "local",
+                    "pending",
+                    "refused"
+                  ]
+                },
+                "at": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              }
+            }
           }
         },
         "additionalProperties": false,
