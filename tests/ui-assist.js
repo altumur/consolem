@@ -208,7 +208,7 @@ UiCheck(async ({ ok, until }) => {
   const planned = async (said, word) => {
     talk(said);
     ok(await until(() => document.getElementById("asstApply")), "план: " + said);
-    ok(word.test(body()), "шаг виден в плане: " + body().slice(0, 240));
+    ok(word.test(body()), "шаг виден в плане: " + body().replace(/\s+/g, " ").slice(0, 240));
     const name = asst.plan.rules[0].body.name;
     document.getElementById("asstApply").click();
     ok(await until(() => rows().join() === "ok"), "записано: " + rows().join());

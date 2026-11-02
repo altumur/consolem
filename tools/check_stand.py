@@ -99,7 +99,9 @@ def run_page(page, stand, report):
         return False, f"отчёт не пришёл за {WAIT_SEC} с" + (f": {selftest_missing(''.join(log))}" if "selftest" in page else "")
     text = got[-1].rstrip()
     lines = [l for l in text.splitlines() if not l.startswith("PASS")]
-    return text.endswith("RESULT pass"), "\n".join(lines[-12:]) + f"\n({time.time() - started:.0f} с)"
+    # Отказы — всегда: подпись проверки может занять несколько строк и вытеснить их из хвоста
+    fails = [l for l in lines[:-12] if l.startswith("FAIL")]
+    return text.endswith("RESULT pass"), "\n".join(fails + lines[-12:]) + f"\n({time.time() - started:.0f} с)"
 
 
 def main():
