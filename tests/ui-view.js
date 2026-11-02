@@ -186,13 +186,16 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
 
   // Переход к моменту по событию и мимо записи
   await emit(cam.id, { text: "Сработка на шкале", source: "det", kind: "motion", occurredAt: new Date(plain.startMs + 600000).toISOString() });
+  // Вариант «pos» в выборе есть, только если такое событие попало в окно: на стенде часы идут, набор журнала в окно может не попасть
+  await emit(cam.id, { text: "Чек на шкале", source: "pos", kind: "text", occurredAt: new Date(plain.startMs + 660000).toISOString() });
   q("[data-tl-win='all']").click();
   ok(await until(() => !lv.tl.busy && /Сработка на шкале/.test(text("[data-tl]"))), "событие на шкале");
-  ok(await until(() => [...document.querySelectorAll("[data-tl-source] option")].some((o) => o.value === "det")), "фильтр по подсистеме");
+  ok(await until(() => ["det", "pos"].every((v) => [...document.querySelectorAll("[data-tl-source] option")].some((o) => o.value === v))), "фильтр по подсистеме");
   const sel1 = q("[data-tl-source]");
   sel1.value = "pos";
   sel1.dispatchEvent(new Event("change", { bubbles: true }));
-  ok(await until(() => !/Сработка на шкале/.test(text("[data-tl]"))), "отбор по подсистеме");
+  ok(sel1.value === "pos", "выбрана подсистема pos");
+  ok(await until(() => !/Сработка на шкале/.test(text("[data-tl]")) && /Чек на шкале/.test(text("[data-tl]"))), "отбор по подсистеме");
   // Чтения внахлёст: поздний ответ без отбора отбор не затирает
   const jget = API.get;
   let late = null;
