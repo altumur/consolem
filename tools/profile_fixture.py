@@ -137,9 +137,10 @@ def build(demo):
     def prune(r):
         r["triggers"] = [dict(t, target=tgt(t["target"])[0]) for t in r["triggers"] if tgt(t["target"])[1]]
         r["conditions"] = [dict(c, target=tgt(c["target"])[0]) if "target" in c else c for c in r["conditions"] if "target" not in c or tgt(c["target"])[1]]
-        r["steps"] = dict(r).get("steps") if r["name"] == OUT_OF_CATALOG else steps(r["steps"])
         if r["name"] == OUT_OF_CATALOG:
             r["enabled"] = False
+        else:
+            r["steps"] = steps(r["steps"])
         if len(r["triggers"]) < 2:
             r["windowSec"] = 0
         if r["serverId"] not in sids:

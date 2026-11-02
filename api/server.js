@@ -1016,6 +1016,7 @@
         eachTarget(r, fix);
         if (JSON.stringify(r) === was) return;
         bump(r);
+        runsStop(r.id);
         changed("rule", r);
       });
       db.ruleVersions.forEach((v) => eachTarget(v.rule, fix));
@@ -1209,6 +1210,7 @@
         if (!hit.length) return;
         hit.forEach((c) => (c.scheduleId = never()));
         bump(r);
+        runsStop(r.id);
         changed("rule", r);
       });
       db.maintenanceWindows.forEach((w) => {
@@ -2545,8 +2547,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if ("enabled" in set || "logOnly" in set) {
               if (next.enabled && next.logOnly && !(r.enabled && r.logOnly)) next.logOnlySince = sysToday();
               if (next.enabled && !next.logOnly) next.logOnlySince = null;
+              if (next.enabled !== r.enabled || next.logOnly !== r.logOnly) runsStop(r.id);
               ["enabled", "logOnly", "logOnlySince"].forEach((k) => (r[k] = next[k]));
-              runsStop(r.id);
               Object.assign(r, { changedAt: iso(now()), changedBy: myLogin() });
             }
             if ("mute" in set) r.mute = set.mute ? { since: iso(now()), until: set.mute.until, by: myLogin(), reason: set.mute.reason || "" } : null;
@@ -2757,6 +2759,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (!hit.length) return;
             hit.forEach((c) => (c.modeIds = c.modeIds.filter((x) => !gone.includes(x))));
             bump(r);
+            runsStop(r.id);
             changed("rule", r);
           });
           if (db.modeManual && gone.includes(db.modeManual.modeId)) db.modeManual = null;

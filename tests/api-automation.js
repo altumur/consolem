@@ -442,10 +442,17 @@
     await off((env, r) => env.ok("PUT", `/rules/${r.id}`, body(r, { purpose: "другое" }), etag(r)));
     await off((env, r) => env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { enabled: false } }] }));
     await off((env, r) => env.ok("POST", "/objects/delete", { idempotencyKey: ApiTest.key(), items: [{ id: r.id, version: r.version }] }));
+    await off(async (env, r) => {
+      const camera = r.steps[0].yes[0].target.include[0].id;
+      await env.ok("DELETE", `/devices/${camera}`, undefined, { "If-Match": await env.etag(`/devices/${camera}`) });
+    });
     const env = await envWith({ steps: [ask()] }, { login: "root" });
     await run(env);
     const r = await env.ok("GET", `/rules/${base.id}`);
-    await env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { mute: { until: new Date(env.now + 3600000).toISOString().replace(/\.\d+Z$/, "Z"), reason: "" } } }] });
+    assert.status(await env.call("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { enabled: true } }] }), 200);
+    assert.eq((await env.list("/rule-prompts")).length, 1, "то же значение запуск не снимает");
+    const r2 = await env.ok("GET", `/rules/${base.id}`);
+    await env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r2.id, version: r2.version, set: { mute: { until: new Date(env.now + 3600000).toISOString().replace(/\.\d+Z$/, "Z"), reason: "" } } }] });
     assert.eq((await env.list("/rule-prompts")).length, 1, "приглушение запуск не снимает");
   }, { needs: PROMPTS });
 

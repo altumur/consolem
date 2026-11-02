@@ -59,8 +59,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ruleEdit((x) => { delete x._auto; x.name = "Детектор из сценария"; x.then = [ruleNewAct(ACTION_KINDS.find((k) => k.action === "detect"), null, x)]; });
   paint();
   ok([...document.querySelector("select[data-ks]").options].some((o) => /Проверить архив детектором/.test(o.textContent)), "оба действия в списке видов");
-  const dk = ACTION_KINDS.find((k) => k.action === "detect");
-  ok(ruleDetKindOpts(dk.fields && { sub: "det", action: "detect" }).some(([x]) => x === "motion"), "виды детектора — из справочника");
+  ok(ruleDetKindOpts({ sub: "det", action: "detect" }).some(([x]) => x === "motion"), "виды детектора — из справочника");
   ruleEdit((x) => { x.then = [{ sub: "det", action: "detect", ref: CAM, detectorKind: "motion", minutes: 10 }, { sub: "det", action: "scan", ref: CAM, detectorKind: "motion", beforeSec: 30, after: 90 }]; });
   ok(actionLabel(curRule().then[1]).includes("30") && actionLabel(curRule().then[1]).includes("90"), "подпись окна: " + actionLabel(curRule().then[1]));
   ruleEdit((x) => { x.then[1].beforeSec = 0; x.then[1].after = 0; x.when = [{ sub: "det", kind: "motion", ref: CAM, match: {} }]; });
