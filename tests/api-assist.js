@@ -53,5 +53,93 @@
     const env = await makeEnv();
     assert.status(await env.call("POST", "/assist/turns", { text: "" }), 422, "VALIDATION_FAILED");
   }, NEED);
+  /* ----- План правил ----- */
+
+  const FX = ApiTest.FX;
+  const RULE_WRITE = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
+    "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels", "validForSec"];
+  const DEFAULTS = { enabled: true, logOnly: false, logOnlySince: null, start: "event", runMode: "always", operatorMenu: false, ratePerMinute: 6, windowSec: 0, runAt: null,
+    repeat: "skip", triggers: [], conditions: [], steps: [], owner: "", purpose: "", serverId: null, runAsRoleId: null, allowChain: true };
+  const pick = (r) => Object.fromEntries(RULE_WRITE.filter((k) => k in r).map((k) => [k, r[k]]));
+  const lastOf = (got) => got[got.length - 1];
+  const turn = (env, text, extra) => env.stream("/assist/turns", Object.assign({ text, kind: "rules" }, extra || {}));
+  const camera = "Главный вход";
+  const named = FX.rules.find((r) => r.name === "Охрана входа ночью");
+
+  test("План правил: kind — rules или config, нет поля — config, другое значение — 422", async () => {
+    const env = await makeEnv();
+    const said = `при движении на ${camera} пиши 5 минут`;
+    const plain = lastOf(await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход" }));
+    assert.ok(plain.items.length && !("rules" in plain), "нет поля — настройка устройств");
+    const config = lastOf(await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход", kind: "config" }));
+    assert.ok(config.items.length && !("rules" in config), "kind: config — то же");
+    const rules = lastOf(await turn(env, said));
+    assert.ok(rules.type === "plan" && rules.rules.length === 1 && !("items" in rules), "kind: rules — место плана правил");
+    const bad = await env.call("POST", "/assist/turns", { text: said, kind: "other" });
+    assert.status(bad, 422, "VALIDATION_FAILED");
+    assert.eq(bad.body.field, "kind", "поле");
+  }, NEED);
+
+  test("План правил: новое правило — запись плана словами контракта, ход ничего не пишет, заведено logOnly", async () => {
+    const env = await makeEnv();
+    const before = (await env.list("/rules")).length;
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => m.kind === "rule" && seen.push(m.type));
+    await ApiTest.settle();
+    const plan = lastOf(await turn(env, `при движении на ${camera} пиши 5 минут`));
+    const [e] = plan.rules;
+    assert.eq([e.table, e.op, "id" in e], ["scenarios", "create", false], "запись плана");
+    assert.eq([e.body.enabled, e.body.logOnly, e.body.triggers[0].kind, e.body.steps[0].minutes], [true, true, "motion", 5], "поля Rule");
+    assert.eq((await env.list("/rules")).length, before, "ход ничего не записал");
+    await ApiTest.settle();
+    assert.eq(seen, [], "событий нет");
+    const made = await env.ok("POST", "/rules", Object.assign({}, DEFAULTS, e.body));
+    stop();
+    assert.eq([made.enabled, made.logOnly, made.owner, made.serverId, made.runAsRoleId], [true, true, "", null, null], "заведено наблюдающим, умолчания перевода");
+  }, NEED);
+
+  test("План правил: просили выключенным — выключенным", async () => {
+    const env = await makeEnv();
+    const [e] = lastOf(await turn(env, `при движении на ${camera} пиши 5 минут, заведи выключенным`)).rules;
+    assert.eq([e.body.enabled, "logOnly" in e.body], [false, false], "план");
+    const made = await env.ok("POST", "/rules", Object.assign({}, DEFAULTS, e.body));
+    assert.eq([made.enabled, "status" in made], [false, false], "не следит");
+  }, NEED);
+
+  test("План правил: правка — только изменённые поля, PUT целиком с версией, чужая версия — 412 VERSION_MISMATCH", async () => {
+    const env = await makeEnv();
+    const [e] = lastOf(await turn(env, `в правиле ${named.name} убери условия`)).rules;
+    assert.eq([e.table, e.op, e.id, Object.keys(e.body)], ["scenarios", "update", named.id, ["conditions"]], "запись плана");
+    const read = await env.ok("GET", `/rules/${e.id}`);
+    assert.eq(read.conditions.length, named.conditions.length, "ход ничего не записал");
+    const done = await env.ok("PUT", `/rules/${e.id}`, Object.assign(pick(read), e.body), { "If-Match": `"${read.version}"` });
+    assert.eq([done.conditions, done.logOnly, done.enabled, done.steps.length], [[], read.logOnly, read.enabled, read.steps.length], "прочее на месте, наблюдения не завелось");
+    const stale = await env.call("PUT", `/rules/${e.id}`, Object.assign(pick(read), { ratePerMinute: 7 }), { "If-Match": `"${read.version}"` });
+    assert.status(stale, 412, "VERSION_MISMATCH");
+    assert.eq(stale.body.current.version, done.version, "актуальная запись в ответе");
+    assert.eq((await env.ok("GET", `/rules/${e.id}`)).ratePerMinute, read.ratePerMinute, "чужая версия ничего не записала");
+  }, NEED);
+
+  test("План правил: новое расписание — запись с ref, правило ссылается на него «@ref»", async () => {
+    const env = await makeEnv();
+    const plan = lastOf(await turn(env, `при движении на ${camera} пиши 5 минут, новое расписание`));
+    const [s, r] = plan.rules;
+    assert.eq([s.table, s.op, s.ref, r.body.conditions[0].scheduleId], ["schedules", "create", "shift", "@shift"], "порядок и ссылка");
+    assert.ok(!(await env.list("/schedules")).some((x) => x.name === s.body.name), "расписания нет");
+    const sc = await env.ok("POST", "/schedules", s.body);
+    const made = await env.ok("POST", "/rules", Object.assign({}, DEFAULTS, r.body, { conditions: [{ kind: "time", scheduleId: sc.id }] }));
+    assert.eq(made.conditions[0].scheduleId, sc.id, "ссылка подставлена");
+  }, NEED);
+
+  test("План правил: вопрос, ответ с context; чего форма не выражает — отказ словом о странице консоли", async () => {
+    const env = await makeEnv();
+    const q = lastOf(await turn(env, "при движении пиши 5 минут"));
+    assert.eq([q.type, q.text], ["question", "На какой камере?"], "вопрос");
+    const p = lastOf(await turn(env, camera, { context: q.context }));
+    assert.eq(p.type, "plan", "по ответу — план");
+    const no = lastOf(await turn(env, `при движении на ${camera} спроси оператора`));
+    assert.ok(no.type === "refused" && /странице консоли/.test(no.text) && !("rules" in no), "отказ");
+  }, NEED);
+
   ApiTest.loaded("api-assist.js");
 })();

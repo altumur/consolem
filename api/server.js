@@ -3207,8 +3207,40 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
     // Заглушка ассистента: разбор — по словам просьбы, чтобы сценарии были предсказуемы. Это не модель, план здесь
     // никто не проверяет: у бэкенда проверяет код. «сбой» — error, «маска сети» — refused, нет действия или камер — question
     const ASSIST_STOP = ["камер", "запис", "включ", "выклу", "парол", "секре", "смени", "всех", "этаж"];
+    // Заглушка плана правил: просьбы тестов, а не разбор языка. Настоящий ход — V/10.7: модель, проверка, сверка со словами
+    function assistRulesStub(said, context, at) {
+      const low = said.toLowerCase();
+      const out = [{ type: "progress", at, text: "читаю правила" }];
+      const last = (e) => out.concat(Object.assign({ at }, e));
+      if (/спроси|эскалац|детектор на время|провер\S* архив/.test(low)) return last({ type: "refused", text: "Такое правило заводится на странице консоли.", context });
+      const rule = db.rules.find((r) => low.includes(r.name.toLowerCase()));
+      if (/убери|лимит/.test(low)) {
+        if (!rule) return last({ type: "question", text: "Какое правило изменить?", context });
+        const limit = (low.match(/лимит\D*(\d+)/) || [])[1];
+        const edit = limit ? { ratePerMinute: Number(limit) } : /услови/.test(low) ? { conditions: [] } : /шаг/.test(low) ? { steps: rule.steps.slice(0, -1) } : null;
+        if (!edit) return last({ type: "question", text: "Что изменить в правиле?", context });
+        return last({ type: "plan", summary: `Правило «${rule.name}»`, context, rules: [{ table: "scenarios", op: "update", id: rule.id, body: edit }] });
+      }
+      const cam = db.devices.filter((d) => d.type === "camera" && low.includes(d.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+      if (!/движени/.test(low)) return last({ type: "refused", text: "Не понял, какое правило нужно.", context });
+      if (!cam) return last({ type: "question", text: "На какой камере?", context });
+      const minutes = (low.match(/(\d+)\s*мин/) || [])[1];
+      if (!minutes) return last({ type: "question", text: "Сколько минут писать?", context });
+      const target = { include: [{ kind: "device", id: cam.id }], exclude: [], gone: [], fromEvent: false };
+      const r = { name: `Запись при движении: ${cam.name}`, start: "event", triggers: [{ source: "det", kind: "motion", target, match: {} }], conditions: [],
+        steps: [{ source: "rec", action: "record", target, duration: "min", minutes: Number(minutes) }] };
+      Object.assign(r, /выключенн/.test(low) ? { enabled: false } : { enabled: true, logOnly: true });
+      const rows = [{ table: "scenarios", op: "create", body: r }];
+      if (/новое расписание/.test(low)) {
+        const { id, version, builtin, ...sc } = clone(db.schedules.find((x) => !x.builtin));
+        rows.unshift({ table: "schedules", op: "create", ref: "shift", body: Object.assign(sc, { name: "Смена из просьбы", owner: null }) });
+        r.conditions.push({ kind: "time", scheduleId: "@shift" });
+      }
+      return last({ type: "plan", summary: "Create a rule", context, rules: rows });
+    }
     function assistStub(body) {
       const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
+      if (body.kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
       const low = said.toLowerCase();
       const context = `stub:${said}`;
       const at = iso(now());

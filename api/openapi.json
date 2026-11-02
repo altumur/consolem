@@ -4795,7 +4795,7 @@
           "assist"
         ],
         "summary": "Ход разговора с ассистентом (SSE)",
-        "description": "Ответ — поток text/event-stream: на сообщение строка data: (AssistEvent), без event: и без id:. Ход длится от десятков секунд до нескольких минут. Закрыть поток — отменить ход. Оборванный поток не продолжается: клиент повторяет запрос. Поток без завершающего сообщения — обрыв, UPSTREAM_UNAVAILABLE. «Применить» — обычный POST /devices/update с items плана и новым idempotencyKey; устройство изменилось после плана — его строка в failed с VERSION_MISMATCH. Без него ничего не пишется.",
+        "description": "Ответ — поток text/event-stream: на сообщение строка data: (AssistEvent), без event: и без id:. Ход длится от десятков секунд до нескольких минут. Закрыть поток — отменить ход. Оборванный поток не продолжается: клиент повторяет запрос. Поток без завершающего сообщения — обрыв, UPSTREAM_UNAVAILABLE. «Применить» — обычный POST /devices/update с items плана и новым idempotencyKey; устройство изменилось после плана — его строка в failed с VERSION_MISMATCH. Без него ничего не пишется. План правил (kind: rules) — поле rules, «Применить» — двери из описания AssistRuleEdit сессией человека.",
         "requestBody": {
           "required": true,
           "content": {
@@ -14437,6 +14437,14 @@
               "type": "string"
             },
             "description": "Пароли из отдельных полей ассистента. Номер секрета — место в массиве, с 1. В context их нет: клиент держит их в памяти до конца разговора и присылает в каждом запросе, никуда не сохраняет"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "config",
+              "rules"
+            ],
+            "description": "Тип запроса: config — настройка устройств, rules — правила автоматизации. Нет поля — config. Тип называет вызывающий: бэкенд текст просьбы не разбирает, чтобы его угадать"
           }
         },
         "description": "Ход разговора с ассистентом. Своего состояния у бэкенда нет: разговор держит клиент"
@@ -14519,7 +14527,7 @@
             "x-enum-descriptions": {
               "progress": "Что ассистент делает сейчас: text. Может приходить много раз",
               "question": "Нужно уточнение: text, context. Ответ человека — новый запрос с этим context",
-              "plan": "План: summary, context, items. Частичных планов нет: не может всё — refused",
+              "plan": "План: summary, context, items или rules. Частичных планов нет: не может всё — refused",
               "refused": "Не может: text, context, field",
               "error": "Ошибка: code, message"
             }
@@ -14553,6 +14561,13 @@
           },
           "message": {
             "type": "string"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssistRuleEdit"
+            },
+            "description": "План правил, тип запроса rules: записи по порядку. Предложение, а не запись: ход ничего не пишет"
           }
         },
         "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, error"
@@ -15831,6 +15846,48 @@
         "required": [
           "answer"
         ]
+      },
+      "AssistRuleEdit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "table",
+          "op",
+          "body"
+        ],
+        "properties": {
+          "table": {
+            "type": "string",
+            "enum": [
+              "scenarios",
+              "schedules",
+              "windows"
+            ],
+            "description": "Что записать: правило, расписание, окно обслуживания"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "create",
+              "update"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "update: какая запись"
+          },
+          "ref": {
+            "type": "string",
+            "description": "Имя новой строки schedules внутри плана. Ссылка на неё в body других записей — строка \"@<ref>\", клиент подставляет id созданной записи"
+          },
+          "body": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Поля записи контрактными словами: у scenarios — поля Rule. create — запись целиком, недостающие поля RuleWrite — умолчания перевода (owner, purpose — пусто, serverId, runAsRoleId — null, прочие — умолчания правила), новое правило — logOnly: true или enabled: false. update — только изменённые поля"
+          }
+        },
+        "description": "Запись плана правил. Пишет человек, по порядку: scenarios — POST /rules, PUT /rules/{id}; schedules — POST /schedules, PUT /schedules/{id}; windows — POST /maintenance-windows, PUT /maintenance-windows/{id}. PUT — запись целиком: тело из чтения поверх body, версия чтения в If-Match. Новое правило заводится logOnly: true или выключенным, включает человек. Правка действующего правила наблюдения не заводит: предел. Отказ записи стоит за своей строкой, записанное остаётся, отката нет"
       }
     }
   }
