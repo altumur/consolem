@@ -17505,7 +17505,12 @@
   },
   "limits": {
    "ipScanMax": 1024,
-   "defaultServerPort": 20111
+   "defaultServerPort": 20111,
+   "pageMax": 1000,
+   "idsMax": 200,
+   "selectMax": 500,
+   "watchMax": 200,
+   "scanPartsMax": 8
   },
   "capabilities": {
    "operations": [
@@ -17605,7 +17610,16 @@
     "createArchiveScan",
     "deleteArchiveScan",
     "listRulePrompts",
-    "answerRulePrompt"
+    "answerRulePrompt",
+    "getTreeChildren",
+    "getTreePaths",
+    "setFolderDevices",
+    "listAccessUsers",
+    "listAccessGroups",
+    "listAccessHistory",
+    "listAccessCellHistory",
+    "listRoleObjects",
+    "putStreamWatch"
    ],
    "deviceTypes": [
     "camera",

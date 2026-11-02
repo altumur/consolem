@@ -115,16 +115,27 @@
       scanning = new Map();
       db.archiveWatches = db.archiveWatches || [];
       db.archiveScans = db.archiveScans || [];
+      db.stand = db.stand || {};
+      if (db.stand.large) expandLarge(db.stand.large);
+      revisions = new Map();
+      summaries = new Map();
+      treePending = {};
+      viewStamp++;
       searches = new Map();
       syncing = new Map();
       answered.clear();
       // Номера новых id — после самых больших в наборе
       Object.keys(seq).forEach((k) => delete seq[k]);
-      JSON.stringify(db).replace(/"id":"([0-9a-f])(\d{7})-(\d{4})-4000-8000-0{12}"/g, (m, kind, n, sub) => {
+      const idsOf = (node) => JSON.stringify(node).replace(/"id":"([0-9a-f])(\d{7})-(\d{4})-4000-8000-0{12}"/g, (m, kind, n, sub) => {
         const k = sub === "0000" ? kind : `${kind}-${sub}`;
         seq[k] = Math.max(seq[k] || 0, Number(n));
-        return m;
+        return "";
       });
+      // Большой набор строкой целиком не разбирается: устройства — номером последнего
+      if (db.stand.large) {
+        idsOf(Object.assign({}, db, { devices: [] }));
+        seq[KIND.device] = db.devices.length + 1000;
+      } else idsOf(db);
     }
     const uuid = (kind) => {
       const k = KIND[kind];
@@ -134,7 +145,18 @@
     };
     const engine = Engine.forDb(() => db);
     let lastMode = null;
-    const byId = (table, id) => db[table].find((r) => r.id === id) || null;
+    // Устройства — по карте: на большом наборе перебор на каждый запрос не годится. Карта судит себя сама:
+    // другой массив или другая длина — собирается заново
+    let devMap = null, devArr = null, devLen = -1;
+    function devIndex() {
+      if (devArr !== db.devices || devLen !== db.devices.length) {
+        devMap = new Map(db.devices.map((d) => [d.id, d]));
+        devArr = db.devices;
+        devLen = db.devices.length;
+      }
+      return devMap;
+    }
+    const byId = (table, id) => (table === "devices" ? devIndex().get(id) || null : db[table].find((r) => r.id === id) || null);
     // Возможности системы — из набора: так же их объявляет бэкенд в GET /reference
     const caps = () => db.reference.capabilities;
     const can = (feature) => caps().features.includes(feature);
@@ -143,24 +165,69 @@
 
     let seqEvent = 0;
     const history = [];
-    const listeners = new Set();
+    let clientSeq = 0;
+    const clients = new Map();
+    // Кто рядом с устройством: оно, родитель, сервер, папки; домен — только у лежащих прямо под ним
+    function nearOf(rec) {
+      const out = [rec.id];
+      if (rec.parentId) out.push(rec.parentId);
+      if (rec.serverId) out.push(rec.serverId);
+      if (!rec.parentId && !rec.serverId) out.push(rec.domainId);
+      foldersOf(rec.id).forEach((f) => out.push(f));
+      return out;
+    }
+    const goneNear = new Map();
+    // События устройств — только наблюдающим его или родителя. Операции, правила, права и домен — всем
+    const wants = (c, m) => !m.near || m.near.some((id) => c.watch.has(id));
     function send(type, fields) {
       const message = Object.assign({ id: String(++seqEvent), type, at: iso(now()) }, fields || {});
+      if (message.kind === "device") {
+        viewStamp++;
+        const rec = byId("devices", message.entityId);
+        const near = rec ? nearOf(rec) : goneNear.get(message.entityId) || [message.entityId];
+        Object.defineProperty(message, "near", { value: near, enumerable: false });
+        treeTouch(rec, near);
+      }
       history.push(message);
       if (history.length > STREAM_DEPTH) history.shift();
-      listeners.forEach((fn) => setTimeout(() => fn(clone(message)), 0));
+      clients.forEach((c) => setTimeout(() => wants(c, message) && c.fn(clone(message)), 0));
+    }
+    // Ветка изменилась: tree.changed копится и уходит одним сообщением на раскладку, частота от размера домена не зависит
+    let treePending = {};
+    let treeSentAt = 0;
+    const TREE_EVERY_MS = 1000;
+    function treeTouch(rec, near) {
+      const add = (layout, id) => id && (treePending[layout] = treePending[layout] || new Set()).add(id);
+      if (!rec) near.slice(1).forEach((id) => { add("servers", id); add("folders", id); });
+      else {
+        add("servers", rec.parentId || rec.serverId || rec.domainId);
+        foldersOf(rec.id).forEach((f) => add("folders", f));
+        if (!rec.parentId && !foldersOf(rec.id).length) add("folders", rec.domainId);
+      }
+    }
+    function treeFlush() {
+      const layouts = Object.keys(treePending);
+      if (!layouts.length || (clock.frozenAt == null && now() - treeSentAt < TREE_EVERY_MS)) return;
+      treeSentAt = now();
+      const pending = treePending;
+      treePending = {};
+      layouts.forEach((layout) => send("tree.changed", { layout, parentIds: [...pending[layout]] }));
     }
     const changed = (kind, rec) => send("entity.changed", { kind, entityId: rec.id, version: rec.version });
     // Переподключение с Last-Event-ID: пропущенное досылается; если его уже нет — stream.reset,
     // и клиент перечитывает всё
     function subscribe(fn, lastEventId) {
+      const clientId = `c${(++clientSeq).toString(36)}`;
+      const client = { fn, watch: new Set() };
+      setTimeout(() => fn({ id: String(seqEvent), type: "stream.hello", at: iso(now()), clientId }), 0);
       if (lastEventId != null && lastEventId !== "") {
         const i = history.findIndex((m) => m.id === String(lastEventId));
         const missed = i >= 0 ? history.slice(i + 1) : [{ id: String(seqEvent), type: "stream.reset", at: iso(now()), payload: {} }];
+        // Досылка — всё подряд: наблюдение у нового потока ещё не задано, лишнее клиент пропускает
         missed.forEach((m) => setTimeout(() => fn(clone(m)), 0));
       }
-      listeners.add(fn);
-      return () => listeners.delete(fn);
+      clients.set(clientId, client);
+      return () => clients.delete(clientId);
     }
 
     // Пароль учётки потока: сервер его не хранит в открытую, отдаёт один раз
@@ -581,7 +648,7 @@
       }
       return null;
     }
-    const view = (t) => (t.kind === "device" ? device(t.rec) : t.kind === "volume" ? volume(t.rec) : clone(t.rec));
+    const view = (t) => (t.kind === "device" ? device(t.rec) : t.kind === "volume" ? volume(t.rec) : t.kind === "folder" ? folderView(t.rec) : clone(t.rec));
 
     /* ===== Тома ===== */
 
@@ -693,6 +760,8 @@
     }
     function applyPatch(rec, patch) {
       const before = {};
+      // Камера-кластер: своя строка без записи и детекторов — их правка её revision не двигает
+      if (rec.type === "camera" && Object.keys(patch).some((k) => !RECORD_FIELDS.includes(k))) revisions.set(rec.id, revisionOf(rec) + 1);
       Object.entries(keepRows(rec, patch)).forEach(([k, v]) => {
         if (k === "password" || k === "secret") {
           const sk = k === "password" ? rec.id : rec.id + ":secret";
@@ -814,6 +883,7 @@
     }
     function removeDevice(id) {
       const gone = goneWith(byId("devices", id));
+      gone.forEach((x) => { const d = byId("devices", x); if (d) goneNear.set(x, nearOf(d)); });
       db.devices.filter((d) => d.parentId === id && !gone.has(d.id)).forEach((c) => {
         c.parentId = null;
         bump(c);
@@ -841,6 +911,7 @@
         secrets.delete(x);
         wasRemoved.add(x);
         send("entity.deleted", { kind: "device", entityId: x });
+        goneNear.delete(x);
       });
     }
 
@@ -1405,6 +1476,46 @@
       if (!holdsAdmin(a, me) && !managesUsers(a, me)) a.users.forEach((u) => { if (u.id !== me) u.email = ""; });
       return a;
     }
+    // Снимок: версия, роли без списка объектов, каталоги. Люди, группы, история и объекты роли — своими перечнями
+    function accessSnapshot() {
+      const a = clone(db.access);
+      ["users", "groups", "history", "cellHistory"].forEach((k) => delete a[k]);
+      a.roles = a.roles.map(({ objectAccess, ...r }) => Object.assign(r, { objectAccessCount: Object.keys(objectAccess || {}).length }));
+      return a;
+    }
+    // Изменения поверх нынешнего: всё, чего нет в changes, остаётся как есть
+    function accessNext(a, changes) {
+      const next = { roles: clone(a.roles), users: clone(a.users), groups: clone(a.groups), catalogs: clone(a.catalogs) };
+      if (a.streamGrants) next.streamGrants = clone(a.streamGrants);
+      for (const c of changes) {
+        if (c.kind === "streamGrants") {
+          next.streamGrants = clone(c.value.grants);
+          continue;
+        }
+        if (c.kind === "roleObject") {
+          const role = next.roles.find((r) => r.id === c.id);
+          if (!role) return problem(422, "VALIDATION_FAILED", "Роли нет", { field: "changes" });
+          role.objectAccess = role.objectAccess || {};
+          if (c.op === "delete" || c.value.levels === null) delete role.objectAccess[c.value.objectId];
+          else role.objectAccess[c.value.objectId] = clone(c.value.levels);
+          continue;
+        }
+        const table = { role: "roles", user: "users", group: "groups", catalog: "catalogs" }[c.kind];
+        const i = next[table].findIndex((r) => r.id === c.id);
+        if (c.op === "delete") {
+          if (i >= 0) next[table].splice(i, 1);
+          continue;
+        }
+        const value = clone(c.value);
+        if (c.kind === "role") {
+          delete value.objectAccessCount;
+          value.objectAccess = i >= 0 ? next.roles[i].objectAccess : {};
+        }
+        if (i >= 0) next[table][i] = value;
+        else next[table].push(value);
+      }
+      return next;
+    }
     function streamGrantProblem(a) {
       const list = a.streamGrants || [];
       if (!list.length) return null;
@@ -1637,7 +1748,7 @@
     // Отказы — как в очереди макета: сервер устройства без связи не примет изменение; включить
     // камеру с превышенной лицензией нельзя; версия объекта для отката не совпала — его меняли после
     function runItem(op, item) {
-      if (item.req.undoable === false) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" });
+      if (item.req.undoable === false) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" }, item.req.why ? { params: { reason: item.req.why } } : {});
       const t = targetOf(item.targetId);
       if (!t) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
       const rec = t.rec;
@@ -1691,6 +1802,7 @@
 
     // Всё, что к этому моменту должно было выполниться
     function tick() {
+      treeFlush();
       const fired = [];
       syncing.forEach((s, cid) => {
         if (s.at > now()) return;
@@ -1747,13 +1859,317 @@
       return op ? op : null;
     }
 
+    /* ===== Страницы ===== */
+
+    // Круг вида: столько живёт курсор и столько отстаёт итог домена
+    const VIEW_ROUND_MS = 20 * 60000;
+    const hashOf = (text) => {
+      let h = 2166136261;
+      for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
+      return h >>> 0;
+    };
+    // Раздел вида: порядок внутри — байты id, поэтому порядок перечня не алфавитный и не сдвигается вставкой
+    const partsCount = () => (db.stand.large ? 4096 : 16);
+    const partOf = (id) => hashOf(id) % partsCount();
+    const partKey = (id) => `${String(partOf(id)).padStart(4, "0")}:${id}`;
+    // Новые первыми, место не зависит от того, что появится потом: номер записи с конца списка
+    const backRank = (list, rec) => String(9999999 - (list.length - 1 - list.indexOf(rec))).padStart(8, "0");
+    const backTime = (at) => String(9e15 - Date.parse(at)).padStart(17, "0");
+    const textHit = (q, ...fields) => {
+      const needle = String(q).trim().toLowerCase().replace(/ё/g, "е");
+      return fields.some((f) => f != null && String(f).toLowerCase().replace(/ё/g, "е").includes(needle));
+    };
+    const scopeOf = (name, q) => hashOf(name + JSON.stringify(Object.keys(q).filter((k) => k !== "limit" && k !== "cursor").sort().map((k) => [k, q[k]]))).toString(36);
+    const cursorMake = (scope, at, exp) => btoa(encodeURIComponent(JSON.stringify({ s: scope, a: at, e: exp || now() + VIEW_ROUND_MS })));
+    function cursorRead(q, scope) {
+      if (q.cursor === undefined) return { at: null };
+      let c = null;
+      try { c = JSON.parse(decodeURIComponent(atob(q.cursor))); } catch (e) { c = null; }
+      if (!c || c.s !== scope || !(now() <= c.e)) return { bad: problem(422, "INVALID_CURSOR", "Курсор просрочен или чужой: читайте с начала", { field: "cursor" }) };
+      return { at: c.a, exp: c.e };
+    }
+    function limitOf(q) {
+      if (q.limit === undefined) return 200;
+      const n = Number(q.limit);
+      return Number.isInteger(n) && n >= 1 && n <= db.reference.limits.pageMax ? n : null;
+    }
+    const limitBad = () => problem(422, "VALIDATION_FAILED", `limit — от 1 до ${db.reference.limits.pageMax}`, { field: "limit" });
+    // Страница по ключу: курсор хранит ключ последней строки, вставка и снятие других строк страницы не сдвигают
+    function pageList(q, name, rows, key, show, extra) {
+      const limit = limitOf(q);
+      if (limit === null) return limitBad();
+      const scope = scopeOf(name, q), cur = cursorRead(q, scope);
+      if (cur.bad) return cur.bad;
+      const sorted = rows.map((r) => [key(r), r]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
+      const from = cur.at === null ? 0 : sorted.findIndex((x) => x[0] > cur.at);
+      const start = from < 0 ? sorted.length : from;
+      const chunk = sorted.slice(start, start + limit);
+      const body = Object.assign({ items: chunk.map((x) => show(x[1])) }, extra || {});
+      if (start + limit < sorted.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
+      return { status: 200, body };
+    }
+    /* ----- Строка устройства, камера-кластер ----- */
+
+    // Камера-кластер: сама себе член домена, в виде нет ни сервера, ни родителя
+    const isClusterCam = (d) => d.type === "camera" && !d.parentId && !d.serverId;
+    let revisions = new Map();
+    const revisionOf = (rec) => revisions.get(rec.id) || 1;
+    let viewStamp = 0, viewMade = -1, viewPartsList = [], viewKids = new Map();
+    function viewIndex() {
+      if (viewMade === viewStamp) return;
+      viewMade = viewStamp;
+      viewPartsList = Array.from({ length: partsCount() }, () => []);
+      viewKids = new Map();
+      db.devices.forEach((d) => {
+        viewPartsList[partOf(d.id)].push(d);
+        if (d.parentId) (viewKids.get(d.parentId) || viewKids.set(d.parentId, []).get(d.parentId)).push(d);
+      });
+      viewPartsList.forEach((p) => p.sort((a, b) => (a.id < b.id ? -1 : 1)));
+    }
+    const kidsOf = (id) => (viewIndex(), viewKids.get(id) || []);
+    function deviceRow(rec) {
+      const cluster = isClusterCam(rec);
+      const row = { id: rec.id, type: rec.type, domainId: rec.domainId, name: rec.name, online: rec.online !== false, enabled: rec.enabled !== false,
+        fault: rec.fault || null, licenseExceeded: !!rec.licenseExceeded, version: cluster ? `r${revisionOf(rec)}` : rec.version };
+      if (rec.subtype) row.subtype = rec.subtype;
+      row.parentId = rec.parentId || null;
+      row.serverId = cluster ? null : rec.serverId || null;
+      row.hasChildren = cluster || kidsOf(rec.id).length > 0;
+      return row;
+    }
+    const recording = (d) => (!!d.archiveId && !!d.recordMode && d.recordMode !== "none") || (d.extraArchives || []).some((x) => x.recordMode && x.recordMode !== "none");
+    function statusHit(d, words) {
+      const on = d.enabled !== false, lic = !!d.licenseExceeded, sig = d.online !== false;
+      return words.some((w) => (w === "off" ? !on : w === "license" ? on && lic : w === "nosignal" ? on && !lic && !sig : w === "run" ? on && !lic && sig : false));
+    }
+    // Запрос с q, type, status, domainId, noFolder, noRecord: не больше scanPartsMax разделов, порядок — разделы
+    function devicesPage(q) {
+      const limit = limitOf(q);
+      if (limit === null) return limitBad();
+      if (q.ids !== undefined) {
+        const ids = String(q.ids).split(",").filter(Boolean);
+        if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
+        return { status: 200, body: { items: ids.map((id) => byId("devices", id)).filter(Boolean).map(deviceRow) } };
+      }
+      if (q.folderId !== undefined) {
+        const f = byId("folders", q.folderId);
+        if (!f) return notFound("Папка");
+        const scope = scopeOf("devices", q), cur = cursorRead(q, scope);
+        if (cur.bad) return cur.bad;
+        const keyed = f.deviceIds.map((id) => [partKey(id), id]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+        const from = cur.at === null ? 0 : keyed.findIndex((x) => x[0] > cur.at);
+        const start = from < 0 ? keyed.length : from;
+        const chunk = keyed.slice(start, start + limit);
+        // Единицы без права view отсеяны дверью: страница короче limit и бывает пустой при живом nextCursor
+        const hidden = db.stand.hiddenIds || [];
+        const body = { items: chunk.map((x) => byId("devices", x[1])).filter((d) => d && !hidden.includes(d.id)).map(deviceRow) };
+        if (start + limit < keyed.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
+        return { status: 200, body };
+      }
+      const words = q.status ? String(q.status).split(",") : null;
+      const types = q.type ? String(q.type).split(",") : null;
+      const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true";
+      const inFolder = noFolder ? new Set(db.folders.flatMap((f) => f.deviceIds)) : null;
+      const filtered = !!(q.q || types || words || q.domainId || noFolder || noRecord);
+      const hit = (d) => (!q.domainId || d.domainId === q.domainId) && (!types || types.includes(d.type)) && (!words || statusHit(d, words)) &&
+        (!q.q || textHit(q.q, d.name, d.short, d.identifier, d.ip, d.vendor, d.model)) &&
+        (!noFolder || (!d.parentId && folderable(d) && !inFolder.has(d.id))) && (!noRecord || (d.type === "camera" && !recording(d)));
+      // Один член: порядок по имени, разделы ни при чём
+      const member = q.serverId !== undefined || q.parentId !== undefined || q.archiveId !== undefined;
+      if (member) {
+        const rows = q.parentId !== undefined ? kidsOf(q.parentId) : db.devices.filter((d) => (q.serverId === undefined || d.serverId === q.serverId) && (q.archiveId === undefined || archiveWrites(d, q.archiveId)));
+        return pageList(q, "devices", rows.filter(hit), (d) => `${d.name} ${d.id}`, deviceRow);
+      }
+      const scope = scopeOf("devices", q), cur = cursorRead(q, scope);
+      if (cur.bad) return cur.bad;
+      viewIndex();
+      const at = cur.at || { p: 0, a: null };
+      const budget = filtered ? db.reference.limits.scanPartsMax : Infinity;
+      const out = [];
+      let p = at.p, after = at.a, seen = 0, stopped = null;
+      for (; p < viewPartsList.length && seen < budget && !stopped; ) {
+        const list = viewPartsList[p];
+        for (let i = 0; i < list.length; i++) {
+          const d = list[i];
+          if (after !== null && d.id <= after) continue;
+          if (!hit(d)) continue;
+          out.push(d);
+          if (out.length === limit) {
+            stopped = { p, a: d.id };
+            break;
+          }
+        }
+        if (!stopped) {
+          p++;
+          seen++;
+          after = null;
+        }
+      }
+      const body = { items: out.map(deviceRow) };
+      if (stopped) {
+        const left = viewPartsList.slice(stopped.p).some((list, i) => list.some((d) => (i > 0 || d.id > stopped.a) && hit(d)));
+        if (left) body.nextCursor = cursorMake(scope, stopped, cur.exp);
+      } else if (p < viewPartsList.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
+      if (!filtered) body.total = db.devices.length;
+      return { status: 200, body };
+    }
+    /* ----- Дерево ----- */
+
+    const archDomain = (a) => a.domainId || (byId("servers", a.serverId) || {}).domainId || null;
+    const LAYOUTS = ["folders", "servers", "archives", "detectors"];
+    const unallocOf = (id) => (String(id).startsWith("unalloc:") ? id.slice(8) : null);
+    const devNode = (d, parentId, hasChildren) => ({ id: d.id, kind: "device", name: d.name, parentId, hasChildren: hasChildren === undefined ? deviceRow(d).hasChildren : hasChildren, row: deviceRow(d) });
+    const camsOfServer = (sid) => db.devices.filter((d) => d.serverId === sid && !d.parentId);
+    const camHasDets = (d) => kidsOf(d.id).some((k) => k.type === "det");
+    // Дети узла: [ключ порядка, узел]. Ключ решает порядок: на верхнем уровне и в папках — разделы, в члене — имя
+    function treeKids(layout, parentId) {
+      const k = (group, id) => `${group}:${partKey(id)}`;
+      const name = (group, rec) => `${group}:${rec.name} ${rec.id}`;
+      if (!parentId) return db.domains.map((d) => [k(1, d.id), { id: d.id, kind: "domain", name: d.name, parentId: null, hasChildren: true }]);
+      const un = unallocOf(parentId);
+      if (un) return db.servers.filter((s) => s.domainId === un && !s.allocated).map((s) => [k(1, s.id), { id: s.id, kind: "server", name: s.name, parentId, hasChildren: false }]);
+      const dom = byId("domains", parentId);
+      if (dom) {
+        if (layout === "folders") return db.folders.filter((f) => f.domainId === dom.id && !f.parentId).map((f) => [k(1, f.id), folderNode(f, parentId)]);
+        const out = db.servers.filter((s) => s.domainId === dom.id && s.allocated).map((s) => [k(1, s.id), { id: s.id, kind: "server", name: s.name, parentId, hasChildren: true }]);
+        if (layout === "servers" && db.servers.some((s) => s.domainId === dom.id && !s.allocated)) out.push(["2", { id: `unalloc:${dom.id}`, kind: "unalloc", name: "Нераспределённые серверы", parentId, hasChildren: true }]);
+        if (layout === "archives") db.archives.filter((a) => !a.serverId && a.domainId === dom.id).forEach((a) => out.push([k(3, a.id), archiveNode(a, parentId)]));
+        if (layout === "servers") db.devices.forEach((d) => { if (d.domainId === dom.id && !d.parentId && !d.serverId && !SERVICE.has(d.type)) out.push([k(4, d.id), () => devNode(d, parentId)]); });
+        // Детекторы камеры-кластера видны только при её раскрытии: сводного списка в detectors у них нет
+        return out;
+      }
+      const srv = byId("servers", parentId);
+      if (srv) {
+        if (layout === "archives") return db.archives.filter((a) => a.serverId === srv.id).map((a) => [name(1, a), archiveNode(a, parentId)]);
+        const devs = camsOfServer(srv.id);
+        return (layout === "detectors" ? devs.filter(camHasDets) : devs).map((d) => [name(1, d), () => devNode(d, parentId)]);
+      }
+      const fol = byId("folders", parentId);
+      if (fol) {
+        const subs = db.folders.filter((f) => f.parentId === fol.id).map((f) => [k(1, f.id), folderNode(f, parentId)]);
+        const devs = fol.deviceIds.map((id) => byId("devices", id)).filter(Boolean);
+        return subs.concat((layout === "detectors" ? devs.filter((d) => d.type === "camera") : devs).map((d) => [k(2, d.id), () => devNode(d, parentId)]));
+      }
+      const arc = byId("archives", parentId);
+      if (arc) return db.volumes.filter((v) => v.archiveId === arc.id).map((v) => [name(1, v), { id: v.id, kind: "volume", name: v.name, parentId, hasChildren: false }]);
+      const dev = byId("devices", parentId);
+      if (dev) return (layout === "detectors" ? kidsOf(dev.id).filter((c) => c.type === "det") : kidsOf(dev.id)).map((c) => [name(1, c), () => devNode(c, parentId)]);
+      return null;
+    }
+    const SERVICE = new Set(["export", "email", "sms"]);
+    const folderNode = (f, parentId) => ({ id: f.id, kind: "folder", name: f.name, parentId, hasChildren: f.deviceIds.length > 0 || db.folders.some((x) => x.parentId === f.id) });
+    const archiveNode = (a, parentId) => ({ id: a.id, kind: "archive", name: a.name, parentId, hasChildren: db.volumes.some((v) => v.archiveId === a.id) });
+    function treeChildren(q) {
+      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const rows = treeKids(q.layout, q.parentId);
+      if (!rows) return notFound("Узел");
+      return pageList(q, "tree", rows, (x) => x[0], (x) => (typeof x[1] === "function" ? x[1]() : x[1]), q.parentId ? { parentCount: rows.length } : {});
+    }
+    // Цепочки от корня: шаг — {id, kind, name}. Домен, дальше по раскладке
+    function treeChains(layout, id) {
+      const step = (rec, kind) => ({ id: rec.id, kind, name: rec.name });
+      const domainStep = (domainId) => { const d = byId("domains", domainId); return d ? [step(d, "domain")] : []; };
+      const folderChain = (f) => (f.parentId ? folderChain(byId("folders", f.parentId)) : domainStep(f.domainId)).concat(step(f, "folder"));
+      const serverChain = (s) => domainStep(s.domainId).concat(step(s, "server"));
+      const archiveChain = (a) => (a.serverId ? serverChain(byId("servers", a.serverId)) : domainStep(a.domainId)).concat(step(a, "archive"));
+      const s = byId("servers", id);
+      if (s) return [serverChain(s)];
+      const f = byId("folders", id);
+      if (f) return [folderChain(f)];
+      const a = byId("archives", id);
+      if (a) return [archiveChain(a)];
+      const v = byId("volumes", id);
+      if (v) return [archiveChain(byId("archives", v.archiveId)).concat(step(v, "volume"))];
+      const d = byId("devices", id);
+      if (!d) return [];
+      const line = [];
+      let top = d;
+      for (; top; top = top.parentId ? byId("devices", top.parentId) : null) {
+        line.unshift(step(top, "device"));
+        if (!top.parentId) break;
+      }
+      if (layout === "folders") {
+        const homes = foldersOf(top.id).map((x) => byId("folders", x));
+        return homes.length ? homes.map((h) => folderChain(h).concat(line)) : [domainStep(top.domainId).concat(line)];
+      }
+      if (layout === "archives") {
+        const rows = db.archives.filter((x) => archiveWrites(top, x.id));
+        return rows.length ? rows.map((x) => archiveChain(x).concat(line)) : [domainStep(top.domainId).concat(line)];
+      }
+      const srv = top.serverId ? byId("servers", top.serverId) : null;
+      return [(srv ? serverChain(srv) : domainStep(top.domainId)).concat(line)];
+    }
+    function treePaths(q) {
+      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const ids = String(q.ids || "").split(",").filter(Boolean);
+      if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
+      return { status: 200, body: { items: ids.map((id) => ({ id, chains: treeChains(q.layout, id) })).filter((x) => x.chains.length) } };
+    }
+    /* ----- Домен: итог круга ----- */
+
+    let summaries = new Map();
+    function domainSummary(id) {
+      if (db.stand.summaryOff) return null;
+      const was = summaries.get(id);
+      if (was && now() - Date.parse(was.at) < VIEW_ROUND_MS) return was;
+      const s = { total: 0, offline: 0, silent: 0, at: iso(now()) };
+      db.devices.forEach((d) => {
+        if (d.domainId !== id || d.type !== "camera" || d.enabled === false) return;
+        s.total++;
+        // Встроенный сервер фаз не знает: связь есть у всех, кто online; поток упал — fault drv
+        if (d.online === false && d.fault === "drv") s.silent++;
+        else if (d.online === false || d.licenseExceeded) s.offline++;
+      });
+      if (db.stand.unread) s.unread = db.stand.unread;
+      summaries.set(id, s);
+      return s;
+    }
+    function domainView(r) {
+      const out = clone(r);
+      const s = domainSummary(r.id);
+      if (s) out.stateSummary = clone(s);
+      return out;
+    }
+    function folderView(f) {
+      const out = clone(f);
+      delete out.deviceIds;
+      return out;
+    }
+    /* ----- Большой набор ----- */
+
+    // stand.large: устройства, серверы, папки, хранилища считаются при загрузке из номера: в файле набора только числа.
+    function expandLarge(L) {
+      const dom = db.domains[0].id;
+      const uuidOf = (kind, n) => `${kind}${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
+      const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
+      db.servers = Array.from({ length: L.servers }, (x, i) => Object.assign({}, base, { id: uuidOf("2", 1000 + i), name: `Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
+      db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
+      db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
+      db.folders = Array.from({ length: L.folders }, (x, i) => ({ id: uuidOf("4", 1000 + i), name: `Папка ${i + 1}`, domainId: dom, parentId: null, deviceIds: [], version: "v0" }));
+      db.devices = new Array(L.cameras);
+      // Первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
+      const onServer = L.serverCameras, firstBranch = L.firstBranch;
+      for (let i = 0; i < L.cameras; i++) {
+        const id = uuidOf("3", 100000 + i);
+        const sid = i < firstBranch ? 0 : i < onServer ? 1 + ((i - firstBranch) % (L.servers - 1)) : -1;
+        const d = { id, type: "camera", parentId: null, domainId: dom, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, online: i % 50 !== 7, enabled: i % 200 !== 11, version: "v0" };
+        if (sid >= 0) {
+          d.serverId = db.servers[sid].id;
+          d.archiveId = db.archives[sid].id;
+          d.recordMode = "always";
+        }
+        db.devices[i] = d;
+        if (i % 40 === 0 && db.folders.length) db.folders[(i / 40) % db.folders.length].deviceIds.push(id);
+      }
+    }
+
     /* ===== Маршруты ===== */
 
     const notFound = (what) => problem(404, "NOT_FOUND", `${what} не найден(а)`);
     function getter(table, label) {
-      const show = (r) => (table === "devices" ? device(r) : table === "volumes" ? volume(r) : table === "rules" ? ruleView(r) : clone(r));
+      const show = (r) => (table === "devices" ? Object.assign(device(r), { folderIds: foldersOf(r.id) }) : table === "volumes" ? volume(r) : table === "rules" ? ruleView(r) : table === "folders" ? folderView(r) : table === "domains" ? domainView(r) : clone(r));
       return [
-        ["GET", `/${table}`, () => items(db[table].map(show))],
+        ["GET", `/${table}`, LISTS[table] || (() => items(db[table].map(show)))],
         [
           "GET",
           `/${table}/{id}`,
@@ -1765,6 +2181,18 @@
       ];
     }
 
+    const LISTS = {
+      devices: (p, q) => devicesPage(q),
+      folders: (p, q) => {
+        const rows = db.folders.filter((f) => (q.parentId === undefined || (f.parentId || "") === q.parentId) && (!q.domainId || f.domainId === q.domainId) && (!q.q || textHit(q.q, f.name)));
+        return pageList(q, "folders", rows, (f) => partKey(f.id), folderView);
+      },
+      archives: (p, q) => {
+        const rows = db.archives.filter((a) => (!q.kind || a.kind === q.kind) && (!q.serverId || a.serverId === q.serverId) && (!q.domainId || archDomain(a) === q.domainId) && (!q.q || textHit(q.q, a.name)));
+        return pageList(q, "archives", rows, (a) => partKey(a.id), clone);
+      },
+      volumes: (p, q) => pageList(q, "volumes", db.volumes.filter((v) => !q.archiveId || v.archiveId === q.archiveId), (v) => partKey(v.id), volume),
+    };
     const ROUTES = [
       [
         "GET",
@@ -1779,6 +2207,8 @@
         ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
         return { status: 200, body: ref };
       }],
+      ["GET", "/tree/children", (p, q) => treeChildren(q)],
+      ["GET", "/tree/paths", (p, q) => treePaths(q)],
       ...getter("domains", "Домен"),
       ...getter("servers", "Сервер"),
       ...getter("devices", "Устройство"),
@@ -1939,7 +2369,7 @@
           const d = { id: uuid("domain"), name: body.name.trim(), license: "", online: true, version: newVersion() };
           db.domains.push(d);
           send("entity.created", { kind: "domain", entityId: d.id, version: d.version });
-          return one(clone(d), 201);
+          return one(domainView(d), 201);
         },
       ],
       [
@@ -1953,7 +2383,7 @@
           if ("name" in body) body.name = body.name.trim();
           applyPatch(t.rec, body);
           changed("domain", t.rec);
-          return one(clone(t.rec));
+          return one(domainView(t.rec));
         },
       ],
       [
@@ -2099,7 +2529,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const f = { id: uuid("folder"), name: body.name.trim(), domainId: body.domainId, parentId: body.parentId, deviceIds: [], version: newVersion() };
           db.folders.push(f);
           send("entity.created", { kind: "folder", entityId: f.id, version: f.version });
-          return one(clone(f), 201);
+          return one(folderView(f), 201);
         },
       ],
       [
@@ -2112,23 +2542,39 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const bad = precondition(f, headers);
           if (bad) return bad;
           if ("name" in body && !String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
-          const alien = (body.deviceIds || []).find((id) => {
+          if ("name" in body) body.name = body.name.trim();
+          applyPatch(f, body);
+          changed("folder", f);
+          return one(folderView(f));
+        },
+      ],
+      [
+        "POST",
+        "/folders/{id}/devices",
+        (p, q, body) => {
+          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
+          const f = byId("folders", p.id);
+          if (!f) return notFound("Папка");
+          if (body.add.length + body.remove.length > db.reference.limits.selectMax) return problem(422, "VALIDATION_FAILED", "Больше, чем selectMax: несколькими операциями", { field: "add" });
+          const add = [...new Set(body.add)], remove = [...new Set(body.remove)];
+          const alien = add.concat(remove).find((id) => {
             const d = byId("devices", id);
             return !d || d.domainId !== f.domainId;
           });
-          if (alien) return problem(422, "VALIDATION_FAILED", `Устройства ${alien} нет в домене папки`, { field: "deviceIds" });
-          if ((body.deviceIds || []).some((id) => !folderable(byId("devices", id)) && !f.deviceIds.includes(id))) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "deviceIds" });
+          if (alien) return problem(422, "VALIDATION_FAILED", `Устройства ${alien} нет в домене папки`, { field: "add" });
+          if (add.some((id) => !folderable(byId("devices", id)) && !f.deviceIds.includes(id))) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "add" });
           // Состав папки — это папки устройства: добавить или убрать устройство групповой операции нельзя
-          if (body.deviceIds) {
-            const moved = body.deviceIds.filter((id) => !f.deviceIds.includes(id)).concat(f.deviceIds.filter((id) => !body.deviceIds.includes(id)));
-            const locked = lockedProblem(moved);
-            if (locked) return locked;
-          }
-          if ("name" in body) body.name = body.name.trim();
-          if (body.deviceIds) body.deviceIds = [...new Set(body.deviceIds)];
-          applyPatch(f, body);
+          const fresh = add.filter((id) => !f.deviceIds.includes(id)), out = remove.filter((id) => f.deviceIds.includes(id));
+          const locked = lockedProblem(fresh.concat(out));
+          if (locked) return locked;
+          if (!fresh.length && !out.length) return one(folderView(f));
+          const steps = fresh.concat(out).map((id) => ({ targetId: id, version: byId("devices", id).version, before: { folderIds: foldersOf(id) } }));
+          f.deviceIds = f.deviceIds.filter((id) => !out.includes(id)).concat(fresh);
+          bump(f);
           changed("folder", f);
-          return one(clone(f));
+          fresh.concat(out).forEach((id) => changed("device", byId("devices", id)));
+          recordSingle(steps);
+          return one(folderView(f));
         },
       ],
       [
@@ -2301,7 +2747,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
               const d = db.discovery.find((y) => y.domainId === x.domainId);
               if (d) d.candidateIds = d.candidateIds.filter((c) => c !== x.candidateId);
             }
-            done.push({ index, devices: res.devices.map(device), folders: res.folders.map(clone) });
+            done.push({ index, devices: res.devices.map(device), folders: res.folders.map(folderView) });
             recordSingle([createdStep(res.devices[0])]);
           });
           return { status: 200, body: { done, failed } };
@@ -2385,6 +2831,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "POST",
         "/objects/delete",
         (p, q, body) => {
+          if (body.items.length > db.reference.limits.selectMax) return problem(422, "VALIDATION_FAILED", "Больше, чем selectMax: несколькими операциями, у каждой свой откат", { field: "items" });
           const done = [];
           const failed = [];
           const steps = [];
@@ -2394,7 +2841,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             // Уже удалён вместе с родителем из этого же запроса — тоже удалён
             if (!table) return done.includes(x.id) || wasRemoved.has(x.id) ? done.push(x.id) : failed.push({ id: x.id, code: "NOT_FOUND" });
             const rec = byId(table, x.id);
-            if (rec.version !== x.version) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
+            // r<revision> сверяет только строку камеры: чужая правка записи или детектора удаление не остановит
+            if (rec.version !== x.version && !(table === "devices" && x.version === `r${revisionOf(rec)}`)) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
             if (table === "devices" && deleteProblem(rec)) return failed.push({ id: x.id, code: "NOT_SUPPORTED" });
             if (lockedProblem(touchedBy(table, rec), held)) return failed.push({ id: x.id, code: "BUSY" });
             kinds[table](rec);
@@ -2444,9 +2892,9 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "/access/apply",
         (p, q, body, headers) => {
           const a = db.access;
-          const bad = precondition(a, headers);
-          if (bad) return bad;
-          const next = clone(body.access);
+          if (body.version !== a.version) return problem(412, "VERSION_MISMATCH", "Запись изменилась с момента чтения", { current: accessSnapshot() });
+          const next = accessNext(a, body.changes);
+          if (next.status) return next;
           // Состояние синхронизации ведёт сервер: у существующих каталогов и групп — его значения
           if (!next.streamGrants && a.streamGrants) next.streamGrants = clone(a.streamGrants);
           next.catalogs.forEach((c) => {
@@ -2499,7 +2947,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           });
           bump(a);
           send("entity.changed", { kind: "access", version: a.version });
-          return { status: 200, body: { applied: true, access: accessView() }, headers: { ETag: etag(a) } };
+          return { status: 200, body: { applied: true, access: accessSnapshot() }, headers: { ETag: etag(a) } };
         },
       ],
       [
@@ -2522,12 +2970,19 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       [
         "GET",
         "/domains/{id}/discovery",
-        (p) => (byId("domains", p.id) ? { status: 200, body: discoveryView(p.id) } : notFound("Домен")),
+        (p, q) => {
+          if (!byId("domains", p.id)) return notFound("Домен");
+          const whole = discoveryView(p.id);
+          // Поиск отдаёт находки в своём порядке: номер находки
+          const res = pageList(q, `discovery:${p.id}`, whole.candidates, (c) => String(whole.candidates.indexOf(c)).padStart(8, "0"), (c) => c, { total: whole.candidates.length });
+          if (res.status !== 200) return res;
+          return { status: 200, body: Object.assign(whole, res.body, { candidates: res.body.items, items: undefined }) };
+        },
       ],
       [
         "GET",
         "/rules/{id}/fires",
-        (p) => (byId("rules", p.id) ? items(db.ruleFires.filter((f) => f.ruleId === p.id).sort((a, b) => b.at.localeCompare(a.at)).map(clone)) : notFound("Правило")),
+        (p, q) => (byId("rules", p.id) ? pageList(q, `fires:${p.id}`, db.ruleFires.filter((f) => f.ruleId === p.id), (f) => backTime(f.at) + f.id, clone) : notFound("Правило")),
       ],
       [
         "POST",
@@ -2631,7 +3086,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "/rule-prompts/{id}/answer",
         (p, q, body) => {
           const pr = prompts.find((x) => x.id === p.id);
-          if (!pr || (pr.closed && now() - pr.closedAt >= PROMPT_KEEP_MS)) return notFound("Вопрос");
+          // Запуск снят новой правкой, выключением или удалением — вопроса больше нет: ADR-0112 доп. (9) п. 4
+          if (!pr || pr.closed === "stopped" || (pr.closed && now() - pr.closedAt >= PROMPT_KEEP_MS)) return notFound("Вопрос");
           if (!mayAnswer(pr)) return problem(403, "PERMISSION_DENIED", "Отвечает человек с ролью шага", { params: { roleId: pr.roleId } });
           if (pr.closed === "answered") return problem(409, "BUSY", "На вопрос уже ответили", { params: { reason: "answered" } });
           if (pr.closed) return problem(409, "NOT_RUNNABLE", "Запуск больше не ждёт ответа", { params: { reason: { code: "over" } } });
@@ -2839,7 +3295,20 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           return { status: 204 };
         },
       ],
-      ["GET", "/access", () => one(accessView())],
+      ["GET", "/access", () => one(accessSnapshot())],
+      ["GET", "/access/users", (p, q) => {
+        const hit = (u) => !q.q || textHit(q.q, u.login, u.name, u.email);
+        return pageList(q, "access/users", accessView().users.filter(hit), (u) => u.id, (u) => u);
+      }],
+      ["GET", "/access/groups", (p, q) => pageList(q, "access/groups", db.access.groups.filter((g) => !q.q || textHit(q.q, g.name)), (g) => g.id, clone)],
+      ["GET", "/access/history", (p, q) => pageList(q, "access/history", db.access.history.filter((h) => !q.q || textHit(q.q, JSON.stringify(h))), (h) => backRank(db.access.history, h), clone)],
+      ["GET", "/access/cell-history", (p, q) => pageList(q, "access/cell-history", (db.access.cellHistory || []).filter((h) => !q.q || textHit(q.q, JSON.stringify(h))), (h) => backRank(db.access.cellHistory, h), clone)],
+      ["GET", "/access/roles/{id}/objects", (p, q) => {
+        const role = db.access.roles.find((r) => r.id === p.id);
+        if (!role) return notFound("Роль");
+        const rows = Object.entries(role.objectAccess || {}).map(([objectId, levels]) => ({ objectId, levels })).filter((x) => !q.q || textHit(q.q, x.objectId, (byId("devices", x.objectId) || {}).name));
+        return pageList(q, `access/roles/${p.id}/objects`, rows, (x) => x.objectId, clone);
+      }],
       ["GET", "/settings", () => one(clone(db.settings))],
       ["GET", "/licenses", () => items(clone(db.licenses))],
       [
@@ -2849,13 +3318,14 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const when = (e) => Date.parse(e.occurredAt || e.at);
           const hit = db.journal.filter((e) => (!q.category || e.category === q.category) && (!q.deviceId || e.deviceId === q.deviceId) && (!q.source || e.source === q.source) &&
             (!q.from || when(e) >= Date.parse(q.from)) && (!q.to || when(e) <= Date.parse(q.to)));
-          const limit = Number(q.limit) || 1000;
           // Встроенный сервер права на журнал не проверяет: скрытых записей у него нет
-          return { status: 200, body: { items: hit.slice(0, limit).map(clone), truncated: hit.length > limit, withheldCount: 0 } };
+          const res = pageList(q, "journal", hit, (e) => backRank(db.journal, e), clone);
+          if (res.status !== 200) return res;
+          return { status: 200, body: Object.assign(res.body, { truncated: !!res.body.nextCursor, withheldCount: 0 }) };
         },
       ],
       /* ----- Учётки потоков ----- */
-      ["GET", "/archive-watches", (p, q) => items(db.archiveWatches.filter((w) => !q.deviceId || w.deviceId === q.deviceId).map(clone))],
+      ["GET", "/archive-watches", (p, q) => pageList(q, "archive-watches", db.archiveWatches.filter((w) => !q.deviceId || w.deviceId === q.deviceId), (w) => partKey(w.id), clone)],
       [
         "POST",
         "/archive-watches",
@@ -2898,7 +3368,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           return { status: 204, body: null };
         },
       ],
-      ["GET", "/archive-scans", (p, q) => items(db.archiveScans.filter((x) => !q.deviceId || x.deviceId === q.deviceId).map(clone))],
+      ["GET", "/archive-scans", (p, q) => pageList(q, "archive-scans", db.archiveScans.filter((x) => !q.deviceId || x.deviceId === q.deviceId), (x) => partKey(x.id), clone)],
       [
         "POST",
         "/archive-scans",
@@ -2972,6 +3442,13 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       // клиент отдаёт их по одному, петля пишет строками data:
       ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
+      ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
+        const c = clients.get(p.clientId);
+        if (!c) return notFound("Поток");
+        if (body.ids.length > db.reference.limits.watchMax) return problem(422, "VALIDATION_FAILED", "Больше, чем watchMax", { field: "ids" });
+        c.watch = new Set(body.ids);
+        return { status: 204, body: null };
+      }],
       ["GET", "/stream", () => problem(404, "NO_ROUTE", "Поток событий встроенного сервера — subscribe()")],
 
       [
@@ -3015,7 +3492,11 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           return { status: 202, body: opView(startOperation(body.items.map(clone))) };
         },
       ],
-      ["GET", "/operations", (p, q) => items([...ops.values()].reverse().slice(0, Number(q.limit) || UNDO_KEEP).map(opView))],
+      ["GET", "/operations", (p, q) => {
+        const all = [...ops.values()];
+        // Новые сверху: номер с начала списка, новая операция страницы не сдвигает
+        return pageList(q, "operations", all, (x) => String(9999999 - all.indexOf(x)).padStart(8, "0"), opView);
+      }],
       ["GET", "/operations/{id}", (p) => (opById(p.id) ? { status: 200, body: opView(opById(p.id)) } : notFound("Операция"))],
       [
         "POST",
@@ -3092,6 +3573,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
               expect: x.before.remove ? x.createdVersion : undefined,
               expectFields: x.after,
               undoable: x.before.deleted || x.before.folderIds || x.secret || volumeFixed(x) ? false : undefined,
+              // Папки вне отката, ADR-0106 п. 1: шаг говорит это словом
+              why: x.before.folderIds ? "folders" : undefined,
             })
           );
           return { status: 202, body: opView(startOperation(requests, { revertOf: op.id })) };

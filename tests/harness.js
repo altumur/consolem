@@ -101,7 +101,36 @@
         });
         return got;
       },
-      list: async (path) => (await env.ok("GET", path)).items,
+      // Перечень целиком: тесту можно дочитать его до конца, форме нельзя. Устройства — полными записями:
+      // старые проверки смотрят поля, которых нет в строке. Каждая запись читается как GET /devices/{id}
+      async pages(path) {
+        const out = [];
+        let cursor = null;
+        do {
+          const sep = path.includes("?") ? "&" : "?";
+          const res = await env.ok("GET", path + (cursor ? `${sep}cursor=${encodeURIComponent(cursor)}` : ""));
+          out.push(...res.items);
+          cursor = res.nextCursor || null;
+        } while (cursor);
+        return out;
+      },
+      async list(path) {
+        const rows = await env.pages(path);
+        if (!/^\/devices(\?|$)/.test(path)) return rows;
+        return Promise.all(rows.map((r) => api.raw("GET", `/devices/${r.id}`).then((x) => x.body)));
+      },
+      // Состав папки — страницами дверью единиц папки
+      folderIds: async (id) => (await env.pages(`/devices?folderId=${id}&limit=1000`)).map((d) => d.id),
+      // Права целиком: снимок и его перечни. Для проверок, которые смотрят всё сразу
+      async access() {
+        const a = JSON.parse(JSON.stringify(await env.ok("GET", "/access")));
+        const [users, groups, history, cellHistory] = await Promise.all(["users", "groups", "history", "cell-history"].map((k) => env.pages(`/access/${k}`)));
+        const roles = await Promise.all(a.roles.map(async ({ objectAccessCount, ...r }) => {
+          const objs = await env.pages(`/access/roles/${r.id}/objects`);
+          return Object.assign(r, { objectAccess: Object.fromEntries(objs.map((x) => [x.objectId, x.levels])) });
+        }));
+        return Object.assign(a, { roles, users, groups, history, cellHistory });
+      },
       // Версия записи для If-Match — из ETag свежего чтения, как у клиента, который только что её открыл
       async etag(path) {
         const res = await raw("GET", path);
@@ -199,7 +228,11 @@
       lines.push(`FAIL  Тестовый стенд доступен — ${err.message}`);
       return finish(lines, "Тесты API не запущены: стенд недоступен", true);
     }
-    api.subscribe((message) => recorded.push({ method: "GET", template: "/stream", status: 200, body: message, kind: "stream" }));
+    // Поток стенда наблюдает весь набор: сверка схем должна видеть и события устройств
+    api.subscribe((message) => {
+      recorded.push({ method: "GET", template: "/stream", status: 200, body: message, kind: "stream" });
+      if (message.type === "stream.hello" && FX) raw("PUT", `/stream/${message.clientId}/watch`, { ids: FX.domains.map((d) => d.id).concat(FX.servers.map((s) => s.id)).slice(0, 200) });
+    });
     const probe = await api.raw("POST", "/test/reset", resetBody()).catch((err) => ({ status: 0, error: err }));
     if (probe.status !== 200) {
       const why =
@@ -284,7 +317,12 @@
 
   // Сообщения потока для одного теста; возвращает «отписаться». По сети поток подключается не сразу, а
   // события до подключения не досылаются: settle() — дождаться подключения (и доставки после действий)
-  const subscribeForTest = (fn) => api.subscribe(fn);
+  // Поток для теста. watch — какие устройства наблюдать: их события приходят только наблюдающим
+  const subscribeForTest = (fn, watch) =>
+    api.subscribe((m) => {
+      if (m.type === "stream.hello" && watch) api.raw("PUT", `/stream/${m.clientId}/watch`, { ids: watch });
+      fn(m);
+    });
   const settle = () => new Promise((r) => setTimeout(r, apiBase ? 400 : 20));
 
   window.ApiTest = { test, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };

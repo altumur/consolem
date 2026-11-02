@@ -715,7 +715,7 @@
         "tags": [
           "hardware"
         ],
-        "summary": "Устройства: все",
+        "summary": "Устройства: страницы строк",
         "responses": {
           "200": {
             "description": "Готово",
@@ -727,8 +727,17 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Device"
+                        "$ref": "#/components/schemas/DeviceRow"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
                   },
                   "additionalProperties": false,
@@ -742,10 +751,140 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "В перечне только строка DeviceRow, полная запись — GET /devices/{id}. Сортировку клиент не выбирает. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны. Фильтры по цене. Ограниченный проход: q, type, status, domainId, noFolder, noRecord — запрос смотрит не больше scanPartsMax разделов вида, порядок — разделы, не алфавит. Один член: serverId, parentId, archiveId — порядок по имени. По записи: ids, до idsMax. Постоянная цена: folderId, порядок сервера; страница бывает короче limit и пустой, единицы без права view не показываются. total — только без фильтра, оценка.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст: имя, номер, адрес, производитель, модель"
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Вид устройства, можно несколько через запятую: это ИЛИ"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "run, nosignal, off, license, можно несколько через запятую: это ИЛИ"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Домен"
+          },
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Сервер: один член"
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Родитель: один член"
+          },
+          {
+            "name": "archiveId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Хранилище: том лежит у одного члена"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Id через запятую, до idsMax"
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Папка: состав через дверь единиц папки"
+          },
+          {
+            "name": "noFolder",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Устройства верхнего уровня без папки: отбор для группы формы «Без папки», ограниченным проходом. Группы на сервере нет, полного числа тоже"
+          },
+          {
+            "name": "noRecord",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            },
+            "description": "Камеры без записи: отбор для группы формы «Без записи», ограниченным проходом. Группы на сервере нет, полного числа тоже"
+          }
+        ]
       },
       "post": {
         "operationId": "createDevices",
@@ -1589,7 +1728,7 @@
         "tags": [
           "hardware"
         ],
-        "summary": "Папки: все",
+        "summary": "Папки: страницы",
         "responses": {
           "200": {
             "description": "Готово",
@@ -1603,6 +1742,15 @@
                       "items": {
                         "$ref": "#/components/schemas/Folder"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
                   },
                   "additionalProperties": false,
@@ -1616,10 +1764,64 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Порядок сервера. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Родитель: id папки, пусто — верхний уровень домена"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Домен"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Имя"
+          }
+        ]
       },
       "post": {
         "operationId": "createFolder",
@@ -1857,7 +2059,7 @@
         "tags": [
           "storage"
         ],
-        "summary": "Хранилища: все",
+        "summary": "Хранилища: страницы",
         "responses": {
           "200": {
             "description": "Готово",
@@ -1871,6 +2073,15 @@
                       "items": {
                         "$ref": "#/components/schemas/Archive"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
                   },
                   "additionalProperties": false,
@@ -1884,10 +2095,74 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Запись Archive заводится на том; edge камеры-кластера такой записью не бывает, это Device. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Имя"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Вид хранилища"
+          },
+          {
+            "name": "serverId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Сервер"
+          },
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Домен"
+          }
+        ]
       },
       "post": {
         "operationId": "createArchive",
@@ -2217,7 +2492,7 @@
         "tags": [
           "storage"
         ],
-        "summary": "Тома: все",
+        "summary": "Тома: страницы",
         "responses": {
           "200": {
             "description": "Готово",
@@ -2231,6 +2506,15 @@
                       "items": {
                         "$ref": "#/components/schemas/Volume"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
                   },
                   "additionalProperties": false,
@@ -2244,10 +2528,46 @@
           "401": {
             "$ref": "#/components/responses/Problem"
           },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "archiveId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Хранилище"
+          }
+        ]
       }
     },
     "/volumes/{volumeId}": {
@@ -2489,9 +2809,18 @@
             "schema": {
               "type": "integer",
               "minimum": 1,
-              "maximum": 50
+              "maximum": 1000
             },
-            "description": "Сколько последних, по умолчанию 50"
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
         ],
         "responses": {
@@ -2511,6 +2840,10 @@
                       "items": {
                         "$ref": "#/components/schemas/Operation"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
                     }
                   }
                 }
@@ -2927,8 +3260,29 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
-        ]
+        ],
+        "description": "Страницы у candidates: limit, cursor. Форма читает только в окне поиска."
       },
       "post": {
         "operationId": "startDiscovery",
@@ -3242,6 +3596,15 @@
                       "items": {
                         "$ref": "#/components/schemas/RuleFire"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
                   },
                   "additionalProperties": false,
@@ -3271,8 +3634,29 @@
               "type": "string",
               "format": "uuid"
             }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
-        ]
+        ],
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны."
       }
     },
     "/rules/update": {
@@ -4703,6 +5087,10 @@
                       "type": "integer",
                       "minimum": 0,
                       "description": "Сколько записей скрыто правами"
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
                     }
                   },
                   "additionalProperties": false,
@@ -4783,7 +5171,16 @@
               "minimum": 1,
               "maximum": 1000
             },
-            "description": "Сколько строк, по умолчанию 1000"
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
         ]
       }
@@ -4854,7 +5251,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "description": "Изменения от других администраторов, статусы, ход длительных операций. После переподключения сервер досылает сообщения после Last-Event-ID; если их уже нет — шлёт stream.reset, и клиент перечитывает данные.",
+        "description": "Изменения от других администраторов, статусы, ход длительных операций. После переподключения сервер досылает сообщения после Last-Event-ID; если их уже нет — шлёт stream.reset, и клиент перечитывает данные. Первое сообщение — stream.hello {clientId}. События устройств приходят только по наблюдаемым (PUT /stream/{clientId}/watch) и их детям. Операции, правила, права и домен приходят всем.",
         "parameters": [
           {
             "name": "Last-Event-ID",
@@ -5041,19 +5438,8 @@
         "tags": [
           "access"
         ],
-        "summary": "Применить черновик прав",
-        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; уровни, функции, запреты и плагины есть в справочнике, а части прав объявлены возможностями (иначе 422 NOT_SUPPORTED, field — путь поля, params.id — запись); встроенная роль «Администратор» меняется только назначениями (иначе 409 BUILTIN), unr у другой роли — 422 NOT_SUPPORTED; остаётся хотя бы один включённый администратор без срока учётной записи и без срока назначения, а текущий администратор не снимает с себя роль и не лишает себя входа (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора. Кто применяет: администратор — всё; человек с USERS_RIGHTS_SETUP — всё, кроме администратора. Пакет, который меняет назначения «Администратора», пользователей и группы с ним или включает и снимает USERS_RIGHTS_SETUP у роли, отвечает 403 PERMISSION_DENIED целиком, ничего не записано. Строки, которые пакет не меняет, не проверяются: присылать снимок целиком можно. Цель прочитать нельзя — 503 UPSTREAM_UNAVAILABLE. dryRun судит только черновик: право применяющего и 409 PASSWORD_NOT_ADMIN проверяются при записи",
-        "parameters": [
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "description": "Версия снимка прав из ETag как есть. Нет — 428, не совпала — 412",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
+        "summary": "Применить изменения прав",
+        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; уровни, функции, запреты и плагины есть в справочнике, а части прав объявлены возможностями (иначе 422 NOT_SUPPORTED, field — путь поля, params.id — запись); встроенная роль «Администратор» меняется только назначениями (иначе 409 BUILTIN), unr у другой роли — 422 NOT_SUPPORTED; остаётся хотя бы один включённый администратор без срока учётной записи и без срока назначения, а текущий администратор не снимает с себя роль и не лишает себя входа (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора. Кто применяет: администратор — всё; человек с USERS_RIGHTS_SETUP — всё, кроме администратора. Пакет, который меняет назначения «Администратора», пользователей и группы с ним или включает и снимает USERS_RIGHTS_SETUP у роли, отвечает 403 PERMISSION_DENIED целиком, ничего не записано. Строки, которых нет в changes, не меняются и не проверяются. Цель прочитать нельзя — 503 UPSTREAM_UNAVAILABLE. dryRun судит только черновик: право применяющего и 409 PASSWORD_NOT_ADMIN проверяются при записи",
         "requestBody": {
           "required": true,
           "content": {
@@ -5382,6 +5768,26 @@
               "format": "uuid"
             },
             "description": "Только этой камеры"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
         ],
         "responses": {
@@ -5391,18 +5797,27 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "items"
-                  ],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ArchiveWatch"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
-                  }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
                 }
               }
             }
@@ -5413,7 +5828,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны."
       },
       "post": {
         "operationId": "createArchiveWatch",
@@ -5606,6 +6022,26 @@
               "format": "uuid"
             },
             "description": "Только этой камеры"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
         ],
         "responses": {
@@ -5615,18 +6051,27 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "items"
-                  ],
                   "properties": {
                     "items": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/ArchiveScan"
                       }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
                     }
-                  }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
                 }
               }
             }
@@ -5637,7 +6082,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны."
       },
       "post": {
         "operationId": "createArchiveScan",
@@ -5769,7 +6215,7 @@
           "automation"
         ],
         "summary": "Ответить на вопрос оператору",
-        "description": "Отвечает человек с ролью шага: нет роли — 403 PERMISSION_DENIED. Считается первый ответ по времени: на закрытый ответом вопрос — 409 BUSY, params.reason: answered, в том числе повтор того же человека. Срок вышел или запуск снят — 409 NOT_RUNNABLE, params.reason.code: over, ответ не действует; кончившийся вопрос после ухода имени запуска из памяти — 404 NOT_FOUND, это предел. Роль без строк грантов не видна: canAnswer ложь, ответ — 403 PERMISSION_DENIED, это предел. Ответ не того вида — 422 VALIDATION_FAILED, field: answer. 202 — ответ принят, итог приходит событием prompt.closed и виден в RuleFire: система вправе судить ответы своим проходом, поэтому 202 не обещает, что засчитан именно этот",
+        "description": "Отвечает человек с ролью шага: нет роли — 403 PERMISSION_DENIED. Считается первый ответ по времени: на закрытый ответом вопрос — 409 BUSY, params.reason: answered, в том числе повтор того же человека. Срок вышел — 409 NOT_RUNNABLE, params.reason.code: over, ответ не действует. Запуск снят новой правкой, выключением или удалением — 404 NOT_FOUND. Кончившийся вопрос после ухода имени запуска из памяти — тоже 404, это предел. Роль без строк грантов не видна: canAnswer ложь, ответ — 403 PERMISSION_DENIED, это предел. Ответ не того вида — 422 VALIDATION_FAILED, field: answer. 202 — ответ принят, итог приходит событием prompt.closed и виден в RuleFire: система вправе судить ответы своим проходом, поэтому 202 не обещает, что засчитан именно этот",
         "parameters": [
           {
             "name": "promptId",
@@ -5805,6 +6251,715 @@
             "$ref": "#/components/responses/Problem"
           },
           "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/tree/children": {
+      "get": {
+        "operationId": "getTreeChildren",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Дети узла дерева, страницами",
+        "description": "Без parentId — верхний уровень. Порядок детей — по имени внутри одного члена; на верхнем уровне и в папках порядок сервера: неизменный между страницами, не алфавитный. Камера-кластер в раскладке servers лежит под доменом: serverId в виде нет. Её детекторы видны только при раскрытии, сводного списка по домену в detectors нет. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "layout",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "folders",
+                "servers",
+                "archives",
+                "detectors"
+              ]
+            },
+            "description": "Раскладка"
+          },
+          {
+            "name": "parentId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Родитель; без него — верхний уровень"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TreeNode"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    },
+                    "parentCount": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Сколько детей у раскрытого родителя, одно чтение на узел. У папки — сумма по членам"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/tree/paths": {
+      "get": {
+        "operationId": "getTreePaths",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Цепочки от корня до объектов",
+        "description": "До idsMax id. Нужно для перехода к объекту и для фильтра. id, которого нет или не видно, в ответ не попадает",
+        "parameters": [
+          {
+            "name": "layout",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "folders",
+                "servers",
+                "archives",
+                "detectors"
+              ]
+            },
+            "description": "Раскладка"
+          },
+          {
+            "name": "ids",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Id через запятую, до idsMax"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/TreePath"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/folders/{folderId}/devices": {
+      "post": {
+        "operationId": "setFolderDevices",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Добавить устройства в папку и убрать из неё",
+        "parameters": [
+          {
+            "name": "folderId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderDevicesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Папка",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Folder"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "description": "Одна операция без отката: папки вне отката (ADR-0106 п. 1). Шаг отката такой операции — fail NOT_SUPPORTED, params.reason: folders"
+      }
+    },
+    "/access/users": {
+      "get": {
+        "operationId": "listAccessUsers",
+        "tags": [
+          "access"
+        ],
+        "summary": "Пользователи: страницы",
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessUser"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/access/groups": {
+      "get": {
+        "operationId": "listAccessGroups",
+        "tags": [
+          "access"
+        ],
+        "summary": "Группы: страницы",
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/UserGroup"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/access/history": {
+      "get": {
+        "operationId": "listAccessHistory",
+        "tags": [
+          "access"
+        ],
+        "summary": "История прав: страницы, новые первыми",
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessHistoryEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/access/cell-history": {
+      "get": {
+        "operationId": "listAccessCellHistory",
+        "tags": [
+          "access"
+        ],
+        "summary": "История ячеек: страницы, новые первыми",
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AccessCellEntry"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/access/roles/{roleId}/objects": {
+      "get": {
+        "operationId": "listRoleObjects",
+        "tags": [
+          "access"
+        ],
+        "summary": "Объекты роли: страницы",
+        "description": "Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "parameters": [
+          {
+            "name": "roleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            "description": "Сколько строк на странице, по умолчанию 200"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Текст"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RoleObject"
+                      }
+                    },
+                    "nextCursor": {
+                      "type": "string",
+                      "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "total": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Только без фильтра. Оценка: форма пишет «≈»"
+                    }
+                  },
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/stream/{clientId}/watch": {
+      "put": {
+        "operationId": "putStreamWatch",
+        "tags": [
+          "stream"
+        ],
+        "summary": "Что наблюдает поток",
+        "description": "Раскрытые ветки и открытая карточка, до watchMax id. Заменяет прошлый список. Сверх предела — 422 VALIDATION_FAILED, field: ids",
+        "parameters": [
+          {
+            "name": "clientId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StreamWatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Готово"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
             "$ref": "#/components/responses/Problem"
           },
           "422": {
@@ -5935,6 +7090,44 @@
             "type": "string",
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
+          },
+          "stateSummary": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "total",
+              "offline",
+              "silent",
+              "at"
+            ],
+            "description": "Итог домена за круг вида. Числа не пересекаются, выключенные вне total. Поля нет, пока круг не прошёл ни разу, и у того, кто не видит домен. Отставание — круг, около 20 мин при 250 000 камер. Только на домен, на папку нет",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Без выключенных"
+              },
+              "offline": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Фаза вне running, idle, held, кроме попавших в silent. Сюда входят pending и unlicensed"
+              },
+              "silent": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Фаза failed при отвечающем устройстве: поток упал, связь есть"
+              },
+              "at": {
+                "type": "string",
+                "format": "date-time",
+                "description": "Время итога"
+              },
+              "unread": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Сколько разделов вида круг не смог прочитать. Больше 0 — числа неполные, форма пишет это рядом с итогом"
+              }
+            }
           }
         },
         "additionalProperties": false,
@@ -6661,6 +7854,14 @@
             "type": "boolean",
             "readOnly": true,
             "description": "Только чтение. false — скан и обход этой камере недоступны: камера-кластер и чужая камера, таблицы живут в кластере записи. Нет поля — доступны"
+          },
+          "folderIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Папки устройства. Только в GET /devices/{id}"
           }
         },
         "additionalProperties": false,
@@ -6697,14 +7898,6 @@
             ],
             "format": "uuid"
           },
-          "deviceIds": {
-            "type": "array",
-            "description": "Устройства папки по порядку; одно устройство может быть в нескольких папках Порядок — внутри папки, новое устройство встаёт в конец. Устройство, удалённое сервером само (например, по сроку), может оставаться здесь до уборки: клиент пропускает id, которого нет в списке устройств.",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
           "version": {
             "type": "string",
             "pattern": "^[!#-~]+$",
@@ -6717,7 +7910,6 @@
           "name",
           "domainId",
           "parentId",
-          "deviceIds",
           "version"
         ],
         "description": "Папка физического расположения"
@@ -7700,6 +8892,15 @@
             "items": {
               "$ref": "#/components/schemas/DiscoveryCandidate"
             }
+          },
+          "nextCursor": {
+            "type": "string",
+            "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+          },
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Сколько найдено всего"
           }
         },
         "additionalProperties": false,
@@ -8329,37 +9530,13 @@
           "roles": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Role"
-            }
-          },
-          "users": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccessUser"
-            }
-          },
-          "groups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserGroup"
+              "$ref": "#/components/schemas/RoleRow"
             }
           },
           "catalogs": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/Catalog"
-            }
-          },
-          "history": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccessHistoryEntry"
-            }
-          },
-          "cellHistory": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccessCellEntry"
             }
           },
           "streamGrants": {
@@ -8374,13 +9551,9 @@
         "required": [
           "version",
           "roles",
-          "users",
-          "groups",
-          "catalogs",
-          "history",
-          "cellHistory"
+          "catalogs"
         ],
-        "description": "Снимок прав целиком: черновик в интерфейсе строится от него и применяется пакетом. Версия — одна на весь снимок"
+        "description": "Снимок прав целиком: черновик в интерфейсе строится от него и применяется пакетом. Версия — одна на весь снимок Только версия, роли без списка объектов и каталоги: люди, группы, история и объекты роли — своими перечнями."
       },
       "Settings": {
         "type": "object",
@@ -8997,12 +10170,37 @@
               },
               "defaultServerPort": {
                 "type": "integer"
+              },
+              "pageMax": {
+                "type": "integer",
+                "description": "Наибольший limit страницы"
+              },
+              "idsMax": {
+                "type": "integer",
+                "description": "Сколько id в одном запросе: ids у /devices, /tree/paths"
+              },
+              "selectMax": {
+                "type": "integer",
+                "description": "Предел выбора: items в /objects/delete, add и remove в /folders/{id}/devices. Больше — несколькими операциями, у каждой свой откат"
+              },
+              "watchMax": {
+                "type": "integer",
+                "description": "Сколько id в PUT /stream/{clientId}/watch"
+              },
+              "scanPartsMax": {
+                "type": "integer",
+                "description": "Сколько разделов вида смотрит один запрос с фильтром. Значение на замер: форма берёт его отсюда и не вшивает"
               }
             },
             "additionalProperties": false,
             "required": [
               "ipScanMax",
-              "defaultServerPort"
+              "defaultServerPort",
+              "pageMax",
+              "idsMax",
+              "selectMax",
+              "watchMax",
+              "scanPartsMax"
             ]
           },
           "capabilities": {
@@ -9319,10 +10517,12 @@
               "discovery.progress",
               "discovery.finished",
               "prompt.opened",
-              "prompt.closed"
+              "prompt.closed",
+              "stream.hello",
+              "tree.changed"
             ],
             "x-enum-descriptions": {
-              "stream.reset": "Пропущенное не дослать (Last-Event-ID слишком старый): клиент перечитывает всё",
+              "stream.reset": "Пропущенное не дослать (Last-Event-ID слишком старый): клиент перечитывает то, что есть у него в кэше. Весь перечень не читается никогда",
               "entity.created": "Создана запись: kind, id, version",
               "entity.changed": "Изменена запись: kind, id, version",
               "entity.deleted": "Удалена запись: kind, id",
@@ -9332,7 +10532,9 @@
               "discovery.progress": "Поиск в сети нашёл устройство: kind=discovery, entityId — домен, payload — progress и candidate",
               "discovery.finished": "Поиск в сети закончился или остановлен: payload — state",
               "prompt.opened": "Открыт вопрос оператору: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, roleId, level. Клиент перечитывает GET /rule-prompts",
-              "prompt.closed": "Вопрос закрыт: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, reason: answered, expired, reset, stopped; при answered ещё answer и by — кто ответил"
+              "prompt.closed": "Вопрос закрыт: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, reason: answered, expired, reset, stopped; при answered ещё answer и by — кто ответил",
+              "stream.hello": "Первое сообщение потока: clientId — для PUT /stream/{clientId}/watch",
+              "tree.changed": "Ветка изменилась вне наблюдения: layout, parentIds. Частота постоянная и не зависит от размера домена. Клиент перечитывает эти ветки, если они у него загружены"
             }
           },
           "at": {
@@ -9381,6 +10583,26 @@
             "properties": {},
             "additionalProperties": true,
             "description": "Подробности события: у шага операции — шаг и счётчики, у состояния устройства — status: true"
+          },
+          "clientId": {
+            "type": "string",
+            "description": "stream.hello: кто этот поток"
+          },
+          "layout": {
+            "type": "string",
+            "enum": [
+              "folders",
+              "servers",
+              "archives",
+              "detectors"
+            ]
+          },
+          "parentIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "tree.changed: какие ветки перечитать"
           }
         },
         "additionalProperties": false,
@@ -10519,7 +11741,8 @@
           "UPSTREAM_UNAVAILABLE",
           "NOT_REVERTIBLE",
           "DEVICE_REFUSED",
-          "PASSWORD_NOT_ADMIN"
+          "PASSWORD_NOT_ADMIN",
+          "INVALID_CURSOR"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
         "x-enum-descriptions": {
@@ -10556,7 +11779,8 @@
           "UPSTREAM_UNAVAILABLE": "Бэкенд недоступен, не ответил вовремя или занят (502, 503, 504; при 503 — Retry-After). Запись могла пройти: повтор — с тем же idempotencyKey или после перечитывания. У шага операции — шаг не выполнен из-за сбоя сервера, в объекте ничего не записано, retry-failed повторяет его",
           "NOT_REVERTIBLE": "Операцию нельзя откатить или повторить (409), причина в params.reason: notLast — не последняя в стопке, isRevert — это сам откат, expired — срок вышел, reverted — уже откачена, running — не закончена, empty — без удачных шагов, stale — повтор очищен или срок вышел",
           "DEVICE_REFUSED": "Устройство отказало в команде (409), причина — в params.reason: noOperation — такой команды у единицы нет, refused — устройство ответило отказом",
-          "PASSWORD_NOT_ADMIN": "«Администратора» нельзя назначить пользователю, чей последний пароль задал не он сам и не администратор, напрямую и через группу (409, field: roleIds, params.id — пользователь). Сначала администратор меняет пароль"
+          "PASSWORD_NOT_ADMIN": "«Администратора» нельзя назначить пользователю, чей последний пароль задал не он сам и не администратор, напрямую и через группу (409, field: roleIds, params.id — пользователь). Сначала администратор меняет пароль",
+          "INVALID_CURSOR": "Курсор просрочен или чужой (422): форма читает с начала"
         }
       },
       "ServerPatch": {
@@ -10662,13 +11886,6 @@
         "properties": {
           "name": {
             "type": "string"
-          },
-          "deviceIds": {
-            "type": "array",
-            "items": {
-              "type": "string",
-              "format": "uuid"
-            }
           }
         }
       },
@@ -11918,7 +13135,7 @@
           "idempotencyKey",
           "items"
         ],
-        "description": "Удалить выбранное одним запросом: устройства (с дочерними), папки (с подпапками), хранилища (с томами), тома, правила. Вид объекта сервер узнаёт по id",
+        "description": "Удалить выбранное одним запросом: устройства (с дочерними), папки (с подпапками), хранилища (с томами), тома, правила. Вид объекта сервер узнаёт по id. items — до selectMax, сверх предела 422 VALIDATION_FAILED",
         "properties": {
           "idempotencyKey": {
             "type": "string",
@@ -11942,7 +13159,7 @@
                 "version": {
                   "type": "string",
                   "pattern": "^[!#-~]+$",
-                  "description": "Версия, полученная от сервера (ETag) — как есть"
+                  "description": "Версия как есть: Device.version или r<revision> из строки. r<revision> сверяет только строку камеры: чужая правка записи или детектора такое удаление не остановит. Это предел, форма говорит о нём в окне удаления"
                 }
               }
             }
@@ -12290,50 +13507,6 @@
           }
         }
       },
-      "AccessWrite": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "roles",
-          "users",
-          "groups",
-          "catalogs"
-        ],
-        "description": "Права целиком, как их собрал черновик. id новых записей задаёт клиент (UUID). Состояние синхронизации каталогов и групп (status, at, message, entries) ведёт сервер: присланное для существующих он не берёт",
-        "properties": {
-          "roles": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Role"
-            }
-          },
-          "users": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/AccessUserWrite"
-            }
-          },
-          "groups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/UserGroup"
-            }
-          },
-          "catalogs": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Catalog"
-            }
-          },
-          "streamGrants": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/StreamGrant"
-            },
-            "description": "Список целиком. Нет поля — не меняется. Учётка не из /stream-accounts, повтор учётки, чужая папка, не камера — 422 VALIDATION_FAILED, field: streamGrants"
-          }
-        }
-      },
       "AccessHistoryWrite": {
         "type": "object",
         "additionalProperties": false,
@@ -12406,17 +13579,15 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "access",
+          "version",
+          "changes",
           "history",
           "cellHistory"
         ],
-        "description": "Применить черновик прав одним пакетом. dryRun: true — только проверить, ничего не записывая",
+        "description": "Применить изменения прав. Всё остальное не меняется. version — от GET /access, чужая правка даёт 412 VERSION_MISMATCH. dryRun: true — только проверить, ничего не записывая",
         "properties": {
           "dryRun": {
             "type": "boolean"
-          },
-          "access": {
-            "$ref": "#/components/schemas/AccessWrite"
           },
           "history": {
             "type": "array",
@@ -12428,6 +13599,16 @@
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/AccessCellWrite"
+            }
+          },
+          "version": {
+            "type": "string",
+            "description": "Версия снимка от GET /access как есть"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessChange"
             }
           }
         }
@@ -15921,6 +17102,405 @@
           }
         ],
         "description": "Запись плана правил. Пишет человек, по порядку записей. scenarios — POST /rules, PUT /rules/{id}: PUT — запись целиком, чтение поверх body, версия чтения в If-Match. schedules — POST /schedules, \"@<ref>\" у правил — id созданной строки. Расписание, на которое ссылается только окно, отдельно не пишется: идёт телом окна. windows — POST /maintenance-windows, \"@<ref>\" заменяется строкой расписания объектом в schedule. Новое правило заводится logOnly: true, logOnlySince — дата записи, или выключенным; новое окно — enabled: false: наблюдения у него нет, включённое сразу глушит рабочее правило; включает человек. Правка действующего правила наблюдения не заводит: предел. Отказ записи стоит за своей строкой, записанное остаётся, отката нет"
+      },
+      "DeviceRow": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "type",
+          "domainId",
+          "name",
+          "online",
+          "enabled",
+          "fault",
+          "licenseExceeded",
+          "version"
+        ],
+        "description": "Строка перечня: только то, что есть в виде большого домена. Полная запись — GET /devices/{id}",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "type": {
+            "$ref": "#/components/schemas/DeviceType"
+          },
+          "domainId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "online": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "fault": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Причина «нет сигнала», как Device.fault; текста нет"
+          },
+          "licenseExceeded": {
+            "type": "boolean"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[!#-~]+$",
+            "description": "Device.version или, у камеры-кластера, r<revision>: это не Device.version. /objects/delete принимает обе формы"
+          },
+          "subtype": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "У камеры-кластера null"
+          },
+          "serverId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "У камеры-кластера null: сервер записи живёт у другого члена"
+          },
+          "hasChildren": {
+            "type": "boolean",
+            "description": "У камеры-кластера true значит «может быть»: раскрытие читает таблицы члена и может вернуть пусто"
+          }
+        }
+      },
+      "TreeNode": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name",
+          "parentId",
+          "hasChildren"
+        ],
+        "description": "Узел дерева. Счётчиков у узлов нет",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "id записи; у нераспределённых unalloc:<domainId>"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "domain",
+              "folder",
+              "server",
+              "device",
+              "archive",
+              "volume",
+              "unalloc"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "parentId": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hasChildren": {
+            "type": "boolean"
+          },
+          "row": {
+            "$ref": "#/components/schemas/DeviceRow"
+          }
+        }
+      },
+      "TreePath": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "chains"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "chains": {
+            "type": "array",
+            "items": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/TreePathStep"
+              }
+            },
+            "description": "Цепочки от корня до объекта. Камера в нескольких папках — несколько цепочек"
+          }
+        }
+      },
+      "TreePathStep": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "kind",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "domain",
+              "folder",
+              "server",
+              "device",
+              "archive",
+              "volume",
+              "unalloc"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "FolderDevicesRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "add",
+          "remove"
+        ],
+        "description": "Состав папки: что добавить и что убрать, вместе до selectMax, одна операция. Состав читается через GET /devices?folderId=",
+        "properties": {
+          "add": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "remove": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
+      "RoleRow": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "loginSchedule": {
+            "type": "integer",
+            "description": "Расписание входа (reference.access.loginSchedules)"
+          },
+          "supervision": {
+            "type": "object",
+            "properties": {
+              "roleId": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "uuid"
+              },
+              "login": {
+                "type": "boolean"
+              },
+              "export": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "roleId",
+              "login",
+              "export"
+            ],
+            "description": "Чьё подтверждение нужно для входа и экспорта"
+          },
+          "global": {
+            "$ref": "#/components/schemas/RoleGlobal"
+          },
+          "folderAccess": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": {
+                "type": "string",
+                "description": "Уровень из справочника reference.access.levels"
+              },
+              "description": "Поле объекта → уровень"
+            },
+            "description": "Права на папки «Оборудования»: id папки или домена (корень) → поля"
+          },
+          "objectAccessCount": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Сколько объектов в исключениях. Сами — GET /access/roles/{id}/objects"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name",
+          "comment",
+          "loginSchedule",
+          "supervision",
+          "global",
+          "folderAccess",
+          "objectAccessCount"
+        ]
+      },
+      "RoleObject": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "objectId",
+          "levels"
+        ],
+        "properties": {
+          "objectId": {
+            "type": "string"
+          },
+          "levels": {
+            "type": "object",
+            "description": "Уровни объекта, как в Role.objectAccess"
+          }
+        }
+      },
+      "AccessChange": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "id",
+          "op"
+        ],
+        "description": "Одно изменение. set — запись целиком, новая или прежняя; delete — снять. roleObject: id — роль, value {objectId, levels}, levels null снимает строку. streamGrants: id — grants, value {grants: [...]}, список целиком",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "role",
+              "user",
+              "group",
+              "catalog",
+              "roleObject",
+              "streamGrants"
+            ]
+          },
+          "id": {
+            "type": "string"
+          },
+          "op": {
+            "type": "string",
+            "enum": [
+              "set",
+              "delete"
+            ]
+          },
+          "value": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RoleRow"
+              },
+              {
+                "$ref": "#/components/schemas/AccessUserWrite"
+              },
+              {
+                "$ref": "#/components/schemas/UserGroup"
+              },
+              {
+                "$ref": "#/components/schemas/Catalog"
+              },
+              {
+                "$ref": "#/components/schemas/RoleObjectWrite"
+              },
+              {
+                "$ref": "#/components/schemas/StreamGrantsWrite"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RoleObjectWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "objectId",
+          "levels"
+        ],
+        "properties": {
+          "objectId": {
+            "type": "string"
+          },
+          "levels": {
+            "type": [
+              "object",
+              "null"
+            ]
+          }
+        }
+      },
+      "StreamGrantsWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "grants"
+        ],
+        "properties": {
+          "grants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StreamGrant"
+            }
+          }
+        }
+      },
+      "StreamWatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       }
     }
   }

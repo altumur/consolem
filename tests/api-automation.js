@@ -194,8 +194,7 @@
     const area = { include: [{ kind: "folder", id: f.id }], exclude: [], gone: [], fromEvent: false };
     const made = await env.ok("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: area })] }));
     const n0 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
-    const folder = await env.ok("GET", `/folders/${f.id}`);
-    await env.ok("PATCH", `/folders/${f.id}`, { deviceIds: folder.deviceIds.concat(other.id) }, etag(folder));
+    await env.ok("POST", `/folders/${f.id}/devices`, { add: [other.id], remove: [] });
     const n1 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
     assert.eq([n1, (await env.ok("GET", `/rules/${made.id}`)).version], [n0 + 1, made.version], "шаг на новую камеру, версия та же");
   });
@@ -466,6 +465,7 @@
       assert.eq(seen, ["stopped"], "причина");
       const fires = await env.list(`/rules/${base.id}/fires`).catch(() => null);
       if (fires) assert.ok(fires.find((x) => x.id === f.id).result !== "waiting", "запуск снят");
+      assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "снятый запуск — 404");
       return p;
     };
     await off((env, r) => env.ok("PUT", `/rules/${r.id}`, body(r, { purpose: "другое" }), etag(r)));

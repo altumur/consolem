@@ -7,8 +7,39 @@
     const a = JSON.parse(JSON.stringify(A));
     return { roles: a.roles, users: a.users, groups: a.groups, catalogs: a.catalogs };
   };
-  const apply = (env, access, opts) =>
-    env.call("POST", "/access/apply", Object.assign({ access, history: [], cellHistory: [] }, opts && opts.body), { "If-Match": `"${(opts && opts.version) || A.version}"` });
+  // Проверки пишут черновик целиком, как раньше форма: сюда он приходит и уходит изменениями. Ответ для них — полный снимок
+  const changesOf = (from, to) => {
+    const out = [];
+    const list = (kind, was, now) => {
+      const byId = new Map(was.map((x) => [x.id, x]));
+      now.forEach((x) => {
+        const old = byId.get(x.id);
+        const { objectAccess, ...rest } = x;
+        const row = kind === "role" ? Object.assign(rest, { objectAccessCount: Object.keys(objectAccess || {}).length }) : x;
+        const oldRow = old && (kind === "role" ? (({ objectAccess: o, ...r }) => Object.assign(r, { objectAccessCount: Object.keys(o || {}).length }))(old) : old);
+        if (JSON.stringify(oldRow) !== JSON.stringify(row)) out.push({ kind, id: x.id, op: "set", value: row });
+        if (kind === "role") {
+          const a = (old && old.objectAccess) || {}, b = objectAccess || {};
+          Object.keys(b).forEach((k) => JSON.stringify(a[k]) !== JSON.stringify(b[k]) && out.push({ kind: "roleObject", id: x.id, op: "set", value: { objectId: k, levels: b[k] } }));
+          Object.keys(a).forEach((k) => !(k in b) && out.push({ kind: "roleObject", id: x.id, op: "set", value: { objectId: k, levels: null } }));
+        }
+      });
+      was.forEach((x) => !now.some((y) => y.id === x.id) && out.push({ kind, id: x.id, op: "delete" }));
+    };
+    list("role", from.roles, to.roles);
+    list("user", from.users, to.users);
+    list("group", from.groups, to.groups);
+    list("catalog", from.catalogs, to.catalogs);
+    if (to.streamGrants && JSON.stringify(to.streamGrants) !== JSON.stringify(from.streamGrants)) out.push({ kind: "streamGrants", id: "grants", op: "set", value: { grants: to.streamGrants } });
+    return out;
+  };
+  const apply = async (env, access, opts) => {
+    const was = (opts && opts.base) || (await env.access());
+    const version = opts && opts.version !== undefined ? opts.version : was.version;
+    const body = Object.assign({ version, changes: changesOf(was, access), history: [], cellHistory: [] }, opts && opts.body);
+    const res = await env.call("POST", "/access/apply", body);
+    return res.status === 200 && res.body.access ? Object.assign({}, res, { body: Object.assign({}, res.body, { access: await env.access() }) }) : res;
+  };
   const NEW_ID = "9fff0001-0000-4000-8000-000000000001";
 
   test("Права: применить черновик — роль переименована, новый пользователь с ролью, история с автором, версия +1", async () => {
@@ -27,7 +58,7 @@
     const login = A.users.find((u) => u.id === meId).login;
     assert.eq([a.history[0].text, a.history[0].actor, a.history.length], ["Создан пользователь new.user", login, A.history.length + 1], "история: сверху, с автором");
     assert.eq([a.cellHistory.length, a.cellHistory[0].to], [1, "FULL"], "история ячеек");
-    assert.eq((await env.ok("GET", "/access")).version, a.version, "перечитано");
+    assert.eq((await env.access()).version, a.version, "перечитано");
   });
 
   test("Права: dryRun — проверка без записи", async () => {
@@ -36,7 +67,7 @@
     d.roles[1].name = "Проверка";
     const res = await apply(env, d, { body: { dryRun: true } });
     assert.eq([res.status, res.body.applied, res.body.access], [200, false, null], "только проверено");
-    assert.eq((await env.ok("GET", "/access")).roles[1].name, A.roles[1].name, "ничего не записано");
+    assert.eq((await env.access()).roles[1].name, A.roles[1].name, "ничего не записано");
   });
 
   test("Права: повторы имён и логинов (без учёта регистра) — 409; ссылка в никуда — 422", async () => {
@@ -140,14 +171,14 @@
     assert.status(res, 200);
     const made = res.body.access.users.find((u) => u.id === NEW_ID);
     assert.eq([made.hasPassword, "password" in made, made.passwordByAdmin], [true, false, true], "задан администратором, значения нет");
-    const a = await env.ok("GET", "/access");
+    const a = await env.access();
     assert.ok(!JSON.stringify(a).includes("Abcdef12"), "пароля нет в снимке");
     const bad = async (password, login) => {
       const x = { roles: a.roles, users: JSON.parse(JSON.stringify(a.users)), groups: a.groups, catalogs: a.catalogs };
       const u = x.users.find((y) => y.id === NEW_ID);
       u.password = password;
       if (login) u.login = login;
-      return env.call("POST", "/access/apply", { access: x, history: [], cellHistory: [] }, { "If-Match": `"${a.version}"` });
+      return apply(env, x, { base: a });
     };
     const policy = FX.reference.access.passwordPolicy;
     const short = await bad("A1");
@@ -170,8 +201,8 @@
     mgr.global.ur = "ALL";
     const man = A.users.find((u) => u.enabled && u.id !== meId && u.roleIds.includes(mgr.id) && !u.roleIds.includes(adm.id) && !u.catalogId);
     const env = await makeEnv({ actAs: man.login, fixturePatch: { access: { roles } } });
-    const a = await env.ok("GET", "/access");
-    const wr = (x) => env.call("POST", "/access/apply", { access: { roles: x.roles, users: x.users, groups: x.groups, catalogs: x.catalogs }, history: [], cellHistory: [] }, { "If-Match": `"${a.version}"` });
+    const a = await env.access();
+    const wr = (x) => apply(env, x, { base: a });
     return { env, a, adm, mgr, man, wr, copy: () => JSON.parse(JSON.stringify(a)) };
   };
 
@@ -193,7 +224,7 @@
       fn(x);
       assert.status(await wr(x), 403, "PERMISSION_DENIED", name);
     }
-    assert.eq((await env.ok("GET", "/access")).users.find((u) => u.id === plain.id).name, plain.name, "ничего не записано");
+    assert.eq((await env.access()).users.find((u) => u.id === plain.id).name, plain.name, "ничего не записано");
     const fine = copy();
     fine.users.find((u) => u.id === plain.id).name = "Новое имя";
     assert.status(await wr(fine), 200);
@@ -207,7 +238,7 @@
     const res = await wr(x);
     assert.status(res, 200);
     assert.eq(res.body.access.users.find((u) => u.id === plain.id).passwordByAdmin, false, "задал не администратор");
-    const db = await env.ok("GET", "/access");
+    const db = await env.access();
     assert.eq(db.users.find((u) => u.id === plain.id).passwordByAdmin, false, "сохранено");
   });
 
@@ -240,7 +271,7 @@
     const withMail = A.users.filter((u) => u.email);
     const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)) && !u.roleIds.some((id) => A.roles.find((r) => r.id === id).global.feat.includes("USERS_RIGHTS_SETUP")));
     const env = await makeEnv({ actAs: reader.login });
-    const a = await env.ok("GET", "/access");
+    const a = await env.access();
     assert.ok(a.users.every((u) => u.id === reader.id || u.email === ""), "чужой почты нет: " + withMail.length);
     assert.eq(a.users.find((u) => u.id === reader.id).email, reader.email, "своя есть");
     const { a: b } = await managerEnv();
@@ -251,14 +282,14 @@
     const adm = A.roles.find((r) => r.global.unr);
     const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)) && !u.roleIds.some((id) => A.roles.find((r) => r.id === id).global.feat.includes("USERS_RIGHTS_SETUP")));
     const env = await makeEnv({ actAs: reader.login });
-    const a = await env.ok("GET", "/access");
-    const send = (x, v) => env.call("POST", "/access/apply", { access: { roles: x.roles, users: x.users, groups: x.groups, catalogs: x.catalogs }, history: [], cellHistory: [] }, { "If-Match": `"${v}"` });
+    const a = await env.access();
+    const send = (x, v) => apply(env, x, { base: a, version: v });
     const x = JSON.parse(JSON.stringify(a));
     x.users.find((u) => u.id === reader.id).name = "Новое";
     assert.status(await send(x, a.version), 403, "PERMISSION_DENIED");
     x.users.find((u) => u.id === reader.id).name = reader.name;
     assert.status(await send(x, a.version), 200, undefined, "снимок без правок: чужая пустая почта правкой не считается");
-    assert.eq((await env.ok("GET", "/access")).users.length, a.users.length, "на месте");
+    assert.eq((await env.access()).users.length, a.users.length, "на месте");
   });
 
   test("Папки ведёт только «Администратор»: функция роли и права на папку этого не дают — 403", async () => {
@@ -273,14 +304,14 @@
 
   test("Учётки потоков: доступ к камерам через Access; ссылки проверяются; удаление учётки, камеры и папки убирает доступ", async () => {
     const env = await makeEnv();
-    const a = await env.ok("GET", "/access");
+    const a = await env.access();
     const g = a.streamGrants.find((x) => x.account === "videowall");
     assert.ok(g && g.folderIds.length && g.deviceIds.length, "из набора");
     const send = async (list) => {
-      const now = await env.ok("GET", "/access");
+      const now = await env.access();
       const d = { roles: now.roles, users: now.users, groups: now.groups, catalogs: now.catalogs };
       if (list) d.streamGrants = list;
-      return env.call("POST", "/access/apply", { access: d, history: [], cellHistory: [] }, { "If-Match": `"${now.version}"` });
+      return apply(env, d, { base: now });
     };
     const res = await send([{ account: "videowall", all: true, folderIds: [], deviceIds: [] }]);
     assert.status(res, 200);
@@ -294,27 +325,27 @@
     assert.status(await send([{ account: "videowall", all: false, folderIds: ["bfff9999-0000-4000-8000-000000000000"], deviceIds: [] }]), 422, "VALIDATION_FAILED", "папки нет");
     assert.status(await send([g]), 200);
     assert.status(await env.call("DELETE", `/devices/${g.deviceIds[0]}`, undefined, { "If-Match": `"${(await env.ok("GET", `/devices/${g.deviceIds[0]}`)).version}"` }), 204);
-    assert.eq((await env.ok("GET", "/access")).streamGrants[0].deviceIds, [], "камеры нет");
-    const v = (await env.ok("GET", "/access")).version;
+    assert.eq((await env.access()).streamGrants[0].deviceIds, [], "камеры нет");
+    const v = (await env.access()).version;
     assert.status(await env.call("DELETE", "/stream-accounts/videowall"), 204);
-    const after = await env.ok("GET", "/access");
+    const after = await env.access();
     assert.eq(after.streamGrants, [], "учётки нет — доступа нет");
     assert.ok(after.version !== v, "версия снимка сдвинулась");
   }, { needs: ["feature:streamGrants"] });
 
   test("Учётки потоков: без возможности непустой список — 422 NOT_SUPPORTED", async () => {
     const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { streamGrants: [], catalogs: [], groups: [] } } });
-    const now = await env.ok("GET", "/access");
+    const now = await env.access();
     now.users.forEach((u) => { u.webSessions = 0; u.mobileSessions = 0; u.catalogId = null; delete u.syncedGroupId; });
     now.roles.forEach((r) => { r.loginSchedule = 0; r.supervision = { roleId: null, login: false, export: false }; r.global.depth = 0; r.global.restr = {}; if (!r.global.unr) r.global.ur = r.global.feat.includes("USERS_RIGHTS_SETUP") ? "ALL" : "NO"; });
-    const res = await env.call("POST", "/access/apply", { access: { roles: now.roles, users: now.users, groups: now.groups, catalogs: now.catalogs, streamGrants: [{ account: "videowall", all: true, folderIds: [], deviceIds: [] }] }, history: [], cellHistory: [] }, { "If-Match": `"${now.version}"` });
+    const res = await apply(env, Object.assign({}, now, { streamGrants: [{ account: "videowall", all: true, folderIds: [], deviceIds: [] }] }), { base: await env.access() });
     assert.status(res, 422, "NOT_SUPPORTED");
     assert.eq(res.body.field, "streamGrants", "поле");
   }, { needs: ["listStreamAccounts"] });
 
-  test("Права: без версии — 428, старая — 412; состояние синхронизации от клиента не берётся", async () => {
+  test("Права: без версии — 422, старая — 412; состояние синхронизации от клиента не берётся", async () => {
     const env = await makeEnv();
-    assert.status(await env.call("POST", "/access/apply", { access: draft(), history: [], cellHistory: [] }), 428, "PRECONDITION_REQUIRED");
+    assert.status(await env.call("POST", "/access/apply", { changes: [], history: [], cellHistory: [] }), 422, "VALIDATION_FAILED", "версия обязательна");
     assert.status(await apply(env, draft(), { version: "stale" }), 412, "VERSION_MISMATCH");
   });
 
@@ -329,7 +360,7 @@
 
   test("Части прав: возможности нет — 422 NOT_SUPPORTED с полем; значение по умолчанию проходит", async () => {
     const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { catalogs: [], groups: [], streamGrants: [] } } });
-    const base = await env.ok("GET", "/access");
+    const base = await env.access();
     const fresh = () => {
       const a = JSON.parse(JSON.stringify(base));
       a.users.forEach((u) => { u.webSessions = 0; u.mobileSessions = 0; u.catalogId = null; delete u.syncedGroupId; });
@@ -342,7 +373,7 @@
       });
       return { roles: a.roles, users: a.users, groups: a.groups, catalogs: a.catalogs };
     };
-    const send = (d) => env.call("POST", "/access/apply", { access: d, history: [], cellHistory: [] }, { "If-Match": `"${base.version}"` });
+    const send = (d) => apply(env, d, { base });
     const role = (d) => d.roles.find((r) => !r.global.unr);
     const cases = [
       ["global.depth", (d) => (role(d).global.depth = 24)],
@@ -397,13 +428,13 @@
       assert.ok(fired.some((f) => f.kind === "catalog"), "в ответе часов");
     }
     const now = await env.until(async () => {
-      const x = (await env.ok("GET", "/access")).catalogs.find((y) => y.id === c.id);
+      const x = (await env.access()).catalogs.find((y) => y.id === c.id);
       return x.status !== "run" && x;
     }, "синхронизация закончилась");
     assert.eq([now.status, Date.parse(now.lastSyncAt) > Date.parse(c.lastSyncAt)], ["ok", true], "закончена");
     const g = A.groups.find((x) => x.source && x.source.catalogId === c.id);
     await env.ok("POST", `/access/catalogs/${c.id}/sync`, { groupId: g.id });
-    assert.eq((await env.ok("GET", "/access")).catalogs.find((x) => x.id === c.id).status, "ok", "каталог не трогается при синхронизации группы");
+    assert.eq((await env.access()).catalogs.find((x) => x.id === c.id).status, "ok", "каталог не трогается при синхронизации группы");
     assert.status(await env.call("POST", "/access/catalogs/bfff9999-0000-4000-8000-000000000000/sync", { groupId: null }), 404, "NOT_FOUND");
   }, { needs: ["syncCatalog"] });
 

@@ -15,7 +15,7 @@ import os
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIXTURES = ["demo", "one-domain"]
+FIXTURES = ["demo", "one-domain", "large"]
 
 
 def compact(rel):

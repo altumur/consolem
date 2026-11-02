@@ -162,7 +162,7 @@
     const root = await env.call("POST", "/folders", { name: "Новая папка", domainId: d1.id, parentId: null });
     assert.status(root, 201);
     const sub = await env.ok("POST", "/folders", { name: "Вложенная", domainId: d1.id, parentId: root.body.id });
-    assert.eq([sub.parentId, sub.deviceIds], [root.body.id, []], "вложенная");
+    assert.eq([sub.parentId, "deviceIds" in sub, (await env.folderIds(sub.id)).length], [root.body.id, false, 0], "вложенная, состава в записи нет");
     if (d2) assert.status(await env.call("POST", "/folders", { name: "x", domainId: d2.id, parentId: root.body.id }), 422, "VALIDATION_FAILED");
     assert.status(await env.call("POST", "/folders", { name: " ", domainId: d1.id, parentId: null }), 422, "NAME_REQUIRED");
     assert.status(await env.call("POST", "/folders", { name: "x", domainId: UNKNOWN_DOMAIN, parentId: null }), 404, "NOT_FOUND");
@@ -172,12 +172,15 @@
     const env = await makeEnv();
     const f = FX.folders.find((x) => x.deviceIds.length > 2);
     let res = await env.ok("PATCH", `/folders/${f.id}`, { name: "Переименованная" }, v(f));
-    res = await env.ok("PATCH", `/folders/${f.id}`, { deviceIds: [] }, { "If-Match": `"${res.version}"` });
-    assert.eq([res.name, res.deviceIds.length], ["Переименованная", 0], "очищена");
+    res = await env.ok("POST", `/folders/${f.id}/devices`, { add: [], remove: f.deviceIds });
+    assert.eq([res.name, (await env.folderIds(f.id)).length], ["Переименованная", 0], "очищена");
     assert.ok(res.version !== f.version, "версия изменилась");
+    await env.ok("POST", `/folders/${f.id}/devices`, { add: f.deviceIds.slice(0, 2), remove: [] });
+    assert.eq((await env.folderIds(f.id)).sort(), f.deviceIds.slice(0, 2).sort(), "состав задан");
+    assert.status(await env.call("PATCH", `/folders/${f.id}`, { deviceIds: [] }, { "If-Match": `"${res.version}"` }), 422, "VALIDATION_FAILED", "состав — не поле папки");
     const alien = FX.devices.find((d) => d.domainId !== f.domainId);
     const nobody = "30009999-0000-4000-8000-000000000000";
-    assert.status(await env.call("PATCH", `/folders/${f.id}`, { deviceIds: [alien ? alien.id : nobody] }, { "If-Match": `"${res.version}"` }), 422, "VALIDATION_FAILED", alien ? "чужой домен" : "нет устройства");
+    assert.status(await env.call("POST", `/folders/${f.id}/devices`, { add: [alien ? alien.id : nobody], remove: [] }), 422, "VALIDATION_FAILED", alien ? "чужой домен" : "нет устройства");
     assert.eq((await env.list("/devices")).length, FX.devices.length, "устройства на месте");
   });
 

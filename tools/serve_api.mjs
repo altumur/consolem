@@ -21,7 +21,7 @@ const require = createRequire(import.meta.url);
 globalThis.window = globalThis;
 require("../api/contract.js");
 require("../api/server.js");
-const fixtures = { demo: require("../api/fixtures/demo.json"), "one-domain": require("../api/fixtures/one-domain.json") };
+const fixtures = { demo: require("../api/fixtures/demo.json"), "one-domain": require("../api/fixtures/one-domain.json"), large: require("../api/fixtures/large.json") };
 const openapi = require("../api/openapi.json");
 // --fixture one-domain — стартовать с набором профиля (тесты всё равно начинают с /test/reset)
 const start = process.argv.includes("--fixture") ? process.argv[process.argv.indexOf("--fixture") + 1] : "demo";

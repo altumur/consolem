@@ -16,7 +16,7 @@
     const max = Math.max(...FX.devices.filter((d) => ["camera", "ipsrv", "eventsrc", "acfa"].includes(d.type)).map((d) => Number(d.identifier || (/^\d+$/.test(d.short || "") ? d.short : 0)) || 0));
     assert.eq([c.identifier, c.hasPassword, "password" in c, c.enabled, c.online], [String(max + 1), true, false, true, true], "камера");
     assert.eq([det.type, det.parentId, det.domainId], ["det", c.id, d1.id], "детектор под камерой");
-    assert.eq(res.done[0].folders[0].deviceIds.slice(-1), [c.id], "в папке");
+    assert.ok((await env.folderIds(res.done[0].folders[0].id)).includes(c.id), "в папке");
     assert.eq((await env.list("/devices")).length, FX.devices.length + 2, "в списке");
   });
 
@@ -93,7 +93,7 @@
     assert.status(await env.call("DELETE", `/devices/${cam.id}`, undefined, v(cam)), 204);
     const ids = new Set((await env.list("/devices")).map((d) => d.id));
     assert.ok(!ids.has(cam.id) && kids.every((k) => !ids.has(k.id)), `удалено с дочерними: ${kids.length}`);
-    assert.ok((await env.list("/folders")).every((f) => !f.deviceIds.includes(cam.id)), "в папках нет");
+    for (const f of FX.folders.filter((x) => x.deviceIds.includes(cam.id))) assert.ok(!(await env.folderIds(f.id)).includes(cam.id), "в папках нет");
     assert.eq((await env.ok("GET", `/devices/${other.id}`)).recordDetectorIds, [], "запись по детектору — без него");
     assert.status(await env.call("DELETE", `/devices/${cam.id}`, undefined, v(cam)), 404, "NOT_FOUND");
   });
@@ -353,7 +353,7 @@
 
   /* ===== PTZ ===== */
 
-  const ptzCam = async (env) => (await env.list("/devices")).find((d) => d.ptz && d.online);
+  const ptzCam = async (env) => (await env.list("/devices")).find((d) => d.ptz && d.online && (d.presetMax == null || d.presetMax >= 9));
 
   test("Пресеты: задать, переименовать, удалить, откат; камера без PTZ — 422", async () => {
     const env = await makeEnv();

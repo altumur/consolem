@@ -120,7 +120,16 @@
   // raw — ответ как есть: { status, body, headers }. Остальные методы отдают тело, ошибку — исключением.
   // withEtag — тело и версия: { body, etag }
   // stream — поток ответа на POST; завершающее сообщение ends(m). Поток без него — обрыв
-  function wrap(raw, subscribe, streamRaw) {
+  function wrap(rawSend, subscribe, streamRaw) {
+    // window.CONSOLEM_TRACE — журнал запросов для tools/check_scale.py: размер ответа и есть ли продолжение
+    const raw = (method, path, body, headers) =>
+      rawSend(method, path, body, headers).then((res) => {
+        if (window.CONSOLEM_TRACE) {
+          const text = res.body === null || res.body === undefined ? "" : JSON.stringify(res.body);
+          window.CONSOLEM_TRACE.push({ method, path, status: res.status, bytes: text.length, more: !!(res.body && res.body.nextCursor), empty: !!(res.body && Array.isArray(res.body.items) && !res.body.items.length) });
+        }
+        return res;
+      });
     const stream = async (path, data, onEvent, opts) => {
       let ended = false;
       await streamRaw(path, data, (m) => {

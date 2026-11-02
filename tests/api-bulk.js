@@ -46,7 +46,7 @@
     ]);
     const op = await env.runOperation({ idempotencyKey: key(), items, expectedVersions: Object.fromEntries(cams.map((c) => [c.id, c.version])) });
     assert.eq([op.ok, op.failed], [6, 0], "выполнено");
-    assert.ok((await env.ok("GET", `/folders/${f.id}`)).deviceIds.includes(cams[1].id), "в папке");
+    assert.ok((await env.folderIds(f.id)).includes(cams[1].id), "в папке");
     const back = await env.ok("POST", `/operations/${op.id}/revert`);
     const done = await env.finished(back.id);
     assert.eq([done.ok, done.failed], [2, 4], "детекторы сняты; папки и пароли вне отката");

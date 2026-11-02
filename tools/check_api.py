@@ -261,13 +261,20 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
         "schedules": "Schedule", "dayGroups": "DayGroup", "maintenanceWindows": "MaintenanceWindow",
         "licenses": "License", "journal": "JournalEvent", "streamAccounts": "StreamAccount", "archiveWatches": "ArchiveWatch", "archiveScans": "ArchiveScan",
     }
-    singles = {"access": "Access", "settings": "Settings", "reference": "Reference", "modes": "Modes"}
+    singles = {"settings": "Settings", "reference": "Reference", "modes": "Modes"}
     problems = []
     total = 0
+    # Записи стенда шире ответов: состав папки и права целиком живут в наборе, наружу идут страницами
+    schemas = spec["components"]["schemas"]
+    folder = dict(schemas["Folder"], properties=dict(schemas["Folder"]["properties"], deviceIds={"type": "array", "items": {"type": "string", "format": "uuid"}}), required=schemas["Folder"]["required"] + ["deviceIds"])
+    ref = lambda n: {"type": "array", "items": {"$ref": f"#/components/schemas/{n}"}}
+    access = {"type": "object", "additionalProperties": False, "required": ["version", "roles", "users", "groups", "catalogs", "history", "cellHistory"],
+              "properties": dict(schemas["Access"]["properties"], roles=ref("Role"), users=ref("AccessUser"), groups=ref("UserGroup"), history=ref("AccessHistoryEntry"), cellHistory=ref("AccessCellEntry"))}
     for key, name in collections.items():
         for i, rec in enumerate(fx.get(key, [])):
-            validate(spec, {"$ref": f"#/components/schemas/{name}"}, rec, f"{key}[{i}]", problems)
+            validate(spec, folder if key == "folders" else {"$ref": f"#/components/schemas/{name}"}, rec, f"{key}[{i}]", problems)
             total += 1
+    validate(spec, access, fx.get("access"), "access", problems)
     for key, name in singles.items():
         validate(spec, {"$ref": f"#/components/schemas/{name}"}, fx.get(key), key, problems)
     cand = spec["components"]["schemas"]["DiscoveryCandidate"]
@@ -277,7 +284,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     # modeManual — режим, включённый вручную ({ modeId, until } или null): состояние стенда, ответ — GET /modes/current
     if fx.get("modeManual") is not None:
         validate(spec, {"$ref": "#/components/schemas/ModeCurrentWrite"}, fx["modeManual"], "modeManual", problems)
-    known = set(collections) | set(singles) | {"$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual"}
+    known = set(collections) | set(singles) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand"}
     problems += [f"раздел {k} не описан в check_api.py" for k in fx if k not in known]
     rep.check(f"{label} соответствует схемам контракта", problems, f"{total} записей + access, settings, reference")
 
@@ -553,12 +560,13 @@ def check_server(rep, spec):
         "global.window=global;require('./api/contract.js');require('./api/server.js');"
         "const fx=require('./api/fixtures/demo.json');"
         "const s=window.ConsolemServer.create({fixture:fx,autoTick:false,testSupport:true});"
-        "const d=fx.devices[0];const got=[];s.subscribe(m=>got.push(m));"
+        "const d=fx.devices[0];const got=[];const seen=f=>{const g=m=>{if(m.type==='stream.hello'){g.client=m.clientId;return}f(m)};return g};"
+        "const w=seen(m=>got.push(m));s.subscribe(w);"
         "let v=d.version;const h=n=>{v=s.handle('PATCH','/devices/'+d.id,{name:n},{'If-Match':'\"'+v+'\"'}).body.version};"
-        "h('a');h('b');h('c');"
+        "setTimeout(()=>{s.handle('PUT','/stream/'+w.client+'/watch',{ids:[d.id]});h('a');h('b');h('c');"
         "setTimeout(()=>{const first=got[0].id,missed=[],reset=[];"
-        "s.subscribe(m=>missed.push(m),first);s.subscribe(m=>reset.push(m),'999999');"
-        "setTimeout(()=>console.log(JSON.stringify({sent:got.map(m=>m.id),missed:missed.map(m=>m.id),reset:reset.map(m=>m.type)})),10)},10)"
+        "s.subscribe(seen(m=>missed.push(m)),first);s.subscribe(seen(m=>reset.push(m)),'999999');"
+        "setTimeout(()=>console.log(JSON.stringify({sent:got.map(m=>m.id),missed:missed.map(m=>m.id),reset:reset.map(m=>m.type)})),10)},10)},10)"
     )
     sres = subprocess.run(["node", "-e", stream], capture_output=True, text=True, cwd=ROOT)
     problems = []
@@ -571,6 +579,7 @@ def check_server(rep, spec):
         if r["reset"] != ["stream.reset"]:
             problems.append(f"по неизвестному Last-Event-ID пришло {r['reset']} вместо stream.reset")
     rep.check("Поток событий: досылка по Last-Event-ID, stream.reset при потере", problems)
+    check_pages(rep, spec)
     bare = lambda p: re.sub(r"\{\w+\}", "{}", p)
     routes = {(r.split(" ", 1)[0], bare(r.split(" ", 1)[1])) for r in json.loads(res.stdout)}
     ops = {(m.upper(), bare(p)) for p, item in spec["paths"].items() for m in METHODS if m in item}
@@ -580,6 +589,28 @@ def check_server(rep, spec):
 
 
 # ===== 7. Памятка =====
+
+# Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер
+PAGED = ["/devices", "/archives", "/volumes", "/folders", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
+         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery"]
+
+
+def check_pages(rep, spec):
+    problems = []
+    for path in PAGED:
+        op = spec["paths"][path]["get"]
+        names = {p["name"] for p in op.get("parameters", [])}
+        if not {"limit", "cursor"} <= names:
+            problems.append(f"{path}: нет limit или cursor")
+        schema = op["responses"]["200"]["content"]["application/json"]["schema"]
+        if "$ref" in schema:
+            schema = spec["components"]["schemas"][schema["$ref"].split("/")[-1]]
+        if "nextCursor" not in schema["properties"]:
+            problems.append(f"{path}: в ответе нет nextCursor")
+    res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_pages.js")], capture_output=True, text=True, cwd=ROOT)
+    problems += res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
+    rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(PAGED)} перечней")
+
 
 def check_backend_doc(rep, spec):
     doc = read("api/BACKEND.md")
@@ -606,10 +637,12 @@ def main():
     spec = load("api/openapi.json")
     fx = load("api/fixtures/demo.json")
     profile = load("api/fixtures/one-domain.json")
+    large = load("api/fixtures/large.json")
     check_contract(rep, spec)
     check_fixture(rep, spec, fx)
     check_fixture(rep, spec, profile, "Набор one-domain")
-    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile})
+    check_fixture(rep, spec, large, "Набор large")
+    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--check"], capture_output=True, text=True)
     rep.check("one-domain.json собран из нынешнего demo.json", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_api.py"), "--check"], capture_output=True, text=True)

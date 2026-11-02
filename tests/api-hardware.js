@@ -17,7 +17,7 @@
   test("Устройство: переименовать — 200, версия +1, ETag, изменение в потоке", async () => {
     const env = await makeEnv();
     const seen = [];
-    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.id && seen.push(m.type));
+    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.id && seen.push(m.type), [cam.id]);
     await ApiTest.settle();
     const res = await env.call("PATCH", `/devices/${cam.id}`, { name: "Главный вход — новый" }, { "If-Match": await env.etag(`/devices/${cam.id}`) });
     assert.status(res, 200);
@@ -87,7 +87,7 @@
     const d = await env.ok("GET", `/devices/${cam.id}`);
     assert.eq([d.name, d.recordMode, d.preRecordSec], ["Вход — главный", "motion", 7], "устройство");
     assert.eq(d.version, done.items[2].version, "версия — та, что дал последний шаг");
-    assert.eq((await env.ok("GET", `/folders/${otherFolder.id}`)).deviceIds.slice(-1), [cam.id], "добавлено в папку");
+    assert.eq((await env.folderIds(otherFolder.id)).slice(-1), [cam.id], "добавлено в папку");
     await ApiTest.settle();
     stop();
     assert.eq([seen.filter((t) => t === "operation.progress").length, seen.filter((t) => t === "operation.finished").length], [3, 1], "ход в потоке");

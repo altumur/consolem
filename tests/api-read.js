@@ -10,7 +10,9 @@
     for (const table of ["domains", "servers", "devices", "folders", "archives", "volumes", "rules"]) {
       const list = await env.list(`/${table}`);
       assert.eq(list.length, FX[table].length, table);
-      assert.eq(list.map((r) => r.id), FX[table].map((r) => r.id), `${table}: порядок — как в наборе`);
+      // Порядок выбирает сервер у страниц: важно, что он один и тот же при повторе и все записи на месте
+      assert.eq(list.map((r) => r.id).sort(), FX[table].map((r) => r.id).sort(), `${table}: те же записи`);
+      assert.eq((await env.list(`/${table}`)).map((r) => r.id), list.map((r) => r.id), `${table}: порядок не меняется между чтениями`);
       sizes.push(`${table} ${list.length}`);
     }
     return sizes.join(", ");
@@ -55,7 +57,7 @@
     // Часы идут — между сдвигом набора и ответом сброса проходит доля секунды
     if (env.frozen) assert.eq(moved, shift, "момент в журнале");
     else assert.ok(Math.abs(moved - shift) < 5000, `момент в журнале: сдвиг ${moved} вместо ${shift}`);
-    const access = await env.ok("GET", "/access");
+    const access = await env.access();
     const u = FX.access.users.find((x) => x.lastLoginDate);
     const got = access.users.find((x) => x.id === u.id).lastLoginDate;
     assert.eq((Date.parse(got) - Date.parse(u.lastLoginDate)) / DAY, Math.round(shift / DAY), "дата последнего входа");
@@ -114,7 +116,8 @@
     const acc = await env.call("GET", "/access");
     assert.status(acc, 200);
     assert.eq(acc.headers.etag, `"${acc.body.version}"`, "ETag прав");
-    assert.eq(acc.body.users.length, FX.access.users.length, "пользователи");
+    assert.eq((await env.pages("/access/users")).length, FX.access.users.length, "пользователи");
+    assert.ok(!("users" in acc.body) && !("history" in acc.body), "снимок без людей и истории");
     const st = await env.call("GET", "/settings");
     assert.eq(st.headers.etag, `"${st.body.version}"`, "ETag опций");
     assert.eq(st.body.values["sec.2fa"], "off", "значения опций — кодами");
@@ -180,7 +183,7 @@
     const env = await makeEnv();
     const cam = (await env.list("/devices")).find((d) => d.type === "camera" && d.online);
     const seen = [];
-    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.id && seen.push(m));
+    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.id && seen.push(m), [cam.id]);
     await ApiTest.settle();
     assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: false, fault: "auth" }), 200);
     let now = await env.ok("GET", `/devices/${cam.id}`);
