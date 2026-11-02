@@ -19495,19 +19495,28 @@ const RULE_WRITE=["name","enabled","logOnly","logOnlySince","start","runMode","o
 // Умолчания перевода: поля, которых строка плана не несёт
 const RULE_WRITE_DEF={enabled:true,logOnly:false,logOnlySince:null,start:"event",runMode:"always",operatorMenu:false,ratePerMinute:6,windowSec:0,runAt:null,repeat:"skip",triggers:[],conditions:[],steps:[],owner:"",purpose:"",serverId:null,runAsRoleId:null,allowChain:true};
 const ASST_DOOR={scenarios:"/rules",schedules:"/schedules",windows:"/maintenance-windows"};
+const ASST_ONLY_NEW="Расписание и окно план только заводит: правки нет";
 const ASST_TABLE={scenarios:["Новое правило","Правило"],schedules:["Новое расписание","Расписание"],windows:["Новое окно обслуживания","Окно обслуживания"]};
 const asstOmit=(o,...k)=>Object.fromEntries(Object.entries(o).filter(([x])=>!k.includes(x)));
-// Новое правило: включённое — только наблюдает, что бы ни пришло в плане
-function asstNewRule(body){
+// День записи в поясе системы: logOnlySince — дата, момент записи в поле не помещается
+const asstDay=iso=>localStamp(iso).slice(0,10);
+// Новое правило: включённое — только наблюдает, что бы ни пришло в плане; просили выключенным — выключенное
+function asstNewRule(body,day){
   const r={...RULE_WRITE_DEF,...body};
-  if(r.enabled===false)return r;
-  return{...r,enabled:true,logOnly:true,logOnlySince:r.logOnlySince||ruleNow().slice(0,10)};
+  if(r.enabled===false)return{...r,logOnlySince:r.logOnly?day:null};
+  return{...r,enabled:true,logOnly:true,logOnlySince:day};
 }
-// Тело записи: новое — как в плане, правка — чтение поверх изменённых полей. Чужих полей чтения PUT не шлёт
-function asstWriteBody(e){
-  if(e.op==="create")return e.table==="scenarios"?asstNewRule(e.body):e.body;
-  const base=e.table==="scenarios"?Object.fromEntries(RULE_WRITE.filter(k=>k in e.read).map(k=>[k,e.read[k]])):asstOmit(e.read,"id","version","builtin");
-  return{...base,...e.body};
+// Строка расписания окна объектом: новая — из плана по «@ref», готовая — копия из тела. Дверь окна ссылок не берёт
+function asstWindowSchedule(e,rows){
+  const s=e.body.schedule,ref=typeof s==="string"&&/^@./.test(s)?s.slice(1):"",row=ref?rows.find(x=>x.table==="schedules"&&x.ref===ref):null,sc=row?row.body:s;
+  return sc&&typeof sc==="object"?{...asstOmit(sc,"id","version","builtin"),owner:null}:s;
+}
+// Новое окно — выключенное, что бы ни пришло в плане: наблюдения у него нет, включённое сразу глушит рабочее правило
+function asstNewWindow(e,rows){return{...e.body,enabled:false,schedule:asstWindowSchedule(e,rows)}}
+// Тело записи: новое — как в плане, правка правила — чтение поверх изменённых полей. Чужих полей чтения PUT не шлёт
+function asstWriteBody(e,rows,day){
+  if(e.op==="update")return{...Object.fromEntries(RULE_WRITE.filter(k=>k in e.read).map(k=>[k,e.read[k]])),...e.body};
+  return e.table==="scenarios"?asstNewRule(e.body,day):e.table==="windows"?asstNewWindow(e,rows):e.body;
 }
 const asstRefsOf=v=>typeof v==="string"?(/^@./.test(v)?[v.slice(1)]:[]):Array.isArray(v)?v.flatMap(asstRefsOf):v&&typeof v==="object"?Object.values(v).flatMap(asstRefsOf):[];
 function asstRefsPut(v,made){
@@ -19516,12 +19525,12 @@ function asstRefsPut(v,made){
   return v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,asstRefsPut(x,made)])):v;
 }
 // Что покажет запись плана: заголовок, строки «было → станет», что будет с правилом
-function asstRuleView(e){
+function asstRuleView(e,all){
   const[lNew,lOld]=ASST_TABLE[e.table]||[e.table,e.table],name=e.body.name||e.read?.name||e.ref||"—";
   const v={name:`${i18n(e.op==="create"?lNew:lOld)} «${name}»`,rows:[],note:"",warn:""};
   if(e.op==="update"&&!e.read)return{...v,warn:e.readWhy};
   if(e.table==="scenarios"){
-    const after=ruleContentNode(asstWriteBody(e),e.id||"new");
+    const after=ruleContentNode(asstWriteBody(e,all,asstDay(new Date().toISOString())),e.id||"new");
     const before=e.op==="create"?{name:"",on:false,watch:false,repeat:"skip",start:after.start,run:{mode:after.run.mode,modes:[]},menu:false,rate:after.rate,within:0,sched:null,when:[],cond:[],then:[],owner:after.owner,purpose:"",server:after.server,runAs:after.runAs}:ruleContentNode(e.read,e.id);
     v.rows=ruleDiffOf(before,after,e.op==="create").filter(x=>x.label!==i18n("Создание")&&!(e.op==="create"&&x.label===i18n("Состояние"))).map(x=>({label:x.label,from:x.fromT,to:x.toT,gone:e.op==="update"&&x.toT==="—"}));
     if(e.op==="create"){
@@ -19532,22 +19541,31 @@ function asstRuleView(e){
       if(!v.rows.length)v.note=i18n("Изменений нет");
       if(v.rows.some(x=>x.gone))v.warn=i18n("Из правила выпадает то, что отмечено");
     }
-  }else if(e.op==="update")v.rows=Object.entries(e.body).map(([k,x])=>({label:k,from:asstVal(e.read[k]),to:asstVal(x)}));
-  else{
-    let t="";try{t=schText(schNode({id:"",...(e.table==="schedules"?e.body:e.body.schedule)}))}catch(x){}
-    if(t)v.summary=t;
+  }else{
+    const sc=e.table==="schedules"?e.body:asstWindowSchedule(e,all);
+    try{v.summary=schText(schNode({id:"",...sc}))}catch(x){}
+    if(e.viaWindow)v.note=i18n("Отдельно не записывается: идёт телом окна");
+    if(e.table==="windows"){
+      const ids=e.body.ruleIds;
+      v.rows=[{label:i18n("Правила"),from:"—",to:ids?ids.map(id=>rules.find(r=>r.id===id)?.name||id).join(", "):i18n("все правила")}];
+      v.note=i18n("Заведётся выключенным: включает человек");
+    }
   }
   return v;
 }
 // Новые расписания плана видны его правилам: на время показа — в списке, под именем «@ref»
 function asstRulesViews(rows){
+  // Расписание, на которое ссылается только окно, идёт его телом; есть ссылка и от правила — своей записью
+  const refBy=(t,ref)=>rows.some(x=>x.table===t&&asstRefsOf(x.body).includes(ref));
+  rows.forEach(e=>{if(e.table==="schedules"&&e.op==="create"&&e.ref)e.viaWindow=refBy("windows",e.ref)&&!refBy("scenarios",e.ref)});
   const tmp=rows.filter(e=>e.table==="schedules"&&e.op==="create"&&e.ref).flatMap(e=>{try{return[schNode({id:"@"+e.ref,...e.body})]}catch(x){return[]}});
   SCHEDS.push(...tmp);
-  try{rows.forEach(e=>{e.view=asstRuleView(e)})}finally{tmp.forEach(n=>SCHEDS.splice(SCHEDS.indexOf(n),1))}
+  try{rows.forEach(e=>{e.view=asstRuleView(e,rows)})}finally{tmp.forEach(n=>SCHEDS.splice(SCHEDS.indexOf(n),1))}
 }
 async function asstRulesLoad(a,m){
   a.line=i18n("читаю, что есть сейчас…");asstRender();
-  const rows=await Promise.all(m.rules.map(e=>e.op!=="update"?{...e}:API.get(`${ASST_DOOR[e.table]}/${e.id}`).then(read=>({...e,read}),x=>({...e,read:null,readWhy:problemText(x)}))));
+  const rows=await Promise.all(m.rules.map(e=>e.op!=="update"?{...e}:e.table!=="scenarios"?{...e,read:null,readWhy:i18n(ASST_ONLY_NEW)}
+    :API.get(`/rules/${e.id}`).then(read=>({...e,read}),x=>({...e,read:null,readWhy:problemText(x)}))));
   if(asst!==a)return;
   asstRulesViews(rows);
   a.plan={...m,rules:rows};a.line="";asstRender();
@@ -19555,7 +19573,7 @@ async function asstRulesLoad(a,m){
 function asstRulesHtml(p){
   return`${p.summary?`<div class="asst-chg" id="asstModelWords">${i18n("Слова модели")}: ${escHtml(p.summary)}</div>`:""}${p.rules.map(e=>{const v=e.view;return`<div class="asst-dev" data-asst-rule="${escHtml(e.op)}">${escHtml(v.name)}</div>
     ${v.summary?`<div class="asst-chg">${escHtml(v.summary)}</div>`:""}
-    ${v.rows.map(x=>`<div class="asst-chg ${x.gone?"bad":""}" ${x.gone?`data-asst-gone="1"`:""}>${escHtml(x.label)}: ${escHtml(x.from)} → ${x.gone?i18n("выпадает"):escHtml(x.to)}</div>`).join("")}
+    ${v.rows.map(x=>`<div class="asst-chg ${x.gone?"bad":""}" ${x.gone?`data-asst-gone="1"`:""}>${escHtml(x.label)}: ${x.from==="—"?"":`${escHtml(x.from)} → `}${x.gone?i18n("выпадает"):escHtml(x.to)}</div>`).join("")}
     ${v.warn?`<div class="asst-chg bad">${escHtml(v.warn)}</div>`:""}
     ${v.note?`<div class="asst-note">${escHtml(v.note)}</div>`:""}`}).join("")}`;
 }
@@ -19564,15 +19582,20 @@ async function asstRulesApply(a,p){
   if(a.saving)return;
   a.saving=true;asstRender();
   const made=new Map(),rows=[];
+  // Момент записи — по часам сервера. Ответа нет — по своим: запись важнее пометки
+  const day=await API.get("/me").then(me=>asstDay(me.serverTime),()=>asstDay(new Date().toISOString()));
   for(const e of p.rules){
-    const name=e.view.name,lost=asstRefsOf(e.body).find(r=>!made.has(r));
+    const name=e.view.name,win=e.table==="windows";
+    if(e.viaWindow){rows.push({name,ok:false,why:i18n("окно не записано"),via:e.ref});continue}
+    const lost=asstRefsOf(win?asstNewWindow(e,p.rules):e.body).find(r=>!made.has(r));
     if(lost){rows.push({name,ok:false,why:`${i18n("не записано: не создано")} «${lost}»`});continue}
     if(e.op==="update"&&!e.read){rows.push({name,ok:false,why:e.readWhy});continue}
     try{
-      const body=asstRefsPut(asstWriteBody(e),made),door=ASST_DOOR[e.table];
-      const res=await(e.op==="create"?API.post(door,body):API.put(`${door}/${e.id}`,body,e.read.version));
+      const body=asstRefsPut(asstWriteBody(e,p.rules,day),made),door=ASST_DOOR[e.table];
+      const res=await(e.op==="create"?API.post(door,body):API.put(`/rules/${e.id}`,body,e.read.version));
       if(e.ref)made.set(e.ref,res.id);
-      rows.push({name,ok:true,note:e.table==="scenarios"&&e.op==="create"?i18n(body.enabled?"заведено: «Только журнал»":"заведено выключенным"):""});
+      if(win&&typeof e.body.schedule==="string")rows.filter(x=>x.via&&"@"+x.via===e.body.schedule).forEach(x=>Object.assign(x,{ok:true,note:i18n("записано телом окна")}));
+      rows.push({name,ok:true,note:e.op==="create"&&e.table!=="schedules"?i18n(!win&&body.enabled?"заведено: «Только журнал»":"заведено выключенным"):""});
     }catch(x){rows.push({name,ok:false,why:x?.problem?.params?.issue?.code?`${problemText(x)}: ${x.problem.params.issue.code}`:problemText(x)})}
   }
   a.saving=false;

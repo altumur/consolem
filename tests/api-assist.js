@@ -131,6 +131,29 @@
     assert.eq(made.conditions[0].scheduleId, sc.id, "ссылка подставлена");
   }, NEED);
 
+  test("План правил: окно со ссылкой на новое расписание — строка объектом в теле окна, POST /schedules нет; новое окно выключено", async () => {
+    const env = await makeEnv();
+    const [sh, w] = lastOf(await turn(env, "заведи окно обслуживания по новому расписанию")).rules;
+    assert.eq([sh.table, sh.ref, w.table, w.op, w.body.schedule, w.body.enabled], ["schedules", "shift", "windows", "create", "@shift", false], "план");
+    const n = (await env.list("/schedules")).length, m = (await env.list("/maintenance-windows")).length;
+    assert.eq([(await env.list("/schedules")).length, (await env.list("/maintenance-windows")).length], [n, m], "ход ничего не записал");
+    const made = await env.ok("POST", "/maintenance-windows", Object.assign({}, w.body, { schedule: sh.body }));
+    assert.eq([made.window.enabled, (await env.list("/schedules")).length], [false, n + 1], "одно расписание, его завела дверь окна");
+    const ref = await env.call("POST", "/maintenance-windows", Object.assign({}, w.body, { schedule: "@shift" }));
+    assert.status(ref, 422, "VALIDATION_FAILED", "ссылки дверь не берёт");
+  }, NEED);
+
+  test("План правил: расписание со ссылкой от правила и окна — своя запись; окно с готовым расписанием — копия строки", async () => {
+    const env = await makeEnv();
+    const plan = lastOf(await turn(env, `при движении на ${camera} пиши 5 минут, новое расписание, окно обслуживания`)).rules;
+    assert.eq(plan.map((e) => e.table), ["schedules", "scenarios", "windows"], "порядок");
+    assert.eq([plan[1].body.conditions[0].scheduleId, plan[2].body.schedule], ["@shift", "@shift"], "обе ссылки");
+    const ready = FX.schedules.find((x) => !x.builtin);
+    const [w] = lastOf(await turn(env, `заведи окно обслуживания по расписанию ${ready.name}`)).rules;
+    assert.eq([w.body.schedule.name, "id" in w.body.schedule], [ready.name, false], "копия строки");
+    assert.status(await env.call("POST", "/maintenance-windows", w.body), 201, null, "дверь берёт копию");
+  }, NEED);
+
   test("План правил: вопрос, ответ с context; чего форма не выражает — отказ словом о странице консоли", async () => {
     const env = await makeEnv();
     const q = lastOf(await turn(env, "при движении пиши 5 минут"));

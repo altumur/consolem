@@ -15848,46 +15848,79 @@
         ]
       },
       "AssistRuleEdit": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "table",
-          "op",
-          "body"
-        ],
-        "properties": {
-          "table": {
-            "type": "string",
-            "enum": [
-              "scenarios",
-              "schedules",
-              "windows"
-            ],
-            "description": "Что записать: правило, расписание, окно обслуживания"
-          },
-          "op": {
-            "type": "string",
-            "enum": [
-              "create",
-              "update"
-            ]
-          },
-          "id": {
-            "type": "string",
-            "format": "uuid",
-            "description": "update: какая запись"
-          },
-          "ref": {
-            "type": "string",
-            "description": "Имя новой строки schedules внутри плана. Ссылка на неё в body других записей — строка \"@<ref>\", клиент подставляет id созданной записи"
-          },
-          "body": {
+        "oneOf": [
+          {
             "type": "object",
-            "additionalProperties": true,
-            "description": "Поля записи контрактными словами: у scenarios — поля Rule. create — запись целиком, недостающие поля RuleWrite — умолчания перевода (owner, purpose — пусто, serverId, runAsRoleId — null, прочие — умолчания правила), новое правило — logOnly: true или enabled: false. update — только изменённые поля"
+            "additionalProperties": false,
+            "required": [
+              "table",
+              "op",
+              "body"
+            ],
+            "properties": {
+              "table": {
+                "type": "string",
+                "enum": [
+                  "scenarios",
+                  "schedules",
+                  "windows"
+                ],
+                "description": "Что записать: правило, расписание, окно обслуживания. Расписание и окно план только заводит"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "create"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "description": "Имя новой строки schedules внутри плана. Ссылка на неё в body других записей — строка \"@<ref>\""
+              },
+              "body": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Запись целиком контрактными словами. scenarios — поля Rule, недостающие поля RuleWrite — умолчания перевода (owner, purpose — пусто, serverId, runAsRoleId — null, прочие — умолчания правила); новое правило — logOnly: true или enabled: false, запись ставит это сама. schedules — ScheduleWrite. windows — MaintenanceWindowCreate, enabled: false; schedule — строка \"@<ref>\" нового расписания или копия строки готового: ссылки на готовое дверь не берёт"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "table",
+              "op",
+              "id",
+              "body"
+            ],
+            "properties": {
+              "table": {
+                "type": "string",
+                "enum": [
+                  "scenarios"
+                ],
+                "description": "Правка есть только у правил"
+              },
+              "op": {
+                "type": "string",
+                "enum": [
+                  "update"
+                ]
+              },
+              "id": {
+                "type": "string",
+                "format": "uuid",
+                "description": "Какое правило"
+              },
+              "body": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Только изменённые поля Rule контрактными словами"
+              }
+            }
           }
-        },
-        "description": "Запись плана правил. Пишет человек, по порядку: scenarios — POST /rules, PUT /rules/{id}; schedules — POST /schedules, PUT /schedules/{id}; windows — POST /maintenance-windows, PUT /maintenance-windows/{id}. PUT — запись целиком: тело из чтения поверх body, версия чтения в If-Match. Новое правило заводится logOnly: true или выключенным, включает человек. Правка действующего правила наблюдения не заводит: предел. Отказ записи стоит за своей строкой, записанное остаётся, отката нет"
+        ],
+        "description": "Запись плана правил. Пишет человек, по порядку записей. scenarios — POST /rules, PUT /rules/{id}: PUT — запись целиком, чтение поверх body, версия чтения в If-Match. schedules — POST /schedules, \"@<ref>\" у правил — id созданной строки. Расписание, на которое ссылается только окно, отдельно не пишется: идёт телом окна. windows — POST /maintenance-windows, \"@<ref>\" заменяется строкой расписания объектом в schedule. Новое правило заводится logOnly: true, logOnlySince — дата записи, или выключенным; новое окно — enabled: false: наблюдения у него нет, включённое сразу глушит рабочее правило; включает человек. Правка действующего правила наблюдения не заводит: предел. Отказ записи стоит за своей строкой, записанное остаётся, отката нет"
       }
     }
   }

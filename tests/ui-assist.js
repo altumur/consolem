@@ -149,19 +149,60 @@ UiCheck(async ({ ok, until }) => {
   document.getElementById("asstApply").click();
   ok(await until(() => rows().join() === "ok"), "законный RuleWrite с det/detect форма не отказывает");
 
-  // Расписание и окно: правка расписания — чтение поверх изменённого с версией, новое окно — своя дверь, правка окна — так же
-  await planRules([{ table: "schedules", op: "update", id: sc.id, body: { name: "Расписание от модели" } },
-    { table: "windows", op: "create", body: { name: "Окно от модели", ruleIds: null, enabled: false, schedule: scBody } }]);
-  ok(/Новое окно обслуживания «Окно от модели»/.test(body()) && /name: .* → Расписание от модели/.test(body()), "расписание и окно показаны: " + body().slice(0, 200));
+  // Окно: ссылка на новое расписание — телом окна, без POST /schedules; окно выключено, что бы ни пришло в плане
+  const posts = [], post = API.post;
+  API.post = (p, ...r) => { posts.push(p); return post(p, ...r); };
+  const schCount = async () => (await API.get("/schedules")).items.length;
+  const s0 = await schCount();
+  talk("заведи окно обслуживания по новому расписанию");
+  ok(await until(() => document.getElementById("asstApply")), "план окна");
+  ok(/Отдельно не записывается: идёт телом окна/.test(body()) && /Новое окно обслуживания «Окно из просьбы»/.test(body()) && /Заведётся выключенным/.test(body()), "показ окна: " + body().slice(0, 240));
+  asst.plan.rules[1].body.enabled = true;
+  posts.length = 0;
   document.getElementById("asstApply").click();
-  ok(await until(() => rows().join() === "ok,ok"), "расписание и окно записаны: " + rows().join() + " " + body().slice(-120));
-  const sc2 = await API.get("/schedules/" + sc.id), win = (await API.get("/maintenance-windows")).items.find((x) => x.name === "Окно от модели");
-  ok(sc2.name === "Расписание от модели" && sc2.kind === sc.kind && JSON.stringify(sc2.week) === JSON.stringify(sc.week), "правка не тронула остального");
-  ok(win && !win.enabled, "окно создано");
-  await planRules([{ table: "windows", op: "update", id: win.id, body: { enabled: true } }]);
+  ok(await until(() => rows().join() === "ok,ok"), "окно записано: " + rows().join());
+  ok(posts.join() === "/maintenance-windows", "двери: " + posts.join());
+  ok(/записано телом окна/.test(body()), "строка расписания названа");
+  const w1 = (await API.get("/maintenance-windows")).items.find((x) => x.name === "Окно из просьбы");
+  ok(w1 && w1.enabled === false, "новое окно выключено, хотя в плане стояло включённым");
+  ok((await API.get("/schedules/" + w1.scheduleId)).owner?.id === w1.id, "расписание принадлежит окну");
+  ok(await schCount() === s0 + 1, "расписание одно: своё у окна");
+
+  // Ссылка и от правила, и от окна: расписание — POST /schedules, у правила id, у окна строка объектом
+  talk("при движении на Запасной вход пиши 5 минут, новое расписание, окно обслуживания");
+  ok(await until(() => document.getElementById("asstApply")), "план с окном и правилом");
+  ok(!/Отдельно не записывается/.test(body()), "расписание записывается своей строкой");
+  const both = asst.plan.rules[1].body.name + " с окном";
+  asst.plan.rules[1].body.name = both;
+  posts.length = 0;
   document.getElementById("asstApply").click();
-  ok(await until(() => rows().join() === "ok"), "окно изменено");
-  ok((await API.get("/maintenance-windows/" + win.id)).enabled === true, "на сервере");
+  ok(await until(() => rows().join() === "ok,ok,ok"), "все три записи: " + rows().join());
+  ok(posts.join() === "/schedules,/rules,/maintenance-windows", "двери по порядку: " + posts.join());
+  const r3 = (await API.get("/rules")).items.find((x) => x.name === both);
+  ok((await API.get("/schedules/" + r3.conditions[0].scheduleId)).name === "Смена из просьбы", "у правила — id созданной строки");
+
+  // Окно с готовым расписанием — копия его строки. Правки расписания и окна нет: отказ строкой, без записи
+  talk(`заведи окно обслуживания по расписанию ${sc.name}`);
+  ok(await until(() => document.getElementById("asstApply")), "план окна с готовым расписанием");
+  ok(asst.plan.rules[0].body.schedule.name === sc.name, "копия строки в теле");
+  document.getElementById("asstApply").click();
+  ok(await until(() => rows().join() === "ok"), "записано: " + rows().join());
+  const sc1 = await API.get("/schedules/" + sc.id), w2 = (await API.get("/maintenance-windows")).items.find((x) => x.name === "Окно из просьбы" && x.id !== w1.id);
+  await planRules([{ table: "schedules", op: "update", id: sc.id, body: { name: "Нельзя" } }, { table: "windows", op: "update", id: w1.id, body: { enabled: true } }]);
+  ok(/только заводит/.test(body()), "отказ виден до «Применить»");
+  posts.length = 0;
+  const puts = [], put = API.put;
+  API.put = (p, ...r) => { puts.push(p); return put(p, ...r); };
+  document.getElementById("asstApply").click();
+  ok(await until(() => rows().join() === "fail,fail"), "обе строки — отказ: " + rows().join());
+  ok(!posts.length && !puts.length, "ни одной записи");
+  ok((await API.get("/schedules/" + sc.id)).version === sc1.version && (await API.get("/maintenance-windows/" + w1.id)).enabled === false && w2, "всё на месте");
+  API.post = post;
+  API.put = put;
+
+  // logOnlySince — дата записи по часам сервера
+  const srvDay = localStamp((await API.get("/me")).serverTime).slice(0, 10);
+  ok(made.logOnlySince === srvDay, "дата записи: " + made.logOnlySince);
 
   // Плана нет: вопрос и отказ — как раньше
   talk("при движении на Запасной вход спроси оператора");

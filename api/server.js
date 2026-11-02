@@ -3221,6 +3221,20 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         if (!edit) return last({ type: "question", text: "Что изменить в правиле?", context });
         return last({ type: "plan", summary: `Правило «${rule.name}»`, context, rules: [{ table: "scenarios", op: "update", id: rule.id, body: edit }] });
       }
+      // Расписание просьбы: новое — запись плана с ref, готовое у окна — копия строки в теле
+      const copy = (x) => {
+        const { id, version, builtin, ...sc } = clone(x);
+        return Object.assign(sc, { owner: null });
+      };
+      const fresh = /новое расписание|новому расписанию/.test(low), windowed = /окно обслуживания/.test(low);
+      const shift = () => ({ table: "schedules", op: "create", ref: "shift", body: Object.assign(copy(db.schedules.find((x) => !x.builtin)), { name: "Смена из просьбы" }) });
+      const win = (schedule) => ({ table: "windows", op: "create", body: { name: "Окно из просьбы", ruleIds: null, enabled: false, schedule } });
+      if (windowed && !/движени/.test(low)) {
+        if (fresh) return last({ type: "plan", summary: "Create a window", context, rules: [shift(), win("@shift")] });
+        const ready = db.schedules.find((x) => !x.builtin && low.includes(x.name.toLowerCase()));
+        if (!ready) return last({ type: "question", text: "По какому расписанию?", context });
+        return last({ type: "plan", summary: "Create a window", context, rules: [win(copy(ready))] });
+      }
       const cam = db.devices.filter((d) => d.type === "camera" && low.includes(d.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
       if (!/движени/.test(low)) return last({ type: "refused", text: "Не понял, какое правило нужно.", context });
       if (!cam) return last({ type: "question", text: "На какой камере?", context });
@@ -3231,10 +3245,10 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         steps: [{ source: "rec", action: "record", target, duration: "min", minutes: Number(minutes) }] };
       Object.assign(r, /выключенн/.test(low) ? { enabled: false } : { enabled: true, logOnly: true });
       const rows = [{ table: "scenarios", op: "create", body: r }];
-      if (/новое расписание/.test(low)) {
-        const { id, version, builtin, ...sc } = clone(db.schedules.find((x) => !x.builtin));
-        rows.unshift({ table: "schedules", op: "create", ref: "shift", body: Object.assign(sc, { name: "Смена из просьбы", owner: null }) });
+      if (fresh) {
+        rows.unshift(shift());
         r.conditions.push({ kind: "time", scheduleId: "@shift" });
+        if (windowed) rows.push(win("@shift"));
       }
       return last({ type: "plan", summary: "Create a rule", context, rules: rows });
     }

@@ -591,6 +591,12 @@ window.I18N_EN={
 "не записано: не создано":"not written: not created",
 "заведено: «Только журнал»":"created: log only",
 "заведено выключенным":"created turned off",
+"Расписание и окно план только заводит: правки нет":"A plan only creates schedules and windows: no edits",
+"Отдельно не записывается: идёт телом окна":"Not written separately: goes with the window",
+"Правила":"Rules",
+"все правила":"all rules",
+"окно не записано":"the window was not written",
+"записано телом окна":"written with the window",
 "Поля события":"Event fields",
 "Поля события, JSON":"Event fields, JSON",
 "Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"
