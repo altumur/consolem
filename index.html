@@ -9519,9 +9519,10 @@ function tlMore(){
 }
 function tlEvents(v){
   const t=v.tl;if(!can("listJournal"))return;
-  const gen=t.gen;
+  // Чтения идут внахлёст: смена подсистемы и событие потока. Считается последнее, иначе поздний ответ без отбора затрёт отбор
+  const gen=t.gen,seq=t.evSeq=(t.evSeq||0)+1;
   API.get("/journal",Object.assign({deviceId:v.id,from:new Date(t.from).toISOString(),to:new Date(t.to).toISOString(),limit:200},t.source?{source:t.source}:{})).then(r=>{
-    if(lv!==v||t.gen!==gen)return;
+    if(lv!==v||t.gen!==gen||t.evSeq!==seq)return;
     t.ev=r.items.slice().sort((a,b)=>eventMs(b)-eventMs(a)||(a.id<b.id?-1:1));t.trunc=!!r.truncated;t.withheld=r.withheldCount||0;
     if(!t.source)t.sources=[...new Set(r.items.map(e=>e.source).filter(Boolean))].sort();
     viewFill();

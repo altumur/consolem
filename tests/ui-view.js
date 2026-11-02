@@ -193,6 +193,19 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   sel1.value = "pos";
   sel1.dispatchEvent(new Event("change", { bubbles: true }));
   ok(await until(() => !/Сработка на шкале/.test(text("[data-tl]"))), "отбор по подсистеме");
+  // Чтения внахлёст: поздний ответ без отбора отбор не затирает
+  const jget = API.get;
+  let late = null;
+  API.get = (p, o) => { if (p === "/journal" && !o.source && !late) return new Promise((res, rej) => { late = () => jget(p, o).then(res, rej); }); return jget(p, o); };
+  lv.tl.source = "";
+  tlEvents(lv);
+  ok(await until(() => late), "чтение без отбора задержано");
+  tlSource("pos");
+  ok(await until(() => !/Сработка на шкале/.test(text("[data-tl]"))), "отбор показан");
+  late();
+  API.get = jget;
+  await sleep(100);
+  ok(!/Сработка на шкале/.test(text("[data-tl]")), "поздний ответ без отбора отбор не затёр");
   const sel2 = q("[data-tl-source]");
   sel2.value = "";
   sel2.dispatchEvent(new Event("change", { bubbles: true }));
