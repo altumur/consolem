@@ -14,7 +14,7 @@
 встроенный сервер (server.js + rule-engine.js) — та же вкладка, данные — эталонный набор (fixtures/demo.json)
 ```
 
-- **Контракт живёт в этом форке.** Форк `altumur/consolem` — единственная консоль VMS (ADR-0112 курса): `api/openapi.json` здесь первичен, перевод `backend` (V/11) держит его копию по коммиту и следует за форком. В `ndm234234/consolem` не пушим.
+- **Контракт живёт в форке.** `api/openapi.json` первичен в форке `altumur/consolem`, при изменениях altumur пушит его в `ndm234234/consolem`. В `ndm234234/consolem` контракт не правят: нужно изменение — [запрос](requests/README.md). Перевод `backend` (V/11) держит копию контракта по коммиту.
 - **Контракт — источник истины.** Если встроенный сервер расходится с `openapi.json`, ошибка в сервере. Встроенный сервер проверяет тела запросов по контракту (`contract.js`): что не подходит под схему, получает `422 VALIDATION_FAILED`.
 - **Интерфейс говорит только с клиентом API.** Ответ встроенного сервера приходит обещанием и копируется — «как по сети». В интерфейсе есть кэш прочитанного: рендер читает его синхронно, а меняют кэш только ответы сервера и события потока.
 - **По умолчанию запросы только изображаются.** В сеть клиент не ходит: он вызывает функцию `server.handle(метод, путь, тело, заголовки)` в той же вкладке и получает статус, тело и заголовки, как от HTTP. В DevTools → Network их не видно. С `?api=https://адрес` тот же клиент делает настоящий `fetch`. Пошагово, с кодом — в [BACKEND.md, «Запрос без сети»](BACKEND.md#запрос-без-сети-что-именно-происходит).
@@ -47,25 +47,28 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `requests/` | Запросы к API от команд VMS и ответы на них; список и как прислать — [`requests/README.md`](requests/README.md) |
 
-## Карта API — 112 операций и 4 служебные
+## Карта API — 127 операций и 4 служебные
 
 | Раздел (тег) | Операции |
 |---|---|
 | `session`, `reference` | `GET /me` — кто вошёл, часы и часовой пояс сервера; `GET /reference` — справочники кодами |
 | `hardware` — домены | `GET`, `POST /domains`; `GET`, `PATCH`, `DELETE /domains/{id}` (удаление с переносом содержимого `?moveTo=`) |
 | `hardware` — серверы | `GET`, `POST /servers`; `POST /servers/probe` (опросить адреса); `POST /servers/assign` (в домен и из него, группой); `GET`, `PATCH /servers/{id}` |
-| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `GET`, `PATCH`, `DELETE /devices/{id}` |
-| `hardware` — папки | `GET`, `POST /folders`; `GET`, `PATCH`, `DELETE /folders/{id}`; `POST /objects/delete` (групповое удаление любых объектов) |
+| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `PUT /devices/{id}/recording-target` (сервер-приёмник записи); `GET`, `PATCH`, `DELETE /devices/{id}` |
+| `hardware` — папки | `GET`, `POST /folders`; `GET`, `PATCH`, `DELETE /folders/{id}`; `POST /folders/{id}/devices` (добавить устройства в папку и убрать из неё); `POST /objects/delete` (групповое удаление любых объектов) |
+| `hardware` — дерево, ретрансляторы | `GET /tree/children` (дети узла, страницами); `GET /tree/paths` (цепочки от корня до объектов); `GET /domains/{id}/relays`; `GET /domains/{id}/relays/{name}` (кто за ретранслятором) |
 | `storage` | `GET`, `POST /archives` (с первым томом); `POST /archives/check`; `GET`, `PATCH`, `DELETE /archives/{id}`; `POST /archives/{id}/volumes`; `GET /volumes`; `GET`, `PATCH`, `DELETE /volumes/{id}`; `POST /volumes/{id}/format` |
 | `storage` — обход и скан | `GET`, `POST /archive-watches`; `PATCH`, `DELETE /archive-watches/{id}`; `GET`, `POST /archive-scans`; `DELETE /archive-scans/{id}` |
-| `operations` | `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo` |
+| `operations` | `GET`, `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo` |
 | `discovery` | `GET`, `POST`, `DELETE /domains/{id}/discovery` — поиск устройств в сети домена |
 | `automation` — правила | `GET /rule-prompts` (открытые вопросы операторам); `POST /rule-prompts/{id}/answer`; `GET`, `POST /rules`; `GET`, `PUT /rules/{id}`; `POST /rules/update` (состояние и приглушение группой); `POST /rules/reorder`; `GET /rules/{id}/versions` (история); `GET /rules/{id}/fires` (журнал запусков); `POST /rules/{id}/run`; `POST /rules/test` (пробный запуск, в том числе черновика); `POST /rules/{id}/fires/{fireId}/retry`; удаление — `POST /objects/delete` |
 | `automation` — расписания, режимы | `GET`, `POST /schedules`, `GET`, `PUT`, `DELETE /schedules/{id}`; то же — `/day-groups` (особые дни) и `/maintenance-windows` (окно — вместе со своим расписанием); `GET`, `PUT /modes` (режимы объекта списком); `GET`, `POST /modes/current` (текущий режим, вручную) |
-| `access` | `GET /access` — снимок прав; `POST /access/apply` — черновик пакетом; `POST /access/catalogs/{id}/sync` |
+| `automation` — между камерами | `GET`, `PUT /domains/{id}/scenarios` (документ сценариев целиком); `GET /domains/{id}/scenarios/status` (состояние из пульса исполнителя) |
+| `access` | `GET /access` — снимок прав; `POST /access/apply` — черновик пакетом; `POST /access/catalogs/{id}/sync`; страницами — `GET /access/users`, `/access/groups`, `/access/history`, `/access/cell-history`, `/access/roles/{id}/objects` |
+| `access` — учётки потоков | `GET`, `POST /stream-accounts`; `PATCH`, `DELETE /stream-accounts/{name}`; `POST /stream-accounts/{name}/password` |
 | `settings`, `journal` | `GET`, `PATCH /settings`; `GET /licenses`; `GET /journal` |
 | `assist` | `POST /assist/turns` — ход разговора с ассистентом, ответ потоком (SSE), возможность `assist` |
-| `stream` | `GET /stream` — поток событий (SSE) |
+| `stream` | `GET /stream` — поток событий (SSE), `?watch=` — что наблюдать с открытия; `PUT /stream/{clientId}/watch` — что наблюдает поток |
 | `test-support` | `POST /test/reset`, `/test/clock`, `/test/events`, `/test/stream-elsewhere` — только на тестовом стенде |
 
 ## Договорённости
