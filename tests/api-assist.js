@@ -62,49 +62,47 @@
     repeat: "skip", triggers: [], conditions: [], steps: [], owner: "", purpose: "", serverId: null, runAsRoleId: null, allowChain: true };
   const pick = (r) => Object.fromEntries(RULE_WRITE.filter((k) => k in r).map((k) => [k, r[k]]));
   const lastOf = (got) => got[got.length - 1];
-  const turn = (env, text, extra) => env.stream("/assist/turns", Object.assign({ text, kind: "rules" }, extra || {}));
+  const turn = (env, text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
   const camera = "Главный вход";
   const named = FX.rules.find((r) => r.name === "Охрана входа ночью");
 
-  test("План правил: kind — rules или config, нет поля — config, вне перечня — 422", async () => {
+  test("Что за реплика, решает сервер: поля kind в запросе нет, слова правил — план правил, иначе настройка", async () => {
     const env = await makeEnv();
     const said = `при движении на ${camera} пиши 5 минут`;
     const plain = lastOf(await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход" }));
-    assert.ok(plain.items.length && !("rules" in plain), "нет поля — настройка устройств");
-    const config = lastOf(await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход", kind: "config" }));
-    assert.ok(config.items.length && !("rules" in config), "kind: config — то же");
+    assert.ok(plain.type === "plan" && plain.items.length && !("rules" in plain), "настройка устройств");
     const rules = lastOf(await turn(env, said));
-    assert.ok(rules.type === "plan" && rules.rules.length === 1 && !("items" in rules), "kind: rules — место плана правил");
-    const bad = await env.call("POST", "/assist/turns", { text: said, kind: "other" });
-    assert.status(bad, 422, "VALIDATION_FAILED");
-    assert.eq(bad.body.field, "kind", "поле");
+    assert.ok(rules.type === "plan" && rules.rules.length === 1 && !("items" in rules), "слова правил — план правил");
+    for (const kind of ["config", "rules", "auto", "explain"]) {
+      const bad = await env.call("POST", "/assist/turns", { text: said, kind });
+      assert.eq([bad.status, bad.body.code], [422, "VALIDATION_FAILED"], `kind: ${kind} — поля нет в контракте`);
+      assert.ok(/kind/.test(bad.body.message), "слово отказа называет поле: " + bad.body.message);
+    }
   }, NEED);
 
-  test("Тип хода: auto выбирают по словам просьбы, explain — ответ без плана, в событиях типа нет", async () => {
+  test("Вопрос о системе: «сколько», «покажи», «дай список» — answer без плана; в одном разговоре и вопрос, и правка; типа в событиях нет", async () => {
     const env = await makeEnv();
-    const ask = (text, kind, extra) => env.stream("/assist/turns", Object.assign({ text, kind }, extra || {}));
+    const ask = (text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
     const seen = [];
-    const rules = await ask(`при движении на ${camera} пиши 5 минут`, "auto");
-    seen.push(...rules);
-    assert.ok(lastOf(rules).type === "plan" && lastOf(rules).rules.length === 1 && !("items" in lastOf(rules)), "auto, слова правил — план правил");
-    const config = await ask("выключи запись на камерах Главный вход", "auto");
-    seen.push(...config);
-    assert.ok(lastOf(config).type === "plan" && lastOf(config).items.length && !("rules" in lastOf(config)), "auto, иначе — настройка устройств");
     const devices = (await env.list("/devices")).length, ctx = [];
     for (const text of ["сколько камер", "покажи камеры", "дай список устройств"]) {
-      const got = await ask(text, "auto");
+      const got = await ask(text);
       seen.push(...got);
       const end = lastOf(got);
-      assert.eq(types(got), "progress,answer", `auto, «${text}» — вопрос о системе`);
+      assert.eq(types(got), "progress,answer", `«${text}» — вопрос о системе`);
       assert.ok(end.text.includes(`Устройств: ${devices}`) && typeof end.context === "string", "ответ и context: " + end.text);
       ctx.push(end.context);
     }
-    const plain = await ask("камеры входа", "explain");
-    seen.push(...plain);
-    assert.eq(types(plain), "progress,answer", "явный explain — ответ, плана нет");
-    const next = await ask("а правил?", "auto", { context: ctx[0] });
+    const next = await ask("а правил?", { context: ctx[0] });
     seen.push(...next);
     assert.ok(lastOf(next).type === "answer" && lastOf(next).text === `Правил: ${(await env.list("/rules")).length}.`, "разговор идёт с context: " + lastOf(next).text);
+    // Тот же разговор: после вопроса — правка, тип выбран по реплике
+    const edit = await ask("выключи запись на камерах Главный вход");
+    seen.push(...edit);
+    assert.ok(lastOf(edit).type === "plan" && lastOf(edit).items.length, "после вопроса — план настройки");
+    const rule = await ask(`при движении на ${camera} пиши 5 минут`, { context: lastOf(edit).context });
+    seen.push(...rule);
+    assert.ok(lastOf(rule).type === "plan" && lastOf(rule).rules.length, "дальше — план правил");
     assert.ok(seen.every((m) => !("kind" in m)), "поля kind в событиях нет");
     return `событий ${seen.length}`;
   }, NEED);

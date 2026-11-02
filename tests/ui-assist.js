@@ -63,9 +63,9 @@ UiCheck(async ({ ok, until }) => {
   ok(!document.getElementById("asstNew"), "«Нового разговора» нет и при итоге");
   goClose();
 
-  // План правил. Тип называет форма: вне раздела правил поля нет, в разделе — rules
+  // План правил. Поля типа нет ни в каком разделе: что за реплика, решает сервер по словам
   const kinds = [], stream = API.stream;
-  API.stream = (p, b, ...r) => { kinds.push(b.kind); return stream(p, b, ...r); };
+  API.stream = (p, b, ...r) => { kinds.push("kind" in b ? b.kind : "-"); return stream(p, b, ...r); };
   const R1 = "70000001-0000-4000-8000-000000000000";
   const server = (id) => API.get("/rules/" + id);
   const rows = () => [...document.querySelectorAll("[data-asst-row]")].map((e) => e.dataset.asstRow);
@@ -74,7 +74,7 @@ UiCheck(async ({ ok, until }) => {
   asstOpen("");
   say("выключи запись Главный вход");
   ok(await until(() => document.getElementById("asstApply")), "план устройств, как раньше");
-  ok(kinds.join() === "" && kinds.length === 1, "вне раздела правил поля kind нет");
+  ok(kinds.join() === "-", "вне раздела правил поля kind нет");
   ok(!!asst.plan.items && !asst.plan.rules, "плана правил нет — поведение прежнее");
   document.getElementById("asstDecline").click();
   goClose();
@@ -85,7 +85,7 @@ UiCheck(async ({ ok, until }) => {
   asstOpen("");
   say("при движении на Запасной вход пиши 5 минут");
   ok(await until(() => document.getElementById("asstApply")), "план правил показан в том же окне");
-  ok(kinds[1] === "rules", "в разделе правил просьба с kind: rules");
+  ok(kinds[1] === "-", "в разделе правил поля kind тоже нет: план правил — по словам просьбы");
   ok(/Новое правило «Запись при движении: Запасной вход»/.test(body()) && /Детектор: движение/.test(body()) && /Записывать/.test(body()), "показ словами формы: " + body().slice(0, 200));
   ok(/Слова модели: Create a rule/.test(body()), "сводка модели отдельно и подписана");
   ok(/Только журнал/.test(body()), "рядом — что заведётся наблюдающим");
@@ -417,16 +417,16 @@ UiCheck(async ({ ok, until }) => {
   API.stream = stream;
   goClose();
 
-  // Вид хода — по разделу на момент хода, панель переживает переход
+  // Раздел тип не решает, панель переживает переход
   asstOpen("");
   const after = [];
-  API.stream = (p, b, ...r) => { after.push(b.kind); return stream(p, b, ...r); };
+  API.stream = (p, b, ...r) => { after.push("kind" in b ? b.kind : "-"); return stream(p, b, ...r); };
   goApp("rules");
   ok(seeing(), "переход: панель на месте");
   say("убери условие");
   ok(await until(() => !asst.busy && after.length), "ход после перехода");
   API.stream = stream;
-  ok(after[0] === "rules", "вид хода — по разделу на момент хода");
+  ok(after[0] === "-" && asst.ask === "Какое правило изменить?", "после перехода поля kind нет, о правилах — по словам просьбы: " + asst.ask);
   goApp("hw");
   await apiReload();
   ok(seeing(), "перечитывание данных: панель на месте");

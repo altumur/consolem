@@ -117,7 +117,7 @@ UiCheck(async ({ ok, until }) => {
   ok(call.url === SVC + "/assist/turns", "адрес хода: " + call.url);
   ok(call.init.headers["X-Assist-Code"] === CODE, "заголовок X-Assist-Code");
   ok(call.init.credentials === "omit", "куки не уходят");
-  ok(!("secrets" in call.body) && call.body.kind === "auto" && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "kind: auto, без secrets и context");
+  ok(!("secrets" in call.body) && !("kind" in call.body) && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "без kind, secrets и context");
   ok(!call.url.includes(CODE) && !call.init.body.includes(CODE), "код только в заголовке");
   ok(await until(() => /в очереди: место 2/.test(el("asstLine")?.textContent || "")), "место в очереди показано");
   ok(el("asstSend")?.disabled && el("asstCancel"), "идёт ход: «Отправить» неактивна, отмена есть");
@@ -213,7 +213,7 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "question", text: "Какое правило?", context: "c" });
   say("убери условие");
   ok(await until(() => el("asstAsk")), "ход о правилах");
-  ok(calls[calls.length - 1].body.kind === "auto", "в разделе правил тип решает служба: kind auto");
+  ok(!("kind" in calls[calls.length - 1].body), "в разделе правил тип решает служба: поля kind нет");
   close();
   goApp("hw");
 
@@ -223,12 +223,12 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "progress", kind: "config", text: "читаю" }, { type: "progress", kind: "rules", text: "ещё" }, { type: "question", kind: "config", text: "На какой камере?", context: "b1:тип" });
   say("выключи запись");
   ok(await until(() => el("asstAsk")?.textContent === "На какой камере?"), "события с kind — обычный вопрос");
-  ok(lastCall().body.kind === "auto" && !el("asstErr"), "kind: auto, ошибки нет");
+  ok(!("kind" in lastCall().body) && !el("asstErr"), "поля kind в запросе нет, ошибки нет");
   ok(!el("asstKind") && !el("gopop").querySelector("[data-asst-kind]") && !/Тип:/.test(text()), "строки «Тип» и выбора типа нет");
   answer = sse({ type: "question", text: "Какое правило?", context: "b1:дальше" });
   say("Охрана входа ночью");
   ok(await until(() => el("asstAsk")?.textContent === "Какое правило?"), "ответ ушёл, разговор идёт");
-  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:тип", "снова auto, context как есть");
+  ok(!("kind" in lastCall().body) && lastCall().body.context === "b1:тип", "снова без kind, context как есть");
   // Спорная просьба: вопрос без progress — обычный вопрос
   open();
   answer = sse({ type: "question", text: "Настроить или спросить?", context: "b1:спор" });
@@ -240,7 +240,7 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "progress", kind: "explain", text: "смотрю систему" }, { type: "answer", text: "Серверов: 12.\nЛицензий хватает.", context: "b1:ответ" });
   say("сколько серверов");
   ok(await until(() => el("asstAnswer")), "ответ показан");
-  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:спор", "kind: auto, context спорного вопроса");
+  ok(!("kind" in lastCall().body) && lastCall().body.context === "b1:спор", "без kind, context спорного вопроса");
   ok(el("asstAnswer").textContent === "Серверов: 12.\nЛицензий хватает.", "текст ответа");
   ok(el("asstAnswerNote").textContent === "Ответ ассистента, проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
   ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
@@ -249,7 +249,7 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Нет, все в сети.", context: "b1:ответ2" });
   say("а офлайн есть?");
   ok(await until(() => /все в сети/.test(el("asstAnswer")?.textContent || "")), "разговор продолжился");
-  ok(lastCall().body.context === "b1:ответ" && lastCall().body.kind === "auto", "с context прошлого ответа");
+  ok(lastCall().body.context === "b1:ответ" && !("kind" in lastCall().body), "с context прошлого ответа");
   ok(!/Серверов: 12/.test(el("asstAnswer").textContent), "прежний ответ снят");
   // Типа в событиях нет: лишний kind форма не читает, план показан как план
   answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", kind: "explain", summary: "Камеры: 1", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
@@ -274,7 +274,7 @@ UiCheck(async ({ ok, until }) => {
   ok(el("goAsk"), "ничего не найдено — кнопка ассистента");
   enter();
   ok(await until(() => calls.length === nBusy + 1 && aborted === ab + 1), "идущий снят, новый ушёл");
-  ok(asst !== was && !("context" in lastCall().body) && lastCall().body.text === "абырвалг посреди хода" && lastCall().body.kind === "auto", "новый разговор: без context, auto");
+  ok(asst !== was && !("context" in lastCall().body) && lastCall().body.text === "абырвалг посреди хода" && !("kind" in lastCall().body), "новый разговор: без context и kind");
   ok(await until(() => el("asstAsk")?.textContent === "Какое правило?" && !asst.busy), "новый ход кончился");
   ok(asst.said.length === 1 && gq.value === "", "в разговоре одна реплика, строка поиска очищена");
 
@@ -292,7 +292,7 @@ UiCheck(async ({ ok, until }) => {
   asst.stub = true;
   say("при движении на Главный вход спроси оператора");
   ok(await until(() => el("asstApply")), "заглушка в правилах");
-  ok(sent0[1].kind === "rules", "в разделе правил — rules");
+  ok(!("kind" in sent0[1]), "в разделе правил поля kind тоже нет");
   close();
   goApp("hw");
   API.stream = streamWas;

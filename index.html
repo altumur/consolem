@@ -21829,10 +21829,7 @@ function asstSend(again,said){
   const live=asstMode(a)==="on";
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
-  // Служба выбирает тип сама, раздел его не решает, ручного выбора нет. Бэкенд текст не разбирает: тип называет
-  // вызывающий, в разделе правил просьба — о правилах. Панель переживает переход, поэтому раздел — на момент хода
-  if(live)body.kind="auto";
-  else if(app==="rules")body.kind="rules";
+  // Поля типа нет: что за реплика — вопрос, правка, правило, — решает тот, кто отвечает, по каждой реплике. Раздел не решает
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель

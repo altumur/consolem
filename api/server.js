@@ -4228,11 +4228,12 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       }
       return last({ type: "plan", summary: "Create a rule", context, rules: rows });
     }
-    // auto: тип по словам просьбы вместе с прежним context. Выбранный тип заглушка держит в себе: в событиях его нет
+    // Что за реплика, заглушка решает сама по словам просьбы вместе с прежним context: поля типа в запросе нет.
+    // Выбранное держит в себе, в событиях его нет
     function assistKindOf(said) {
       const low = said.toLowerCase();
       if (/сколько|покажи|дай список/.test(low)) return "explain";
-      if (/правил|при движени|эскалац|спроси оператора|окно обслуживания|расписани/.test(low)) return "rules";
+      if (/правил|при движени|эскалац|спроси|окно обслуживания|расписани|услови|детектор на время|провер\S* архив|лимит/.test(low)) return "rules";
       return "config";
     }
     // Вопрос о системе: только чтение, конечное событие answer, плана нет
@@ -4243,7 +4244,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
     }
     function assistStub(body) {
       const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
-      const kind = body.kind === "auto" ? assistKindOf(said) : body.kind;
+      const kind = assistKindOf(said);
       if (kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
       if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));
       const low = said.toLowerCase();
