@@ -3876,11 +3876,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       ],
       // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
       // клиент отдаёт их по одному, петля пишет строками data:
-      ["POST", "/assist/turns", (p, q, body) => {
-        // auto и explain — только у службы демо-страницы: бэкенд текст просьбы не разбирает
-        if (body.kind === "auto" || body.kind === "explain") return problem(422, "VALIDATION_FAILED", "Этот тип хода есть только у службы демо-страницы", { field: "kind" });
-        return { status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } };
-      }],
+      ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
         const c = clients.get(p.clientId);
@@ -4232,9 +4228,24 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       }
       return last({ type: "plan", summary: "Create a rule", context, rules: rows });
     }
+    // auto: тип по словам просьбы вместе с прежним context. Выбранный тип заглушка держит в себе: в событиях его нет
+    function assistKindOf(said) {
+      const low = said.toLowerCase();
+      if (/сколько|покажи|дай список/.test(low)) return "explain";
+      if (/правил|при движени|эскалац|спроси оператора|окно обслуживания|расписани/.test(low)) return "rules";
+      return "config";
+    }
+    // Вопрос о системе: только чтение, конечное событие answer, плана нет
+    function assistExplainStub(said, context, at) {
+      const low = said.toLowerCase();
+      const text = /правил/.test(low) ? `Правил: ${db.rules.length}.` : `Устройств: ${db.devices.length}, из них камер: ${db.devices.filter((d) => d.type === "camera").length}.`;
+      return [{ type: "progress", at, text: "читаю систему" }, { type: "answer", at, text, context }];
+    }
     function assistStub(body) {
       const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
-      if (body.kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
+      const kind = body.kind === "auto" ? assistKindOf(said) : body.kind;
+      if (kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
+      if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));
       const low = said.toLowerCase();
       const context = `stub:${said}`;
       const at = iso(now());

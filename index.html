@@ -21266,8 +21266,6 @@ function closeBulkModal(){document.getElementById("bmodal")?.classList.remove("o
 let asst=null;
 const ASST_END=new Set(["question","plan","refused","answer","error"]);
 const asstEnds=m=>ASST_END.has(m.type);
-// Типы хода службы: словом для человека. Всё, что не из списка, не показывается
-const ASST_KIND={config:"Настройка",rules:"Правила",explain:"Вопрос о системе"};
 /* ----- Служба ассистента демо-страницы -----
    Страница статическая, сервер живёт в браузере, а модель — за службой. Адрес — ?assist=URL или метка
    consolem-assist; без адреса, с бэкендом (?api=, consolem-api) и на другом наборе, чем demo, службы нет.
@@ -21322,7 +21320,7 @@ function asstCodeKey(e){
   if(e.key==="Enter"){e.preventDefault();asstCodeApply()}
 }
 // Разговор заглушки и разговор службы — разные: context одного другому не годится
-function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false,kind:""})}
+function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false})}
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
@@ -21420,7 +21418,7 @@ function asstOpen(text){
   if(!can("feature:assist"))return;
   promptPanel(false);
   asstEnd();
-  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",kind:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
+  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
   const t=String(text||"").trim();
   if(t){asstSend(null,t);return}
   asstRender();
@@ -21804,8 +21802,7 @@ function asstSecret(i,v){if(asst)asst.secrets[i]=v}
 function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
 function asstEvent(a,m){
   if(m.type==="progress")a.line=m.text;
-  // Тип хода служба ставит в событиях; форма его не показывает, а читает: на вопрос о системе план не применяется
-  if(a.live&&ASST_KIND[m.kind])a.kind=m.kind;
+  // Тип хода служба держит в себе: в событиях его нет, лишнее поле (мост Пилота шлёт kind в progress) форма пропускает
   if("context" in m)a.context=m.context;
   if(m.type==="question")a.ask=m.text;
   if(m.type==="answer")a.answer=m.text;
@@ -21815,8 +21812,6 @@ function asstEvent(a,m){
     else a.err=problemText(m.code);
   }
   if(m.type==="plan"){
-    // Вопрос о системе ничего не меняет: план здесь не показывается и не применяется
-    if(a.live&&a.kind==="explain"){a.refused=i18n("Вопрос о системе ничего не меняет: плана нет");asstRender();return}
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
   }
@@ -21838,7 +21833,7 @@ function asstSend(again,said){
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
   const dropped=a.plan?[{note:i18n("План снят")}]:[];
-  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",kind:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
     .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})

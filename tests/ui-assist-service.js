@@ -251,11 +251,12 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => /все в сети/.test(el("asstAnswer")?.textContent || "")), "разговор продолжился");
   ok(lastCall().body.context === "b1:ответ" && lastCall().body.kind === "auto", "с context прошлого ответа");
   ok(!/Серверов: 12/.test(el("asstAnswer").textContent), "прежний ответ снят");
-  // План при explain не показывается
-  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", summary: "x", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: {}, name: cam.name, changes: [] }] });
-  say("а план?");
-  ok(await until(() => /плана нет/.test(el("asstRefused")?.textContent || "")), "план при explain не показан, словами");
-  ok(!el("asstApply") && !asst.plan, "«Применить» нет");
+  // Типа в событиях нет: лишний kind форма не читает, план показан как план
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", kind: "explain", summary: "Камеры: 1", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
+  say("выключи запись Главный вход");
+  ok(await until(() => el("asstApply")), "kind в событиях форма пропускает: план показан");
+  ok(!el("asstRefused") && !el("asstErr") && !/Тип:/.test(text()), "ни отказа, ни ошибки, ни строки типа");
+  el("asstDecline").click();
 
   // Новая просьба из строки поиска посреди хода: идущий снят, разговор новый, без context
   open();
