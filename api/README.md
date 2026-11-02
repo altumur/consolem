@@ -36,6 +36,7 @@
 | `fixtures/one-domain.json` | Набор профиля «один домен»: система, которая умеет часть контракта. Собирается из `demo.json` (`tools/profile_fixture.py`), руками не правится |
 | `fixtures/large.json` | Стенд большого домена: 250 000 камер, 500 серверов. В файле только числа, записи считает заглушка при загрузке. Собирается `tools/profile_fixture.py` |
 | `client.js` | Клиент API: встроенный сервер или бэкенд, ответы — обещанием, ошибка — `{status, problem}` |
+| `whep-stub.js` | Подставной WHEP стенда: на адрес `stub://` отвечает сама страница тестовой картинкой |
 | `server.js` | Встроенный сервер: хранит набор, отвечает по контракту, ведёт версии, поток событий и групповые операции на своих часах |
 | `rule-engine.js` | Движок «Автоматизации» встроенного сервера: действует ли расписание, какой режим объекта, что сделает правило при запуске (трасса кодами), проверка правила. Им же посчитаны демо-запуски набора |
 | `contract.js` | Сверка значения со схемой контракта: тела запросов (сервер), ответы (тесты) |
@@ -54,7 +55,7 @@
 | `session`, `reference` | `GET /me` — кто вошёл, часы и часовой пояс сервера; `GET /reference` — справочники кодами |
 | `hardware` — домены | `GET`, `POST /domains`; `GET`, `PATCH`, `DELETE /domains/{id}` (удаление с переносом содержимого `?moveTo=`) |
 | `hardware` — серверы | `GET`, `POST /servers`; `POST /servers/probe` (опросить адреса); `POST /servers/assign` (в домен и из него, группой); `GET`, `PATCH /servers/{id}` |
-| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST /devices/{id}/live` (живое видео для настройки); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `PUT /devices/{id}/recording-target` (сервер-приёмник записи); `GET`, `PATCH`, `DELETE /devices/{id}` |
+| `hardware` — устройства | `GET /devices`; `POST /devices` (добавить группой, с дочерними); `POST /devices/update` (изменить группой сразу); `POST /devices/probe` (определить модель); `POST`, `PUT /devices/{id}/live` (живое видео, переразместить раздачу); `POST`, `PATCH`, `DELETE /devices/{id}/streams…` (потоки камеры); `PUT`, `DELETE /devices/{id}/presets/{n}`, `PUT`, `DELETE /devices/{id}/ptz` (пресеты и аренда движения); `POST /devices/{id}/operations/{operation}` (команда единицы СКУД); `PUT /devices/{id}/recording-target` (сервер-приёмник записи); `GET`, `PATCH`, `DELETE /devices/{id}` |
 | `hardware` — папки | `GET`, `POST /folders`; `GET`, `PATCH`, `DELETE /folders/{id}`; `POST /folders/{id}/devices` (добавить устройства в папку и убрать из неё); `POST /objects/delete` (групповое удаление любых объектов) |
 | `hardware` — дерево, ретрансляторы | `GET /tree/children` (дети узла, страницами); `GET /tree/paths` (цепочки от корня до объектов); `GET /domains/{id}/relays`; `GET /domains/{id}/relays/{name}` (кто за ретранслятором) |
 | `storage` | `GET`, `POST /archives` (с первым томом); `POST /archives/check`; `GET`, `PATCH`, `DELETE /archives/{id}`; `POST /archives/{id}/volumes`; `GET /volumes`; `GET`, `PATCH`, `DELETE /volumes/{id}`; `POST /volumes/{id}/format` |
