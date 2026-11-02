@@ -63,8 +63,11 @@ UiCheck(async ({ ok, until, sleep }) => {
   asstOpen("");
   ok(!panel() && el("gopop").classList.contains("asst"), "ассистент открылся — панель вопросов закрыта");
   press(el("promptBell"));
-  ok(panel() && !asst && !el("gopop").classList.contains("open"), "вопросы открылись — ассистент закрыт");
-  press(el("promptClose"));
+  ok(panel() && asst && !el("gopop").classList.contains("open"), "вопросы открылись — ассистент скрыт, разговор на месте");
+  press(el("gq"));
+  ok(!panel() && el("gopop").classList.contains("asst"), "клик в поиске вернул ассистента, вопросы закрыты");
+  press(el("asstNew"));
+  goClose();
 
   // Английские подписи: файл подписей разбирается, колокольчик и панель переведены
   ok(Object.keys(window.I18N_EN || {}).length > 1000, "английские подписи загружены");

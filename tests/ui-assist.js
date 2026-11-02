@@ -11,13 +11,18 @@ UiCheck(async ({ ok, until }) => {
   goClose();
   const camId = (await uiDevices()).find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
   const before = (await API.get(`/devices/${camId}`)).recordMode;
-  const say = (t) => { asst.text = t; document.getElementById("asstSend").click(); };
+  // Ввод один — строка поиска. Клавиатурой, как человек: ждёт ассистент — Enter, иначе вход как у кнопки поиска
+  const enter = () => inp.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const typeQ = (t) => { inp.value = t; inp.dispatchEvent(new Event("input", { bubbles: true })); };
+  const say = (t) => { typeQ(t); if (asstWaits()) enter(); else asstFromSearch(); };
   const body = () => document.getElementById("gopop").textContent;
 
   // Вопрос и ответ
   asstOpen("");
   ok(document.getElementById("gopop").classList.contains("asst") && !document.getElementById("bmodal").classList.contains("open"), "ассистент на месте списка, окна нет");
-  ok(document.activeElement.id === "asstText", "курсор в поле просьбы");
+  ok(!document.querySelector("#gopop textarea") && !document.getElementById("asstSend") && !document.getElementById("asstClose"), "своего поля, «Отправить» и «Закрыть» нет");
+  ok(document.getElementById("asstNew"), "«Новый разговор» есть");
+  ok(inp.placeholder === "Напишите просьбу и нажмите Enter", "строка поиска подсказывает: " + inp.placeholder);
   say("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "ассистент спросил");
   // Ответ строит план, без «Применить» ничего не записано
@@ -47,9 +52,9 @@ UiCheck(async ({ ok, until }) => {
   await API.patch(`/devices/${camId}`, { name: d.name + " 2" }, d.version);
   document.getElementById("asstApply").click();
   ok(await until(() => document.getElementById("asstAgain")), "устройство изменилось — предложено спросить заново");
-  // Закрыть окно — отменить ход
-  document.getElementById("asstClose").click();
-  ok(asst === null && !document.getElementById("gopop").classList.contains("open"), "«Закрыть» закрыла, секреты забыты");
+  // Конец разговора — «Новый разговор»: окно поиска остаётся, ассистента нет
+  document.getElementById("asstNew").click();
+  ok(asst === null && !document.getElementById("asstBlock").textContent && document.getElementById("asstBlock").hidden, "«Новый разговор»: блок ассистента снят");
 
   // План правил. Тип называет форма: вне раздела правил поля нет, в разделе — rules
   const kinds = [], stream = API.stream;
@@ -236,7 +241,7 @@ UiCheck(async ({ ok, until }) => {
   goApp("hw");
   const mouse = (el) => el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
   const press = (el) => ["mousedown", "mouseup", "click"].forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
-  const typed = (t) => { asst.text = t; press(document.getElementById("asstSend")); };
+  const typed = say;
   const popOpen = () => document.getElementById("gopop").classList.contains("open");
   inp.value = "выключи запись Главный вход";
   goInput(inp.value);
@@ -244,22 +249,22 @@ UiCheck(async ({ ok, until }) => {
   mouse(document.getElementById("goAsk"));
   ok(asst && popOpen(), "мышь по кнопке: окно открыто, ход идёт");
   ok(await until(() => document.getElementById("asstApply")), "мышь по кнопке: ход дошёл до плана");
-  ok(document.getElementById("asstClose"), "«Закрыть» есть и при плане");
+  ok(document.getElementById("asstNew") && !document.getElementById("asstClose"), "«Новый разговор» есть и при плане");
   press(document.getElementById("asstDecline"));
   ok(asst && popOpen() && !document.getElementById("asstApply"), "«Отказаться» мышью: окно открыто");
   goClose();
   asstOpen("");
   typed("выключи запись");
-  ok(await until(() => document.getElementById("asstAsk")), "«Отправить» мышью: вопрос");
+  ok(await until(() => document.getElementById("asstAsk")), "Enter в строке поиска: вопрос");
   ok(asst && popOpen(), "окно открыто");
   typed("Главный вход");
-  ok(await until(() => document.getElementById("asstApply")), "ответ на вопрос мышью: план");
+  ok(await until(() => document.getElementById("asstApply")), "ответ на вопрос Enter: план");
   press(document.getElementById("asstApply"));
   ok(await until(() => /применено/.test(body())), "«Применить» мышью: итог");
   ok(asst && popOpen(), "окно открыто после «Применить»");
-  mouse(document.getElementById("asstText"));
+  mouse(document.getElementById("asstBlock"));
   ok(asst && popOpen(), "мышь внутри окна его не закрывает");
-  ok(document.getElementById("asstClose"), "«Закрыть» есть и при итоге");
+  ok(document.getElementById("asstNew"), "«Новый разговор» есть и при итоге");
 
   // Уточнить план словами: обычный ход с context плана, план снят сразу, новый показан целиком
   goClose();
@@ -268,21 +273,19 @@ UiCheck(async ({ ok, until }) => {
   API.stream = (p, b, ...r) => { said.push(b); return stream(p, b, ...r); };
   typed("включи запись Главный вход");
   ok(await until(() => document.getElementById("asstApply")), "план для уточнения");
-  const box = document.getElementById("asstText"), planContext = asst.context;
-  ok(box && box.placeholder === "Уточнить" && document.activeElement === box, "поле под планом, подпись «Уточнить», курсор в нём");
-  ok(!/Секрет/.test(body()), "«Секрет» под планом нет");
-  document.getElementById("asstSend").click();
+  const planContext = asst.context;
+  ok(inp.placeholder === "Уточните план и нажмите Enter", "строка поиска ждёт уточнения: " + inp.placeholder);
+  ok(!/Секрет/.test(document.getElementById("asstBlock").textContent), "«Секрет» под планом нет");
+  enter();
   ok(document.getElementById("asstApply"), "пустое уточнение план не снимает");
-  asst.text = "и Переговорная";
-  box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  typeQ("и Переговорная");
+  enter();
   ok(asst.busy && !asst.plan && !document.getElementById("asstApply"), "идёт ход: плана и «Применить» нет");
   ok(document.querySelector("[data-asst-dropped]"), "в разговоре видно, что план снят");
   ok(said[1].context === planContext && said[1].text === "и Переговорная", "ход с context плана");
   ok(await until(() => document.getElementById("asstApply")), "новый план");
   ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
-  ok(document.activeElement === document.getElementById("asstText"), "курсор снова в поле");
-  asst.text = "поменяй маску сети";
-  document.getElementById("asstSend").click();
+  say("поменяй маску сети");
   ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
   ok(!asst.plan && !document.getElementById("asstApply"), "отказ: прежний план не вернулся");
   ok(document.querySelectorAll("[data-asst-dropped]").length === 2, "оба снятия в разговоре");
@@ -291,64 +294,96 @@ UiCheck(async ({ ok, until }) => {
   typed("включи запись Главный вход");
   ok(await until(() => document.getElementById("asstApply")), "снова план");
   asst.context = null;
-  asst.text = "включи";
-  document.getElementById("asstSend").click();
+  say("включи");
   ok(await until(() => document.getElementById("asstAsk")), "уточнение кончилось вопросом");
   ok(!asst.plan && !document.getElementById("asstApply"), "вопрос: прежний план не вернулся");
   API.stream = stream;
 
-  // Клик мимо панель не закрывает: дерево, карточка, разделы. Закрывают «Закрыть» и Esc
-  const seeing = () => asst && popOpen() && document.getElementById("gopop").getBoundingClientRect().height > 0 && document.getElementById("asstText");
-  const was = sel, rowEl = [...document.querySelectorAll("#tree .n[data-pick]")].find((x) => x.dataset.pick !== String(sel)), to = rowEl.dataset.pick;
-  asst.text = "недописанная просьба";
-  press(rowEl);
-  ok(await until(() => sel === to), "клик по дереву сработал");
-  ok(seeing() && sel !== was, "клик по дереву панель не закрыл");
-  ok(asst.text === "недописанная просьба", "набранное на месте");
-  mouse(document.querySelector("main") || document.body);
-  ok(seeing(), "клик по карточке панель не закрыл");
+  // Клик мимо и Esc скрывают панель, разговор живёт, клик в строке поиска возвращает её в том же состоянии
+  const blockEl = document.getElementById("asstBlock"), listEl = document.getElementById("goList");
+  const seeing = () => asst && popOpen() && blockEl.getBoundingClientRect().height > 0;
+  const keyQ = (k) => inp.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
+  goApp("hw");
+  asstOpen("");
+  say("включи запись");
+  ok(await until(() => document.getElementById("asstAsk")), "вопрос ассистента");
+  const ctx = asst.context, talkId = asst;
+  ok(inp.placeholder === "Ответьте ассистенту и нажмите Enter", "строка поиска ждёт ответа: " + inp.placeholder);
+  press(document.getElementById("tree"));
+  ok(!popOpen() && asst === talkId && asst.ask && asst.context === ctx, "клик мимо скрыл панель, разговор на месте");
+  ok(inp.placeholder === "Ответьте ассистенту и нажмите Enter", "скрытая панель: подсказка осталась");
+  press(inp);
+  ok(seeing() && document.getElementById("asstAsk"), "клик в строке поиска вернул панель в том же состоянии");
+  keyQ("Escape");
+  ok(!popOpen() && asst === talkId, "Esc скрыл панель, разговор на месте");
+  inp.dispatchEvent(new FocusEvent("focus"));
+  inp.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
+  ok(seeing(), "вернулась снова");
+
+  // Ниже диалога — всё обычное поиска, порядок: диалог, потом секции. Ввод панель не закрывает
+  ok(blockEl.compareDocumentPosition(listEl) & Node.DOCUMENT_POSITION_FOLLOWING, "секции поиска идут ниже диалога");
+  ok(/Разделы/.test(listEl.textContent) && !/Разделы/.test(blockEl.textContent), "пустая строка: разделы под диалогом");
+  typeQ("вход");
+  ok(seeing() && document.getElementById("asstAsk"), "ввод текста панель не закрывает");
+  ok(/В дереве|Не в дереве/.test(listEl.textContent), "под диалогом — результаты: " + listEl.textContent.slice(0, 80));
+  typeQ("Главный вход");
+  enter();
+  ok(await until(() => document.getElementById("asstApply")), "ответ из строки поиска: тот же разговор");
+  ok(asst === talkId && inp.value === "" && treeQ === "", "строка поиска очищена, дерево не сужено");
+  typeQ("вход");
+  ok(document.getElementById("asstApply"), "поиск при плане план не трогает");
+  keyQ("ArrowDown");
+  ok(goNav, "стрелка выбрала строку списка");
+  typeQ("");
+  goNav = false;
+
+  // Enter вне ожидания — как раньше: нашлось — фильтр, не нашлось — просьба
+  press(document.getElementById("asstApply"));
+  ok(await until(() => /применено/.test(body())), "применено");
+  typeQ("абырвалг которого нет");
+  ok(document.getElementById("goAsk"), "ничего не найдено — кнопка ассистента");
+  enter();
+  ok(await until(() => document.getElementById("asstAsk") || document.getElementById("asstRefused")), "Enter ушёл ассистенту тем же разговором");
+  ok(asst === talkId, "разговор тот же");
+
+  // Секреты живут до конца разговора
+  asst.ask = "";
+  asst.secrets = ["qwerty"];
+  asstRender();
+  ok(document.querySelector("#asstBlock .asst-sec input"), "поле секрета у заглушки есть");
+  press(document.getElementById("tree"));
+  ok(!popOpen() && asst.secrets[0] === "qwerty", "скрытая панель секрет не забывает");
+  press(inp);
+  const talking = asst;
+  press(document.getElementById("asstNew"));
+  ok(asst === null && talking.secrets.length === 0, "«Новый разговор» секреты забыл");
+  ok(inp.placeholder === "Имя, IP, раздел, настройка…", "подсказка строки прежняя");
+  ok(popOpen() && !blockEl.getBoundingClientRect().height, "окно поиска открыто, диалога нет");
+  goClose();
+
+  // Вид хода — по разделу на момент хода, панель переживает переход
+  asstOpen("");
+  const after = [];
+  API.stream = (p, b, ...r) => { after.push(b.kind); return stream(p, b, ...r); };
+  goApp("rules");
+  ok(seeing(), "переход: панель на месте");
+  say("убери условие");
+  ok(await until(() => !asst.busy && after.length), "ход после перехода");
+  API.stream = stream;
+  ok(after[0] === "rules", "вид хода — по разделу на момент хода");
+  goApp("hw");
+  await apiReload();
+  ok(seeing(), "перечитывание данных: панель на месте");
   const inCard = document.querySelector("main input:not([type=checkbox]):not([disabled])");
   if (inCard) {
     inCard.focus();
     asstEvent(asst, { type: "question", text: "Какой?", context: "c" });
     ok(document.activeElement === inCard, "ответ ассистента не забирает курсор из карточки");
-    asst.ask = "";
-    asstRender();
   }
-  const apps = appsShown().map((a) => a.id);
-  for (const a of apps) {
-    goApp(a);
-    await until(() => app === a);
-    ok(seeing(), `переход в «${a}»: панель на месте`);
-  }
-  goApp("rules");
-  const after = [];
-  API.stream = (p, b, ...r) => { after.push(b.kind); return stream(p, b, ...r); };
-  asst.text = "убери условие";
-  document.getElementById("asstSend").click();
-  ok(await until(() => !asst.busy && after.length), "ход после перехода");
-  API.stream = stream;
-  ok(after[0] === "rules", "вид хода — по разделу на момент хода");
-  goApp("hw");
-  await until(() => document.querySelector("#tree .n[data-pick]"));
-  ok(seeing(), "обратно в «Оборудование»: панель на месте");
-  setMainFull(true);
-  ok(seeing(), "карточка во весь экран: панель на месте");
-  setMainFull(false);
-  pick(domains[0].id);
-  ok(seeing(), "другая карточка: панель на месте");
-  await apiReload();
-  ok(seeing(), "перечитывание данных: панель на месте");
-  press(document.getElementById("asstClose"));
-  ok(asst === null && !popOpen(), "«Закрыть» закрыла");
-  asstOpen("");
-  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
-  ok(asst === null && !popOpen(), "Esc закрыл");
-  asstOpen("");
-  inp.value = "камера";
-  goInput(inp.value);
-  ok(asst === null, "ввод в строку поиска закрыл панель");
+  press(document.getElementById("asstNew"));
+  ok(asst === null, "конец разговора");
   // Список поиска — как раньше: клик мимо закрывает
+  typeQ("камера");
   ok(popOpen(), "список поиска открыт");
   press(document.getElementById("tree"));
   ok(!popOpen(), "клик мимо закрывает список поиска");

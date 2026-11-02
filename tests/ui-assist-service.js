@@ -35,7 +35,10 @@ UiCheck(async ({ ok, until }) => {
   const close = () => goClose();
   const lastCall = () => calls[calls.length - 1];
   const open = () => { close(); asstOpen(""); };
-  const say = (t) => { asst.text = t; el("asstSend").click(); };
+  // Ввод один — строка поиска, клавиатурой: ждёт ассистент — Enter, иначе вход как у кнопки поиска
+  const gq = el("gq"), typeQ = (t) => { gq.value = t; gq.dispatchEvent(new Event("input", { bubbles: true })); };
+  const enter = () => gq.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  const say = (t) => { typeQ(t); if (asstWaits()) enter(); else asstFromSearch(); };
   const press = (e) => ["mousedown", "mouseup", "click"].forEach((type) => e.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })));
   const typeCode = (v) => { const i = el("asstCode"); i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); };
   const meta = document.createElement("meta");
@@ -113,7 +116,16 @@ UiCheck(async ({ ok, until }) => {
   ok(!("secrets" in call.body) && call.body.kind === "auto" && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "kind: auto, без secrets и context");
   ok(!call.url.includes(CODE) && !call.init.body.includes(CODE), "код только в заголовке");
   ok(await until(() => /в очереди: место 2/.test(el("asstLine")?.textContent || "")), "место в очереди показано");
-  ok(el("asstSend").disabled && el("asstCancel"), "идёт ход: отправка заперта, отмена есть");
+  ok(gq.placeholder === "Ассистент думает…" && el("asstCancel"), "идёт ход: строка поиска говорит об этом, отмена есть");
+  // Клик мимо не снимает ход: панель скрыта, строки хода копятся, окно само не открывается, клик в строке показывает ход
+  const abHide = aborted;
+  press(el("tree"));
+  ok(!el("gopop").classList.contains("open") && asst && asst.busy, "клик мимо скрыл панель, ход идёт");
+  feed({ type: "progress", text: "читаю скрыто" });
+  ok(await until(() => asst.line === "читаю скрыто"), "скрытый ход идёт дальше");
+  ok(!el("gopop").classList.contains("open") && aborted === abHide, "окно само не открылось, запрос не оборван");
+  press(gq);
+  ok(el("gopop").classList.contains("asst") && /читаю скрыто/.test(el("asstLine")?.textContent || ""), "клик в строке поиска: идущий ход виден");
   feed({ type: "progress", text: "читаю устройства" });
   ok(await until(() => /читаю устройства/.test(el("asstLine")?.textContent || "")), "строка хода сменилась");
   last({ type: "plan", summary: "Камеры: 1", context: "b1:plan", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
@@ -158,7 +170,7 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:первый", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
   say("выключи запись Главный вход");
   ok(await until(() => el("asstApply")), "план службы для уточнения");
-  ok(el("asstText").placeholder === "Уточнить", "поле под планом");
+  ok(gq.placeholder === "Уточните план и нажмите Enter", "строка поиска под планом");
   const nRef = calls.length;
   answer = hold({ type: "progress", text: "читаю систему" });
   say("и Запасной вход");
@@ -247,7 +259,7 @@ UiCheck(async ({ ok, until }) => {
   ok(el("asstAnswerNote").textContent === "Ответ ассистента, проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
   ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
   ok(await until(() => !asst.busy), "ход кончился");
-  ok(el("asstText") && !el("asstApply") && !asst.plan && !el("asstDecline"), "поле ввода есть, «Применить» нет");
+  ok(gq.placeholder === "Спросите ещё и нажмите Enter" && !el("asstApply") && !asst.plan && !el("asstDecline"), "строка поиска ждёт вопроса, «Применить» нет");
   answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Нет, все в сети.", context: "b1:ответ2" });
   say("а офлайн есть?");
   ok(await until(() => /все в сети/.test(el("asstAnswer")?.textContent || "")), "разговор продолжился");
@@ -306,7 +318,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstAsk")), "служба спросила пароль");
   say("qwerty");
   ok(/в службу не ушла/.test(el("asstErr")?.textContent || "") && calls.length === n0 + 1, "ответ на вопрос о пароле не отправлен");
-  ok(!el("asstAsk") && asst.context === null && asst.text === "", "разговор о пароле закончен");
+  ok(!el("asstAsk") && asst.context === null && gq.value === "", "разговор о пароле закончен");
   ok(!calls.some((c) => "secrets" in c.body || c.init.body.includes("qwerty")), "secrets нет ни в одном теле");
   let sent = null;
   await ConsolemApi.assistTurn(SVC, CODE, { text: "x", secrets: ["s"] }, () => {}, { ends: asstEnds }).catch(() => {});
@@ -415,14 +427,12 @@ UiCheck(async ({ ok, until }) => {
   say("выключи запись Главный вход");
   ok(await until(() => el("asstCancel") && /читаю систему/.test(el("asstLine")?.textContent || "")), "снова ход");
   close();
-  ok(asst === null, "окно закрыто");
-  ok(await until(() => aborted === a0 + 2), "закрытие окна обрывает запрос");
-  open();
-  say("выключи запись Главный вход");
-  ok(await until(() => el("asstClose") && el("asstCancel") && /читаю систему/.test(el("asstLine")?.textContent || "")), "«Закрыть» есть и пока идёт ход");
-  el("asstClose").click();
-  ok(asst === null && !el("gopop").classList.contains("open"), "«Закрыть» закрыла окно");
-  ok(await until(() => aborted === a0 + 3), "«Закрыть» снимает идущий ход");
+  ok(asst && asst.busy, "скрытое окно ход не снимает");
+  ok(aborted === a0 + 1, "запрос не оборван");
+  press(gq);
+  press(el("asstNew"));
+  ok(asst === null, "«Новый разговор»: разговора нет");
+  ok(await until(() => aborted === a0 + 2), "«Новый разговор» снимает идущий ход");
 
   // Неверный код: 401 — не выход из системы, код сброшен, панель на заглушке
   const logged = apiLoggedOut;
