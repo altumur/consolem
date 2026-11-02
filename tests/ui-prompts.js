@@ -66,7 +66,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(panel() && asst && !el("gopop").classList.contains("open"), "вопросы открылись — ассистент скрыт, разговор на месте");
   press(el("gq"));
   ok(!panel() && el("gopop").classList.contains("asst"), "клик в поиске вернул ассистента, вопросы закрыты");
-  press(el("asstNew"));
+  asstEnd();
   goClose();
 
   // Английские подписи: файл подписей разбирается, колокольчик и панель переведены

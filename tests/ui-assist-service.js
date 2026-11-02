@@ -35,11 +35,15 @@ UiCheck(async ({ ok, until }) => {
   const close = () => goClose();
   const lastCall = () => calls[calls.length - 1];
   const open = () => { close(); asstOpen(""); };
-  // Ввод один — строка поиска, клавиатурой: ждёт ассистент — Enter, иначе вход как у кнопки поиска
+  // Ответ и уточнение — в поле под ответом, клавиатурой. Строка поиска — новая просьба, новый разговор
+  const key = (e, k) => e.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
   const gq = el("gq"), typeQ = (t) => { gq.value = t; gq.dispatchEvent(new Event("input", { bubbles: true })); };
-  const enter = () => gq.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
-  const say = (t) => { typeQ(t); if (asstWaits()) enter(); else asstFromSearch(); };
+  const enter = () => key(gq, "Enter");
+  const field = () => el("asstText");
+  const say = (t) => { const f = field(); f.focus(); f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); key(f, "Enter"); };
   const press = (e) => ["mousedown", "mouseup", "click"].forEach((type) => e.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })));
+  // По буквам, как клавиатура: keydown, значение, input, keyup
+  const typeKeys = (e, t) => [...t].forEach((ch) => { key(e, ch); e.value += ch; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true })); });
   const typeCode = (v) => { const i = el("asstCode"); i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); };
   const meta = document.createElement("meta");
   meta.name = "consolem-assist";
@@ -116,7 +120,7 @@ UiCheck(async ({ ok, until }) => {
   ok(!("secrets" in call.body) && call.body.kind === "auto" && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "kind: auto, без secrets и context");
   ok(!call.url.includes(CODE) && !call.init.body.includes(CODE), "код только в заголовке");
   ok(await until(() => /в очереди: место 2/.test(el("asstLine")?.textContent || "")), "место в очереди показано");
-  ok(gq.placeholder === "Ассистент думает…" && el("asstCancel"), "идёт ход: строка поиска говорит об этом, отмена есть");
+  ok(el("asstSend")?.disabled && el("asstCancel"), "идёт ход: «Отправить» неактивна, отмена есть");
   // Клик мимо не снимает ход: панель скрыта, строки хода копятся, окно само не открывается, клик в строке показывает ход
   const abHide = aborted;
   press(el("tree"));
@@ -126,10 +130,19 @@ UiCheck(async ({ ok, until }) => {
   ok(!el("gopop").classList.contains("open") && aborted === abHide, "окно само не открылось, запрос не оборван");
   press(gq);
   ok(el("gopop").classList.contains("asst") && /читаю скрыто/.test(el("asstLine")?.textContent || ""), "клик в строке поиска: идущий ход виден");
+  // Курсор в строке поиска: строки хода и конец хода его не забирают, набранное на месте
+  gq.focus();
+  ok(document.activeElement === gq && gq.value === "", "курсор в пустой строке поиска");
   feed({ type: "progress", text: "читаю устройства" });
   ok(await until(() => /читаю устройства/.test(el("asstLine")?.textContent || "")), "строка хода сменилась");
+  ok(document.activeElement === gq, "строка хода курсор из пустой строки поиска не забрала");
   last({ type: "plan", summary: "Камеры: 1", context: "b1:plan", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
   ok(await until(() => el("asstApply")), "план службы показан");
+  ok(document.activeElement === gq && gq.value === "", "конец хода курсор из пустой строки поиска не забрал");
+  typeKeys(gq, "камера");
+  ok(document.activeElement === gq && gq.value === "камера" && el("asstApply"), "печать дальше: текст в строке, план на месте");
+  typeQ("");
+  gq.blur();
   ok(await until(() => !el("asstCancel")), "ход кончился, отмены нет");
 
   // Снимок: все ключи, полные записи, по контракту, паролей нет
@@ -170,7 +183,7 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:первый", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
   say("выключи запись Главный вход");
   ok(await until(() => el("asstApply")), "план службы для уточнения");
-  ok(gq.placeholder === "Уточните план и нажмите Enter", "строка поиска под планом");
+  ok(field()?.placeholder === "Уточнить" && el("asstSend")?.textContent === "Уточнить", "под планом поле «Уточнить»");
   const nRef = calls.length;
   answer = hold({ type: "progress", text: "читаю систему" });
   say("и Запасной вход");
@@ -204,66 +217,39 @@ UiCheck(async ({ ok, until }) => {
   close();
   goApp("hw");
 
-  // Тип выбрала служба: показан словом, выбор из трёх
-  const kinds = () => [...el("gopop").querySelectorAll("[data-asst-kind]")];
-  const kindBtn = (k) => el("gopop").querySelector(`[data-asst-kind="${k}"]`);
+  // Типа хода форма не показывает и не выбирает: всегда auto. Лишнее поле kind в событиях (его шлёт мост Пилота)
+  // форма молча пропускает
   open();
-  ok(!el("asstKind"), "до хода типа нет");
-  answer = sse({ type: "progress", text: "читаю" }, { type: "question", text: "На какой камере?", context: "b1:без-типа" });
+  answer = sse({ type: "progress", kind: "config", text: "читаю" }, { type: "progress", kind: "rules", text: "ещё" }, { type: "question", kind: "config", text: "На какой камере?", context: "b1:тип" });
   say("выключи запись");
-  ok(await until(() => el("asstAsk")), "progress без kind");
-  ok(!el("asstKind"), "служба не назвала тип — панели типа нет");
-  // Спорная просьба: question без progress с kind, типа ещё нет. Строка типа приходит следующим ходом
+  ok(await until(() => el("asstAsk")?.textContent === "На какой камере?"), "события с kind — обычный вопрос");
+  ok(lastCall().body.kind === "auto" && !el("asstErr"), "kind: auto, ошибки нет");
+  ok(!el("asstKind") && !el("gopop").querySelector("[data-asst-kind]") && !/Тип:/.test(text()), "строки «Тип» и выбора типа нет");
+  answer = sse({ type: "question", text: "Какое правило?", context: "b1:дальше" });
+  say("Охрана входа ночью");
+  ok(await until(() => el("asstAsk")?.textContent === "Какое правило?"), "ответ ушёл, разговор идёт");
+  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:тип", "снова auto, context как есть");
+  // Спорная просьба: вопрос без progress — обычный вопрос
   open();
   answer = sse({ type: "question", text: "Настроить или спросить?", context: "b1:спор" });
   say("камеры входа");
   ok(await until(() => el("asstAsk")?.textContent === "Настроить или спросить?"), "спорное: вопрос без progress показан");
-  ok(!el("asstKind") && !asst.busy && !el("asstErr"), "без строки «Тип», ход кончился, ошибки нет");
-  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Камер входа две.", context: "b1:спор2" });
-  say("спросить");
-  ok(await until(() => /Тип: Вопрос о системе/.test(el("asstKind")?.textContent || "")), "тип пришёл следующим ходом");
-  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:спор", "следующий ход: auto, context спорного вопроса");
-  open();
-  answer = sse({ type: "progress", kind: "config", text: "читаю" }, { type: "progress", kind: "rules", text: "ещё" }, { type: "question", text: "На какой камере?", context: "b1:тип" });
-  say("выключи запись");
-  ok(await until(() => el("asstKind")), "тип показан");
-  ok(lastCall().body.kind === "auto", "до выбора человека — auto");
-  ok(/Тип: Настройка/.test(el("asstKind").textContent), "по первому progress: " + el("asstKind").textContent);
-  ok(kinds().map((b) => b.textContent).join() === "Настройка,Правила,Вопрос о системе", "выбор: " + kinds().map((b) => b.textContent).join());
-  ok(kindBtn("config").getAttribute("aria-pressed") === "true", "текущий отмечен");
-  ok(await until(() => el("asstAsk")), "спорное — обычный вопрос службы");
-
-  // Смена типа мышью: новый запрос, явный kind, тот же текст, без context
-  const nKind = calls.length;
-  answer = sse({ type: "progress", kind: "rules", text: "читаю правила" }, { type: "question", text: "Какое правило?", context: "b1:правила" });
-  press(kindBtn("rules"));
-  ok(await until(() => calls.length === nKind + 1), "смена типа — новый запрос");
-  ok(lastCall().body.kind === "rules" && lastCall().body.text === "выключи запись" && !("context" in lastCall().body), "явный kind, тот же текст, без context");
-  ok(await until(() => /Тип: Правила/.test(el("asstKind")?.textContent || "")), "тип сменился");
-  ok(lastCall().body.world.rules.length, "снимок при смене типа тоже уходит");
-  // Тот же тип — запроса нет. Ответ на вопрос идёт с context и выбранным типом
-  press(kindBtn("rules"));
-  ok(calls.length === nKind + 1, "тот же тип запроса не шлёт");
-  answer = sse({ type: "progress", kind: "rules", text: "читаю" }, { type: "question", text: "Что сделать?", context: "b1:дальше" });
-  say("Охрана входа ночью");
-  ok(await until(() => calls.length === nKind + 2), "ответ ушёл");
-  ok(lastCall().body.kind === "rules" && lastCall().body.context === "b1:правила", "выбор человека держится в разговоре, context как есть");
-  ok(await until(() => el("asstAsk")?.textContent === "Что сделать?"), "разговор идёт");
+  ok(!asst.busy && !el("asstErr"), "ход кончился, ошибки нет");
 
   // Вопрос о системе: answer — конец хода, поле на месте, разговор идёт с context, плана нет
   answer = sse({ type: "progress", kind: "explain", text: "смотрю систему" }, { type: "answer", text: "Серверов: 12.\nЛицензий хватает.", context: "b1:ответ" });
-  press(kindBtn("explain"));
+  say("сколько серверов");
   ok(await until(() => el("asstAnswer")), "ответ показан");
-  ok(lastCall().body.kind === "explain", "явный explain");
+  ok(lastCall().body.kind === "auto" && lastCall().body.context === "b1:спор", "kind: auto, context спорного вопроса");
   ok(el("asstAnswer").textContent === "Серверов: 12.\nЛицензий хватает.", "текст ответа");
   ok(el("asstAnswerNote").textContent === "Ответ ассистента, проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
   ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
   ok(await until(() => !asst.busy), "ход кончился");
-  ok(gq.placeholder === "Спросите ещё и нажмите Enter" && !el("asstApply") && !asst.plan && !el("asstDecline"), "строка поиска ждёт вопроса, «Применить» нет");
+  ok(field() && el("asstSend")?.textContent === "Отправить" && !el("asstApply") && !asst.plan && !el("asstDecline"), "поле на месте, «Применить» нет");
   answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Нет, все в сети.", context: "b1:ответ2" });
   say("а офлайн есть?");
   ok(await until(() => /все в сети/.test(el("asstAnswer")?.textContent || "")), "разговор продолжился");
-  ok(lastCall().body.context === "b1:ответ" && lastCall().body.kind === "explain", "с context прошлого ответа");
+  ok(lastCall().body.context === "b1:ответ" && lastCall().body.kind === "auto", "с context прошлого ответа");
   ok(!/Серверов: 12/.test(el("asstAnswer").textContent), "прежний ответ снят");
   // План при explain не показывается
   answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", summary: "x", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: {}, name: cam.name, changes: [] }] });
@@ -271,17 +257,25 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => /плана нет/.test(el("asstRefused")?.textContent || "")), "план при explain не показан, словами");
   ok(!el("asstApply") && !asst.plan, "«Применить» нет");
 
-  // Смена типа посреди хода: идущий снимается, новый уходит
+  // Новая просьба из строки поиска посреди хода: идущий снят, разговор новый, без context
   open();
-  answer = hold({ type: "progress", kind: "config", text: "читаю" });
+  answer = sse({ type: "question", text: "На какой камере?", context: "b1:прежний" });
   say("выключи запись");
-  ok(await until(() => el("asstKind")), "ход идёт, тип показан");
-  const nBusy = calls.length, ab = aborted;
-  answer = sse({ type: "progress", kind: "rules", text: "читаю правила" }, { type: "question", text: "Какое правило?", context: "b1:после" });
-  press(kindBtn("rules"));
+  ok(await until(() => el("asstAsk")), "вопрос прежнего разговора");
+  answer = hold({ type: "progress", text: "читаю" });
+  const nAsk = calls.length;
+  say("Главный вход");
+  ok(await until(() => calls.length === nAsk + 1 && asst.busy && el("asstCancel")), "ход идёт");
+  ok(lastCall().body.context === "b1:прежний", "ответ ушёл с context");
+  const nBusy = calls.length, ab = aborted, was = asst;
+  answer = sse({ type: "question", text: "Какое правило?", context: "b1:после" });
+  typeQ("абырвалг посреди хода");
+  ok(el("goAsk"), "ничего не найдено — кнопка ассистента");
+  enter();
   ok(await until(() => calls.length === nBusy + 1 && aborted === ab + 1), "идущий снят, новый ушёл");
-  ok(await until(() => el("asstAsk")), "новый ход кончился");
-  ok(lastCall().body.kind === "rules" && lastCall().body.text === "выключи запись" && !asst.busy, "явный kind");
+  ok(asst !== was && !("context" in lastCall().body) && lastCall().body.text === "абырвалг посреди хода" && lastCall().body.kind === "auto", "новый разговор: без context, auto");
+  ok(await until(() => el("asstAsk")?.textContent === "Какое правило?" && !asst.busy), "новый ход кончился");
+  ok(asst.said.length === 1 && gq.value === "", "в разговоре одна реплика, строка поиска очищена");
 
   // Заглушка: типа нет, kind как раньше — по разделу, службы нет
   const streamWas = API.stream, sent0 = [], nStub = calls.length;
@@ -290,7 +284,7 @@ UiCheck(async ({ ok, until }) => {
   asst.stub = true;
   say("выключи запись Главный вход");
   ok(await until(() => el("asstApply")), "заглушка ответила");
-  ok(!("kind" in sent0[0]) && !el("asstKind"), "у заглушки нет ни auto, ни панели типа");
+  ok(!("kind" in sent0[0]) && !/Тип:/.test(text()), "у заглушки нет ни auto, ни строки типа");
   close();
   goApp("rules");
   open();
@@ -318,7 +312,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstAsk")), "служба спросила пароль");
   say("qwerty");
   ok(/в службу не ушла/.test(el("asstErr")?.textContent || "") && calls.length === n0 + 1, "ответ на вопрос о пароле не отправлен");
-  ok(!el("asstAsk") && asst.context === null && gq.value === "", "разговор о пароле закончен");
+  ok(!el("asstAsk") && asst.context === null && field().value === "" && asst.text === "", "разговор о пароле закончен, поле очищено");
   ok(!calls.some((c) => "secrets" in c.body || c.init.body.includes("qwerty")), "secrets нет ни в одном теле");
   let sent = null;
   await ConsolemApi.assistTurn(SVC, CODE, { text: "x", secrets: ["s"] }, () => {}, { ends: asstEnds }).catch(() => {});
@@ -443,9 +437,14 @@ UiCheck(async ({ ok, until }) => {
   ok(asst && asst.busy, "скрытое окно ход не снимает");
   ok(aborted === a0 + 1, "запрос не оборван");
   press(gq);
-  press(el("asstNew"));
-  ok(asst === null, "«Новый разговор»: разговора нет");
-  ok(await until(() => aborted === a0 + 2), "«Новый разговор» снимает идущий ход");
+  ok(!el("asstNew"), "«Нового разговора» нет");
+  const runAway = asst;
+  answer = sse({ type: "question", text: "На какой камере?", context: "b1:новый" });
+  typeQ("абырвалг новая просьба");
+  press(el("goAsk"));
+  ok(asst && asst !== runAway, "кнопка поиска мышью: новый разговор");
+  ok(await until(() => aborted === a0 + 2), "новая просьба из строки поиска снимает идущий ход");
+  ok(await until(() => el("asstAsk") && !asst.busy), "новый ход кончился");
 
   // Неверный код: 401 — не выход из системы, код сброшен, панель на заглушке
   const logged = apiLoggedOut;
