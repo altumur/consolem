@@ -210,4 +210,41 @@ UiCheck(async ({ ok, until }) => {
   ok(!document.getElementById("asstApply"), "плана нет");
   API.stream = stream;
   document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+
+  // Настоящая мышь, а не вызов функции: кнопка перерисовывает окно на mousedown и уходит из DOM, окно при этом не закрывается
+  goApp("hw");
+  const mouse = (el) => el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true }));
+  const press = (el) => ["mousedown", "mouseup", "click"].forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
+  const typed = (t) => { asst.text = t; press(document.getElementById("asstSend")); };
+  const popOpen = () => document.getElementById("gopop").classList.contains("open");
+  inp.value = "выключи запись Главный вход";
+  goInput(inp.value);
+  ok(document.getElementById("goAsk"), "кнопка ассистента в поиске");
+  mouse(document.getElementById("goAsk"));
+  ok(asst && popOpen(), "мышь по кнопке: окно открыто, ход идёт");
+  ok(await until(() => document.getElementById("asstApply")), "мышь по кнопке: ход дошёл до плана");
+  press(document.getElementById("asstDecline"));
+  ok(asst && popOpen() && !document.getElementById("asstApply"), "«Отказаться» мышью: окно открыто");
+  mouse(document.body);
+  asstOpen("");
+  typed("выключи запись");
+  ok(await until(() => document.getElementById("asstAsk")), "«Отправить» мышью: вопрос");
+  ok(asst && popOpen(), "окно открыто");
+  typed("Главный вход");
+  ok(await until(() => document.getElementById("asstApply")), "ответ на вопрос мышью: план");
+  press(document.getElementById("asstApply"));
+  ok(await until(() => /применено/.test(body())), "«Применить» мышью: итог");
+  ok(asst && popOpen(), "окно открыто после «Применить»");
+  mouse(document.getElementById("asstText"));
+  ok(asst && popOpen(), "мышь внутри окна его не закрывает");
+  mouse(document.body);
+  ok(asst === null && !popOpen(), "мышь мимо закрывает");
+  // Выбор строки поиска мышью: окно закрывается, переход выполнен
+  inp.value = "";
+  goInput("");
+  const row = [...document.querySelectorAll("#gopop .gores")].find((x) => /Автоматизация/.test(x.textContent));
+  ok(row, "строка раздела в списке");
+  mouse(row);
+  ok(!popOpen() && app === "rules", "строка мышью: список закрыт, переход выполнен");
+  goApp("hw");
 });

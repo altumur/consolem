@@ -19434,7 +19434,8 @@ document.onkeydown=e=>{
   }
   if((e.key==="Delete"||e.key==="Backspace")&&treeSel.size>1&&app==="hw"&&!e.target.closest("input,textarea,select")){e.preventDefault();deleteSelected()}};
 document.addEventListener("mousedown",e=>{if(!e.target?.closest?.("#tctx"))closeTreeCtx()});
-document.addEventListener("mousedown",e=>{if(!e.target?.closest?.("#gojump"))goClose()});
+// Кнопка окна может перерисовать его на mousedown и уйти из DOM: e.target уже вне #gojump, путь события — нет
+document.addEventListener("mousedown",e=>{if(!e.composedPath().some(x=>x.id==="gojump"))goClose()});
 function focusGo(){const el=document.getElementById("gq");if(!el)return;el.focus();el.select();goSearch(el.value)}
 // ── Прототип 06: групповые операции ──────────────────────────────────────
 // Выбор живёт в treeSel, которого хватало только на Ctrl/Shift. Здесь он
