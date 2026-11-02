@@ -97,6 +97,23 @@ UiCheck(async ({ ok, until }) => {
   ok(trace.slice(mark).filter((x) => x.path.startsWith("/access/users")).length === 1 && sizeOk(mark), "«Права»: одна страница людей");
   goApp("hw");
   ok(sizeOk(0), `за весь сценарий самый большой ответ ${big(0)} байт`);
+  // Топология: граф всегда полный, серверов до 500, запросы только о ретрансляторах
+  mark = trace.length;
+  pick(d.id, { force: true });
+  await until(() => sel === d.id);
+  goTab("topo");
+  ok(await until(() => G7.relays.get(d.id)?.size > 0), "ретрансляторы прочитаны");
+  g7SetLevel(3);
+  ok(G7.g.nodes.filter((n) => n.kind === "server").length === 500 && G7.g.nodes.filter((n) => n.kind === "cluster").length === 40, `топология: ${G7.g.nodes.length} узлов, ${G7.g.edges.length} связей`);
+  ok(!G7.g.nodes.some((n) => /^cam-/.test(n.name)), "камеры ретранслятора не рисуются");
+  ok(trace.length - mark <= 6 && sizeOk(mark), `топология: ${trace.length - mark} запросов, самый большой ответ ${big(mark)} байт`);
+  const t0 = performance.now();
+  G7.alpha = 1;
+  for (let i = 0; i < 20; i++) g7Tick(G7.g);
+  const tick = (performance.now() - t0) / 20;
+  ok(tick < 33, `кадр g7Tick на ${G7.g.nodes.length} узлах: ${tick.toFixed(1)} мс, не дольше 33`);
+  goTab("gen");
+  ok(await until(() => G7.raf === 0), "уход останавливает цикл");
   // Перечитывание после потери потока — только кэш
   mark = trace.length;
   const cached = devicePool.length;

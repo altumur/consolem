@@ -382,6 +382,19 @@ h1{margin:4px 0 10px;font-size:20px;display:flex;align-items:center;gap:10px}
 .ici-server{color:var(--one-fg-muted)}
 .ici-svcs{color:var(--one-fg-muted)}
 .ici-domain{color:var(--one-fg-muted)}
+.g7-wrap{position:relative;display:flex;flex-direction:column;min-height:420px}
+.g7-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:4px 0 8px}
+.g7-info{flex:1;min-width:0;font-size:12px;color:var(--mu)}
+.g7-bar{display:flex;align-items:center;gap:4px}
+.g7-bar>button{height:28px;min-width:28px;padding:0 9px;border:1px solid var(--ln);border-radius:6px;background:transparent;color:var(--mu);font-size:12px}
+.g7-bar>button.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--tx)}
+.g7-lab{font-size:11px;color:var(--mu);margin-right:2px}
+.g7-stage{position:relative;flex:1;min-height:360px}
+#g7c{display:block;cursor:grab}
+.g7-tip{position:absolute;display:none;pointer-events:none;z-index:5;background:var(--p);border:1px solid var(--ln);border-radius:6px;padding:6px 9px;font-size:12px;max-width:280px}
+.g7-tip b{display:block}.g7-tip span{color:var(--mu);font-size:11px}
+.g7-hint{position:absolute;left:0;bottom:6px;font-size:11px;color:var(--mu);pointer-events:none}
+.g7-list{margin-top:8px;font-size:12px;color:var(--mu)}
 .n-more .sub,.n-path{color:var(--mu);font-size:11px}
 .n-path{display:block;font-weight:400}
 .ici-unalloc,.ici-norec,.ici-nofolder{color:var(--one-fg-muted)}
@@ -6076,6 +6089,165 @@ function watchSoon(){
     API.put(`/stream/${streamClient}/watch`,{ids}).catch(()=>{watchLast=""});
   });
 }
+// ── Топология: граф домена ──────────────────────────────────────────────
+// Как устроено взаимодействие серверов и кластеров: домен, кластер, сервер. Кластер — начало имени сервера, записи у него
+// нет; через кого он подключён, говорят ретрансляторы. Уровень 1 — кластеры напрямую, 2 — плюс кластеры через другие,
+// 3 — плюс все серверы. Камер и устройств нет. Серверы все из /servers: их до 500, граф всегда полный.
+const G7={pos:new Map(),hover:-1,zoom:1,px:0,py:0,raf:0,g:null,level:{domain:1,server:3},sel:null,openCl:new Set(),relays:new Map(),root:null};
+function g7ClusterOf(s){const i=String(s.name).indexOf("/");return i>0?s.name.slice(0,i):null}
+function g7ShortName(s){const i=String(s.name).indexOf("/");return i>0?s.name.slice(i+1):s.name}
+function g7ClusterId(did,c){return`cl:${did}:${c}`}
+function g7DomainOf(n){return n.type==="domain"?n:domainOf(n.id)||domainById(unallocDomainOf(n.id))||null}
+// Кто за ретранслятором: имена членов сверяются с именами кластеров, камеры в составе просто не совпадут
+async function g7RelaysLoad(d){
+  if(G7.relays.has(d.id)||!can("listRelays"))return;
+  G7.relays.set(d.id,new Map());
+  const via=new Map(),list=(await API.get(`/domains/${d.id}/relays`)).items;
+  for(const r of list)if(can("getRelay"))(await API.get(`/domains/${d.id}/relays/${encodeURIComponent(r.name)}`)).members.forEach(m=>via.set(m,r.name));
+  G7.relays.set(d.id,via);
+  if(G7.root&&document.getElementById("g7c"))g7Start(G7.root);
+}
+function g7Build(n){
+  const d=g7DomainOf(n),nodes=[],edges=[],at=new Map();
+  const add=(id,kind,name,ref,up)=>{
+    if(!at.has(id)){at.set(id,nodes.length);const p=G7.pos.get(id),a=Math.random()*6.28,r=20+Math.random()*60;nodes.push({id,kind,name,ref,x:p?.x??Math.cos(a)*r,y:p?.y??Math.sin(a)*r,vx:0,vy:0,deg:0})}
+    if(up!=null&&at.has(up)){edges.push([at.get(up),at.get(id)]);nodes[at.get(up)].deg++;nodes[at.get(id)].deg++}
+  };
+  if(n.type==="server"&&!d?.servers.includes(n)){add(n.id,"server",n.name,n.id);return{nodes,edges,alone:true}}
+  add(d.id,"domain",locName(d),d.id);
+  const by=new Map();d.servers.forEach(s=>{const c=g7ClusterOf(s);(by.get(c)||by.set(c,[]).get(c)).push(s)});
+  const names=[...by.keys()].filter(Boolean),many=names.length>1,via=G7.relays.get(d.id)||new Map();
+  const level=G7.level[n.type]||3;
+  const known=c=>via.has(c)&&by.has(via.get(c))?via.get(c):null;
+  const direct=names.filter(c=>!known(c));
+  const clAdd=c=>{if(at.has(g7ClusterId(d.id,c)))return;const v=known(c);if(v)clAdd(v);add(g7ClusterId(d.id,c),"cluster",c,c,v?g7ClusterId(d.id,v):d.id)};
+  const srvAdd=s=>{const c=g7ClusterOf(s);if(many&&c)clAdd(c);add(s.id,"server",g7ShortName(s),s.id,many&&c?g7ClusterId(d.id,c):d.id)};
+  if(many){
+    direct.forEach(clAdd);
+    if(level>=2)names.forEach(clAdd);
+    if(level>=3)d.servers.forEach(srvAdd);
+    G7.openCl.forEach(k=>{const c=k.slice(d.id.length+4);if(k.startsWith(g7ClusterId(d.id,""))&&by.has(c)){clAdd(c);by.get(c).forEach(srvAdd)}});
+    // Текущий узел и его цепочка видны всегда
+    if(n.type==="server")srvAdd(n);
+  }else d.servers.forEach(srvAdd);
+  return{nodes,edges,alone:false};
+}
+function g7Html(n){
+  const d=g7DomainOf(n),alone=n.type==="server"&&!d?.servers.includes(n);
+  const empty=alone?i18n("Сервер ещё не в домене: связей нет"):!d.servers.length?i18n("В домене нет серверов"):"";
+  const lv=G7.level[n.type]||3;
+  return`<div class="g7-wrap" id="g7Wrap"><div class="g7-hd"><span id="g7Info" class="g7-info"></span>${alone?"":`<div class="g7-bar"><span class="g7-lab">${i18n("Уровень")}</span>${[1,2,3].map(x=>`<button type="button" class="${lv===x?"on":""}" ${onEv("click",["g7SetLevel",x])}>${x}</button>`).join("")}</div>`}</div>
+    ${empty?`<div class="nt" id="g7Empty">${empty}</div>`:""}
+    <div class="g7-stage"><canvas id="g7c" role="img" aria-label="${i18n("Топология")}"></canvas><div class="g7-tip" id="g7Tip"></div><div class="g7-hint">${i18n("Тянуть узел — двигать · колесо — масштаб · клик — открыть в дереве · фон — сдвиг")}</div></div>
+    <details class="g7-list"><summary>${i18n("Узлы списком")}</summary><div id="g7List"></div></details></div>`;
+}
+function g7SetLevel(x){const n=find(sel)?.n;if(!n)return;G7.level[n.type]=x;gear()}
+function g7Tok(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()}
+function g7Colors(){return{domain:g7Tok("--tx"),cluster:g7Tok("--one-palette-amber")||g7Tok("--one-warning-icon"),server:g7Tok("--bl"),bad:g7Tok("--one-danger"),line:g7Tok("--mu"),text:g7Tok("--tx"),on:g7Tok("--bl"),ring:g7Tok("--tx")}}
+function g7Stop(){cancelAnimationFrame(G7.raf);G7.raf=0;if(G7.g)G7.g.nodes.forEach(n=>G7.pos.set(n.id,{x:n.x,y:n.y}))}
+function g7Start(n){
+  g7Stop();
+  G7.root=n;G7.sel=sel;
+  const d=g7DomainOf(n);
+  if(d&&!G7.relays.has(d.id))g7RelaysLoad(d).catch(()=>{});
+  const cv=document.getElementById("g7c");if(!cv)return;
+  const G=g7Build(n);G7.g=G;G7.alpha=1;G7.hover=-1;G7.fitted=false;G7.col=g7Colors();
+  const info=document.getElementById("g7Info");if(info)info.textContent=`${G.nodes.length} ${i18n("узлов")}, ${G.edges.length} ${i18n("связей")}`;
+  const list=document.getElementById("g7List");
+  if(list)list.innerHTML=G.nodes.map(x=>`<button type="button" class="lk lk-act" data-g7="${escHtml(x.id)}" ${onEv("click",["g7Click",x.id])}>${escHtml(x.name)}</button>`).join(" ");
+  const ctx=cv.getContext("2d");
+  const fit=()=>{const r=cv.parentElement.getBoundingClientRect(),dpr=devicePixelRatio||1,h=Math.max(360,r.height||0,window.innerHeight-cv.getBoundingClientRect().top-90);
+    cv.width=(r.width||800)*dpr;cv.height=h*dpr;cv.style.width=(r.width||800)+"px";cv.style.height=h+"px";ctx.setTransform(dpr,0,0,dpr,0,0);G7.w=r.width||800;G7.h=h};
+  fit();
+  const toW=(x,y)=>[(x-G7.w/2-G7.px)/G7.zoom,(y-G7.h/2-G7.py)/G7.zoom];
+  // Запас захвата в экранных пикселях: мелкий узел иначе не поймать
+  const pickAt=(x,y)=>{const[wx,wy]=toW(x,y);let best=-1,bd=1e9;G.nodes.forEach((p,k)=>{const q=(p.x-wx)**2+(p.y-wy)**2,r=g7R(p)+10/G7.zoom;if(q<r*r&&q<bd){bd=q;best=k}});return best};
+  let drag=-1,pan=null,moved=false;
+  cv.onmousedown=e=>{const r=cv.getBoundingClientRect(),k=pickAt(e.clientX-r.left,e.clientY-r.top);moved=false;
+    if(k>=0){drag=k;G.nodes[k].fixed=true;G7.alpha=Math.max(G7.alpha,.5)}else pan=[e.clientX,e.clientY,G7.px,G7.py]};
+  cv.onmousemove=e=>{const r=cv.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
+    // Кнопку отпустили за холстом: тянуть дальше нечего
+    if((drag>=0||pan)&&!(e.buttons&1)){if(drag>=0)G.nodes[drag].fixed=false;drag=-1;pan=null}
+    if(drag>=0){const[wx,wy]=toW(x,y),p=G.nodes[drag];p.x=wx;p.y=wy;p.vx=p.vy=0;moved=true;G7.alpha=Math.max(G7.alpha,.3);return}
+    if(pan){G7.px=pan[2]+e.clientX-pan[0];G7.py=pan[3]+e.clientY-pan[1];moved=true;g7Draw(ctx);return}
+    const k=pickAt(x,y);if(k!==G7.hover){G7.hover=k;cv.style.cursor=k>=0?"pointer":"grab";g7Tip(k,x,y);g7Draw(ctx)}else if(k>=0)g7Tip(k,x,y)};
+  cv.onmouseup=()=>{const k=drag;drag=-1;pan=null;if(k>=0){const p=G.nodes[k];p.fixed=false;if(!moved)g7Click(p.id)}};
+  cv.onmouseleave=()=>{drag=-1;pan=null;G7.hover=-1;g7Tip(-1);g7Draw(ctx)};
+  cv.onwheel=e=>{e.preventDefault();const f=Math.exp(-e.deltaY*.0015),r=cv.getBoundingClientRect(),x=e.clientX-r.left-G7.w/2,y=e.clientY-r.top-G7.h/2;
+    G7.userZoom=true;const z=Math.min(4,Math.max(.15,G7.zoom*f));G7.px=x-(x-G7.px)*z/G7.zoom;G7.py=y-(y-G7.py)*z/G7.zoom;G7.zoom=z;g7Draw(ctx)};
+  // Цикл стоит на скрытой вкладке, при уходе с закладки и закрытой карточке
+  const loop=()=>{
+    if(!cv.isConnected||tab!=="topo"||document.hidden){g7Stop();return}
+    if(G7.alpha>.004){g7Tick(G);G7.alpha*=.985;if(!G7.userZoom&&G7.alpha<.35&&!G7.fitted){g7Fit();G7.fitted=true}}
+    g7Draw(ctx);G7.raf=requestAnimationFrame(loop)};
+  // Без кадров граф всё равно должен быть разложен: положения старых узлов уже есть, раскладка не прыгает
+  const known=G.nodes.every(p=>G7.pos.has(p.id));
+  if(!known){for(let k=0;k<120;k++){g7Tick(G);G7.alpha*=.985}g7Fit();G7.fitted=true}else{G7.alpha=.02;G7.fitted=true}
+  g7Draw(ctx);
+  G7.raf=requestAnimationFrame(loop);
+}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&tab==="topo"&&G7.root&&document.getElementById("g7c")&&!G7.raf)g7Start(G7.root)});
+window.addEventListener("resize",()=>{if(tab==="topo"&&G7.root&&document.getElementById("g7c"))g7Start(G7.root)});
+function g7Fit(){const N=G7.g?.nodes;if(!N?.length)return;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;N.forEach(n=>{x0=Math.min(x0,n.x);x1=Math.max(x1,n.x);y0=Math.min(y0,n.y);y1=Math.max(y1,n.y)});
+  G7.zoom=Math.min(2.2,Math.max(.15,Math.min(G7.w/((x1-x0)+80),G7.h/((y1-y0)+80))));G7.px=-(x0+x1)/2*G7.zoom;G7.py=-(y0+y1)/2*G7.zoom}
+function g7R(n){return n.id===G7.sel?9:n.kind==="domain"?8:n.kind==="cluster"?6.5:4.5}
+function g7Tick(G){
+  const N=G.nodes,a=G7.alpha;
+  // Отталкивание всех от всех: узлов до 500 серверов и их кластеров, квадрат терпим
+  for(let i=0;i<N.length;i++){const p=N[i];for(let j=i+1;j<N.length;j++){const q=N[j];let dx=p.x-q.x,dy=p.y-q.y,d2=Math.max(25,dx*dx+dy*dy);if(d2>90000)continue;const f=220/d2*a;dx*=f;dy*=f;p.vx+=dx;p.vy+=dy;q.vx-=dx;q.vy-=dy}}
+  // Пружина двигает узлы обратно их степени: иначе сотни связей разом тянут хаб и раскладка улетает
+  G.edges.forEach(([i,j])=>{const p=N[i],q=N[j],dx=q.x-p.x,dy=q.y-p.y,d=Math.sqrt(dx*dx+dy*dy)||1,f=(d-34)*.07*a,fx=dx/d*f,fy=dy/d*f,s=(p.deg+q.deg)||1,bp=q.deg/s,bq=p.deg/s;p.vx+=fx*bp;p.vy+=fy*bp;q.vx-=fx*bq;q.vy-=fy*bq});
+  N.forEach(n=>{n.vx-=n.x*.004*a;n.vy-=n.y*.004*a;if(n.fixed){n.vx=n.vy=0;return}n.vx*=.82;n.vy*=.82;const v=Math.hypot(n.vx,n.vy);if(v>40){n.vx*=40/v;n.vy*=40/v}n.x+=n.vx;n.y+=n.vy});
+}
+// Статус — из кэша при каждой отрисовке: поток меняет запись, граф не пересобирается
+function g7Bad(n){
+  if(n.kind==="server")return servers.find(s=>s.id===n.id)?.online===false;
+  if(n.kind==="domain")return domainById(n.id)?.online===false;
+  return false;
+}
+function g7Draw(ctx){
+  const G=G7.g;if(!G)return;const N=G.nodes,h=G7.hover,c=G7.col;
+  ctx.clearRect(0,0,G7.w,G7.h);ctx.save();ctx.translate(G7.w/2+G7.px,G7.h/2+G7.py);ctx.scale(G7.zoom,G7.zoom);
+  const near=new Set();if(h>=0){near.add(h);G.edges.forEach(([a,b])=>{if(a===h)near.add(b);if(b===h)near.add(a)})}
+  G.edges.forEach(([a,b])=>{const p=N[a],q=N[b],on=h>=0&&(a===h||b===h);
+    ctx.globalAlpha=on?1:h>=0?.12:.35;ctx.strokeStyle=on?c.on:c.line;ctx.lineWidth=(on?1.6:1)/G7.zoom;ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke()});
+  N.forEach((n,k)=>{const dim=h>=0&&!near.has(k),mine=n.id===G7.sel;
+    ctx.globalAlpha=dim?.2:1;ctx.beginPath();ctx.arc(n.x,n.y,g7R(n),0,6.283);
+    ctx.fillStyle=g7Bad(n)?c.bad:c[n.kind]||c.server;ctx.fill();
+    if(mine){ctx.lineWidth=2.5/G7.zoom;ctx.strokeStyle=c.ring;ctx.stroke()}
+    const show=N.length<40||mine||near.has(k)||G7.zoom>1.4||n.kind!=="server";
+    if(show&&!dim){const px=11/Math.max(G7.zoom,.6);ctx.font=`${px}px system-ui,sans-serif`;ctx.fillStyle=c.text;ctx.textAlign="center";ctx.fillText(n.name,n.x,n.y+g7R(n)+px)}});
+  ctx.globalAlpha=1;ctx.restore();
+}
+const G7_KIND={domain:"Домен",cluster:"Кластер",server:"Сервер"};
+function g7Tip(k,x,y){
+  const el=document.getElementById("g7Tip");if(!el)return;
+  if(k<0){el.style.display="none";return}
+  const n=G7.g.nodes[k];
+  el.innerHTML=`<b>${escHtml(n.name)}</b><span>${escHtml(i18n(G7_KIND[n.kind]))}${g7Bad(n)?" · "+i18n("нет связи"):""}</span>`;
+  el.style.display="block";el.style.left=(x+14)+"px";el.style.top=(y+10)+"px";
+}
+// Клик: узел находится в дереве, карточка открывается на той же закладке, граф тот же, положения сохранены.
+// У кластера записи и карточки нет: только выделяем и раскрываем его серверы
+function g7Click(id){
+  const n=G7.g?.nodes.find(x=>x.id===id);if(!n)return;
+  if(n.kind==="cluster"){
+    G7.sel=id;
+    const root=find(sel)?.n;
+    if(G7.openCl.has(id))G7.openCl.delete(id);else G7.openCl.add(id);
+    if(root){g7Stop();const keep=G7.sel;g7Start(root);G7.sel=keep}
+    return;
+  }
+  const wasRaf=!!G7.raf;
+  g7Stop();
+  G7.pendingTopo=true;
+  hwJumpFlash=true;
+  pick(id,{force:true});
+  hwJumpFlash=false;
+  G7.pendingTopo=false;
+  tab="topo";gear();
+  if(!wasRaf&&!document.getElementById("g7c"))return;
+}
 // ── Поиск и фильтр волнами ──────────────────────────────────────────────
 // Индекса нет: запрос с фильтром смотрит ограниченную часть вида, страница бывает пустой. Форма спрашивает сама, пока
 // не наберёт страницу, найденное дописывается. Поиск дошёл до конца и найдено до idsMax — дерево, как раньше. Иначе — плоский список с путём
@@ -7335,10 +7507,10 @@ function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
 
 function tabsFor(n){
-  if(n.type==="domain")return[["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"]];
+  if(n.type==="domain")return[["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
   if(n.type==="unalloc")return[];
-  if(n.type==="server"&&isUnallocated(n.id))return[];
-  if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[]);
+  if(n.type==="server"&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
+  if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],[["topo","Топология"]]);
   // Хранилище открывают ради камер, что в него пишут: «Устройства» — первая
   // вкладка и открывается по умолчанию, параметры и тома — во второй.
   // Вид, на который камеры не привязываются (карта сервера, инциденты), — только параметры и тома.
@@ -7384,6 +7556,7 @@ function gear(){
   cardEnsureBase(n);
   paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
+  if(tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
 }
 function domainActionsHtml(n){
   if(app!=="hw"||n.type!=="server"||!domainOf(n.id))return"";
@@ -9026,7 +9199,7 @@ function lanTabOpen(n){
   return n.type==="server"&&!isUnallocated(n.id)&&tab==="cams";
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
-function form(n){return formBase(n)+ruleUsesFor(n)}
+function form(n){return tab==="topo"&&(n.type==="domain"||n.type==="server")?g7Html(n):formBase(n)+ruleUsesFor(n)}
 // Переключатель карточки: вид меняется сразу, значение уходит с «Применить»
 function swToggle(el){el.classList.toggle("on");setD(true)}
 function storageSet(id,k,v){const n=find(id)?.n;if(!n)return;n[k]=k==="size"?gbStr(v):v;setD(true);if(k!=="size")gear()}
