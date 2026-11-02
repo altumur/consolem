@@ -21229,6 +21229,8 @@ function asstServiceFail(a,e){
 }
 function asstServiceError(a,m){
   if(m.code==="BUSY")a.err=m.message||i18n("Ассистент занят, повторите позже");
+  // Служба ответила, но ход не вышел: её слово точнее «недоступна»
+  else if(m.message){a.err=m.message;a.down=true}
   else asstDown(a);
 }
 // Снимок встроенного сервера теми же обработчиками, что у интерфейса: массивы целиком, устройства — полными записями
