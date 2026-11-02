@@ -607,6 +607,8 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-n{flex:none;min-width:34px;color:var(--mu);font-size:12px;text-transform:lowercase}
 .rl-f{flex:1 1 140px;min-width:0}
 .rl-f input,.rl-f select{width:100%}
+.rl-mx summary{cursor:pointer;color:var(--mut,inherit);font-size:12px;white-space:nowrap}
+.rl-mx input{margin-top:4px}
 .rl-ref{display:flex;align-items:center;gap:6px}
 .rl-pick{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rl-pick.bad{color:var(--one-danger-text);border-color:var(--one-danger)}
@@ -3123,13 +3125,13 @@ function ruleContentNode(r,id){
   const n={id,name:r.name,on:r.enabled,start:r.start==="schedule"?"sched":r.start,run:{mode:r.runMode,modes:[]},menu:r.operatorMenu,rate:r.ratePerMinute,within:r.windowSec,
     sched:r.runAt?{days:r.runAt.days.slice(),at:r.runAt.time}:null,repeat:r.repeat,
     when:r.triggers.map(trigNode),cond:r.conditions.map(condNode),then:r.steps.map(stepNode),
-    owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[]};
+    owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[],validFor:r.validForSec??30};
   if(r.logOnlySince)n.watchSince=r.logOnlySince;
   return n;
 }
 function ruleNode(r){
   const n=ruleContentNode(r,r.id);
-  Object.assign(n,{created:{by:r.createdBy,at:localStamp(r.createdAt)},changed:{by:r.changedBy,at:localStamp(r.changedAt)},order:r.order});
+  Object.assign(n,{created:{by:r.createdBy,at:localStamp(r.createdAt)},changed:{by:r.changedBy,at:localStamp(r.changedAt)},order:r.order,status:r.status||null});
   if(r.mute)n.mute={since:localStamp(r.mute.since),until:localStamp(r.mute.until),by:r.mute.by,why:r.mute.reason};
   return n;
 }
@@ -3137,7 +3139,7 @@ function ruleBody(n){
   return{name:n.name,enabled:!!n.on,logOnly:!!n.watch,logOnlySince:n.watchSince||null,start:n.start==="sched"?"schedule":n.start,runMode:n.run&&n.run.mode==="manual"?"manual":"always",
     operatorMenu:!!n.menu,ratePerMinute:+n.rate||0,windowSec:+n.within||0,runAt:n.start==="sched"&&n.sched?{days:(n.sched.days||[]).slice(),time:n.sched.at||""}:null,
     repeat:n.repeat||"skip",triggers:(n.when||[]).map(trigBody),conditions:(n.cond||[]).map(condBody),steps:(n.then||[]).map(stepBody),
-    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false,...(n.labels?.length?{labels:n.labels}:{})};
+    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false,validForSec:+n.validFor||30,...(n.labels?.length?{labels:n.labels}:{})};
 }
 // Ответ сервера → правило в кэше. Открыт черновик этого правила — нетронутые поля берут новое значение,
 // правки пользователя остаются поверх (как у карточки «Оборудования»)
@@ -8942,7 +8944,7 @@ const CTL_KINDS=[
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
      return`<div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,k),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
-       ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${ctlSecHtml(c,ps)}`;
+       ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${matchExtraHtml(k,c.ev.match,["setWevExtra",`${ps}`,onEv.value])}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
   {ctl:"ask",label:"Спросить оператора",grp:"Ход выполнения",br:[["yes","если подтвердил"],["no","если отклонил"]],
@@ -9458,6 +9460,7 @@ function ruleProblem(r){
     for(const f of k.fields.filter(x=>x.tpl)){const u=ruleTplUnknown(a[f.id])[0];if(u)return`${i18n("неизвестная переменная")} {${u}} ${i18n("в")} «${i18n(k.short||k.label)}»`}
   }
   if(r.rate<1||r.rate>600)return"Допустимо от 1 до 600 запусков в минуту";
+  if(r.validFor<10||r.validFor>600)return"Годность действия — от 10 до 600 секунд";
   return"";
 }
 // Все причины, по которым правило нельзя включить: ошибка формы и битые ссылки.
@@ -9558,6 +9561,7 @@ function ruleDiffOf(a,b,isNew){
   if(isNew)rows.push({label:i18n("Создание"),fromT:"—",toT:`${i18n("Будет создано правило")} «${r.name}»`});
   else add("Название",s.name,r.name);
   add("Как запускается",i18n(RULE_START_NAME[s.start]),i18n(RULE_START_NAME[r.start]));
+  add("Годность действия, с",String(s.validFor??30),String(r.validFor??30));
   add("Состояние",i18n(ruleStateName(s)),i18n(ruleStateName(r)));
   add("Не больше запусков в минуту",s.rate,r.rate);
   add("Событие во время выполнения",i18n(RULE_REPEAT_NAME[s.repeat||"skip"]),i18n(RULE_REPEAT_NAME[r.repeat||"skip"]));
@@ -10136,7 +10140,7 @@ function ruleCompOpen(slot,i){
 }
 
 // ── Правки ──
-function setRuleField(f,v){ruleEdit(r=>{r[f]=f==="rate"||f==="within"?(parseInt(v,10)||0):v;if(f==="name")r._auto=false})}
+function setRuleField(f,v){ruleEdit(r=>{r[f]=f==="rate"||f==="within"||f==="validFor"?(parseInt(v,10)||0):v;if(f==="name")r._auto=false})}
 // Три состояния вместо тумблера: «Только журнал» — это включено + watch.
 // «Выключено» watch не трогает: вернув «Работает», правило не окажется в наблюдении само.
 function setRuleState(v){
@@ -10256,9 +10260,27 @@ function triggerRowHtml(t,i,n){
     <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
     ${refFieldHtml("when",i,t.ref)}
     ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`,t.ref)}
+    ${matchExtraHtml(k,t.match,["setTriggerExtra",i,onEv.value])}
     <button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${onEv("click",["delTrigger",i])}>${lu("x")}</button>
   </div>`;
 }
+// Прочие поля события — объектом JSON: match открыт, значения сравниваются строго, с типом ({"pass": 3})
+function matchExtra(k,match){const known=new Set(k.match.map(m=>m.id));return Object.fromEntries(Object.entries(match||{}).filter(([id])=>!known.has(id)))}
+function matchExtraHtml(k,match,on){
+  const x=matchExtra(k,match),has=Object.keys(x).length>0;
+  return`<details class="rl-f rl-mx" ${has?"open":""}><summary>${i18n("Поля события")}</summary><input type="text" placeholder='{"pass": 3}' aria-label="${i18n("Поля события, JSON")}" value="${escHtml(has?JSON.stringify(x):"")}" ${onEv("change",on)}></details>`;
+}
+function matchExtraParse(k,match,text){
+  let x={};
+  if(text.trim()){
+    try{x=JSON.parse(text)}catch(e){x=null}
+    if(!x||typeof x!=="object"||Array.isArray(x)){toast("Нужен объект JSON: {\"поле\": значение}");return null}
+  }
+  const keep=Object.fromEntries(Object.entries(match||{}).filter(([id])=>k.match.some(m=>m.id===id)));
+  return{...keep,...x};
+}
+function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(triggerKind(t),t.match,text);if(m)ruleEdit(r=>{r.when[i].match=m})}
+function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
   return k.match.map(m=>`<div class="rl-f">${selHtml([["",""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
@@ -10465,9 +10487,11 @@ function rulesUI(){
           <div><label>${i18n("Название")}</label><input type="text" value="${escHtml(r.name)}" ${onEv("change",["setRuleField","name",onEv.value])}></div>
           <div><label>${i18n("Лимит")}</label><div class="rl-rate">${i18n("Не больше")} <input type="number" min="1" max="600" value="${r.rate}" aria-label="${i18n("Не больше запусков в минуту")}" ${onEv("change",["setRuleField","rate",onEv.value])}> ${i18n("запусков в минуту")}</div></div>
           ${r.start==="event"?`<div><label>${i18n("Событие во время выполнения")}</label>${selHtml(RULE_REPEAT,r.repeat||"skip","setRuleField('repeat',this.value)","Событие во время выполнения")}</div>`:""}
+          <div><label>${i18n("Годность действия")}</label><div class="rl-rate"><input type="number" min="10" max="600" value="${r.validFor??30}" aria-label="${i18n("Годность действия, с")}" ${onEv("change",["setRuleField","validFor",onEv.value])}> ${i18n("с после события")}</div></div>
         </div>
         ${r.start==="event"?`<p class="sub">${i18n("Лимит не даёт правилу запускаться без конца: если датчик дребезжит, сирена не будет выть бесконечно.")}</p>`:""}
         <div class="rl-st"><label>${i18n("Состояние")}</label>${ruleStateSegHtml(r)}</div>
+        ${ruleSrvStatusHtml(r)}
         ${ruleMenuHtml(r)}${ruleChainHtml(r)}`)}
       ${r.start==="event"?card("Если",whenBody):card("Запуск",startBody)}
       ${card("При условии",condBody)}
@@ -11409,6 +11433,12 @@ function objModeUntil(){const n=objModeNext();return n?schWhenText(n.at):""}
 function objModeRefresh(){modeCurLoad().catch(()=>{})}
 // Пометка для правил, которые в текущем режиме молчат.
 // Одна полоса «Сейчас не действует»: приглушение (со «Снять сейчас»), окно обслуживания, невыполненный режим.
+// Что о правиле говорит сервер: Rule.status, слово причины — как есть
+const RULE_SRV_STATUS={watching:"следит за событиями",refused:"отказано",unfit:"не годится",unchecked:"не проверено"};
+function ruleSrvStatusHtml(r){
+  const s=r.status;if(!s)return"";
+  return`<p class="sub" data-rule-status="${escHtml(s.state)}">${i18n("Сервер")}: ${i18n(RULE_SRV_STATUS[s.state]||s.state)}${s.reason?` — ${escHtml(s.reason)}`:""}</p>`;
+}
 function ruleStatusBand(r){
   const m=ruleMuteNow(r),w=ruleMaintNow(r),c=ruleModeIdle(r),parts=[];
   if(m)parts.push(`${i18n("приглушено до")} ${escHtml(ruleMuteTill(m))}${m.why?` (${escHtml(m.by)}: ${escHtml(m.why)})`:""} · <button type="button" class="lk lk-act" ${onEv("click",["ruleMuteSetTo",[r.id],null])}>${i18n("Снять сейчас")}</button>`);

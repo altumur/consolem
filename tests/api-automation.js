@@ -52,6 +52,7 @@
     const res = await env.call("POST", `/rules/${r.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.status(res, 409, "NOT_RUNNABLE");
     assert.eq(res.body.params.reason.code, "action.notDeclared", "причина");
+    assert.eq((await env.ok("GET", `/rules/${r.id}`)).status.state, "refused", "сервер говорит: отказано");
   });
 
   test("Каталог: способ запуска, вид цели, «устройство из события», значение и поле действия", async () => {
@@ -86,6 +87,57 @@
     const b = await env.call("POST", "/rules", blank({ conditions: [{ kind: "online", target: dev(cam.id) }] }));
     assert.status(b, 422, "NOT_SUPPORTED");
     assert.eq([b.body.field, issue(b)], ["conditions", "cond.notDeclared"], "условие");
+  });
+
+  /* ----- Поля правила ----- */
+
+  test("Правило: годность действия — 30 по умолчанию, 10–600, вне границ — 422", async () => {
+    const env = await makeEnv();
+    const made = await env.ok("POST", "/rules", blank());
+    assert.eq(made.validForSec, 30, "умолчание");
+    const put = await env.ok("PUT", `/rules/${made.id}`, body(made, { validForSec: 120 }), etag(made));
+    assert.eq(put.validForSec, 120, "сохранено");
+    for (const v of [9, 601]) {
+      const res = await env.call("PUT", `/rules/${made.id}`, body(put, { validForSec: v }), etag(put));
+      assert.status(res, 422, "VALIDATION_FAILED", `значение ${v}`);
+      assert.eq(res.body.field, "validForSec", "поле");
+    }
+    const h = await env.list(`/rules/${made.id}/versions`);
+    assert.eq(h[h.length - 1].rule.validForSec, 120, "в истории");
+  });
+
+  test("Правило: состояние от сервера — следит, отказано, не годится, не проверено; у выключенного нет; в версию не входит", async () => {
+    const env = await makeEnv();
+    const on = await env.ok("POST", "/rules", blank());
+    assert.eq(on.status, { state: "watching", reason: "" }, "следит");
+    const off = await env.ok("POST", "/rules", blank({ enabled: false }));
+    assert.ok(!("status" in off), "выключенное не следит");
+    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: false }), 200);
+    const seen = await env.ok("GET", `/rules/${on.id}`);
+    assert.eq([seen.status.state, seen.version], ["unchecked", on.version], "не проверено, версия та же");
+    assert.ok(seen.status.reason.includes(cam.name), "причина словами");
+    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: true }), 200);
+    const list = await env.list("/rules");
+    assert.eq(list.find((r) => r.id === on.id).status.state, "watching", "в списке — тоже");
+  });
+
+  test("Правило: не годится — пресета нет на камере", async () => {
+    const dev0 = FX.devices.find((d) => d.type === "camera" && d.presetMax && d.online);
+    if (!dev0) return;
+    const env = await makeEnv();
+    const on = await env.ok("POST", "/rules", blank({ steps: [{ source: "vms", action: "preset", target: dev(dev0.id), preset: dev0.presetMax + 1 }] }));
+    assert.eq(on.status.state, "unfit", "не годится");
+    assert.ok(on.status.reason.includes(String(dev0.presetMax + 1)), "причина: " + on.status.reason);
+  });
+
+  test("Правило: уточнение события открыто — любой ключ, тип значения сохраняется, сравнение строгое", async () => {
+    const env = await makeEnv();
+    const tr = { source: "det", kind: "motion", target: dev(cam.id), match: { pass: 3 } };
+    const made = await env.ok("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] }));
+    assert.eq((await env.ok("GET", `/rules/${made.id}`)).triggers[0].match, { pass: 3 }, "как есть, числом");
+    const run = (value) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "det", kind: "motion", deviceId: cam.id, match: { pass: value } }], at: null, branches: {}, log: false });
+    assert.ok((await run(3)).checks.some((c) => c.code === "event.came"), "число совпало");
+    assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
   });
 
   ApiTest.loaded("api-automation.js");

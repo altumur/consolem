@@ -61,7 +61,7 @@
   const Engine = typeof window !== "undefined" && window.ConsolemRuleEngine ? window.ConsolemRuleEngine : require("./rule-engine.js");
   // Содержимое правила: то, что правит администратор и что хранят версии истории
   const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
-    "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels"];
+    "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels", "validForSec"];
   const STREAM_DEPTH = 500;
   // Стопка отката: сколько операций и как долго сервер помнит, что вернуть
   const UNDO_KEEP = 50;
@@ -979,7 +979,8 @@
 
     /* ===== Автоматизация ===== */
 
-    const ruleView = (r) => clone(r);
+    // Правило в ответе: умолчание годности, состояние — только у включённого, в версию не входит
+    const ruleView = (r) => Object.assign(clone(r), { validForSec: r.validForSec ?? 30 }, r.enabled ? { status: engine.status(r, db.reference) } : {});
     const content = (r) => Object.fromEntries(RULE_CONTENT.map((k) => [k, clone(r[k])]));
     const myLogin = () => (db.access.users.find((u) => u.id === me) || {}).login || "";
     // Цели правила (и вложенные — в шагах, ожидаемом событии): fn(target) → новая цель
@@ -1611,7 +1612,7 @@
 
     const notFound = (what) => problem(404, "NOT_FOUND", `${what} не найден(а)`);
     function getter(table, label) {
-      const show = (r) => (table === "devices" ? device(r) : table === "volumes" ? volume(r) : clone(r));
+      const show = (r) => (table === "devices" ? device(r) : table === "volumes" ? volume(r) : table === "rules" ? ruleView(r) : clone(r));
       return [
         ["GET", `/${table}`, () => items(db[table].map(show))],
         [

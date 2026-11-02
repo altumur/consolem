@@ -551,7 +551,7 @@
       const used = new Set(), out = [];
       r.triggers.forEach((tk, j) => {
         const hit = evs.findIndex((e, x) => !used.has(x) && e.source === tk.source && e.kind === tk.kind && covers(tk.target, e.deviceId, triggerKind(tk).deviceTypes) &&
-          Object.entries(tk.match || {}).every(([m, v]) => !v || (e.match || {})[m] === undefined || (e.match || {})[m] === v));
+          Object.entries(tk.match || {}).every(([m, v]) => v === "" || v == null || (e.match || {})[m] === undefined || (e.match || {})[m] === v));
         if (hit >= 0) {
           used.add(hit);
           out.push({ code: "event.came", params: { trigger: tk, deviceId: evs[hit].deviceId }, ok: true, reason: null });
@@ -706,7 +706,26 @@
         result: g === steps.length ? "ok" : g ? "part" : "fail" };
     }
 
-    return { fire, retry, retryable, issue, undeclared, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    // Что сервер знает о включённом правиле сейчас (Rule.status). Встроенный сервер сверяет только то, что есть в его записях
+    function status(r, ref) {
+      const out = undeclared(r, ref), why = out ? out.issue : issue(r);
+      if (why) return { state: "refused", reason: why.code };
+      const unfit = [], unchecked = [];
+      const name = (n) => `«${n.name}»`;
+      const down = (n) => n.online === false && unchecked.push(`${name(n)}: нет связи, что умеет устройство, не проверено`);
+      r.triggers.forEach((t) => (t.target && !broken(t.target) ? nodes(t.target, triggerKind(t).deviceTypes) : []).forEach(down));
+      items(r).forEach(({ it: a }) => {
+        if (!a.action || !a.target || a.target.fromEvent) return;
+        (broken(a.target) ? [] : nodes(a.target, actionKind(a).deviceTypes)).forEach((n) => {
+          down(n);
+          if (a.action === "preset" && n.presetMax && a.preset > n.presetMax) unfit.push(`${name(n)}: нет пресета ${a.preset}, предел ${n.presetMax}`);
+        });
+      });
+      if (unfit.length) return { state: "unfit", reason: [...new Set(unfit)].join("; ") };
+      return unchecked.length ? { state: "unchecked", reason: [...new Set(unchecked)].join("; ") } : { state: "watching", reason: "" };
+    }
+
+    return { fire, retry, retryable, issue, undeclared, status, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
   // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние

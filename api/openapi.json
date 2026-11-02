@@ -6881,8 +6881,8 @@
                 "description": "Для text: сообщение из Device.words источника; для unit: слово единицы"
               }
             },
-            "additionalProperties": false,
-            "description": "Уточнение события"
+            "additionalProperties": true,
+            "description": "Уточнение события: объект «поле события → значение», ключи не только перечисленные: {\"pass\": 3}. Сравнение строгое, по типу значения: \"1\" не равно 1. Поля нет в событии — не совпало"
           }
         },
         "additionalProperties": false,
@@ -7202,6 +7202,16 @@
               "type": "string"
             },
             "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "validForSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Сколько поданное действие остаётся годным от момента события, секунд. Нет поля — 30: сервер отдаёт умолчание"
+          },
+          "status": {
+            "$ref": "#/components/schemas/RuleStatus",
+            "description": "Только чтение. Нет поля — сервер не следит: правило выключено"
           }
         },
         "additionalProperties": false,
@@ -11990,6 +12000,12 @@
               "type": "string"
             },
             "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "validForSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Сколько поданное действие остаётся годным от момента события, секунд. Нет поля — 30: сервер отдаёт умолчание"
           }
         },
         "additionalProperties": false,
@@ -12746,6 +12762,12 @@
               "type": "string"
             },
             "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "validForSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Сколько поданное действие остаётся годным от момента события, секунд. Нет поля — 30: сервер отдаёт умолчание"
           }
         },
         "additionalProperties": false,
@@ -12942,6 +12964,12 @@
               "type": "string"
             },
             "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+          },
+          "validForSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Сколько поданное действие остаётся годным от момента события, секунд. Нет поля — 30: сервер отдаёт умолчание"
           }
         },
         "additionalProperties": false,
@@ -15515,6 +15543,36 @@
             "description": "Отдельные камеры"
           }
         }
+      },
+      "RuleStatus": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "watching",
+              "refused",
+              "unfit",
+              "unchecked"
+            ],
+            "x-enum-descriptions": {
+              "watching": "Сервер следит за событиями правила",
+              "refused": "Отказано: правило не проходит проверку и не срабатывает",
+              "unfit": "Не годится: то, что называет правило, этого не умеет, правило молчит, пока не подойдёт",
+              "unchecked": "Не проверено: устройства не сказали, что умеют, правило работает"
+            }
+          },
+          "reason": {
+            "type": "string",
+            "description": "Почему — словами сервера, форма показывает как есть. У watching пусто"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "reason"
+        ],
+        "description": "Что сервер знает о правиле сейчас. Наблюдение: в версию записи не входит, события потока не шлёт"
       }
     }
   }

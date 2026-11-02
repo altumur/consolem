@@ -33,6 +33,25 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => r(R1).name === "Охрана входа ночью" && (ruleHist[R1] || []).length === h0), "«Отменить» — обратный PUT: имя вернулось, отменённая версия истории убрана");
   ok(![v0].includes(autoVer.get(R1)), "версия после «Отменить» — новая: " + autoVer.get(R1));
 
+  // Годность действия и прочие поля события — в содержимом правила, состояние — от сервера, только показ
+  ruleOpen(R1);
+  ok(r(R1).validFor === 30 && r(R1).status && document.querySelector("[data-rule-status]"), "годность 30, состояние от сервера: " + JSON.stringify(r(R1).status));
+  const statusV = autoVer.get(R1);
+  setRuleField("validFor", "120");
+  setTriggerExtra(0, '{"pass": 3}');
+  setTriggerExtra(1, "не JSON");
+  ok(curRule().when[0].match.pass === 3 && !("не" in curRule().when[1].match), "поля события: число осталось числом, неверное не принято");
+  ok(ruleDiff().some((x) => /Годность/.test(JSON.stringify(x))), "в плане видна годность");
+  setRuleField("validFor", "5");
+  ok(ruleIssues(curRule()).some((x) => /от 10 до 600/.test(x)), "вне границ — ошибка заранее");
+  setRuleField("validFor", "120");
+  ruleApply();
+  ok(await until(() => !ruleDraft && autoVer.get(R1) !== statusV), "применено");
+  const saved = await API.get("/rules/" + R1);
+  ok(saved.validForSec === 120 && saved.triggers[0].match.pass === 3 && typeof saved.triggers[0].match.pass === "number", "на сервере: " + JSON.stringify(saved.triggers[0].match));
+  undo("rundo:" + R1).click();
+  ok(await until(() => r(R1).validFor === 30), "«Отменить» вернул годность");
+
   // Новое правило: до «Применить» — только у клиента, после — POST, id от сервера
   ruleNewOpen();rnw.tpl = "";ruleNewCreate();
   const tmp = ruleDraft && ruleDraft.id;

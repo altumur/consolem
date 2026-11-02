@@ -545,5 +545,16 @@ window.I18N_EN={
 "Выбранное уже ждёт удаления":"The selection is already awaiting deletion",
 // Автоматизация, этап 6
 "нет в этой системе":"not in this system",
-"Детектор":"Detector"
+"Детектор":"Detector",
+"Годность действия":"Action validity",
+"Годность действия, с":"Action validity, s",
+"с после события":"s after the event",
+"Годность действия — от 10 до 600 секунд":"Action validity is 10 to 600 seconds",
+"следит за событиями":"watching events",
+"отказано":"refused",
+"не годится":"unfit",
+"не проверено":"not checked",
+"Поля события":"Event fields",
+"Поля события, JSON":"Event fields, JSON",
+"Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"
 };
