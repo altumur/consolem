@@ -1396,7 +1396,9 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
    дважды. */
 .gohead-tree{display:flex;align-items:baseline;gap:8px;padding-bottom:6px;border-bottom:1px solid var(--ln);margin-bottom:2px;color:var(--tx)}
 .gonote{font-weight:500;color:var(--mu);font-size:10px}
-.hd-act{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+/* Кнопки шапки — у правого края, и когда ряд перенёсся. Заголовок не растягивается (bridge.css), место забирает его отступ. */
+.hd-act{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.hd-act>.hd-ti{margin:0 auto 0 0}
 .set-flash{outline:2px solid var(--bl);outline-offset:4px;border-radius:8px;transition:outline-color .4s}
 /* ── Прототип 06: групповые операции ─────────────────────────────────── */
 .n-chk{flex:none;width:14px;height:14px;box-sizing:border-box;border:1.5px solid var(--one-border-strong);border-radius:4px;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;margin-right:2px;opacity:0;transition:opacity .12s}
@@ -5627,7 +5629,7 @@ function onDomainOutside(e){
 function mainHd(cr,title,sub,tabs,act="",inCrumb=false){
   const single=!!cr&&inCrumb;
   return`<div class="hd">${cr&&!single?`<div class="cr">${cr}</div>`:""}
-  <div class="hd-act">${single?`<div class="cr hd-cr">${cr}</div>`:`<h1 style="flex:1;margin:0">${title}</h1>`}${act}</div>
+  <div class="hd-act">${single?`<div class="cr hd-cr">${cr}</div>`:`<h1 class="hd-ti">${title}</h1>`}${act}</div>
   ${sub?`<p class="sub">${i18n(sub)}</p>`:""}${tabs?`<div class="tabs" ${/role="tab"/.test(tabs)?'role="tablist"':""}>${tabs}</div>`:""}</div>`;
 }
 // Имя для конца пути: короткое имя и название, без значка — он и так в дереве.
