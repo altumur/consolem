@@ -20483,13 +20483,14 @@ const asstEnds=m=>m.type!=="progress";
 /* ----- Служба ассистента демо-страницы -----
    Страница статическая, сервер живёт в браузере, а модель — за службой. Адрес — ?assist=URL или метка
    consolem-assist; без адреса, с бэкендом (?api=, consolem-api) и на другом наборе, чем demo, службы нет.
-   Код вводит посетитель: память вкладки и sessionStorage, не localStorage, не адрес, не журнал. Код привязан
-   к адресу: ссылка с чужим ?assist= сохранённого кода не получит. Без кода отвечает прежняя заглушка.
+   Служба открыта всем: при заданном адресе ход сразу идёт в неё, поля кода нет. Служба ответила 401 — её закрыли:
+   тогда поле появляется, а пока кода нет, отвечает прежняя заглушка. Код живёт в памяти вкладки и sessionStorage, не в
+   localStorage, не в адресе, не в журнале, и привязан к адресу: ссылка с чужим ?assist= сохранённого кода не получит.
    Ход ничего не пишет, «Применить» — как обычно, встроенному серверу. Паролей служба не получает. */
 const ASST_CODE_KEY="consolem-assist-code";
 // Просьба о пароле: и слова просьбы, и ответ на вопрос о пароле — сам пароль
 const ASST_PASS=/парол|секрет|passw|secret/i;
-let asstCodeNow=null;
+let asstCodeNow=null,asstCodeWanted=false;
 function asstServiceUrl(){
   const q=new URLSearchParams(location.search),raw=q.get("assist")||pageMeta("consolem-assist");
   if(!raw||q.get("api")||pageMeta("consolem-api"))return"";
@@ -20508,12 +20509,12 @@ function asstCodeDrop(){
   try{sessionStorage.removeItem(ASST_CODE_KEY)}catch(e){}
 }
 // Кто отвечает в этом окне. off — службы нет, панель как без неё; fixture — снимок только набора demo;
-// nocode — кода нет; stub — посетитель сам ушёл на заглушку; on — служба
+// nocode — служба просит код, а его нет; stub — посетитель сам ушёл на заглушку; on — служба
 function asstMode(a){
   const url=asstServiceUrl();if(!url)return"off";
   const fx=new URLSearchParams(location.search).get("fixture");
   if(fx&&fx!=="demo"&&window.CONSOLEM_FIXTURES?.[fx])return"fixture";
-  if(!asstCodeGet(url))return"nocode";
+  if(asstCodeWanted&&!asstCodeGet(url))return"nocode";
   return a?.stub?"stub":"on";
 }
 function asstSvcHtml(a,mode){
@@ -20524,7 +20525,7 @@ function asstSvcHtml(a,mode){
     on:"Отвечает модель. Просьба и снимок демо-данных уходят в службу, пароли — нет"}[mode];
   return`<div class="asst-svc" id="asstSvc" data-asst-mode="${mode}">${i18n(word)}${
     mode==="nocode"?`<div class="asst-code"><input id="asstCode" type="password" autocomplete="off" aria-label="${i18n("Код доступа")}" placeholder="${i18n("Код доступа")}" ${onEv("input",["asstCodeInput",onEv.value])} ${onEv("keydown",["asstCodeKey",onEv.event])}><button type="button" class="btn s" id="asstCodeSet" ${onEv("click",["asstCodeApply"])}>${i18n("Подключить")}</button></div>`:""}${
-    mode==="on"?`<div><button type="button" class="btn s" id="asstCodeForget" ${onEv("click",["asstCodeForget"])}>${i18n("Забыть код")}</button></div>`:""}${
+    mode==="on"&&asstCodeGet(asstServiceUrl())?`<div><button type="button" class="btn s" id="asstCodeForget" ${onEv("click",["asstCodeForget"])}>${i18n("Забыть код")}</button></div>`:""}${
     mode==="stub"?`<div><button type="button" class="btn s" id="asstBack" ${onEv("click",["asstBack"])}>${i18n("Вернуться к службе")}</button></div>`:""}</div>`;
 }
 function asstCodeInput(v){if(asst)asst.codeDraft=v}
@@ -20568,9 +20569,11 @@ function asstDown(a){a.err=i18n("Служба ассистента недост�
 // Отказ службы: коды не общие problemText — там BUSY про групповую операцию, а 401 — про вход
 function asstServiceFail(a,e){
   if(e?.status===401){
+    const had=!!asstCodeGet(asstServiceUrl());
     asstCodeDrop();
+    asstCodeWanted=true;
     asstModeChanged(a);
-    a.err=i18n("Неверный код доступа. Код сброшен, отвечает заглушка: введите код заново");
+    a.err=i18n(had?"Неверный код доступа. Код сброшен, отвечает заглушка: введите код заново":"Служба просит код доступа. Пока кода нет, отвечает заглушка");
   }else if(e?.status===429){
     const word=e.problem?.message||i18n("Служба занята, повторите позже");
     a.err=e.retryAfter?`${word} ${i18n("Повторить можно через")} ${asstWhen(e.retryAfter)}`:word;

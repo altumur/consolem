@@ -62,13 +62,27 @@ UiCheck(async ({ ok, until }) => {
     return;
   }
 
-  // Адрес есть, кода нет: поле, слова, заглушка
+  // Адрес есть: сразу служба, поля кода нет, заголовка нет
   open();
-  ok(mode() === "nocode" && el("asstCode") && el("asstCode").type === "password", "адрес задан — поле кода");
-  ok(/отвечает заглушка, не модель/.test(text()), "без кода видно словами, кто отвечает");
+  ok(mode() === "on" && !el("asstCode") && !el("asstCodeForget"), "адрес задан — служба, поля кода нет");
+  ok(/Отвечает модель/.test(text()), "видно словами, кто отвечает");
+  answer = sse({ type: "progress", text: "читаю систему" }, { type: "question", text: "На какой камере?", context: "b1:открыта" });
+  say("выключи запись");
+  ok(await until(() => el("asstAsk")), "служба ответила без кода");
+  ok(calls.length === 1 && !("X-Assist-Code" in calls[0].init.headers), "заголовка кода нет");
+
+  // Службу закрыли: 401, поле кода, заглушка, выхода из системы нет
+  open();
+  answer = refuse(401, { code: "UNAUTHORIZED", message: "нужен код доступа" });
+  say("выключи запись Главный вход");
+  ok(await until(() => /Служба просит код доступа/.test(el("asstErr")?.textContent || "")), "401 — словами");
+  ok(!apiLoggedOut && mode() === "nocode" && el("asstCode") && el("asstCode").type === "password", "после 401 поле кода, выхода нет");
+  ok(/отвечает заглушка, не модель/.test(text()), "видно словами, кто отвечает");
+  const n401 = calls.length;
   say("выключи запись Главный вход");
   ok(await until(() => el("asstApply")), "без кода — заглушка");
-  ok(!calls.length, "без кода служба не вызывается");
+  ok(calls.length === n401, "служба больше не вызывается");
+  calls.length = 0;
 
   // Код: Enter, память вкладки и sessionStorage, не localStorage, не адрес, не разметка
   open();
@@ -246,6 +260,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => /Неверный код доступа/.test(el("asstErr")?.textContent || "")), "401 — словами");
   ok(apiLoggedOut === logged && !logged && !toastSeen(), "401 службы не выход из системы");
   ok(!sessionStorage.getItem("consolem-assist-code") && mode() === "nocode" && el("asstCode"), "код сброшен, поле снова здесь");
+  ok(!el("asstCodeForget"), "забывать нечего");
   const n2 = calls.length;
   say("выключи запись Главный вход");
   ok(await until(() => el("asstApply")), "дальше отвечает заглушка");
@@ -311,5 +326,6 @@ UiCheck(async ({ ok, until }) => {
 
   close();
   asstCodeDrop();
+  asstCodeWanted = false;
   window.fetch = realFetch;
 });

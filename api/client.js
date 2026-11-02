@@ -28,8 +28,9 @@
     }
   }
 
-  /* Ход в службу ассистента демо-страницы: POST <url>/assist/turns с заголовком X-Assist-Code, ответ потоком.
-     Служба — не бэкенд консоли: куки не уходят, а 401 здесь значит «неверный код», это не выход из системы,
+  /* Ход в службу ассистента демо-страницы: POST <url>/assist/turns, ответ потоком. Заголовок X-Assist-Code — только если
+     код введён: служба открыта всем, код нужен, если её закрыли.
+     Служба — не бэкенд консоли: куки не уходят, а 401 здесь значит «нужен код», это не выход из системы,
      поэтому onUnauthorized сюда не подключён. secrets не уходят никогда, что бы ни пришло в data.
      Отказ службы — исключение { status, problem, retryAfter }: retryAfter, с — из Retry-After, если заголовок виден
      странице (CORS: Access-Control-Expose-Headers), иначе 0. Нет соединения, обрыв и поток без завершающего
@@ -45,7 +46,7 @@
     try {
       res = await fetch(`${url.replace(/\/$/, "")}/assist/turns`, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "text/event-stream", "X-Assist-Code": code },
+        headers: Object.assign({ "Content-Type": "application/json", Accept: "text/event-stream" }, code ? { "X-Assist-Code": code } : {}),
         body: JSON.stringify(body),
         credentials: "omit",
         signal,
