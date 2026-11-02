@@ -284,7 +284,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     # modeManual — режим, включённый вручную ({ modeId, until } или null): состояние стенда, ответ — GET /modes/current
     if fx.get("modeManual") is not None:
         validate(spec, {"$ref": "#/components/schemas/ModeCurrentWrite"}, fx["modeManual"], "modeManual", problems)
-    known = set(collections) | set(singles) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand"}
+    known = set(collections) | set(singles) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand", "scenarioDocs"}
     problems += [f"раздел {k} не описан в check_api.py" for k in fx if k not in known]
     rep.check(f"{label} соответствует схемам контракта", problems, f"{total} записей + access, settings, reference")
 

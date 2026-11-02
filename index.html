@@ -2180,6 +2180,7 @@ function capsApply(){
   document.head.appendChild(st);
 }
 // Пределы контракта — из reference.limits, не вшиваются
+let refScenKinds=null;
 const LIM={pageMax:1000,idsMax:200,selectMax:500,watchMax:200};
 const servers=[],domains=[];
 // Версия записи — для If-Match и плана операции. В объекты кэша не кладётся:
@@ -2618,6 +2619,7 @@ function apiOnEvent(m){
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
   if(m.type==="test.reset")hwRowsDrop();
   if(m.type==="stream.reset"||m.type==="test.reset"){apiReload();return}
+  if(m.kind==="scenarios"){if(SCEN.did===m.entityId&&SCEN.doc&&m.version!==SCEN.doc.version&&!SCEN.edit)scenLoad(m.entityId).catch(()=>{});return}
   if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
   if(m.kind==="archiveWatch"||m.kind==="archiveScan"){rwReload();return}
   if(m.kind==="operation"){opOnEvent(m);return}
@@ -3252,6 +3254,7 @@ function autoRef(ref){
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
   // сервер, подписи — по коду, незнакомый код показывается как есть
   refRuleCross=ref.ruleCrossDomainActions||null;
+  refScenKinds=ref.scenarioKinds||null;
   Object.assign(RULE_REF,{starts:ref.ruleStarts||null,triggers:ref.ruleTriggers||null,actions:ref.ruleActions||null,conds:ref.ruleConditions||null,ctls:ref.ruleControls||null,targets:ref.ruleTargets||null});
   (ref.ruleTriggers||[]).forEach(t=>{
     const k=triggerKind({sub:t.source,kind:t.kind});
@@ -11005,7 +11008,7 @@ function ruleRowHtml(r,q){
 // Значки — SVG, а не символы Unicode: наследуют цвет темы и одинаковы на всех системах.
 const RULE_IC={ov:lu("layout-dashboard"),modes:lu("clock"),sched:lu("calendar-days"),maint:lu("wrench"),mute:lu("bell-off")};
 function ruleMuteIc(){return`<span class="rl-ic" aria-hidden="true">${RULE_IC.mute}</span>`}
-function ruleSpecial(id){return id==="overview"||id==="modes"||id==="maint"||id==="schdays"||String(id).startsWith("sch:")}
+function ruleSpecial(id){return id==="overview"||id==="modes"||id==="maint"||id==="between"||id==="schdays"||String(id).startsWith("sch:")}
 function treeRules(){
   const q=qval();
   let h=matchesText(q,i18n("Обзор"))
@@ -11015,6 +11018,7 @@ function treeRules(){
   h+=schTreeHtml(q);
   h+=matchesText(q,i18n("Окна обслуживания"))
     ?`<div class="n ${rule==="maint"?"on":""}" data-go="rule:maint" ${onEv("click",["ruleOpen","maint"])}><span class="tw"></span><span class="ici">${RULE_IC.maint}</span><span class="nm">${hlText(i18n("Окна обслуживания"),q)}</span>${treeTail({cnt:treeCntHtml(MAINT_WINDOWS.length)})}</div>`:"";
+  if(can("getScenarios")&&matchesText(q,i18n("Между камерами")))h+=`<div class="n ${rule==="between"?"on":""}" data-go="rule:between" ${onEv("click",["ruleOpen","between"])}><span class="tw"></span><span class="ici">${RULE_IC.maint}</span><span class="nm">${hlText(i18n("Между камерами"),q)}</span></div>`;
   // Открытое правило не выпадает из дерева, даже если правка увела его из фильтра.
   const list=rules.filter(r=>(r.id===rule||ruleFiltOk(r,ruleFilt))&&matchesText(q,...ruleSearchFields(r)));
   RULE_GROUPS.forEach(([g,lab])=>{
@@ -11040,6 +11044,7 @@ function rulesUI(){
     schPageUI();
     return;
   }
+  if(rule==="between"){scenUI();return}
   if(rule==="maint"){
     ruleMaintUI();
     return;
@@ -11722,6 +11727,110 @@ function ruleMaintUI(){
     </div>`);
 }
 
+// ── Между камерами: документ V/07.5 ──
+// Сценарий между камерами — не Rule: документ домена, пишется целиком. Форма говорит deviceId, член камеры выводит сервер.
+// Чужая правка документа — 412: перечитываем и говорим, что изменилось
+const SCEN={did:null,doc:null,status:[],edit:null,note:"",found:{when:[],then:[]}};
+function scenDid(){return SCEN.did||domainFilter||domains[0]?.id}
+async function scenLoad(did){
+  SCEN.did=did||scenDid();
+  const[doc,st]=await Promise.all([API.get(`/domains/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/domains/${SCEN.did}/scenarios/status`):{items:[]}]);
+  SCEN.doc=doc;SCEN.status=st.items;
+  await hwEnsure(doc.items.flatMap(x=>[x.when.deviceId,x.then.deviceId]));
+  if(app==="rules"&&rule==="between")paint();
+}
+function scenPick(did){SCEN.edit=null;SCEN.note="";SCEN.doc=null;scenLoad(did).catch(e=>toast(problemText(e)))}
+function scenCam(id){return id?locName(find(id)?.n||{name:"—"}):"—"}
+function scenAct(t){return t.action==="preset"?`${i18n("пресет")} ${t.n}`:`${i18n("выход")} ${t.port}`}
+function scenStateHtml(x){
+  const s=SCEN.status.find(y=>y.name===x.name);
+  if(x.enabled===false)return`<span class="sub">${i18n("выключен")}</span>`;
+  if(!s)return`<span class="sub">${i18n("нет данных от исполнителя")}</span>`;
+  if(s.phase==="refused")return`<span class="bd off">${i18n("отказ")}${s.reason?": "+escHtml(s.reason):""}</span>`;
+  return`<span class="bd">${i18n("работает")}</span> <span class="sub">${i18n("просьб")} ${s.asked} · ${i18n("выполнено")} ${s.outcomes.performed} · ${i18n("отказ")} ${s.outcomes.refused} · ${i18n("истекло")} ${s.outcomes.expired} · ${i18n("неизвестно")} ${s.outcomes.unknown}</span>`;
+}
+function scenUI(){
+  if(!SCEN.doc){scenLoad().catch(e=>toast(problemText(e)));paintMain(mainHd(i18n("Автоматизация"),i18n("Между камерами"),"")+`<div class="sc sub">${i18n("Загрузка…")}</div>`);return}
+  const rows=SCEN.doc.items.map((x,i)=>`<div class="it" data-scen="${i}"><span>${escHtml(x.name)}<small>${escHtml(scenCam(x.when.deviceId))} · ${escHtml(x.when.kind)} → ${escHtml(scenCam(x.then.deviceId))} · ${escHtml(scenAct(x.then))}</small></span>${scenStateHtml(x)}
+    <button type="button" class="btn s" ${onEv("click",["scenEdit",i])}>${i18n("Изменить")}</button><button type="button" class="btn s" ${onEv("click",["scenDelAsk",i])}>${i18n("Удалить")}</button></div>`).join("");
+  const doms=domains.length>1?`<div><label>${i18n("Домен")}</label><select ${onEv("change",["scenPick",onEv.value])}>${domains.map(d=>`<option value="${d.id}" ${d.id===SCEN.did?"selected":""}>${escHtml(locName(d))}</option>`).join("")}</select></div>`:"";
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Между камерами"),"Событие одной камеры — действие на камере другого кластера. Это не правило: сценарии живут в документе домена")+
+    `<div class="sc">${SCEN.note?`<div class="nt">${escHtml(SCEN.note)}</div>`:""}${doms}
+      ${card("Сценарии",`${rows||`<p class="sub">${i18n("Сценариев нет")}</p>`}<div class="rl-foot"><button type="button" class="btn s" id="scenAdd" ${onEv("click",["scenNew"])}>${i18n("Сценарий")}</button></div>`)}
+      ${SCEN.edit?scenFormHtml():""}</div>`);
+}
+function scenCamFld(side,label){
+  const e=SCEN.edit.row[side];
+  const list=SCEN.found[side].map(r=>`<button type="button" class="lk lk-act" ${onEv("click",["scenCamSet",side,r.id])}>${escHtml(r.name)}</button>`).join(" ");
+  return`<div><label>${i18n(label)}</label><input type="text" id="scenQ-${side}" placeholder="${escHtml(e.deviceId?scenCam(e.deviceId):i18n("Имя камеры…"))}" ${onEv("input",["scenCamFind",side,onEv.value])}><div>${list}</div></div>`;
+}
+function scenFormHtml(){
+  const r=SCEN.edit.row,t=r.then,kinds=(refScenKinds||[]).map(k=>`<option value="${k}" ${k===r.when.kind?"selected":""}>${escHtml(i18n(DET_KIND_RU[k]||k))}</option>`).join("");
+  const num=(key,label,v)=>`<div><label>${i18n(label)}</label><input type="number" value="${v??""}" ${onEv("input",["scenSet",key,onEv.value])}></div>`;
+  return card(SCEN.edit.i==null?"Новый сценарий":"Сценарий",`<div class="g2">
+    <div><label>${i18n("Имя")}</label><input type="text" id="scenName" value="${escHtml(r.name)}" ${onEv("input",["scenSet","name",onEv.value])}></div>
+    ${scenCamFld("when","Камера события")}
+    <div><label>${i18n("Событие")}</label><select ${onEv("change",["scenSet","kind",onEv.value])}>${kinds}</select></div>
+    ${scenCamFld("then","Камера действия")}
+    <div><label>${i18n("Действие")}</label><select ${onEv("change",["scenSet","action",onEv.value])}><option value="preset" ${t.action==="preset"?"selected":""}>${i18n("Пресет")}</option><option value="output" ${t.action==="output"?"selected":""}>${i18n("Выход")}</option></select></div>
+    ${t.action==="preset"?num("n","Номер пресета",t.n):num("port","Номер выхода",t.port)}
+    ${num("validForSec","Срок просьбы, с",t.validForSec??30)}
+    ${num("ratePerMinute","Срабатываний в минуту",r.ratePerMinute??6)}
+    <label class="chk"><input type="checkbox" ${r.enabled!==false?"checked":""} ${onEv("change",["scenSet","enabled",onEv.checked])}> ${i18n("Включён")}</label>
+  </div><div class="rl-foot"><button type="button" class="btn s pri" id="scenSave" ${onEv("click",["scenSave"])}>${i18n("Применить")}</button> <button type="button" class="btn s" ${onEv("click",["scenCancel"])}>${i18n("Отмена")}</button></div>`);
+}
+function scenNew(){SCEN.found={when:[],then:[]};SCEN.edit={i:null,row:{name:"",when:{deviceId:null,kind:(refScenKinds||[])[0]||"motion"},then:{deviceId:null,action:"preset",n:1},enabled:true}};paint()}
+function scenEdit(i){SCEN.found={when:[],then:[]};SCEN.edit={i,row:JSON.parse(JSON.stringify(SCEN.doc.items[i]))};paint()}
+function scenCancel(){SCEN.edit=null;paint()}
+function scenSet(k,v){
+  const r=SCEN.edit.row,t=r.then;
+  if(k==="name")r.name=v;
+  else if(k==="kind")r.when.kind=v;
+  else if(k==="enabled")r.enabled=!!v;
+  else if(k==="ratePerMinute")r.ratePerMinute=Number(v);
+  else if(k==="action"){t.action=v;delete t.n;delete t.port;t[v==="preset"?"n":"port"]=1;paint()}
+  else t[k]=Number(v);
+}
+let scenFindT=0;
+function scenCamFind(side,q){
+  clearTimeout(scenFindT);
+  scenFindT=setTimeout(async()=>{
+    const did=SCEN.did;let cursor=null,items=[];
+    // Поиск ограниченным проходом: страница бывает пустой, спрашиваем, пока не найдётся
+    do{const r=await API.get("/devices",{q,type:"camera",domainId:did,limit:20,cursor});items=r.items;cursor=r.nextCursor||null}while(!items.length&&cursor);
+    await hwEnsure(items.map(x=>x.parentId));items.forEach(hwAddRow);
+    SCEN.found[side]=items;paint();
+    const el=document.getElementById("scenQ-"+side);if(el){el.value=q;el.focus()}
+  },200);
+}
+function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[];paint()}
+async function scenWrite(items,after){
+  try{
+    SCEN.doc=await API.put(`/domains/${SCEN.did}/scenarios`,{items},SCEN.doc.version);
+    SCEN.note="";after&&after();paint();
+  }catch(e){
+    if(e?.problem?.code!=="VERSION_MISMATCH"){toast(problemText(e));return}
+    // Документ пишется целиком: конфликт правок разных сценариев — предел. Показываем, что изменилось
+    const was=new Map(SCEN.doc.items.map(x=>[x.name,JSON.stringify(x)]));
+    await scenLoad(SCEN.did);
+    const now=SCEN.doc.items,diff=[...now.filter(x=>was.get(x.name)!==JSON.stringify(x)).map(x=>x.name),...[...was.keys()].filter(n=>!now.some(x=>x.name===n))];
+    SCEN.note=`${i18n("Документ изменился, ваша правка не записана. Изменились:")} ${diff.join(", ")||"—"}`;
+    paint();
+  }
+}
+function scenSave(){
+  const e=SCEN.edit,items=SCEN.doc.items.map(x=>x);
+  if(e.i==null)items.push(e.row);else items[e.i]=e.row;
+  scenWrite(items,()=>{SCEN.edit=null;toast(i18n("Сценарий записан"))});
+}
+function scenDelAsk(i){
+  const x=SCEN.doc.items[i];
+  askConfirm("Удалить сценарий?",`<p>«${escHtml(x.name)}»: ${i18n("пропадёт только этот сценарий. Камеры и другие сценарии останутся.")}</p>`,"",i18n("Удалить"),()=>scenDelRun(x.name),{html:true,typeCount:1});
+}
+function scenDelRun(name){
+  const key="sdel:"+name,timer=setTimeout(()=>{removeToastAction(key);scenWrite(SCEN.doc.items.filter(x=>x.name!==name))},10000);
+  toastAction(key,`«${name}» — ${i18n("удаление через")}`,i18n("Отменить"),()=>{clearTimeout(timer);toast("Удаление отменено")},10000);
+}
 // ── Расписания ──
 // Расписание — общий образец «когда»: на него ссылаются режимы объекта, условие «Время» в
 // правилах и окна обслуживания. Тип выбирают один раз, и редактор показывает только то, что

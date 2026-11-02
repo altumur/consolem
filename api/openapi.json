@@ -6970,6 +6970,186 @@
           }
         }
       }
+    },
+    "/domains/{domainId}/scenarios": {
+      "get": {
+        "operationId": "getScenarios",
+        "tags": [
+          "automation"
+        ],
+        "summary": "Документ сценариев между камерами",
+        "description": "Один документ на домен, целиком, до limits.scenariosMax. Не Rule, вне отката, истории версий нет",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioDoc"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putScenarios",
+        "tags": [
+          "automation"
+        ],
+        "summary": "Записать документ сценариев целиком",
+        "description": "If-Match — версия документа. Чужая правка — 412 VERSION_MISMATCH, без admin домена — 403, без связи с доменом — 409 SERVER_OFFLINE. Повтор имени — 409 NAME_TAKEN. Форма: 422 VALIDATION_FAILED, field: items[i].…: n и port вместе, цель не камера, срок вне границ. Что умеет цель, форма не судит: это отказ цели, он виден в состоянии",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Версия документа"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScenarioDocWrite"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScenarioDoc"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/domains/{domainId}/scenarios/status": {
+      "get": {
+        "operationId": "getScenariosStatus",
+        "tags": [
+          "automation"
+        ],
+        "summary": "Состояние сценариев из пульса исполнителя",
+        "description": "Только чтение, версию документа не двигает",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ScenarioStatus"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -10190,6 +10370,10 @@
               "scanPartsMax": {
                 "type": "integer",
                 "description": "Сколько разделов вида смотрит один запрос с фильтром. Значение на замер: форма берёт его отсюда и не вшивает"
+              },
+              "scenariosMax": {
+                "type": "integer",
+                "description": "Сценариев в документе домена"
               }
             },
             "additionalProperties": false,
@@ -10200,7 +10384,8 @@
               "idsMax",
               "selectMax",
               "watchMax",
-              "scanPartsMax"
+              "scanPartsMax",
+              "scenariosMax"
             ]
           },
           "capabilities": {
@@ -10354,6 +10539,13 @@
               "type": "string"
             },
             "description": "Что исполняет правило с целями из нескольких доменов: виды действий. Другой шаг в таком включённом правиле — 422 NOT_SUPPORTED, field: steps, params.issue: rule.crossDomain. Поля нет — ограничения нет"
+          },
+          "scenarioKinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: ruleTriggers шире"
           }
         },
         "additionalProperties": false,
@@ -10566,7 +10758,8 @@
               "streamAccounts",
               "archiveWatch",
               "archiveScan",
-              "rulePrompt"
+              "rulePrompt",
+              "scenarios"
             ]
           },
           "entityId": {
@@ -10724,7 +10917,8 @@
               "device.found",
               "device.lost",
               "device.parent",
-              "io.input"
+              "io.input",
+              "scenario.outcome"
             ]
           },
           "deviceId": {
@@ -10780,12 +10974,23 @@
               "normal"
             ],
             "description": "io.input: начало или конец сигнала"
+          },
+          "domainId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "scenario.outcome: домен документа"
+          },
+          "name": {
+            "type": "string",
+            "description": "scenario.outcome: имя сценария"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ScenarioStatus"
           }
         },
         "additionalProperties": false,
         "required": [
-          "type",
-          "deviceId"
+          "type"
         ],
         "description": "Событие «пришло извне»"
       },
@@ -17499,6 +17704,198 @@
             "items": {
               "type": "string"
             }
+          }
+        }
+      },
+      "ScenarioWhen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "kind"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "description": "Вид события камеры: из reference.scenarioKinds"
+          }
+        }
+      },
+      "ScenarioThen": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deviceId",
+          "action"
+        ],
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "preset",
+              "output"
+            ]
+          },
+          "n": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Пресет: только при action preset"
+          },
+          "port": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Выход: только при action output"
+          },
+          "validForSec": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 600,
+            "description": "Срок просьбы, умолчание 30"
+          }
+        }
+      },
+      "Scenario": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "when",
+          "then"
+        ],
+        "description": "Сценарий между камерами (V/07.5): событие камеры-триггера, действие на камере-цели, камеры в разных членах домена. Не Rule: живёт в документе домена. Член каждой камеры выводит backend",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "when": {
+            "$ref": "#/components/schemas/ScenarioWhen"
+          },
+          "then": {
+            "$ref": "#/components/schemas/ScenarioThen"
+          },
+          "ratePerMinute": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 600,
+            "description": "Потолок срабатываний, 0 или нет поля — 6"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Нет поля — включён"
+          }
+        }
+      },
+      "ScenarioDoc": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "items"
+        ],
+        "description": "Документ сценариев домена, целиком: конфликт правок разных сценариев — 412, это предел",
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^[!#-~]+$"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            }
+          }
+        }
+      },
+      "ScenarioDocWrite": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Scenario"
+            }
+          }
+        }
+      },
+      "ScenarioStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "phase",
+          "asked",
+          "outcomes"
+        ],
+        "description": "Состояние из пульса исполнителя (V/07.5 Н1.6). Сценария в пульсе нет — строки нет",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "phase": {
+            "type": "string",
+            "enum": [
+              "running",
+              "refused"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "since": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "asked": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "outcomes": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "performed",
+              "refused",
+              "expired",
+              "unknown"
+            ],
+            "properties": {
+              "performed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "refused": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expired": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "unknown": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "holding": {
+            "type": "boolean"
+          },
+          "decidedWithout": {
+            "type": "integer",
+            "minimum": 0
           }
         }
       }

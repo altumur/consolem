@@ -34753,7 +34753,8 @@
    "idsMax": 200,
    "selectMax": 500,
    "watchMax": 200,
-   "scanPartsMax": 8
+   "scanPartsMax": 8,
+   "scenariosMax": 1000
   },
   "capabilities": {
    "operations": [
@@ -34877,7 +34878,10 @@
     "listAccessHistory",
     "listAccessCellHistory",
     "listRoleObjects",
-    "putStreamWatch"
+    "putStreamWatch",
+    "getScenarios",
+    "putScenarios",
+    "getScenariosStatus"
    ],
    "deviceTypes": [
     "camera",
@@ -35176,7 +35180,15 @@
     "domain"
    ],
    "fromEvent": true
-  }
+  },
+  "scenarioKinds": [
+   "motion",
+   "linecross",
+   "abandoned",
+   "disappeared",
+   "crowd",
+   "lpr"
+  ]
  },
  "streamAccounts": [
   {

@@ -283,5 +283,46 @@
     assert.eq(all.length, FX.ruleFires.filter((x) => x.ruleId === f.ruleId).length, "все");
     assert.ok((await env.ok("GET", `/rules/${f.ruleId}/fires?limit=1`)).items.length === 1, "одна");
   });
+  const SCEN = ["getScenarios", "putScenarios", "getScenariosStatus"];
+  const scen = (over) => {
+    const cams = FX.devices.filter((d) => d.type === "camera" && d.domainId === did);
+    return Object.assign({ name: "Ворота — двор", when: { deviceId: cams[0].id, kind: "motion" }, then: { deviceId: cams[1].id, action: "preset", n: 3 }, enabled: true }, over);
+  };
+  test("Документ V/07.5: чтение, запись целиком, версия, 412 на чужую правку, отказы формы, состояние из пульса", async () => {
+    const env = await makeEnv();
+    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
+    assert.eq(doc.items, [], "пусто");
+    const put = (items, version) => env.call("PUT", `/domains/${did}/scenarios`, { items }, { "If-Match": `"${version}"` });
+    const one = await put([scen()], doc.version);
+    assert.status(one, 200);
+    assert.ok(one.body.version !== doc.version && one.headers.etag === `"${one.body.version}"`, "новая версия в ETag");
+    assert.status(await put([scen()], doc.version), 412, "VERSION_MISMATCH", "чужая правка");
+    assert.status(await env.call("PUT", `/domains/${did}/scenarios`, { items: [] }), 428, "PRECONDITION_REQUIRED");
+    const v = one.body.version;
+    assert.status(await put([scen(), scen()], v), 409, "NAME_TAKEN", "повтор имени");
+    assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "preset", n: 1, port: 2 } })], v), 422, "VALIDATION_FAILED", "n и port вместе");
+    assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "output" } })], v), 422, "VALIDATION_FAILED", "нет номера");
+    const notCam = FX.devices.find((d) => d.type !== "camera");
+    assert.status(await put([scen({ then: { deviceId: notCam.id, action: "preset", n: 1 } })], v), 422, "VALIDATION_FAILED", "цель не камера");
+    assert.status(await put([scen({ when: { deviceId: scen().when.deviceId, kind: "нет" } })], v), 422, "VALIDATION_FAILED", "нет такого вида");
+    assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "preset", n: 1, validForSec: 5 } })], v), 422, "VALIDATION_FAILED", "срок вне границ");
+    assert.eq((await env.ok("GET", `/domains/${did}/scenarios/status`)).items, [], "в пульсе нет — строки нет");
+    const status = { name: "Ворота — двор", phase: "running", asked: 2, outcomes: { performed: 1, refused: 1, expired: 0, unknown: 0 } };
+    await env.ok("POST", "/test/events", { type: "scenario.outcome", domainId: did, name: status.name, status });
+    assert.eq((await env.ok("GET", `/domains/${did}/scenarios/status`)).items[0].asked, 2, "состояние");
+    assert.eq((await env.ok("GET", `/domains/${did}/scenarios`)).version, v, "состояние версию не двигает");
+    assert.eq((await env.pages("/operations")).length, 0, "вне отката, /operations не пишется");
+  }, { needs: SCEN });
+  test("Документ V/07.5: без admin домена — 403, без связи с доменом — 409", async () => {
+    const adm = FX.access.roles.find((r) => r.global.unr);
+    const reader = FX.access.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !FX.access.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
+    const env = await makeEnv({ actAs: reader.login });
+    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
+    assert.status(await env.call("PUT", `/domains/${did}/scenarios`, { items: [] }, { "If-Match": `"${doc.version}"` }), 403, "PERMISSION_DENIED");
+    const off = await makeEnv({ fixturePatch: { domains: FX.domains.map((d) => (d.id === did ? Object.assign({}, d, { online: false }) : d)) } });
+    const dd = await off.ok("GET", `/domains/${did}/scenarios`);
+    assert.status(await off.call("PUT", `/domains/${did}/scenarios`, { items: [] }, { "If-Match": `"${dd.version}"` }), 409, "SERVER_OFFLINE");
+  }, { needs: SCEN });
+
   ApiTest.loaded("api-pages.js");
 })();

@@ -1859,6 +1859,34 @@
       return op ? op : null;
     }
 
+    /* ===== Документ сценариев V/07.5 ===== */
+
+    // Один документ на домен, целиком: хранится, не исполняется. Состояние задаёт стенд, /test/events scenario.outcome
+    function scenarioDoc(id) {
+      db.scenarioDocs = db.scenarioDocs || {};
+      return db.scenarioDocs[id] || (db.scenarioDocs[id] = { version: newVersion(), items: [] });
+    }
+    function scenarioProblem(list) {
+      const max = db.reference.limits.scenariosMax;
+      if (list.length > max) return problem(422, "VALIDATION_FAILED", `Сценариев не больше ${max}`, { field: "items" });
+      const names = new Set();
+      for (let i = 0; i < list.length; i++) {
+        const x = list[i], at = `items[${i}]`;
+        const key = String(x.name).trim().toLowerCase();
+        if (!key) return problem(422, "NAME_REQUIRED", "Укажите имя сценария", { field: `${at}.name` });
+        if (names.has(key)) return problem(409, "NAME_TAKEN", "Такое имя уже есть", { field: `${at}.name` });
+        names.add(key);
+        const cam = (id) => { const d = byId("devices", id); return d && d.type === "camera"; };
+        if (!cam(x.when.deviceId)) return problem(422, "VALIDATION_FAILED", "Триггер — камера", { field: `${at}.when.deviceId` });
+        if (!cam(x.then.deviceId)) return problem(422, "VALIDATION_FAILED", "Цель — камера", { field: `${at}.then.deviceId` });
+        if ((db.reference.scenarioKinds || []).length && !db.reference.scenarioKinds.includes(x.when.kind)) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: `${at}.when.kind` });
+        const preset = x.then.action === "preset";
+        if ("n" in x.then && "port" in x.then) return problem(422, "VALIDATION_FAILED", "Или пресет, или выход", { field: `${at}.then` });
+        if (preset ? !("n" in x.then) : !("port" in x.then)) return problem(422, "VALIDATION_FAILED", preset ? "Нужен номер пресета" : "Нужен номер выхода", { field: `${at}.then` });
+      }
+      return null;
+    }
+
     /* ===== Страницы ===== */
 
     // Круг вида: столько живёт курсор и столько отстаёт итог домена
@@ -2206,6 +2234,24 @@
         const ref = clone(db.reference);
         ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
         return { status: 200, body: ref };
+      }],
+      ["GET", "/domains/{id}/scenarios", (p) => (byId("domains", p.id) ? one(clone(scenarioDoc(p.id))) : notFound("Домен"))],
+      ["PUT", "/domains/{id}/scenarios", (p, q, body, headers) => {
+        const dom = byId("domains", p.id);
+        if (!dom) return notFound("Домен");
+        if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Документ ведёт администратор домена");
+        const doc = scenarioDoc(p.id);
+        const bad = precondition(doc, headers) || (dom.online === false ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null) || scenarioProblem(body.items);
+        if (bad) return bad;
+        doc.items = clone(body.items);
+        bump(doc);
+        send("entity.changed", { kind: "scenarios", entityId: p.id, version: doc.version });
+        return one(clone(doc));
+      }],
+      ["GET", "/domains/{id}/scenarios/status", (p) => {
+        if (!byId("domains", p.id)) return notFound("Домен");
+        const doc = scenarioDoc(p.id), st = (db.scenarioStatus || {})[p.id] || {};
+        return items(doc.items.filter((x) => st[x.name]).map((x) => clone(st[x.name])));
       }],
       ["GET", "/tree/children", (p, q) => treeChildren(q)],
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
@@ -3648,6 +3694,12 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "POST",
         "/test/events",
         (p, q, body) => {
+          if (body.type === "scenario.outcome") {
+            if (!byId("domains", body.domainId)) return notFound("Домен");
+            db.scenarioStatus = db.scenarioStatus || {};
+            (db.scenarioStatus[body.domainId] = db.scenarioStatus[body.domainId] || {})[body.name] = clone(body.status);
+            return { status: 200, body: { applied: true } };
+          }
           const dev = byId("devices", body.deviceId);
           if (!dev) return notFound("Устройство");
           // Сервер сам находит и теряет записи, когда устройство ответило иначе

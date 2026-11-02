@@ -761,5 +761,5 @@ def reference(r, ids=None, ex=None):
             "expiringSoonDays": r["ACC_SOON"],
             "passwordPolicy": {"minLength": 8, "letter": True, "digit": True, "notLogin": True},
         },
-        "limits": {"ipScanMax": r["IP_SCAN_LIMIT"], "defaultServerPort": 20111, "pageMax": 1000, "idsMax": 200, "selectMax": 500, "watchMax": 200, "scanPartsMax": 8},
+        "limits": {"ipScanMax": r["IP_SCAN_LIMIT"], "defaultServerPort": 20111, "pageMax": 1000, "idsMax": 200, "selectMax": 500, "watchMax": 200, "scanPartsMax": 8, "scenariosMax": 1000},
     }
