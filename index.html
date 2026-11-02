@@ -1329,6 +1329,12 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-msg{font-size:13px;margin:6px 0}
 .asst-msg.err{color:var(--one-danger)}
 .asst-answer{white-space:pre-wrap;overflow-wrap:anywhere}
+.rec-copies{margin-top:12px}
+.rec-copy{display:flex;align-items:center;gap:6px;margin:4px 0;font-size:13px}
+.rec-copy-n{flex:none;width:16px;color:var(--mu);font-variant-numeric:tabular-nums}
+.rec-copy-name{flex:1;min-width:0;overflow-wrap:anywhere}
+.rec-copies input{width:100%;margin-top:6px}
+.rec-pick{display:flex;align-items:center;gap:6px;width:100%;margin-top:4px;text-align:left}
 .asst-kind{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-kinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .asst-sum{font-size:13px;font-weight:600;margin:6px 0}
@@ -9712,17 +9718,80 @@ function viewFill(){
     if(v.title){tt.style.color=v.title.color;tt.style.background=v.title.bg;v.title.lines.forEach(l=>{const d=document.createElement("div");d.textContent=l;tt.appendChild(d)})}
   }
 }
-// Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт
+// Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт.
+// Копии — дополнительные приёмники по порядку, копия — это кластер: сервер занятого кластера не предлагается. Назначение
+// держит кластер: на чтении может вернуться другой его сервер, это не чужая правка, показывается как пришло
+const REC_COPY_SHOWN=8;
+let recCopyFind={id:"",q:""};
+function recClusterKey(s){return g7ClusterOf(s)||s.id}
+function recServerLabel(s){const c=g7ClusterOf(s);return c?`${g7ShortName(s)} · ${i18n("кластер")} ${c}`:s.name}
+function recTakenWord(keys,word){
+  const names=[...keys].filter(k=>!servers.some(s=>s.id===k)).map(k=>`«${k}»`);
+  return names.length?`${i18n(word)}: ${names.join(", ")}`:"";
+}
 function recTargetCardHtml(n){
   if(n.type!=="camera"||!can("putRecordingTarget")||serverPinned(n))return"";
-  const t=n.recordingTarget,dom=domains.find(d=>d.id===deviceDomain(n.id));
+  const t=n.recordingTarget,dom=domains.find(d=>d.id===deviceDomain(n.id)),all=dom?.servers||[];
+  const main=t&&servers.find(s=>s.id===t.serverId),cluster=main&&g7ClusterOf(main);
+  const inCopies=new Set((t?.copies||[]).map(id=>servers.find(s=>s.id===id)).filter(Boolean).map(recClusterKey));
+  const opts=all.filter(s=>s.id===t?.serverId||!inCopies.has(recClusterKey(s)));
+  const hidden=recTakenWord(inCopies,"В приёмнике не предлагаются серверы кластеров, занятых копиями");
   return card("Сервер записи",`<div><label>${i18n("Приёмник")}</label><select id="recTarget" ${onEv("change",["recTargetSet",`${n.id}`,onEv.value])}>
-    <option value="">${i18n("Не назначен")}</option>${(dom?.servers||[]).map(s=>`<option value="${s.id}" ${t?.serverId===s.id?"selected":""}>${escHtml(locName(s))}</option>`).join("")}</select></div>
-    ${t?"":`<p class="sub">${i18n("Нет назначения — запись не идёт")}</p>`}`);
+    <option value="">${i18n("Не назначен")}</option>${opts.map(s=>`<option value="${s.id}" ${t?.serverId===s.id?"selected":""}>${escHtml(recServerLabel(s))}</option>`).join("")}</select></div>
+    ${t?"":`<p class="sub">${i18n("Нет назначения — запись не идёт")}</p>`}
+    ${cluster?`<p class="sub" id="recCluster">${i18n("Назначение держит кластер")} «${escHtml(cluster)}»: ${i18n("запись может идти на другой его сервер")}</p>`:""}
+    ${hidden?`<p class="sub" id="recMainTaken">${escHtml(hidden)}</p>`:""}
+    ${t?recCopiesHtml(n,t,all):""}`);
+}
+function recCopiesHtml(n,t,all){
+  const q=recCopyFind.id===n.id?recCopyFind.q:"",rows=t.copies.map((id,i)=>{
+    const s=servers.find(x=>x.id===id),name=s?recServerLabel(s):i18n("сервера больше нет");
+    return`<div class="rec-copy" data-rec-copy="${id}"><span class="rec-copy-n">${i+1}</span><span class="rec-copy-name">${escHtml(name)}</span>
+      <button type="button" class="btn s" data-rec-up aria-label="${i18n("Выше")}" title="${i18n("Выше")}" ${i?"":"disabled"} ${onEv("click",["recCopyMove",`${n.id}`,i,-1])}>↑</button>
+      <button type="button" class="btn s" data-rec-down aria-label="${i18n("Ниже")}" title="${i18n("Ниже")}" ${i<t.copies.length-1?"":"disabled"} ${onEv("click",["recCopyMove",`${n.id}`,i,1])}>↓</button>
+      <button type="button" class="btn s" data-rec-drop aria-label="${i18n("Убрать копию")}" title="${i18n("Убрать копию")}" ${onEv("click",["recCopyDrop",`${n.id}`,i])}>×</button></div>`;
+  }).join("");
+  return`<div class="rec-copies" id="recCopies"><label>${i18n("Копии")}</label>
+    ${rows||`<p class="sub" id="recNoCopies">${i18n("Копий нет")}</p>`}
+    <p class="sub">${i18n("Порядок значим. Копия — это кластер: на кластер один сервер")}</p>
+    <input id="recCopyQ" type="search" autocomplete="off" aria-label="${i18n("Найти сервер для копии")}" placeholder="${i18n("Найти сервер для копии")}" value="${escHtml(q)}" ${onEv("input",["recCopySearch",`${n.id}`,onEv.value])}>
+    <div id="recCopyList">${recCopyListHtml(n,t,all,q)}</div></div>`;
+}
+function recCopyListHtml(n,t,all,q){
+  const busy=new Set([t.serverId,...t.copies].map(id=>servers.find(s=>s.id===id)).filter(Boolean).map(recClusterKey));
+  const low=q.trim().toLowerCase(),free=all.filter(s=>!busy.has(recClusterKey(s))&&(!low||s.name.toLowerCase().includes(low)));
+  const shown=free.slice(0,REC_COPY_SHOWN),word=recTakenWord(busy,"Не предлагаются серверы занятых кластеров");
+  return`${shown.map(s=>`<button type="button" class="btn s rec-pick" data-rec-pick="${s.id}" ${onEv("click",["recCopyAdd",`${n.id}`,`${s.id}`])}>${lu("plus")}${escHtml(recServerLabel(s))}${s.online===false?` · ${i18n("нет связи")}`:""}</button>`).join("")||`<p class="sub" id="recCopyNone">${i18n("Подходящих серверов нет")}</p>`}
+    ${free.length>shown.length?`<p class="sub">${i18n("Ещё")} ${free.length-shown.length}: ${i18n("уточните поиск")}</p>`:""}
+    ${word?`<p class="sub" id="recCopyTaken">${escHtml(word)}</p>`:""}`;
+}
+// Поиск обновляет только список: поле ввода не перерисовывается и не теряет курсор
+function recCopySearch(id,q){
+  recCopyFind={id,q};
+  const n=find(id)?.n,t=n?.recordingTarget,box=document.getElementById("recCopyList"),dom=domains.find(d=>d.id===deviceDomain(id));
+  if(box&&t)box.innerHTML=recCopyListHtml(n,t,dom?.servers||[],q);
+}
+function recTargetPut(id,serverId,copies){
+  const n=find(id)?.n;
+  return API.put(`/devices/${id}/recording-target`,{serverId:serverId||null,copies}).then(r=>{hwApplyDevice(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
 function recTargetSet(id,serverId){
   const n=find(id)?.n;
-  API.put(`/devices/${id}/recording-target`,{serverId:serverId||null,copies:n?.recordingTarget?.copies||1}).then(r=>{hwApplyDevice(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
+  return recTargetPut(id,serverId,serverId?n?.recordingTarget?.copies||[]:[]);
+}
+function recCopyAdd(id,serverId){
+  const t=find(id)?.n?.recordingTarget;if(!t)return;
+  recCopyFind={id:"",q:""};
+  return recTargetPut(id,t.serverId,t.copies.concat(serverId));
+}
+function recCopyDrop(id,i){
+  const t=find(id)?.n?.recordingTarget;if(!t)return;
+  return recTargetPut(id,t.serverId,t.copies.filter((x,k)=>k!==i));
+}
+function recCopyMove(id,i,by){
+  const t=find(id)?.n?.recordingTarget;if(!t)return;
+  const c=[...t.copies];[c[i],c[i+by]]=[c[i+by],c[i]];
+  return recTargetPut(id,t.serverId,c);
 }
 // Кадр-заглушка: улица и здание. Только там, где адреса нет и нечего показать: без него зону всё равно надо рисовать
 function liveSceneSvg(){

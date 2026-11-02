@@ -11,13 +11,39 @@
     const env = await makeEnv({ fixturePatch: withCam() });
     const id = w2c().id;
     const put = (b) => env.call("PUT", `/devices/${id}/recording-target`, b);
-    const res = await put({ serverId: server.id, copies: 2 });
+    const res = await put({ serverId: server.id, copies: [] });
     assert.status(res, 200);
-    assert.eq([res.body.recordingTarget, res.body.serverId], [{ serverId: server.id, copies: 2 }, server.id], "назначено");
-    assert.status(await put({ serverId: "20009999-0000-4000-8000-000000000000", copies: 1 }), 422, "VALIDATION_FAILED");
-    const off = await put({ serverId: null, copies: 1 });
+    assert.eq([res.body.recordingTarget, res.body.serverId], [{ serverId: server.id, copies: [] }, server.id], "назначено");
+    assert.status(await put({ serverId: "20009999-0000-4000-8000-000000000000", copies: [] }), 422, "VALIDATION_FAILED");
+    const off = await put({ serverId: null, copies: [] });
     assert.ok(!("recordingTarget" in off.body) && !("serverId" in off.body), "снято");
-    assert.status(await env.call("PUT", `/devices/${FX.devices.find((x) => x.type === "det").id}/recording-target`, { serverId: server.id, copies: 1 }), 422, "NOT_SUPPORTED");
+    assert.status(await env.call("PUT", `/devices/${FX.devices.find((x) => x.type === "det").id}/recording-target`, { serverId: server.id, copies: [] }), 422, "NOT_SUPPORTED");
+  }, { needs: ["putRecordingTarget"] });
+
+  test("Копии записи: список серверов, порядок значим; копия — кластер: повтор, чужой, кластер основного и два сервера кластера — 422", async () => {
+    const env = await makeEnv({ fixturePatch: withCam() });
+    const put = (b) => env.call("PUT", `/devices/${w2c().id}/recording-target`, b);
+    const by = (name) => FX.servers.find((s) => s.name === name).id;
+    const main = by("Центр/Сервер — Офис"), twin = by("Центр/Сервер — Цех"), a = by("Склады/Сервер — Ангар"), a2 = by("Склады/Сервер — КПП"), b = by("Периметр/Сервер — Парковка"), solo = FX.servers.find((s) => s.allocated && s.online && !s.name.includes("/")).id;
+    const res = await put({ serverId: main, copies: [b, a, solo] });
+    assert.eq(res.body.recordingTarget, { serverId: main, copies: [b, a, solo] }, "порядок как прислан");
+    assert.eq((await env.ok("GET", `/devices/${w2c().id}`)).recordingTarget.copies, [b, a, solo], "и на чтении");
+    assert.eq((await put({ serverId: main, copies: [a, b] })).body.recordingTarget.copies, [a, b], "порядок сменился");
+    const bad = async (copies, what) => {
+      const r = await put({ serverId: main, copies });
+      assert.status(r, 422, "VALIDATION_FAILED", what);
+      assert.eq(r.body.field, "copies", what);
+    };
+    await bad([a, a], "повтор");
+    await bad(["20009999-0000-4000-8000-000000000000"], "несуществующий");
+    await bad([main], "сам основной");
+    await bad([twin], "сервер кластера основного");
+    await bad([a, a2], "два сервера одного кластера");
+    assert.eq((await env.ok("GET", `/devices/${w2c().id}`)).recordingTarget.copies, [a, b], "отказ ничего не менял");
+    assert.eq((await put({ serverId: main, copies: [] })).body.recordingTarget.copies, [], "пусто — копий нет");
+    const off = await put({ serverId: null, copies: [a] });
+    assert.status(off, 422, "VALIDATION_FAILED", "снятие с копиями");
+    assert.status(await put({ serverId: main, copies: 2 }), 422, "VALIDATION_FAILED", "число — прежний контракт, больше не принимается");
   }, { needs: ["putRecordingTarget"] });
 
   test("Камера w2c: адресные поля не пишутся, молчание — DEVICE_OFFLINE, движение арендой недоступно, пресет можно", async () => {

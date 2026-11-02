@@ -69,6 +69,7 @@
 - **`AssistTurnRequest.kind`, `AssistEvent.rules`, `AssistRuleEdit`.** ADR-0112 доп. (8).
 - **`reference.ruleStarts`, `ruleTargets`.** Запрос 8 п. 1 просил способ объявления: два новых поля справочника. `duration`, `afterSec` записи выражены имеющимся `fields`.
 - **`action.fieldNotDeclared`, `target.notDeclared`, `rule.startNotDeclared`, `trigger.notDeclared`, `cond.notDeclared`.** Запрос 8 п. 1 просил только `422 NOT_SUPPORTED` с `field`: причина кодом в `params.issue`, как у `RULE_INVALID`.
+- **`RecordingTargetRequest.copies`, `Device.recordingTarget.copies` — список серверов.** Стык с V/11.4 Н1.14, уточнение «Спецификации VMS»: **несовместимо с контрактом этапа 7**, там было число. Копия — кластер, отказ `422`, `field: copies`.
 - **`RulePrompt.canAnswer`, `openedAt`.** Сверх перечня: экрану не надо считать роли самому.
 - **`202` без тела у ответа оператора.** Итог — `prompt.closed`, система судит ответы своим проходом.
 - **`reason` в `prompt.closed`, `RuleFire.result: waiting`, `state: waiting`, `run.stopped`.**

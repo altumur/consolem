@@ -1568,6 +1568,19 @@
     // Кластер — начало имени сервера. Записи кластера в контракте нет
     const clusterOf = (s) => (s.name.includes("/") ? s.name.slice(0, s.name.indexOf("/")) : null);
     const clusterNames = () => [...new Set(db.servers.filter((s) => s.allocated).map(clusterOf).filter(Boolean))];
+    // Копия записи — это кластер: на кластер один приёмник, склеивать молча нельзя. Сервер без кластера — сам себе кластер
+    function copiesProblem(main, ids) {
+      const seen = new Set([clusterOf(main) || main.id]);
+      if (new Set(ids).size !== ids.length) return "Сервер в копиях повторяется";
+      for (const id of ids) {
+        const s = byId("servers", id);
+        if (!s || !s.allocated) return "Нет такого сервера";
+        const key = clusterOf(s) || s.id;
+        if (seen.has(key)) return "В копиях уже есть этот кластер";
+        seen.add(key);
+      }
+      return null;
+    }
     // Роль, у которой поменялись права: они расходятся по кластерам, имя и назначения пишутся одной записью
     function rolesTouched(a, next) {
       const part = (r) => JSON.stringify([r.global, r.folderAccess, r.objectAccess]);
@@ -2420,13 +2433,16 @@
           const locked = lockedProblem([rec.id]);
           if (locked) return locked;
           if (body.serverId === null) {
+            if (body.copies.length) return problem(422, "VALIDATION_FAILED", "Назначение снято: копий быть не может", { field: "copies" });
             delete rec.recordingTarget;
             delete rec.serverId;
           } else {
             const s = byId("servers", body.serverId);
             if (!s || !s.allocated) return problem(422, "VALIDATION_FAILED", "Нет такого сервера", { field: "serverId" });
+            const why = copiesProblem(s, body.copies);
+            if (why) return problem(422, "VALIDATION_FAILED", why, { field: "copies" });
             if (offline(s)) return problem(409, "SERVER_OFFLINE", "Сервер не отвечает");
-            rec.recordingTarget = { serverId: s.id, copies: body.copies };
+            rec.recordingTarget = { serverId: s.id, copies: clone(body.copies) };
             rec.serverId = s.id;
           }
           bump(rec);
