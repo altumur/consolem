@@ -1,6 +1,8 @@
 /* Сценарии интерфейса: поиск в сети и мастер добавления (найденные, вручную), детекторы камеры, вкладка
    «Сеть». Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until, confirmWith }) => {
+  const pageErrors = [];
+  window.addEventListener("error", (e) => pageErrors.push(e.message));
   goApp("hw");
   const d1 = domains[0];
   // Поиск в сети домена: на сервере, найденное — по одному
@@ -13,6 +15,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => wizd.devState === "searching" && wizd.devResults.length > 0 && wizd.devResults.length < before), "находки приходят по одной");
   ok(await until(() => wizd.devState === "done" && wizd.devResults.length === before), "поиск закончен: " + wizd.devResults.length);
   ok((await API.get(`/domains/${d1.id}/discovery`)).state === "done", "на сервере — закончен");
+  ok(lan.owner === null && pageErrors.length === 0, "вкладка «Сеть» не открывалась: события поиска без ошибок на странице" + (pageErrors.length ? ": " + pageErrors.length + " — " + pageErrors[0] : ""));
   // Добавить выбранные
   const pickRows = wizd.devResults.filter((r) => r.status === "ok").slice(0, 2);
   pickRows.forEach((r) => {
@@ -29,12 +32,41 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(pickRows[0].identifier === added.identifier, "номер в строке — тот, что выдал сервер");
   ok((await API.get(`/domains/${d1.id}/discovery`)).candidates.every((c) => !pickRows.some((r) => r.id === c.id)), "добавленные ушли из найденных на сервере");
   // Вручную: определить модель и добавить
-  wizd.manual = { type: "camera", name: "Камера — вручную", identifier: "", short: "", ip: "10.5.5.5", port: "80", vendor: "Axis", model: "", user: "admin", pass: "1", record: "none", arch: "", lat: "", lon: "", azimuth: "", group: wizd.folder };
+  const manualPass = "manual-secret-5";
+  wizd.manual = { type: "camera", name: "Камера — вручную", identifier: "", short: "", ip: "10.5.5.5", port: "80", vendor: "Axis", model: "", user: "admin", pass: manualPass, record: "none", arch: "", lat: "", lon: "", azimuth: "", group: wizd.folder };
   detectManualModel();
   ok(await until(() => !!wizd.manual.model), "модель определена: " + wizd.manual.model);
   commitManualDevice(false);
   ok(await until(() => !!wizd.manualAddedId), "добавлено вручную");
-  ok((await API.get("/devices/" + wizd.manualAddedId)).model === wizd.manual.model, "на сервере — с моделью");
+  const manualRec = await API.get("/devices/" + wizd.manualAddedId);
+  ok(manualRec.model === wizd.manual.model, "на сервере — с моделью");
+  ok(manualRec.login === "admin" && manualRec.hasPassword === true, "на сервере — логин и пароль задан");
+  const passHidden = (rec) => !("password" in rec) && !JSON.stringify(find(rec.id).n).includes(manualPass);
+  ok(passHidden(manualRec), "пароля нет ни в ответе, ни в кэше: camera");
+  // Пароль уходит у всех видов ручной формы
+  for (const type of ["storage", "eventsrc", "acfa"]) {
+    wizd.manual = { ...wizd.manual, type, name: "Вручную " + type, ip: "10.5.5." + (type.length + 10), pass: manualPass };
+    wizd.manualAddedId = null;
+    commitManualDevice(false);
+    ok(await until(() => !!wizd.manualAddedId), "добавлено вручную: " + type);
+    const rec = await API.get("/devices/" + wizd.manualAddedId);
+    ok(rec.hasPassword === true, "на сервере — пароль задан: " + type);
+    ok(passHidden(rec), "пароля нет ни в ответе, ни в кэше: " + type);
+  }
+  // Пустой пароль не уходит совсем: сервер пустой не сохранит, виден только запрос
+  wizd.manual = { ...wizd.manual, type: "camera", name: "Вручную без пароля", ip: "10.5.5.19", pass: "" };
+  wizd.manualAddedId = null;
+  const post0 = API.post;
+  let posted = null;
+  API.post = function (path, body) {
+    if (path === "/devices") posted = body;
+    return post0.apply(this, arguments);
+  };
+  commitManualDevice(false);
+  ok(await until(() => !!wizd.manualAddedId), "добавлено вручную без пароля");
+  API.post = post0;
+  ok(posted && !("password" in posted.items[0].device), "в запросе нет поля password");
+  ok(!(await API.get("/devices/" + wizd.manualAddedId)).hasPassword, "на сервере — пароль не задан");
   // Импорт CSV: камера и регистратор с каналами; номера — по порядку, короткие имена каналов — от номера регистратора
   const row = (o) => ({ id: "csv" + o.ip, short: "", identifier: "", port: "80", user: "admin", pass: "1", group: "", arch: "", record: "none", lat: "", lon: "", azimuth: "", errors: [], ...o });
   wizd.csvRows = [row({ name: "Камера CSV", ip: "10.6.6.6", vendor: "Axis", model: "P3245-LV" }), row({ name: "NVR CSV", ip: "10.6.6.7", vendor: "Dahua", model: "Dahua NVR 5216" })];
