@@ -483,7 +483,12 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
 .ptz-pad{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
-.live-note{position:absolute;left:8px;bottom:6px;font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
+.live-note{position:absolute;left:8px;bottom:6px;max-width:calc(100% - 16px);font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
+.live-note:empty{display:none}
+.live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;background:#080b10}
+.live-view{max-width:960px;margin-top:0}.live-view .live-video{object-fit:contain}.live-view .live-note{bottom:auto;top:6px}
+.live-acts{position:absolute;right:8px;top:6px;display:flex;gap:6px}.live-acts [hidden]{display:none}
+.live-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.live-row label{display:inline-flex;gap:6px;align-items:center;margin:0}.live-row select{width:auto}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
 button.mc{font:inherit;color:inherit;cursor:pointer;width:100%}
@@ -1630,6 +1635,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/rule-engine.js"></script>
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
+<script src="api/whep-stub.js"></script>
 </head>
 <body>
 <div class="app">
@@ -2730,6 +2736,7 @@ function problemText(e,n){
     BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом выполняется групповая операция"),
     NAME_REQUIRED:i18n("Укажите имя"),
     OTHER_CLUSTER:i18n("камера другого кластера: откройте вход через него"),
+    OTHER_NETWORK:i18n("раздачу создали для другой сети"),
     FINGERPRINT_MISMATCH:i18n("отпечаток не совпал"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
     ADDRESS_TAKEN:i18n("Сервер с таким адресом уже есть"),
@@ -5944,6 +5951,7 @@ function paintMain(html){
   const snap=bulkScopeSnap();
   if(host)paintInto(host,html,mainKey(),mainSeen);
   bulkScopeFlip(snap);tsFixInd(host);
+  liveSync();
   navRecord();
   fitCrumbs();
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
@@ -7564,7 +7572,7 @@ function tabsFor(n){
   if(n.type==="found"||n.type==="founddev")return[];
 
   if(n.type==="folder")return[["gen","Состав"],["tbl","Таблица"],["lan","Все устройства сети"]];
-  if(n.type==="camera")return[["gen","Подключение"],["vid","Видео"],["rec","Архив"],["det","Детекторы"],["io","Периферия"],["acc","Доступ"]];
+  if(n.type==="camera")return[["gen","Подключение"]].concat(can("startLive")?[["view","Просмотр"]]:[],[["vid","Видео"],["rec","Архив"],["det","Детекторы"],["io","Периферия"],["acc","Доступ"]]);
   if(n.type==="ipsrv")return ipsrvCameras(n).length?[["gen","Подключение"],["rec","Архив"],["kids","Дочерние"]]:[["gen","Подключение"],["kids","Дочерние"]];
   if(n.type==="channel")return[["gen","Основные"],["kids","Дочерние"]];
   if(n.type==="eventsrc")return[["gen","Подключение"],["overlay","Титры"],["words","Подсветка"]];
@@ -9045,25 +9053,224 @@ function camDetectorsHtml(n){
       `<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${n.id}`,`${cur.id}`])}>${i18n("Удалить")}</button>`)+
     ruleUsesCardHtml(cur)+detZoneCardHtml(n,cur);
 }
-// ── Живое видео для настройки ─────────────────────────────────────────────
-// POST /devices/{id}/live даёт адрес и токен, клиент подключается по WebRTC. Встроенный сервер отвечает
-// заглушкой, а форма показывает вместо видео картинку-кадр: рамки зоны и пресеты настраиваются по ней так же
-const liveSessions=new Map();
-function liveEnsure(n){
-  if(!n||n.online===false||!can("startLive")||!hwVer.has(n.id))return;
-  const s=liveSessions.get(n.id);
-  if(s&&(s.busy||s.error||Date.parse(s.expiresAt)>Date.now()+5000))return;
-  liveSessions.set(n.id,{busy:true});
-  const note=t=>document.querySelectorAll(`[data-live="${n.id}"] .live-note`).forEach(el=>{el.textContent=t});
-  API.post(`/devices/${n.id}/live`,{width:640,height:360}).then(r=>{
-    liveSessions.set(n.id,r);note(i18n("Кадр-заглушка: встроенный сервер видео не отдаёт"));
-  }).catch(e=>{
-    const error=problemText(e),url=e?.problem?.params?.url;
-    liveSessions.set(n.id,{error});note(error);
-    // Камера другого кластера: вход через него
-    if(e?.problem?.code==="OTHER_CLUSTER"&&url)toastAction("live:"+n.id,i18n("Камера другого кластера"),i18n("Открыть"),()=>window.open(url,"_blank","noopener"),10000);
+// ── Живое видео ───────────────────────────────────────────────────────────
+// Один клиент на страницу и одна камера: закладка «Просмотр», вкладка «Видео», «Зона» детектора, область титров.
+// POST /devices/{id}/live даёт дверь и токен, офер WHEP идёт прямо на шлюз; порядок повторов и отбоя — V/08.3 Н1.2.
+// Разметка рамки постоянна, состояние пишет liveShow, поэтому смена слов не перерисовывает карточку.
+// Элемент видео один и живёт вне разметки: перерисовка карточки его не убивает, liveSync возвращает его в рамку.
+const LIVE_RETRY_MS=1500,LIVE_OFFERS=21,LIVE_ICE_WAIT=5000,LIVE_TOKEN_MARGIN=5000;
+let lv=null,liveEl=null;
+function liveNew(id){return{id,gen:0,net:"local",stream:"",state:"idle",words:"",retry:0,pc:null,sess:null,door:null,lost:null,wait:null,gateway:"",stub:false,move:null,open:"",auto:false}}
+function liveBox(){return document.querySelector("#main [data-live]")}
+function liveVideoEl(){
+  if(!liveEl){liveEl=document.createElement("video");liveEl.className="live-video";liveEl.playsInline=true;liveEl.autoplay=true;liveEl.hidden=true}
+  return liveEl;
+}
+// Звук — дорожка того же потока; браузер отказал в автозапуске со звуком — без звука, зритель включит сам (V/08.3 п. 8)
+function livePlay(){
+  const v=liveEl;if(!v?.srcObject)return;
+  const view=!!v.closest?.("[data-live-view]");
+  v.controls=view;v.muted=!view;
+  v.play().catch(()=>{if(lv&&!v.muted){v.muted=true;v.play().catch(()=>{})}});
+}
+// После каждой отрисовки: ушли с рамки или на другую камеру — соединение закрыто; та же камера — видео в новой рамке
+function liveSync(){
+  const box=liveBox(),id=box?.dataset.live||null;
+  if(lv&&lv.id!==id)liveClose();
+  if(!id)return;
+  if(!lv)lv=liveNew(id);
+  const v=liveVideoEl();
+  if(v.parentNode!==box){box.insertBefore(v,box.querySelector(".zone-svg,.live-note"));livePlay()}
+  if(box.dataset.liveAuto&&!lv.auto){lv.auto=true;if(lv.state==="idle"&&liveCanStart(find(id)?.n))liveStart()}
+  liveShow();
+}
+function liveCanStart(n){return!!n&&n.online!==false&&can("startLive")&&hwVer.has(n.id)}
+const LIVE_STUB_NOTE="Тестовая картинка: настоящего видео на стенде нет";
+function liveWordsOf(v,n){
+  if(n?.online===false)return i18n("Камера без связи");
+  if(!can("startLive"))return i18n("Живое видео недоступно");
+  const via=v.gateway?` · ${i18n("через")} ${v.gateway}`:"";
+  return{idle:i18n("Остановлено"),conn:i18n("Подключаюсь…"),live:`${i18n("Идёт")}${via}`,
+    retry:`${i18n("Повторяю…")} (${v.retry} ${i18n("из")} ${LIVE_OFFERS-1})`,lost:`${i18n("Нет связи")}, ${i18n("повторяю…")}`,refused:v.words}[v.state]??"";
+}
+function liveShow(){
+  const box=liveBox();if(!box||!lv||lv.id!==box.dataset.live)return;
+  const n=find(lv.id)?.n,words=liveWordsOf(lv,n),going=lv.state!=="idle"&&lv.state!=="refused";
+  const note=box.querySelector(".live-note");
+  if(note)note.textContent=lv.stub&&going?`${words} · ${i18n(LIVE_STUB_NOTE)}`:words;
+  const say=document.querySelector("#main [data-live-state]");if(say)say.textContent=words;
+  const go=document.querySelector("#main [data-live-go]");
+  if(go){go.textContent=i18n(going?"Остановить":"Смотреть");go.disabled=!going&&!liveCanStart(n);go.classList.toggle("pri",!going)}
+  const mv=box.querySelector("[data-live-move]");if(mv)mv.hidden=!lv.move||!can("moveLive");
+  const op=box.querySelector("[data-live-open]");if(op)op.hidden=!lv.open;
+  const st=document.querySelector("#main [data-live-stream]");if(st&&st.value!==lv.stream)st.value=lv.stream;
+  const nt=document.querySelector("#main [data-live-net]");if(nt&&nt.value!==lv.net)nt.value=lv.net;
+  box.classList.toggle("playing",!!liveEl?.srcObject);
+  if(liveEl)liveEl.hidden=!liveEl.srcObject;
+}
+function liveSay(v,state,words=""){v.state=state;v.words=words;if(lv===v)liveShow()}
+function liveRefuse(v,words){liveDrop(v);liveSay(v,"refused",words)}
+// H.265 — как отдаёт камера: шлюз не перекодирует. Браузер без него получает отказ словами, а не чёрный кадр
+function liveH265Ok(){try{return RTCRtpReceiver.getCapabilities("video").codecs.some(c=>/h265|hevc/i.test(c.mimeType))}catch(e){return false}}
+function liveNeedsH265(n,streamId){
+  const list=streamId?camStreams(n).filter(s=>s.id===streamId):camStreams(n),is=x=>/265|hevc/i.test(x?.codec||"");
+  return list.length?list.every(s=>is(s)||(!s.codec&&is(n))):is(n);
+}
+// Chrome нумерует H.265 ниже 96, а шлюз принимает только 96–127 (V/03.4 Н1.2): номера и их rtx переносятся до отправки
+function liveH265Dynamic(sdp){
+  const used=new Set([...sdp.matchAll(/a=rtpmap:(\d+) /g)].map(m=>+m[1])),free=[];
+  for(let k=96;k<=127;k++)if(!used.has(k))free.push(k);
+  const map={};
+  for(const m of sdp.matchAll(/a=rtpmap:(\d+) H265\/90000/g)){const pt=+m[1];if(pt<96&&free.length)map[pt]=free.shift()}
+  for(const[from,to]of Object.entries(map)){
+    sdp=sdp.replace(new RegExp("a=(rtpmap|fmtp|rtcp-fb):"+from+" ","g"),(m,k)=>`a=${k}:${to} `)
+      .replace(new RegExp("apt="+from+"(\\r|;|$)","gm"),`apt=${to}$1`)
+      .replace(/^(m=video \d+ [A-Z\/]+)((?: \d+)+)/m,(m,h,l)=>h+l.split(" ").map(x=>x===from?String(to):x).join(" "));
+  }
+  return sdp;
+}
+function whepFetch(url,opts){return url.startsWith("stub://")?window.ConsolemWhepStub.fetch(url,opts):fetch(url,opts)}
+const whepAuth=t=>({Authorization:`Bearer ${t}`});
+// Адрес отбоя: Location — от двери шлюза, дверь — начало whepUrl до /whep/
+function whepSessionUrl(whepUrl,loc){
+  if(/^[a-z]+:\/\//i.test(loc))return loc;
+  const m=whepUrl.match(/^(.*)\/whep\//);
+  return(m?m[1]:new URL(whepUrl).origin)+"/"+loc.replace(/^\/+/,"");
+}
+function liveBody(v){
+  const box=liveBox(),k=window.devicePixelRatio||1;
+  const width=Math.round((box?.clientWidth||0)*k)||640,height=Math.round((box?.clientHeight||0)*k)||360;
+  return Object.assign({width,height,network:v.net},v.stream?{streamId:v.stream}:{});
+}
+// Дверь и токен. {door} — есть, {again:true} — шлюза нет или сбой сети, повторить; {} — отказ, слова уже сказаны
+async function liveAsk(v,gen,body){
+  try{return{door:await API.post(`/devices/${v.id}/live`,body)}}
+  catch(e){
+    if(lv!==v||v.gen!==gen)return{};
+    const p=e?.problem;
+    if(!e?.status||e.status>=500)return{again:true};
+    if(p?.code==="OTHER_CLUSTER"){v.open=p.params?.url||"";liveRefuse(v,i18n(find(v.id)?.n?.direct===false?"Камера за NAT: видео идёт через её кластер":"Камера другого кластера"));return{}}
+    if(p?.code==="OTHER_NETWORK"){v.move=p.params?.labels||[];liveRefuse(v,i18n("Раздачу создали для другой сети"));return{}}
+    liveRefuse(v,problemText(e,find(v.id)?.n));return{};
+  }
+}
+const whepRetryable=(r,d)=>!r||r.status===500||r.status===503||(r.status===404&&d.error!=="stream refused");
+async function whepPost(door,sdp){
+  let r=null,d={};
+  try{r=await whepFetch(door.whepUrl,{method:"POST",headers:{"Content-Type":"application/sdp",...whepAuth(door.token)},body:sdp})}catch(e){r=null}
+  if(r&&r.status!==201)try{d=await r.clone().json()}catch(e){}
+  return{r,d};
+}
+function liveStart(){
+  const v=lv;if(!v)return;
+  const gen=++v.gen;liveDrop(v);v.move=null;v.open="";v.stub=false;v.gateway="";
+  liveGo(v,gen).catch(()=>{if(lv===v&&v.gen===gen)liveRefuse(v,i18n("Не удалось подключиться"))});
+}
+async function liveGo(v,gen){
+  const alive=()=>lv===v&&v.gen===gen,n=find(v.id)?.n;
+  liveSay(v,"conn");
+  if(typeof RTCPeerConnection!=="function")return liveRefuse(v,i18n("Браузер не умеет WebRTC"));
+  if(liveNeedsH265(n,v.stream)&&!liveH265Ok())return liveRefuse(v,i18n("Камера отдаёт H.265, этот браузер его не показывает"));
+  let pc;
+  try{pc=new RTCPeerConnection()}catch(e){return liveRefuse(v,i18n("Браузер не умеет WebRTC"))}
+  v.pc=pc;
+  pc.addTransceiver("video",{direction:"recvonly"});
+  pc.addTransceiver("audio",{direction:"recvonly"});
+  // Обе дорожки — один поток браузера; ответ без msid потока не назвал — поток из дорожки, дальше она в него и добавляется
+  pc.ontrack=e=>{
+    if(v.pc!==pc)return;
+    const el=liveVideoEl(),had=el.srcObject;
+    if(e.streams[0]){if(had===e.streams[0])return;el.srcObject=e.streams[0]}
+    else if(had)had.addTrack(e.track);else el.srcObject=new MediaStream([e.track]);
+    liveShow();livePlay();
+  };
+  pc.onconnectionstatechange=()=>liveConn(v,pc);
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription({type:"offer",sdp:liveH265Dynamic(offer.sdp)});
+  if(!alive())return;
+  const sdp=pc.localDescription.sdp,body=liveBody(v);   // размер берётся один раз на попытку показа
+  const spent=()=>liveRefuse(v,i18n("Шлюз не взял поток"));
+  const pause=async c=>{v.retry=c;liveSay(v,"retry");await new Promise(r=>{v.wait=setTimeout(r,LIVE_RETRY_MS)});return alive()};
+  let offers=0,door=null,again403=false,renewed=false;
+  for(;;){
+    if(!door){
+      const a=await liveAsk(v,gen,body);
+      if(!alive()||(!a.door&&!a.again))return;
+      if(a.again){if(++offers>=LIVE_OFFERS)return spent();if(!await pause(offers))return;continue}
+      door=a.door;v.stub=door.whepUrl.startsWith("stub://");v.gateway=door.gateway||"";
+    }
+    const{r,d}=await whepPost(door,sdp);
+    offers++;
+    if(r?.status===201){
+      const loc=r.headers.get("Location")||"",s={url:loc?whepSessionUrl(door.whepUrl,loc):"",door,body};
+      // Выбор сменился, пока шёл офер: поздняя сессия снимается сразу
+      if(!alive()){liveHangUp(v,s);return}
+      v.sess=s;
+      if(!v.gateway)try{v.gateway=new URLSearchParams(loc.split("?")[1]).get("gateway")||""}catch(e){}
+      try{await pc.setRemoteDescription({type:"answer",sdp:await r.text()})}
+      catch(e){if(alive())liveRefuse(v,i18n("Браузер не принял ответ шлюза"));return}
+      if(alive()&&pc.connectionState==="connected")liveSay(v,"live");
+      return;
+    }
+    if(!alive())return;
+    // 403 — дверь заново один раз, оффер после него входит в счёт
+    if(r?.status===403&&!again403&&offers<LIVE_OFFERS){again403=true;door=null;continue}
+    if(!whepRetryable(r,d))return liveRefuse(v,`${i18n("Шлюз отказал")}: ${d.detail||d.error||r.status}`);
+    if(offers>=LIVE_OFFERS||Date.parse(door.expiresAt)-Date.now()-LIVE_RETRY_MS<LIVE_ICE_WAIT){
+      // Исчерпаны: дверь один раз заново. Раздачу создали заново в другом месте — новая серия, иначе отказ словами
+      if(renewed)return spent();
+      renewed=true;
+      const a=await liveAsk(v,gen,body);
+      if(!alive()||!a.door&&!a.again)return;
+      if(!a.door||a.door.whepUrl===door.whepUrl&&a.door.gateway===door.gateway)return spent();
+      door=a.door;v.gateway=door.gateway||"";offers=0;continue;
+    }
+    if(!await pause(offers))return;
+  }
+}
+// Связь: failed, closed — через 1 с, disconnected — через 5 с плюс случайные до 3 с: зрители одной камеры не приходят разом
+function liveConn(v,pc){
+  if(lv!==v||v.pc!==pc)return;
+  const st=pc.connectionState;
+  if(st==="connected"){clearTimeout(v.lost);v.lost=null;liveSay(v,"live");return}
+  if(st!=="failed"&&st!=="closed"&&st!=="disconnected"||v.lost)return;
+  liveSay(v,"lost");
+  v.lost=setTimeout(()=>{v.lost=null;if(lv===v&&v.pc===pc&&pc.connectionState!=="connected")liveStart()},(st==="disconnected"?5000:1000)+Math.random()*3000);
+}
+// Отбой свежим токеном; при закрытии страницы — keepalive с токеном из памяти, не дошло — сессию снимет шлюз (V/03.5)
+async function liveHangUp(v,s,closing){
+  if(!s?.url)return;
+  let token=s.door.token;
+  if(!closing&&Date.parse(s.door.expiresAt)-Date.now()<LIVE_TOKEN_MARGIN)
+    try{token=(await API.post(`/devices/${v.id}/live`,s.body)).token}catch(e){}
+  try{await whepFetch(s.url,{method:"DELETE",keepalive:!!closing,headers:whepAuth(token)})}catch(e){}
+}
+// Снять всё, что держит попытку: таймеры, соединение, сессию у шлюза, поток элемента
+function liveDrop(v){
+  clearTimeout(v.lost);clearTimeout(v.wait);v.lost=v.wait=null;
+  const s=v.sess,pc=v.pc;v.sess=v.pc=null;
+  if(s)liveHangUp(v,s);
+  if(pc)try{pc.close()}catch(e){}
+  if(liveEl&&lv===v){liveEl.srcObject=null;liveEl.hidden=true}
+}
+function liveStop(){const v=lv;if(!v)return;v.gen++;liveDrop(v);liveSay(v,"idle")}
+function liveClose(){
+  const v=lv;if(!v)return;
+  v.gen++;liveDrop(v);lv=null;
+  if(liveEl){liveEl.srcObject=null;liveEl.hidden=true;liveEl.remove()}
+}
+function liveToggle(){if(lv&&lv.state!=="idle"&&lv.state!=="refused")liveStop();else liveStart()}
+function liveRestart(){if(lv&&lv.state!=="idle")liveStart()}
+function liveStreamSet(id){if(!lv)return;lv.stream=id;liveRestart()}
+function liveNetSet(net){if(!lv)return;lv.net=net;liveRestart()}
+function liveOpen(){if(lv?.open)window.open(lv.open,"_blank","noopener")}
+function liveMove(){
+  const v=lv;if(!v?.move)return;
+  askConfirm("Переразместить раздачу","Раздачу создали для другой сети. Зрители этой камеры переподключатся.","","Переразместить",()=>{
+    API.put(`/devices/${v.id}/live`,{network:v.net}).then(()=>{if(lv===v)liveStart()}).catch(e=>{if(lv===v)liveRefuse(v,problemText(e,find(v.id)?.n))});
   });
 }
+window.addEventListener("pagehide",()=>{if(lv?.sess)liveHangUp(lv,lv.sess,true)});
 // Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт
 function recTargetCardHtml(n){
   if(n.type!=="camera"||!can("putRecordingTarget")||serverPinned(n))return"";
@@ -9076,15 +9283,26 @@ function recTargetSet(id,serverId){
   const n=find(id)?.n;
   API.put(`/devices/${id}/recording-target`,{serverId:serverId||null,copies:n?.recordingTarget?.copies||1}).then(r=>{hwApplyDevice(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
-// Кадр-заглушка: улица и здание. Над ним рисуются зоны детекторов
+// Кадр-заглушка: улица и здание. Только там, где адреса нет и нечего показать: без него зону всё равно надо рисовать
 function liveSceneSvg(){
   return`<svg class="live-scene" viewBox="0 0 160 90" preserveAspectRatio="none" aria-hidden="true"><rect width="160" height="50" fill="#2c3a4d"/><rect y="50" width="160" height="40" fill="#39424e"/><rect x="18" y="22" width="52" height="34" fill="#4a5a70"/><rect x="26" y="30" width="10" height="10" fill="#8fa4bd"/><rect x="44" y="30" width="10" height="10" fill="#8fa4bd"/><rect x="104" y="30" width="30" height="26" fill="#55657c"/><path d="M0 76 L160 62" stroke="#c8ced6" stroke-width=".8" stroke-dasharray="6 5"/></svg>`;
 }
+function liveActsHtml(){
+  return`<span class="live-acts"><button type="button" class="btn s" data-live-move hidden ${onEv("click",["liveMove"])}>${i18n("Переразместить")}</button><button type="button" class="btn s" data-live-open hidden ${onEv("click",["liveOpen"])}>${i18n("Открыть")}</button></span>`;
+}
+// Рамка настройки: видео включается само, поверх рисуются зоны; кадр растянут, зона — в долях кадра
 function liveFrameHtml(n,inner=""){
-  liveEnsure(n);
-  const s=liveSessions.get(n?.id),off=n?.online===false;
-  const note=off?i18n("Камера без связи"):!can("startLive")?i18n("Живое видео недоступно"):s?.error||(s&&!s.busy?i18n("Кадр-заглушка: встроенный сервер видео не отдаёт"):i18n("Подключаемся…"));
-  return`<div class="vid live-frame" data-live="${escHtml(n?.id||"")}">${off?"":liveSceneSvg()}${inner}<span class="live-note">${escHtml(note)}</span></div>`;
+  const off=n?.online===false;
+  return`<div class="vid live-frame" data-live="${escHtml(n?.id||"")}" ${off?"":"data-live-auto=\"1\""}>${off?"":liveSceneSvg()}${inner}<span class="live-note"></span>${liveActsHtml()}</div>`;
+}
+// Закладка «Просмотр»: одна камера, старт и стоп рукой. Выбор потока и сети не хранится
+function camViewHtml(n){
+  const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
+  return card("Просмотр",`<div class="vid live-frame live-view" data-live="${escHtml(n.id)}" data-live-view="1"><span class="live-note"></span>${liveActsHtml()}</div>
+    <div class="live-row"><button type="button" class="btn s pri" data-live-go ${onEv("click",["liveToggle"])}>${i18n("Смотреть")}</button>
+      <label>${i18n("Поток")} <select data-live-stream ${onEv("change",["liveStreamSet",onEv.value])}><option value="">${i18n("Под размер окна")}</option>${streams}</select></label>
+      <label>${i18n("Сеть")} <select data-live-net ${onEv("change",["liveNetSet",onEv.value])}><option value="local">${i18n("Из локальной сети")}</option><option value="outside">${i18n("Извне")}</option></select></label>
+      <span class="sub" data-live-state role="status" aria-live="polite"></span></div>`);
 }
 // Потоки камеры: первый — основной, Device.res и Device.fps — это он
 function camStreams(n){return n?.streams?.length?n.streams:[{id:"main",name:"Основной"}]}
@@ -9543,6 +9761,7 @@ function formBase(n){
     <p class="sub">Системный объект сервера. Вызывается из правил автоматизации для SMS-оповещений.</p>`);
   if(n.type==="camera"){
     const a=arch.find(x=>x.id===n.arch)||null;
+    if(tab==="view")return camViewHtml(n);
     if(tab==="vid")return camVideoHtml(n);
     if(tab==="det")return camDetectorsHtml(n);
     if(tab==="io")return periphCardHtml(n);

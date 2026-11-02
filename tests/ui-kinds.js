@@ -45,8 +45,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const video = of("camera", (d) => d.resOptions && d.online);
   open(video.id, "vid");
   ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "SELECT" && !/H\.265|4096|Битрейт/.test(main().textContent), "разрешение — выбор из resOptions, H.265 и битрейта нет");
-  ok(await until(() => liveSessions.get(video.id)?.whepUrl), "живое видео запрошено через POST /devices/{id}/live");
-  ok(await until(() => /Кадр-заглушка/.test(main().textContent)), "вместо видео — кадр-заглушка");
+  ok(await until(() => lv?.id === video.id && lv.sess?.door.whepUrl, 60000), "живое видео запрошено через POST /devices/{id}/live, сессия у шлюза");
+  ok(await until(() => /настоящего видео на стенде нет/.test(main().textContent)), "подпись: подставной поток");
   const free = of("camera", (d) => !d.resOptions && !d.parentId);
   open(free.id, "vid");
   ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "INPUT", "нет вариантов — ввод руками");

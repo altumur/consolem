@@ -36,6 +36,7 @@ SCRIPTS = {
     "assets/i18n-en.js": ("i18n-en.js", "английские подписи интерфейса"),
     "api/openapi.js": ("openapi.js", "контракт API: интерфейс берёт из него, какие поля записи можно менять и какую операцию требует каждая кнопка"),
     "api/client.js": ("client.js", "клиент API: запросы, If-Match, поток событий SSE, 401 → вход"),
+    "api/whep-stub.js": ("whep-stub.js", "подставной WHEP стенда: отвечает только на адрес stub://, настоящий бэкенд такого адреса не выдаёт"),
     # только для макета: встроенный тестовый сервер и его данные
     "api/fixture.js": None,
     "api/contract.js": None,
@@ -135,7 +136,7 @@ def build(out):
 
     if os.path.isdir(out):
         shutil.rmtree(out)
-    order = ["index.html", "app.js", "app.css", "client.js", "openapi.js", "i18n-en.js"] + sorted(n for n in files if n.startswith("fonts/"))
+    order = ["index.html", "app.js", "app.css", "client.js", "whep-stub.js", "openapi.js", "i18n-en.js"] + sorted(n for n in files if n.startswith("fonts/"))
     assert sorted(order) == sorted(files), (order, sorted(files))
     manifest = []
     for name in order:

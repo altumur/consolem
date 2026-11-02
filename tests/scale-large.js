@@ -40,6 +40,15 @@ UiCheck(async ({ ok, until }) => {
   ok(/Загрузка/.test(document.getElementById("main").textContent), "карточка — короткая загрузка");
   ok(await until(() => !c._row && sel === c.id), "полная запись дочитана");
   ok(!/^r\d+$/.test(hwVer.get(c.id)), "версия полной записи — Device.version");
+  // Закладка «Просмотр»: только эта камера, ни одного перечня
+  mark = trace.length;
+  goTab("view");
+  liveStart();
+  ok(await until(() => lv?.sess, 60000), "«Просмотр»: сессия на большом домене");
+  const viewReads = trace.slice(mark).filter((x) => x.path.split("?")[0] !== `/devices/${c.id}/live`);
+  ok(trace.length - mark === 1 && !viewReads.length, `«Просмотр»: только POST /live, запросов ${trace.length - mark}: ` + viewReads.map((x) => x.path).join(" "));
+  liveStop();
+  goTab("gen");
   // Группа «Без записи»: виртуальная, отбор волнами, число только по загруженному
   mark = trace.length;
   const nr = norecId(d.id);
