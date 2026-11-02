@@ -567,6 +567,9 @@ window.I18N_EN={
 "запись не ведётся: проверять нечего":"nothing is recorded: nothing to check",
 "с до":"s before",
 "с после":"s after",
+"Нет права на то, что называет правило":"No right to what the rule names",
+"Система этого не исполняет":"The system does not perform this",
+"нет права у роли":"the role has no right",
 "Поля события":"Event fields",
 "Поля события, JSON":"Event fields, JSON",
 "Нужен объект JSON: {\"поле\": значение}":"A JSON object is needed: {\"field\": value}"

@@ -2547,7 +2547,7 @@ function problemText(e,n){
     SELF_LOCKOUT:i18n("Изменение оставит систему без администратора или лишит вас входа"),
     PASSWORD_NOT_ADMIN:i18n("Пароль этому пользователю задал не администратор: сначала смените его"),
     PASSWORD_POLICY:i18n("Пароль не подходит по политике"),
-    PERMISSION_DENIED:i18n("Нет прав на это действие"),
+    PERMISSION_DENIED:e?.problem?.params?.target?`${i18n("Нет права на то, что называет правило")}: «${locName(find(e.problem.params.target.id)?.n||{name:e.problem.params.target.id})}»`:i18n("Нет прав на это действие"),
     BUILTIN:i18n("Встроенное не меняется"),
     PARENT_MISMATCH:i18n("Родительский объект — в другом домене"),
     CONNECTION_FAILED:i18n("Не удалось подключиться"),
@@ -2556,7 +2556,7 @@ function problemText(e,n){
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
     NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("откатить можно только последнюю операцию"):i18n("откатить нельзя: срок вышел или уже откачено"),
-    NOT_SUPPORTED:i18n("этого не вернуть"),
+    NOT_SUPPORTED:e?.problem?.params?.issue?i18n("Система этого не исполняет"):i18n("этого не вернуть"),
   }[code]||(e?.status===0||!code?i18n("сервер не ответил"):`${i18n("ошибка")}: ${code}`);
 }
 // ── Модель w2c ─────────────────────────────────────────────────────────────
@@ -3193,6 +3193,7 @@ function fireWhy(m,ctx){
   const p=m.params||{},nm=id=>locName(fireDev(id))||id;
   if(STEP_WHY[m.code])return i18n(STEP_WHY[m.code]);
   if(m.code==="device.offline")return`${nm(p.deviceId)}: ${i18n("без связи")}`;
+  if(m.code==="role.denied")return`${nm(p.deviceId)}: ${i18n("нет права у роли")} «${ruleRoleName(p.roleId)}»`;
   if(m.code==="device.ruleOff"){const r=rules.find(x=>x.id===p.ruleId);return`${nm(p.deviceId)}: ${i18n("выключена правилом")}${r?` «${r.name}»`:""}`}
   if(m.code==="device.disabled")return`${nm(p.deviceId)}: ${i18n("выключено")}`;
   const t=p.ruleId&&rules.find(x=>x.id===p.ruleId);

@@ -1042,8 +1042,20 @@
       const walk = (l) => l.some((a) => (a.action === "output" && a.port != null && off(a.target, a.port)) || walk(a.yes || []) || walk(a.no || []));
       return walk(c.steps) ? "action.portMismatch" : null;
     }
+    // Живые роли человека: личные и через группы
+    function myRoleIds() {
+      const a = db.access, t = today(), live = (until) => !until || until >= t, u = a.users.find((x) => x.id === me);
+      if (!u) return [];
+      return [...new Set([...u.roleIds.filter((r) => live(u.roleUntil[r])), ...a.groups.filter((g) => g.memberIds.includes(me) && live(g.rolesUntil)).flatMap((g) => g.roleIds)])];
+    }
+    // Автор отвечает за всё, что правило называет: иначе правило стало бы способом командовать чужой камерой
+    function ruleRightProblem(c) {
+      const bad = engine.forbidden(c, myRoleIds());
+      return bad ? problem(403, "PERMISSION_DENIED", "Нет права на то, что называет правило", { params: { target: { kind: bad.kind, id: bad.id } } }) : null;
+    }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
+      if (c.runAsRoleId && !db.access.roles.some((x) => x.id === c.runAsRoleId)) return problem(422, "VALIDATION_FAILED", `Роли ${c.runAsRoleId} нет`, { field: "runAsRoleId" });
       const door = doorRelayIssue(c);
       if (door) return door;
       const port = portIssue(c);
@@ -2273,7 +2285,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p, q, body, headers) => {
           const r = byId("rules", p.id);
           if (!r) return notFound("Правило");
-          const bad = precondition(r, headers) || ruleProblem(body);
+          const bad = precondition(r, headers) || ruleRightProblem(body) || ruleProblem(body);
           if (bad) return bad;
           const was = ruleMeta(r);
           RULE_CONTENT.forEach((k) => (r[k] = clone(body[k])));
@@ -2391,7 +2403,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "POST",
         "/rules",
         (p, q, body) => {
-          const bad = ruleProblem(body);
+          const bad = ruleRightProblem(body) || ruleProblem(body);
           if (bad) return bad;
           const at = iso(now());
           const r = Object.assign({ id: uuid("rule") }, content(body), { createdAt: at, createdBy: myLogin(), changedAt: at, changedBy: myLogin(), mute: null,

@@ -354,6 +354,57 @@
     // Есть ли что проверять: у камеры есть запись, если названо хранилище — в нём
     const hasRecord = (n, archive) => (archive ? [n.archiveId, ...(n.extraArchives || []).map((x) => x.archiveId)].includes(archive) : !!n.archiveId || !!(n.extraArchives || []).length);
 
+    /* ===== Права ===== */
+
+    // Какой уровень даёт право на устройство: вид уровня и значения (reference.access.levels)
+    const COMMAND = { camera: ["cam", "dCam", ["FULL"]], eventsrc: ["cam", "dCam", ["FULL"]], sensor: ["sens", "dSens", ["MANAGE"]], relay: ["relay", "dRelay", ["MANAGE"]],
+      acfa_sensor: ["acfa", "dAcfa", ["MANAGE", "CONF"]], acfa_lock: ["acfa", "dAcfa", ["MANAGE", "CONF"]], acfa_fence: ["acfa", "dAcfa", ["MANAGE", "CONF"]] };
+    const roleById = (id) => world.roles().find((x) => x.id === id) || null;
+    // Права роли на устройство: запись самого устройства, папки над ним, домен, умолчание роли. Встроенная «Администратор» — всё
+    function roleAllows(id, n) {
+      const role = roleById(id);
+      if (!role) return false;
+      if (role.global.unr) return true;
+      const need = COMMAND[n.type];
+      if (!need) return true;
+      const [field, def, levels] = need, own = (role.objectAccess[n.id] || {})[field];
+      if (own) return levels.includes(own);
+      const inFolders = world.folders().filter((f) => f.deviceIds.includes(n.id)).flatMap((f) => folderChain(f)).map((f) => (role.folderAccess[f.id] || {})[field]).filter(Boolean);
+      if (inFolders.length) return inFolders.some((x) => levels.includes(x));
+      return levels.includes((role.folderAccess[n.domainId] || {})[field] || role.global[def]);
+    }
+    function folderChain(f) {
+      const out = [];
+      for (let x = f; x; x = x.parentId ? world.folders().find((y) => y.id === x.parentId) : null) out.push(x);
+      return out;
+    }
+    // Права роли на область: папка и домен — своя запись или умолчание роли, сервер — только умолчание
+    function roleAllowsArea(id, x) {
+      const role = roleById(id);
+      if (!role) return false;
+      if (role.global.unr) return true;
+      const cam = x.kind === "server" ? null : (role.folderAccess[x.id] || {}).cam;
+      return (cam || role.global.dCam) === "FULL";
+    }
+    // Что правило называет: элементы include событий, шагов и ожидаемых событий. Условия и exclude — нет
+    function named(r) {
+      const out = [], add = (t) => t && t.include.forEach((x) => out.push(x));
+      r.triggers.forEach((t) => add(t.target));
+      items(r).forEach(({ it }) => {
+        add(it.target);
+        if (it.event) add(it.event.target);
+      });
+      return out;
+    }
+    // Первое, на что ни у одной из ролей нет права, или null
+    function forbidden(r, roleIds) {
+      return named(r).find((x) => {
+        if (x.kind !== "device") return !roleIds.some((id) => roleAllowsArea(id, x));
+        const n = devById(x.id);
+        return !!n && !roleIds.some((id) => roleAllows(id, n));
+      }) || null;
+    }
+
     /* ===== Проверка правила ===== */
 
     const ruleById = (id) => world.rules().find((r) => r.id === id) || null;
@@ -664,7 +715,7 @@
           if (!k.deviceTypes.length) return mk(null, null);
           return mk(single(a.target) ? single(a.target).id : null, msg(!a.target ? "target.none" : a.target.fromEvent ? "target.noEventDevice" : isGroup(a.target) ? "target.areaEmpty" : "target.deviceGone"));
         }
-        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now) || (a.action === "scan" && !hasRecord(n, a.archive) ? msg("target.noRecord", { deviceId: n.id }) : null) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
+        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now) || (a.action === "scan" && !hasRecord(n, a.archive) ? msg("target.noRecord", { deviceId: n.id }) : null) || (r.runAsRoleId && !roleAllows(r.runAsRoleId, n) ? msg("role.denied", { roleId: r.runAsRoleId, deviceId: n.id }) : null) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
       });
       walk(r.steps, [], 0);
       return out;
@@ -732,7 +783,7 @@
       return unchecked.length ? { state: "unchecked", reason: [...new Set(unchecked)].join("; ") } : { state: "watching", reason: "" };
     }
 
-    return { fire, retry, retryable, issue, undeclared, status, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    return { fire, retry, retryable, issue, undeclared, status, forbidden, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
   // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние

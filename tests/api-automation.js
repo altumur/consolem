@@ -181,5 +181,65 @@
     assert.eq([f.steps[0].state, f.steps[0].reason.code, f.result], ["fail", "target.noRecord", "fail"], "шаг");
   });
 
+  /* ----- Цели и права ----- */
+
+  const roleOf = (fn) => FX.access.roles.find(fn);
+  const guard = FX.access.users.find((u) => u.login === "olga"), guardRole = guard.roleIds[0];
+
+  test("Цели: новое устройство в области входит в правило само, новой версии нет", async () => {
+    const f = FX.folders.find((x) => x.deviceIds.some((id) => (FX.devices.find((d) => d.id === id) || {}).type === "camera"));
+    const other = FX.devices.find((d) => d.type === "camera" && d.domainId === f.domainId && !f.deviceIds.includes(d.id));
+    if (!other) return;
+    const env = await makeEnv();
+    const area = { include: [{ kind: "folder", id: f.id }], exclude: [], gone: [], fromEvent: false };
+    const made = await env.ok("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: area })] }));
+    const n0 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
+    const folder = await env.ok("GET", `/folders/${f.id}`);
+    await env.ok("PATCH", `/folders/${f.id}`, { deviceIds: folder.deviceIds.concat(other.id) }, etag(folder));
+    const n1 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
+    assert.eq([n1, (await env.ok("GET", `/rules/${made.id}`)).version], [n0 + 1, made.version], "шаг на новую камеру, версия та же");
+  });
+
+  test("Права: автор отвечает за всё, что называет правило; нет права — 403, ничего не записано", async () => {
+    const env = await makeEnv({ actAs: guard.login });
+    const before = (await env.list("/rules")).length;
+    const bad = await env.call("POST", "/rules", blank());
+    assert.status(bad, 403, "PERMISSION_DENIED");
+    assert.eq(bad.body.params.target, { kind: "device", id: cam.id }, "что именно");
+    assert.eq((await env.list("/rules")).length, before, "не записано");
+    const dom = await env.call("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: { include: [{ kind: "domain", id: FX.domains[0].id }], exclude: [], gone: [], fromEvent: false } })] }));
+    assert.status(dom, 403, "PERMISSION_DENIED", "весь домен — нужно право на всё");
+    const r = FX.rules.find((x) => x.name === "Охрана входа ночью");
+    assert.status(await env.call("PUT", `/rules/${r.id}`, body(r, { name: "Чужое" }), etag(r)), 403, "PERMISSION_DENIED", "правка правила с чужой камерой");
+    const tr = { source: "det", kind: "motion", target: dev(cam.id), match: {} };
+    assert.status(await env.call("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] })), 403, "PERMISSION_DENIED", "и у выключенного, и в событии");
+  });
+
+  test("Права: своё право годится, умолчание роли и точечное исключение", async () => {
+    const own = roleOf((x) => x.id === guardRole);
+    const id = Object.keys(own.objectAccess).find((k) => (own.objectAccess[k].cam === "FULL") && FX.devices.some((d) => d.id === k && d.type === "camera"));
+    if (!id) return;
+    const env = await makeEnv({ actAs: guard.login });
+    const res = await env.call("POST", "/rules", blank({ enabled: false, steps: [Object.assign({}, step, { target: dev(id) })] }));
+    assert.status(res, 201, null, "камера, где у роли FULL");
+  });
+
+  test("Права: роль запуска ограничивает выполнение; автор выбирает любую роль; нет роли — 422", async () => {
+    const env = await makeEnv();
+    const weak = roleOf((x) => !x.global.unr && x.global.dCam === "MON" && !x.objectAccess[cam.id]);
+    const c2 = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !FX.folders.some((f) => f.deviceIds.includes(d.id) && weak.folderAccess[f.id]) );
+    if (!c2) return;
+    const s = Object.assign({}, step, { target: dev(c2.id) });
+    const free = await env.ok("POST", "/rules", blank({ steps: [s] }));
+    assert.eq((await env.ok("POST", `/rules/${free.id}/run`, { idempotencyKey: ApiTest.key() })).steps[0].state, "ok", "от имени системы — без ограничений");
+    const made = await env.ok("POST", "/rules", blank({ runAsRoleId: weak.id, steps: [s] }));
+    assert.eq(made.runAsRoleId, weak.id, "роль, которой у автора нет, выбрать можно");
+    const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
+    assert.eq([f.steps[0].state, f.steps[0].reason.code, f.steps[0].reason.params.roleId], ["fail", "role.denied", weak.id], "у роли нет права — шаг не выполнен");
+    const none = await env.call("POST", "/rules", blank({ runAsRoleId: "80000099-0000-4000-8000-000000000000" }));
+    assert.status(none, 422, "VALIDATION_FAILED");
+    assert.eq(none.body.field, "runAsRoleId", "поле");
+  });
+
   ApiTest.loaded("api-automation.js");
 })();

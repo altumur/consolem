@@ -71,6 +71,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const dsaved = await API.get("/rules/" + rules.find((x) => x.name === "Детектор из сценария").id);
   ok(dsaved.steps[0].source === "det" && dsaved.steps[1].afterSec === 90 && dsaved.steps[1].beforeSec === 30, "на сервере: " + JSON.stringify(dsaved.steps[1]));
 
+  // Отказы сервера словами: чужое устройство называется по имени
+  ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { kind: "device", id: CAM } } } })), "403 правила называет устройство");
+  ok(/не исполняет/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { issue: { code: "action.notDeclared", params: {} } } } })), "422 вне каталога — своими словами");
+
   // Новое правило: до «Применить» — только у клиента, после — POST, id от сервера
   ruleNewOpen();rnw.tpl = "";ruleNewCreate();
   const tmp = ruleDraft && ruleDraft.id;
