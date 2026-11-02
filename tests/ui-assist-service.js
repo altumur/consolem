@@ -50,6 +50,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstApply")), "без адреса отвечает заглушка");
   ok(!calls.length, "без адреса служба не вызывается");
   ok(!document.querySelector('meta[name="consolem-assist"]'), "в странице метки нет");
+  ok(!!document.querySelector('meta[name="consolem-assist-public"]') && (location.hostname === "altumur.github.io" || !asstServiceUrl()), "метка демо-страницы действует только на её адресе");
   document.head.appendChild(meta);
 
   // Со стендом службы нет: только встроенный сервер

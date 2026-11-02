@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="consolem-assist-public" content="https://cammeta-checks.taile99433.ts.net">
 <title>Конфигуратор</title>
 <style>
 :root{--bg:var(--one-canvas);--p:var(--one-surface);--p2:var(--one-surface-muted);--ln:var(--x-region);--tx:var(--one-fg);--mu:var(--one-fg-muted);--bl:var(--one-accent);--gn:var(--one-success-icon);--rd:var(--one-danger);--pu:var(--one-palette-purple);--ctrl-h:32px}
@@ -20493,7 +20494,8 @@ const ASST_CODE_KEY="consolem-assist-code";
 const ASST_PASS=/парол|секрет|passw|secret/i;
 let asstCodeNow=null,asstCodeWanted=false;
 function asstServiceUrl(){
-  const q=new URLSearchParams(location.search),raw=q.get("assist")||pageMeta("consolem-assist");
+  // consolem-assist-public — служба только этой демо-страницы: тесты, стенды и чужие копии в неё не ходят
+  const q=new URLSearchParams(location.search),raw=q.get("assist")||pageMeta("consolem-assist")||(location.hostname==="altumur.github.io"?pageMeta("consolem-assist-public"):"");
   if(!raw||q.get("api")||pageMeta("consolem-api"))return"";
   try{const u=new URL(raw);return/^https?:$/.test(u.protocol)?u.href.replace(/\/+$/,""):""}catch(e){return""}
 }
