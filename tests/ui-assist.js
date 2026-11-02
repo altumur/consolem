@@ -5,6 +5,7 @@ UiCheck(async ({ ok, until }) => {
   inp.value = "выключи запись Главный вход";
   goInput(inp.value);
   ok(document.getElementById("goAsk") && !/Ничего не найдено/.test(document.getElementById("gopop").textContent), "вместо «Ничего не найдено» — кнопка ассистента");
+  ok(document.getElementById("goAsk").textContent === "Новый запрос ассистенту" && document.getElementById("goAsk").hasAttribute("data-empty"), "«Новый запрос ассистенту», поиск ничего не нашёл");
   asstFromSearch();
   ok(await until(() => document.getElementById("asstApply")), "из поиска — сразу план");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
@@ -290,7 +291,7 @@ UiCheck(async ({ ok, until }) => {
   typeF("и Переговорная");
   key(field(), "Enter");
   ok(asst.busy && !asst.plan && !document.getElementById("asstApply"), "идёт ход: плана и «Применить» нет");
-  ok(document.querySelector("[data-asst-dropped]"), "в разговоре видно, что план снят");
+  ok(document.querySelectorAll("#asstBlock .asst-said").length === 1 && document.querySelector("#asstBlock .asst-said").textContent === "› и Переговорная", "из разговора видна только последняя просьба");
   ok(said[1].context === planContext && said[1].text === "и Переговорная", "ход с context плана");
   ok(await until(() => document.getElementById("asstApply")), "новый план");
   ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
@@ -298,7 +299,7 @@ UiCheck(async ({ ok, until }) => {
   say("поменяй маску сети");
   ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
   ok(!asst.plan && !document.getElementById("asstApply"), "отказ: прежний план не вернулся");
-  ok(document.querySelectorAll("[data-asst-dropped]").length === 2, "оба снятия в разговоре");
+  ok(document.querySelector("#asstBlock .asst-said").textContent === "› поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "видна последняя просьба, снятия планов не показаны");
   goClose();
   asstOpen("");
   typed("включи запись Главный вход");
@@ -367,13 +368,19 @@ UiCheck(async ({ ok, until }) => {
   typeQ("");
   goNav = false;
   // Enter в строке поиска, когда нашлось, — фильтр, как раньше: ассистенту не уходит, план на месте
+  // Нашлось: «Новый запрос ассистенту» есть, над диалогом, но Enter — фильтр, как раньше: ассистенту не уходит, план на месте
   typeQ("вход");
-  ok(!document.getElementById("goAsk"), "нашлось — кнопки ассистента нет");
+  const askBtn = () => document.getElementById("goAsk");
+  ok(askBtn() && !askBtn().hasAttribute("data-empty") && askBtn().textContent === "Новый запрос ассистенту", "нашлось — кнопка ассистента есть");
+  ok(askBtn().compareDocumentPosition(blockEl) & Node.DOCUMENT_POSITION_FOLLOWING, "кнопка над окном ассистента");
+  ok(blockEl.compareDocumentPosition(listEl) & Node.DOCUMENT_POSITION_FOLLOWING && /В дереве|Не в дереве/.test(listEl.textContent), "под окном — результаты поиска");
+  ok(askBtn().getBoundingClientRect().bottom <= blockEl.getBoundingClientRect().top + 1 && askBtn().getBoundingClientRect().height > 0, "на экране кнопка выше диалога");
   enter();
   ok(!popOpen() && asst === talkId && asst.plan && !asst.busy && treeQ === "вход", "Enter при найденном — фильтр, план на месте");
   clearTreeQ();
   press(inp);
   ok(seeing() && document.getElementById("asstApply"), "панель вернулась с планом");
+  ok(!askBtn(), "пустая строка — кнопки ассистента нет");
 
   // Просьба из строки поиска — новый разговор: context, план и секреты забыты
   const sent = [];
@@ -390,7 +397,7 @@ UiCheck(async ({ ok, until }) => {
   enter();
   ok(asst && asst !== talking && talking.secrets.length === 0 && !asst.secrets.length && !asst.plan, "Enter в строке поиска — новый разговор: план и секреты забыты");
   ok(sent.length === 1 && sent[0].text === "абырвалг которого нет" && !("context" in sent[0]) && !("secrets" in sent[0]), "ход без прежнего context и секретов");
-  ok(asst.said.length === 1 && !document.querySelector("[data-asst-dropped]") && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
+  ok(asst.said.length === 1 && document.querySelector("#asstBlock .asst-said").textContent === "› абырвалг которого нет" && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
   ok(await until(() => !asst.busy), "ход кончился");
   // Идущий ход снимается: новая просьба мышью по кнопке поиска
   say("выключи запись");
@@ -400,6 +407,13 @@ UiCheck(async ({ ok, until }) => {
   mouse(document.getElementById("goAsk"));
   ok(sig.aborted && asst !== busyTalk && asst.said.join() === "абырвалг ещё раз", "кнопка поиска: идущий ход снят, разговор новый");
   ok(await until(() => !asst.busy), "новый ход кончился");
+  // Кнопка и при найденном: мышью — новый разговор с набранным, хотя поиск что-то нашёл
+  const before2 = asst;
+  typeQ("вход");
+  ok(askBtn() && !askBtn().hasAttribute("data-empty"), "нашлось, кнопка есть");
+  mouse(askBtn());
+  ok(asst !== before2 && asst.said.join() === "вход" && inp.value === "" && treeQ === "", "кнопка при найденном мышью — новый разговор, строка очищена");
+  ok(await until(() => !asst.busy), "ход кончился");
   API.stream = stream;
   goClose();
 

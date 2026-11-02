@@ -74,8 +74,8 @@ UiCheck(async ({ ok, until }) => {
 
   // Адрес есть: сразу служба, поля кода нет, заголовка нет
   open();
-  ok(mode() === "on" && !el("asstCode") && !el("asstCodeForget"), "адрес задан — служба, поля кода нет");
-  ok(/Отвечает модель/.test(text()), "видно словами, кто отвечает");
+  ok(asstMode(asst) === "on" && !el("asstCode") && !el("asstCodeForget"), "адрес задан — служба, поля кода нет");
+  ok(!el("asstSvc") && !/Отвечает модель/.test(text()), "отвечает модель — обычный случай, отдельной строки нет");
   answer = sse({ type: "progress", text: "читаю систему" }, { type: "question", text: "На какой камере?", context: "b1:открыта" });
   say("выключи запись");
   ok(await until(() => el("asstAsk")), "служба ответила без кода");
@@ -190,7 +190,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => calls.length === nRef + 1), "уточнение ушло");
   ok(calls[nRef].body.context === "b1:первый" && calls[nRef].body.world, "context плана и снимок");
   ok(!el("asstApply") && !asst.plan && el("asstCancel"), "пока идёт ход, «Применить» нет");
-  ok(el("gopop").querySelector("[data-asst-dropped]"), "план снят, это видно");
+  ok(el("gopop").querySelector(".asst-said")?.textContent === "› и Запасной вход", "видна последняя просьба");
   last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "уточнение" }] }] });
   ok(await until(() => el("asstApply") && /уточнение/.test(text())), "новый план целиком");
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:вопрос2" });
