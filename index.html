@@ -1311,6 +1311,7 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gopop.open{display:block}
 .gopop.asst{padding:10px;z-index:19}
 .asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
+.asst-said .asst-dropped{font-style:italic}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
 .asst-msg.err{color:var(--one-danger)}
@@ -20704,10 +20705,12 @@ function asstRulesViews(rows){
   try{rows.forEach(e=>{e.view=asstRuleView(e,rows)})}finally{tmp.forEach(n=>SCHEDS.splice(SCHEDS.indexOf(n),1))}
 }
 async function asstRulesLoad(a,m){
+  // План уже уточняют: старое чтение его не вернёт
+  const turn=a.abort;
   a.line=i18n("читаю, что есть сейчас…");asstRender();
   const rows=await Promise.all(m.rules.map(e=>e.op!=="update"?{...e}:e.table!=="scenarios"?{...e,read:null,readWhy:i18n(ASST_ONLY_NEW)}
     :API.get(`/rules/${e.id}`).then(read=>({...e,read}),x=>({...e,read:null,readWhy:problemText(x)}))));
-  if(asst!==a)return;
+  if(asst!==a||a.abort!==turn)return;
   asstRulesViews(rows);
   a.plan={...m,rules:rows};a.line="";asstRender();
 }
@@ -20752,7 +20755,7 @@ function asstRender(){
   const act=document.activeElement,keep=act?.id,mine=!act||act===document.body||!!act.closest("#gojump"),mode=asstMode(a);
   pop.innerHTML=[
     asstSvcHtml(a,mode),
-    a.said.length?`<div class="asst-said">${a.said.map(t=>`<div>› ${escHtml(t)}</div>`).join("")}</div>`:"",
+    a.said.length?`<div class="asst-said">${a.said.map(t=>typeof t==="string"?`<div>› ${escHtml(t)}</div>`:`<div class="asst-dropped" data-asst-dropped="1">${escHtml(t.note)}</div>`).join("")}</div>`:"",
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
@@ -20760,7 +20763,7 @@ function asstRender(){
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
     a.plan?(a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)):"",
     a.result?asstResultHtml(a.result):"",
-    a.plan?"":`<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
+    `<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
     `<div class="asst-act"><button type="button" class="btn s" id="asstClose" ${onEv("click",["goClose"])}>${i18n("Закрыть")}</button>`,
     a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
@@ -20769,7 +20772,7 @@ function asstRender(){
     a.down&&!a.busy?`<button type="button" class="btn s" id="asstToStub" ${onEv("click",["asstToStub"])}>${i18n("Работать с заглушкой")}</button>`:"",
     a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
     a.result?.undo?`<button type="button" class="btn s" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
-    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
+    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSend"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
       :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSend"])}>${i18n("Отправить")}</button>`,
     `</div>`
   ].join("");
@@ -20802,7 +20805,7 @@ function asstEvent(a,m){
   asstRender();
 }
 function asstSend(again){
-  const a=asst;if(!a||a.busy)return;
+  const a=asst;if(!a||a.busy||a.saving)return;
   const text=(again||a.text).trim();
   if(!text){toast("Напишите просьбу");return}
   const live=asstMode(a)==="on";
@@ -20813,7 +20816,9 @@ function asstSend(again){
   if(app==="rules")body.kind="rules";
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
-  Object.assign(a,{said:a.said.concat(text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
+  const dropped=a.plan?[{note:i18n("План снят")}]:[];
+  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
     .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
@@ -20824,7 +20829,10 @@ function asstDecline(){if(asst){asst.plan=null;asstRender()}}
 function asstApply(){
   const a=asst,p=a?.plan;if(!p)return;
   if(p.rules){asstRulesApply(a,p);return}
+  if(a.saving)return;
+  a.saving=true;asstRender();
   API.post("/devices/update",{idempotencyKey:opKey(),items:p.items.map(({deviceId,version,set})=>({deviceId,version,set}))}).then(res=>{
+    a.saving=false;
     if(asst!==a)return;
     const why=new Map(res.failed.map(f=>[f.deviceId,f.code]));
     const rows=p.items.map(x=>({name:x.name,ok:!why.has(x.deviceId),why:why.has(x.deviceId)?problemText(why.get(x.deviceId)):""}));
@@ -20837,7 +20845,11 @@ function asstApply(){
       asstRender();
     });
     asstRender();
-  }).catch(e=>toast(problemText(e)));
+  }).catch(e=>{
+    a.saving=false;
+    if(asst===a)asstRender();
+    toast(problemText(e));
+  });
 }
 function asstUndo(){
   const a=asst,id=a?.result?.undo;if(!id)return;

@@ -675,6 +675,8 @@ window.I18N_EN={
 "Отвечает модель. Просьба и снимок демо-данных уходят в службу, пароли — нет":"The model is answering. The request and a snapshot of the demo data go to the service, passwords do not",
 "ч":"h",
 "Код доступа":"Access code",
+"Уточнить":"Refine",
+"План снят":"Plan withdrawn",
 "Служба просит код доступа. Пока кода нет, отвечает заглушка":"The service asks for an access code. Until there is one, a stub is answering",
 "Подключить":"Connect",
 "Забыть код":"Forget code",

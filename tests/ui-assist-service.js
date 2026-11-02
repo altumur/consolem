@@ -141,6 +141,26 @@ UiCheck(async ({ ok, until }) => {
   await API.patch(`/devices/${cam.id}`, { recordMode: cam.recordMode }, made.version);
   ok(calls.length === 1, "запись не ходит в службу");
 
+  // Уточнить план через службу: тот же ход, context плана, снимок свежий, план снят и не возвращается
+  open();
+  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:первый", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
+  say("выключи запись Главный вход");
+  ok(await until(() => el("asstApply")), "план службы для уточнения");
+  ok(el("asstText").placeholder === "Уточнить", "поле под планом");
+  const nRef = calls.length;
+  answer = hold({ type: "progress", text: "читаю систему" });
+  say("и Запасной вход");
+  ok(await until(() => calls.length === nRef + 1), "уточнение ушло");
+  ok(calls[nRef].body.context === "b1:первый" && calls[nRef].body.world, "context плана и снимок");
+  ok(!el("asstApply") && !asst.plan && el("asstCancel"), "пока идёт ход, «Применить» нет");
+  ok(el("gopop").querySelector("[data-asst-dropped]"), "план снят, это видно");
+  last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "уточнение" }] }] });
+  ok(await until(() => el("asstApply") && /уточнение/.test(text())), "новый план целиком");
+  answer = sse({ type: "question", text: "На какой камере?", context: "b1:вопрос2" });
+  say("и ещё");
+  ok(await until(() => el("asstAsk")), "уточнение кончилось вопросом");
+  ok(!el("asstApply") && !asst.plan, "прежний план не вернулся");
+
   // context — как есть; вид хода — как в форме
   open();
   answer = sse({ type: "progress", text: "читаю систему" }, { type: "question", text: "На какой камере?", context: "b1:вопрос" });
@@ -149,14 +169,14 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "refused", text: "Нельзя.", context: "b1:отказ", field: "netmask" });
   say("Главный вход");
   ok(await until(() => el("asstRefused")), "отказ службы");
-  ok(calls[2].body.context === "b1:вопрос", "context возвращён как есть");
+  ok(calls[calls.length - 1].body.context === "b1:вопрос", "context возвращён как есть");
   close();
   goApp("rules");
   open();
   answer = sse({ type: "question", text: "Какое правило?", context: "c" });
   say("убери условие");
   ok(await until(() => el("asstAsk")), "ход о правилах");
-  ok(calls[3].body.kind === "rules", "kind как у формы");
+  ok(calls[calls.length - 1].body.kind === "rules", "kind как у формы");
   close();
   goApp("hw");
 

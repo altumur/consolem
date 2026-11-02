@@ -240,6 +240,42 @@ UiCheck(async ({ ok, until }) => {
   ok(asst && popOpen(), "мышь внутри окна его не закрывает");
   ok(document.getElementById("asstClose"), "«Закрыть» есть и при итоге");
 
+  // Уточнить план словами: обычный ход с context плана, план снят сразу, новый показан целиком
+  goClose();
+  asstOpen("");
+  const said = [];
+  API.stream = (p, b, ...r) => { said.push(b); return stream(p, b, ...r); };
+  typed("включи запись Главный вход");
+  ok(await until(() => document.getElementById("asstApply")), "план для уточнения");
+  const box = document.getElementById("asstText"), planContext = asst.context;
+  ok(box && box.placeholder === "Уточнить" && document.activeElement === box, "поле под планом, подпись «Уточнить», курсор в нём");
+  ok(!/Секрет/.test(body()), "«Секрет» под планом нет");
+  document.getElementById("asstSend").click();
+  ok(document.getElementById("asstApply"), "пустое уточнение план не снимает");
+  asst.text = "и Переговорная";
+  box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }));
+  ok(asst.busy && !asst.plan && !document.getElementById("asstApply"), "идёт ход: плана и «Применить» нет");
+  ok(document.querySelector("[data-asst-dropped]"), "в разговоре видно, что план снят");
+  ok(said[1].context === planContext && said[1].text === "и Переговорная", "ход с context плана");
+  ok(await until(() => document.getElementById("asstApply")), "новый план");
+  ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
+  ok(document.activeElement === document.getElementById("asstText"), "курсор снова в поле");
+  asst.text = "поменяй маску сети";
+  document.getElementById("asstSend").click();
+  ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
+  ok(!asst.plan && !document.getElementById("asstApply"), "отказ: прежний план не вернулся");
+  ok(document.querySelectorAll("[data-asst-dropped]").length === 2, "оба снятия в разговоре");
+  goClose();
+  asstOpen("");
+  typed("включи запись Главный вход");
+  ok(await until(() => document.getElementById("asstApply")), "снова план");
+  asst.context = null;
+  asst.text = "включи";
+  document.getElementById("asstSend").click();
+  ok(await until(() => document.getElementById("asstAsk")), "уточнение кончилось вопросом");
+  ok(!asst.plan && !document.getElementById("asstApply"), "вопрос: прежний план не вернулся");
+  API.stream = stream;
+
   // Клик мимо панель не закрывает: дерево, карточка, разделы. Закрывают «Закрыть» и Esc
   const seeing = () => asst && popOpen() && document.getElementById("gopop").getBoundingClientRect().height > 0 && document.getElementById("asstText");
   const was = sel, rowEl = [...document.querySelectorAll("#tree .n[data-pick]")].find((x) => x.dataset.pick !== String(sel)), to = rowEl.dataset.pick;
