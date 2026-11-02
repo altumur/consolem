@@ -1,4 +1,9 @@
 window.I18N_EN={
+"Авто":"Auto",
+"При сбое, а без основной записи — постоянно":"On failure; always when there is no main recording",
+"Менять и снимать может администратор камеры":"Only the camera administrator can change or remove this",
+"Скан и обход":"Scan and watch",
+"Скан и обход недоступны: запись этой камеры хранится в другом кластере":"Scan and watch are unavailable: this camera's recording is stored in another cluster",
 "Уменьшить карту":"Shrink card",
 "Сессия истекла — войдите снова":"Session expired — sign in again",
 // Раздел «Автоматизация»: язык сценариев, его поля и его отказы.

@@ -16732,7 +16732,8 @@
     ],
     "admits": true,
     "kind": "edge",
-    "address": "disk"
+    "address": "disk",
+    "archiveModeDefault": "backup"
    },
    {
     "serverRequired": true,

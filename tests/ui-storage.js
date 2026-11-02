@@ -42,6 +42,33 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   cardApply();
   ok(await until(() => bq && bq.finished && a.days === 45), "глубина хранения 45 дней");
   ok((await API.get("/archives/" + a.id)).retentionDays === 45, "на сервере");
+  // Режим карты сервера: вид предлагает значение и оно уходит явно, «Авто» — выбор оператора, поля нет
+  addArchive(srvFree.id);
+  anSet("kind", "edge");
+  const modeSel = () => [...document.querySelectorAll("#bmBody select")].find((x) => [...x.options].some((o) => o.textContent === i18n("Авто")));
+  ok(modeSel()?.value === "backup" && anArchive().recordMode === "backup", "предложено значение вида, уходит явно");
+  anSet("recordMode", "");
+  ok(modeSel()?.value === "" && !("recordMode" in anArchive()), "«Авто»: поля нет");
+  closeBulkModal();
+  an = null;
+  // Карточка архива без поля показывает «Авто», а не первое слово списка
+  const edgeA = arch.find((x) => x.kind === "edge");
+  if (edgeA) {
+    pick(edgeA.id, { force: true });
+    goTab("arch");
+    const sel0 = () => document.querySelector("[data-arch-mode] select");
+    const wasMode = edgeA.recordMode;
+    archSet(edgeA.id, "recordMode", "");
+    ok(!("recordMode" in edgeA) && JSON.stringify(cardApiItems(edgeA, cardDiff())).includes('"recordMode":null'), "вернуться к «Авто»: уходит null");
+    cardRestore();
+    gear();
+    ok(edgeA.recordMode === wasMode, "черновик сброшен");
+    delete edgeA.recordMode;
+    gear();
+    ok(sel0()?.value === "" && sel0().selectedOptions[0].textContent === i18n("Авто"), "без поля — «Авто»");
+    edgeA.recordMode = wasMode;
+    gear();
+  }
   // Проверка подключения: NAS без пользователя — не подключились
   addArchive(srvFree.id);
   anSet("kind", "network");

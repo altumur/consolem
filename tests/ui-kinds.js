@@ -123,6 +123,28 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok((await API.get(`/devices/${cardN.id}`)).sizeBytes < was, "на сервере меньше");
   }
 
+  // Скан и обход: archiveJobs false — кнопок нет, строка вместо них; 403 на правке — понятный отказ, список перечитан
+  const off = devices.find((d) => d.archiveJobs === false);
+  if (off) {
+    open(off.id, "rec");
+    ok(/Скан и обход недоступны/.test(main().textContent) && !main().querySelector("[data-scan-add]") && !main().querySelector("[data-watch-add]"), "вместо кнопок строка");
+    const watchCam = (await API.get("/archive-watches")).items[0];
+    if (watchCam) {
+      open(watchCam.deviceId, "rec");
+      ok(await until(() => rw.loaded && rw.watches.length), "обходы загружены");
+      const realPatch = API.patch;
+      let reloaded = 0;
+      const realGet = API.get;
+      API.patch = () => Promise.reject(Object.assign(new Error("403"), { status: 403, problem: { code: "PERMISSION_DENIED" } }));
+      API.get = (p, ...a) => { if (p === "/archive-watches") reloaded++; return realGet(p, ...a); };
+      rwWatchToggle(watchCam.id);
+      ok(await until(() => reloaded > 0 && /администратор камеры/.test(document.getElementById("tt")?.textContent || "")), "отказ словами, список перечитан");
+      API.patch = realPatch;
+      API.get = realGet;
+      ok(rw.watches[0].enabled === watchCam.enabled, "переключатель прежний");
+    }
+  }
+
   // Пресеты: движение арендой, пресет запоминается, в правиле — выбор из списка
   const ptz = of("camera", (d) => d.ptz && d.presets?.length);
   open(ptz.id, "vid");

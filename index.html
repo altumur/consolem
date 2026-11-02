@@ -2650,6 +2650,11 @@ const ARCH_DESC={local:"Диски сервера: папка на диске и
   backup:"Только для резерва: сюда пишется живой поток, пока основная запись должна идти и не идёт.",edge:"Карта или флеш маленькой коробки. Одна на сервер, сразу работает со всеми его камерами.",incidents:"Для копий отмеченных записей. Камеры сюда не пишут."};
 const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure."};
 const ARCH_MODE_RU={always:"Постоянно",backup:"Только при сбое"};
+// Нет поля — «Авто»: так значит норма, первое слово списка умолчанием не бывает
+const ARCH_AUTO_HINT="При сбое, а без основной записи — постоянно";
+function archModeOpts(spec,cur){return[["","Авто"],...spec.archiveModes.map(m=>[m,ARCH_MODE_RU[m]||m])].map(([v,t])=>`<option value="${v}" ${v?"":`title="${i18n(ARCH_AUTO_HINT)}"`} ${v===cur?"selected":""}>${i18n(t)}</option>`).join("")}
+// При создании: выбор человека, «Авто» — пустая строка; ещё не выбирал — то, что предлагает вид
+function anMode(spec){return an.recordMode??spec.archiveModeDefault??""}
 const CLOUD_PROVIDERS=[["s3","Amazon S3"],["s3c","S3-совместимое"],["minio","MinIO"],["wasabi","Wasabi"],["huawei","Huawei Cloud"],["lyve","Seagate Lyve Cloud"],["azure","Microsoft Azure"]];
 const ARCH_STORAGE=[["block","Блочное"],["object","Объектное"]];
 const VOL_STATES={ready:"Готов",format:"Форматируется",open:"Открывается",off:"Выключен",maint:"Обслуживание",broken:"Нужно форматировать или восстановить",unfmt:"Не отформатирован",error:"Ошибка"};
@@ -3772,7 +3777,7 @@ function cardFmt(k,v){
   if(k==="recordScheduleId")return SCHEDS.find(s=>s.id===v)?.name||String(v);
   if(k==="audioDeviceId")return locName(find(v)?.n||{name:String(v)});
   if(k==="replicaFrom")return v?locName(archById(v)||{name:v}):i18n("Встроенное хранилище");
-  if(k==="recordMode")return i18n(ARCH_MODE_RU[v]||v);
+  if(k==="recordMode")return i18n(v?ARCH_MODE_RU[v]||v:"Авто");
   if(k==="admits")return v===false?i18n("нет"):i18n("да");
   if(k==="arch"){const a=archById(v);return a?locName(a):String(v)}
   if(k==="srvId"){const s=servers.find(x=>x.id===v);return s?locName(s):String(v)}
@@ -8482,7 +8487,7 @@ function formBase(n){
       <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
         ${fldRo("Тип",archKindLabel(n))}
         <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задаётся при создании и не меняется — тома размечены под него")}</div></div>
-        ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${spec.archiveModes.map(m=>`<option value="${m}" ${n.recordMode===m?"selected":""}>${i18n(ARCH_MODE_RU[m]||m)}</option>`).join("")}</select></div>`:""}
+        ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
       ${spec.serverWide?`<div class="nt">${i18n("Один на сервер, работает со всеми его камерами: привязывать их не надо, выключить одной камере нельзя.")}</div>`:""}
       ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено — новые камеры сюда не привязываются")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры сюда не пишут: только копии отмеченных записей.")}</div>`}
@@ -16491,7 +16496,8 @@ function archSet(id,k,v,quiet){
   const a=archById(id);if(!a)return;
   if(k==="days")v=Math.max(0,Number(v)||0);
   if(k==="storage"&&v==="block")a.enc=false;
-  a[k]=v;setD(true);
+  if(k==="recordMode"&&!v)delete a.recordMode;else a[k]=v;
+  setD(true);
   // Сменили тип хранения — тома локального хранилища меняют размещение:
   // у объектного это папка на диске, у блочного — файл в той же папке.
   if(k==="storage"&&archAddr(a)==="disk")archVols(a).forEach(x=>{
@@ -16667,7 +16673,7 @@ function renderArchNew(){
     <div class="g" style="margin-top:12px">
       <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(defName)}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
       <div><label>${i18n("Глубина, дней")}</label><input type="number" value="${an.days}" ${onEv("input",["anSet","days",onEv.value,true])}><div class="bk-hint">${i18n("0 — без ограничения")}</div></div>
-      ${spec.archiveModes.length?`<div><label>${i18n("Когда писать")}</label><select ${onEv("change",["anSet","recordMode",onEv.value])}>${spec.archiveModes.map(m=>`<option value="${m}" ${(an.recordMode||spec.archiveModes[0])===m?"selected":""}>${i18n(ARCH_MODE_RU[m]||m)}</option>`).join("")}</select></div>`:""}
+      ${spec.archiveModes.length?`<div><label>${i18n("Когда писать")}</label><select ${onEv("change",["anSet","recordMode",onEv.value])}>${archModeOpts(spec,anMode(spec))}</select>${anMode(spec)?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       ${addr==="bucket"?fldRo("Тип хранения",i18n("Облачное")):spec.serverWide?"":`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
       ${spec.encryption?`<div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>`:""}
     </div>
@@ -16693,7 +16699,7 @@ function anArchive(){
   // volLabel берёт вид хранилища по archId — у формы его нет, поэтому имя тома собирается на черновике
   const draft={id:"",type:"archive",kind:an.kind,provider:an.provider,server:an.server,vols:[]};
   return{name,kind:an.kind,storage:addr==="bucket"?"object":an.storage,encrypted:!!an.enc,retentionDays:an.days,
-    provider:addr==="bucket"?an.provider:null,serverId:an.server||null,domainId:an.server?null:an.domain,firstVolume:volSpec(draft,vol),...(spec.archiveModes.length?{recordMode:an.recordMode||spec.archiveModes[0]}:{})};
+    provider:addr==="bucket"?an.provider:null,serverId:an.server||null,domainId:an.server?null:an.domain,firstVolume:volSpec(draft,vol),...(spec.archiveModes.length&&anMode(spec)?{recordMode:anMode(spec)}:{})};
 }
 // «Проверить подключение» к NAS или бакету — запросом к серверу
 function anCheck(){
@@ -16945,18 +16951,21 @@ function rwSave(){
   const e=rwEd;if(!e)return;
   const job={alarms:e.alarms,labels:e.labels,...(e.params?{params:e.params}:{}),...(e.mask?{mask:e.mask}:{})};
   const iso=v=>new Date(v).toISOString().replace(/\.\d+Z$/,"Z");
-  const done=()=>{rwClose();return rwLoad(e.deviceId)},fail=x=>toast(problemText(x));
+  const done=()=>{rwClose();return rwLoad(e.deviceId)},fail=x=>{if(x?.status===403&&e.id){rwClose();return rwFail(e.deviceId)(x)}toast(problemText(x))};
   if(e.what==="scan")return API.post("/archive-scans",{deviceId:e.deviceId,archiveId:e.archiveId,detectorKind:e.detectorKind,from:iso(e.from),to:iso(e.to),...job}).then(done).catch(fail);
   const body={start:e.start,keep:e.keep,archiveId:e.keep==="hits"?e.archiveId:null,preSec:e.preSec,postSec:e.postSec,joinSec:e.joinSec,...job};
   return(e.id?API.patch(`/archive-watches/${e.id}`,body,e.version):API.post("/archive-watches",{deviceId:e.deviceId,detectorKind:e.detectorKind,...body})).then(done).catch(fail);
 }
-function rwWatchToggle(id){const w=rw.watches.find(x=>x.id===id);if(w)API.patch(`/archive-watches/${id}`,{enabled:!w.enabled},w.version).then(()=>rwLoad(w.deviceId)).catch(e=>toast(problemText(e)))}
+// Правка и снятие — право admin на камеру, признака в контракте нет: 403 приходит отказом, список перечитывается
+function rwFail(id){return e=>{toast(e?.status===403?i18n("Менять и снимать может администратор камеры"):problemText(e));return rwLoad(id)}}
+function rwWatchToggle(id){const w=rw.watches.find(x=>x.id===id);if(w)API.patch(`/archive-watches/${id}`,{enabled:!w.enabled},w.version).then(()=>rwLoad(w.deviceId)).catch(rwFail(w.deviceId))}
 function rwWatchDel(id){
   const w=rw.watches.find(x=>x.id===id);if(!w)return;
-  askConfirm("Снять обход?",`${i18n("Обход")}: ${detKindRu(w.detectorKind)}.`,i18n("Найденное раньше останется."),"Снять",()=>API.del(`/archive-watches/${id}`,w.version).then(()=>rwLoad(w.deviceId)).catch(e=>toast(problemText(e))),{rawMsg:true});
+  askConfirm("Снять обход?",`${i18n("Обход")}: ${detKindRu(w.detectorKind)}.`,i18n("Найденное раньше останется."),"Снять",()=>API.del(`/archive-watches/${id}`,w.version).then(()=>rwLoad(w.deviceId)).catch(rwFail(w.deviceId)),{rawMsg:true});
 }
-function rwScanDel(id){const x=rw.scans.find(y=>y.id===id);if(x)API.del(`/archive-scans/${id}`).then(()=>rwLoad(x.deviceId)).catch(e=>toast(problemText(e)))}
+function rwScanDel(id){const x=rw.scans.find(y=>y.id===id);if(x)API.del(`/archive-scans/${id}`).then(()=>rwLoad(x.deviceId)).catch(rwFail(x.deviceId))}
 function rwCardsHtml(n){
+  if(n.archiveJobs===false)return card("Скан и обход",`<p class="sub" data-rw-off>${i18n("Скан и обход недоступны: запись этой камеры хранится в другом кластере")}</p>`);
   rwOpen(n);
   const out=[];
   if(can("listArchiveWatches")&&recEdge(n))out.push(card("Обход архива устройства",`<p class="sub">${i18n("Детектор смотрит архив устройства постоянно, без потока на сервер.")}</p>${rw.watches.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Дошёл до")}</th><th>${i18n("Сохраняет")}</th><th></th></tr></thead><tbody>${rw.watches.map(w=>`<tr data-watch="${w.id}"><td>${escHtml(detKindRu(w.detectorKind))}</td><td>${w.through?escHtml(clockText(w.through,false)):"—"}${w.overrunSec?`<div class="bk-hint">${i18n("устройство стёрло раньше")}: ${escHtml(lagText(w.overrunSec))}</div>`:""}</td><td>${i18n(RW_KEEP[w.keep]||w.keep)}${w.archiveId?`<div class="bk-hint">${escHtml(locName(archById(w.archiveId)||{name:""}))}</div>`:""}</td><td class="ca-x"><div class="sw ${w.enabled?"on":""}" ${onEv("click",["rwWatchToggle",`${w.id}`])}></div> <button type="button" class="btn s" ${onEv("click",["rwWatchEdit",`${n.id}`,`${w.id}`])}>${i18n("Изменить")}</button> <button type="button" class="btn s" ${onEv("click",["rwWatchDel",`${w.id}`])}>${i18n("Снять")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
@@ -16982,7 +16991,7 @@ function camArchsCardHtml(n){
   const rows=list.map((x,i)=>{
     const a=archById(x.arch),opts=(x.main?archChoicesFor(n):archRowChoices(n)).filter(o=>o.id===x.arch||!used.has(o.id));
     if(x.ro)return`<tr data-arch-ro="${x.arch}"><td>${escHtml(a?locName(a):x.arch)} · ${escHtml(a?archKindTag(a):"")}<div class="bk-hint">${i18n("работает со всеми камерами сервера, у камеры только для чтения")}</div>${recStateHtml(x)}</td>
-      <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec:recordModeLabel(x.rec)))}</td><td></td></tr>`;
+      <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec||"Авто":recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true);
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
         ${x.main?`<div class="bk-hint ca-main">${i18n("основное")}${a?` · ${archDaysText(a,x)}`:""}</div>`:`<div class="bk-hint">${a?archDaysText(a,x):""}</div>${chipsHtml(refLabels,x.labels,"camArchRowLabel",`${n.id}`,i)}`}${replicaSrcHtml(n,x,i)}${recDepthHtml(n,x,i,a)}${recStateHtml(x)}</td>
@@ -19556,6 +19565,7 @@ function volsToItems(from,to){
 function isApiTarget(n){return isApiDevice(n)||(!!n&&["server","domain","archive","vol"].includes(n.type)&&hwVer.has(n.id))}
 // Строка плана сервера или домена → изменение; null — не выразить через API
 function srvRowToApi(n,r){
+  if(n.type==="archive"&&r.key==="recordMode")return{recordMode:r.to||null};
   if(n.type==="vol")return r.key?volFieldToApi(r.key,r.to):null;
   if(n.type==="archive"){
     if(!r.key)return null;

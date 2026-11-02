@@ -9887,7 +9887,8 @@
     "1280x720"
    ],
    "recordState": "waiting",
-   "recordReason": "Камера не отвечает"
+   "recordReason": "Камера не отвечает",
+   "archiveJobs": false
   },
   {
    "id": "30000248-0000-4000-8000-000000000000",
@@ -33840,7 +33841,8 @@
     ],
     "admits": true,
     "kind": "edge",
-    "address": "disk"
+    "address": "disk",
+    "archiveModeDefault": "backup"
    },
    {
     "serverRequired": true,

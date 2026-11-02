@@ -5414,7 +5414,7 @@
           "storage"
         ],
         "summary": "Завести обход",
-        "description": "Камера без архива устройства — 422 NOT_SUPPORTED, field: deviceId. Второй обход той же камеры и вида — 422 VALIDATION_FAILED, field: detectorKind. keep: hits без архива этой камеры — 422 VALIDATION_FAILED, field: archiveId",
+        "description": "Камера без архива устройства — 422 NOT_SUPPORTED, field: deviceId. Второй обход той же камеры и вида — 422 VALIDATION_FAILED, field: detectorKind. keep: hits без архива этой камеры — 422 VALIDATION_FAILED, field: archiveId. Device.archiveJobs: false — 422 NOT_SUPPORTED, field: deviceId",
         "requestBody": {
           "required": true,
           "content": {
@@ -5506,6 +5506,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "401": {
             "$ref": "#/components/responses/Problem"
           },
@@ -5524,7 +5527,8 @@
           "428": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
       },
       "delete": {
         "operationId": "deleteArchiveWatch",
@@ -5556,6 +5560,9 @@
           "204": {
             "description": "Снят"
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "404": {
             "$ref": "#/components/responses/Problem"
           },
@@ -5571,7 +5578,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
       }
     },
     "/archive-scans": {
@@ -5630,7 +5638,7 @@
           "storage"
         ],
         "summary": "Запустить скан отрезка записи",
-        "description": "Итог приходит событием entity.changed с kind: archiveScan. Архив не этой камеры — 422 VALIDATION_FAILED, field: archiveId; from не раньше to — field: to",
+        "description": "Итог приходит событием entity.changed с kind: archiveScan. Архив не этой камеры — 422 VALIDATION_FAILED, field: archiveId; from не раньше to — field: to. Device.archiveJobs: false — 422 NOT_SUPPORTED, field: deviceId",
         "requestBody": {
           "required": true,
           "content": {
@@ -5691,6 +5699,9 @@
           "204": {
             "description": "Снят"
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "404": {
             "$ref": "#/components/responses/Problem"
           },
@@ -5700,7 +5711,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
       }
     }
   },
@@ -6543,6 +6555,11 @@
             "type": "integer",
             "minimum": 1,
             "description": "Только чтение: предел номера пресета"
+          },
+          "archiveJobs": {
+            "type": "boolean",
+            "readOnly": true,
+            "description": "Только чтение. false — скан и обход этой камере недоступны: камера-кластер и чужая камера, таблицы живут в кластере записи. Нет поля — доступны"
           }
         },
         "additionalProperties": false,
@@ -6667,7 +6684,7 @@
               "always",
               "backup"
             ],
-            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида. Нет поля — режим «Авто»: при сбое, а у камеры без основной записи в кластере из одного — постоянно"
           },
           "admits": {
             "type": "boolean",
@@ -10967,12 +10984,19 @@
             ]
           },
           "recordMode": {
-            "type": "string",
-            "enum": [
-              "always",
-              "backup"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "always",
+                  "backup"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
-            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида. null снимает поле: режим «Авто». Откат возвращает и отсутствие поля"
           },
           "admits": {
             "type": "boolean",
@@ -11050,7 +11074,7 @@
               "always",
               "backup"
             ],
-            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида"
+            "description": "Как пишет архив на весь сервер: постоянно или только при сбое. Значения — archiveModes вида. Нет поля — «Авто»: при сбое, а без основной записи — постоянно"
           },
           "admits": {
             "type": "boolean",
@@ -14777,11 +14801,19 @@
                 "backup"
               ]
             },
-            "description": "Значения Archive.recordMode, первое — умолчание. Пусто — поля у архива нет"
+            "description": "Значения Archive.recordMode. Порядок ничего не значит. Пусто — поля у архива нет"
           },
           "admits": {
             "type": "boolean",
             "description": "false — архив этого вида записи камер не принимает никогда: Archive.admits всегда false"
+          },
+          "archiveModeDefault": {
+            "type": "string",
+            "enum": [
+              "always",
+              "backup"
+            ],
+            "description": "Что предлагать при создании: значение уходит явно. Нет поля — форма предлагает «Авто» и поле не отправляет"
           }
         }
       },

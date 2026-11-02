@@ -35,12 +35,23 @@
     field(await env.call("POST", "/archives", body({ recordMode: "motion" })), "VALIDATION_FAILED", "recordMode", "значения нет в схеме");
     field(await env.call("POST", "/archives", body({ encrypted: true })), "NOT_SUPPORTED", "encrypted", "шифрования нет");
     const made = await env.ok("POST", "/archives", body());
-    assert.eq(made.archive.recordMode, "backup", "по умолчанию — при сбое");
+    assert.ok(!("recordMode" in made.archive), "нет в теле — нет поля: режим «Авто»");
     field(await env.call("POST", "/archives", body({ firstVolume: { ...body().firstVolume, dir: "D:\\Edge2" } })), "VALIDATION_FAILED", "serverId", "вторая на сервере");
     const local2 = await env.ok("PATCH", `/archives/${made.archive.id}`, { recordMode: "always" }, v(made.archive));
     assert.eq(local2.recordMode, "always", "режим правится");
     const a = FX.archives.find((x) => x.kind === "local");
     field(await env.call("PATCH", `/archives/${a.id}`, { recordMode: "always" }, v(a)), "NOT_SUPPORTED", "recordMode", "у локального поля нет");
+    // «Авто»: null снимает поле, откат возвращает значение, откат «вернуть режим» — снова отсутствие поля
+    assert.eq(FX.reference.archiveKinds.find((k) => k.kind === "edge").archiveModeDefault, "backup", "вид предлагает «при сбое»");
+    const auto = await env.ok("PATCH", `/archives/${made.archive.id}`, { recordMode: null }, v(local2));
+    assert.ok(!("recordMode" in auto), "null снимает поле");
+    const opId = () => env.ok("GET", "/operations").then((r) => r.items[0].id);
+    const back = await env.finished((await env.ok("POST", `/operations/${await opId()}/revert`)).id);
+    assert.eq(back.ok, 1, "откат прошёл");
+    assert.eq((await env.ok("GET", `/archives/${made.archive.id}`)).recordMode, "always", "откат вернул значение");
+    const again = await env.finished((await env.ok("POST", `/operations/${(await env.ok("GET", "/operations")).items.find((o) => !o.revertOf && o.revertible).id}/revert`)).id);
+    assert.eq(again.ok, 1, "откат установки режима");
+    assert.ok(!("recordMode" in (await env.ok("GET", `/archives/${made.archive.id}`))), "откат вернул отсутствие поля");
   });
 
   test("Карта сервера: строка у всех камер сервера только для чтения, запись — отказ, правка и удаление меняют камеры", async () => {
@@ -213,6 +224,27 @@
     const row = (await env.ok("PATCH", `/devices/${c.id}`, { extraArchives: rows.map((x) => ({ archiveId: x.archiveId, recordMode: x.recordMode === "replica" ? "always" : x.recordMode, stream: x.stream })) }, v(res))).extraArchives;
     assert.ok(row.every((x) => x.recordMode !== "always" || (!("replicaFrom" in x) && !("replicaLagSec" in x))), "у другого режима этих полей нет");
   }, needs);
+
+  test("Скан и обход: archiveJobs false — 422 deviceId; правка и снятие без права на камеру — 403", async () => {
+    const env = await makeEnv();
+    const off = FX.devices.find((d) => d.archiveJobs === false);
+    const body = { deviceId: off.id, archiveId: off.archiveId, detectorKind: FX.reference.detectorKinds[0], from: new Date(env.now - 7200000).toISOString().replace(/\.\d{3}Z$/, "Z"), to: new Date(env.now - 3600000).toISOString().replace(/\.\d{3}Z$/, "Z") };
+    const scan = await env.call("POST", "/archive-scans", body);
+    assert.status(scan, 422, "NOT_SUPPORTED", "скан");
+    assert.eq(scan.body.field, "deviceId", "поле");
+    const watch = await env.call("POST", "/archive-watches", { deviceId: off.id, detectorKind: body.detectorKind });
+    assert.status(watch, 422, "NOT_SUPPORTED", "обход");
+    assert.eq(watch.body.field, "deviceId", "поле");
+    const adm = FX.access.roles.find((r) => r.global.unr);
+    const feats = (u) => u.roleIds.concat(...FX.access.groups.filter((g) => g.memberIds.includes(u.id)).map((g) => g.roleIds)).flatMap((id) => { const r = FX.access.roles.find((x) => x.id === id); return r.global.unr ? ["ADMIN"] : r.global.feat; });
+    const reader = FX.access.users.find((u) => u.enabled && !feats(u).includes("ADMIN") && !feats(u).includes("DEVICES_SETUP"));
+    const low = await makeEnv({ actAs: reader.login });
+    const w = FX.archiveWatches[0], x = FX.archiveScans[0];
+    assert.status(await low.call("PATCH", `/archive-watches/${w.id}`, { enabled: !w.enabled }, { "If-Match": `"${w.version}"` }), 403, "PERMISSION_DENIED", "правка обхода");
+    assert.status(await low.call("DELETE", `/archive-watches/${w.id}`, undefined, { "If-Match": `"${w.version}"` }), 403, "PERMISSION_DENIED", "снятие обхода");
+    assert.status(await low.call("DELETE", `/archive-scans/${x.id}`), 403, "PERMISSION_DENIED", "снятие скана");
+    assert.ok(adm && (await low.list("/archive-watches")).some((y) => y.id === w.id), "обход на месте");
+  }, { needs: ["createArchiveWatch"] });
 
   test("Карта камеры w2c: уменьшение только с подтверждением; поле не хранится; откат объёма не возвращает, как у тома", async () => {
     const env = await makeEnv();

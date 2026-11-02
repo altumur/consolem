@@ -639,7 +639,7 @@
     // Режим, приём записей и шифрование — как у вида
     function archivePatchProblem(a, patch) {
       const spec = specOf(a);
-      if ("recordMode" in patch && !spec.archiveModes.includes(patch.recordMode)) return problem(422, "NOT_SUPPORTED", `У вида ${a.kind} такого режима нет`, { field: "recordMode" });
+      if (patch.recordMode != null && !spec.archiveModes.includes(patch.recordMode)) return problem(422, "NOT_SUPPORTED", `У вида ${a.kind} такого режима нет`, { field: "recordMode" });
       if (patch.admits === true && !spec.admits) return problem(422, "VALIDATION_FAILED", "Этот вид записи не принимает", { field: "admits" });
       if (patch.encrypted === true && !spec.encryption) return problem(422, "NOT_SUPPORTED", "У этого вида нет шифрования", { field: "encrypted" });
       return null;
@@ -911,6 +911,7 @@
     function watchProblem(w, was) {
       const cam = byId("devices", w.deviceId);
       if (!cam || cam.type !== "camera") return fieldBad("deviceId", "Обход — у камеры");
+      if (cam.archiveJobs === false) return problem(422, "NOT_SUPPORTED", "Запись камеры хранится в другом кластере", { field: "deviceId" });
       if (!hasBuiltIn(cam)) return problem(422, "NOT_SUPPORTED", "У камеры нет архива устройства", { field: "deviceId" });
       if (!kindKnown(w.detectorKind)) return fieldBad("detectorKind", "Нет такого вида детектора");
       if (db.archiveWatches.some((x) => x !== was && x.deviceId === w.deviceId && x.detectorKind === w.detectorKind)) return fieldBad("detectorKind", "Такой обход у камеры уже есть");
@@ -920,6 +921,7 @@
     function scanProblem(b) {
       const cam = byId("devices", b.deviceId);
       if (!cam || cam.type !== "camera") return fieldBad("deviceId", "Скан — по записи камеры");
+      if (cam.archiveJobs === false) return problem(422, "NOT_SUPPORTED", "Запись камеры хранится в другом кластере", { field: "deviceId" });
       if (!cameraArchive(cam, b.archiveId)) return fieldBad("archiveId", "Архив не этой камеры");
       if (!kindKnown(b.detectorKind)) return fieldBad("detectorKind", "Нет такого вида детектора");
       if (!(Date.parse(b.from) < Date.parse(b.to))) return fieldBad("to", "Конец отрезка раньше начала");
@@ -1207,11 +1209,14 @@
       if (!u) return false;
       return u.roleIds.some((r) => unr.has(r) && live(u.roleUntil[r])) || a.groups.some((g) => g.memberIds.includes(id) && live(g.rolesUntil) && g.roleIds.some((r) => unr.has(r)));
     }
-    // Функция «Настройка прав пользователей»: у человека через действующую роль
-    function managesUsers(a, id) {
+    // Функция роли у человека: через действующую роль, личную или группы
+    const managesUsers = (a, id) => hasFeat(a, id, "USERS_RIGHTS_SETUP");
+    // Встроенный сервер права на камеру не считает: admin на камеру — администратор или DEVICES_SETUP
+    const cameraAdmin = () => holdsAdmin(db.access, me) || hasFeat(db.access, me, "DEVICES_SETUP");
+    function hasFeat(a, id, feat) {
       const t = today();
       const live = (until) => !until || until >= t;
-      const has = (rid) => (a.roles.find((r) => r.id === rid) || { global: { feat: [] } }).global.feat.includes("USERS_RIGHTS_SETUP");
+      const has = (rid) => (a.roles.find((r) => r.id === rid) || { global: { feat: [] } }).global.feat.includes(feat);
       const u = a.users.find((x) => x.id === id);
       if (!u) return false;
       return u.roleIds.some((r) => has(r) && live(u.roleUntil[r])) || a.groups.some((g) => g.memberIds.includes(id) && live(g.rolesUntil) && g.roleIds.some(has));
@@ -2027,7 +2032,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             admits: spec.admits && body.admits !== false,
             version: newVersion(),
           };
-          if (spec.archiveModes.length) a.recordMode = body.recordMode || spec.archiveModes[0];
+          if (spec.archiveModes.length && body.recordMode) a.recordMode = body.recordMode;
           const bad = volumeProblem(a, body.firstVolume);
           if (bad) return bad;
           db.archives.push(a);
@@ -2704,6 +2709,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p, q, body, headers) => {
           const w = byId("archiveWatches", p.id);
           if (!w) return notFound("Обход");
+          if (!cameraAdmin()) return problem(403, "PERMISSION_DENIED", "Менять может администратор камеры");
           const bad = precondition(w, headers) || watchProblem(Object.assign({}, w, body), w);
           if (bad) return bad;
           Object.assign(w, clone(body));
@@ -2718,6 +2724,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p, q, body, headers) => {
           const w = byId("archiveWatches", p.id);
           if (!w) return notFound("Обход");
+          if (!cameraAdmin()) return problem(403, "PERMISSION_DENIED", "Снимать может администратор камеры");
           const bad = precondition(w, headers);
           if (bad) return bad;
           dropWatch(w);
@@ -2744,6 +2751,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p) => {
           const x = byId("archiveScans", p.id);
           if (!x) return notFound("Скан");
+          if (!cameraAdmin()) return problem(403, "PERMISSION_DENIED", "Снимать может администратор камеры");
           dropScan(x);
           return { status: 204, body: null };
         },
