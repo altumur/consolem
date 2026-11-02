@@ -1302,6 +1302,8 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-sum{font-size:13px;font-weight:600;margin:6px 0}
 .asst-dev{font-size:13px;margin-top:6px}
 .asst-chg{font-size:12px;color:var(--mu);overflow-wrap:anywhere}
+.asst-chg.bad{color:var(--one-danger)}
+.asst-note{font-size:12px;margin-top:4px;font-weight:600}
 .asst-ta{width:100%;min-height:52px;margin-top:6px;padding:6px 8px;resize:vertical;background:var(--p2);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;font-size:13px}
 .asst-sec{margin-top:6px}
 .asst-sec input{width:100%}
@@ -19472,7 +19474,8 @@ function asstFromSearch(){
 }
 function asstOpen(text){
   if(!can("feature:assist"))return;
-  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null};
+  // Тип называет вызывающий: в разделе правил просьба — о правилах, бэкенд текст не разбирает
+  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,kind:app==="rules"?"rules":null};
   if(asst.text){asstSend();return}
   asstRender();
 }
@@ -19482,7 +19485,100 @@ function asstPlanHtml(p){
     x.changes.map(c=>`<div class="asst-chg">${escHtml(c.field)}: ${escHtml(asstVal(c.before))} → ${escHtml(asstVal(c.after))} · ${escHtml(c.why)}</div>`).join("")}`).join("")}`;
 }
 function asstResultHtml(r){
-  return r.rows.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div><div class="asst-chg">${x.ok?i18n("применено"):escHtml(x.why)}</div>`).join("");
+  return r.rows.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div><div class="asst-chg ${x.ok?"":"bad"}" data-asst-row="${x.ok?"ok":"fail"}">${x.ok?escHtml(x.note||i18n("применено")):escHtml(x.why)}</div>`).join("");
+}
+/* ----- План правил (V/10.7 Н1.7, Н1.8) -----
+   Предложение: ход ничего не пишет, запись — нажатие человека, контрактными дверями, его сессией. Показ читает
+   записи плана, а не summary модели: у правки «было → станет», выпавшее названо. Новое правило заводится
+   наблюдающим или выключенным, никогда — действующим. Правка наблюдения не заводит: это предел, поэтому разница. */
+const RULE_WRITE=["name","enabled","logOnly","logOnlySince","start","runMode","operatorMenu","ratePerMinute","windowSec","runAt","repeat","triggers","conditions","steps","owner","purpose","serverId","runAsRoleId","allowChain","labels","validForSec"];
+// Умолчания перевода: поля, которых строка плана не несёт
+const RULE_WRITE_DEF={enabled:true,logOnly:false,logOnlySince:null,start:"event",runMode:"always",operatorMenu:false,ratePerMinute:6,windowSec:0,runAt:null,repeat:"skip",triggers:[],conditions:[],steps:[],owner:"",purpose:"",serverId:null,runAsRoleId:null,allowChain:true};
+const ASST_DOOR={scenarios:"/rules",schedules:"/schedules",windows:"/maintenance-windows"};
+const ASST_TABLE={scenarios:["Новое правило","Правило"],schedules:["Новое расписание","Расписание"],windows:["Новое окно обслуживания","Окно обслуживания"]};
+const asstOmit=(o,...k)=>Object.fromEntries(Object.entries(o).filter(([x])=>!k.includes(x)));
+// Новое правило: включённое — только наблюдает, что бы ни пришло в плане
+function asstNewRule(body){
+  const r={...RULE_WRITE_DEF,...body};
+  if(r.enabled===false)return r;
+  return{...r,enabled:true,logOnly:true,logOnlySince:r.logOnlySince||ruleNow().slice(0,10)};
+}
+// Тело записи: новое — как в плане, правка — чтение поверх изменённых полей. Чужих полей чтения PUT не шлёт
+function asstWriteBody(e){
+  if(e.op==="create")return e.table==="scenarios"?asstNewRule(e.body):e.body;
+  const base=e.table==="scenarios"?Object.fromEntries(RULE_WRITE.filter(k=>k in e.read).map(k=>[k,e.read[k]])):asstOmit(e.read,"id","version","builtin");
+  return{...base,...e.body};
+}
+const asstRefsOf=v=>typeof v==="string"?(/^@./.test(v)?[v.slice(1)]:[]):Array.isArray(v)?v.flatMap(asstRefsOf):v&&typeof v==="object"?Object.values(v).flatMap(asstRefsOf):[];
+function asstRefsPut(v,made){
+  if(typeof v==="string")return/^@./.test(v)&&made.has(v.slice(1))?made.get(v.slice(1)):v;
+  if(Array.isArray(v))return v.map(x=>asstRefsPut(x,made));
+  return v&&typeof v==="object"?Object.fromEntries(Object.entries(v).map(([k,x])=>[k,asstRefsPut(x,made)])):v;
+}
+// Что покажет запись плана: заголовок, строки «было → станет», что будет с правилом
+function asstRuleView(e){
+  const[lNew,lOld]=ASST_TABLE[e.table]||[e.table,e.table],name=e.body.name||e.read?.name||e.ref||"—";
+  const v={name:`${i18n(e.op==="create"?lNew:lOld)} «${name}»`,rows:[],note:"",warn:""};
+  if(e.op==="update"&&!e.read)return{...v,warn:e.readWhy};
+  if(e.table==="scenarios"){
+    const after=ruleContentNode(asstWriteBody(e),e.id||"new");
+    const before=e.op==="create"?{name:"",on:false,watch:false,repeat:"skip",start:after.start,run:{mode:after.run.mode,modes:[]},menu:false,rate:after.rate,within:0,sched:null,when:[],cond:[],then:[],owner:after.owner,purpose:"",server:after.server,runAs:after.runAs}:ruleContentNode(e.read,e.id);
+    v.rows=ruleDiffOf(before,after,e.op==="create").filter(x=>x.label!==i18n("Создание")&&!(e.op==="create"&&x.label===i18n("Состояние"))).map(x=>({label:x.label,from:x.fromT,to:x.toT,gone:e.op==="update"&&x.toT==="—"}));
+    if(e.op==="create"){
+      v.summary=ruleSummary(after);
+      v.note=i18n(after.on?"Заведётся в режиме «Только журнал»: включает человек":"Заведётся выключенным: включает человек");
+    }else{
+      v.note=i18n("Правка действует сразу: наблюдения нет. Сверьте, что было и что станет");
+      if(!v.rows.length)v.note=i18n("Изменений нет");
+      if(v.rows.some(x=>x.gone))v.warn=i18n("Из правила выпадает то, что отмечено");
+    }
+  }else if(e.op==="update")v.rows=Object.entries(e.body).map(([k,x])=>({label:k,from:asstVal(e.read[k]),to:asstVal(x)}));
+  else{
+    let t="";try{t=schText(schNode({id:"",...(e.table==="schedules"?e.body:e.body.schedule)}))}catch(x){}
+    if(t)v.summary=t;
+  }
+  return v;
+}
+// Новые расписания плана видны его правилам: на время показа — в списке, под именем «@ref»
+function asstRulesViews(rows){
+  const tmp=rows.filter(e=>e.table==="schedules"&&e.op==="create"&&e.ref).flatMap(e=>{try{return[schNode({id:"@"+e.ref,...e.body})]}catch(x){return[]}});
+  SCHEDS.push(...tmp);
+  try{rows.forEach(e=>{e.view=asstRuleView(e)})}finally{tmp.forEach(n=>SCHEDS.splice(SCHEDS.indexOf(n),1))}
+}
+async function asstRulesLoad(a,m){
+  a.line=i18n("читаю, что есть сейчас…");asstRender();
+  const rows=await Promise.all(m.rules.map(e=>e.op!=="update"?{...e}:API.get(`${ASST_DOOR[e.table]}/${e.id}`).then(read=>({...e,read}),x=>({...e,read:null,readWhy:problemText(x)}))));
+  if(asst!==a)return;
+  asstRulesViews(rows);
+  a.plan={...m,rules:rows};a.line="";asstRender();
+}
+function asstRulesHtml(p){
+  return`${p.summary?`<div class="asst-chg" id="asstModelWords">${i18n("Слова модели")}: ${escHtml(p.summary)}</div>`:""}${p.rules.map(e=>{const v=e.view;return`<div class="asst-dev" data-asst-rule="${escHtml(e.op)}">${escHtml(v.name)}</div>
+    ${v.summary?`<div class="asst-chg">${escHtml(v.summary)}</div>`:""}
+    ${v.rows.map(x=>`<div class="asst-chg ${x.gone?"bad":""}" ${x.gone?`data-asst-gone="1"`:""}>${escHtml(x.label)}: ${escHtml(x.from)} → ${x.gone?i18n("выпадает"):escHtml(x.to)}</div>`).join("")}
+    ${v.warn?`<div class="asst-chg bad">${escHtml(v.warn)}</div>`:""}
+    ${v.note?`<div class="asst-note">${escHtml(v.note)}</div>`:""}`}).join("")}`;
+}
+// Записи по порядку. Отказ стоит за своей строкой: записанное остаётся, зависящее от незаписанного не идёт, ничего не пропущено молча
+async function asstRulesApply(a,p){
+  if(a.saving)return;
+  a.saving=true;asstRender();
+  const made=new Map(),rows=[];
+  for(const e of p.rules){
+    const name=e.view.name,lost=asstRefsOf(e.body).find(r=>!made.has(r));
+    if(lost){rows.push({name,ok:false,why:`${i18n("не записано: не создано")} «${lost}»`});continue}
+    if(e.op==="update"&&!e.read){rows.push({name,ok:false,why:e.readWhy});continue}
+    try{
+      const body=asstRefsPut(asstWriteBody(e),made),door=ASST_DOOR[e.table];
+      const res=await(e.op==="create"?API.post(door,body):API.put(`${door}/${e.id}`,body,e.read.version));
+      if(e.ref)made.set(e.ref,res.id);
+      rows.push({name,ok:true,note:e.table==="scenarios"&&e.op==="create"?i18n(body.enabled?"заведено: «Только журнал»":"заведено выключенным"):""});
+    }catch(x){rows.push({name,ok:false,why:x?.problem?.params?.issue?.code?`${problemText(x)}: ${x.problem.params.issue.code}`:problemText(x)})}
+  }
+  a.saving=false;
+  if(asst!==a)return;
+  a.plan=null;a.result={rows,again:rows.some(x=>!x.ok),undo:null};
+  asstRender();
 }
 // Ассистент занимает место списка поиска, его размеры и его правила: закрывается кликом мимо и Esc
 function asstRender(){
@@ -19493,7 +19589,7 @@ function asstRender(){
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
-    a.plan?asstPlanHtml(a.plan):"",
+    a.plan?(a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)):"",
     a.result?asstResultHtml(a.result):"",
     a.plan?"":`<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
@@ -19502,7 +19598,7 @@ function asstRender(){
     `<span class="asst-gap"></span>`,
     a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
     a.result?.undo?`<button type="button" class="btn s" id="asstUndo" ${onEv("click",["asstUndo"])}>${i18n("Отменить")}</button>`:"",
-    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s pri" id="asstApply" ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
+    a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
       :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSend"])}>${i18n("Отправить")}</button>`,
     `</div>`
   ].join("");
@@ -19522,7 +19618,10 @@ function asstEvent(a,m){
   if(m.type==="question")a.ask=m.text;
   if(m.type==="refused")a.refused=m.text;
   if(m.type==="error")a.err=problemText(m.code);
-  if(m.type==="plan")a.plan=m;
+  if(m.type==="plan"){
+    if(m.rules?.length){asstRulesLoad(a,m);return}
+    a.plan=m;
+  }
   asstRender();
 }
 function asstSend(again){
@@ -19530,6 +19629,7 @@ function asstSend(again){
   const text=(again||a.text).trim();
   if(!text){toast("Напишите просьбу");return}
   const body={text};
+  if(a.kind)body.kind=a.kind;
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   Object.assign(a,{said:a.said.concat(text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",refused:"",err:"",plan:null,result:null,abort:new AbortController()});
@@ -19542,6 +19642,7 @@ function asstAgain(){asstSend(asst?.last)}
 function asstDecline(){if(asst){asst.plan=null;asstRender()}}
 function asstApply(){
   const a=asst,p=a?.plan;if(!p)return;
+  if(p.rules){asstRulesApply(a,p);return}
   API.post("/devices/update",{idempotencyKey:opKey(),items:p.items.map(({deviceId,version,set})=>({deviceId,version,set}))}).then(res=>{
     if(asst!==a)return;
     const why=new Map(res.failed.map(f=>[f.deviceId,f.code]));
