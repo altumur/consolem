@@ -200,6 +200,8 @@ def build(demo):
         g["source"] = None
     for u in fx["access"]["users"]:
         u["catalogId"], u["webSessions"], u["mobileSessions"] = None, 0, 0
+        if not u["hasPassword"]:
+            u["hasPassword"], u["passwordByAdmin"] = True, True
         u.pop("syncedGroupId", None)
     for role in fx["access"]["roles"]:
         role["loginSchedule"] = 0

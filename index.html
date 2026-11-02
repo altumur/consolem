@@ -2543,6 +2543,10 @@ function problemText(e,n){
     IDENTIFIER_TAKEN:i18n("ID уже используется"),
     LOGIN_TAKEN:i18n("Логин уже занят"),
     SELF_LOCKOUT:i18n("Изменение оставит систему без администратора или лишит вас входа"),
+    PASSWORD_NOT_ADMIN:i18n("Пароль этому пользователю задал не администратор: сначала смените его"),
+    PASSWORD_POLICY:i18n("Пароль не подходит по политике"),
+    PERMISSION_DENIED:i18n("Нет прав на это действие"),
+    BUILTIN:i18n("Встроенное не меняется"),
     PARENT_MISMATCH:i18n("Родительский объект — в другом домене"),
     CONNECTION_FAILED:i18n("Не удалось подключиться"),
     IP_RANGE_TOO_LARGE:i18n("Слишком много адресов за раз"),
@@ -12725,7 +12729,7 @@ function accFromApi(a){
     roles:a.roles.map(r=>({id:r.id,n:r.name,comment:r.comment,tz:r.loginSchedule,sup:{role:r.supervision.roleId||"",login:r.supervision.login,export:r.supervision.export},
       own:accClone(r.global),groups:accClone(r.folderAccess),objs:accClone(r.objectAccess)})),
     users:a.users.map(u=>Object.assign({id:u.id,login:u.login,name:u.name,email:u.email,on:u.enabled,roles:u.roleIds.slice(),last:u.lastLoginDate,until:{...u.roleUntil},
-      expires:u.expiresDate||"",web:u.webSessions,mobile:u.mobileSessions,ldap:u.catalogId?catName[u.catalogId]||"":""},u.syncedGroupId?{synced:u.syncedGroupId}:{},u.createdDate?{created:u.createdDate}:{})),
+      expires:u.expiresDate||"",web:u.webSessions,mobile:u.mobileSessions,ldap:u.catalogId?catName[u.catalogId]||"":"",hasPw:u.hasPassword,pwAdmin:u.passwordByAdmin},u.syncedGroupId?{synced:u.syncedGroupId}:{},u.createdDate?{created:u.createdDate}:{})),
     log:a.history.map(h=>Object.assign({t:localStamp(h.at),who:h.actor,text:h.text},h.roleId?{role:h.roleId}:{},h.roleIds?{roles:h.roleIds.slice()}:{},h.userId?{user:h.userId}:{},h.groupId?{group:h.groupId}:{},{h:localStamp(h.at).slice(11)})),
     groups:a.groups.map(g=>({id:g.id,n:g.name,comment:g.comment,roles:g.roleIds.slice(),until:g.rolesUntil||"",
       src:g.source?{cat:g.source.catalogId,dn:g.source.dn,kind:g.source.kind,status:g.source.status,at:localStamp(g.source.at),msg:g.source.message}:null,members:g.memberIds.slice()})),
@@ -12743,7 +12747,7 @@ function accToApi(st){
       global:accOwnOut(r.own),folderAccess:accClone(r.groups||{}),objectAccess:accClone(r.objs||{})})),
     users:st.users.map(u=>Object.assign({id:u.id,login:u.login,name:u.name,email:u.email||"",enabled:!!u.on,roleIds:u.roles.slice(),roleUntil:{...(u.until||{})},
       lastLoginDate:u.last||null,expiresDate:u.expires||null,webSessions:u.web||0,mobileSessions:u.mobile||0,catalogId:u.ldap?catId[u.ldap]||null:null},
-      u.synced?{syncedGroupId:u.synced}:{},u.created?{createdDate:u.created}:{})),
+      u.synced?{syncedGroupId:u.synced}:{},u.created?{createdDate:u.created}:{},u.pwd?{password:u.pwd}:{})),
     groups:st.groups.map(g=>({id:g.id,name:g.n,comment:g.comment||"",roleIds:g.roles.slice(),rolesUntil:g.until||null,memberIds:g.members.slice(),
       source:g.src?{catalogId:g.src.cat,dn:g.src.dn,kind:g.src.kind,status:g.src.status,at:stampIso(g.src.at),message:g.src.msg||""}:null})),
     catalogs:st.cats.map(c=>({id:c.id,name:c.n,host:c.server,port:c.port,ssl:!!c.ssl,bindDn:c.bind,hasPassword:true,baseDn:c.baseDn,filter:c.filter,loginAttr:c.attrLogin,
@@ -13099,7 +13103,7 @@ function accRoleDiff(rid){
 function accUserDiff(uid){
   const a=accUser(uid),b=accUser(uid,accSrv());
   if(!b||!a)return!!a!==!!b;
-  return accCanon(a.roles)!==accCanon(b.roles)||accCanon(a.until)!==accCanon(b.until)||accEffSig(a,accSt())!==accEffSig(b,accSrv())||a.on!==b.on||a.name!==b.name||a.email!==b.email||!!a.pwdReset
+  return accCanon(a.roles)!==accCanon(b.roles)||accCanon(a.until)!==accCanon(b.until)||accEffSig(a,accSt())!==accEffSig(b,accSrv())||a.on!==b.on||a.name!==b.name||a.email!==b.email||!!a.pwd
     ||(a.expires||"")!==(b.expires||"")||(a.web||0)!==(b.web||0)||(a.mobile||0)!==(b.mobile||0);
 }
 function accRolesText(u){return u.roles.length?u.roles.map(id=>"«"+escHtml(accRoleName(id))+"»"+(accDirUntil(u,id)?` ${i18n("до")} ${accFmt(accDirUntil(u,id))}`:"")).join(", "):i18n("нет")}
@@ -13164,14 +13168,14 @@ function accPlanLines(){
     if(s&&u.impUpd)impUpd.push(u);
     if(!s&&u.synced&&accUG(u.synced)&&!accUG(u.synced,srv))return;  // создан подключением группы каталога: строка группы
     if(!s){out.push(`${i18n("Создать пользователя")} ${escHtml(u.login)}${u.name?` (${escHtml(u.name)})`:""}${u.email?", "+escHtml(u.email):""}, ${i18n(u.on?"включён":"выключен")}${u.expires?`, ${i18n("учётная запись до")} ${accFmt(u.expires)}`:""}${u.web||u.mobile?`, ${i18n("лимит подключений: веб")} — ${u.web||i18n("без лимита")}, ${i18n("мобильные")} — ${u.mobile||i18n("без лимита")}`:""}`);
-      if(u.pwdSet)out.push(`${i18n("Задать пароль пользователю")} ${escHtml(u.login)}${u.must?` — ${i18n("сменить при первом входе")}`:""}`);
+      if(u.pwd)out.push(`${i18n("Задать пароль пользователю")} ${escHtml(u.login)}`);
       if(u.roles.length)out.push(`${i18n("Роли пользователя")} ${escHtml(u.login)}: ${accRolesText(u)}`);
       return}
     if(s.on!==u.on&&!tc(u,"on")&&!big(u.on?"on":"off"))out.push(`${i18n("Пользователь")} ${escHtml(u.login)}: ${i18n(u.on?"включить":"выключить")}`);
     if((s.name!==u.name&&!tc(u,"name"))||(s.email!==u.email&&!tc(u,"email")))out.push(`${i18n("Карточка пользователя")} ${escHtml(u.login)}: ${escHtml(u.name)}${u.email?", "+escHtml(u.email):""}`);
     if((s.expires||"")!==(u.expires||"")&&!tc(u,"expires")&&!big("exp|"+(u.expires||"")))out.push(`${i18n("Срок учётной записи")} ${escHtml(u.login)}: ${u.expires?i18n("до")+" "+accFmt(u.expires):i18n("бессрочно")}`);
     if(((s.web||0)!==(u.web||0)&&!tc(u,"web"))||((s.mobile||0)!==(u.mobile||0)&&!tc(u,"mobile")))out.push(`${i18n("Лимит подключений")} ${escHtml(u.login)}: ${i18n("веб")} — ${u.web||i18n("без лимита")}, ${i18n("мобильные")} — ${u.mobile||i18n("без лимита")}`);
-    if(u.pwdReset)out.push(`${i18n("Сбросить пароль пользователю")} ${escHtml(u.login)}: ${i18n("ссылка для смены придёт на")} ${escHtml(u.email||i18n("— e-mail не задан, пароль сообщит администратор"))}`);
+    if(u.pwd)out.push(`${i18n("Сменить пароль пользователю")} ${escHtml(u.login)}`);
     const atoms=atomsOf.get(u.id),left=atoms.filter(a=>!big("r|"+a.join("|")));
     if(left.length||(!atoms.length&&!tc(u,"roles")&&(accCanon(s.roles)!==accCanon(u.roles)||accCanon(s.until)!==accCanon(u.until))))
       out.push(`${i18n("Роли пользователя")} ${escHtml(u.login)}: ${accRolesText(u)}`);
@@ -13310,6 +13314,7 @@ function accProven(u,st){
   return u.on&&!u.expires&&(u.roles.some(id=>adm(id)&&!accDirUntil(u,id))||accGroupsOf(u,st).some(g=>!g.until&&g.roles.some(adm)));
 }
 function accAdminCount(st){return accUsers(st).filter(u=>accProven(u,st)).length}
+function accMeAdmin(){return accHasUnr(accMe(accSrv()),accSrv())}
 function accHasUnr(u,st){return!!u&&accUserRoles(u,true,st).some(id=>accRole(id,st)?.g.unr)}
 function accGuard(mutate){
   const trial=accClone(accSt());
@@ -13729,7 +13734,7 @@ function accRoleUI(r){
   const note=(fixed?`<div class="nt">${i18n("Встроенная роль: у неё есть всё, менять её права и удалять её нельзя. Исключения других ролей на её пользователей не действуют. Администратором пользователя делает назначение этой роли")}</div>`:"")
     +(own&&!fixed?`<div class="nt">${i18n("Вы не можете менять права своей роли")}</div>`:"");
   const acts=accRoleActionsHtml(r.id);
-  const body={global:accGlobalHtml,defs:accDefsHtml,groups:accGroupsTabHtml,objects:accObjectsHtml,members:accMembersHtml,history:accRoleHistoryHtml}[accTab](r,accTab==="members"?own:ro);
+  const body={global:accGlobalHtml,defs:accDefsHtml,groups:accGroupsTabHtml,objects:accObjectsHtml,members:accMembersHtml,history:accRoleHistoryHtml}[accTab](r,accTab==="members"?own||(fixed&&!accMeAdmin()):ro);
   paintMain(mainHd(cr,title,sub,tabsH,acts)+`<div class="sc">${note}${seg}${body}</div>`);
 }
 function accDeleteRole(rid,stay){
@@ -13763,7 +13768,7 @@ function accGlobalHtml(r,ro){
   const warn=[];
   if(!accCanSignIn(g))warn.push(`<div class="nt err">${i18n("Роль без права «Вход в веб-интерфейс» не даст пользователям войти")}</div>`);
   const featGroups=ACC_FEAT_GROUPS.filter(gr=>ACC_FEATURES.some(f=>f[2]===gr)).map(gr=>`<div class="acc-fgrp"><div class="acc-fgrp-h">${i18n(gr)}</div>${ACC_FEATURES.filter(f=>f[2]===gr).map(([k,t])=>{
-    return`<div class="ln ln-sw">${accSw(g.feat.includes(k),`accFeat('${r.id}','${k}')`,dis,t)}<div>${i18n(t)}${k==="DEVICES_SETUP"?`<small>${i18n("Просмотр и правка камер: эти два действия одним правом не разделяются. Действует там, где уровень камеры не «Нет»: при праве по умолчанию «Нет» камеру вне папок не создать")}</small>`:k==="ARCHIVES_SETUP"?`<small>${i18n("Действует там, где уровень камеры даёт архив")}</small>`:""}</div></div>`}).join("")}</div>`).join("");
+    return`<div class="ln ln-sw">${accSw(g.feat.includes(k),`accFeat('${r.id}','${k}')`,dis||(k==="USERS_RIGHTS_SETUP"&&!accMeAdmin()),t)}<div>${i18n(t)}${k==="DEVICES_SETUP"?`<small>${i18n("Просмотр и правка камер: эти два действия одним правом не разделяются. Действует там, где уровень камеры не «Нет»: при праве по умолчанию «Нет» камеру вне папок не создать")}</small>`:k==="ARCHIVES_SETUP"?`<small>${i18n("Действует там, где уровень камеры даёт архив")}</small>`:""}</div></div>`}).join("")}</div>`).join("");
   const sel=(k,t,kind)=>`<div><label>${i18n(t)}</label>${accSelect(kind,g[k],`accSetOwnField('${r.id}','${k}',this.value)`,dis,false,t)}</div>`;
 
   const sup=r.sup||{role:"",login:false,export:false};
@@ -14184,6 +14189,8 @@ function accAdApply(){
   toast(`${i18n("Роль")} «${name}» ${i18n("назначена")}: ${accWho(n)} — ${i18n("в черновике")}`);
 }
 function accAssign(uid,rid,on){
+  const who=accUser(uid);
+  if(on&&accRole(rid)?.g.unr&&who?.pwAdmin===false&&!who.pwd)toast(i18n("Пароль этому пользователю задал не администратор: сначала смените его, иначе сервер откажет"));
   const ok=accGuard(st=>{const u=st.users.find(x=>x.id===uid);if(!u)return;
     u.roles=on?[...new Set([...u.roles,rid])]:u.roles.filter(x=>x!==rid);if(!on&&u.until)delete u.until[rid]});
   if(ok)accEdited();
@@ -14215,10 +14222,29 @@ function accUserUI(u){
 }
 function accUserMenu(el,uid){
   const u=accUser(uid),me=u.login===ACC_ME;
-  accMenuOpen(el,`<button type="button" class="mi" ${u.pwdReset||u.ldap?"disabled":""} title="${u.ldap?i18n("Пароль хранится в каталоге LDAP"):""}" ${onEv("click",["accMenuClose"],["accPwdReset",`${uid}`])}>${i18n(u.pwdReset?"Сброс пароля уже в черновике":u.ldap?"Пароль — в каталоге LDAP":"Сбросить пароль")}</button>
+  accMenuOpen(el,`<button type="button" class="mi" ${u.ldap?"disabled":""} title="${u.ldap?i18n("Пароль хранится в каталоге LDAP"):""}" ${onEv("click",["accMenuClose"],["accPwdOpen",`${uid}`])}>${i18n(u.ldap?"Пароль — в каталоге LDAP":u.hasPw||u.pwd?"Сменить пароль":"Задать пароль")}…</button>
     <div class="acc-sep"></div><button type="button" class="mi danger" ${me?"disabled":""} ${onEv("click",["accMenuClose"],["accDeleteUser",`${uid}`])}>${i18n("Удалить пользователя")}…</button>`);
 }
-function accPwdReset(uid){const u=accUser(uid);if(!u||u.ldap)return;u.pwdReset=true;toast(i18n("Сброс пароля добавлен в черновик"));accEdited()}
+// Смена пароля: то же поле password, что у нового пользователя; значение живёт только в черновике
+let accPw=null;
+function accPwdOpen(uid){
+  const u=accUser(uid);if(!u||u.ldap)return;
+  accPw={uid,login:u.login,pwd:"",show:false,tried:false};accPwdPaint();
+}
+function accPwdErr(k){return`<div class="fld-err" id="accE_${k}">${accPw?.tried&&accPwdIssue(accPw.pwd,accPw.login)?i18n(accPwdIssue(accPw.pwd,accPw.login)):""}</div>`}
+function accPwdPaint(){
+  const w=accPw;if(!w)return;
+  openBulkModal(`${i18n("Пароль пользователя")} ${escHtml(w.login)}`,accPwdFieldHtml(w,"accPwSet(this.value)","accPwGen()","accPwShow()",accPwdErr),`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${onEv("click",["accPwSave"])}>${i18n("В черновик")}</button>`);
+}
+function accPwSet(v){accPw.pwd=v;const r=document.getElementById("accPwdRules");if(r)r.innerHTML=accPwdRulesHtmlOf(accPw.pwd,accPw.login)}
+function accPwGen(){accPw.pwd=accGenPwd();accPw.show=true;accPwdPaint()}
+function accPwShow(){accPw.show=!accPw.show;accPwdPaint()}
+function accPwSave(){
+  const w=accPw;w.tried=true;
+  if(accPwdIssue(w.pwd,w.login)){accPwdPaint();return}
+  const u=accUser(w.uid);if(u)u.pwd=w.pwd;
+  accPw=null;closeBulkModal();toast(i18n("Новый пароль добавлен в черновик"));accEdited();
+}
 function accDeleteUser(uid){
   const u=accUser(uid);
   if(pendingDelHas(uid)){toast("Пользователь уже ждёт удаления — отменить можно в тосте");return}
@@ -14230,6 +14256,7 @@ function accDeleteUser(uid){
 function accUserGenHtml(u){
   const me=u.login===ACC_ME;
   const warn=[];
+  if(!accMeAdmin()&&accHasUnr(u,accSrv()))warn.push(`<div class="nt err">${i18n("Это администратор: менять его может только администратор, сервер откажет")}</div>`);
   if(!u.on)warn.push(`<div class="nt">${i18n("Учётная запись выключена: войти нельзя, роли не действуют")}</div>`);
   else if(accAcctExpired(u))warn.push(`<div class="nt err">${i18n("Срок учётной записи истёк")} ${accFmt(u.expires)}: ${i18n("войти нельзя, роли не действуют. Продлите срок или удалите учётную запись")}</div>`);
   else if(!accUserRoles(u,true).length){
@@ -14240,7 +14267,7 @@ function accUserGenHtml(u){
   else if(!accUserSignIn(u,accSt()))warn.push(`<div class="nt err">${i18n("Ни одна из ролей не даёт входа в веб-интерфейс")}</div>`);
   if(accUserActive(u)&&accAcctSoon(u))warn.push(`<div class="nt">${i18n("Срок учётной записи истекает")} ${accFmt(u.expires)}</div>`);
   if(u.on&&accStale(u))warn.push(`<div class="nt">${i18n("Не входил")} ${accAgo(u.last)}. ${i18n("Если доступ больше не нужен, выключите учётную запись")}</div>`);
-  const others=accRoles().filter(r=>!u.roles.includes(r.id));
+  const others=accRoles().filter(r=>!u.roles.includes(r.id)&&(!r.g.unr||accMeAdmin()));
   const srcs=accUserRoleSrcs(u).filter(e=>accRole(e.rid));
   const rows=srcs.map(e=>{const id=e.rid,r=accRole(id),ex=accExpired(u,id),direct=!e.via;
     return`<tr class="${ex?"off":""}"><td><button type="button" class="lk" ${onEv("click",["accGo",`role:${id}`,"global"])}>${escHtml(r.n)}</button>${ex?` <span class="acc-chip exp sm">${i18n("срок истёк")}</span>`:accSoon(u,id)?` <span class="acc-chip warn sm">${i18n("истекает")}</span>`:""}</td>
@@ -14263,7 +14290,7 @@ function accUserGenHtml(u){
     </div>
     ${u.ldap?`<p class="acc-hint" style="margin:8px 0 0">${i18n("Имя, e-mail и пароль приходят из каталога")} ${escHtml(u.ldap)}; ${i18n("здесь меняются только роли, сроки и лимиты")}</p>`:""}
     <div class="ln ln-sw" style="margin-top:8px">${accSw(u.on,`accUserOn('${u.id}')`,me,"Включён",me?i18n("Себя выключить нельзя"):"")}<div>${i18n(u.on?"Включён":"Выключен")}${me?`<small>${i18n("Себя выключить нельзя")}</small>`:""}</div></div>
-    ${u.pwdReset?`<div class="nt" style="margin:10px 0 0">${i18n("Сброс пароля в черновике: после применения")} ${u.email?i18n("на e-mail придёт ссылка для смены"):i18n("новый пароль сообщит администратор")}</div>`:""}`)}
+    ${u.pwd?`<div class="nt" style="margin:10px 0 0">${i18n("Новый пароль в черновике: сервер примет его при «Применить»")}</div>`:u.ldap?"":u.hasPw?"":`<div class="nt err" style="margin:10px 0 0">${i18n("Пароль не задан: пользователь не сможет войти")}</div>`}`)}
     ${can("feature:accessSessions")?card("Одновременные подключения",`<p class="acc-hint">${i18n("Сколько сеансов может быть открыто одновременно; 0 — без лимита. Защищает от передачи одной учётной записи нескольким людям")}</p>
       <div class="g"><div><label>${i18n("Веб-клиент и настольный клиент")}</label><input type="number" min="0" max="99" value="${u.web||0}" ${onEv("change",["accSetUser",`${u.id}`,"web",onEv.value,onEv.el])}></div><div><label>${i18n("Мобильные приложения")}</label><input type="number" min="0" max="99" value="${u.mobile||0}" ${onEv("change",["accSetUser",`${u.id}`,"mobile",onEv.value,onEv.el])}></div></div>`):""}
     ${card(`${i18n("Роли")} (${srcs.length})`,srcs.length?`<table class="acc-tbl"><tr><th>${i18n("Роль")}</th><th>${i18n("Откуда")}</th><th>${i18n("Функции")}</th><th>${i18n("Расписание и подтверждение")}</th><th>${i18n("Роль действует до")}</th><th></th></tr>${rows}</table>`:`<p class="sub">${i18n("Ролей нет")}</p>`,add)}
@@ -14550,6 +14577,7 @@ function accGmApply(){
 // ── Роли группы ──
 function accGrlHtml(g){
   const warn=[];
+  if(!accMeAdmin()&&g.roles.some(id=>accRole(id)?.g.unr))warn.push(`<div class="nt err">${i18n("Группа даёт роль «Администратор»: менять её может только администратор, сервер откажет")}</div>`);
   if(!g.roles.length)warn.push(`<div class="nt err">${i18n("У группы нет ролей: участники ничего не получают")}</div>`);
   else if(g.until&&accDays(g.until)<0)warn.push(`<div class="nt err">${i18n("Срок ролей группы истёк")} ${accFmt(g.until)}: ${i18n("участники их больше не получают")}</div>`);
   if(g.src&&g.roles.some(id=>accRole(id)?.g.unr))warn.push(`<div class="nt err">${i18n("Группа делает участников администраторами, а её состав определяет каталог, а не вы")}</div>`);
@@ -15106,14 +15134,12 @@ function accPwdW(k){return k==="wz"?accWz:accUd}
 function accPwdRender(k){k==="wz"?accWzRender():accUdRender()}
 function accPwdGen(k){const w=accPwdW(k);w.pwd=accGenPwd();w.show=true;accPwdRender(k)}
 function accPwdShow(k){const w=accPwdW(k);w.show=!w.show;accPwdRender(k)}
-function accPwdMust(k,on){accPwdW(k).must=on}
 function accPwdFieldHtml(w,setFn,genFn,toggleFn,errFn){
   return`<div class="acc-wz-f" style="margin-top:12px"><label>${i18n("Пароль")}</label>
-      <div class="acc-pwd"><input type="${w.show?"text":"password"}" value="${escHtml(w.pwd)}" autocomplete="new-password" ${onEv("input",setFn)}>
+      <div class="acc-pwd"><input type="${w.show?"text":"password"}" value="${escHtml(w.pwd)}" autocomplete="new-password" data-pwd ${onEv("input",setFn)}>
         <button type="button" class="btn s" ${onEv("click",toggleFn)}>${i18n(w.show?"Скрыть":"Показать")}</button>
         <button type="button" class="btn s" ${onEv("click",genFn)}>${i18n("Сгенерировать")}</button></div>
       <div class="acc-rules" id="accPwdRules">${accPwdRulesHtmlOf(w.pwd,w.login)}</div>${errFn("pwd")}
-      <label class="acc-chk" style="margin-top:8px"><input type="checkbox" ${w.must?"checked":""} ${onEv("change",["accPwdMust",w===accWz?"wz":"ud",onEv.checked])}> ${i18n("сменить при первом входе")}</label>
       <p class="acc-hint" style="margin-top:8px">${i18n("Пароль не отображается после создания; передайте его пользователю безопасным способом")}</p></div>`;
 }
 
@@ -15413,7 +15439,7 @@ function accWzApply(){
   const w=accWz,id=accNewId(),st=accSt();
   st.roles.push({id,n:w.name.trim(),comment:w.comment.trim(),tz:w.tz,sup:accClone(w.sup),own:accClone(w.g),groups:Object.fromEntries(Object.entries(w.grp).map(([g,v])=>[g,{cam:v}])),objs:{}});
   const until=w.until?{[id]:w.until}:{};
-  if(w.who==="new")st.users.push({id:accNewId(),login:w.login.trim(),name:w.uname.trim(),email:w.email.trim(),on:w.on,roles:[id],last:null,created:accIso(0),until,expires:w.expires||"",web:0,mobile:0,ldap:"",pwdSet:true,must:w.must});
+  if(w.who==="new")st.users.push({id:accNewId(),login:w.login.trim(),name:w.uname.trim(),email:w.email.trim(),on:w.on,roles:[id],last:null,created:accIso(0),until,expires:w.expires||"",web:0,mobile:0,ldap:"",pwd:w.pwd});
   else if(w.who==="pick"){
     st.users.forEach(u=>{if(w.assigned.has(u.id)&&!u.roles.includes(id)){u.roles.push(id);if(w.until){u.until=u.until||{};u.until[id]=w.until}}});
     (st.groups||[]).forEach(g=>{if(w.ugs.has(g.id)&&!g.roles.includes(id))g.roles.push(id)});
@@ -15463,7 +15489,7 @@ function accUdApply(){
   if(Object.values(e).some(Boolean)){accUdRender();return}
   const id=accNewId();
   accSt().users.push({id,login:u.login.trim(),name:u.uname.trim(),email:u.email.trim(),on:u.on,roles:[...u.roles],last:null,created:accIso(0),
-    until:u.until?Object.fromEntries([...u.roles].map(r=>[r,u.until])):{},expires:u.expires||"",web:u.web||0,mobile:u.mobile||0,ldap:"",pwdSet:true,must:u.must});
+    until:u.until?Object.fromEntries([...u.roles].map(r=>[r,u.until])):{},expires:u.expires||"",web:u.web||0,mobile:u.mobile||0,ldap:"",pwd:u.pwd});
   accDrawerClose("accUd");toast(`${i18n("Пользователь")} ${u.login.trim()} ${i18n("добавлен в черновик")}`);
   accGo("user:"+id,"gen");
 }
@@ -15765,7 +15791,7 @@ function accImpDoHtml(){
 function accImpMutate(st,r){
   const o=r.op;let u;
   if(r.status==="new"){
-    u={id:r.uid||"imp"+r.n,login:o.login,name:o.name,email:o.email,on:o.on,roles:[...o.roles],last:null,created:accIso(0),until:{...o.until},expires:o.expires,web:o.web,mobile:o.mobile,ldap:"",pwdSet:true,must:true,imported:true};
+    u={id:r.uid||"imp"+r.n,login:o.login,name:o.name,email:o.email,on:o.on,roles:[...o.roles],last:null,created:accIso(0),until:{...o.until},expires:o.expires,web:o.web,mobile:o.mobile,ldap:"",imported:true};
     st.users.push(u);
   }else{
     u=st.users.find(x=>x.id===o.id);if(!u)return;

@@ -52,6 +52,39 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const others = accUsers().filter((x) => accProven(x) && x.login !== ACC_ME);
   ok(accAdminCount() >= 1, "бессрочных администраторов: " + accAdminCount());
   ok(!accGuard((st) => st.users.forEach((x) => { if (accProven(x, st)) x.expires = accIso(30); })), "срок всем администраторам — отказ формы, бессрочных: " + others.length);
+  // Пароль: смена — в черновик, на сервер только при «Применить», в снимке значения нет
+  const pu = accUsers().find((x) => !x.ldap && x.on && !accHasUnr(x, accSrv()));
+  accPwdOpen(pu.id);
+  ok(/не короче/.test(document.getElementById("bmBody").textContent), "политика из справочника в окне пароля");
+  accPwSet("x");
+  accPwSave();
+  ok(accPw && !accUser(pu.id).pwd, "слабый пароль в черновик не идёт");
+  accPwSet("Abcdef12");
+  accPwSave();
+  ok(accUser(pu.id).pwd === "Abcdef12" && accPlanLines().some((x) => /пароль/i.test(x)), "новый пароль — строкой плана");
+  ok(!accPlanLines().join(" ").includes("Abcdef12"), "значение в план не попало");
+  const vp = accVer;
+  accPlan();
+  await confirmWith(null);
+  ok(await until(() => accVer !== vp), "применено");
+  ok(!accUser(pu.id).pwd && !JSON.stringify(await API.get("/access")).includes("Abcdef12"), "значения нет ни в черновике, ни в снимке");
+  // Не администратор: «Администратора» не назначить, на карточке администратора предупреждение
+  const meWas = ACC_ME, plainU = accUsers().find((x) => !accHasUnr(x, accSrv()) && x.on);
+  ACC_ME = plainU.login;
+  ok(!accMeAdmin(), "вошёл не администратор");
+  accGo("user:" + accUsers().find((x) => x.login === meWas).id, "gen");
+  ok(/менять его может только администратор/.test(document.querySelector("#main, main")?.textContent || ""), "предупреждение на карточке администратора");
+  ACC_ME = meWas;
+  accGo("roles");
+  // Повышение: отказ сервера с подсказкой сменить пароль
+  const risky = accUsers().find((x) => x.pwAdmin === false);
+  accAssign(risky.id, admRole.id, true);
+  ok(/сначала смените/.test(toastText()), "предупреждение при назначении: «" + toastText() + "»");
+  accPlan();
+  await confirmWith(null);
+  ok(await until(() => /сначала смените его/.test(toastText())), "отказ сервера с подсказкой");
+  ACC.ed = accClone(ACC.srv);
+  accResolveAll();
   // Итог считается как may: исключение только внутри своей роли, между ролями наибольшее
   const dom0 = domains[0].id, cam0 = accCams(dom0)[0];
   const fx = (over) => {
@@ -91,9 +124,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(1);
   ok(pendingDelHas(ext.id), "роль: отсчёт");
   ok(await until(() => !accRole(ext.id), 30000), "роль удалена из черновика");
+  const v2 = accVer;
   accPlan();
   await confirmWith(null);
-  ok(await until(() => accVer !== v1), "применено");
+  ok(await until(() => accVer !== v2), "применено");
   const b = await API.get("/access");
   ok(!b.users.some((x) => x.id === del.id) && !b.roles.some((x) => x.id === ext.id), "на сервере — ни пользователя, ни роли");
   // Синхронизация каталога

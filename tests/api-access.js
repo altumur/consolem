@@ -130,6 +130,147 @@
     assert.eq(j, [{ kind: "cam", levels: ["MON", "ONLY_ARCHIVE"], level: "ARCHIVE" }], "пара объявлена");
   });
 
+  test("Пароль: новый пользователь и смена, в ответах нет; политика — 422 PASSWORD_POLICY", async () => {
+    const env = await makeEnv();
+    const d = draft();
+    const role = d.roles.find((r) => !r.global.unr);
+    const nu = { id: NEW_ID, login: "pw.user", name: "Пароль", email: "", enabled: true, roleIds: [role.id], roleUntil: {}, lastLoginDate: null, expiresDate: null, webSessions: 0, mobileSessions: 0, catalogId: null };
+    d.users.push(Object.assign({}, nu, { password: "Abcdef12" }));
+    const res = await apply(env, d);
+    assert.status(res, 200);
+    const made = res.body.access.users.find((u) => u.id === NEW_ID);
+    assert.eq([made.hasPassword, "password" in made, made.passwordByAdmin], [true, false, true], "задан администратором, значения нет");
+    const a = await env.ok("GET", "/access");
+    assert.ok(!JSON.stringify(a).includes("Abcdef12"), "пароля нет в снимке");
+    const bad = async (password, login) => {
+      const x = { roles: a.roles, users: JSON.parse(JSON.stringify(a.users)), groups: a.groups, catalogs: a.catalogs };
+      const u = x.users.find((y) => y.id === NEW_ID);
+      u.password = password;
+      if (login) u.login = login;
+      return env.call("POST", "/access/apply", { access: x, history: [], cellHistory: [] }, { "If-Match": `"${a.version}"` });
+    };
+    const policy = FX.reference.access.passwordPolicy;
+    const short = await bad("A1");
+    assert.status(short, 422, "PASSWORD_POLICY", "короткий");
+    assert.eq(short.body.field, "password", "поле");
+    assert.status(await bad("1".repeat(policy.minLength)), 422, "PASSWORD_POLICY", "без буквы");
+    assert.status(await bad("a".repeat(policy.minLength)), 422, "PASSWORD_POLICY", "без цифры");
+    assert.status(await bad("xpw.user12"), 422, "PASSWORD_POLICY", "логин внутри");
+    const ok = await bad("Zyxwvu98");
+    assert.status(ok, 200);
+    assert.eq(ok.body.access.users.find((u) => u.id === NEW_ID).hasPassword, true, "смена пароля");
+  });
+
+  // Управляющий: роль с USERS_RIGHTS_SETUP, человек не администратор
+  const managerEnv = async () => {
+    const roles = JSON.parse(JSON.stringify(A.roles));
+    const adm = roles.find((r) => r.global.unr);
+    const mgr = roles.find((r) => !r.global.unr && r.global.feat.includes("WEB_UI_LOGIN"));
+    mgr.global.feat.push("USERS_RIGHTS_SETUP");
+    mgr.global.ur = "ALL";
+    const man = A.users.find((u) => u.enabled && u.id !== meId && u.roleIds.includes(mgr.id) && !u.roleIds.includes(adm.id) && !u.catalogId);
+    const env = await makeEnv({ actAs: man.login, fixturePatch: { access: { roles } } });
+    const a = await env.ok("GET", "/access");
+    const wr = (x) => env.call("POST", "/access/apply", { access: { roles: x.roles, users: x.users, groups: x.groups, catalogs: x.catalogs }, history: [], cellHistory: [] }, { "If-Match": `"${a.version}"` });
+    return { env, a, adm, mgr, man, wr, copy: () => JSON.parse(JSON.stringify(a)) };
+  };
+
+  test("Управляющий: ведёт пользователей, но «Администратора» не трогает — 403 на весь пакет, ничего не записано", async () => {
+    const { env, a, adm, mgr, man, wr, copy } = await managerEnv();
+    const root = a.users.find((u) => u.id === meId);
+    const plain = a.users.find((u) => u.id !== man.id && u.id !== meId && !u.roleIds.includes(adm.id) && !a.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
+    const cases = {
+      "назначить себе": (x) => x.users.find((u) => u.id === man.id).roleIds.push(adm.id),
+      "снять с администратора": (x) => { const u = x.users.find((y) => y.id === root.id); u.roleIds = u.roleIds.filter((r) => r !== adm.id); },
+      "выключить администратора": (x) => (x.users.find((u) => u.id === root.id).enabled = false),
+      "сменить пароль администратору": (x) => (x.users.find((u) => u.id === root.id).password = "Abcdef12"),
+      "удалить администратора": (x) => (x.users = x.users.filter((u) => u.id !== root.id)),
+      "включить функцию управляющего": (x) => { const r = x.roles.find((y) => y.id !== mgr.id && !y.global.unr && !y.global.feat.includes("USERS_RIGHTS_SETUP")); r.global.feat.push("USERS_RIGHTS_SETUP"); r.global.ur = "ALL"; },
+    };
+    for (const [name, fn] of Object.entries(cases)) {
+      const x = copy();
+      x.users.find((u) => u.id === plain.id).name = "Заодно";
+      fn(x);
+      assert.status(await wr(x), 403, "PERMISSION_DENIED", name);
+    }
+    assert.eq((await env.ok("GET", "/access")).users.find((u) => u.id === plain.id).name, plain.name, "ничего не записано");
+    const fine = copy();
+    fine.users.find((u) => u.id === plain.id).name = "Новое имя";
+    assert.status(await wr(fine), 200);
+  });
+
+  test("Управляющий: снимок целиком без изменений у администратора проходит; пароль, заданный им, не даёт назначить «Администратора»", async () => {
+    const { env, a, adm, man, wr, copy } = await managerEnv();
+    const plain = a.users.find((u) => u.id !== man.id && u.id !== meId && !u.roleIds.includes(adm.id) && !u.catalogId && !a.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
+    const x = copy();
+    x.users.find((u) => u.id === plain.id).password = "Abcdef12";
+    const res = await wr(x);
+    assert.status(res, 200);
+    assert.eq(res.body.access.users.find((u) => u.id === plain.id).passwordByAdmin, false, "задал не администратор");
+    const db = await env.ok("GET", "/access");
+    assert.eq(db.users.find((u) => u.id === plain.id).passwordByAdmin, false, "сохранено");
+  });
+
+  test("Повышение: «Администратор» пользователю с чужим паролем — 409 PASSWORD_NOT_ADMIN, после смены пароля можно", async () => {
+    const env = await makeEnv();
+    const adm = A.roles.find((r) => r.global.unr);
+    const u = A.users.find((x) => x.passwordByAdmin === false);
+    let d = draft();
+    d.users.find((x) => x.id === u.id).roleIds.push(adm.id);
+    const res = await apply(env, d);
+    assert.status(res, 409, "PASSWORD_NOT_ADMIN");
+    assert.eq([res.body.field, res.body.params.id], ["roleIds", u.id], "поле и пользователь");
+    d = draft();
+    const g = d.groups.find((x) => x.roleIds.includes(adm.id));
+    if (g) {
+      g.memberIds.push(u.id);
+      assert.status(await apply(env, d), 409, "PASSWORD_NOT_ADMIN", "через группу");
+    }
+    d = draft();
+    const y = d.users.find((x) => x.id === u.id);
+    y.roleIds.push(adm.id);
+    y.password = "Abcdef12";
+    const done = await apply(env, d);
+    assert.status(done, 200);
+    assert.eq(done.body.access.users.find((x) => x.id === u.id).passwordByAdmin, true, "пароль сменил администратор");
+  });
+
+  test("Почта: администратор и управляющий видят всех, остальные — только свою", async () => {
+    const adm = A.roles.find((r) => r.global.unr);
+    const withMail = A.users.filter((u) => u.email);
+    const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)) && !u.roleIds.some((id) => A.roles.find((r) => r.id === id).global.feat.includes("USERS_RIGHTS_SETUP")));
+    const env = await makeEnv({ actAs: reader.login });
+    const a = await env.ok("GET", "/access");
+    assert.ok(a.users.every((u) => u.id === reader.id || u.email === ""), "чужой почты нет: " + withMail.length);
+    assert.eq(a.users.find((u) => u.id === reader.id).email, reader.email, "своя есть");
+    const { a: b } = await managerEnv();
+    assert.eq(b.users.filter((u) => u.email).length, withMail.length, "управляющий видит всех");
+  });
+
+  test("Без функции «Настройка прав пользователей» применить нельзя — 403", async () => {
+    const adm = A.roles.find((r) => r.global.unr);
+    const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)) && !u.roleIds.some((id) => A.roles.find((r) => r.id === id).global.feat.includes("USERS_RIGHTS_SETUP")));
+    const env = await makeEnv({ actAs: reader.login });
+    const a = await env.ok("GET", "/access");
+    const send = (x, v) => env.call("POST", "/access/apply", { access: { roles: x.roles, users: x.users, groups: x.groups, catalogs: x.catalogs }, history: [], cellHistory: [] }, { "If-Match": `"${v}"` });
+    const x = JSON.parse(JSON.stringify(a));
+    x.users.find((u) => u.id === reader.id).name = "Новое";
+    assert.status(await send(x, a.version), 403, "PERMISSION_DENIED");
+    x.users.find((u) => u.id === reader.id).name = reader.name;
+    assert.status(await send(x, a.version), 200, undefined, "снимок без правок: чужая пустая почта правкой не считается");
+    assert.eq((await env.ok("GET", "/access")).users.length, a.users.length, "на месте");
+  });
+
+  test("Папки ведёт только «Администратор»: функция роли и права на папку этого не дают — 403", async () => {
+    const adm = A.roles.find((r) => r.global.unr);
+    const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
+    const env = await makeEnv({ actAs: reader.login });
+    const f = FX.folders[0];
+    assert.status(await env.call("POST", "/folders", { name: "Новая", domainId: FX.domains[0].id, parentId: null }), 403, "PERMISSION_DENIED", "создать");
+    assert.status(await env.call("PATCH", `/folders/${f.id}`, { name: "Другая" }, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "переименовать");
+    assert.status(await env.call("DELETE", `/folders/${f.id}`, undefined, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "удалить");
+  });
+
   test("Права: без версии — 428, старая — 412; состояние синхронизации от клиента не берётся", async () => {
     const env = await makeEnv();
     assert.status(await env.call("POST", "/access/apply", { access: draft(), history: [], cellHistory: [] }), 428, "PRECONDITION_REQUIRED");

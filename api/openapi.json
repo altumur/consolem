@@ -1653,6 +1653,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "404": {
             "$ref": "#/components/responses/Problem"
           },
@@ -1665,7 +1668,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Папки ведёт только встроенная роль «Администратор»: функции роли и права на папку этого не дают, иначе 403 PERMISSION_DENIED"
       }
     },
     "/folders/{folderId}": {
@@ -1765,6 +1769,9 @@
               }
             }
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "404": {
             "$ref": "#/components/responses/Problem"
           },
@@ -1787,7 +1794,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "description": "Состав папки — это папки устройства: добавить или убрать устройство, над которым идёт групповая операция, — 409 BUSY, какое — в params.targetId"
+        "description": "Состав папки — это папки устройства: добавить или убрать устройство, над которым идёт групповая операция, — 409 BUSY, какое — в params.targetId. Папки ведёт только встроенная роль «Администратор»: функции роли и права на папку этого не дают, иначе 403 PERMISSION_DENIED"
       },
       "delete": {
         "operationId": "deleteFolder",
@@ -1819,6 +1826,9 @@
           "204": {
             "description": "Удалено"
           },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
           "404": {
             "$ref": "#/components/responses/Problem"
           },
@@ -1838,7 +1848,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "description": "Над устройством в ней или в подпапках идёт групповая операция — 409 BUSY, какое — в params.targetId"
+        "description": "Над устройством в ней или в подпапках идёт групповая операция — 409 BUSY, какое — в params.targetId. Папки ведёт только встроенная роль «Администратор»: функции роли и права на папку этого не дают, иначе 403 PERMISSION_DENIED"
       }
     },
     "/archives": {
@@ -5025,7 +5035,7 @@
           "access"
         ],
         "summary": "Применить черновик прав",
-        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; уровни, функции, запреты и плагины есть в справочнике, а части прав объявлены возможностями (иначе 422 NOT_SUPPORTED, field — путь поля, params.id — запись); встроенная роль «Администратор» меняется только назначениями (иначе 409 BUILTIN), unr у другой роли — 422 NOT_SUPPORTED; остаётся хотя бы один включённый администратор без срока учётной записи и без срока назначения, а текущий администратор не снимает с себя роль и не лишает себя входа (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора",
+        "description": "Сервер проверяет: имена ролей, групп, каталогов и логины не повторяются (без учёта регистра); ссылки ведут в существующие записи; уровни, функции, запреты и плагины есть в справочнике, а части прав объявлены возможностями (иначе 422 NOT_SUPPORTED, field — путь поля, params.id — запись); встроенная роль «Администратор» меняется только назначениями (иначе 409 BUILTIN), unr у другой роли — 422 NOT_SUPPORTED; остаётся хотя бы один включённый администратор без срока учётной записи и без срока назначения, а текущий администратор не снимает с себя роль и не лишает себя входа (иначе 409 SELF_LOCKOUT). Записи истории получают время и автора. Кто применяет: администратор — всё; человек с USERS_RIGHTS_SETUP — всё, кроме администратора. Пакет, который меняет назначения «Администратора», пользователей и группы с ним или включает и снимает USERS_RIGHTS_SETUP у роли, отвечает 403 PERMISSION_DENIED целиком, ничего не записано. Строки, которые пакет не меняет, не проверяются: присылать снимок целиком можно. Цель прочитать нельзя — 503 UPSTREAM_UNAVAILABLE. dryRun судит только черновик: право применяющего и 409 PASSWORD_NOT_ADMIN проверяются при записи",
         "parameters": [
           {
             "name": "If-Match",
@@ -5064,6 +5074,9 @@
             }
           },
           "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "403": {
             "$ref": "#/components/responses/Problem"
           },
           "409": {
@@ -7758,7 +7771,8 @@
             "type": "string"
           },
           "email": {
-            "type": "string"
+            "type": "string",
+            "description": "Видят администратор и люди с USERS_RIGHTS_SETUP; остальным — пустая строка, кроме своей записи"
           },
           "enabled": {
             "type": "boolean"
@@ -7818,6 +7832,14 @@
             "type": "string",
             "description": "Создан синхронизацией группы каталога",
             "format": "uuid"
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Пароль задан. Сам пароль сервер не отдаёт"
+          },
+          "passwordByAdmin": {
+            "type": "boolean",
+            "description": "Последний пароль задал сам пользователь или администратор. false — задал другой человек: назначить такому пользователю «Администратора» нельзя, пока администратор не сменит пароль (409 PASSWORD_NOT_ADMIN). Нет поля — неизвестно, интерфейс не предупреждает"
           }
         },
         "additionalProperties": false,
@@ -7833,7 +7855,8 @@
           "expiresDate",
           "webSessions",
           "mobileSessions",
-          "catalogId"
+          "catalogId",
+          "hasPassword"
         ]
       },
       "UserGroup": {
@@ -10258,14 +10281,15 @@
           "NOT_RUNNABLE",
           "UPSTREAM_UNAVAILABLE",
           "NOT_REVERTIBLE",
-          "DEVICE_REFUSED"
+          "DEVICE_REFUSED",
+          "PASSWORD_NOT_ADMIN"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
         "x-enum-descriptions": {
           "UNAUTHORIZED": "Нет сессии администратора (401)",
           "NOT_FOUND": "Записи нет или она не видна текущему администратору (404)",
           "NO_ROUTE": "Такой операции нет в контракте или система её не поддерживает — её нет в capabilities.operations (404)",
-          "PERMISSION_DENIED": "Нет права на операцию (403). Встроенный сервер права администратора не проверяет — см. api/BACKEND.md",
+          "PERMISSION_DENIED": "Нет права на операцию (403). Встроенный сервер судит только POST /access/apply и правку папок — см. api/BACKEND.md",
           "PRECONDITION_REQUIRED": "Изменение без версии (428): нет заголовка If-Match, у POST /operations — нет версии цели шага set или folderIds в expectedVersions; ничего не создано. Шагу create версия не нужна",
           "VERSION_MISMATCH": "Запись изменилась с момента чтения: в теле — актуальная (412)",
           "VALIDATION_FAILED": "Поле не прошло проверку: какое — в field (422)",
@@ -10280,7 +10304,7 @@
           "LICENSE_EXCEEDED": "Лицензия превышена (по объекту в групповой операции)",
           "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, — params.reason: incompatible, params.with — id того детектора",
           "LOGIN_TAKEN": "Логин уже занят (409)",
-          "PASSWORD_POLICY": "Пароль не соответствует политике (422). Встроенный сервер пароли не проверяет — см. api/BACKEND.md",
+          "PASSWORD_POLICY": "Пароль не соответствует политике reference.access.passwordPolicy (422, field: password)",
           "SELF_LOCKOUT": "Изменение оставит систему без включённого бессрочного администратора или лишит вас входа (409). Администратор со сроком учётной записи, назначения или ролей группы последним не считается",
           "TEST_SUPPORT_OFF": "Служебные операции тестового стенда выключены (404)",
           "ADDRESS_TAKEN": "Сервер с таким адресом и портом уже есть (409)",
@@ -10294,7 +10318,8 @@
           "NOT_RUNNABLE": "Правило сейчас нельзя запустить: выключено, с ошибкой или только по событию — в params.reason (409)",
           "UPSTREAM_UNAVAILABLE": "Бэкенд недоступен, не ответил вовремя или занят (502, 503, 504; при 503 — Retry-After). Запись могла пройти: повтор — с тем же idempotencyKey или после перечитывания. У шага операции — шаг не выполнен из-за сбоя сервера, в объекте ничего не записано, retry-failed повторяет его",
           "NOT_REVERTIBLE": "Операцию нельзя откатить или повторить (409), причина в params.reason: notLast — не последняя в стопке, isRevert — это сам откат, expired — срок вышел, reverted — уже откачена, running — не закончена, empty — без удачных шагов, stale — повтор очищен или срок вышел",
-          "DEVICE_REFUSED": "Устройство отказало в команде (409), причина — в params.reason: noOperation — такой команды у единицы нет, refused — устройство ответило отказом"
+          "DEVICE_REFUSED": "Устройство отказало в команде (409), причина — в params.reason: noOperation — такой команды у единицы нет, refused — устройство ответило отказом",
+          "PASSWORD_NOT_ADMIN": "«Администратора» нельзя назначить пользователю, чей последний пароль задал не он сам и не администратор, напрямую и через группу (409, field: roleIds, params.id — пользователь). Сначала администратор меняет пароль"
         }
       },
       "ServerPatch": {
@@ -12027,7 +12052,7 @@
           "users": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/AccessUser"
+              "$ref": "#/components/schemas/AccessUserWrite"
             }
           },
           "groups": {
@@ -15246,6 +15271,114 @@
             "description": "Где работает: метки серверов из reference.serverLabels"
           }
         }
+      },
+      "AccessUserWrite": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "login": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "description": "Видят администратор и люди с USERS_RIGHTS_SETUP; остальным — пустая строка, кроме своей записи"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "roleIds": {
+            "type": "array",
+            "description": "Личные назначения; роли групп — у групп",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "roleUntil": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": {
+              "type": "string",
+              "format": "date"
+            },
+            "description": "Срок назначения: id роли → дата"
+          },
+          "lastLoginDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "expiresDate": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date"
+          },
+          "createdDate": {
+            "type": "string",
+            "format": "date"
+          },
+          "webSessions": {
+            "type": "integer",
+            "description": "Лимит веб-сессий; 0 — без лимита",
+            "minimum": 0
+          },
+          "mobileSessions": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "catalogId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "syncedGroupId": {
+            "type": "string",
+            "description": "Создан синхронизацией группы каталога",
+            "format": "uuid"
+          },
+          "hasPassword": {
+            "type": "boolean",
+            "description": "Пароль задан. Сам пароль сервер не отдаёт"
+          },
+          "passwordByAdmin": {
+            "type": "boolean",
+            "description": "Последний пароль задал сам пользователь или администратор. false — задал другой человек: назначить такому пользователю «Администратора» нельзя, пока администратор не сменит пароль (409 PASSWORD_NOT_ADMIN). Нет поля — неизвестно, интерфейс не предупреждает"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "writeOnly": true,
+            "description": "Новый пароль: у нового пользователя и при смене. Только на запись, в ответах его нет. Проверяется по reference.access.passwordPolicy, отказ — 422 PASSWORD_POLICY, field: password, params.id — пользователь. У пользователя из каталога — 422 VALIDATION_FAILED"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "login",
+          "name",
+          "email",
+          "enabled",
+          "roleIds",
+          "roleUntil",
+          "lastLoginDate",
+          "expiresDate",
+          "webSessions",
+          "mobileSessions",
+          "catalogId"
+        ],
+        "description": "Пользователь в черновике. hasPassword и passwordByAdmin ведёт сервер, присланное не берётся"
       }
     }
   }

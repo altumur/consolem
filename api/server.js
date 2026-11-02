@@ -1184,6 +1184,66 @@
       }
       return null;
     }
+    // Назначение встроенной роли: личное или через группу, срок не истёк
+    function holdsAdmin(a, id) {
+      const unr = new Set(a.roles.filter((r) => r.global.unr).map((r) => r.id));
+      const t = today();
+      const live = (until) => !until || until >= t;
+      const u = a.users.find((x) => x.id === id);
+      if (!u) return false;
+      return u.roleIds.some((r) => unr.has(r) && live(u.roleUntil[r])) || a.groups.some((g) => g.memberIds.includes(id) && live(g.rolesUntil) && g.roleIds.some((r) => unr.has(r)));
+    }
+    // Функция «Настройка прав пользователей»: у человека через действующую роль
+    function managesUsers(a, id) {
+      const t = today();
+      const live = (until) => !until || until >= t;
+      const has = (rid) => (a.roles.find((r) => r.id === rid) || { global: { feat: [] } }).global.feat.includes("USERS_RIGHTS_SETUP");
+      const u = a.users.find((x) => x.id === id);
+      if (!u) return false;
+      return u.roleIds.some((r) => has(r) && live(u.roleUntil[r])) || a.groups.some((g) => g.memberIds.includes(id) && live(g.rolesUntil) && g.roleIds.some(has));
+    }
+    const SERVER_USER = ["hasPassword", "passwordByAdmin"];
+    const bare = (u) => { const c = clone(u); SERVER_USER.forEach((k) => delete c[k]); return c; };
+    // Кто применяет: администратор — всё; управляющий — всё, кроме администратора, отказ на весь пакет.
+    // Судится разница: строки, которых пакет не меняет, не проверяются
+    function applierProblem(was, next, passwords) {
+      if (holdsAdmin(was, me)) return null;
+      const byId = (list) => new Map(list.map((x) => [x.id, x]));
+      const wu = byId(was.users), nu = byId(next.users), wg = byId(was.groups), ng = byId(next.groups), wr = byId(was.roles), nr = byId(next.roles);
+      const userChanged = (id) => passwords.has(id) || !wu.has(id) || !nu.has(id) || !sameJson(bare(wu.get(id)), bare(nu.get(id)));
+      const groupChanged = (id) => !wg.has(id) || !ng.has(id) || !sameJson(wg.get(id), ng.get(id));
+      const roleChanged = (id) => !wr.has(id) || !nr.has(id) || !sameJson(wr.get(id), nr.get(id));
+      const users = [...new Set([...wu.keys(), ...nu.keys()])].filter(userChanged);
+      const groups = [...new Set([...wg.keys(), ...ng.keys()])].filter(groupChanged);
+      const roles = [...new Set([...wr.keys(), ...nr.keys()])].filter(roleChanged);
+      if (!users.length && !groups.length && !roles.length && !sameJson(was.catalogs, next.catalogs)) return problem(403, "PERMISSION_DENIED", "Нет права менять права");
+      if (!users.length && !groups.length && !roles.length) return null;
+      if (!managesUsers(was, me)) return problem(403, "PERMISSION_DENIED", "Нет права менять права");
+      const deny = () => problem(403, "PERMISSION_DENIED", "Менять администратора может только администратор");
+      if (users.some((id) => holdsAdmin(was, id) || holdsAdmin(next, id))) return deny();
+      const unr = new Set(next.roles.filter((r) => r.global.unr).map((r) => r.id));
+      const hits = (g) => !!g && g.roleIds.some((r) => unr.has(r));
+      if (groups.some((id) => hits(wg.get(id)) || hits(ng.get(id)))) return deny();
+      const mgr = (r) => !!r && r.global.feat.includes("USERS_RIGHTS_SETUP");
+      if (roles.some((id) => mgr(wr.get(id)) !== mgr(nr.get(id)))) return deny();
+      return null;
+    }
+    // «Администратора» не назначить тому, чей последний пароль задал не он сам и не администратор
+    function passwordProblem(was, next, passwords) {
+      const u = next.users.find((x) => x.passwordByAdmin === false && !passwords.has(x.id) && holdsAdmin(next, x.id) && !holdsAdmin(was, x.id));
+      return u ? problem(409, "PASSWORD_NOT_ADMIN", "Пароль пользователя задал не администратор: сначала смените его", { field: "roleIds", params: { id: u.id } }) : null;
+    }
+    function policyProblem(u, pwd) {
+      const P = db.reference.access.passwordPolicy;
+      const bad = pwd.length < P.minLength || (P.letter && !/\p{L}/u.test(pwd)) || (P.digit && !/\d/.test(pwd)) || (P.notLogin && pwd.toLowerCase().includes(u.login.toLowerCase()));
+      return bad ? problem(422, "PASSWORD_POLICY", "Пароль не подходит по политике", { field: "password", params: { id: u.id } }) : null;
+    }
+    // Почту видят администратор и управляющий, остальные — только свою
+    function accessView() {
+      const a = clone(db.access);
+      if (!holdsAdmin(a, me) && !managesUsers(a, me)) a.users.forEach((u) => { if (u.id !== me) u.email = ""; });
+      return a;
+    }
     function accessProblem(a) {
       const dup = (list, key, code, what) => {
         const seen = new Set();
@@ -1845,6 +1905,7 @@
         "POST",
         "/folders",
         (p, q, body) => {
+if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           if (!byId("domains", body.domainId)) return notFound("Домен");
           if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
           if (body.parentId) {
@@ -1862,6 +1923,7 @@
         "PATCH",
         "/folders/{id}",
         (p, q, body, headers) => {
+          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           const f = byId("folders", p.id);
           if (!f) return notFound("Папка");
           const bad = precondition(f, headers);
@@ -1890,6 +1952,7 @@
         "DELETE",
         "/folders/{id}",
         (p, q, body, headers) => {
+          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           const f = byId("folders", p.id);
           if (!f) return notFound("Папка");
           const bad = precondition(f, headers) || lockedProblem(touchedBy("folders", f), held);
@@ -2207,9 +2270,39 @@
             const was = a.groups.find((x) => x.id === g.id);
             if (was && was.source && g.source) ["status", "at", "message"].forEach((k) => (g.source[k] = was.source[k]));
           });
+          // Пароль — только на запись; hasPassword и passwordByAdmin ведёт сервер
+          const passwords = new Map();
+          next.users.forEach((u) => {
+            if (u.password != null) passwords.set(u.id, u.password);
+            delete u.password;
+            const was = a.users.find((x) => x.id === u.id);
+            SERVER_USER.forEach((k) => delete u[k]);
+            if (was) SERVER_USER.forEach((k) => { if (k in was) u[k] = was[k]; });
+            else u.hasPassword = false;
+          });
+          // Кто чужой почты не видел, её не правит: пустая строка из снимка — не правка
+          if (!holdsAdmin(a, me) && !managesUsers(a, me)) next.users.forEach((u) => {
+            const was = a.users.find((x) => x.id === u.id);
+            if (was && u.id !== me && !u.email) u.email = was.email;
+          });
           const why = accessProblem(next);
           if (why) return why;
+          for (const [id, pwd] of passwords) {
+            const u = next.users.find((x) => x.id === id);
+            if (!u) continue;
+            if (u.catalogId) return problem(422, "VALIDATION_FAILED", "Пароль хранится в каталоге", { field: "password", params: { id } });
+            const weak = policyProblem(u, pwd);
+            if (weak) return weak;
+          }
           if (body.dryRun) return { status: 200, body: { applied: false, access: null }, headers: { ETag: etag(a) } };
+          const refused = applierProblem(a, next, passwords) || passwordProblem(a, next, passwords);
+          if (refused) return refused;
+          const admin = holdsAdmin(a, me);
+          next.users.forEach((u) => {
+            if (!passwords.has(u.id)) return;
+            u.hasPassword = true;
+            u.passwordByAdmin = admin || u.id === me;
+          });
           const actor = (a.users.find((u) => u.id === me) || {}).login || "";
           const at = iso(now());
           const stamp = (kind, x) => Object.assign({ id: uuid(kind), at, actor }, clone(x));
@@ -2219,7 +2312,7 @@
           });
           bump(a);
           send("entity.changed", { kind: "access", version: a.version });
-          return { status: 200, body: { applied: true, access: clone(a) }, headers: { ETag: etag(a) } };
+          return { status: 200, body: { applied: true, access: accessView() }, headers: { ETag: etag(a) } };
         },
       ],
       [
@@ -2537,7 +2630,7 @@
           return { status: 204 };
         },
       ],
-      ["GET", "/access", () => one(clone(db.access))],
+      ["GET", "/access", () => one(accessView())],
       ["GET", "/settings", () => one(clone(db.settings))],
       ["GET", "/licenses", () => items(clone(db.licenses))],
       [

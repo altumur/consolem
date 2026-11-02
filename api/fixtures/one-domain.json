@@ -8811,7 +8811,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000002-0000-4000-8000-000000000000",
@@ -8827,7 +8829,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000003-0000-4000-8000-000000000000",
@@ -8841,7 +8845,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000004-0000-4000-8000-000000000000",
@@ -8857,7 +8863,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000005-0000-4000-8000-000000000000",
@@ -8873,7 +8881,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000006-0000-4000-8000-000000000000",
@@ -8891,7 +8901,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000007-0000-4000-8000-000000000000",
@@ -8905,7 +8917,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000008-0000-4000-8000-000000000000",
@@ -8923,7 +8937,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000009-0000-4000-8000-000000000000",
@@ -8937,7 +8953,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000010-0000-4000-8000-000000000000",
@@ -8951,7 +8969,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000011-0000-4000-8000-000000000000",
@@ -8965,7 +8985,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000012-0000-4000-8000-000000000000",
@@ -8981,7 +9003,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000013-0000-4000-8000-000000000000",
@@ -8998,7 +9022,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000014-0000-4000-8000-000000000000",
@@ -9014,7 +9040,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000015-0000-4000-8000-000000000000",
@@ -9030,7 +9058,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000016-0000-4000-8000-000000000000",
@@ -9046,7 +9076,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": false
    },
    {
     "id": "90000017-0000-4000-8000-000000000000",
@@ -9062,7 +9094,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000018-0000-4000-8000-000000000000",
@@ -9078,7 +9112,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000019-0000-4000-8000-000000000000",
@@ -9094,7 +9130,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000020-0000-4000-8000-000000000000",
@@ -9110,7 +9148,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000021-0000-4000-8000-000000000000",
@@ -9126,7 +9166,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000022-0000-4000-8000-000000000000",
@@ -9142,7 +9184,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000023-0000-4000-8000-000000000000",
@@ -9156,7 +9200,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000024-0000-4000-8000-000000000000",
@@ -9172,7 +9218,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000025-0000-4000-8000-000000000000",
@@ -9188,7 +9236,9 @@
     "expiresDate": "2026-12-13",
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000026-0000-4000-8000-000000000000",
@@ -9202,7 +9252,9 @@
     "expiresDate": "2026-11-03",
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000027-0000-4000-8000-000000000000",
@@ -9216,7 +9268,9 @@
     "expiresDate": "2026-09-29",
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000028-0000-4000-8000-000000000000",
@@ -9230,7 +9284,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000029-0000-4000-8000-000000000000",
@@ -9244,7 +9300,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000030-0000-4000-8000-000000000000",
@@ -9258,7 +9316,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000031-0000-4000-8000-000000000000",
@@ -9272,7 +9332,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000032-0000-4000-8000-000000000000",
@@ -9286,7 +9348,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000033-0000-4000-8000-000000000000",
@@ -9300,7 +9364,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000034-0000-4000-8000-000000000000",
@@ -9314,7 +9380,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000035-0000-4000-8000-000000000000",
@@ -9328,7 +9396,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000036-0000-4000-8000-000000000000",
@@ -9342,7 +9412,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000037-0000-4000-8000-000000000000",
@@ -9356,7 +9428,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000038-0000-4000-8000-000000000000",
@@ -9370,7 +9444,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000039-0000-4000-8000-000000000000",
@@ -9384,7 +9460,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000040-0000-4000-8000-000000000000",
@@ -9398,7 +9476,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000041-0000-4000-8000-000000000000",
@@ -9412,7 +9492,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000042-0000-4000-8000-000000000000",
@@ -9426,7 +9508,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000043-0000-4000-8000-000000000000",
@@ -9440,7 +9524,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000044-0000-4000-8000-000000000000",
@@ -9454,7 +9540,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000045-0000-4000-8000-000000000000",
@@ -9468,7 +9556,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000046-0000-4000-8000-000000000000",
@@ -9482,7 +9572,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000047-0000-4000-8000-000000000000",
@@ -9496,7 +9588,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000048-0000-4000-8000-000000000000",
@@ -9510,7 +9604,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000049-0000-4000-8000-000000000000",
@@ -9524,7 +9620,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000050-0000-4000-8000-000000000000",
@@ -9538,7 +9636,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000051-0000-4000-8000-000000000000",
@@ -9552,7 +9652,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000052-0000-4000-8000-000000000000",
@@ -9566,7 +9668,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000053-0000-4000-8000-000000000000",
@@ -9580,7 +9684,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000054-0000-4000-8000-000000000000",
@@ -9594,7 +9700,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000055-0000-4000-8000-000000000000",
@@ -9608,7 +9716,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000056-0000-4000-8000-000000000000",
@@ -9622,7 +9732,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000057-0000-4000-8000-000000000000",
@@ -9636,7 +9748,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000058-0000-4000-8000-000000000000",
@@ -9650,7 +9764,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000059-0000-4000-8000-000000000000",
@@ -9664,7 +9780,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000060-0000-4000-8000-000000000000",
@@ -9678,7 +9796,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000061-0000-4000-8000-000000000000",
@@ -9692,7 +9812,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000062-0000-4000-8000-000000000000",
@@ -9706,7 +9828,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000063-0000-4000-8000-000000000000",
@@ -9720,7 +9844,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000064-0000-4000-8000-000000000000",
@@ -9734,7 +9860,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000065-0000-4000-8000-000000000000",
@@ -9748,7 +9876,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000066-0000-4000-8000-000000000000",
@@ -9762,7 +9892,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000067-0000-4000-8000-000000000000",
@@ -9776,7 +9908,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000068-0000-4000-8000-000000000000",
@@ -9790,7 +9924,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000069-0000-4000-8000-000000000000",
@@ -9804,7 +9940,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000070-0000-4000-8000-000000000000",
@@ -9818,7 +9956,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000071-0000-4000-8000-000000000000",
@@ -9832,7 +9972,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000072-0000-4000-8000-000000000000",
@@ -9846,7 +9988,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000073-0000-4000-8000-000000000000",
@@ -9860,7 +10004,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000074-0000-4000-8000-000000000000",
@@ -9874,7 +10020,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000075-0000-4000-8000-000000000000",
@@ -9888,7 +10036,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000076-0000-4000-8000-000000000000",
@@ -9902,7 +10052,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000077-0000-4000-8000-000000000000",
@@ -9916,7 +10068,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000078-0000-4000-8000-000000000000",
@@ -9930,7 +10084,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000079-0000-4000-8000-000000000000",
@@ -9944,7 +10100,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000080-0000-4000-8000-000000000000",
@@ -9958,7 +10116,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000081-0000-4000-8000-000000000000",
@@ -9972,7 +10132,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000082-0000-4000-8000-000000000000",
@@ -9986,7 +10148,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000083-0000-4000-8000-000000000000",
@@ -10000,7 +10164,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000084-0000-4000-8000-000000000000",
@@ -10014,7 +10180,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000085-0000-4000-8000-000000000000",
@@ -10028,7 +10196,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000086-0000-4000-8000-000000000000",
@@ -10042,7 +10212,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000087-0000-4000-8000-000000000000",
@@ -10056,7 +10228,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000088-0000-4000-8000-000000000000",
@@ -10072,7 +10246,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000089-0000-4000-8000-000000000000",
@@ -10088,7 +10264,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000090-0000-4000-8000-000000000000",
@@ -10104,7 +10282,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000091-0000-4000-8000-000000000000",
@@ -10120,7 +10300,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000092-0000-4000-8000-000000000000",
@@ -10136,7 +10318,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000093-0000-4000-8000-000000000000",
@@ -10152,7 +10336,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000094-0000-4000-8000-000000000000",
@@ -10168,7 +10354,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000095-0000-4000-8000-000000000000",
@@ -10184,7 +10372,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000096-0000-4000-8000-000000000000",
@@ -10200,7 +10390,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000097-0000-4000-8000-000000000000",
@@ -10216,7 +10408,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000098-0000-4000-8000-000000000000",
@@ -10232,7 +10426,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000099-0000-4000-8000-000000000000",
@@ -10248,7 +10444,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000100-0000-4000-8000-000000000000",
@@ -10264,7 +10462,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000101-0000-4000-8000-000000000000",
@@ -10280,7 +10480,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000102-0000-4000-8000-000000000000",
@@ -10296,7 +10498,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000103-0000-4000-8000-000000000000",
@@ -10312,7 +10516,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000104-0000-4000-8000-000000000000",
@@ -10328,7 +10534,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000105-0000-4000-8000-000000000000",
@@ -10344,7 +10552,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000106-0000-4000-8000-000000000000",
@@ -10360,7 +10570,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000107-0000-4000-8000-000000000000",
@@ -10376,7 +10588,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000108-0000-4000-8000-000000000000",
@@ -10390,7 +10604,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000109-0000-4000-8000-000000000000",
@@ -10404,7 +10620,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000110-0000-4000-8000-000000000000",
@@ -10418,7 +10636,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000111-0000-4000-8000-000000000000",
@@ -10432,7 +10652,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000112-0000-4000-8000-000000000000",
@@ -10446,7 +10668,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000113-0000-4000-8000-000000000000",
@@ -10460,7 +10684,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000114-0000-4000-8000-000000000000",
@@ -10474,7 +10700,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000115-0000-4000-8000-000000000000",
@@ -10488,7 +10716,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000116-0000-4000-8000-000000000000",
@@ -10502,7 +10732,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000117-0000-4000-8000-000000000000",
@@ -10516,7 +10748,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000118-0000-4000-8000-000000000000",
@@ -10532,7 +10766,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000119-0000-4000-8000-000000000000",
@@ -10548,7 +10784,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000120-0000-4000-8000-000000000000",
@@ -10564,7 +10802,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000121-0000-4000-8000-000000000000",
@@ -10580,7 +10820,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000122-0000-4000-8000-000000000000",
@@ -10596,7 +10838,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000123-0000-4000-8000-000000000000",
@@ -10612,7 +10856,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000124-0000-4000-8000-000000000000",
@@ -10628,7 +10874,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000125-0000-4000-8000-000000000000",
@@ -10644,7 +10892,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000126-0000-4000-8000-000000000000",
@@ -10660,7 +10910,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000127-0000-4000-8000-000000000000",
@@ -10676,7 +10928,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000128-0000-4000-8000-000000000000",
@@ -10692,7 +10946,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000129-0000-4000-8000-000000000000",
@@ -10708,7 +10964,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000130-0000-4000-8000-000000000000",
@@ -10724,7 +10982,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000131-0000-4000-8000-000000000000",
@@ -10740,7 +11000,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000132-0000-4000-8000-000000000000",
@@ -10756,7 +11018,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000133-0000-4000-8000-000000000000",
@@ -10772,7 +11036,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000134-0000-4000-8000-000000000000",
@@ -10788,7 +11054,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000135-0000-4000-8000-000000000000",
@@ -10804,7 +11072,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000136-0000-4000-8000-000000000000",
@@ -10820,7 +11090,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000137-0000-4000-8000-000000000000",
@@ -10836,7 +11108,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000138-0000-4000-8000-000000000000",
@@ -10850,7 +11124,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000139-0000-4000-8000-000000000000",
@@ -10864,7 +11140,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000140-0000-4000-8000-000000000000",
@@ -10878,7 +11156,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000141-0000-4000-8000-000000000000",
@@ -10892,7 +11172,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000142-0000-4000-8000-000000000000",
@@ -10906,7 +11188,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000143-0000-4000-8000-000000000000",
@@ -10920,7 +11204,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000144-0000-4000-8000-000000000000",
@@ -10934,7 +11220,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000145-0000-4000-8000-000000000000",
@@ -10948,7 +11236,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000146-0000-4000-8000-000000000000",
@@ -10962,7 +11252,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000147-0000-4000-8000-000000000000",
@@ -10976,7 +11268,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000148-0000-4000-8000-000000000000",
@@ -10992,7 +11286,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000149-0000-4000-8000-000000000000",
@@ -11008,7 +11304,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000150-0000-4000-8000-000000000000",
@@ -11024,7 +11322,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000151-0000-4000-8000-000000000000",
@@ -11040,7 +11340,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000152-0000-4000-8000-000000000000",
@@ -11056,7 +11358,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000153-0000-4000-8000-000000000000",
@@ -11072,7 +11376,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000154-0000-4000-8000-000000000000",
@@ -11088,7 +11394,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000155-0000-4000-8000-000000000000",
@@ -11104,7 +11412,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000156-0000-4000-8000-000000000000",
@@ -11120,7 +11430,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000157-0000-4000-8000-000000000000",
@@ -11136,7 +11448,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000158-0000-4000-8000-000000000000",
@@ -11152,7 +11466,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000159-0000-4000-8000-000000000000",
@@ -11168,7 +11484,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000160-0000-4000-8000-000000000000",
@@ -11184,7 +11502,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000161-0000-4000-8000-000000000000",
@@ -11200,7 +11520,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000162-0000-4000-8000-000000000000",
@@ -11216,7 +11538,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000163-0000-4000-8000-000000000000",
@@ -11232,7 +11556,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000164-0000-4000-8000-000000000000",
@@ -11248,7 +11574,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000165-0000-4000-8000-000000000000",
@@ -11264,7 +11592,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000166-0000-4000-8000-000000000000",
@@ -11280,7 +11610,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000167-0000-4000-8000-000000000000",
@@ -11296,7 +11628,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000168-0000-4000-8000-000000000000",
@@ -11310,7 +11644,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000169-0000-4000-8000-000000000000",
@@ -11324,7 +11660,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000170-0000-4000-8000-000000000000",
@@ -11338,7 +11676,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000171-0000-4000-8000-000000000000",
@@ -11352,7 +11692,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000172-0000-4000-8000-000000000000",
@@ -11366,7 +11708,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000173-0000-4000-8000-000000000000",
@@ -11380,7 +11724,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000174-0000-4000-8000-000000000000",
@@ -11394,7 +11740,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000175-0000-4000-8000-000000000000",
@@ -11408,7 +11756,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000176-0000-4000-8000-000000000000",
@@ -11422,7 +11772,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000177-0000-4000-8000-000000000000",
@@ -11436,7 +11788,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000178-0000-4000-8000-000000000000",
@@ -11452,7 +11806,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000179-0000-4000-8000-000000000000",
@@ -11468,7 +11824,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000180-0000-4000-8000-000000000000",
@@ -11484,7 +11842,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000181-0000-4000-8000-000000000000",
@@ -11500,7 +11860,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000182-0000-4000-8000-000000000000",
@@ -11516,7 +11878,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000183-0000-4000-8000-000000000000",
@@ -11532,7 +11896,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000184-0000-4000-8000-000000000000",
@@ -11548,7 +11914,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000185-0000-4000-8000-000000000000",
@@ -11564,7 +11932,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000186-0000-4000-8000-000000000000",
@@ -11580,7 +11950,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000187-0000-4000-8000-000000000000",
@@ -11596,7 +11968,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000188-0000-4000-8000-000000000000",
@@ -11612,7 +11986,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000189-0000-4000-8000-000000000000",
@@ -11628,7 +12004,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000190-0000-4000-8000-000000000000",
@@ -11644,7 +12022,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000191-0000-4000-8000-000000000000",
@@ -11660,7 +12040,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000192-0000-4000-8000-000000000000",
@@ -11676,7 +12058,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000193-0000-4000-8000-000000000000",
@@ -11692,7 +12076,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000194-0000-4000-8000-000000000000",
@@ -11708,7 +12094,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000195-0000-4000-8000-000000000000",
@@ -11724,7 +12112,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000196-0000-4000-8000-000000000000",
@@ -11740,7 +12130,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000197-0000-4000-8000-000000000000",
@@ -11756,7 +12148,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000198-0000-4000-8000-000000000000",
@@ -11770,7 +12164,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000199-0000-4000-8000-000000000000",
@@ -11784,7 +12180,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000200-0000-4000-8000-000000000000",
@@ -11798,7 +12196,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000201-0000-4000-8000-000000000000",
@@ -11812,7 +12212,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000202-0000-4000-8000-000000000000",
@@ -11826,7 +12228,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000203-0000-4000-8000-000000000000",
@@ -11840,7 +12244,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000204-0000-4000-8000-000000000000",
@@ -11854,7 +12260,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000205-0000-4000-8000-000000000000",
@@ -11868,7 +12276,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000206-0000-4000-8000-000000000000",
@@ -11882,7 +12292,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000207-0000-4000-8000-000000000000",
@@ -11896,7 +12308,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000208-0000-4000-8000-000000000000",
@@ -11912,7 +12326,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000209-0000-4000-8000-000000000000",
@@ -11928,7 +12344,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000210-0000-4000-8000-000000000000",
@@ -11944,7 +12362,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000211-0000-4000-8000-000000000000",
@@ -11960,7 +12380,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000212-0000-4000-8000-000000000000",
@@ -11976,7 +12398,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000213-0000-4000-8000-000000000000",
@@ -11992,7 +12416,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000214-0000-4000-8000-000000000000",
@@ -12008,7 +12434,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000215-0000-4000-8000-000000000000",
@@ -12024,7 +12452,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000216-0000-4000-8000-000000000000",
@@ -12040,7 +12470,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000217-0000-4000-8000-000000000000",
@@ -12056,7 +12488,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000218-0000-4000-8000-000000000000",
@@ -12072,7 +12506,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000219-0000-4000-8000-000000000000",
@@ -12088,7 +12524,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000220-0000-4000-8000-000000000000",
@@ -12104,7 +12542,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000221-0000-4000-8000-000000000000",
@@ -12120,7 +12560,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000222-0000-4000-8000-000000000000",
@@ -12136,7 +12578,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000223-0000-4000-8000-000000000000",
@@ -12152,7 +12596,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000224-0000-4000-8000-000000000000",
@@ -12168,7 +12614,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000225-0000-4000-8000-000000000000",
@@ -12184,7 +12632,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000226-0000-4000-8000-000000000000",
@@ -12200,7 +12650,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000227-0000-4000-8000-000000000000",
@@ -12216,7 +12668,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000228-0000-4000-8000-000000000000",
@@ -12230,7 +12684,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000229-0000-4000-8000-000000000000",
@@ -12244,7 +12700,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000230-0000-4000-8000-000000000000",
@@ -12258,7 +12716,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000231-0000-4000-8000-000000000000",
@@ -12272,7 +12732,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000232-0000-4000-8000-000000000000",
@@ -12286,7 +12748,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000233-0000-4000-8000-000000000000",
@@ -12300,7 +12764,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000234-0000-4000-8000-000000000000",
@@ -12314,7 +12780,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000235-0000-4000-8000-000000000000",
@@ -12328,7 +12796,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000236-0000-4000-8000-000000000000",
@@ -12342,7 +12812,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000237-0000-4000-8000-000000000000",
@@ -12356,7 +12828,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000238-0000-4000-8000-000000000000",
@@ -12372,7 +12846,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000239-0000-4000-8000-000000000000",
@@ -12388,7 +12864,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000240-0000-4000-8000-000000000000",
@@ -12404,7 +12882,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000241-0000-4000-8000-000000000000",
@@ -12420,7 +12900,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000242-0000-4000-8000-000000000000",
@@ -12436,7 +12918,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000243-0000-4000-8000-000000000000",
@@ -12452,7 +12936,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000244-0000-4000-8000-000000000000",
@@ -12468,7 +12954,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000245-0000-4000-8000-000000000000",
@@ -12484,7 +12972,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000246-0000-4000-8000-000000000000",
@@ -12500,7 +12990,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000247-0000-4000-8000-000000000000",
@@ -12516,7 +13008,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000248-0000-4000-8000-000000000000",
@@ -12532,7 +13026,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000249-0000-4000-8000-000000000000",
@@ -12548,7 +13044,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000250-0000-4000-8000-000000000000",
@@ -12564,7 +13062,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000251-0000-4000-8000-000000000000",
@@ -12580,7 +13080,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000252-0000-4000-8000-000000000000",
@@ -12596,7 +13098,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000253-0000-4000-8000-000000000000",
@@ -12612,7 +13116,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000254-0000-4000-8000-000000000000",
@@ -12628,7 +13134,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000255-0000-4000-8000-000000000000",
@@ -12644,7 +13152,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000256-0000-4000-8000-000000000000",
@@ -12660,7 +13170,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000257-0000-4000-8000-000000000000",
@@ -12676,7 +13188,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000258-0000-4000-8000-000000000000",
@@ -12690,7 +13204,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000259-0000-4000-8000-000000000000",
@@ -12704,7 +13220,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000260-0000-4000-8000-000000000000",
@@ -12718,7 +13236,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000261-0000-4000-8000-000000000000",
@@ -12732,7 +13252,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000262-0000-4000-8000-000000000000",
@@ -12746,7 +13268,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000263-0000-4000-8000-000000000000",
@@ -12760,7 +13284,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000264-0000-4000-8000-000000000000",
@@ -12774,7 +13300,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000265-0000-4000-8000-000000000000",
@@ -12788,7 +13316,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000266-0000-4000-8000-000000000000",
@@ -12802,7 +13332,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000267-0000-4000-8000-000000000000",
@@ -12816,7 +13348,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000268-0000-4000-8000-000000000000",
@@ -12832,7 +13366,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000269-0000-4000-8000-000000000000",
@@ -12848,7 +13384,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000270-0000-4000-8000-000000000000",
@@ -12864,7 +13402,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000271-0000-4000-8000-000000000000",
@@ -12880,7 +13420,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000272-0000-4000-8000-000000000000",
@@ -12896,7 +13438,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000273-0000-4000-8000-000000000000",
@@ -12912,7 +13456,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000274-0000-4000-8000-000000000000",
@@ -12928,7 +13474,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000275-0000-4000-8000-000000000000",
@@ -12944,7 +13492,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000276-0000-4000-8000-000000000000",
@@ -12960,7 +13510,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000277-0000-4000-8000-000000000000",
@@ -12976,7 +13528,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000278-0000-4000-8000-000000000000",
@@ -12992,7 +13546,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000279-0000-4000-8000-000000000000",
@@ -13008,7 +13564,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000280-0000-4000-8000-000000000000",
@@ -13024,7 +13582,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000281-0000-4000-8000-000000000000",
@@ -13040,7 +13600,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000282-0000-4000-8000-000000000000",
@@ -13056,7 +13618,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000283-0000-4000-8000-000000000000",
@@ -13072,7 +13636,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000284-0000-4000-8000-000000000000",
@@ -13088,7 +13654,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000285-0000-4000-8000-000000000000",
@@ -13104,7 +13672,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000286-0000-4000-8000-000000000000",
@@ -13120,7 +13690,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000287-0000-4000-8000-000000000000",
@@ -13136,7 +13708,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000288-0000-4000-8000-000000000000",
@@ -13150,7 +13724,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000289-0000-4000-8000-000000000000",
@@ -13164,7 +13740,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000290-0000-4000-8000-000000000000",
@@ -13178,7 +13756,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000291-0000-4000-8000-000000000000",
@@ -13192,7 +13772,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000292-0000-4000-8000-000000000000",
@@ -13206,7 +13788,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000293-0000-4000-8000-000000000000",
@@ -13220,7 +13804,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000294-0000-4000-8000-000000000000",
@@ -13234,7 +13820,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000295-0000-4000-8000-000000000000",
@@ -13248,7 +13836,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000296-0000-4000-8000-000000000000",
@@ -13262,7 +13852,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000297-0000-4000-8000-000000000000",
@@ -13276,7 +13868,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000298-0000-4000-8000-000000000000",
@@ -13292,7 +13886,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000299-0000-4000-8000-000000000000",
@@ -13308,7 +13904,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000300-0000-4000-8000-000000000000",
@@ -13324,7 +13922,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000301-0000-4000-8000-000000000000",
@@ -13340,7 +13940,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000302-0000-4000-8000-000000000000",
@@ -13356,7 +13958,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000303-0000-4000-8000-000000000000",
@@ -13372,7 +13976,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000304-0000-4000-8000-000000000000",
@@ -13388,7 +13994,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000305-0000-4000-8000-000000000000",
@@ -13404,7 +14012,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000306-0000-4000-8000-000000000000",
@@ -13420,7 +14030,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000307-0000-4000-8000-000000000000",
@@ -13436,7 +14048,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000308-0000-4000-8000-000000000000",
@@ -13452,7 +14066,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000309-0000-4000-8000-000000000000",
@@ -13468,7 +14084,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000310-0000-4000-8000-000000000000",
@@ -13484,7 +14102,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000311-0000-4000-8000-000000000000",
@@ -13500,7 +14120,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000312-0000-4000-8000-000000000000",
@@ -13516,7 +14138,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000313-0000-4000-8000-000000000000",
@@ -13532,7 +14156,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000314-0000-4000-8000-000000000000",
@@ -13548,7 +14174,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000315-0000-4000-8000-000000000000",
@@ -13564,7 +14192,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000316-0000-4000-8000-000000000000",
@@ -13580,7 +14210,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000317-0000-4000-8000-000000000000",
@@ -13596,7 +14228,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000318-0000-4000-8000-000000000000",
@@ -13610,7 +14244,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000319-0000-4000-8000-000000000000",
@@ -13624,7 +14260,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000320-0000-4000-8000-000000000000",
@@ -13638,7 +14276,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000321-0000-4000-8000-000000000000",
@@ -13652,7 +14292,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000322-0000-4000-8000-000000000000",
@@ -13666,7 +14308,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000323-0000-4000-8000-000000000000",
@@ -13680,7 +14324,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000324-0000-4000-8000-000000000000",
@@ -13694,7 +14340,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000325-0000-4000-8000-000000000000",
@@ -13708,7 +14356,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000326-0000-4000-8000-000000000000",
@@ -13722,7 +14372,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000327-0000-4000-8000-000000000000",
@@ -13736,7 +14388,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000328-0000-4000-8000-000000000000",
@@ -13752,7 +14406,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000329-0000-4000-8000-000000000000",
@@ -13768,7 +14424,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000330-0000-4000-8000-000000000000",
@@ -13784,7 +14442,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000331-0000-4000-8000-000000000000",
@@ -13800,7 +14460,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000332-0000-4000-8000-000000000000",
@@ -13816,7 +14478,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000333-0000-4000-8000-000000000000",
@@ -13832,7 +14496,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000334-0000-4000-8000-000000000000",
@@ -13848,7 +14514,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000335-0000-4000-8000-000000000000",
@@ -13864,7 +14532,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000336-0000-4000-8000-000000000000",
@@ -13880,7 +14550,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000337-0000-4000-8000-000000000000",
@@ -13896,7 +14568,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000338-0000-4000-8000-000000000000",
@@ -13912,7 +14586,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000339-0000-4000-8000-000000000000",
@@ -13928,7 +14604,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000340-0000-4000-8000-000000000000",
@@ -13944,7 +14622,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000341-0000-4000-8000-000000000000",
@@ -13960,7 +14640,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000342-0000-4000-8000-000000000000",
@@ -13976,7 +14658,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000343-0000-4000-8000-000000000000",
@@ -13992,7 +14676,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000344-0000-4000-8000-000000000000",
@@ -14008,7 +14694,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000345-0000-4000-8000-000000000000",
@@ -14024,7 +14712,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000346-0000-4000-8000-000000000000",
@@ -14040,7 +14730,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000347-0000-4000-8000-000000000000",
@@ -14056,7 +14748,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000348-0000-4000-8000-000000000000",
@@ -14070,7 +14764,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000349-0000-4000-8000-000000000000",
@@ -14084,7 +14780,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000350-0000-4000-8000-000000000000",
@@ -14098,7 +14796,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000351-0000-4000-8000-000000000000",
@@ -14112,7 +14812,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000352-0000-4000-8000-000000000000",
@@ -14126,7 +14828,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000353-0000-4000-8000-000000000000",
@@ -14140,7 +14844,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000354-0000-4000-8000-000000000000",
@@ -14154,7 +14860,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000355-0000-4000-8000-000000000000",
@@ -14168,7 +14876,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000356-0000-4000-8000-000000000000",
@@ -14182,7 +14892,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000357-0000-4000-8000-000000000000",
@@ -14196,7 +14908,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000358-0000-4000-8000-000000000000",
@@ -14212,7 +14926,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000359-0000-4000-8000-000000000000",
@@ -14228,7 +14944,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000360-0000-4000-8000-000000000000",
@@ -14244,7 +14962,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000361-0000-4000-8000-000000000000",
@@ -14260,7 +14980,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000362-0000-4000-8000-000000000000",
@@ -14276,7 +14998,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000363-0000-4000-8000-000000000000",
@@ -14292,7 +15016,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000364-0000-4000-8000-000000000000",
@@ -14308,7 +15034,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000365-0000-4000-8000-000000000000",
@@ -14324,7 +15052,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000366-0000-4000-8000-000000000000",
@@ -14340,7 +15070,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000367-0000-4000-8000-000000000000",
@@ -14356,7 +15088,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000368-0000-4000-8000-000000000000",
@@ -14372,7 +15106,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000369-0000-4000-8000-000000000000",
@@ -14388,7 +15124,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000370-0000-4000-8000-000000000000",
@@ -14404,7 +15142,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000371-0000-4000-8000-000000000000",
@@ -14420,7 +15160,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000372-0000-4000-8000-000000000000",
@@ -14436,7 +15178,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000373-0000-4000-8000-000000000000",
@@ -14452,7 +15196,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000374-0000-4000-8000-000000000000",
@@ -14468,7 +15214,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000375-0000-4000-8000-000000000000",
@@ -14484,7 +15232,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000376-0000-4000-8000-000000000000",
@@ -14500,7 +15250,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000377-0000-4000-8000-000000000000",
@@ -14516,7 +15268,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000378-0000-4000-8000-000000000000",
@@ -14530,7 +15284,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000379-0000-4000-8000-000000000000",
@@ -14544,7 +15300,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000380-0000-4000-8000-000000000000",
@@ -14558,7 +15316,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000381-0000-4000-8000-000000000000",
@@ -14572,7 +15332,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000382-0000-4000-8000-000000000000",
@@ -14586,7 +15348,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000383-0000-4000-8000-000000000000",
@@ -14600,7 +15364,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000384-0000-4000-8000-000000000000",
@@ -14614,7 +15380,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000385-0000-4000-8000-000000000000",
@@ -14628,7 +15396,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000386-0000-4000-8000-000000000000",
@@ -14642,7 +15412,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    },
    {
     "id": "90000387-0000-4000-8000-000000000000",
@@ -14656,7 +15428,9 @@
     "expiresDate": null,
     "webSessions": 0,
     "mobileSessions": 0,
-    "catalogId": null
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    }
   ],
   "groups": [
