@@ -55,7 +55,10 @@
     assert.eq([r.direct, "ip" in r], [false, false], "адреса нет");
     assert.status(await env.call("PATCH", `/devices/${id}`, { ip: "10.0.0.1" }, { "If-Match": `"${r.version}"` }), 422, "NOT_SUPPORTED", "адрес не пишется");
     assert.status(await env.call("PUT", `/devices/${id}/ptz`, { pan: 0.1, tilt: 0, zoom: 0, focus: 0, ttlSec: 2 }), 422, "NOT_SUPPORTED", "аренда");
-    assert.status(await env.call("PUT", `/devices/${id}/presets/1`, { name: "Ворота" }), 200, null, "пресет через канал домена");
+    assert.status(await env.call("PUT", `/devices/${id}/presets/1`, { name: "Ворота" }), 200, null, "подпись пресета правкой");
+    const pos = await env.call("PUT", `/devices/${id}/presets/1`, {});
+    assert.status(pos, 409, "OTHER_CLUSTER", "положение на камере за NAT");
+    assert.ok(!pos.body.params || !pos.body.params.url, "ссылки на вход нет");
     const off = await makeEnv({ fixturePatch: withCam({ online: false }) });
     const o = await off.ok("GET", `/devices/${id}`);
     assert.status(await off.call("PATCH", `/devices/${id}`, { name: "x" }, { "If-Match": `"${o.version}"` }), 409, "DEVICE_OFFLINE");

@@ -91,13 +91,41 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   window.serverPinned = pinned;
   cam.writableFields = was;
   if (was === undefined) delete cam.writableFields;
-  // Камера за NAT: кнопки движения выключены, пресет можно
+  // Камера за NAT: кнопки движения выключены, «Запомнить здесь» тоже, подпись пресета можно
   const ptz = devicePool.find((n) => n.type === "camera" && n.ptz && n.online !== false);
   ptz.direct = false;
   pick(ptz.id, { force: true });
   await until(() => !ptz._row);
   ptz.direct = false;
   ok(/disabled/.test(ptzCardHtml(ptz).split('data-ptz="0"')[1].slice(0, 200)), "движение выключено");
+  // ADR-0111 доп. (1): положение не запомнить, подпись сохраняется. Настоящим кликом
+  goTab("vid");
+  delete ptz.direct;
+  if (!presetRows(ptz).length) await presetPut(ptz.id, 1, { name: "" });
+  ptz.direct = false;
+  gear();
+  ok(await until(() => document.querySelector("[data-preset-save]")), "пресеты на вкладке «Видео»");
+  const saveBtn = document.querySelector("[data-preset-save]"), presetNo = Number(saveBtn.closest("[data-preset]").dataset.preset);
+  ok(saveBtn.disabled, "«Запомнить здесь» неактивна");
+  ok(/за NAT/.test(saveBtn.title), "подсказка почему: " + saveBtn.title);
+  ok(/за NAT/.test(document.querySelector("[data-preset-nat]").textContent), "слова на карточке");
+  ok(!/канал|вход/i.test(document.querySelector("[data-preset-nat]").textContent + saveBtn.title), "ни канала домена, ни входа не обещает");
+  const presetPuts = [], putBefore = API.put;
+  API.put = (p, b, ...r) => { if (/\/presets\//.test(p)) presetPuts.push(b); return putBefore(p, b, ...r); };
+  press(saveBtn);
+  await new Promise((r) => setTimeout(r, 50));
+  ok(!presetPuts.length, "клик по неактивной ничего не шлёт");
+  const label = "За воротами " + presetNo, nameInput = document.querySelector(`[data-preset="${presetNo}"] input`);
+  press(nameInput);
+  nameInput.value = label;
+  nameInput.dispatchEvent(new Event("change", { bubbles: true }));
+  ok(await until(() => presetPuts.length === 1), "подпись ушла");
+  ok(presetPuts[0].name === label && Object.keys(presetPuts[0]).join() === "name", "только имя: положение не трогается");
+  ok((await API.get("/devices/" + ptz.id)).presets.find((x) => x.n === presetNo).name === label, "подпись сохранена на сервере");
+  API.put = putBefore;
+  ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id, direct: false }) === "камера за NAT: связи с ней нет, действие недоступно", "problemText: за NAT без обещания входа");
+  ok(problemText({ problem: { code: "OTHER_CLUSTER", params: { url: "https://x" } } }, { id: ptz.id }) === "камера другого кластера: откройте вход через него", "problemText: есть ссылка — есть вход");
+  ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id }) === "камера другого кластера: отсюда это недоступно", "problemText: ссылки нет — входа не обещает");
   delete ptz.direct;
   // Домен без серверов: конфигуратор на самой камере
   const list = d.servers, un = d.unallocServers;

@@ -2777,7 +2777,8 @@ function problemText(e,n){
     VERSION_MISMATCH:i18n("объект изменился — откройте его заново"),
     BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом выполняется групповая операция"),
     NAME_REQUIRED:i18n("Укажите имя"),
-    OTHER_CLUSTER:i18n("камера другого кластера: откройте вход через него"),
+    // Входа может и не быть: у камеры за NAT и у кластера без адреса ссылки нет, обещать её нельзя
+    OTHER_CLUSTER:i18n(n?.direct===false?"камера за NAT: связи с ней нет, действие недоступно":(e?.problem?.params||e?.params)?.url?"камера другого кластера: откройте вход через него":"камера другого кластера: отсюда это недоступно"),
     OTHER_NETWORK:i18n("раздачу создали для другой сети"),
     FINGERPRINT_MISMATCH:i18n("отпечаток не совпал"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
@@ -9875,12 +9876,13 @@ function ptzPadHtml(n){
 }
 function ptzCardHtml(n){
   if(!n.ptz)return"";
-  // Камера за NAT: пресет через канал домена, движение арендой недоступно
-  const list=presetRows(n),off=n.online===false,full=presetFree(n)==null;
+  // Камера за NAT: положение пишет устройство в момент просьбы, а связи с ним нет. Движения и «Запомнить здесь» нет,
+  // подпись пресета идёт правкой: ADR-0111 доп. (1)
+  const list=presetRows(n),nat=n.direct===false,off=n.online===false||nat,full=presetFree(n)==null;
   const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
-    <td class="ca-x"><button type="button" class="btn s" ${off?"disabled":""} title="${i18n("Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
+    <td class="ca-x"><button type="button" class="btn s" data-preset-save ${off?"disabled":""} title="${i18n(nat?"Камера за NAT: положение здесь не запомнить, связи с ней нет. Подпись можно":"Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
   return card("Пресеты",`${ptzPadHtml(n)}
-    <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
+    <p class="sub" ${nat?"data-preset-nat":""}>${i18n(nat?"Камера за NAT: двигать её и запоминать положение отсюда нельзя, связи с ней нет. Подпись пресета можно":"Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
     <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
 }
@@ -9902,7 +9904,7 @@ function presetAdd(id){
   // Кнопка заводит строку и положения не трогает: его пишет «Запомнить здесь»
   presetPut(id,no,{name:""});
 }
-function presetSave(id,no){presetPut(id,no,{}).then(()=>toast(`${i18n("Пресет")} ${no}: ${i18n("положение запомнено")}`))}
+function presetSave(id,no){if(find(id)?.n?.direct===false)return;presetPut(id,no,{}).then(()=>toast(`${i18n("Пресет")} ${no}: ${i18n("положение запомнено")}`))}
 function presetName(id,no,v){presetPut(id,no,{name:String(v).trim()})}
 function presetDel(id,no){
   const n=find(id)?.n,p=n&&presetRows(n).find(x=>x.n===no);if(!p)return;

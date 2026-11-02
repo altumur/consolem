@@ -2535,6 +2535,8 @@
           const named = "name" in body;
           const bad = (named ? presetCameraProblem(rec) : ptzProblem(rec)) || lockedProblem([rec.id]);
           if (bad) return bad;
+          // Положение пишет устройство в момент просьбы: у камеры за NAT связи нет, входа тоже. Подпись идёт правкой: ADR-0111 доп. (1)
+          if (!named && rec.direct === false) return problem(409, "OTHER_CLUSTER", "Камера за NAT: положение пресета здесь не сохранить");
           if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
           if (rec.presetMax != null && n > rec.presetMax) return notFound("Пресет");
           const had = (rec.presets || []).find((x) => x.n === n);

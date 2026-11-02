@@ -71,6 +71,7 @@
 - **`action.fieldNotDeclared`, `target.notDeclared`, `rule.startNotDeclared`, `trigger.notDeclared`, `cond.notDeclared`.** Запрос 8 п. 1 просил только `422 NOT_SUPPORTED` с `field`: причина кодом в `params.issue`, как у `RULE_INVALID`.
 - **`RecordingTargetRequest.copies`, `Device.recordingTarget.copies` — список серверов.** Стык с V/11.4 Н1.14, уточнение «Спецификации VMS»: **несовместимо с контрактом этапа 7**, там было число. Копия — кластер, отказ `422`, `field: copies`.
 - **`Volume.incidentsLost`, `incidentsAtRisk`.** Слово «Архитектора», запрос VMS часть 5: потеря удержанного не молчаливая. Поля: карта метка → секунды и список меток, как в пульсе V/02.7. `Volume.state: missing`, `replicaLostSec` не вносятся: `state`, `recordReason` уже есть, это перевод на стороне V/11.
+- **Положение пресета на камере за NAT.** ADR-0111 доп. (1): было «пресет через канал домена», теперь `PUT {}` — `409 OTHER_CLUSTER` без ссылки, подпись работает, «Запомнить здесь» неактивна.
 - **`RulePrompt.canAnswer`, `openedAt`.** Сверх перечня: экрану не надо считать роли самому.
 - **`202` без тела у ответа оператора.** Итог — `prompt.closed`, система судит ответы своим проходом.
 - **`reason` в `prompt.closed`, `RuleFire.result: waiting`, `state: waiting`, `run.stopped`.**
