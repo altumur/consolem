@@ -2443,6 +2443,7 @@ function hwReparent(n,parentId,domainId){
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
 }
 function hwApplyDevice(r){
+  if(KEPT_WAIT.has(r.id)&&KEPT_WAIT.get(r.id)!==r.version)KEPT_WAIT.delete(r.id);
   const was=find(r.id),n=was?.n;if(!n)return;
   if((was.p?.id||null)!==(r.parentId||null)&&!SVC_TYPES.has(r.type))hwReparent(n,r.parentId,r.domainId);
   const fresh=devNode(r);
@@ -2606,7 +2607,14 @@ function devicesMutate(nodes,mutate){
     if(Object.keys(set).length)items.push({deviceId:n.id,version:hwVer.get(n.id),set});
   });
   if(!items.length)return Promise.resolve({done:[],failed:[]});
-  return API.post("/devices/update",{idempotencyKey:opKey(),items}).then(res=>{res.done.forEach(hwApplyDevice);treeMatchCache.clear();searchMatchCache.clear();return res});
+  return API.post("/devices/update",{idempotencyKey:opKey(),items}).then(res=>{
+    res.done.forEach(hwApplyDevice);treeMatchCache.clear();searchMatchCache.clear();
+    // Принятое — не отказ: вызывающие считают failed отказами
+    const kept=res.failed.filter(problemKept);
+    kept.forEach(f=>keptNote(f.deviceId));
+    if(kept.length)toast(`${i18n("Принято, применится")}: ${kept.length}`);
+    return{...res,failed:res.failed.filter(f=>!problemKept(f))};
+  });
 }
 // Состав папки — PATCH папки, кэш — по ответу
 function folderSetItems(fid,ids){
@@ -2768,15 +2776,20 @@ function hwCachedIds(){return hwRowsDropped?[]:(()=>{const out=[];walk(n=>out.pu
 // Стенд сброшен: прежние id ничего не значат
 let hwRowsDropped=false;
 function hwRowsDrop(){hwRowsDropped=true;setTimeout(()=>hwRowsDropped=false,0)}
+// SERVER_OFFLINE с kept — не отказ: правка принята и применится с периодом камеры. Откатить её нельзя, вторая правка до
+// применения первой получит 412: запоминается версия, с которой правка ждёт
+const KEPT_WAIT=new Map();
+function problemKept(e){return(e?.problem?.params||e?.params)?.kept||""}
+function keptNote(id){KEPT_WAIT.set(id,hwVer.get(id))}
 // Код ошибки сервера → текст для показа: интерфейс говорит своими словами
 function problemText(e,n){
   const code=e?.problem?.code||e?.code||e;
   const s=n?srv(n.id):null;
   return{
-    SERVER_OFFLINE:s?`${i18n("сервер")} «${locName(s)}» ${i18n("не отвечает")}`:i18n("сервер не отвечает"),
+    SERVER_OFFLINE:problemKept(e)?i18n("Принято, применится"):s?`${i18n("сервер")} «${locName(s)}» ${i18n("не отвечает")}`:i18n("сервер не отвечает"),
     LICENSE_EXCEEDED:i18n("лицензия превышена — камера останется выключенной"),
     DEVICE_OFFLINE:i18n("устройство не отвечает — проверьте сеть и учётные данные"),
-    VERSION_MISMATCH:i18n("объект изменился — откройте его заново"),
+    VERSION_MISMATCH:n&&KEPT_WAIT.has(n.id)?i18n("прежняя правка камеры ещё не применилась: дождитесь её и повторите"):i18n("объект изменился — откройте его заново"),
     BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом выполняется групповая операция"),
     NAME_REQUIRED:i18n("Укажите имя"),
     // Входа может и не быть: у камеры за NAT и у кластера без адреса ссылки нет, обещать её нельзя
@@ -5387,6 +5400,12 @@ function commitTreeRename(id,val){
       if(sel===id)gear();
     }).catch(e=>{
       treeRenamePending=false;toast(problemText(e,f.n));
+      if(problemKept(e)){
+        keptNote(id);
+        if(treeRenameId===id){treeRenameId=null;treeRenameField="name"}
+        renderTree();
+        return;
+      }
       requestAnimationFrame(()=>{const el=document.querySelector(".nm-inp");if(el){el.focus();el.select&&el.select()}});
     });
     return;
@@ -9681,14 +9700,20 @@ function holdAsk(){
   const recs=[...new Set((t?.spans||[]).map(s=>s.recordingId))];
   const html=`<div class="g"><div><label>${i18n("С")}</label><input type="datetime-local" id="holdFrom" value="${holdLocal(from)}"></div><div><label>${i18n("По")}</label><input type="datetime-local" id="holdTo" value="${holdLocal(to)}"></div></div>
     <div><label>${i18n("Заметка")}</label><input id="holdNote" maxlength="500"></div>
-    ${recs.length?`<div class="hold-recs">${recs.map(r=>`<label><input type="checkbox" class="hold-rec" value="${escHtml(r)}" checked> ${escHtml(r)}</label>`).join("")}</div>`:""}`;
+    ${recs.length?`<div class="hold-recs">${recs.map(r=>`<label><input type="checkbox" class="hold-rec" value="${escHtml(r)}" checked ${onEv("change",["holdRecsCheck"])}> ${escHtml(r)}</label>`).join("")}</div>`:""}`;
   askConfirm("Удержать отрезок",html,"","Удержать",()=>{
     const vals={from:new Date(document.getElementById("holdFrom").value),to:new Date(document.getElementById("holdTo").value)};
     if(!(vals.to>vals.from))return toast(i18n("Конец позже начала"));
     const note=document.getElementById("holdNote").value.trim(),ids=[...document.querySelectorAll(".hold-rec:checked")].map(x=>x.value);
+    if(recs.length&&!ids.length)return;
     const body=Object.assign({from:vals.from.toISOString(),to:vals.to.toISOString()},note?{note}:{},recs.length?{recordingIds:ids}:{});
     API.post(`/devices/${v.id}/holds`,body).then(()=>{if(lv===v)holdsRead(v)}).catch(e=>toast(problemText(e,find(v.id)?.n)));
   },{html:true});
+}
+// Сняты все галочки: пустой список значил бы «все записи камеры», запроса нет
+function holdRecsCheck(){
+  const ok=document.getElementById("confirmOk"),none=!document.querySelector(".hold-rec:checked");
+  ok.disabled=none;ok.title=none?i18n("Отметьте хотя бы одну запись: пустой список значит все записи камеры"):"";
 }
 function holdDrop(id){
   const v=lv;if(!v)return;
@@ -21862,8 +21887,9 @@ function asstApply(){
   API.post("/devices/update",{idempotencyKey:opKey(),items:p.items.map(({deviceId,version,set})=>({deviceId,version,set}))}).then(res=>{
     a.saving=false;
     if(asst!==a)return;
-    const why=new Map(res.failed.map(f=>[f.deviceId,f.code]));
-    const rows=p.items.map(x=>({name:x.name,ok:!why.has(x.deviceId),why:why.has(x.deviceId)?problemText(why.get(x.deviceId)):""}));
+    const why=new Map(res.failed.filter(f=>!problemKept(f)).map(f=>[f.deviceId,f.code])),kept=new Set(res.failed.filter(problemKept).map(f=>f.deviceId));
+    kept.forEach(keptNote);
+    const rows=p.items.map(x=>({name:x.name,ok:!why.has(x.deviceId),why:why.has(x.deviceId)?problemText(why.get(x.deviceId)):"",note:kept.has(x.deviceId)?i18n("Принято, применится"):""}));
     // «Отменить» — откат операции этой правки: id из списка, ответ правки его не несёт
     a.plan=null;a.result={rows,again:res.failed.length>0,undo:null};
     const ids=new Set(res.done.map(d=>d.id));
@@ -22154,7 +22180,9 @@ function opOnEvent(m){
     // Шаг create создал устройство — в кэш, как только сервер его отдаст
     // Выбранный в карточке новый детектор остаётся выбранным и под id сервера
     if(it.createdId)API.get(`/devices/${it.createdId}`).then(r=>{hwAddDevices([r]);if(o.tempId&&detSel===o.tempId){detSel=r.id;if(app==="hw")gear()}renderTree()}).catch(()=>{});
-    if(it.state==="ok"){o.state="ok";o.msg="";bq.ok++}else{o.state="fail";o.msg=problemText(it.code,o.n);bq.fail++}
+    if(it.state==="ok"){o.state="ok";o.msg="";bq.ok++}
+    else if(problemKept(it)){o.state="ok";o.kept=true;o.msg=i18n("Принято, применится");bq.ok++;keptNote(it.targetId)}
+    else{o.state="fail";o.msg=problemText(it.code,o.n);bq.fail++}
     o.done=true;bq.done++;
     const nx=ops.find(x=>!x.done);if(nx)nx.state="run";
     bq.steps.forEach(s=>s.ops.forEach(x=>{if(x.state==="run"&&x!==nx)x.state=x.done?x.state:"wait"}));
@@ -22211,7 +22239,10 @@ function queueFinish(){
   treeMatchCache.clear();searchMatchCache.clear();
   paint();renderRailStatus();
   const bad=bq.fail+bq.steps.reduce((n,s)=>n+s.ops.filter(o=>o.state==="cancel").length,0);
-  if(bad||document.getElementById("bmodal")?.classList.contains("open")){openReport();return}
+  const kept=bq.steps.reduce((n,s)=>n+s.ops.filter(o=>o.kept).length,0);
+  if(bad||kept>1||document.getElementById("bmodal")?.classList.contains("open")){openReport();return}
+  // Принятое ещё не применено и откату не подлежит: «Применено» с «Отменить» здесь было бы неправдой
+  if(kept){toast(i18n("Принято, применится"));return}
   const label=bq.steps.length===1?i18n(bq.steps[0].label):`${bq.ok} ${plural(bq.ok,"операция|операции|операций")}`;
   if(bq.undo&&bq.ok){
     const q=bq;

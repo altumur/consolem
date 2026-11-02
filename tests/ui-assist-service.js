@@ -367,6 +367,19 @@ UiCheck(async ({ ok, until }) => {
   ok(!(await API.get("/rule-prompts")).items.length, "вопросов нет");
   await API.post("/rules/update", { idempotencyKey: opKey(), items: [ra, re].map((x) => ({ ruleId: x.id, version: x.version, set: { enabled: false } })) });
 
+  // kept в ответе групповой правки: строка «Принято, применится», это не отказ
+  open();
+  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:k", items: [{ deviceId: cam.id, version: "x", set: { enabled: false }, name: cam.name, changes: [] }] });
+  say("выключи камеру");
+  ok(await until(() => el("asstApply")), "план для kept");
+  const postBefore = API.post;
+  API.post = (p, b) => (p === "/devices/update" ? Promise.resolve({ done: [], failed: [{ deviceId: cam.id, code: "SERVER_OFFLINE", params: { targetId: cam.id, kept: "k1" } }] }) : postBefore(p, b));
+  press(el("asstApply"));
+  ok(await until(() => /Принято, применится/.test(text())), "kept: «Принято, применится» строкой элемента");
+  ok(el("gopop").querySelector('[data-asst-row="ok"]') && !el("gopop").querySelector('[data-asst-row="fail"]'), "kept — не отказ");
+  API.post = postBefore;
+  KEPT_WAIT.clear();
+
   // Отказы словами
   open();
   answer = refuse(429, { code: "BUSY", message: "Предел ходов в час с этого адреса исчерпан, повторите позже." }, { "Retry-After": "120" });

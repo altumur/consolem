@@ -242,6 +242,18 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   document.getElementById("holdNote").value = "Инцидент 1";
   const first = document.querySelector(".hold-rec");
   ok(!!first, "записи камеры на выбор");
+  // Сняты все галочки: пустой список значил бы все записи камеры, поэтому запроса нет. Настоящей мышью
+  const clickEl = (e) => ["mousedown", "mouseup", "click"].forEach((type) => e.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })));
+  const okBtn = document.getElementById("confirmOk"), holdPosts = [], postWas = API.post;
+  API.post = (p, ...r) => { if (/\/holds$/.test(p)) holdPosts.push(r[0]); return postWas(p, ...r); };
+  document.querySelectorAll(".hold-rec").forEach(clickEl);
+  ok(!document.querySelector(".hold-rec:checked") && okBtn.disabled, "галочки сняты: «Удержать» недоступна");
+  ok(/пустой список значит все записи камеры/.test(okBtn.title), "подсказка почему: " + okBtn.title);
+  clickEl(okBtn);
+  ok(!holdPosts.length && document.getElementById("holdFrom"), "запроса нет, окно на месте");
+  document.querySelectorAll(".hold-rec").forEach(clickEl);
+  ok(!okBtn.disabled && !okBtn.title, "галочки вернулись: кнопка доступна");
+  API.post = postWas;
   const fromV = document.getElementById("holdFrom").value, toV = document.getElementById("holdTo").value;
   await confirmWith(null);
   ok(await until(() => lv.holds?.length === 1), "удержание в списке");

@@ -129,6 +129,34 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(problemText({ problem: { code: "OTHER_CLUSTER", params: { url: "https://x" } } }, { id: ptz.id }) === "камера другого кластера: откройте вход через него", "problemText: есть ссылка — есть вход");
   ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id }) === "камера другого кластера: отсюда это недоступно", "problemText: ссылки нет — входа не обещает");
   delete ptz.direct;
+  // Камера-кластер: правка принята, это не отказ. Настоящая камера, приём сервера вида camera
+  const knockCam = d.unallocServers.find((s) => s.cls === "camera" && s.fingerprint) || d.unallocServers.find((s) => s.cls === "camera");
+  const camsBefore = new Set((await uiDevices()).map((x) => x.id));
+  const taken = addToDomain(knockCam.id, d.id);
+  await until(() => document.getElementById("fpShown") || !document.getElementById("confirm").classList.contains("open"));
+  if (document.getElementById("confirm").classList.contains("open")) await confirmWith(null);
+  await taken;
+  let wc = null;
+  ok(await until(() => { wc = devicePool.find((n) => n.direct === false && !camsBefore.has(n.id)) || null; return wc; }, 8000), "камера-кластер принята: " + (wc && wc.name));
+  const wrec = await API.get("/devices/" + wc.id);
+  const kept1 = await API.patch(`/devices/${wc.id}`, { name: wrec.name + " 2" }, wrec.version).catch((e) => e);
+  ok(kept1.status === 409 && problemKept(kept1), "стенд: 409 SERVER_OFFLINE с kept");
+  ok(problemText(kept1, wc) === "Принято, применится", "словами: принято");
+  ok(problemText({ problem: { code: "SERVER_OFFLINE" } }, wc) !== "Принято, применится", "без kept — прежнее слово");
+  keptNote(wc.id);
+  const v412 = await API.patch(`/devices/${wc.id}`, { name: wrec.name + " 3" }, wrec.version).catch((e) => e);
+  ok(v412.status === 412 && /прежняя правка камеры ещё не применилась/.test(problemText(v412, wc)), "вторая правка до применения: " + problemText(v412, wc));
+  hwApplyDevice(Object.assign({}, wrec, { version: wrec.version + "x" }));
+  ok(!KEPT_WAIT.has(wc.id), "новая версия пришла — ожидание снято");
+  // Групповая: строка элемента, не отказ, «Отменить» нет
+  const fakeOps = [{ n: wc, state: "run", done: false }, { n: wc, state: "wait", done: false }];
+  bq = { steps: [{ label: "Правка", ops: fakeOps }], title: "Правка", total: 2, done: 0, ok: 0, fail: 0, skipped: 0, api: "op-k", apiOps: fakeOps, finished: false, cur: "" };
+  apiOnEvent({ kind: "operation", type: "operation.progress", entityId: "op-k", payload: { item: { index: 0, targetId: wc.id, state: "fail", code: "SERVER_OFFLINE", params: { targetId: wc.id, kept: "k1" } } } });
+  ok(fakeOps[0].state === "ok" && fakeOps[0].msg === "Принято, применится" && bq.fail === 0 && bq.ok === 1, "kept в групповой — не отказ, строкой элемента");
+  apiOnEvent({ kind: "operation", type: "operation.progress", entityId: "op-k", payload: { item: { index: 1, targetId: wc.id, state: "fail", code: "SERVER_OFFLINE" } } });
+  ok(fakeOps[1].state === "fail" && bq.fail === 1, "без kept — отказ");
+  bq = null;
+  KEPT_WAIT.clear();
   // Домен без серверов: конфигуратор на самой камере
   const list = d.servers, un = d.unallocServers;
   d.servers = [];

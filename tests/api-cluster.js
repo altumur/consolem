@@ -20,6 +20,29 @@
     assert.status(await env.call("PUT", `/devices/${FX.devices.find((x) => x.type === "det").id}/recording-target`, { serverId: server.id, copies: [] }), 422, "NOT_SUPPORTED");
   }, { needs: ["putRecordingTarget"] });
 
+  test("Камера-кластер: правка принята — 409 SERVER_OFFLINE с kept, применится с периодом; повтор тот же, другая — 412; групповые и шаг", async () => {
+    const env = await makeEnv({ fixturePatch: withCam() });
+    const id = w2c().id, ver = async () => (await env.ok("GET", `/devices/${id}`)).version;
+    const v0 = await ver(), patch = (body) => env.call("PATCH", `/devices/${id}`, body, { "If-Match": `"${v0}"` });
+    const first = await patch({ name: "Новое имя" });
+    assert.status(first, 409, "SERVER_OFFLINE", "принята, срок вышел");
+    assert.eq(first.body.params.targetId, id, "цель");
+    const kept = first.body.params.kept;
+    assert.ok(typeof kept === "string" && kept, "имя правки");
+    assert.eq((await env.ok("GET", `/devices/${id}`)).name, w2c().name, "ещё не применена");
+    assert.eq((await patch({ name: "Новое имя" })).body.params.kept, kept, "повтор новую не заводит");
+    assert.status(await patch({ name: "Другое имя" }), 412, "VERSION_MISMATCH", "другая правка до применения первой");
+    const bulk = await env.ok("POST", "/devices/update", { idempotencyKey: "k-kept-0001", items: [{ deviceId: id, version: v0, set: { name: "Новое имя" } }] });
+    assert.eq([bulk.done.length, bulk.failed[0].code, bulk.failed[0].params.kept], [0, "SERVER_OFFLINE", kept], "групповая: failed с kept");
+    await env.call("POST", "/test/clock", { advanceSec: 61 });
+    const done = await env.ok("GET", `/devices/${id}`);
+    assert.ok(done.name === "Новое имя" && done.version !== v0, "применена с периодом камеры");
+    const again = await env.call("PATCH", `/devices/${id}`, { name: "Третье" }, { "If-Match": `"${done.version}"` });
+    assert.ok(again.body.params.kept && again.body.params.kept !== kept, "новая правка — новое имя");
+    const op = await env.runOperation({ idempotencyKey: "k-kept-0002", items: [{ targetId: id, set: { name: "Третье" } }], expectedVersions: { [id]: done.version } });
+    assert.eq([op.items[0].state, op.items[0].code, op.items[0].params.kept], ["fail", "SERVER_OFFLINE", again.body.params.kept], "шаг операции: код и kept, та же правка");
+  }, { needs: ["putRecordingTarget"] });
+
   test("Копии записи: список серверов, порядок значим; копия — кластер: повтор, чужой, кластер основного и два сервера кластера — 422", async () => {
     // Свои серверы: кластер — начало имени, наборы называют серверы по-разному
     const names = ["К1/Сервер а", "К1/Сервер б", "К2/Сервер а", "К2/Сервер б", "К3/Сервер а", "Сервер один"];

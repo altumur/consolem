@@ -555,6 +555,31 @@
       }
     }
 
+    /* ----- Правка камеры-кластера ----- */
+
+    // Камера за NAT применяет правку сама, с периодом отчёта: правка хранится, а ответ — 409 SERVER_OFFLINE с kept, срок вышел.
+    // Настоящий бэкенд ждёт исход в пределах срока маршрута (V/11.4 Н1.13); здесь срок всегда выходит: так виден случай
+    const KEPT_MS = 60000;
+    let keptEdits = new Map();
+    function keptProblem(rec, set) {
+      if (rec.direct !== false) return null;
+      const was = keptEdits.get(rec.id);
+      if (was && JSON.stringify(was.set) !== JSON.stringify(set)) return problem(412, "VERSION_MISMATCH", "Прежняя правка камеры ещё не применилась", { current: clone(rec) });
+      const edit = was || { id: uuid("operation"), set: clone(set), at: now() + KEPT_MS };
+      keptEdits.set(rec.id, edit);
+      return problem(409, "SERVER_OFFLINE", "Правка принята и применится с периодом камеры", { params: { targetId: rec.id, kept: edit.id } });
+    }
+    function keptTick() {
+      keptEdits.forEach((e, id) => {
+        if (e.at > now()) return;
+        keptEdits.delete(id);
+        const rec = byId("devices", id);
+        if (!rec) return;
+        applyPatch(rec, e.set);
+        changed("device", rec);
+      });
+    }
+
     /* ----- PTZ: свойство камеры ----- */
 
     // Аренда — на человека и камеру. Встроенный сервер камерами не движет: только срок
@@ -1888,6 +1913,10 @@
       const via =
         t.kind === "device" ? serverOf(rec) : t.kind === "server" ? rec : t.kind === "archive" ? archiveServer(rec) : t.kind === "volume" ? archiveServer(byId("archives", rec.archiveId)) : null;
       if (offline(via)) return Object.assign(item, { state: "fail", code: "SERVER_OFFLINE" });
+      if (t.kind === "device" && item.req.set) {
+        const held = keptProblem(rec, item.req.set);
+        if (held) return Object.assign(item, { state: "fail", code: held.body.code }, held.body.params ? { params: held.body.params } : {});
+      }
       if (item.req.set) {
         if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
         const clash = rec.type === "det" && item.req.set.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
@@ -1928,6 +1957,7 @@
     // Всё, что к этому моменту должно было выполниться
     function tick() {
       treeFlush();
+      keptTick();
       const fired = [];
       syncing.forEach((s, cid) => {
         if (s.at > now()) return;
@@ -2416,6 +2446,8 @@
           const bad = precondition(rec, headers) || silentProblem(rec) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
           if (bad) return bad;
           const set = noConfirm(body);
+          const held = keptProblem(rec, set);
+          if (held) return held;
           const before = applyPatch(rec, set);
           syncMain(rec, set);
           changed("device", rec);
@@ -3164,6 +3196,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (busy(x.deviceId)) return failed.push({ deviceId: x.deviceId, code: "BUSY" });
             const bad = setProblem(t, x.set) || clashProblem(t.rec, x.set);
             if (bad) return failed.push(Object.assign({ deviceId: x.deviceId, code: bad.body.code }, bad.body.field ? { field: bad.body.field } : {}));
+            const held = keptProblem(t.rec, x.set);
+            if (held) return failed.push(Object.assign({ deviceId: x.deviceId, code: held.body.code }, held.body.params ? { params: held.body.params } : {}));
             const before = applyPatch(t.rec, x.set);
             syncMain(t.rec, x.set);
             changed("device", t.rec);
@@ -4026,6 +4060,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           // Часы останавливаются: время в тестах идёт только по /test/clock
           clock.frozenAt = body.freezeClock === false ? null : realNow() + clock.offset;
           load(body.fixturePatch ? mergePatch(base, body.fixturePatch) : base);
+          keptEdits = new Map();
           if (body.actAs) {
             const u = db.access.users.find((x) => x.login === body.actAs);
             if (!u) return problem(404, "NOT_FOUND", `Пользователя ${body.actAs} нет`);
