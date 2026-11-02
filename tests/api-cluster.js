@@ -43,6 +43,14 @@
     const res = await other.call("POST", `/devices/${cam.id}/live`, { width: 640, height: 360 });
     assert.status(res, 409, "OTHER_CLUSTER");
     assert.eq(res.body.params.url, url, "ссылка на вход");
+    // Камера w2c за NAT, вошли не через кластер приёмника: та же дверь, та же кнопка
+    const id = w2c().id;
+    const nat = await makeEnv({ fixturePatch: Object.assign(withCam({}), { stand: { otherCluster: { [id]: url } } }) });
+    const far = await nat.call("POST", `/devices/${id}/live`, { width: 640, height: 360 });
+    assert.status(far, 409, "OTHER_CLUSTER");
+    assert.eq(far.body.params.url, url, "камера за NAT: ссылка на вход");
+    // Вошли через него: обычный адрес
+    assert.ok((await (await makeEnv({ fixturePatch: withCam({}) })).ok("POST", `/devices/${id}/live`, { width: 640, height: 360 })).whepUrl, "через свой кластер — адрес");
   }, { needs: ["startLive"] });
 
   test("Определение модели: логин и пароль необязательны, без них система вправе не назвать", async () => {

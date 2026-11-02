@@ -300,6 +300,42 @@
     assert.status(await env.call("POST", `/devices/${det.id}/live`, { width: 640, height: 360 }), 422, "NOT_SUPPORTED");
   });
 
+  test("Живое видео: сеть, поток, шлюз; раздача для другой сети — 409 с params.labels, переразмещение, срок раздачи", async () => {
+    const env = await makeEnv();
+    const c = (await env.list("/devices")).find((d) => d.type === "camera" && d.online && d.streams.length > 1);
+    const size = { width: 640, height: 360 };
+    const local = await env.ok("POST", `/devices/${c.id}/live`, size);
+    assert.ok(local.gateway, "шлюз назван");
+    assert.ok(!local.whepUrl.includes("stream="), "поток выбирает сервер");
+    const one = await env.ok("POST", `/devices/${c.id}/live`, Object.assign({ streamId: c.streams[1].id, network: "local" }, size));
+    assert.ok(one.whepUrl.includes(`stream=${c.streams[1].id}`), "выбранный поток");
+    assert.status(await env.call("POST", `/devices/${c.id}/live`, Object.assign({ streamId: "нет" }, size)), 422, "VALIDATION_FAILED");
+    assert.status(await env.call("POST", `/devices/${c.id}/live`, Object.assign({ network: "везде" }, size)), 422, "VALIDATION_FAILED");
+    const other = await env.call("POST", `/devices/${c.id}/live`, Object.assign({ network: "outside" }, size));
+    assert.status(other, 409, "OTHER_NETWORK");
+    assert.eq(other.body.params.labels, [], "метки раздачи");
+    assert.status(await env.call("PUT", `/devices/${c.id}/live`, { network: "outside" }), 204);
+    assert.ok((await env.ok("POST", `/devices/${c.id}/live`, Object.assign({ network: "outside" }, size))).gateway, "после переразмещения извне");
+    const back = await env.call("POST", `/devices/${c.id}/live`, size);
+    assert.status(back, 409, "OTHER_NETWORK");
+    assert.eq(back.body.params.labels, ["public-address"], "метки раздачи извне");
+    if (env.frozen) {
+      await env.advance(61);
+      await env.ok("POST", `/devices/${c.id}/live`, size);
+    }
+  }, { needs: ["moveLive"] });
+
+  test("Переразместить: право, без связи, не камера, другой кластер", async () => {
+    const list = await (await makeEnv()).list("/devices");
+    const c = list.find((d) => d.type === "camera" && d.online), off = list.find((d) => d.type === "camera" && d.online === false), det = list.find((d) => d.type === "det");
+    const env = await makeEnv({ fixturePatch: { stand: { liveMoveDenied: true } } });
+    assert.status(await env.call("PUT", `/devices/${c.id}/live`, { network: "outside" }), 403, "PERMISSION_DENIED");
+    const free = await makeEnv({ fixturePatch: { stand: { otherCluster: { [c.id]: "https://b/backend/" } } } });
+    assert.status(await free.call("PUT", `/devices/${c.id}/live`, { network: "outside" }), 409, "OTHER_CLUSTER");
+    assert.status(await free.call("PUT", `/devices/${off.id}/live`, { network: "outside" }), 409, "DEVICE_OFFLINE");
+    assert.status(await free.call("PUT", `/devices/${det.id}/live`, { network: "outside" }), 422, "NOT_SUPPORTED");
+  }, { needs: ["moveLive"] });
+
   /* ===== Детекторы ===== */
 
   const optsCam = async (env) => (await env.list("/devices")).find((d) => d.detectorOptions);

@@ -1191,8 +1191,8 @@
         "tags": [
           "hardware"
         ],
-        "summary": "Живое видео для настройки",
-        "description": "Поток под размер окна выбирает сервер, клиент подключается по WebRTC на whepUrl с token. Нужно для настройки детекторов и пресетов; просмотр — другая часть консоли. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED Вошли через другой кластер — 409 OTHER_CLUSTER, params.url: форма даёт кнопку «Открыть».",
+        "summary": "Живое видео",
+        "description": "Адрес и токен для WebRTC: клиент шлёт офер WHEP на whepUrl с token, только приём. Без streamId поток под размер окна выбирает сервер. Закладка «Просмотр» и настройка детекторов, зоны, пресетов — один клиент. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED, чужой streamId — 422 VALIDATION_FAILED, field: streamId. Вошли через другой кластер, в том числе камера w2c за NAT (direct: false) — 409 OTHER_CLUSTER, params.url: форма даёт кнопку «Открыть». Раздача уже создана для другой сети — 409 OTHER_NETWORK, params.labels: метки раздачи, форма предлагает переразместить (PUT этой же двери) или ждать конца срока раздачи. Шлюза ещё нет — 503 UPSTREAM_UNAVAILABLE: клиент повторяет в счёте оферов. Отбой — DELETE на Location ответа WHEP, у этой двери его нет. Адрес stub:// выдаёт только стенд: настоящего видео там нет, форма отвечает на офер сама тестовой картинкой.",
         "parameters": [
           {
             "name": "deviceId",
@@ -1224,6 +1224,61 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "503": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "put": {
+        "operationId": "moveLive",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Переразместить раздачу в другую сеть",
+        "description": "Раздача камеры переходит на шлюз для network. Рвёт сессии всех зрителей, они подключаются заново. После ответа клиент снова зовёт POST этой двери. Нет права — 403 PERMISSION_DENIED: право судит система, форма предлагает кнопку всем и показывает отказ словами. Камера без связи — 409 DEVICE_OFFLINE, другой кластер — 409 OTHER_CLUSTER.",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiveMove"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Раздача переразмещена"
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
           },
           "404": {
             "$ref": "#/components/responses/Problem"
@@ -12199,6 +12254,7 @@
           "PASSWORD_NOT_ADMIN",
           "INVALID_CURSOR",
           "OTHER_CLUSTER",
+          "OTHER_NETWORK",
           "FINGERPRINT_MISMATCH"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
@@ -12239,7 +12295,8 @@
           "PASSWORD_NOT_ADMIN": "«Администратора» нельзя назначить пользователю, чей последний пароль задал не он сам и не администратор, напрямую и через группу (409, field: roleIds, params.id — пользователь). Сначала администратор меняет пароль",
           "INVALID_CURSOR": "Курсор просрочен или чужой (422): форма читает с начала",
           "OTHER_CLUSTER": "Камера другого кластера: живое видео и PTZ идут через него. params.url — вход через её кластер (409)",
-          "FINGERPRINT_MISMATCH": "Отпечаток приёма не совпал с Server.fingerprint"
+          "FINGERPRINT_MISMATCH": "Отпечаток приёма не совпал с Server.fingerprint",
+          "OTHER_NETWORK": "Раздача камеры создана для другой сети. params.labels — метки раздачи (409). Кто вправе — PUT /devices/{id}/live, остальные ждут конца срока раздачи"
         }
       },
       "ServerPatch": {
@@ -16364,7 +16421,7 @@
           "width",
           "height"
         ],
-        "description": "Размер окна: поток под него выбирает сервер",
+        "description": "Размер окна: поток под него выбирает сервер. Со streamId размер не учитывается",
         "properties": {
           "width": {
             "type": "integer",
@@ -16373,6 +16430,22 @@
           "height": {
             "type": "integer",
             "minimum": 1
+          },
+          "network": {
+            "type": "string",
+            "enum": [
+              "local",
+              "outside"
+            ],
+            "description": "Откуда смотрят. local — умолчание; outside — шлюз с публичным адресом. Выбор зрителя, не хранится",
+            "x-enum-descriptions": {
+              "local": "Из локальной сети",
+              "outside": "Извне: шлюз с публичным адресом"
+            }
+          },
+          "streamId": {
+            "type": "string",
+            "description": "Выбранный поток: DeviceStream.id этой камеры"
           }
         }
       },
@@ -16387,14 +16460,20 @@
         "properties": {
           "whepUrl": {
             "type": "string",
-            "description": "Адрес WHEP: клиент подключается по WebRTC"
+            "description": "Адрес WHEP с параметрами потока: клиент шлёт сюда офер SDP, 201 — ответ SDP и Location сессии. stub:// — подставной адрес стенда"
           },
           "token": {
-            "type": "string"
+            "type": "string",
+            "description": "Authorization: Bearer на офере и отбое. Свежий токен — снова POST этой двери"
           },
           "expiresAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Срок токена, не позже конца срока раздачи: клиент не начинает повтор, если до него меньше 5 с"
+          },
+          "gateway": {
+            "type": "string",
+            "description": "Через какой шлюз идёт видео: подпись для оператора"
           }
         }
       },
@@ -18351,6 +18430,27 @@
           }
         },
         "description": "Только демо-страница. Снимок встроенного сервера: у службы ассистента демо-страницы своих данных нет, сервер живёт в браузере. Массивы целиком, страниц нет. V/11 это поле не принимает и не отдаёт: бэкенд читает свою систему сам"
+      },
+      "LiveMove": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "network"
+        ],
+        "properties": {
+          "network": {
+            "type": "string",
+            "enum": [
+              "local",
+              "outside"
+            ],
+            "description": "Откуда смотрят. local — умолчание; outside — шлюз с публичным адресом. Выбор зрителя, не хранится",
+            "x-enum-descriptions": {
+              "local": "Из локальной сети",
+              "outside": "Извне: шлюз с публичным адресом"
+            }
+          }
+        }
       }
     }
   }

@@ -159,6 +159,24 @@
     const byId = (table, id) => (table === "devices" ? devIndex().get(id) || null : db[table].find((r) => r.id === id) || null);
     // Возможности системы — из набора: так же их объявляет бэкенд в GET /reference
     const caps = () => db.reference.capabilities;
+    // Раздача камеры (V/03.1): создаётся первым зрителем, держится LIVE_GRACE_SEC, метки — сеть, для которой создана
+    const LIVE_GRACE_SEC = 60;
+    const liveLabels = (network) => (network === "outside" ? ["public-address"] : []);
+    const liveFan = (rec) => {
+      const f = (db.stand.live || {})[rec.id];
+      return f && f.until > now() ? f : null;
+    };
+    const liveKeep = (rec, labels) => {
+      db.stand.live = db.stand.live || {};
+      db.stand.live[rec.id] = { labels, until: now() + LIVE_GRACE_SEC * 1000 };
+    };
+    const liveRefused = (rec) => {
+      if (!rec) return notFound("Устройство");
+      if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Живое видео — только у камеры", { field: "type" });
+      if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
+      if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера без связи");
+      return null;
+    };
     const can = (feature) => caps().features.includes(feature);
 
     /* ===== Поток событий ===== */
@@ -2364,14 +2382,29 @@
       [
         "POST",
         "/devices/{id}/live",
-        (p) => {
+        (p, q, body) => {
           const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Живое видео — только у камеры", { field: "type" });
-          if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
-          if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера без связи");
-          // Встроенный сервер видео не отдаёт: адрес-заглушка, форма показывает картинку
-          return { status: 200, body: { whepUrl: `stub://live/${rec.id}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + 60000) } };
+          const bad = liveRefused(rec);
+          if (bad) return bad;
+          if (body.streamId !== undefined && !streamsOf(rec).some((s) => s.id === body.streamId)) return problem(422, "VALIDATION_FAILED", "У камеры нет такого потока", { field: "streamId" });
+          const labels = liveLabels(body.network), fan = liveFan(rec);
+          if (fan && !sameJson(fan.labels, labels)) return problem(409, "OTHER_NETWORK", "Раздачу создали для другой сети", { params: { labels: fan.labels } });
+          liveKeep(rec, labels);
+          const ask = body.streamId !== undefined ? `stream=${encodeURIComponent(body.streamId)}` : `width=${body.width}&height=${body.height}`;
+          // Настоящего видео встроенный сервер не отдаёт: на stub:// отвечает сама страница, api/whep-stub.js
+          return { status: 200, body: { whepUrl: `stub://live/whep/${rec.id}?${ask}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + LIVE_GRACE_SEC * 1000), gateway: labels.length ? "stub-public" : "stub-local" } };
+        },
+      ],
+      [
+        "PUT",
+        "/devices/{id}/live",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          const bad = liveRefused(rec);
+          if (bad) return bad;
+          if (db.stand.liveMoveDenied) return problem(403, "PERMISSION_DENIED", "Нет права переразмещать раздачу");
+          liveKeep(rec, liveLabels(body.network));
+          return { status: 204, body: null };
         },
       ],
       [

@@ -17546,6 +17546,7 @@
     "patchDevice",
     "deleteDevice",
     "startLive",
+    "moveLive",
     "createStream",
     "patchStream",
     "deleteStream",
