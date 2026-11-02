@@ -1325,7 +1325,7 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gopop.asst{padding:10px;z-index:19}
 #asstBlock{max-height:min(40vh,320px);overflow:auto;padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--ln)}
 #asstBlock[hidden]{display:none}
-.asst-said{font-size:12px;color:var(--mu);margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
 .asst-said .asst-dropped{font-style:italic}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
@@ -21761,9 +21761,8 @@ function asstRender(){
   block.hidden=false;
   block.innerHTML=[
     asstSvcHtml(a,mode),
-    // История разговора — одной строкой: свежее в конце, полностью — в подсказке
-    a.said.length?(()=>{const all=a.said.map(t=>typeof t==="string"?`› ${t}`:t.note).join("  ·  ");
-      return`<div class="asst-said" title="${escHtml(all)}">${a.said.map(t=>typeof t==="string"?`› ${escHtml(t)}`:`<span class="asst-dropped" data-asst-dropped="1">${escHtml(t.note)}</span>`).join("  ·  ")}</div>`})():"",
+    // Из разговора видна только последняя просьба человека
+    (()=>{const last=[...a.said].reverse().find(t=>typeof t==="string");return last?`<div class="asst-said">› ${escHtml(last)}</div>`:""})(),
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
