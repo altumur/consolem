@@ -488,7 +488,14 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .live-video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;background:#080b10}
 .live-view{max-width:960px;margin-top:0}.live-view .live-video{object-fit:contain}.live-view .live-note{bottom:auto;top:6px}
 .live-acts{position:absolute;right:8px;top:6px;display:flex;gap:6px}.live-acts [hidden]{display:none}
-.live-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.live-row label{display:inline-flex;gap:6px;align-items:center;margin:0}.live-row select{width:auto}
+.live-titles{position:absolute;left:50%;bottom:34px;transform:translateX(-50%);max-width:90%;padding:2px 8px;border-radius:4px;background:#000a;color:#fff;font-size:14px;white-space:pre-wrap;text-align:center;pointer-events:none}.live-titles[hidden]{display:none}
+.tl{position:relative;height:36px;background:var(--p2);border:1px solid var(--ln);border-radius:6px;margin:10px 0 4px;overflow:hidden;cursor:pointer}
+.tl-s{position:absolute;top:10px;bottom:6px;background:#2e7d5b}.tl-s.fen{top:2px;bottom:auto;height:6px;background:#7f8c8d}.tl-s.bak{background:#b9770e}.tl-s.dev{background:#2471a3}
+.tl-e,.tl-m{position:absolute;top:0;width:2px;height:9px;background:var(--tx);pointer-events:none}.tl-m{height:100%;background:#d68910}
+.tl-head{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}.tl-head[hidden]{display:none}
+.tl-ax{display:flex;justify-content:space-between}.tl-ev{list-style:none;margin:8px 0 0;padding:0;max-height:220px;overflow:auto;font-size:13px}.tl-ev li{padding:2px 0}.tl-go{cursor:pointer}.tl-go:hover{color:var(--tx);text-decoration:underline}
+.hold-recs{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.live-row [hidden]{display:none}.live-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.live-row label{display:inline-flex;gap:6px;align-items:center;margin:0}.live-row select{width:auto}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
 button.mc{font:inherit;color:inherit;cursor:pointer;width:100%}
@@ -2649,10 +2656,12 @@ function apiOnEvent(m){
     return;
   }
   if(m.type==="tree.changed"){treeChanged(m);return}
+  if(m.type==="journal.event"){liveJournal(m.payload);return}
+  if(m.kind==="hold"||m.kind==="bookmark"){viewEntity(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
   if(m.type==="test.reset")hwRowsDrop();
-  if(m.type==="stream.reset"||m.type==="test.reset"){apiReload();return}
+  if(m.type==="stream.reset"||m.type==="test.reset"){if(lv?.feedOn)liveFeedRead(lv);apiReload();return}
   if(m.kind==="scenarios"){if(SCEN.did===m.entityId&&SCEN.doc&&m.version!==SCEN.doc.version&&!SCEN.edit)scenLoad(m.entityId).catch(()=>{});return}
   if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
   if(m.kind==="archiveWatch"||m.kind==="archiveScan"){rwReload();return}
@@ -9068,7 +9077,7 @@ function liveVideoEl(){
 }
 // Звук — дорожка того же потока; браузер отказал в автозапуске со звуком — без звука, зритель включит сам (V/08.3 п. 8)
 function livePlay(){
-  const v=liveEl;if(!v?.srcObject)return;
+  const v=liveEl;if(!v?.srcObject&&!v?.hasAttribute("src"))return;
   const view=!!v.closest?.("[data-live-view]");
   v.controls=view;v.muted=!view;
   v.play().catch(()=>{if(lv&&!v.muted){v.muted=true;v.play().catch(()=>{})}});
@@ -9080,8 +9089,9 @@ function liveSync(){
   if(!id)return;
   if(!lv)lv=liveNew(id);
   const v=liveVideoEl();
-  if(v.parentNode!==box){box.insertBefore(v,box.querySelector(".zone-svg,.live-note"));livePlay()}
+  if(v.parentNode!==box){box.insertBefore(v,box.querySelector(".zone-svg,.live-titles,.live-note"));livePlay()}
   if(box.dataset.liveAuto&&!lv.auto){lv.auto=true;if(lv.state==="idle"&&liveCanStart(find(id)?.n))liveStart()}
+  if(box.dataset.liveView)viewOpen(lv);
   liveShow();
 }
 function liveCanStart(n){return!!n&&n.online!==false&&can("startLive")&&hwVer.has(n.id)}
@@ -9091,13 +9101,13 @@ function liveWordsOf(v,n){
   if(!can("startLive"))return i18n("Живое видео недоступно");
   const via=v.gateway?` · ${i18n("через")} ${v.gateway}`:"";
   return{idle:i18n("Остановлено"),conn:i18n("Подключаюсь…"),live:`${i18n("Идёт")}${via}`,
-    retry:`${i18n("Повторяю…")} (${v.retry} ${i18n("из")} ${LIVE_OFFERS-1})`,lost:`${i18n("Нет связи")}, ${i18n("повторяю…")}`,refused:v.words}[v.state]??"";
+    retry:`${i18n("Повторяю…")} (${v.retry} ${i18n("из")} ${LIVE_OFFERS-1})`,lost:`${i18n("Нет связи")}, ${i18n("повторяю…")}`,refused:v.words,archive:v.words,retry2:v.words}[v.state]??"";
 }
 function liveShow(){
   const box=liveBox();if(!box||!lv||lv.id!==box.dataset.live)return;
   const n=find(lv.id)?.n,words=liveWordsOf(lv,n),going=lv.state!=="idle"&&lv.state!=="refused";
   const note=box.querySelector(".live-note");
-  if(note)note.textContent=lv.stub&&going?`${words} · ${i18n(LIVE_STUB_NOTE)}`:words;
+  if(note)note.textContent=lv.stub&&going?`${words} · ${i18n(lv.pb?PB_STUB_NOTE:LIVE_STUB_NOTE)}`:words;
   const say=document.querySelector("#main [data-live-state]");if(say)say.textContent=words;
   const go=document.querySelector("#main [data-live-go]");
   if(go){go.textContent=i18n(going?"Остановить":"Смотреть");go.disabled=!going&&!liveCanStart(n);go.classList.toggle("pri",!going)}
@@ -9105,10 +9115,10 @@ function liveShow(){
   const op=box.querySelector("[data-live-open]");if(op)op.hidden=!lv.open;
   const st=document.querySelector("#main [data-live-stream]");if(st&&st.value!==lv.stream)st.value=lv.stream;
   const nt=document.querySelector("#main [data-live-net]");if(nt&&nt.value!==lv.net)nt.value=lv.net;
-  box.classList.toggle("playing",!!liveEl?.srcObject);
-  if(liveEl)liveEl.hidden=!liveEl.srcObject;
+  if(liveEl)liveEl.hidden=!liveEl.srcObject&&!liveEl.hasAttribute("src");
+  viewFill();
 }
-function liveSay(v,state,words=""){v.state=state;v.words=words;if(lv===v)liveShow()}
+function liveSay(v,state,words=""){v.state=state;v.words=words;if(state==="live")liveFeedStart(v);if(lv===v)liveShow()}
 function liveRefuse(v,words){liveDrop(v);liveSay(v,"refused",words)}
 // H.265 — как отдаёт камера: шлюз не перекодирует. Браузер без него получает отказ словами, а не чёрный кадр
 function liveH265Ok(){try{return RTCRtpReceiver.getCapabilities("video").codecs.some(c=>/h265|hevc/i.test(c.mimeType))}catch(e){return false}}
@@ -9134,7 +9144,7 @@ const whepAuth=t=>({Authorization:`Bearer ${t}`});
 // Адрес отбоя: Location — от двери шлюза, дверь — начало whepUrl до /whep/
 function whepSessionUrl(whepUrl,loc){
   if(/^[a-z]+:\/\//i.test(loc))return loc;
-  const m=whepUrl.match(/^(.*)\/whep\//);
+  const m=whepUrl.match(/^(.*)\/(?:whep|talk)\//);
   return(m?m[1]:new URL(whepUrl).origin)+"/"+loc.replace(/^\/+/,"");
 }
 function liveBody(v){
@@ -9247,7 +9257,9 @@ async function liveHangUp(v,s,closing){
 }
 // Снять всё, что держит попытку: таймеры, соединение, сессию у шлюза, поток элемента
 function liveDrop(v){
-  clearTimeout(v.lost);clearTimeout(v.wait);v.lost=v.wait=null;
+  clearTimeout(v.lost);clearTimeout(v.wait);clearTimeout(v.titleOff);v.lost=v.wait=null;
+  v.feedOn=false;v.feedFrom=null;v.feed=[];v.feedWithheld=0;v.title=null;
+  pbDrop(v);
   const s=v.sess,pc=v.pc;v.sess=v.pc=null;
   if(s)liveHangUp(v,s);
   if(pc)try{pc.close()}catch(e){}
@@ -9256,6 +9268,7 @@ function liveDrop(v){
 function liveStop(){const v=lv;if(!v)return;v.gen++;liveDrop(v);liveSay(v,"idle")}
 function liveClose(){
   const v=lv;if(!v)return;
+  talkEnd();ptzStop();
   v.gen++;liveDrop(v);lv=null;
   if(liveEl){liveEl.srcObject=null;liveEl.hidden=true;liveEl.remove()}
 }
@@ -9271,6 +9284,406 @@ function liveMove(){
   });
 }
 window.addEventListener("pagehide",()=>{if(lv?.sess)liveHangUp(lv,lv.sess,true)});
+// ── Закладка «Просмотр»: лента и титры при живом ──────────────────────────
+// Лента — журнал камеры с начала показа (−30 с), последние 30, дальше из потока: чтения по таймеру нет.
+// Показанное узнаётся по id. Время строки — occurredAt, нет поля — at. Титры — текстом поверх видео, в кадр не вжигаются.
+const LIVE_FEED_MAX=30;
+const eventMs=e=>Date.parse(e.occurredAt||e.at);
+function liveFeedStart(v){
+  if(v.feedOn||!can("listJournal"))return;
+  v.feedOn=true;v.feed=[];v.feedWithheld=0;v.srcs=v.srcs||new Map();
+  liveFeedRead(v);
+}
+function liveFeedRead(v){
+  v.feedFrom=v.feedFrom||new Date(Date.now()-30000).toISOString();
+  API.get("/journal",{deviceId:v.id,from:v.feedFrom,limit:LIVE_FEED_MAX}).then(r=>{
+    if(lv!==v||!v.feedOn)return;
+    v.feedWithheld=r.withheldCount||0;
+    r.items.forEach(e=>liveFeedAdd(v,e));
+    viewFill();
+  }).catch(()=>{});
+}
+function liveFeedAdd(v,e){
+  if(v.feed.some(x=>x.id===e.id))return false;
+  v.feed.push(e);
+  v.feed.sort((a,b)=>eventMs(b)-eventMs(a)||(a.id<b.id?-1:1));
+  v.feed.length=Math.min(v.feed.length,LIVE_FEED_MAX);
+  return true;
+}
+// Сообщение потока: только при живом этой камеры; журнал сам сузил получателей наблюдением
+function liveJournal(e){
+  const v=lv;
+  if(!v||v.state!=="live"&&v.state!=="lost"||!v.feedOn)return;
+  if(e.deviceId!==v.id&&e.cameraId!==v.id)return;
+  if(liveFeedAdd(v,e))viewFill();
+  if(e.kind==="text")liveTitle(v,e);
+}
+// Источник читается один раз на показ: задержка, срок, цвета слов. Не прочитан — без цвета, без задержки, до следующей
+function liveTitle(v,e){
+  const lines=e.fields?.lines;
+  if(!Array.isArray(lines)||!lines.length||lines.some(x=>typeof x!=="string"))return;
+  const src=v.srcs.get(e.deviceId)||v.srcs.set(e.deviceId,API.get(`/devices/${e.deviceId}`).catch(()=>({}))).get(e.deviceId);
+  src.then(s=>{
+    if(lv!==v||v.state!=="live")return;
+    const w=(s.words||[]).find(x=>x.msg===e.fields.word);
+    setTimeout(()=>{
+      if(lv!==v||v.state!=="live")return;
+      clearTimeout(v.titleOff);
+      v.title={lines,color:w?.color||"",bg:w?.bg||""};
+      viewFill();
+      if(s.overlayDurationSec>0)v.titleOff=setTimeout(()=>{if(lv===v){v.title=null;viewFill()}},s.overlayDurationSec*1000);
+    },s.overlayDelayMs||0);
+  });
+}
+function liveFeedHtml(v){
+  const rows=(v.feed||[]).map(e=>`<li><span class="sub">${escHtml(tlClock(eventMs(e)))}</span> ${escHtml(e.text)}</li>`).join("");
+  return(rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.feedOn?"Событий пока нет":"Лента идёт, пока вы смотрите")}</p>`)+(v.feedWithheld?`<p class="sub">${i18n("Скрыто правами")}: ${v.feedWithheld}</p>`:"");
+}
+// ── Разговор: браузер говорит в динамик камеры (V/08.3 Н1.2 п. 9) ─────────
+// Занятость говорит дверь на офере, выдача адреса её не судит. 404 not yet, 500, 503 — через 1,5 с, всего 9 оферов, после 500 просьба снова
+const TALK_OFFERS=9;
+let talk=null;
+// Дети камеры читаются один раз на закладку: в кэше дерева их нет, пока ветку не раскрыли
+function viewKidsLoad(v){
+  if(!can("listDevices"))return;
+  API.get("/devices",{parentId:v.id,limit:200}).then(r=>{if(lv===v){v.kids=r.items;viewFill()}}).catch(()=>{});
+}
+function talkSpk(v){return can("startTalk")?(v?.kids||[]).filter(d=>d.type==="spk"&&d.online!==false&&d.enabled!==false).sort((a,b)=>(a.channel??0)-(b.channel??0))[0]||null:null}
+function talkSay(words){const el=document.querySelector("#main [data-talk-state]");if(el)el.textContent=words||"";const b=document.querySelector("#main [data-talk]");if(b)b.textContent=i18n(talk?"Закончить разговор":"Говорить")}
+function talkEnd(words){
+  const t=talk;talk=null;
+  if(t){
+    clearTimeout(t.wait);
+    if(t.pc)try{t.pc.close()}catch(e){}
+    t.mic?.getTracks().forEach(x=>x.stop());
+    if(t.sess)whepFetch(t.sess,{method:"DELETE",headers:whepAuth(t.door.token)}).catch(()=>{});
+  }
+  talkSay(words);
+}
+function talkToggle(id){if(talk)talkEnd();else talkStart(id)}
+async function talkStart(id){
+  const spk=talkSpk(lv);if(!spk)return;
+  if(!navigator.mediaDevices?.getUserMedia||typeof RTCPeerConnection!=="function")return talkSay(i18n("Браузер не умеет разговор"));
+  const t=talk={id,spk:spk.id};
+  talkSay(i18n("Подключаюсь…"));
+  const alive=()=>talk===t;
+  try{t.mic=await navigator.mediaDevices.getUserMedia({audio:true})}catch(e){if(alive())talkEnd(i18n("Микрофон не дан"));return}
+  if(!alive())return t.mic.getTracks().forEach(x=>x.stop());
+  const ask=()=>API.post(`/devices/${spk.id}/talk`,{}).catch(e=>{if(alive())talkEnd(problemText(e,spk));return null});
+  t.door=await ask();
+  if(!alive()||!t.door)return;
+  const pc=t.pc=new RTCPeerConnection();
+  t.mic.getTracks().forEach(x=>pc.addTrack(x,t.mic));
+  pc.getTransceivers().forEach(x=>{x.direction="sendonly"});
+  pc.onconnectionstatechange=()=>{if(alive()&&["failed","closed"].includes(pc.connectionState))talkEnd(i18n("Разговор окончен"))};
+  await pc.setLocalDescription(await pc.createOffer());
+  if(!alive())return;
+  for(let offers=1;;offers++){
+    let r=null;
+    try{r=await whepFetch(t.door.url,{method:"POST",headers:{"Content-Type":"application/sdp",...whepAuth(t.door.token)},body:pc.localDescription.sdp})}catch(e){r=null}
+    if(!alive()){
+      if(r?.status===201&&r.headers.get("Location"))whepFetch(whepSessionUrl(t.door.url,r.headers.get("Location")),{method:"DELETE",headers:whepAuth(t.door.token)}).catch(()=>{});
+      return;
+    }
+    if(r?.status===201){
+      const loc=r.headers.get("Location");if(loc)t.sess=whepSessionUrl(t.door.url,loc);
+      try{await pc.setRemoteDescription({type:"answer",sdp:await r.text()})}catch(e){if(alive())talkEnd(i18n("Браузер не принял ответ шлюза"));return}
+      if(alive())talkSay(i18n("Говорите"));
+      return;
+    }
+    if(r?.status===409)return talkEnd(i18n("Динамик занят"));
+    if(r&&![404,500,503].includes(r.status)){let d={};try{d=await r.json()}catch(e){}return talkEnd(`${i18n("Шлюз отказал")}: ${d.detail||d.error||r.status}`)}
+    if(offers>=TALK_OFFERS)return talkEnd(i18n("Шлюз не взял разговор"));
+    if(r?.status===500){t.door=await ask();if(!alive()||!t.door)return}
+    talkSay(`${i18n("Повторяю…")} (${offers} ${i18n("из")} ${TALK_OFFERS-1})`);
+    await new Promise(res=>{t.wait=setTimeout(res,LIVE_RETRY_MS)});
+    if(!alive())return;
+  }
+}
+// ── Реле вручную ──────────────────────────────────────────────────────────
+function relaySet(id,state,pulseMs){
+  const n=lv?.kids?.find(d=>d.id===id),body=pulseMs?{state,pulseMs}:{state};
+  API.post(`/devices/${id}/operations/output`,body).then(()=>toast(`${locName(n||{name:""})}: ${i18n(pulseMs?"импульс отправлен":state?"замкнуто":"разомкнуто")}`)).catch(e=>toast(problemText(e,n)));
+}
+function relayCardHtml(v){
+  if(!can("runDeviceOperation"))return"";
+  const rows=(v.kids||[]).filter(d=>d.type==="relay").map(d=>{
+    const off=d.online===false?"disabled":"";
+    return`<tr data-relay="${escHtml(d.id)}"><td>${escHtml(locName(d))}</td><td class="ca-x"><button type="button" class="btn s" ${off} ${onEv("click",["relaySet",`${d.id}`,true])}>${i18n("Замкнуть реле")}</button> <button type="button" class="btn s" ${off} ${onEv("click",["relaySet",`${d.id}`,false])}>${i18n("Разомкнуть реле")}</button> <button type="button" class="btn s" ${off} ${onEv("click",["relaySet",`${d.id}`,true,1000])}>${i18n("Импульс 1 с")}</button></td></tr>`;
+  }).join("");
+  return rows?card("Реле",`<table class="ca-tbl"><tbody>${rows}</tbody></table>`):"";
+}
+// ── Шкала ─────────────────────────────────────────────────────────────────
+// Дорогая дверь: около 120 вызовов на чтение у настоящей системы. Читается при открытии закладки и по кнопке окна, таймера нет.
+const TL_WINDOWS=[["1h","Час",3600e3],["6h","6 часов",216e5],["24h","Сутки",864e5],["all","Всё",0]],TL_PAGE=500;
+const tlClock=ms=>new Date(ms).toLocaleTimeString(uiLang==="ru"?"ru-RU":"en-GB",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+const tlDate=ms=>new Date(ms).toLocaleString(uiLang==="ru"?"ru-RU":"en-GB",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+function tlNew(){return{win:"1h",from:0,to:0,spans:[],gone:[],next:null,busy:false,err:"",ev:[],sources:[],source:"",trunc:false,withheld:0,gen:0}}
+function viewOpen(v){
+  if(v.viewOn)return;
+  v.viewOn=true;v.tl=tlNew();v.feed=[];v.holds=[];v.marks=[];
+  viewKidsLoad(v);tlLoad(v);holdsLoad(v);
+}
+function tlWin(win){if(!lv?.tl)return;lv.tl.win=win;tlLoad(lv)}
+function tlLoad(v){
+  const t=v.tl;if(!can("getTimeline")||!t)return;
+  const gen=++t.gen,w=TL_WINDOWS.find(x=>x[0]===t.win),now=Date.now();
+  t.to=now;t.from=w[2]?now-w[2]:0;t.busy=true;t.err="";t.spans=[];t.next=null;t.ev=[];
+  viewFill();
+  const q=w[2]?{from:new Date(t.from).toISOString(),to:new Date(t.to).toISOString(),limit:TL_PAGE}:{limit:TL_PAGE};
+  API.get(`/devices/${v.id}/timeline`,q).then(r=>{
+    if(lv!==v||t.gen!==gen)return;
+    tlTake(t,r);t.busy=false;
+    if(!t.from)t.from=t.spans.length?t.spans[0].startMs:t.to-864e5;
+    viewFill();tlEvents(v);marksLoad(v);
+  }).catch(e=>{if(lv===v&&t.gen===gen){t.busy=false;t.err=problemText(e);viewFill()}});
+}
+function tlTake(t,r){
+  t.spans.push(...r.items.map(s=>Object.assign(s,{startMs:Date.parse(s.start),endMs:Date.parse(s.end)})));
+  t.spans.sort((a,b)=>a.startMs-b.startMs);
+  t.next=r.nextCursor||null;t.gone=r.unavailable||[];
+}
+function tlMore(){
+  const v=lv,t=v?.tl;if(!t?.next||t.busy)return;
+  const gen=t.gen,w=TL_WINDOWS.find(x=>x[0]===t.win);t.busy=true;
+  API.get(`/devices/${v.id}/timeline`,Object.assign(w[2]?{from:new Date(t.from).toISOString(),to:new Date(t.to).toISOString()}:{},{limit:TL_PAGE,cursor:t.next})).then(r=>{
+    if(lv!==v||t.gen!==gen)return;
+    tlTake(t,r);t.busy=false;
+    if(!w[2]&&t.spans.length)t.from=t.spans[0].startMs;
+    viewFill();
+  }).catch(e=>{if(lv===v&&t.gen===gen){t.busy=false;t.err=problemText(e);viewFill()}});
+}
+function tlEvents(v){
+  const t=v.tl;if(!can("listJournal"))return;
+  const gen=t.gen;
+  API.get("/journal",Object.assign({deviceId:v.id,from:new Date(t.from).toISOString(),to:new Date(t.to).toISOString(),limit:200},t.source?{source:t.source}:{})).then(r=>{
+    if(lv!==v||t.gen!==gen)return;
+    t.ev=r.items.slice().sort((a,b)=>eventMs(b)-eventMs(a)||(a.id<b.id?-1:1));t.trunc=!!r.truncated;t.withheld=r.withheldCount||0;
+    if(!t.source)t.sources=[...new Set(r.items.map(e=>e.source).filter(Boolean))].sort();
+    viewFill();
+  }).catch(()=>{});
+}
+function tlSource(s){if(!lv?.tl)return;lv.tl.source=s;tlEvents(lv)}
+function tlPos(t,ms){return Math.max(0,Math.min(100,(ms-t.from)/Math.max(t.to-t.from,1)*100))}
+function tlBarHtml(v){
+  const t=v.tl,left=ms=>tlPos(t,ms).toFixed(3);
+  const spans=t.spans.map((s,i)=>{const a=tlPos(t,s.startMs),b=tlPos(t,s.endMs);
+    return`<i class="tl-s${s.fenced?" fen":s.backupOnly?" bak":s.source==="device"?" dev":""}" data-span="${i}" style="left:${a.toFixed(3)}%;width:${Math.max(b-a,.15).toFixed(3)}%" title="${escHtml(tlSpanTitle(s))}"></i>`}).join("");
+  const ev=t.ev.map(e=>`<b class="tl-e" style="left:${left(eventMs(e))}%"></b>`).join("");
+  const marks=(v.marks||[]).map(m=>`<b class="tl-m" style="left:${left(Date.parse(m.occurred))}%" title="${escHtml(m.note)}"></b>`).join("");
+  return`<div class="tl" data-tl-bar ${onEv("click",["tlClick",onEv.el,onEv.event])}>${spans}${ev}${marks}<em class="tl-head" data-tl-head hidden></em></div><div class="tl-ax"><span class="sub">${escHtml(tlDate(t.from))}</span><span class="sub">${escHtml(tlDate(t.to))}</span></div>`;
+}
+function tlSpanTitle(s){
+  return[`${tlDate(s.startMs)}–${tlClock(s.endMs)}`,s.epoch?`${i18n("эпоха")} ${s.epoch}`:"",s.backupOnly?i18n("только в резервном"):"",s.source==="device"?i18n("архив устройства"):"",s.source==="backfill"?i18n("дозаписано"):"",s.fenced?i18n("отсечённая эпоха"):""].filter(Boolean).join(" · ");
+}
+// Щелчок по шкале: момент по месту. По спану — этот спан, даже отсечённый; мимо — выберет сервер
+function tlClick(el,ev){
+  const v=lv;if(!v?.tl)return;
+  const r=el.getBoundingClientRect(),t=v.tl,at=t.from+(ev.clientX-r.left)/r.width*(t.to-t.from);
+  const i=ev.target.closest?.("[data-span]")?.dataset.span,s=i!=null?t.spans[+i]:null;
+  pbPlay(v,s?Math.min(Math.max(at,s.startMs),s.endMs-1):at,s?.spanId,s);
+}
+function tlGoneWords(g){return`${i18n({server:"Регистратор",volume:"Том",cluster:"Кластер"}[g.what]||g.what)} «${escHtml(find(g.id)?.n?locName(find(g.id).n):g.id)}»: ${escHtml(g.reason)}`}
+// Минуты, которые можно закрепить: только в резервном и с устройства, склейка при зазоре до 3 с
+function tlFixable(t){
+  const out=[];
+  t.spans.filter(s=>s.backupOnly||s.source==="device").forEach(s=>{
+    const l=out[out.length-1];
+    if(l&&s.startMs-l.to<=3000)l.to=Math.max(l.to,s.endMs);else out.push({from:s.startMs,to:s.endMs});
+  });
+  return out;
+}
+function tlFetch(i){
+  const v=lv,x=v&&tlFixable(v.tl)[i],n=v&&find(v.id)?.n;if(!x||!n)return;
+  API.post(`/devices/${v.id}/archive-fetch`,{archiveId:n.arch,from:new Date(x.from).toISOString(),to:new Date(x.to).toISOString()}).then(r=>{
+    toast(`${i18n("Подано просьб")}: ${r.accepted}${r.refused.length?`. ${i18n("Отказано")}: ${r.refused.length}, ${i18n("причина")}: ${[...new Set(r.refused.map(y=>y.reason))].join(", ")}`:""}`);
+  }).catch(e=>toast(problemText(e,n)));
+}
+function tlCardHtml(v,n){
+  const t=v.tl,fix=can("fetchArchive")&&n.arch?tlFixable(t):[];
+  const ev=t.ev.map(e=>{const late=Date.parse(e.at)-eventMs(e)>=2000;
+    return`<li class="tl-go" ${onEv("click",["pbEvent",eventMs(e)])}><span class="sub">${escHtml(tlDate(eventMs(e)))}</span> ${escHtml(e.text)}${late?` <span class="sub">${i18n("записано в")} ${escHtml(tlClock(Date.parse(e.at)))}</span>`:""}</li>`}).join("");
+  return`<div class="live-row">${TL_WINDOWS.map(([k,l])=>`<button type="button" class="btn s${t.win===k?" pri":""}" data-tl-win="${k}" ${onEv("click",["tlWin",k])}>${i18n(l)}</button>`).join("")}
+      <label>${i18n("Подсистема")} <select data-tl-source ${onEv("change",["tlSource",onEv.value])}><option value="">${i18n("Все")}</option>${t.sources.map(s=>`<option value="${escHtml(s)}" ${s===t.source?"selected":""}>${escHtml(s)}</option>`).join("")}</select></label>
+      <span class="sub">${t.busy?i18n("Загрузка…"):t.spans.length?"":i18n("За это окно записей нет")}</span></div>
+    ${tlBarHtml(v)}
+    ${t.next?`<button type="button" class="lk" data-tl-more ${onEv("click",["tlMore"])}>${i18n("Показать дальше")}</button>`:""}
+    ${t.err?`<div class="nt bk-warn">${escHtml(t.err)}</div>`:""}
+    ${t.gone.map(g=>`<div class="nt" data-tl-gone>${tlGoneWords(g)}</div>`).join("")}
+    ${fix.map((x,i)=>`<div class="ln"><div>${i18n("Только в резервном или на устройстве")}: ${escHtml(tlDate(x.from))}–${escHtml(tlClock(x.to))}</div><button type="button" class="btn s" data-tl-fix ${onEv("click",["tlFetch",i])}>${i18n("Закрепить")}</button></div>`).join("")}
+    ${t.trunc?`<p class="sub">${i18n("Показаны последние 200 событий")}</p>`:""}${t.withheld?`<p class="sub">${i18n("Скрыто правами")}: ${t.withheld}</p>`:""}
+    ${ev?`<ul class="tl-ev">${ev}</ul>`:""}`;
+}
+// ── Проигрыватель ─────────────────────────────────────────────────────────
+// Куски по 60 с, следующий — по окончании. Каждый момент один раз: очередь идёт от конца поставленного, а не от начала
+// следующего спана. Кусок не отдан — подпись, один повтор через 5 с с новым адресом, потом дальше (V/08.3 Н1.1)
+const PB_RETRY_MS=5000,PB_STUB_NOTE="Подставной кусок: настоящей записи на стенде нет";
+function pbPlay(v,at,spanId,chosen){
+  v.gen++;liveDrop(v);
+  v.pb={gen:v.gen,chosen:chosen||null,piece:null};
+  liveSay(v,"conn");
+  pbPiece(v,v.gen,at,spanId,false);
+}
+function pbEvent(ms){if(lv)pbPlay(lv,ms)}
+// Момент след за поставленным: выбранный спан, пока он идёт; иначе неотсечённый над моментом, отсечённый, следующий спан
+function pbNextSpan(v,at){
+  const list=v.tl?.spans||[],c=v.pb.chosen;
+  if(c&&at>=c.startMs&&at<c.endMs)return{at,span:c};
+  const over=list.filter(s=>s.startMs<=at&&at<s.endMs);
+  if(over.length)return{at,span:over.find(s=>!s.fenced)||over[0]};
+  const s=list.find(x=>x.startMs>at&&!x.fenced)||list.find(x=>x.startMs>at);
+  return s?{at:s.startMs,span:s}:null;
+}
+async function pbPiece(v,gen,at,spanId,again){
+  const alive=()=>lv===v&&v.gen===gen;
+  let r;
+  try{r=await API.get(`/devices/${v.id}/playback`,Object.assign({at:new Date(at).toISOString()},spanId?{spanId}:{}))}
+  catch(e){
+    if(!alive())return;
+    if(e?.status===404&&!v.pb.piece)return liveRefuse(v,i18n("Записи на этот момент нет"));
+    if(again)return pbGoOn(v,gen,at);
+    return pbFail(v,gen,at,spanId);
+  }
+  if(!alive())return;
+  const p=v.pb.piece={at,spanId:r.spanId,from:Date.parse(r.from),to:Date.parse(r.to),span:(v.tl?.spans||[]).find(s=>s.spanId===r.spanId)||null,again};
+  v.stub=r.url.startsWith("stub://");
+  const el=liveVideoEl();
+  el.srcObject=null;
+  el.src=v.stub?window.ConsolemWhepStub.piece(r.url):r.url;
+  el.onloadedmetadata=()=>{if(lv===v&&v.pb?.piece===p&&at>p.from)el.currentTime=(at-p.from)/1000};
+  el.onended=()=>{if(alive()&&v.pb.piece===p)pbGoOn(v,gen,p.to)};
+  el.onerror=()=>{if(!alive()||v.pb.piece!==p||p.failed)return;p.failed=true;if(p.again)pbGoOn(v,gen,p.to);else pbFail(v,gen,at,p.spanId)};
+  el.ontimeupdate=()=>{if(lv===v&&v.pb?.piece===p)pbHead(v,p.from+el.currentTime*1000)};
+  liveSay(v,"archive",pbWords(p));
+  livePlay();
+}
+function pbWords(p){
+  const s=p.span;
+  return[`${i18n("Запись")} ${tlDate(p.from)}–${tlClock(p.to)}`,s?.epoch?`${i18n("эпоха")} ${s.epoch}`:"",s?.backupOnly?i18n("из резервного"):"",s?.source==="backfill"?i18n("дозаписано"):""].filter(Boolean).join(" · ");
+}
+function pbFail(v,gen,at,spanId){
+  liveSay(v,"retry2",i18n("Дверь архива занята или отказала: повтор через 5 с"));
+  v.pbWait=setTimeout(()=>{if(lv===v&&v.gen===gen)pbPiece(v,gen,at,spanId,true)},PB_RETRY_MS);
+}
+function pbGoOn(v,gen,at){
+  const n=pbNextSpan(v,at);
+  if(!n){v.gen++;liveDrop(v);return liveSay(v,"idle")}
+  pbPiece(v,gen,n.at,n.span.spanId,false);
+}
+function pbDrop(v){
+  clearTimeout(v.pbWait);v.pbWait=null;v.pb=null;
+  if(liveEl&&lv===v){liveEl.onended=liveEl.onerror=liveEl.ontimeupdate=liveEl.onloadedmetadata=null;if(liveEl.hasAttribute("src")){liveEl.removeAttribute("src");liveEl.load()}}
+}
+function pbHead(v,ms){
+  const el=document.querySelector("#main [data-tl-head]");if(!el||!v.tl)return;
+  el.hidden=false;el.style.left=`${tlPos(v.tl,ms)}%`;
+}
+const pbMoment=v=>v?.pb?.piece&&liveEl?v.pb.piece.from+liveEl.currentTime*1000:null;
+// ── Удержания ─────────────────────────────────────────────────────────────
+const HOLD_WORDS={here:"держится здесь",pushing:"копируется",pushed:"скопировано",kept:"хранится","at risk":"под угрозой",garbled:"повреждено",lost:"утрачено",empty:"в отрезке нет кадров"};
+const HOLD_RESULT={ok:"цело",damaged:"повреждено",pending:"проверяется",unverified:"не с чем сравнить",empty:"нет кадров"};
+function holdsRead(v){API.get(`/devices/${v.id}/holds`,{limit:50}).then(r=>{if(lv===v){v.holds=r.items;v.holdsNext=r.nextCursor||null;viewFill()}}).catch(()=>{})}
+function holdsLoad(v){
+  if(!can("listHolds"))return;
+  holdsRead(v);holdsHolder(v);
+}
+// Поток: удержание или отметка этой камеры изменились
+function viewEntity(m){
+  if(!lv?.viewOn||m.payload?.deviceId!==lv.id)return;
+  // Пачка событий — одно чтение
+  const v=lv;clearTimeout(v.entityT);
+  v.entityT=setTimeout(()=>{if(lv!==v)return;if(can("listHolds"))holdsRead(v);marksLoad(v)},300);
+}
+function holdsMore(){
+  const v=lv;if(!v?.holdsNext)return;
+  API.get(`/devices/${v.id}/holds`,{limit:50,cursor:v.holdsNext}).then(r=>{if(lv===v){v.holds.push(...r.items);v.holdsNext=r.nextCursor||null;viewFill()}}).catch(e=>toast(problemText(e)));
+}
+// Держатель тома incidents: без него удержанное живёт, только пока его хранит архив записи
+async function holdsHolder(v){
+  if(!can("listArchives")||!can("listVolumes"))return;
+  try{
+    const dom=deviceDomain(v.id),a=await API.get("/archives",Object.assign({kind:"incidents",limit:5},dom?{domainId:dom}:{}));
+    const vols=(await Promise.all(a.items.map(x=>API.get("/volumes",{archiveId:x.id,limit:50})))).flatMap(x=>x.items);
+    if(lv===v){v.noHolder=!vols.some(x=>x.enabled!==false&&x.heldBy);viewFill()}
+  }catch(e){}
+}
+function holdRowHtml(h){
+  const states=h.states.map(s=>`${escHtml(i18n(HOLD_WORDS[s.state]||s.state))}${s.why?`: ${escHtml(s.why)}`:""}`).join("; ");
+  return`<tr data-hold="${escHtml(h.id)}"><td>${escHtml(tlDate(Date.parse(h.from)))}–${escHtml(tlDate(Date.parse(h.to)))}<div class="sub">${escHtml(h.note||"")}</div></td>
+    <td><span class="sub">${escHtml(h.by)}, ${escHtml(tlDate(Date.parse(h.at)))}</span><div>${h.releasedAt?i18n("отпущено — больше не держит"):states}</div><div class="sub" data-hold-result>${escHtml(lv?.verified?.[h.id]||"")}</div></td>
+    <td class="ca-x">${can("verifyHold")?`<button type="button" class="btn s" data-hold-verify ${onEv("click",["holdVerify",`${h.id}`])}>${i18n("Проверить")}</button> `:""}${can("deleteHold")?`<button type="button" class="btn s" data-hold-del ${onEv("click",["holdDrop",`${h.id}`])}>${i18n("Снять")}</button>`:""}</td></tr>`;
+}
+function holdsCardHtml(v){
+  if(!can("listHolds"))return"";
+  return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержанное держится, только пока его хранит архив записи: у тома инцидентов нет держателя")}</div>`:""}
+    ${(v.holds||[]).length?`<table class="ca-tbl"><tbody>${v.holds.map(holdRowHtml).join("")}</tbody></table>`:`<p class="sub">${i18n("Удержаний нет")}</p>`}
+    ${v.holdsNext?`<button type="button" class="lk" data-hold-more ${onEv("click",["holdsMore"])}>${i18n("Показать дальше")}</button>`:""}
+    ${can("createHold")?`<div class="ca-foot"><button type="button" class="btn s" data-hold-add ${onEv("click",["holdAsk"])}>${i18n("Удержать показанное")}</button></div>`:""}`;
+}
+const holdLocal=ms=>{const d=new Date(ms-new Date(ms).getTimezoneOffset()*60000);return d.toISOString().slice(0,16)};
+function holdAsk(){
+  const v=lv;if(!v)return;
+  const t=v.tl,to=t?.to||Date.now(),from=t?.from||to-36e5;
+  const recs=[...new Set((t?.spans||[]).map(s=>s.recordingId))];
+  const html=`<div class="g"><div><label>${i18n("С")}</label><input type="datetime-local" id="holdFrom" value="${holdLocal(from)}"></div><div><label>${i18n("По")}</label><input type="datetime-local" id="holdTo" value="${holdLocal(to)}"></div></div>
+    <div><label>${i18n("Заметка")}</label><input id="holdNote" maxlength="500"></div>
+    ${recs.length?`<div class="hold-recs">${recs.map(r=>`<label><input type="checkbox" class="hold-rec" value="${escHtml(r)}" checked> ${escHtml(r)}</label>`).join("")}</div>`:""}`;
+  askConfirm("Удержать отрезок",html,"","Удержать",()=>{
+    const vals={from:new Date(document.getElementById("holdFrom").value),to:new Date(document.getElementById("holdTo").value)};
+    if(!(vals.to>vals.from))return toast(i18n("Конец позже начала"));
+    const note=document.getElementById("holdNote").value.trim(),ids=[...document.querySelectorAll(".hold-rec:checked")].map(x=>x.value);
+    const body=Object.assign({from:vals.from.toISOString(),to:vals.to.toISOString()},note?{note}:{},recs.length?{recordingIds:ids}:{});
+    API.post(`/devices/${v.id}/holds`,body).then(()=>{if(lv===v)holdsRead(v)}).catch(e=>toast(problemText(e,find(v.id)?.n)));
+  },{html:true});
+}
+function holdDrop(id){
+  const v=lv;if(!v)return;
+  askConfirm("Снять удержание","Отрезок снова подчиняется сроку хранения.","","Снять",()=>{
+    API.del(`/holds/${encodeURIComponent(id)}`).then(()=>{if(lv===v)holdsRead(v)}).catch(e=>toast(problemText(e)));
+  },{typeCount:1});
+}
+function holdVerify(id){
+  const v=lv;if(!v)return;
+  API.post(`/holds/${encodeURIComponent(id)}/verify`,{}).then(r=>{
+    if(lv!==v)return;
+    (v.verified=v.verified||{})[id]=r.results.map(x=>`${x.recordingId}: ${i18n(HOLD_RESULT[x.result]||x.result)}`).join("; ");
+    viewFill();
+  }).catch(e=>toast(problemText(e)));
+}
+// ── Отметки: только создать и смотреть ────────────────────────────────────
+function marksLoad(v){
+  const t=v.tl;if(!can("listBookmarks")||!t)return;
+  API.get(`/devices/${v.id}/bookmarks`,{from:new Date(t.from).toISOString(),limit:200}).then(r=>{if(lv===v){v.marks=r.items;viewFill()}}).catch(e=>{if(lv===v&&e?.status===403){v.marks=[];v.marksDenied=true;viewFill()}});
+}
+function markAdd(){
+  const v=lv,inp=document.querySelector("#main [data-mark-note]");if(!v||!inp)return;
+  const note=inp.value.trim();if(!note)return toast(i18n("Напишите заметку"));
+  const m=pbMoment(v),body=m?{note,occurred:new Date(m).toISOString()}:{note};
+  API.post(`/devices/${v.id}/bookmarks`,body).then(()=>{inp.value="";if(lv===v)marksLoad(v)}).catch(e=>toast(problemText(e,find(v.id)?.n)));
+}
+function marksCardHtml(v){
+  if(!can("listBookmarks"))return"";
+  const rows=(v.marks||[]).map(m=>`<li class="tl-go" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span></li>`).join("");
+  return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"Отметок за это окно нет")}</p>`}
+    ${can("createBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
+}
+// Закладка «Просмотр»: разметка карт постоянна, данные пишет viewFill, поэтому приход ответа не перерисовывает видео
+function viewFill(){
+  const v=lv;if(!v||!document.querySelector("#main [data-live-view]"))return;
+  const n=find(v.id)?.n;if(!n)return;
+  const put=(sel,html)=>{const el=document.querySelector(`#main ${sel}`);if(el&&el._html!==html){const keep=el.querySelector("input")?.value;el.innerHTML=html;el._html=html;if(keep){const i=el.querySelector("input");if(i)i.value=keep}}};
+  put("[data-feed]",liveFeedHtml(v));
+  put("[data-relay-card]",relayCardHtml(v));
+  const tk=document.querySelector("#main [data-talk]");if(tk)tk.hidden=!talkSpk(v)&&!talk;
+  if(v.tl)put("[data-tl]",tlCardHtml(v,n));
+  put("[data-holds]",holdsCardHtml(v));
+  put("[data-marks]",marksCardHtml(v));
+  const tt=document.querySelector("#main [data-live-titles]");
+  if(tt){
+    tt.textContent="";tt.hidden=!v.title;
+    if(v.title){tt.style.color=v.title.color;tt.style.background=v.title.bg;v.title.lines.forEach(l=>{const d=document.createElement("div");d.textContent=l;tt.appendChild(d)})}
+  }
+}
 // Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт
 function recTargetCardHtml(n){
   if(n.type!=="camera"||!can("putRecordingTarget")||serverPinned(n))return"";
@@ -9298,11 +9711,18 @@ function liveFrameHtml(n,inner=""){
 // Закладка «Просмотр»: одна камера, старт и стоп рукой. Выбор потока и сети не хранится
 function camViewHtml(n){
   const streams=camStreams(n).map(s=>`<option value="${escHtml(s.id)}" ${s.online===false?"disabled":""}>${escHtml(s.name)}${s.res?` · ${escHtml(s.res)}`:""}${s.online===false?` · ${i18n("нет сигнала")}`:""}</option>`).join("");
-  return card("Просмотр",`<div class="vid live-frame live-view" data-live="${escHtml(n.id)}" data-live-view="1"><span class="live-note"></span>${liveActsHtml()}</div>
+  return card("Просмотр",`<div class="vid live-frame live-view" data-live="${escHtml(n.id)}" data-live-view="1"><div class="live-titles" data-live-titles hidden></div><span class="live-note"></span>${liveActsHtml()}</div>
     <div class="live-row"><button type="button" class="btn s pri" data-live-go ${onEv("click",["liveToggle"])}>${i18n("Смотреть")}</button>
       <label>${i18n("Поток")} <select data-live-stream ${onEv("change",["liveStreamSet",onEv.value])}><option value="">${i18n("Под размер окна")}</option>${streams}</select></label>
       <label>${i18n("Сеть")} <select data-live-net ${onEv("change",["liveNetSet",onEv.value])}><option value="local">${i18n("Из локальной сети")}</option><option value="outside">${i18n("Извне")}</option></select></label>
-      <span class="sub" data-live-state role="status" aria-live="polite"></span></div>`);
+      <button type="button" class="btn s" data-talk hidden ${onEv("click",["talkToggle",`${n.id}`])}>${i18n("Говорить")}</button><span class="sub" data-talk-state></span>
+      <span class="sub" data-live-state role="status" aria-live="polite"></span></div>`)
+    +(n.ptz&&can("putPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока кнопка нажата")}</p>`):"")
+    +(can("listJournal")?card("События",`<div data-feed></div>`):"")
+    +`<div data-relay-card></div>`
+    +(can("getTimeline")?card("Шкала времени",`<div data-tl></div>`):"")
+    +(can("listHolds")?card("Удержания",`<div data-holds></div>`):"")
+    +(can("listBookmarks")?card("Отметки",`<div data-marks></div>`):"");
 }
 // Потоки камеры: первый — основной, Device.res и Device.fps — это он
 function camStreams(n){return n?.streams?.length?n.streams:[{id:"main",name:"Основной"}]}
@@ -9343,13 +9763,17 @@ function ptzStop(){
   const{id}=ptzMove;ptzMove=null;
   API.del(`/devices/${id}/ptz`).catch(()=>{});
 }
+function ptzPadHtml(n){
+  const noMove=n.online===false||n.direct===false;
+  return`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${noMove?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>`;
+}
 function ptzCardHtml(n){
   if(!n.ptz)return"";
   // Камера за NAT: пресет через канал домена, движение арендой недоступно
-  const list=presetRows(n),off=n.online===false,noMove=off||n.direct===false,full=presetFree(n)==null;
+  const list=presetRows(n),off=n.online===false,full=presetFree(n)==null;
   const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
     <td class="ca-x"><button type="button" class="btn s" ${off?"disabled":""} title="${i18n("Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
-  return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${noMove?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
+  return card("Пресеты",`${ptzPadHtml(n)}
     <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
     <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);

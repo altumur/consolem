@@ -36,7 +36,7 @@ const webui = process.argv.includes("--webui") ? path.resolve(process.argv[proce
 const TESTS = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", "tests");
 // Заголовок консоли — как прислала команда w2c, без добавлений
 const CSP = "script-src 'self'; object-src 'none'; base-uri 'none'";
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".json": "application/json" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".json": "application/json", ".mp4": "video/mp4" };
 
 // Файл сборки или сценария: true — отдан
 function serveFile(req, res) {

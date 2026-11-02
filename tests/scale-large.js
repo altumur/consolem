@@ -40,15 +40,6 @@ UiCheck(async ({ ok, until }) => {
   ok(/Загрузка/.test(document.getElementById("main").textContent), "карточка — короткая загрузка");
   ok(await until(() => !c._row && sel === c.id), "полная запись дочитана");
   ok(!/^r\d+$/.test(hwVer.get(c.id)), "версия полной записи — Device.version");
-  // Закладка «Просмотр»: только эта камера, ни одного перечня
-  mark = trace.length;
-  goTab("view");
-  liveStart();
-  ok(await until(() => lv?.sess, 60000), "«Просмотр»: сессия на большом домене");
-  const viewReads = trace.slice(mark).filter((x) => x.path.split("?")[0] !== `/devices/${c.id}/live`);
-  ok(trace.length - mark === 1 && !viewReads.length, `«Просмотр»: только POST /live, запросов ${trace.length - mark}: ` + viewReads.map((x) => x.path).join(" "));
-  liveStop();
-  goTab("gen");
   // Группа «Без записи»: виртуальная, отбор волнами, число только по загруженному
   mark = trace.length;
   const nr = norecId(d.id);
@@ -129,4 +120,40 @@ UiCheck(async ({ ok, until }) => {
   await apiReload();
   ok(!trace.slice(mark).some((x) => /\/devices\?limit=1000|\/tree\/children\?layout=\w+$/.test(x.path)) && sizeOk(mark), "stream.reset: весь перечень не читается");
   ok(Math.abs(devicePool.length - cached) <= 200, `кэш тот же: ${cached} → ${devicePool.length}, запросов ${trace.length - mark}`);
+  // Закладка «Просмотр»: только эта камера. Шкала и удержания — страницами, по открытию и по окну, перечней домена нет, таймера нет
+  open.add(d.servers[0].id);
+  renderTree();
+  ok(await until(() => devicePool.some((n) => n.type === "camera" && n.srvId)), "камера под сервером");
+  const rc = devicePool.find((n) => n.type === "camera" && n.srvId);
+  pick(rc.id, { force: true });
+  ok(await until(() => !rc._row && sel === rc.id), "её карточка");
+  mark = trace.length;
+  goTab("view");
+  ok(await until(() => lv?.viewOn && !lv.tl.busy && lv.holds), "«Просмотр»: шкала прочитана на большом домене");
+  await until(() => lv.noHolder !== undefined);
+  const noList = (from) => trace.slice(from).filter((x) => !/^\/(devices\/[^/?]+\/(live|timeline|holds|bookmarks)|devices\?parentId|journal\?deviceId|archives\?kind=incidents|volumes\?archiveId)/.test(x.path));
+  ok(!noList(mark).length, "«Просмотр»: только двери этой камеры: " + noList(mark).map((x) => x.path).join(" "));
+  ok(trace.length - mark <= 8 && sizeOk(mark), `«Просмотр»: открытие — ${trace.length - mark} запросов, самый большой ответ ${big(mark)} байт`);
+  const tlRead = () => trace.filter((x) => /\/timeline/.test(x.path)).length;
+  const before = tlRead();
+  await new Promise((r) => setTimeout(r, 30000));
+  ok(tlRead() === before, "шкала не читается по таймеру");
+  tlWin("all");
+  ok(await until(() => lv.tl.win === "all" && !lv.tl.busy), "окно «Всё»");
+  ok(tlRead() === before + 1 && lv.tl.spans.length > 20 && lv.tl.spans.length <= TL_PAGE, `шкала: одно чтение на окно, ${lv.tl.spans.length} спанов на странице`);
+  mark = trace.length;
+  liveStart();
+  ok(await until(() => lv?.sess, 60000), "«Просмотр»: сессия на большом домене");
+  ok(trace.length - mark === 1 && !noList(mark).length, `живое: только POST /live, запросов ${trace.length - mark}`);
+  liveStop();
+  // Удержания страницами: 120 штук, форма читает первую страницу и дочитывает по кнопке
+  for (let i = 0; i < 120; i++) await API.post(`/devices/${rc.id}/holds`, { from: new Date(16e11 + i * 36e5).toISOString(), to: new Date(16e11 + i * 36e5 + 6e5).toISOString() });
+  await new Promise((r) => setTimeout(r, 1000));
+  mark = trace.length;
+  holdsRead(lv);
+  ok(await until(() => lv.holds.length === 50 && lv.holdsNext), "удержания: первая страница, 50 из 120");
+  holdsMore();
+  ok(await until(() => lv.holds.length === 100), "удержания: вторая страница по кнопке");
+  ok(trace.length - mark === 2 && sizeOk(mark), `удержания: ${trace.length - mark} запроса, самый большой ответ ${big(mark)} байт`);
+  goTab("gen");
 });

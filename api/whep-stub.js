@@ -70,6 +70,18 @@
     sessions.set(sid, peer);
     return new Response(peer.localDescription.sdp, { status: 201, headers: { "Content-Type": "application/sdp", Location: `/whep/session/${sid}?gateway=stub-gateway` } });
   }
+  // Разговор: браузер говорит, страница слушает
+  async function answerTalk(sdp) {
+    if (Stub.busy) return json(409, { error: "busy" });
+    const peer = new RTCPeerConnection();
+    await peer.setRemoteDescription({ type: "offer", sdp });
+    peer.getTransceivers().forEach((t) => (t.direction = "recvonly"));
+    await peer.setLocalDescription(await peer.createAnswer());
+    await done(peer);
+    const sid = `t${++seq}`;
+    sessions.set(sid, peer);
+    return new Response(peer.localDescription.sdp, { status: 201, headers: { "Content-Type": "application/sdp", Location: `/whep/session/${sid}?gateway=stub-gateway` } });
+  }
   function close(sid) {
     const peer = sessions.get(sid);
     if (!peer) return false;
@@ -81,6 +93,9 @@
   const Stub = {
     script: [],
     log: [],
+    pieces: [],
+    pieceFail: 0,
+    busy: false,
     track: null,
     sessions,
     // Всё, что подано в script, отвечено; идущие сессии обрываются
@@ -95,7 +110,16 @@
       if (sid) return method === "DELETE" && close(sid[1]) ? new Response(null, { status: 204 }) : json(404, { error: "no session" });
       const next = Stub.script.shift();
       if (next) return next.status === 201 ? new Response(next.body, { status: 201, headers: next.headers }) : json(next.status, next.body);
-      return answer(opts.body);
+      return url.includes("/talk/") ? answerTalk(opts.body) : answer(opts.body);
+    },
+    // Кусок записи: настоящего архива нет, один и тот же файл на 60 с с подписью. pieceFail — столько следующих кусков не отдать
+    piece(url) {
+      Stub.pieces.push(url);
+      if (Stub.pieceFail > 0) {
+        Stub.pieceFail--;
+        return new URL("assets/no-such-piece.mp4", document.baseURI).href;
+      }
+      return new URL("assets/stub-piece.mp4", document.baseURI).href;
     },
   };
   window.ConsolemWhepStub = Stub;

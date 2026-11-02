@@ -43,7 +43,7 @@ SCRIPTS = {
     "api/rule-engine.js": None,
     "api/server.js": None,
 }
-TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2"}
+TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".mp4": "video/mp4"}
 
 
 def read(rel):
@@ -105,6 +105,9 @@ def build(out):
         with open(os.path.join(ROOT, src), "rb") as f:
             files["fonts/" + os.path.basename(src)] = (f.read(), "шрифт интерфейса (Inter)")
 
+    with open(os.path.join(ROOT, "assets", "stub-piece.mp4"), "rb") as f:
+        files["assets/stub-piece.mp4"] = (f.read(), "подставной кусок стенда: 60 с тестовой картинки, отдаётся только по адресу stub://")
+
     def ver(name):
         return hashlib.sha256(files[name][0]).hexdigest()[:12]
 
@@ -136,7 +139,7 @@ def build(out):
 
     if os.path.isdir(out):
         shutil.rmtree(out)
-    order = ["index.html", "app.js", "app.css", "client.js", "whep-stub.js", "openapi.js", "i18n-en.js"] + sorted(n for n in files if n.startswith("fonts/"))
+    order = ["index.html", "app.js", "app.css", "client.js", "whep-stub.js", "openapi.js", "i18n-en.js", "assets/stub-piece.mp4"] + sorted(n for n in files if n.startswith("fonts/"))
     assert sorted(order) == sorted(files), (order, sorted(files))
     manifest = []
     for name in order:
