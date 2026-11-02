@@ -855,7 +855,7 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .mask{display:none;position:fixed;inset:0;background:#0009;z-index:20}.mask.open{display:block}
 .dr{position:absolute;right:0;top:0;bottom:0;width:min(520px,96vw);background:var(--p);display:flex;flex-direction:column;border-left:1px solid var(--ln);border-radius:0;box-shadow:-12px 0 40px #0008;overflow:hidden}
 .dr.device-wizard{
-  width:min(1180px,calc(100vw - 392px));
+  width:min(1400px,calc(100vw - 160px));
   top:0;right:0;bottom:0;
   border:0;
   border-left:1px solid var(--ln);
@@ -1057,6 +1057,66 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .dev-footer-right .lk{font-size:12px}
 .df.device-footer .btn{padding:8px 10px;white-space:nowrap}
 .dev-back{display:flex;align-items:center;gap:8px;margin-bottom:2px}.dev-back .lk{font-size:13px}
+/* План добавления устройств: ящик в две панели, split-кнопка в шапке */
+.btn-split{display:inline-flex}
+.btn-split>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
+.btn-split>.btn-split-arrow{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;padding-left:6px;padding-right:6px}
+.btn-split>.btn:hover{position:relative;z-index:1}
+.plan-cnt{font-variant-numeric:tabular-nums}
+.plan-tab:focus-visible,.plan-row-main:focus-visible,.plan-x:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
+.plan-srv{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px;font-size:12px}
+.plan-srv label{margin:0;color:var(--mu)}
+.plan-srv select{width:auto;min-width:200px;max-width:100%}
+.plan-srv-one{font-weight:600}
+.plan-split{flex:1;min-height:0;display:flex;gap:12px}
+.plan-left{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column;gap:10px}
+.plan-left-body{flex:1;min-height:0;display:flex;flex-direction:column}
+.plan-left-body>.dev-wrap{height:auto;flex:1}
+.plan-tabs{flex:none;display:flex;gap:2px;border-bottom:1px solid var(--ln)}
+.plan-tab{border:0;border-bottom:2px solid transparent;background:0;color:var(--mu);padding:7px 12px;font-size:13px;cursor:pointer}
+.plan-tab:hover{color:var(--tx)}
+.plan-tab.on{color:var(--tx);border-bottom-color:var(--bl);font-weight:600}
+.plan-right{flex:none;width:320px;min-height:0;display:flex;flex-direction:column;border:1px solid var(--ln);border-radius:9px;background:var(--p2)}
+.plan-hd{flex:none;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:1px solid var(--ln)}
+.plan-hd .lk:disabled{opacity:.45;cursor:default}
+.plan-rows{flex:1;min-height:0;overflow:auto;padding:6px;display:flex;flex-direction:column;gap:4px}
+.plan-ft{flex:none;display:flex;flex-direction:column;gap:8px;padding:10px 12px;border-top:1px solid var(--ln)}
+.plan-empty{padding:28px 12px;text-align:center;color:var(--mu);font-size:12px;line-height:1.5}
+.plan-grp{padding:6px 6px 2px;font-size:11px;font-weight:600;color:var(--mu)}
+.plan-row{border:1px solid var(--ln);border-radius:7px;background:var(--p)}
+.plan-row.fail{border-color:var(--one-danger)}
+.plan-row-hd{display:flex;align-items:flex-start;gap:6px;padding:6px 6px 6px 8px}
+.plan-row-hd>.plan-ic,.plan-row-hd>.dev-spin{margin-top:2px;flex:none}
+.plan-ic{display:inline-flex}
+.plan-row-main{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;border:0;background:0;color:var(--tx);padding:0;text-align:left;cursor:pointer;font-size:12px}
+.plan-row-main b{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-row-main .sub{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plan-iss{font-size:11px}
+.plan-x{flex:none;border:0;background:0;color:var(--mu);padding:2px;border-radius:5px;cursor:pointer;display:inline-flex}
+.plan-x:hover:not(:disabled){color:var(--tx);background:var(--one-control-hover)}
+.plan-x:disabled{opacity:.4;cursor:default}
+.plan-edit{display:flex;flex-direction:column;gap:6px;padding:2px 8px 8px 8px;border-top:1px solid var(--ln)}
+.plan-edit .dev-field{margin-top:0}
+.plan-two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.plan-err{color:var(--one-danger-text)}
+.plan-warn{color:var(--one-warning-text);font-size:12px}
+.plan-ok{color:var(--one-success-text)}
+.plan-busy{color:var(--mu)}
+.plan-sum{padding:6px 8px;font-size:12px;border:1px solid var(--one-danger);border-radius:7px;background:var(--one-danger-bg);color:var(--one-danger-text)}
+.plan-added{border:1px solid var(--one-success-icon);border-radius:7px;padding:6px 8px;display:flex;flex-direction:column;gap:3px;font-size:12px}
+.plan-sec{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.plan-added-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.plan-added-row span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dev-result.planned{border-style:dashed}
+.plan-tag{color:var(--x-link);border:1px solid var(--one-selected-indicator);font-size:10px;padding:1px 6px}
+.dev-action-btns .plan-tag{white-space:nowrap}
+@media(max-width:1400px){.plan-left .dev-card{grid-template-columns:repeat(3,minmax(120px,1fr));width:100%}.plan-left [class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}}
+@media(max-width:1100px){
+  .dr.device-wizard .db{overflow:auto}
+  .plan-split{flex:none;flex-direction:column;min-height:auto}
+  .plan-left{flex:none;min-height:460px}
+  .plan-right{width:auto;max-height:480px;min-height:240px}
+}
 @media(max-width:1100px){.dev-card{grid-template-columns:repeat(3,minmax(120px,1fr));width:100%}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dr.device-wizard{width:min(1180px,calc(100vw - 48px))}}
 @media(max-width:700px){.dev-settings,.dev-grid,.dev-common-auth,.dev-card{grid-template-columns:1fr}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dev-result-main{grid-template-columns:max-content 6px 1fr auto}.dev-common-auth>span{align-self:auto}}
 .jump{display:none;position:fixed;inset:0;background:#000a;z-index:50;place-items:start center;padding-top:12vh}
@@ -2532,9 +2592,9 @@ function nodeCreate(n){
   const kids=(n.devices||[]).filter(d=>canAdd(d.type,ACS_TYPES.has(n.type))).map(nodeCreate);if(kids.length)out.children=kids;
   return out;
 }
-// Добавить устройства одним запросом: строки — { node, domainId, parentId, folderId, candidateId }
-function devicesCreate(rows){
-  return API.post("/devices",{idempotencyKey:opKey(),items:rows.map(x=>Object.assign({device:nodeCreate(x.node),domainId:x.domainId,parentId:x.parentId||null,folderId:x.folderId||null},x.candidateId?{candidateId:x.candidateId}:{}))})
+// Добавить устройства одним запросом: строки — { node, domainId, parentId, folderId, candidateId }; key — ключ повтора (по умолчанию новый)
+function devicesCreate(rows,key){
+  return API.post("/devices",{idempotencyKey:key||opKey(),items:rows.map(x=>Object.assign({device:nodeCreate(x.node),domainId:x.domainId,parentId:x.parentId||null,folderId:x.folderId||null},x.candidateId?{candidateId:x.candidateId}:{}))})
     .then(res=>{res.done.forEach(d=>hwAddDevices(d.devices,d.folders));return res});
 }
 // Изменить устройства сразу (POST /devices/update) так, как их меняет mutate():
@@ -5866,10 +5926,13 @@ function goFav(i){
 // курсор в поле, и терять это из-за того, что обновилась соседняя строка,
 // он не должен. Положение ищем по устойчивым признакам (селектор прокручиваемого
 // блока и его номер), а не по узлам — узлы после перерисовки уже другие.
-const VIEW_SCROLLERS=[".sc",".tree",".fav-panel-list",".lan-wrap",".gtbl",".dev-results-scroll",".dev-wrap-scroll"];
+const VIEW_SCROLLERS=[".sc",".tree",".fav-panel-list",".lan-wrap",".gtbl",".dev-results-scroll",".dev-wrap-scroll",".plan-rows"];
 function focusSelector(el){
   if(!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))return null;
   if(el.id)return"#"+el.id;
+  // Поле строки плана — по строке и полю: номер в ряду плывёт, когда приходят новые находки
+  const pr=el.dataset?.pf&&el.closest(".plan-row");
+  if(pr)return`.plan-row[data-pid="${pr.dataset.pid}"] [data-pf="${el.dataset.pf}"]`;
   for(const a of["data-tf","data-f","name"]){
     const v=el.getAttribute(a);
     if(v)return`[${a}="${v.replace(/"/g,'\\"')}"]`;
@@ -6686,10 +6749,10 @@ function bindTreeDbl(){
 function addTreeLabel(n){
   if(!n||n.type==="domain"||n.type==="unalloc")return i18n("Добавить сервер");
   if(n.type==="server")return i18n("Добавить службу");
-  if(n.type==="folder")return slice==="acfa"?i18n("Добавить ACFA"):i18n("Добавить устройство");
+  if(n.type==="folder")return slice==="acfa"?i18n("Добавить ACFA"):i18n("Добавить устройства");
   if(slice==="acfa"||n.type==="acfa"||ACFA_NODE_IDS.has(n.id))return i18n("Добавить ACFA");
   if(isSvc(n))return i18n("Добавить службу");
-  return i18n("Добавить устройство");
+  return i18n("Добавить устройства");
 }
 function canInspectorAdd(n){
   if(!n||n.type==="unalloc"||n.type==="det")return false;
@@ -6700,11 +6763,6 @@ function canInspectorAdd(n){
   if(n.type==="folder"||n.type==="archive"||n.type==="vol"||n.type==="found"||n.type==="founddev")return false;
   return app==="hw";
 }
-// Первой кнопкой — откуда берут устройства чаще всего: из того, что видно в сети.
-function lanFoundBtn(n){
-  if(!lanHost(n)||!can("getDiscovery"))return"";
-  return`<button type="button" class="btn s" title="${i18n("Показать устройства сети, которых нет в системе")}" ${onEv("click",["lanShowFound",`${n.id}`])}>${lu("plus")}${i18n("Найденные")}</button>`;
-}
 // Завести устройство — такое же действие объекта, как «＋ Службу», и место ему
 // там же: в шапке, а не в подвале таблицы. Кнопки стоят на всех закладках
 // объекта, а не только на списке устройств: закладка выбрана для чтения, а
@@ -6713,11 +6771,6 @@ function lanHost(n){
   if(!n)return false;
   if(n.type==="folder"||n.type==="archive"||n.type==="domain")return true;
   return n.type==="server"&&!isUnallocated(n.id);
-}
-function lanHeadBtns(n){
-  if(!lanHost(n)&&n?.type!=="found")return"";
-  return`<button type="button" class="btn s" title="${i18n("Добавить устройство вручную")}" ${onEv("click",["lanOpenWizard","manual"])}>${lu("plus")}${i18n("Вручную")}</button>`+
-    `<button type="button" class="btn s" title="${i18n("Добавить устройства из файла")}" ${onEv("click",["lanOpenWizard","csv"])}>${lu("plus")}${i18n("Из файла")}</button>`;
 }
 // «Ещё ▾» в шапке карточки — то же меню, что по правой кнопке на строке
 // дерева: видимый вход для тех, кто про правую кнопку не знает.
@@ -6923,7 +6976,15 @@ function canRenameShort(n){
   return n&&n.type!=="domain"&&n.type!=="server"&&n.type!=="unalloc"&&n.type!=="det"&&n.type!=="folder"&&treeKind(n)===tview;
 }
 function treeCtxAttr(id){return ` ${onEv("contextmenu",["treeCtx",onEv.event,`${id}`])}`;}
-function closeTreeCtx(){const m=document.getElementById("tctx");if(m)m.classList.remove("open")}
+function closeTreeCtx(){
+  const m=document.getElementById("tctx");
+  // Меню открыла стрелка «Добавить устройства»: фокус из меню возвращается на неё
+  const back=m&&addSplitMenu.from&&m.contains(document.activeElement)?addSplitMenu.from:null;
+  addSplitMenu.from=null;
+  if(m)m.classList.remove("open");
+  document.querySelectorAll(".btn-split-arrow").forEach(b=>b.setAttribute("aria-expanded","false"));
+  if(back&&back.isConnected)back.focus();
+}
 function openTreeCtx(n,xy){
   const menu=document.getElementById("tctx");if(!menu)return;
   const multi=treeSel.size>1&&treeSel.has(n.id);
@@ -6953,40 +7014,34 @@ function openTreeCtx(n,xy){
       addItems.push(tctxItem(i18n("Добавить в домен"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.domainId}')`,tctxPlusIcon()));
     }else if(n.type==="archive"){
-      // Те же три пути, что и кнопки в шапке архива: камеры привязывают к
-      // архиву, поэтому и заводить их удобно прямо отсюда.
-      if(can("getDiscovery"))addItems.push(tctxItem(i18n("Добавить найденные"),`closeTreeCtx();lanShowFound('${n.id}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить вручную"),`closeTreeCtx();lanOpenWizard('manual')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить из файла"),`closeTreeCtx();lanOpenWizard('csv')`,tctxPlusIcon()));
+      // Вход тот же, что в шапке архива: камеры привязывают к архиву, поэтому
+      // и заводить их удобно прямо отсюда.
+      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
       if(can("createVolume")){
         addItems.push(tctxSep());
         addItems.push(tctxItem(i18n("Добавить том"),`closeTreeCtx();addVolume('${n.id}')`,tctxPlusIcon()));
       }
     }else if(n.type==="domain"){
-      // Всё, что заводит карточка домена: устройства — тремя путями, как у
+      // Всё, что заводит карточка домена: устройства — одним входом, как у
       // архива, дальше то, из чего домен состоит. Раскладка больше не решает,
       // что здесь показать, — в карточке это есть всегда, и меню не должно
       // прятать половину только потому, что дерево разложено по папкам.
-      if(can("getDiscovery"))addItems.push(tctxItem(i18n("Добавить найденные"),`closeTreeCtx();lanShowFound('${n.id}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить вручную"),`closeTreeCtx();lanOpenWizard('manual')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить из файла"),`closeTreeCtx();lanOpenWizard('csv')`,tctxPlusIcon()));
+      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
       addItems.push(tctxSep());
       addItems.push(tctxItem(i18n("Добавить сервер"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.id}')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Создать папку"),`addSubfolder(null,'${n.id}')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
     }else if(n.type==="server"&&!isUnallocated(n.id)){
-      // Как у домена: всё, что заводит карточка сервера. Устройства — тремя
-      // путями, дальше службы и хранилище этого сервера.
-      if(can("getDiscovery"))addItems.push(tctxItem(i18n("Добавить найденные"),`closeTreeCtx();lanShowFound('${n.id}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить вручную"),`closeTreeCtx();lanOpenWizard('manual')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить из файла"),`closeTreeCtx();lanOpenWizard('csv')`,tctxPlusIcon()));
+      // Как у домена: всё, что заводит карточка сервера. Устройства — одним
+      // входом, дальше службы и хранилище этого сервера.
+      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
       addItems.push(tctxSep());
       if(WIZ.svc)addItems.push(tctxItem(addTreeLabel(n),`closeTreeCtx();openW('svc')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
     }else if(canTreeCtxAdd(n)){
-      const lb=addTreeLabel(n);
-      const act=n.type==="server"?`closeTreeCtx();openW('svc')`:"closeTreeCtx();openW()";
+      const lb=n.type==="folder"?i18n("Добавить устройства…"):addTreeLabel(n);
+      const act=n.type==="server"?`closeTreeCtx();openW('svc')`:n.type==="folder"?"closeTreeCtx();planOpen()":"closeTreeCtx();openW()";
       addItems.push(tctxItem(lb,act,tctxPlusIcon()));
       if(n.type==="folder")addItems.push(tctxItem(i18n("Создать подпапку"),`addSubfolder('${n.id}')`,tctxPlusIcon()));
     }
@@ -7265,7 +7320,7 @@ function discOnEvent(m){
     if(fin)wizd.devState="done";
     renderDeviceWizard();
   }
-  const owner=find(lan.owner)?.n;
+  const owner=lan.owner?find(lan.owner)?.n:null;
   if(owner&&lan.state==="searching"&&(lanDomainOf(owner)||domains[0]?.id)===did){
     if(c&&!lan.net.some(r=>r.id===c.id))lan.net.push(candRow(c));
     lan.progress=m.payload.progress;
@@ -7569,9 +7624,9 @@ function gear(){
   if(n.type==="server")serverArchives(n.id).forEach(a=>volsEnsure(a).catch(()=>{}));
   if(tabs.length&&!tabs.some(([id])=>id===tab))tab=tabs[0][0];
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
-  // Слева направо — откуда берут устройство: из сети, руками, из файла; дальше
-  // собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=lanFoundBtn(n)+lanHeadBtns(n)+inspectorAddBtn(n)+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
+  // дальше собственные действия объекта, а звезда последней и без подписи.
+  const addBtn=((lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   cardEnsureBase(n);
   paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
@@ -8270,18 +8325,19 @@ function lanAction(n,r){
   const folder=lanIsFolder(n);
   if(r.foreign)return{off:i18n("Устройство в другом домене")};
   if(r.kind==="net"&&(!r.vendor||r.status==="bad"))return{off:i18n("Производитель не определён")};
+  if(r.kind==="net"&&lanNetRow(r.key)?.planned)return{off:i18n("Уже в плане")};
   if(lanIsDomain(n)){
     // В домене устройство либо уже есть, либо его заводят из сети: переносить
     // между доменами — не действие этой таблицы.
     if(r.kind!=="net")return{off:i18n("Устройство уже в этом домене")};
-    return{label:i18n("В домен"),fn:`lanAddNew('${r.key}')`,pri:true,net:true};
+    return{label:i18n("В план"),fn:`planFromLanOne('${r.key}')`,pri:true,net:true};
   }
   if(folder){
     if(r.nested)return{off:i18n("Объект лежит во вложенной папке")};
     if(r.bind==="here")return{label:i18n("Убрать"),fn:`lanUnbindKeys(['${r.key}'])`,unbind:true};
     // Устройства ещё нет в системе: его не «привязывают», а заводят — поля
     // для этого уже в строке, кнопка только подтверждает.
-    if(r.kind==="net")return{label:i18n("В папку"),fn:`lanAddNew('${r.key}')`,pri:true,net:true};
+    if(r.kind==="net")return{label:i18n("В план"),fn:`planFromLanOne('${r.key}')`,pri:true,net:true};
     return{label:i18n("В папку"),fn:`lanBindKeys(['${r.key}'])`,pri:true};
   }
   if(r.type!=="camera"&&r.type!=="ipsrv")return{off:i18n("Запись в архив ведут только камеры")};
@@ -8289,7 +8345,7 @@ function lanAction(n,r){
   if(r.bind==="here")return{label:i18n("Отвязать"),fn:`lanUnbindKeys(['${r.key}'])`,unbind:true};
   const far=r.kind==="sys"?lanFarServer(n,r.node):null;
   if(far)return{off:`${i18n(r.type==="ipsrv"?"Регистратор на сервере":"Камера на сервере")} «${locName(far)}» — ${i18n("хранилище другого сервера недоступно")}`};
-  if(r.kind==="net")return{label:i18n("Писать сюда"),fn:`lanAddNew('${r.key}')`,pri:true,net:true};
+  if(r.kind==="net")return{label:i18n("В план"),fn:`planFromLanOne('${r.key}')`,pri:true,net:true};
   // Пишет в другое хранилище — это добавится, прежнее останется.
   if(r.bind==="other")return{label:i18n("Добавить сюда"),fn:`lanBindKeys(['${r.key}'])`,pri:true,tip:`${i18n("Продолжит писать и в")} «${r.bindText}»`};
   return{label:i18n("Писать сюда"),fn:`lanBindKeys(['${r.key}'])`,pri:true};
@@ -8320,7 +8376,7 @@ function lanNetRow(key){return lan.net.find(x=>"n:"+x.id===key)||null}
 // у неё нет, поэтому мастер подсовываем свой, с выдачей поиска этой таблицы.
 function lanWizard(n){
   if(!wizd||wizd.lanOwner!==n.id){
-    stopDeviceSearch();
+    if(!planInDrawer())stopDeviceSearch();   // поиск ящика не наш: таблица его не трогает
     const did=lanDomainOf(n);
     wizd=initDeviceWizard({node:lanIsFolder(n)?n:null,domain:domainById(did),server:null,parent:null,view:"cam"});
     wizd.lanOwner=n.id;wizd.foundDomain=null;wizd.devState="done";
@@ -8328,6 +8384,7 @@ function lanWizard(n){
   }
   wizd.devResults=lan.net;          // список пересобирается — ссылку держим свежей
   lan.net.forEach(r=>lanPrefill(n,r));
+  planRemark();
   return wizd;
 }
 // Откуда пришли, то и подставлено: из папки — папка, из архива — архив.
@@ -8397,17 +8454,23 @@ function lanBulk(){lanBindKeys(lanCheckedKeys())}
 // Привязка ничего не теряет — сразу, с «Отменить» в тосте.
 function lanBindKeys(keys){
   const n=find(lan.owner)?.n;if(!n)return;
-  const rows=keys.map(k=>lanRowByKey(n,k)).filter(r=>r&&lanAction(n,r).pri);
+  let rows=keys.map(k=>lanRowByKey(n,k)).filter(r=>r&&lanAction(n,r).pri);
   if(!rows.length){toast("Нечего привязывать");return}
   const undo=lanSnap(rows.filter(r=>r.kind==="sys").map(r=>r.id));
+  // Нового в системе ещё нет: его не привязывают, а кладут в план; привязка идёт только к тому, что уже есть
   const fresh=rows.filter(r=>r.kind==="net");
-  if(fresh.length&&rows.length===1){lanAddNew(rows[0].key);return}
+  if(fresh.length){
+    const k=fresh.filter(r=>planFromLan(r.key)).length;
+    fresh.forEach(r=>lan.sel.delete(r.key));
+    if(k)toast(planAddedText(k));
+    rows=rows.filter(r=>r.kind!=="net");
+    if(!rows.length){planRepaint();return}
+  }
   keys.forEach(k=>lan.sel.delete(k));
   const what=lanIsFolder(n)?i18n("Добавлено в папку"):`${i18n("Привязано к")} «${locName(lanIsArch(n)?n:archById(lan.arch)||n)}»`;
   // По одной: у папки каждая привязка меняет её состав, и следующей нужна свежая версия
   rows.reduce((p,r)=>p.then(()=>lanBind(r.key)),Promise.resolve()).then(()=>{
-    if(fresh.length)toast(`${what}: ${rows.length}`);
-    else toastAction("lanbind",`${what}: ${rows.length}`,i18n("Отменить"),()=>{undo();toast(i18n("Привязка отменена"))},8000);
+    toastAction("lanbind",`${what}: ${rows.length}`,i18n("Отменить"),()=>{undo();toast(i18n("Привязка отменена"))},8000);
     paint();
   }).catch(e=>toast(problemText(e)));
 }
@@ -8466,14 +8529,6 @@ function lanSetRec(v){
 // «Вручную» и «Из файла» добавляют устройства: на домене openW() открыл бы мастер серверов,
 // а у него нет состояния вкладок устройств (wizd.manual) — поэтому мастер устройств создаётся всегда.
 function lanOpenWizard(t){openW();if(wizd.mode!=="device-add"){wizd=initDeviceWizard(addContext())}setDeviceTab(t)}
-// Открыть список устройств сети на том, чего в системе ещё нет.
-function lanShowFound(id){
-  const n=find(id)?.n;if(!lanHost(n))return;
-  tab=lanIsFolder(n)?"lan":"cams";
-  lanEnsure(n);                 // при смене объекта список пересобирается сам
-  lan.chip="none";lan.q="";lan.sel.clear();
-  setD(false);gear();
-}
 // Куда и как писать — вопрос к «Писать сюда», поэтому поля стоят рядом с ним.
 function lanTargetHtml(n){
   const targets=lanTargets(n);
@@ -8509,19 +8564,26 @@ function lanSysRowHtml(n,r){
 function lanNetRowHtml(n,r){
   const src=lanNetRow(r.key);if(!src)return"";
   const a=lanAction(n,r);
-  const btn=a.off
+  const btn=src.planned
+    ?`<span class="tag plan-tag">${i18n("В плане")}</span><button type="button" class="lk lk-act" ${onEv("click",["planRemove",`${src.planned}`])}>${i18n("Убрать")}</button>`
+    :a.off
     ?`<button type="button" class="btn s" disabled title="${escHtml(a.off)}">${lanBulkLabel(n)}</button>`
     :`<button type="button" class="btn pri s" ${onEv("click",a.fn)}>${a.label}</button>`;
   return`<tr class="lan-net"><td colspan="8">
     <div class="dev-result"><div class="dev-result-main">
-      <input type="checkbox" class="ts-chk" ${lan.sel.has(r.key)?"checked":""} ${a.off?"disabled":""} aria-label="${escHtml(i18n("Выбрать")+" "+r.ip)}" ${onEv("click",onEv.stop)} ${onEv("change",["lanPick",`${r.key}`,onEv.checked])}>
+      <input type="checkbox" class="ts-chk" ${lan.sel.has(r.key)?"checked":""} ${a.off?`disabled title="${escHtml(a.off)}"`:""} aria-label="${escHtml(i18n("Выбрать")+" "+r.ip)}" ${onEv("click",onEv.stop)} ${onEv("change",["lanPick",`${r.key}`,onEv.checked])}>
       <span class="dev-dot ${escHtml(src.status||"")}" title="${escHtml(i18n(DEVICE_STATUS_LABELS[src.status]||""))}"></span>
       ${deviceResultCard(src)}
       <div class="dev-actions"><span class="lan-bind lan-bind-none">${i18n("Нет в системе")}</span>${btn}</div>
     </div></div></td></tr>`;
 }
 function lanPickAllOwner(on){lanPickAll(find(lan.owner).n,on)}
+// Таблице нужен свой мастер, пока она строится; открытый ящик остаётся хозяином wizd и после неё
 function lanCardHtml(n){
+  const keep=planInDrawer()?wizd:null;
+  try{return lanCardBuild(n)}finally{if(keep)wizd=keep}
+}
+function lanCardBuild(n){
   lanEnsure(n);lanWizard(n);
   const key="lan:"+n.id;
   const all=lanRows(n),found=lanFilter(all);
@@ -8792,7 +8854,8 @@ function ensureFoundWizard(did){
   wizd.folder=domainFolders(did)[0]?.id||flatFolders()[0]?.id||null;
 }
 function foundCardHtml(did){
-  ensureFoundWizard(did);
+  // Ящик открыт — wizd его: панель «Найденных» своего мастера под ним не заводит (потерялись бы форма, файл и выбор)
+  if(!planInDrawer())ensureFoundWizard(did);
   const pending=foundPending(did).length;
   return`<div class="card"><div class="cb"><div class="found-foot" id="foundFoot"></div><div id="foundPanel"></div></div></div>`+
     `<p class="sub">Поиск в сети, ручной ввод и импорт из файла — всё здесь. Найденное можно добавить разом или открыть в дереве и завести по одному. Пока устройство в этом списке, в системе его нет: ни идентификатора, ни папки, ни записи.</p>`;
@@ -17141,8 +17204,12 @@ let ws=1,wizd={};
 // Устройство попадает в общий пул и в выбранную папку расположения
 function wizardFolder(){
   const list=flatFolders();
-  if(!wizd.folder||!list.some(f=>f.id===wizd.folder))
-    wizd.folder=(selFolder&&folderById(selFolder)?selFolder:list[0]?.id)||null;
+  if(!wizd.folder||!list.some(f=>f.id===wizd.folder)||(wizd.domain&&folderDomain(wizd.folder)!==wizd.domain)){
+    // Папка — из домена мастера: чужая отправила бы устройство в другой домен
+    const own=wizd.domain?list.filter(f=>folderDomain(f.id)===wizd.domain):list;
+    const sf=selFolder&&folderById(selFolder)&&(!wizd.domain||folderDomain(selFolder)===wizd.domain)?selFolder:null;
+    wizd.folder=sf||(own[0]||list[0])?.id||null;
+  }
   return folderById(wizd.folder);
 }
 function deviceTarget(){
@@ -17156,7 +17223,7 @@ function assignDeviceFolder(deviceId,folderId){
 }
 function initDeviceWizard(c){
   const w={
-    mode:"device-add",deviceTab:can("startDiscovery")?"search":"manual",deviceStep:1,domain:c.domain?.id||domains[0]?.id,
+    mode:"device-add",deviceTab:can("startDiscovery")?"search":"manual",deviceStep:1,domain:c.domain?.id||(c.node?.type==="folder"?folderDomain(c.node.id):c.node?.type==="archive"?archDomainId(c.node):c.node?.type==="found"?c.node.domainId:null)||domains[0]?.id,
     server:c.server?.id||null,folder:(c.node?.type==="folder"?c.node.id:selFolder)||null,serverOnly:false,view:c.view,
     devState:"idle",devSearchProgress:0,devFilter:"",devFiltPop:false,devSelectedOnly:false,devStatuses:{ok:true,manual:true,bad:true},
     devMode:"current",templateId:"",devResults:[],devFieldsPop:false,devViewMode:defaultDevViewMode(),devSelected:new Set(),
@@ -17171,6 +17238,7 @@ function initDeviceWizard(c){
   return w;
 }
 function closeWizard(){
+  const wasDev=wizd?.mode==="device-add"&&document.getElementById("wiz").classList.contains("open");
   document.getElementById("wiz").classList.remove("open");
   document.getElementById("wizDr").classList.remove("device-wizard");
   document.getElementById("wizDr").classList.remove("server-list");
@@ -17180,6 +17248,12 @@ function closeWizard(){
   if(deviceSearchTimer){clearTimeout(deviceSearchTimer);deviceSearchTimer=null}
   stopDeviceSearch();
   document.removeEventListener("mousedown",onDeviceFiltOutside);
+  // План остался: счётчик в шапке и метки «В плане» в таблице за окном должны это показывать
+  if(wasDev){
+    planHeadSync();
+    const t=find(sel)?.n;
+    if(t&&!dirty&&(t.type==="found"||(lanHost(t)&&(tab==="cams"||tab==="lan"))))gear();
+  }
 }
 function stopDeviceSearch(){
   if(deviceSearchInterval){clearInterval(deviceSearchInterval);deviceSearchInterval=null}
@@ -17364,11 +17438,7 @@ function deviceProfileButtonLabel(){
   }
   return (deviceAddModes().find(m=>m.id===wizd.devMode)||deviceAddModes()[0]).label;
 }
-function deviceWizardTitle(){
-  if(wizd.deviceTab==="manual")return"Добавить вручную";
-  if(wizd.deviceTab==="csv")return"Добавить из файла";
-  return"Добавить устройство";
-}
+function deviceWizardTitle(){return"Добавить устройства"}
 function devGoIcon(){
   return lu("square-arrow-out-up-right");
 }
@@ -17383,8 +17453,9 @@ function devAddedActionsHtml(id){
 }
 function devRowActions(r){
   if(r.added)return `<div class="dev-action-btns">${devAddedActionsHtml(r.addedId)}</div>`;
+  if(r.planned)return `<div class="dev-action-btns"><span class="tag plan-tag">В плане</span><button type="button" class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>Убрать</button></div>`;
   if(r.status==="bad")return `<div class="dev-action-btns"><button type="button" class="btn s dev-add-plus btn-icon" disabled title="Работа устройства не гарантируется" aria-label="Добавить устройство">${lu("plus")}</button></div>`;
-  return `<div class="dev-action-btns"><button type="button" class="btn pri s dev-add-plus btn-icon" title="Добавить устройство" aria-label="Добавить устройство" ${onEv("click",["proceedWithDevice",`${r.id}`])}>${lu("plus")}</button></div>`;
+  return `<div class="dev-action-btns"><button type="button" class="btn pri s dev-add-plus btn-icon" title="В план" aria-label="В план" ${onEv("click",["planAddOne",`${r.id}`])}>${lu("plus")}</button></div>`;
 }
 function deviceAddParamsHtml(){
   const templates=deviceTemplates();
@@ -17421,7 +17492,7 @@ function refreshDeviceSearch(){
   stopDeviceSearch();
   // Ищем в сети ТОГО домена, чей это список: иначе обновление в одном домене
   // приносило бы устройства, увиденные в другом.
-  const did=wizd.foundDomain||folderDomain(wizd.folder)||domains[0]?.id;
+  const did=wizd.foundDomain||wizd.domain||folderDomain(wizd.folder)||domains[0]?.id;
   wizd.devState="searching";wizd.devSearchProgress=0;wizd.devResults=[];wizd.devSelected.clear();wizd.devSelectedOnly=false;wizd.bulkEditOpen=false;
   wizd.searchDomain=did;
   if(wizd.foundDomain)found[wizd.foundDomain]=wizd.devResults; // список домена и есть результат поиска
@@ -18210,8 +18281,8 @@ function groupOptions(selected){
 function devPassToggleBtn(disabled){
   return `<button type="button" class="dev-pass-toggle" title="Показать пароль" aria-pressed="false" ${disabled?"disabled":""} ${onEv("click",["toggleDevPassVisibility",onEv.event])}>${devPassIconSvg(false)}</button>`;
 }
-function devPassFieldHtml(value,lock,oninputAttr){
-  return `<div class="dev-pass-wrap"><input class="dev-inline-input dev-pass-input" type="password" value="${escHtml(value||"")}" placeholder="****" ${lock?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("input",oninputAttr)}>${devPassToggleBtn(lock)}</div>`;
+function devPassFieldHtml(value,lock,oninputAttr,label,pf){
+  return `<div class="dev-pass-wrap"><input class="dev-inline-input dev-pass-input" type="password" value="${escHtml(value||"")}" placeholder="****" ${label?`aria-label="${escHtml(label)}"`:""} ${pf?`data-pf="${pf}"`:""} ${lock?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("input",oninputAttr)}>${devPassToggleBtn(lock)}</div>`;
 }
 function toggleDevPassVisibility(e){
   e.stopPropagation();
@@ -18376,9 +18447,9 @@ function wizAddRows(rows){
     return res.done.length;
   }).catch(e=>{toast(problemText(e));return 0});
 }
-function goAddedDevice(id){closeWizard();openNode(id,{app:"hw",view:"cam",tab:"gen"})}
+function goAddedDevice(id){closeWizard();openNode(id,{app:"hw",view:"cam",tab:"gen"});hwFlashLanding()}
 function selectableDeviceResults(){
-  return visibleDeviceResults().filter(r=>!r.added&&r.status!=="bad");
+  return visibleDeviceResults().filter(r=>!r.added&&!r.planned&&r.status!=="bad");
 }
 function toggleDeviceSelected(id,checked){
   if(checked)wizd.devSelected.add(id);else wizd.devSelected.delete(id);
@@ -18386,7 +18457,7 @@ function toggleDeviceSelected(id,checked){
   renderDeviceWizard();
 }
 function selectedDeviceResults(){
-  const ids=wizd.devSelected;return wizd.devResults.filter(r=>ids.has(r.id)&&!r.added&&r.status!=="bad");
+  const ids=wizd.devSelected;return wizd.devResults.filter(r=>ids.has(r.id)&&!r.added&&!r.planned&&r.status!=="bad");
 }
 function toggleSelectAllVisible(checked){
   if(checked)selectAllVisible();else clearDeviceSelection();
@@ -18542,7 +18613,7 @@ function devCardFieldHtml(r,lock,type){
   }
 }
 function deviceResultCard(r){
-  const conflict=addressDeviceDuplicate(r),lock=r.added||r.status==="bad";
+  const conflict=addressDeviceDuplicate(r),lock=r.added||r.planned||r.status==="bad";
   const mode=deviceViewMode();
   const ipHtml=`<a class="dev-web" href="http://${r.ip}:${r.port}" target="_blank" ${onEv("click",onEv.stop)}>${escHtml(r.ip)}</a>`;
   const net=`<div class="dev-net-group dev-gc1r1"><div class="dev-field dev-net-ip"><label>IP-адрес</label><div class="dev-ro">${ipHtml}</div></div><div class="dev-field dev-net-port"><label>Порт</label><div class="dev-ro">${r.port||80}</div></div></div>`;
@@ -18628,7 +18699,7 @@ function discoveredDeviceCount(){
 function deviceSearchHtml(){
   const visibleRows=visibleDeviceResults(),rows=listDeviceResults(),searching=wizd.devState==="searching";
   const foundTotal=discoveredDeviceCount();
-  const available=visibleRows.filter(r=>!r.added&&r.status!=="bad").length;
+  const available=visibleRows.filter(r=>!r.added&&!r.planned&&r.status!=="bad").length;
   const selectable=selectableDeviceResults();
   const selectedCount=selectable.filter(r=>wizd.devSelected.has(r.id)).length;
   const selectedOnly=deviceSelectedOnlyActive();
@@ -18637,8 +18708,8 @@ function deviceSearchHtml(){
   const statusHtml=deviceListStatusHtml(searching);
   const resultsHtml=rows.length?rows.map(r=>{
     const action=devRowActions(r);
-    return `<div class="dev-result ${r.added?"added":""}"><div class="dev-result-main">
-      <input type="checkbox" aria-label="Выбрать ${escHtml(r.ip)}" ${wizd.devSelected.has(r.id)?"checked":""} ${r.added||r.status==="bad"?"disabled":""} ${onEv("click",onEv.stop)} ${onEv("change",["toggleDeviceSelected",`${r.id}`,onEv.checked])}>
+    return `<div class="dev-result ${r.added?"added":""}${r.planned?" planned":""}"><div class="dev-result-main">
+      <input type="checkbox" aria-label="Выбрать ${escHtml(r.ip)}" ${wizd.devSelected.has(r.id)?"checked":""} ${r.added||r.planned||r.status==="bad"?"disabled":""} ${r.planned?`title="Уже в плане"`:""} ${onEv("click",onEv.stop)} ${onEv("change",["toggleDeviceSelected",`${r.id}`,onEv.checked])}>
       <span class="dev-dot ${r.status}" title="${DEVICE_STATUS_LABELS[r.status]}"></span>
       ${deviceResultCard(r)}
       <div class="dev-actions">${action}</div>
@@ -18654,7 +18725,7 @@ function deviceSearchHtml(){
       <span class="dev-list-head-spacer" aria-hidden="true"></span>
       ${deviceFilterFieldHtml(selectedCount)}
       <div class="dev-toolbar-actions">${deviceSearchRefreshBtn(searching)}${deviceHeadActionsHtml(selectedCount,!!(rows.length||foundTotal))}
-        <button type="button" class="btn pri s" ${onEv("click",["addSelectedFoundDevices"])} ${selectedCount?"":"disabled"}>Добавить выбранные (${selectedCount})</button></div>
+        <button type="button" class="btn pri s" ${onEv("click",["planAddFound"])} ${selectedCount?"":`disabled title="Отметьте устройства в списке"`}>В план (${selectedCount})</button></div>
     </div>
     ${statusHtml}
   </div>
@@ -18694,15 +18765,14 @@ function addManualDevice(){
   if(missingManualCredentials(m)){askAddWithoutCredentials(()=>commitManualDevice(true));return}
   commitManualDevice(false);
 }
-function commitManualDevice(disabled){
-  const m=wizd.manual,s=deviceTarget();
-  if(!s)return;
+// Узел устройства по полям формы «По адресу»; s — сервер или папка, куда оно встанет
+// prof — профиль, снятый со строки плана ({devMode, templateId}); без него — тот, что выбран в окне
+function manualNode(m,s,disabled,prof){
   const identifier=isAutoIdentifier(m.identifier)?"":String(m.identifier).trim();
-  if(!isAutoIdentifier(m.identifier)&&identifierTaken(s,identifier)){toast("ID уже используется");return}
   const autoName=isDefaultDeviceName(m.name.trim())?(LB[m.type]||"Камера"):m.name.trim();
-  const configMode=wizd.devMode||"current";
-  const template=configMode==="template"?deviceTemplates().find(x=>x.id===wizd.templateId):null;
-  const common={id:"obj"+Date.now(),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",online:true,devices:[],configMode};
+  const configMode=prof?prof.devMode:(wizd.devMode||"current");
+  const template=configMode==="template"?(prof?find(prof.templateId)?.n:deviceTemplates().find(x=>x.id===wizd.templateId)):null;
+  const common={id:"obj"+Date.now()+Math.floor(Math.random()*1000),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",pass:m.pass||"",online:true,devices:[],configMode};
   if(m.rtsp)common._f={RTSP:m.rtsp};
   if(disabled)common.enabled=false;
   if(configMode==="template"&&template){
@@ -18715,6 +18785,13 @@ function commitManualDevice(disabled){
   else node={...common,type:"camera",arch:m.arch||null,rec:m.record==="always"?"always":m.record==="motion"?"motion":"none",lat:m.lat,lon:m.lon,azimuth:m.azimuth};
   if(node.type==="camera"&&m.record==="motion")node.devices.push({id:node.id+"det",type:"det",name:"Детектор движения",online:true});
   if(s.type==="server")setDevServer(node,s.id);else bindArchServer(node);
+  return node;
+}
+function commitManualDevice(disabled){
+  const m=wizd.manual,s=deviceTarget();
+  if(!s)return;
+  if(!isAutoIdentifier(m.identifier)&&identifierTaken(s,String(m.identifier).trim())){toast("ID уже используется");return}
+  const node=manualNode(m,s,disabled);
   const fid=node.type==="camera"?(m.group||wizd.folder||null):null;
   devicesCreate([{node,domainId:folderDomain(m.group||wizd.folder)||folderDomain(s.id),folderId:fid}]).then(res=>{
     if(!res.done.length){toast(problemText(res.failed[0]?.code));return}
@@ -18734,7 +18811,7 @@ function deviceManualHtml(){
         ${can("type:eventsrc")?`<option value="eventsrc" ${m.type==="eventsrc"?"selected":""}>Источник событий</option>`:""}
         ${can("type:acfa")?`<option value="acfa" ${m.type==="acfa"?"selected":""}>Устройство ACFA</option>`:""}
       </select></div>
-      <div><label>${m.type==="eventsrc"?"Адрес кассы или сервера":"IP-адрес"}</label><input value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
+      <div><label>${m.type==="eventsrc"?"Адрес кассы или сервера":"IP-адрес"}</label><input id="devManIp" value="${escHtml(m.ip)}" placeholder="192.168.1.100" ${onEv("input",["updateManual","ip",onEv.value])}></div>
       ${m.type==="eventsrc"?`<div><label>Сервер</label><select ${onEv("change",["updateManual","server",onEv.value])}><option value="">Выберет система</option>${allocatedServers(wizd.domain).map(x=>`<option value="${x.id}" ${x.id===m.server?"selected":""}>${escHtml(locName(x))}</option>`).join("")}</select></div>`:""}
       <div><label>Порт</label><input type="number" value="${m.port}" ${onEv("input",["updateManual","port",onEv.value])}></div>
       <div><label>Производитель</label><input list="devVendorList" value="${escHtml(m.vendor)}" ${onEv("change",["changeManualVendor",onEv.value])}><datalist id="devVendorList">${Object.keys(DEVICE_MODELS).map(v=>`<option value="${escHtml(v)}"></option>`).join("")}</datalist></div>
@@ -18832,7 +18909,7 @@ function parseCsvDeviceRows(text){
   const map=hasHeader?colMap:null;
   return dataLines.map((line,i)=>csvRowFrom(splitCsvLine(line),i+1,map));
 }
-function csvImportableRows(rows){return rows.filter(r=>!r.skipImport&&!r.errors.length&&!r.added)}
+function csvImportableRows(rows){return rows.filter(r=>!r.skipImport&&!r.errors.length&&!r.added&&!r.planned)}
 async function handleCsvFiles(files){
   const file=files&&files[0];if(!file)return;
   wizd.csvName=file.name;wizd.csvError="";
@@ -18851,18 +18928,26 @@ function downloadCsvExample(){
   ]);
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([sample],{type:"text/csv;charset=utf-8"}));a.download="devices-example.csv";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
+// Узел одной строки файла: регистратор с каналами или камера
+// mode — «current» для плана; без него режим берётся из окна, как делал прежний импорт
+function csvDeviceNode(r,s,disabled,mode){
+  const kind=inferCsvDeviceKind(r);
+  let n;
+  if(kind?.type==="ipsrv"){
+    n=deviceIpsrvNodeFromCsvRow(r,s);
+    autopopulateIpsrvChildren(n);
+  }else n=deviceNodeFromData({...r,type:"camera"},s,{...(mode?{configMode:mode}:{}),...(disabled?{disabled:true}:{})});
+  if(disabled)n.enabled=false;
+  if(mode&&s.type==="server")setDevServer(n,s.id);   // регистратор из файла тоже встаёт на сервер строки
+  return n;
+}
 function importCsvDevices(){
   const valid=csvImportableRows(wizd.csvRows),s=deviceTarget();if(!s||!valid.length){toast("Нет корректных строк для импорта");return}
   // Номера «Авто» — по порядку строк, как раньше: от номера регистратора считаются короткие имена его каналов
   let next=+nextDeviceIdentifier(s)||1;
   const rows=valid.map(r0=>{
     const r=isAutoIdentifier(r0.identifier)?{...r0,identifier:String(next++)}:r0;
-    const kind=inferCsvDeviceKind(r);
-    let n;
-    if(kind.type==="ipsrv"){
-      n=deviceIpsrvNodeFromCsvRow(r,s);
-      autopopulateIpsrvChildren(n);
-    }else n=deviceNodeFromData({...r,type:"camera"},s);
+    const n=csvDeviceNode(r,s);
     return{node:n,r:r0,domainId:folderDomain(r.group||wizd.folder)||folderDomain(s.id),folderId:r.group||wizd.folder||null};
   });
   devicesCreate(rows).then(res=>{
@@ -18882,31 +18967,27 @@ function deviceCsvHtml(){
     <p class="sub" style="margin:10px 0 0">Обязательны для импорта: IP-адрес, производитель, модель. Строки без них — отчёт (камеры под IP-сервером: пустые IP/производитель/модель, в ID — «3/1»: ID сервера / номер видеоканала). IP-сервер импортируется одной строкой.</p>
   </div>${wizd.csvError?`<div class="nt err">${wizd.csvError}</div>`:""}
   ${rows.length?`<div class="csv-summary"><span>${escHtml(wizd.csvName)} · строк: ${rows.length} · к импорту: ${valid}${skipped?` · пропуск: ${skipped}`:""}</span></div>
-  <div class="csv-preview"><table><thead><tr><th>Строка</th><th>IP:порт</th><th>Производитель</th><th>Модель</th><th>Название</th><th>Статус</th></tr></thead><tbody>${rows.map((r,i)=>{const st=r.added?`Добавлено · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти</button>`:r.skipImport?"Пропуск (отчёт)":r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:"Готово";const cls=r.added?"ok":r.skipImport?"":r.errors.length?"err":"ok";return `<tr class="${cls}"><td>${i+1}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`}).join("")}</tbody></table></div>`:""}`;
+  <div class="csv-preview"><table><thead><tr><th>Строка</th><th>IP:порт</th><th>Производитель</th><th>Модель</th><th>Название</th><th>Статус</th></tr></thead><tbody>${rows.map((r,i)=>{const st=r.added?`Добавлено · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти</button>`:r.planned?`В плане · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>Убрать</button>`:r.skipImport?"Пропуск (отчёт)":r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:"Готово";const cls=r.added||r.planned?"ok":r.skipImport?"":r.errors.length?"err":"ok";return `<tr class="${cls}"><td>${i+1}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`}).join("")}</tbody></table></div>`:""}`;
 }
 function renderDeviceWizardFooter(){
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot"),wb=document.getElementById("wb"),wn=document.getElementById("wn");
   if(!df||!foot||!wb||!wn)return;
   df.style.display="";df.classList.add("device-footer");wb.style.display="none";wn.style.display="none";
+  // Вкладки слева переключают источник; здесь — только то, что кладёт набранное в план
   if(wizd.deviceTab==="manual"){
     const templateMissing=wizd.devMode==="template"&&!wizd.templateId;
-    foot.innerHTML=`<div class="dev-footer-left">${devTabBackHtml("csv")}</div>
-      <div class="dev-footer-right dev-footer-manual">${wizd.manualAddedId?`<div class="dev-action-btns dev-action-btns-inline">${devAddedActionsHtml(wizd.manualAddedId)}</div>`:`${deviceAddParamsHtml()}<button class="btn pri" ${onEv("click",["addManualDevice"])} ${templateMissing?"disabled":""}>Добавить устройство</button>`}</div>`;
+    foot.innerHTML=`<div class="dev-footer-left"></div>
+      <div class="dev-footer-right dev-footer-manual">${wizd.manualAddedId?`<div class="dev-action-btns dev-action-btns-inline">${devAddedActionsHtml(wizd.manualAddedId)}</div>`:`${deviceAddParamsHtml()}<button class="btn pri" ${onEv("click",["planAddManual"])} ${templateMissing?"disabled":""}>В план</button>`}</div>`;
     return;
   }
   if(wizd.deviceTab==="csv"){
     const valid=csvImportableRows(wizd.csvRows||[]).length;
-    foot.innerHTML=`<div class="dev-footer-left">${devTabBackHtml("manual")}</div>
-      <div class="dev-footer-right">${valid?`<button class="btn pri" ${onEv("click",["importCsvDevices"])}>Импортировать (${valid})</button>`:""}</div>`;
+    foot.innerHTML=`<div class="dev-footer-left"></div>
+      <div class="dev-footer-right">${valid?`<button class="btn pri" ${onEv("click",["planAddCsv"])}>В план (${valid})</button>`:""}</div>`;
     return;
   }
-  const selected=selectedDeviceResults().length;
-  const showBulk=wizd.devState==="done";
-  foot.innerHTML=`<div class="dev-footer-left">
-    <button type="button" class="btn" ${onEv("click",["setDeviceTab","manual"])}>Добавить вручную</button>
-    <button type="button" class="btn" ${onEv("click",["setDeviceTab","csv"])}>Добавить из файла</button>
-  </div>
-  <div class="dev-footer-right">${showBulk?`<button type="button" class="btn pri dev-add-selected" ${onEv("click",["addSelectedFoundDevices"])} ${selected?"":"disabled"}>Добавить выбранные (${selected})</button>`:""}</div>`;
+  // «В сети»: «В план» — одна, в строке над списком
+  foot.innerHTML=`<div class="dev-footer-left"></div><div class="dev-footer-right"></div>`;
 }
 // Панель найденных устройств живёт в двух местах: в ящике мастера и на
 // основной панели, когда выбран узел «Найденные». Разметка одна и та же —
@@ -18917,9 +18998,10 @@ function wizardInlineHost(){
   return document.getElementById("wiz")?.classList.contains("open")?null:el;
 }
 function renderDeviceWizardInline(host){
+  planRemark();
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
   const st=viewState(host);
-  host.innerHTML=`<div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${body}</div>`;
+  host.innerHTML=`<div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${planServerBarHtml()}${body}</div>`;
   restoreView(host,st);
   const allCb=document.getElementById("devSelectAll");
   if(allCb){
@@ -18933,25 +19015,520 @@ function renderDeviceWizardInline(host){
   document.removeEventListener("mousedown",onDeviceFiltOutside);
   if(wizd.devFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
 }
-// Из «Вручную» и «Из файла» — назад к поиску; без поиска в сети (capabilities) —
-// на соседнюю вкладку
-function devTabBackHtml(other){
-  if(can("startDiscovery"))return`<button type="button" class="lk lk-act" ${onEv("click",["setDeviceTab","search"])}>← К результатам поиска</button>`;
-  return`<button type="button" class="btn" ${onEv("click",["setDeviceTab",`${other}`])}>${other==="csv"?"Добавить из файла":"Добавить вручную"}</button>`;
+// На панели «Найденных» вкладок нет: вернуться из формы к поиску в сети можно ссылкой
+function devTabBackHtml(){
+  return can("startDiscovery")?`<button type="button" class="lk lk-act" ${onEv("click",["setDeviceTab","search"])}>← В сети</button>`:"";
 }
 function foundFootHtml(){
   if(wizd.deviceTab!=="search")
-    return`${devTabBackHtml(wizd.deviceTab==="manual"?"csv":"manual")}
+    return`${devTabBackHtml()}
       <span style="flex:1"></span>
       ${wizd.deviceTab==="manual"
-        ?`${wizd.manualAddedId?devAddedActionsHtml(wizd.manualAddedId):`<button class="btn pri" ${onEv("click",["addManualDevice"])}>Добавить устройство</button>`}`
-        :`${csvImportableRows(wizd.csvRows||[]).length?`<button class="btn pri" ${onEv("click",["importCsvDevices"])}>Импортировать (${csvImportableRows(wizd.csvRows||[]).length})</button>`:""}`}`;
+        ?`${wizd.manualAddedId?devAddedActionsHtml(wizd.manualAddedId):`<button class="btn pri" ${onEv("click",["planAddManual"])}>В план</button>`}`
+        :`${csvImportableRows(wizd.csvRows||[]).length?`<button class="btn pri" ${onEv("click",["planAddCsv"])}>В план (${csvImportableRows(wizd.csvRows||[]).length})</button>`:""}`}`;
   // Всё управление списком — в его же строке, подвалу здесь делать нечего.
   return"";
+}
+// ── План добавления устройств ────────────────────────────────────────────────
+// Всё, что набирают в «Добавить устройства» — найденное в сети, адрес руками, строки
+// файла, — сначала попадает в один видимый план. В системе ничего не появится, пока
+// его не применили. План живёт в памяти (в нём пароли): закрытие окна и переходы по
+// дереву его не трогают, закрытие страницы — предупреждает.
+const addPlan={rows:[],key:null,keySig:null,applying:false,last:null,added:[]};
+let planSeq=0;
+window.addEventListener("beforeunload",e=>{if(addPlan.rows.length){e.preventDefault();e.returnValue=""}});
+// Набор строк изменился — прежний ключ запроса уже не про этот набор
+function planTouch(){addPlan.key=null;addPlan.keySig=null}
+function planBtnCount(){return addPlan.rows.length?` · ${addPlan.rows.length}`:""}
+function planHeadSync(){document.querySelectorAll(".plan-cnt").forEach(el=>{el.textContent=planBtnCount()})}
+// Адрес считается в пределах домена: один IP в двух доменах — два устройства
+function planAddrKey(r,did){return`${did||""}|${r.ip||r.rtspUrl||r.rtsp||""}:${r.port||80}`}
+function planFindByAddr(r,did){const k=planAddrKey(r,did);return addPlan.rows.find(x=>planAddrKey(x.r,x.domainId)===k)||null}
+function planByPid(pid){return addPlan.rows.find(x=>x.pid===pid)||null}
+// Серверы домена, куда можно добавить: без нераспределённых
+function planServerList(did){
+  const d=did||wizd?.foundDomain||wizd?.domain||domains[0]?.id;
+  return allocatedServers(d).filter(s=>!isUnallocated(s.id));
+}
+// Куда по умолчанию: сервер, на котором открыли; сервер хранилища; первый, что отвечает
+function planDefaultServer(list,node){
+  const n=node||addContext().node;
+  const pref=(n?.type==="server"?n.id:n?.type==="archive"?n.server:null)||wizd?.server;
+  if(pref&&list.some(s=>s.id===pref))return pref;
+  return(list.find(s=>s.online!==false)||list[0])?.id||null;
+}
+function planServerId(){
+  const list=planServerList();
+  if(!wizd.planServer||!list.some(s=>s.id===wizd.planServer)){wizd.planServer=planDefaultServer(list);planSyncServer()}
+  return wizd.planServer;
+}
+// Архивы мастера сужаются до выбранного сервера, форма «По адресу» берёт первый из них
+function planSyncServer(){
+  if(wizd.lanOwner||wizd.foundDomain||!wizd.planServer)return;
+  wizd.server=wizd.planServer;
+  const ids=wizArchList().map(a=>a.id);
+  if(!ids.includes(wizd.manual.arch)){wizd.manual.arch=ids[0]||"";if(!wizd.manual.arch)wizd.manual.record="none"}
+  // Находкам с хранилищем прежнего сервера — первое доступное новому, как при подстановке по умолчанию; строки плана не трогаем
+  (wizd.devResults||[]).forEach(r=>{
+    if(r.planned||r.added||!r.arch||ids.includes(r.arch))return;
+    r.arch=ids[0]||"";if(!r.arch)r.record="none";
+  });
+}
+function planSetServer(id){
+  if(addPlan.applying)return;
+  wizd.planServer=id;planSyncServer();
+  planRepaint();
+}
+function planServerBarHtml(){
+  const list=planServerList(),cur=planServerId();
+  const nm=s=>escHtml(locName(s))+(s.online===false?` (${i18n("нет связи")})`:"");
+  let ctl;
+  if(!list.length)ctl=`<span class="sub">${i18n("В домене нет серверов")}</span>`;
+  else if(list.length===1)ctl=`<span class="plan-srv-one">${nm(list[0])}</span>`;
+  else ctl=`<select id="planSrv" ${onEv("change",["planSetServer",onEv.value])}>${list.map(s=>`<option value="${s.id}" ${s.id===cur?"selected":""} ${s.online===false?"disabled":""}>${nm(s)}</option>`).join("")}</select>`;
+  return`<div class="plan-srv"><label for="planSrv">${i18n("Сервер")}:</label>${ctl}<span class="sub">${i18n("Действует на строки, которые добавляете дальше")}</span></div>`;
+}
+function planAllowedArchives(sid,did){return[...serverArchives(sid),...domainArchives(did)]}
+// Сервер, к которому привязано хранилище; у сетевого хранилища домена его нет
+function planArchServer(archId){return(archId&&archById(archId)?.server)||null}
+// Архив строки должен быть доступен её серверу: иначе первый из доступных, иначе пусто — и строка об этом скажет
+function planFixArch(row){
+  const r=row.r,ok=planAllowedArchives(row.serverId,row.domainId);
+  if(r.arch&&!ok.some(a=>a.id===r.arch)){
+    row.archWas=archById(r.arch)?.name||"";
+    r.arch=ok[0]?.id||"";if(!r.arch)r.record="none";
+  }
+}
+function planPush(source,r0,x={}){
+  if(addPlan.applying){toast(i18n("Идёт применение плана"));return null}
+  const did0=x.domainId||wizd.foundDomain||wizd.domain;
+  // Привязку архива к серверу уважаем вне ящика; в ящике сервер выбран в строке «Сервер»
+  const bound=(wizd.foundDomain||wizd.lanOwner)?planArchServer(r0.arch):null,list=planServerList(did0);
+  // Архив привязан к серверу — устройство встанет на него: молча подменять архив незачем
+  const sid=x.serverId||(bound&&list.some(s=>s.id===bound)?bound:null)||planServerId();
+  if(!sid){toast(i18n("В домене нет сервера для добавления"));return null}
+  const did=x.domainId||SERVER_DOMAIN[sid]||wizd.domain;
+  wizardFolder();
+  const r={...r0};delete r.planned;delete r.errors;
+  const folder=x.folderId!==undefined?x.folderId:(wizd.folder&&folderDomain(wizd.folder)===did?wizd.folder:null);
+  const row={pid:"pl"+(++planSeq),source,r,serverId:sid,domainId:did,folderId:folder,state:"plan",src:x.src||null,candidateId:x.candidateId||null};
+  planFixArch(row);
+  addPlan.rows.push(row);planTouch();addPlan.added=[];
+  if(row.src)row.src.planned=row.pid;
+  return row;
+}
+// Строки списков сети, чей кандидат уже в плане, получают пометку «В плане»: окно закрывали и открывали заново, поиск перечитывали.
+// Узнаём по кандидату, а не по адресу: у двух кандидатов может быть один адрес
+function planRemark(){
+  if(!addPlan.rows.length)return;
+  const by=new Map(addPlan.rows.filter(x=>x.candidateId).map(x=>[x.candidateId,x]));
+  [wizd?.devResults,lan.net,...Object.values(found)].forEach(l=>(l||[]).forEach(x=>{
+    if(x.planned||x.added)return;
+    const row=by.get(x.id);
+    if(row){x.planned=row.pid;if(!row.src)row.src=x}
+  }));
+}
+function planUnmark(pid){
+  [wizd?.devResults,wizd?.csvRows,lan.net,...Object.values(found)].forEach(l=>(l||[]).forEach(x=>{if(x.planned===pid)delete x.planned}));
+}
+function planAddFound(list,source="found"){
+  if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
+  list=list||selectedDeviceResults();
+  if(!list.length){toast("Выберите устройства");return}
+  let n=0,dup=0;
+  list.forEach(r=>{
+    if(r.planned||r.added)return;
+    applyFoundAuth(r);
+    if(addPlan.rows.some(x=>x.candidateId===r.id)){dup++;return}
+    if(planPush(source,r,{src:r,candidateId:r.id}))n++;
+    wizd.devSelected.delete(r.id);
+  });
+  planDone(n,dup);
+}
+function planAddOne(id){
+  const r=wizd.devResults.find(x=>x.id===id);
+  if(!r||r.added||r.planned||r.status==="bad")return;
+  planAddFound([r]);
+}
+// Левая часть (список, форма, строки таблицы) и панель плана после любой правки плана
+function planRepaint(){
+  planHeadSync();
+  if(wizd&&wizd.mode==="device-add"){
+    if(wizd.lanOwner)gear();
+    else if(planInDrawer()||document.getElementById("foundPanel"))renderDeviceWizard();
+  }
+  planRender();
+}
+function planAddedText(n){return`${i18n("Добавлено в план")}: ${n} (${i18n("всего")} ${addPlan.rows.length})`}
+function planDone(n,dup){
+  const parts=[];
+  if(n)parts.push(planAddedText(n));
+  if(dup)parts.push(`${i18n("Уже в плане")}: ${dup}`);
+  if(parts.length)toast(parts.join("; "));
+  planRepaint();
+}
+function planAddManual(){
+  if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
+  const m=wizd.manual;
+  if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
+  if(m.type==="camera"&&!m.ip&&!m.rtsp){toast("Укажите IP-адрес или адрес RTSP");return}
+  if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Заполните производителя и модель или адрес RTSP");return}
+  if(m.type!=="camera"&&(!m.ip||!m.vendor||!m.model)){toast("Заполните IP, производителя и модель");return}
+  const r={...m,rtspUrl:m.rtsp||"",status:"ok"};
+  const sid=planServerId();
+  if(planFindByAddr(r,SERVER_DOMAIN[sid]||wizd.domain)){planDone(0,1);return}
+  const row=planPush("manual",r);
+  if(!row)return;
+  // Профиль, под которым набрали строку, остаётся за ней, что бы потом ни выбрали в окне
+  row.devMode=wizd.devMode||"current";row.templateId=wizd.templateId||"";
+  // Следующую камеру вводят с теми же производителем, учётными данными и архивом
+  Object.assign(m,{ip:"",name:"",short:"",identifier:"",rtsp:""});
+  wizd.manualAddedId=null;
+  planDone(1,0);
+  document.getElementById("devManIp")?.focus();
+}
+function planAddCsv(){
+  if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
+  const valid=csvImportableRows(wizd.csvRows||[]);
+  if(!valid.length){toast("Нет корректных строк для импорта");return}
+  const did=SERVER_DOMAIN[planServerId()]||wizd.domain;
+  let n=0,dup=0;
+  valid.forEach(r0=>{
+    if(planFindByAddr(r0,did)){dup++;return}
+    if(planPush("csv",r0,{src:r0}))n++;
+  });
+  planDone(n,dup);
+}
+// Строка таблицы «Устройства»: объект, на котором стоим, подсказывает сервер, папку и архив
+function planFromLan(key){
+  const n=find(lan.owner)?.n,src=lanNetRow(key);
+  if(!n||!src||src.planned||src.added)return false;
+  lanPrefill(n,src);
+  if(addPlan.rows.some(x=>x.candidateId===src.id)){toast(i18n("Уже в плане"));return false}
+  const did=lanDomainOf(n),list=planServerList(did),bound=planArchServer(src.arch);
+  // Сервер — тот, на котором стоим; иначе тот, к которому привязано выбранное хранилище; иначе первый, что отвечает
+  const sid=n.type==="server"?n.id:(bound&&list.some(s=>s.id===bound)?bound:planDefaultServer(list,n));
+  return!!planPush("lan",src,{serverId:sid,domainId:did,folderId:lanIsFolder(n)?n.id:(src.group||null),src,candidateId:src.id});
+}
+function planFromLanOne(key){if(planFromLan(key))planDone(1,0)}
+function planRemove(pid){
+  if(addPlan.applying)return;
+  const row=planByPid(pid);if(!row)return;
+  const i=addPlan.rows.indexOf(row);
+  addPlan.rows=addPlan.rows.filter(x=>x!==row);planTouch();
+  planUnmark(pid);if(row.src)delete row.src.planned;
+  planRepaint();
+  const next=addPlan.rows[Math.min(i,addPlan.rows.length-1)];
+  (next&&document.querySelector(`.plan-row[data-pid="${next.pid}"] .plan-row-main`)||document.querySelector("#planApplyBtn:not(:disabled)")||document.querySelector(".plan-tab.on"))?.focus();
+}
+function planClear(){
+  if(addPlan.applying||!addPlan.rows.length)return;
+  const snap=addPlan.rows.slice();
+  snap.forEach(x=>{planUnmark(x.pid);if(x.src)delete x.src.planned});
+  addPlan.rows=[];planTouch();
+  toastAction("planclear",`${i18n("План очищен")}: ${snap.length}`,i18n("Вернуть"),()=>{
+    if(addPlan.applying)return;
+    // Пока плана не было, строку могли добавить заново или уже добавить в систему: такую не возвращаем
+    const back=snap.filter(x=>!(x.src&&x.src.added)
+      &&!(x.candidateId&&addPlan.rows.some(y=>y.candidateId===x.candidateId))
+      &&!(x.src&&addPlan.rows.some(y=>y.src===x.src))
+      &&!((x.source==="manual"||x.source==="csv")&&planFindByAddr(x.r,x.domainId)));
+    addPlan.rows=back.concat(addPlan.rows);planTouch();
+    back.forEach(x=>{if(x.src)x.src.planned=x.pid});
+    planRemark();
+    if(back.length<snap.length)toast(`${i18n("Не возвращено")}: ${snap.length-back.length}`);
+    planRepaint();
+  },8000);
+  planRepaint();
+}
+function planToggle(pid){const row=planByPid(pid);if(row){row.open=!row.open;planRender()}}
+function planEdit(pid,key,value){
+  const row=planByPid(pid);if(!row||addPlan.applying)return;
+  row.r[key]=value;
+  if(key==="arch"){if(!value)row.r.record="none";row.archWas=null}
+  if(key==="rtspUrl")row.r.rtsp=value;
+  if(row.state==="fail")row.code=null;   // правка снимает прежнюю причину отказа
+  planTouch();
+  if(key==="arch"||key==="record"){planRender();return}
+  planSyncRow(row);
+}
+// Поле правят на ходу: перерисовываем только то, что от него зависит, а не поле под курсором
+function planSyncRow(row){
+  const el=document.querySelector(`.plan-row[data-pid="${row.pid}"]`);
+  if(el){
+    const hd=el.querySelector(".plan-row-hd");if(hd)hd.innerHTML=planRowHeadHtml(row);
+    const is=el.querySelector(".plan-issues");if(is)is.innerHTML=planIssuesHtml(row);
+  }
+  const ft=document.getElementById("planFoot");
+  if(ft)ft.innerHTML=planFootHtml();
+}
+function planIdTaken(id){
+  return identifierTaken({devices:devicePool},id)||configuredDevices().some(n=>deviceIdentifierValue(n)===id);
+}
+function planConnError(row){
+  const r=row.r;
+  if(row.source==="found"||row.source==="lan"){
+    if(!r.ip)return"Укажите IP-адрес";
+    if(!r.port)return"Укажите порт";
+    if(r.status==="bad"||!r.vendor||!r.model)return"Укажите производителя и модель";
+    return"";
+  }
+  if((r.type||"camera")==="camera"&&(r.rtspUrl||r.rtsp))return"";
+  if(!r.ip)return"Укажите IP-адрес";
+  if(!r.vendor||!r.model)return"Укажите производителя и модель";
+  return"";
+}
+// Камера ли строка: у регистратора из файла архива нет
+function planIsCam(row){return(row.r.type||"camera")==="camera"&&!(row.source==="csv"&&inferCsvDeviceKind(row.r)?.type==="ipsrv")}
+// Сервер, который уйдёт в запросе: у источника событий — выбранный в форме (или «выберет система»), у СКУД — никакой
+function planRowServer(row){
+  const r=row.r;
+  if(row.source==="manual"&&r.type==="acfa")return null;
+  if(row.source==="manual"&&r.type==="eventsrc")return r.server||null;
+  return row.serverId;
+}
+// Что мешает строке (err: она не применится) и что с ней будет, если применить (warn)
+function planRowIssues(row){
+  const r=row.r,out=[],err=t=>out.push({err:true,text:i18n(t)}),warn=t=>out.push({err:false,text:i18n(t)});
+  const conn=planConnError(row);if(conn)err(conn);
+  const sid=planRowServer(row);
+  if(sid){const s=find(sid)?.n;if(!s)err("Сервер не найден");else if(s.online===false)err("Сервер не отвечает")}
+  const id=isAutoIdentifier(r.identifier)?"":String(r.identifier).trim();
+  if(id){
+    if(addPlan.rows.some(x=>x!==row&&!isAutoIdentifier(x.r.identifier)&&String(x.r.identifier).trim()===id))err(`ID «${id}» указан в плане несколько раз`);
+    else if(planIdTaken(id))err(`ID «${id}» уже используется`);
+  }
+  if(r.ip){
+    if(addressDeviceDuplicate(r))err("Устройство с таким адресом уже есть");
+    const k=planAddrKey(r,row.domainId),me=addPlan.rows.indexOf(row);
+    if(addPlan.rows.some((x,i)=>i<me&&planAddrKey(x.r,x.domainId)===k))err("Этот адрес уже есть в плане выше");
+  }
+  const fid=r.group||row.folderId;
+  if(fid&&folderDomain(fid)!==row.domainId)err("Папка в другом домене");
+  if(!out.some(x=>x.err)){
+    if(missingDeviceCredentials(r)){
+      const noUser=!r.user||r.user==="Авто",noPass=!r.pass;
+      warn(`${noUser&&noPass?"Нет логина и пароля":noPass?"Нет пароля":"Нет логина"} — добавится выключенным`);
+    }
+    if(planIsCam(row)&&!r.arch)warn("Без архива: записи не будет");
+    if(row.archWas)warn(`${i18n("Архив")} «${row.archWas}» ${i18n("недоступен выбранному серверу")} — ${r.arch?i18n("выбран другой"):i18n("архив не задан")}`);
+  }
+  return out;
+}
+function planFailIssue(row){
+  return row.state==="fail"&&row.code?{err:true,text:problemText(row.code)+(row.field?` (${row.field})`:"")}:null;
+}
+function planOkRows(){return addPlan.rows.filter(x=>x.state==="plan"&&!planRowIssues(x).some(i=>i.err))}
+function planFailRows(){return addPlan.rows.filter(x=>x.state==="fail")}
+// Узел для POST /devices строится в момент применения: правки в плане учтены, номера «Авто» у строк файла — по порядку
+function planNode(row,ctx){
+  const r=row.r,s={id:row.serverId,type:"server",devices:devicePool};
+  const off=missingDeviceCredentials(r);
+  if(row.source==="manual")return manualNode(r,s,off,{devMode:row.devMode||"current",templateId:row.templateId||""});
+  if(row.source==="csv"){
+    let r1=r;
+    if(isAutoIdentifier(r.identifier)){
+      while(ctx.used.has(String(ctx.next)))ctx.next++;
+      r1={...r,identifier:String(ctx.next)};
+    }
+    return csvDeviceNode(r1,s,off,"current");
+  }
+  return deviceNodeFromData(r,s,{configMode:"current",disabled:off});
+}
+function planPlural(n,forms){return i18n(plural(n,forms))}
+// Повтор неудачных — то же, что применение: то же предупреждение, то же окно
+function planApply(retry){
+  if(addPlan.applying)return;
+  retry=retry===true;
+  const rows=retry?planFailRows().filter(x=>!planRowIssues(x).some(i=>i.err)):planOkRows();
+  if(!rows.length){if(retry)toast(i18n("Исправьте ошибки в строках"));return}
+  const warned=rows.filter(x=>planRowIssues(x).some(i=>!i.err));
+  if(!warned.length){planSend(rows,retry);return}
+  const per=new Map();rows.forEach(x=>{const k=planRowServer(x)||"";per.set(k,(per.get(k)||0)+1)});
+  const where=[...per].map(([sid,k])=>`${sid?locName(find(sid)?.n||{name:"—"}):i18n("сервер выберет система")}: ${k}`).join(", ");
+  const off=rows.filter(x=>missingDeviceCredentials(x.r)).length,noArch=rows.filter(x=>planIsCam(x)&&!x.r.arch).length;
+  const msg=`${i18n("Будет добавлено")}: ${rows.length} ${planPlural(rows.length,"устройство|устройства|устройств")} — ${where}.`
+    +(off?` ${i18n("Нет логина или пароля — добавятся выключенными")}: ${off}.`:"")+(noArch?` ${i18n("Без архива, записи не будет")}: ${noArch}.`:"");
+  askConfirm("Применить план",msg,"",`${i18n("Добавить")} ${rows.length}`,()=>planSend(rows,retry),{rawMsg:true});
+}
+function planRetry(){planApply(true)}
+function planSend(rows,retry){
+  if(addPlan.applying||!rows.length)return;
+  const sig=rows.map(x=>x.pid).join();
+  // Повтор после обрыва связи идёт с тем же ключом: если запрос дошёл, второй раз ничего не создастся
+  if(!addPlan.key||addPlan.keySig!==sig){addPlan.key=opKey();addPlan.keySig=sig}
+  const key=addPlan.key;
+  const ctx={next:+nextDeviceIdentifier({devices:devicePool})||1,used:new Set(rows.filter(x=>!isAutoIdentifier(x.r.identifier)).map(x=>String(x.r.identifier).trim()))};
+  const items=rows.map(row=>{
+    const node=planNode(row,ctx);
+    if(isAutoIdentifier(row.r.identifier))ctx.next++;   // номер получит каждая строка с «Авто»: дальше строки файла считают от него
+    const fid=row.r.group||row.folderId||null;
+    return{node,domainId:row.domainId,folderId:row.source==="manual"&&node.type!=="camera"?null:fid,candidateId:row.candidateId};
+  });
+  addPlan.applying=true;addPlan.added=[];
+  planRender();
+  devicesCreate(items,key).then(res=>{
+    addPlan.applying=false;planTouch();
+    const got=[];
+    res.done.forEach(d=>{
+      const row=rows[d.index],dev=d.devices[0];
+      got.push({id:dev.id,name:dev.name||row.r.name||row.r.ip,ip:row.r.ip||row.r.rtspUrl||""});
+      planMarkAdded(row,dev);
+      open.add(row.serverId);
+    });
+    res.failed.forEach(f=>{const row=rows[f.index];if(row){row.state="fail";row.code=f.code;row.field=f.field||null}});
+    const gone=new Set(res.done.map(d=>rows[d.index]));
+    addPlan.rows=addPlan.rows.filter(x=>!gone.has(x));
+    addPlan.added=got;
+    addPlan.last={done:(retry&&addPlan.last?addPlan.last.done:0)+res.done.length};
+    treeMatchCache.clear();searchMatchCache.clear();
+    toast(res.failed.length?`${i18n("Добавлено")} ${res.done.length} · ${i18n("не добавлено")} ${res.failed.length}`:`${i18n("Добавлено устройств")}: ${res.done.length}`);
+    paint();planRepaint();
+  }).catch(e=>{
+    addPlan.applying=false;
+    // Ответ был — сервер отказал всему запросу: ключ больше не нужен, а причина видна на каждой строке.
+    // Ответа не было (связь оборвалась): план не меняется, ключ остаётся — повтор безопасен
+    if(e&&(e.status||e.problem)){
+      planTouch();
+      rows.forEach(row=>{row.state="fail";row.code=e.problem?.code||e.code||"UPSTREAM_UNAVAILABLE";row.field=e.problem?.field||null});
+    }
+    toast(problemText(e));
+    planRepaint();
+  });
+}
+// Исходная строка списка становится «добавлено», как после обычного добавления
+function planMarkAdded(row,dev){
+  const mark=x=>{x.added=true;x.addedId=dev.id;x.identifier=dev.identifier||x.identifier;delete x.planned};
+  [wizd?.devResults,wizd?.csvRows,lan.net,...Object.values(found)].forEach(l=>(l||[]).forEach(x=>{if(x.planned===row.pid)mark(x)}));
+  if(row.src&&row.src.planned===row.pid)mark(row.src);
+  lan.net=lan.net.filter(x=>!(x.added&&x.addedId===dev.id));
+}
+function planGoAdded(id){goAddedDevice(id)}
+function planDismissAdded(){addPlan.added=[];if(!planFailRows().length)addPlan.last=null;planRender()}
+function planIssuesHtml(row){
+  const f=planFailIssue(row);
+  return[...(f?[f]:[]),...planRowIssues(row)].map(i=>`<div class="${i.err?"plan-err":"plan-warn"}">${escHtml(i.text)}</div>`).join("");
+}
+function planIssueHtml(row){
+  const f=planFailIssue(row),first=f||planRowIssues(row)[0];
+  if(addPlan.applying)return`<span class="plan-busy">${i18n("идёт…")}</span>`;
+  if(!first)return`<span class="plan-ok">${i18n("Готово к добавлению")}</span>`;
+  return`<span class="${first.err?"plan-err":"plan-warn"}">${escHtml(first.text)}</span>`;
+}
+// Название — имя или, пока имени нет, адрес; адрес не повторяется в подписи
+function planRowTitle(row){
+  const r=row.r,named=r.name&&!isDefaultDeviceName(r.name);
+  const addr=r.ip?`${r.ip}${r.port&&+r.port!==80?":"+r.port:""}`:"";
+  const model=[r.vendor,r.model].filter(Boolean).join(" ");
+  return{title:named?r.name:(addr||r.rtspUrl||r.rtsp||"—"),sub:named?[addr,model].filter(Boolean).join(" · "):model};
+}
+function planRowHeadHtml(row){
+  const f=planFailIssue(row),iss=planRowIssues(row),lock=addPlan.applying;
+  const bad=f||iss.find(i=>i.err),warn=!bad&&iss.length;
+  const {title,sub}=planRowTitle(row);
+  const ic=lock?`<span class="dev-spin" aria-hidden="true"></span>`:bad?`<span class="plan-ic plan-err">${lu("triangle-alert")}</span>`:warn?`<span class="plan-ic plan-warn">${lu("triangle-alert")}</span>`:`<span class="plan-ic plan-ok">${lu("circle-check")}</span>`;
+  return`${ic}<button type="button" class="plan-row-main" data-fk="plan-main-${row.pid}" aria-expanded="${!!row.open}" ${onEv("click",["planToggle",row.pid])}><b>${escHtml(title)}</b>${sub?`<span class="sub">${escHtml(sub)}</span>`:""}<span class="plan-iss">${planIssueHtml(row)}</span></button>
+    <button type="button" class="plan-x" data-fk="plan-x-${row.pid}" title="${lock?i18n("Идёт применение плана"):i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${lock?"disabled":""} ${onEv("click",["planRemove",row.pid])}>${lu("x",14)}</button>`;
+}
+function planRowHtml(row){
+  const r=row.r,lock=addPlan.applying,dis=lock?"disabled":"";
+  const free=row.source==="manual"||row.source==="csv";
+  const who=planRowTitle(row).title,al=l=>escHtml(`${i18n(l)} · ${who}`);   // подпись поля называет и строку: полей «Название» в плане много
+  const inp=(k,label,val,ph)=>`<div class="dev-field"><label>${i18n(label)}</label><input class="dev-inline-input" data-pf="${k}" aria-label="${al(label)}" value="${escHtml(val??"")}" placeholder="${escHtml(ph||"")}" ${dis} ${onEv("input",["planEdit",row.pid,k,onEv.value])}></div>`;
+  let body="";
+  if(row.open){
+    body=`<div class="plan-edit"><div class="plan-issues">${planIssuesHtml(row)}</div>
+      ${inp("name","Название",isDefaultDeviceName(r.name)?"":r.name,i18n("По умолчанию"))}
+      ${free?`<div class="plan-two">${inp("ip","IP-адрес",r.ip)}${inp("port","Порт",r.port)}</div>
+      <div class="plan-two">${inp("vendor","Производитель",r.vendor)}${inp("model","Модель",r.model)}</div>`:""}
+      ${inp("identifier","ID",isAutoIdentifier(r.identifier)?"":r.identifier,i18n("Авто"))}
+      <div class="plan-two">${inp("user","Имя пользователя",r.user,i18n("Авто"))}
+      <div class="dev-field"><label>${i18n("Пароль")}</label>${devPassFieldHtml(r.pass||"",lock,`planEdit('${row.pid}','pass',this.value)`,`${i18n("Пароль")} · ${who}`,"pass")}</div></div>
+      ${planIsCam(row)?`<div class="dev-field"><label>${i18n("Архив")}</label><select class="dev-inline-select" data-pf="arch" aria-label="${al("Архив")}" ${dis} ${onEv("change",["planEdit",row.pid,"arch",onEv.value])}>${archiveOptions(r.arch,planAllowedArchives(row.serverId,row.domainId))}</select></div>
+      ${r.arch?`<div class="dev-field"><label>${i18n("Режим записи")}</label><select class="dev-inline-select" data-pf="record" aria-label="${al("Режим записи")}" ${dis} ${onEv("change",["planEdit",row.pid,"record",onEv.value])}>${foundRecordOptions(r)}</select></div>`:""}
+      <div class="dev-field"><label>${i18n("Папка")}</label><select class="dev-inline-select" data-pf="group" aria-label="${al("Папка")}" ${dis} ${onEv("change",["planEdit",row.pid,"group",onEv.value])}>${groupOptions(r.group)}</select></div>`:""}
+    </div>`;
+  }
+  return`<div class="plan-row ${row.state==="fail"?"fail":""} ${row.open?"open":""}" data-pid="${row.pid}"><div class="plan-row-hd">${planRowHeadHtml(row)}</div>${body}</div>`;
+}
+function planFootHtml(){
+  const ok=planOkRows().length,badN=addPlan.rows.filter(x=>x.state==="plan").length-ok;
+  const failN=planFailRows().length,busy=addPlan.applying;
+  const why=busy?i18n("Идёт применение плана"):!addPlan.rows.length?i18n("План пуст"):!ok?i18n("Нет строк без ошибок"):"";
+  return`${badN>0?`<div class="plan-warn">${badN} ${planPlural(badN,"строка с ошибкой останется в плане|строки с ошибками останутся в плане|строк с ошибками останутся в плане")}</div>`:""}
+    <button type="button" class="btn pri" id="planApplyBtn" data-fk="plan-apply" ${ok&&!busy?"":"disabled"} ${why?`title="${escHtml(why)}"`:""} ${onEv("click",["planApply"])}>${i18n("Применить план")} (${ok})</button>`+
+    (failN?`<button type="button" class="btn" id="planRetryBtn" ${busy?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planRetry"])}>${i18n("Повторить неудачные")} (${failN})</button>`:"");
+}
+function planPanelHtml(){
+  const rows=addPlan.rows;
+  const added=addPlan.added.length?`<div class="plan-added"><div class="plan-sec"><b>${i18n("Добавлено")} (${addPlan.added.length})</b><button type="button" class="lk" ${onEv("click",["planDismissAdded"])}>${i18n("Скрыть")}</button></div>${addPlan.added.map(a=>`<div class="plan-added-row"><span title="${escHtml(a.name)} · ${escHtml(a.ip)}">${escHtml(a.name)}${a.ip?` · ${escHtml(a.ip)}`:""}</span><button type="button" class="lk lk-act" ${onEv("click",["planGoAdded",`${a.id}`])}>${i18n("Перейти")}</button></div>`).join("")}</div>`:"";
+  const failN=planFailRows().length;
+  const sum=addPlan.last&&failN?`<div class="plan-sum">${i18n("Добавлено")} ${addPlan.last.done} · ${i18n("не добавлено")} ${failN}</div>`:"";
+  let list="";
+  const groups=new Map();rows.forEach(x=>{const k=planRowServer(x)||"";(groups.get(k)||groups.set(k,[]).get(k)).push(x)});
+  if(!rows.length)list=`<div class="plan-empty">${i18n("Отметьте устройства слева и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
+  else list=[...groups].map(([sid,part])=>`<div class="plan-grp">${sid?escHtml(locName(find(sid)?.n||{name:"—"})):i18n("Сервер выберет система")} · ${part.length}</div>`+part.map(planRowHtml).join("")).join("");
+  return`<div class="plan-hd"><b>${i18n("План")} · ${rows.length}</b>${rows.length?`<button type="button" class="lk" ${addPlan.applying?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planClear"])}>${i18n("Очистить план")}</button>`:""}</div>
+    <div class="plan-rows">${added}${sum}${list}</div><div class="plan-ft" id="planFoot">${planFootHtml()}</div>`;
+}
+// Панель плана — только в ящике: панель «Найденных» в дереве остаётся одна. Ящик открыт — значит, он и есть wizd
+function planInDrawer(){return!!document.getElementById("wiz")?.classList.contains("open")&&wizd?.mode==="device-add"}
+function planRender(){
+  planHeadSync();
+  if(!planInDrawer())return;
+  const el=document.getElementById("planPanel");if(!el)return;
+  // Фокус и прокрутка переживают перерисовку: человек мог стоять на строке, кнопке или поле
+  const a=document.activeElement&&el.contains(document.activeElement)?document.activeElement:null;
+  const was=a?{pid:a.closest(".plan-row")?.dataset.pid,cls:a.className&&String(a.className).split(" ").find(c=>c==="plan-row-main"||c==="plan-x"),id:a.id,pf:a.dataset?.pf}:null;
+  const sc=el.querySelector(".plan-rows"),top=sc?sc.scrollTop:0;
+  el.innerHTML=planPanelHtml();
+  const n=el.querySelector(".plan-rows");if(n)n.scrollTop=top;
+  if(was){
+    const row=was.pid?el.querySelector(`.plan-row[data-pid="${was.pid}"]`):null;
+    (was.id?document.getElementById(was.id):row&&(was.pf?row.querySelector(`[data-pf="${was.pf}"]`):was.cls?row.querySelector("."+was.cls):null))?.focus();
+  }
+}
+function planTabsHtml(){
+  const tabs=[...(can("startDiscovery")?[["search","В сети"]]:[]),["manual","По адресу"],["csv","Из файла"]];
+  return`<div class="plan-tabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" class="plan-tab ${wizd.deviceTab===k?"on":""}" aria-selected="${wizd.deviceTab===k}" ${onEv("click",["setDeviceTab",k])}>${i18n(l)}</button>`).join("")}</div>`;
+}
+// Вход один: кнопка «Добавить устройства» открывает ящик, стрелка — то, что добавляют не в план (серверы, службы, хранилища)
+function planOpen(t){
+  lanOpenWizard(t||(can("startDiscovery")?"search":"manual"));
+  if(wizd.deviceTab==="search"&&wizd.devState==="idle")refreshDeviceSearch();
+}
+function addSplitItems(n){
+  const items=[];
+  if(n.type==="domain"){items.push(["Сервер…","openW('server')"])}
+  if(n.type==="server"&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
+  if((n.type==="domain"||n.type==="server")&&can("createArchive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
+  return items;
+}
+function addSplitBtn(n){
+  if(!lanHost(n)&&n?.type!=="found")return"";
+  const lb=`${lu("plus")}${i18n("Добавить устройства")}<span class="plan-cnt">${planBtnCount()}</span>`;
+  const items=addSplitItems(n);
+  if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
+  return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
+    `<button type="button" class="btn s btn-split-arrow" aria-haspopup="menu" aria-expanded="false" aria-label="${i18n("Добавить другое")}" title="${i18n("Добавить другое")}" ${onEv("click",["addSplitMenu",onEv.event,`${n.id}`])}>${CHEV_BTN}</button></span>`;
+}
+function addSplitMenu(e,id){
+  e.stopPropagation();
+  const f=find(id),btn=e.currentTarget;if(!f)return;
+  const menu=document.getElementById("tctx");if(!menu)return;
+  menu.innerHTML=addSplitItems(f.n).map(([l,a])=>tctxItem(i18n(l),`closeTreeCtx();${a}`,tctxPlusIcon())).join("");
+  menu.classList.add("open");btn.setAttribute("aria-expanded","true");
+  menu.style.left="0px";menu.style.top="0px";
+  const r=btn.getBoundingClientRect(),mw=menu.offsetWidth,mh=menu.offsetHeight;
+  menu.style.left=Math.max(8,Math.min(Math.round(r.right-mw),innerWidth-mw-8))+"px";
+  menu.style.top=Math.round(r.bottom+4+mh>innerHeight-8?Math.max(8,r.top-mh-4):r.bottom+4)+"px";
+  addSplitMenu.from=btn;
+  menu.querySelector("button:not(:disabled)")?.focus();
 }
 function renderDeviceWizard(){
   const inline=wizardInlineHost();
   if(inline){renderDeviceWizardInline(inline);return}
+  planRemark();
   const target=deviceTarget();
   const wbd=document.getElementById("wbd"),wst=viewState(wbd);
   document.getElementById("wizT").textContent=deviceWizardTitle();
@@ -18959,7 +19536,8 @@ function renderDeviceWizard(){
   document.getElementById("wizDr").classList.add("device-wizard");
   document.getElementById("wizDr").classList.remove("server-list");
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
-  wbd.innerHTML=`<div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div>`;
+  // Слева — откуда берём (вкладки), справа — один план на все источники
+  wbd.innerHTML=`${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${wizd.deviceTab==="search"?"":" dev-wrap-scroll"}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div></div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
   restoreView(wbd,wst);
   const allCb=document.getElementById("devSelectAll");
   if(allCb){
