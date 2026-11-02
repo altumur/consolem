@@ -34000,7 +34000,17 @@
     "letter": true,
     "digit": true,
     "notLogin": true
-   }
+   },
+   "joins": [
+    {
+     "kind": "cam",
+     "levels": [
+      "MON",
+      "ONLY_ARCHIVE"
+     ],
+     "level": "ARCHIVE"
+    }
+   ]
   },
   "limits": {
    "ipScanMax": 1024,

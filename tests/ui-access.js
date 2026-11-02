@@ -7,10 +7,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const op = accRoles().find((r) => Object.keys(r.groups).length);
   ok(Object.keys(op.groups).every((k) => folderById(k) || domainById(k)), "права роли «" + op.n + "» — на существующие папки: " + Object.keys(op.groups).length);
   ok(Object.keys(op.objs).filter((k) => !k.includes(":")).every((k) => find(k) || archById(k)), "исключения — на существующие объекты");
-  // В прототипе 11 (есть accExCuts) исключение сильнее папок других ролей: понижение,
-  // которое в index.html перебивает другая роль, там действует — на одно замечание меньше.
-  const exov = accIssues().filter((x) => x.key.startsWith("r-exov:")).length;
-  ok(accIssues().length === (typeof accExCuts === "function" ? 19 : 20), "проверка: " + accIssues().length + ", из них понижений не действует: " + exov);
+  ok(accIssues().length === 20, "проверка: " + accIssues().length);
   // Правка в черновике → «Применить» → сервер
   const u = accUsers().find((x) => x.login === "olga");
   accSetUser(u.id, "email", "olga@new.local");
@@ -55,6 +52,32 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const others = accUsers().filter((x) => accProven(x) && x.login !== ACC_ME);
   ok(accAdminCount() >= 1, "бессрочных администраторов: " + accAdminCount());
   ok(!accGuard((st) => st.users.forEach((x) => { if (accProven(x, st)) x.expires = accIso(30); })), "срок всем администраторам — отказ формы, бессрочных: " + others.length);
+  // Итог считается как may: исключение только внутри своей роли, между ролями наибольшее
+  const dom0 = domains[0].id, cam0 = accCams(dom0)[0];
+  const fx = (over) => {
+    accSt().roles.filter((x) => !x.own.unr).forEach((x) => { delete x.objs[cam0.id]; });
+    over();
+    accResolveAll();
+    return accEffIn(accSt(), probe, cam0.id, dom0, "cam");
+  };
+  const [ra, rb] = accRoles().filter((x) => !x.own.unr);
+  const probe = { id: accNewId(), login: "probe", name: "", email: "", on: true, roles: [ra.id, rb.id], last: null, created: accIso(0), until: {}, expires: "", web: 0, mobile: 0, ldap: "" };
+  accSt().users.push(probe);
+  ra.groups = { [dom0]: { cam: "FULL" } };
+  rb.groups = { [dom0]: { cam: "ARCHIVE" } };
+  let e = fx(() => { ra.objs[cam0.id] = { cam: "FORBID" }; });
+  ok(e.by === "max" && e.lv === "ARCHIVE", "исключение «Нет» в одной роли, папка другой роли — итог от другой: " + e.lv);
+  ok(accExCuts(ra, cam0.id, "cam", dom0).some((x) => x.u.id === probe.id), "исключение снимает права: без него был бы «Полный»");
+  const why = accEffWhyHtml(e, "cam");
+  ok(/acc-why-off/.test(why.lines) && /наибольшее по ролям/.test(why.foot), "«Почему так»: правило названо, низшая роль зачёркнута");
+  e = fx(() => { ra.objs[cam0.id] = { cam: "MON" }; rb.objs[cam0.id] = { cam: "ONLY_ARCHIVE" }; });
+  ok(e.by === "join" && e.lv === "ARCHIVE", "«Просмотр» и «Просмотр архива» вместе — «Просмотр и архив»: " + e.lv);
+  ACC.ed = accClone(ACC.srv);
+  accResolveAll();
+  // Администратор: исключения других ролей на него не действуют
+  const padm = accUsers().find((x) => x.login === ACC_ME);
+  const eAdm = accEffIn(accSt(), padm, cam0.id, dom0, "cam");
+  ok(eAdm.by === "unr" && eAdm.lv === "FULL", "администратор: итог — встроенная роль");
   // Удаление пользователя: число, отсчёт, затем — в черновик
   const del = accUsers().find((x) => x.login === "tester");
   accDeleteUser(del.id);

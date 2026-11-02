@@ -7557,7 +7557,7 @@
           },
           "feat": {
             "type": "array",
-            "description": "Функции (reference.access.features)",
+            "description": "Функции (reference.access.features). Функция настройки действует только на объектах, где уровень этой роли что-то даёт: DEVICES_SETUP не настраивает камеру с FORBID, а при dCam = FORBID не создаёт камеру вне папок; ARCHIVES_SETUP на камере с ONLY_ARCHIVE работает: архив уровень даёт",
             "items": {
               "type": "string"
             }
@@ -7577,11 +7577,11 @@
           },
           "alert": {
             "type": "string",
-            "description": "Уровень из справочника reference.access.levels"
+            "description": "Что можно с тревогами вообще (levels.alert). Камера сужает: тревоги её детекторов видны и обрабатываются там, где камера видна, то есть с visibleFrom.cam"
           },
           "bm": {
             "type": "string",
-            "description": "Уровень из справочника reference.access.levels"
+            "description": "Что можно с отметками вообще (levels.bm). Камера сужает: отметки живут в архиве, они видны и ставятся там, где уровень камеры даёт архив: ONLY_ARCHIVE, ARCHIVE, ARCH_MANAGE, FULL; при MON и MON_PROT нет"
           },
           "depth": {
             "type": "integer",
@@ -7729,7 +7729,7 @@
               },
               "description": "Поле объекта → уровень"
             },
-            "description": "Исключения для объектов: id устройства или хранилища, vw:<id сервера>, macro:<id правила>, plug:<код плагина> → поля"
+            "description": "Исключения для объектов: id устройства или хранилища, vw:<id сервера>, macro:<id правила>, plug:<код плагина> → поля. Исключение действует внутри своей роли: внутри роли — исключение объекта, иначе ближайшая папка, где значение задано, иначе право по умолчанию; между ролями — наибольшее. Понижение бывает, но не отнимает того, что даёт другая роль"
           }
         },
         "additionalProperties": false,
@@ -8750,6 +8750,35 @@
                   "digit",
                   "notLogin"
                 ]
+              },
+              "joins": {
+                "type": "array",
+                "description": "Пары уровней, которые вместе дают уровень выше обоих, а не наибольший по порядку. Сейчас одна: MON и ONLY_ARCHIVE дают ARCHIVE: живое видео из одного источника и архив из другого складываются. Действует и между папками одной роли, и между ролями. Нет поля — только порядок levels",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "levels",
+                    "level"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "Вид объекта из levels"
+                    },
+                    "levels": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "level": {
+                      "type": "string",
+                      "description": "Что дают вместе"
+                    }
+                  }
+                }
               }
             },
             "additionalProperties": false,

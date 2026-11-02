@@ -124,6 +124,12 @@
     assert.status(await apply(env, d), 409, "SELF_LOCKOUT");
   });
 
+  test("Справочник: joins — «Просмотр» и «Просмотр архива» вместе дают «Просмотр и архив»", async () => {
+    const env = await makeEnv();
+    const j = (await env.ok("GET", "/reference")).access.joins;
+    assert.eq(j, [{ kind: "cam", levels: ["MON", "ONLY_ARCHIVE"], level: "ARCHIVE" }], "пара объявлена");
+  });
+
   test("Права: без версии — 428, старая — 412; состояние синхронизации от клиента не берётся", async () => {
     const env = await makeEnv();
     assert.status(await env.call("POST", "/access/apply", { access: draft(), history: [], cellHistory: [] }), 428, "PRECONDITION_REQUIRED");
