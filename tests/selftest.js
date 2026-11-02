@@ -106,7 +106,10 @@
       document.documentElement.dataset.selftest = bad ? "fail" : "pass";
       console.log(`SELFTEST ${bad ? "fail" : "pass"} ${all.length - bad}/${all.length}`);
       const to = q.get("report");
-      if (to) fetch(to, { method: "POST", body: all.concat(head, `RESULT ${bad ? "fail" : "pass"}`).join("\n") }).catch(() => {});
+      // Отчёт теряться не должен: инструмент ждёт его до конца срока
+      const body = all.concat(head, `RESULT ${bad ? "fail" : "pass"}`).join("\n");
+      const send = (left) => to && fetch(to, { method: "POST", body }).catch(() => left && setTimeout(() => send(left - 1), 2000));
+      send(5);
     }
   }
   const waiting = {};
@@ -148,7 +151,12 @@
     SCENARIOS.reduce(
       (p, name) =>
         p
-          .then(() => API.raw("POST", "/test/reset", { fixture: FIXTURE_OF[name] || "demo", freezeClock: false }))
+          .then(() =>
+            Promise.race([
+              API.raw("POST", "/test/reset", { fixture: FIXTURE_OF[name] || "demo", freezeClock: false }),
+              new Promise((resolve, reject) => setTimeout(() => reject(new Error(`POST /test/reset не ответил за ${LIMIT_SEC} с, перед ${name}`)), LIMIT_SEC * 1000)),
+            ])
+          )
           .then((r) => {
             if (r.status !== 200) throw new Error(`POST /test/reset → ${r.status}: у стенда нет служебных операций`);
             return frame(name);

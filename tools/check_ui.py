@@ -65,6 +65,17 @@ def run(scenario, query):
     return json.loads(m.group(1)) if m else ["FAIL  сценарий не дошёл до конца"]
 
 
+def selftest_missing(log):
+    """Отчёта нет: что успела сказать страница. log — вывод Chrome с --enable-logging=stderr, selftest.js пишет туда каждый итог."""
+    done = set(re.findall(r"SELFTEST done ([\w.-]+)", log))
+    with open(os.path.join(ROOT, "tests", "selftest.js"), encoding="utf-8") as f:
+        names = re.findall(r'"(ui-[\w-]+\.js)"', re.search(r"const SCENARIOS = \[(.*?)\];", f.read()).group(1))
+    left = [n for n in names if n not in done]
+    if left:
+        return f"не отчитались: {', '.join(left)}"
+    return "все сценарии отчитались, итог страницы не пришёл" + (": страница его написала, отчёт потерян" if re.search(r"SELFTEST (pass|fail) ", log) else "")
+
+
 def selftest(query):
     """Прототип с ?selftest: сценарии гоняет сама страница, итог — data-selftest у <html>."""
     tmp = tempfile.mkdtemp(prefix="consolem-selftest-")
@@ -77,10 +88,7 @@ def selftest(query):
             capture_output=True, text=True, timeout=SELFTEST_WAIT_SEC, env=dict(os.environ, TZ=TZ))
     except subprocess.TimeoutExpired as e:
         log = e.stderr.decode(errors="replace") if isinstance(e.stderr, bytes) else (e.stderr or "")
-        done = set(re.findall(r"SELFTEST done ([\w.-]+)", log))
-        with open(os.path.join(ROOT, "tests", "selftest.js"), encoding="utf-8") as f:
-            names = re.findall(r'"(ui-[\w-]+\.js)"', re.search(r"const SCENARIOS = \[(.*?)\];", f.read()).group(1))
-        print(f"Самопроверка не кончилась за {SELFTEST_WAIT_SEC} с, не отчитались: {', '.join(n for n in names if n not in done) or 'все отчитались, итога нет'}")
+        print(f"Самопроверка не кончилась за {SELFTEST_WAIT_SEC} с: {selftest_missing(log)}")
         print("RESULT fail")
         return 1
     finally:

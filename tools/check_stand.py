@@ -30,6 +30,8 @@ import urllib.parse
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WAIT_SEC = 900
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_ui import selftest_missing  # noqa: E402
 
 
 def free_port():
@@ -80,17 +82,21 @@ def run_page(page, stand, report):
     chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
     browser = subprocess.Popen(
         [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files",
-         f"--user-data-dir={profile}", "--window-size=1600,1000", "--remote-debugging-port=0", url],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+         f"--user-data-dir={profile}", "--window-size=1600,1000", "--remote-debugging-port=0", "--enable-logging=stderr", url],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace")
+    log = []
+    reader = threading.Thread(target=lambda: log.extend(browser.stderr), daemon=True)
+    reader.start()
     started = time.time()
     try:
         done.wait(WAIT_SEC)
     finally:
         browser.kill()
         browser.wait()
+        reader.join(5)
         shutil.rmtree(profile, ignore_errors=True)
     if not got:
-        return False, f"отчёт не пришёл за {WAIT_SEC} с"
+        return False, f"отчёт не пришёл за {WAIT_SEC} с" + (f": {selftest_missing(''.join(log))}" if "selftest" in page else "")
     text = got[-1].rstrip()
     lines = [l for l in text.splitlines() if not l.startswith("PASS")]
     return text.endswith("RESULT pass"), "\n".join(lines[-12:]) + f"\n({time.time() - started:.0f} с)"

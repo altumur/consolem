@@ -24,6 +24,8 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WAIT_SEC = 900
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from check_ui import selftest_missing  # noqa: E402
 
 
 def free_port():
@@ -51,8 +53,10 @@ def main():
     chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
     browser = subprocess.Popen(
         [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", f"--user-data-dir={tmp}/profile",
-         "--window-size=1600,1000", "--remote-debugging-port=0", url],
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+         "--window-size=1600,1000", "--remote-debugging-port=0", "--enable-logging=stderr", url],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, errors="replace")
+    log = []
+    threading.Thread(target=lambda: log.extend(browser.stderr), daemon=True).start()
     started = time.time()
     try:
         node.wait(WAIT_SEC)
@@ -70,7 +74,7 @@ def main():
     for l in [l for l in report if l.startswith("FAIL")] + report[-2:]:
         print(l)
     if not report:
-        print(f"отчёт самопроверки не пришёл за {WAIT_SEC} с")
+        print(f"отчёт самопроверки не пришёл за {WAIT_SEC} с: {selftest_missing(''.join(log))}")
     for l in csp[:20]:
         print(l)
     ok = passed and not csp
