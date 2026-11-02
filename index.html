@@ -7289,7 +7289,7 @@ function discOnEvent(m){
     if(fin)wizd.devState="done";
     renderDeviceWizard();
   }
-  const owner=find(lan.owner)?.n;
+  const owner=lan.owner?find(lan.owner)?.n:null;
   if(owner&&lan.state==="searching"&&(lanDomainOf(owner)||domains[0]?.id)===did){
     if(c&&!lan.net.some(r=>r.id===c.id))lan.net.push(candRow(c));
     lan.progress=m.payload.progress;
@@ -18726,7 +18726,7 @@ function commitManualDevice(disabled){
   const autoName=isDefaultDeviceName(m.name.trim())?(LB[m.type]||"Камера"):m.name.trim();
   const configMode=wizd.devMode||"current";
   const template=configMode==="template"?deviceTemplates().find(x=>x.id===wizd.templateId):null;
-  const common={id:"obj"+Date.now(),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",online:true,devices:[],configMode};
+  const common={id:"obj"+Date.now(),name:autoName,identifier,short:m.short??"",ip:m.ip,port:+m.port||80,vendor:m.vendor,model:m.model,user:m.user&&m.user!=="Авто"?m.user:"",pass:m.pass||"",online:true,devices:[],configMode};
   if(m.rtsp)common._f={RTSP:m.rtsp};
   if(disabled)common.enabled=false;
   if(configMode==="template"&&template){
