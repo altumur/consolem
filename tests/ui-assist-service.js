@@ -35,6 +35,7 @@ UiCheck(async ({ ok, until }) => {
   const close = () => goClose();
   const open = () => { close(); asstOpen(""); };
   const say = (t) => { asst.text = t; el("asstSend").click(); };
+  const press = (e) => ["mousedown", "mouseup", "click"].forEach((type) => e.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window })));
   const typeCode = (v) => { const i = el("asstCode"); i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); };
   const meta = document.createElement("meta");
   meta.name = "consolem-assist";
@@ -120,7 +121,14 @@ UiCheck(async ({ ok, until }) => {
 
   // Снимок: все ключи, полные записи, по контракту, паролей нет
   ok(["reference", "devices", "folders", "rules", "schedules", "modes", "maintenanceWindows", "me"].every((k) => k in world), "в снимке все ключи: " + Object.keys(world).join());
-  ok(Object.keys(world).length === 8, "лишних ключей нет");
+  ok(Object.keys(world).length === 9, "лишних ключей нет: " + Object.keys(world).join());
+  // Роли — только id и name: для шагов ask, escalate
+  const accRolesAll = (await API.get("/access")).roles;
+  ok(world.roles.length === accRolesAll.length && world.roles.every((x, i) => x.id === accRolesAll[i].id && x.name === accRolesAll[i].name), "роли все, по порядку");
+  ok(world.roles.every((x) => Object.keys(x).sort().join() === "id,name"), "у роли только id и name");
+  ok(!/objectAccess|folderAccess/.test(JSON.stringify(world.roles)), "прав и объектов ролей нет");
+  const rolesSize = JSON.stringify(world.roles).length;
+  ok(rolesSize < 2048, `роли почти не весят: ${rolesSize} байт из ${call.init.body.length}`);
   let all = 0, cursor = null;
   do { const r = await API.get("/devices", { cursor, limit: 1000 }); all += r.items.length; cursor = r.nextCursor || null; } while (cursor);
   ok(world.devices.length === all && all > 100, "устройства целиком: " + world.devices.length);
@@ -202,6 +210,39 @@ UiCheck(async ({ ok, until }) => {
   await ConsolemApi.assistTurn(SVC, CODE, { text: "x", secrets: ["s"] }, () => {}, { ends: asstEnds }).catch(() => {});
   sent = calls[calls.length - 1].body;
   ok(!("secrets" in sent), "клиент службы secrets срезает сам");
+
+  // Права читать нельзя: ключа нет, ход идёт как раньше
+  const getBefore = API.get;
+  API.get = (p, q) => (p === "/access" ? Promise.reject({ status: 403, problem: { code: "PERMISSION_DENIED" } }) : getBefore(p, q));
+  open();
+  answer = sse({ type: "question", text: "На какой камере?", context: "b1:нет-ролей" });
+  say("выключи запись");
+  ok(await until(() => el("asstAsk")), "ход без ролей прошёл");
+  ok(!("roles" in calls[calls.length - 1].body.world), "403 — ключа roles нет");
+  API.get = getBefore;
+
+  // План службы с ask, escalate, что бы она ни написала, заводится наблюдающим или выключенным
+  const rulePlan = (name, steps, extra) => ({ type: "plan", summary: name, context: "b1:р", rules: [{ table: "scenarios", op: "create", body: Object.assign({ name, start: "manual", runMode: "manual", triggers: [], conditions: [], steps }, extra) }] });
+  const roleId = world.roles.find((x) => x.name === "Охрана").id, mailStep = { source: "ntf", action: "email", to: "a@object.local", subject: "s", body: "b" };
+  const ruleBy = async (plan) => {
+    open();
+    answer = sse(plan);
+    say("заведи правило");
+    ok(await until(() => el("asstApply")), "план службы: " + plan.summary);
+    press(el("asstApply"));
+    ok(await until(() => /заведено/.test(text())), "заведено: " + plan.summary);
+    return (await API.get("/rules")).items.find((x) => x.name === plan.summary);
+  };
+  const askSteps = [{ control: "ask", text: "Да?", roleId, sec: 60, default: "no", yes: [mailStep], no: [] }];
+  const escSteps = [mailStep, { control: "escalate", levels: [{ roleId, via: "client", waitMin: 5 }], stop: "ack" }];
+  const ra = await ruleBy(rulePlan("Служба: вопрос", askSteps, { enabled: true, logOnly: false }));
+  ok(ra.enabled && ra.logOnly && ra.steps[0].control === "ask", "ask с enabled, logOnly: false заведён наблюдающим");
+  const re = await ruleBy(rulePlan("Служба: эскалация", escSteps, { enabled: true, logOnly: false }));
+  ok(re.enabled && re.logOnly && re.steps[1].control === "escalate", "escalate заведён наблюдающим");
+  const ro = await ruleBy(rulePlan("Служба: выключенный вопрос", askSteps, { enabled: false }));
+  ok(!ro.enabled, "выключенным просили — выключен");
+  ok(!(await API.get("/rule-prompts")).items.length, "вопросов нет");
+  await API.post("/rules/update", { idempotencyKey: opKey(), items: [ra, re].map((x) => ({ ruleId: x.id, version: x.version, set: { enabled: false } })) });
 
   // Отказы словами
   open();

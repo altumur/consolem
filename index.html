@@ -21265,9 +21265,14 @@ async function asstWorld(){
     do{const r=await API.get(path,{cursor,limit:LIM.pageMax});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
     return out;
   };
-  const[reference,rows,folders,rules,schedules,modes,windows,me]=await Promise.all([API.get("/reference"),all("/devices"),all("/folders"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),API.get("/maintenance-windows"),API.get("/me")]);
+  // Чего читать нельзя, того в снимке нет: ход идёт и без этого ключа
+  const opt=(need,path)=>can(need)?API.get(path).catch(()=>null):null;
+  const[reference,rows,folders,rules,schedules,modes,windows,me,access]=await Promise.all([API.get("/reference"),all("/devices"),all("/folders"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),API.get("/maintenance-windows"),API.get("/me"),opt("getAccess","/access")]);
   const devices=await Promise.all(rows.map(x=>API.get(`/devices/${x.id}`)));
-  return{reference,devices,folders,rules:rules.items,schedules:schedules.items,modes,maintenanceWindows:windows.items,me};
+  const world={reference,devices,folders,rules:rules.items,schedules:schedules.items,modes,maintenanceWindows:windows.items,me};
+  // Только имя и id: права и объекты ролей в службу не уходят
+  if(access?.roles)world.roles=access.roles.map(({id,name})=>({id,name}));
+  return world;
 }
 async function asstServiceTurn(a,body){
   const url=asstServiceUrl(),world=await asstWorld();
