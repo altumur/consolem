@@ -21757,9 +21757,9 @@ async function asstRulesApply(a,p){
 function asstRender(){
   const a=asst,pop=document.getElementById("gopop"),block=document.getElementById("asstBlock");if(!a||!pop||!block)return;
   // Служба шлёт строки хода и пока посетитель печатает: поле не теряет курсор. Курсор в карточке или в строке поиска
-  // с набранным запросом: ответ ассистента его не забирает
+  // (даже пустой: туда пишут новую просьбу) ответ ассистента не забирает
   const act=document.activeElement,keep=act?.id,mode=asstMode(a);
-  const mine=!act||act===document.body||!!act.closest("#asstBlock")||act.id==="gq"&&!act.value;
+  const mine=!act||act===document.body||!!act.closest("#asstBlock");
   block.hidden=false;
   block.innerHTML=[
     asstSvcHtml(a,mode),
