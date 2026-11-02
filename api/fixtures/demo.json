@@ -713,7 +713,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "camera"
+   "class": "camera",
+   "fingerprint": "SHA256:20000013"
   },
   {
    "id": "20000014-0000-4000-8000-000000000000",
@@ -760,7 +761,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000014"
   },
   {
    "id": "20000015-0000-4000-8000-000000000000",
@@ -807,7 +809,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "camera"
+   "class": "camera",
+   "fingerprint": "SHA256:20000015"
   },
   {
    "id": "20000016-0000-4000-8000-000000000000",
@@ -854,7 +857,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000016"
   },
   {
    "id": "20000017-0000-4000-8000-000000000000",
@@ -901,7 +905,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000017"
   },
   {
    "id": "20000018-0000-4000-8000-000000000000",
@@ -948,7 +953,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000018"
   },
   {
    "id": "20000019-0000-4000-8000-000000000000",
@@ -995,7 +1001,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000019"
   },
   {
    "id": "20000020-0000-4000-8000-000000000000",
@@ -1042,7 +1049,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000020"
   },
   {
    "id": "20000021-0000-4000-8000-000000000000",
@@ -1089,7 +1097,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000021"
   },
   {
    "id": "20000022-0000-4000-8000-000000000000",
@@ -1136,7 +1145,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000022"
   },
   {
    "id": "20000023-0000-4000-8000-000000000000",
@@ -1183,7 +1193,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000023"
   },
   {
    "id": "20000024-0000-4000-8000-000000000000",
@@ -1230,7 +1241,8 @@
    ],
    "version": "1",
    "labels": [],
-   "class": "server"
+   "class": "server",
+   "fingerprint": "SHA256:20000024"
   },
   {
    "id": "20000025-0000-4000-8000-000000000000",
@@ -34883,7 +34895,8 @@
     "putScenarios",
     "getScenariosStatus",
     "listRelays",
-    "getRelay"
+    "getRelay",
+    "putRecordingTarget"
    ],
    "deviceTypes": [
     "camera",

@@ -488,6 +488,13 @@
 
     // Аренда — на человека и камеру. Встроенный сервер камерами не движет: только срок
     let ptzLeases = new Map();
+    // Камера w2c молчит сама: своего сервера у неё нет. Устройство сервера молчит с ним
+    function silentProblem(rec) {
+      if (rec.direct === false && rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера не отвечает");
+      return offline(serverOf(rec)) ? problem(409, "SERVER_OFFLINE", "Сервер не отвечает") : null;
+    }
+    // Папки ведёт центр домена
+    const domainDown = (id) => (byId("domains", id) || {}).online === false;
     function ptzProblem(rec) {
       if (rec.type !== "camera" || !rec.ptz) return problem(422, "NOT_SUPPORTED", "У камеры нет PTZ", { field: "ptz" });
       return rec.online === false ? problem(409, "DEVICE_OFFLINE", "Камера без связи") : null;
@@ -1814,6 +1821,7 @@
         removeCreated(targetOf(item.req.remove));
         item.before = {};
       } else {
+        if (domainDown(rec.domainId)) return Object.assign(item, { state: "fail", code: "SERVER_OFFLINE" });
         item.before = { folderIds: setFolders(rec.id, item.req.folderIds) };
       }
       return Object.assign(item, { state: "ok", code: null, version: rec.version });
@@ -2318,7 +2326,7 @@
         (p, q, body, headers) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
+          const bad = precondition(rec, headers) || silentProblem(rec) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
           if (bad) return bad;
           const set = noConfirm(body);
           const before = applyPatch(rec, set);
@@ -2329,12 +2337,37 @@
         },
       ],
       [
+        "PUT",
+        "/devices/{id}/recording-target",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Назначение — только у камеры", { field: "type" });
+          const locked = lockedProblem([rec.id]);
+          if (locked) return locked;
+          if (body.serverId === null) {
+            delete rec.recordingTarget;
+            delete rec.serverId;
+          } else {
+            const s = byId("servers", body.serverId);
+            if (!s || !s.allocated) return problem(422, "VALIDATION_FAILED", "Нет такого сервера", { field: "serverId" });
+            if (offline(s)) return problem(409, "SERVER_OFFLINE", "Сервер не отвечает");
+            rec.recordingTarget = { serverId: s.id, copies: body.copies };
+            rec.serverId = s.id;
+          }
+          bump(rec);
+          changed("device", rec);
+          return one(device(rec));
+        },
+      ],
+      [
         "POST",
         "/devices/{id}/live",
         (p) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
           if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Живое видео — только у камеры", { field: "type" });
+          if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
           if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера без связи");
           // Встроенный сервер видео не отдаёт: адрес-заглушка, форма показывает картинку
           return { status: 200, body: { whepUrl: `stub://live/${rec.id}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + 60000) } };
@@ -2426,7 +2459,7 @@
         (p, q, body) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
-          const bad = ptzProblem(rec);
+          const bad = ptzProblem(rec) || (rec.direct === false ? problem(422, "NOT_SUPPORTED", "Движение арендой недоступно: камера за NAT", { field: "direct" }) : null);
           if (bad) return bad;
           const expiresAt = iso(now() + body.ttlSec * 1000);
           ptzLeases.set(`${rec.id}:${me}`, expiresAt);
@@ -2588,11 +2621,14 @@
         "POST",
         "/servers/assign",
         (p, q, body) => {
+          // Приём меняет состав домена: судит администратор домена, а не право на кластер
+          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Принять и исключить может администратор домена");
           const done = [];
           const failed = [];
           body.items.forEach((x) => {
             const s = byId("servers", x.serverId);
             if (!s) return failed.push({ serverId: x.serverId, code: "NOT_FOUND" });
+            if (x.allocated && !s.allocated && s.fingerprint && x.fingerprint !== s.fingerprint) return failed.push({ serverId: x.serverId, code: "FINGERPRINT_MISMATCH" });
             if (!byId("domains", x.domainId)) return failed.push({ serverId: x.serverId, code: "NOT_FOUND" });
             if (s.version !== x.version) return failed.push({ serverId: x.serverId, code: "VERSION_MISMATCH" });
             if (busy(s.id)) return failed.push({ serverId: x.serverId, code: "BUSY" });
@@ -2604,6 +2640,14 @@
               changed("server", s);
             }
             done.push(clone(s));
+            // Камера w2c: после приёма записи сервера нет, это запись camera
+            if (s.class === "camera" && s.allocated) {
+              db.servers = db.servers.filter((r) => r !== s);
+              send("entity.deleted", { kind: "server", entityId: s.id });
+              const cam = { id: uuid("device"), type: "camera", parentId: null, domainId: s.domainId, name: s.name, online: s.online !== false, enabled: true, direct: false, writableFields: ["name", "enabled", "labels"], version: newVersion() };
+              db.devices.push(cam);
+              send("entity.created", { kind: "device", entityId: cam.id, version: cam.version });
+            }
           });
           return { status: 200, body: { done, failed } };
         },
@@ -2616,6 +2660,7 @@
         (p, q, body) => {
 if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           if (!byId("domains", body.domainId)) return notFound("Домен");
+          if (domainDown(body.domainId)) return problem(409, "SERVER_OFFLINE", "Нет связи с доменом");
           if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
           if (body.parentId) {
             const parent = byId("folders", body.parentId);
@@ -2635,7 +2680,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           const f = byId("folders", p.id);
           if (!f) return notFound("Папка");
-          const bad = precondition(f, headers);
+          const bad = precondition(f, headers) || (domainDown(f.domainId) ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null);
           if (bad) return bad;
           if ("name" in body && !String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
           if ("name" in body) body.name = body.name.trim();
@@ -2651,6 +2696,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           const f = byId("folders", p.id);
           if (!f) return notFound("Папка");
+          if (domainDown(f.domainId)) return problem(409, "SERVER_OFFLINE", "Нет связи с доменом");
           if (body.add.length + body.remove.length > db.reference.limits.selectMax) return problem(422, "VALIDATION_FAILED", "Больше, чем selectMax: несколькими операциями", { field: "add" });
           const add = [...new Set(body.add)], remove = [...new Set(body.remove)];
           const alien = add.concat(remove).find((id) => {
@@ -2680,7 +2726,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
           const f = byId("folders", p.id);
           if (!f) return notFound("Папка");
-          const bad = precondition(f, headers) || lockedProblem(touchedBy("folders", f), held);
+          const bad = precondition(f, headers) || (domainDown(f.domainId) ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null) || lockedProblem(touchedBy("folders", f), held);
           if (bad) return bad;
           removeFolder(f);
           return { status: 204, body: null };
@@ -2837,6 +2883,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           body.items.forEach((x, index) => {
             // MAC камеры, источника и СКУД — только из поиска
             if (!x.candidateId && ["camera", "eventsrc", "acfa"].includes(x.device.type)) delete x.device.mac;
+            if (x.folderId && domainDown(x.domainId)) return failed.push({ index, code: "VALIDATION_FAILED", field: "folderId" });
             const res = createDevice(x.device, x.domainId, x.parentId, x.folderId);
             if (res.code) return failed.push(Object.assign({ index, code: res.code }, res.field ? { field: res.field } : {}));
             if (x.candidateId) {
@@ -2879,7 +2926,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p, q, body) => {
           // Модель «сообщает» устройство; у встроенного сервера — по сумме чисел адреса, как в макете
           const models = (db.reference.deviceModels.find((m) => m.vendor === body.vendor) || {}).models || [];
-          if (!models.length) return { status: 200, body: { model: null } };
+          // Драйверу нужен вход: стенд с stand.probeNeedsLogin без логина модели не называет
+          if (!models.length || (db.stand.probeNeedsLogin && !(body.login && body.password))) return { status: 200, body: { model: null } };
           const sum = body.ip.split(".").reduce((s, x) => s + (Number(x) || 0), 0);
           return { status: 200, body: { model: models[Math.abs(sum) % models.length] } };
         },

@@ -93,3 +93,11 @@
 - **`tests/api-pages.js`, `tests/ui-tree.js`, `tests/scale-large.js`, `tools/check_scale.py`, `tools/check_pages.js`.**
 - **`window.CONSOLEM_TRACE`.** Журнал запросов клиента для `check_scale.py`.
 - **`uiCacheAll`, `uiDevices`, `uiAccess`.** Старые сценарии дочитывают кэш перед собой.
+
+## Этап 7, домен
+
+- **«Топология».** Слово владельца: закладка домена и сервера, домен, кластер, сервер, три уровня. `/domains/{id}/relays`, `/domains/{id}/relays/{name}`.
+- **«Между камерами».** Документ V/07.5, ADR-0112 доп. (9), (10). Запроса не было.
+- **`RoleRow.spread`, `retryClusters`, `AccessApplyResult.clusters`.** Запрос просил `notApplied` и повтор: расхождение видно и после ответа.
+- **`FINGERPRINT_MISMATCH`, `OTHER_CLUSTER`.** Свои коды вместо слов в `params`.
+- **`stand.probeNeedsLogin`, `stand.otherCluster`, `stand.refuseClusters`, `domain.link`, `scenario.outcome`, `relays` в наборе.** Приёмы стенда.

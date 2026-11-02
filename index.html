@@ -2255,6 +2255,7 @@ function srvNode(r){
   const s={id:r.id,type:"server",name:r.name,ip:r.ip};
   if(r.port!==20111)s.port=r.port;
   s.online=r.online;s.role=ROLE_RU[r.role]||r.role;
+  if(r.fingerprint)s.fingerprint=r.fingerprint;
   if(r.class)s.cls=r.class;
   if(r.labels?.length)s.labels=r.labels;
   Object.assign(s,r.telemetry);s.devices=[];
@@ -2716,6 +2717,8 @@ function problemText(e,n){
     VERSION_MISMATCH:i18n("объект изменился — откройте его заново"),
     BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом выполняется групповая операция"),
     NAME_REQUIRED:i18n("Укажите имя"),
+    OTHER_CLUSTER:i18n("камера другого кластера: откройте вход через него"),
+    FINGERPRINT_MISMATCH:i18n("отпечаток не совпал"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
     ADDRESS_TAKEN:i18n("Сервер с таким адресом уже есть"),
     LAST_DOMAIN:i18n("Последний домен удалить нельзя"),
@@ -2908,14 +2911,16 @@ function archDiskLabel(a){const v=archVols(a);return v.length===1?v[0].disk:`${v
 function archById(id){return arch.find(a=>a.id===id)||null}
 // Камера без сервера (добавлена без него) подключается к серверу первого
 // своего хранилища — дальше сервер остаётся с ней и без записи.
+// Где serverId — наблюдение, а не настройка, сервер объявляет его только для чтения: форма не закрепляет его сама
+function serverPinned(n){return canWrite(n,"serverId")}
 function bindArchServer(n){
-  if(!n||n.srvId||(n.type!=="camera"&&n.type!=="ipsrv"))return;
+  if(!n||n.srvId||(n.type!=="camera"&&n.type!=="ipsrv")||!serverPinned(n))return;
   const s=archServer(archById(n.arch));if(s)n.srvId=s.id;
 }
 // Перед сменой хранилища: сервер, который у камеры уже есть (в т.ч. через
 // регистратор или прежнее хранилище), закрепляется за ней.
 function pinCamServer(n){
-  if(!n||n.srvId||(n.type!=="camera"&&n.type!=="ipsrv"))return;
+  if(!n||n.srvId||(n.type!=="camera"&&n.type!=="ipsrv")||!serverPinned(n))return;
   const s=srv(n.id);if(s)n.srvId=s.id;
 }
 // Новое устройство на сервере: сервер получают оно и камеры внутри него
@@ -3798,7 +3803,7 @@ function excludeFromDomain(serverId){
 // говорит, что выполнено, а что нет и почему
 function serversAssign(list){
   return API.post("/servers/assign",{idempotencyKey:opKey(),
-    items:list.map(x=>({serverId:x.s.id,version:hwVer.get(x.s.id),domainId:x.domainId,allocated:x.allocated}))});
+    items:list.map(x=>Object.assign({serverId:x.s.id,version:hwVer.get(x.s.id),domainId:x.domainId,allocated:x.allocated},x.allocated&&x.s.fingerprint?{fingerprint:x.s.fingerprint}:{}))});
 }
 const unallocDisplayCache={};
 function unallocRowFrom(s,added){
@@ -3838,9 +3843,11 @@ function placeInDomain(r){
   paint();
   if(document.getElementById("wiz")?.classList.contains("open")&&wizd.mode==="server-list")wd();
 }
-function addToDomain(serverId,domainId){
+function addToDomain(serverId,domainId,sure){
   const d=domainById(domainId)||domains[0],s=servers.find(x=>x.id===serverId);
   if(!s)return Promise.resolve(false);
+  // Без сверки отпечатка в домен можно принять чужую коробку
+  if(s.fingerprint&&!sure)return new Promise(done=>askConfirm("Сверьте отпечаток",`<p>${escHtml(locName(s))}${s.cls==="camera"?` · ${i18n("камера")}`:""}</p><p><code id="fpShown">${escHtml(s.fingerprint)}</code></p><p class="sub">${i18n("Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую")}</p>`,"",i18n("Отпечаток совпал, добавить"),()=>addToDomain(serverId,domainId,true).then(done),{html:true}));
   return serversAssign([{s,domainId:d.id,allocated:true}]).then(res=>{
     res.done.forEach(placeInDomain);
     if(res.failed.length)toast(problemText(res.failed[0].code,s));
@@ -9013,7 +9020,24 @@ function liveEnsure(n){
   const note=t=>document.querySelectorAll(`[data-live="${n.id}"] .live-note`).forEach(el=>{el.textContent=t});
   API.post(`/devices/${n.id}/live`,{width:640,height:360}).then(r=>{
     liveSessions.set(n.id,r);note(i18n("Кадр-заглушка: встроенный сервер видео не отдаёт"));
-  }).catch(e=>{const error=problemText(e);liveSessions.set(n.id,{error});note(error)});
+  }).catch(e=>{
+    const error=problemText(e),url=e?.problem?.params?.url;
+    liveSessions.set(n.id,{error});note(error);
+    // Камера другого кластера: вход через него
+    if(e?.problem?.code==="OTHER_CLUSTER"&&url)toastAction("live:"+n.id,i18n("Камера другого кластера"),i18n("Открыть"),()=>window.open(url,"_blank","noopener"),10000);
+  });
+}
+// Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт
+function recTargetCardHtml(n){
+  if(n.type!=="camera"||!can("putRecordingTarget")||serverPinned(n))return"";
+  const t=n.recordingTarget,dom=domains.find(d=>d.id===deviceDomain(n.id));
+  return card("Сервер записи",`<div><label>${i18n("Приёмник")}</label><select id="recTarget" ${onEv("change",["recTargetSet",`${n.id}`,onEv.value])}>
+    <option value="">${i18n("Не назначен")}</option>${(dom?.servers||[]).map(s=>`<option value="${s.id}" ${t?.serverId===s.id?"selected":""}>${escHtml(locName(s))}</option>`).join("")}</select></div>
+    ${t?"":`<p class="sub">${i18n("Нет назначения — запись не идёт")}</p>`}`);
+}
+function recTargetSet(id,serverId){
+  const n=find(id)?.n;
+  API.put(`/devices/${id}/recording-target`,{serverId:serverId||null,copies:n?.recordingTarget?.copies||1}).then(r=>{hwApplyDevice(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
 // Кадр-заглушка: улица и здание. Над ним рисуются зоны детекторов
 function liveSceneSvg(){
@@ -9066,10 +9090,11 @@ function ptzStop(){
 }
 function ptzCardHtml(n){
   if(!n.ptz)return"";
-  const list=presetRows(n),off=n.online===false,full=presetFree(n)==null;
+  // Камера за NAT: пресет через канал домена, движение арендой недоступно
+  const list=presetRows(n),off=n.online===false,noMove=off||n.direct===false,full=presetFree(n)==null;
   const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
     <td class="ca-x"><button type="button" class="btn s" ${off?"disabled":""} title="${i18n("Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
-  return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
+  return card("Пресеты",`<div class="ptz-pad">${PTZ_PAD.map(([t,l],i)=>`<button type="button" class="btn s" data-ptz="${i}" title="${i18n(l)}" aria-label="${i18n(l)}" ${noMove?"disabled":""} ${onEv("mousedown",["ptzStart",`${n.id}`,i])}>${t}</button>`).join("")}</div>
     <p class="sub">${i18n("Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
     <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
@@ -9487,7 +9512,7 @@ function formBase(n){
     if(tab==="acc")return accCamAccessHtml(n);
     if(tab==="rec"){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
-      return camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}${recSchedHtml(n)}${recMicHtml(n)}</div>
+      return recTargetCardHtml(n)+camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}${recSchedHtml(n)}${recMicHtml(n)}</div>
       ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет: репликация забирает записи только из другого архива этой камеры.")}</p>`}
       ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры лежат на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("оттуда их и забирает сервер.")} `:""}${i18n("Сервер забирает записи к себе без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Период выбирает сервер, отставание видно в строке записи. Минуты, которые источник стёр раньше, чем их забрали, пропадают: об этом говорит строка и журнал.")}</div>`:""}
       ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое: живой поток идёт сюда, только пока основная запись должна идти и не идёт.")}</div>`:""}
@@ -17903,6 +17928,8 @@ function nvrRecCardHtml(n){
 // сетевые хранилища домена. Хранилище другого сервера её туда не переносит.
 // Камера без сервера (без записи или на сетевом хранилище) выбирает любое.
 function archReach(n){
+  // Камеру размещает система: выбор архива зависит только от вида, а не от сервера
+  if(!serverPinned(n))return arch;
   const s=cameraTreeServer(n.id);
   return s?[...serverArchives(s.id),...domainArchives(SERVER_DOMAIN[s.id])]:arch;
 }
@@ -18635,8 +18662,9 @@ function detectManualModel(){
   const m=wizd.manual;
   if(!m.ip||!m.port||!m.vendor){toast("Укажите IP, порт и производителя");return}
   // Модель сообщает само устройство: спрашиваем через сервер (POST /devices/probe)
-  API.post("/devices/probe",{ip:m.ip,port:+m.port||80,vendor:m.vendor}).then(r=>{
-    if(!r.model){toast("Подходящая модель не найдена");return}
+  // Определить модель может только драйвер: вместе с адресом уходят логин и пароль, если введены
+  API.post("/devices/probe",Object.assign({ip:m.ip,port:+m.port||80,vendor:m.vendor},m.user?{login:m.user}:{},m.pass?{password:m.pass}:{})).then(r=>{
+    if(!r.model){toast(m.user&&m.pass?"Подходящая модель не найдена":"Модель не определена: укажите логин и пароль");return}
     m.model=r.model;
     renderDeviceWizard();toast("Модель устройства определена");
   }).catch(e=>toast(problemText(e)));

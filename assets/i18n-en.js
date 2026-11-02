@@ -656,5 +656,16 @@ window.I18N_EN={
 "В домене нет серверов":"No servers in the domain",
 "Тянуть узел — двигать · колесо — масштаб · клик — открыть в дереве · фон — сдвиг":"Drag a node to move · wheel to zoom · click to open in the tree · drag the background to pan",
 "Узлы списком":"Nodes as a list",
-"Кластер":"Cluster"
+"Кластер":"Cluster",
+"Модель не определена: укажите логин и пароль":"Model not detected: enter login and password",
+"Сервер записи":"Recording server",
+"Приёмник":"Receiver",
+"Не назначен":"Not assigned",
+"Нет назначения — запись не идёт":"No assignment: not recording",
+"Камера другого кластера":"Camera of another cluster",
+"Сверьте отпечаток":"Check the fingerprint",
+"Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую":"Compare with the fingerprint on the box itself. Without the check, a foreign box can join the domain",
+"Отпечаток совпал, добавить":"Fingerprint matches, add",
+"камера другого кластера: откройте вход через него":"camera of another cluster: open the entry through it",
+"отпечаток не совпал":"fingerprint mismatch"
 };

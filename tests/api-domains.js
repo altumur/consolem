@@ -3,7 +3,7 @@
   const { test, makeEnv, assert, key, FX } = ApiTest;
   const UNKNOWN_DOMAIN = "10009999-0000-4000-8000-000000000000";
   const [d1, d2] = FX.domains;
-  const unalloc = FX.servers.find((s) => !s.allocated && s.domainId === d1.id);
+  const unalloc = FX.servers.find((s) => !s.allocated && s.domainId === d1.id && s.class !== "camera");
   const inDomain = FX.servers.find((s) => s.allocated && s.domainId === d1.id && s.online);
   const offlineServer = FX.servers.find((s) => s.allocated && !s.online);
   const rootFolder = FX.folders.find((f) => f.domainId === d1.id && !f.parentId && FX.folders.some((x) => x.parentId === f.id));
@@ -68,7 +68,7 @@
 
   test("Серверы: добавить в домен и исключить одним запросом — версия +1, добавленный в конце списка", async () => {
     const env = await makeEnv();
-    const res = await env.call("POST", "/servers/assign", assign([{ serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true }]));
+    const res = await env.call("POST", "/servers/assign", assign([{ serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true, fingerprint: unalloc.fingerprint }]));
     assert.status(res, 200);
     assert.eq([res.body.done.length, res.body.failed.length, res.body.done[0].allocated], [1, 0, true], "добавлен");
     assert.ok(res.body.done[0].version !== unalloc.version, "версия изменилась");
@@ -81,7 +81,7 @@
   test("Серверы: частичный успех — устаревшая версия и неизвестный сервер в failed, остальное выполнено", async () => {
     const env = await makeEnv();
     const res = await env.ok("POST", "/servers/assign", assign([
-      { serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true },
+      { serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true, fingerprint: unalloc.fingerprint },
       { serverId: inDomain.id, version: "stale", domainId: d1.id, allocated: false },
       { serverId: "20009999-0000-4000-8000-000000000000", version: "1", domainId: d1.id, allocated: true },
       { serverId: offlineServer.id, version: offlineServer.version, domainId: UNKNOWN_DOMAIN, allocated: true },
@@ -93,7 +93,7 @@
 
   test("Серверы: повтор с тем же idempotencyKey — тот же ответ, второй раз не выполняется", async () => {
     const env = await makeEnv();
-    const body = assign([{ serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true }]);
+    const body = assign([{ serverId: unalloc.id, version: unalloc.version, domainId: d1.id, allocated: true, fingerprint: unalloc.fingerprint }]);
     const a = await env.ok("POST", "/servers/assign", body);
     const b = await env.ok("POST", "/servers/assign", body);
     assert.eq(b, a, "тот же ответ");

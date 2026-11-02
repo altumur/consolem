@@ -9662,7 +9662,8 @@
     "putScenarios",
     "getScenariosStatus",
     "listRelays",
-    "getRelay"
+    "getRelay",
+    "putRecordingTarget"
    ],
    "deviceTypes": [
     "camera",

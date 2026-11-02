@@ -3,7 +3,7 @@
   "info": {
     "title": "Конфигуратор — API",
     "version": "0.1.0",
-    "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде.",
+    "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
       "identifier": "LicenseRef-Internal"
@@ -554,7 +554,7 @@
           "hardware"
         ],
         "summary": "Добавить серверы в домен или исключить из него",
-        "description": "Групповая операция одним запросом: частичный успех, повтор с тем же idempotencyKey ничего не выполняет снова. «Отменить» — обратный запрос. Сервер, над которым идёт групповая операция (POST /operations), — в failed с кодом BUSY",
+        "description": "Групповая операция одним запросом: частичный успех, повтор с тем же idempotencyKey ничего не выполняет снова. «Отменить» — обратный запрос. Сервер, над которым идёт групповая операция (POST /operations), — в failed с кодом BUSY allocated: false исключает из домена. Принять и исключить может только администратор домена, иначе 403. Камера w2c до приёма видна сервером class: camera, после приёма записи сервера нет: entity.deleted сервера и entity.created камеры.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1005,7 +1005,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Идёт на серверах кластера, через который вошли, и видит их подсети."
       }
     },
     "/devices/{deviceId}": {
@@ -1059,7 +1060,7 @@
           "hardware"
         ],
         "summary": "Изменить устройство",
-        "description": "Сразу, без очереди: переименование в дереве. План карточки уходит операцией (POST /operations). Над объектом идёт групповая операция (POST /operations) — 409 BUSY, какой объект — в params.targetId. Поле вне capabilities.writableFields вида и любое поле ipsrv с derived: true — 422 NOT_SUPPORTED с field",
+        "description": "Сразу, без очереди: переименование в дереве. План карточки уходит операцией (POST /operations). Над объектом идёт групповая операция (POST /operations) — 409 BUSY, какой объект — в params.targetId. Поле вне capabilities.writableFields вида и любое поле ipsrv с derived: true — 422 NOT_SUPPORTED с field 409 SERVER_OFFLINE — молчит сервер устройства; 409 DEVICE_OFFLINE — молчит камера w2c, своего сервера у неё нет. Правка устройства другого кластера идёт через канал домена, доходит за 2–30 с: ответ ждёт до 30 с, клиент держит запрос 35 с. Для хода по шагам — POST /operations.",
         "parameters": [
           {
             "name": "deviceId",
@@ -1135,7 +1136,7 @@
           "hardware"
         ],
         "summary": "Удалить устройство",
-        "description": "Вместе с дочерними; у ipsrv с записью устройства камеры остаются и теряют только родителя (parentId: null, entity.changed). Убирает его из папок и из записи по детекторам у камер. Над ним, дочерним или камерой, что записывает по его детектору, идёт групповая операция — 409 BUSY, какой объект — в params.targetId. Вид из capabilities.foundDeviceTypes и ipsrv с derived: true — 422 NOT_SUPPORTED, field: type",
+        "description": "Вместе с дочерними; у ipsrv с записью устройства камеры остаются и теряют только родителя (parentId: null, entity.changed). Убирает его из папок и из записи по детекторам у камер. Над ним, дочерним или камерой, что записывает по его детектору, идёт групповая операция — 409 BUSY, какой объект — в params.targetId. Вид из capabilities.foundDeviceTypes и ipsrv с derived: true — 422 NOT_SUPPORTED, field: type 409 SERVER_OFFLINE — молчит сервер устройства; 409 DEVICE_OFFLINE — молчит камера w2c, своего сервера у неё нет. Правка устройства другого кластера идёт через канал домена, доходит за 2–30 с: ответ ждёт до 30 с, клиент держит запрос 35 с. Для хода по шагам — POST /operations.",
         "parameters": [
           {
             "name": "deviceId",
@@ -1191,7 +1192,7 @@
           "hardware"
         ],
         "summary": "Живое видео для настройки",
-        "description": "Поток под размер окна выбирает сервер, клиент подключается по WebRTC на whepUrl с token. Нужно для настройки детекторов и пресетов; просмотр — другая часть консоли. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED",
+        "description": "Поток под размер окна выбирает сервер, клиент подключается по WebRTC на whepUrl с token. Нужно для настройки детекторов и пресетов; просмотр — другая часть консоли. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED Вошли через другой кластер — 409 OTHER_CLUSTER, params.url: форма даёт кнопку «Открыть».",
         "parameters": [
           {
             "name": "deviceId",
@@ -1872,7 +1873,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "description": "Папки ведёт только встроенная роль «Администратор»: функции роли и права на папку этого не дают, иначе 403 PERMISSION_DENIED"
+        "description": "Папки ведёт только встроенная роль «Администратор»: функции роли и права на папку этого не дают, иначе 403 PERMISSION_DENIED Папки общие на домен: без связи с доменом создание, правка, удаление и состав — 409 SERVER_OFFLINE, шаг folderIds — fail SERVER_OFFLINE, POST /devices с folderId — 422 VALIDATION_FAILED, field: folderId."
       }
     },
     "/folders/{folderId}": {
@@ -3291,7 +3292,7 @@
           "discovery"
         ],
         "summary": "Запустить поиск устройств в сети домена",
-        "description": "Найденное приходит в поток по одному (discovery.progress), конец — discovery.finished. Новый поиск заменяет итог прежнего. Уже идёт — 409 BUSY",
+        "description": "Найденное приходит в поток по одному (discovery.progress), конец — discovery.finished. Новый поиск заменяет итог прежнего. Уже идёт — 409 BUSY Поиск идёт на всех серверах кластера, через который вошли: устройство сети другого кластера находится входом через него. Один поиск на домен, второй — 409 BUSY. Заводских логина и пароля система не подбирает: login, password у кандидата пусты. support: ok значит «драйвер есть», а не «вошли». progress — доля времени поиска.",
         "parameters": [
           {
             "name": "domainId",
@@ -7253,6 +7254,64 @@
           }
         }
       }
+    },
+    "/devices/{deviceId}/recording-target": {
+      "put": {
+        "operationId": "putRecordingTarget",
+        "tags": [
+          "hardware"
+        ],
+        "summary": "Назначить сервер-приёмник записи",
+        "description": "Камера w2c и камера другого кластера пишутся на назначенный им сервер. serverId устройства — наблюдение, он меняется сам",
+        "parameters": [
+          {
+            "name": "deviceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordingTargetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Устройство",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Device"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -7585,6 +7644,10 @@
             ],
             "readOnly": true,
             "description": "Только чтение: чем представился, сервер или камера, у стучащегося в домен тоже. Человек подтверждает это при приёме"
+          },
+          "fingerprint": {
+            "type": "string",
+            "description": "Отпечаток стучащейся коробки: администратор сверяет его перед приёмом"
           }
         },
         "additionalProperties": false,
@@ -8146,6 +8209,29 @@
               "format": "uuid"
             },
             "description": "Папки устройства. Только в GET /devices/{id}"
+          },
+          "recordingTarget": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "serverId",
+              "copies"
+            ],
+            "description": "Только чтение: сервер-приёмник записи камеры w2c и камеры другого кластера. Нет поля — назначения нет, запись не идёт. Меняется через PUT /devices/{id}/recording-target",
+            "properties": {
+              "serverId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "copies": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
+          "direct": {
+            "type": "boolean",
+            "description": "Только чтение. false — камера за NAT: живое видео идёт из кластера приёмника, пресет задаётся через канал домена с задержкой, движение арендой недоступно"
           }
         },
         "additionalProperties": false,
@@ -12082,7 +12168,9 @@
           "NOT_REVERTIBLE",
           "DEVICE_REFUSED",
           "PASSWORD_NOT_ADMIN",
-          "INVALID_CURSOR"
+          "INVALID_CURSOR",
+          "OTHER_CLUSTER",
+          "FINGERPRINT_MISMATCH"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
         "x-enum-descriptions": {
@@ -12120,7 +12208,9 @@
           "NOT_REVERTIBLE": "Операцию нельзя откатить или повторить (409), причина в params.reason: notLast — не последняя в стопке, isRevert — это сам откат, expired — срок вышел, reverted — уже откачена, running — не закончена, empty — без удачных шагов, stale — повтор очищен или срок вышел",
           "DEVICE_REFUSED": "Устройство отказало в команде (409), причина — в params.reason: noOperation — такой команды у единицы нет, refused — устройство ответило отказом",
           "PASSWORD_NOT_ADMIN": "«Администратора» нельзя назначить пользователю, чей последний пароль задал не он сам и не администратор, напрямую и через группу (409, field: roleIds, params.id — пользователь). Сначала администратор меняет пароль",
-          "INVALID_CURSOR": "Курсор просрочен или чужой (422): форма читает с начала"
+          "INVALID_CURSOR": "Курсор просрочен или чужой (422): форма читает с начала",
+          "OTHER_CLUSTER": "Камера другого кластера: живое видео и PTZ идут через него. params.url — вход через её кластер (409)",
+          "FINGERPRINT_MISMATCH": "Отпечаток приёма не совпал с Server.fingerprint"
         }
       },
       "ServerPatch": {
@@ -12396,6 +12486,10 @@
                 "allocated": {
                   "type": "boolean",
                   "description": "true — в домене, false — нераспределённый в этом домене"
+                },
+                "fingerprint": {
+                  "type": "string",
+                  "description": "Подтверждение сверки: Server.fingerprint как есть. У сервера с отпечатком без него или с другим — в failed с кодом FINGERPRINT_MISMATCH"
                 }
               }
             }
@@ -13448,6 +13542,13 @@
             "maximum": 65535
           },
           "vendor": {
+            "type": "string"
+          },
+          "login": {
+            "type": "string",
+            "description": "Определить модель может только драйвер: без логина и пароля система вправе ответить model: null"
+          },
+          "password": {
             "type": "string"
           }
         }
@@ -18134,6 +18235,28 @@
               "type": "string"
             },
             "description": "Имена членов за ретранслятором по возрастанию, до 5000"
+          }
+        }
+      },
+      "RecordingTargetRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "serverId",
+          "copies"
+        ],
+        "properties": {
+          "serverId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "null снимает назначение"
+          },
+          "copies": {
+            "type": "integer",
+            "minimum": 1
           }
         }
       }
