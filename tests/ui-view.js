@@ -271,6 +271,17 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   v.noHolder = true;
   viewFill();
   ok(/только пока его хранит архив записи/.test(text("[data-hold-warn]")), "нет держателя: предупреждение");
+  // Потеря удержанного не молчит, под угрозой — слабее
+  const incVols = (await Promise.all((await API.get("/archives", { kind: "incidents", limit: 5 })).items.map((a) => API.get("/volumes", { archiveId: a.id, limit: 50 })))).flatMap((x) => x.items);
+  if (incVols.some((x) => x.incidentsLost)) {
+    ok(/потерял удержанное: 1 удержание, 7 мин записи перезаписано кольцом/.test(text("[data-hold-lost]")), "потеря: " + text("[data-hold-lost]"));
+    ok(q("[data-hold-lost]").classList.contains("nt") && /Под угрозой на томе инцидентов: 1 удержание/.test(text("[data-hold-risk]")), "под угрозой: " + text("[data-hold-risk]"));
+    ok(!q("[data-hold-risk]").classList.contains("nt"), "под угрозой слабее потери");
+  }
+  v.holdLost = null;
+  v.holdRisk = 0;
+  viewFill();
+  ok(!q("[data-hold-lost]") && !q("[data-hold-risk]"), "потерь нет: слов нет");
 
   // Камера другого кластера: чтение есть, запись — отказ словами. Уход закрывает всё
   API.get = get0;

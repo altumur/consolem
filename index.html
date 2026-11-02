@@ -9638,7 +9638,14 @@ async function holdsHolder(v){
   try{
     const dom=deviceDomain(v.id),a=await API.get("/archives",Object.assign({kind:"incidents",limit:5},dom?{domainId:dom}:{}));
     const vols=(await Promise.all(a.items.map(x=>API.get("/volumes",{archiveId:x.id,limit:50})))).flatMap(x=>x.items);
-    if(lv===v){v.noHolder=!vols.some(x=>x.enabled!==false&&x.heldBy);viewFill()}
+    // Потери тома — на весь том, не только этой камеры: метки чужих камер форме не разобрать, а молчать о потере нельзя
+    const lost=vols.flatMap(x=>Object.values(x.incidentsLost||{}));
+    if(lv===v){
+      v.noHolder=!vols.some(x=>x.enabled!==false&&x.heldBy);
+      v.holdLost=lost.length?{n:lost.length,sec:lost.reduce((a,b)=>a+b,0)}:null;
+      v.holdRisk=vols.reduce((a,x)=>a+(x.incidentsAtRisk||[]).length,0);
+      viewFill();
+    }
   }catch(e){}
 }
 function holdRowHtml(h){
@@ -9650,6 +9657,8 @@ function holdRowHtml(h){
 function holdsCardHtml(v){
   if(!can("listHolds"))return"";
   return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержанное держится, только пока его хранит архив записи: у тома инцидентов нет держателя")}</div>`:""}
+    ${v.holdLost?`<div class="nt bk-warn" data-hold-lost>${i18n("Том инцидентов потерял удержанное")}: ${v.holdLost.n} ${i18n(plural(v.holdLost.n,"удержание|удержания|удержаний"))}, ${escHtml(lagText(v.holdLost.sec))} ${i18n("записи перезаписано кольцом")}</div>`:""}
+    ${v.holdRisk?`<p class="sub" data-hold-risk>${i18n("Под угрозой на томе инцидентов")}: ${v.holdRisk} ${i18n(plural(v.holdRisk,"удержание|удержания|удержаний"))}</p>`:""}
     ${(v.holds||[]).length?`<table class="ca-tbl"><tbody>${v.holds.map(holdRowHtml).join("")}</tbody></table>`:`<p class="sub">${i18n("Удержаний нет")}</p>`}
     ${v.holdsNext?`<button type="button" class="lk" data-hold-more ${onEv("click",["holdsMore"])}>${i18n("Показать дальше")}</button>`:""}
     ${can("createHold")?`<div class="ca-foot"><button type="button" class="btn s" data-hold-add ${onEv("click",["holdAsk"])}>${i18n("Удержать показанное")}</button></div>`:""}`;
