@@ -20741,7 +20741,7 @@ function asstRender(){
     a.result?asstResultHtml(a.result):"",
     a.plan?"":`<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
-    `<div class="asst-act">`,
+    `<div class="asst-act"><button type="button" class="btn s" id="asstClose" ${onEv("click",["goClose"])}>${i18n("Закрыть")}</button>`,
     a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
     `<span class="asst-gap"></span>`,
     a.busy&&a.live?`<button type="button" class="btn s" id="asstCancel" ${onEv("click",["asstCancel"])}>${i18n("Отменить ход")}</button>`:"",

@@ -232,6 +232,12 @@ UiCheck(async ({ ok, until }) => {
   close();
   ok(asst === null, "окно закрыто");
   ok(await until(() => aborted === a0 + 2), "закрытие окна обрывает запрос");
+  open();
+  say("выключи запись Главный вход");
+  ok(await until(() => el("asstClose") && el("asstCancel") && /читаю систему/.test(el("asstLine")?.textContent || "")), "«Закрыть» есть и пока идёт ход");
+  el("asstClose").click();
+  ok(asst === null && !el("gopop").classList.contains("open"), "«Закрыть» закрыла окно");
+  ok(await until(() => aborted === a0 + 3), "«Закрыть» снимает идущий ход");
 
   // Неверный код: 401 — не выход из системы, код сброшен, панель на заглушке
   const logged = apiLoggedOut;

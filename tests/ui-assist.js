@@ -223,6 +223,7 @@ UiCheck(async ({ ok, until }) => {
   mouse(document.getElementById("goAsk"));
   ok(asst && popOpen(), "мышь по кнопке: окно открыто, ход идёт");
   ok(await until(() => document.getElementById("asstApply")), "мышь по кнопке: ход дошёл до плана");
+  ok(document.getElementById("asstClose"), "«Закрыть» есть и при плане");
   press(document.getElementById("asstDecline"));
   ok(asst && popOpen() && !document.getElementById("asstApply"), "«Отказаться» мышью: окно открыто");
   mouse(document.body);
@@ -237,8 +238,9 @@ UiCheck(async ({ ok, until }) => {
   ok(asst && popOpen(), "окно открыто после «Применить»");
   mouse(document.getElementById("asstText"));
   ok(asst && popOpen(), "мышь внутри окна его не закрывает");
-  mouse(document.body);
-  ok(asst === null && !popOpen(), "мышь мимо закрывает");
+  ok(document.getElementById("asstClose"), "«Закрыть» есть и при итоге");
+  press(document.getElementById("asstClose"));
+  ok(asst === null && !popOpen(), "«Закрыть» закрыла");
   // Выбор строки поиска мышью: окно закрывается, переход выполнен
   inp.value = "";
   goInput("");
