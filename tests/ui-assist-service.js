@@ -109,7 +109,7 @@ UiCheck(async ({ ok, until }) => {
   ok(call.url === SVC + "/assist/turns", "адрес хода: " + call.url);
   ok(call.init.headers["X-Assist-Code"] === CODE, "заголовок X-Assist-Code");
   ok(call.init.credentials === "omit", "куки не уходят");
-  ok(!("secrets" in call.body) && !("kind" in call.body) && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "тело без secrets, kind и context");
+  ok(!("secrets" in call.body) && call.body.kind === "auto" && !("context" in call.body) && call.body.text === "выключи запись Главный вход", "kind: auto, без secrets и context");
   ok(!call.url.includes(CODE) && !call.init.body.includes(CODE), "код только в заголовке");
   ok(await until(() => /в очереди: место 2/.test(el("asstLine")?.textContent || "")), "место в очереди показано");
   ok(el("asstSend").disabled && el("asstCancel"), "идёт ход: отправка заперта, отмена есть");
@@ -121,7 +121,9 @@ UiCheck(async ({ ok, until }) => {
 
   // Снимок: все ключи, полные записи, по контракту, паролей нет
   ok(["reference", "devices", "folders", "rules", "schedules", "modes", "maintenanceWindows", "me"].every((k) => k in world), "в снимке все ключи: " + Object.keys(world).join());
-  ok(Object.keys(world).length === 9, "лишних ключей нет: " + Object.keys(world).join());
+  ok(Object.keys(world).length === 11, "лишних ключей нет: " + Object.keys(world).join());
+  ok(JSON.stringify(world.servers) === JSON.stringify((await API.get("/servers")).items), "серверы как в GET /servers");
+  ok(JSON.stringify(world.licenses) === JSON.stringify((await API.get("/licenses")).items), "лицензии как в GET /licenses");
   // Роли — только id и name: для шагов ask, escalate
   const accRolesAll = (await API.get("/access")).roles;
   ok(world.roles.length === accRolesAll.length && world.roles.every((x, i) => x.id === accRolesAll[i].id && x.name === accRolesAll[i].name), "роли все, по порядку");
@@ -185,9 +187,97 @@ UiCheck(async ({ ok, until }) => {
   answer = sse({ type: "question", text: "Какое правило?", context: "c" });
   say("убери условие");
   ok(await until(() => el("asstAsk")), "ход о правилах");
-  ok(calls[calls.length - 1].body.kind === "rules", "kind как у формы");
+  ok(calls[calls.length - 1].body.kind === "auto", "в разделе правил тип решает служба: kind auto");
   close();
   goApp("hw");
+
+  // Тип выбрала служба: показан словом, выбор из трёх
+  const kinds = () => [...el("gopop").querySelectorAll("[data-asst-kind]")];
+  const kindBtn = (k) => el("gopop").querySelector(`[data-asst-kind="${k}"]`);
+  const lastCall = () => calls[calls.length - 1];
+  open();
+  ok(!el("asstKind"), "до хода типа нет");
+  answer = sse({ type: "progress", text: "читаю" }, { type: "question", text: "На какой камере?", context: "b1:без-типа" });
+  say("выключи запись");
+  ok(await until(() => el("asstAsk")), "progress без kind");
+  ok(!el("asstKind"), "служба не назвала тип — панели типа нет");
+  open();
+  answer = sse({ type: "progress", kind: "config", text: "читаю" }, { type: "progress", kind: "rules", text: "ещё" }, { type: "question", text: "На какой камере?", context: "b1:тип" });
+  say("выключи запись");
+  ok(await until(() => el("asstKind")), "тип показан");
+  ok(/Тип: Настройка/.test(el("asstKind").textContent), "по первому progress: " + el("asstKind").textContent);
+  ok(kinds().map((b) => b.textContent).join() === "Настройка,Правила,Вопрос о системе", "выбор: " + kinds().map((b) => b.textContent).join());
+  ok(kindBtn("config").getAttribute("aria-pressed") === "true", "текущий отмечен");
+  ok(await until(() => el("asstAsk")), "спорное — обычный вопрос службы");
+
+  // Смена типа мышью: новый запрос, явный kind, тот же текст, без context
+  const nKind = calls.length;
+  answer = sse({ type: "progress", kind: "rules", text: "читаю правила" }, { type: "question", text: "Какое правило?", context: "b1:правила" });
+  press(kindBtn("rules"));
+  ok(await until(() => calls.length === nKind + 1), "смена типа — новый запрос");
+  ok(lastCall().body.kind === "rules" && lastCall().body.text === "выключи запись" && !("context" in lastCall().body), "явный kind, тот же текст, без context");
+  ok(await until(() => /Тип: Правила/.test(el("asstKind")?.textContent || "")), "тип сменился");
+  ok(lastCall().body.world.rules.length, "снимок при смене типа тоже уходит");
+  // Тот же тип — запроса нет. Ответ на вопрос идёт с context и выбранным типом
+  press(kindBtn("rules"));
+  ok(calls.length === nKind + 1, "тот же тип запроса не шлёт");
+  answer = sse({ type: "progress", kind: "rules", text: "читаю" }, { type: "question", text: "Что сделать?", context: "b1:дальше" });
+  say("Охрана входа ночью");
+  ok(await until(() => calls.length === nKind + 2), "ответ ушёл");
+  ok(lastCall().body.kind === "rules" && lastCall().body.context === "b1:правила", "выбор человека держится в разговоре, context как есть");
+  ok(await until(() => el("asstAsk")?.textContent === "Что сделать?"), "разговор идёт");
+
+  // Вопрос о системе: answer — конец хода, поле на месте, разговор идёт с context, плана нет
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю систему" }, { type: "answer", text: "Серверов: 12.\nЛицензий хватает.", context: "b1:ответ" });
+  press(kindBtn("explain"));
+  ok(await until(() => el("asstAnswer")), "ответ показан");
+  ok(lastCall().body.kind === "explain", "явный explain");
+  ok(el("asstAnswer").textContent === "Серверов: 12.\nЛицензий хватает.", "текст ответа");
+  ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
+  ok(await until(() => !asst.busy), "ход кончился");
+  ok(el("asstText") && !el("asstApply") && !asst.plan && !el("asstDecline"), "поле ввода есть, «Применить» нет");
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "answer", text: "Нет, все в сети.", context: "b1:ответ2" });
+  say("а офлайн есть?");
+  ok(await until(() => /все в сети/.test(el("asstAnswer")?.textContent || "")), "разговор продолжился");
+  ok(lastCall().body.context === "b1:ответ" && lastCall().body.kind === "explain", "с context прошлого ответа");
+  ok(!/Серверов: 12/.test(el("asstAnswer").textContent), "прежний ответ снят");
+  // План при explain не показывается
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", summary: "x", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: {}, name: cam.name, changes: [] }] });
+  say("а план?");
+  ok(await until(() => /плана нет/.test(el("asstRefused")?.textContent || "")), "план при explain не показан, словами");
+  ok(!el("asstApply") && !asst.plan, "«Применить» нет");
+
+  // Смена типа посреди хода: идущий снимается, новый уходит
+  open();
+  answer = hold({ type: "progress", kind: "config", text: "читаю" });
+  say("выключи запись");
+  ok(await until(() => el("asstKind")), "ход идёт, тип показан");
+  const nBusy = calls.length, ab = aborted;
+  answer = sse({ type: "progress", kind: "rules", text: "читаю правила" }, { type: "question", text: "Какое правило?", context: "b1:после" });
+  press(kindBtn("rules"));
+  ok(await until(() => calls.length === nBusy + 1 && aborted === ab + 1), "идущий снят, новый ушёл");
+  ok(await until(() => el("asstAsk")), "новый ход кончился");
+  ok(lastCall().body.kind === "rules" && lastCall().body.text === "выключи запись" && !asst.busy, "явный kind");
+
+  // Заглушка: типа нет, kind как раньше — по разделу, службы нет
+  const streamWas = API.stream, sent0 = [], nStub = calls.length;
+  API.stream = (p, b, ...r) => { sent0.push(b); return streamWas(p, b, ...r); };
+  open();
+  asst.stub = true;
+  say("выключи запись Главный вход");
+  ok(await until(() => el("asstApply")), "заглушка ответила");
+  ok(!("kind" in sent0[0]) && !el("asstKind"), "у заглушки нет ни auto, ни панели типа");
+  close();
+  goApp("rules");
+  open();
+  asst.stub = true;
+  say("при движении на Главный вход спроси оператора");
+  ok(await until(() => el("asstApply")), "заглушка в правилах");
+  ok(sent0[1].kind === "rules", "в разделе правил — rules");
+  close();
+  goApp("hw");
+  API.stream = streamWas;
+  ok(calls.length === nStub, "служба не вызывалась");
 
   // Пароль наружу не уходит: ни полем, ни словами, ни ответом на вопрос
   const n0 = calls.length;
@@ -220,6 +310,15 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstAsk")), "ход без ролей прошёл");
   ok(!("roles" in calls[calls.length - 1].body.world), "403 — ключа roles нет");
   API.get = getBefore;
+  // Серверов и лицензий читать нельзя: ключей нет, ход идёт
+  const capsWas = ["listServers", "listLicenses"];
+  capsWas.forEach((x) => CAPS.operations.delete(x));
+  open();
+  answer = sse({ type: "answer", text: "Этих данных нет.", context: "b1:нет" });
+  say("сколько лицензий");
+  ok(await until(() => el("asstAnswer")), "ход без серверов и лицензий прошёл");
+  ok(!("servers" in calls[calls.length - 1].body.world) && !("licenses" in calls[calls.length - 1].body.world), "не объявлено — ключей нет");
+  capsWas.forEach((x) => CAPS.operations.add(x));
 
   // План службы с ask, escalate, что бы она ни написала, заводится наблюдающим или выключенным
   const rulePlan = (name, steps, extra) => ({ type: "plan", summary: name, context: "b1:р", rules: [{ table: "scenarios", op: "create", body: Object.assign({ name, start: "manual", runMode: "manual", triggers: [], conditions: [], steps }, extra) }] });

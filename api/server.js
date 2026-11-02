@@ -3824,7 +3824,11 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       ],
       // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
       // клиент отдаёт их по одному, петля пишет строками data:
-      ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
+      ["POST", "/assist/turns", (p, q, body) => {
+        // auto и explain — только у службы демо-страницы: бэкенд текст просьбы не разбирает
+        if (body.kind === "auto" || body.kind === "explain") return problem(422, "VALIDATION_FAILED", "Этот тип хода есть только у службы демо-страницы", { field: "kind" });
+        return { status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } };
+      }],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
         const c = clients.get(p.clientId);

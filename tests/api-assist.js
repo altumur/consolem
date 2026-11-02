@@ -75,6 +75,10 @@
     assert.ok(config.items.length && !("rules" in config), "kind: config — то же");
     const rules = lastOf(await turn(env, said));
     assert.ok(rules.type === "plan" && rules.rules.length === 1 && !("items" in rules), "kind: rules — место плана правил");
+    for (const kind of ["auto", "explain"]) {
+      const only = await env.call("POST", "/assist/turns", { text: said, kind });
+      assert.eq([only.status, only.body.code, only.body.field], [422, "VALIDATION_FAILED", "kind"], `${kind} — только у службы демо-страницы`);
+    }
     const bad = await env.call("POST", "/assist/turns", { text: said, kind: "other" });
     assert.status(bad, 422, "VALIDATION_FAILED");
     assert.eq(bad.body.field, "kind", "поле");

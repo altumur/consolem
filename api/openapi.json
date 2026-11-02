@@ -16854,10 +16854,12 @@
           "kind": {
             "type": "string",
             "enum": [
+              "auto",
               "config",
-              "rules"
+              "rules",
+              "explain"
             ],
-            "description": "Тип запроса: config — настройка устройств, rules — правила автоматизации. Нет поля — config. Тип называет вызывающий: бэкенд текст просьбы не разбирает, чтобы его угадать"
+            "description": "Тип запроса: config — настройка устройств, rules — правила автоматизации, explain — вопрос о системе, только чтение, auto — тип выбирает служба. Нет поля — config. auto и explain только у службы демо-страницы: бэкенд V/11 текст просьбы не разбирает, чтобы угадать тип, и отвечает 422 VALIDATION_FAILED, field: kind"
           },
           "world": {
             "$ref": "#/components/schemas/AssistWorld"
@@ -16938,14 +16940,16 @@
               "question",
               "plan",
               "refused",
+              "answer",
               "error"
             ],
             "x-enum-descriptions": {
-              "progress": "Что ассистент делает сейчас: text. Может приходить много раз",
+              "progress": "Что ассистент делает сейчас: text; kind — какой тип выбран. Может приходить много раз",
               "question": "Нужно уточнение: text, context. Ответ человека — новый запрос с этим context",
               "plan": "План: summary, context, items или rules. Частичных планов нет: не может всё — refused",
               "refused": "Не может: text, context, field",
-              "error": "Ошибка: code, message"
+              "error": "Ошибка: code, message",
+              "answer": "Ответ на вопрос о системе: text, context. Плана нет, ничего не меняется. Разговор продолжается новым запросом с этим context"
             }
           },
           "at": {
@@ -16984,9 +16988,18 @@
               "$ref": "#/components/schemas/AssistRuleEdit"
             },
             "description": "План правил, тип запроса rules: записи по порядку. Предложение, а не запись: ход ничего не пишет"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "config",
+              "rules",
+              "explain"
+            ],
+            "description": "Только у progress и только у службы демо-страницы: тип хода, выбранный службой. Человек видит его и может сменить новым запросом с явным kind, тем же text, без context"
           }
         },
-        "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, error"
+        "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, answer, error"
       },
       "DeviceStream": {
         "type": "object",
@@ -19110,6 +19123,20 @@
                   "type": "string"
                 }
               }
+            }
+          },
+          "servers": {
+            "type": "array",
+            "description": "Необязательно. Все серверы, как GET /servers. Нет ключа — служба отвечает, что этих данных нет",
+            "items": {
+              "$ref": "#/components/schemas/Server"
+            }
+          },
+          "licenses": {
+            "type": "array",
+            "description": "Необязательно. Лицензии, как GET /licenses. Нет ключа — служба отвечает, что этих данных нет",
+            "items": {
+              "$ref": "#/components/schemas/License"
             }
           }
         },

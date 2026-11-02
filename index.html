@@ -1328,6 +1328,9 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
 .asst-msg.err{color:var(--one-danger)}
+.asst-answer{white-space:pre-wrap;overflow-wrap:anywhere}
+.asst-kind{font-size:12px;color:var(--mu);margin:6px 0}
+.asst-kinds{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
 .asst-sum{font-size:13px;font-weight:600;margin:6px 0}
 .asst-dev{font-size:13px;margin-top:6px}
 .asst-chg{font-size:12px;color:var(--mu);overflow-wrap:anywhere}
@@ -21149,7 +21152,10 @@ function closeBulkModal(){document.getElementById("bmodal")?.classList.remove("o
 // context возвращается как есть, секреты живут в памяти до конца разговора и никуда не сохраняются.
 // Без «Применить» ничего не пишется.
 let asst=null;
-const asstEnds=m=>m.type!=="progress";
+const ASST_END=new Set(["question","plan","refused","answer","error"]);
+const asstEnds=m=>ASST_END.has(m.type);
+// Типы хода службы: словом для человека. Всё, что не из списка, не показывается
+const ASST_KIND={config:"Настройка",rules:"Правила",explain:"Вопрос о системе"};
 /* ----- Служба ассистента демо-страницы -----
    Страница статическая, сервер живёт в браузере, а модель — за службой. Адрес — ?assist=URL или метка
    consolem-assist; без адреса, с бэкендом (?api=, consolem-api) и на другом наборе, чем demo, службы нет.
@@ -21204,7 +21210,7 @@ function asstCodeKey(e){
   if(e.key==="Enter"){e.preventDefault();asstCodeApply()}
 }
 // Разговор заглушки и разговор службы — разные: context одного другому не годится
-function asstModeChanged(a){Object.assign(a,{context:null,ask:"",err:"",info:"",down:false,stub:false})}
+function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false,kind:"",kindPick:"",kindTurn:false,kindNext:""})}
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
@@ -21267,11 +21273,13 @@ async function asstWorld(){
   };
   // Чего читать нельзя, того в снимке нет: ход идёт и без этого ключа
   const opt=(need,path)=>can(need)?API.get(path).catch(()=>null):null;
-  const[reference,rows,folders,rules,schedules,modes,windows,me,access]=await Promise.all([API.get("/reference"),all("/devices"),all("/folders"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),API.get("/maintenance-windows"),API.get("/me"),opt("getAccess","/access")]);
+  const[reference,rows,folders,rules,schedules,modes,windows,me,access,servers,licenses]=await Promise.all([API.get("/reference"),all("/devices"),all("/folders"),API.get("/rules"),API.get("/schedules"),API.get("/modes"),API.get("/maintenance-windows"),API.get("/me"),opt("getAccess","/access"),opt("listServers","/servers"),opt("listLicenses","/licenses")]);
   const devices=await Promise.all(rows.map(x=>API.get(`/devices/${x.id}`)));
   const world={reference,devices,folders,rules:rules.items,schedules:schedules.items,modes,maintenanceWindows:windows.items,me};
   // Только имя и id: права и объекты ролей в службу не уходят
   if(access?.roles)world.roles=access.roles.map(({id,name})=>({id,name}));
+  if(servers)world.servers=servers.items;
+  if(licenses)world.licenses=licenses.items;
   return world;
 }
 async function asstServiceTurn(a,body){
@@ -21282,7 +21290,7 @@ async function asstServiceTurn(a,body){
 // Пароль наружу не уходит: ни полем секрета, ни в словах просьбы, ни ответом на вопрос о пароле. Разговор о нём
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
-  Object.assign(a,{text:"",ask:"",context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
+  Object.assign(a,{text:"",ask:"",answer:"",context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
 // Вход — из строки поиска: то, что поиск не нашёл, уходит ассистенту. Запрос поиска снимается:
@@ -21295,7 +21303,7 @@ function asstFromSearch(){
 function asstOpen(text){
   if(!can("feature:assist"))return;
   promptPanel(false);
-  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:""};
+  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",answer:"",kind:"",kindPick:"",kindTurn:false,kindNext:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:""};
   if(asst.text){asstSend();return}
   asstRender();
 }
@@ -21625,7 +21633,9 @@ function asstRender(){
     asstSvcHtml(a,mode),
     a.said.length?`<div class="asst-said">${a.said.map(t=>typeof t==="string"?`<div>› ${escHtml(t)}</div>`:`<div class="asst-dropped" data-asst-dropped="1">${escHtml(t.note)}</div>`).join("")}</div>`:"",
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
+    asstKindHtml(a),
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
+    a.answer?`<div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
@@ -21651,6 +21661,22 @@ function asstRender(){
   if(keep==="asstCode")code?.focus();
   else if(mine&&(!a.busy||keep==="asstText"))document.getElementById("asstText")?.focus();
 }
+// Тип хода, который выбрала служба, и выбор человека. Только при живой службе: у заглушки типа нет
+function asstKindHtml(a){
+  if(!a.live||!ASST_KIND[a.kind])return"";
+  return`<div class="asst-kind" id="asstKind">${i18n("Тип")}: <b>${i18n(ASST_KIND[a.kind])}</b><div class="asst-kinds" role="group" aria-label="${i18n("Сменить тип")}">${
+    Object.entries(ASST_KIND).map(([k,w])=>`<button type="button" class="btn s ${k===a.kind?"pri":""}" data-asst-kind="${k}" aria-pressed="${k===a.kind}" ${onEv("click",["asstKindPick",k])}>${i18n(w)}</button>`).join("")}</div></div>`;
+}
+// Смена типа — новый запрос: тот же текст, явный тип, без context. Идущий ход снимается, новый уходит, когда он снят
+function asstKindPick(k){
+  const a=asst;if(!a||k===a.kind)return;
+  if(a.busy){a.kindNext=k;a.abort?.abort();return}
+  asstKindGo(a,k);
+}
+function asstKindGo(a,k){
+  a.kindPick=k;a.kind=k;a.context=null;
+  asstSend(a.last);
+}
 function asstKey(e){
   if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSend()}
 }
@@ -21658,15 +21684,22 @@ function asstInput(v){if(asst)asst.text=v}
 function asstSecret(i,v){if(asst)asst.secrets[i]=v}
 function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
 function asstEvent(a,m){
-  if(m.type==="progress")a.line=m.text;
+  if(m.type==="progress"){
+    a.line=m.text;
+    // Первое слово хода о типе: дальше он в этом ходе не меняется
+    if(a.live&&ASST_KIND[m.kind]&&!a.kindTurn){a.kind=m.kind;a.kindTurn=true}
+  }
   if("context" in m)a.context=m.context;
   if(m.type==="question")a.ask=m.text;
+  if(m.type==="answer")a.answer=m.text;
   if(m.type==="refused")a.refused=m.text;
   if(m.type==="error"){
     if(a.live)asstServiceError(a,m);
     else a.err=problemText(m.code);
   }
   if(m.type==="plan"){
+    // Вопрос о системе ничего не меняет: план здесь не показывается и не применяется
+    if(a.live&&a.kind==="explain"){a.refused=i18n("Вопрос о системе ничего не меняет: плана нет");asstRender();return}
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
   }
@@ -21679,18 +21712,25 @@ function asstSend(again){
   const live=asstMode(a)==="on";
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
-  // Тип называет вызывающий: в разделе правил просьба — о правилах, бэкенд текст не разбирает. Панель переживает
-  // переход, поэтому раздел — на момент хода
-  if(app==="rules")body.kind="rules";
+  // Служба выбирает тип сама, раздел его не решает; выбор человека держится до конца разговора. Бэкенд текст не
+  // разбирает: тип называет вызывающий, в разделе правил просьба — о правилах. Панель переживает переход, поэтому
+  // раздел — на момент хода
+  if(live)body.kind=a.kindPick||"auto";
+  else if(app==="rules")body.kind="rules";
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
   const dropped=a.plan?[{note:i18n("План снят")}]:[];
-  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",kindTurn:false,refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
     .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
-    .then(()=>{if(asst===a){a.busy=false;a.line="";asstRender()}});
+    .then(()=>{
+      if(asst!==a)return;
+      a.busy=false;a.line="";
+      const next=a.kindNext;a.kindNext="";
+      if(next)asstKindGo(a,next);else asstRender();
+    });
 }
 function asstAgain(){asstSend(asst?.last)}
 function asstDecline(){if(asst){asst.plan=null;asstRender()}}
