@@ -1326,6 +1326,7 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 #asstBlock{max-height:min(40vh,320px);overflow:auto;padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--ln)}
 #asstBlock[hidden]{display:none}
 .asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
+.asst-said>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asst-said .asst-dropped{font-style:italic}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
@@ -4902,13 +4903,13 @@ function goSearch(v){
   const inTree=mainFull?0:(app==="hw"?countFiltered():shown.size);
   // Всё найденное уже в дереве — список не открываем: он бы закрыл собой ровно
   // то, ради чего запрос набирали.
-  if(!goHits.length&&inTree&&!asst){goClose();return}
-  const head=inTree?`<div class="gohead gohead-tree"><span>${i18n("В дереве:")} ${inTree}</span><span class="gonote">${i18n("Enter — остаться в дереве")}</span></div>`:"";
-  // Набранное можно отдать ассистенту новым запросом всегда: кнопка выше окна ассистента. Enter ведёт к нему,
-  // только когда поиск ничего не нашёл (data-empty)
-  const empty=!targets.length&&!inTree;
+  // С ассистентом окно не закрывается: в нём кнопка нового диалога
+  const assist=can("feature:assist");
+  if(!goHits.length&&inTree&&!asst&&!assist){goClose();return}
+  const head=inTree?`<div class="gohead gohead-tree"><span>${i18n("В дереве:")} ${inTree}</span><span class="gonote">${i18n(assist?"Enter — новый диалог с ассистентом":"Enter — остаться в дереве")}</span></div>`:"";
+  // Набранное можно отдать ассистенту всегда: кнопка выше окна ассистента, Enter — тоже, если строка не выбрана стрелками
   const top=document.getElementById("goAskTop");
-  if(top)top.innerHTML=can("feature:assist")?`<div class="gohead"><button type="button" class="btn s" id="goAsk" ${empty?"data-empty":""} ${onEv("mousedown",onEv.prevent,["asstFromSearch"])}>${i18n("Новый запрос ассистенту")}</button></div>`:"";
+  if(top)top.innerHTML=assist?`<div class="gohead"><button type="button" class="btn s" id="goAsk" ${onEv("mousedown",onEv.prevent,["asstFromSearch"])}>${i18n("Новый диалог с ассистентом")}</button></div>`:"";
   list.innerHTML=idFilter.map((t,i)=>goRowHtml(t,i,"")).join("")+head+(targets.length
     ?`<div class="gohead">${i18n("Не в дереве:")} ${targets.length}</div>`+targets.map((t,i)=>goRowHtml(t,i+idFilter.length,q)).join("")
     :inTree||can("feature:assist")?"":`<div class="gohead">${i18n("Ничего не найдено")}</div>`);
@@ -4953,14 +4954,13 @@ function goKey(e){
     pop.querySelector(".gores.on")?.scrollIntoView({block:"nearest"});
     return;
   }
-  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора
-  // Enter значит «набранное — фильтр»: список уходит, дерево остаётся сужённым,
-  // и стрелки уже ходят по нему.
+  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
+  // диалог с ним, что бы ни нашёл поиск. Без ассистента Enter значит «набранное — фильтр»: список уходит, дерево
+  // остаётся сужённым, и стрелки уже ходят по нему.
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
-    // Поиск ничего не дал: набранное — просьба, а фильтр оставил бы пустое дерево
-    if(open_&&document.querySelector("#goAsk[data-empty]")){asstFromSearch();return}
+    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
     goClose();e.target.blur();
     return;
   }
@@ -21333,6 +21333,7 @@ function closeBulkModal(){document.getElementById("bmodal")?.classList.remove("o
 // context возвращается как есть, секреты живут в памяти до конца разговора и никуда не сохраняются.
 // Без «Применить» ничего не пишется.
 let asst=null;
+const ASST_SAID_MAX=5;
 const ASST_END=new Set(["question","plan","refused","answer","found","error"]);
 const asstEnds=m=>ASST_END.has(m.type);
 /* ----- Служба ассистента демо-страницы -----
@@ -21862,8 +21863,9 @@ function asstRender(){
   block.hidden=false;
   block.innerHTML=[
     asstSvcHtml(a,mode),
-    // Из разговора видна только последняя просьба человека
-    (()=>{const last=[...a.said].reverse().find(t=>typeof t==="string");return last?`<div class="asst-said">› ${escHtml(last)}</div>`:""})(),
+    // Последние пять просьб человека, старые сверху: строкой, длинная — с многоточием, целиком — в подсказке. Заметок нет
+    (()=>{const asks=a.said.filter(t=>typeof t==="string").slice(-ASST_SAID_MAX);
+      return asks.length?`<div class="asst-said">${asks.map(t=>`<div title="${escHtml(t)}">› ${escHtml(t)}</div>`).join("")}</div>`:""})(),
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
