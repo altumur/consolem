@@ -197,6 +197,30 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goTab("gen");
   ok(addPlan.rows.length === 1, "и после перехода к другому узлу");
   ok(/В плане: 1/.test(headText().find((t) => /^Добавить устройства/.test(t))), "в шапке — метка плана: " + headText().find((t) => /^Добавить устройства/.test(t)));
+  // Метка на всех кнопках, которые ведут в план; «Добавить службу» в план не ведёт и метки не носит
+  const headAdd = () => [...document.querySelectorAll("#main .hd-act > button")].find((b) => /^Добавить/.test(b.textContent.trim()));
+  const allDevs = await API.get("/devices", { limit: 1000 }).then((r) => r.items);
+  const devOf = (fn) => allDevs.find((d) => fn(d) && find(d.id));
+  for (const [what, d] of [["камера", devOf((x) => x.type === "camera")], ["ACFA", devOf((x) => x.type === "acfa")]]) {
+    pick(d.id);
+    await until(() => headAdd());
+    ok(/В плане: 1/.test(headAdd().textContent), what + ": метка плана на кнопке — " + headAdd().textContent.trim());
+    headAdd().click();
+    ok(wizd.mode === "device-add" && document.querySelectorAll("#planPanel .plan-row").length === 1, what + ": кнопка открывает этот план");
+    closeWizard();
+  }
+  for (const type of ["email", "sms", "export"]) {
+    const d = devOf((x) => x.type === type);
+    pick(d.id);
+    await until(() => /службу/.test(headAdd()?.textContent || ""));
+    ok(!headAdd().querySelector(".plan-cnt"), type + ": на «Добавить службу» метки плана нет");
+    headAdd().click();
+    ok(wizd.mode !== "device-add" && wizd.view === "sys" && document.getElementById("wizT").textContent === "Добавить службу" && !document.getElementById("planPanel"), type + ": открывается мастер служб, а не план");
+    closeWizard();
+    ok(addPlan.rows.length === 1, type + ": план на месте");
+  }
+  pick(other.id);
+  goTab("gen");
   planOpen("manual");
   ok(document.querySelectorAll("#planPanel .plan-row").length === 1, "после повторного открытия строка в панели");
   closeWizard();

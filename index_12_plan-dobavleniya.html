@@ -6850,8 +6850,9 @@ function toggleMainFull(){setMainFull(!mainFull)}
 function inspectorAddBtn(n){
   if(!canInspectorAdd(n))return"";
   const lb=n.type==="server"?i18n("Службу"):addTreeLabel(n);
-  const act=n.type==="domain"?"openW('server')":(n.type==="server"?"openW('svc')":"openW()");
-  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}</button>`;
+  const act=n.type==="domain"?"openW('server')":((n.type==="server"||isSvc(n))?"openW('svc')":"openW()");
+  // openW() ведёт в план: метка та же, что у кнопки сервера, иначе отсюда план кажется пустым
+  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}${act==="openW()"?planCntHtml():""}</button>`;
 }
 function canWizardAdd(n){return n&&(n.type==="domain"||n.type==="server")}
 function canTreeCtx(n){
@@ -19332,6 +19333,7 @@ function planBtnHint(){
   const n=addPlan.rows.length;
   return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n("В системе их ещё нет: откройте и нажмите «Применить план»")}`:"";
 }
+function planCntHtml(){return`<span class="plan-cnt" title="${escHtml(planBtnHint())}">${planBtnCount()}</span>`}
 function planHeadSync(){document.querySelectorAll(".plan-cnt").forEach(el=>{el.textContent=planBtnCount();el.title=planBtnHint()})}
 // Адрес считается в пределах домена: один IP в двух доменах — два устройства
 function planAddrKey(r,did){return`${did||""}|${r.ip||r.rtspUrl||r.rtsp||""}:${r.port||80}`}
@@ -19836,7 +19838,7 @@ function addSplitItems(n){
 }
 function addSplitBtn(n){
   if(!lanHost(n)&&n?.type!=="found")return"";
-  const lb=`${lu("plus")}${i18n("Добавить устройства")}<span class="plan-cnt" title="${escHtml(planBtnHint())}">${planBtnCount()}</span>`;
+  const lb=`${lu("plus")}${i18n("Добавить устройства")}${planCntHtml()}`;
   const items=addSplitItems(n);
   if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
   return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
