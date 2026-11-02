@@ -34,7 +34,7 @@ UiCheck(async ({ ok, until }) => {
   const el = (id) => document.getElementById(id);
   const text = () => el("gopop").textContent;
   const mode = () => el("asstSvc")?.dataset.asstMode;
-  const close = () => document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  const close = () => goClose();
   const open = () => { close(); asstOpen(""); };
   const say = (t) => { asst.text = t; el("asstSend").click(); };
   const typeCode = (v) => { const i = el("asstCode"); i.value = v; i.dispatchEvent(new Event("input", { bubbles: true })); };

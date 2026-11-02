@@ -1309,7 +1309,7 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gojump-hint{flex:none;font-size:10px;color:var(--mu);border:1px solid var(--ln);border-radius:4px;padding:1px 5px;letter-spacing:.04em}
 .gopop{display:none;position:absolute;left:-1px;right:-1px;top:calc(100% + 6px);z-index:60;max-height:min(60vh,520px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;padding:6px}
 .gopop.open{display:block}
-.gopop.asst{padding:10px}
+.gopop.asst{padding:10px;z-index:19}
 .asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
@@ -19439,8 +19439,9 @@ document.onkeydown=e=>{
   }
   if((e.key==="Delete"||e.key==="Backspace")&&treeSel.size>1&&app==="hw"&&!e.target.closest("input,textarea,select")){e.preventDefault();deleteSelected()}};
 document.addEventListener("mousedown",e=>{if(!e.target?.closest?.("#tctx"))closeTreeCtx()});
+// Клик мимо закрывает список поиска. Панель ассистента остаётся: с ней работают, глядя на форму, закрывает её «Закрыть» и Esc.
 // Кнопка окна может перерисовать его на mousedown и уйти из DOM: e.target уже вне #gojump, путь события — нет
-document.addEventListener("mousedown",e=>{if(!e.composedPath().some(x=>x.id==="gojump"))goClose()});
+document.addEventListener("mousedown",e=>{if(!asst&&!e.composedPath().some(x=>x.id==="gojump"))goClose()});
 function focusGo(){const el=document.getElementById("gq");if(!el)return;el.focus();el.select();goSearch(el.value)}
 // ── Прототип 06: групповые операции ──────────────────────────────────────
 // Выбор живёт в treeSel, которого хватало только на Ctrl/Shift. Здесь он
@@ -20595,8 +20596,7 @@ function asstFromSearch(){
 }
 function asstOpen(text){
   if(!can("feature:assist"))return;
-  // Тип называет вызывающий: в разделе правил просьба — о правилах, бэкенд текст не разбирает
-  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,kind:app==="rules"?"rules":null,live:false,stub:false,down:false,info:"",codeDraft:""};
+  asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:""};
   if(asst.text){asstSend();return}
   asstRender();
 }
@@ -20727,8 +20727,9 @@ async function asstRulesApply(a,p){
 // Ассистент занимает место списка поиска, его размеры и его правила: закрывается кликом мимо и Esc
 function asstRender(){
   const a=asst,pop=document.getElementById("gopop");if(!a||!pop)return;
-  // Служба шлёт строки хода и пока посетитель печатает: поле ввода не теряет курсор
-  const keep=document.activeElement?.id,mode=asstMode(a);
+  // Служба шлёт строки хода и пока посетитель печатает: поле ввода не теряет курсор. Курсор в карточке, а панель
+  // открыта рядом: ответ ассистента его не забирает
+  const act=document.activeElement,keep=act?.id,mine=!act||act===document.body||!!act.closest("#gojump"),mode=asstMode(a);
   pop.innerHTML=[
     asstSvcHtml(a,mode),
     a.said.length?`<div class="asst-said">${a.said.map(t=>`<div>› ${escHtml(t)}</div>`).join("")}</div>`:"",
@@ -20757,7 +20758,7 @@ function asstRender(){
   const code=document.getElementById("asstCode");
   if(code)code.value=a.codeDraft;
   if(keep==="asstCode")code?.focus();
-  else if(!a.busy||keep==="asstText")document.getElementById("asstText")?.focus();
+  else if(mine&&(!a.busy||keep==="asstText"))document.getElementById("asstText")?.focus();
 }
 function asstKey(e){
   if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSend()}
@@ -20787,7 +20788,9 @@ function asstSend(again){
   const live=asstMode(a)==="on";
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
-  if(a.kind)body.kind=a.kind;
+  // Тип называет вызывающий: в разделе правил просьба — о правилах, бэкенд текст не разбирает. Панель переживает
+  // переход, поэтому раздел — на момент хода
+  if(app==="rules")body.kind="rules";
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   Object.assign(a,{said:a.said.concat(text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});

@@ -48,8 +48,8 @@ UiCheck(async ({ ok, until }) => {
   document.getElementById("asstApply").click();
   ok(await until(() => document.getElementById("asstAgain")), "устройство изменилось — предложено спросить заново");
   // Закрыть окно — отменить ход
-  document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-  ok(asst === null && !document.getElementById("gopop").classList.contains("open"), "клик мимо закрыл, секреты забыты");
+  document.getElementById("asstClose").click();
+  ok(asst === null && !document.getElementById("gopop").classList.contains("open"), "«Закрыть» закрыла, секреты забыты");
 
   // План правил. Тип называет форма: вне раздела правил поля нет, в разделе — rules
   const kinds = [], stream = API.stream;
@@ -57,7 +57,7 @@ UiCheck(async ({ ok, until }) => {
   const R1 = "70000001-0000-4000-8000-000000000000";
   const server = (id) => API.get("/rules/" + id);
   const rows = () => [...document.querySelectorAll("[data-asst-row]")].map((e) => e.dataset.asstRow);
-  const talk = (t) => { document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true })); asstOpen(""); say(t); };
+  const talk = (t) => { goClose(); asstOpen(""); say(t); };
   const planRules = async (rules) => { asst.plan = null; asst.result = null; asstEvent(asst, { type: "plan", summary: "Test", context: "c", rules }); return until(() => document.getElementById("asstApply")); };
   asstOpen("");
   say("выключи запись Главный вход");
@@ -65,7 +65,7 @@ UiCheck(async ({ ok, until }) => {
   ok(kinds.join() === "" && kinds.length === 1, "вне раздела правил поля kind нет");
   ok(!!asst.plan.items && !asst.plan.rules, "плана правил нет — поведение прежнее");
   document.getElementById("asstDecline").click();
-  document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  goClose();
   goApp("rules");
 
   // Новое правило: показ словами формы, модель подписана, ход ничего не записал, запись — по нажатию, наблюдающим
@@ -209,7 +209,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => /странице консоли/.test(document.getElementById("asstRefused")?.textContent || "")), "отказ со словом о странице консоли");
   ok(!document.getElementById("asstApply"), "плана нет");
   API.stream = stream;
-  document.body.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  goClose();
 
   // Настоящая мышь, а не вызов функции: кнопка перерисовывает окно на mousedown и уходит из DOM, окно при этом не закрывается
   goApp("hw");
@@ -226,7 +226,7 @@ UiCheck(async ({ ok, until }) => {
   ok(document.getElementById("asstClose"), "«Закрыть» есть и при плане");
   press(document.getElementById("asstDecline"));
   ok(asst && popOpen() && !document.getElementById("asstApply"), "«Отказаться» мышью: окно открыто");
-  mouse(document.body);
+  goClose();
   asstOpen("");
   typed("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "«Отправить» мышью: вопрос");
@@ -239,8 +239,63 @@ UiCheck(async ({ ok, until }) => {
   mouse(document.getElementById("asstText"));
   ok(asst && popOpen(), "мышь внутри окна его не закрывает");
   ok(document.getElementById("asstClose"), "«Закрыть» есть и при итоге");
+
+  // Клик мимо панель не закрывает: дерево, карточка, разделы. Закрывают «Закрыть» и Esc
+  const seeing = () => asst && popOpen() && document.getElementById("gopop").getBoundingClientRect().height > 0 && document.getElementById("asstText");
+  const was = sel, rowEl = [...document.querySelectorAll("#tree .n[data-pick]")].find((x) => x.dataset.pick !== String(sel)), to = rowEl.dataset.pick;
+  asst.text = "недописанная просьба";
+  press(rowEl);
+  ok(await until(() => sel === to), "клик по дереву сработал");
+  ok(seeing() && sel !== was, "клик по дереву панель не закрыл");
+  ok(asst.text === "недописанная просьба", "набранное на месте");
+  mouse(document.querySelector("main") || document.body);
+  ok(seeing(), "клик по карточке панель не закрыл");
+  const inCard = document.querySelector("main input:not([type=checkbox]):not([disabled])");
+  if (inCard) {
+    inCard.focus();
+    asstEvent(asst, { type: "question", text: "Какой?", context: "c" });
+    ok(document.activeElement === inCard, "ответ ассистента не забирает курсор из карточки");
+    asst.ask = "";
+    asstRender();
+  }
+  const apps = appsShown().map((a) => a.id);
+  for (const a of apps) {
+    goApp(a);
+    await until(() => app === a);
+    ok(seeing(), `переход в «${a}»: панель на месте`);
+  }
+  goApp("rules");
+  const after = [];
+  API.stream = (p, b, ...r) => { after.push(b.kind); return stream(p, b, ...r); };
+  asst.text = "убери условие";
+  document.getElementById("asstSend").click();
+  ok(await until(() => !asst.busy && after.length), "ход после перехода");
+  API.stream = stream;
+  ok(after[0] === "rules", "вид хода — по разделу на момент хода");
+  goApp("hw");
+  await until(() => document.querySelector("#tree .n[data-pick]"));
+  ok(seeing(), "обратно в «Оборудование»: панель на месте");
+  setMainFull(true);
+  ok(seeing(), "карточка во весь экран: панель на месте");
+  setMainFull(false);
+  pick(domains[0].id);
+  ok(seeing(), "другая карточка: панель на месте");
+  await apiReload();
+  ok(seeing(), "перечитывание данных: панель на месте");
   press(document.getElementById("asstClose"));
   ok(asst === null && !popOpen(), "«Закрыть» закрыла");
+  asstOpen("");
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+  ok(asst === null && !popOpen(), "Esc закрыл");
+  asstOpen("");
+  inp.value = "камера";
+  goInput(inp.value);
+  ok(asst === null, "ввод в строку поиска закрыл панель");
+  // Список поиска — как раньше: клик мимо закрывает
+  ok(popOpen(), "список поиска открыт");
+  press(document.getElementById("tree"));
+  ok(!popOpen(), "клик мимо закрывает список поиска");
+  clearTreeQ();
   // Выбор строки поиска мышью: окно закрывается, переход выполнен
   inp.value = "";
   goInput("");
