@@ -13,7 +13,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!head.some((t) => /^(Найденные|Вручную|Из файла)$|^Хранилище/.test(t)), "в шапке нет «Найденные», «Вручную», «Из файла», «Хранилище»");
   document.querySelector("#main .btn-split-arrow").click();
   let menu = document.getElementById("tctx");
-  ok(menu.classList.contains("open") && /Сервер…/.test(menu.textContent) && /Хранилище…/.test(menu.textContent), "меню стрелки у домена: " + menu.textContent.trim().replace(/\s+/g, " "));
+  ok(menu.classList.contains("open") && /Сервер…/.test(menu.textContent) && !/Хранилище/.test(menu.textContent), "меню стрелки у домена — без хранилища: " + menu.textContent.trim().replace(/\s+/g, " "));
   closeTreeCtx();
   const srv = servers.find((s) => !isUnallocated(s.id) && SERVER_DOMAIN[s.id] === d1.id) || servers.find((s) => !isUnallocated(s.id));
   pick(srv.id);
@@ -422,4 +422,89 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   planClear();
   addPlan.rows = [];
   planTouch();
+
+  // Срез 2. Любое хранилище, сетевое тоже, создают на сервере; с домена входа нет
+  const d2Nas = (n) => ["", "", "nas" + n, "vms"].join(String.fromCharCode(92));
+  const d2Dom = domains[0];
+  const d2Srv = servers.find((s) => !isUnallocated(s.id) && SERVER_DOMAIN[s.id] === d2Dom.id);
+  const srvMenu = (n) => { openTreeCtx(n, { x: 10, y: 10 }); const t = document.getElementById("tctx").textContent; closeTreeCtx(); return t; };
+  ok(!/Создать хранилище/.test(srvMenu(d2Dom)), "хранилище: в меню дерева домена его нет");
+  ok(/Создать хранилище/.test(srvMenu(d2Srv)), "хранилище: в меню дерева сервера есть");
+  pick(d2Dom.id);
+  goTab("gen");
+  ok(!/Хранилище/.test(document.querySelector(".dom-acts").textContent), "хранилище: в «Действиях» домена его нет");
+  ok(addSplitItems(d2Dom).every(([l]) => !/Хранилище/.test(l)), "хранилище: в меню кнопки домена его нет");
+  ok(addSplitItems(d2Dom).some(([l]) => /Серверы по IP/.test(l)), "в меню кнопки домена — серверы по IP");
+  ok(addSplitItems(d2Srv).some(([l]) => /Хранилище/.test(l)), "хранилище: в меню кнопки сервера есть");
+  goTab("srvs");
+  const d2Main = () => document.querySelector("#main");
+  const d2CreateBtns = () => [...d2Main().querySelectorAll("button")].filter((b) => /хранилище/i.test(b.textContent));
+  ok(d2CreateBtns().length === 0, "вкладка «Серверы» домена: кнопок создания хранилища нет");
+  ok(/создают на сервере/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "вкладка «Серверы» домена: подсказка, где создавать");
+
+  // Созданные раньше хранилища домена не пропадают; нет их — нет и списка
+  const d2List = () => /Сетевые хранилища домена/.test(d2Main().textContent);
+  const d2Had = domainArchives(d2Dom.id).length;
+  ok(d2List() === (d2Had > 0), "список хранилищ домена — только когда они есть: " + d2Had);
+  addArchive(d2Dom.id);
+  anSet("name", "Старое хранилище домена", true);
+  anSet("disk", d2Nas(79), true);
+  anSet("user", "svc", true);
+  const d2Body0 = anArchive();
+  archNewCancel();
+  const d2Shared = await API.post("/archives", d2Body0);
+  ok(await until(() => domainArchives(d2Dom.id).some((a) => a.id === d2Shared.archive.id)), "хранилище домена пришло событием");
+  paint();
+  ok(d2List() && d2Main().textContent.includes("Старое хранилище домена"), "созданное раньше хранилище домена видно в списке");
+
+  const d2Empty = domains.find((x) => !domainArchives(x.id).length);
+  ok(!!d2Empty, "есть домен без своих хранилищ");
+  pick(d2Empty.id);
+  goTab("srvs");
+  ok(!d2List(), "у домена без хранилищ списка нет");
+  const d2Srvs = d2Empty.servers;
+  d2Empty.servers = [];
+  paint();
+  ok(/сначала добавьте сервер/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "домен без серверов: сначала добавить сервер");
+  d2Empty.servers = d2Srvs;
+  paint();
+
+  // С сервера: все виды, сервер подставлен и не меняется, «Весь домен» нет; сетевое привязано к нему
+  const d2Body = () => document.getElementById("bmBody");
+  addArchive(d2Srv.id);
+  ok(d2Body().querySelectorAll(".an-kind").length === refArchKinds.length && an.server === d2Srv.id && !an.shared, "диалог сервера: все виды, сервер подставлен");
+  ok(!d2Body().querySelector(".an-srv select") && !/Весь домен/.test(d2Body().textContent), "диалог сервера: сервер не выбирают, «Весь домен» нет");
+  ok(d2Body().querySelector(".an-srv input")?.value.startsWith(locName(d2Srv)) && d2Body().querySelector(".an-srv input").disabled, "диалог сервера: имя сервера видно, поле не меняется");
+  ok(locName(d2Srv) && document.getElementById("bmTitle").textContent.includes(locName(d2Srv)), "диалог сервера: сервер в заголовке");
+  ok(!d2Body().querySelector("[data-arch-where]"), "диалог сервера: у локального подсказки нет");
+  anSet("kind", "network");
+  ok(/только этот сервер/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог сервера: у сетевого видно, что оно этого сервера");
+  ok(!d2Body().querySelector(".an-srv select") && an.server === d2Srv.id, "диалог сервера: смена вида сервер не сбрасывает");
+  anSet("disk", d2Nas(78), true);
+  anSet("user", "svc", true);
+  anSet("name", "Сетевое на сервере — срез 2", true);
+  ok(!anBlock(), "диалог сервера: можно создать — " + anBlock());
+  ok(anArchive().serverId === d2Srv.id && anArchive().domainId === null, "диалог сервера: в запросе сервер, домена нет");
+  ok(anArchive().firstVolume.disk === d2Nas(78), "путь NAS дошёл до запроса: " + anArchive().firstVolume.disk);
+  createArchive();
+  ok(await until(() => arch.some((a) => a.name === "Сетевое на сервере — срез 2")), "сетевое хранилище создано с сервера");
+  const d2Rec = await API.get("/archives/" + arch.find((a) => a.name === "Сетевое на сервере — срез 2").id);
+  ok(d2Rec.serverId === d2Srv.id, "на сервере: сетевое хранилище этого сервера, serverId " + d2Rec.serverId);
+  ok(serverArchives(d2Srv.id).some((a) => a.id === d2Rec.id), "оно в списке хранилищ сервера");
+  pick(d2Srv.id);
+  goTab("disk");
+  ok([...d2Main().querySelectorAll("button")].some((b) => /Хранилище…/.test(b.textContent)), "вкладка дисков сервера: кнопка создания");
+
+  // Нет операции createArchive — нигде не предлагается
+  const d2Can = CAPS.operations;
+  CAPS.operations = new Set([...d2Can].filter((o) => o !== "createArchive"));
+  ok(!can("createArchive"), "операция снята");
+  ok(!/Создать хранилище/.test(srvMenu(d2Srv)) && addSplitItems(d2Srv).every(([l]) => !/Хранилище/.test(l)), "без операции: в меню сервера нет");
+  paint();
+  ok(![...d2Main().querySelectorAll("button")].some((b) => /Хранилище…/.test(b.textContent)), "без операции: кнопки на вкладке дисков нет");
+  pick(d2Dom.id);
+  goTab("srvs");
+  ok(!d2Main().querySelector("[data-arch-where]"), "без операции: подсказки на домене нет");
+  CAPS.operations = d2Can;
+  goTab("gen");
 });
