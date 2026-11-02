@@ -8,6 +8,10 @@ reference.capabilities, тесты и интерфейс прячут остал
 
 Набор не правят руками: правят demo.json или правила ниже и собирают заново.
 
+Набор api/fixtures/large.json — стенд большого домена: профиль «один домен» без записей оборудования, а в stand.large
+только числа: 250 000 камер, 500 серверов. Записи считает заглушка при загрузке (api/server.js, expandLarge), в файле
+набора их нет. Загружается ?fixture=large, POST /test/reset {fixture: "large"}, node tools/serve_api.mjs --fixture large.
+
 Запуск из корня репозитория:
   python3 tools/profile_fixture.py          собрать
   python3 tools/profile_fixture.py --check  собранное не отстало от demo.json (код выхода 1, если отстало)
@@ -20,6 +24,10 @@ import sys
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = "api/fixtures/demo.json"
 OUT = "api/fixtures/one-domain.json"
+OUT_LARGE = "api/fixtures/large.json"
+# Камер всего, серверов, папок; под серверами из них 50 000, из них на первом — ветка больше страницы.
+# Остальные 200 000 — камеры-кластеры: без сервера и родителя, лежат прямо под доменом
+LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 50000, "firstBranch": 1000}
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
@@ -252,27 +260,49 @@ def build(demo):
     return fx
 
 
+def build_large(demo):
+    fx = build(demo)
+    fx["$comment"] = (
+        "Стенд большого домена: 250 000 камер, 500 серверов. Записи считает заглушка из stand.large при загрузке, "
+        "в файле только числа. Собран tools/profile_fixture.py из demo.json, руками не правится."
+    )
+    fx["stand"] = {"large": LARGE}
+    for k in ("servers", "archives", "volumes", "devices", "folders", "rules", "ruleVersions", "ruleFires", "archiveScans", "archiveWatches", "journal"):
+        fx[k] = []
+    for w in fx["maintenanceWindows"]:
+        if w["ruleIds"] is not None:
+            w["ruleIds"] = []
+    for role in fx["access"]["roles"]:
+        role["objectAccess"] = {}
+        role["folderAccess"] = {k: v for k, v in role["folderAccess"].items() if k == fx["domains"][0]["id"]}
+    return fx
+
+
 def render(fx):
     return json.dumps(fx, ensure_ascii=False, indent=1) + "\n"
 
 
 def main():
     with open(os.path.join(ROOT, SRC), encoding="utf-8") as f:
-        text = render(build(json.load(f)))
-    path = os.path.join(ROOT, OUT)
-    if "--check" in sys.argv[1:]:
-        try:
-            with open(path, encoding="utf-8") as f:
-                if f.read() == text:
-                    return 0
-        except FileNotFoundError:
-            pass
-        print(f"{OUT} отстал от {SRC}\nСоберите: python3 tools/profile_fixture.py")
-        return 1
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(text)
-    print(f"{OUT} ← {SRC}")
-    return 0
+        demo = json.load(f)
+    code = 0
+    for out, fx in ((OUT, build(copy.deepcopy(demo))), (OUT_LARGE, build_large(copy.deepcopy(demo)))):
+        text = render(fx)
+        path = os.path.join(ROOT, out)
+        if "--check" in sys.argv[1:]:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    if f.read() == text:
+                        continue
+            except FileNotFoundError:
+                pass
+            print(f"{out} отстал от {SRC}\nСоберите: python3 tools/profile_fixture.py")
+            code = 1
+            continue
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        print(f"{out} ← {SRC}")
+    return code
 
 
 if __name__ == "__main__":

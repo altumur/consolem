@@ -29,7 +29,7 @@
 - `POST /rule-prompts/{id}/answer`, `{answer: yes | no | ack}`. `202` — принято: вы судите ответы своим проходом, поэтому `202` не обещает, что засчитан именно этот. Итог — событие и `RuleFire`.
 - Поток: `prompt.opened`, `prompt.closed`, `kind: rulePrompt`. `reason`: `answered` (с `answer`, `by`), `expired`, `reset`, `stopped`.
 
-Отвечает человек с ролью шага: иначе `403 PERMISSION_DENIED`. Считается первый ответ. На закрытый ответом вопрос — `409 BUSY`, `params.reason: answered`. Срок вышел, запуск снят — `409 NOT_RUNNABLE`, `params.reason.code: over`, ответ не действует. Не тот вид ответа — `422 VALIDATION_FAILED`, `field: answer`. Запуск ждёт: `RuleFire.result: waiting`, строка шага `state: waiting`, решённый шаг меняет запись, `entity.changed` с `kind: ruleFire`.
+Отвечает человек с ролью шага: иначе `403 PERMISSION_DENIED`. Считается первый ответ. На закрытый ответом вопрос — `409 BUSY`, `params.reason: answered`. Срок вышел — `409 NOT_RUNNABLE`, `params.reason.code: over`, ответ не действует. Запуск снят новой правкой, выключением или удалением — `404` (ADR-0112 доп. (9) п. 4). Не тот вид ответа — `422 VALIDATION_FAILED`, `field: answer`. Запуск ждёт: `RuleFire.result: waiting`, строка шага `state: waiting`, решённый шаг меняет запись, `entity.changed` с `kind: ruleFire`.
 
 **Эскалация.** Вопрос на уровень. Уровень открывается своим сроком, прежний остаётся открытым до конца эскалации, как в V/07.4: `ack:<n>` с `at` не раньше начала уровня `n`. `until` — конец последнего уровня. `ack` на любом открытом уровне останавливает всё. `ack` контракта — ваш `ack:<уровень>`, уровень берётся из вопроса.
 
