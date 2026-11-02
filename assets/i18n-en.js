@@ -542,5 +542,8 @@ window.I18N_EN={
 "Групповая операция уже выполняется":"A bulk operation is already running",
 "Групповая операция":"Bulk operation",
 "Выполненное не откатывается: «Отменить оставшееся» останавливает только то, что ещё не началось. Объекты операции помечены в дереве и недоступны для правки; с остальным интерфейсом можно работать.":"Finished steps are not rolled back: Cancel remaining stops only what has not started. Operation objects are marked in the tree and cannot be edited; the rest of the interface works.",
-"Выбранное уже ждёт удаления":"The selection is already awaiting deletion"
+"Выбранное уже ждёт удаления":"The selection is already awaiting deletion",
+// Автоматизация, этап 6
+"нет в этой системе":"not in this system",
+"Детектор":"Detector"
 };

@@ -3034,10 +3034,17 @@ function autoRef(ref){
   refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];refDetKinds=ref.detectorKinds||[];
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
-  // Что умеет событие — из справочника: варианты уточнения отдаёт сервер, подписи — по коду
+  // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
+  // сервер, подписи — по коду, незнакомый код показывается как есть
+  Object.assign(RULE_REF,{starts:ref.ruleStarts||null,triggers:ref.ruleTriggers||null,actions:ref.ruleActions||null,conds:ref.ruleConditions||null,ctls:ref.ruleControls||null,targets:ref.ruleTargets||null});
   (ref.ruleTriggers||[]).forEach(t=>{
-    const k=TRIGGER_KINDS.find(x=>x.sub===t.source&&x.kind===t.kind);
-    if(k)k.match.forEach(m=>{const r=t.match.find(x=>x.id===m.id);if(r)m.opts=r.options});
+    const k=triggerKind({sub:t.source,kind:t.kind});
+    if(k.stray){k.match=t.match.map(m=>({id:m.id,label:m.id,opts:m.options,pre:m.id}));if(t.deviceTypes)k.devTypes=t.deviceTypes}
+    else k.match.forEach(m=>{const r=t.match.find(x=>x.id===m.id);if(r)m.opts=r.options});
+  });
+  (ref.ruleActions||[]).forEach(a=>{
+    const k=actionKind({sub:a.source,action:a.action});
+    if(k.stray){k.devTypes=a.deviceTypes;k.fields=a.fields.map(f=>({id:f.id==="target"?"ref":ACT_IN[f.id]||f.id,label:f.id==="target"?"Устройство":f.id,...(f.optional?{req:false}:{}),...(f.options?.length?{opts:f.options}:{})}))}
   });
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
   (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
@@ -8816,6 +8823,53 @@ const TRIGGER_KINDS=[
 const RULE_LAYOUTS=[]
 const RULE_MONS=[],REF_LAYOUT=new Map(),REF_MONITOR=new Map()
 const STEP_GROUPS=["Камера","Тревога","Оператор","Уведомления","Другое","Ход выполнения"];
+// Что объявила система (reference.rule*). null — справочник об этом молчит, предлагается всё.
+// Сохранённое раньше и уже вне каталога остаётся в правиле: показывается с пометкой, включить его нельзя
+const RULE_REF={starts:null,triggers:null,actions:null,conds:null,ctls:null,targets:null};
+const RULE_OFF="нет в этой системе";
+function trigDeclared(k){return!RULE_REF.triggers||RULE_REF.triggers.some(x=>x.source===k.sub&&x.kind===k.kind)}
+function actDeclared(k){return!RULE_REF.actions||RULE_REF.actions.some(x=>x.source===k.sub&&x.action===k.action)}
+function ctlDeclared(k){return!RULE_REF.ctls||RULE_REF.ctls.some(x=>x.control===CTL_OUT[k.ctl])}
+function condDeclared(k){return!RULE_REF.conds||RULE_REF.conds.some(x=>x.kind===k.kind)}
+function startDeclared(id){return!RULE_REF.starts||RULE_REF.starts.includes(id==="sched"?"schedule":id)}
+function srcDeclared(){return!RULE_REF.targets||RULE_REF.targets.fromEvent}
+function ruleAreaOff(kind){return!!RULE_REF.targets&&!RULE_REF.targets.kinds.includes(kind)}
+// Поле действия в справочнике: запись, null — поля нет, undefined — справочник о действии молчит
+function ruleRefField(k,id){
+  const a=RULE_REF.actions&&RULE_REF.actions.find(x=>x.source===k.sub&&x.action===k.action);
+  return a?a.fields.find(f=>f.id===(ACT_OUT[id]||id))||null:undefined;
+}
+// Необязательного поля нет в справочнике — его нет и в форме, если в правиле оно не заполнено раньше
+function ruleFieldShown(k,f,a){return!(f.req===false||/необязательно/.test(f.label))||ruleRefField(k,f.id)!==null||(a[f.id]??"")!==""}
+// Варианты выбора: объявленное и то, что уже стоит в правиле; значение — номер в списке или val(k)
+function kindOpts(list,ok,cur,val){
+  return list.map((k,j)=>[k,j]).filter(([k])=>ok(k)||k===cur).map(([k,j])=>[val?val(k):j,ok(k)?k.label:`${i18n(k.label)} (${i18n(RULE_OFF)})`]);
+}
+// Что в правиле вне каталога: текст первого такого места
+function ruleOutOfCat(r){
+  const off=l=>`«${i18n(l)}»: ${i18n(RULE_OFF)}`;
+  const tgt=ref=>{
+    if(ref==="$src")return srcDeclared()?"":off("Устройство из события");
+    const t=ref?refParts(ref).inc.find(x=>refIsArea(x)&&ruleAreaOff(x.split(":")[0])):"";
+    return t?off(ruleAreaName(t)):"";
+  };
+  if(!startDeclared(r.start))return off(RULE_START_NAME[r.start]);
+  for(const t of r.when||[]){const k=triggerKind(t);if(!trigDeclared(k))return off(k.label);const p=tgt(t.ref);if(p)return p}
+  for(const c of r.cond||[]){const k=condKind(c);if(!condDeclared(k))return off(k.label);const p=c.ref?tgt(c.ref):"";if(p)return p}
+  for(const{it:a}of ruleItems(r)){
+    if(a.ctl){const k=ctlKind(a);if(!ctlDeclared(k))return off(k.label);if(a.ev){const e=triggerKind(a.ev);if(!trigDeclared(e))return off(e.label)}continue}
+    const k=actionKind(a);
+    if(!actDeclared(k))return off(k.short||k.label);
+    for(const f of k.fields){
+      const rf=ruleRefField(k,f.id),v=a[f.id]??"";
+      if(v===""||rf===undefined)continue;
+      if(rf===null&&(f.req===false||/необязательно/.test(f.label)))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
+      if(rf&&rf.options?.length&&!rf.options.includes(f.id==="dur"?v:f.id==="mon"?REF_MONITOR.get(v)||v:v))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
+    }
+    const p=a.ref?tgt(a.ref):"";if(p)return p;
+  }
+  return"";
+}
 const ACTION_KINDS=[
   {grp:"Камера",sub:"vms",action:"arm",label:"Поставить на охрану",short:"На охрану",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
   {grp:"Камера",sub:"vms",action:"disarm",label:"Снять с охраны",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
@@ -8856,8 +8910,9 @@ function ruleNewAct(k,old,r){
   const a={sub:k.sub,action:k.action,...ruleClone(k.def||{})};
   if(k.devTypes.length)a.ref=old&&old.action&&old.ref&&refFits(old.ref,k.devTypes,"then")?old.ref:"";
   if(k.action==="record"&&r){
-    if(!a.ref&&ruleSrcOk(r,k.devTypes))a.ref="$src";
-    if(ruleHasEnds(r)){a.dur="event";a.after=0}else a.minutes=10;
+    if(!a.ref&&ruleSrcOk(r,k.devTypes)&&srcDeclared())a.ref="$src";
+    const rf=ruleRefField(k,"dur");
+    if(ruleHasEnds(r)&&(!rf||!rf.options?.length||rf.options.includes("event"))){a.dur="event";a.after=0}else{a.minutes=10;if(rf===null)delete a.dur;else if(a.dur==="event")a.dur="min"}
   }
   return a;
 }
@@ -8876,7 +8931,7 @@ const CTL_KINDS=[
    check:c=>c.sec>=1&&c.sec<=3600?"":`«${i18n("Ждать")}»: от 1 до 3600 секунд`,
    fieldsHtml:(c,ps)=>ctlSecHtml(c,ps)},
   {ctl:"waitev",label:"Ждать событие",grp:"Ход выполнения",br:[["yes","если пришло"],["no","если не пришло"]],
-   make:()=>({ctl:"waitev",ev:{sub:"det",kind:"motion",ref:"",match:{}},sec:30,yes:[],no:[]}),
+   make:()=>{const k=ruleTrigAdd();return{ctl:"waitev",ev:{sub:k.sub,kind:k.kind,ref:"",match:{}},sec:30,yes:[],no:[]}},
    text:c=>`${i18n("Ждать событие")} «${triggerLabel(c.ev)}» ${i18n("до")} ${c.sec||0} ${i18n("с")}`,
    check:c=>{
      const t=`«${i18n("Ждать событие")}»`;
@@ -8886,7 +8941,7 @@ const CTL_KINDS=[
    },
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
-     return`<div class="rl-f">${selHtml(TRIGGER_KINDS.map((x,j)=>[j,x.label]),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
+     return`<div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,k),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
        ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
@@ -8985,8 +9040,21 @@ function condLabel(c,bare){
 // Запись «пока идёт событие» возможна, только если в «Если» есть событие с началом и концом.
 function ruleHasEnds(r){return r.start==="event"&&r.when.some(t=>triggerKind(t).ends)}
 function ruleEndsWord(r){const t=r&&r.start==="event"&&r.when.find(x=>triggerKind(x).ends);return t?triggerKind(t).endsWord:"событие"}
-function triggerKind(t){return TRIGGER_KINDS.find(k=>k.sub===t.sub&&k.kind===t.kind)||TRIGGER_KINDS[0]}
-function actionKind(a){return ACTION_KINDS.find(k=>k.sub===a.sub&&k.action===a.action)||ACT_DEFAULT}
+// Незнакомый вид — из справочника или из сохранённого правила — не подменяется другим: заводится с подписью-кодом
+function triggerKind(t){
+  let k=TRIGGER_KINDS.find(x=>x.sub===t.sub&&x.kind===t.kind);
+  if(!k&&t.kind){k={sub:t.sub,kind:t.kind,label:`${t.sub}/${t.kind}`,unitLabel:"Устройство",devTypes:RULE_DEV_ANY,match:[],stray:true};TRIGGER_KINDS.push(k)}
+  return k||TRIGGER_KINDS[0];
+}
+function actionKind(a){
+  let k=ACTION_KINDS.find(x=>x.sub===a.sub&&x.action===a.action);
+  if(!k&&a.action){k={grp:"Другое",sub:a.sub,action:a.action,label:`${a.sub}/${a.action}`,devTypes:a.ref?RULE_DEV_ANY:[],fields:a.ref?[{id:"ref",label:"Устройство"}]:[],stray:true};ACTION_KINDS.push(k)}
+  return k||ACT_DEFAULT;
+}
+const RULE_DEV_ANY=["camera","sensor","acfa_sensor","acfa_lock","acfa_fence","relay","eventsrc"];
+// Что добавить новым пунктом: привычное умолчание, а если его не объявили — первое объявленное
+function ruleTrigAdd(){return trigDeclared(TRIGGER_KINDS[1])?TRIGGER_KINDS[1]:TRIGGER_KINDS.find(trigDeclared)||TRIGGER_KINDS[1]}
+function ruleActAdd(){return actDeclared(ACT_ADD)?ACT_ADD:ACTION_KINDS.find(actDeclared)||ACT_ADD}
 
 // ── Ссылки на устройства ──
 // Правило хранит id устройства, а не его имя: переименование ничего не ломает,
@@ -9344,6 +9412,7 @@ function ruleAutoName(r){
 // то, что подсистема отвергнет, обманывает дважды: сначала показав, что всё в
 // порядке, а потом — в журнале, через час, чужим текстом.
 function ruleProblem(r){
+  const off=ruleOutOfCat(r);if(off)return off;
   if(r.start==="event"){
     if(!r.when.length)return"Нужно хотя бы одно событие: правило без «если» не сработает";
     if(r.when.length>1&&!r.within)return"Двум событиям нужно окно: в пределах скольких секунд они считаются совпавшими";
@@ -9684,17 +9753,23 @@ const RULE_TPL=[
    make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
    make:()=>({menu:true,then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})}];
+// Шаблон с тем, чего система не объявила, не предлагается
+function ruleTplDeclared(t){
+  const b=t.make();
+  return(b.when||[]).every(x=>trigDeclared(triggerKind(x)))&&(b.cond||[]).every(x=>condDeclared(condKind(x)))
+    &&(b.then||[]).every(x=>(x.ctl?ctlDeclared(ctlKind(x)):actDeclared(actionKind(x)))&&(x.ref!=="$src"||srcDeclared()));
+}
 let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
 // событие или действие, и шаблон тогда не обязателен.
 function ruleNewOpen(preset){
-  rnw={start:(preset&&preset.start)||"event",tpl:"",preset:preset||null};
+  rnw={start:(preset&&preset.start)||(RULE_STARTS.find(([id])=>startDeclared(id))||RULE_STARTS[0])[0],tpl:"",preset:preset||null};
   ruleNewRender();
 }
 function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
 function ruleNewRender(){
-  const starts=RULE_STARTS.map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
-  const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start)]
+  const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
+  const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
     .map(t=>`<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
@@ -9856,16 +9931,16 @@ function rulePkTree(){
   const pk=rulePk,dt=pk.dt,rows=[],cnt=t=>ruleTokNodes(t,dt).length,has=new Set(pk.toks);
   const folderRows=(list,lvl,inc)=>list.forEach(f=>{
     const tok="folder:"+f.id,key="fol:"+f.id,kids=f.folders||[],open=!pk.shut.has(key);
-    rows.push(rulePkRow({tok,key,lvl,label:locName(f),cnt:cnt(tok),inc,exp:kids.length?open:undefined,title:ruleAreaNote(tok,dt)}));
+    rows.push(rulePkRow({tok:ruleAreaOff("folder")?"":tok,key,lvl,label:locName(f),cnt:cnt(tok),inc,exp:kids.length?open:undefined,title:ruleAreaNote(tok,dt)}));
     if(kids.length&&open)folderRows(kids,lvl+1,inc||has.has(tok));
   });
   rulePkDomains().forEach(d=>{
     const tok="domain:"+d.id,key="dom:"+d.id,open=!pk.shut.has(key),covered=has.has(tok);
-    rows.push(rulePkRow({tok,key,lvl:1,label:`${i18n("Весь домен")} «${locName(d)}»`,cnt:cnt(tok),exp:open,title:ruleAreaNote(tok,dt)}));
+    rows.push(rulePkRow({tok:ruleAreaOff("domain")?"":tok,key,lvl:1,label:`${i18n("Весь домен")} «${locName(d)}»`,cnt:cnt(tok),exp:open,title:ruleAreaNote(tok,dt)}));
     if(!open)return;
     const sk="srvs:"+d.id,fk="fols:"+d.id,sopen=!pk.shut.has(sk),fopen=!pk.shut.has(fk);
     rows.push(rulePkRow({tok:"",key:sk,lvl:2,label:i18n("Серверы"),exp:sopen}));
-    if(sopen)(d.servers||[]).forEach(s=>{const t="server:"+s.id;rows.push(rulePkRow({tok:t,key:t,lvl:3,label:ruleSrvShort(s),cnt:cnt(t),inc:covered,title:ruleAreaNote(t,dt)}))});
+    if(sopen)(d.servers||[]).forEach(s=>{const t="server:"+s.id;rows.push(rulePkRow({tok:ruleAreaOff("server")?"":t,key:t,lvl:3,label:ruleSrvShort(s),cnt:cnt(t),inc:covered,title:ruleAreaNote(t,dt)}))});
     rows.push(rulePkRow({tok:"",key:fk,lvl:2,label:i18n("Папки"),exp:fopen}));
     if(fopen)folderRows(domainFolders(d.id),3,covered);
   });
@@ -9874,7 +9949,7 @@ function rulePkTree(){
 // Поиск: области и устройства двумя группами.
 function rulePkSearch(q){
   const pk=rulePk,dt=pk.dt,rows=[];
-  const area=(tok,label,key)=>rows.push(rulePkRow({tok,key,lvl:1,label,cnt:ruleTokNodes(tok,dt).length,inc:rulePkAreaInc(tok),title:ruleAreaNote(tok,dt)}));
+  const area=(tok,label,key)=>{if(!ruleAreaOff(tok.split(":")[0]))rows.push(rulePkRow({tok,key,lvl:1,label,cnt:ruleTokNodes(tok,dt).length,inc:rulePkAreaInc(tok),title:ruleAreaNote(tok,dt)}))};
   rulePkDomains().forEach(d=>{
     if(matchesText(q,locName(d),i18n("домен")))area("domain:"+d.id,`${i18n("Весь домен")} «${locName(d)}»`,"dom:"+d.id);
     (d.servers||[]).forEach(s=>{if(matchesText(q,locName(s),i18n("сервер")))area("server:"+s.id,`${i18n("Сервер")} «${ruleSrvShort(s)}»`,"server:"+s.id)});
@@ -9970,7 +10045,7 @@ function rulePickList(){
   const st=host.scrollTop;
   // Особый пункт «из события» — отдельной строкой наверху, взаимоисключающий с остальным выбором.
   let h="";
-  if(srcOk&&matchesText(q,i18n("Устройство из события")))
+  if(srcOk&&srcDeclared()&&matchesText(q,i18n("Устройство из события")))
     h+=`<button type="button" role="radio" aria-checked="${pk.src}" class="rl-pk rl-src ${pk.src?"on":""}" data-key="src" ${onEv("click",["rulePkSrc"])}><span class="rl-cb ${pk.src?"on":""}" aria-hidden="true">${pk.src?lu("check"):""}</span><span>${i18n("Устройство из события")}</span><small>${i18n("то, от которого пришло событие")}</small></button>`;
   if(!pk.src)h+=(q?rulePkSearch(q):`<div class="rl-pk-g">${i18n("Области")}</div><div role="tree" aria-label="${i18n("Области")}">${rulePkTree()}</div>`+rulePkDevices(""))+rulePkTail();
   host.innerHTML=h;
@@ -10080,7 +10155,7 @@ function setTriggerKind(i,v){
     r.when[i]={sub:k.sub,kind:k.kind,ref:refFits(old.ref,k.devTypes,"when")?old.ref:"",match:{}}});
 }
 function setTriggerField(i,f,v){ruleEdit(r=>{const t=r.when[i];t.match=t.match||{};if(v)t.match[f]=v;else delete t.match[f]})}
-function addTrigger(){ruleEdit(r=>{const k=TRIGGER_KINDS[1];r.when.push({sub:k.sub,kind:k.kind,ref:"",match:{}});if(r.when.length>1&&!r.within)r.within=30})}
+function addTrigger(){ruleEdit(r=>{const k=ruleTrigAdd();r.when.push({sub:k.sub,kind:k.kind,ref:"",match:{}});if(r.when.length>1&&!r.within)r.within=30})}
 function delTrigger(i){ruleEdit(r=>{r.when.splice(i,1);if(r.when.length<2)r.within=0})}
 // «То» адресуется путём пункта строкой («2.yes.0»); lp — путь списка («» — верхний, «2.yes» — ветка шага 2).
 function ruleLastIdx(path){path=ruleParsePath(path);return path[path.length-1]}
@@ -10119,11 +10194,11 @@ function setWevField(ps,f,v){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)
 // Одна кнопка на уровень: добавляет пункт и ставит фокус на выбор его вида (там же выбирается действие или шаг).
 function addItem(lp){
   let ps="";
-  ruleEdit(r=>{const l=ruleListAt(r,lp);if(l){l.push(ruleNewAct(ACT_ADD,null,r));ps=lp?`${lp}.${l.length-1}`:String(l.length-1)}});
+  ruleEdit(r=>{const l=ruleListAt(r,lp);if(l){l.push(ruleNewAct(ruleActAdd(),null,r));ps=lp?`${lp}.${l.length-1}`:String(l.length-1)}});
   if(ps)document.querySelector(`select[data-ks="${ps}"]`)?.focus();
 }
-function addAction(lp){ruleEdit(r=>{const l=ruleListAt(r,lp);if(l)l.push(ruleNewAct(ACT_ADD,null,r))})}
-function addStep(lp){ruleEdit(r=>{const l=ruleListAt(r,lp);if(l)l.push(CTL_KINDS[0].make())})}
+function addAction(lp){ruleEdit(r=>{const l=ruleListAt(r,lp);if(l)l.push(ruleNewAct(ruleActAdd(),null,r))})}
+function addStep(lp){ruleEdit(r=>{const l=ruleListAt(r,lp);if(l)l.push((CTL_KINDS.find(ctlDeclared)||CTL_KINDS[0]).make())})}
 function delAction(ps){
   const cr=curRule(),o=cr&&ruleThenAt(cr,ps),n=o?ruleNestCount(o):0;
   const go=()=>ruleEdit(r=>{const l=ruleThenList(r,ps);if(l)l.splice(ruleLastIdx(ps),1)});
@@ -10142,7 +10217,7 @@ function moveStep(ps,d){
   (q(`mv:${np}:${d}`)||q(`mv:${np}:${-d}`))?.focus({preventScroll:true});
 }
 // Условия «При условии».
-function addCond(){ruleEdit(r=>{(r.cond=r.cond||[]).push(condNew("time"))})}
+function addCond(){ruleEdit(r=>{(r.cond=r.cond||[]).push(condNew((COND_KINDS.find(condDeclared)||COND_KINDS[0]).kind))})}
 function delCond(i){ruleEdit(r=>{r.cond.splice(i,1)})}
 function condKindSet(i,v){ruleEdit(r=>{const c=r.cond[i];if(c&&c.kind!==v)r.cond[i]=condNew(v,c)})}
 function condSet(i,f,v){ruleEdit(r=>{const c=r.cond[i];if(c)c[f]=f==="val"?v==="true":v})}
@@ -10175,7 +10250,7 @@ function refFieldHtml(slot,i,ref,ph){
 }
 function triggerRowHtml(t,i,n){
   const k=triggerKind(t),ki=TRIGGER_KINDS.indexOf(k);
-  const kinds=TRIGGER_KINDS.map((x,j)=>[j,x.label]);
+  const kinds=kindOpts(TRIGGER_KINDS,trigDeclared,k);
   return`<div class="rl-row">
     <div class="rl-n">${n}</div>
     <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
@@ -10203,7 +10278,7 @@ function condRowHtml(c,i){
     body=refFieldHtml("cond",i,c.ref);
     if(c.kind==="armed")body+=`<div class="rl-f">${selHtml([["true","на охране"],["false","снята с охраны"]],c.val===false?"false":"true",`condSet(${i},'val',this.value)`,`${i18n("Состояние охраны")} ${i+1}`)}</div>`;
   }
-  return`<div class="rl-row"><div class="rl-n">${i+1}</div><div class="rl-f">${selHtml(COND_KINDS.map(x=>[x.kind,x.label]),k.kind,`condKindSet(${i},this.value)`,`${i18n("Вид условия")} ${i+1}`)}</div>${body}
+  return`<div class="rl-row"><div class="rl-n">${i+1}</div><div class="rl-f">${selHtml(kindOpts(COND_KINDS,condDeclared,k,x=>x.kind),k.kind,`condKindSet(${i},this.value)`,`${i18n("Вид условия")} ${i+1}`)}</div>${body}
     <button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${onEv("click",["delCond",i])}>${lu("x")}</button></div>`;
 }
 // ── «То»: дерево действий и шагов ──
@@ -10212,8 +10287,9 @@ function stepKindSel(it,ps,depth,num){
   const cur=it.ctl?"c:"+it.ctl:"a:"+ACTION_KINDS.indexOf(actionKind(it));
   const all=[...ACTION_KINDS.map((k,j)=>({k,v:"a:"+j})),...CTL_KINDS.map(k=>({k,v:"c:"+k.ctl,br:k.br.length}))];
   const grp=g=>{
-    const o=all.filter(x=>x.k.grp===g&&(!x.br||depth<RULE_DEPTH||x.v===cur));
-    return o.length?`<optgroup label="${escHtml(i18n(g))}">${o.map(x=>`<option value="${x.v}" ${x.v===cur?"selected":""}>${escHtml(i18n(x.k.label))}</option>`).join("")}</optgroup>`:"";
+    const on=x=>x.k.ctl?ctlDeclared(x.k):actDeclared(x.k);
+    const o=all.filter(x=>x.k.grp===g&&(x.v===cur||on(x)&&(!x.br||depth<RULE_DEPTH)));
+    return o.length?`<optgroup label="${escHtml(i18n(g))}">${o.map(x=>`<option value="${x.v}" ${x.v===cur?"selected":""}>${escHtml(i18n(x.k.label))}${on(x)?"":` (${i18n(RULE_OFF)})`}</option>`).join("")}</optgroup>`:"";
   };
   return`<select data-ks="${ps}" ${onEv("change",["setStepKind",`${ps}`,onEv.value])} aria-label="${i18n("Вид пункта")} ${num||""}">${STEP_GROUPS.map(grp).join("")}</select>`;
 }
@@ -10242,7 +10318,7 @@ function ruleTplIns(ps,fid,id,tok){
 }
 function actFieldsHtml(a,ps){
   const r=curRule(),k=actionKind(a),via=k.via&&find(k.via)?.n;
-  const h=k.fields.filter(f=>!f.on||f.on(a)).map(f=>{
+  const h=k.fields.filter(f=>(!f.on||f.on(a))&&ruleFieldShown(k,f,a)).map(f=>{
     if(f.id==="ref")return refFieldHtml("then",ps,a.ref);
     const v=a[f.id]??"",on=`setActionField('${ps}','${f.id}',this.value)`;
     if(f.tpl)return tplFieldHtml(r,a,ps,f);
@@ -10253,6 +10329,8 @@ function actFieldsHtml(a,ps){
         :f.opts.map(o=>Array.isArray(o)?o:[o,o]);
       // Пустой обязательный выбор не показывает первый пункт: иначе на экране «1», а правило — с ошибкой «не заполнено поле».
       if(f.sel||f.req!==false&&v==="")opts=[["","Выберите…"],...opts];
+      const rf=ruleRefField(k,f.id);
+      if(rf&&rf.options?.length&&f.id==="dur")opts=opts.filter(([x])=>x===""||x===a.dur||rf.options.includes(x));
       if(f.id==="dur")opts=opts.map(([x,l])=>[x,l,x==="event"&&a.dur!=="event"&&!ruleHasEnds(r)]);   // «пока идёт событие» — только при событии с концом
       const cur=f.id==="dur"?a.dur||"min":v;
       return`<div class="rl-f">${selHtml(opts,cur,on,f.label)}</div>`;
@@ -10612,7 +10690,7 @@ function ruleCheckRender(){
     const rows=r.when.map((t,j)=>{
       const w=rck.rows[j],kd=TRIGGER_KINDS[w.kind];
       return`<div class="rl-row"><div class="rl-n">${j?i18n("и"):i18n("Если")}</div>
-        <div class="rl-f">${selHtml(TRIGGER_KINDS.map((x,i)=>[i,x.label]),w.kind,`ruleCheckRow(${j},'kind',this.value)`)}</div>
+        <div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,TRIGGER_KINDS[w.kind]),w.kind,`ruleCheckRow(${j},'kind',this.value)`)}</div>
         <div class="rl-f">${ruleCheckDevSel(t,kd,w.ref,j)}</div></div>`}).join("");
     h+=`<div class="rl-h">${i18n("Источник события")}</div><div class="rl-opts">
       <label class="rl-opt ${hand?"":"on"}"><input type="radio" name="rckSrc" ${hand?"":"checked"} ${rck.cands.length?"":"disabled"} ${onEv("change",["ruleCheckSet","src","log"])}><span><b>${i18n("Событие из журнала")}</b><small>${rck.cands.length?i18n("Последние события, подходящие по виду"):i18n("Подходящих событий в журнале нет")}</small>${hand?"":`<div class="rl-cands">${cands}</div>`}</span></label>

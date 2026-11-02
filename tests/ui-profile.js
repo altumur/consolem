@@ -84,6 +84,24 @@ UiCheck(async ({ ok, until }) => {
   ok(res.name === "Камера — профиль", "переименование через API");
   ok(await until(() => cam(camId)?.name === "Камера — профиль"), "кэш интерфейса — из события потока");
 
+  // «Автоматизация»: каталог из справочника. Правило вне каталога показывается, а не теряется
+  goApp("rules");
+  const stray = rules.find((x) => x.name === "Вход на видеостене по движению");
+  ok(stray && !stray.on && stray.then.some((a) => a.action === "wall"), "правило вне каталога прочитано, шаг на месте");
+  ruleOpen(stray.id);
+  ok(ruleIssues(stray).some((x) => /нет в этой системе/.test(x)), "причина: " + ruleIssues(stray).join("; "));
+  const opts = [...document.querySelector("select[data-ks]").options].map((o) => o.textContent);
+  ok(opts.some((l) => /Показать на видеостене.*нет в этой системе/.test(l)), "свой вид в списке, с пометкой");
+  ok(!opts.some((l) => /Telegram|Отправить письмо|Веб-запрос|Закрыть тревогу|Открыть раскладку/.test(l)), "необъявленного в списке нет: " + opts.join(", "));
+  ok(ruleBody(stray).steps.some((a) => a.action === "wall"), "при сохранении шаг не теряется");
+  const k = ACTION_KINDS.find((x) => x.action === "record");
+  ok(ruleRefField(k, "after") === null && ruleRefField(k, "dur").options.join() === "min", "поля записи из справочника");
+  ok(!ruleNewAct(k, null, stray).after && ruleNewAct(k, null, stray).dur !== "event", "новая запись — только на минуты");
+  ruleNewOpen();
+  rnw.tpl = "";
+  ruleNewCreate();
+  ok(ruleDraft && curRule().when.length === 0, "новое правило открывается");
+
   // Неподдержанное на сервере — 404 NO_ROUTE, интерфейс этого не вызывает
   const nr = await API.post("/domains", { name: "Второй" }).then(() => null, (e) => e?.problem?.code);
   ok(nr === "NO_ROUTE", "POST /domains — 404 NO_ROUTE: " + nr);

@@ -3093,7 +3093,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Сервер выдаёт id, порядок и первую версию истории. Включённое правило вне каталога системы — 422 NOT_SUPPORTED (reference.ruleActions)"
       }
     },
     "/rules/{ruleId}": {
@@ -3212,7 +3213,7 @@
             "$ref": "#/components/responses/Problem"
           }
         },
-        "description": "Содержимое правила целиком. Сервер пишет версию истории; historyNote — пометка «восстановлена версия», «отмена». Приглушение и порядок — /rules/update и /rules/reorder"
+        "description": "Содержимое правила целиком. Сервер пишет версию истории; historyNote — пометка «восстановлена версия», «отмена». Приглушение и порядок — /rules/update и /rules/reorder. Включённое правило вне каталога системы — 422 NOT_SUPPORTED, выключенное хранится как есть (reference.ruleActions)"
       }
     },
     "/rules/{ruleId}/fires": {
@@ -8544,7 +8545,7 @@
             "description": "Параметры начинки по видам: ключ, варианты или значение по умолчанию"
           },
           "ruleTriggers": {
-            "description": "События для запуска правил. Каждый вид своим кодом: io.input, motion и другие; silent — обрыв открытого потока камеры, а не потеря связи с устройством: у камеры без потока его нет",
+            "description": "События для запуска правил. Каждый вид своим кодом: io.input, motion и другие; silent — обрыв открытого потока камеры, а не потеря связи с устройством: у камеры без потока его нет. Что не объявлено, форма не предлагает; как судится — описание ruleActions",
             "type": "array",
             "items": {
               "type": "object",
@@ -8642,7 +8643,8 @@
                 "fields",
                 "deviceTypes"
               ]
-            }
+            },
+            "description": "Каталог «Автоматизации» — то, что система исполняет: части его вместе с ruleTriggers, ruleConditions, ruleControls, ruleStarts, ruleTargets объявляют, что она умеет. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия: у поля options — его значения, поля нет в списке — у действия его нет (duration у записи: options [min], без afterSec — запись только на минуты)"
           },
           "access": {
             "type": "object",
@@ -8887,7 +8889,8 @@
                 "kind",
                 "deviceTypes"
               ]
-            }
+            },
+            "description": "Условия, которые исполняет система. Что не объявлено, форма не предлагает; как судится — описание ruleActions"
           },
           "ruleControls": {
             "type": "array",
@@ -8909,7 +8912,8 @@
                 "control",
                 "branches"
               ]
-            }
+            },
+            "description": "Шаги хода выполнения, которые исполняет система. Что не объявлено, форма не предлагает; как судится — описание ruleActions"
           },
           "layouts": {
             "type": "array",
@@ -8966,6 +8970,46 @@
               "type": "string"
             },
             "description": "Классы событий: варианты Device.alarmKinds"
+          },
+          "ruleStarts": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "event",
+                "schedule",
+                "manual"
+              ]
+            },
+            "description": "Какие способы запуска исполняет система. Другой в правиле — как шаг вне справочника (описание ruleActions)"
+          },
+          "ruleTargets": {
+            "type": "object",
+            "properties": {
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "device",
+                    "folder",
+                    "server",
+                    "domain"
+                  ]
+                },
+                "description": "Какие элементы бывают в RuleTarget.include"
+              },
+              "fromEvent": {
+                "type": "boolean",
+                "description": "Бывает ли цель «устройство из события» (RuleTarget.fromEvent)"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "kinds",
+              "fromEvent"
+            ],
+            "description": "Какие цели понимает система. Другая цель в правиле — как шаг вне справочника (описание ruleActions)"
           }
         },
         "additionalProperties": false,
@@ -8991,7 +9035,9 @@
           "ruleConditions",
           "ruleControls",
           "layouts",
-          "monitors"
+          "monitors",
+          "ruleStarts",
+          "ruleTargets"
         ]
       },
       "DeviceType": {

@@ -6782,9 +6782,8 @@
       "gone": [],
       "fromEvent": false
      },
-     "duration": "event",
-     "minutes": 10,
-     "afterSec": 10
+     "duration": "min",
+     "minutes": 10
     }
    ],
    "owner": "admin",
@@ -6862,7 +6861,8 @@
         "gone": [],
         "fromEvent": true
        },
-       "minutes": 5
+       "minutes": 5,
+       "duration": "min"
       }
      ],
      "no": []
@@ -6923,7 +6923,8 @@
       "gone": [],
       "fromEvent": true
      },
-     "minutes": 15
+     "minutes": 15,
+     "duration": "min"
     }
    ],
    "owner": "it.chief",
@@ -7023,7 +7024,7 @@
   {
    "id": "70000009-0000-4000-8000-000000000000",
    "name": "Вход на видеостене по движению",
-   "enabled": true,
+   "enabled": false,
    "logOnly": false,
    "logOnlySince": null,
    "start": "event",
@@ -7302,9 +7303,8 @@
        "gone": [],
        "fromEvent": false
       },
-      "duration": "event",
-      "minutes": 10,
-      "afterSec": 10
+      "duration": "min",
+      "minutes": 10
      }
     ],
     "owner": "admin",
@@ -7393,9 +7393,8 @@
        "gone": [],
        "fromEvent": false
       },
-      "duration": "event",
-      "minutes": 10,
-      "afterSec": 10
+      "duration": "min",
+      "minutes": 10
      }
     ],
     "owner": "admin",
@@ -16962,17 +16961,12 @@
      {
       "id": "duration",
       "options": [
-       "min",
-       "event"
+       "min"
       ],
       "optional": true
      },
      {
       "id": "minutes"
-     },
-     {
-      "id": "afterSec",
-      "optional": true
      },
      {
       "id": "archive",
@@ -17020,83 +17014,6 @@
     ]
    },
    {
-    "source": "alarm",
-    "action": "alarmclose",
-    "deviceTypes": [
-     "camera"
-    ],
-    "fields": [
-     {
-      "id": "target"
-     }
-    ]
-   },
-   {
-    "source": "client",
-    "action": "layout",
-    "deviceTypes": [],
-    "fields": [
-     {
-      "id": "layoutId"
-     },
-     {
-      "id": "roleId"
-     }
-    ]
-   },
-   {
-    "source": "client",
-    "action": "wall",
-    "deviceTypes": [
-     "camera"
-    ],
-    "fields": [
-     {
-      "id": "target"
-     },
-     {
-      "id": "monitorId",
-      "options": [
-       "f0000001-0007-4000-8000-000000000000",
-       "f0000002-0007-4000-8000-000000000000",
-       "f0000003-0007-4000-8000-000000000000",
-       "f0000004-0007-4000-8000-000000000000"
-      ],
-      "optional": true
-     }
-    ]
-   },
-   {
-    "source": "ntf",
-    "action": "email",
-    "deviceTypes": [],
-    "fields": [
-     {
-      "id": "to"
-     },
-     {
-      "id": "subject"
-     },
-     {
-      "id": "body",
-      "optional": true
-     }
-    ]
-   },
-   {
-    "source": "ntf",
-    "action": "tg",
-    "deviceTypes": [],
-    "fields": [
-     {
-      "id": "chat"
-     },
-     {
-      "id": "text"
-     }
-    ]
-   },
-   {
     "source": "vms",
     "action": "output",
     "deviceTypes": [
@@ -17108,24 +17025,6 @@
      },
      {
       "id": "pulseMs"
-     }
-    ]
-   },
-   {
-    "source": "net",
-    "action": "http",
-    "deviceTypes": [],
-    "fields": [
-     {
-      "id": "method",
-      "options": [
-       "GET",
-       "POST"
-      ],
-      "optional": true
-     },
-     {
-      "id": "url"
      }
     ]
    },
@@ -17715,7 +17614,21 @@
    "io.input",
    "text",
    "unit"
-  ]
+  ],
+  "ruleStarts": [
+   "event",
+   "schedule",
+   "manual"
+  ],
+  "ruleTargets": {
+   "kinds": [
+    "device",
+    "folder",
+    "server",
+    "domain"
+   ],
+   "fromEvent": true
+  }
  },
  "streamAccounts": [
   {

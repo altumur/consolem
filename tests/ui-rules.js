@@ -8,6 +8,19 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const undo = (prefix) => [...document.querySelectorAll(".ttu")].reverse().find((e) => e.id.startsWith("ttu-" + prefix))?.querySelector(".ttu-act");
   goApp("rules");
 
+  // Каталог — из справочника: незнакомый вид не подменяется, необъявленное не предлагается, в правиле — видно
+  const strayT = triggerKind({ sub: "acs", kind: "pass" }), strayA = actionKind({ sub: "vms", action: "bell", ref: "x" });
+  ok(strayT.label === "acs/pass" && strayA.label === "vms/bell", "незнакомый вид — с подписью-кодом: " + strayT.label + ", " + strayA.label);
+  ok(stepBody({ sub: "vms", action: "bell", ref: "", tone: 3 }).tone === 3, "незнакомое поле действия не теряется");
+  const wasRef = { ...RULE_REF };
+  Object.assign(RULE_REF, { starts: ["manual"], targets: { kinds: ["device"], fromEvent: false } });
+  ruleNewOpen();
+  ok(rnw.start === "manual" && !ruleAreaOff("device") && ruleAreaOff("folder") && ruleAreaOff("server") && ruleAreaOff("domain") && !srcDeclared(), "способ запуска и виды целей — из справочника");
+  closeBulkModal();
+  ok(/нет в этой системе/.test(ruleOutOfCat({ start: "manual", when: [], cond: [], then: [{ sub: "rec", action: "record", ref: "$src", minutes: 5 }] })), "«устройство из события» вне каталога — видно");
+  ok(/нет в этой системе/.test(ruleOutOfCat({ start: "event", when: [], cond: [], then: [] })), "способ запуска вне каталога — видно");
+  Object.assign(RULE_REF, wasRef);
+
   // Правка: черновик у клиента, «Применить» — PUT; кэш и история — из ответа
   ruleOpen(R1);
   const v0 = autoVer.get(R1), h0 = (ruleHist[R1] || []).length;

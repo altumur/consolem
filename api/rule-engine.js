@@ -449,6 +449,52 @@
     }
     const notifier = () => world.devices().find((d) => d.type === "email") || null;
 
+    /* ===== Каталог: что объявила система ===== */
+
+    // Необязательные поля действия: нет в справочнике — у действия их нет (reference.ruleActions)
+    const FIELDS_OPTIONAL = ["duration", "afterSec", "archive", "priority", "params", "beforeSec"];
+    // Правило вне каталога: { field — раздел, issue } или null. ref — справочник системы
+    function undeclared(r, ref) {
+      const bad = (field, code, params) => ({ field, issue: msg(code, params) });
+      const targetBad = (t, field) => {
+        const on = ref.ruleTargets;
+        if (!t || !on) return null;
+        const x = t.include.find((i) => !on.kinds.includes(i.kind));
+        if (x) return bad(field, "target.notDeclared", { kind: x.kind });
+        return t.fromEvent && !on.fromEvent ? bad(field, "target.notDeclared", { kind: "fromEvent" }) : null;
+      };
+      const eventBad = (t, field) =>
+        ref.ruleTriggers.some((k) => k.source === t.source && k.kind === t.kind) ? targetBad(t.target, field) : bad(field, "trigger.notDeclared", { source: t.source, kind: t.kind });
+      const stepBad = (a) => {
+        if (a.control) {
+          if (!ref.ruleControls.some((k) => k.control === a.control)) return bad("steps", "control.notDeclared", { control: a.control });
+          return a.event ? eventBad(a.event, "steps") : null;
+        }
+        const k = ref.ruleActions.find((x) => x.source === a.source && x.action === a.action);
+        if (!k) return bad("steps", "action.notDeclared", { action: a.action });
+        const value = k.fields.find((f) => (f.options || []).length && a[f.id] != null && !f.options.includes(a[f.id]));
+        if (value) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: value.id });
+        const extra = FIELDS_OPTIONAL.find((f) => a[f] && !k.fields.some((x) => x.id === f));
+        if (extra) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: extra });
+        return targetBad(a.target, "steps");
+      };
+      if (ref.ruleStarts && !ref.ruleStarts.includes(r.start)) return bad("start", "rule.startNotDeclared", { start: r.start });
+      for (const t of r.triggers) {
+        const p = eventBad(t, "triggers");
+        if (p) return p;
+      }
+      for (const c of r.conditions) {
+        if (!ref.ruleConditions.some((k) => k.kind === c.kind)) return bad("conditions", "cond.notDeclared", { kind: c.kind });
+        const p = targetBad(c.target, "conditions");
+        if (p) return p;
+      }
+      for (const { it } of items(r)) {
+        const p = stepBad(it);
+        if (p) return p;
+      }
+      return null;
+    }
+
     /* ===== Запуск ===== */
 
     const muteAt = (r, ms) => {
@@ -660,7 +706,7 @@
         result: g === steps.length ? "ok" : g ? "part" : "fail" };
     }
 
-    return { fire, retry, retryable, issue, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    return { fire, retry, retryable, issue, undeclared, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
   // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние

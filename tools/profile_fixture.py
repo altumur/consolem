@@ -25,6 +25,10 @@ DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
 MISSING = ["listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 FEATURES = []
+# «Автоматизация» по части каталога, как у w2c: этих действий система не исполняет, запись — только на минуты
+ACTIONS_OFF = ["alarmclose", "layout", "wall", "email", "tg", "http"]
+# Правило, сохранённое раньше и теперь вне каталога: остаётся выключенным, форма его показывает
+OUT_OF_CATALOG = "Вход на видеостене по движению"
 
 
 def build(demo):
@@ -108,6 +112,11 @@ def build(demo):
         out = []
         for a in lst:
             a = dict(a)
+            if a.get("action") in ACTIONS_OFF:
+                continue
+            if a.get("action") == "record":
+                a.update(duration="min", minutes=a.get("minutes") or 10)
+                a.pop("afterSec", None)
             if a.get("control") == "waitEvent":
                 a["event"]["target"], ok = tgt(a["event"]["target"])
                 if not ok:
@@ -128,7 +137,9 @@ def build(demo):
     def prune(r):
         r["triggers"] = [dict(t, target=tgt(t["target"])[0]) for t in r["triggers"] if tgt(t["target"])[1]]
         r["conditions"] = [dict(c, target=tgt(c["target"])[0]) if "target" in c else c for c in r["conditions"] if "target" not in c or tgt(c["target"])[1]]
-        r["steps"] = steps(r["steps"])
+        r["steps"] = dict(r).get("steps") if r["name"] == OUT_OF_CATALOG else steps(r["steps"])
+        if r["name"] == OUT_OF_CATALOG:
+            r["enabled"] = False
         if len(r["triggers"]) < 2:
             r["windowSec"] = 0
         if r["serverId"] not in sids:
@@ -175,6 +186,10 @@ def build(demo):
         role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if obj_kept(k)}
 
     ref = fx["reference"]
+    ref["ruleActions"] = [a for a in ref["ruleActions"] if a["action"] not in ACTIONS_OFF]
+    for a in ref["ruleActions"]:
+        if a["action"] == "record":
+            a["fields"] = [dict(f, options=["min"]) if f["id"] == "duration" else f for f in a["fields"] if f["id"] != "afterSec"]
     # Права: система объявляет меньше, как w2c: без вида tel, без MON_PROT и DEV, без части функций,
     # запретов, плагинов и каталогов. Значений, которых система не знает, в ролях не остаётся
     acc = ref["access"]

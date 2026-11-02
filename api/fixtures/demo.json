@@ -35074,7 +35074,21 @@
    "io.input",
    "text",
    "unit"
-  ]
+  ],
+  "ruleStarts": [
+   "event",
+   "schedule",
+   "manual"
+  ],
+  "ruleTargets": {
+   "kinds": [
+    "device",
+    "folder",
+    "server",
+    "domain"
+   ],
+   "fromEvent": true
+  }
  },
  "streamAccounts": [
   {

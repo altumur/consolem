@@ -1048,6 +1048,8 @@
       const port = portIssue(c);
       if (port) return problem(422, "RULE_INVALID", "Номер входа или выхода не совпал с записью", { params: { issue: { code: port, params: {} } } });
       if (c.enabled) {
+        const out = engine.undeclared(c, db.reference);
+        if (out) return problem(422, "NOT_SUPPORTED", "Система этого не исполняет: правило вне каталога", { field: out.field, params: { issue: out.issue } });
         const why = engine.issue(Object.assign({ id: null }, c));
         if (why) return problem(422, "RULE_INVALID", "Правило с ошибкой нельзя включить: исправьте ошибку или выключите правило", { params: { issue: why } });
       }
@@ -2410,6 +2412,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (r.version !== x.version) return failed.push({ ruleId: x.ruleId, code: "VERSION_MISMATCH" });
             const set = x.set, was = stateNote(r).params.mode, meta = ruleMeta(r);
             const next = Object.assign({}, r, "enabled" in set ? { enabled: set.enabled } : {}, "logOnly" in set ? { logOnly: set.logOnly } : {});
+            if (next.enabled && !r.enabled && engine.undeclared(next, db.reference)) return failed.push({ ruleId: x.ruleId, code: "NOT_SUPPORTED" });
             if (next.enabled && !r.enabled && engine.issue(next)) return failed.push({ ruleId: x.ruleId, code: "RULE_INVALID" });
             if ("enabled" in set || "logOnly" in set) {
               if (next.enabled && next.logOnly && !(r.enabled && r.logOnly)) next.logOnlySince = sysToday();
@@ -2472,7 +2475,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         (p) => {
           const r = byId("rules", p.id);
           if (!r) return notFound("Правило");
-          const why = !r.enabled ? { code: "off" } : engine.issue(r);
+          const out = engine.undeclared(r, db.reference);
+          const why = !r.enabled ? { code: "off" } : out ? out.issue : engine.issue(r);
           if (why) return problem(409, "NOT_RUNNABLE", "Правило сейчас не запустить", { params: { reason: why } });
           return { status: 201, body: storeFire(engine.fire(r, { via: "manual", at: now(), now: true, i: 0 })) };
         },

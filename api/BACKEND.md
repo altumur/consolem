@@ -225,6 +225,15 @@ const raw = (method, path, body, headers) =>
 | `writableFields` | вид устройства → поля `DevicePatch`, которые у него правятся; вид не назван — все | `422 NOT_SUPPORTED` с `field`, у вида с пустым списком — `field: "type"`. Интерфейс показывает такие поля только для чтения |
 | `features` | необязательные настройки (`Feature`): `serverRoles` — роль сервера, `serverNetwork` — маска, шлюз, DNS сервера, `archiveEncryption` — шифрование хранилища, `assist` — ассистент (вместе с операцией `assistTurn`). Части прав: `accessCatalogs` — каталоги, `accessSupervision` — подтверждение входа и экспорта, `accessLoginSchedule` — расписание входа, `accessSessions` — лимиты сессий, `accessDepth` — глубина архива, `accessRestrictions` — запреты, `accessUserRights` — выбор `ur`; без неё `ur` следует за функцией: `ALL` при `USERS_RIGHTS_SETUP`, иначе `NO` | поле есть в записи, но изменить его нельзя: `422 NOT_SUPPORTED` с `field`. Часть прав без возможности: интерфейс прячет поле, значение не по умолчанию в `POST /access/apply` — тот же отказ, `field` — путь поля (`global.depth`, `supervision`), `params.id` — запись |
 
+**Каталог «Автоматизации»** объявляется данными, а не списком операций: `reference.ruleTriggers`, `ruleActions`, `ruleConditions`, `ruleControls`, `ruleStarts`, `ruleTargets` — это то, что система исполняет. У поля действия `options` — его значения, поля нет в `fields` — у действия его нет: запись только на минуты — `duration` с `options: ["min"]` и без `afterSec`. Форма предлагает только объявленное.
+
+| Что вне каталога | Ответ |
+|---|---|
+| включённое правило в `POST /rules`, `PUT /rules/{id}` | `422 NOT_SUPPORTED`, `field` — раздел (`start`, `triggers`, `conditions`, `steps`), `params.issue` — `{code, params}`: `rule.startNotDeclared`, `trigger.notDeclared`, `cond.notDeclared`, `action.notDeclared`, `action.fieldNotDeclared`, `control.notDeclared`, `target.notDeclared` |
+| включение в `/rules/update` | элемент `failed`, `code: NOT_SUPPORTED` |
+| запуск уже включённого | `409 NOT_RUNNABLE`, `params.reason` — та же причина |
+| выключенное правило | хранится как есть: чтение, правка, «Запустить» не предлагается. Форма показывает такой шаг с пометкой «нет в этой системе» и не даёт включить |
+
 Правила:
 
 - **Форма зовёт только объявленное.** При запуске обязательны `getMe`, `getReference`, `stream`, всё остальное — по `capabilities`. Раздела без своей операции нет: «Автоматизация» — `listRules`, «Права» — `getAccess`, «Журнал» — `listJournal`. `403` на `GET /access` скрывает «Права», запуск не падает.
