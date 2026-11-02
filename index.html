@@ -1342,6 +1342,25 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-svc .btn{margin-top:6px}
 .asst-svc .asst-code{display:flex;gap:6px;margin-top:6px}
 .asst-svc .asst-code .btn{margin-top:0}
+.hd-bell{position:relative;display:flex;align-items:center;gap:2px;flex:none}
+.hd-bell[hidden]{display:none}
+.hd-bell>button{position:relative;display:grid;place-items:center;width:32px;height:32px;padding:0;border:0;border-radius:8px;background:0;color:var(--mu);transition:color .12s,background .12s}
+.hd-bell>button:hover{color:var(--tx);background:var(--p2)}
+.hd-bell>button:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
+.hd-bell>button[aria-expanded="true"]{color:var(--tx);background:var(--p2)}
+.hd-bell .ic-svg{width:18px;height:18px}
+.hd-bell-n{position:absolute;top:0;right:-2px;min-width:16px;height:16px;padding:0 4px;border-radius:99px;background:var(--one-danger);color:#fff;font-size:10px;font-weight:600;line-height:16px;text-align:center;font-variant-numeric:tabular-nums}
+.hd-bell-n[hidden]{display:none}
+.pr-pop{display:none;position:absolute;top:calc(100% + 10px);right:0;z-index:19;width:min(400px,calc(100vw - 32px));max-height:min(60vh,520px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;padding:10px}
+.pr-pop.open{display:block}
+.pr-head{font-size:13px;font-weight:600;margin-bottom:6px}
+.pr-note{font-size:12px;color:var(--mu);margin:4px 0}
+.pr-row{padding:8px 0;border-top:1px solid var(--ln)}
+.pr-text{font-size:13px;overflow-wrap:anywhere}
+.pr-rule{font-size:12px;color:var(--mu);overflow-wrap:anywhere}
+.pr-left{font-size:12px;color:var(--mu);font-variant-numeric:tabular-nums}
+.pr-who{font-size:12px;color:var(--mu);margin-top:4px}
+.pr-act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px}
 .asst-svc .asst-code input{flex:1;min-width:0;padding:4px 8px;background:var(--p2);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;font-size:13px}
 .gores{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;cursor:pointer;border-left:3px solid transparent}
 .gores:hover,.gores.on{background:var(--one-selected-neutral);border-left-color:var(--bl)}
@@ -1686,6 +1705,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
   </div>
   <div class="hd-status" id="hdStatus" hidden></div>
   <button type="button" class="hd-theme" id="hdTheme" data-i18n-title="Сменить тему" title="Сменить тему" aria-label="Сменить тему" data-on-click='[["toggleTheme"]]'><svg class="ic-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2"/><path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715"/><path d="M16 12a4 4 0 0 0-4-4"/><path d="m19 5-1.256 1.256"/><path d="M20 12h2"/></svg></button>
+  <div class="hd-bell" id="hdBell" data-needs="listRulePrompts" hidden></div>
 </header>
 <main id="main"></main></div>
 </div>
@@ -1746,6 +1766,7 @@ function applyStaticUi(){
   document.querySelectorAll("[data-i18n-title]").forEach(el=>{el.title=i18n(el.getAttribute("data-i18n-title"));});
   const wn=document.getElementById("wn");if(wn)wn.textContent=i18n("Далее");
   const wb=document.getElementById("wb");if(wb)wb.textContent=i18n("Назад");
+  if(window.appReadyDone)promptsMount();
 }
 // ── Обработчики событий в разметке — без кода в атрибутах ──────────────────
 // Консоль VMS отдаёт страницу под CSP «script-src 'self'»: обработчики в атрибутах разметки (onclick и подобные) там не выполняются.
@@ -1853,7 +1874,7 @@ onEv.key=(...keys)=>[".key",...keys];
 const svgIc=(d,vb="0 0 16 16")=>`<svg class="ic-svg" viewBox="${vb}" width="14" height="14" aria-hidden="true">${d}</svg>`;
 // Иконки — Lucide (ISC, v1.46.0, из ONE.PSIM.PrototypeKit): одно семейство на весь макет вместо
 // залитых глифов, эмодзи и текстовых символов (AGENTS.md «one coherent icon family», D-005).
-const LU={"house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
+const LU={"bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\"/>", "volume-x": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><line x1=\"22\" x2=\"16\" y1=\"9\" y2=\"15\"/><line x1=\"16\" x2=\"22\" y1=\"9\" y2=\"15\"/>", "house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
 const lu=(n,sz=14,cls="ic-svg")=>`<svg class="${cls}" viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LU[n]||""}</svg>`;
 const STAR_ON=lu("star").replace('fill="none"','fill="currentColor"'),STAR_OFF=lu("star");
 // Шеврон DS (ChevronIcon): у дерева — обычный глиф 45 %, 9 из 20 (ступень кита D-069; «сильный» из
@@ -2649,6 +2670,8 @@ function hwReloadSoon(m){
 // Поток событий: изменения (свои и чужие), ход операций. Запись перечитывается
 // по id; если поток потерян — весь кэш заново.
 function apiOnEvent(m){
+  if(m.at)promptClock(m.at);
+  if(m.kind==="rulePrompt"){promptEvent(m);return}
   if(m.type==="stream.hello"){
     // Поток уже держит список из запроса открытия. Браузер переподключается по старому адресу: разошёлся с актуальным — уйдёт PUT
     streamClient=m.clientId;watchLast=watchOpened;watchSoon();
@@ -2660,13 +2683,14 @@ function apiOnEvent(m){
   if(m.kind==="hold"||m.kind==="bookmark"){viewEntity(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
-  if(m.type==="test.reset")hwRowsDrop();
+  if(m.type==="test.reset"){hwRowsDrop();promptsDrop()}
   if(m.type==="stream.reset"||m.type==="test.reset"){if(lv?.feedOn)liveFeedRead(lv);apiReload();return}
   if(m.kind==="scenarios"){if(SCEN.did===m.entityId&&SCEN.doc&&m.version!==SCEN.doc.version&&!SCEN.edit)scenLoad(m.entityId).catch(()=>{});return}
   if(m.kind==="streamAccounts"&&streamAccs){streamAccsLoad();return}
   if(m.kind==="archiveWatch"||m.kind==="archiveScan"){rwReload();return}
   if(m.kind==="operation"){opOnEvent(m);return}
   if(m.kind==="discovery"){discOnEvent(m);return}
+  if(m.kind==="access")promptsLoad();
   if(m.kind==="access"&&!accApplying&&m.version!==accVer&&m.version!==accLast?.version){accRefresh().catch(()=>{});return}
   if(m.kind==="settings"&&m.version!==settingsVer){API.get("/settings").then(s=>{settingsApply(s);if(app==="sys")paint()}).catch(()=>{});return}
   if(AUTO_KINDS.has(m.kind)){autoEvent(m);return}
@@ -2694,7 +2718,7 @@ function apiOnEvent(m){
 function apiReload(){
   return Promise.all([hwReload(),appLoad()]).then(autoLoad).then(()=>accShown&&accLoad()).then(()=>treeNeed()).then(()=>{
     if(sel&&!find(sel)&&!hwVer.has(sel))sel=domains[0]?.id||null;
-    watchSoon();paint();
+    watchSoon();paint();promptsLoad();
   });
 }
 // Перечитать то, что есть в кэше: строки — строками, открытое полными записями
@@ -3263,7 +3287,7 @@ async function appLoad(){
   // 403 — раздела нет. Другой отказ (без связи с доменом это штатно) запуск не роняет: раздел говорит, что права недоступны, и спросит снова при заходе
   const access=()=>Promise.resolve(get("getAccess","/access",ACC_EMPTY)).then(a=>{accDown=false;return a}).catch(e=>{if(e?.status===403)accDenied=true;else accDown=true;return ACC_EMPTY});
   const [me,st,acc]=await Promise.all([API.get("/me"),get("getSettings","/settings",{version:"1",values:{}}),access()]);
-  sysTz=me.timezone||sysTz;ACC_ME=me.login;
+  sysTz=me.timezone||sysTz;ACC_ME=me.login;promptClock(me.serverTime);
   accSetSnapshot(accSkeleton(acc));accLast=accSkeleton(acc);
   settingsApply(st);
 }
@@ -4933,6 +4957,7 @@ const ESC_LAYERS=[
   {is:()=>document.getElementById("upop")?.classList.contains("open"),off:closeUserMenu},
   {is:()=>filtPop,off:()=>closeFiltPop()},
   {is:()=>domainPop,off:()=>closeDomainPop()},
+  {is:()=>PROMPT.open,off:()=>promptPanel(false)},
   {is:()=>document.getElementById("gopop")?.classList.contains("open"),
    off(){goClose();document.getElementById("gq")?.blur()}},
   // Список убран, а дерево осталось сужённым — Esc снимает и сужение.
@@ -21264,6 +21289,7 @@ function asstFromSearch(){
 }
 function asstOpen(text){
   if(!can("feature:assist"))return;
+  promptPanel(false);
   asst={said:[],text:String(text||"").trim(),context:null,secrets:[],busy:false,line:"",ask:"",refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:""};
   if(asst.text){asstSend();return}
   asstRender();
@@ -21275,6 +21301,196 @@ function asstPlanHtml(p){
 }
 function asstResultHtml(r){
   return r.rows.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div><div class="asst-chg ${x.ok?"":"bad"}" data-asst-row="${x.ok?"ok":"fail"}">${x.ok?escHtml(x.note||i18n("применено")):escHtml(x.why)}</div>`).join("");
+}
+/* ----- Вопросы операторам: шаги ask и уровни escalate (ADR-0093 доп. (9), ADR-0112 доп. (9)) -----
+   Колокольчик в шапке, с любого экрана. Список — GET /rule-prompts, всех ролей; счётчик — только то, на что этот человек
+   может ответить (canAnswer). Новое и закрытое приходит потоком: prompt.opened — перечитать список, в событии нет текста;
+   prompt.closed — снять строку. Опроса нет. Часы панели — только счёт до until по часам сервера. Ответ принят (202) — строка
+   ждёт prompt.closed: итог решает сервер. Панель стоит там же, где панель ассистента по смыслу: открыта одна из двух,
+   клик мимо её не закрывает, закрывают «Закрыть» и Esc. Звук — только новый уровень escalate, на который можно ответить. */
+const PROMPT={list:[],open:false,notes:[],gone:new Set(),sent:new Map(),seen:null,seq:0,skew:null,timer:null,audio:null,mute:false};
+const PROMPT_SOUND_KEY="consolem-prompt-sound";
+const PROMPT_WORD={yes:"Да",no:"Нет",ack:"Квитировано"};
+try{PROMPT.mute=localStorage.getItem(PROMPT_SOUND_KEY)==="off"}catch(e){}
+// Поправка к своим часам. Запаздывание только уменьшает разницу, поэтому верна наибольшая из виденных: и дошедшее
+// с опозданием событие потока, и повтор по Last-Event-ID её не портят
+function promptClock(at){
+  const t=Date.parse(at);if(!t)return;
+  const d=t-Date.now();
+  if(PROMPT.skew===null||d>PROMPT.skew)PROMPT.skew=d;
+}
+function promptNow(){return Date.now()+(PROMPT.skew||0)}
+function promptLeft(p){return Date.parse(p.until)-promptNow()}
+function promptLeftText(ms){
+  const s=Math.max(0,Math.ceil(ms/1000));
+  return`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+}
+function promptRuleName(p){return rules.find(r=>r.id===p.ruleId)?.name||""}
+// Роли читаются с правами: нет чтения прав — имени нет, слово обойдётся без него
+function promptRoleName(p){try{return accRoles().find(x=>x.id===p.roleId)?.n||""}catch(e){return""}}
+function promptText(p){return p.kind==="ask"?p.text:`${i18n("Эскалация, уровень")} ${p.level}: ${i18n("квитируйте, чтобы остановить")}`}
+function promptNote(text,key){
+  if(key&&PROMPT.notes.some(x=>x.key===key))return;
+  PROMPT.notes=PROMPT.notes.concat({text,key}).slice(-4);
+}
+function promptRowHtml(p){
+  const sent=PROMPT.sent.has(p.id),may=p.canAnswer&&can("answerRulePrompt"),role=promptRoleName(p),rule=promptRuleName(p);
+  const btn=(answer,label)=>`<button type="button" class="btn s" data-prompt-answer="${answer}" ${sent?"disabled":""} ${onEv("click",["promptAnswer",p.id,answer])}>${i18n(label)}</button>`;
+  return`<div class="pr-row" data-prompt="${escHtml(p.id)}" data-prompt-kind="${escHtml(p.kind)}">
+    <div class="pr-text">${escHtml(promptText(p))}</div>
+    ${rule?`<div class="pr-rule">${i18n("Правило")} «${escHtml(rule)}»</div>`:""}
+    <div class="pr-left">${i18n("Осталось")} <span data-prompt-left="${escHtml(p.until)}">${promptLeftText(promptLeft(p))}</span></div>
+    ${may?`<div class="pr-act">${p.kind==="ask"?btn("yes","Да")+btn("no","Нет"):btn("ack","Квитировать")}${sent?`<span class="pr-who" data-prompt-sent="1">${i18n("Ответ отправлен")}</span>`:""}</div>`
+      :`<div class="pr-who" data-prompt-other="1">${role?`${i18n("Отвечает роль")} «${escHtml(role)}»`:i18n("Отвечает другая роль")}: ${i18n("у вас её нет")}</div>`}
+  </div>`;
+}
+function promptsRender(){
+  const n=PROMPT.list.filter(p=>p.canAnswer).length,bell=document.getElementById("promptBell"),cnt=document.getElementById("promptCount"),pop=document.getElementById("promptPop");
+  if(cnt){cnt.textContent=n>99?"99+":String(n);cnt.hidden=!n}
+  if(bell){
+    const word=n?`${i18n("Вопросы операторам")}: ${n}`:i18n("Вопросы операторам");
+    bell.title=word;bell.setAttribute("aria-label",word);bell.setAttribute("aria-expanded",String(PROMPT.open));
+  }
+  if(pop){
+    pop.classList.toggle("open",PROMPT.open);
+    if(PROMPT.open){
+      const top=pop.scrollTop;
+      pop.innerHTML=`<div class="pr-head">${i18n("Вопросы операторам")}</div>
+        ${PROMPT.notes.map(x=>`<div class="pr-note" data-prompt-note="1">${escHtml(x.text)}</div>`).join("")}
+        ${PROMPT.list.map(promptRowHtml).join("")||`<div class="pr-note" id="promptEmpty">${i18n("Открытых вопросов нет")}</div>`}
+        <div class="asst-act"><span class="asst-gap"></span><button type="button" class="btn s" id="promptClose" ${onEv("click",["promptClosePress"])}>${i18n("Закрыть")}</button></div>`;
+      pop.scrollTop=top;
+    }
+  }
+  promptTicker();
+}
+function promptsMount(){
+  const el=document.getElementById("hdBell");if(!el)return;
+  el.hidden=!can("listRulePrompts");
+  if(el.hidden)return;
+  el.innerHTML=`<button type="button" id="promptBell" aria-haspopup="dialog" aria-controls="promptPop" ${onEv("click",["promptPanelToggle"])}>${lu("bell")}<span class="hd-bell-n" id="promptCount" hidden></span></button>
+    <button type="button" id="promptSound" aria-pressed="${!PROMPT.mute}" title="${i18n(PROMPT.mute?"Звук эскалаций выключен":"Звук эскалаций включён")}" aria-label="${i18n(PROMPT.mute?"Звук эскалаций выключен":"Звук эскалаций включён")}" ${onEv("click",["promptSoundToggle"])}>${lu(PROMPT.mute?"volume-x":"volume-2")}</button>
+    <div class="pr-pop" id="promptPop" role="dialog" aria-label="${i18n("Вопросы операторам")}"></div>`;
+  promptsRender();
+}
+function promptPanel(on){
+  if(PROMPT.open===on)return;
+  PROMPT.open=on;
+  if(on)goClose();else PROMPT.notes=[];
+  promptsRender();
+}
+function promptPanelToggle(){promptPanel(!PROMPT.open)}
+function promptClosePress(){promptPanel(false)}
+// Выключение звука переживает перезагрузку, если хранилище доступно; нет — действует до конца вкладки
+function promptSoundToggle(){
+  PROMPT.mute=!PROMPT.mute;
+  try{
+    if(PROMPT.mute)localStorage.setItem(PROMPT_SOUND_KEY,"off");
+    else localStorage.removeItem(PROMPT_SOUND_KEY);
+  }catch(e){}
+  promptsMount();
+}
+// Браузер может запретить звук до первого действия человека: тогда сигнал просто не прозвучит, запоздалый не нужен
+function promptBeep(){
+  if(PROMPT.mute)return;
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext;if(!Ctx)return;
+    const c=PROMPT.audio||(PROMPT.audio=new Ctx()),at=Date.now();
+    const play=()=>{
+      const o=c.createOscillator(),g=c.createGain(),t=c.currentTime;
+      o.frequency.value=880;g.gain.value=.08;
+      o.connect(g);g.connect(c.destination);
+      o.start(t);o.stop(t+.18);
+    };
+    if(c.state==="running"){play();return}
+    Promise.resolve(c.resume()).then(()=>{if(c.state==="running"&&Date.now()-at<2000)play()}).catch(()=>{});
+  }catch(e){}
+}
+async function promptsLoad(){
+  if(!can("listRulePrompts"))return;
+  const seq=++PROMPT.seq;
+  let res;
+  try{res=await API.get("/rule-prompts")}catch(e){return}
+  if(seq!==PROMPT.seq)return;
+  const list=res.items.filter(p=>!PROMPT.gone.has(p.id)&&promptLeft(p)>0),seen=PROMPT.seen;
+  PROMPT.seen=new Set(res.items.map(p=>p.id));
+  PROMPT.list=list;
+  promptsRender();
+  // То, что уже было открыто при старте, не звенит
+  if(seen&&list.some(p=>p.kind==="escalate"&&p.canAnswer&&!seen.has(p.id)))promptBeep();
+}
+// Стенд сброшен: прежних вопросов нет, id ничего не значат. Часы могли уйти назад
+function promptsDrop(){
+  Object.assign(PROMPT,{list:[],notes:[],seen:null,skew:null});
+  PROMPT.gone.clear();PROMPT.sent.clear();
+  promptsRender();
+}
+function promptEvent(m){
+  if(!can("listRulePrompts"))return;
+  if(m.type==="prompt.opened")promptsLoad();
+  if(m.type==="prompt.closed")promptGone(m.entityId,m.payload||{});
+}
+function promptClosedWord(p,x,mine){
+  const ans=x.answer?i18n(PROMPT_WORD[x.answer]||x.answer):"";
+  if(x.reason==="answered")return mine?`${i18n("Ответ принят")}: ${ans}`:`${i18n("Ответил другой оператор")}${x.by?` (${x.by})`:""}: ${ans}`;
+  if(x.reason==="expired")return i18n(p.kind==="ask"?"Срок вышел: правило пошло веткой по умолчанию":"Срок эскалации вышел");
+  if(x.reason==="reset")return i18n("Событие кончилось: эскалация снята");
+  return i18n("Запуск снят: вопрос больше не действует");
+}
+function promptGone(id,x){
+  PROMPT.gone.add(id);
+  const p=PROMPT.list.find(q=>q.id===id);if(!p)return;
+  promptNote(`${promptTitle(p)}: ${promptClosedWord(p,x,PROMPT.sent.has(id))}`,`${p.fireId}:${x.reason}`);
+  promptDrop(id);
+}
+function promptDrop(id){
+  PROMPT.gone.add(id);PROMPT.sent.delete(id);
+  PROMPT.list=PROMPT.list.filter(q=>q.id!==id);
+  promptsRender();
+}
+function promptTitle(p){const r=promptRuleName(p);return r?`«${r}»`:i18n("Вопрос")}
+// Отказ двери словами: строка снимается, когда ответ уже ничего не решает
+function promptRefused(p,e){
+  const code=e?.problem?.code,st=e?.status;
+  if(st===404)return i18n("Запуск снят: вопрос больше не действует");
+  if(st===409&&code==="BUSY")return i18n("На вопрос уже ответил другой оператор: ваш ответ не засчитан");
+  if(st===409&&code==="NOT_RUNNABLE")return i18n("Срок вышел: ответ не действует");
+  return"";
+}
+function promptAnswer(id,answer){
+  const p=PROMPT.list.find(q=>q.id===id);
+  if(!p||PROMPT.sent.has(id))return;
+  PROMPT.sent.set(id,answer);promptsRender();
+  API.post(`/rule-prompts/${id}/answer`,{answer}).catch(e=>{
+    // Поток успел раньше: строка уже снята своими словами
+    if(!PROMPT.list.some(q=>q.id===id))return;
+    const word=promptRefused(p,e);
+    if(word){
+      promptNote(`${promptTitle(p)}: ${word}`);
+      promptDrop(id);
+      return;
+    }
+    PROMPT.sent.delete(id);
+    if(e?.status===403){promptNote(`${promptTitle(p)}: ${i18n("Отвечает человек с ролью шага")}`);promptsLoad()}
+    else promptNote(`${promptTitle(p)}: ${problemText(e)}`);
+    promptsRender();
+  });
+}
+// Счёт идёт, только пока есть открытые вопросы. Запроса здесь нет: это часы, а не опрос
+function promptTicker(){
+  if(PROMPT.list.length&&!PROMPT.timer)PROMPT.timer=setInterval(promptTick,1000);
+  if(!PROMPT.list.length&&PROMPT.timer){clearInterval(PROMPT.timer);PROMPT.timer=null}
+}
+function promptTick(){
+  const out=PROMPT.list.filter(p=>promptLeft(p)<=0);
+  if(out.length){
+    out.forEach(p=>{
+      promptNote(`${promptTitle(p)}: ${promptClosedWord(p,{reason:"expired"})}`,`${p.fireId}:expired`);
+      promptDrop(p.id);
+    });
+    return;
+  }
+  document.querySelectorAll("[data-prompt-left]").forEach(el=>{el.textContent=promptLeftText(Date.parse(el.dataset.promptLeft)-promptNow())});
 }
 /* ----- План правил (V/10.7 Н1.7, Н1.8) -----
    Предложение: ход ничего не пишет, запись — нажатие человека, контрактными дверями, его сессией. Показ читает
@@ -22364,6 +22580,9 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
   await treeNeed();
   syncLocalePack();applyStaticUi();
   if(!applyDeepLink()){resetTreeSel(sel);paint();}
+  window.appReadyDone=true;promptsMount();
+  // Старт уже на пределе запросов (tools/check_scale.py): вопросы читаются сразу после него, поток к этому моменту подключён
+  setTimeout(promptsLoad,0);
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });

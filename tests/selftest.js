@@ -6,16 +6,17 @@
    ответа. Отсчёты удаления настоящие, поэтому прогон занимает около минуты.
    Копии делят один фокус браузера: поле имени в дереве закрывается по blur, а его снимает любая соседняя копия, поставив
    курсор. Сценарии с таким полем (FOCUS_ALONE) идут по одному, после остальных: честная очередь, а не подмена focus.
+   Там же ui-prompts.js: фокус ему не нужен, но срок вопроса в нём настоящий, две секунды, и в толпе копий он вышел бы раньше проверки.
    Сценарий, не отчитавшийся за LIMIT_SEC, — отказ со словом, где он остановился: отчёт приходит всегда.
    С ?api=<стенд> — против тестового стенда бэкенда: сценарии идут по одному, перед каждым — POST /test/reset
    с идущими часами (данные у стенда одни на всех). С ?report=<адрес> итог уходит туда POST-запросом. */
 (() => {
   const q = new URLSearchParams(location.search);
-  const SCENARIOS = ["ui-tree.js", "ui-stream.js", "ui-cluster.js", "ui-topology.js", "ui-between.js", "ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-archive.js", "ui-devices.js", "ui-bulk.js", "ui-rule-links.js", "ui-rules.js", "ui-settings.js", "ui-assist.js", "ui-assist-service.js", "ui-start.js", "ui-kinds.js", "ui-jump.js", "ui-menus.js", "ui-ops.js", "ui-access.js", "ui-profile.js", "ui-live.js", "ui-view.js"];
+  const SCENARIOS = ["ui-tree.js", "ui-stream.js", "ui-cluster.js", "ui-topology.js", "ui-between.js", "ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-archive.js", "ui-devices.js", "ui-bulk.js", "ui-rule-links.js", "ui-rules.js", "ui-settings.js", "ui-assist.js", "ui-assist-service.js", "ui-start.js", "ui-kinds.js", "ui-jump.js", "ui-menus.js", "ui-ops.js", "ui-access.js", "ui-profile.js", "ui-live.js", "ui-view.js", "ui-prompts.js"];
   // Сценарии не на эталонном наборе: страница сценария открывается с ?fixture=, стенд сбрасывается на него.
   // Отсюда же берёт наборы tools/check_ui.py
   const FIXTURE_OF = { "ui-profile.js": "one-domain" };
-  const FOCUS_ALONE = ["ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-live.js", "ui-view.js"];
+  const FOCUS_ALONE = ["ui-hardware.js", "ui-domains.js", "ui-storage.js", "ui-live.js", "ui-view.js", "ui-prompts.js"];
   const LIMIT_SEC = 240;
   const load = (src) =>
     new Promise((resolve, reject) => {

@@ -204,8 +204,29 @@ UiCheck(async ({ ok, until }) => {
   const srvDay = localStamp((await API.get("/me")).serverTime).slice(0, 10);
   ok(made.logOnlySince === srvDay, "дата записи: " + made.logOnlySince);
 
+  // Вопрос оператору и эскалация — план, как любое новое правило: наблюдающим или выключенным, запуск никого не спрашивает
+  const planned = async (said, word) => {
+    talk(said);
+    ok(await until(() => document.getElementById("asstApply")), "план: " + said);
+    ok(word.test(body()), "шаг виден в плане: " + body().slice(0, 240));
+    const name = asst.plan.rules[0].body.name;
+    document.getElementById("asstApply").click();
+    ok(await until(() => rows().join() === "ok"), "записано: " + rows().join());
+    return (await API.get("/rules")).items.find((x) => x.name === name);
+  };
+  const a1 = await planned("при движении на Запасной вход спроси оператора", /Спросить|Подтвердить движение/);
+  ok(a1.enabled && a1.logOnly && a1.steps[0].control === "ask" && a1.steps[0].roleId === "80000003-0000-4000-8000-000000000000", "ask: «Только журнал», роль из просьбы");
+  const a2 = await planned("эскалация при движении на Запасной вход", /Эскалац/);
+  ok(a2.enabled && a2.logOnly && a2.steps[1].control === "escalate" && a2.steps[1].levels.length === 2, "escalate: «Только журнал»");
+  await API.post("/rules/update", { idempotencyKey: opKey(), items: [a1, a2].map((x) => ({ ruleId: x.id, version: x.version, set: { enabled: false } })) });
+  const a3 = await planned("при движении на Служебный вход спроси оператора, выключенным", /Заведётся выключенным/);
+  ok(a3.enabled === false && a3.steps[0].control === "ask", "просили выключенным — выключено");
+  const a4 = await planned("эскалация при движении на Служебный вход, выключенным", /Заведётся выключенным/);
+  ok(a4.enabled === false && a4.steps[1].control === "escalate", "эскалация выключенным");
+  ok(!(await API.get("/rule-prompts")).items.length, "вопросов нет");
+
   // Плана нет: вопрос и отказ — как раньше
-  talk("при движении на Запасной вход спроси оператора");
+  talk("проверь архив на Запасной вход");
   ok(await until(() => /странице консоли/.test(document.getElementById("asstRefused")?.textContent || "")), "отказ со словом о странице консоли");
   ok(!document.getElementById("asstApply"), "плана нет");
   API.stream = stream;

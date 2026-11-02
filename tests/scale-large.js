@@ -8,9 +8,15 @@ UiCheck(async ({ ok, until }) => {
   const sizeOk = (from) => trace.slice(from).every((x) => x.bytes <= MB);
   const big = (from) => Math.max(0, ...trace.slice(from).map((x) => x.bytes));
   // Старт
-  const start = trace.length;
-  ok(start <= 15, `старт: ${start} запросов, не больше 15: ` + trace.map((x) => x.path.split("?")[0]).join(" "));
+  // Вопросы операторам — шестнадцатый запрос: он отложен за старт и в 15 не входит. Отложен ли на деле, проверено порядком:
+  // после последнего чтения дерева, которого старт дожидается. К этому моменту сценарий может и опоздать, поэтому он не считается
+  const PROMPTS = "/rule-prompts", startTrace = trace.filter((x) => x.path !== PROMPTS);
+  const start = startTrace.length;
+  ok(start <= 15, `старт: ${start} запросов, не больше 15: ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
   ok(sizeOk(0), `старт: самый большой ответ ${big(0)} байт, не больше 1 МБ`);
+  ok(await until(() => trace.some((x) => x.path === PROMPTS && x.status === 200)), "вопросы операторам прочитаны: чтение отложено, а не отключено");
+  const treeLast = trace.map((x) => /^\/tree\/children/.test(x.path)).lastIndexOf(true, start);
+  ok(trace.findIndex((x) => x.path === PROMPTS) > treeLast, "вопросы читаются после старта, а не в нём");
   // Перечень одного сервера или хранилища — не перечень домена: он ограничен и читается с раскрытой веткой
   const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path));
   ok(!whole.length, "старт: ни один перечень не прочитан до конца: " + whole.map((x) => x.path).join(" "));

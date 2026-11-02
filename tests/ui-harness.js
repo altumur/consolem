@@ -67,7 +67,7 @@
     (window.UI_CHECK_STARTED = true) && window.appReady
       .then(() => (window.UI_RAW_CACHE ? null : window.uiCacheAll()))
       .then(() => fn({ ok, until, sleep, confirmWith }))
-      .catch((e) => ok(false, "исключение: " + e.message + " " + (e.stack || "").split("\n")[1]))
+      .catch((e) => ok(false, "исключение: " + (e.message || JSON.stringify(e)) + " " + (e.stack || "").split("\n")[1]))
       .then(report);
 })();
 /* Кэш формы неполный (режим один на любом размере). Старые сценарии проверяют карточки, папки и правки на всём наборе:

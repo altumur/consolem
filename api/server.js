@@ -4125,7 +4125,9 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       const low = said.toLowerCase();
       const out = [{ type: "progress", at, text: "читаю правила" }];
       const last = (e) => out.concat(Object.assign({ at }, e));
-      if (/спроси|эскалац|детектор на время|провер\S* архив/.test(low)) return last({ type: "refused", text: "Такое правило заводится на странице консоли.", context });
+      if (/детектор на время|провер\S* архив/.test(low)) return last({ type: "refused", text: "Такое правило заводится на странице консоли.", context });
+      // Вопрос и эскалация составляются как любое новое правило: наблюдающим или выключенным, в наблюдении никого не трогают
+      const asks = /спроси/.test(low), escalates = /эскалац/.test(low);
       const rule = db.rules.find((r) => low.includes(r.name.toLowerCase()));
       if (/убери|лимит/.test(low)) {
         if (!rule) return last({ type: "question", text: "Какое правило изменить?", context });
@@ -4149,13 +4151,21 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         return last({ type: "plan", summary: "Create a window", context, rules: [win(copy(ready))] });
       }
       const cam = db.devices.filter((d) => d.type === "camera" && low.includes(d.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
-      if (!/движени/.test(low)) return last({ type: "refused", text: "Не понял, какое правило нужно.", context });
+      if (!/движени/.test(low) && !asks && !escalates) return last({ type: "refused", text: "Не понял, какое правило нужно.", context });
       if (!cam) return last({ type: "question", text: "На какой камере?", context });
       const minutes = (low.match(/(\d+)\s*мин/) || [])[1];
-      if (!minutes) return last({ type: "question", text: "Сколько минут писать?", context });
+      if (!minutes && !asks && !escalates) return last({ type: "question", text: "Сколько минут писать?", context });
       const target = { include: [{ kind: "device", id: cam.id }], exclude: [], gone: [], fromEvent: false };
-      const r = { name: `Запись при движении: ${cam.name}`, start: "event", triggers: [{ source: "det", kind: "motion", target, match: {} }], conditions: [],
-        steps: [{ source: "rec", action: "record", target, duration: "min", minutes: Number(minutes) }] };
+      const record = { source: "rec", action: "record", target, duration: "min", minutes: Number(minutes || 5) };
+      // Кому: роль по имени в просьбе, иначе охрана
+      const roles = db.access.roles, guard = roles.find((x) => /^охрана$/i.test(x.name)) || roles[0];
+      const role = roles.find((x) => low.includes(x.name.toLowerCase())) || guard, chief = roles.find((x) => /^старший охраны$/i.test(x.name) && x !== role);
+      const control = asks
+        ? [{ control: "ask", text: `Подтвердить движение: ${cam.name}?`, roleId: role.id, sec: 60, default: "no", yes: [record], no: [] }]
+        : escalates
+          ? [record, { control: "escalate", levels: [{ roleId: role.id, via: "client", waitMin: 5 }].concat(chief ? [{ roleId: chief.id, via: "client", waitMin: 10 }] : []), stop: "ack" }]
+          : [record];
+      const r = { name: `${asks ? "Вопрос" : escalates ? "Эскалация" : "Запись"} при движении: ${cam.name}`, start: "event", triggers: [{ source: "det", kind: "motion", target, match: {} }], conditions: [], steps: control };
       Object.assign(r, /выключенн/.test(low) ? { enabled: false } : { enabled: true, logOnly: true });
       const rows = [{ table: "scenarios", op: "create", body: r }];
       if (fresh) {

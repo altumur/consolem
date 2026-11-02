@@ -160,8 +160,23 @@
     assert.eq([q.type, q.text], ["question", "На какой камере?"], "вопрос");
     const p = lastOf(await turn(env, camera, { context: q.context }));
     assert.eq(p.type, "plan", "по ответу — план");
-    const no = lastOf(await turn(env, `при движении на ${camera} спроси оператора`));
+    const no = lastOf(await turn(env, `проверь архив на ${camera}`));
     assert.ok(no.type === "refused" && /странице консоли/.test(no.text) && !("rules" in no), "отказ");
+  }, NEED);
+
+  test("План правил: вопрос оператору и эскалация — план с шагами ask, escalate, заведённый наблюдающим", async () => {
+    const env = await makeEnv();
+    const q = lastOf(await turn(env, "спроси оператора"));
+    assert.eq([q.type, q.text], ["question", "На какой камере?"], "вопрос о камере");
+    const ask = lastOf(await turn(env, `при движении на ${camera} спроси оператора`));
+    assert.eq(ask.type, "plan", "план ask");
+    const [row] = ask.rules, step = row.body.steps[0];
+    assert.eq([row.table, row.op, row.body.logOnly, step.control, step.default], ["scenarios", "create", true, "ask", "no"], "наблюдает, шаг ask");
+    const esc = lastOf(await turn(env, `эскалация при движении на ${camera}`));
+    const levels = esc.rules[0].body.steps[1].levels;
+    assert.eq([esc.type, esc.rules[0].body.logOnly, esc.rules[0].body.steps[1].control, levels.length], ["plan", true, "escalate", 2], "план escalate");
+    const off = lastOf(await turn(env, `при движении на ${camera} спроси оператора, выключенным`));
+    assert.eq([off.rules[0].body.enabled, "logOnly" in off.rules[0].body], [false, false], "просили выключенным");
   }, NEED);
 
   ApiTest.loaded("api-assist.js");

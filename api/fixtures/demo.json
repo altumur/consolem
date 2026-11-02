@@ -13781,6 +13781,109 @@
    "mute": null,
    "order": 9,
    "version": "1"
+  },
+  {
+   "id": "70000010-0000-4000-8000-000000000000",
+   "name": "Вопрос оператору: проверка",
+   "enabled": true,
+   "logOnly": false,
+   "logOnlySince": null,
+   "start": "manual",
+   "runMode": "manual",
+   "operatorMenu": false,
+   "ratePerMinute": 6,
+   "windowSec": 0,
+   "runAt": null,
+   "repeat": "skip",
+   "triggers": [],
+   "conditions": [],
+   "steps": [
+    {
+     "control": "ask",
+     "text": "Проверка: оператор на месте?",
+     "roleId": "80000001-0000-4000-8000-000000000000",
+     "sec": 120,
+     "default": "no",
+     "yes": [
+      {
+       "source": "ntf",
+       "action": "email",
+       "to": "ohrana@object.local",
+       "subject": "Оператор на месте",
+       "body": "{время}: {правило}"
+      }
+     ],
+     "no": [
+      {
+       "source": "ntf",
+       "action": "email",
+       "to": "ohrana@object.local",
+       "subject": "Оператор не подтвердил",
+       "body": "{время}: {правило}"
+      }
+     ]
+    }
+   ],
+   "owner": "admin",
+   "purpose": "Показ экрана ответа: «Запустить сейчас» задаёт вопрос роли «Администратор», ответ ведёт по ветке",
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "runAsRoleId": null,
+   "allowChain": true,
+   "createdAt": "2026-09-20T09:00:00Z",
+   "createdBy": "admin",
+   "changedAt": "2026-09-20T09:00:00Z",
+   "changedBy": "admin",
+   "mute": null,
+   "order": 10,
+   "version": "1"
+  },
+  {
+   "id": "70000011-0000-4000-8000-000000000000",
+   "name": "Эскалация оператору: проверка",
+   "enabled": true,
+   "logOnly": false,
+   "logOnlySince": null,
+   "start": "manual",
+   "runMode": "manual",
+   "operatorMenu": false,
+   "ratePerMinute": 6,
+   "windowSec": 0,
+   "runAt": null,
+   "repeat": "skip",
+   "triggers": [],
+   "conditions": [],
+   "steps": [
+    {
+     "control": "escalate",
+     "levels": [
+      {
+       "roleId": "80000001-0000-4000-8000-000000000000",
+       "via": "client",
+       "waitMin": 3
+      }
+     ],
+     "stop": "ack"
+    },
+    {
+     "source": "ntf",
+     "action": "email",
+     "to": "ohrana@object.local",
+     "subject": "Эскалация кончилась",
+     "body": "{время}: {правило}"
+    }
+   ],
+   "owner": "admin",
+   "purpose": "Показ экрана ответа: «Запустить сейчас» поднимает эскалацию роли «Администратор», со звуком; квитирование останавливает её",
+   "serverId": "20000001-0000-4000-8000-000000000000",
+   "runAsRoleId": null,
+   "allowChain": true,
+   "createdAt": "2026-09-20T09:00:00Z",
+   "createdBy": "admin",
+   "changedAt": "2026-09-20T09:00:00Z",
+   "changedBy": "admin",
+   "mute": null,
+   "order": 11,
+   "version": "1"
   }
  ],
  "ruleVersions": [
