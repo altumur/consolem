@@ -3116,7 +3116,7 @@ function stepBody(a){
     const f=ACT_OUT[k]||k;
     if(f==="target"){o.target=targetOf(v);return}
     if(v===""||v==null)return;
-    o[f]=f==="layoutId"?REF_LAYOUT.get(v)||v:f==="monitorId"?REF_MONITOR.get(v)||v:["preset","port","minutes","afterSec","pulseMs"].includes(f)?autoNum(v):v;
+    o[f]=f==="layoutId"?REF_LAYOUT.get(v)||v:f==="monitorId"?REF_MONITOR.get(v)||v:["preset","port","minutes","afterSec","beforeSec","pulseMs"].includes(f)?autoNum(v):v;
   });
   return o;
 }
@@ -3184,7 +3184,7 @@ function sysParts(iso){
 }
 // Запуск: трасса кодами → запись раздела с подписями (label, why, note), как её строил макет
 const STEP_WHY={"relay.timeout":"реле не ответило за 2 с","target.gone":"устройство удалено","target.areaGone":"область удалена","target.deviceGone":"устройство удалено",
-  "notifier.gone":"оповещатель удалён","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
+  "notifier.gone":"оповещатель удалён","target.noRecord":"запись не ведётся: проверять нечего","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
   skipped:"запуск пропущен","chain.ruleGone":"правило удалено","chain.ruleOff":"правило выключено","busy.skip":"новое событие пропущено",
   "busy.restart":"прежний запуск остановлен, начат заново","busy.queue":"запуск поставлен в очередь после текущего","event.none":"событие не получено"};
 function fireDev(id){const n=id?find(id)?.n:null;return n}
@@ -8824,7 +8824,7 @@ const TRIGGER_KINDS=[
 // Раскладки и мониторы видеостены — справочник системы (GET /reference): по имени в правиле, id — на сервере
 const RULE_LAYOUTS=[]
 const RULE_MONS=[],REF_LAYOUT=new Map(),REF_MONITOR=new Map()
-const STEP_GROUPS=["Камера","Тревога","Оператор","Уведомления","Другое","Ход выполнения"];
+const STEP_GROUPS=["Камера","Детектор","Тревога","Оператор","Уведомления","Другое","Ход выполнения"];
 // Что объявила система (reference.rule*). null — справочник об этом молчит, предлагается всё.
 // Сохранённое раньше и уже вне каталога остаётся в правиле: показывается с пометкой, включить его нельзя
 const RULE_REF={starts:null,triggers:null,actions:null,conds:null,ctls:null,targets:null};
@@ -8884,6 +8884,11 @@ const ACTION_KINDS=[
   // short — как действие подписано в строках и журнале: «Выключить камеру · Запасной вход · 60 мин».
   {grp:"Камера",sub:"vms",action:"disable",label:"Выключить камеру на время",short:"Выключить камеру",devTypes:["camera"],
    fields:[{id:"ref",label:"Камера"},{id:"minutes",label:"Минут"}]},
+  {grp:"Детектор",sub:"det",action:"detect",label:"Включить детектор на время",short:"Детектор",devTypes:["camera"],
+   fields:[{id:"ref",label:"Камера"},{id:"detectorKind",label:"Вид детектора",dyn:ruleDetKindOpts},{id:"minutes",label:"Минут"},{id:"params",label:"Настройки детектора",req:false}]},
+  {grp:"Детектор",sub:"det",action:"scan",label:"Проверить архив детектором",short:"Проверка архива",devTypes:["camera"],def:{beforeSec:60,after:60},
+   fields:[{id:"ref",label:"Камера"},{id:"detectorKind",label:"Вид детектора",dyn:ruleDetKindOpts},{id:"beforeSec",label:"Секунд до события",req:false},{id:"after",label:"Секунд после события",req:false},
+           {id:"archive",label:"Хранилище",req:false,dyn:ruleScanArchOpts},{id:"params",label:"Настройки детектора",req:false}]},
   {grp:"Тревога",sub:"alarm",action:"alarm",label:"Поднять тревогу",short:"Тревога",devTypes:["camera"],def:{prio:"normal"},
    fields:[{id:"ref",label:"Камера"},{id:"prio",label:"Приоритет",req:false,opts:[["normal","обычная"],["high","высокая"]]},{id:"text",label:"Текст тревоги (необязательно)",tpl:true}]},
   {grp:"Тревога",sub:"alarm",action:"alarmclose",label:"Закрыть тревогу",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
@@ -8905,6 +8910,13 @@ const ACTION_KINDS=[
   {grp:"Другое",sub:"rule",action:"runrule",label:"Запустить правило",devTypes:[],
    lab:a=>`${i18n("Запустить правило")} «${(rules.find(x=>x.id===a.rule)||{}).name||"—"}»`,fields:[{id:"rule",label:"Правило",sel:"rule"}]}];
 const ACT_DEFAULT=ACTION_KINDS.find(k=>k.action==="output");
+// Виды детектора действия: что объявила система, иначе весь справочник
+function ruleDetKindOpts(a){const rf=ruleRefField(actionKind(a),"detectorKind");return(rf&&rf.options?.length?rf.options:refDetKinds).map(k=>[k,detKindRu(k)])}
+// Хранилища записи камеры действия: проверить можно только их
+function ruleScanArchOpts(a){
+  const n=refNode(a.ref),own=n?camArchs(n).map(x=>x.arch):[];
+  return[["","основная запись"],...own.map(id=>[id,locName(archById(id)||{name:id})])];
+}
 const ACT_ADD=ACTION_KINDS.find(k=>k.action==="record");   // базовый сценарий: новое действие — запись
 // Новое действие этого вида; устройство прежнего пункта остаётся, если подходит.
 // Запись по умолчанию — камера из события, пока идёт событие; без такого события — 10 минут.
@@ -9329,6 +9341,8 @@ function actionRest(a,o){
     else if(a.minutes)rest.push(`${a.minutes} ${i18n("мин")}`);
   }
   if(k.action==="disable"&&a.minutes)rest.push(`${a.minutes} ${i18n("мин")}`);
+  if(k.action==="detect"){if(a.detectorKind)rest.push(detKindRu(a.detectorKind));if(a.minutes)rest.push(`${a.minutes} ${i18n("мин")}`)}
+  if(k.action==="scan"){if(a.detectorKind)rest.push(detKindRu(a.detectorKind));rest.push(`${a.beforeSec??60} ${i18n("с до")}, ${a.after??60} ${i18n("с после")}`)}
   if(k.action==="output"&&find(a.ref)?.n?.ch!=null)rest.push(`${i18n("выход")} ${find(a.ref).n.ch}`);
   if(k.action==="output"&&a.pulse_ms)rest.push(`${i18n("импульс")} ${a.pulse_ms} ${i18n("мс")}`);
   if(k.action==="preset"&&a.n)rest.push(`${i18n("пресет")} ${a.n}`);
@@ -9451,6 +9465,8 @@ function ruleProblem(r){
     if(a.ref==="$src"&&!ruleSrcOk(r,k.devTypes))return`«${i18n(k.label)}»: «${i18n("Устройство из события")}» можно выбрать, только если в «Если» есть событие от устройства того же типа`;
     if(k.via&&!find(k.via))return`${i18n("нет оповещателя для")} «${i18n(k.short||k.label)}»`;
     if(k.action==="record"&&a.dur==="event"&&!ruleHasEnds(r))return"Записывать, пока идёт событие, можно только для событий с окончанием (движение, вход)";
+    if(k.action==="detect"&&!(+a.minutes>=1&&+a.minutes<=1440))return`«${i18n(k.label)}»: ${i18n("от 1 до 1440 минут")}`;
+    if(k.action==="scan"&&+(a.beforeSec??60)===0&&+(a.after??60)===0)return`«${i18n(k.label)}»: ${i18n("нужно окно: секунды до или после события")}`;
     if(k.action==="runrule"){
       if(a.rule===r.id)return"Правило не может запускать само себя";
       const t=rules.find(x=>x.id===a.rule);
@@ -10345,7 +10361,7 @@ function actFieldsHtml(a,ps){
     const v=a[f.id]??"",on=`setActionField('${ps}','${f.id}',this.value)`;
     if(f.tpl)return tplFieldHtml(r,a,ps,f);
     const dyn=f.dyn?f.dyn(a):null;
-    if(dyn)return`<div class="rl-f">${selHtml(v===""?[["","Выберите…"],...dyn]:dyn,v,on,f.label)}</div>`;
+    if(dyn)return`<div class="rl-f">${selHtml(v===""&&!dyn.some(x=>x[0]==="")?[["","Выберите…"],...dyn]:dyn,v,on,f.label)}</div>`;
     if(f.sel||f.opts){
       let opts=f.sel==="layout"?RULE_LAYOUTS.map(x=>[x,x]):f.sel==="role"?accRoles().map(x=>[x.id,x.n]):f.sel==="rule"?rules.filter(x=>x.id!==r.id).map(x=>[x.id,x.name])
         :f.opts.map(o=>Array.isArray(o)?o:[o,o]);

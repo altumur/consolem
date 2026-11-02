@@ -140,5 +140,46 @@
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
   });
 
+  /* ----- Действия детектора ----- */
+
+  const detect = (over) => Object.assign({ source: "det", action: "detect", target: dev(cam.id), detectorKind: "motion", minutes: 10 }, over || {});
+  const scan = (over) => Object.assign({ source: "det", action: "scan", target: dev(cam.id), detectorKind: "motion" }, over || {});
+
+  test("Детектор на время и проверка архива: в каталоге, сохраняются, выполняются в запуске", async () => {
+    const env = await makeEnv();
+    const r = await env.ok("GET", "/reference");
+    const a = r.ruleActions.find((x) => x.action === "detect"), b = r.ruleActions.find((x) => x.action === "scan");
+    assert.eq([a.source, b.source, a.deviceTypes, b.fields.map((f) => f.id)], ["det", "det", ["camera"], ["target", "detectorKind", "beforeSec", "afterSec", "archive", "params"]], "каталог");
+    assert.ok(a.fields.find((f) => f.id === "detectorKind").options.includes("motion"), "виды — из справочника");
+    const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && d.archiveId);
+    const made = await env.ok("POST", "/rules", blank({ steps: [detect({ target: dev(c.id), params: "{\"limit\":3}" }), scan({ target: dev(c.id), beforeSec: 30, afterSec: 90, archive: c.archiveId })] }));
+    assert.eq([made.steps[1].beforeSec, made.steps[1].afterSec, made.steps[0].params], [30, 90, "{\"limit\":3}"], "поля");
+    const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
+    assert.eq(f.steps.map((s) => [s.action.action, s.state]), [["detect", "ok"], ["scan", "ok"]], "трасса");
+  });
+
+  test("Детектор на время и проверка архива: границы и пустое окно — 422 RULE_INVALID, выключенное хранится", async () => {
+    const env = await makeEnv();
+    const bad = await env.call("POST", "/rules", blank({ steps: [detect({ minutes: 1441 })] }));
+    assert.status(bad, 422, "RULE_INVALID");
+    assert.eq(issue(bad), "action.field", "минуты");
+    const none = await env.call("POST", "/rules", blank({ steps: [detect({ detectorKind: "" })] }));
+    assert.status(none, 422, "RULE_INVALID", "нет вида");
+    const win = await env.call("POST", "/rules", blank({ steps: [scan({ beforeSec: 0, afterSec: 0 })] }));
+    assert.status(win, 422, "RULE_INVALID");
+    assert.eq(issue(win), "action.scanWindow", "окно");
+    assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [scan({ beforeSec: 0, afterSec: 0 })] })), 201, null, "незаконченное выключенное");
+  });
+
+  test("Проверка архива: камере без записи нечего проверять — шаг не выполнен, правило не годится", async () => {
+    const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !d.archiveId && !(d.extraArchives || []).length);
+    if (!c) return;
+    const env = await makeEnv();
+    const made = await env.ok("POST", "/rules", blank({ steps: [scan({ target: dev(c.id) })] }));
+    assert.eq(made.status.state, "unfit", "не годится");
+    const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
+    assert.eq([f.steps[0].state, f.steps[0].reason.code, f.result], ["fail", "target.noRecord", "fail"], "шаг");
+  });
+
   ApiTest.loaded("api-automation.js");
 })();

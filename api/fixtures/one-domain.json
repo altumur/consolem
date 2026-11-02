@@ -16990,6 +16990,77 @@
     ]
    },
    {
+    "source": "det",
+    "action": "detect",
+    "deviceTypes": [
+     "camera"
+    ],
+    "fields": [
+     {
+      "id": "target"
+     },
+     {
+      "id": "detectorKind",
+      "options": [
+       "motion",
+       "linecross",
+       "abandoned",
+       "disappeared",
+       "crowd",
+       "lpr",
+       "other"
+      ]
+     },
+     {
+      "id": "minutes"
+     },
+     {
+      "id": "params",
+      "optional": true
+     }
+    ]
+   },
+   {
+    "source": "det",
+    "action": "scan",
+    "deviceTypes": [
+     "camera"
+    ],
+    "fields": [
+     {
+      "id": "target"
+     },
+     {
+      "id": "detectorKind",
+      "options": [
+       "motion",
+       "linecross",
+       "abandoned",
+       "disappeared",
+       "crowd",
+       "lpr",
+       "other"
+      ]
+     },
+     {
+      "id": "beforeSec",
+      "optional": true
+     },
+     {
+      "id": "afterSec",
+      "optional": true
+     },
+     {
+      "id": "archive",
+      "optional": true
+     },
+     {
+      "id": "params",
+      "optional": true
+     }
+    ]
+   },
+   {
     "source": "alarm",
     "action": "alarm",
     "deviceTypes": [

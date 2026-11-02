@@ -6902,6 +6902,7 @@
             "enum": [
               "vms",
               "rec",
+              "det",
               "alarm",
               "client",
               "ntf",
@@ -6937,14 +6938,17 @@
           },
           "minutes": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "record, disable, detect: минуты. detect: 1…1440, включённое правило вне границ — 422 RULE_INVALID, action.field"
           },
           "afterSec": {
             "type": "integer",
-            "minimum": 0
+            "minimum": 0,
+            "description": "record: ещё после конца события. scan: секунд записи после события, 0…3600, нет поля — 60"
           },
           "archive": {
-            "type": "string"
+            "type": "string",
+            "description": "record: хранилище записи. scan: хранилище, запись которого проверить, нет поля — основная запись камеры"
           },
           "priority": {
             "type": "string",
@@ -7011,6 +7015,20 @@
           "operation": {
             "type": "string",
             "description": "unit: команда из Device.operations"
+          },
+          "beforeSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3600,
+            "description": "scan: секунд записи до события, нет поля — 60. Оба окна 0 — 422 RULE_INVALID, action.scanWindow"
+          },
+          "detectorKind": {
+            "type": "string",
+            "description": "detect, scan: вид детектора из reference.detectorKinds; варианты, которые исполняет система, — options поля в ruleActions"
+          },
+          "params": {
+            "type": "string",
+            "description": "detect, scan: настройки детектора строкой, заменяют настройки основы целиком. Основа — первый детектор этой камеры и этого вида"
           }
         },
         "additionalProperties": false,
@@ -7018,7 +7036,7 @@
           "source",
           "action"
         ],
-        "description": "Действие правила. Поля — по виду действия (справочник ruleActions)"
+        "description": "Действие правила. Поля — по виду действия (справочник ruleActions). det/detect — включить детектор на камере на minutes минут: повтор продлевает срок, свой включённый детектор этого вида второго не заводит. det/scan — проверить архив детектором за окно вокруг события: beforeSec до, afterSec после; одно окно — одна задача. Настраиваются только здесь, другой консоли нет"
       },
       "Rule": {
         "type": "object",

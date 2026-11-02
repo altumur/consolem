@@ -52,6 +52,25 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   undo("rundo:" + R1).click();
   ok(await until(() => r(R1).validFor === 30), "«Отменить» вернул годность");
 
+  // Два действия детектора: в списке видов, поля из справочника, уходят на сервер как в контракте
+  const CAM = "30000013-0000-4000-8000-000000000000";
+  ruleNewOpen();rnw.tpl = "";ruleNewCreate();
+  const dtmp = ruleDraft.id;
+  ruleEdit((x) => { delete x._auto; x.name = "Детектор из сценария"; x.then = [ruleNewAct(ACTION_KINDS.find((k) => k.action === "detect"), null, x)]; });
+  paint();
+  ok([...document.querySelector("select[data-ks]").options].some((o) => /Проверить архив детектором/.test(o.textContent)), "оба действия в списке видов");
+  const dk = ACTION_KINDS.find((k) => k.action === "detect");
+  ok(ruleDetKindOpts(dk.fields && { sub: "det", action: "detect" }).some(([x]) => x === "motion"), "виды детектора — из справочника");
+  ruleEdit((x) => { x.then = [{ sub: "det", action: "detect", ref: CAM, detectorKind: "motion", minutes: 10 }, { sub: "det", action: "scan", ref: CAM, detectorKind: "motion", beforeSec: 30, after: 90 }]; });
+  ok(actionLabel(curRule().then[1]).includes("30") && actionLabel(curRule().then[1]).includes("90"), "подпись окна: " + actionLabel(curRule().then[1]));
+  ruleEdit((x) => { x.then[1].beforeSec = 0; x.then[1].after = 0; x.when = [{ sub: "det", kind: "motion", ref: CAM, match: {} }]; });
+  ok(ruleIssues(curRule()).some((t) => /нужно окно/.test(t)), "пустое окно — ошибка заранее: " + ruleIssues(curRule()).join("; "));
+  ruleEdit((x) => { x.then[1].beforeSec = 30; x.then[1].after = 90; });
+  ruleApply();
+  ok(await until(() => rules.some((x) => x.name === "Детектор из сценария" && /^7/.test(x.id) && autoVer.has(x.id))), "сохранено: " + dtmp);
+  const dsaved = await API.get("/rules/" + rules.find((x) => x.name === "Детектор из сценария").id);
+  ok(dsaved.steps[0].source === "det" && dsaved.steps[1].afterSec === 90 && dsaved.steps[1].beforeSec === 30, "на сервере: " + JSON.stringify(dsaved.steps[1]));
+
   // Новое правило: до «Применить» — только у клиента, после — POST, id от сервера
   ruleNewOpen();rnw.tpl = "";ruleNewCreate();
   const tmp = ruleDraft && ruleDraft.id;

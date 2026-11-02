@@ -42,6 +42,8 @@
     { source: "vms", action: "preset", deviceTypes: ["camera"], fields: ["preset"] },
     { source: "rec", action: "record", deviceTypes: ["camera"], fields: [] },
     { source: "vms", action: "disable", deviceTypes: ["camera"], fields: ["minutes"] },
+    { source: "det", action: "detect", deviceTypes: ["camera"], fields: ["detectorKind"] },
+    { source: "det", action: "scan", deviceTypes: ["camera"], fields: ["detectorKind"] },
     { source: "alarm", action: "alarm", deviceTypes: ["camera"], fields: [], tpl: ["text"] },
     { source: "alarm", action: "alarmclose", deviceTypes: ["camera"], fields: [] },
     { source: "client", action: "layout", deviceTypes: [], fields: ["layoutId", "roleId"] },
@@ -349,6 +351,8 @@
       return n.enabled === false ? msg("device.disabled", { deviceId: n.id }) : null;
     }
     const recording = (n) => n.type === "camera" && !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
+    // Есть ли что проверять: у камеры есть запись, если названо хранилище — в нём
+    const hasRecord = (n, archive) => (archive ? [n.archiveId, ...(n.extraArchives || []).map((x) => x.archiveId)].includes(archive) : !!n.archiveId || !!(n.extraArchives || []).length);
 
     /* ===== Проверка правила ===== */
 
@@ -403,6 +407,8 @@
         const k = actionKind(a);
         if (k.deviceTypes.length && !a.target) return msg("action.noTarget", { action: a.action });
         if (a.action === "record" && a.duration !== "event" && !(a.minutes > 0)) return msg("action.field", { action: a.action, field: "minutes" });
+        if (a.action === "detect" && !(a.minutes >= 1 && a.minutes <= 1440)) return msg("action.field", { action: a.action, field: "minutes" });
+        if (a.action === "scan" && (a.beforeSec ?? 60) === 0 && (a.afterSec ?? 60) === 0) return msg("action.scanWindow");
         const miss = k.fields.find((f) => !String(a[f] ?? "").trim());
         if (miss) return msg("action.field", { action: a.action, field: miss });
         if (isGroup(a.target) && !broken(a.target) && !nodes(a.target, k.deviceTypes).length) return msg("action.areaEmpty", { action: a.action });
@@ -472,7 +478,7 @@
         }
         const k = ref.ruleActions.find((x) => x.source === a.source && x.action === a.action);
         if (!k) return bad("steps", "action.notDeclared", { action: a.action });
-        const value = k.fields.find((f) => (f.options || []).length && a[f.id] != null && !f.options.includes(a[f.id]));
+        const value = k.fields.find((f) => (f.options || []).length && a[f.id] != null && a[f.id] !== "" && !f.options.includes(a[f.id]));
         if (value) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: value.id });
         const extra = FIELDS_OPTIONAL.find((f) => a[f] && !k.fields.some((x) => x.id === f));
         if (extra) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: extra });
@@ -658,7 +664,7 @@
           if (!k.deviceTypes.length) return mk(null, null);
           return mk(single(a.target) ? single(a.target).id : null, msg(!a.target ? "target.none" : a.target.fromEvent ? "target.noEventDevice" : isGroup(a.target) ? "target.areaEmpty" : "target.deviceGone"));
         }
-        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
+        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now) || (a.action === "scan" && !hasRecord(n, a.archive) ? msg("target.noRecord", { deviceId: n.id }) : null) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
       });
       walk(r.steps, [], 0);
       return out;
@@ -719,6 +725,7 @@
         (broken(a.target) ? [] : nodes(a.target, actionKind(a).deviceTypes)).forEach((n) => {
           down(n);
           if (a.action === "preset" && n.presetMax && a.preset > n.presetMax) unfit.push(`${name(n)}: нет пресета ${a.preset}, предел ${n.presetMax}`);
+          if (a.action === "scan" && !hasRecord(n, a.archive)) unfit.push(`${name(n)}: нечего проверять, запись не ведётся`);
         });
       });
       if (unfit.length) return { state: "unfit", reason: [...new Set(unfit)].join("; ") };
