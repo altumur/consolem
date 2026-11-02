@@ -6,6 +6,8 @@
 
    Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain]   (порт по умолчанию 8787)
    Затем: index.html?api=http://127.0.0.1:8787  или  tests/api.html?api=http://127.0.0.1:8787
+   ASSIST_BRIDGE_URL=http://127.0.0.1:18600 — ход ассистента идёт в мост Пилота (настоящая модель), без
+   неё — прежняя заглушка. Проверка связки на этой машине, не приёмка.
    POST /__report — принять отчёт страницы (?report=…) и напечатать его; с --exit-on-report — и выйти.
 
    --webui DIR — ещё и консоль VMS так, как её видит WebUI (tools/build_webui.py, tools/check_webui.py):
@@ -57,6 +59,30 @@ function serveFile(req, res) {
   return true;
 }
 
+// Ход ассистента через мост: тело то же, поток идёт как есть, без буфера и без предела времени: ход
+// модели длится минуты. Клиент ушёл — соединение с мостом закрывается, ход снимается. Мост не ответил —
+// событие error по контракту
+const BRIDGE = process.env.ASSIST_BRIDGE_URL || "";
+function assistBridge(raw, res) {
+  res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
+  const fail = (why) => {
+    if (res.writableEnded) return;
+    res.write(`data: ${JSON.stringify({ type: "error", code: "UPSTREAM_UNAVAILABLE", message: `Мост ассистента недоступен: ${why}` })}
+
+`);
+    res.end();
+  };
+  const up = http.request(new URL("/assist/turns", BRIDGE), { method: "POST", headers: { "Content-Type": "application/json", Accept: "text/event-stream", "Content-Length": Buffer.byteLength(raw) } }, (r) => {
+    if (r.statusCode !== 200) return fail(`ответ ${r.statusCode}`);
+    r.on("data", (c) => res.write(c));
+    r.on("end", () => res.end());
+    r.on("error", (e) => fail(e.message));
+  });
+  up.on("error", (e) => fail(e.message));
+  res.on("close", () => up.destroy());
+  up.end(raw);
+}
+
 function cors(req, res) {
   // Страница с диска приходит с Origin: null; на стенде пускаем любой — и с куками
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
@@ -99,6 +125,7 @@ http
         res.on("close", stop);
         return;
       }
+      if (BRIDGE && req.method === "POST" && req.url.split("?")[0] === "/assist/turns") return assistBridge(raw, res);
       let body;
       try {
         body = raw ? JSON.parse(raw) : undefined;
