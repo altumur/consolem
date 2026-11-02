@@ -567,4 +567,4 @@ PTZ — свойство камеры: `Device.ptz`, `Device.presets`, вида 
 
 ## Общее на домен
 
-Запрос 2026-11-01-182545Z п. 25. `Settings.values["alarms.domain"]` — что считать тревогой на весь домен, «Опции» → «Хранение», значения из `reference.eventKinds`. Правило с целями из нескольких доменов исполняет только `reference.ruleCrossDomainActions`, `preset` и `output`: иначе `422 NOT_SUPPORTED`, `field: steps`, `rule.crossDomain`. `serverId` выбирает домен правила: цели только из другого домена — `422 VALIDATION_FAILED`, `field: serverId`. Форма говорит об этом заранее.
+Запрос 2026-11-01-182545Z п. 25. `Settings.values["alarms.domain"]` — что считать тревогой на весь домен, «Опции» → «Хранение», значения из `reference.eventKinds`. Правило с целями из нескольких доменов исполняет только то, что система объявила в `reference.ruleCrossDomainActions`, у w2c это `preset` и `output`: иначе `422 NOT_SUPPORTED`, `field: steps`, `rule.crossDomain`. В наборе `demo` поля нет: он умеет весь контракт, ограничения нет. `serverId` выбирает домен правила: цели только из другого домена — `422 VALIDATION_FAILED`, `field: serverId`. Форма говорит об этом заранее.

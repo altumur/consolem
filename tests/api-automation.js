@@ -496,7 +496,10 @@
   test("Правило на несколько доменов: только объявленные шаги, прочее — 422 NOT_SUPPORTED, field: steps; сервер выбирает домен", async () => {
     const cams = (d) => FX.devices.filter((x) => x.type === "camera" && x.domainId === d.id);
     const [a, b] = FX.domains.filter((d) => cams(d).length).map((d) => cams(d)[0]);
-    const env = await makeEnv();
+    const free = await makeEnv();
+    const any = await free.call("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: dev(a.id) }), Object.assign({}, step, { target: dev(b.id) })] }));
+    assert.status(any, 201, null, "поля нет — ограничения нет");
+    const env = await makeEnv({ fixturePatch: { reference: { ruleCrossDomainActions: ["preset", "output"] } } });
     const preset = (id) => ({ source: "vms", action: "preset", target: dev(id), preset: 1 });
     assert.status(await env.call("POST", "/rules", blank({ steps: [preset(a.id), preset(b.id)] })), 201, null, "пресеты");
     const bad = await env.call("POST", "/rules", blank({ steps: [preset(a.id), Object.assign({}, step, { target: dev(b.id) })] }));

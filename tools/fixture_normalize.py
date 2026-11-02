@@ -740,7 +740,6 @@ def reference(r, ids=None, ex=None):
         ],
         "ruleStarts": ["event", "schedule", "manual"],
         "ruleTargets": {"kinds": ["device", "folder", "server", "domain"], "fromEvent": True},
-        "ruleCrossDomainActions": ["preset", "output"],
         "ruleConditions": [{"kind": c["kind"], "deviceTypes": c.get("devTypes", [])} for c in r.get("COND_KINDS", [])],
         "ruleControls": [{"control": CONTROL[c["ctl"]], "branches": [b[0] for b in c.get("br", [])]} for c in r.get("CTL_KINDS", [])],
         "layouts": [{"id": ids("layout", x), "name": x} for x in ex.get("ruleLayouts", [])],

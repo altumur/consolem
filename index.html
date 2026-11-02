@@ -8896,9 +8896,9 @@ const ACTION_KINDS=[
   // short — как действие подписано в строках и журнале: «Выключить камеру · Запасной вход · 60 мин».
   {grp:"Камера",sub:"vms",action:"disable",label:"Выключить камеру на время",short:"Выключить камеру",devTypes:["camera"],
    fields:[{id:"ref",label:"Камера"},{id:"minutes",label:"Минут"}]},
-  {grp:"Детектор",sub:"det",action:"detect",label:"Включить детектор на время",short:"Детектор",devTypes:["camera"],
+  {grp:"Детектор",sub:"det",action:"detect",label:"Детектор на время",short:"Детектор",devTypes:["camera"],
    fields:[{id:"ref",label:"Камера"},{id:"detectorKind",label:"Вид детектора",dyn:ruleDetKindOpts},{id:"minutes",label:"Минут"},{id:"params",label:"Настройки детектора",req:false}]},
-  {grp:"Детектор",sub:"det",action:"scan",label:"Проверить архив детектором",short:"Проверка архива",devTypes:["camera"],def:{beforeSec:60,after:60},
+  {grp:"Детектор",sub:"det",action:"scan",label:"Проверить архив",short:"Проверка архива",devTypes:["camera"],def:{beforeSec:60,after:60},
    fields:[{id:"ref",label:"Камера"},{id:"detectorKind",label:"Вид детектора",dyn:ruleDetKindOpts},{id:"beforeSec",label:"Секунд до события",req:false},{id:"after",label:"Секунд после события",req:false},
            {id:"archive",label:"Хранилище",req:false,dyn:ruleScanArchOpts},{id:"params",label:"Настройки детектора",req:false}]},
   {grp:"Тревога",sub:"alarm",action:"alarm",label:"Поднять тревогу",short:"Тревога",devTypes:["camera"],def:{prio:"normal"},
@@ -10388,7 +10388,7 @@ function actFieldsHtml(a,ps){
       const cur=f.id==="dur"?a.dur||"min":v;
       return`<div class="rl-f">${selHtml(opts,cur,on,f.label)}</div>`;
     }
-    return`<div class="rl-f"><input type="text" placeholder="${i18n(ruleFLabel(f))}" aria-label="${i18n(ruleFLabel(f))}" value="${escHtml(v)}" ${onEv("change",on)}></div>`;
+    return`<div class="rl-f"><input type="text" placeholder="${i18n(ruleFLabel(f))}" aria-label="${i18n(ruleFLabel(f))}" title="${i18n(ruleFLabel(f))}" value="${escHtml(v)}" ${onEv("change",on)}></div>`;
   }).join("");
   return h+(via?`<div class="rl-f sub">${i18n("через")} «${escHtml(locName(via))}»</div>`:"");
 }

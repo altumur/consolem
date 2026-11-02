@@ -58,7 +58,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const dtmp = ruleDraft.id;
   ruleEdit((x) => { delete x._auto; x.name = "Детектор из сценария"; x.then = [ruleNewAct(ACTION_KINDS.find((k) => k.action === "detect"), null, x)]; });
   paint();
-  ok([...document.querySelector("select[data-ks]").options].some((o) => /Проверить архив детектором/.test(o.textContent)), "оба действия в списке видов");
+  ok([...document.querySelector("select[data-ks]").options].some((o) => /Проверить архив/.test(o.textContent)), "оба действия в списке видов");
   ok(ruleDetKindOpts({ sub: "det", action: "detect" }).some(([x]) => x === "motion"), "виды детектора — из справочника");
   ruleEdit((x) => { x.then = [{ sub: "det", action: "detect", ref: CAM, detectorKind: "motion", minutes: 10 }, { sub: "det", action: "scan", ref: CAM, detectorKind: "motion", beforeSec: 30, after: 90 }]; });
   ok(actionLabel(curRule().then[1]).includes("30") && actionLabel(curRule().then[1]).includes("90"), "подпись окна: " + actionLabel(curRule().then[1]));
@@ -72,10 +72,12 @@ UiCheck(async ({ ok, until, confirmWith }) => {
 
   // Цели из нескольких доменов: только объявленные шаги, форма говорит заранее
   const OTHER = devicePool.find((d) => d.type === "camera" && deviceDomain(d.id) && deviceDomain(d.id) !== deviceDomain(CAM)).id;
+  refRuleCross = ["preset", "output"];
   const cross = { start: "manual", on: true, when: [], cond: [], rate: 6, then: [{ sub: "vms", action: "preset", ref: CAM, n: 1 }, { sub: "rec", action: "record", ref: OTHER, minutes: 5 }] };
   ok(ruleDomains(cross).size === 2 && /нескольких доменов/.test(ruleProblem(cross)), "запись на чужой домен — ошибка заранее: " + ruleProblem(cross));
   ok(!ruleProblem({ ...cross, then: [{ sub: "vms", action: "preset", ref: CAM, n: 1 }, { sub: "vms", action: "preset", ref: OTHER, n: 1 }] }), "пресеты на двух доменах — можно");
   ok(/другом домене/.test(ruleProblem({ ...cross, server: servers.find((x) => domainOf(x.id) && domainOf(x.id).id !== deviceDomain(OTHER)).id, then: [{ sub: "vms", action: "preset", ref: OTHER, n: 1 }] })), "сервер другого домена — ошибка заранее");
+  refRuleCross = null;
 
   // Отказы сервера словами: чужое устройство называется по имени
   ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { kind: "device", id: CAM } } } })), "403 правила называет устройство");

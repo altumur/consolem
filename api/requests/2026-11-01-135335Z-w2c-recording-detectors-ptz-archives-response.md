@@ -126,6 +126,18 @@
 
 `GET`, `POST /archive-scans`, `DELETE /archive-scans/{id}`, итог `result: {end, covered, asked, events, partial}`, плюс `why`. Новые виды `archiveWatch`, `archiveScan` в `StreamMessage.kind`. Как действие правила — п. 29, на этапе автоматизации.
 
+## П. 24. Правило: три поля — сделано, `8589bb7`
+
+`Rule.validForSec`, 10–600, умолчание 30, вне границ — `422 VALIDATION_FAILED`, `field: validForSec`. Сервер отдаёт поле всегда, в запросе оно необязательно.
+
+`Rule.status: {state, reason}` только для чтения: `watching`, `refused`, `unfit`, `unchecked`, `reason` — слова сервера, форма показывает как есть. У выключенного правила поля нет. В версию не входит, событий потока не шлёт. Ваша фаза: `refused` с `unfit` — `unfit`, прочий `refused` — `refused`, непустой `unchecked` — `unchecked`.
+
+`RuleTrigger.match` открыт: любой ключ, тип значения сохраняется, сравнение строгое, `"1"` не равно `1`. Поля `port`, `value`, `template`, `word` остались описанными. В форме «Поля события» принимают объект JSON. Проверка: `tests/api-automation.js`, «Правило».
+
+## П. 29. Поправка к запросу об «Автоматизации» — сделано, `a54683f`
+
+Оба действия в `ruleActions`: `det/detect`, `det/scan`. Поля и границы — в [ответе на запрос об «Автоматизации»](2026-10-31-194702Z-w2c-automation-response.md), п. 5.
+
 ## Чего пока нет
 
-П. 24 и п. 29 — этап автоматизации. Клиента WebRTC в форме нет: только кадр-заглушка.
+Клиента WebRTC в форме нет: только кадр-заглушка.

@@ -18,6 +18,8 @@
 - **Откат только последней.** Отменить можно только последнюю операцию, предыдущая становится доступной после её отмены: `409 NOT_REVERTIBLE`, `params.reason: notLast`. Откат не откатывается: `isRevert`. Слово владельца, заменяет запись ADR-0106 доп. (2) пп. 3, 4.
 - **Переключатель «Включён» детектора.** Был только видом, теперь сохраняет `enabled`.
 - **«Имя детектора» во вкладке камеры.** Поле «Имя» там переименовывало камеру.
+- **«Поля события».** Запрос 10 п. 24 просил открыть контракт: в форме — объект JSON в свёрнутом поле.
+- **Подсказки заранее.** Запрос просил отказ сервера: форма говорит то же до «Применить»: вне каталога, цели из нескольких доменов, сервер другого домена.
 - **Кадр-заглушка.** Картинка вместо видео, пока нет клиента WebRTC: по ней рисуются зоны и наводятся пресеты.
 - **Мастер единиц СКУД.** Единицы заводить было негде: мастер открывался только для устройств.
 - **Потоки строками.** Правка сразу, без черновика карточки, с откатом.
@@ -25,6 +27,8 @@
 
 ## Проверки
 
+- **`io.input` в `POST /test/events`.** Сигнал входа: начало запускает правила, конец — `stop: reset`.
+- **`tests/api-automation.js`:** каталог, поля правила, действия детектора, права, вопрос, эскалация, ход, домен.
 - **`tests/ui-kinds.js`:** виды, поля только для чтения, зона, пресеты, СКУД, журнал, учётки.
 - **`device.found`, `device.lost`, `device.parent`** в `POST /test/events`.
 - **`?drop=op1,op2`.** Новый режим страницы: система, которая не объявила эти операции.
@@ -52,6 +56,13 @@
 - **`NOT_REVERTIBLE`** с `params.reason`: запрос предлагал выбрать код.
 - **`Operation.single`, `Operation.revertible`, `Operation.redoable`, `Operation.redoOf`, `GET /operations`, `POST /operations/{id}/redo`.**
 
+- **`reference.ruleStarts`, `ruleTargets`.** Запрос 8 п. 1 просил способ объявления: два новых поля справочника. `duration`, `afterSec` записи выражены имеющимся `fields`.
+- **`action.fieldNotDeclared`, `target.notDeclared`, `rule.startNotDeclared`, `trigger.notDeclared`, `cond.notDeclared`.** Запрос 8 п. 1 просил только `422 NOT_SUPPORTED` с `field`: причина кодом в `params.issue`, как у `RULE_INVALID`.
+- **`RulePrompt.canAnswer`, `openedAt`.** Сверх перечня: экрану не надо считать роли самому.
+- **`202` без тела у ответа оператора.** Итог — `prompt.closed`, система судит ответы своим проходом.
+- **`reason` в `prompt.closed`, `RuleFire.result: waiting`, `state: waiting`, `run.stopped`.**
+- **`reference.ruleCrossDomainActions`.** Запрос 11 п. 25 предложил поведение: объявлено данными, а не зашито.
+- **`role.denied`, `target.noRecord`, `action.scanWindow`.** Новые коды трассы и проверки.
 - **Сняты из контракта:** `pulse`, `debounce`, `gain`, `vol`, `acodec`, `onServer`, `bitrate`, `streamProfile`, `buffering`. Запрос просил отвечать `NOT_SUPPORTED`: полей просто нет.
 - **Добавлено к предложенному:** `capabilities.unitTypes`, `Device.derived`, `DetectorOption.conflicts`, `DeviceStream.resOptions`, `OperationItem.params`, `UnitOption.events`, `UnitOption.operations`, `recordState`, `recordReason`.
 

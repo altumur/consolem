@@ -17702,11 +17702,7 @@
     "domain"
    ],
    "fromEvent": true
-  },
-  "ruleCrossDomainActions": [
-   "preset",
-   "output"
-  ]
+  }
  },
  "streamAccounts": [
   {
