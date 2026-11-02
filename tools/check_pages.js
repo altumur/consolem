@@ -13,6 +13,12 @@ const sep = (p) => (p.includes("?") ? "&" : "?");
 const rule = fx.ruleFires[0].ruleId, did = fx.domains[0].id;
 const LISTS = ["/devices", "/archives", "/volumes", "/folders", "/journal", "/operations", `/rules/${rule}/fires`, "/archive-watches", "/archive-scans",
   "/access/users", "/access/groups", "/access/history", "/access/cell-history", `/access/roles/${fx.access.roles[0].id}/objects`, `/tree/children?layout=servers&parentId=${did}`];
+const recCam = fx.devices.find((d) => d.type === "camera" && d.archiveId);
+LISTS.push(`/devices/${recCam.id}/timeline`, `/devices/${recCam.id}/holds`, `/devices/${recCam.id}/bookmarks`);
+[["2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z"], ["2026-01-02T00:00:00Z", "2026-01-02T01:00:00Z"]].forEach(([from, to]) => {
+  s.handle("POST", `/devices/${recCam.id}/holds`, { from, to });
+  s.handle("POST", `/devices/${recCam.id}/bookmarks`, { note: "проба", occurred: from });
+});
 s.handle("PATCH", `/devices/${fx.devices[0].id}`, { name: "Проба" }, { "If-Match": `"${fx.devices[0].version}"` });
 for (const path of LISTS) {
   const all = [];
@@ -25,7 +31,7 @@ for (const path of LISTS) {
     cursor = r.body.nextCursor || null;
     if (++n > 3000) { bad.push(`${path}: страницы не кончаются`); break; }
   } while (cursor);
-  const key = (x) => x.id || x.objectId;
+  const key = (x) => x.id || x.objectId || x.spanId;
   if (new Set(all.map(key)).size !== all.length) bad.push(`${path}: повтор строки`);
   const whole = get(`${path}${sep(path)}limit=1000`).body;
   if (whole.items.length !== all.length) bad.push(`${path}: обход дал ${all.length} из ${whole.items.length}`);

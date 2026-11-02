@@ -53,7 +53,7 @@
   // Вид записи — первая цифра UUID (api/README.md, «Идентификаторы»): сервер продолжает номера набора
   const KIND = { operation: "0", domain: "1", server: "2", device: "3", folder: "4", archive: "5", volume: "6", rule: "7", fire: "d", history: "e",
     // «Автоматизация»: первая цифра «f», вид — во второй группе UUID
-    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007", prompt: "f-0008" };
+    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007", prompt: "f-0008", journal: "c", bookmark: "f-0009" };
   const TABLES = { domains: "domain", servers: "server", devices: "device", folders: "folder", archives: "archive", volumes: "volume", rules: "rule" };
   // Ответ на запрос с ключом повтора помнится 10 минут: повтор получает его же и ничего не выполняет снова
   const IDEMPOTENCY_MS = 10 * 60 * 1000;
@@ -160,6 +160,12 @@
     // Возможности системы — из набора: так же их объявляет бэкенд в GET /reference
     const caps = () => db.reference.capabilities;
     // Раздача камеры (V/03.1): создаётся первым зрителем, держится LIVE_GRACE_SEC, метки — сеть, для которой создана
+    // Журнал камеры — она и единицы про неё: дети и источник событий, привязанный к ней
+    const journalAbout = (e, id) => {
+      if (e.deviceId === id) return true;
+      const rec = e.deviceId && byId("devices", e.deviceId);
+      return !!rec && (rec.parentId === id || rec.cameraId === id);
+    };
     const LIVE_GRACE_SEC = 60;
     const liveLabels = (network) => (network === "outside" ? ["public-address"] : []);
     const liveFan = (rec) => {
@@ -169,6 +175,48 @@
     const liveKeep = (rec, labels) => {
       db.stand.live = db.stand.live || {};
       db.stand.live[rec.id] = { labels, until: now() + LIVE_GRACE_SEC * 1000 };
+    };
+    // Шкала заглушки считается из id и часов, не хранится: так она живёт и на 250 000 камер. Сетка 4 часа: спаны не меняются
+    // с ходом часов, spanId держится. Вторая по времени сетка — две эпохи над одним отрезком, дальше дозапись, резерв, устройство
+    const TL_STEP = 4 * 3600000, TL_LEN = 3 * 3600000, TL_CELLS = 42;
+    function camSpans(rec) {
+      const main = rec.archiveId || ((rec.extraArchives || [])[0] || {}).archiveId;
+      if (!main) return [];
+      const t = now(), base = Math.floor(t / TL_STEP) * TL_STEP, out = [], extra = ((rec.extraArchives || [])[0] || {}).archiveId || main;
+      const add = (startMs, endMs, epoch, source, over) => {
+        const s = Object.assign({ startMs, endMs, epoch, source, backupOnly: false, fenced: false, archiveId: main, recordingId: rec.id }, over);
+        s.spanId = `${s.recordingId}.e${epoch}.${source}.${s.fenced ? "f" : "n"}.${startMs}`;
+        out.push(s);
+      };
+      for (let i = 0; i < TL_CELLS; i++) {
+        const start = base - i * TL_STEP, end = i ? start + TL_LEN : Math.max(start + 60000, Math.floor(t / 60000) * 60000);
+        add(start, end, 2, i === 2 ? "backfill" : "live");
+        if (i === 1) add(start, end, 1, "live", { fenced: true });
+        if (i === 3) add(end, start + TL_STEP - 60000 * 30, 1, "live", { backupOnly: true, archiveId: extra, recordingId: `${rec.id}-backup` });
+        if (i === 4) add(end, start + TL_STEP - 60000 * 30, 1, "device", { backupOnly: false });
+      }
+      return out.filter((s) => s.endMs > s.startMs);
+    }
+    const spanShow = (s) => ({ spanId: s.spanId, start: iso(s.startMs), end: iso(s.endMs), archiveId: s.archiveId, recordingId: s.recordingId, epoch: s.epoch, source: s.source, backupOnly: s.backupOnly, fenced: s.fenced });
+    const recordingsOf = (rec) => [...new Set(camSpans(rec).map((s) => s.recordingId))];
+    function timelineGone(rec) {
+      const out = clone(db.stand.timelineUnavailable || []), srv = rec.serverId && byId("servers", rec.serverId);
+      if (srv && srv.online === false) out.push({ what: "server", id: srv.id, reason: "Регистратор не отвечает: архив не утрачен, лента может быть неполной" });
+      return out;
+    }
+    const holdsAll = () => db.holds || (db.holds = []);
+    const marksAll = () => db.bookmarks || (db.bookmarks = []);
+    const holdShow = (h) => {
+      const rec = byId("devices", h.deviceId), ids = [...new Set(camSpans(rec).map((s) => s.archiveId))];
+      return Object.assign(clone(h), { states: ids.map((archiveId) => ({ archiveId, state: db.stand.holdState || "here" })) });
+    };
+    // Запись удержаний, отметок и дозаписи чужого кластера не идёт: чтение есть, правка — нет
+    const keepRefused = (rec) => {
+      if (!rec) return notFound("Устройство");
+      if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Только у камеры", { field: "type" });
+      if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
+      if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права");
+      return null;
     };
     const liveRefused = (rec) => {
       if (!rec) return notFound("Устройство");
@@ -205,6 +253,10 @@
         const near = rec ? nearOf(rec) : goneNear.get(message.entityId) || [message.entityId];
         Object.defineProperty(message, "near", { value: near, enumerable: false });
         treeTouch(rec, near);
+      }
+      if (message.type === "journal.event") {
+        const rec = byId("devices", message.entityId);
+        Object.defineProperty(message, "near", { value: [message.entityId, rec && rec.parentId, rec && rec.cameraId].filter(Boolean), enumerable: false });
       }
       history.push(message);
       if (history.length > STREAM_DEPTH) history.shift();
@@ -688,6 +740,9 @@
       const out = clone(rec);
       if (secrets.has(rec.id)) out.hasPassword = true;
       if (secrets.has(rec.id + ":secret")) out.hasSecret = true;
+      // Держатель тома: сервер хранилища на связи. Хранилище на весь домен — первый живой сервер; stand.noHolder — нет
+      const a = byId("archives", rec.archiveId), srv = a && a.serverId ? byId("servers", a.serverId) : db.servers.find((s) => s.allocated && s.online);
+      out.heldBy = !db.stand.noHolder && srv && srv.online !== false ? srv.name : null;
       return out;
     }
     // Том годится для хранилища: у локального — диск его сервера, не занятый разделом и не повторяющийся
@@ -2513,13 +2568,160 @@
       [
         "POST",
         "/devices/{id}/operations/{operation}",
-        (p) => {
+        (p, q, body) => {
           const rec = byId("devices", p.id);
           if (!rec) return notFound("Устройство");
+          if (rec.type === "relay") {
+            if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Реле без связи");
+            if (p.operation !== "output") return problem(409, "DEVICE_REFUSED", "Такой команды у реле нет", { params: { reason: "noOperation", operation: p.operation } });
+            if (!body || typeof body.state !== "boolean") return problem(422, "VALIDATION_FAILED", "Укажите состояние реле", { field: "state" });
+            return { status: 200, body: { done: true } };
+          }
           if (!isUnit(rec)) return problem(422, "NOT_SUPPORTED", "Команды — только у единиц СКУД", { field: "type" });
           if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Единица без связи");
           if (!(rec.operations || []).includes(p.operation)) return problem(409, "DEVICE_REFUSED", "Такой команды у единицы нет", { params: { reason: "noOperation", operation: p.operation } });
           return { status: 200, body: { done: true } };
+        },
+      ],
+      /* ----- Просмотр: разговор, шкала, куски, удержания, отметки ----- */
+      [
+        "POST",
+        "/devices/{id}/talk",
+        (p) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "spk") return problem(422, "NOT_SUPPORTED", "Разговор — только через динамик", { field: "type" });
+          const owner = rec.parentId || rec.id, url = (db.stand.otherCluster || {})[owner];
+          if (url) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url } });
+          if (rec.online === false || rec.enabled === false) return problem(409, "DEVICE_OFFLINE", "Динамик без связи");
+          if (db.stand.talkDenied) return problem(403, "PERMISSION_DENIED", "Нет права говорить через этот динамик");
+          if (db.stand.talkRefused) return problem(409, "DEVICE_REFUSED", "Устройство отказало", { params: { reason: "refused" } });
+          return { status: 200, body: { url: `stub://live/talk/${owner}/${rec.id}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + LIVE_GRACE_SEC * 1000), gateway: "stub-local" } };
+        },
+      ],
+      [
+        "GET",
+        "/devices/{id}/timeline",
+        (p, q) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Шкала — только у камеры", { field: "type" });
+          const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
+          if (from >= to) return problem(422, "VALIDATION_FAILED", "Конец окна раньше начала", { field: "to" });
+          const rows = camSpans(rec).filter((s) => s.startMs < to && s.endMs > from);
+          return pageList(q, `timeline:${rec.id}`, rows, (s) => `${String(s.startMs).padStart(15, "0")}|${s.spanId}`, spanShow, { unavailable: timelineGone(rec) });
+        },
+      ],
+      [
+        "GET",
+        "/devices/{id}/playback",
+        (p, q) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Записи — только у камеры", { field: "type" });
+          const at = Date.parse(q.at);
+          if (!(at > 0)) return problem(422, "VALIDATION_FAILED", "Укажите момент", { field: "at" });
+          const list = camSpans(rec), over = list.filter((s) => s.startMs <= at && at < s.endMs);
+          const span = q.spanId ? list.find((s) => s.spanId === q.spanId && s.startMs <= at && at < s.endMs) : over.find((s) => !s.fenced) || over[0];
+          if (!span) return notFound("Запись");
+          const k = Math.floor((at - span.startMs) / 60000), from = span.startMs + k * 60000, end = Math.min(from + 60000, span.endMs);
+          return { status: 200, body: { url: `stub://piece/${rec.id}/e${span.epoch}/${from}-${end}.mp4?t=stub-${newVersion()}`, from: iso(from), to: iso(end), expiresAt: iso(now() + 120000), spanId: span.spanId } };
+        },
+      ],
+      [
+        "GET",
+        "/devices/{id}/holds",
+        (p, q) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          return pageList(q, `holds:${rec.id}`, holdsAll().filter((h) => h.deviceId === rec.id), (h) => h.id, holdShow);
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/holds",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          const bad = keepRefused(rec);
+          if (bad) return bad;
+          const from = Math.floor(Date.parse(body.from) / 1000), to = Math.floor(Date.parse(body.to) / 1000);
+          if (!(to > from)) return problem(422, "VALIDATION_FAILED", "Конец позже начала", { field: "to" });
+          const id = `${rec.id}-${from}-${to}`, all = recordingsOf(rec), ids = body.recordingIds || all;
+          const was = holdsAll().find((h) => h.id === id);
+          if (was) {
+            was.recordingIds = [...new Set(was.recordingIds.concat(ids))];
+            send("entity.changed", { kind: "hold", entityId: id, payload: { deviceId: rec.id } });
+            return { status: 200, body: holdShow(was) };
+          }
+          const h = { id, deviceId: rec.id, from: iso(from * 1000), to: iso(to * 1000), recordingIds: ids, by: myLogin(), at: iso(now()), releasedAt: null };
+          if (body.note) h.note = body.note;
+          holdsAll().push(h);
+          send("entity.created", { kind: "hold", entityId: id, payload: { deviceId: rec.id } });
+          return { status: 201, body: holdShow(h) };
+        },
+      ],
+      [
+        "DELETE",
+        "/holds/{id}",
+        (p) => {
+          const i = holdsAll().findIndex((h) => h.id === p.id);
+          if (i < 0) return notFound("Удержание");
+          if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права снимать удержание");
+          const [h] = holdsAll().splice(i, 1);
+          send("entity.deleted", { kind: "hold", entityId: h.id, payload: { deviceId: h.deviceId } });
+          return { status: 204, body: null };
+        },
+      ],
+      [
+        "POST",
+        "/holds/{id}/verify",
+        (p) => {
+          const h = holdsAll().find((x) => x.id === p.id);
+          if (!h) return notFound("Удержание");
+          return { status: 200, body: { results: h.recordingIds.map((recordingId) => ({ recordingId, result: db.stand.holdVerify || "ok" })) } };
+        },
+      ],
+      [
+        "GET",
+        "/devices/{id}/bookmarks",
+        (p, q) => {
+          const rec = byId("devices", p.id);
+          if (!rec) return notFound("Устройство");
+          if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права на отметки");
+          const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
+          const rows = marksAll().filter((m) => m.deviceId === rec.id && Date.parse(m.occurred) >= from && Date.parse(m.occurred) <= to);
+          return pageList(q, `bookmarks:${rec.id}`, rows, (m) => `${backTime(m.occurred)}|${m.id}`, clone);
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/bookmarks",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          const bad = keepRefused(rec);
+          if (bad) return bad;
+          if (!String(body.note).trim()) return problem(422, "VALIDATION_FAILED", "Напишите заметку", { field: "note" });
+          const at = iso(now()), m = { id: uuid("bookmark"), deviceId: rec.id, note: body.note.trim(), occurred: body.occurred || at, at, by: myLogin() };
+          marksAll().push(m);
+          send("entity.created", { kind: "bookmark", entityId: m.id, payload: { deviceId: rec.id } });
+          return { status: 201, body: clone(m) };
+        },
+      ],
+      [
+        "POST",
+        "/devices/{id}/archive-fetch",
+        (p, q, body) => {
+          const rec = byId("devices", p.id);
+          const bad = keepRefused(rec);
+          if (bad) return bad;
+          const from = Date.parse(body.from), to = Date.parse(body.to);
+          if (!(to > from)) return problem(422, "VALIDATION_FAILED", "Конец позже начала", { field: "to" });
+          if (rec.archiveId !== body.archiveId) return problem(409, "NO_PRIMARY", "Основной записи своего кластера нет: закрепить некуда", { field: "archiveId" });
+          const parts = [];
+          for (let a = from; a < to; a += 86400000) parts.push({ from: iso(a), to: iso(Math.min(a + 86400000, to)) });
+          const free = 7 - (db.stand.fetchTaken || 0), ok = parts.slice(0, Math.max(free, 0));
+          db.stand.fetchTaken = (db.stand.fetchTaken || 0) + ok.length;
+          return { status: 200, body: { accepted: ok.length, refused: parts.slice(ok.length).map((x) => Object.assign(x, { reason: "per_person" })) } };
         },
       ],
       /* ----- Домены ----- */
@@ -3498,7 +3700,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "/journal",
         (p, q) => {
           const when = (e) => Date.parse(e.occurredAt || e.at);
-          const hit = db.journal.filter((e) => (!q.category || e.category === q.category) && (!q.deviceId || e.deviceId === q.deviceId) && (!q.source || e.source === q.source) &&
+          const hit = db.journal.filter((e) => (!q.category || e.category === q.category) && (!q.deviceId || journalAbout(e, q.deviceId)) && (!q.source || e.source === q.source) &&
             (!q.from || when(e) >= Date.parse(q.from)) && (!q.to || when(e) <= Date.parse(q.to)));
           // Встроенный сервер права на журнал не проверяет: скрытых записей у него нет
           const res = pageList(q, "journal", hit, (e) => backRank(db.journal, e), clone);
@@ -3847,6 +4049,14 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             bump(dm);
             changed("domain", dm);
             send("stream.reset", { payload: {} });
+            return { status: 200, body: { applied: true } };
+          }
+          if (body.type === "journal.event") {
+            if (!byId("devices", body.deviceId)) return notFound("Устройство");
+            const dev = byId("devices", body.deviceId), at = iso(now()), cameraId = dev.type === "camera" ? dev.id : dev.cameraId || dev.parentId;
+            const e = Object.assign({ id: uuid("journal"), at, occurredAt: at, category: "info", text: "", deviceId: body.deviceId }, cameraId ? { cameraId } : {}, clone(body.event || {}), { deviceId: body.deviceId });
+            db.journal.unshift(e);
+            send("journal.event", { entityId: e.deviceId, payload: clone(e) });
             return { status: 200, body: { applied: true } };
           }
           if (body.type === "scenario.outcome") {

@@ -31,7 +31,7 @@ LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 500
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
-MISSING = ["listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
+MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 FEATURES = []
 # «Автоматизация» по части каталога, как у w2c: этих действий система не исполняет, запись — только на минуты
 ACTIONS_OFF = ["alarmclose", "layout", "wall", "email", "tg", "http"]

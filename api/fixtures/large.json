@@ -9664,7 +9664,16 @@
     "getScenariosStatus",
     "listRelays",
     "getRelay",
-    "putRecordingTarget"
+    "putRecordingTarget",
+    "getTimeline",
+    "getPlayback",
+    "listHolds",
+    "createHold",
+    "deleteHold",
+    "verifyHold",
+    "listBookmarks",
+    "createBookmark",
+    "fetchArchive"
    ],
    "deviceTypes": [
     "camera",

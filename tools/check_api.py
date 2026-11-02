@@ -592,7 +592,8 @@ def check_server(rep, spec):
 
 # Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер
 PAGED = ["/devices", "/archives", "/volumes", "/folders", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
-         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery"]
+         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery",
+         "/devices/{deviceId}/timeline", "/devices/{deviceId}/holds", "/devices/{deviceId}/bookmarks"]
 
 
 def check_pages(rep, spec):
