@@ -1,6 +1,8 @@
 /* Прототип 19, раздел «Хранилища»: таблица, дерево, один диалог создания. Запуск — только на прототипе:
    python tools/check_ui.py --page index_19_hranilishcha-tablica.html tests/proto-19-hranilishcha.js
    В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
+// Без чтения кэша до конца: страница работает так, как у пользователя
+window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
   const dom = scopedDomains()[0];
   const tree = () => document.getElementById("tree");
@@ -60,6 +62,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => top() && archUnlinked(dom.id).length >= expected.length), "пункт появился, камеры прочитаны");
   ok(!open.has(AS_NOREC) && !tree().querySelector(".as-norec-top ~ .n[data-pick]"), "пункт свёрнут");
   ok([...tree().children].pop() === top(), "пункт — последний в дереве");
+  ok(await until(() => !/\+/.test(top().textContent)), "малый набор: список дочитан, число без плюса — " + top().textContent.trim());
   top().click();
   ok(open.has(AS_NOREC), "клик раскрывает");
   top().click();

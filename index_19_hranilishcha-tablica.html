@@ -7786,8 +7786,18 @@ const AS_NOREC="as:norec";
 function archNoLink(n){return n?.type==="camera"&&(n._row?!!n._nr:!n.arch)}
 function archUnlinked(did){return unrecordedCameras(did).filter(archNoLink)}
 const archUnlinkedAsked=new Set();
+// Отбор идёт волнами, и волна может принести мало камер: читаем, пока не наберём страницу.
+// На малом наборе этого хватает на весь список, на большом — дальше по кнопке.
+async function archUnlinkedRead(did){
+  const start=archUnlinked(did).length;
+  for(let i=0;i<10;i++){
+    await treeLoad("servers",norecId(did));
+    const b=treeBr.get("servers|"+norecId(did));
+    if(!b||b.done||b.busy||archUnlinked(did).length-start>=LIM.pageMax)break;
+  }
+}
 function archUnlinkedMore(did){
-  const p=treeLoad("servers",norecId(did)).then(()=>{if(slice==="arch")renderTree()});
+  const p=archUnlinkedRead(did).then(()=>{if(slice==="arch")renderTree()});
   renderTree();
   return p;
 }
