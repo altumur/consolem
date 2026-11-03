@@ -4834,6 +4834,7 @@ function openAddServers(domainId,toAddress){
   openW("server");
   wizd.domain=did;
   wizd.ipFocus=!!toAddress||!unallocDisplayList(did).length;
+  wizd.srvTab=wizd.ipFocus&&can("probeServers")?"addr":"net";
   wd();
 }
 function nodeDeepLink(id){
@@ -20840,8 +20841,8 @@ function wizBack(){
   if(wizd.mode==="server-add"){closeWizard();return}
   if(ws>1){ws--;wd()}
 }
-// Окно одно: серверы из сети и серверы по адресам — строки одного списка с одной кнопкой.
-// Шагов и «Назад» нет: поле адресов всегда на виду и не очищается, опросил не то — поправил и опросил снова.
+// Окно одно, две вкладки, как в «Добавить устройства»: «В сети» и «По адресу». Выбранное и кнопка — общие на обе.
+// Шагов и «Назад» нет: поле адресов не очищается, опросил не то — поправил и опросил снова.
 // Адреса серверов приходят таблицей, поэтому поле принимает весь список сразу.
 function srvDid(){return wizd.domain||domains[0]?.id}
 function ipBulkText(){
@@ -20877,15 +20878,22 @@ function ipClear(){
   wizd.ipRows=null;wizd.ipPhase=null;wizd.ipBad=[];wizd.ipMsg="";
   wd();
 }
-function srvKey(){return"srvadd:"+srvDid()}
+function srvKey(){return"srvadd:"+(wizd.srvTab||"net")+":"+srvDid()}
 // В сети — без тех, что уже показаны строкой опроса: один сервер — одна строка
 function srvNetRows(){
   const known=new Set((wizd.ipRows||[]).map(r=>r.serverId).filter(Boolean));
   return unallocDisplayList(srvDid()).filter(r=>!known.has(r.id)).map(r=>({key:"srv:"+r.id,serverId:r.id,ip:r.ip,port:r.port,name:r.name,cls:r.cls,status:"found",added:r.added,net:true}));
 }
 function srvRowName(r){return r.name||servers.find(x=>x.id===r.serverId)?.name||r.ip}
-function srvRows(){
-  return listFound({key:srvKey(),items:[...(wizd.ipRows||[]),...srvNetRows()],text:r=>[srvRowName(r),r.ip]});
+function srvRows(){return[...(wizd.ipRows||[]),...srvNetRows()]}
+function srvTabRows(){
+  const addr=wizd.srvTab==="addr";
+  return listFound({key:srvKey(),items:srvRows().filter(r=>addr?!r.net:r.net),text:r=>[srvRowName(r),r.ip]});
+}
+function srvTab(t){
+  wizd.srvTab=t;
+  wizd.ipFocus=t==="addr"&&!wizd.ipRows;
+  wd();
 }
 function ipRowAddable(r){return r.status==="found"&&!r.added&&(!!r.serverId||can("createServer"))}
 function ipRowsAddable(){return srvRows().filter(ipRowAddable)}
@@ -20897,7 +20905,9 @@ function toggleIpPick(key,on){
 }
 function toggleIpRow(key){toggleIpPick(key,!wizd.ipPick?.has(key))}
 function toggleIpPickAll(on){
-  wizd.ipPick=new Set(on?ipRowsAddable().map(r=>r.key):[]);
+  const set=wizd.ipPick||new Set();
+  srvTabRows().filter(ipRowAddable).forEach(r=>{if(on)set.add(r.key);else set.delete(r.key)});
+  wizd.ipPick=set;
   wd();
 }
 async function addProbedServers(sure){
@@ -20957,37 +20967,47 @@ function srvRowHtml(r){
     <span style="flex:1;min-width:0">${escHtml(srvRowName(r))}${sub?`<small>${escHtml(sub)}</small>`:""}</span>${st}</div>`;
 }
 function srvListHtml(){
-  const did=srvDid(),how="unalloc:"+did,key=srvKey(),rows=srvRows();
-  const probed=wizd.ipRows||[],netAll=srvNetRows(),page=pageSlice(key,rows);
-  const pAddr=page.filter(r=>!r.net),pNet=page.filter(r=>r.net);
-  const counts=["found","in-domain","dead"].map(k=>{
-    const n=probed.filter(r=>r.status===k).length;
-    return n?`${escHtml(probeLabel({status:k,domain:{name:"…"}}).replace(/ «…»$/,"")).toLowerCase()}: ${n}`:"";
-  }).filter(Boolean).join(", ");
-  const addrCap=`<div class="srv-cap"><b>${i18n("По адресам")}</b><span>${i18n("опрошено")} ${probed.length}${counts?` · ${counts}`:""}</span><button type="button" class="ch-act" ${onEv("click",["ipClear"])}>${i18n("Убрать")}</button></div>`;
-  const netCap=`<div class="srv-cap"><b>${i18n("В сети")}</b><span>${netAll.length||""}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
+  const did=srvDid(),key=srvKey(),rows=srvTabRows(),page=pageSlice(key,rows);
   const q=(listQ[key]||"").trim();
-  const netEmpty=!netAll.length&&!q?`<p class="srv-empty">${i18n(can("probeServers")?"В сети серверов не нашлось. Введите адреса выше.":"В сети серверов не нашлось.")}</p>`:"";
-  const none=q&&!rows.length?`<p class="srv-empty">${i18n("Ничего не найдено")}</p>`:"";
-  const showNet=pNet.length||!netAll.length;
-  return(pAddr.length?addrCap+pAddr.map(srvRowHtml).join(""):"")
-    +(showNet&&!none?netCap+pNet.map(srvRowHtml).join("")+netEmpty:"")+none;
+  if(q&&!rows.length)return`<p class="srv-empty">${i18n("Ничего не найдено")}</p>`;
+  if(wizd.srvTab==="addr"){
+    const probed=wizd.ipRows||[];
+    if(!probed.length)return`<p class="srv-empty">${i18n("Введите адреса и нажмите «Найти»: здесь появятся серверы, которые ответили.")}</p>`;
+    const counts=["found","in-domain","dead"].map(k=>{
+      const n=probed.filter(r=>r.status===k).length;
+      return n?`${escHtml(probeLabel({status:k,domain:{name:"…"}}).replace(/ «…»$/,"")).toLowerCase()}: ${n}`:"";
+    }).filter(Boolean).join(", ");
+    return`<div class="srv-cap"><span>${i18n("опрошено")} ${probed.length}${counts?` · ${counts}`:""}</span><button type="button" class="ch-act" ${onEv("click",["ipClear"])}>${i18n("Убрать")}</button></div>`+page.map(srvRowHtml).join("");
+  }
+  const cap=`<div class="srv-cap"><span>${i18n("Серверы, которые сами заявили о себе в сети домена")}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
+  if(!rows.length)return cap+`<p class="srv-empty">${i18n(can("probeServers")?"В сети серверов не нашлось. Найдите их на вкладке «По адресу».":"В сети серверов не нашлось.")}</p>`;
+  return cap+page.map(srvRowHtml).join("");
 }
 function srvHeadHtml(){
-  const did=srvDid(),key=srvKey(),how="unalloc:"+did,add=ipRowsAddable(),picked=ipPicked().length;
-  const total=(wizd.ipRows||[]).length+srvNetRows().length;
-  if(!total)return"";
+  const did=srvDid(),key=srvKey(),how="unalloc:"+did,items=srvTabRows(),add=items.filter(ipRowAddable),set=wizd.ipPick||new Set(),picked=add.filter(r=>set.has(r.key)).length;
+  if(!items.length&&!(listQ[key]||"").trim())return"";
   const box=`<label class="unalloc-all"><input type="checkbox" ${add.length&&picked===add.length?"checked":""} ${add.length?"":"disabled"} ${onEv("change",["toggleIpPickAll",onEv.checked])}><span>${i18n("Выбрать все")}</span></label>`;
-  return`<div class="srv-hd">${box}${total>6||(listQ[key]||"").trim()?listSearchHtml(key,"Имя или IP в списке…",how):""}</div>`;
+  return`<div class="srv-hd">${box}${items.length>6||(listQ[key]||"").trim()?listSearchHtml(key,"Имя или IP в списке…",how):""}</div>`;
+}
+function srvTabsHtml(){
+  if(!can("probeServers"))return"";
+  const net=srvNetRows().filter(r=>!r.added).length,addr=(wizd.ipRows||[]).length;
+  const tabs=[["net","В сети",net],["addr","По адресу",addr]];
+  return`<div class="plan-tabs" role="tablist">${tabs.map(([k,l,n])=>{
+    const on=(wizd.srvTab||"net")===k;
+    return`<button type="button" role="tab" class="plan-tab ${on?"on":""}" aria-selected="${on}" ${onEv("click",["srvTab",k])}>${i18n(l)}${n?` · ${n}`:""}</button>`;
+  }).join("")}</div>`;
 }
 function renderServerAdd(){
   const did=srvDid(),key=srvKey(),how="unalloc:"+did,n=ipPicked().length,wbd=document.getElementById("wbd"),st=viewState(wbd);
   const wn=document.getElementById("wn");
   wn.textContent=`${i18n("Добавить выбранные")} (${n})`;
   wn.disabled=!n;
-  document.getElementById("wizFoot").innerHTML=`<span class="srv-foot">${i18n("В домен")} «${escHtml(locName(domainById(did)||{}))}»</span>`;
-  const shown=srvRows();
-  wbd.innerHTML=`${srvAddrHtml()}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
+  const picks=ipPicked(),fromNet=picks.filter(r=>r.net).length,fromAddr=picks.length-fromNet;
+  const split=fromNet&&fromAddr?` · ${i18n("выбрано")}: ${i18n("в сети")} ${fromNet}, ${i18n("по адресу")} ${fromAddr}`:"";
+  document.getElementById("wizFoot").innerHTML=`<span class="srv-foot">${i18n("В домен")} «${escHtml(locName(domainById(did)||{}))}»${split}</span>`;
+  const shown=srvTabRows();
+  wbd.innerHTML=`${srvTabsHtml()}${wizd.srvTab==="addr"?srvAddrHtml():""}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
     +(shown.length?`<div class="tfoot tfoot-flat">${pagerHtml(key,shown.length,how,"сервер|сервера|серверов")}</div>`:"");
   restoreView(wbd,st);
   if(wizd.ipFocus){wizd.ipFocus=false;document.getElementById("wizIps")?.focus()}
