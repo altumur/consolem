@@ -72,7 +72,7 @@
 
   function run(steps, startAt) {
     const last = steps.length - 1;
-    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, goal = null, corner = "bl", frame = 0, speed = loadSpeed();
+    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, goal = null, corner = "bl", flyTimer = 0, pinned = false, triedAt = null, frame = 0, speed = loadSpeed();
     const block = make("div", "tour-block"), cur = make("div", "tour-cur", ARROW), ring = make("div", "tour-ring"), panel = make("div", "tour-panel");
     panel.setAttribute("role", "status");
     panel.setAttribute("aria-live", "polite");
@@ -118,6 +118,8 @@
       hint.hidden = !v;
       nextBtn.disabled = v;
       pauseBtn.textContent = v ? "Показать снова" : paused ? "Продолжить" : "Пауза";
+      // Высота панели изменилась: сразу на место, а не со следующим кадром
+      place();
     }
     // Клавиши на время показа — только его: стрелка иначе пойдёт по дереву, Esc закроет окно
     const key = (e) => {
@@ -145,10 +147,13 @@
       let r = null;
       if (el && el.isConnected) {
         r = el.getBoundingClientRect();
-        // Строки выше догрузились и увели цель за край окна: возвращаем её на экран, курсор идёт следом
-        if (r.bottom > innerHeight || r.top < 0) {
+        // Строки выше догрузились и увели цель за край окна: возвращаем её на экран, курсор идёт следом. Цель, которую вернуть
+        // нельзя (выше окна, вне прокрутки), не трогаем снова, пока она не сдвинулась; после клика прокрутка — уже дело страницы
+        const off = r.bottom > innerHeight + 1 || r.top < -1;
+        if (pinned && off && !(triedAt && Math.abs(r.top - triedAt[0]) <= 1 && Math.abs(r.height - triedAt[1]) <= 1)) {
           el.scrollIntoView({ block: "nearest" });
           r = el.getBoundingClientRect();
+          triedAt = [r.top, r.height];
           point(el);
         }
         ring.style.opacity = "1";
@@ -175,7 +180,13 @@
       // Первым — нынешний угол, он выигрывает при равенстве; затем соседний по горизонтали, по вертикали и напротив
       const flip = (name, at) => name.replace(name[at], { t: "b", b: "t", l: "r", r: "l" }[name[at]]);
       const best = [corner, flip(corner, 1), flip(corner, 0), flip(flip(corner, 0), 1)].map(cost).reduce((a, b) => (b.area < a.area || (b.area === a.area && b.hits < a.hits) ? b : a));
-      corner = best.name;
+      // Анимируется только перелёт: смена высоты панели от текста не должна выглядеть как полёт
+      if (best.name !== corner) {
+        corner = best.name;
+        panel.classList.add("tour-fly");
+        clearTimeout(flyTimer);
+        flyTimer = setTimeout(() => panel.classList.remove("tour-fly"), 320);
+      }
       panel.style.left = `${best.x}px`;
       panel.style.top = `${best.y}px`;
     };
@@ -184,12 +195,8 @@
       place();
       frame = requestAnimationFrame(follow);
     };
-    // Первое место панель занимает сразу, полёт — только дальше
     place();
-    frame = requestAnimationFrame(() => {
-      panel.classList.add("tour-fly");
-      follow();
-    });
+    frame = requestAnimationFrame(follow);
     function clear() {
       stopped = true;
       cancelAnimationFrame(frame);
@@ -214,6 +221,7 @@
       bar.firstChild.style.width = `${Math.round(((i + 1) / steps.length) * 100)}%`;
       say.textContent = s.say;
       backBtn.disabled = i === 0;
+      place();
     }
     // Ждать, уважая паузу; «Дальше» и «Назад» обрывают ожидание. Нажатые, пока курсор кликал или вводил, сработают здесь
     async function hold(ms) {
@@ -292,6 +300,8 @@
         if (stopped) return;
         if (s.at && !el) return broken();
         target = s.at || null;
+        pinned = !!el;
+        triedAt = null;
         if (el) {
           el.scrollIntoView({ block: "nearest" });
           point(el);
@@ -307,6 +317,7 @@
           const fresh = s.at() || el;
           await press(fresh);
           if (stopped) return;
+          pinned = false;
           fresh.click();
           await sleep(350 / speed);
         } else if (el && s.act === "type") {
