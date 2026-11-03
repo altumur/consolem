@@ -1328,6 +1328,8 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
 .asst-said>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .asst-said .asst-dropped{font-style:italic}
+.asst-said>.asst-now{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--tx);margin-top:2px}
+.asst-said>.asst-now>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
 .asst-line{font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
 .asst-msg.err{color:var(--one-danger)}
@@ -21893,9 +21895,11 @@ function asstRender(){
   block.hidden=false;
   block.innerHTML=[
     asstSvcHtml(a,mode),
-    // Последние пять просьб человека, старые сверху: строкой, длинная — с многоточием, целиком — в подсказке. Заметок нет
-    (()=>{const asks=a.said.filter(t=>typeof t==="string").slice(-ASST_SAID_MAX);
-      return asks.length?`<div class="asst-said">${asks.map(t=>`<div title="${escHtml(t)}">› ${escHtml(t)}</div>`).join("")}</div>`:""})(),
+    // Последние пять просьб человека, старые сверху: строкой, длинная — с многоточием, целиком — в подсказке. Заметок нет.
+    // Последняя — шрифтом и цветом строки поиска, будто перешла из неё в панель; пока идёт ход — со значком хода
+    (()=>{const asks=a.said.filter(t=>typeof t==="string").slice(-ASST_SAID_MAX),n=asks.length-1;
+      return asks.length?`<div class="asst-said">${asks.map((t,i)=>i<n?`<div title="${escHtml(t)}">› ${escHtml(t)}</div>`
+        :`<div class="asst-now" id="asstNow" title="${escHtml(t)}"><span>${escHtml(t)}</span>${a.busy?`<i class="dev-spin" role="status" aria-label="${i18n("Ассистент отвечает")}"></i>`:""}</div>`).join("")}</div>`:""})(),
     a.line?`<div class="asst-line" id="asstLine">${escHtml(a.line)}</div>`:"",
     a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
