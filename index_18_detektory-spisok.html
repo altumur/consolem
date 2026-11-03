@@ -3493,7 +3493,7 @@ function licLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[],refRuleCross=null;
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[],DET_TYPES=[],refRuleCross=null;
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
@@ -3501,6 +3501,8 @@ function autoRef(ref){
   if(ref.recordModes?.length)refRecModes=ref.recordModes;
   refParams=ref.deviceParams||{};
   refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];refDetKinds=ref.detectorKinds||[];
+  // Виды серверных детекторов объявляет сервер. other — вид вне перечня: без шаблона камеры у него нет подписи
+  DET_TYPES=refDetKinds.filter(k=>k!=="other").map(k=>DET_KIND_RU[k]||k);
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
@@ -9211,7 +9213,6 @@ function folderCardHtml(f){
     card("Папка",`<div class="g">${fld("Имя",locName(f))}${fldRo("Путь",folderFullName(f.id))}</div>
       <p class="sub">${i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`);
 }
-const DET_TYPES=["Движение","Пересечение линии","Оставленный предмет","Исчезновение предмета","Скопление людей","Номер"];
 function camDetectors(n){return(n.devices||[]).filter(d=>d.type==="det")}
 function detTitle(d){return locName(d)}
 // Что умеет камера: detectorOptions. Вид вне перечня подписан именем шаблона
@@ -9595,7 +9596,7 @@ async function dcLoad(){
 // lock — камера, с вкладки которой открыли: шага выбора камер нет
 function detCreateOpen(lock){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
-  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",act:"record",watch:true,pick:""},zones:true};
+  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",act:"record",watch:false,pick:""},zones:true};
   renderDetCreate();dcLoad();
 }
 const DC_STEPS=[{t:"Что создать",k:"what"},{t:"На каких камерах",k:"cams"},{t:"Правило",k:"rule"},{t:"Зона и проверка",k:"end"}];
@@ -9722,9 +9723,10 @@ function renderDetCreate(){
   const okStep=x=>x.k==="what"?dc.items.size>0:x.k==="cams"?total>0:true;
   const secWhat=()=>{
     const srvItems=DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",lockWhy("s:"+k)));
+    const noSrv=`<p class="sub">${i18n("Сервер не объявил видов детекторов.")}</p>`;
     const camItems=tpl.map(t=>{const m=[...t.models];return dcItemRow(t.key,t.o.name,lock?"":`${t.cams} ${i18n(plural(t.cams,"камера умеет|камеры умеют|камер умеют"))}${m.length?" · "+m.slice(0,2).join(", ")+(m.length>2?` +${m.length-2}`:""):""}`,"","",clash(t.key)||lockWhy(t.key))});
     return`<section class="cp-col"><div class="cp-scroll dc-what2" data-cp-scroll="i">
-      <div><div class="dc-sec">${i18n("Серверные")}<small>${i18n("Подойдёт любая камера")}</small></div>${srvItems.join("")}</div>
+      <div><div class="dc-sec">${i18n("Серверные")}<small>${i18n("Подойдёт любая камера")}</small></div>${srvItems.join("")||noSrv}</div>
       <div><div class="dc-sec">${i18n("Встроенные")}<small>${i18n(lock?"Работают на самой камере: то, что она умеет":"Работают на самой камере: только те, что это умеют")}</small></div>${dc.ready?(camItems.join("")||`<p class="sub">${i18n(lock?"Камера не объявила встроенных детекторов.":"Камеры не объявили встроенных детекторов.")}</p>`):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div>
     </div></section>`;
   };
@@ -9768,7 +9770,7 @@ function dcCreateBody(key,cam,tpl){
   const body={type:"det",enabled:dc.on};
   if(key.startsWith("s:")){
     const kind=key.slice(2);
-    return Object.assign(body,{name:i18n(kind),detectorKind:DET_KIND_CODE[kind],sensitivity:12});
+    return Object.assign(body,{name:i18n(kind),detectorKind:DET_KIND_CODE[kind]||kind});
   }
   const o=(cam.detectorOptions||[]).find(x=>x.template===key.slice(2));
   Object.assign(body,{name:o.name,detectorKind:o.kind,builtin:true,template:o.template});
