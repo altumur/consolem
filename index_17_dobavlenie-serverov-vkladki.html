@@ -20979,7 +20979,7 @@ function srvListHtml(){
     }).filter(Boolean).join(", ");
     return`<div class="srv-cap"><span>${i18n("опрошено")} ${probed.length}${counts?` · ${counts}`:""}</span><button type="button" class="ch-act" ${onEv("click",["ipClear"])}>${i18n("Убрать")}</button></div>`+page.map(srvRowHtml).join("");
   }
-  const cap=`<div class="srv-cap"><span>${i18n("Серверы, которые сами заявили о себе в сети домена")}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
+  const cap=`<div class="srv-cap"><span>${i18n("Найдены в сети домена")}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
   if(!rows.length)return cap+`<p class="srv-empty">${i18n(can("probeServers")?"В сети серверов не нашлось. Найдите их на вкладке «По адресу».":"В сети серверов не нашлось.")}</p>`;
   return cap+page.map(srvRowHtml).join("");
 }
