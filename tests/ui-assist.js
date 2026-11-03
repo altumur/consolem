@@ -61,10 +61,10 @@ UiCheck(async ({ ok, until }) => {
   const planIds = asst.plan.items.map((x) => x.deviceId);
   ok(tag()?.textContent === `Ассистент: ${planIds.length}`, "тег над деревом: " + tag()?.textContent);
   ok(treeSel.size === planIds.length && planIds.every((id) => treeSel.has(id)), "все объекты плана отмечены");
-  // Камеры сервера без связи дерево не раскрывает: строки — часть плана, лишних нет
+  // Камеры сервера без связи раскладка по серверам не раскрывает, по папкам видны все: строки — часть плана, лишних нет
   const onLine = planIds.filter((id) => { const sv = srv(id); return !(sv && hasNoSignal(sv)); });
   ok(onLine.length < planIds.length, "в плане есть камера сервера без связи");
-  ok(await until(() => camRows().length === onLine.length) && camRows().every((id) => planIds.includes(id)), "в дереве только объекты плана: " + camRows().length + " из " + planIds.length);
+  ok(await until(() => camRows().length === (group() === "server" ? onLine.length : planIds.length)) &&camRows().every((id) => planIds.includes(id)), "в дереве только объекты плана: " + camRows().length + " из " + planIds.length);
   const recBox = document.querySelector('[data-bk="rec"]');
   ok(recBox && recBox.classList.contains("bk-set") && recBox.querySelector("select").value === "none", "поле «Режим» заполнено значением плана и подсвечено");
   ok(/по плану ассистента: Нет ×\d+/.test(recBox.textContent), "под полем — значения плана: " + recBox.textContent.slice(0, 160));

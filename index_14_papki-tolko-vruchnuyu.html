@@ -2169,9 +2169,7 @@ const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rul
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
   {id:"log",label:"Журнал",ic:"sec_log"}];
 let slice="all";
-// Группировка запоминается для каждого среза отдельно: у камер оператор
-// смотрит то по папкам, то по серверам, и переключать её заново каждый раз —
-// работа, которую компьютер способен запомнить сам.
+// Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
 const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"folder"};
 function setGroupAll(g){Object.keys(groupBy).forEach(s=>{groupBy[s]=g})}
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
@@ -4915,9 +4913,10 @@ function jumpToNode(n){
   sel=n.id;selCtx=null;tab="gen";setD(false);expandTo(n.id);
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
   expandSubtree(n);
-  pushRecent(n.id);paint();revealSel();
-  // paint не перерисовывает шапку дерева: срез и «Папки» должны показать, куда пришли
+  pushRecent(n.id);
+  // paint не перерисовывает шапку дерева: срез и «Папки» должны показать, куда пришли. До revealSel: он прокручивает к строке
   if(headWas!==`${app}|${slice}|${group()}`)aside();
+  paint();revealSel();
   if(wasFiltered)toast(i18n("Фильтры сброшены, чтобы показать найденное"));
 }
 function expandSubtree(n){
@@ -6152,8 +6151,11 @@ function paintMain(html){
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
   const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog}[app];
   srvCamMemo=null;
+  // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
+  const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
   const html=withFind(()=>fn?fn():"");
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
+  if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();renderSelBar();
   if(app==="hw"){treeNeed();filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
@@ -7617,7 +7619,10 @@ function dfrow(d){
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
-  if(op)h+=kidsHtml+treeMoreRow(d.id,1);
+  if(op){
+    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
+    h+=kidsHtml+treeMoreRow(d.id,1);
+  }
   return h;
 }
 function addFolderRow(level,domainId){

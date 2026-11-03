@@ -884,4 +884,6 @@ window.I18N_EN={
 "Разложить можно позже: устройство будет в «Без папки»":"You can sort it later: the device will be in «No folder»",
 "Уже в системе":"Already in the system",
 "Имя, IP, модель или сервер…":"Name, IP, model or server…",
+// Переключатель «Папки», прототип 14
+"В этом срезе нет папок":"This view has no folders",
 };

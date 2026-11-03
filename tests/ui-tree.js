@@ -7,9 +7,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await until(() => !!streamClient);
   ok(pool0 < all, `кэш неполный: ${pool0} из ${all}`);
   ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || ""), "число без фильтра — со знаком ≈");
-  ok(treeBr.has("servers|" + d.id), "открытый домен прочитан");
+  ok(treeBr.has(treeLayout() + "|" + d.id), "открытый домен прочитан");
   // Сервер раскрывается по запросу, версия в кэше — из строки
-  const s = d.servers.find((x) => !treeBr.has("servers|" + x.id));
+  setGroup("server");
+  const s =d.servers.find((x) => !treeBr.has("servers|" + x.id));
   open.add(s.id);
   renderTree();
   ok(await until(() => treeBr.get("servers|" + s.id)?.done), "ветка сервера прочитана");
@@ -75,6 +76,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся
   ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) === "папки вне отката: состав папки не возвращается", "слово шага понятно человеку");
   setSlice("all");
+  setGroup("server");
   // Поток: наблюдаемое — раскрытые ветки и карточка, не больше watchMax
   ok(await until(() => streamClient && watchLast.includes(sel)), "карточка наблюдается");
   ok(watchIds().length <= LIM.watchMax, "не больше watchMax");
