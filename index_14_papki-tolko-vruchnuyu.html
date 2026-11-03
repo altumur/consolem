@@ -1767,6 +1767,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -23860,6 +23861,40 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 });
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
+// Показ прототипа: что изменилось в «Папках», статусе и «Найдено» (движок — assets/tour.js). Только в прототипе
+Tour.offer("Показать, что изменилось", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  // Цель появляется, только когда предыдущий шаг дошёл: при «Назад» шаги идут почти без пауз
+  const when=(cond,at)=>()=>cond()?at():null;
+  const sw=q("#viewBtn"),sliceBtn=s=>q(`#aside [data-slice="${s}"]`),statusBtn=q("#filtBtn");
+  const statusItem=id=>q(`#filtPop.open [data-status="${id}"]`);
+  const hintIn=(s,st)=>when(()=>slice===s&&curStatus()===st&&fs&&fs.done&&!fs.busy&&/\d/.test(document.getElementById("filtHint")?.textContent||""),q("#filtHint"));
+  const svcRow=()=>[...document.querySelectorAll("#tree .n[data-pick]")].find(e=>SVC_TYPES.has(find(e.dataset.pick)?.n.type));
+  return[
+    {say:"«Папки» теперь отдельный переключатель под срезами, и при старте он включён. Раньше это была такая же кнопка, как срезы, и не было видно, что она что-то включает.",
+      before:()=>{goApp("hw");setSlice("all");setGroup("folder")},at:sw},
+    {say:"Раньше выбор среза сам менял раскладку: в «Детекторах» «Папки» нажимались без вашего участия. Выберем «Детекторы».",at:sliceBtn("det"),act:"click"},
+    {say:"Папки как были, так и остались: срез решает, что показать, а раскладку меняет только человек. Выключим их.",at:when(()=>slice==="det"&&group()==="folder",sw),act:"click"},
+    {say:"Дерево показывает те же объекты по серверам. Теперь другой срез.",at:when(()=>group()==="server",sliceBtn("cam")),act:"click"},
+    {say:"Выключенные тоже не включились сами: выбор общий для всех срезов. Вернём папки.",at:when(()=>slice==="cam"&&group()==="server",sw),act:"click"},
+    {say:"В «Серверах» и «Хранилищах» папок нет вообще.",at:when(()=>group()==="folder",sliceBtn("srv")),act:"click"},
+    {say:"Поэтому здесь переключатель неактивен, а подсказка объясняет почему. Раньше нажатие на «Папки» уводило отсюда в другой срез.",at:when(()=>slice==="srv"&&sw()?.disabled,sw)},
+    {say:"Выбор при этом никуда не делся. Вернёмся к «Камерам».",at:when(()=>slice==="srv",sliceBtn("cam")),act:"click"},
+    {say:"Папки снова включены, как были до «Серверов».",at:when(()=>slice==="cam"&&!sw()?.disabled&&group()==="folder",sw)},
+    {say:"Теперь статус. Откроем список состояний.",at:when(()=>slice==="cam",statusBtn),act:"click"},
+    {say:"Оставим только устройства без сигнала.",at:statusItem("nosignal"),act:"click"},
+    {say:"«Найдено» теперь считает то, что показано в этом срезе. Раньше здесь было одно число на все срезы, и оно расходилось с деревом.",at:hintIn("cam","nosignal")},
+    {say:"Сменим срез. Раньше это сбрасывало статус, и его приходилось выбирать заново.",at:when(()=>curStatus()==="nosignal",sliceBtn("det")),act:"click"},
+    {say:"Статус на месте, а «Найдено» пересчиталось для детекторов.",at:hintIn("det","nosignal")},
+    {say:"Снимем статус.",at:when(()=>slice==="det",statusBtn),act:"click"},
+    {say:"«Все статусы» возвращают полный список.",at:statusItem(""),act:"click"},
+    {say:"Последнее изменение видно в срезе «Оборудование».",at:when(()=>!curStatus(),sliceBtn("all")),act:"click"},
+    {say:"У каждого домена появилась группа «Службы». Раньше экспорт и рассылки были видны только в раскладке по серверам, а с папками их нельзя было найти в дереве.",at:when(()=>slice==="all"&&group()==="folder",q('#tree .n[data-tid^="svcs:"]')),act:"click"},
+    {say:"Группа раскрывается, как папка, и ведёт к карточке службы. Поиск службы теперь тоже приводит к этой строке.",
+      before:()=>document.querySelector('#tree .n[data-tid^="svcs:"]')?.scrollIntoView({block:"start"}),at:svcRow},
+    {say:"Итог: срез больше не трогает «Папки», статус переживает смену среза, «Найдено» совпадает с деревом, а службы видны в обеих раскладках."},
+  ];
+})());
 </script>
 </body>
 </html>
