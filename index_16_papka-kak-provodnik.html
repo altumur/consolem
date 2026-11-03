@@ -1791,6 +1791,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -3007,7 +3008,7 @@ function nofolderNode(did){return{id:nofolderId(did),type:"nofolder",name:"Бе�
 function unfolderedDevices(did){
   const inF=new Set();
   walkFolders(f=>{if(f.domain===did||folderDomain(f.id)===did)f.items.forEach(id=>inF.add(id))});
-  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf);
+  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf&&inFolders(d));
 }
 // Хранилище живёт на сервере или в домене (сетевое). Камера пишет только в
 // хранилище своего сервера или в сетевое хранилище домена — поэтому у КПП и
@@ -9133,8 +9134,6 @@ function foundDeviceCardHtml(n){
 // ── Содержимое папки, как в Проводнике ───────────────────────────────────
 // Один список: подпапки сверху, устройства за ними. Щелчок по строке выбирает её,
 // открывает — двойной щелчок, Enter или имя-ссылка; Backspace и «Вверх» — на уровень выше.
-// С ?open=dbl имя не ссылка: только щелчок и двойной щелчок, чтобы сравнить оба поведения.
-const FL_DBL=new URLSearchParams(location.search).get("open")==="dbl";
 const FL_FILT0={kind:"",srv:"",model:"",st:""};
 const fl={owner:null,nested:false,sort:"name",dir:1,filt:{...FL_FILT0},cur:null,lastId:null,lastT:0,anchor:null};
 function flSt(n){const s=nodeStatus(n);return s.license?"Лицензия превышена":s.off?"Выключены":s.nosignal?"Нет сигнала":"Работают"}
@@ -9233,7 +9232,7 @@ function flBarHtml(f){
 function bulkPeekOff(){bulkPeek=false;gear()}
 function flRowHtml(f,it){
   const n=it.n,id=n.id,name=locName(n),checked=tsOn(id);
-  const open=FL_DBL?`<span class="fl-name-t">${escHtml(name)}</span>`:`<button type="button" class="lk fl-name-t" ${onEv("click",onEv.stop,["flOpen",`${id}`])}>${escHtml(name)}</button>`;
+  const open=`<button type="button" class="lk fl-name-t" ${onEv("click",onEv.stop,["flOpen",`${id}`])}>${escHtml(name)}</button>`;
   let note="";
   if(!it.fld){
     if(fl.nested&&it.at!==f.id)note=it.at?`${i18n("в папке")} ${folderPathName(it.at).split(" / ").slice(folderPath(f.id).length).join(" / ")}`:i18n("без папки");
@@ -9360,7 +9359,7 @@ function flToFolder(tid,how){
   const changes=[[tid,fresh,[]]];
   if(how==="move")flGroupBy(devs).forEach((ids,fid)=>{if(fid&&fid!==tid)changes.push([fid,[],ids])});
   fl.cur=null;
-  flChange(changes,`${i18n(how==="move"?"Перемещено в":"Добавлено ещё в")} «${locName(target)}»: ${devs.length}`);
+  flChange(changes,`${i18n(how==="move"?"Перемещено в":f.type==="nofolder"?"Положено в":"Добавлено ещё в")} «${locName(target)}»: ${devs.length}`);
 }
 function flRemoveSel(){
   const f=flHolder(fl.owner),devs=flSelItems(f).filter(it=>!it.fld&&it.at);if(!devs.length)return;
@@ -20938,7 +20937,7 @@ function faFolder(){return wizd&&!wizd.noFolder&&wizd.folder?folderById(wizd.fol
 function faRows(){
   const f=faFolder();if(!f)return[];
   const did=folderDomain(f.id),own={id:f.id,type:"folder"},q=faS.q.trim(),ws=queryWords(q);
-  return lanSysDevices(own).filter(d=>deviceDomain(d.id)===did).map(d=>({d,b:lanBindOf(own,d)})).filter(x=>x.b.k!=="here")
+  return lanSysDevices(own).filter(d=>deviceDomain(d.id)===did&&inFolders(d)).map(d=>({d,b:lanBindOf(own,d)})).filter(x=>x.b.k!=="here")
     .filter(x=>!q||ws.some(words=>matchWords(words,[locName(x.d),x.d.ip,modelOf(x.d),x.b.t])));
 }
 function faSetQ(v){faS.q=v;renderDeviceWizard();requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
@@ -20953,9 +20952,18 @@ function faToPlan(){
   faS.sel.clear();planDone(n,0);
   renderDeviceWizard();
 }
+const faLoaded=new Set();
+async function faLoadAll(did){
+  if(faLoaded.has(did))return;
+  faLoaded.add(did);
+  await flReadBranch(nofolderId(did));
+  for(const x of flatFolders().filter(x=>folderDomain(x.id)===did))await flReadBranch(x.id);
+  if(planInDrawer()&&wizd.deviceTab==="sys")renderDeviceWizard();
+}
 function deviceSysHtml(){
   const f=faFolder();
   if(!f)return`<p class="sub">${i18n("Выберите папку сверху: уже заведённое кладут в конкретную папку.")}</p>`;
+  faLoadAll(folderDomain(f.id));
   const rows=faRows(),cnt=k=>rows.filter(x=>x.b.k===k).length;
   // В строке перечня нет адреса и модели: дочитываем то, что показываем
   const unread=rows.map(x=>x.d.id).filter(id=>find(id)?.n?._row&&!faRead.has(id));
@@ -20996,8 +21004,10 @@ function planLinksHtml(){
 function planLinkRemove(id,fid){addPlan.links=addPlan.links.filter(x=>!(x.id===id&&x.folderId===fid));planRepaint();renderDeviceWizard()}
 async function planLinksApply(){
   const by=new Map();addPlan.links.forEach(x=>(by.get(x.folderId)||by.set(x.folderId,[]).get(x.folderId)).push(x.id));
-  const n=addPlan.links.length;addPlan.links=[];
-  for(const[fid,ids]of by)await folderChange(fid,ids,[]);
+  const n=addPlan.links.length;
+  try{
+    for(const[fid,ids]of by){await folderChange(fid,ids,[]);addPlan.links=addPlan.links.filter(x=>x.folderId!==fid)}
+  }catch(e){planRepaint();renderDeviceWizard();throw e}
   toast(`${i18n("Положено в папку")}: ${n}`);
   paint();planRepaint();
 }
@@ -24122,6 +24132,43 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
+// Показ прототипа: что изменилось в папках (движок — assets/tour.js). Только в прототипе
+Tour.offer("Показать, что изменилось", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  const byText=(sel,re)=>()=>[...document.querySelectorAll(sel)].find(e=>re.test(e.textContent));
+  const row=re=>byText("tr.fl-r",re);
+  // Таблица перерисовывается: строка и её имя-ссылка ищутся заново
+  const link=re=>()=>row(re)()?.querySelector(".fl-name-t");
+  const folderId=re=>{let id=null;walkFolders(f=>{if(!id&&re.test(f.name))id=f.id});return id};
+  return[
+    {say:"У домена появилась вкладка «Папки»: такой же список, как внутри любой папки. Раньше верхний уровень был виден только в дереве.",
+      before:()=>{closeWizard();goApp("hw");if(treeLayout()!=="folders")toggleFolders();pick(domains[0].id)},at:byText(".hd .tabs .tab.on",/Папки/)},
+    {say:"Сколько в папке объектов, видно сразу. А щелчок по строке теперь только выбирает её, как в Проводнике, и никуда не уводит.",at:row(/Офис на Тверской/),act:"click"},
+    {say:"Что можно сделать с выбранным, собрано над списком: открыть, переместить, добавить ещё в одну папку, убрать.",at:byText("#flBar",/Выбрано/)},
+    {say:"Открывает имя-ссылка, двойной щелчок или Enter.",at:link(/Офис на Тверской/),act:"click"},
+    {say:"Дерево идёт следом за правой частью: нужная строка раскрыта и подсвечена.",at:byText("#tree .n.on",/Офис на Тверской/)},
+    {say:"Раньше у папки были три вкладки: «Состав», «Таблица» и «Все устройства сети». Теперь один список: тип, адрес и состояние видны сразу.",
+      before:()=>flOpen(folderId(/Инженерные системы/)),at:()=>document.querySelector(".fl-facets")&&document.querySelector(".fl-tbl")},
+    {say:"Фильтры такие же, как в «Применить к». Оставим устройства без сигнала.",at:byText(".fl-facets .stchip",/Нет сигнала/),act:"click"},
+    {say:"Кнопка «Вверх» стоит прямо перед путём и подписана. Раньше вернуться на уровень выше из правой части было нельзя.",at:q(".fl-up"),act:"click"},
+    {say:"Вернулись на уровень выше, и папка, из которой вышли, подсвечена: не надо вспоминать, откуда пришли.",at:byText("tr.fl-r.on",/Инженерные системы/)},
+    {say:"Переключатель показывает всё, что лежит глубже, одним списком. Раньше вложенное пряталось на вкладке «Таблица».",at:q(".fl-nested"),act:"click"},
+    {say:"У каждого устройства написано, в какой оно подпапке.",at:q("td .fl-also")},
+    {say:"Добавление теперь отдельный шаг, а не вкладка рядом с содержимым.",before:()=>{if(fl.nested)flNested(false)},at:byText(".hd-act .btn.pri",/Добавить в папку/),act:"click"},
+    {say:"Папка, куда всё попадёт, всегда на виду и меняется здесь же. Источники те же: найденные в сети, по адресу, из файла.",at:q(".plan-fld")},
+    {say:"И новый источник: устройства, которые уже есть в системе. Они останутся, где были, и появятся ещё и в этой папке.",at:byText("#wizDr .tab, #wizDr button",/^Уже в системе/),act:"click"},
+    {say:"Отмечаем устройство. Рядом видно, где оно лежит сейчас.",at:()=>byText(".fa-tbl tbody tr",/Аудитория 1/)()?.querySelector("input.ts-chk"),act:"click"},
+    {say:"Сначала в план: пока план не применён, в системе ничего не меняется.",at:byText(".fa-wrap .btn.pri",/В план \(1\)/),act:"click"},
+    {say:"Применяем план.",at:q("#planApplyBtn:not(:disabled)"),act:"click"},
+    {say:"Устройство теперь в папке, а подпись напоминает, где ещё оно лежит.",before:()=>closeWizard(),at:row(/Аудитория 1/)},
+    {say:"На верхнем уровне последней строкой идут устройства вне папок. Они работают как обычно, просто ещё не разложены. Откроем.",
+      before:()=>{pick(domains[0].id);pageNo["fld:"+domains[0].id]=2;gear()},at:link(/Без папки/),act:"click"},
+    {say:"Это тот же список. Выбираем устройство.",at:q("tr.fl-r"),act:"click"},
+    {say:"Здесь действие одно: положить в папку.",at:byText("#flBar .btn",/Положить в папку/),act:"click"},
+    {say:"Выбираем папку.",at:byText("[role=menuitem]",/Входные группы/),act:"click"},
+    {say:"Устройство ушло из «Без папки» в выбранную папку, а в тосте можно отменить. Так выглядят папки в прототипе 16: один список на всех уровнях, отдельный шаг добавления и понятный путь вверх."},
+  ];
+})());
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
