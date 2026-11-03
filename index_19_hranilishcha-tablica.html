@@ -1791,6 +1791,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -24085,6 +24086,42 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
+// Показ прототипа: что изменилось в разделе «Хранилища» (движок — assets/tour.js). Только в прототипе
+Tour.offer("Показать, что изменилось", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  const byText=(sel,re)=>()=>[...document.querySelectorAll(sel)].find(e=>re.test(e.textContent));
+  const dom=()=>domains[0];
+  const domRow=()=>document.querySelector(`#tree .n[data-pick="${dom().id}"]`);
+  const groupRow=re=>byText("#tree .n",re);
+  const emptySrv=()=>dom().servers.find(s=>!serverArchives(s.id).length&&serverDisks(s.id).length);
+  return[
+    {say:"Раньше раздел открывался карточкой домена, а списка хранилищ не было. Теперь сразу видна таблица хранилищ домена.",
+      before:()=>{goApp("hw");setSlice("arch");pick(dom().id,{force:true})},at:q(".as-tbl")},
+    {say:"У каждого хранилища виден владелец: сервер или домен. Чтобы понять, чьё оно, дерево открывать не нужно.",at:q(".as-tbl tbody tr td:nth-child(2)")},
+    {say:"Значки разные. Бирюзовый диск — хранилище на дисках сервера, фиолетовая сеть — сетевое. Вид читается по цвету и по форме.",at:()=>document.querySelector(".as-tbl .ici-asnet")?.closest("td")},
+    {say:"Сетевые хранилища стояли после всех серверов, за прокруткой. Теперь их группа в дереве первая. Клик по ней — отбор в таблице.",at:groupRow(/Сетевые хранилища/),act:"click"},
+    {say:"В таблице остались только сетевые. Отбор меняют кнопками над таблицей.",at:byText(".as-chip.on",/Сетевые/)},
+    {say:"Клик по строке домена больше не сворачивает дерево.",at:domRow,act:"click"},
+    {say:"Список на месте, в таблице снова все хранилища. Сворачивает только стрелка.",at:()=>archTbl.kind==="all"&&open.has(dom().id)?domRow()?.querySelector(".tw"):null},
+    {say:"От хранилища к его серверу — один клик по имени владельца.",at:q(".as-tbl .as-link"),act:"click"},
+    {say:"Открылись хранилища этого сервера и сетевые хранилища домена. Строка сервера в дереве моргнула: видно, куда пришли.",at:()=>find(sel)?.n.type==="server"?document.querySelector("#tree .n.on"):null},
+    {say:"Серверы без хранилищ собраны в одну группу. Они не занимают места среди остальных.",at:groupRow(/Серверы без хранилищ/)},
+    {say:"В самом низу дерева — камеры без привязки к архиву. При входе в раздел этот пункт свёрнут.",at:q("#tree .as-norec-top"),act:"click"},
+    {say:"Здесь все камеры, которым не назначено хранилище. Камеры сгруппированы по доменам.",at:q("#tree .as-norec-top ~ .n[data-pick]"),act:"click"},
+    {say:"Камера открылась сразу на вкладке «Архив»: здесь её привязывают к хранилищу. Раздел остался тем же.",at:()=>find(sel)?.n.type==="camera"?document.querySelector(".tabs .tab.on"):null},
+    {say:"Кнопка теперь одна, на любом объекте раздела. Раньше на домене создавали только сетевое хранилище, а локальное — только на сервере.",
+      before:()=>pick(dom().id,{force:true}),at:byText(".hd .btn",/Создать хранилище/),act:"click"},
+    {say:"Окно тоже одно. С домена подставлены весь домен и сетевой вид, но можно выбрать любой вид.",at:q("#bmBody .an-srv select")},
+    {say:"Выбираем локальное хранилище.",at:byText("#bmBody .an-kind",/Локальное/),act:"click"},
+    {say:"Локальному нужен сервер. «Весь домен» из списка исчез, а кнопка «Создать» не работает, пока сервер не выбран.",at:()=>an?.kind==="local"?document.querySelector("#bmBody .an-srv select"):null},
+    {say:"Выбрали сервер: появились его диски, создать уже можно.",before:()=>anSet("server",emptySrv().id),at:()=>an?.server?document.getElementById("anCreate"):null,act:"click"},
+    {say:"Раньше после создания перебрасывало в «Оборудование». Теперь раздел тот же: новое хранилище выбрано, открыто, его строка в дереве моргает.",
+      at:()=>find(sel)?.n.type==="archive"?document.querySelector("#tree .n.on"):null},
+    {say:"На сервере та же кнопка, но контекст другой.",before:()=>pick(dom().servers.find(s=>serverArchives(s.id).length).id,{force:true}),at:byText(".hd .btn",/Создать хранилище/),act:"click"},
+    {say:"Сразу подставлены этот сервер и локальный вид. Сервер можно сменить, переходить никуда не нужно.",at:q("#bmBody .an-srv select")},
+    {say:"Итог: в разделе главное — хранилища. Владелец виден в каждой строке, создать можно откуда угодно, после создания ничего не уводит.",before:()=>archNewCancel()}
+  ];
+})());
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
