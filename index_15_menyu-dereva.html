@@ -6849,13 +6849,6 @@ function treeToggleId(id){
   if(open.has(id))open.delete(id);else open.add(id);
   if(id===FAV_NODE)renderFavs();else renderTree();
 }
-function treeNodeHasKids(n){
-  if(n.type==="folder")return!!(n.folders||[]).length||!!(n.items||[]).length||treeUnread(n.id);
-  if(n.type==="unalloc")return true;
-  if(n.type==="domain")return !hasNoSignal(n);
-  if(n.type==="server")return !isUnallocated(n.id)&&!hasNoSignal(n)&&(!!(n.devices||[]).length||treeUnread(n.id));
-  return treeKids(n).length>0||!!n._more;
-}
 function treeChevron(id,kind,hasKids,op){
   if(!hasKids)return`<span class="tw"></span>`;
   const fn={dom:"toggleDom",srv:"toggleSrv",node:"toggleNode"}[kind]||"toggleNode";
@@ -7131,41 +7124,6 @@ function tctxItem(label,action,icon,disabled){
   if(disabled)return `<button type="button" role="menuitem" disabled>${ic}<span class="tctx-lbl">${label}</span></button>`;
   return `<button type="button" role="menuitem" ${onEv("click",action)}>${ic}<span class="tctx-lbl">${label}</span></button>`;
 }
-function treeGearChildNodes(n){
-  if(n.type==="folder")return[...(n.folders||[]),...folderDeviceNodes(n)];
-  if(n.type==="domain"){
-    const kids=[...(n.servers||[])];
-    if((n.unallocServers||[]).length)kids.push(unallocNode(n));
-    return kids;
-  }
-  if(n.type==="unalloc"){
-    const d=domains.find(x=>x.id===n.domainId);
-    return d?.unallocServers||[];
-  }
-  if(n.type==="server")return(n.devices||[]).filter(d=>d.type!=="det");
-  return treeKids(n);
-}
-function treeDescendantIds(n){
-  const ids=[];
-  function walk(node){
-    treeGearChildNodes(node).forEach(k=>{
-      if(!k?.id)return;
-      ids.push(k.id);
-      walk(k);
-    });
-  }
-  walk(n);
-  return ids;
-}
-function canCollapseTreeChildren(n){
-  return treeDescendantIds(n).some(id=>open.has(id));
-}
-function collapseTreeChildren(id){
-  closeTreeCtx();
-  const f=find(id);if(!f)return;
-  treeDescendantIds(f.n).forEach(cid=>open.delete(cid));
-  renderTree();
-}
 function ctxRename(id,field){
   closeTreeCtx();
   resetTreeSel(id);
@@ -7199,13 +7157,6 @@ function openTreeCtx(n,xy){
     main.push(tctxItem(`${i18n("Удалить")}… (${k})`,`deleteSelected()`));
     main.push(tctxItem(i18n("Снять выделение"),`closeTreeCtx();clearTreeSel()`));
   }else{
-    const parts=[];
-    if(treeNodeHasKids(n)){
-      const expanded=open.has(n.id);
-      const tl=expanded?i18n("Свернуть"):i18n("Развернуть");
-      parts.push(tctxItem(tl,`closeTreeCtx();treeToggleId('${n.id}')`));
-      if(expanded&&canCollapseTreeChildren(n))parts.push(tctxItem(i18n("Свернуть дочерние"),`collapseTreeChildren('${n.id}')`));
-    }
     const addItems=[];
     if(n.type==="unalloc"){
       const add=unallocAddable(n.domainId).length;
@@ -7269,16 +7220,7 @@ function openTreeCtx(n,xy){
     if(n.type==="unalloc")rest.push(tctxItem(i18n("Обновить"),`refreshUnalloc('${n.domainId}')`));
     if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))rest.push(tctxItem(i18n("Добавить единицу СКУД"),`closeTreeCtx();pick('${n.id}');openW('unit')`,tctxPlusIcon()));
     if(canTreeCtxDelete(n))rest.push(tctxItem(i18n("Удалить"),`deleteTreeNode('${n.id}')`));
-    main=[...parts];
-    const mark=markInsideItems(n);
-    if(mark.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...mark);
-    }
-    if(addItems.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...addItems);
-    }
+    main=[...addItems];
     if(rest.length){
       if(main.length)main.push(tctxSep());
       main.push(...rest);
@@ -8028,7 +7970,7 @@ function periphCardHtml(n){
   return card("Периферия",`<div class="pf-chips">${chips}</div>
     <div class="pf-bar">${bar}</div>
     <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n("Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c">${i18n("Вкл.")}</th></tr>${rows}</table>
-    <p class="sub" style="margin-top:8px">${i18n("Галочка камеры в дереве периферию не отмечает. Чтобы править её вместе с периферией других камер — «Отметить в дереве» или пункт «Отметить внутри» в меню сервера, папки или камеры.")}</p>`,
+    <p class="sub" style="margin-top:8px">${i18n("Галочка камеры в дереве периферию не отмечает. Чтобы править её вместе с периферией других камер — «Отметить в дереве».")}</p>`,
     `<span class="sub" style="font-weight:400">${items.length}</span>`);
 }
 // Сводка на первой вкладке: сколько чего, а сам список — во вкладке «Периферия».
@@ -21338,7 +21280,7 @@ function selCandidates(){
   return out;
 }
 // Отмечаемые потомки контейнера: сервер, регистратор, папка, домен, архив.
-// withParts — вместе с начинкой камер (для «Отметить внутри» по типу).
+// withParts — вместе с начинкой камер.
 function selDescendants(n,withParts){
   const q=qval(),out=[],seen=new Set(),busy=busyIds();
   // Начинка камеры и регистратора (датчики, реле, микрофоны, встроенное
@@ -21347,7 +21289,7 @@ function selDescendants(n,withParts){
   const visit=(x,inDev)=>{
     if(!x||seen.has(x.id))return;seen.add(x.id);
     // Службы сервера галочка сервера не берёт — их, как и начинку, отмечают
-    // через «Отметить внутри» по типу или поштучно.
+    // поштучно.
     const part=(inDev&&x.type!=="camera"||isSvc(x))&&!withParts;
     if(x!==n&&!part&&canMultiPick(x)&&selfInView(x)&&matchesSearch(x,q)&&!busy.has(x.id)&&!pendingDelHas(x.id))out.push(x);
     kids(x).forEach(k=>visit(k,inDev||dev(x)));
@@ -21372,38 +21314,11 @@ function selDescendants(n,withParts){
   };
   visit(n,false);return out;
 }
-// «Отметить внутри» по типу — как узлы Cameras / Inputs / Outputs у Milestone
-// и однотипные группы: галочка контейнера берёт камеры и регистраторы, а
-// реле, датчики и прочую начинку отмечают отсюда — все сразу, но одного типа.
+// Порядок и подписи типов в карточке «Периферия».
 const MARK_TYPE_ORDER=["camera","ipsrv","channel","relay","sensor","mic","spk","eventsrc"];
 const MARK_TYPE_RU={camera:"Камеры",ipsrv:"IP-серверы",channel:"Каналы",relay:"Реле",sensor:"Датчики",mic:"Микрофоны",spk:"Динамики",eventsrc:"Источники событий"};
 function markTypeLabel(t){return i18n(MARK_TYPE_RU[t]||LB[t]||t)}
 function markTypeRank(t){const i=MARK_TYPE_ORDER.indexOf(t);return i<0?99:i}
-function insideByType(n){
-  const by=new Map();
-  // В хранилище пишут камеры и регистраторы — их начинка тут ни при чём.
-  selDescendants(n,n.type!=="archive").forEach(x=>{if(!by.has(x.type))by.set(x.type,[]);by.get(x.type).push(x)});
-  return[...by.entries()].sort((a,b)=>markTypeRank(a[0])-markTypeRank(b[0]));
-}
-function markInsideItems(n){
-  if(app!=="hw")return[];
-  const groups=insideByType(n);if(!groups.length)return[];
-  return[`<div class="tctx-head">${i18n(n.type==="archive"?"Отметить пишущие сюда":"Отметить внутри")}</div>`,
-    ...groups.map(([t,list])=>tctxItem(`${markTypeLabel(t)} (${list.length})`,`markInside('${n.id}','${t}')`,`<span class="tctx-ic">${ic(t)}</span>`))];
-}
-function markInside(id,type){
-  closeTreeCtx();
-  const f=find(id);if(!f)return;
-  const list=selDescendants(f.n,f.n.type!=="archive").filter(x=>x.type===type);
-  if(!list.length){toast("Здесь нечего отметить");return}
-  const cc=childSelCtx(f.n),at=x=>cc&&(x.type==="camera"||x.type==="ipsrv")?cc:null;
-  selMode=true;treeSel.clear();
-  list.forEach(x=>{treeSel.add(x.id,at(x));expandTo(x.id,at(x))});
-  open.add(f.n.id);
-  treeAnchor=list[0].id;
-  toast(`${i18n("Отмечено:")} ${markTypeLabel(type).toLowerCase()} — ${list.length}`);
-  afterSelChange(list[0].id,at(list[0]));
-}
 function decorateTreeSel(){
   const treeEl=document.getElementById("tree");if(!treeEl)return;
   const on=selMode&&app==="hw",busy=busyIds();
@@ -21444,7 +21359,7 @@ function decorateTreeSel(){
     // Сервер, папка и домен отмечаются вместе со всем, что под ними: «да» —
     // отмечены и он, и всё внутри; «частично» — что-то одно. У хранилища и
     // тома камер в дереве нет, и «частично» читалось бы как выбор самого
-    // хранилища: камеры, что в него пишут, отмечают из его меню или карточки.
+    // хранилища: камеры, что в него пишут, отмечают из его карточки.
     const noInner=f.n.type==="archive"||f.n.type==="vol";
     if(selDeep(f.n)&&on){
       const d=selDescendants(f.n),cc=childSelCtx(f.n),me=selShownAt(id,row.dataset.ctx);
