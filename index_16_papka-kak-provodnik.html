@@ -9315,7 +9315,7 @@ function folderCardHtml(f){
       <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
   const found=flFound(f);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
-  if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
+  if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr&&flFocusFree()){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
   const rows=pageSlice(key,found);
   const head=tsHead(key,rows.filter(it=>!it.nf).map(it=>it.n.id),found.filter(it=>!it.nf).map(it=>it.n.id));
   const nf=items.filter(it=>it.fld&&!it.nf).length,nd=items.filter(it=>!it.fld).length;
@@ -9373,9 +9373,15 @@ function flDraftRowHtml(){
   if(fl.draft==null)return"";
   return`<tr class="gtbl-r fl-r-new" id="flDraftRow"><td class="lan-chk"></td><td class="fl-nm" colspan="6"><span class="fl-nm-ic">${ic("folder")}</span><input id="flDraft" class="fl-draft-in" value="${escHtml(fl.draft)}" aria-label="${i18n("Имя новой папки")}" autocomplete="off" ${fl.draftBusy?"disabled":""} ${onEv("input",["flDraftInput",onEv.value])} ${onEv("keydown",["flDraftKey",onEv.event])}><span class="sub fl-draft-hint">${i18n("Enter — создать, Esc — отмена")}</span></td></tr>`;
 }
+// Ответ сервера приходит позже: человек мог уйти в поиск или открыть окно, фокус у него не отбираем
+function flFocusFree(){
+  if(document.getElementById("wiz")?.classList.contains("open")||document.getElementById("confirm")?.classList.contains("open"))return false;
+  const a=document.activeElement;
+  return!a||a===document.body||a.id==="flDraft"||a.classList.contains("fl-add-folder");
+}
 function flDraftFocus(){
   requestAnimationFrame(()=>{
-    const el=document.getElementById("flDraft");if(!el||el.disabled||document.activeElement===el)return;
+    const el=document.getElementById("flDraft");if(!el||el.disabled||document.activeElement===el||!flFocusFree())return;
     el.focus();
     if(fl.draftSel){el.select();fl.draftSel=false}else el.setSelectionRange(el.value.length,el.value.length);
   });
@@ -9396,24 +9402,37 @@ function flDraftCommit(){
   if(fl.draft==null||fl.draftBusy)return;
   const owner=fl.owner,f=flHolder(owner),name=fl.draft.trim();
   if(!name||!f){flDraftCancel();return}
-  // Поле держится до ответа; перерисовки нет, чтобы щелчок, который сюда привёл, попал в свою строку
+  // Поле держится до ответа. Ответ меняет только свою строку: за это время могли уйти, вернуться и начать новую
   fl.draftBusy=true;
+  const tok=fl.draftTok=(fl.draftTok||0)+1,mine=()=>fl.owner===owner&&fl.draftBusy&&fl.draftTok===tok;
   const el=document.getElementById("flDraft");if(el)el.disabled=true;
   const parent=f.type==="folder"?f:null,did=flDom(f);
   API.post("/folders",{name,domainId:did,parentId:parent?parent.id:null}).then(r=>{
     const n=folderAdded(r,parent,did);
-    if(fl.owner===owner){
+    if(mine()){
       fl.draft=null;fl.draftBusy=false;
-      if(!fl.cur){fl.cur=n.id;fl.jump=true}
+      if(!fl.cur&&flFound(flHolder(owner)).some(it=>it.n.id===n.id)){fl.cur=n.id;fl.jump=true}
     }
     paint();
   }).catch(e=>{
     toast(problemText(e));
-    // Имя остаётся в поле: его можно поправить или отменить
-    if(fl.owner===owner){fl.draftBusy=false;if(app==="hw"&&sel===owner)gear()}
+    if(!mine())return;
+    fl.draftBusy=false;
+    // Строка на экране — имя остаётся в поле, его можно поправить или отменить. Ушли — черновика больше нет
+    if(document.getElementById("flDraftRow"))gear();else fl.draft=null;
   });
 }
-document.addEventListener("mousedown",e=>{if(fl.draft!=null&&!e.target.closest?.("#flDraftRow,.fl-add-folder"))flDraftCommit()},true);
+// Щелчок вне строки завершает ввод. Ловим click, а не mousedown: перерисовка между нажатием и отпусканием съела бы сам щелчок.
+// На window, с перехватом: раньше обработчиков разметки, иначе переход сбросит строку с уже набранным именем
+window.addEventListener("click",e=>{
+  if(fl.draft==null||fl.draftBusy||e.target.closest?.("#flDraftRow,.fl-add-folder,.tour-panel,.tour-block"))return;
+  const row=document.getElementById("flDraftRow");
+  // Строки на экране нет: человек ушёл с этого списка, создавать там папку уже незачем
+  if(!row){fl.draft=null;return}
+  if(fl.draft.trim()){flDraftCommit();return}
+  fl.draft=null;row.remove();
+  if(!document.querySelector("#flCard tr.fl-r"))setTimeout(gear);
+},true);
 function flFolderMenu(e,how){
   e.stopPropagation();
   const f=flHolder(fl.owner);if(!f)return;
@@ -20378,7 +20397,8 @@ function comboHtml(o){
 function comboFolderHtml(value,on,o={}){return comboHtml({src:"folder",value,on,...o})}
 function comboGroupHtml(value,on,{defFolder,...o}={}){
   const fid=defFolder!==undefined?defFolder:wizd?.noFolder?null:wizd?.folder,def=fid&&folderById(fid);
-  return comboFolderHtml(value,on,{head:[["",def?`${i18n("По умолчанию")} — ${folderPathName(def.id)}`:i18n(wizd?.mode==="device-add"?"Без папки":"Папка мастера")]],...o});
+  const ctx=wizd?.mode==="device-add"&&wizd.domain?{did:wizd.domain}:undefined;
+  return comboFolderHtml(value,on,{head:[["",def?`${i18n("По умолчанию")} — ${folderPathName(def.id)}`:i18n(wizd?.mode==="device-add"?"Без папки":"Папка мастера")]],ctx,...o});
 }
 function comboArchHtml(value,on,o={}){return comboHtml({src:"arch",value,on,head:[["",i18n("Не задано")]],...o})}
 function comboVendorHtml(value,on,o={}){return comboHtml({src:"vendor",value,on,free:true,...o})}
@@ -20995,7 +21015,7 @@ function planRowHtml(row){
       <div class="dev-field"><label>${i18n("Пароль")}</label>${devPassFieldHtml(r.pass||"",lock,`planEdit('${row.pid}','pass',this.value)`,`${i18n("Пароль")} · ${who}`,"pass")}</div></div>
       ${planIsCam(row)?`<div class="dev-field"><label>${i18n("Архив")}</label>${comboArchHtml(r.arch,["planEdit",row.pid,"arch"],{ctx:{sid:row.serverId,did:row.domainId},lock,pf:"arch",aria:al("Архив")})}</div>
       ${r.arch?`<div class="dev-field"><label>${i18n("Режим записи")}</label><select class="dev-inline-select" data-pf="record" aria-label="${al("Режим записи")}" ${dis} ${onEv("change",["planEdit",row.pid,"record",onEv.value])}>${foundRecordOptions(r)}</select></div>`:""}
-      <div class="dev-field"><label>${i18n("Папка")}</label>${comboGroupHtml(r.group,["planEdit",row.pid,"group"],{lock,pf:"group",aria:al("Папка"),defFolder:row.folderId})}</div>`:""}
+      <div class="dev-field"><label>${i18n("Папка")}</label>${comboGroupHtml(r.group,["planEdit",row.pid,"group"],{lock,pf:"group",aria:al("Папка"),defFolder:row.folderId,ctx:{did:row.domainId}})}</div>`:""}
     </div>`;
   }
   return`<div class="plan-row ${row.state==="fail"?"fail":""} ${row.open?"open":""}" data-pid="${row.pid}"><div class="plan-row-hd">${planRowHeadHtml(row)}</div>${body}</div>`;
