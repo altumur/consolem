@@ -13,8 +13,8 @@
 .tour-ring{position:fixed;left:0;top:0;z-index:100001;pointer-events:none;border:2px solid var(--one-focus-ring,#3b82f6);border-radius:8px;box-shadow:0 0 0 4px color-mix(in srgb,var(--one-focus-ring,#3b82f6) 28%,transparent);transition:opacity .2s}
 .tour-ripple{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;z-index:100002;pointer-events:none;border-radius:50%;border:2px solid var(--one-focus-ring,#3b82f6);animation:tour-rip .45s ease-out forwards}
 @keyframes tour-rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
-.tour-panel{position:fixed;left:16px;bottom:16px;z-index:100004;width:min(420px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;background:var(--p,#1a2129);color:var(--tx,#e4e9ef);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 10px 32px #0007;font-size:14px;line-height:1.45}
-.tour-panel.top{bottom:auto;top:16px}
+.tour-panel{position:fixed;left:16px;top:16px;z-index:100004;width:min(420px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;background:var(--p,#1a2129);color:var(--tx,#e4e9ef);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 10px 32px #0007;font-size:14px;line-height:1.45}
+.tour-panel.tour-fly{transition:left .3s ease,top .3s ease}
 .tour-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}
 .tour-n{font-size:12px;color:var(--mu,#97a4b3);margin:0}
 .tour-speed{display:flex;gap:2px}
@@ -29,7 +29,7 @@
 .tour-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
 .tour-offer[hidden]{display:none}
 .tour-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}
-@media(prefers-reduced-motion:reduce){.tour-cur{transition:none}.tour-ripple{display:none}}`;
+@media(prefers-reduced-motion:reduce){.tour-cur,.tour-panel.tour-fly{transition:none}.tour-ripple{display:none}}`;
   const ARROW = '<svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 2l13.5 11.2-6.3.5 3.6 6.9-2.7 1.4-3.6-7L4 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>';
   const reduced = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -72,7 +72,7 @@
 
   function run(steps, startAt) {
     const last = steps.length - 1;
-    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, frame = 0, speed = loadSpeed();
+    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, goal = null, corner = "bl", frame = 0, speed = loadSpeed();
     const block = make("div", "tour-block"), cur = make("div", "tour-cur", ARROW), ring = make("div", "tour-ring"), panel = make("div", "tour-panel");
     panel.setAttribute("role", "status");
     panel.setAttribute("aria-live", "polite");
@@ -142,24 +142,54 @@
     // Подсветка следует за элементом: окно перерисовывается, поэтому искать его заново на каждом кадре
     const place = () => {
       const el = target && target();
+      let r = null;
       if (el && el.isConnected) {
-        const r = el.getBoundingClientRect();
+        r = el.getBoundingClientRect();
+        // Строки выше догрузились и увели цель за край окна: возвращаем её на экран, курсор идёт следом
+        if (r.bottom > innerHeight || r.top < 0) {
+          el.scrollIntoView({ block: "nearest" });
+          r = el.getBoundingClientRect();
+          point(el);
+        }
         ring.style.opacity = "1";
         ring.style.transform = `translate(${r.left - 4}px,${r.top - 4}px)`;
         ring.style.width = `${r.width + 8}px`;
         ring.style.height = `${r.height + 8}px`;
-        // Панель там, где меньше закрывает цель. Решение зависит только от цели, поэтому большая цель не дёргает панель туда-сюда
-        const p = panel.getBoundingClientRect();
-        const covered = (top) => Math.max(0, Math.min(r.right, p.right) - Math.max(r.left, p.left)) * Math.max(0, Math.min(r.bottom, top + p.height) - Math.max(r.top, top));
-        panel.classList.toggle("top", covered(16) < covered(innerHeight - 16 - p.height));
       } else ring.style.opacity = "0";
+      dock(r);
+    };
+    // Панель в углу, где не закрывает цель, а из свободных — ещё и курсор с его путём к цели. Сначала только цель: её площадь
+    // не меняется, пока курсор едет, поэтому большая цель не дёргает панель туда-сюда. Пока в текущем углу не мешает — панель стоит
+    const dock = (r) => {
+      const w = panel.offsetWidth, h = panel.offsetHeight, c = cur.getBoundingClientRect();
+      const way = cur.style.opacity === "0" ? [] : Array.from({ length: 13 }, (_, k) => {
+        const t = goal ? k / 12 : 0;
+        return [c.left + ((goal ? goal[0] : c.left) - c.left) * t, c.top + ((goal ? goal[1] : c.top) - c.top) * t];
+      });
+      const cost = (name) => {
+        const x = name[1] === "l" ? 16 : innerWidth - 16 - w, y = name[0] === "t" ? 16 : innerHeight - 16 - h;
+        const area = !r ? 0 : Math.max(0, Math.min(r.right + 12, x + w) - Math.max(r.left - 12, x)) * Math.max(0, Math.min(r.bottom + 12, y + h) - Math.max(r.top - 12, y));
+        const hits = way.filter(([a, b]) => a + 34 > x && a - 12 < x + w && b + 34 > y && b - 12 < y + h).length;
+        return { name, x, y, area, hits };
+      };
+      // Первым — нынешний угол, он выигрывает при равенстве; затем соседний по горизонтали, по вертикали и напротив
+      const flip = (name, at) => name.replace(name[at], { t: "b", b: "t", l: "r", r: "l" }[name[at]]);
+      const best = [corner, flip(corner, 1), flip(corner, 0), flip(flip(corner, 0), 1)].map(cost).reduce((a, b) => (b.area < a.area || (b.area === a.area && b.hits < a.hits) ? b : a));
+      corner = best.name;
+      panel.style.left = `${best.x}px`;
+      panel.style.top = `${best.y}px`;
     };
     const follow = () => {
       if (stopped) return;
       place();
       frame = requestAnimationFrame(follow);
     };
-    frame = requestAnimationFrame(follow);
+    // Первое место панель занимает сразу, полёт — только дальше
+    place();
+    frame = requestAnimationFrame(() => {
+      panel.classList.add("tour-fly");
+      follow();
+    });
     function clear() {
       stopped = true;
       cancelAnimationFrame(frame);
@@ -206,6 +236,7 @@
       const r = el.getBoundingClientRect();
       const x = Math.min(r.left + Math.min(r.width / 2, 60), innerWidth - 24), y = Math.min(r.top + Math.min(r.height / 2, 18), innerHeight - 24);
       cur.style.transform = `translate(${x}px,${y}px)`;
+      goal = [x, y];
       return [x, y];
     };
     async function press(el) {
