@@ -4993,6 +4993,8 @@ function jumpToNode(n){
     if(k&&!inSlice(n))slice=k==="sys"?"srv":k;
     syncViews();
   }
+  // В дереве среза «Детекторы» нет строк камер: переход к камере ведёт туда, где её строка есть
+  if(n.type==="camera"&&slice==="det"){slice="cam";syncViews()}
   if(n.type==="det"&&!n.builtin&&slice!=="all"&&slice!=="det"){slice="det";syncViews()}
   if(n.type==="det"&&n.builtin&&slice!=="all"&&slice!=="cam"&&slice!=="det"){slice="cam";syncViews()}
   if((n.type==="archive"||n.type==="vol")&&!["all","cam","srv","arch"].includes(slice)){slice="srv";syncViews()}
