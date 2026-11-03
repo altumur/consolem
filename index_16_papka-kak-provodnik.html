@@ -454,6 +454,38 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .it{display:flex;gap:10px;align-items:center;padding:9px;background:var(--p2);border-radius:7px;margin:0 0 6px;cursor:pointer;border:1px solid transparent}
 .it:hover,.it.on{border-color:var(--bl)}.it span:nth-child(2){flex:1;min-width:0}.it small{display:block;color:var(--mu)}
 .it .btn{flex:none;white-space:nowrap}
+/* Галочка первая: тянуться должно имя, а не значок за ней */
+.it>.ts-chk+span{flex:none;min-width:0}.it>.ts-chk+span+span{flex:1;min-width:0}
+/* Содержимое папки */
+.fl-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
+.fl-tools .sq{flex:1 1 220px;margin:0;min-width:160px}
+.fl-nested{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;white-space:nowrap}
+.fl-sum{font-size:12px;color:var(--mu);margin:0 0 8px}
+.fl-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;margin:0 0 8px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);min-height:40px}
+.fl-bar-n{font-size:12px;color:var(--mu);margin-right:6px;white-space:nowrap}
+table.gtbl-cams tbody tr.fl-r{cursor:default;user-select:none}
+.fl-r:focus-visible{outline:2px solid var(--one-selected-indicator);outline-offset:-2px}
+table.gtbl-cams tbody tr.fl-r.on td{background:var(--one-selected-neutral)}
+table.fl-tbl th:nth-child(2){width:32%}
+table.fl-tbl th:nth-child(3){width:15%}
+.fl-nm{display:flex;align-items:center;gap:8px;min-width:0}
+td.fl-nm{display:table-cell}
+td.fl-nm>.fl-nm-ic{display:inline-flex;vertical-align:middle;margin-right:8px}
+.fl-nm-tx{display:inline-block;vertical-align:middle;max-width:calc(100% - 26px);min-width:0}
+.fl-name-t{display:block;font:inherit;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+.fl-also{display:block;font-size:11px;color:var(--mu);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl-none{color:var(--mu)}
+.fl-empty{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:36px 16px}
+.fl-empty-ic{color:var(--mu)}
+.fl-empty p{max-width:460px;margin:0}
+.fl-empty-act{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:6px}
+.plan-fld{margin-bottom:6px}
+.plan-fld-c{display:inline-block;min-width:260px;max-width:100%}
+.plan-link{display:flex;align-items:center;gap:8px;padding:6px 8px}
+.plan-link .lan-name{flex:1;min-width:0;white-space:nowrap}
+.fa-wrap{padding:10px 12px}
+.fa-lead{margin:0 0 8px}
+.fa-wrap .lan-chips{margin-bottom:8px}
 .unalloc-bulk{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
 .unalloc-all{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--mu);cursor:pointer}
 .unalloc-chk{flex:none;width:16px;display:inline-flex;align-items:center;justify-content:center}
@@ -7793,7 +7825,8 @@ function tabsFor(n){
   if(n.type==="norec"||n.type==="nofolder"||n.type==="gpu"||n.type==="det")return[];
   if(n.type==="found"||n.type==="founddev")return[];
 
-  if(n.type==="folder")return[["gen","Состав"],["tbl","Таблица"],["lan","Все устройства сети"]];
+  // У папки одно окно содержимого, как в Проводнике: вложенные — переключателем, а добавление — отдельным шагом
+  if(n.type==="folder")return[];
   if(n.type==="camera")return[["gen","Подключение"]].concat(can("startLive")?[["view","Просмотр"]]:[],[["vid","Видео"],["rec","Архив"],["det","Детекторы"],["io","Периферия"],["acc","Доступ"]]);
   if(n.type==="ipsrv")return ipsrvCameras(n).length?[["gen","Подключение"],["rec","Архив"],["kids","Дочерние"]]:[["gen","Подключение"],["kids","Дочерние"]];
   if(n.type==="channel")return[["gen","Основные"],["kids","Дочерние"]];
@@ -7825,7 +7858,7 @@ function gear(){
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
   // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
   // дальше собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=((lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  const addBtn=(n.type==="folder"?folderAddBtn():(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   cardEnsureBase(n);
   paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
@@ -9096,34 +9129,228 @@ function foundDeviceCardHtml(n){
       <button class="btn pri" style="margin-top:12px" ${r.status==="bad"?"disabled":""} ${onEv("click",["planAddOne",`${r.id}`])}>${i18n("В план")}</button>
       <p class="sub" style="margin-top:10px">Папка и архив по умолчанию — выбранные в панели найденных; здесь их можно переопределить для этого устройства.</p>`));
 }
-function folderCardHtml(f){
-  // Вложенные папки и устройства — один список: в дереве они идут подряд, и
-  // ищут их одним запросом, не задумываясь, папка это или камера.
-  const items=(f.folders||[]).map(x=>({fld:true,n:x})).concat(folderDeviceNodes(f).map(d=>({fld:false,n:d})));
-  const devRow=d=>{
-    const also=foldersOfDevice(d.id).filter(x=>x.id!==f.id);
-    const note=also.length?`${i18n("также в:")} ${escHtml(also.map(x=>folderPathName(x.id)).join(", "))}`:(LB[d.type]||d.type);
-    return `<div class="it ${tsOn(d.id)?"ts-on":""}" ${onEv("click",["pick",`${d.id}`])}>${tsChk(d.id,locName(d))}<span>${ic(d.type)}</span><span>${escHtml(locName(d))}<small>${note}</small></span>${bdg(d)}</div>`;
-  };
-  const lkey="fld:"+f.id;
-  return listCard({
-    key:lkey,
-    title:"Состав папки",
-    items,
-    text:it=>[locName(it.n),it.n.ip,it.fld?i18n("Папка"):(LB[it.n.type]||it.n.type)],
-    // Отметка — общая с деревом: «все на странице» и «все по фильтру».
-    mid:found=>{const page=pageSlice(lkey,found).map(it=>it.n.id),head=tsHead(lkey,page,found.map(it=>it.n.id));
-      return`<div class="ts-listhead"><label class="ts-all">${head}<span>${i18n("Все на странице")}</span></label>${tsBanner(lkey)}</div>`},
-    row:it=>it.fld
-      ?`<div class="it ${tsOn(it.n.id)?"ts-on":""}" ${onEv("click",["pick",`${it.n.id}`])}>${tsChk(it.n.id,locName(it.n))}<span>${ic("folder")}</span><span>${escHtml(locName(it.n))}<small>${i18n("Папка")} · ${folderCount(it.n)}</small></span></div>`
-      :devRow(it.n),
-    empty:"Папка пуста",
-    ph:"Имя, IP или тип…",
-    unit:"объект|объекта|объектов"
-  })+
-    card("Папка",`<div class="g">${fld("Имя",locName(f))}${fldRo("Путь",folderFullName(f.id))}</div>
-      <p class="sub">${i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`);
+// ── Содержимое папки, как в Проводнике ───────────────────────────────────
+// Один список: подпапки сверху, устройства за ними. Щелчок по строке выбирает её,
+// открывает — двойной щелчок, Enter или имя-ссылка; Backspace и «Вверх» — на уровень выше.
+// С ?open=dbl имя не ссылка: только щелчок и двойной щелчок, чтобы сравнить оба поведения.
+const FL_DBL=new URLSearchParams(location.search).get("open")==="dbl";
+const FL_FILT0={kind:"",srv:"",model:"",st:""};
+const fl={owner:null,nested:false,sort:"name",dir:1,filt:{...FL_FILT0},cur:null,lastId:null,lastT:0,anchor:null};
+function flSt(n){const s=nodeStatus(n);return s.license?"Лицензия превышена":s.off?"Выключены":s.nosignal?"Нет сигнала":"Работают"}
+function flStBad(n){const s=nodeStatus(n);return s.license||s.off||s.nosignal}
+// Те же измерения, что в «Применить к»: чипы фильтруют, но подписаны и считаются так же
+const FL_DIMS=[["kind","Типы",cpKind,kindLabel],["srv","Серверы",n=>serverNameOf(n),x=>x],["model","Модели",n=>modelOf(n)||i18n("модель не указана"),x=>x],["st","Состояние",flSt,x=>i18n(x)]];
+function flItems(f){
+  if(fl.nested)return[...folderDeviceIds(f)].map(id=>find(id)?.n).filter(Boolean).map(d=>({n:d,fld:false,at:flAt(f,d.id)}));
+  return(f.folders||[]).map(x=>({n:x,fld:true,at:f.id})).concat(folderDeviceNodes(f).map(d=>({n:d,fld:false,at:f.id})));
 }
+// В какой из папок поддерева лежит устройство: отсюда его и убирают
+function flAt(f,id){
+  if((f.items||[]).includes(id))return f.id;
+  return flatFolders().find(x=>x.items.includes(id)&&folderPath(x.id).some(p=>p.id===f.id))?.id||f.id;
+}
+function flMatch(it,skip){
+  return FL_DIMS.every(([d,,fn])=>{
+    if(d===skip||!fl.filt[d])return true;
+    if(it.fld)return d==="kind"&&fl.filt.kind==="folder";
+    return fn(it.n)===fl.filt[d];
+  });
+}
+function flEnsure(f){
+  if(fl.owner===f.id)return;
+  fl.owner=f.id;fl.filt={...FL_FILT0};fl.nested=false;fl.anchor=null;
+  fl.cur=fl.nextCur||null;fl.nextCur=null;
+}
+function flSortRows(list){
+  const val={name:it=>locName(it.n),type:it=>it.fld?"":LB[it.n.type]||it.n.type,ip:it=>it.n.ip||"",srv:it=>it.fld?"":serverNameOf(it.n),model:it=>it.fld?"":modelOf(it.n),st:it=>it.fld?"":flSt(it.n)}[fl.sort];
+  return list.slice().sort((a,b)=>(b.fld-a.fld)||String(val(a)).localeCompare(String(val(b)),"ru",{numeric:true})*fl.dir);
+}
+function flFound(f){
+  const items=flItems(f).filter(it=>flMatch(it));
+  return flSortRows(listFound({key:"fld:"+f.id,items,text:it=>[locName(it.n),it.n.ip,it.fld?i18n("Папка"):(LB[it.n.type]||it.n.type),it.fld?"":modelOf(it.n),it.fld?"":serverNameOf(it.n)]}));
+}
+function flFiltSet(d,k){fl.filt={...fl.filt,[d]:fl.filt[d]===k?"":k};resetPage("fld:"+fl.owner);gear()}
+function flFiltClear(){fl.filt={...FL_FILT0};resetPage("fld:"+fl.owner);gear()}
+function flSortBy(k){if(fl.sort===k)fl.dir=-fl.dir;else{fl.sort=k;fl.dir=1}gear()}
+function flNested(on){fl.nested=!!on;fl.cur=null;resetPage("fld:"+fl.owner);gear()}
+function flFacetsHtml(items){
+  const rows=FL_DIMS.map(([d,label,fn,lab])=>{
+    const nodes=items.filter(it=>flMatch(it,d)&&(d==="kind"||!it.fld)&&(d!=="model"||modelOf(it.n))).map(it=>it.n);
+    const ent=countBy(nodes,fn);
+    // Каждое значение по разу — такой чип нашёл бы одну строку: это работа поиска, а не фильтра
+    if((ent.length<2||ent.every(([,c])=>c===1))&&!fl.filt[d])return"";
+    return`<div class="bk-sum-row bk-facet"><span class="bk-facet-l">${i18n(label.toLowerCase())}</span>${ent.map(([k,c])=>`<button type="button" class="stchip bk-chip ${fl.filt[d]===k?"on":""}" ${onEv("click",["flFiltSet",`${d}`,k])}><span class="stchip-lab">${escHtml(lab(k))}</span><span class="stchip-cnt">${c}</span></button>`).join("")}</div>`;
+  }).join("");
+  if(!rows)return"";
+  const on=Object.values(fl.filt).some(Boolean);
+  return`<div class="bk-sum bk-scope fl-facets"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" class="stchip ${on?"":"on"}" ${onEv("click",["flFiltClear"])}><span class="stchip-lab">${i18n("всё")}</span><span class="stchip-cnt">${items.length}</span></button><span class="sub bk-scope-or">${i18n("или уточните")}:</span></div>${rows}</div>`;
+}
+// Что выбрано: галочки (общие с деревом), а без них — строка под курсором
+function flSelItems(f){
+  const all=flItems(f),marked=all.filter(it=>tsOn(it.n.id));
+  if(marked.length)return marked;
+  const c=all.find(it=>it.n.id===fl.cur);
+  return c?[c]:[];
+}
+function flBarHtml(f){
+  const s=flSelItems(f),devs=s.filter(it=>!it.fld),k=s.length;
+  const noDev=k?i18n("Папку так не перенести: только устройства"):i18n("Сначала выберите устройство");
+  const dis=devs.length?"":`disabled title="${noDev}"`;
+  const n=devs.length?` (${devs.length})`:"";
+  return`<div class="fl-bar" id="flBar">
+    <span class="fl-bar-n">${k?`${i18n("Выбрано")}: <b>${k}</b>`:i18n("Ничего не выбрано")}</span>
+    <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выберите одну строку")}"`} ${onEv("click",["flOpenCur"])}>${i18n("Открыть")}</button>
+    <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"move"])}>${i18n("Переместить в")}…${n}</button>
+    <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"copy"])}>${i18n("Добавить ещё в")}…${n}</button>
+    <button type="button" class="btn s" ${dis} title="${i18n("Само устройство останется в системе")}" ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${n}</button>
+    ${devs.length>1?`<button type="button" class="btn s" ${onEv("click",["bulkPeekOff"])}>${i18n("Изменить параметры")}…</button>`:""}
+  </div>`;
+}
+function bulkPeekOff(){bulkPeek=false;gear()}
+function flRowHtml(f,it){
+  const n=it.n,id=n.id,name=locName(n),checked=tsOn(id);
+  const open=FL_DBL?`<span class="fl-name-t">${escHtml(name)}</span>`:`<button type="button" class="lk fl-name-t" ${onEv("click",onEv.stop,["flOpen",`${id}`])}>${escHtml(name)}</button>`;
+  let note="";
+  if(!it.fld){
+    if(fl.nested&&it.at!==f.id)note=`${i18n("в папке")} ${folderPathName(it.at).split(" / ").slice(folderPath(f.id).length).join(" / ")}`;
+    else{const also=foldersOfDevice(id).filter(x=>x.id!==it.at);if(also.length)note=`${i18n("также в:")} ${also.map(x=>folderPathName(x.id)).join(", ")}`}
+  }
+  const cell=v=>`<td>${v?escHtml(v):`<span class="fl-none">—</span>`}</td>`;
+  return`<tr class="gtbl-r fl-r ${fl.cur===id?"on":""} ${checked?"ts-on":""}" data-fl="${id}" tabindex="0" ${onEv("click",["flClick",`${id}`,onEv.event])}>
+    <td class="lan-chk">${tsChk(id,name)}</td>
+    <td class="fl-nm"><span class="fl-nm-ic">${it.fld?ic("folder"):ic(n.type)}</span><span class="fl-nm-tx">${open}${it.fld?"":`<span class="lan-sub">${escHtml([modelOf(n),serverNameOf(n)].filter(Boolean).join(" · "))}</span>`}${note?`<span class="fl-also" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</span></td>
+    ${cell(it.fld?`${i18n("Папка")} · ${flCnt(n)} ${i18n(plural(flCnt(n),"объект|объекта|объектов"))}`:(LB[n.type]||n.type))}
+    ${cell(it.fld?"":n.ip)}
+    ${cell(it.fld?"":serverNameOf(n))}
+    ${cell(it.fld?"":modelOf(n))}
+    <td>${it.fld?`<span class="fl-none">—</span>`:`<span class="bd ${flStBad(n)?"off":""}">${escHtml(i18n(flSt(n)))}</span>`}</td></tr>`;
+}
+function flToolsHtml(f,key){
+  const up=folderParent(f.id),upName=up?locName(up):locName(domainById(folderDomain(f.id))||{name:""});
+  return`<div class="fl-tools">
+    <button type="button" class="btn s btn-icon" title="${i18n("Вверх")}: ${escHtml(upName)} (Backspace)" aria-label="${i18n("Вверх")}" ${onEv("click",["flUp"])}>${lu("arrow-up")}</button>
+    ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
+    <label class="fl-nested"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n("С вложенными папками")}</span></label>
+    <button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button>
+  </div>`;
+}
+// Содержимое читается веткой дерева: кэш знает только открытое. В строке перечня нет адреса и модели,
+// поэтому колонки дочитывают полные записи (GET /devices/{id}) — на большой папке это много запросов
+const flLoaded=new Set();
+async function flReadBranch(id){
+  for(let i=0;i<200;i++){if(treeBr.get("folders|"+id)?.done)return;await treeLoad("folders",id)}
+}
+async function flLoad(f){
+  const key=f.id+"|"+fl.nested;
+  if(flLoaded.has(key))return;
+  flLoaded.add(key);
+  const walk=async x=>{await flReadBranch(x.id);if(fl.nested)for(const c of x.folders||[])await walk(c)};
+  await walk(f);
+  await Promise.all((f.folders||[]).map(c=>flReadBranch(c.id)));
+  await hwFullAll(flItems(f).filter(it=>!it.fld).map(it=>it.n.id).slice(0,500)).catch(()=>{});
+  flFresh.add(key);
+  treeMatchCache.clear();searchMatchCache.clear();
+  if(app==="hw"&&sel===f.id&&!cardDraft)gear();
+}
+const flFresh=new Set();
+function flCnt(x){const c=treeBr.get("folders|"+x.id)?.count;return c!=null?c:(x.folders||[]).length+(x.items||[]).length}
+function folderCardHtml(f){
+  flEnsure(f);
+  flLoad(f);
+  const key="fld:"+f.id,items=flItems(f);
+  if(!items.length&&!flFresh.has(f.id+"|"+fl.nested))return`<div class="card" id="flCard"><div class="cb"><p class="sub">${i18n("Загрузка…")}</p></div></div>`;
+  const hint=`<p class="sub">${i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
+  if(!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
+      <p class="sub">${i18n("Положите сюда устройства: найденные в сети, добавленные по адресу или из файла, или те, что уже есть в системе.")}</p>
+      <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
+  const found=flFound(f),rows=pageSlice(key,found);
+  const head=tsHead(key,rows.map(it=>it.n.id),found.map(it=>it.n.id));
+  const nf=items.filter(it=>it.fld).length,nd=items.length-nf;
+  const sum=[nf?`${nf} ${i18n(plural(nf,"папка|папки|папок"))}`:"",nd?`${nd} ${i18n(plural(nd,"устройство|устройства|устройств"))}`:""].filter(Boolean).join(" · ")||i18n("Пусто");
+  const th=[["name","Имя"],["type","Тип"],["ip","IP-адрес"],["srv","Сервер"],["model","Модель"],["st","Состояние"]].map(([k,l])=>`<th class="lan-th ${fl.sort===k?"on":""}" ${onEv("click",["flSortBy",`${k}`])}><span class="gtbl-th-txt">${i18n(l)}${fl.sort===k?(fl.dir>0?lu("arrow-up",12):lu("arrow-down",12)):""}</span></th>`).join("");
+  const body=rows.length?rows.map(it=>flRowHtml(f,it)).join(""):`<tr><td class="empty" colspan="7">${i18n("Ничего не найдено")}</td></tr>`;
+  return`<div class="card" id="flCard"><div class="cb">
+    ${flToolsHtml(f,key)}
+    ${flFacetsHtml(items)}
+    <div class="fl-sum">${sum}</div>
+    ${flBarHtml(f)}${tsBanner(key)}
+    <div class="lan-wrap"><table class="gtbl-cams lan-tbl fl-tbl"><thead><tr class="gtbl-h"><th class="lan-chk">${head}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
+    <div class="tfoot">${pagerHtml(key,found.length,"list","объект|объекта|объектов")}</div>
+  </div></div>${hint}`;
+}
+// Щелчок выбирает без перерисовки всей панели: иначе второй щелчок двойного попал бы в другую строку
+function flSetCur(id){
+  fl.cur=id;
+  document.querySelectorAll("#flCard tr.fl-r").forEach(tr=>tr.classList.toggle("on",tr.dataset.fl===id));
+  const f=folderById(fl.owner),bar=document.getElementById("flBar");
+  if(f&&bar)bar.outerHTML=flBarHtml(f);
+}
+function flClick(id,e){
+  const t=Date.now(),twice=fl.lastId===id&&t-fl.lastT<400;
+  fl.lastId=id;fl.lastT=t;
+  if(twice){flOpen(id);return}
+  if(e.ctrlKey||e.metaKey){tsSet([id],!tsOn(id));fl.anchor=id;return}
+  if(e.shiftKey&&fl.anchor){
+    const f=folderById(fl.owner),ids=pageSlice("fld:"+f.id,flFound(f)).map(it=>it.n.id),a=ids.indexOf(fl.anchor),b=ids.indexOf(id);
+    if(a>=0&&b>=0){tsSet(ids.slice(Math.min(a,b),Math.max(a,b)+1),true);return}
+  }
+  fl.anchor=id;flSetCur(id);
+}
+function flOpen(id){hwJumpFlash=true;pick(id);hwJumpFlash=false}
+function flOpenCur(){const f=folderById(fl.owner),s=f?flSelItems(f):[];if(s.length===1)flOpen(s[0].n.id)}
+function flUp(){
+  const f=folderById(fl.owner);if(!f)return;
+  const up=folderParent(f.id);
+  fl.nextCur=f.id;
+  flOpen(up?up.id:folderDomain(f.id));
+}
+function flFolderMenu(e,how){
+  e.stopPropagation();
+  const f=folderById(fl.owner);if(!f)return;
+  const items=[`<div class="tctx-head">${i18n(how==="move"?"Переместить в папку":"Добавить ещё в папку")}</div>`];
+  flatFolders().filter(x=>folderDomain(x.id)===folderDomain(f.id)&&x.id!==f.id).forEach(x=>items.push(tctxItem(escHtml(folderPathName(x.id)),`flToFolder('${x.id}','${how}')`)));
+  bulkOpenMenuAt(e.currentTarget,items.join(""));
+}
+// Перенос правит два списка, отмена возвращает оба
+async function flChange(changes,msg){
+  try{
+    for(const[fid,add,rem] of changes)await folderChange(fid,add,rem);
+    paint();
+    toastAction("flmove",msg,i18n("Отменить"),async()=>{
+      for(const[fid,add,rem] of changes)await folderChange(fid,rem,add);
+      paint();
+    },8000);
+  }catch(e){toast(problemText(e))}
+}
+function flGroupBy(devs){const m=new Map();devs.forEach(it=>{(m.get(it.at)||m.set(it.at,[]).get(it.at)).push(it.n.id)});return m}
+function flToFolder(tid,how){
+  closeTreeCtx();
+  const f=folderById(fl.owner),devs=flSelItems(f).filter(it=>!it.fld);if(!devs.length)return;
+  const target=folderById(tid),fresh=devs.filter(it=>!target.items.includes(it.n.id)).map(it=>it.n.id);
+  const changes=[[tid,fresh,[]]];
+  if(how==="move")flGroupBy(devs).forEach((ids,fid)=>{if(fid!==tid)changes.push([fid,[],ids])});
+  fl.cur=null;
+  flChange(changes,`${i18n(how==="move"?"Перемещено в":"Добавлено ещё в")} «${locName(target)}»: ${devs.length}`);
+}
+function flRemoveSel(){
+  const f=folderById(fl.owner),devs=flSelItems(f).filter(it=>!it.fld);if(!devs.length)return;
+  const changes=[...flGroupBy(devs)].map(([fid,ids])=>[fid,[],ids]);
+  fl.cur=null;
+  flChange(changes,`${i18n("Убрано из папки")}: ${devs.length}`);
+}
+document.addEventListener("keydown",e=>{
+  const card=document.getElementById("flCard");if(!card)return;
+  if(document.getElementById("wiz")?.classList.contains("open"))return;
+  const t=e.target;if(t.closest?.("input,select,textarea,[contenteditable]")&&e.key!=="Escape")return;
+  if(e.key==="Backspace"&&(t===document.body||card.contains(t))){e.preventDefault();flUp();return}
+  const tr=t.closest?.("tr.fl-r");if(!tr||!card.contains(tr))return;
+  if(e.key==="Enter"){e.preventDefault();flOpen(tr.dataset.fl)}
+  else if(e.key===" "){e.preventDefault();flSetCur(tr.dataset.fl)}
+  else if(e.key==="ArrowDown"||e.key==="ArrowUp"){
+    const to=e.key==="ArrowDown"?tr.nextElementSibling:tr.previousElementSibling;
+    if(to?.dataset?.fl){e.preventDefault();to.focus();flSetCur(to.dataset.fl)}
+  }
+});
 const DET_TYPES=["Движение","Пересечение линии","Оставленный предмет","Исчезновение предмета","Скопление людей","Номер"];
 function camDetectors(n){return(n.devices||[]).filter(d=>d.type==="det")}
 function detTitle(d){return locName(d)}
@@ -18131,7 +18358,7 @@ function assignDeviceFolder(deviceId,folderId){
 function initDeviceWizard(c){
   const w={
     mode:"device-add",deviceTab:can("startDiscovery")?"search":"manual",deviceStep:1,domain:c.domain?.id||(c.node?.type==="folder"?folderDomain(c.node.id):c.node?.type==="archive"?archDomainId(c.node):c.node?.type==="found"?c.node.domainId:null)||domains[0]?.id,
-    server:c.server?.id||null,folder:(c.node?.type==="folder"?c.node.id:selFolder)||null,serverOnly:false,view:c.view,
+    server:c.server?.id||null,folder:(c.node?.type==="folder"?c.node.id:selFolder)||null,folderCtx:c.node?.type==="folder"?c.node.id:null,noFolder:c.node?.type!=="folder",serverOnly:false,view:c.view,
     devState:"idle",devSearchProgress:0,devFilter:"",devFiltPop:false,devSelectedOnly:false,devStatuses:{ok:true,manual:true,bad:true},
     devMode:"current",templateId:"",devResults:[],devFieldsPop:false,devViewMode:defaultDevViewMode(),devSelected:new Set(),
     bulkEditOpen:false,tplPop:false,modePop:false,tplFilter:"",bulkEdit:{vendor:"",model:"",user:"",pass:"",name:"",arch:"",group:"",record:""},
@@ -18350,7 +18577,7 @@ function deviceProfileButtonLabel(){
   }
   return (deviceAddModes().find(m=>m.id===wizd.devMode)||deviceAddModes()[0]).label;
 }
-function deviceWizardTitle(){return i18n("Добавить устройства")}
+function deviceWizardTitle(){const f=wizd.folderCtx&&folderById(wizd.folderCtx);return f?`${i18n("Добавить в папку")} «${locName(f)}»`:i18n("Добавить устройства")}
 function devGoIcon(){
   return lu("square-arrow-out-up-right");
 }
@@ -20199,13 +20426,13 @@ function comboBlur(el){
 // файла, — сначала попадает в один видимый план. В системе ничего не появится, пока
 // его не применили. План живёт в памяти (в нём пароли): закрытие окна и переходы по
 // дереву его не трогают, закрытие страницы — предупреждает.
-const addPlan={rows:[],key:null,keySig:null,applying:false,last:null,added:[]};
+const addPlan={rows:[],links:[],key:null,keySig:null,applying:false,last:null,added:[]};
 let planSeq=0;
 window.addEventListener("beforeunload",e=>{if(addPlan.rows.length){e.preventDefault();e.returnValue=""}});
 // Набор строк изменился — прежний ключ запроса уже не про этот набор
 function planTouch(){addPlan.key=null;addPlan.keySig=null}
 // Метка на кнопке: цифра сама по себе не говорит, что это несохранённый план
-function planBtnCount(){return addPlan.rows.length?`${i18n("В плане")}: ${addPlan.rows.length}`:""}
+function planBtnCount(){const n=addPlan.rows.length+addPlan.links.length;return n?`${i18n("В плане")}: ${n}`:""}
 function planBtnHint(){
   const n=addPlan.rows.length;
   return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n("В системе их ещё нет: откройте и нажмите «Применить план»")}`:"";
@@ -20285,7 +20512,7 @@ function planPush(source,r0,x={}){
   const r={...r0};delete r.planned;delete r.errors;delete r.warns;
   // У производителя RTSP адрес — только поток: IP и порта в строке нет, значит, и в запросе им быть незачем
   if(planShowsAddr(source)&&(r.type||"camera")==="camera"&&isRtspVendor(r.vendor)){r.ip="";r.port=80}
-  const folder=x.folderId!==undefined?x.folderId:(wizd.folder&&folderDomain(wizd.folder)===did?wizd.folder:null);
+  const folder=x.folderId!==undefined?x.folderId:(!wizd.noFolder&&wizd.folder&&folderDomain(wizd.folder)===did?wizd.folder:null);
   const row={pid:"pl"+(++planSeq),source,r,serverId:sid,domainId:did,folderId:folder,state:"plan",src:x.src||null,candidateId:x.candidateId||null};
   planFixArch(row);
   addPlan.rows.push(row);planTouch();addPlan.added=[];
@@ -20551,6 +20778,7 @@ function planPlural(n,forms){return i18n(plural(n,forms))}
 function planApply(retry){
   if(addPlan.applying)return;
   retry=retry===true;
+  if(!retry&&addPlan.links.length)planLinksApply().catch(e=>toast(problemText(e)));
   const rows=retry?planFailRows().filter(x=>!planRowIssues(x).some(i=>i.err)):planOkRows();
   if(!rows.length){if(retry)toast(i18n("Исправьте ошибки в строках"));return}
   const warned=rows.filter(x=>planRowIssues(x).some(i=>!i.err));
@@ -20664,9 +20892,9 @@ function planRowHtml(row){
   return`<div class="plan-row ${row.state==="fail"?"fail":""} ${row.open?"open":""}" data-pid="${row.pid}"><div class="plan-row-hd">${planRowHeadHtml(row)}</div>${body}</div>`;
 }
 function planFootHtml(){
-  const ok=planOkRows().length,badN=addPlan.rows.filter(x=>x.state==="plan").length-ok;
+  const okNew=planOkRows().length,ok=okNew+addPlan.links.length,badN=addPlan.rows.filter(x=>x.state==="plan").length-okNew;
   const failN=planFailRows().length,busy=addPlan.applying;
-  const why=busy?i18n("Идёт применение плана"):!addPlan.rows.length?i18n("План пуст"):!ok?i18n("Нет строк без ошибок"):"";
+  const why=busy?i18n("Идёт применение плана"):!addPlan.rows.length&&!addPlan.links.length?i18n("План пуст"):!ok?i18n("Нет строк без ошибок"):"";
   return`${badN>0?`<div class="plan-warn">${badN} ${planPlural(badN,"строка с ошибкой останется в плане|строки с ошибками останутся в плане|строк с ошибками останутся в плане")}</div>`:""}
     <button type="button" class="btn pri" id="planApplyBtn" data-fk="plan-apply" ${ok&&!busy?"":"disabled"} ${why?`title="${escHtml(why)}"`:""} ${onEv("click",["planApply"])}>${i18n("Применить план")} (${ok})</button>`+
     (failN?`<button type="button" class="btn" id="planRetryBtn" ${busy?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planRetry"])}>${i18n("Повторить неудачные")} (${failN})</button>`:"");
@@ -20678,9 +20906,9 @@ function planPanelHtml(){
   const sum=addPlan.last&&failN?`<div class="plan-sum">${i18n("Добавлено")} ${addPlan.last.done} · ${i18n("не добавлено")} ${failN}</div>`:"";
   let list="";
   const groups=new Map();rows.forEach(x=>{const k=planRowServer(x)||"";(groups.get(k)||groups.set(k,[]).get(k)).push(x)});
-  if(!rows.length)list=`<div class="plan-empty">${i18n("Отметьте устройства слева и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
-  else list=[...groups].map(([sid,part])=>`<div class="plan-grp">${sid?escHtml(locName(find(sid)?.n||{name:"—"})):i18n("Сервер выберет система")} · ${part.length}</div>`+part.map(planRowHtml).join("")).join("");
-  return`<div class="plan-hd"><b>${i18n("План")} · ${rows.length}</b>${rows.length?`<button type="button" class="lk" ${addPlan.applying?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planClear"])}>${i18n("Очистить план")}</button>`:""}</div>
+  if(!rows.length&&!addPlan.links.length)list=`<div class="plan-empty">${i18n("Отметьте устройства слева и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
+  else list=planLinksHtml()+[...groups].map(([sid,part])=>`<div class="plan-grp">${sid?escHtml(locName(find(sid)?.n||{name:"—"})):i18n("Сервер выберет система")} · ${part.length}</div>`+part.map(planRowHtml).join("")).join("");
+  return`<div class="plan-hd"><b>${i18n("План")} · ${rows.length+addPlan.links.length}</b>${rows.length?`<button type="button" class="lk" ${addPlan.applying?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planClear"])}>${i18n("Очистить план")}</button>`:""}</div>
     <div class="plan-rows">${added}${sum}${list}</div><div class="plan-ft" id="planFoot">${planFootHtml()}</div>`;
 }
 // Панель плана — только в ящике: панель «Найденных» в дереве остаётся одна. Ящик открыт — значит, он и есть wizd
@@ -20700,8 +20928,77 @@ function planRender(){
     (was.id?document.getElementById(was.id):row&&(was.pf?row.querySelector(`[data-pf="${was.pf}"]`):was.cls?row.querySelector("."+was.cls):null))?.focus();
   }
 }
+// ── Уже в системе: заведённое кладут в папку тем же планом ─────────────────
+const faS={q:"",chip:"free",sel:new Set()},faRead=new Set();
+function faFolder(){return wizd&&!wizd.noFolder&&wizd.folder?folderById(wizd.folder):null}
+function faRows(){
+  const f=faFolder();if(!f)return[];
+  const did=folderDomain(f.id),own={id:f.id,type:"folder"},q=faS.q.trim(),ws=queryWords(q);
+  return lanSysDevices(own).filter(d=>deviceDomain(d.id)===did).map(d=>({d,b:lanBindOf(own,d)})).filter(x=>x.b.k!=="here")
+    .filter(x=>!q||ws.some(words=>matchWords(words,[locName(x.d),x.d.ip,modelOf(x.d),x.b.t])));
+}
+function faSetQ(v){faS.q=v;renderDeviceWizard();requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
+function faSetChip(k){faS.chip=k;renderDeviceWizard()}
+function faPick(id,on){if(on)faS.sel.add(id);else faS.sel.delete(id);renderDeviceWizard()}
+function faPickAll(on,ids){ids.forEach(id=>on?faS.sel.add(id):faS.sel.delete(id));renderDeviceWizard()}
+function faLinked(id,fid){return addPlan.links.some(x=>x.id===id&&x.folderId===fid)}
+function faToPlan(){
+  const f=faFolder();if(!f||!faS.sel.size)return;
+  let n=0;
+  faS.sel.forEach(id=>{if(!faLinked(id,f.id)){addPlan.links.push({id,folderId:f.id});n++}});
+  faS.sel.clear();planDone(n,0);
+  renderDeviceWizard();
+}
+function deviceSysHtml(){
+  const f=faFolder();
+  if(!f)return`<p class="sub">${i18n("Выберите папку сверху: уже заведённое кладут в конкретную папку.")}</p>`;
+  const rows=faRows(),cnt=k=>rows.filter(x=>x.b.k===k).length;
+  // В строке перечня нет адреса и модели: дочитываем то, что показываем
+  const unread=rows.map(x=>x.d.id).filter(id=>find(id)?.n?._row&&!faRead.has(id));
+  if(unread.length){unread.forEach(id=>faRead.add(id));hwFullAll(unread.slice(0,200)).catch(()=>{}).then(()=>{if(planInDrawer()&&wizd.deviceTab==="sys")renderDeviceWizard()})}
+  const chips=[["free","Без папки",cnt("free")],["other","В других папках",cnt("other")],["all","Все",rows.length]];
+  const shown=faS.chip==="all"?rows:rows.filter(x=>x.b.k===faS.chip);
+  const ids=shown.filter(x=>!faLinked(x.d.id,f.id)).map(x=>x.d.id),on=ids.length&&ids.every(id=>faS.sel.has(id));
+  const tr=shown.map(({d,b})=>{
+    const inPlan=faLinked(d.id,f.id);
+    return`<tr class="gtbl-r ${faS.sel.has(d.id)?"ts-on":""}"><td class="lan-chk"><input type="checkbox" class="ts-chk" ${faS.sel.has(d.id)?"checked":""} ${inPlan?"disabled":""} aria-label="${escHtml(locName(d))}" ${onEv("change",["faPick",`${d.id}`,onEv.checked])}></td>
+      <td><span class="fl-nm"><span class="fl-nm-ic">${ic(d.type)}</span><span class="lan-name">${escHtml(locName(d))}</span></span></td><td>${escHtml(d.ip||"—")}</td><td>${escHtml(modelOf(d)||"—")}</td>
+      <td>${inPlan?`<span class="tag plan-tag">${i18n("В плане")}</span>`:`<span class="lan-bind lan-bind-${b.k}" title="${escHtml(b.t)}">${escHtml(b.t)}</span>`}</td></tr>`}).join("");
+  return`<div class="fa-wrap">
+    <p class="sub fa-lead">${i18n("Устройства, которые уже работают в системе. Они останутся там, где есть, и появятся ещё и в папке")} «${escHtml(locName(f))}».</p>
+    <div class="lan-chips">${chips.map(([k,l,c])=>`<button type="button" class="stchip ${faS.chip===k?"on":""}" ${onEv("click",["faSetChip",`${k}`])}><span class="stchip-lab">${i18n(l)}</span><span class="stchip-cnt">${c}</span></button>`).join("")}</div>
+    <div class="fl-tools"><div class="sq lan-sq"><span class="sq-lead" aria-hidden="true">${lu("funnel")}</span><input id="faQ" value="${escHtml(faS.q)}" placeholder="${i18n("Имя, IP или модель…")}" ${onEv("input",["faSetQ",onEv.value])} autocomplete="off"></div>
+      <button type="button" class="btn pri s" ${faS.sel.size?"":"disabled"} ${onEv("click",["faToPlan"])}>${i18n("В план")} (${faS.sel.size})</button></div>
+    <div class="lan-wrap fa-tbl"><table class="gtbl-cams lan-tbl"><thead><tr class="gtbl-h"><th class="lan-chk"><input type="checkbox" class="ts-chk" ${on?"checked":""} ${ids.length?"":"disabled"} aria-label="${i18n("Отметить все")}" ${onEv("change",["faPickAll",onEv.checked,ids])}></th><th>${i18n("Имя")}</th><th>${i18n("IP-адрес")}</th><th>${i18n("Модель")}</th><th>${i18n("Сейчас")}</th></tr></thead>
+    <tbody>${tr||`<tr><td class="empty" colspan="5">${i18n("Таких устройств нет")}</td></tr>`}</tbody></table></div>
+  </div>`;
+}
+// Куда попадут новые строки — всегда на виду: папка не должна подставляться молча
+function planFolderBarHtml(){
+  const cur=wizd.noFolder?"":wizd.folder||"";
+  return`<div class="plan-srv plan-fld"><label>${i18n("Папка")}:</label><span class="plan-fld-c">${comboFolderHtml(cur,["planSetFolder"],{head:[["",i18n("Без папки")]],aria:i18n("Папка")})}</span><span class="sub">${i18n(cur?"Куда положить то, что добавляете дальше":"Разложить можно позже: устройство будет в «Без папки»")}</span></div>`;
+}
+function planSetFolder(id){
+  wizd.noFolder=!id;
+  if(id)wizd.folder=id;
+  else if(wizd.deviceTab==="sys")wizd.deviceTab=can("startDiscovery")?"search":"manual";
+  renderDeviceWizard();
+}
+function planLinksHtml(){
+  const by=new Map();addPlan.links.forEach(x=>(by.get(x.folderId)||by.set(x.folderId,[]).get(x.folderId)).push(x.id));
+  return[...by].map(([fid,ids])=>`<div class="plan-grp">${i18n("Уже в системе → в папку")} «${escHtml(locName(folderById(fid)||{name:"—"}))}» · ${ids.length}</div>`+
+    ids.map(id=>{const d=find(id)?.n;return`<div class="plan-row"><div class="plan-row-hd plan-link"><span>${d?ic(d.type):""}</span><span class="lan-name">${escHtml(d?locName(d):id)}</span><button type="button" class="plan-x lk" aria-label="${i18n("Убрать")}" title="${i18n("Убрать")}" ${onEv("click",["planLinkRemove",`${id}`,`${fid}`])}>${lu("x")}</button></div></div>`}).join("")).join("");
+}
+function planLinkRemove(id,fid){addPlan.links=addPlan.links.filter(x=>!(x.id===id&&x.folderId===fid));planRepaint();renderDeviceWizard()}
+async function planLinksApply(){
+  const by=new Map();addPlan.links.forEach(x=>(by.get(x.folderId)||by.set(x.folderId,[]).get(x.folderId)).push(x.id));
+  const n=addPlan.links.length;addPlan.links=[];
+  for(const[fid,ids]of by)await folderChange(fid,ids,[]);
+  toast(`${i18n("Положено в папку")}: ${n}`);
+  paint();planRepaint();
+}
 function planTabsHtml(){
-  const tabs=[...(can("startDiscovery")?[["search","В сети"]]:[]),["manual","По адресу"],["csv","Из файла"]];
+  const tabs=[...(can("startDiscovery")?[["search","В сети"]]:[]),["manual","По адресу"],["csv","Из файла"],...(faFolder()?[["sys","Уже в системе"]]:[])];
   return`<div class="plan-tabs" role="tablist">${tabs.map(([k,l])=>`<button type="button" role="tab" class="plan-tab ${wizd.deviceTab===k?"on":""}" aria-selected="${wizd.deviceTab===k}" ${onEv("click",["setDeviceTab",k])}>${i18n(l)}</button>`).join("")}</div>`;
 }
 // Вход один: кнопка «Добавить устройства» открывает ящик, стрелка — то, что добавляют не в план (серверы, службы, хранилища)
@@ -20709,6 +21006,7 @@ function planOpen(t){
   lanOpenWizard(t||(can("startDiscovery")?"search":"manual"));
   if(wizd.deviceTab==="search"&&wizd.devState==="idle")refreshDeviceSearch();
 }
+function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}${planCntHtml()}</button>`}
 function addSplitItems(n){
   const items=[];
   if(n.type==="domain"){
@@ -20751,9 +21049,9 @@ function renderDeviceWizard(){
   document.getElementById("wst").style.display="none";
   document.getElementById("wizDr").classList.add("device-wizard");
   document.getElementById("wizDr").classList.remove("server-list");
-  const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
+  const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():wizd.deviceTab==="sys"?deviceSysHtml():deviceSearchHtml();
   // Слева — откуда берём (вкладки), справа — один план на все источники
-  wbd.innerHTML=`${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
+  wbd.innerHTML=`${planFolderBarHtml()}${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
   restoreView(wbd,wst);
   csvSyncAll();
   const allCb=document.getElementById("devSelectAll");
