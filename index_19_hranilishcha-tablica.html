@@ -1676,7 +1676,7 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .as-tbl tbody tr:focus-visible{outline:2px solid var(--bl);outline-offset:-2px}
 .as-num{text-align:right!important;font-variant-numeric:tabular-nums;white-space:nowrap}
 .as-tbl{table-layout:fixed}
-.as-tbl th:nth-child(2){width:176px}.as-tbl th:nth-child(3){width:156px}.as-tbl th:nth-child(4){width:72px}.as-tbl th:nth-child(5){width:52px}.as-tbl th:nth-child(6){width:104px}
+.as-tbl th:nth-child(2){width:190px}.as-tbl th:nth-child(3){width:166px}.as-tbl th:nth-child(4){width:76px}.as-tbl th:nth-child(5){width:52px}.as-tbl th:nth-child(6){width:108px}
 .as-tbl td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .as-name{display:flex;align-items:center;gap:6px;min-width:0;font-weight:500}
 .as-name>span:last-child{overflow:hidden;text-overflow:ellipsis}
@@ -2204,7 +2204,8 @@ function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:slice
 function asideWidthClamp(w){return Math.max(280,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
 function asideWidthDefault(){
   try{const saved=parseInt(localStorage.getItem("cfg.asideW"),10);if(saved)return asideWidthClamp(saved)}catch(e){}
-  return asideWidthClamp(window.innerWidth*.3);
+  // В срезе «Хранилища» дерево только выбирает место: ширина отдана таблице.
+  return asideWidthClamp(window.innerWidth*(slice==="arch"?.27:.3));
 }
 // Ширина живёт на корне, а не на .ws: по ней равняется ещё и поиск в шапке,
 // который лежит в другой ветке разметки.
@@ -2214,6 +2215,7 @@ function setAsideWidth(w,remember){
   if(remember){try{localStorage.setItem("cfg.asideW",String(asideW))}catch(e){}}
 }
 function syncViews(){
+  setAsideWidth(asideWidthDefault());
   tview=slice==="acfa"?"acfa":"cam";
   sview="cam";
 }
@@ -7752,6 +7754,7 @@ function archGroupPick(did){pick(did);archTbl.kind="net";resetPage("astor:"+did)
 // Раскрыть в дереве ветку выбранного хранилища
 function archSliceOpen(n){
   if(slice==="arch"&&n.type==="archive")open.add(n.server?"as:"+n.server:"as:net:"+archDomainId(n));
+  if(slice==="arch"&&n.type==="server"&&!isUnallocated(n.id)&&!serverArchives(n.id).length)open.add("as:bare:"+domainOf(n.id)?.id);
   if(slice==="arch")archTbl.kind="all";
 }
 // ── Срез «Хранилища»: таблица хранилищ места, выбранного в дереве ─────────
@@ -7765,8 +7768,8 @@ function archKeepSel(f){
   sel=(sv&&!isUnallocated(sv.id)?sv.id:scopedDomains()[0]?.id)||domains[0]?.id||sel;
 }
 function archTblItems(n){
-  if(n.type==="domain")return arch.filter(a=>archDomainId(a)===n.id);
-  return[...serverArchives(n.id),...domainArchives(domainOf(n.id)?.id)];
+  const list=n.type==="domain"?arch.filter(a=>archDomainId(a)===n.id):[...serverArchives(n.id),...domainArchives(domainOf(n.id)?.id)];
+  return list.filter(matchesStatus);
 }
 function archTblEnsure(n){
   const need=archTblItems(n).filter(a=>(!hwDone.volumes&&!volsDone.has(a.id))||!archCamIds.has(a.id));
@@ -7814,6 +7817,8 @@ function archTableCard(n){
   const addBtn=isDom
     ?(canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:"")
     :(can("createArchive")?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Хранилище")}…</button>`:"");
+  // Отбор ничего не дал: кнопки отбора остаются, иначе из пустого отбора не выйти.
+  if(all.length&&!items.length)return card(isDom?"Хранилища домена":"Хранилища сервера",`${chips}<p class="sub">${i18n("В этом отборе хранилищ нет")}</p>`,addBtn);
   const head=`<thead><tr>${archThHtml("name","Хранилище")}${archThHtml("owner","Владелец")}${archThHtml("used","Занято")}${archThHtml("days","Срок",1)}${archThHtml("cams","Камер",1)}${archThHtml("state","Состояние")}</tr></thead>`;
   return listCard({
     key:"astor:"+n.id,
@@ -7833,7 +7838,7 @@ function archTableCard(n){
         <td>${archStateHtml(a)}</td>
       </tr>`;
     },
-    empty:isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся",
+    empty:statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся",
     ph:"Имя, сервер или диск…",
     unit:"хранилище|хранилища|хранилищ",
     head:addBtn
