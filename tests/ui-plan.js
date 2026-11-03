@@ -700,17 +700,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Производитель RTSP: поле адреса называется RTSP, порта и «Определить» нет
   s3Cam("");
   let s3V = s3Cb("changeManualVendor");
-  s3Type(s3V, "uni");
-  ok(combo && s3Opts()[0] === "Uniview", "автокомплит: совпадение с начала имени — первым: " + s3Opts().slice(0, 3));
+  s3Type(s3V, "rtsp");
+  ok(combo && s3Opts()[0] === "RTSP", "автокомплит: совпадение с начала имени — первым: " + s3Opts().slice(0, 3));
   s3Key(s3V, "Enter");
   await until(() => !combo);
-  ok(wizd.manual.vendor === "Uniview", "автокомплит: Enter выбирает — " + wizd.manual.vendor);
-  // RTSP — пока вписанным руками: в наборе такого производителя нет (запрос mockup — виды и производители)
-  s3V = s3Cb("changeManualVendor");
-  s3Type(s3V, "RTSP");
-  s3Key(s3V, "Enter");
-  await until(() => !combo);
-  ok(/^rtsp$/i.test(wizd.manual.vendor), "производитель вне списка остаётся вписанным — " + wizd.manual.vendor);
+  ok(wizd.manual.vendor === "RTSP", "автокомплит: Enter выбирает — " + wizd.manual.vendor);
   ok(s3Labels().slice(0, 4).join() === "Тип устройства,Производитель,Модель,RTSP" && !s3Labels().includes("Порт") && !s3Labels().includes("IP-адрес"), "RTSP: поле адреса переименовано, порта нет — " + s3Labels().slice(0, 5));
   ok(!/Определить/.test(document.querySelector("#wbd .dev-grid").textContent), "RTSP: «Определить» не предлагается");
   ok(document.activeElement === s3Cb("changeManualVendor"), "автокомплит: после выбора фокус в том же поле");
@@ -814,6 +808,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   wizd.devSelected.clear();
 
   // Файл: регистр поправлен, производитель вне списка в план идёт и там же правится
+  ok(Object.keys(DEVICE_MODELS).length > 300 && DEVICE_MODELS.RTSP && !Object.keys(DEVICE_MODELS).some((v) => /joystick|^Vendor Name$/i.test(v)), "драйвер-пак: весь список, без джойстиков — " + Object.keys(DEVICE_MODELS).length);
   planClear();
   setDeviceTab("csv");
   wizd.csvRows = parseCsvDeviceRows(["10.8.1.1,80,hikvision,DS-2CD2143G2,admin,pw", `10.8.1.2,80,BOSCH,${DEVICE_MODELS.Bosch[0]},admin,pw`, "10.8.1.3,80,Нет такого,M1,admin,pw", "10.8.1.4,80,Axis,Нет такой,admin,pw"].join(String.fromCharCode(10)));
@@ -863,7 +858,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   });
   s3V = s3Cb("changeManualVendor");
   comboClick(s3V);
-  ok((Object.keys(DEVICE_MODELS).length <= COMBO_MAX || s3Opts()[0] === "Hikvision") && document.querySelector("#comboPop .combo-opt.cur.on") !== null, "текущий виден и выделен, и за первой сотней: " + s3Opts()[0]);
+  ok(s3Opts()[0] === "Hikvision" && document.querySelector("#comboPop .combo-opt.cur.on") !== null, "текущий за первой сотней виден и выделен: " + s3Opts()[0]);
   s3Key(s3V, "Enter");
   await until(() => !combo);
   ok(wizd.manual.vendor === "Hikvision" && wizd.manual.model === "Своя", "тот же производитель: модель не сброшена — " + wizd.manual.model);

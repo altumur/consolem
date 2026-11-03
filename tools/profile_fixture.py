@@ -195,6 +195,8 @@ def build(demo):
         role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if obj_kept(k)}
 
     ref = fx["reference"]
+    # Виды хранилищ — как у w2c: пять, без «Облачного» (ADR-0112 доп. (5) п. 2); в эталонном наборе оно есть
+    ref["archiveKinds"] = [k for k in ref["archiveKinds"] if k["kind"] != "cloud"]
     ref["ruleActions"] = [a for a in ref["ruleActions"] if a["action"] not in ACTIONS_OFF]
     for a in ref["ruleActions"]:
         if a["action"] == "record":

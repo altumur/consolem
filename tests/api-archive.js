@@ -1,6 +1,6 @@
 /* Тесты API: виды хранилищ от сервера, архив на весь сервер, запись камеры по виду, том. */
 (() => {
-  const { test, makeEnv, assert, key, FX } = ApiTest;
+  const { test, makeEnv, assert, key, FX, fixtureName } = ApiTest;
   const GB = 1024 ** 3;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const of = (kind) => FX.archives.find((a) => a.kind === kind);
@@ -22,7 +22,9 @@
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
     assert.ok(ref.archiveKinds.every((k) => typeof k === "object" && Array.isArray(k.recordModes) && Array.isArray(k.archiveModes)), "объекты");
-    assert.eq(ref.archiveKinds.map((x) => x.kind).sort(), ["backup", "edge", "incidents", "local", "network"], "пять видов, cloud не объявляется");
+    // Эталонный набор — шесть видов с «Облачным» (запрос mockup 2026-11-03), профиль как у w2c — пять, cloud не объявляется
+    const kinds = ["backup", "edge", "incidents", "local", "network"].concat(fixtureName === "demo" ? ["cloud"] : []).sort();
+    assert.eq(ref.archiveKinds.map((x) => x.kind).sort(), kinds, fixtureName === "demo" ? "шесть видов с cloud" : "пять видов, cloud не объявляется");
     assert.ok(ref.recordModes.includes("backup"), "значение backup в reference.recordModes");
     field(await env.call("POST", "/archives", body({ kind: "tape" })), "NOT_SUPPORTED", "kind", "вид вне списка");
     field(await env.call("POST", "/archives/check", { kind: "tape", provider: null, volume: { name: "x", disk: "x", sizeBytes: GB } }), "NOT_SUPPORTED", "kind", "проверка вида вне списка");

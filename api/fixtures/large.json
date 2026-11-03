@@ -8560,6 +8560,146 @@
  "reference": {
   "deviceModels": [
    {
+    "vendor": "360Vision",
+    "models": []
+   },
+   {
+    "vendor": "3S",
+    "models": []
+   },
+   {
+    "vendor": "Abron",
+    "models": []
+   },
+   {
+    "vendor": "ABUS",
+    "models": []
+   },
+   {
+    "vendor": "ACTi",
+    "models": []
+   },
+   {
+    "vendor": "Acumen",
+    "models": []
+   },
+   {
+    "vendor": "Adino",
+    "models": []
+   },
+   {
+    "vendor": "Advantech",
+    "models": []
+   },
+   {
+    "vendor": "Aebell",
+    "models": []
+   },
+   {
+    "vendor": "AEVision",
+    "models": []
+   },
+   {
+    "vendor": "AGRG",
+    "models": []
+   },
+   {
+    "vendor": "AiMobile",
+    "models": []
+   },
+   {
+    "vendor": "Alinking",
+    "models": []
+   },
+   {
+    "vendor": "AlphaOTM",
+    "models": []
+   },
+   {
+    "vendor": "Amatek",
+    "models": []
+   },
+   {
+    "vendor": "AMG",
+    "models": []
+   },
+   {
+    "vendor": "Ampleye B.V.",
+    "models": []
+   },
+   {
+    "vendor": "AMTK",
+    "models": []
+   },
+   {
+    "vendor": "Andy",
+    "models": []
+   },
+   {
+    "vendor": "Arecont Vision",
+    "models": []
+   },
+   {
+    "vendor": "ARH",
+    "models": []
+   },
+   {
+    "vendor": "Arlotto",
+    "models": []
+   },
+   {
+    "vendor": "Asoni",
+    "models": []
+   },
+   {
+    "vendor": "ASTR",
+    "models": []
+   },
+   {
+    "vendor": "Astra",
+    "models": []
+   },
+   {
+    "vendor": "Astrohn",
+    "models": []
+   },
+   {
+    "vendor": "Aver",
+    "models": []
+   },
+   {
+    "vendor": "AverDVR",
+    "models": []
+   },
+   {
+    "vendor": "Avgit",
+    "models": []
+   },
+   {
+    "vendor": "AVIGILON",
+    "models": []
+   },
+   {
+    "vendor": "AVIGILON generic",
+    "models": []
+   },
+   {
+    "vendor": "AVIOSYS",
+    "models": []
+   },
+   {
+    "vendor": "AVTech",
+    "models": []
+   },
+   {
+    "vendor": "AVTS",
+    "models": []
+   },
+   {
+    "vendor": "Avycon",
+    "models": []
+   },
+   {
     "vendor": "Axis",
     "models": [
      "generic",
@@ -8570,12 +8710,80 @@
     ]
    },
    {
+    "vendor": "AxyCam",
+    "models": []
+   },
+   {
+    "vendor": "Balter",
+    "models": []
+   },
+   {
+    "vendor": "Basler",
+    "models": []
+   },
+   {
+    "vendor": "BCS",
+    "models": []
+   },
+   {
+    "vendor": "BestDigital",
+    "models": []
+   },
+   {
+    "vendor": "BestDVR",
+    "models": []
+   },
+   {
+    "vendor": "BestNVR",
+    "models": []
+   },
+   {
+    "vendor": "Beward",
+    "models": []
+   },
+   {
+    "vendor": "BikInform",
+    "models": []
+   },
+   {
+    "vendor": "BlacklineSafety",
+    "models": []
+   },
+   {
+    "vendor": "BOLID",
+    "models": []
+   },
+   {
+    "vendor": "Bolin Technology",
+    "models": []
+   },
+   {
     "vendor": "Bosch",
     "models": [
      "NBN-73023",
      "FLEXIDOME IP 3000i",
      "AUTODOME IP 5000i"
     ]
+   },
+   {
+    "vendor": "Bosch Generic",
+    "models": []
+   },
+   {
+    "vendor": "Brickcom",
+    "models": []
+   },
+   {
+    "vendor": "BSP",
+    "models": []
+   },
+   {
+    "vendor": "Byterg",
+    "models": []
+   },
+   {
+    "vendor": "Cametron",
+    "models": []
    },
    {
     "vendor": "Canon",
@@ -8586,6 +8794,66 @@
     ]
    },
    {
+    "vendor": "CaptureDevice",
+    "models": []
+   },
+   {
+    "vendor": "Cellinx",
+    "models": []
+   },
+   {
+    "vendor": "CERTIS",
+    "models": []
+   },
+   {
+    "vendor": "Cisco",
+    "models": []
+   },
+   {
+    "vendor": "CloudClient",
+    "models": []
+   },
+   {
+    "vendor": "CNB",
+    "models": []
+   },
+   {
+    "vendor": "Commax",
+    "models": []
+   },
+   {
+    "vendor": "Commax Complex Server",
+    "models": []
+   },
+   {
+    "vendor": "Commax generic",
+    "models": []
+   },
+   {
+    "vendor": "Commbox",
+    "models": []
+   },
+   {
+    "vendor": "ComOnyx",
+    "models": []
+   },
+   {
+    "vendor": "Compotrol",
+    "models": []
+   },
+   {
+    "vendor": "Corwus",
+    "models": []
+   },
+   {
+    "vendor": "CP Plus",
+    "models": []
+   },
+   {
+    "vendor": "D-Link",
+    "models": []
+   },
+   {
     "vendor": "Dahua",
     "models": [
      "IPC-HFW5241",
@@ -8594,10 +8862,186 @@
     ]
    },
    {
+    "vendor": "DahuaDSS",
+    "models": []
+   },
+   {
+    "vendor": "DahuaNetSDK",
+    "models": []
+   },
+   {
+    "vendor": "DahuaSDK",
+    "models": []
+   },
+   {
+    "vendor": "Digiever",
+    "models": []
+   },
+   {
+    "vendor": "DiGieyes",
+    "models": []
+   },
+   {
+    "vendor": "DigitalWatchdog",
+    "models": []
+   },
+   {
+    "vendor": "DSSL",
+    "models": []
+   },
+   {
+    "vendor": "Dynacolor",
+    "models": []
+   },
+   {
+    "vendor": "EasyN",
+    "models": []
+   },
+   {
+    "vendor": "ECHD",
+    "models": []
+   },
+   {
+    "vendor": "Eneo",
+    "models": []
+   },
+   {
+    "vendor": "EPI",
+    "models": []
+   },
+   {
+    "vendor": "Ericsson",
+    "models": []
+   },
+   {
+    "vendor": "Etrovision",
+    "models": []
+   },
+   {
+    "vendor": "Etz",
+    "models": []
+   },
+   {
+    "vendor": "EverFocus",
+    "models": []
+   },
+   {
+    "vendor": "Everview",
+    "models": []
+   },
+   {
+    "vendor": "EVG",
+    "models": []
+   },
+   {
+    "vendor": "eVidence",
+    "models": []
+   },
+   {
+    "vendor": "EVS",
+    "models": []
+   },
+   {
+    "vendor": "FFMPEG",
+    "models": []
+   },
+   {
+    "vendor": "FINE",
+    "models": []
+   },
+   {
+    "vendor": "FineCCTV",
+    "models": []
+   },
+   {
+    "vendor": "FlexWatch",
+    "models": []
+   },
+   {
+    "vendor": "Flir",
+    "models": []
+   },
+   {
+    "vendor": "FlirAXSeries",
+    "models": []
+   },
+   {
+    "vendor": "G4S",
+    "models": []
+   },
+   {
+    "vendor": "GAI-Tronics",
+    "models": []
+   },
+   {
+    "vendor": "Ganz",
+    "models": []
+   },
+   {
+    "vendor": "GBT28181",
+    "models": []
+   },
+   {
+    "vendor": "Geovision",
+    "models": []
+   },
+   {
+    "vendor": "GFE",
+    "models": []
+   },
+   {
+    "vendor": "GIGA",
+    "models": []
+   },
+   {
+    "vendor": "GIT",
+    "models": []
+   },
+   {
+    "vendor": "Glosav",
+    "models": []
+   },
+   {
+    "vendor": "Grandstream",
+    "models": []
+   },
+   {
     "vendor": "Grundig",
     "models": [
      "GD-CI-AP4746P"
     ]
+   },
+   {
+    "vendor": "Grundig CVion",
+    "models": []
+   },
+   {
+    "vendor": "Grundig SMART Line",
+    "models": []
+   },
+   {
+    "vendor": "Gunnebo",
+    "models": []
+   },
+   {
+    "vendor": "Hanwha Techwin",
+    "models": []
+   },
+   {
+    "vendor": "Hanwha Techwin generic",
+    "models": []
+   },
+   {
+    "vendor": "HawkEye",
+    "models": []
+   },
+   {
+    "vendor": "HikCentralPro",
+    "models": []
+   },
+   {
+    "vendor": "HikConnect",
+    "models": []
    },
    {
     "vendor": "Hikvision",
@@ -8609,6 +9053,42 @@
     ]
    },
    {
+    "vendor": "HiWatch",
+    "models": []
+   },
+   {
+    "vendor": "Holowits",
+    "models": []
+   },
+   {
+    "vendor": "Homeland Safety Systems",
+    "models": []
+   },
+   {
+    "vendor": "Honeywell",
+    "models": []
+   },
+   {
+    "vendor": "HttpListener",
+    "models": []
+   },
+   {
+    "vendor": "Huawei",
+    "models": []
+   },
+   {
+    "vendor": "HuaweiIVS",
+    "models": []
+   },
+   {
+    "vendor": "Hunda",
+    "models": []
+   },
+   {
+    "vendor": "Hunt",
+    "models": []
+   },
+   {
     "vendor": "IDIS",
     "models": [
      "DC-S3538HRX",
@@ -8616,10 +9096,338 @@
     ]
    },
    {
+    "vendor": "iFlow",
+    "models": []
+   },
+   {
+    "vendor": "IMOU",
+    "models": []
+   },
+   {
+    "vendor": "Inaxsys Legend",
+    "models": []
+   },
+   {
+    "vendor": "Inaxsys STORM",
+    "models": []
+   },
+   {
+    "vendor": "IndigoVision",
+    "models": []
+   },
+   {
+    "vendor": "Infiniti",
+    "models": []
+   },
+   {
+    "vendor": "Infinity",
+    "models": []
+   },
+   {
+    "vendor": "Infinova",
+    "models": []
+   },
+   {
+    "vendor": "Infralan",
+    "models": []
+   },
+   {
+    "vendor": "InHot",
+    "models": []
+   },
+   {
+    "vendor": "InMotion",
+    "models": []
+   },
+   {
+    "vendor": "Intel",
+    "models": []
+   },
+   {
+    "vendor": "Intelbras",
+    "models": []
+   },
+   {
+    "vendor": "Intellico",
+    "models": []
+   },
+   {
+    "vendor": "Intelliko",
+    "models": []
+   },
+   {
+    "vendor": "Interop",
+    "models": []
+   },
+   {
+    "vendor": "Intralogic Solutions",
+    "models": []
+   },
+   {
+    "vendor": "InVid",
+    "models": []
+   },
+   {
+    "vendor": "IOBoard",
+    "models": []
+   },
+   {
+    "vendor": "IPDROM",
+    "models": []
+   },
+   {
+    "vendor": "IPDROM generic",
+    "models": []
+   },
+   {
+    "vendor": "IPS",
+    "models": []
+   },
+   {
+    "vendor": "IPTRONIC",
+    "models": []
+   },
+   {
+    "vendor": "IPux",
+    "models": []
+   },
+   {
+    "vendor": "IPV Halo Smart Sensors",
+    "models": []
+   },
+   {
+    "vendor": "IPVideo Corporation",
+    "models": []
+   },
+   {
+    "vendor": "IQeye",
+    "models": []
+   },
+   {
+    "vendor": "IRLab",
+    "models": []
+   },
+   {
+    "vendor": "iZett",
+    "models": []
+   },
+   {
+    "vendor": "J2000IP",
+    "models": []
+   },
+   {
+    "vendor": "Jasamarga",
+    "models": []
+   },
+   {
+    "vendor": "Jassun",
+    "models": []
+   },
+   {
+    "vendor": "Jovision",
+    "models": []
+   },
+   {
+    "vendor": "JVC",
+    "models": []
+   },
+   {
+    "vendor": "JVC NVR",
+    "models": []
+   },
+   {
+    "vendor": "K-New",
+    "models": []
+   },
+   {
+    "vendor": "KernelChip",
+    "models": []
+   },
+   {
+    "vendor": "KONEKT",
+    "models": []
+   },
+   {
+    "vendor": "LegacySDK",
+    "models": []
+   },
+   {
+    "vendor": "Legrand",
+    "models": []
+   },
+   {
+    "vendor": "Lesohranitel",
+    "models": []
+   },
+   {
+    "vendor": "LevelOne",
+    "models": []
+   },
+   {
+    "vendor": "LG",
+    "models": []
+   },
+   {
+    "vendor": "Li-Lin",
+    "models": []
+   },
+   {
+    "vendor": "LILIN",
+    "models": []
+   },
+   {
+    "vendor": "Linceo",
+    "models": []
+   },
+   {
+    "vendor": "Live Eye",
+    "models": []
+   },
+   {
+    "vendor": "Logitech",
+    "models": []
+   },
+   {
+    "vendor": "LTS",
+    "models": []
+   },
+   {
+    "vendor": "LTS Platinum",
+    "models": []
+   },
+   {
+    "vendor": "LTV",
+    "models": []
+   },
+   {
+    "vendor": "Luminys Basic",
+    "models": []
+   },
+   {
+    "vendor": "Luminys generic",
+    "models": []
+   },
+   {
+    "vendor": "LuminysSDK",
+    "models": []
+   },
+   {
+    "vendor": "Luna",
+    "models": []
+   },
+   {
+    "vendor": "Mago",
+    "models": []
+   },
+   {
+    "vendor": "Mango",
+    "models": []
+   },
+   {
+    "vendor": "March",
+    "models": []
+   },
+   {
+    "vendor": "Master",
+    "models": []
+   },
+   {
+    "vendor": "Mediatronix",
+    "models": []
+   },
+   {
+    "vendor": "MeritLilin",
+    "models": []
+   },
+   {
+    "vendor": "Messoa",
+    "models": []
+   },
+   {
+    "vendor": "MicroDigital",
+    "models": []
+   },
+   {
+    "vendor": "Milesight",
+    "models": []
+   },
+   {
+    "vendor": "MilesightToF",
+    "models": []
+   },
+   {
+    "vendor": "Mitsubishi",
+    "models": []
+   },
+   {
+    "vendor": "Mobotix",
+    "models": []
+   },
+   {
+    "vendor": "MOXA",
+    "models": []
+   },
+   {
+    "vendor": "Naziraty",
+    "models": []
+   },
+   {
+    "vendor": "NexusIP",
+    "models": []
+   },
+   {
+    "vendor": "NIC Tehnologii",
+    "models": []
+   },
+   {
+    "vendor": "NicTechGeneric",
+    "models": []
+   },
+   {
+    "vendor": "Nikiret",
+    "models": []
+   },
+   {
+    "vendor": "Novicam",
+    "models": []
+   },
+   {
+    "vendor": "Novus",
+    "models": []
+   },
+   {
+    "vendor": "Olvia",
+    "models": []
+   },
+   {
+    "vendor": "OlviaFTP",
+    "models": []
+   },
+   {
+    "vendor": "OMNY",
+    "models": []
+   },
+   {
+    "vendor": "OncamGrandeye",
+    "models": []
+   },
+   {
+    "vendor": "ONVIF 2.X",
+    "models": []
+   },
+   {
     "vendor": "ONVIF generic",
     "models": [
      "generic"
     ]
+   },
+   {
+    "vendor": "Optelecom",
+    "models": []
+   },
+   {
+    "vendor": "OTN Systems",
+    "models": []
    },
    {
     "vendor": "Panasonic",
@@ -8629,6 +9437,226 @@
     ]
    },
    {
+    "vendor": "Panasonic generic",
+    "models": []
+   },
+   {
+    "vendor": "Partizan",
+    "models": []
+   },
+   {
+    "vendor": "Patronus Laboratories Corporation",
+    "models": []
+   },
+   {
+    "vendor": "Pelco",
+    "models": []
+   },
+   {
+    "vendor": "Perfect-4",
+    "models": []
+   },
+   {
+    "vendor": "Pinetron",
+    "models": []
+   },
+   {
+    "vendor": "Pixeye",
+    "models": []
+   },
+   {
+    "vendor": "Pixord",
+    "models": []
+   },
+   {
+    "vendor": "Planet",
+    "models": []
+   },
+   {
+    "vendor": "POSLegacy",
+    "models": []
+   },
+   {
+    "vendor": "PosXml",
+    "models": []
+   },
+   {
+    "vendor": "PRESENTCO",
+    "models": []
+   },
+   {
+    "vendor": "Probe",
+    "models": []
+   },
+   {
+    "vendor": "Probe Digital",
+    "models": []
+   },
+   {
+    "vendor": "PROENG",
+    "models": []
+   },
+   {
+    "vendor": "Promelit",
+    "models": []
+   },
+   {
+    "vendor": "Provision",
+    "models": []
+   },
+   {
+    "vendor": "PSIA",
+    "models": []
+   },
+   {
+    "vendor": "Q-cam",
+    "models": []
+   },
+   {
+    "vendor": "QNAP",
+    "models": []
+   },
+   {
+    "vendor": "REDLINE",
+    "models": []
+   },
+   {
+    "vendor": "RIVA",
+    "models": []
+   },
+   {
+    "vendor": "ROKA",
+    "models": []
+   },
+   {
+    "vendor": "Rostec",
+    "models": []
+   },
+   {
+    "vendor": "RS",
+    "models": []
+   },
+   {
+    "vendor": "RTP stream device",
+    "models": []
+   },
+   {
+    "vendor": "RTSP",
+    "models": []
+   },
+   {
+    "vendor": "Rubetek",
+    "models": []
+   },
+   {
+    "vendor": "RVi",
+    "models": []
+   },
+   {
+    "vendor": "Samsung",
+    "models": []
+   },
+   {
+    "vendor": "SamsungTW",
+    "models": []
+   },
+   {
+    "vendor": "Santec",
+    "models": []
+   },
+   {
+    "vendor": "Sanyo",
+    "models": []
+   },
+   {
+    "vendor": "SCS",
+    "models": []
+   },
+   {
+    "vendor": "SEEnergy",
+    "models": []
+   },
+   {
+    "vendor": "Selea",
+    "models": []
+   },
+   {
+    "vendor": "SenstarSymphony",
+    "models": []
+   },
+   {
+    "vendor": "Sentry360",
+    "models": []
+   },
+   {
+    "vendor": "Sentryway",
+    "models": []
+   },
+   {
+    "vendor": "SenturianServerGeneric",
+    "models": []
+   },
+   {
+    "vendor": "SERVICE TELEMATIKA",
+    "models": []
+   },
+   {
+    "vendor": "SerVision",
+    "models": []
+   },
+   {
+    "vendor": "Sieza",
+    "models": []
+   },
+   {
+    "vendor": "SightlineApplications",
+    "models": []
+   },
+   {
+    "vendor": "SimpleIP",
+    "models": []
+   },
+   {
+    "vendor": "Singtel",
+    "models": []
+   },
+   {
+    "vendor": "Sinkross",
+    "models": []
+   },
+   {
+    "vendor": "SIP",
+    "models": []
+   },
+   {
+    "vendor": "SIP and RTSP",
+    "models": []
+   },
+   {
+    "vendor": "SIP Device",
+    "models": []
+   },
+   {
+    "vendor": "SIP with RTSP",
+    "models": []
+   },
+   {
+    "vendor": "SIP with Video",
+    "models": []
+   },
+   {
+    "vendor": "Smartec",
+    "models": []
+   },
+   {
+    "vendor": "SMAVID",
+    "models": []
+   },
+   {
+    "vendor": "SNR",
+    "models": []
+   },
+   {
     "vendor": "Sony",
     "models": [
      "SNC-VB632D",
@@ -8636,11 +9664,259 @@
     ]
    },
    {
+    "vendor": "Sophus",
+    "models": []
+   },
+   {
+    "vendor": "Spark",
+    "models": []
+   },
+   {
+    "vendor": "Spezvision",
+    "models": []
+   },
+   {
+    "vendor": "Sprut",
+    "models": []
+   },
+   {
+    "vendor": "ST",
+    "models": []
+   },
+   {
+    "vendor": "StarDot",
+    "models": []
+   },
+   {
+    "vendor": "Stkomplex",
+    "models": []
+   },
+   {
+    "vendor": "STORM",
+    "models": []
+   },
+   {
+    "vendor": "StreamLabs",
+    "models": []
+   },
+   {
+    "vendor": "Stretch",
+    "models": []
+   },
+   {
+    "vendor": "Sunell",
+    "models": []
+   },
+   {
+    "vendor": "Sunkwang",
+    "models": []
+   },
+   {
+    "vendor": "Svplus",
+    "models": []
+   },
+   {
+    "vendor": "Takex",
+    "models": []
+   },
+   {
+    "vendor": "Tamron",
+    "models": []
+   },
+   {
+    "vendor": "Tantos",
+    "models": []
+   },
+   {
+    "vendor": "Targa Systems",
+    "models": []
+   },
+   {
+    "vendor": "TARGET",
+    "models": []
+   },
+   {
+    "vendor": "Tattile",
+    "models": []
+   },
+   {
+    "vendor": "TBK",
+    "models": []
+   },
+   {
+    "vendor": "TcpListener",
+    "models": []
+   },
+   {
+    "vendor": "Teb",
+    "models": []
+   },
+   {
+    "vendor": "Techpro Security",
+    "models": []
+   },
+   {
+    "vendor": "Tecnosens",
+    "models": []
+   },
+   {
+    "vendor": "TEDD",
+    "models": []
+   },
+   {
+    "vendor": "TeleEye",
+    "models": []
+   },
+   {
+    "vendor": "Tiandy",
+    "models": []
+   },
+   {
+    "vendor": "Tibbo",
+    "models": []
+   },
+   {
+    "vendor": "Tibet",
+    "models": []
+   },
+   {
+    "vendor": "TrendNet",
+    "models": []
+   },
+   {
+    "vendor": "Trezor",
+    "models": []
+   },
+   {
+    "vendor": "True IP",
+    "models": []
+   },
+   {
+    "vendor": "TruVision",
+    "models": []
+   },
+   {
+    "vendor": "TVHelp",
+    "models": []
+   },
+   {
+    "vendor": "TVT",
+    "models": []
+   },
+   {
+    "vendor": "Tyco",
+    "models": []
+   },
+   {
+    "vendor": "Typhoon",
+    "models": []
+   },
+   {
+    "vendor": "UDP",
+    "models": []
+   },
+   {
+    "vendor": "Uniarch",
+    "models": []
+   },
+   {
     "vendor": "Uniview",
     "models": [
      "IPC322LR3",
      "IPC3615SB-ADF28KM-I0"
     ]
+   },
+   {
+    "vendor": "V1netIP",
+    "models": []
+   },
+   {
+    "vendor": "Vandi",
+    "models": []
+   },
+   {
+    "vendor": "Veilux",
+    "models": []
+   },
+   {
+    "vendor": "Verint",
+    "models": []
+   },
+   {
+    "vendor": "Vesta",
+    "models": []
+   },
+   {
+    "vendor": "Video Intelligent",
+    "models": []
+   },
+   {
+    "vendor": "Videosec",
+    "models": []
+   },
+   {
+    "vendor": "Videotec",
+    "models": []
+   },
+   {
+    "vendor": "ViDigi",
+    "models": []
+   },
+   {
+    "vendor": "Vido",
+    "models": []
+   },
+   {
+    "vendor": "VidoNet",
+    "models": []
+   },
+   {
+    "vendor": "Vigilate",
+    "models": []
+   },
+   {
+    "vendor": "Virtual",
+    "models": [
+     "Virtual IP server",
+     "TestDevice",
+     "generic"
+    ]
+   },
+   {
+    "vendor": "Virtual bench",
+    "models": []
+   },
+   {
+    "vendor": "Virtual Generic",
+    "models": []
+   },
+   {
+    "vendor": "Visiocom",
+    "models": []
+   },
+   {
+    "vendor": "Vision",
+    "models": []
+   },
+   {
+    "vendor": "VisionTek",
+    "models": []
+   },
+   {
+    "vendor": "VisioWave",
+    "models": []
+   },
+   {
+    "vendor": "VisualGate",
+    "models": []
+   },
+   {
+    "vendor": "Visualint",
+    "models": []
+   },
+   {
+    "vendor": "VITEK",
+    "models": []
    },
    {
     "vendor": "Vivotek",
@@ -8651,12 +9927,72 @@
     ]
    },
    {
-    "vendor": "Virtual",
-    "models": [
-     "Virtual IP server",
-     "TestDevice",
-     "generic"
-    ]
+    "vendor": "VivotekNVR",
+    "models": []
+   },
+   {
+    "vendor": "VMsistemos",
+    "models": []
+   },
+   {
+    "vendor": "VniiaRadiation",
+    "models": []
+   },
+   {
+    "vendor": "VWEB",
+    "models": []
+   },
+   {
+    "vendor": "WatchNET",
+    "models": []
+   },
+   {
+    "vendor": "Webgate",
+    "models": []
+   },
+   {
+    "vendor": "WebPlayer",
+    "models": []
+   },
+   {
+    "vendor": "Witson",
+    "models": []
+   },
+   {
+    "vendor": "WuT",
+    "models": []
+   },
+   {
+    "vendor": "Xenics",
+    "models": []
+   },
+   {
+    "vendor": "XeronVision",
+    "models": []
+   },
+   {
+    "vendor": "Y-cam",
+    "models": []
+   },
+   {
+    "vendor": "Youngkook",
+    "models": []
+   },
+   {
+    "vendor": "Yuan",
+    "models": []
+   },
+   {
+    "vendor": "Yudor",
+    "models": []
+   },
+   {
+    "vendor": "Zavio",
+    "models": []
+   },
+   {
+    "vendor": "Zenosys",
+    "models": []
    },
    {
     "vendor": "Zet",
