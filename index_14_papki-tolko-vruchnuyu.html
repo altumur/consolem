@@ -5544,8 +5544,15 @@ function walkSliceObjects(fn){
   const visit=(n,p)=>{if(matchesDomain(n))fn(n,p)};
   walkAll(visit);if(slice==="arch")arch.forEach(n=>visit(n,archOwner(n)));
 }
+// Сервер ищет сразу по всем срезам, срез отбирает интерфейс: считаем только то, что покажем.
+// В «Детекторах» считаются детекторы, как на кнопке среза, а не их камеры.
+function filtHitCount(){
+  // В дереве по папкам служб нет: они стоят только под серверами. Плоский список показывает и их
+  const noSvc=!fs.flat&&group()==="folder";
+  return fs.order.filter(id=>{const n=find(id)?.n;return n&&!(noSvc&&treeKind(n)==="sys")&&(slice==="det"?n.type==="det"&&matchesDomain(n):selfOrDet(n))}).length;
+}
 function countFiltered(){
-  if(fs&&!(fs.pick&&treeQ.trim()))return fs.hits.size;
+  if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
   const q=qval();let n=0;
   walkSliceObjects((node,p)=>{if(slice==="det"){if(matchesStatus(node)&&detSliceHit(node,p,q))n++;return}
     if(node.type==="det"||node.type==="domain"||node.type==="unalloc")return;if(selfInView(node)&&matchesSearch(node,q))n++});
@@ -6606,8 +6613,8 @@ function filtHint(){
     return`${i18n("Отобрано ассистентом:")} ${fs.hits.size}${cut}${fs.done?"":` · ${i18n("загружено")} ${fs.at}`}`;
   }
   if(!fs)return hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
-  if(fs.failed)return`${i18n("Найдено не всё:")} ${fs.hits.size}`;
-  return fs.done?`${i18n("Найдено:")} ${fs.hits.size}`:`${i18n("Ищем дальше, уже")} ${fs.hits.size}`;
+  if(fs.failed)return`${i18n("Найдено не всё:")} ${filtHitCount()}`;
+  return fs.done?`${i18n("Найдено:")} ${filtHitCount()}`:`${i18n("Ищем дальше, уже")} ${filtHitCount()}`;
 }
 function treeFlat(){
   const q=qval();
@@ -6700,6 +6707,8 @@ function setSlice(v){
   treeMatchCache.clear();searchMatchCache.clear();treeSel.clear();treeAnchor=null;
   expandSliceBranches();
   keepSelectionInSlice();
+  // Прежний поиск относится к прежнему срезу: шапка не должна нарисоваться с его счётом
+  filtSync();
   aside();gear();
 }
 function setGroup(g){
