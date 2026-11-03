@@ -12760,7 +12760,7 @@ function ruleOrderHtml(r){
 
 // ── Тишина: разовое приглушение и окна обслуживания ──
 // Приглушённое правило запускается и пишет трассу, но действий не выполняет: в журнале — «приглушено до …».
-function ruleStamp(d){const p=n=>String(n).padStart(2,"0");return`${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`}
+function ruleStamp(d){return localStamp(d.toISOString())}
 function ruleMuteAt(r,d){const m=r.mute,t=ruleStamp(d||new Date());return m&&t<m.until&&(!m.since||t>=m.since)?m:null}
 function ruleMuteNow(r){return ruleMuteAt(r,new Date())}
 // «18:00» — если сегодня, иначе «24.10 18:00».
@@ -12777,13 +12777,13 @@ function ruleMuteOpen(ids){
   rmu={ids:list,opt:"1h",until:"",why:""};
   ruleMuteRender();
 }
-function ruleMuteUntil(){
+function ruleMuteUntilStamp(){
   const d=new Date();
   if(rmu.opt==="1h"){d.setHours(d.getHours()+1);return ruleStamp(d)}
   if(rmu.opt==="day")return`${ruleStamp(d).slice(0,10)} 23:59`;
   return rmu.until?rmu.until.replace("T"," ").slice(0,16):"";
 }
-function ruleMuteOk(){const u=ruleMuteUntil();return!!u&&u>ruleStamp(new Date())}
+function ruleMuteOk(){const u=ruleMuteUntilStamp();return!!u&&u>ruleStamp(new Date())}
 function ruleMuteSync(){const b=document.getElementById("rmuApply");if(b)b.disabled=!ruleMuteOk()}
 function ruleMuteOpt(v){rmu.opt=v;ruleMuteRender()}
 function ruleMuteUntil(v){rmu.until=v;ruleMuteSync()}
@@ -12803,7 +12803,7 @@ function ruleMuteRender(){
 }
 function ruleMuteApply(){
   if(!rmu||!ruleMuteOk())return;
-  const m={since:ruleStamp(new Date()),until:ruleMuteUntil(),by:ACC_ME,why:(rmu.why||"").trim()},ids=rmu.ids;
+  const m={since:ruleStamp(new Date()),until:ruleMuteUntilStamp(),by:ACC_ME,why:(rmu.why||"").trim()},ids=rmu.ids;
   closeBulkModal();ruleMuteSetTo(ids,m);
 }
 // m — новое приглушение или null (снять). Сразу, не через черновик; снимок черновика переживает сброс — см. ruleRestore.
@@ -17531,9 +17531,9 @@ function accWzSame(){
   s.gs.forEach(g=>w.ugs.add(g.id));s.us.forEach(u=>w.assigned.add(u.id));
   w.who="pick";w.pk.tab=s.gs.length?"groups":"users";w.pk.q="";accWzRender();
 }
-function accWzG(){const r={own:accWz.g};accResolve(r);return r.g}
+function accWzResolved(){const r={own:accWz.g};accResolve(r);return r.g}
 function accWzRights(){
-  const w=accWz,g=accWzG();
+  const w=accWz,g=accWzResolved();
   const feats=ACC_FEAT_GROUPS.map(gr=>`<div class="acc-fgrp-h">${i18n(gr)}</div><div class="acc-feat-grid">${ACC_FEATURES.filter(f=>f[2]===gr).map(([k,t])=>{
     return`<label class="acc-chk"><input type="checkbox" ${g.feat.includes(k)?"checked":""} ${onEv("change",["accWzFeat",`${k}`,onEv.checked])}> ${i18n(t)}</label>`}).join("")}</div>`).join("");
   const sel=(k,t,kind)=>`<div><label>${i18n(t)}</label>${accSelect(kind,g[k],`accWzG('${k}',this.value)`,false,false,t)}</div>`;
@@ -17552,7 +17552,7 @@ function accWzRights(){
 function accWzFeat(k,on){const w=accWz;w.g.feat=on?[...new Set([...w.g.feat,k])]:w.g.feat.filter(x=>x!==k);accWzRender()}
 function accWzGrp(id,v){if(v)accWz.grp[id]=v;else delete accWz.grp[id];accWzRender()}
 function accWzPlan(){
-  const w=accWz,steps=[],g=accWzG();
+  const w=accWz,steps=[],g=accWzResolved();
   const nm=escHtml(w.name.trim()),until=w.until?` ${i18n("до")} ${accFmt(w.until)}`:"";
   const supTxt=accSupText({sup:w.sup});
   steps.push(`${i18n("Роль")} «${nm}»${w.comment.trim()?` — ${escHtml(w.comment.trim())}`:""}${can("feature:accessLoginSchedule")?`; ${i18n("вход")}: ${accTzText(w.tz).toLowerCase()}`:""}${can("feature:accessSupervision")?`; ${supTxt}`:""}`);

@@ -26,6 +26,27 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(a.users.some((x) => x.id === nu.id && x.login === "tester" && x.roleIds[0] === op.id), "новый пользователь с UUID и ролью");
   ok(a.history[0].actor === ACC_ME && accSrv().log[0].who === ACC_ME, "история — с автором " + ACC_ME + ": «" + a.history[0].text.slice(0, 50) + "»");
   ok(!accPlanLines().length, "черновик чист");
+  // Мастер новой роли: селекты шага «Права» меняют права роли — и на экране, и в итоге
+  const wzBack = [accSel, accTab];
+  accWzOpen();
+  const wzName = document.querySelector("#accWizBd input[type=text]");
+  wzName.value = "Роль из мастера";
+  wzName.dispatchEvent(new Event("input", { bubbles: true }));
+  accWzNext();
+  const wzSel = (label) => document.querySelector(`#accWizBd select[aria-label="${label}"]`);
+  const wzMap = wzSel("Карты").value, wzPick = [...wzSel("Карты").options].map((o) => o.value).find((v) => v !== wzMap);
+  wzSel("Карты").value = wzPick;
+  wzSel("Карты").dispatchEvent(new Event("change", { bubbles: true }));
+  ok(accWz.g.map === wzPick && wzSel("Карты").value === wzPick, "мастер: выбранное право запомнено: " + accWz.g.map);
+  ok(/Заполнено вручную/.test(document.getElementById("accWizBd").textContent), "мастер: «Заполнено вручную» после выбора");
+  accWzNext();
+  accWzNext();
+  accWzNext();
+  const wzRole = accRoles().find((x) => x.n === "Роль из мастера");
+  ok(wzRole && wzRole.own.map === wzPick, "мастер: роль в черновике с выбранным правом: " + (wzRole && wzRole.own.map));
+  accGo(...wzBack);
+  if (wzRole) accSt().roles.splice(accSt().roles.indexOf(wzRole), 1);
+  accEdited();
   // Отказ сервера: без администраторов — 409, снимок не меняется
   const admRole = accRoles().find((r) => r.own.unr);
   accSt().users.forEach((x) => (x.roles = x.roles.filter((id) => id !== admRole.id)));

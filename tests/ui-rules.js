@@ -104,6 +104,42 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const mv = autoVer.get(R2);
   ok((await API.get(`/rules/${R2}/versions`)).items.length === (ruleHist[R2] || []).length, "приглушение версию истории не пишет");
 
+  // Диалог «Приглушить» — событиями разметки: срок считается, поле даты его меняет, кнопка следит за полем
+  const muteApply = () => document.getElementById("rmuApply");
+  const muteRadio = (i) => document.querySelectorAll('#bmodal input[name="rmuOpt"]')[i];
+  const muteDate = (v) => {
+    const el = document.querySelector('#bmodal input[type="datetime-local"]');
+    el.value = v;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+  };
+  ruleMuteOpen([R1]);
+  ok(!muteApply().disabled && !/Время уже прошло/.test(document.getElementById("bmodal").textContent), "«На 1 час»: кнопка доступна сразу, про прошедшее время не говорит");
+  muteRadio(1).click();
+  ok(rmu.opt === "day" && muteApply().disabled === ruleStamp(new Date()).endsWith(" 23:59"), "«До конца дня»: кнопка доступна, кроме последней минуты дня");
+  muteRadio(2).click();
+  ok(rmu.opt === "until" && !!document.querySelector('#bmodal input[type="datetime-local"]') && muteApply().disabled, "«До даты и времени»: поле на экране, без даты кнопка неактивна");
+  muteDate("2020-01-01T10:00");
+  ok(rmu.until === "2020-01-01T10:00" && muteApply().disabled, "дата в прошлом сохранена, кнопка неактивна");
+  muteDate("2099-01-01T10:00");
+  ok(rmu.until === "2099-01-01T10:00" && !muteApply().disabled, "дата в будущем — кнопка доступна");
+  muteApply().click();
+  ok(await until(() => r(R1).mute && /^2099-01-01/.test(r(R1).mute.until)), "приглушено до выбранной даты: " + JSON.stringify(r(R1).mute));
+  ok(/^2099-01-01/.test((await API.get("/rules/" + R1)).mute?.until || ""), "на сервере — та же дата");
+  ruleMuteSetTo([R1], null);
+  ok(await until(() => !r(R1).mute), "приглушение снято");
+  // Время — в поясе системы, а не браузера: «На 1 час» в браузере с другим поясом — тот же час
+  const tz0 = sysTz;
+  sysTz = Intl.DateTimeFormat().resolvedOptions().timeZone === "Asia/Tokyo" ? "Europe/Moscow" : "Asia/Tokyo";
+  ruleMuteOpen([R1]);
+  muteApply().click();
+  ok(await until(() => r(R1).mute), "«На 1 час» в другом поясе: приглушено");
+  ok(!!ruleMuteNow(r(R1)), "«На 1 час» в другом поясе: тишина действует, а не истекла сразу");
+  const muteLeft = Date.parse((await API.get("/rules/" + R1)).mute?.until || 0) - Date.now();
+  ok(muteLeft > 57 * 6e4 && muteLeft <= 60 * 6e4, "«На 1 час» в другом поясе: на сервере через час, минут: " + Math.round(muteLeft / 6e4));
+  sysTz = tz0;
+  ruleMuteSetTo([R1], null);
+  ok(await until(() => !r(R1).mute), "приглушение снято");
+
   // Порядок на одно событие — POST /rules/reorder
   const r9 = "70000009-0000-4000-8000-000000000000", o1 = r(R1).order, o9 = r(r9).order;
   ruleOrderMove(r9, -1);
