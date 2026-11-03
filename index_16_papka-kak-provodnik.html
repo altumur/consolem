@@ -357,6 +357,7 @@ span.n-menu{cursor:default}
 .pri{background:var(--bl);border-color:var(--bl)}.w{width:100%}.s{padding:6px 9px;font-size:12px}
 main{display:flex;flex-direction:column}
 .hd{padding:16px var(--pad) 0;border-bottom:1px solid var(--ln);background:var(--one-canvas)}
+.hd>.hd-act:last-child{margin-bottom:12px}
 .cr{font-size:13px;color:var(--mu);display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:2px}.cr:empty{display:none}
 .hd-cr{flex:1 1 auto;min-width:0;margin:0;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
 .cr-it{display:inline-flex;align-items:center;gap:5px;flex:none;min-width:0}
@@ -9267,7 +9268,7 @@ function flRowHtml(f,it){
 function flToolsHtml(f,key){
   return`<div class="fl-tools">
     ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
-    ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, без строк папок: у каждого устройства подписано, где оно лежит")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Все устройства домена":"Все устройства, включая подпапки")}</span></label>`}
+    ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, вместе с устройствами самой папки: у каждого подписано, где оно лежит")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Устройства из всех папок":"Устройства из всех подпапок")}</span></label>`}
     ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
