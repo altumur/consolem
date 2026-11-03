@@ -9888,7 +9888,7 @@ function dzCopy(){
   const cams=new Map(detRows().map(x=>[x.d.id,x.cam])),off=new Set(bulkStats(all).offline.map(n=>n.id));
   const rows=all.map((n,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(locName(cams.get(n.id)||{name:""}))}</td><td>${escHtml(locName(n))}</td><td class="bk-note">${escHtml(zoneText(n.zone))}${n.zone?` · ${i18n("заменится")}`:""}</td><td>${off.has(n.id)?`<span class="bk-mixed">${i18n("сервер без связи")}</span>`:`<b>${escHtml(zoneText(z))}</b>`}</td></tr>`).join("");
   const live=all.length-off.size,what=i18n(plural(all.length,"детектор|детектора|детекторов"));
-  const nextText=left.length?`${i18n("Затем очередь продолжится")}: ${left.length} ${i18n(plural(left.length,"детектор|детектора|детекторов"))} ${i18n(z.shape==="line"?"с областью: линия им не подходит.":"с линией: область им не подходит.")}`:i18n("Очередь зон на этом закончится. Итог и «Отменить» будут в отчёте.");
+  const nextText=left.length?`${i18n("Затем очередь продолжится")}: ${left.length} ${i18n(plural(left.length,"детектор|детектора|детекторов"))} ${i18n(z.shape==="line"?"с областью. Линия не подходит.":"с линией. Область не подходит.")}`:i18n("Очередь зон на этом закончится. Итог и «Отменить» будут в отчёте.");
   openBulkModal(`${i18n("План")}: ${i18n("такая же зона")}, ${all.length} ${what}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Камера")}</th><th>${i18n("Детектор")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
      <div class="nt bk-warn">${lu("triangle-alert")} ${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект.")}</div>
