@@ -153,4 +153,61 @@ UiCheck(async ({ ok, until }) => {
   link.click();
   ok(await until(() => find(sel)?.n.type === "server" && tab === "stor" && slice === "arch"), "переход к серверу: таблица сервера в том же разделе");
   ok(await until(() => document.querySelector("#tree .n.on.acc-flash")), "переход к серверу моргает");
+
+  // Переход поиском: ветка раскрыта, вкладка среза
+  open.delete("as:" + owner.id);
+  jumpToNode(find(local.id).n);
+  ok(slice === "arch" && tab === "arch" && !!tree().querySelector(`.n.on[data-pick="${local.id}"]`), "поиск: хранилище — строка видна, его вкладка");
+  jumpToNode(find(owner.id).n);
+  ok(slice === "arch" && tab === "stor", "поиск: сервер — таблица");
+  open.delete("as:" + owner.id);
+  openNode(local.id);
+  ok(tab === "arch" && !!tree().querySelector(`.n.on[data-pick="${local.id}"]`), "ссылка: хранилище — строка видна, его вкладка");
+
+  // Клавиатура в таблице
+  pick(dom.id, { force: true });
+  archTbl.sort = "owner"; archTbl.desc = false; gear();
+  const key = (el) => el.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  key(document.querySelector(".as-tbl .as-link"));
+  ok(sel === dom.id, "Enter на ссылке владельца не открывает строку");
+  const firstRow = document.querySelector(".as-tbl tbody tr");
+  key(firstRow);
+  ok(find(sel)?.n.type === "archive" && (await until(() => document.querySelector("#tree .n.on.acc-flash"))), "Enter на строке открывает хранилище и моргает");
+
+  // Смена сервера не стирает поля сетевого; нераспределённый сервер открывает диалог
+  addArchive(dom.id);
+  anSet("disk", "\\\\nas78\\vms", true);
+  anSet("user", "vms", true);
+  anSet("server", owner.id);
+  ok(an.vol.disk === "\\\\nas78\\vms" && an.vol.user === "vms", "смена сервера: путь и пользователь на месте");
+  archNewCancel();
+  const loose = domains.flatMap((d) => d.unallocServers || [])[0];
+  if (loose) {
+    addArchive(loose.id);
+    ok(!!an && !an.server, "нераспределённый сервер: диалог открыт, сервер выбирают");
+    archNewCancel();
+  }
+
+  // Повторный клик не сбрасывает вкладку; группа сетевых выбирает отбор
+  pick(dom.id, { force: true });
+  tabGo("gen");
+  rowOf(dom.id).click();
+  ok(tab === "gen", "повторный клик по строке вкладку не меняет");
+  archGroupPick(dom.id);
+  ok(archTbl.kind === "net" && tab === "stor", "группа сетевых: таблица с отбором");
+  rowOf(dom.id).click();
+  ok(archTbl.kind === "all", "клик по домену снимает отбор");
+
+  // Пустой фильтр статуса оставляет кнопки отбора
+  statusFilts.add("nosignal");
+  gear();
+  ok(document.querySelectorAll(".as-chip").length > 0, "фильтр статуса: кнопки отбора на месте");
+  statusFilts.delete("nosignal");
+  gear();
+
+  // Плитка карточки ведёт на вкладку вне среза: уходим туда, где она есть
+  tabGo("gen");
+  goTab("srvs");
+  ok(slice !== "arch" && tab === "srvs", "вкладка вне среза: другой раздел, эта вкладка");
+  setSlice("arch");
 });

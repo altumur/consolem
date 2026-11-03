@@ -921,4 +921,10 @@ window.I18N_EN={
 "Сначала выберите сервер: диски у каждого свои.":"Select a server first: each server has its own disks.",
 "Хранилище на дисках тоже создают здесь: в окне выберите вид и сервер.":"Disk storage is created here too: select the type and server in the dialog.",
 "Хранилищу на дисках нужен сервер: сначала добавьте его.":"Disk storage needs a server: add one first.",
+"Сетевое":"Network",
+"сетевое":"network",
+"Сетевые хранилища":"Network storages",
+"Серверы без хранилищ":"Servers without storage",
+"Хранилища":"Storages",
+"Обслуживание":"Maintenance",
 };

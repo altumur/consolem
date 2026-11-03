@@ -4823,10 +4823,10 @@ function openNode(id,opts={}){
   if(app==="rules"&&(opts.app||app)!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>openNode(id,opts)))return;
   selCtx=null;
   app=opts.app||app||"hw";
-  tab=opts.tab||"gen";
+  tab=opts.tab||archSliceTab(f.n)||"gen";
   if(opts.view)tview=opts.view;
   else if(f.n.type!=="server"&&f.n.type!=="domain"&&f.n.type!=="unalloc")tview=treeKind(f.n)||tview;
-  clearGearFilters();filtPop=false;expandTo(id);sel=id;pushRecent(id);
+  clearGearFilters();filtPop=false;expandTo(id);archSliceOpen(f.n);sel=id;pushRecent(id);
   paint();revealSel();
 }
 function goAddServer(domainId){
@@ -4940,7 +4940,7 @@ function jumpToNode(n){
   if(n.type==="server"&&group()!=="server")groupBy[slice]=sliceGroups().includes("server")?"server":group();
   if(n.type==="folder"&&group()!=="folder")groupBy[slice]=sliceGroups().includes("folder")?"folder":group();
   treeMatchCache.clear();searchMatchCache.clear();
-  sel=n.id;selCtx=null;tab="gen";setD(false);expandTo(n.id);
+  sel=n.id;selCtx=null;tab=archSliceTab(n)||"gen";setD(false);expandTo(n.id);archSliceOpen(n);
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
   expandSubtree(n);
   pushRecent(n.id);paint();revealSel();
@@ -6185,7 +6185,7 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
 // open меняют десятки мест, поэтому чтение решается здесь, после отрисовки, а не у каждого. Сервер отдаёт порядок сам.
 const treeBr=new Map();
 function treeLayout(){return slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
-function treeReset(){treeBr.clear();fs=null;archUnlinkedAsked.clear()}
+function treeReset(){treeBr.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
 function treeOpenable(id,layout){
   if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
   // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
@@ -6759,7 +6759,11 @@ function keepSelectionInSlice(){
 }
 function setView(v){setSlice(v==="sys"?"srv":v)}
 function setSrvView(v){setSlice(v==="sys"?"srv":"cam")}
-function goTab(tabId){tab=tabId;gear()}
+function goTab(tabId){
+  const n=find(sel)?.n;
+  if(slice==="arch"&&n&&!tabsFor(n).some(([id])=>id===tabId))setSlice("all");
+  tab=tabId;gear();
+}
 // Адрес вынесен из подписи в чип: с сервером чаще всего идут работать мимо
 // конфигуратора, и адрес нужен в буфере, а не под курсором.
 function domainServersCard(n){
@@ -6808,7 +6812,7 @@ function pick(id,opts){
   if(selCtx&&selCtx.startsWith("f:"))selFolder=selCtx.slice(2);
   if(f.n.type==="folder")selFolder=id;
   else{const own=foldersOfDevice(path(id)[0].id);if(own.length&&!own.some(x=>x.id===selFolder))selFolder=own[0].id}
-  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||archSliceTab(f.n)||"gen";setD(false);editClear();expandTo(id,selCtx);archSliceOpen(f.n);
+  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||archSliceTab(f.n)||"gen";setD(false);editClear();expandTo(id,selCtx);archSliceOpen(f.n);if(opts?.archKind)archTbl.kind=opts.archKind;
   if(multi&&canMultiPick(f.n)){
     bulkPeek=false;
     // Ctrl/Shift-выбор включает режим галочек: выборка должна быть видна.
@@ -6979,7 +6983,8 @@ function bindTreeDbl(){
     }
     // Выбор — сразу: ожидание второго клика делало отклик вязким на ровном
     // месте. Повторный клик по уже выбранной строке раскрывает её.
-    // В срезе «Хранилища» сворачивает только стрелка.
+    // В срезе «Хранилища» сворачивает только стрелка, а повторный клик не сбрасывает вкладку и правки.
+    if(slice==="arch"&&sel===id&&sameCtx(ctx)&&archTbl.kind!=="net")return;
     if(slice!=="arch"&&sel===id&&sameCtx(ctx)&&row.dataset.tid)treeToggleId(row.dataset.tid);
     else pick(id,{ctx});
   });
@@ -7739,9 +7744,29 @@ function archGroupRow(key,label,icon,count,children,click,on){
   return`<div class="n srv ${on?"on":""}" style="--l:1" ${onEv("click",...click)}${treeExpandMeta(key,"dom",hasKids)}>
     ${treeChevron(key,"dom",hasKids,op)}${ic(icon)}<span class="nm" title="${escHtml(i18n(label))}">${i18n(label)}</span>${treeTail({cnt:treeCntHtml(count)})}</div>${op?children:""}`;
 }
+const archDomRead=new Set(),archDomDoneSet=new Set();
+function archDomDone(did){return hwDone.archives||archDomDoneSet.has(did)}
+async function archDomLoad(did){
+  if(hwDone.archives||archDomRead.has(did))return;
+  archDomRead.add(did);
+  try{
+    let cursor=null;
+    do{
+      const r=await API.get("/archives",{domainId:did,limit:LIM.pageMax,cursor});
+      r.items.forEach(archAdd);
+      cursor=r.nextCursor||null;
+    }while(cursor);
+  }catch(e){toast(problemText(e))}
+  archDomDoneSet.add(did);
+  if(slice==="arch"&&app==="hw"){renderTree();if(tab==="stor")gear()}
+}
 function treeArchives(){
   const q=qval();
   return scopedDomains().map(d=>{
+    if(!archDomDone(d.id)){
+      archDomLoad(d.id);
+      return archTreeRow(d,0,`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Загрузка…")}</span></div>`,"",d.id);
+    }
     const netList=domainArchives(d.id).filter(a=>matchesStatus(a)&&matchesSearch(a,q));
     const net=netList.length?archGroupRow("as:net:"+d.id,"Сетевые хранилища","asnet",netList.length,netList.map(a=>arow(a,2)).join(""),[["archGroupPick",`${d.id}`]],sel===d.id&&archTbl.kind==="net"):"";
     const withArch=[],bare=[];
@@ -7758,43 +7783,51 @@ function treeArchives(){
 }
 // Камеры без привязки к хранилищу: всегда внизу, при входе в срез свёрнуты
 const AS_NOREC="as:norec";
-function archUnlinked(did){return unrecordedCameras(did).filter(c=>!c.arch)}
+function archNoLink(n){return n?.type==="camera"&&(n._row?!!n._nr:!n.arch)}
+function archUnlinked(did){return unrecordedCameras(did).filter(archNoLink)}
 const archUnlinkedAsked=new Set();
-async function archUnlinkedLoad(did){
-  const key="servers|"+norecId(did);
-  let b;
-  do{await treeLoad("servers",norecId(did));b=treeBr.get(key)}while(b&&!b.done&&!b.busy);
+function archUnlinkedMore(did){
+  const p=treeLoad("servers",norecId(did)).then(()=>{if(slice==="arch")renderTree()});
+  renderTree();
+  return p;
+}
+function archUnlinkedMoreRow(did){
+  const b=treeBr.get("servers|"+norecId(did));
+  if(!b||b.done)return"";
+  return b.busy?`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Ищем дальше…")}</span></div>`
+    :`<div class="n n-more n-more-go" style="--l:1" ${onEv("click",onEv.stop,["archUnlinkedMore",did])}><span class="tw"></span><span class="nm sub">${i18n("Искать дальше")}</span></div>`;
 }
 function archUnlinkedRow(){
   scopedDomains().forEach(d=>{
     if(archUnlinkedAsked.has(d.id))return;
     archUnlinkedAsked.add(d.id);
-    archUnlinkedLoad(d.id).then(()=>{if(slice==="arch")renderTree()}).catch(()=>{});
+    archUnlinkedMore(d.id).catch(()=>{});
   });
   const q=qval(),doms=scopedDomains().map(d=>[d,archUnlinked(d.id).filter(c=>matchesStatus(c)&&matchesSearch(c,q))]).filter(([,l])=>l.length);
   if(!doms.length)return"";
   const op=open.has(AS_NOREC)||autoExpand();
   const cam=c=>`<div class="n ${rowOn(c.id)}" style="--l:1"${treeRowPick(c.id)}${treeCtxAttr(c.id)}><span class="tw"></span>${treeIconHtml(c)}<span class="nm" title="${escHtml(locName(c))}">${treeNameCell(c,q)}</span>${treeTail({acts:c.id})}</div>`;
-  const rows=doms.map(([d,l])=>(doms.length>1?`<div class="as-cap" style="--l:1">${escHtml(locName(d))}</div>`:"")+l.map(cam).join("")).join("");
+  const rows=doms.map(([d,l])=>(doms.length>1?`<div class="as-cap" style="--l:1">${escHtml(locName(d))}</div>`:"")+l.map(cam).join("")+archUnlinkedMoreRow(d.id)).join("");
   return`<div class="n srv as-norec-top" style="--l:0" ${onEv("click",["archGroupOpen",AS_NOREC])}${treeExpandMeta(AS_NOREC,"dom",true)}>
-    ${treeChevron(AS_NOREC,"dom",true,op)}${ic("camera")}<span class="nm" title="${escHtml(i18n("Камеры без архива"))}">${i18n("Камеры без архива")}</span>${treeTail({cnt:treeCntHtml(doms.reduce((x,[,l])=>x+l.length,0))})}</div>${op?rows:""}`;
+    ${treeChevron(AS_NOREC,"dom",true,op)}${ic("camera")}<span class="nm" title="${escHtml(i18n("Камеры без архива"))}">${i18n("Камеры без архива")}</span>${treeTail({cnt:treeCntHtml(doms.reduce((x,[,l])=>x+l.length,0)+(doms.some(([d])=>archUnlinkedMoreRow(d.id))?"+":""))})}</div>${op?rows:""}`;
 }
 function archGroupOpen(key){open.add(key);renderTree()}
-function archGroupPick(did){pick(did);archTbl.kind="net";resetPage("astor:"+did);paint()}
+function archGroupPick(did){resetPage("astor:"+did);pick(did,{archKind:"net"})}
 // Раскрыть в дереве ветку выбранного хранилища
 function archSliceOpen(n){
   if(!n||slice!=="arch")return;
-  if(slice==="arch"&&n.type==="archive")open.add(n.server?"as:"+n.server:"as:net:"+archDomainId(n));
-  if(slice==="arch"&&n.type==="server"&&!isUnallocated(n.id)&&!serverArchives(n.id).length)open.add("as:bare:"+domainOf(n.id)?.id);
-  if(slice==="arch"&&n.type==="camera"&&!n.arch)open.add(AS_NOREC);
-  if(slice==="arch")archTbl.kind="all";
+  if(!n||slice!=="arch")return;
+  if(n.type==="archive")open.add(n.server?"as:"+n.server:"as:net:"+archDomainId(n));
+  if(n.type==="server"&&!isUnallocated(n.id)&&!serverArchives(n.id).length)open.add("as:bare:"+domainOf(n.id)?.id);
+  if(archNoLink(n))open.add(AS_NOREC);
+  archTbl.kind="all";
 }
 // ── Срез «Хранилища»: таблица хранилищ места, выбранного в дереве ─────────
 let archTbl={kind:"all",sort:"owner",desc:false};
 function archScope(n){return slice==="arch"&&!!n&&(n.type==="domain"||(n.type==="server"&&!isUnallocated(n.id)))}
-function archSliceTab(n){return!n||slice!=="arch"?null:archScope(n)?"stor":n.type==="archive"?"arch":n.type==="camera"&&!n.arch?"rec":null}
+function archSliceTab(n){return!n||slice!=="arch"?null:archScope(n)?"stor":n.type==="archive"?"arch":archNoLink(n)?"rec":null}
 // Эти объекты остаются в срезе, даже когда их строки сейчас нет в дереве
-function archStaysInSlice(n){return!!n&&(["domain","server","archive","vol"].includes(n.type)||(n.type==="camera"&&!n.arch))}
+function archStaysInSlice(n){return!!n&&(["domain","archive","vol"].includes(n.type)||(n.type==="server"&&!isUnallocated(n.id))||archNoLink(n))}
 // Вошли с камеры или папки: показываем сервер этого объекта, иначе домен.
 function archKeepSel(f){
   if(f&&(archScope(f.n)||f.n.type==="archive"||f.n.type==="vol"))return;
@@ -7806,10 +7839,14 @@ function archTblItems(n){
   const list=n.type==="domain"?arch.filter(a=>archDomainId(a)===n.id):[...serverArchives(n.id),...domainArchives(domainOf(n.id)?.id)];
   return list.filter(matchesStatus);
 }
-function archTblEnsure(n){
-  const need=archTblItems(n).filter(a=>(!hwDone.volumes&&!volsDone.has(a.id))||!archCamIds.has(a.id));
+// Неудачное чтение не повторяем на каждой перерисовке: она сама идёт после чтения
+const archTblTried=new Set();
+function archTblEnsure(n,list){
+  const need=list.filter(a=>!archTblTried.has(a.id)&&((!hwDone.volumes&&!volsDone.has(a.id))||!archCamIds.has(a.id)));
   if(!need.length)return;
+  need.forEach(a=>archTblTried.add(a.id));
   Promise.all(need.flatMap(a=>[volsEnsure(a).catch(()=>{}),archCamsLoad(a.id).catch(()=>{})])).then(()=>{
+    need.forEach(a=>{if(archCamIds.has(a.id))archTblTried.delete(a.id)});
     if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTree();gear()}
   });
 }
@@ -7836,13 +7873,19 @@ const ARCH_SORT={
 };
 function archSort(k){if(archTbl.sort===k)archTbl.desc=!archTbl.desc;else{archTbl.sort=k;archTbl.desc=k==="used"}gear()}
 function archTblKind(k,did){archTbl.kind=k;resetPage("astor:"+did);renderTree();gear()}
-function archRowKey(id,e){if(e.key==="Enter"){e.preventDefault();pick(id)}}
+function archRowKey(id,e){
+  if(e.key!=="Enter"||e.target.closest("button,a"))return;
+  e.preventDefault();
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
+}
 function archThHtml(k,label,num){
   const on=archTbl.sort===k;
   return`<th class="${num?"as-num":""}" aria-sort="${on?(archTbl.desc?"descending":"ascending"):"none"}"><button type="button" class="as-th ${on?"on":""} ${num?"as-num":""}" ${onEv("click",["archSort",k])}>${i18n(label)}${on?(archTbl.desc?" ↓":" ↑"):""}</button></th>`;
 }
 function archTableCard(n){
-  const all=archTblItems(n),isDom=n.type==="domain";
+  const isDom=n.type==="domain",title=isDom?"Хранилища домена":"Хранилища сервера",did=isDom?n.id:domainOf(n.id)?.id;
+  if(did&&!archDomDone(did)){archDomLoad(did);return card(title,`<p class="sub">${i18n("Загрузка…")}</p>`)}
+  const all=archTblItems(n);
   const own=all.filter(a=>!!a.server),netN=all.length-own.length,bad=all.filter(archTrouble);
   const pool=archTbl.kind==="srv"?own:archTbl.kind==="net"?all.filter(a=>!a.server):archTbl.kind==="bad"?bad:all;
   const sign=archTbl.desc?-1:1,val=ARCH_SORT[archTbl.sort];
@@ -7850,16 +7893,21 @@ function archTableCard(n){
   const chip=(k,label,cnt,cls)=>`<button type="button" class="as-chip ${archTbl.kind===k?"on":""} ${cls||""}" aria-pressed="${archTbl.kind===k}" ${onEv("click",["archTblKind",k,`${n.id}`])}>${i18n(label)}<b>${cnt}</b></button>`;
   const chips=`<div class="as-chips">${chip("all","Все",all.length)}${chip("srv",isDom?"На серверах":"Этого сервера",own.length)}${chip("net",isDom?"Сетевые":"Сетевые домена",netN)}${bad.length?chip("bad","С ошибками",bad.length,"warn"):""}</div>`;
   // Отбор ничего не дал: кнопки отбора остаются, иначе из пустого отбора не выйти.
-  if(all.length&&!items.length)return card(isDom?"Хранилища домена":"Хранилища сервера",`${chips}<p class="sub">${i18n("В этом отборе хранилищ нет")}</p>`);
+  if(!items.length){
+    const why=all.length?"В этом отборе хранилищ нет":statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся";
+    return card(title,`${all.length||statusFilts.size?chips:""}<p class="sub">${i18n(why)}</p>`);
+  }
+  const shown=[];
   const head=`<thead><tr>${archThHtml("name","Хранилище")}${archThHtml("owner","Владелец")}${archThHtml("used","Занято")}${archThHtml("days","Срок",1)}${archThHtml("cams","Камер",1)}${archThHtml("state","Состояние")}</tr></thead>`;
-  return listCard({
+  const html=listCard({
     key:"astor:"+n.id,
-    title:isDom?"Хранилища домена":"Хранилища сервера",
+    title,
     items,
     text:a=>[locName(a),locName(archOwner(a)||{name:""}),archKindTag(a),...archVols(a).map(v=>v.disk)],
     mid:()=>chips,
     wrap:rows=>`<table class="as-tbl">${head}<tbody>${rows}</tbody></table>`,
     row:a=>{
+      shown.push(a);
       const u=archUsedPct(a);
       return`<tr tabindex="0" ${onEv("click",["pick",`${a.id}`])} ${onEv("keydown",["archRowKey",`${a.id}`,onEv.event])}>
         <td class="as-nm"><span class="as-name" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${archIcon(a)}<span>${escHtml(locName(a))}</span></span></td>
@@ -7870,10 +7918,11 @@ function archTableCard(n){
         <td>${archStateHtml(a)}</td>
       </tr>`;
     },
-    empty:statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся",
     ph:"Имя, сервер или диск…",
     unit:"хранилище|хранилища|хранилищ"
   });
+  archTblEnsure(n,hwDone.archives?all:shown);
+  return html;
 }
 function treeDetectors(){
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
@@ -7928,7 +7977,7 @@ function arow(a,l){
   const hasKids=!!children;
   const op=hasKids&&(open.has(a.id)||autoExpand());
   // В описи камеры не «в срезе», но сколько их пишется в хранилище — видно.
-  const cnt=inventory?allCams.length:hasSliceContext()?sliceParentCount(a.id):cams.length;
+  const cnt=slice==="arch"&&!hwDone.archives&&!archCamIds.has(a.id)?"":inventory?allCams.length:hasSliceContext()?sliceParentCount(a.id):cams.length;
   let h=`<div class="n srv stor ${sel===a.id?"on":""}${inventory?"":sliceParentClass(a.id)}${treeRenameId===a.id?" renaming":""}" style="--l:${l}"${treeRowPick(a.id)}${treeCtxAttr(a.id)}${treeExpandMeta(a.id,"srv",hasKids)}>
     ${hasKids?treeChevron(a.id,"srv",hasKids,op):'<span class="tw"></span>'}
     ${archIcon(a)}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:slice==="arch"?"":`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
@@ -7999,7 +8048,6 @@ function gear(){
   }
   if(n.type==="archive")archCamsLoad(n.id);
   if(n.type==="archive")volsEnsure(n).then(()=>{}).catch(()=>{});
-  if(tab==="stor"&&archScope(n))archTblEnsure(n);
   if(n.type==="domain")domainFresh(n);
   if(n.type==="server")serverArchives(n.id).forEach(a=>volsEnsure(a).catch(()=>{}));
   if(tabs.length&&!tabs.some(([id])=>id===tab))tab=tabs[0][0];
@@ -18895,7 +18943,7 @@ function addArchive(ownerId){
   const n=f.n,from=n.type==="archive"?n:n.type==="vol"?archById(n.archId):null;
   const sid=n.type==="domain"?"":from?from.server:n.type==="server"?n.id:srv(n.id)?.id;
   const server=sid&&!isUnallocated(sid)?sid:"";
-  const dom=n.type==="domain"?n.id:server?SERVER_DOMAIN[server]:from?archDomainId(from):deviceDomain(n.id);
+  const dom=n.type==="domain"?n.id:server?SERVER_DOMAIN[server]:from?archDomainId(from):nodeDomainId(n)||(n.type==="server"?unallocDomainOf(n.id):null)||scopedDomains()[0]?.id;
   if(!dom)return;
   // Хранилище подсказывает свой вид, сервер — диски сервера, домен — вид без сервера
   const spec=from&&archSpec(from),kinds=refArchKinds;
@@ -18917,7 +18965,7 @@ function anSet(k,v,quiet){
       an.recordMode=null;
     }
     if((an.storage==="block"&&spec.address!=="bucket")||!spec.encryption)an.enc=false;
-    if(k==="kind"||k==="provider"||k==="storage"||k==="server")anReset();
+    if(k==="kind"||k==="provider"||k==="storage"||(k==="server"&&kindOf(an.kind).address==="disk"))anReset();
   }else{
     volApply(an.vol,k,v);
     if(kindOf(an.kind).address==="disk"&&(k==="disk"||k==="mode")){
