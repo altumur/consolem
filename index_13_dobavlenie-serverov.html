@@ -1776,6 +1776,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -23876,6 +23877,33 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
+// Показ прототипа: что изменилось в добавлении серверов (движок — assets/tour.js). Только в прототипе
+Tour.offer("Показать, что изменилось", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  const byText=(sel,re)=>()=>[...document.querySelectorAll(sel)].find(e=>re.test(e.textContent));
+  const row=re=>byText(".srv-list .it",re);
+  return[
+    {say:"Раньше здесь было две кнопки и два разных окна: «Сервер» и «Добавить серверы по IP». Теперь вход один, и в меню дерева тоже.",
+      before:()=>{closeWizard();goApp("hw");pick(domains[0].id);goTab("gen")},at:byText(".dom-acts .btn",/Серверы/),act:"click"},
+    {say:"Окно одно на всё. Серверы, которые нашлись в сети, уже в списке: можно сразу отмечать.",at:q(".srv-list")},
+    {say:"Нужного сервера нет в списке? Адреса вводим здесь же, никуда не переходя: список, диапазон или подсеть.",at:q("#wizIps"),act:"type",text:"10.30.0.13, 10.30.0.20-22, 10.20.1.10, 10.30.0.24, foo"},
+    {say:"Опрашиваем адреса.",at:byText(".srv-addr .btn",/Найти/),act:"click"},
+    {say:"Ответ приходит в тот же список, отдельного экрана результатов больше нет. Найденные отмечены сразу.",at:byText(".srv-cap",/По адресам/)},
+    {say:"Поле не очистилось: опечатку можно поправить и опросить снова. Что не распознано, написано прямо под полем.",at:q(".srv-bad")},
+    {say:"Сервер 10.30.0.13 был и в списке из сети. Теперь это одна строка с именем, а не безымянный адрес.",at:row(/10\.30\.0\.13/)},
+    {say:"Что с адресом, видно в строке. Этот уже в домене, отсюда можно сразу к нему перейти.",at:row(/10\.20\.1\.10/)},
+    {say:"Этот не отвечает, поэтому отметить его нельзя.",at:row(/10\.30\.0\.24/)},
+    {say:"Сервер из сети отмечается в этом же списке, вперемешку с найденными по адресу.",at:row(/10\.30\.0\.15/),act:"click"},
+    {say:"Кнопка добавления одна и считает всё выбранное.",at:q("#wn")},
+    {say:"«Назад» больше нет, некуда теряться. Шагов тоже нет, есть только «Закрыть».",at:q("#wb")},
+    {say:"Добавляем выбранные.",at:q("#wn"),act:"click"},
+    {say:"Перед приёмом сверяем отпечатки. Раньше групповое добавление этот шаг молча пропускало.",at:q("#confirmMsg .fp-list")},
+    {say:"Отпечатки совпали.",at:q("#confirmOk"),act:"click"},
+    {say:"Добавленные остаются в списке с пометкой, ничего не прыгает. Отсюда можно сразу перейти к серверу.",at:q(".srv-list .unalloc-added")},
+    {say:"Переходим к добавленному серверу.",at:byText(".srv-list .unalloc-added .btn",/Перейти/),act:"click"},
+    {say:"Окно закрылось, место подсвечено: заголовок, вкладка и строка дерева. Искать сервер в дереве не нужно."},
+  ];
+})());
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
