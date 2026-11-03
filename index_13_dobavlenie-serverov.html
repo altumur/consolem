@@ -885,12 +885,30 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .chc{width:100%;padding:12px;border:1px solid var(--ln);background:var(--p2);color:var(--tx);border-radius:8px;cursor:pointer;text-align:left}.chc:hover,.chc.on{border-color:var(--bl);background:var(--one-selected-neutral)}
 .chc small{display:block;color:var(--mu);margin-top:4px}
 .chc.disabled{opacity:.45;cursor:not-allowed}
-.wiz-unalloc-hd{display:flex;align-items:center;gap:10px;margin:0 0 10px;min-height:28px}
-.wiz-unalloc-hd .wsec{margin:0;font-size:12px;font-weight:600;color:var(--mu)}
-.srv-wrap{display:flex;flex-direction:column;gap:8px;min-height:0;height:100%}
-.srv-wrap .unalloc-scroll{flex:1;min-height:0;max-height:none}
-.dr.server-list .db{display:flex;flex-direction:column;overflow:hidden;padding:16px;min-height:0}
-.dr.server-list .df{display:none}
+.dr.server-add{width:min(640px,96vw)}
+.dr.server-add .db{display:flex;flex-direction:column;gap:12px;overflow:hidden;padding:16px;min-height:0}
+.srv-addr{flex:none}
+.srv-lbl{display:block;margin:0 0 6px;font-size:12px;font-weight:600;color:var(--mu)}
+.srv-addr-row{display:flex;gap:8px;align-items:flex-start}
+.srv-addr-row .ip-bulk-ta{flex:1;min-width:0;min-height:34px;resize:none;padding:7px 10px;line-height:18px}
+.srv-addr-row .btn{flex:none;min-width:84px;justify-content:center}
+.srv-hint{margin:6px 0 0;font-size:12px;color:var(--mu)}
+.srv-bad{margin:6px 0 0;font-size:12px;color:var(--one-danger)}
+.srv-hd{flex:none;display:flex;align-items:center;gap:12px}
+.srv-hd .lst-sq{flex:1;min-width:0;margin:0}
+.srv-list{flex:1;min-height:0;overflow:auto;padding-right:2px;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
+.srv-cap{display:flex;align-items:center;gap:8px;min-height:28px;margin:0 0 6px;font-size:12px;color:var(--mu)}
+.srv-cap b{font-weight:600;color:var(--tx)}
+.srv-cap span{flex:1;min-width:0}
+.it+.srv-cap{margin-top:14px}
+.srv-list .it.srv-off{cursor:default;opacity:.72}
+.srv-list .it small{display:block}
+.srv-empty{margin:0;padding:18px 0;text-align:center;font-size:13px;color:var(--mu)}
+.srv-foot{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--mu)}
+.fp-list{margin:8px 0;padding:0;list-style:none;max-height:40vh;overflow:auto}
+.fp-list li{padding:6px 0;border-top:1px solid var(--ln)}
+.fp-list li:first-child{border-top:0}
+.fp-list code{display:block;margin-top:2px;font-size:12px;word-break:break-all}
 .wsec{margin:14px 0 6px;font-size:12px;color:var(--mu);font-weight:600}
 .dev-wrap{display:flex;flex-direction:column;gap:12px;min-height:0;height:100%}
 .dev-search-head{flex:none;display:flex;flex-direction:column;gap:6px}
@@ -4003,7 +4021,7 @@ function placeInDomain(r){
   if(prevSel===r.id)sel=unallocId(d.id);
   treeMatchCache.clear();searchMatchCache.clear();
   paint();
-  if(document.getElementById("wiz")?.classList.contains("open")&&wizd.mode==="server-list")wd();
+  if(document.getElementById("wiz")?.classList.contains("open")&&wizd.mode==="server-add")wd();
 }
 function addToDomain(serverId,domainId,sure){
   const d=domainById(domainId)||domains[0],s=servers.find(x=>x.id===serverId);
@@ -4016,9 +4034,17 @@ function addToDomain(serverId,domainId,sure){
     return res.done.length>0;
   }).catch(e=>{toast(problemText(e,s));return false});
 }
+// Сверка пачкой: без неё в домен можно принять чужую коробку так же легко, как и по одной
+function askFingerprints(list,onOk){
+  const rows=list.map(s=>`<li>${escHtml(locName(s))}${s.ip?` · ${escHtml(s.ip)}`:""}<code>${escHtml(s.fingerprint)}</code></li>`).join("");
+  askConfirm(list.length===1?i18n("Сверьте отпечаток"):`${i18n("Сверьте отпечатки")}: ${list.length}`,
+    `<ul class="fp-list">${rows}</ul><p class="sub">${i18n("Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую")}</p>`,
+    "",i18n("Отпечатки совпали, добавить"),onOk,{html:true,rawTitle:true});
+}
 function goAddedServer(serverId){
-  document.getElementById("wiz")?.classList.remove("open");
+  closeWizard();
   openNode(serverId,{app:"hw",view:"cam",tab:"gen"});
+  hwFlashLanding();
 }
 // ── Домены: создание, переименование, удаление ───────────────────────────
 // Имя домена — его единственный опознавательный знак в выпадающих списках, в
@@ -4798,12 +4824,17 @@ function goAddServer(domainId){
 // POST /servers и /servers/probe система может не объявлять: коробка приходит сама
 function openFindServerByIp(domainId){
   if(!can("probeServers")&&!can("createServer")){toast("Серверы приходят сами: смотрите «Нераспределённые серверы»");return}
+  openAddServers(domainId,true);
+}
+// Окно одно, откуда бы его ни открыли: пришёл за адресом — курсор сразу в поле адресов,
+// пусто в сети — тоже: больше здесь делать нечего
+function openAddServers(domainId,toAddress){
   const did=domainId||addContext().domain?.id||domains[0]?.id;
   if(!did)return;
-  const ua=unallocId(did);
-  if(!find(ua))return;
-  if(sel!==ua)openNode(ua,{app:"hw",view:"cam",tab:"gen"});
-  openW("manual");
+  openW("server");
+  wizd.domain=did;
+  wizd.ipFocus=!!toAddress||!unallocDisplayList(did).length;
+  wd();
 }
 function nodeDeepLink(id){
   const f=find(id);if(!f)return location.href;
@@ -6058,7 +6089,7 @@ function goFav(i){
 // курсор в поле, и терять это из-за того, что обновилась соседняя строка,
 // он не должен. Положение ищем по устойчивым признакам (селектор прокручиваемого
 // блока и его номер), а не по узлам — узлы после перерисовки уже другие.
-const VIEW_SCROLLERS=[".sc",".tree",".fav-panel-list",".lan-wrap",".gtbl",".dev-results-scroll",".dev-wrap-scroll",".plan-rows"];
+const VIEW_SCROLLERS=[".sc",".tree",".fav-panel-list",".lan-wrap",".gtbl",".dev-results-scroll",".dev-wrap-scroll",".plan-rows",".srv-list"];
 function focusSelector(el){
   if(!el||!/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName))return null;
   if(el.id)return"#"+el.id;
@@ -6952,7 +6983,7 @@ function bindTreeDbl(){
   });
 }
 function addTreeLabel(n){
-  if(!n||n.type==="domain"||n.type==="unalloc")return i18n("Добавить сервер");
+  if(!n||n.type==="domain"||n.type==="unalloc")return i18n("Добавить серверы");
   if(n.type==="server")return i18n("Добавить службу");
   if(n.type==="folder")return slice==="acfa"?i18n("Добавить ACFA"):i18n("Добавить устройства");
   if(slice==="acfa"||n.type==="acfa"||ACFA_NODE_IDS.has(n.id))return i18n("Добавить ACFA");
@@ -7210,8 +7241,7 @@ function openTreeCtx(n,xy){
     if(n.type==="unalloc"){
       const add=unallocAddable(n.domainId).length;
       if(add)addItems.push(tctxItem(`${i18n("Добавить все в домен")} (${add})`,`addAllUnalloc('${n.domainId}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить в домен"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.domainId}')`,tctxPlusIcon()));
+      addItems.push(tctxItem(i18n("Добавить серверы…"),`closeTreeCtx();openAddServers('${n.domainId}')`,tctxPlusIcon()));
     }else if(n.type==="archive"){
       // Вход тот же, что в шапке архива: камеры привязывают к архиву, поэтому
       // и заводить их удобно прямо отсюда.
@@ -7227,8 +7257,7 @@ function openTreeCtx(n,xy){
       // прятать половину только потому, что дерево разложено по папкам.
       addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
       addItems.push(tctxSep());
-      addItems.push(tctxItem(i18n("Добавить сервер"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.id}')`,tctxPlusIcon()));
+      addItems.push(tctxItem(i18n("Добавить серверы…"),`closeTreeCtx();openAddServers('${n.id}')`,tctxPlusIcon()));
       addItems.push(tctxItem(i18n("Создать папку"),`addSubfolder(null,'${n.id}')`,tctxPlusIcon()));
       if(canDomainArch())addItems.push(tctxItem(i18n("Создать сетевое хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
     }else if(n.type==="server"&&!isUnallocated(n.id)){
@@ -8888,14 +8917,13 @@ function acfaTableHtml(server){
     <button type="button" class="btn s" ${onEv("click",["clearTblFilt","acfa"])} ${filtering?"":"disabled"}>${i18n("Сбросить фильтры")}</button>
   </div></div>`;
 }
-function unallocIpBtn(domainId,wizard){
-  const click=wizard?"event.stopPropagation();wizGoIp(true)":`event.stopPropagation();openFindServerByIp('${domainId}')`;
-  return `<button type="button" class="btn pri unalloc-ip" data-needs="probeServers" ${onEv("click",click)}>${ic("search")}<span>${i18n("Добавить серверы по IP")}</span></button>`;
+function unallocIpBtn(domainId){
+  return `<button type="button" class="btn pri unalloc-ip" data-needs="probeServers" ${onEv("click",onEv.stop,["openFindServerByIp",`${domainId}`])}>${ic("search")}<span>${i18n("Найти по адресу")}</span></button>`;
 }
-function unallocIpFoot(domainId,wizard){
+function unallocIpFoot(domainId){
   return `<div class="unalloc-foot">
     <p class="sub unalloc-hint">${i18n("Если нужных серверов нет в списке — найдите их по адресам: списком, диапазоном или подсетью.")}</p>
-    ${unallocIpBtn(domainId,wizard)}
+    ${unallocIpBtn(domainId)}
   </div>`;
 }
 // Серверы из сети добавляют пачкой: по одному их приходилось бы щёлкать
@@ -8922,12 +8950,14 @@ function toggleUnallocAll(did,on){
   redrawUnalloc(did);
 }
 function redrawUnalloc(did){
-  if(document.getElementById("wiz")?.classList.contains("open")&&wizd.mode==="server-list")wd();
+  if(document.getElementById("wiz")?.classList.contains("open")&&wizd.mode==="server-add")wd();
   else paint();
 }
-function addUnallocServers(ids,did){
+function addUnallocServers(ids,did,sure){
   const list=ids.filter(id=>unallocAddable(did).some(r=>r.id===id));
   if(!list.length){toast("Ничего не выбрано");return}
+  const knock=list.map(id=>servers.find(x=>x.id===id)).filter(x=>x?.fingerprint);
+  if(knock.length&&!sure){askFingerprints(knock,()=>addUnallocServers(ids,did,true));return}
   serversAssign(list.map(id=>({s:servers.find(x=>x.id===id),domainId:did,allocated:true}))).then(res=>{
     res.done.forEach(placeInDomain);
     unallocSel(did).clear();
@@ -8950,20 +8980,20 @@ function unallocBulkBar(domainId){
     <button type="button" class="btn pri s" ${onEv("click",["addAllUnalloc",`${domainId}`])}>${i18n("Добавить все")} (${add.length})</button>
   </div>`;
 }
-function unallocServersHtml(domainId,wizard){
+function unallocServersHtml(domainId){
   const list=unallocDisplayList(domainId);
   const sel2=unallocSel(domainId);
   if(!list.length){
     return `<div class="unalloc-empty">
       <div class="unalloc-empty-msg">Серверы в сети не найдены</div>
       <p class="sub" style="margin:0;max-width:320px">Найдите сервер по IP-адресу и добавьте его в домен.</p>
-      ${unallocIpBtn(domainId,wizard)}
+      ${unallocIpBtn(domainId)}
     </div>`;
   }
   const key=unallocKey(domainId),how="unalloc:"+domainId,shown=unallocShown(domainId);
   const rows=pageSlice(key,shown).map(r=>{
-    const addAct=wizard?`wizAddToDomain('${r.id}')`:`addToDomain('${r.id}','${domainId}')`;
-    const rowClick=wizard?"":` ${onEv("click",["pick",`${r.id}`])}`;
+    const addAct=`addToDomain('${r.id}','${domainId}')`;
+    const rowClick=` ${onEv("click",["pick",`${r.id}`])}`;
     const btn=r.added
       ?`<span class="unalloc-added"><span class="unalloc-added-st">Добавлен</span><button type="button" class="btn s" ${onEv("click",onEv.stop,["goAddedServer",`${r.id}`])}>Перейти</button></span>`
       :`<button type="button" class="btn pri s" ${onEv("click",onEv.stop,addAct)}>${i18n("Добавить в домен")}</button>`;
@@ -8978,7 +9008,7 @@ function unallocServersHtml(domainId,wizard){
   const body=rows||`<p class="sub">${i18n("Ничего не найдено")}</p>`;
   return `${listSearchHtml(key,"Имя или IP сервера…",how)}${unallocBulkBar(domainId)}<div class="unalloc-scroll">${body}</div>`
     +(shown.length?`<div class="tfoot tfoot-flat">${pagerHtml(key,shown.length,how,"сервер|сервера|серверов")}</div>`:"")
-    +unallocIpFoot(domainId,wizard);
+    +unallocIpFoot(domainId);
 }
 function deviceFolderNote(id){
   const fs=foldersOfDevice(id);
@@ -10370,8 +10400,7 @@ function formBase(n){
         <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>
       </div>`)+
       card("Действия",`<div class="dom-acts">
-        <button type="button" class="btn s" ${onEv("click",["openW","server"])}>${lu("plus")}${i18n("Сервер")}</button>
-        <button type="button" class="btn s" data-needs="probeServers" ${onEv("click",["openFindServerByIp",`${n.id}`])}>${i18n("Добавить серверы по IP")}</button>
+        <button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>
         <button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${n.id}`])}>${lu("plus")}${i18n("Папка")}</button>
         ${canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:""}
         <span style="flex:1"></span>
@@ -18148,7 +18177,7 @@ function closeWizard(){
   const wasDev=wizd?.mode==="device-add"&&document.getElementById("wiz").classList.contains("open");
   document.getElementById("wiz").classList.remove("open");
   document.getElementById("wizDr").classList.remove("device-wizard");
-  document.getElementById("wizDr").classList.remove("server-list");
+  document.getElementById("wizDr").classList.remove("server-add");
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot");
   if(df)df.classList.remove("device-footer");
   if(foot)foot.innerHTML="";
@@ -20712,8 +20741,7 @@ function planOpen(t){
 function addSplitItems(n){
   const items=[];
   if(n.type==="domain"){
-    items.push(["Сервер…","openW('server')"]);
-    if(can("probeServers"))items.push(["Серверы по IP…",`openFindServerByIp('${n.id}')`]);
+    items.push(["Серверы…",`openAddServers('${n.id}')`]);
     if(canDomainArch())items.push(["Сетевое хранилище…",`addArchive('${n.id}')`]);
   }
   if(n.type==="server"&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
@@ -20750,7 +20778,7 @@ function renderDeviceWizard(){
   document.getElementById("wizT").textContent=deviceWizardTitle();
   document.getElementById("wst").style.display="none";
   document.getElementById("wizDr").classList.add("device-wizard");
-  document.getElementById("wizDr").classList.remove("server-list");
+  document.getElementById("wizDr").classList.remove("server-add");
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():deviceSearchHtml();
   // Слева — откуда берём (вкладки), справа — один план на все источники
   wbd.innerHTML=`${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
@@ -20772,38 +20800,30 @@ function renderDeviceWizard(){
 function openW(preset){
   const c=addContext(),n=c.node;
   const existing=n?.type==="server"&&isUnallocated(n.id)?n.id:null;
-  const serverOnly=preset==="server"||preset==="manual"||n?.type==="domain"||n?.type==="unalloc";
+  const serverOnly=preset==="server"||n?.type==="domain"||n?.type==="unalloc";
   const unit=preset==="unit";
   const deviceWizard=!serverOnly&&preset!=="svc"&&!unit&&c.view!=="sys";
   wizd=unit?{mode:null,cat:null,lockedCat:"acfa",type:null,view:"acfa",unit:true,domain:nodeDomainId(n)||domains[0]?.id,parentId:n?.id||null}:deviceWizard?initDeviceWizard(c):{
-      mode:preset==="manual"?"server-manual":(serverOnly?"server-list":null),
+      mode:serverOnly?"server-add":null,
       existing,cat:preset==="svc"?"svc":null,lockedCat:preset==="svc"?"svc":null,type:null,
       view:preset==="svc"?"sys":c.view,
       domain:c.domain?.id||(n?.type==="domain"?n.id:null)||(n?.type==="unalloc"?n.domainId:null)||domains[0]?.id,
       server:serverOnly?null:(c.server?.id||null),
       folder:serverOnly?null:((c.node?.type==="folder"?c.node.id:selFolder)||null),
       parentId:serverOnly?null:(c.parent?.id||null),
-      serverOnly,fromServerList:!!serverOnly,
-      ipPhase:preset==="manual"?"search":null,ipText:"",ipRows:null,ipPick:new Set()
+      serverOnly,
+      ipPhase:null,ipText:"",ipRows:null,ipBad:[],ipMsg:"",ipPick:new Set(),ipFail:{}
     };
-  ws=preset==="manual"?2:1;
+  ws=1;
   document.getElementById("wizDr").classList.toggle("device-wizard",deviceWizard);
-  document.getElementById("wizDr").classList.toggle("server-list",!!serverOnly&&preset!=="manual");
+  document.getElementById("wizDr").classList.toggle("server-add",!!serverOnly);
   document.querySelector("#wiz .df").style.display="";
   document.getElementById("wiz").classList.add("open");
   wd();
   if(deviceWizard)refreshDeviceSearch();
 }
-function wizGoIp(fromList){
-  wizd.mode="server-manual";wizd.ipPhase="search";wizd.ipRows=null;wizd.ipPick=new Set();wizd.ipOver=false;
-  if(fromList!==undefined)wizd.fromServerList=!!fromList;
-  ws=2;wd();
-}
-function wizAddToDomain(serverId){
-  addToDomain(serverId,wizd.domain||domains[0]?.id);
-}
 function refreshUnallocInWizard(domainId){
-  if(!(document.getElementById("wiz").classList.contains("open")&&wizd.mode==="server-list")){refreshUnalloc(domainId);return}
+  if(!(document.getElementById("wiz").classList.contains("open")&&wizd.mode==="server-add")){refreshUnalloc(domainId);return}
   API.get("/servers").then(r=>{
     r.items.forEach(hwApplyServer);
     resetUnallocDisplay(domainId);
@@ -20814,111 +20834,163 @@ function refreshUnallocInWizard(domainId){
 function chooseAdd(mode,cat,type){
   wizd.mode=mode;wizd.cat=cat||null;wizd.type=type||null;
   if(mode!=="object"){wizd.server=null;wizd.parentId=null}
-  if(mode==="server-manual"){wizGoIp();return}
   wd();
 }
 function wizBack(){
-  if(wizd.mode==="server-manual"&&wizd.ipPhase==="done"){
-    wizGoIp();return;
-  }
-  if(wizd.mode==="server-manual"){
-    if(wizd.fromServerList||wizd.serverOnly){
-      wizd.mode="server-list";wizd.ipPhase=null;ws=1;wd();return;
-    }
-    wizd.mode=null;wizd.ipPhase=null;ws=1;wd();return;
-  }
+  if(wizd.mode==="server-add"){closeWizard();return}
   if(ws>1){ws--;wd()}
 }
-// Опрашиваем сразу весь список: адреса серверов приходят таблицей, и вбивать
-// их по одному — та же работа, только руками.
+// Окно одно: серверы из сети и серверы по адресам — строки одного списка с одной кнопкой.
+// Шагов и «Назад» нет: поле адресов всегда на виду и не очищается, опросил не то — поправил и опросил снова.
+// Адреса серверов приходят таблицей, поэтому поле принимает весь список сразу.
+function srvDid(){return wizd.domain||domains[0]?.id}
 function ipBulkText(){
   const el=document.getElementById("wizIps");
   return el?el.value:(wizd.ipText||"");
 }
+function ipTextSet(el){
+  wizd.ipText=el.value;
+  el.rows=Math.min(4,el.value.split("\n").length);
+}
+// Enter — искать, Shift+Enter — новая строка
+function ipBulkKey(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();runIpProbe()}}
 function runIpProbe(){
   const text=ipBulkText();
   wizd.ipText=text;
   const{targets,bad,over}=parseIpTargets(text);
-  if(!targets.length&&!bad.length){toast("Укажите адреса серверов");return}
+  wizd.ipBad=bad;
+  wizd.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("За раз опрашиваем не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
+  if(!targets.length){wd();return}
+  wizd.ipBusy=true;wd();
   // Отвечает ли адрес и заведён ли уже такой сервер — знает сервер (POST /servers/probe)
-  (targets.length?API.post("/servers/probe",{targets:targets.map(t=>({ip:t.ip,port:t.port}))}):Promise.resolve({items:[]})).then(res=>{
-    wizd.ipRows=[
-      ...res.items.map(r=>({key:r.ip+":"+r.port,ip:r.ip,port:r.port,status:r.status,serverId:r.serverId,domain:domainById(r.domainId),added:false})),
-      ...bad.map(raw=>({key:"bad:"+raw,ip:raw,port:null,status:"bad",serverId:null,domain:null,added:false}))
-    ];
-    wizd.ipPick=new Set(wizd.ipRows.filter(r=>r.status==="found").map(r=>r.key));
-    wizd.ipOver=!!over;
+  API.post("/servers/probe",{targets:targets.map(t=>({ip:t.ip,port:t.port}))}).then(res=>{
+    wizd.ipRows=res.items.map(r=>({key:r.ip+":"+r.port,ip:r.ip,port:r.port,status:r.status,serverId:r.serverId,domain:domainById(r.domainId),added:false}));
+    if(!wizd.ipPick)wizd.ipPick=new Set();
+    // Адрес ввели нарочно: найденное отмечено сразу
+    wizd.ipRows.filter(r=>r.status==="found").forEach(r=>wizd.ipPick.add(r.key));
     wizd.ipPhase="done";
-    if(over)toast(`За раз опрашиваем не больше ${IP_SCAN_LIMIT} адресов`);
-    wd();
-  }).catch(e=>toast(problemText(e)));
+    resetPage(srvKey());
+  }).catch(e=>{wizd.ipMsg=problemText(e)}).finally(()=>{wizd.ipBusy=false;wd()});
 }
-function ipRowsAddable(){return(wizd.ipRows||[]).filter(r=>r.status==="found"&&!r.added)}
+function ipClear(){
+  (wizd.ipRows||[]).forEach(r=>wizd.ipPick.delete(r.key));
+  wizd.ipRows=null;wizd.ipPhase=null;wizd.ipBad=[];wizd.ipMsg="";
+  wd();
+}
+function srvKey(){return"srvadd:"+srvDid()}
+// В сети — без тех, что уже показаны строкой опроса: один сервер — одна строка
+function srvNetRows(){
+  const known=new Set((wizd.ipRows||[]).map(r=>r.serverId).filter(Boolean));
+  return unallocDisplayList(srvDid()).filter(r=>!known.has(r.id)).map(r=>({key:"srv:"+r.id,serverId:r.id,ip:r.ip,port:r.port,name:r.name,cls:r.cls,status:"found",added:r.added,net:true}));
+}
+function srvRowName(r){return r.name||servers.find(x=>x.id===r.serverId)?.name||r.ip}
+function srvRows(){
+  return listFound({key:srvKey(),items:[...(wizd.ipRows||[]),...srvNetRows()],text:r=>[srvRowName(r),r.ip]});
+}
+function ipRowAddable(r){return r.status==="found"&&!r.added&&(!!r.serverId||can("createServer"))}
+function ipRowsAddable(){return srvRows().filter(ipRowAddable)}
 function ipPicked(){const set=wizd.ipPick||new Set();return ipRowsAddable().filter(r=>set.has(r.key))}
 function toggleIpPick(key,on){
   if(!wizd.ipPick)wizd.ipPick=new Set();
   if(on)wizd.ipPick.add(key);else wizd.ipPick.delete(key);
   wd();
 }
+function toggleIpRow(key){toggleIpPick(key,!wizd.ipPick?.has(key))}
 function toggleIpPickAll(on){
   wizd.ipPick=new Set(on?ipRowsAddable().map(r=>r.key):[]);
   wd();
 }
-async function addProbedServers(){
+async function addProbedServers(sure){
   const list=ipPicked();
   if(!list.length){toast("Ничего не выбрано");return}
-  const did=wizd.domain||domains[0]?.id;
+  const did=srvDid();
+  wizd.ipFail={};
+  // Новый адрес сначала заводится (нераспределённым), затем встаёт в домен
+  for(const r of list){
+    if(r.serverId)continue;
+    try{const rec=await API.post("/servers",{ip:r.ip,port:r.port,domainId:did});hwApplyServer(rec);r.serverId=rec.id}
+    catch(e){wizd.ipFail[r.key]=problemText(e)}
+  }
+  const ready=list.filter(r=>r.serverId);
+  const knock=ready.map(r=>servers.find(x=>x.id===r.serverId)).filter(x=>x?.fingerprint);
+  if(knock.length&&!sure){wd();askFingerprints(knock,()=>addProbedServers(true));return}
   let n=0;
   try{
-    for(const r of list){
-      // Новый адрес сначала заводится (нераспределённым), затем встаёт в домен
-      let id=r.serverId;
-      if(!id){const rec=await API.post("/servers",{ip:r.ip,port:r.port,domainId:did});hwApplyServer(rec);id=rec.id}
-      const s2=servers.find(x=>x.id===id);if(!s2)continue;
-      const res=await serversAssign([{s:s2,domainId:did,allocated:true}]);
-      res.done.forEach(placeInDomain);
-      if(!res.done.length)continue;
-      r.added=true;r.serverId=id;n++;
-      wizd.ipPick.delete(r.key);
-    }
+    const res=ready.length?await serversAssign(ready.map(r=>({s:servers.find(x=>x.id===r.serverId),domainId:did,allocated:true}))):{done:[],failed:[]};
+    res.done.forEach(placeInDomain);
+    n=res.done.length;
+    const doneIds=new Set(res.done.map(x=>x.id));
+    ready.filter(r=>doneIds.has(r.serverId)).forEach(r=>{r.added=true;wizd.ipPick.delete(r.key)});
+    res.failed.forEach(f=>{
+      const r=ready.find(x=>x.serverId===f.serverId);
+      if(r)wizd.ipFail[r.key]=problemText(f.code,servers.find(x=>x.id===f.serverId));
+    });
   }catch(e){toast(problemText(e))}
-  if(n)toast(n===1?"Сервер добавлен":`Добавлено серверов: ${n}`);
+  const bad=Object.keys(wizd.ipFail).length;
+  if(n||bad)toast(bad?`${i18n("Добавлено серверов")}: ${n} · ${i18n("не добавлено")}: ${bad}`:n===1?"Сервер добавлен":`Добавлено серверов: ${n}`);
   wd();
 }
-// Ctrl+Enter в списке адресов — искать
-function ipBulkKey(e){if((e.ctrlKey||e.metaKey)&&e.key==="Enter"){e.preventDefault();runIpProbe()}}
-function wizGoIpAgain(){wizGoIp(wizd.fromServerList)}
-function ipBulkHtml(){
-  const rows=wizd.ipRows||[];
-  const did=wizd.domain||domains[0]?.id;
-  const domName=locName(domainById(did)||{});
-  if(wizd.ipPhase!=="done"){
-    return`<p class="sub" style="margin:0 0 8px">${i18n("Адреса серверов — списком, диапазоном или подсетью. Разделители: перевод строки, запятая, пробел; порт по умолчанию 20111.")}</p>
-      <textarea class="ip-bulk-ta" id="wizIps" spellcheck="false" placeholder="10.30.0.12&#10;10.30.0.20-40&#10;10.30.1.0/24&#10;10.30.0.5:20112" ${onEv("keydown",["ipBulkKey",onEv.event])}>${escHtml(wizd.ipText||"")}</textarea>
-      <p class="sub" style="margin:8px 0 0">${i18n("Будут добавлены в домен")} «${escHtml(domName)}». ${i18n("Ctrl+Enter — искать.")}</p>`;
-  }
-  const add=ipRowsAddable(),picked=ipPicked().length;
-  const cls={found:"ok",dead:"dead","in-domain":"dup",bad:"bad"};
-  const body=rows.map(r=>{
-    const st=r.added?`<span class="ip-st ok">${i18n("Добавлен")}</span>`
-      :`<span class="ip-st ${cls[r.status]||""}">${escHtml(probeLabel(r))}</span>`;
-    const chk=r.status==="found"&&!r.added
-      ?`<span class="unalloc-chk"><input type="checkbox" aria-label="${escHtml(r.ip)}" ${wizd.ipPick?.has(r.key)?"checked":""} ${onEv("change",["toggleIpPick",`${r.key}`,onEv.checked])}></span>`
-      :`<span class="unalloc-chk"></span>`;
-    return`<div class="it">${chk}<span>${ic("server")}</span>
-      <span style="flex:1;min-width:0">${escHtml(r.ip)}${r.port?`<small>${i18n("порт")} ${r.port}</small>`:""}</span>${st}</div>`;
-  }).join("")||`<p class="sub">${i18n("Ничего не найдено")}</p>`;
-  const counts=["found","in-domain","dead","bad"].map(k=>{
-    const n=rows.filter(r=>r.status===k).length;
-    return n?`${escHtml(probeLabel({status:k,domain:{name:"…"}}).replace(/ «…»$/,""))}: ${n}`:"";
-  }).filter(Boolean).join(" · ");
-  return`<div class="unalloc-bulk">
-      <label class="unalloc-all"><input type="checkbox" ${add.length&&picked===add.length?"checked":""} ${add.length?"":"disabled"} ${onEv("change",["toggleIpPickAll",onEv.checked])}><span>${i18n("Выбрать все")}</span></label>
-      <span style="flex:1"></span>
-      <button type="button" class="btn s" ${onEv("click",["wizGoIpAgain"])}>${i18n("Искать снова")}</button>
+function srvAddrHtml(){
+  if(!can("probeServers"))return"";
+  const msg=[wizd.ipMsg,(wizd.ipBad||[]).length?`${i18n("Не распознано")}: ${wizd.ipBad.join(", ")}`:""].filter(Boolean).join(". ");
+  return`<div class="srv-addr">
+    <label class="srv-lbl" for="wizIps">${i18n("Адреса серверов")}</label>
+    <div class="srv-addr-row">
+      <textarea class="ip-bulk-ta" id="wizIps" rows="${Math.min(4,(wizd.ipText||"").split("\n").length)}" spellcheck="false" placeholder="10.30.0.12, 10.30.0.20-40, 10.30.1.0/24" ${onEv("input",["ipTextSet",onEv.el])} ${onEv("keydown",["ipBulkKey",onEv.event])}>${escHtml(wizd.ipText||"")}</textarea>
+      <button type="button" class="btn" ${wizd.ipBusy?"disabled":""} ${onEv("click",["runIpProbe"])}>${i18n(wizd.ipBusy?"Опрашиваем…":"Найти")}</button>
     </div>
-    <div class="ip-res">${body}</div>
-    <div class="ip-sum"><span>${i18n("Опрошено адресов:")} ${rows.length}</span>${counts?`<span>· ${counts}</span>`:""}${wizd.ipOver?`<span style="color:var(--one-warning-icon)">· ${i18n("список обрезан до")} ${IP_SCAN_LIMIT}</span>`:""}</div>`;
+    ${msg?`<p class="srv-bad" role="alert">${escHtml(msg)}</p>`:`<p class="srv-hint">${i18n("IP, диапазон или подсеть, можно списком. Порт — через двоеточие, по умолчанию 20111.")}</p>`}
+  </div>`;
+}
+function srvRowHtml(r){
+  const on=ipRowAddable(r),fail=wizd.ipFail?.[r.key];
+  const chk=on?`<span class="unalloc-chk"><input type="checkbox" aria-label="${escHtml(i18n("Выбрать")+" "+(r.ip||srvRowName(r)))}" ${wizd.ipPick?.has(r.key)?"checked":""} ${onEv("click",onEv.stop)} ${onEv("change",["toggleIpPick",`${r.key}`,onEv.checked])}></span>`:`<span class="unalloc-chk"></span>`;
+  const sub=[r.ip&&srvRowName(r)!==r.ip?r.ip:"",r.port&&r.port!==20111?`${i18n("порт")} ${r.port}`:"",r.cls?i18n(r.cls==="camera"?"камера":"сервер"):""].filter(Boolean).join(" · ");
+  const go=id=>`<button type="button" class="btn s" ${onEv("click",onEv.stop,["goAddedServer",`${id}`])}>${i18n("Перейти")}</button>`;
+  const cls={found:"ok",dead:"dead","in-domain":"dup"};
+  const st=r.added?`<span class="unalloc-added"><span class="unalloc-added-st">${i18n("Добавлен")}</span>${go(r.serverId)}</span>`
+    :fail?`<span class="ip-st bad">${escHtml(fail)}</span>`
+    :r.status==="in-domain"?`<span class="unalloc-added"><span class="ip-st dup">${escHtml(probeLabel(r))}</span>${go(r.serverId)}</span>`
+    :r.status==="found"&&!r.serverId&&!can("createServer")?`<span class="ip-st dead">${i18n("Заводить по адресу здесь нельзя")}</span>`
+    :r.net?"":`<span class="ip-st ${cls[r.status]||""}">${escHtml(probeLabel(r))}</span>`;
+  return`<div class="it${on?"":" srv-off"}"${on?` ${onEv("click",["toggleIpRow",`${r.key}`])}`:""}>${chk}<span>${ic("server")}</span>
+    <span style="flex:1;min-width:0">${escHtml(srvRowName(r))}${sub?`<small>${escHtml(sub)}</small>`:""}</span>${st}</div>`;
+}
+function srvListHtml(){
+  const did=srvDid(),how="unalloc:"+did,key=srvKey(),rows=srvRows();
+  const probed=wizd.ipRows||[],netAll=srvNetRows(),page=pageSlice(key,rows);
+  const pAddr=page.filter(r=>!r.net),pNet=page.filter(r=>r.net);
+  const counts=["found","in-domain","dead"].map(k=>{
+    const n=probed.filter(r=>r.status===k).length;
+    return n?`${escHtml(probeLabel({status:k,domain:{name:"…"}}).replace(/ «…»$/,"")).toLowerCase()}: ${n}`:"";
+  }).filter(Boolean).join(", ");
+  const addrCap=`<div class="srv-cap"><b>${i18n("По адресам")}</b><span>${i18n("опрошено")} ${probed.length}${counts?` · ${counts}`:""}</span><button type="button" class="ch-act" ${onEv("click",["ipClear"])}>${i18n("Убрать")}</button></div>`;
+  const netCap=`<div class="srv-cap"><b>${i18n("В сети")}</b><span>${netAll.length||""}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
+  const q=(listQ[key]||"").trim();
+  const netEmpty=!netAll.length&&!q?`<p class="srv-empty">${i18n(can("probeServers")?"В сети серверов не нашлось. Введите адреса выше.":"В сети серверов не нашлось.")}</p>`:"";
+  const none=q&&!rows.length?`<p class="srv-empty">${i18n("Ничего не найдено")}</p>`:"";
+  const showNet=pNet.length||!netAll.length;
+  return(pAddr.length?addrCap+pAddr.map(srvRowHtml).join(""):"")
+    +(showNet&&!none?netCap+pNet.map(srvRowHtml).join("")+netEmpty:"")+none;
+}
+function srvHeadHtml(){
+  const did=srvDid(),key=srvKey(),how="unalloc:"+did,add=ipRowsAddable(),picked=ipPicked().length;
+  const total=(wizd.ipRows||[]).length+srvNetRows().length;
+  if(!total)return"";
+  const box=`<label class="unalloc-all"><input type="checkbox" ${add.length&&picked===add.length?"checked":""} ${add.length?"":"disabled"} ${onEv("change",["toggleIpPickAll",onEv.checked])}><span>${i18n("Выбрать все")}</span></label>`;
+  return`<div class="srv-hd">${box}${total>6||(listQ[key]||"").trim()?listSearchHtml(key,"Имя или IP в списке…",how):""}</div>`;
+}
+function renderServerAdd(){
+  const did=srvDid(),key=srvKey(),how="unalloc:"+did,n=ipPicked().length,wbd=document.getElementById("wbd"),st=viewState(wbd);
+  const wn=document.getElementById("wn");
+  wn.textContent=`${i18n("Добавить выбранные")} (${n})`;
+  wn.disabled=!n;
+  document.getElementById("wizFoot").innerHTML=`<span class="srv-foot">${i18n("В домен")} «${escHtml(locName(domainById(did)||{}))}»</span>`;
+  const shown=srvRows();
+  wbd.innerHTML=`${srvAddrHtml()}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
+    +(shown.length?`<div class="tfoot tfoot-flat">${pagerHtml(key,shown.length,how,"сервер|сервера|серверов")}</div>`:"");
+  restoreView(wbd,st);
+  if(wizd.ipFocus){wizd.ipFocus=false;document.getElementById("wizIps")?.focus()}
 }
 function needsParent(type){
   return["acfa_sensor","acfa_lock","acfa_fence"].includes(type)||!!wizd.unit;
@@ -20958,8 +21030,7 @@ function unitAdd(){
 function wizardTitle(){
   if(wizd.unit)return"Добавить единицу СКУД";
   if(wizd.mode==="device-add")return"Добавить устройство";
-  if(wizd.mode==="server-manual")return"Добавить серверы по IP";
-  if(wizd.serverOnly)return"Добавить сервер";
+  if(wizd.serverOnly)return"Добавить серверы";
   if(wizd.view==="acfa")return"Добавить ACFA";
   if(wizd.view==="sys"||wizd.cat==="svc")return"Добавить службу";
   return"Добавить устройство";
@@ -20974,37 +21045,27 @@ function wizPlace(k,v){wizd[k]=v;wizd.parentId=null;wd()}
 function wizParentSet(v){wizd.parentId=v}
 function wd(){
   if(wizd.mode==="device-add"){renderDeviceWizard();return}
-  const serverList=wizd.mode==="server-list";
-  const serverFlow=serverList||wizd.mode==="server-manual";
+  const srv=wizd.mode==="server-add";
   document.getElementById("wizDr").classList.remove("device-wizard");
-  document.getElementById("wizDr").classList.toggle("server-list",!!serverList);
+  document.getElementById("wizDr").classList.toggle("server-add",srv);
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot");
   if(df)df.classList.remove("device-footer");
   if(foot)foot.innerHTML="";
-  document.querySelector("#wiz .df").style.display=serverList?"none":"";
-  document.getElementById("wst").innerHTML=serverFlow?"":[1,2].map(i=>`<div class="stp ${i<=ws?"on":""}"></div>`).join("");
-  document.getElementById("wst").style.display=serverFlow?"none":"";
-  const manualSearch=wizd.mode==="server-manual"&&wizd.ipPhase!=="done";
-  const manualFound=wizd.mode==="server-manual"&&wizd.ipPhase==="done";
-  const hideBack=serverList||(ws===1&&!manualFound);
+  document.querySelector("#wiz .df").style.display="";
+  document.getElementById("wst").innerHTML=srv?"":[1,2].map(i=>`<div class="stp ${i<=ws?"on":""}"></div>`).join("");
+  document.getElementById("wst").style.display=srv?"none":"";
+  const hideBack=!srv&&ws===1;
   const wb=document.getElementById("wb"),wn=document.getElementById("wn");
   wb.style.display=hideBack?"none":"";
   wb.disabled=hideBack;
-  wn.style.display=serverList?"none":"";
+  wb.textContent=i18n(srv?"Закрыть":"Назад");
+  wn.style.display="";
   document.getElementById("wizT").textContent=wizardTitle();
-  wn.textContent=manualSearch?i18n("Найти"):manualFound?`${i18n("Добавить выбранные")} (${ipPicked().length})`:ws===2?i18n("Добавить"):i18n("Далее");
-  wn.disabled=manualFound&&!ipPicked().length;
+  wn.textContent=ws===2?i18n("Добавить"):i18n("Далее");
+  wn.disabled=false;
+  if(srv){renderServerAdd();return}
   let h="";
-  if(serverList){
-    const did=wizd.domain||domains[0]?.id;
-    h+=`<div class="srv-wrap">
-      <div class="wiz-unalloc-hd">
-        <div class="wsec">Найденные нераспределённые серверы</div>
-        <button type="button" class="ch-act" title="Обновить список" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}Обновить</button>
-      </div>
-      ${unallocServersHtml(did,true)}
-    </div>`;
-  }else if(ws===1){
+    if(ws===1){
     h+=`<div class="wsec">Тип объекта</div>`;
     Object.entries(WIZ).forEach(([cat,blk])=>{
       if(blk.view!==wizd.view||(wizd.lockedCat&&wizd.lockedCat!==cat))return;
@@ -21012,8 +21073,6 @@ function wd(){
         <div class="g" style="margin-top:6px">${blk.types.map(([id,n,d])=>`<button type="button" class="chc ${wizd.mode==="object"&&wizd.type===id?"on":""}" ${onEv("click",["chooseAdd","object",`${cat}`,`${id}`])}><b>${n}</b><small>${d}</small></button>`).join("")}</div></div>`;
     });
     if(!wizd.mode)h+=`<p class="sub">Выберите, что нужно добавить.</p>`;
-  }else if(wizd.mode==="server-manual"){
-    h+=ipBulkHtml();
   }else if(wizd.unit){
     h+=unitStepHtml();
   }else{
@@ -21041,13 +21100,10 @@ function wd(){
 }
 function wnx(){
   if(wizd.mode==="device-add")return;
+  if(wizd.mode==="server-add"){addProbedServers();return}
   if(ws===1){
     if(!wizd.mode){toast("Выберите, что нужно добавить");return}
     ws=2;wd();return;
-  }
-  if(wizd.mode==="server-manual"){
-    if(wizd.ipPhase==="done"){addProbedServers();return}
-    runIpProbe();return;
   }
   if(wizd.unit){unitAdd();return}
   const svcFlow=wizd.view==="sys"||wizd.cat==="svc";
