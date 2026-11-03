@@ -15,7 +15,12 @@
 @keyframes tour-rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
 .tour-panel{position:fixed;left:16px;bottom:16px;z-index:100004;width:min(420px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;background:var(--p,#1a2129);color:var(--tx,#e4e9ef);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 10px 32px #0007;font-size:14px;line-height:1.45}
 .tour-panel.top{bottom:auto;top:16px}
-.tour-n{font-size:12px;color:var(--mu,#97a4b3);margin:0 0 4px}
+.tour-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 6px}
+.tour-n{font-size:12px;color:var(--mu,#97a4b3);margin:0}
+.tour-speed{display:flex;gap:2px}
+.tour-speed button{min-width:30px;height:24px;padding:0 6px;border:0;border-radius:5px;background:transparent;color:var(--mu,#97a4b3);font:600 12px/1 inherit;cursor:pointer}
+.tour-speed button:hover{color:var(--tx,#e4e9ef)}
+.tour-speed button[aria-pressed="true"]{background:var(--one-focus-ring,#3b82f6);color:#fff}
 .tour-say{margin:0 0 12px;min-height:40px}
 .tour-hint{margin:-4px 0 12px;font-size:12px;color:var(--mu,#97a4b3)}
 .tour-bar{height:3px;margin:0 0 10px;background:var(--ln,#2d3743);border-radius:2px;overflow:hidden}
@@ -41,6 +46,21 @@
     b.addEventListener("click", fn);
     return b;
   };
+  // Скорость переживает перезагрузку на «Назад» и новый запуск
+  const SPEEDS = [1, 2, 4, 8];
+  const loadSpeed = () => {
+    try {
+      const v = Number(localStorage.getItem("tourSpeed"));
+      return SPEEDS.includes(v) ? v : 1;
+    } catch {
+      return 1;
+    }
+  };
+  const saveSpeed = (v) => {
+    try {
+      localStorage.setItem("tourSpeed", String(v));
+    } catch {}
+  };
   // Показ всегда на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
   const reloadAt = (step) => {
     const u = new URL(location.href);
@@ -50,14 +70,30 @@
 
   function run(steps, startAt) {
     const last = steps.length - 1;
-    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, frame = 0;
+    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, frame = 0, speed = loadSpeed();
     const block = make("div", "tour-block"), cur = make("div", "tour-cur", ARROW), ring = make("div", "tour-ring"), panel = make("div", "tour-panel");
     panel.setAttribute("role", "status");
     panel.setAttribute("aria-live", "polite");
     const n = make("p", "tour-n"), bar = make("div", "tour-bar", "<i></i>"), say = make("p", "tour-say"), hint = make("p", "tour-hint"), btns = make("div", "tour-btns");
     hint.textContent = "Показ окончен. «Назад» пройдёт шаги заново, «Закрыть» вернёт страницу: можно попробовать самому.";
     hint.hidden = true;
-    panel.append(n, bar, say, hint, btns);
+    const top = make("div", "tour-top"), speeds = make("div", "tour-speed");
+    speeds.setAttribute("role", "group");
+    speeds.setAttribute("aria-label", "Скорость показа");
+    const speedBtns = SPEEDS.map((v) => {
+      const b = button(`×${v}`, "", () => setSpeed(v));
+      speeds.append(b);
+      return b;
+    });
+    function setSpeed(v) {
+      speed = v;
+      saveSpeed(v);
+      speedBtns.forEach((b, k) => b.setAttribute("aria-pressed", String(SPEEDS[k] === v)));
+      cur.style.transitionDuration = `${0.75 / v}s`;
+    }
+    setSpeed(speed);
+    top.append(n, speeds);
+    panel.append(top, bar, say, hint, btns);
     const goBack = () => {
       if (i > 0) back = true;
     };
@@ -91,6 +127,7 @@
       else if (e.key === " " && !ended) setPaused(!paused);
       else if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goBack();
+      else if (SPEEDS.includes(Number(e.key))) setSpeed(Number(e.key));
     };
     const KEYS = ["keydown", "keypress", "keyup"];
     KEYS.forEach((t) => window.addEventListener(t, key, true));
@@ -129,6 +166,7 @@
     function broken() {
       clear();
       n.textContent = "Показ прервался";
+      speeds.remove();
       bar.remove();
       say.textContent = "На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.";
       btns.replaceChildren(button("Показать снова", "btn s", () => reloadAt(0)), button("Закрыть", "btn pri s", stop));
@@ -145,7 +183,7 @@
       skip = back = false;
       while ((left > 0 || paused) && !stopped && !skip && !back) {
         await sleep(50);
-        if (!paused) left -= 50;
+        if (!paused) left -= 50 * speed;
       }
       skip = false;
     }
@@ -165,14 +203,14 @@
     };
     async function press(el) {
       const [x, y] = point(el);
-      await sleep(reduced() ? 0 : 780);
+      await sleep(reduced() ? 0 : 780 / speed);
       cur.classList.add("down");
       const rip = make("div", "tour-ripple");
       rip.style.left = `${x}px`;
       rip.style.top = `${y}px`;
       document.body.append(rip);
       setTimeout(() => rip.remove(), 500);
-      await sleep(120);
+      await sleep(120 / speed);
       cur.classList.remove("down");
     }
     async function type(el, text) {
@@ -181,7 +219,7 @@
         if (stopped) return;
         el.value += ch;
         el.dispatchEvent(new Event("input", { bubbles: true }));
-        if (!reduced()) await sleep(38);
+        if (!reduced()) await sleep(38 / speed);
       }
     }
     // Шаги до нужного — без курсора и ожиданий: они только восстанавливают состояние
@@ -231,11 +269,11 @@
           await press(fresh);
           if (stopped) return;
           fresh.click();
-          await sleep(350);
+          await sleep(350 / speed);
         } else if (el && s.act === "type") {
           await press(el);
           await type(s.at() || el, s.text);
-          await sleep(300);
+          await sleep(300 / speed);
         }
         i++;
       }
