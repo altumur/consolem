@@ -40,3 +40,4 @@
 | 2026-11-01 | w2c | [Запуск формы, архив, запись по детектору, домен шире кластера, камеры w2c, приём в домен, откат, поправки к прошлым запросам](2026-11-01-182545Z-w2c-domain-startup-archives-rollback-request.md) | отвечен | [ответ, 2026-11-02](2026-11-01-182545Z-w2c-domain-startup-archives-rollback-response.md) |
 | 2026-11-03 | mockup | [Универсальная модель объектов для расширяемых VMS: описания видов, `Unit`, профили, пересмотр контракта](2026-11-03-065231Z-mockup-generic-model-request.md) | новый | |
 | 2026-11-03 | mockup | [Вид «Облачное», производители драйвер-пака, приёмка плана добавления](2026-11-03-082020Z-mockup-archive-kinds-vendors-acceptance-request.md) | отвечен | [ответ, 2026-11-03](2026-11-03-082020Z-mockup-archive-kinds-vendors-acceptance-response.md) |
+| 2026-11-03 | mockup | [Шаги приёмки плана добавления и пункт про `selectAllVisible`](2026-11-03-100923Z-mockup-plan-acceptance-steps-request.md) | новый | — |
