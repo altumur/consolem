@@ -1,8 +1,9 @@
 /* Показ прототипа: виртуальный курсор сам проходит сценарий и подписывает каждый шаг, чтобы смотрящий не искал, что изменилось.
    Шаги задаёт прототип: Tour.offer("Подпись кнопки", шаги). С ?demo в адресе показ стартует сам, с ?selftest его нет.
-   Шаг: {say:"текст", at:()=>элемент, act:"click"|"type"|"look", text:"что ввести", before:()=>…}.
+   Шаг: {say:"текст", at:()=>элемент, act:"click"|"type", text:"что ввести", before:()=>…}.
+   Шаги идут сами. Панель остаётся и после последнего шага: «Назад» и «Дальше» проходят их вручную, «Закрыть» отдаёт страницу.
    Клики и ввод настоящие: идут через обычные обработчики страницы и контракт. Данные встроенного сервера живут до перезагрузки,
-   поэтому запуск по кнопке и «Показать снова» перезагружают страницу. Не часть продукта: в index.html не переносится. */
+   поэтому запуск и «Назад» перезагружают страницу: ?demo=N быстро проходит шаги до N и ждёт на нём. Не часть продукта: в index.html не переносится. */
 (() => {
   const CSS = `
 .tour-block{position:fixed;inset:0;z-index:100000;background:transparent}
@@ -12,10 +13,11 @@
 .tour-ring{position:fixed;left:0;top:0;z-index:100001;pointer-events:none;border:2px solid var(--one-focus-ring,#3b82f6);border-radius:8px;box-shadow:0 0 0 4px color-mix(in srgb,var(--one-focus-ring,#3b82f6) 28%,transparent);transition:opacity .2s}
 .tour-ripple{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;z-index:100002;pointer-events:none;border-radius:50%;border:2px solid var(--one-focus-ring,#3b82f6);animation:tour-rip .45s ease-out forwards}
 @keyframes tour-rip{from{transform:scale(.3);opacity:1}to{transform:scale(1.5);opacity:0}}
-.tour-panel{position:fixed;left:16px;bottom:16px;z-index:100004;width:min(400px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;background:var(--p,#1a2129);color:var(--tx,#e4e9ef);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 10px 32px #0007;font-size:14px;line-height:1.45}
+.tour-panel{position:fixed;left:16px;bottom:16px;z-index:100004;width:min(420px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;background:var(--p,#1a2129);color:var(--tx,#e4e9ef);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 10px 32px #0007;font-size:14px;line-height:1.45}
 .tour-panel.top{bottom:auto;top:16px}
 .tour-n{font-size:12px;color:var(--mu,#97a4b3);margin:0 0 4px}
 .tour-say{margin:0 0 12px;min-height:40px}
+.tour-hint{margin:-4px 0 12px;font-size:12px;color:var(--mu,#97a4b3)}
 .tour-bar{height:3px;margin:0 0 10px;background:var(--ln,#2d3743);border-radius:2px;overflow:hidden}
 .tour-bar i{display:block;height:100%;background:var(--one-focus-ring,#3b82f6);transition:width .3s}
 .tour-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -39,31 +41,45 @@
     b.addEventListener("click", fn);
     return b;
   };
-
-  // Показ всегда с начала и на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
-  const restart = () => {
+  // Показ всегда на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
+  const reloadAt = (step) => {
     const u = new URL(location.href);
-    u.searchParams.set("demo", "");
+    u.searchParams.set("demo", step ? String(step) : "");
     location.href = u.href;
   };
 
-  function run(steps) {
-    let paused = false, stopped = false, skip = false, target = null, frame = 0;
+  function run(steps, startAt) {
+    const last = steps.length - 1;
+    let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, frame = 0;
     const block = make("div", "tour-block"), cur = make("div", "tour-cur", ARROW), ring = make("div", "tour-ring"), panel = make("div", "tour-panel");
     panel.setAttribute("role", "status");
     panel.setAttribute("aria-live", "polite");
-    const n = make("p", "tour-n"), bar = make("div", "tour-bar", "<i></i>"), say = make("p", "tour-say"), btns = make("div", "tour-btns");
-    panel.append(n, bar, say, btns);
-    const pauseBtn = button("Пауза", "btn s", () => setPaused(!paused));
-    const nextBtn = button("Дальше", "btn s", () => { skip = true; });
-    const stopBtn = button("Стоп", "btn s", stop);
-    btns.append(pauseBtn, nextBtn, stopBtn);
+    const n = make("p", "tour-n"), bar = make("div", "tour-bar", "<i></i>"), say = make("p", "tour-say"), hint = make("p", "tour-hint"), btns = make("div", "tour-btns");
+    hint.textContent = "Показ окончен. «Назад» пройдёт шаги заново, «Закрыть» вернёт страницу: можно попробовать самому.";
+    hint.hidden = true;
+    panel.append(n, bar, say, hint, btns);
+    const goBack = () => {
+      if (i > 0) back = true;
+    };
+    const goNext = () => {
+      skip = true;
+    };
+    const backBtn = button("Назад", "btn s", goBack);
+    const pauseBtn = button("Пауза", "btn s", () => (ended ? reloadAt(0) : setPaused(!paused)));
+    const nextBtn = button("Дальше", "btn s", goNext);
+    btns.append(backBtn, pauseBtn, nextBtn, button("Закрыть", "btn s", stop));
     ring.style.opacity = "0";
     cur.style.transform = `translate(${innerWidth / 2}px,${innerHeight / 2}px)`;
     document.body.append(block, ring, cur, panel);
     function setPaused(v) {
       paused = v;
       pauseBtn.textContent = v ? "Продолжить" : "Пауза";
+    }
+    function setEnded(v) {
+      ended = v;
+      hint.hidden = !v;
+      nextBtn.disabled = v;
+      pauseBtn.textContent = v ? "Показать снова" : paused ? "Продолжить" : "Пауза";
     }
     // Клавиши на время показа — только его: стрелка иначе пойдёт по дереву, Esc закроет окно
     const key = (e) => {
@@ -72,14 +88,14 @@
       e.preventDefault();
       if (e.type !== "keydown") return;
       if (e.key === "Escape") stop();
-      else if (e.key === " ") setPaused(!paused);
-      else if (e.key === "ArrowRight") skip = true;
+      else if (e.key === " " && !ended) setPaused(!paused);
+      else if (e.key === "ArrowRight") goNext();
+      else if (e.key === "ArrowLeft") goBack();
     };
     const KEYS = ["keydown", "keypress", "keyup"];
     KEYS.forEach((t) => window.addEventListener(t, key, true));
     // Подсветка следует за элементом: окно перерисовывается, поэтому искать его заново на каждом кадре
-    const follow = () => {
-      if (stopped) return;
+    const place = () => {
       const el = target && target();
       if (el && el.isConnected) {
         const r = el.getBoundingClientRect();
@@ -92,6 +108,10 @@
         const covered = (top) => Math.max(0, Math.min(r.right, p.right) - Math.max(r.left, p.left)) * Math.max(0, Math.min(r.bottom, top + p.height) - Math.max(r.top, top));
         panel.classList.toggle("top", covered(16) < covered(innerHeight - 16 - p.height));
       } else ring.style.opacity = "0";
+    };
+    const follow = () => {
+      if (stopped) return;
+      place();
       frame = requestAnimationFrame(follow);
     };
     frame = requestAnimationFrame(follow);
@@ -106,28 +126,31 @@
       panel.remove();
       offerShow(true);
     }
-    function finish(title, text) {
+    function broken() {
       clear();
-      n.textContent = title;
+      n.textContent = "Показ прервался";
       bar.remove();
-      say.textContent = text;
-      btns.replaceChildren(
-        button("Показать снова", "btn s", restart),
-        button("Закрыть", "btn pri s", () => { panel.remove(); offerShow(true); })
-      );
+      say.textContent = "На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.";
+      btns.replaceChildren(button("Показать снова", "btn s", () => reloadAt(0)), button("Закрыть", "btn pri s", stop));
     }
-    // Ждать, уважая паузу; «Дальше» обрывает ожидание
+    function draw(s) {
+      n.textContent = `Шаг ${i + 1} из ${steps.length}`;
+      bar.firstChild.style.width = `${Math.round(((i + 1) / steps.length) * 100)}%`;
+      say.textContent = s.say;
+      backBtn.disabled = i === 0;
+    }
+    // Ждать, уважая паузу; «Дальше» и «Назад» обрывают ожидание
     async function hold(ms) {
       let left = ms;
-      skip = false;
-      while ((left > 0 || paused) && !stopped && !skip) {
+      skip = back = false;
+      while ((left > 0 || paused) && !stopped && !skip && !back) {
         await sleep(50);
         if (!paused) left -= 50;
       }
       skip = false;
     }
     async function waitFor(at) {
-      for (let i = 0; i < 100 && !stopped; i++) {
+      for (let t = 0; t < 100 && !stopped; t++) {
         const el = at();
         if (el && el.isConnected && el.getClientRects().length) return el;
         await sleep(50);
@@ -156,32 +179,53 @@
       el.focus();
       for (const ch of text) {
         if (stopped) return;
-        while (paused && !stopped) await sleep(50);
         el.value += ch;
         el.dispatchEvent(new Event("input", { bubbles: true }));
         if (!reduced()) await sleep(38);
       }
     }
-    (async () => {
-      for (let i = 0; i < steps.length && !stopped; i++) {
+    // Шаги до нужного — без курсора и ожиданий: они только восстанавливают состояние
+    async function rewind() {
+      n.textContent = `Шаг ${startAt + 1} из ${steps.length}`;
+      say.textContent = "Перематываю…";
+      cur.style.opacity = "0";
+      for (i = 0; i < startAt && !stopped; i++) {
         const s = steps[i];
-        n.textContent = `Шаг ${i + 1} из ${steps.length}`;
-        bar.firstChild.style.width = `${Math.round(((i + 1) / steps.length) * 100)}%`;
-        say.textContent = s.say;
         if (s.before) await s.before();
         const el = s.at ? await waitFor(s.at) : null;
         if (stopped) return;
-        if (s.at && !el) {
-          finish("Показ прервался", "На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.");
-          return;
+        if (s.at && !el) return broken();
+        if (el && s.act === "click") el.click();
+        else if (el && s.act === "type") {
+          el.value = s.text;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
         }
+        await sleep(30);
+      }
+      cur.style.opacity = "";
+      setPaused(true);
+    }
+    (async () => {
+      if (startAt) await rewind();
+      while (!stopped) {
+        const s = steps[i];
+        draw(s);
+        if (s.before) await s.before();
+        const el = s.at ? await waitFor(s.at) : null;
+        if (stopped) return;
+        if (s.at && !el) return broken();
         target = s.at || null;
         if (el) {
           el.scrollIntoView({ block: "nearest" });
           point(el);
         }
-        await hold(Math.max(2500, s.say.length * 55));
+        place();
+        if (i === last) {
+          setEnded(true);
+          while (!stopped && !back) await sleep(50);
+        } else await hold(Math.max(2500, s.say.length * 55));
         if (stopped) return;
+        if (back) return reloadAt(i - 1);
         if (el && s.act === "click") {
           const fresh = s.at() || el;
           await press(fresh);
@@ -193,8 +237,8 @@
           await type(s.at() || el, s.text);
           await sleep(300);
         }
+        i++;
       }
-      if (!stopped) finish("Всё", "Показ окончен. Теперь можно попробовать самому: всё на экране настоящее.");
     })();
   }
 
@@ -207,11 +251,12 @@
         const st = make("style", "");
         st.textContent = CSS;
         document.head.append(st);
-        offerEl = button(`▶ ${label}`, "tour-offer", restart);
+        offerEl = button(`▶ ${label}`, "tour-offer", () => reloadAt(0));
         document.body.append(offerEl);
-        if (/[?&]demo\b/.test(location.search)) {
+        const demo = new URLSearchParams(location.search).get("demo");
+        if (demo !== null) {
           offerShow(false);
-          run(steps);
+          run(steps, Math.min(Number(demo) || 0, steps.length - 1));
         }
       };
       if (window.appReady) window.appReady.then(mount);
