@@ -12,7 +12,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!head.some((t) => /^(Найденные|Вручную|Из файла)$|^Хранилище/.test(t)), "в шапке нет «Найденные», «Вручную», «Из файла», «Хранилище»");
   document.querySelector("#main .btn-split-arrow").click();
   let menu = document.getElementById("tctx");
-  ok(menu.classList.contains("open") && /Сервер…/.test(menu.textContent) && /Сетевое хранилище…/.test(menu.textContent), "меню стрелки у домена: " + menu.textContent.trim().replace(/\s+/g, " "));
+  ok(menu.classList.contains("open") && /Серверы?…/.test(menu.textContent) && /Сетевое хранилище…/.test(menu.textContent), "меню стрелки у домена: " + menu.textContent.trim().replace(/\s+/g, " "));
   closeTreeCtx();
   const srv = servers.find((s) => !isUnallocated(s.id) && SERVER_DOMAIN[s.id] === d1.id) || servers.find((s) => !isUnallocated(s.id));
   pick(srv.id);
