@@ -9299,7 +9299,7 @@ async function flLoad(f){
 }
 const flFresh=new Set();
 function flRetry(id){treeBr.delete("folders|"+id);[true,false].forEach(n=>{flLoaded.delete(id+"|"+n);flFresh.delete(id+"|"+n)});gear()}
-function flCnt(x){if(x.type==="nofolder")return unfolderedDevices(x.domainId).length;const c=treeBr.get("folders|"+x.id)?.count;return c!=null?c:(x.folders||[]).length+(x.items||[]).length}
+function flCnt(x){if(x.type==="nofolder")return unfolderedDevices(x.domainId).length;const b=treeBr.get("folders|"+x.id);return b&&(!b.done||b.failed)&&b.count!=null?b.count:(x.folders||[]).length+(x.items||[]).length}
 function folderCardHtml(f){
   flEnsure(f);
   flLoad(f);
