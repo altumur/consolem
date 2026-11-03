@@ -1834,6 +1834,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/tour.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -24728,6 +24729,66 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
+// Показ прототипа: срез «Детекторы» и мастер создания (движок — assets/tour.js). Только в прототипе
+Tour.offer("Показать, что изменилось", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  const byText=(sel,re)=>()=>[...document.querySelectorAll(sel)].find(e=>re.test(e.textContent));
+  const btn=re=>byText("#bmodal.open button",re);
+  const item=re=>byText("#bmBody label.cp-det",re);
+  const camBox=re=>()=>byText("#bmBody label.cp-row",re)()?.querySelector("input");
+  const zoneRow=re=>byText("#bmBody .dc-z-row",re);
+  // Рисуем настоящими событиями мыши: движка для перетаскивания нет, а обработчик зоны тот же, что у пользователя
+  const drag=(a,b)=>async()=>{
+    const wait=ms=>new Promise(r=>setTimeout(r,ms));
+    let el=null;
+    for(let t=0;t<100&&!el;t++){el=zoneDraw&&document.querySelector(`#bmodal.open svg[data-zone="${CSS.escape(zoneDraw.id)}"]`);if(!el)await wait(50)}
+    if(!el)return;
+    const r=el.getBoundingClientRect(),at=([x,y])=>({clientX:r.left+x*r.width,clientY:r.top+y*r.height,bubbles:true});
+    const cur=document.querySelector(".tour-cur");
+    const go=p=>{const o=at(p);if(cur)cur.style.transform=`translate(${o.clientX}px,${o.clientY}px)`;return o};
+    go(a);await wait(800);
+    el.dispatchEvent(new MouseEvent("mousedown",at(a)));
+    for(let i=1;i<=20;i++){window.dispatchEvent(new MouseEvent("mousemove",go([a[0]+(b[0]-a[0])*i/20,a[1]+(b[1]-a[1])*i/20])));await wait(35)}
+    window.dispatchEvent(new MouseEvent("mouseup",at(b)));
+  };
+  return[
+    {say:"Срез «Детекторы» теперь начинается с детекторов. Раньше здесь было дерево камер, а детекторы лежали за шевронами.",
+      before:()=>{dcDrop();closeBulkModal();goApp("hw");setSlice("det");detKindPick(null)},at:q("#main .dl-tbl")},
+    {say:"Кнопка среза показывает настоящее число детекторов. Раньше здесь был 0, пока ветка не раскрыта.",at:q('[data-slice="det"]')},
+    {say:"В дереве — виды детекторов, под видом — камеры. Сначала камера, а имя детектора только там, где камера повторяется.",at:byText("#tree .n.srv",/Все детекторы/)},
+    {say:"Фильтр такой же, как в «Применить к»: чипы со счётчиком. Второй щелчок снимает чип. Оставим только встроенные детекторы.",at:byText("#main .stchip",/Встроенн/),act:"click"},
+    {say:"«Встроенный» работает на самой камере, «Серверный» — на сервере. Это видно в колонке «Размещение». Каждая колонка сортируется.",at:byText("#main .dl-tbl th",/Размещение/),act:"click"},
+    {say:"Камера в строке открывает детектор этой строки. Срез и дерево остаются теми же. Раньше щелчок уводил в подключение камеры.",at:()=>document.querySelector("#main .dl-tbl tbody tr td:nth-child(4) .dl-link"),act:"click"},
+    {say:"Назад — одной ссылкой, к тому же списку.",at:q("#main .dl-back"),act:"click"},
+    {say:"Создать можно сразу из шапки среза, на многих камерах. Раньше — только зайдя в каждую камеру по отдельности.",
+      before:()=>detFacetClear(),at:byText("#main .hd button",/Добавить детекторы/),act:"click"},
+    {say:"Мастер идёт по шагам. На сервер ничего не уходит до «Создать». Виды приходят с сервера: серверные подойдут любой камере, встроенные — только тем, что их умеют.",
+      at:item(/^Движение/),act:"click"},
+    {say:"Можно выбрать несколько видов сразу.",at:item(/^Пересечение линии/),act:"click"},
+    {say:"Дальше — камеры.",at:btn(/^Далее$/),act:"click"},
+    {say:"Камеры фильтруются так же, как таблица. Что не подойдёт, видно сразу и с причиной.",at:q("#bmBody .cp-note")},
+    {say:"Выбираем камеры.",at:camBox(/Ангар — ворота/),act:"click"},
+    {say:"Вторая камера: это ещё по одному детектору каждого вида.",at:camBox(/Аудитория 1/),act:"click"},
+    {say:"Дальше — зоны.",at:btn(/^Далее$/),act:"click"},
+    {say:"Зоны теперь рисуются прямо в мастере, на кадре камеры. Раньше это был отдельный проход уже после создания. Слева видно, у кого детектору линии ещё нужна линия.",at:zoneRow(/нет линии/)},
+    {say:"Рисовать можно сразу: форма уже выбрана. Детектору линии — линия.",before:drag([.15,.65],[.85,.35]),at:q("#bmBody svg[data-zone]")},
+    {say:"Один щелчок применяет зону к остальным детекторам той же формы. Зоны, нарисованные рукой, он не заменяет.",at:btn(/Такую же остальным/),act:"click"},
+    {say:"Копия помечена словом «копия». Мастер сам перешёл к детекторам другой формы. Им — прямоугольник.",before:drag([.2,.25],[.7,.8]),at:zoneRow(/копия/)},
+    {say:"Применяем к остальным. Строк без зоны не осталось, поэтому мастер сразу идёт к правилу.",at:btn(/Такую же остальным/),act:"click"},
+    {say:"Правило настраивается здесь же, теми же разделами, что карточка правила: «Если», «При условии», «То». Раньше за этим уводило в «Автоматизацию».",at:byText("#bmBody .dc-sec",/^Если$/)},
+    {say:"В «То» уже стоит запись с камеры события. Архив выбирается из списка хранилищ. Правил будет по одному на вид.",at:q('#bmBody select[aria-label*="Архив"]')},
+    {say:"Окно можно свернуть или закрыть, даже случайно. Выбранное, зоны и правило не пропадут.",
+      before:()=>{const a=arch.find(x=>archRowOk(x));if(a)setActionField("0","archive",a.id)},at:q('#bmodal.open .dc-x[aria-label="Свернуть"]'),act:"click"},
+    {say:"Черновик виден внизу справа в любом разделе. Можно пойти в «Автоматизацию» и посмотреть, что там. Страницу можно даже перезагрузить.",
+      before:()=>goApp("rules"),at:q("#dcDock")},
+    {say:"«Продолжить» возвращает на тот же шаг. Черновик удаляет только «Отмена» с подтверждением.",at:q("#dcDock .btn.pri"),act:"click"},
+    {say:"Вернулись в «Оборудование», на шаг «Правило». Архив и зоны на месте.",at:btn(/^Далее$/),act:"click"},
+    {say:"Последний шаг и есть план: камера, детектор, зона, копии, правила. Здесь видно всё, что произойдёт.",at:q("#bmBody .bk-table")},
+    {say:"Детекторы создаются одной групповой операцией. Зона уходит сразу при создании. Правила создаются вместе с ними.",at:btn(/^Создать \d/),act:"click"},
+    {say:"Новые детекторы в таблице уже с зонами, а правила — в «Автоматизации».",at:byText("#main .dl-tbl tbody tr",/Ангар — ворота.*Линия/)},
+    {say:"Итог: детекторы — главное в срезе. Всё создание, включая зоны и правило, идёт в одном мастере, и незаконченная работа не теряется."},
+  ];
+})());
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
