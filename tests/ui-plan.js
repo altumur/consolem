@@ -42,6 +42,15 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => wizd.devState === "done" && wizd.devResults.length > 2), "поиск в сети завершён: " + wizd.devResults.length);
   // у двух находок общий адрес (конфликт MAC): в план берём по одному адресу
   const good = wizd.devResults.filter((r, i, l) => r.status === "ok" && l.findIndex((x) => x.ip === r.ip) === i).slice(0, 2);
+  // Галочка «все найденные» — про строки поиска, а не про объекты дерева за окном
+  const treeBefore = [...treeSel].join();
+  document.getElementById("devSelectAll").click();
+  const pickable = selectableDeviceResults();
+  ok(pickable.length > 0 && pickable.every((r) => wizd.devSelected.has(r.id)), "галочка отмечает все найденные: " + wizd.devSelected.size + " из " + pickable.length);
+  ok([...treeSel].join() === treeBefore, "галочка не трогает выбор в дереве: " + treeSel.size);
+  ok(document.getElementById("devSelectAll").checked, "после перерисовки галочка стоит");
+  document.getElementById("devSelectAll").click();
+  ok(wizd.devSelected.size === 0, "снятая галочка очищает выбор");
   good[0].user = "admin";
   good[0].pass = "secret";
   good.forEach((r) => wizd.devSelected.add(r.id));
@@ -195,15 +204,18 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   pick(other.id);
   goTab("gen");
   ok(addPlan.rows.length === 1, "и после перехода к другому узлу");
-  ok(/В плане: 1/.test(headText().find((t) => /^Добавить устройства/.test(t))), "в шапке — метка плана: " + headText().find((t) => /^Добавить устройства/.test(t)));
-  // Метка на всех кнопках, которые ведут в план; «Добавить службу» в план не ведёт и метки не носит
+  // Счётчик плана — на верхней панели: виден из любого раздела и узла, на кнопках добавления его нет
+  const hdPlan = document.getElementById("hdPlan");
+  ok(!hdPlan.hidden && hdPlan.textContent === "В плане: 1", "на верхней панели — счётчик плана: " + hdPlan.textContent);
+  ok(!headText().some((t) => /В плане/.test(t)), "на кнопках шапки метки плана нет: " + headText().join(" | "));
+  // Кнопки устройства ведут в тот же план; «Добавить службу» в план не ведёт
   const headAdd = () => [...document.querySelectorAll("#main .hd-act > button")].find((b) => /^Добавить/.test(b.textContent.trim()));
   const allDevs = await API.get("/devices", { limit: 1000 }).then((r) => r.items);
   const devOf = (fn) => allDevs.find((d) => fn(d) && find(d.id));
   for (const [what, d] of [["камера", devOf((x) => x.type === "camera")], ["ACFA", devOf((x) => x.type === "acfa")]]) {
     pick(d.id);
     await until(() => headAdd());
-    ok(/В плане: 1/.test(headAdd().textContent), what + ": метка плана на кнопке — " + headAdd().textContent.trim());
+    ok(!/В плане/.test(headAdd().textContent) && !hdPlan.hidden, what + ": метка на верхней панели, не на кнопке — " + headAdd().textContent.trim());
     headAdd().click();
     ok(wizd.mode === "device-add" && document.querySelectorAll("#planPanel .plan-row").length === 1, what + ": кнопка открывает этот план");
     closeWizard();
@@ -212,7 +224,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     const d = devOf((x) => x.type === type);
     pick(d.id);
     await until(() => /службу/.test(headAdd()?.textContent || ""));
-    ok(!headAdd().querySelector(".plan-cnt"), type + ": на «Добавить службу» метки плана нет");
+    ok(!/В плане/.test(headAdd().textContent) && !hdPlan.hidden, type + ": на «Добавить службу» метки нет, на верхней панели счётчик есть");
+    hdPlan.click();
+    ok(planInDrawer() && document.getElementById("wizDr").classList.contains("device-wizard") && document.querySelectorAll("#planPanel .plan-row").length === 1, type + ": счётчик открывает этот план и со службы");
+    const planWiz = wizd;
+    hdPlan.click();
+    ok(wizd === planWiz && planInDrawer(), type + ": повторный клик открытое окно не пересоздаёт");
+    closeWizard();
     headAdd().click();
     ok(wizd.mode !== "device-add" && wizd.view === "sys" && document.getElementById("wizT").textContent === "Добавить службу" && !document.getElementById("planPanel"), type + ": открывается мастер служб, а не план");
     closeWizard();
@@ -686,8 +704,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   pick(s3Dom.id);
   goTab("gen");
   planClear();
-  const s3Badge = () => document.querySelector("#main .plan-cnt");
-  ok(s3Badge().textContent === "" && getComputedStyle(s3Badge()).display === "none", "метка: план пуст — метки нет");
+  ok(hdPlan.hidden && getComputedStyle(hdPlan).display === "none", "счётчик: план пуст — кнопки на панели нет");
   planOpen("manual");
 
   // Порядок формы: сначала кто, потом куда; поля RTSP нет
@@ -695,7 +712,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(s3Labels().slice(0, 5).join() === "Тип устройства,Производитель,Модель,IP-адрес,Порт", "форма: производитель и модель перед адресом — " + s3Labels().slice(0, 5));
   ok(!s3Labels().includes("RTSP"), "форма: отдельного поля RTSP нет");
   planAddManual();
-  ok(s3Badge().textContent === "В плане: 1" && /Применить план/.test(s3Badge().title) && getComputedStyle(s3Badge()).backgroundColor !== "rgba(0, 0, 0, 0)", "метка: «В плане: 1», подсветка, подсказка объясняет — " + s3Badge().title);
+  ok(!hdPlan.hidden && hdPlan.textContent === "В плане: 1" && /Применить план/.test(hdPlan.title) && getComputedStyle(hdPlan).backgroundColor !== "rgba(0, 0, 0, 0)", "счётчик: «В плане: 1», подсветка, подсказка объясняет — " + hdPlan.title);
+  // Из другого раздела счётчик ведёт в «Оборудование» и открывает план
+  closeWizard();
+  goApp("log");
+  ok(!hdPlan.hidden && hdPlan.getBoundingClientRect().width > 0, "счётчик виден и в другом разделе");
+  hdPlan.click();
+  ok(app === "hw" && planInDrawer() && document.querySelectorAll("#planPanel .plan-row").length === 1, "счётчик из другого раздела открывает план: " + app);
+  setDeviceTab("manual");
 
   // Производитель RTSP: поле адреса называется RTSP, порта и «Определить» нет
   s3Cam("");
@@ -1037,4 +1061,67 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   planClear();
   closeWizard();
   goTab("gen");
+
+  // Счётчик: за другим окном клик ничего не подменяет
+  planOpen("manual");
+  s3Cam("10.8.9.1");
+  planAddManual();
+  closeWizard();
+  openW("server");
+  const otherWiz = wizd;
+  hdPlan.click();
+  ok(wizd === otherWiz && wizd.mode !== "device-add", "счётчик за другим окном мастер не подменяет");
+  closeWizard();
+
+  // Счётчик: черновик правила спрашивает первым, после ответа план всё равно открывается
+  goApp("rules");
+  await until(() => rules.length > 0);
+  ruleOpen(rules[0].id);
+  ruleEdit((x) => { x.name += " черновик"; });
+  hdPlan.click();
+  ok(app === "rules" && document.getElementById("confirm").classList.contains("open") && !planInDrawer(), "счётчик: с черновиком правила сначала вопрос");
+  await confirmWith();
+  ok(app === "hw" && planInDrawer() && document.querySelectorAll("#planPanel .plan-row").length === 1, "счётчик: после ответа план открыт — " + app);
+  closeWizard();
+
+  // Карточка найденного устройства: перерисовка под планом не сбрасывает его форму, после закрытия «В план» на карточке работает
+  planClear();
+  pick(d1.id);
+  planOpen("manual");
+  s3Cam("10.8.9.2");
+  planAddManual();
+  closeWizard();
+  const fdRow = foundAll(d1.id).find((x) => !x.planned && !x.added && x.status !== "bad");
+  ok(fdRow, "есть найденное устройство для карточки");
+  pick("fdev:" + d1.id + ":" + fdRow.id);
+  hdPlan.click();
+  setDeviceTab("manual");
+  wizd.manual.ip = "10.9.9.77";
+  paint();
+  ok(planInDrawer() && wizd.deviceTab === "manual" && wizd.manual.ip === "10.9.9.77", "карточка найденного: перерисовка не сбрасывает форму плана");
+  closeWizard();
+  const fdBtn = [...document.querySelectorAll("#main button")].find((b) => /^В план$/.test(b.textContent.trim()));
+  const fdN = addPlan.rows.length;
+  fdBtn.click();
+  ok(await until(() => addPlan.rows.length === fdN + 1), "карточка найденного: после закрытия плана «В план» работает — " + addPlan.rows.length);
+
+  // Смешанное «Писать сюда»: новое уходит в план, счётчик видит его сразу, без перерисовки плана
+  planClear();
+  const lanSrv = d1.servers.find((x) => x.online !== false && serverArchives(x.id).length);
+  pick(lanSrv.id);
+  lanEnsure(find(lanSrv.id).n);
+  await until(() => lan.state === "done" && lan.net.length > 0);
+  const lanN = find(lanSrv.id).n;
+  const lanNet = lanRows(lanN).find((r) => r.kind === "net" && lanAction(lanN, r).pri);
+  const lanSys = lanRows(lanN).find((r) => r.kind === "sys" && lanAction(lanN, r).pri);
+  lanBindKeys([lanSys.key, lanNet.key]);
+  ok(addPlan.rows.length === 1 && !hdPlan.hidden && hdPlan.textContent === "В плане: 1", "смешанное «Писать сюда»: счётчик сразу — " + hdPlan.textContent);
+  planClear();
+
+  // Ctrl+A в «Оборудовании» — выбор в дереве, а не строки поиска
+  goTab("gen");
+  const treeN = treeSel.size;
+  document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "a", ctrlKey: true, bubbles: true, cancelable: true }));
+  ok(treeSel.size > treeN, "Ctrl+A отмечает дерево: " + treeSel.size);
+  clearTreeSel();
 });

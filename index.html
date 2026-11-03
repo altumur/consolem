@@ -1076,8 +1076,10 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .btn-split>.btn:first-child{border-top-right-radius:0;border-bottom-right-radius:0}
 .btn-split>.btn-split-arrow{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:-1px;padding-left:6px;padding-right:6px}
 .btn-split>.btn:hover{position:relative;z-index:1}
-.plan-cnt{margin-left:6px;padding:1px 7px;border-radius:9px;background:var(--one-accent);color:var(--one-accent-on);font-size:11px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
-.plan-cnt:empty{display:none}
+.hd-plan{flex:none;height:var(--ctrl-h);padding:0 12px;border:0;border-radius:8px;background:var(--one-accent);color:var(--one-accent-on);font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;cursor:pointer}
+.hd-plan:hover{filter:brightness(1.1)}
+.hd-plan:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
+.hd-plan[hidden]{display:none}
 /* Поле с автокомплитом: одна строка, длинное значение — с многоточием; полное — в подсказке и в списке */
 .combo{position:relative;display:block;width:100%;min-width:0}
 .combo input{width:100%;padding-right:24px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -1590,7 +1592,7 @@ html[data-theme="light"] .n-chk{border-color:var(--one-border)}
 /* Очередь применения — в шапке справа от поиска, плашкой постоянной ширины:
    текст шага обрезается многоточием, а не переносится, поэтому плашка не
    меняет высоту и ничего вокруг не двигает. Полный текст — в подсказке. */
-.hd-status{display:flex;flex:none;align-items:center;gap:2px;width:250px;min-width:0;height:var(--ctrl-h);padding:0 4px 0 2px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);animation:hds-in .2s ease-out}
+.hd-status{display:flex;flex:0 1 250px;align-items:center;gap:2px;min-width:100px;height:var(--ctrl-h);padding:0 4px 0 2px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);animation:hds-in .2s ease-out}
 .hd-status[hidden]{display:none}
 .hd-status .rs-btn{flex:1;min-width:0;flex-direction:column;justify-content:center;padding:3px 8px;gap:4px;height:100%;border-radius:7px}
 .hd-status .rs-l1{display:flex;gap:6px;align-items:baseline;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;padding:0}
@@ -1601,7 +1603,7 @@ html[data-theme="light"] .n-chk{border-color:var(--one-border)}
 .hd-status .rs-btn.ok .rs-n{color:var(--gn)}.hd-status .rs-btn.bad .rs-n{color:var(--one-danger-text)}
 .hd-status .rs-btn.ok .rs-bar i{background:var(--gn)}.hd-status .rs-btn.bad .rs-bar i{background:var(--rd)}
 @keyframes hds-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-@media (max-width:900px){.hd-status{width:150px}.hd-status .rs-l2{display:none}}
+@media (max-width:900px){.hd-status{flex-basis:150px}.hd-status .rs-l2{display:none}}
 html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:var(--x-link)}
 /* «Применить к другим»: окно постоянной высоты, общего скролла нет — колонки
    стоят рядом, прокручиваются только длинные списки (детекторы, получатели). */
@@ -1799,6 +1801,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <span class="gojump-hint" aria-hidden="true">Ctrl K</span>
     <div class="gopop" id="gopop"><div id="goAskTop"></div><div id="asstBlock" hidden></div><div id="goList"></div></div>
   </div>
+  <button type="button" class="hd-plan" id="hdPlan" hidden data-on-click='[["planHeadOpen"]]'></button>
   <div class="hd-status" id="hdStatus" hidden></div>
   <button type="button" class="hd-theme" id="hdTheme" data-i18n-title="Сменить тему" title="Сменить тему" aria-label="Сменить тему" data-on-click='[["toggleTheme"]]'><svg class="ic-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2"/><path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715"/><path d="M16 12a4 4 0 0 0-4-4"/><path d="m19 5-1.256 1.256"/><path d="M20 12h2"/></svg></button>
   <div class="hd-bell" id="hdBell" data-needs="listRulePrompts" hidden></div>
@@ -2245,6 +2248,7 @@ function setUiLang(v){
   const sel=document.getElementById("langSel");if(sel)sel.value=uiLang;
   syncLocalePack();
   applyStaticUi();
+  planHeadSync();
   toast(uiLang==="en"?"Язык: English":"Язык: Русский");
   _lastApp=null;
   paint();
@@ -7019,8 +7023,7 @@ function inspectorAddBtn(n){
   if(!canInspectorAdd(n))return"";
   const lb=n.type==="server"?i18n("Службу"):addTreeLabel(n);
   const act=n.type==="domain"?"openW('server')":((n.type==="server"||isSvc(n))?"openW('svc')":"openW()");
-  // openW() ведёт в план: метка та же, что у кнопки сервера, иначе отсюда план кажется пустым
-  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}${act==="openW()"?planCntHtml():""}</button>`;
+  return`<button class="btn s" ${onEv("click",act)}>${lu("plus")}${lb}</button>`;
 }
 function canWizardAdd(n){return n&&(n.type==="domain"||n.type==="server")}
 function canTreeCtx(n){
@@ -9067,7 +9070,7 @@ function foundPlanOpen(did){pick(did);planOpen()}
 function foundDeviceCardHtml(n){
   const r=n.row,did=n.domainId;
   const status=DEVICE_STATUS_LABELS[r.status]||"";
-  ensureFoundWizard(did);
+  if(!planInDrawer())ensureFoundWizard(did);
   // Открыли карточку — значит имя из выдачи поиска стало предложенным именем
   // объекта. Иначе поле показывало бы одно, а добавлялось бы другое.
   if(!r.name&&r.discoveredName)r.name=r.discoveredName;
@@ -18159,7 +18162,7 @@ function closeWizard(){
   if(wasDev){
     planHeadSync();
     const t=find(sel)?.n;
-    if(t&&!dirty&&(t.type==="found"||(lanHost(t)&&(tab==="cams"||tab==="lan"))))gear();
+    if(t&&!dirty&&(t.type==="found"||t.type==="founddev"||(lanHost(t)&&(tab==="cams"||tab==="lan"))))gear();
   }
 }
 function stopDeviceSearch(){
@@ -19361,9 +19364,9 @@ function selectedDeviceResults(){
   const ids=wizd.devSelected;return wizd.devResults.filter(r=>ids.has(r.id)&&!r.added&&!r.planned&&r.status!=="bad");
 }
 function toggleSelectAllVisible(checked){
-  if(checked)selectAllVisible();else clearDeviceSelection();
+  if(checked)selectAllDeviceResults();else clearDeviceSelection();
 }
-function selectAllVisible(){
+function selectAllDeviceResults(){
   selectableDeviceResults().forEach(r=>wizd.devSelected.add(r.id));renderDeviceWizard();
 }
 function clearDeviceSelection(){wizd.devSelected.clear();wizd.bulkEditOpen=false;wizd.devSelectedOnly=false;renderDeviceWizard()}
@@ -20204,14 +20207,16 @@ let planSeq=0;
 window.addEventListener("beforeunload",e=>{if(addPlan.rows.length){e.preventDefault();e.returnValue=""}});
 // Набор строк изменился — прежний ключ запроса уже не про этот набор
 function planTouch(){addPlan.key=null;addPlan.keySig=null}
-// Метка на кнопке: цифра сама по себе не говорит, что это несохранённый план
+// Счётчик на верхней панели: цифра сама по себе не говорит, что это несохранённый план
 function planBtnCount(){return addPlan.rows.length?`${i18n("В плане")}: ${addPlan.rows.length}`:""}
 function planBtnHint(){
   const n=addPlan.rows.length;
   return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n("В системе их ещё нет: откройте и нажмите «Применить план»")}`:"";
 }
-function planCntHtml(){return`<span class="plan-cnt" title="${escHtml(planBtnHint())}">${planBtnCount()}</span>`}
-function planHeadSync(){document.querySelectorAll(".plan-cnt").forEach(el=>{el.textContent=planBtnCount();el.title=planBtnHint()})}
+function planHeadSync(){
+  const b=document.getElementById("hdPlan");if(!b)return;
+  b.hidden=!addPlan.rows.length;b.textContent=planBtnCount();b.title=planBtnHint();
+}
 // Адрес считается в пределах домена: один IP в двух доменах — два устройства
 function planAddrKey(r,did){return`${did||""}|${r.ip||r.rtspUrl||r.rtsp||""}:${r.port||80}`}
 function planFindByAddr(r,did){const k=planAddrKey(r,did);return addPlan.rows.find(x=>planAddrKey(x.r,x.domainId)===k)||null}
@@ -20290,6 +20295,7 @@ function planPush(source,r0,x={}){
   planFixArch(row);
   addPlan.rows.push(row);planTouch();addPlan.added=[];
   if(row.src)row.src.planned=row.pid;
+  planHeadSync();
   return row;
 }
 // Строки списков сети, чей кандидат уже в плане, получают пометку «В плане»: окно закрывали и открывали заново, поиск перечитывали.
@@ -20709,6 +20715,14 @@ function planOpen(t){
   lanOpenWizard(t||(can("startDiscovery")?"search":"manual"));
   if(wizd.deviceTab==="search"&&wizd.devState==="idle")refreshDeviceSearch();
 }
+// Счётчик виден из любого раздела, а план открывается в «Оборудовании».
+// Открытое окно не подменяем. Черновик правила спрашивает первым, после ответа план всё равно откроется
+function planHeadOpen(){
+  if(document.getElementById("wiz").classList.contains("open"))return;
+  if(app==="rules"&&ruleGuard(planHeadOpen))return;
+  if(app!=="hw")setApp("hw");
+  planOpen();
+}
 function addSplitItems(n){
   const items=[];
   if(n.type==="domain"){
@@ -20722,7 +20736,7 @@ function addSplitItems(n){
 }
 function addSplitBtn(n){
   if(!lanHost(n)&&n?.type!=="found")return"";
-  const lb=`${lu("plus")}${i18n("Добавить устройства")}${planCntHtml()}`;
+  const lb=`${lu("plus")}${i18n("Добавить устройства")}`;
   const items=addSplitItems(n);
   if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
   return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
