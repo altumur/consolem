@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Мастер детекторов и рынок</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: рабочая записка инженера, как прошлый отчёт. Одна колонка текста, широкие таблицы со своей прокруткой. */
+:root{
+  --bg:#f5f7f7;--panel:#ffffff;--fg:#1a2426;--mu:#566568;--ln:#d5dddf;--accent:#0b6e77;
+  --ok:#1c7a4b;--warn:#92620a;--na:#6b7779;--bad:#a4372b;
+  --ok-bg:#e3f2ea;--warn-bg:#f7eed8;--na-bg:#e9eded;--bad-bg:#f8e4e1;
+  --sans:"IBM Plex Sans",system-ui,"Segoe UI",sans-serif;--mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12181a;--panel:#1a2225;--fg:#e4ecee;--mu:#9aa9ac;--ln:#2d3a3d;--accent:#5cc4cf;
+  --ok:#6fd09f;--warn:#e0b45c;--na:#a3b0b2;--bad:#ee9a8e;
+  --ok-bg:#17352a;--warn-bg:#3a2f15;--na-bg:#263032;--bad-bg:#3d211d;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12181a;--panel:#1a2225;--fg:#e4ecee;--mu:#9aa9ac;--ln:#2d3a3d;--accent:#5cc4cf;
+  --ok:#6fd09f;--warn:#e0b45c;--na:#a3b0b2;--bad:#ee9a8e;
+  --ok-bg:#17352a;--warn-bg:#3a2f15;--na-bg:#263032;--bad-bg:#3d211d;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.55 var(--sans);padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:980px;margin:0 auto;display:grid;gap:36px;min-width:0}
+main>*{min-width:0}
+h1{font-size:28px;line-height:1.2;font-weight:600;margin:0 0 6px;text-wrap:balance}
+h2{font-size:19px;font-weight:600;margin:0 0 10px;text-wrap:balance}
+p{margin:0 0 10px;max-width:70ch}
+ul,ol{margin:0 0 10px;padding-left:20px;max-width:72ch}
+li{margin-bottom:6px}
+a{color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.sub{color:var(--mu);margin:0}
+.rec{background:var(--panel);border:1px solid var(--ln);border-left:4px solid var(--accent);padding:16px 18px}
+.rec ol{margin-bottom:8px}
+.id{font:12px var(--mono);color:var(--mu);white-space:nowrap}
+.scroll{overflow-x:auto;border:1px solid var(--ln);background:var(--panel)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th,td{padding:8px 10px;border-bottom:1px solid var(--ln);text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--mu);font-size:12.5px;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+.matrix td:first-child,.matrix th:first-child{font-weight:600;min-width:120px}
+.matrix td{min-width:124px}
+.verdicts td:first-child{font-weight:600;min-width:150px}
+.verdicts td:nth-child(2){min-width:130px}
+.claims td:nth-child(2){min-width:320px}
+.claims td:nth-child(1){white-space:nowrap}
+.pill{display:inline-block;font-size:12px;padding:1px 7px;border-radius:3px;white-space:nowrap}
+.v-ok{background:var(--ok-bg);color:var(--ok)}
+.v-weak{background:var(--warn-bg);color:var(--warn)}
+.v-no{background:var(--na-bg);color:var(--na)}
+.v-bad{background:var(--bad-bg);color:var(--bad)}
+.none{color:var(--mu)}
+.nums{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px;margin:0 0 10px;padding:0;list-style:none}
+.nums li{margin:0}
+.nums b{font-variant-numeric:tabular-nums}
+</style>
+<main>
+<header>
+  <h1>Мастер детекторов и рынок</h1>
+  <p class="sub">Ресёрч для прототипа 18 макета конфигуратора. 2026-11-03. Два исследователя, один критик. Продолжение <a href="https://claude.ai/artifact/KS38HxmG2aydwo13CoEmaS">отчёта «Детекторы: список или дерево камер»</a>.</p>
+</header>
+
+<section class="rec">
+  <h2>Ответ</h2>
+  <p><b>Велосипеда нет, но и готового образца нет.</b> Почти каждая часть мастера есть у кого-то на рынке. Весь набор в одном потоке (виды, камеры, зоны по камерам, правило, проверка) мы не нашли ни в одном источнике <span class="id">A18</span>. Единого мнения на рынке нет: есть четыре разных пути.</p>
+  <ol>
+    <li><b>Оставить мастер.</b> Пять шагов входят в рекомендованные 3–5 страниц <span class="id">B7</span>. Шаг «Проверка» совпадает с правилами дизайн-систем <span class="id">B4</span> <span class="id">B8</span>.</li>
+    <li><b>Упростить шаг «Правило».</b> Это самое необычное решение. Простые оповещения внутри создания есть у облачных продуктов <span class="id">C2</span> <span class="id">C3</span>. Полного конструктора «Если, При условии, То» внутри создания мы не нашли.</li>
+    <li><b>Проверить итог по камерам.</b> При массовой работе важно видеть, что вышло на каждой камере <span class="id">C4</span>. В прототипе частичный отказ ещё не проверен.</li>
+  </ol>
+  <p><b>Уверенность: средняя.</b> Вся база — документация и маркетинг. Живые интерфейсы и данные об использовании мы не смотрели. «Не найдено» значит «нет в открытых страницах», а не «нет в продукте».</p>
+</section>
+
+<section>
+  <h2>Вердикт по шести решениям</h2>
+  <div class="scroll"><table class="verdicts">
+    <thead><tr><th>Решение мастера</th><th>Вердикт</th><th>Основание</th><th>Что это значит для нас</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Вход из шапки списка</td>
+        <td><span class="pill v-weak">есть у части</span></td>
+        <td>Кнопка на странице списка: Verkada Alerts <span class="id">C2</span>, Coram <span class="id">C3</span>. В массовой правке Verkada вход от выбранных камер <span class="id">A6</span>. В Axxon One вход от готового детектора <span class="id">A1</span>.</td>
+        <td>Подход нормальный. Для списка детекторов в VMS прямого примера нет: примеры относятся к оповещениям.</td>
+      </tr>
+      <tr>
+        <td>Шаги вместо копии</td>
+        <td><span class="pill v-ok">обычная практика</span> как приём</td>
+        <td>Мастер подходит для длинной и сложной задачи <span class="id">B1</span> <span class="id">B7</span>. Шаги есть у правил Milestone <span class="id">A12</span>, копирования Genetec <span class="id">C4</span>, профиля Intune <span class="id">C7</span>.</td>
+        <td>Шаги — не изобретение. Но для детекторов чаще встречается копия или профиль.</td>
+      </tr>
+      <tr>
+        <td>Зоны внутри мастера</td>
+        <td><span class="pill v-weak">есть у части</span></td>
+        <td>Verkada: несколько камер, затем рисование на кадре <span class="id">C1</span>. Coram: области внутри оповещения <span class="id">C3</span>. Axxon One: массовое применение зоны не меняет <span class="id">A3</span>.</td>
+        <td>Это не наше отличие: у других это тоже есть. «Такую же остальным» для зон аналитики мы не нашли. Ближайшее: клон областей приватности у Rhombus <span class="id">C6</span>.</td>
+      </tr>
+      <tr>
+        <td>Правило внутри мастера</td>
+        <td><span class="pill v-weak">простое: есть у части</span><br><span class="pill v-bad">полное: не найдено</span></td>
+        <td>Получатели, расписание и действия в одном потоке <span class="id">C2</span> <span class="id">C3</span>. В VMS с сервером этапы раздельные <span class="id">A4</span> <span class="id">A9</span> <span class="id">A12</span>. Исключение: автоправила Axxon One настраивают в окне детектора (прошлый отчёт, <span class="id">R3</span>).</td>
+        <td>Главный риск. Шаг объединяет два сложных объекта. Cloudscape советует сложный вложенный объект открывать в новой вкладке <span class="id">B11</span>, но критик считает, что аналогия неточная.</td>
+      </tr>
+      <tr>
+        <td>Шаг «Проверка»</td>
+        <td><span class="pill v-ok">обычная практика</span> вне VMS</td>
+        <td>PatternFly: всегда <span class="id">B4</span>. Cloudscape: желательно <span class="id">B8</span>. Intune: Review + create <span class="id">C7</span>. В VMS есть только пост Verkada 2022 года <span class="id">A5</span>, текущая справка шага не описывает <span class="id">A6</span>.</td>
+        <td>Оставить. Для массовой записи шаг оправдан, хотя VMS его обычно не описывают.</td>
+      </tr>
+      <tr>
+        <td>Черновик и сворачивание</td>
+        <td><span class="pill v-bad">не найдено</span> в VMS</td>
+        <td>На открытых страницах VMS об этом нет <span class="id">A19</span>. Вне видео: кнопка Save Draft у PingFederate <span class="id">C9</span>, Save as draft у PatternFly для мастера на странице <span class="id">B5</span>.</td>
+        <td>Документация редко описывает автосохранение, поэтому вывод слабый. Вреда нет. Черновик живёт только в этом браузере: об этом надо помнить.</td>
+      </tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Какими путями идут другие</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Путь</th><th>Кто</th><th>Порядок</th><th>Сильная сторона</th><th>Слабая сторона</th></tr></thead>
+    <tbody>
+      <tr><td><b>Копия</b></td><td>Axxon One <span class="id">A1</span>, Genetec <span class="id">C4</span></td><td>Настроить одну камеру, отметить другие, применить.</td><td>Быстро, если настройка одна.</td><td>Зоны в копии не решены <span class="id">A3</span>. Первый запуск всё равно идёт вручную.</td></tr>
+      <tr><td><b>Объект «оповещение»</b></td><td>Verkada <span class="id">C1</span> <span class="id">C2</span>, Coram <span class="id">C3</span>, UniFi Protect <span class="id">C8</span></td><td>Вид события, камеры, при необходимости области, расписание, получатели.</td><td>Один поток даёт готовый результат.</td><td>Правила простые. Такие продукты не создают детектор как отдельное устройство.</td></tr>
+      <tr><td><b>Профиль или политика</b></td><td>Rhombus <span class="id">C5</span>, Intune <span class="id">B12</span> <span class="id">C7</span>, Datadog <span class="id">B15</span></td><td>Один объект, затем назначение на камеры или группы.</td><td>Правка в одном месте.</td><td>Нужна новая сущность. Настройки по камере в такую схему не входят.</td></tr>
+      <tr><td><b>Раздельные этапы</b></td><td>Senstar <span class="id">A9</span>, Milestone <span class="id">A12</span></td><td>Аналитика на камере, настройка, затем правило в другом разделе.</td><td>Каждый объект простой.</td><td>Администратор сам собирает результат из частей.</td></tr>
+      <tr><td><b>Наш мастер</b></td><td>Прототип 18</td><td>Вид, камеры, зоны, правило, проверка.</td><td>Детекторы как отдельные устройства и готовый результат за один проход.</td><td>Длинный путь, если нужен только один вид без зон.</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:10px">Наш мастер соединяет два подхода. Модель данных у него как у VMS: детектор есть устройство под камерой. Ход работы у него как у облачных продуктов: всё делается за один проход. Поэтому прямого образца и нет.</p>
+</section>
+
+<section>
+  <h2>Матрица продуктов</h2>
+  <p>В ячейке — номер утверждения. «Не найдено» значит, что на открытых страницах этого нет. Черновик не указан в матрице: на открытых страницах VMS о нём нет ни слова <span class="id">A19</span>.</p>
+  <div class="scroll"><table class="matrix">
+    <thead><tr><th>Решение</th><th>Axxon One</th><th>Milestone</th><th>Senstar</th><th>Genetec</th><th>Verkada</th><th>Coram</th><th>Rhombus</th><th>UniFi</th><th>Intune</th><th>Datadog</th></tr></thead>
+    <tbody>
+      <tr><td>Вход</td><td>от готового детектора <span class="id">A1</span></td><td>группы устройств <span class="id">A14</span></td><td class="none">не найдено</td><td>от сущности-источника <span class="id">C4</span></td><td>от выбранных камер <span class="id">A6</span>; New Alert <span class="id">C2</span></td><td>+ Create Alert <span class="id">C3</span></td><td>политика, затем камеры <span class="id">C5</span></td><td>Create Alarm <span class="id">C8</span></td><td>профиль на группы <span class="id">B12</span></td><td>один монитор с группировкой <span class="id">B15</span></td></tr>
+      <tr><td>Форма</td><td>копия <span class="id">A1</span></td><td>мастер правила <span class="id">A12</span></td><td>три этапа <span class="id">A9</span>; правило — форма <span class="id">A11</span></td><td>шаги и итог <span class="id">C4</span></td><td>шаги оповещения <span class="id">C2</span></td><td>поток оповещения <span class="id">C3</span></td><td>политика <span class="id">C5</span></td><td>trigger, scope, action <span class="id">C8</span></td><td>мастер, 5 шагов <span class="id">C7</span></td><td>одна форма <span class="id">B16</span></td></tr>
+      <tr><td>Зоны</td><td>массово не меняются <span class="id">A3</span></td><td class="none">не найдено</td><td class="none">страница молчит <span class="id">A10</span></td><td class="none">не найдено</td><td>на кадре в потоке <span class="id">C1</span></td><td>в потоке <span class="id">C3</span></td><td>клон приватности <span class="id">C6</span></td><td>в оповещениях; похоже, задаются на камере <span class="id">C8</span></td><td class="none">неприменимо</td><td class="none">неприменимо</td></tr>
+      <tr><td>Правило</td><td>отдельно <span class="id">A4</span>; автоправила в окне детектора <span class="id">R3</span></td><td>отдельно <span class="id">A12</span></td><td>отдельно <span class="id">A9</span></td><td class="none">не проверено</td><td>простое, в потоке <span class="id">C2</span></td><td>простое, в потоке <span class="id">C3</span></td><td>в политике <span class="id">C5</span></td><td>сам объект — правило <span class="id">C8</span></td><td class="none">неприменимо</td><td>в той же форме <span class="id">B16</span></td></tr>
+      <tr><td>Проверка</td><td class="none">не найдено</td><td class="none">страница молчит <span class="id">A12</span></td><td class="none">не найдено</td><td>нет, но есть итог <span class="id">C4</span></td><td>в 2022 есть <span class="id">A5</span>; сейчас не описана <span class="id">A6</span> <span class="id">C2</span></td><td class="none">не найдено</td><td class="none">не найдено</td><td class="none">не найдено</td><td>Review + create <span class="id">C7</span></td><td>график на истории <span class="id">B17</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Что говорят дизайн-системы</h2>
+  <ul>
+    <li>Мастер нужен для длинной или сложной задачи, а не для простого ввода <span class="id">B1</span> <span class="id">B2</span>.</li>
+    <li>Cloudscape рекомендует 3–5 страниц и не больше 7 <span class="id">B7</span>. Несколько страниц нужны от 16 полей или от 5 групп настроек <span class="id">B9</span>.</li>
+    <li>Шаг должен помещаться без прокрутки на обычном мониторе <span class="id">B3</span>. На шаге «Правило» мы это ещё не проверяли.</li>
+    <li>На странице проверки нельзя править данные на месте. Кнопка «Изменить» возвращает к нужному шагу <span class="id">B8</span>.</li>
+    <li>Окно подходит, когда важна сосредоточенность, и размер окна можно менять <span class="id">B6</span>. Решение оставить окно этому не противоречит.</li>
+    <li>Закрытие с несохранёнными данными требует подтверждения <span class="id">B5</span> <span class="id">B8</span>. У нас крестик не теряет данные, а удаление подтверждает «Отмена»: это другой приём с той же целью.</li>
+    <li>Сложный вложенный объект Cloudscape советует не открывать в окне <span class="id">B11</span>. Это единственное прямое возражение против нашего шага «Правило».</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Идеи</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>Идея</th><th>Возражение критика</th><th>Наш ответ</th></tr></thead>
+    <tbody>
+      <tr><td><b>I5.</b> Правило не встраивать целиком: небольшая форма «Если, То» на шаге и ссылка на полный редактор</td><td>Вынос в отдельную вкладку разбивает массовую работу, а вкладка не входит в черновик. Поэтому критик предлагает малую форму. Полный конструктор на шаге не подтверждён ни одним источником.</td><td><b>Предлагаем первым.</b> Ваше решение раунда 9 было «форма правила одна», поэтому решаете вы.</td></tr>
+      <tr><td><b>I4.</b> Шаг правила необязателен</td><td>Без правила детектор может ничего не сообщать <span class="id">A9</span>. Источники подтверждают «необязателен и заметен», но не «пропущен по умолчанию».</td><td>Вариант «без правила» уже есть, а шаг «Проверка» о нём говорит. Менять нечего.</td></tr>
+      <tr><td><b>I2.</b> Оставить проверку и добавить итог по камерам</td><td>Проверка до записи не показывает результат. Нужен итог после «Создать» <span class="id">C4</span>.</td><td>Берём. Сначала надо проверить частичный отказ и «Повторить неудачные».</td></tr>
+      <tr><td><b>I1.</b> Лёгкий путь рядом с мастером: копия с готового детектора</td><td>Полезен только для видов без зон, потому что кадр у каждой камеры свой. Два пути придётся держать согласованными.</td><td>Пока не берём. В макете уже есть «Применить к другим». Сначала покажем мастер пользователям.</td></tr>
+      <tr><td><b>I3.</b> Зоны в мастере как наше отличие</td><td>Отличием это не считается: Verkada и Coram это делают <span class="id">C1</span> <span class="id">C3</span>. Необычна только копия зоны, и она рискованна.</td><td>Оставляем без такой формулировки. Метка «копия» и предупреждение о разных кадрах уже есть.</td></tr>
+      <tr><td><b>I6.</b> Предпросмотр срабатываний до применения</td><td>Основания не устояли: нужна история аналитики с тем же кадром. Ближе всего Show Examples у Verkada <span class="id">C1</span>. Работы много.</td><td>Не берём.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section>
+  <h2>Открытые вопросы</h2>
+  <ul>
+    <li>Сколько администраторов проходит все пять шагов, а сколько нужен один вид без зон? Ответ дадут только показ пользователям и данные использования.</li>
+    <li>Часто ли правило одинаково для всех камер вида? От этого зависит, полезен ли шаг «Правило» при массовом создании.</li>
+    <li>Как работает лёгкий сценарий в самих продуктах Bosch, Qognify, Hikvision, Macroscop? Их документацию мы не прочитали.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Метод и ограничения</h2>
+  <ul class="nums">
+    <li><b>21</b> подтверждено</li><li><b>11</b> сужено</li><li><b>0</b> опровергнуто</li><li><b>9</b> не проверить</li><li><b>9</b> новых от критика</li>
+  </ul>
+  <ul>
+    <li><b>Не вошли в выводы:</b> <span class="id">A8</span> <span class="id">A13</span> <span class="id">A15</span> <span class="id">A17</span> <span class="id">B18</span> <span class="id">B19</span> <span class="id">B20</span> <span class="id">B21</span> <span class="id">B23</span> и <span class="id">C10</span>. Источники не открылись или остались только фрагменты поиска.</li>
+    <li><b>Из согласованного набора фактически не проверены:</b> Bosch, Qognify, Macroscop (PDF не прочитан), Hikvision (нужной страницы нет), Arcules (404). По Visa страница не отрисовалась.</li>
+    <li><b>Вне согласованного набора:</b> критик добавил Genetec, Coram, Rhombus, UniFi Protect и PingFederate, когда искал опровержения. Их утверждения проверил сам критик. Второй круг проверки не проводился.</li>
+    <li><b>Я перепроверил вручную:</b> <span class="id">C1</span> <span class="id">C2</span> <span class="id">C4</span> открытием страниц, <span class="id">C3</span> повторным поиском. Шаги подтвердились. У <span class="id">C4</span> таблицу копируемых настроек я не открывал.</li>
+    <li><b>Только через текст поиска:</b> <span class="id">C3</span> (401), <span class="id">C5</span> (403), часть <span class="id">C8</span> (403). Страницы напрямую не открылись.</li>
+    <li><b>Старые источники:</b> Verkada 2022 <span class="id">A5</span> <span class="id">A7</span>, Senstar 6.14 <span class="id">A9</span> <span class="id">A10</span> (в версии 8.0 правило уже форма <span class="id">A11</span>), Hikvision 2020 <span class="id">B22</span>.</li>
+    <li><b>Смещение выборки:</b> нет данных по Hanwha WAVE, Nx Witness, Dahua DSS, Digifort. Документация описывает удачный путь и редко говорит о черновиках.</li>
+    <li>Страницы читались через модель-пересказчик. Короткие цитаты могут быть неточными.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Таблица утверждений</h2>
+  <div class="scroll"><table class="claims">
+    <thead><tr><th>№</th><th>Утверждение</th><th>Источник</th><th>Дата</th><th>Вердикт</th></tr></thead>
+    <tbody>
+      <tr><td>A1</td><td>Axxon One: настроить детектор на одной камере, кнопка внизу справа, отметить камеры, применить. Сброс идёт так же. Удаление — через выбор в дереве.</td><td><a href="https://docs.axxonsoft.com/confluence/x/BnK-Eg">Axxon docs</a></td><td>2026-08</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>A2</td><td>Вложенный детектор применяется только к камерам с тем же родительским детектором.</td><td><a href="https://docs.axxonsoft.com/confluence/x/BnK-Eg">Axxon docs</a></td><td>2026-08</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>A3</td><td>Массовое применение не меняет области детекции и исключения. Массовый сброс может сбросить визуальные элементы. Что делает с областями массовое создание, страница не говорит.</td><td><a href="https://docs.axxonsoft.com/confluence/x/BnK-Eg">Axxon docs</a></td><td>2026-08</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>A4</td><td>Страница детекторов молчит о правилах и макросах. Макросы описаны отдельно, их можно копировать и запускать для группы камер. Версии страниц разные: 3.x и 2.0.</td><td><a href="https://docs.axxonsoft.com/confluence/x/GRCxDg">Axxon docs</a></td><td>2025-07</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>A5</td><td>Verkada: выбрать камеры, Edit events, настройки, Next для проверки, Apply. Только движение, толпа, вскрытие. О зонах пост молчит.</td><td><a href="https://verkada.com/blog/announcing-bulk-configuration-of-motion-crowd-and-tamper-events">Verkada</a></td><td>2022-08</td><td><span class="pill v-ok">подтверждено</span> <span class="pill v-no">устарело</span></td></tr>
+      <tr><td>A6</td><td>Справка Verkada: фильтр, отметки, Edit Settings, Apply. Шаг проверки не описан. Кнопка скрыта при разных типах устройств.</td><td><a href="https://help.verkada.com/command/organization-settings/devices-page-overview">Verkada</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>A7</td><td>В 2022 году Verkada описала окно с проверкой перед применением. Текущая справка проверку не описывает.</td><td><a href="https://verkada.com/blog/announcing-bulk-configuration-of-motion-crowd-and-tamper-events">Verkada</a></td><td>2022-08</td><td><span class="pill v-weak">сужено</span> <span class="pill v-no">устарело</span></td></tr>
+      <tr><td>A9</td><td>Senstar 6.14: назначить аналитику камере, настроить, затем создать правило в Rule Wizard. Правило нужно для тревог.</td><td><a href="https://xnet.senstar.com/webhelp/Symphony/6.14/en/Process_Overview_of_Using_Video_Analytics.htm">Senstar</a></td><td>6.14</td><td><span class="pill v-ok">подтверждено</span> <span class="pill v-no">устарело</span></td></tr>
+      <tr><td>A10</td><td>Senstar 6.14: настройку аналитики сохраняют и загружают через XML. О зонах и копии на другие камеры страница молчит.</td><td><a href="https://xnet.senstar.com/webhelp/Symphony/6.14/en/Process_Overview_of_Using_Video_Analytics.htm">Senstar</a></td><td>6.14</td><td><span class="pill v-ok">подтверждено</span> <span class="pill v-no">устарело</span></td></tr>
+      <tr><td>A11</td><td>Senstar 8.0: правило — форма. Событие и расписание можно создать прямо из неё. Где выбирают камеры, страница не говорит.</td><td><a href="https://xnet.senstar.com/webhelp/Symphony/8.0/en/topic_task/air_server_rules_rule_create_8.html">Senstar</a></td><td>8.0</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>A12</td><td>Milestone 2026 R1: мастер правила: имя, условие, действия, остановка, Finish. Правило активно сразу. О выборе устройств и итоговом шаге страница молчит.</td><td><a href="https://doc.milestonesys.com/xprotect/xprotect-management-client/2026r1/en/add-rules.html">Milestone</a></td><td>2026 R1</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>A14</td><td>Milestone: устройствами с одинаковыми свойствами можно управлять через группы.</td><td><a href="https://doc.milestonesys.com/xprotect/xprotect-management-client/2026r1/en/devices--devices-node-">Milestone</a></td><td>2026 R1</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>A16</td><td>Flussonic Watcher: зону настраивают в настройках камеры. О массовой настройке и копии статья молчит.</td><td><a href="https://flussonic.com/blog/article/detection-zones-watcher">Flussonic</a></td><td>2025-06</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>A18</td><td>Вывод: всего набора в одном потоке не найдено. Части есть. Раздельные этапы типичны для VMS с сервером, а облачные продукты описывают один объект оповещения.</td><td>Вывод из <span class="id">A1</span> <span class="id">A9</span> <span class="id">A12</span> <span class="id">C1</span> <span class="id">C2</span> <span class="id">C3</span></td><td>—</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>A19</td><td>Вывод: ни одна открытая страница VMS не говорит о черновиках. Это молчание, а не доказательство. Вне видео примеры есть.</td><td>Вывод из открытых страниц</td><td>—</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>B1</td><td>PatternFly: мастер разбивает длинную или сложную задачу на шаги.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B2</td><td>PatternFly: не использовать мастер для простого ввода.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B3</td><td>PatternFly: шаг без прокрутки, предела числа шагов нет, подшаги вложены в родительский шаг.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B4</td><td>PatternFly: всегда заканчивать шагом проверки.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B5</td><td>PatternFly: закрытие подтверждается во всех мастерах. Save as draft описан только для мастера на странице.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>B6</td><td>PatternFly: мастер в окне держит внимание на задаче, размер окна можно менять.</td><td><a href="https://www.patternfly.org/components/wizard/design-guidelines">PatternFly</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B7</td><td>Cloudscape: 3–5 страниц, не больше 7, для связанных задач в длинной или сложной настройке.</td><td><a href="https://cloudscape.design/patterns/resource-management/create/multi-page-create/">Cloudscape</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B8</td><td>Cloudscape: проверка необязательна, но желательна, правки на ней нет, Edit возвращает к шагу, при выходе нужно подтверждение. О черновиках страница молчит.</td><td><a href="https://cloudscape.design/patterns/resource-management/create/multi-page-create/">Cloudscape</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B9</td><td>Cloudscape: одна страница для 2–15 полей или до 5 групп, несколько страниц свыше этого.</td><td><a href="https://cloudscape.design/patterns/resource-management/create/">Cloudscape</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B10</td><td>Cloudscape: зависимые объекты можно создавать внутри создания основного объекта.</td><td><a href="https://cloudscape.design/patterns/resource-management/create/sub-resource-create/">Cloudscape</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B11</td><td>Cloudscape: для зависимого объекта не использовать окно. Простой встроить, сложный открыть в боковой панели, объект со своими зависимостями — в новой вкладке. Правило на такой объект похоже лишь отчасти.</td><td><a href="https://cloudscape.design/patterns/resource-management/create/sub-resource-create/">Cloudscape</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B12</td><td>Intune: у политики есть Basics, Assignments, Scope tags, Configuration settings. Один профиль действует на многие устройства через группы.</td><td><a href="https://learn.microsoft.com/en-us/intune/device-configuration/monitor-device-profile">Microsoft</a></td><td>2026-04</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B13</td><td>Intune показывает Not applicable после назначения. Это статус работы, а не шаг выбора с причинами.</td><td><a href="https://learn.microsoft.com/en-us/intune/device-configuration/monitor-device-profile">Microsoft</a></td><td>2026-04</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>B15</td><td>Datadog: группировка в запросе даёт Multi Alert с отдельным уведомлением на каждый объект.</td><td><a href="https://docs.datadoghq.com/monitors/configuration/">Datadog</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span></td></tr>
+      <tr><td>B16</td><td>Datadog: у монитора четыре области настройки на одной форме и вкладки предпросмотра на графике.</td><td><a href="https://docs.datadoghq.com/monitors/configuration/">Datadog</a></td><td>без даты</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>B17</td><td>Datadog показывает при настройке, как монитор сработал бы на прошлых данных. С шагом проверки страница это не сравнивает.</td><td><a href="https://docs.datadoghq.com/monitors/configuration/">Datadog</a></td><td>без даты</td><td><span class="pill v-weak">сужено</span></td></tr>
+      <tr><td>B22</td><td>Hikvision, контроль доступа: необязательный последний шаг Copy to... копирует настройки событий. Это не аналитика камер.</td><td><a href="https://enpinfo.hikvision.com/unzip/20201102205526_84041_doc/GUID-4665E207-5AF1-4212-9BF0-64A7D3E1E973.html">Hikvision</a></td><td>2020-11</td><td><span class="pill v-ok">подтверждено</span> <span class="pill v-no">устарело</span></td></tr>
+      <tr><td>C1</td><td>Verkada New Alarms: выбрать камеры, Next Step, нарисовать область или линию на кадре, сохранить. Это триггер тревоги, а не детектор. Копия не упомянута, отдельной проверки нет.</td><td><a href="https://help.verkada.com/new-alarms/configuration/configure-camera-alarm-trigger-events-for-new-alarms">Verkada</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span> вручную</td></tr>
+      <tr><td>C2</td><td>Verkada Alerts: New Alert вверху страницы, событие, устройства или площадки, расписание, получатели, необязательные действия, имя. Проверки и рисования нет.</td><td><a href="https://help.verkada.com/verkada-cameras/analytics/create-camera-event-alerts">Verkada</a></td><td>без даты</td><td><span class="pill v-ok">подтверждено</span> вручную</td></tr>
+      <tr><td>C3</td><td>Coram: + Create Alert, тип, камеры, области внутри камер, дни и часы, получатели. Проверка и копия областей не найдены.</td><td><a href="https://help.coram.ai/en/articles/10191875-introduction-to-alerts">Coram</a></td><td>без даты</td><td><span class="pill v-weak">через поиск</span></td></tr>
+      <tr><td>C4</td><td>Genetec: Copy configuration: Source, Options, Destinations, Start, затем Outcome с результатами. Страницы проверки нет. По данным критика, аналитики в таблице настроек 5.13 нет.</td><td><a href="https://techdocs.genetec.com/r/en-US/Security-Center-Administrator-Guide-5.14/Copying-configuration-settings-from-one-entity-to-another">Genetec</a></td><td>5.14</td><td><span class="pill v-ok">шаги подтверждены</span> вручную</td></tr>
+      <tr><td>C5</td><td>Rhombus: политика оповещений содержит события и расписания и назначается на камеры. Как в ней работают области, не подтверждено.</td><td><a href="https://support.rhombussystems.com/hc/en-us/articles/360044070572-Creating-and-Assigning-Alert-Policies">Rhombus</a></td><td>без даты</td><td><span class="pill v-weak">через поиск</span></td></tr>
+      <tr><td>C6</td><td>Rhombus: настройку одной камеры можно клонировать на камеры той же модели, включая области приватности. Зоны аналитики не упомянуты.</td><td><a href="https://rhombus.com/blog/2023-january-product-update/">Rhombus</a></td><td>2023-01</td><td><span class="pill v-ok">подтверждено</span> критиком</td></tr>
+      <tr><td>C7</td><td>Intune: Basics, Configuration settings, Scope tags, Assignments, Review + create. Duplicate копирует профиль без назначений.</td><td><a href="https://learn.microsoft.com/en-us/intune/device-configuration/settings-catalog/">Microsoft</a></td><td>2026-09</td><td><span class="pill v-ok">подтверждено</span> критиком</td></tr>
+      <tr><td>C8</td><td>UniFi Protect: тревога — trigger, scope, action. С версии 5.2.42 её можно строить на пересечении линии, праздношатании и зонах детекции.</td><td><a href="https://lazyadmin.nl/home-network/unifi-protect-5-2-42-overview/">LazyAdmin</a></td><td>2025-01</td><td><span class="pill v-weak">сторонний источник</span></td></tr>
+      <tr><td>C9</td><td>PingFederate: в многошаговой настройке есть явная кнопка Save Draft. Это не автосохранение и не видео.</td><td><a href="https://docs.pingidentity.com/pingfederate/13.1/getting_started_with_pingfederate/pf_console_buttons.html">Ping</a></td><td>13.1</td><td><span class="pill v-ok">подтверждено</span> критиком</td></tr>
+      <tr><td>R3</td><td>Axxon One: автоматические правила настраивают в окне выбранного детектора. Из прошлого отчёта.</td><td><a href="https://claude.ai/artifact/KS38HxmG2aydwo13CoEmaS">Прошлый отчёт</a></td><td>—</td><td><span class="pill v-weak">сужено</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+</main>
+
+</html>
