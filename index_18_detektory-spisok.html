@@ -1645,12 +1645,28 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .cp-meta{grid-area:m;color:var(--mu);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cp-note{grid-area:note;font-size:10px;color:var(--one-warning-text);max-width:200px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-list .empty{padding:20px;text-align:center;color:var(--mu)}
-.dc-wrap,.cp-wrap.dc-wrap{grid-template-columns:minmax(230px,280px) minmax(0,1fr) minmax(220px,270px)}
+.bbox.bbox-copy.dc-box{width:min(940px,96vw);height:min(660px,92vh)}
+.bbox.bbox-copy.dc-box-w{width:min(1120px,96vw)}
+.dc-step{flex:1;min-width:0;min-height:0;display:flex;flex-direction:column}
+.dc-steps{flex:none;display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0 0 12px}
+.dc-st{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--mu);font:inherit;font-size:12px;padding:4px 8px;border-radius:7px;cursor:pointer}
+.dc-st:hover:not(:disabled){background:var(--one-control-hover)}
+.dc-st:disabled{cursor:default;opacity:.55}
+.dc-st.on{color:inherit;font-weight:600;background:var(--one-selected-neutral)}
+.dc-st-sep{flex:none;width:14px;height:1px;background:var(--ln)}
+.dc-var{margin-left:auto;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--mu)}
+.dc-body{flex:1;min-height:0;min-width:0;display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
+.dc-body.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.dc-body.list{grid-template-columns:minmax(230px,280px) minmax(0,1fr)}
+.dc-what2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
+.dc-cnt{margin-left:auto;color:var(--mu);font-size:11px}
+.dc-sum{font-size:12px;color:var(--mu);margin-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dl-back{display:inline-flex;align-items:center;gap:2px;margin:0 0 10px;font-size:12px}
 .dc-sec{font-size:12px;font-weight:600;margin:10px 0 4px}
 .dc-sec:first-child{margin-top:0}
 .dc-sec small{display:block;font-weight:400;font-size:11px;color:var(--mu)}
 .dc-off{opacity:.55;cursor:default}
-.dc-scope{flex:none;max-height:172px;overflow:auto;margin:0 0 8px;padding:8px 10px}
+.dc-scope{flex:none;max-height:190px;overflow:auto;margin:0 0 8px;padding:8px 10px}
 .dc-scope .bk-facet{padding-left:0}
 .dc-sub{margin:0 0 8px 24px}
 .dc-sub select{width:100%;min-width:0}
@@ -1676,8 +1692,6 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .dc-note{font-size:11px;line-height:1.45;margin:0 0 6px}
 .dl-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 10px}
 .dl-tools .sq{flex:1 1 240px;margin:0;min-width:180px}
-.dl-seg{display:inline-flex;align-items:center;gap:6px}
-.dl-seg-l{font-size:12px;color:var(--mu);white-space:nowrap}
 .dl-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;margin:0 0 8px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);min-height:40px}
 .dl-bar-n{font-size:12px;color:var(--mu);margin-right:6px;white-space:nowrap}
 table.dl-tbl{min-width:760px}
@@ -1686,16 +1700,11 @@ table.dl-tbl th.dl-c-pl{width:170px}
 table.dl-tbl th.dl-c-z{width:110px}
 table.dl-tbl th.dl-c-st{width:124px}
 table.gtbl-cams.dl-tbl tbody tr.dl-r.on td{background:var(--one-selected-neutral)}
-table.gtbl-cams.dl-tbl tbody tr.dl-g td{background:var(--one-surface-muted);cursor:pointer;font-weight:600}
 .dl-nm{display:flex;align-items:center;gap:7px;min-width:0}
 .dl-link{display:block;font:inherit;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .dl-warn{display:inline-flex;align-items:center;gap:4px;color:var(--one-warning-text)}
 p.dl-warn{display:block}
 p.dl-warn svg{display:inline;vertical-align:-2px}
-.dl-g-in{display:flex;align-items:center;gap:6px;min-width:0}
-.dl-g-t{font:inherit;font-weight:600}
-.dl-g-sub{font-weight:400;font-size:11px;color:var(--mu)}
-.dl-g-c{margin-left:2px}
 .dl-ti-k{font-weight:400;color:var(--mu)}
 .dl-nm-cam{color:var(--mu);font-size:11px}
 .fl-none{color:var(--mu)}
@@ -4809,6 +4818,14 @@ function treeRowOf(id){return document.querySelector(`#tree .n.on[data-pick="${i
 function revealSel(){
   revealAt=Date.now();
   if(app!=="hw"||!sel||detListOn())return;
+  // Детектор без своей строки стоит на строке камеры, а в дереве видов камеры нет: срез и раскладка остаются
+  const fs=find(sel);
+  if(fs?.n.type==="camera"&&slice==="det"&&group()==="kind")return;
+  if(fs?.n.type==="det"&&fs.p&&!treeRowOf(sel)){
+    selCtx=camTreeCtx(fs.p.id);expandTo(fs.p.id,selCtx);detHostRow=fs.p.id;renderTree();
+    if(treeRowOf(fs.p.id)){treeRowOf(fs.p.id).scrollIntoView({block:"nearest"});return}
+    detHostRow=null;
+  }
   if(!treeRowOf(sel)&&!hasActiveFilters()){
     const was=slice;
     const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);renderTree();return!!treeRowOf(sel)};
@@ -5435,6 +5452,12 @@ function sameCtx(ctx){
   if(!chosen&&ctx?.startsWith("srv:"))return cameraTreeServer(sel)?.id===ctx.slice(4);
   return(chosen||"")===(normalizeTreeCtx(ctx)||"");
 }
+let detHostRow=null;
+function detHostMark(){
+  if(!detHostRow||find(sel)?.p?.id!==detHostRow)return;
+  const q=`#tree .n[data-pick="${detHostRow}"]`;
+  (selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`)||document.querySelector(q))?.classList.add("on");
+}
 function rowOn(id,ctx){return sel===id&&sameCtx(ctx)?"on":""}
 // Отмечен ли объект именно в этой строке. Место не задано — галочка у
 // основного вхождения: камера с сервером отмечена под сервером, не под хранилищем.
@@ -5869,7 +5892,7 @@ function crumbsHtml(id){
   return parts.map((n,i)=>{
     const label=escHtml(locName(n));
     if(i===parts.length-1)return`<span class="cr-it cr-last" data-id="${n.id}" title="${label}"><span class="cr-cur">${crumbTitle(n)}</span></span>`;
-    return`<span class="cr-it" data-id="${n.id}" data-label="${label}"><button type="button" class="cr-link" ${onEv("click",["pick",`${n.id}`])}>${label}</button><span class="cr-sep">/</span></span>`;
+    return`<span class="cr-it" data-id="${n.id}" data-label="${label}"><button type="button" class="cr-link" ${onEv("click",f?.n.type==="det"&&f.p?.id===n.id?["detToCam",`${n.id}`]:["pick",`${n.id}`])}>${label}</button><span class="cr-sep">/</span></span>`;
   }).join("");
 }
 // Длинный путь не переносится на вторую строку, а схлопывает середину:
@@ -6199,7 +6222,7 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
   srvCamMemo=null;
   const html=withFind(()=>fn?fn():"");
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
-  decorateTreeSel();renderSelBar();
+  decorateTreeSel();detHostMark();renderSelBar();
   if(app==="hw"){treeNeed();filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
 }
@@ -6830,7 +6853,7 @@ function pick(id,opts){
   if(selCtx&&selCtx.startsWith("f:"))selFolder=selCtx.slice(2);
   if(f.n.type==="folder")selFolder=id;
   else{const own=foldersOfDevice(path(id)[0].id);if(own.length&&!own.some(x=>x.id===selFolder))selFolder=own[0].id}
-  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||"gen";setD(false);editClear();expandTo(id,selCtx);
+  pushRecent(id);sel=id;detHostRow=null;tab=opts?.tab||archCtxTab(f.n,selCtx)||(slice==="det"&&f.n.type==="camera"?"det":"gen");setD(false);editClear();expandTo(id,selCtx);
   if(multi&&canMultiPick(f.n)){
     bulkPeek=false;
     // Ctrl/Shift-выбор включает режим галочек: выборка должна быть видна.
@@ -9211,9 +9234,11 @@ function deleteDetector(camId,detId){
   askConfirm("Удалить детектор?",`${i18n("Будет удалён")} «${escHtml(locName(d))}».`,i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),i18n("Удалить"),()=>scheduleDelete([detId],{label:`${i18n("Детектор")} «${locName(d)}»`,commit:()=>{
     if(!hwVer.has(detId)){deleteDetectorDraft(f,detId);return}
     API.del(`/devices/${detId}`,hwVer.get(detId)).then(()=>{
+    const was=sel===detId;
     hwRemoveDevice(detId);
     if(detSel===detId)detSel=null;
-    setD(true);toast(i18n("Детектор удалён"));applyFiltersFromState();
+    if(was)detToCam(camId);else setD(true);
+    toast(i18n("Детектор удалён"));applyFiltersFromState();
     }).catch(e=>toast(problemText(e)));
   }}),{typeCount:1});
 }
@@ -9224,7 +9249,6 @@ function deleteDetectorDraft(f,detId){
   setD(true);toast(i18n("Детектор удалён"));applyFiltersFromState();
 }
 // Зона детектора рисуется прямо на карточке, без отдельной вкладки
-function detGo(id){detSel=id;gear()}
 // Зона хранится в долях кадра; на экране — проценты рамки, поэтому одна разметка на любой размер
 function zoneText(z){return!z?i18n("вся картинка"):z.shape==="line"?i18n("Линия"):z.shape==="rect"?i18n("Прямоугольник"):`${i18n("Полигон")}, ${z.points.length} ${i18n("точек")}`}
 function zoneShapeSvg(z){
@@ -9332,31 +9356,25 @@ function detServerNoteHtml(cam,d){
 }
 function camDetectorsHtml(n){
   const dets=camDetectors(n);
-  const addBtn=`<button type="button" class="btn s" ${onEv("click",["addDetector",`${n.id}`])}>${lu("plus")}${i18n("Детектор")}</button>`;
+  const addBtn=`<button type="button" class="btn s" ${onEv("click",["detCreateOpen",`${n.id}`])}>${lu("plus")}${i18n("Детектор")}</button>`;
   if(!dets.length)return card("Детекторы камеры",
     `<p class='sub'>${i18n("У камеры нет детекторов")}</p>
      <p class="sub">${i18n("Детектор считается на сервере, где ведётся запись, либо на самой камере, если она это умеет. События детектора доступны в")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизации")}</button>. <button type="button" class="lk lk-act" ${onEv("click",["ruleFromDevice",`${n.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,addBtn);
-  const cur=dets.find(d=>d.id===detSel)||dets[0];
   return listCard({
     key:"det:"+n.id,
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0])],
-    row:d=>`<div class="it ${d.id===cur.id?"on":""}" ${onEv("click",["detGo",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))}${d.builtin?" · "+i18n("на камере"):""}</small></span>${bdg(d)}</div>`,
+    row:d=>`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"на камере":"на сервере")} · ${escHtml(detZoneText(d))}</small></span>${bdg(d)}</div>`,
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
     head:addBtn
-  })+
-    card("Параметры детектора",`${detFieldsHtml(n,cur,"Имя детектора")}
-      ${detServerNoteHtml(n,cur)}
-      <p class="sub">${i18n("События детектора →")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button> · <button type="button" class="lk" ${onEv("click",["ruleFromDevice",`${cur.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,
-      `<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${n.id}`,`${cur.id}`])}>${i18n("Удалить")}</button>`)+
-    ruleUsesCardHtml(cur)+detZoneCardHtml(n,cur);
+  });
 }
 // ── Срез «Детекторы»: главный объект — детектор ──────────────────────────────
 // Строка перечня (DeviceRow) не называет вид, зону и модель камеры, поэтому список читает полные записи
 // детекторов и их камер; на большом домене это много запросов (нужен запрос к API).
-const dl={group:"kind",f:{},more:new Set(),sort:"",dir:1,kind:null,sel:new Set(),shut:new Set()};
+const dl={f:{},more:new Set(),sort:"",dir:1,kind:null,sel:new Set()};
 let detLoadState=0;
 async function detLoad(){
   if(detLoadState)return;
@@ -9429,11 +9447,8 @@ function detFacet(d,v){
 }
 function detFacetClear(){dl.f={};dl.kind=null;detFacetPaint()}
 function detFacetMore(d){dl.more.add(d);gear()}
-// Колонка, которую называет заголовок группы, скрыта. Под видом сначала камера: она и отличает строки
-function detCols(){
-  const g=dl.group;
-  return g==="kind"?["cam","name","place","zone","state"]:g==="camera"?["name","kind","place","zone","state"]:["name","kind","cam","place","zone","state"];
-}
+// Вид выбран — колонка вида лишняя, а строки отличает камера: это список камер с таким детектором
+function detCols(){return dl.kind?["cam","name","place","zone","state"]:["name","kind","cam","place","zone","state"]}
 const DL_COL={name:["Имя"],kind:["Вид"],cam:["Камера"],place:["Где работает","dl-c-pl"],zone:["Зона","dl-c-z"],state:["Состояние","dl-c-st"]};
 const DL_SORT={name:x=>locName(x.d),kind:x=>detKindLabel(x.d,x.cam),cam:x=>locName(x.cam||{name:""}),place:x=>detPlaceText(x.d,x.cam),zone:x=>detZoneText(x.d),state:x=>detStateWord(x.d)};
 function detSortKey(){return detCols().includes(dl.sort)?dl.sort:detCols()[0]}
@@ -9445,19 +9460,32 @@ function detSorted(rows){
   const fn=DL_SORT[detSortKey()],cmp=(a,b)=>a.localeCompare(b,"ru",{numeric:true});
   return rows.slice().sort((a,b)=>dl.dir*cmp(fn(a),fn(b))||cmp(locName(a.d),locName(b.d)));
 }
-function detGroupSet(k){dl.group=k;gear()}
-function detGroupToggle(k){if(dl.shut.has(k))dl.shut.delete(k);else dl.shut.add(k);gear()}
 function detSelSet(ids,on){ids.forEach(id=>{if(on)dl.sel.add(id);else dl.sel.delete(id)});gear()}
 function detSelClear(){dl.sel.clear();gear()}
 function detRowClick(id){detSelSet([id],!dl.sel.has(id))}
-// В дереве по видам камер нет: камера открывается в папках, в своей первой папке
-function detOpen(id){
-  let opts;
-  if(find(id)?.n?.type==="camera"){
-    setGroup("folder");
-    const fd=foldersOfDevice(id)[0];if(fd)opts={ctx:"f:"+fd.id};
-  }
-  hwJumpFlash=true;pick(id,opts);hwJumpFlash=false;
+// back — камера, с вкладки которой пришли: ссылка «назад» в карточке ведёт туда, а не в список
+let detBackCam=null;
+function detOpen(id,back){
+  detBackCam=back||null;
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
+}
+function detFromCam(id){detOpen(id,find(id)?.p?.id)}
+// Камера в дереве стоит в каждой своей папке: строка без контекста не подсвечивается
+function camTreeCtx(id){
+  const own=foldersOfDevice(id),fd=own.find(x=>x.id===selFolder)||own[0];
+  return group()==="folder"&&fd?"f:"+fd.id:null;
+}
+function detToCam(id){hwJumpFlash=true;pick(id,{tab:"det",ctx:camTreeCtx(id)});hwJumpFlash=false}
+function detBackIsCam(cam){return slice!=="det"||detBackCam===cam?.id}
+function detBack(){
+  const cam=find(sel)?.p;
+  if(cam&&detBackIsCam(cam))detToCam(cam.id);
+  else{detBackCam=null;detKindPick(dl.kind)}
+}
+function detBackHtml(cam){
+  if(dz||!cam)return"";
+  const text=detBackIsCam(cam)?`${i18n("Детекторы камеры")} «${escHtml(locName(cam))}»`:dl.kind?`${i18n("Детекторы")}: ${escHtml(dl.kind)}`:i18n("Все детекторы");
+  return`<button type="button" class="lk dl-back" ${onEv("click",["detBack"])}>${lu("chevron-left",14)}${text}</button>`;
 }
 function detSelNodes(){return[...dl.sel].map(id=>find(id)?.n).filter(Boolean)}
 function detSetEnabled(on){
@@ -9500,29 +9528,12 @@ function detRowHtml(x){
     ${detCols().map(c=>({
       name:`<td><span class="dl-nm">${ic("det")}<button type="button" class="lk dl-link" title="${escHtml(name)}" ${onEv("click",onEv.stop,["detOpen",`${id}`])}>${escHtml(name)}</button></span></td>`,
       kind:`<td>${escHtml(detKindLabel(d,cam))}</td>`,
-      cam:`<td>${cam?`<span class="dl-nm">${dl.group==="kind"?ic("camera"):""}<button type="button" class="lk dl-link" title="${escHtml(locName(cam))}" ${onEv("click",onEv.stop,["detOpen",`${cam.id}`])}>${escHtml(locName(cam))}</button></span>`:`<span class="fl-none">—</span>`}</td>`,
+      cam:`<td>${cam?`<span class="dl-nm">${dl.kind?ic("camera"):""}<button type="button" class="lk dl-link" title="${escHtml(locName(cam))}" ${onEv("click",onEv.stop,["detOpen",`${id}`])}>${escHtml(locName(cam))}</button></span>`:`<span class="fl-none">—</span>`}</td>`,
       place:`<td title="${escHtml(d.builtin?modelOf(cam||{}):detPlaceText(d,cam))}"><span class="dl-nm">${ic(d.builtin?"camera":"server")}<span class="dl-link">${escHtml(detPlaceText(d,cam))}</span></span></td>`,
       zone:`<td>${noLine?`<span class="dl-warn">${lu("triangle-alert",12)} ${i18n("Нет линии")}</span>`:escHtml(detZoneText(d))}</td>`,
       state:`<td>${gone?`<span class="bd off">${i18n("удаляется")}</span>`:detStateHtml(d)}</td>`
     })[c]).join("")}
   </tr>`;
-}
-function detGroupsOf(found){
-  if(dl.group==="none")return[{key:"",rows:found}];
-  const by=new Map();
-  found.forEach(x=>{
-    const k=dl.group==="kind"?detKindLabel(x.d,x.cam):x.cam?.id||"";
-    if(!by.has(k))by.set(k,{key:k,cam:dl.group==="camera"?x.cam:null,rows:[]});
-    by.get(k).rows.push(x);
-  });
-  const name=g=>g.cam?locName(g.cam):g.key;
-  return[...by.values()].sort((a,b)=>name(a).localeCompare(name(b),"ru"));
-}
-function detGroupHead(g){
-  const ids=g.rows.map(x=>x.d.id),k=ids.filter(id=>dl.sel.has(id)).length,shut=dl.shut.has(g.key);
-  const title=g.cam?`<button type="button" class="lk dl-g-t" ${onEv("click",onEv.stop,["detOpen",`${g.cam.id}`])}>${escHtml(locName(g.cam))}</button><span class="dl-g-sub">${escHtml(modelOf(g.cam))}</span>`:`<span class="dl-g-t">${escHtml(g.key)}</span>`;
-  return`<tr class="dl-g" ${onEv("click",["detGroupToggle",`${g.key}`])}><td class="lan-chk"><input type="checkbox" ${k===ids.length?"checked":""} data-part="${k&&k<ids.length?1:0}" aria-label="${escHtml(i18n("Отметить группу"))}" ${onEv("click",onEv.stop)} ${onEv("change",["detSelSet",ids,onEv.checked])}></td>
-    <td colspan="${detCols().length}"><span class="dl-g-in"><span class="tw">${shut?TW_SHUT:TW_OPEN}</span>${title}<span class="stchip-cnt dl-g-c">${ids.length}</span></span></td></tr>`;
 }
 function detListHtml(){
   const add=`<button type="button" class="btn pri" ${onEv("click",["detCreateOpen"])}>${lu("plus")}${i18n("Добавить детекторы")}</button>`;
@@ -9532,14 +9543,11 @@ function detListHtml(){
   if(!detRows().length)return head+`<div class="sc"><div class="fl-empty"><div class="fl-empty-ic">${ic("det")}</div><p>${i18n("Детекторов пока нет. Добавьте их сразу на нужные камеры.")}</p><div class="fl-empty-act">${add}</div></div></div>`;
   const facets=facetRowsHtml(DL_DIMS,scope,f,"detFacet",dl.more,"detFacetMore");
   const said=DL_DIMS.filter(([d])=>f[d]).map(([d,,,lab])=>lab?lab(f[d]):f[d]).join(" · ");
-  const seg=[["kind","По виду"],["camera","По камере"],["none","Без групп"]].map(([k,l])=>`<button type="button" class="stchip ${dl.group===k?"on":""}" ${onEv("click",["detGroupSet",`${k}`])}><span class="stchip-lab">${i18n(l)}</span></button>`).join("");
-  const body=detGroupsOf(found).map(g=>(g.key?detGroupHead(g):"")+(g.key&&dl.shut.has(g.key)?"":detSorted(g.rows).map(detRowHtml).join(""))).join("");
+  const body=detSorted(found).map(detRowHtml).join("");
   requestAnimationFrame(()=>{
-    document.querySelectorAll(".dl-g input[data-part='1']").forEach(i=>{i.indeterminate=true});
     const c=document.querySelector('[data-slice="det"] .ph-cnt');if(c)c.textContent=sliceCountText("det");
   });
-  return head+`<div class="sc"><div class="dl-tools">${listSearchHtml("dets","Имя, вид, камера или модель…","list")}
-      <span class="dl-seg"><span class="dl-seg-l">${i18n("Группировка")}</span>${seg}</span></div>
+  return head+`<div class="sc"><div class="dl-tools">${listSearchHtml("dets","Имя, вид, камера или модель…","list")}</div>
     <div class="bk-sum bk-scope"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" data-fk="all" class="stchip ${on?"":"on"}" ${onEv("click",["detFacetClear"])}><span class="stchip-lab">${i18n("все")}</span><span class="stchip-cnt">${scope.length}</span></button>${facets?`<span class="sub bk-scope-or" data-fk="or">${i18n("или уточните")}:</span>`:""}</div>${facets}${on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Показано")} <b>${found.length} ${i18n("из")} ${scope.length}</b>: ${escHtml(said)}</div>`:""}</div>
     ${detBarHtml(found)}
     <div class="gtbl gtbl-cams-wrap"><table class="gtbl-cams dl-tbl"><thead><tr class="gtbl-h"><th class="dl-c-chk"></th>${detCols().map(c=>{const on=detSortKey()===c,[l,cl]=DL_COL[c];return`<th class="lan-th ${cl||""} ${on?"on":""}" aria-sort="${on?(dl.dir>0?"ascending":"descending"):"none"}" ${onEv("click",["detSort",`${c}`])}><span class="gtbl-th-txt">${i18n(l)}${on?lu(dl.dir>0?"arrow-up":"arrow-down",12):""}</span></th>`}).join("")}</tr></thead>
@@ -9566,7 +9574,7 @@ function treeDetKinds(){
     return`<div class="n srv ${detListOn()&&dl.kind===k?"on":""}" style="--l:0" ${onEv("click",["detKindPick",`${k}`])}>${treeChevron(key,"node",true,op)}<span class="nm">${hlText(k,q)}</span>${treeTail({cnt:treeCntHtml(list.length),rowAct:" "})}</div>${kids}`;
   }).join("");
 }
-// ── Добавить детекторы: что создать → на каких камерах → что получится ──────
+// ── Добавить детекторы: по шагам, каждый шаг — одно решение ──────
 // Ничего не создаётся до «Создать»: одна операция POST /operations, шаг create на камеру и детектор
 let dc=null;
 function detCams(){
@@ -9585,11 +9593,21 @@ async function dcLoad(){
   treeMatchCache.clear();searchMatchCache.clear();
   if(dc){dc.ready=true;renderDetCreate()}
 }
-function detCreateOpen(){
+// lock — камера, с вкладки которой открыли: шага выбора камер нет
+function detCreateOpen(lock){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
-  dc={items:new Set(DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",act:"record",watch:true,pick:""},zones:true};
+  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",act:"record",watch:true,pick:""},zones:true};
   renderDetCreate();dcLoad();
 }
+const DC_STEPS={
+  2:[{t:"Что и на каких камерах",s:["what","cams"]},{t:"Правило и зона",s:["rule","end"]}],
+  3:[{t:"Что создать",s:["what"]},{t:"На каких камерах",s:["cams"]},{t:"Правило и зона",s:["rule","end"]}],
+  4:[{t:"Что создать",s:["what"]},{t:"На каких камерах",s:["cams"]},{t:"Правило",s:["rule"]},{t:"Зона и проверка",s:["end"]}]
+};
+let dcVar=3;
+function dcSteps(){return DC_STEPS[dcVar].map(x=>dc.lock&&x.s.includes("cams")?{t:"Что создать",s:x.s.filter(k=>k!=="cams")}:x).filter(x=>x.s.length)}
+function dcVarSet(v){dcVar=+v;dc.step=Math.min(dc.step,dcSteps().length-1);renderDetCreate()}
+function dcStepGo(i){dc.step=+i;renderDetCreate()}
 function dcCancel(){closeBulkModal();dc=null}
 // Виды на камере — то, что объявил драйвер: detectorOptions всех камер, по шаблону
 function dcTemplates(cams){
@@ -9700,42 +9718,59 @@ function dcItemRow(key,name,small,tag,tagCls,off){
 function renderDetCreate(){
   if(!dc)return;
   const keep={};document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>keep[el.dataset.cpScroll]=el.scrollTop);
-  const cams=dc.ready?detCams():[],tpl=dcTemplates(cams),list=dcFiltered(cams);
+  const lock=dc.lock?find(dc.lock)?.n:null;
+  const cams=dc.ready?detCams():[],tpl=dc.ready?dcTemplates(lock?[lock]:cams):[],list=dcFiltered(cams);
   // Шаблоны, мешающие выбранному: вместе на одном канале их не включить
   const clash=key=>{const t=tpl.find(x=>x.key===key);if(!t)return"";const hit=tpl.find(x=>dc.items.has(x.key)&&x.key!==key&&((x.o.conflicts||[]).includes(t.o.template)||(t.o.conflicts||[]).includes(x.o.template)));return hit?`${i18n("Нельзя вместе с")} «${hit.o.name}»`:""};
-  const srvItems=DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",""));
-  const camItems=tpl.map(t=>{const m=[...t.models];return dcItemRow(t.key,t.o.name,`${t.cams} ${i18n(plural(t.cams,"камера умеет|камеры умеют|камер умеют"))}${m.length?" · "+m.slice(0,2).join(", ")+(m.length>2?` +${m.length-2}`:""):""}`,"","",clash(t.key))});
-  const col1=`<section class="cp-col"><div class="cp-h"><span class="cp-step">1</span>${i18n("Что создать")}<span class="cp-h-cnt">${dc.items.size?`${i18n("выбрано")} ${dc.items.size}`:""}</span></div>
-    <div class="cp-scroll" data-cp-scroll="i">
-      <div class="dc-sec">${i18n("На сервере")}<small>${i18n("Подойдёт любая камера")}</small></div>${srvItems.join("")}
-      <div class="dc-sec">${i18n("На камере")}<small>${i18n("Только камеры, которые это умеют")}</small></div>${dc.ready?(camItems.join("")||`<p class="sub">${i18n("Камеры не объявили встроенных детекторов.")}</p>`):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}
-    </div></section>`;
-  const facets=facetRowsHtml(dcDims(),cams,dc.f,"dcFacet",dc.more,"dcFacetMore",4),fOn=Object.values(dc.f).some(Boolean);
-  const rows=list.map(c=>{
-    const whys=[...dc.items].map(k=>dcWhy(c,k)),ok=whys.filter(w=>!w).length,none=dc.items.size&&!ok,on=dc.cams.has(c.id);
-    const reasons=[...new Set(whys.filter(Boolean))];
-    const note=!dc.items.size?"":none?reasons.join(", "):ok<dc.items.size?`${i18n("получит")} ${ok} ${i18n("из")} ${dc.items.size}`:"";
-    const s=srv(c.id);
-    return`<label class="cp-row ${none&&!on?"dc-off":""}"><input type="checkbox" ${on?"checked":""} ${none&&!on?"disabled":""} ${onEv("change",["dcCamToggle",`${c.id}`,onEv.checked])}><span class="cp-name">${treeIconHtml(c)} ${crumbTitle(c)}</span><span class="cp-meta">${[modelOf(c)||"—",serverNameOf(c)].map(escHtml).join(" · ")}${s&&hasNoSignal(s)?` · <span class="bk-bad">${i18n("сервер без связи")}</span>`:""}</span>${note?`<span class="cp-note" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</label>`;
-  }).join("")||`<div class="empty">${dc.ready?i18n("Ничего не найдено"):i18n("Загрузка…")}</div>`;
-  const able=list.filter(c=>!dc.items.size||[...dc.items].some(k=>!dcWhy(c,k)));
-  const allOn=able.length>0&&able.every(c=>dc.cams.has(c.id));
-  const col2=`<section class="cp-col cp-col-list"><div class="cp-h"><span class="cp-step">2</span>${i18n("На каких камерах")}<span class="cp-h-cnt">${i18n("выбрано")} ${dc.cams.size}</span></div>
-    <div class="bk-sum bk-scope dc-scope" data-cp-scroll="f"><div class="bk-scope-h"><button type="button" class="stchip ${fOn?"":"on"}" ${onEv("click",["dcFacetClear"])}><span class="stchip-lab">${i18n("Все камеры")}</span><span class="stchip-cnt">${cams.length}</span></button>${facets?`<span class="sub bk-scope-or">${i18n("или уточните")}:</span>`:""}</div>${facets}</div>
-    <div class="sq lan-sq cp-sq dc-q"><input value="${escHtml(dc.q)}" placeholder="${i18n("Имя, IP, модель, сервер…")}" ${onEv("input",["dcQ",onEv.el])}></div>
-    <div class="cp-tools"><label class="cp-all"><input type="checkbox" ${allOn?"checked":""} ${able.length?"":"disabled"} ${onEv("change",["dcAll",onEv.checked])}><span>${allOn?i18n("Снять выделение"):i18n("Выбрать подходящие")} (${able.length})</span></label></div>
-    <div class="cp-list" data-cp-scroll="l">${rows}</div></section>`;
+  const lockWhy=key=>lock&&dc.ready?dcWhy(lock,key)||"":"";
   const plan=dcPlan(cams,tpl),total=plan.reduce((s,p)=>s+p.fit.length,0),camsHit=new Set(plan.flatMap(p=>p.fit.map(c=>c.id))).size;
-  const lines=plan.map(p=>`<div class="dc-plan"><div class="dc-plan-h"><span>${escHtml(p.name)}</span><b>${p.fit.length}</b></div>${[...p.skip.entries()].map(([w,c])=>`<div class="dc-plan-s">${i18n("пропустим")} ${c}: ${escHtml(w)}</div>`).join("")}</div>`).join("");
   const gs=dcTrigs(plan,tpl),withRule=dc.rule.mode==="new"||(dc.rule.mode==="add"&&dc.rule.pick);
-  const col3=`<section class="cp-col"><div class="cp-h"><span class="cp-step">3</span>${i18n("Что получится")}</div>
-    <div class="cp-scroll" data-cp-scroll="p">${plan.length&&dc.cams.size?`<p class="dc-total"><b>${total}</b> ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} <b>${camsHit}</b> ${i18n(plural(camsHit,"камере|камерах|камерах"))}</p>${lines}`:`<p class="sub">${i18n("Выберите, что создать и на каких камерах. До «Создать» ничего не изменится.")}</p>`}
-      <label class="dc-on"><input type="checkbox" ${dc.on?"checked":""} ${onEv("change",["dcEnabled",onEv.checked])}><span>${i18n("Включить сразу")}</span></label>
-      ${dcZoneHtml(plan)}
-      ${dcRuleHtml(gs)}
+  const steps=dcSteps(),st=steps[Math.min(dc.step,steps.length-1)],last=dc.step>=steps.length-1;
+  const okStep=x=>x.s.every(k=>k==="what"?dc.items.size>0:k==="cams"?total>0:true);
+  const secWhat=()=>{
+    const srvItems=DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",lockWhy("s:"+k)));
+    const camItems=tpl.map(t=>{const m=[...t.models];return dcItemRow(t.key,t.o.name,lock?"":`${t.cams} ${i18n(plural(t.cams,"камера умеет|камеры умеют|камер умеют"))}${m.length?" · "+m.slice(0,2).join(", ")+(m.length>2?` +${m.length-2}`:""):""}`,"","",clash(t.key)||lockWhy(t.key))});
+    return`<section class="cp-col"><div class="cp-scroll ${st.s.length===1?"dc-what2":""}" data-cp-scroll="i">
+      <div><div class="dc-sec">${i18n("На сервере")}<small>${i18n("Подойдёт любая камера")}</small></div>${srvItems.join("")}</div>
+      <div><div class="dc-sec">${i18n("На камере")}<small>${i18n(lock?"То, что умеет эта камера":"Только камеры, которые это умеют")}</small></div>${dc.ready?(camItems.join("")||`<p class="sub">${i18n(lock?"Камера не объявила встроенных детекторов.":"Камеры не объявили встроенных детекторов.")}</p>`):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div>
     </div></section>`;
-  openBulkModal(i18n("Добавить детекторы"),`<div class="cp-wrap dc-wrap">${col1}${col2}${col3}</div>`,
-    `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`,"bbox-wide bbox-copy");
+  };
+  const secCams=()=>{
+    const facets=facetRowsHtml(dcDims(),cams,dc.f,"dcFacet",dc.more,"dcFacetMore",4),fOn=Object.values(dc.f).some(Boolean);
+    const rows=list.map(c=>{
+      const whys=[...dc.items].map(k=>dcWhy(c,k)),ok=whys.filter(w=>!w).length,none=dc.items.size&&!ok,on=dc.cams.has(c.id);
+      const reasons=[...new Set(whys.filter(Boolean))];
+      const note=!dc.items.size?"":none?reasons.join(", "):ok<dc.items.size?`${i18n("получит")} ${ok} ${i18n("из")} ${dc.items.size}`:"";
+      const s=srv(c.id);
+      return`<label class="cp-row ${none&&!on?"dc-off":""}"><input type="checkbox" ${on?"checked":""} ${none&&!on?"disabled":""} ${onEv("change",["dcCamToggle",`${c.id}`,onEv.checked])}><span class="cp-name">${treeIconHtml(c)} ${crumbTitle(c)}</span><span class="cp-meta">${[modelOf(c)||"—",serverNameOf(c)].map(escHtml).join(" · ")}${s&&hasNoSignal(s)?` · <span class="bk-bad">${i18n("сервер без связи")}</span>`:""}</span>${note?`<span class="cp-note" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</label>`;
+    }).join("")||`<div class="empty">${dc.ready?i18n("Ничего не найдено"):i18n("Загрузка…")}</div>`;
+    const able=list.filter(c=>!dc.items.size||[...dc.items].some(k=>!dcWhy(c,k)));
+    const allOn=able.length>0&&able.every(c=>dc.cams.has(c.id));
+    return`<section class="cp-col cp-col-list">
+      <div class="bk-sum bk-scope dc-scope" data-cp-scroll="f"><div class="bk-scope-h"><button type="button" class="stchip ${fOn?"":"on"}" ${onEv("click",["dcFacetClear"])}><span class="stchip-lab">${i18n("Все камеры")}</span><span class="stchip-cnt">${cams.length}</span></button>${facets?`<span class="sub bk-scope-or">${i18n("или уточните")}:</span>`:""}</div>${facets}</div>
+      <div class="sq lan-sq cp-sq dc-q"><input value="${escHtml(dc.q)}" placeholder="${i18n("Имя, IP, модель, сервер…")}" ${onEv("input",["dcQ",onEv.el])}></div>
+      <div class="cp-tools"><label class="cp-all"><input type="checkbox" ${allOn?"checked":""} ${able.length?"":"disabled"} ${onEv("change",["dcAll",onEv.checked])}><span>${allOn?i18n("Снять выделение"):i18n("Выбрать подходящие")} (${able.length})</span></label><span class="dc-cnt">${i18n("выбрано")} ${dc.cams.size}</span></div>
+      <div class="cp-list" data-cp-scroll="l">${rows}</div></section>`;
+  };
+  const secRule=()=>`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="r">${dcRuleHtml(gs)}</div></section>`;
+  const secEnd=()=>{
+    const lines=plan.map(p=>`<div class="dc-plan"><div class="dc-plan-h"><span>${escHtml(p.name)}</span><b>${p.fit.length}</b></div>${[...p.skip.entries()].map(([w,c])=>`<div class="dc-plan-s">${i18n("пропустим")} ${c}: ${escHtml(w)}</div>`).join("")}</div>`).join("");
+    return`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="p"><div class="dc-sec">${i18n("Что получится")}</div><p class="dc-total"><b>${total}</b> ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} <b>${camsHit}</b> ${i18n(plural(camsHit,"камере|камерах|камерах"))}</p>${lines}
+      <label class="dc-on"><input type="checkbox" ${dc.on?"checked":""} ${onEv("change",["dcEnabled",onEv.checked])}><span>${i18n("Включить сразу")}</span></label>
+      ${dcZoneHtml(plan)}</div></section>`;
+  };
+  const SEC={what:secWhat,cams:secCams,rule:secRule,end:secEnd};
+  const reach=i=>steps.slice(0,i).every(okStep);
+  const bar=steps.map((x,i)=>`${i?`<span class="dc-st-sep"></span>`:""}<button type="button" class="dc-st ${i===dc.step?"on":""}" ${reach(i)?"":"disabled"} aria-current="${i===dc.step?"step":"false"}" ${onEv("click",["dcStepGo",`${i}`])}><span class="cp-step">${i<dc.step?lu("check",11):i+1}</span>${i18n(x.t)}</button>`).join("");
+  const vars=`<span class="dc-var" title="${i18n("Только в черновике: сравнить варианты")}">${i18n("Вариант")}:${[2,3,4].map(v=>`<button type="button" class="stchip ${dcVar===v?"on":""}" ${onEv("click",["dcVarSet",`${v}`])}><span class="stchip-lab">${v} ${i18n(plural(v,"шаг|шага|шагов"))}</span></button>`).join("")}</span>`;
+  const cls=st.s.length===2?(st.s[0]==="what"?"list":"two"):"";
+  const skipN=plan.reduce((n,p)=>n+[...p.skip.values()].reduce((a,b)=>a+b,0),0);
+  const sum=!dc.items.size?i18n("Выберите, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выберите камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
+  const go=last?`<button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`
+    :`<button type="button" class="btn pri" ${okStep(st)?"":"disabled"} ${onEv("click",["dcStepGo",`${dc.step+1}`])}>${i18n("Далее")}</button>`;
+  openBulkModal(lock?`${i18n("Добавить детекторы на камеру")} «${escHtml(locName(lock))}»`:i18n("Добавить детекторы"),
+    `<div class="dc-step"><div class="dc-steps">${bar}${vars}</div><div class="dc-body ${cls}">${st.s.map(k=>SEC[k]()).join("")}</div></div>`,
+    `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><span class="dc-sum">${sum}</span>${dc.step?`<button type="button" class="btn" ${onEv("click",["dcStepGo",`${dc.step-1}`])}>${i18n("Назад")}</button>`:""}${go}`,`bbox-wide bbox-copy dc-box ${cls==="list"?"dc-box-w":""}`);
   requestAnimationFrame(()=>document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]}));
 }
 function dcCreateBody(key,cam,tpl){
@@ -9754,7 +9789,7 @@ function dcRun(){
   if(!plan.length)return;
   const ch=plan.map(p=>({key:"dc:"+p.key,label:`${i18n("Детектор")} «${p.name}»`,note:"",ops:p.fit.map(c=>Object.assign(mkOp(c,`${i18n("Детектор")} «${p.name}»`,"det",()=>{}),{api:{create:dcCreateBody(p.key,c,tpl)}}))}));
   const nodes=[...new Set(plan.flatMap(p=>p.fit))],gs=dcTrigs(plan,tpl),rule={...dc.rule};
-  dcPost={cams:new Set(nodes.map(c=>c.id)),before:new Set(detRows().map(x=>x.d.id)),zones:dc.zones,gs,edit:rule.mode==="new"&&rule.act==="edit"&&gs.length===1};
+  dcPost={cams:new Set(nodes.map(c=>c.id)),before:new Set(detRows().map(x=>x.d.id)),zones:dc.zones,back:dc.lock,gs,edit:rule.mode==="new"&&rule.act==="edit"&&gs.length===1};
   dc=null;closeBulkModal();
   bulkRun(ch,{},nodes);
   // Событие правила стоит на камере, а не на детекторе: правилу не нужно ждать создания
@@ -9796,16 +9831,16 @@ function dcAfterRun(){
       ruleNewOpen({start:"event",when:p.gs.map(dcRuleWhen)});
       return;
     }
-    if(p.zones&&made.length)dzStart(made);
+    if(p.zones&&made.length)dzStart(made,p.back);
   },300);
 }
 // ── Зоны по очереди: кадр у каждой камеры свой, поэтому зона рисуется в карточке детектора, камера за камерой ──
 let dz=null;
-function dzStart(rows){
+function dzStart(rows,back){
   const cmp=(a,b)=>a.localeCompare(b,"ru",{numeric:true});
   const ids=rows.slice().sort((a,b)=>detNeedsLine(b.d)-detNeedsLine(a.d)||cmp(locName(a.cam||{name:""}),locName(b.cam||{name:""}))).map(x=>x.d.id);
   if(!ids.length)return;
-  dz={ids,at:0,drawn:0};dzGo(0);
+  dz={ids,at:0,drawn:0,back};dzGo(0);
 }
 function dzFromSel(){dzStart(detRows().filter(x=>dl.sel.has(x.d.id)))}
 function dzOn(id){return!!dz&&dz.ids[dz.at]===id}
@@ -9818,9 +9853,9 @@ function dzGo(i){
 function dzNext(){dzGo(dz.at+1)}
 function dzPrev(){dzGo(dz.at-1)}
 function dzEnd(){
-  const k=dz?.drawn||0;dz=null;zoneDraw=null;dl.sel.clear();
+  const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;dl.sel.clear();
   toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
-  detKindPick(null);
+  if(back)detToCam(back);else detKindPick(null);
 }
 // Зона — в долях кадра, поэтому ляжет на любую камеру, но сцена там другая: копия — только по явной просьбе
 function dzSameShape(a,z){return detNeedsLineKind(a)===(z.shape==="line")}
@@ -11080,9 +11115,8 @@ function formBase(n){
         :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+placeCardHtml(n)+periphSummaryHtml(n)}
   if(n.type==="det"){
     const cam=find(n.id)?.p;
-    return detZoneCardHtml(cam,n)+card("Параметры",`${detFieldsHtml(cam,n,"Имя")}
-      ${cam?detServerNoteHtml(cam,n):""}`)+
-      (cam?card("Камера",`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${cam.id}`],["goTab","det"])}><span>${ic("camera")}</span><span>${escHtml(locName(cam))}<small>${i18n(recordModeLabel(cam.rec))}</small></span></div>`):"");
+    return detBackHtml(cam)+detZoneCardHtml(cam,n)+card("Параметры",`${detFieldsHtml(cam,n,"Имя")}
+      ${cam?detServerNoteHtml(cam,n):""}`,cam?`<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${cam.id}`,`${n.id}`])}>${i18n("Удалить")}</button>`:"");
   }
   if(n.type==="acfa_lock"||n.type==="acfa_sensor"||n.type==="acfa_fence"||(n.type==="relay"&&isUnitNode(n)))return unitCardHtml(n);
   if(n.type==="storage"){
