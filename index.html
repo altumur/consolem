@@ -1315,6 +1315,7 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gojump{position:relative;flex:0 1 auto;width:calc(var(--aw,360px) - var(--gut)*3 - 33px);min-width:0;display:flex;align-items:center;gap:4px;height:var(--ctrl-h);padding:0 10px 0 var(--ctrl-lead);background:var(--p2);border:1px solid var(--ln);border-radius:8px}
 .gojump:focus-within{border-color:var(--one-editor-border-focus);box-shadow:0 0 0 1px color-mix(in srgb, var(--one-focus-halo) 100%, transparent)}
 .gojump-lead{display:inline-flex;justify-content:center;width:var(--ic);line-height:0;color:var(--mu)}.gojump-lead svg{width:16px;height:16px}
+.gojump.asst-run .gojump-lead svg{display:none}.gojump.asst-run .gojump-lead::before{content:"";width:12px;height:12px;border:2px solid var(--one-border);border-top-color:var(--bl);border-radius:50%;animation:dev-spin .8s linear infinite}
 .gojump input{flex:1;min-width:0;height:100%;padding:0;background:0;border:0;outline:0;font-size:13px}
 .gojump-clear{flex:none;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:0;border-radius:5px;background:transparent;color:var(--mu);padding:0;font-size:13px;line-height:1}
 .gojump-clear:hover{color:var(--tx);background:var(--p2)}
@@ -4941,6 +4942,12 @@ function goPick(i){
 function goClose(){
   document.getElementById("gopop")?.classList.remove("open","asst");
   if(asst)asst.show=false;
+  asstLeadSync();
+}
+// Панель скрыта, а ход идёт — крутилка вместо лупы в строке поиска; ход кончился или панель снова видна — лупа
+function asstLeadSync(){
+  const pop=document.getElementById("gopop"),seen=!!pop?.classList.contains("open")&&pop.classList.contains("asst");
+  document.getElementById("gojump")?.classList.toggle("asst-run",!!asst?.busy&&!seen);
 }
 // Строка уже в фокусе, окно скрыто кликом мимо или Esc: фокус не придёт, панель возвращает клик
 function goClick(v){
@@ -21556,6 +21563,7 @@ function asstEnd(){
   a.abort?.abort();
   a.secrets=[];
   asst=null;
+  asstLeadSync();
   const block=document.getElementById("asstBlock");
   if(block){block.innerHTML="";block.hidden=true}
   document.getElementById("gopop")?.classList.remove("asst");
@@ -21926,6 +21934,7 @@ function asstRender(){
     `</div>`
   ].join("");
   if(a.show)pop.classList.add("open","asst");
+  asstLeadSync();
   block.scrollTop=block.scrollHeight;
   const code=document.getElementById("asstCode");
   if(code)code.value=a.codeDraft;
