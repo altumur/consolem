@@ -3493,7 +3493,7 @@ function licLoad(){
 const autoVer=new Map();let modesVer=null;
 const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objectMode","maintenanceWindow"]);
 // Типы хранения — что система умеет, из справочника; подпись — своя
-let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[],DET_TYPES=[],refRuleCross=null;
+let refStorage=ARCH_STORAGE.map(x=>x[0]),refParams={},refLabels=[],refEvents=[],refDetKinds=[],DET_TYPES=[],DET_TRIG_OWN=[],refRuleCross=null;
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
 function autoRef(ref){
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
@@ -3503,6 +3503,8 @@ function autoRef(ref){
   refLabels=ref.serverLabels||[];refEvents=ref.eventKinds||[];refDetKinds=ref.detectorKinds||[];
   // Виды серверных детекторов объявляет сервер. other — вид вне перечня: без шаблона камеры у него нет подписи
   DET_TYPES=refDetKinds.filter(k=>k!=="other").map(k=>DET_KIND_RU[k]||k);
+  // Виды детекторов, у которых есть своё событие в правилах
+  DET_TRIG_OWN=(ref.ruleTriggers||[]).filter(t=>t.source==="det"&&t.kind!=="other").map(t=>t.kind);
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
@@ -9660,7 +9662,7 @@ function dcTrigs(plan,tpl){
   const by=new Map();
   plan.filter(p=>p.fit.length).forEach(p=>{
     const o=tpl.find(t=>t.key===p.key)?.o,tr=o?detTrig(o.kind,o.template):detTrig(DET_KIND_CODE[p.key.slice(2)]||"other");
-    const k=tr.kind+"|"+(tr.match.template||"");
+    const k=tr.kind+"|"+matchKey(tr.match);
     if(!by.has(k))by.set(k,{...tr,names:[],cams:new Set()});
     const g=by.get(k);g.names.push(p.name);p.fit.forEach(c=>g.cams.add(c.id));
   });
@@ -9669,7 +9671,7 @@ function dcTrigs(plan,tpl){
 const DC_ACTS=[["record","Записывать",{sub:"rec",action:"record",ref:"$src",minutes:10}],["alarm","Тревога",{sub:"alarm",action:"alarm",ref:"$src",prio:"normal"}],["edit","Настрою сам",null]];
 function dcRuleWhen(g){return{sub:"det",kind:g.kind,ref:refMake([...g.cams],[]),match:{...g.match}}}
 function dcRuleCands(gs){
-  return rules.filter(r=>r.start==="event"&&gs.some(g=>r.when.some(t=>t.sub==="det"&&t.kind===g.kind&&(t.match?.template||"")===(g.match.template||""))));
+  return rules.filter(r=>r.start==="event"&&gs.some(g=>r.when.some(t=>t.sub==="det"&&t.kind===g.kind&&matchKey(t.match)===matchKey(g.match))));
 }
 function dcRuleHtml(gs){
   const r=dc.rule,cands=dcRuleCands(gs);
@@ -9677,7 +9679,7 @@ function dcRuleHtml(gs){
   const camsAll=new Set(gs.flatMap(g=>[...g.cams])).size;
   const one=gs.length<=1,act=!one&&r.act==="edit"?"record":r.act;
   const acts=`<div class="dc-sub"><div class="bk-chips">${DC_ACTS.filter(([k])=>one||k!=="edit").map(([k,l])=>`<button type="button" class="stchip ${act===k?"on":""}" ${onEv("click",["dcRuleSet","act",`${k}`])}><span class="stchip-lab">${i18n(l)}</span></button>`).join("")}</div>
-    ${act==="edit"?`<p class="sub dc-note">${i18n("После создания откроется редактор: события и камеры уже будут в правиле.")}</p>`:`<label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что сделало бы. Действия включите после проверки.")}</small></span></label>
+    ${act==="edit"?`<p class="sub dc-note">${i18n("Редактор откроется после создания и зон: события и камеры уже будут в правиле.")}</p>`:`<label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что сделало бы. Действия включите после проверки.")}</small></span></label>
     <p class="sub dc-note">${camsAll?`${one?i18n("Одно правило"):`${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}, ${i18n("по одному на вид")}`}: ${camsAll} ${i18n(plural(camsAll,"камера|камеры|камер"))}. ${i18n(act==="record"?"Запись идёт с той камеры, где событие.":"Тревога — по той камере, где событие.")}`:""}</p>`}</div>`;
   const pick=`<div class="dc-sub">${cands.length?`<select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Камеры встанут в событие правила. Остальное в нём не изменится.")}</p>`:`<p class="sub dc-note">${i18n("Нет правил с такими событиями.")}</p>`}</div>`;
   return`<div class="dc-sec">${i18n("Правило по событию")}</div>
@@ -9689,7 +9691,7 @@ function dcZoneHtml(plan){
   const line=plan.filter(p=>p.line).reduce((n,p)=>n+p.fit.length,0),area=plan.filter(p=>!p.line).reduce((n,p)=>n+p.fit.length,0);
   return`<div class="dc-sec">${i18n("Зона")}</div>
     <p class="sub dc-note">${area||!line?i18n("Без зоны детектор смотрит всю картинку."):""} ${line?`<span class="dl-warn">${lu("triangle-alert",12)} ${line} ${i18n(plural(line,"детектору|детекторам|детекторам"))} ${i18n("пересечения линии нужна линия: без неё они не сработают.")}</span>`:""}</p>
-    <label class="dc-on"><input type="checkbox" ${dc.zones?"checked":""} ${onEv("change",["dcZones",onEv.checked])}><span>${i18n("После создания нарисовать зоны по очереди")}<small>${i18n("Камера за камерой. Можно пропускать и закончить в любой момент.")}</small></span></label>`;
+    <label class="dc-on"><input type="checkbox" ${dc.zones?"checked":""} ${onEv("change",["dcZones",onEv.checked])}><span>${i18n("После создания нарисовать зоны по очереди")}<small>${i18n("Камера за камерой. Можно пропускать и закончить в любой момент.")}${dc.rule.mode==="new"&&dc.rule.act==="edit"?` ${i18n("Затем откроется редактор правила.")}`:""}</small></span></label>`;
 }
 function dcAll(on){
   dcFiltered(detCams()).forEach(c=>{
@@ -9803,7 +9805,7 @@ function dcRuleAdd(gs,id){
   const r=rules.find(x=>x.id===id);if(!r)return;
   const next=ruleClone(r);let added=0;
   gs.forEach(g=>{
-    const t=next.when.find(w=>w.sub==="det"&&w.kind===g.kind&&(w.match?.template||"")===(g.match.template||""));if(!t)return;
+    const t=next.when.find(w=>w.sub==="det"&&w.kind===g.kind&&matchKey(w.match)===matchKey(g.match));if(!t)return;
     const fresh=[...g.cams].filter(c=>!ruleRefCovers(t.ref,c,triggerKind(t).devTypes));if(!fresh.length)return;
     const p=refParts(t.ref);t.ref=refMake([...p.inc,...fresh],p.ex);added+=fresh.length;
   });
@@ -9815,25 +9817,32 @@ function dcRuleAdd(gs,id){
 }
 // После операции: созданные детекторы известны только теперь — очередь зон и редактор правила стартуют отсюда
 let dcPost=null;
+function dcRuleEdit(gs){
+  // Окно одно: отчёт с отказами не закрываем, редактор откроется по кнопке
+  if(document.getElementById("bmodal")?.classList.contains("open")){toastAction("dcrule",i18n("Правило ещё не настроено"),i18n("Настроить"),()=>dcRuleEdit(gs),20000);return}
+  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  ruleNewOpen({start:"event",when:gs.map(dcRuleWhen)});
+}
 function dcAfterRun(){
+  // Окно редактора нельзя открывать до конца операции: отчёт занял бы то же окно
+  if(dzThen){const t=dzThen;dzThen=null;setTimeout(t,300)}
   const p=dcPost;if(!p)return;dcPost=null;
   setTimeout(()=>{
     const made=detRows().filter(x=>p.cams.has(x.cam?.id)&&!p.before.has(x.d.id));
-    if(p.edit){
-      ruleQuiet=true;setApp("rules");ruleQuiet=false;
-      ruleNewOpen({start:"event",when:p.gs.map(dcRuleWhen)});
-      return;
-    }
-    if(p.zones&&made.length)dzStart(made,p.back);
+    // «Настрою сам»: редактор уводит из раздела, поэтому сначала зоны, потом правило
+    const edit=p.edit?()=>dcRuleEdit(p.gs):null;
+    if(p.zones&&made.length){dzStart(made,p.back,edit);return}
+    if(edit)edit();
   },300);
 }
 // ── Зоны по очереди: кадр у каждой камеры свой, поэтому зона рисуется в карточке детектора, камера за камерой ──
-let dz=null;
-function dzStart(rows,back){
+let dz=null,dzThen=null;
+// then — что открыть после очереди вместо возврата к списку
+function dzStart(rows,back,then){
   const cmp=(a,b)=>a.localeCompare(b,"ru",{numeric:true});
   const ids=rows.slice().sort((a,b)=>detNeedsLine(b.d)-detNeedsLine(a.d)||cmp(locName(a.cam||{name:""}),locName(b.cam||{name:""}))).map(x=>x.d.id);
   if(!ids.length)return;
-  dz={ids,at:0,drawn:0,back};dzGo(0);
+  dz={ids,at:0,drawn:0,back,then};dzGo(0);
 }
 function dzFromSel(){dzStart(detRows().filter(x=>dl.sel.has(x.d.id)))}
 function dzOn(id){return!!dz&&dz.ids[dz.at]===id}
@@ -9867,8 +9876,9 @@ function dzAskPrev(){dzAsk(dzPrev)}
 function dzAskEnd(){dzAsk(dzEnd)}
 // quiet: итог покажет отчёт групповой операции
 function dzEnd(quiet){
-  const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;dl.sel.clear();
+  const k=dz?.drawn||0,back=dz?.back,then=dz?.then;dz=null;zoneDraw=null;dl.sel.clear();
   if(!quiet)toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
+  if(then){if(bq&&!bq.finished)dzThen=then;else then();return}
   if(back)detToCam(back);else detKindPick(null);
 }
 // Зона — в долях кадра, поэтому ляжет на любую камеру, но сцена там другая: копия — только по явной просьбе
@@ -9910,7 +9920,7 @@ function dzBarHtml(cam,d){
   const n=dz.ids.length,more=dz.at<n-1,draft=dzDrafted(d.id),z=dzZone(d),same=z?dzCopyScope(d,z).rest.length:0;
   const save=`<button type="button" class="btn s pri" ${draft?"":"disabled"} ${onEv("click",["dzSaveNext"])}>${i18n(more?"Сохранить и дальше":"Сохранить и закончить")}</button>`;
   const go=draft?save:d.zone?`<button type="button" class="btn s pri" ${onEv("click",["dzNext"])}>${i18n(more?"Дальше":"Готово")}</button>`:`<button type="button" class="btn s" ${onEv("click",["dzNext"])}>${i18n("Пропустить")}</button>${save}`;
-  return`<div class="dz-bar"><span class="dz-t"><b>${i18n("Зоны")}: ${dz.at+1} ${i18n("из")} ${n}</b> · ${escHtml(locName(cam))} · ${i18n("сохранено")} ${dz.drawn}</span>
+  return`<div class="dz-bar"><span class="dz-t"><b>${i18n("Зоны")}: ${dz.at+1} ${i18n("из")} ${n}</b> · ${escHtml(locName(cam))} · ${i18n("сохранено")} ${dz.drawn}${dz.then?` · ${i18n("затем правило")}`:""}</span>
     <span class="tfoot-gap"></span>
     ${same?`<button type="button" class="btn s" ${onEv("click",["dzCopy"])}>${i18n("Такую же остальным")} (${same})…</button>`:""}
     <button type="button" class="btn s" ${dz.at?"":"disabled"} ${onEv("click",["dzAskPrev"])}>${i18n("Назад")}</button>
@@ -11177,7 +11187,7 @@ const TRIGGER_KINDS=[
   {sub:"det",kind:"motion",label:"Детектор: движение",unitLabel:"Камера",devTypes:["camera"],match:[],ends:true,endsWord:"движение",endsOf:"движения"},
   {sub:"det",kind:"linecross",label:"Детектор: пересечение линии",unitLabel:"Камера",devTypes:["camera"],match:[]},
   {sub:"det",kind:"lpr",label:"Детектор: номер",unitLabel:"Камера",devTypes:["camera"],match:[]},
-  {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Вид",opts:[],pre:"вид",dyn:ruleDetOthers}]},
+  {sub:"det",kind:"other",label:"Детектор: другой вид",unitLabel:"Камера",devTypes:["camera"],match:[{id:"template",label:"Встроенный",opts:[],pre:"встроенный",dyn:ruleDetOthers,off:x=>x.detectorKind},{id:"detectorKind",label:"Серверный",opts:[],pre:"серверный",dyn:ruleDetServerKinds,off:x=>x.template}]},
   {sub:"vms",kind:"text",label:"Источник событий: текст",unitLabel:"Источник",devTypes:["eventsrc"],match:[{id:"word",label:"Сообщение",opts:[],pre:"сообщение",dyn:ruleWordOpts}]},
   {sub:"vms",kind:"unit",label:"Единица СКУД: событие",unitLabel:"Единица",devTypes:["acfa_sensor","acfa_lock","acfa_fence"],match:[{id:"word",label:"Слово",opts:[],pre:"слово",dyn:ruleUnitWords}]},
   {sub:"vms",kind:"silent",label:"Обрыв потока камеры",unitLabel:"Камера",devTypes:["camera"],match:[]},
@@ -11721,14 +11731,19 @@ function ruleUnitOps(a){
 }
 function ruleDetOthers(){
   const out=new Map();
-  walkAll(n=>{(n.detectorOptions||[]).filter(o=>o.kind==="other").forEach(o=>out.set(o.template,o.name))});
+  walkAll(n=>{(n.detectorOptions||[]).filter(o=>!DET_TRIG_OWN.includes(o.kind)).forEach(o=>out.set(o.template,o.name))});
   return[...out];
 }
+function ruleDetServerKinds(){return refDetKinds.filter(k=>k!=="other"&&!DET_TRIG_OWN.includes(k)).map(k=>[k,detKindRu(k)])}
 function matchPhrase(k,match){
   return k.match.filter(m=>(match||{})[m.id]).map(m=>matchOptLabel(m,match[m.id])).join(" ");
 }
+// Для сравнения событий: пустые значения значат «любое»
+function matchKey(match){return JSON.stringify(Object.entries(match||{}).filter(([,v])=>v!==""&&v!=null).sort())}
 function triggerLabel(t){
   const k=triggerKind(t),m=matchPhrase(k,t.match);
+  // «Другой вид» с уточнением называем уточнением: «Детектор: оставленный предмет»
+  if(t.sub==="det"&&t.kind==="other"&&m)return[`${i18n("Детектор")}: ${m.toLowerCase()}`,t.ref?refLabel(t.ref,k.devTypes,"when"):""].filter(Boolean).join(" · ");
   return[i18n(k.label),t.ref?refLabel(t.ref,k.devTypes,"when"):"",m].filter(Boolean).join(" · ");
 }
 // Событие без устройства: в трассе устройство — отдельная ссылка.
@@ -12702,7 +12717,7 @@ function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(tri
 function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
-  return k.match.map(m=>`<div class="rl-f">${selHtml([["",""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -13220,12 +13235,13 @@ function ruleUsesCardHtml(n){
 let ra=null;
 function raCam(n){return n?.type==="camera"?n:n?.type==="det"&&find(n.id)?.p?.type==="camera"?find(n.id).p:null}
 // Событие детектора в терминах правил. Видов без своего события в справочнике — det/other, у встроенного — с шаблоном
-function detTrig(code,template){return["motion","linecross","lpr"].includes(code)?{kind:code,match:{}}:{kind:"other",match:template?{template}:{}}}
+// Своё событие есть у видов DET_TRIG_OWN. Остальные — det/other: встроенный по шаблону, серверный по виду (запрос mockup об этих событиях)
+function detTrig(code,template){return DET_TRIG_OWN.includes(code)?{kind:code,match:{}}:{kind:"other",match:template?{template}:code&&code!=="other"?{detectorKind:code}:{}}}
 function raTrig(n){return n.type==="det"?detTrig(DET_KIND_CODE[n.kind]||"motion",n.template):null}
 function raCands(){
   const want=ra.trig,q=ra.q.trim().toLowerCase();
   return rules.filter(r=>r.start==="event"&&(!q||r.name.toLowerCase().includes(q))).flatMap(r=>{
-    const i=r.when.findIndex(t=>t.sub==="det"&&(!want||(t.kind===want.kind&&(!want.match.template||t.match?.template===want.match.template))));
+    const i=r.when.findIndex(t=>t.sub==="det"&&(!want||(t.kind===want.kind&&Object.entries(want.match).every(([k,v])=>t.match?.[k]===v))));
     if(i<0)return[];
     const t=r.when[i];
     return[{r,i,t,has:ruleRefCovers(t.ref,ra.cam.id,triggerKind(t).devTypes),fromEv:t.ref==="$src"}];
