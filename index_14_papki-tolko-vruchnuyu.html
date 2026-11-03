@@ -4707,6 +4707,7 @@ function expandTo(id,ctx){
   // Серверный детектор виден под GPU, а не под камерой на сервере: её не раскрываем. Встроенный — под камерой
   if(f.n.type==="det"&&!f.n.builtin&&p)p=p.p?find(p.p.id):null;
   while(p){open.add(p.n.id);p=p.p?find(p.p.id):null}
+  if(SVC_TYPES.has(f.n.type)){const dm=domainOf(f.p?.id);if(dm){open.add(dm.id);open.add(svcgroupId(dm.id))}}
   // Без сервера: стоит прямо под доменом
   if(!["domain","server","unalloc","folder","archive","vol","gpu","norec","nofolder","found","founddev"].includes(f.n.type)&&!cameraTreeServer(id)){
     const home=deviceDomain(id);
@@ -5547,9 +5548,7 @@ function walkSliceObjects(fn){
 // Сервер ищет сразу по всем срезам, срез отбирает интерфейс: считаем только то, что покажем.
 // В «Детекторах» считаются детекторы, как на кнопке среза, а не их камеры.
 function filtHitCount(){
-  // В дереве по папкам служб нет: они стоят только под серверами. Плоский список показывает и их
-  const noSvc=!fs.flat&&group()==="folder";
-  return fs.order.filter(id=>{const n=find(id)?.n;return n&&!(noSvc&&treeKind(n)==="sys")&&(slice==="det"?n.type==="det"&&matchesDomain(n):selfOrDet(n))}).length;
+  return fs.order.filter(id=>{const n=find(id)?.n;return n&&(slice==="det"?n.type==="det"&&matchesDomain(n):selfOrDet(n))}).length;
 }
 function countFiltered(){
   if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
@@ -6169,6 +6168,7 @@ function treeOpenable(id,layout){
   if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
   // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
   if(id.startsWith("nofolder:"))return layout==="folders";
+  if(id.startsWith("svcs:"))return layout==="folders"&&slice==="all";
   if(id.startsWith("norec:"))return layout==="servers";
   if(domains.some(d=>d.id===id))return true;
   if(servers.some(s=>s.id===id))return layout==="servers"||layout==="detectors"||(layout==="archives"&&!hwDone.archives);
@@ -6205,6 +6205,7 @@ async function archEnsure(id){if(!archById(id))archAdd(await API.get(`/archives/
 async function treeRead(layout,id,cursor){
   const viaFilter=(q)=>API.get("/devices",Object.assign(q,{cursor})).then(r=>({items:r.items.map(row=>({id:row.id,kind:"device",row})),nextCursor:r.nextCursor}));
   if(id.startsWith("nofolder:"))return viaFilter({domainId:id.slice(9),noFolder:true});
+  if(id.startsWith("svcs:"))return viaFilter({domainId:id.slice(5),type:[...SVC_TYPES].join(",")});
   if(id.startsWith("norec:"))return viaFilter({domainId:id.slice(6),noRecord:true});
   return API.get("/tree/children",{layout,parentId:id,cursor});
 }
@@ -6265,7 +6266,7 @@ function treeMoreRow(id,l){
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
   return`<div class="n n-more n-more-go" style="--l:${l}" ${onEv("click",onEv.stop,["treeMore",id])}><span class="tw"></span><span class="nm sub">${i18n(scan?"Искать дальше":"Показать ещё")}</span></div>`;
 }
-function treeVirtual(id){return id.startsWith("nofolder:")||id.startsWith("norec:")}
+function treeVirtual(id){return id.startsWith("nofolder:")||id.startsWith("svcs:")||id.startsWith("norec:")}
 // Счётчик виртуальной группы — только по загруженному: полного числа нет, пока отбор не дошёл до конца
 function groupCntHtml(id,n){
   const shown=hasSliceContext()?sliceParentCount(id):n;
@@ -6510,6 +6511,8 @@ function filtSync(){
     :key&&asstPick?{key,pick:true,hits:new Set(asstPick.ids),order:asstPick.ids.slice(),paths:new Map(),at:0,done:false,busy:false,want:FILT_PAGE,flat:asstPick.ids.length>LIM.idsMax}
     :key?{key,hits:new Set(),order:[],paths:new Map(),cursor:null,done:false,busy:false,want:FILT_PAGE,flat:true}:null;
   treeMatchCache.clear();searchMatchCache.clear();
+  // Поиск сменился уже после отрисовки шапки: иначе после очистки остаётся «Найдено» прежнего
+  const hint=document.getElementById("filtHint");if(hint)hint.textContent=filtHint();
   if(fs)filtWave(fs);
 }
 function filtParams(run){
@@ -7485,6 +7488,22 @@ function nfrow(d,l){
   if(op)h+=devs.map(x=>nrow(x,l+1,"nf:"+d.id)).join("")+treeMoreRow(node.id,l+1);
   return h;
 }
+// Службы в папках не лежат: у домена своя группа, иначе в раскладке по папкам их не найти.
+// Строка только раскрывается: своей карточки у группы нет.
+function svcgroupId(did){return"svcs:"+did}
+function svcsrow(d,l){
+  if(slice!=="all")return"";
+  const q=qval(),id=svcgroupId(d.id);
+  const all=(d.servers||[]).flatMap(s=>s.devices||[]).filter(x=>SVC_TYPES.has(x.type)&&selfInView(x));
+  const devs=all.filter(x=>matchesSearch(x,q));
+  if(!devs.length&&(autoExpand()||!treeUnread(id)))return"";
+  const op=open.has(id)||(autoExpand()&&!!devs.length);
+  let h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(id,"dom",true)} ${onEv("click",["toggleDom",id,onEv.event])}>
+    ${treeChevron(id,"dom",true,op)}
+    ${ic("svcs")}<span class="nm">${i18n("Службы")}</span>${treeTail({cnt:groupCntHtml(id,all.length)})}</div>`;
+  if(op)h+=devs.map(x=>svcrow(x,l+1)).join("")+treeMoreRow(id,l+1);
+  return h;
+}
 // ── «Найденные» ───────────────────────────────────────────────────────────
 // Устройства, которые поиск увидел в сети и которые ещё не добавлены. Это не
 // папка расположения: объект здесь ещё не существует в системе, у него нет ни
@@ -7590,7 +7609,7 @@ function domainTreeDeviceCount(did){
 function dfrow(d){
   const q=qval();
   const selfHit=matchesStatus(d)&&matchesSearch(d,q);
-  const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1);
+  const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1)+svcsrow(d,1);
   if(!selfHit&&!kidsHtml)return"";
   // У домена всегда есть «Без папки» и строка создания папки
   const hasKids=true;
