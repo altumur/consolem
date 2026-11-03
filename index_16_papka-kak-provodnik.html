@@ -457,6 +457,7 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 /* Галочка первая: тянуться должно имя, а не значок за ней */
 .it>.ts-chk+span{flex:none;min-width:0}.it>.ts-chk+span+span{flex:1;min-width:0}
 /* Содержимое папки */
+.fl-up{flex:none;margin-right:10px}
 .fl-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
 .fl-tools .sq{flex:1 1 220px;margin:0;min-width:160px}
 .fl-nested{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;white-space:nowrap}
@@ -6798,7 +6799,7 @@ function pick(id,opts){
   if(selCtx&&selCtx.startsWith("f:"))selFolder=selCtx.slice(2);
   if(f.n.type==="folder")selFolder=id;
   else{const own=foldersOfDevice(path(id)[0].id);if(own.length&&!own.some(x=>x.id===selFolder))selFolder=own[0].id}
-  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||"gen";setD(false);editClear();expandTo(id,selCtx);
+  const flTab=flDomainTab(f.n);pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||flTab||"gen";setD(false);editClear();expandTo(id,selCtx);
   if(multi&&canMultiPick(f.n)){
     bulkPeek=false;
     // Ctrl/Shift-выбор включает режим галочек: выборка должна быть видна.
@@ -7813,7 +7814,7 @@ function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
 
 function tabsFor(n){
-  if(n.type==="domain")return[["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
+  if(n.type==="domain")return(hasNoSignal(n)?[]:[["flds","Папки"]]).concat([["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]]);
   if(n.type==="unalloc")return[];
   if(n.type==="server"&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
   if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],[["topo","Топология"]]);
@@ -7861,7 +7862,7 @@ function gear(){
   const addBtn=(n.type==="folder"?folderAddBtn():(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   cardEnsureBase(n);
-  paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
 }
@@ -9140,14 +9141,37 @@ function flSt(n){const s=nodeStatus(n);return s.license?"Лицензия пре
 function flStBad(n){const s=nodeStatus(n);return s.license||s.off||s.nosignal}
 // Те же измерения, что в «Применить к»: чипы фильтруют, но подписаны и считаются так же
 const FL_DIMS=[["kind","Типы",cpKind,kindLabel],["srv","Серверы",n=>serverNameOf(n),x=>x],["model","Модели",n=>modelOf(n)||i18n("модель не указана"),x=>x],["st","Состояние",flSt,x=>i18n(x)]];
+// Корень домена и «Без папки» показываются тем же списком, что папка: владелец с теми же полями
+function flHolder(id){
+  const f=folderById(id);if(f)return f;
+  if(String(id).startsWith("nofolder:")){const did=id.slice(9);return{id,type:"nofolder",domainId:did,folders:[],items:unfolderedDevices(did).map(d=>d.id)}}
+  return domainById(id)?{id,type:"domain",domainId:id,folders:domainFolders(id),items:[]}:null;
+}
+function flDom(f){return f.type==="folder"?folderDomain(f.id):f.domainId}
+// Дерево показывает папки или пришли из папки — у домена открываем его папки, а не общие настройки
+function flDomainTab(n){
+  if(n.type!=="domain")return null;
+  const was=find(sel)?.n?.type;
+  return treeLayout()==="folders"||was==="folder"||was==="nofolder"?"flds":null;
+}
+function flUpBtn(n){
+  if(n.type!=="folder"&&n.type!=="nofolder")return"";
+  const up=n.type==="folder"?folderParent(n.id):null,to=up||domainById(n.type==="folder"?folderDomain(n.id):n.domainId)||{name:""};
+  return`<button type="button" class="btn s fl-up" title="${i18n("На уровень выше")}: ${escHtml(locName(to))} (Backspace)" ${onEv("click",["flUp"])}>${lu("arrow-up")}${i18n("Вверх")}</button>`;
+}
 function flItems(f){
-  if(fl.nested)return[...folderDeviceIds(f)].map(id=>find(id)?.n).filter(Boolean).map(d=>({n:d,fld:false,at:flAt(f,d.id)}));
-  return(f.folders||[]).map(x=>({n:x,fld:true,at:f.id})).concat(folderDeviceNodes(f).map(d=>({n:d,fld:false,at:f.id})));
+  if(fl.nested){
+    const ids=folderDeviceIds(f);
+    if(f.type==="domain")unfolderedDevices(f.id).forEach(d=>ids.add(d.id));
+    return[...ids].map(id=>find(id)?.n).filter(Boolean).map(d=>({n:d,fld:false,at:flAt(f,d.id)}));
+  }
+  const rows=(f.folders||[]).map(x=>({n:x,fld:true,at:f.id})).concat(folderDeviceNodes(f).map(d=>({n:d,fld:false,at:f.type==="folder"?f.id:null})));
+  return f.type==="domain"?rows.concat({n:nofolderNode(f.id),fld:true,nf:true,at:f.id}):rows;
 }
 // В какой из папок поддерева лежит устройство: отсюда его и убирают
 function flAt(f,id){
-  if((f.items||[]).includes(id))return f.id;
-  return flatFolders().find(x=>x.items.includes(id)&&folderPath(x.id).some(p=>p.id===f.id))?.id||f.id;
+  if(f.type==="folder"&&(f.items||[]).includes(id))return f.id;
+  return flatFolders().find(x=>x.items.includes(id)&&(f.type==="domain"?folderDomain(x.id)===f.id:folderPath(x.id).some(p=>p.id===f.id)))?.id||(f.type==="folder"?f.id:null);
 }
 function flMatch(it,skip){
   return FL_DIMS.every(([d,,fn])=>{
@@ -9159,11 +9183,11 @@ function flMatch(it,skip){
 function flEnsure(f){
   if(fl.owner===f.id)return;
   fl.owner=f.id;fl.filt={...FL_FILT0};fl.nested=false;fl.anchor=null;
-  fl.cur=fl.nextCur||null;fl.nextCur=null;
+  fl.cur=fl.nextCur||null;fl.jump=!!fl.nextCur;fl.nextCur=null;
 }
 function flSortRows(list){
   const val={name:it=>locName(it.n),type:it=>it.fld?"":LB[it.n.type]||it.n.type,ip:it=>it.n.ip||"",srv:it=>it.fld?"":serverNameOf(it.n),model:it=>it.fld?"":modelOf(it.n),st:it=>it.fld?"":flSt(it.n)}[fl.sort];
-  return list.slice().sort((a,b)=>(b.fld-a.fld)||String(val(a)).localeCompare(String(val(b)),"ru",{numeric:true})*fl.dir);
+  return list.slice().sort((a,b)=>(b.fld-a.fld)||(!!a.nf-!!b.nf)||String(val(a)).localeCompare(String(val(b)),"ru",{numeric:true})*fl.dir);
 }
 function flFound(f){
   const items=flItems(f).filter(it=>flMatch(it));
@@ -9195,14 +9219,14 @@ function flSelItems(f){
 function flBarHtml(f){
   const s=flSelItems(f),devs=s.filter(it=>!it.fld),k=s.length;
   const noDev=k?i18n("Папку так не перенести: только устройства"):i18n("Сначала выберите устройство");
-  const dis=devs.length?"":`disabled title="${noDev}"`;
+  const dis=devs.length?"":`disabled title="${noDev}"`,noF=f.type==="nofolder",rem=devs.filter(it=>it.at);
   const n=devs.length?` (${devs.length})`:"";
   return`<div class="fl-bar" id="flBar">
     <span class="fl-bar-n">${k?`${i18n("Выбрано")}: <b>${k}</b>`:i18n("Ничего не выбрано")}</span>
     <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выберите одну строку")}"`} ${onEv("click",["flOpenCur"])}>${i18n("Открыть")}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"move"])}>${i18n("Переместить в")}…${n}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"copy"])}>${i18n("Добавить ещё в")}…${n}</button>
-    <button type="button" class="btn s" ${dis} title="${i18n("Само устройство останется в системе")}" ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${n}</button>
+    ${noF?"":`<button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"move"])}>${i18n("Переместить в")}…${n}</button>`}
+    <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"copy"])}>${i18n(noF?"Положить в папку":"Добавить ещё в")}…${n}</button>
+    ${noF?"":`<button type="button" class="btn s" ${rem.length?`title="${i18n("Само устройство останется в системе")}"`:`disabled title="${noDev}"`} ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${rem.length?` (${rem.length})`:""}</button>`}
     ${devs.length>1?`<button type="button" class="btn s" ${onEv("click",["bulkPeekOff"])}>${i18n("Изменить параметры")}…</button>`:""}
   </div>`;
 }
@@ -9212,26 +9236,24 @@ function flRowHtml(f,it){
   const open=FL_DBL?`<span class="fl-name-t">${escHtml(name)}</span>`:`<button type="button" class="lk fl-name-t" ${onEv("click",onEv.stop,["flOpen",`${id}`])}>${escHtml(name)}</button>`;
   let note="";
   if(!it.fld){
-    if(fl.nested&&it.at!==f.id)note=`${i18n("в папке")} ${folderPathName(it.at).split(" / ").slice(folderPath(f.id).length).join(" / ")}`;
+    if(fl.nested&&it.at!==f.id)note=it.at?`${i18n("в папке")} ${folderPathName(it.at).split(" / ").slice(folderPath(f.id).length).join(" / ")}`:i18n("без папки");
     else{const also=foldersOfDevice(id).filter(x=>x.id!==it.at);if(also.length)note=`${i18n("также в:")} ${also.map(x=>folderPathName(x.id)).join(", ")}`}
   }
   const cell=v=>`<td>${v?escHtml(v):`<span class="fl-none">—</span>`}</td>`;
   return`<tr class="gtbl-r fl-r ${fl.cur===id?"on":""} ${checked?"ts-on":""}" data-fl="${id}" tabindex="0" ${onEv("click",["flClick",`${id}`,onEv.event])}>
-    <td class="lan-chk">${tsChk(id,name)}</td>
-    <td class="fl-nm"><span class="fl-nm-ic">${it.fld?ic("folder"):ic(n.type)}</span><span class="fl-nm-tx">${open}${it.fld?"":`<span class="lan-sub">${escHtml([modelOf(n),serverNameOf(n)].filter(Boolean).join(" · "))}</span>`}${note?`<span class="fl-also" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</span></td>
-    ${cell(it.fld?`${i18n("Папка")} · ${flCnt(n)} ${i18n(plural(flCnt(n),"объект|объекта|объектов"))}`:(LB[n.type]||n.type))}
+    <td class="lan-chk">${it.nf?"":tsChk(id,name)}</td>
+    <td class="fl-nm"><span class="fl-nm-ic">${it.nf?ic("nofolder"):it.fld?ic("folder"):ic(n.type)}</span><span class="fl-nm-tx">${open}<span class="lan-sub">${it.fld?`${flCnt(n)} ${i18n(plural(flCnt(n),"объект|объекта|объектов"))}`:escHtml([modelOf(n),serverNameOf(n)].filter(Boolean).join(" · "))}</span>${note?`<span class="fl-also" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</span></td>
+    ${cell(it.nf?i18n("Вне папок"):it.fld?i18n("Папка"):(LB[n.type]||n.type))}
     ${cell(it.fld?"":n.ip)}
     ${cell(it.fld?"":serverNameOf(n))}
     ${cell(it.fld?"":modelOf(n))}
     <td>${it.fld?`<span class="fl-none">—</span>`:`<span class="bd ${flStBad(n)?"off":""}">${escHtml(i18n(flSt(n)))}</span>`}</td></tr>`;
 }
 function flToolsHtml(f,key){
-  const up=folderParent(f.id),upName=up?locName(up):locName(domainById(folderDomain(f.id))||{name:""});
   return`<div class="fl-tools">
-    <button type="button" class="btn s btn-icon" title="${i18n("Вверх")}: ${escHtml(upName)} (Backspace)" aria-label="${i18n("Вверх")}" ${onEv("click",["flUp"])}>${lu("arrow-up")}</button>
     ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
     <label class="fl-nested"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n("С вложенными папками")}</span></label>
-    <button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button>
+    ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${f.id}`])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
 // Содержимое читается веткой дерева: кэш знает только открытое. В строке перечня нет адреса и модели,
@@ -9245,33 +9267,40 @@ async function flLoad(f){
   if(flLoaded.has(key))return;
   flLoaded.add(key);
   const walk=async x=>{await flReadBranch(x.id);if(fl.nested)for(const c of x.folders||[])await walk(c)};
-  await walk(f);
+  await flReadBranch(f.id);
+  f=flHolder(f.id)||f;
+  if(fl.nested)for(const c of f.folders||[])await walk(c);
+  if(f.type==="domain")await flReadBranch(nofolderId(f.id));
   await Promise.all((f.folders||[]).map(c=>flReadBranch(c.id)));
   await hwFullAll(flItems(f).filter(it=>!it.fld).map(it=>it.n.id).slice(0,500)).catch(()=>{});
   flFresh.add(key);
   treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"&&sel===f.id&&!cardDraft)gear();
+  if(app==="hw"&&sel===f.id&&!cardDraft&&(f.type!=="domain"||tab==="flds"))gear();
 }
 const flFresh=new Set();
-function flCnt(x){const c=treeBr.get("folders|"+x.id)?.count;return c!=null?c:(x.folders||[]).length+(x.items||[]).length}
+function flCnt(x){if(x.type==="nofolder")return unfolderedDevices(x.domainId).length;const c=treeBr.get("folders|"+x.id)?.count;return c!=null?c:(x.folders||[]).length+(x.items||[]).length}
 function folderCardHtml(f){
   flEnsure(f);
   flLoad(f);
   const key="fld:"+f.id,items=flItems(f);
   if(!items.length&&!flFresh.has(f.id+"|"+fl.nested))return`<div class="card" id="flCard"><div class="cb"><p class="sub">${i18n("Загрузка…")}</p></div></div>`;
-  const hint=`<p class="sub">${i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
-  if(!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
+  const hint=`<p class="sub">${f.type==="nofolder"?i18n("Устройства домена, которые не лежат ни в одной папке. Работают как обычно; положить в папку можно панелью над списком."):i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
+  if(f.type==="nofolder"&&!f.items.length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена разложены по папкам")}</b></div></div>`;
+  if(f.type==="folder"&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
       <p class="sub">${i18n("Положите сюда устройства: найденные в сети, добавленные по адресу или из файла, или те, что уже есть в системе.")}</p>
       <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
-  const found=flFound(f),rows=pageSlice(key,found);
-  const head=tsHead(key,rows.map(it=>it.n.id),found.map(it=>it.n.id));
-  const nf=items.filter(it=>it.fld).length,nd=items.length-nf;
+  const found=flFound(f);
+  // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
+  if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false}}
+  const rows=pageSlice(key,found);
+  const head=tsHead(key,rows.filter(it=>!it.nf).map(it=>it.n.id),found.filter(it=>!it.nf).map(it=>it.n.id));
+  const nf=items.filter(it=>it.fld&&!it.nf).length,nd=items.filter(it=>!it.fld).length;
   const sum=[nf?`${nf} ${i18n(plural(nf,"папка|папки|папок"))}`:"",nd?`${nd} ${i18n(plural(nd,"устройство|устройства|устройств"))}`:""].filter(Boolean).join(" · ")||i18n("Пусто");
   const th=[["name","Имя"],["type","Тип"],["ip","IP-адрес"],["srv","Сервер"],["model","Модель"],["st","Состояние"]].map(([k,l])=>`<th class="lan-th ${fl.sort===k?"on":""}" ${onEv("click",["flSortBy",`${k}`])}><span class="gtbl-th-txt">${i18n(l)}${fl.sort===k?(fl.dir>0?lu("arrow-up",12):lu("arrow-down",12)):""}</span></th>`).join("");
   const body=rows.length?rows.map(it=>flRowHtml(f,it)).join(""):`<tr><td class="empty" colspan="7">${i18n("Ничего не найдено")}</td></tr>`;
   return`<div class="card" id="flCard"><div class="cb">
     ${flToolsHtml(f,key)}
-    ${flFacetsHtml(items)}
+    ${flFacetsHtml(items.filter(it=>!it.nf))}
     <div class="fl-sum">${sum}</div>
     ${flBarHtml(f)}${tsBanner(key)}
     <div class="lan-wrap"><table class="gtbl-cams lan-tbl fl-tbl"><thead><tr class="gtbl-h"><th class="lan-chk">${head}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
@@ -9282,33 +9311,34 @@ function folderCardHtml(f){
 function flSetCur(id){
   fl.cur=id;
   document.querySelectorAll("#flCard tr.fl-r").forEach(tr=>tr.classList.toggle("on",tr.dataset.fl===id));
-  const f=folderById(fl.owner),bar=document.getElementById("flBar");
+  const f=flHolder(fl.owner),bar=document.getElementById("flBar");
   if(f&&bar)bar.outerHTML=flBarHtml(f);
 }
 function flClick(id,e){
   const t=Date.now(),twice=fl.lastId===id&&t-fl.lastT<400;
   fl.lastId=id;fl.lastT=t;
   if(twice){flOpen(id);return}
+  if(id.startsWith("nofolder:")){fl.anchor=null;flSetCur(id);return}
   if(e.ctrlKey||e.metaKey){tsSet([id],!tsOn(id));fl.anchor=id;return}
   if(e.shiftKey&&fl.anchor){
-    const f=folderById(fl.owner),ids=pageSlice("fld:"+f.id,flFound(f)).map(it=>it.n.id),a=ids.indexOf(fl.anchor),b=ids.indexOf(id);
+    const f=flHolder(fl.owner),ids=pageSlice("fld:"+f.id,flFound(f)).filter(it=>!it.nf).map(it=>it.n.id),a=ids.indexOf(fl.anchor),b=ids.indexOf(id);
     if(a>=0&&b>=0){tsSet(ids.slice(Math.min(a,b),Math.max(a,b)+1),true);return}
   }
   fl.anchor=id;flSetCur(id);
 }
 function flOpen(id){hwJumpFlash=true;pick(id);hwJumpFlash=false}
-function flOpenCur(){const f=folderById(fl.owner),s=f?flSelItems(f):[];if(s.length===1)flOpen(s[0].n.id)}
+function flOpenCur(){const f=flHolder(fl.owner),s=f?flSelItems(f):[];if(s.length===1)flOpen(s[0].n.id)}
 function flUp(){
-  const f=folderById(fl.owner);if(!f)return;
-  const up=folderParent(f.id);
+  const f=flHolder(fl.owner);if(!f||f.type==="domain")return;
+  const up=f.type==="folder"?folderParent(f.id):null;
   fl.nextCur=f.id;
-  flOpen(up?up.id:folderDomain(f.id));
+  flOpen(up?up.id:flDom(f));
 }
 function flFolderMenu(e,how){
   e.stopPropagation();
-  const f=folderById(fl.owner);if(!f)return;
-  const items=[`<div class="tctx-head">${i18n(how==="move"?"Переместить в папку":"Добавить ещё в папку")}</div>`];
-  flatFolders().filter(x=>folderDomain(x.id)===folderDomain(f.id)&&x.id!==f.id).forEach(x=>items.push(tctxItem(escHtml(folderPathName(x.id)),`flToFolder('${x.id}','${how}')`)));
+  const f=flHolder(fl.owner);if(!f)return;
+  const items=[`<div class="tctx-head">${i18n(how==="move"?"Переместить в папку":f.type==="nofolder"?"Положить в папку":"Добавить ещё в папку")}</div>`];
+  flatFolders().filter(x=>folderDomain(x.id)===flDom(f)&&x.id!==f.id).forEach(x=>items.push(tctxItem(escHtml(folderPathName(x.id)),`flToFolder('${x.id}','${how}')`)));
   bulkOpenMenuAt(e.currentTarget,items.join(""));
 }
 // Перенос правит два списка, отмена возвращает оба
@@ -9325,15 +9355,15 @@ async function flChange(changes,msg){
 function flGroupBy(devs){const m=new Map();devs.forEach(it=>{(m.get(it.at)||m.set(it.at,[]).get(it.at)).push(it.n.id)});return m}
 function flToFolder(tid,how){
   closeTreeCtx();
-  const f=folderById(fl.owner),devs=flSelItems(f).filter(it=>!it.fld);if(!devs.length)return;
+  const f=flHolder(fl.owner),devs=flSelItems(f).filter(it=>!it.fld);if(!devs.length)return;
   const target=folderById(tid),fresh=devs.filter(it=>!target.items.includes(it.n.id)).map(it=>it.n.id);
   const changes=[[tid,fresh,[]]];
-  if(how==="move")flGroupBy(devs).forEach((ids,fid)=>{if(fid!==tid)changes.push([fid,[],ids])});
+  if(how==="move")flGroupBy(devs).forEach((ids,fid)=>{if(fid&&fid!==tid)changes.push([fid,[],ids])});
   fl.cur=null;
   flChange(changes,`${i18n(how==="move"?"Перемещено в":"Добавлено ещё в")} «${locName(target)}»: ${devs.length}`);
 }
 function flRemoveSel(){
-  const f=folderById(fl.owner),devs=flSelItems(f).filter(it=>!it.fld);if(!devs.length)return;
+  const f=flHolder(fl.owner),devs=flSelItems(f).filter(it=>!it.fld&&it.at);if(!devs.length)return;
   const changes=[...flGroupBy(devs)].map(([fid,ids])=>[fid,[],ids]);
   fl.cur=null;
   flChange(changes,`${i18n("Убрано из папки")}: ${devs.length}`);
@@ -10516,34 +10546,7 @@ function formBase(n){
         unit:"камера|камеры|камер"
       });
   }
-  if(n.type==="nofolder"){
-    const devs=unfolderedDevices(n.domainId);
-    return listCard({
-      key:"nofld:"+n.id,
-      title:"Устройства без папки",
-      items:devs,
-      text:d=>[locName(d),d.ip,LB[d.type]||d.type],
-      row:d=>`<div class="it" ${onEv("click",["pick",`${d.id}`])}><span>${ic(d.type)}</span><span>${escHtml(locName(d))}<small>${LB[d.type]||d.type}</small></span>${bdg(d)}</div>`,
-      empty:"Все устройства домена разложены по папкам",
-      ph:"Имя, IP или тип…",
-      unit:"устройство|устройства|устройств"
-    })+
-      `<p class="sub">${i18n("Объекты домена, не добавленные ни в одну папку. Папку можно назначить в карточке объекта, блок «Расположение».")}</p>`;
-  }
-  if(n.type==="norec"){
-    const cams=unrecordedCameras(n.domainId);
-    return listCard({
-      key:"norec:"+n.id,
-      title:"Камеры без записи",
-      items:cams,
-      text:c=>[locName(c),c.ip,deviceFolderNote(c.id)],
-      row:c=>`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${c.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(c))}<small>${escHtml(deviceFolderNote(c.id))}</small></span>${bdg(c)}</div>`,
-      empty:treeUnread(n.id)?"Ищем дальше…":"Все камеры пишутся",
-      ph:"Имя, IP или папка…",
-      unit:"камера|камеры|камер"
-    })+
-      `<p class="sub">${i18n("Эти камеры работают, но архив им не назначен, поэтому сервера у них нет. Назначить архив — на камере, вкладка «Архив».")}</p>`;
-  }
+  if(n.type==="nofolder")return folderCardHtml(flHolder(n.id));
   if(n.type==="folder"){
     if(tab==="tbl"){
       const tn=tableNode();
@@ -10557,6 +10560,7 @@ function formBase(n){
       `<button type="button" class="ch-act" title="Обновить список" ${onEv("click",["refreshUnalloc",`${n.domainId}`])}>${lu("refresh-cw")}Обновить</button>`);
   }
   if(n.type==="domain"){
+    if(tab==="flds")return folderCardHtml(flHolder(n.id));
     if(tab==="cams")return lanCardHtml(n);
     if(tab==="lic")return card("Лицензии",`<div class="g">${fldEdit("Серийный номер лицензии",n.id,"license",n.license||"")}</div>
       <p class="sub">Лицензии выдаются на домен (кластер) и расходуются устройствами независимо от того, на каком сервере ведётся запись.</p>`)+
