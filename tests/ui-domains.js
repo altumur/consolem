@@ -42,8 +42,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wizd.ipRows[1].status==="in-domain","известный сервер — «уже в домене»");
   if(wizd.ipRows[0].status==="found"){
     const n0=servers.length;
+    // Добавляют из открытого окна: из закрытого прототип 13 в домен не ставит
+    document.getElementById("wiz").classList.add("open");
     addProbedServers();
     ok(await until(()=>servers.length===n0+1&&wizd.ipRows[0].added),"найденный адрес заведён и добавлен в домен");
+    document.getElementById("wiz").classList.remove("open");
     const ns=servers[servers.length-1];
     ok(d1.servers.includes(ns)&&(await API.get("/servers/"+ns.id)).allocated,"на сервере: в домене");
   }else ok(true,"адрес не отвечает — добавлять нечего");
