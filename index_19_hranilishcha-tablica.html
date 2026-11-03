@@ -1661,6 +1661,33 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .gb-in{display:flex;align-items:center;gap:6px}
 .gb-in input{flex:1;min-width:0}
 .gb-in>span{color:var(--mu);font-size:12px}
+/* Срез «Хранилища»: таблица хранилищ выбранного места */
+.as-chips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.as-chip{font:inherit;font-size:12px;color:var(--one-fg);background:var(--p2);border:1px solid var(--ln);border-radius:6px;padding:4px 10px;cursor:pointer}
+.as-chip b{font-weight:500;color:var(--mu);margin-left:4px;font-variant-numeric:tabular-nums}
+.as-chip:hover{border-color:var(--bl)}.as-chip.on{border-color:var(--bl);background:var(--one-control-hover)}
+.as-chip.warn b{color:var(--one-danger)}
+.as-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.as-tbl th{text-align:left;font-weight:500;font-size:11px;color:var(--mu);padding:0;border-bottom:1px solid var(--ln);white-space:nowrap}
+.as-th{font:inherit;color:inherit;background:none;border:0;padding:6px 8px;cursor:pointer;width:100%;text-align:inherit}
+.as-th:hover{color:var(--one-fg)}.as-th.on{color:var(--one-fg);font-weight:600}
+.as-tbl td{padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:middle}
+.as-tbl tbody tr{cursor:pointer}.as-tbl tbody tr:hover td{background:var(--p2)}
+.as-tbl tbody tr:focus-visible{outline:2px solid var(--bl);outline-offset:-2px}
+.as-num{text-align:right!important;font-variant-numeric:tabular-nums;white-space:nowrap}
+.as-tbl{table-layout:fixed}
+.as-tbl th:nth-child(1){width:29%}.as-tbl th:nth-child(2){width:23%}.as-tbl th:nth-child(3){width:18%}.as-tbl th:nth-child(4){width:10%}.as-tbl th:nth-child(5){width:6%}.as-tbl th:nth-child(6){width:14%}
+.as-tbl td{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.as-name{display:flex;align-items:center;gap:8px;min-width:0;font-weight:500}
+.as-name>span:last-child{overflow:hidden;text-overflow:ellipsis}
+.as-link{font:inherit;color:var(--bl);background:none;border:0;padding:0;cursor:pointer;text-align:left}
+.as-link:hover{text-decoration:underline}
+.as-sub{color:var(--mu);font-size:11px}
+.as-use{display:flex;align-items:center;gap:8px}
+.as-bar{flex:1;height:5px;border-radius:3px;background:var(--ln);overflow:hidden;min-width:28px}
+.as-bar i{display:block;height:100%;background:var(--bl)}
+.as-bar.warn i{background:var(--one-warning-icon)}.as-bar.bad i{background:var(--one-danger)}
+.nt .as-link{font-weight:600;color:inherit;text-decoration:underline}
 /* Хранилища камеры: строка — хранилище, поток, режим */
 .ca-tbl{width:100%;border-collapse:collapse}
 .ca-tbl th{text-align:left;font-size:11px;color:var(--mu);font-weight:500;padding:0 8px 6px 0}
@@ -4693,6 +4720,7 @@ function prepareSliceBranches(){
 function expandSliceBranches(){
   if(!hasSliceContext())return;
   prepareSliceBranches();
+  if(slice==="arch"){scopedDomains().forEach(d=>open.add(d.id));return}
   sliceBranchCounts.forEach((targets,id)=>{if(targets.size)open.add(id)});
 }
 function addCtx(){return srv(sel)}
@@ -6697,8 +6725,10 @@ function setSlice(v){
   // При смене среза сохраняем запрос и поля, по которым он ищется.
   clearGearFilters(true);filtPop=false;closeDomainPop();typesExpanded=false;tab="gen";
   treeMatchCache.clear();searchMatchCache.clear();treeSel.clear();treeAnchor=null;
+  archTbl.kind="all";
   expandSliceBranches();
   keepSelectionInSlice();
+  tab=archSliceTab(find(sel)?.n)||tab;
   aside();gear();
 }
 function setGroup(g){
@@ -6714,6 +6744,7 @@ function setGroup(g){
 // Выбранный объект переживает смену осей, пока он в них существует.
 function keepSelectionInSlice(){
   const f=find(sel);
+  if(slice==="arch"){archKeepSel(f);return}
   const KEEP=["domain","unalloc","server","folder","archive","vol","norec","nofolder","gpu","found","founddev","det"];
   if(f&&(KEEP.includes(f.n.type)||selfInView(f.n)))return;
   const hit=firstMatching();
@@ -6770,7 +6801,7 @@ function pick(id,opts){
   if(selCtx&&selCtx.startsWith("f:"))selFolder=selCtx.slice(2);
   if(f.n.type==="folder")selFolder=id;
   else{const own=foldersOfDevice(path(id)[0].id);if(own.length&&!own.some(x=>x.id===selFolder))selFolder=own[0].id}
-  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||"gen";setD(false);editClear();expandTo(id,selCtx);
+  pushRecent(id);sel=id;tab=archCtxTab(f.n,selCtx)||archSliceTab(f.n)||"gen";setD(false);editClear();expandTo(id,selCtx);archSliceOpen(f.n);
   if(multi&&canMultiPick(f.n)){
     bulkPeek=false;
     // Ctrl/Shift-выбор включает режим галочек: выборка должна быть видна.
@@ -7685,19 +7716,128 @@ function sliceBranchRow(n,l,children,count,ctx){
   return`<div class="n srv ${rowOn(n.id,ctx)}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children+treeMoreRow(n.id,l+1):""}`;
 }
+// Дерево среза выбирает место, а хранилища показывает таблица справа: серверы
+// свёрнуты, сетевые хранилища собраны в одну строку сверху, серверы без хранилищ —
+// в одну строку снизу. Своё состояние раскрытия: в других срезах серверы раскрыты иначе.
+function archTreeRow(n,l,children,count,key,cls){
+  const hasKids=!!children,op=hasKids&&(open.has(key)||autoExpand());
+  const on=sel===n.id&&!(n.type==="domain"&&archTbl.kind==="net")?"on":"";
+  return`<div class="n srv ${on}${cls||""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}${treeExpandMeta(key,"dom",hasKids)}>
+    ${treeChevron(key,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm" title="${escHtml(locName(n))}">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id})}</div>${op?children:""}`;
+}
+function archGroupRow(key,label,icon,count,children,click,on){
+  const hasKids=!!children,op=hasKids&&(open.has(key)||autoExpand());
+  return`<div class="n srv ${on?"on":""}" style="--l:1" ${onEv("click",...click)}${treeExpandMeta(key,"dom",hasKids)}>
+    ${treeChevron(key,"dom",hasKids,op)}${ic(icon)}<span class="nm" title="${escHtml(i18n(label))}">${i18n(label)}</span>${treeTail({cnt:treeCntHtml(count)})}</div>${op?children:""}`;
+}
 function treeArchives(){
   const q=qval();
   return scopedDomains().map(d=>{
-    const serverRows=d.servers.map(s=>{
-      const list=serverArchives(s.id).filter(matchesStatus);
-      const children=list.map(a=>arow(a,2)).join("");
-      if(!children&&!(matchesStatus(s)&&matchesSearch(s,q)))return"";
-      return sliceBranchRow(s,1,children,sliceParentCount(s.id));
-    }).join("");
-    const network=domainArchives(d.id).filter(matchesStatus).map(a=>arow(a,1)).join("");
-    const children=serverRows+network;
-    return children||retainEmptySliceParents()||(matchesStatus(d)&&matchesSearch(d,q))?sliceBranchRow(d,0,children,sliceParentCount(d.id)):"";
+    const netList=domainArchives(d.id).filter(a=>matchesStatus(a)&&matchesSearch(a,q));
+    const net=netList.length?archGroupRow("as:net:"+d.id,"Сетевые хранилища","storage",netList.length,netList.map(a=>arow(a,2)).join(""),[["archGroupPick",`${d.id}`]],sel===d.id&&archTbl.kind==="net"):"";
+    const withArch=[],bare=[];
+    d.servers.forEach(s=>{
+      const all=serverArchives(s.id),list=all.filter(a=>matchesStatus(a)&&matchesSearch(a,q));
+      if(list.length)withArch.push(archTreeRow(s,1,list.map(a=>arow(a,2)).join(""),list.length,"as:"+s.id));
+      else if(!all.length&&matchesStatus(s)&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
+      else if(all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
+    });
+    const empty=bare.length?archGroupRow("as:bare:"+d.id,"Серверы без хранилищ","unalloc",bare.length,bare.join(""),[["archGroupToggle",`${"as:bare:"+d.id}`]],false):"";
+    const children=net+withArch.join("")+empty;
+    return children||retainEmptySliceParents()||(matchesStatus(d)&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
   }).join("");
+}
+function archGroupToggle(key){if(open.has(key))open.delete(key);else open.add(key);renderTree()}
+function archGroupPick(did){pick(did);archTbl.kind="net";resetPage("astor:"+did);paint()}
+// Раскрыть в дереве ветку выбранного хранилища
+function archSliceOpen(n){
+  if(slice==="arch"&&n.type==="archive")open.add(n.server?"as:"+n.server:"as:net:"+archDomainId(n));
+  if(slice==="arch")archTbl.kind="all";
+}
+// ── Срез «Хранилища»: таблица хранилищ места, выбранного в дереве ─────────
+let archTbl={kind:"all",sort:"owner",desc:false};
+function archScope(n){return slice==="arch"&&!!n&&(n.type==="domain"||(n.type==="server"&&!isUnallocated(n.id)))}
+function archSliceTab(n){return!n||slice!=="arch"?null:archScope(n)?"stor":n.type==="archive"?"arch":null}
+// Вошли с камеры или папки: показываем сервер этого объекта, иначе домен.
+function archKeepSel(f){
+  if(f&&(archScope(f.n)||f.n.type==="archive"||f.n.type==="vol"))return;
+  const sv=f?srv(sel):null;
+  sel=(sv&&!isUnallocated(sv.id)?sv.id:scopedDomains()[0]?.id)||domains[0]?.id||sel;
+}
+function archTblItems(n){
+  if(n.type==="domain")return arch.filter(a=>archDomainId(a)===n.id);
+  return[...serverArchives(n.id),...domainArchives(domainOf(n.id)?.id)];
+}
+function archTblEnsure(n){
+  const need=archTblItems(n).filter(a=>(!hwDone.volumes&&!volsDone.has(a.id))||!archCamIds.has(a.id));
+  if(!need.length)return;
+  Promise.all(need.flatMap(a=>[volsEnsure(a).catch(()=>{}),archCamsLoad(a.id).catch(()=>{})])).then(()=>{
+    if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTree();gear()}
+  });
+}
+function archUsedPct(a){return parseInt(archUsed(a),10)||0}
+function archTrouble(a){return archVols(a).some(v=>v.state==="error"||v.online===false)}
+function archStateHtml(a){
+  if(archTrouble(a))return`<span class="pf-st bad">${i18n("Ошибка тома")}</span>`;
+  if(archVols(a).some(v=>v.state==="maint"))return`<span class="pf-st off">${i18n("Обслуживание")}</span>`;
+  if(a.admits===false)return`<span class="pf-st off" title="${i18n("Новые камеры сюда не привязываются")}">${i18n("Не принимает")}</span>`;
+  return`<span class="pf-st ok">${i18n("Работает")}</span>`;
+}
+function archOwnerCell(a,n){
+  const ow=archOwner(a);if(!ow)return`<span class="as-sub">${i18n("Владелец не задан")}</span>`;
+  const name=escHtml(locName(ow));
+  return ow.id===n.id?name:`<button type="button" class="as-link" title="${i18n("Открыть")}" ${onEv("click",onEv.stop,["pick",`${ow.id}`])}>${name}</button>`;
+}
+const ARCH_SORT={
+  name:a=>locName(a),
+  owner:a=>(a.server?"0":"1")+locName(archOwner(a)||{name:""}),
+  used:a=>archUsedPct(a),
+  days:a=>a.days??0,
+  cams:a=>archCameras(a.id).length,
+  state:a=>archTrouble(a)?0:a.admits===false?1:2
+};
+function archSort(k){if(archTbl.sort===k)archTbl.desc=!archTbl.desc;else{archTbl.sort=k;archTbl.desc=k==="used"}gear()}
+function archTblKind(k,did){archTbl.kind=k;resetPage("astor:"+did);renderTree();gear()}
+function archRowKey(id,e){if(e.key==="Enter"){e.preventDefault();pick(id)}}
+function archThHtml(k,label,num){
+  const on=archTbl.sort===k;
+  return`<th class="${num?"as-num":""}" aria-sort="${on?(archTbl.desc?"descending":"ascending"):"none"}"><button type="button" class="as-th ${on?"on":""} ${num?"as-num":""}" ${onEv("click",["archSort",k])}>${i18n(label)}${on?(archTbl.desc?" ↓":" ↑"):""}</button></th>`;
+}
+function archTableCard(n){
+  const all=archTblItems(n),isDom=n.type==="domain";
+  const own=all.filter(a=>!!a.server),netN=all.length-own.length,bad=all.filter(archTrouble);
+  const pool=archTbl.kind==="srv"?own:archTbl.kind==="net"?all.filter(a=>!a.server):archTbl.kind==="bad"?bad:all;
+  const sign=archTbl.desc?-1:1,val=ARCH_SORT[archTbl.sort];
+  const items=[...pool].sort((x,y)=>{const a=val(x),b=val(y);return sign*(typeof a==="number"?a-b:String(a).localeCompare(String(b),"ru"))});
+  const chip=(k,label,cnt,cls)=>`<button type="button" class="as-chip ${archTbl.kind===k?"on":""} ${cls||""}" aria-pressed="${archTbl.kind===k}" ${onEv("click",["archTblKind",k,`${n.id}`])}>${i18n(label)}<b>${cnt}</b></button>`;
+  const chips=`<div class="as-chips">${chip("all","Все",all.length)}${chip("srv",isDom?"На серверах":"Этого сервера",own.length)}${chip("net",isDom?"Сетевые":"Сетевые домена",netN)}${bad.length?chip("bad","С ошибками",bad.length,"warn"):""}</div>`;
+  const addBtn=isDom
+    ?(canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:"")
+    :(can("createArchive")?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Хранилище")}…</button>`:"");
+  const head=`<thead><tr>${archThHtml("name","Хранилище")}${archThHtml("owner","Владелец")}${archThHtml("used","Занято")}${archThHtml("days","Срок",1)}${archThHtml("cams","Камер",1)}${archThHtml("state","Состояние")}</tr></thead>`;
+  return listCard({
+    key:"astor:"+n.id,
+    title:isDom?"Хранилища домена":"Хранилища сервера",
+    items,
+    text:a=>[locName(a),locName(archOwner(a)||{name:""}),archKindTag(a),...archVols(a).map(v=>v.disk)],
+    mid:()=>chips,
+    wrap:rows=>`<table class="as-tbl">${head}<tbody>${rows}</tbody></table>`,
+    row:a=>{
+      const u=archUsedPct(a);
+      return`<tr tabindex="0" ${onEv("click",["pick",`${a.id}`])} ${onEv("keydown",["archRowKey",`${a.id}`,onEv.event])}>
+        <td class="as-nm"><span class="as-name" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${ic("storage")}<span>${escHtml(locName(a))}</span></span></td>
+        <td title="${escHtml(locName(archOwner(a)||{name:""}))}">${archOwnerCell(a,n)}</td>
+        <td><span class="as-use"><span class="as-bar ${u>=90?"bad":u>=75?"warn":""}"><i style="width:${u}%"></i></span><span class="as-num">${u}% ${i18n("из")} ${archSize(a)}</span></span></td>
+        <td class="as-num">${a.days!=null?`${a.days} ${i18n("дн.")}`:"—"}</td>
+        <td class="as-num">${archCameras(a.id).length}</td>
+        <td>${archStateHtml(a)}</td>
+      </tr>`;
+    },
+    empty:isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся",
+    ph:"Имя, сервер или диск…",
+    unit:"хранилище|хранилища|хранилищ",
+    head:addBtn
+  });
 }
 function treeDetectors(){
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
@@ -7755,7 +7895,7 @@ function arow(a,l){
   const cnt=inventory?allCams.length:hasSliceContext()?sliceParentCount(a.id):cams.length;
   let h=`<div class="n srv stor ${sel===a.id?"on":""}${inventory?"":sliceParentClass(a.id)}${treeRenameId===a.id?" renaming":""}" style="--l:${l}"${treeRowPick(a.id)}${treeCtxAttr(a.id)}${treeExpandMeta(a.id,"srv",hasKids)}>
     ${hasKids?treeChevron(a.id,"srv",hasKids,op):'<span class="tw"></span>'}
-    ${ic("storage")}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
+    ${ic("storage")}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:slice==="arch"?"":`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
   if(op)h+=children;
   return h;
 }
@@ -7784,6 +7924,7 @@ function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
 
 function tabsFor(n){
+  if(archScope(n))return[["stor","Хранилища"],["gen","Общие"]];
   if(n.type==="domain")return[["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
   if(n.type==="unalloc")return[];
   if(n.type==="server"&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
@@ -7822,16 +7963,17 @@ function gear(){
   }
   if(n.type==="archive")archCamsLoad(n.id);
   if(n.type==="archive")volsEnsure(n).then(()=>{}).catch(()=>{});
+  if(tab==="stor"&&archScope(n))archTblEnsure(n);
   if(n.type==="domain")domainFresh(n);
   if(n.type==="server")serverArchives(n.id).forEach(a=>volsEnsure(a).catch(()=>{}));
   if(tabs.length&&!tabs.some(([id])=>id===tab))tab=tabs[0][0];
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
   // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
   // дальше собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=((lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  const addBtn=(tab==="stor"?"":(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   cardEnsureBase(n);
-  paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
+  paintMain(mainHd(bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
 }
@@ -10346,6 +10488,7 @@ function formBase(n){
         ph:"Имя или IP сервера…",
         unit:"сервер|сервера|серверов"
       });
+    if(tab==="stor")return archTableCard(n);
     if(tab==="srvs")return domainServersCard(n)+
       (can("createArchive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Диски и хранилище одного сервера создают на самом сервере: выберите его в списке выше.":"Диски и хранилище одного сервера создают на самом сервере: сначала добавьте сервер.")}</p>`:"")+
       (!domainArchives(n.id).length&&!canDomainArch()?"":listCard({
@@ -10389,6 +10532,7 @@ function formBase(n){
         <p class="sub">Домен: <b>${domName}</b></p>
         <button type="button" class="btn pri" style="margin-top:12px;width:100%" ${onEv("click",["addToDomain",`${n.id}`,`${domId}`])}>${i18n("Добавить в домен")}</button>`);
     }
+    if(tab==="stor")return archTableCard(n);
     if(tab==="disk"){
       const on=serverArchives(n.id),recCams=serverCameras(n.id).filter(isRecording);
       return listCard({
@@ -18896,8 +19040,8 @@ function deleteArchive(id){
 }
 function archOwnerLine(a){
   const sv=archServer(a),dm=archDomain(a);
-  if(sv)return`${i18n("Хранилище сервера")} <b>${escHtml(locName(sv))}</b>`;
-  if(dm)return`${i18n("Сетевое хранилище домена")} <b>${escHtml(locName(dm))}</b> — ${i18n("доступно любому серверу домена, запись не привязана к конкретному серверу.")}`;
+  if(sv)return`${i18n("Хранилище сервера")} <button type="button" class="as-link" ${onEv("click",["pick",`${sv.id}`])}>${escHtml(locName(sv))}</button>`;
+  if(dm)return`${i18n("Сетевое хранилище домена")} <button type="button" class="as-link" ${onEv("click",["pick",`${dm.id}`])}>${escHtml(locName(dm))}</button> — ${i18n("доступно любому серверу домена, запись не привязана к конкретному серверу.")}`;
   return i18n("Владелец не задан");
 }
 function nvrRecCardHtml(n){
