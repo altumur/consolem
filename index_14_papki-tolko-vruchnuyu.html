@@ -109,8 +109,15 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-choice:hover{background:var(--one-control-hover);border-color:var(--one-border);color:var(--tx)}
 .ph-choice.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-.ph-choice:disabled{opacity:.45;cursor:default}
-.ph-choice:disabled:hover,html[data-theme="light"] .ph-choice:disabled:hover{background:transparent;border-color:transparent;color:var(--mu)}
+/* «Папки» — не срез, а настройка раскладки: своя строка и переключатель вместо кнопки-выбора. */
+.ph-switch{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--tx);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer}
+.ph-switch:hover{background:var(--one-control-hover)}
+.ph-switch:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
+.ph-switch .sw{width:28px;height:16px}
+.ph-switch .sw:after{width:12px;height:12px}
+.ph-switch .sw.on:after{left:14px}
+.ph-switch:disabled{opacity:.45;cursor:default;background:transparent}
+.ph-switch:disabled .sw{cursor:default}
 .ph-cnt{flex:none;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--one-control-bg);color:var(--one-fg-muted);font-size:10px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .ph-choice.on .ph-cnt{background:var(--one-selected-neutral);color:var(--one-fg)}
 .ph-chevron{font-size:9px;opacity:.7}
@@ -2092,7 +2099,7 @@ const SLICE_SW={...SLICE_SW_RU};
 const SLICE_IC={all:"svcs",cam:"camera",acfa:"acfa",srv:"server",arch:"archive",det:"det"};
 // Раскладка одна на все срезы и меняется кнопкой «Папки», а не выбором среза.
 // В Серверах и Архивах папок нет: кнопка там неактивна, раскладка ждёт возврата.
-const SLICE_GROUPS={all:["server","folder"],cam:["server","folder"],acfa:["server","folder"],srv:["server"],arch:["server"],det:["server","folder"]};
+const SLICE_GROUPS={all:["server","folder"],cam:["folder","server"],acfa:["folder","server"],srv:["server"],arch:["server"],det:["folder","server"]};
 // Старые ссылки звали срез «Всё оборудование» — ведём их в «Камеры».
 const SLICE_ALIAS={dev:"cam",srvs:"srv"};
 function normSlice(v){return SLICE_ALIAS[v]||v}
@@ -2165,7 +2172,7 @@ let slice="all";
 // Группировка запоминается для каждого среза отдельно: у камер оператор
 // смотрит то по папкам, то по серверам, и переключать её заново каждый раз —
 // работа, которую компьютер способен запомнить сам.
-const groupBy={all:"server",cam:"server",acfa:"server",srv:"server",arch:"server",det:"server"};
+const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"folder"};
 function setGroupAll(g){Object.keys(groupBy).forEach(s=>{groupBy[s]=g})}
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
@@ -6676,7 +6683,8 @@ function panelHeadHtml(){
   const canFolders=sliceGroups().includes("folder"),foldersOn=canFolders&&group()==="folder",st=curStatus();
   return`<div class="ph"><div class="ph-row" role="group" aria-label="${i18n("Срез дерева")}">
     ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`).join("")}
-    <button type="button" class="ph-choice ph-folders ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${i18n("Папки")}</button>
+  </div><div class="ph-row">
+    <button type="button" class="ph-switch" id="viewBtn" role="switch" aria-checked="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}><span>${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
   </div></div>`;
 }
@@ -6687,8 +6695,8 @@ function setSlice(v){
   v=normSlice(v);
   if(!SLICE_GROUPS[v]||slice===v)return;
   slice=v;syncViews();
-  // При смене среза сохраняем запрос и поля, по которым он ищется.
-  clearGearFilters(true);filtPop=false;closeDomainPop();typesExpanded=false;tab="gen";
+  // При смене среза сохраняем запрос, поля поиска и статус. Типы у каждого среза свои — их снимаем.
+  typeFilts.clear();filtPop=false;closeDomainPop();typesExpanded=false;tab="gen";
   treeMatchCache.clear();searchMatchCache.clear();treeSel.clear();treeAnchor=null;
   expandSliceBranches();
   keepSelectionInSlice();
