@@ -9865,37 +9865,54 @@ function dzAsk(then){
 }
 function dzAskPrev(){dzAsk(dzPrev)}
 function dzAskEnd(){dzAsk(dzEnd)}
-function dzEnd(){
+// quiet: итог покажет отчёт групповой операции
+function dzEnd(quiet){
   const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;dl.sel.clear();
-  toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
+  if(!quiet)toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
   if(back)detToCam(back);else detKindPick(null);
 }
 // Зона — в долях кадра, поэтому ляжет на любую камеру, но сцена там другая: копия — только по явной просьбе
 function dzSameShape(a,z){return detNeedsLineKind(a)===(z.shape==="line")}
 function detNeedsLineKind(d){return d.kind==="Пересечение линии"}
+// Что сделает «Такую же остальным»: rest — получат зону, left — другая форма (линия или область), им зона нужна своя
+function dzCopyScope(d,z){
+  const after=dz.ids.slice(dz.at+1).map(detNodeOf).filter(Boolean),same=JSON.stringify(z);
+  return{rest:after.filter(n=>dzSameShape(n,z)&&JSON.stringify(n.zone||null)!==same),left:after.filter(n=>!dzSameShape(n,z))};
+}
+// План, как у карточки: что станет на каждом детекторе, применяется одной операцией
 function dzCopy(){
   const d=detNodeOf(dz?.ids[dz.at]),z=d&&dzZone(d);if(!z)return;
-  const me=dzDrafted(d.id)?[d]:[];
-  const rest=dz.ids.slice(dz.at+1).map(detNodeOf).filter(n=>n&&dzSameShape(n,z));
-  if(!rest.length){toast("Подходящих детекторов дальше нет");return}
-  askConfirm("Такая же зона остальным?",`${i18n("Зона ляжет на")} ${rest.length} ${i18n(plural(rest.length,"детектор|детектора|детекторов"))}. ${i18n("Прежние зоны заменятся.")}`,i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект. Проверьте каждую камеру в очереди."),i18n("Применить"),()=>{
-    const v=ruleClone(z);
-    const all=[...me,...rest];
-    devicesMutate(all,()=>all.forEach(n=>{n.zone=ruleClone(v)})).then(res=>{
-      if(dz){dz.drawn+=res.done.length;if(me.length&&!res.failed.length)dz.draft=undefined}
-      toast(res.failed.length?`${i18n("Готово")}: ${res.done.length}, ${i18n("отказ")}: ${res.failed.length}`:`${i18n("Зона применена")}: ${res.done.length}`);
-      gear();
-    }).catch(e=>toast(problemText(e)));
-  });
+  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  const{rest,left}=dzCopyScope(d,z),all=[...(dzDrafted(d.id)?[d]:[]),...rest];
+  if(!rest.length)return;
+  const cams=new Map(detRows().map(x=>[x.d.id,x.cam])),off=new Set(bulkStats(all).offline.map(n=>n.id));
+  const rows=all.map((n,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(locName(cams.get(n.id)||{name:""}))}</td><td>${escHtml(locName(n))}</td><td class="bk-note">${escHtml(zoneText(n.zone))}${n.zone?` · ${i18n("заменится")}`:""}</td><td>${off.has(n.id)?`<span class="bk-mixed">${i18n("сервер без связи")}</span>`:`<b>${escHtml(zoneText(z))}</b>`}</td></tr>`).join("");
+  const live=all.length-off.size,what=i18n(plural(all.length,"детектор|детектора|детекторов"));
+  const nextText=left.length?`${i18n("Затем очередь продолжится")}: ${left.length} ${i18n(plural(left.length,"детектор|детектора|детекторов"))} ${i18n(z.shape==="line"?"с областью: линия им не подходит.":"с линией: область им не подходит.")}`:i18n("Очередь зон на этом закончится. Итог и «Отменить» будут в отчёте.");
+  openBulkModal(`${i18n("План")}: ${i18n("такая же зона")}, ${all.length} ${what}`,
+    `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Камера")}</th><th>${i18n("Детектор")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
+     <div class="nt bk-warn">${lu("triangle-alert")} ${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект.")}</div>
+     <p class="sub" style="margin:10px 0 0">${nextText}</p>`,
+    `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${live?"":"disabled"} ${onEv("click",["closeBulkModal"],["dzCopyApply"])}>${i18n("Применить")} (${live})</button>`,"bbox-wide");
+}
+function dzCopyApply(){
+  const d=detNodeOf(dz?.ids[dz.at]),z=d&&dzZone(d);if(!z)return;
+  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  const{rest,left}=dzCopyScope(d,z),all=[...(dzDrafted(d.id)?[d]:[]),...rest],v=ruleClone(z);
+  bulkRun([{label:"Зона",ops:all.map(n=>{const was=n.zone;return mkOp(n,"Зона","param",()=>{n.zone=ruleClone(v)},null,()=>{n.zone=was})})}],{undo:true},all);
+  dz.draft=undefined;dz.drawn+=all.length;
+  if(!left.length){dzEnd(true);return}
+  dz.ids=[...dz.ids.slice(0,dz.at+1),...left.map(n=>n.id)];
+  dzNext();
 }
 function dzBarHtml(cam,d){
   if(!dzOn(d.id))return"";
-  const n=dz.ids.length,more=dz.at<n-1,draft=dzDrafted(d.id),z=dzZone(d);
+  const n=dz.ids.length,more=dz.at<n-1,draft=dzDrafted(d.id),z=dzZone(d),same=z?dzCopyScope(d,z).rest.length:0;
   const save=`<button type="button" class="btn s pri" ${draft?"":"disabled"} ${onEv("click",["dzSaveNext"])}>${i18n(more?"Сохранить и дальше":"Сохранить и закончить")}</button>`;
   const go=draft?save:d.zone?`<button type="button" class="btn s pri" ${onEv("click",["dzNext"])}>${i18n(more?"Дальше":"Готово")}</button>`:`<button type="button" class="btn s" ${onEv("click",["dzNext"])}>${i18n("Пропустить")}</button>${save}`;
   return`<div class="dz-bar"><span class="dz-t"><b>${i18n("Зоны")}: ${dz.at+1} ${i18n("из")} ${n}</b> · ${escHtml(locName(cam))} · ${i18n("сохранено")} ${dz.drawn}</span>
     <span class="tfoot-gap"></span>
-    ${z&&more?`<button type="button" class="btn s" ${onEv("click",["dzCopy"])}>${i18n("Такую же остальным…")}</button>`:""}
+    ${same?`<button type="button" class="btn s" ${onEv("click",["dzCopy"])}>${i18n("Такую же остальным")} (${same})…</button>`:""}
     <button type="button" class="btn s" ${dz.at?"":"disabled"} ${onEv("click",["dzAskPrev"])}>${i18n("Назад")}</button>
     ${go}
     <button type="button" class="btn s" ${onEv("click",["dzAskEnd"])}>${i18n("Закончить")}</button></div>`;
