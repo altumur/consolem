@@ -4788,7 +4788,7 @@ function revealSel(){
   if(app!=="hw"||!sel)return;
   if(!treeRowOf(sel)&&!hasActiveFilters()&&!(slice==="arch"&&archStaysInSlice(find(sel)?.n))){
     const was=slice;
-    const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);renderTree();return!!treeRowOf(sel)};
+    const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);renderTree();return!!treeRowOf(sel)};
     const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].some(g=>{
       const gw=groupBy[s];
       slice=s;groupBy[s]=g;syncViews();
@@ -7783,6 +7783,7 @@ function archGroupOpen(key){open.add(key);renderTree()}
 function archGroupPick(did){pick(did);archTbl.kind="net";resetPage("astor:"+did);paint()}
 // Раскрыть в дереве ветку выбранного хранилища
 function archSliceOpen(n){
+  if(!n||slice!=="arch")return;
   if(slice==="arch"&&n.type==="archive")open.add(n.server?"as:"+n.server:"as:net:"+archDomainId(n));
   if(slice==="arch"&&n.type==="server"&&!isUnallocated(n.id)&&!serverArchives(n.id).length)open.add("as:bare:"+domainOf(n.id)?.id);
   if(slice==="arch"&&n.type==="camera"&&!n.arch)open.add(AS_NOREC);
@@ -7800,7 +7801,7 @@ function archKeepSel(f){
   const sv=f?srv(sel):null;
   sel=(sv&&!isUnallocated(sv.id)?sv.id:scopedDomains()[0]?.id)||domains[0]?.id||sel;
 }
-function archCreateBtn(n){return can("createArchive")?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Создать хранилище")}…</button>`:""}
+function archCreateBtn(n){return can("createArchive")?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Создать хранилище…")}</button>`:""}
 function archTblItems(n){
   const list=n.type==="domain"?arch.filter(a=>archDomainId(a)===n.id):[...serverArchives(n.id),...domainArchives(domainOf(n.id)?.id)];
   return list.filter(matchesStatus);
@@ -10525,7 +10526,7 @@ function formBase(n){
       });
     if(tab==="stor")return archTableCard(n);
     if(tab==="srvs")return domainServersCard(n)+
-      (can("createArchive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Диски и хранилище одного сервера создают на самом сервере: выберите его в списке выше.":"Диски и хранилище одного сервера создают на самом сервере: сначала добавьте сервер.")}</p>`:"")+
+      (can("createArchive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Хранилище на дисках тоже создают здесь: в окне выберите вид и сервер.":"Хранилищу на дисках нужен сервер: сначала добавьте его.")}</p>`:"")+
       (!domainArchives(n.id).length&&!canDomainArch()?"":listCard({
         key:"darc:"+n.id,
         title:"Сетевые хранилища домена",
