@@ -67,6 +67,17 @@ UiCheck(async ({ ok, until, sleep }) => {
   await settle();
   ok(hint() === "", "после очистки поиска «Найдено» нет");
 
+  // «Детекторы»: камера, найденная по имени, показывает детекторы — они в счёт
+  const camDet = devicePool.find((n) => n.type === "camera" && (n.devices || []).some((x) => x.type === "det"));
+  click("det");
+  setTreeQ(camDet.name);
+  await settle();
+  const nDet = Number((/Найдено: (\d+)/.exec(hint()) || [])[1]);
+  ok(nDet > 0 && nDet === shownObjects(), `«Детекторы», поиск камеры: «Найдено» ${nDet}, в дереве ${shownObjects()}`);
+  setTreeQ("");
+  click("all");
+  await settle();
+
   // Группа «Службы»
   ok(svcGroups().length === domains.length, "у каждого домена группа «Службы»");
   svcGroups()[0].click();
@@ -99,8 +110,44 @@ UiCheck(async ({ ok, until, sleep }) => {
   setGroup("server");
   goFav(i);
   await settle();
-  ok(group() === "server" && !on() && !!treeRowOf(cam.id), "избранное открылось, раскладка прежняя");
+  const onRow = () => document.querySelector("#tree .n.on")?.dataset.pick;
+  ok(group() === "server" && !on() && onRow() === cam.id, "избранное открылось, раскладка прежняя, строка выбрана");
+  // Ярлык из папки, открытый в раскладке по серверам, и наоборот: место чужой раскладки не мешает выбору
+  const inFolder = devicePool.find((n) => n.type === "camera" && foldersOfDevice(n.id).length && cameraTreeServer(n.id));
   toggleFav(cam.id, null);
+  setSlice("cam");
+  setGroup("folder");
+  pick(inFolder.id, { ctx: "f:" + foldersOfDevice(inFolder.id)[0].id });
+  toggleFav(inFolder.id, selCtx);
+  const k = favs.findIndex((f) => f.id === inFolder.id);
+  setGroup("server");
+  pick(domains[0].id);
+  goFav(k);
+  await settle();
+  ok(group() === "server" && onRow() === inFolder.id, "ярлык из папки в раскладке по серверам: строка выбрана");
+  favs[k].ctx = "srv:" + cameraTreeServer(inFolder.id).id;
+  favs[k].group = "server";
+  setGroup("folder");
+  pick(domains[0].id);
+  goFav(k);
+  await settle();
+  ok(group() === "folder" && onRow() === inFolder.id, "ярлык с сервера в раскладке по папкам: строка выбрана");
+  // Переход без заданного места: в папках строка выбрана и моргать есть чему
+  pick(domains[0].id);
+  jumpToNode(inFolder);
+  await settle();
+  ok(group() === "folder" && onRow() === inFolder.id, "переход из поиска: строка в папке выбрана");
+  // Статус прячет объект ярлыка: снимается, строка на месте
+  const running = devicePool.find((n) => n.type === "camera" && !statusIs(n, "nosignal") && foldersOfDevice(n.id).length);
+  favs[k] = { ...favs[k], id: running.id, name: running.name, slice: "cam", ctx: null };
+  setSlice("det");
+  pickStatus("nosignal");
+  await settle();
+  goFav(k);
+  await settle();
+  ok(slice === "cam" && !curStatus() && onRow() === running.id, "статус прячет объект ярлыка: снят, строка выбрана");
+  ok(/Нет сигнала|Все статусы/.test(document.querySelector(".ph-status-label").textContent) && !/Нет сигнала/.test(document.querySelector(".ph-status-label").textContent), "шапка показывает снятый статус");
+  favs.splice(k, 1);
 
   // Нет связи с доменом: строка есть в обеих раскладках
   const d = domains[0];

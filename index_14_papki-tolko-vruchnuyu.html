@@ -4757,6 +4757,9 @@ function revealSel(){
   revealAt=Date.now();
   if(app!=="hw"||!sel)return;
   if(!treeRowOf(sel)&&!hasActiveFilters()){
+    // Папки устройства называет только полная запись: пока её нет, «не в папке» ещё ничего не значит и «Папки» не трогаем
+    const id=sel,node=find(id)?.n;
+    if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return}
     const was=slice,pref=groupBy.all;
     const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);renderTree();return!!treeRowOf(sel)};
     // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
@@ -5384,6 +5387,9 @@ function normalizeTreeCtx(ctx){
 function sameCtx(ctx){
   const chosen=normalizeTreeCtx(selCtx);
   if(!chosen&&ctx?.startsWith("srv:"))return cameraTreeServer(sel)?.id===ctx.slice(4);
+  // Место не задано (переход по ссылке): в раскладке по папкам отмечена строка в первой папке устройства
+  if(!chosen&&ctx?.startsWith("f:"))return foldersOfDevice(sel)[0]?.id===ctx.slice(2).split("|")[0];
+  if(!chosen&&ctx?.startsWith("nf:"))return true;
   return(chosen||"")===(normalizeTreeCtx(ctx)||"");
 }
 function rowOn(id,ctx){return sel===id&&sameCtx(ctx)?"on":""}
@@ -5548,7 +5554,15 @@ function walkSliceObjects(fn){
 // Сервер ищет сразу по всем срезам, срез отбирает интерфейс: считаем только то, что покажем.
 // В «Детекторах» считаются детекторы, как на кнопке среза, а не их камеры.
 function filtHitCount(){
-  return fs.order.filter(id=>{const n=find(id)?.n;return n&&(slice==="det"?n.type==="det"&&matchesDomain(n):selfOrDet(n))}).length;
+  if(slice!=="det")return fs.order.filter(id=>{const n=find(id)?.n;return n&&selfOrDet(n)}).length;
+  // Камера, найденная по тексту, показывает свои детекторы: они в счёт, как в detSliceHit
+  const ids=new Set();
+  fs.order.forEach(id=>{
+    const n=find(id)?.n;if(!n||!matchesDomain(n))return;
+    if(n.type==="det")ids.add(id);
+    else if(n.type==="camera"&&treeQ.trim())(n.devices||[]).forEach(d=>{if(d.type==="det"&&matchesStatus(d))ids.add(d.id)});
+  });
+  return ids.size;
 }
 function countFiltered(){
   if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
@@ -6067,7 +6081,13 @@ function goFav(i){
   if(!find(f.id)){toast("Объект удалён — ярлык можно убрать");return}
   goApp("hw");
   if(f.slice&&f.slice!==slice&&SLICE[f.slice])setSlice(f.slice);
-  pick(f.id,{ctx:f.ctx||null});
+  // Статус переживает смену среза, но ярлык ведёт к объекту: если статус его прячет, снимаем, как при переходе из поиска
+  if(!matchesStatus(find(f.id).n)){
+    statusFilts.clear();applyFiltersFromState();aside();
+    toast(i18n("Фильтры сброшены, чтобы показать найденное"));
+  }
+  // Место из ярлыка — только в той раскладке, где его сохранили: раскладку ярлык не меняет
+  pick(f.id,{ctx:f.group===group()&&f.ctx||null});
   const n=find(f.id)?.n;
   if(f.tab&&f.tab!=="gen"&&n&&tabsFor(n).some(([id])=>id===f.tab)){tab=f.tab;gear()}
 }
@@ -7499,7 +7519,8 @@ function svcsrow(d,l){
   const q=qval(),id=svcgroupId(d.id);
   const all=(d.servers||[]).flatMap(s=>s.devices||[]).filter(x=>SVC_TYPES.has(x.type)&&selfInView(x));
   const devs=all.filter(x=>matchesSearch(x,q));
-  if(!devs.length&&(autoExpand()||!treeUnread(id)))return"";
+  // Не прочиталось — группа остаётся и говорит об этом: treeMoreRow
+  if(!devs.length&&!treeBr.get(treeLayout()+"|"+id)?.failed&&(autoExpand()||!treeUnread(id)))return"";
   const op=open.has(id)||(autoExpand()&&!!devs.length);
   let h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(id,"dom",true)} ${onEv("click",["toggleDom",id,onEv.event])}>
     ${treeChevron(id,"dom",true,op)}
