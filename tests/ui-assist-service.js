@@ -197,10 +197,10 @@ UiCheck(async ({ ok, until }) => {
   ok(!el("asstPlanNote") && !asst.plan && el("asstCancel") && !bulkDraft.plan, "пока идёт ход, плана нет ни в панели, ни в черновике");
   ok([...el("gopop").querySelectorAll(".asst-said > div")].map((x) => x.textContent).join("|") === "› выключи запись Главный вход|и Запасной вход", "история просьб, свежая последней");
   { const now = el("asstNow"), q = getComputedStyle(el("gq")), n = now && getComputedStyle(now);
-    ok(now && now.querySelector(".dev-spin") && n.fontSize === q.fontSize && n.color === q.color, "текущая просьба — шрифтом и цветом строки поиска, со значком хода"); }
+    ok(now && n.fontSize === q.fontSize && n.color === q.color && el("asstLine")?.firstElementChild?.classList.contains("dev-spin"), "текущая просьба — шрифтом и цветом строки поиска, значок хода — в начале строки хода"); }
   last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "уточнение" }] }] });
   ok(await until(() => el("asstPlanNote") && /уточнение/.test(text()) && bulkDraft.plan), "новый план целиком, снова в черновике");
-  ok(el("asstNow") && !el("asstNow").querySelector(".dev-spin"), "ход кончился — значка нет");
+  ok(!el("asstNow") && !document.querySelector("#asstBlock .dev-spin"), "ход кончился — просьба в истории, значка нет");
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:вопрос2" });
   say("и ещё");
   ok(await until(() => el("asstAsk")), "уточнение кончилось вопросом");

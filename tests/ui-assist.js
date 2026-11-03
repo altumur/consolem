@@ -344,7 +344,7 @@ UiCheck(async ({ ok, until }) => {
   key(field(), "Enter");
   ok(asst.busy && !asst.plan && !planShown() && !bulkDraft.plan, "идёт ход: плана нет, в черновике его значений тоже");
   const saidRows = () => [...document.querySelectorAll("#asstBlock .asst-said > div")].map((x) => x.textContent);
-  ok(saidRows().join("|") === "› включи запись Главный вход|и Переговорная", "история просьб: старые сверху, свежая последней, заметки «План снят» нет — " + saidRows().join("|"));
+  ok(saidRows().join("|") === "› включи запись Главный вход|› и Переговорная", "история просьб: старые сверху, свежая последней, заметки «План снят» нет — " + saidRows().join("|"));
   ok(said[1].context === planContext && said[1].text === "и Переговорная", "ход с context плана");
   ok(await until(() => document.getElementById("asstPlanNote") && bulkDraft.plan?.rec), "новый план в карточке");
   ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
@@ -352,7 +352,7 @@ UiCheck(async ({ ok, until }) => {
   say("поменяй маску сети");
   ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
   ok(!asst.plan && !planShown() && !bulkDraft.plan, "отказ: прежний план не вернулся");
-  ok(saidRows().join("|") === "› включи запись Главный вход|› и Переговорная|поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
+  ok(saidRows().join("|") === "› включи запись Главный вход|› и Переговорная|› поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
   goClose();
   asstOpen("");
   typed("включи запись Главный вход");
@@ -452,7 +452,7 @@ UiCheck(async ({ ok, until }) => {
   enter();
   ok(asst && asst !== talking && talking.secrets.length === 0 && !asst.secrets.length && !asst.plan, "Enter в строке поиска — новый разговор: план и секреты забыты");
   ok(sent.length === 1 && sent[0].text === "абырвалг которого нет" && !("context" in sent[0]) && !("secrets" in sent[0]), "ход без прежнего context и секретов");
-  ok(asst.said.length === 1 && saidRows().join("|") === "абырвалг которого нет" && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
+  ok(asst.said.length === 1 && saidRows().join("|") === "› абырвалг которого нет" && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
   ok(await until(() => !asst.busy), "ход кончился");
   // Идущий ход снимается: новая просьба мышью по кнопке поиска
   say("выключи запись");
