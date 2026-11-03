@@ -5169,7 +5169,7 @@ function goKey(e){
 const ESC_LAYERS=[
   // окно подтверждения лежит поверх мастера, а выпадающее меню мастера — под ним,
   // но раньше самого мастера
-  {is:()=>document.getElementById("bmodal")?.classList.contains("open"),off:bmBackdrop},
+  {is:()=>document.getElementById("bmodal")?.classList.contains("open")&&!(document.querySelector("#bmodal .dc-box")&&(document.getElementById("confirm")?.classList.contains("open")||schDlgIsOpen())),off:bmBackdrop},
   {is:()=>document.getElementById("confirm")?.classList.contains("open"),off:closeConfirm},
   {is:()=>typeof schDlgIsOpen==="function"&&schDlgIsOpen(),off:()=>schDlgCancel()},
   {is:()=>wizOpen()&&wizd?.mode==="device-add"&&(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop),
@@ -6847,6 +6847,10 @@ function pick(id,opts){
   }
   const fromLink=hwFromLink();
   closeTreeCtx();
+  if(dz&&!dz.ids.includes(id)){
+    if(dzDrafted(dz.ids[dz.at])){dzAsk(()=>{dz=null;zoneDraw=null;pick(id,opts)});return}
+    dz=null;zoneDraw=null;
+  }
   const f=find(id);
   if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))pick(id,opts)}).catch(()=>{});return}
   // Ушли с объекта с неприменёнными правками — спрашиваем, а не теряем молча.
@@ -9499,7 +9503,7 @@ function detBackIsCam(cam){return slice!=="det"||detBackCam===cam?.id}
 function detBack(){
   const cam=find(sel)?.p;
   if(cam&&detBackIsCam(cam))detToCam(cam.id);
-  else{detBackCam=null;detKindPick(dl.kind)}
+  else{detBackCam=null;hwJumpFlash=true;detKindPick(dl.kind);hwJumpFlash=false}
 }
 function detBackHtml(cam){
   if(dz||!cam)return"";
@@ -9559,6 +9563,7 @@ function detListHtml(){
   const head=mainHd("",`${i18n("Детекторы")}${dl.kind?`<span class="dl-ti-k"> · ${escHtml(dl.kind)}</span>`:""}`,"","",add);
   if(detLoadState<2)return head+`<div class="sc sub">${i18n("Загрузка…")}</div>`;
   const scope=detScope(),found=detFound(scope),f=detF(),on=Object.values(f).some(Boolean);
+  const seen=new Set(found.map(x=>x.d.id));[...dl.sel].forEach(id=>{if(!seen.has(id))dl.sel.delete(id)});
   if(!detRows().length)return head+`<div class="sc"><div class="fl-empty"><div class="fl-empty-ic">${ic("det")}</div><p>${i18n("Детекторов пока нет. Добавьте их сразу на нужные камеры.")}</p><div class="fl-empty-act">${add}</div></div></div>`;
   const facets=facetRowsHtml(DL_DIMS,scope,f,"detFacet",dl.more,"detFacetMore");
   const said=DL_DIMS.filter(([d])=>f[d]).map(([d,,,lab])=>lab?lab(f[d]):f[d]).join(" · ");
@@ -9602,15 +9607,16 @@ function detCams(){
   return out.sort((a,b)=>locName(a).localeCompare(locName(b),"ru",{numeric:true}));
 }
 async function dcLoad(){
+  let read=true;
   try{
     const rows=[];let cursor=null;
     do{const r=await API.get("/devices",{type:"camera",cursor,limit:LIM.pageMax});rows.push(...r.items);cursor=r.nextCursor||null}while(cursor&&rows.length<LIM.selectMax);
     await hwEnsure(rows.map(r=>r.parentId));
     rows.forEach(hwAddRow);
     await hwFullAll(rows.map(r=>r.id));
-  }catch(e){toast(problemText(e))}
+  }catch(e){read=false;toast(problemText(e))}
   treeMatchCache.clear();searchMatchCache.clear();
-  if(dc){dc.ready=true;dcPrune();if(dcStepKey()==="zones")dcZoneEnter();renderDetCreate()}
+  if(dc){dc.ready=true;if(read)dcPrune();if(dcStepKey()==="zones")dcZoneEnter();renderDetCreate()}
 }
 // lock — камера, с вкладки которой открыли: шага выбора камер нет
 function detCreateOpen(lock){
@@ -9645,21 +9651,22 @@ function dcMin(){
   if(!dc)return;
   dc.min=true;zoneDraw=null;dcSave();
   if(!dcHasWork(dc))dc=null;
-  closeBulkModal();liveSync();dcDock();gear();
+  closeBulkModal();liveSync();dcDock();paint();
 }
 function dcResume(){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
-  if(app==="rules"){
-    if(ruleDiffLive().length){toast("Сначала примените или сбросьте изменения правила");return}
+  if(app!=="hw"){
+    if(app==="rules"&&ruleDiffLive().length){toast("Сначала примените или сбросьте изменения правила");return}
     setApp("hw");
   }
   if(!dc){const x=dcPeek();if(!x)return;dc={...x,items:new Set(x.items),cams:new Set(x.cams),more:new Set(),ready:false}}
   dc.min=false;dcDock();
+  if(dc.ready)dcPrune();
   renderDetCreate();
   if(!dc.ready)dcLoad();else if(dcStepKey()==="zones")dcZonePick(dc.zoneAt);
 }
 function dcCancel(){
-  const stop=()=>{dcDrop();closeBulkModal();liveSync();gear()};
+  const stop=()=>{dcDrop();closeBulkModal();liveSync();paint()};
   const d=dc||dcPeek();
   if(!d||!dcHasWork(d)){stop();return}
   askConfirm("Отменить создание?","Выбранные камеры, нарисованные зоны и настройка правила пропадут.","","Удалить черновик",stop,{cancelLabel:"Остаться"});
@@ -9676,11 +9683,20 @@ function dcDock(){
 window.addEventListener("load",dcDock);
 // Камера могла пропасть, пока черновик лежал: выбрасываем то, чего больше нет
 function dcPrune(){
-  const cams=detCams(),ids=new Set(cams.map(c=>c.id)),lost=[...dc.cams].filter(id=>!ids.has(id));
+  const cams=[];walkAll(n=>{if(n.type==="camera")cams.push(n)});
+  const ids=new Set(cams.map(c=>c.id)),lost=[...dc.cams].filter(id=>!ids.has(id));
   lost.forEach(id=>dc.cams.delete(id));
-  if(lost.length)toast(`${i18n("Камер больше нет в системе")}: ${lost.length}`);
+  if(dc.lock&&!ids.has(dc.lock)){dc.lock=null;dc.step=0;toast("Камеры этого черновика больше нет: выберите другие")}
+  else if(lost.length)toast(`${i18n("Камер больше нет в системе")}: ${lost.length}`);
   const tpl=new Set(dcTemplates(cams).map(t=>t.key));
   [...dc.items].filter(k=>k.startsWith("t:")?!tpl.has(k):!DET_TYPES.includes(k.slice(2))).forEach(k=>dc.items.delete(k));
+  if(!dc.items.size||(!dc.lock&&!dc.cams.size))dc.step=0;
+}
+// Выбранная камера остаётся в плане, даже если фильтр домена в шапке её скрыл
+function dcUniverse(){
+  const by=new Map(detCams().map(c=>[c.id,c]));
+  dc.cams.forEach(id=>{const n=find(id)?.n;if(n?.type==="camera"&&!by.has(id)&&!blockedId(id))by.set(id,n)});
+  return[...by.values()];
 }
 const DC_STEPS=[{t:"Что создать",k:"what"},{t:"На каких камерах",k:"cams"},{t:"Зоны",k:"zones"},{t:"Правило",k:"rule"},{t:"Проверка",k:"end"}];
 function dcSteps(){return DC_STEPS.filter(x=>!(dc.lock&&x.k==="cams"))}
@@ -9747,7 +9763,7 @@ function dcRowsOf(plan){
   return plan.flatMap(p=>p.fit.map(c=>({id:`dc:${p.key}|${c.id}`,cam:c,name:p.name,line:p.line}))).sort((a,b)=>b.line-a.line||cmp(locName(a.cam),locName(b.cam))||cmp(a.name,b.name));
 }
 function dcRows(){
-  const lock=dc.lock?find(dc.lock)?.n:null,cams=dc.ready?detCams():[];
+  const lock=dc.lock?find(dc.lock)?.n:null,cams=dc.ready?dcUniverse():[];
   return dcRowsOf(dcPlan(cams,dcTemplates(lock?[lock]:cams)));
 }
 function dcZoneOf(id){return dc?.zoneBy[id]?.z||null}
@@ -9780,12 +9796,24 @@ function dcZoneCopy(){
 }
 // Правило «Настрою сам» правится теми же строками, что в «Автоматизации»: пока окно открыто, curRule и ruleEdit работают с ним
 function dcCustom(){return dc&&!dc.min&&dc.rule.mode==="new"?dc.custom:null}
+// Правило исполняет сервер домена его камер
+function dcRuleServer(ids){
+  const doms=new Set([...ids].map(id=>nodeDomainId(find(id)?.n))),d=doms.size===1?[...doms][0]:null;
+  return(servers.find(x=>domainOf(x.id)?.id===d)||servers[0]||{}).id||"";
+}
 function dcCustomRule(gs){
   const fresh=!dc.custom;
   const c=dc.custom||(dc.custom={id:"dc-rule",name:"",on:true,watch:false,repeat:"skip",start:"event",run:{mode:"always",modes:[]},cond:[],menu:false,rate:6,within:0,sched:null,when:[],then:[],owner:ACC_ME,purpose:"",server:(servers[0]||{}).id||"",runAs:"system",chain:true});
   // Вид без конца события — первым: «пока идёт событие» должно подойти каждому правилу
-  c.when=gs.map(dcRuleWhen).sort((a,b)=>!!triggerKind(a).ends-!!triggerKind(b).ends).slice(0,1);
-  if(fresh)c.then.push(ruleNewAct(ruleActAdd(),null,c));
+  const w=gs.map(g=>({g,t:dcRuleWhen(g)})).sort((a,b)=>!!triggerKind(a.t).ends-!!triggerKind(b.t).ends)[0];
+  c.when=w?[w.t]:[];
+  if(w)c.server=dcRuleServer(w.g.cams);
+  if(fresh){
+    const a=ruleNewAct(ruleActAdd(),null,c);
+    // Запись по умолчанию — на 10 минут и у вида с концом события: так сказано в плане
+    if(a.action==="record"){a.dur="min";a.minutes=10;delete a.after}
+    c.then.push(a);
+  }
   return c;
 }
 function dcRuleOk(gs){
@@ -9807,6 +9835,11 @@ function dcTrigs(plan,tpl){
 function dcRuleWhen(g){return{sub:"det",kind:g.kind,ref:refMake([...g.cams],[]),match:{...g.match}}}
 function dcRuleCands(gs){
   return rules.filter(r=>r.start==="event"&&gs.some(g=>r.when.some(t=>t.sub==="det"&&t.kind===g.kind&&matchKey(t.match)===matchKey(g.match))));
+}
+// Виды, которых в выбранном правиле нет: их камеры в него не встанут
+function dcPickMiss(gs,id){
+  const r=rules.find(x=>x.id===id);
+  return r?gs.filter(g=>!r.when.some(t=>t.sub==="det"&&t.kind===g.kind&&matchKey(t.match)===matchKey(g.match))):[];
 }
 function dcRuleHtml(gs){
   const r=dc.rule,cands=dcRuleCands(gs);
@@ -9850,12 +9883,14 @@ function renderDetCreate(){
   if(!dc||dc.min)return;
   const keep={};document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>keep[el.dataset.cpScroll]=el.scrollTop);
   const lock=dc.lock?find(dc.lock)?.n:null;
-  const cams=dc.ready?detCams():[],tpl=dc.ready?dcTemplates(lock?[lock]:cams):[],list=dcFiltered(cams);
+  const cams=dc.ready?dcUniverse():[],tpl=dc.ready?dcTemplates(lock?[lock]:cams):[],list=dcFiltered(cams);
   // Шаблоны, мешающие выбранному: вместе на одном канале их не включить
   const clash=key=>{const t=tpl.find(x=>x.key===key);if(!t)return"";const hit=tpl.find(x=>dc.items.has(x.key)&&x.key!==key&&((x.o.conflicts||[]).includes(t.o.template)||(t.o.conflicts||[]).includes(x.o.template)));return hit?`${i18n("Нельзя вместе с")} «${hit.o.name}»`:""};
   const lockWhy=key=>lock&&dc.ready?dcWhy(lock,key)||"":"";
   const plan=dcPlan(cams,tpl),total=plan.reduce((s,p)=>s+p.fit.length,0),camsHit=new Set(plan.flatMap(p=>p.fit.map(c=>c.id))).size;
-  const gs=dcTrigs(plan,tpl),withRule=dc.rule.mode==="new"||(dc.rule.mode==="add"&&dc.rule.pick);
+  const gs=dcTrigs(plan,tpl);
+  if(gs.length&&dc.rule.pick&&!dcRuleCands(gs).some(x=>x.id===dc.rule.pick))dc.rule.pick="";
+  const withRule=dc.rule.mode==="new"||(dc.rule.mode==="add"&&dc.rule.pick);
   const steps=dcSteps(),st=steps[Math.min(dc.step,steps.length-1)],last=dc.step>=steps.length-1;
   const okStep=x=>x.k==="what"?dc.items.size>0:x.k==="cams"?total>0:x.k==="rule"?dcRuleOk(gs):true;
   const secWhat=()=>{
@@ -9918,7 +9953,7 @@ function renderDetCreate(){
     const skips=plan.flatMap(p=>[...p.skip.entries()].map(([w,c])=>`<div class="dc-plan-s">${escHtml(p.name)}: ${i18n("пропустим")} ${c}, ${escHtml(w)}</div>`)).join("");
     const r=dc.rule,acts=r.mode==="new"?dcCustomRule(gs).then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; "):"";
     const ruleLines=r.mode==="none"?`<p class="sub dc-note">${i18n("Без правила: событие попадёт только в журнал.")}</p>`
-      :r.mode==="add"?`<p class="sub dc-note">${r.pick?`${i18n("Камеры встанут в правило")} «${escHtml(rules.find(x=>x.id===r.pick)?.name||"")}».`:i18n("Правило не выбрано: детекторы создадутся без него.")}</p>`
+      :r.mode==="add"?`<p class="sub dc-note">${r.pick?`${i18n("Камеры встанут в правило")} «${escHtml(rules.find(x=>x.id===r.pick)?.name||"")}».${dcPickMiss(gs,r.pick).length?` ${i18n("Без правила останутся")}: ${escHtml(dcPickMiss(gs,r.pick).flatMap(g=>g.names).join(", "))}.`:""}`:i18n("Правило не выбрано: детекторы создадутся без него.")}</p>`
       :gs.map(g=>`<div class="dc-plan"><div>${escHtml(triggerLabel(dcRuleWhen(g)))}</div><div class="dc-plan-s">${escHtml(acts)}${dc.custom?.cond.length?` · ${i18n("условий")}: ${dc.custom.cond.length}`:""}${r.watch?` · ${i18n("только журнал")}`:""}</div></div>`).join("");
     return`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="p"><p class="dc-total"><b>${total}</b> ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} <b>${camsHit}</b> ${i18n(plural(camsHit,"камере|камерах|камерах"))}</p>${skips}
       <table class="bk-table"><thead><tr><th>#</th><th>${i18n("Камера")}</th><th>${i18n("Детектор")}</th><th>${i18n("Зона")}</th></tr></thead><tbody>${tr}</tbody></table>
@@ -9951,7 +9986,7 @@ function dcCreateBody(key,cam,tpl,zone){
   return body;
 }
 function dcRun(){
-  const cams=detCams(),tpl=dcTemplates(dc.lock?cams.filter(c=>c.id===dc.lock):cams),plan=dcPlan(cams,tpl).filter(p=>p.fit.length);
+  const cams=dcUniverse(),tpl=dcTemplates(dc.lock?cams.filter(c=>c.id===dc.lock):cams),plan=dcPlan(cams,tpl).filter(p=>p.fit.length);
   if(!plan.length)return;
   const ch=plan.map(p=>({key:"dc:"+p.key,label:`${i18n("Детектор")} «${p.name}»`,note:"",ops:p.fit.map(c=>Object.assign(mkOp(c,`${i18n("Детектор")} «${p.name}»`,"det",()=>{}),{api:{create:dcCreateBody(p.key,c,tpl,dcZoneOf(`dc:${p.key}|${c.id}`))}}))}));
   const nodes=[...new Set(plan.flatMap(p=>p.fit))],gs=dcTrigs(plan,tpl),rule={...dc.rule},custom=rule.mode==="new"?ruleClone(dcCustomRule(gs)):null;
@@ -9965,7 +10000,7 @@ function dcRuleCreate(gs,rule,custom){
   const now=ruleNow(),first=custom.then[0];
   const word=i18n(first.ctl?ctlKind(first).label:actionKind(first).short||actionKind(first).label);
   const body=g=>ruleBody({name:`${[...new Set(g.names)].join(", ")} — ${word.toLowerCase()}`,on:true,watch:rule.watch,repeat:"skip",start:"event",run:{mode:"always",modes:[]},cond:ruleClone(custom.cond),menu:false,rate:6,within:0,sched:null,
-    when:[dcRuleWhen(g)],then:ruleClone(custom.then),owner:ACC_ME,purpose:"",created:{by:ACC_ME,at:now},changed:{by:ACC_ME,at:now},server:(servers[0]||{}).id||"",runAs:"system",chain:true});
+    when:[dcRuleWhen(g)],then:ruleClone(custom.then),owner:ACC_ME,purpose:"",created:{by:ACC_ME,at:now},changed:{by:ACC_ME,at:now},server:dcRuleServer(g.cams),runAs:"system",chain:true});
   Promise.allSettled(gs.map(g=>API.post("/rules",body(g)).then(async x=>{ruleSet(x);await ruleHistLoad(x.id);return x}))).then(res=>{
     const ok=res.filter(x=>x.status==="fulfilled").map(x=>x.value),bad=res.find(x=>x.status==="rejected");
     if(bad)toast(problemText(bad.reason));
