@@ -518,7 +518,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goTab("gen");
   ok(/Сетевое хранилище…/.test(document.querySelector(".dom-acts").textContent), "хранилище: в «Действиях» домена есть");
   ok(addSplitItems(d2Dom).some(([l]) => /Сетевое хранилище…/.test(l)), "хранилище: в меню кнопки домена есть");
-  ok(addSplitItems(d2Dom).some(([l]) => /Серверы по IP/.test(l)), "в меню кнопки домена — серверы по IP");
+  ok(addSplitItems(d2Dom).some(([l]) => /Серверы( по IP)?…/.test(l)), "в меню кнопки домена — серверы по IP");
   ok(addSplitItems(d2Srv).some(([l]) => /Хранилище…/.test(l)), "хранилище: в меню кнопки сервера есть");
   goTab("srvs");
   ok(d2DomBtns().length === 1, "вкладка «Серверы» домена: одна кнопка над списком");
