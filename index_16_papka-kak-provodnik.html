@@ -460,6 +460,8 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .fl-up{flex:none;margin-right:10px}
 .fl-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 10px}
 .fl-tools .sq{flex:1 1 220px;margin:0;min-width:160px}
+.fl-draft-in{width:min(320px,60%);height:28px;padding:0 8px;vertical-align:middle;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bl);border-radius:4px;outline:0;box-sizing:border-box}
+.fl-draft-hint{display:inline;margin:0 0 0 10px;font-size:12px}
 .fl-nested{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;white-space:nowrap}
 .fl-sum{font-size:12px;color:var(--mu);margin:0 0 8px}
 .fl-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;margin:0 0 8px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);min-height:40px}
@@ -7091,16 +7093,20 @@ function clearFolder(folderId){
     }).catch(e=>toast(problemText(e)));
   });
 }
+function folderAdded(r,parent,did){
+  hwVer.set(r.id,r.version);
+  const f=folderById(r.id)||folderNode(r);
+  if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f)}
+  open.add(parent?parent.id:did);
+  treeMatchCache.clear();searchMatchCache.clear();
+  return f;
+}
 function addSubfolder(parentId,domainId){
   closeTreeCtx();
   const parent=parentId?folderById(parentId):null;
   const did=parent?folderDomain(parent.id):(domainId||domains[0].id);
   API.post("/folders",{name:i18n("Новая папка"),domainId:did,parentId:parent?parent.id:null}).then(r=>{
-    hwVer.set(r.id,r.version);
-    const f=folderById(r.id)||folderNode(r);
-    if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f)}
-    open.add(parent?parent.id:did);
-    treeMatchCache.clear();searchMatchCache.clear();
+    const f=folderAdded(r,parent,did);
     sel=f.id;selFolder=f.id;tab="gen";setD(false);expandTo(f.id);
     treeRenameId=f.id;treeRenameField="name";
     paint();
@@ -9186,7 +9192,7 @@ function flMatch(it,skip){
 }
 function flEnsure(f){
   if(fl.owner===f.id)return;
-  fl.owner=f.id;fl.filt={...FL_FILT0};fl.nested=false;fl.anchor=null;
+  fl.owner=f.id;fl.filt={...FL_FILT0};fl.nested=false;fl.anchor=null;fl.draft=null;fl.draftBusy=false;
   if(fl.nextCur)delete listQ["fld:"+f.id];
   fl.cur=fl.nextCur||null;fl.jump=!!fl.nextCur;fl.nextCur=null;
 }
@@ -9262,7 +9268,7 @@ function flToolsHtml(f,key){
   return`<div class="fl-tools">
     ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
     ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, без строк папок: у каждого устройства подписано, где оно лежит")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Все устройства домена":"Все устройства, включая подпапки")}</span></label>`}
-    ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${f.id}`])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button>`}
+    ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
 // Содержимое читается веткой дерева: кэш знает только открытое. В строке перечня нет адреса и модели,
@@ -9303,9 +9309,9 @@ function folderCardHtml(f){
   if(failed&&!items.filter(it=>!it.nf).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Не удалось прочитать содержимое")}</b><p class="sub">${retry}</p></div></div>`;
   const hint=`<p class="sub">${f.type==="nofolder"?i18n("Устройства домена, которые не лежат ни в одной папке. Работают как обычно; положить в папку можно панелью над списком."):i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
   if(f.type==="nofolder"&&!f.items.length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена разложены по папкам")}</b></div></div>`;
-  if(f.type==="folder"&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
+  if(f.type==="folder"&&fl.draft==null&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
       <p class="sub">${i18n("Положите сюда устройства: найденные в сети, добавленные по адресу или из файла, или те, что уже есть в системе.")}</p>
-      <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
+      <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
   const found=flFound(f);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
   if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
@@ -9314,7 +9320,8 @@ function folderCardHtml(f){
   const nf=items.filter(it=>it.fld&&!it.nf).length,nd=items.filter(it=>!it.fld).length;
   const sum=[nf?`${nf} ${i18n(plural(nf,"папка|папки|папок"))}`:"",nd?`${nd} ${i18n(plural(nd,"устройство|устройства|устройств"))}`:""].filter(Boolean).join(" · ")||i18n("Пусто");
   const th=[["name","Имя"],["type","Тип"],["ip","IP-адрес"],["srv","Сервер"],["model","Модель"],["st","Состояние"]].map(([k,l])=>`<th class="lan-th ${fl.sort===k?"on":""}" ${onEv("click",["flSortBy",`${k}`])}><span class="gtbl-th-txt">${i18n(l)}${fl.sort===k?(fl.dir>0?lu("arrow-up",12):lu("arrow-down",12)):""}</span></th>`).join("");
-  const body=rows.length?rows.map(it=>flRowHtml(f,it)).join(""):`<tr><td class="empty" colspan="7">${i18n("Ничего не найдено")}</td></tr>`;
+  if(fl.draft!=null&&!fl.draftBusy)flDraftFocus();
+  const body=flDraftRowHtml()+(rows.length?rows.map(it=>flRowHtml(f,it)).join(""):fl.draft!=null?"":`<tr><td class="empty" colspan="7">${i18n("Ничего не найдено")}</td></tr>`);
   return`<div class="card" id="flCard"><div class="cb">
     ${flToolsHtml(f,key)}
     ${flFacetsHtml(items.filter(it=>!it.nf))}
@@ -9351,6 +9358,61 @@ function flUp(){
   fl.nextCur=f.id;
   flOpen(up?up.id:flDom(f));
 }
+// Новая папка — там же, где нажали: строка с именем в этом списке, как в Проводнике. Экран остаётся, дерево только обновляется
+function flNewFolder(){
+  const f=flHolder(fl.owner);if(!f||f.type==="nofolder")return;
+  if(fl.draft==null){
+    fl.draft=i18n("Новая папка");fl.draftSel=true;fl.nested=false;fl.filt={...FL_FILT0};fl.cur=null;
+    delete listQ["fld:"+f.id];resetPage("fld:"+f.id);
+    gear();
+  }
+  flDraftFocus();
+}
+function flDraftRowHtml(){
+  if(fl.draft==null)return"";
+  return`<tr class="gtbl-r fl-r-new" id="flDraftRow"><td class="lan-chk"></td><td class="fl-nm" colspan="6"><span class="fl-nm-ic">${ic("folder")}</span><input id="flDraft" class="fl-draft-in" value="${escHtml(fl.draft)}" aria-label="${i18n("Имя новой папки")}" autocomplete="off" ${fl.draftBusy?"disabled":""} ${onEv("input",["flDraftInput",onEv.value])} ${onEv("keydown",["flDraftKey",onEv.event])}><span class="sub fl-draft-hint">${i18n("Enter — создать, Esc — отмена")}</span></td></tr>`;
+}
+function flDraftFocus(){
+  requestAnimationFrame(()=>{
+    const el=document.getElementById("flDraft");if(!el||el.disabled||document.activeElement===el)return;
+    el.focus();
+    if(fl.draftSel){el.select();fl.draftSel=false}else el.setSelectionRange(el.value.length,el.value.length);
+  });
+}
+function flDraftInput(v){fl.draft=v}
+function flDraftKey(e){
+  e.stopPropagation();
+  if(e.key==="Enter"){e.preventDefault();flDraftCommit()}
+  else if(e.key==="Escape"){e.preventDefault();flDraftCancel()}
+  else if(e.key==="Tab")flDraftCommit();
+}
+function flDraftCancel(){
+  if(fl.draftBusy)return;
+  fl.draft=null;gear();
+  requestAnimationFrame(()=>document.querySelector(".fl-add-folder")?.focus());
+}
+function flDraftCommit(){
+  if(fl.draft==null||fl.draftBusy)return;
+  const owner=fl.owner,f=flHolder(owner),name=fl.draft.trim();
+  if(!name||!f){flDraftCancel();return}
+  // Поле держится до ответа; перерисовки нет, чтобы щелчок, который сюда привёл, попал в свою строку
+  fl.draftBusy=true;
+  const el=document.getElementById("flDraft");if(el)el.disabled=true;
+  const parent=f.type==="folder"?f:null,did=flDom(f);
+  API.post("/folders",{name,domainId:did,parentId:parent?parent.id:null}).then(r=>{
+    const n=folderAdded(r,parent,did);
+    if(fl.owner===owner){
+      fl.draft=null;fl.draftBusy=false;
+      if(!fl.cur){fl.cur=n.id;fl.jump=true}
+    }
+    paint();
+  }).catch(e=>{
+    toast(problemText(e));
+    // Имя остаётся в поле: его можно поправить или отменить
+    if(fl.owner===owner){fl.draftBusy=false;if(app==="hw"&&sel===owner)gear()}
+  });
+}
+document.addEventListener("mousedown",e=>{if(fl.draft!=null&&!e.target.closest?.("#flDraftRow,.fl-add-folder"))flDraftCommit()},true);
 function flFolderMenu(e,how){
   e.stopPropagation();
   const f=flHolder(fl.owner);if(!f)return;
@@ -10643,7 +10705,7 @@ function formBase(n){
       card("Действия",`<div class="dom-acts">
         <button type="button" class="btn s" ${onEv("click",["openW","server"])}>${lu("plus")}${i18n("Сервер")}</button>
         <button type="button" class="btn s" data-needs="probeServers" ${onEv("click",["openFindServerByIp",`${n.id}`])}>${i18n("Добавить серверы по IP")}</button>
-        <button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${n.id}`])}>${lu("plus")}${i18n("Папка")}</button>
+        <button type="button" class="btn s" ${onEv("click",["goTab","flds"],["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>
         ${canDomainArch()?`<button type="button" class="btn s" ${onEv("click",["addArchive",`${n.id}`])}>${lu("plus")}${i18n("Сетевое хранилище")}…</button>`:""}
         <span style="flex:1"></span>
         <button type="button" class="btn s" data-needs="createDomain" ${onEv("click",["addDomain"])}>${lu("plus")}${i18n("Домен")}</button>
@@ -24201,7 +24263,10 @@ Tour.offer("Показать, что изменилось", (()=>{
     {say:"Вернулись на уровень выше, и папка, из которой вышли, подсвечена: не надо вспоминать, откуда пришли.",at:byText("tr.fl-r.on",/Инженерные системы/)},
     {say:"Переключатель показывает всё, что лежит глубже, одним списком. Раньше вложенное пряталось на вкладке «Таблица».",at:q(".fl-nested"),act:"click"},
     {say:"У каждого устройства написано, в какой оно подпапке.",at:q("td .fl-also")},
-    {say:"Добавление теперь отдельный шаг, а не вкладка рядом с содержимым.",before:()=>{if(fl.nested)flNested(false)},at:byText(".hd-act .btn.pri",/Добавить в папку/),act:"click"},
+    {say:"Подпапка создаётся там же, где нажали: строка с именем появляется прямо в этом списке. Раньше экран уходил, а имя надо было вводить в дереве.",before:()=>{if(fl.nested)flNested(false)},at:q(".fl-add-folder"),act:"click"},
+    {say:"Вводим имя. Enter создаёт папку, Esc отменяет.",before:()=>{const el=document.getElementById("flDraft");if(el)el.value=""},at:q("#flDraft"),act:"type",text:"Новая зона"},
+    {say:"Папка появилась в этом же списке и выбрана, экран никуда не ушёл. Дерево просто обновилось; откроете её, когда понадобится.",before:()=>flDraftCommit(),at:byText("tr.fl-r.on",/Новая зона/)},
+    {say:"Добавление теперь отдельный шаг, а не вкладка рядом с содержимым.",at:byText(".hd-act .btn.pri",/Добавить в папку/),act:"click"},
     {say:"Папка, куда всё попадёт, всегда на виду и меняется здесь же. Источники те же: найденные в сети, по адресу, из файла.",at:q(".plan-fld")},
     {say:"И новый источник: устройства, которые уже есть в системе. Они останутся, где были, и появятся ещё и в этой папке.",at:byText("#wizDr .tab, #wizDr button",/^Уже в системе/),act:"click"},
     {say:"Отмечаем устройство. Рядом видно, где оно лежит сейчас.",at:()=>byText(".fa-tbl tbody tr",/Аудитория 1/)()?.querySelector("input.ts-chk"),act:"click"},

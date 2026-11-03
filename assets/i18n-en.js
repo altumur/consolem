@@ -850,6 +850,8 @@ window.I18N_EN={
 "Показать":"Show",
 "Положено в папку":"Put in folder",
 "Положено в":"Put in",
+"Имя новой папки":"New folder name",
+"Enter — создать, Esc — отмена":"Enter to create, Esc to cancel",
 "Работают":"Working",
 "Выключены":"Turned off",
 "В других папках":"In other folders",
