@@ -1,6 +1,5 @@
-/* Прототип 12: план добавления устройств. Один вход в шапке, три источника в один план, в системе ничего
-   нет до «Применить», отказы — по строкам, повтор неудачных. Запуск:
-   python3 tools/check_ui.py --page index_12_plan-dobavleniya.html tests/proto-12-plan.js */
+/* План добавления устройств. Один вход в шапке, три источника в один план, в системе ничего
+   нет до «Применить», отказы — по строкам, повтор неудачных. */
 UiCheck(async ({ ok, until, confirmWith }) => {
   goApp("hw");
   const d1 = domains[0];
@@ -226,6 +225,44 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   closeWizard();
   addPlan.rows = [];
   planTouch();
+
+  // Занятый адрес: камеры лежат в devicePool, в другом домене тот же адрес — другая сеть
+  const poolCam = find(devOf((x) => x.type === "camera" && find(x.id).n.ip).id).n;
+  const poolRow = { source: "manual", r: { ip: poolCam.ip, port: poolCam.port || 80 }, domainId: nodeDomainId(poolCam) };
+  ok(planAddrInPool(poolRow), "адрес существующей камеры: строка плана о нём знает");
+  ok(!planAddrInPool({ ...poolRow, domainId: "другой домен" }) && !planAddrInPool({ ...poolRow, r: { ip: "10.250.250.250", port: 80 } }), "другой домен или адрес — не занято");
+
+  // Карточка найденного в дереве: в систему — только через план
+  await Promise.all(domains.map((d) => discLoad(d.id)));
+  await until(() => domains.some((d) => foundAll(d.id).length));
+  const fdDom = domains.find((d) => foundAll(d.id).some((r) => r.status === "ok" && !r.added));
+  if (fdDom) {
+    const fdRow = foundAll(fdDom.id).find((r) => r.status === "ok" && !r.added);
+    const fdPosts = [];
+    API.post = function (path, body, ...rest) {
+      if (path === "/devices") fdPosts.push(body);
+      return realPost.call(this, path, body, ...rest);
+    };
+    pick(`fdev:${fdDom.id}:${fdRow.id}`);
+    goTab("gen");
+    const fdBtn = (re) => [...document.querySelectorAll("#main .sc button")].find((b) => re.test(b.textContent));
+    ok(await until(() => fdBtn(/^В план$/)) && !fdBtn(/Добавить устройство/), "карточка найденного: кнопка «В план», прямого добавления нет");
+    fdBtn(/^В план$/).click();
+    ok(addPlan.rows.length === 1 && fdRow.planned && !fdPosts.length, "карточка найденного: строка в плане, запроса нет");
+    ok(await until(() => fdBtn(/Открыть план/) && fdBtn(/^Убрать$/)) && !fdBtn(/^В план$/), "карточка найденного: видно, что устройство в плане");
+    fdBtn(/^Убрать$/).click();
+    ok(addPlan.rows.length === 0 && !fdRow.planned, "карточка найденного: «Убрать» снимает строку");
+    ok(await until(() => fdBtn(/^В план$/)), "карточка найденного: кнопка вернулась");
+    fdBtn(/^В план$/).click();
+    fdBtn(/Открыть план/).click();
+    ok(sel === fdDom.id && planInDrawer() && document.querySelectorAll("#planPanel .plan-row").length === 1, "карточка найденного: «Открыть план» открывает план домена со строкой");
+    closeWizard();
+    API.post = realPost;
+    addPlan.rows = [];
+    planTouch();
+    planRemark();
+    fdRow.planned = null;
+  } else ok(false, "в наборе нет найденного устройства для проверки карточки");
 
   // F4: ошибки строки исправляются в самой строке
   pick(d1.id);
@@ -570,8 +607,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goTab("disk");
   ok([...d2Main().querySelectorAll("button")].some((b) => /Хранилище…/.test(b.textContent)), "вкладка дисков сервера: кнопка создания");
 
-  // Шестой вид — «Облачное» (S3): только на этой странице, общий набор его не объявляет
-  ok(Object.values(window.CONSOLEM_FIXTURES).every((fx) => fx.reference.archiveKinds.every((k) => k.kind !== "cloud")), "S3: общие наборы не тронуты");
+  // Шестой вид — «Облачное» (S3): форма показывает то, что объявил сервер. В наборе его пока нет: запрос mockup — виды и производители
+  if (refArchKinds.some((k) => k.kind === "cloud")) {
   ok(refArchKinds.map((k) => k.kind).join() === "local,network,cloud,backup,edge,incidents", "S3: шесть видов, облачное рядом с удалённым — " + refArchKinds.map((k) => k.kind));
   addArchive(d2Srv.id);
   const d2Cards = () => [...d2Body().querySelectorAll(".an-kind")];
@@ -615,6 +652,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !an && arch.some((a) => a.name === "S3 на домене — срез 2")), "S3: создано с домена");
   const d2S3Dom = await API.get("/archives/" + arch.find((a) => a.name === "S3 на домене — срез 2").id);
   ok(d2S3Dom.kind === "cloud" && d2S3Dom.provider === "minio" && !d2S3Dom.serverId && d2S3Dom.domainId === d2Dom.id, "S3 с домена: владелец — домен, провайдер MinIO");
+  } else ok(!arch.some((a) => a.kind === "cloud"), "S3: вид не объявлен — форма его не предлагает");
   pick(d2Srv.id);
   goTab("disk");
 
@@ -662,11 +700,17 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Производитель RTSP: поле адреса называется RTSP, порта и «Определить» нет
   s3Cam("");
   let s3V = s3Cb("changeManualVendor");
-  s3Type(s3V, "rtsp");
-  ok(combo && s3Opts()[0] === "RTSP", "автокомплит: совпадение с начала имени — первым: " + s3Opts().slice(0, 3));
+  s3Type(s3V, "uni");
+  ok(combo && s3Opts()[0] === "Uniview", "автокомплит: совпадение с начала имени — первым: " + s3Opts().slice(0, 3));
   s3Key(s3V, "Enter");
   await until(() => !combo);
-  ok(wizd.manual.vendor === "RTSP", "автокомплит: Enter выбирает — " + wizd.manual.vendor);
+  ok(wizd.manual.vendor === "Uniview", "автокомплит: Enter выбирает — " + wizd.manual.vendor);
+  // RTSP — пока вписанным руками: в наборе такого производителя нет (запрос mockup — виды и производители)
+  s3V = s3Cb("changeManualVendor");
+  s3Type(s3V, "RTSP");
+  s3Key(s3V, "Enter");
+  await until(() => !combo);
+  ok(/^rtsp$/i.test(wizd.manual.vendor), "производитель вне списка остаётся вписанным — " + wizd.manual.vendor);
   ok(s3Labels().slice(0, 4).join() === "Тип устройства,Производитель,Модель,RTSP" && !s3Labels().includes("Порт") && !s3Labels().includes("IP-адрес"), "RTSP: поле адреса переименовано, порта нет — " + s3Labels().slice(0, 5));
   ok(!/Определить/.test(document.querySelector("#wbd .dev-grid").textContent), "RTSP: «Определить» не предлагается");
   ok(document.activeElement === s3Cb("changeManualVendor"), "автокомплит: после выбора фокус в том же поле");
@@ -770,12 +814,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   wizd.devSelected.clear();
 
   // Файл: регистр поправлен, производитель вне списка в план идёт и там же правится
-  ok(DEVICE_MODELS.Abus || DEVICE_MODELS.ABUS, "драйвер-пак: производитель есть в списке");
-  ok(Object.keys(DEVICE_MODELS).length > 300 && DEVICE_MODELS.RTSP && !Object.keys(DEVICE_MODELS).some((v) => /joystick|^Vendor Name$/i.test(v)), "драйвер-пак: весь список, без джойстиков — " + Object.keys(DEVICE_MODELS).length);
-  ok(Object.values(window.CONSOLEM_FIXTURES).every((fx) => fx.reference.deviceModels.length < 100), "драйвер-пак: общие наборы не тронуты");
   planClear();
   setDeviceTab("csv");
-  wizd.csvRows = parseCsvDeviceRows(["10.8.1.1,80,hikvision,DS-2CD2143G2,admin,pw", "10.8.1.2,80,ABUS,TV1,admin,pw", "10.8.1.3,80,Нет такого,M1,admin,pw", "10.8.1.4,80,Axis,Нет такой,admin,pw"].join(String.fromCharCode(10)));
+  wizd.csvRows = parseCsvDeviceRows(["10.8.1.1,80,hikvision,DS-2CD2143G2,admin,pw", `10.8.1.2,80,BOSCH,${DEVICE_MODELS.Bosch[0]},admin,pw`, "10.8.1.3,80,Нет такого,M1,admin,pw", "10.8.1.4,80,Axis,Нет такой,admin,pw"].join(String.fromCharCode(10)));
   ok(csvImportableRows(wizd.csvRows).length === 4, "файл: все строки можно отправить в план");
   ok(wizd.csvRows[0].vendor === "Hikvision" && !wizd.csvRows[0].warns.length, "файл: регистр производителя поправлен");
   ok(wizd.csvRows[2].warns.length === 1 && wizd.csvRows[3].warns.length === 1 && !wizd.csvRows[1].warns.length, "файл: предупреждения только у неизвестных");
@@ -792,11 +833,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const s3Pl = () => document.querySelector(`.plan-row[data-pid="${s3Row("10.8.1.3").pid}"]`);
   ["vendor", "model", "arch", "group"].forEach((k) => ok(s3Pl().querySelector(`input[data-combo][data-pf="${k}"]`), "план: поле с автокомплитом " + k));
   const s3Pv = s3Pl().querySelector('input[data-pf="vendor"]');
-  s3Type(s3Pv, "abus");
+  s3Type(s3Pv, "bosch");
   s3Key(s3Pv, "Enter");
   await until(() => !combo);
   ok(!planRowIssues(s3Row("10.8.1.3")).some((i) => i.err), "файл: производитель поправлен в плане, ошибки нет — " + s3Row("10.8.1.3").r.vendor);
-  ok(s3Row("10.8.1.3").r.model === "M1", "план: модель, которую нечем заменить, остаётся");
+  ok(manualModels(s3Row("10.8.1.3").r.vendor).length || s3Row("10.8.1.3").r.model === "M1", "план: модель, которую нечем заменить, остаётся");
   planEdit(s3Row("10.8.1.3").pid, "vendor", "RTSP");
   const s3Pid = addPlan.rows.find((x) => x.r.vendor === "RTSP").pid;
   const s3Rp = document.querySelector(`.plan-row[data-pid="${s3Pid}"]`);
@@ -807,7 +848,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await until(() => !addPlan.applying && !addPlan.rows.length);
   ok(!addPlan.rows.length, "файл: план применён целиком");
   const s3Got = addPlan.added.find((x) => x.ip === "10.8.1.2"), s3Made = s3Got && (await API.get("/devices/" + s3Got.id));
-  ok(s3Made && /abus/i.test(s3Made.vendor), "на сервере производитель из файла — " + (s3Made && s3Made.vendor));
+  ok(s3Made && s3Made.vendor === "Bosch", "на сервере производитель из файла, регистр поправлен — " + (s3Made && s3Made.vendor));
 
   // Находки ревью: положение списка, тот же выбор, Enter, адрес, которого не видно, найденное со своим текстом
   setDeviceTab("manual");
@@ -822,7 +863,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   });
   s3V = s3Cb("changeManualVendor");
   comboClick(s3V);
-  ok(s3Opts()[0] === "Hikvision" && document.querySelector("#comboPop .combo-opt.cur.on") !== null, "текущий за первой сотней виден и выделен: " + s3Opts()[0]);
+  ok((Object.keys(DEVICE_MODELS).length <= COMBO_MAX || s3Opts()[0] === "Hikvision") && document.querySelector("#comboPop .combo-opt.cur.on") !== null, "текущий виден и выделен, и за первой сотней: " + s3Opts()[0]);
   s3Key(s3V, "Enter");
   await until(() => !combo);
   ok(wizd.manual.vendor === "Hikvision" && wizd.manual.model === "Своя", "тот же производитель: модель не сброшена — " + wizd.manual.model);

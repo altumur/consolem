@@ -32,7 +32,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const ref = await API.get("/reference");
   ok(Object.keys(DEVICE_MODELS).length === ref.deviceModels.length, "модели из reference.deviceModels");
   wizd = initDeviceWizard(addContext());
-  ok(/<datalist id="devModelList"/.test(deviceManualHtml()) && /RTSP/.test(deviceManualHtml()), "модель с подсказками, поле RTSP в ручном добавлении");
+  ok(/data-ck="updateManual\|model"/.test(deviceManualHtml()) && !/<label>RTSP/.test(deviceManualHtml()), "модель с подсказками, отдельного поля RTSP в ручном добавлении нет");
+  const manualVendor = wizd.manual.vendor;
+  wizd.manual.vendor = "RTSP";
+  ok(/<label>RTSP/.test(deviceManualHtml()), "производитель RTSP: поле адреса называется RTSP");
+  wizd.manual.vendor = manualVendor;
   ok(!/MAC-адрес/.test(deviceManualHtml()), "MAC вручную не вводится: он только из поиска");
   const withUrl = of("camera", (d) => d.rtspUrl);
   open(withUrl.id);
@@ -211,7 +215,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   openW("unit");
   chooseAdd("object", "acfa", "acfa_lock");
   wnx();
-  ok(!!document.getElementById("wizPath") && !document.getElementById("wizFolder"), "у единицы адрес, папку не предлагаем");
+  ok(!!document.getElementById("wizPath") && !document.querySelector('input[data-ck="wizPlace|folder"]'), "у единицы адрес, папку не предлагаем");
   ok([...document.getElementById("wizParent").options].some((o) => /камера|Камера/.test(o.textContent)), "родитель — и камера");
   ok(!!document.getElementById("wizUnitModel"), "шаблон — из unitOptions");
   document.getElementById("wizPath").value = "door/20";
