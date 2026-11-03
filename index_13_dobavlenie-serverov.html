@@ -4834,6 +4834,7 @@ function openAddServers(domainId,toAddress){
   if(!did)return;
   openW("server");
   wizd.domain=did;
+  delete listQ[srvKey()];resetPage(srvKey());
   wizd.ipFocus=!!toAddress||!unallocDisplayList(did).length;
   wd();
 }
@@ -20856,22 +20857,27 @@ function ipTextSet(el){
 // Enter — искать, Shift+Enter — новая строка
 function ipBulkKey(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();runIpProbe()}}
 function runIpProbe(){
-  const text=ipBulkText();
-  wizd.ipText=text;
+  if(wizd.ipBusy)return;
+  const w=wizd,text=ipBulkText();
+  w.ipText=text;
   const{targets,bad,over}=parseIpTargets(text);
-  wizd.ipBad=bad;
-  wizd.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("За раз опрашиваем не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
+  w.ipBad=bad;
+  w.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("За раз опрашиваем не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
   if(!targets.length){wd();return}
-  wizd.ipBusy=true;wd();
+  w.ipBusy=true;wd();
   // Отвечает ли адрес и заведён ли уже такой сервер — знает сервер (POST /servers/probe)
   API.post("/servers/probe",{targets:targets.map(t=>({ip:t.ip,port:t.port}))}).then(res=>{
-    wizd.ipRows=res.items.map(r=>({key:r.ip+":"+r.port,ip:r.ip,port:r.port,status:r.status,serverId:r.serverId,domain:domainById(r.domainId),added:false}));
-    if(!wizd.ipPick)wizd.ipPick=new Set();
+    if(wizd!==w)return;
+    w.ipRows=res.items.map(r=>({key:r.ip+":"+r.port,ip:r.ip,port:r.port,status:r.status,serverId:r.serverId,domain:domainById(r.domainId),added:false}));
+    if(!w.ipPick)w.ipPick=new Set();
     // Адрес ввели нарочно: найденное отмечено сразу
-    wizd.ipRows.filter(r=>r.status==="found").forEach(r=>wizd.ipPick.add(r.key));
-    wizd.ipPhase="done";
+    w.ipRows.filter(r=>r.status==="found").forEach(r=>w.ipPick.add(r.key));
+    w.ipPhase="done";
+    w.ipFail={};
+    // Фильтр списка не должен прятать только что найденное
+    delete listQ[srvKey()];
     resetPage(srvKey());
-  }).catch(e=>{wizd.ipMsg=problemText(e)}).finally(()=>{wizd.ipBusy=false;wd()});
+  }).catch(e=>{w.ipMsg=problemText(e)}).finally(()=>{w.ipBusy=false;if(wizd===w)wd()});
 }
 function ipClear(){
   (wizd.ipRows||[]).forEach(r=>wizd.ipPick.delete(r.key));
@@ -20894,6 +20900,7 @@ function ipPicked(){const set=wizd.ipPick||new Set();return ipRowsAddable().filt
 function toggleIpPick(key,on){
   if(!wizd.ipPick)wizd.ipPick=new Set();
   if(on)wizd.ipPick.add(key);else wizd.ipPick.delete(key);
+  if(wizd.ipFail)delete wizd.ipFail[key];
   wd();
 }
 function toggleIpRow(key){toggleIpPick(key,!wizd.ipPick?.has(key))}
@@ -20901,35 +20908,47 @@ function toggleIpPickAll(on){
   wizd.ipPick=new Set(on?ipRowsAddable().map(r=>r.key):[]);
   wd();
 }
-async function addProbedServers(sure){
-  const list=ipPicked();
+function wizLive(w){return wizd===w&&document.getElementById("wiz").classList.contains("open")}
+// okIds — чьи отпечатки уже сверены. Заведённый на повторном проходе в них не входит и сверяется отдельно
+async function addProbedServers(okIds){
+  const w=wizd,list=ipPicked();
+  if(w.ipAdding)return;
   if(!list.length){toast("Ничего не выбрано");return}
   const did=srvDid();
-  wizd.ipFail={};
+  w.ipFail={};w.ipAdding=true;wd();
+  const release=()=>{w.ipAdding=false;if(wizd===w)wd()};
   // Новый адрес сначала заводится (нераспределённым), затем встаёт в домен
   for(const r of list){
     if(r.serverId)continue;
     try{const rec=await API.post("/servers",{ip:r.ip,port:r.port,domainId:did});hwApplyServer(rec);r.serverId=rec.id}
-    catch(e){wizd.ipFail[r.key]=problemText(e)}
+    catch(e){w.ipFail[r.key]=problemText(e)}
   }
-  const ready=list.filter(r=>r.serverId);
-  const knock=ready.map(r=>servers.find(x=>x.id===r.serverId)).filter(x=>x?.fingerprint);
-  if(knock.length&&!sure){wd();askFingerprints(knock,()=>addProbedServers(true));return}
+  // Окно закрыли, пока заводили: заведённые остаются нераспределёнными, без просмотра в домен их не ставим
+  if(!wizLive(w)){release();return}
+  const srv=r=>servers.find(x=>x.id===r.serverId);
+  list.filter(r=>r.serverId&&!srv(r)).forEach(r=>{w.ipFail[r.key]=i18n("Сервер не найден")});
+  const ready=list.filter(srv);
+  const unseen=ready.map(srv).filter(x=>x.fingerprint&&!okIds?.has(x.id));
+  if(unseen.length){
+    release();
+    askFingerprints(unseen,()=>addProbedServers(new Set([...(okIds||[]),...unseen.map(x=>x.id)])));
+    return;
+  }
   let n=0;
   try{
-    const res=ready.length?await serversAssign(ready.map(r=>({s:servers.find(x=>x.id===r.serverId),domainId:did,allocated:true}))):{done:[],failed:[]};
+    const res=ready.length?await serversAssign(ready.map(r=>({s:srv(r),domainId:did,allocated:true}))):{done:[],failed:[]};
     res.done.forEach(placeInDomain);
     n=res.done.length;
     const doneIds=new Set(res.done.map(x=>x.id));
-    ready.filter(r=>doneIds.has(r.serverId)).forEach(r=>{r.added=true;wizd.ipPick.delete(r.key)});
+    ready.filter(r=>doneIds.has(r.serverId)).forEach(r=>{r.added=true;w.ipPick.delete(r.key)});
     res.failed.forEach(f=>{
       const r=ready.find(x=>x.serverId===f.serverId);
-      if(r)wizd.ipFail[r.key]=problemText(f.code,servers.find(x=>x.id===f.serverId));
+      if(r)w.ipFail[r.key]=problemText(f.code,servers.find(x=>x.id===f.serverId));
     });
   }catch(e){toast(problemText(e))}
-  const bad=Object.keys(wizd.ipFail).length;
+  const bad=Object.keys(w.ipFail).length;
   if(n||bad)toast(bad?`${i18n("Добавлено серверов")}: ${n} · ${i18n("не добавлено")}: ${bad}`:n===1?"Сервер добавлен":`Добавлено серверов: ${n}`);
-  wd();
+  release();
 }
 function srvAddrHtml(){
   if(!can("probeServers"))return"";
@@ -20985,7 +21004,7 @@ function renderServerAdd(){
   const did=srvDid(),key=srvKey(),how="unalloc:"+did,n=ipPicked().length,wbd=document.getElementById("wbd"),st=viewState(wbd);
   const wn=document.getElementById("wn");
   wn.textContent=`${i18n("Добавить выбранные")} (${n})`;
-  wn.disabled=!n;
+  wn.disabled=!n||!!wizd.ipAdding;
   document.getElementById("wizFoot").innerHTML=`<span class="srv-foot">${i18n("В домен")} «${escHtml(locName(domainById(did)||{}))}»</span>`;
   const shown=srvRows();
   wbd.innerHTML=`${srvAddrHtml()}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
@@ -21984,10 +22003,12 @@ function bulkAddToDomainMenu(e){
   bulkOpenMenuAt(e.currentTarget,[`<div class="tctx-head">${i18n("Добавить в домен")} (${k})</div>`,
     ...domains.map(d=>tctxItem(escHtml(locName(d))+(d.online===false?` — ${i18n("нет связи")}`:""),`bulkAddToDomain('${d.id}')`,`<span class="tctx-ic">${ic("domain")}</span>`,d.online===false))].join(""));
 }
-function bulkAddToDomain(did){
+function bulkAddToDomain(did,sure){
   closeTreeCtx();
   const d=domainById(did);if(!d)return;
   const list=bulkUnallocServers(bulkScopeNodes());if(!list.length)return;
+  const knock=list.filter(s=>s.fingerprint);
+  if(knock.length&&!sure){askFingerprints(knock,()=>bulkAddToDomain(did,true));return}
   const back=list.map(s=>{const from=domainById(unallocDomainOf(s.id));return{s,from,i:from?from.unallocServers.indexOf(s):-1}});
   serversAssign(list.map(s=>({s,domainId:d.id,allocated:true}))).then(res=>{
     res.done.forEach(hwApplyServer);
@@ -23899,8 +23920,8 @@ Tour.offer("Показать, что изменилось", (()=>{
     {say:"Добавляем выбранные.",at:q("#wn"),act:"click"},
     {say:"Перед приёмом сверяем отпечатки. Раньше групповое добавление этот шаг молча пропускало.",at:q("#confirmMsg .fp-list")},
     {say:"Отпечатки совпали.",at:q("#confirmOk"),act:"click"},
-    {say:"Добавленные остаются в списке с пометкой, ничего не прыгает. Отсюда можно сразу перейти к серверу.",at:q(".srv-list .unalloc-added")},
-    {say:"Переходим к добавленному серверу.",at:byText(".srv-list .unalloc-added .btn",/Перейти/),act:"click"},
+    {say:"Добавленные остаются в списке с пометкой, ничего не прыгает. Отсюда можно сразу перейти к серверу.",at:row(/Добавлен/)},
+    {say:"Переходим к добавленному серверу.",at:()=>row(/Добавлен/)()?.querySelector(".btn"),act:"click"},
     {say:"Окно закрылось, место подсвечено: заголовок, вкладка и строка дерева. Искать сервер в дереве не нужно."},
   ];
 })());

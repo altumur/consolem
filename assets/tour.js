@@ -64,7 +64,9 @@
   // Показ всегда на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
   const reloadAt = (step) => {
     const u = new URL(location.href);
-    u.searchParams.set("demo", step ? String(step) : "");
+    u.searchParams.set("demo", step == null ? "" : String(step));
+    // Без якоря: адрес с одним только якорем страницу не перезагрузит
+    u.hash = "";
     location.href = u.href;
   };
 
@@ -101,7 +103,7 @@
       skip = true;
     };
     const backBtn = button("Назад", "btn s", goBack);
-    const pauseBtn = button("Пауза", "btn s", () => (ended ? reloadAt(0) : setPaused(!paused)));
+    const pauseBtn = button("Пауза", "btn s", () => (ended ? reloadAt() : setPaused(!paused)));
     const nextBtn = button("Дальше", "btn s", goNext);
     btns.append(backBtn, pauseBtn, nextBtn, button("Закрыть", "btn s", stop));
     ring.style.opacity = "0";
@@ -119,11 +121,17 @@
     }
     // Клавиши на время показа — только его: стрелка иначе пойдёт по дереву, Esc закроет окно
     const key = (e) => {
-      if (e.key === "Tab" || (e.key === "Enter" && panel.contains(e.target))) return;
       e.stopImmediatePropagation();
+      // Enter и пробел на кнопке панели нажимают её
+      if ((e.key === "Enter" || e.key === " ") && panel.contains(e.target)) return;
       e.preventDefault();
       if (e.type !== "keydown") return;
-      if (e.key === "Escape") stop();
+      if (e.key === "Tab") {
+        // Фокус ходит только по панели
+        const all = [...panel.querySelectorAll("button:not(:disabled)")];
+        const at = all.indexOf(document.activeElement);
+        all[(at + (e.shiftKey ? -1 : 1) + all.length) % all.length]?.focus();
+      } else if (e.key === "Escape") stop();
       else if (e.key === " " && !ended) setPaused(!paused);
       else if (e.key === "ArrowRight") goNext();
       else if (e.key === "ArrowLeft") goBack();
@@ -169,7 +177,7 @@
       speeds.remove();
       bar.remove();
       say.textContent = "На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.";
-      btns.replaceChildren(button("Показать снова", "btn s", () => reloadAt(0)), button("Закрыть", "btn pri s", stop));
+      btns.replaceChildren(button("Показать снова", "btn s", () => reloadAt()), button("Закрыть", "btn pri s", stop));
     }
     function draw(s) {
       n.textContent = `Шаг ${i + 1} из ${steps.length}`;
@@ -177,10 +185,9 @@
       say.textContent = s.say;
       backBtn.disabled = i === 0;
     }
-    // Ждать, уважая паузу; «Дальше» и «Назад» обрывают ожидание
+    // Ждать, уважая паузу; «Дальше» и «Назад» обрывают ожидание. Нажатые, пока курсор кликал или вводил, сработают здесь
     async function hold(ms) {
       let left = ms;
-      skip = back = false;
       while ((left > 0 || paused) && !stopped && !skip && !back) {
         await sleep(50);
         if (!paused) left -= 50 * speed;
@@ -241,10 +248,11 @@
         await sleep(30);
       }
       cur.style.opacity = "";
+      skip = false;
       setPaused(true);
     }
     (async () => {
-      if (startAt) await rewind();
+      if (startAt !== null) await rewind();
       while (!stopped) {
         const s = steps[i];
         draw(s);
@@ -289,12 +297,14 @@
         const st = make("style", "");
         st.textContent = CSS;
         document.head.append(st);
-        offerEl = button(`▶ ${label}`, "tour-offer", () => reloadAt(0));
+        offerEl = button(`▶ ${label}`, "tour-offer", () => reloadAt());
         document.body.append(offerEl);
         const demo = new URLSearchParams(location.search).get("demo");
         if (demo !== null) {
           offerShow(false);
-          run(steps, Math.min(Number(demo) || 0, steps.length - 1));
+          // ?demo — сам с начала, ?demo=N — ждёт на шаге
+          const at = demo === "" ? NaN : Number(demo);
+          run(steps, Number.isInteger(at) ? Math.max(0, Math.min(at, steps.length - 1)) : null);
         }
       };
       if (window.appReady) window.appReady.then(mount);
