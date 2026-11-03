@@ -9261,7 +9261,7 @@ function flRowHtml(f,it){
 function flToolsHtml(f,key){
   return`<div class="fl-tools">
     ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
-    ${f.type==="nofolder"?"":`<label class="fl-nested"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n("С вложенными папками")}</span></label>`}
+    ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, без строк папок: у каждого устройства подписано, где оно лежит")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Все устройства домена":"Все устройства, включая подпапки")}</span></label>`}
     ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s" ${onEv("click",["addSubfolder",null,`${f.id}`])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s" ${onEv("click",["addSubfolder",`${f.id}`])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
