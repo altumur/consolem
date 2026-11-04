@@ -5410,7 +5410,7 @@ function goSearch(v){
     const fields=[t.title,t.sub,t.skipKind?"":t.kind,t.extra].filter(Boolean);
     return queryWords(q).some(words=>matchWords(words,fields));
   }).slice(0,40);
-  // Строка ассистента — выше результатов и своим видом: явный выбор. Enter остаётся поиском
+  // Строка ассистента — выше результатов и своим видом. Enter без выбора строки — тоже ассистенту
   const assist=can("feature:assist");
   const askHit=assist?[{ask:true,title:q,keepQuery:true,go(){asstFromSearch()}}]:[];
   goHits=[...askHit,...idFilter,...targets];
@@ -5467,11 +5467,13 @@ function goKey(e){
     pop.querySelector(".gores.on")?.scrollIntoView({block:"nearest"});
     return;
   }
-  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора Enter значит «набранное — фильтр»:
-  // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему. Ассистенту запрос уходит только явным выбором.
+  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
+  // разговор с ним, что бы ни нашёл поиск (слово владельца, 3ed4962). Без ассистента Enter значит «набранное — фильтр»:
+  // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему.
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
+    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
     goClose();e.target.blur();
     return;
   }
@@ -25926,7 +25928,7 @@ function asstHoldSecret(a){
   Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
-// Вход из строки поиска — явный выбор строки «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
+// Вход из строки поиска — Enter или строка «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
 // пустого. Это новый разговор: прежний остаётся в истории, его ход продолжается
 function asstFromSearch(){
   const inp=document.getElementById("gq"),text=(inp?.value||"").trim();
