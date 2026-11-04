@@ -38,6 +38,9 @@ HELPERS = '<script src="%s/ui-harness.js"></script>' % TESTS
 # Самопроверка: виртуальный срок больше срока сценариев в tests/selftest.js, настоящий — с запасом на занятую машину
 SELFTEST_BUDGET_SEC = 800
 SELFTEST_WAIT_SEC = 900
+# Без этого ключа Chrome иногда зависает навсегда при виртуальном времени: scrollIntoView ждёт поток компоновщика,
+# а тот ждёт срока кадра по виртуальным часам, которые стоят, пока занят главный поток. Со страницей это не связано.
+NO_COMPOSITOR_THREAD = "--disable-threaded-compositing"
 
 
 def fixture_of():
@@ -61,7 +64,7 @@ def run(scenario, query):
             f.write(page)
         chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
         res = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files",
+            [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files", NO_COMPOSITOR_THREAD,
              f"--user-data-dir={tmp}/profile", "--window-size=1600,1000", "--virtual-time-budget=180000", "--dump-dom", "file://" + path + query],
             capture_output=True, text=True, timeout=300, env=dict(os.environ, TZ=TZ))
     finally:
@@ -88,7 +91,7 @@ def selftest(query):
         chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
         url = "file://" + os.path.join(ROOT, PAGE) + "?selftest" + query.replace("?", "&")
         res = subprocess.run(
-            [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files",
+            [chrome, "--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run", "--allow-file-access-from-files", NO_COMPOSITOR_THREAD,
              f"--user-data-dir={tmp}/profile", "--window-size=1600,1000", "--virtual-time-budget=" + str(SELFTEST_BUDGET_SEC * 1000), "--dump-dom", "--enable-logging=stderr", url],
             capture_output=True, text=True, timeout=SELFTEST_WAIT_SEC, env=dict(os.environ, TZ=TZ))
     except subprocess.TimeoutExpired as e:
