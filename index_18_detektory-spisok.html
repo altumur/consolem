@@ -357,6 +357,8 @@ span.n-menu{cursor:default}
 .pri{background:var(--bl);border-color:var(--bl)}.w{width:100%}.s{padding:6px 9px;font-size:12px}
 main{display:flex;flex-direction:column}
 .hd{padding:16px var(--pad) 0;border-bottom:1px solid var(--ln);background:var(--one-canvas)}
+/* Без вкладок шапку снизу закрывает кнопка: линии нужен отступ */
+.hd:not(:has(>.tabs)){padding-bottom:12px}
 .cr{font-size:13px;color:var(--mu);display:flex;flex-wrap:wrap;align-items:center;gap:5px;margin-bottom:2px}.cr:empty{display:none}
 .hd-cr{flex:1 1 auto;min-width:0;margin:0;flex-wrap:nowrap;overflow:hidden;white-space:nowrap}
 .cr-it{display:inline-flex;align-items:center;gap:5px;flex:none;min-width:0}
@@ -1666,7 +1668,12 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .dc-saved{margin-left:auto;font-size:11px;color:var(--mu)}
 .dc-z{flex:1;min-height:0;display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:16px;height:100%}
 .dc-z-list{overflow:auto;display:flex;flex-direction:column;gap:2px;min-height:0}
-.dc-z-row{display:block;width:100%;flex:none;text-align:left;background:none;border:0;border-radius:6px;padding:7px 8px;color:inherit;font:inherit;font-size:13px;cursor:pointer}
+.dc-z-row{display:flex;align-items:flex-start;gap:6px;width:100%;flex:none;text-align:left;background:none;border:0;border-radius:6px;padding:7px 8px;color:inherit;font:inherit;font-size:13px;cursor:pointer;scroll-margin-top:30px}
+.dc-z-t{min-width:0;flex:1}
+.dc-z-mark{flex:none;width:16px;height:16px;margin-top:1px;display:grid;place-items:center;border-radius:50%}
+.dc-z-mark.on{background:var(--one-success-icon);color:var(--p)}
+.dc-z-mark.copy{background:none;border:1px solid var(--one-success-icon);color:var(--one-success-icon)}
+.dc-z-cnt{position:sticky;top:0;z-index:1;flex:none;padding:0 8px 6px;font-size:11px;color:var(--mu);background:var(--p)}
 .dc-z-row:hover{background:var(--one-control-hover)}
 .dc-z-row.on{background:var(--one-selected-neutral)}
 .dc-z-row small{display:block;color:var(--mu);font-size:11px;margin-top:2px}
@@ -9867,12 +9874,11 @@ function dcActNew(k,c){
 }
 // Что из простого вида показывает правило; custom — простой вид его не передаст
 function dcActKey(c){
-  if(c.cond?.length||dc.rule.watch||c.then.length!==1)return"custom";
-  const a=c.then[0];
-  if(a.ctl||a.ref!=="$src")return"custom";
-  if(a.action==="record"&&!a.after)return"record";
-  if(a.action==="alarm"&&a.prio!=="high"&&!a.text)return"alarm";
-  return"custom";
+  if(c.cond?.length||dc.rule.watch||!c.then.length||c.then.length>2)return"custom";
+  const[a,b]=c.then;
+  if(a.action!=="record"||a.ref!=="$src"||a.after)return"custom";
+  if(!b)return"record";
+  return b.action==="alarm"&&b.ref==="$src"&&b.prio!=="high"&&!b.text?"alarm":"custom";
 }
 function dcGs(){
   const lock=dc.lock?find(dc.lock)?.n:null,cams=dc.ready?dcUniverse():[],tpl=dcTemplates(lock?[lock]:cams);
@@ -9882,10 +9888,14 @@ function dcRulePick(k){
   if(k==="add"||k==="none"){dc.rule.mode=k;renderDetCreate();return}
   const c=dcCustomRule(dcGs()),cur=dcActKey(c);
   if(cur===k){dc.rule.mode="new";renderDetCreate();return}
-  const apply=()=>{dc.rule.mode="new";dc.rule.watch=false;c.cond=[];c.then=[dcActNew(k,c)];renderDetCreate()};
+  // Тревога — расширение записи: запись остаётся первой и с теми же настройками
+  const apply=()=>{
+    const rec=(cur!=="custom"&&c.then[0])||dcActNew("record",c);
+    dc.rule.mode="new";dc.rule.watch=false;c.cond=[];c.then=k==="alarm"?[rec,dcActNew("alarm",c)]:[rec];renderDetCreate();
+  };
   if(cur!=="custom"){apply();return}
   renderDetCreate();
-  askConfirm("Заменить настройку правила?","Условия и действия, настроенные подробно, пропадут.","",k==="alarm"?"Поднять тревогу":"Записывать видео",apply,{cancelLabel:"Оставить"});
+  askConfirm("Заменить настройку правила?","Условия и действия, настроенные подробно, пропадут.","",k==="alarm"?"Записывать и поднять тревогу":"Записывать видео",apply,{cancelLabel:"Оставить"});
 }
 function dcRuleAdv(on){if(on)dc.rule.mode="new";dc.rule.adv=!!on;renderDetCreate()}
 function dcRecLen(v){
@@ -9929,7 +9939,7 @@ function dcRuleHtml(gs){
     <div class="dc-sec" style="margin-top:14px">${i18n("То")}</div>
     <div class="dc-opts">
       ${shown("record")?opt("record","Записывать видео",i18n("С камеры, на которой сработал детектор"),on==="record"?dcRecHtml(c):""):""}
-      ${shown("alarm")?opt("alarm","Поднять тревогу",i18n("Оператор увидит тревогу по этой камере"),""):""}
+      ${shown("record")&&shown("alarm")?opt("alarm","Записывать и поднять тревогу",i18n("Запись с этой камеры, оператор увидит тревогу по ней"),on==="alarm"?dcRecHtml(c):""):""}
       ${cur==="custom"?opt("custom","Своё правило",summary(),"",["dcRuleAdv",true]):""}
       ${cands.length?opt("add","Добавить к правилу",i18n("В правило, которое уже работает"),pickSel):""}
       ${opt("none","Ничего не делать",i18n("Событие попадёт только в журнал. Правило не создаётся."),"")}
@@ -10019,13 +10029,18 @@ function renderDetCreate(){
     const rows=dcRowsOf(plan),r=rows.find(x=>x.id===dc.zoneAt)||rows[0];
     if(!r)return`<section class="cp-col"><p class="sub">${i18n("Выберите, что создать и на каких камерах.")}</p></section>`;
     const z=dcZoneOf(r.id),draw=zoneDraw?.id===r.id?zoneDraw:null,same=z?dcZoneTargets(r,z,rows).length:0,more=rows.findIndex(x=>x.id===r.id)<rows.length-1;
+    // Галочка — к камере можно не возвращаться; у копии контур: сцена на её кадре другая
+    const isDone=x=>!!dc.zoneBy[x.id]&&!dcNeedsLine(x);
     const list=rows.map(x=>{
-      const o=dc.zoneBy[x.id];
+      const o=dc.zoneBy[x.id],done=isDone(x);
       const st=dcNeedsLine(x)?`<span class="dl-warn">${lu("triangle-alert",11)} ${i18n("нет линии")}</span>`:o?`${escHtml(zoneText(o.z))}${o.from?` · ${i18n("копия")}`:""}`:i18n("вся картинка");
-      return`<button type="button" class="dc-z-row ${x.id===r.id?"on":""}" ${onEv("click",["dcZonePick",`${x.id}`])}><b>${escHtml(locName(x.cam))}</b><small>${escHtml(x.name)} · ${st}</small></button>`;
+      const tip=done?i18n(o.from?"Зона скопирована":"Зона нарисована"):"";
+      const mark=`<span class="dc-z-mark${done?` on${o.from?" copy":""}`:""}"${done?` title="${tip}" aria-label="${tip}"`:""}>${done?lu("check",11):""}</span>`;
+      return`<button type="button" class="dc-z-row ${x.id===r.id?"on":""}" ${onEv("click",["dcZonePick",`${x.id}`])}>${mark}<span class="dc-z-t"><b>${escHtml(locName(x.cam))}</b><small>${escHtml(x.name)} · ${st}</small></span></button>`;
     }).join("");
+    const doneN=rows.filter(isDone).length;
     const svg=`<svg class="zone-svg${draw?" on":""}" data-zone="${escHtml(r.id)}" viewBox="0 0 100 100" preserveAspectRatio="none" ${onEv("mousedown",["zoneDown",onEv.el,onEv.event,`${r.id}`])}><g>${draw?"":zoneShapeSvg(z)}</g><g data-zone-draft></g></svg>`;
-    return`<section class="cp-col"><div class="dc-z"><div class="dc-z-list" data-cp-scroll="z">${list}</div><div class="dc-z-main">
+    return`<section class="cp-col"><div class="dc-z"><div class="dc-z-list" data-cp-scroll="z"><div class="dc-z-cnt">${i18n("Настроено")} ${doneN} ${i18n("из")} ${rows.length}</div>${list}</div><div class="dc-z-main">
       <div class="dc-z-head"><b>${escHtml(locName(r.cam))}</b> · ${escHtml(r.name)}</div>
       ${liveFrameHtml(r.cam,svg)}
       ${dcNeedsLine(r)?`<div class="nt">${i18n("Детектору линии нужна линия: без неё он не сработает.")}</div>`:""}
@@ -10071,7 +10086,7 @@ function renderDetCreate(){
     `<div class="dc-step"><div class="dc-steps">${bar}<span class="dc-saved">${i18n("Черновик сохраняется сам")}</span></div><div class="dc-body${fitKey===dcFitAt?"":" dc-fade"}">${SEC[st.k]()}</div></div>`,
     `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><span class="dc-sum">${sum}</span>${dc.step?`<button type="button" class="btn" ${onEv("click",["dcStepGo",`${dc.step-1}`])}>${i18n("Назад")}</button>`:""}${go}`,`bbox-wide bbox-copy dc-box dc-w-${fitKey}`);
   dcFit(fitWas,fitKey);
-  requestAnimationFrame(()=>document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]}));
+  requestAnimationFrame(()=>{document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]});document.querySelector("#bmBody .dc-z-row.on")?.scrollIntoView({block:"nearest"})});
   dcSave();liveSync();
 }
 function dcCreateBody(key,cam,tpl,zone){
@@ -10098,7 +10113,7 @@ function dcRun(){
 }
 function dcRuleCreate(gs,rule,custom){
   const now=ruleNow(),first=custom.then[0];
-  const word=i18n(first.ctl?ctlKind(first).label:actionKind(first).short||actionKind(first).label);
+  const word=i18n(custom.then.length===2&&first.action==="record"&&custom.then[1].action==="alarm"?"Запись и тревога":first.ctl?ctlKind(first).label:actionKind(first).short||actionKind(first).label);
   const body=g=>ruleBody({name:`${[...new Set(g.names)].join(", ")} — ${word.toLowerCase()}`,on:true,watch:rule.watch,repeat:"skip",start:"event",run:{mode:"always",modes:[]},cond:ruleClone(custom.cond),menu:false,rate:6,within:0,sched:null,
     when:[dcRuleWhen(g)],then:ruleClone(custom.then),owner:ACC_ME,purpose:"",created:{by:ACC_ME,at:now},changed:{by:ACC_ME,at:now},server:dcRuleServer(g.cams),runAs:"system",chain:true});
   Promise.allSettled(gs.map(g=>API.post("/rules",body(g)).then(async x=>{ruleSet(x);await ruleHistLoad(x.id);return x}))).then(res=>{
