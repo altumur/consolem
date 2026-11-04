@@ -18007,10 +18007,11 @@ function accEffTableHtml(u){
   window._accEff=rows;
   const many=accUserRoles(u,true).length>1;
   const tzs=[...new Set(accUserRoles(u,true).map(id=>accRole(id)?.tz||0))].filter(t=>t);
-  const views=[["tree","По папкам"],["mx","Матрица"]];
+  // Сравнивать можно только несколько ролей: при одной роли этот вид ничего не добавляет.
+  const views=[["tree","По папкам"],["mx","Вклад ролей"]];
   return`${accEffDigest(u,rows)}
-    <div class="acc-subnav eff-views" role="tablist" aria-label="${i18n("Вид")}">${views.map(([v,t])=>`<button type="button" role="tab" aria-selected="${accEffView===v}" class="acc-pill ${accEffView===v?"on":""}" ${onEv("click",["accEffViewSet",v])}>${i18n(t)}</button>`).join("")}</div>
-    ${accEffView==="mx"?accEffMxHtml(u,rows):accEffTreeHtml(u,rows,many)}
+    ${many?`<div class="acc-subnav eff-views" role="tablist" aria-label="${i18n("Вид")}">${views.map(([v,t])=>`<button type="button" role="tab" aria-selected="${accEffView===v}" class="acc-pill ${accEffView===v?"on":""}" ${onEv("click",["accEffViewSet",v])}>${i18n(t)}</button>`).join("")}</div>`:""}
+    ${many&&accEffView==="mx"?accEffMxHtml(u,rows):accEffTreeHtml(u,rows,many)}
     <details class="eff-rule"><summary>${i18n("Как считается итог")}</summary><div class="nt">${i18n("Итог — наибольшее по всем действующим ролям: исключение действует только внутри своей роли и не отнимает того, что даёт другая. Внутри роли: исключение для объекта, иначе значение его папки устройств (ближайшей, где оно задано; из нескольких папок — наибольшее), иначе право по умолчанию. «Просмотр» и «Просмотр архива» вместе дают «Просмотр и архив». Встроенная роль «Администратор» сильнее всего. Считает интерфейс по правилам сервера, окончательно решает сервер")}${tzs.length?`. ${i18n("Вход ограничен расписанием ролей:")} ${tzs.map(t=>i18n(ACC_TZ[t]).toLowerCase()).join("; ")}`:""}</div></details>`;
 }
 function accEffWhy(el,i){
