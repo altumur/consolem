@@ -18,7 +18,7 @@
 | Спека со всеми решениями и раундами | `docs/2026-11-03-detektory-spec.md` |
 | Отчёт о практике рынка | `docs/2026-11-03-master-detektorov-rynok.html`, [страница Artifact](https://claude.ai/artifact/1wffs66oFq1g9UYugM3VnS) (приватная) |
 | Прошлый отчёт: список или дерево камер | [страница Artifact](https://claude.ai/artifact/KS38HxmG2aydwo13CoEmaS) (приватная) |
-| Сценарий прототипа | `tests/proto-18-detektory.js` |
+| Сценарий прототипа | `tests/ui-detektory.js` |
 | Запрос к API | `api/requests/2026-11-03-145110Z-mockup-detector-rule-events-request.md` |
 
 ## Состояние
