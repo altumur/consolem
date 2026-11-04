@@ -53,7 +53,7 @@
   // Вид записи — первая цифра UUID (api/README.md, «Идентификаторы»): сервер продолжает номера набора
   const KIND = { operation: "0", domain: "1", server: "2", device: "3", folder: "4", archive: "5", volume: "6", rule: "7", fire: "d", history: "e",
     // «Автоматизация»: первая цифра «f», вид — во второй группе UUID
-    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007", prompt: "f-0008", journal: "c", bookmark: "f-0009" };
+    schedule: "f-0001", dayGroup: "f-0002", mode: "f-0003", window: "f-0004", ruleVersion: "f-0005", archiveWatch: "f-0006", archiveScan: "f-0007", prompt: "f-0008", journal: "c", bookmark: "f-0009", export: "f-000a" };
   const TABLES = { domains: "domain", servers: "server", devices: "device", folders: "folder", archives: "archive", volumes: "volume", rules: "rule" };
   // Ответ на запрос с ключом повтора помнится 10 минут: повтор получает его же и ничего не выполняет снова
   const IDEMPOTENCY_MS = 10 * 60 * 1000;
@@ -576,6 +576,7 @@
       secrets = new Map();
       ops = new Map();
       redoStack = [];
+      expWork = new Map();
       formatting = new Map();
       applying = new Map();
       profileState = {};
@@ -1822,6 +1823,7 @@
       applyTick(fired);
       runTick();
       modeTick();
+      exportTick();
       formatting.forEach((at, id) => {
         if (at > now()) return;
         formatting.delete(id);
@@ -3176,6 +3178,174 @@
       legacy.rebuild();
     }
 
+    /* ===== Выгрузка (ADR-0117): задание — части по камерам, ход по часам стенда, файлы со сроком =====
+       Как api/server.js базы, но камера — объект по uid, вид которого реализует vms.camera/1; записи камеры — шкала хука
+       vms.timeline/1 (profiles.js). Не камера — 422 NOT_SUPPORTED, нет объекта — 404, field — /cameras/i */
+    const expAll = () => db.exports || (db.exports = []);
+    const expRef = () => db.reference.export;
+    // Права человека: стенд правит их через stand.exportGrant (тесты), по умолчанию можно всё и без пароля
+    const expGrant = () => Object.assign({ allowed: true, passwordRequired: false, privacyForced: false, supervisorRequired: false, watermark: false, depthHours: 0 }, db.stand.exportGrant || {});
+    const expBad = (status, code, message, field, params) => ({ status, body: Object.assign({ code, message }, field ? { field } : {}, params ? { params } : {}) });
+    // Камера заказа — запись-представление объекта склада; не камера или нет объекта — null
+    const expCam = (uid) => {
+      const u = uid == null ? null : store.get(uid);
+      return u && tableOf(u.kind) === "devices" && isCamera(u) ? legacy.view(u) : null;
+    };
+    const expOverlap = (rec, a, b) => hTimeline.camSpans(rec, pctx).some((s) => s.startMs < b && s.endMs > a);
+    const expSec = (body) => (body.periods || []).reduce((n, p) => n + Math.max(0, (Date.parse(p.to) - Date.parse(p.from)) / 1000), 0);
+    const expTranscode = (b) => {
+      const q = b.quality || {}, t = b.titles || {};
+      return b.mode === "video" && ((q.codec && q.codec !== "source") || (q.resolution && q.resolution !== "source") || (q.compression && q.compression !== "default") || q.fpsDivisor > 1 || !!q.maxFps || q.speed > 1
+        || ((t.fields || []).length > 0 && t.overlay !== "soft") || b.cameras.some((c) => c.area));
+    };
+    const expClean = (s) => String(s).replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "");
+    function expNames(b) {
+      const f = expRef().formats.find((x) => x.id === b.format), zip = !!b.password && f && f.password === "zip";
+      const ext = zip ? "zip" : b.format;
+      const at = b.mode === "frame" ? (b.source === "live" ? now() : Date.parse(b.at)) : Math.min(...(b.periods || []).map((p) => Date.parse(p.from)));
+      // Время в имени — по часам системы (Me.timezone), как его видит оператор
+      const stamp = new Date(Number.isFinite(at) && at > 0 ? at : now()).toLocaleString("sv-SE", { timeZone: db.timezone || "UTC" }).replace(/[-:]/g, "").replace(" ", "-");
+      const cam = (c) => { const rec = expCam(c.uid), srv = rec && rec.serverId && byId("servers", rec.serverId); return expClean(`${srv ? srv.name : "VMS"}_${rec ? rec.name : c.uid}`); };
+      if (b.singleFile && b.cameras.length > 1) return [{ name: `${expClean(b.name || `${b.cameras.length}_камер`)}[${stamp}].${ext}` }];
+      return b.cameras.map((c, i) => ({ uid: c.uid, name: `${b.name ? expClean(b.name) + (b.cameras.length > 1 ? `_${i + 1}` : "") : cam(c)}[${stamp}].${ext}` }));
+    }
+    // Все отказы заказа по порядку полей. Первый — ответ POST /exports, все — POST /exports/check
+    function expProblems(b) {
+      const out = [], R = expRef(), L = R.limits, g = expGrant(), add = (status, code, message, field, params) => out.push(expBad(status, code, message, field, params));
+      if (!g.allowed) add(403, "PERMISSION_DENIED", "Нет права на выгрузку");
+      if (g.refusal) add(403, "PERMISSION_DENIED", g.refusal);
+      const f = R.formats.find((x) => x.id === b.format), live = b.source === "live";
+      if (!f) add(422, "NOT_SUPPORTED", "Такого формата нет", "/format");
+      else if (f.kind !== b.mode || (live ? !f.entries.includes("live") : !f.entries.includes("archive"))) add(422, "NOT_SUPPORTED", "Формат не подходит к выгрузке", "/format");
+      if (b.mode === "video" && !can("exportVideo")) add(422, "NOT_SUPPORTED", "Видео система не выгружает", "/mode");
+      if (b.mode === "frame" && !live && !can("exportFrame")) add(422, "NOT_SUPPORTED", "Кадр архива система не выгружает", "/mode");
+      if (live && (b.mode !== "frame" || !can("exportLiveFrame"))) add(422, "NOT_SUPPORTED", "Живым бывает только кадр", "/source");
+      if (b.cameras.length > L.maxCameras) add(422, "LIMIT_EXCEEDED", "Слишком много камер", "/cameras", { limit: "maxCameras", max: L.maxCameras });
+      if (b.cameras.length > 1 && !can("exportMultiCamera")) add(422, "NOT_SUPPORTED", "Одна камера в задании", "/cameras");
+      if (b.cameras.length > 1 && b.mode === "frame") add(422, "NOT_SUPPORTED", "Кадр — одной камеры", "/cameras");
+      b.cameras.forEach((c, i) => {
+        const u = store.get(c.uid), rec = expCam(c.uid), w = `/cameras/${i}`;
+        if (!u) return add(404, "NOT_FOUND", "Камеры нет", w);
+        if (!rec) return add(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует vms.camera/1: выгрузка — только у камеры`, w, { kind: u.kind, profile: "vms.camera/1" });
+        if ((db.stand.otherCluster || {})[rec.id]) add(409, "OTHER_CLUSTER", "Камера другого кластера: выгрузка через него", w, { url: db.stand.otherCluster[rec.id] });
+        if ((db.stand.exportDenied || []).includes(rec.id)) add(403, "PERMISSION_DENIED", "Нет права на эту камеру", w);
+        if (live && rec.online === false) add(409, "DEVICE_OFFLINE", "Камера без связи", w);
+        const a = c.area;
+        if (a) {
+          if (!can("exportArea")) add(422, "NOT_SUPPORTED", "Область кадра система не обрезает", `${w}/area`);
+          else if (!(a.w > 0 && a.h > 0 && a.x + a.w <= 1 + 1e-9 && a.y + a.h <= 1 + 1e-9)) add(422, "VALIDATION_FAILED", "Область выходит за кадр или пуста", `${w}/area`);
+        }
+      });
+      if (b.mode === "video") {
+        const ps = b.periods || [];
+        if (!ps.length) add(422, "VALIDATION_FAILED", "Укажите отрезок", "/periods");
+        if (ps.length > L.maxPeriods) add(422, "LIMIT_EXCEEDED", "Слишком много отрезков", "/periods", { limit: "maxPeriods", max: L.maxPeriods });
+        if (ps.length > 1 && !can("exportMultiPeriod")) add(422, "NOT_SUPPORTED", "Один отрезок в задании", "/periods");
+        ps.forEach((p, i) => { if (!(Date.parse(p.to) > Date.parse(p.from))) add(422, "VALIDATION_FAILED", "Конец позже начала", `/periods/${i}/to`); else if (Date.parse(p.from) > now()) add(422, "VALIDATION_FAILED", "Отрезок в будущем", `/periods/${i}/from`); });
+        if (expSec(b) * b.cameras.length > L.maxTotalSec) add(422, "LIMIT_EXCEEDED", "Видео в задании слишком много", "/periods", { limit: "maxTotalSec", max: L.maxTotalSec });
+        const recs = b.cameras.map((c) => expCam(c.uid)).filter(Boolean);
+        ps.forEach((p, i) => { if (Date.parse(p.to) > Date.parse(p.from) && recs.length && !recs.some((r) => expOverlap(r, Date.parse(p.from), Date.parse(p.to)))) add(422, "NO_RECORDING", "В отрезке нет записи", `/periods/${i}`); });
+      }
+      if (b.mode === "frame" && !live) {
+        const at = Date.parse(b.at), rec = expCam((b.cameras[0] || {}).uid);
+        if (!(at > 0)) add(422, "VALIDATION_FAILED", "Укажите момент кадра", "/at");
+        else if (rec && !expOverlap(rec, at - 10000, at + 1)) add(422, "NO_RECORDING", "В этот момент записи нет", "/at");
+      }
+      if (b.singleFile && b.cameras.length > 1 && !(can("exportSingleFile") && f && f.singleFile === "tracks")) add(422, "NOT_SUPPORTED", "«В один файл» — только MKV", "/singleFile");
+      if (b.password && !can("exportPassword")) add(422, "NOT_SUPPORTED", "Пароль система не ставит", "/password");
+      if (g.passwordRequired && !b.password) add(422, "PASSWORD_REQUIRED", "Политика требует пароль", "/password");
+      const q = b.quality || {};
+      if (q.codec && f && !f.codecs.includes(q.codec)) add(422, "NOT_SUPPORTED", "Кодек не подходит к формату", "/quality/codec");
+      if (expTranscode(Object.assign({}, b, { cameras: [] })) && !can("exportTranscode")) add(422, "NOT_SUPPORTED", "Перекодирование система не делает", "/quality");
+      if ((b.titles || {}).fields && b.titles.fields.length && !can("exportTitles")) add(422, "NOT_SUPPORTED", "Титры система не накладывает", "/titles");
+      if (((b.titles || {}).eventSource || {}).on && !can("exportEventTitles")) add(422, "NOT_SUPPORTED", "Титров источника событий система не накладывает", "/titles/eventSource");
+      if ((b.titles || {}).overlay === "soft" && f && !f.softTitles) add(422, "NOT_SUPPORTED", "Программные титры — не в этом формате", "/titles/overlay");
+      const sp = b.special || {};
+      if (sp.audio && !can("exportAudio")) add(422, "NOT_SUPPORTED", "Звук система не выгружает", "/special/audio");
+      if (sp.player && !(can("exportPlayer") && f && f.player)) add(422, "NOT_SUPPORTED", "Плеера нет", "/special/player");
+      if (sp.maxFileMb > L.maxFileMbMax) add(422, "LIMIT_EXCEEDED", "Часть файла больше предела", "/special/maxFileMb", { limit: "maxFileMbMax", max: L.maxFileMbMax });
+      if (b.highlight && !can("exportTracks")) add(422, "NOT_SUPPORTED", "Треков система не рисует", "/highlight");
+      if (b.privacy && b.privacy.mode !== "none" && !can("exportPrivacy")) add(422, "NOT_SUPPORTED", "Маскирования нет", "/privacy");
+      if (b.supervisor && !can("accessSupervision")) add(422, "NOT_SUPPORTED", "Подтверждения супервизора нет", "/supervisor");
+      if (b.destination === "cloud" && !can("exportCloud")) add(422, "NOT_SUPPORTED", "Выгрузки в облако нет", "/destination");
+      return out;
+    }
+    const expPublic = (b) => { const r = clone(b); delete r.password; if (r.supervisor) delete r.supervisor.password; delete r.idempotencyKey; return r; };
+    // Ход части: длительность по объёму, кадр — за секунду с небольшим. Состояние считается в tick, не по таймеру браузера
+    let expWork = new Map();
+    function expMake(b, retryOf) {
+      const g = expGrant(), live = b.source === "live", t = now(), names = expNames(b);
+      const span = b.mode === "video" ? { from: iso(Math.min(...b.periods.map((p) => Date.parse(p.from)))), to: iso(Math.max(...b.periods.map((p) => Date.parse(p.to)))) } : { at: iso(live ? t : Date.parse(b.at)) };
+      const x = { id: uuid("export"), state: "queued", createdAt: iso(t), by: myLogin(), progress: { percent: 0, done: 0, total: b.cameras.length },
+        parts: b.cameras.map((c) => Object.assign({ uid: c.uid, state: "wait", percent: 0 }, span)), files: [], request: expPublic(b),
+        enforced: { privacy: g.privacyForced, watermark: g.watermark, password: g.passwordRequired }, transcode: expTranscode(b) };
+      if (b.supervisor) x.supervisedBy = b.supervisor.login;
+      if (retryOf) x.retryOf = retryOf;
+      const sec = expSec(b), dur = b.mode === "frame" ? 1200 : Math.min(2500 + (sec / 3600) * (x.transcode ? 9000 : 4000), 15000);
+      expWork.set(x.id, { start: t + 300, dur, names, sentAt: 0, sizes: b.cameras.map(() => (b.mode === "frame" ? 180000 + Math.floor(Math.random() * 90000) : Math.max(1, Math.round(sec * (x.transcode ? 220000 : 500000))))) });
+      expAll().push(x);
+      return x;
+    }
+    function expPartFate(x, i) {
+      const b = x.request, rec = expCam(x.parts[i].uid), fail = (db.stand.exportFail || {})[x.parts[i].uid];
+      if (fail) return { state: "fail", code: fail };
+      if (!rec) return { state: "fail", code: "unreachable" };
+      if (b.source === "live") return rec.online === false ? { state: "fail", code: "offline" } : { state: "ok" };
+      if (b.mode === "frame") return expOverlap(rec, Date.parse(b.at) - 10000, Date.parse(b.at) + 1) ? { state: "ok" } : { state: "fail", code: "no_recording" };
+      const has = b.periods.map((p) => expOverlap(rec, Date.parse(p.from), Date.parse(p.to)));
+      if (!has.some(Boolean)) return { state: "fail", code: "no_recording" };
+      const spans = hTimeline.camSpans(rec, pctx);
+      const full = b.periods.every((p) => spans.some((s) => s.startMs <= Date.parse(p.from) && s.endMs >= Date.parse(p.to)));
+      return full ? { state: "ok" } : { state: "ok", partial: true };
+    }
+    const expMedia = { mkv: "video/x-matroska", mp4: "video/mp4", avi: "video/x-msvideo", jpg: "image/jpeg", pdf: "application/pdf", zip: "application/zip" };
+    function expFinish(x, w) {
+      const done = x.parts.filter((p) => p.state === "ok");
+      x.state = x.state === "cancelled" ? "cancelled" : done.length ? "done" : "failed";
+      x.finishedAt = iso(now());
+      if (x.state === "done") {
+        const keep = now() + expRef().limits.keepSec * 1000, single = w.names.length === 1 && x.parts.length > 1;
+        x.files = (single ? [w.names[0]] : x.parts.map((p, i) => (p.state === "ok" ? w.names[i] : null))).map((n, i) => n && {
+          id: `f${i + 1}`, uid: single ? undefined : x.parts[i].uid, name: n.name, sizeBytes: single ? w.sizes.reduce((a, b2) => a + b2, 0) : w.sizes[i],
+          sha256: (x.id.replace(/-/g, "") + "0".repeat(64)).slice(0, 56) + String(i + 1).padStart(8, "0"), mediaType: expMedia[n.name.split(".").pop()] || "application/octet-stream", expiresAt: iso(keep) }).filter(Boolean);
+        x.files.forEach((f) => f.uid === undefined && delete f.uid);
+        x.expiresAt = iso(keep);
+      }
+      x.progress = { percent: 100, done: x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length, total: x.parts.length };
+      send("export.finished", { kind: "exportJob", entityId: x.id, payload: { state: x.state, files: clone(x.files) } });
+    }
+    function exportTick() {
+      const t = now();
+      expAll().forEach((x) => {
+        if (x.state === "done" && x.expiresAt && Date.parse(x.expiresAt) <= t) {
+          x.state = "expired"; x.files = [];
+          send("entity.changed", { kind: "exportJob", entityId: x.id });
+          return;
+        }
+        if (x.state !== "queued" && x.state !== "running") return;
+        const w = expWork.get(x.id);
+        if (!w || t < w.start) return;
+        x.state = "running";
+        let moved = false;
+        x.parts.forEach((p, i) => {
+          if (p.state !== "wait" && p.state !== "run") return;
+          // Части идут рядом со своими записями, поэтому параллельно; у каждой свой темп
+          const pct = Math.min(100, Math.floor(((t - w.start) / (w.dur * (1 + i * 0.15))) * 100));
+          if (pct < 100) { if (p.state !== "run" || pct - p.percent >= 5) { p.state = "run"; p.percent = pct; moved = true; } return; }
+          const fate = expPartFate(x, i);
+          Object.assign(p, { state: fate.state, percent: fate.state === "ok" ? 100 : p.percent });
+          if (fate.code) p.code = fate.code;
+          if (fate.partial) p.partial = true;
+          moved = true;
+        });
+        const finished = x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length;
+        x.progress = { percent: Math.floor(x.parts.reduce((n, p) => n + (p.state === "run" || p.state === "ok" ? p.percent : p.state === "wait" ? 0 : 100), 0) / x.parts.length), done: finished, total: x.parts.length };
+        if (finished === x.parts.length) return expFinish(x, w);
+        if (moved && t - w.sentAt >= 400) { w.sentAt = t; send("export.progress", { kind: "exportJob", entityId: x.id, payload: { progress: clone(x.progress), parts: clone(x.parts) } }); }
+      });
+    }
+    const expFind = (id) => expAll().find((e) => e.id === id);
+
     /* ===== Маршруты ===== */
 
     const notFound = (what) => problem(404, "NOT_FOUND", `${what} не найден(а)`);
@@ -3455,6 +3625,117 @@
       ["PUT", "/units/{uid}/presets/{n}", (p, q, body) => subject(p.uid, "vms.ptz/1", (rec) => presetsDone(rec, hPtz.put(rec, Number(p.n), body, pctx)))],
       ["DELETE", "/units/{uid}/presets/{n}", (p) => subject(p.uid, "vms.ptz/1", (rec) => presetsDone(rec, hPtz.drop(rec, Number(p.n), pctx)))],
       ["PUT", "/units/{uid}/recording-target", (p, q, body) => subject(p.uid, "vms.camera/1", (rec) => hCamera.setTarget(rec, body, pctx) || one(unitView(store.get(rec.id))))],
+      // Сутки с записью для календаря окна выгрузки: камера — профилем vms.camera/1, сутки — по шкале хука vms.timeline/1
+      ["GET", "/units/{uid}/recording-days", (p, q) => subject(p.uid, "vms.camera/1", (rec) => hTimeline.days(rec, q, pctx))],
+      /* ----- Выгрузка: камеры заказа — по uid ----- */
+      [
+        "GET",
+        "/me/export",
+        (p, q) => {
+          const g = expGrant(), ids = q.ids ? String(q.ids).split(",").filter(Boolean) : [];
+          const lim = db.reference.limits.idsMax || 200;
+          if (ids.length > lim) return problem(422, "VALIDATION_FAILED", `Не больше ${lim} id`, { field: "ids" });
+          const body = { allowed: g.allowed, passwordRequired: g.passwordRequired, privacyForced: g.privacyForced, supervisorRequired: g.supervisorRequired, watermark: g.watermark, depthHours: g.depthHours,
+            devices: ids.map((uid) => { const rec = expCam(uid), no = !rec || (db.stand.exportDenied || []).includes(uid) || !g.allowed;
+              return { uid, archive: !no, live: !no && rec.online !== false }; }) };
+          if (g.refusal) body.refusal = g.refusal;
+          return { status: 200, body };
+        },
+      ],
+      [
+        "POST",
+        "/exports/check",
+        (p, q, body) => {
+          const errs = expProblems(body), sec = expSec(body), tr = expTranscode(body);
+          const noRec = [];
+          if (body.mode === "video") body.cameras.map((c) => expCam(c.uid)).forEach((r, ci) => r && (body.periods || []).forEach((pp, pi) => { if (Date.parse(pp.to) > Date.parse(pp.from) && !expOverlap(r, Date.parse(pp.from), Date.parse(pp.to))) noRec.push({ camera: ci, period: pi }); }));
+          const bytes = body.mode === "frame" ? 220000 : Math.round(sec * body.cameras.length * (tr ? 220000 : 500000));
+          return { status: 200, body: { ok: !errs.length, errors: errs.map((e) => e.body), transcode: tr, estimate: { bytes, sec: body.mode === "frame" ? 2 : Math.max(3, Math.round(sec / (tr ? 8 : 120))) }, files: expNames(body), noRecording: noRec } };
+        },
+      ],
+      [
+        "GET",
+        "/exports",
+        (p, q) => {
+          const states = q.state ? String(q.state).split(",") : null, mine = q.mine === "true", login = myLogin();
+          const rows = expAll().filter((x) => (!mine || x.by === login) && (!states || states.includes(x.state)));
+          return pageList(q, `exports:${mine}:${q.state || ""}`, rows, (x) => `${backTime(x.createdAt)}|${x.id}`, clone);
+        },
+      ],
+      [
+        "POST",
+        "/exports",
+        (p, q, body) => {
+          const errs = expProblems(body);
+          if (errs.length) return errs[0];
+          const login = myLogin(), active = expAll().filter((x) => x.by === login && (x.state === "queued" || x.state === "running")).length, max = expRef().limits.maxActivePerUser;
+          if (active >= max) return problem(409, "BUSY", "Активных выгрузок слишком много: дождитесь или отмените", { params: { limit: "maxActivePerUser", max } });
+          const x = expMake(body);
+          send("entity.created", { kind: "exportJob", entityId: x.id });
+          return { status: 202, body: clone(x), headers: { Location: `/exports/${x.id}` } };
+        },
+      ],
+      ["GET", "/exports/{id}", (p) => { const x = expFind(p.id); return x ? { status: 200, body: clone(x) } : notFound("Выгрузка"); }],
+      [
+        "DELETE",
+        "/exports/{id}",
+        (p) => {
+          const i = expAll().findIndex((e) => e.id === p.id);
+          if (i < 0) return notFound("Выгрузка");
+          if (expAll()[i].by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Чужую выгрузку удаляет администратор выгрузки камеры");
+          expAll().splice(i, 1);
+          expWork.delete(p.id);
+          send("entity.deleted", { kind: "exportJob", entityId: p.id });
+          return { status: 204, body: null };
+        },
+      ],
+      [
+        "POST",
+        "/exports/{id}/cancel",
+        (p) => {
+          const x = expFind(p.id);
+          if (!x) return notFound("Выгрузка");
+          if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Отменяет автор");
+          if (x.state !== "queued" && x.state !== "running") return problem(409, "NOT_RUNNABLE", "Выгрузка уже закончилась");
+          // Готовые части тоже отменяются: их файлы удаляются вместе с заданием
+          x.parts.forEach((pp) => { if (pp.state === "wait" || pp.state === "run" || pp.state === "ok") pp.state = "cancel"; });
+          x.state = "cancelled";
+          x.files = [];
+          expFinish(x, expWork.get(x.id) || { names: [] });
+          return { status: 200, body: clone(x) };
+        },
+      ],
+      [
+        "POST",
+        "/exports/{id}/retry-failed",
+        (p, q, body) => {
+          const x = expFind(p.id);
+          if (!x) return notFound("Выгрузка");
+          if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Повторяет автор");
+          const failed = new Set(x.parts.filter((pp) => pp.state === "fail" || pp.state === "cancel").map((pp) => pp.uid));
+          if (!failed.size || x.state === "queued" || x.state === "running") return problem(409, "NOT_RUNNABLE", "Неудачных частей нет");
+          const b = Object.assign(clone(x.request), { cameras: x.request.cameras.filter((c) => failed.has(c.uid)) });
+          if (body && body.password) b.password = body.password;
+          const errs = expProblems(b);
+          if (errs.length) return errs[0];
+          const n = expMake(b, x.id);
+          send("entity.created", { kind: "exportJob", entityId: n.id });
+          return { status: 202, body: clone(n), headers: { Location: `/exports/${n.id}` } };
+        },
+      ],
+      [
+        "POST",
+        "/exports/{id}/files/{fileId}/link",
+        (p) => {
+          const x = expFind(p.id);
+          if (!x) return notFound("Выгрузка");
+          if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Файл получает только автор");
+          if (x.state === "expired") return problem(410, "EXPORT_EXPIRED", "Файл удалён по сроку");
+          const f = x.files.find((ff) => ff.id === p.fileId);
+          if (!f) return notFound("Файл");
+          return { status: 200, body: { url: `stub://export/${x.id}/${f.id}/${encodeURIComponent(f.name)}?t=stub-${newVersion()}`, expiresAt: iso(now() + expRef().limits.linkTtlSec * 1000) } };
+        },
+      ],
       /* ----- Домен: поиск устройств (discovery); объекты домена — пути ядра /units ----- */
       [
         "POST",
@@ -4819,7 +5100,7 @@
         if (errs.length) {
           let field = (errs[0].match(/^body\.?([^:\s[]*)/) || [])[1] || undefined;
           // На путях ядра field — JSON Pointer в теле запроса
-          if (/^\/(units|kinds|test\/kinds)(\/|$)/.test(path)) field = "/" + ((errs[0].match(/^body\.?([^:\s]*)/) || [])[1] || "").replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean).join("/");
+          if (/^\/(units|kinds|test\/kinds|exports)(\/|$)/.test(path)) field = "/" + ((errs[0].match(/^body\.?([^:\s]*)/) || [])[1] || "").replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean).join("/");
           return problem(422, "VALIDATION_FAILED", errs.slice(0, 3).join("; "), field ? { field } : {});
         }
       }

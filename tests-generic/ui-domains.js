@@ -16,6 +16,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Сервер: исключить и вернуть
   const d1=domains[0],s=d1.servers.find(x=>x.online!==false);
   excludeFromDomain(s.id);
+  if(document.getElementById("confirm").classList.contains("open"))await confirmWith(1);   // прототип с подтверждением числом
   ok(await until(()=>d1.unallocServers.includes(s)&&!d1.servers.includes(s)),"исключён: в «Нераспределённых»");
   ok((await uiRec(s.id)).allocated===false,"на сервере — нераспределённый");
   // Приём — операцией (шаг move): поток может переставить сервер раньше, чем придёт её итог, поэтому ждётся итог
@@ -82,7 +83,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(()=>nf.name==="Склад-3"),"папка переименована");
   const full=flatFolders().find(f=>f.items.length>1&&folderDomain(f.id)===d1.id);
   window.CONSOLEM_TRACE=[];
-  clearFolder(full.id);await confirmWith(null);
+  const fullN=full.items.length;clearFolder(full.id);await confirmWith(fullN);
   ok(await until(()=>full.items.length===0),"папка очищена");
   // Как база одним POST /folders/{id}/devices: шаги folders одной операцией, не PATCH на каждый объект
   ok(CONSOLEM_TRACE.filter(t=>t.method==="POST"&&t.path==="/operations").length===1&&!CONSOLEM_TRACE.some(t=>t.method==="PATCH"),"очистка папки — одна операция POST /operations, без PATCH по объектам");

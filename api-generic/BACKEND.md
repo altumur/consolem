@@ -6,7 +6,7 @@
 
 | Что | Где описано |
 |---|---|
-| REST API конфигуратора — 111 операций, плюс 5 служебных для тестового стенда | [`openapi.json`](openapi.json) — контракт, OpenAPI 3.1 |
+| REST API конфигуратора — 121 операция, плюс 5 служебных для тестового стенда | [`openapi.json`](openapi.json) — контракт, OpenAPI 3.1 |
 | Модель данных: описания видов (`UnitKind`) и объекты (`Unit`) вместо доменов, серверов, устройств, папок, хранилищ и томов; профили; правила с историей и запусками, расписания, особые дни, режимы объекта, окна обслуживания, права, опции, журнал, справочники | [README, «Модель данных»](README.md#модель-данных); схемы — в контракте; что реализовать адаптеру — ниже, «Универсальное ядро» |
 | Эталонные данные: на них и проверяется бэкенд | [`fixtures/demo.json`](fixtures/demo.json) — весь контракт (`kinds`, `profiles`, `units`); [`fixtures/one-domain.json`](fixtures/one-domain.json) — профиль «один домен» для системы, которая умеет часть контракта; [README, «Эталонный набор»](README.md#эталонный-набор) |
 | Объявление возможностей: что система умеет из контракта | `GET /reference` → `capabilities`; ниже, «Возможности системы» |
@@ -177,8 +177,15 @@ const raw = (method, path, body, headers) =>
   - **`Hold`.** `GET`, `POST /units/{uid}/holds`, `DELETE /holds/{id}`, `POST /holds/{id}/verify`. `id` — ключ `{камера}-{from}-{to}`, целые секунды. Повтор ключа — `200`, `recordingIds` объединяются, заметка и `releasedAt` не стираются. Без `recordingIds` — все записи камеры сейчас. События `entity.*`, `kind: hold`, с `payload.deviceId` (`uid` камеры), всем. Другой кластер — `409 OTHER_CLUSTER`. Битую метку `DELETE` не снимает: предел.
   - **`status.observed.heldBy` тома.** Строка или `null`. Форма читает хранилища вида `archive.incidents` и их тома: держателя нет — предупреждение «удержанное держится, только пока его хранит архив записи».
   - **`status.observed.incidentsLost`, `incidentsAtRisk` тома.** Необязательные, только чтение, том `archive.incidents`: перевод `incidents_lost {метка: секунды}`, `incidents_at_risk [метка]` пульса держателя, V/02.7. Пустых нет. Там же, где держатель: потеря — предупреждение, на весь том, а не только этой камеры; под угрозой — слабее.
-  - **Отметка.** `GET`, `POST /units/{uid}/bookmarks {note, occurred?}`, только создать и смотреть. `occurred` — момент на шкале, нет поля — сейчас; при проигрывании форма шлёт момент кадра. Срок — срок журнала. Нет права `bm` — `403`.
+  - **Отметка.** `GET`, `POST /units/{uid}/bookmarks {note, type?, occurred?, to?}`, только создать и смотреть. Тип — `moment` или `span` (ADR-0117 доп. (1)): у отрезка `to` позже `occurred`, иначе `422`, `field: /to`; `to` у момента — тоже `422`; у старых строк типа нет — это момент. Отрезок попадает в окно `from`/`to` перечня, если пересекает его. `occurred` — момент на шкале, нет поля — сейчас; при проигрывании форма шлёт момент кадра. Срок — срок журнала. Нет права `bm` — `403`.
   - **«Закрепить».** `POST /units/{uid}/archive-fetch {archiveId, from, to}` → `{accepted, refused: [{from, to, reason}]}`. Интервал — из спанов `backupOnly` и `device`, склейка при зазоре до 3 с. Просьба на сутки, `per_person` 7. `refused` только о подаче, отказ регистратора приходит поздно, в журнале `archive.backfill.refused`. Основной записи нет — `409 NO_PRIMARY`.
+- **Выгрузка (ADR-0117).** Предметный API, как шкала: `GET /me/export?ids=<uid,…>`, `GET /units/{uid}/recording-days` (профиль `vms.camera/1`), `POST /exports/check`, `POST /exports` (202), `GET /exports`, `GET`/`DELETE /exports/{id}`, `POST …/cancel`, `POST …/retry-failed`, `POST …/files/{fileId}/link`.
+  - **Камера — по `uid`.** `ExportCamera.uid`, `ExportPart.uid`, `ExportFile.uid`, `ExportCheck.files[].uid`, `ExportGrant.devices[].uid` — объект, чей вид реализует `vms.camera/1`. Нет объекта — `404 NOT_FOUND`, другой вид — `422 NOT_SUPPORTED` с `params.kind`, `params.profile`; `field` — `/cameras/i`. Записи камеры — та же шкала, что `vms.timeline/1`.
+  - **Заказ и части.** Тело одно у проверки и создания (`ExportCreate`). Часть — камера × запись, ход и итог у каждой; частичный успех — норма. Ход — `export.progress`, итог — `export.finished`, только автору; истина — `GET`. Вид записи в потоке — `exportJob`: код `export` в модели занят видом объекта «Агент экспорта».
+  - **Ошибки с путём.** `field` — JSON Pointer по телу: `/cameras/0/area`, `/periods/1/to`, `/password`; ошибки схемы тела — тоже указатель, как на путях ядра. Новые коды: `PASSWORD_REQUIRED`, `NO_RECORDING`, `LIMIT_EXCEEDED`, `EXPORT_EXPIRED` (410), `SUPERVISOR_REJECTED`.
+  - **Область кадра** — `cameras[i].area {x, y, w, h}` в долях кадра, обрезает и видео, и кадр; `w > 0`, `h > 0`, `x + w ≤ 1`, `y + h ≤ 1`, иначе `422`.
+  - **Справочник** — `reference.export`: форматы, ступени, пределы. Окно строит списки только из него, необязательное прячет по `export*` в `capabilities.features`.
+  - **Файл** — по ссылке с токеном, сроком `limits.linkTtlSec`; дверь отдаёт `attachment` и `Range`. Стенд отдаёт `stub://`. Права стенда — `stand.exportGrant`, `stand.exportDenied` (uid), сбой части — `stand.exportFail {uid: code}`.
 - **Адрес камеры.** `rtspUrl` — чтение и запись. Без него нужны `vendor`, `model`: это адрес драйвера. Ни того ни другого при создании или после правки — `422 VALIDATION_FAILED`, `field: /properties/rtspUrl`. Камера под регистратором идёт через него. `reference.deviceModels` наполняет сервер из описаний драйверов; пустой список форме не мешает, модель вводится руками. MAC камеры, источника и СКУД — только из поиска.
 - **Входы и выходы.** Номер — свойство `channel`, внутри своего вида, с 1, сквозной по устройству: у камеры бывают 3 и 7. Событие `io.input` — у вида `sensor`, команда `output` — у `relay`, номера в правиле нет; `match.port`, `port`, если есть, значат то же самое, расхождение — `422 RULE_INVALID`. `match.value`: `active` — начало тревоги, `normal` — конец, считается сравнением сигнала с `norm`. `videoChannel` — с 1.
 - **Автоматизация — что считает сервер.**
@@ -351,7 +358,7 @@ const raw = (method, path, body, headers) =>
 
 #### `vms.camera/1` — Камера
 
-Виды эталонного набора: `camera`. Предметные пути: `/units/{uid}/recording-target`.
+Виды эталонного набора: `camera`. Предметные пути: `/units/{uid}/recording-target`, `/units/{uid}/recording-days`.
 
 | Свойство | Тип | Смысл |
 |---|---|---|

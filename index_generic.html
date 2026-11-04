@@ -262,13 +262,19 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 /* Высота — по окну, а не жёсткие 420px: у домена пунктов много, и последние
    («Создать домен», «Открыть в новой вкладке») прятались под прокрутку меню.
    За край экрана меню не выходит и так — его ставит openTreeCtx. */
-.tctx{display:none;position:fixed;z-index:45;min-width:220px;max-height:calc(100vh - 16px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 10px 28px #000a;padding:4px 0;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
+.tctx{display:none;position:fixed;z-index:62;min-width:220px;max-height:calc(100vh - 16px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 10px 28px #000a;padding:4px 0;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
 .tctx.open{display:block}
 .tctx button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:0;color:var(--tx);padding:7px 10px 7px 8px;font-size:12px;text-align:left;cursor:pointer}
 .tctx button:hover{background:var(--one-control-hover)}
 .tctx button:disabled{opacity:.42;cursor:default}
 .tctx button:disabled:hover{background:transparent}
 .tctx-sep{height:1px;margin:4px 0;background:var(--ln)}
+.tctx button:focus-visible{outline:none;background:var(--one-control-hover)}
+.tctx button.tctx-default .tctx-lbl,.acc-menu .mi.tctx-default{font-weight:600}
+.tctx button.tctx-danger{color:var(--one-danger)}
+.tctx button.tctx-danger:hover:not(:disabled),.tctx button.tctx-danger:focus-visible{background:var(--one-danger-bg)}
+.rc-target{outline:1px solid var(--bl);outline-offset:-1px}
+.it .det-row-del{flex:none;margin-left:8px}
 .pf-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .pf-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ln);background:var(--p2);color:var(--tx);border-radius:99px;padding:3px 10px 3px 8px;font-size:12px;cursor:pointer}
 .pf-chip b{color:var(--mu);font-weight:500}
@@ -497,6 +503,34 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .tl-head{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}.tl-head[hidden]{display:none}
 .tl-ax{display:flex;justify-content:space-between}.tl-ev{list-style:none;margin:8px 0 0;padding:0;max-height:220px;overflow:auto;font-size:13px}.tl-ev li{padding:2px 0}.tl-go{cursor:pointer}.tl-go:hover{color:var(--tx);text-decoration:underline}
 .hold-recs{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.tl-m.span{height:5px;top:auto;bottom:0;width:auto;min-width:2px;opacity:.85}
+.exp-cam{display:flex;align-items:center;gap:8px;min-height:32px;padding:2px 4px 2px 8px;margin-bottom:4px;border-radius:7px;background:var(--p2)}.exp-cam .exp-cam-name{flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exp-anchor{position:relative;display:inline-block;margin-top:4px}
+.exp-pop{position:absolute;z-index:20;left:0;top:calc(100% + 4px);width:380px;max-width:80vw;background:var(--p);border:1px solid var(--ln);border-radius:10px;box-shadow:0 8px 24px #0006;text-align:left}
+.exp-pop-top{padding:8px;border-bottom:1px solid var(--ln)}.exp-pop-top input{width:100%}.exp-pop-tabs{padding:0 10px;border-bottom:1px solid var(--ln)}
+.exp-pop-list{max-height:260px;overflow:auto;padding:4px 8px}.exp-pop-foot{display:flex;align-items:center;gap:8px;padding:8px;border-top:1px solid var(--ln)}
+.exp-tg{display:flex;align-items:center;gap:6px;padding:6px 2px 2px;color:var(--mu);font-size:12px}.exp-tg .sub{margin-left:auto}
+.exp-ti{display:flex;align-items:center;gap:6px;padding:4px 2px 4px 20px;margin:0;cursor:pointer}.exp-ti:hover{background:var(--p2);border-radius:6px}
+.exp-per{display:flex;align-items:center;gap:8px;margin-bottom:6px}.exp-dt{position:relative;flex:1 1 0;min-width:0}.exp-dt input{width:100%;padding-right:40px;font-variant-numeric:tabular-nums}
+.exp-dt .btn{position:absolute;right:2px;top:50%;transform:translateY(-50%);padding:4px 6px}.exp-dash{color:var(--mu)}.exp-dur{flex:none;min-width:64px;color:var(--mu);font-variant-numeric:tabular-nums}
+.exp-cal-row{display:grid;grid-template-columns:1fr 1fr;column-gap:8px}.exp-cal{width:240px;padding:8px;margin:2px 0 8px;border:1px solid var(--ln);border-radius:10px;background:var(--p2)}
+.exp-cal-top{display:flex;align-items:center;gap:4px;margin-bottom:4px}.exp-cal-top .btn{padding:4px 6px}.exp-cal-mon{flex:1;text-align:center;text-transform:capitalize}
+.exp-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}.exp-cal-dow{text-align:center;color:var(--mu);font-size:11px}
+.exp-cal-d{height:26px;border:0;border-radius:6px;background:transparent;color:var(--tx);cursor:pointer;font-variant-numeric:tabular-nums}.exp-cal-d:hover:not(:disabled){background:var(--p)}
+.exp-cal-d[aria-pressed="true"]{background:var(--bl);color:#fff}.exp-cal-d:disabled{color:var(--mu);opacity:.5;cursor:not-allowed}
+.exp-ln{border-bottom:1px solid var(--ln)}.exp-ln:last-of-type{border-bottom:0}.exp-ln[data-off]>div:first-child{color:var(--mu);opacity:.6}.exp-ln select,.exp-ln .exp-num{width:auto;min-width:200px}.exp-ln .exp-num{min-width:100px;width:100px;text-align:right}
+div.exp-ln{display:flex;align-items:center;padding:8px 0}
+.exp-checks{display:flex;flex-direction:column;gap:6px}.exp-checks .chk,.exp-ln .chk{display:inline-flex;gap:8px;align-items:center;margin:0}
+.exp-swatch{width:32px;height:32px;padding:2px;border:1px solid var(--ln);border-radius:7px;background:none;cursor:pointer}
+.exp-req{margin-left:6px;color:var(--one-danger);font-weight:400}.exp-tdot{display:inline-block;width:6px;height:6px;margin-left:6px;vertical-align:middle;border-radius:99px;background:var(--one-danger)}
+.exp-area-nt .exp-err{margin:4px 0 0}
+.tab[disabled]{opacity:.45;cursor:not-allowed}
+[data-exp-comment]{width:100%;resize:vertical}
+.exp-crop-ov{position:absolute;inset:0;z-index:5;cursor:crosshair;background:#0003}.exp-crop{position:absolute;border:1px solid var(--bl);background:#4f8cff22;pointer-events:none}.exp-crop[hidden]{display:none}
+.exp-crop-bar{position:absolute;left:8px;bottom:8px;display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;background:#000b;color:#fff;font-size:12px;cursor:default}
+.exp-err{color:var(--one-danger);font-size:12px;margin:4px 0 0}
+.exp-bar{height:8px;border-radius:99px;background:var(--p2);border:1px solid var(--ln);overflow:hidden;margin:4px 0 10px}.exp-bar i{display:block;height:100%;background:var(--bl);transition:width .3s}
+.exp-dot{margin-left:auto;font-size:11px;color:var(--mu)}.exp-dot.ok:after,.exp-dot.bad:after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--one-success-icon)}.exp-dot.bad:after{background:var(--one-danger)}
 .live-row [hidden]{display:none}.live-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.live-row label{display:inline-flex;gap:6px;align-items:center;margin:0}.live-row select{width:auto}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
@@ -868,16 +902,7 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-cand input{margin-top:3px}
 .flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.chip{background:var(--one-control-bg);border:1px solid var(--one-border);padding:8px 12px;border-radius:8px}
 .mask{display:none;position:fixed;inset:0;background:#0009;z-index:20}.mask.open{display:block}
-.dr{position:absolute;right:0;top:0;bottom:0;width:min(520px,96vw);background:var(--p);display:flex;flex-direction:column;border-left:1px solid var(--ln);border-radius:0;box-shadow:-12px 0 40px #0008;overflow:hidden}
-.dr.device-wizard{
-  width:min(1400px,calc(100vw - 160px));
-  top:0;right:0;bottom:0;
-  border:0;
-  border-left:1px solid var(--ln);
-  border-radius:0;
-  box-shadow:-12px 0 40px #0008;
-  overflow:hidden;
-}
+.dr{position:absolute;right:0;top:0;bottom:0;width:min(1400px,calc(100vw - 160px));background:var(--p);display:flex;flex-direction:column;border-left:1px solid var(--ln);border-radius:0;box-shadow:-12px 0 40px #0008;overflow:hidden}
 .dr.device-wizard .db{display:flex;flex-direction:column;overflow:hidden;padding:16px;min-height:0}
 .dh,.df{padding:14px 16px;display:flex;justify-content:space-between;align-items:center}
 .dh{border-bottom:1px solid var(--ln);gap:12px}
@@ -1153,7 +1178,7 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
   .plan-left .dev-search-head{position:sticky;top:-16px;z-index:2;background:var(--p);padding:8px 0}
   .plan-right{width:auto;max-height:480px;min-height:240px}
 }
-@media(max-width:1100px){.dev-card{grid-template-columns:repeat(3,minmax(120px,1fr));width:100%}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dr.device-wizard{width:min(1180px,calc(100vw - 48px))}}
+@media(max-width:1100px){.dev-card{grid-template-columns:repeat(3,minmax(120px,1fr));width:100%}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dr{width:min(1180px,calc(100vw - 48px))}}
 @media(max-width:700px){.dev-settings,.dev-grid,.dev-common-auth,.dev-card{grid-template-columns:1fr}[class*="dev-gc"]{grid-column:auto!important;grid-row:auto!important}.dev-result-main{grid-template-columns:max-content 6px 1fr auto}.dev-common-auth>span{align-self:auto}}
 .jump{display:none;position:fixed;inset:0;background:#000a;z-index:50;place-items:start center;padding-top:12vh}
 .jump.open{display:grid}
@@ -1314,7 +1339,6 @@ label.acc-chk.dim{color:var(--mu)}
 .acc-issue .lk{flex:1;min-width:0;text-align:left;color:var(--tx)}.acc-issue .lk:hover{color:var(--x-link-hover)}
 .acc-issue-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--one-fg-subtle)}
 .acc-issue.sev1 .acc-issue-dot{background:var(--one-warning-icon)}.acc-issue.sev2 .acc-issue-dot{background:var(--rd)}
-.dr.acc-wiz{width:min(680px,96vw)}
 .acc-st{display:flex;gap:6px;padding:10px 16px;border-bottom:1px solid var(--ln)}
 .acc-stp{flex:1;display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--mu)}
 .acc-stp i{height:4px;border-radius:4px;background:var(--one-control-bg)}.acc-stp.on i{background:var(--bl)}.acc-stp.cur{color:var(--tx);font-weight:600}
@@ -1852,7 +1876,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <div class="cfoot" id="schdlgF"></div>
   </div>
 </div>
-<div class="tctx" id="tctx" role="menu"></div>
+<div class="tctx" id="tctx" role="menu" data-on-mousedown='[["rcMenuDown",{"$on":"event"}]]'></div>
 <script>
 // Тема — одна кнопка в шапке; выбор запоминается (ключ кита kit-theme).
 try{const t=localStorage.getItem("kit-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}
@@ -2064,6 +2088,7 @@ IC.sec_rules=lu("zap");
 IC.sec_acc=lu("user");
 IC.sec_sys=lu("settings");
 IC.sec_log=lu("list");
+IC.sec_exp=lu("download");
 IC.archive=IC.storage;
 // Строки-списки — те же знаки, что у их содержимого, только серые: сервер
 // для «Нераспределённых серверов», хранилище для «Без записи», папка для
@@ -2172,7 +2197,7 @@ let deviceSearchTimer=null,deviceSearchInterval=null;
 let app="hw",_lastApp=null,sel="d1",tab="gen",dirty=false,rule="overview",ruleTab="cfg",role="adm",sys="ntp",tview="cam";
 const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rules",label:"Автоматизация",ic:"sec_rules"},
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
-  {id:"log",label:"Журнал",ic:"sec_log"}];
+  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"}];
 let slice="all";
 // Группировка запоминается для каждого среза отдельно: у камер оператор
 // смотрит то по папкам, то по серверам, и переключать её заново каждый раз —
@@ -2331,6 +2356,7 @@ function can(need){
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
   Object.assign(LIM,ref.limits);
+  EXP_REF=ref.export||null;
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.features=new Set(c.features);
@@ -3773,6 +3799,8 @@ function apiOnEvent(m){
   if(m.type==="tree.changed"){treeChanged(m);return}
   if(m.type==="journal.event"){liveJournal(m.payload);return}
   if(m.kind==="hold"||m.kind==="bookmark"){viewEntity(m);return}
+  // В модели kind события — вид объекта, а вид export — «Агент экспорта»: события выгрузки идут с kind exportJob
+  if(m.kind==="exportJob"){expOnEvent(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
   if(m.type==="test.reset"){hwRowsDrop();promptsDrop()}
@@ -4398,7 +4426,7 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
 function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):true);
+  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():true);
 }
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
@@ -5001,6 +5029,11 @@ function takeServer(serverId){
   return null;
 }
 function excludeFromDomain(serverId){
+  const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
+  if(!s||!dom)return;
+  askConfirm("Исключить сервер из домена?",`<ul class="bk-del"><li>${i18n("Сервер")} «${escHtml(locName(s))}» ${i18n("выйдет из домена")} «${escHtml(locName(dom))}».</li><li>${i18n("Останется: сервер в списке нераспределённых этого домена, его можно добавить снова.")}</li></ul>`,"",i18n("Исключить"),()=>excludeFromDomainRun(serverId),{html:true,typeCount:1});
+}
+function excludeFromDomainRun(serverId){
   const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
   if(!s||!dom)return;
   serversAssign([{s,domainId:dom.id,allocated:false}]).then(res=>{
@@ -5910,7 +5943,7 @@ function openFindServerByIp(domainId){
 }
 function nodeDeepLink(id){
   const f=find(id);if(!f)return location.href;
-  const p=new URLSearchParams({node:id,slice,group:group(),tab});
+  const p=new URLSearchParams({node:id,slice,group:group(),tab:sel===id?tab:"gen"});
   return location.pathname+location.search+"#"+p.toString();
 }
 function ctxOpenNewTab(id){
@@ -6317,6 +6350,7 @@ function sectionLoad(a){
   if(a==="log"&&!logLoaded)journalLoad().then(again);
   if(a==="sys"&&!licLoaded)licLoad().then(again);
   if(a==="acc"&&!accShown)accLoad().then(again);
+  if(a==="exp")expLoad().then(again);
 }
 function toggleUserMenu(e){
   e.stopPropagation();
@@ -6947,6 +6981,7 @@ function crumbsMenu(e){
   bulkOpenMenuAt(e.currentTarget,hidden.map(el=>tctxItem(el.dataset.label,`closeTreeCtx();pick('${el.dataset.id}')`)).join(""));
 }
 function asideAdd(){return{
+  exp:can("createExport")?`<button class="btn s w" style="margin-top:6px" data-exp-new ${onEv("click",["expNew"])}>${lu("plus")}${i18n("Выгрузка")}</button>`:"",
   rules:`<button class="btn s w" style="margin-top:6px" ${onEv("click",["ruleNewOpen"])}>${lu("plus")}${i18n("Правило")}</button><button class="btn s w" style="margin-top:6px" ${onEv("click",["ruleAuditOpen"])}>${i18n("Проверить все правила")}${ruleAudit().length?` (${ruleAudit().length} ${i18n(plural(ruleAudit().length,"замечание|замечания|замечаний"))})`:""}</button>${ruleChipsHtml()}${ruleSelBarHtml()}`,
   acc:`<div class="acc-create" role="toolbar" aria-label="${i18n("Добавить")}">
     <button type="button" class="btn s" title="${i18n("Новая роль")}" ${onEv("click",["accWzOpen"])}>${lu("plus")}${i18n("Роль")}</button>
@@ -7231,7 +7266,7 @@ function paintInto(host,html,key,seen){
   if(st)restoreView(host,st);
 }
 const mainSeen={key:null},asideSeen={key:null},treeSeen={key:null},favSeen={key:null};
-function mainKey(){return app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
+function mainKey(){return app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
 function paintMain(html){
   const host=document.getElementById("main");
   const snap=bulkScopeSnap();
@@ -7243,7 +7278,7 @@ function paintMain(html){
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
 }
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
-  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog}[app];
+  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
   srvCamMemo=null;
   const html=withFind(()=>fn?fn():"");
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
@@ -8038,6 +8073,7 @@ function bindTreeDbl(){
   treeEl._dblBound=true;
   let treePickTimer=null;
   treeEl.addEventListener("mousedown",e=>{
+    if(e.button!==0)return;   // правая кнопка не меняет выбор: только показывает меню
     if(!(e.shiftKey||e.ctrlKey||e.metaKey))return;
     if(e.target.closest(".tw"))return;
     if(e.target.closest(".n-add"))return;
@@ -8108,6 +8144,10 @@ function lanHost(n){
   if(n.type==="folder"||n.type==="archive"||n.type==="domain")return true;
   return n.type==="server"&&!isUnallocated(n.id);
 }
+function detDeleteBtn(n){
+  const cam=n.type==="det"?find(n.id)?.p:null;
+  return cam?`<button type="button" class="btn s danger" ${onEv("click",["deleteDetector",`${cam.id}`,`${n.id}`])}>${i18n("Удалить")}…</button>`:"";
+}
 // «Ещё ▾» в шапке карточки — то же меню, что по правой кнопке на строке
 // дерева: видимый вход для тех, кто про правую кнопку не знает.
 function cardMoreBtn(n){
@@ -8155,7 +8195,8 @@ function inspectorAddBtn(n){
 }
 function canWizardAdd(n){return n&&(n.type==="domain"||n.type==="server")}
 function canTreeCtx(n){
-  if(!n||n.type==="det")return false;
+  if(!n)return false;
+  if(n.type==="det")return true;
   if(n.type==="domain"||n.type==="server"||n.type==="unalloc"||n.type==="folder"||n.type==="archive"||n.type==="vol")return true;
   return treeKind(n)===tview;
 }
@@ -8187,7 +8228,7 @@ function clearFolder(folderId){
       sel=folderId;tab="gen";setD(false);
       toast(i18n("Папка очищена"));paint();
     }).catch(e=>toast(problemText(e)));
-  });
+  },{typeCount:count});
 }
 function addSubfolder(parentId,domainId){
   closeTreeCtx();
@@ -8258,11 +8299,13 @@ function tctxStarIcon(){return`<span class="tctx-ic tctx-star" aria-hidden="true
 function tctxPlusIcon(){return`<span class="tctx-ic tctx-plus" aria-hidden="true">${lu("plus")}</span>`}
 function tctxSearchIcon(){return`<span class="tctx-ic tctx-search" aria-hidden="true">${lu("search")}</span>`}
 function tctxNewTabIcon(){return`<span class="tctx-ic tctx-newtab" aria-hidden="true">${lu("square-arrow-out-up-right")}</span>`}
-function tctxItem(label,action,icon,disabled){
-  const ic=icon||`<span class="tctx-ic"></span>`;
-  if(disabled)return `<button type="button" role="menuitem" disabled>${ic}<span class="tctx-lbl">${label}</span></button>`;
-  return `<button type="button" role="menuitem" ${onEv("click",action)}>${ic}<span class="tctx-lbl">${label}</span></button>`;
+function tctxItem(label,action,icon,disabled,cls){
+  const ic=icon||`<span class="tctx-ic"></span>`,c=cls?` class="${cls}"`:"";
+  if(disabled)return `<button type="button" role="menuitem"${c} disabled>${ic}<span class="tctx-lbl">${label}</span></button>`;
+  return `<button type="button" role="menuitem"${c} ${onEv("click",action)}>${ic}<span class="tctx-lbl">${label}</span></button>`;
 }
+// Опасное действие: красное, всегда последней группой меню.
+function tctxDanger(label,action,disabled){return tctxItem(label,action,null,disabled,"tctx-danger")}
 function treeGearChildNodes(n){
   if(n.type==="folder")return[...(n.folders||[]),...folderDeviceNodes(n)];
   if(n.type==="domain"){
@@ -8312,6 +8355,7 @@ function closeTreeCtx(){
   // Меню открыла стрелка «Добавить устройства»: фокус из меню возвращается на неё
   const back=m&&addSplitMenu.from&&m.contains(document.activeElement)?addSplitMenu.from:null;
   addSplitMenu.from=null;
+  rcCloseMark(m);
   if(m)m.classList.remove("open");
   document.querySelectorAll(".btn-split-arrow").forEach(b=>b.setAttribute("aria-expanded","false"));
   if(back&&back.isConnected)back.focus();
@@ -8319,140 +8363,125 @@ function closeTreeCtx(){
 function openTreeCtx(n,xy){
   const menu=document.getElementById("tctx");if(!menu)return;
   const multi=treeSel.size>1&&treeSel.has(n.id);
-  let main=[];
-  if(multi){
+  const groups=[];
+  const sliceItems=!multi&&rcSliceItems(n);
+  if(sliceItems)groups.push(...sliceItems);
+  else if(multi){
     const k=bulkSelNodes().length;
-    main.push(tctxItem(`${i18n("Изменить выбранные")} (${k})`,`closeTreeCtx();tabGo('gen')`,`<span class="tctx-ic">${SEL_IC}</span>`));
-    main.push(tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();bulkQuick('on')`));
-    main.push(tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();bulkQuick('off')`));
-    main.push(tctxItem(`${i18n("В избранное")} (${k})`,`favSelected()`,tctxStarIcon()));
-    main.push(tctxItem(i18n("Экспорт выборки в CSV"),`closeTreeCtx();bulkExportCsv()`));
-    main.push(tctxSep());
-    main.push(tctxItem(`${i18n("Удалить")}… (${k})`,`deleteSelected()`));
-    main.push(tctxItem(i18n("Снять выделение"),`closeTreeCtx();clearTreeSel()`));
+    groups.push([
+      tctxItem(`${i18n("Изменить выбранные")} (${k})`,`closeTreeCtx();tabGo('gen')`,`<span class="tctx-ic">${SEL_IC}</span>`),
+      tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();bulkQuick('on')`),
+      tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();bulkQuick('off')`)]);
+    groups.push([
+      tctxItem(`${i18n("В избранное")} (${k})`,`favSelected()`,tctxStarIcon()),
+      tctxItem(i18n("Экспорт выборки в CSV"),`closeTreeCtx();bulkExportCsv()`),
+      tctxItem(i18n("Снять выделение"),`closeTreeCtx();clearTreeSel()`)]);
+    groups.push([tctxDanger(`${i18n("Удалить")}… (${k})`,`deleteSelected()`)]);
   }else{
-    const parts=[];
+    // Правый клик не переходит к объекту: карточка на экране остаётся. Действия, которым нужен
+    // объект на экране, сначала открывают его — act().
+    const id=n.id,act=(fn,...args)=>["ctxThen",id,fn,...args];
+    groups.push(rcGoItems(id));
+
+    const branch=[];
     if(treeNodeHasKids(n)){
-      const expanded=open.has(n.id);
-      const tl=expanded?i18n("Свернуть"):i18n("Развернуть");
-      parts.push(tctxItem(tl,`closeTreeCtx();treeToggleId('${n.id}')`));
-      if(expanded&&canCollapseTreeChildren(n))parts.push(tctxItem(i18n("Свернуть дочерние"),`collapseTreeChildren('${n.id}')`));
+      const expanded=open.has(id);
+      branch.push(tctxItem(expanded?i18n("Свернуть"):i18n("Развернуть"),`closeTreeCtx();treeToggleId('${id}')`));
+      if(expanded&&canCollapseTreeChildren(n))branch.push(tctxItem(i18n("Свернуть дочерние"),`collapseTreeChildren('${id}')`));
     }
-    const addItems=[];
+    groups.push(branch);
+    groups.push(markInsideItems(n));
+
+    const add=[];
     if(n.type==="unalloc"){
-      const add=unallocAddable(n.domainId).length;
-      if(add)addItems.push(tctxItem(`${i18n("Добавить все в домен")} (${add})`,`addAllUnalloc('${n.domainId}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить в домен"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.domainId}')`,tctxPlusIcon()));
+      const k=unallocAddable(n.domainId).length;
+      if(k)add.push(tctxItem(`${i18n("Добавить все в домен")} (${k})`,act("addAllUnalloc",n.domainId),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить в домен"),act("openW","server"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить серверы по IP"),act("openFindServerByIp",n.domainId),tctxPlusIcon()));
     }else if(n.type==="archive"){
-      // Вход тот же, что в шапке архива: камеры привязывают к архиву, поэтому
-      // и заводить их удобно прямо отсюда.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      if(canCreateKind("volume")){
-        addItems.push(tctxSep());
-        addItems.push(tctxItem(i18n("Добавить том"),`closeTreeCtx();addVolume('${n.id}')`,tctxPlusIcon()));
-      }
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(canCreateKind("volume"))add.push(tctxItem(i18n("Добавить том"),act("addVolume",id),tctxPlusIcon()));
     }else if(n.type==="domain"){
-      // Всё, что заводит карточка домена: устройства — одним входом, как у
-      // архива, дальше то, из чего домен состоит. Раскладка больше не решает,
-      // что здесь показать, — в карточке это есть всегда, и меню не должно
-      // прятать половину только потому, что дерево разложено по папкам.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      addItems.push(tctxSep());
-      addItems.push(tctxItem(i18n("Добавить сервер"),`closeTreeCtx();openW('server')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить серверы по IP"),`closeTreeCtx();openFindServerByIp('${n.id}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Создать папку"),`addSubfolder(null,'${n.id}')`,tctxPlusIcon()));
-      if(canDomainArch())addItems.push(tctxItem(i18n("Создать сетевое хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
-    }else if(n.type==="server"&&!isUnallocated(n.id)){
-      // Как у домена: всё, что заводит карточка сервера. Устройства — одним
-      // входом, дальше службы и хранилище этого сервера.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      addItems.push(tctxSep());
-      if(WIZ.svc)addItems.push(tctxItem(addTreeLabel(n),`closeTreeCtx();openW('svc')`,tctxPlusIcon()));
-      if(canCreateKind("archive"))addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
-    }else if(canTreeCtxAdd(n)){
-      const lb=n.type==="folder"?i18n("Добавить устройства…"):addTreeLabel(n);
-      const act=n.type==="server"?`closeTreeCtx();openW('svc')`:n.type==="folder"?"closeTreeCtx();planOpen()":"closeTreeCtx();openW()";
-      addItems.push(tctxItem(lb,act,tctxPlusIcon()));
-      if(n.type==="folder")addItems.push(tctxItem(i18n("Создать подпапку"),`addSubfolder('${n.id}')`,tctxPlusIcon()));
-    }
-    const rest=[];
-    if(n.type==="server"&&isUnallocated(n.id)){
-      const did=unallocDomainOf(n.id);
-      if(did)rest.push(tctxItem(i18n("Добавить в домен"),`closeTreeCtx();addToDomain('${n.id}','${did}')`));
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить сервер"),act("openW","server"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить серверы по IP"),act("openFindServerByIp",id),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Создать папку"),act("addSubfolder",null,id),tctxPlusIcon()));
+      if(canDomainArch())add.push(tctxItem(i18n("Создать сетевое хранилище…"),act("addArchive",id),tctxPlusIcon()));
+    }else if(n.type==="server"&&!isUnallocated(id)){
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(WIZ.svc)add.push(tctxItem(addTreeLabel(n),act("openW","svc"),tctxPlusIcon()));
+      if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
+    }else if(n.type==="folder"){
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
+    }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
+    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
+    if(n.type==="camera")add.push(tctxItem(i18n("Добавить детектор"),act("addDetector",id),tctxPlusIcon()));
+    groups.push(add);
+
+    const edit=[];
+    if(n.type==="server"&&isUnallocated(id)){
+      const did=unallocDomainOf(id);
+      if(did)edit.push(tctxItem(i18n("Добавить в домен"),act("addToDomain",id,did)));
     }else if(n.type!=="unalloc"){
-      const canRename=n.type==="domain"||n.type==="server"||n.type==="folder"||n.type==="archive"||(n.type!=="unalloc"&&n.type!=="det"&&treeKind(n)===tview);
-      if(canRename)rest.push(tctxItem(i18n("Переименовать"),`ctxRename('${n.id}')`));
-      if(canRenameShort(n))rest.push(tctxItem(i18n("Изменить короткое имя"),`ctxRename('${n.id}','short')`));
-      if(n.type==="server"&&!isUnallocated(n.id)&&domainOf(n.id)){
-        rest.push(tctxItem(i18n("Исключить из домена"),`closeTreeCtx();excludeFromDomain('${n.id}')`));
-      }
-      if(n.type==="folder"){
-        rest.push(tctxItem(i18n("Убрать все объекты"),`clearFolder('${n.id}')`));
-        rest.push(tctxItem(i18n("Удалить папку"),`deleteFolder('${n.id}')`));
-      }
-      if(n.type==="archive")rest.push(tctxItem(i18n("Удалить хранилище"),`deleteArchive('${n.id}')`));
-      if(n.type==="vol"&&canDeleteKind("volume"))rest.push(tctxItem(i18n("Удалить том"),`deleteVolume('${n.id}')`));
+      const canRename=n.type==="domain"||n.type==="server"||n.type==="folder"||n.type==="archive"||(n.type!=="det"&&treeKind(n)===tview);
+      if(canRename)edit.push(tctxItem(i18n("Переименовать"),act("ctxRename",id)));
+      if(canRenameShort(n))edit.push(tctxItem(i18n("Изменить короткое имя"),act("ctxRename",id,"short")));
     }
-    if(n.type==="domain"&&canDeleteKind("domain")){
-      rest.push(tctxItem(i18n("Удалить домен"),`deleteDomain('${n.id}')`,null,!canDeleteDomain()));
+    if(n.type==="camera")edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
+    if(rulePresetFor(n))edit.push(tctxItem(i18n(n.type==="relay"?"Создать правило с этим реле…":"Создать правило по событию…"),act("ruleFromDevice",id)));
+    if(canFav(n))edit.push(tctxItem(isFav(id)?i18n("Убрать из избранного"):i18n("В избранное"),["toggleFav",id,sel===id&&selCtx?selCtx:null],tctxStarIcon()));
+    if(n.type==="unalloc")edit.push(tctxItem(i18n("Обновить"),act("refreshUnalloc",n.domainId)));
+    groups.push(edit);
+
+    const del=[];
+    if(n.type==="server"&&!isUnallocated(id)&&domainOf(id))del.push(tctxDanger(i18n("Исключить из домена"),act("excludeFromDomain",id)));
+    if(n.type==="folder"){
+      del.push(tctxDanger(i18n("Убрать все объекты"),act("clearFolder",id)));
+      del.push(tctxDanger(i18n("Удалить папку"),act("deleteFolder",id)));
     }
-    if(canFav(n))rest.push(tctxItem(isFav(n.id)?i18n("Убрать из избранного"):i18n("В избранное"),`toggleFav('${n.id}',${selCtx?`'${selCtx}'`:"null"})`,tctxStarIcon()));
-    if(n.type==="unalloc")rest.push(tctxItem(i18n("Обновить"),`refreshUnalloc('${n.domainId}')`));
-    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))rest.push(tctxItem(i18n("Добавить единицу СКУД"),`closeTreeCtx();pick('${n.id}');openW('unit')`,tctxPlusIcon()));
-    if(canTreeCtxDelete(n))rest.push(tctxItem(i18n("Удалить"),`deleteTreeNode('${n.id}')`));
-    main=[...parts];
-    const mark=markInsideItems(n);
-    if(mark.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...mark);
-    }
-    if(addItems.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...addItems);
-    }
-    if(rest.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...rest);
-    }
-    if((n.type==="domain"||n.type==="unalloc")&&canCreateKind("domain")){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n("Создать домен"),`addDomain()`,tctxPlusIcon()));
-    }
-    if(n.type==="camera"){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n("Применить настройки к другим…"),`closeTreeCtx();openCopyDialog('${n.id}')`,`<span class="tctx-ic">${SEL_IC}</span>`));
-    }
-    if(rulePresetFor(n)){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n(n.type==="relay"?"Создать правило с этим реле…":"Создать правило по событию…"),`closeTreeCtx();ruleFromDevice('${n.id}')`));
-    }
-    if(main.length)main.push(tctxSep());
-    main.push(tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${n.id}')`,tctxNewTabIcon()));
+    if(n.type==="archive")del.push(tctxDanger(i18n("Удалить хранилище"),act("deleteArchive",id)));
+    if(n.type==="vol"&&canDeleteKind("volume"))del.push(tctxDanger(i18n("Удалить том"),act("deleteVolume",id)));
+    if(n.type==="domain"&&canDeleteKind("domain"))del.push(tctxDanger(i18n("Удалить домен"),act("deleteDomain",id),!canDeleteDomain()));
+    if(canTreeCtxDelete(n))del.push(tctxDanger(i18n("Удалить"),act("deleteTreeNode",id)));
+    groups.push(del);
   }
-  menu.innerHTML=main.join("");
-  menu.classList.add("open");
-  menu.style.left="0px";menu.style.top="0px";
-  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8;
-  let left=xy.x,top=xy.y;
-  if(left+mw>window.innerWidth-pad)left=Math.max(pad,window.innerWidth-mw-pad);
-  if(top+mh>window.innerHeight-pad)top=Math.max(pad,xy.y-mh);
-  if(top+mh>window.innerHeight-pad)top=Math.max(pad,window.innerHeight-mh-pad);
-  menu.style.left=left+"px";
-  menu.style.top=top+"px";
+  rcShow(groups.filter(g=>g.length).map(g=>g.join("")).join(tctxSep()),xy);
 }
-function treeCtx(e,id){
-  e.preventDefault();e.stopPropagation();
-  if(app!=="hw"&&app!=="hw")return;
-  const f=find(id);if(!f)return;
-  const n=f.n;
-  if(!canTreeCtx(n))return;
-  const xy={x:e.clientX,y:e.clientY};
-  if(sel!==id){
-    if(!(treeSel.has(id)&&treeSel.size>1))resetTreeSel(id);
-    sel=id;tab="gen";setD(false);expandTo(id);renderTree();gear();
+function rcGoItems(id){
+  return[...(sel===id?[]:[tctxItem(i18n("Открыть"),["rcOpenNode",id],null,false,"tctx-default")]),
+    tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${id}')`,tctxNewTabIcon())];
+}
+// В срезе показаны только его объекты: контейнер в «Детекторах» и «Хранилищах» предлагает только их.
+function rcSliceItems(n){
+  const id=n.id;
+  if(n.type==="det"){
+    const cam=find(id)?.p;
+    return[rcGoItems(id),
+      rulePresetFor(n)?[tctxItem(i18n("Создать правило по событию…"),["rcRun","ruleFromDevice",id])]:[],
+      cam?[tctxDanger(`${i18n("Удалить")}…`,["rcRun","deleteDetector",cam.id,id])]:[]];
   }
-  openTreeCtx(n,xy);
+  if(slice==="det"&&n.type==="camera")return[rcGoItems(id),[tctxItem(i18n("Добавить детектор"),["ctxThen",id,"addDetector",id],tctxPlusIcon())]];
+  if(slice==="det"&&["domain","server","folder","nofolder","unalloc"].includes(n.type))return[rcGoItems(id)];
+  if(slice==="arch"&&(n.type==="domain"||n.type==="server")){
+    const own=n.type==="server"?serverArchives(id):[];
+    const add=n.type==="domain"
+      ?(canDomainArch()?[tctxItem(i18n("Создать сетевое хранилище…"),["rcRun","addArchive",id],tctxPlusIcon())]:[])
+      :(canCreateKind("archive")?[tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",id],tctxPlusIcon())]:[]);
+    return[rcGoItems(id),add,
+      own.length===1?[tctxDanger(`${i18n("Удалить хранилище")} «${escHtml(locName(own[0]))}»…`,["rcRun","deleteArchive",own[0].id])]:[]];
+  }
+  return null;
+}
+function rcRun(fn,...args){closeTreeCtx();window[fn](...args)}
+function treeCtx(e,id){
+  if(rcNative(e))return;
+  e.preventDefault();e.stopPropagation();
+  if(app!=="hw")return;
+  const f=find(id);if(!f||!canTreeCtx(f.n))return;
+  openTreeCtx(f.n,rcPoint(e));
+  rcMark(e.currentTarget?.closest?.(".n")||e.currentTarget);
+  if(rcByKey(e))rcFocusFirst();
 }
 function nrow(n,l,ctx){
   const q=qval();
@@ -8962,7 +8991,7 @@ function gear(){
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
   // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
   // дальше собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=((lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+schemaRootBtn(n)+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  const addBtn=((lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+schemaRootBtn(n)+bulkCopyBtn(n)+detDeleteBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   xpropsEnsure(n);
   cardEnsureBase(n);
@@ -10284,17 +10313,23 @@ function deleteDetector(camId,detId){
   askConfirm("Удалить детектор?",`${i18n("Будет удалён")} «${escHtml(locName(d))}».`,i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),i18n("Удалить"),()=>scheduleDelete([detId],{label:`${i18n("Детектор")} «${locName(d)}»`,commit:()=>{
     if(!hwVer.has(detId)){deleteDetectorDraft(f,detId);return}
     API.del(`/units/${detId}`,hwVer.get(detId)).then(()=>{
+    const was=sel===detId;
     hwRemoveDevice(detId);
-    if(detSel===detId)detSel=null;
-    setD(true);toast(i18n("Детектор удалён"));applyFiltersFromState();
+    detAfterDelete(camId,detId,was);
     }).catch(e=>toast(problemText(e)));
   }}),{typeCount:1});
 }
 // Детектор, ещё не применённый карточкой, есть только в черновике: удаляется там же
 function deleteDetectorDraft(f,detId){
+  const was=sel===detId;
   f.n.devices=f.n.devices.filter(x=>x.id!==detId);
+  detAfterDelete(f.n.id,detId,was);
+}
+// Удалили детектор из его собственной карточки: открываем его камеру, а не пустое место.
+function detAfterDelete(camId,detId,was){
   if(detSel===detId)detSel=null;
-  setD(true);toast(i18n("Детектор удалён"));applyFiltersFromState();
+  if(was){pick(camId,{force:true});goTab("det")}else setD(true);
+  toast(i18n("Детектор удалён"));applyFiltersFromState();
 }
 // Зона детектора рисуется прямо на карточке, без отдельной вкладки
 function detGo(id){detSel=id;gear()}
@@ -10411,15 +10446,14 @@ function camDetectorsHtml(n){
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0])],
-    row:d=>`<div class="it ${d.id===cur.id?"on":""}" ${onEv("click",["detGo",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))}${d.builtin?" · "+i18n("на камере"):""}</small></span>${bdg(d)}</div>`,
+    row:d=>`<div class="it ${d.id===cur.id?"on":""}" ${onEv("click",["detGo",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))}${d.builtin?" · "+i18n("на камере"):""}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`,
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
     head:addBtn
   })+
     card("Параметры детектора",`${detFieldsHtml(n,cur,"Имя детектора")}
       ${detServerNoteHtml(n,cur)}
-      <p class="sub">${i18n("События детектора →")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button> · <button type="button" class="lk" ${onEv("click",["ruleFromDevice",`${cur.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,
-      `<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${n.id}`,`${cur.id}`])}>${i18n("Удалить")}</button>`)+
+      <p class="sub">${i18n("События детектора →")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button> · <button type="button" class="lk" ${onEv("click",["ruleFromDevice",`${cur.id}`])}>${i18n("Создать правило по событию…")}</button></p>`)+
     ruleUsesCardHtml(cur)+detZoneCardHtml(n,cur);
 }
 // ── Живое видео ───────────────────────────────────────────────────────────
@@ -10832,7 +10866,7 @@ function tlBarHtml(v){
   const spans=t.spans.map((s,i)=>{const a=tlPos(t,s.startMs),b=tlPos(t,s.endMs);
     return`<i class="tl-s${s.fenced?" fen":s.backupOnly?" bak":s.source==="device"?" dev":""}" data-span="${i}" style="left:${a.toFixed(3)}%;width:${Math.max(b-a,.15).toFixed(3)}%" title="${escHtml(tlSpanTitle(s))}"></i>`}).join("");
   const ev=t.ev.map(e=>`<b class="tl-e" style="left:${left(eventMs(e))}%"></b>`).join("");
-  const marks=(v.marks||[]).map(m=>`<b class="tl-m" style="left:${left(Date.parse(m.occurred))}%" title="${escHtml(m.note)}"></b>`).join("");
+  const marks=(v.marks||[]).map(m=>m.type==="span"&&m.to?`<b class="tl-m span" style="left:${left(Date.parse(m.occurred))}%;width:${Math.max(tlPos(t,Date.parse(m.to))-tlPos(t,Date.parse(m.occurred)),.2).toFixed(3)}%" title="${escHtml(m.note)}"></b>`:`<b class="tl-m" style="left:${left(Date.parse(m.occurred))}%" title="${escHtml(m.note)}"></b>`).join("");
   return`<div class="tl" data-tl-bar ${onEv("click",["tlClick",onEv.el,onEv.event])}>${spans}${ev}${marks}<em class="tl-head" data-tl-head hidden></em></div><div class="tl-ax"><span class="sub">${escHtml(tlDate(t.from))}</span><span class="sub">${escHtml(tlDate(t.to))}</span></div>`;
 }
 function tlSpanTitle(s){
@@ -11043,22 +11077,550 @@ function holdVerify(id){
     viewFill();
   }).catch(e=>toast(problemText(e)));
 }
+// ── Экспорт (ADR-0117): заказ выгрузки, ход и файлы ──────────────────────────
+// Состав — окно экспорта монитора (one-psim-monitor): «Основное» и пять необязательных разделов — «Качество видео»,
+// «Специальные опции», «Выделение», «Конфиденциальность», «Титры»; вид — как у вкладок карточки consolem. Раздел на
+// рельсе, а не вкладка камеры: в выгрузке несколько камер. Из карточки камеры («Просмотр», «Отметки») он открывается
+// с выбранной камерой. Списки — из reference.export, необязательное скрыто по export* в capabilities.features; ошибки
+// сервер отдаёт с field — JSON Pointer по телу, они встают у своих полей, а вкладка с ошибкой помечена точкой.
+// Модель: камера заказа, части и права — по uid объекта; дни с записью — предметный путь /units/{uid}/recording-days
+let EXP_REF=null,expSel="new",expRows=null,expGrantV=null,expD=null,expChk=null,expChkSeq=0,expChkT=0,expPick=null,expPickSeq=0,expDays={},expDets={},expCrop=null;
+const EXP_TITLE={dateTime:"Дата и время",shortName:"Короткое имя камеры",cameraName:"Имя камеры",coordinates:"Координаты камеры",user:"Имя пользователя",bookmark:"Закладка"};
+const EXP_CODEC={source:"По умолчанию",mpeg4:"MPEG4",mjpeg:"MJPEG",h264:"H.264"};
+const EXP_HIDE={none:"Не скрывать",hide:"Скрыть",invert:"Инвертировать и скрыть"};
+const EXP_OVER={soft:"Программные титры",burned:"Вшитые титры"};
+const EXP_STATE={queued:"В очереди",running:"Идёт",done:"Готово",failed:"Не вышло",cancelled:"Отменено",expired:"Срок вышел"};
+const EXP_PART={wait:"ждёт",run:"идёт",ok:"готово",fail:"не вышло",cancel:"отменено"};
+const EXP_PART_CODE={no_recording:"записи нет",unreachable:"сервер записи не отвечает",no_space:"нет места под файлы",limit:"предел",offline:"камера без связи",expired:"файлы потеряны"};
+// Ошибка — во вкладку по началу пути
+const EXP_TAB_OF=f=>/^\/(quality)/.test(f)?"quality":/^\/special/.test(f)?"special":/^\/highlight/.test(f)?"tracks":/^\/privacy/.test(f)?"privacy":/^\/titles/.test(f)?"titles":"main";
+const expOn=f=>can("feature:"+f);
+function expShown(){return can("createExport")||can("listExports")}
+const EXP_DEF={codec:"source",compression:"default",resolution:"source",fps:1,player:false,audio:false,maxmb:4000,thin:0,speed:1,tracks:[],marks:false,hide:"none",
+  titles:["dateTime"],font:"",color:"#FFFFFF",bg:"#000000",alpha:60,over:"soft",src:false,srcOver:"soft"};
+function expDraftNew(o={}){
+  const now=Date.now(),L=EXP_REF?.limits||{},f0=EXP_REF?.fonts?.[0];
+  const adv=Object.assign({},EXP_DEF,{maxmb:L.maxFileMbDefault||4000,font:f0?`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`:"",tracks:[],titles:EXP_DEF.titles.slice()});
+  return{entry:o.entry||"archive",from:o.from||"",cams:(o.cams||[]).map(id=>({id,area:null})),
+    periods:o.periods||[{from:now-10*60e3,to:now-5*60e3}],format:o.format||(o.entry==="live"?"jpg":"mkv"),single:true,name:"",nameSet:false,password:"",comment:o.comment||"",
+    supLogin:"",supPwd:"",bookmarkId:o.bookmarkId||null,bookmarkNote:o.bookmarkNote||"",adv,tab:"main"};
+}
+const expFmt=d=>(EXP_REF?.formats||[]).find(f=>f.id===d.format)||null;
+const expFrame=d=>expFmt(d)?.kind==="frame";
+const expLive=d=>d.entry==="live";
+const expMulti=d=>d.cams.length>1;
+const expOneFile=d=>expMulti(d)&&!expFrame(d)&&expFmt(d)?.singleFile==="tracks"&&expOn("exportSingleFile")&&d.single;
+// Время — так же, как показывает и принимает монитор: «26.10.2026 11:12:01», по часам браузера
+const exp2=n=>String(n).padStart(2,"0");
+const expTimeText=ms=>{const t=new Date(ms);return`${exp2(t.getDate())}.${exp2(t.getMonth()+1)}.${t.getFullYear()} ${exp2(t.getHours())}:${exp2(t.getMinutes())}:${exp2(t.getSeconds())}`};
+function expTimeParse(s){const m=/^(\d{2})\.(\d{2})\.(\d{4})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/.exec(String(s).trim());return m?new Date(+m[3],+m[2]-1,+m[1],+m[4],+m[5],+(m[6]||0)).getTime():NaN}
+function expDurText(p){
+  if(!(p.to>p.from))return"";
+  const s=Math.round((p.to-p.from)/1000),h=Math.floor(s/3600),m=Math.floor(s%3600/60);
+  return(h?`${h} ${i18n("ч")} `:"")+(m||!h?`${m} ${i18n("мин")}`:"")||i18n("меньше минуты");
+}
+// Тело заказа по контракту: только то, что объявлено и отличается от умолчания
+function expBody(d){
+  const f=expFmt(d),a=d.adv,frame=expFrame(d),b={mode:frame?"frame":"video",cameras:d.cams.map(c=>Object.assign({uid:c.id},c.area&&expOn("exportArea")?{area:c.area}:{})),format:d.format};
+  if(expLive(d))b.source="live";
+  if(!frame)b.periods=d.periods.map(p=>({from:new Date(p.from).toISOString(),to:new Date(p.to).toISOString()}));
+  else if(!expLive(d))b.at=new Date(d.periods[0].from).toISOString();
+  if(d.bookmarkId)b.bookmarkId=d.bookmarkId;
+  if(d.nameSet&&d.name.trim())b.name=d.name.trim();
+  if(d.password)b.password=d.password;
+  if(d.comment.trim())b.comment=d.comment.trim();
+  if(expGrantV?.supervisorRequired&&expOn("accessSupervision"))b.supervisor={login:d.supLogin,password:d.supPwd};
+  if(expMulti(d)&&!frame&&f?.singleFile==="tracks"&&expOn("exportSingleFile"))b.singleFile=!!d.single;
+  if(expOn("exportTranscode")){
+    const q={};
+    if(!frame){if(a.codec!=="source")q.codec=a.codec;if(a.compression!=="default")q.compression=a.compression;if(+a.fps>1)q.fpsDivisor=+a.fps;if(+a.thin>0)q.maxFps=Math.round(+a.thin);if(+a.speed>1)q.speed=+a.speed}
+    if(a.resolution!=="source")q.resolution=a.resolution;
+    if(Object.keys(q).length)b.quality=q;
+  }
+  if(!frame){const sp={};if(a.player&&f?.player&&expOn("exportPlayer"))sp.player=true;if(a.audio&&expOn("exportAudio"))sp.audio=true;if(+a.maxmb!==(EXP_REF?.limits?.maxFileMbDefault||4000))sp.maxFileMb=+a.maxmb;if(Object.keys(sp).length)b.special=sp}
+  if(expOn("exportTracks")&&(a.tracks.length||a.marks))b.highlight=Object.assign({},a.tracks.length?{detectorIds:a.tracks.slice()}:{},a.marks?{bookmarks:true}:{});
+  if(expOn("exportPrivacy")&&a.hide!=="none")b.privacy={mode:a.hide};
+  if(expOn("exportTitles")&&(a.titles.length||a.src)){
+    const [fam,size]=String(a.font).split("|"),over=frame||!f?.softTitles?"burned":a.over;
+    b.titles=Object.assign({fields:a.titles.slice(),color:a.color,background:a.bg,backgroundAlpha:Math.max(0,Math.min(100,+a.alpha||0)),overlay:over},fam?{font:{family:fam,size:+size||16}}:{});
+    if(a.src&&expOn("exportEventTitles"))b.titles.eventSource={on:true,overlay:frame||!f?.softTitles?"burned":a.srcOver};
+  }
+  return b;
+}
+// Открыть раздел с заказом: из карточки камеры, из отметки, с кнопки на рельсе
+function expOpen(o){
+  expD=expDraftNew(o||{});expSel="new";expChk=null;expPick=null;
+  if(app!=="exp")setApp("exp");else paint();
+  expGrantLoad().then(expRepaint);expCheckSoon();
+}
+function expNew(){expOpen({})}
+function expFromCam(id,mode){
+  const v=lv&&lv.id===id?lv:null,m=v?pbMoment(v):null,now=Date.now(),nm=expCamName(id);
+  if(mode==="live")return expOpen({entry:"live",cams:[id],format:"jpg",from:`${i18n("живое видео · кадр")} «${nm}»`});
+  if(mode==="frame")return expOpen({cams:[id],format:"jpg",periods:[{from:m||now-60e3,to:(m||now-60e3)+1000}],from:`${i18n("архив · кадр")} «${nm}»`});
+  const t=v?.tl,win=m?{from:m-30e3,to:m+30e3}:t&&t.from&&t.to-t.from<=36e5?{from:t.from,to:t.to}:{from:now-10*60e3,to:now-5*60e3};
+  expOpen({cams:[id],periods:[win],from:`${i18n("архив · камера")} «${nm}»`});
+}
+// Закладка-отрезок — её границы, момент — ± limits.bookmarkPadSec (ADR-0117 доп. (1) п. 2), правится в форме
+function expFromMark(id,mid){
+  const m=(lv?.marks||[]).find(x=>x.id===mid);if(!m)return;
+  const a=Date.parse(m.occurred),pad=(EXP_REF?.limits?.bookmarkPadSec||30)*1000;
+  const per=m.type==="span"&&m.to?{from:a,to:Date.parse(m.to)}:{from:a-pad,to:a+pad};
+  expOpen({entry:"bookmark",cams:[id],periods:[per],bookmarkId:m.id,bookmarkNote:m.note,comment:m.note,from:`${i18n("закладка")} «${m.note}» · ${tlDate(a)}`});
+}
+function expLoad(){
+  const p=[];
+  if(can("listExports"))p.push(API.get("/exports",{mine:true,limit:50}).then(r=>{expRows=r.items}).catch(e=>{expRows=[];toast(problemText(e))}));
+  if(can("getExportGrant"))p.push(expGrantLoad());
+  return Promise.all(p);
+}
+function expGrantLoad(){
+  if(!can("getExportGrant"))return Promise.resolve();
+  const ids=(expD?.cams||[]).map(c=>c.id).join(",");
+  return API.get("/me/export",ids?{ids}:{}).then(g=>{expGrantV=g}).catch(()=>{});
+}
+function expRepaint(){if(app==="exp")expUI()}
+function expTouched(){expCheckSoon();expRepaint()}
+// Проверка без запуска — при каждой правке, с паузой: ошибки, перекодирование, оценка и имена файлов — с сервера
+function expCheckSoon(){
+  clearTimeout(expChkT);if(!expD||!can("checkExport"))return;
+  if(!expD.cams.length){expChk=null;return}
+  expChkT=setTimeout(()=>{
+    const seq=++expChkSeq,d=expD;
+    API.post("/exports/check",expBody(d)).then(r=>{if(seq===expChkSeq&&d===expD){expChk=r;expRepaint()}}).catch(e=>{if(seq===expChkSeq){expChk={ok:false,errors:[e?.problem||{code:"VALIDATION_FAILED",message:""}],files:[]};expRepaint()}});
+  },250);
+}
+// Поле формы: ключ из умолчаний живёт в adv, остальные — в самом заказе (правило монитора)
+function expSet(k,v,repaint=true){
+  if(!expD)return;
+  if(k in EXP_DEF)expD.adv[k]=v;
+  else{expD[k]=v;if(k==="name")expD.nameSet=true}
+  if(k==="format"&&expFrame(expD)&&expD.tab==="special")expD.tab="main";
+  if(repaint)expTouched();else expCheckSoon();
+}
+function expTabGo(t){if(expD){expD.tab=t;expPick=null;expRepaint()}}
+function expPeriodSet(i,k,v){const ms=expTimeParse(v);if(!expD?.periods[i])return;if(ms>0)expD.periods[i][k]=ms;else toast(i18n("Время — в виде 26.10.2026 11:12:01"));expTouched()}
+function expPeriodAdd(){const last=expD.periods[expD.periods.length-1]||{to:Date.now()};expD.periods.push({from:last.to-5*60e3,to:last.to});expTouched()}
+function expPeriodDel(i){expD.periods.splice(i,1);if(expPick?.type==="cal")expPick=null;expTouched()}
+// «Взять с таймлайна»: показанное на шкале «Просмотра» камеры, проигрываемый момент — ±30 с
+function expGrab(){
+  const v=lv&&expD.cams.some(c=>c.id===lv.id)?lv:null;if(!v?.tl)return;
+  const m=pbMoment(v),p=m?{from:m-30e3,to:m+30e3}:{from:v.tl.from,to:v.tl.to};
+  expD.periods[expD.periods.length-1]=p;expD.from=i18n("архив · интервал на таймлайне");expTouched();
+}
+// Календарь: дни без записи выбрать нельзя. Сутки — у первой камеры, сервер называет их сам (recording-days)
+function expCal(i,which){
+  const same=expPick?.type==="cal"&&expPick.i===i&&expPick.which===which;
+  if(same){expPick=null;return expRepaint()}
+  const ms=expD.periods[i][which],t=new Date(ms);
+  expPick={type:"cal",i,which,y:t.getFullYear(),m:t.getMonth()};expCalLoad();expRepaint();
+}
+function expCalMon(step){if(expPick?.type!=="cal")return;const t=new Date(expPick.y,expPick.m+step,1);expPick.y=t.getFullYear();expPick.m=t.getMonth();expCalLoad();expRepaint()}
+function expCalLoad(){
+  const id=expD?.cams[0]?.id,p=expPick;if(!id||!p||!can("getUnitRecordingDays"))return;
+  const key=`${id}|${p.y}-${p.m}`;if(expDays[key])return;
+  const d=x=>`${x.getFullYear()}-${exp2(x.getMonth()+1)}-${exp2(x.getDate())}`;
+  expDays[key]={busy:true,days:{}};
+  API.get(`/units/${id}/recording-days`,{from:d(new Date(p.y,p.m,1)),to:d(new Date(p.y,p.m+1,0))}).then(r=>{const o={};r.days.forEach(x=>o[x.date]=x.recorded);expDays[key]={days:o};expRepaint()}).catch(()=>{delete expDays[key]});
+}
+function expCalDay(day){
+  const p=expPick;if(p?.type!=="cal")return;
+  const per=expD.periods[p.i],cur=new Date(per[p.which]);
+  per[p.which]=new Date(p.y,p.m,day,cur.getHours(),cur.getMinutes(),cur.getSeconds()).getTime();
+  expPick=null;expTouched();
+}
+function expCalHtml(){
+  const p=expPick,id=expD.cams[0]?.id,rec=id&&expDays[`${id}|${p.y}-${p.m}`],first=new Date(p.y,p.m,1),shift=(first.getDay()+6)%7,n=new Date(p.y,p.m+1,0).getDate();
+  const cur=new Date(expD.periods[p.i][p.which]),today=new Date();
+  let g=["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(x=>`<span class="exp-cal-dow">${i18n(x)}</span>`).join("")+"<span></span>".repeat(shift);
+  for(let day=1;day<=n;day++){
+    const key=`${p.y}-${exp2(p.m+1)}-${exp2(day)}`,future=new Date(p.y,p.m,day)>today,ok=!future&&(!rec||rec.busy||rec.days[key]!==false);
+    const on=cur.getFullYear()===p.y&&cur.getMonth()===p.m&&cur.getDate()===day;
+    g+=`<button type="button" class="exp-cal-d" ${ok?onEv("click",["expCalDay",day]):"disabled"} aria-pressed="${on}" ${ok?"":`title="${i18n("За этот день записей нет")}"`}>${day}</button>`;
+  }
+  const mon=new Date(p.y,p.m,1).toLocaleDateString(uiLang==="ru"?"ru-RU":"en-GB",{month:"long",year:"numeric"});
+  return`<div class="exp-cal-row">${p.which==="to"?"<div></div>":""}<div class="exp-cal" data-exp-cal>
+    <div class="exp-cal-top"><button type="button" class="btn s" aria-label="${i18n("Предыдущий месяц")}" ${onEv("click",["expCalMon",-1])}>${lu("chevron-left")}</button><span class="exp-cal-mon">${escHtml(mon)}</span><button type="button" class="btn s" aria-label="${i18n("Следующий месяц")}" ${onEv("click",["expCalMon",1])}>${lu("chevron-right")}</button></div>
+    <div class="exp-cal-grid">${g}</div><p class="sub">${i18n("Дни без записи выбрать нельзя.")}</p></div></div>`;
+}
+// Выбор камер — поиск и список по серверам или папкам, флажками, как в мониторе («Серверы», «Группы»)
+function expCamsPop(){
+  if(expPick?.type==="cams"){expPick=null;return expRepaint()}
+  expPick={type:"cams",tab:"srv",q:"",rows:null};expPickLoad();expRepaint();
+}
+function expPickLoad(){
+  const p=expPick,seq=++expPickSeq;if(!p)return;
+  // Камеры — все виды с профилем vms.camera/1, строки — как строки перечня базы (rowTrim): имя и сервер записи
+  API.get("/units",Object.assign({implements:"vms.camera/1",limit:200},p.q.trim()?{q:p.q.trim()}:{})).then(r=>{if(seq===expPickSeq&&expPick===p){p.rows=r.items.map(u=>unitRec(rowTrim(u)));r.items.filter(x=>!find(x.uid)).forEach(hwAddRow);expRepaint()}}).catch(()=>{});
+}
+function expPickQ(v){if(!expPick)return;expPick.q=v;clearTimeout(expPick.t);expPick.t=setTimeout(expPickLoad,200)}
+function expPickTab(t){if(expPick){expPick.tab=t;expRepaint()}}
+function expCamTog(id,on){
+  const max=EXP_REF?.limits?.maxCameras||16;
+  if(on&&!expD.cams.some(c=>c.id===id)){if(expD.cams.length>=max)return toast(`${i18n("Не больше")} ${max}`);expD.cams.push({id,area:null})}
+  if(!on)expD.cams=expD.cams.filter(c=>c.id!==id);
+  expGrantLoad().then(expRepaint);expTouched();
+}
+function expCamAll(){
+  const f=selFolder&&folderById(selFolder);if(!f)return;
+  f.items.filter(id=>find(id)?.n?.type==="camera").forEach(id=>expCamTog(id,true));
+}
+function expPickHtml(){
+  const p=expPick,rows=p.rows;
+  let list="";
+  if(!rows)list=`<p class="sub" style="padding:12px">${i18n("Загрузка…")}</p>`;
+  else{
+    const groups=new Map(),add=(k,ic,r)=>{if(!groups.has(k))groups.set(k,{ic,list:[]});groups.get(k).list.push(r)};
+    if(p.tab==="srv")rows.forEach(r=>add(r.serverId?srvName(r.serverId):i18n("Без сервера"),"server",r));
+    else{const fl=flatFolders();rows.forEach(r=>{const fs=fl.filter(f=>f.items.includes(r.id));if(fs.length)fs.forEach(f=>add(f.name,"folder",r));else add(i18n("Без папки"),"folder",r)})}
+    groups.forEach((g,k)=>{list+=`<div class="exp-tg"><span class="ici">${lu(g.ic)}</span>${escHtml(k)}<span class="sub">${g.list.length}</span></div>`+g.list.map(r=>`<label class="exp-ti"><input type="checkbox" ${expD.cams.some(c=>c.id===r.id)?"checked":""} ${onEv("change",["expCamTog",r.id,onEv.checked])}><span class="ici">${lu("cctv")}</span>${escHtml(r.name)}</label>`).join("")});
+    if(!groups.size)list=`<p class="sub" style="padding:12px">${i18n("Ничего не найдено")}</p>`;
+  }
+  const fo=selFolder&&folderById(selFolder);
+  return`<div class="exp-pop" data-exp-pop="cams"><div class="exp-pop-top"><input type="search" data-exp-pick-q value="${escHtml(p.q)}" placeholder="${i18n("Поиск камеры")}" aria-label="${i18n("Поиск камеры")}" ${onEv("input",["expPickQ",onEv.value])}></div>
+    <div class="tabs exp-pop-tabs" role="tablist">${[["srv","Серверы"],["grp","Папки"]].map(([k,l])=>`<button type="button" role="tab" class="tab ${p.tab===k?"on":""}" aria-selected="${p.tab===k}" ${onEv("click",["expPickTab",k])}>${i18n(l)}</button>`).join("")}</div>
+    <div class="exp-pop-list">${list}</div>
+    <div class="exp-pop-foot">${fo?`<button type="button" class="btn s" ${onEv("click",["expCamAll"])}>${i18n("Все камеры папки")} «${escHtml(fo.name)}»</button>`:""}<span class="tfoot-gap"></span><button type="button" class="btn s pri" ${onEv("click",["expPickClose"])}>${i18n("Готово")}</button></div></div>`;
+}
+function expPickClose(){expPick=null;expRepaint()}
+// Детекторы выбранных камер — для треков
+function expTracksPop(){
+  if(expPick?.type==="tracks"){expPick=null;return expRepaint()}
+  expPick={type:"tracks"};
+  expD.cams.forEach(c=>{if(expDets[c.id])return;expDets[c.id]=[];API.get("/units",{parentId:c.id,implements:"vms.detector/1",limit:100}).then(r=>{expDets[c.id]=r.items.map(u=>({id:u.uid,name:u.name}));expRepaint()}).catch(()=>{})});
+  expRepaint();
+}
+function expTrackTog(id,on){const t=expD.adv.tracks,i=t.indexOf(id);if(on&&i<0)t.push(id);if(!on&&i>=0)t.splice(i,1);expTouched()}
+function expTracksHtml(){
+  let h="";
+  expD.cams.forEach(c=>{const ds=expDets[c.id]||[];if(!ds.length)return;
+    h+=`<div class="exp-tg"><span class="ici">${lu("cctv")}</span>${escHtml(expCamName(c.id))}</div>`+ds.map(x=>`<label class="exp-ti"><input type="checkbox" ${expD.adv.tracks.includes(x.id)?"checked":""} ${onEv("change",["expTrackTog",x.id,onEv.checked])}><span class="ici">${lu("scan-eye")}</span>${escHtml(x.name)}</label>`).join("")});
+  return`<div class="exp-pop" data-exp-pop="tracks"><div class="exp-pop-list">${h||`<p class="sub" style="padding:12px">${i18n("У выбранных камер нет детекторов")}</p>`}</div>
+    <div class="exp-pop-foot"><span class="tfoot-gap"></span><button type="button" class="btn s pri" ${onEv("click",["expPickClose"])}>${i18n("Готово")}</button></div></div>`;
+}
+function expCamName(id){const n=find(id)?.n;return n?locName(n):id}
+// Имя камеры в заказе — ссылка: «Оборудование», карточка камеры, место прихода моргает
+function expCamGo(id){
+  openNode(id,{app:"hw"});
+  // Камеры нет в кэше — openNode дочитает её и откроет сам: моргаем, когда запись прочитана и строка дерева есть
+  if(find(id))return hwFlashLanding();
+  hwEnsure([id]).then(()=>{if(find(id))hwFlashLanding()}).catch(()=>{});
+}
+function expAreaReset(i){if(expD.cams[i])expD.cams[i].area=null;expTouched()}
+const expAreaText=a=>`${Math.round(a.w*100)} % ${i18n("ширины")}, ${Math.round(a.h*100)} % ${i18n("высоты")}`;
+// Область кадра выбирают на самом видео «Просмотра» — рамкой, как в мониторе; форма называет её и даёт вернуть весь кадр
+function expCropStart(id){
+  const box=document.querySelector("#main [data-live-view]");if(!box)return;
+  box.querySelector(".exp-crop-ov")?.remove();
+  expCrop={id,area:null};
+  const ov=document.createElement("div");ov.className="exp-crop-ov";ov.setAttribute("data-exp-crop","");
+  ov.innerHTML=`<i class="exp-crop" hidden></i><div class="exp-crop-bar"><span>${i18n("Потяните мышью по кадру")}</span><button type="button" class="btn s pri" data-exp-crop-ok disabled ${onEv("click",["expCropOk"])}>${lu("download")}${i18n("Экспортировать область")}</button><button type="button" class="btn s" ${onEv("click",["expCropCancel"])}>${i18n("Отмена")}</button></div>`;
+  ov.setAttribute("data-on-mousedown",JSON.stringify([["expCropDown",{$on:"event"}]]));
+  box.appendChild(ov);
+}
+function expCropCancel(){document.querySelector("#main .exp-crop-ov")?.remove();expCrop=null}
+function expCropDown(ev){
+  if(ev.target.closest(".exp-crop-bar"))return;
+  const ov=ev.currentTarget,r=ov.getBoundingClientRect(),cl=v=>Math.max(0,Math.min(1,v)),rect=ov.querySelector(".exp-crop");
+  const x0=cl((ev.clientX-r.left)/r.width),y0=cl((ev.clientY-r.top)/r.height);ev.preventDefault();
+  const mv=e=>{const x=cl((e.clientX-r.left)/r.width),y=cl((e.clientY-r.top)/r.height),k=v=>Math.round(v*1000)/1000;
+    const a={x:k(Math.min(x0,x)),y:k(Math.min(y0,y)),w:k(Math.abs(x-x0)),h:k(Math.abs(y-y0))};
+    rect.hidden=false;Object.assign(rect.style,{left:a.x*100+"%",top:a.y*100+"%",width:a.w*100+"%",height:a.h*100+"%"});
+    if(expCrop)expCrop.area=a.w>.02&&a.h>.02?a:null;
+    const ok=ov.querySelector("[data-exp-crop-ok]");if(ok)ok.disabled=!expCrop?.area};
+  const up=()=>{document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up)};
+  document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
+}
+function expCropOk(){
+  const c=expCrop;if(!c?.area)return;
+  const v=lv&&lv.id===c.id?lv:null,m=v?pbMoment(v):null,nm=expCamName(c.id);expCropCancel();
+  if(m)expOpen({cams:[c.id],format:"jpg",periods:[{from:m,to:m+1000}],from:`${i18n("архив · область кадра")} «${nm}»`});
+  else expOpen({entry:can("feature:exportLiveFrame")?"live":"archive",cams:[c.id],format:"jpg",from:`${i18n("живое видео · область кадра")} «${nm}»`});
+  expD.cams[0].area=c.area;expCheckSoon();expRepaint();
+}
+// Ошибки — по полю: JSON Pointer начинается с пути поля формы
+function expErrs(prefix,exact){return(expChk?.errors||[]).filter(e=>prefix===""?!e.field:typeof e.field==="string"&&(e.field===prefix||!exact&&e.field.startsWith(prefix+"/")))}
+function expErrText(e){
+  const p=e.params||{};
+  return({PASSWORD_REQUIRED:i18n("Без пароля экспорт запрещён политикой системы"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"За выбранный период записи нет"),
+    LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"периодов",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
+    PERMISSION_DENIED:i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
+    DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: экспорт через него"),
+    VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Укажите время кадра":"Проверьте поле"),
+    NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
+    SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
+}
+function expErrHtml(list){return list.map(e=>`<p class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</p>`).join("")}
+const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
+const expSecText=s=>s>=3600?`${Math.floor(s/3600)} ${i18n("ч")} ${Math.round(s%3600/60)} ${i18n("мин")}`:s>=60?`${Math.round(s/60)} ${i18n("мин")}`:`${s} ${i18n("с")}`;
+const expSelHtml=(key,opts,cur,dis)=>`<select ${dis?"disabled":""} ${onEv("change",["expSet",key,onEv.value])}>${opts.map(([v,t])=>`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${escHtml(i18n(t))}</option>`).join("")}</select>`;
+const expNum=(key,v)=>`<input type="text" inputmode="decimal" class="exp-num" value="${escHtml(v)}" ${onEv("change",["expSet",key,onEv.value])}>`;
+const expChk1=(key,on,label,dis)=>`<label class="chk"><input type="checkbox" ${on?"checked":""} ${dis?"disabled":""} ${onEv("change",["expSet",key,onEv.checked])}> ${i18n(label)}</label>`;
+// Строка «подпись — поле», как .ln в карточках consolem; data-off гасит подпись вместе с полем
+const expRow=(label,ctl,help,off)=>`<div class="ln exp-ln" ${off?"data-off":""}><div>${i18n(label)}${help?`<small>${i18n(help)}</small>`:""}</div>${ctl}</div>`;
+// Имя файла: пока поле не тронули, собирается само — по ответу проверки
+function expAutoName(){const f=expChk?.files?.[0]?.name;return f?f.replace(/\.[^.]+$/,""):""}
+// ---- разделы ----
+function expMainHtml(d){
+  const f=expFmt(d),g=expGrantV,live=expLive(d),frame=expFrame(d),L=EXP_REF?.limits||{};
+  const gDev=id=>(g?.devices||[]).find(x=>x.uid===id);
+  const rows=d.cams.map((c,i)=>{const gd=gDev(c.id),no=gd&&!(live?gd.live:gd.archive);
+    return`<div class="exp-cam" data-exp-cam="${escHtml(c.id)}"><span class="ici">${lu("cctv")}</span><button type="button" class="lk exp-cam-name" ${onEv("click",["expCamGo",c.id])}>${escHtml(expCamName(c.id))}</button>
+      ${no?`<span class="pf-st bad">${i18n(live?"живой кадр нельзя":"нет права")}</span>`:""}
+      ${live?"":`<button type="button" class="btn s" aria-label="${i18n("Убрать")} ${escHtml(expCamName(c.id))}" ${onEv("click",["expCamTog",c.id,false])}>${lu("x")}</button>`}</div>${expErrHtml(expErrs(`/cameras/${i}`))}`}).join("");
+  const cams=card(live?"Камера":`${i18n("Камеры")}${d.cams.length>1?` · ${d.cams.length}`:""}`,`${rows}
+    ${live?`<p class="sub">${i18n("Живой кадр берётся с камеры, из которой открыт экспорт.")}</p>`:`<div class="exp-anchor"><button type="button" class="btn s" data-exp-cams-add ${onEv("click",["expCamsPop"])}>${lu("plus")}${i18n("Добавить камеры")}</button>${expPick?.type==="cams"?expPickHtml():""}</div>`}
+    ${expErrHtml(expErrs("/cameras",true))}`,d.cams.length>1?`<span class="sub" style="font-weight:400">${i18n("до")} ${L.maxCameras||16}</span>`:"");
+  let time="";
+  if(!live){
+    const calAt=(i,w)=>expPick?.type==="cal"&&expPick.i===i&&expPick.which===w;
+    const dt=(i,w,inv)=>`<div class="exp-dt"><input value="${escHtml(expTimeText(d.periods[i][w]))}" ${inv?'aria-invalid="true"':""} aria-label="${i18n(w==="from"?"Начало":"Конец")}" ${onEv("change",["expPeriodSet",i,w,onEv.value])}><button type="button" class="btn s" aria-label="${i18n("Выбрать дату")}" aria-expanded="${calAt(i,w)}" ${onEv("click",["expCal",i,w])}>${lu("calendar-days")}</button></div>`;
+    if(frame)time=card("Время кадра",`<div class="exp-per">${dt(0,"from")}</div>${calAt(0,"from")?expCalHtml():""}${expErrHtml(expErrs("/at"))}`);
+    else{
+      const multi=d.periods.length>1,canGrab=!!(lv?.tl&&d.cams.some(c=>c.id===lv.id));
+      time=card(multi?`${i18n("Периоды")} · ${d.periods.length}`:"Период",d.periods.map((p,i)=>{const bad=expErrs(`/periods/${i}`);
+        return`<div class="exp-per" data-exp-per="${i}">${dt(i,"from")}<span class="exp-dash">—</span>${dt(i,"to",bad.some(e=>/\/to$/.test(e.field)))}<span class="exp-dur">${expDurText(p)||"—"}</span>
+          ${multi?`<button type="button" class="btn s" aria-label="${i18n("Убрать период")}" ${onEv("click",["expPeriodDel",i])}>${lu("x")}</button>`:""}</div>${expErrHtml(bad)}${calAt(i,"from")||calAt(i,"to")?expCalHtml():""}`}).join("")+
+        `<div class="live-row" style="margin-top:8px">${canGrab?`<button type="button" class="btn s" ${onEv("click",["expGrab"])}>${i18n("Взять с таймлайна")}</button>`:""}${expOn("exportMultiPeriod")&&d.periods.length<(L.maxPeriods||32)?`<button type="button" class="btn s" data-exp-per-add ${onEv("click",["expPeriodAdd"])}>${lu("plus")}${i18n("Добавить период")}</button>`:""}</div>
+        ${expErrHtml(expErrs("/periods",true))}`);
+    }
+  }
+  const fmts=(EXP_REF?.formats||[]).filter(x=>x.entries.includes(live?"live":"archive")),grp=k=>fmts.filter(x=>x.kind===k);
+  const fmtSel=`<select data-exp-format ${onEv("change",["expSet","format",onEv.value])}>${[["video","Видео"],["frame","Кадр"]].map(([k,l])=>grp(k).length?`<optgroup label="${i18n(l)}">${grp(k).map(x=>`<option value="${x.id}" ${x.id===d.format?"selected":""}>${x.id.toUpperCase()}</option>`).join("")}</optgroup>`:"").join("")}</select>`;
+  const one=expMulti(d)&&!frame&&f?.singleFile==="tracks"&&expOn("exportSingleFile");
+  const files=!expOneFile(d)&&d.cams.length>1?(expChk?.files||[]).map(x=>x.name):[];
+  const zip=!!d.password&&f?.password==="zip";
+  const area=d.cams.map((c,i)=>c.area?`<div class="nt exp-area-nt" data-exp-area><b>${i18n("Область кадра выделена")}</b> — ${escHtml(expCamName(c.id))}: ${escHtml(expAreaText(c.area))} — ${i18n("экспортируется только она")}. <button type="button" class="lk" ${onEv("click",["expAreaReset",i])}>${i18n("Весь кадр")}</button>${expErrHtml(expErrs(`/cameras/${i}/area`))}</div>`:"").join("");
+  const sup=g?.supervisorRequired&&expOn("accessSupervision")?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSet","supLogin",onEv.value,false])}></div>
+      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSet","supPwd",onEv.value,false])}></div></div>
+    ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры подтверждает второй пользователь с правом супервизора.")}</p>`}`):"";
+  const file=card("Файл",`<div class="g"><div><label>${i18n("Формат")}</label>${fmtSel}</div>
+      <div>${one?`<label>${i18n("Один файл")}</label><div class="ln ln-sw" style="padding:4px 0">${accSw(d.single,["expSet","single",!d.single],false,i18n("Один файл"))}<div>${i18n("Склеить")} ${d.cams.length} ${i18n(plural(d.cams.length,"камеру|камеры|камер"))} ${i18n("в один файл")}</div></div>`:""}</div>
+      <div style="grid-column:1/-1"><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.nameSet?d.name:expAutoName())}" ${d.nameSet&&!d.name.trim()?'aria-invalid="true"':""} ${onEv("input",["expSet","name",onEv.value,false])} ${onEv("change",["expRepaint"])}>
+        ${d.nameSet&&!d.name.trim()?`<p class="exp-err">${i18n("Имя файла не может быть пустым")}</p>`:files.length?`<p class="sub">${escHtml(files.slice(0,2).join(", "))}${files.length>2?` ${i18n("и ещё")} ${files.length-2}`:""}</p>`:""}${expErrHtml(expErrs("/name"))}</div>
+      ${expOn("exportPassword")&&f&&f.password!=="none"?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
+        ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Файл придёт архивом .zip и откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
+      <div><label>${i18n("Комментарий")}</label><textarea rows="2" data-exp-comment ${onEv("input",["expSet","comment",onEv.value,false])}>${escHtml(d.comment)}</textarea></div></div>
+    ${expErrHtml(expErrs("/format").concat(expErrs("/singleFile")))}`);
+  return cams+time+file+area+sup;
+}
+// Пять необязательных разделов: у каждого сводка изменённого — во всплывающей подсказке вкладки
+function expGroups(d){
+  const a=d.adv,f=expFmt(d),frame=expFrame(d),out=[],R=EXP_REF||{},lab=(list,id)=>(list.find(x=>x.id===id)||{}).label||id;
+  let diff=[];const dd=(c,t)=>{if(c)diff.push(t)};
+  // 1. Качество. У кадра работает только разрешение: кодек, сжатие и частота описывают поток, которого у кадра нет
+  if(expOn("exportTranscode")){
+    diff=[];dd(!frame&&a.codec!=="source",EXP_CODEC[a.codec]||a.codec);dd(!frame&&a.compression!=="default",lab(R.compression||[],a.compression));dd(a.resolution!=="source",lab(R.resolutions||[],a.resolution));dd(!frame&&+a.fps>1,`1/${a.fps}`);
+    out.push({key:"quality",title:frame?"Качество кадра":"Качество видео",sum:diff,html:card(frame?"Качество кадра":"Качество видео",
+      expRow("Видеокодек",expSelHtml("codec",(f?.codecs||["source"]).map(c=>[c,EXP_CODEC[c]||c]),a.codec,frame),"",frame)+
+      expRow("Уровень сжатия",expSelHtml("compression",(R.compression||[]).map(x=>[x.id,x.label||x.id]),a.compression,frame),"",frame)+
+      expRow(frame?"Разрешение кадра":"Разрешение видео",expSelHtml("resolution",(R.resolutions||[]).map(x=>[x.id,x.label||x.id]),a.resolution))+
+      expRow("Частота кадров",expSelHtml("fps",(R.fpsDivisors||[1]).map(n=>[n,n===1?"Исходная":`1/${n} ${i18n("исходной")}`]),a.fps,frame),"",frame)+
+      (frame?`<p class="sub">${i18n("Кодек, сжатие и частота кадров описывают поток, которого у кадра нет. Разрешение работает и для кадра.")}</p>`:"")+expErrHtml(expErrs("/quality")))});
+  }
+  // 2. Специальные опции — недоступны кадру
+  const mic=d.cams.some(c=>find(c.id)?.n?.audioDeviceId),playerOk=!!f?.player&&expOn("exportPlayer");
+  diff=[];dd(a.player&&playerOk,i18n("плеер"));dd(a.audio,i18n("звук"));dd(+a.maxmb!==(R.limits?.maxFileMbDefault||4000),`${i18n("макс.")} ${a.maxmb} ${i18n("МБ")}`);dd(+a.thin>0,`${i18n("прореживание")} ${a.thin} ${i18n("кадр/с")}`);dd(+a.speed!==1,`${i18n("скорость")} ${a.speed}×`);
+  out.push({key:"special",title:"Специальные опции",off:frame,sum:diff,html:card("Специальные опции",
+    `<div class="exp-ln">${expChk1("player",a.player&&playerOk,"Добавить плеер",!playerOk)}</div>${playerOk?"":`<p class="sub">${i18n("Плеера в веб-выгрузке нет: MKV и MP4 играют обычные плееры.")}</p>`}
+    ${expOn("exportAudio")&&mic?`<div class="exp-ln">${expChk1("audio",a.audio,"Экспортировать звук")}</div><p class="sub">${i18n("У выбранных камер есть микрофон. Без микрофона настройка не показывается.")}</p>`:""}
+    ${expRow("Максимальный размер файла, МБ",expNum("maxmb",a.maxmb))}
+    ${expOn("exportTranscode")?expRow("Прореживание, кадр/с",expNum("thin",a.thin),"0 — без прореживания: в файл идут все кадры архива.")+expRow("Скорость видео",expNum("speed",a.speed)):""}
+    ${expErrHtml(expErrs("/special"))}`)});
+  // 3. Выделение: треки детекторов и маркеры закладок
+  if(expOn("exportTracks")){
+    diff=[];dd(a.tracks.length,`${a.tracks.length} ${i18n(plural(a.tracks.length,"детектор|детектора|детекторов"))}`);dd(a.marks,i18n("маркеры закладок"));
+    out.push({key:"tracks",title:"Выделение",sum:diff,html:card("Выделение",
+      expRow("Треки видеоаналитики",`<div class="exp-anchor"><button type="button" class="btn s" ${onEv("click",["expTracksPop"])}>${a.tracks.length?`${i18n("Выбрано")}: ${a.tracks.length}`:i18n("Выбрать детекторы")}</button>${expPick?.type==="tracks"?expTracksHtml():""}</div>`,"Треки рисуются в сам кадр там, где детектор что-то нашёл, — поэтому работают и для JPG с PDF.")+
+      `<div class="exp-ln">${expChk1("marks",a.marks,"Добавить маркеры закладки")}</div>${expErrHtml(expErrs("/highlight"))}`)});
+  }
+  // 4. Конфиденциальность. Нет права смотреть без маски — раздела нет, маску ставит сервер
+  if(expOn("exportPrivacy")&&!expGrantV?.privacyForced){
+    diff=[];dd(a.hide!=="none",i18n(EXP_HIDE[a.hide]).toLowerCase());
+    out.push({key:"privacy",title:"Конфиденциальность",sum:diff,html:card("Конфиденциальность",
+      expRow("Скрыть обнаруженные объекты",expSelHtml("hide",(R.privacyModes||["none"]).map(m=>[m,EXP_HIDE[m]||m]),a.hide),"Права снимать маску у вас есть. Без него раздел не показывается, а маска остаётся включённой.")+expErrHtml(expErrs("/privacy")))});
+  }
+  // 5. Титры. У кадра и у формата без дорожки субтитров — только вшитые
+  if(expOn("exportTitles")){
+    const soft=!frame&&!!f?.softTitles,overOpts=soft?[["soft","Программные титры"],["burned","Вшитые титры"]]:[["burned","Вшитые титры"]];
+    diff=[];(R.titleFields||[]).forEach(k=>dd(a.titles.includes(k)!==EXP_DEF.titles.includes(k),i18n(EXP_TITLE[k]||k).toLowerCase()));dd(a.over!=="soft"||!soft,i18n(soft?EXP_OVER[a.over]:"Вшитые титры").toLowerCase());dd(a.src,i18n("титры источника событий"));
+    const fonts=(R.fonts||[]).flatMap(x=>x.sizes.map(s=>[`${x.id}|${s}`,`${x.id}, ${s}`]));
+    out.push({key:"titles",title:"Титры",sum:diff,html:card("Основные титры",`<div class="exp-checks">${(R.titleFields||[]).map(k=>`<label class="chk"><input type="checkbox" ${a.titles.includes(k)?"checked":""} ${onEv("change",["expTitleTog",k])}> ${i18n(EXP_TITLE[k]||k)}</label>`).join("")}</div>
+        <div class="g" style="margin-top:10px"><div><label>${i18n("Шрифт")}</label>${expSelHtml("font",fonts,a.font)}</div>
+          <div><label>${i18n("Цвет и фон")}</label><div class="live-row"><input type="color" class="exp-swatch" value="${a.color}" aria-label="${i18n("Цвет шрифта")}" ${onEv("change",["expSet","color",onEv.value])}><input type="color" class="exp-swatch" value="${a.bg}" aria-label="${i18n("Цвет фона")}" ${onEv("change",["expSet","bg",onEv.value])}><span class="sub">${i18n("фон")} ${escHtml(a.alpha)} %</span></div></div></div>
+        ${expRow("Прозрачность фона, %",expNum("alpha",a.alpha))}
+        ${expRow("Способ наложения",expSelHtml("over",overOpts,soft?a.over:"burned",!soft),soft?"":frame?"Для JPG и PDF только вшитые титры: программные живут дорожкой контейнера, а у кадра её нет.":"У этого формата нет дорожки субтитров: только вшитые титры.",!soft)}
+        ${expErrHtml(expErrs("/titles"))}`)+
+      (expOn("exportEventTitles")?card("Титры источника событий",`<div class="exp-ln">${expChk1("src",a.src,"Добавить титры источника событий")}</div>${a.src?expRow("Способ наложения",expSelHtml("srcOver",overOpts,soft?a.srcOver:"burned",!soft),"",!soft):""}`):"")});
+  }
+  return out;
+}
+function expTitleTog(k){const t=expD.adv.titles,i=t.indexOf(k);if(i<0)t.push(k);else t.splice(i,1);expTouched()}
+function expSections(d){
+  const frame=expFrame(d),n=d.cams.length;
+  const main={key:"main",title:"Основное",sum:[expLive(d)?i18n("живой кадр"):`${i18n(frame?"кадр":"видео")} · ${n} ${i18n(plural(n,"камера|камеры|камер"))}`,d.format.toUpperCase()],html:expMainHtml(d)};
+  return[main].concat(expGroups(d));
+}
+function expFormUI(){
+  const d=expD,sec=expSections(d),errs=expChk?.errors||[],bad=new Set(errs.map(e=>EXP_TAB_OF(e.field||"")));
+  if(d.nameSet&&!d.name.trim())bad.add("main");
+  const cur=sec.find(s=>s.key===d.tab&&!s.off)||sec[0];d.tab=cur.key;
+  const tabs=sec.map(s=>{const sum=s.off?`${i18n("недоступно для")} ${d.format.toUpperCase()}`:s.sum.length?s.sum.join(" · "):i18n("По умолчанию");
+    return`<button type="button" class="tab ${s.key===cur.key?"on":""}" role="tab" aria-selected="${s.key===cur.key}" data-exp-tab="${s.key}" title="${escHtml(sum)}" ${s.off?"disabled":""} ${onEv("click",["expTabGo",s.key])}>${i18n(s.title)}${bad.has(s.key)?`<span class="exp-tdot" aria-label="${i18n("есть ошибка")}"></span>`:s.key!=="main"&&s.sum.length&&!s.off?` <span class="acc-tabcnt">${s.sum.length}</span>`:""}</button>`}).join("");
+  const g=expGrantV,denied=g&&!g.allowed?`<div class="nt bk-warn" data-exp-denied><b>${i18n("Экспорт запрещён")}</b> — ${i18n("у вашей роли нет права на экспорт. Форму можно посмотреть, но кнопок экспорта в ней нет.")}</div>`:g?.refusal?`<div class="nt bk-warn">${escHtml(g.refusal)}</div>`:"";
+  const c=expChk,frame=expFrame(d),allowed=!(g&&!g.allowed)&&can("createExport");
+  const blocked=!d.cams.length||(c&&!c.ok)||(d.nameSet&&!d.name.trim());
+  const general=expErrs("").concat(errs.filter(e=>e.field&&!/^\/(cameras|periods|at|format|password|singleFile|name|quality|special|titles|highlight|privacy|supervisor)/.test(e.field)));
+  const sumT=!d.cams.length?i18n("Добавьте хотя бы одну камеру"):!c?i18n("Проверка…"):!c.ok?`${i18n("Есть ошибки")}: ${(c.errors||[]).length}`:
+    [c.estimate?`${i18n("около")} ${expMb(c.estimate.bytes)}, ${expSecText(c.estimate.sec)}`:"",c.transcode?i18n("с перекодированием"):frame?"":i18n("без перекодирования")].filter(Boolean).join(" · ");
+  const foot=`<div class="main-actions bk-foot" data-exp-foot><span class="sub bk-foot-text" data-exp-sum>${escHtml(sumT)}</span>${general.length?`<span class="exp-err">${escHtml(general.map(expErrText).join("; "))}</span>`:""}<span class="tfoot-gap"></span>
+    <button type="button" class="btn s" ${onEv("click",["expCancelForm"])}>${i18n("Отмена")}</button>
+    ${allowed&&frame&&d.cams.length===1&&(EXP_REF?.formats||[]).some(x=>x.id==="pdf")?`<button type="button" class="btn s" ${blocked?"disabled":""} ${onEv("click",["expGo","print"])}>${i18n("Печать")}</button>`:""}
+    ${allowed&&expOn("exportCloud")&&(EXP_REF?.destinations||[]).includes("cloud")?`<button type="button" class="btn s" ${blocked?"disabled":""} ${onEv("click",["expGo","cloud"])}>${i18n("В облако")}</button>`:""}
+    ${allowed?`<button type="button" class="btn s pri" data-exp-go ${blocked?"disabled":""} ${onEv("click",["expGo","local"])}>${i18n("Экспорт")}</button>`:""}</div>`;
+  paintMain(mainHd(`${lu("download")} ${i18n("Экспорт")}`,i18n("Новая выгрузка"),d.from||"",tabs)+`<div class="sc">${denied}${cur.html}</div>`+foot);
+}
+function expCancelForm(){expD=expDraftNew({});expChk=null;expPick=null;expRepaint()}
+function expGo(how){
+  const d=expD;if(!d)return;
+  const b=expBody(d);b.idempotencyKey=`exp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  if(how==="cloud")b.destination="cloud";
+  if(how==="print"){b.format="pdf";b.mode="frame";if(b.titles)b.titles.overlay="burned"}
+  API.post("/exports",b).then(x=>{
+    expRows=[x].concat((expRows||[]).filter(r=>r.id!==x.id));expSel=x.id;expD=null;expChk=null;expPick=null;
+    if(how==="print")expPrintWait.add(x.id);
+    paint();
+  }).catch(e=>{
+    const p=e?.problem;
+    if(p?.field){expChk={ok:false,errors:[p],files:expChk?.files||[]};d.tab=EXP_TAB_OF(p.field);expRepaint()}
+    toast(p?expErrText(p):problemText(e));
+  });
+}
+// «Печать» — кадровое задание PDF: готово — файл открывается, печатает браузер (своей операции нет, ADR-0117 § 7)
+const expPrintWait=new Set();
+// Задание: ход, части, файлы
+function expRowOf(id){return(expRows||[]).find(r=>r.id===id)}
+function expJobTitle(x){
+  const r=x.request||{},n=(r.cameras||[]).length,first=r.cameras?.[0]?.uid;
+  return`${first?expCamName(first):"—"}${n>1?` +${n-1}`:""} · ${r.mode==="frame"?i18n(r.source==="live"?"живой кадр":"кадр"):i18n("видео")} ${String(r.format||"").toUpperCase()}`;
+}
+function expWhen(x){const p=x.parts?.[0];return p?.at?tlDate(Date.parse(p.at)):p?.from?`${tlDate(Date.parse(p.from))}–${tlClock(Date.parse(p.to))}`:""}
+function expJobHtml(x){
+  const run=x.state==="queued"||x.state==="running",bad=x.parts.some(p=>p.state==="fail"||p.state==="cancel");
+  const parts=x.parts.map(p=>`<tr data-exp-part="${escHtml(p.uid)}"><td>${escHtml(expCamName(p.uid))}</td><td>${escHtml(p.at?tlDate(Date.parse(p.at)):p.from?`${tlDate(Date.parse(p.from))}–${tlClock(Date.parse(p.to))}`:"")}</td>
+    <td><span class="pf-st ${p.state==="ok"?"ok":p.state==="fail"?"bad":""}">${i18n(EXP_PART[p.state]||p.state)}${p.state==="run"?` ${p.percent}%`:""}</span>${p.code?` <span class="sub">${i18n(EXP_PART_CODE[p.code]||p.code)}</span>`:""}${p.partial?` <span class="sub">${i18n("с дырами: отдано, что есть")}</span>`:""}</td></tr>`).join("");
+  const files=x.files.map(f=>`<tr data-exp-file="${escHtml(f.id)}"><td>${escHtml(f.name)}</td><td>${expMb(f.sizeBytes)}</td><td><span class="sub">${i18n("до")} ${escHtml(tlDate(Date.parse(f.expiresAt)))}</span></td>
+    <td class="ca-x">${can("getExportFileLink")?`<button type="button" class="btn s pri" ${onEv("click",["expFile",x.id,f.id])}>${lu("download")}${i18n("Скачать")}</button>`:""}</td></tr>`).join("");
+  const r=x.request||{},facts=[r.comment?`${i18n("Комментарий")}: ${escHtml(r.comment)}`:"",x.transcode?i18n("с перекодированием"):"",(r.cameras||[]).some(c=>c.area)?i18n("с областью кадра"):"",x.enforced?.password?i18n("пароль по политике"):"",x.retryOf?i18n("повтор неудачных"):""].filter(Boolean).join(" · ");
+  return card("Ход",`<div class="exp-bar" role="progressbar" aria-valuenow="${x.progress.percent}" aria-valuemin="0" aria-valuemax="100"><i style="width:${x.progress.percent}%"></i></div>
+      <div class="live-row"><span class="pf-st ${x.state==="done"?"ok":x.state==="failed"?"bad":""}" data-exp-state="${x.state}">${i18n(EXP_STATE[x.state]||x.state)}</span><span class="sub">${x.progress.percent}% · ${x.progress.done} ${i18n("из")} ${x.progress.total}</span>
+      ${run&&can("cancelExport")?`<button type="button" class="btn s" data-exp-cancel ${onEv("click",["expCancel",x.id])}>${i18n("Отменить")}</button>`:""}
+      ${!run&&bad&&can("retryExport")?`<button type="button" class="btn s" data-exp-retry ${onEv("click",["expRetry",x.id])}>${i18n("Повторить неудачные")}</button>`:""}
+      ${!run&&can("createExport")?`<button type="button" class="btn s" ${onEv("click",["expAgain",x.id])}>${i18n("Ещё раз с этими настройками")}</button>`:""}
+      ${!run&&can("deleteExport")?`<button type="button" class="btn s" ${pendingDelHas("exp:"+x.id)?"disabled":""} ${onEv("click",["expDel",x.id])}>${lu("trash")}${i18n("Удалить")}</button>`:""}</div>
+      <p class="sub">${i18n("Создано")} ${escHtml(tlDate(Date.parse(x.createdAt)))} · ${escHtml(x.by)}${facts?` · ${facts}`:""}</p>`)
+    +card("Части",`<table class="ca-tbl"><thead><tr><th>${i18n("Камера")}</th><th>${i18n("Время")}</th><th>${i18n("Состояние")}</th></tr></thead><tbody>${parts}</tbody></table>`)
+    +(files?card("Файлы",`<table class="ca-tbl"><tbody>${files}</tbody></table><p class="sub">${i18n("Ссылка берётся перед самым скачиванием и живёт недолго")}</p>`):x.state==="expired"?card("Файлы",`<p class="sub">${i18n("Файлы удалены по сроку")}</p>`):"");
+}
+function expUI(){
+  if(expSel!=="new"&&!expRowOf(expSel))expSel="new";
+  if(expSel==="new"){if(!expD){expD=expDraftNew({});expCheckSoon()}return expFormUI()}
+  const x=expRowOf(expSel);
+  paintMain(mainHd(`${lu("download")} ${i18n("Экспорт")}`,escHtml(expJobTitle(x)),"")+`<div class="sc">${expJobHtml(x)}</div>`);
+}
+function treeExp(){
+  const q=qval(),rows=(expRows||[]).filter(x=>matchesText(q,expJobTitle(x)));
+  const st=x=>x.state==="done"?"ok":x.state==="failed"?"bad":x.state==="running"||x.state==="queued"?"run":"";
+  return`<div class="n ${expSel==="new"?"on":""}" data-go="exp:new" ${onEv("click",["expPick1","new"])}><span class="tw"></span><span class="ici">${lu("plus")}</span><span class="nm">${i18n("Новая выгрузка")}</span></div>`
+    +rows.map(x=>`<div class="n ${expSel===x.id?"on":""}" data-go="exp:${escHtml(x.id)}" ${onEv("click",["expPick1",x.id])}><span class="tw"></span><span class="ici">${lu(x.request?.mode==="frame"?"scan-eye":"download")}</span><span class="nm">${hlText(expJobTitle(x),q)}<small class="sub"> ${escHtml(expWhen(x))}</small></span>${pendingDelHas("exp:"+x.id)?`<span class="bd off">${i18n("удаляется")}</span>`:""}<span class="exp-dot ${st(x)}" title="${escHtml(i18n(EXP_STATE[x.state]||x.state))}">${x.state==="running"||x.state==="queued"?`${x.progress.percent}%`:""}</span></div>`).join("")
+    +(expRows&&!expRows.length?`<p class="sub" style="padding:8px 12px">${i18n("Выгрузок пока нет")}</p>`:"");
+}
+function expPick1(id){expSel=id;if(id==="new"&&!expD){expD=expDraftNew({});expCheckSoon()}paint()}
+function expCancel(id){API.post(`/exports/${id}/cancel`,{}).then(expUpsert).catch(e=>toast(problemText(e)))}
+function expRetry(id){
+  const x=expRowOf(id),need=expGrantV?.passwordRequired||!!x?.enforced?.password;
+  const go=pw=>API.post(`/exports/${id}/retry-failed`,pw?{password:pw}:{}).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>toast(e?.problem?expErrText(e.problem):problemText(e)));
+  if(!need)return go("");
+  askConfirm("Повторить неудачные",`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`,"","Повторить",()=>go(document.getElementById("expRetryPw").value),{html:true});
+}
+function expAgain(id){
+  const x=expRowOf(id),r=x?.request;if(!r)return;
+  const per=r.periods?r.periods.map(p=>({from:Date.parse(p.from),to:Date.parse(p.to)})):r.at?[{from:Date.parse(r.at),to:Date.parse(r.at)+1000}]:undefined;
+  const d=expDraftNew({entry:r.source==="live"?"live":r.bookmarkId?"bookmark":"archive",cams:r.cameras.map(c=>c.uid),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,periods:per,from:i18n("повтор выгрузки")});
+  r.cameras.forEach((c,i)=>{if(c.area)d.cams[i].area=c.area});
+  if(r.name){d.name=r.name;d.nameSet=true}if(r.singleFile!=null)d.single=r.singleFile;
+  const q=r.quality||{},a=d.adv;Object.assign(a,{codec:q.codec||"source",compression:q.compression||"default",resolution:q.resolution||"source",fps:q.fpsDivisor||1,thin:q.maxFps||0,speed:q.speed||1});
+  if(r.special){a.audio=!!r.special.audio;a.player=!!r.special.player;if(r.special.maxFileMb)a.maxmb=r.special.maxFileMb}
+  if(r.highlight){a.tracks=(r.highlight.detectorIds||[]).slice();a.marks=!!r.highlight.bookmarks}
+  if(r.privacy)a.hide=r.privacy.mode;
+  if(r.titles){const t=r.titles;a.titles=(t.fields||[]).slice();a.over=t.overlay||"soft";if(t.color)a.color=t.color;if(t.background)a.bg=t.background;if(t.backgroundAlpha!=null)a.alpha=t.backgroundAlpha;if(t.font)a.font=`${t.font.family}|${t.font.size}`;if(t.eventSource?.on){a.src=true;a.srcOver=t.eventSource.overlay||"soft"}}
+  expD=d;expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+}
+// Удаление — с вводом числа и отсчётом в тосте (правила интерфейса): до конца отсчёта на сервере ничего не уходит
+function expDel(id){
+  const x=expRowOf(id);if(!x)return;
+  if(pendingDelHas("exp:"+id)){toast("Выгрузка уже ждёт удаления — отменить можно в тосте");return}
+  askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","Останутся камеры и их записи. После подтверждения будет отсчёт с кнопкой «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
+}
+function expDelRun(id){
+  const x=expRowOf(id),name=x?expJobTitle(x):id;
+  if(pendingDelHas("exp:"+id))return;
+  // Очередь удаления: на время отсчёта задание помечено в дереве и закрыто для действий
+  scheduleDelete(["exp:"+id],{label:`«${name}»`,commit:()=>{
+    API.del(`/exports/${id}`).then(()=>{expRows=(expRows||[]).filter(r=>r.id!==id);if(expSel===id)expSel="new";paint()}).catch(e=>{toast(problemText(e));paint()});
+  }});
+  expRepaint();
+}
+// Скачать: ссылка — непосредственно перед скачиванием, у неё короткий срок. Стенд отдаёт stub:// — сохраняем памятку вместо видео
+function expFile(id,fid,open){
+  API.post(`/exports/${id}/files/${encodeURIComponent(fid)}/link`,{}).then(l=>{
+    const x=expRowOf(id),f=x?.files.find(y=>y.id===fid),a=document.createElement("a");
+    if(/^stub:/.test(l.url)){
+      const txt=`${i18n("Тестовый стенд: настоящего видео нет.")}\n${f?.name||""}\n${l.url}\n`;
+      a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));a.download=`${f?.name||"export"}.txt`;
+      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    }else if(open){a.href=l.url;a.target="_blank";a.rel="noopener"}else{a.href=l.url;a.download=f?.name||""}
+    document.body.appendChild(a);a.click();a.remove();
+  }).catch(e=>toast(e?.problem?.code==="EXPORT_EXPIRED"?i18n("Файл удалён по сроку"):problemText(e)));
+}
+function expUpsert(x){
+  if(!x?.id)return;
+  const i=(expRows||[]).findIndex(r=>r.id===x.id);
+  if(i<0)expRows=[x].concat(expRows||[]);else expRows[i]=x;
+  if(expPrintWait.has(x.id)&&x.state!=="queued"&&x.state!=="running"){expPrintWait.delete(x.id);if(x.files[0])expFile(x.id,x.files[0].id,true)}
+  if(app==="exp"){renderTree();if(expSel===x.id)expUI()}
+}
+// Поток: ход и итог приходят только автору; истина — GET, поэтому итог перечитывается
+function expOnEvent(m){
+  if(m.type==="export.progress"){const x=expRowOf(m.entityId);if(x){x.progress=m.payload.progress;if(m.payload.parts)x.parts=m.payload.parts;x.state="running";expUpsert(x)}return}
+  if(m.type==="export.finished"||m.type==="entity.created"||m.type==="entity.changed"){
+    if(!can("getExport"))return;
+    API.get(`/exports/${m.entityId}`).then(x=>{expUpsert(x);if(m.type==="export.finished"&&x.state==="done"&&app!=="exp")toast(`${i18n("Экспорт готов")}: ${expJobTitle(x)}`)}).catch(()=>{});
+    return;
+  }
+  if(m.type==="entity.deleted"){expRows=(expRows||[]).filter(r=>r.id!==m.entityId);if(expSel===m.entityId)expSel="new";if(app==="exp")paint()}
+}
 // ── Отметки: только создать и смотреть ────────────────────────────────────
 function marksLoad(v){
   const t=v.tl;if(!can("listUnitBookmarks")||!t)return;
   API.get(`/units/${v.id}/bookmarks`,{from:new Date(t.from).toISOString(),limit:200}).then(r=>{if(lv===v){v.marks=r.items;viewFill()}}).catch(e=>{if(lv===v&&e?.status===403){v.marks=[];v.marksDenied=true;viewFill()}});
 }
+// Закладка — момент или отрезок: у отрезка конец через столько секунд от момента
+let markType="moment",markLen=30;
+function markTypeSet(t){markType=t;viewFill()}
+function markLenSet(v){markLen=Math.max(1,+v||30)}
 function markAdd(){
   const v=lv,inp=document.querySelector("#main [data-mark-note]");if(!v||!inp)return;
   const note=inp.value.trim();if(!note)return toast(i18n("Напишите заметку"));
-  const m=pbMoment(v),body=m?{note,occurred:new Date(m).toISOString()}:{note};
+  const m=pbMoment(v),at=m||Date.now(),body=m?{note,occurred:new Date(m).toISOString()}:{note};
+  if(markType==="span"){body.type="span";if(!m){body.occurred=new Date(at-markLen*1000).toISOString();body.to=new Date(at).toISOString()}else body.to=new Date(at+markLen*1000).toISOString()}
   API.post(`/units/${v.id}/bookmarks`,body).then(()=>{inp.value="";if(lv===v)marksLoad(v)}).catch(e=>toast(problemText(e,find(v.id)?.n)));
 }
 function marksCardHtml(v){
   if(!can("listUnitBookmarks"))return"";
-  const rows=(v.marks||[]).map(m=>`<li class="tl-go" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span></li>`).join("");
+  const rows=(v.marks||[]).map(m=>`<li class="tl-go" data-mark="${escHtml(m.id)}" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}${m.type==="span"&&m.to?`–${escHtml(tlClock(Date.parse(m.to)))}`:""}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span>${can("createExport")?` <button type="button" class="lk" data-mark-exp ${onEv("click",onEv.stop,["expFromMark",v.id,m.id])}>${i18n("Экспорт")}</button>`:""}</li>`).join("");
   return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"Отметок за это окно нет")}</p>`}
-    ${can("createUnitBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
+    ${can("createUnitBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><select data-mark-type aria-label="${i18n("Тип закладки")}" ${onEv("change",["markTypeSet",onEv.value])}><option value="moment" ${markType==="moment"?"selected":""}>${i18n("Момент")}</option><option value="span" ${markType==="span"?"selected":""}>${i18n("Отрезок")}</option></select>${markType==="span"?`<label>${i18n("длиной, с")} <input type="number" min="1" style="width:80px" data-mark-len value="${markLen}" ${onEv("change",["markLenSet",onEv.value])}></label>`:""}<button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
 }
 // Закладка «Просмотр»: разметка карт постоянна, данные пишет viewFill, поэтому приход ответа не перерисовывает видео
 function viewFill(){
@@ -11172,7 +11734,8 @@ function camViewHtml(n){
       <label>${i18n("Поток")} <select data-live-stream ${onEv("change",["liveStreamSet",onEv.value])}><option value="">${i18n("Под размер окна")}</option>${streams}</select></label>
       <label>${i18n("Сеть")} <select data-live-net ${onEv("change",["liveNetSet",onEv.value])}><option value="local">${i18n("Из локальной сети")}</option><option value="outside">${i18n("Извне")}</option></select></label>
       <button type="button" class="btn s" data-talk hidden ${onEv("click",["talkToggle",`${n.id}`])}>${i18n("Говорить")}</button><span class="sub" data-talk-state></span>
-      <span class="sub" data-live-state role="status" aria-live="polite"></span></div>`)
+      <span class="sub" data-live-state role="status" aria-live="polite"></span>
+      ${can("createExport")?`<button type="button" class="btn s" data-exp-cam-go ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download")}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live ${onEv("click",["expFromCam",n.id,"live"])}>${i18n("Кадр сейчас")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go ${onEv("click",["expCropStart",n.id])}>${i18n("Выбрать область кадра")}</button>`:""}`:""}</div>`)
     +(n.ptz&&can("putUnitPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока кнопка нажата")}</p>`):"")
     +(can("listJournal")?card("События",`<div data-feed></div>`):"")
     +`<div data-relay-card></div>`
@@ -15668,33 +16231,32 @@ function ruleDeleteCommit(ids){
 
 // ── Меню строки ──
 function ruleCtx(e,id){
+  if(rcNative(e))return;
   e.preventDefault();e.stopPropagation();
-  const r=rules.find(x=>x.id===id),menu=document.getElementById("tctx");if(!r||!menu)return;
+  const r=rules.find(x=>x.id===id);if(!r)return;
   const multi=ruleSel.size>1&&ruleSel.has(id),k=ruleSel.size;
-  menu.innerHTML=(multi?[
+  const html=(multi?[
     tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();ruleBulkToggle('on')`),
     tctxItem(`${i18n("Только журнал")} (${k})`,`closeTreeCtx();ruleBulkToggle('watch')`),
     tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();ruleBulkToggle('off')`),
     tctxSep(),
     tctxItem(`${i18n("Приглушить")}… (${k})`,`ruleMuteOpenSel()`),
-    tctxItem(`${i18n("Удалить")}… (${k})`,`ruleDeleteAskSel()`),
-    tctxItem(i18n("Снять отметки"),`closeTreeCtx();ruleSelClear()`)
+    tctxItem(i18n("Снять отметки"),`closeTreeCtx();ruleSelClear()`),
+    tctxSep(),
+    tctxDanger(`${i18n("Удалить")}… (${k})`,`ruleDeleteAskSel()`)
   ]:[
-    tctxItem(i18n("Открыть"),`closeTreeCtx();ruleOpen('${id}',true)`),   // меню — это ссылка: место прихода моргает
-    tctxItem(i18n("Дублировать"),`closeTreeCtx();ruleDuplicate('${id}')`),
+    ...(rule===id?[]:[tctxItem(i18n("Открыть"),`closeTreeCtx();ruleOpen('${id}',true)`,null,false,"tctx-default"),tctxSep()]),   // меню — это ссылка: место прихода моргает
     ...(ruleState(r)==="watch"?[tctxItem(i18n("Перевести в «Работает»"),`ruleToggleOne('${id}','on')`),tctxItem(i18n("Выключить"),`ruleToggleOne('${id}','off')`)]
       :[tctxItem(i18n(r.on?"Выключить":"Включить"),`ruleToggleOne('${id}','${r.on?"off":"on"}')`),tctxItem(i18n("Перевести в «Только журнал»"),`ruleToggleOne('${id}','watch')`)]),
-    tctxSep(),
     ruleMuteNow(r)?tctxItem(i18n("Снять приглушение"),`ruleMuteSetTo(['${id}'],null)`):tctxItem(`${i18n("Приглушить")}…`,`ruleMuteOpen(['${id}'])`),
-    tctxItem(`${i18n("Удалить")}…`,`ruleDeleteAsk(['${id}'])`)
+    tctxItem(i18n("Дублировать"),`closeTreeCtx();ruleDuplicate('${id}')`),
+    tctxSep(),
+    tctxDanger(`${i18n("Удалить")}…`,`ruleDeleteAsk(['${id}'])`)
   ]).join("");
-  menu.classList.add("open");
-  menu.style.left="0px";menu.style.top="0px";
-  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8,btn=e.currentTarget&&e.currentTarget.classList&&e.currentTarget.classList.contains("n-menu")?e.currentTarget.getBoundingClientRect():null;
-  let left=btn?btn.left:e.clientX,top=btn?btn.bottom+4:e.clientY;
-  if(left+mw>innerWidth-pad)left=Math.max(pad,innerWidth-mw-pad);
-  if(top+mh>innerHeight-pad)top=Math.max(pad,(btn?btn.top-4:e.clientY)-mh);
-  menu.style.left=left+"px";menu.style.top=top+"px";
+  const btn=e.currentTarget&&e.currentTarget.classList&&e.currentTarget.classList.contains("n-menu")?e.currentTarget.getBoundingClientRect():null;
+  rcShow(html,btn?{x:btn.left,y:btn.bottom+4}:rcPoint(e));
+  rcMark(e.currentTarget?.closest?.(".n")||null);
+  if(rcByKey(e))rcFocusFirst();
 }
 
 // ── Точки входа создания ──
@@ -17379,6 +17941,7 @@ function accMenuOpen(anchor,html){
 function accMenuOutside(e){if(!document.getElementById("accMenu")?.contains(e.target))accMenuClose()}
 function accMenuClose(){
   const m=document.getElementById("accMenu");
+  rcCloseMark(m);
   document.removeEventListener("mousedown",accMenuOutside);
   if(!m)return;m.remove();
 }
@@ -22029,6 +22592,7 @@ function addSplitItems(n){
   }
   if(n.type==="server"&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
   if(n.type==="server"&&canCreateKind("archive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
+  if((n.type==="domain"||n.type==="server")&&WIZ.acfa)items.push(["Единицу СКУД…","openW('unit')"]);
   return items;
 }
 function addSplitBtn(n){
@@ -22388,7 +22952,7 @@ function wnx(){
   }).catch(e=>toast(problemText(e)));
 }
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
-  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI};
+  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI};
   (ui[app]||gear)();
   syncHeaderLoad();
 }
@@ -22423,7 +22987,7 @@ function navMark(){
 // запоминается, чтобы вернуть его, если с тех пор выборку сняли.
 function navLoc(){
   const bulk=app==="hw"&&bulkActive()&&!bulkPeek;
-  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,
+  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,
     bsel:bulk?[...treeSel].map(id=>[id,selWhere.get(id)??null]):null};
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
@@ -22435,6 +22999,7 @@ function navTitle(){
   else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы объекта",maint:"Окна обслуживания",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
   else if(app==="sys")t=sysOpts.find(o=>o.id===sys)?.n||"";
   else if(app==="log")t=logCats.find(c=>c.id===logFilt)?.n||"";
+  else if(app==="exp")t=expSel==="new"?i18n("Новая выгрузка"):expRowOf(expSel)?expJobTitle(expRowOf(expSel)):"";
   else if(app==="acc"){
     if(accSel.startsWith("role:"))t=`${i18n("Роль")} «${accRoleName(accSel.slice(5))}»`;
     else if(accSel.startsWith("user:"))t=accUsers().find(u=>u.id===accSel.slice(5))?.login||"";
@@ -22462,7 +23027,7 @@ function navApply(loc){
   navLock=true;
   try{
     app=loc.app;sel=loc.sel;tab=loc.tab;slice=loc.slice;selFolder=loc.selFolder;detSel=loc.detSel;
-    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
+    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
     syncViews();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
     // Шаг «выборка» возвращает её состав; шаг объекта при живой выборке
     // открывает объект поверх неё — выборка остаётся.
@@ -22510,6 +23075,7 @@ function navSync(){
   f.title=next?`${i18n("Вперёд")}: ${next.title}`:i18n("Вперёд");
 }
 function navMenu(e){
+  if(rcNative(e))return;
   e.preventDefault();
   if(navHist.length<2)return;
   const items=navHist.map((h,i)=>({h,i})).reverse().slice(0,15);
@@ -22517,6 +23083,210 @@ function navMenu(e){
     `<button type="button" class="mi ${i===navPos?"cur on":""}" ${i===navPos?"disabled":""} ${onEv("click",["accMenuClose"],["navStep",i-navPos])}>${escHtml(h.title)}</button>`).join(""));
   document.getElementById("accMenu")?.classList.add("nav-menu");
 }
+// ── Правый клик: одна система на весь макет ──
+// Меню браузера внутри макета нет. Правый клик показывает только действия того, по чему щёлкнули:
+//   1. поле ввода — Вырезать, Копировать, Вставить, Выделить всё;
+//   2. выделенный текст — Копировать;
+//   3. окно поверх макета — ничего больше;
+//   4. строка или ссылка на объект — меню этого объекта; карточка на экране не меняется;
+//   5. кнопка, вкладка, галочка — ничего: их действие и так на виду;
+//   6. пустое место дерева и карточки — действия этого места.
+// Shift + правый клик — меню браузера, для разработчиков (в Firefox браузер делает так сам).
+let rcMarked=null,rcBack=null,rcFieldEl=null,rcFieldRange=null,rcSelBefore="",rcCopyText="";
+function rcNative(e){return e.type==="contextmenu"&&e.shiftKey}
+function rcByKey(e){return e.type==="contextmenu"&&e.button!==2}
+function rcPoint(e,el){
+  if(!rcByKey(e))return{x:e.clientX,y:e.clientY};
+  const r=(el||document.activeElement||document.body).getBoundingClientRect();
+  return{x:r.left+12,y:r.bottom};
+}
+function rcMark(el){rcMarked?.classList.remove("rc-target");rcMarked=el||null;rcMarked?.classList.add("rc-target")}
+function rcCloseMark(m){
+  rcMark(null);
+  if(m&&rcBack&&m.contains(document.activeElement)&&rcBack.isConnected)rcBack.focus();
+  rcBack=null;
+}
+function rcPlace(menu,xy){
+  menu.style.left="0px";menu.style.top="0px";
+  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8;
+  let left=xy.x,top=xy.y;
+  if(left+mw>innerWidth-pad)left=Math.max(pad,innerWidth-mw-pad);
+  if(top+mh>innerHeight-pad)top=Math.max(pad,xy.y-mh);
+  if(top+mh>innerHeight-pad)top=Math.max(pad,innerHeight-mh-pad);
+  menu.style.left=left+"px";menu.style.top=top+"px";
+}
+function rcShow(html,xy){
+  const menu=document.getElementById("tctx");if(!menu||!html)return;
+  const back=document.activeElement;
+  menu.innerHTML=html;menu.classList.add("open");rcPlace(menu,xy);
+  rcBack=back&&back!==document.body?back:null;
+}
+function rcOpenMenuEl(){const m=document.getElementById("tctx");return m?.classList.contains("open")?m:document.getElementById("accMenu")}
+function rcFocusFirst(){rcOpenMenuEl()?.querySelector("button:not(:disabled)")?.focus()}
+function rcMenuDown(e){if(!e.target.closest("input,textarea,select"))e.preventDefault()}
+// Действие, которому нужен объект на экране: сначала открыть его, спросив о неприменённых правках.
+function ctxThen(id,fn,...args){
+  closeTreeCtx();
+  const run=()=>window[fn](...args);
+  if(sel===id&&!(treeSel.size>1&&!treeSel.has(id)))return run();
+  if(cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>{pick(id,{force:true});if(sel===id)run()});return}
+  // pick может не открыть объект сразу: черновик зон спрашивает первым.
+  pick(id);if(sel===id)run();
+}
+function rcOpenNode(id){closeTreeCtx();if(app==="hw")pick(id);else{openNode(id,{app:"hw"});hwFlashLanding()}}
+function rcObject(id,xy,el){
+  const f=find(id);if(!f)return false;
+  if(app==="hw"&&canTreeCtx(f.n))openTreeCtx(f.n,xy);
+  else rcShow([...(sel===id&&app==="hw"?[]:[tctxItem(i18n("Открыть"),["rcOpenNode",id],null,false,"tctx-default")]),tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${id}')`,tctxNewTabIcon())].join(""),xy);
+  rcMark(el);
+  return true;
+}
+function rcFavGone(i,xy,el){
+  rcShow(tctxItem(i18n("Убрать из избранного"),["rcFavDrop",i],tctxStarIcon()),xy);rcMark(el);
+}
+function rcFavDrop(i){closeTreeCtx();const f=favs[i];if(f)toggleFav(f.id,null)}
+// Ссылка или строка: что за объект открывает её щелчок.
+const RC_LINKS={pick:id=>({k:"node",id}),openNode:id=>({k:"node",id}),expCamGo:id=>({k:"node",id}),jumpTo:id=>({k:"node",id}),detGo:id=>({k:"node",id}),goFav:i=>({k:"fav",i}),accGo:s=>({k:"acc",s}),ruleOpen:id=>({k:"rule",id})};
+const RC_CONTROL="button,a,input,select,textarea,label,summary,[role=tab],[role=switch],[role=button]";
+function rcLink(t){
+  for(let el=t;el&&el!==document.body;el=el.parentElement){
+    if(el.id==="main"||el.id==="tree"||el.id==="aside")return null;
+    if(el.dataset?.pick)return{k:"node",id:el.dataset.pick,el};
+    const raw=el.getAttribute("data-on-click");
+    const calls=raw?JSON.parse(raw).filter(c=>c[0][0]!=="."):[];
+    const call=calls.find(c=>RC_LINKS[c[0]]);
+    if(call)return{...RC_LINKS[call[0]](...call.slice(1)),el};
+    if(calls.length||el.matches(RC_CONTROL))return{k:"control"};
+  }
+  return null;
+}
+function rcAcc(s,xy,el){
+  const back=document.activeElement;
+  const[kind,id]=String(s).split(":");
+  if(!id||!["role","user","ug"].includes(kind))return;
+  const a={getBoundingClientRect:()=>({top:xy.y,bottom:xy.y-4,left:xy.x})};
+  const openIt=accSel===s?"":`<button type="button" class="mi tctx-default" ${onEv("click",["accMenuClose"],["accGo",`${s}`])}>${i18n("Открыть")}</button><div class="acc-sep"></div>`;
+  if(kind==="user"){if(!accUser(id))return;accUserMenu(a,id)}
+  else if(kind==="ug"){if(!accUG(id))return;accUGMenu(a,id)}
+  else{
+    const r=accRole(id);if(!r)return;
+    accMenuOpen(a,`<button type="button" class="mi" ${onEv("click",["accMenuClose"],["accCompareWith",`${id}`])}>${i18n("Сравнить роли")}</button>
+      ${r.g.unr?"":`<div class="acc-sep"></div><button type="button" class="mi danger" ${onEv("click",["accMenuClose"],["accDeleteRole",`${id}`])}>${i18n("Удалить роль")}…</button>`}`);
+  }
+  const m=document.getElementById("accMenu");if(!m)return;
+  m.setAttribute("role","menu");
+  m.insertAdjacentHTML("afterbegin",openIt);
+  rcPlace(m,xy);
+  rcMark(el);
+  rcBack=back&&back!==document.body?back:null;
+}
+function rcFieldKind(f){
+  if(f.isContentEditable||f.tagName==="TEXTAREA")return true;
+  return f.tagName==="INPUT"&&["text","search","password","email","url","tel","number",""].includes(f.getAttribute("type")||"");
+}
+function rcFieldMenu(f,xy){
+  rcFieldEl=f;
+  let has=false;
+  try{rcFieldRange=[f.selectionStart,f.selectionEnd];has=f.selectionStart!=null&&f.selectionStart!==f.selectionEnd}catch(err){rcFieldRange=null}
+  if(f.isContentEditable||rcFieldRange?.[0]==null){const t=String(getSelection());has=!!t}
+  const ro=f.readOnly||f.disabled,pwd=f.type==="password",empty=!(f.isContentEditable?f.textContent:f.value);
+  rcShow([
+    tctxItem(i18n("Вырезать"),["rcFieldDo","cut"],null,!has||ro||pwd),
+    tctxItem(i18n("Копировать"),["rcFieldDo","copy"],null,!has||pwd),
+    tctxItem(i18n("Вставить"),["rcFieldDo","paste"],null,ro),
+    tctxSep(),
+    tctxItem(i18n("Выделить всё"),["rcFieldDo","selectAll"],null,empty||f.disabled)].join(""),xy);
+}
+function rcFieldDo(cmd){
+  closeTreeCtx();
+  const f=rcFieldEl;if(!f?.isConnected)return;
+  f.focus();
+  if(rcFieldRange?.[0]!=null)try{f.setSelectionRange(rcFieldRange[0],rcFieldRange[1])}catch(err){}
+  if(cmd!=="paste"){document.execCommand(cmd);return}
+  const denied=()=>toast(i18n("Браузер не дал прочитать буфер обмена: нажмите Ctrl+V"));
+  if(!navigator.clipboard?.readText){denied();return}
+  navigator.clipboard.readText().then(t=>{f.focus();document.execCommand("insertText",false,t)}).catch(denied);
+}
+function rcSelectedText(t,byKey){
+  const sl=getSelection();if(!sl||sl.isCollapsed||!sl.rangeCount)return"";
+  const text=String(sl).trim();
+  if(!text||(!byKey&&text!==rcSelBefore)||!sl.getRangeAt(0).intersectsNode(t))return"";
+  return text;
+}
+function rcCopy(){
+  closeTreeCtx();
+  const done=()=>toast(i18n("Скопировано")),fail=()=>{document.execCommand("copy")?done():toast(i18n("Не удалось скопировать: нажмите Ctrl+C"))};
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(rcCopyText).then(done).catch(fail);else fail();
+}
+// Пустое место левой панели: только то, что создаётся в этом месте.
+function rcAsideEmpty(xy){
+  if(app==="hw"){
+    const d=domainFilter?domains.find(x=>x.id===domainFilter):domains.length===1?domains[0]:null,items=[];
+    if(slice==="det")return;   // детектор добавляют у камеры: её строка в дереве
+    if(slice==="arch"){
+      const host=d||scopedDomains()[0];
+      if(host&&canDomainArch())rcShow(tctxItem(i18n("Создать сетевое хранилище…"),["rcRun","addArchive",host.id],tctxPlusIcon()),xy);
+      return;
+    }
+    if(d){
+      items.push(tctxItem(i18n("Добавить сервер"),["ctxThen",d.id,"openW","server"],tctxPlusIcon()));
+      items.push(tctxItem(i18n("Создать папку"),["ctxThen",d.id,"addSubfolder",null,d.id],tctxPlusIcon()));
+    }
+    if((slice==="all"||slice==="srv")&&canCreateKind("domain"))items.push(tctxItem(i18n("Создать домен"),`closeTreeCtx();addDomain()`,tctxPlusIcon()));
+    rcShow(items.join(""),xy);
+  }else if(app==="rules")rcShow([tctxItem(i18n("Новое правило"),`closeTreeCtx();ruleNewOpen()`,tctxPlusIcon()),tctxItem(i18n("Проверить все правила"),`closeTreeCtx();ruleAuditOpen()`)].join(""),xy);
+  else if(app==="acc")rcShow([tctxItem(i18n("Новая роль"),`closeTreeCtx();accWzOpen()`,tctxPlusIcon()),tctxItem(i18n("Новый пользователь"),`closeTreeCtx();accUserDlgOpen()`,tctxPlusIcon()),tctxItem(i18n("Новая группа"),`closeTreeCtx();accUgOpen()`,tctxPlusIcon())].join(""),xy);
+}
+// Пустое место карточки: меню объекта этой карточки — то же, что «Ещё».
+function rcCardEmpty(e,xy){
+  if(app==="hw"){const n=find(sel)?.n;if(n&&canTreeCtx(n)&&(!wizOpen()))openTreeCtx(n,xy)}
+  else if(app==="rules"&&rule&&rules.some(x=>x.id===rule))ruleCtx(e,rule);
+  else if(app==="acc")rcAcc(accSel,xy,null);
+}
+function rcOnContext(e){
+  if(e.shiftKey||e.defaultPrevented)return;
+  e.preventDefault();
+  const byKey=rcByKey(e);
+  let t=e.target?.nodeType===1?e.target:e.target?.parentElement;if(!t)return;
+  if(t.closest("#tctx,#accMenu"))return;
+  closeTreeCtx();accMenuClose();
+  // Клавиша меню, когда фокуса нет: текущая строка дерева
+  if(byKey&&(t===document.body||t===document.documentElement)){
+    const row=document.querySelector("#tree .n.on");
+    if(!row)return;
+    t=row;
+  }
+  const xy=rcPoint(e,t);
+  const field=t.closest("input,textarea,[contenteditable='true']");
+  if(field){if(rcFieldKind(field))rcFieldMenu(field,xy);if(byKey)rcFocusFirst();return}
+  const text=rcSelectedText(t,byKey);
+  if(text){rcCopyText=text;rcShow(tctxItem(i18n("Копировать"),["rcCopy"]),xy);if(byKey)rcFocusFirst();return}
+  if(wizOpen()||t.closest(".confirm,.jump,.mask,.ttu,#upop"))return;
+  const link=rcLink(t);
+  if(link?.k==="control")return;
+  if(link?.k==="node")rcObject(link.id,xy,link.el);
+  else if(link?.k==="rule"){if(app==="rules"){ruleCtx(e,link.id);rcMark(link.el)}}
+  else if(link?.k==="acc"){if(app==="acc")rcAcc(link.s,xy,link.el)}
+  else if(link?.k==="fav"){const f=favs[link.i];if(f){if(!rcObject(f.id,xy,link.el))rcFavGone(link.i,xy,link.el)}}
+  else if(t.closest("#aside")){if(!t.closest(".n"))rcAsideEmpty(xy)}
+  else if(t.closest("#main"))rcCardEmpty(e,xy);
+  if(byKey)rcFocusFirst();
+}
+// После слушателей onEv на документе: строка дерева и правила уже решили за себя.
+document.addEventListener("contextmenu",rcOnContext,true);
+addEventListener("mousedown",e=>{if(e.button===2)rcSelBefore=String(getSelection()||"").trim()},true);
+// Стрелки в открытом меню — раньше клавиатурной навигации по дереву.
+addEventListener("keydown",e=>{
+  // Esc снимает меню раньше окна под ним и раньше поля поиска.
+  if(e.key==="Escape"&&document.getElementById("tctx")?.classList.contains("open")){e.preventDefault();e.stopPropagation();closeTreeCtx();return}
+  if(!["ArrowDown","ArrowUp","Home","End"].includes(e.key))return;
+  const m=rcOpenMenuEl();if(!m)return;
+  const items=[...m.querySelectorAll("button:not(:disabled)")];if(!items.length)return;
+  e.preventDefault();e.stopPropagation();
+  const i=items.indexOf(document.activeElement),n=items.length;
+  const to=e.key==="Home"?0:e.key==="End"?n-1:e.key==="ArrowDown"?(i+1)%n:(i<=0?n-1:i-1);
+  items[to].focus();
+},true);
 document.onkeydown=e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){e.preventDefault();focusGo();return}
   if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();navStep(e.key==="ArrowLeft"?-1:1);return}
@@ -24844,6 +25614,7 @@ function cancelDelete(key){
   clearTimeout(p.timer);pendingDel.delete(key);removeToastAction(key);
   toast("Удаление отменено — ничего не отправлено");
   renderTree();
+  if(app==="exp")expRepaint();
 }
 function commitDelete(key){
   const p=pendingDel.get(key);if(!p)return;

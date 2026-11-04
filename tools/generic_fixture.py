@@ -55,7 +55,9 @@ CORE_DONE = ["listKinds", "getKind", "listUnits", "getUnit", "getUnitSchema", "g
              # Предметные API объекта по uid (задача 6): видео, разговор, архив камеры, PTZ, назначение записи
              "startUnitLive", "moveUnitLive", "startUnitTalk", "getUnitTimeline", "getUnitPlayback", "listUnitHolds", "createUnitHold",
              "listUnitBookmarks", "createUnitBookmark", "fetchUnitArchive", "putUnitPtz", "deleteUnitPtz", "putUnitPreset",
-             "deleteUnitPreset", "putUnitRecordingTarget"]
+             "deleteUnitPreset", "putUnitRecordingTarget",
+             # Выгрузка (ADR-0117, догон базы 080bfa9): сутки с записью — предметный путь камеры по uid
+             "getUnitRecordingDays"]
 BASE_PAGE = "index.html"
 OUT = f"{API}/fixtures/demo.json"
 LANG = "ru"
@@ -736,7 +738,7 @@ def shared_kind():
 
 # ===== Профили =====
 PROFILES = [
-    ("vms.domain/1", "Домен", []), ("vms.server/1", "Сервер", []), ("vms.folder/1", "Папка", []), ("vms.camera/1", "Камера", ["recording-target"]),
+    ("vms.domain/1", "Домен", []), ("vms.server/1", "Сервер", []), ("vms.folder/1", "Папка", []), ("vms.camera/1", "Камера", ["recording-target", "recording-days"]),
     ("vms.archive/1", "Хранилище", []), ("vms.volume/1", "Том", []), ("vms.stream/1", "Поток", []), ("vms.detector/1", "Детектор", []),
     ("vms.acs/1", "Единица СКУД с командами", []),
     ("vms.live/1", "Живое видео", ["live"]), ("vms.ptz/1", "PTZ", ["ptz", "presets/{n}"]), ("vms.talk/1", "Разговор", ["talk"]),

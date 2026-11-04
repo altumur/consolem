@@ -693,6 +693,11 @@
          "OTHER_NETWORK",
          "NO_PRIMARY",
          "FINGERPRINT_MISMATCH",
+         "PASSWORD_REQUIRED",
+         "NO_RECORDING",
+         "LIMIT_EXCEEDED",
+         "EXPORT_EXPIRED",
+         "SUPERVISOR_REJECTED",
          null
         ],
         "description": "Почему не подключились"
@@ -4350,7 +4355,8 @@
     "replicaLagSec"
    ],
    "apis": [
-    "recording-target"
+    "recording-target",
+    "recording-days"
    ]
   },
   {
@@ -25206,6 +25212,7 @@
   "capabilities": {
    "operations": [
     "getMe",
+    "getExportGrant",
     "getReference",
     "listOperations",
     "createOperation",
@@ -25303,11 +25310,32 @@
     "putUnitPreset",
     "deleteUnitPreset",
     "putUnitRecordingTarget",
+    "getUnitRecordingDays",
+    "checkExport",
+    "listExports",
+    "createExport",
+    "getExport",
+    "deleteExport",
+    "cancelExport",
+    "retryExport",
+    "getExportFileLink",
     "getCreatable",
     "getUnitSchema",
     "validateUnits"
    ],
-   "features": []
+   "features": [
+    "exportVideo",
+    "exportFrame",
+    "exportLiveFrame",
+    "exportArea",
+    "exportMultiCamera",
+    "exportMultiPeriod",
+    "exportSingleFile",
+    "exportTranscode",
+    "exportTitles",
+    "exportAudio",
+    "exportPassword"
+   ]
   },
   "serverLabels": [
    "gpu",
@@ -25338,7 +25366,218 @@
    "disappeared",
    "crowd",
    "lpr"
-  ]
+  ],
+  "export": {
+   "formats": [
+    {
+     "id": "mkv",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "mpeg4",
+      "mjpeg",
+      "h264"
+     ],
+     "softTitles": true,
+     "chapters": true,
+     "player": false,
+     "password": "zip",
+     "singleFile": "tracks",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "mp4",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "h264"
+     ],
+     "softTitles": true,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "avi",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "mpeg4",
+      "mjpeg"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "jpg",
+     "kind": "frame",
+     "codecs": [
+      "source"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive",
+      "live"
+     ]
+    },
+    {
+     "id": "pdf",
+     "kind": "frame",
+     "codecs": [
+      "source"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "native",
+     "singleFile": "none",
+     "entries": [
+      "archive",
+      "live"
+     ]
+    }
+   ],
+   "compression": [
+    {
+     "id": "default",
+     "label": "По умолчанию"
+    },
+    {
+     "id": "min",
+     "label": "Минимальный уровень"
+    },
+    {
+     "id": "low",
+     "label": "Низкий уровень"
+    },
+    {
+     "id": "midlow",
+     "label": "Средний/Низкий"
+    },
+    {
+     "id": "mid",
+     "label": "Средний уровень"
+    },
+    {
+     "id": "midhigh",
+     "label": "Средний/Высокий"
+    },
+    {
+     "id": "high",
+     "label": "Высокий уровень"
+    },
+    {
+     "id": "max",
+     "label": "Максимальный уровень"
+    }
+   ],
+   "resolutions": [
+    {
+     "id": "source",
+     "label": "Оригинальное"
+    },
+    {
+     "id": "320x240",
+     "label": "320×240 (4:3 240p)"
+    },
+    {
+     "id": "426x240",
+     "label": "426×240 (16:9 240p)"
+    },
+    {
+     "id": "640x360",
+     "label": "640×360 (16:9 360p)"
+    },
+    {
+     "id": "640x480",
+     "label": "640×480 (4:3 480p)"
+    },
+    {
+     "id": "854x480",
+     "label": "854×480 (16:9 480p)"
+    },
+    {
+     "id": "1024x768",
+     "label": "1024×768 (4:3 XGA)"
+    },
+    {
+     "id": "1280x720",
+     "label": "1280×720 (HD 720p)"
+    },
+    {
+     "id": "1920x1080",
+     "label": "1920×1080 (Full HD 1080p)"
+    },
+    {
+     "id": "2560x1440",
+     "label": "2560×1440 (2K QHD 1440p)"
+    },
+    {
+     "id": "3840x2160",
+     "label": "3840×2160 (4K UHD 2160p)"
+    }
+   ],
+   "fpsDivisors": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "titleFields": [
+    "dateTime",
+    "shortName",
+    "cameraName",
+    "coordinates",
+    "user",
+    "bookmark"
+   ],
+   "fonts": [
+    {
+     "id": "Inter",
+     "sizes": [
+      12,
+      16,
+      20,
+      24
+     ]
+    }
+   ],
+   "privacyModes": [
+    "none",
+    "hide",
+    "invert"
+   ],
+   "destinations": [
+    "download"
+   ],
+   "limits": {
+    "maxCameras": 16,
+    "maxPeriods": 32,
+    "maxTotalSec": 86400,
+    "maxFileMbDefault": 4000,
+    "maxFileMbMax": 4000,
+    "maxActivePerUser": 4,
+    "keepSec": 86400,
+    "linkTtlSec": 120,
+    "bookmarkPadSec": 30
+   }
+  }
  },
  "streamAccounts": [
   {

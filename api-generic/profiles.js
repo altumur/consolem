@@ -1417,9 +1417,14 @@
   // Запись удержаний, отметок и дозаписи чужого кластера не идёт: чтение есть, правка — нет
   const keepRefused = (rec, ctx) => otherCluster(rec, rec.id, ctx) || (ctx.db.stand.keepDenied ? ctx.problem(403, "PERMISSION_DENIED", "Нет права") : null);
   const backTime = (at) => String(9e15 - Date.parse(at)).padStart(17, "0");
+  // Закладка — момент или отрезок (ADR-0117 доп. (1) п. 2): у старых строк типа нет, это момент
+  const markShow = (m) => Object.assign({ type: "moment" }, clone(m));
+  const markEnd = (m) => Date.parse(m.type === "span" && m.to ? m.to : m.occurred);
+  // Сутки с записью — в поясе системы (Me.timezone)
+  const recDay = (ms, ctx) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: ctx.db.timezone || "UTC" });
 
   const timeline = {
-    camSpans, holdShow, keepRefused, holdsAll, marksAll,
+    camSpans, timelineGone, holdShow, keepRefused, holdsAll, marksAll,
     spans(rec, q, ctx) {
       const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
       if (from >= to) return ctx.problem(422, "VALIDATION_FAILED", "Конец окна раньше начала", { field: "to" });
@@ -1457,17 +1462,34 @@
     bookmarks(rec, q, ctx) {
       if (ctx.db.stand.keepDenied) return ctx.problem(403, "PERMISSION_DENIED", "Нет права на отметки");
       const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
-      const rows = marksAll(ctx).filter((m) => m.deviceId === rec.id && Date.parse(m.occurred) >= from && Date.parse(m.occurred) <= to);
-      return ctx.pageList(q, `bookmarks:${rec.id}`, rows, (m) => `${backTime(m.occurred)}|${m.id}`, clone);
+      // Отрезок попадает в окно, если пересекает его
+      const rows = marksAll(ctx).filter((m) => m.deviceId === rec.id && markEnd(m) >= from && Date.parse(m.occurred) <= to);
+      return ctx.pageList(q, `bookmarks:${rec.id}`, rows, (m) => `${backTime(m.occurred)}|${m.id}`, markShow);
     },
     bookmark(rec, body, ctx) {
       const bad = keepRefused(rec, ctx);
       if (bad) return bad;
       if (!trimmed(body.note)) return ctx.problem(422, "VALIDATION_FAILED", "Напишите заметку", { field: "note" });
-      const at = ctx.iso(ctx.now()), m = { id: ctx.uuid("bookmark"), deviceId: rec.id, note: body.note.trim(), occurred: body.occurred || at, at, by: ctx.myLogin() };
+      const at = ctx.iso(ctx.now()), type = body.type || "moment";
+      const m = { id: ctx.uuid("bookmark"), deviceId: rec.id, note: body.note.trim(), type, occurred: body.occurred || at, at, by: ctx.myLogin() };
+      if (type === "span") {
+        if (!(Date.parse(body.to) > Date.parse(m.occurred))) return ctx.problem(422, "VALIDATION_FAILED", "Конец отрезка позже начала", { field: "to" });
+        m.to = body.to;
+      } else if (body.to) return ctx.problem(422, "VALIDATION_FAILED", "Конец — только у отрезка", { field: "to" });
       marksAll(ctx).push(m);
       ctx.send("entity.created", { kind: "bookmark", entityId: m.id, payload: { deviceId: rec.id } });
-      return { status: 201, body: clone(m) };
+      return { status: 201, body: markShow(m) };
+    },
+    // Сутки с записью для календаря окна выгрузки (GET /units/{uid}/recording-days): from, to — даты, нет — последние 31 сутки
+    days(rec, q, ctx) {
+      const day = 86400000, to = q.to ? Date.parse(q.to + "T12:00:00Z") : ctx.now(), from = q.from ? Date.parse(q.from + "T12:00:00Z") : to - 30 * day;
+      if (!(to >= from)) return ctx.problem(422, "VALIDATION_FAILED", "Конец раньше начала", { field: "to" });
+      if ((to - from) / day > 366) return ctx.problem(422, "VALIDATION_FAILED", "Не больше года", { field: "from" });
+      const got = new Set();
+      camSpans(rec, ctx).forEach((s) => { for (let t = s.startMs; t < s.endMs; t += 3600000) got.add(recDay(t, ctx)); got.add(recDay(s.endMs - 1, ctx)); });
+      const days = [];
+      for (let t = from; t <= to + 1; t += day) { const d = recDay(t, ctx); if (!days.length || days[days.length - 1].date !== d) days.push({ date: d, recorded: got.has(d) }); }
+      return { status: 200, body: { days, unavailable: timelineGone(rec, ctx) } };
     },
     fetch(rec, body, ctx) {
       const bad = keepRefused(rec, ctx);

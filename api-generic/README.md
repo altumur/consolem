@@ -57,7 +57,7 @@
 | `TESTS.md` | Какие тесты и проверки есть, что каждая проверяет и как запустить; что делает `?selftest` |
 | `../api/requests/` | Запросы к API от команд VMS и ответы на них (остались в `api/`); запрос на эту модель — `2026-11-03-065231Z-mockup-generic-model-*.md` |
 
-## Карта API — 111 операций и 5 служебных
+## Карта API — 121 операция и 5 служебных
 
 Путей по видам базы в контракте нет: домены, серверы, устройства, папки, хранилища, тома и потоки камер — объекты `/units` своих видов. Адрес предметных API — по `uid`, доступность — профилем. Что чем заменено — «[Ломающие изменения](#ломающие-изменения-против-apiopenapijson)».
 
@@ -66,7 +66,8 @@
 | `session`, `reference` | `GET /me` — кто вошёл, часы и часовой пояс сервера; `GET /reference` — справочники кодами и `capabilities` |
 | `units` — ядро | `GET /kinds` (описания видов, ETag, `If-None-Match` → 304), `GET /kinds/{kind}`, `POST /kinds/{kind}/actions/{action}` (команда вида без объекта: опрос адреса, проверка NAS); `GET /units` (отборы `kind`, `parentId`, `domainId`, `implements`, `ref`, `folderId`, `ids`, `q`, `fields`, `noFolder`, `noRecord`, `noDetector`, `status`, страницы); `POST /units` (группой, `idempotencyKey`, вложенные дети, частичный успех `done`/`failed`); `GET`, `PATCH` (JSON Merge Patch, `If-Match`), `DELETE /units/{uid}`; `POST /units/{uid}/move` (в другого родителя, домен, сервер); `POST /units/{uid}/actions/{action}`; `GET /units/{uid}/creatable` (что можно завести под объектом); `GET /units/{uid}/schema` (схема конкретного объекта); `POST /units/validate` (проверить без записи) |
 | `hardware` — дерево, папки, ретрансляторы | `GET /tree/children` (дети узла, страницами; раскладки `folders`, `servers`, `archives`, `detectors`); `GET /tree/paths` (цепочки от корня до объектов); `POST /objects/delete` (групповое удаление объектов любых видов по `uid`); `GET /domains/{id}/relays`, `GET /domains/{id}/relays/{name}` |
-| `hardware` — предметные API по `uid` | живое видео `POST`, `PUT /units/{uid}/live`; разговор `POST /units/{uid}/talk`; архив `GET /units/{uid}/timeline`, `/playback`, `POST /units/{uid}/archive-fetch`; удержания `GET`, `POST /units/{uid}/holds`, `DELETE /holds/{id}`, `POST /holds/{id}/verify`; закладки `GET`, `POST /units/{uid}/bookmarks`; PTZ `PUT`, `DELETE /units/{uid}/ptz`, `PUT`, `DELETE /units/{uid}/presets/{n}`; `PUT /units/{uid}/recording-target` |
+| `hardware` — предметные API по `uid` | живое видео `POST`, `PUT /units/{uid}/live`; разговор `POST /units/{uid}/talk`; архив `GET /units/{uid}/timeline`, `/playback`, `POST /units/{uid}/archive-fetch`; удержания `GET`, `POST /units/{uid}/holds`, `DELETE /holds/{id}`, `POST /holds/{id}/verify`; закладки `GET`, `POST /units/{uid}/bookmarks` (момент или отрезок: `type`, `to`); PTZ `PUT`, `DELETE /units/{uid}/ptz`, `PUT`, `DELETE /units/{uid}/presets/{n}`; `PUT /units/{uid}/recording-target` |
+| `export` — выгрузка (ADR-0117) | `GET /me/export?ids=<uid,…>` — что можно человеку и по камерам; `GET /units/{uid}/recording-days` — сутки с записью для календаря (профиль `vms.camera/1`); `POST /exports/check` — проверить заказ без запуска; `POST /exports` (202) — задание: части камера × запись, ход `export.progress`, итог `export.finished`; `GET /exports`; `GET`, `DELETE /exports/{id}`; `…/cancel`, `…/retry-failed`; `POST …/files/{fileId}/link` — ссылка на файл со сроком. Камеры заказа — по `uid` (`ExportCamera.uid`), ошибки — `field` JSON Pointer по телу (`/cameras/0/area`, `/periods/1/to`); справочник — `reference.export`, необязательное — `export*` в `capabilities.features` |
 | `storage` — обход и скан | `GET`, `POST /archive-watches`; `PATCH`, `DELETE /archive-watches/{id}`; `GET`, `POST /archive-scans`; `DELETE /archive-scans/{id}` |
 | `operations` | `GET`, `POST /operations`; `GET /operations/{id}`; `…/pause`, `…/resume`, `…/cancel`, `…/retry-failed`, `…/revert`, `…/redo`. Шаг (`OperationItemRequest`) — `uid` и ровно одно из: `patch` (правка, как `PATCH /units/{uid}`), `folders` (папки объекта), `createUnit` (дочерний объект), `move` (+`params`: перенос к родителю), `action` (+`params`: команда вида), `delete: true`. Отказ шага — `code`, указатель — `params.field` (JSON Pointer в теле шага), слово схемы — `params.keyword` |
 | `discovery` | `GET`, `POST`, `DELETE /domains/{id}/discovery` — поиск устройств в сети домена |
@@ -212,6 +213,7 @@
 | `probeServers` `POST /servers/probe`, `probeDevice` `POST /devices/probe`, `checkArchive` `POST /archives/check` | `runKindAction` `POST /kinds/{kind}/actions/{action}`: `server`/`probe`, `camera`/`probe` (и `ipsrv`), `archive.network`/`check`… |
 | `formatVolume` `POST /volumes/{id}/format`, `runDeviceOperation` `POST /devices/{id}/operations/{operation}` | `runUnitAction` `POST /units/{uid}/actions/{action}`: `format`, `output`, `ARM`… (`UnitKind.actions`) |
 | `startLive`, `moveLive`, `startTalk`, `getTimeline`, `getPlayback`, `listHolds`, `createHold`, `listBookmarks`, `createBookmark`, `fetchArchive`, `putPtz`, `deletePtz`, `putPreset`, `deletePreset`, `putRecordingTarget` (`/devices/{id}/…`) | те же двери под `/units/{uid}/…`: `startUnitLive`, `moveUnitLive`, `startUnitTalk`, `getUnitTimeline`, `getUnitPlayback`, `listUnitHolds`, `createUnitHold`, `listUnitBookmarks`, `createUnitBookmark`, `fetchUnitArchive`, `putUnitPtz`, `deleteUnitPtz`, `putUnitPreset`, `deleteUnitPreset`, `putUnitRecordingTarget`; доступность — профилем (`vms.live/1`, `vms.ptz/1`, `vms.talk/1`, `vms.timeline/1`, `apis`) |
+| `getRecordingDays` `GET /devices/{deviceId}/recording-days` | `getUnitRecordingDays` `GET /units/{uid}/recording-days`: доступность — профилем `vms.camera/1`; не камера — `422 NOT_SUPPORTED`, `field: /kind` (в базе — `field: type`) |
 
 Новые операции ядра: `listKinds`, `getKind`, `getCreatable`, `getUnitSchema`, `validateUnits`, служебная `testPutKind` (`PUT /test/kinds/{kind}`).
 
@@ -252,21 +254,14 @@
 | `AssistPlanItem` | `deviceId`, `set` | `uid`, `patch` |
 | `AssistFoundFilter` | `type` | `kinds`, `implements`, `fields` (фильтры `GET /units`) |
 | `AssistEvent` | — | `action`: команда вида над отобранным в `found` |
-| `StreamMessage` | `kind` — перечень видов записей (`device`, `server`, `archive`…) | `kind` — вид объекта (`camera`, `archive.local`…) или вид записи вне склада (`rule`, `operation`…); новый тип `kinds.changed` |
+| `StreamMessage` | `kind` — перечень видов записей (`device`, `server`, `archive`…); задание выгрузки — `export` | `kind` — вид объекта (`camera`, `archive.local`…) или вид записи вне склада (`rule`, `operation`…); задание выгрузки — `exportJob`: код `export` занят видом объекта «Агент экспорта»; новый тип `kinds.changed` |
+| `ExportCamera`, `ExportPart`, `ExportFile`, `ExportCheck` (`files[]`), `ExportGrant` (`devices[]`) | камера — `deviceId` | камера — `uid` объекта (вид с профилем `vms.camera/1`); `GET /me/export?ids=` — `uid`. Не камера — `422 NOT_SUPPORTED`, `params.profile`, нет объекта — `404`, `field: /cameras/i` |
+| `ExportCreate` | `highlight.detectorIds` — `uuid` | `uid` детекторов; ошибки тела по схеме — `field` JSON Pointer (`/cameras/0/uid`), как у путей ядра |
+| `BookmarkCreate` | отказ конца отрезка — `field: to` | `field: /to` — указатель, как у прочих предметных путей |
 | `Problem` | — | `errors[]` — все ошибки проверки, `field` на путях ядра — JSON Pointer в теле |
 | `TestEventRequest` | `type` — перечень событий стенда; `found.type` — `DeviceType` | `type` и `unit.event` с `eventId`, `match` — событие объекта по описанию его вида; `found.type` — код вида, открытая строка |
 | `Profile`, `UnitKind` и другие новые | — | ядро модели, см. «Модель данных» |
 
-
-### Ещё не перенесено: база ушла вперёд
-
-Прототип основан на `index.html` и `api/` от `f30396b`. После него в базу пришла выгрузка записей (ADR-0117) — в этой модели её пока нет, перенос — догоном (`uid` объекта вместо `deviceId`):
-
-- операции `listExports`, `createExport`, `checkExport`, `getExport`, `deleteExport`, `cancelExport`, `retryExport`, `getExportFileLink`, `getExportGrant` (`/exports…`, `GET /me/export`) и `getRecordingDays` (`GET /devices/{deviceId}/recording-days`);
-- схемы `Export`, `ExportArea`, `ExportCamera`, `ExportCheck`, `ExportCreate`, `ExportFile`, `ExportFileLink`, `ExportGrant`, `ExportPage`, `ExportPart`, `ExportPeriod`, `ExportQuality`, `ExportReference`, `ExportTitles`, `RecordingDays`;
-- изменённые в базе схемы `Bookmark`, `BookmarkCreate` (момент или отрезок), `Feature` (возможности `export*`), `ProblemCode`, `Reference`, `StreamMessage`.
-
-Там же — интерфейс базы после `f30396b` (единый правый клик и другое): в `index_generic.html` его ещё нет.
 
 ## Эталонный набор
 
