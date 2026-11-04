@@ -137,4 +137,33 @@ UiCheck(async ({ ok }) => {
   accEffPick("lv", "Нет");
   open(one.login);
   ok(!Object.keys(accEffF).length, "у другого пользователя фильтр чист");
+
+  // Раскрытие папки не двигает столбцы и не меняет высоту других папок (баг на «petr»)
+  open("petr");
+  accEffOpenAll(false, "");
+  const grid = () => qa(".eff-tree tr:first-child th").map((c) => Math.round(c.getBoundingClientRect().width)).join();
+  const heights = () => new Map(qa(".eff-node").map((tr) => [tr.dataset.ek, Math.round(tr.getBoundingClientRect().height)]));
+  const w0 = grid(), h0 = heights();
+  const tops = (m) => qa(".eff-node").filter((tr) => m.has(tr.dataset.ek)).map((tr) => tr.dataset.ek);
+  qa(".eff-node").forEach((_, i) => { const tr = qa(".eff-node")[i]; if (tr && !tr.querySelector(".eff-chev.open")) tr.click(); });
+  const h1 = heights();
+  ok(grid() === w0, `раскрытие не двигает столбцы: ${w0} → ${grid()}`);
+  ok(tops(h0).every((k) => h0.get(k) === h1.get(k)), "раскрытие не меняет высоту папок");
+  accEffOpenAll(false, "");
+
+  // Фильтр стандартный: «все», итог, плавность
+  accEffFacetsOpen = true;
+  accUI();
+  ok(!!q(".bk-scope.eff-facets .bk-scope-h .stchip.on"), "фильтр: стандартный блок, чип «все» включён");
+  const fc = qa(".eff-facets .bk-chip")[0];
+  const fcKey = fc.dataset.fk;
+  fc.click();
+  ok(!!q(".eff-facets .bk-scope-sum.on") && /Показано/.test(q(".bk-scope-sum").textContent), "фильтр: итог «Показано N из M»");
+  const anim = qa(".eff-facets [data-fk], .eff-facets").flatMap((el) => el.getAnimations());
+  ok(anim.length > 0, `фильтр: чипы движутся плавно (анимаций ${anim.length}, чип ${fcKey})`);
+  q('.eff-facets [data-fk="all"]').click();
+  ok(!Object.keys(accEffF).length && !!q(".eff-tree"), "«все» снимает фильтр");
+  q(".eff-facet-bar button").click();
+  ok(!q(".eff-facets") && !accEffFacetsOpen, "«Скрыть фильтр» закрывает панель сразу");
+  accEffFacetsOpen = false;
 });

@@ -1360,13 +1360,15 @@ label.acc-chk.dim{color:var(--mu)}
 .eff-bar>*{display:block;height:100%;min-width:2px}
 .eff-bar>*+*{border-left:1px solid var(--one-surface)}
 .eff-dot{display:inline-block;flex:none;width:9px;height:9px;border-radius:2px;border:1px solid var(--ln);margin-right:6px}
-.eff-facets{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}.eff-facets .bk-facet{padding-left:0}.eff-clear{align-self:flex-start;margin-top:2px}
+/* Ширины заданы: раскрытие папки и новая страница списка не должны двигать столбцы и менять высоту соседних строк */
+.eff-tbl{table-layout:fixed;width:100%}.eff-tbl th:nth-child(1){width:34%}.eff-tbl th:nth-child(2){width:20%}.eff-tbl th:nth-child(4){width:108px}
+.eff-tbl .acc-cam{white-space:normal;overflow-wrap:anywhere}.eff-tbl td{overflow-wrap:anywhere}
 .eff-facet-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .eff-treeact{margin-left:auto;font-weight:400;font-size:12px}
 .eff-tree .eff-node td{background:var(--p2)}.eff-tree .eff-node.click{cursor:pointer}.eff-tree .eff-node.click:hover td{background:var(--one-control-hover)}
 .eff-chev{border:0;background:0;color:var(--mu);padding:0;width:18px;height:18px;vertical-align:middle;cursor:pointer}.eff-chev svg{width:14px;height:14px;transition:transform .12s}.eff-chev.open svg{transform:rotate(90deg)}
 .eff-node-n{font-weight:500}
-.eff-node-r{display:grid;grid-template-columns:140px 64px 1fr;gap:10px;align-items:center;font-size:12px}.eff-node-r .eff-bar{margin:0}.eff-node-c{color:var(--mu);white-space:nowrap;font-variant-numeric:tabular-nums}
+.eff-node-r{display:grid;grid-template-columns:minmax(40px,140px) 64px minmax(0,1fr);gap:10px;align-items:center;font-size:12px}.eff-node-r .eff-bar{margin:0;min-width:0}.eff-node-c{color:var(--mu);white-space:nowrap;font-variant-numeric:tabular-nums}.eff-node-s{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .eff-mix{color:var(--mu)}
 .eff-mx-hint{margin:0 0 10px}
 .eff-mx{white-space:nowrap}.eff-mx th.tot,.eff-mx td.tot{border-left:2px solid var(--ln)}
@@ -17889,9 +17891,11 @@ function accEffBar(list){
   const c=accEffCounts(list),tot=list.length;
   return`<div class="eff-bar" role="img" aria-label="${escHtml(c.map(z=>`${escHtml(accLv(z.f,z.lv))}: ${z.n}`).join(", "))}">${c.map(z=>`<span style="width:${z.n/tot*100}%;background:${accEffTint(z.f,z.lv)}" title="${escHtml(accLv(z.f,z.lv))}: ${z.n}"></span>`).join("")}</div>`;
 }
-function accEffSet(f){accEffF=f;resetPage("acceff");accUI()}
+// Фильтр стандартный: чипы съезжают плавно, как в «Применить к» и в списке детекторов.
+function accEffSet(f){const snap=bulkScopeSnap();accEffF=f;resetPage("acceff");accUI();bulkScopeFlip(snap)}
 function accEffFacet(d,v){const f={...accEffF};if(f[d]===v)delete f[d];else f[d]=v;accEffSet(f)}
-function accEffFacetMore(d){accEffMore.add(d);accUI()}
+function accEffFacetAll(){accEffSet({})}
+function accEffFacetMore(d){const snap=bulkScopeSnap();accEffMore.add(d);accUI();bulkScopeFlip(snap)}
 function accEffClear(){listQ.acceff="";accEffSet({})}
 // Щелчок по ссылке в выводе или по ячейке матрицы ведёт к списку, суженному до этих объектов.
 function accEffPick(...pairs){
@@ -17909,8 +17913,25 @@ function accEffFolderName(id){
   return!domainFilter&&accGroups("").filter(r=>r.name===g.name).length>1?`${g.name} · ${domainLabel(g.dom)}`:g.name;
 }
 function accEffPlace(x){return x.folderable?x.gs.map(g=>g===x.dom?i18n("Без папки"):accEffFolderName(g)).join(", "):""}
-function accEffToggle(k){accEffOpen.has(k)?accEffOpen.delete(k):accEffOpen.add(k);accUI()}
-function accEffOpenAll(on,keys){accEffOpen=new Set(on?String(keys).split("\n"):[]);accUI()}
+// Раскрытие папки: строки ниже плавно съезжают, новые проявляются. Строки вне экрана не анимируем.
+function accEffRowsSnap(){
+  const m=new Map();
+  document.querySelectorAll(".eff-tree tr[data-ek]").forEach(tr=>m.set(tr.dataset.ek,tr.getBoundingClientRect().top));
+  return m;
+}
+function accEffRowsFlip(m){
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const ease="cubic-bezier(.2,.8,.3,1)",vh=innerHeight;
+  document.querySelectorAll(".eff-tree tr[data-ek]").forEach(tr=>{
+    const r=tr.getBoundingClientRect();if(r.bottom<0||r.top>vh||!tr.animate)return;
+    const was=m.get(tr.dataset.ek);
+    if(was==null)tr.animate([{opacity:0},{opacity:1}],{duration:220,delay:60,easing:"ease-out",fill:"backwards"});
+    else if(Math.abs(was-r.top)>.5)tr.animate([{transform:`translateY(${was-r.top}px)`},{transform:"none"}],{duration:240,easing:ease});
+  });
+}
+function accEffTreeRepaint(fn){const m=accEffRowsSnap();fn();accUI();accEffRowsFlip(m)}
+function accEffToggle(k){accEffTreeRepaint(()=>{accEffOpen.has(k)?accEffOpen.delete(k):accEffOpen.add(k)})}
+function accEffOpenAll(on,keys){accEffTreeRepaint(()=>{accEffOpen=new Set(on?String(keys).split("\n"):[])})}
 function accEffUnit(n){return plural(n,"объект|объекта|объектов")}
 // Вывод словами: сколько видит и какая роль что добавляет.
 function accEffDigest(u,rows){
@@ -17926,12 +17947,37 @@ function accEffDigest(u,rows){
   return`<div class="eff-digest"><div><b>${escHtml(u.login)}</b> ${i18n("видит")} <b>${seen.length}</b> ${i18n("из")} ${rows.length} ${plural(rows.length,"объекта|объектов|объектов")}${ex?` · <button type="button" class="lk lk-act" ${onEv("click",["accEffPick","src","Исключение"])}>${i18n("исключение даёт итог")}: ${ex}</button>`:""}</div>${roles?`<ul>${roles}</ul>`:""}</div>`;
 }
 var accEffFacetsOpen=false;
-function accEffFacetsToggle(){accEffFacetsOpen=!accEffFacetsOpen;accUI()}
+// Панель фильтра открывается и закрывается по высоте: содержимое ниже не прыгает.
+function accEffFacetsToggle(){
+  const old=document.querySelector("#main .eff-facets"),hOld=old?.offsetHeight||0,html=old?.innerHTML||"";
+  accEffFacetsOpen=!accEffFacetsOpen;accUI();
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches)return;
+  const folded={height:"0px",paddingTop:"0px",paddingBottom:"0px",marginBottom:"0px",borderTopWidth:"0px",borderBottomWidth:"0px",opacity:0,overflow:"hidden",boxSizing:"border-box"};
+  const full=(el,h)=>{const c=getComputedStyle(el);return{height:h+"px",paddingTop:c.paddingTop,paddingBottom:c.paddingBottom,marginBottom:c.marginBottom,borderTopWidth:c.borderTopWidth,borderBottomWidth:c.borderBottomWidth,opacity:1,overflow:"hidden",boxSizing:"border-box"}};
+  const ease="cubic-bezier(.2,.8,.3,1)";
+  if(accEffFacetsOpen){
+    const el=document.querySelector("#main .eff-facets");
+    if(el?.animate)el.animate([folded,full(el,el.offsetHeight)],{duration:240,easing:ease});
+    return;
+  }
+  // Панели уже нет в разметке: схлопывается её неактивная копия.
+  const bar=document.querySelector("#main .eff-facet-bar");if(!old||!bar?.after)return;
+  const g=document.createElement("div");g.className="bk-sum";g.setAttribute("aria-hidden","true");g.inert=true;g.innerHTML=html;
+  g.style.cssText="position:relative;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);margin-bottom:12px;pointer-events:none";
+  bar.after(g);
+  if(!g.animate){g.remove();return}
+  g.animate([full(g,hOld),folded],{duration:200,easing:ease,fill:"forwards"}).onfinish=()=>g.remove();
+}
 function accEffFacets(rows){
   const fk=Object.keys(accEffF),any=fk.length>0;
   // В дереве чипы свёрнуты: иначе шесть строк фильтра уводят само дерево за край экрана.
   if(!accEffFacetsOpen)return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="false" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Фильтр")}${fk.length?` · ${fk.length}`:""}</button>${any?`<button type="button" class="lk lk-act" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
-  return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="true" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Скрыть фильтр")}</button></div><div class="eff-facets">${facetRowsHtml(ACC_EFF_DIMS,rows,accEffF,"accEffFacet",accEffMore,"accEffFacetMore")}${any?`<button type="button" class="lk lk-act eff-clear" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
+  return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="true" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Скрыть фильтр")}</button></div>${(()=>{
+    // Те же части, что у фильтра детекторов: «все», чипы, итог «Показано N из M».
+    const facets=facetRowsHtml(ACC_EFF_DIMS,rows,accEffF,"accEffFacet",accEffMore,"accEffFacetMore");
+    const found=rows.filter(x=>facetHit(ACC_EFF_DIMS,x,accEffF)).length,said=ACC_EFF_DIMS.filter(([d])=>accEffF[d]).map(([d,,,lab])=>lab?lab(accEffF[d]):accEffF[d]).join(" · ");
+    return`<div class="bk-sum bk-scope eff-facets"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" data-fk="all" class="stchip ${fk.length?"":"on"}" ${onEv("click",["accEffFacetAll"])}><span class="stchip-lab">${i18n("все")}</span><span class="stchip-cnt">${rows.length}</span></button>${facets?`<span class="sub bk-scope-or" data-fk="or">${i18n("или уточните")}:</span>`:""}</div>${facets}${fk.length?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Показано")} <b>${found} ${i18n("из")} ${rows.length}</b>: ${escHtml(said)}</div>`:""}</div>`;
+  })()}`;
 }
 function accEffRowCells(x,many,place){
   const f=x.f,e=x.e[f],others=accEffGivers(x).filter(l=>l.r.id!==e.best?.r.id),extra=x.fs.slice(1).map(f2=>`<small class="acc-cmt">${i18n(ACC_FIELD_NAME[f2])}: ${escHtml(accLv(f2,x.e[f2].lv))}</small>`).join("");
@@ -17974,18 +18020,19 @@ function accEffTreeHtml(rows,many){
   if(filtering&&accEffFlat)return`${accEffFacets(rows)}<div id="accEffList">${listCard({
     key:"acceff",how:"acc",title:`${i18n("Найденные объекты")} · ${accDomName(domainFilter)}`,head:asSeg,items:rows.filter(x=>facetHit(ACC_EFF_DIMS,x,accEffF)),text:o.text,
     row:x=>`<tr>${accEffRowCells(x,many,true)}</tr>`,
-    wrap:r=>`<table class="acc-tbl"><tr><th>${i18n("Объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${r}</table>`,
+    wrap:r=>`<table class="acc-tbl eff-tbl"><tr><th>${i18n("Объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${r}</table>`,
     ph:"Проверить объект…",unit:"объект|объекта|объектов",empty:"Под такой фильтр объектов нет"
   })}</div>`;
   const line=(n,depth)=>{
     if(!n.all.some(x=>hit.has(x.i)))return"";
     const open=filtering||accEffOpen.has(n.k),seen=n.all.filter(x=>x.vis).length;
-    const inner=open?n.kids.map(c=>line(c,depth+1)).join("")+n.own.filter(x=>hit.has(x.i)).map(x=>`<tr class="eff-obj">${accEffRowCells(x,many).replace('<td class="acc-cam">',`<td class="acc-cam" style="padding-left:${depth*18+34}px">`)}</tr>`).join(""):"";
-    return`<tr class="eff-node ${filtering?"":"click"}" ${filtering?"":onEv("click",["accEffToggle",n.k])}><td style="padding-left:${depth*18+8}px"><button type="button" class="eff-chev ${open?"open":""}" ${filtering?"disabled":""} aria-expanded="${open}" aria-label="${i18n(open?"Свернуть":"Развернуть")}">${lu("chevron-right")}</button>${n.type?accObjIc(n.all[0].o):""} <span class="eff-node-n">${escHtml(n.name)}</span></td><td colspan="3"><div class="eff-node-r">${accEffBar(n.all)}<span class="eff-node-c">${seen} ${i18n("из")} ${n.all.length}</span><span class="eff-node-s">${accEffSummaryText(n.all)}</span></div></td></tr>${inner}`;
+    const inner=open?n.kids.map(c=>line(c,depth+1)).join("")+n.own.filter(x=>hit.has(x.i)).map(x=>`<tr class="eff-obj" data-ek="o:${escHtml(n.k)}:${x.i}">${accEffRowCells(x,many).replace('<td class="acc-cam">',`<td class="acc-cam" style="padding-left:${depth*18+34}px">`)}</tr>`).join(""):"";
+    const sumHtml=accEffSummaryText(n.all);
+    return`<tr class="eff-node ${filtering?"":"click"}" data-ek="${escHtml(n.k)}" ${filtering?"":onEv("click",["accEffToggle",n.k])}><td style="padding-left:${depth*18+8}px"><button type="button" class="eff-chev ${open?"open":""}" ${filtering?"disabled":""} aria-expanded="${open}" aria-label="${i18n(open?"Свернуть":"Развернуть")}">${lu("chevron-right")}</button>${n.type?accObjIc(n.all[0].o):""} <span class="eff-node-n">${escHtml(n.name)}</span></td><td colspan="3"><div class="eff-node-r">${accEffBar(n.all)}<span class="eff-node-c">${seen} ${i18n("из")} ${n.all.length}</span><span class="eff-node-s" title="${sumHtml.replace(/<[^>]+>/g,"")}">${sumHtml}</span></div></td></tr>${inner}`;
   };
   const model=accEffTreeModel(rows),walk=n=>{keys.push(n.k);n.kids.forEach(walk)};model.forEach(walk);
   const body=model.map(n=>line(n,0)).join("");
-  return`${accEffFacets(rows)}<div class="card"><div class="ch">${i18n("Папки и объекты")} · ${accDomName(domainFilter)}${asSeg||`<span class="eff-treeact"><button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",true,keys.join("\n")])}>${i18n("Раскрыть всё")}</button> · <button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",false,""])}>${i18n("Свернуть")}</button></span>`}</div><div class="cb">${listSearchHtml("acceff","Проверить объект…","acc")}${body?`<table class="acc-tbl eff-tree"><tr><th>${i18n("Папка или объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${body}</table>`:`<p class="sub">${i18n("Ничего не найдено")}</p>`}</div></div>`;
+  return`${accEffFacets(rows)}<div class="card"><div class="ch">${i18n("Папки и объекты")} · ${accDomName(domainFilter)}${asSeg||`<span class="eff-treeact"><button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",true,keys.join("\n")])}>${i18n("Раскрыть всё")}</button> · <button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",false,""])}>${i18n("Свернуть")}</button></span>`}</div><div class="cb">${listSearchHtml("acceff","Проверить объект…","acc")}${body?`<table class="acc-tbl eff-tbl eff-tree"><tr><th>${i18n("Папка или объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${body}</table>`:`<p class="sub">${i18n("Ничего не найдено")}</p>`}</div></div>`;
 }
 // ── Вид «Матрица» ──
 function accEffMxRows(rows){
