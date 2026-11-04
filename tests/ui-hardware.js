@@ -44,7 +44,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   closeBulkModal();
   // Поля карточки по подписи (SMTP, канал, титры, детектор в карточке камеры) — тоже операцией на сервере
   const first=t=>{let x=null;walkAll(n=>{if(!x&&n.type===t&&isApiDevice(n)&&!hasNoSignal(srv(n.id)||{}))x=n});return x};
-  const setFld=(l,v)=>{const el=document.querySelector(`[data-df="${l}"]`);el.value=v;el.dispatchEvent(new Event(el.tagName==="SELECT"?"change":"input"))};
+  const setFld=(l,v)=>{const el=document.querySelector(`[data-df="${l}"]`);if(!el)throw new Error(`нет поля «${l}», вкладка ${tab}, объект ${find(sel)?.n.type}`);el.value=v;el.dispatchEvent(new Event(el.tagName==="SELECT"?"change":"input"))};
   const viaApi=async(what,check)=>{
     cardApply();
     ok(!!(bq&&bq.api),what+" — операцией на сервере");
@@ -62,23 +62,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   pick(kid.id,{force:true});goTab("gen");setFld("Имя","Выход из сценария");
   await viaApi("имя начинки",async()=>(await API.get("/devices/"+kid.id)).name==="Выход из сценария");
   ok(!document.querySelector('[data-df="Номер"]'),"номер начинки только для чтения");
-  // Детектор: в карточке камеры — у выбранного детектора; новый остаётся выбранным после «Применить»
+  // Детектор: у камеры во вкладке только список, параметры — в карточке самого детектора
   pick(cam.id,{force:true});goTab("det");
-  const d0=camDetectors(cam)[0];detSel=d0.id;gear();
+  // Порядок детекторов зависит от порядка чтения: берём тот, у шаблона которого есть чувствительность
+  const d0=camDetectors(cam).find(d=>{const o=detOption(cam,d);return!o||o.sensitivityMin!=null});
+  pick(d0.id,{force:true});gear();
   setFld("Чувствительность","33");
-  await viaApi("чувствительность детектора из карточки камеры",async()=>(await API.get("/devices/"+d0.id)).sensitivity===33);
-  addDetector(cam.id);
-  const tmp=detSel;
-  cardApply();
-  ok(await until(()=>bq.finished&&detSel!==tmp&&hwVer.has(detSel)),"новый детектор после «Применить» — выбран, с id сервера");
-  ok([...document.querySelectorAll('input[data-df="Имя детектора"]')].some(x=>x.value===i18n("Новый детектор"))&&locName(find(detSel).n)===i18n("Новый детектор"),"в карточке — параметры нового детектора");
-  // Неприменённый детектор удаляется из черновика, без запроса
-  addDetector(cam.id);
-  const draftDet=detSel;
-  deleteDetector(cam.id,draftDet);
-  await confirmWith(1);
-  ok(await until(()=>!camDetectors(cam).some(d=>d.id===draftDet),20000),"неприменённый детектор удалён");
-  ok(await until(()=>cardDiff().length===0,2000),"черновик пуст");
+  await viaApi("чувствительность детектора из его карточки",async()=>(await API.get("/devices/"+d0.id)).sensitivity===33);
+  pick(cam.id,{force:true});
   // Черновик карточки переживает перечитывание всего кэша (удаление другого объекта, потеря потока)
   setCamRec(cam.id,cam.rec==="motion"?"always":"motion");
   const want=cam.rec;

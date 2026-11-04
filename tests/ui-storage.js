@@ -45,6 +45,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Режим карты сервера: вид предлагает значение и оно уходит явно, «Авто» — выбор оператора, поля нет
   addArchive(srvFree.id);
   anSet("kind", "edge");
+  anGo(1);
   const modeSel = () => [...document.querySelectorAll("#bmBody select")].find((x) => [...x.options].some((o) => o.textContent === i18n("Авто")));
   ok(modeSel()?.value === "backup" && anArchive().recordMode === "backup", "предложено значение вида, уходит явно");
   anSet("recordMode", "");

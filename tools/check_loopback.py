@@ -21,6 +21,9 @@ import tempfile
 import threading
 import time
 
+import cli_paths  # noqa: E402
+
+TESTS = cli_paths.opt("tests", "tests")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WAIT_SEC = 300
 
@@ -45,7 +48,7 @@ def main():
 
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Handler, directory=ROOT))
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    url = f"http://127.0.0.1:{server.server_address[1]}/tests/api.html?api=loopback&report=/__report"
+    url = f"http://127.0.0.1:{server.server_address[1]}/{TESTS}/api.html?api=loopback&report=/__report"
     profile = tempfile.mkdtemp(prefix="consolem-loopback-")
     chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
     browser = subprocess.Popen(

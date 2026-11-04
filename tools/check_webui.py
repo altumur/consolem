@@ -25,7 +25,15 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WAIT_SEC = 900
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import cli_paths  # noqa: E402
+
+# --api / --tests / --page уходят и в сборку, и в стенд
+PATHS = [cli_paths.opt("api", "api"), cli_paths.opt("tests", "tests"), cli_paths.opt("page", "index.html")]
+PASS = cli_paths.passthrough(api=PATHS[0], tests=PATHS[1], page=PATHS[2])
+import check_ui  # noqa: E402
 from check_ui import selftest_missing  # noqa: E402
+
+check_ui.TESTS = PATHS[1]  # selftest_missing читает selftest.js из той же папки тестов
 
 
 def free_port():
@@ -37,13 +45,13 @@ def free_port():
 def main():
     tmp = tempfile.mkdtemp(prefix="consolem-webui-")
     out = os.path.join(tmp, "webui")
-    build = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_webui.py"), "--out", out], capture_output=True, text=True)
+    build = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_webui.py"), "--out", out, *PASS], capture_output=True, text=True)
     print(build.stdout.rstrip() or build.stderr.rstrip())
     if build.returncode:
         print("RESULT fail — сборка не собралась")
         return 1
     port = free_port()
-    node = subprocess.Popen(["node", os.path.join(ROOT, "tools", "serve_api.mjs"), str(port), "--webui", out, "--exit-on-report"],
+    node = subprocess.Popen(["node", os.path.join(ROOT, "tools", "serve_api.mjs"), str(port), "--webui", out, "--exit-on-report", *cli_paths.passthrough(api=PATHS[0], tests=PATHS[1])],
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     lines = []
     reader = threading.Thread(target=lambda: [lines.append(l.rstrip("\n")) for l in node.stdout], daemon=True)

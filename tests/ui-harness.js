@@ -66,6 +66,8 @@
   window.UiCheck = (fn) =>
     (window.UI_CHECK_STARTED = true) && window.appReady
       .then(() => (window.UI_RAW_CACHE ? null : window.uiCacheAll()))
+      // Черновики мастеров лежат в localStorage: чужой сценарий самопроверки не должен оставить свой этому
+      .then(() => { if (typeof WZD !== "undefined") { Object.keys(WZD).forEach(wzDrop); dcDrop(); } })
       .then(() => fn({ ok, until, sleep, confirmWith }))
       .catch((e) => ok(false, "исключение: " + (e.message || JSON.stringify(e)) + " " + (e.stack || "").split("\n")[1]))
       .then(report);

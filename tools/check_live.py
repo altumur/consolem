@@ -12,12 +12,15 @@ import shutil
 import subprocess
 import sys
 
+import cli_paths  # noqa: E402
+
+PAGE = cli_paths.opt("page", "index.html")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
     chrome = shutil.which("google-chrome") or shutil.which("chromium") or "google-chrome"
-    res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_live.mjs"), chrome, ROOT], capture_output=True, text=True, timeout=400)
+    res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_live.mjs"), chrome, ROOT, PAGE], capture_output=True, text=True, timeout=400)
     print(res.stdout.rstrip())
     if res.stderr.strip():
         print(res.stderr.rstrip()[-2000:])

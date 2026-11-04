@@ -1,0 +1,113 @@
+/* Сценарий интерфейса: система, которая умеет часть контракта (набор one-domain, ?fixture=one-domain —
+   так его запускают tools/check_ui.py и самопроверка, см. FIXTURE_OF в tests/selftest.js). Интерфейс
+   прочитал capabilities из GET /reference и не показывает неподдержанное: второй домен, поиск в сети,
+   лицензии, тома сверх первого, шифрование, роль и сеть сервера, прочие виды устройств. Поддержанное
+   работает как обычно. Запуск — tools/check_ui.py. */
+UiCheck(async ({ ok, until }) => {
+  goApp("hw");
+  const hidden = (el) => !!el && getComputedStyle(el).display === "none";
+  // Нет возможности assist — поиск по-прежнему пишет «Ничего не найдено»
+  goInput("нетТакогоОбъекта");
+  ok(!document.getElementById("goAsk") && /Ничего не найдено/.test(document.getElementById("gopop").textContent), "без ассистента кнопки в поиске нет");
+  goClose();
+  clearTreeQ();
+  // Чего нет у системы: операций — в capabilities.operations, завести и удалить вид — в UnitKind.capabilities (create, delete)
+  ok(!canCreateKind("domain") && !canDeleteKind("domain") && !canCreateKind("volume") && !can("getDiscovery") && !can("listLicenses") && can("patchUnit"),
+    "возможности прочитаны: операций " + CAPS.operations.size + ", домен: " + (KINDS.get("domain")?.capabilities || []).join() + ", том: " + (KINDS.get("volume")?.capabilities || []).join());
+  ok(domains.length === 1 && licenses.length === 0, "один домен, лицензий не читали");
+  ok(Object.keys(WIZ).join() === "video" && WIZ.video.types.map((t) => t[0]).join() === "camera", "мастер добавления — только камеры: " + Object.keys(WIZ).join());
+  ok(!sysOpts.some((o) => o.id === "lic"), "в опциях нет «Лицензий»");
+
+  // Меню дерева домена: без «Создать домен», «Удалить домен», «Добавить найденные»
+  const d = domains[0];
+  openTreeCtx(d, { x: 10, y: 10 });
+  const menu = document.getElementById("tctx").textContent;
+  closeTreeCtx();
+  ok(!/Создать домен|Удалить домен|Добавить найденные/.test(menu) && /Добавить (вручную|устройства)/.test(menu), "меню домена — без неподдержанного, «Добавить вручную» есть");
+
+  // Карточка домена: кнопки «Домен» и «Удалить домен» спрятаны
+  pick(d.id);
+  goTab("gen");
+  ok(hidden(document.querySelector('[data-needs="kind:domain/create"]')) && hidden(document.querySelector('[data-needs="kind:domain/delete"]')), "в карточке домена кнопки домена спрятаны");
+
+  // Сервер: нет вкладки «Сеть» и поля «Роль»
+  const s = servers.find((x) => !isUnallocated(x.id));
+  ok(!tabsFor(s).some((t) => t[0] === "net"), "у сервера нет вкладки «Сеть»");
+  pick(s.id);
+  goTab("gen");
+  ok(!document.querySelector('[data-df="Роль"]') && !/>Роль</.test(document.querySelector("main")?.innerHTML || document.body.innerHTML), "в карточке сервера нет роли");
+
+  // Права: списки — из reference.access, части — из capabilities.features
+  ok(!ACC_LV.tel && !ACC_LV.cam.some((l) => l[0] === "MON_PROT") && !ACC_LV.ur.some((l) => l[0] === "DEV"), "уровни из справочника: без tel, MON_PROT, DEV");
+  ok(!ACC_GF.some((f) => f[0] === "tel") && !ACC_DEFS.some((f) => f[0] === "dTel"), "вида нет — нет столбца и умолчания");
+  ok(!ACC_FEATURES.some((f) => f[0] === "IS_GUARD_ROLE") && !ACC_RESTR.length && !ACC_PLUGINS.length, "функции, запреты, плагины — из справочника");
+  goApp("acc");
+  const accRoleOp = accRoles().find((r) => !r.g.unr);
+  accGo("role:" + accRoleOp.id, "global");
+  const roleText = document.querySelector("#main, main")?.textContent || document.body.textContent;
+  ok(!/Глубина просмотра архива|Подтверждение супервизором|Водяной знак|Права на управление правами/.test(roleText), "в роли нет глубины, супервизора, запретов, прав на права");
+  ok(!/вход:/.test(roleText), "в шапке роли нет расписания входа");
+  accGo("ugroups");
+  ok(!/Каталоги/.test(document.querySelector("#main, main")?.textContent || "") && !document.querySelector('[data-go="acc:cats"]'), "каталогов нет");
+  const accCam = accObjects(domains[0].id).find((o) => o.type === "camera");
+  ok(accObjFields(accCam).join() === "cam", "поля камеры — только объявленные: " + accObjFields(accCam).join());
+  accRoleOp.own.feat = accRoleOp.own.feat.concat("USERS_RIGHTS_SETUP");
+  ok(accToApi(accSt()).roles.find((r) => r.id === accRoleOp.id).global.ur === "ALL", "ur следует за функцией");
+  accRoleOp.own.feat = accRoleOp.own.feat.filter((x) => x !== "USERS_RIGHTS_SETUP");
+  accResolveAll();
+  goApp("hw");
+
+  // Хранилище: без шифрования и без «＋ Том»; в меню тома — без «Удалить том»
+  const a = arch.find((x) => x.vols.length);
+  pick(a.id);
+  goTab("arch");
+  ok(hidden(document.querySelector('[data-needs="feature:archiveEncryption"]')), "шифрование спрятано");
+  ok(hidden(document.querySelector('[data-needs="kind:volume/create"]')), "кнопка «Том» спрятана");
+  openTreeCtx(a.vols[0], { x: 10, y: 10 });
+  ok(!/Удалить том/.test(document.getElementById("tctx").textContent), "в меню тома нет «Удалить том»");
+  closeTreeCtx();
+  openTreeCtx(a, { x: 10, y: 10 });
+  ok(!/Добавить том/.test(document.getElementById("tctx").textContent), "в меню хранилища нет «Добавить том»");
+  closeTreeCtx();
+
+  // Мастер устройств открывается на «Вручную»: поиска в сети нет; виды — только камера
+  pick(d.id);
+  lanOpenWizard("manual");
+  ok(wizd.deviceTab === "manual", "мастер — на «Вручную»");
+  const kinds = [...document.querySelectorAll(".dev-manual select")][0];
+  ok(kinds && [...kinds.options].map((o) => o.value).join() === "camera", "вид устройства — только камера: " + (kinds ? [...kinds.options].map((o) => o.value).join() : "нет списка"));
+  ok(!/К результатам поиска/.test(document.getElementById("wizFoot")?.textContent || ""), "нет ссылки «К результатам поиска»");
+  closeWizard();
+
+  // Поддержанное работает: переименовать камеру — запрос, ответ, кэш
+  const camId = (await uiDevices()).find((x) => x.type === "camera").id;
+  // События устройств приходят только по наблюдаемым: открытая карточка наблюдается
+  pick(camId);
+  await until(() => watchLast.includes(camId));
+  const before = (await uiRec(camId)).version;
+  const res = await uiPatch(camId, { name: "Камера — профиль" }, before);
+  ok(res.name === "Камера — профиль", "переименование через API");
+  ok(await until(() => cam(camId)?.name === "Камера — профиль"), "кэш интерфейса — из события потока");
+
+  // «Автоматизация»: каталог из справочника. Правило вне каталога показывается, а не теряется
+  goApp("rules");
+  const stray = rules.find((x) => x.name === "Вход на видеостене по движению");
+  ok(stray && !stray.on && stray.then.some((a) => a.action === "wall"), "правило вне каталога прочитано, шаг на месте");
+  ruleOpen(stray.id);
+  ok(ruleIssues(stray).some((x) => /нет в этой системе/.test(x)), "причина: " + ruleIssues(stray).join("; "));
+  const opts = [...document.querySelector("select[data-ks]").options].map((o) => o.textContent);
+  ok(opts.some((l) => /Показать на видеостене.*нет в этой системе/.test(l)), "свой вид в списке, с пометкой");
+  ok(!opts.some((l) => /Telegram|Отправить письмо|Веб-запрос|Закрыть тревогу|Открыть раскладку/.test(l)), "необъявленного в списке нет: " + opts.join(", "));
+  ok(ruleBody(stray).steps.some((a) => a.action === "wall"), "при сохранении шаг не теряется");
+  const k = ACTION_KINDS.find((x) => x.action === "record");
+  ok(ruleRefField(k, "after") === null && ruleRefField(k, "dur").options.join() === "min", "поля записи из справочника");
+  ok(!ruleNewAct(k, null, stray).after && ruleNewAct(k, null, stray).dur !== "event", "новая запись — только на минуты");
+  ruleNewOpen();
+  rnw.tpl = "";
+  ruleNewCreate();
+  ok(ruleDraft && curRule().when.length === 0, "новое правило открывается");
+
+  // Неподдержанное на сервере — отказ: вид домена не заводится (нет capability create), интерфейс этого не вызывает
+  const nr = await API.post("/units", { items: [{ kind: "domain", name: "Второй", parentId: null, properties: {} }] }).then((r) => r.failed[0]?.code || (r.done.length ? "создан" : null), (e) => e?.problem?.code);
+  ok(nr === "NOT_SUPPORTED", "POST /units домена — NOT_SUPPORTED: " + nr);
+});

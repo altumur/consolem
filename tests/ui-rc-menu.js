@@ -1,8 +1,9 @@
-/* Сценарии интерфейса: единый правый клик (прототип 23). Меню браузера внутри макета нет,
+/* Сценарии интерфейса: единый правый клик. Меню браузера внутри макета нет,
    меню содержит только действия того, по чему щёлкнули, поле ввода показывает своё меню.
-   На странице без единого правого клика (index.html, пока его не перенесли) сценарий молчит.
-   Запуск — tools/check_ui.py --page index_23_pravyy-klik.html tests/ui-rc-menu.js */
-UiCheck(async ({ ok, sleep, until }) => {
+   На странице без единого правого клика (старые прототипы) сценарий молчит. У прототипов на основе 21
+   своя таблица детекторов и свой мастер серверов: их ветки — по наличию функций.
+   Запуск — tools/check_ui.py tests/ui-rc-menu.js */
+UiCheck(async ({ ok, sleep, until, confirmWith }) => {
   if (typeof rcOnContext !== "function") { ok(true, "на этой странице единого правого клика нет"); return; }
   const menuEl = () => document.getElementById("tctx");
   const opened = () => menuEl().classList.contains("open");
@@ -58,7 +59,14 @@ UiCheck(async ({ ok, sleep, until }) => {
   // 5. Меню по срезу
   setSlice("det"); await sleep(150);
   rc(aside());
-  ok(has(/Добавить детекторы/) && !has(/Создать домен/), "«Детекторы»: пустое место дерева предлагает детекторы, не домен");
+  if (typeof detCreateOpen === "function") ok(has(/Добавить детекторы/) && !has(/Создать домен/), "«Детекторы»: пустое место дерева предлагает детекторы, не домен");
+  else {
+    ok(!opened(), "«Детекторы»: на пустом месте дерева домен не предлагается");
+    const camD = devicePool.find(d => d.type === "camera");
+    openTreeCtx(camD, { x: 40, y: 40 });
+    ok(has(/Добавить детектор/) && !has(/Переименовать/), "«Детекторы»: у камеры только добавление детектора");
+    closeTreeCtx();
+  }
   const det = camDetectors(devicePool.find(d => d.type === "camera" && camDetectors(d).length))[0];
   ok(!!det && canTreeCtx(det), "строка детектора: у неё есть меню");
   openTreeCtx(det, { x: 40, y: 40 });
@@ -71,15 +79,17 @@ UiCheck(async ({ ok, sleep, until }) => {
   setSlice("all"); await sleep(150);
 
   // Выбор таблицы детекторов не действует вне неё
-  const dets = devicePool.filter(d => d.type === "camera").flatMap(camDetectors).slice(0, 2);
-  dl.sel = new Set(dets.map(d => d.id));
-  const row = document.createElement("div");
-  row.setAttribute("data-on-click", JSON.stringify([["detFromCam", dets[0].id]]));
-  main().appendChild(row);
-  rc(row);
-  ok(!has(/\(2\)/), "вне таблицы детекторов старый выбор не даёт групповое меню");
-  row.remove();
-  dl.sel.clear();
+  if (typeof dl !== "undefined") {
+    const dets = devicePool.filter(d => d.type === "camera").flatMap(camDetectors).slice(0, 2);
+    dl.sel = new Set(dets.map(d => d.id));
+    const row = document.createElement("div");
+    row.setAttribute("data-on-click", JSON.stringify([["detFromCam", dets[0].id]]));
+    main().appendChild(row);
+    rc(row);
+    ok(!has(/\(2\)/), "вне таблицы детекторов старый выбор не даёт групповое меню");
+    row.remove();
+    dl.sel.clear();
+  }
 
   // Строка с несколькими вызовами ведёт к своему объекту, чужой щелчок — не меню карточки
   pick(dom.id); await sleep(100);
@@ -98,7 +108,8 @@ UiCheck(async ({ ok, sleep, until }) => {
   own.remove();
 
   // Меню поля поверх окна, Esc закрывает меню, а не окно
-  openAddServers(dom.id); await sleep(50);
+  const addServers = () => { if (typeof openAddServers === "function") openAddServers(dom.id); else { pick(dom.id); openW("server"); } };
+  addServers(); await sleep(50);
   const fld = document.querySelector("#wbd input,#wbd textarea");
   rc(fld);
   const mb = menuEl().getBoundingClientRect();
@@ -114,13 +125,40 @@ UiCheck(async ({ ok, sleep, until }) => {
   ok(document.getElementById("confirm").classList.contains("open") && !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled, "«Исключить из домена»: подтверждение с вводом числа");
   closeConfirm();
 
-  // 7. Все мастера добавления — одного размера
+  // 7. Все мастера добавления открываются (размер окна идёт за шагом, у разных мастеров он разный)
   pick(server.id); await sleep(100);
-  const sizes = new Set();
-  for (const open of [() => planOpen(), () => openW("svc"), () => openW("unit"), () => openAddServers(dom.id)]) {
+  const wizOn = [];
+  for (const open of [() => planOpen(), () => openW("svc"), () => openW("unit"), addServers]) {
     open(); await sleep(30);
-    sizes.add(Math.round(document.getElementById("wizDr").getBoundingClientRect().width));
+    wizOn.push(wizOpen());
     closeWizard(); await sleep(30);
   }
-  ok(sizes.size === 1, "все мастера добавления одного размера: " + [...sizes].join(", "));
+  ok(wizOn.length === 4 && wizOn.every(Boolean), "все мастера добавления открываются: " + wizOn.join(", "));
+
+  // 8. Пункт меню действует: сначала открывает объект, затем выполняет действие
+  pick(dom.id); await sleep(100);
+  openTreeCtx(server, { x: 40, y: 40 });
+  ok(sel === dom.id, "меню не переходит к объекту");
+  [...menuEl().querySelectorAll("button")].find(b => /Исключить из домена/.test(b.innerText)).click();
+  ok(sel === server.id && document.getElementById("confirm").classList.contains("open"), "пункт меню открывает объект и его подтверждение");
+  closeConfirm(); await sleep(30);
+
+  // 9. Строка со ссылкой openNode показывает меню объекта
+  if (RC_LINKS.openNode) {
+    const nodeLink = document.createElement("div");
+    nodeLink.setAttribute("data-on-click", JSON.stringify([["openNode", dom.id]]));
+    main().appendChild(nodeLink);
+    rc(nodeLink);
+    ok(opened(), "строка с openNode показывает меню объекта");
+    closeTreeCtx();
+    nodeLink.remove();
+  }
+
+  // 10. Удаление детектора из его карточки: на экране его камера, а не пустое место
+  const camOfDet = devicePool.find(d => d.type === "camera" && camDetectors(d).some(x => x.id === det.id));
+  pick(det.id); await sleep(100);
+  ok(sel === det.id, "карточка детектора открыта");
+  deleteDetector(camOfDet.id, det.id);
+  await confirmWith(1);
+  ok(await until(() => !camDetectors(camOfDet).some(x => x.id === det.id) && sel === camOfDet.id, 30000), "после удаления детектора открыта его камера");
 });

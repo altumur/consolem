@@ -5,9 +5,10 @@
 Итог берётся из data-apitest у <html> и текста отчёта. Петля по HTTP — tools/check_loopback.py.
 
 Запуск из корня репозитория:
-  python3 tools/run_api_tests.py [--only "имя теста"] [--fixture one-domain] [--clock real]
+  python3 tools/run_api_tests.py [--only "имя теста"] [--fixture one-domain] [--clock real] [--tests DIR]
 --fixture — набор и с ним возможности системы (по умолчанию demo — весь контракт); --clock real — часы
 идут по-настоящему, /test/clock не вызывается: так тесты проходят против системы, чьи часы не остановить.
+--tests — папка тестов вместо tests (страница api.html сама подключает свой API: api-generic в tests-generic).
 Код выхода 1, если тесты не прошли или отчёт не получен.
 """
 import html
@@ -19,11 +20,14 @@ import sys
 import tempfile
 import urllib.parse
 
+import cli_paths
+
+TESTS = cli_paths.opt("tests", "tests")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def main():
-    url = "file://" + os.path.join(ROOT, "tests", "api.html")
+    url = "file://" + os.path.join(ROOT, TESTS, "api.html")
     query = {}
     for flag in ("only", "fixture", "clock"):
         if f"--{flag}" in sys.argv:

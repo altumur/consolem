@@ -816,7 +816,7 @@ window.I18N_EN={
 "Строка":"Row",
 "IP:порт":"IP:port",
 "Открыть план":"Open plan",
-"В системе его ещё нет: откройте план и нажмите «Применить план»":"It is not in the system yet: open the plan and click Apply plan",
+"В системе его ещё нет: откройте план и нажмите «Добавить»":"It is not in the system yet: open the plan and click Add",
 // Добавление серверов одним окном (прототип 13)
 "Добавить серверы":"Add servers",
 "Добавить серверы…":"Add servers…",
@@ -1214,6 +1214,7 @@ window.I18N_EN={
 "ассистент":"assistant",
 "кадр сейчас":"frame now",
 "Открыть выгрузку":"Open export",
+"Заказ — в разделе «Экспорт». Уточнить его можно в панели: кнопка «Ассистент»":"The order is in the Export section. You can refine it in the panel: the Assistant button",
 "Выгрузки в этой системе нет":"This system has no export",
 "Заказ открыт в разделе «Экспорт»: проверьте, введите пароль, если нужен, и нажмите «Экспорт»":"The order is open in the Export section: check it, enter a password if needed and press Export",
 "Каждый кадр":"Every frame",

@@ -9,11 +9,15 @@ window.CONSOLEM_FIXTURES (набор по имени) и window.CONSOLEM_FIXTURE
 Запуск из корня репозитория:
   python3 tools/build_api.py          собрать
   python3 tools/build_api.py --check  собранное не отстало от JSON (код выхода 1, если отстало)
+  --api DIR                           папка API вместо api (например, api-generic)
 """
 import json
 import os
 import sys
 
+import cli_paths
+
+API = cli_paths.opt("api", "api")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FIXTURES = ["demo", "one-domain", "large"]
 
@@ -24,16 +28,16 @@ def compact(rel):
 
 
 def render_openapi():
-    return f"/* Собрано tools/build_api.py из api/openapi.json — руками не править */\nwindow.CONSOLEM_OPENAPI={compact('api/openapi.json')};\n"
+    return f"/* Собрано tools/build_api.py из {API}/openapi.json — руками не править */\nwindow.CONSOLEM_OPENAPI={compact(f'{API}/openapi.json')};\n"
 
 
 def render_fixtures():
-    body = ",".join(f"{json.dumps(n)}:{compact(f'api/fixtures/{n}.json')}" for n in FIXTURES)
-    return (f"/* Собрано tools/build_api.py из api/fixtures/{{{','.join(FIXTURES)}}}.json — руками не править */\n"
+    body = ",".join(f"{json.dumps(n)}:{compact(f'{API}/fixtures/{n}.json')}" for n in FIXTURES)
+    return (f"/* Собрано tools/build_api.py из {API}/fixtures/{{{','.join(FIXTURES)}}}.json — руками не править */\n"
             f"window.CONSOLEM_FIXTURES={{{body}}};\nwindow.CONSOLEM_FIXTURE=window.CONSOLEM_FIXTURES.demo;\n")
 
 
-TARGETS = [("api/openapi.json", "api/openapi.js", render_openapi), ("api/fixtures/*.json", "api/fixture.js", render_fixtures)]
+TARGETS = [(f"{API}/openapi.json", f"{API}/openapi.js", render_openapi), (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures)]
 
 
 def main():

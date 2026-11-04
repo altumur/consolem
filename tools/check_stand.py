@@ -28,10 +28,18 @@ import threading
 import time
 import urllib.parse
 
+import cli_paths  # noqa: E402
+
+API = cli_paths.opt("api", "api")
+TESTS = cli_paths.opt("tests", "tests")
+PAGE = cli_paths.opt("page", "index.html")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 WAIT_SEC = 900
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import check_ui  # noqa: E402
 from check_ui import selftest_missing  # noqa: E402
+
+check_ui.TESTS = TESTS  # selftest_missing читает selftest.js из той же папки тестов
 
 
 def free_port():
@@ -116,21 +124,21 @@ def main():
     node = None
     if not stand:
         port = free_port()
-        node = subprocess.Popen(["node", os.path.join(ROOT, "tools", "serve_api.mjs"), str(port)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        node = subprocess.Popen(["node", os.path.join(ROOT, "tools", "serve_api.mjs"), str(port), *cli_paths.passthrough(api=API, tests=TESTS)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         stand = f"http://127.0.0.1:{port}"
         time.sleep(1)
     report = receiver()
     ok = True
     try:
         if flags:
-            pages = [(f"Тесты API ({', '.join(f'{k} {v}' for k, v in flags.items())})", "tests/api.html?" + urllib.parse.urlencode(flags))]
+            pages = [(f"Тесты API ({', '.join(f'{k} {v}' for k, v in flags.items())})", f"{TESTS}/api.html?" + urllib.parse.urlencode(flags))]
             if flags.get("fixture", "demo") == "demo":
-                pages.append(("Макет ?selftest", "index.html?selftest"))
+                pages.append(("Макет ?selftest", f"{PAGE}?selftest"))
         else:
             pages = [
-                ("Тесты API", "tests/api.html"),
-                ("Тесты API (профиль one-domain, часы идут)", "tests/api.html?fixture=one-domain&clock=real"),
-                ("Макет ?selftest", "index.html?selftest"),
+                ("Тесты API", f"{TESTS}/api.html"),
+                ("Тесты API (профиль one-domain, часы идут)", f"{TESTS}/api.html?fixture=one-domain&clock=real"),
+                ("Макет ?selftest", f"{PAGE}?selftest"),
             ]
         for name, page in pages:
             passed, text = run_page(page, stand, report)
