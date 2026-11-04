@@ -495,6 +495,19 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .tl-head{position:absolute;top:0;bottom:0;width:2px;background:#fff;pointer-events:none}.tl-head[hidden]{display:none}
 .tl-ax{display:flex;justify-content:space-between}.tl-ev{list-style:none;margin:8px 0 0;padding:0;max-height:220px;overflow:auto;font-size:13px}.tl-ev li{padding:2px 0}.tl-go{cursor:pointer}.tl-go:hover{color:var(--tx);text-decoration:underline}
 .hold-recs{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.tl-m.span{height:5px;top:auto;bottom:0;width:auto;min-width:2px;opacity:.85}
+.exp-cam{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--ln)}.exp-cam .ca-x{margin-left:auto}
+.exp-area{position:relative;flex-basis:100%;aspect-ratio:16/9;max-width:520px;background:#080b10;border:1px solid var(--ln);border-radius:8px;overflow:hidden;cursor:crosshair;user-select:none}.exp-area svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.exp-rect{position:absolute;border:2px solid var(--bl);background:#4f8cff33;pointer-events:none}.exp-rect[hidden]{display:none}
+.exp-find{position:relative;margin-top:8px;display:flex;flex-direction:column;gap:6px;max-width:520px}.exp-hits{display:flex;flex-direction:column;border:1px solid var(--ln);border-radius:6px;background:var(--p2);max-height:240px;overflow:auto}
+.exp-hits button{display:flex;gap:6px;align-items:center;text-align:left;padding:6px 10px;background:none;border:0;color:var(--tx);cursor:pointer}.exp-hits button:hover{background:var(--one-control-hover,#ffffff14)}
+.exp-per{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;margin-bottom:8px}.exp-per>div{min-width:210px}
+.exp-days{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-top:8px}.exp-day{min-width:28px;padding:3px 4px;font-size:11px;border:1px solid var(--ln);border-radius:4px;background:none;color:var(--mu)}.exp-day.on{color:var(--tx);background:#2e7d5b55;cursor:pointer}
+.exp-err{flex-basis:100%;color:var(--one-danger);font-size:12px;margin-top:4px}
+.exp-tit{display:flex;flex-wrap:wrap;gap:6px 16px;margin-bottom:8px}.exp-tit label{display:inline-flex;gap:6px;align-items:center;margin:0}
+.exp-sum{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;margin:10px 0}
+.exp-bar{height:8px;border-radius:99px;background:var(--p2);border:1px solid var(--ln);overflow:hidden;margin:4px 0 10px}.exp-bar i{display:block;height:100%;background:var(--bl);transition:width .3s}
+.exp-dot{margin-left:auto;font-size:11px;color:var(--mu)}.exp-dot.ok:after,.exp-dot.bad:after{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--one-success-icon)}.exp-dot.bad:after{background:var(--one-danger)}
 .live-row [hidden]{display:none}.live-row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.live-row label{display:inline-flex;gap:6px;align-items:center;margin:0}.live-row select{width:auto}
 .vid{aspect-ratio:16/9;max-width:460px;background:#080b10;border:1px solid var(--ln);border-radius:8px;display:grid;place-items:center;position:relative;margin:10px 0}
 .mx{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}.mc{padding:10px;background:var(--p2);border:1px solid var(--ln);border-radius:8px;font-size:12px;text-align:left}.mc span{color:var(--mu);display:block}.mc b{font-size:18px;font-weight:700;display:block;margin-top:4px}
@@ -2059,6 +2072,7 @@ IC.sec_rules=lu("zap");
 IC.sec_acc=lu("user");
 IC.sec_sys=lu("settings");
 IC.sec_log=lu("list");
+IC.sec_exp=lu("download");
 IC.archive=IC.storage;
 // Строки-списки — те же знаки, что у их содержимого, только серые: сервер
 // для «Нераспределённых серверов», хранилище для «Без записи», папка для
@@ -2162,7 +2176,7 @@ let deviceSearchTimer=null,deviceSearchInterval=null;
 let app="hw",_lastApp=null,sel="d1",tab="gen",dirty=false,rule="overview",ruleTab="cfg",role="adm",sys="ntp",tview="cam";
 const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rules",label:"Автоматизация",ic:"sec_rules"},
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
-  {id:"log",label:"Журнал",ic:"sec_log"}];
+  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"}];
 let slice="all";
 // Группировка запоминается для каждого среза отдельно: у камер оператор
 // смотрит то по папкам, то по серверам, и переключать её заново каждый раз —
@@ -2318,6 +2332,7 @@ function can(need){
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
   Object.assign(LIM,ref.limits);
+  EXP_REF=ref.export||null;
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.deviceTypes=new Set(c.deviceTypes);CAPS.features=new Set(c.features);
@@ -2789,6 +2804,7 @@ function apiOnEvent(m){
   if(m.type==="tree.changed"){treeChanged(m);return}
   if(m.type==="journal.event"){liveJournal(m.payload);return}
   if(m.kind==="hold"||m.kind==="bookmark"){viewEntity(m);return}
+  if(m.kind==="export"){expOnEvent(m);return}
   // Стенд сброшен — черновики и введённое в «Найденных» тоже; поток потерян — остаются
   if(m.type==="test.reset"){cardDraft=null;cardBase=null;dirty=false;ruleDraft=null;AUTO_PEND.clear();Object.keys(found).forEach(k=>delete found[k]);foundSeeded=false;discRead.clear()}
   if(m.type==="test.reset"){hwRowsDrop();promptsDrop()}
@@ -3394,7 +3410,7 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
 function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):true);
+  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():true);
 }
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
@@ -5214,6 +5230,7 @@ function sectionLoad(a){
   if(a==="log"&&!logLoaded)journalLoad().then(again);
   if(a==="sys"&&!licLoaded)licLoad().then(again);
   if(a==="acc"&&!accShown)accLoad().then(again);
+  if(a==="exp")expLoad().then(again);
 }
 function toggleUserMenu(e){
   e.stopPropagation();
@@ -5841,6 +5858,7 @@ function crumbsMenu(e){
   bulkOpenMenuAt(e.currentTarget,hidden.map(el=>tctxItem(el.dataset.label,`closeTreeCtx();pick('${el.dataset.id}')`)).join(""));
 }
 function asideAdd(){return{
+  exp:can("createExport")?`<button class="btn s w" style="margin-top:6px" data-exp-new ${onEv("click",["expNew"])}>${lu("plus")}${i18n("Выгрузка")}</button>`:"",
   rules:`<button class="btn s w" style="margin-top:6px" ${onEv("click",["ruleNewOpen"])}>${lu("plus")}${i18n("Правило")}</button><button class="btn s w" style="margin-top:6px" ${onEv("click",["ruleAuditOpen"])}>${i18n("Проверить все правила")}${ruleAudit().length?` (${ruleAudit().length} ${i18n(plural(ruleAudit().length,"замечание|замечания|замечаний"))})`:""}</button>${ruleChipsHtml()}${ruleSelBarHtml()}`,
   acc:`<div class="acc-create" role="toolbar" aria-label="${i18n("Добавить")}">
     <button type="button" class="btn s" title="${i18n("Новая роль")}" ${onEv("click",["accWzOpen"])}>${lu("plus")}${i18n("Роль")}</button>
@@ -6125,7 +6143,7 @@ function paintInto(host,html,key,seen){
   if(st)restoreView(host,st);
 }
 const mainSeen={key:null},asideSeen={key:null},treeSeen={key:null},favSeen={key:null};
-function mainKey(){return app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
+function mainKey(){return app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
 function paintMain(html){
   const host=document.getElementById("main");
   const snap=bulkScopeSnap();
@@ -6137,7 +6155,7 @@ function paintMain(html){
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
 }
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
-  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog}[app];
+  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
   srvCamMemo=null;
   const html=withFind(()=>fn?fn():"");
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
@@ -9696,7 +9714,7 @@ function tlBarHtml(v){
   const spans=t.spans.map((s,i)=>{const a=tlPos(t,s.startMs),b=tlPos(t,s.endMs);
     return`<i class="tl-s${s.fenced?" fen":s.backupOnly?" bak":s.source==="device"?" dev":""}" data-span="${i}" style="left:${a.toFixed(3)}%;width:${Math.max(b-a,.15).toFixed(3)}%" title="${escHtml(tlSpanTitle(s))}"></i>`}).join("");
   const ev=t.ev.map(e=>`<b class="tl-e" style="left:${left(eventMs(e))}%"></b>`).join("");
-  const marks=(v.marks||[]).map(m=>`<b class="tl-m" style="left:${left(Date.parse(m.occurred))}%" title="${escHtml(m.note)}"></b>`).join("");
+  const marks=(v.marks||[]).map(m=>m.type==="span"&&m.to?`<b class="tl-m span" style="left:${left(Date.parse(m.occurred))}%;width:${Math.max(tlPos(t,Date.parse(m.to))-tlPos(t,Date.parse(m.occurred)),.2).toFixed(3)}%" title="${escHtml(m.note)}"></b>`:`<b class="tl-m" style="left:${left(Date.parse(m.occurred))}%" title="${escHtml(m.note)}"></b>`).join("");
   return`<div class="tl" data-tl-bar ${onEv("click",["tlClick",onEv.el,onEv.event])}>${spans}${ev}${marks}<em class="tl-head" data-tl-head hidden></em></div><div class="tl-ax"><span class="sub">${escHtml(tlDate(t.from))}</span><span class="sub">${escHtml(tlDate(t.to))}</span></div>`;
 }
 function tlSpanTitle(s){
@@ -9891,22 +9909,358 @@ function holdVerify(id){
     viewFill();
   }).catch(e=>toast(problemText(e)));
 }
+// ── Экспорт (ADR-0117): заказ выгрузки, ход и файлы ──────────────────────────
+// Раздел на рельсе: в окне выбирают несколько камер, поэтому это не вкладка камеры. Из карточки камеры («Просмотр»,
+// «Отметки») раздел открывается с уже выбранной камерой. Списки — только из reference.export, необязательное прячется
+// по export* в capabilities.features; ошибки сервер отдаёт с field — JSON Pointer по телу заказа, они встают у своих полей
+let EXP_REF=null,expSel="new",expRows=null,expGrantV=null,expD=null,expChk=null,expChkSeq=0,expChkT=0,expCamQ="",expCamHits=[],expCamSeq=0,expAreaAt=-1,expDays={};
+const EXP_TITLE={dateTime:"Дата и время",shortName:"Короткое имя",cameraName:"Имя камеры",coordinates:"Координаты",user:"Пользователь",bookmark:"Закладка"};
+const EXP_CODEC={source:"По умолчанию",h264:"H.264",mpeg4:"MPEG4",mjpeg:"MJPEG"};
+const EXP_STATE={queued:"В очереди",running:"Идёт",done:"Готово",failed:"Не вышло",cancelled:"Отменено",expired:"Срок вышел"};
+const EXP_PART={wait:"ждёт",run:"идёт",ok:"готово",fail:"не вышло",cancel:"отменено"};
+const EXP_PART_CODE={no_recording:"записи нет",unreachable:"сервер записи не отвечает",no_space:"нет места под файлы",limit:"предел",offline:"камера без связи",expired:"файлы потеряны"};
+const expOn=f=>can("feature:"+f);
+function expShown(){return can("createExport")||can("listExports")}
+function expDraftNew(o={}){
+  const now=Date.now(),L=EXP_REF?.limits||{};
+  return{mode:o.mode||"video",source:o.source||"archive",cams:(o.cams||[]).map(id=>({id,area:null})),
+    periods:o.periods||[{from:now-15*60e3,to:now-5*60e3}],at:o.at||now-60e3,format:o.format||"",singleFile:true,name:"",password:"",comment:o.comment||"",
+    bookmarkId:o.bookmarkId||null,bookmarkNote:o.bookmarkNote||"",codec:"source",compression:"default",resolution:"source",fpsDivisor:1,audio:false,
+    maxFileMb:L.maxFileMbDefault||4000,titles:[],overlay:"soft"};
+}
+function expFormats(d){return(EXP_REF?.formats||[]).filter(f=>f.kind===d.mode&&f.entries.includes(d.source==="live"?"live":"archive"))}
+function expFormat(d){const list=expFormats(d);return list.find(f=>f.id===d.format)||list[0]||null}
+// Тело заказа по контракту: только то, что объявлено и задано
+function expBody(d){
+  const f=expFormat(d),b={mode:d.mode,cameras:d.cams.map(c=>Object.assign({deviceId:c.id},c.area&&expOn("exportArea")?{area:c.area}:{})),format:f?.id||d.format||"mkv"};
+  if(d.source==="live")b.source="live";
+  if(d.mode==="video")b.periods=d.periods.map(p=>({from:new Date(p.from).toISOString(),to:new Date(p.to).toISOString()}));
+  if(d.mode==="frame"&&d.source!=="live")b.at=new Date(d.at).toISOString();
+  if(d.bookmarkId)b.bookmarkId=d.bookmarkId;
+  if(d.name.trim())b.name=d.name.trim();
+  if(d.password)b.password=d.password;
+  if(d.comment.trim())b.comment=d.comment.trim();
+  if(d.cams.length>1&&f?.singleFile==="tracks"&&expOn("exportSingleFile"))b.singleFile=!!d.singleFile;
+  if(d.mode==="video"&&expOn("exportTranscode")){
+    const q={};if(d.codec!=="source")q.codec=d.codec;if(d.compression!=="default")q.compression=d.compression;if(d.resolution!=="source")q.resolution=d.resolution;if(d.fpsDivisor>1)q.fpsDivisor=d.fpsDivisor;
+    if(Object.keys(q).length)b.quality=q;
+  }
+  const sp={};if(d.mode==="video"&&d.audio&&expOn("exportAudio"))sp.audio=true;if(d.mode==="video"&&d.maxFileMb!==(EXP_REF?.limits?.maxFileMbDefault||4000))sp.maxFileMb=d.maxFileMb;
+  if(Object.keys(sp).length)b.special=sp;
+  if(d.titles.length&&expOn("exportTitles"))b.titles={fields:d.titles.slice(),overlay:d.mode==="video"&&f?.softTitles?d.overlay:"burned"};
+  return b;
+}
+// Открыть раздел с заказом: из карточки камеры, из отметки, с кнопки на рельсе
+function expOpen(o){
+  expD=expDraftNew(o||{});expSel="new";expChk=null;expAreaAt=-1;expCamQ="";expCamHits=[];
+  if(app!=="exp")setApp("exp");else paint();
+  expCheckSoon();expDaysLoad();
+}
+function expNew(){expOpen({})}
+function expFromCam(id,mode){
+  const v=lv&&lv.id===id?lv:null,m=v?pbMoment(v):null,now=Date.now();
+  if(mode==="live")return expOpen({cams:[id],mode:"frame",source:"live",format:"jpg"});
+  if(mode==="frame")return expOpen({cams:[id],mode:"frame",at:m||now-60e3,format:"jpg"});
+  const t=v?.tl,win=t&&t.from&&t.to-t.from<=864e5?{from:t.from,to:t.to}:{from:now-15*60e3,to:now-5*60e3};
+  expOpen({cams:[id],periods:[m?{from:m-30e3,to:m+30e3}:win]});
+}
+// Закладка-отрезок — её границы, момент — ± limits.bookmarkPadSec (ADR-0117 доп. (1) п. 2), правится в форме
+function expFromMark(id,mid){
+  const m=(lv?.marks||[]).find(x=>x.id===mid);if(!m)return;
+  const a=Date.parse(m.occurred),pad=(EXP_REF?.limits?.bookmarkPadSec||30)*1000;
+  const per=m.type==="span"&&m.to?{from:a,to:Date.parse(m.to)}:{from:a-pad,to:a+pad};
+  expOpen({cams:[id],periods:[per],bookmarkId:m.id,bookmarkNote:m.note,comment:m.note});
+}
+function expLoad(){
+  const p=[];
+  if(can("listExports"))p.push(API.get("/exports",{mine:true,limit:50}).then(r=>{expRows=r.items}).catch(e=>{expRows=[];toast(problemText(e))}));
+  if(can("getExportGrant"))p.push(expGrantLoad());
+  return Promise.all(p);
+}
+function expGrantLoad(){
+  const ids=(expD?.cams||[]).map(c=>c.id).join(",");
+  return API.get("/me/export",ids?{ids}:{}).then(g=>{expGrantV=g}).catch(()=>{});
+}
+function expDaysLoad(){
+  const id=expD?.cams[0]?.id;if(!id||!can("getRecordingDays")||expDays[id])return;
+  const to=new Date(),from=new Date(Date.now()-13*864e5),day=x=>x.toLocaleDateString("sv-SE",{timeZone:sysTz});
+  expDays[id]={busy:true,days:[]};
+  API.get(`/devices/${id}/recording-days`,{from:day(from),to:day(to)}).then(r=>{expDays[id]={days:r.days,gone:r.unavailable};expRepaint()}).catch(()=>{delete expDays[id]});
+}
+function expRepaint(){if(app==="exp")expUI()}
+function expTouched(){expCheckSoon();expRepaint()}
+// Проверка без запуска — при каждой правке, с паузой: ошибки, перекодирование, оценка и имена файлов приходят с сервера
+function expCheckSoon(){
+  clearTimeout(expChkT);if(!expD||!can("checkExport"))return;
+  if(!expD.cams.length){expChk=null;return}
+  expChkT=setTimeout(()=>{
+    const seq=++expChkSeq,d=expD;
+    API.post("/exports/check",expBody(d)).then(r=>{if(seq===expChkSeq&&d===expD){expChk=r;expRepaint()}}).catch(e=>{if(seq===expChkSeq){expChk={ok:false,errors:[e?.problem||{code:"VALIDATION_FAILED",message:""}],files:[]};expRepaint()}});
+  },250);
+}
+function expSet(k,v,repaint=true){
+  if(!expD)return;
+  if(k==="fpsDivisor"||k==="maxFileMb")v=+v||1;
+  if(k==="singleFile"||k==="audio")v=!!v;
+  expD[k]=v;
+  if(k==="mode"||k==="source"){expD.format="";if(expD.mode==="frame")expD.cams=expD.cams.slice(0,1)}
+  if(repaint)expTouched();else expCheckSoon();
+}
+function expModeSet(m){if(m==="live")expSet("source","live",false),expSet("mode","frame");else{expD.source="archive";expSet("mode",m)}}
+const expLocal=ms=>{const d=new Date(ms-new Date(ms).getTimezoneOffset()*60000);return d.toISOString().slice(0,19)};
+function expPeriodSet(i,k,v){const ms=Date.parse(v);if(!expD?.periods[i]||!(ms>0))return;expD.periods[i][k]=ms;expTouched()}
+function expPeriodAdd(){const last=expD.periods[expD.periods.length-1]||{to:Date.now()};expD.periods.push({from:last.to-10*60e3,to:last.to});expTouched()}
+function expPeriodDel(i){expD.periods.splice(i,1);if(!expD.periods.length)expPeriodAdd();else expTouched()}
+function expAtSet(v){const ms=Date.parse(v);if(ms>0){expD.at=ms;expTouched()}}
+// Сутки целиком в отрезок: щелчок по дню календаря
+function expDayPick(date){
+  const a=Date.parse(date+"T00:00:00"),b=a+864e5;
+  if(expD.mode==="frame"){expD.at=Math.min(b-1,Date.now()-1000);return expTouched()}
+  expD.periods=[{from:a,to:Math.min(b,Date.now())}];expTouched();
+}
+function expTitleTog(k){const t=expD.titles,i=t.indexOf(k);if(i<0)t.push(k);else t.splice(i,1);expTouched()}
+// Камеры: поиск по имени, IP и номеру тем же /devices, что и дерево
+function expCamFind(q){
+  expCamQ=q;const seq=++expCamSeq;
+  if(!q.trim()){expCamHits=[];return expRepaint()}
+  API.get("/devices",{q,type:"camera",limit:12}).then(r=>{if(seq===expCamSeq){expCamHits=r.items;expRepaint()}}).catch(()=>{});
+}
+function expCamAdd(id){
+  if(!expD||expD.cams.some(c=>c.id===id))return;
+  const max=EXP_REF?.limits?.maxCameras||16;
+  if(expD.mode==="frame")expD.cams=[];
+  else if(expD.cams.length&&!expOn("exportMultiCamera"))expD.cams=[];
+  if(expD.cams.length>=max)return toast(`${i18n("Не больше")} ${max} ${i18n(plural(max,"камеры|камер|камер"))}`);
+  expD.cams.push({id,area:null});expCamQ="";expCamHits=[];
+  const hit=find(id);if(!hit)API.get(`/devices/${id}`).then(r=>{hwAddDevices([r]);expRepaint()}).catch(()=>{});
+  expGrantLoad().then(expRepaint);expDaysLoad();expTouched();
+}
+function expCamAll(){
+  // «Все камеры из папки»: выбранная в дереве папка «Оборудования»
+  const f=selFolder&&folderById(selFolder);if(!f)return;
+  f.items.filter(id=>find(id)?.n?.type==="camera").forEach(id=>{if(!expD.cams.some(c=>c.id===id)&&expD.cams.length<(EXP_REF?.limits?.maxCameras||16))expD.cams.push({id,area:null})});
+  expGrantLoad().then(expRepaint);expTouched();
+}
+function expCamDel(i){expD.cams.splice(i,1);if(expAreaAt===i)expAreaAt=-1;expGrantLoad().then(expRepaint);expTouched()}
+function expCamName(id){const n=find(id)?.n;return n?locName(n):id}
+// Область кадра: рамку тянут мышью по кадру, доли — от исходного кадра камеры
+function expAreaEdit(i){expAreaAt=expAreaAt===i?-1:i;expRepaint()}
+function expAreaClear(i){if(expD.cams[i])expD.cams[i].area=null;expTouched()}
+function expAreaDown(i,ev){
+  const box=ev.currentTarget,r=box.getBoundingClientRect(),cl=v=>Math.max(0,Math.min(1,v));
+  const x0=cl((ev.clientX-r.left)/r.width),y0=cl((ev.clientY-r.top)/r.height),rect=box.querySelector("[data-exp-rect]");
+  ev.preventDefault();
+  let cur=null;
+  const mv=e=>{const x=cl((e.clientX-r.left)/r.width),y=cl((e.clientY-r.top)/r.height);
+    cur={x:Math.min(x0,x),y:Math.min(y0,y),w:Math.abs(x-x0),h:Math.abs(y-y0)};
+    if(rect){rect.hidden=false;Object.assign(rect.style,{left:cur.x*100+"%",top:cur.y*100+"%",width:cur.w*100+"%",height:cur.h*100+"%"})}};
+  const up=()=>{document.removeEventListener("mousemove",mv);document.removeEventListener("mouseup",up);
+    if(cur&&cur.w>.02&&cur.h>.02&&expD.cams[i]){const k=v=>Math.round(v*1000)/1000;expD.cams[i].area={x:k(cur.x),y:k(cur.y),w:k(Math.min(cur.w,1-k(cur.x))),h:k(Math.min(cur.h,1-k(cur.y)))};expTouched()}};
+  document.addEventListener("mousemove",mv);document.addEventListener("mouseup",up);
+}
+const expAreaText=a=>a?`${Math.round(a.w*100)}×${Math.round(a.h*100)}% ${i18n("от")} ${Math.round(a.x*100)}, ${Math.round(a.y*100)}`:i18n("весь кадр");
+// Ошибки — по полю: JSON Pointer начинается с пути блока формы
+// exact — только сам путь: ошибки строк камер и отрезков стоят у своих строк, не дублируются у блока
+function expErrs(prefix,exact){return(expChk?.errors||[]).filter(e=>prefix===""?!e.field:typeof e.field==="string"&&(e.field===prefix||!exact&&e.field.startsWith(prefix+"/")))}
+function expErrText(e){
+  const p=e.params||{};
+  return({PASSWORD_REQUIRED:i18n("Политика требует пароль на выгрузку"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"В отрезке нет записи"),
+    LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"отрезков",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
+    PERMISSION_DENIED:i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на выгрузку"),
+    DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: выгрузка через него"),
+    VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец позже начала":/\/from$/.test(e.field||"")?"Отрезок в будущем":e.field==="/periods"?"Укажите отрезок":e.field==="/at"?"Укажите момент кадра":"Проверьте поле"),
+    NOT_SUPPORTED:i18n("Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
+    SUPERVISOR_REJECTED:i18n("Супервизор не подтвердил")}[e.code])||problemText({problem:e});
+}
+function expErrHtml(list){return list.map(e=>`<div class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</div>`).join("")}
+const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
+const expSecText=s=>s>=3600?`${Math.floor(s/3600)} ${i18n("ч")} ${Math.round(s%3600/60)} ${i18n("мин")}`:s>=60?`${Math.round(s/60)} ${i18n("мин")}`:`${s} ${i18n("с")}`;
+function expSelHtml(label,key,opts,cur,needs){
+  return`<div ${needs?`data-exp-f="${needs}"`:""}><label>${i18n(label)}</label><select ${onEv("change",["expSet",key,onEv.value])}>${opts.map(([v,t])=>`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${escHtml(i18n(t))}</option>`).join("")}</select></div>`;
+}
+function expFormHtml(){
+  const d=expD,f=expFormat(d),g=expGrantV,live=d.source==="live",L=EXP_REF?.limits||{};
+  const modes=[["video","Видео",expOn("exportVideo")],["frame","Кадр архива",expOn("exportFrame")],["live","Живой кадр",expOn("exportLiveFrame")]].filter(m=>m[2]);
+  const modeNow=live?"live":d.mode;
+  const head=`<div class="live-row" role="radiogroup" aria-label="${i18n("Что выгрузить")}">${modes.map(([k,l])=>`<button type="button" class="btn s${modeNow===k?" pri":""}" role="radio" aria-checked="${modeNow===k}" data-exp-mode="${k}" ${onEv("click",["expModeSet",k])}>${i18n(l)}</button>`).join("")}</div>
+    ${d.bookmarkId?`<div class="nt" data-exp-mark>${i18n("Из закладки")} «${escHtml(d.bookmarkNote)}» <button type="button" class="lk" ${onEv("click",["expSet","bookmarkId",null])}>${i18n("Отвязать")}</button></div>`:""}
+    ${g&&!g.allowed?`<div class="nt bk-warn" data-exp-denied>${i18n("Нет права на выгрузку")}</div>`:""}${g?.refusal?`<div class="nt bk-warn">${escHtml(g.refusal)}</div>`:""}`;
+  // Камеры
+  const gDev=id=>(g?.devices||[]).find(x=>x.deviceId===id);
+  const camRows=d.cams.map((c,i)=>{const gd=gDev(c.id),no=gd&&!(live?gd.live:gd.archive);
+    return`<div class="exp-cam" data-exp-cam="${escHtml(c.id)}"><span class="ici">${lu("cctv")}</span><button type="button" class="lk" ${onEv("click",["openNode",c.id])}>${escHtml(expCamName(c.id))}</button>
+      ${no?`<span class="pf-st bad">${i18n(live?"живой кадр нельзя":"нет права")}</span>`:""}
+      ${expOn("exportArea")?`<span class="sub" data-exp-area-text>${i18n("Область")}: ${escHtml(expAreaText(c.area))}</span><button type="button" class="btn s" data-exp-area="${i}" ${onEv("click",["expAreaEdit",i])}>${i18n(expAreaAt===i?"Готово":"Выбрать область кадра")}</button>${c.area?`<button type="button" class="lk" ${onEv("click",["expAreaClear",i])}>${i18n("Весь кадр")}</button>`:""}`:""}
+      <button type="button" class="btn s ca-x" aria-label="${i18n("Убрать камеру")}" ${onEv("click",["expCamDel",i])}>${lu("x")}</button>
+      ${expErrHtml(expErrs(`/cameras/${i}`))}
+      ${expAreaAt===i?`<div class="exp-area" data-exp-area-box ${onEv("mousedown",["expAreaDown",i,onEv.event])}>${liveSceneSvg()}<i class="exp-rect" data-exp-rect ${c.area?`style="left:${c.area.x*100}%;top:${c.area.y*100}%;width:${c.area.w*100}%;height:${c.area.h*100}%"`:"hidden"}></i></div><p class="sub">${i18n("Потяните мышью по кадру: выгрузится только выделенное. Доли — от исходного кадра камеры")}</p>`:""}</div>`}).join("");
+  const many=d.mode==="video"&&expOn("exportMultiCamera"),canAdd=!d.cams.length||many;
+  const camAdd=canAdd?`<div class="exp-find"><input data-exp-cam-q value="${escHtml(expCamQ)}" placeholder="${i18n("Добавить камеру: имя, IP, номер…")}" aria-label="${i18n("Добавить камеру")}" ${onEv("input",["expCamFind",onEv.value])}>
+      ${expCamHits.length?`<div class="exp-hits" role="listbox">${expCamHits.map(r=>`<button type="button" role="option" data-exp-hit="${escHtml(r.id)}" ${onEv("click",["expCamAdd",r.id])}>${lu("cctv")} ${escHtml(r.name)}${r.ip?` <span class="sub">${escHtml(r.ip)}</span>`:""}</button>`).join("")}</div>`:""}
+      ${many&&selFolder&&folderById(selFolder)?`<button type="button" class="lk" ${onEv("click",["expCamAll"])}>${i18n("Все камеры папки")} «${escHtml(folderById(selFolder).name)}»</button>`:""}</div>`:"";
+  const cams=card(many?"Камеры":"Камера",`${camRows||`<p class="sub">${i18n("Выберите камеру")}</p>`}${camAdd}${expErrHtml(expErrs("/cameras",true))}`,many?`<span class="sub" style="font-weight:400">${d.cams.length} / ${L.maxCameras||16}</span>`:"");
+  // Время
+  const dd=d.cams[0]&&expDays[d.cams[0].id];
+  const days=dd?.days?.length?`<div class="exp-days" aria-label="${i18n("Сутки с записью")}">${dd.days.map(x=>`<button type="button" class="exp-day${x.recorded?" on":""}" title="${escHtml(x.date)}${x.recorded?"":` — ${i18n("записи нет")}`}" ${x.recorded?onEv("click",["expDayPick",x.date]):"disabled"}>${escHtml(x.date.slice(8))}</button>`).join("")}<span class="sub">${i18n("сутки с записью")}</span></div>`:"";
+  const noRec=new Set((expChk?.noRecording||[]).map(x=>x.period));
+  const time=live?card("Время",`<p class="sub">${i18n("Кадр «сейчас» снимет сервер в момент выгрузки")}</p>`)
+    :d.mode==="frame"?card("Время",`<div class="g"><div><label>${i18n("Время кадра")}</label><input type="datetime-local" step="1" data-exp-at value="${expLocal(d.at)}" ${onEv("change",["expAtSet",onEv.value])}></div></div>${days}${expErrHtml(expErrs("/at"))}`)
+    :card("Время",`${d.periods.map((p,i)=>`<div class="exp-per" data-exp-per="${i}"><div><label>${i18n("С")}</label><input type="datetime-local" step="1" value="${expLocal(p.from)}" ${onEv("change",["expPeriodSet",i,"from",onEv.value])}></div>
+        <div><label>${i18n("По")}</label><input type="datetime-local" step="1" value="${expLocal(p.to)}" ${onEv("change",["expPeriodSet",i,"to",onEv.value])}></div>
+        <span class="sub">${expSecText(Math.max(0,Math.round((p.to-p.from)/1000)))}${noRec.has(i)?` · <span class="pf-st bad">${i18n("у части камер записи нет")}</span>`:""}</span>
+        ${d.periods.length>1?`<button type="button" class="btn s ca-x" aria-label="${i18n("Убрать отрезок")}" ${onEv("click",["expPeriodDel",i])}>${lu("x")}</button>`:""}${expErrHtml(expErrs(`/periods/${i}`))}</div>`).join("")}
+      ${expOn("exportMultiPeriod")&&d.periods.length<(L.maxPeriods||32)?`<button type="button" class="btn s" data-exp-per-add ${onEv("click",["expPeriodAdd"])}>${lu("plus")}${i18n("Отрезок")}</button>`:""}
+      ${days}${expErrHtml(expErrs("/periods",true))}`);
+  // Файл
+  const fmts=expFormats(d),zip=!!d.password&&f?.password==="zip";
+  const file=card("Файл",`<div class="g">${expSelHtml("Формат","format",fmts.map(x=>[x.id,x.id.toUpperCase()]),f?.id||"")}
+      <div><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.name)}" placeholder="${escHtml(expChk?.files?.[0]?.name||i18n("сервер_камера[время]"))}" ${onEv("input",["expSet","name",onEv.value,false])}></div>
+      ${expOn("exportPassword")&&f&&f.password!=="none"?`<div><label>${i18n("Пароль")}${g?.passwordRequired?" *":""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}></div>`:""}
+      <div><label>${i18n("Комментарий")}</label><input data-exp-comment value="${escHtml(d.comment)}" maxlength="500" ${onEv("input",["expSet","comment",onEv.value,false])}></div></div>
+    ${d.cams.length>1&&f?.singleFile==="tracks"&&expOn("exportSingleFile")?`<div class="ln ln-sw">${accSw(d.singleFile,["expSet","singleFile",!d.singleFile],false,i18n("В один файл"))}<div>${i18n("В один файл")}<small>${i18n("Камеры — дорожками одного MKV, без перекодирования")}</small></div></div>`:""}
+    ${zip?`<p class="sub">${i18n("С паролем файл придёт архивом .zip (AES-256)")}</p>`:f?.password==="native"&&d.password?`<p class="sub">${i18n("Пароль ставится на сам PDF")}</p>`:""}
+    ${expErrHtml(expErrs("/format").concat(expErrs("/password"),expErrs("/singleFile"),expErrs("/name")))}`);
+  // Качество и звук — только у видео
+  const fpsOpts=(EXP_REF?.fpsDivisors||[1]).map(n=>[n,n===1?"Каждый кадр":`1/${n}`]);
+  const quality=d.mode==="video"&&(expOn("exportTranscode")||expOn("exportAudio"))?card("Качество",`<div class="g">
+      ${expOn("exportTranscode")?expSelHtml("Кодек","codec",(f?.codecs||["source"]).map(c=>[c,EXP_CODEC[c]||c]),d.codec)+expSelHtml("Сжатие","compression",(EXP_REF.compression||[]).map(x=>[x.id,x.label||x.id]),d.compression)
+        +expSelHtml("Разрешение","resolution",(EXP_REF.resolutions||[]).map(x=>[x.id,x.label||x.id]),d.resolution)+expSelHtml("Частота кадров","fpsDivisor",fpsOpts,d.fpsDivisor):""}
+      <div><label>${i18n("Наибольший размер части, МБ")}</label><input type="number" min="1" max="${L.maxFileMbMax||4000}" value="${d.maxFileMb}" ${onEv("change",["expSet","maxFileMb",onEv.value])}></div></div>
+      ${expOn("exportAudio")?`<div class="ln ln-sw">${accSw(d.audio,["expSet","audio",!d.audio],false,i18n("Звук"))}<div>${i18n("Звук")}<small>${i18n("Если у записи камеры есть звук")}</small></div></div>`:""}
+      ${expErrHtml(expErrs("/quality").concat(expErrs("/special")))}`):"";
+  // Титры
+  const titles=expOn("exportTitles")?card("Титры",`<div class="exp-tit">${(EXP_REF?.titleFields||[]).map(k=>`<label><input type="checkbox" ${d.titles.includes(k)?"checked":""} ${onEv("change",["expTitleTog",k])}> ${i18n(EXP_TITLE[k]||k)}</label>`).join("")}</div>
+      ${d.titles.length&&d.mode==="video"&&f?.softTitles?expSelHtml("Как","overlay",[["soft","Дорожкой субтитров, без перекодирования"],["burned","Вшитые в кадр"]],d.overlay):d.titles.length?`<p class="sub">${i18n("Титры вшиваются в кадр")}</p>`:""}
+      ${expErrHtml(expErrs("/titles"))}`):"";
+  // Итог проверки
+  const c=expChk,general=expErrHtml(expErrs("").concat((c?.errors||[]).filter(e=>e.field&&!/^\/(cameras|periods|at|format|password|singleFile|name|quality|special|titles)/.test(e.field))));
+  const sum=c?`<div class="exp-sum" data-exp-sum>${c.ok?`<span class="pf-st ok">${i18n("Можно выгружать")}</span>`:`<span class="pf-st bad">${i18n("Есть ошибки")}: ${(c.errors||[]).length}</span>`}
+      ${c.transcode?`<span class="sub" data-exp-transcode>${i18n("Будет перекодировано: дольше")}</span>`:d.mode==="video"?`<span class="sub">${i18n("Без перекодирования: быстро")}</span>`:""}
+      ${c.estimate?`<span class="sub">${i18n("Около")} ${expMb(c.estimate.bytes)}, ${expSecText(c.estimate.sec)}</span>`:""}
+      ${(c.files||[]).length?`<div class="sub" data-exp-files>${i18n("Файлы")}: ${c.files.map(x=>escHtml(x.name)).join(", ")}</div>`:""}${general}</div>`:"";
+  const ready=!!d.cams.length&&!(c&&!c.ok)&&can("createExport")&&!(g&&!g.allowed);
+  return head+cams+time+file+quality+titles+sum+`<div class="ca-foot"><button type="button" class="btn pri" data-exp-go ${ready?"":"disabled"} ${onEv("click",["expGo"])}>${lu("download")}${i18n("Экспорт")}</button></div>`;
+}
+function expGo(){
+  const d=expD;if(!d)return;
+  const b=expBody(d);b.idempotencyKey=`exp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,8)}`;
+  API.post("/exports",b).then(x=>{
+    expRows=[x].concat((expRows||[]).filter(r=>r.id!==x.id));expSel=x.id;expD=null;expChk=null;paint();
+  }).catch(e=>{
+    const p=e?.problem;
+    if(p?.field){expChk={ok:false,errors:[p],files:expChk?.files||[]};expRepaint()}
+    toast(p?expErrText(p):problemText(e));
+  });
+}
+// Задание: ход, части, файлы
+function expRowOf(id){return(expRows||[]).find(r=>r.id===id)}
+function expJobTitle(x){
+  const r=x.request||{},n=(r.cameras||[]).length,first=r.cameras?.[0]?.deviceId;
+  return`${first?expCamName(first):"—"}${n>1?` +${n-1}`:""} · ${r.mode==="frame"?i18n(r.source==="live"?"живой кадр":"кадр"):i18n("видео")} ${String(r.format||"").toUpperCase()}`;
+}
+function expWhen(x){const p=x.parts?.[0];return p?.at?tlDate(Date.parse(p.at)):p?.from?`${tlDate(Date.parse(p.from))}–${tlClock(Date.parse(p.to))}`:""}
+function expJobHtml(x){
+  const run=x.state==="queued"||x.state==="running",bad=x.parts.some(p=>p.state==="fail"||p.state==="cancel");
+  const parts=x.parts.map(p=>`<tr data-exp-part="${escHtml(p.deviceId)}"><td>${escHtml(expCamName(p.deviceId))}</td><td>${escHtml(p.at?tlDate(Date.parse(p.at)):p.from?`${tlDate(Date.parse(p.from))}–${tlClock(Date.parse(p.to))}`:"")}</td>
+    <td><span class="pf-st ${p.state==="ok"?"ok":p.state==="fail"?"bad":""}">${i18n(EXP_PART[p.state]||p.state)}${p.state==="run"?` ${p.percent}%`:""}</span>${p.code?` <span class="sub">${i18n(EXP_PART_CODE[p.code]||p.code)}</span>`:""}${p.partial?` <span class="sub">${i18n("с дырами: отдано, что есть")}</span>`:""}</td></tr>`).join("");
+  const files=x.files.map(f=>`<tr data-exp-file="${escHtml(f.id)}"><td>${escHtml(f.name)}</td><td>${expMb(f.sizeBytes)}</td><td><span class="sub">${i18n("до")} ${escHtml(tlDate(Date.parse(f.expiresAt)))}</span></td>
+    <td class="ca-x">${can("getExportFileLink")?`<button type="button" class="btn s pri" ${onEv("click",["expFile",x.id,f.id])}>${lu("download")}${i18n("Скачать")}</button>`:""}</td></tr>`).join("");
+  const r=x.request||{},facts=[r.comment?`${i18n("Комментарий")}: ${escHtml(r.comment)}`:"",x.transcode?i18n("с перекодированием"):"",(r.cameras||[]).some(c=>c.area)?i18n("с областью кадра"):"",x.enforced?.password?i18n("пароль по политике"):"",x.retryOf?i18n("повтор неудачных"):""].filter(Boolean).join(" · ");
+  return card("Ход",`<div class="exp-bar" role="progressbar" aria-valuenow="${x.progress.percent}" aria-valuemin="0" aria-valuemax="100"><i style="width:${x.progress.percent}%"></i></div>
+      <div class="live-row"><span class="pf-st ${x.state==="done"?"ok":x.state==="failed"?"bad":""}" data-exp-state="${x.state}">${i18n(EXP_STATE[x.state]||x.state)}</span><span class="sub">${x.progress.percent}% · ${x.progress.done} ${i18n("из")} ${x.progress.total}</span>
+      ${run&&can("cancelExport")?`<button type="button" class="btn s" data-exp-cancel ${onEv("click",["expCancel",x.id])}>${i18n("Отменить")}</button>`:""}
+      ${!run&&bad&&can("retryExport")?`<button type="button" class="btn s" data-exp-retry ${onEv("click",["expRetry",x.id])}>${i18n("Повторить неудачные")}</button>`:""}
+      ${!run&&can("createExport")?`<button type="button" class="btn s" ${onEv("click",["expAgain",x.id])}>${i18n("Ещё раз с этими настройками")}</button>`:""}
+      ${!run&&can("deleteExport")?`<button type="button" class="btn s" ${onEv("click",["expDel",x.id])}>${lu("trash")}${i18n("Удалить")}</button>`:""}</div>
+      <p class="sub">${i18n("Создано")} ${escHtml(tlDate(Date.parse(x.createdAt)))} · ${escHtml(x.by)}${facts?` · ${facts}`:""}</p>`)
+    +card("Части",`<table class="ca-tbl"><thead><tr><th>${i18n("Камера")}</th><th>${i18n("Время")}</th><th>${i18n("Состояние")}</th></tr></thead><tbody>${parts}</tbody></table>`)
+    +(files?card("Файлы",`<table class="ca-tbl"><tbody>${files}</tbody></table><p class="sub">${i18n("Ссылка берётся перед самым скачиванием и живёт недолго")}</p>`):x.state==="expired"?card("Файлы",`<p class="sub">${i18n("Файлы удалены по сроку")}</p>`):"");
+}
+function expUI(){
+  if(expSel!=="new"&&!expRowOf(expSel))expSel="new";
+  if(expSel==="new"&&!expD)expD=expDraftNew({});
+  const x=expSel==="new"?null:expRowOf(expSel);
+  paintMain(mainHd("Экспорт",`<span class="hd-ic">${lu("download")}</span>${x?escHtml(expJobTitle(x)):i18n("Новая выгрузка")}`,x?"":"Видео и кадры архива — в файлы со сроком")+`<div class="sc">${x?expJobHtml(x):expFormHtml()}</div>`);
+}
+function treeExp(){
+  const q=qval(),rows=(expRows||[]).filter(x=>matchesText(q,expJobTitle(x)));
+  const st=x=>x.state==="done"?"ok":x.state==="failed"?"bad":x.state==="running"||x.state==="queued"?"run":"";
+  return`<div class="n ${expSel==="new"?"on":""}" data-go="exp:new" ${onEv("click",["expPick","new"])}><span class="tw"></span><span class="ici">${lu("plus")}</span><span class="nm">${i18n("Новая выгрузка")}</span></div>`
+    +rows.map(x=>`<div class="n ${expSel===x.id?"on":""}" data-go="exp:${escHtml(x.id)}" ${onEv("click",["expPick",x.id])}><span class="tw"></span><span class="ici">${lu(x.request?.mode==="frame"?"scan-eye":"download")}</span><span class="nm">${hlText(expJobTitle(x),q)}<small class="sub"> ${escHtml(expWhen(x))}</small></span><span class="exp-dot ${st(x)}" title="${escHtml(i18n(EXP_STATE[x.state]||x.state))}">${x.state==="running"||x.state==="queued"?`${x.progress.percent}%`:""}</span></div>`).join("")
+    +(expRows&&!expRows.length?`<p class="sub" style="padding:8px 12px">${i18n("Выгрузок пока нет")}</p>`:"");
+}
+function expPick(id){expSel=id;if(id==="new"&&!expD){expD=expDraftNew({});expCheckSoon()}paint()}
+function expCancel(id){API.post(`/exports/${id}/cancel`,{}).then(expUpsert).catch(e=>toast(problemText(e)))}
+function expRetry(id){
+  const x=expRowOf(id),need=expGrantV?.passwordRequired||!!x?.enforced?.password;
+  const go=pw=>API.post(`/exports/${id}/retry-failed`,pw?{password:pw}:{}).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>toast(e?.problem?expErrText(e.problem):problemText(e)));
+  if(!need)return go("");
+  askConfirm("Повторить неудачные",`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`,"","Повторить",()=>go(document.getElementById("expRetryPw").value),{html:true});
+}
+function expAgain(id){
+  const x=expRowOf(id),r=x?.request;if(!r)return;
+  const d=expDraftNew({mode:r.mode,source:r.source||"archive",cams:r.cameras.map(c=>c.deviceId),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,
+    periods:(r.periods||[]).map(p=>({from:Date.parse(p.from),to:Date.parse(p.to)})),at:r.at?Date.parse(r.at):undefined});
+  r.cameras.forEach((c,i)=>{if(c.area)d.cams[i].area=c.area});
+  if(r.name)d.name=r.name;if(r.singleFile!=null)d.singleFile=r.singleFile;
+  const q=r.quality||{};Object.assign(d,{codec:q.codec||"source",compression:q.compression||"default",resolution:q.resolution||"source",fpsDivisor:q.fpsDivisor||1});
+  if(r.special?.audio)d.audio=true;if(r.special?.maxFileMb)d.maxFileMb=r.special.maxFileMb;
+  if(r.titles?.fields)d.titles=r.titles.fields.slice(),d.overlay=r.titles.overlay||"soft";
+  expD=d;expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+}
+function expDel(id){
+  askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","","Удалить",()=>
+    API.del(`/exports/${id}`).then(()=>{expRows=(expRows||[]).filter(r=>r.id!==id);if(expSel===id)expSel="new";paint()}).catch(e=>toast(problemText(e))));
+}
+// Скачать: ссылка — непосредственно перед скачиванием, у неё короткий срок. Стенд отдаёт stub:// — сохраняем памятку вместо видео
+function expFile(id,fid){
+  API.post(`/exports/${id}/files/${encodeURIComponent(fid)}/link`,{}).then(l=>{
+    const x=expRowOf(id),f=x?.files.find(y=>y.id===fid),a=document.createElement("a");
+    if(/^stub:/.test(l.url)){
+      const txt=`${i18n("Тестовый стенд: настоящего видео нет.")}\n${f?.name||""}\n${l.url}\n`;
+      a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));a.download=`${f?.name||"export"}.txt`;
+      setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+    }else{a.href=l.url;a.download=f?.name||""}
+    document.body.appendChild(a);a.click();a.remove();
+  }).catch(e=>toast(e?.problem?.code==="EXPORT_EXPIRED"?i18n("Файл удалён по сроку"):problemText(e)));
+}
+function expUpsert(x){
+  if(!x?.id)return;
+  const i=(expRows||[]).findIndex(r=>r.id===x.id);
+  if(i<0)expRows=[x].concat(expRows||[]);else expRows[i]=x;
+  if(app==="exp"){renderTree();if(expSel===x.id)expUI()}
+}
+// Поток: ход и итог приходят только автору; истина — GET, поэтому итог перечитывается
+function expOnEvent(m){
+  if(m.type==="export.progress"){const x=expRowOf(m.entityId);if(x){x.progress=m.payload.progress;if(m.payload.parts)x.parts=m.payload.parts;x.state="running";expUpsert(x)}return}
+  if(m.type==="export.finished"||m.type==="entity.created"||m.type==="entity.changed"){
+    if(!can("getExport"))return;
+    API.get(`/exports/${m.entityId}`).then(x=>{expUpsert(x);if(m.type==="export.finished"&&x.state==="done"&&app!=="exp")toast(`${i18n("Экспорт готов")}: ${expJobTitle(x)}`)}).catch(()=>{});
+    return;
+  }
+  if(m.type==="entity.deleted"){expRows=(expRows||[]).filter(r=>r.id!==m.entityId);if(expSel===m.entityId)expSel="new";if(app==="exp")paint()}
+}
 // ── Отметки: только создать и смотреть ────────────────────────────────────
 function marksLoad(v){
   const t=v.tl;if(!can("listBookmarks")||!t)return;
   API.get(`/devices/${v.id}/bookmarks`,{from:new Date(t.from).toISOString(),limit:200}).then(r=>{if(lv===v){v.marks=r.items;viewFill()}}).catch(e=>{if(lv===v&&e?.status===403){v.marks=[];v.marksDenied=true;viewFill()}});
 }
+// Закладка — момент или отрезок: у отрезка конец через столько секунд от момента
+let markType="moment",markLen=30;
+function markTypeSet(t){markType=t;viewFill()}
+function markLenSet(v){markLen=Math.max(1,+v||30)}
 function markAdd(){
   const v=lv,inp=document.querySelector("#main [data-mark-note]");if(!v||!inp)return;
   const note=inp.value.trim();if(!note)return toast(i18n("Напишите заметку"));
-  const m=pbMoment(v),body=m?{note,occurred:new Date(m).toISOString()}:{note};
+  const m=pbMoment(v),at=m||Date.now(),body=m?{note,occurred:new Date(m).toISOString()}:{note};
+  if(markType==="span"){body.type="span";if(!m){body.occurred=new Date(at-markLen*1000).toISOString();body.to=new Date(at).toISOString()}else body.to=new Date(at+markLen*1000).toISOString()}
   API.post(`/devices/${v.id}/bookmarks`,body).then(()=>{inp.value="";if(lv===v)marksLoad(v)}).catch(e=>toast(problemText(e,find(v.id)?.n)));
 }
 function marksCardHtml(v){
   if(!can("listBookmarks"))return"";
-  const rows=(v.marks||[]).map(m=>`<li class="tl-go" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span></li>`).join("");
+  const rows=(v.marks||[]).map(m=>`<li class="tl-go" data-mark="${escHtml(m.id)}" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}${m.type==="span"&&m.to?`–${escHtml(tlClock(Date.parse(m.to)))}`:""}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span>${can("createExport")?` <button type="button" class="lk" data-mark-exp ${onEv("click",onEv.stop,["expFromMark",v.id,m.id])}>${i18n("Экспорт")}</button>`:""}</li>`).join("");
   return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"Отметок за это окно нет")}</p>`}
-    ${can("createBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
+    ${can("createBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><select data-mark-type aria-label="${i18n("Тип закладки")}" ${onEv("change",["markTypeSet",onEv.value])}><option value="moment" ${markType==="moment"?"selected":""}>${i18n("Момент")}</option><option value="span" ${markType==="span"?"selected":""}>${i18n("Отрезок")}</option></select>${markType==="span"?`<label>${i18n("длиной, с")} <input type="number" min="1" style="width:80px" data-mark-len value="${markLen}" ${onEv("change",["markLenSet",onEv.value])}></label>`:""}<button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
 }
 // Закладка «Просмотр»: разметка карт постоянна, данные пишет viewFill, поэтому приход ответа не перерисовывает видео
 function viewFill(){
@@ -10020,7 +10374,8 @@ function camViewHtml(n){
       <label>${i18n("Поток")} <select data-live-stream ${onEv("change",["liveStreamSet",onEv.value])}><option value="">${i18n("Под размер окна")}</option>${streams}</select></label>
       <label>${i18n("Сеть")} <select data-live-net ${onEv("change",["liveNetSet",onEv.value])}><option value="local">${i18n("Из локальной сети")}</option><option value="outside">${i18n("Извне")}</option></select></label>
       <button type="button" class="btn s" data-talk hidden ${onEv("click",["talkToggle",`${n.id}`])}>${i18n("Говорить")}</button><span class="sub" data-talk-state></span>
-      <span class="sub" data-live-state role="status" aria-live="polite"></span></div>`)
+      <span class="sub" data-live-state role="status" aria-live="polite"></span>
+      ${can("createExport")?`<button type="button" class="btn s" data-exp-cam-go ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download")}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live ${onEv("click",["expFromCam",n.id,"live"])}>${i18n("Кадр сейчас")}</button>`:""}`:""}</div>`)
     +(n.ptz&&can("putPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока кнопка нажата")}</p>`):"")
     +(can("listJournal")?card("События",`<div data-feed></div>`):"")
     +`<div data-relay-card></div>`
@@ -21088,7 +21443,7 @@ function wnx(){
   }).catch(e=>toast(problemText(e)));
 }
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
-  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI};
+  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI};
   (ui[app]||gear)();
   syncHeaderLoad();
 }
@@ -21123,7 +21478,7 @@ function navMark(){
 // запоминается, чтобы вернуть его, если с тех пор выборку сняли.
 function navLoc(){
   const bulk=app==="hw"&&bulkActive()&&!bulkPeek;
-  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,
+  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,
     bsel:bulk?[...treeSel].map(id=>[id,selWhere.get(id)??null]):null};
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
@@ -21135,6 +21490,7 @@ function navTitle(){
   else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы объекта",maint:"Окна обслуживания",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
   else if(app==="sys")t=sysOpts.find(o=>o.id===sys)?.n||"";
   else if(app==="log")t=logCats.find(c=>c.id===logFilt)?.n||"";
+  else if(app==="exp")t=expSel==="new"?i18n("Новая выгрузка"):expRowOf(expSel)?expJobTitle(expRowOf(expSel)):"";
   else if(app==="acc"){
     if(accSel.startsWith("role:"))t=`${i18n("Роль")} «${accRoleName(accSel.slice(5))}»`;
     else if(accSel.startsWith("user:"))t=accUsers().find(u=>u.id===accSel.slice(5))?.login||"";
@@ -21162,7 +21518,7 @@ function navApply(loc){
   navLock=true;
   try{
     app=loc.app;sel=loc.sel;tab=loc.tab;slice=loc.slice;selFolder=loc.selFolder;detSel=loc.detSel;
-    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
+    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
     syncViews();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
     // Шаг «выборка» возвращает её состав; шаг объекта при живой выборке
     // открывает объект поверх неё — выборка остаётся.

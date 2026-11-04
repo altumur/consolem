@@ -36369,6 +36369,16 @@
     "verifyHold",
     "listBookmarks",
     "createBookmark",
+    "getExportGrant",
+    "getRecordingDays",
+    "checkExport",
+    "listExports",
+    "createExport",
+    "getExport",
+    "deleteExport",
+    "cancelExport",
+    "retryExport",
+    "getExportFileLink",
     "fetchArchive"
    ],
    "deviceTypes": [
@@ -36402,7 +36412,23 @@
     "accessDepth",
     "accessRestrictions",
     "accessUserRights",
-    "streamGrants"
+    "streamGrants",
+    "exportVideo",
+    "exportFrame",
+    "exportLiveFrame",
+    "exportArea",
+    "exportMultiCamera",
+    "exportMultiPeriod",
+    "exportSingleFile",
+    "exportTranscode",
+    "exportTitles",
+    "exportEventTitles",
+    "exportTracks",
+    "exportPrivacy",
+    "exportAudio",
+    "exportPassword",
+    "exportPlayer",
+    "exportCloud"
    ],
    "foundDeviceTypes": [
     "channel",
@@ -36472,7 +36498,8 @@
      "retentionDays",
      "minDepthDays",
      "recordScheduleId",
-     "audioDeviceId"
+     "audioDeviceId",
+     "confirmShrinkBytes"
     ],
     "eventsrc": [
      "archiveId",
@@ -36528,7 +36555,8 @@
      "retentionDays",
      "minDepthDays",
      "recordScheduleId",
-     "audioDeviceId"
+     "audioDeviceId",
+     "confirmShrinkBytes"
     ],
     "acfa": [
      "archiveId",
@@ -36584,7 +36612,8 @@
      "retentionDays",
      "minDepthDays",
      "recordScheduleId",
-     "audioDeviceId"
+     "audioDeviceId",
+     "confirmShrinkBytes"
     ],
     "channel": [],
     "storage": [],
@@ -36676,7 +36705,182 @@
    "disappeared",
    "crowd",
    "lpr"
-  ]
+  ],
+  "export": {
+   "formats": [
+    {
+     "id": "mkv",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "h264",
+      "mpeg4",
+      "mjpeg"
+     ],
+     "softTitles": true,
+     "chapters": true,
+     "player": false,
+     "password": "zip",
+     "singleFile": "tracks",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "mp4",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "h264"
+     ],
+     "softTitles": true,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "avi",
+     "kind": "video",
+     "codecs": [
+      "source",
+      "mpeg4",
+      "mjpeg"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive"
+     ]
+    },
+    {
+     "id": "jpg",
+     "kind": "frame",
+     "codecs": [
+      "source"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "zip",
+     "singleFile": "none",
+     "entries": [
+      "archive",
+      "live"
+     ]
+    },
+    {
+     "id": "pdf",
+     "kind": "frame",
+     "codecs": [
+      "source"
+     ],
+     "softTitles": false,
+     "chapters": false,
+     "player": false,
+     "password": "native",
+     "singleFile": "none",
+     "entries": [
+      "archive",
+      "live"
+     ]
+    }
+   ],
+   "compression": [
+    {
+     "id": "default",
+     "label": "По умолчанию"
+    },
+    {
+     "id": "min",
+     "label": "Наименьшее"
+    },
+    {
+     "id": "low",
+     "label": "Слабое"
+    },
+    {
+     "id": "mid",
+     "label": "Среднее"
+    },
+    {
+     "id": "high",
+     "label": "Сильное"
+    },
+    {
+     "id": "max",
+     "label": "Наибольшее"
+    }
+   ],
+   "resolutions": [
+    {
+     "id": "source",
+     "label": "Как у камеры"
+    },
+    {
+     "id": "1920x1080",
+     "label": "1920×1080"
+    },
+    {
+     "id": "1280x720",
+     "label": "1280×720"
+    },
+    {
+     "id": "640x360",
+     "label": "640×360"
+    }
+   ],
+   "fpsDivisors": [
+    1,
+    2,
+    4,
+    8
+   ],
+   "titleFields": [
+    "dateTime",
+    "shortName",
+    "cameraName",
+    "coordinates",
+    "user",
+    "bookmark"
+   ],
+   "fonts": [
+    {
+     "id": "Inter",
+     "sizes": [
+      12,
+      16,
+      20,
+      24
+     ]
+    }
+   ],
+   "privacyModes": [
+    "none",
+    "hide",
+    "invert"
+   ],
+   "destinations": [
+    "download"
+   ],
+   "limits": {
+    "maxCameras": 16,
+    "maxPeriods": 32,
+    "maxTotalSec": 86400,
+    "maxFileMbDefault": 4000,
+    "maxFileMbMax": 4000,
+    "maxActivePerUser": 4,
+    "keepSec": 86400,
+    "linkTtlSec": 120,
+    "bookmarkPadSec": 30
+   }
+  }
  },
  "streamAccounts": [
   {
