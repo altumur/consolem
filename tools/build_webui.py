@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Собрать WebUI для консоли VMS из index.html: файлами, без встроенного кода, со списком MANIFEST.json.
+"""Собрать WebUI для консоли VMS из index.html (или --page FILE; --api и --tests — папки API и тестов): файлами, без встроенного кода, со списком MANIFEST.json.
 
 Консоль отдаёт страницу под CSP «script-src 'self'; object-src 'none'; base-uri 'none'» (запрос w2c,
 api/requests/2026-10-29-184430Z-w2c-webui-csp-request.md): код — только файлами со своего адреса, встроенный
@@ -26,6 +26,11 @@ import re
 import shutil
 import sys
 
+import cli_paths
+
+API = cli_paths.opt("api", "api")
+TESTS = cli_paths.opt("tests", "tests")
+PAGE = cli_paths.opt("page", "index.html")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEFAULT_OUT = os.path.join(ROOT, "build", "webui")
 API_URL = "api"
@@ -34,15 +39,19 @@ LOGIN_URL = "../"
 # Подключаемые скрипты index.html: что из них идёт в сборку и под каким именем
 SCRIPTS = {
     "assets/i18n-en.js": ("i18n-en.js", "английские подписи интерфейса"),
-    "api/openapi.js": ("openapi.js", "контракт API: интерфейс берёт из него, какие поля записи можно менять и какую операцию требует каждая кнопка"),
-    "api/client.js": ("client.js", "клиент API: запросы, If-Match, поток событий SSE, 401 → вход"),
-    "api/whep-stub.js": ("whep-stub.js", "подставной WHEP стенда: отвечает только на адрес stub://, настоящий бэкенд такого адреса не выдаёт"),
+    f"{API}/openapi.js": ("openapi.js", "контракт API: интерфейс берёт из него, какие поля записи можно менять и какую операцию требует каждая кнопка"),
+    f"{API}/client.js": ("client.js", "клиент API: запросы, If-Match, поток событий SSE, 401 → вход"),
+    f"{API}/whep-stub.js": ("whep-stub.js", "подставной WHEP стенда: отвечает только на адрес stub://, настоящий бэкенд такого адреса не выдаёт"),
     # только для макета: встроенный тестовый сервер и его данные
-    "api/fixture.js": None,
-    "api/contract.js": None,
-    "api/rule-engine.js": None,
-    "api/server.js": None,
+    f"{API}/fixture.js": None,
+    f"{API}/contract.js": None,
+    f"{API}/rule-engine.js": None,
+    f"{API}/server.js": None,
 }
+# Склад объектов и реестр видов встроенного сервера — только у api-generic: тоже только для макета
+for _name in ("kinds.js", "units.js", "profiles.js"):
+    if os.path.exists(os.path.join(ROOT, API, _name)):
+        SCRIPTS[f"{API}/{_name}"] = None
 TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".mp4": "video/mp4"}
 
 
@@ -82,14 +91,14 @@ inline_css.files = set()
 
 
 def build(out):
-    page = read("index.html")
+    page = read(PAGE)
     m = re.search(r"\n<style>\n(.*?)\n</style>\n", page, re.S)
     if not m or page.count("<style>") != 1:
-        sys.exit("index.html: ждали один встроенный <style>")
+        sys.exit(f"{PAGE}: ждали один встроенный <style>")
     style = m.group(1)
     starts = [x.start() for x in re.finditer(r"<script>", page)]
     if len(starts) != 1:
-        sys.exit(f"index.html: ждали один встроенный <script>, их {len(starts)}")
+        sys.exit(f"{PAGE}: ждали один встроенный <script>, их {len(starts)}")
     s0 = starts[0]
     s1 = page.index("</script>", s0)
     app = page[s0 + len("<script>"):s1].lstrip("\n")
@@ -97,10 +106,10 @@ def build(out):
     files = {}  # имя → (байты, назначение)
     link = '<link rel="stylesheet" href="assets/one-psim/bridge.css">'
     if page.count(link) != 1:
-        sys.exit("index.html: не нашли подключение assets/one-psim/bridge.css")
-    css = "/* Собрано tools/build_webui.py из index.html и assets/one-psim — руками не править */\n" + style + "\n/* ── assets/one-psim/bridge.css ── */\n" + inline_css("assets/one-psim/bridge.css")
+        sys.exit(f"{PAGE}: не нашли подключение assets/one-psim/bridge.css")
+    css = f"/* Собрано tools/build_webui.py из {PAGE} и assets/one-psim — руками не править */\n" + style + "\n/* ── assets/one-psim/bridge.css ── */\n" + inline_css("assets/one-psim/bridge.css")
     files["app.css"] = (css.encode("utf-8"), "стили: встроенный <style> index.html и дизайн-система assets/one-psim")
-    files["app.js"] = (("/* Собрано tools/build_webui.py из index.html — руками не править */\n" + app).encode("utf-8"), "интерфейс: код index.html")
+    files["app.js"] = ((f"/* Собрано tools/build_webui.py из {PAGE} — руками не править */\n" + app).encode("utf-8"), "интерфейс: код index.html")
     for src in sorted(inline_css.files):
         with open(os.path.join(ROOT, src), "rb") as f:
             files["fonts/" + os.path.basename(src)] = (f.read(), "шрифт интерфейса (Inter)")
@@ -115,7 +124,7 @@ def build(out):
     for src, target in SCRIPTS.items():
         tag = f'<script src="{src}"></script>'
         if page.count(tag) != 1:
-            sys.exit(f"index.html: не нашли {tag}")
+            sys.exit(f"{PAGE}: не нашли {tag}")
         if target:
             name, why = target
             files[name] = (read(src).encode("utf-8"), why)
@@ -130,7 +139,7 @@ def build(out):
         page = page.replace(tag + "\n", (f'<script src="{target[0]}?v={ver(target[0])}"></script>\n' if target else ""), 1)
     meta = (f'<meta name="consolem-api" content="{API_URL}">\n<meta name="consolem-login" content="{LOGIN_URL}">\n')
     page = page.replace('<meta name="viewport"', meta + '<meta name="viewport"', 1)
-    page = page.replace("<!doctype html>\n", "<!doctype html>\n<!-- Собрано tools/build_webui.py из index.html — руками не править -->\n", 1)
+    page = page.replace("<!doctype html>\n", f"<!doctype html>\n<!-- Собрано tools/build_webui.py из {PAGE} — руками не править -->\n", 1)
     files["index.html"] = (page.encode("utf-8"), "входная страница: разметка index.html, подключает файлы сборки")
 
     problems = check_page(page) + check_refs(files)
@@ -172,7 +181,7 @@ def check_page(page):
 
 
 # Файлы, на которые код ссылается, но в сборку они не идут: самопроверка ?selftest (в консоли её нет)
-NOT_IN_BUILD = {"tests/selftest.js"}
+NOT_IN_BUILD = {f"{TESTS}/selftest.js"}
 FILE = r"[\w./-]+\.(?:js|css|png|svg|jpe?g|gif|webp|ico|woff2?|ttf|json|html)"
 LOCAL_FILE = r"(?![a-z][a-z0-9+.-]*:|//|#)" + FILE  # не http:, data:, blob:, //…, #…
 
@@ -194,7 +203,7 @@ def check_refs(files):
     for m in re.finditer(r"""url\(\s*["']?(%s)""" % LOCAL_FILE, css, re.I):
         need("app.css", m.group(1))
     app = files["app.js"][0].decode("utf-8")
-    for m in re.finditer(r"""["'`]((?:assets|api|tests|fonts)/%s)["'`]""" % FILE, app):
+    for m in re.finditer(r"""["'`]((?:assets|%s|%s|fonts)/%s)["'`]""" % (re.escape(API), re.escape(TESTS), FILE), app):
         need("app.js", m.group(1))
     return out
 

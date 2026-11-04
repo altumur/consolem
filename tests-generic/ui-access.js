@@ -26,6 +26,113 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(a.users.some((x) => x.id === nu.id && x.login === "tester" && x.roleIds[0] === op.id), "новый пользователь с UUID и ролью");
   ok(a.history[0].actor === ACC_ME && accSrv().log[0].who === ACC_ME, "история — с автором " + ACC_ME + ": «" + a.history[0].text.slice(0, 50) + "»");
   ok(!accPlanLines().length, "черновик чист");
+  // Классы доступа — из описаний видов (/kinds): строка умолчания на класс (access.class и access.also), подпись —
+  // подпись класса, уровни — access.levels. Вид, уровня которого в ролях набора нет (security_controller), — такая же
+  // строка: уровень выдаётся, уходит в Role.kindAccess и после перечитывания снимка на месте
+  {
+    const SC = "security_controller", CTRL = "30000294-0000-4000-8000-000000000000";
+    const row = ACC_DEFS.find((d) => d[2] === SC), lv = (ACC_LV[SC] || []).map((l) => l[0]).join();
+    ok(row && row[1] === "Охранные контроллеры" && lv === "view,edit,admin", "строка класса из описаний видов: «" + (row && row[1]) + "», уровни " + lv);
+    ok(["cam", "tel", "acfa", "test.unknown"].every((c) => ACC_DEFS.some((d) => d[2] === c)), "основной класс, also камеры и вид без класса (своим кодом) — строки умолчаний");
+    ok(ACC_DEFS.filter((d) => d[2] === "cam").length === 1, "класс один раз, хотя у него несколько видов");
+    const evs = devicePool.find((n) => n.type === "eventsrc");
+    ok(!evs || (accObjFields(evs) || []).join() === "pos", "у источника событий один тип доступа, как в базе: " + (evs && accObjFields(evs)));
+    const ctrl = find(CTRL)?.n;
+    ok(ctrl && (accObjFields(ctrl) || []).join() === SC, "права на объект контроллера — по его классу: " + (ctrl && accObjFields(ctrl)));
+    const gd = accRoles().find((x) => x.n === "Охрана");
+    ok(!(row[0] in gd.own), "у роли «Охрана» уровня класса нет");
+    accGo("role:" + gd.id, "defs");
+    const box = document.querySelector(`[data-def="${row[0]}"] select`);
+    ok(box && [...box.options].map((o) => o.value).filter(Boolean).join() === "view,edit,admin", "выбор уровня класса в карточке роли");
+    box.value = "edit";
+    box.dispatchEvent(new Event("change", { bubbles: true }));
+    ok(accRole(gd.id).own[row[0]] === "edit" && accPlanLines().some((x) => /Охранные контроллеры/.test(x)), "строка плана — подписью класса: " + accPlanLines().join(" | ").slice(0, 200));
+    // Умолчание класса базы («Камеры») — строка плана как в базе, без хвоста «по умолчанию»; класс незнакомого вида назван
+    const defCamSel = () => document.querySelector('[data-def="k:cam"] select');
+    const defCamWas = defCamSel()?.value, defCamTo = [...(defCamSel()?.options || [])].map((o) => o.value).find((v) => v && v !== defCamWas);
+    defCamSel().value = defCamTo;
+    defCamSel().dispatchEvent(new Event("change", { bubbles: true }));
+    ok(accRole(gd.id).own["k:cam"] === defCamTo && !accPlanLines().some((x) => /Камеры —/.test(x)) && accPlanLines().some((x) => /Охранные контроллеры —/.test(x)), "умолчание класса базы — без хвоста, как в базе: " + accPlanLines().join(" | ").slice(0, 200));
+    defCamSel().value = defCamWas;
+    defCamSel().dispatchEvent(new Event("change", { bubbles: true }));
+    ok(accToApi(accSt()).roles.find((x) => x.id === gd.id).kindAccess[SC] === "edit" && !Object.keys(accToApi(accSt()).roles[0].global).some((k) => k.includes(":")), "в запросе — Role.kindAccess, в global классов нет");
+    const vk = accVer;
+    accPlan();
+    await confirmWith(null);
+    ok(await until(() => accVer !== vk), "применено, версия " + accVer);
+    const srvRole = (await uiAccess()).roles.find((x) => x.id === gd.id);
+    ok(srvRole.kindAccess[SC] === "edit" && srvRole.kindAccess.cam === "FORBID" && srvRole.kindAccess.sens === "VIEW", "на сервере kindAccess: " + JSON.stringify(srvRole.kindAccess));
+    accGo("role:" + gd.id, "defs");
+    ok(accRole(gd.id).g[row[0]] === "edit" && document.querySelector(`[data-def="${row[0]}"] select`)?.value === "edit", "класс security_controller появился в роли, уровень сохраняется");
+    ok(!accPlanLines().length, "черновик чист");
+    // Команде объекта не хватает уровня класса: 403 PERMISSION_DENIED с params.right {class, level} — словами,
+    // подписью класса и уровня из описания вида, а не кодом
+    const postW = API.post;
+    API.post = (p, ...r) => (/^\/units\/[^/]+\/actions\//.test(p) ? Promise.reject({ status: 403, problem: { code: "PERMISSION_DENIED", message: "Команде ARM нужен уровень edit", params: { right: { class: SC, level: "edit" } } } }) : postW(p, ...r));
+    unitAct(CTRL, "ARM");
+    const denied = await until(() => /Нет права/.test(toastText()));
+    API.post = postW;
+    ok(denied && /^Поставить на охрану: Нет права: «Охранные контроллеры» — нужен уровень «Правка» или выше/.test(toastText()), "403 команды называет класс и уровень: «" + toastText() + "»");
+    // Уровни не беднеют: у всех видов класса cam (камера, поток; у источника событий also cam нет, как в базе) описание урезало уровни, у камеры
+    // ещё и новый — строка роли держит все уровни справочника в его порядке, новый уровень вида — после них
+    const camAll = (ACC_LV.cam || []).map((l) => l[0]);
+    const kindsNow = (await API.get("/kinds")).items, orig = new Map();
+    const cut = (k) => {
+      const x = JSON.parse(JSON.stringify(k));
+      if (x.kind === "camera") x.access.levels = ["FORBID", "FULL", "PTZ_ONLY"];
+      else if (x.access?.class === "cam") x.access.levels = ["FORBID", "MON"];
+      (x.access?.also || []).forEach((c) => { if (c.class === "cam") c.levels = ["FORBID", "ARCHIVE"]; });
+      return x;
+    };
+    const camKinds = kindsNow.filter((k) => k.access && [k.access, ...(k.access.also || [])].some((c) => c.class === "cam"));
+    ok(camKinds.length >= 2 && !camKinds.some((k) => k.kind === "eventsrc"), "видов класса cam: " + camKinds.map((k) => k.kind).join());
+    let rawW = null;
+    const puts = await Promise.all(camKinds.map((k) => { orig.set(k.kind, k); return API.raw("PUT", `/test/kinds/${encodeURIComponent(k.kind)}`, cut(k)); }));
+    if (puts.some((r) => r.status >= 300)) {
+      // Стенда со служебными операциями нет — новое описание отдаёт перехваченный GET /kinds
+      rawW = API.raw;
+      API.raw = function (method, path, body, headers) {
+        if (method !== "GET" || path !== "/kinds") return rawW.call(this, method, path, body, headers);
+        return rawW.call(this, method, path, body).then((r) => Object.assign({}, r, { status: 200, headers: Object.assign({}, r.headers, { etag: '"ui-access-cut"' }),
+          body: Object.assign({}, r.body, { items: r.body.items.map((k) => (orig.has(k.kind) ? cut(k) : k)) }) }));
+      };
+      apiOnEvent({ type: "kinds.changed", kinds: [...orig.keys()] });
+    }
+    ok(await until(() => (KINDS.get("camera")?.access.levels || []).join() === "FORBID,FULL,PTZ_ONLY"), "описание камеры перечитано: " + KINDS.get("camera")?.access.levels);
+    accGo("role:" + gd.id, "defs");
+    const camRow = ACC_DEFS.find((d) => d[2] === "cam"), camSel = document.querySelector(`[data-def="${camRow[0]}"] select`);
+    const camOpts = camSel ? [...camSel.options].map((o) => o.value).filter(Boolean) : [];
+    ok((ACC_LV.cam || []).map((l) => l[0]).join() === camAll.concat("PTZ_ONLY").join() && camOpts.join() === camAll.concat("PTZ_ONLY").join(),
+      "уровни класса не беднеют: справочник по порядку, новый уровень вида — после: " + camOpts.join());
+    // Описания — обратно
+    if (rawW) { API.raw = rawW; apiOnEvent({ type: "kinds.changed", kinds: [...orig.keys()] }); }
+    else await Promise.all([...orig.values()].map((k) => API.raw("PUT", `/test/kinds/${encodeURIComponent(k.kind)}`, k)));
+    ok(await until(() => (KINDS.get("camera")?.access.levels || []).join() === orig.get("camera").access.levels.join()) && (ACC_LV.cam || []).map((l) => l[0]).join() === camAll.join(), "описания вернулись, уровни cam прежние");
+
+    // Папки: колонка класса вида, чьи объекты кладутся в папки (capability folders) — security_controller; уровень на папку
+    // уходит в Role.folderAccess[uid папки][класс] и после перечитывания с сервера на месте
+    accGo("role:" + gd.id, "groups");
+    const gj = ACC_GF.findIndex((x) => x[0] === SC);
+    const ths = [...document.querySelectorAll(".acc-mx tr:nth-child(2) th")].map((x) => x.textContent);
+    ok(gj >= 0 && ths[gj] === "Охранные контроллеры" && ACC_GF.some((x) => x[0] === "test.unknown") && !ACC_GF.some((x) => x[0] === "test.perunit"),
+      "колонка класса в матрице папок: " + ths.slice(-3).join(" | "));
+    const gi = accMxRows.findIndex((x) => !x.ro && folderById(x.gid)), gid = accMxRows[gi]?.gid;
+    const cell = accCellAt(gi, gj);
+    cell.click();
+    const viewBtn = [...document.querySelectorAll("#accMenu button")].find((x) => x.textContent === "Просмотр");
+    ok(!!viewBtn, "у ячейки — уровни класса: " + [...document.querySelectorAll("#accMenu button")].map((x) => x.textContent).join("|"));
+    viewBtn.click();
+    ok(accRole(gd.id).groups[gid]?.[SC] === "view" && accPlanLines().some((x) => /охранные контроллеры: не задано → Просмотр/i.test(x)), "уровень на папку — в черновике, строка плана подписью класса: " + accPlanLines().join(" | ").slice(0, 200));
+    const vf = accVer;
+    accPlan();
+    await confirmWith(null);
+    ok(await until(() => accVer !== vf), "применено, версия " + accVer);
+    const srvG = (await uiAccess()).roles.find((x) => x.id === gd.id).folderAccess[gid];
+    ok(srvG && srvG[SC] === "view", "на сервере folderAccess[папка]: " + JSON.stringify(srvG));
+    accGo("role:" + gd.id, "groups");
+    ok(accRole(gd.id).groups[gid]?.[SC] === "view" && accCellAt(gi, ACC_GF.findIndex((x) => x[0] === SC))?.textContent.includes("Просмотр") && !accPlanLines().length,
+      "колонка security_controller: уровень на папку после перечитывания на месте");
+  }
   // Мастер новой роли: селекты шага «Права» меняют права роли — и на экране, и в итоге
   const wzBack = [accSel, accTab];
   accWzOpen();
@@ -48,6 +155,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   if (wzRole) accSt().roles.splice(accSt().roles.indexOf(wzRole), 1);
   accEdited();
   // Отказ сервера: без администраторов — 409, снимок не меняется
+  const vNo = accVer;
   const admRole = accRoles().find((r) => r.own.unr);
   accSt().users.forEach((x) => (x.roles = x.roles.filter((id) => id !== admRole.id)));
   accSt().groups.forEach((x) => (x.roles = x.roles.filter((id) => id !== admRole.id)));
@@ -55,7 +163,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accPlan();
   await confirmWith(null);
   ok(await until(() => /без администратора|лишит вас входа/.test(toastText())), "сервер отказал: «" + toastText() + "»");
-  ok(accVer === v1 && accSrv().roles.some((r) => r.own.unr), "на сервере не изменилось");
+  ok(accVer === vNo && accSrv().roles.some((r) => r.own.unr), "на сервере не изменилось");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();
   // Встроенная роль «Администратор»: переключателя нет, права не меняются, удалить нельзя, назначать можно

@@ -1,58 +1,164 @@
-/* Тесты API: ассистент — ход разговора потоком, вопрос, план, отказ, ошибка, секрет. */
+/* Тесты API: ассистент — ход разговора потоком, вопрос, план, отказ, ошибка, секрет. Мир ассистента — объекты (Unit)
+   и описания видов (UnitKind): шаг плана — {uid, version, patch} как PATCH /units/{uid}, отбор — фильтры GET /units. */
 (() => {
   const { test, makeEnv, assert } = ApiTest;
   const NEED = { needs: ["assistTurn"] };
   const types = (got) => got.map((m) => m.type).join(",");
+  const CTRL = "security_controller/CONTROLLER";
+  const byName = (list) => list.slice().sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.uid < b.uid ? -1 : 1)).map((u) => u.uid);
+  const kindOf = async (env, kind) => (await env.ok("GET", "/kinds")).items.find((k) => k.kind === kind);
+  // Отбор found с filter — те же фильтры GET /units: списки через запятую, флаги — true
+  const unitsQuery = (f) => {
+    const name = { kinds: "kind" };
+    return Object.entries(f).map(([k, v]) => `${name[k] || k}=${encodeURIComponent(Array.isArray(v) ? v.join(",") : String(v))}`).join("&");
+  };
 
-  test("Ассистент: план на камеры, «Применить» — POST /devices/update, старый план — VERSION_MISMATCH", async () => {
+  test("Ассистент: план на камеры — шаги {uid, version, patch}, «Применить» — POST /operations шагами patch, старый план — 412 VERSION_MISMATCH", async () => {
     const env = await makeEnv();
     const got = await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход" });
     const plan = got[got.length - 1];
     assert.eq(plan.type, "plan", "последнее сообщение");
     assert.ok(got[0].type === "progress", "сначала ход работы");
     assert.ok(plan.items.length > 0, "камеры выбраны");
-    const items = plan.items.map(({ deviceId, version, set }) => ({ deviceId, version, set }));
-    const res = await env.ok("POST", "/devices/update", { idempotencyKey: "assist-apply-1", items });
-    assert.eq([res.done.length, res.failed.length], [items.length, 0], "применено");
-    assert.eq(res.done[0].recordMode, "none", "значение");
-    const again = await env.ok("POST", "/devices/update", { idempotencyKey: "assist-apply-2", items });
-    assert.eq(again.failed[0].code, "VERSION_MISMATCH", "устройство изменилось после плана");
-    return `устройств ${items.length}`;
+    for (const x of plan.items) {
+      const u = await env.ok("GET", `/units/${x.uid}`);
+      assert.eq([u.kind, u.version, x.name, "deviceId" in x, "set" in x], ["camera", x.version, u.name, false, false], "шаг — объект по uid и его версия");
+      assert.eq(x.patch, { properties: { recordMode: "none" } }, "patch — JSON Merge Patch объекта");
+      assert.eq(x.changes, [{ field: "/properties/recordMode", before: u.properties.recordMode, after: "none", why: "просьба" }], "поле — JSON Pointer");
+    }
+    const items = plan.items.map(({ uid, patch }) => ({ uid, patch }));
+    const expectedVersions = Object.fromEntries(plan.items.map((x) => [x.uid, x.version]));
+    const op = await env.runOperation({ idempotencyKey: ApiTest.key(), items, expectedVersions });
+    // План сверен со схемой вида; смысл профиля (камера сервера без связи) судит шаг при выполнении
+    const ok = op.items.filter((x) => x.state === "ok"), fail = op.items.filter((x) => x.state !== "ok");
+    assert.ok(ok.length > 0 && fail.every((x) => x.state === "fail" && x.code === "SERVER_OFFLINE"), "применено, кроме камер сервера без связи: " + JSON.stringify(fail));
+    for (const x of ok) assert.eq((await env.ok("GET", `/units/${x.targetId}`)).properties.recordMode, "none", "значение");
+    const again = await env.call("POST", "/operations", { idempotencyKey: ApiTest.key(), items, expectedVersions });
+    assert.status(again, 412, "VERSION_MISMATCH", "объект изменился после плана");
+    return `объектов ${items.length}`;
   }, NEED);
 
   test("Ассистент: вопрос, ответ с context — план; разговор держит клиент", async () => {
     const env = await makeEnv();
     const first = await env.stream("/assist/turns", { text: "включи запись" });
     const q = first[first.length - 1];
-    assert.eq([q.type, q.text], ["question", "На каких камерах?"], "уточнение");
+    assert.eq([q.type, q.text], ["question", "На каких объектах?"], "уточнение");
     const second = await env.stream("/assist/turns", { text: "Главный вход", context: q.context });
-    assert.eq(second[second.length - 1].type, "plan", "по ответу — план");
+    const plan = second[second.length - 1];
+    assert.eq(plan.type, "plan", "по ответу — план");
+    assert.ok(plan.items.every((x) => x.patch.properties.recordMode === "always"), "включить запись — режим «всегда»");
     return types(first);
   }, NEED);
 
   test("Ассистент: отказ по полю и ошибка завершают поток", async () => {
     const env = await makeEnv();
-    const no = await env.stream("/assist/turns", { text: "поменяй маску сети" });
-    const end = no[no.length - 1];
-    assert.eq([end.type, end.field], ["refused", "netmask"], "отказ");
+    // Поле ищется по подписям схем видов просьбы: у камеры маски сети нет (она есть у сервера), цвета корпуса нет ни у кого
+    for (const text of ["поменяй маску сети на камерах", "поменяй цвет корпуса"]) {
+      const end = (await env.stream("/assist/turns", { text })).pop();
+      assert.eq([end.type, "field" in end, "items" in end], ["refused", false, false], `«${text}» — поля нет в описании вида: отказ без указателя`);
+    }
+    const server = (await env.stream("/assist/turns", { text: "поменяй маску сети" })).pop();
+    assert.eq([server.type, server.text], ["question", "Какое значение поставить?"], "у сервера поле есть — спросить значение");
     const bad = await env.stream("/assist/turns", { text: "сбой" });
     assert.eq(bad[bad.length - 1].code, "UPSTREAM_UNAVAILABLE", "ошибка");
   }, NEED);
 
-  test("Ассистент: секрет идёт в set и не показывается в пояснении и в context", async () => {
+  test("Ассистент: секрет идёт в patch и не показывается в пояснении и в context", async () => {
     const env = await makeEnv();
     const got = await env.stream("/assist/turns", { text: "смени пароль Главный вход на секрет № 2", secrets: ["первый", "второй-S3CRET"] });
     const plan = got[got.length - 1];
-    assert.eq(plan.items[0].set.password, "второй-S3CRET", "значение в set");
+    assert.eq(plan.type, "plan", "план");
+    assert.eq(plan.items[0].patch.properties.password, "второй-S3CRET", "значение в patch");
+    assert.eq(plan.items[0].changes[0].field, "/properties/password", "поле — указатель");
     const shown = JSON.stringify([plan.summary, plan.context, plan.items.map((x) => x.changes)]);
     assert.ok(!shown.includes("S3CRET"), "значения нет в пояснении и context");
     assert.ok(!("before" in plan.items[0].changes[0]), "«было» у секрета нет");
+    const q = (await env.stream("/assist/turns", { text: "смени пароль Главный вход на секрет № 3", secrets: ["первый"] })).pop();
+    assert.eq([q.type, q.text], ["question", "Какой секрет поставить?"], "секрета с таким номером нет — вопрос");
   }, NEED);
 
   test("Ассистент: пустая просьба — 422", async () => {
     const env = await makeEnv();
     assert.status(await env.call("POST", "/assist/turns", { text: "" }), 422, "VALIDATION_FAILED");
   }, NEED);
+
+  /* ----- Незнакомый вид: всё из описания вида (подписи, перечни, x-search), кода под вид в заглушке нет ----- */
+
+  test("Ассистент: просьба «смени режим контроллера на manual» — шаг плана с patch /properties/mode, значение из enum схемы", async () => {
+    const env = await makeEnv();
+    const kind = await kindOf(env, CTRL);
+    const mode = kind.schema.properties.mode;
+    const ctrls = (await env.pages(`/units?kind=${encodeURIComponent(CTRL)}`));
+    const want = ctrls.filter((u) => u.properties.mode !== "manual");
+    assert.ok(want.length > 0 && want.length < ctrls.length, "есть и в ручном режиме, и нет: " + want.length + " из " + ctrls.length);
+    const plan = (await env.stream("/assist/turns", { text: "смени режим контроллера на manual" })).pop();
+    assert.eq(plan.type, "plan", "план");
+    assert.eq(plan.items.map((x) => x.uid).sort(), want.map((u) => u.uid).sort(), "контроллеры, где режим не тот; уже в ручном — не в плане");
+    for (const x of plan.items) {
+      const u = ctrls.find((c) => c.uid === x.uid);
+      assert.eq([x.version, x.name, x.patch], [u.version, u.name, { properties: { mode: "manual" } }], "шаг: версия, имя, patch");
+      assert.eq(x.changes, [{ field: "/properties/mode", before: u.properties.mode, after: "manual", why: "просьба" }], "что меняется");
+      assert.ok(mode.enum.includes(x.patch.properties.mode), "значение из enum схемы");
+    }
+    // Подпись значения (x-enum-labels) — то же значение
+    const byLabel = (await env.stream("/assist/turns", { text: `смени режим контроллера на ${mode["x-enum-labels"].manual.text.toLowerCase()}` })).pop();
+    assert.eq(byLabel.items.map((x) => x.patch), plan.items.map((x) => x.patch), "значение по подписи перечня");
+    // «Применить» — PATCH /units/{uid} с версией плана
+    const [x] = plan.items;
+    const done = await env.ok("PATCH", `/units/${x.uid}`, x.patch, { "If-Match": `"${x.version}"` });
+    assert.eq(done.properties.mode, "manual", "записано");
+    return `контроллеров ${plan.items.length}`;
+  }, Object.assign({}, NEED, { needs: ["assistTurn", `kind:${CTRL}`] }));
+
+  test("Ассистент: план со значением вне схемы отклоняется 422 с указателем", async () => {
+    const env = await makeEnv();
+    const plan = (await env.stream("/assist/turns", { text: "смени режим контроллера на manual" })).pop();
+    const [x] = plan.items;
+    // Шаг плана — ровно PATCH /units/{uid}: значение вне перечня схемы — 422 с указателем на поле, ничего не записано
+    const bad = await env.call("PATCH", `/units/${x.uid}`, { properties: { mode: "turbo" } }, { "If-Match": `"${x.version}"` });
+    assert.status(bad, 422, "VALIDATION_FAILED", "значение вне enum");
+    assert.eq(bad.body.field, "/properties/mode", "указатель на поле");
+    assert.eq((await env.ok("GET", `/units/${x.uid}`)).version, x.version, "ничего не записано");
+    // Заглушка сверяет план с описанием вида, как PATCH: вне схемы — отказ с тем же указателем, плана нет
+    const no = (await env.stream("/assist/turns", { text: "смени режим контроллера на turbo" })).pop();
+    assert.eq([no.type, no.field, "items" in no], ["refused", "/properties/mode", false], "отказ с указателем");
+    assert.ok(/turbo/.test(no.text), "отказ называет значение: " + no.text);
+  }, { needs: ["assistTurn", `kind:${CTRL}`] });
+
+  test("Ассистент: просьба «поставь контроллеры на охрану» — найденное фильтром kinds=[security_controller/CONTROLLER]", async () => {
+    const env = await makeEnv();
+    const ctrls = await env.pages(`/units?kind=${encodeURIComponent(CTRL)}`);
+    const before = JSON.stringify(ctrls.map((u) => u.version));
+    const got = await env.stream("/assist/turns", { text: "поставь контроллеры на охрану" });
+    const end = got[got.length - 1];
+    assert.eq(types(got), "progress,found", "отбор, а не план");
+    assert.eq(end.filter, { kinds: [CTRL] }, "фильтр — вид из описания");
+    assert.eq(["ids" in end, end.action, end.total, end.conditions], [false, "ARM", ctrls.length, ["тип: контроллер"]], "команда вида, сколько, условия словами");
+    const listed = await env.pages(`/units?${unitsQuery(end.filter)}`);
+    assert.eq(listed.map((u) => u.uid).sort(), ctrls.map((u) => u.uid).sort(), "фильтр — тот же отбор GET /units");
+    assert.eq(JSON.stringify((await env.pages(`/units?kind=${encodeURIComponent(CTRL)}`)).map((u) => u.version)), before, "ход ничего не выполнил");
+  }, { needs: ["assistTurn", `kind:${CTRL}`] });
+
+  test("Ассистент: команда «Включить» у вида не перехватывает правку свойства — «включи запись» остаётся правкой, «Включить контроллеры» — отбор с action", async () => {
+    const env = await makeEnv();
+    const kinds = (await env.ok("GET", "/kinds")).items;
+    // У камеры и у контроллера появилась команда с подписью «Включить»: первые пять букв — как у «включи»
+    for (const kind of ["camera", CTRL]) {
+      const desc = JSON.parse(JSON.stringify(kinds.find((k) => k.kind === kind)));
+      desc.actions = (desc.actions || []).concat({ id: "POWER_ON", label: { key: "test.action.on", text: "Включить", lang: "ru" }, execution: "instant", group: true });
+      assert.status(await env.call("PUT", `/test/kinds/${encodeURIComponent(kind)}`, desc), 200, null, `у вида ${kind} — команда «Включить»`);
+    }
+    const q = (await env.stream("/assist/turns", { text: "включи запись" })).pop();
+    assert.eq([q.type, q.text], ["question", "На каких объектах?"], "«включи запись» — правка: вопрос, не отбор");
+    const plan = (await env.stream("/assist/turns", { text: "включи запись на камерах Главный вход" })).pop();
+    assert.ok(plan.type === "plan" && plan.items.length && plan.items.every((x) => x.patch.properties.recordMode === "always"), "с объектами — план правки: " + plan.type);
+    assert.eq(plan.summary, `Камеры: ${plan.items.length}`, "итог — как у базы: «Камеры: N»");
+    const ctrls = await env.pages(`/units?kind=${encodeURIComponent(CTRL)}`);
+    const got = await env.stream("/assist/turns", { text: "Включить контроллеры" });
+    const end = got[got.length - 1];
+    assert.eq([types(got), end.action, end.filter, end.total], ["progress,found", "POWER_ON", { kinds: [CTRL] }, ctrls.length], "подпись команды, свойства нет — отбор с action");
+  }, { needs: ["assistTurn", `kind:${CTRL}`] });
+
   /* ----- План правил ----- */
 
   const FX = ApiTest.FX;
@@ -70,7 +176,7 @@
     const env = await makeEnv();
     const said = `при движении на ${camera} пиши 5 минут`;
     const plain = lastOf(await env.stream("/assist/turns", { text: "выключи запись на камерах Главный вход" }));
-    assert.ok(plain.type === "plan" && plain.items.length && !("rules" in plain), "настройка устройств");
+    assert.ok(plain.type === "plan" && plain.items.length && !("rules" in plain), "настройка объектов");
     const rules = lastOf(await turn(env, said));
     assert.ok(rules.type === "plan" && rules.rules.length === 1 && !("items" in rules), "слова правил — план правил");
     for (const kind of ["config", "rules", "auto", "explain"]) {
@@ -84,13 +190,13 @@
     const env = await makeEnv();
     const ask = (text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
     const seen = [];
-    const devices = (await env.list("/devices")).length, ctx = [];
-    for (const text of ["сколько камер", "сколько устройств", "какие устройства есть"]) {
+    const total = (await env.ok("GET", "/units?limit=1")).total, cams = (await env.pages("/units?kind=camera&limit=1000")).length, ctx = [];
+    for (const [text, also] of [["сколько камер", `Камера: ${cams}`], ["сколько объектов", ""], ["какие устройства есть", ""]]) {
       const got = await ask(text);
       seen.push(...got);
       const end = lastOf(got);
       assert.eq(types(got), "progress,answer", `«${text}» — вопрос о системе`);
-      assert.ok(end.text.includes(`Устройств: ${devices}`) && typeof end.context === "string", "ответ и context: " + end.text);
+      assert.ok(end.text.includes(`Объектов: ${total}`) && end.text.includes(also) && typeof end.context === "string", "ответ и context: " + end.text);
       ctx.push(end.context);
     }
     const next = await ask("а правил?", { context: ctx[0] });
@@ -107,12 +213,11 @@
     return `событий ${seen.length}`;
   }, NEED);
 
-  test("Отбор: «дай список», «покажи», «выведи» — found, отбирает код по полям, ids по имени без повторов, условия словами", async () => {
+  test("Отбор: «дай список», «покажи», «выведи» — found, условия — фильтры GET /units и описания видов, ids по имени без повторов", async () => {
     const env = await makeEnv();
     const ask = (text, extra) => env.stream("/assist/turns", Object.assign({ text }, extra || {}));
-    const all = await env.list("/devices");
-    const byName = (list) => list.slice().sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1)).map((d) => d.id);
-    const cams = all.filter((d) => d.type === "camera");
+    const units = (q) => env.pages(`/units?${q}${q ? "&" : ""}limit=1000`);
+    const cams = await units("kind=camera");
     const before = JSON.stringify(cams.map((d) => d.version));
     const check = async (text, words, want) => {
       const got = await ask(text);
@@ -123,48 +228,72 @@
       assert.eq([end.total, new Set(end.ids).size, "truncated" in end, "filter" in end, "kind" in end], [want.length, end.ids.length, false, false, false], "total, без повторов, одна форма");
       return end;
     };
-    const none = await check("выведи камеры без записи", ["тип: камера", "запись: нет"], cams.filter((d) => (d.recordMode || "none") === "none"));
+    const none = await check("выведи камеры без записи", ["тип: камера", "запись: нет"], await units("kind=camera&noRecord=true"));
     assert.ok(none.ids.length > 0 && /Отобрано: \d+/.test(none.text), "текст: " + none.text);
-    await check("дай список камер Axis", ["тип: камера", "производитель: Axis"], cams.filter((d) => d.vendor === "Axis"));
-    await check("покажи выключенные камеры", ["тип: камера", "включена: нет"], cams.filter((d) => d.enabled === false));
-    await check("выведи камеры не на связи", ["тип: камера", "на связи: нет"], cams.filter((d) => d.online === false));
-    const folder = FX.folders.find((f) => f.name === "Склад хозчасти"), inside = await env.folderIds(folder.id);
-    await check("покажи камеры в папке Склад хозчасти", ["тип: камера", "папка: Склад хозчасти"], cams.filter((d) => inside.includes(d.id)));
-    await check("выведи камеры с именем «вход»", ["тип: камера", "имя содержит: вход"], cams.filter((d) => d.name.toLowerCase().includes("вход")));
-    // Без детектора движения — по выводному полю камеры
-    const noMotion = await check("выведи камеры без детектора движения", ["тип: камера", "детектор движения: нет"], cams.filter((d) => !d.detectorKinds.includes("motion")));
+    // Значение свойства с x-search — подпись из схемы (x-label), отбор — q и fields
+    await check("дай список камер Axis", ["тип: камера", "производитель: Axis"], await units("kind=camera&q=Axis&fields=vendor"));
+    await check("покажи выключенные камеры", ["тип: камера", "включена: нет"], await units("kind=camera&status=off"));
+    await check("выведи камеры не на связи", ["тип: камера", "на связи: нет"], await units("kind=camera&status=offline"));
+    const folder = (await units("kind=folder")).find((f) => f.name === "Склад хозчасти");
+    await check("покажи камеры в папке Склад хозчасти", ["тип: камера", "папка: Склад хозчасти"], await units(`kind=camera&folderId=${folder.uid}`));
+    const domain = (await units("kind=domain")).find((d) => d.name === "Домен 2");
+    await check("выведи камеры в домене Домен 2", ["тип: камера", "домен: Домен 2"], await units(`kind=camera&domainId=${domain.uid}`));
+    await check("покажи камеры без папки", ["тип: камера", "папка: нет"], await units("kind=camera&noFolder=true"));
+    await check("выведи камеры с именем «вход»", ["тип: камера", "имя содержит: вход"], await units("kind=camera&q=" + encodeURIComponent("вход") + "&fields=name"));
+    // Без детектора вида — подпись вида детектора из перечня схемы
+    const noMotion = await check("выведи камеры без детектора движения", ["тип: камера", "детектор движения: нет"], await units("kind=camera&noDetector=motion"));
     assert.ok(noMotion.ids.length > 0 && noMotion.ids.length < cams.length, "есть и с детектором, и без: " + noMotion.ids.length + " из " + cams.length);
+    // Перечень свойства по подписи (x-enum-labels) — у любого вида
+    await check("покажи камеры, которые пишут всегда", ["тип: камера", "когда писать: всегда"], cams.filter((u) => u.properties.recordMode === "always"));
+    const ctrls = await units(`kind=${encodeURIComponent(CTRL)}`);
+    await check("покажи контроллеры в ручном режиме", ["тип: контроллер", "режим: ручной"], ctrls.filter((u) => u.properties.mode === "manual"));
+    // Незнакомый вид: значение его свойства с x-search, вид просьбы не назван
+    const unknown = await units("kind=test.unknown");
+    await check("выведи TU-0001", ["серийный номер: TU-0001"], unknown.filter((u) => u.properties.serial === "TU-0001"));
     // Найдено 0 — тоже found, не отказ
     const empty = lastOf(await ask("покажи камеры с именем «такого нет»"));
     assert.eq([empty.type, empty.ids, empty.total, empty.text], ["found", [], 0, "Ничего не отобрано."], "пусто — found с пустым ids");
     // Разговор продолжается с context: уточнить отбор
     const more = lastOf(await ask("а только Axis", { context: none.context }));
     assert.eq(more.conditions, ["тип: камера", "запись: нет", "производитель: Axis"], "уточнение с context");
-    assert.eq(more.ids, byName(cams.filter((d) => (d.recordMode || "none") === "none" && d.vendor === "Axis")), "уточнённый отбор");
+    assert.eq(more.ids, byName(await units("kind=camera&noRecord=true&q=Axis&fields=vendor")), "уточнённый отбор");
     // Не понял условие — вопрос
     const q = lastOf(await ask("покажи что-нибудь"));
     assert.eq(q.type, "question", "без условия — вопрос");
     // Отбор ничего не пишет
-    assert.eq(JSON.stringify((await env.list("/devices")).filter((d) => d.type === "camera").map((d) => d.version)), before, "версии камер прежние");
+    assert.eq(JSON.stringify((await units("kind=camera")).map((d) => d.version)), before, "версии камер прежние");
     return `отобрано без записи ${none.ids.length}`;
+  }, { needs: ["assistTurn", `kind:${CTRL}`, "kind:test.unknown"] });
+
+  test("Отбор больше selectMax: фильтр GET /units, если условия выражаются фильтром; иначе первые ids и truncated", async () => {
+    const env = await makeEnv({ fixturePatch: { reference: { limits: { selectMax: 3 } } } });
+    const all = await env.pages("/units?kind=camera&noRecord=true&limit=1000");
+    assert.ok(all.length > 3, "камер без записи больше selectMax: " + all.length);
+    const end = (await env.stream("/assist/turns", { text: "выведи камеры без записи" })).pop();
+    assert.eq([end.type, end.filter, "ids" in end, end.total, end.conditions], ["found", { kinds: ["camera"], noRecord: true }, false, all.length, ["тип: камера", "запись: нет"]], "фильтр вместо ids");
+    assert.eq((await env.pages(`/units?${unitsQuery(end.filter)}&limit=1000`)).map((u) => u.uid).sort(), all.map((u) => u.uid).sort(), "фильтр — тот же отбор");
+    // Перечень по подписи — не фильтр GET /units: первые по имени и truncated
+    const cams = (await env.pages("/units?kind=camera&limit=1000")).filter((u) => u.properties.recordMode === "always");
+    const cut = (await env.stream("/assist/turns", { text: "покажи камеры, которые пишут всегда" })).pop();
+    assert.eq([cut.ids, cut.total, cut.truncated, "filter" in cut], [byName(cams).slice(0, 3), cams.length, true, false], "первые selectMax и truncated");
   }, NEED);
 
-  test("Камера: выводное поле detectorKinds; GET /devices?noDetector — камеры без детектора вида, ограниченным проходом", async () => {
+  test("GET /units?noDetector — без детектора вообще (true) или без детектора этого вида (код из перечня detectorKind)", async () => {
     const env = await makeEnv();
-    const all = await env.list("/devices");
-    const cams = all.filter((d) => d.type === "camera");
-    assert.ok(cams.every((d) => Array.isArray(d.detectorKinds) && new Set(d.detectorKinds).size === d.detectorKinds.length), "у каждой камеры detectorKinds без повторов");
-    assert.ok(all.filter((d) => d.type !== "camera").every((d) => !("detectorKinds" in d)), "у прочих поля нет");
-    const dets = all.filter((d) => d.type === "det");
-    const kindsOf = (id) => new Set(dets.filter((x) => x.parentId === id || x.cameraId === id).map((x) => x.detectorKind));
-    assert.ok(cams.every((d) => JSON.stringify([...kindsOf(d.id)].sort()) === JSON.stringify(d.detectorKinds.slice().sort())), "виды встроенных и серверных детекторов камеры");
-    const rows = await env.pages("/devices?noDetector=motion&limit=1000");
-    const want = cams.filter((d) => !d.detectorKinds.includes("motion")).map((d) => d.id).sort();
-    assert.eq(rows.map((r) => r.id).sort(), want, "noDetector=motion — камеры без детектора движения");
-    assert.ok(rows.every((r) => r.type === "camera") && want.length < cams.length, "только камеры, не все");
-    const page = await env.ok("GET", "/devices?noDetector=motion&limit=5");
+    const cams = await env.pages("/units?kind=camera&limit=1000");
+    const dets = (await env.pages("/units?implements=vms.detector/1&limit=1000"));
+    const kindsOf = (uid) => new Set(dets.filter((x) => x.parentId === uid || Object.values(x.properties).includes(uid)).map((x) => x.properties.detectorKind));
+    const rows = await env.pages("/units?noDetector=motion&limit=1000");
+    const want = cams.filter((u) => !kindsOf(u.uid).has("motion")).map((u) => u.uid).sort();
+    assert.eq(rows.map((r) => r.uid).sort(), want, "noDetector=motion — камеры без детектора движения");
+    assert.ok(rows.every((r) => r.kind === "camera") && want.length < cams.length, "только камеры, не все");
+    const bare = await env.pages("/units?noDetector=true&limit=1000");
+    assert.eq(bare.map((r) => r.uid).sort(), cams.filter((u) => !kindsOf(u.uid).size).map((u) => u.uid).sort(), "noDetector=true — без детекторов");
+    const page = await env.ok("GET", "/units?noDetector=motion&limit=5");
     assert.ok(!("total" in page), "полного числа нет: ограниченный проход");
-    assert.status(await env.call("GET", "/devices?noDetector=nope"), 422, "VALIDATION_FAILED");
+    const nope = await env.call("GET", "/units?noDetector=nope");
+    assert.status(nope, 422, "VALIDATION_FAILED");
+    assert.eq(nope.body.field, "noDetector", "поле");
     return `без детектора движения ${want.length} из ${cams.length}`;
   }, NEED);
 
@@ -177,7 +306,8 @@
     const plan = lastOf(await turn(env, `при движении на ${camera} пиши 5 минут`));
     const [e] = plan.rules;
     assert.eq([e.table, e.op, "id" in e], ["scenarios", "create", false], "запись плана");
-    assert.eq([e.body.enabled, e.body.logOnly, e.body.triggers[0].kind, e.body.steps[0].minutes], [true, true, "motion", 5], "поля Rule");
+    const [t] = e.body.triggers, [s] = e.body.steps;
+    assert.eq([e.body.enabled, e.body.logOnly, t.source, t.event, s.type, s.action, s.params.minutes], [true, true, "unit", "motion", "unitAction", "record", 5], "поля Rule: событие и действие вида");
     assert.eq((await env.list("/rules")).length, before, "ход ничего не записал");
     await ApiTest.settle();
     assert.eq(seen, [], "событий нет");

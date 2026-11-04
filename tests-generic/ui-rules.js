@@ -21,6 +21,73 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/нет в этой системе/.test(ruleOutOfCat({ start: "event", when: [], cond: [], then: [] })), "способ запуска вне каталога — видно");
   Object.assign(RULE_REF, wasRef);
 
+  // Флаги событий (EventDescriptor.rule, alarm; нет поля — true): триггеры правил — без rule:false (abandoned, disappeared,
+  // crowd у камеры), «Что считать тревогой» — без alarm:false (other, segment.lost). Порядок — как в GET /kinds
+  {
+    const evs = (await API.get("/kinds")).items.flatMap((k) => k.events || []);
+    const uniq = (l) => [...new Set(l)];
+    const noRule = uniq(evs.filter((e) => e.rule === false).map((e) => e.id)), noAlarm = uniq(evs.filter((e) => e.alarm === false).map((e) => e.id));
+    ok(["abandoned", "disappeared", "crowd"].every((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
+    const alarmWant = uniq(evs.filter((e) => e.alarm !== false).map((e) => e.id));
+    ok(JSON.stringify(refEvents) === JSON.stringify(alarmWant), "тревожные виды — без alarm:false, порядок сервера: " + refEvents.join());
+    ok(refEvents.slice(0, 10).join() === "motion,linecross,abandoned,disappeared,crowd,lpr,silent,io.input,text,unit", "тревожные виды демо — как в базе (reference.eventKinds): " + refEvents.slice(0, 10).join());
+    const cam = devicePool.concat(...servers.map((s) => s.devices || [])).find((n) => n.type === "camera");
+    const chips = [...new DOMParser().parseFromString(placeCardHtml(cam || { id: "x" }), "text/html").querySelectorAll(".pf-chip")].map((b) => b.dataset.chip);
+    ok(chips.length && !chips.some((x) => noAlarm.includes(x)) && ["abandoned", "crowd"].every((x) => chips.includes(x)), "«Что считать тревогой» в карточке: без other и segment.lost: " + chips.join());
+    const trig = TRIGGER_KINDS.filter((k) => !k.stray && trigDeclared(k)).map((k) => k.kind);
+    ok(!trig.some((x) => noRule.includes(x)) && ["motion", "other", "segment.lost"].every((x) => trig.includes(x)), "триггеры правил — без rule:false: " + trig.join());
+    ok(trig.slice(0, 9).join() === "io.input,motion,linecross,lpr,other,text,unit,silent,segment.lost", "триггеры демо — как в базе (reference.ruleTriggers): " + trig.slice(0, 9).join());
+    ruleNewOpen(); rnw.tpl = ""; ruleNewCreate();
+    ruleEdit((x) => { delete x._auto; x.name = "Флаги событий"; x.start = "event"; const k0 = ruleTrigAdd(); x.when = [{ sub: k0.sub, kind: k0.kind, ref: "", match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
+    paint();
+    const evSel = document.querySelector('select[aria-label^="Вид события "]'), opts = evSel ? [...evSel.options].map((o) => o.textContent) : [];
+    ok(opts.length && !opts.some((t) => /Оставленный предмет|Исчезновение предмета|Скопление людей/.test(t)) && opts.includes("Детектор: другой вид") && opts.includes("Пропал сегмент записи"), "в списке событий правила нет событий rule:false: " + opts.join(" | "));
+    ruleRestore(); paint();
+    ok(!rules.some((x) => x.name === "Флаги событий"), "черновик проверки снят");
+  }
+
+  // Правило по описаниям видов: событие ALARM датчика security_controller → команда ARM контроллера. Списки формы —
+  // события и команды видов (/kinds events, actions с ruleAction), подписи — из описаний, параметры команды — формой
+  // по её params; на сервер — {source:"unit", kinds, event} и {type:"unitAction", action, params}, цели — {uid}
+  {
+    const SENS = "30000296-0000-4000-8000-000000000000", CTRL = "30000294-0000-4000-8000-000000000000", UNK = "30000299-0000-4000-8000-000000000000";
+    const tk = TRIGGER_KINDS.find((k) => k.kind === "ALARM"), ak = ACTION_KINDS.find((k) => k.action === "ARM"), pk = ACTION_KINDS.find((k) => k.action === "ping");
+    ok(tk && tk.label === "Тревога" && tk.devTypes.join() === "security_controller/SENSOR" && trigDeclared(tk), "событие ALARM — из описания вида датчика: " + (tk && tk.label));
+    ok(ak && ak.label === "Поставить на охрану" && ak.devTypes.join() === "security_controller/CONTROLLER" && actDeclared(ak), "команда ARM — из описания вида контроллера: " + (ak && ak.label));
+    ok(pk && actDeclared(pk) && !ACTION_KINDS.some((k) => k.action === "calibrate") && !ACTION_KINDS.some((k) => k.action === "probe"), "в правилах — только команды с ruleAction");
+    ok(ACTION_KINDS.find((k) => k.action === "record")?.devTypes.join() === "camera" && actDeclared(ACTION_KINDS.find((k) => k.action === "record")), "ruleOnly-команды камеры в правилах предлагаются");
+    ruleNewOpen(); rnw.tpl = ""; ruleNewCreate();
+    ruleEdit((x) => { delete x._auto; x.name = "Охрана по тревоге датчика"; x.start = "event"; const k0 = ruleTrigAdd(); x.when = [{ sub: k0.sub, kind: k0.kind, ref: "", match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
+    paint();
+    const evSel = document.querySelector('select[aria-label^="Вид события "]'), evOpt = evSel && [...evSel.options].find((o) => o.textContent === "Тревога");
+    ok(!!evOpt, "в списке событий — «Тревога»");
+    evSel.value = evOpt.value;
+    evSel.dispatchEvent(new Event("change", { bubbles: true }));
+    // У камеры своя «Поставить на охрану» (arm) — команда контроллера отдельной строкой в группе своего вида
+    const stSel = document.querySelector('select[data-ks="0"]'), stOpt = stSel && stSel.querySelector(`option[value="a:${ACTION_KINDS.indexOf(ak)}"]`);
+    ok(stOpt && stOpt.textContent === "Поставить на охрану" && stOpt.parentElement.label === ak.grp && ak.grp !== ACTION_KINDS.find((k) => k.action === "arm").grp, "в списке действий — «Поставить на охрану» в группе «" + (stOpt && stOpt.parentElement.label) + "»");
+    stSel.value = stOpt.value;
+    stSel.dispatchEvent(new Event("change", { bubbles: true }));
+    ruleEdit((x) => { x.when[0].ref = SENS; x.then[0].ref = CTRL; x.then.push(ruleNewAct(pk, null, x)); x.then[1].ref = UNK; });
+    paint();
+    ok(curRule().when[0].kind === "ALARM" && curRule().then[0].action === "ARM", "выбрано списками: " + JSON.stringify([curRule().when[0], curRule().then[0]]));
+    const cnt = document.querySelector('[data-rp="count"]');
+    ok(cnt && /Сколько раз/.test(cnt.parentElement.textContent), "параметр команды — полем формы по схеме, подпись x-label");
+    cnt.value = "3";
+    cnt.dispatchEvent(new Event("input", { bubbles: true }));
+    ok(curRule().then[1].args?.count === 3, "значение параметра — числом: " + JSON.stringify(curRule().then[1].args));
+    ok(!ruleIssues(curRule()).length, "ошибок формы нет: " + ruleIssues(curRule()).join("; "));
+    ruleApply();
+    ok(await until(() => rules.some((x) => x.name === "Охрана по тревоге датчика" && autoVer.has(x.id))), "сохранено на сервере");
+    const sc = await API.get("/rules/" + rules.find((x) => x.name === "Охрана по тревоге датчика").id);
+    const t0 = sc.triggers[0], s0 = sc.steps[0], s1 = sc.steps[1];
+    ok(t0.source === "unit" && t0.kinds.join() === "security_controller/SENSOR" && t0.event === "ALARM" && t0.target.include[0].uid === SENS && !("kind" in t0.target.include[0]), "триггер на сервере: " + JSON.stringify(t0));
+    ok(s0.type === "unitAction" && s0.action === "ARM" && s0.target.include[0].uid === CTRL && JSON.stringify(s0.params) === "{}" && !("source" in s0), "шаг на сервере: " + JSON.stringify(s0));
+    ok(s1.action === "ping" && s1.params.count === 3, "параметры команды на сервере: " + JSON.stringify(s1.params));
+    const back = ruleNode(sc);
+    ok(back.when[0].kind === "ALARM" && /Тревога/.test(triggerLabel(back.when[0])) && /Поставить на охрану/.test(actionLabel(back.then[0])), "правило ALARM датчика → ARM контроллера создаётся из списков описаний");
+  }
+
   // Правка: черновик у клиента, «Применить» — PUT; кэш и история — из ответа
   ruleOpen(R1);
   const v0 = autoVer.get(R1), h0 = (ruleHist[R1] || []).length;
@@ -68,7 +135,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ruleApply();
   ok(await until(() => rules.some((x) => x.name === "Детектор из сценария" && /^7/.test(x.id) && autoVer.has(x.id))), "сохранено: " + dtmp);
   const dsaved = await API.get("/rules/" + rules.find((x) => x.name === "Детектор из сценария").id);
-  ok(dsaved.steps[0].source === "det" && dsaved.steps[1].afterSec === 90 && dsaved.steps[1].beforeSec === 30, "на сервере: " + JSON.stringify(dsaved.steps[1]));
+  ok(dsaved.steps[0].type === "unitAction" && dsaved.steps[0].action === "detect" && dsaved.steps[0].params.detectorKind === "motion" && dsaved.steps[0].params.minutes === 10 && dsaved.steps[1].action === "scan" && dsaved.steps[1].params.afterSec === 90 && dsaved.steps[1].params.beforeSec === 30, "на сервере: " + JSON.stringify(dsaved.steps[1]));
 
   // Цели из нескольких доменов: только объявленные шаги, форма говорит заранее
   const OTHER = devicePool.find((d) => d.type === "camera" && deviceDomain(d.id) && deviceDomain(d.id) !== deviceDomain(CAM)).id;
@@ -80,7 +147,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   refRuleCross = null;
 
   // Отказы сервера словами: чужое устройство называется по имени
-  ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { kind: "device", id: CAM } } } })), "403 правила называет устройство");
+  ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { uid: CAM } } } })), "403 правила называет устройство");
   ok(/не исполняет/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { issue: { code: "action.notDeclared", params: {} } } } })), "422 вне каталога — своими словами");
 
   // Новое правило: до «Применить» — только у клиента, после — POST, id от сервера
@@ -166,7 +233,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
 
   // Запуск с вопросом оператору: трасса говорит, что он ждёт; снятие приходит потоком. Экрана ответа в форме нет
   const askRule = await API.post("/rules", { name: "Вопрос из сценария", enabled: true, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0, runAt: null, repeat: "skip",
-    triggers: [], conditions: [], steps: [{ control: "ask", text: "Открыть?", roleId: "80000004-0000-4000-8000-000000000000", sec: 60, default: "no", yes: [{ source: "rec", action: "record", target: { include: [{ kind: "device", id: CAM }], exclude: [], gone: [], fromEvent: false }, duration: "min", minutes: 5 }], no: [] }],
+    triggers: [], conditions: [], steps: [{ control: "ask", text: "Открыть?", roleId: "80000004-0000-4000-8000-000000000000", sec: 60, default: "no", yes: [{ type: "unitAction", action: "record", target: { include: [{ uid: CAM }], exclude: [], gone: [], fromEvent: false }, params: { duration: "min", minutes: 5 } }], no: [] }],
     owner: "admin", purpose: "", serverId: null, runAsRoleId: null, allowChain: true });
   ok(await until(() => r(askRule.id)), "правило с вопросом пришло потоком");
   ruleOpen(askRule.id);

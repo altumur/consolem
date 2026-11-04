@@ -28,9 +28,9 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(await until(() => reopened), "404 — поток переоткрыт");
   ok(reopened.includes(cams[0].id) && reopened.length <= LIM.watchMax, "открытая карточка в списке запроса");
   ok(await until(() => streamClient && streamClient !== client0), "новый поток: новый clientId");
-  ok(await until(() => CONSOLEM_TRACE.some((t) => /^\/devices\?ids=/.test(t.path))), "наблюдаемое перечитано");
+  ok(await until(() => CONSOLEM_TRACE.some((t) => /^\/units\?ids=/.test(t.path))), "наблюдаемое перечитано");
   // Выборка автоматизации читает одну страницу вида: это не перечень
-  ok(!CONSOLEM_TRACE.some((t) => t.method === "GET" && /^\/devices(\?|$)/.test(t.path) && (/cursor=/.test(t.path) || !/(ids|type|serverId|parentId|folderId)=/.test(t.path))), "полный перечень не читался");
+  ok(!CONSOLEM_TRACE.some((t) => t.method === "GET" && /^\/units(\?|$)/.test(t.path) && (/cursor=/.test(t.path) || !/(ids|kind|implements|serverId|parentId|folderId|archiveId)=/.test(t.path))), "полный перечень не читался");
   const n0 = puts.length;
   await sleep(200);
   ok(n0 === 1 && puts.length === 1, "новый поток список уже держит: нет лишнего PUT и круга");

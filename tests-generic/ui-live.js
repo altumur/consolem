@@ -128,7 +128,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   ok(await until(() => document.getElementById("confirmOk")?.textContent === "Переразместить"), "подтверждение: зрители переподключатся");
   await confirmWith(null);
   ok(await until(() => lv.sess, 60000), "переразмещено, сессия");
-  ok((await API.post(`/devices/${cam.id}/live`, { width: 1, height: 1, network: "outside" })).gateway === "stub-public", "раздача извне");
+  ok((await API.post(`/units/${cam.id}/live`, { width: 1, height: 1, network: "outside" })).gateway === "stub-public", "раздача извне");
   ok(q("[data-live-move]").hidden, "кнопка скрыта");
 
   // Уход с закладки закрывает соединение, вкладка «Видео» той же камеры — нет
@@ -144,7 +144,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Смена камеры, поздний 201
   await open(cam, "view");
   ok(lv && lv.net === "local", "выбор сети не хранится");
-  await API.put(`/devices/${cam.id}/live`, { network: "local" });
+  await API.put(`/units/${cam.id}/live`, { network: "local" });
   const slow = stub.fetch;
   let release;
   const held201 = new Promise((r) => (release = r));

@@ -4,7 +4,7 @@
    ETag, EventSource), которым клиент говорит с настоящим бэкендом. Не проверяются CORS и вход: страница и
    «бэкенд» на одном адресе. Работает только со страницы по http(s): python3 tools/check_loopback.py. */
 self.window = self;
-importScripts("../api-generic/openapi.js", "../api-generic/fixture.js", "../api-generic/contract.js", "../api-generic/rule-engine.js", "../api-generic/server.js");
+importScripts("../api-generic/openapi.js", "../api-generic/fixture.js", "../api-generic/contract.js", "../api-generic/rule-engine.js", "../api-generic/kinds.js", "../api-generic/units.js", "../api-generic/profiles.js", "../api-generic/server.js");
 
 // Адрес «бэкенда» — рядом с этим файлом: /tests/loopback-api, где бы ни лежал репозиторий
 const PREFIX = new URL("loopback-api", self.location).pathname;

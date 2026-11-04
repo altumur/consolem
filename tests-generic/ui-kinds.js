@@ -66,6 +66,33 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(video.id, "rec");
   ok(!main().querySelector("select") || [...main().querySelectorAll("option")].some((o) => o.textContent === "Второй") || !camArchs(find(video.id).n).length, "поток записи — из потоков камеры");
 
+  // Поток правится сколько угодно раз, как в базе: версия каждого потока ведётся (If-Match), отказов нет
+  const errs = [];
+  const realToast = window.toast;
+  window.toast = (m, ...a) => { if (/ошибка|изменился|PRECONDITION|не найден/i.test(String(m))) errs.push(String(m)); return realToast(m, ...a); };
+  const streamOf = (camId, sid) => (find(camId)?.n.streams || []).find((x) => x.id === sid);
+  const onServer = async (uid) => (await API.get(`/units/${uid}`)).name;
+  const multi = devices.find((d) => d.type === "camera" && (find(d.id)?.n.streams || []).length > 1);
+  open(multi.id, "vid");
+  const sub = find(multi.id).n.streams[1];
+  streamSet(multi.id, sub.id, "name", "Второй поток");
+  ok(await until(() => streamOf(multi.id, sub.id)?.name === "Второй поток") && (await onServer(sub.uid)) === "Второй поток" && !errs.length, "существующий поток переименован: " + (errs[0] || "без отказа"));
+  streamSet(multi.id, sub.id, "fps", "12");
+  ok(await until(() => streamOf(multi.id, sub.id)?.fps === 12) && !errs.length, "существующий поток: вторая правка проходит: " + (errs[0] || "без отказа"));
+  const before2 = find(video.id).n.streams.length;
+  streamAdd(video.id);
+  ok(await until(() => find(video.id).n.streams.length === before2 + 1), "новый поток добавлен");
+  const fresh = find(video.id).n.streams.at(-1);
+  streamSet(video.id, fresh.id, "name", "Поток А");
+  ok(await until(() => streamOf(video.id, fresh.id)?.name === "Поток А") && !errs.length, "новый поток: первая правка: " + (errs[0] || "без отказа"));
+  streamSet(video.id, fresh.id, "name", "Поток Б");
+  ok(await until(() => streamOf(video.id, fresh.id)?.name === "Поток Б") && (await onServer(fresh.uid)) === "Поток Б" && !errs.length, "новый поток: вторая правка: " + (errs[0] || "без отказа"));
+  streamDel(video.id, fresh.id);
+  ok(await until(() => document.getElementById("confirmCountInp")), "удаление правленого потока — с вводом числа");
+  await confirmWith(1);
+  ok(await until(() => find(video.id).n.streams.length === before2) && !errs.length, "правленый поток удалён: " + (errs[0] || "без отказа"));
+  window.toast = realToast;
+
   // Детекторы: встроенный — из того, что умеет камера; зона рисуется мышью и уходит на сервер
   const camD = devices.find((d) => d.detectorOptions && devices.some((x) => x.parentId === d.id && x.type === "det" && x.detectorKind === "linecross" && x.builtin));
   open(camD.id, "det");
@@ -107,7 +134,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/Показать план/.test(document.getElementById("cardFoot")?.textContent || ""), "зона — в черновике карточки");
   cardApply();
   await until(() => !bq || bq.finished);
-  ok((await API.get(`/devices/${line.id}`)).zone?.points.length === 3, "зона на сервере");
+  ok((await uiRec(line.id)).zone?.points.length === 3, "зона на сервере");
   open(line.id);
   // Несовместимый: отказ сказан своими словами
   const clash = problemText({ problem: { code: "BUSY", params: { reason: "incompatible", with: line.id } } });
@@ -115,16 +142,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
 
   // Карта камеры w2c: меньший объём — со вторым подтверждением
-  const cardN = of("storage", (d) => d.writableFields);
+  const cardN = of("storage", (d) => d.writableFields?.length);
   if (cardN) {
-    const was = (await API.get(`/devices/${cardN.id}`)).sizeBytes;
+    const was = (await uiRec(cardN.id)).sizeBytes;
     open(cardN.id, "gen");
     storageSet(cardN.id, "size", String(Math.round(was / 1024 ** 3) - 8));
     cardApply();
     ok(await until(() => /Уменьшить карту/.test(document.body.textContent)), "спрашивает подтверждение");
     await confirmWith(null);
     ok(await until(() => find(cardN.id).n.bytes < was), "объём уменьшен");
-    ok((await API.get(`/devices/${cardN.id}`)).sizeBytes < was, "на сервере меньше");
+    ok((await uiRec(cardN.id)).sizeBytes < was, "на сервере меньше");
   }
 
   // Скан и обход: archiveJobs false — кнопок нет, строка вместо них; 403 на правке — понятный отказ, список перечитан
@@ -160,10 +187,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   API.put = (p, ...a) => (calls.push("PUT " + p), realPut(p, ...a));
   API.del = (p, ...a) => (calls.push("DEL " + p), realDel(p, ...a));
   main().querySelector('[data-ptz="0"]').dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
-  ok(await until(() => calls.includes(`PUT /devices/${ptz.id}/ptz`)), "кнопка нажата — аренда");
+  ok(await until(() => calls.includes(`PUT /units/${ptz.id}/ptz`)), "кнопка нажата — аренда");
   ok(!!ptzMove, "держим — продлевается");
   window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-  ok(await until(() => calls.includes(`DEL /devices/${ptz.id}/ptz`)) && !ptzMove, "отпустили — стоп");
+  ok(await until(() => calls.includes(`DEL /units/${ptz.id}/ptz`)) && !ptzMove, "отпустили — стоп");
   API.put = realPut;
   API.del = realDel;
   const count = ptz.presets.length;
@@ -200,7 +227,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   wordSet(src.id, wordsWas, "msg", "ВОЗВРАТ");
   cardApply();
   await until(() => !bq || bq.finished);
-  const srcNow = await API.get(`/devices/${src.id}`);
+  const srcNow = await uiRec(src.id);
   ok(srcNow.cameraId === pickCam.id && srcNow.words.at(-1).msg === "ВОЗВРАТ", "камера и слово на сервере");
   ok(TRIGGER_KINDS.some((k) => k.kind === "text") && ruleWordOpts(src.id).some((x) => x[0] === "ВОЗВРАТ"), "в правиле вид text, слова выбранного источника");
   wizd = initDeviceWizard(addContext());
@@ -248,7 +275,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   listToggle(lab.id, "alarmKinds", "motion");
   cardApply();
   await until(() => !bq || bq.finished);
-  const labNow = await API.get(`/devices/${lab.id}`);
+  const labNow = await uiRec(lab.id);
   ok(labNow.labels?.includes("gpu") && labNow.alarmKinds?.includes("motion"), "метка и тревожный вид на сервере");
   const stopped = of("camera", (d) => d.recordReason && d.online);
   open(stopped.id, "rec");
@@ -312,13 +339,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   deleteTreeNode(nvr.id);
   ok(await until(() => /останутся без родителя/.test(document.getElementById("confirmMsg")?.textContent || document.body.textContent)), "в подтверждении сказано, что камеры останутся");
   closeConfirmSafe();
-  await API.del(`/devices/${nvr.id}`, hwVer.get(nvr.id));
+  await API.del(`/units/${nvr.id}`, hwVer.get(nvr.id));
   hwRemoveDevice(nvr.id);
   ok(!!find(cam.id) && !find(cam.id).p, "камера осталась в дереве без родителя");
 
   // Запись меняет родителя: у камеры появился регистратор
   const top = devices.find((d) => d.type === "camera" && !d.parentId);
-  hwApplyDevice({ ...(await API.get(`/devices/${top.id}`)), parentId: derived.id });
+  hwApplyDevice({ ...(await uiRec(top.id)), parentId: derived.id });
   ok(find(top.id)?.p?.id === derived.id, "камера переехала под ipsrv");
 
   function deviceManualHtmlSafe() {

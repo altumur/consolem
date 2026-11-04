@@ -1,0 +1,127 @@
+{
+  "process_name": "security_controller", 
+  "metadata": {
+    "plugin_id": "security_controller",
+    "plugin_version": "1.0.0",
+    "api_version": "v1"
+  },
+  "provides": [
+    {
+      "id": "ui",
+      "type": "PROXY",
+      "path_prefix": "/ui",
+      "display_name_key": "resource.ui",
+      "description_key": "resource.ui.desc"
+    },
+    {
+      "id": "api",
+      "type": "PROXY",
+      "path_prefix": "/api",
+      "display_name_key": "resource.api",
+      "description_key": "resource.api.desc"
+    },
+    {
+      "id": "setup_ui",
+      "type": "PROXY",
+      "path_prefix": "/setup",
+      "display_name_key": "resource.setup_ui",
+      "description_key": "resource.setup_ui.desc",
+      "role": "setup_ui",
+      "object_types": "CONTROLLER,SENSOR"
+    }
+  ],
+  "object_types": [
+    {
+      "type": "CONTROLLER",
+      "parent": null,
+      "name_key": "object.controller",
+      "parameters": {
+        "name": { "type": "string", "name_key": "param.name", "description_key": "param.name.desc" },
+        "ip_address": { "type": "string", "name_key": "param.ip", "description_key": "param.ip.desc" },
+        "cameras": {
+          "type": "array",
+          "items": { "type": "string" },
+          "name_key": "param.cameras",
+          "description_key": "param.cameras.desc",
+          "source": {
+            "provider": "platform_objects",
+            "object_type": "CAM",
+            "value_field": "id",
+            "display_field": "name"
+          }
+        },
+        "primary_camera": {
+          "type": "string",
+          "name_key": "param.primary_camera",
+          "description_key": "param.primary_camera.desc",
+          "source": {
+            "provider": "platform_objects",
+            "object_type": "CAM",
+            "value_field": "id",
+            "display_field": "name"
+          }
+        },
+        "secondary_camera": {
+          "type": "string",
+          "name_key": "param.secondary_camera",
+          "description_key": "param.secondary_camera.desc",
+          "source": {
+            "provider": "platform_objects",
+            "object_type": "CAM",
+            "value_field": "id",
+            "display_field": "name"
+          }
+        },
+        "mode": {
+          "type": "string",
+          "name_key": "param.mode",
+          "description_key": "param.mode.desc",
+          "default": "auto",
+          "enum_values": [
+            { "value": "auto", "name_key": "param.mode.auto" },
+            { "value": "manual", "name_key": "param.mode.manual" },
+            { "value": "test", "name_key": "param.mode.test" }
+          ]
+        },
+        "enum_tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "name_key": "param.enum_tags",
+          "description_key": "param.enum_tags.desc",
+          "default": ["cam"],
+          "enum_values": [
+            { "value": "cam", "name_key": "param.enum_tags.cam" },
+            { "value": "sensor", "name_key": "param.enum_tags.sensor" },
+            { "value": "reader", "name_key": "param.enum_tags.reader" }
+          ]
+        }
+      },
+      "events": [
+        { "id": "ONLINE", "name_key": "event.online", "description_key": "event.online.desc", "severity": "info" },
+        { "id": "OFFLINE", "name_key": "event.offline", "description_key": "event.offline.desc", "severity": "error" }
+      ],
+      "commands": [
+        { "id": "ARM", "name_key": "command.arm", "description_key": "command.arm.desc" },
+        { "id": "DISARM", "name_key": "command.disarm", "description_key": "command.disarm.desc" }
+      ]
+    },
+    {
+      "type": "SENSOR",
+      "parent": "CONTROLLER",
+      "name_key": "object.sensor",
+      "parameters": {
+        "name": { "type": "string", "name_key": "param.name", "description_key": "param.name.desc" },
+        "zone": { "type": "string", "name_key": "param.zone", "description_key": "param.zone.desc" }
+      },
+      "events": [
+        { "id": "ALARM", "name_key": "event.alarm", "description_key": "event.alarm.desc", "severity": "alarm" },
+        { "id": "RESTORE", "name_key": "event.restore", "description_key": "event.restore.desc", "severity": "info" },
+        { "id": "TAMPER", "name_key": "event.tamper", "description_key": "event.tamper.desc", "severity": "critical" }
+      ],
+      "commands": [
+        { "id": "BYPASS", "name_key": "command.bypass", "description_key": "command.bypass.desc" },
+        { "id": "UNBYPASS", "name_key": "command.unbypass", "description_key": "command.unbypass.desc" }
+      ]
+    }
+  ]
+}

@@ -5,10 +5,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const [chrome, root] = process.argv.slice(2);
+const [chrome, root, pagePath = "index.html"] = process.argv.slice(2);
 const PORT = 9400 + (process.pid % 400);
 const prof = fs.mkdtempSync(path.join(os.tmpdir(), "consolem-live-"));
-const url = `file://${root}/index.html`;
+const url = `file://${root}/${pagePath}`;
 const proc = spawn(chrome, ["--headless=new", "--disable-gpu", "--no-first-run", "--no-sandbox", "--allow-file-access-from-files", `--user-data-dir=${prof}`, "--window-size=1500,1000", "--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream", `--remote-debugging-port=${PORT}`, url], { stdio: "ignore" });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let failed = 0;

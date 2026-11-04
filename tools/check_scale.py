@@ -7,7 +7,7 @@
 перечень не прочитан до конца. Дальше — раскрытие, карточка, группы «Без записи» и «Без папки», поиск волнами, предел
 выбора, «Права», перечитывание после потери потока.
 
-Запуск из корня репозитория: python3 tools/check_scale.py
+Запуск из корня репозитория: python3 tools/check_scale.py [--page FILE] [--tests DIR]
 Код выхода 1, если что-то не прошло.
 """
 import json
@@ -18,15 +18,19 @@ import subprocess
 import sys
 import tempfile
 
+import cli_paths
+
+PAGE = cli_paths.opt("page", "index.html")
+TESTS = cli_paths.opt("tests", "tests")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-HELPERS = '<script src="tests/ui-harness.js"></script>'
+HELPERS = '<script src="%s/ui-harness.js"></script>' % TESTS
 TRACE = "<script>window.CONSOLEM_TRACE=[]</script>"
 
 
 def main():
-    with open(os.path.join(ROOT, "index.html"), encoding="utf-8") as f:
+    with open(os.path.join(ROOT, PAGE), encoding="utf-8") as f:
         page = f.read()
-    with open(os.path.join(ROOT, "tests", "scale-large.js"), encoding="utf-8") as f:
+    with open(os.path.join(ROOT, TESTS, "scale-large.js"), encoding="utf-8") as f:
         code = f.read()
     page = page.replace("<head>", '<head><base href="file://%s/">%s' % (ROOT, TRACE), 1)
     page = page.replace("</body>", HELPERS + "<script>" + code + "</script></body>", 1)

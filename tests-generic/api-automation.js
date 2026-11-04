@@ -1,5 +1,6 @@
-/* Тесты API: что система объявляет об «Автоматизации» (reference.rule*), поля правила, действия детектора,
-   права при записи правила, ход с ответом оператора, правила на несколько доменов. */
+/* Тесты API: что система объявляет об «Автоматизации» (события и действия объектов — описания видов UnitKind.events,
+   actions с ruleAction; остальное — reference.rule*), поля правила, действия детектора, права при записи правила, ход с
+   ответом оператора, правила на несколько доменов. */
 (() => {
   const { test, makeEnv, assert } = ApiTest;
   const FX = ApiTest.FX;
@@ -8,33 +9,46 @@
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain"];
   const body = (r, over) => Object.assign(Object.fromEntries(CONTENT.map((k) => [k, JSON.parse(JSON.stringify(r[k]))])), over || {});
   const etag = (r) => ({ "If-Match": `"${r.version}"` });
-  const dev = (id) => ({ include: [{ kind: "device", id }], exclude: [], gone: [], fromEvent: false });
+  // Цель: объект по uid, область — {area, uid}
+  const dev = (uid) => ({ include: [{ uid }], exclude: [], gone: [], fromEvent: false });
+  const area = (a, uid) => ({ include: [{ area: a, uid }], exclude: [], gone: [], fromEvent: false });
   const cam = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled);
-  const step = { source: "rec", action: "record", target: dev(cam.id), duration: "min", minutes: 5 };
+  // Действие на объекте: команда вида с ruleAction
+  const act = (action, target, params) => ({ type: "unitAction", action, target, params: params || {} });
+  const with_ = (a, params) => Object.assign({}, a, { params: Object.assign({}, a.params, params) });
+  const at_ = (a, target) => Object.assign({}, a, { target });
+  const step = act("record", dev(cam.id), { duration: "min", minutes: 5 });
   const blank = (over) => Object.assign({
     name: "Проверка", enabled: true, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0,
     runAt: null, repeat: "skip", triggers: [], conditions: [], steps: [step],
     owner: "admin", purpose: "", serverId: null, runAsRoleId: null, allowChain: true,
   }, over || {});
-  const noAction = (action) => ({ reference: { ruleActions: ref.ruleActions.filter((a) => a.action !== action) } });
+  // Каталог без действия: у видов (действие на объекте) и в справочнике (действие без объекта)
+  const kindsWith = (fn) => FX.kinds.map((k) => fn(JSON.parse(JSON.stringify(k))));
+  const noAction = (action) => ({
+    kinds: kindsWith((k) => Object.assign(k, k.actions ? { actions: k.actions.filter((a) => a.id !== action) } : {})),
+    reference: { ruleActions: ref.ruleActions.filter((a) => a.action !== action) },
+  });
   const issue = (res) => res.body.params.issue.code;
 
   /* ----- Каталог ----- */
 
-  test("Каталог: справочник говорит, что исполняет система; способы запуска и виды целей объявлены", async () => {
+  test("Каталог: события и действия объектов — в описаниях видов; в справочнике — способы запуска, области целей, действия без объекта", async () => {
     const env = await makeEnv();
     const r = await env.ok("GET", "/reference");
-    assert.ok(r.ruleStarts.length > 0 && r.ruleTargets.kinds.length > 0 && r.ruleActions.length > 0, "каталог не пуст");
-    assert.ok(r.ruleTargets.kinds.every((k) => ["device", "folder", "server", "domain"].includes(k)), "виды целей — из контракта");
+    assert.ok(r.ruleStarts.length > 0 && r.ruleTargets.areas.length > 0 && r.ruleActions.length > 0, "каталог не пуст");
+    assert.ok(r.ruleTargets.areas.every((k) => ["folder", "server", "domain"].includes(k)), "области целей — из контракта");
+    assert.ok(!("ruleTriggers" in r) && !("eventKinds" in r) && r.ruleActions.every((a) => !("deviceTypes" in a)), "событий и действий устройств в справочнике нет");
+    const camera = await env.ok("GET", "/kinds/camera");
+    assert.ok(camera.events.some((e) => e.id === "motion" && e.ends) && camera.actions.some((a) => a.id === "record" && a.ruleAction && a.ruleOnly), "у камеры: события и действия правил");
   });
 
   test("Каталог: включённое вне каталога — 422 NOT_SUPPORTED с полем и причиной, выключенное хранится и читается", async () => {
-    const wall = ref.ruleActions.find((a) => a.action === "preset");
     const env = await makeEnv({ fixturePatch: noAction("preset") });
-    const s = { source: "vms", action: "preset", target: dev(cam.id), preset: 1 };
+    const s = act("preset", dev(cam.id), { preset: 1 });
     const bad = await env.call("POST", "/rules", blank({ steps: [s] }));
     assert.status(bad, 422, "NOT_SUPPORTED");
-    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.action], ["steps", "action.notDeclared", wall.action], "шаг и причина");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.action], ["steps", "action.notDeclared", "preset"], "шаг и причина");
     const off = await env.call("POST", "/rules", blank({ enabled: false, steps: [s] }));
     assert.status(off, 201, null, "выключенное хранится");
     const read = await env.ok("GET", `/rules/${off.body.id}`);
@@ -56,11 +70,15 @@
   });
 
   test("Каталог: способ запуска, вид цели, «устройство из события», значение и поле действия", async () => {
-    const env = await makeEnv({ fixturePatch: { reference: {
-      ruleStarts: ["manual", "event"],
-      ruleTargets: { kinds: ["device"], fromEvent: false },
-      ruleActions: ref.ruleActions.map((a) => (a.action === "record" ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "afterSec").map((f) => (f.id === "duration" ? Object.assign({}, f, { options: ["min"] }) : f)) }) : a)),
-    } } });
+    // Запись — только на минуты: у действия record камеры нет afterSec, duration — только min
+    const minutesOnly = (k) => {
+      (k.actions || []).filter((a) => a.id === "record" && a.ruleAction).forEach((a) => {
+        delete a.params.properties.afterSec;
+        a.params.properties.duration.enum = ["min"];
+      });
+      return k;
+    };
+    const env = await makeEnv({ fixturePatch: { kinds: kindsWith(minutesOnly), reference: { ruleStarts: ["manual", "event"], ruleTargets: { areas: [], fromEvent: false } } } });
     const say = async (over, field, code) => {
       const res = await env.call("POST", "/rules", blank(over));
       assert.status(res, 422, "NOT_SUPPORTED", code);
@@ -68,19 +86,19 @@
     };
     await say({ start: "schedule", runMode: "always", runAt: { days: [1], time: "10:00" } }, "start", "rule.startNotDeclared");
     const folder = FX.folders[0];
-    await say({ steps: [Object.assign({}, step, { target: { include: [{ kind: "folder", id: folder.id }], exclude: [], gone: [], fromEvent: false } })] }, "steps", "target.notDeclared");
-    await say({ steps: [Object.assign({}, step, { target: { include: [], exclude: [], gone: [], fromEvent: true } })] }, "steps", "target.notDeclared");
-    await say({ steps: [Object.assign({}, step, { duration: "event" })] }, "steps", "action.fieldNotDeclared");
-    await say({ steps: [Object.assign({}, step, { afterSec: 5 })] }, "steps", "action.fieldNotDeclared");
+    await say({ steps: [at_(step, area("folder", folder.id))] }, "steps", "target.notDeclared");
+    await say({ steps: [at_(step, { include: [], exclude: [], gone: [], fromEvent: true })] }, "steps", "target.notDeclared");
+    await say({ steps: [with_(step, { duration: "event" })] }, "steps", "action.fieldNotDeclared");
+    await say({ steps: [with_(step, { afterSec: 5 })] }, "steps", "action.fieldNotDeclared");
     assert.status(await env.call("POST", "/rules", blank()), 201, null, "объявленное сохраняется");
   });
 
   test("Каталог: событие и условие вне справочника — поле раздела", async () => {
-    const env = await makeEnv({ fixturePatch: { reference: {
-      ruleTriggers: ref.ruleTriggers.filter((t) => t.kind !== "motion"),
-      ruleConditions: ref.ruleConditions.filter((c) => c.kind !== "online"),
-    } } });
-    const tr = { source: "det", kind: "motion", target: dev(cam.id), match: {} };
+    const env = await makeEnv({ fixturePatch: {
+      kinds: kindsWith((k) => Object.assign(k, k.events ? { events: k.events.filter((e) => e.id !== "motion") } : {})),
+      reference: { ruleConditions: ref.ruleConditions.filter((c) => c.kind !== "online") },
+    } });
+    const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: {} };
     const a = await env.call("POST", "/rules", blank({ start: "event", runMode: "always", triggers: [tr] }));
     assert.status(a, 422, "NOT_SUPPORTED");
     assert.eq([a.body.field, issue(a)], ["triggers", "trigger.notDeclared"], "событие");
@@ -125,35 +143,35 @@
     const dev0 = FX.devices.find((d) => d.type === "camera" && d.presetMax && d.online);
     if (!dev0) return;
     const env = await makeEnv();
-    const on = await env.ok("POST", "/rules", blank({ steps: [{ source: "vms", action: "preset", target: dev(dev0.id), preset: dev0.presetMax + 1 }] }));
+    const on = await env.ok("POST", "/rules", blank({ steps: [act("preset", dev(dev0.id), { preset: dev0.presetMax + 1 })] }));
     assert.eq(on.status.state, "unfit", "не годится");
     assert.ok(on.status.reason.includes(String(dev0.presetMax + 1)), "причина: " + on.status.reason);
   });
 
   test("Правило: уточнение события открыто — любой ключ, тип значения сохраняется, сравнение строгое", async () => {
     const env = await makeEnv();
-    const tr = { source: "det", kind: "motion", target: dev(cam.id), match: { pass: 3 } };
+    const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: { pass: 3 } };
     const made = await env.ok("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] }));
     assert.eq((await env.ok("GET", `/rules/${made.id}`)).triggers[0].match, { pass: 3 }, "как есть, числом");
-    const run = (value) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "det", kind: "motion", deviceId: cam.id, match: { pass: value } }], at: null, branches: {}, log: false });
+    const run = (value) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "unit", event: "motion", deviceId: cam.id, match: { pass: value } }], at: null, branches: {}, log: false });
     assert.ok((await run(3)).checks.some((c) => c.code === "event.came"), "число совпало");
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
   });
 
   /* ----- Действия детектора ----- */
 
-  const detect = (over) => Object.assign({ source: "det", action: "detect", target: dev(cam.id), detectorKind: "motion", minutes: 10 }, over || {});
-  const scan = (over) => Object.assign({ source: "det", action: "scan", target: dev(cam.id), detectorKind: "motion" }, over || {});
+  const detect = (over, target) => act("detect", target || dev(cam.id), Object.assign({ detectorKind: "motion", minutes: 10 }, over));
+  const scan = (over, target) => act("scan", target || dev(cam.id), Object.assign({ detectorKind: "motion" }, over));
 
   test("Детектор на время и проверка архива: в каталоге, сохраняются, выполняются в запуске", async () => {
     const env = await makeEnv();
-    const r = await env.ok("GET", "/reference");
-    const a = r.ruleActions.find((x) => x.action === "detect"), b = r.ruleActions.find((x) => x.action === "scan");
-    assert.eq([a.source, b.source, a.deviceTypes, b.fields.map((f) => f.id)], ["det", "det", ["camera"], ["target", "detectorKind", "beforeSec", "afterSec", "archive", "params"]], "каталог");
-    assert.ok(a.fields.find((f) => f.id === "detectorKind").options.includes("motion"), "виды — из справочника");
+    const camera = await env.ok("GET", "/kinds/camera");
+    const a = camera.actions.find((x) => x.id === "detect"), b = camera.actions.find((x) => x.id === "scan");
+    assert.eq([a.ruleAction, b.ruleAction, Object.keys(b.params.properties), a.params.required], [true, true, ["detectorKind", "beforeSec", "afterSec", "archive", "params"], ["detectorKind", "minutes"]], "каталог — действия вида");
+    assert.ok(a.params.properties.detectorKind.enum.includes("motion"), "виды детекторов — перечисление параметра");
     const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && d.archiveId);
-    const made = await env.ok("POST", "/rules", blank({ steps: [detect({ target: dev(c.id), params: "{\"limit\":3}" }), scan({ target: dev(c.id), beforeSec: 30, afterSec: 90, archive: c.archiveId })] }));
-    assert.eq([made.steps[1].beforeSec, made.steps[1].afterSec, made.steps[0].params], [30, 90, "{\"limit\":3}"], "поля");
+    const made = await env.ok("POST", "/rules", blank({ steps: [detect({ params: "{\"limit\":3}" }, dev(c.id)), scan({ beforeSec: 30, afterSec: 90, archive: c.archiveId }, dev(c.id))] }));
+    assert.eq([made.steps[1].params.beforeSec, made.steps[1].params.afterSec, made.steps[0].params.params], [30, 90, "{\"limit\":3}"], "поля");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq(f.steps.map((s) => [s.action.action, s.state]), [["detect", "ok"], ["scan", "ok"]], "трасса");
   });
@@ -175,7 +193,7 @@
     const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !d.archiveId && !(d.extraArchives || []).length);
     if (!c) return;
     const env = await makeEnv();
-    const made = await env.ok("POST", "/rules", blank({ steps: [scan({ target: dev(c.id) })] }));
+    const made = await env.ok("POST", "/rules", blank({ steps: [scan({}, dev(c.id))] }));
     assert.eq(made.status.state, "unfit", "не годится");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq([f.steps[0].state, f.steps[0].reason.code, f.result], ["fail", "target.noRecord", "fail"], "шаг");
@@ -191,26 +209,26 @@
     const other = FX.devices.find((d) => d.type === "camera" && d.domainId === f.domainId && !f.deviceIds.includes(d.id));
     if (!other) return;
     const env = await makeEnv();
-    const area = { include: [{ kind: "folder", id: f.id }], exclude: [], gone: [], fromEvent: false };
-    const made = await env.ok("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: area })] }));
+    const made = await env.ok("POST", "/rules", blank({ steps: [at_(step, area("folder", f.id))] }));
     const n0 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
-    await env.ok("POST", `/folders/${f.id}/devices`, { add: [other.id], remove: [] });
+    const u = await env.ok("GET", `/units/${other.id}`);
+    await env.ok("PATCH", `/units/${other.id}`, { folders: (u.folders || []).concat(f.id) }, { "If-Match": `"${u.version}"` });
     const n1 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
     assert.eq([n1, (await env.ok("GET", `/rules/${made.id}`)).version], [n0 + 1, made.version], "шаг на новую камеру, версия та же");
-  });
+  }, { needs: ["patchUnit"] });
 
   test("Права: автор отвечает за всё, что называет правило; нет права — 403, ничего не записано", async () => {
     const env = await makeEnv({ actAs: guard.login });
     const before = (await env.list("/rules")).length;
     const bad = await env.call("POST", "/rules", blank());
     assert.status(bad, 403, "PERMISSION_DENIED");
-    assert.eq(bad.body.params.target, { kind: "device", id: cam.id }, "что именно");
+    assert.eq(bad.body.params.target, { uid: cam.id }, "что именно");
     assert.eq((await env.list("/rules")).length, before, "не записано");
-    const dom = await env.call("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: { include: [{ kind: "domain", id: FX.domains[0].id }], exclude: [], gone: [], fromEvent: false } })] }));
+    const dom = await env.call("POST", "/rules", blank({ steps: [at_(step, area("domain", FX.domains[0].id))] }));
     assert.status(dom, 403, "PERMISSION_DENIED", "весь домен — нужно право на всё");
     const r = FX.rules.find((x) => x.name === "Охрана входа ночью");
     assert.status(await env.call("PUT", `/rules/${r.id}`, body(r, { name: "Чужое" }), etag(r)), 403, "PERMISSION_DENIED", "правка правила с чужой камерой");
-    const tr = { source: "det", kind: "motion", target: dev(cam.id), match: {} };
+    const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: {} };
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] })), 403, "PERMISSION_DENIED", "и у выключенного, и в событии");
   });
 
@@ -219,16 +237,16 @@
     const id = Object.keys(own.objectAccess).find((k) => (own.objectAccess[k].cam === "FULL") && FX.devices.some((d) => d.id === k && d.type === "camera"));
     if (!id) return;
     const env = await makeEnv({ actAs: guard.login });
-    const res = await env.call("POST", "/rules", blank({ enabled: false, steps: [Object.assign({}, step, { target: dev(id) })] }));
+    const res = await env.call("POST", "/rules", blank({ enabled: false, steps: [at_(step, dev(id))] }));
     assert.status(res, 201, null, "камера, где у роли FULL");
   });
 
   test("Права: роль запуска ограничивает выполнение; автор выбирает любую роль; нет роли — 422", async () => {
     const env = await makeEnv();
-    const weak = roleOf((x) => !x.global.unr && x.global.dCam === "MON" && !x.objectAccess[cam.id]);
+    const weak = roleOf((x) => !x.global.unr && x.kindAccess.cam === "MON" && !x.objectAccess[cam.id]);
     const c2 = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !FX.folders.some((f) => f.deviceIds.includes(d.id) && weak.folderAccess[f.id]) );
     if (!c2) return;
-    const s = Object.assign({}, step, { target: dev(c2.id) });
+    const s = at_(step, dev(c2.id));
     const free = await env.ok("POST", "/rules", blank({ steps: [s] }));
     assert.eq((await env.ok("POST", `/rules/${free.id}/run`, { idempotencyKey: ApiTest.key() })).steps[0].state, "ok", "от имени системы — без ограничений");
     const made = await env.ok("POST", "/rules", blank({ runAsRoleId: weak.id, steps: [s] }));
@@ -244,8 +262,8 @@
 
   const base = FX.rules.find((r) => r.name === "Тревога на периметре");
   const other = FX.access.users.find((u) => u.login === "commissioning");
-  const act = (id) => ({ source: "rec", action: "record", target: dev(id), duration: "min", minutes: id === cam.id ? 5 : 6 });
-  const ask = (over) => Object.assign({ control: "ask", text: "Подтвердить: {правило}?", roleId: guardRole, sec: 60, default: "no", yes: [act(cam.id)], no: [] }, over || {});
+  const rec = (id) => act("record", dev(id), { duration: "min", minutes: id === cam.id ? 5 : 6 });
+  const ask = (over) => Object.assign({ control: "ask", text: "Подтвердить: {правило}?", roleId: guardRole, sec: 60, default: "no", yes: [rec(cam.id)], no: [] }, over || {});
   const levels = (a, b) => [{ roleId: a, via: "client", waitMin: 5 }, { roleId: b, via: "client", waitMin: 10 }];
   const escalate = (over) => Object.assign({ control: "escalate", levels: levels(guardRole, other.roleIds[0]), stop: "ack" }, over || {});
   // Правило набора с нужными шагами: заводить его через API нельзя — автор и оператор разные люди
@@ -297,7 +315,7 @@
   }, { needs: PROMPTS });
 
   test("Вопрос: ответ «нет» — ветка «нет», «да» пропущена", async () => {
-    const env = await envWith({ steps: [ask({ yes: [], no: [act(cam.id)] })] });
+    const env = await envWith({ steps: [ask({ yes: [], no: [rec(cam.id)] })] });
     const f = await run(env);
     const [p] = await env.list("/rule-prompts");
     assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" }), 202);
@@ -346,7 +364,7 @@
   }, { needs: [...PROMPTS, "clock"] });
 
   test("Вопрос: шаг за шагом — второй вопрос после первого, вложенный в ветку", async () => {
-    const env = await envWith({ steps: [ask({ yes: [ask({ text: "Ещё раз?", yes: [act(cam.id)] })] }), step] });
+    const env = await envWith({ steps: [ask({ yes: [ask({ text: "Ещё раз?", yes: [rec(cam.id)] })] }), step] });
     const f = await run(env);
     const [p] = await env.list("/rule-prompts");
     await env.ok("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" });
@@ -431,7 +449,7 @@
 
   test("Эскалация: stop: reset — конец события останавливает, вопросы закрываются с reason: reset", async () => {
     const sensor = FX.devices.find((d) => d.type === "sensor");
-    const tr = { source: "vms", kind: "io.input", target: dev(sensor.id), match: { value: "active" } };
+    const tr = { source: "unit", kinds: ["sensor"], event: "io.input", target: dev(sensor.id), match: { value: "active" } };
     const env = await envWith({ start: "event", runMode: "always", triggers: [tr], steps: [escalate({ stop: "reset" }), step] });
     const seen = [];
     const stop = ApiTest.subscribeForTest((m) => m.type === "prompt.closed" && seen.push(m.payload.reason));
@@ -472,8 +490,8 @@
     await off((env, r) => env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r.id, version: r.version, set: { enabled: false } }] }));
     await off((env, r) => env.ok("POST", "/objects/delete", { idempotencyKey: ApiTest.key(), items: [{ id: r.id, version: r.version }] }));
     await off(async (env, r) => {
-      const camera = r.steps[0].yes[0].target.include[0].id;
-      await env.ok("DELETE", `/devices/${camera}`, undefined, { "If-Match": await env.etag(`/devices/${camera}`) });
+      const camera = r.steps[0].yes[0].target.include[0].uid;
+      await env.ok("DELETE", `/units/${camera}`, undefined, { "If-Match": await env.etag(`/units/${camera}`) });
     });
     const env = await envWith({ steps: [ask()] }, { login: "root" });
     await run(env);
@@ -511,10 +529,10 @@
 
   /* ----- Домен ----- */
 
-  test("Тревожные виды на весь домен: Settings.values, только из reference.eventKinds", async () => {
+  test("Тревожные виды на весь домен: Settings.values, только из событий видов (UnitKind.events)", async () => {
     const env = await makeEnv();
     const s = await env.ok("GET", "/settings");
-    const kinds = (await env.ok("GET", "/reference")).eventKinds;
+    const kinds = (await env.ok("GET", "/kinds/camera")).events.map((e) => e.id);
     const done = await env.ok("PATCH", "/settings", { values: { "alarms.domain": kinds.slice(0, 2) } }, etag(s));
     assert.eq(done.values["alarms.domain"], kinds.slice(0, 2), "сохранено");
     const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["нет такого"] } }, etag(done));
@@ -526,20 +544,20 @@
     const cams = (d) => FX.devices.filter((x) => x.type === "camera" && x.domainId === d.id);
     const [a, b] = FX.domains.filter((d) => cams(d).length).map((d) => cams(d)[0]);
     const free = await makeEnv();
-    const any = await free.call("POST", "/rules", blank({ steps: [Object.assign({}, step, { target: dev(a.id) }), Object.assign({}, step, { target: dev(b.id) })] }));
+    const any = await free.call("POST", "/rules", blank({ steps: [at_(step, dev(a.id)), at_(step, dev(b.id))] }));
     assert.status(any, 201, null, "поля нет — ограничения нет");
     const env = await makeEnv({ fixturePatch: { reference: { ruleCrossDomainActions: ["preset", "output"] } } });
-    const preset = (id) => ({ source: "vms", action: "preset", target: dev(id), preset: 1 });
+    const preset = (id) => act("preset", dev(id), { preset: 1 });
     assert.status(await env.call("POST", "/rules", blank({ steps: [preset(a.id), preset(b.id)] })), 201, null, "пресеты");
-    const bad = await env.call("POST", "/rules", blank({ steps: [preset(a.id), Object.assign({}, step, { target: dev(b.id) })] }));
+    const bad = await env.call("POST", "/rules", blank({ steps: [preset(a.id), at_(step, dev(b.id))] }));
     assert.status(bad, 422, "NOT_SUPPORTED");
     assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.step], ["steps", "rule.crossDomain", "record"], "шаг");
-    assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [preset(a.id), Object.assign({}, step, { target: dev(b.id) })] })), 201, null, "выключенное хранится");
+    assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [preset(a.id), at_(step, dev(b.id))] })), 201, null, "выключенное хранится");
     const srv = FX.servers.find((s) => s.domainId !== b.domainId);
-    const home = await env.call("POST", "/rules", blank({ serverId: srv.id, steps: [Object.assign({}, step, { target: dev(b.id) })] }));
+    const home = await env.call("POST", "/rules", blank({ serverId: srv.id, steps: [at_(step, dev(b.id))] }));
     assert.status(home, 422, "VALIDATION_FAILED");
     assert.eq(home.body.field, "serverId", "цели в другом домене");
-  }, { needs: ["createDomain"] });
+  }, { needs: ["cap:domain:create"] });
 
   ApiTest.loaded("api-automation.js");
 })();

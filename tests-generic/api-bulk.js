@@ -11,19 +11,21 @@
 
   test("Групповое удаление: устройства, папка, том одним запросом; дочернее удалённого родителя — тоже удалено", async () => {
     const env = await makeEnv();
-    // Том — только в системе, где тома удаляют (deleteVolume): иначе у хранилища ровно один том
-    const gone = [["devices", nvr], ["devices", nvrKid], ["folders", folder]].concat(ApiTest.can("deleteVolume") ? [["volumes", vol]] : []);
+    // Том — только в системе, где тома удаляют (у вида volume есть delete): иначе у хранилища ровно один том
+    const volumes = await env.call("GET", "/kinds/volume");
+    const delVolume = volumes.status === 200 && (volumes.body.capabilities || []).includes("delete");
+    const gone = [["devices", nvr], ["devices", nvrKid], ["folders", folder]].concat(delVolume ? [["volumes", vol]] : []);
     const res = await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: gone.map(([, r]) => ({ id: r.id, version: r.version })).concat([
       { id: cam.id, version: "stale" },
       { id: "30009999-0000-4000-8000-000000000000", version: "1" },
     ]) });
     assert.eq(res.done, gone.map(([, r]) => r.id), "удалено");
     assert.eq(res.failed.map((f) => f.code), ["VERSION_MISMATCH", "NOT_FOUND"], "отказы");
-    for (const [path, id] of gone.map(([table, r]) => [table, r.id])) {
-      assert.status(await env.call("GET", `/${path}/${id}`), 404, "NOT_FOUND", `${path} ${id}`);
+    for (const [table, id] of gone.map(([t, r]) => [t, r.id])) {
+      assert.status(await env.call("GET", `/units/${id}`), 404, "NOT_FOUND", `${table} ${id}`);
     }
-    assert.status(await env.call("GET", `/devices/${cam.id}`), 200, null, "устаревшая версия — не тронут");
-  });
+    assert.status(await env.call("GET", `/units/${cam.id}`), 200, null, "устаревшая версия — не тронут");
+  }, { needs: ["deleteObjects", "getKind"] });
 
   test("Групповое удаление: хранилище — камеры переходят на следующее или перестают писать, как у одиночного", async () => {
     const env = await makeEnv();
@@ -31,18 +33,18 @@
     const c = FX.devices.find((d) => d.archiveId === a.id);
     const res = await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: [{ id: a.id, version: a.version }] });
     assert.eq(res.done, [a.id], "удалено");
-    assert.eq((await env.ok("GET", `/devices/${c.id}`)).archiveId, null, "камера не пишет в удалённое");
-    assert.eq((await env.list("/volumes")).filter((v) => v.archiveId === a.id).length, 0, "тома удалены");
-  });
+    assert.eq((await env.ok("GET", `/units/${c.id}`)).properties.archiveId, null, "камера не пишет в удалённое");
+    assert.eq((await env.list(`/units?kind=volume&parentId=${a.id}`)).length, 0, "тома удалены");
+  }, { needs: ["deleteObjects"] });
 
   test("Правка выборки: включить, учётные данные, папка, детектор — одной операцией, «Отменить» возвращает всё", async () => {
     const env = await makeEnv();
     const cams = FX.devices.filter((d) => d.type === "camera" && !d.parentId && FX.servers.find((s) => s.id === d.serverId)?.online).slice(0, 2);
     const f = FX.folders.find((x) => x.domainId === cams[0].domainId && !cams.some((c) => x.deviceIds.includes(c.id)));
     const items = cams.flatMap((c) => [
-      { targetId: c.id, set: { login: "op", password: "p" } },
-      { targetId: c.id, folderIds: FX.folders.filter((x) => x.deviceIds.includes(c.id)).map((x) => x.id).concat(f.id) },
-      { targetId: c.id, create: { type: "det", name: "Пересечение линии", detectorKind: "linecross", sensitivity: 12 } },
+      { uid: c.id, patch: { properties: { login: "op", password: "p" } } },
+      { uid: c.id, folders: FX.folders.filter((x) => x.deviceIds.includes(c.id)).map((x) => x.id).concat(f.id) },
+      { uid: c.id, createUnit: { kind: "det", name: "Пересечение линии", properties: { detectorKind: "linecross", sensitivity: 12 } } },
     ]);
     const op = await env.runOperation({ idempotencyKey: key(), items, expectedVersions: Object.fromEntries(cams.map((c) => [c.id, c.version])) });
     assert.eq([op.ok, op.failed], [6, 0], "выполнено");
@@ -51,9 +53,9 @@
     const done = await env.finished(back.id);
     assert.eq([done.ok, done.failed], [2, 4], "детекторы сняты; папки и пароли вне отката");
     assert.eq(done.items.filter((x) => x.state === "fail").every((x) => x.code === "NOT_SUPPORTED"), true, "причина шага");
-    const kids = (await env.list("/devices")).filter((d) => d.parentId === cams[0].id && d.detectorKind === "linecross" && d.name === "Пересечение линии");
+    const kids = (await env.list(`/units?parentId=${cams[0].id}&kind=det`)).filter((d) => d.properties.detectorKind === "linecross" && d.name === "Пересечение линии");
     assert.eq(kids.length, 0, "созданные детекторы удалены");
-  });
+  }, { needs: ["createOperation", "revertOperation"] });
 
   ApiTest.loaded("api-bulk.js");
 })();

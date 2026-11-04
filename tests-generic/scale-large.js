@@ -4,7 +4,7 @@
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
   const MB = 1024 * 1024, trace = window.CONSOLEM_TRACE;
-  const LISTS = /^\/(devices|folders|archives|volumes|journal|operations|access\/\w+|tree\/children)(\?|$)/;
+  const LISTS = /^\/(units|devices|folders|archives|volumes|journal|operations|access\/\w+|tree\/children)(\?|$)/;
   const sizeOk = (from) => trace.slice(from).every((x) => x.bytes <= MB);
   const big = (from) => Math.max(0, ...trace.slice(from).map((x) => x.bytes));
   // Старт
@@ -17,22 +17,28 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => trace.some((x) => x.path === PROMPTS && x.status === 200)), "вопросы операторам прочитаны: чтение отложено, а не отключено");
   const treeLast = trace.map((x) => /^\/tree\/children/.test(x.path)).lastIndexOf(true, start);
   ok(trace.findIndex((x) => x.path === PROMPTS) > treeLast, "вопросы читаются после старта, а не в нём");
-  // Перечень одного сервера или хранилища — не перечень домена: он ограничен и читается с раскрытой веткой
-  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path));
+  // Перечень одного сервера или хранилища — не перечень домена: он ограничен и читается с раскрытой веткой. В ядре это
+  // член parentId с профилем хранилища или тома (в базе /archives?serverId=, /volumes?archiveId=). Домены и серверы
+  // читаются целиком, как /domains и /servers в базе (их там нет в LISTS): GET /units только по профилям vms.domain/1, vms.server/1
+  const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
+  const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
+  const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
+  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path) && !oneMember(x.path) && !infra(x.path));
   ok(!whole.length, "старт: ни один перечень не прочитан до конца: " + whole.map((x) => x.path).join(" "));
   ok(!trace.some((x) => /\/discovery|\/journal|\/licenses|\/fires|\/versions|\/access\/users/.test(x.path)), "старт: поиск, журнал, лицензии, история правил и люди не читаются");
   const d = domains[0];
   ok(d.summary && d.summary.total > 240000 && d.summary.at, `итог домена: всего ${d.summary?.total}, без связи ${d.summary?.offline}`);
   ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent), "число без фильтра — со знаком ≈: " + document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent);
   ok(d.servers.length === 500 && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
-  // Камеры-кластеры: под доменом, порядок не алфавитный, строка r<revision>
+  // Камеры-кластеры: под доменом, порядок не алфавитный, строка (в базе версия r<revision>; в ядре у строки и полной
+  // записи одна Unit.version — строку отличает _row: полную запись ещё не читали)
   const domBranch = treeBr.get("servers|" + d.id);
   ok(domBranch && domBranch.count > 200000 && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
   let mark = trace.length;
   let guard = 0;
   while (!devicePool.some((n) => !n.srvId) && guard++ < 5) await treeMore(d.id);
   const loose = devicePool.filter((n) => !n.srvId && n.type === "camera");
-  ok(loose.length > 0 && loose.every((n) => /^r\d+$/.test(hwVer.get(n.id)) && n._more), `камеры-кластеры подгружены, версия ${hwVer.get(loose[0]?.id)}, стрелка «может быть»`);
+  ok(loose.length > 0 && loose.every((n) => n._row && hwVer.has(n.id) && n._more), `камеры-кластеры подгружены строкой, версия ${hwVer.get(loose[0]?.id)}, стрелка «может быть»`);
   const names = loose.map((n) => n.name);
   ok(names.join() !== names.slice().sort().join(), "порядок под доменом — не алфавит");
   ok(sizeOk(mark), "подгрузка: ответы не больше 1 МБ");
@@ -76,7 +82,7 @@ UiCheck(async ({ ok, until }) => {
   mark = trace.length;
   setTreeQ("Камера 000123");
   ok(await until(() => fs && fs.done, 170000), "поиск дошёл до конца");
-  const waves = trace.slice(mark).filter((x) => /^\/devices\?/.test(x.path));
+  const waves = trace.slice(mark).filter((x) => /^\/(units|devices)\?/.test(x.path));
   ok(waves.length > 100 && waves.some((x) => x.empty && x.more) && sizeOk(mark), `волн ${waves.length}, пустые страницы с nextCursor есть`);
   ok(fs.hits.size === 1 && !fs.flat, `найдено ${fs.hits.size}: дошло до конца и до idsMax — дерево`);
   setTreeQ("");
@@ -124,7 +130,15 @@ UiCheck(async ({ ok, until }) => {
   mark = trace.length;
   const cached = devicePool.length;
   await apiReload();
-  ok(!trace.slice(mark).some((x) => /\/devices\?limit=1000|\/tree\/children\?layout=\w+$/.test(x.path)) && sizeOk(mark), "stream.reset: весь перечень не читается");
+  // Перечень домена — GET /units без отбора, сужающего его до ветки или списка (parentId, ids, folderId, serverId, archiveId,
+  // ref, q; виртуальные группы noRecord, noFolder, noDetector — ветки дерева): при любом порядке ключей и с kind=/implements=
+  // тоже. Не перечень: домены и серверы целиком — infra(), как на старте; первая страница папок, хранилищ и томов — infraPage()
+  // (hwRead: 200 строк или конец, без limit — как первая страница /folders, /archives, /volumes в базе)
+  const NARROW = ["parentId", "ids", "folderId", "serverId", "archiveId", "ref", "q", "noRecord", "noFolder", "noDetector"];
+  const infraPage = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "cursor"].includes(k)) && !!im[0] && im.every((p) => ["vms.folder/1", "vms.archive/1", "vms.volume/1"].includes(p)); };
+  const domainList = (x) => { const q = unitsQ(x.path); return x.method === "GET" && (x.path === "/units" || !!q && !NARROW.some((k) => q.has(k)) && !infra(x.path) && !infraPage(x.path)); };
+  const reread = trace.slice(mark).filter((x) => domainList(x) || /\/tree\/children\?layout=\w+$/.test(x.path));
+  ok(!reread.length && sizeOk(mark), "stream.reset: весь перечень не читается: " + reread.map((x) => x.path).join(" "));
   ok(Math.abs(devicePool.length - cached) <= 200, `кэш тот же: ${cached} → ${devicePool.length}, запросов ${trace.length - mark}`);
   // Закладка «Просмотр»: только эта камера. Шкала и удержания — страницами, по открытию и по окну, перечней домена нет, таймера нет
   open.add(d.servers[0].id);
@@ -137,7 +151,8 @@ UiCheck(async ({ ok, until }) => {
   goTab("view");
   ok(await until(() => lv?.viewOn && !lv.tl.busy && lv.holds), "«Просмотр»: шкала прочитана на большом домене");
   await until(() => lv.noHolder !== undefined);
-  const noList = (from) => trace.slice(from).filter((x) => !/^\/(devices\/[^/?]+\/(live|timeline|holds|bookmarks)|devices\?parentId|journal\?deviceId|archives\?kind=incidents|volumes\?archiveId)/.test(x.path));
+  // Держатель удержаний — хранилища копий домена по виду (kind+domainId), прежде — по профилю (как /archives?kind=incidents базы — таблица хранилищ), тома — parentId
+  const noList = (from) => trace.slice(from).filter((x) => !/^\/((units|devices)\/[^/?]+\/(live|timeline|holds|bookmarks)|(units|devices)\?parentId|journal\?deviceId|units\?implements=vms\.archive%2F1&limit=\d+&domainId=|units\?kind=[\w.%]+&limit=\d+&domainId=|archives\?kind=incidents|volumes\?archiveId)/.test(x.path));
   ok(!noList(mark).length, "«Просмотр»: только двери этой камеры: " + noList(mark).map((x) => x.path).join(" "));
   ok(trace.length - mark <= 8 && sizeOk(mark), `«Просмотр»: открытие — ${trace.length - mark} запросов, самый большой ответ ${big(mark)} байт`);
   const tlRead = () => trace.filter((x) => /\/timeline/.test(x.path)).length;
@@ -153,7 +168,7 @@ UiCheck(async ({ ok, until }) => {
   ok(trace.length - mark === 1 && !noList(mark).length, `живое: только POST /live, запросов ${trace.length - mark}`);
   liveStop();
   // Удержания страницами: 120 штук, форма читает первую страницу и дочитывает по кнопке
-  for (let i = 0; i < 120; i++) await API.post(`/devices/${rc.id}/holds`, { from: new Date(16e11 + i * 36e5).toISOString(), to: new Date(16e11 + i * 36e5 + 6e5).toISOString() });
+  for (let i = 0; i < 120; i++) await API.post(`/units/${rc.id}/holds`, { from: new Date(16e11 + i * 36e5).toISOString(), to: new Date(16e11 + i * 36e5 + 6e5).toISOString() });
   await new Promise((r) => setTimeout(r, 1000));
   mark = trace.length;
   holdsRead(lv);

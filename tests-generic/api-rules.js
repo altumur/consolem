@@ -12,11 +12,12 @@
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain"];
   const body = (r, over) => Object.assign(Object.fromEntries(CONTENT.map((k) => [k, JSON.parse(JSON.stringify(r[k]))])), over || {});
   const etag = (r) => ({ "If-Match": `"${r.version}"` });
-  const dev = (id) => ({ include: [{ kind: "device", id }], exclude: [], gone: [], fromEvent: false });
+  // Цель — объект по uid
+  const dev = (uid) => ({ include: [{ uid }], exclude: [], gone: [], fromEvent: false });
   const cam = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled);
   const blank = (over) => Object.assign({
     name: "Тест", enabled: false, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0,
-    runAt: null, repeat: "skip", triggers: [], conditions: [], steps: [{ source: "rec", action: "record", target: dev(cam.id), duration: "min", minutes: 5 }],
+    runAt: null, repeat: "skip", triggers: [], conditions: [], steps: [{ type: "unitAction", action: "record", target: dev(cam.id), params: { duration: "min", minutes: 5 } }],
     owner: "admin", purpose: "", serverId: null, runAsRoleId: null, allowChain: true,
   }, over || {});
 
@@ -42,9 +43,9 @@
     assert.status(await env.call("PUT", `/rules/${r1.id}`, body(cur), { "If-Match": '"stale"' }), 412, "VERSION_MISMATCH");
     assert.status(await env.call("PUT", `/rules/${r1.id}`, body(cur, { name: " " }), etag(cur)), 422, "NAME_REQUIRED");
     assert.status(await env.call("PUT", `/rules/${r1.id}`, body(cur, { ratePerMinute: 0 }), etag(cur)), 422, "VALIDATION_FAILED", "потолок — от 1");
-    assert.status(await env.call("PUT", `/rules/${r1.id}`, body(cur, { steps: [{ source: "vms", action: "output", port: "2" }] }), etag(cur)), 422, "VALIDATION_FAILED", "номер реле — числом");
+    assert.status(await env.call("PUT", `/rules/${r1.id}`, body(cur, { steps: [{ type: "unitAction", action: "output", target: null, params: { port: "2" } }] }), etag(cur)), 422, "VALIDATION_FAILED", "номер реле — числом: тип — по схеме действия вида");
     assert.status(await env.call("PUT", "/rules/70009999-0000-4000-8000-000000000000", body(cur), { "If-Match": '"1"' }), 404, "NOT_FOUND");
-  });
+  }, { needs: ["kind:relay"] });
 
   test("Правило: создать — id, порядок и первая версия истории от сервера; удалить — с историей, журнал запусков остаётся", async () => {
     const env = await makeEnv();
@@ -161,7 +162,7 @@
 
   test("Пробный запуск: черновик на выбранных событиях — проверки событий и условий, ничего не выполняет; log — в журнал", async () => {
     const env = await makeEnv();
-    const ev = r1.triggers.map((t) => ({ source: t.source, kind: t.kind, match: t.match, deviceId: t.target.include[0].id }));
+    const ev = r1.triggers.map((t) => ({ source: t.source, event: t.event, match: t.match, deviceId: t.target.include[0].uid }));
     const at = new Date(env.now).toISOString().replace(/\.\d{3}Z$/, "Z");
     const f = await env.ok("POST", "/rules/test", { ruleId: r1.id, rule: body(r1, { name: "Черновик" }), events: ev, at, branches: { 2: "no" }, log: false });
     assert.eq(f.by, "test", "пробный");
@@ -169,7 +170,7 @@
     assert.ok(f.steps.filter((s) => !s.control).every((s) => s.state !== "ok"), "ничего не выполнено — только «выполнилось бы» или отказ");
     if (r1.steps.some((s) => s.control)) assert.ok(f.steps.some((s) => s.label && s.label.code === "branch" && s.label.params.branch === "yes"), "исход ветки — как выбран");
     assert.eq((await env.list(`/rules/${r1.id}/fires`)).length, FX.ruleFires.filter((x) => x.ruleId === r1.id).length, "без log — не в журнале");
-    const other = { source: "vms", kind: "silent", match: {}, deviceId: cam.id };
+    const other = { source: "unit", event: "silent", match: {}, deviceId: cam.id };
     const unsaved = await env.ok("POST", "/rules/test", { ruleId: null, rule: blank({ start: "event", triggers: r1.triggers.slice(0, 1) }), events: [other], at: null, branches: {}, log: false });
     assert.ok(unsaved.checks.some((c) => c.code === "event.other" && !c.ok), "событие не то — проверка не прошла");
     await env.ok("POST", "/rules/test", { ruleId: r1.id, rule: body(r1), events: ev, at: null, branches: {}, log: true });
@@ -194,11 +195,11 @@
 
   test("Удалили устройство — в правилах оно остаётся удалённым по имени: новая версия правила, история поправлена", async () => {
     const env = await makeEnv();
-    const gone = r1.steps[0].target.include.slice(-1)[0].id, name = FX.devices.find((d) => d.id === gone).name;
-    const d = await env.ok("GET", `/devices/${gone}`);
+    const gone = r1.steps[0].target.include.slice(-1)[0].uid, name = FX.devices.find((d) => d.id === gone).name;
+    const d = await env.ok("GET", `/units/${gone}`);
     await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: [{ id: gone, version: d.version }] });
     const r = await env.ok("GET", `/rules/${r1.id}`);
-    assert.eq([r.steps[0].target.include.map((x) => x.id).includes(gone), r.steps[0].target.gone], [false, [name]], "в цели — удалённое по имени");
+    assert.eq([r.steps[0].target.include.map((x) => x.uid).includes(gone), r.steps[0].target.gone], [false, [name]], "в цели — удалённое по имени");
     assert.ok(r.version !== r1.version, "версия правила новая");
     const h = await env.list(`/rules/${r1.id}/versions`);
     assert.ok(!JSON.stringify(h).includes(gone), "в версиях истории — тоже по имени");
@@ -291,19 +292,119 @@
     const env = await makeEnv();
     const rule = FX.rules[0];
     const cur = await env.ok("GET", `/rules/${rule.id}`);
-    const relay = (await env.list("/devices")).find((d) => d.type === "relay" && d.channel);
-    const step = (port) => ({ source: "vms", action: "output", pulseMs: 500, target: { include: [{ kind: "device", id: relay.id }], exclude: [], gone: [], fromEvent: false }, port });
+    const unit = (await env.list("/units?kind=relay")).find((u) => u.properties.channel);
+    const relay = { id: unit.uid, channel: unit.properties.channel };
+    const step = (port) => ({ type: "unitAction", action: "output", target: dev(relay.id), params: { state: true, pulseMs: 500, port } });
     const res = await env.call("PUT", `/rules/${rule.id}`, body(cur, { steps: [step(relay.channel + 1)] }), etag(cur));
     assert.status(res, 422, "RULE_INVALID", "номер не совпал");
     assert.eq(res.body.params.issue.code, "action.portMismatch", "что не так");
     await env.ok("PUT", `/rules/${rule.id}`, body(cur, { steps: [step(relay.channel)] }), etag(cur));
   }, { needs: ["type:relay"] });
 
-  test("Правило: варианты уточнения входа — начало и конец тревоги, номера нет", async () => {
+  test("Правило: варианты уточнения входа — начало и конец тревоги, номера нет; у события есть конец", async () => {
     const env = await makeEnv();
-    const t = (await env.ok("GET", "/reference")).ruleTriggers.find((x) => x.kind === "io.input");
-    assert.eq(t.match, [{ id: "value", options: ["active", "normal"] }], "варианты");
-  });
+    const e = (await env.ok("GET", "/kinds/sensor")).events.find((x) => x.id === "io.input");
+    assert.eq([Object.keys(e.params.properties), e.params.properties.value.enum, e.ends], [["value"], ["active", "normal"], true], "варианты — параметры события вида");
+    assert.ok(!("ruleTriggers" in (await env.ok("GET", "/reference"))), "событий объектов в справочнике нет — они в описаниях видов");
+  }, { needs: ["kind:sensor"] });
+
+  /* ----- Правила по событиям и действиям незнакомых видов ----- */
+
+  const ctrl = FX.units.find((u) => u.kind === "security_controller/CONTROLLER" && u.status.link === "online");
+  const sensor = ctrl && FX.units.find((u) => u.kind === "security_controller/SENSOR" && u.parentId === ctrl.uid);
+  const alarmRule = (over) => blank(Object.assign({ name: "Тревога датчика — на охрану", enabled: true, start: "event", runMode: "always",
+    triggers: [{ source: "unit", kinds: [sensor.kind], event: "ALARM", target: dev(sensor.uid), match: {} }],
+    steps: [{ type: "unitAction", action: "ARM", target: dev(ctrl.uid), params: {} }] }, over));
+
+  test("Правило на ALARM датчика security_controller → unitAction ARM контроллера срабатывает", async () => {
+    const env = await makeEnv();
+    const kinds = new Map((await env.ok("GET", "/kinds")).items.map((k) => [k.kind, k]));
+    assert.ok(kinds.get(sensor.kind).events.some((e) => e.id === "ALARM") && kinds.get(ctrl.kind).actions.some((a) => a.id === "ARM" && a.ruleAction), "событие и действие — из описаний видов");
+    const made = await env.ok("POST", "/rules", alarmRule());
+    assert.eq(made.status, { state: "watching", reason: "" }, "правило вне кода вида — следит");
+    assert.eq((await env.ok("GET", `/units/${ctrl.uid}`)).status.observed.armed, false, "контроллер снят с охраны");
+    assert.status(await env.call("POST", "/test/events", { type: "unit.event", deviceId: sensor.uid, eventId: "RESTORE" }), 200);
+    assert.eq((await env.list(`/rules/${made.id}/fires`)).length, 0, "другое событие правило не слышит");
+    assert.status(await env.call("POST", "/test/events", { type: "unit.event", deviceId: sensor.uid, eventId: "ALARM", match: { zone: "Периметр" } }), 200);
+    const fires = await env.list(`/rules/${made.id}/fires`);
+    assert.eq(fires.length, 1, "запуск по событию");
+    const f = fires[0];
+    assert.eq([f.by, f.events.map((e) => [e.source, e.event, e.deviceId]), f.sourceDeviceIds, f.result], ["event", [["unit", "ALARM", sensor.uid]], [sensor.uid], "ok"], "что пришло");
+    assert.eq(f.steps.map((x) => [x.action.type, x.action.action, x.deviceId, x.state]), [["unitAction", "ARM", ctrl.uid, "ok"]], "шаг — команда вида на контроллере");
+    assert.eq((await env.ok("GET", `/units/${ctrl.uid}`)).status.observed.armed, true, "контроллер на охране: команда выполнена");
+    const t = await env.ok("POST", "/rules/test", { ruleId: made.id, rule: body(made), events: [{ source: "unit", event: "ALARM", match: {}, deviceId: sensor.uid }], at: null, branches: {}, log: false });
+    assert.eq([t.checks.filter((c) => c.code === "event.came").length, t.steps[0].state], [1, "would"], "пробный запуск — на событии вида");
+  }, { needs: ["kind:security_controller/SENSOR", "kind:security_controller/CONTROLLER"] });
+
+  test("Правило с ARM: автору с kindAccess security_controller=view — 403, что именно — uid; действие и событие вне описания вида — 422", async () => {
+    const base = FX.access.roles.find((r) => !r.global.unr && !Object.keys(r.folderAccess).length);
+    const role = Object.assign(JSON.parse(JSON.stringify(base)), { id: "8fff0003-0000-4000-8000-000000000003", name: "Только смотреть", kindAccess: { security_controller: "view" } });
+    const user = Object.assign(JSON.parse(JSON.stringify(FX.access.users.find((u) => u.id !== FX.me.userId))), { id: "9fff0004-0000-4000-8000-000000000004", login: "sc-view", roleIds: [role.id], roleUntil: {} });
+    const env = await makeEnv({ actAs: user.login, fixturePatch: { access: { roles: FX.access.roles.concat([role]), users: FX.access.users.concat([user]) } } });
+    const bad = await env.call("POST", "/rules", alarmRule());
+    assert.status(bad, 403, "PERMISSION_DENIED");
+    assert.eq(bad.body.params.target, { uid: ctrl.uid }, "что именно");
+    const adm = await makeEnv();
+    const no = await adm.call("POST", "/rules", alarmRule({ steps: [{ type: "unitAction", action: "FLY", target: dev(ctrl.uid), params: {} }] }));
+    assert.status(no, 422, "NOT_SUPPORTED");
+    assert.eq([no.body.field, no.body.params.issue.code], ["steps", "action.notDeclared"], "действия у вида нет");
+    const ev = await adm.call("POST", "/rules", alarmRule({ triggers: [{ source: "unit", kinds: [ctrl.kind], event: "ALARM", target: dev(ctrl.uid), match: {} }] }));
+    assert.status(ev, 422, "NOT_SUPPORTED");
+    assert.eq([ev.body.field, ev.body.params.issue.code], ["triggers", "trigger.notDeclared"], "события у вида нет");
+  }, { needs: ["kind:security_controller/SENSOR", "kind:security_controller/CONTROLLER"] });
+
+  /* ----- Права правил — как в базе (api/rule-engine.js COMMAND, roleAllowsArea): уровни не беднеют ----- */
+
+  test("Права правил как в базе: «Пусконаладчик» (cam FULL, tel NO, pos FORBID) заводит правило по источнику событий и с пресетом", async () => {
+    const role = FX.access.roles.find((r) => r.name === "Пусконаладчик");
+    assert.eq([role.kindAccess.cam, role.kindAccess.tel, role.kindAccess.pos], ["FULL", "NO", "FORBID"], "уровни роли");
+    const src = FX.units.find((u) => u.kind === "eventsrc");
+    const ptz = FX.units.find((u) => u.kind === "camera" && u.properties.ptz);
+    const text = FX.kinds.find((k) => k.kind === "eventsrc").events.find((e) => e.id === "text");
+    const preset = FX.kinds.find((k) => k.kind === "camera").actions.find((a) => a.id === "preset");
+    assert.eq([text.right, preset.right], [{ class: "cam", level: "FULL" }, { level: "FULL" }], "право — уровень камер, как COMMAND базы");
+    const rule = blank({ name: "Чек — на пресет", triggers: [{ source: "unit", kinds: ["eventsrc"], event: "text", target: dev(src.uid), match: {} }],
+      steps: [{ type: "unitAction", action: "preset", target: dev(ptz.uid), params: { preset: 1 } }] });
+    const env = await makeEnv({ actAs: "commissioning" });
+    assert.status(await env.call("POST", "/rules", rule), 201, null, "cam FULL — можно, телеметрия и pos не нужны");
+    const view = await makeEnv({ actAs: "elena" });
+    const no = await view.call("POST", "/rules", rule);
+    assert.status(no, 403, "PERMISSION_DENIED", "cam MON — нельзя");
+    assert.eq(no.body.params.target, { uid: src.uid }, "первое, на что нет права, — источник событий");
+  }, { needs: ["kind:eventsrc"] });
+
+  test("Права правил как в базе: область (домен, папка) судится уровнем камер на ней или по умолчанию — reference.ruleTargets.areaRight", async () => {
+    const ref = await makeEnv().then((e) => e.ok("GET", "/reference"));
+    assert.eq(ref.ruleTargets.areaRight, { class: "cam", level: "FULL" }, "право на область");
+    const relay = FX.units.find((u) => u.kind === "relay");
+    const area = relay.domainId;
+    const rule = blank({ steps: [{ type: "unitAction", action: "output", target: { include: [{ area: "domain", uid: area }], exclude: [], gone: [], fromEvent: false }, params: { state: true } }] });
+    const as = async (kindAccess, folderAccess) => {
+      const base = FX.access.roles.find((r) => r.name === "Аудитор");
+      const r = Object.assign(JSON.parse(JSON.stringify(base)), { id: "8fff0006-0000-4000-8000-000000000006", name: "Реле без камер", kindAccess, folderAccess: folderAccess || {} });
+      const u = Object.assign(JSON.parse(JSON.stringify(FX.access.users.find((x) => x.login === "auditor"))), { id: "9fff0007-0000-4000-8000-000000000007", login: "relay-only", roleIds: [r.id], roleUntil: {} });
+      const env = await makeEnv({ actAs: u.login, fixturePatch: { access: { roles: FX.access.roles.concat([r]), users: FX.access.users.concat([u]) } } });
+      return env.call("POST", "/rules", rule);
+    };
+    const no = await as({ relay: "MANAGE", cam: "MON" });
+    assert.status(no, 403, "PERMISSION_DENIED", "реле — да, камер FULL нет: область не назвать");
+    assert.eq(no.body.params.target, { area: "domain", uid: area }, "что именно");
+    assert.status(await as({ relay: "MANAGE", cam: "MON" }, { [area]: { cam: "FULL" } }), 201, null, "FULL на самом домене");
+    assert.status(await as({ relay: "MANAGE", cam: "FULL" }), 201, null, "FULL по умолчанию роли");
+  }, { needs: ["kind:relay"] });
+
+  test("Событие с rule:false (abandoned камеры) триггером правила не берут; с rule по умолчанию (motion) — берут", async () => {
+    const env = await makeEnv();
+    const ev = (await env.ok("GET", "/kinds/camera")).events;
+    assert.ok(ev.find((e) => e.id === "abandoned").rule === false && ev.find((e) => e.id === "motion").rule !== false, "флаги в описании вида");
+    const trig = (event) => [{ source: "unit", kinds: ["camera"], event, target: dev(cam.id), match: {} }];
+    const steps = [{ type: "unitAction", action: "alarm", target: dev(cam.id), params: {} }];
+    const no = await env.call("POST", "/rules", blank({ name: "Брошенный предмет", enabled: true, start: "event", triggers: trig("abandoned"), steps }));
+    assert.status(no, 422, null, "rule:false — отказ");
+    assert.eq(no.body.field, "triggers", "поле");
+    const yes = await env.call("POST", "/rules", blank({ name: "Движение", enabled: true, start: "event", triggers: trig("motion"), steps }));
+    assert.ok(!(yes.body.field === "triggers"), "motion триггер принят: " + JSON.stringify(yes.body).slice(0, 160));
+  }, { needs: ["kind:camera"] });
 
   ApiTest.loaded("api-rules.js");
 })();

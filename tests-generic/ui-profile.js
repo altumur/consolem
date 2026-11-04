@@ -11,7 +11,9 @@ UiCheck(async ({ ok, until }) => {
   ok(!document.getElementById("goAsk") && /Ничего не найдено/.test(document.getElementById("gopop").textContent), "без ассистента кнопки в поиске нет");
   goClose();
   clearTreeQ();
-  ok(!can("createDomain") && !can("getDiscovery") && !can("listLicenses") && can("patchDevice"), "возможности прочитаны: операций " + CAPS.operations.size);
+  // Чего нет у системы: операций — в capabilities.operations, завести и удалить вид — в UnitKind.capabilities (create, delete)
+  ok(!canCreateKind("domain") && !canDeleteKind("domain") && !canCreateKind("volume") && !can("getDiscovery") && !can("listLicenses") && can("patchUnit"),
+    "возможности прочитаны: операций " + CAPS.operations.size + ", домен: " + (KINDS.get("domain")?.capabilities || []).join() + ", том: " + (KINDS.get("volume")?.capabilities || []).join());
   ok(domains.length === 1 && licenses.length === 0, "один домен, лицензий не читали");
   ok(Object.keys(WIZ).join() === "video" && WIZ.video.types.map((t) => t[0]).join() === "camera", "мастер добавления — только камеры: " + Object.keys(WIZ).join());
   ok(!sysOpts.some((o) => o.id === "lic"), "в опциях нет «Лицензий»");
@@ -26,7 +28,7 @@ UiCheck(async ({ ok, until }) => {
   // Карточка домена: кнопки «Домен» и «Удалить домен» спрятаны
   pick(d.id);
   goTab("gen");
-  ok(hidden(document.querySelector('[data-needs="createDomain"]')) && hidden(document.querySelector('[data-needs="deleteDomain"]')), "в карточке домена кнопки домена спрятаны");
+  ok(hidden(document.querySelector('[data-needs="kind:domain/create"]')) && hidden(document.querySelector('[data-needs="kind:domain/delete"]')), "в карточке домена кнопки домена спрятаны");
 
   // Сервер: нет вкладки «Сеть» и поля «Роль»
   const s = servers.find((x) => !isUnallocated(x.id));
@@ -60,7 +62,7 @@ UiCheck(async ({ ok, until }) => {
   pick(a.id);
   goTab("arch");
   ok(hidden(document.querySelector('[data-needs="feature:archiveEncryption"]')), "шифрование спрятано");
-  ok(hidden(document.querySelector('[data-needs="createVolume"]')), "кнопка «Том» спрятана");
+  ok(hidden(document.querySelector('[data-needs="kind:volume/create"]')), "кнопка «Том» спрятана");
   openTreeCtx(a.vols[0], { x: 10, y: 10 });
   ok(!/Удалить том/.test(document.getElementById("tctx").textContent), "в меню тома нет «Удалить том»");
   closeTreeCtx();
@@ -82,8 +84,8 @@ UiCheck(async ({ ok, until }) => {
   // События устройств приходят только по наблюдаемым: открытая карточка наблюдается
   pick(camId);
   await until(() => watchLast.includes(camId));
-  const before = (await API.get("/devices/" + camId)).version;
-  const res = await API.patch("/devices/" + camId, { name: "Камера — профиль" }, before);
+  const before = (await uiRec(camId)).version;
+  const res = await uiPatch(camId, { name: "Камера — профиль" }, before);
   ok(res.name === "Камера — профиль", "переименование через API");
   ok(await until(() => cam(camId)?.name === "Камера — профиль"), "кэш интерфейса — из события потока");
 
@@ -105,7 +107,7 @@ UiCheck(async ({ ok, until }) => {
   ruleNewCreate();
   ok(ruleDraft && curRule().when.length === 0, "новое правило открывается");
 
-  // Неподдержанное на сервере — 404 NO_ROUTE, интерфейс этого не вызывает
-  const nr = await API.post("/domains", { name: "Второй" }).then(() => null, (e) => e?.problem?.code);
-  ok(nr === "NO_ROUTE", "POST /domains — 404 NO_ROUTE: " + nr);
+  // Неподдержанное на сервере — отказ: вид домена не заводится (нет capability create), интерфейс этого не вызывает
+  const nr = await API.post("/units", { items: [{ kind: "domain", name: "Второй", parentId: null, properties: {} }] }).then((r) => r.failed[0]?.code || (r.done.length ? "создан" : null), (e) => e?.problem?.code);
+  ok(nr === "NOT_SUPPORTED", "POST /units домена — NOT_SUPPORTED: " + nr);
 });

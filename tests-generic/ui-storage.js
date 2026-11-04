@@ -15,7 +15,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => arch.length === n0 + 1), "хранилище создано");
   const a = arch[arch.length - 1];
   ok(/^5/.test(a.id) && a.vols.length === 1, "id с сервера, первый том на месте: " + a.vols[0]?.name);
-  const srvA = await API.get("/archives/" + a.id);
+  const srvA = await uiRec(a.id);
   ok(srvA.name === "Хранилище — сценарий" && srvA.serverId === srvFree.id, "на сервере");
   // Ещё том
   addVolume(a.id);
@@ -28,20 +28,20 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const d = cardDiff();
   ok(d.some((r) => r.key === "size"), "в черновике тома — размер");
   // Чужая правка того же тома, пока черновик открыт
-  await API.patch("/volumes/" + v2.id, { dir: "X:\\Чужая" }, hwVer.get(v2.id));
+  await uiPatch(v2.id, { dir: "X:\\Чужая" }, hwVer.get(v2.id));
   ok(await until(() => v2.dir === "X:\\Чужая"), "чужая правка видна в карточке");
   ok(!cardDiff().some((r) => r.key === "dir"), "и не попала в «было → станет»");
   ok(cardDiff().some((r) => r.key === "size"), "своя правка осталась");
   cardApply();
   ok(await until(() => bq && bq.finished), "операция завершилась: ok " + bq?.ok + ", не ок " + bq?.fail);
-  ok((await API.get("/volumes/" + v2.id)).sizeBytes === 700 * 1024 ** 3, "на сервере — 700 ГБ");
+  ok((await uiRec(v2.id)).sizeBytes === 700 * 1024 ** 3, "на сервере — 700 ГБ");
   // Правка хранилища через черновик
   pick(a.id);
   goTab("gen");
   archSet(a.id, "days", "45");
   cardApply();
   ok(await until(() => bq && bq.finished && a.days === 45), "глубина хранения 45 дней");
-  ok((await API.get("/archives/" + a.id)).retentionDays === 45, "на сервере");
+  ok((await uiRec(a.id)).retentionDays === 45, "на сервере");
   // Режим карты сервера: вид предлагает значение и оно уходит явно, «Авто» — выбор оператора, поля нет
   addArchive(srvFree.id);
   anSet("kind", "edge");
@@ -89,9 +89,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(1);
   ok(pendingDelHas(v2.id), "отсчёт с «Отменить»");
   // Том ищется по id: «Применить» хранилища возвращает его тома к снимку копиями
-  ok(volById(v2.id) && (await API.raw("GET", "/volumes/" + v2.id)).status === 200, "во время отсчёта том ещё есть — и на сервере");
+  ok(volById(v2.id) && (await API.raw("GET", "/units/" + v2.id)).status === 200, "во время отсчёта том ещё есть — и на сервере");
   ok(await until(() => !volById(v2.id), 30000), "том удалён по истечении отсчёта");
-  ok((await API.raw("GET", "/volumes/" + v2.id)).status === 404, "на сервере — нет");
+  ok((await API.raw("GET", "/units/" + v2.id)).status === 404, "на сервере — нет");
   // Удалить хранилище, в которое пишут камеры
   const busy = arch.find((x) => archCameras(x.id).length >= 2);
   const cams = archCameras(busy.id).map((c) => c.id);
@@ -100,7 +100,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !archById(busy.id), 30000), "хранилище удалено");
   const c = find(cams[0])?.n;
   ok(c && c.arch !== busy.id && (c.arch || c.rec === "none"), "камера осталась, запись: " + (c?.arch || c?.rec));
-  ok((await API.get("/devices/" + cams[0])).archiveId !== busy.id, "на сервере камера не ссылается на удалённое");
+  ok((await uiRec(cams[0])).archiveId !== busy.id, "на сервере камера не ссылается на удалённое");
   // Переименование хранилища и тома в дереве — PATCH, имя держится и после перечитывания
   const a2 = arch.find((x) => x.vols.length && hwVer.has(x.id));
   const v3 = a2.vols[0];
@@ -108,11 +108,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   commitTreeRename(a2.id, "Хранилище — новое имя");
   // По id, а не a2: против стенда событие потока может перечитать хранилища раньше ответа на PATCH
   ok(await until(() => treeRenameId === null && archById(a2.id)?.name === "Хранилище — новое имя"), "хранилище переименовано");
-  ok((await API.get("/archives/" + a2.id)).name === "Хранилище — новое имя", "на сервере — новое имя хранилища");
+  ok((await uiRec(a2.id)).name === "Хранилище — новое имя", "на сервере — новое имя хранилища");
   treeRenameId = v3.id; treeRenameField = "name";
   commitTreeRename(v3.id, "Том — новое имя");
   ok(await until(() => treeRenameId === null), "том переименован");
-  ok((await API.get("/volumes/" + v3.id)).name === "Том — новое имя", "на сервере — новое имя тома");
+  ok((await uiRec(v3.id)).name === "Том — новое имя", "на сервере — новое имя тома");
   apiOnEvent({ type: "stream.reset" });
   ok(await until(() => archById(a2.id) !== a2 && archById(a2.id)?.name === "Хранилище — новое имя"), "после перечитывания имя то же");
 });

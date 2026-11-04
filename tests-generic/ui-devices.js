@@ -27,7 +27,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addSelectedFoundDevices();
   ok(await until(() => pickRows.every((r) => r.added)), "выбранные добавлены");
   ok(devicePool.length === n0 + 2, "в кэше — два новых устройства");
-  const added = await API.get("/devices/" + pickRows[0].addedId);
+  const added = await uiRec(pickRows[0].addedId);
   ok(added.ip === pickRows[0].ip && added.hasPassword && /^\d+$/.test(added.identifier), "на сервере: адрес, пароль задан, номер " + added.identifier);
   ok(pickRows[0].identifier === added.identifier, "номер в строке — тот, что выдал сервер");
   ok((await API.get(`/domains/${d1.id}/discovery`)).candidates.every((c) => !pickRows.some((r) => r.id === c.id)), "добавленные ушли из найденных на сервере");
@@ -38,7 +38,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !!wizd.manual.model), "модель определена: " + wizd.manual.model);
   commitManualDevice(false);
   ok(await until(() => !!wizd.manualAddedId), "добавлено вручную");
-  const manualRec = await API.get("/devices/" + wizd.manualAddedId);
+  const manualRec = await uiRec(wizd.manualAddedId);
   ok(manualRec.model === wizd.manual.model, "на сервере — с моделью");
   ok(manualRec.login === "admin" && manualRec.hasPassword === true, "на сервере — логин и пароль задан");
   const passHidden = (rec) => !("password" in rec) && !JSON.stringify(find(rec.id).n).includes(manualPass);
@@ -49,7 +49,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     wizd.manualAddedId = null;
     commitManualDevice(false);
     ok(await until(() => !!wizd.manualAddedId), "добавлено вручную: " + type);
-    const rec = await API.get("/devices/" + wizd.manualAddedId);
+    const rec = await uiRec(wizd.manualAddedId);
     ok(rec.hasPassword === true, "на сервере — пароль задан: " + type);
     ok(passHidden(rec), "пароля нет ни в ответе, ни в кэше: " + type);
   }
@@ -59,14 +59,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const post0 = API.post;
   let posted = null;
   API.post = function (path, body) {
-    if (path === "/devices") posted = body;
+    if (path === "/units") posted = body;
     return post0.apply(this, arguments);
   };
   commitManualDevice(false);
   ok(await until(() => !!wizd.manualAddedId), "добавлено вручную без пароля");
   API.post = post0;
-  ok(posted && !("password" in posted.items[0].device), "в запросе нет поля password");
-  ok(!(await API.get("/devices/" + wizd.manualAddedId)).hasPassword, "на сервере — пароль не задан");
+  ok(posted && !("password" in posted.items[0].properties), "в запросе нет поля password");
+  ok(!(await uiRec(wizd.manualAddedId)).hasPassword, "на сервере — пароль не задан");
   // Импорт CSV: камера и регистратор с каналами; номера — по порядку, короткие имена каналов — от номера регистратора
   const row = (o) => ({ id: "csv" + o.ip, short: "", identifier: "", port: "80", user: "admin", pass: "1", group: "", arch: "", record: "none", lat: "", lon: "", azimuth: "", errors: [], ...o });
   wizd.csvRows = [row({ name: "Камера CSV", ip: "10.6.6.6", vendor: "Axis", model: "P3245-LV" }), row({ name: "NVR CSV", ip: "10.6.6.7", vendor: "Dahua", model: "Dahua NVR 5216" })];
@@ -75,7 +75,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => wizd.csvRows.every((r) => r.added)), "CSV импортирован");
   const nvr = find(wizd.csvRows[1].addedId)?.n;
   ok(devicePool.length === pool0 + 2 && nvr?.type === "ipsrv", "камера и регистратор в кэше");
-  const nvrRec = await API.get("/devices/" + nvr.id);
+  const nvrRec = await uiRec(nvr.id);
   const kids = (await uiDevices()).filter((d) => d.parentId === nvr.id);
   ok(kids.length > 0 && kids.every((k) => String(k.short || "").startsWith(nvrRec.identifier + ".")), "каналы: " + kids.map((k) => k.short).join(", ") + " — от номера " + nvrRec.identifier);
   // Столбец «Адрес RTSP»: камера по адресу заводится без производителя и модели, выгрузка его отдаёт
@@ -84,7 +84,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wizd.csvRows[0]?.rtspUrl === rtsp && csvImportableRows(wizd.csvRows).length === 1, "строка с адресом RTSP принята");
   importCsvDevices();
   ok(await until(() => wizd.csvRows[0].added), "камера по адресу импортирована");
-  ok((await API.get("/devices/" + wizd.csvRows[0].addedId)).rtspUrl === rtsp, "на сервере — rtspUrl");
+  ok((await uiRec(wizd.csvRows[0].addedId)).rtspUrl === rtsp, "на сервере — rtspUrl");
   ok(deviceCsvHeaders().includes("Адрес RTSP") && deviceCsvObjectFromNode(find(wizd.csvRows[0].addedId).n).rtspUrl === rtsp, "выгрузка CSV отдаёт адрес");
   // Детектор из карточки камеры: шаг create, затем удаление
   const cam = devicePool.find((n) => n.type === "camera" && n.name === "Главный вход");
@@ -96,11 +96,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   cardApply();
   ok(await until(() => bq && bq.finished && camDetectors(cam).length === dets0 + 1 && /^3/.test(camDetectors(cam).slice(-1)[0].id)), "детектор создан на сервере, id — с сервера");
   const det = camDetectors(cam).slice(-1)[0];
-  ok((await API.get("/devices/" + det.id)).parentId === cam.id, "на сервере под камерой");
+  ok((await uiRec(det.id)).parentId === cam.id, "на сервере под камерой");
   deleteDetector(cam.id, det.id);
   await confirmWith(1);
   ok(await until(() => camDetectors(cam).length === dets0, 30000), "детектор удалён по истечении отсчёта");
-  ok((await API.raw("GET", "/devices/" + det.id)).status === 404, "на сервере — нет");
+  ok((await API.raw("GET", "/units/" + det.id)).status === 404, "на сервере — нет");
   // Вкладка «Сеть» сервера: поиск и добавление нового
   const s = d1.servers.find((x) => x.online !== false && serverArchives(x.id).length);
   pick(s.id);
@@ -114,7 +114,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   if (document.getElementById("confirm")?.classList.contains("open")) await confirmWith(null);
   ok(await until(() => devicePool.length === before2 + 1), "добавлено из «Сети»");
   const nd = devicePool[devicePool.length - 1];
-  const rec = await API.get("/devices/" + nd.id);
+  const rec = await uiRec(nd.id);
   ok(rec.archiveId === lan.arch && rec.serverId === s.id, "на сервере: пишет в хранилище сервера, сервер — " + (rec.serverId === s.id));
   // Введённое в «Найденных» и свёрнутый узел переживают перечитывание всего кэша
   let did = null, fr = null;

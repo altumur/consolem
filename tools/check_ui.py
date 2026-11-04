@@ -12,6 +12,7 @@ Chrome: страница загружает данные со встроенно
   python3 tools/check_ui.py tests/ui-domains.js   один сценарий
   python3 tools/check_ui.py --selftest            самопроверка прототипа (?selftest): те же сценарии изнутри страницы
   python3 tools/check_ui.py --page FILE.html      другой файл (прототип, скопированный с index.html)
+  python3 tools/check_ui.py --tests DIR           сценарии и помощники из другой папки (по умолчанию tests)
 Код выхода 1, если хоть одна проверка не прошла.
 """
 import glob
@@ -23,13 +24,17 @@ import subprocess
 import sys
 import tempfile
 
+import cli_paths
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # Chrome — в часовом поясе системы: в нём сервер считает расписания и время, в нём же макет на константах
 TZ = "Europe/Moscow"
-PAGE = "index.html"
+PAGE = cli_paths.opt("page", "index.html")
+TESTS = cli_paths.opt("tests", "tests")
+cli_paths.opt("api", "api")  # страница сама подключает свой API; параметр принят, чтобы одна строка параметров шла во все инструменты
 
 # Помощники сценариев — те же, что у самопроверки прототипа (?selftest)
-HELPERS = '<script src="tests/ui-harness.js"></script>'
+HELPERS = '<script src="%s/ui-harness.js"></script>' % TESTS
 # Самопроверка: виртуальный срок больше срока сценариев в tests/selftest.js, настоящий — с запасом на занятую машину
 SELFTEST_BUDGET_SEC = 800
 SELFTEST_WAIT_SEC = 900
@@ -37,7 +42,7 @@ SELFTEST_WAIT_SEC = 900
 
 def fixture_of():
     """Сценарии не на эталонном наборе — FIXTURE_OF в tests/selftest.js: одно место на оба запуска."""
-    with open(os.path.join(ROOT, "tests", "selftest.js"), encoding="utf-8") as f:
+    with open(os.path.join(ROOT, TESTS, "selftest.js"), encoding="utf-8") as f:
         m = re.search(r"const FIXTURE_OF = \{(.*?)\};", f.read())
     return dict(re.findall(r'"([\w.-]+)":\s*"([\w-]+)"', m.group(1))) if m else {}
 
@@ -68,7 +73,7 @@ def run(scenario, query):
 def selftest_missing(log):
     """Отчёта нет: что успела сказать страница. log — вывод Chrome с --enable-logging=stderr, selftest.js пишет туда каждый итог."""
     done = set(re.findall(r"SELFTEST done ([\w.-]+)", log))
-    with open(os.path.join(ROOT, "tests", "selftest.js"), encoding="utf-8") as f:
+    with open(os.path.join(ROOT, TESTS, "selftest.js"), encoding="utf-8") as f:
         names = re.findall(r'"(ui-[\w-]+\.js)"', re.search(r"const SCENARIOS = \[(.*?)\];", f.read()).group(1))
     left = [n for n in names if n not in done]
     if left:
@@ -101,13 +106,8 @@ def selftest(query):
 
 
 def main():
-    global PAGE
     args = sys.argv[1:]
     query = ""
-    if "--page" in args:
-        i = args.index("--page")
-        PAGE = args[i + 1]
-        del args[i:i + 2]
     if "--latency" in args:
         i = args.index("--latency")
         query = f"?latency={int(args[i + 1])}"
@@ -115,7 +115,7 @@ def main():
     if "--selftest" in args:
         return selftest(query)
     # Сценарии — tests/ui-*.js, кроме самих помощников
-    files = args or sorted(f for f in glob.glob(os.path.join(ROOT, "tests", "ui-*.js")) if not f.endswith("ui-harness.js"))
+    files = args or sorted(f for f in glob.glob(os.path.join(ROOT, TESTS, "ui-*.js")) if not f.endswith("ui-harness.js"))
     fixtures = fixture_of()
     failed = 0
     for f in files:

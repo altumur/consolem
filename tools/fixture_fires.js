@@ -1,11 +1,19 @@
-/* Демо-запуски правил эталонного набора — движком сервера (api/rule-engine.js).
+/* Демо-запуски правил эталонного набора — движком сервера (api/rule-engine.js; --api DIR — движок и набор копии, например
+   api-generic: правила и объекты — по описаниям видов).
    Вызывает tools/extract_fixture.py: на вход (stdin) — { fixture, rules: { старый id правила → UUID } },
    на выход (stdout) — ruleFires набора. Исходы те же, что у демо-запусков основного макета (ruleFiresInit):
-   сколько запусков и когда, где превышен лимит, где прежний запуск ещё шёл, где реле не ответило. */
-const engine = require("../api/rule-engine.js");
+   сколько запусков и когда, где превышен лимит, где прежний запуск ещё шёл, где реле не ответило.
+   Без stdin-набора с --api: набор — DIR/fixtures/demo.json, правила r1… — по номеру UUID (70000001… → r1). */
+const path = require("path");
+const fs = require("fs");
+const i = process.argv.indexOf("--api");
+const API = i > 0 ? process.argv[i + 1] : "api";
+const engine = require(path.join("..", API, "rule-engine.js"));
 
-const input = JSON.parse(require("fs").readFileSync(0, "utf8"));
-const fx = input.fixture, R = input.rules;
+const raw = fs.readFileSync(0, "utf8").trim();
+const input = raw ? JSON.parse(raw) : { fixture: JSON.parse(fs.readFileSync(path.join(__dirname, "..", API, "fixtures", "demo.json"), "utf8")) };
+const fx = input.fixture;
+const R = input.rules || Object.fromEntries(fx.rules.map((r) => [`r${parseInt(r.id.slice(0, 8), 16) - 0x70000000}`, r.id]));
 const e = engine.forDb(() => fx);
 const fires = [];
 // Стенный момент (местное время системы) → момент
