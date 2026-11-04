@@ -390,7 +390,7 @@
   };
   window.Tour = {
     offer(label, steps) {
-      if (/[?&]selftest(-run)?/.test(location.search)) return;
+      if (/[?&]selftest(-run)?\b/.test(location.search)) return;
       offers.push({ label, steps });
       // Вызовы идут подряд в конце скрипта страницы: кнопка ставится один раз, когда все уже известны
       if (offers.length === 1) (window.appReady || Promise.resolve()).then(mount);
