@@ -9228,7 +9228,7 @@ function lanSetRec(v){
 }
 // «Вручную» и «Из файла» добавляют устройства: на домене openW() открыл бы мастер серверов,
 // а у него нет состояния вкладок устройств (wizd.manual) — поэтому мастер устройств создаётся всегда.
-function lanOpenWizard(t){openW();if(wizd.mode!=="device-add"){wizd=initDeviceWizard(addContext())}setDeviceTab(t)}
+function lanOpenWizard(t){openW.objNew=true;openW();openW.objNew=false;if(wizd.mode!=="device-add"){wizd=initDeviceWizard(addContext())}setDeviceTab(t)}
 // Куда и как писать — вопрос к «Писать сюда», поэтому поля стоят рядом с ним.
 function lanTargetHtml(n){
   const targets=lanTargets(n);
@@ -10420,13 +10420,15 @@ function wzPeek(id){
 function wzDrop(id){delete wzMem[id];try{localStorage.removeItem(wzKey(id))}catch(e){}wzDock()}
 function wzClose(id){
   const d=WZD[id];
-  if(!d){if(id==="rule")closeBulkModal();else if(id)accDrawerClose(id);else closeWizard();return}
+  if(!d){if(id)accDrawerClose(id);else closeWizard();return}
   const s=d.get();
-  if(s&&d.work(s)){if(!d.peek)wzMem[id]=s;wzSave(id)}else wzDrop(id);
+  // s пустое — окно открыто не на создание (переименование группы): чужой черновик не трогаем
+  if(s&&d.work(s)){if(!d.peek)wzMem[id]=s;wzSave(id)}else if(s)wzDrop(id);
   d.hide();wzDock();
 }
 function wzResume(id){
   const d=WZD[id],s=wzPeek(id);if(!s)return;
+  if(d.valid&&!d.valid(s)){wzDrop(id);toast(i18n(d.gone||"Черновик устарел: того, для чего он создан, больше нет"));return}
   delete wzMem[id];d.set?.(s);d.show(s);wzDock();
 }
 function wzCancel(id){
@@ -10439,6 +10441,7 @@ function wzCancelQuiet(id){const d=WZD[id];d.clear?.();wzDrop(id);d.hide()}
 // Вход в мастер. Есть незавершённое: то же место — продолжаем, другое — спрашиваем
 function wzStart(id,fresh,same){
   const s=wzPeek(id);
+  if(s&&WZD[id].valid&&!WZD[id].valid(s)){wzDrop(id);fresh();return}
   if(!s||!WZD[id].work(s)){fresh();return}
   if(typeof same!=="function"||same(s)){wzResume(id);return}
   askConfirm(i18n("Есть незавершённое создание"),`${i18n(WZD[id].t)}${WZD[id].sum(s)?": "+WZD[id].sum(s):""}`,i18n("Новое создание заменит его."),i18n("Начать заново"),()=>{wzDrop(id);fresh()},{rawMsg:true,cancelLabel:i18n("Оставить")});
@@ -10493,6 +10496,26 @@ const WZD={
     get:()=>accCt,set:s=>{s.pass=s.pass||"";accCt=s},hide:()=>accDrawerClose("accCt"),show:()=>{accDrawer("accCt","Добавить каталог");accCtRender()},
     work:s=>!!(s.step||s.n.trim()||s.server.trim()),
     where:s=>[s.step,ACC_CT.length,ACC_CT[s.step][1]],sum:s=>escHtml(s.n.trim())},
+  // Короткие мастера. Сохраняем при закрытии и при уходе со страницы
+  rule:{t:"Новое правило",lost:"Выбранный запуск и шаблон пропадут.",drop:"Не создавать",
+    get:()=>document.querySelector("#bmodal.open [data-rnw]")?rnw:null,set:s=>{rnw=s},hide:()=>closeBulkModal(),show:()=>{if(app!=="rules")setApp("rules");ruleNewRender()},
+    work:s=>!!(s.step||s.tpl||s.preset||s.start!==ruleNewStartDef()),
+    where:s=>[s.step||0,RULE_NEW_STEPS.length,RULE_NEW_STEPS[s.step||0].t],sum:s=>escHtml(i18n((RULE_STARTS.find(([id])=>id===s.start)||[])[1]||""))},
+  accUg:{t:"Новая группа пользователей",lost:"Название и описание группы пропадут.",drop:"Не создавать",
+    get:()=>accDrawerOpen("accUg")&&accUgd&&!accUgd.gid?accUgd:null,set:s=>{accData();s.members=(s.members||[]).filter(id=>accUser(id));accUgd=s},hide:()=>accDrawerClose("accUg"),show:()=>accUgPaint(),
+    work:s=>!!(s.name.trim()||s.comment.trim()||s.members?.length),
+    where:()=>[0,1,""],sum:s=>escHtml(s.name.trim())},
+  accCg:{t:"Подключение группы каталога",lost:"Название, роли и срок группы пропадут.",drop:"Не создавать",
+    get:()=>accDrawerOpen("accCg")?accCg:null,set:s=>{s.roles=new Set([...s.roles].filter(id=>accRole(id)));accCg=s},hide:()=>accDrawerClose("accCg"),show:()=>{accDrawer("accCg","Подключить группу каталога");accCgRender()},
+    valid:s=>{accData();return accCat(s.cid)?.avail[s.idx]?.dn===s.dn},gone:"Черновик устарел: этой группы в каталоге больше нет",
+    work:s=>!!(s.step||s.roles.size||s.until||s.name!==s.name0),
+    where:s=>[s.step,ACC_CG.length,ACC_CG[s.step][1]],sum:s=>escHtml(s.name.trim())},
+  obj:{t:"Добавление объекта",lost:"Выбранный тип и параметры пропадут.",drop:"Не создавать",
+    get:()=>{if(!wizOpen()||!wizd||wizd.mode==="server-add"||wizd.mode==="device-add")return null;wizObjGrab();wizd.step=ws;return wizd},
+    set:s=>{s.drawn=0;s.resumed=true;if(s.parentId&&!find(s.parentId))s.parentId=null;wizd=s},hide:()=>closeWizard(),show:s=>{if(app!=="hw")setApp("hw");ws=s.step||1;wizObjShow()},
+    work:s=>!!s.mode,
+    pack:s=>({from:s.from,unit:s.unit,mode:s.mode,cat:s.cat,lockedCat:s.lockedCat,type:s.type,view:s.view,domain:s.domain,server:s.server,folder:s.folder,parentId:s.parentId,step:s.step,vals:s.vals}),
+    where:s=>[(s.step||1)-1,OBJ_STEPS.length,OBJ_STEPS[(s.step||1)-1].t],sum:s=>escHtml(i18n(WIZ[s.cat]?.types.find(t=>t[0]===s.type)?.[1]||""))},
   accImp:{t:"Импорт пользователей из CSV",lost:"Вставленные строки пропадут.",drop:"Не создавать",
     get:()=>accIm,set:s=>{accIm={...s,step:0,res:null}},hide:()=>accDrawerClose("accImp"),show:()=>{accDrawer("accImp","Импорт пользователей из CSV");accImpRender()},
     work:s=>!!s.text.trim(),
@@ -13351,9 +13374,13 @@ function ruleTplDeclared(t){
 let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
 // событие или действие, и шаблон тогда не обязателен.
+function ruleNewStartDef(){return(RULE_STARTS.find(([id])=>startDeclared(id))||RULE_STARTS[0])[0]}
 function ruleNewOpen(preset){
-  rnw={step:0,start:(preset&&preset.start)||(RULE_STARTS.find(([id])=>startDeclared(id))||RULE_STARTS[0])[0],tpl:"",preset:preset||null};
-  ruleNewRender();
+  // Без готового события — продолжаем незавершённое; с ним — спрашиваем: это другое правило
+  wzStart("rule",()=>{
+    rnw={step:0,start:(preset&&preset.start)||ruleNewStartDef(),tpl:"",preset:preset||null};
+    ruleNewRender();
+  },()=>!preset);
 }
 function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
 function ruleNewRender(){
@@ -13366,10 +13393,10 @@ function ruleNewRender(){
   const startName=(RULE_STARTS.find(([id])=>id===rnw.start)||[])[1]||"";
   const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
-    st.k==="start"?`${pre}<div class="rl-opts">${starts}</div>`
-      :`${pre}<div class="rl-opts">${tpls}</div>
+    st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
+      :`${pre}<div class="rl-opts" data-rnw>${tpls}</div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
-    wzFootHtml({cancel:["closeBulkModal"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
+    wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
 }
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
@@ -13400,7 +13427,8 @@ function ruleNewMerge(){
   return{t,b,when,then,notes};
 }
 function ruleNewCreate(){
-  if(ruleDiffLive().length){closeBulkModal();ruleLeaveAsk(ruleNewCreate);return}
+  if(ruleDiffLive().length){wzClose("rule");ruleLeaveAsk(ruleNewCreate);return}
+  wzDrop("rule");
   ruleDraft=null;
   const{t,b,when,then}=ruleNewMerge(),st=rnw.start,now=ruleNow();
   const r={id:ruleNewId(),name:"",on:false,watch:false,repeat:"skip",start:st,
@@ -18607,13 +18635,19 @@ function accUgdComment(v){accUgd.comment=v}
 function accUgOpen(gid,members){
   accMenuClose();accData();
   const g=gid?accUG(gid):null;
-  accUgd={gid:g?.id||"",name:g?.n||"",comment:g?.comment||"",members:members||[],tried:false};
+  const fresh=()=>{accUgd={gid:g?.id||"",name:g?.n||"",comment:g?.comment||"",members:members||[],tried:false};accUgPaint()};
+  if(g)fresh();else wzStart("accUg",fresh,()=>!members?.length);
+}
+function accUgPaint(){
+  accData();
+  const g=accUgd.gid?accUG(accUgd.gid):null;
   accDrawer("accUg",g?"Переименовать группу":"Новая группа пользователей");
   wzSize(document.querySelector("#accUg .wz-win"),"s");
+  const tools=document.querySelectorAll("#accUg .wz-tools .dc-x");if(tools.length>1){tools[0].style.display=g?"none":"";tools[1].title=i18n(g?"Закрыть":"Закрыть: черновик сохранится")}
   document.getElementById("accUgBd").innerHTML=`<div class="acc-wz-f"><label>${i18n("Название")}</label><input type="text" value="${escHtml(accUgd.name)}" autocomplete="off" ${onEv("input",["accUgdName",onEv.value])}><div class="fld-err" id="accUgE"></div></div>
     <div class="acc-wz-f"><label>${i18n("Описание")}</label><input type="text" value="${escHtml(accUgd.comment)}" ${onEv("input",["accUgdComment",onEv.value])}></div>
     <p class="acc-hint">${g?i18n("Состав и роли группы не меняются"):`${accUgd.members.length?`${i18n("В группу будут добавлены выбранные пользователи:")} ${accUgd.members.length}. `:""}${i18n("Роли группе назначаются после создания: без них участники ничего не получают")}`}</p>`;
-  document.getElementById("accUgFt").innerHTML=wzFootHtml({cancel:["accDrawerClose","accUg"],next:{label:i18n("В черновик"),on:["accUgApply"]}});
+  document.getElementById("accUgFt").innerHTML=wzFootHtml({cancel:g?["accDrawerClose","accUg"]:["wzCancel","accUg"],next:{label:i18n("В черновик"),on:["accUgApply"]}});
 }
 function accUgErr(){
   const d=accUgd,n=d.name.trim();
@@ -18632,6 +18666,7 @@ function accUgApply(){
   }
   const id=accNewId();
   accSt().groups.push({id,n,comment:c,roles:[],until:"",src:null,members:[...d.members]});
+  wzDrop("accUg");
   accDrawerClose("accUg");accResolveAll();
   toast(`${i18n("Группа")} «${n}» ${i18n("создана — в черновике")}`);
   accGo("ug:"+id,"grl");
@@ -18799,9 +18834,12 @@ const ACC_CG=[["who","Кто попадёт"],["roles","Роли группы"]]
 function accCgOpen(cid,idx){
   const c=accCat(cid),a=c?.avail[idx];if(!a)return;
   accMenuClose();
-  accCg={cid,idx,step:0,name:`${c.n.split(".")[0].toUpperCase()}\\${a.n}`,roles:new Set(),until:""};
-  accDrawer("accCg","Подключить группу каталога");
-  accCgRender();
+  const name=`${c.n.split(".")[0].toUpperCase()}\\${a.n}`;
+  wzStart("accCg",()=>{
+    accCg={cid,idx,dn:a.dn,step:0,name,name0:name,roles:new Set(),until:""};
+    accDrawer("accCg","Подключить группу каталога");
+    accCgRender();
+  },s=>s.cid===cid&&s.idx===idx);
 }
 function accCgErr(){const n=accCg.name.trim();return!n?"Заполните поле":taken(accGroupsAll().map(g=>g.n),n)?"Группа с таким именем уже есть":""}
 function accCgGo(i){accCg.step=+i;accCgRender()}
@@ -18809,7 +18847,7 @@ function accCgChrome(){
   const d=accCg;if(!d)return;
   const why=accCgErr(),last=d.step===ACC_CG.length-1,a=accCat(d.cid).avail[d.idx];
   document.getElementById("accCgSt").innerHTML=wzBarHtml(ACC_CG.map(([k,t])=>({k,t})),d.step,i=>!i||!why,["accCgGo"]);
-  document.getElementById("accCgFt").innerHTML=wzFootHtml({cancel:["accDrawerClose","accCg"],sum:why?escHtml(`${i18n("Название группы")}: ${i18n(why).toLowerCase()}`):`${accWho(a.logins.length)} · ${i18n("ролей")}: ${d.roles.size}`,back:d.step?["accCgGo",0]:null,next:{label:i18n(last?"В черновик":"Далее"),on:last?["accCgApply"]:["accCgGo",1],off:!!why}});
+  document.getElementById("accCgFt").innerHTML=wzFootHtml({cancel:["wzCancel","accCg"],sum:why?escHtml(`${i18n("Название группы")}: ${i18n(why).toLowerCase()}`):`${accWho(a.logins.length)} · ${i18n("ролей")}: ${d.roles.size}`,back:d.step?["accCgGo",0]:null,next:{label:i18n(last?"В черновик":"Далее"),on:last?["accCgApply"]:["accCgGo",1],off:!!why}});
 }
 function accCgRender(){
   const d=accCg;if(!d)return;
@@ -18850,6 +18888,7 @@ function accCgApply(){
     members.push(u.id);
   });
   st.groups.push({id:gid,n:name,comment:"",roles:[...d.roles],until:d.until||"",src:{cat:c.id,dn:a.dn,kind:a.kind,status:"ok",at:accNow(),msg:""},members});
+  wzDrop("accCg");
   accDrawerClose("accCg");accEdited();
   toast(`${i18n("Подключена группа")} «${name}»: ${accWho(members.length)}${made?`, ${i18n("создано")} ${made}`:""} — ${i18n("в черновике")}`);
 }
@@ -22879,6 +22918,12 @@ function openW(preset){
   const serverOnly=preset==="server"||n?.type==="domain"||n?.type==="unalloc";
   // Все входы в окно серверов идут через openAddServers: там черновик
   if(serverOnly&&!openW.inner){openAddServers(c.domain?.id||(n?.type==="domain"?n.id:null)||(n?.type==="unalloc"?n.domainId:null));return}
+  // Служба и единица: незавершённое того же вида и с того же места продолжаем, другое — спрашиваем
+  if(!serverOnly&&!openW.objNew&&(preset==="svc"||preset==="unit"||c.view==="sys")){
+    const wantCat=preset==="svc"?"svc":preset==="unit"?"acfa":null;
+    wzStart("obj",()=>{openW.objNew=true;openW(preset);openW.objNew=false;wizd.from=n?.id||null},d=>!!d.unit===(preset==="unit")&&(d.lockedCat||null)===wantCat&&d.from===(n?.id||null));
+    return;
+  }
   const unit=preset==="unit";
   const deviceWizard=!serverOnly&&preset!=="svc"&&!unit&&c.view!=="sys";
   wizd=unit?{mode:null,cat:null,lockedCat:"acfa",type:null,view:"acfa",unit:true,domain:nodeDomainId(n)||domains[0]?.id,parentId:n?.id||null}:deviceWizard?initDeviceWizard(c):{
@@ -22893,13 +22938,24 @@ function openW(preset){
       ipPhase:null,ipText:"",ipRows:null,ipBad:[],ipMsg:"",ipPick:new Set(),ipFail:{}
     };
   ws=1;
+  wizObjShow(deviceWizard,!!serverOnly);
+  if(deviceWizard)refreshDeviceSearch();
+}
+function wizObjShow(deviceWizard=false,serverOnly=false){
   document.getElementById("wizDr").classList.toggle("device-wizard",deviceWizard);
-  document.getElementById("wizDr").classList.toggle("server-add",!!serverOnly);
+  document.getElementById("wizDr").classList.toggle("server-add",serverOnly);
   document.querySelector("#wiz .df").style.display="";
   document.getElementById("wiz").classList.add("open");
   wd();
-  if(deviceWizard)refreshDeviceSearch();
 }
+// Поля шага «Куда и параметры» живут в разметке: перед перерисовкой и сохранением забираем их в состояние
+const WIZ_OBJ_FIELDS=["wizName","wizPath","wizObjIp","wizSmtp","wizUnitModel"];
+function wizObjGrab(){
+  if(wizd.drawn!==2)return;
+  wizd.vals=wizd.vals||{};
+  WIZ_OBJ_FIELDS.forEach(id=>{const el=document.getElementById(id);if(el)wizd.vals[id]=el.value});
+}
+function wizObjVal(id,def){return escHtml(wizd.vals?.[id]??def)}
 function refreshUnallocInWizard(domainId){
   if(!(document.getElementById("wiz").classList.contains("open")&&wizd.mode==="server-add")){refreshUnalloc(domainId);return}
   API.get("/servers").then(r=>{
@@ -22910,7 +22966,8 @@ function refreshUnallocInWizard(domainId){
   }).catch(e=>toast(problemText(e)));
 }
 function chooseAdd(mode,cat,type){
-  wizd.mode=mode;wizd.cat=cat||null;wizd.type=type||null;
+  if(wizd.mode!==mode||wizd.cat!==(cat||null)||wizd.type!==(type||null))wizd.vals={};
+  wizd.mode=mode;wizd.cat=cat||null;wizd.type=type||null;wizd.drawn=0;
   if(mode!=="object"){wizd.server=null;wizd.parentId=null}
   wd();
 }
@@ -22928,7 +22985,7 @@ function wizStepGo(i){
 function wizCancel(){
   if(wizd?.mode==="server-add"){wzCancel("srv");return}
   if(wizd?.mode==="device-add"){wzCancel("plan");return}
-  closeWizard();
+  wzCancel("obj");
 }
 function wizChromeSync(key,size){
   const box=document.getElementById("wizDr");
@@ -23147,9 +23204,9 @@ function unitStepHtml(){
   return`<div class="wsec">${i18n("Куда добавить")}</div><div class="g"><div><label>${i18n("Родительский объект")}</label><select id="wizParent" ${onEv("change",["wizParentSet",onEv.value])}>
     ${opts.length?opts.map(o=>`<option value="${o.id}" ${o.id===wizd.parentId?"selected":""}>${escHtml(locName(o))} (${escHtml(i18n(LB[o.type]))})</option>`).join(""):`<option value="">${i18n("Нет подходящих объектов")}</option>`}</select></div></div>
     <div class="wsec">${i18n("Параметры")}: ${escHtml(i18n(label))}</div><div class="g">
-    <div><label>${i18n("Имя")}</label><input id="wizName" value="${escHtml(`${i18n("Новый")} ${i18n(label).toLowerCase()}`)}"></div>
-    <div><label>${i18n("Адрес")}</label><input id="wizPath" value=""></div>
-    ${tpls.length?`<div><label>${i18n("Шаблон")}</label><select id="wizUnitModel">${tpls.map(o=>`<option value="${escHtml(o.model)}">${escHtml(o.name)}</option>`).join("")}</select></div>`:""}</div>`;
+    <div><label>${i18n("Имя")}</label><input id="wizName" value="${wizObjVal("wizName",`${i18n("Новый")} ${i18n(label).toLowerCase()}`)}"></div>
+    <div><label>${i18n("Адрес")}</label><input id="wizPath" value="${wizObjVal("wizPath","")}"></div>
+    ${tpls.length?`<div><label>${i18n("Шаблон")}</label><select id="wizUnitModel">${tpls.map(o=>`<option value="${escHtml(o.model)}" ${o.model===wizd.vals?.wizUnitModel?"selected":""}>${escHtml(o.name)}</option>`).join("")}</select></div>`:""}</div>`;
 }
 function unitAdd(){
   if(!wizd.parentId){toast("Нет подходящего родительского объекта");return}
@@ -23162,6 +23219,7 @@ function unitAdd(){
   devicesCreate([{node,domainId:nodeDomainId(parent),parentId:parent.id,folderId:null}]).then(res=>{
     if(!res.done.length){toast(problemText(res.failed[0]?.code));return}
     open.add(parent.id);sel=res.done[0].devices[0].id;tab="gen";treeMatchCache.clear();searchMatchCache.clear();
+    wzDrop("obj");
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
   }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
@@ -23174,7 +23232,8 @@ function wizardTitle(){
   return"Добавить устройство";
 }
 function wizardServerOptions(){
-  const c=addContext(),list=allocatedServers(c.domain?.id);
+  // Черновик помнит свой домен: выделение в дереве могло уйти в другой
+  const list=allocatedServers(wizd.resumed?wizd.domain:addContext().domain?.id);
   if(!wizd.server||!list.some(s=>s.id===wizd.server))wizd.server=list[0]?.id||null;
   return list;
 }
@@ -23192,11 +23251,12 @@ function wd(){
   document.getElementById("wizFootR").innerHTML="";
   df.style.display="";
   document.getElementById("wst").style.display="";
-  document.getElementById("wizTools").outerHTML=wzToolsHtml(srv?"srv":"","wz-tools","wizTools");
+  document.getElementById("wizTools").outerHTML=wzToolsHtml(srv?"srv":"obj","wz-tools","wizTools");
   const wb=document.getElementById("wb"),wn=document.getElementById("wn");
   wn.style.display="";
   document.getElementById("wizT").textContent=i18n(wizardTitle());
   if(srv){renderServerAdd();return}
+  wizObjGrab();
   const ch=wizChromeSync("obj"+ws,ws===1?"l":"m");
   document.getElementById("wst").innerHTML=wzBarHtml(OBJ_STEPS,ws-1,i=>!i||!!wizd.mode,["wizStepGo"]);
   wb.style.display=ws===1?"none":"";
@@ -23229,14 +23289,15 @@ function wd(){
         ${list.map(x=>`<option value="${x.id}" ${x.id===wizd.server?"selected":""}>${x.name} · ${x.ip||"без IP"}</option>`).join("")}</select></div>`
         :`<div class="g"><div><label>Папка</label>${comboFolderHtml(wizd.folder,["wizPlace","folder"],{inline:false})}</div>`;
       h+=`</div><div class="wsec">Параметры: ${label}</div><div class="g">
-        <div><label>Имя</label><input id="wizName" value="Новый ${label.toLowerCase()}"></div>
-        ${["camera","ipsrv-nvr","ipsrv-io","ipsrv-sip","ipsrv-mic","eventsrc","acfa"].includes(wizd.type)?`<div><label>IP-адрес</label><input id="wizObjIp" value="192.168.1.50"></div>`:""}
-        ${wizd.type==="export"?`<div><label>Папка</label><input id="wizPath" value="D:\\Export"></div>`:""}
-        ${wizd.type==="email"?`<div><label>SMTP</label><input id="wizSmtp" value=""></div>`:""}
+        <div><label>Имя</label><input id="wizName" value="${wizObjVal("wizName",`Новый ${label.toLowerCase()}`)}"></div>
+        ${["camera","ipsrv-nvr","ipsrv-io","ipsrv-sip","ipsrv-mic","eventsrc","acfa"].includes(wizd.type)?`<div><label>IP-адрес</label><input id="wizObjIp" value="${wizObjVal("wizObjIp","192.168.1.50")}"></div>`:""}
+        ${wizd.type==="export"?`<div><label>Папка</label><input id="wizPath" value="${wizObjVal("wizPath","D:\\Export")}"></div>`:""}
+        ${wizd.type==="email"?`<div><label>SMTP</label><input id="wizSmtp" value="${wizObjVal("wizSmtp","")}"></div>`:""}
       </div>`;
     }
   }
   document.getElementById("wbd").innerHTML=h;
+  wizd.drawn=ws;
   ch.fit();
 }
 function wnx(){
@@ -23269,6 +23330,7 @@ function wnx(){
     if(!res.done.length){toast(problemText(res.failed[0]?.code));return}
     const nid=res.done[0].devices[0].id;
     open.add(parent.id);sel=nid;tab="gen";treeMatchCache.clear();searchMatchCache.clear();
+    wzDrop("obj");
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
   }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }

@@ -180,6 +180,177 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   closeWizard();
   wzDrop("srv");
 
+  // Короткие мастера: крестик сохраняет, «Продолжить» возвращает, «Отмена» спрашивает и удаляет
+  const dock = (id) => !!document.getElementById("wzDock-" + id);
+  const cancelYes = async (click) => {
+    click();
+    ok(await until(confirmOn), "отмена спрашивает");
+    document.getElementById("confirmOk").click();
+    await until(() => !confirmOn());
+  };
+
+  // Группа пользователей; пустая форма черновика не оставляет
+  goApp("acc");
+  accUgOpen();
+  wzClose("accUg");
+  ok(!draft("accUg") && !dock("accUg"), "группа: пустая форма не оставляет черновика");
+  accUgOpen();
+  accUgdName("Проба-группа");
+  accUgdComment("описание");
+  wzClose("accUg");
+  ok(!!draft("accUg") && dock("accUg"), "группа: крестик сохранил черновик");
+  delete wzMem.accUg;
+  accUgOpen();
+  ok(accUgd.name === "Проба-группа" && accUgd.comment === "описание" && document.querySelector("#accUgBd input").value === "Проба-группа", "группа: повторный вход продолжает");
+  await cancelYes(() => [...document.querySelectorAll("#accUgFt .btn")].find((b) => /Отмена/.test(b.textContent)).click());
+  ok(!accDrawerOpen("accUg") && !draft("accUg") && !dock("accUg"), "группа: отмена удалила черновик");
+  // Переименование черновик новой группы не трогает
+  const ug0 = accGroupsAll().find((g) => !g.src);
+  accUgOpen();
+  accUgdName("Вторая");
+  wzClose("accUg");
+  accUgOpen(ug0.id);
+  ok(accUgd.gid === ug0.id && accUgd.name === ug0.n, "группа: переименование открывает свою группу");
+  const ugTools = document.querySelectorAll("#accUg .wz-tools .dc-x");
+  ok(getComputedStyle(ugTools[0]).display === "none" && ugTools[1].title === "Закрыть", "группа: у переименования только крестик, без слов о черновике");
+  wzClose("accUg");
+  ok(!!draft("accUg"), "группа: после переименования черновик новой группы цел");
+  accUgOpen();
+  accUgApply();
+  ok(!draft("accUg") && !dock("accUg") && accGroupsAll().some((g) => g.n === "Вторая"), "группа: создана, черновика нет");
+
+  // Группа каталога: имя по умолчанию не считается работой
+  const cat0 = accCats().find((c) => c.avail?.length);
+  ok(!!cat0, "в наборе есть каталог с группами");
+  if (cat0) {
+    accCgOpen(cat0.id, 0);
+    wzClose("accCg");
+    ok(!draft("accCg"), "группа каталога: без изменений черновика нет");
+    accCgOpen(cat0.id, 0);
+    accCgName("Проба-каталог");
+    accCg.roles.add(accRoles()[0].id);
+    wzClose("accCg");
+    ok(!!draft("accCg") && dock("accCg"), "группа каталога: крестик сохранил черновик");
+    delete wzMem.accCg;
+    wzResume("accCg");
+    ok(accCg.name === "Проба-каталог" && accCg.roles.has(accRoles()[0].id), "группа каталога: имя и роли на месте");
+    await cancelYes(() => [...document.querySelectorAll("#accCgFt .btn")].find((b) => /Отмена/.test(b.textContent)).click());
+    ok(!accCg && !draft("accCg"), "группа каталога: отмена удалила черновик");
+    // Каталог изменился — черновик устарел
+    accCgOpen(cat0.id, 0);
+    accCgName("Проба-старая");
+    const dn0 = accCg.dn;
+    wzClose("accCg");
+    wzMem.accCg.dn = dn0 + "-нет";
+    wzResume("accCg");
+    ok(!accCg && !draft("accCg"), "группа каталога: устаревший черновик не открывается");
+  }
+
+  // Правило: шаг и шаблон
+  goApp("rules");
+  ruleNewOpen();
+  wzClose("rule");
+  ok(!draft("rule"), "правило: без выбора черновика нет");
+  ruleNewOpen();
+  ruleNewGo(1);
+  wzClose("rule");
+  ok(!document.getElementById("bmodal").classList.contains("open") && !!draft("rule") && dock("rule"), "правило: крестик закрыл окно и сохранил черновик");
+  delete wzMem.rule;
+  ruleNewOpen();
+  ok(rnw.step === 1, "правило: повторный вход на том же шаге");
+  await cancelYes(() => [...document.querySelectorAll("#bmFoot .btn")].find((b) => /Отмена/.test(b.textContent)).click());
+  ok(!draft("rule") && !document.getElementById("bmodal").classList.contains("open"), "правило: отмена удалила черновик");
+  ruleNewOpen();
+  ruleNewGo(1);
+  wzClose("rule");
+  wzResume("rule");
+  const nRules = rules.length;
+  ruleNewCreate();
+  ok(rules.length === nRules + 1 && !draft("rule") && !dock("rule"), "правило: создано, черновика нет");
+
+  // Служба: тип и поля возвращаются, в том числе после смены сервера
+  ruleDraft = null; // новое правило не применено: без этого уход из раздела спрашивает
+  goApp("hw");
+  ok(app === "hw" && !confirmOn(), "служба: раздел «Оборудование», вопросов нет");
+  pick(owner.id, { force: true });
+  openW("svc");
+  wzClose("obj");
+  ok(!draft("obj"), "служба: без выбора типа черновика нет");
+  openW("svc");
+  chooseAdd("object", "svc", "email");
+  wn().click();
+  ok(ws === 2 && !!document.getElementById("wizName"), "служба: шаг параметров");
+  document.getElementById("wizName").value = "Проба-почта";
+  document.getElementById("wizSmtp").value = "smtp.proba";
+  wzClose("obj");
+  ok(!wizOn() && !!draft("obj") && dock("obj"), "служба: крестик сохранил черновик");
+  ok(/Проба-почта/.test(draft("obj")), "служба: поля в черновике");
+  delete wzMem.obj;
+  openW("svc");
+  ok(wizOn() && ws === 2 && document.getElementById("wizName").value === "Проба-почта" && document.getElementById("wizSmtp").value === "smtp.proba", "служба: тот же шаг, поля на месте");
+  // Единица СКУД — другой вид: сначала вопрос
+  openW("unit");
+  ok(await until(confirmOn), "единица: чужой черновик — сначала вопрос");
+  closeConfirm();
+  await until(() => !confirmOn());
+  const nDev = (await uiDevices()).length;
+  wn().click();
+  ok(await until(() => !wizOn()), "служба: создана, окно закрыто");
+  ok(!draft("obj") && !dock("obj"), "служба: черновика нет");
+  ok(await until(async () => (await uiDevices()).length === nDev + 1), "служба: объект на сервере");
+  // «Отмена» спрашивает
+  openW("svc");
+  chooseAdd("object", "svc", "email");
+  await cancelYes(() => document.getElementById("wc").click());
+  ok(!wizOn() && !draft("obj"), "служба: отмена удалила черновик");
+  openW("svc");
+  document.getElementById("wc").click();
+  ok(!wizOn() && !confirmOn(), "служба: без выбора отмена закрывает сразу");
+  // Повторный клик по выбранному типу поля не сбрасывает
+  openW("svc");
+  chooseAdd("object", "svc", "email");
+  wn().click();
+  document.getElementById("wizName").value = "Проба-возврат";
+  wizBack();
+  chooseAdd("object", "svc", "email");
+  wn().click();
+  ok(document.getElementById("wizName").value === "Проба-возврат", "служба: тот же тип — поля на месте");
+  wzClose("obj");
+  // С другого места черновик не продолжается молча
+  const otherSrv = domains.flatMap((d) => d.servers).find((s) => s.id !== owner.id && !isUnallocated(s.id));
+  ok(!!otherSrv, "в наборе есть другой сервер");
+  pick(otherSrv.id, { force: true });
+  openW("svc");
+  ok(await until(confirmOn), "служба: другой сервер — сначала вопрос");
+  closeConfirm();
+  await until(() => !confirmOn());
+  ok(!wizOn() && !!draft("obj"), "служба: «Оставить» сохранил черновик");
+  // Мастер устройств открывается и при чужом черновике, без вопроса
+  const tv0 = tview;
+  tview = "sys";
+  lanOpenWizard("manual");
+  ok(wizOn() && wizd.mode === "device-add" && !confirmOn() && !!draft("obj"), "устройства: окно открыто без вопроса, черновик службы цел");
+  closeWizard();
+  tview = tv0;
+  // Черновик помнит свой сервер, когда выделение ушло в другой домен
+  const ownDom = domainOf(owner.id);
+  const otherDom = domains.find((d) => d.id !== ownDom?.id && d.servers.some((s) => !isUnallocated(s.id)));
+  if (otherDom) {
+    pick(otherDom.servers.find((s) => !isUnallocated(s.id)).id, { force: true });
+    delete wzMem.obj;
+    wzResume("obj");
+    ok(wizOn() && wizd.server === owner.id, "служба: сервер черновика на месте при выделении в другом домене");
+    closeWizard();
+  }
+  // Из другого раздела черновик ведёт в «Оборудование»
+  goApp("acc");
+  delete wzMem.obj;
+  wzResume("obj");
+  ok(app === "hw" && wizOn(), "служба: продолжение открывает «Оборудование»");
+  closeWizard();
+  wzDrop("obj");
+  pick(owner.id, { force: true });
+
   // Правило: два шага
   goApp("rules");
   ruleNewOpen();
@@ -188,4 +359,5 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(rnw.step === 1, "правило: второй шаг");
   wzClose("rule");
   ok(!document.getElementById("bmodal").classList.contains("open"), "правило: крестик закрывает окно");
+  wzDrop("rule");
 });
