@@ -1,7 +1,7 @@
-/* Сценарии интерфейса: единый правый клик (прототип 22). Меню браузера внутри макета нет,
+/* Сценарии интерфейса: единый правый клик (прототип 23). Меню браузера внутри макета нет,
    меню содержит только действия того, по чему щёлкнули, поле ввода показывает своё меню.
    На странице без единого правого клика (index.html, пока его не перенесли) сценарий молчит.
-   Запуск — tools/check_ui.py --page index_22_pravyy-klik.html tests/ui-rc-menu.js */
+   Запуск — tools/check_ui.py --page index_23_pravyy-klik.html tests/ui-rc-menu.js */
 UiCheck(async ({ ok, sleep, until }) => {
   if (typeof rcOnContext !== "function") { ok(true, "на этой странице единого правого клика нет"); return; }
   const menuEl = () => document.getElementById("tctx");
