@@ -145,6 +145,18 @@ UiCheck(async ({ ok }) => {
   const heights = () => new Map(qa(".eff-node").map((tr) => [tr.dataset.ek, Math.round(tr.getBoundingClientRect().height)]));
   const w0 = grid(), h0 = heights();
   const tops = (m) => qa(".eff-node").filter((tr) => m.has(tr.dataset.ek)).map((tr) => tr.dataset.ek);
+  // Строки выше раскрытой остаются на месте; offsetTop не учитывает анимацию съезда
+  const posOf = () => new Map(qa(".eff-node").map((tr) => [tr.dataset.ek, tr.offsetTop]));
+  const pos0 = posOf(), names0 = qa(".eff-node").map((tr) => tr.dataset.ek), mid = names0[Math.floor(names0.length / 2)];
+  qa(".eff-node").find((tr) => tr.dataset.ek === mid).click();
+  const pos1 = posOf();
+  ok(names0.slice(0, names0.indexOf(mid) + 1).every((k) => pos0.get(k) === pos1.get(k)), "строки выше раскрытой остаются на месте");
+  accEffOpenAll(false, "");
+  // Вне экрана строки не анимируются, поэтому сначала показываем первую папку
+  qa(".eff-node")[0].scrollIntoView();
+  qa(".eff-node")[0].click();
+  ok(qa(".eff-tree tr[data-ek]").some((tr) => tr.getAnimations().length > 0), "строки съезжают и проявляются плавно");
+  accEffOpenAll(false, "");
   qa(".eff-node").forEach((_, i) => { const tr = qa(".eff-node")[i]; if (tr && !tr.querySelector(".eff-chev.open")) tr.click(); });
   const h1 = heights();
   ok(grid() === w0, `раскрытие не двигает столбцы: ${w0} → ${grid()}`);
@@ -161,6 +173,12 @@ UiCheck(async ({ ok }) => {
   ok(!!q(".eff-facets .bk-scope-sum.on") && /Показано/.test(q(".bk-scope-sum").textContent), "фильтр: итог «Показано N из M»");
   const anim = qa(".eff-facets [data-fk], .eff-facets").flatMap((el) => el.getAnimations());
   ok(anim.length > 0, `фильтр: чипы движутся плавно (анимаций ${anim.length}, чип ${fcKey})`);
+  ok(qa(".eff-facets [data-fk]").every((el) => el.getAnimations().length <= 1), "фильтр: анимация одна, без двойного запуска");
+  const allN = +q('.eff-facets [data-fk="all"] .stchip-cnt').textContent;
+  listSetQ("acceff", "нет-такого-объекта", "acc");
+  ok(/Показано\s*0 из 0/.test(q(".bk-scope-sum")?.textContent || ""), "фильтр: итог учитывает поиск");
+  listSetQ("acceff", "", "acc");
+  ok(+q('.eff-facets [data-fk="all"] .stchip-cnt').textContent === allN, "поиск очищен: счётчик вернулся");
   q('.eff-facets [data-fk="all"]').click();
   ok(!Object.keys(accEffF).length && !!q(".eff-tree"), "«все» снимает фильтр");
   q(".eff-facet-bar button").click();
