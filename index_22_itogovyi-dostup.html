@@ -1356,17 +1356,10 @@ label.acc-chk.dim{color:var(--mu)}
 .eff-digest{border:1px solid var(--ln);border-radius:8px;background:var(--p2);padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.5}
 .eff-digest ul{margin:6px 0 0;padding-left:18px}.eff-warn{color:var(--one-warning-icon)}
 .eff-views{margin-bottom:12px}
-.eff-tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-bottom:12px}
-.eff-tile{border:1px solid var(--ln);border-radius:8px;padding:10px;background:var(--p)}.eff-tile.on{border-color:var(--bl)}
-.eff-tile-h{display:flex;align-items:baseline;gap:6px;width:100%;border:0;background:0;color:var(--tx);padding:0;font:inherit;font-size:13px;font-weight:500;cursor:pointer;text-align:left}
-.eff-tile-h span:not(.ici){flex:1}.eff-tile-h b{font-size:18px;font-weight:600}.eff-tile-h small{color:var(--mu);font-size:11px}
 .eff-bar{display:flex;height:10px;border-radius:3px;overflow:hidden;border:1px solid var(--ln);margin:8px 0 6px;min-width:80px}
 .eff-bar>*{display:block;height:100%;border:0;padding:0;min-width:2px}.eff-bar>button{cursor:pointer}.eff-bar>button:hover{filter:brightness(1.25)}
 .eff-bar>*+*{border-left:1px solid var(--one-surface)}
-.eff-leg{display:flex;flex-direction:column;gap:1px;font-size:11px}
-.eff-leg button{display:flex;align-items:center;gap:6px;border:0;background:0;color:var(--mu);padding:1px 2px;font:inherit;cursor:pointer;text-align:left;border-radius:3px}
-.eff-leg button:hover,.eff-leg button.on{background:var(--one-control-hover);color:var(--tx)}.eff-leg b{margin-left:auto;color:var(--tx);font-weight:600}
-.eff-leg i,.eff-dot{display:inline-block;flex:none;width:9px;height:9px;border-radius:2px;border:1px solid var(--ln)}.eff-dot{margin-right:6px}
+.eff-dot{display:inline-block;flex:none;width:9px;height:9px;border-radius:2px;border:1px solid var(--ln);margin-right:6px}
 .eff-facets{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}.eff-facets .bk-facet{padding-left:0}.eff-clear{align-self:flex-start;margin-top:2px}
 .eff-facet-bar{display:flex;align-items:center;gap:10px;margin-bottom:10px}
 .eff-treeact{margin-left:auto;font-weight:400;font-size:12px}
@@ -1375,12 +1368,12 @@ label.acc-chk.dim{color:var(--mu)}
 .eff-node-n{font-weight:500}
 .eff-node-r{display:grid;grid-template-columns:140px 64px 1fr;gap:10px;align-items:center;font-size:12px}.eff-node-r .eff-bar{margin:0}.eff-node-c{color:var(--mu);white-space:nowrap;font-variant-numeric:tabular-nums}
 .eff-mix{color:var(--mu)}
-.eff-mx-seg{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px}.eff-mx-seg .sub{margin-left:8px}
+.eff-mx-hint{margin:0 0 10px}
 .eff-mx{white-space:nowrap}.eff-mx th.tot,.eff-mx td.tot{border-left:2px solid var(--ln)}
 .eff-mx-n{position:sticky;left:0;background:var(--p);font-weight:500;z-index:1}
 .eff-mx-c{padding:0!important;font-size:12px;text-align:center;border-left:1px solid var(--ln)}
 .eff-mx-c button{width:100%;height:100%;min-height:30px;padding:4px 10px;border:0;background:0;color:var(--tx);font:inherit;cursor:pointer}.eff-mx-c button:hover{outline:2px solid var(--bl);outline-offset:-2px}
-.eff-mx-c.mix button{color:var(--mu);font-style:italic}.eff-mx-c.tot button{font-weight:600}.eff-mx-c.num button{font-variant-numeric:tabular-nums;font-weight:600}
+.eff-mx-c.mix button{color:var(--mu);font-style:italic}.eff-mx-c.tot button{font-weight:600}
 .eff-rule{margin-top:12px;font-size:12px}.eff-rule summary{cursor:pointer;color:var(--mu)}.eff-rule .nt{margin-top:8px}
 .acc-cmp-sel{display:flex;gap:10px;align-items:center;padding:6px 0 10px}.acc-cmp-sel select{width:auto;min-width:200px}
 .acc-cmp th[scope=row]{font-weight:400;color:var(--tx);width:260px}
@@ -17850,9 +17843,9 @@ function accSetObj(rid,oid,f,v){
 // (ближайшая заданная, из нескольких — наибольшее) или по умолчанию; между
 // ролями — наибольшее. Считает интерфейс, решает
 // сервер — так и написано. Та же таблица — в карточке пользователя.
-// Прототип 22: три вида одного и того же расчёта. Строка считается один раз,
+// Прототип 22: два вида одного и того же расчёта. Строка считается один раз,
 // виды отличаются только тем, как её показывают.
-var accEffView="tree",accEffF={},accEffMore=new Set(),accEffOpen=new Set(),accEffMxBy="role",accEffUid="",accEffFlat=true;
+var accEffView="tree",accEffF={},accEffMore=new Set(),accEffOpen=new Set(),accEffUid="",accEffFlat=true;
 const ACC_EFF_NOFOLDER="__none";
 const ACC_EFF_DIMS=[
   ["vis","виден",x=>x.vis?"Видит":"Не видит",i18n],
@@ -17895,18 +17888,15 @@ function accEffSet(f){accEffF=f;resetPage("acceff");accUI()}
 function accEffFacet(d,v){const f={...accEffF};if(f[d]===v)delete f[d];else f[d]=v;accEffSet(f)}
 function accEffFacetMore(d){accEffMore.add(d);accUI()}
 function accEffClear(){listQ.acceff="";accEffSet({})}
-// Щелчок по числу в сводке или матрице ведёт к списку, суженному до этих объектов.
+// Щелчок по ссылке в выводе или по ячейке матрицы ведёт к списку, суженному до этих объектов.
 function accEffPick(...pairs){
   const f={};for(let i=0;i<pairs.length;i+=2)f[pairs[i]]=pairs[i+1];
-  const flash=accEffView!=="sum";if(accEffView==="mx")accEffView="tree";accEffFlat=true;listQ.acceff="";accEffSet(f);
-  if(flash)accFlash(()=>{const el=document.getElementById("accEffList");return el?[el]:null});
+  accEffView="tree";accEffFlat=true;listQ.acceff="";accEffSet(f);
+  accFlash(()=>{const el=document.getElementById("accEffList");return el?[el]:null});
 }
 function accEffViewSet(v){
-  accEffView=v;
-  if(v==="tree"&&accEffF.vis==="Видит"){const f={...accEffF};delete f.vis;accEffF=f}
-  accUI();
+  accEffView=v;accUI();
 }
-function accEffMxSet(v){accEffMxBy=v;accUI()}
 function accEffFlatSet(on){accEffFlat=on;accUI()}
 // Где лежит объект: при плоском списке результата это заменяет дерево.
 function accEffPlace(x){return x.folderable?x.gs.map(g=>g===x.dom?i18n("Без папки"):accGroupRow(g)?.name||g).join(", "):""}
@@ -17926,22 +17916,13 @@ function accEffDigest(u,rows){
   }).join(""):"";
   return`<div class="eff-digest"><div><b>${escHtml(u.login)}</b> ${i18n("видит")} <b>${seen.length}</b> ${i18n("из")} ${rows.length} ${plural(rows.length,"объекта|объектов|объектов")}${ex?` · <button type="button" class="lk lk-act" ${onEv("click",["accEffPick","src","Исключение"])}>${i18n("исключения")}: ${ex}</button>`:` · <span class="sub">${i18n("исключений нет")}</span>`}</div>${roles?`<ul>${roles}</ul>`:""}</div>`;
 }
-function accEffTiles(rows){
-  const types=[...new Set(rows.map(x=>x.o.type))];
-  return`<div class="eff-tiles">${types.map(t=>{
-    const list=rows.filter(x=>x.o.type===t),kind=accObjKind(list[0].o),seen=list.filter(x=>x.vis).length,on=accEffF.type===kind;
-    return`<div class="eff-tile ${on?"on":""}"><button type="button" class="eff-tile-h" ${onEv("click",on?["accEffFacet","type",kind]:["accEffPick","type",kind])}>${accObjIc(list[0].o)}<span>${i18n(kind)}</span><b>${seen}</b><small>${i18n("из")} ${list.length}</small></button>
-      ${accEffBar(list,c=>["accEffPick","type",kind,"lv",accLv(c.f,c.lv)])}
-      <div class="eff-leg">${accEffCounts(list).slice(0,4).map(c=>`<button type="button" class="${accEffF.type===kind&&accEffF.lv===accLv(c.f,c.lv)?"on":""}" ${onEv("click",["accEffPick","type",kind,"lv",accLv(c.f,c.lv)])}><i style="background:${accEffTint(c.f,c.lv)}"></i>${accLv(c.f,c.lv)} <b>${c.n}</b></button>`).join("")}${accEffCounts(list).length>4?`<span class="sub">${i18n("ещё")} ${accEffCounts(list).length-4}</span>`:""}</div></div>`;
-  }).join("")}</div>`;
-}
 var accEffFacetsOpen=false;
 function accEffFacetsToggle(){accEffFacetsOpen=!accEffFacetsOpen;accUI()}
-function accEffFacets(rows,fold){
-  const fk=Object.keys(accEffF),any=fk.length>0&&!(fk.length===1&&accEffF.vis==="Видит");
+function accEffFacets(rows){
+  const fk=Object.keys(accEffF),any=fk.length>0;
   // В дереве чипы свёрнуты: иначе шесть строк фильтра уводят само дерево за край экрана.
-  if(fold&&!accEffFacetsOpen)return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="false" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Фильтр")}${fk.length?` · ${fk.length}`:""}</button>${any?`<button type="button" class="lk lk-act" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
-  return`${fold?`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="true" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Скрыть фильтр")}</button></div>`:""}<div class="eff-facets">${facetRowsHtml(ACC_EFF_DIMS,rows,accEffF,"accEffFacet",accEffMore,"accEffFacetMore")}${any?`<button type="button" class="lk lk-act eff-clear" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
+  if(!accEffFacetsOpen)return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="false" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Фильтр")}${fk.length?` · ${fk.length}`:""}</button>${any?`<button type="button" class="lk lk-act" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
+  return`<div class="eff-facet-bar"><button type="button" class="btn s" aria-expanded="true" ${onEv("click",["accEffFacetsToggle"])}>${i18n("Скрыть фильтр")}</button></div><div class="eff-facets">${facetRowsHtml(ACC_EFF_DIMS,rows,accEffF,"accEffFacet",accEffMore,"accEffFacetMore")}${any?`<button type="button" class="lk lk-act eff-clear" ${onEv("click",["accEffClear"])}>${i18n("Сбросить фильтр")}</button>`:""}</div>`;
 }
 function accEffRowCells(x,many,place){
   const f=x.f,e=x.e[f],extra=x.fs.slice(1).map(f2=>`<small class="acc-cmt">${i18n(ACC_FIELD_NAME[f2])}: ${accLv(f2,x.e[f2].lv)}</small>`).join("");
@@ -17949,17 +17930,6 @@ function accEffRowCells(x,many,place){
     <td><span class="acc-lv ${x.vis?"":"no"}" title="${escHtml(ACC_LV_HINT[f]?.[e.lv]||"")}"><i class="eff-dot" style="background:${accEffTint(f,e.lv)}"></i>${accLv(f,e.lv)}</span>${extra}</td>
     <td class="sub">${e.best&&many?`${i18n("роль")} «${escHtml(e.best.r.n)}»: `:""}${accSrcText(e.best,f)}${x.vis&&e.levels.filter(l=>l.lv===e.lv).length>1?` <span class="sub">· ${i18n("то же даёт")} ${e.levels.filter(l=>l.lv===e.lv&&l.r.id!==e.best.r.id).map(l=>`«${escHtml(l.r.n)}»`).join(", ")}</span>`:""}</td>
     <td><button type="button" class="ch-act" ${onEv("click",["accEffWhy",onEv.el,x.i])}>${i18n("Почему так")}</button></td>`;
-}
-// ── Вид «Сводка и список» ──
-function accEffSumHtml(u,rows,many){
-  const items=rows.filter(x=>facetHit(ACC_EFF_DIMS,x,accEffF));
-  return`${accEffTiles(rows)}${accEffFacets(rows)}<div id="accEffList">${listCard({
-    key:"acceff",how:"acc",title:`${i18n("Объекты")} · ${accDomName(domainFilter)}`,items,
-    text:x=>[x.o.short!=null?String(x.o.short):"",locName(x.o),accObjKind(x.o)],
-    row:x=>`<tr><td class="acc-num">${escHtml(x.o.short??"")}</td>${accEffRowCells(x,many)}</tr>`,
-    wrap:r=>`<table class="acc-tbl"><tr><th>№</th><th>${i18n("Объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${r}</table>`,
-    ph:"Проверить объект…",unit:"объект|объекта|объектов",empty:"Под такой фильтр объектов нет"
-  })}</div>`;
 }
 // ── Вид «По папкам» ──
 const ACC_EFF_KINDS={archive:"Хранилища",videowall:"Видеостены",plugin:"Плагины",macro:"Правила автоматизации"};
@@ -17992,7 +17962,7 @@ function accEffTreeHtml(u,rows,many){
   const filtering=!!q||Object.keys(accEffF).length>0,keys=[];
   const asSeg=filtering?`<span class="eff-treeact"><button type="button" class="lk lk-act" ${accEffFlat?"disabled":""} ${onEv("click",["accEffFlatSet",true])}>${i18n("Списком")}</button> · <button type="button" class="lk lk-act" ${accEffFlat?"":"disabled"} ${onEv("click",["accEffFlatSet",false])}>${i18n("В дереве")}</button></span>`:"";
   // Фильтр или поиск нашли объекты: дерево уже не нужно для обзора, результат читается списком.
-  if(filtering&&accEffFlat)return`${accEffFacets(rows,true)}<div id="accEffList">${listCard({
+  if(filtering&&accEffFlat)return`${accEffFacets(rows)}<div id="accEffList">${listCard({
     key:"acceff",how:"acc",title:`${i18n("Найденные объекты")} · ${accDomName(domainFilter)}`,head:asSeg,items:rows.filter(x=>facetHit(ACC_EFF_DIMS,x,accEffF)),text:o.text,
     row:x=>`<tr>${accEffRowCells(x,many,true)}</tr>`,
     wrap:r=>`<table class="acc-tbl"><tr><th>${i18n("Объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${r}</table>`,
@@ -18006,7 +17976,7 @@ function accEffTreeHtml(u,rows,many){
     return`<tr class="eff-node click" ${onEv("click",["accEffToggle",n.k])}><td style="padding-left:${depth*18+8}px"><button type="button" class="eff-chev ${open?"open":""}" aria-expanded="${open}" aria-label="${i18n(open?"Свернуть":"Развернуть")}">${lu("chevron-right")}</button>${n.type?accObjIc(n.all[0].o):""} <span class="eff-node-n">${escHtml(n.name)}</span></td><td colspan="3"><div class="eff-node-r">${accEffBar(n.all)}<span class="eff-node-c">${seen} ${i18n("из")} ${n.all.length}</span><span class="eff-node-s">${accEffSummaryText(n.all)}</span></div></td></tr>${inner}`;
   };
   const body=accEffTreeModel(rows).map(n=>line(n,0)).join("");
-  return`${accEffFacets(rows,true)}<div class="card"><div class="ch">${i18n("Папки и объекты")} · ${accDomName(domainFilter)}${asSeg||`<span class="eff-treeact"><button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",true,keys.join("\n")])}>${i18n("Раскрыть всё")}</button> · <button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",false,""])}>${i18n("Свернуть")}</button></span>`}</div><div class="cb">${listSearchHtml("acceff","Проверить объект…","acc")}${body?`<table class="acc-tbl eff-tree"><tr><th>${i18n("Папка или объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${body}</table>`:`<p class="sub">${i18n("Ничего не найдено")}</p>`}</div></div>`;
+  return`${accEffFacets(rows)}<div class="card"><div class="ch">${i18n("Папки и объекты")} · ${accDomName(domainFilter)}${asSeg||`<span class="eff-treeact"><button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",true,keys.join("\n")])}>${i18n("Раскрыть всё")}</button> · <button type="button" class="lk lk-act" ${onEv("click",["accEffOpenAll",false,""])}>${i18n("Свернуть")}</button></span>`}</div><div class="cb">${listSearchHtml("acceff","Проверить объект…","acc")}${body?`<table class="acc-tbl eff-tree"><tr><th>${i18n("Папка или объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${body}</table>`:`<p class="sub">${i18n("Ничего не найдено")}</p>`}</div></div>`;
 }
 // ── Вид «Матрица» ──
 function accEffMxRows(rows){
@@ -18015,46 +17985,32 @@ function accEffMxRows(rows){
   return out;
 }
 function accEffMxHtml(u,rows){
-  const rs=accUserRoles(u,true).map(id=>accRole(id)).filter(Boolean);
-  const mrows=accEffMxRows(rows),by=rs.length?accEffMxBy:"lv";
-  const seg=[["role","Папки × роли"],["lv","Папки × уровни"]].map(([v,t])=>`<button type="button" class="acc-filt ${by===v?"on":""}" ${rs.length?"":"disabled"} ${onEv("click",["accEffMxSet",v])}>${i18n(t)}</button>`).join("");
+  const rs=accUserRoles(u,true).map(id=>accRole(id)).filter(Boolean),mrows=accEffMxRows(rows);
   const nameCell=(n,d)=>`<td class="eff-mx-n" style="padding-left:${d*14+8}px">${n.type?accObjIc(n.all[0].o)+" ":""}${escHtml(n.name)} <small class="sub">${n.all.length}</small></td>`;
   const scope=n=>n.type?["type",accObjKind(n.all[0].o)]:n.fv?["folder",n.fv]:[];
-  let head,body;
-  if(by==="role"){
-    // Ячейка: что даёт эта роль на объектах строки. Одно значение — словом, разные — числом разных.
-    const cell=(n,get,key,bold)=>{
-      const m=new Map();n.all.forEach(x=>{const k=get(x);if(!k)return;const id=x.f+"|"+k;if(!m.has(id))m.set(id,{f:x.f,lv:k,n:0});m.get(id).n++});
-      const v=[...m.values()],args=scope(n);
-      if(!v.length)return`<td class="eff-mx-c sub">—</td>`;
-      if(v.length===1)return`<td class="eff-mx-c ${bold?"tot":""}" style="background:${accEffTint(v[0].f,v[0].lv)}"><button type="button" ${onEv("click",["accEffPick",...args,...(bold?["lv",accLv(v[0].f,v[0].lv)]:[])])}>${accLv(v[0].f,v[0].lv)}</button></td>`;
-      const top=v.slice().sort((a,b)=>accRank(b.f,b.lv)/(ACC_LV[b.f].length-1)-accRank(a.f,a.lv)/(ACC_LV[a.f].length-1))[0];
-      return`<td class="eff-mx-c mix ${bold?"tot":""}" title="${escHtml(v.map(z=>`${accLv(z.f,z.lv)}: ${z.n}`).join(", "))}"><button type="button" ${onEv("click",["accEffPick",...args])}>${i18n("Разный")}, ${i18n("наибольший")}: ${accLv(top.f,top.lv)}</button></td>`;
-    };
-    head=`<th>${i18n("Папка")}</th>${rs.map(r=>`<th>${escHtml(r.n)}</th>`).join("")}<th class="tot">${i18n("Итог")}</th>`;
-    body=mrows.map(({n,d})=>`<tr>${nameCell(n,d)}${rs.map(r=>cell(n,x=>x.e[x.f].levels.find(l=>l.r.id===r.id)?.lv,r.n,false)).join("")}${cell(n,x=>x.lv,"",true)}</tr>`).join("");
-  }else{
-    const cols=[...new Set(accEffCounts(rows).map(c=>accLv(c.f,c.lv)))],lvOf=new Map(accEffCounts(rows).map(c=>[accLv(c.f,c.lv),c]));
-    head=`<th>${i18n("Папка")}</th>${cols.map(c=>`<th>${c}</th>`).join("")}`;
-    body=mrows.map(({n,d})=>`<tr>${nameCell(n,d)}${cols.map(c=>{
-      const k=n.all.filter(x=>accLv(x.f,x.lv)===c).length;
-      if(!k)return`<td class="eff-mx-c sub">·</td>`;
-      const z=lvOf.get(c);
-      return`<td class="eff-mx-c num" style="background:${accEffTint(z.f,z.lv)}"><button type="button" title="${escHtml(c)}: ${k} ${accEffUnit(k)}" ${onEv("click",["accEffPick",...scope(n),"lv",c])}>${k}</button></td>`;
-    }).join("")}</tr>`).join("");
-  }
-  return`<div class="eff-mx-seg">${seg}<span class="sub">${i18n("Щелчок по ячейке открывает эти объекты в списке")}</span></div><div class="card"><div class="cb" style="overflow:auto;padding:0"><table class="acc-tbl eff-mx"><tr>${head}</tr>${body}</table></div></div>`;
+  // Ячейка: что даёт эта роль на объектах строки. Одно значение — словом, разные — наибольшее.
+  const cell=(n,get,total)=>{
+    const m=new Map();n.all.forEach(x=>{const k=get(x);if(!k)return;const id=x.f+"|"+k;if(!m.has(id))m.set(id,{f:x.f,lv:k,n:0});m.get(id).n++});
+    const v=[...m.values()],args=scope(n);
+    if(!v.length)return`<td class="eff-mx-c sub">—</td>`;
+    if(v.length===1)return`<td class="eff-mx-c ${total?"tot":""}" style="background:${accEffTint(v[0].f,v[0].lv)}"><button type="button" ${onEv("click",["accEffPick",...args,...(total?["lv",accLv(v[0].f,v[0].lv)]:[])])}>${accLv(v[0].f,v[0].lv)}</button></td>`;
+    const top=v.slice().sort((a,b)=>accRank(b.f,b.lv)/(ACC_LV[b.f].length-1)-accRank(a.f,a.lv)/(ACC_LV[a.f].length-1))[0];
+    return`<td class="eff-mx-c mix ${total?"tot":""}" title="${escHtml(v.map(z=>`${accLv(z.f,z.lv)}: ${z.n}`).join(", "))}"><button type="button" ${onEv("click",["accEffPick",...args])}>${i18n("Разный")}, ${i18n("наибольший")}: ${accLv(top.f,top.lv)}</button></td>`;
+  };
+  const head=`<th>${i18n("Папка")}</th>${rs.map(r=>`<th>${escHtml(r.n)}</th>`).join("")}<th class="tot">${i18n("Итог")}</th>`;
+  const body=mrows.map(({n,d})=>`<tr>${nameCell(n,d)}${rs.map(r=>cell(n,x=>x.e[x.f].levels.find(l=>l.r.id===r.id)?.lv,false)).join("")}${cell(n,x=>x.lv,true)}</tr>`).join("");
+  return`<p class="sub eff-mx-hint">${i18n("Щелчок по ячейке открывает эти объекты в списке")}</p><div class="card"><div class="cb" style="overflow:auto;padding:0"><table class="acc-tbl eff-mx"><tr>${head}</tr>${body}</table></div></div>`;
 }
 function accEffTableHtml(u){
-  if(accEffUid!==u.id){accEffUid=u.id;accEffF={vis:"Видит"};accEffMore=new Set();accEffOpen=new Set(domains.map(d=>"d:"+d.id));listQ.acceff="";resetPage("acceff");if(accEffView==="tree")delete accEffF.vis}
+  if(accEffUid!==u.id){accEffUid=u.id;accEffF={};accEffMore=new Set();accEffOpen=new Set(domains.map(d=>"d:"+d.id));listQ.acceff="";resetPage("acceff");}
   const rows=accEffRowsOf(u);
   window._accEff=rows;
   const many=accUserRoles(u,true).length>1;
   const tzs=[...new Set(accUserRoles(u,true).map(id=>accRole(id)?.tz||0))].filter(t=>t);
-  const views=[["tree","По папкам"],["sum","Сводка и список"],["mx","Матрица"]];
+  const views=[["tree","По папкам"],["mx","Матрица"]];
   return`${accEffDigest(u,rows)}
     <div class="acc-subnav eff-views" role="tablist" aria-label="${i18n("Вид")}">${views.map(([v,t])=>`<button type="button" role="tab" aria-selected="${accEffView===v}" class="acc-pill ${accEffView===v?"on":""}" ${onEv("click",["accEffViewSet",v])}>${i18n(t)}</button>`).join("")}</div>
-    ${accEffView==="tree"?accEffTreeHtml(u,rows,many):accEffView==="mx"?accEffMxHtml(u,rows):accEffSumHtml(u,rows,many)}
+    ${accEffView==="mx"?accEffMxHtml(u,rows):accEffTreeHtml(u,rows,many)}
     <details class="eff-rule"><summary>${i18n("Как считается итог")}</summary><div class="nt">${i18n("Итог — наибольшее по всем действующим ролям: исключение действует только внутри своей роли и не отнимает того, что даёт другая. Внутри роли: исключение для объекта, иначе значение его папки устройств (ближайшей, где оно задано; из нескольких папок — наибольшее), иначе право по умолчанию. «Просмотр» и «Просмотр архива» вместе дают «Просмотр и архив». Встроенная роль «Администратор» сильнее всего. Считает интерфейс по правилам сервера, окончательно решает сервер")}${tzs.length?`. ${i18n("Вход ограничен расписанием ролей:")} ${tzs.map(t=>i18n(ACC_TZ[t]).toLowerCase()).join("; ")}`:""}</div></details>`;
 }
 function accEffWhy(el,i){
