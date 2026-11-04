@@ -1472,6 +1472,8 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 :root{--asst-w:400px}
 .asst-dock{position:fixed;top:56px;right:0;bottom:0;width:var(--asst-w);max-width:100vw;z-index:40;display:flex;flex-direction:column;min-height:0;background:var(--p);border-left:1px solid var(--ln)}
 .asst-dock[hidden]{display:none}
+.asst-grip{position:absolute;left:0;top:0;bottom:0;width:6px;z-index:1;cursor:ew-resize;touch-action:none;background:transparent;outline:0}
+.asst-grip:hover,.asst-grip:focus-visible,.asst-grip.on{background:var(--one-accent)}
 .asst-dock[data-variant="over"]{top:64px;right:8px;bottom:8px;border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;overflow:hidden}
 @media(min-width:861px){.ws.asst-side #main{margin-right:var(--asst-w)}}
 .asst-head{flex:none;display:flex;align-items:center;gap:4px;height:44px;padding:0 6px 0 12px;border-bottom:1px solid var(--ln)}
@@ -2044,6 +2046,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <main id="main"></main></div>
 </div>
 <aside class="asst-dock" id="asstDock" aria-label="Ассистент" hidden>
+  <div class="asst-grip" id="asstGrip" role="separator" aria-orientation="vertical" aria-label="Ширина панели" data-i18n-title="Ширина панели: тяните край или нажимайте стрелки" title="Ширина панели: тяните край или нажимайте стрелки" tabindex="0"></div>
   <div class="asst-head" id="asstHead"></div>
   <div id="asstBlock"></div>
   <div class="asst-foot" id="asstFoot">
@@ -24092,8 +24095,10 @@ function bmBackdrop(){if(!document.querySelector("#bmodal .dc-box"))closeBulkMod
 // Без «Применить» ничего не пишется.
 // Прототип 22: разговоров много, asst — открытый сейчас. Ход принадлежит своему разговору: закрытие панели, переход
 // и другой разговор его не снимают. Лента — log плюс живые поля последнего хода.
-let asst=null,asstChats=[],asstDockOpen=false,asstHist=false,asstVariant="side",asstSeq=0,asstLiveWas="",asstScrollEnd=false;
-const ASST_STORE="consolem-proto22-chats",ASST_VAR_KEY="consolem-proto22-dock";
+let asst=null,asstChats=[],asstDockOpen=false,asstHist=false,asstVariant="auto",asstWidth=400,asstSeq=0,asstLiveWas="",asstScrollEnd=false;
+const ASST_STORE="consolem-proto22-chats",ASST_VAR_KEY="consolem-proto22-pos",ASST_W_KEY="consolem-proto22-width";
+// Меньше этого форма начинает ломаться: «Авто» кладёт панель поверх
+const ASST_FORM_MIN=700,ASST_W_MIN=320,ASST_W_MAX=720;
 const ASST_ICON=lu("message-square");
 const ASST_END=new Set(["question","plan","refused","answer","found","error"]);
 const asstEnds=m=>ASST_END.has(m.type);
@@ -24321,6 +24326,45 @@ function asstVariantSet(v){
   try{localStorage.setItem(ASST_VAR_KEY,v)}catch(e){}
   asstRender();
 }
+// Положение панели сейчас. Место под форму меряется до панели: сдвиг от самой панели на выбор не влияет
+function asstPos(){
+  if(window.innerWidth<=860)return"over";
+  if(asstVariant!=="auto")return asstVariant;
+  const ws=document.getElementById("ws")?.getBoundingClientRect(),main=document.getElementById("main")?.getBoundingClientRect();
+  if(!ws||!main)return"over";
+  return ws.right-main.left-asstWidth>=ASST_FORM_MIN?"side":"over";
+}
+function asstLayout(){
+  const dock=document.getElementById("asstDock");if(!dock)return;
+  const pos=asstPos();
+  dock.dataset.variant=pos;
+  document.getElementById("ws")?.classList.toggle("asst-side",asstDockOpen&&pos==="side");
+  const auto=document.getElementById("asstVarAuto");
+  if(auto)auto.title=`${i18n("Положение выбирается по ширине окна")}. ${i18n("Сейчас")}: ${i18n(pos==="side"?"рядом":"поверх")}`;
+}
+function asstWidthClamp(w){return Math.max(ASST_W_MIN,Math.min(ASST_W_MAX,window.innerWidth-120,Math.round(w)))}
+function asstWidthSet(w,save){
+  asstWidth=asstWidthClamp(w);
+  document.documentElement.style.setProperty("--asst-w",`${asstWidth}px`);
+  const grip=document.getElementById("asstGrip");
+  if(grip){grip.setAttribute("aria-valuenow",String(asstWidth));grip.setAttribute("aria-valuemin",String(ASST_W_MIN));grip.setAttribute("aria-valuemax",String(ASST_W_MAX))}
+  if(save)try{localStorage.setItem(ASST_W_KEY,String(asstWidth))}catch(e){}
+  asstLayout();
+}
+function asstGripInit(){
+  const grip=document.getElementById("asstGrip");if(!grip)return;
+  grip.addEventListener("pointerdown",e=>{e.preventDefault();grip.setPointerCapture(e.pointerId);grip.classList.add("on")});
+  grip.addEventListener("pointermove",e=>{if(grip.classList.contains("on"))asstWidthSet(window.innerWidth-e.clientX,false)});
+  const end=()=>{if(grip.classList.contains("on")){grip.classList.remove("on");asstWidthSet(asstWidth,true)}};
+  grip.addEventListener("pointerup",end);grip.addEventListener("pointercancel",end);
+  grip.addEventListener("keydown",e=>{
+    if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();asstWidthSet(asstWidth+(e.key==="ArrowLeft"?20:-20),true)}
+  });
+  // Окно, дерево и разделы меняют место под форму: «Авто» выбирает заново
+  window.addEventListener("resize",()=>asstWidthSet(asstWidth,false));
+  const aside=document.getElementById("aside"),rail=document.getElementById("rail");
+  if(window.ResizeObserver){const ro=new ResizeObserver(asstLayout);[aside,rail].forEach(x=>x&&ro.observe(x))}
+}
 function asstExample(t){if(asst&&!asst.busy)asstSend(null,t)}
 // Панель смотрят сейчас: тогда отбор и план сразу идут в дерево. Иначе дерево не меняется под руками,
 // их возвращают кнопки «Показать в дереве» и «Открыть в дереве»
@@ -24384,7 +24428,9 @@ function asstSave(){
   }catch(e){}
 }
 function asstLoad(){
-  try{asstVariant=localStorage.getItem(ASST_VAR_KEY)==="over"?"over":"side"}catch(e){}
+  try{const v=localStorage.getItem(ASST_VAR_KEY);if(["auto","side","over"].includes(v))asstVariant=v;asstWidth=parseInt(localStorage.getItem(ASST_W_KEY),10)||asstWidth}catch(e){}
+  asstGripInit();
+  asstWidthSet(asstWidth,false);
   let saved=[];
   try{saved=JSON.parse(localStorage.getItem(ASST_STORE)||"[]")}catch(e){}
   if(!Array.isArray(saved))return;
@@ -24720,6 +24766,7 @@ function asstHeadHtml(a){
   const other=asstChats.some(c=>c!==a&&c.unread&&!c.busy);
   return`<div class="asst-title" id="asstTitle" title="${escHtml(a.title)}">${escHtml(asstHist?i18n("История разговоров"):a.title||i18n("Новый разговор"))}</div>
     <div class="asst-var" role="group" aria-label="${i18n("Положение панели")}">
+      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
       <button type="button" id="asstVarSide" aria-pressed="${asstVariant==="side"}" title="${i18n("Панель сужает рабочую область")}" ${onEv("click",["asstVariantSet","side"])}>${i18n("Рядом")}</button>
       <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель лежит поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
     </div>
@@ -24776,11 +24823,10 @@ function asstRender(){
   asstHeadSync();
   const dock=document.getElementById("asstDock"),block=document.getElementById("asstBlock");if(!dock||!block)return;
   dock.hidden=!asstDockOpen;
-  dock.dataset.variant=asstVariant;
-  document.getElementById("ws")?.classList.toggle("asst-side",asstDockOpen&&asstVariant==="side");
   const a=asst;
-  if(!asstDockOpen||!a)return;
+  if(!asstDockOpen||!a){asstLayout();return}
   asstSetHtml(document.getElementById("asstHead"),asstHeadHtml(a));
+  asstLayout();
   const foot=document.getElementById("asstFoot"),mode=asstMode(a);
   foot.hidden=asstHist;
   if(asstHist){asstSetHtml(block,asstHistHtml(a));return}
@@ -24895,6 +24941,11 @@ function asstPlanToTree(a,p){
     tab=["rec","pre","arch"].some(k=>plan[k])&&bulkTabs(bulkFieldNodes()).some(([t])=>t==="rec")?"rec":"gen";
     aside();gear();
   }});
+  // Панель поверх закрыла бы карточку плана: она уходит, разговор и уточнение ждут в кнопке шапки
+  if(asstDockOpen&&asstPos()==="over"){
+    asstDockOpen=false;asstHist=false;
+    toast(i18n("План — в групповой карточке. Уточнить его можно в панели: кнопка «Ассистент»"));
+  }
   asstRender();
 }
 // Человек закрыл тег или ушёл: «Открыть в дереве» возвращает отбор, выбор и черновик. Свои правки в черновике остаются
