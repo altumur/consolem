@@ -1,9 +1,8 @@
-/* Прототип 19, раздел «Хранилища»: таблица, дерево, один диалог создания. Запуск — только на прототипе:
-   python tools/check_ui.py --page index_19_hranilishcha-tablica.html tests/proto-19-hranilishcha.js
-   В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
+/* Прототип 19, раздел «Хранилища»: таблица, дерево, один диалог создания. Запуск:
+   python tools/check_ui.py tests/ui-hranilishcha.js */
 // Без чтения кэша до конца: страница работает так, как у пользователя
 window.UI_RAW_CACHE = true;
-UiCheck(async ({ ok, until }) => {
+UiCheck(async ({ ok, until, confirmWith }) => {
   const dom = scopedDomains()[0];
   const tree = () => document.getElementById("tree");
   const rowOf = (id) => tree().querySelector(`.n[data-pick="${id}"]`);
@@ -75,10 +74,14 @@ UiCheck(async ({ ok, until }) => {
   ok(!find(camId).n.arch && !!tree().querySelector(`.n.on[data-pick="${camId}"]`), "у камеры нет хранилища, её строка выбрана");
   top().querySelector(".tw").click();
   ok(!open.has(AS_NOREC), "стрелка сворачивает");
+  // У каждой вкладки своё запомненное раскрытие: вернулись в раздел — как оставили
+  setSlice("cam");
+  setSlice("arch");
+  ok(!open.has(AS_NOREC), "при входе в раздел свёрнутое остаётся свёрнутым");
   open.add(AS_NOREC);
   setSlice("cam");
   setSlice("arch");
-  ok(!open.has(AS_NOREC), "при входе в раздел снова свёрнут");
+  ok(open.has(AS_NOREC), "при входе в раздел раскрытое остаётся раскрытым");
 
   // Кнопка одна на всех объектах раздела
   [dom, owner, local].forEach((n) => {
@@ -90,28 +93,35 @@ UiCheck(async ({ ok, until }) => {
   ok(addSplitItems(dom).some(([l]) => l === "Хранилище…") && addSplitItems(owner).some(([l]) => l === "Хранилище…"), "пункт одинаков у домена и сервера");
 
   // Диалог: контекст подставлен, вид и сервер можно выбрать
+  // «Отмена» мастера с введённым спрашивает подтверждение: черновик пропадает
+  const dropArch = async () => {
+    archNewCancel();
+    if (document.getElementById("confirm").classList.contains("open")) await confirmWith(null);
+  };
   addArchive(dom.id);
   ok(an.domain === dom.id && !an.server && !kindOf(an.kind).serverRequired, "с домена: вид без сервера, весь домен");
   ok(dlg().querySelectorAll(".an-kind").length === refArchKinds.length, "с домена: все виды");
   ok(/Весь домен/.test(dlg().querySelector(".an-srv select").textContent), "с домена: есть «Весь домен»");
   anSet("kind", "local");
-  ok(anBlock() === i18n("Выберите сервер") && document.getElementById("anCreate").disabled, "локальному нужен сервер");
+  ok(anBlock() === i18n("Выберите сервер") && document.querySelector("#bmFoot .btn.pri").disabled, "локальному нужен сервер: «Далее» погашена");
   ok(!/Весь домен/.test(dlg().querySelector(".an-srv select").textContent), "у локального нет «Весь домен»");
+  anGo(2);
   ok(/Сначала выберите сервер/.test(dlg().textContent), "диски — после выбора сервера");
-  archNewCancel();
+  await dropArch();
   addArchive(owner.id);
   ok(an.server === owner.id && an.kind === "local" && !anBlock(), "с сервера: локальное, сервер подставлен");
-  archNewCancel();
+  await dropArch();
   addArchive(shared.id);
   ok(!an.server && an.kind === shared.kind && an.domain === dom.id, "с сетевого: его вид и домен");
-  archNewCancel();
+  await dropArch();
   addArchive(local.id);
   ok(an.server === local.server && an.kind === local.kind, "с хранилища на диске: его вид и сервер");
-  archNewCancel();
+  await dropArch();
 
   // После создания раздел тот же, новое выбрано, строка видна и моргает
   const made = async (name) => {
     anSet("name", name, true);
+    anGo(AN_STEPS.length - 1);
     document.getElementById("anCreate").click();
     return until(() => find(sel)?.n.name === name);
   };
@@ -183,12 +193,12 @@ UiCheck(async ({ ok, until }) => {
   anSet("user", "vms", true);
   anSet("server", owner.id);
   ok(an.vol.disk === "\\\\nas78\\vms" && an.vol.user === "vms", "смена сервера: путь и пользователь на месте");
-  archNewCancel();
+  await dropArch();
   const loose = domains.flatMap((d) => d.unallocServers || [])[0];
   if (loose) {
     addArchive(loose.id);
     ok(!!an && !an.server, "нераспределённый сервер: диалог открыт, сервер выбирают");
-    archNewCancel();
+    await dropArch();
   }
 
   // Повторный клик не сбрасывает вкладку; группа сетевых выбирает отбор

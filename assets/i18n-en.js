@@ -816,7 +816,7 @@ window.I18N_EN={
 "Строка":"Row",
 "IP:порт":"IP:port",
 "Открыть план":"Open plan",
-"В системе его ещё нет: откройте план и нажмите «Применить план»":"It is not in the system yet: open the plan and click Apply plan",
+"В системе его ещё нет: откройте план и нажмите «Добавить»":"It is not in the system yet: open the plan and click Add",
 // Добавление серверов одним окном (прототип 13)
 "Добавить серверы":"Add servers",
 "Добавить серверы…":"Add servers…",

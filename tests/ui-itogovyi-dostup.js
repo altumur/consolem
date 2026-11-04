@@ -1,7 +1,6 @@
 /* Прототип 24: вкладка «Итоговый доступ» — вывод словами, вид «По папкам», фильтр списком, вид «Вклад ролей».
-   Не ui-*.js: у index.html таких видов нет. Запуск:
-   Прототип влит в 21. Запуск:
-   python3 tools/check_ui.py --page index_21_vse-pravki-nedeli.html tests/proto24-effective.js */
+   Запуск:
+   python3 tools/check_ui.py tests/ui-itogovyi-dostup.js */
 UiCheck(async ({ ok }) => {
   goApp("acc");
   const open = (login) => { accGo("user:" + accUsers().find((u) => u.login === login).id, "access"); };

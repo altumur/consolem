@@ -66,20 +66,24 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(video.id, "rec");
   ok(!main().querySelector("select") || [...main().querySelectorAll("option")].some((o) => o.textContent === "Второй") || !camArchs(find(video.id).n).length, "поток записи — из потоков камеры");
 
-  // Детекторы: встроенный — из того, что умеет камера; зона рисуется мышью и уходит на сервер
+  // Детекторы: новый создаёт мастер — встроенный из того, что умеет камера; линия рисуется мышью в кадре мастера и уходит на сервер
   const camD = devices.find((d) => d.detectorOptions && devices.some((x) => x.parentId === d.id && x.type === "det" && x.detectorKind === "linecross" && x.builtin));
-  open(camD.id, "det");
-  addDetector(camD.id);
-  const draftId = detSel;
-  ok(!!main().textContent.includes("Где работает"), "новый детектор: выбор, где работает");
-  detPlace(camD.id, draftId, "tmpl.tamper");
-  ok(![...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность"), "у шаблона без чувствительности поля нет");
-  detPlace(camD.id, draftId, "tmpl.line");
-  ok([...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность") && /1–100/.test(main().textContent), "диапазон шаблона показан");
-  ok(/линия/i.test(main().textContent), "детектору линии без линии — подсказка");
-  zoneMode(draftId, "line");
-  const svg = () => main().querySelector(`[data-zone="${draftId}"]`);
-  ok(!!svg(), "кадр с зоной");
+  // Камера, у которой ещё нет этих шаблонов и они не мешают друг другу
+  const camT = devices.find((d) => ["tmpl.line", "tmpl.tamper"].every((t) => (d.detectorOptions || []).some((o) => o.template === t) && !devices.some((x) => x.parentId === d.id && x.template === t))
+    && !devices.some((x) => x.parentId === d.id && x.template === "tmpl.face"));
+  ok(!!camT, "есть камера, где можно создать «Линию» и «Вскрытие корпуса»");
+  localStorage.removeItem("cfg.detCreate");
+  detCreateOpen(camT.id);
+  ok(await until(() => dc && dc.ready), "мастер прочитал камеры");
+  ok(!main().textContent.includes("Где работает"), "в карточке камеры выбора, где работает, больше нет: детекторы создаёт мастер");
+  dcItemToggle("t:tmpl.tamper", true);
+  dcItemToggle("t:tmpl.line", true);
+  dcStepGo(dcSteps().findIndex((x) => x.k === "zones"));
+  const rows = dcRows();
+  const lineRow = rows.find((r) => r.name === "Линия на камере");
+  ok(rows.length === 2 && lineRow?.line && zoneDraw?.id === lineRow.id && zoneDraw.shape === "line", "шаг зон: детектору линии сразу рисуется линия");
+  const svg = () => document.querySelector(`#bmodal [data-live] svg[data-zone="${lineRow.id}"]`);
+  ok(!!svg(), "кадр с зоной в окне мастера");
   const at = (t, fx, fy, el = svg()) => {
     const r = el.getBoundingClientRect();
     (t === "mousedown" ? el : window).dispatchEvent(new MouseEvent(t, { bubbles: true, cancelable: true, clientX: r.left + r.width * fx, clientY: r.top + r.height * fy }));
@@ -89,13 +93,26 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   at("mousedown", 0.25, 0.5);
   at("mousemove", 0.5, 0.6);
   at("mouseup", 0.75, 0.5);
-  const dz = camDetectors(find(camD.id).n).find((d) => d.id === draftId);
-  ok(dz.zone?.shape === "line" && Math.abs(dz.zone.points[0][0] - 0.25) < 0.01 && Math.abs(dz.zone.points[1][0] - 0.75) < 0.01, "линия нарисована мышью, в долях кадра");
-  cardApply();
-  const made = async () => (await uiDevices()).find((d) => d.parentId === camD.id && d.template === "tmpl.line" && d.zone?.shape === "line");
+  const dz = dcZoneOf(lineRow.id);
+  ok(dz?.shape === "line" && Math.abs(dz.points[0][0] - 0.25) < 0.01 && Math.abs(dz.points[1][0] - 0.75) < 0.01, "линия нарисована мышью, в долях кадра");
+  dcStepGo(dcSteps().findIndex((x) => x.k === "rule"));
+  dcRulePick("none");
+  dcRun();
   await until(() => !bq || bq.finished);
+  const made = async () => (await uiDevices()).find((d) => d.parentId === camT.id && d.template === "tmpl.line" && d.zone?.shape === "line");
   const rec = await made();
   ok(!!rec && rec.builtin === true, "создан встроенный детектор с шаблоном и зоной");
+  const tam = (await uiDevices()).find((d) => d.parentId === camT.id && d.template === "tmpl.tamper");
+  ok(!!tam && tam.builtin === true, "и встроенный «Вскрытие корпуса» без зоны");
+  // Карточка созданного: диапазон шаблона; у шаблона без чувствительности поля нет
+  open(tam.id);
+  ok(![...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность"), "у шаблона без чувствительности поля нет");
+  open(rec.id);
+  ok([...main().querySelectorAll("[data-df]")].some((e) => e.dataset.df === "Чувствительность") && /1–100/.test(main().textContent), "диапазон шаблона показан");
+  // Детектору линии без линии — подсказка
+  const bare = devices.find((d) => d.parentId === camD.id && d.type === "det" && d.detectorKind === "linecross" && !d.builtin && !d.zone);
+  open(bare.id);
+  ok(/линия/i.test(main().textContent), "детектору линии без линии — подсказка");
   // Полигон на готовом детекторе, «Сбросить»
   const line = devices.find((d) => d.parentId === camD.id && d.type === "det" && !d.builtin);
   open(line.id);

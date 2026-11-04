@@ -51,6 +51,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nrWant = (await uiDevices()).filter((x) => x.type === "camera" && x.domainId === d.id && !x.archiveId && !(x.extraArchives || []).some((e) => e.recordMode !== "none")).length;
   ok(norecList(d.id).length >= nrWant, `в группе ${norecList(d.id).length}, на сервере ${nrWant}`);
   ok(!(await API.get("/devices", { noRecord: true, domainId: d.id, limit: 1 })).total, "полного числа сервер не даёт");
+  // Ещё не читавшаяся папка берётся заранее: в раскладке по папкам карточка домена («Папки») сама читает все папки
+  const f = folders.find((x) => domainById(folderDomain(x.id))?.online !== false && !x.items.length && !treeBr.has("folders|" + x.id) && !x.folders.length);
+  ok(!!f, "есть папка, которую дерево ещё не читало");
   // Группа «Без папки»
   setSlice("cam");
   setGroup("folder");
@@ -59,7 +62,6 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   renderTree();
   ok(await until(() => treeBr.get("folders|" + nf)?.done || treeBr.get("folders|" + nf)?.cursor), "«Без папки» прочитана отбором");
   // Папка: состав по запросу, правка изменениями
-  const f = folders.find((x) => !x.items.length && !treeBr.has("folders|" + x.id) && !x.folders.length);
   open.add(f.id);
   renderTree();
   ok(await until(() => treeBr.get("folders|" + f.id)?.done), "папка прочитана");

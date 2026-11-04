@@ -1,7 +1,6 @@
 /* Прототип 25, единый мастер создания: окно не закрывается случайно, черновик, отмена, пароль не в браузере, доведение до конца.
-   Прототип влит в 21. Запуск — только на прототипе:
-   python tools/check_ui.py --page index_21_vse-pravki-nedeli.html tests/proto-25-edinyy-master.js
-   В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
+   Запуск:
+   python tools/check_ui.py tests/ui-edinyy-master.js */
 UiCheck(async ({ ok, until, confirmWith }) => {
   const d = domains[0];
   const wiz = () => document.getElementById("wiz");

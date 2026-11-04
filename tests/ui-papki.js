@@ -1,6 +1,6 @@
 /* Сценарий прототипа 14: «Папки» меняются только от нажатия, статус переживает смену среза, «Найдено» считает показанное,
-   службы видны и в раскладке по папкам. Имя не ui-*: на index.html этого поведения нет. При переносе — tests/ui-papki.js.
-   Запуск — python3 tools/check_ui.py --page index_14_papki-tolko-vruchnuyu.html tests/proto14-papki.js */
+   службы видны и в раскладке по папкам.
+   Запуск — python3 tools/check_ui.py tests/ui-papki.js */
 UiCheck(async ({ ok, until, sleep }) => {
   const btn = () => document.getElementById("viewBtn");
   const on = () => btn().getAttribute("aria-checked") === "true";
@@ -15,13 +15,24 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(slice === "all" && group() === "folder" && on(), "при старте папки включены");
   ok(btn().getAttribute("role") === "switch" && btn().querySelector(".sw.on"), "«Папки» — переключатель");
   ok(!btn().closest('[aria-label="' + i18n("Срез дерева") + '"]'), "переключатель не среди срезов");
-  for (const s of ["det", "cam", "acfa", "all"]) { click(s); ok(slice === s && on(), `срез ${s} не меняет включённые «Папки»`); }
+  for (const s of ["cam", "acfa", "all"]) { click(s); ok(slice === s && on(), `срез ${s} не меняет включённые «Папки»`); }
+  // В «Детекторах» у «Папок» своё положение: второе положение — виды, при входе стоят они
   click("det");
+  ok(slice === "det" && group() === "kind" && !on(), "«Детекторы»: при входе положение «Виды», «Папки» выключены");
+  click("cam");
   btn().click();
-  ok(!on() && group() === "server", "выключили в «Детекторах»");
-  for (const s of ["cam", "acfa", "all", "det"]) { click(s); ok(!on(), `срез ${s}: выключенные «Папки» не включились`); }
+  ok(!on() && group() === "server", "выключили в «Камерах»");
+  for (const s of ["acfa", "all"]) { click(s); ok(!on(), `срез ${s}: выключенные «Папки» не включились`); }
+  click("det");
+  ok(group() === "kind" && !on(), "«Детекторы» своё положение сохранили");
+  btn().click();
+  ok(on() && group() === "folder", "включили «Папки» в «Детекторах»");
+  click("cam");
+  ok(!on() && group() === "server", "«Камеры»: «Папки» остались выключенными, «Детекторы» их не включили");
   btn().click();
   ok(on(), "включили обратно");
+  click("det");
+  ok(on() && group() === "folder", "«Детекторы»: своё положение — «Папки» — сохранилось");
 
   // Серверы и Хранилища: папок нет, срез кнопка не переключает, состояние ждёт возврата
   for (const s of ["srv", "arch"]) {

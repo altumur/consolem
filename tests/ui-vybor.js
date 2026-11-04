@@ -1,6 +1,5 @@
-/* Прототип 26: единый выбор на вкладках «Оборудования» и раскрытие дерева. Запуск — только на прототипе:
-   python tools/check_ui.py --page index_21_vse-pravki-nedeli.html tests/proto-26-vybor.js
-   В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
+/* Прототип 26: единый выбор на вкладках «Оборудования» и раскрытие дерева. Запуск:
+   python tools/check_ui.py tests/ui-vybor.js */
 // Без чтения кэша до конца: страница работает так, как у пользователя
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until, sleep }) => {

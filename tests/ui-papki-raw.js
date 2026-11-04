@@ -1,5 +1,5 @@
 /* Сценарий прототипа 14 на неполном кэше: объект известен только по id, его папок ещё никто не читал — «Папки» от этого не выключаются.
-   При переносе — tests/ui-papki-raw.js. Запуск — python3 tools/check_ui.py --page index_14_papki-tolko-vruchnuyu.html tests/proto14-papki-raw.js */
+   Запуск — python3 tools/check_ui.py tests/ui-papki-raw.js */
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
   const on = () => document.getElementById("viewBtn").getAttribute("aria-checked") === "true";

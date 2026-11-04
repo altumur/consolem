@@ -1,6 +1,5 @@
-/* Прототип 18, срез «Детекторы»: мастер создания, зоны и правило внутри мастера, черновик. Запуск — только
-   python tools/check_ui.py --page index_18_detektory-spisok.html tests/proto-18-detektory.js
-   В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
+/* Прототип 18, срез «Детекторы»: мастер создания, зоны и правило внутри мастера, черновик. Запуск:
+   python tools/check_ui.py tests/ui-detektory.js */
 UiCheck(async ({ ok, until }) => {
   const KEY = "cfg.detCreate";
   const box = () => document.querySelector("#bmodal.open .dc-box");

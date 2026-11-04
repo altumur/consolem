@@ -125,15 +125,15 @@ UiCheck(async ({ ok, sleep, until, confirmWith }) => {
   ok(document.getElementById("confirm").classList.contains("open") && !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled, "«Исключить из домена»: подтверждение с вводом числа");
   closeConfirm();
 
-  // 7. Все мастера добавления — одного размера
+  // 7. Все мастера добавления открываются (размер окна идёт за шагом, у разных мастеров он разный)
   pick(server.id); await sleep(100);
-  const sizes = new Set();
+  const wizOn = [];
   for (const open of [() => planOpen(), () => openW("svc"), () => openW("unit"), addServers]) {
     open(); await sleep(30);
-    sizes.add(Math.round(document.getElementById("wizDr").getBoundingClientRect().width));
+    wizOn.push(wizOpen());
     closeWizard(); await sleep(30);
   }
-  ok(sizes.size === 1, "все мастера добавления одного размера: " + [...sizes].join(", "));
+  ok(wizOn.length === 4 && wizOn.every(Boolean), "все мастера добавления открываются: " + wizOn.join(", "));
 
   // 8. Пункт меню действует: сначала открывает объект, затем выполняет действие
   pick(dom.id); await sleep(100);
