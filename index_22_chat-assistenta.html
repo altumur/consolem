@@ -1470,8 +1470,10 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gopop.open{display:block}
 /* Прототип 22: чат — своя панель справа. «Рядом» сужает рабочую область, «Поверх» лежит на ней */
 :root{--asst-w:400px}
-.asst-dock{position:fixed;top:56px;right:0;bottom:0;width:var(--asst-w);max-width:100vw;z-index:40;display:flex;flex-direction:column;min-height:0;background:var(--p);border-left:1px solid var(--ln)}
+.asst-dock{position:fixed;top:56px;right:0;bottom:0;width:var(--asst-w);max-width:100vw;z-index:41;display:flex;flex-direction:column;min-height:0;background:var(--p);border-left:1px solid var(--ln)}
 .asst-dock[hidden]{display:none}
+.asst-dock:focus{outline:0}
+@media(min-width:861px){body:has(.asst-dock:not([hidden])) .dc-dock{right:calc(var(--asst-w) + 16px)}}
 .asst-grip{position:absolute;left:0;top:0;bottom:0;width:8px;z-index:1;cursor:ew-resize;touch-action:none;background:transparent;outline:0}
 .asst-grip:hover,.asst-grip:focus-visible,.asst-grip.on{background:var(--one-accent)}
 .asst-dock[data-variant="over"]{top:64px;right:8px;bottom:8px;border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;overflow:hidden}
@@ -2045,7 +2047,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 </header>
 <main id="main"></main></div>
 </div>
-<aside class="asst-dock" id="asstDock" aria-label="Ассистент" hidden>
+<aside class="asst-dock" id="asstDock" aria-label="Ассистент" tabindex="-1" hidden>
   <div class="asst-grip" id="asstGrip" role="separator" aria-orientation="vertical" aria-label="Ширина панели" data-i18n-title="Ширина панели: тяните край или нажимайте стрелки" title="Ширина панели: тяните край или нажимайте стрелки" tabindex="0"></div>
   <div class="asst-head" id="asstHead"></div>
   <div id="asstBlock"></div>
@@ -24157,7 +24159,7 @@ function asstCodeKey(e){
   if(e.key==="Enter"){e.preventDefault();asstCodeApply()}
 }
 // Разговор заглушки и разговор службы — разные: context одного другому не годится
-function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false})}
+function asstModeChanged(a){a.log=a.log.concat(asstLiveItems({ask:a.ask,answer:a.answer,err:a.err,info:a.info}));Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false})}
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
@@ -24268,6 +24270,7 @@ async function asstFoundPick(){
 // Пароль наружу не уходит: ни полем секрета, ни в словах просьбы, ни ответом на вопрос о пароле. Разговор о нём
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
+  a.log=a.log.concat(asstLiveItems(a));
   Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
@@ -24358,7 +24361,7 @@ function asstGripInit(){
   const end=()=>{if(grip.classList.contains("on")){grip.classList.remove("on");asstWidthSet(asstWidth,true)}};
   grip.addEventListener("pointerup",end);grip.addEventListener("pointercancel",end);
   grip.addEventListener("keydown",e=>{
-    if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();asstWidthSet(asstWidth+(e.key==="ArrowLeft"?20:-20),true)}
+    if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();e.stopPropagation();asstWidthSet(asstWidth+(e.key==="ArrowLeft"?20:-20),true)}
   });
   // Окно, дерево и разделы меняют место под форму: «Авто» выбирает заново
   window.addEventListener("resize",()=>asstWidthSet(asstWidth,false));
@@ -24368,7 +24371,7 @@ function asstGripInit(){
 function asstExample(t){if(asst&&!asst.busy)asstSend(null,t)}
 // Панель смотрят сейчас: тогда отбор и план сразу идут в дерево. Иначе дерево не меняется под руками,
 // их возвращают кнопки «Показать в дереве» и «Открыть в дереве»
-function asstSeen(a){return asstDockOpen&&asst===a}
+function asstSeen(a){return asstDockOpen&&asst===a&&!asstHist}
 // Что показать о разговоре: класс и слова
 function asstState(a){
   if(a.busy)return["run",i18n("отвечает…")];
@@ -24418,13 +24421,16 @@ function asstItemHtml(x){
   if(x.k==="err")return`<div class="asst-msg err">${escHtml(x.t)}</div>`;
   return`<div class="asst-who">${i18n(x.k==="answer"?"Ассистент · проверьте по разделу":"Ассистент")}</div><div class="asst-msg asst-answer">${escHtml(x.t)}</div>`;
 }
-// Хранение макета: браузер, не больше 30 разговоров. Пароли, просьбы о них и контекст таких разговоров не сохраняются
+// Хранение макета: браузер, не больше 30 разговоров. Значение пароля может прозвучать в любой реплике и в ответе,
+// поэтому от разговора о пароле сохраняется только след: ни слов, ни контекста
 function asstSave(){
   try{
-    localStorage.setItem(ASST_STORE,JSON.stringify(asstChats.filter(c=>c.log.length).slice(0,30).map(c=>({
-      id:c.id,title:c.noStore&&c.titleSecret?i18n("Разговор"):c.title,at:c.at,unread:c.unread,running:c.busy,last:c.noStore?"":c.last,context:c.noStore?null:c.context,
-      log:c.log.concat(c.busy?[]:asstLiveItems(c)).map(x=>x.secret?{u:i18n("Просьба с паролем не сохранена")}:(({u,k,t})=>({u,k,t}))(x))
-    }))));
+    localStorage.setItem(ASST_STORE,JSON.stringify(asstChats.filter(c=>c.log.length).slice(0,30).map(c=>{
+      if(ASST_PASS.test(c.ask))c.noStore=true;
+      const base={id:c.id,at:c.at,unread:c.unread,running:c.busy};
+      if(c.noStore)return Object.assign(base,{noStore:true,title:i18n("Разговор с паролем"),last:"",context:null,log:[{k:"info",t:i18n("Реплики разговора с паролем не сохранены")}]});
+      return Object.assign(base,{title:c.title,last:c.last,context:c.context,ctxLive:!!c.ctxLive,log:c.log.concat(c.busy?[]:asstLiveItems(c)).map(({u,k,t})=>({u,k,t}))});
+    })));
   }catch(e){}
 }
 function asstLoad(){
@@ -24434,15 +24440,20 @@ function asstLoad(){
   let saved=[];
   try{saved=JSON.parse(localStorage.getItem(ASST_STORE)||"[]")}catch(e){}
   if(!Array.isArray(saved))return;
-  asstChats=saved.map(c=>Object.assign(asstNewChat(),{id:c.id,title:c.title,at:c.at,log:c.log||[],unread:!!c.unread||!!c.running,context:c.context||null,last:c.last||""},
-    // Поток не продолжить после перезагрузки: для этого нужен запрос к API
-    c.running?{err:i18n("Страницу перезагрузили во время хода: ответ потерян. Спросите заново"),interrupted:true}:{}));
+  asstChats=saved.map(c=>{
+    // Вопрос ассистента без ответа остаётся вопросом: ответ на него уйдёт с контекстом
+    const log=c.log||[],tail=log[log.length-1],ask=!c.running&&tail?.k==="ask"?tail.t:"";
+    return Object.assign(asstNewChat(),{id:c.id,title:c.title,at:c.at,log:ask?log.slice(0,-1):log,ask,unread:!!c.unread||!!c.running,noStore:!!c.noStore,context:c.context||null,ctxLive:!!c.ctxLive,last:c.last||""},
+      // Поток не продолжить после перезагрузки: для этого нужен запрос к API
+      c.running?{err:i18n("Страницу перезагрузили во время хода: ответ потерян. Спросите заново"),interrupted:true}:{});
+  });
   asst=asstChats[0]||null;
   asstHeadSync();
 }
 function asstVal(v){return v===undefined||v===null?"—":typeof v==="object"?JSON.stringify(v):String(v)}
 // План настройки применяется в дереве: что не легло в групповую карточку, сказано словами, обхода нет
 function asstPlanTreeNote(a){
+  if(!asstPickShown(a.plan))return"";
   const lost=a.planLost||[];
   return`<div class="asst-line" id="asstPlanNote">${i18n("Объекты плана отмечены в дереве, значения — в групповой карточке: проверьте, поменяйте и примените там")}</div>`+
     (lost.length?`<div class="asst-msg err" id="asstPlanLost">${i18n("Не перенесено в карточку")}: ${lost.map(escHtml).join(", ")}. ${i18n("Эти поля массово не меняются: правьте их в карточке объекта или спросите иначе")}</div>`:"");
@@ -24759,7 +24770,10 @@ async function asstRulesApply(a,p){
     }catch(x){rows.push({name,ok:false,why:x?.problem?.params?.issue?.code?`${problemText(x)}: ${x.problem.params.issue.code}`:problemText(x)})}
   }
   a.saving=false;
+  a.log=a.log.concat(asstLiveItems({plan:a.plan}));
   a.plan=null;a.result={rows,again:rows.some(x=>!x.ok),undo:null};
+  a.unread=!asstSeen(a);
+  asstSave();
   asstRender();
 }
 function asstSetHtml(el,html){if(el&&el._h!==html){el.innerHTML=html;el._h=html}}
@@ -24803,7 +24817,7 @@ function asstThreadHtml(a,mode){
 }
 function asstActsHtml(a,mode){
   return[
-    a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
+    a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" id="asstSec${i}" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
     `<div class="asst-act">`,
     a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
     `<span class="asst-gap"></span>`,
@@ -24826,14 +24840,13 @@ function asstRender(){
   dock.hidden=!asstDockOpen;
   const a=asst;
   if(!asstDockOpen||!a){asstLayout();return}
+  const act=document.activeElement,keep=act?.id;
   asstSetHtml(document.getElementById("asstHead"),asstHeadHtml(a));
   asstLayout();
   const foot=document.getElementById("asstFoot"),mode=asstMode(a);
   foot.hidden=asstHist;
-  if(asstHist){asstSetHtml(block,asstHistHtml(a));return}
+  if(asstHist){asstSetHtml(block,asstHistHtml(a));asstFocusBack(act,keep);return}
   if(!a.busy&&a.unread){a.unread=false;asstHeadSync();asstSave()}
-  const act=document.activeElement,keep=act?.id;
-  const mine=!act||act===document.body||!!act.closest("#asstDock");
   const atEnd=block.scrollHeight-block.scrollTop-block.clientHeight<40,top=block.scrollTop;
   asstSetHtml(block,asstThreadHtml(a,mode));
   block.scrollTop=asstScrollEnd||atEnd?block.scrollHeight:top;
@@ -24844,8 +24857,16 @@ function asstRender(){
   ta.placeholder=word;ta.setAttribute("aria-label",word);
   const code=document.getElementById("asstCode");
   if(code)code.value=a.codeDraft;
-  if(keep==="asstCode")code?.focus();
-  else if(mine&&!a.busy&&keep!=="asstText")ta.focus();
+  asstFocusBack(act,keep);
+}
+// Отрисовка заменила элемент с фокусом: фокус возвращается на такой же или в поле панели. Чужой фокус она не трогает:
+// ход другого разговора не уводит курсор из поля пароля, строки поиска или дерева
+function asstFocusBack(act,keep){
+  if(!act||act===document.body||act.isConnected)return;
+  const e=keep&&document.getElementById(keep);
+  e?.focus();
+  if(document.activeElement===e&&e?.tagName==="INPUT")e.setSelectionRange(e.value.length,e.value.length);
+  if(document.activeElement!==e)document.getElementById(asstHist?"asstHistBtn":"asstText")?.focus();
 }
 function asstKey(e){
   if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSendText()}
@@ -24857,7 +24878,7 @@ function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
 function asstEvent(a,m){
   if(m.type==="progress")a.line=m.text;
   // Тип хода служба держит в себе: в событиях его нет, лишнее поле (мост Пилота шлёт kind в progress) форма пропускает
-  if("context" in m)a.context=m.context;
+  if("context" in m){a.context=m.context;a.ctxLive=a.live}
   if(m.type==="question")a.ask=m.text;
   if(m.type==="answer")a.answer=m.text;
   if(m.type==="found"){a.found=m;if(asstSeen(a))asstFoundToTree(m)}
@@ -24869,7 +24890,7 @@ function asstEvent(a,m){
   if(m.type==="plan"){
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
-    if(m.items?.length&&asstSeen(a)){asstPlanToTree(a,m);return}
+    if(m.items?.length&&asstSeen(a)&&!asstDraftEdits()){asstPlanToTree(a,m);return}
   }
   asstRender();
 }
@@ -24882,17 +24903,18 @@ function asstSend(again,said){
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
   // Поля типа нет: что за реплика — вопрос, правка, правило, — решает тот, кто отвечает, по каждой реплике. Раздел не решает
+  // Контекст заглушки службе не годится, контекст службы — заглушке: код могли ввести в другом разговоре
+  if(a.context&&a.ctxLive!==live)a.context=null;
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
   // Прошлый ход уходит в ленту, а не пропадает. Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
-  const secret=a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask);
-  if(secret){a.noStore=true;if(!a.title)a.titleSecret=true}
-  a.log=a.log.concat(asstLiveItems(a),a.plan?[{k:"info",t:i18n("План снят")}]:[],[{u:text,secret}]);
+  if(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))a.noStore=true;
+  a.log=a.log.concat(asstLiveItems(a),a.plan?[{k:"info",t:i18n("План снят")}]:[],[{u:text}]);
   if(!a.title)a.title=text;
   a.at=Date.now();a.unread=false;a.interrupted=false;
   if(a.plan?.items)asstPlanDrop(a.plan);
   asstScrollEnd=true;
-  Object.assign(a,{last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  Object.assign(a,{last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",found:null,refused:"",err:"",plan:null,planLost:[],result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
   asstSave();
   (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>asstEvent(a,m),{ends:asstEnds,signal:a.abort.signal}))
@@ -24900,13 +24922,13 @@ function asstSend(again,said){
     .then(()=>{
       a.busy=false;a.line="";
       // Панель закрыта или открыт другой разговор: ответ ждёт, кнопка в шапке говорит о нём
-      a.unread=!asstSeen(a)||asstHist;
+      a.unread=!asstSeen(a);
       asstSave();
       asstRender();
     });
 }
 function asstAgain(){asstSend(asst?.last)}
-function asstDecline(){if(asst){asst.plan=null;asstRender()}}
+function asstDecline(){const a=asst;if(a){a.log=a.log.concat(asstLiveItems({plan:a.plan}));a.plan=null;asstSave();asstRender()}}
 // «Применить» в панели — только у плана правил. План настройки применяется черновиком групповой карточки
 function asstApply(){
   const a=asst,p=a?.plan;if(!p?.rules)return;
@@ -24933,7 +24955,7 @@ function asstPlanToTree(a,p){
   a.planLost=lost;
   // Переход в дерево — после записей: без них нечего отмечать
   asstPickSet({ids,total:ids.length,src:p,loaded:()=>{
-    if(asst!==a||a.plan!==p)return;
+    if(a.plan!==p)return;
     treeSel.clear();ids.forEach(id=>treeSel.add(id));
     selMode=true;bulkPeek=false;bulkFilt={kind:"",srv:"",model:""};
     // Черновик этого плана уже есть — с правками человека он остаётся
@@ -24950,11 +24972,19 @@ function asstPlanToTree(a,p){
   asstRender();
 }
 // Человек закрыл тег или ушёл: «Открыть в дереве» возвращает отбор, выбор и черновик. Свои правки в черновике остаются
-function asstPlanOpen(){const a=asst;if(a?.plan?.items)asstPlanToTree(a,a.plan)}
+function asstPlanOpen(){
+  const a=asst,p=a?.plan;if(!p?.items)return;
+  if(!asstDraftEdits()||bulkDraft.planOf===p){asstPlanToTree(a,p);return}
+  askConfirm("Заменить черновик карточки?",i18n("В групповой карточке есть правки, которые вы не применили. План ассистента заменит их."),"",i18n("Заменить"),()=>asstPlanToTree(a,p));
+}
+// В групповой карточке есть правки человека, а не только значения плана
+function asstDraftEdits(){return Object.keys(bulkDraft).some(k=>!["plan","planVer","planOf"].includes(k))}
 // План применён черновиком карточки: в панели его больше нет, итог — в очереди операций
 function asstPlanDone(p){
   const a=asstChats.find(c=>c.plan===p);if(!a)return;
+  a.log=a.log.concat(asstLiveItems({plan:p}));
   a.plan=null;a.planLost=[];a.info=i18n("План применён через карточку: ход и итог — в очереди операций");
+  asstSave();
   asstRender();
 }
 // Уточнение снимает план: слой плана в черновике уходит вместе с ним, правки человека остаются
