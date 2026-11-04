@@ -283,6 +283,7 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 .tctx button.tctx-danger{color:var(--one-danger)}
 .tctx button.tctx-danger:hover:not(:disabled),.tctx button.tctx-danger:focus-visible{background:var(--one-danger-bg)}
 .rc-target{outline:1px solid var(--bl);outline-offset:-1px}
+.it .det-row-del{flex:none;margin-left:8px}
 .pf-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .pf-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ln);background:var(--p2);color:var(--tx);border-radius:99px;padding:3px 10px 3px 8px;font-size:12px;cursor:pointer}
 .pf-chip b{color:var(--mu);font-weight:500}
@@ -4171,6 +4172,11 @@ function takeServer(serverId){
 function excludeFromDomain(serverId){
   const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
   if(!s||!dom)return;
+  askConfirm("Исключить сервер из домена?",`<ul class="bk-del"><li>${i18n("Сервер")} «${escHtml(locName(s))}» ${i18n("выйдет из домена")} «${escHtml(locName(dom))}».</li><li>${i18n("Останется: сервер в списке нераспределённых этого домена, его можно добавить снова.")}</li></ul>`,"",i18n("Исключить"),()=>excludeFromDomainRun(serverId),{html:true,typeCount:1});
+}
+function excludeFromDomainRun(serverId){
+  const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
+  if(!s||!dom)return;
   serversAssign([{s,domainId:dom.id,allocated:false}]).then(res=>{
     if(!res.done.length){toast(problemText(res.failed[0]?.code,s));return}
     hwApplyServer(res.done[0]);
@@ -7268,6 +7274,10 @@ function lanHost(n){
 }
 // «Ещё ▾» в шапке карточки — то же меню, что по правой кнопке на строке
 // дерева: видимый вход для тех, кто про правую кнопку не знает.
+function detDeleteBtn(n){
+  const cam=n.type==="det"?find(n.id)?.p:null;
+  return cam?`<button type="button" class="btn s danger" ${onEv("click",["deleteDetector",`${cam.id}`,`${n.id}`])}>${i18n("Удалить")}…</button>`:"";
+}
 function cardMoreBtn(n){
   if(app!=="hw"||!canTreeCtx(n))return"";
   return`<button type="button" class="btn s" aria-haspopup="menu" ${onEv("click",["cardMore",onEv.event,`${n.id}`])}>${i18n("Ещё")}${CHEV_BTN}</button>`;
@@ -7312,7 +7322,8 @@ function inspectorAddBtn(n){
 }
 function canWizardAdd(n){return n&&(n.type==="domain"||n.type==="server")}
 function canTreeCtx(n){
-  if(!n||n.type==="det")return false;
+  if(!n)return false;
+  if(n.type==="det")return true;
   if(n.type==="domain"||n.type==="server"||n.type==="unalloc"||n.type==="folder"||n.type==="archive"||n.type==="vol")return true;
   return treeKind(n)===tview;
 }
@@ -7343,7 +7354,7 @@ function clearFolder(folderId){
       sel=folderId;tab="gen";setD(false);
       toast(i18n("Папка очищена"));paint();
     }).catch(e=>toast(problemText(e)));
-  });
+  },{typeCount:count});
 }
 function folderAdded(r,parent,did){
   hwVer.set(r.id,r.version);
@@ -7448,7 +7459,9 @@ function openTreeCtx(n,xy){
   const menu=document.getElementById("tctx");if(!menu)return;
   const multi=treeSel.size>1&&treeSel.has(n.id);
   const groups=[];
-  if(multi){
+  const sliceItems=!multi&&rcSliceItems(n);
+  if(sliceItems)groups.push(...sliceItems);
+  else if(multi){
     const k=bulkSelNodes().length;
     groups.push([
       tctxItem(`${i18n("Изменить выбранные")} (${k})`,`closeTreeCtx();tabGo('gen')`,`<span class="tctx-ic">${SEL_IC}</span>`),
@@ -7491,6 +7504,7 @@ function openTreeCtx(n,xy){
       add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
     }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
     if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
+    if(n.type==="camera")add.push(tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen",id],tctxPlusIcon()));
     groups.push(add);
 
     const edit=[];
@@ -7522,6 +7536,47 @@ function openTreeCtx(n,xy){
   }
   rcShow(groups.filter(g=>g.length).map(g=>g.join("")).join(tctxSep()),xy);
 }
+function rcGoItems(id){
+  return[...(sel===id?[]:[tctxItem(i18n("Открыть"),["rcOpenNode",id],null,false,"tctx-default")]),
+    tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${id}')`,tctxNewTabIcon())];
+}
+// В срезе показаны только его объекты: контейнер в «Детекторах» и «Хранилищах» предлагает только их.
+function rcSliceItems(n){
+  const id=n.id;
+  if(n.type==="det"){
+    const cam=find(id)?.p;
+    return[rcGoItems(id),
+      rulePresetFor(n)?[tctxItem(i18n("Создать правило по событию…"),["rcRun","ruleFromDevice",id])]:[],
+      cam?[tctxDanger(`${i18n("Удалить")}…`,["rcRun","deleteDetector",cam.id,id])]:[]];
+  }
+  if(slice==="det"&&["domain","server","folder","nofolder","unalloc"].includes(n.type))
+    return[rcGoItems(id),[tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen"],tctxPlusIcon())]];
+  if(slice==="arch"&&(n.type==="domain"||n.type==="server")){
+    const own=n.type==="server"?serverArchives(id):[];
+    return[rcGoItems(id),
+      can("createArchive")?[tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",id],tctxPlusIcon())]:[],
+      own.length===1?[tctxDanger(`${i18n("Удалить хранилище")} «${escHtml(locName(own[0]))}»…`,["rcRun","deleteArchive",own[0].id])]:[]];
+  }
+  return null;
+}
+function rcDetBulk(xy,el){
+  const k=dl.sel.size;
+  rcShow([tctxItem(`${i18n("Включить")} (${k})`,["rcRun","detSetEnabled",true]),
+    tctxItem(`${i18n("Выключить")} (${k})`,["rcRun","detSetEnabled",false]),
+    tctxItem(`${i18n("Нарисовать зоны")} (${k})`,["rcRun","dzFromSel"]),
+    tctxItem(i18n("Снять выбор"),["rcRun","detSelClear"]),
+    tctxSep(),
+    tctxDanger(`${i18n("Удалить")}… (${k})`,["rcRun","detDeleteSel"])].join(""),xy);
+  rcMark(el);
+}
+function rcDetKind(k,xy,el){
+  const here=detListOn()&&dl.kind===k;
+  rcShow([...(here?[]:[tctxItem(i18n("Открыть"),["rcRun","detKindPick",k],null,false,"tctx-default"),tctxSep()]),
+    tctxItem(i18n("Добавить детекторы…"),["rcDetAdd",k],tctxPlusIcon())].join(""),xy);
+  rcMark(el);
+}
+function rcDetAdd(k){closeTreeCtx();if(k&&dl.kind!==k)detKindPick(k);detCreateOpen()}
+function rcRun(fn,...args){closeTreeCtx();window[fn](...args)}
 function treeCtx(e,id){
   if(rcNative(e))return;
   e.preventDefault();e.stopPropagation();
@@ -8248,7 +8303,7 @@ function gear(){
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" ${onEv("click",["tabGo",id])}>${i18n(x)}</button>`).join("");
   // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
   // дальше собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=(n.type==="folder"?folderAddBtn():slice==="arch"?archCreateBtn(n)+(n.type==="archive"||n.type==="vol"?inspectorAddBtn(n):""):(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  const addBtn=(n.type==="folder"?folderAddBtn():slice==="arch"?archCreateBtn(n)+(n.type==="archive"||n.type==="vol"?inspectorAddBtn(n):""):(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+bulkCopyBtn(n)+detDeleteBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   cardEnsureBase(n);
   paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml()+domainActionsHtml(n));
@@ -10024,7 +10079,7 @@ function camDetectorsHtml(n){
     title:"Детекторы камеры",
     items:dets,
     text:d=>[detTitle(d),i18n(d.kind||DET_TYPES[0])],
-    row:d=>`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")} · ${escHtml(detZoneText(d))}</small></span>${bdg(d)}</div>`,
+    row:d=>`<div class="it" ${onEv("click",["detFromCam",d.id])}><span>${ic("det")}</span><span>${escHtml(detTitle(d))}<small>${escHtml(detKindText(d,n))} · ${i18n(d.builtin?"встроенный":"серверный")} · ${escHtml(detZoneText(d))}</small></span>${pendingDelHas(d.id)?`<span class="bd off">${i18n("удаляется")}</span>`:`${bdg(d)}<button type="button" class="btn s det-row-del" ${onEv("click",onEv.stop,["deleteDetector",`${n.id}`,`${d.id}`])}>${i18n("Удалить")}…</button>`}</div>`,
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
     head:addBtn
@@ -12071,7 +12126,7 @@ function formBase(n){
   if(n.type==="det"){
     const cam=find(n.id)?.p;
     return detBackHtml(cam)+detZoneCardHtml(cam,n)+card("Параметры",`${detFieldsHtml(cam,n,"Имя")}
-      ${cam?detServerNoteHtml(cam,n):""}`,cam?`<button type="button" class="btn s" ${onEv("click",["deleteDetector",`${cam.id}`,`${n.id}`])}>${i18n("Удалить")}</button>`:"");
+      ${cam?detServerNoteHtml(cam,n):""}`);
   }
   if(n.type==="acfa_lock"||n.type==="acfa_sensor"||n.type==="acfa_fence"||(n.type==="relay"&&isUnitNode(n)))return unitCardHtml(n);
   if(n.type==="storage"){
@@ -22445,6 +22500,7 @@ function addSplitItems(n){
   }
   if(n.type==="server"&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
   if(n.type==="server"&&can("createArchive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
+  if((n.type==="domain"||n.type==="server")&&WIZ.acfa)items.push(["Единицу СКУД…","openW('unit')"]);
   return items;
 }
 function addSplitBtn(n){
@@ -23040,7 +23096,7 @@ function rcFavGone(i,xy,el){
 }
 function rcFavDrop(i){closeTreeCtx();const f=favs[i];if(f)toggleFav(f.id,null)}
 // Ссылка или строка: что за объект открывает её щелчок.
-const RC_LINKS={pick:id=>({k:"node",id}),flClick:id=>({k:"node",id}),jumpTo:id=>({k:"node",id}),detOpen:id=>({k:"node",id}),
+const RC_LINKS={pick:id=>({k:"node",id}),flClick:id=>({k:"node",id}),jumpTo:id=>({k:"node",id}),detOpen:id=>({k:"node",id}),detFromCam:id=>({k:"node",id}),detRowClick:id=>({k:"node",id}),detKindPick:k=>({k:"detkind",kind:k}),archGroupPick:did=>({k:"archgroup",did}),
   goFav:i=>({k:"fav",i}),accGo:s=>({k:"acc",s}),ruleOpen:id=>({k:"rule",id})};
 const RC_CONTROL="button,a,input,select,textarea,label,summary,[role=tab],[role=switch],[role=button]";
 function rcLink(t){
@@ -23115,11 +23171,17 @@ function rcAsideEmpty(xy){
   if(RC_QUIET)return;
   if(app==="hw"){
     const d=domainFilter?domains.find(x=>x.id===domainFilter):domains.length===1?domains[0]:null,items=[];
+    if(slice==="det"){rcShow(tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen"],tctxPlusIcon()),xy);return}
+    if(slice==="arch"){
+      const host=d||scopedDomains()[0];
+      if(host&&can("createArchive"))rcShow(tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",host.id],tctxPlusIcon()),xy);
+      return;
+    }
     if(d){
       items.push(tctxItem(i18n("Добавить серверы…"),["ctxThen",d.id,"openAddServers",d.id],tctxPlusIcon()));
       items.push(tctxItem(i18n("Создать папку"),["ctxThen",d.id,"addSubfolder",null,d.id],tctxPlusIcon()));
     }
-    if(can("createDomain"))items.push(tctxItem(i18n("Создать домен"),`closeTreeCtx();addDomain()`,tctxPlusIcon()));
+    if((slice==="all"||slice==="srv")&&can("createDomain"))items.push(tctxItem(i18n("Создать домен"),`closeTreeCtx();addDomain()`,tctxPlusIcon()));
     rcShow(items.join(""),xy);
   }else if(app==="rules")rcShow([tctxItem(i18n("Новое правило"),`closeTreeCtx();ruleNewOpen()`,tctxPlusIcon()),tctxItem(i18n("Проверить все правила"),`closeTreeCtx();ruleAuditOpen()`)].join(""),xy);
   else if(app==="acc")rcShow([tctxItem(i18n("Новая роль"),`closeTreeCtx();accWzOpen()`,tctxPlusIcon()),tctxItem(i18n("Новый пользователь"),`closeTreeCtx();accUserDlgOpen()`,tctxPlusIcon()),tctxItem(i18n("Новая группа"),`closeTreeCtx();accUgOpen()`,tctxPlusIcon())].join(""),xy);
@@ -23152,7 +23214,14 @@ function rcOnContext(e){
   if(wizOpen()||t.closest(".confirm,.jump,.mask,.ttu,#upop"))return;
   const link=rcLink(t);
   if(link?.k==="control")return;
-  if(link?.k==="node")rcObject(link.id,xy,link.el);
+  if(link?.k==="node"){
+    if(dl.sel.size>1&&dl.sel.has(link.id))rcDetBulk(xy,link.el);
+    else rcObject(link.id,xy,link.el);
+  }
+  else if(link?.k==="detkind")rcDetKind(link.kind,xy,link.el);
+  else if(link?.k==="archgroup"){
+    if(can("createArchive")){rcShow(tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",link.did],tctxPlusIcon()),xy);rcMark(link.el)}
+  }
   else if(link?.k==="rule"){if(app==="rules")ruleCtx(e,link.id);rcMark(link.el)}
   else if(link?.k==="acc"){if(app==="acc")rcAcc(link.s,xy,link.el)}
   else if(link?.k==="fav"){const f=favs[link.i];if(f){if(!rcObject(f.id,xy,link.el))rcFavGone(link.i,xy,link.el)}}
