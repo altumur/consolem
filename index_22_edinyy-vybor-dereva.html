@@ -4891,7 +4891,7 @@ function hasTreeKids(n){return treeKids(n).length>0}
 const sliceBranchCounts=new Map();
 function hasSliceContext(){return["cam","acfa","arch","det"].includes(slice)}
 function sliceParentCount(id){return sliceBranchCounts.get(id)?.size||0}
-function sliceParentClass(id){return hasSliceContext()&&!sliceParentCount(id)&&!treeUnread(id)?" n-slice-empty":""}
+function sliceParentClass(id){return hasSliceContext()&&!sliceParentCount(id)&&!sliceUnread(id)?" n-slice-empty":""}
 function retainEmptySliceParents(){return hasSliceContext()&&!qval()&&!typeFilts.size&&!statusFilts.size}
 function detSliceHit(n,p,q){return n.type==="det"&&(matchesSearch(n,q)||(p?.type==="camera"&&matchesSearch(p,q)))}
 function prepareSliceBranches(){
@@ -6423,7 +6423,7 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
   if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();detHostMark();renderSelBar();
   if(app==="hw")treeOpenStore();
-  if(app==="hw"){treeNeed();filtSync();watchSoon()}
+  if(app==="hw"){treeNeed();sliceRead();filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
 }
 // ── Дерево по запросу ───────────────────────────────────────────────────
@@ -6431,7 +6431,7 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
 // open меняют десятки мест, поэтому чтение решается здесь, после отрисовки, а не у каждого. Сервер отдаёт порядок сам.
 const treeBr=new Map();
 function treeLayout(){return slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
-function treeReset(){treeBr.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
+function treeReset(){treeBr.clear();sliceReads.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
 function treeOpenable(id,layout){
   if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
   // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
@@ -6525,6 +6525,36 @@ async function treeNeed(){
   }
 }
 let revealAt=0;
+// Какие папки и серверы пусты для вкладки, дерево узнаёт заранее: читает её объекты отбором по типу.
+// Иначе стрелка есть у всех непрочитанных веток, а после нажатия пустая ветка просто сереет.
+const SLICE_READ={cam:TF_CAM,acfa:TF_ACFA,det:[["det"]]},SLICE_READ_MAX=5000;
+const sliceReads=new Map();
+function sliceReadKey(){return slice+"|"+treeLayout()}
+function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done}
+async function sliceRead(){
+  const key=sliceReadKey(),layout=treeLayout();
+  if(!SLICE_READ[slice]||sliceReads.has(key)||!can("getTreePaths"))return;
+  const run={done:false},type=[...new Set(SLICE_READ[slice].map(x=>x[0]))].join(",");
+  sliceReads.set(key,run);
+  try{
+    let cursor=null,n=0;
+    do{
+      const r=await API.get("/devices",{type,cursor,limit:LIM.pageMax});
+      if(sliceReads.get(key)!==run)return;
+      await hwEnsure(r.items.map(x=>x.parentId));
+      r.items.forEach(hwAddRow);
+      for(let i=0;i<r.items.length;i+=LIM.idsMax)await filtPaths({paths:new Map()},r.items.slice(i,i+LIM.idsMax).map(x=>x.id),layout);
+      if(sliceReads.get(key)!==run)return;
+      cursor=r.nextCursor||null;n+=r.items.length;
+    }while(cursor&&n<SLICE_READ_MAX);
+    run.done=!cursor;
+  }catch(e){return}// Не прочиталось — стрелки остаются: ветку прочитает её раскрытие
+  remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
+  if(app==="hw"&&document.getElementById("tree")){
+    renderTree();
+    document.querySelectorAll(".ph-choice[data-slice]").forEach(b=>{const c=b.querySelector(".ph-cnt");if(c)c.textContent=sliceCountText(b.dataset.slice)});
+  }
+}
 // Строка конца ветки: читается или есть продолжение
 function treeMoreRow(id,l){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
@@ -6829,9 +6859,9 @@ async function pickWave(run){
   finally{run.busy=false;if(run===fs){filtPaint();asstPickLoaded()}}
 }
 // Цепочки найденного: подпись в плоском списке, раскрытие и папки в дереве
-async function filtPaths(run,ids){
+async function filtPaths(run,ids,layout=treeLayout()){
   if(!ids.length||!can("getTreePaths"))return;
-  const res=await API.get("/tree/paths",{layout:treeLayout(),ids:ids.join(",")});
+  const res=await API.get("/tree/paths",{layout,ids:ids.join(",")});
   for(const x of res.items){
     run.paths.set(x.id,(x.chains[0]||[]).slice(0,-1).map(s=>s.name).join(" / "));
     for(const c of x.chains)for(const s of c)if(s.kind==="folder"){
@@ -6839,7 +6869,7 @@ async function filtPaths(run,ids){
       const f=folderById(s.id),top=c[c.findIndex(y=>y===s)+1];
       if(f&&top&&top.kind==="device"&&!f.items.includes(top.id))f.items.push(top.id);
     }
-    if(treeLayout()==="folders"&&x.chains.every(c=>!c.some(s=>s.kind==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
+    if(layout==="folders"&&x.chains.every(c=>!c.some(s=>s.kind==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
   }
 }
 function filtPaint(){if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
@@ -7720,7 +7750,7 @@ function srow(s,l=1,bare=false){
     +others.map(x=>nrow(x,l+1,"srv:"+s.id)).join("")
     +archs.map(a=>arow(a,l+1)).join("")
     +(gpu?gpurow(s,l+1):"")+svcHtml;
-  const unread=!offline&&!srvSlice&&treeUnread(s.id);
+  const unread=!offline&&!srvSlice&&sliceUnread(s.id);
   if(!srvHit&&!kidsHtml&&!unread)return"";
   const cnt=srvSlice?devs.length:(treeCount(s.id)??cams.length);
   const hasKids=!!kidsHtml||unread;
@@ -7741,7 +7771,7 @@ function drow(d){
   const looseHtml=slice!=="srv"&&!offline?serverlessDevices(d.id).filter(n=>hasTreeIn(n)&&(!q||vis(n,q))).map(n=>nrow(n,1)).join(""):"";
   const uaHtml=offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+looseHtml);
   if(!selfHit&&!childHtml&&!uaHtml)return"";
-  const hasKids=!!(childHtml||uaHtml)||(!offline&&treeUnread(d.id));
+  const hasKids=!!(childHtml||uaHtml)||(!offline&&sliceUnread(d.id));
   const op=hasKids&&(open.has(d.id)||autoExpand());
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
@@ -7792,7 +7822,7 @@ function frow(f,l){
   const devs=folderDeviceNodes(f).filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
   if(statusFilts.size&&!subs&&!devs.length)return"";
   if(!selfHit&&!subs&&!devs.length)return"";
-  const hasKids=!!subs||!!devs.length||treeUnread(f.id);
+  const hasKids=!!subs||!!devs.length||sliceUnread(f.id);
   const op=hasKids&&(open.has(f.id)||(autoExpand()&&(!!subs||!!devs.length)));
   let h=`<div class="n srv fld ${sel===f.id?"on":""}${sliceParentClass(f.id)}${treeRenameId===f.id?" renaming":""}" style="--l:${l}"${treeRowPick(f.id)}${treeCtxAttr(f.id)}${treeExpandMeta(f.id,"dom",hasKids)}>
     ${treeChevron(f.id,"dom",hasKids,op)}
@@ -7810,10 +7840,10 @@ function nfrow(d,l){
   const all=unfolderedDevices(d.id,true).filter(hasTreeIn);
   // Пустая «Без папки» — не структура, а шум: узел появляется, только когда
   // объект действительно остался без папки.
-  if(!all.length&&!treeUnread(node.id)&&!(retainEmptySliceParents()&&unfolderedDevices(d.id,true).length))return"";
+  if(!all.length&&!sliceUnread(node.id)&&!(retainEmptySliceParents()&&unfolderedDevices(d.id,true).length))return"";
   const selfHit=matchesText(q,locName(node));
   if(!devs.length&&!selfHit)return"";
-  const hasKids=!!all.length||treeUnread(node.id);
+  const hasKids=!!all.length||sliceUnread(node.id);
   const op=hasKids&&(open.has(node.id)||(autoExpand()&&!!devs.length));
   let h=`<div class="n srv fld ${sel===node.id?"on":""}${sliceParentClass(node.id)}" style="--l:${l}"${treeRowPick(node.id)}${treeExpandMeta(node.id,"dom",hasKids)}>
     ${treeChevron(node.id,"dom",hasKids,op)}
@@ -7945,9 +7975,9 @@ function dfrow(d){
   const selfHit=matchesStatus(d)&&matchesSearch(d,q);
   const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1)+svcsrow(d,1);
   if(!selfHit&&!kidsHtml)return"";
-  // У домена всегда есть «Без папки» и строка создания папки
-  const hasKids=true;
-  const op=open.has(d.id)||autoExpand();
+  // У домена есть «Без папки» и строка создания папки. На вкладке с прочитанными объектами стрелка — только если есть что показать
+  const hasKids=!!kidsHtml||!hasSliceContext()||sliceUnread(d.id);
+  const op=hasKids&&(open.has(d.id)||autoExpand());
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
@@ -8048,7 +8078,7 @@ function gcamrow(cam,dets,l,ctx){
 // Узкие срезы сохраняют домены и выбранную группировку, исключая остальные
 // устройства, службы, GPU и промежуточные IP-серверы.
 function sliceBranchRow(n,l,children,count,ctx){
-  const hasKids=!!children||treeUnread(n.id),op=hasKids&&(open.has(n.id)||autoExpand());
+  const hasKids=!!children||sliceUnread(n.id),op=hasKids&&(open.has(n.id)||autoExpand());
   return`<div class="n srv ${rowOn(n.id,ctx)}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children+treeMoreRow(n.id,l+1):""}`;
 }
