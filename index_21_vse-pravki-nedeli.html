@@ -2365,7 +2365,10 @@ let slice="all";
 // Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
 // У Детекторов своё положение: там второе положение — виды, а при входе нужны они (прототип 18).
 const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"kind"};
-function setGroupAll(g){Object.keys(groupBy).forEach(s=>{if(SLICE_GROUPS[s].includes(g)&&(s!=="det"||slice==="det"))groupBy[s]=g})}
+function setGroupAll(g){
+  if(slice==="det"){if(SLICE_GROUPS.det.includes(g))groupBy.det=g;return}
+  Object.keys(groupBy).forEach(s=>{if(s!=="det"&&SLICE_GROUPS[s].includes(g))groupBy[s]=g});
+}
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
 // Старые оси остаются производными: их читает половина кода, и переписывать
@@ -3175,10 +3178,11 @@ function folderAddDevice(fid,deviceId){
 function nofolderId(did){return"nofolder:"+did}
 function nofolderNode(did){return{id:nofolderId(did),type:"nofolder",name:"Без папки",domainId:did,online:true}}
 // Кэш неполный: что устройство вне папок, знает полная запись или фильтр noFolder, а не перебор
-function unfolderedDevices(did){
+// Для дерева берём всех: канал без папки иначе пропадёт из раскладки по папкам. Карточка «Без папки» — только то, что можно положить в папку
+function unfolderedDevices(did,forTree){
   const inF=new Set();
   walkFolders(f=>{if(f.domain===did||folderDomain(f.id)===did)f.items.forEach(id=>inF.add(id))});
-  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf&&inFolders(d));
+  return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf&&(forTree||inFolders(d)));
 }
 // Хранилище живёт на сервере или в домене (сетевое). Камера пишет только в
 // хранилище своего сервера или в сетевое хранилище домена — поэтому у КПП и
@@ -5137,7 +5141,7 @@ function jumpToNode(n){
   if(n.type==="det"&&!n.builtin&&slice!=="all"&&slice!=="det"){slice="det";syncViews()}
   if(n.type==="det"&&n.builtin&&slice!=="all"&&slice!=="cam"&&slice!=="det"){slice="cam";syncViews()}
   if((n.type==="archive"||n.type==="vol")&&!["all","cam","srv","arch"].includes(slice)){slice="srv";syncViews()}
-  if(n.type==="server"&&group()!=="server")setGroupAll("server");
+  if(n.type==="server"&&group()!=="server"&&sliceGroups().includes("server"))setGroupAll("server");
   if(n.type==="folder"&&group()!=="folder"&&sliceGroups().includes("folder"))setGroupAll("folder");
   treeMatchCache.clear();searchMatchCache.clear();
   sel=n.id;selCtx=null;tab=archSliceTab(n)||"gen";setD(false);expandTo(n.id);archSliceOpen(n);
@@ -7687,11 +7691,11 @@ function frow(f,l){
 // Устройства без папки — свои у каждого домена
 function nfrow(d,l){
   const q=qval(),node=nofolderNode(d.id);
-  const devs=unfolderedDevices(d.id).filter(x=>hasTreeIn(x)&&(!q||vis(x,q)));
-  const all=unfolderedDevices(d.id).filter(hasTreeIn);
+  const devs=unfolderedDevices(d.id,true).filter(x=>hasTreeIn(x)&&(!q||vis(x,q)));
+  const all=unfolderedDevices(d.id,true).filter(hasTreeIn);
   // Пустая «Без папки» — не структура, а шум: узел появляется, только когда
   // объект действительно остался без папки.
-  if(!all.length&&!treeUnread(node.id)&&!(retainEmptySliceParents()&&unfolderedDevices(d.id).length))return"";
+  if(!all.length&&!treeUnread(node.id)&&!(retainEmptySliceParents()&&unfolderedDevices(d.id,true).length))return"";
   const selfHit=matchesText(q,locName(node));
   if(!devs.length&&!selfHit)return"";
   const hasKids=!!all.length||treeUnread(node.id);
@@ -21864,7 +21868,7 @@ function planBtnHint(){
 }
 function planHeadSync(){
   const b=document.getElementById("hdPlan");if(!b)return;
-  b.hidden=!addPlan.rows.length;b.textContent=planBtnCount();b.title=planBtnHint();
+  b.hidden=!planBtnCount();b.textContent=planBtnCount();b.title=planBtnHint();
 }
 // Адрес считается в пределах домена: один IP в двух доменах — два устройства
 function planAddrKey(r,did){return`${did||""}|${r.ip||r.rtspUrl||r.rtsp||""}:${r.port||80}`}
@@ -22458,7 +22462,7 @@ function planHeadOpen(){
   if(app!=="hw")setApp("hw");
   planOpen();
 }
-function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}${planCntHtml()}</button>`}
+function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
 function addSplitItems(n){
   const items=[];
   if(n.type==="domain"){
@@ -25639,10 +25643,10 @@ Tour.offer("«Папки», статус и «Найдено»", (()=>{
   return[
     {say:"«Папки» теперь отдельный переключатель под срезами, и при старте он включён. Раньше это была такая же кнопка, как срезы, и не было видно, что она что-то включает.",
       before:()=>{goApp("hw");setSlice("all");setGroup("folder")},at:sw},
-    {say:"Раньше выбор среза сам менял раскладку: в «Детекторах» «Папки» нажимались без вашего участия. Выберем «Детекторы».",at:sliceBtn("det"),act:"click"},
-    {say:"Папки как были, так и остались: срез решает, что показать, а раскладку меняет только человек. Выключим их.",at:when(()=>slice==="det"&&group()==="folder",sw),act:"click"},
-    {say:"Дерево показывает те же объекты по серверам. Теперь другой срез.",at:when(()=>group()==="server",sliceBtn("cam")),act:"click"},
-    {say:"Выключенные тоже не включились сами: выбор общий для всех срезов. Вернём папки.",at:when(()=>slice==="cam"&&group()==="server",sw),act:"click"},
+    {say:"Раньше выбор среза сам менял раскладку: «Папки» нажимались без вашего участия. Выберем «Камеры».",at:sliceBtn("cam"),act:"click"},
+    {say:"Папки как были, так и остались: срез решает, что показать, а раскладку меняет только человек. Выключим их.",at:when(()=>slice==="cam"&&group()==="folder",sw),act:"click"},
+    {say:"Дерево показывает те же объекты по серверам. Теперь другой срез.",at:when(()=>group()==="server",sliceBtn("acfa")),act:"click"},
+    {say:"Выключенные тоже не включились сами: выбор общий для срезов. Только в «Детекторах» у него своё положение, там второй вид — не серверы, а виды детекторов. Вернём папки.",at:when(()=>slice==="acfa"&&group()==="server",sw),act:"click"},
     {say:"В «Серверах» и «Хранилищах» папок нет вообще.",at:when(()=>group()==="folder",sliceBtn("srv")),act:"click"},
     {say:"Поэтому здесь переключатель неактивен, а подсказка объясняет почему. Раньше нажатие на «Папки» уводило отсюда в другой срез.",at:when(()=>slice==="srv"&&sw()?.disabled,sw)},
     {say:"Выбор при этом никуда не делся. Вернёмся к «Камерам».",at:when(()=>slice==="srv",sliceBtn("cam")),act:"click"},
