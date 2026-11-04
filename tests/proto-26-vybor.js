@@ -1,5 +1,5 @@
-/* Прототип 22: единый выбор на вкладках «Оборудования» и раскрытие дерева. Запуск — только на прототипе:
-   python tools/check_ui.py --page index_22_edinyy-vybor-dereva.html tests/proto-22-vybor.js
+/* Прототип 26: единый выбор на вкладках «Оборудования» и раскрытие дерева. Запуск — только на прототипе:
+   python tools/check_ui.py --page index_26_edinyy-vybor-dereva.html tests/proto-26-vybor.js
    В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
 // Без чтения кэша до конца: страница работает так, как у пользователя
 window.UI_RAW_CACHE = true;
