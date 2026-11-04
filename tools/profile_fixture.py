@@ -300,8 +300,18 @@ def build(demo):
         caps["foundDeviceTypes"] = [t for t in caps["foundDeviceTypes"] if t in DEVICE_TYPES]
         caps["unitTypes"] = [t for t in caps["unitTypes"] if t in DEVICE_TYPES]
         caps["writableFields"] = {t: v for t, v in caps["writableFields"].items() if t in DEVICE_TYPES}
-    caps["features"] = list(FEATURES)
+    # Только возможности, которые знает контракт этой папки API (Feature): у другой модели перечень может отстать от базы
+    caps["features"] = [f for f in FEATURES if f in contract_features()]
     return fx
+
+
+def contract_features():
+    """Перечень Feature из openapi.json папки API; без контракта — все FEATURES, как прежде."""
+    path = os.path.join(ROOT, API, "openapi.json")
+    if not os.path.exists(path):
+        return set(FEATURES)
+    with open(path, encoding="utf-8") as f:
+        return set(json.load(f)["components"]["schemas"].get("Feature", {}).get("enum", []))
 
 
 def profile_kinds(kinds):

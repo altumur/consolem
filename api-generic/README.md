@@ -258,6 +258,16 @@
 | `Profile`, `UnitKind` и другие новые | — | ядро модели, см. «Модель данных» |
 
 
+### Ещё не перенесено: база ушла вперёд
+
+Прототип основан на `index.html` и `api/` от `f30396b`. После него в базу пришла выгрузка записей (ADR-0117) — в этой модели её пока нет, перенос — догоном (`uid` объекта вместо `deviceId`):
+
+- операции `listExports`, `createExport`, `checkExport`, `getExport`, `deleteExport`, `cancelExport`, `retryExport`, `getExportFileLink`, `getExportGrant` (`/exports…`, `GET /me/export`) и `getRecordingDays` (`GET /devices/{deviceId}/recording-days`);
+- схемы `Export`, `ExportArea`, `ExportCamera`, `ExportCheck`, `ExportCreate`, `ExportFile`, `ExportFileLink`, `ExportGrant`, `ExportPage`, `ExportPart`, `ExportPeriod`, `ExportQuality`, `ExportReference`, `ExportTitles`, `RecordingDays`;
+- изменённые в базе схемы `Bookmark`, `BookmarkCreate` (момент или отрезок), `Feature` (возможности `export*`), `ProblemCode`, `Reference`, `StreamMessage`.
+
+Там же — интерфейс базы после `f30396b` (единый правый клик и другое): в `index_generic.html` его ещё нет.
+
 ## Эталонный набор
 
 `fixtures/demo.json` — данные основного макета в виде ответов API, переведённые в универсальную модель: разделы `kinds` (описания видов), `profiles` и `units` вместо `domains`, `servers`, `devices`, `folders`, `archives`, `volumes`; остальные разделы (правила, расписания, права, опции, журнал, справочники) — как в базе, ссылки на объекты в них — по `uid`. `uid` равен прежнему `id`. Перевод из `api/fixtures/demo.json` делает `tools/generic_fixture.py`: описания видов (включая `security_controller/*` из `plugins/` и синтетические `test.*`) и объекты, дальше набор можно править руками (но тогда `generic_fixture.py` перезапишет его: правки вносят в скрипт). Запуски правил считает тот же движок, что у встроенного сервера (`tools/fixture_fires.js`). Сдвиг дат и остальные поля:
