@@ -23093,7 +23093,7 @@ function renderServerAdd(){
   wb.style.display=step?"":"none";wb.textContent=i18n("Назад");
   wn.textContent=step?`${i18n("Добавить")} ${n} ${i18n(plural(n,"сервер|сервера|серверов"))}`:i18n("Далее");
   wn.disabled=!n||!!wizd.ipAdding;
-  document.getElementById("wizFoot").textContent=n?`${i18n("Выбрано")} ${n} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`:i18n("Отметьте серверы или введите адреса");
+  document.getElementById("wizFoot").textContent=n?`${i18n("Выбрано")} ${n} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`:`${i18n("Отметьте серверы или введите адреса")} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`;
   if(step){
     wbd.innerHTML=srvCheckHtml(did);
   }else{
