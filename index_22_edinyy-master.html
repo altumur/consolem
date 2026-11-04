@@ -1781,6 +1781,22 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .wz-plan-ft{display:flex;align-items:center;gap:8px}
 .wz-plan-ft .plan-warn{font-size:12px;color:var(--mu);margin:0}
 .wz-anim .db{overflow:hidden!important}
+/* Две колонки: тело окна не прокручивается, у каждой колонки своя прокрутка */
+.dr.wz-win.wz-split .db{display:flex;flex-direction:column;overflow:hidden}
+.dr.wz-win.wz-split .db>*{flex:none}
+.dr.wz-win.wz-split .db>.wz-cols{flex:1 1 0;min-height:0}
+.wz-cols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);margin:0 -16px -14px}
+.wz-col{min-height:0;overflow:auto;padding:0 16px 14px;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
+.wz-col+.wz-col{border-left:1px solid var(--ln)}
+.wz-col>.wsec:first-of-type{margin-top:0}
+.wz-col .acc-g3{grid-template-columns:1fr 1fr}
+.wz-col .acc-wz-grp{max-height:none;overflow:visible}
+.wz-col-fill{display:flex;flex-direction:column;overflow:hidden}
+.wz-col-fill>*{flex:none}
+.wz-col-fill>.acc-ulist{flex:1 1 0;min-height:120px;max-height:none}
+.wz-col .acc-pk-sel{border:0;padding:0;align-items:flex-start;align-content:flex-start}
+.wz-col .acc-pk-tot{margin-left:0;flex-basis:100%;white-space:normal}
+@media(max-width:860px){.dr.wz-win.wz-split .db{overflow:auto}.dr.wz-win.wz-split .db>.wz-cols{flex:none}.wz-cols{grid-template-columns:minmax(0,1fr)}.wz-col{overflow:visible}.wz-col+.wz-col{border-left:0;border-top:1px solid var(--ln);padding-top:14px}.wz-col-fill{display:block}.wz-col-fill>.acc-ulist{max-height:300px}}
 .wz-kv{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:6px 16px;margin:0;font-size:13px}
 .wz-kv dt{color:var(--mu)}.wz-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .wz-plan.plan-right{flex:1;width:auto;max-height:none;border:0;background:none;border-radius:0}
@@ -10350,7 +10366,7 @@ function wzFit(box,was,key,o={}){
   box.style.width=`${w}px`;box.style.height=`${h}px`;
   st.t=setTimeout(()=>{box.classList.remove("dc-anim","wz-anim");box.style.width="";if(!o.stick)box.style.height=""},300);
 }
-const WZ_SIZES=["wz-s","wz-m","wz-l","wz-xl","wz-xxl","wz-tall"];
+const WZ_SIZES=["wz-s","wz-m","wz-l","wz-xl","wz-xxl","wz-tall","wz-split"];
 function wzSize(box,size){box.classList.remove(...WZ_SIZES);String(size).split(" ").forEach(x=>box.classList.add("wz-"+x))}
 // Перерисовка окна-маски (окна раздела «Права»)
 function wzPaintDr(id,key,size,bar,body,foot){
@@ -10358,9 +10374,11 @@ function wzPaintDr(id,key,size,bar,body,foot){
   const st=wzFitSt.get(box),was=st?box.getBoundingClientRect():null,same=st?.key===key,top=same?bd.scrollTop:0;
   wzSize(box,size);
   document.getElementById(id+"St").innerHTML=bar;
+  const cols=same?[...bd.querySelectorAll(".wz-col,.acc-ulist")].map(e=>e.scrollTop):[];
   bd.innerHTML=body;
   document.getElementById(id+"Ft").innerHTML=foot;
   bd.scrollTop=top;
+  bd.querySelectorAll(".wz-col,.acc-ulist").forEach((e,i)=>{e.scrollTop=cols[i]||0});
   wzFit(box,was,key);
   if(!same)requestAnimationFrame(()=>bd.querySelector("input:not([type=checkbox]):not([type=radio]):not([disabled]),textarea")?.focus());
 }
@@ -19223,7 +19241,7 @@ function accWzChrome(){
 function accWzRender(){
   const w=accWz;if(!w)return;
   const st=ACC_WZ[w.step][0];
-  wzPaintDr("accWiz",st,{role:"m",rights:"xl",user:"l",plan:"l"}[st],accWzBarHtml(),{role:accWzRole,user:accWzUser,rights:accWzRights,plan:accWzPlan}[st](),accWzFootHtml());
+  wzPaintDr("accWiz",st,{role:"m",rights:"xl tall split",user:w.who==="pick"?"xl tall split":"l",plan:"l"}[st],accWzBarHtml(),{role:accWzRole,user:accWzUser,rights:accWzRights,plan:accWzPlan}[st](),accWzFootHtml());
   wzSave("accWiz");
 }
 function accWzNext(){
@@ -19299,14 +19317,18 @@ function accWzUser(){
     </div>
     ${accPwdFieldHtml(w,"accWzSet('pwd',this.value)","accPwdGen('wz')","accPwdShow('wz')",accErr)}${until("Роль действует до")}`;
   const ug=w.pk.tab==="groups";
-  return head+`<div class="acc-pk-sel" id="accWzSel" style="margin-top:12px">${accWzSelHtml()}</div>
+  return head+`<div class="wz-cols" style="margin-top:12px"><div class="wz-col wz-col-fill">
     <div class="acc-filts" id="accWzPkT" style="margin:0 0 8px">${accWzTabsHtml()}</div>
     <div class="sq lst-sq" style="margin:0 0 8px"><span class="sq-lead">${IC_FIND}</span><input type="text" value="${escHtml(w.pk.q)}" placeholder="${i18n(ug?"Название группы…":"Логин или имя…")}" autocomplete="off" ${onEv("input",["accWzPkQ",onEv.value])}></div>
     ${ug?"":`<div class="acc-filts" id="accWzPkF" style="margin-bottom:8px">${accWzFiltHtml()}</div>`}
     <div class="acc-ad-h"><span class="sub" id="accWzPkCnt">${accWzCntText()}</span>${accWzAllHtml()}</div>
     <div class="acc-ulist" id="accWzUl">${accWzListHtml()}</div>${accErr("assigned")}
+    </div><div class="wz-col">
+    <div class="wsec">${i18n("Выбрано")}</div>
+    <div class="acc-pk-sel" id="accWzSel">${accWzSelHtml()}</div>
     ${until("Роль действует до — для назначенных лично")}
-    <p class="acc-hint" style="margin-top:6px">${i18n("Группе срок задаётся на её странице: он общий для всех ролей группы")}</p>`;
+    <p class="acc-hint" style="margin-top:6px">${i18n("Группе срок задаётся на её странице: он общий для всех ролей группы")}</p>
+    </div></div>`;
 }
 function accWzPool(){return accUsers().filter(u=>u.login!==ACC_ME)}
 function accWzFound(){
@@ -19344,7 +19366,7 @@ function accWzListHtml(){
 }
 function accWzSelHtml(){
   const w=accWz,gs=[...w.ugs].map(id=>accUG(id)).filter(Boolean),us=[...w.assigned].map(id=>accUser(id)).filter(Boolean);
-  if(!gs.length&&!us.length)return`<span class="sub">${i18n("Пока никто не выбран — отметьте группы или пользователей ниже")}</span>`;
+  if(!gs.length&&!us.length)return`<span class="sub">${i18n("Пока никто не выбран — отметьте группы или пользователей слева")}</span>`;
   const x=(k,id,n)=>`<button type="button" class="x" aria-label="${i18n("Убрать")} ${escHtml(n)}" title="${i18n("Убрать")}" ${onEv("click",["accWzPick",`${k}`,`${id}`,false,true])}>${lu("x",12)}</button>`;
   // Много выбранных лично — одним чипом: список целиком — фильтр «Выбранные».
   const MAX=10;
@@ -19413,15 +19435,16 @@ function accWzRights(){
   const sel=(k,t,kind)=>`<div><label>${i18n(t)}</label>${accSelect(kind,g[k],`accWzG('${k}',this.value)`,false,false,t)}</div>`;
   const defs=ACC_DEF_GROUPS.map(gr=>`<div class="acc-fgrp-h">${i18n(gr)}</div><div class="g acc-g3">${ACC_DEFS.filter(d=>d[3]===gr).map(([k,t,kind])=>sel(k,t,kind)).join("")}</div>`).join("");
   const grows=accGroups(domainFilter).filter(x=>x.depth<=2).map(x=>`<tr><td style="padding-left:${8+x.depth*16}px">${escHtml(x.root?accGroupName(x.id):x.name)}</td><td class="acc-sel">${accSelect("cam",w.grp[x.id]||"",`accWzGrp('${x.id}',this.value)`,false,true,x.name)}</td></tr>`).join("");
-  const warn=[];
-  if(!accCanSignIn(g))warn.push(`<div class="nt err">${i18n("Роль без права «Вход в веб-интерфейс» не даст пользователям войти")}</div>`);
-  if(accForbidsDef(g)&&!Object.values(w.grp).some(v=>v&&v!=="FORBID"))warn.push(`<div class="nt">${i18n("Камеры по умолчанию — «Нет»: новые камеры этой роли не будут видны. Выдайте права на папку или измените право по умолчанию")}</div>`);
-  return`${accWzBaseNote()}${warn.join("")}
+  const noSignIn=accCanSignIn(g)?"":`<div class="nt err">${i18n("Роль без права «Вход в веб-интерфейс» не даст пользователям войти")}</div>`;
+  const noCams=accForbidsDef(g)&&!Object.values(w.grp).some(v=>v&&v!=="FORBID")?`<div class="nt">${i18n("Камеры по умолчанию — «Нет»: новые камеры этой роли не будут видны. Выдайте права на папку или измените право по умолчанию")}</div>`:"";
+  return`<div class="wz-cols"><div class="wz-col">${accWzBaseNote()}${noSignIn}
     <div class="wsec">${i18n("Доступ к функциям")}</div>${feats}
     <div class="wsec">${i18n("Карты, тревоги, закладки")}</div><div class="g acc-g3">${ACC_GLOB.map(([k,t,kind])=>sel(k,t,kind)).join("")}</div>
     <div class="wsec">${i18n("Права по умолчанию")}</div>${defs}
-    <div class="wsec">${i18n("Камеры по папкам устройств")} · ${accDomName(domainFilter)}</div>
-    <div class="acc-wz-grp"><table class="acc-tbl">${grows}</table></div>`;
+    </div><div class="wz-col">
+    <div class="wsec">${i18n("Камеры по папкам устройств")} · ${accDomName(domainFilter)}</div>${noCams}
+    <div class="acc-wz-grp"><table class="acc-tbl">${grows}</table></div>
+    </div></div>`;
 }
 function accWzFeat(k,on){const w=accWz;w.g.feat=on?[...new Set([...w.g.feat,k])]:w.g.feat.filter(x=>x!==k);accWzRender()}
 function accWzGrp(id,v){if(v)accWz.grp[id]=v;else delete accWz.grp[id];accWzRender()}
