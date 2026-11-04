@@ -9938,7 +9938,7 @@ function dcRuleHtml(gs){
 }
 // Окно идёт за содержимым: ширина — от шага (класс dc-w-*), высота — сколько нужно, но не больше экрана.
 // Плавно: возвращаем прежний размер, меряем новый и даём CSS дойти до него. Посреди перехода прежний размер — текущий
-let dcFitAt="",dcFitT=0;
+let dcFitAt="",dcFitT=0,dcFitH=0;
 function dcFit(was,key){
   const box=document.querySelector("#bmodal .dc-box");if(!box)return;
   const same=key===dcFitAt;dcFitAt=key;
@@ -9946,7 +9946,8 @@ function dcFit(was,key){
   box.style.transition="none";box.style.width=box.style.height="";
   const now=box.getBoundingClientRect(),w=now.width;
   // Фильтр на шаге камер не сжимает окно: чипы и поиск не уезжают из-под курсора
-  const h=same&&key==="cams"&&was?Math.max(now.height,Math.min(was.height,innerHeight*.92)):now.height;
+  const h=same&&key==="cams"?Math.max(now.height,Math.min(dcFitH,innerHeight*.92)):now.height;
+  dcFitH=h;
   if(!was||(Math.abs(was.width-w)<2&&Math.abs(was.height-h)<2)){box.style.height=`${h}px`;box.style.transition="";return}
   box.style.width=`${was.width}px`;box.style.height=`${was.height}px`;
   box.classList.add("dc-anim");
