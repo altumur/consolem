@@ -24289,7 +24289,7 @@ function asstOpen(text){
   // Пустой разговор не копится: новый занимает его место
   asstChats=asstChats.filter(c=>c.log.length||c.busy);
   asst=asstNewChat();asstChats.unshift(asst);
-  asstDockOpen=true;asstHist=false;
+  asstDockOpen=true;asstHist=false;promptPanel(false);
   const t=String(text||"").trim();
   if(t){asstSend(null,t);return}
   asstRender();
@@ -24303,7 +24303,7 @@ function asstToggle(){
   if(asstDockOpen){asstClose();return}
   const a=asstPreferred();
   if(!a){asstOpen("");return}
-  asst=a;asstDockOpen=true;asstHist=false;asstScrollEnd=true;
+  asst=a;asstDockOpen=true;asstHist=false;asstScrollEnd=true;promptPanel(false);
   asstRender();
   document.getElementById("asstText")?.focus();
 }
@@ -24528,7 +24528,8 @@ function promptsMount(){
 function promptPanel(on){
   if(PROMPT.open===on)return;
   PROMPT.open=on;
-  if(on)goClose();else PROMPT.notes=[];
+  // Панель вопросов открывается из шапки под панелью ассистента: на экране одна из двух, разговор и ход живут
+  if(on){goClose();if(asstDockOpen){asstDockOpen=false;asstHist=false;asstRender()}}else PROMPT.notes=[];
   promptsRender();
 }
 function promptPanelToggle(){promptPanel(!PROMPT.open)}
