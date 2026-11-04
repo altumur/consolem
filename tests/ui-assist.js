@@ -1,12 +1,13 @@
 /* Сценарии интерфейса: ассистент. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
-  // Вход — из поиска: вместо «Ничего не найдено» кнопка, набранное уходит просьбой, запрос поиска снимается
+  // Панель рядом с деревом: поверх она закрылась бы на плане настройки, а сценарий смотрит в неё
+  asstVariantSet("side");
+  // Вход — из поиска: первой строкой «Спросить ассистента», набранное уходит просьбой явным выбором, запрос поиска снимается
   const inp = document.getElementById("gq");
   inp.value = "выключи запись Главный вход";
   goInput(inp.value);
-  ok(document.getElementById("goAsk") && !/Ничего не найдено/.test(document.getElementById("gopop").textContent), "вместо «Ничего не найдено» — кнопка ассистента");
-  ok(document.getElementById("goAsk").textContent === "Новый диалог с ассистентом", "«Новый диалог с ассистентом»");
-  asstFromSearch();
+  ok(document.getElementById("goAsk") === document.querySelector("#goList .gores") && /Спросить ассистента/.test(document.getElementById("goAsk").textContent) && /выключи запись Главный вход/.test(document.getElementById("goAsk").textContent), "первой строкой — «Спросить ассистента» с набранным текстом");
+  goPick(0);
   // План в панели: у плана настройки — «Открыть в дереве», у плана правил — «Применить»
   const planShown = () => document.getElementById("asstPlanNote") || document.getElementById("asstApply");
   ok(await until(planShown), "из поиска — сразу план");
@@ -22,7 +23,8 @@ UiCheck(async ({ ok, until }) => {
   const typeF = (t) => { const f = field(); f.focus(); f.value = t; f.dispatchEvent(new Event("input", { bubbles: true })); };
   const say = (t) => { typeF(t); key(field(), "Enter"); };
   const typeKeys = (e, t) => [...t].forEach((ch) => { key(e, ch); e.value += ch; e.dispatchEvent(new Event("input", { bubbles: true })); e.dispatchEvent(new KeyboardEvent("keyup", { key: ch, bubbles: true })); });
-  const body = () => document.getElementById("gopop").textContent;
+  const body = () => document.getElementById("asstBlock").textContent;
+  const dockOpen = () => !document.getElementById("asstDock").hidden;
   const press = (el) => ["mousedown", "mouseup", "click"].forEach((type) => el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true })));
   const tag = () => document.getElementById("asstTag");
   const treeIds = () => [...document.querySelectorAll("#tree .n[data-pick]")].map((x) => x.dataset.pick);
@@ -45,10 +47,10 @@ UiCheck(async ({ ok, until }) => {
 
   // Вопрос и ответ
   asstOpen("");
-  ok(document.getElementById("gopop").classList.contains("asst") && !document.getElementById("bmodal").classList.contains("open"), "ассистент на месте списка, окна нет");
+  ok(dockOpen() && !document.getElementById("bmodal").classList.contains("open"), "ассистент в своей панели, окна нет");
   ok(field() && field().placeholder === "Просьба" && document.getElementById("asstSend")?.textContent === "Отправить", "под панелью своё поле и «Отправить»");
   ok(document.activeElement === field(), "курсор в поле просьбы");
-  ok(!document.getElementById("asstClose") && !document.getElementById("asstNew") && !document.getElementById("asstKind") && !document.querySelector("[data-asst-kind]"), "«Закрыть», «Нового разговора» и типа нет");
+  ok(!document.getElementById("asstKind") && !document.querySelector("[data-asst-kind]"), "выбора типа нет");
   ok(inp.placeholder === PH, "подсказка строки поиска прежняя: " + inp.placeholder);
   say("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "ассистент спросил");
@@ -95,7 +97,7 @@ UiCheck(async ({ ok, until }) => {
   ok(bq.fail > 0 && bq.steps.every((st) => st.ops.every((o) => o.state === "fail" || o.state === "excl" || o.state === "skip")), "отказ всей операции: ни один шаг не выполнен");
   ok(/изменил/.test(bq.steps[0].ops.find((o) => o.state === "fail")?.msg || ""), "причина словами: " + bq.steps[0].ops.find((o) => o.state === "fail")?.msg);
   ok((await API.get(`/devices/${camId}`)).recordMode === before, "ничего не записано");
-  ok(!document.getElementById("asstNew"), "«Нового разговора» нет и при итоге");
+  closeBulkModal();   // за открытым отчётом план не трогает дерево
   goClose();
 
   // План правил. Поля типа нет ни в каком разделе: что за реплика, решает сервер по словам
@@ -286,11 +288,11 @@ UiCheck(async ({ ok, until }) => {
   const popOpen = () => document.getElementById("gopop").classList.contains("open");
   inp.value = "выключи запись Главный вход";
   goInput(inp.value);
-  ok(document.getElementById("goAsk"), "кнопка ассистента в поиске");
+  ok(document.getElementById("goAsk"), "строка ассистента в поиске");
   mouse(document.getElementById("goAsk"));
-  ok(asst && popOpen(), "мышь по кнопке: окно открыто, ход идёт");
-  ok(await until(() => document.getElementById("asstPlanNote") && bulkActive() && bulkDraft.planOf === asst.plan), "мышь по кнопке: ход дошёл до плана, черновик карточки готов");
-  ok(!document.getElementById("asstNew") && !document.getElementById("asstClose") && !document.getElementById("asstDecline") && document.getElementById("asstSend")?.textContent === "Уточнить", "при плане «Уточнить»; «Отказаться», «Закрыть», «Нового разговора» нет");
+  ok(asst && dockOpen(), "мышь по строке: панель открыта, ход идёт");
+  ok(await until(() => document.getElementById("asstPlanNote") && bulkActive() && bulkDraft.planOf === asst.plan), "мышь по строке: ход дошёл до плана, черновик карточки готов");
+  ok(!document.getElementById("asstDecline") && document.getElementById("asstSend")?.textContent === "Уточнить", "при плане «Уточнить»; «Отказаться» нет");
   ok(tag() && !document.getElementById("asstPlanOpen"), "план уже в дереве — «Открыть в дереве» нет");
   // Тег снят крестиком — «Открыть в дереве» мышью возвращает отбор, выбор и черновик со своими правками
   goClose();
@@ -299,7 +301,6 @@ UiCheck(async ({ ok, until }) => {
   ok(!asstPick && !tag(), "тег снят крестиком");
   setSelMode(false);
   ok(!bulkActive(), "выбор снят");
-  press(inp);
   ok(document.getElementById("asstPlanOpen"), "тег снят — «Открыть в дереве» появилась");
   press(document.getElementById("asstPlanOpen"));
   ok(await until(() => tag() && bulkActive() && treeSel.size === asst.plan.items.length), "«Открыть в дереве»: тег, выбор, карточка");
@@ -315,17 +316,16 @@ UiCheck(async ({ ok, until }) => {
   asstOpen("");
   typed("выключи запись");
   ok(await until(() => document.getElementById("asstAsk")), "«Отправить» мышью: вопрос");
-  ok(asst && popOpen(), "окно открыто");
+  ok(asst && dockOpen(), "панель открыта");
   typed("Главный вход");
   ok(await until(() => document.getElementById("asstPlanNote") && bulkActive()), "ответ на вопрос мышью: план в карточке");
   ok(await cardApply(), "«Применить» в карточке мышью");
-  press(inp);
   ok(await until(() => /План применён через карточку/.test(body())), "в панели — итог словами");
-  ok(asst && popOpen(), "окно открыто после «Применить»");
+  ok(asst && dockOpen(), "панель открыта после «Применить»");
   mouse(field());
-  ok(asst && popOpen(), "мышь в поле окна его не закрывает");
+  ok(asst && dockOpen(), "мышь в поле панели её не закрывает");
   mouse(document.getElementById("asstBlock"));
-  ok(asst && popOpen(), "мышь внутри окна его не закрывает");
+  ok(asst && dockOpen(), "мышь внутри панели её не закрывает");
 
   // Уточнить план словами: обычный ход с context плана, план снят сразу, новый показан целиком
   goClose();
@@ -343,8 +343,8 @@ UiCheck(async ({ ok, until }) => {
   typeF("и Переговорная");
   key(field(), "Enter");
   ok(asst.busy && !asst.plan && !planShown() && !bulkDraft.plan, "идёт ход: плана нет, в черновике его значений тоже");
-  const saidRows = () => [...document.querySelectorAll("#asstBlock .asst-said > div")].map((x) => x.textContent);
-  ok(saidRows().join("|") === "› включи запись Главный вход|› и Переговорная", "история просьб: старые сверху, свежая последней, заметки «План снят» нет — " + saidRows().join("|"));
+  const saidRows = () => [...document.querySelectorAll("#asstBlock .asst-u")].map((x) => x.textContent);
+  ok(saidRows().join("|") === "включи запись Главный вход|и Переговорная" && (body().match(/План снят/g) || []).length === 1, "история просьб: старые сверху, свежая последней, «План снят» один раз — " + saidRows().join("|"));
   ok(said[1].context === planContext && said[1].text === "и Переговорная", "ход с context плана");
   ok(await until(() => document.getElementById("asstPlanNote") && bulkDraft.plan?.rec), "новый план в карточке");
   ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
@@ -352,7 +352,7 @@ UiCheck(async ({ ok, until }) => {
   say("поменяй маску сети");
   ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
   ok(!asst.plan && !planShown() && !bulkDraft.plan, "отказ: прежний план не вернулся");
-  ok(saidRows().join("|") === "› включи запись Главный вход|› и Переговорная|› поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
+  ok(saidRows().join("|") === "включи запись Главный вход|и Переговорная|поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
   goClose();
   asstOpen("");
   typed("включи запись Главный вход");
@@ -363,9 +363,10 @@ UiCheck(async ({ ok, until }) => {
   ok(!asst.plan && !planShown(), "вопрос: прежний план не вернулся");
   API.stream = stream;
 
-  // Клик мимо и Esc скрывают панель, разговор живёт, клик в строке поиска возвращает её в том же состоянии
+  // Панель стоит рядом: клик мимо её не закрывает, Esc в панели закрывает, разговор и набранное на месте.
+  // Клик в строке поиска и печать в ней панель не трогают
   const blockEl = document.getElementById("asstBlock"), listEl = document.getElementById("goList");
-  const seeing = () => asst && popOpen() && blockEl.getBoundingClientRect().height > 0;
+  const seeing = () => asst && dockOpen() && blockEl.getBoundingClientRect().height > 0;
   const keyQ = (k) => key(inp, k);
   goApp("hw");
   asstOpen("");
@@ -380,7 +381,7 @@ UiCheck(async ({ ok, until }) => {
   ok(document.activeElement === inp && inp.value === "", "конец хода курсор из пустой строки поиска не забрал: " + document.activeElement?.id);
   typeKeys(inp, "камера");
   ok(document.activeElement === inp && inp.value === "камера", "курсор и набранное в строке поиска: " + document.activeElement?.id + " «" + inp.value + "»");
-  ok(seeing() && document.getElementById("asstPlanNote"), "панель с планом над поиском");
+  ok(seeing() && document.getElementById("asstPlanNote"), "панель с планом на месте");
   typeQ("");
   asstOpen("");
   say("включи запись");
@@ -388,90 +389,68 @@ UiCheck(async ({ ok, until }) => {
   const ctx = asst.context, talkId = asst;
   typeF("недописанный ответ");
   press(document.getElementById("tree"));
-  ok(!popOpen() && asst === talkId && asst.ask && asst.context === ctx, "клик мимо скрыл панель, разговор на месте");
-  press(inp);
-  ok(seeing() && document.getElementById("asstAsk"), "клик в строке поиска вернул панель в том же состоянии");
-  ok(field().value === "недописанный ответ", "набранное в поле на месте");
+  ok(dockOpen() && asst === talkId && asst.ask && asst.context === ctx, "клик мимо панель не закрыл, разговор на месте");
   keyQ("Escape");
-  ok(!popOpen() && asst === talkId, "Esc в строке поиска скрыл панель, разговор на месте");
-  inp.dispatchEvent(new FocusEvent("focus"));
-  inp.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, view: window }));
-  ok(seeing(), "вернулась снова");
+  ok(dockOpen() && asst === talkId, "Esc в строке поиска панель не закрывает");
   field().focus();
   key(field(), "Escape");
-  ok(!popOpen() && asst === talkId && asst.text === "недописанный ответ", "Esc в поле скрыл панель, разговор и набранное на месте");
-  press(inp);
-  ok(seeing(), "и снова вернулась");
+  ok(!dockOpen() && asst === talkId && asst.text === "недописанный ответ" && asst.ask, "Esc в поле скрыл панель, разговор и набранное на месте");
+  asstToggle();
+  ok(seeing() && document.getElementById("asstAsk") && field().value === "недописанный ответ", "кнопка вернула панель в том же состоянии");
   typeF("");
 
-  // Ниже диалога — всё обычное поиска, порядок: диалог, потом секции. Ввод панель не закрывает
-  ok(blockEl.compareDocumentPosition(listEl) & Node.DOCUMENT_POSITION_FOLLOWING, "секции поиска идут ниже диалога");
-  ok(/Разделы/.test(listEl.textContent) && !/Разделы/.test(blockEl.textContent), "пустая строка: разделы под диалогом");
+  // Поиск при открытой панели: результаты в списке поиска, диалог не трогают. Ввод панель не закрывает
+  ok(!/Разделы/.test(blockEl.textContent), "разделов поиска в ленте нет");
   typeQ("вход");
   ok(seeing() && document.getElementById("asstAsk"), "ввод текста панель не закрывает");
-  ok(/В дереве|Не в дереве/.test(listEl.textContent), "под диалогом — результаты: " + listEl.textContent.slice(0, 80));
+  ok(/В дереве|Не в дереве/.test(listEl.textContent) && !/В дереве|Не в дереве/.test(blockEl.textContent), "результаты — в списке поиска, не в ленте: " + listEl.textContent.slice(0, 80));
   typeQ("");
   say("Главный вход");
   ok(await until(() => document.getElementById("asstPlanNote")), "ответ в поле под вопросом: тот же разговор");
-  ok(asst === talkId && asst.said.length === 2, "разговор тот же");
+  ok(asst === talkId && asst.log.filter((x) => x.u !== undefined).length === 2, "разговор тот же");
   typeQ("вход");
   ok(document.getElementById("asstPlanNote"), "поиск при плане план не трогает");
   keyQ("ArrowDown");
-  ok(goNav, "стрелка выбрала строку списка");
-  const before3 = asst, said3 = asst.said.length;
+  keyQ("ArrowDown");
+  ok(goNav && goSel === 1, "стрелки выбрали строку списка после строки ассистента");
+  const before3 = asst, chats3 = asstChats.length;
   enter();
-  ok(asst === before3 && asst.said.length === said3 && !popOpen(), "строка, выбранная стрелками: Enter выбирает её, ассистенту не уходит");
+  ok(asst === before3 && asstChats.length === chats3 && !popOpen(), "строка, выбранная стрелками: Enter выбирает её, ассистенту не уходит");
   typeQ("");
   goNav = false;
-  press(inp);
-  // Нашлось: «Новый диалог с ассистентом» над диалогом, под ним результаты; Enter — новый диалог, что бы ни нашёл поиск
+  // Строка ассистента над результатами: Enter без выбора остаётся поиском (это проверяет ui-chat.js), выбор строки — новый разговор
   typeQ("вход");
   const askBtn = () => document.getElementById("goAsk");
-  ok(askBtn() && askBtn().textContent === "Новый диалог с ассистентом", "нашлось — кнопка ассистента есть");
-  ok(askBtn().compareDocumentPosition(blockEl) & Node.DOCUMENT_POSITION_FOLLOWING, "кнопка над окном ассистента");
-  ok(blockEl.compareDocumentPosition(listEl) & Node.DOCUMENT_POSITION_FOLLOWING && /В дереве|Не в дереве/.test(listEl.textContent), "под окном — результаты поиска");
-  ok(askBtn().getBoundingClientRect().bottom <= blockEl.getBoundingClientRect().top + 1 && askBtn().getBoundingClientRect().height > 0, "на экране кнопка выше диалога");
-  ok(!/остаться в дереве/.test(listEl.textContent) && (!document.querySelector("#goList .gonote") || document.querySelector("#goList .gonote").textContent === "Enter — новый диалог с ассистентом"), "подсказка Enter — о новом диалоге");
-  enter();
-  ok(asst !== talkId && asst.said.join() === "вход" && inp.value === "" && treeQ === "", "Enter при найденном — новый диалог с ассистентом, строка очищена");
+  ok(askBtn() && askBtn() === document.querySelector("#goList .gores") && /Спросить ассистента/.test(askBtn().textContent), "нашлось — строка ассистента первая, под ней результаты");
+  ok(/В дереве|Не в дереве/.test(listEl.textContent), "под строкой ассистента — результаты поиска");
+  mouse(askBtn());
+  ok(asst !== talkId && asst.log[0]?.u === "вход" && inp.value === "" && treeQ === "", "выбор строки при найденном — новый разговор, строка очищена");
   ok(await until(() => !asst.busy), "ход кончился");
-  ok(!askBtn(), "пустая строка — кнопки ассистента нет");
+  typeQ("");
+  ok(!askBtn(), "пустая строка — строки ассистента нет");
 
-  // Просьба из строки поиска — новый разговор: context, план и секреты забыты
+  // Просьба из строки поиска — новый разговор: context, план и секреты не переходят в него
   const sent = [];
   API.stream = (p, b, ...r) => { sent.push(b); return stream(p, b, ...r); };
   asst.secrets = ["qwerty"];
   asstRender();
-  ok(document.querySelector("#asstBlock .asst-sec input"), "поле секрета у заглушки есть");
-  press(document.getElementById("tree"));
-  ok(!popOpen() && asst.secrets[0] === "qwerty", "скрытая панель секрет не забывает");
-  press(inp);
+  ok(document.querySelector("#asstBlock .asst-sec input, #asstActs .asst-sec input"), "поле секрета у заглушки есть");
+  asstClose();
+  asstToggle();
+  ok(asst.secrets[0] === "qwerty", "скрытая панель секрет не забывает");
   const talking = asst;
   typeQ("абырвалг которого нет");
-  ok(document.getElementById("goAsk"), "ничего не найдено — кнопка ассистента");
-  enter();
-  ok(asst && asst !== talking && talking.secrets.length === 0 && !asst.secrets.length && !asst.plan, "Enter в строке поиска — новый разговор: план и секреты забыты");
-  ok(sent.length === 1 && sent[0].text === "абырвалг которого нет" && !("context" in sent[0]) && !("secrets" in sent[0]), "ход без прежнего context и секретов");
-  ok(asst.said.length === 1 && saidRows().join("|") === "› абырвалг которого нет" && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
-  ok(await until(() => !asst.busy), "ход кончился");
-  // Идущий ход снимается: новая просьба мышью по кнопке поиска
-  say("выключи запись");
-  const busyTalk = asst, sig = asst.abort.signal;
-  ok(asst.busy, "ход идёт");
-  typeQ("абырвалг ещё раз");
-  mouse(document.getElementById("goAsk"));
-  ok(sig.aborted && asst !== busyTalk && asst.said.join() === "абырвалг ещё раз", "кнопка поиска: идущий ход снят, разговор новый");
-  ok(await until(() => !asst.busy), "новый ход кончился");
-  // Кнопка и при найденном: мышью — новый разговор с набранным, хотя поиск что-то нашёл
-  const before2 = asst;
-  typeQ("вход");
-  ok(askBtn(), "нашлось, кнопка есть");
+  ok(askBtn(), "ничего не найдено — строка ассистента есть");
   mouse(askBtn());
-  ok(asst !== before2 && asst.said.join() === "вход" && inp.value === "" && treeQ === "", "кнопка при найденном мышью — новый разговор, строка очищена");
+  ok(asst && asst !== talking && !asst.secrets.length && !asst.plan, "выбор строки поиска — новый разговор: план и секреты не перешли");
+  ok(sent.length === 1 && sent[0].text === "абырвалг которого нет" && !("context" in sent[0]) && !("secrets" in sent[0]), "ход без прежнего context и секретов");
+  ok(asst.log.filter((x) => x.u !== undefined).length === 1 && inp.value === "" && treeQ === "", "в разговоре одна реплика, строка поиска очищена");
   ok(await until(() => !asst.busy), "ход кончился");
+  asst.secrets = [];
+  talking.secrets = [];
+  asstRender();
   API.stream = stream;
   goClose();
-
   // Раздел тип не решает, панель переживает переход
   asstOpen("");
   const after = [];
@@ -491,7 +470,6 @@ UiCheck(async ({ ok, until }) => {
     asstEvent(asst, { type: "question", text: "Какой?", context: "c" });
     ok(document.activeElement === inCard, "ответ ассистента не забирает курсор из карточки");
   }
-  ok(!document.getElementById("asstNew"), "«Нового разговора» нет");
   // Список поиска — как раньше: клик мимо закрывает
   typeQ("камера");
   ok(popOpen(), "список поиска открыт");
@@ -515,7 +493,7 @@ UiCheck(async ({ ok, until }) => {
   const camsAll = (await uiDevices()).filter((d) => d.type === "camera");
   const noRec = camsAll.filter((d) => (d.recordMode || "none") === "none");
   typeQ("выведи камеры без записи");
-  ok(askBtn(), "кнопка ассистента");
+  ok(askBtn(), "строка ассистента");
   mouse(askBtn());
   ok(await until(() => tag() && fs?.pick && fs.done), "отбор пришёл, тег над деревом");
   ok(tag().textContent.startsWith(`Ассистент: ${noRec.length} · тип: камера · запись: нет`), "тег: число и условия словами — " + tag().textContent);
@@ -538,14 +516,12 @@ UiCheck(async ({ ok, until }) => {
   ok(treeSel.size === want.size, "выбор остался: это правка человека");
   setSelMode(false);
   // «Показать в дереве» возвращает отбор
-  press(inp);
   ok(document.getElementById("asstFoundOpen"), "тег снят — «Показать в дереве» появилась");
   press(document.getElementById("asstFoundOpen"));
   ok(await until(() => tag() && camRows().length === want.size), "«Показать в дереве» вернул отбор");
   ok(!document.getElementById("asstFoundOpen"), "отбор снова в дереве — кнопки нет");
   // Дерево сменилось на другой раздел — отбора не видно, кнопка есть
   goApp("rules");
-  press(inp);
   ok(await until(() => document.getElementById("asstFoundOpen")), "другой раздел — «Показать в дереве» есть");
   press(document.getElementById("asstFoundOpen"));
   ok(await until(() => app === "hw" && tag() && !document.getElementById("asstFoundOpen")), "кнопка вернула дерево с отбором");

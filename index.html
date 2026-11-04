@@ -1512,7 +1512,6 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gojump{position:relative;flex:0 1 auto;width:calc(var(--aw,360px) - var(--gut)*3 - 33px);min-width:0;display:flex;align-items:center;gap:4px;height:var(--ctrl-h);padding:0 10px 0 var(--ctrl-lead);background:var(--p2);border:1px solid var(--ln);border-radius:8px}
 .gojump:focus-within{border-color:var(--one-editor-border-focus);box-shadow:0 0 0 1px color-mix(in srgb, var(--one-focus-halo) 100%, transparent)}
 .gojump-lead{display:inline-flex;justify-content:center;width:var(--ic);line-height:0;color:var(--mu)}.gojump-lead svg{width:16px;height:16px}
-.gojump.asst-run .gojump-lead svg{display:none}.gojump.asst-run .gojump-lead::before{content:"";width:12px;height:12px;border:2px solid var(--one-border);border-top-color:var(--bl);border-radius:50%;animation:dev-spin .8s linear infinite}
 .gojump input{flex:1;min-width:0;height:100%;padding:0;background:0;border:0;outline:0;font-size:13px}
 .gojump-clear{flex:none;display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border:0;border-radius:5px;background:transparent;color:var(--mu);padding:0;font-size:13px;line-height:1}
 .gojump-clear:hover{color:var(--tx);background:var(--p2)}
@@ -1520,13 +1519,56 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .gojump-hint{flex:none;font-size:10px;color:var(--mu);border:1px solid var(--ln);border-radius:4px;padding:1px 5px;letter-spacing:.04em}
 .gopop{display:none;position:absolute;left:-1px;right:-1px;top:calc(100% + 6px);z-index:60;max-height:min(60vh,520px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;padding:6px}
 .gopop.open{display:block}
-.gopop.asst{padding:10px;z-index:19}
-#asstBlock{max-height:min(40vh,320px);overflow:auto;padding-bottom:8px;margin-bottom:6px;border-bottom:1px solid var(--ln)}
-#asstBlock[hidden]{display:none}
-.asst-said{font-size:12px;color:var(--mu);margin-bottom:6px}
-.asst-said>div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.asst-said .asst-dropped{font-style:italic}
-.asst-said>.asst-now{font-size:13px;color:var(--tx);margin-top:2px}
+/* Прототип 22: чат — своя панель справа. «Рядом» сужает рабочую область, «Поверх» лежит на ней */
+:root{--asst-w:400px}
+.asst-dock{position:fixed;top:56px;right:0;bottom:0;width:var(--asst-w);max-width:100vw;z-index:41;display:flex;flex-direction:column;min-height:0;background:var(--p);border-left:1px solid var(--ln)}
+.asst-dock[hidden]{display:none}
+.asst-dock:focus{outline:0}
+/* Класс, а не body:has(): такой селектор пересчитывает стили всей страницы при каждой правке дерева, ui-jump.js шёл в разы дольше */
+@media(min-width:861px){body.asst-open .dc-dock,body.asst-open .wz-docks{right:calc(var(--asst-w) + 16px)}
+  body.asst-open .mask.wz-mask.open,body.asst-open #bmodal.open{padding-right:calc(var(--asst-w) + 16px)}
+  body.asst-open .mask.wz-mask.open>.wz-win,body.asst-open #bmodal .dc-box{max-width:100%}}
+.asst-grip{position:absolute;left:0;top:0;bottom:0;width:8px;z-index:1;cursor:ew-resize;touch-action:none;background:transparent;outline:0}
+.asst-grip:hover,.asst-grip:focus-visible,.asst-grip.on{background:var(--one-accent)}
+.asst-dock[data-variant="over"]{top:64px;right:8px;bottom:8px;border:1px solid var(--ln);border-radius:10px;box-shadow:0 16px 44px #000a;overflow:hidden}
+@media(min-width:861px){.ws.asst-side #main{margin-right:var(--asst-w)}}
+.asst-head{flex:none;display:flex;align-items:center;gap:4px;height:44px;padding:0 6px 0 12px;border-bottom:1px solid var(--ln)}
+.asst-title{flex:1;min-width:0;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asst-ib{position:relative;flex:none;display:grid;place-items:center;width:28px;height:28px;padding:0;border:0;border-radius:6px;background:0;color:var(--mu)}
+.asst-ib:hover{color:var(--tx);background:var(--p2)}
+.asst-ib[aria-pressed="true"]{color:var(--tx);background:var(--p2)}
+.asst-ib:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
+.asst-ib .asst-dot{position:absolute;top:3px;right:3px}
+.asst-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--one-accent);flex:none}
+.asst-var{flex:none;display:flex;margin-right:4px;border:1px solid var(--ln);border-radius:6px;overflow:hidden}
+.asst-var button{padding:2px 7px;border:0;background:0;color:var(--mu);font-size:11px}
+.asst-var button[aria-pressed="true"]{background:var(--p2);color:var(--tx)}
+#asstBlock{flex:1;min-height:0;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px}
+.asst-foot{flex:none;padding:8px 12px 12px;border-top:1px solid var(--ln)}
+.asst-foot[hidden]{display:none}
+.asst-u{align-self:flex-end;max-width:90%;padding:6px 10px;border-radius:10px 10px 2px 10px;background:var(--p2);font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+.asst-who{font-size:11px;color:var(--mu);margin-top:4px}
+.asst-empty{font-size:13px;color:var(--mu);display:flex;flex-direction:column;gap:8px;align-items:flex-start}
+.asst-empty .btn{white-space:normal;text-align:left;height:auto;min-height:24px;padding-block:3px}
+.asst-hrow{display:flex;flex-direction:column;gap:2px;width:100%;padding:8px 10px;border:0;border-radius:8px;background:0;text-align:left;color:var(--tx)}
+.asst-hrow:hover{background:var(--p2)}
+.asst-hrow.cur{background:var(--p2)}
+.asst-hrow b{font-weight:400;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asst-hmeta{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--mu)}
+.asst-hmeta.ready,.asst-hmeta.wait{color:var(--tx);font-weight:600}
+.asst-hmeta.err{color:var(--one-danger)}
+.asst-hnote{margin-top:auto;padding-top:10px;font-size:11px;color:var(--mu)}
+.hd-asst{flex:none;display:inline-flex;align-items:center;gap:6px;height:var(--ctrl-h);padding:0 10px;border:1px solid var(--ln);border-radius:8px;background:0;color:var(--tx);font-size:12px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.hd-asst[hidden]{display:none}
+.hd-asst:hover{background:var(--p2)}
+.hd-asst:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
+.hd-asst[aria-expanded="true"]{background:var(--p2)}
+.hd-asst.ready,.hd-asst.wait{border-color:var(--one-accent);background:var(--one-accent);color:var(--one-accent-on);font-weight:600}
+.hd-asst.err{border-color:var(--one-danger);color:var(--one-danger)}
+.hd-asst .asst-spin{width:12px;height:12px;border:2px solid var(--one-border);border-top-color:var(--bl);border-radius:50%;animation:dev-spin .8s linear infinite}
+.asst-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.gores.goask{border:1px solid var(--ln);margin-bottom:4px}
+.gores.goask .gott{font-weight:600}
 .asst-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu);margin:6px 0}
 .asst-msg{font-size:13px;margin:6px 0}
 .asst-msg.err{color:var(--one-danger)}
@@ -1544,6 +1586,17 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .asst-note{font-size:12px;margin-top:4px;font-weight:600}
 .asst-ta{width:100%;min-height:52px;margin-top:6px;padding:6px 8px;resize:vertical;background:var(--p2);border:1px solid var(--ln);border-radius:6px;color:var(--tx);font:inherit;font-size:13px}
 .asst-sec{margin-top:6px}
+.asst-ib.asst-mic-on,.asst-ib.asst-mic-on:hover{color:var(--one-danger);background:var(--p2);box-shadow:inset 0 0 0 1px var(--one-danger)}
+.asst-ib:disabled{opacity:.45;cursor:default}
+.asst-files{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.asst-files:empty{display:none}
+.asst-file{display:inline-flex;align-items:center;gap:4px;max-width:100%;min-height:24px;padding:0 2px 0 8px;border:1px solid var(--ln);border-radius:6px;background:var(--p2);color:var(--tx);font-size:12px}
+.asst-file span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.asst-file small{flex:none;color:var(--mu);font-size:11px}
+.asst-file .asst-ib{width:20px;height:20px}
+.asst-u-files{align-self:flex-end;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:90%}
+.asst-u-files .asst-file{padding-right:8px}
+.asst-dock.asst-drop{outline:2px dashed var(--one-accent);outline-offset:-4px}
 .asst-sec input{width:100%}
 .asst-act{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px}
 .asst-act .asst-gap{flex:1}
@@ -2103,15 +2156,28 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
       data-on-input='[["goInput",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
     <button type="button" class="gojump-clear hide" id="goClear" data-i18n-title="Очистить" title="Очистить" aria-label="Очистить" data-on-click='[["clearTreeQ",{"$on":"event"}]]'><svg class="ic-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <span class="gojump-hint" aria-hidden="true">Ctrl K</span>
-    <div class="gopop" id="gopop"><div id="goAskTop"></div><div id="asstBlock" hidden></div><div id="goList"></div></div>
+    <div class="gopop" id="gopop"><div id="goList"></div></div>
   </div>
   <button type="button" class="hd-plan" id="hdPlan" hidden data-on-click='[["planHeadOpen"]]'></button>
   <div class="hd-status" id="hdStatus" hidden></div>
+  <button type="button" class="hd-asst" id="hdAsst" data-needs="feature:assist" aria-expanded="false" aria-controls="asstDock" title="Ассистент (Ctrl+I)" data-on-click='[["asstToggle"]]'></button>
+  <span class="asst-sr" id="asstLive" role="status"></span>
   <button type="button" class="hd-theme" id="hdTheme" data-i18n-title="Сменить тему" title="Сменить тему" aria-label="Сменить тему" data-on-click='[["toggleTheme"]]'><svg class="ic-svg" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v2"/><path d="M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715"/><path d="M16 12a4 4 0 0 0-4-4"/><path d="m19 5-1.256 1.256"/><path d="M20 12h2"/></svg></button>
   <div class="hd-bell" id="hdBell" data-needs="listRulePrompts" hidden></div>
 </header>
 <main id="main"></main></div>
 </div>
+<aside class="asst-dock" id="asstDock" aria-label="Ассистент" tabindex="-1" hidden>
+  <div class="asst-grip" id="asstGrip" role="separator" aria-orientation="vertical" aria-label="Ширина панели" data-i18n-title="Ширина панели: тяните край или нажимайте стрелки" title="Ширина панели: тяните край или нажимайте стрелки" tabindex="0"></div>
+  <div class="asst-head" id="asstHead"></div>
+  <div id="asstBlock"></div>
+  <div class="asst-foot" id="asstFoot">
+    <input type="file" id="asstFilePick" multiple hidden data-on-change='[["asstFilePicked",{"$on":"event"}]]'>
+    <div class="asst-files" id="asstFiles"></div>
+    <textarea id="asstText" class="asst-ta" data-on-input='[["asstInput",{"$on":"value"}]]' data-on-keydown='[["asstKey",{"$on":"event"}]]'></textarea>
+    <div id="asstActs"></div>
+  </div>
+</aside>
 <div id="domainMenuHost"></div>
 <div class="jump" id="jump" data-on-click='[[".self"],["closeJump"]]'>
   <div class="jbox" data-on-click='[[".stop"]]'>
@@ -2277,7 +2343,7 @@ onEv.key=(...keys)=>[".key",...keys];
 const svgIc=(d,vb="0 0 16 16")=>`<svg class="ic-svg" viewBox="${vb}" width="14" height="14" aria-hidden="true">${d}</svg>`;
 // Иконки — Lucide (ISC, v1.46.0, из ONE.PSIM.PrototypeKit): одно семейство на весь макет вместо
 // залитых глифов, эмодзи и текстовых символов (AGENTS.md «one coherent icon family», D-005).
-const LU={"bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\"/>", "volume-x": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><line x1=\"22\" x2=\"16\" y1=\"9\" y2=\"15\"/><line x1=\"16\" x2=\"22\" y1=\"9\" y2=\"15\"/>", "house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
+const LU={"paperclip":"<path d=\"m16 6-8.414 8.586a2 2 0 0 0 2.828 2.828l8.414-8.586a4 4 0 0 0-5.656-5.656l-8.415 8.585a6 6 0 1 0 8.486 8.486l8.757-8.757\"/>","bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\"/>", "volume-x": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><line x1=\"22\" x2=\"16\" y1=\"9\" y2=\"15\"/><line x1=\"16\" x2=\"22\" y1=\"9\" y2=\"15\"/>", "house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
 const lu=(n,sz=14,cls="ic-svg")=>`<svg class="${cls}" viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LU[n]||""}</svg>`;
 const STAR_ON=lu("star").replace('fill="none"','fill="currentColor"'),STAR_OFF=lu("star");
 // Шеврон DS (ChevronIcon): у дерева — обычный глиф 45 %, 9 из 20 (ступень кита D-069; «сильный» из
@@ -5318,10 +5384,7 @@ function goNet(q){
 }
 function goSearch(v){
   goNet(String(v||"").trim());
-  const askTop=document.getElementById("goAskTop");if(askTop)askTop.innerHTML="";
   const pop=document.getElementById("gopop"),list=document.getElementById("goList");if(!pop)return;
-  // Панель возвращается как была, идущий ход виден. Обычный поиск идёт ниже неё
-  if(asst){asst.show=true;promptPanel(false);asstRender()}
   const q=String(v||"").trim();
   goSel=0;goNav=false;
   if(!q){                                         // просто клик — недавнее и разделы
@@ -5347,25 +5410,27 @@ function goSearch(v){
     const fields=[t.title,t.sub,t.skipKind?"":t.kind,t.extra].filter(Boolean);
     return queryWords(q).some(words=>matchWords(words,fields));
   }).slice(0,40);
-  goHits=[...idFilter,...targets];
+  // Строка ассистента — выше результатов и своим видом: явный выбор. Enter остаётся поиском
+  const assist=can("feature:assist");
+  const askHit=assist?[{ask:true,title:q,keepQuery:true,go(){asstFromSearch()}}]:[];
+  goHits=[...askHit,...idFilter,...targets];
   // Во весь экран дерева нет, и отчитываться за него нечем: там список — всё,
   // что у запроса есть.
   const inTree=mainFull?0:(app==="hw"?countFiltered():shown.size);
   // Всё найденное уже в дереве — список не открываем: он бы закрыл собой ровно
   // то, ради чего запрос набирали.
-  // С ассистентом окно не закрывается: в нём кнопка нового диалога
-  const assist=can("feature:assist");
-  if(!goHits.length&&inTree&&!asst&&!assist){goClose();return}
-  const head=inTree?`<div class="gohead gohead-tree"><span>${i18n("В дереве:")} ${inTree}</span><span class="gonote">${i18n(assist?"Enter — новый диалог с ассистентом":"Enter — остаться в дереве")}</span></div>`:"";
-  // Набранное можно отдать ассистенту всегда: кнопка выше окна ассистента, Enter — тоже, если строка не выбрана стрелками
-  const top=document.getElementById("goAskTop");
-  if(top)top.innerHTML=assist?`<div class="gohead"><button type="button" class="btn s" id="goAsk" ${onEv("mousedown",onEv.prevent,["asstFromSearch"])}>${i18n("Новый диалог с ассистентом")}</button></div>`:"";
-  list.innerHTML=idFilter.map((t,i)=>goRowHtml(t,i,"")).join("")+head+(targets.length
-    ?`<div class="gohead">${i18n("Не в дереве:")} ${targets.length}</div>`+targets.map((t,i)=>goRowHtml(t,i+idFilter.length,q)).join("")
-    :inTree||can("feature:assist")?"":`<div class="gohead">${i18n("Ничего не найдено")}</div>`);
+  if(!goHits.length&&inTree){goClose();return}
+  const head=inTree?`<div class="gohead gohead-tree"><span>${i18n("В дереве:")} ${inTree}</span><span class="gonote">${i18n("Enter — остаться в дереве")}</span></div>`:"";
+  const skip=askHit.length;
+  list.innerHTML=askHit.map((t,i)=>goRowHtml(t,i,"")).join("")+idFilter.map((t,i)=>goRowHtml(t,i+skip,"")).join("")+head+(targets.length
+    ?`<div class="gohead">${i18n("Не в дереве:")} ${targets.length}</div>`+targets.map((t,i)=>goRowHtml(t,i+idFilter.length+skip,q)).join("")
+    :inTree?"":`<div class="gohead">${i18n("Ничего не найдено")}</div>`);
   pop.classList.add("open");
 }
 function goRowHtml(t,i,q){
+  if(t.ask)return`<div class="gores goask ${i===goSel&&goNav?"on":""}" id="goAsk" data-i="${i}" ${onEv("mousedown",onEv.prevent,["goPick",i])}>
+    ${ASST_ICON}<div class="gomain"><div class="gott">${i18n("Спросить ассистента")}</div><div class="gosub">${escHtml(t.title)}</div></div>
+    <span class="gokind">${i18n("Новый разговор")}</span></div>`;
   return`<div class="gores ${i===goSel?"on":""}" data-i="${i}" ${onEv("mousedown",onEv.prevent,["goPick",i])}>
     ${ic(t.icon)}<div class="gomain"><div class="gott">${hlText(t.title,q)}</div><div class="gosub">${hlText(t.sub||"",q)}</div></div>
     <span class="gokind">${escHtml(i18n(t.kind))}</span></div>`;
@@ -5384,20 +5449,12 @@ function goPick(i){
   hwJumpFlash=false;
   updateFiltChrome();
 }
-// Закрывается только окно: разговор и идущий ход живут, клик в строке поиска вернёт их. Конец разговора — новая просьба из строки поиска
 function goClose(){
-  document.getElementById("gopop")?.classList.remove("open","asst");
-  if(asst)asst.show=false;
-  asstLeadSync();
+  document.getElementById("gopop")?.classList.remove("open");
 }
-// Панель скрыта, а ход идёт — крутилка вместо лупы в строке поиска; ход кончился или панель снова видна — лупа
-function asstLeadSync(){
-  const pop=document.getElementById("gopop"),seen=!!pop?.classList.contains("open")&&pop.classList.contains("asst");
-  document.getElementById("gojump")?.classList.toggle("asst-run",!!asst?.busy&&!seen);
-}
-// Строка уже в фокусе, окно скрыто кликом мимо или Esc: фокус не придёт, панель возвращает клик
+// Строка уже в фокусе, окно скрыто кликом мимо или Esc: фокус не придёт, список возвращает клик
 function goClick(v){
-  if(asst&&!document.getElementById("gopop")?.classList.contains("open"))goSearch(v);
+  if(!document.getElementById("gopop")?.classList.contains("open"))goSearch(v);
 }
 function goKey(e){
   const pop=document.getElementById("gopop"),open_=pop&&pop.classList.contains("open");
@@ -5410,13 +5467,11 @@ function goKey(e){
     pop.querySelector(".gores.on")?.scrollIntoView({block:"nearest"});
     return;
   }
-  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
-  // диалог с ним, что бы ни нашёл поиск. Без ассистента Enter значит «набранное — фильтр»: список уходит, дерево
-  // остаётся сужённым, и стрелки уже ходят по нему.
+  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора Enter значит «набранное — фильтр»:
+  // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему. Ассистенту запрос уходит только явным выбором.
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
-    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
     goClose();e.target.blur();
     return;
   }
@@ -5449,6 +5504,8 @@ const ESC_LAYERS=[
   {is:()=>PROMPT.open,off:()=>promptPanel(false)},
   {is:()=>document.getElementById("gopop")?.classList.contains("open"),
    off(){goClose();document.getElementById("gq")?.blur()}},
+  // Панель ассистента закрывает Esc только из неё самой: ход и разговор живут дальше
+  {is:()=>asstDockOpen&&!!document.activeElement?.closest?.("#asstDock"),off(){asstHist?asstHistToggle():asstClose()}},
   // Список убран, а дерево осталось сужённым — Esc снимает и сужение.
   {is:()=>!!treeQ.trim(),off(){clearTreeQ()}},
   {is:()=>treeSel.size>1,off:clearTreeSel},
@@ -7006,7 +7063,8 @@ function asstPickSet(p){
   const prev=asstPick?.prev||{slice};
   if(app!=="hw")goApp("hw");
   setMainFull(false);
-  if(!PICK_SLICES.includes(slice))setSlice("all");
+  // В «Детекторах» строк камер нет: отобранное там не увидеть
+  if(!PICK_SLICES.includes(slice)||slice==="det"&&(p.ids||[]).some(id=>find(id)?.n.type!=="det"))setSlice("all");
   asstPick=Object.assign({ids:[],filter:null,total:null,conditions:[],truncated:false},p,{prev,key:opKey()});
   treeMatchCache.clear();searchMatchCache.clear();
   filtSync();applyFiltersFromState();
@@ -24609,6 +24667,7 @@ addEventListener("keydown",e=>{
 },true);
 document.onkeydown=e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){e.preventDefault();focusGo();return}
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&(e.key==="i"||e.key==="I"||e.key==="ш"||e.key==="Ш")&&can("feature:assist")){e.preventDefault();if(!document.getElementById("confirm")?.classList.contains("open"))asstToggle();return}
   if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();navStep(e.key==="ArrowLeft"?-1:1);return}
   // «/» ведёт к поиску — он один и тот же во всех разделах.
   if(e.key==="/"&&!e.target.closest("input,textarea,select")){e.preventDefault();focusGo();return}
@@ -24636,7 +24695,7 @@ document.onkeydown=e=>{
   }
   if((e.key==="Delete"||e.key==="Backspace")&&treeSel.size>1&&app==="hw"&&!e.target.closest("input,textarea,select")){e.preventDefault();deleteSelected()}};
 document.addEventListener("mousedown",e=>{if(!e.target?.closest?.("#tctx"))closeTreeCtx()});
-// Клик мимо закрывает список поиска. Панель ассистента остаётся: с ней работают, глядя на форму, закрывает её «Закрыть» и Esc.
+// Клик мимо закрывает список поиска. Панель ассистента — отдельно: с ней работают, глядя на форму.
 // Кнопка окна может перерисовать его на mousedown и уйти из DOM: e.target уже вне #gojump, путь события — нет
 document.addEventListener("mousedown",e=>{if(!e.composedPath().some(x=>x.id==="gojump"))goClose()});
 function focusGo(){const el=document.getElementById("gq");if(!el)return;el.focus();el.select();goSearch(el.value)}
@@ -25677,8 +25736,13 @@ function bmBackdrop(){if(!document.querySelector("#bmodal .dc-box"))closeBulkMod
 // Модель и проверка плана — на бэкенде, здесь только разговор и показ плана. Разговор держит клиент:
 // context возвращается как есть, секреты живут в памяти до конца разговора и никуда не сохраняются.
 // Без «Применить» ничего не пишется.
-let asst=null;
-const ASST_SAID_MAX=5;
+// Прототип 22: разговоров много, asst — открытый сейчас. Ход принадлежит своему разговору: закрытие панели, переход
+// и другой разговор его не снимают. Лента — log плюс живые поля последнего хода.
+let asst=null,asstChats=[],asstDockOpen=false,asstHist=false,asstVariant="auto",asstWidth=400,asstSeq=0,asstLiveWas="",asstScrollEnd=false;
+const ASST_STORE="consolem-proto22-chats",ASST_VAR_KEY="consolem-proto22-pos",ASST_W_KEY="consolem-proto22-width";
+// Меньше этого форма начинает ломаться: «Авто» кладёт панель поверх
+const ASST_FORM_MIN=700,ASST_W_MIN=320,ASST_W_MAX=720;
+const ASST_ICON=lu("message-square");
 const ASST_END=new Set(["question","plan","refused","answer","found","error"]);
 const asstEnds=m=>ASST_END.has(m.type);
 /* ----- Служба ассистента демо-страницы -----
@@ -25690,7 +25754,7 @@ const asstEnds=m=>ASST_END.has(m.type);
    Ход ничего не пишет, «Применить» — как обычно, встроенному серверу. Паролей служба не получает. */
 const ASST_CODE_KEY="consolem-assist-code";
 // Просьба о пароле: и слова просьбы, и ответ на вопрос о пароле — сам пароль
-const ASST_PASS=/парол|секрет|passw|secret/i;
+const ASST_PASS=/парол|(?<![а-яё])пасс(?![а-яё])|секрет|passw|\bpwd\b|secret/i;
 let asstCodeNow=null,asstCodeWanted=false;
 function asstServiceUrl(){
   // consolem-assist-public — служба только этой демо-страницы: тесты, стенды и чужие копии в неё не ходят
@@ -25736,7 +25800,7 @@ function asstCodeKey(e){
   if(e.key==="Enter"){e.preventDefault();asstCodeApply()}
 }
 // Разговор заглушки и разговор службы — разные: context одного другому не годится
-function asstModeChanged(a){Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false})}
+function asstModeChanged(a){a.log=a.log.concat(asstLiveItems({ask:a.ask,answer:a.answer,err:a.err,info:a.info}));Object.assign(a,{context:null,ask:"",answer:"",err:"",info:"",down:false,stub:false})}
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
@@ -25811,7 +25875,7 @@ async function asstWorld(){
 async function asstServiceTurn(a,body){
   const url=asstServiceUrl(),world=await asstWorld();
   if(a.abort.signal.aborted)throw{name:"AbortError"};
-  await ConsolemApi.assistTurn(url,asstCodeGet(url),{...body,world},m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal});
+  await ConsolemApi.assistTurn(url,asstCodeGet(url),{...body,world},m=>asstEvent(a,m),{ends:asstEnds,signal:a.abort.signal});
 }
 // Отбор ассистента (found): дерево показывает отобранное тегом над деревом, условия словами. Ничего не пишет.
 // ids — список готов; filter — фильтры GET /devices, форма листает их сама. Выбрать разом — для групповой правки
@@ -25829,7 +25893,7 @@ function asstFoundHtml(m){
     ((m.conditions||[]).length?`<div class="asst-line" id="asstFoundWhy">${m.conditions.map(escHtml).join(" · ")}</div>`:"");
 }
 // Человек снял тег или ушёл из раздела: отбор возвращается в дерево
-function asstFoundOpen(){const m=asst?.found;if(m)asstFoundToTree(m)}
+function asstFoundOpen(){const m=asst?.found;if(m){asstFoundToTree(m);hwFlashLanding()}}
 // Всё отобранное — в выбор для групповой правки, не больше selectMax. Записи сперва дочитываются
 async function asstFoundPick(){
   const a=asst,m=a?.found;if(!m)return;
@@ -25847,43 +25911,268 @@ async function asstFoundPick(){
 // Пароль наружу не уходит: ни полем секрета, ни в словах просьбы, ни ответом на вопрос о пароле. Разговор о нём
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
+  a.log=a.log.concat(asstLiveItems(a));
   Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
-// Вход — из строки поиска: то, что поиск не нашёл, уходит ассистенту. Запрос поиска снимается:
-// он сузил бы дерево до пустого. Просьба из строки поиска — всегда новый разговор: прежний context, план и
-// секреты забыты, идущий ход снят. Ответ и уточнение пишут в поле под ответом
+// Вход из строки поиска — явный выбор строки «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
+// пустого. Это новый разговор: прежний остаётся в истории, его ход продолжается
 function asstFromSearch(){
   const inp=document.getElementById("gq"),text=(inp?.value||"").trim();
   if(!text){toast("Напишите просьбу");return}
   if(inp)inp.value="";
   clearTreeQ();
+  goClose();
   asstOpen(text);
-  goSearch("");
+}
+function asstNewChat(){
+  return{id:`c${Date.now()}-${++asstSeq}`,title:"",at:Date.now(),log:[],unread:false,noStore:false,interrupted:false,text:"",context:null,secrets:[],files:[],busy:false,line:"",ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:""};
 }
 function asstOpen(text){
   if(!can("feature:assist"))return;
-  promptPanel(false);
-  asstEnd();
-  asst={said:[],text:"",context:null,secrets:[],busy:false,line:"",ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,last:"",abort:null,live:false,stub:false,down:false,info:"",codeDraft:"",show:true};
+  // Пустой разговор не копится: новый занимает его место. Набранный текст и файлы — уже не пусто
+  asstChats=asstChats.filter(c=>c.log.length||c.busy||c.text.trim()||c.files.length);
+  asst=asstNewChat();asstChats.unshift(asst);
+  asstDockOpen=true;asstHist=false;promptPanel(false);
   const t=String(text||"").trim();
   if(t){asstSend(null,t);return}
   asstRender();
+  document.getElementById("asstText")?.focus();
 }
-// Конец разговора: ход снят, секреты забыты. Только здесь, скрытая панель разговор не кончает
-function asstEnd(){
+// Кнопка шапки ведёт туда, где есть что смотреть: готовый ответ, идущий ход, затем последний разговор
+function asstPreferred(){
+  return asstChats.find(c=>c.unread)||asstChats.find(c=>c.busy)||asst||asstChats[0]||null;
+}
+function asstToggle(){
+  if(asstDockOpen){asstClose();return}
+  const a=asstPreferred();
+  if(!a){asstOpen("");return}
+  asst=a;asstDockOpen=true;asstHist=false;asstScrollEnd=true;promptPanel(false);
+  asstRender();
+  document.getElementById("asstText")?.focus();
+}
+// Закрытие только прячет панель: разговор и ход живут
+function asstClose(){
+  asstDockOpen=false;asstHist=false;
+  asstRender();
+  document.getElementById("hdAsst")?.focus();
+}
+function asstSwitch(id){
+  const a=asstChats.find(c=>c.id===id);if(!a)return;
+  asst=a;asstHist=false;asstScrollEnd=true;
+  asstRender();
+  document.getElementById("asstText")?.focus();
+}
+function asstHistToggle(){asstHist=!asstHist;asstScrollEnd=!asstHist;asstRender()}
+function asstNewPress(){asstOpen("")}
+function asstVariantSet(v){
+  asstVariant=v;
+  try{localStorage.setItem(ASST_VAR_KEY,v)}catch(e){}
+  asstRender();
+}
+// Положение панели сейчас. Место под форму меряется до панели: сдвиг от самой панели на выбор не влияет
+function asstPos(){
+  if(window.innerWidth<=860)return"over";
+  if(asstVariant!=="auto")return asstVariant;
+  const ws=document.getElementById("ws")?.getBoundingClientRect(),main=document.getElementById("main")?.getBoundingClientRect();
+  if(!ws||!main)return"over";
+  return ws.right-main.left-asstWidth>=ASST_FORM_MIN?"side":"over";
+}
+function asstLayout(){
+  const dock=document.getElementById("asstDock");if(!dock)return;
+  const pos=asstPos();
+  dock.dataset.variant=pos;
+  document.getElementById("ws")?.classList.toggle("asst-side",asstDockOpen&&pos==="side");
+  const auto=document.getElementById("asstVarAuto");
+  if(auto)auto.title=`${i18n("Положение выбирается по ширине окна")}. ${i18n("Сейчас")}: ${i18n(pos==="side"?"рядом":"поверх")}`;
+}
+function asstWidthClamp(w){return Math.max(ASST_W_MIN,Math.min(ASST_W_MAX,window.innerWidth-120,Math.round(w)))}
+function asstWidthSet(w,save){
+  asstWidth=asstWidthClamp(w);
+  document.documentElement.style.setProperty("--asst-w",`${asstWidth}px`);
+  const grip=document.getElementById("asstGrip");
+  if(grip){grip.setAttribute("aria-valuenow",String(asstWidth));grip.setAttribute("aria-valuemin",String(ASST_W_MIN));grip.setAttribute("aria-valuemax",String(ASST_W_MAX))}
+  if(save)try{localStorage.setItem(ASST_W_KEY,String(asstWidth))}catch(e){}
+  asstLayout();
+}
+function asstGripInit(){
+  const grip=document.getElementById("asstGrip");if(!grip)return;
+  grip.addEventListener("pointerdown",e=>{e.preventDefault();grip.setPointerCapture(e.pointerId);grip.classList.add("on")});
+  grip.addEventListener("pointermove",e=>{if(grip.classList.contains("on"))asstWidthSet(document.getElementById("asstDock").getBoundingClientRect().right-e.clientX,false)});
+  const end=()=>{if(grip.classList.contains("on")){grip.classList.remove("on");asstWidthSet(asstWidth,true)}};
+  grip.addEventListener("pointerup",end);grip.addEventListener("pointercancel",end);
+  grip.addEventListener("keydown",e=>{
+    if(e.key==="ArrowLeft"||e.key==="ArrowRight"){e.preventDefault();e.stopPropagation();asstWidthSet(asstWidth+(e.key==="ArrowLeft"?20:-20),true)}
+  });
+  // Окно, дерево и разделы меняют место под форму: «Авто» выбирает заново
+  window.addEventListener("resize",()=>asstWidthSet(asstWidth,false));
+  const aside=document.getElementById("aside"),rail=document.getElementById("rail");
+  if(window.ResizeObserver){const ro=new ResizeObserver(asstLayout);[aside,rail].forEach(x=>x&&ro.observe(x))}
+}
+/* Голос. Текст распознаёт браузер и кладёт в поле просьбы, отправляет человек. Служба распознавания — браузера:
+   без связи с ней голос не работает. Записи голоса страница не держит */
+let asstMic=null;
+const ASST_MIC_ERR={"no-speech":"Речь не услышана. Проверьте микрофон","not-allowed":"Браузер не дал доступ к микрофону","service-not-allowed":"Браузер не разрешает распознавание речи","audio-capture":"Микрофон не найден","network":"Нет связи со службой распознавания браузера. Напишите просьбу текстом"};
+function asstMicCtor(){return window.SpeechRecognition||window.webkitSpeechRecognition||null}
+function asstMicPress(){if(asstMicOn(asst))asstMicStop();else{asstMicDrop();asstMicStart()}}
+function asstMicStart(){
+  const a=asst,Ctor=asstMicCtor();if(!a||!Ctor)return;
+  const rec=new Ctor(),m={rec,chat:a,base:a.text,stopping:false};
+  rec.lang=document.documentElement.lang||"ru";rec.continuous=true;rec.interimResults=true;
+  rec.onresult=e=>{
+    if(asstMic!==m)return;
+    const said=[...e.results].map(r=>r[0].transcript).join("").trim();
+    a.text=[m.base.trimEnd(),said].filter(Boolean).join(" ");
+    if(asst===a){const ta=document.getElementById("asstText");if(ta)ta.value=a.text}
+  };
+  rec.onerror=e=>{
+    if(asstMic!==m||e.error==="aborted")return;
+    toast(i18n(ASST_MIC_ERR[e.error]||"Голос не распознан. Напишите просьбу текстом"));
+  };
+  rec.onend=()=>{if(asstMic===m){asstMic=null;asstRender()}};
+  asstMic=m;
+  try{rec.start()}catch(e){asstMic=null;toast(i18n("Голос не распознан. Напишите просьбу текстом"))}
+  asstRender();
+}
+// Договорить: браузер ещё отдаст последний итог и закончит сам
+function asstMicStop(){
+  const m=asstMic;if(!m||m.stopping)return;
+  m.stopping=true;m.rec.stop();
+  setTimeout(()=>{if(asstMic===m)asstMicDrop()},3000);
+  asstRender();
+}
+// Текст уже не его: просьбу отправили или человек правит поле. Поздний итог поле не перепишет
+function asstMicDrop(){const m=asstMic;if(m){asstMic=null;m.rec.abort();asstRender()}}
+function asstMicOn(a){return!!asstMic&&asstMic.chat===a&&!asstMic.stopping}
+function asstMicBtnHtml(a){
+  if(!asstMicCtor())return`<button type="button" class="asst-ib" id="asstMicBtn" disabled aria-label="${i18n("Этот браузер не распознаёт речь")}" title="${i18n("Этот браузер не распознаёт речь")}">${lu("mic")}</button>`;
+  const on=asstMicOn(a),word=i18n(on?"Выключить микрофон":"Сказать голосом. Звук распознаёт служба браузера, не диктуйте пароли");
+  return`<button type="button" class="asst-ib${on?" asst-mic-on":""}" id="asstMicBtn" aria-pressed="${on}" aria-label="${word}" title="${word}" ${onEv("click",["asstMicPress"])}>${lu("mic")}</button>`;
+}
+/* Файлы. В контракте их передать нельзя (запрос mockup assist-files): разговор показывает имена, содержимое никуда
+   не уходит и страница его не читает */
+const ASST_FILE_MAX=5,ASST_FILE_MB=10;
+function asstFileSize(b){return b<1048576?`${Math.max(1,Math.round(b/1024))} ${i18n("КБ")}`:`${(b/1048576).toFixed(1)} ${i18n("МБ")}`}
+function asstFilePress(){document.getElementById("asstFilePick")?.click()}
+function asstFilePicked(e){asstFileAdd([...e.target.files]);e.target.value=""}
+function asstFileAdd(list){
   const a=asst;if(!a)return;
-  a.abort?.abort();
-  a.secrets=[];
-  asst=null;
-  asstLeadSync();
-  const block=document.getElementById("asstBlock");
-  if(block){block.innerHTML="";block.hidden=true}
-  document.getElementById("gopop")?.classList.remove("asst");
+  for(const f of list){
+    if(a.files.some(x=>x.name===f.name&&x.size===f.size))continue;
+    if(a.files.length>=ASST_FILE_MAX){toast(`${i18n("Не больше файлов")}: ${ASST_FILE_MAX}`);break}
+    if(f.size>ASST_FILE_MB*1048576){toast(`${f.name}: ${i18n("больше")} ${ASST_FILE_MB} ${i18n("МБ")}`);continue}
+    a.files.push({name:f.name,size:f.size});
+  }
+  asstRender();
+}
+function asstFileDrop(i){
+  const a=asst;if(!a)return;
+  a.files.splice(i,1);asstRender();
+  document.getElementById("asstFilePress")?.focus();
+}
+function asstFilesHtml(a){
+  return a.files.map((f,i)=>`<div class="asst-file"><span title="${escHtml(f.name)}">${escHtml(f.name)}</span><small>${asstFileSize(f.size)}</small><button type="button" class="asst-ib" aria-label="${i18n("Убрать файл")} ${escHtml(f.name)}" title="${i18n("Убрать файл")}" ${onEv("click",["asstFileDrop",i])}>${lu("x")}</button></div>`).join("");
+}
+function asstDropInit(){
+  const dock=document.getElementById("asstDock");if(!dock)return;
+  const files=e=>[...(e.dataTransfer?.types||[])].includes("Files");
+  // Файл, брошенный мимо панели, браузер открыл бы вместо страницы: разговоры и данные макета пропали бы
+  document.addEventListener("dragover",e=>{if(files(e)&&!e.defaultPrevented)e.preventDefault()});
+  document.addEventListener("drop",e=>{if(files(e)&&!e.defaultPrevented)e.preventDefault()});
+  dock.addEventListener("dragover",e=>{if(files(e)&&!asstHist){e.preventDefault();dock.classList.add("asst-drop")}});
+  dock.addEventListener("dragleave",e=>{if(!dock.contains(e.relatedTarget))dock.classList.remove("asst-drop")});
+  dock.addEventListener("drop",e=>{
+    dock.classList.remove("asst-drop");
+    if(files(e)&&!asstHist){e.preventDefault();asstFileAdd([...e.dataTransfer.files])}
+  });
+}
+function asstExample(t){if(asst&&!asst.busy)asstSend(null,t)}
+// Панель смотрят сейчас: тогда отбор и план сразу идут в дерево. Иначе дерево не меняется под руками,
+// их возвращают кнопки «Показать в дереве» и «Открыть в дереве»
+function asstSeen(a){return asstDockOpen&&asst===a&&!asstHist&&!document.querySelector(".mask.wz-mask.open,#bmodal.open")}
+// Что показать о разговоре: класс и слова
+function asstState(a){
+  if(a.busy)return["run",i18n("отвечает…")];
+  if(a.unread&&(a.ask||a.plan))return["wait",i18n("ждёт вашего ответа")];
+  if(a.unread&&(a.err||a.refused))return["err",i18n("ошибка")];
+  if(a.unread)return["ready",i18n("готов ответ")];
+  return["",asstWhenAt(a.at)];
+}
+function asstWhenAt(t){
+  const d=new Date(t),now=new Date();
+  const hm=d.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",hour12:false});
+  return d.toDateString()===now.toDateString()?hm:`${d.toLocaleDateString([],{day:"numeric",month:"short"})}, ${hm}`;
+}
+// Кнопка в шапке — всегда на месте и всегда со словами. Готовое важнее идущего: на него пора смотреть
+function asstHeadSync(){
+  const b=document.getElementById("hdAsst");if(!b)return;
+  const un=asstChats.filter(c=>c.unread&&!c.busy),st=un.map(c=>asstState(c)[0]);
+  const run=asstChats.filter(c=>c.busy).length;
+  const[cls,word]=st.includes("wait")?["wait","Ждёт ответа"]:st.includes("err")?["err","Ошибка ассистента"]:st.includes("ready")?["ready",un.length>1?`Готовы ответы: ${un.length}`:"Готов ответ"]:run?["run","Отвечает…"]:["","Ассистент"];
+  const label=i18n(word),html=`${cls==="run"?`<i class="asst-spin" aria-hidden="true"></i>`:ASST_ICON}<span>${escHtml(label)}</span>`;
+  if(b._h!==html){b.innerHTML=html;b._h=html}
+  b.className=`hd-asst ${cls}`;
+  b.setAttribute("aria-expanded",String(asstDockOpen));
+  // Сообщение о статусе без переноса фокуса
+  if(label!==asstLiveWas){
+    asstLiveWas=label;
+    const live=document.getElementById("asstLive");
+    if(live)live.textContent=cls?`${i18n("Ассистент")}: ${label}`:"";
+  }
+}
+// Живые поля хода — в строки ленты: текст, без кнопок. Так разговор виден целиком и переживает перезагрузку
+function asstLiveItems(a){
+  const out=[];
+  if(a.ask)out.push({k:"ask",t:a.ask});
+  if(a.answer)out.push({k:"answer",t:a.answer});
+  if(a.found)out.push({k:"found",t:[a.found.text,`${i18n("Отобрано")}: ${a.found.total??(a.found.ids||[]).length}`].filter(Boolean).join("\n")});
+  if(a.refused)out.push({k:"err",t:a.refused});
+  if(a.err)out.push({k:"err",t:a.err});
+  if(a.info)out.push({k:"info",t:a.info});
+  if(a.plan)out.push({k:"plan",t:[a.plan.summary||i18n("План"),...(a.plan.items||a.plan.rules||[]).map(x=>`· ${x.name||x.view?.name||""}`)].join("\n")});
+  if(a.result)out.push({k:"plan",t:a.result.rows.map(x=>`${x.name}: ${x.ok?x.note||i18n("применено"):x.why}`).join("\n")});
+  return out;
+}
+function asstItemHtml(x){
+  if(x.u!==undefined)return`<div class="asst-u">${escHtml(x.u)}</div>${x.files?.length?`<div class="asst-u-files">${x.files.map(f=>`<div class="asst-file"><span title="${escHtml(f.name)}">${escHtml(f.name)}</span><small>${asstFileSize(f.size)}</small></div>`).join("")}</div>`:""}`;
+  if(x.k==="info")return`<div class="asst-line">${escHtml(x.t)}</div>`;
+  if(x.k==="err")return`<div class="asst-msg err">${escHtml(x.t)}</div>`;
+  return`<div class="asst-who">${i18n(x.k==="answer"?"Ассистент · проверьте по разделу":"Ассистент")}</div><div class="asst-msg asst-answer">${escHtml(x.t)}</div>`;
+}
+// Хранение макета: браузер, не больше 30 разговоров. Значение пароля может прозвучать в любой реплике и в ответе,
+// поэтому от разговора о пароле сохраняется только след: ни слов, ни контекста
+function asstSave(){
+  try{
+    localStorage.setItem(ASST_STORE,JSON.stringify(asstChats.filter(c=>c.log.length).slice(0,30).map(c=>{
+      if(ASST_PASS.test(c.ask)||c.log.some(x=>ASST_PASS.test(x.t||""))||asstLiveItems(c).some(x=>ASST_PASS.test(x.t||"")))c.noStore=true;
+      const base={id:c.id,at:c.at,unread:c.unread,running:c.busy};
+      if(c.noStore)return Object.assign(base,{noStore:true,title:i18n("Разговор с паролем"),last:"",context:null,log:[{k:"info",t:i18n("Реплики разговора с паролем не сохранены")}]});
+      return Object.assign(base,{title:c.title,last:c.last,context:c.context,ctxLive:!!c.ctxLive,log:c.log.concat(c.busy?[]:asstLiveItems(c)).map(({u,k,t,files})=>({u,k,t,files}))});
+    })));
+  }catch(e){}
+}
+function asstLoad(){
+  try{const v=localStorage.getItem(ASST_VAR_KEY);if(["auto","side","over"].includes(v))asstVariant=v;asstWidth=parseInt(localStorage.getItem(ASST_W_KEY),10)||asstWidth}catch(e){}
+  asstGripInit();
+  asstDropInit();
+  asstWidthSet(asstWidth,false);
+  let saved=[];
+  try{saved=JSON.parse(localStorage.getItem(ASST_STORE)||"[]")}catch(e){}
+  if(!Array.isArray(saved))return;
+  asstChats=saved.map(c=>{
+    // Вопрос ассистента без ответа остаётся вопросом: ответ на него уйдёт с контекстом
+    const log=c.log||[],tail=log[log.length-1],ask=!c.running&&tail?.k==="ask"?tail.t:"";
+    return Object.assign(asstNewChat(),{id:c.id,title:c.title,at:c.at,log:ask?log.slice(0,-1):log,ask,unread:!!c.unread||!!c.running,noStore:!!c.noStore,context:c.context||null,ctxLive:!!c.ctxLive,last:c.last||""},
+      // Поток не продолжить после перезагрузки: для этого нужен запрос к API
+      c.running?{err:i18n("Страницу перезагрузили во время хода: ответ потерян. Спросите заново"),interrupted:true}:{});
+  });
+  asst=asstChats[0]||null;
+  asstHeadSync();
 }
 function asstVal(v){return v===undefined||v===null?"—":typeof v==="object"?JSON.stringify(v):String(v)}
 // План настройки применяется в дереве: что не легло в групповую карточку, сказано словами, обхода нет
 function asstPlanTreeNote(a){
+  if(!asstPickShown(a.plan))return"";
   const lost=a.planLost||[];
   return`<div class="asst-line" id="asstPlanNote">${i18n("Объекты плана отмечены в дереве, значения — в групповой карточке: проверьте, поменяйте и примените там")}</div>`+
     (lost.length?`<div class="asst-msg err" id="asstPlanLost">${i18n("Не перенесено в карточку")}: ${lost.map(escHtml).join(", ")}. ${i18n("Эти поля массово не меняются: правьте их в карточке объекта или спросите иначе")}</div>`:"");
@@ -25969,7 +26258,8 @@ function promptsMount(){
 function promptPanel(on){
   if(PROMPT.open===on)return;
   PROMPT.open=on;
-  if(on)goClose();else PROMPT.notes=[];
+  // Панель вопросов открывается из шапки под панелью ассистента: на экране одна из двух, разговор и ход живут
+  if(on){goClose();if(asstDockOpen){asstDockOpen=false;asstHist=false;asstRender()}}else PROMPT.notes=[];
   promptsRender();
 }
 function promptPanelToggle(){promptPanel(!PROMPT.open)}
@@ -26166,7 +26456,7 @@ async function asstRulesLoad(a,m){
   a.line=i18n("читаю, что есть сейчас…");asstRender();
   const rows=await Promise.all(m.rules.map(e=>e.op!=="update"?{...e}:e.table!=="scenarios"?{...e,read:null,readWhy:i18n(ASST_ONLY_NEW)}
     :API.get(`/rules/${e.id}`).then(read=>({...e,read}),x=>({...e,read:null,readWhy:problemText(x)}))));
-  if(asst!==a||a.abort!==turn)return;
+  if(a.abort!==turn)return;
   asstRulesViews(rows);
   a.plan={...m,rules:rows};a.line="";asstRender();
 }
@@ -26199,75 +26489,124 @@ async function asstRulesApply(a,p){
     }catch(x){rows.push({name,ok:false,why:x?.problem?.params?.issue?.code?`${problemText(x)}: ${x.problem.params.issue.code}`:problemText(x)})}
   }
   a.saving=false;
-  if(asst!==a)return;
+  a.log=a.log.concat(asstLiveItems({plan:a.plan}));
   a.plan=null;a.result={rows,again:rows.some(x=>!x.ok),undo:null};
+  a.unread=!asstSeen(a);
+  asstSave();
   asstRender();
 }
-// Панель ассистента — верх окна поиска, под ней обычные секции поиска. Ответ и уточнение — в поле под ответом, новая
-// просьба — в строке поиска; клик мимо и Esc скрывают панель, разговор и ход живут дальше. Служба шлёт строки хода и
-// при скрытой панели: окно само не открывается
-function asstRender(){
-  const a=asst,pop=document.getElementById("gopop"),block=document.getElementById("asstBlock");if(!a||!pop||!block)return;
-  // Служба шлёт строки хода и пока посетитель печатает: поле не теряет курсор. Курсор в карточке или в строке поиска
-  // (даже пустой: туда пишут новую просьбу) ответ ассистента не забирает
-  const act=document.activeElement,keep=act?.id,mode=asstMode(a);
-  const mine=!act||act===document.body||!!act.closest("#asstBlock");
-  block.hidden=false;
-  block.innerHTML=[
+function asstSetHtml(el,html){if(el&&el._h!==html){el.innerHTML=html;el._h=html}}
+function asstHeadHtml(a){
+  const other=asstChats.some(c=>c!==a&&c.unread&&!c.busy);
+  return`<div class="asst-title" id="asstTitle" title="${escHtml(a.title)}">${escHtml(asstHist?i18n("История разговоров"):a.title||i18n("Новый разговор"))}</div>
+    <div class="asst-var" role="group" aria-label="${i18n("Положение панели")}">
+      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
+      <button type="button" id="asstVarSide" aria-pressed="${asstVariant==="side"}" title="${i18n("Панель сужает рабочую область")}" ${onEv("click",["asstVariantSet","side"])}>${i18n("Рядом")}</button>
+      <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель лежит поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
+    </div>
+    <button type="button" class="asst-ib" id="asstHistBtn" aria-pressed="${asstHist}" aria-label="${i18n("История разговоров")}" title="${i18n("История разговоров")}" ${onEv("click",["asstHistToggle"])}>${lu("clock")}${other?`<i class="asst-dot"></i>`:""}</button>
+    <button type="button" class="asst-ib" id="asstNew" aria-label="${i18n("Новый разговор")}" title="${i18n("Новый разговор")}" ${onEv("click",["asstNewPress"])}>${lu("plus")}</button>
+    <button type="button" class="asst-ib" id="asstCloseBtn" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть. Разговор и ход продолжатся")}" ${onEv("click",["asstClose"])}>${lu("x")}</button>`;
+}
+function asstHistHtml(a){
+  const rows=asstChats.filter(c=>c.log.length||c===a||c.text.trim()||c.files.length);
+  return rows.map(c=>{const[cls,word]=asstState(c);
+    return`<button type="button" class="asst-hrow ${c===a?"cur":""}" data-asst-chat="${escHtml(c.id)}" ${onEv("click",["asstSwitch",c.id])}><b>${escHtml(c.title||i18n("Новый разговор"))}</b><span class="asst-hmeta ${cls}">${cls==="ready"||cls==="wait"?`<i class="asst-dot"></i>`:""}${escHtml(word)}</span></button>`}).join("")+
+    `<div class="asst-hnote">${i18n("Макет: история лежит в этом браузере. Разговор, где названо слово «пароль», не сохраняется. Пароль без этого слова распознать нельзя: не пишите его сюда")}</div>`;
+}
+function asstThreadHtml(a,mode){
+  const empty=!a.log.length&&!a.busy&&!a.err&&!a.answer&&!a.ask;
+  return[
     asstSvcHtml(a,mode),
-    // Последние пять просьб человека, старые сверху: строкой, длинная — с многоточием, целиком — в подсказке. Заметок нет.
-    // Пока идёт ход, последняя — шрифтом и цветом строки поиска, будто перешла из неё в панель; ответ пришёл — уходит в историю
-    (()=>{const asks=a.said.filter(t=>typeof t==="string").slice(-ASST_SAID_MAX),n=a.busy?asks.length-1:asks.length;
-      return asks.length?`<div class="asst-said">${asks.map((t,i)=>i<n?`<div title="${escHtml(t)}">› ${escHtml(t)}</div>`
-        :`<div class="asst-now" id="asstNow" title="${escHtml(t)}">${escHtml(t)}</div>`).join("")}</div>`:""})(),
+    empty?`<div class="asst-empty" id="asstEmpty"><div>${i18n("Спросите о системе или попросите изменить настройку. Без «Применить» ничего не записывается. Панель можно закрыть: ход продолжится")}</div>${
+      ["сколько камер без связи","выключи запись на камере Главный вход","покажи камеры без детектора движения"].map(t=>`<button type="button" class="btn s" ${onEv("click",["asstExample",t])}>${escHtml(i18n(t))}</button>`).join("")}</div>`:"",
+    a.log.map(asstItemHtml).join(""),
     // Строка хода; пока ход идёт — со значком в начале
     a.line||a.busy?`<div class="asst-line" id="asstLine">${a.busy?`<i class="dev-spin" role="status" aria-label="${i18n("Ассистент отвечает")}"></i>`:""}<span>${escHtml(a.line)}</span></div>`:"",
-    a.ask?`<div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
+    a.ask?`<div class="asst-who">${i18n("Ассистент")}</div><div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
-    a.answer?`<div class="asst-note" id="asstAnswerNote">${i18n("Ответ ассистента, проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
+    a.answer?`<div class="asst-who" id="asstAnswerNote">${i18n("Ассистент · проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
     a.found?asstFoundHtml(a.found):"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
-    a.plan?(a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)):"",
-    a.result?asstResultHtml(a.result):"",
-    `<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
-    a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
+    a.plan?`<div>${a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)}</div>`:"",
+    a.result?`<div>${asstResultHtml(a.result)}</div>`:""
+  ].join("");
+}
+function asstActsHtml(a,mode){
+  return[
+    a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" id="asstSec${i}" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
     `<div class="asst-act">`,
+    asstMicBtnHtml(a),
+    `<button type="button" class="asst-ib" id="asstFilePress" aria-label="${i18n("Приложить файл")}" title="${i18n("Приложить файл. Файлы можно и перетащить на панель")}" ${onEv("click",["asstFilePress"])}>${lu("paperclip")}</button>`,
     a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
     `<span class="asst-gap"></span>`,
     a.busy&&a.live?`<button type="button" class="btn s" id="asstCancel" ${onEv("click",["asstCancel"])}>${i18n("Отменить ход")}</button>`:"",
     a.down&&!a.busy?`<button type="button" class="btn s" id="asstToStub" ${onEv("click",["asstToStub"])}>${i18n("Работать с заглушкой")}</button>`:"",
     a.found&&!a.busy&&!asstPickShown(a.found)?`<button type="button" class="btn s" id="asstFoundOpen" ${onEv("click",["asstFoundOpen"])}>${i18n("Показать в дереве")}</button>`:"",
     a.found&&!a.busy?`<button type="button" class="btn s" id="asstFoundPick" ${asstFoundCount(a.found)?"":"disabled"} ${onEv("click",["asstFoundPick"])}>${i18n("Выбрать всё")}</button>`:"",
-    a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
+    (a.result?.again||a.interrupted&&a.last)&&!a.busy?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
     a.plan?.items?`${asstPickShown(a.plan)?"":`<button type="button" class="btn s" id="asstPlanOpen" ${onEv("click",["asstPlanOpen"])}>${i18n("Открыть в дереве")}</button>`}<button type="button" class="btn s pri" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>`
     :a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
       :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Отправить")}</button>`,
     `</div>`
   ].join("");
-  if(a.show)pop.classList.add("open","asst");
-  asstLeadSync();
-  block.scrollTop=block.scrollHeight;
+}
+// Панель ассистента: заголовок, лента, поле ввода. Строки хода приходят и пока человек печатает или читает выше:
+// поле не перерисовывается, лента не прыгает, ответ не забирает курсор из карточки или строки поиска
+function asstRender(){
+  asstHeadSync();
+  const dock=document.getElementById("asstDock"),block=document.getElementById("asstBlock");if(!dock||!block)return;
+  dock.hidden=!asstDockOpen;
+  document.body.classList.toggle("asst-open",asstDockOpen);
+  const a=asst;
+  // Панель не показывает разговор, который слушает микрофон: микрофон не работает незаметно
+  if(asstMic&&!asstMic.stopping&&(!asstDockOpen||asstHist||a!==asstMic.chat))asstMicStop();
+  if(!asstDockOpen||!a){asstLayout();return}
+  const act=document.activeElement,keep=act?.id;
+  asstSetHtml(document.getElementById("asstHead"),asstHeadHtml(a));
+  asstLayout();
+  const foot=document.getElementById("asstFoot"),mode=asstMode(a);
+  foot.hidden=asstHist;
+  if(asstHist){asstSetHtml(block,asstHistHtml(a));asstFocusBack(act,keep);return}
+  if(!a.busy&&a.unread){a.unread=false;asstHeadSync();asstSave()}
+  const atEnd=block.scrollHeight-block.scrollTop-block.clientHeight<40,top=block.scrollTop;
+  asstSetHtml(block,asstThreadHtml(a,mode));
+  block.scrollTop=asstScrollEnd||atEnd?block.scrollHeight:top;
+  asstScrollEnd=false;
+  asstSetHtml(document.getElementById("asstActs"),asstActsHtml(a,mode));
+  asstSetHtml(document.getElementById("asstFiles"),asstFilesHtml(a));
+  const ta=document.getElementById("asstText"),word=i18n(asstMicOn(a)?"Говорите…":a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба");
+  if(ta.value!==a.text)ta.value=a.text;
+  ta.placeholder=word;ta.setAttribute("aria-label",word);
   const code=document.getElementById("asstCode");
   if(code)code.value=a.codeDraft;
-  if(keep==="asstCode")code?.focus();
-  else if(mine&&(!a.busy||keep==="asstText"))document.getElementById("asstText")?.focus();
+  asstFocusBack(act,keep);
+}
+// Отрисовка заменила элемент с фокусом: фокус возвращается на такой же или в поле панели. Чужой фокус она не трогает:
+// ход другого разговора не уводит курсор из поля пароля, строки поиска или дерева
+function asstFocusBack(act,keep){
+  if(!act||act===document.body||act.isConnected)return;
+  const e=keep&&document.getElementById(keep);
+  e?.focus();
+  if(document.activeElement===e&&e?.tagName==="INPUT")e.setSelectionRange(e.value.length,e.value.length);
+  if(document.activeElement!==e)document.getElementById(asstHist?"asstHistBtn":"asstText")?.focus();
 }
 function asstKey(e){
   if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();asstSendText()}
 }
-function asstInput(v){if(asst)asst.text=v}
+function asstInput(v){if(asst){asst.text=v;asstMicDrop()}}
 function asstSendText(){if(asst)asst.text.trim()?asstSend(null,asst.text):toast("Напишите просьбу")}
 function asstSecret(i,v){if(asst)asst.secrets[i]=v}
 function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
 function asstEvent(a,m){
   if(m.type==="progress")a.line=m.text;
   // Тип хода служба держит в себе: в событиях его нет, лишнее поле (мост Пилота шлёт kind в progress) форма пропускает
-  if("context" in m)a.context=m.context;
+  if("context" in m){a.context=m.context;a.ctxLive=a.live}
   if(m.type==="question")a.ask=m.text;
   if(m.type==="answer")a.answer=m.text;
-  if(m.type==="found"){a.found=m;asstFoundToTree(m)}
+  if(m.type==="found"){a.found=m;if(asstSeen(a))asstFoundToTree(m)}
   if(m.type==="refused")a.refused=m.text;
   if(m.type==="error"){
     if(a.live)asstServiceError(a,m);
@@ -26276,7 +26615,7 @@ function asstEvent(a,m){
   if(m.type==="plan"){
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
-    if(m.items?.length){asstPlanToTree(a,m);return}
+    if(m.items?.length&&asstSeen(a)&&!asstDraftEdits()){asstPlanToTree(a,m);return}
   }
   asstRender();
 }
@@ -26285,27 +26624,41 @@ function asstSend(again,said){
   const a=asst;if(!a||a.busy||a.saving)return;
   const text=(again||said||"").trim();
   if(!text){toast("Напишите просьбу");return}
+  asstMicDrop();
   const live=asstMode(a)==="on";
   if(live&&(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask))){asstHoldSecret(a);return}
   const body={text};
   // Поля типа нет: что за реплика — вопрос, правка, правило, — решает тот, кто отвечает, по каждой реплике. Раздел не решает
+  // Контекст заглушки службе не годится, контекст службы — заглушке: код могли ввести в другом разговоре
+  if(a.context&&a.ctxLive!==live)a.context=null;
   if(a.context&&!again)body.context=a.context;
   if(a.secrets.some(Boolean))body.secrets=a.secrets;
-  // Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
-  const dropped=a.plan?[{note:i18n("План снят")}]:[];
+  // Прошлый ход уходит в ленту, а не пропадает. Уточнение плана: прежний план снят сразу и не вернётся, что бы ни ответила модель
+  if(a.secrets.some(Boolean)||ASST_PASS.test(text)||ASST_PASS.test(a.ask)||!again&&a.files.some(f=>ASST_PASS.test(f.name)))a.noStore=true;
+  // Имена файлов — в ленте. Содержимое ассистенту не уходит: в контракте для него нет поля
+  const files=again?[]:a.files;
+  if(!again)a.files=[];
+  a.log=a.log.concat(asstLiveItems(a),a.plan?[{k:"info",t:i18n("План снят")}]:[],[files.length?{u:text,files}:{u:text}],
+    files.length?[{k:"info",t:i18n("Макет: ассистент видит только текст просьбы, файлы ему не ушли")}]:[]);
+  if(!a.title)a.title=text;
+  a.at=Date.now();a.unread=false;a.interrupted=false;
   if(a.plan?.items)asstPlanDrop(a.plan);
-  Object.assign(a,{said:a.said.concat(dropped,text),last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",found:null,refused:"",err:"",plan:null,result:null,abort:new AbortController(),live,down:false,info:""});
+  asstScrollEnd=true;
+  Object.assign(a,{last:text,text:"",busy:true,line:i18n("думаю…"),ask:"",answer:"",found:null,refused:"",err:"",plan:null,planLost:[],result:null,abort:new AbortController(),live,down:false,info:""});
   asstRender();
-  (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>{if(asst===a)asstEvent(a,m)},{ends:asstEnds,signal:a.abort.signal}))
-    .catch(e=>{if(asst===a&&e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
+  asstSave();
+  (live?asstServiceTurn(a,body):API.stream("/assist/turns",body,m=>asstEvent(a,m),{ends:asstEnds,signal:a.abort.signal}))
+    .catch(e=>{if(e?.name!=="AbortError"){if(live)asstServiceFail(a,e);else a.err=problemText(e)}})
     .then(()=>{
-      if(asst!==a)return;
       a.busy=false;a.line="";
+      // Панель закрыта или открыт другой разговор: ответ ждёт, кнопка в шапке говорит о нём
+      a.unread=!asstSeen(a);
+      asstSave();
       asstRender();
     });
 }
 function asstAgain(){asstSend(asst?.last)}
-function asstDecline(){if(asst){asst.plan=null;asstRender()}}
+function asstDecline(){const a=asst;if(a){a.log=a.log.concat(asstLiveItems({plan:a.plan}));a.plan=null;asstSave();asstRender()}}
 // «Применить» в панели — только у плана правил. План настройки применяется черновиком групповой карточки
 function asstApply(){
   const a=asst,p=a?.plan;if(!p?.rules)return;
@@ -26326,13 +26679,13 @@ function asstPlanDraft(p){
   });
   return{plan,ver,lost:[...lost]};
 }
-function asstPlanToTree(a,p){
+function asstPlanToTree(a,p,fromLink){
   const ids=[...new Set(p.items.map(x=>x.deviceId))].slice(0,LIM.selectMax);
   const{plan,ver,lost}=asstPlanDraft(p);
   a.planLost=lost;
   // Переход в дерево — после записей: без них нечего отмечать
   asstPickSet({ids,total:ids.length,src:p,loaded:()=>{
-    if(asst!==a||a.plan!==p)return;
+    if(a.plan!==p)return;
     treeSel.clear();ids.forEach(id=>treeSel.add(id));
     selMode=true;bulkPeek=false;bulkFilt={kind:"",srv:"",model:""};
     // Черновик этого плана уже есть — с правками человека он остаётся
@@ -26340,15 +26693,29 @@ function asstPlanToTree(a,p){
     if(ids[0]){treeAnchor=ids[0];ids.forEach(id=>find(id)&&expandTo(id))}
     tab=["rec","pre","arch"].some(k=>plan[k])&&bulkTabs(bulkFieldNodes()).some(([t])=>t==="rec")?"rec":"gen";
     aside();gear();
+    if(fromLink)hwFlashLanding();
   }});
+  // Панель поверх закрыла бы карточку плана: она уходит, разговор и уточнение ждут в кнопке шапки
+  if(asstDockOpen&&asstPos()==="over"){
+    asstDockOpen=false;asstHist=false;
+    toast(i18n("План — в групповой карточке. Уточнить его можно в панели: кнопка «Ассистент»"));
+  }
   asstRender();
 }
 // Человек закрыл тег или ушёл: «Открыть в дереве» возвращает отбор, выбор и черновик. Свои правки в черновике остаются
-function asstPlanOpen(){const a=asst;if(a?.plan?.items)asstPlanToTree(a,a.plan)}
+function asstPlanOpen(){
+  const a=asst,p=a?.plan;if(!p?.items)return;
+  if(!asstDraftEdits()||bulkDraft.planOf===p){asstPlanToTree(a,p,true);return}
+  askConfirm("Заменить черновик карточки?",i18n("В групповой карточке есть правки, которые вы не применили. План ассистента заменит их."),"",i18n("Заменить"),()=>asstPlanToTree(a,p,true));
+}
+// В групповой карточке есть правки человека, а не только значения плана
+function asstDraftEdits(){return Object.keys(bulkDraft).some(k=>!["plan","planVer","planOf"].includes(k))}
 // План применён черновиком карточки: в панели его больше нет, итог — в очереди операций
 function asstPlanDone(p){
-  const a=asst;if(!a||a.plan!==p)return;
+  const a=asstChats.find(c=>c.plan===p);if(!a)return;
+  a.log=a.log.concat(asstLiveItems({plan:p}));
   a.plan=null;a.planLost=[];a.info=i18n("План применён через карточку: ход и итог — в очереди операций");
+  asstSave();
   asstRender();
 }
 // Уточнение снимает план: слой плана в черновике уходит вместе с ним, правки человека остаются
@@ -27225,7 +27592,7 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
   await treeNeed();
   syncLocalePack();applyStaticUi();
   if(!applyDeepLink()){resetTreeSel(sel);paint();}
-  window.appReadyDone=true;promptsMount();
+  window.appReadyDone=true;promptsMount();asstLoad();
   // Старт уже на пределе запросов (tools/check_scale.py): вопросы читаются сразу после него, поток к этому моменту подключён
   setTimeout(promptsLoad,0);
 }).catch(e=>{

@@ -1,6 +1,4 @@
-/* Прототип 22: чат ассистента в своей панели. Запуск:
-   python tools/check_ui.py --page index_22_chat-assistenta.html tests/proto-22-chat.js
-   В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html: тогда же переписать ui-assist*.js. */
+/* Сценарий интерфейса: чат ассистента в своей панели. Запуск — tools/check_ui.py tests/ui-chat.js */
 UiCheck(async ({ ok, until }) => {
   const el = (id) => document.getElementById(id);
   const btn = () => el("hdAsst");
@@ -15,6 +13,10 @@ UiCheck(async ({ ok, until }) => {
   localStorage.removeItem(ASST_STORE);
   localStorage.removeItem(ASST_VAR_KEY);
   localStorage.removeItem(ASST_W_KEY);
+  // В самопроверке хранилище общее: страница уже прочла разговоры соседнего сценария
+  asstChats = [];
+  asst = null;
+  asstRender();
   goApp("hw");
 
   // Кнопка всегда на месте, панель закрыта
@@ -485,6 +487,70 @@ UiCheck(async ({ ok, until }) => {
   ok(rulesChat.unread && asstState(rulesChat)[0] === "ready", "кнопка говорит об итоге");
   ok(savedOf(rulesChat).log.some((x) => x.t && x.t.includes(rulesText)), "план и итог в истории");
   asstVariantSet("auto");
+
+  // Пароль другими словами и в ответе: в историю не попадает
+  asstOpen("");
+  const pwd = asst;
+  say("поставь камере pwd Zx9Vb1");
+  ok(await until(() => !pwd.busy), "реплика с pwd");
+  ok(!store().includes("Zx9Vb1") && savedOf(pwd).noStore, "pwd не сохранён");
+  asstOpen("");
+  const pss = asst;
+  say("смени пасс на Mn8Kj1");
+  ok(await until(() => !pss.busy), "реплика с «пасс»");
+  ok(!store().includes("Mn8Kj1") && savedOf(pss).noStore, "«пасс» не сохранён");
+  asstOpen("");
+  const ans = asst;
+  ans.log.push({ k: "answer", t: "пароль камеры: Qw3rty1" });
+  asstSave();
+  ok(!store().includes("Qw3rty1") && savedOf(ans).noStore, "ответ с паролем не сохранён");
+  asstOpen("");
+  const passive = asst;
+  say("покажи пассивные датчики");
+  ok(await until(() => !passive.busy), "реплика со словом «пассивные»");
+  ok(store().includes("пассивные") && !savedOf(passive).noStore, "похожее слово сохраняется");
+
+  // Панель рядом не закрывает окна и черновики; за открытым окном план не меняет дерево
+  asstVariantSet("side");
+  asstOpen("");
+  const hit = (b) => { const r = b.getBoundingClientRect(); return !!document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)?.closest("#wizDr, #bmodal"); };
+  const wizBtn = () => document.getElementById("wn");
+  document.documentElement.style.setProperty("--asst-w", "560px");
+  document.getElementById("tt")?.remove();   // тост от прошлого шага лежит над кнопкой мастера
+  planOpen();
+  ok(wizOpen() && hit(wizBtn()), "панель не закрывает кнопку мастера");
+  ok(document.getElementById("wizDr").getBoundingClientRect().right <= dock().getBoundingClientRect().left, "мастер — левее панели");
+  ok(!asstSeen(asst), "за открытым мастером панель не считается видимой");
+  closeWizard();
+  ok(asstSeen(asst), "мастер закрыт — панель видна");
+  document.documentElement.style.removeProperty("--asst-w");
+  addArchive(domains[0].id);
+  const bm = document.querySelector("#bmodal .dc-box");
+  if (bm) ok(hit(document.querySelector("#bmodal .btn.pri, #bmFoot .btn")), "панель не закрывает кнопку окна");
+  ok(!asstSeen(asst), "за открытым окном панель не считается видимой");
+  closeBulkModal();
+  an = null;
+  const wd = document.createElement("div");
+  wd.className = "wz-docks";
+  wd.textContent = "черновик";
+  document.body.appendChild(wd);
+  ok(wd.getBoundingClientRect().right <= dock().getBoundingClientRect().left, "черновики — левее панели");
+  wd.remove();
+  // Ctrl+I при открытом подтверждении не уводит фокус под маску
+  askConfirm("Проверка", "", "", "Да", () => {}, { typeCount: 1 });
+  const wasOpen = !dock().hidden, wasFocus = document.activeElement;
+  document.activeElement.dispatchEvent(new KeyboardEvent("keydown", { key: "i", ctrlKey: true, bubbles: true }));
+  ok(!dock().hidden === wasOpen && document.activeElement === wasFocus, "Ctrl+I при подтверждении ничего не меняет");
+  closeConfirm();
+  // В «Детекторах» строк камер нет: отбор камер уводит на срез, где они есть
+  setSlice("det");
+  const camIds = devicePool.filter((d) => d.type === "camera").slice(0, 2).map((d) => d.id);
+  asstPickSet({ ids: camIds, total: camIds.length });
+  ok(slice === "all", "отбор камер из «Детекторов» — на срезе с камерами");
+  asstPickClear();
+  setSlice("all");
+  asstVariantSet("auto");
+  asstClose();
 
   // Перезагрузка: история на месте, идущий ход отмечен потерянным
   const raw = JSON.parse(store());
