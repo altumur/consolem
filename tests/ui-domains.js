@@ -16,6 +16,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Сервер: исключить и вернуть
   const d1=domains[0],s=d1.servers.find(x=>x.online!==false);
   excludeFromDomain(s.id);
+  if(document.getElementById("confirm").classList.contains("open"))await confirmWith(1);   // прототип с подтверждением числом
   ok(await until(()=>d1.unallocServers.includes(s)&&!d1.servers.includes(s)),"исключён: в «Нераспределённых»");
   ok((await API.get("/servers/"+s.id)).allocated===false,"на сервере — нераспределённый");
   addToDomain(s.id,d1.id);
@@ -58,7 +59,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   commitTreeRename(nf.id,"Склад-3");
   ok(await until(()=>nf.name==="Склад-3"),"папка переименована");
   const full=flatFolders().find(f=>f.items.length>1&&folderDomain(f.id)===d1.id);
-  clearFolder(full.id);await confirmWith(null);
+  const fullN=full.items.length;clearFolder(full.id);await confirmWith(fullN);
   ok(await until(()=>full.items.length===0),"папка очищена");
   ok((await uiFolderIds(full.id)).length===0,"на сервере — пусто");
   addSubfolder(nf.id);

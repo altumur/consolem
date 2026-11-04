@@ -271,7 +271,7 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 /* Высота — по окну, а не жёсткие 420px: у домена пунктов много, и последние
    («Создать домен», «Открыть в новой вкладке») прятались под прокрутку меню.
    За край экрана меню не выходит и так — его ставит openTreeCtx. */
-.tctx{display:none;position:fixed;z-index:45;min-width:220px;max-height:calc(100vh - 16px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 10px 28px #000a;padding:4px 0;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
+.tctx{display:none;position:fixed;z-index:62;min-width:220px;max-height:calc(100vh - 16px);overflow:auto;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 10px 28px #000a;padding:4px 0;scrollbar-width:thin;scrollbar-color:var(--one-border) transparent}
 .tctx.open{display:block}
 .tctx button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:0;color:var(--tx);padding:7px 10px 7px 8px;font-size:12px;text-align:left;cursor:pointer}
 .tctx button:hover{background:var(--one-control-hover)}
@@ -17750,7 +17750,7 @@ function accMenuOpen(anchor,html){
 function accMenuOutside(e){if(!document.getElementById("accMenu")?.contains(e.target))accMenuClose()}
 function accMenuClose(){
   const m=document.getElementById("accMenu");
-  rcMark(null);
+  rcCloseMark(m);
   document.removeEventListener("mousedown",accMenuOutside);
   if(!m)return;m.remove();
 }
@@ -23068,8 +23068,9 @@ function ctxThen(id,fn,...args){
   closeTreeCtx();
   const run=()=>window[fn](...args);
   if(sel===id&&!(treeSel.size>1&&!treeSel.has(id)))return run();
-  if(cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>{pick(id,{force:true});run()});return}
-  pick(id);run();
+  if(cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>{pick(id,{force:true});if(sel===id)run()});return}
+  // pick может не открыть объект сразу: черновик зон спрашивает первым.
+  pick(id);if(sel===id)run();
 }
 function rcOpenNode(id){closeTreeCtx();pick(id)}
 function rcObject(id,xy,el){
@@ -23092,13 +23093,15 @@ function rcLink(t){
     if(el.id==="main"||el.id==="tree"||el.id==="aside")return null;
     if(el.dataset?.pick)return{k:"node",id:el.dataset.pick,el};
     const raw=el.getAttribute("data-on-click");
-    const call=raw?JSON.parse(raw).find(c=>c[0][0]!=="."):null;
-    if(call&&RC_LINKS[call[0]])return{...RC_LINKS[call[0]](...call.slice(1)),el};
-    if(el.matches(RC_CONTROL))return{k:"control"};
+    const calls=raw?JSON.parse(raw).filter(c=>c[0][0]!=="."):[];
+    const call=calls.find(c=>RC_LINKS[c[0]]);
+    if(call)return{...RC_LINKS[call[0]](...call.slice(1)),el};
+    if(calls.length||el.matches(RC_CONTROL))return{k:"control"};
   }
   return null;
 }
 function rcAcc(s,xy,el){
+  const back=document.activeElement;
   const[kind,id]=String(s).split(":");
   if(!id||!["role","user","ug"].includes(kind))return;
   const a={getBoundingClientRect:()=>({top:xy.y,bottom:xy.y-4,left:xy.x})};
@@ -23115,6 +23118,7 @@ function rcAcc(s,xy,el){
   m.insertAdjacentHTML("afterbegin",openIt);
   rcPlace(m,xy);
   rcMark(el);
+  rcBack=back&&back!==document.body?back:null;
 }
 function rcFieldKind(f){
   if(f.isContentEditable||f.tagName==="TEXTAREA")return true;
@@ -23131,7 +23135,7 @@ function rcFieldMenu(f,xy){
     tctxItem(i18n("Копировать"),["rcFieldDo","copy"],null,!has||pwd),
     tctxItem(i18n("Вставить"),["rcFieldDo","paste"],null,ro),
     tctxSep(),
-    tctxItem(i18n("Выделить всё"),["rcFieldDo","selectAll"],null,empty)].join(""),xy);
+    tctxItem(i18n("Выделить всё"),["rcFieldDo","selectAll"],null,empty||f.disabled)].join(""),xy);
 }
 function rcFieldDo(cmd){
   closeTreeCtx();
@@ -23201,14 +23205,14 @@ function rcOnContext(e){
   const link=rcLink(t);
   if(link?.k==="control")return;
   if(link?.k==="node"){
-    if(dl.sel.size>1&&dl.sel.has(link.id))rcDetBulk(xy,link.el);
+    if(detListOn()&&dl.sel.size>1&&dl.sel.has(link.id))rcDetBulk(xy,link.el);
     else rcObject(link.id,xy,link.el);
   }
   else if(link?.k==="detkind")rcDetKind(link.kind,xy,link.el);
   else if(link?.k==="archgroup"){
     if(can("createArchive")){rcShow(tctxItem(i18n("Создать хранилище…"),["rcRun","addArchive",link.did],tctxPlusIcon()),xy);rcMark(link.el)}
   }
-  else if(link?.k==="rule"){if(app==="rules")ruleCtx(e,link.id);rcMark(link.el)}
+  else if(link?.k==="rule"){if(app==="rules"){ruleCtx(e,link.id);rcMark(link.el)}}
   else if(link?.k==="acc"){if(app==="acc")rcAcc(link.s,xy,link.el)}
   else if(link?.k==="fav"){const f=favs[link.i];if(f){if(!rcObject(f.id,xy,link.el))rcFavGone(link.i,xy,link.el)}}
   else if(t.closest("#aside")){if(!t.closest(".n"))rcAsideEmpty(xy)}
@@ -23220,6 +23224,8 @@ document.addEventListener("contextmenu",rcOnContext,true);
 addEventListener("mousedown",e=>{if(e.button===2)rcSelBefore=String(getSelection()||"").trim()},true);
 // Стрелки в открытом меню — раньше клавиатурной навигации по дереву.
 addEventListener("keydown",e=>{
+  // Esc снимает меню раньше окна под ним и раньше поля поиска.
+  if(e.key==="Escape"&&document.getElementById("tctx")?.classList.contains("open")){e.preventDefault();e.stopPropagation();closeTreeCtx();return}
   if(!["ArrowDown","ArrowUp","Home","End"].includes(e.key))return;
   const m=rcOpenMenuEl();if(!m)return;
   const items=[...m.querySelectorAll("button:not(:disabled)")];if(!items.length)return;
