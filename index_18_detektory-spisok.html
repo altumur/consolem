@@ -1645,9 +1645,23 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .cp-meta{grid-area:m;color:var(--mu);font-size:11px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cp-note{grid-area:note;font-size:10px;color:var(--one-warning-text);max-width:200px;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cp-list .empty{padding:20px;text-align:center;color:var(--mu)}
-.bbox.bbox-copy.dc-box{width:min(1320px,96vw);height:92vh}
-.dc-narrow{max-width:760px}
-#bmodal:has(.dc-box){z-index:53}
+/* Мастер: ширина — от шага, высота — по содержимому (dcFit). Верх окна стоит на месте, чтобы полоса шагов не прыгала */
+.bbox.bbox-copy.dc-box{width:min(1040px,96vw);height:auto;max-height:92vh;transition:width .26s cubic-bezier(.2,.7,.2,1),height .26s cubic-bezier(.2,.7,.2,1)}
+.bbox.bbox-copy.dc-box.dc-w-what{width:min(820px,96vw)}
+.bbox.bbox-copy.dc-box.dc-w-zones{width:min(calc((92vh - 400px)*16/9 + 350px),96vw)}
+.bbox.bbox-copy.dc-box.dc-w-rule{width:min(800px,96vw)}
+.bbox.bbox-copy.dc-box.dc-w-end{width:min(860px,96vw)}
+.dc-anim .cp-scroll,.dc-anim .cp-list,.dc-anim .dc-z-list,.dc-anim .dc-z-main,.dc-anim .dc-scope{overflow:hidden}
+.dc-fade{animation:dcFade .22s ease}
+@keyframes dcFade{from{opacity:0}to{opacity:1}}
+@media (prefers-reduced-motion:reduce){.bbox.bbox-copy.dc-box{transition:none}.dc-fade{animation:none}}
+#bmodal:has(.dc-box){z-index:53;place-items:start center;padding-top:4vh}
+.dc-opts{display:flex;flex-direction:column;gap:6px}
+.dc-opts .dc-sub{margin:2px 0 6px 34px}
+.dc-rec{display:flex;gap:8px;flex-wrap:wrap}
+.dc-rec select{width:auto;flex:1 1 180px}
+.dc-more{display:inline-block;background:none;border:0;padding:0;margin:12px 0 2px;color:var(--x-link);font:inherit;font-size:12px;cursor:pointer}
+.dc-more:hover{text-decoration:underline}
 .dc-tools{float:right;display:inline-flex;gap:2px}
 .dc-saved{margin-left:auto;font-size:11px;color:var(--mu)}
 .dc-z{flex:1;min-height:0;display:grid;grid-template-columns:minmax(240px,300px) minmax(0,1fr);gap:16px;height:100%}
@@ -9630,7 +9644,7 @@ function detCreateOpen(lock){
 }
 function dcFresh(lock){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
-  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",watch:false,pick:""},zoneBy:{},zoneAt:"",custom:null,min:false};
+  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",watch:false,pick:"",adv:false},zoneBy:{},zoneAt:"",custom:null,min:false};
   renderDetCreate();dcLoad();
 }
 // Черновик мастера живёт в браузере: на сервер ничего не уходит до «Создать». Переживает закрытие окна и перезагрузку страницы
@@ -9844,26 +9858,104 @@ function dcPickMiss(gs,id){
   const r=rules.find(x=>x.id===id);
   return r?gs.filter(g=>!r.when.some(t=>t.sub==="det"&&t.kind===g.kind&&matchKey(t.match)===matchKey(g.match))):[];
 }
+// Простой вид — тот же черновик правила dc.custom: выбор только заполняет его «То». Подробный вид правит то же самое
+function dcActNew(k,c){
+  const kind=ACTION_KINDS.find(x=>x.action===k),a=ruleNewAct(kind,null,c);
+  if(!a.ref&&ruleSrcOk(c,kind.devTypes)&&srcDeclared())a.ref="$src";
+  if(k==="record"){a.dur="min";a.minutes=10;delete a.after}
+  return a;
+}
+// Что из простого вида показывает правило; custom — простой вид его не передаст
+function dcActKey(c){
+  if(c.cond?.length||dc.rule.watch||c.then.length!==1)return"custom";
+  const a=c.then[0];
+  if(a.ctl||a.ref!=="$src")return"custom";
+  if(a.action==="record"&&!a.after)return"record";
+  if(a.action==="alarm"&&a.prio!=="high"&&!a.text)return"alarm";
+  return"custom";
+}
+function dcGs(){
+  const lock=dc.lock?find(dc.lock)?.n:null,cams=dc.ready?dcUniverse():[],tpl=dcTemplates(lock?[lock]:cams);
+  return dcTrigs(dcPlan(cams,tpl),tpl);
+}
+function dcRulePick(k){
+  if(k==="add"||k==="none"){dc.rule.mode=k;renderDetCreate();return}
+  const c=dcCustomRule(dcGs()),cur=dcActKey(c);
+  if(cur===k){dc.rule.mode="new";renderDetCreate();return}
+  const apply=()=>{dc.rule.mode="new";dc.rule.watch=false;c.cond=[];c.then=[dcActNew(k,c)];renderDetCreate()};
+  if(cur!=="custom"){apply();return}
+  renderDetCreate();
+  askConfirm("Заменить настройку правила?","Условия и действия, настроенные подробно, пропадут.","",k==="alarm"?"Поднять тревогу":"Записывать видео",apply,{cancelLabel:"Оставить"});
+}
+function dcRuleAdv(on){if(on)dc.rule.mode="new";dc.rule.adv=!!on;renderDetCreate()}
+function dcRecLen(v){
+  ruleEdit(r=>{
+    const a=r.then[0];if(!a)return;
+    if(v==="event"){a.dur="event";a.after=0;delete a.minutes}else{a.dur="min";a.minutes=+v;delete a.after}
+  });
+}
+function dcRecHtml(c){
+  const a=c.then[0],len=a.dur==="event"?"event":String(a.minutes??10),rf=ruleRefField(ACT_ADD,"dur");
+  const mins=[...new Set([5,10,30,60,...(len==="event"?[]:[+len])])].sort((x,y)=>x-y);
+  const ev=ruleHasEnds(c)&&(!rf||!rf.options?.length||rf.options.includes("event"));
+  const lenOpts=`${mins.map(m=>`<option value="${m}" ${len===String(m)?"selected":""}>${m} ${i18n(plural(m,"минута|минуты|минут"))}</option>`).join("")}${ev||len==="event"?`<option value="event" ${len==="event"?"selected":""}>${i18n("пока идёт событие")}</option>`:""}`;
+  const archF={id:"archive",label:"Архив (необязательно)"};
+  const archSel=ruleFieldShown(ACT_ADD,archF,a)?`<select aria-label="${i18n("Архив")}" ${onEv("change",["setActionField","0","archive",onEv.value])}>${ruleArchOpts(a).map(([v,l])=>`<option value="${escHtml(v)}" ${(a.archive||"")===v?"selected":""}>${escHtml(l)}</option>`).join("")}</select>`:"";
+  return`<div class="dc-sub dc-rec"><select aria-label="${i18n("Сколько записывать")}" ${onEv("change",["dcRecLen",onEv.value])}>${lenOpts}</select>${archSel}</div>`;
+}
 function dcRuleHtml(gs){
-  const r=dc.rule,cands=dcRuleCands(gs);
-  const opt=(id,t,sub,more)=>`<label class="rl-opt ${r.mode===id?"on":""}"><input type="radio" name="dcRule" ${r.mode===id?"checked":""} ${onEv("change",["dcRuleSet","mode",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>${r.mode===id?more:""}`;
-  const camsAll=new Set(gs.flatMap(g=>[...g.cams])).size;
-  const one=gs.length<=1,c=r.mode==="new"?dcCustomRule(gs):null;
-  const issues=c?ruleIssues(c):[];
+  const r=dc.rule,cands=dcRuleCands(gs),c=dcCustomRule(gs),cur=dcActKey(c),on=r.mode==="new"?cur:r.mode;
+  const one=gs.length<=1;
   const count=one?"":`<p class="sub dc-note">${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}, ${i18n("по одному на вид: при условии и то у них общие.")}</p>`;
-  const acts=c?`<div class="dc-sub">
-    <div class="dc-sec">${i18n("Если")}</div>${gs.map(g=>`<div class="dc-plan">${escHtml(triggerLabel(dcRuleWhen(g)))}</div>`).join("")}${count}
+  const head=`<div class="dc-sec">${i18n("Если")}</div>${gs.map(g=>`<div class="dc-plan">${escHtml(triggerLabel(dcRuleWhen(g)))}</div>`).join("")}${count}`;
+  if(r.adv){
+    const issues=ruleIssues(c);
+    return`${head}
     <div class="dc-sec">${i18n("При условии")}</div>${(c.cond||[]).map(condRowHtml).join("")||`<p class="sub dc-note">${i18n("Без условий — действия выполняются при каждом запуске")}</p>`}
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
     <div class="dc-sec">${i18n("То")}</div>${thenListHtml(c.then,"","",0)}${addBarHtml("")}
     ${issues.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
-    <label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что сделало бы. Действия включите после проверки.")}</small></span></label></div>`:"";
-  const pick=`<div class="dc-sub">${cands.length?`<select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Камеры встанут в событие правила. Остальное в нём не изменится.")}</p>`:`<p class="sub dc-note">${i18n("Нет правил с такими событиями.")}</p>`}</div>`;
-  return`<div class="dc-sec">${i18n("Правило по событию")}</div>
-    ${opt("new","Новое правило","Одно на вид, для всех камер: его проще менять",acts)}
-    ${opt("add","Добавить к правилу","В правило, которое уже работает",pick)}
-    ${opt("none","Без правила","Событие попадёт только в журнал","")}`;
+    <label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что сделало бы. Действия включите после проверки.")}</small></span></label>
+    <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",false])}>${i18n("Вернуться к простому виду")}</button>`;
+  }
+  const opt=(id,t,sub,more,pick)=>`<label class="rl-opt ${on===id?"on":""}"><input type="radio" name="dcRule" ${on===id?"checked":""} ${onEv("change",pick||["dcRulePick",`${id}`])}><span><b>${i18n(t)}</b><small>${sub}</small></span></label>${on===id?more:""}`;
+  const shown=k=>actDeclared(ACTION_KINDS.find(x=>x.action===k));
+  const summary=()=>{
+    const list=c.then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; ");
+    return escHtml([list,c.cond?.length?`${i18n("условий")}: ${c.cond.length}`:"",r.watch?i18n("только журнал"):""].filter(Boolean).join(" · "));
+  };
+  const pickSel=`<div class="dc-sub"><select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Камеры встанут в событие правила. Остальное в нём не изменится.")}</p></div>`;
+  return`${head}
+    <div class="dc-sec" style="margin-top:14px">${i18n("То")}</div>
+    <div class="dc-opts">
+      ${shown("record")?opt("record","Записывать видео",i18n("С камеры, на которой сработал детектор"),on==="record"?dcRecHtml(c):""):""}
+      ${shown("alarm")?opt("alarm","Поднять тревогу",i18n("Оператор увидит тревогу по этой камере"),""):""}
+      ${cur==="custom"?opt("custom","Своё правило",summary(),"",["dcRuleAdv",true]):""}
+      ${cands.length?opt("add","Добавить к правилу",i18n("В правило, которое уже работает"),pickSel):""}
+      ${opt("none","Ничего не делать",i18n("Событие попадёт только в журнал. Правило не создаётся."),"")}
+    </div>
+    <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",true])}>${i18n("Настроить подробно: условия и другие действия")}</button>`;
 }
+// Окно идёт за содержимым: ширина — от шага (класс dc-w-*), высота — сколько нужно, но не больше экрана.
+// Плавно: возвращаем прежний размер, меряем новый и даём CSS дойти до него. Посреди перехода прежний размер — текущий
+let dcFitAt="",dcFitT=0;
+function dcFit(was,key){
+  const box=document.querySelector("#bmodal .dc-box");if(!box)return;
+  const same=key===dcFitAt;dcFitAt=key;
+  clearTimeout(dcFitT);
+  box.style.transition="none";box.style.width=box.style.height="";
+  const now=box.getBoundingClientRect(),w=now.width;
+  // Фильтр на шаге камер не сжимает окно: чипы и поиск не уезжают из-под курсора
+  const h=same&&key==="cams"&&was?Math.max(now.height,Math.min(was.height,innerHeight*.92)):now.height;
+  if(!was||(Math.abs(was.width-w)<2&&Math.abs(was.height-h)<2)){box.style.height=`${h}px`;box.style.transition="";return}
+  box.style.width=`${was.width}px`;box.style.height=`${was.height}px`;
+  box.classList.add("dc-anim");
+  void box.offsetWidth;
+  box.style.transition="";
+  box.style.width=`${w}px`;box.style.height=`${h}px`;
+  dcFitT=setTimeout(()=>{box.classList.remove("dc-anim");box.style.width=""},300);
+}
+window.addEventListener("resize",()=>{if(dc&&!dc.min&&document.querySelector("#bmodal.open .dc-box"))dcFit(null,dcFitAt)});
 function dcAll(on){
   dcFiltered(detCams()).forEach(c=>{
     if(!on)dc.cams.delete(c.id);
@@ -9948,7 +10040,7 @@ function renderDetCreate(){
       ${same?`<p class="sub dc-note">${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект. Зоны, нарисованные рукой, не заменятся.")}</p>`:""}
     </div></div></section>`;
   };
-  const secRule=()=>`<section class="cp-col ${dc.rule.mode==="new"?"":"dc-narrow"}"><div class="cp-scroll" data-cp-scroll="r">${dcRuleHtml(gs)}</div></section>`;
+  const secRule=()=>`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="r">${dcRuleHtml(gs)}</div></section>`;
   // Последний шаг и есть план: ничего ещё не записано, здесь видно всё, что произойдёт
   const secEnd=()=>{
     const rows=dcRowsOf(plan),noLine=rows.filter(dcNeedsLine).length;
@@ -9965,6 +10057,9 @@ function renderDetCreate(){
       <label class="dc-on"><input type="checkbox" ${dc.on?"checked":""} ${onEv("change",["dcEnabled",onEv.checked])}><span>${i18n("Включить детекторы сразу")}</span></label></div></section>`;
   };
   const SEC={what:secWhat,cams:secCams,zones:secZones,rule:secRule,end:secEnd};
+  // Прежний размер — до замены содержимого; подробное правило шире простого
+  const fitBox=document.querySelector("#bmodal.open .bbox"),fitWas=fitBox?fitBox.getBoundingClientRect():null;
+  const fitKey=st.k==="rule"&&dc.rule.adv?"rule-adv":st.k;
   const reach=i=>steps.slice(0,i).every(okStep);
   const bar=steps.map((x,i)=>`${i?`<span class="dc-st-sep"></span>`:""}<button type="button" class="dc-st ${i===dc.step?"on":""}" ${reach(i)?"":"disabled"} aria-current="${i===dc.step?"step":"false"}" ${onEv("click",["dcStepGo",`${i}`])}><span class="cp-step">${i<dc.step?lu("check",11):i+1}</span>${i18n(x.t)}</button>`).join("");
   const skipN=plan.reduce((n,p)=>n+[...p.skip.values()].reduce((a,b)=>a+b,0),0);
@@ -9972,8 +10067,9 @@ function renderDetCreate(){
   const go=last?`<button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`
     :`<button type="button" class="btn pri" ${okStep(st)?"":"disabled"} ${onEv("click",["dcStepGo",`${dc.step+1}`])}>${i18n("Далее")}</button>`;
   openBulkModal(`${lock?`${i18n("Добавить детекторы на камеру")} «${escHtml(locName(lock))}»`:i18n("Добавить детекторы")}<span class="dc-tools"><button type="button" class="dc-x" aria-label="${i18n("Свернуть")}" title="${i18n("Свернуть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("minus")}</button><button type="button" class="dc-x" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("x")}</button></span>`,
-    `<div class="dc-step"><div class="dc-steps">${bar}<span class="dc-saved">${i18n("Черновик сохраняется сам")}</span></div><div class="dc-body">${SEC[st.k]()}</div></div>`,
-    `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><span class="dc-sum">${sum}</span>${dc.step?`<button type="button" class="btn" ${onEv("click",["dcStepGo",`${dc.step-1}`])}>${i18n("Назад")}</button>`:""}${go}`,"bbox-wide bbox-copy dc-box");
+    `<div class="dc-step"><div class="dc-steps">${bar}<span class="dc-saved">${i18n("Черновик сохраняется сам")}</span></div><div class="dc-body${fitKey===dcFitAt?"":" dc-fade"}">${SEC[st.k]()}</div></div>`,
+    `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><span class="dc-sum">${sum}</span>${dc.step?`<button type="button" class="btn" ${onEv("click",["dcStepGo",`${dc.step-1}`])}>${i18n("Назад")}</button>`:""}${go}`,`bbox-wide bbox-copy dc-box dc-w-${fitKey}`);
+  dcFit(fitWas,fitKey);
   requestAnimationFrame(()=>document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]}));
   dcSave();liveSync();
 }
@@ -23163,7 +23259,10 @@ function openBulkModal(title,body,foot,cls){
   document.getElementById("bmTitle").innerHTML=title;
   document.getElementById("bmBody").innerHTML=body;
   document.getElementById("bmFoot").innerHTML=foot||"";
-  m.querySelector(".bbox").className="cbox bbox"+(cls?" "+cls:"");
+  const box=m.querySelector(".bbox");
+  box.className="cbox bbox"+(cls?" "+cls:"");
+  // Размер, который задал мастер, другим окнам не нужен
+  if(!box.classList.contains("dc-box"))box.style.width=box.style.height="";
   m.classList.add("open");
 }
 function closeBulkModal(){
