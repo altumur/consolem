@@ -25964,6 +25964,17 @@ function asstToggle(){
   asstRender();
   document.getElementById("asstText")?.focus();
 }
+// «Авто» — панель на время: клик мимо неё прячет её, как всплывающее окно (слово владельца). «Рядом» и «Поверх»
+// закреплены и закрываются только крестиком, кнопкой шапки или Escape. Мимо — не панель, не кнопка шапки, не поиск
+// (из него Enter начинает разговор) и не верхний слой: диалог, окно, тост с «Отменить», меню
+function asstOutside(e){
+  if(!asstDockOpen||asstVariant!=="auto")return;
+  const t=e.target;if(!t?.closest||!t.isConnected)return;
+  if(t.closest("#asstDock,#hdAsst,#gq,#gopop,#tt,#confirm,#bmodal,.mask.open,[role=menu],[role=dialog]"))return;
+  // Фокус не уводим на кнопку шапки: он уходит туда, куда кликнули
+  asstDockOpen=false;asstHist=false;asstRender();
+}
+document.addEventListener("pointerdown",asstOutside,true);
 // Закрытие только прячет панель: разговор и ход живут
 function asstClose(){
   asstDockOpen=false;asstHist=false;
@@ -26513,7 +26524,7 @@ function asstHeadHtml(a){
   const other=asstChats.some(c=>c!==a&&c.unread&&!c.busy);
   return`<div class="asst-title" id="asstTitle" title="${escHtml(a.title)}">${escHtml(asstHist?i18n("История разговоров"):a.title||i18n("Новый разговор"))}</div>
     <div class="asst-var" role="group" aria-label="${i18n("Положение панели")}">
-      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
+      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" title="${i18n("Панель сама встаёт рядом или поверх и закрывается кликом мимо")}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
       <button type="button" id="asstVarSide" aria-pressed="${asstVariant==="side"}" title="${i18n("Панель сужает рабочую область")}" ${onEv("click",["asstVariantSet","side"])}>${i18n("Рядом")}</button>
       <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель лежит поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
     </div>

@@ -1214,6 +1214,7 @@ window.I18N_EN={
 "ассистент":"assistant",
 "кадр сейчас":"frame now",
 "Открыть выгрузку":"Open export",
+"Панель сама встаёт рядом или поверх и закрывается кликом мимо":"The panel places itself beside or over the page and closes when you click outside it",
 "Заказ — в разделе «Экспорт». Уточнить его можно в панели: кнопка «Ассистент»":"The order is in the Export section. You can refine it in the panel: the Assistant button",
 "Выгрузки в этой системе нет":"This system has no export",
 "Заказ открыт в разделе «Экспорт»: проверьте, введите пароль, если нужен, и нажмите «Экспорт»":"The order is open in the Export section: check it, enter a password if needed and press Export",
