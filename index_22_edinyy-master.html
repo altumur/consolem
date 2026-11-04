@@ -1759,6 +1759,35 @@ html[data-theme="light"] .busy-chip{background:var(--one-control-hover);color:va
 .dc-body{flex:1;min-height:0;min-width:0;display:grid;gap:22px;grid-template-columns:minmax(0,1fr)}
 .dc-what2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px}
 .dc-cnt{margin-left:auto;color:var(--mu);font-size:11px}
+/* Единый мастер: окно по центру, шаги кнопками, размер идёт за шагом. Образец — «Добавить детекторы» */
+.mask.wz-mask.open{display:grid;place-items:start center;padding:4vh 16px 0}
+.dr.wz-win{position:relative;top:auto;right:auto;bottom:auto;left:auto;width:min(720px,96vw);height:auto;max-height:92vh;border:1px solid var(--ln);border-radius:12px;box-shadow:0 16px 48px #0008;transition:width .26s cubic-bezier(.2,.7,.2,1),height .26s cubic-bezier(.2,.7,.2,1)}
+.dr.wz-win.wz-s{width:min(520px,96vw)}.dr.wz-win.wz-m{width:min(680px,96vw)}.dr.wz-win.wz-l{width:min(860px,96vw)}.dr.wz-win.wz-xl{width:min(1040px,96vw)}.dr.wz-win.wz-xxl{width:min(1400px,96vw)}
+.dr.wz-win.wz-tall{height:92vh}
+.bbox.bbox-copy.dc-box.wz-s{width:min(520px,96vw)}.bbox.bbox-copy.dc-box.wz-m{width:min(680px,96vw)}.bbox.bbox-copy.dc-box.wz-l{width:min(860px,96vw)}
+.dr.wz-win .dh{padding:14px 16px;font-size:14px;justify-content:flex-start}
+.dr.wz-win .dh b{font-weight:600}
+.dr.wz-win .dev-step-n{display:none}
+.wz-tools{margin-left:auto;display:inline-flex;gap:2px;flex:none}
+.dr.wz-win .wz-bar{display:block;flex:none;padding:12px 16px 0;border:0}
+.dr.wz-win .wz-bar:empty{display:none}
+.dr.wz-win .wz-bar .dc-steps{margin:0}
+.dr.wz-win .db{flex:1 1 auto;min-height:0;padding:14px 16px}
+.dr.wz-win .df{flex:none;padding:12px 16px;justify-content:flex-start}
+.dr.wz-win .df #wn{margin-left:0}
+.dr.wz-win #wizFoot{flex:0 1 auto;display:block;min-width:0;font-size:12px;color:var(--mu);margin-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#wizFootR{display:flex;align-items:center;gap:8px;flex:none}
+#wizFootR:empty{display:none}
+.wz-plan-ft{display:flex;align-items:center;gap:8px}
+.wz-plan-ft .plan-warn{font-size:12px;color:var(--mu);margin:0}
+.wz-anim .db{overflow:hidden!important}
+.wz-kv{display:grid;grid-template-columns:minmax(120px,max-content) minmax(0,1fr);gap:6px 16px;margin:0;font-size:13px}
+.wz-kv dt{color:var(--mu)}.wz-kv dd{margin:0;min-width:0;overflow-wrap:anywhere}
+.wz-plan.plan-right{flex:1;width:auto;max-height:none;border:0;background:none;border-radius:0}
+.wz-docks{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.wz-docks .dc-dock{position:static}
+.wz-docks:empty{display:none}
+body:has(.mask.wz-mask.open) .wz-docks,body:has(#bmodal.open) .wz-docks{display:none}
 .dc-sum{font-size:12px;color:var(--mu);margin-right:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .dl-back{display:inline-flex;align-items:center;gap:2px;margin:0 0 10px;font-size:12px}
 .dc-sec{font-size:12px;font-weight:600;margin:10px 0 4px}
@@ -2013,12 +2042,12 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <div class="jlist" id="jlist"></div>
   </div>
 </div>
-<div class="mask" id="wiz" data-on-click='[[".self"],["closeWizard"]]'>
-  <div class="dr" id="wizDr" data-on-click='[[".stop"]]'>
-    <div class="dh"><b id="wizT">Добавить сервер</b><button class="btn s btn-icon" aria-label="Закрыть" title="Закрыть" data-on-click='[["closeWizard"]]'><svg class="ic-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></div>
-    <div class="st" id="wst"></div>
+<div class="mask wz-mask" id="wiz">
+  <div class="dr wz-win wz-m" id="wizDr" data-on-click='[[".stop"]]'>
+    <div class="dh"><b id="wizT">Добавить сервер</b><span id="wizTools" class="wz-tools"></span></div>
+    <div class="st wz-bar" id="wst"></div>
     <div class="db" id="wbd"></div>
-    <div class="df"><div id="wizFoot"></div><button class="btn" id="wb" data-on-click='[["wizBack"]]'>Назад</button><button class="btn pri" id="wn" data-on-click='[["wnx"]]'>Далее</button></div>
+    <div class="df"><button type="button" class="btn" id="wc" data-i18n="Отмена" data-on-click='[["wizCancel"]]'>Отмена</button><span class="tfoot-gap"></span><div id="wizFoot"></div><button class="btn" id="wb" data-on-click='[["wizBack"]]'>Назад</button><span id="wizFootR"></span><button class="btn pri" id="wn" data-on-click='[["wnx"]]'>Далее</button></div>
   </div>
 </div>
 <div class="confirm" id="confirm" data-on-click='[[".self"],["closeConfirm"]]'>
@@ -5037,11 +5066,13 @@ function openFindServerByIp(domainId){
 }
 // Окно одно, откуда бы его ни открыли: пришёл за адресом — курсор сразу в поле адресов,
 // пусто в сети — тоже: больше здесь делать нечего
-function openAddServers(domainId,toAddress){
+function openAddServers(domainId,toAddress,draft){
   const did=domainId||addContext().domain?.id||domains[0]?.id;
   if(!did)return;
   openW("server");
   wizd.domain=did;
+  const dr=draft||wzPeek("srv");
+  if(dr&&dr.domain===did){Object.assign(wizd,dr);delete wzMem.srv}
   delete listQ[srvKey()];resetPage(srvKey());
   wizd.ipFocus=!!toAddress||!unallocDisplayList(did).length;
   wd();
@@ -5322,7 +5353,7 @@ const ESC_LAYERS=[
   {is:()=>typeof schDlgIsOpen==="function"&&schDlgIsOpen(),off:()=>schDlgCancel()},
   {is:()=>wizOpen()&&wizd?.mode==="device-add"&&(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop),
    off(){wizd.devFiltPop=wizd.csvFiltPop=wizd.modePop=wizd.devFieldsPop=false;wizd.tplFilter="";renderDeviceWizard()}},
-  {is:wizOpen,off:()=>closeWizard()},
+  {is:wizOpen,off(){}},   // окно создания долго заполнять: случайный Escape его не закрывает
   {is:()=>document.getElementById("jump")?.classList.contains("open"),off:closeJump},
   {is:()=>document.getElementById("tctx")?.classList.contains("open"),off:closeTreeCtx},
   {is:()=>document.getElementById("upop")?.classList.contains("open"),off:closeUserMenu},
@@ -10280,6 +10311,168 @@ async function dcLoad(){
   treeMatchCache.clear();searchMatchCache.clear();
   if(dc){dc.ready=true;if(read)dcPrune();if(dcStepKey()==="zones")dcZoneEnter();renderDetCreate()}
 }
+// ── Единый мастер ─────────────────────────────────────────────────────
+// Все процессы создания устроены как «Добавить детекторы»: окно по центру, шаги кнопками, размер окна идёт за шагом,
+// в подвале «Отмена», итог, «Назад» и кнопка, которая называет результат. Клик мимо и Escape окно не закрывают.
+// Закрыть и свернуть — одно и то же: незавершённое остаётся в доке внизу справа, удаляет его только «Отмена».
+function wzBarHtml(steps,cur,reach,on,saved){
+  const bar=steps.map((x,i)=>`${i?`<span class="dc-st-sep"></span>`:""}<button type="button" class="dc-st ${i===cur?"on":""}" ${reach(i)?"":"disabled"} aria-current="${i===cur?"step":"false"}" ${onEv("click",[...on,`${i}`])}><span class="cp-step">${i<cur?lu("check",11):i+1}</span>${i18n(x.t)}</button>`).join("");
+  return`<div class="dc-steps">${bar}${saved?`<span class="dc-saved">${i18n("Черновик сохраняется сам")}</span>`:""}</div>`;
+}
+function wzFootHtml(o){
+  const n=o.next;
+  return`<button type="button" class="btn" ${onEv("click",o.cancel)}>${i18n("Отмена")}</button>${o.extra||""}<span class="tfoot-gap"></span><span class="dc-sum">${o.sum||""}</span>${o.back?`<button type="button" class="btn" ${onEv("click",o.back)}>${i18n("Назад")}</button>`:""}${n?`<button type="button" class="btn pri" ${n.id?`id="${n.id}"`:""} ${n.off?"disabled":""} ${onEv("click",n.on)}>${n.label}</button>`:""}`;
+}
+// Кнопки в заголовке. У мастера с черновиком две, и делают они одно и то же: так же, как в образце
+function wzToolsHtml(id,cls,domId){
+  const min=!!WZD[id],t=i18n(min?"Закрыть: черновик сохранится":"Закрыть");
+  return`<span class="${cls||"wz-tools"}"${domId?` id="${domId}"`:""}>${min?`<button type="button" class="dc-x" aria-label="${i18n("Свернуть")}" title="${i18n("Свернуть: черновик сохранится")}" ${onEv("click",["wzClose",id])}>${lu("minus")}</button>`:""}<button type="button" class="dc-x" aria-label="${i18n("Закрыть")}" title="${t}" ${onEv("click",["wzClose",id])}>${lu("x")}</button></span>`;
+}
+// Окно идёт за содержимым: возвращаем прежний размер, меряем новый и даём CSS дойти до него.
+// stick — высота остаётся заданной (содержимое растягивается по окну); grow — окно не сжимается внутри одного шага
+const wzFitSt=new WeakMap();
+function wzFit(box,was,key,o={}){
+  if(!box)return;
+  const st=wzFitSt.get(box)||{key:"",t:0,h:0};wzFitSt.set(box,st);
+  const same=key===st.key;st.key=key;
+  clearTimeout(st.t);box.classList.remove("dc-anim","wz-anim");
+  box.style.transition="none";box.style.width=box.style.height="";
+  const now=box.getBoundingClientRect(),w=now.width;
+  const h=same&&o.grow?Math.max(now.height,Math.min(st.h,innerHeight*.92)):now.height;
+  st.h=h;
+  if(!was||(Math.abs(was.width-w)<2&&Math.abs(was.height-h)<2)){box.style.height=o.stick?`${h}px`:"";void box.offsetWidth;box.style.transition="";return}
+  box.style.width=`${was.width}px`;box.style.height=`${was.height}px`;
+  box.classList.add("dc-anim","wz-anim");
+  void box.offsetWidth;
+  box.style.transition="";
+  box.style.width=`${w}px`;box.style.height=`${h}px`;
+  st.t=setTimeout(()=>{box.classList.remove("dc-anim","wz-anim");box.style.width="";if(!o.stick)box.style.height=""},300);
+}
+const WZ_SIZES=["wz-s","wz-m","wz-l","wz-xl","wz-xxl","wz-tall"];
+function wzSize(box,size){box.classList.remove(...WZ_SIZES);String(size).split(" ").forEach(x=>box.classList.add("wz-"+x))}
+// Перерисовка окна-маски (окна раздела «Права»)
+function wzPaintDr(id,key,size,bar,body,foot){
+  const el=document.getElementById(id),box=el.querySelector(".wz-win"),bd=document.getElementById(id+"Bd");
+  const st=wzFitSt.get(box),was=st?box.getBoundingClientRect():null,same=st?.key===key,top=same?bd.scrollTop:0;
+  wzSize(box,size);
+  document.getElementById(id+"St").innerHTML=bar;
+  bd.innerHTML=body;
+  document.getElementById(id+"Ft").innerHTML=foot;
+  bd.scrollTop=top;
+  wzFit(box,was,key);
+  if(!same)requestAnimationFrame(()=>bd.querySelector("input:not([type=checkbox]):not([type=radio]):not([disabled]),textarea")?.focus());
+}
+// То же в окне #bmodal: оно одно на всё приложение, поэтому мастер занимает его целиком
+function wzPaintBm(id,key,size,title,bar,body,foot){
+  const open=document.querySelector("#bmodal.open .dc-box"),was=open?open.getBoundingClientRect():null;
+  const sc=document.querySelector("#bmBody .wz-scroll"),st=open&&wzFitSt.get(open),top=sc&&st?.key===key?sc.scrollTop:0;
+  openBulkModal(`${title}${wzToolsHtml(id,"dc-tools")}`,`<div class="dc-step">${bar}<div class="dc-body${st?.key===key?"":" dc-fade"}"><section class="cp-col"><div class="cp-scroll wz-scroll">${body}</div></section></div></div>`,foot,`bbox-wide bbox-copy dc-box wz-${size}`);
+  const box=document.querySelector("#bmodal .dc-box");
+  wzFit(box,was,key);
+  const n=document.querySelector("#bmBody .wz-scroll");if(n)n.scrollTop=top;
+}
+// Первая причина, по которой шаг не пройти: видна в подвале, а не молча
+function wzErrSum(keys,e,lb){
+  const k=keys.find(x=>e[x]);if(!k)return"";
+  const t=i18n(e[k]);
+  return lb[k]?`${i18n(lb[k])}: ${t.charAt(0).toLowerCase()}${t.slice(1)}`:t;
+}
+// Черновики: живут в браузере, на сервер ничего не уходит. Секреты в localStorage не пишем: они только в памяти вкладки
+const WZ_SECRET=/pass|pwd|secret|token|accesskey/i;
+const wzMem={};
+function wzKey(id){return"cfg.wz."+id}
+function wzPack(id,s){
+  const d=WZD[id];
+  return JSON.stringify(d.pack?d.pack(s):s,(k,v)=>WZ_SECRET.test(k)?undefined:v instanceof Set?{__set:[...v]}:v);
+}
+function wzSave(id){
+  const d=WZD[id],s=d?.get();if(!s||d.peek)return;
+  try{if(d.work(s))localStorage.setItem(wzKey(id),wzPack(id,s));else localStorage.removeItem(wzKey(id))}catch(e){}
+}
+function wzPeek(id){
+  const d=WZD[id];if(d.peek)return d.peek();
+  if(wzMem[id])return wzMem[id];
+  try{const t=localStorage.getItem(wzKey(id));return t?JSON.parse(t,(k,v)=>v&&v.__set?new Set(v.__set):v):null}catch(e){return null}
+}
+function wzDrop(id){delete wzMem[id];try{localStorage.removeItem(wzKey(id))}catch(e){}wzDock()}
+function wzClose(id){
+  const d=WZD[id];
+  if(!d){if(id)accDrawerClose(id);else closeWizard();return}
+  const s=d.get();
+  if(s&&d.work(s)){if(!d.peek)wzMem[id]=s;wzSave(id)}else wzDrop(id);
+  d.hide();wzDock();
+}
+function wzResume(id){
+  const d=WZD[id],s=wzPeek(id);if(!s)return;
+  delete wzMem[id];d.set?.(s);d.show(s);wzDock();
+}
+function wzCancel(id){
+  const d=WZD[id],s=d.get()||wzPeek(id),stop=()=>{d.clear?.();wzDrop(id);d.hide()};
+  if(!s||!d.work(s)){stop();return}
+  askConfirm(i18n("Отменить создание?"),i18n(d.lost),"",i18n(d.drop||"Удалить черновик"),stop,{cancelLabel:i18n("Остаться")});
+}
+function wzCancelQuiet(id){const d=WZD[id];d.clear?.();wzDrop(id);d.hide()}
+// Вход в мастер. Есть незавершённое: то же место — продолжаем, другое — спрашиваем
+function wzStart(id,fresh,same){
+  const s=wzPeek(id);
+  if(!s||!WZD[id].work(s)){fresh();return}
+  if(typeof same!=="function"||same(s)){wzResume(id);return}
+  askConfirm(i18n("Есть незавершённое создание"),`${i18n(WZD[id].t)}${WZD[id].sum(s)?": "+WZD[id].sum(s):""}`,i18n("Новое создание заменит его."),i18n("Начать заново"),()=>{wzDrop(id);fresh()},{rawMsg:true,cancelLabel:i18n("Оставить")});
+}
+function wzDocks(){
+  let c=document.getElementById("wzDocks");
+  if(!c){c=document.createElement("div");c.id="wzDocks";c.className="wz-docks";document.body.appendChild(c)}
+  return c;
+}
+// Что есть незавершённого, видно в любом разделе
+function wzDock(){
+  const c=wzDocks();
+  Object.keys(WZD).forEach(id=>{
+    const d=WZD[id],rowId="wzDock-"+id;
+    let el=document.getElementById(rowId);
+    const s=d.get()?null:wzPeek(id);
+    if(!s||!d.work(s)){el?.remove();return}
+    if(!el){el=document.createElement("div");el.id=rowId;el.className="dc-dock";el.setAttribute("role","status");c.appendChild(el)}
+    const[i,n,step]=d.where(s),sum=d.sum(s);
+    el.innerHTML=`<span class="dc-dock-t"><b>${i18n(d.t)}</b><small>${n>1?`${i18n("Шаг")} ${i+1} ${i18n("из")} ${n}: ${i18n(step)}`:""}${n>1&&sum?" · ":""}${sum}</small></span><button type="button" class="btn s pri" ${onEv("click",["wzResume",id])}>${i18n("Продолжить")}</button><button type="button" class="btn s btn-icon" title="${i18n(d.drop||"Удалить черновик")}" aria-label="${i18n(d.drop||"Удалить черновик")}" ${onEv("click",["wzCancel",id])}>${lu("x")}</button>`;
+  });
+}
+window.addEventListener("load",wzDock);
+window.addEventListener("pagehide",()=>Object.keys(WZD).forEach(wzSave));
+const WZD={
+  srv:{t:"Добавление серверов",lost:"Выбранные серверы и введённые адреса пропадут.",
+    get:()=>wizOpen()&&wizd?.mode==="server-add"?wizd:null,hide:()=>closeWizard(),
+    show:s=>{openAddServers(s.domain,false,s)},
+    work:s=>!!(s.ipText||"").trim()||!!s.ipPick?.size,
+    pack:s=>({domain:s.domain,ipText:s.ipText||"",srvStep:0,ipPick:new Set()}),
+    where:s=>[s.srvStep||0,SRV_STEPS.length,SRV_STEPS[s.srvStep||0].t],
+    sum:s=>s.ipPick?.size?`${i18n("выбрано")} ${s.ipPick.size}`:escHtml(locName(domainById(s.domain)||{}))},
+  plan:{t:"Добавление устройств",lost:"Строки плана пропадут. Вернуть их можно сразу после отмены, из сообщения внизу.",
+    get:()=>planInDrawer()?addPlan:null,peek:()=>addPlan,hide:()=>closeWizard(),clear:()=>planClear(),
+    show:()=>planHeadOpen(),work:s=>s.rows.length+s.links.length>0,
+    where:()=>[1,DEV_STEPS.length,DEV_STEPS[1].t],sum:s=>`${i18n("в плане")} ${s.rows.length+s.links.length}`},
+  arch:{t:"Новое хранилище",lost:"Выбранный вид и настройки хранилища пропадут.",
+    get:()=>an,set:s=>{an=s},hide:()=>{an=null;closeBulkModal()},show:()=>renderArchNew(),
+    work:s=>!!(s.step||s.name.trim()),
+    where:s=>[s.step||0,AN_STEPS.length,AN_STEPS[s.step||0].t],sum:s=>escHtml(s.name.trim()||i18n(archKindName(s.kind)))},
+  accWiz:{t:"Новая роль",lost:"Имя, права и назначения роли пропадут.",drop:"Не создавать",
+    get:()=>accWz,set:s=>{accWz=s},hide:()=>accDrawerClose("accWiz"),show:()=>{accDrawer("accWiz","Новая роль");accWzRender()},
+    work:s=>!!(s.step||s.name.trim()),
+    where:s=>[s.step,ACC_WZ.length,ACC_WZ[s.step][1]],sum:s=>s.name.trim()?`«${escHtml(s.name.trim())}»`:""},
+  accUd:{t:"Новый пользователь",lost:"Заполненные поля и выбранные роли пропадут.",drop:"Не создавать",
+    get:()=>accUd,set:s=>{accUd=s},hide:()=>accDrawerClose("accUd"),show:()=>{accDrawer("accUd","Новый пользователь");accUdRender()},
+    work:s=>!!(s.step||s.login.trim()||s.uname.trim()),
+    where:s=>[s.step,ACC_UD.length,ACC_UD[s.step][1]],sum:s=>escHtml(s.login.trim())},
+  accCt:{t:"Новый каталог",lost:"Параметры подключения пропадут.",drop:"Не создавать",
+    get:()=>accCt,set:s=>{accCt=s},hide:()=>accDrawerClose("accCt"),show:()=>{accDrawer("accCt","Добавить каталог");accCtRender()},
+    work:s=>!!(s.step||s.n.trim()||s.server.trim()),
+    where:s=>[s.step,ACC_CT.length,ACC_CT[s.step][1]],sum:s=>escHtml(s.n.trim())},
+  accImp:{t:"Импорт пользователей из CSV",lost:"Вставленные строки пропадут.",drop:"Не создавать",
+    get:()=>accIm,set:s=>{accIm=s},hide:()=>accDrawerClose("accImp"),show:()=>{accDrawer("accImp","Импорт пользователей из CSV");accImpRender()},
+    work:s=>!!s.text.trim(),
+    pack:s=>({...s,step:0,res:null}),
+    where:s=>[s.step,ACC_IMP.length,ACC_IMP[s.step][1]],sum:s=>escHtml(s.file||"")},
+};
 // lock — камера, с вкладки которой открыли: шага выбора камер нет
 function detCreateOpen(lock){
   const saved=dc||dcPeek();
@@ -10338,7 +10531,7 @@ function dcDock(){
   let el=document.getElementById("dcDock");
   const d=dc?(dc.min?dc:null):dcPeek();
   if(!d){el?.remove();return}
-  if(!el){el=document.createElement("div");el.id="dcDock";el.className="dc-dock";el.setAttribute("role","status");document.body.appendChild(el)}
+  if(!el){el=document.createElement("div");el.id="dcDock";el.className="dc-dock";el.setAttribute("role","status");wzDocks().appendChild(el)}
   const all=DC_STEPS.filter(x=>!(d.lock&&x.k==="cams")),i=Math.min(d.step,all.length-1);
   el.innerHTML=`<span class="dc-dock-t"><b>${i18n("Добавление детекторов")}</b><small>${i18n("Шаг")} ${i+1} ${i18n("из")} ${all.length}: ${i18n(all[i].t)} · ${dcSummary(d)}</small></span><button type="button" class="btn s pri" ${onEv("click",["dcResume"])}>${i18n("Продолжить")}</button><button type="button" class="btn s btn-icon" title="${i18n("Удалить черновик")}" aria-label="${i18n("Удалить черновик")}" ${onEv("click",["dcCancel"])}>${lu("x")}</button>`;
 }
@@ -10595,23 +10788,11 @@ function dcRuleHtml(gs){
 }
 // Окно идёт за содержимым: ширина — от шага (класс dc-w-*), высота — сколько нужно, но не больше экрана.
 // Плавно: возвращаем прежний размер, меряем новый и даём CSS дойти до него. Посреди перехода прежний размер — текущий
-let dcFitAt="",dcFitT=0,dcFitH=0;
+let dcFitAt="";
 function dcFit(was,key){
-  const box=document.querySelector("#bmodal .dc-box");if(!box)return;
-  const same=key===dcFitAt;dcFitAt=key;
-  clearTimeout(dcFitT);
-  box.style.transition="none";box.style.width=box.style.height="";
-  const now=box.getBoundingClientRect(),w=now.width;
+  dcFitAt=key;
   // Фильтр на шаге камер не сжимает окно: чипы и поиск не уезжают из-под курсора
-  const h=same&&key==="cams"?Math.max(now.height,Math.min(dcFitH,innerHeight*.92)):now.height;
-  dcFitH=h;
-  if(!was||(Math.abs(was.width-w)<2&&Math.abs(was.height-h)<2)){box.style.height=`${h}px`;box.style.transition="";return}
-  box.style.width=`${was.width}px`;box.style.height=`${was.height}px`;
-  box.classList.add("dc-anim");
-  void box.offsetWidth;
-  box.style.transition="";
-  box.style.width=`${w}px`;box.style.height=`${h}px`;
-  dcFitT=setTimeout(()=>{box.classList.remove("dc-anim");box.style.width=""},300);
+  wzFit(document.querySelector("#bmodal .dc-box"),was,key,{stick:true,grow:key==="cams"});
 }
 window.addEventListener("resize",()=>{if(dc&&!dc.min&&document.querySelector("#bmodal.open .dc-box"))dcFit(null,dcFitAt)});
 function dcAll(on){
@@ -10726,13 +10907,13 @@ function renderDetCreate(){
   const fitBox=document.querySelector("#bmodal.open .bbox"),fitWas=fitBox?fitBox.getBoundingClientRect():null;
   const fitKey=st.k==="rule"&&dc.rule.adv?"rule-adv":st.k;
   const reach=i=>steps.slice(0,i).every(okStep);
-  const bar=steps.map((x,i)=>`${i?`<span class="dc-st-sep"></span>`:""}<button type="button" class="dc-st ${i===dc.step?"on":""}" ${reach(i)?"":"disabled"} aria-current="${i===dc.step?"step":"false"}" ${onEv("click",["dcStepGo",`${i}`])}><span class="cp-step">${i<dc.step?lu("check",11):i+1}</span>${i18n(x.t)}</button>`).join("");
+  const bar=wzBarHtml(steps,dc.step,reach,["dcStepGo"],true);
   const skipN=plan.reduce((n,p)=>n+[...p.skip.values()].reduce((a,b)=>a+b,0),0);
   const sum=!dc.items.size?i18n("Выберите, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выберите камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
   const go=last?`<button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`
     :`<button type="button" class="btn pri" ${okStep(st)?"":"disabled"} ${onEv("click",["dcStepGo",`${dc.step+1}`])}>${i18n("Далее")}</button>`;
   openBulkModal(`${lock?`${i18n("Добавить детекторы на камеру")} «${escHtml(locName(lock))}»`:i18n("Добавить детекторы")}<span class="dc-tools"><button type="button" class="dc-x" aria-label="${i18n("Свернуть")}" title="${i18n("Свернуть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("minus")}</button><button type="button" class="dc-x" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("x")}</button></span>`,
-    `<div class="dc-step"><div class="dc-steps">${bar}<span class="dc-saved">${i18n("Черновик сохраняется сам")}</span></div><div class="dc-body${fitKey===dcFitAt?"":" dc-fade"}">${SEC[st.k]()}</div></div>`,
+    `<div class="dc-step">${bar}<div class="dc-body${fitKey===dcFitAt?"":" dc-fade"}">${SEC[st.k]()}</div></div>`,
     `<button type="button" class="btn" ${onEv("click",["dcCancel"])}>${i18n("Отмена")}</button><span class="tfoot-gap"></span><span class="dc-sum">${sum}</span>${dc.step?`<button type="button" class="btn" ${onEv("click",["dcStepGo",`${dc.step-1}`])}>${i18n("Назад")}</button>`:""}${go}`,`bbox-wide bbox-copy dc-box dc-w-${fitKey}`);
   dcFit(fitWas,fitKey);
   requestAnimationFrame(()=>{document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]});document.querySelector("#bmBody .dc-z-row.on")?.scrollIntoView({block:"nearest"})});
@@ -13145,7 +13326,7 @@ let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
 // событие или действие, и шаблон тогда не обязателен.
 function ruleNewOpen(preset){
-  rnw={start:(preset&&preset.start)||(RULE_STARTS.find(([id])=>startDeclared(id))||RULE_STARTS[0])[0],tpl:"",preset:preset||null};
+  rnw={step:0,start:(preset&&preset.start)||(RULE_STARTS.find(([id])=>startDeclared(id))||RULE_STARTS[0])[0],tpl:"",preset:preset||null};
   ruleNewRender();
 }
 function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
@@ -13155,12 +13336,17 @@ function ruleNewRender(){
     .map(t=>`<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
-  openBulkModal(i18n("Новое правило"),
-    `${pre}<div class="rl-h">${i18n("Как запускается")}</div><div class="rl-opts">${starts}</div>
-     <div class="rl-h">${i18n("С чего начать")}</div><div class="rl-opts">${tpls}</div>
+  const steps=RULE_NEW_STEPS,last=rnw.step===steps.length-1,st=steps[rnw.step];
+  const startName=(RULE_STARTS.find(([id])=>id===rnw.start)||[])[1]||"";
+  const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
+  wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
+    st.k==="start"?`${pre}<div class="rl-opts">${starts}</div>`
+      :`${pre}<div class="rl-opts">${tpls}</div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
-    `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отменить")}</button><button type="button" class="btn pri" ${onEv("click",["ruleNewCreate"])}>${i18n("Создать")}</button>`,"bbox-wide");
+    wzFootHtml({cancel:["closeBulkModal"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
 }
+const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
+function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
 // Монотонный счётчик: номер правила не переиспользуется, даже если прежнее удалено
 // или ждёт удаления — иначе отложенное удаление заденет новое правило.
 let ruleSeq=0;
@@ -18397,11 +18583,11 @@ function accUgOpen(gid,members){
   const g=gid?accUG(gid):null;
   accUgd={gid:g?.id||"",name:g?.n||"",comment:g?.comment||"",members:members||[],tried:false};
   accDrawer("accUg",g?"Переименовать группу":"Новая группа пользователей");
-  document.getElementById("accUgSt").innerHTML="";document.getElementById("accUgN").textContent="";
+  wzSize(document.querySelector("#accUg .wz-win"),"s");
   document.getElementById("accUgBd").innerHTML=`<div class="acc-wz-f"><label>${i18n("Название")}</label><input type="text" value="${escHtml(accUgd.name)}" autocomplete="off" ${onEv("input",["accUgdName",onEv.value])}><div class="fld-err" id="accUgE"></div></div>
     <div class="acc-wz-f"><label>${i18n("Описание")}</label><input type="text" value="${escHtml(accUgd.comment)}" ${onEv("input",["accUgdComment",onEv.value])}></div>
     <p class="acc-hint">${g?i18n("Состав и роли группы не меняются"):`${accUgd.members.length?`${i18n("В группу будут добавлены выбранные пользователи:")} ${accUgd.members.length}. `:""}${i18n("Роли группе назначаются после создания: без них участники ничего не получают")}`}</p>`;
-  document.getElementById("accUgFt").innerHTML=`<button class="btn" ${onEv("click",["accDrawerClose","accUg"])}>${i18n("Отмена")}</button><button class="btn pri" style="margin-left:auto" ${onEv("click",["accUgApply"])}>${i18n("В черновик")}</button>`;
+  document.getElementById("accUgFt").innerHTML=wzFootHtml({cancel:["accDrawerClose","accUg"],next:{label:i18n("В черновик"),on:["accUgApply"]}});
 }
 function accUgErr(){
   const d=accUgd,n=d.name.trim();
@@ -18581,29 +18767,41 @@ function accCatPick(cid,idx,el){
 }
 // «Подключить группу каталога»: название, предпросмотр людей, роли и срок.
 let accCg=null;
-function accCgName(v){accCg.name=v;document.getElementById("accCgE").textContent=""}
+function accCgName(v){accCg.name=v;const e=document.getElementById("accCgE"),why=accCgErr();if(e)e.textContent=why?i18n(why):"";accCgChrome()}
 function accCgUntil(v){accCg.until=v;accCgFoot()}
+const ACC_CG=[["who","Кто попадёт"],["roles","Роли группы"]];
 function accCgOpen(cid,idx){
   const c=accCat(cid),a=c?.avail[idx];if(!a)return;
   accMenuClose();
-  accCg={cid,idx,name:`${c.n.split(".")[0].toUpperCase()}\\${a.n}`,roles:new Set(),until:""};
+  accCg={cid,idx,step:0,name:`${c.n.split(".")[0].toUpperCase()}\\${a.n}`,roles:new Set(),until:""};
   accDrawer("accCg","Подключить группу каталога");
-  document.getElementById("accCgSt").innerHTML="";document.getElementById("accCgN").textContent="";
+  accCgRender();
+}
+function accCgErr(){const n=accCg.name.trim();return!n?"Заполните поле":taken(accGroupsAll().map(g=>g.n),n)?"Группа с таким именем уже есть":""}
+function accCgGo(i){accCg.step=+i;accCgRender()}
+function accCgChrome(){
+  const d=accCg;if(!d)return;
+  const why=accCgErr(),last=d.step===ACC_CG.length-1,a=accCat(d.cid).avail[d.idx];
+  document.getElementById("accCgSt").innerHTML=wzBarHtml(ACC_CG.map(([k,t])=>({k,t})),d.step,i=>!i||!why,["accCgGo"]);
+  document.getElementById("accCgFt").innerHTML=wzFootHtml({cancel:["accDrawerClose","accCg"],sum:why?escHtml(`${i18n("Название группы")}: ${i18n(why).toLowerCase()}`):`${accWho(a.logins.length)} · ${i18n("ролей")}: ${d.roles.size}`,back:d.step?["accCgGo",0]:null,next:{label:i18n(last?"В черновик":"Далее"),on:last?["accCgApply"]:["accCgGo",1],off:!!why}});
+}
+function accCgRender(){
+  const d=accCg;if(!d)return;
+  const c=accCat(d.cid),a=c.avail[d.idx],st=ACC_CG[d.step][0];
   const ex=new Map(accUsers().map(u=>[u.login,u])),have=a.logins.filter(l=>ex.has(l)).length,nw=a.logins.length-have;
-  document.getElementById("accCgBd").innerHTML=`<p class="acc-hint">${escHtml(a.dn)} · ${escHtml(c.n)}</p>
-    <div class="acc-wz-f"><label>${i18n("Название группы")}</label><input type="text" value="${escHtml(accCg.name)}" autocomplete="off" ${onEv("input",["accCgName",onEv.value])}><div class="fld-err" id="accCgE"></div></div>
+  const body=st==="who"?`<p class="acc-hint">${escHtml(a.dn)} · ${escHtml(c.n)}</p>
+    <div class="acc-wz-f"><label>${i18n("Название группы")}</label><input type="text" value="${escHtml(d.name)}" autocomplete="off" ${onEv("input",["accCgName",onEv.value])}><div class="fld-err" id="accCgE"></div></div>
     <div class="wsec">${i18n("Кто попадёт в группу")}</div>
     <p style="margin:0 0 6px">${i18n("Участников")}: <b>${a.logins.length}</b>, ${i18n("из них уже есть в системе")}: <b>${have}</b>, ${i18n("будут созданы")}: <b>${nw}</b></p>
-    <div class="acc-ulist">${a.logins.slice(0,10).map(l=>`<div style="padding:5px 0;border-bottom:1px solid var(--ln)">${escHtml(l)} <span class="acc-chip sm ${ex.has(l)?"":"on"}">${i18n(ex.has(l)?"есть":"новый")}</span></div>`).join("")}${a.logins.length>10?`<p class="sub" style="padding:6px 0">${i18n("и ещё")} ${a.logins.length-10}</p>`:""}</div>
-    ${nw?`<p class="acc-hint" style="margin-top:6px">${i18n("Новые учётные записи создаются без личных ролей, вместо имени — логин: имя и e-mail подтянутся из каталога при первой синхронизации")}</p>`:""}
-    <div class="wsec">${i18n("Роли группы")}</div>
-    <div class="acc-ulist">${accRoles().map(r=>`<label class="acc-chk"><input type="checkbox" ${onEv("change",["accCgRole",`${r.id}`,onEv.checked])}> <span>${escHtml(r.n)} <span class="sub">— ${escHtml(accSummary(r.g))}</span></span></label>`).join("")}</div>
+    <div class="acc-ulist">${a.logins.slice(0,10).map(l=>`<div style="padding:5px 0;border-bottom:1px solid var(--ln)">${escHtml(l)} <span class="acc-chip sm ${ex.has(l)?"":"on"}">${i18n(ex.has(l)?"есть":"новый")}</span></div>`).join("")}${a.logins.length>10?`<p class="sub">${i18n("и ещё")} ${a.logins.length-10}</p>`:""}</div>
+    ${nw?`<p class="acc-hint" style="margin-top:6px">${i18n("Новые учётные записи создаются без личных ролей, вместо имени — логин: имя и e-mail подтянутся из каталога при первой синхронизации")}</p>`:""}`
+  :`<div class="acc-ulist">${accRoles().map(r=>`<label class="acc-chk"><input type="checkbox" ${d.roles.has(r.id)?"checked":""} ${onEv("change",["accCgRole",`${r.id}`,onEv.checked])}> <span>${escHtml(r.n)} <span class="sub">— ${escHtml(accSummary(r.g))}</span></span></label>`).join("")}</div>
     <div id="accCgW" style="margin-top:8px"></div>
-    <div class="acc-wz-f" style="margin-top:12px"><label>${i18n("Роли действуют до")}</label><div class="acc-pwd"><input type="date" style="max-width:200px" ${onEv("change",["accCgUntil",onEv.value])}><span class="sub" style="align-self:center">${i18n("пусто — бессрочно")}</span></div><div class="fld-err" id="accCgE2"></div></div>`;
-  document.getElementById("accCgFt").innerHTML=`<button class="btn" ${onEv("click",["accDrawerClose","accCg"])}>${i18n("Отмена")}</button><button class="btn pri" style="margin-left:auto" ${onEv("click",["accCgApply"])}>${i18n("В черновик")}</button>`;
-  accCgFoot();
+    <div class="acc-wz-f" style="margin-top:12px"><label>${i18n("Роли действуют до")}</label><div class="acc-pwd"><input type="date" value="${d.until}" style="max-width:200px" ${onEv("change",["accCgUntil",onEv.value])}><span class="sub" style="align-self:center">${i18n("пусто — бессрочно")}</span></div><div class="fld-err" id="accCgE2"></div></div>`;
+  wzPaintDr("accCg",st,"m","",body,"");
+  accCgChrome();accCgFoot();
 }
-function accCgRole(id,on){on?accCg.roles.add(id):accCg.roles.delete(id);accCgFoot()}
+function accCgRole(id,on){on?accCg.roles.add(id):accCg.roles.delete(id);accCgFoot();accCgChrome()}
 function accCgFoot(){
   const d=accCg,w=document.getElementById("accCgW");if(!d||!w)return;
   const unr=[...d.roles].some(id=>accRole(id)?.g.unr);
@@ -18614,10 +18812,10 @@ function accCgFoot(){
 }
 function accCgApply(){
   const d=accCg;if(!d)return;
-  const name=d.name.trim(),e=document.getElementById("accCgE");
-  const bad=!name?"Заполните поле":taken(accGroupsAll().map(g=>g.n),name)?"Группа с таким именем уже есть":"",badU=d.until&&accDays(d.until)<0;
-  e.textContent=bad?i18n(bad):"";document.getElementById("accCgE2").textContent=badU?i18n("Срок уже прошёл"):"";
-  if(bad||badU)return;
+  const name=d.name.trim(),bad=accCgErr(),badU=d.until&&accDays(d.until)<0;
+  const e2=document.getElementById("accCgE2");if(e2)e2.textContent=badU?i18n("Срок уже прошёл"):"";
+  if(bad){accCgGo(0);return}
+  if(badU)return;
   const st=accSt(),c=accCat(d.cid),a=c.avail[d.idx],gid=accNewId();
   const by=new Map(st.users.map(u=>[u.login,u])),members=[];let made=0;
   a.logins.forEach((l,i)=>{
@@ -18631,21 +18829,39 @@ function accCgApply(){
 }
 // Новый каталог: в макете только форма, подключения к серверу нет.
 // Поле подключения каталога; число без значения — порт LDAPS по умолчанию
-function accCtSet(k,num,v){accCt[k]=num?+v||636:v;accCtLive()}
+function accCtSet(k,num,v){accCt[k]=num?+v||636:v;accCt.touch.add(k);accCtLive();accCtChrome()}
 function accCtSsl(el){accCt.ssl=!accCt.ssl;el.classList.toggle("on")}
+const ACC_CT=[["conn","Подключение"],["read","Чтение каталога"],["end","Проверка"]];
+const ACC_CT_F={conn:["n","server"],read:["bind","baseDn"],end:[]};
+const ACC_CT_LB={n:"Название",server:"Сервер",bind:"Учётная запись",baseDn:"Base DN"};
 function accCtOpen(){
   accMenuClose();accData();
-  accCt={n:"",server:"",port:636,ssl:true,bind:"",baseDn:"",tried:false};
-  accDrawer("accCt","Добавить каталог");
-  document.getElementById("accCtSt").innerHTML="";document.getElementById("accCtN").textContent="";
-  const f=(k,t,type)=>`<div class="acc-wz-f"><label>${i18n(t)}</label><input type="${type||"text"}" value="${escHtml(accCt[k])}" autocomplete="off" ${onEv("input",["accCtSet",k,type==="number",onEv.value])}><div class="fld-err" id="accCtE_${k}"></div></div>`;
-  document.getElementById("accCtBd").innerHTML=`${f("n","Название","")}${f("server","Сервер")}${f("port","Порт","number")}
-    <div class="acc-wz-f"><div class="ln ln-sw">${accSw(true,"accCtSsl(this)",false,"SSL")}<div>SSL</div></div></div>
-    ${f("bind","Учётная запись для чтения")}
-    <div class="acc-wz-f"><label>${i18n("Пароль")}</label><input type="password" autocomplete="new-password"></div>
-    ${f("baseDn","Base DN")}
-    <p class="acc-hint">${i18n("Расписание и список групп настраиваются после добавления. Синхронизация — по умолчанию каждый день в 03:00")}</p>`;
-  document.getElementById("accCtFt").innerHTML=`<button class="btn" ${onEv("click",["accDrawerClose","accCt"])}>${i18n("Отмена")}</button><button class="btn pri" style="margin-left:auto" ${onEv("click",["accCtApply"])}>${i18n("В черновик")}</button>`;
+  wzStart("accCt",()=>{
+    accCt={step:0,touch:new Set(),n:"",server:"",port:636,ssl:true,bind:"",pass:"",baseDn:""};
+    accDrawer("accCt","Добавить каталог");
+    accCtRender();
+  });
+}
+function accCtGo(i){accCt.step=+i;accCtRender()}
+function accCtChrome(){
+  const d=accCt;if(!d)return;
+  const e=accCtErrs(),st=ACC_CT[d.step][0],last=d.step===ACC_CT.length-1,why=wzErrSum(ACC_CT_F[st],e,ACC_CT_LB);
+  document.getElementById("accCtSt").innerHTML=wzBarHtml(ACC_CT.map(([k,t])=>({k,t})),d.step,i=>ACC_CT.slice(0,i).every(([k])=>!ACC_CT_F[k].some(x=>e[x])),["accCtGo"]);
+  document.getElementById("accCtFt").innerHTML=wzFootHtml({cancel:["wzCancel","accCt"],sum:why?escHtml(why):escHtml([d.n.trim(),d.server.trim()?`${d.server.trim()}:${d.port}`:""].filter(Boolean).join(" · ")),back:d.step?["accCtGo",d.step-1]:null,next:{label:i18n(last?"В черновик":"Далее"),on:last?["accCtApply"]:["accCtGo",d.step+1],off:!!why}});
+}
+function accCtRender(){
+  const d=accCt;if(!d)return;
+  const st=ACC_CT[d.step][0],f=(k,t,type)=>`<div class="acc-wz-f"><label>${i18n(t)}</label><input type="${type||"text"}" value="${escHtml(d[k])}" autocomplete="off" ${onEv("input",["accCtSet",k,type==="number",onEv.value])}><div class="fld-err" id="accCtE_${k}"></div></div>`;
+  const body=st==="conn"?`${f("n","Название")}${f("server","Сервер")}${f("port","Порт","number")}
+    <div class="acc-wz-f"><div class="ln ln-sw">${accSw(d.ssl,"accCtSsl(this)",false,"SSL")}<div>SSL</div></div></div>`
+  :st==="read"?`${f("bind","Учётная запись для чтения")}
+    <div class="acc-wz-f"><label>${i18n("Пароль")}</label><input type="password" value="${escHtml(d.pass)}" autocomplete="new-password" ${onEv("input",["accCtSet","pass",false,onEv.value])}></div>
+    ${f("baseDn","Base DN")}`
+  :`<p class="acc-hint">${i18n("Расписание и список групп настраиваются после добавления. Синхронизация — по умолчанию каждый день в 03:00")}</p>
+    <dl class="wz-kv"><dt>${i18n("Название")}</dt><dd>${escHtml(d.n.trim())}</dd><dt>${i18n("Сервер")}</dt><dd>${escHtml(d.server.trim())}:${d.port}${d.ssl?" · SSL":""}</dd><dt>${i18n("Учётная запись для чтения")}</dt><dd>${escHtml(d.bind.trim())}</dd><dt>Base DN</dt><dd>${escHtml(d.baseDn.trim())}</dd></dl>`;
+  wzPaintDr("accCt",st,"m","",body,"");
+  accCtChrome();accCtLive();
+  wzSave("accCt");
 }
 function accCtErrs(){
   const d=accCt,e={};
@@ -18654,12 +18870,13 @@ function accCtErrs(){
   return e;
 }
 function accCtLive(){
-  const d=accCt;if(!d||!d.tried)return;
-  const e=accCtErrs();["n","server","bind","baseDn"].forEach(k=>{const el=document.getElementById("accCtE_"+k);if(el)el.textContent=e[k]?i18n(e[k]):""});
+  const d=accCt;if(!d)return;
+  const e=accCtErrs();["n","server","bind","baseDn"].forEach(k=>{const el=document.getElementById("accCtE_"+k);if(el)el.textContent=d.touch.has(k)&&e[k]?i18n(e[k]):""});
 }
 function accCtApply(){
-  const d=accCt;if(!d)return;d.tried=true;
-  if(Object.keys(accCtErrs()).length){accCtLive();return}
+  const d=accCt;if(!d)return;
+  if(Object.keys(accCtErrs()).length){Object.keys(accCtErrs()).forEach(k=>d.touch.add(k));d.step=0;accCtRender();return}
+  wzDrop("accCt");
   const id=accNewId();
   accSt().cats.push({id,n:d.n.trim(),server:d.server.trim(),port:Math.max(1,Math.min(65535,d.port||636)),ssl:d.ssl,bind:d.bind.trim(),baseDn:d.baseDn.trim(),filter:"(objectClass=user)",attrLogin:"sAMAccountName",attrName:"displayName",importOthers:false,pwdSet:true,
     schedule:{every:"day",at:"03:00",days:[1,2,3,4,5,6,7],tz:"Europe/Moscow"},status:"never",at:"",next:"",dur:0,msg:"",avail:[]});
@@ -18866,20 +19083,19 @@ function accCamWhy(el,i){
 // ── Общее для боковых окон ──
 function accDrawer(id,title,raw){  // raw — заголовок уже собран из переведённых частей
   if(!document.getElementById(id)){
-    document.body.insertAdjacentHTML("beforeend",`<div class="mask" id="${id}" ${onEv("click",onEv.self,["accMaskClick",`${id}`])}>
-      <div class="dr acc-wiz" ${onEv("click",onEv.stop)}><div class="dh"><b id="${id}T"></b><span class="dev-step-n" id="${id}N"></span><button class="btn s btn-icon" style="margin-left:auto" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть")}" ${onEv("click",["accDrawerClose",`${id}`])}>${lu("x")}</button></div>
-      <div class="acc-st" id="${id}St"></div><div class="db" id="${id}Bd"></div><div class="df" id="${id}Ft"></div></div></div>`);
+    document.body.insertAdjacentHTML("beforeend",`<div class="mask wz-mask" id="${id}">
+      <div class="dr acc-wiz wz-win wz-m" ${onEv("click",onEv.stop)}><div class="dh"><b id="${id}T"></b><span class="dev-step-n" id="${id}N"></span>${wzToolsHtml(id)}</div>
+      <div class="wz-bar" id="${id}St"></div><div class="db" id="${id}Bd"></div><div class="df" id="${id}Ft"></div></div></div>`);
   }
   document.getElementById(id+"T").textContent=raw?title:i18n(title);
   document.getElementById(id).classList.add("open");
   setTimeout(()=>document.querySelector(`#${id}Bd input`)?.focus(),30);
 }
-// Клик мимо окна закрывает его, но не окно импорта с вставленным текстом.
-function accMaskClick(id){if(id==="accImp"&&accIm&&accIm.text.trim())return;accDrawerClose(id)}
 function accDrawerOpen(id){return!!document.getElementById(id)?.classList.contains("open")}
 function accDrawerClose(id){
   const el=document.getElementById(id);if(!el)return;
   el.classList.remove("open");
+  wzFitSt.delete(el.querySelector(".wz-win"));
   // Тело очищаем: иначе одинаковые id полей двух окон мешали бы живой проверке.
   document.getElementById(id+"Bd").innerHTML="";
   if(id==="accWiz")accWz=null;if(id==="accUd")accUd=null;if(id==="accBulk")accBk=null;if(id==="accImp")accIm=null;if(id==="accAdd")accAd=null;if(id==="accUg")accUgd=null;if(id==="accGm")accGm=null;if(id==="accCg")accCg=null;if(id==="accCt")accCt=null;
@@ -18928,18 +19144,21 @@ function accPwdFieldHtml(w,setFn,genFn,toggleFn,errFn){
 // можно не назначать вовсе («Пока никому»): их добавляют потом на странице
 // роли. Всё попадает в черновик, как и остальные правки; на сервер — через
 // общее «Применить…» с последствиями.
-const ACC_WZ=[["role","Роль"],["rights","Права"],["user","Кому"],["plan","Итог"]];
+const ACC_WZ=[["role","Роль"],["rights","Права"],["user","Кому"],["plan","Проверка"]];
 let accWz=null;
 // Основа роли выбирается на первом шаге: пустая, встроенный шаблон или
 // существующая роль. При переданном id мастер сразу заполняется этой ролью.
 function accWzOpen(rid){
   accMenuClose();accData();
-  accWz={step:0,tried:new Set(),name:"",comment:"",tz:0,sup:{role:"",login:false,export:false},who:"none",login:"",uname:"",email:"",on:true,pwd:"",show:false,must:true,until:"",expires:"",
-    assigned:new Set(),ugs:new Set(),pk:{tab:"groups",q:"",chip:"all"},base:"",baseName:"",lostGrp:0,skipUnr:false,g:accNoRights(),grp:{},snapG:null,snapGrp:null};
-  const src=typeof rid==="string"?accRole(rid):null;
-  if(src){accWzFill("role:"+src.id);let n=`${src.n} (${i18n("копия")})`,k=2;while(accRoles().some(x=>x.n===n))n=`${src.n} (${i18n("копия")} ${k++})`;accWz.name=n}else accWzFill("");
-  accDrawer("accWiz","Новая роль");
-  accWzRender();
+  const copy=typeof rid==="string";
+  wzStart("accWiz",()=>{
+    accWz={step:0,tried:new Set(),name:"",comment:"",tz:0,sup:{role:"",login:false,export:false},who:"none",login:"",uname:"",email:"",on:true,pwd:"",show:false,must:true,until:"",expires:"",
+      assigned:new Set(),ugs:new Set(),pk:{tab:"groups",q:"",chip:"all"},base:"",baseName:"",lostGrp:0,skipUnr:false,g:accNoRights(),grp:{},snapG:null,snapGrp:null};
+    const src=copy?accRole(rid):null;
+    if(src){accWzFill("role:"+src.id);let n=`${src.n} (${i18n("копия")})`,k=2;while(accRoles().some(x=>x.n===n))n=`${src.n} (${i18n("копия")} ${k++})`;accWz.name=n}else accWzFill("");
+    accDrawer("accWiz","Новая роль");
+    accWzRender();
+  },()=>!copy);
 }
 function accWzIsOpen(){return accDrawerOpen("accWiz")}
 function accWzClose(){accDrawerClose("accWiz")}
@@ -18956,16 +19175,18 @@ function accWzErrs(){
 }
 const ACC_WZ_FIELDS={role:["name"],user:["login","email","pwd","assigned","until","expires"],rights:[],plan:[]};
 function accWzBlocked(step){const e=accWzErrs();return ACC_WZ_FIELDS[step].some(k=>e[k])}
-function accErr(k){const st=ACC_WZ[accWz.step][0],e=accWz.tried.has(st)?accWzErrs()[k]:"";return`<div class="fld-err" id="accE_${k}">${e?i18n(e):""}</div>`}
+function accErr(k){const e=accWz.tried.has(k)?accWzErrs()[k]:"";return`<div class="fld-err" id="accE_${k}">${e?i18n(e):""}</div>`}
 // Живая проверка без перерисовки: поле не теряет фокус и курсор.
 function accWzLive(){
-  const st=ACC_WZ[accWz.step][0],e=accWz.tried.has(st)?accWzErrs():{};
-  ACC_WZ_FIELDS[st].forEach(k=>{const el=document.getElementById("accE_"+k);if(el)el.textContent=e[k]?i18n(e[k]):""});
+  const st=ACC_WZ[accWz.step][0],e=accWzErrs();
+  ACC_WZ_FIELDS[st].forEach(k=>{const el=document.getElementById("accE_"+k);if(el)el.textContent=accWz.tried.has(k)&&e[k]?i18n(e[k]):""});
   const pr=document.getElementById("accPwdRules");if(pr)pr.innerHTML=accPwdRulesHtmlOf(accWz.pwd,accWz.login);
+  accWzChrome();
 }
-function accWzSet(k,v){accWz[k]=v;accWzLive()}
+function accWzSet(k,v){accWz[k]=v;accWz.tried.add(k);accWzLive()}
 // Мастер новой роли
 function accWzBack(){accWz.step--;accWzRender()}
+function accWzGo(i){accWz.step=+i;accWzRender()}
 function accWzField(k,v){accWz[k]=v}
 function accWzTz(v){accWz.tz=+v}
 function accWzOnToggle(){accWz.on=!accWz.on;accWzRender()}
@@ -18979,21 +19200,33 @@ function accWzPkTab(id){accWz.pk.tab=id;accWz.pk.q="";accWzRender()}
 function accWzPkChip(id){accWz.pk.chip=id;accWzPkLive()}
 function accWzPkSel(){accWz.pk={tab:"users",q:"",chip:"sel"};accWzRender()}
 function accWzAssignedClear(){accWz.assigned.clear();accWzPkLive()}
+const ACC_WZ_LB={name:"Имя роли",login:"Логин",email:"E-mail",pwd:"Пароль",until:"Срок роли",expires:"Срок учётной записи"};
+function accWzBarHtml(){
+  const w=accWz;
+  return wzBarHtml(ACC_WZ.map(([k,t])=>({k,t})),w.step,i=>ACC_WZ.slice(0,i).every(([k])=>!accWzBlocked(k)),["accWzGo"]);
+}
+function accWzFootHtml(){
+  const w=accWz,st=ACC_WZ[w.step][0],last=w.step===ACC_WZ.length-1,e=accWzErrs();
+  const why=wzErrSum(ACC_WZ_FIELDS[st],e,ACC_WZ_LB),nm=w.name.trim();
+  const who=w.who==="new"?(w.login.trim()?`${i18n("получит")} ${escHtml(w.login.trim())}`:""):w.who==="pick"?`${i18n("получат")}: ${accWho(accWzPeople().size)}`:"";
+  const sum=why?escHtml(why):[nm?`${i18n("Роль")} «${escHtml(nm)}»`:"",who].filter(Boolean).join(" · ");
+  return wzFootHtml({cancel:["wzCancel","accWiz"],sum,back:w.step?["accWzBack"]:null,next:{label:i18n(last?"В черновик":"Далее"),on:["accWzNext"],off:!!why}});
+}
+// Ввод не перерисовывает тело: поле не теряет фокус, а подвал и шаги видят новое значение
+function accWzChrome(){
+  if(!accWz)return;
+  document.getElementById("accWizSt").innerHTML=accWzBarHtml();
+  document.getElementById("accWizFt").innerHTML=accWzFootHtml();
+}
 function accWzRender(){
   const w=accWz;if(!w)return;
   const st=ACC_WZ[w.step][0];
-  document.getElementById("accWizN").textContent=`${i18n("Шаг")} ${w.step+1} ${i18n("из")} ${ACC_WZ.length} · ${i18n(ACC_WZ[w.step][1])}`;
-  document.getElementById("accWizSt").innerHTML=ACC_WZ.map(([id,t],i)=>`<div class="acc-stp ${i<=w.step?"on":""} ${i===w.step?"cur":""}"><i></i><span>${i+1}. ${i18n(t)}</span></div>`).join("");
-  document.getElementById("accWizBd").innerHTML={role:accWzRole,user:accWzUser,rights:accWzRights,plan:accWzPlan}[st]();
-  const last=w.step===ACC_WZ.length-1;
-  document.getElementById("accWizFt").innerHTML=`<button class="btn" ${onEv("click",["accWzClose"])}>${i18n("Отмена")}</button>
-    ${w.step?`<button class="btn" ${onEv("click",["accWzBack"])}>${i18n("Назад")}</button>`:""}
-    <button class="btn pri" style="margin-left:auto" ${onEv("click",["accWzNext"])}>${i18n(last?"В черновик":w.step===ACC_WZ.length-2?"Далее: итог →":"Далее →")}</button>`;
+  wzPaintDr("accWiz",st,{role:"m",rights:"xl",user:"l",plan:"l"}[st],accWzBarHtml(),{role:accWzRole,user:accWzUser,rights:accWzRights,plan:accWzPlan}[st](),accWzFootHtml());
+  wzSave("accWiz");
 }
 function accWzNext(){
   const w=accWz,st=ACC_WZ[w.step][0];
-  w.tried.add(st);
-  if(accWzBlocked(st)){accWzRender();document.querySelector("#accWizBd .fld-err:not(:empty)")?.parentElement?.querySelector("input")?.focus();return}
+  if(accWzBlocked(st)){ACC_WZ_FIELDS[st].forEach(k=>w.tried.add(k));accWzRender();document.querySelector("#accWizBd .fld-err:not(:empty)")?.parentElement?.querySelector("input")?.focus();return}
   if(st==="plan"){accWzApply();return}
   w.step++;accWzRender();
 }
@@ -19126,6 +19359,7 @@ function accWzAllHtml(){
 // Перерисовывает всё, кроме поля поиска: оно не теряет фокус.
 function accWzPkLive(){
   const w=accWz;if(!w||w.who!=="pick")return;
+  accWzChrome();
   const el=document.getElementById("accWzUl");if(el)el.innerHTML=accWzListHtml();
   accWzPkFoot();
 }
@@ -19216,6 +19450,7 @@ function accWzPlan(){
     <ol class="acc-plan">${steps.map(s=>`<li>${s}</li>`).join("")}</ol>`;
 }
 function accWzApply(){
+  wzDrop("accWiz");
   const w=accWz,id=accNewId(),st=accSt();
   st.roles.push({id,n:w.name.trim(),comment:w.comment.trim(),tz:w.tz,sup:accClone(w.sup),own:accClone(w.g),groups:Object.fromEntries(Object.entries(w.grp).map(([g,v])=>[g,{cam:v}])),objs:{}});
   const until=w.until?{[id]:w.until}:{};
@@ -19232,41 +19467,69 @@ function accWzApply(){
 // ── Новый пользователь ──
 // Одно окно без шагов: учётная запись, пароль, роли. В черновик.
 let accUd=null;
+const ACC_UD=[["acct","Учётная запись"],["roles","Роли"],["end","Проверка"]];
+const ACC_UD_F={acct:["login","email","pwd","expires"],roles:["until"],end:[]};
 function accUserDlgOpen(){
   accMenuClose();accData();
-  accUd={tried:false,login:"",uname:"",email:"",on:true,pwd:"",show:false,must:true,roles:new Set(),until:"",expires:"",web:0,mobile:0};
-  accDrawer("accUd","Новый пользователь");
-  document.getElementById("accUdSt").innerHTML="";document.getElementById("accUdN").textContent="";
-  accUdRender();
+  wzStart("accUd",()=>{
+    accUd={step:0,touch:new Set(),login:"",uname:"",email:"",on:true,pwd:"",show:false,must:true,roles:new Set(),until:"",expires:"",web:0,mobile:0};
+    accDrawer("accUd","Новый пользователь");
+    accUdRender();
+  });
 }
 function accUdErrs(){const u=accUd;return{login:accLoginIssue(u.login),email:accEmailIssue(u.email),pwd:accPwdIssue(u.pwd,u.login),until:u.until&&accDays(u.until)<0?"Срок уже прошёл":null,expires:u.expires&&accDays(u.expires)<0?"Срок уже прошёл":null}}
-function accUdErr(k){const e=accUd.tried?accUdErrs()[k]:"";return`<div class="fld-err" id="accE_${k}">${e?i18n(e):""}</div>`}
-function accUdSet(k,v){accUd[k]=v;const e=accUd.tried?accUdErrs():{};["login","email","pwd","until","expires"].forEach(x=>{const el=document.getElementById("accE_"+x);if(el)el.textContent=e[x]?i18n(e[x]):""});const pr=document.getElementById("accPwdRules");if(pr)pr.innerHTML=accPwdRulesHtmlOf(accUd.pwd,accUd.login)}
+function accUdErr(k){const e=accUd.touch.has(k)?accUdErrs()[k]:"";return`<div class="fld-err" id="accE_${k}">${e?i18n(e):""}</div>`}
+function accUdSet(k,v){accUd[k]=v;accUd.touch.add(k);const e=accUdErrs();["login","email","pwd","until","expires"].forEach(x=>{const el=document.getElementById("accE_"+x);if(el)el.textContent=accUd.touch.has(x)&&e[x]?i18n(e[x]):""});const pr=document.getElementById("accPwdRules");if(pr)pr.innerHTML=accPwdRulesHtmlOf(accUd.pwd,accUd.login);accUdChrome()}
 // Карточка нового пользователя
-function accUdRole(id,on){on?accUd.roles.add(id):accUd.roles.delete(id)}
+function accUdRole(id,on){on?accUd.roles.add(id):accUd.roles.delete(id);accUdChrome()}
 function accUdField(k,v){accUd[k]=v}
 function accUdLimit(el,k){accUd[k]=Math.max(0,Math.min(99,+el.value||0));el.value=accUd[k]}
+function accUdBlocked(k){const e=accUdErrs();return ACC_UD_F[k].some(x=>e[x])}
+function accUdBarHtml(){return wzBarHtml(ACC_UD.map(([k,t])=>({k,t})),accUd.step,i=>ACC_UD.slice(0,i).every(([k])=>!accUdBlocked(k)),["accUdGo"])}
+function accUdFootHtml(){
+  const u=accUd,st=ACC_UD[u.step][0],last=u.step===ACC_UD.length-1;
+  const why=wzErrSum(ACC_UD_F[st],accUdErrs(),ACC_WZ_LB);
+  const sum=why?escHtml(why):[u.login.trim()?escHtml(u.login.trim()):"",`${i18n("ролей")}: ${u.roles.size}`].filter(Boolean).join(" · ");
+  return wzFootHtml({cancel:["wzCancel","accUd"],sum,back:u.step?["accUdGo",u.step-1]:null,next:{label:i18n(last?"В черновик":"Далее"),on:last?["accUdApply"]:["accUdGo",u.step+1],off:!!why}});
+}
+function accUdChrome(){
+  if(!accUd)return;
+  document.getElementById("accUdSt").innerHTML=accUdBarHtml();
+  document.getElementById("accUdFt").innerHTML=accUdFootHtml();
+}
+function accUdGo(i){accUd.step=+i;accUdRender()}
+function accUdOnToggle(){accUd.on=!accUd.on;accUdRender()}
 function accUdRender(){
   const u=accUd;if(!u)return;
-  const roles=accRoles().map(r=>`<label class="acc-chk"><input type="checkbox" ${u.roles.has(r.id)?"checked":""} ${onEv("change",["accUdRole",r.id,onEv.checked])}> <span>${escHtml(r.n)} <span class="sub">— ${escHtml(accSummary(r.g))}</span></span></label>`).join("");
-  document.getElementById("accUdBd").innerHTML=`<div class="g">
+  const st=ACC_UD[u.step][0];
+  const roles=()=>accRoles().map(r=>`<label class="acc-chk"><input type="checkbox" ${u.roles.has(r.id)?"checked":""} ${onEv("change",["accUdRole",r.id,onEv.checked])}> <span>${escHtml(r.n)} <span class="sub">— ${escHtml(accSummary(r.g))}</span></span></label>`).join("");
+  const body=st==="acct"?`<div class="g">
       <div><label>${i18n("Логин")}</label><input type="text" value="${escHtml(u.login)}" autocomplete="off" ${onEv("input",["accUdSet","login",onEv.value])}>${accUdErr("login")}</div>
       <div><label>${i18n("Имя")}</label><input type="text" value="${escHtml(u.uname)}" ${onEv("input",["accUdField","uname",onEv.value])}></div>
       <div><label>E-mail</label><input type="text" value="${escHtml(u.email)}" ${onEv("input",["accUdSet","email",onEv.value])}>${accUdErr("email")}</div>
-      <div><label>${i18n("Состояние")}</label><div class="ln ln-sw" style="padding:6px 0">${accSw(u.on,"accUd.on=!accUd.on;accUdRender()",false,"Включён")}<div>${i18n(u.on?"Включён":"Выключен")}</div></div></div>
+      <div><label>${i18n("Состояние")}</label><div class="ln ln-sw" style="padding:6px 0">${accSw(u.on,"accUdOnToggle()",false,"Включён")}<div>${i18n(u.on?"Включён":"Выключен")}</div></div></div>
       <div><label>${i18n("Учётная запись действует до")}</label><input type="date" value="${u.expires}" ${onEv("change",["accUdSet","expires",onEv.value])}>${accUdErr("expires")}</div>
       ${can("feature:accessSessions")?`<div><label>${i18n("Лимит подключений: веб / мобильные")}</label><div class="acc-pwd"><input type="number" min="0" max="99" value="${u.web}" ${onEv("change",["accUdLimit",onEv.el,"web"])}><input type="number" min="0" max="99" value="${u.mobile}" ${onEv("change",["accUdLimit",onEv.el,"mobile"])}></div></div>`:""}
     </div>
-    ${accPwdFieldHtml(u,"accUdSet('pwd',this.value)","accPwdGen('ud')","accPwdShow('ud')",accUdErr)}
-    <div class="wsec">${i18n("Роли")}</div><div class="acc-ulist">${roles}</div>
-    <div class="acc-wz-f" style="margin-top:12px"><label>${i18n("Роли действуют до")}</label><div class="acc-pwd"><input type="date" value="${u.until}" style="max-width:200px" ${onEv("change",["accUdSet","until",onEv.value])}><span class="sub" style="align-self:center">${i18n("пусто — бессрочно")}</span></div>${accUdErr("until")}</div>
-    ${u.roles.size?"":`<p class="acc-hint">${i18n("Без ролей пользователь не сможет войти; роли можно назначить и позже в карточке")}</p>`}`;
-  document.getElementById("accUdFt").innerHTML=`<button class="btn" ${onEv("click",["accDrawerClose","accUd"])}>${i18n("Отмена")}</button><button class="btn pri" style="margin-left:auto" ${onEv("click",["accUdApply"])}>${i18n("В черновик")}</button>`;
+    ${accPwdFieldHtml(u,"accUdSet('pwd',this.value)","accPwdGen('ud')","accPwdShow('ud')",accUdErr)}`
+  :st==="roles"?`<div class="acc-ulist">${roles()}</div>
+    <div class="acc-wz-f" style="margin-top:12px"><label>${i18n("Роли действуют до")}</label><div class="acc-pwd"><input type="date" value="${u.until}" style="max-width:200px" ${onEv("change",["accUdSet","until",onEv.value])}><span class="sub" style="align-self:center">${i18n("пусто — бессрочно")}</span></div>${accUdErr("until")}</div>`
+  :`${u.roles.size?"":`<div class="nt">${i18n("Без ролей пользователь не сможет войти; роли можно назначить и позже в карточке")}</div>`}
+    <p class="acc-hint">${i18n("Всё это попадёт в черновик. На сервер — через «Применить…» в шапке.")}</p>
+    <dl class="wz-kv"><dt>${i18n("Логин")}</dt><dd>${escHtml(u.login.trim())}</dd>
+      ${u.uname.trim()?`<dt>${i18n("Имя")}</dt><dd>${escHtml(u.uname.trim())}</dd>`:""}
+      ${u.email.trim()?`<dt>E-mail</dt><dd>${escHtml(u.email.trim())}</dd>`:""}
+      <dt>${i18n("Состояние")}</dt><dd>${i18n(u.on?"Включён":"Выключен")}</dd>
+      ${u.expires?`<dt>${i18n("Учётная запись действует до")}</dt><dd>${accFmt(u.expires)}</dd>`:""}
+      <dt>${i18n("Роли")}</dt><dd>${[...u.roles].map(id=>escHtml(accRoleName(id))).join(", ")||i18n("нет")}${u.until?` · ${i18n("до")} ${accFmt(u.until)}`:""}</dd></dl>`;
+  wzPaintDr("accUd",st,{acct:"l",roles:"m",end:"m"}[st],accUdBarHtml(),body,accUdFootHtml());
+  wzSave("accUd");
 }
 function accUdApply(){
-  const u=accUd;u.tried=true;
+  const u=accUd;
   const e=accUdErrs();
-  if(Object.values(e).some(Boolean)){accUdRender();return}
+  if(Object.values(e).some(Boolean)){Object.keys(e).forEach(k=>u.touch.add(k));u.step=0;accUdRender();return}
+  wzDrop("accUd");
   const id=accNewId();
   accSt().users.push({id,login:u.login.trim(),name:u.uname.trim(),email:u.email.trim(),on:u.on,roles:[...u.roles],last:null,created:accIso(0),
     until:u.until?Object.fromEntries([...u.roles].map(r=>[r,u.until])):{},expires:u.expires||"",web:u.web||0,mobile:u.mobile||0,ldap:"",pwd:u.pwd});
@@ -19337,11 +19600,13 @@ function accImpTpl(){accCsvSave(accImpTemplate(),"users-template.csv")}
 const ACC_IMP_SEP={";":"точка с запятой (;)",",":"запятая (,)","\t":"табуляция"};
 function accImpOpen(){
   accMenuClose();accData();
-  accIm={step:0,text:"",file:"",enc:"",hdr:true,mode:"skip",filt:"all",res:null,err:""};
-  listQ.accimp="";resetPage("accimp");
-  accDrawer("accImp","Импорт пользователей из CSV");
-  accImpRender();
-  setTimeout(()=>document.getElementById("accImpTa")?.focus(),60);
+  wzStart("accImp",()=>{
+    accIm={step:0,text:"",file:"",enc:"",hdr:true,mode:"skip",filt:"all",res:null,err:""};
+    listQ.accimp="";resetPage("accimp");
+    accDrawer("accImp","Импорт пользователей из CSV");
+    accImpRender();
+    setTimeout(()=>document.getElementById("accImpTa")?.focus(),60);
+  });
 }
 // Кодировка файла: BOM UTF-16, иначе строгий UTF-8, а если не вышло — windows-1251.
 function accImpDecode(b){
@@ -19374,6 +19639,7 @@ function accImpLive(){
   const has=!!m.text.trim(),sp=document.getElementById("accImpSep"),b=document.getElementById("accImpGo");
   if(sp)sp.textContent=has?i18n(ACC_IMP_SEP[accCsvSep(m.text)]):"—";
   if(b)b.disabled=!has;
+  if(!m.step){const t=document.querySelector("#accImpFt .dc-sum");if(t)t.textContent=has?"":i18n("Вставьте строки или выберите файл")}
 }
 // Проверка целиком: ничего не пишет, только разбирает и сверяет с текущим черновиком.
 function accImpRun(){
@@ -19488,7 +19754,7 @@ function accImpCheck(){
   m.err="";m.res=res;m.step=1;m.filt="all";listQ.accimp="";resetPage("accimp");
   accImpRender();
 }
-function accImpStep(n){const m=accIm;if(!m)return;m.step=n;accImpRender()}
+function accImpStep(n){const m=accIm;if(!m)return;m.step=+n;accImpRender()}
 // Что будет сделано, в цифрах: то же, что потом покажет «Применить…».
 function accImpStats(res){
   const nw=res.rows.filter(r=>r.status==="new"),up=res.rows.filter(r=>r.status==="upd");
@@ -19503,17 +19769,17 @@ function accImpStats(res){
 const ACC_IMP_CHIP={new:"создать",upd:"обновить",skip:"пропуск",err:"ошибка"};
 function accImpRender(){
   const m=accIm;if(!m)return;
-  document.getElementById("accImpN").textContent=`${i18n("Шаг")} ${m.step+1} ${i18n("из")} ${ACC_IMP.length} · ${i18n(ACC_IMP[m.step][1])}`;
-  document.getElementById("accImpSt").innerHTML=ACC_IMP.map(([id,t],i)=>`<div class="acc-stp ${i<=m.step?"on":""} ${i===m.step?"cur":""}"><i></i><span>${i+1}. ${i18n(t)}</span></div>`).join("");
-  document.getElementById("accImpBd").innerHTML=[accImpSrcHtml,accImpChkHtml,accImpDoHtml][m.step]();
-  const ft=document.getElementById("accImpFt"),cancel=`<button class="btn" ${onEv("click",["accDrawerClose","accImp"])}>${i18n("Отмена")}</button>`;
-  if(m.step===0)ft.innerHTML=`${cancel}<button class="btn pri" id="accImpGo" style="margin-left:auto" ${m.text.trim()?"":"disabled"} ${onEv("click",["accImpCheck"])}>${i18n("Проверить")}</button>`;
-  else{
-    const c=m.res.cnt,k=c.new+c.upd,back=`<button class="btn" ${onEv("click",["accImpStep",m.step-1])}>${i18n("Назад")}</button>`;
-    ft.innerHTML=m.step===1?`${cancel}${back}<button class="btn pri" style="margin-left:auto" ${k?"":"disabled"} ${onEv("click",["accImpStep",2])}>${i18n("Далее")}</button>`
-      :`${cancel}${back}<button class="btn pri" style="margin-left:auto" ${k?"":"disabled"} ${onEv("click",["accImpApply"])}>${i18n("В черновик")} (${c.new}+${c.upd})</button>`;
-  }
+  const c=m.res?.cnt,k=c?c.new+c.upd:0,back=m.step?["accImpStep",m.step-1]:null;
+  const next=m.step===0?{label:i18n("Проверить"),id:"accImpGo",on:["accImpCheck"],off:!m.text.trim()}
+    :m.step===1?{label:i18n("Далее"),on:["accImpStep",2],off:!k}
+    :{label:`${i18n("В черновик")} (${c.new}+${c.upd})`,on:["accImpApply"],off:!k};
+  const sum=!m.step?(m.text.trim()?"":i18n("Вставьте строки или выберите файл")):`${i18n("Создать")} ${c.new} · ${i18n("обновить")} ${c.upd} · ${i18n("пропустить")} ${c.skip}${c.err?` · ${i18n("ошибок")} ${c.err}`:""}`;
+  wzPaintDr("accImp",ACC_IMP[m.step][0],{src:"l",chk:"xl",do:"l"}[ACC_IMP[m.step][0]],
+    wzBarHtml(ACC_IMP.map(([k,t])=>({k,t})),m.step,i=>i<=m.step,["accImpStep"]),
+    [accImpSrcHtml,accImpChkHtml,accImpDoHtml][m.step](),
+    wzFootHtml({cancel:["wzCancel","accImp"],sum,back,next}));
   accImpLive();
+  wzSave("accImp");
 }
 function accImpPick(){document.getElementById("accImpFile").click()}
 function accImField(k,v){accIm[k]=v}
@@ -19593,20 +19859,21 @@ function accImpApply(){
   let k=0;list.forEach(r=>{if(r.status==="new")r.uid=accNewId(),k++});
   const ok=accGuard(st=>list.forEach(r=>accImpMutate(st,r)));
   if(!ok)return;
+  wzDrop("accImp");
   accDrawerClose("accImp");accEdited();
   toast(`${i18n("В черновик: создано")} ${A}, ${i18n("обновлено")} ${B}`);
 }
 ESC_LAYERS.splice(1,0,
   {is:()=>!!document.getElementById("accMenu"),off(){accMenuClose();accRefocus()}},
-  {is:accWzIsOpen,off:accWzClose},
-  {is:()=>accDrawerOpen("accUd"),off:()=>accDrawerClose("accUd")},
+  {is:accWzIsOpen,off(){}},
+  {is:()=>accDrawerOpen("accUd"),off(){}},
   {is:()=>accDrawerOpen("accBulk"),off:()=>accDrawerClose("accBulk")},
-  {is:()=>accDrawerOpen("accImp"),off:()=>accDrawerClose("accImp")},
+  {is:()=>accDrawerOpen("accImp"),off(){}},
   {is:()=>accDrawerOpen("accAdd"),off:()=>accDrawerClose("accAdd")},
-  {is:()=>accDrawerOpen("accUg"),off:()=>accDrawerClose("accUg")},
+  {is:()=>accDrawerOpen("accUg"),off(){}},
   {is:()=>accDrawerOpen("accGm"),off:()=>accDrawerClose("accGm")},
-  {is:()=>accDrawerOpen("accCg"),off:()=>accDrawerClose("accCg")},
-  {is:()=>accDrawerOpen("accCt"),off:()=>accDrawerClose("accCt")});
+  {is:()=>accDrawerOpen("accCg"),off(){}},
+  {is:()=>accDrawerOpen("accCt"),off(){}});
 // Настройки описаны списком, а не разметкой: то же описание рисует страницу
 // и даёт поиску цели, поэтому найденная настройка не может разойтись с той,
 // что на экране.
@@ -19791,6 +20058,7 @@ function closeWizard(){
   document.getElementById("wiz").classList.remove("open");
   document.getElementById("wizDr").classList.remove("device-wizard");
   document.getElementById("wizDr").classList.remove("server-add");
+  wzFitSt.delete(document.getElementById("wizDr"));
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot");
   if(df)df.classList.remove("device-footer");
   if(foot)foot.innerHTML="";
@@ -20359,8 +20627,10 @@ function addArchive(ownerId){
   // Хранилище подсказывает свой вид, сервер — диски сервера, домен — вид без сервера
   const spec=from&&archSpec(from),kinds=refArchKinds;
   const wanted=(spec&&!spec.serverWide&&kinds.find(x=>x.kind===archKind(from)))||(server?kinds.find(x=>x.kind==="local"):domainArchKinds()[0])||kinds[0];
-  an={domain:dom,server,kind:wanted?.kind||"local",provider:"s3",name:"",days:30,storage:refStorage.includes("object")?"object":refStorage[0],enc:false,recordMode:null};
-  anReset();renderArchNew();
+  wzStart("arch",()=>{
+    an={step:0,domain:dom,server,kind:wanted?.kind||"local",provider:"s3",name:"",days:30,storage:refStorage.includes("object")?"object":refStorage[0],enc:false,recordMode:null};
+    anReset();renderArchNew();
+  },s=>s.domain===dom&&s.server===server);
 }
 function anDraft(){return{kind:an.kind,provider:an.provider,name:an.name,storage:an.storage,server:an.server||null,vols:[]}}
 function anReset(){an.vol=volDefaults(anDraft())||{disk:"",mode:an.storage==="object"?"dir":"file",size:"500 ГБ"}}
@@ -20386,14 +20656,19 @@ function anSet(k,v,quiet){
     }
   }
   if(!quiet)renderArchNew();
-  else{const b=document.getElementById("anCreate");if(b){const why=anBlock();b.disabled=!!why;b.title=why}}
+  else anChrome();
 }
 // Что мешает создать: не выбран сервер, пустые обязательные поля.
-function anBlock(){
-  const v=an.vol,spec=kindOf(an.kind),addr=spec.address;
-  // Сервер обязателен виду, которому он нужен: с сервера он подставлен, с домена его выбирают
+const AN_STEPS=[{k:"kind",t:"Вид"},{k:"set",t:"Настройка"},{k:"vol",t:"Первый том"},{k:"end",t:"Проверка"}];
+// Что мешает идти дальше: каждый шаг проверяет своё. Сервер обязателен виду, которому он нужен: с сервера он подставлен, с домена его выбирают
+function anBlockKind(){
+  const spec=kindOf(an.kind);
   if(!an.server&&spec.serverRequired)return i18n("Выберите сервер");
   if(spec.serverWide&&arch.some(a=>a.kind===an.kind&&a.server===an.server))return i18n("На этом сервере такой архив уже есть: он один на сервер");
+  return"";
+}
+function anBlockVol(){
+  const v=an.vol,spec=kindOf(an.kind),addr=spec.address;
   if(addr==="disk"){
     if(!v.disk)return i18n("Нет свободного диска");
     if(v.mode!=="part"&&!String(v.dir||"").trim())return i18n("Укажите папку на диске");
@@ -20405,8 +20680,25 @@ function anBlock(){
   if(addr==="bucket"&&an.provider==="s3c"&&!String(v.endpoint||"").trim())return i18n("Укажите endpoint");
   return"";
 }
+function anBlock(){return anBlockKind()||anBlockVol()}
+function anBlockStep(k){return k==="kind"?anBlockKind():k==="vol"?anBlockVol():""}
 function anSetEnc(v){anSet("enc",v==="1")}
-function archNewCancel(){closeBulkModal();an=null}
+function archNewCancel(){wzCancel("arch")}
+function anGo(i){an.step=+i;renderArchNew()}
+function anBarHtml(){return wzBarHtml(AN_STEPS,an.step,i=>AN_STEPS.slice(0,i).every(x=>!anBlockStep(x.k)),["anGo"],true)}
+function anFootHtml(){
+  const st=AN_STEPS[an.step],spec=kindOf(an.kind),why=anBlockStep(st.k),last=an.step===AN_STEPS.length-1;
+  const sum=why||[an.name.trim()||i18n(archKindName(an.kind)),an.server?locName(find(an.server)?.n||{}):""].filter(Boolean).join(" · ");
+  return wzFootHtml({cancel:["archNewCancel"],sum:escHtml(sum),back:an.step?["anGo",an.step-1]:null,
+    extra:st.k==="vol"&&spec.check?`<button type="button" class="btn" ${onEv("click",["anCheck"])}>${i18n("Проверить подключение")}</button>`:"",
+    next:{label:i18n(last?"Создать хранилище":"Далее"),id:last?"anCreate":"",on:last?["createArchive"]:["anGo",an.step+1],off:!!why}});
+}
+function anChrome(){
+  const f=document.getElementById("bmFoot"),b=document.querySelector("#bmBody .dc-steps");
+  if(!an||!f)return;
+  f.innerHTML=anFootHtml();
+  if(b)b.outerHTML=anBarHtml();
+}
 // Поле «Сервер»: у вида на дисках сервер обязателен, сетевое может взять весь домен
 function anServerField(spec,addr){
   const list=(domains.find(d=>d.id===an.domain)?.servers||[]).filter(s=>!isUnallocated(s.id));
@@ -20417,31 +20709,35 @@ function anServerField(spec,addr){
 }
 function renderArchNew(){
   if(!an)return;
-  const dom=domains.find(d=>d.id===an.domain),a=anDraft(),why=anBlock();
+  const dom=domains.find(d=>d.id===an.domain),a=anDraft();
   const srv=an.server?find(an.server)?.n:null,owner=srv||dom;
-  const keep=document.querySelector("#bmBody .an-body")?.scrollTop||0;
-  const spec=kindOf(an.kind),addr=spec.address;
-  const kindList=refArchKinds;
+  const spec=kindOf(an.kind),addr=spec.address,kindList=refArchKinds,st=AN_STEPS[an.step]||AN_STEPS[0];
   const kinds=kindList.map(({kind:k})=>`<label class="an-kind ${an.kind===k?"on":""}"><input type="radio" name="anKind" ${an.kind===k?"checked":""} ${onEv("change",["anSet","kind",`${k}`])}><span><b>${i18n(archKindName(k))}</b><small>${i18n(archKindDesc(k))}</small></span></label>`).join("");
   const provs=addr==="bucket"?`<div class="bk-chips an-provs">${CLOUD_PROVIDERS.map(([p,l])=>`<button type="button" class="stchip ${an.provider===p?"on":""}" ${onEv("click",["anSet","provider",`${p}`])}><span class="stchip-lab">${i18n(l)}</span></button>`).join("")}</div>`:"";
   const canEnc=spec.encryption&&(addr==="bucket"||an.storage==="object");
   const defName=addr==="bucket"?cloudLabel(an.provider):i18n(an.kind==="local"?"Хранилище":archKindName(an.kind));
-  openBulkModal(`${i18n("Новое хранилище")}${owner?" · "+escHtml(locName(owner)):""}`,
-    `<div class="an-body">
-    ${anServerField(spec,addr)}
-    <div class="an-kinds ${kindList.length===2?"an-kinds-2":""}">${kinds}</div>${provs}
-    <div class="g" style="margin-top:12px">
+  const body=st.k==="kind"?`<div class="an-step">${anServerField(spec,addr)}
+    <div class="an-kinds ${kindList.length===2?"an-kinds-2":""}">${kinds}</div>${provs}</div>`
+  :st.k==="set"?`<div class="g an-step">
       <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(defName)}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
       <div><label>${i18n("Глубина, дней")}</label><input type="number" value="${an.days}" ${onEv("input",["anSet","days",onEv.value,true])}><div class="bk-hint">${i18n("0 — без ограничения")}</div></div>
       ${spec.archiveModes.length?`<div><label>${i18n("Когда писать")}</label><select ${onEv("change",["anSet","recordMode",onEv.value])}>${archModeOpts(spec,anMode(spec))}</select>${anMode(spec)?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       ${addr==="bucket"?fldRo("Тип хранения",i18n("Облачное")):spec.serverWide?"":`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
       ${spec.encryption?`<div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>`:""}
-    </div>
-    <div class="an-vol-h">${i18n("Первый том")}<span class="sub">${i18n("остальные — «＋ Том» в карточке хранилища")}</span></div>
-    ${addr==="disk"&&!an.server?`<div class="bk-hint">${i18n("Сначала выберите сервер: диски у каждого свои.")}</div>`:addr==="disk"&&!an.vol.disk?`<div class="nt err">${i18n("Свободных дисков на сервере нет: на каждом уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}
-    </div>`,
-    `<button type="button" class="btn" ${onEv("click",["archNewCancel"])}>${i18n("Отмена")}</button>${spec.check?`<button type="button" class="btn" ${onEv("click",["anCheck"])}>${i18n("Проверить подключение")}</button>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" id="anCreate" ${onEv("click",["createArchive"])} ${why?"disabled":""} title="${escHtml(why)}">${i18n("Создать")}</button>`,"bbox-wide bbox-an");
-  const b=document.querySelector("#bmBody .an-body");if(b)b.scrollTop=keep;
+    </div>`
+  :st.k==="vol"?`<div class="an-step"><p class="sub dc-note">${i18n("Остальные тома добавляют кнопкой «＋ Том» в карточке хранилища.")}</p>
+    ${addr==="disk"&&!an.server?`<div class="bk-hint">${i18n("Сначала выберите сервер: диски у каждого свои.")}</div>`:addr==="disk"&&!an.vol.disk?`<div class="nt err">${i18n("Свободных дисков на сервере нет: на каждом уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}</div>`
+  :anEndHtml(spec,addr,defName,owner);
+  wzPaintBm("arch",st.k,{kind:"l",set:"m",vol:"m",end:"m"}[st.k],`${i18n("Новое хранилище")}${owner?" · "+escHtml(locName(owner)):""}`,anBarHtml(),body,anFootHtml());
+  wzSave("arch");
+}
+// Последний шаг и есть план: ничего ещё не создано, здесь видно всё, что произойдёт
+function anEndHtml(spec,addr,defName,owner){
+  const body=anArchive(),vol=body.firstVolume;
+  const rows=[["Вид",i18n(archKindName(an.kind))+(addr==="bucket"?` · ${cloudLabel(an.provider)}`:"")],["Где",locName(owner||{})],["Имя",body.name],["Глубина, дней",an.days||i18n("без ограничения")],
+    ...(addr==="bucket"||spec.serverWide?[]:[["Тип хранения",i18n((archStorages().find(([v])=>v===an.storage)||[,an.storage])[1])]]),
+    ...(an.enc?[["Шифрование","AES-256-GCM"]]:[]),["Первый том",`${vol.name}${an.vol.size?` · ${an.vol.size}`:""}`]];
+  return`<dl class="wz-kv">${rows.map(([k,v])=>`<dt>${i18n(k)}</dt><dd>${escHtml(String(v))}</dd>`).join("")}</dl>`;
 }
 // Том из формы → тело запроса (VolumeCreate): размер — байтами, имя — как его покажет дерево
 function volSpec(a,vol){
@@ -20478,6 +20774,7 @@ function volCheck(id){
 function createArchive(){
   if(!an||anBlock())return;
   API.post("/archives",anArchive()).then(res=>{
+  wzDrop("arch");
   hwVer.set(res.archive.id,res.archive.version);
   const a=archById(res.archive.id)||archNode(res.archive);
   if(!arch.includes(a))arch.push(a);
@@ -21605,10 +21902,15 @@ function deviceCsvHtml(){
   </div>${wizd.csvError?`<div class="nt err">${wizd.csvError}</div>`:""}`;
 }
 function renderDeviceWizardFooter(){
-  const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot"),wb=document.getElementById("wb"),wn=document.getElementById("wn");
+  const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot"),wb=document.getElementById("wb"),wn=document.getElementById("wn"),fr=document.getElementById("wizFootR");
   if(!df||!foot||!wb||!wn)return;
-  // Действия — на своей вкладке, рядом с тем, что добавляют: общему подвалу под планом делать нечего
-  df.style.display="none";foot.innerHTML="";wb.style.display="none";wn.style.display="none";
+  const step=wizd.planStep||0,n=addPlan.rows.length+addPlan.links.length;
+  df.style.display="";
+  const warn=step?planWarnText():"";
+  foot.textContent=warn||n?(warn||`${i18n("В плане")}: ${n}`):addPlan.added.length?`${i18n("Добавлено")}: ${addPlan.added.length}`:i18n("Отметьте устройства и нажмите «В план»");
+  wb.style.display=step?"":"none";wb.textContent=i18n("Назад");
+  wn.style.display=step?"none":"";wn.textContent=i18n("Далее");wn.disabled=!n&&!addPlan.added.length;
+  fr.innerHTML=step?`<span id="planFoot" class="wz-plan-ft">${planFootHtml()}</span>`:"";
 }
 // «В план» формы «По адресу» — под самой формой: она прокручивается, кнопка видна всегда
 function planManualFootHtml(){
@@ -21867,6 +22169,7 @@ function planBtnHint(){
   return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n(addPlan.rows.length?"В системе их ещё нет: откройте и нажмите «Применить план»":"Откройте и нажмите «Применить план»")}`:"";
 }
 function planHeadSync(){
+  wzDock();
   const b=document.getElementById("hdPlan");if(!b)return;
   b.hidden=!planBtnCount();b.textContent=planBtnCount();b.title=planBtnHint();
 }
@@ -22117,8 +22420,7 @@ function planSyncRow(row){
     const hd=el.querySelector(".plan-row-hd");if(hd)hd.innerHTML=planRowHeadHtml(row);
     const is=el.querySelector(".plan-issues");if(is)is.innerHTML=planIssuesHtml(row);
   }
-  const ft=document.getElementById("planFoot");
-  if(ft)ft.innerHTML=planFootHtml();
+  if(planInDrawer())renderDeviceWizardFooter();
 }
 function planIdTaken(id){
   return identifierTaken({devices:devicePool},id)||configuredDevices().some(n=>deviceIdentifierValue(n)===id);
@@ -22324,13 +22626,17 @@ function planRowHtml(row){
   }
   return`<div class="plan-row ${row.state==="fail"?"fail":""} ${row.open?"open":""}" data-pid="${row.pid}"><div class="plan-row-hd">${planRowHeadHtml(row)}</div>${body}</div>`;
 }
+function planWarnText(){
+  const badN=addPlan.rows.filter(x=>x.state==="plan").length-planOkRows().length;
+  return badN>0?`${badN} ${planPlural(badN,"строка с ошибкой останется в плане|строки с ошибками останутся в плане|строк с ошибками останутся в плане")}`:"";
+}
 function planFootHtml(){
-  const okNew=planOkRows().length,ok=okNew+addPlan.links.length,badN=addPlan.rows.filter(x=>x.state==="plan").length-okNew;
+  if(addPlan.added.length&&!addPlan.rows.length&&!addPlan.links.length&&!planFailRows().length)return`<button type="button" class="btn pri" ${onEv("click",["closeWizard"])}>${i18n("Готово")}</button>`;
+  const ok=planOkRows().length+addPlan.links.length;
   const failN=planFailRows().length,busy=addPlan.applying;
   const why=busy?i18n("Идёт применение плана"):!addPlan.rows.length&&!addPlan.links.length?i18n("План пуст"):!ok?i18n("Нет строк без ошибок"):"";
-  return`${badN>0?`<div class="plan-warn">${badN} ${planPlural(badN,"строка с ошибкой останется в плане|строки с ошибками останутся в плане|строк с ошибками останутся в плане")}</div>`:""}
-    <button type="button" class="btn pri" id="planApplyBtn" data-fk="plan-apply" ${ok&&!busy?"":"disabled"} ${why?`title="${escHtml(why)}"`:""} ${onEv("click",["planApply"])}>${i18n("Применить план")} (${ok})</button>`+
-    (failN?`<button type="button" class="btn" id="planRetryBtn" ${busy?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planRetry"])}>${i18n("Повторить неудачные")} (${failN})</button>`:"");
+  return`${failN?`<button type="button" class="btn" id="planRetryBtn" ${busy?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planRetry"])}>${i18n("Повторить неудачные")} (${failN})</button>`:""}
+    <button type="button" class="btn pri" id="planApplyBtn" data-fk="plan-apply" ${ok&&!busy?"":"disabled"} ${why?`title="${escHtml(why)}"`:""} ${onEv("click",["planApply"])}>${i18n("Добавить")} ${ok} ${planPlural(ok,"устройство|устройства|устройств")}</button>`;
 }
 function planPanelHtml(){
   const rows=addPlan.rows;
@@ -22339,16 +22645,17 @@ function planPanelHtml(){
   const sum=addPlan.last&&failN?`<div class="plan-sum">${i18n("Добавлено")} ${addPlan.last.done} · ${i18n("не добавлено")} ${failN}</div>`:"";
   let list="";
   const groups=new Map();rows.forEach(x=>{const k=planRowServer(x)||"";(groups.get(k)||groups.set(k,[]).get(k)).push(x)});
-  if(!rows.length&&!addPlan.links.length)list=`<div class="plan-empty">${i18n("Отметьте устройства слева и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
+  if(!rows.length&&!addPlan.links.length)list=`<div class="plan-empty">${i18n("План пуст. На шаге «Что добавить» отметьте устройства и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
   else list=planLinksHtml()+[...groups].map(([sid,part])=>`<div class="plan-grp">${sid?escHtml(locName(find(sid)?.n||{name:"—"})):i18n("Сервер выберет система")} · ${part.length}</div>`+part.map(planRowHtml).join("")).join("");
   return`<div class="plan-hd"><b>${i18n("План")} · ${rows.length+addPlan.links.length}</b>${rows.length||addPlan.links.length?`<button type="button" class="lk" ${addPlan.applying?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planClear"])}>${i18n("Очистить план")}</button>`:""}</div>
-    <div class="plan-rows">${added}${sum}${list}</div><div class="plan-ft" id="planFoot">${planFootHtml()}</div>`;
+    <div class="plan-rows">${added}${sum}${list}</div>`;
 }
 // Панель плана — только в ящике: панель «Найденных» в дереве остаётся одна. Ящик открыт — значит, он и есть wizd
 function planInDrawer(){return!!document.getElementById("wiz")?.classList.contains("open")&&wizd?.mode==="device-add"}
 function planRender(){
   planHeadSync();
   if(!planInDrawer())return;
+  renderDeviceWizardFooter();
   const el=document.getElementById("planPanel");if(!el)return;
   // Фокус и прокрутка переживают перерисовку: человек мог стоять на строке, кнопке или поле
   const a=document.activeElement&&el.contains(document.activeElement)?document.activeElement:null;
@@ -22461,6 +22768,8 @@ function planHeadOpen(){
   if(app==="rules"&&ruleGuard(planHeadOpen))return;
   if(app!=="hw")setApp("hw");
   planOpen();
+  // Пришли за планом: сразу к нему
+  if(addPlan.rows.length||addPlan.links.length){wizd.planStep=1;renderDeviceWizard()}
 }
 function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
 function addSplitItems(n){
@@ -22501,12 +22810,16 @@ function renderDeviceWizard(){
   const target=deviceTarget();
   const wbd=document.getElementById("wbd"),wst=viewState(wbd);
   document.getElementById("wizT").textContent=deviceWizardTitle();
-  document.getElementById("wst").style.display="none";
+  const step=wizd.planStep||0,n=addPlan.rows.length+addPlan.links.length;
+  const ch=wizChromeSync("dev"+step,step?"xl":"xxl tall");
+  document.getElementById("wst").style.display="";
+  document.getElementById("wst").innerHTML=wzBarHtml(DEV_STEPS,step,i=>!i||n>0||addPlan.added.length>0,["wizStepGo"]);
+  document.getElementById("wizTools").outerHTML=wzToolsHtml("plan","wz-tools","wizTools");
   document.getElementById("wizDr").classList.add("device-wizard");
   document.getElementById("wizDr").classList.remove("server-add");
   const body=wizd.deviceTab==="manual"?deviceManualHtml():wizd.deviceTab==="csv"?deviceCsvHtml():wizd.deviceTab==="sys"?deviceSysHtml():deviceSearchHtml();
   // Слева — откуда берём (вкладки), справа — один план на все источники
-  wbd.innerHTML=`${planFolderBarHtml()}${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div><aside class="plan-right" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside></div>`;
+  wbd.innerHTML=step?`<aside class="plan-right wz-plan" id="planPanel" aria-label="План добавления">${planPanelHtml()}</aside>`:`${planFolderBarHtml()}${planServerBarHtml()}<div class="plan-split"><div class="plan-left">${planTabsHtml()}<div class="plan-left-body"><div class="dev-wrap${devWrapCls()}">${!target?`<div class="csv-error">Нет папок для размещения устройств</div>`:""}${body}</div></div>${wizd.deviceTab==="manual"?planManualFootHtml():""}</div></div>`;
   restoreView(wbd,wst);
   csvSyncAll();
   const allCb=document.getElementById("devSelectAll");
@@ -22517,6 +22830,7 @@ function renderDeviceWizard(){
     allCb.indeterminate=selected>0&&selected<selectable.length;
   }
   renderDeviceWizardFooter();
+  ch.fit();
   document.removeEventListener("mousedown",onDeviceFiltOutside);
   if(wizd.devFiltPop||wizd.csvFiltPop||wizd.modePop||wizd.devFieldsPop)document.addEventListener("mousedown",onDeviceFiltOutside);
   const tplFilter=document.getElementById("devTplFilter");
@@ -22562,9 +22876,28 @@ function chooseAdd(mode,cat,type){
   wd();
 }
 function wizBack(){
-  if(wizd.mode==="server-add"){closeWizard();return}
+  if(wizd.mode==="server-add"){wizd.srvStep=0;wd();return}
+  if(wizd.mode==="device-add"){wizd.planStep=0;renderDeviceWizard();return}
   if(ws>1){ws--;wd()}
 }
+function wizStepGo(i){
+  i=+i;
+  if(wizd.mode==="server-add"){wizd.srvStep=i;wd();return}
+  if(wizd.mode==="device-add"){wizd.planStep=i;renderDeviceWizard();return}
+  ws=i+1;wd();
+}
+function wizCancel(){
+  if(wizd?.mode==="server-add"){wzCancel("srv");return}
+  if(wizd?.mode==="device-add"){wzCancel("plan");return}
+  closeWizard();
+}
+function wizChromeSync(key,size){
+  const box=document.getElementById("wizDr");
+  return{was:wzFitSt.has(box)?box.getBoundingClientRect():null,fit(){wzSize(box,size);wzFit(box,this.was,key)}};
+}
+const SRV_STEPS=[{t:"Какие серверы"},{t:"Проверка"}];
+const OBJ_STEPS=[{t:"Что добавить"},{t:"Куда и параметры"}];
+const DEV_STEPS=[{t:"Что добавить"},{t:"План"}];
 // Окно одно: серверы из сети и серверы по адресам — строки одного списка с одной кнопкой.
 // Шагов и «Назад» нет: поле адресов всегда на виду и не очищается, опросил не то — поправил и опросил снова.
 // Адреса серверов приходят таблицей, поэтому поле принимает весь список сразу.
@@ -22672,6 +23005,8 @@ async function addProbedServers(okIds){
   const bad=Object.keys(w.ipFail).length;
   if(n||bad)toast(bad?`${i18n("Добавлено серверов")}: ${n} · ${i18n("не добавлено")}: ${bad}`:n===1?"Сервер добавлен":`Добавлено серверов: ${n}`);
   release();
+  // Всё добавилось — мастеру больше нечего показать. Что не добавилось, остаётся на проверке с причиной
+  if(n&&!bad&&wizLive(w)){wzDrop("srv");closeWizard();paint()}
 }
 function srvAddrHtml(){
   if(!can("probeServers"))return"";
@@ -22725,15 +23060,34 @@ function srvHeadHtml(){
 }
 function renderServerAdd(){
   const did=srvDid(),key=srvKey(),how="unalloc:"+did,n=ipPicked().length,wbd=document.getElementById("wbd"),st=viewState(wbd);
-  const wn=document.getElementById("wn");
-  wn.textContent=`${i18n("Добавить выбранные")} (${n})`;
+  if(wizd.srvStep&&!n&&!wizd.ipAdding)wizd.srvStep=0;
+  const step=wizd.srvStep||0,wn=document.getElementById("wn"),wb=document.getElementById("wb");
+  const ch=wizChromeSync("srv"+step,"l");
+  document.getElementById("wizDr").classList.toggle("server-add",!step);
+  document.getElementById("wst").innerHTML=wzBarHtml(SRV_STEPS,step,i=>!i||n>0,["wizStepGo"],true);
+  wb.style.display=step?"":"none";wb.textContent=i18n("Назад");
+  wn.textContent=step?`${i18n("Добавить")} ${n} ${i18n(plural(n,"сервер|сервера|серверов"))}`:i18n("Далее");
   wn.disabled=!n||!!wizd.ipAdding;
-  document.getElementById("wizFoot").innerHTML=`<span class="srv-foot">${i18n("В домен")} «${escHtml(locName(domainById(did)||{}))}»</span>`;
-  const shown=srvRows();
-  wbd.innerHTML=`${srvAddrHtml()}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
-    +(shown.length?`<div class="tfoot tfoot-flat">${pagerHtml(key,shown.length,how,"сервер|сервера|серверов")}</div>`:"");
-  restoreView(wbd,st);
+  document.getElementById("wizFoot").textContent=n?`${i18n("Выбрано")} ${n} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`:i18n("Отметьте серверы или введите адреса");
+  if(step){
+    wbd.innerHTML=srvCheckHtml(did);
+  }else{
+    const shown=srvRows();
+    wbd.innerHTML=`${srvAddrHtml()}${srvHeadHtml()}<div class="srv-list">${srvListHtml()}</div>`
+      +(shown.length?`<div class="tfoot tfoot-flat">${pagerHtml(key,shown.length,how,"сервер|сервера|серверов")}</div>`:"");
+    restoreView(wbd,st);
+  }
+  ch.fit();
   if(wizd.ipFocus){wizd.ipFocus=false;document.getElementById("wizIps")?.focus()}
+  wzSave("srv");
+}
+// Последний шаг и есть план: ничего ещё не добавлено, здесь видно всё, что произойдёт
+function srvCheckHtml(did){
+  const list=ipPicked(),fail=wizd.ipFail||{};
+  const tr=list.map((r,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(srvRowName(r))}</td><td>${escHtml(r.ip||"—")}${r.port?`:${r.port}`:""}</td><td>${i18n(r.net?"Из сети":"По адресу")}</td><td>${fail[r.key]?`<span class="dl-warn">${lu("triangle-alert",11)} ${escHtml(fail[r.key])}</span>`:i18n("будет добавлен")}</td></tr>`).join("");
+  return`<p class="dc-total"><b>${list.length}</b> ${i18n(plural(list.length,"сервер|сервера|серверов"))} ${i18n("в домен")} <b>«${escHtml(locName(domainById(did)||{}))}»</b></p>
+    <table class="bk-table"><thead><tr><th>#</th><th>${i18n("Сервер")}</th><th>${i18n("Адрес")}</th><th>${i18n("Откуда")}</th><th>${i18n("Что будет")}</th></tr></thead><tbody>${tr}</tbody></table>
+    <p class="sub dc-note">${i18n("Перед добавлением сверим отпечатки сертификатов: у каждого нового сервера.")}</p>`;
 }
 function needsParent(type){
   return["acfa_sensor","acfa_lock","acfa_fence"].includes(type)||!!wizd.unit;
@@ -22794,19 +23148,22 @@ function wd(){
   const df=document.querySelector("#wiz .df"),foot=document.getElementById("wizFoot");
   if(df)df.classList.remove("device-footer");
   if(foot)foot.innerHTML="";
-  document.querySelector("#wiz .df").style.display="";
-  document.getElementById("wst").innerHTML=srv?"":[1,2].map(i=>`<div class="stp ${i<=ws?"on":""}"></div>`).join("");
-  document.getElementById("wst").style.display=srv?"none":"";
-  const hideBack=!srv&&ws===1;
+  document.getElementById("wizFootR").innerHTML="";
+  df.style.display="";
+  document.getElementById("wst").style.display="";
+  document.getElementById("wizTools").outerHTML=wzToolsHtml(srv?"srv":"","wz-tools","wizTools");
   const wb=document.getElementById("wb"),wn=document.getElementById("wn");
-  wb.style.display=hideBack?"none":"";
-  wb.disabled=hideBack;
-  wb.textContent=i18n(srv?"Закрыть":"Назад");
   wn.style.display="";
-  document.getElementById("wizT").textContent=wizardTitle();
-  wn.textContent=ws===2?i18n("Добавить"):i18n("Далее");
-  wn.disabled=false;
+  document.getElementById("wizT").textContent=i18n(wizardTitle());
   if(srv){renderServerAdd();return}
+  const ch=wizChromeSync("obj"+ws,ws===1?"l":"m");
+  document.getElementById("wst").innerHTML=wzBarHtml(OBJ_STEPS,ws-1,i=>!i||!!wizd.mode,["wizStepGo"]);
+  wb.style.display=ws===1?"none":"";
+  wb.textContent=i18n("Назад");
+  wn.textContent=ws===2?i18n("Добавить"):i18n("Далее");
+  wn.disabled=ws===1&&!wizd.mode;
+  const picked=WIZ[wizd.cat]?.types.find(t=>t[0]===wizd.type)?.[1];
+  foot.textContent=picked?i18n(picked):i18n("Выберите, что нужно добавить");
   let h="";
     if(ws===1){
     h+=`<div class="wsec">Тип объекта</div>`;
@@ -22815,7 +23172,6 @@ function wd(){
       h+=`<div style="margin-bottom:10px"><b style="font-size:12px;color:var(--mu)">${blk.label}</b>
         <div class="g" style="margin-top:6px">${blk.types.map(([id,n,d])=>`<button type="button" class="chc ${wizd.mode==="object"&&wizd.type===id?"on":""}" ${onEv("click",["chooseAdd","object",`${cat}`,`${id}`])}><b>${n}</b><small>${d}</small></button>`).join("")}</div></div>`;
     });
-    if(!wizd.mode)h+=`<p class="sub">Выберите, что нужно добавить.</p>`;
   }else if(wizd.unit){
     h+=unitStepHtml();
   }else{
@@ -22840,10 +23196,11 @@ function wd(){
     }
   }
   document.getElementById("wbd").innerHTML=h;
+  ch.fit();
 }
 function wnx(){
-  if(wizd.mode==="device-add")return;
-  if(wizd.mode==="server-add"){addProbedServers();return}
+  if(wizd.mode==="device-add"){wizd.planStep=1;renderDeviceWizard();return}
+  if(wizd.mode==="server-add"){if(wizd.srvStep)addProbedServers();else{wizd.srvStep=1;wd()}return}
   if(ws===1){
     if(!wizd.mode){toast("Выберите, что нужно добавить");return}
     ws=2;wd();return;
@@ -25604,31 +25961,32 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
-// Показ прототипа: что изменилось в добавлении серверов (движок — assets/tour.js). Только в прототипе
-Tour.offer("Добавление серверов", (()=>{
+// Показ прототипа: единый мастер создания (движок — assets/tour.js). Только в прототипе
+Tour.offer("Единый мастер создания", (()=>{
   const q=sel=>()=>document.querySelector(sel);
   const byText=(sel,re)=>()=>[...document.querySelectorAll(sel)].find(e=>re.test(e.textContent));
   const row=re=>byText(".srv-list .it",re);
+  const dom=()=>domains[0];
   return[
-    {say:"Раньше здесь было две кнопки и два разных окна: «Сервер» и «Добавить серверы по IP». Теперь вход один, и в меню дерева тоже.",
-      before:()=>{closeWizard();goApp("hw");pick(domains[0].id);goTab("gen")},at:byText(".dom-acts .btn",/Серверы/),act:"click"},
-    {say:"Окно одно на всё. Серверы, которые нашлись в сети, уже в списке: можно сразу отмечать.",at:q(".srv-list")},
-    {say:"Нужного сервера нет в списке? Адреса вводим здесь же, никуда не переходя: список, диапазон или подсеть.",at:q("#wizIps"),act:"type",text:"10.30.0.13, 10.30.0.20-22, 10.20.1.10, 10.30.0.24, foo"},
-    {say:"Опрашиваем адреса.",at:byText(".srv-addr .btn",/Найти/),act:"click"},
-    {say:"Ответ приходит в тот же список, отдельного экрана результатов больше нет. Найденные отмечены сразу.",at:byText(".srv-cap",/По адресам/)},
-    {say:"Поле не очистилось: опечатку можно поправить и опросить снова. Что не распознано, написано прямо под полем.",at:q(".srv-bad")},
-    {say:"Сервер 10.30.0.13 был и в списке из сети. Теперь это одна строка с именем, а не безымянный адрес.",at:row(/10\.30\.0\.13/)},
-    {say:"Что с адресом, видно в строке. Этот уже в домене, отсюда можно сразу к нему перейти.",at:row(/10\.20\.1\.10/)},
-    {say:"Этот не отвечает, поэтому отметить его нельзя.",at:row(/10\.30\.0\.24/)},
-    {say:"Сервер из сети отмечается в этом же списке, вперемешку с найденными по адресу.",at:row(/10\.30\.0\.15/),act:"click"},
-    {say:"Кнопка добавления одна и считает всё выбранное.",at:q("#wn")},
-    {say:"«Назад» больше нет, некуда теряться. Шагов тоже нет, есть только «Закрыть».",at:q("#wb")},
-    {say:"Добавляем выбранные.",at:q("#wn"),act:"click"},
-    {say:"Перед приёмом сверяем отпечатки. Раньше групповое добавление этот шаг молча пропускало.",at:q("#confirmMsg .fp-list")},
-    {say:"Отпечатки совпали.",at:q("#confirmOk"),act:"click"},
-    {say:"Добавленные остаются в списке с пометкой, ничего не прыгает. Отсюда можно сразу перейти к серверу.",at:row(/Добавлен/)},
-    {say:"Переходим к добавленному серверу.",at:()=>row(/Добавлен/)()?.querySelector(".btn"),act:"click"},
-    {say:"Окно закрылось, место подсвечено: заголовок, вкладка и строка дерева. Искать сервер в дереве не нужно."},
+    {say:"Раньше каждый процесс создания выглядел по-своему: серверы и роли в правой панели, хранилище и правило в окне, устройства в широкой панели. Теперь все они устроены как мастер «Добавить детекторы». Начнём с серверов.",
+      before:()=>{closeWizard();wzDrop("srv");goApp("hw");pick(dom().id);goTab("gen")},at:byText(".dom-acts .btn",/Серверы/),act:"click"},
+    {say:"Окно по центру. Сверху шаги: это кнопки, на пройденный шаг можно вернуться.",at:q("#wst .dc-steps")},
+    {say:"Отмечаем сервер. Адреса вводим здесь же.",at:row(/10\.30\.0\.15/),act:"click"},
+    {say:"Подвал один и тот же везде: «Отмена», итог выбора, «Назад» и главная кнопка. Без выбора «Далее» неактивна, а причина написана рядом.",at:q("#wizDr .df")},
+    {say:"Идём дальше.",at:q("#wn"),act:"click"},
+    {say:"Окно само сжалось под шаг. Последний шаг и есть план: ничего ещё не добавлено, а кнопка называет результат.",at:q("#wn")},
+    {say:"Клик мимо окна и Escape его не закрывают. Закрыть можно здесь: выбор не пропадёт.",at:q('#wizTools .dc-x[aria-label="Закрыть"]'),act:"click"},
+    {say:"Незавершённое видно в любом разделе. Его можно продолжить или удалить. Паролей в браузере мы не храним.",at:q("#wzDock-srv .btn.pri"),act:"click"},
+    {say:"Вернулись на то же место. «Отмена» — единственная кнопка, которая удаляет черновик, и она спросит.",at:q("#wc"),act:"click"},
+    {say:"Подтверждаем.",at:q("#confirmOk"),act:"click"},
+    {say:"Хранилище: раньше одна длинная форма, теперь четыре шага.",before:()=>{const s=dom().servers.find(x=>!isUnallocated(x.id));pick(s.id,{force:true});addArchive(s.id)},at:q("#bmBody .dc-steps")},
+    {say:"На шаге выбора вида окно широкое: нужны карточки. Дальше оно станет уже.",at:byText("#bmFoot .btn.pri",/Далее/),act:"click"},
+    {say:"Настройки хранилища.",at:byText("#bmFoot .btn.pri",/Далее/),act:"click"},
+    {say:"Первый том.",at:byText("#bmFoot .btn",/Далее/),act:"click"},
+    {say:"Проверка и кнопка с результатом.",at:q("#anCreate")},
+    {say:"Раздел «Права»: новая роль. Шаги те же, что были в правой панели, а окно на шаге «Права» шире.",before:()=>{wzCancelQuiet("arch");goApp("acc");accWzOpen()},at:q("#accWizSt .dc-steps")},
+    {say:"Пока имя пусто, итог в подвале говорит, чего не хватает.",at:q("#accWizFt .dc-sum")},
+    {say:"Так же устроены устройства, служба, единица СКУД, правило, пользователь, каталог, группа каталога и импорт из CSV.",before:()=>accWzClose()},
   ];
 })());
 // Показ прототипа: что изменилось в «Папках», статусе и «Найдено» (движок — assets/tour.js). Только в прототипе
@@ -25695,6 +26053,7 @@ Tour.offer("Папка как в Проводнике", (()=>{
     {say:"И новый источник: устройства, которые уже есть в системе. Они останутся, где были, и появятся ещё и в этой папке.",at:byText("#wizDr .tab, #wizDr button",/^Уже в системе/),act:"click"},
     {say:"Отмечаем устройство. Рядом видно, где оно лежит сейчас.",at:()=>byText(".fa-tbl tbody tr",/Аудитория 1/)()?.querySelector("input.ts-chk"),act:"click"},
     {say:"Сначала в план: пока план не применён, в системе ничего не меняется.",at:byText(".fa-wrap .btn.pri",/В план \(1\)/),act:"click"},
+    {say:"Следующий шаг мастера: план.",at:q("#wn"),act:"click"},
     {say:"Применяем план.",at:q("#planApplyBtn:not(:disabled)"),act:"click"},
     {say:"Устройство теперь в папке, а подпись напоминает, где ещё оно лежит.",before:()=>closeWizard(),at:row(/Аудитория 1/)},
     {say:"На верхнем уровне последней строкой идут устройства вне папок. Они работают как обычно, просто ещё не разложены. Откроем.",
@@ -25793,10 +26152,13 @@ Tour.offer("Раздел «Хранилища»", (()=>{
     {say:"Камера открылась сразу на вкладке «Архив»: здесь её привязывают к хранилищу. Раздел остался тем же.",at:()=>find(sel)?.n.type==="camera"?document.querySelector(".tabs .tab.on"):null},
     {say:"Кнопка теперь одна, на любом объекте раздела. Раньше на домене создавали только сетевое хранилище, а локальное — только на сервере.",
       before:()=>pick(dom().id,{force:true}),at:byText(".hd .btn",/Создать хранилище/),act:"click"},
-    {say:"Окно тоже одно. С домена подставлены весь домен и сетевой вид, но можно выбрать любой вид.",at:q("#bmBody .an-srv select")},
+    {say:"Мастер один. С домена подставлены весь домен и сетевой вид, но можно выбрать любой вид.",at:q("#bmBody .an-srv select")},
     {say:"Выбираем локальное хранилище.",at:byText("#bmBody .an-kind",/Локальное/),act:"click"},
-    {say:"Локальному нужен сервер. «Весь домен» из списка исчез, а кнопка «Создать» не работает, пока сервер не выбран.",at:()=>an?.kind==="local"?document.querySelector("#bmBody .an-srv select"):null},
-    {say:"Выбрали сервер: появились его диски, создать уже можно.",before:()=>anSet("server",emptySrv().id),at:()=>an?.server?document.getElementById("anCreate"):null,act:"click"},
+    {say:"Локальному нужен сервер. «Весь домен» из списка исчез, а кнопка «Далее» не работает, пока сервер не выбран.",at:()=>an?.kind==="local"?document.querySelector("#bmBody .an-srv select"):null},
+    {say:"Выбрали сервер: идём дальше, к его настройкам.",before:()=>anSet("server",emptySrv().id),at:()=>an?.server?document.querySelector("#bmFoot .btn.pri"):null,act:"click"},
+    {say:"Имя и глубина хранения.",at:()=>an?.step===1?document.querySelector("#bmFoot .btn.pri"):null,act:"click"},
+    {say:"Первый том: диски этого сервера.",at:()=>an?.step===2?document.querySelector("#bmFoot .btn.pri"):null,act:"click"},
+    {say:"Проверяем и создаём.",at:()=>an?.step===3?document.getElementById("anCreate"):null,act:"click"},
     {say:"Раньше после создания перебрасывало в «Оборудование». Теперь раздел тот же: новое хранилище выбрано, открыто, его строка в дереве моргает.",
       at:()=>find(sel)?.n.type==="archive"?document.querySelector("#tree .n.on"):null},
     {say:"На сервере та же кнопка, но контекст другой.",before:()=>pick(dom().servers.find(s=>serverArchives(s.id).length).id,{force:true}),at:byText(".hd .btn",/Создать хранилище/),act:"click"},
