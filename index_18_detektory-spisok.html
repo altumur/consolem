@@ -9651,7 +9651,7 @@ function detCreateOpen(lock){
 }
 function dcFresh(lock){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
-  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",watch:false,pick:"",adv:false},zoneBy:{},zoneAt:"",custom:null,min:false};
+  dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",watch:false,pick:"",adv:!srcDeclared()},zoneBy:{},zoneAt:"",custom:null,min:false};
   renderDetCreate();dcLoad();
 }
 // Черновик мастера живёт в браузере: на сервер ничего не уходит до «Создать». Переживает закрытие окна и перезагрузку страницы
@@ -9825,19 +9825,24 @@ function dcRuleServer(ids){
   const doms=new Set([...ids].map(id=>nodeDomainId(find(id)?.n))),d=doms.size===1?[...doms][0]:null;
   return(servers.find(x=>domainOf(x.id)?.id===d)||servers[0]||{}).id||"";
 }
+// Запись на 10 минут. Поля «Сколько» в справочнике может не быть: тогда его нет и в действии
+function dcRecDefault(a){delete a.after;a.minutes=10;if(ruleRefField(ACT_ADD,"dur")===null)delete a.dur;else a.dur="min"}
 function dcCustomRule(gs){
   const fresh=!dc.custom;
-  const c=dc.custom||(dc.custom={id:"dc-rule",name:"",on:true,watch:false,repeat:"skip",start:"event",run:{mode:"always",modes:[]},cond:[],menu:false,rate:6,within:0,sched:null,when:[],then:[],owner:ACC_ME,purpose:"",server:(servers[0]||{}).id||"",runAs:"system",chain:true});
+  const c=dc.custom||{id:"dc-rule",name:"",on:true,watch:false,repeat:"skip",start:"event",run:{mode:"always",modes:[]},cond:[],menu:false,rate:6,within:0,sched:null,when:[],then:[],owner:ACC_ME,purpose:"",server:(servers[0]||{}).id||"",runAs:"system",chain:true};
   // Вид без конца события — первым: «пока идёт событие» должно подойти каждому правилу
   const w=gs.map(g=>({g,t:dcRuleWhen(g)})).sort((a,b)=>!!triggerKind(a.t).ends-!!triggerKind(b.t).ends)[0];
   c.when=w?[w.t]:[];
+  // Событий ещё нет — камеры читаются: черновик не заводим, иначе запись получит пустую камеру
+  if(fresh&&!w)return c;
+  dc.custom=c;
   if(w)c.server=dcRuleServer(w.g.cams);
   if(fresh){
     const a=ruleNewAct(ruleActAdd(),null,c);
     // Запись по умолчанию — на 10 минут и у вида с концом события: так сказано в плане
-    if(a.action==="record"){a.dur="min";a.minutes=10;delete a.after}
+    if(a.action==="record")dcRecDefault(a);
     c.then.push(a);
-  }
+  }else if(w&&dcActKey(c)!=="custom"&&c.then[0].dur==="event"&&!ruleHasEnds(c))dcRecDefault(c.then[0]);   // добавили вид без конца события: «пока идёт» больше не подходит
   return c;
 }
 function dcRuleOk(gs){
@@ -9869,14 +9874,14 @@ function dcPickMiss(gs,id){
 function dcActNew(k,c){
   const kind=ACTION_KINDS.find(x=>x.action===k),a=ruleNewAct(kind,null,c);
   if(!a.ref&&ruleSrcOk(c,kind.devTypes)&&srcDeclared())a.ref="$src";
-  if(k==="record"){a.dur="min";a.minutes=10;delete a.after}
+  if(k==="record")dcRecDefault(a);
   return a;
 }
 // Что из простого вида показывает правило; custom — простой вид его не передаст
 function dcActKey(c){
   if(c.cond?.length||dc.rule.watch||!c.then.length||c.then.length>2)return"custom";
   const[a,b]=c.then;
-  if(a.action!=="record"||a.ref!=="$src"||a.after)return"custom";
+  if(a.action!=="record"||a.ref!=="$src"||a.after||(a.dur!=="event"&&!(a.minutes>0)))return"custom";
   if(!b)return"record";
   return b.action==="alarm"&&b.ref==="$src"&&b.prio!=="high"&&!b.text?"alarm":"custom";
 }
@@ -9901,13 +9906,13 @@ function dcRuleAdv(on){if(on)dc.rule.mode="new";dc.rule.adv=!!on;renderDetCreate
 function dcRecLen(v){
   ruleEdit(r=>{
     const a=r.then[0];if(!a)return;
-    if(v==="event"){a.dur="event";a.after=0;delete a.minutes}else{a.dur="min";a.minutes=+v;delete a.after}
+    if(v==="event"){a.dur="event";a.after=0;delete a.minutes}else{dcRecDefault(a);a.minutes=+v}
   });
 }
 function dcRecHtml(c){
   const a=c.then[0],len=a.dur==="event"?"event":String(a.minutes??10),rf=ruleRefField(ACT_ADD,"dur");
   const mins=[...new Set([5,10,30,60,...(len==="event"?[]:[+len])])].sort((x,y)=>x-y);
-  const ev=ruleHasEnds(c)&&(!rf||!rf.options?.length||rf.options.includes("event"));
+  const ev=rf!==null&&ruleHasEnds(c)&&(!rf||!rf.options?.length||rf.options.includes("event"));
   const lenOpts=`${mins.map(m=>`<option value="${m}" ${len===String(m)?"selected":""}>${m} ${i18n(plural(m,"минута|минуты|минут"))}</option>`).join("")}${ev||len==="event"?`<option value="event" ${len==="event"?"selected":""}>${i18n("пока идёт событие")}</option>`:""}`;
   const archF={id:"archive",label:"Архив (необязательно)"};
   const archSel=ruleFieldShown(ACT_ADD,archF,a)?`<select aria-label="${i18n("Архив")}" ${onEv("change",["setActionField","0","archive",onEv.value])}>${ruleArchOpts(a).map(([v,l])=>`<option value="${escHtml(v)}" ${(a.archive||"")===v?"selected":""}>${escHtml(l)}</option>`).join("")}</select>`:"";
@@ -9929,11 +9934,14 @@ function dcRuleHtml(gs){
     <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",false])}>${i18n("Вернуться к простому виду")}</button>`;
   }
   const opt=(id,t,sub,more,pick)=>`<label class="rl-opt ${on===id?"on":""}"><input type="radio" name="dcRule" ${on===id?"checked":""} ${onEv("change",pick||["dcRulePick",`${id}`])}><span><b>${i18n(t)}</b><small>${sub}</small></span></label>${on===id?more:""}`;
-  const shown=k=>actDeclared(ACTION_KINDS.find(x=>x.action===k));
+  // Камеры из события нет в системе — простые варианты неверны: правило настраивают подробно
+  const shown=k=>srcDeclared()&&actDeclared(ACTION_KINDS.find(x=>x.action===k));
   const summary=()=>{
-    const list=c.then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; ");
+    const list=c.then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; ")||i18n("нет действий");
     return escHtml([list,c.cond?.length?`${i18n("условий")}: ${c.cond.length}`:"",r.watch?i18n("только журнал"):""].filter(Boolean).join(" · "));
   };
+  // «Далее» неактивна не молча: причина видна и в простом виде
+  const why=r.mode==="new"?ruleIssues(c):[];
   const pickSel=`<div class="dc-sub"><select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Камеры встанут в событие правила. Остальное в нём не изменится.")}</p></div>`;
   return`${head}
     <div class="dc-sec" style="margin-top:14px">${i18n("То")}</div>
@@ -9944,6 +9952,7 @@ function dcRuleHtml(gs){
       ${cands.length?opt("add","Добавить к правилу",i18n("В правило, которое уже работает"),pickSel):""}
       ${opt("none","Ничего не делать",i18n("Событие попадёт только в журнал. Правило не создаётся."),"")}
     </div>
+    ${why.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
     <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",true])}>${i18n("Настроить подробно: условия и другие действия")}</button>`;
 }
 // Окно идёт за содержимым: ширина — от шага (класс dc-w-*), высота — сколько нужно, но не больше экрана.
@@ -9996,6 +10005,8 @@ function renderDetCreate(){
   const plan=dcPlan(cams,tpl),total=plan.reduce((s,p)=>s+p.fit.length,0),camsHit=new Set(plan.flatMap(p=>p.fit.map(c=>c.id))).size;
   const gs=dcTrigs(plan,tpl);
   if(gs.length&&dc.rule.pick&&!dcRuleCands(gs).some(x=>x.id===dc.rule.pick))dc.rule.pick="";
+  // Подходящих правил не осталось: варианта «Добавить к правилу» нет, выбранным остаётся то, что он и делал бы
+  if(gs.length&&dc.rule.mode==="add"&&!dcRuleCands(gs).length)dc.rule.mode="none";
   const withRule=dc.rule.mode==="new"||(dc.rule.mode==="add"&&dc.rule.pick);
   const steps=dcSteps(),st=steps[Math.min(dc.step,steps.length-1)],last=dc.step>=steps.length-1;
   const okStep=x=>x.k==="what"?dc.items.size>0:x.k==="cams"?total>0:x.k==="rule"?dcRuleOk(gs):true;
@@ -10056,7 +10067,7 @@ function renderDetCreate(){
       ${same?`<p class="sub dc-note">${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект. Зоны, нарисованные рукой, не заменятся.")}</p>`:""}
     </div></div></section>`;
   };
-  const secRule=()=>`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="r">${dcRuleHtml(gs)}</div></section>`;
+  const secRule=()=>`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="r">${dc.ready?dcRuleHtml(gs):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div></section>`;
   // Последний шаг и есть план: ничего ещё не записано, здесь видно всё, что произойдёт
   const secEnd=()=>{
     const rows=dcRowsOf(plan),noLine=rows.filter(dcNeedsLine).length;

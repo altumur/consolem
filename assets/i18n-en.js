@@ -1067,4 +1067,5 @@ window.I18N_EN={
 "Зона нарисована":"Zone drawn",
 "Настроено":"Set up",
 "Запись и тревога":"Recording and alarm",
+"нет действий":"no actions",
 };

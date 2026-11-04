@@ -83,6 +83,14 @@ UiCheck(async ({ ok, until }) => {
   ok(secs().includes("Если") && secs().includes("То") && !secs().includes("При условии"), "разделы простого вида: Если, То");
   ok(onOpt() === "Записывать видео" && dc.custom.then.length === 1 && dc.custom.then[0].action === "record", "по умолчанию запись");
   ok(opts().includes("Записывать и поднять тревогу") && !opts().includes("Поднять тревогу"), "тревоги без записи в простом виде нет");
+  ok(opts().includes("Добавить к правилу") === dcRuleCands(dcGs()).length > 0, "«Добавить к правилу» видно, только когда есть подходящие правила");
+  // Камеры ещё читаются: выбирать нечего и дальше нельзя
+  dc.ready = false;
+  renderDetCreate();
+  ok(!box().querySelector(".rl-opt") && [...box().querySelectorAll(".cfoot button")].find((b) => b.textContent === "Далее").disabled, "пока камеры читаются, выбора нет");
+  dc.ready = true;
+  renderDetCreate();
+  ok(onOpt() === "Записывать видео", "камеры прочитаны: выбор на месте");
   const sel = box().querySelector('select[aria-label*="Архив"]');
   ok(sel && sel.options[1].value === arch.find((x) => archRowOk(x) || x.id === sel.options[1].value)?.id, "архив выбирается из списка");
   setActionField("0", "archive", sel.options[1].value);
@@ -98,6 +106,12 @@ UiCheck(async ({ ok, until }) => {
   ok(dcRuleOk(dcTrigs(dcPlan(dcUniverse(), []), [])), "такое правило верно");
   dcRulePick("none");
   ok(onOpt() === "Ничего не делать" && dc.rule.mode === "none", "можно без правила");
+  // Подходящих правил не осталось: выбранное не пропадает молча
+  const allRules = rules.splice(0);
+  dc.rule.mode = "add";
+  renderDetCreate();
+  ok(!opts().includes("Добавить к правилу") && onOpt() === "Ничего не делать" && dc.rule.mode === "none", "без подходящих правил выбран «Ничего не делать»");
+  rules.push(...allRules);
   dcRulePick("alarm");
   ok(dc.rule.mode === "new" && dc.custom.then.length === 2 && dc.custom.then[0].minutes === 30, "возврат не теряет настройку");
   dcRulePick("record");
@@ -106,7 +120,7 @@ UiCheck(async ({ ok, until }) => {
   // Подробный вид правит то же правило на том же шаге, и окно шире
   dcRuleAdv(true);
   ok(box().classList.contains("dc-w-rule-adv") && ["Если", "При условии", "То"].every((t) => secs().includes(t)), "подробный вид: Если, При условии, То");
-  ok(box().querySelector('select[aria-label*="Архив"], .rl-f select') && dc.custom.then[0].minutes === 30, "подробный вид показывает выбранную запись");
+  ok([...box().querySelectorAll("input")].some((i) => i.value === "30"), "подробный вид показывает выбранную длительность");
   addCond();
   ok(dc.custom.cond.length === 1, "условие добавлено в окне");
   // Окно поверх мастера открывается со своим размером и возвращает к мастеру
@@ -117,6 +131,9 @@ UiCheck(async ({ ok, until }) => {
   const saved = ruleClone(dc.custom.then);
   ruleEdit((r) => { r.then = []; });
   ok(!dcRuleOk(dcTrigs(dcPlan(detCams(), []), [])), "без действий дальше нельзя");
+  dcRuleAdv(false);
+  ok(onOpt() === "Своё правило" && box().querySelector(".dc-opts ~ .nt")?.textContent.includes("хотя бы одно действие"), "простой вид называет причину");
+  dcRuleAdv(true);
   ruleEdit((r) => { r.then = saved; });
 
   // Простой вид не теряет подробную настройку: показывает её и спрашивает перед заменой
@@ -162,6 +179,16 @@ UiCheck(async ({ ok, until }) => {
   dcStepGo(dcSteps().findIndex((x) => x.k === "rule"));
   ok(dc.custom.then[0].dur === "min" && dc.custom.then[0].minutes === 10, "запись на 10 минут и у вида с концом события");
   if (other) ok(dcRuleOk(dcTrigs(dcPlan(dcUniverse(), []), [])) && domainOf(dc.custom.server)?.id === nodeDomainId(other), "сервер правила — из домена камеры");
+  // «Пока идёт событие» — только у вида с концом события; добавили вид без него — запись снова на 10 минут
+  dcRecLen("event");
+  ok(dc.custom.then[0].dur === "event" && dc.custom.then[0].after === 0, "запись пока идёт событие");
+  if (other) {
+    ok(!dcWhy(other, line), "той же камере подходит детектор линии");
+    dcItemToggle(line, true);
+    ok(dc.custom.then[0].dur === "min" && dc.custom.then[0].minutes === 10 && !dc.custom.then[0].after, "вид без конца события вернул запись на 10 минут");
+    ok(dcRuleOk(dcTrigs(dcPlan(dcUniverse(), []), [])), "правило осталось верным");
+    dcItemToggle(line, false);
+  }
   // Подробную настройку заменяют только с согласия
   ruleEdit((r) => { r.cond.push(condNew((COND_KINDS.find(condDeclared) || COND_KINDS[0]).kind)); });
   dcRulePick("alarm");
@@ -193,8 +220,42 @@ UiCheck(async ({ ok, until }) => {
   document.getElementById("confirmOk").click();
   ok(!dc && !box() && !localStorage.getItem(KEY) && !dock(), "«Удалить черновик» убирает всё");
 
-  // Запись и тревога доходят до сервера одним правилом на вид
+  // Система не знает камеру из события: простых вариантов нет, правило настраивают подробно
   const free = detCams().find((c) => !dcWhy(c, line));
+  const targets = RULE_REF.targets;
+  RULE_REF.targets = { kinds: targets?.kinds || [], fromEvent: false };
+  detCreateOpen();
+  ok(await until(() => dc && dc.ready), "мастер открыт без камеры из события");
+  dcItemToggle(line, true);
+  dcCamToggle(free.id, true);
+  dcStepGo(dcSteps().findIndex((x) => x.k === "rule"));
+  ok(dc.rule.adv && box().classList.contains("dc-w-rule-adv"), "сразу подробный вид");
+  dcRuleAdv(false);
+  ok(!opts().includes("Записывать видео") && !opts().includes("Записывать и поднять тревогу") && onOpt() === "Своё правило" && box().querySelector(".dc-opts ~ .nt"), "в простом виде нет неверных вариантов, причина названа");
+  RULE_REF.targets = targets;
+  dcCancel();
+  document.getElementById("confirmOk").click();
+
+  // Система не объявила поле «Сколько»: его нет в действии и нет варианта «пока идёт событие»
+  const refActs = RULE_REF.actions;
+  RULE_REF.actions = refActs?.map((a) => (a.action === "record" ? { ...a, fields: a.fields.filter((f) => f.id !== (ACT_OUT.dur || "dur")) } : a)) || null;
+  if (RULE_REF.actions) {
+    detCreateOpen();
+    ok(await until(() => dc && dc.ready), "мастер открыт без поля «Сколько»");
+    dcItemToggle(area, true);
+    dcCamToggle(detCams().find((c) => !dcWhy(c, area)).id, true);
+    dcStepGo(dcSteps().findIndex((x) => x.k === "rule"));
+    ok(!("dur" in dc.custom.then[0]) && dc.custom.then[0].minutes === 10, "в записи нет поля «Сколько»");
+    dcRecLen("30");
+    ok(!("dur" in dc.custom.then[0]) && dc.custom.then[0].minutes === 30, "длительность меняется без поля «Сколько»");
+    ok(![...box().querySelectorAll('select[aria-label="Сколько записывать"] option')].some((o) => o.value === "event"), "варианта «пока идёт событие» нет");
+    ok(dcRuleOk(dcTrigs(dcPlan(dcUniverse(), []), [])), "такое правило верно");
+    dcCancel();
+    document.getElementById("confirmOk").click();
+  }
+  RULE_REF.actions = refActs;
+
+  // Запись и тревога доходят до сервера одним правилом на вид
   detCreateOpen();
   ok(await until(() => dc && dc.ready), "мастер открыт для правила с тревогой");
   dcItemToggle(line, true);
