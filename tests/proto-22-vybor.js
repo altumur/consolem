@@ -3,7 +3,7 @@
    В общий набор (tests/ui-*.js) сценарий войдёт при переносе в index.html. */
 // Без чтения кэша до конца: страница работает так, как у пользователя
 window.UI_RAW_CACHE = true;
-UiCheck(async ({ ok, until }) => {
+UiCheck(async ({ ok, until, sleep }) => {
   const tree = () => document.getElementById("tree");
   const rows = () => [...tree().querySelectorAll(".n")];
   const rowNamed = (name) => rows().find((r) => r.querySelector(".nm")?.textContent.trim() === name);
@@ -51,6 +51,50 @@ UiCheck(async ({ ok, until }) => {
   ok(rows().length < inner, "«Свернуть всё внутри» сворачивает ветку");
   treeCollapseAll();
 
+  // «Свернуть всё» и смена вкладки отменяют идущее раскрытие
+  treeExpandAll();
+  treeCollapseAll();
+  await sleep(600);
+  ok(rows().length <= start, "«Свернуть всё» отменяет идущее раскрытие");
+  treeExpandAll();
+  setSlice("arch");
+  const archOpen = open.size;
+  await sleep(600);
+  ok(open.size === archOpen, "смена вкладки отменяет идущее раскрытие");
+  setSlice("cam");
+  ok(rows().length <= start, "раскрытие не попало в память вкладки");
+
+  // Новый домен открыт: сохранённый список знает только закрытые
+  open.delete(dom.id);
+  treeOpenSave();
+  ok(treeOpenBy.get(treeOpenKey()).includes("!" + dom.id), "закрытый домен запомнен");
+  const other = domains[1];
+  treeOpenBy.set(treeOpenKey(), treeOpenBy.get(treeOpenKey()).filter((x) => x !== other.id && x !== "!" + other.id));
+  treeOpenRestore();
+  ok(!open.has(dom.id) && open.has(other.id), "закрытый остался закрытым, неизвестный домен открыт");
+  treeCollapseAll();
+
+  // Переход на другую вкладку не смешивает раскрытие вкладок
+  const detTarget = (await API.get("/devices", { type: "det", limit: 1 })).items[0];
+  await hwEnsure([detTarget.parentId, detTarget.id]);
+  const detFolders = new Set(foldersOfDevice(detTarget.parentId).flatMap((f) => folderPath(f.id).map((x) => x.id)));
+  const camFld = rows().find((r) => r.classList.contains("fld") && shut(r) && !detFolders.has(r.dataset.tid));
+  const camFldId = camFld.dataset.tid;
+  camFld.querySelector(".tw").click();
+  jumpToNode(find(detTarget.id).n);
+  renderTree();
+  treeOpenSave();
+  ok(!(treeOpenBy.get(treeOpenKey()) || []).includes(camFldId), "переход: чужая папка не попала в раскрытие вкладки");
+  setSlice("cam");
+  ok(open.has(camFldId), "переход: вкладка «Камеры» помнит свою папку");
+  treeCollapseAll();
+
+  // Пустой режим выбора переживает смену вкладки
+  setSelMode(true);
+  setSlice("acfa");
+  ok(selMode, "пустой режим выбора остаётся при смене вкладки");
+  setSelMode(false);
+
   // ОПС/СКД: стрелка только у ветки, где есть объекты вкладки или вложенные папки
   setSlice("acfa");
   await until(() => sliceReads.get(sliceReadKey())?.done);
@@ -94,6 +138,28 @@ UiCheck(async ({ ok, until }) => {
   gear();
   ok(/Нарисовать зоны/.test(document.body.textContent), "«Нарисовать зоны» — в карточке выборки");
   ok(/3/.test(document.getElementById("selBar")?.textContent || ""), "панель под деревом показывает число");
+
+  // Очередь зон: конец очереди снимает её отметки, остальные остаются
+  dzFromSel();
+  ok(!!dz && dz.ids.length === 3, "очередь зон из карточки выборки");
+  // Несохранённая зона: строка вне очереди спрашивает и не отмечается
+  await treeExpandAll();
+  const outside = detKindIds().find((id) => !ids.includes(id));
+  const outRow = tree().querySelector(`.n[data-pick="${outside}"]`);
+  ok(!!outRow, "строка вне очереди видна");
+  dz.draft = { shape: "rect" };
+  outRow.click();
+  ok(document.getElementById("confirmTitle").textContent === "Зона не сохранена" && !treeSel.has(outside), "строка вне очереди спрашивает о зоне и не отмечается");
+  closeConfirm();
+  dz.draft = undefined;
+  dzEnd(true);
+  ok(!dz && !selMode && !ids.some((id) => treeSel.has(id)), "конец очереди снимает её отметки");
+  ids.forEach((id) => selChkClick(id));
+  // Удаление детекторов говорит, что пропадёт и что останется
+  confirmDeleteNodes(ids.slice(0, 2), null);
+  const delText = document.getElementById("confirm").textContent;
+  ok(/зонами и настройками/.test(delText) && /записи останутся/.test(delText), "диалог удаления детекторов перечисляет, что пропадёт и что останется");
+  closeConfirm();
 
   // Смена вкладки не теряет отметки
   setSlice("all");

@@ -4988,7 +4988,9 @@ function revealSel(){
     const id=sel,node=find(id)?.n;
     if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return}
     const was=slice,pref=groupBy.all;
-    const look=()=>{treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);renderTree();return!!treeRowOf(sel)};
+    treeOpenSave();
+    // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
+    const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);renderTree();return!!treeRowOf(sel)};
     // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
     const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
       const gw=groupBy[s];
@@ -5149,6 +5151,7 @@ function jumpToNode(n){
   if(n.type==="server"&&group()!=="server"&&sliceGroups().includes("server"))setGroupAll("server");
   if(n.type==="folder"&&group()!=="folder"&&sliceGroups().includes("folder"))setGroupAll("folder");
   treeMatchCache.clear();searchMatchCache.clear();
+  treeOpenFollow();
   sel=n.id;selCtx=null;tab=archSliceTab(n)||"gen";setD(false);expandTo(n.id);archSliceOpen(n);
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
   expandSubtree(n);
@@ -7013,7 +7016,11 @@ const treeOpenBy=new Map();
 function treeOpenOwn(id){return!String(id).startsWith("acc")&&id!==FAV_NODE}
 function treeOpenKey(){return slice+"|"+group()}
 let treeOpenAllShown=false;
-function treeOpenSave(){if(!treeOpenAllShown)treeOpenBy.set(treeOpenKey(),[...open].filter(treeOpenOwn))}
+// Закрытый домен хранится как «!id»: домен, которого при сохранении ещё не было, откроется, как положено новому.
+let treeOpenCur=null,treeExpandGen=0;
+function treeOpenSave(){if(!treeOpenAllShown)treeOpenBy.set(treeOpenCur||treeOpenKey(),[...[...open].filter(treeOpenOwn),...domains.filter(d=>!open.has(d.id)).map(d=>"!"+d.id)])}
+// Срез меняют и переход, и шаг истории: раскрытие прежнего среза остаётся за ним.
+function treeOpenFollow(){if(treeOpenCur&&treeOpenCur!==treeOpenKey()){treeOpenSave();treeOpenRestore()}}
 function treeOpenLoad(){
   try{Object.entries(JSON.parse(localStorage.getItem(TREE_OPEN_LS)||"{}")).forEach(([k,v])=>{if(Array.isArray(v))treeOpenBy.set(k,v)})}catch(e){}
 }
@@ -7022,19 +7029,23 @@ function treeOpenStore(){
   clearTimeout(treeOpenT);
   treeOpenT=setTimeout(()=>{
     if(app!=="hw")return;
+    // Срез сменили в обход treeOpenFollow: то, что сейчас открыто, относится уже к новому срезу
+    treeOpenCur=treeOpenKey();
     treeOpenSave();
     try{localStorage.setItem(TREE_OPEN_LS,JSON.stringify(Object.fromEntries(treeOpenBy)))}catch(e){}
   },400);
 }
 function treeOpenDefault(){
+  treeExpandGen++;
   [...open].filter(treeOpenOwn).forEach(id=>open.delete(id));
   domains.forEach(d=>open.add(d.id));
 }
 function treeOpenRestore(){
   treeOpenAllShown=false;
-  const saved=treeOpenBy.get(treeOpenKey());
+  treeOpenCur=treeOpenKey();
+  const saved=treeOpenBy.get(treeOpenCur);
   treeOpenDefault();
-  if(saved){domains.forEach(d=>open.delete(d.id));saved.forEach(id=>open.add(id))}
+  if(saved)saved.forEach(id=>{if(String(id)[0]==="!")open.delete(String(id).slice(1));else open.add(id)});
   if(sel)expandTo(sel,selCtx);
 }
 function treeCollapseAll(){
@@ -7046,14 +7057,19 @@ function treeCollapseAll(){
 // Ветки читаются по запросу: новые строки появляются после ответа сервера,
 // поэтому раскрываем проходами, пока находятся закрытые строки.
 async function treeExpandRows(scope){
-  const tree=document.getElementById("tree");if(!tree)return;
+  if(!document.getElementById("tree"))return;
+  const gen=treeExpandGen,key=treeOpenCur;
   let idle=0;
-  for(let pass=0;pass<12&&idle<2;pass++){
+  // Проход считается только за новый уровень: пока ветки читаются, ждём ответа, сколько бы он ни шёл
+  for(let pass=0;pass<12&&idle<2;){
+    const tree=document.getElementById("tree");
+    // «Свернуть всё», смена среза или раздела отменяют раскрытие
+    if(!tree||gen!==treeExpandGen||key!==treeOpenCur||app!=="hw")return;
     const closed=scope(tree).filter(r=>r.dataset.tid&&!open.has(r.dataset.tid));
     if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк: остальное раскройте по веткам")}`);return}
-    idle=closed.length?0:idle+1;
+    idle=closed.length||[...treeBr.values()].some(b=>b.busy)?0:idle+1;
     closed.forEach(r=>open.add(r.dataset.tid));
-    if(closed.length)renderTree();
+    if(closed.length){pass++;renderTree()}
     await new Promise(r=>setTimeout(r,120));
   }
 }
@@ -7070,7 +7086,7 @@ function treeExpandBelow(id){
   return treeExpandRows(()=>{const r=treeRowOfId(id);return r?treeRowsBelow(r):[]});
 }
 function treeCollapseBelow(id){
-  closeTreeCtx();
+  closeTreeCtx();treeExpandGen++;
   const r=treeRowOfId(id);if(!r)return;
   treeRowsBelow(r).forEach(x=>{if(x.dataset.tid)open.delete(x.dataset.tid)});
   renderTree();
@@ -7104,7 +7120,7 @@ function setSlice(v){
   treeMatchCache.clear();searchMatchCache.clear();
   // Срезы показывают одни и те же объекты, поэтому выборка переживает смену среза.
   // Вне режима выбора в treeSel лежит только открытый объект: он отметкой не считается.
-  if(!selMode||!treeSel.size){treeSel.clear();treeAnchor=null;selMode=false}
+  if(!selMode){treeSel.clear();treeAnchor=null}
   archTbl.kind="all";open.delete(AS_NOREC);
   keepSelectionInSlice();
   treeOpenRestore();
@@ -7353,8 +7369,9 @@ function bindTreeDbl(){
     clearTimeout(treePickTimer);treePickTimer=null;
     // Галочка — всегда выбор; в режиме выбора и вся строка работает как галочка,
     // раскрытие остаётся на стрелке.
-    if(e.target.closest(".n-chk")){e.stopPropagation();selChkClick(id,ctx);return}
-    if(selMode&&app==="hw"){
+    // Очередь зон: несохранённую зону молча не теряем, галочка сначала спросит, а строка идёт через pick
+    if(e.target.closest(".n-chk")){e.stopPropagation();if(dz)dzAsk(()=>{dz=null;zoneDraw=null;selChkClick(id,ctx)});else selChkClick(id,ctx);return}
+    if(selMode&&app==="hw"&&!dz){
       const f=find(id);
       if(f&&(canMultiPick(f.n)||selDescendants(f.n).length)){selChkClick(id,ctx);return}
     }
@@ -10924,7 +10941,7 @@ function dzStart(rows,back){
   if(!ids.length)return;
   dz={ids,at:0,drawn:0,back};dzGo(0);
 }
-function dzFromSel(){dzStart([...treeSel].map(id=>find(id)).filter(f=>f?.n.type==="det").map(f=>({d:f.n,cam:f.p})))}
+function dzFromSel(){dzStart(bulkScopeNodes().filter(n=>n.type==="det").map(n=>({d:n,cam:find(n.id)?.p})))}
 function dzOn(id){return!!dz&&dz.ids[dz.at]===id}
 function dzGo(i){
   if(!dz)return;
@@ -10956,7 +10973,10 @@ function dzAskPrev(){dzAsk(dzPrev)}
 function dzAskEnd(){dzAsk(dzEnd)}
 // quiet: итог покажет отчёт групповой операции
 function dzEnd(quiet){
-  const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;treeSel.clear();treeAnchor=null;selMode=false;
+  const k=dz?.drawn||0,back=dz?.back,ids=dz?.ids||[];dz=null;zoneDraw=null;
+  // Снимаем только то, что прошло очередь: отмеченное вне её остаётся
+  if(selMode)ids.forEach(id=>treeSel.delete(id));else treeSel.clear();
+  if(!treeSel.size){treeAnchor=null;selMode=false}
   if(!quiet)toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
   if(back)detToCam(back);else detKindPick(null);
 }
@@ -23079,7 +23099,7 @@ function navApply(loc){
   try{
     app=loc.app;sel=loc.sel;tab=loc.tab;slice=loc.slice;selFolder=loc.selFolder;detSel=loc.detSel;
     rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
-    syncViews();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
+    syncViews();treeOpenFollow();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
     // Шаг «выборка» возвращает её состав; шаг объекта при живой выборке
     // открывает объект поверх неё — выборка остаётся.
     if(app==="hw"&&loc.bulk&&loc.bsel){
@@ -25374,6 +25394,8 @@ function confirmDeleteNodes(roots,back,skipped){
     :`${count} ${i18n(plural(count,"объект|объекта|объектов"))}${nvr?` (${i18n("регистраторов")}: ${nvr} — ${i18n("их камеры останутся без родителя")})`:""}`];
   if(cams.length)lines.push(`${i18n("камер")}: ${cams.length}, ${i18n("из них пишут в архив")}: ${rec} — ${i18n("запись остановится, архив останется")}`);
   if(dets)lines.push(`${i18n("детекторов")}: ${dets} — ${i18n("удалятся вместе с правилами")}`);
+  const ownDets=nodes.filter(n=>n.type==="det").length;
+  if(ownDets&&!one)lines.push(`${i18n("детекторов")}: ${ownDets} — ${i18n("вместе с зонами и настройками; камеры и их записи останутся")}`);
   if(used.length)lines.push(`${i18n("правил автоматизации перестанут работать")}: ${used.length} (${used.slice(0,3).map(r=>`«${escHtml(r.name)}»`).join(", ")}${used.length>3?`, ${i18n("и ещё")} ${used.length-3}`:""}) — ${i18n("в них удалённое устройство или область отметятся как удалённые")}`);
   if(fold.size)lines.push(`${i18n("папок, из которых пропадут объекты")}: ${fold.size}`);
   // Версия r<revision> сверяет только строку камеры: об этом пределе форма не молчит
