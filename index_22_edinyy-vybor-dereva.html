@@ -6541,6 +6541,8 @@ async function sliceRead(){
     do{
       const r=await API.get("/devices",{type,cursor,limit:LIM.pageMax});
       if(sliceReads.get(key)!==run)return;
+      // Вкладка не влезла в страницу, а домен больше предела: до конца не дойти, стрелки всё равно останутся
+      if(r.nextCursor&&hwTotal>SLICE_READ_MAX)return;
       await hwEnsure(r.items.map(x=>x.parentId));
       r.items.forEach(hwAddRow);
       for(let i=0;i<r.items.length;i+=LIM.idsMax)await filtPaths({paths:new Map()},r.items.slice(i,i+LIM.idsMax).map(x=>x.id),layout);
