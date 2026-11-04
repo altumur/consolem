@@ -66,6 +66,29 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => arch.length === nArch + 1), "хранилище создано");
   ok(!document.getElementById("bmodal").classList.contains("open") && !draft("arch"), "хранилище: окно закрыто, черновика нет");
 
+  // Хранилище с секретом: после перезагрузки просит его заново и не создаёт без него
+  addArchive(owner.id);
+  const bucketKind = refArchKinds.find((k) => k.address === "bucket");
+  ok(!!bucketKind, "в наборе есть вид с бакетом");
+  if (bucketKind) {
+    anSet("kind", bucketKind.kind);
+    an.name = "Проба";
+    an.vol.secret = "S3-секрет";
+    an.vol.bucket = "b";
+    an.vol.size = an.vol.size || 10;
+    an.step = 3;
+    renderArchNew();
+    const nA = arch.length;
+    wzClose("arch");
+    ok(!draft("arch").includes("S3-секрет"), "секрета хранилища нет в localStorage");
+    delete wzMem.arch;
+    wzResume("arch");
+    ok(an.step === 2 && /заново/.test(document.getElementById("bmFoot").textContent), "после перезагрузки — шаг тома, причина в итоге");
+    createArchive();
+    ok(arch.length === nA, "без секрета не создаётся");
+    wzCancelQuiet("arch");
+  }
+
   // Пользователь: пароль не попадает в браузер и не возвращается из черновика
   goApp("acc");
   accUserDlgOpen();
@@ -101,11 +124,68 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accWzClose();
   wzCancelQuiet("accWiz");
 
+  // Черновик после перезагрузки: секретов нет, мастер не падает
+  accUserDlgOpen();
+  accUdSet("login", "wz-reload");
+  accUdSet("pwd", pwd);
+  wzClose("accUd");
+  delete wzMem.accUd;
+  wzResume("accUd");
+  ok(accUd.pwd === "" && accUd.login === "wz-reload" && !!document.querySelector("#accUdFt .btn"), "пользователь: черновик без пароля открывается");
+  wzCancelQuiet("accUd");
+
+  // Роль: последний шаг проверяет пройденные
+  accWzOpen();
+  accWz.name = accRoles()[0].n;
+  accWz.step = ACC_WZ.length - 1;
+  accWzRender();
+  const nRoles = accRoles().length;
+  accWzNext();
+  ok(accWz?.step === 0 && accRoles().length === nRoles, "роль: занятое имя возвращает на первый шаг, роли не прибавилось");
+  wzCancelQuiet("accWiz");
+
+  // Escape закрывает подтверждение поверх мастера, мастер остаётся
+  accWzOpen();
+  accWz.name = "Проба";
+  accWz.step = 1;
+  accWzRender();
+  wzCancel("accWiz");
+  ok(await until(confirmOn), "роль: отмена спрашивает");
+  esc();
+  ok(!confirmOn() && accWzIsOpen(), "Escape закрыл подтверждение, мастер открыт");
+  wzCancelQuiet("accWiz");
+
+  // Серверы: черновик другого домена не пропадает без вопроса
+  goApp("hw");
+  if (domains.length > 1) {
+    const other = domains[1];
+    pick(d.id);
+    openAddServers(d.id);
+    const f = document.getElementById("wizIps");
+    f.value = "10.9.9.9";
+    ipTextSet(f);
+    wzClose("srv");
+    delete wzMem.srv;
+    ok(!!draft("srv"), "черновик серверов записан");
+    openAddServers(other.id);
+    ok(await until(confirmOn) && !wizOn() && !!draft("srv"), "другой домен: сначала вопрос, черновик цел");
+    await confirmWith(null);
+    ok(await until(wizOn) && wizd.domain === other.id && !(wizd.ipText || "").trim(), "начать заново: новое окно в другом домене");
+    closeWizard();
+    wzDrop("srv");
+  }
+  wzMem.srv = { domain: d.id, ipText: "10.8.8.8", ipBusy: true, ipAdding: true, srvStep: 0, ipPick: new Set() };
+  openAddServers(d.id);
+  ok(wizd.ipText === "10.8.8.8" && !wizd.ipBusy && !wizd.ipAdding, "продолжение: текст на месте, флагов запросов нет");
+  closeWizard();
+  wzDrop("srv");
+
   // Правило: два шага
   goApp("rules");
   ruleNewOpen();
   ok(document.querySelectorAll("#bmBody .dc-st").length === 2, "правило: два шага");
   ruleNewGo(1);
   ok(rnw.step === 1, "правило: второй шаг");
-  closeBulkModal();
+  wzClose("rule");
+  ok(!document.getElementById("bmodal").classList.contains("open"), "правило: крестик закрывает окно");
 });

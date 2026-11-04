@@ -5087,10 +5087,13 @@ function openFindServerByIp(domainId){
 function openAddServers(domainId,toAddress,draft){
   const did=domainId||addContext().domain?.id||domains[0]?.id;
   if(!did)return;
-  openW("server");
+  // Черновик читаем до открытия: пустое окно перезаписало бы его
+  let dr=draft||wzPeek("srv");
+  if(dr&&!domainById(dr.domain)){wzDrop("srv");dr=null}
+  if(!draft&&dr&&dr.domain!==did&&WZD.srv.work(dr)){wzStart("srv",()=>openAddServers(did,toAddress),()=>false);return}
+  openW.inner=true;openW("server");openW.inner=false;
   wizd.domain=did;
-  const dr=draft||wzPeek("srv");
-  if(dr&&dr.domain===did){Object.assign(wizd,dr);delete wzMem.srv}
+  if(dr&&dr.domain===did){Object.assign(wizd,dr,{ipBusy:false,ipAdding:false});delete wzMem.srv}
   delete listQ[srvKey()];resetPage(srvKey());
   wizd.ipFocus=!!toAddress||!unallocDisplayList(did).length;
   wd();
@@ -10417,7 +10420,7 @@ function wzPeek(id){
 function wzDrop(id){delete wzMem[id];try{localStorage.removeItem(wzKey(id))}catch(e){}wzDock()}
 function wzClose(id){
   const d=WZD[id];
-  if(!d){if(id)accDrawerClose(id);else closeWizard();return}
+  if(!d){if(id==="rule")closeBulkModal();else if(id)accDrawerClose(id);else closeWizard();return}
   const s=d.get();
   if(s&&d.work(s)){if(!d.peek)wzMem[id]=s;wzSave(id)}else wzDrop(id);
   d.hide();wzDock();
@@ -10428,6 +10431,7 @@ function wzResume(id){
 }
 function wzCancel(id){
   const d=WZD[id],s=d.get()||wzPeek(id),stop=()=>{d.clear?.();wzDrop(id);d.hide()};
+  if(d.busy?.()){toast("План ещё применяется — дождитесь конца");return}
   if(!s||!d.work(s)){stop();return}
   askConfirm(i18n("Отменить создание?"),i18n(d.lost),"",i18n(d.drop||"Удалить черновик"),stop,{cancelLabel:i18n("Остаться")});
 }
@@ -10457,7 +10461,8 @@ function wzDock(){
     el.innerHTML=`<span class="dc-dock-t"><b>${i18n(d.t)}</b><small>${n>1?`${i18n("Шаг")} ${i+1} ${i18n("из")} ${n}: ${i18n(step)}`:""}${n>1&&sum?" · ":""}${sum}</small></span><button type="button" class="btn s pri" ${onEv("click",["wzResume",id])}>${i18n("Продолжить")}</button><button type="button" class="btn s btn-icon" title="${i18n(d.drop||"Удалить черновик")}" aria-label="${i18n(d.drop||"Удалить черновик")}" ${onEv("click",["wzCancel",id])}>${lu("x")}</button>`;
   });
 }
-window.addEventListener("load",wzDock);
+// Показ идёт на чистых данных: чужой черновик увёл бы его шаги в сторону
+window.addEventListener("load",()=>{if(/[?&]demo\b/.test(location.search))Object.keys(WZD).filter(id=>!WZD[id].peek).forEach(wzDrop);wzDock()});
 window.addEventListener("pagehide",()=>Object.keys(WZD).forEach(wzSave));
 const WZD={
   srv:{t:"Добавление серверов",lost:"Выбранные серверы и введённые адреса пропадут.",
@@ -10468,27 +10473,28 @@ const WZD={
     where:s=>[s.srvStep||0,SRV_STEPS.length,SRV_STEPS[s.srvStep||0].t],
     sum:s=>s.ipPick?.size?`${i18n("выбрано")} ${s.ipPick.size}`:escHtml(locName(domainById(s.domain)||{}))},
   plan:{t:"Добавление устройств",lost:"Строки плана пропадут. Вернуть их можно сразу после отмены, из сообщения внизу.",
-    get:()=>planInDrawer()?addPlan:null,peek:()=>addPlan,hide:()=>closeWizard(),clear:()=>planClear(),
+    get:()=>planInDrawer()?addPlan:null,peek:()=>addPlan,busy:()=>!!addPlan.applying,hide:()=>closeWizard(),clear:()=>planClear(),
     show:()=>planHeadOpen(),work:s=>s.rows.length+s.links.length>0,
     where:()=>[1,DEV_STEPS.length,DEV_STEPS[1].t],sum:s=>`${i18n("в плане")} ${s.rows.length+s.links.length}`},
   arch:{t:"Новое хранилище",lost:"Выбранный вид и настройки хранилища пропадут.",
-    get:()=>an,set:s=>{an=s},hide:()=>{an=null;closeBulkModal()},show:()=>renderArchNew(),
+    get:()=>an,set:s=>{an=s;if(s.needKey&&!s.vol?.secret&&!s.vol?.pass)s.step=Math.min(s.step||0,2)},hide:()=>{an=null;closeBulkModal()},show:()=>{if(app!=="hw")setApp("hw");renderArchNew()},
+    pack:s=>({...s,needKey:!!(s.vol?.secret||s.vol?.pass)}),
     work:s=>!!(s.step||s.name.trim()),
     where:s=>[s.step||0,AN_STEPS.length,AN_STEPS[s.step||0].t],sum:s=>escHtml(s.name.trim()||i18n(archKindName(s.kind)))},
   accWiz:{t:"Новая роль",lost:"Имя, права и назначения роли пропадут.",drop:"Не создавать",
-    get:()=>accWz,set:s=>{accWz=s},hide:()=>accDrawerClose("accWiz"),show:()=>{accDrawer("accWiz","Новая роль");accWzRender()},
+    get:()=>accWz,set:s=>{s.pwd=s.pwd||"";s.ugs=new Set([...s.ugs].filter(id=>accUG(id)));s.assigned=new Set([...s.assigned].filter(id=>accUser(id)));accWz=s},hide:()=>accDrawerClose("accWiz"),show:()=>{accDrawer("accWiz","Новая роль");accWzRender()},
     work:s=>!!(s.step||s.name.trim()),
     where:s=>[s.step,ACC_WZ.length,ACC_WZ[s.step][1]],sum:s=>s.name.trim()?`«${escHtml(s.name.trim())}»`:""},
   accUd:{t:"Новый пользователь",lost:"Заполненные поля и выбранные роли пропадут.",drop:"Не создавать",
-    get:()=>accUd,set:s=>{accUd=s},hide:()=>accDrawerClose("accUd"),show:()=>{accDrawer("accUd","Новый пользователь");accUdRender()},
+    get:()=>accUd,set:s=>{s.pwd=s.pwd||"";s.roles=new Set([...s.roles].filter(id=>accRole(id)));accUd=s},hide:()=>accDrawerClose("accUd"),show:()=>{accDrawer("accUd","Новый пользователь");accUdRender()},
     work:s=>!!(s.step||s.login.trim()||s.uname.trim()),
     where:s=>[s.step,ACC_UD.length,ACC_UD[s.step][1]],sum:s=>escHtml(s.login.trim())},
   accCt:{t:"Новый каталог",lost:"Параметры подключения пропадут.",drop:"Не создавать",
-    get:()=>accCt,set:s=>{accCt=s},hide:()=>accDrawerClose("accCt"),show:()=>{accDrawer("accCt","Добавить каталог");accCtRender()},
+    get:()=>accCt,set:s=>{s.pass=s.pass||"";accCt=s},hide:()=>accDrawerClose("accCt"),show:()=>{accDrawer("accCt","Добавить каталог");accCtRender()},
     work:s=>!!(s.step||s.n.trim()||s.server.trim()),
     where:s=>[s.step,ACC_CT.length,ACC_CT[s.step][1]],sum:s=>escHtml(s.n.trim())},
   accImp:{t:"Импорт пользователей из CSV",lost:"Вставленные строки пропадут.",drop:"Не создавать",
-    get:()=>accIm,set:s=>{accIm=s},hide:()=>accDrawerClose("accImp"),show:()=>{accDrawer("accImp","Импорт пользователей из CSV");accImpRender()},
+    get:()=>accIm,set:s=>{accIm={...s,step:0,res:null}},hide:()=>accDrawerClose("accImp"),show:()=>{accDrawer("accImp","Импорт пользователей из CSV");accImpRender()},
     work:s=>!!s.text.trim(),
     pack:s=>({...s,step:0,res:null}),
     where:s=>[s.step,ACC_IMP.length,ACC_IMP[s.step][1]],sum:s=>escHtml(s.file||"")},
@@ -19247,7 +19253,11 @@ function accWzRender(){
 function accWzNext(){
   const w=accWz,st=ACC_WZ[w.step][0];
   if(accWzBlocked(st)){ACC_WZ_FIELDS[st].forEach(k=>w.tried.add(k));accWzRender();document.querySelector("#accWizBd .fld-err:not(:empty)")?.parentElement?.querySelector("input")?.focus();return}
-  if(st==="plan"){accWzApply();return}
+  if(st==="plan"){
+    const i=ACC_WZ.findIndex(([k])=>accWzBlocked(k));
+    if(i>=0){ACC_WZ_FIELDS[ACC_WZ[i][0]].forEach(k=>w.tried.add(k));w.step=i;accWzRender();return}
+    accWzApply();return;
+  }
   w.step++;accWzRender();
 }
 function accWzRole(){
@@ -19888,7 +19898,7 @@ function accImpApply(){
   accDrawerClose("accImp");accEdited();
   toast(`${i18n("В черновик: создано")} ${A}, ${i18n("обновлено")} ${B}`);
 }
-ESC_LAYERS.splice(1,0,
+ESC_LAYERS.splice(2,0,
   {is:()=>!!document.getElementById("accMenu"),off(){accMenuClose();accRefocus()}},
   {is:accWzIsOpen,off(){}},
   {is:()=>accDrawerOpen("accUd"),off(){}},
@@ -20700,6 +20710,7 @@ function anBlockVol(){
   }
   if(addr!=="disk"||v.mode!=="part")if(!gbOf(v.size))return i18n("Укажите размер в ГБ");
   if(addr==="nas"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Укажите путь и пользователя");
+  if(an.needKey&&!String(v.secret||v.pass||"").trim())return i18n("Введите пароль или секрет заново: в черновике они не хранятся");
   if(addr==="bucket"&&!String(v.bucket||"").trim())return i18n(an.provider==="azure"?"Укажите контейнер":"Укажите бакет");
   if(addr==="bucket"&&an.provider==="minio"&&!String(v.host||"").trim())return i18n("Укажите хост MinIO");
   if(addr==="bucket"&&an.provider==="s3c"&&!String(v.endpoint||"").trim())return i18n("Укажите endpoint");
@@ -20797,7 +20808,8 @@ function volCheck(id){
     .catch(e=>toast(problemText(e)));
 }
 function createArchive(){
-  if(!an||anBlock())return;
+  if(!an||anBlock()||an.busy)return;
+  const was=an;was.busy=true;
   API.post("/archives",anArchive()).then(res=>{
   wzDrop("arch");
   hwVer.set(res.archive.id,res.archive.version);
@@ -20810,7 +20822,7 @@ function createArchive(){
   open.add(a.server||a.domain);expandTo(a.id);archSliceOpen(a);resetTreeSel(a.id);sel=a.id;tab="arch";setD(true);
   toast(v.state==="unfmt"?i18n("Хранилище создано. Раздел не отформатирован — отформатируйте его у тома, когда будете готовы"):i18n("Хранилище создано"));
   paint();revealSel();hwFlashLanding();
-  }).catch(e=>toast(problemText(e)));
+  }).catch(e=>{was.busy=false;toast(problemText(e))});
 }
 function addVolume(archId){
   const a=archById(archId);if(!a)return;
@@ -22865,6 +22877,8 @@ function openW(preset){
   const c=addContext(),n=c.node;
   const existing=n?.type==="server"&&isUnallocated(n.id)?n.id:null;
   const serverOnly=preset==="server"||n?.type==="domain"||n?.type==="unalloc";
+  // Все входы в окно серверов идут через openAddServers: там черновик
+  if(serverOnly&&!openW.inner){openAddServers(c.domain?.id||(n?.type==="domain"?n.id:null)||(n?.type==="unalloc"?n.domainId:null));return}
   const unit=preset==="unit";
   const deviceWizard=!serverOnly&&preset!=="svc"&&!unit&&c.view!=="sys";
   wizd=unit?{mode:null,cat:null,lockedCat:"acfa",type:null,view:"acfa",unit:true,domain:nodeDomainId(n)||domains[0]?.id,parentId:n?.id||null}:deviceWizard?initDeviceWizard(c):{
@@ -23031,7 +23045,7 @@ async function addProbedServers(okIds){
   if(n||bad)toast(bad?`${i18n("Добавлено серверов")}: ${n} · ${i18n("не добавлено")}: ${bad}`:n===1?"Сервер добавлен":`Добавлено серверов: ${n}`);
   release();
   // Всё добавилось — мастеру больше нечего показать. Что не добавилось, остаётся на проверке с причиной
-  if(n&&!bad&&wizLive(w)){wzDrop("srv");closeWizard();paint()}
+  if(n&&!bad){wzDrop("srv");if(wizLive(w)){closeWizard();paint()}}
 }
 function srvAddrHtml(){
   if(!can("probeServers"))return"";
@@ -23140,6 +23154,8 @@ function unitStepHtml(){
 function unitAdd(){
   if(!wizd.parentId){toast("Нет подходящего родительского объекта");return}
   const parent=find(wizd.parentId).n,name=document.getElementById("wizName")?.value.trim()||"Новый объект",path=document.getElementById("wizPath")?.value.trim(),model=document.getElementById("wizUnitModel")?.value;
+  if(wizd.adding)return;
+  const w=wizd;w.adding=true;
   const node={id:"obj"+Date.now(),type:wizd.type,name,online:true,devices:[]};
   if(path)node.path=path;
   if(model)node.model=model;
@@ -23147,7 +23163,7 @@ function unitAdd(){
     if(!res.done.length){toast(problemText(res.failed[0]?.code));return}
     open.add(parent.id);sel=res.done[0].devices[0].id;tab="gen";treeMatchCache.clear();searchMatchCache.clear();
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
-  }).catch(e=>toast(problemText(e)));
+  }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
 function wizardTitle(){
   if(wizd.unit)return"Добавить единицу СКУД";
@@ -23235,6 +23251,8 @@ function wnx(){
   const s=svcFlow?domains.flatMap(d=>d.servers).find(x=>x.id===wizd.server):deviceTarget();
   if(!s){toast(svcFlow?"Выберите сервер":"Выберите папку");return}
   if(needsParent(wizd.type)&&!wizd.parentId){toast("Нет подходящего родительского объекта");return}
+  if(wizd.adding)return;
+  const w=wizd;w.adding=true;
   const rawType=wizd.type,type=rawType.startsWith("ipsrv-")?"ipsrv":rawType,subtype=rawType.startsWith("ipsrv-")?rawType.slice(6):null;
   const name=(document.getElementById("wizName")||{}).value?.trim()||"Новый объект";
   const id="obj"+Date.now(),node={id,type,name,online:true,devices:[]};
@@ -23252,7 +23270,7 @@ function wnx(){
     const nid=res.done[0].devices[0].id;
     open.add(parent.id);sel=nid;tab="gen";treeMatchCache.clear();searchMatchCache.clear();
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
-  }).catch(e=>toast(problemText(e)));
+  }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
   const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI};
