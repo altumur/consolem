@@ -1649,6 +1649,15 @@ html[data-theme="light"] .rs-btn:hover{background:var(--one-control-hover)}
 html[data-theme="light"] .n-chk{border-color:var(--one-border)}
 .n-chk.dis{opacity:.35;cursor:not-allowed}
 .n-chk.n-chk-ph{visibility:hidden;pointer-events:none}
+/* На строках без устройств среза галочка ведёт себя как на остальных: видна при наведении и в режиме выбора */
+.tree .n-slice-empty>.n-chk{opacity:0}
+.tree .n-slice-empty:hover>.n-chk{opacity:.55}
+.tree.selmode .n-slice-empty>.n-chk,.tree .n-slice-empty>.n-chk.on,.tree .n-slice-empty>.n-chk.part{opacity:1}
+.ph-tools{margin-left:auto;display:inline-flex;align-items:center;gap:2px;flex:none}
+.ph-tool{width:26px;height:26px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--mu);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.ph-tool:hover{background:var(--one-control-hover);color:var(--tx)}
+.sel-here{font-size:11.5px;color:var(--mu);white-space:nowrap}
+table.as-tbl th.ts-td,table.as-tbl td.ts-td{width:30px;padding-right:0}
 .tree.selmode .n-fav,.tree.selmode .n-menu{visibility:hidden;pointer-events:none}
 .n.busy>*{opacity:.6}
 .n.busy>.busy-chip{opacity:1}
@@ -4668,6 +4677,8 @@ function isSignalOnly(n){
 function canToggleEnabled(n){
   return n&&!["domain","server","unalloc","det"].includes(n.type);
 }
+// В выборке детекторы включают и выключают вместе с остальными: своего переключателя у них в строке нет, а действие есть.
+function bulkCanToggle(n){return canToggleEnabled(n)||n?.type==="det"}
 function hasNoSignal(n){
   if(!n||n.online!==false)return false;
   if(n.type==="server"&&isUnallocated(n.id))return false;
@@ -4880,7 +4891,7 @@ function hasTreeKids(n){return treeKids(n).length>0}
 const sliceBranchCounts=new Map();
 function hasSliceContext(){return["cam","acfa","arch","det"].includes(slice)}
 function sliceParentCount(id){return sliceBranchCounts.get(id)?.size||0}
-function sliceParentClass(id){return hasSliceContext()&&!sliceParentCount(id)?" n-slice-empty":""}
+function sliceParentClass(id){return hasSliceContext()&&!sliceParentCount(id)&&!treeUnread(id)?" n-slice-empty":""}
 function retainEmptySliceParents(){return hasSliceContext()&&!qval()&&!typeFilts.size&&!statusFilts.size}
 function detSliceHit(n,p,q){return n.type==="det"&&(matchesSearch(n,q)||(p?.type==="camera"&&matchesSearch(p,q)))}
 function prepareSliceBranches(){
@@ -4906,12 +4917,6 @@ function prepareSliceBranches(){
   if(slice==="cam")servers.forEach(s=>gpuCameras(s.id).forEach(({cam})=>{
     if(selfInView(cam)&&matchesSearch(cam,q))add(gpuId(s.id),cam.id);
   }));
-}
-function expandSliceBranches(){
-  if(!hasSliceContext())return;
-  prepareSliceBranches();
-  if(slice==="arch"){scopedDomains().forEach(d=>open.add(d.id));return}
-  sliceBranchCounts.forEach((targets,id)=>{if(targets.size)open.add(id)});
 }
 function addCtx(){return srv(sel)}
 function expandTo(id,ctx){
@@ -5659,6 +5664,9 @@ function selShownIn(x,cc){return treeSel.has(x.id)}
 // GPU сервера — их галочка отмечает всё, что в них лежит.
 const NOT_PICKABLE=new Set(["unalloc","gpu","norec","nofolder","found","founddev"]);
 function canMultiPick(n){return!!n&&!NOT_PICKABLE.has(n.type)}
+// Что отмечает сама строка дерева. В «Детекторах» работают с детекторами: домен,
+// папка и камера там только отмечают детекторы, что под ними.
+function selRowPick(n){return canMultiPick(n)&&!(slice==="det"&&app==="hw"&&n.type!=="det")}
 function treeRowHi(id,ctx){
   const on=sel===id&&sameCtx(ctx),mark=selShownAt(id,ctx);
   if(on&&mark)return"on mark";
@@ -5674,13 +5682,13 @@ function resetTreeSel(id,ctx){
 }
 function visibleMultiIds(){
   return[...document.querySelectorAll("#tree .n[data-pick]")].map(el=>el.dataset.pick).filter(id=>{
-    const f=find(id);return f&&canMultiPick(f.n);
+    const f=find(id);return f&&selRowPick(f.n);
   });
 }
 // Диапазон — по строкам, а не по id: камера может стоять в дереве дважды,
 // и галочка встаёт на первое её вхождение, попавшее в диапазон.
 function applyShiftRange(id,ctx){
-  const rows=[...document.querySelectorAll("#tree .n[data-pick]")].filter(el=>{const f=find(el.dataset.pick);return f&&canMultiPick(f.n)});
+  const rows=[...document.querySelectorAll("#tree .n[data-pick]")].filter(el=>{const f=find(el.dataset.pick);return f&&selRowPick(f.n)});
   const ids=rows.map(el=>el.dataset.pick);
   const at=(x,c)=>{const i=rows.findIndex(el=>el.dataset.pick===x&&(el.dataset.ctx||null)===(c||null));return i<0?ids.indexOf(x):i};
   let from=treeAnchor&&ids.includes(treeAnchor)?treeAnchor:null;
@@ -6414,6 +6422,7 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
   if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();detHostMark();renderSelBar();
+  if(app==="hw")treeOpenStore();
   if(app==="hw"){treeNeed();filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
 }
@@ -6956,7 +6965,99 @@ function panelHeadHtml(){
   </div><div class="ph-row">
     <button type="button" class="ph-switch" id="viewBtn" role="switch" aria-checked="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}><span>${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
+    <span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
+      <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
+      <button type="button" class="ph-tool" id="treeExpandBtn" title="${i18n("Развернуть всё")}" aria-label="${i18n("Развернуть всё")}" ${onEv("click",["treeExpandAll"])}>${TREE_IC.open}</button>
+      <button type="button" class="ph-tool" id="treeRevealBtn" title="${i18n("Показать открытый объект в дереве")}" aria-label="${i18n("Показать открытый объект в дереве")}" ${onEv("click",["treeReveal"])}>${TREE_IC.here}</button>
+    </span>
   </div></div>`;
+}
+// ── Раскрытие дерева ─────────────────────────────────────────────────────
+// Дерево открывается коротким: домены и их первый уровень. У каждого среза и
+// раскладки своё раскрытие; оно хранится в браузере и переживает перезагрузку.
+const TREE_OPEN_LS="consolem.treeOpen",TREE_EXPAND_MAX=3000;
+const TREE_IC={shut:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>`,open:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>`,here:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>`};
+const treeOpenBy=new Map();
+function treeOpenOwn(id){return!String(id).startsWith("acc")&&id!==FAV_NODE}
+function treeOpenKey(){return slice+"|"+group()}
+let treeOpenAllShown=false;
+function treeOpenSave(){if(!treeOpenAllShown)treeOpenBy.set(treeOpenKey(),[...open].filter(treeOpenOwn))}
+function treeOpenLoad(){
+  try{Object.entries(JSON.parse(localStorage.getItem(TREE_OPEN_LS)||"{}")).forEach(([k,v])=>{if(Array.isArray(v))treeOpenBy.set(k,v)})}catch(e){}
+}
+let treeOpenT=0;
+function treeOpenStore(){
+  clearTimeout(treeOpenT);
+  treeOpenT=setTimeout(()=>{
+    if(app!=="hw")return;
+    treeOpenSave();
+    try{localStorage.setItem(TREE_OPEN_LS,JSON.stringify(Object.fromEntries(treeOpenBy)))}catch(e){}
+  },400);
+}
+function treeOpenDefault(){
+  [...open].filter(treeOpenOwn).forEach(id=>open.delete(id));
+  domains.forEach(d=>open.add(d.id));
+}
+function treeOpenRestore(){
+  treeOpenAllShown=false;
+  const saved=treeOpenBy.get(treeOpenKey());
+  treeOpenDefault();
+  if(saved){domains.forEach(d=>open.delete(d.id));saved.forEach(id=>open.add(id))}
+  if(sel)expandTo(sel,selCtx);
+}
+function treeCollapseAll(){
+  treeOpenAllShown=false;
+  treeOpenDefault();
+  renderTree();
+  const el=document.getElementById("tree");if(el)el.scrollTop=0;
+}
+// Ветки читаются по запросу: новые строки появляются после ответа сервера,
+// поэтому раскрываем проходами, пока находятся закрытые строки.
+async function treeExpandRows(scope){
+  const tree=document.getElementById("tree");if(!tree)return;
+  let idle=0;
+  for(let pass=0;pass<12&&idle<2;pass++){
+    const closed=scope(tree).filter(r=>r.dataset.tid&&!open.has(r.dataset.tid));
+    if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк: остальное раскройте по веткам")}`);return}
+    idle=closed.length?0:idle+1;
+    closed.forEach(r=>open.add(r.dataset.tid));
+    if(closed.length)renderTree();
+    await new Promise(r=>setTimeout(r,120));
+  }
+}
+function treeExpandAll(){treeOpenAllShown=true;return treeExpandRows(t=>[...t.querySelectorAll(".n")])}
+// Строки внутри строки: идут за ней, пока уровень больше её уровня.
+function treeRowsBelow(row){
+  const out=[],lv=rowLevel(row);
+  for(let x=row.nextElementSibling;x&&(!x.classList.contains("n")||rowLevel(x)>lv);x=x.nextElementSibling)if(x.classList.contains("n"))out.push(x);
+  return out;
+}
+function treeRowOfId(id){return document.querySelector(`#tree .n[data-tid="${CSS.escape(id)}"]`)}
+function treeExpandBelow(id){
+  closeTreeCtx();open.add(id);renderTree();
+  return treeExpandRows(()=>{const r=treeRowOfId(id);return r?treeRowsBelow(r):[]});
+}
+function treeCollapseBelow(id){
+  closeTreeCtx();
+  const r=treeRowOfId(id);if(!r)return;
+  treeRowsBelow(r).forEach(x=>{if(x.dataset.tid)open.delete(x.dataset.tid)});
+  renderTree();
+}
+// «*» — раскрыть соседей открытой строки, как в шаблоне Tree View из WAI-ARIA.
+function treeExpandSiblings(){
+  const rows=[...document.querySelectorAll("#tree .n")],cur=document.querySelector("#tree .n.on");if(!cur)return;
+  const lv=rowLevel(cur),i=rows.indexOf(cur);
+  let a=i;while(a>0&&rowLevel(rows[a-1])>=lv)a--;
+  let b=i;while(b<rows.length-1&&rowLevel(rows[b+1])>=lv)b++;
+  rows.slice(a,b+1).forEach(r=>{if(rowLevel(r)===lv&&r.dataset.tid)open.add(r.dataset.tid)});
+  renderTree();
+}
+function treeReveal(){
+  if(!find(sel))return;
+  expandTo(sel,selCtx);renderTree();revealSel();
+  const q=`#tree .n[data-pick="${sel}"]`;
+  const row=(selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`))||document.querySelector(q);
+  if(row){row.scrollIntoView({block:"center"});accFlash(()=>[row],true)}
 }
 function toggleFolders(){setGroup(group()==="folder"?sliceGroups().find(g=>g!=="folder"):"folder")}
 function setSlice(v){
@@ -6964,13 +7065,17 @@ function setSlice(v){
   // ни один. Такой вызов приходит только из старой ссылки — игнорируем.
   v=normSlice(v);
   if(!SLICE_GROUPS[v]||slice===v)return;
+  treeOpenSave();
   slice=v;syncViews();
   // При смене среза сохраняем запрос, поля поиска и статус. Типы у каждого среза свои — их снимаем.
   typeFilts.clear();filtPop=false;closeDomainPop();typesExpanded=false;tab="gen";
-  treeMatchCache.clear();searchMatchCache.clear();treeSel.clear();treeAnchor=null;
+  treeMatchCache.clear();searchMatchCache.clear();
+  // Срезы показывают одни и те же объекты, поэтому выборка переживает смену среза.
+  // Вне режима выбора в treeSel лежит только открытый объект: он отметкой не считается.
+  if(!selMode||!treeSel.size){treeSel.clear();treeAnchor=null;selMode=false}
   archTbl.kind="all";open.delete(AS_NOREC);
-  expandSliceBranches();
   keepSelectionInSlice();
+  treeOpenRestore();
   // Прежний поиск относится к прежнему срезу: шапка не должна нарисоваться с его счётом
   filtSync();
   tab=archSliceTab(find(sel)?.n)||tab;
@@ -6979,12 +7084,13 @@ function setSlice(v){
 }
 function setGroup(g){
   if(!sliceGroups().includes(g)||group()===g)return;
+  treeOpenSave();
   setGroupAll(g);
   // В другой группировке прежних строк нет — отметки встают на основные вхождения
   selWhere.forEach((_,k)=>selWhere.set(k,null));
   treeMatchCache.clear();searchMatchCache.clear();
-  expandSliceBranches();
   keepSelectionInSlice();
+  treeOpenRestore();
   aside();gear();
 }
 // Выбранный объект переживает смену осей, пока он в них существует.
@@ -7196,7 +7302,7 @@ function bindTreeDbl(){
     const row=e.target.closest(".n[data-pick]");
     if(!row)return;
     const id=row.dataset.pick,f=find(id);
-    if(!f||!canMultiPick(f.n))return;
+    if(!f||!selRowPick(f.n))return;
     e.preventDefault();
     clearTimeout(treePickTimer);treePickTimer=null;
     pick(id,{range:e.shiftKey,additive:!e.shiftKey&&(e.ctrlKey||e.metaKey),ctx:row.dataset.ctx});
@@ -7206,6 +7312,9 @@ function bindTreeDbl(){
     if(e.target.closest(".n-add"))return;
     if(e.target.closest(".nm-inp"))return;
     if(e.shiftKey||e.ctrlKey||e.metaKey)return;
+    // Строка вида детекторов: сама объектом не является, её галочка отмечает детекторы вида.
+    const kr=e.target.closest(".n[data-detk]");
+    if(kr){const k=kr.dataset.detk==="*"?null:kr.dataset.detk;if(selMode||e.target.closest(".n-chk"))detKindChk(k);else detKindPick(k);return}
     const row=e.target.closest(".n[data-pick]");
     if(!row)return;
     const id=row.dataset.pick,ctx=row.dataset.ctx;
@@ -7529,6 +7638,12 @@ function openTreeCtx(n,xy){
     if(rulePresetFor(n)){
       if(main.length)main.push(tctxSep());
       main.push(tctxItem(i18n(n.type==="relay"?"Создать правило с этим реле…":"Создать правило по событию…"),`closeTreeCtx();ruleFromDevice('${n.id}')`));
+    }
+    const treeId=[...document.querySelectorAll(`#tree .n[data-pick="${n.id}"][data-tid]`)][0]?.dataset.tid;
+    if(treeId){
+      if(main.length)main.push(tctxSep());
+      main.push(tctxItem(i18n("Развернуть всё внутри"),`treeExpandBelow('${treeId}')`));
+      main.push(tctxItem(i18n("Свернуть всё внутри"),`treeCollapseBelow('${treeId}')`));
     }
     if(main.length)main.push(tctxSep());
     main.push(tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${n.id}')`,tctxNewTabIcon()));
@@ -8115,18 +8230,20 @@ function archTableCard(n){
     return card(title,`${all.length||statusFilts.size?chips:""}<p class="sub">${i18n(why)}</p>`);
   }
   const shown=[];
-  const head=`<thead><tr>${archThHtml("name","Хранилище")}${archThHtml("owner","Владелец")}${archThHtml("used","Занято")}${archThHtml("days","Срок",1)}${archThHtml("cams","Камер",1)}${archThHtml("state","Состояние")}</tr></thead>`;
+  const tsKey="astor:"+n.id;
+  const head=()=>`<thead><tr><th class="ts-td">${tsHead(tsKey,shown.map(a=>a.id),items.map(a=>a.id))}</th>${archThHtml("name","Хранилище")}${archThHtml("owner","Владелец")}${archThHtml("used","Занято")}${archThHtml("days","Срок",1)}${archThHtml("cams","Камер",1)}${archThHtml("state","Состояние")}</tr></thead>`;
   const html=listCard({
     key:"astor:"+n.id,
     title,
     items,
     text:a=>[locName(a),locName(archOwner(a)||{name:""}),archKindTag(a),...archVols(a).map(v=>v.disk)],
     mid:()=>chips,
-    wrap:rows=>`<table class="as-tbl">${head}<tbody>${rows}</tbody></table>`,
+    wrap:rows=>{const th=head();return`${tsBanner(tsKey)}<table class="as-tbl">${th}<tbody>${rows}</tbody></table>`},
     row:a=>{
       shown.push(a);
       const u=archUsedPct(a);
-      return`<tr tabindex="0" ${onEv("click",["pick",`${a.id}`])} ${onEv("keydown",["archRowKey",`${a.id}`,onEv.event])}>
+      return`<tr tabindex="0" class="${tsOn(a.id)?"ts-on":""}" ${onEv("click",["pick",`${a.id}`])} ${onEv("keydown",["archRowKey",`${a.id}`,onEv.event])}>
+        <td class="ts-td">${tsChk(a.id,locName(a))}</td>
         <td class="as-nm"><span class="as-name" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${archIcon(a)}<span>${escHtml(locName(a))}</span></span></td>
         <td title="${escHtml(locName(archOwner(a)||{name:""}))}">${archOwnerCell(a,n)}</td>
         <td><span class="as-use"><span class="as-bar ${u>=90?"bad":u>=75?"warn":""}"><i style="width:${u}%"></i></span><span class="as-num">${u}% ${i18n("из")} ${archSize(a)}</span></span></td>
@@ -10059,7 +10176,7 @@ function camDetectorsHtml(n){
 // ── Срез «Детекторы»: главный объект — детектор ──────────────────────────────
 // Строка перечня (DeviceRow) не называет вид, зону и модель камеры, поэтому список читает полные записи
 // детекторов и их камер; на большом домене это много запросов (нужен запрос к API).
-const dl={f:{},more:new Set(),sort:"",dir:1,kind:null,sel:new Set()};
+const dl={f:{},more:new Set(),sort:"",dir:1,kind:null};
 let detLoadState=0;
 async function detLoad(){
   if(detLoadState)return;
@@ -10078,7 +10195,7 @@ async function detLoad(){
 // Строка дерева или список: домен, папка и группа дерева — места, детектор и камера — объекты
 function detListOn(){return app==="hw"&&slice==="det"&&["domain","server","unalloc","folder","nofolder","norec"].includes(find(sel)?.n?.type)}
 function detEnter(){
-  dl.kind=null;dl.sel.clear();
+  dl.kind=null;
   if(find(sel)?.n?.type==="det")return;
   const d=scopedDomains()[0];if(d)sel=d.id;
 }
@@ -10123,8 +10240,7 @@ function detScope(){
   });
 }
 function detFound(scope){const f=detF();return scope.filter(x=>facetHit(DL_DIMS,x,f))}
-// Отметки сбрасываются: действия панели не должны задеть строки, которых не видно
-function detFacetPaint(){dl.sel.clear();const snap=bulkScopeSnap();aside();gear();bulkScopeFlip(snap)}
+function detFacetPaint(){const snap=bulkScopeSnap();aside();gear();bulkScopeFlip(snap)}
 function detFacet(d,v){
   if(d==="kind")dl.kind=dl.kind===v?null:v;
   else if(dl.f[d]===v)delete dl.f[d];else dl.f[d]=v;
@@ -10145,9 +10261,6 @@ function detSorted(rows){
   const fn=DL_SORT[detSortKey()],cmp=(a,b)=>a.localeCompare(b,"ru",{numeric:true});
   return rows.slice().sort((a,b)=>dl.dir*cmp(fn(a),fn(b))||cmp(locName(a.d),locName(b.d)));
 }
-function detSelSet(ids,on){ids.forEach(id=>{if(on)dl.sel.add(id);else dl.sel.delete(id)});gear()}
-function detSelClear(){dl.sel.clear();gear()}
-function detRowClick(id){detSelSet([id],!dl.sel.has(id))}
 // back — камера, с вкладки которой пришли: ссылка «назад» в карточке ведёт туда, а не в список
 let detBackCam=null;
 function detOpen(id,back){
@@ -10172,34 +10285,6 @@ function detBackHtml(cam){
   const text=detBackIsCam(cam)?`${i18n("Детекторы камеры")} «${escHtml(locName(cam))}»`:dl.kind?`${i18n("Детекторы")}: ${escHtml(dl.kind)}`:i18n("Все детекторы");
   return`<button type="button" class="lk dl-back" ${onEv("click",["detBack"])}>${lu("chevron-left",14)}${text}</button>`;
 }
-function detSelNodes(){return[...dl.sel].map(id=>find(id)?.n).filter(Boolean)}
-function detSetEnabled(on){
-  const nodes=detSelNodes().filter(n=>(n.enabled!==false)!==on);
-  if(!nodes.length){toast(on?"Выбранные детекторы уже включены":"Выбранные детекторы уже выключены");return}
-  devicesMutate(nodes,()=>nodes.forEach(n=>{n.enabled=on})).then(res=>{
-    toast(res.failed.length?`${i18n("Готово")}: ${res.done.length}, ${i18n("отказ")}: ${res.failed.length}`:`${i18n(on?"Включено":"Выключено")}: ${res.done.length}`);
-    aside();gear();
-  }).catch(e=>toast(problemText(e)));
-}
-function detDeleteSel(){
-  const ids=[...dl.sel].filter(id=>find(id)&&!pendingDelHas(id)),k=ids.length;if(!k)return;
-  const word=`${k} ${i18n(plural(k,"детектор|детектора|детекторов"))}`;
-  askConfirm("Удалить детекторы?",`${i18n("Будет удалено")}: ${word}, ${i18n("с их зонами и настройками")}.`,i18n("Останутся камеры и их записи. После подтверждения будет отсчёт с кнопкой «Отменить»."),i18n("Удалить"),()=>{dl.sel.clear();scheduleDelete(ids,{label:word})},{typeCount:k});
-}
-function detBarHtml(found){
-  const k=dl.sel.size,dis=k?"":`disabled title="${i18n("Сначала выберите детекторы")}"`;
-  return`<div class="dl-bar">
-    <span class="dl-bar-n">${k?`${i18n("Выбрано")}: <b>${k}</b>`:i18n("Ничего не выбрано")}</span>
-    <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выберите одну строку")}"`} ${onEv("click",["detOpen",[...dl.sel][0]||""])}>${i18n("Открыть")}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["detSetEnabled",true])}>${i18n("Включить")}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["detSetEnabled",false])}>${i18n("Выключить")}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["dzFromSel"])}>${i18n("Нарисовать зоны")}</button>
-    <button type="button" class="btn s" ${dis} ${onEv("click",["detDeleteSel"])}>${i18n("Удалить")}</button>
-    ${k?`<button type="button" class="lk" ${onEv("click",["detSelClear"])}>${i18n("Снять выбор")}</button>`:""}
-    <span class="tfoot-gap"></span>
-    <span class="dl-bar-n">${i18n("Показано")}: ${found.length}</span>
-  </div>`;
-}
 // В узкой колонке — одно состояние, самое важное
 function detStateWord(d){
   const st=nodeStatus(d);
@@ -10207,9 +10292,9 @@ function detStateWord(d){
 }
 function detStateHtml(d){return`<span class="bd ${detStateWord(d)===i18n("Работает")?"":"off"}">${detStateWord(d)}</span>`}
 function detRowHtml(x){
-  const{d,cam}=x,id=d.id,name=locName(d),on=dl.sel.has(id),gone=pendingDelHas(id),noLine=detNeedsLine(d);
-  return`<tr class="gtbl-r dl-r ${on?"on":""} ${d.enabled===false?"off":""}" ${onEv("click",["detRowClick",`${id}`])}>
-    <td class="lan-chk"><input type="checkbox" ${on?"checked":""} ${gone?"disabled":""} aria-label="${escHtml(i18n("Отметить")+" "+name)}" ${onEv("click",onEv.stop)} ${onEv("change",["detSelSet",[id],onEv.checked])}></td>
+  const{d,cam}=x,id=d.id,name=locName(d),on=tsOn(id),gone=pendingDelHas(id),noLine=detNeedsLine(d);
+  return`<tr class="gtbl-r dl-r ${on?"on ts-on":""} ${d.enabled===false?"off":""}" ${onEv("click",["detOpen",`${id}`])}>
+    <td class="lan-chk">${tsChk(id,name)}</td>
     ${detCols().map(c=>({
       name:`<td><span class="dl-nm">${ic("det")}<button type="button" class="lk dl-link" title="${escHtml(name)}" ${onEv("click",onEv.stop,["detOpen",`${id}`])}>${escHtml(name)}</button></span></td>`,
       kind:`<td>${escHtml(detKindLabel(d,cam))}</td>`,
@@ -10222,26 +10307,40 @@ function detRowHtml(x){
 }
 function detListHtml(){
   const add=`<button type="button" class="btn pri" ${onEv("click",["detCreateOpen"])}>${lu("plus")}${i18n(dc||dcPeek()?"Продолжить создание":"Добавить детекторы")}</button>`;
-  const head=mainHd("",`${i18n("Детекторы")}${dl.kind?`<span class="dl-ti-k"> · ${escHtml(dl.kind)}</span>`:""}`,"","",add);
+  const head=mainHd(bulkPeekCrumbHtml(),`${i18n("Детекторы")}${dl.kind?`<span class="dl-ti-k"> · ${escHtml(dl.kind)}</span>`:""}`,"","",add);
   if(detLoadState<2)return head+`<div class="sc sub">${i18n("Загрузка…")}</div>`;
   const scope=detScope(),found=detFound(scope),f=detF(),on=Object.values(f).some(Boolean);
-  const seen=new Set(found.map(x=>x.d.id));[...dl.sel].forEach(id=>{if(!seen.has(id))dl.sel.delete(id)});
   if(!detRows().length)return head+`<div class="sc"><div class="fl-empty"><div class="fl-empty-ic">${ic("det")}</div><p>${i18n("Детекторов пока нет. Добавьте их сразу на нужные камеры.")}</p><div class="fl-empty-act">${add}</div></div></div>`;
   const facets=facetRowsHtml(DL_DIMS,scope,f,"detFacet",dl.more,"detFacetMore");
   const said=DL_DIMS.filter(([d])=>f[d]).map(([d,,,lab])=>lab?lab(f[d]):f[d]).join(" · ");
-  const body=detSorted(found).map(detRowHtml).join("");
+  const sorted=detSorted(found),body=sorted.map(detRowHtml).join(""),rowIds=sorted.map(x=>x.d.id),chkHead=tsHead("dets",rowIds,rowIds);
   requestAnimationFrame(()=>{
     const c=document.querySelector('[data-slice="det"] .ph-cnt');if(c)c.textContent=sliceCountText("det");
   });
   return head+`<div class="sc"><div class="dl-tools">${listSearchHtml("dets","Имя, вид, камера или модель…","list")}</div>
     <div class="bk-sum bk-scope"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" data-fk="all" class="stchip ${on?"":"on"}" ${onEv("click",["detFacetClear"])}><span class="stchip-lab">${i18n("все")}</span><span class="stchip-cnt">${scope.length}</span></button>${facets?`<span class="sub bk-scope-or" data-fk="or">${i18n("или уточните")}:</span>`:""}</div>${facets}${on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Показано")} <b>${found.length} ${i18n("из")} ${scope.length}</b>: ${escHtml(said)}</div>`:""}</div>
-    ${detBarHtml(found)}
-    <div class="gtbl gtbl-cams-wrap"><table class="gtbl-cams dl-tbl"><thead><tr class="gtbl-h"><th class="dl-c-chk"></th>${detCols().map(c=>{const on=detSortKey()===c,[l,cl]=DL_COL[c];return`<th class="lan-th ${cl||""} ${on?"on":""}" aria-sort="${on?(dl.dir>0?"ascending":"descending"):"none"}" ${onEv("click",["detSort",`${c}`])}><span class="gtbl-th-txt">${i18n(l)}${on?lu(dl.dir>0?"arrow-up":"arrow-down",12):""}</span></th>`}).join("")}</tr></thead>
+    ${tsBanner("dets")}
+    <div class="gtbl gtbl-cams-wrap"><table class="gtbl-cams dl-tbl"><thead><tr class="gtbl-h"><th class="dl-c-chk lan-chk">${chkHead}</th>${detCols().map(c=>{const on=detSortKey()===c,[l,cl]=DL_COL[c];return`<th class="lan-th ${cl||""} ${on?"on":""}" aria-sort="${on?(dl.dir>0?"ascending":"descending"):"none"}" ${onEv("click",["detSort",`${c}`])}><span class="gtbl-th-txt">${i18n(l)}${on?lu(dl.dir>0?"arrow-up":"arrow-down",12):""}</span></th>`}).join("")}</tr></thead>
     <tbody>${body||`<tr><td class="empty" colspan="${detCols().length+1}">${i18n("Ничего не найдено")}</td></tr>`}</tbody></table></div></div>`;
 }
 // Дерево среза: виды детекторов, под ними детекторы. Камера подписана рядом с именем
+function detKindIds(k){
+  const q=qval();
+  return detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q)&&(!k||detKindLabel(x.d,x.cam)===k)&&!blockedId(x.d.id)).map(x=>x.d.id);
+}
+// Галочка вида — как галочка папки: отмечает всё, что под ней.
+function detKindChk(k){
+  const ids=detKindIds(k);if(!ids.length){toast("Здесь нечего отметить");return}
+  if(!selMode){treeSel.clear();treeAnchor=null}
+  selMode=true;
+  const all=ids.every(id=>treeSel.has(id));
+  ids.forEach(id=>{if(all)treeSel.delete(id);else treeSel.add(id,null)});
+  if(k&&!all)open.add("detk:"+k);
+  treeAnchor=ids[0];
+  afterSelChange(all?null:ids[0]);
+}
 function detKindPick(k){
-  dl.kind=k;dl.sel.clear();
+  dl.kind=k;bulkPeek=bulkActive();
   const d=scopedDomains()[0];
   if(d&&find(sel)?.n?.type!=="domain")pick(d.id);else paint();
 }
@@ -10250,14 +10349,14 @@ function treeDetKinds(){
   const by=new Map();
   rows.forEach(x=>{const k=detKindLabel(x.d,x.cam);if(!by.has(k))by.set(k,[]);by.get(k).push(x)});
   const onAll=detListOn()&&!dl.kind;
-  const all=`<div class="n srv ${onAll?"on":""}" style="--l:0" ${onEv("click",["detKindPick",null])}><span class="tw"></span>${ic("det")}<span class="nm">${i18n("Все детекторы")}</span>${treeTail({cnt:treeCntHtml(rows.length),rowAct:" "})}</div>`;
+  const all=`<div class="n srv ${onAll?"on":""}" style="--l:0" data-detk="*"><span class="tw"></span>${ic("det")}<span class="nm">${i18n("Все детекторы")}</span>${treeTail({cnt:treeCntHtml(rows.length),rowAct:" "})}</div>`;
   return all+[...by.entries()].sort((a,b)=>a[0].localeCompare(b[0],"ru")).map(([k,list])=>{
     const key="detk:"+k,hasSel=list.some(x=>x.d.id===sel),op=open.has(key)||hasSel||!!q;
     // Камера — главное в строке. Имя детектора нужно, только когда камера повторяется под этим видом
     const camN=new Map();list.forEach(x=>camN.set(x.cam?.id,(camN.get(x.cam?.id)||0)+1));
     const cmp=(a,b)=>a.localeCompare(b,"ru",{numeric:true});
     const kids=op?list.sort((a,b)=>cmp(locName(a.cam||{name:""}),locName(b.cam||{name:""}))||cmp(locName(a.d),locName(b.d))).map(({d,cam})=>`<div class="n ${rowOn(d.id)}" style="--l:1"${treeRowPick(d.id)} title="${escHtml(locName(cam||{name:""}))} · ${escHtml(locName(d))}"><span class="tw"></span>${ic("camera")}<span class="nm">${cam?hlText(locName(cam),q):hlText(locName(d),q)}${cam&&camN.get(cam.id)>1?`<span class="dl-nm-cam"> · ${hlText(locName(d),q)}</span>`:""}</span>${treeTail({status:treeStatusSlot(d),rowAct:" "})}</div>`).join(""):"";
-    return`<div class="n srv ${detListOn()&&dl.kind===k?"on":""}" style="--l:0" ${onEv("click",["detKindPick",`${k}`])}>${treeChevron(key,"node",true,op)}<span class="nm">${hlText(k,q)}</span>${treeTail({cnt:treeCntHtml(list.length),rowAct:" "})}</div>${kids}`;
+    return`<div class="n srv ${detListOn()&&dl.kind===k?"on":""}" style="--l:0" data-detk="${escHtml(k)}" data-tid="${escHtml(key)}">${treeChevron(key,"node",true,op)}<span class="nm">${hlText(k,q)}</span>${treeTail({cnt:treeCntHtml(list.length),rowAct:" "})}</div>${kids}`;
   }).join("");
 }
 // ── Добавить детекторы: по шагам, каждый шаг — одно решение ──────
@@ -10793,7 +10892,7 @@ function dzStart(rows,back){
   if(!ids.length)return;
   dz={ids,at:0,drawn:0,back};dzGo(0);
 }
-function dzFromSel(){dzStart(detRows().filter(x=>dl.sel.has(x.d.id)))}
+function dzFromSel(){dzStart([...treeSel].map(id=>find(id)).filter(f=>f?.n.type==="det").map(f=>({d:f.n,cam:f.p})))}
 function dzOn(id){return!!dz&&dz.ids[dz.at]===id}
 function dzGo(i){
   if(!dz)return;
@@ -10825,7 +10924,7 @@ function dzAskPrev(){dzAsk(dzPrev)}
 function dzAskEnd(){dzAsk(dzEnd)}
 // quiet: итог покажет отчёт групповой операции
 function dzEnd(quiet){
-  const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;dl.sel.clear();
+  const k=dz?.drawn||0,back=dz?.back;dz=null;zoneDraw=null;treeSel.clear();treeAnchor=null;selMode=false;
   if(!quiet)toast(`${i18n("Зоны")}: ${i18n("нарисовано")} ${k}`);
   if(back)detToCam(back);else detKindPick(null);
 }
@@ -23009,6 +23108,10 @@ document.onkeydown=e=>{
   if(e.key==="/"&&!e.target.closest("input,textarea,select")){e.preventDefault();focusGo();return}
   if((e.ctrlKey||e.metaKey)&&["a","A","ф","Ф"].includes(e.key)&&app==="hw"&&!e.target.closest("input,textarea,select,[contenteditable]")){e.preventDefault();selectAllVisible();return}
   if(e.key===" "&&selMode&&app==="hw"&&!e.target.closest("input,textarea,select,button,[contenteditable]")){e.preventDefault();selChkClick(sel,selCtx);return}
+  if(app==="hw"&&!e.target.closest("input,textarea,select,[contenteditable]")){
+    if(e.key==="*"){e.preventDefault();treeExpandSiblings();return}
+    if((e.ctrlKey||e.metaKey)&&e.key==="ArrowLeft"){const t=document.querySelector("#tree .n.on")?.dataset.tid;if(t){e.preventDefault();treeCollapseBelow(t);return}}
+  }
   if(app==="hw"&&!document.getElementById("gopop")?.classList.contains("open")){
     const inQ=e.target&&e.target.id==="gq";              // из поля поиска ходим тоже
     const free=inQ||!e.target.closest("input,textarea,select,[contenteditable]");
@@ -23133,7 +23236,7 @@ function busyRefuse(id){
 // Всё, что можно отметить в текущем срезе под текущими фильтрами и поиском.
 function selCandidates(){
   const q=qval(),out=[],seen=new Set(),busy=busyIds();
-  walkSliceObjects(n=>{if(seen.has(n.id))return;seen.add(n.id);if(canMultiPick(n)&&selfInView(n)&&matchesSearch(n,q)&&!busy.has(n.id)&&!pendingDelHas(n.id))out.push(n)});
+  walkSliceObjects(n=>{if(seen.has(n.id))return;seen.add(n.id);if(selRowPick(n)&&selfInView(n)&&matchesSearch(n,q)&&!busy.has(n.id)&&!pendingDelHas(n.id))out.push(n)});
   return out;
 }
 // Отмечаемые потомки контейнера: сервер, регистратор, папка, домен, архив.
@@ -23148,7 +23251,8 @@ function selDescendants(n,withParts){
     // Службы сервера галочка сервера не берёт — их, как и начинку, отмечают
     // поштучно.
     const part=(inDev&&x.type!=="camera"||isSvc(x))&&!withParts;
-    if(x!==n&&!part&&canMultiPick(x)&&selfInView(x)&&matchesSearch(x,q)&&!busy.has(x.id)&&!pendingDelHas(x.id))out.push(x);
+    const take=slice==="det"&&app==="hw"?x.type==="det":!part&&canMultiPick(x);
+    if(x!==n&&take&&selfInView(x)&&matchesSearch(x,q)&&!busy.has(x.id)&&!pendingDelHas(x.id))out.push(x);
     kids(x).forEach(k=>visit(k,inDev||dev(x)));
     // Строки-списки отмечают то, что в них показано: «Без записи» — камеры
     // без хранилища, «Без папки» — устройства вне папок, GPU — его камеры.
@@ -23223,7 +23327,7 @@ function decorateTreeSel(){
       const k=d.filter(x=>selShownIn(x,cc)).length;
       state=me&&k===d.length?"on":me||k||inner(cc)?"part":"";
     }
-    else if(canMultiPick(f.n))state=(on||treeSel.size>1)&&selShownAt(id,row.dataset.ctx)?"on":on&&!noInner&&inner(childSelCtx(f.n)||rowCc)?"part":"";
+    else if(selRowPick(f.n))state=(on||treeSel.size>1)&&selShownAt(id,row.dataset.ctx)?"on":on&&!noInner&&inner(childSelCtx(f.n)||rowCc)?"part":"";
     else if(f.n.type==="found"||f.n.type==="founddev")ph=true;
     else if(on){
       // Тристейт считаем только в режиме: вне его галочка контейнера просто ждёт клика.
@@ -23232,12 +23336,21 @@ function decorateTreeSel(){
       else{const k=d.filter(x=>selShownIn(x,cc)).length;state=k===0?(inner(cc)?"part":""):k===d.length?"on":"part"}
     }
     const chk=document.createElement("span");
-    if(!ph&&!on&&!canMultiPick(f.n)&&!selDescendants(f.n).length)ph=true;
+    if(!ph&&!on&&!selRowPick(f.n)&&!selDescendants(f.n).length)ph=true;
     chk.className="n-chk"+(ph?" n-chk-ph":"")+(state?" "+state:"")+(blockedId(id)?" dis":"");
     chk.setAttribute("role","checkbox");chk.setAttribute("aria-checked",state==="part"?"mixed":state?"true":"false");
-    chk.title=blockedId(id)?i18n("Над объектом выполняется операция"):selDeep(f.n)?i18n("Отметить вместе со всем внутри; только сам объект — Ctrl+клик по строке"):canMultiPick(f.n)?i18n("Отметить"):i18n("Отметить всё внутри");
+    chk.title=blockedId(id)?i18n("Над объектом выполняется операция"):selDeep(f.n)?i18n("Отметить вместе со всем внутри; только сам объект — Ctrl+клик по строке"):selRowPick(f.n)?i18n("Отметить"):i18n("Отметить всё внутри");
     const tw=row.querySelector(":scope>.tw");
     if(tw)tw.after(chk);else row.prepend(chk);
+  });
+  if(app==="hw")treeEl.querySelectorAll(".n[data-detk]").forEach(row=>{
+    const ids=detKindIds(row.dataset.detk==="*"?null:row.dataset.detk),k=on?ids.filter(id=>treeSel.has(id)).length:0;
+    const state=k&&k===ids.length?"on":k?"part":"";
+    const chk=document.createElement("span");
+    chk.className="n-chk"+(ids.length?"":" n-chk-ph")+(state?" "+state:"");
+    chk.setAttribute("role","checkbox");chk.setAttribute("aria-checked",state==="part"?"mixed":state?"true":"false");
+    chk.title=i18n("Отметить всё внутри");
+    row.querySelector(":scope>.tw")?.after(chk);
   });
 }
 // Галочка строки с вложенными строками берёт её вместе со всем, что под ней:
@@ -23245,6 +23358,7 @@ function decorateTreeSel(){
 // Камера — исключение: её датчики и реле отмечают поштучно или «Отметить
 // внутри», регистратор берёт камеры своим правилом.
 function selDeep(n){
+  if(!selRowPick(n))return false;
   if(n.type==="server"||n.type==="domain"||n.type==="folder")return true;
   if(n.type==="camera"||n.type==="channel"||n.type==="ipsrv"||!canMultiPick(n))return false;
   return(n.devices||[]).some(d=>d.type!=="det");
@@ -23271,17 +23385,17 @@ function selChkClick(id,ctx){
   }
   // Первый клик по галочке открытого объекта только включает режим: объект
   // уже в выборке, снимать его было бы неожиданно.
-  if(entering&&canMultiPick(f.n)&&treeSel.size===1&&treeSel.has(id)){afterSelChange(id,ctx);return}
+  if(entering&&selRowPick(f.n)&&treeSel.size===1&&treeSel.has(id)){afterSelChange(id,ctx);return}
   // Регистратор отмечается вместе со своими камерами (под хранилищем — с теми,
   // что пишутся в это хранилище)
-  if(f.n.type==="ipsrv"&&canMultiPick(f.n)){
+  if(f.n.type==="ipsrv"&&selRowPick(f.n)){
     const on=selShownAt(id,ctx),aid=ctx?.startsWith("arch:")?ctx.slice(5):null;
     const all=[f.n,...selDescendants(f.n).filter(x=>!aid||x.type!=="camera"||x.arch===aid)];
     all.forEach(x=>on?treeSel.delete(x.id):treeSel.add(x.id,ctx||null));
     treeAnchor=id;
     afterSelChange(on?null:id,ctx);return;
   }
-  if(canMultiPick(f.n)){selToggle(id,ctx);return}
+  if(selRowPick(f.n)){selToggle(id,ctx);return}
   const d=selDescendants(f.n),cc=childSelCtx(f.n);
   if(!d.length){toast("Здесь нечего отметить");return}
   const all=d.every(x=>selShownIn(x,cc));
@@ -23349,6 +23463,7 @@ function renderSelBar(){
   }
   const all=selCandidates(),total=all.length,allOn=total>0&&all.every(x=>treeSel.has(x.id));
   const scope=hasActiveFilters()?i18n("по фильтру"):i18n("в срезе");
+  const here=all.filter(x=>treeSel.has(x.id)).length;
   host.classList.remove("sel-out");
   // Класс входа снимаем после перехода: иначе каждая перерисовка внутри режима
   // заново проигрывала бы появление.
@@ -23367,6 +23482,7 @@ function renderSelBar(){
   host.innerHTML=`<span class="sel-ic" aria-hidden="true">${SEL_IC}</span>${peek
     ?`<button type="button" class="sel-back" title="${i18n("Открыт объект; выборка сохранена")}" ${onEv("click",["bulkBack"])}>${i18n("К выборке")} (${n}) →</button>`
     :`<span class="sel-cnt">${n?`${i18n("Отмечено")} <b class="${bump?"bump":""}">${n}</b> ${i18n("из")} ${LIM.selectMax}`:i18n("Отметьте объекты")}</span>`}
+    ${n&&here<n?`<span class="sel-here" title="${i18n("Остальные отмечены на других вкладках: они в выборке")}">${i18n("здесь")} ${here}</span>`:""}
     ${total&&!allOn?`<button type="button" class="lk lk-act" title="${i18n("Выбрать все")} ${total} ${scope}" ${onEv("click",["selectAllFiltered"])}>${i18n("Все")} ${total}</button>`:""}
     ${n?`<button type="button" class="lk lk-act" ${onEv("click",["clearTreeSel"])}>${i18n("Снять")}</button>`:""}
     <span class="sel-gap"></span>
@@ -23586,7 +23702,8 @@ function bkInput(label,key,type,entries,hint,id){
   return`<div class="${bkSetCls(key)}" data-bk="${escHtml(key)}"><label>${i18n(label)}</label><input ${id?`id="${id}"`:""} type="${type||"text"}" value="${escHtml(cur)}" placeholder="${mixed?i18n("— разные —"):bkNone(entries)}" ${onEv("input",["bulkSet",`${key}`,onEv.value])}>${hint!=null?hint:entries?bkHint(entries):""}${bkPlanHint(key)}</div>`;
 }
 const BULK_UNITS={camera:"камера|камеры|камер",archive:"хранилище|хранилища|хранилищ",server:"сервер|сервера|серверов",
-  folder:"папка|папки|папок",domain:"домен|домена|доменов",vol:"том|тома|томов"};
+  folder:"папка|папки|папок",domain:"домен|домена|доменов",vol:"том|тома|томов",det:"детектор|детектора|детекторов",
+  acfa:"контроллер|контроллера|контроллеров"};
 function bulkCardHtml(){
   const sel=bulkSelNodes(),scope=bulkScopeNodes(),nodes=scope.filter(n=>!bulkSolo(n)),st=bulkStats(nodes),tabs=bulkTabs(nodes);
   if(!tabs.some(([id])=>id===tab))tab=tabs[0][0];
@@ -23599,10 +23716,11 @@ function bulkCardHtml(){
   // Кнопки правят то, что выбрано в «Применить к»; при фильтре число на кнопке
   // говорит, скольким объектам из отмеченных это достанется.
   const on=bulkFiltOn(),who=on?`«${bulkFiltLabel()}»`:i18n("все отмеченные"),cnt=k=>on?` (${k})`:"";
-  const tg=nodes.filter(canToggleEnabled).length,fd=nodes.filter(canFolder).length;
+  const tg=nodes.filter(bulkCanToggle).length,fd=nodes.filter(canFolder).length;
   const act=`${tg?`<button type="button" class="btn s" title="${i18n("Включить")} ${escHtml(who)} — ${i18n("через план")}" ${onEv("click",["bulkQuick","on"])}>${i18n("Включить")}${cnt(tg)}</button>
     <button type="button" class="btn s" title="${i18n("Выключить")} ${escHtml(who)} — ${i18n("через план")}" ${onEv("click",["bulkQuick","off"])}>${i18n("Выключить")}${cnt(tg)}</button>`:""}
     ${fd?`<button type="button" class="btn s" title="${i18n("Добавить в папку")} ${escHtml(who)} — ${i18n("через план")}" ${onEv("click",["bulkFolderMenu",onEv.event])}>${i18n("В папку")}${cnt(fd)}…</button>`:""}
+    ${nodes.length&&nodes.every(n=>n.type==="det")?`<button type="button" class="btn s" ${onEv("click",["dzFromSel"])}>${i18n("Нарисовать зоны")}</button>`:""}
     ${allCams?`<button type="button" class="btn s" title="${i18n("Архив и режим записи выбранных")}" ${onEv("click",["bulkGoTab","rec"])}>${i18n("Архив и запись")}…</button>`:""}
     <button type="button" class="btn s" ${onEv("click",["bulkMenu",onEv.event])}>${i18n("Ещё")}${CHEV_BTN}</button>${fullCardBtn()}`;
   const offNote=st.offline.length?`<div class="nt" role="status">${st.offline.length} ${i18n(plural(st.offline.length,"объект|объекта|объектов"))} ${i18n("на сервере без связи")} (${[...new Set(st.offline.map(serverNameOf))].map(escHtml).join(", ")}). ${i18n("Изменения к ним не применятся — в отчёте они будут «не применено».")}</div>`:"";
@@ -23616,7 +23734,7 @@ function bulkGenHtml(nodes,allCams){
   const miss=[],kinds=bulkKinds(nodes),one=kinds.length===1?kinds[0][0]:null;
   const lack=(fn,what)=>{const no=bulkKinds(nodes.filter(n=>!fn(n)));if(no.length)miss.push(`${i18n(what)} — ${i18n("нет у")}: ${no.map(([k,c])=>`${escHtml(kindLabel(k).toLowerCase())} (${c})`).join(", ")}`);return!no.length};
   let h="";
-  if(lack(canToggleEnabled,"Включение и выключение")){
+  if(lack(bulkCanToggle,"Включение и выключение")){
     const en=countBy(nodes,n=>n.enabled!==false?i18n("включён"):i18n("выключен"));
     h+=card("Состояние",`<div class="g">${bkSelect("Включено","enabled",[["on",i18n("Включить")],["off",i18n("Выключить")]],en)}</div>`);
   }
@@ -23840,7 +23958,7 @@ function bulkChanges(draft,nodesIn){
   const step=(key,label,ops,note)=>{if(ops.length)out.push({key,label,ops,note:note||""})};
   if(d.enabled){
     const want=d.enabled==="on";
-    const ops=nodes.filter(n=>canToggleEnabled(n)&&(n.enabled!==false)!==want).map(n=>{const prev=n.enabled;return mkOp(n,want?"Включить":"Выключить",want?"enable":"disable",()=>{n.enabled=want},null,()=>{n.enabled=prev})});
+    const ops=nodes.filter(n=>bulkCanToggle(n)&&(n.enabled!==false)!==want).map(n=>{const prev=n.enabled;return mkOp(n,want?"Включить":"Выключить",want?"enable":"disable",()=>{n.enabled=want},null,()=>{n.enabled=prev})});
     const lic=want?ops.filter(o=>o.n.licenseExceeded).length:0;
     step("enabled",want?"Включить":"Выключить",ops,lic?`${i18n("лицензия")}: ${lic} ${i18n(plural(lic,"камера|камеры|камер"))} ${i18n("сверх лимита не включатся")}`:"");
   }
@@ -25591,9 +25709,10 @@ function cpApplyGeneric(){
 // первый сервер, первое хранилище, первая папка с подпапкой.
 window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(autoLoad).then(async()=>{
   sel=domains[0]?.id||null;appSel.srvs=sel;
-  [domains[0]?.id,domains[2]?.id,domains[0]&&unallocId(domains[0].id),servers[0]?.id,arch[0]?.id].forEach(x=>{if(x)open.add(x)});
-  [folders[0],folders[0]?.folders?.[0]].forEach(f=>{if(f)open.add(f.id)});
-  domains.forEach(d=>{open.add(d.id);open.add("accg:"+d.id)});
+  // Короткое дерево при первом входе; дальше — как оставил пользователь.
+  treeOpenLoad();
+  treeOpenRestore();
+  domains.forEach(d=>open.add("accg:"+d.id));
   apiStream=API.subscribe(apiOnEvent,apiReload);
   await treeNeed();
   syncLocalePack();applyStaticUi();
