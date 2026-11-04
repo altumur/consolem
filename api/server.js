@@ -284,6 +284,7 @@
       if (q.codec && f && !f.codecs.includes(q.codec)) add(422, "NOT_SUPPORTED", "Кодек не подходит к формату", "/quality/codec");
       if (expTranscode(Object.assign({}, b, { cameras: [] })) && !expFeat("exportTranscode")) add(422, "NOT_SUPPORTED", "Перекодирование система не делает", "/quality");
       if ((b.titles || {}).fields && b.titles.fields.length && !expFeat("exportTitles")) add(422, "NOT_SUPPORTED", "Титры система не накладывает", "/titles");
+      if (((b.titles || {}).eventSource || {}).on && !expFeat("exportEventTitles")) add(422, "NOT_SUPPORTED", "Титров источника событий система не накладывает", "/titles/eventSource");
       if ((b.titles || {}).overlay === "soft" && f && !f.softTitles) add(422, "NOT_SUPPORTED", "Программные титры — не в этом формате", "/titles/overlay");
       const sp = b.special || {};
       if (sp.audio && !expFeat("exportAudio")) add(422, "NOT_SUPPORTED", "Звук система не выгружает", "/special/audio");

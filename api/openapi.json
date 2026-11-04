@@ -20543,6 +20543,30 @@
               "burned": "Вшитые в кадр: перекодирование",
               "soft": "Дорожкой субтитров: только где formats[].softTitles"
             }
+          },
+          "eventSource": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "on"
+            ],
+            "description": "Титры источника событий: строки журнала источника за отрезок (exportEventTitles)",
+            "properties": {
+              "on": {
+                "type": "boolean"
+              },
+              "overlay": {
+                "type": "string",
+                "enum": [
+                  "burned",
+                  "soft"
+                ],
+                "x-enum-descriptions": {
+                  "burned": "Вшитые в кадр",
+                  "soft": "Дорожкой субтитров"
+                }
+              }
+            }
           }
         }
       },
