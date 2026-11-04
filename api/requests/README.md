@@ -42,3 +42,4 @@
 | 2026-11-03 | mockup | [Вид «Облачное», производители драйвер-пака, приёмка плана добавления](2026-11-03-082020Z-mockup-archive-kinds-vendors-acceptance-request.md) | отвечен | [ответ, 2026-11-03](2026-11-03-082020Z-mockup-archive-kinds-vendors-acceptance-response.md) |
 | 2026-11-03 | mockup | [Шаги приёмки плана добавления и пункт про `selectAllVisible`](2026-11-03-100923Z-mockup-plan-acceptance-steps-request.md) | отвечен | [ответ, 2026-11-03](2026-11-03-100923Z-mockup-plan-acceptance-steps-response.md) |
 | 2026-11-03 | mockup | [События детекторов `abandoned`, `disappeared`, `crowd` в правилах; встроенный и серверный детектор на одной камере](2026-11-03-145110Z-mockup-detector-rule-events-request.md) | новый | — |
+| 2026-11-04 | mockup | [Файлы в ходе ассистента](2026-11-04-140539Z-mockup-assist-files-request.md) | новый | |
