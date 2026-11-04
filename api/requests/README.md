@@ -44,3 +44,4 @@
 | 2026-11-03 | mockup | [События детекторов `abandoned`, `disappeared`, `crowd` в правилах; встроенный и серверный детектор на одной камере](2026-11-03-145110Z-mockup-detector-rule-events-request.md) | новый | — |
 | 2026-11-04 | mockup | [Файлы в ходе ассистента](2026-11-04-140539Z-mockup-assist-files-request.md) | новый | |
 | 2026-11-04 | w2c | [Выгрузка под надзором и пароль: код `SUPERVISOR_REQUIRED`, поля супервизора без `accessSupervision`, недостижимый `PASSWORD_REQUIRED`, супервизор в повторе](2026-11-04-170936Z-w2c-export-supervision-password-request.md) | новый | — |
+| 2026-11-04 | mockup | [Макет как основа продукта: условия и план перевода на React + TypeScript](2026-11-04-185448Z-mockup-product-webui-request.md) | новый | |
