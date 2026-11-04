@@ -10383,8 +10383,12 @@ function expRetry(id){
 }
 function expAgain(id){
   const x=expRowOf(id),r=x?.request;if(!r)return;
+  expD=expDraftOf(r,i18n("повтор выгрузки"));expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+}
+// Заказ по телу ExportCreate: повтор выгрузки и план ассистента (AssistEvent.export) заполняют форму одинаково
+function expDraftOf(r,from){
   const per=r.periods?r.periods.map(p=>({from:Date.parse(p.from),to:Date.parse(p.to)})):r.at?[{from:Date.parse(r.at),to:Date.parse(r.at)+1000}]:undefined;
-  const d=expDraftNew({entry:r.source==="live"?"live":r.bookmarkId?"bookmark":"archive",cams:r.cameras.map(c=>c.deviceId),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,periods:per,from:i18n("повтор выгрузки")});
+  const d=expDraftNew({entry:r.source==="live"?"live":r.bookmarkId?"bookmark":"archive",cams:r.cameras.map(c=>c.deviceId),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,periods:per,from});
   r.cameras.forEach((c,i)=>{if(c.area)d.cams[i].area=c.area});
   if(r.name){d.name=r.name;d.nameSet=true}if(r.singleFile!=null)d.single=r.singleFile;
   const q=r.quality||{},a=d.adv;Object.assign(a,{codec:q.codec||"source",compression:q.compression||"default",resolution:q.resolution||"source",fps:q.fpsDivisor||1,thin:q.maxFps||0,speed:q.speed||1});
@@ -10392,7 +10396,14 @@ function expAgain(id){
   if(r.highlight){a.tracks=(r.highlight.detectorIds||[]).slice();a.marks=!!r.highlight.bookmarks}
   if(r.privacy)a.hide=r.privacy.mode;
   if(r.titles){const t=r.titles;a.titles=(t.fields||[]).slice();a.over=t.overlay||"soft";if(t.color)a.color=t.color;if(t.background)a.bg=t.background;if(t.backgroundAlpha!=null)a.alpha=t.backgroundAlpha;if(t.font)a.font=`${t.font.family}|${t.font.size}`;if(t.eventSource?.on){a.src=true;a.srcOver=t.eventSource.overlay||"soft"}}
-  expD=d;expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+  return d;
+}
+// План ассистента: форма с заказом, проверка /exports/check — ошибки у своих полей; пароль и супервизора вводит человек
+function expFromAssist(r){
+  if(!r)return;
+  expD=expDraftOf(r,i18n("ассистент"));expSel="new";expChk=null;expPick=null;
+  if(app!=="exp")setApp("exp");else paint();
+  expGrantLoad().then(expRepaint);expCheckSoon();
 }
 function expDel(id){
   askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","","Удалить",()=>
@@ -23378,7 +23389,7 @@ function asstRender(){
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
-    a.plan?(a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)):"",
+    a.plan?(a.plan.rules?asstRulesHtml(a.plan):a.plan.export?asstExportHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)):"",
     a.result?asstResultHtml(a.result):"",
     `<textarea id="asstText" class="asst-ta" aria-label="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" placeholder="${i18n(a.plan?"Уточнить":a.ask?"Ваш ответ":"Просьба")}" ${onEv("input",["asstInput",onEv.value])} ${onEv("keydown",["asstKey",onEv.event])}>${escHtml(a.text)}</textarea>`,
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
@@ -23390,7 +23401,8 @@ function asstRender(){
     a.found&&!a.busy&&!asstPickShown(a.found)?`<button type="button" class="btn s" id="asstFoundOpen" ${onEv("click",["asstFoundOpen"])}>${i18n("Показать в дереве")}</button>`:"",
     a.found&&!a.busy?`<button type="button" class="btn s" id="asstFoundPick" ${asstFoundCount(a.found)?"":"disabled"} ${onEv("click",["asstFoundPick"])}>${i18n("Выбрать всё")}</button>`:"",
     a.result?.again?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
-    a.plan?.items?`${asstPickShown(a.plan)?"":`<button type="button" class="btn s" id="asstPlanOpen" ${onEv("click",["asstPlanOpen"])}>${i18n("Открыть в дереве")}</button>`}<button type="button" class="btn s pri" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>`
+    a.plan?.export?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>${expShown()?`<button type="button" class="btn s pri" id="asstExportOpen" ${onEv("click",["asstExportOpen"])}>${i18n("Открыть выгрузку")}</button>`:""}`
+    :a.plan?.items?`${asstPickShown(a.plan)?"":`<button type="button" class="btn s" id="asstPlanOpen" ${onEv("click",["asstPlanOpen"])}>${i18n("Открыть в дереве")}</button>`}<button type="button" class="btn s pri" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>`
     :a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
       :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Отправить")}</button>`,
     `</div>`
@@ -23425,6 +23437,7 @@ function asstEvent(a,m){
   if(m.type==="plan"){
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
+    if(m.export){asstRender();if(expShown())expFromAssist(m.export);return}
     if(m.items?.length){asstPlanToTree(a,m);return}
   }
   asstRender();
@@ -23493,6 +23506,14 @@ function asstPlanToTree(a,p){
   asstRender();
 }
 // Человек закрыл тег или ушёл: «Открыть в дереве» возвращает отбор, выбор и черновик. Свои правки в черновике остаются
+// План выгрузки: заказ уже в окне «Экспорт», запускает его человек оттуда — проверка, пароль, супервизор, «Экспорт»
+function asstExportHtml(p){
+  const e=p.export,per=e.periods?.[0],when=e.source==="live"?i18n("кадр сейчас"):e.at?tlDate(Date.parse(e.at)):per?`${tlDate(Date.parse(per.from))}–${tlClock(Date.parse(per.to))}`:"";
+  return`${p.summary?`<div class="asst-sum">${escHtml(p.summary)}</div>`:""}<div class="asst-dev" data-asst-exp="${e.cameras.length}">${i18n("Камер")}: ${e.cameras.length}</div>
+    <div class="asst-chg">${escHtml(i18n(e.mode==="frame"?"Кадр":"Видео"))}${when?` · ${escHtml(when)}`:""} · ${escHtml(String(e.format).toUpperCase())}</div>
+    <div class="asst-note">${i18n(expShown()?"Заказ открыт в разделе «Экспорт»: проверьте, введите пароль, если нужен, и нажмите «Экспорт»":"Выгрузки в этой системе нет")}</div>`;
+}
+function asstExportOpen(){const a=asst;if(a?.plan?.export)expFromAssist(a.plan.export)}
 function asstPlanOpen(){const a=asst;if(a?.plan?.items)asstPlanToTree(a,a.plan)}
 // План применён черновиком карточки: в панели его больше нет, итог — в очереди операций
 function asstPlanDone(p){
