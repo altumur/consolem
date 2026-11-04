@@ -278,6 +278,11 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 .tctx button:disabled{opacity:.42;cursor:default}
 .tctx button:disabled:hover{background:transparent}
 .tctx-sep{height:1px;margin:4px 0;background:var(--ln)}
+.tctx button:focus-visible{outline:none;background:var(--one-control-hover)}
+.tctx button.tctx-default .tctx-lbl,.acc-menu .mi.tctx-default{font-weight:600}
+.tctx button.tctx-danger{color:var(--one-danger)}
+.tctx button.tctx-danger:hover:not(:disabled),.tctx button.tctx-danger:focus-visible{background:var(--one-danger-bg)}
+.rc-target{outline:1px solid var(--bl);outline-offset:-1px}
 .pf-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
 .pf-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--ln);background:var(--p2);color:var(--tx);border-radius:99px;padding:3px 10px 3px 8px;font-size:12px;cursor:pointer}
 .pf-chip b{color:var(--mu);font-weight:500}
@@ -2045,7 +2050,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <div class="cfoot" id="schdlgF"></div>
   </div>
 </div>
-<div class="tctx" id="tctx" role="menu"></div>
+<div class="tctx" id="tctx" role="menu" data-on-mousedown='[["rcMenuDown",{"$on":"event"}]]'></div>
 <script>
 // Тема — одна кнопка в шапке; выбор запоминается (ключ кита kit-theme).
 try{const t=localStorage.getItem("kit-theme");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}
@@ -7413,11 +7418,13 @@ function tctxStarIcon(){return`<span class="tctx-ic tctx-star" aria-hidden="true
 function tctxPlusIcon(){return`<span class="tctx-ic tctx-plus" aria-hidden="true">${lu("plus")}</span>`}
 function tctxSearchIcon(){return`<span class="tctx-ic tctx-search" aria-hidden="true">${lu("search")}</span>`}
 function tctxNewTabIcon(){return`<span class="tctx-ic tctx-newtab" aria-hidden="true">${lu("square-arrow-out-up-right")}</span>`}
-function tctxItem(label,action,icon,disabled){
-  const ic=icon||`<span class="tctx-ic"></span>`;
-  if(disabled)return `<button type="button" role="menuitem" disabled>${ic}<span class="tctx-lbl">${label}</span></button>`;
-  return `<button type="button" role="menuitem" ${onEv("click",action)}>${ic}<span class="tctx-lbl">${label}</span></button>`;
+function tctxItem(label,action,icon,disabled,cls){
+  const ic=icon||`<span class="tctx-ic"></span>`,c=cls?` class="${cls}"`:"";
+  if(disabled)return `<button type="button" role="menuitem"${c} disabled>${ic}<span class="tctx-lbl">${label}</span></button>`;
+  return `<button type="button" role="menuitem"${c} ${onEv("click",action)}>${ic}<span class="tctx-lbl">${label}</span></button>`;
 }
+// Опасное действие: красное, всегда последней группой меню.
+function tctxDanger(label,action,disabled){return tctxItem(label,action,null,disabled,"tctx-danger")}
 function ctxRename(id,field){
   closeTreeCtx();
   resetTreeSel(id);
@@ -7432,6 +7439,7 @@ function closeTreeCtx(){
   // Меню открыла стрелка «Добавить устройства»: фокус из меню возвращается на неё
   const back=m&&addSplitMenu.from&&m.contains(document.activeElement)?addSplitMenu.from:null;
   addSplitMenu.from=null;
+  rcCloseMark(m);
   if(m)m.classList.remove("open");
   document.querySelectorAll(".btn-split-arrow").forEach(b=>b.setAttribute("aria-expanded","false"));
   if(back&&back.isConnected)back.focus();
@@ -7439,123 +7447,89 @@ function closeTreeCtx(){
 function openTreeCtx(n,xy){
   const menu=document.getElementById("tctx");if(!menu)return;
   const multi=treeSel.size>1&&treeSel.has(n.id);
-  let main=[];
+  const groups=[];
   if(multi){
     const k=bulkSelNodes().length;
-    main.push(tctxItem(`${i18n("Изменить выбранные")} (${k})`,`closeTreeCtx();tabGo('gen')`,`<span class="tctx-ic">${SEL_IC}</span>`));
-    main.push(tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();bulkQuick('on')`));
-    main.push(tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();bulkQuick('off')`));
-    main.push(tctxItem(`${i18n("В избранное")} (${k})`,`favSelected()`,tctxStarIcon()));
-    main.push(tctxItem(i18n("Экспорт выборки в CSV"),`closeTreeCtx();bulkExportCsv()`));
-    main.push(tctxSep());
-    main.push(tctxItem(`${i18n("Удалить")}… (${k})`,`deleteSelected()`));
-    main.push(tctxItem(i18n("Снять выделение"),`closeTreeCtx();clearTreeSel()`));
+    groups.push([
+      tctxItem(`${i18n("Изменить выбранные")} (${k})`,`closeTreeCtx();tabGo('gen')`,`<span class="tctx-ic">${SEL_IC}</span>`),
+      tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();bulkQuick('on')`),
+      tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();bulkQuick('off')`)]);
+    groups.push([
+      tctxItem(`${i18n("В избранное")} (${k})`,`favSelected()`,tctxStarIcon()),
+      tctxItem(i18n("Экспорт выборки в CSV"),`closeTreeCtx();bulkExportCsv()`),
+      tctxItem(i18n("Снять выделение"),`closeTreeCtx();clearTreeSel()`)]);
+    groups.push([tctxDanger(`${i18n("Удалить")}… (${k})`,`deleteSelected()`)]);
   }else{
-    const addItems=[];
+    // Правый клик не переходит к объекту: карточка на экране остаётся. Действия, которым нужен
+    // объект на экране, сначала открывают его — act().
+    const id=n.id,act=(fn,...args)=>["ctxThen",id,fn,...args];
+    const go=[];
+    if(sel!==id)go.push(tctxItem(i18n("Открыть"),["rcOpenNode",id],null,false,"tctx-default"));
+    go.push(tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${id}')`,tctxNewTabIcon()));
+    groups.push(go);
+
+    const add=[];
     if(n.type==="unalloc"){
-      const add=unallocAddable(n.domainId).length;
-      if(add)addItems.push(tctxItem(`${i18n("Добавить все в домен")} (${add})`,`addAllUnalloc('${n.domainId}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Добавить серверы…"),`closeTreeCtx();openAddServers('${n.domainId}')`,tctxPlusIcon()));
+      const k=unallocAddable(n.domainId).length;
+      if(k)add.push(tctxItem(`${i18n("Добавить все в домен")} (${k})`,act("addAllUnalloc",n.domainId),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",n.domainId),tctxPlusIcon()));
     }else if(n.type==="archive"){
-      // Вход тот же, что в шапке архива: камеры привязывают к архиву, поэтому
-      // и заводить их удобно прямо отсюда.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      if(can("createVolume")){
-        addItems.push(tctxSep());
-        addItems.push(tctxItem(i18n("Добавить том"),`closeTreeCtx();addVolume('${n.id}')`,tctxPlusIcon()));
-      }
-      if(can("createArchive"))addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(can("createVolume"))add.push(tctxItem(i18n("Добавить том"),act("addVolume",id),tctxPlusIcon()));
+      if(can("createArchive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(n.type==="domain"){
-      // Всё, что заводит карточка домена: устройства — одним входом, как у
-      // архива, дальше то, из чего домен состоит. Раскладка больше не решает,
-      // что здесь показать, — в карточке это есть всегда, и меню не должно
-      // прятать половину только потому, что дерево разложено по папкам.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      addItems.push(tctxSep());
-      addItems.push(tctxItem(i18n("Добавить серверы…"),`closeTreeCtx();openAddServers('${n.id}')`,tctxPlusIcon()));
-      addItems.push(tctxItem(i18n("Создать папку"),`addSubfolder(null,'${n.id}')`,tctxPlusIcon()));
-      if(can("createArchive"))addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
-    }else if(n.type==="server"&&!isUnallocated(n.id)){
-      // Как у домена: всё, что заводит карточка сервера. Устройства — одним
-      // входом, дальше службы и хранилище этого сервера.
-      addItems.push(tctxItem(i18n("Добавить устройства…"),`closeTreeCtx();planOpen()`,tctxPlusIcon()));
-      addItems.push(tctxSep());
-      if(WIZ.svc)addItems.push(tctxItem(addTreeLabel(n),`closeTreeCtx();openW('svc')`,tctxPlusIcon()));
-      if(can("createArchive"))addItems.push(tctxItem(i18n("Создать хранилище…"),`closeTreeCtx();addArchive('${n.id}')`,tctxPlusIcon()));
-    }else if(canTreeCtxAdd(n)){
-      const lb=n.type==="folder"?i18n("Добавить устройства…"):addTreeLabel(n);
-      const act=n.type==="server"?`closeTreeCtx();openW('svc')`:n.type==="folder"?"closeTreeCtx();planOpen()":"closeTreeCtx();openW()";
-      addItems.push(tctxItem(lb,act,tctxPlusIcon()));
-      if(n.type==="folder")addItems.push(tctxItem(i18n("Создать подпапку"),`addSubfolder('${n.id}')`,tctxPlusIcon()));
-    }
-    const rest=[];
-    if(n.type==="server"&&isUnallocated(n.id)){
-      const did=unallocDomainOf(n.id);
-      if(did)rest.push(tctxItem(i18n("Добавить в домен"),`closeTreeCtx();addToDomain('${n.id}','${did}')`));
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",id),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Создать папку"),act("addSubfolder",null,id),tctxPlusIcon()));
+      if(can("createArchive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
+    }else if(n.type==="server"&&!isUnallocated(id)){
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(WIZ.svc)add.push(tctxItem(addTreeLabel(n),act("openW","svc"),tctxPlusIcon()));
+      if(can("createArchive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
+    }else if(n.type==="folder"){
+      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
+    }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
+    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
+    groups.push(add);
+
+    const edit=[];
+    if(n.type==="server"&&isUnallocated(id)){
+      const did=unallocDomainOf(id);
+      if(did)edit.push(tctxItem(i18n("Добавить в домен"),act("addToDomain",id,did)));
     }else if(n.type!=="unalloc"){
-      const canRename=n.type==="domain"||n.type==="server"||n.type==="folder"||n.type==="archive"||(n.type!=="unalloc"&&n.type!=="det"&&treeKind(n)===tview);
-      if(canRename)rest.push(tctxItem(i18n("Переименовать"),`ctxRename('${n.id}')`));
-      if(canRenameShort(n))rest.push(tctxItem(i18n("Изменить короткое имя"),`ctxRename('${n.id}','short')`));
-      if(n.type==="server"&&!isUnallocated(n.id)&&domainOf(n.id)){
-        rest.push(tctxItem(i18n("Исключить из домена"),`closeTreeCtx();excludeFromDomain('${n.id}')`));
-      }
-      if(n.type==="folder"){
-        rest.push(tctxItem(i18n("Убрать все объекты"),`clearFolder('${n.id}')`));
-        rest.push(tctxItem(i18n("Удалить папку"),`deleteFolder('${n.id}')`));
-      }
-      if(n.type==="archive")rest.push(tctxItem(i18n("Удалить хранилище"),`deleteArchive('${n.id}')`));
-      if(n.type==="vol"&&can("deleteVolume"))rest.push(tctxItem(i18n("Удалить том"),`deleteVolume('${n.id}')`));
+      const canRename=n.type==="domain"||n.type==="server"||n.type==="folder"||n.type==="archive"||(n.type!=="det"&&treeKind(n)===tview);
+      if(canRename)edit.push(tctxItem(i18n("Переименовать"),act("ctxRename",id)));
+      if(canRenameShort(n))edit.push(tctxItem(i18n("Изменить короткое имя"),act("ctxRename",id,"short")));
     }
-    if(n.type==="domain"&&can("deleteDomain")){
-      rest.push(tctxItem(i18n("Удалить домен"),`deleteDomain('${n.id}')`,null,!canDeleteDomain()));
+    if(n.type==="camera")edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
+    if(rulePresetFor(n))edit.push(tctxItem(i18n(n.type==="relay"?"Создать правило с этим реле…":"Создать правило по событию…"),act("ruleFromDevice",id)));
+    if(canFav(n))edit.push(tctxItem(isFav(id)?i18n("Убрать из избранного"):i18n("В избранное"),["toggleFav",id,sel===id&&selCtx?selCtx:null],tctxStarIcon()));
+    if(n.type==="unalloc")edit.push(tctxItem(i18n("Обновить"),act("refreshUnalloc",n.domainId)));
+    groups.push(edit);
+
+    const del=[];
+    if(n.type==="server"&&!isUnallocated(id)&&domainOf(id))del.push(tctxDanger(i18n("Исключить из домена"),act("excludeFromDomain",id)));
+    if(n.type==="folder"){
+      del.push(tctxDanger(i18n("Убрать все объекты"),act("clearFolder",id)));
+      del.push(tctxDanger(i18n("Удалить папку"),act("deleteFolder",id)));
     }
-    if(canFav(n))rest.push(tctxItem(isFav(n.id)?i18n("Убрать из избранного"):i18n("В избранное"),`toggleFav('${n.id}',${selCtx?`'${selCtx}'`:"null"})`,tctxStarIcon()));
-    if(n.type==="unalloc")rest.push(tctxItem(i18n("Обновить"),`refreshUnalloc('${n.domainId}')`));
-    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))rest.push(tctxItem(i18n("Добавить единицу СКУД"),`closeTreeCtx();pick('${n.id}');openW('unit')`,tctxPlusIcon()));
-    if(canTreeCtxDelete(n))rest.push(tctxItem(i18n("Удалить"),`deleteTreeNode('${n.id}')`));
-    main=[...addItems];
-    if(rest.length){
-      if(main.length)main.push(tctxSep());
-      main.push(...rest);
-    }
-    if((n.type==="domain"||n.type==="unalloc")&&can("createDomain")){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n("Создать домен"),`addDomain()`,tctxPlusIcon()));
-    }
-    if(n.type==="camera"){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n("Применить настройки к другим…"),`closeTreeCtx();openCopyDialog('${n.id}')`,`<span class="tctx-ic">${SEL_IC}</span>`));
-    }
-    if(rulePresetFor(n)){
-      if(main.length)main.push(tctxSep());
-      main.push(tctxItem(i18n(n.type==="relay"?"Создать правило с этим реле…":"Создать правило по событию…"),`closeTreeCtx();ruleFromDevice('${n.id}')`));
-    }
-    if(main.length)main.push(tctxSep());
-    main.push(tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${n.id}')`,tctxNewTabIcon()));
+    if(n.type==="archive")del.push(tctxDanger(i18n("Удалить хранилище"),act("deleteArchive",id)));
+    if(n.type==="vol"&&can("deleteVolume"))del.push(tctxDanger(i18n("Удалить том"),act("deleteVolume",id)));
+    if(n.type==="domain"&&can("deleteDomain"))del.push(tctxDanger(i18n("Удалить домен"),act("deleteDomain",id),!canDeleteDomain()));
+    if(canTreeCtxDelete(n))del.push(tctxDanger(i18n("Удалить"),act("deleteTreeNode",id)));
+    groups.push(del);
   }
-  menu.innerHTML=main.join("");
-  menu.classList.add("open");
-  menu.style.left="0px";menu.style.top="0px";
-  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8;
-  let left=xy.x,top=xy.y;
-  if(left+mw>window.innerWidth-pad)left=Math.max(pad,window.innerWidth-mw-pad);
-  if(top+mh>window.innerHeight-pad)top=Math.max(pad,xy.y-mh);
-  if(top+mh>window.innerHeight-pad)top=Math.max(pad,window.innerHeight-mh-pad);
-  menu.style.left=left+"px";
-  menu.style.top=top+"px";
+  rcShow(groups.filter(g=>g.length).map(g=>g.join("")).join(tctxSep()),xy);
 }
 function treeCtx(e,id){
+  if(rcNative(e))return;
   e.preventDefault();e.stopPropagation();
-  if(app!=="hw"&&app!=="hw")return;
-  const f=find(id);if(!f)return;
-  const n=f.n;
-  if(!canTreeCtx(n))return;
-  const xy={x:e.clientX,y:e.clientY};
-  if(sel!==id){
-    if(!(treeSel.has(id)&&treeSel.size>1))resetTreeSel(id);
-    sel=id;tab="gen";setD(false);expandTo(id);renderTree();gear();
-  }
-  openTreeCtx(n,xy);
+  if(app!=="hw")return;
+  const f=find(id);if(!f||!canTreeCtx(f.n))return;
+  openTreeCtx(f.n,rcPoint(e));
+  rcMark(e.currentTarget?.closest?.(".n")||e.currentTarget);
+  if(rcByKey(e))rcFocusFirst();
 }
 function nrow(n,l,ctx){
   const q=qval();
@@ -16077,33 +16051,32 @@ function ruleDeleteCommit(ids){
 
 // ── Меню строки ──
 function ruleCtx(e,id){
+  if(rcNative(e))return;
   e.preventDefault();e.stopPropagation();
-  const r=rules.find(x=>x.id===id),menu=document.getElementById("tctx");if(!r||!menu)return;
+  const r=rules.find(x=>x.id===id);if(!r)return;
   const multi=ruleSel.size>1&&ruleSel.has(id),k=ruleSel.size;
-  menu.innerHTML=(multi?[
+  const html=(multi?[
     tctxItem(`${i18n("Включить")} (${k})`,`closeTreeCtx();ruleBulkToggle('on')`),
     tctxItem(`${i18n("Только журнал")} (${k})`,`closeTreeCtx();ruleBulkToggle('watch')`),
     tctxItem(`${i18n("Выключить")} (${k})`,`closeTreeCtx();ruleBulkToggle('off')`),
     tctxSep(),
     tctxItem(`${i18n("Приглушить")}… (${k})`,`ruleMuteOpenSel()`),
-    tctxItem(`${i18n("Удалить")}… (${k})`,`ruleDeleteAskSel()`),
-    tctxItem(i18n("Снять отметки"),`closeTreeCtx();ruleSelClear()`)
+    tctxItem(i18n("Снять отметки"),`closeTreeCtx();ruleSelClear()`),
+    tctxSep(),
+    tctxDanger(`${i18n("Удалить")}… (${k})`,`ruleDeleteAskSel()`)
   ]:[
-    tctxItem(i18n("Открыть"),`closeTreeCtx();ruleOpen('${id}',true)`),   // меню — это ссылка: место прихода моргает
-    tctxItem(i18n("Дублировать"),`closeTreeCtx();ruleDuplicate('${id}')`),
+    ...(rule===id?[]:[tctxItem(i18n("Открыть"),`closeTreeCtx();ruleOpen('${id}',true)`,null,false,"tctx-default"),tctxSep()]),   // меню — это ссылка: место прихода моргает
     ...(ruleState(r)==="watch"?[tctxItem(i18n("Перевести в «Работает»"),`ruleToggleOne('${id}','on')`),tctxItem(i18n("Выключить"),`ruleToggleOne('${id}','off')`)]
       :[tctxItem(i18n(r.on?"Выключить":"Включить"),`ruleToggleOne('${id}','${r.on?"off":"on"}')`),tctxItem(i18n("Перевести в «Только журнал»"),`ruleToggleOne('${id}','watch')`)]),
-    tctxSep(),
     ruleMuteNow(r)?tctxItem(i18n("Снять приглушение"),`ruleMuteSetTo(['${id}'],null)`):tctxItem(`${i18n("Приглушить")}…`,`ruleMuteOpen(['${id}'])`),
-    tctxItem(`${i18n("Удалить")}…`,`ruleDeleteAsk(['${id}'])`)
+    tctxItem(i18n("Дублировать"),`closeTreeCtx();ruleDuplicate('${id}')`),
+    tctxSep(),
+    tctxDanger(`${i18n("Удалить")}…`,`ruleDeleteAsk(['${id}'])`)
   ]).join("");
-  menu.classList.add("open");
-  menu.style.left="0px";menu.style.top="0px";
-  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8,btn=e.currentTarget&&e.currentTarget.classList&&e.currentTarget.classList.contains("n-menu")?e.currentTarget.getBoundingClientRect():null;
-  let left=btn?btn.left:e.clientX,top=btn?btn.bottom+4:e.clientY;
-  if(left+mw>innerWidth-pad)left=Math.max(pad,innerWidth-mw-pad);
-  if(top+mh>innerHeight-pad)top=Math.max(pad,(btn?btn.top-4:e.clientY)-mh);
-  menu.style.left=left+"px";menu.style.top=top+"px";
+  const btn=e.currentTarget&&e.currentTarget.classList&&e.currentTarget.classList.contains("n-menu")?e.currentTarget.getBoundingClientRect():null;
+  rcShow(html,btn?{x:btn.left,y:btn.bottom+4}:rcPoint(e));
+  rcMark(e.currentTarget?.closest?.(".n")||null);
+  if(rcByKey(e))rcFocusFirst();
 }
 
 // ── Точки входа создания ──
@@ -17733,6 +17706,7 @@ function accMenuOpen(anchor,html){
 function accMenuOutside(e){if(!document.getElementById("accMenu")?.contains(e.target))accMenuClose()}
 function accMenuClose(){
   const m=document.getElementById("accMenu");
+  rcMark(null);
   document.removeEventListener("mousedown",accMenuOutside);
   if(!m)return;m.remove();
 }
@@ -22995,6 +22969,7 @@ function navSync(){
   f.title=next?`${i18n("Вперёд")}: ${next.title}`:i18n("Вперёд");
 }
 function navMenu(e){
+  if(rcNative(e))return;
   e.preventDefault();
   if(navHist.length<2)return;
   const items=navHist.map((h,i)=>({h,i})).reverse().slice(0,15);
@@ -23002,6 +22977,202 @@ function navMenu(e){
     `<button type="button" class="mi ${i===navPos?"cur on":""}" ${i===navPos?"disabled":""} ${onEv("click",["accMenuClose"],["navStep",i-navPos])}>${escHtml(h.title)}</button>`).join(""));
   document.getElementById("accMenu")?.classList.add("nav-menu");
 }
+// ── Правый клик: одна система на весь макет ──
+// Меню браузера внутри макета нет. Правый клик показывает только действия того, по чему щёлкнули:
+//   1. поле ввода — Вырезать, Копировать, Вставить, Выделить всё;
+//   2. выделенный текст — Копировать;
+//   3. окно поверх макета — ничего больше;
+//   4. строка или ссылка на объект — меню этого объекта; карточка на экране не меняется;
+//   5. кнопка, вкладка, галочка — ничего: их действие и так на виду;
+//   6. пустое место дерева и карточки — действия этого места; ?rc=quiet — вариант, где там ничего.
+// Shift + правый клик — меню браузера, для разработчиков (в Firefox браузер делает так сам).
+const RC_QUIET=/[?&]rc=quiet\b/.test(location.search);
+let rcMarked=null,rcBack=null,rcFieldEl=null,rcFieldRange=null,rcSelBefore="",rcCopyText="";
+function rcNative(e){return e.type==="contextmenu"&&e.shiftKey}
+function rcByKey(e){return e.type==="contextmenu"&&e.button!==2}
+function rcPoint(e,el){
+  if(!rcByKey(e))return{x:e.clientX,y:e.clientY};
+  const r=(el||document.activeElement||document.body).getBoundingClientRect();
+  return{x:r.left+12,y:r.bottom};
+}
+function rcMark(el){rcMarked?.classList.remove("rc-target");rcMarked=el||null;rcMarked?.classList.add("rc-target")}
+function rcCloseMark(m){
+  rcMark(null);
+  if(m&&rcBack&&m.contains(document.activeElement)&&rcBack.isConnected)rcBack.focus();
+  rcBack=null;
+}
+function rcPlace(menu,xy){
+  menu.style.left="0px";menu.style.top="0px";
+  const mw=menu.offsetWidth,mh=menu.offsetHeight,pad=8;
+  let left=xy.x,top=xy.y;
+  if(left+mw>innerWidth-pad)left=Math.max(pad,innerWidth-mw-pad);
+  if(top+mh>innerHeight-pad)top=Math.max(pad,xy.y-mh);
+  if(top+mh>innerHeight-pad)top=Math.max(pad,innerHeight-mh-pad);
+  menu.style.left=left+"px";menu.style.top=top+"px";
+}
+function rcShow(html,xy){
+  const menu=document.getElementById("tctx");if(!menu||!html)return;
+  const back=document.activeElement;
+  menu.innerHTML=html;menu.classList.add("open");rcPlace(menu,xy);
+  rcBack=back&&back!==document.body?back:null;
+}
+function rcOpenMenuEl(){const m=document.getElementById("tctx");return m?.classList.contains("open")?m:document.getElementById("accMenu")}
+function rcFocusFirst(){rcOpenMenuEl()?.querySelector("button:not(:disabled)")?.focus()}
+function rcMenuDown(e){if(!e.target.closest("input,textarea,select"))e.preventDefault()}
+// Действие, которому нужен объект на экране: сначала открыть его, спросив о неприменённых правках.
+function ctxThen(id,fn,...args){
+  closeTreeCtx();
+  const run=()=>window[fn](...args);
+  if(sel===id&&!(treeSel.size>1&&!treeSel.has(id)))return run();
+  if(cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>{pick(id,{force:true});run()});return}
+  pick(id);run();
+}
+function rcOpenNode(id){closeTreeCtx();pick(id)}
+function rcObject(id,xy,el){
+  const f=find(id);if(!f)return false;
+  if(app==="hw"&&canTreeCtx(f.n))openTreeCtx(f.n,xy);
+  else rcShow([...(sel===id&&app==="hw"?[]:[tctxItem(i18n("Открыть"),["rcOpenNode",id],null,false,"tctx-default")]),tctxItem(i18n("Открыть в новой вкладке"),`ctxOpenNewTab('${id}')`,tctxNewTabIcon())].join(""),xy);
+  rcMark(el);
+  return true;
+}
+function rcFavGone(i,xy,el){
+  rcShow(tctxItem(i18n("Убрать из избранного"),["rcFavDrop",i],tctxStarIcon()),xy);rcMark(el);
+}
+function rcFavDrop(i){closeTreeCtx();const f=favs[i];if(f)toggleFav(f.id,null)}
+// Ссылка или строка: что за объект открывает её щелчок.
+const RC_LINKS={pick:id=>({k:"node",id}),flClick:id=>({k:"node",id}),jumpTo:id=>({k:"node",id}),detOpen:id=>({k:"node",id}),
+  goFav:i=>({k:"fav",i}),accGo:s=>({k:"acc",s}),ruleOpen:id=>({k:"rule",id})};
+const RC_CONTROL="button,a,input,select,textarea,label,summary,[role=tab],[role=switch],[role=button]";
+function rcLink(t){
+  for(let el=t;el&&el!==document.body;el=el.parentElement){
+    if(el.id==="main"||el.id==="tree"||el.id==="aside")return null;
+    if(el.dataset?.pick)return{k:"node",id:el.dataset.pick,el};
+    const raw=el.getAttribute("data-on-click");
+    const call=raw?JSON.parse(raw).find(c=>c[0][0]!=="."):null;
+    if(call&&RC_LINKS[call[0]])return{...RC_LINKS[call[0]](...call.slice(1)),el};
+    if(el.matches(RC_CONTROL))return{k:"control"};
+  }
+  return null;
+}
+function rcAcc(s,xy,el){
+  const[kind,id]=String(s).split(":");
+  if(!id||!["role","user","ug"].includes(kind))return;
+  const a={getBoundingClientRect:()=>({top:xy.y,bottom:xy.y-4,left:xy.x})};
+  const openIt=accSel===s?"":`<button type="button" class="mi tctx-default" ${onEv("click",["accMenuClose"],["accGo",`${s}`])}>${i18n("Открыть")}</button><div class="acc-sep"></div>`;
+  if(kind==="user"){if(!accUser(id))return;accUserMenu(a,id)}
+  else if(kind==="ug"){if(!accUG(id))return;accUGMenu(a,id)}
+  else{
+    const r=accRole(id);if(!r)return;
+    accMenuOpen(a,`<button type="button" class="mi" ${onEv("click",["accMenuClose"],["accCompareWith",`${id}`])}>${i18n("Сравнить роли")}</button>
+      ${r.g.unr?"":`<div class="acc-sep"></div><button type="button" class="mi danger" ${onEv("click",["accMenuClose"],["accDeleteRole",`${id}`])}>${i18n("Удалить роль")}…</button>`}`);
+  }
+  const m=document.getElementById("accMenu");if(!m)return;
+  m.setAttribute("role","menu");
+  m.insertAdjacentHTML("afterbegin",openIt);
+  rcPlace(m,xy);
+  rcMark(el);
+}
+function rcFieldKind(f){
+  if(f.isContentEditable||f.tagName==="TEXTAREA")return true;
+  return f.tagName==="INPUT"&&["text","search","password","email","url","tel","number",""].includes(f.getAttribute("type")||"");
+}
+function rcFieldMenu(f,xy){
+  rcFieldEl=f;
+  let has=false;
+  try{rcFieldRange=[f.selectionStart,f.selectionEnd];has=f.selectionStart!=null&&f.selectionStart!==f.selectionEnd}catch(err){rcFieldRange=null}
+  if(f.isContentEditable||rcFieldRange?.[0]==null){const t=String(getSelection());has=!!t}
+  const ro=f.readOnly||f.disabled,pwd=f.type==="password",empty=!(f.isContentEditable?f.textContent:f.value);
+  rcShow([
+    tctxItem(i18n("Вырезать"),["rcFieldDo","cut"],null,!has||ro||pwd),
+    tctxItem(i18n("Копировать"),["rcFieldDo","copy"],null,!has||pwd),
+    tctxItem(i18n("Вставить"),["rcFieldDo","paste"],null,ro),
+    tctxSep(),
+    tctxItem(i18n("Выделить всё"),["rcFieldDo","selectAll"],null,empty)].join(""),xy);
+}
+function rcFieldDo(cmd){
+  closeTreeCtx();
+  const f=rcFieldEl;if(!f?.isConnected)return;
+  f.focus();
+  if(rcFieldRange?.[0]!=null)try{f.setSelectionRange(rcFieldRange[0],rcFieldRange[1])}catch(err){}
+  if(cmd!=="paste"){document.execCommand(cmd);return}
+  const denied=()=>toast(i18n("Браузер не дал прочитать буфер обмена: нажмите Ctrl+V"));
+  if(!navigator.clipboard?.readText){denied();return}
+  navigator.clipboard.readText().then(t=>{f.focus();document.execCommand("insertText",false,t)}).catch(denied);
+}
+function rcSelectedText(t,byKey){
+  const sl=getSelection();if(!sl||sl.isCollapsed||!sl.rangeCount)return"";
+  const text=String(sl).trim();
+  if(!text||(!byKey&&text!==rcSelBefore)||!sl.getRangeAt(0).intersectsNode(t))return"";
+  return text;
+}
+function rcCopy(){
+  closeTreeCtx();
+  const done=()=>toast(i18n("Скопировано")),fail=()=>{document.execCommand("copy")?done():toast(i18n("Не удалось скопировать: нажмите Ctrl+C"))};
+  if(navigator.clipboard?.writeText)navigator.clipboard.writeText(rcCopyText).then(done).catch(fail);else fail();
+}
+// Пустое место левой панели: только то, что создаётся в этом месте.
+function rcAsideEmpty(xy){
+  if(RC_QUIET)return;
+  if(app==="hw"){
+    const d=domainFilter?domains.find(x=>x.id===domainFilter):domains.length===1?domains[0]:null,items=[];
+    if(d){
+      items.push(tctxItem(i18n("Добавить серверы…"),["ctxThen",d.id,"openAddServers",d.id],tctxPlusIcon()));
+      items.push(tctxItem(i18n("Создать папку"),["ctxThen",d.id,"addSubfolder",null,d.id],tctxPlusIcon()));
+    }
+    if(can("createDomain"))items.push(tctxItem(i18n("Создать домен"),`closeTreeCtx();addDomain()`,tctxPlusIcon()));
+    rcShow(items.join(""),xy);
+  }else if(app==="rules")rcShow([tctxItem(i18n("Новое правило"),`closeTreeCtx();ruleNewOpen()`,tctxPlusIcon()),tctxItem(i18n("Проверить все правила"),`closeTreeCtx();ruleAuditOpen()`)].join(""),xy);
+  else if(app==="acc")rcShow([tctxItem(i18n("Новая роль"),`closeTreeCtx();accWzOpen()`,tctxPlusIcon()),tctxItem(i18n("Новый пользователь"),`closeTreeCtx();accUserDlgOpen()`,tctxPlusIcon()),tctxItem(i18n("Новая группа"),`closeTreeCtx();accUgOpen()`,tctxPlusIcon())].join(""),xy);
+}
+// Пустое место карточки: меню объекта этой карточки — то же, что «Ещё».
+function rcCardEmpty(e,xy){
+  if(RC_QUIET)return;
+  if(app==="hw"){const n=find(sel)?.n;if(n&&canTreeCtx(n)&&(!wizOpen()))openTreeCtx(n,xy)}
+  else if(app==="rules"&&rule&&rules.some(x=>x.id===rule))ruleCtx(e,rule);
+  else if(app==="acc")rcAcc(accSel,xy,null);
+}
+function rcOnContext(e){
+  if(e.shiftKey||e.defaultPrevented)return;
+  e.preventDefault();
+  const byKey=rcByKey(e);
+  let t=e.target?.nodeType===1?e.target:e.target?.parentElement;if(!t)return;
+  if(t.closest("#tctx,#accMenu"))return;
+  closeTreeCtx();accMenuClose();
+  // Клавиша меню, когда фокуса нет: текущая строка дерева
+  if(byKey&&(t===document.body||t===document.documentElement)){
+    const row=document.querySelector("#tree .n.on");
+    if(!row)return;
+    t=row;
+  }
+  const xy=rcPoint(e,t);
+  const field=t.closest("input,textarea,[contenteditable='true']");
+  if(field){if(rcFieldKind(field))rcFieldMenu(field,xy);if(byKey)rcFocusFirst();return}
+  const text=rcSelectedText(t,byKey);
+  if(text){rcCopyText=text;rcShow(tctxItem(i18n("Копировать"),["rcCopy"]),xy);if(byKey)rcFocusFirst();return}
+  if(wizOpen()||t.closest(".confirm,.jump,.mask,.ttu,#upop"))return;
+  const link=rcLink(t);
+  if(link?.k==="control")return;
+  if(link?.k==="node")rcObject(link.id,xy,link.el);
+  else if(link?.k==="rule"){if(app==="rules")ruleCtx(e,link.id);rcMark(link.el)}
+  else if(link?.k==="acc"){if(app==="acc")rcAcc(link.s,xy,link.el)}
+  else if(link?.k==="fav"){const f=favs[link.i];if(f){if(!rcObject(f.id,xy,link.el))rcFavGone(link.i,xy,link.el)}}
+  else if(t.closest("#aside")){if(!t.closest(".n"))rcAsideEmpty(xy)}
+  else if(t.closest("#main"))rcCardEmpty(e,xy);
+  if(byKey)rcFocusFirst();
+}
+// После слушателей onEv на документе: строка дерева и правила уже решили за себя.
+document.addEventListener("contextmenu",rcOnContext,true);
+addEventListener("mousedown",e=>{if(e.button===2)rcSelBefore=String(getSelection()||"").trim()},true);
+// Стрелки в открытом меню — раньше клавиатурной навигации по дереву.
+addEventListener("keydown",e=>{
+  if(!["ArrowDown","ArrowUp","Home","End"].includes(e.key))return;
+  const m=rcOpenMenuEl();if(!m)return;
+  const items=[...m.querySelectorAll("button:not(:disabled)")];if(!items.length)return;
+  e.preventDefault();e.stopPropagation();
+  const i=items.indexOf(document.activeElement),n=items.length;
+  const to=e.key==="Home"?0:e.key==="End"?n-1:e.key==="ArrowDown"?(i+1)%n:(i<=0?n-1:i-1);
+  items[to].focus();
+},true);
 document.onkeydown=e=>{
   if((e.ctrlKey||e.metaKey)&&(e.key==="k"||e.key==="K")){e.preventDefault();focusGo();return}
   if(e.altKey&&!e.ctrlKey&&!e.metaKey&&(e.key==="ArrowLeft"||e.key==="ArrowRight")){e.preventDefault();navStep(e.key==="ArrowLeft"?-1:1);return}
