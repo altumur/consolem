@@ -1,5 +1,6 @@
 /* Показ прототипа: виртуальный курсор сам проходит сценарий и подписывает каждый шаг, чтобы смотрящий не искал, что изменилось.
    Шаги задаёт прототип: Tour.offer("Подпись кнопки", шаги). С ?demo в адресе показ стартует сам, с ?selftest его нет.
+   Несколько вызовов Tour.offer на странице — несколько показов: кнопка открывает список, ?tour=K&demo запускает K-й (с 1).
    Шаг: {say:"текст", at:()=>элемент, act:"click"|"type", text:"что ввести", before:()=>…}.
    Шаги идут сами. Панель остаётся и после последнего шага: «Назад» и «Дальше» проходят их вручную, «Закрыть» отдаёт страницу.
    Клики и ввод настоящие: идут через обычные обработчики страницы и контракт. Данные встроенного сервера живут до перезагрузки,
@@ -29,6 +30,10 @@
 .tour-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
 .tour-offer[hidden]{display:none}
 .tour-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.tour-menu{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:15;display:flex;flex-direction:column;gap:2px;min-width:240px;max-width:calc(100vw - 32px);max-height:calc(100vh - 88px);overflow:auto;box-sizing:border-box;padding:6px;background:var(--p,#1a2129);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 6px 18px #0006}
+.tour-menu[hidden]{display:none}
+.tour-menu button{padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--tx,#e4e9ef);font:13px/1.3 inherit;text-align:left;cursor:pointer}
+.tour-menu button:hover,.tour-menu button:focus-visible{background:var(--one-focus-ring,#3b82f6);color:#fff;outline:0}
 @media(prefers-reduced-motion:reduce){.tour-cur,.tour-panel.tour-fly{transition:none}.tour-ripple{display:none}}`;
   const ARROW = '<svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 2l13.5 11.2-6.3.5 3.6 6.9-2.7 1.4-3.6-7L4 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>';
   const reduced = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
@@ -62,8 +67,9 @@
     } catch {}
   };
   // Показ всегда на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
-  const reloadAt = (step) => {
+  const reloadAt = (step, tour) => {
     const u = new URL(location.href);
+    if (tour) u.searchParams.set("tour", String(tour));
     u.searchParams.set("demo", step == null ? "" : String(step));
     // Без якоря: адрес с одним только якорем страницу не перезагрузит
     u.hash = "";
@@ -331,26 +337,63 @@
   }
 
   let offerEl = null;
-  const offerShow = (v) => { if (offerEl) offerEl.hidden = !v; };
+  let menuEl = null;
+  const offers = [];
+  const menuShow = (v) => {
+    if (!menuEl) return;
+    menuEl.hidden = !v;
+    offerEl.setAttribute("aria-expanded", String(v));
+    if (v) menuEl.querySelector("button").focus();
+  };
+  const offerShow = (v) => {
+    if (offerEl) offerEl.hidden = !v;
+    if (!v) menuShow(false);
+  };
+  const mount = () => {
+    const st = make("style", "");
+    st.textContent = CSS;
+    document.head.append(st);
+    const q = new URLSearchParams(location.search);
+    const many = offers.length > 1;
+    if (many) {
+      // Несколько показов: кнопка открывает список, выбор перезагружает страницу, потому что показ идёт на чистых данных
+      offerEl = button("▶ Показы", "tour-offer", () => menuShow(menuEl.hidden));
+      offerEl.setAttribute("aria-haspopup", "true");
+      offerEl.setAttribute("aria-expanded", "false");
+      menuEl = make("div", "tour-menu");
+      menuEl.hidden = true;
+      menuEl.setAttribute("role", "group");
+      menuEl.setAttribute("aria-label", "Показы");
+      offers.forEach((o, k) => menuEl.append(button(o.label, "", () => reloadAt(null, k + 1))));
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !menuEl.hidden) {
+          e.stopPropagation();
+          menuShow(false);
+          offerEl.focus();
+        }
+      }, true);
+      document.addEventListener("pointerdown", (e) => {
+        if (!menuEl.hidden && !menuEl.contains(e.target) && !offerEl.contains(e.target)) menuShow(false);
+      }, true);
+      document.body.append(menuEl);
+    } else offerEl = button(`▶ ${offers[0].label}`, "tour-offer", () => reloadAt());
+    document.body.append(offerEl);
+    const demo = q.get("demo");
+    if (demo === null) return;
+    const now = many ? offers[Number(q.get("tour")) - 1] : offers[0];
+    // ?demo без номера показа на странице с несколькими показами: выбрать должен зритель
+    if (!now) return menuShow(true);
+    offerShow(false);
+    // ?demo — сам с начала, ?demo=N — ждёт на шаге
+    const at = demo === "" ? NaN : Number(demo);
+    run(now.steps, Number.isInteger(at) ? Math.max(0, Math.min(at, now.steps.length - 1)) : null);
+  };
   window.Tour = {
     offer(label, steps) {
-      if (/[?&]selftest(-run)?\b/.test(location.search)) return;
-      const mount = () => {
-        const st = make("style", "");
-        st.textContent = CSS;
-        document.head.append(st);
-        offerEl = button(`▶ ${label}`, "tour-offer", () => reloadAt());
-        document.body.append(offerEl);
-        const demo = new URLSearchParams(location.search).get("demo");
-        if (demo !== null) {
-          offerShow(false);
-          // ?demo — сам с начала, ?demo=N — ждёт на шаге
-          const at = demo === "" ? NaN : Number(demo);
-          run(steps, Number.isInteger(at) ? Math.max(0, Math.min(at, steps.length - 1)) : null);
-        }
-      };
-      if (window.appReady) window.appReady.then(mount);
-      else mount();
+      if (/[?&]selftest(-run)?/.test(location.search)) return;
+      offers.push({ label, steps });
+      // Вызовы идут подряд в конце скрипта страницы: кнопка ставится один раз, когда все уже известны
+      if (offers.length === 1) (window.appReady || Promise.resolve()).then(mount);
     },
   };
 })();
