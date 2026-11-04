@@ -226,6 +226,185 @@ UiCheck(async ({ ok, until }) => {
   ok(+getComputedStyle(dock()).zIndex > +getComputedStyle(bar).zIndex, "панель над плашкой");
   bar.remove();
 
+  // Голос: подставное распознавание. Текст приходит в поле, отправляет человек
+  const RealRec = window.SpeechRecognition, RealWk = window.webkitSpeechRecognition;
+  let recs = [];
+  class FakeRec {
+    constructor() { recs.push(this); this.started = false; this.stopped = false; this.aborted = false; }
+    start() { this.started = true; }
+    stop() { this.stopped = true; }
+    abort() { this.aborted = true; }
+    say(t, isFinal) { const r = [{ transcript: t }]; r.isFinal = isFinal; this.onresult({ results: [r] }); }
+  }
+  window.SpeechRecognition = undefined;
+  window.webkitSpeechRecognition = undefined;
+  asstOpen("");
+  const voice = asst;
+  ok(el("asstMicBtn").disabled && /не распознаёт/.test(el("asstMicBtn").title), "браузер без распознавания: кнопка выключена, причина названа");
+  window.SpeechRecognition = FakeRec;
+  asstRender();
+  ok(!el("asstMicBtn").disabled, "браузер с распознаванием: кнопка работает");
+  voice.text = "камера:";
+  asstRender();
+  el("asstMicBtn").click();
+  const rec1 = recs[0];
+  ok(rec1?.started && el("asstMicBtn").getAttribute("aria-pressed") === "true" && el("asstText").placeholder === "Говорите…", "микрофон включён и это видно");
+  rec1.say("главный вход", false);
+  ok(el("asstText").value === "камера: главный вход" && voice.text === el("asstText").value, "распознанное в поле, к уже написанному");
+  ok(!voice.log.length && !voice.busy, "голос сам не отправляет");
+  el("asstMicBtn").click();
+  ok(rec1.stopped && asstMic, "выключение ждёт последний итог");
+  rec1.say("главный вход сервер", true);
+  ok(el("asstText").value === "камера: главный вход сервер", "последний итог дошёл");
+  rec1.onend();
+  ok(!asstMic && el("asstMicBtn").getAttribute("aria-pressed") === "false", "микрофон выключен");
+  // Закрытие, список и другой разговор выключают микрофон
+  el("asstMicBtn").click();
+  const rec2 = recs[1];
+  asstClose();
+  ok(rec2.stopped, "закрытие панели выключило микрофон");
+  rec2.onend();
+  asstToggle();
+  asst = voice;
+  asstRender();
+  el("asstMicBtn").click();
+  const rec3 = recs[2];
+  asstHistToggle();
+  ok(rec3.stopped, "список разговоров выключил микрофон");
+  rec3.onend();
+  asstHistToggle();
+  el("asstMicBtn").click();
+  const rec4 = recs[3];
+  asstNewPress();
+  ok(rec4.stopped, "новый разговор выключил микрофон");
+  rec4.say("поздний итог", true);
+  ok(voice.text.includes("поздний итог") && !asst.text.includes("поздний итог"), "поздний итог не попал в другой разговор");
+  rec4.onend();
+  // Отправка и ввод руками: поздний итог поле не переписывает
+  asstSwitch(voice.id);
+  el("asstMicBtn").click();
+  const rec5 = recs[4];
+  voice.text = "сколько камер";
+  asstSendText();
+  ok(rec5.aborted && !asstMic, "отправка сняла микрофон");
+  rec5.say("поздний итог после отправки", true);
+  ok(voice.text === "", "поздний итог не лёг в поле после отправки");
+  ok(await until(() => !voice.busy), "ход после голоса закончился");
+  el("asstMicBtn").click();
+  const rec6 = recs[5];
+  asstInput("пишу руками");
+  ok(rec6.aborted && !asstMic && voice.text === "пишу руками", "ввод руками снял микрофон");
+  voice.text = "";
+  // Отказ браузера словами
+  el("asstMicBtn").click();
+  const rec7 = recs[6];
+  rec7.onerror({ error: "not-allowed" });
+  ok(/не дал доступ/.test(el("tt").textContent), "отказ в микрофоне назван");
+  rec7.onend();
+  el("asstMicBtn").click();
+  const rec8 = recs[7];
+  rec8.onerror({ error: "no-speech" });
+  ok(/не услышана/.test(el("tt").textContent), "тишина названа");
+  rec8.onend();
+  // Отказ в пароле в службу снимает микрофон: просьба не возвращается в поле
+  const modeWas = window.asstMode;
+  window.asstMode = () => "on";
+  el("asstMicBtn").click();
+  const rec9 = recs[8];
+  rec9.say("задай пароль на камере", false);
+  asstSendText();
+  ok(rec9.aborted && !asstMic && voice.text === "", "отказ в пароле снял микрофон");
+  rec9.say("задай пароль на камере", true);
+  ok(voice.text === "", "просьба о пароле не вернулась в поле");
+  window.asstMode = modeWas;
+  voice.err = "";
+  // Панель вопросов, смена разговора: красная кнопка только у слушающего разговора
+  asstRender();
+  el("asstMicBtn").click();
+  const rec10 = recs[9];
+  promptPanel(true);
+  ok(rec10.stopped, "панель вопросов выключила микрофон");
+  promptPanel(false);
+  asstToggle();
+  ok(el("asstMicBtn").getAttribute("aria-pressed") === "false", "пока микрофон договаривает, кнопка не красная");
+  el("asstMicBtn").click();
+  ok(rec10.aborted && recs[10]?.started, "повторное нажатие начинает заново");
+  recs[10].abort();
+  asstMicDrop();
+  window.SpeechRecognition = RealRec;
+  window.webkitSpeechRecognition = RealWk;
+
+  // Файлы: добавить, снять, отправить. Содержимое никуда не уходит
+  asstOpen("");
+  const filed = asst;
+  const big = new File(["x"], "big.bin");
+  Object.defineProperty(big, "size", { value: 11 * 1048576 });
+  const evil = "<img src=x onerror=window.__x=1><b>x</b>.log";
+  asstFileAdd([new File(["abc"], evil), new File(["abc"], evil), big]);
+  ok(filed.files.length === 1, "повтор и слишком большой файл не добавлены");
+  ok(el("asstFiles").textContent.includes(evil) && !el("asstFiles").querySelector("img, b"), "имя показано как текст");
+  el("asstFiles").querySelector("button").click();
+  ok(!filed.files.length && el("asstFiles").children.length === 0 && document.activeElement.id === "asstFilePress", "файл снят, фокус на скрепке");
+  asstFileAdd([1, 2, 3, 4, 5, 6].map((i) => new File(["abc"], `f${i}.txt`)));
+  ok(filed.files.length === ASST_FILE_MAX, "не больше пяти файлов");
+  filed.files.splice(1);
+  filed.files.push({ name: evil, size: 3 });
+  asstRender();
+  const streamReal = API.stream;
+  let turnBody = null;
+  API.stream = (p, b, ...r) => { turnBody = b; return streamReal.call(API, p, b, ...r); };
+  filed.text = "сколько камер";
+  asstSendText();
+  API.stream = streamReal;
+  ok(turnBody && Object.keys(turnBody).join() === "text", "в ход ушёл только контрактный текст");
+  ok(!filed.files.length && !el("asstFiles").children.length, "поле файлов очищено");
+  ok(el("asstBlock").querySelector(".asst-u-files .asst-file")?.textContent.includes("f1.txt"), "имя файла в ленте");
+  ok(el("asstBlock").textContent.includes(evil) && !el("asstBlock").querySelector(".asst-u-files img, .asst-u-files b"), "в ленте имя тоже текст");
+  ok(/файлы ему не ушли/.test(el("asstBlock").textContent), "лента честно говорит, что файл не ушёл");
+  ok(await until(() => !filed.busy), "ход с файлом закончился");
+  ok(savedOf(filed).log.some((x) => x.files?.[0]?.name === "f1.txt"), "имя файла в истории");
+  // Черновик с файлом виден в списке разговоров и открывается
+  asstOpen("");
+  const draft = asst;
+  asstFileAdd([new File(["abc"], "draft.txt")]);
+  asstOpen("");
+  const draftRow = () => [...el("asstBlock").querySelectorAll(".asst-hrow")].find((r) => r.dataset.asstChat === draft.id);
+  asstHistToggle();
+  ok(draftRow(), "черновик с файлом в списке");
+  draftRow().click();
+  ok(asst === draft && el("asstFiles").textContent.includes("draft.txt"), "черновик открылся с файлом");
+  draft.files = [];
+  // Имя файла о пароле: разговор не сохраняется, как и текст о пароле
+  asstOpen("");
+  const passFile = asst;
+  asstFileAdd([new File(["abc"], "пароли-камер.xlsx")]);
+  passFile.text = "сколько камер";
+  asstSendText();
+  ok(await until(() => !passFile.busy), "ход с файлом о паролях закончился");
+  ok(!store().includes("пароли-камер") && savedOf(passFile).noStore, "имя файла о паролях не сохранено");
+  asstOpen("");
+  asst.text = "x";
+  asstSendText();
+  ok(await until(() => !asst.busy), "ещё один разговор для перетаскивания");
+  asst.text = "";
+  // Файл мимо панели не уводит страницу
+  const outsideDt = new DataTransfer();
+  outsideDt.items.add(new File(["abc"], "out.txt"));
+  const outDrop = new DragEvent("drop", { dataTransfer: outsideDt, bubbles: true, cancelable: true });
+  el("main").dispatchEvent(outDrop);
+  ok(outDrop.defaultPrevented, "файл мимо панели браузер не откроет");
+  const filed2 = asst;
+  // Перетаскивание
+  const dt = new DataTransfer();
+  dt.items.add(new File(["abc"], "drop.txt"));
+  const over = new DragEvent("dragover", { dataTransfer: dt, bubbles: true, cancelable: true });
+  dock().dispatchEvent(over);
+  ok(over.defaultPrevented && dock().classList.contains("asst-drop"), "панель принимает перетаскивание");
+  dock().dispatchEvent(new DragEvent("drop", { dataTransfer: dt, bubbles: true, cancelable: true }));
+  ok(!dock().classList.contains("asst-drop") && filed2.files[0]?.name === "drop.txt", "файл перетащен на панель");
+  filed2.files = [];
+  asstRender();
+
   // Положение и ширина
   const oldW = asstWidth;
   asstVariantSet("side");
