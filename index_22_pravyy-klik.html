@@ -23040,9 +23040,8 @@ function navMenu(e){
 //   3. окно поверх макета — ничего больше;
 //   4. строка или ссылка на объект — меню этого объекта; карточка на экране не меняется;
 //   5. кнопка, вкладка, галочка — ничего: их действие и так на виду;
-//   6. пустое место дерева и карточки — действия этого места; ?rc=quiet — вариант, где там ничего.
+//   6. пустое место дерева и карточки — действия этого места.
 // Shift + правый клик — меню браузера, для разработчиков (в Firefox браузер делает так сам).
-const RC_QUIET=/[?&]rc=quiet\b/.test(location.search);
 let rcMarked=null,rcBack=null,rcFieldEl=null,rcFieldRange=null,rcSelBefore="",rcCopyText="";
 function rcNative(e){return e.type==="contextmenu"&&e.shiftKey}
 function rcByKey(e){return e.type==="contextmenu"&&e.button!==2}
@@ -23168,7 +23167,6 @@ function rcCopy(){
 }
 // Пустое место левой панели: только то, что создаётся в этом месте.
 function rcAsideEmpty(xy){
-  if(RC_QUIET)return;
   if(app==="hw"){
     const d=domainFilter?domains.find(x=>x.id===domainFilter):domains.length===1?domains[0]:null,items=[];
     if(slice==="det"){rcShow(tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen"],tctxPlusIcon()),xy);return}
@@ -23188,7 +23186,6 @@ function rcAsideEmpty(xy){
 }
 // Пустое место карточки: меню объекта этой карточки — то же, что «Ещё».
 function rcCardEmpty(e,xy){
-  if(RC_QUIET)return;
   if(app==="hw"){const n=find(sel)?.n;if(n&&canTreeCtx(n)&&(!wizOpen()))openTreeCtx(n,xy)}
   else if(app==="rules"&&rule&&rules.some(x=>x.id===rule))ruleCtx(e,rule);
   else if(app==="acc")rcAcc(accSel,xy,null);
