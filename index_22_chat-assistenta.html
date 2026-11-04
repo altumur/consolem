@@ -25864,6 +25864,56 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 }).catch(e=>{
   document.body.insertAdjacentHTML("afterbegin",`<div class="nt bk-warn" style="margin:16px">${i18n("Сервер не ответил")}: ${escHtml(e?.problem?.message||e?.message||String(e))}</div>`);
 });
+// Показ прототипа: чат ассистента в своей панели (движок — assets/tour.js). Только в прототипе.
+// Заглушка отвечает сразу, поэтому показ держит ход открытым сам: иначе не увидеть, что ход переживает закрытие панели.
+// Сохранённую историю зрителя показ не трогает: разговоры показа живут в памяти и пропадают при перезагрузке
+Tour.offer("Чат ассистента", (()=>{
+  const q=sel=>()=>document.querySelector(sel);
+  const hrow=re=>()=>[...document.querySelectorAll("#asstBlock .asst-hrow")].find(e=>re.test(e.textContent));
+  const nth=i=>()=>document.querySelectorAll("#asstBlock .asst-u")[i];
+  const real=API.stream;
+  let gates=[];
+  const hold=()=>{API.stream=(...args)=>new Promise(r=>gates.push(r)).then(()=>real.apply(API,args))};
+  const free=()=>{API.stream=real;gates.splice(0).forEach(r=>r())};
+  const start=()=>{
+    asstSave=()=>{};
+    asstVariantSet=v=>{asstVariant=v;asstRender()};
+    asstChats=[];asst=null;asstDockOpen=false;asstHist=false;asstVariant="auto";
+    asstWidthSet(400,false);
+    goApp("hw");
+    asstRender();
+  };
+  return[
+    {say:"Раньше разговор жил в окне строки поиска: закрыли окно — разговора не видно. Теперь у ассистента своя кнопка в шапке, она видна всегда.",before:start,at:q("#hdAsst")},
+    {say:"Вход из поиска тоже остался. Сначала это обычный запрос поиска.",before:hold,at:q("#gq"),act:"type",text:"сколько камер"},
+    {say:"Над результатами стоит строка «Спросить ассистента». Enter остаётся фильтром дерева: просьба уходит ассистенту только явным выбором.",at:q("#goAsk"),act:"click"},
+    {say:"Разговор открылся в своей панели, а не в окне поиска. Запрос поиска снят, дерево снова целое. Ответ ещё идёт.",before:()=>document.getElementById("goAsk")?.dispatchEvent(new MouseEvent("mousedown",{bubbles:true,cancelable:true})),at:nth(0)},
+    {say:"Панель можно закрыть в любой момент. Закрытие только прячет её: ход не снимается.",at:q("#asstCloseBtn"),act:"click"},
+    {say:"Панель закрыта, а кнопка говорит словами: ассистент отвечает. Можно работать дальше.",at:q("#hdAsst.run")},
+    {say:"Оператор ушёл к другой работе: выбрал объект в дереве.",at:q("#tree .n[data-pick]"),act:"click"},
+    {say:"Ответ пришёл. Кнопка сменила слова, а курсор и дерево остались на месте: ответ ничего не забирает.",before:free,at:q("#hdAsst.ready"),act:"click"},
+    {say:"Кнопка ведёт прямо к готовому ответу.",at:q("#asstAnswer")},
+    {say:"Разговор продолжается в той же панели.",at:q("#asstText"),act:"type",text:"а серверов сколько"},
+    {say:"Отправляем уточнение.",at:q("#asstSend:not([disabled])"),act:"click"},
+    {say:"Прежняя просьба и прежний ответ не пропали: лента хранит весь разговор.",at:()=>asst&&!asst.busy&&asst.answer?nth(1)():null},
+    {say:"Теперь просьба, ответ на которую будет идти долго.",before:hold,at:q("#asstText"),act:"type",text:"сколько правил"},
+    {say:"Отправляем её.",at:q("#asstSend:not([disabled])"),act:"click"},
+    {say:"Новый разговор можно начать сразу. Раньше новая просьба снимала идущий ход, теперь он продолжается.",at:()=>asst?.busy?document.getElementById("asstNew"):null,act:"click"},
+    {say:"Кнопка часов открывает историю разговоров.",at:q("#asstHistBtn"),act:"click"},
+    {say:"В списке видно каждый разговор и его состояние. Первый разговор ещё отвечает.",at:hrow(/отвечает/)},
+    {say:"Ответ пришёл, пока открыт список. Строка говорит об этом, щелчок ведёт к ответу.",before:free,at:hrow(/готов ответ/),act:"click"},
+    {say:"Положение панели. «Авто» ставит её рядом, если форме остаётся не меньше 700 px, иначе поверх. На маленьком экране форма не ломается.",at:q("#asstVarAuto")},
+    {say:"Ширину меняют за левый край панели, мышью или стрелками: от 320 до 720 px.",before:()=>asstWidthSet(520,false),at:q("#asstGrip")},
+    {say:"Положение можно задать и вручную. Выбираем «Поверх».",before:()=>asstWidthSet(400,false),at:q("#asstVarOver"),act:"click"},
+    {say:"Новый разговор: просьба изменить настройку камер.",at:q("#asstNew"),act:"click"},
+    {say:"План настройки применяют в групповой карточке.",at:()=>asst&&!asst.log.length?document.getElementById("asstText"):null,act:"type",text:"выключи запись Главный вход"},
+    {say:"Отправляем просьбу.",at:q("#asstSend:not([disabled])"),act:"click"},
+    {say:"Панель поверх закрыла бы карточку, поэтому она ушла сама. Объекты отмечены в дереве, значения в карточке, а кнопка говорит: ждёт ответа.",at:q("#hdAsst.wait")},
+    {say:"Кнопка возвращает разговор: план можно уточнить.",at:q("#hdAsst.wait"),act:"click"},
+    {say:"План виден в панели, рядом кнопка «Уточнить».",at:q("#asstSend")},
+    {say:"Итог: у чата своё место и своя кнопка. Закрытие не теряет ход, разговоры видны в истории и не мешают друг другу. История хранится в браузере, пароли в неё не попадают.",before:()=>{asstVariant="auto";asstLayout()}}
+  ];
+})());
 // Показ прототипа: что изменилось в добавлении серверов (движок — assets/tour.js). Только в прототипе
 Tour.offer("Добавление серверов", (()=>{
   const q=sel=>()=>document.querySelector(sel);
