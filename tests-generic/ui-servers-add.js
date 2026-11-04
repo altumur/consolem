@@ -1,5 +1,5 @@
-/* Сценарий интерфейса: добавление серверов одним окном — один вход, один список, без шагов и «Назад», сверка отпечатков и пачкой.
-   Пока окно живёт только в прототипе, на страницах без него сценарий ничего не проверяет. */
+/* Сценарий интерфейса: добавление серверов одним окном — один вход, один список, два шага («Какие серверы», «Проверка»),
+   сверка отпечатков и пачкой. На страницах без окна сценарий ничего не проверяет. */
 UiCheck(async ({ ok, until, confirmWith }) => {
   if (typeof openAddServers !== "function") {
     ok(true, "на этой странице окна ещё нет");
@@ -27,10 +27,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wiz() && title() === "Добавить серверы", "вход «Добавить серверы»: " + title());
   ok(d.unallocServers.length > 0 && !!document.getElementById("wizIps") && !!document.querySelector(".srv-list .it"), "поле адресов и список — в одном окне");
 
-  // Без шагов и «Назад»
-  ok(wb().textContent === "Закрыть", "вместо «Назад» — «Закрыть»: " + wb().textContent);
-  ok(document.getElementById("wst").style.display === "none", "шагов нет");
-  ok(wn().disabled && /\(0\)/.test(wn().textContent), "ничего не выбрано — кнопка погашена: " + wn().textContent);
+  // Два шага: на первом «Назад» нет, «Далее» погашена, пока ничего не выбрано
+  ok(getComputedStyle(wb()).display === "none", "на первом шаге «Назад» скрыта");
+  ok(document.getElementById("wst").style.display !== "none" && /Какие серверы/.test(document.getElementById("wst").textContent) && /Проверка/.test(document.getElementById("wst").textContent), "шаги «Какие серверы» и «Проверка» видны");
+  ok(wn().disabled && wn().textContent === "Далее", "ничего не выбрано — «Далее» погашена: " + wn().textContent);
   ok(document.getElementById("wizFoot").textContent.includes(d.name), "видно, в какой домен");
 
   // Опрос: результат в том же списке, поле не очищается, нераспознанное — под полем
@@ -47,10 +47,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Один сервер — одна строка
   ok(srvRows().filter((r) => r.serverId === net.id).length === 1, "сервер из сети, найденный и по адресу, — одна строка");
   ok(document.querySelector(".srv-list").textContent.includes(net.name), "строка опроса названа именем сервера");
-  ok(ipPicked().length === 1 && /\(1\)/.test(wn().textContent), "найденное по адресу отмечено сразу: " + wn().textContent);
+  ok(ipPicked().length === 1 && !wn().disabled && /Выбрано 1/.test(document.getElementById("wizFoot").textContent), "найденное по адресу отмечено сразу, «Далее» доступна: " + document.getElementById("wizFoot").textContent);
 
   // Сверка отпечатка до приёма
-  addProbedServers();
+  wn().click();
+  ok(wizd.srvStep === 1 && wn().textContent === "Добавить 1 сервер" && getComputedStyle(wb()).display !== "none", "«Далее» ведёт к проверке: кнопка «Добавить 1 сервер», есть «Назад»: " + wn().textContent);
+  ok(document.querySelector("#wbd .bk-table")?.textContent.includes(net.name), "на шаге «Проверка» сервер назван в таблице");
+  ok(!inDomain(net.id), "на шаге «Проверка» ещё не принят");
+  wn().click();
   ok(await until(confirmOpen), "окно сверки открылось");
   ok(document.getElementById("confirmMsg").textContent.includes(net.fingerprint), "окно показывает отпечаток");
   ok(!inDomain(net.id), "до подтверждения не принят");
@@ -59,8 +63,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => /Добавлен/.test(document.querySelector(".srv-list").textContent)), "строка осталась с пометкой «Добавлен»");
   ok(wn().disabled, "выбранного больше нет, кнопка погашена");
 
-  // «Закрыть» закрывает
-  wb().click();
+  // «Закрыть» в заголовке закрывает
+  document.querySelector('#wizTools button[aria-label="Закрыть"]').click();
   ok(!wiz(), "«Закрыть» закрывает окно");
 
   // Карточка «Нераспределённые»: пачка тоже идёт через сверку
@@ -101,7 +105,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   openAddServers(d.id);
   probeTo(net2.ip);
   runIpProbe();
-  ok(posts.filter((p) => p === "/servers/probe").length === 1, "пока идёт опрос, второй не запускается");
+  // Опрос адресов — команда probe вида сервера (POST /kinds/server/actions/probe)
+  ok(posts.filter((p) => p === "/kinds/server/actions/probe").length === 1, "пока идёт опрос, второй не запускается");
 
   // Ответ опроса не попадает в окно, открытое заново
   const old = wizd;
@@ -137,7 +142,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addProbedServers();
   ok(await until(() => row.added), "новый адрес добавлен: " + document.querySelector(".srv-list").textContent.slice(0, 80));
   API.post = post;
-  ok(posts.filter((p) => p === "/servers").length === 1, "двойное нажатие заводит один сервер");
+  // Новый сервер — объект вида server (POST /units)
+  ok(posts.filter((p) => p === "/units").length === 1, "двойное нажатие заводит один сервер");
   closeWizard();
 
   // Под самопроверкой показа нет

@@ -1,0 +1,31 @@
+/* Сценарий прототипа 14 на неполном кэше: объект известен только по id, его папок ещё никто не читал — «Папки» от этого не выключаются.
+   Запуск — python3 tools/check_ui.py tests/ui-papki-raw.js */
+window.UI_RAW_CACHE = true;
+UiCheck(async ({ ok, until }) => {
+  const on = () => document.getElementById("viewBtn").getAttribute("aria-checked") === "true";
+  const onRow = () => document.querySelector("#tree .n.on")?.dataset.pick;
+  // Берём заранее: чтение одной записи подтягивает в кэш соседей по папке
+  const inFolders = [];
+  // Камеры — по профилю vms.camera/1; папки объекта — Unit.folders полной записи
+  for (const u of (await API.get("/units", { limit: 1000, implements: "vms.camera/1" })).items) {
+    if (!find(u.uid) && (await API.get(`/units/${u.uid}`)).folders?.length) inFolders.push({ id: u.uid });
+  }
+  const a = inFolders[0];
+
+  // Ссылка по id
+  ok(inFolders.length > 1, `камер вне кэша, лежащих в папках: ${inFolders.length}`);
+  ok(group() === "folder" && on(), "до перехода папки включены");
+  pick(a.id, { force: true });
+  ok(await until(() => sel === a.id && !find(a.id)?.n._row), "полная запись прочитана");
+  ok(await until(() => onRow() === a.id), "строка в папке выбрана");
+  ok(group() === "folder" && on(), "«Папки» остались включёнными");
+
+  // Глубокая ссылка просит папки — так и будет
+  const b = inFolders.find((r) => !find(r.id) || (find(r.id).n._row && !foldersOfDevice(r.id).length));
+  ok(!!b, "есть камера, чьи папки ещё не прочитаны");
+  location.hash = `#node=${b.id}&slice=cam&group=folder&tab=gen`;
+  applyDeepLink();
+  ok(await until(() => sel === b.id && onRow() === b.id), "глубокая ссылка: строка в папке выбрана");
+  ok(group() === "folder" && on(), "глубокая ссылка: «Папки» включены");
+  location.hash = "";
+});

@@ -23,7 +23,10 @@ UiCheck(async ({ ok, until }) => {
   const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
   const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
-  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path) && !oneMember(x.path) && !infra(x.path));
+  // Детекторы для среза «Детекторы» база читает на старте (detLoad: /devices?type=det до selectMax строк). В ядре — по профилю
+  // vms.detector/1 из индекса вида: на стенде детекторов нет, ответ пуст — это конец пустого перечня, а не перечень домена
+  const detEmpty = (x) => { const q = unitsQ(x.path); return !!q && q.get("implements") === "vms.detector/1" && x.empty; };
+  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path) && !oneMember(x.path) && !infra(x.path) && !detEmpty(x));
   ok(!whole.length, "старт: ни один перечень не прочитан до конца: " + whole.map((x) => x.path).join(" "));
   ok(!trace.some((x) => /\/discovery|\/journal|\/licenses|\/fires|\/versions|\/access\/users/.test(x.path)), "старт: поиск, журнал, лицензии, история правил и люди не читаются");
   const d = domains[0];
@@ -32,6 +35,8 @@ UiCheck(async ({ ok, until }) => {
   ok(d.servers.length === 500 && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
   // Камеры-кластеры: под доменом, порядок не алфавитный, строка (в базе версия r<revision>; в ядре у строки и полной
   // записи одна Unit.version — строку отличает _row: полную запись ещё не читали)
+  // Раскладка по умолчанию — папки (как база): ветка домена по серверам читается после переключения группировки
+  if (group() !== "server") { setGroup("server"); renderTree(); await until(() => treeBr.get("servers|" + d.id)?.cursor || treeBr.get("servers|" + d.id)?.done); }
   const domBranch = treeBr.get("servers|" + d.id);
   ok(domBranch && domBranch.count > 200000 && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
   let mark = trace.length;
@@ -147,6 +152,10 @@ UiCheck(async ({ ok, until }) => {
   const rc = devicePool.find((n) => n.type === "camera" && n.srvId);
   pick(rc.id, { force: true });
   ok(await until(() => !rc._row && sel === rc.id), "её карточка");
+  // Ветка сервера, раскрытая выше, читается своими страницами (пустые страницы ограниченного прохода — подряд): «Просмотр»
+  // считает свои запросы после её конца, иначе страница ветки попадает в счёт
+  const srvBr = () => treeBr.get(treeLayout() + "|" + d.servers[0].id);
+  ok(await until(() => !!srvBr() && !srvBr().busy && ![...treeBr.values()].some((b) => b.busy), 20000), "ветка сервера дочитана до «Просмотра»");
   mark = trace.length;
   goTab("view");
   ok(await until(() => lv?.viewOn && !lv.tl.busy && lv.holds), "«Просмотр»: шкала прочитана на большом домене");

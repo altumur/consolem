@@ -54,6 +54,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nrWant = (await uiDevices()).filter((x) => x.type === "camera" && x.domainId === d.id && !x.archiveId && !(x.extraArchives || []).some((e) => e.recordMode !== "none")).length;
   ok(norecList(d.id).length >= nrWant, `в группе ${norecList(d.id).length}, на сервере ${nrWant}`);
   ok(!(await API.get("/units", { kind: "camera", noRecord: "true", domainId: d.id, limit: 1 })).total, "полного числа сервер не даёт");
+  // Ещё не читавшаяся папка берётся заранее: в раскладке по папкам карточка домена («Папки») сама читает все папки
+  const f = folders.find((x) => domainById(folderDomain(x.id))?.online !== false && !x.items.length && !treeBr.has("folders|" + x.id) && !x.folders.length);
+  ok(!!f, "есть папка, которую дерево ещё не читало");
   // Группа «Без папки»
   setSlice("cam");
   setGroup("folder");
@@ -62,7 +65,6 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   renderTree();
   ok(await until(() => treeBr.get("folders|" + nf)?.done || treeBr.get("folders|" + nf)?.cursor), "«Без папки» прочитана отбором");
   // Папка: состав по запросу, правка изменениями
-  const f = folders.find((x) => !x.items.length && !treeBr.has("folders|" + x.id) && !x.folders.length);
   open.add(f.id);
   renderTree();
   ok(await until(() => treeBr.get("folders|" + f.id)?.done), "папка прочитана");
@@ -79,7 +81,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(lastOp.state === "done" && (lastOp.items || []).some((x) => x.targetId === out && x.state === "ok"), "операция записана: шаг folders одной операцией");
     // Всё или ничего, как база одним POST /folders/{id}/devices: объект без возможности folders (поток) отклоняет всю
     // операцию — не добавлен и прошедший бы шаг камеры, кэш папки прежний. Быстрая запись — одним запросом, без опроса
-    const cam = devicePool.find((n) => n.type === "camera" && !f.items.includes(n.id) && !fIds.includes(n.id));
+    // Камера — из домена папки: папка чужого домена — отказ шага по x-ref (как база), а здесь нужна прошедшая бы правка
+    const cam = devicePool.find((n) => n.type === "camera" && nodeDomainId(n) === folderDomain(f.id) && !f.items.includes(n.id) && !fIds.includes(n.id));
     const st = (await API.get("/units", { implements: "vms.stream/1", limit: 1 })).items[0];
     window.CONSOLEM_TRACE = [];
     let err = null;
@@ -101,17 +104,24 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   }
   // Поиск в раскладке «папки»: найденное в нечитанной папке встаёт под свою папку. TreePathStep.kind — код вида (camera…),
   // а не прежнее device: объект шага после папки — любой не инфраструктурный
-  let f2 = null, m = null;
+  let f2 = null, m = null, forgot = false;
   for (const x of flatFolders().filter((y) => !treeBr.has("folders|" + y.id) && y.id !== f.id)) {
     const inside = (await uiFolderIds(x.id)).filter((id) => !x.items.includes(id));
     if (inside.length) { f2 = x; m = inside[0]; break; }
+  }
+  // Карточка домена («Папки», как база) читает все папки заранее, а на demo в кэше к этому месту все объекты всех папок
+  // (доменов 1, 2 и 4; в домене 3 папок нет): нечитанной не остаётся. Запасной путь — папка «забывает» прочитанное
+  // (ветку и строку объекта в составе), как будто её не раскрывали; в выводе проверки помечено
+  if (!f2) {
+    f2 = flatFolders().find((y) => y.id !== f.id && domainById(folderDomain(y.id))?.online !== false && y.items.length);
+    if (f2) { forgot = true; m = f2.items[0]; treeBr.delete("folders|" + f2.id); f2.items = f2.items.filter((id) => id !== m); treeMatchCache.clear(); searchMatchCache.clear(); }
   }
   if (f2) {
     setTreeQ(m);
     ok(await until(() => fs && fs.done && !fs.busy) && fs.hits.has(m), "поиск в раскладке «папки» нашёл объект");
     ok(f2.items.includes(m) && folderDeviceNodes(f2).some((n) => n.id === m) && foldersOfDevice(m).some((x) => x.id === f2.id) &&
       await until(() => !!document.querySelector(`#tree .n[data-pick="${m}"]`)),
-      "найденное в нечитанной папке — под своей папкой (f.items), строка в дереве");
+      "найденное в нечитанной папке — под своей папкой (f.items), строка в дереве" + (forgot ? " (нечитанной нет — папка «забыла» прочитанное)" : ""));
     clearTreeQ();
   } else ok(false, "нет нечитанной папки с объектом");
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся

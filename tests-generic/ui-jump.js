@@ -3,13 +3,16 @@
 UiCheck(async ({ ok, sleep, until }) => {
   const serverOfDet = (d) => cameraTreeServer(d.parentId)?.id;
   const devices = (await uiDevices()).filter((d) => find(d.id));
-  const shown = (id) => {
+  const shown = (id, on) => {
     const box = document.getElementById("tree").getBoundingClientRect();
-    return [...document.querySelectorAll(`#tree .n[data-pick="${id}"]`)].some((el) => {
+    return [...document.querySelectorAll(`#tree .n${on ? ".on" : ""}[data-pick="${id}"]`)].some((el) => {
       const r = el.getBoundingClientRect();
       return el.offsetParent !== null && r.height > 0 && r.top >= box.top - 1 && r.bottom <= box.bottom + 1;
     });
   };
+  // «Папки» меняются только от нажатия: в раскладке по папкам у не встроенного детектора своей строки нет,
+  // подсвечена строка его камеры. Во всех остальных случаях цель — строка самого объекта
+  const shownDev = (d) => d.type === "det" && !d.builtin && group() === "folder" ? shown(d.parentId, true) : shown(d.id);
   const note = (bad, key, name) => (bad[key] = bad[key] || []).push(name);
   const report = (bad) => Object.entries(bad).map(([k, v]) => `${k}=${v.length} [${v.slice(0, 2).join(", ")}]`).join(" | ").slice(0, 1200);
   // Каждое устройство: поиск, затем его родитель и каждый шаг пути
@@ -19,8 +22,8 @@ UiCheck(async ({ ok, sleep, until }) => {
     goApp("hw");
     jumpToNode(find(d.id).n);
     // Ветка могла ещё читаться: строка появляется после неё
-    await until(() => shown(d.id), 300);
-    if (!shown(d.id)) note(noJump, `${d.type}/${slice}/${group()}`, d.name);
+    await until(() => shownDev(d), 300);
+    if (!shownDev(d)) note(noJump, `${d.type}/${slice}/${group()}`, d.name);
     document.querySelectorAll(".cr-it[data-id]:not(.cr-last)").forEach((el) => crumbs.add(el.dataset.id));
     // Родитель: один раз на родителя, сразу после перехода к его ребёнку
     if (d.parentId && !parents.has(d.parentId)) {
@@ -50,7 +53,7 @@ UiCheck(async ({ ok, sleep, until }) => {
       goApp("hw");
       jumpToNode(find(d.id).n);
       await sleep(1);
-      if (!shown(d.id)) note(bad, `${d.type}/${slice}/${group()}`, d.name);
+      if (!shownDev(d)) note(bad, `${d.type}/${slice}/${group()}`, d.name);
     }
     ok(!Object.keys(bad).length, `срез ${s}: поиск ведёт к строке` + (Object.keys(bad).length ? ": " + report(bad) : ""));
   }

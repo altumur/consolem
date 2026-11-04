@@ -112,6 +112,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const ttx=()=>document.getElementById("tt")?.textContent||"";
   const box=d1.unallocServers.find(x=>x.cls==="camera"),plain=d1.unallocServers.find(x=>x.cls!=="camera"&&x.online!==false);
   addUnallocServers([box.id,plain.id],d1.id);
+  // Отпечаток коробки сверяется до приёма (как база)
+  ok(await until(()=>document.getElementById("confirm")?.classList.contains("open")),"отпечатки — до приёма");
+  await confirmWith(null);
   ok(await until(()=>/Добавлено серверов: 2/.test(ttx())),"коробка и сервер одним приёмом: «"+ttx()+"»");
   ok(await until(()=>devicePool.some(n=>n.type==="camera"&&n.name===box.name)),"коробка принята камерой");
   ok(await until(()=>domainById(d1.id).servers.at(-1)?.id===plain.id),"принятый сервер — последним");

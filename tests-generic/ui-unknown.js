@@ -314,4 +314,33 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     kindsApply();
     if (find(pc.id)) delete find(pc.id).n._kind;
   }
+
+  // Срез «Камеры» читает и виды без ручного экрана: папка, где лежит только контроллер, после чтения среза не серая,
+  // раскрывается и показывает его. Контроллер убран из кэша — его приносит только чтение среза
+  {
+    const c = await API.get(`/units/${ctrl2.uid}`);
+    const [fld] = (await API.post("/units", { idempotencyKey: "ui-unknown-cam-folder", items: [{ kind: "folder", name: "Только контроллер", domainId: c.domainId, properties: {} }] })).done.flatMap((d) => d.units || []);
+    const op = await API.post("/operations", { idempotencyKey: "ui-unknown-cam-folder-put", items: [{ uid: c.uid, folders: [fld.uid] }], expectedVersions: { [c.uid]: c.version }, wait: true });
+    ok(op.state === "done" && !(op.failed || []).length, "контроллер положен в новую папку одной операцией");
+    await apiReload();
+    goApp("hw");
+    setSlice("all");
+    hwRemoveDevice(c.uid);
+    treeReset();
+    window.CONSOLEM_TRACE = [];
+    setGroup("folder");
+    setSlice("cam");
+    ok(await until(() => sliceReads.get(sliceReadKey())?.done, 20000), "срез «Камеры» прочитан");
+    const reads = CONSOLEM_TRACE.map((t) => new URL(t.path, "http://x").searchParams.get("kind")).filter(Boolean);
+    ok(reads.some((k) => k.split(",").includes("security_controller/CONTROLLER") && k.split(",").includes("camera")), "чтение среза «Камеры» берёт и вид контроллера: " + reads.join(" | "));
+    delete window.CONSOLEM_TRACE;
+    const row = () => document.querySelector(`#tree .n[data-pick="${fld.uid}"]`);
+    renderTree();
+    if (!row()) toggleNode(c.domainId, { stopPropagation() {} });  // домен раскрыт — папка в его ветке
+    ok(await until(() => !!row()) && !row().classList.contains("n-slice-empty") && !!row().querySelector(".tw-chev"),
+      "папка только с контроллером в «Камерах» — не серая и со стрелкой: " + (row()?.className || "нет строки"));
+    row()?.querySelector(".tw")?.click();
+    ok(await until(() => !!document.querySelector(`#tree .n[data-pick="${c.uid}"]`)), "раскрытая папка показывает контроллер");
+    setSlice("all");
+  }
 });

@@ -31,9 +31,9 @@ UiCheck(async ({ ok, until }) => {
       },
     }), { status: 200, headers: { "Content-Type": "text/event-stream" } }));
   const el = (id) => document.getElementById(id);
-  const text = () => el("gopop").textContent;
+  const text = () => el("asstDock").textContent;
   const mode = () => el("asstSvc")?.dataset.asstMode;
-  const close = () => goClose();
+  const close = () => asstClose();
   const lastCall = () => calls[calls.length - 1];
   const open = () => { close(); asstOpen(""); };
   // Ответ и уточнение — в поле под ответом, клавиатурой. Строка поиска — новая просьба, новый разговор
@@ -51,6 +51,8 @@ UiCheck(async ({ ok, until }) => {
   meta.content = SVC + "/";
   const search = (q) => history.replaceState(null, "", location.pathname + q);
   const q0 = location.search;
+  // Панель рядом с деревом: поверх она закрылась бы на плане настройки
+  asstVariantSet("side");
   asstCodeDrop();
 
   // Без адреса — прежняя панель: поля кода нет, ответ заглушки, наружу ничего
@@ -103,7 +105,7 @@ UiCheck(async ({ ok, until }) => {
   ok(mode() === "on" && !el("asstCode") && el("asstCodeForget"), "код принят");
   ok(/Отвечает модель/.test(text()), "видно, что отвечает модель");
   ok(!JSON.stringify(Object.assign({}, localStorage)).includes(CODE), "кода нет в localStorage");
-  ok(!location.href.includes(CODE) && !el("gopop").innerHTML.includes(CODE), "кода нет в адресе и в разметке");
+  ok(!location.href.includes(CODE) && !el("asstDock").innerHTML.includes(CODE), "кода нет в адресе и в разметке");
   ok((sessionStorage.getItem("consolem-assist-code") || "").includes(CODE), "код в sessionStorage");
   asstCodeNow = null;
   ok(asstMode(asst) === "on", "код читается из sessionStorage");
@@ -126,15 +128,16 @@ UiCheck(async ({ ok, until }) => {
   ok(!call.url.includes(CODE) && !call.init.body.includes(CODE), "код только в заголовке");
   ok(await until(() => /в очереди: место 2/.test(el("asstLine")?.textContent || "")), "место в очереди показано");
   ok(el("asstSend")?.disabled && el("asstCancel"), "идёт ход: «Отправить» неактивна, отмена есть");
-  // Клик мимо не снимает ход: панель скрыта, строки хода копятся, окно само не открывается, клик в строке показывает ход
+  // Закрытие панели не снимает ход: панель скрыта, строки хода копятся, сама не открывается, кнопка в шапке показывает ход
   const abHide = aborted;
-  press(el("tree"));
-  ok(!el("gopop").classList.contains("open") && asst && asst.busy, "клик мимо скрыл панель, ход идёт");
+  const hidden = asst;
+  asstClose();
+  ok(el("asstDock").hidden && asst && asst.busy, "панель закрыта, ход идёт");
   feed({ type: "progress", text: "читаю скрыто" });
   ok(await until(() => asst.line === "читаю скрыто"), "скрытый ход идёт дальше");
-  ok(!el("gopop").classList.contains("open") && aborted === abHide, "окно само не открылось, запрос не оборван");
-  press(gq);
-  ok(el("gopop").classList.contains("asst") && /читаю скрыто/.test(el("asstLine")?.textContent || ""), "клик в строке поиска: идущий ход виден");
+  ok(el("asstDock").hidden && aborted === abHide, "панель сама не открылась, запрос не оборван");
+  asstToggle();
+  ok(asst === hidden && !el("asstDock").hidden && /читаю скрыто/.test(el("asstLine")?.textContent || ""), "кнопка в шапке: идущий ход виден");
   // Курсор в строке поиска: строки хода и конец хода его не забирают, набранное на месте
   gq.focus();
   ok(document.activeElement === gq && gq.value === "", "курсор в пустой строке поиска");
@@ -174,6 +177,11 @@ UiCheck(async ({ ok, until }) => {
   ok(world.schedules.length && world.maintenanceWindows.length && world.modes.items && world.reference.capabilities && world.me.userId, "расписания, окна, режимы, справочник, сессия");
   { const secret = new Map(wk.map((k) => [k.kind, Object.entries((k.schema || {}).properties || {}).filter(([, s]) => s && s.writeOnly).map(([n]) => n)]));
     ok(wu.every((u) => (secret.get(u.kind) || []).every((n) => !(n in (u.properties || {})))), "паролей в снимке нет: значений writeOnly у объектов нет"); }
+  // В справочнике поле password есть у описания формата выгрузки («zip» — вид защиты): это не пароль, справочник обходим.
+  // В остальном снимке нет ни одного непустого строкового поля, в имени которого есть «pass»
+  const passFields = [], walkPass = (v, path) => { if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => { if (/pass/i.test(k) && typeof x === "string" && x) passFields.push(path + "." + k); walkPass(x, path + "." + k); }); };
+  walkPass(Object.assign({}, world, { reference: null }), "world");
+  ok(!passFields.length, "паролей в снимке нет: " + passFields.slice(0, 3).join(", "));
   ok(call.init.body.length < 2 * 1024 * 1024, "снимок в пределе службы: " + call.init.body.length);
   ok(!ConsolemContract.requestProblems(window.CONSOLEM_OPENAPI, "POST", "/assist/turns", call.body).length, "тело по контракту: " + ConsolemContract.requestProblems(window.CONSOLEM_OPENAPI, "POST", "/assist/turns", call.body).slice(0, 2).join("; "));
 
@@ -203,12 +211,11 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => calls.length === nRef + 1), "уточнение ушло");
   ok(calls[nRef].body.context === "b1:первый" && calls[nRef].body.world, "context плана и снимок");
   ok(!el("asstPlanNote") && !asst.plan && el("asstCancel") && !bulkDraft.plan, "пока идёт ход, плана нет ни в панели, ни в черновике");
-  ok([...el("gopop").querySelectorAll(".asst-said > div")].map((x) => x.textContent).join("|") === "› выключи запись Главный вход|и Запасной вход", "история просьб, свежая последней");
-  { const now = el("asstNow"), q = getComputedStyle(el("gq")), n = now && getComputedStyle(now);
-    ok(now && n.fontSize === q.fontSize && n.color === q.color && el("asstLine")?.firstElementChild?.classList.contains("dev-spin"), "текущая просьба — шрифтом и цветом строки поиска, значок хода — в начале строки хода"); }
+  ok([...el("asstBlock").querySelectorAll(".asst-u")].map((x) => x.textContent).join("|") === "выключи запись Главный вход|и Запасной вход", "история просьб, свежая последней");
+  ok(el("asstLine")?.firstElementChild?.classList.contains("dev-spin"), "значок хода — в начале строки хода");
   last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [planItem(cam, { recordMode: "none" }, "уточнение")] });
   ok(await until(() => el("asstPlanNote") && /уточнение/.test(text()) && bulkDraft.plan), "новый план целиком, снова в черновике");
-  ok(!el("asstNow") && !document.querySelector("#asstBlock .dev-spin"), "ход кончился — просьба в истории, значка нет");
+  ok(!document.querySelector("#asstBlock .dev-spin"), "ход кончился — значка хода нет");
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:вопрос2" });
   say("и ещё");
   ok(await until(() => el("asstAsk")), "уточнение кончилось вопросом");
@@ -258,7 +265,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstAnswer")), "ответ показан");
   ok(!("kind" in lastCall().body) && lastCall().body.context === "b1:спор", "без kind, context спорного вопроса");
   ok(el("asstAnswer").textContent === "Серверов: 12.\nЛицензий хватает.", "текст ответа");
-  ok(el("asstAnswerNote").textContent === "Ответ ассистента, проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
+  ok(el("asstAnswerNote").textContent === "Ассистент · проверьте по разделу", "подписан как ответ ассистента, а не данные системы");
   ok(asstEnds({ type: "answer" }) && !asstEnds({ type: "progress" }), "answer — конечное событие");
   ok(await until(() => !asst.busy), "ход кончился");
   ok(field() && el("asstSend")?.textContent === "Отправить" && !el("asstApply") && !asst.plan && !el("asstDecline"), "поле на месте, «Применить» нет");
@@ -273,7 +280,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => el("asstPlanNote")), "kind в событиях форма пропускает: план показан");
   ok(!el("asstRefused") && !el("asstErr") && !/Тип:/.test(text()), "ни отказа, ни ошибки, ни строки типа");
 
-  // Новая просьба из строки поиска посреди хода: идущий снят, разговор новый, без context
+  // Новая просьба из строки поиска посреди хода: идущий продолжается, разговор новый, без context
   open();
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:прежний" });
   say("выключи запись");
@@ -286,12 +293,15 @@ UiCheck(async ({ ok, until }) => {
   const nBusy = calls.length, ab = aborted, was = asst;
   answer = sse({ type: "question", text: "Какое правило?", context: "b1:после" });
   typeQ("абырвалг посреди хода");
-  ok(el("goAsk"), "ничего не найдено — кнопка ассистента");
-  enter();
-  ok(await until(() => calls.length === nBusy + 1 && aborted === ab + 1), "идущий снят, новый ушёл");
+  ok(el("goAsk"), "ничего не найдено — строка ассистента");
+  press(el("goAsk"));
+  ok(await until(() => calls.length === nBusy + 1), "новый ушёл");
+  ok(aborted === ab && was.busy, "идущий ход не снят");
   ok(asst !== was && !("context" in lastCall().body) && lastCall().body.text === "абырвалг посреди хода" && !("kind" in lastCall().body), "новый разговор: без context и kind");
   ok(await until(() => el("asstAsk")?.textContent === "Какое правило?" && !asst.busy), "новый ход кончился");
-  ok(asst.said.length === 1 && gq.value === "", "в разговоре одна реплика, строка поиска очищена");
+  ok(asst.log.filter((x) => x.u !== undefined).length === 1 && gq.value === "", "в разговоре одна реплика, строка поиска очищена");
+  was.abort.abort();
+  ok(await until(() => !was.busy && aborted === ab + 1), "прежний ход снят отдельно, он шёл сам по себе");
 
   // Заглушка: типа нет, kind как раньше — по разделу, службы нет
   const streamWas = API.stream, sent0 = [], nStub = calls.length;
@@ -531,18 +541,22 @@ UiCheck(async ({ ok, until }) => {
   ok(/Ход отменён/.test(text()) && !el("asstErr"), "отмена — не ошибка");
   say("выключи запись Главный вход");
   ok(await until(() => el("asstCancel") && /читаю систему/.test(el("asstLine")?.textContent || "")), "снова ход");
-  close();
-  ok(asst && asst.busy, "скрытое окно ход не снимает");
-  ok(aborted === a0 + 1, "запрос не оборван");
-  press(gq);
-  ok(!el("asstNew"), "«Нового разговора» нет");
   const runAway = asst;
+  close();
+  ok(asst && asst.busy, "скрытая панель ход не снимает");
+  ok(aborted === a0 + 1, "запрос не оборван");
+  // Кнопка открывает сначала разговор с готовым ответом, потому к идущему переходим из списка
+  asstToggle();
+  asstSwitch(runAway.id);
+  ok(!el("asstDock").hidden && asst === runAway && runAway.busy, "панель открыта на идущем разговоре");
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:новый" });
   typeQ("абырвалг новая просьба");
   press(el("goAsk"));
-  ok(asst && asst !== runAway, "кнопка поиска мышью: новый разговор");
-  ok(await until(() => aborted === a0 + 2), "новая просьба из строки поиска снимает идущий ход");
+  ok(asst && asst !== runAway, "строка поиска мышью: новый разговор");
   ok(await until(() => el("asstAsk") && !asst.busy), "новый ход кончился");
+  ok(aborted === a0 + 1 && runAway.busy, "новая просьба из строки поиска идущий ход не снимает");
+  runAway.abort.abort();
+  ok(await until(() => !runAway.busy && aborted === a0 + 2), "прежний ход снят отдельно");
 
   // Неверный код: 401 — не выход из системы, код сброшен, панель на заглушке
   const logged = apiLoggedOut;

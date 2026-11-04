@@ -37,6 +37,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(ACC_DEFS.filter((d) => d[2] === "cam").length === 1, "класс один раз, хотя у него несколько видов");
     const evs = devicePool.find((n) => n.type === "eventsrc");
     ok(!evs || (accObjFields(evs) || []).join() === "pos", "у источника событий один тип доступа, как в базе: " + (evs && accObjFields(evs)));
+    // Раскладка по папкам по умолчанию (как база): объект в корне домена дерево читает, только когда раскроют «Без папки»
+    await hwEnsure([CTRL]);
     const ctrl = find(CTRL)?.n;
     ok(ctrl && (accObjFields(ctrl) || []).join() === SC, "права на объект контроллера — по его классу: " + (ctrl && accObjFields(ctrl)));
     const gd = accRoles().find((x) => x.n === "Охрана");
