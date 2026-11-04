@@ -256,7 +256,7 @@
 | `AssistEvent` | — | `action`: команда вида над отобранным в `found` |
 | `StreamMessage` | `kind` — перечень видов записей (`device`, `server`, `archive`…); задание выгрузки — `export` | `kind` — вид объекта (`camera`, `archive.local`…) или вид записи вне склада (`rule`, `operation`…); задание выгрузки — `exportJob`: код `export` занят видом объекта «Агент экспорта»; новый тип `kinds.changed` |
 | `ExportCamera`, `ExportPart`, `ExportFile`, `ExportCheck` (`files[]`), `ExportGrant` (`devices[]`) | камера — `deviceId` | камера — `uid` объекта (вид с профилем `vms.camera/1`); `GET /me/export?ids=` — `uid`. Не камера — `422 NOT_SUPPORTED`, `params.profile`, нет объекта — `404`, `field: /cameras/i` |
-| `ExportCreate` | `highlight.detectorIds` — `uuid` | `uid` детекторов; ошибки тела по схеме — `field` JSON Pointer (`/cameras/0/uid`), как у путей ядра |
+| `ExportCreate`, `AssistExport` (план выгрузки ассистента, `AssistEvent.export`) | камера — `deviceId`, `highlight.detectorIds` — `uuid` | камера — `uid` (`ExportCamera`), `uid` детекторов; ошибки тела по схеме — `field` JSON Pointer (`/cameras/0/uid`), как у путей ядра |
 | `BookmarkCreate` | отказ конца отрезка — `field: to` | `field: /to` — указатель, как у прочих предметных путей |
 | `Problem` | — | `errors[]` — все ошибки проверки, `field` на путях ядра — JSON Pointer в теле |
 | `TestEventRequest` | `type` — перечень событий стенда; `found.type` — `DeviceType` | `type` и `unit.event` с `eventId`, `match` — событие объекта по описанию его вида; `found.type` — код вида, открытая строка |

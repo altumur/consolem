@@ -24,7 +24,7 @@ UiCheck(async ({ ok, until }) => {
   ok(dock().hidden, "панель закрыта");
   ok(!document.querySelector("#gopop #asstBlock"), "разговора нет в окне поиска");
 
-  // Enter в поиске остаётся поиском, ассистенту запрос уходит только явным выбором
+  // Enter в поиске при ассистенте — новый разговор, что бы ни нашёл поиск (слово владельца, 3ed4962)
   const inp = el("gq");
   inp.focus();
   inp.value = "камера";
@@ -33,15 +33,15 @@ UiCheck(async ({ ok, until }) => {
   ok(askRow && askRow === document.querySelector("#goList .gores"), "строка ассистента — первая в списке");
   ok(/Спросить ассистента/.test(askRow.textContent) && /камера/.test(askRow.textContent), "строка говорит, что случится и с каким текстом");
   goKey({ key: "Enter", target: inp, preventDefault() {} });
-  ok(asstChats.length === 0 && dock().hidden, "Enter не начинает разговор");
-  ok(treeQ === "камера", "Enter оставил фильтр дерева");
+  ok(asstChats.length === 1 && !dock().hidden, "Enter начал разговор и открыл панель");
+  ok(inp.value === "" && treeQ === "", "Enter снял запрос поиска");
 
   // Выбор строки: новый разговор, запрос поиска снят
   inp.value = "сколько камер";
   goInput(inp.value);
   hold();
   goPick(0);
-  ok(asstChats.length === 1 && !dock().hidden, "выбор строки открыл панель с разговором");
+  ok(asstChats.length === 2 && !dock().hidden, "выбор строки открыл панель с новым разговором");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
   ok(el("asstBlock").textContent.includes("сколько камер"), "просьба в ленте");
   ok(btn().classList.contains("run") && /Отвечает/.test(btn().textContent), "кнопка: отвечает");

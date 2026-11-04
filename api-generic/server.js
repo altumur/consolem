@@ -4822,6 +4822,7 @@
     // даже когда у вида есть команда «Включить». Выбранное держит в себе, в событиях его нет
     function assistKindOf(said) {
       const low = said.toLowerCase();
+      if (/выгруз|экспорт|кадр с камер/.test(low) && caps().operations.includes("createExport")) return "export";
       if (/дай список|покажи|выведи/.test(low)) return "found";
       if (/сколько|почему|какой|какая|какие/.test(low)) return "explain";
       if (/правил|при движени|эскалац|спроси|окно обслуживания|расписани|услови|детектор на время|провер\S* архив|лимит/.test(low)) return "rules";
@@ -4947,6 +4948,32 @@
       const text = /правил/.test(low) ? `Правил: ${db.rules.length}.` : `Объектов: ${store.size()}${[...new Set(named)].join("")}.`;
       return [{ type: "progress", at, text: "читаю систему" }, { type: "answer", at, text, context }];
     }
+    // Заказ выгрузки: камеры — объекты профиля vms.camera/1 по словам имени, «кадр» — кадр архива минуту назад, «живой» —
+    // кадр сейчас, иначе видео за последние N минут (10 по умолчанию). Камеры заказа — по uid (ExportCamera.uid). Ход ничего
+    // не пишет: пароль и супервизора вводит человек в окне
+    function assistExportStub(said, context, at) {
+      const low = said.toLowerCase(), out = [{ type: "progress", at, text: "читаю камеры" }];
+      const last = (e) => out.concat(Object.assign({ at }, e));
+      if (/маск|облак/.test(low)) return last({ type: "refused", text: "Маскирования и выгрузки в облако в этой системе нет.", context });
+      const words = low.split(/[^а-яёa-z0-9]+/).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w) && !["выгру", "экспо", "кадр", "кадра", "минут", "после", "живой", "сейча", "видео", "архив"].includes(w));
+      // Имя камеры целиком в просьбе — только такие камеры, иначе — по словам имени
+      const all = [...store.all()].filter(isCamera), nameOf = (u) => String(u.name).toLowerCase();
+      const named = all.filter((u) => low.includes(nameOf(u)));
+      const cams = named.length ? named : all.filter((u) => words.some((w) => nameOf(u).includes(w)));
+      if (!cams.length) return last({ type: "question", text: "С каких камер выгрузить?", context });
+      const ref = expRef(), fmt = (kind) => (ref.formats.find((f) => f.kind === kind) || {}).id;
+      const frame = /кадр/.test(low), live = frame && /живо|сейчас/.test(low);
+      const body = { mode: frame ? "frame" : "video", cameras: (frame ? cams.slice(0, 1) : cams.slice(0, ref.limits.maxCameras)).map((u) => ({ uid: u.uid })), format: fmt(frame ? "frame" : "video") };
+      if (live) body.source = "live";
+      else if (frame) body.at = iso(now() - 60000);
+      else {
+        const min = Math.max(1, Math.min(Number((low.match(/(\d+)\s*мин/) || [])[1]) || 10, ref.limits.maxTotalSec / 60));
+        body.periods = [{ from: iso(now() - min * 60000), to: iso(now()) }];
+      }
+      out.push({ type: "progress", at, text: "собираю заказ" });
+      const names = body.cameras.map((c) => store.get(c.uid).name).join(", ");
+      return last({ type: "plan", summary: frame ? `Кадр: ${names}` : `Выгрузка: ${names}`, context, export: body });
+    }
     // Разбор правки: что меняется (вид → свойство) и кого. Слова профиля (ASSIST_PHRASES), «включи/выключи» — булево свойство
     // с подписью «Включено…», «смени|поменяй|… <поле> … на <значение>» — свойство по x-label. field пуст — правку не узнали
     function assistEditOf(said) {
@@ -5024,6 +5051,7 @@
       if (kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
       if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));
       if (kind === "found") return assistFoundStub(said, `stub:${said}`, iso(now()));
+      if (kind === "export") return assistExportStub(said, `stub:${said}`, iso(now()));
       const low = assistNorm(said);
       const context = `stub:${said}`;
       const at = iso(now());

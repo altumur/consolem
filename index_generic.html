@@ -6514,7 +6514,7 @@ function goSearch(v){
     const fields=[t.title,t.sub,t.skipKind?"":t.kind,t.extra].filter(Boolean);
     return queryWords(q).some(words=>matchWords(words,fields));
   }).slice(0,40);
-  // Строка ассистента — выше результатов и своим видом: явный выбор. Enter остаётся поиском
+  // Строка ассистента — выше результатов и своим видом. Enter без выбора строки — тоже ассистенту
   const assist=can("feature:assist");
   const askHit=assist?[{ask:true,title:q,keepQuery:true,go(){asstFromSearch()}}]:[];
   goHits=[...askHit,...idFilter,...targets];
@@ -6571,11 +6571,13 @@ function goKey(e){
     pop.querySelector(".gores.on")?.scrollIntoView({block:"nearest"});
     return;
   }
-  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора Enter значит «набранное — фильтр»:
-  // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему. Ассистенту запрос уходит только явным выбором.
+  // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
+  // разговор с ним, что бы ни нашёл поиск (слово владельца, 3ed4962). Без ассистента Enter значит «набранное — фильтр»:
+  // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему.
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
+    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
     goClose();e.target.blur();
     return;
   }
@@ -13626,8 +13628,12 @@ function expRetry(id){
 }
 function expAgain(id){
   const x=expRowOf(id),r=x?.request;if(!r)return;
+  expD=expDraftOf(r,i18n("повтор выгрузки"));expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+}
+// Заказ по телу ExportCreate: повтор выгрузки и план ассистента (AssistEvent.export) заполняют форму одинаково
+function expDraftOf(r,from){
   const per=r.periods?r.periods.map(p=>({from:Date.parse(p.from),to:Date.parse(p.to)})):r.at?[{from:Date.parse(r.at),to:Date.parse(r.at)+1000}]:undefined;
-  const d=expDraftNew({entry:r.source==="live"?"live":r.bookmarkId?"bookmark":"archive",cams:r.cameras.map(c=>c.uid),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,periods:per,from:i18n("повтор выгрузки")});
+  const d=expDraftNew({entry:r.source==="live"?"live":r.bookmarkId?"bookmark":"archive",cams:r.cameras.map(c=>c.uid),format:r.format,comment:r.comment||"",bookmarkId:r.bookmarkId,periods:per,from});
   r.cameras.forEach((c,i)=>{if(c.area)d.cams[i].area=c.area});
   if(r.name){d.name=r.name;d.nameSet=true}if(r.singleFile!=null)d.single=r.singleFile;
   const q=r.quality||{},a=d.adv;Object.assign(a,{codec:q.codec||"source",compression:q.compression||"default",resolution:q.resolution||"source",fps:q.fpsDivisor||1,thin:q.maxFps||0,speed:q.speed||1});
@@ -13635,7 +13641,14 @@ function expAgain(id){
   if(r.highlight){a.tracks=(r.highlight.detectorIds||[]).slice();a.marks=!!r.highlight.bookmarks}
   if(r.privacy)a.hide=r.privacy.mode;
   if(r.titles){const t=r.titles;a.titles=(t.fields||[]).slice();a.over=t.overlay||"soft";if(t.color)a.color=t.color;if(t.background)a.bg=t.background;if(t.backgroundAlpha!=null)a.alpha=t.backgroundAlpha;if(t.font)a.font=`${t.font.family}|${t.font.size}`;if(t.eventSource?.on){a.src=true;a.srcOver=t.eventSource.overlay||"soft"}}
-  expD=d;expSel="new";expChk=null;paint();expCheckSoon();expGrantLoad().then(expRepaint);
+  return d;
+}
+// План ассистента: форма с заказом, проверка /exports/check — ошибки у своих полей; пароль и супервизора вводит человек
+function expFromAssist(r){
+  if(!r)return;
+  expD=expDraftOf(r,i18n("ассистент"));expSel="new";expChk=null;expPick=null;
+  if(app!=="exp")setApp("exp");else paint();
+  expGrantLoad().then(expRepaint);expCheckSoon();
 }
 // Удаление — с вводом числа и отсчётом в тосте (правила интерфейса): до конца отсчёта на сервере ничего не уходит
 function expDel(id){
@@ -27258,7 +27271,7 @@ function asstHoldSecret(a){
   Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
   asstRender();
 }
-// Вход из строки поиска — явный выбор строки «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
+// Вход из строки поиска — Enter или строка «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
 // пустого. Это новый разговор: прежний остаётся в истории, его ход продолжается
 function asstFromSearch(){
   const inp=document.getElementById("gq"),text=(inp?.value||"").trim();
@@ -27294,6 +27307,17 @@ function asstToggle(){
   asstRender();
   document.getElementById("asstText")?.focus();
 }
+// «Авто» — панель на время: клик мимо неё прячет её, как всплывающее окно (слово владельца). «Рядом» и «Поверх»
+// закреплены и закрываются только крестиком, кнопкой шапки или Escape. Мимо — не панель, не кнопка шапки, не поиск
+// (из него Enter начинает разговор) и не верхний слой: диалог, окно, тост с «Отменить», меню
+function asstOutside(e){
+  if(!asstDockOpen||asstVariant!=="auto")return;
+  const t=e.target;if(!t?.closest||!t.isConnected)return;
+  if(t.closest("#asstDock,#hdAsst,#gq,#gopop,#tt,#confirm,#bmodal,.mask.open,[role=menu],[role=dialog]"))return;
+  // Фокус не уводим на кнопку шапки: он уходит туда, куда кликнули
+  asstDockOpen=false;asstHist=false;asstRender();
+}
+document.addEventListener("pointerdown",asstOutside,true);
 // Закрытие только прячет панель: разговор и ход живут
 function asstClose(){
   asstDockOpen=false;asstHist=false;
@@ -27863,7 +27887,7 @@ function asstHeadHtml(a){
   const other=asstChats.some(c=>c!==a&&c.unread&&!c.busy);
   return`<div class="asst-title" id="asstTitle" title="${escHtml(a.title)}">${escHtml(asstHist?i18n("История разговоров"):a.title||i18n("Новый разговор"))}</div>
     <div class="asst-var" role="group" aria-label="${i18n("Положение панели")}">
-      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
+      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" title="${i18n("Панель сама встаёт рядом или поверх и закрывается кликом мимо")}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
       <button type="button" id="asstVarSide" aria-pressed="${asstVariant==="side"}" title="${i18n("Панель сужает рабочую область")}" ${onEv("click",["asstVariantSet","side"])}>${i18n("Рядом")}</button>
       <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель лежит поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
     </div>
@@ -27893,7 +27917,7 @@ function asstThreadHtml(a,mode){
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
     a.info?`<div class="asst-line" id="asstInfo">${escHtml(a.info)}</div>`:"",
-    a.plan?`<div>${a.plan.rules?asstRulesHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)}</div>`:"",
+    a.plan?`<div>${a.plan.rules?asstRulesHtml(a.plan):a.plan.export?asstExportHtml(a.plan):asstPlanHtml(a.plan)+asstPlanTreeNote(a)}</div>`:"",
     a.result?`<div>${asstResultHtml(a.result)}</div>`:""
   ].join("");
 }
@@ -27910,7 +27934,8 @@ function asstActsHtml(a,mode){
     a.found&&!a.busy&&!asstPickShown(a.found)?`<button type="button" class="btn s" id="asstFoundOpen" ${onEv("click",["asstFoundOpen"])}>${i18n("Показать в дереве")}</button>`:"",
     a.found&&!a.busy?`<button type="button" class="btn s" id="asstFoundPick" ${asstFoundCount(a.found)?"":"disabled"} ${onEv("click",["asstFoundPick"])}>${i18n("Выбрать всё")}</button>`:"",
     (a.result?.again||a.interrupted&&a.last)&&!a.busy?`<button type="button" class="btn s" id="asstAgain" ${onEv("click",["asstAgain"])}>${i18n("Спросить заново")}</button>`:"",
-    a.plan?.items?`${asstPickShown(a.plan)?"":`<button type="button" class="btn s" id="asstPlanOpen" ${onEv("click",["asstPlanOpen"])}>${i18n("Открыть в дереве")}</button>`}<button type="button" class="btn s pri" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>`
+    a.plan?.export?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>${expShown()?`<button type="button" class="btn s pri" id="asstExportOpen" ${onEv("click",["asstExportOpen"])}>${i18n("Открыть выгрузку")}</button>`:""}`
+    :a.plan?.items?`${asstPickShown(a.plan)?"":`<button type="button" class="btn s" id="asstPlanOpen" ${onEv("click",["asstPlanOpen"])}>${i18n("Открыть в дереве")}</button>`}<button type="button" class="btn s pri" id="asstSend" ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button>`
     :a.plan?`<button type="button" class="btn s" id="asstDecline" ${onEv("click",["asstDecline"])}>${i18n("Отказаться")}</button><button type="button" class="btn s" id="asstSend" ${a.saving?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Уточнить")}</button><button type="button" class="btn s pri" id="asstApply" ${a.saving?"disabled":""} ${onEv("click",["asstApply"])}>${i18n("Применить")}</button>`
       :`<button type="button" class="btn s pri" id="asstSend" ${a.busy?"disabled":""} ${onEv("click",["asstSendText"])}>${i18n("Отправить")}</button>`,
     `</div>`
@@ -27978,6 +28003,7 @@ function asstEvent(a,m){
   if(m.type==="plan"){
     if(m.rules?.length){asstRulesLoad(a,m);return}
     a.plan=m;
+    if(m.export){asstRender();if(expShown()&&asstSeen(a))asstToExport(m.export);return}
     if(m.items?.length&&asstSeen(a)&&!asstDraftEdits()){asstPlanToTree(a,m);return}
   }
   asstRender();
@@ -28074,6 +28100,29 @@ function asstPlanToTree(a,p,fromLink){
   asstRender();
 }
 // Человек закрыл тег или ушёл: «Открыть в дереве» возвращает отбор, выбор и черновик. Свои правки в черновике остаются
+// План выгрузки: заказ уже в окне «Экспорт», запускает его человек оттуда — проверка, пароль, супервизор, «Экспорт»
+function asstExportHtml(p){
+  const e=p.export,per=e.periods?.[0],when=e.source==="live"?i18n("кадр сейчас"):e.at?tlDate(Date.parse(e.at)):per?`${tlDate(Date.parse(per.from))}–${tlClock(Date.parse(per.to))}`:"";
+  return`${p.summary?`<div class="asst-sum">${escHtml(p.summary)}</div>`:""}<div class="asst-dev" data-asst-exp="${e.cameras.length}">${i18n("Камер")}: ${e.cameras.length}</div>
+    <div class="asst-chg">${escHtml(i18n(e.mode==="frame"?"Кадр":"Видео"))}${when?` · ${escHtml(when)}`:""} · ${escHtml(String(e.format).toUpperCase())}</div>
+    <div class="asst-note">${i18n(expShown()?"Заказ открыт в разделе «Экспорт»: проверьте, введите пароль, если нужен, и нажмите «Экспорт»":"Выгрузки в этой системе нет")}</div>`;
+}
+// Форма перерисовывается ответом /exports/check: моргает то, что на экране после него (не дождались за 2 с — что есть)
+function asstExportLanding(){
+  let n=0;const t=setInterval(()=>{if(!can("checkExport")||expChk||++n>40){clearInterval(t);hwFlashLanding()}},50);
+}
+function asstExportOpen(){const a=asst;if(a?.plan?.export)asstToExport(a.plan.export)}
+// Панель поверх закрыла бы форму: она уходит, разговор и уточнение ждут в кнопке шапки — как у плана настройки.
+// Переход из панели — по ссылке: место, куда пришли (заголовок, вкладка, строка «Новая выгрузка»), моргает (правила интерфейса)
+function asstToExport(body){
+  expFromAssist(body);
+  asstExportLanding();
+  if(asstDockOpen&&asstPos()==="over"){
+    asstDockOpen=false;asstHist=false;
+    toast(i18n("Заказ — в разделе «Экспорт». Уточнить его можно в панели: кнопка «Ассистент»"));
+    asstRender();
+  }
+}
 function asstPlanOpen(){
   const a=asst,p=a?.plan;if(!p?.items)return;
   if(!asstDraftEdits()||bulkDraft.planOf===p){asstPlanToTree(a,p,true);return}

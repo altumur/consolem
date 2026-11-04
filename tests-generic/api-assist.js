@@ -397,5 +397,50 @@
     assert.eq([off.rules[0].body.enabled, "logOnly" in off.rules[0].body], [false, false], "просили выключенным");
   }, NEED);
 
+  // План выгрузки (ADR-0093 доп. (47)): «выгрузи», «экспорт», «кадр с камеры» — plan с export (AssistExport). Камеры заказа —
+  // по uid объекта, как ExportCamera; ход ничего не пишет, тело годится для POST /exports/check как есть
+  test("План выгрузки: «выгрузи», «кадр», «живой кадр» — plan с export, камеры по uid; маска — refused; без камер — вопрос; без createExport плана нет", async () => {
+    const env = await makeEnv();
+    const ref = (await env.ok("GET", "/reference")).export;
+    const cams = await env.pages("/units?implements=vms.camera/1&limit=1000");
+    const room = "Переговорная", main = cams.find((u) => u.name === room);
+    const fmtOf = (kind) => ref.formats.find((f) => f.kind === kind).id;
+    const video = lastOf(await turn(env, `выгрузи ${room} за 15 минут`));
+    const e = video.export;
+    assert.eq([video.type, video.summary, "items" in video, "rules" in video], ["plan", `Выгрузка: ${room}`, false, false], "план выгрузки, а не настройки");
+    assert.eq([e.mode, e.cameras, e.format, e.periods.length], ["video", [{ uid: main.uid }], fmtOf("video"), 1], "имя камеры целиком — только она, по uid");
+    const span = (x) => Math.round((Date.parse(x.periods[0].to) - Date.parse(x.periods[0].from)) / 60000);
+    assert.eq(span(e), 15, "за последние 15 минут");
+    assert.ok(!["password", "supervisor", "idempotencyKey"].some((k) => k in e), "пароля, супервизора и ключа в плане нет");
+    // Ход ничего не пишет: заданий нет; тело плана — заказ для /exports/check, камера принята
+    assert.eq((await env.list("/exports")).length, 0, "ход не создал выгрузку");
+    const chk = await env.call("POST", "/exports/check", e);
+    assert.status(chk, 200, null, "проверка заказа по плану");
+    assert.ok(!(chk.body.errors || []).some((x) => /^\/cameras/.test(x.field || "")), "камера плана — объект склада: " + JSON.stringify(chk.body.errors));
+    // Имени целиком в просьбе нет — по словам имени: «главные» — все камеры со словом «главн»
+    const words = lastOf(await turn(env, "выгрузи главные"));
+    const sorted = (list) => list.slice().sort();
+    const withWord = cams.filter((u) => u.name.toLowerCase().includes("главн")).map((u) => u.uid);
+    assert.ok(withWord.length > 1 && withWord.length <= ref.limits.maxCameras, "в наборе несколько камер со словом «главн»");
+    assert.eq([words.type, sorted(words.export.cameras.map((c) => c.uid)), span(words.export)], ["plan", sorted(withWord), 10], "по слову имени, 10 минут по умолчанию");
+    const frame = lastOf(await turn(env, `кадр с камеры ${room}`)).export;
+    assert.eq([frame.mode, frame.cameras, frame.format, "source" in frame], ["frame", [{ uid: main.uid }], fmtOf("frame"), false], "кадр архива одной камеры");
+    assert.ok(Math.abs(Date.parse(frame.at) - (env.now - 60000)) < 5000, "кадр — минуту назад: " + frame.at);
+    const live = lastOf(await turn(env, `живой кадр с камеры ${room}`)).export;
+    assert.eq([live.mode, live.source, "at" in live], ["frame", "live", false], "живой кадр");
+    const mask = lastOf(await turn(env, `выгрузи ${room} с маской`));
+    assert.eq([mask.type, "export" in mask], ["refused", false], "маскирования нет — отказ");
+    const who = lastOf(await turn(env, "выгрузи запись"));
+    assert.eq([who.type, who.text], ["question", "С каких камер выгрузить?"], "камер нет — вопрос");
+    const ans = lastOf(await turn(env, room, { context: who.context }));
+    assert.eq([ans.type, ans.export && ans.export.cameras], ["plan", [{ uid: main.uid }]], "ответ с context — план");
+    // Без createExport такого плана нет
+    const ops = (await env.ok("GET", "/reference")).capabilities.operations.filter((o) => o !== "createExport");
+    const off = await makeEnv({ fixturePatch: { reference: { capabilities: { operations: ops } } } });
+    const got = await turn(off, `выгрузи ${room} за 15 минут`);
+    assert.ok(got.every((m) => !("export" in m)), "без createExport — не план выгрузки: " + types(got));
+    return `камер по слову: ${withWord.length}`;
+  }, { needs: ["assistTurn", "createExport"] });
+
   ApiTest.loaded("api-assist.js");
 })();

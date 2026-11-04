@@ -424,7 +424,7 @@ UiCheck(async ({ ok, until }) => {
   ok(asst === before3 && asstChats.length === chats3 && !popOpen(), "строка, выбранная стрелками: Enter выбирает её, ассистенту не уходит");
   typeQ("");
   goNav = false;
-  // Строка ассистента над результатами: Enter без выбора остаётся поиском (это проверяет ui-chat.js), выбор строки — новый разговор
+  // Строка ассистента над результатами: Enter без выбора и выбор строки — новый разговор (Enter проверяет ui-chat.js)
   typeQ("вход");
   const askBtn = () => document.getElementById("goAsk");
   ok(askBtn() && askBtn() === document.querySelector("#goList .gores") && /Спросить ассистента/.test(askBtn().textContent), "нашлось — строка ассистента первая, под ней результаты");
