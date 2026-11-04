@@ -13,8 +13,8 @@
 
 | Что | Где |
 |---|---|
-| Прототип | `index_18_detektory-spisok.html`, [на Pages](https://ndm234234.github.io/consolem/index_18_detektory-spisok.html) |
-| Демо | [та же страница с `?demo`](https://ndm234234.github.io/consolem/index_18_detektory-spisok.html?demo) |
+| Прототип | `index_18_detektory-spisok.html` (удалён) |
+| Демо | страница с `?demo` удалена вместе с прототипом |
 | Спека со всеми решениями и раундами | `docs/2026-11-03-detektory-spec.md` |
 | Отчёт о практике рынка | `docs/2026-11-03-master-detektorov-rynok.html`, [страница Artifact](https://claude.ai/artifact/1wffs66oFq1g9UYugM3VnS) (приватная) |
 | Прошлый отчёт: список или дерево камер | [страница Artifact](https://claude.ai/artifact/KS38HxmG2aydwo13CoEmaS) (приватная) |
@@ -71,7 +71,7 @@
 
 Память Claude и временная папка сессии остались на старом компьютере. Поэтому главное из них записано здесь.
 
-- Прототип проверяет команда `python tools/check_ui.py --page index_18_detektory-spisok.html tests/proto-18-detektory.js`. Последний результат: 37 из 37.
+- Прототип проверяет команда `python tools/check_ui.py tests/ui-detektory.js`. Последний результат: 37 из 37.
 - На Windows `python3` может не быть: тогда используйте `python -X utf8`.
 - На Windows `check_ui.py` ищет `google-chrome`. Положите в `PATH` файл `google-chrome.cmd`, который вызывает `chrome.exe %*`.
 - На Windows `check_ui.py` может зависнуть: таймаут убивает только `cmd.exe`, а Chrome держит канал вывода.
