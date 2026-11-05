@@ -9,7 +9,7 @@ window.CONSOLEM_FIXTURES (набор по имени) и window.CONSOLEM_FIXTURE
 Запуск из корня репозитория:
   python3 tools/build_api.py          собрать
   python3 tools/build_api.py --check  собранное не отстало от JSON (код выхода 1, если отстало)
-  --api DIR                           папка API вместо api (например, api-generic)
+  --api DIR                           папка API вместо api (копия папки API)
 """
 import json
 import os

@@ -1,4 +1,4 @@
-/* Реестр описаний видов (UnitKind) встроенного сервера api-generic: всё «данное» о виде — из описания, а не из кода.
+/* Реестр описаний видов (UnitKind) встроенного сервера (api/server.js): всё «данное» о виде — из описания, а не из кода.
    ConsolemKinds.create(kinds, profiles, { onPut(kind) }) — описания и профили набора (разделы kinds, profiles); onPut — после
    put нового описания (сервер переиндексирует склад по виду). Реестр отвечает:
    - list, get, etag (хэш описаний и профилей: GET /kinds, If-None-Match → 304), put (PUT /test/kinds/{kind} — меняет etag);

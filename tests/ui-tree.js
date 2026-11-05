@@ -3,7 +3,7 @@ window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until, confirmWith }) => {
   const d = domains[0];
   const pool0 = devicePool.length;
-  const all = (await API.get("/devices", { limit: 1 })).total;
+  const all = (await uiUnitsAll()).filter(uiIsDevice).length;
   await until(() => !!streamClient);
   ok(pool0 < all, `кэш неполный: ${pool0} из ${all}`);
   ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || ""), "число без фильтра — со знаком ≈");
@@ -15,13 +15,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   renderTree();
   ok(await until(() => treeBr.get("servers|" + s.id)?.done), "ветка сервера прочитана");
   const row = devicePool.find((n) => n.srvId === s.id && n._row);
-  ok(!!row && !row.ip, "в кэше строка без подробностей");
+  // Строка — краткий объект (UnitBrief): подробностей записи (логин, поток) нет, и поля x-search (ip, модель) строка ручного экрана
+  // не берёт из brief — как строка перечня в базе; они приходят с полной записью (сверка экранов с базой, tools/compare_screens.py)
+  ok(!!row && !row.ip && !row.user && !row.rtspUrl && hwVer.has(row.id), "в кэше строка без подробностей: " + JSON.stringify(row && { ip: row.ip, user: row.user }));
   // Карточка: загрузка, затем полная запись
   pick(row.id, { force: true });
   ok(/Загрузка/.test(document.getElementById("main").textContent), "карточка показывает загрузку");
   ok(await until(() => !row._row), "полная запись дочитана по клику");
   ok(await until(() => sel === row.id && document.getElementById("main").textContent.includes(row.name)), "карточка открыта");
-  // Вход по чужому id: записи в кэше нет
+  // Вход по чужому id: записи в кэше нет. Как в базе — камера: выбор цели правила (ruleTypesNeed) читает одну страницу по виду,
+  // kind= — ограниченный проход, поэтому камеры набора demo в кэше не все (иначе дерево расходится с базой)
   const alien = (await uiDevices()).find((x) => x.type === "camera" && !find(x.id));
   ok(!!alien, "чужая запись есть");
   pick(alien.id, { force: true });
@@ -50,7 +53,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await nrDone();
   const nrWant = (await uiDevices()).filter((x) => x.type === "camera" && x.domainId === d.id && !x.archiveId && !(x.extraArchives || []).some((e) => e.recordMode !== "none")).length;
   ok(norecList(d.id).length >= nrWant, `в группе ${norecList(d.id).length}, на сервере ${nrWant}`);
-  ok(!(await API.get("/devices", { noRecord: true, domainId: d.id, limit: 1 })).total, "полного числа сервер не даёт");
+  ok(!(await API.get("/units", { kind: "camera", noRecord: "true", domainId: d.id, limit: 1 })).total, "полного числа сервер не даёт");
   // Ещё не читавшаяся папка берётся заранее: в раскладке по папкам карточка домена («Папки») сама читает все папки
   const f = folders.find((x) => domainById(folderDomain(x.id))?.online !== false && !x.items.length && !treeBr.has("folders|" + x.id) && !x.folders.length);
   ok(!!f, "есть папка, которую дерево ещё не читало");
@@ -73,8 +76,54 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(!(await uiFolderIds(f.id)).includes(out) && !f.items.includes(out), "убрано изменением, остальное на месте");
     await folderChange(f.id, [out], []);
     ok((await uiFolderIds(f.id)).length === fIds.length, "возвращено");
-    ok((await API.get("/operations", { limit: 1 })).items[0].single === true, "операция записана");
+    // В базе — одиночный запрос POST /folders/{id}/devices (single); в ядре — операция с шагом folders этого объекта
+    const lastOp = (await API.get("/operations", { limit: 1 })).items[0];
+    ok(lastOp.state === "done" && (lastOp.items || []).some((x) => x.targetId === out && x.state === "ok"), "операция записана: шаг folders одной операцией");
+    // Всё или ничего, как база одним POST /folders/{id}/devices: объект без возможности folders (поток) отклоняет всю
+    // операцию — не добавлен и прошедший бы шаг камеры, кэш папки прежний. Быстрая запись — одним запросом, без опроса
+    // Камера — из домена папки: папка чужого домена — отказ шага по x-ref (как база), а здесь нужна прошедшая бы правка
+    const cam = devicePool.find((n) => n.type === "camera" && nodeDomainId(n) === folderDomain(f.id) && !f.items.includes(n.id) && !fIds.includes(n.id));
+    const st = (await API.get("/units", { implements: "vms.stream/1", limit: 1 })).items[0];
+    window.CONSOLEM_TRACE = [];
+    let err = null;
+    await folderChange(f.id, [cam.id, st.uid], []).catch((e) => (err = e));
+    const opPosts = CONSOLEM_TRACE.filter((t) => t.method === "POST" && t.path === "/operations").length;
+    const opPolls = CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/operations\//.test(t.path)).length;
+    const fNow = await uiFolderIds(f.id);
+    ok(opPosts === 1 && err?.status === 422 && !f.items.includes(cam.id) && !f.items.includes(st.uid) && !fNow.includes(cam.id) && !fNow.includes(st.uid),
+      `отказ всей операции: ничего не применено, кэш папки прежний (${err?.status} ${err?.problem?.code}), одна операция`);
+    // Несуществующий объект не отбрасывается молча: отказ всей операции, состав прежний
+    err = null;
+    await folderChange(f.id, [cam.id, "00000000-dead-4000-8000-000000000000"], []).catch((e) => (err = e));
+    ok(err?.status >= 400 && err.status < 500 && !(await uiFolderIds(f.id)).includes(cam.id) && !f.items.includes(cam.id), `несуществующий объект — отказ всей операции (${err?.status} ${err?.problem?.code})`);
+    CONSOLEM_TRACE.length = 0;
+    await folderChange(f.id, [cam.id], []);
+    ok(f.items.includes(cam.id) && !CONSOLEM_TRACE.some((t) => t.method === "GET" && /^\/operations\//.test(t.path)) && !opPolls, "быстрая запись — итогом в ответе, без опроса операции");
+    delete window.CONSOLEM_TRACE;
+    await folderChange(f.id, [], [cam.id]);
   }
+  // Поиск в раскладке «папки»: найденное в нечитанной папке встаёт под свою папку. TreePathStep.kind — код вида (camera…),
+  // а не прежнее device: объект шага после папки — любой не инфраструктурный
+  let f2 = null, m = null, forgot = false;
+  for (const x of flatFolders().filter((y) => !treeBr.has("folders|" + y.id) && y.id !== f.id)) {
+    const inside = (await uiFolderIds(x.id)).filter((id) => !x.items.includes(id));
+    if (inside.length) { f2 = x; m = inside[0]; break; }
+  }
+  // Карточка домена («Папки», как база) читает все папки заранее, а на demo в кэше к этому месту все объекты всех папок
+  // (доменов 1, 2 и 4; в домене 3 папок нет): нечитанной не остаётся. Запасной путь — папка «забывает» прочитанное
+  // (ветку и строку объекта в составе), как будто её не раскрывали; в выводе проверки помечено
+  if (!f2) {
+    f2 = flatFolders().find((y) => y.id !== f.id && domainById(folderDomain(y.id))?.online !== false && y.items.length);
+    if (f2) { forgot = true; m = f2.items[0]; treeBr.delete("folders|" + f2.id); f2.items = f2.items.filter((id) => id !== m); treeMatchCache.clear(); searchMatchCache.clear(); }
+  }
+  if (f2) {
+    setTreeQ(m);
+    ok(await until(() => fs && fs.done && !fs.busy) && fs.hits.has(m), "поиск в раскладке «папки» нашёл объект");
+    ok(f2.items.includes(m) && folderDeviceNodes(f2).some((n) => n.id === m) && foldersOfDevice(m).some((x) => x.id === f2.id) &&
+      await until(() => !!document.querySelector(`#tree .n[data-pick="${m}"]`)),
+      "найденное в нечитанной папке — под своей папкой (f.items), строка в дереве" + (forgot ? " (нечитанной нет — папка «забыла» прочитанное)" : ""));
+    clearTreeQ();
+  } else ok(false, "нет нечитанной папки с объектом");
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся
   ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) === "папки вне отката: состав папки не возвращается", "слово шага понятно человеку");
   setSlice("all");
@@ -108,5 +157,18 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goApp("acc");
   ok(await until(() => accUsersAll().length > 0), "люди — при заходе");
   goApp("hw");
+
+  // Поиск в шапке спрашивает у сервера только устройства, как /devices базы: хранилища и тома не занимают 20 мест
+  window.CONSOLEM_TRACE = [];
+  goNetQ = "";
+  document.getElementById("gq").value = "Хранилище";
+  document.getElementById("gopop").classList.add("open");
+  goSearch("Хранилище");
+  const goText = () => document.getElementById("goList")?.textContent || "";
+  ok(await until(() => /Встроенное хранилище/.test(goText())), "поиск в шапке находит встроенные хранилища: " + goText().slice(0, 80));
+  const netAsk = CONSOLEM_TRACE.find((t) => t.method === "GET" && /^\/units\?/.test(t.path) && /[?&]q=/.test(t.path));
+  const asked = netAsk ? (new URLSearchParams(netAsk.path.split("?")[1]).get("kind") || "").split(",") : [];
+  ok(asked.length > 0 && !asked.some((k) => INFRA_SCREENS.has(screenType(k))), "запрос — только виды устройств: " + (netAsk?.path || "нет запроса").slice(0, 80));
+  delete window.CONSOLEM_TRACE;
 });
 function accUsersAll() { return accSt().users; }

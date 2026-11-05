@@ -74,7 +74,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   treeCollapseAll();
 
   // Переход на другую вкладку не смешивает раскрытие вкладок
-  const detTarget = (await API.get("/devices", { type: "det", limit: 1 })).items[0];
+  const detU = (await API.get("/units", { implements: "vms.detector/1", limit: 1 })).items[0], detTarget = { id: detU.uid, parentId: detU.parentId };
   await hwEnsure([detTarget.parentId, detTarget.id]);
   const detFolders = new Set(foldersOfDevice(detTarget.parentId).flatMap((f) => folderPath(f.id).map((x) => x.id)));
   const camFld = rows().find((r) => r.classList.contains("fld") && shut(r) && !detFolders.has(r.dataset.tid));

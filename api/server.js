@@ -59,6 +59,11 @@
   const IDEMPOTENCY_MS = 10 * 60 * 1000;
   // Движок «Автоматизации» (api/rule-engine.js): расписания, режим объекта, запуски правил
   const Engine = typeof window !== "undefined" && window.ConsolemRuleEngine ? window.ConsolemRuleEngine : require("./rule-engine.js");
+  // Реестр описаний видов (api/kinds.js) и склад объектов (api/units.js)
+  const Kinds = typeof window !== "undefined" && window.ConsolemKinds ? window.ConsolemKinds : require("./kinds.js");
+  const Units = typeof window !== "undefined" && window.ConsolemUnits ? window.ConsolemUnits : require("./units.js");
+  // Хуки профилей vms.* (api/profiles.js): смысл известных видов — общий код старых путей и путей ядра
+  const Profiles = typeof window !== "undefined" && window.ConsolemProfiles ? window.ConsolemProfiles : require("./profiles.js");
   // Содержимое правила: то, что правит администратор и что хранят версии истории
   const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels", "validForSec"];
@@ -68,6 +73,388 @@
   // Стопка отката: сколько операций и как долго сервер помнит, что вернуть
   const UNDO_KEEP = 50;
   const UNDO_MS = 7 * 86400000;
+
+  /* ===== Старые таблицы — представления склада =====
+     Сервер живёт на складе объектов (units.js): набор хранит только units. Старые маршруты (/domains, /servers, /devices,
+     /folders, /archives, /volumes) сняты; их код, перенесённый в хуки профилей, работает с db.domains … db.volumes, как раньше,
+     но это представления: запись — Proxy над объектом склада, её поля читаются и пишутся в поля объекта (не копия). Тот же
+     перевод для инструментов и тестов (fixturePatch старыми разделами) — tools/generic_legacy.py.
+     Запись ↔ объект: id ↔ uid, type ↔ kind (у хранилища kind ↔ archive.<kind>), online ↔ status.link, состояние, которое
+     система назначает сама (OBSERVED), ↔ status.observed, hasPassword/hasSecret ↔ secrets, остальное ↔ properties.
+     Хранилище: serverId ↔ parentId (domainId записи — только у хранилища домена); том: archiveId ↔ parentId; папка: deviceIds ↔
+     Unit.folders устройств; потоки камеры (streams) ↔ дочерние объекты вида stream. Порядок полей записи — свой. */
+  const OLD_TABLES = ["domains", "servers", "devices", "folders", "archives", "volumes"];
+  const DEVICE_TYPES = new Set(["camera", "ipsrv", "channel", "mic", "spk", "sensor", "relay", "storage", "det", "eventsrc", "acfa", "acfa_sensor", "acfa_lock",
+    "acfa_fence", "export", "email", "sms"]);
+  const tableOf = (kind) =>
+    DEVICE_TYPES.has(kind) ? "devices" : String(kind).startsWith("archive.") ? "archives" : { domain: "domains", server: "servers", folder: "folders", volume: "volumes" }[kind] || null;
+  const OBSERVED = {
+    devices: ["fault", "faultText", "licenseExceeded", "recordState", "recordReason", "replicaLagSec", "armed", "disabledByRuleId", "disabledByRuleAt", "archiveJobs",
+      "direct", "recordingTarget", "detectorKinds", "derived"],
+    servers: ["telemetry", "gpu", "disks", "class", "fingerprint"],
+    domains: ["stateSummary"],
+    volumes: ["usedPercent", "shrinkPendingBytes", "heldBy", "incidentsLost", "incidentsAtRisk"],
+    archives: [],
+    folders: [],
+    streams: [],
+  };
+  const SECRET_FLAGS = { devices: { hasPassword: "password" }, volumes: { hasPassword: "password", hasSecret: "secret" } };
+  // uid потока: uid камеры с номером потока во второй группе (30000013-0001-…)
+  const streamUid = (cam, n) => `${cam.slice(0, 9)}${String(n).padStart(4, "0")}${cam.slice(13)}`;
+  const streamNo = (uid) => parseInt(uid.slice(9, 13), 10) || 0;
+
+  // hooks: version() — новая версия объекта потока; refKey(kind, key) — поле со ссылкой (переиндексировать); touched(unit)
+  function Legacy(store, hooks) {
+    hooks = hooks || {};
+    const viewOf = new WeakMap();
+    const unitOf = new WeakMap();
+    const tables = {};
+    const touched = (u) => (hooks.touched ? hooks.touched(u) : store.get(u.uid) === u && store.reindex(u.uid));
+    const status = (u) => u.status || (u.status = {});
+    const observed = (u) => (u.status && u.status.observed) || {};
+    const setObserved = (u, key, value) => {
+      const s = status(u);
+      (s.observed || (s.observed = {}))[key] = value;
+    };
+    const delObserved = (u, key) => {
+      const o = u.status && u.status.observed;
+      if (!o) return;
+      delete o[key];
+      if (!Object.keys(o).length) delete u.status.observed;
+    };
+    const secretSet = (u, name, on) => {
+      if (on) (u.secrets || (u.secrets = {}))[name] = true;
+      else if (u.secrets) {
+        delete u.secrets[name];
+        if (!Object.keys(u.secrets).length) delete u.secrets;
+      }
+    };
+    const field = (get, set, has) => ({ get, set, has: has || (() => true) });
+    const link = field((u) => u.status.link === "online", (u, v) => (v === undefined ? u.status && delete u.status.link : (status(u).link = v ? "online" : "offline")), (u) => !!u.status && "link" in u.status);
+    const plain = (key, then) => field((u) => u[key], (u, v) => {
+      u[key] = v === undefined ? null : v;
+      if (then) then(u, v);
+    });
+    const reindexed = (u) => touched(u);
+    // Версия меняется после каждой правки записи (bump): тогда же склад переиндексирует объект — и вложенные ссылки тоже
+    const version = plain("version", reindexed);
+    const children = (u) => store.byParent(u.uid).filter((s) => s.kind === "stream").sort((a, b) => (a.uid < b.uid ? -1 : 1));
+    // Домен объекта переходит на всех его потомков по parentId: потоки и дочерние устройства, хранилища сервера и их тома,
+    // объекты незнакомых видов. Иначе /units?domainId= и права по домену разошлись бы со старым путём
+    const cascadeDomain = (u) => {
+      store.byParent(u.uid).forEach((c) => {
+        if (c.domainId !== u.domainId) {
+          c.domainId = u.domainId;
+          touched(c);
+        }
+        cascadeDomain(c);
+      });
+    };
+    const domainOf = plain("domainId", (u) => {
+      reindexed(u);
+      cascadeDomain(u);
+    });
+    const secretFlag = (name) => field(() => true, (u, v) => secretSet(u, name, !!v), (u) => !!(u.secrets && u.secrets[name]));
+    // Поля записи, у которых своё место в объекте; порядок — порядок полей записи. "*props" — свойства, "*observed" — состояние
+    const SPECIAL = {
+      domains: { id: plain("uid"), name: plain("name"), "*props": 0, online: link, "*observed": 0, version },
+      servers: { id: plain("uid"), name: plain("name"), domainId: domainOf, "*props": 0, online: link, "*observed": 0, version },
+      folders: {
+        id: plain("uid"), name: plain("name"), domainId: domainOf, parentId: plain("parentId", reindexed),
+        deviceIds: field((u) => store.byFolder(u.uid).filter((d) => DEVICE_TYPES.has(d.kind)).map((d) => d.uid), (u, v) => setMembers(u, v || [])),
+        version,
+      },
+      archives: {
+        id: plain("uid"), name: plain("name"),
+        kind: field((u) => u.kind.slice("archive.".length), (u, v) => {
+          u.kind = `archive.${v}`;
+          reindexed(u);
+        }),
+        "*props": 0,
+        serverId: field((u) => u.parentId, (u, v) => {
+          u.parentId = v || null;
+          const s = v && store.get(v);
+          if (s) u.domainId = s.domainId;
+          reindexed(u);
+          cascadeDomain(u);
+        }),
+        domainId: field((u) => (u.parentId ? null : u.domainId), (u, v) => {
+          if (!u.parentId && v != null) u.domainId = v;
+          reindexed(u);
+          cascadeDomain(u);
+        }),
+        version,
+      },
+      volumes: {
+        id: plain("uid"),
+        archiveId: field((u) => u.parentId, (u, v) => {
+          u.parentId = v || null;
+          const a = v && store.get(v);
+          if (a) u.domainId = a.domainId;
+          reindexed(u);
+          cascadeDomain(u);
+        }),
+        name: plain("name"), "*props": 0, online: link, "*observed": 0, hasPassword: secretFlag("password"), hasSecret: secretFlag("secret"), version,
+      },
+      devices: {
+        id: plain("uid"), type: plain("kind", reindexed), parentId: plain("parentId", reindexed), domainId: domainOf, name: plain("name"), online: link,
+        "*props": 0, "*observed": 0, hasPassword: secretFlag("password"), version,
+        // Что правится у записи сейчас — Unit.writable
+        writableFields: field((u) => u.writable, (u, v) => (v == null ? delete u.writable : (u.writable = v.slice())), (u) => Array.isArray(u.writable)),
+        streams: field((u) => children(u).map(view), (u, v) => setStreams(u, v || []), (u) => children(u).length > 0),
+      },
+      streams: {
+        id: field((u) => u.properties.streamId, (u, v) => (u.properties.streamId = v)), name: plain("name"), "*props": 0, online: link,
+      },
+    };
+    const HIDDEN = { streams: new Set(["streamId"]) };
+    const tableOfUnit = (u) => (u.kind === "stream" ? "streams" : tableOf(u.kind));
+
+    function handler(t) {
+      const special = SPECIAL[t], obs = new Set(OBSERVED[t]), hidden = HIDDEN[t] || new Set();
+      const own = (u, key) => {
+        if (typeof key !== "string") return false;
+        const s = special[key];
+        if (s) return s.has(u);
+        if (key.startsWith("*") || hidden.has(key)) return false;
+        return (u.properties && key in u.properties) || key in observed(u);
+      };
+      const get = (u, key) => {
+        if (typeof key !== "string") return undefined;
+        const s = special[key];
+        if (s) return s.has(u) ? s.get(u) : undefined;
+        if (key.startsWith("*") || hidden.has(key)) return undefined;
+        if (obs.has(key)) return observed(u)[key];
+        if (u.properties && key in u.properties) return u.properties[key];
+        return observed(u)[key];
+      };
+      const set = (u, key, value) => {
+        const s = special[key];
+        if (s) return s.set(u, value), true;
+        if (obs.has(key) || (!(key in (u.properties || {})) && key in observed(u))) setObserved(u, key, value);
+        else (u.properties || (u.properties = {}))[key] = value;
+        if (hooks.refKey && hooks.refKey(u.kind, key)) touched(u);
+        return true;
+      };
+      return {
+        get,
+        set: (u, key, value) => (typeof key === "string" ? set(u, key, value) : true),
+        has: own,
+        deleteProperty(u, key) {
+          if (typeof key !== "string") return true;
+          const s = special[key];
+          if (s) s.set(u, undefined);
+          else if (u.properties && key in u.properties) delete u.properties[key];
+          else delObserved(u, key);
+          if (hooks.refKey && hooks.refKey(u.kind, key)) touched(u);
+          return true;
+        },
+        ownKeys(u) {
+          const out = [];
+          Object.keys(special).forEach((key) => {
+            if (key === "*props") Object.keys(u.properties || {}).forEach((k) => !hidden.has(k) && !special[k] && out.push(k));
+            else if (key === "*observed") Object.keys(observed(u)).forEach((k) => !special[k] && !out.includes(k) && out.push(k));
+            else if (special[key].has(u)) out.push(key);
+          });
+          return out;
+        },
+        getOwnPropertyDescriptor: (u, key) => (own(u, key) ? { value: get(u, key), writable: true, enumerable: true, configurable: true } : undefined),
+        defineProperty: (u, key, desc) => ("value" in desc ? set(u, key, desc.value) : true),
+      };
+    }
+    const HANDLERS = {};
+    Object.keys(SPECIAL).forEach((t) => (HANDLERS[t] = handler(t)));
+    // Запись объекта: всегда одна и та же — код старых путей сравнивает записи по ссылке
+    function view(u) {
+      if (!u) return null;
+      let v = viewOf.get(u);
+      if (!v) {
+        v = new Proxy(u, HANDLERS[tableOfUnit(u)]);
+        viewOf.set(u, v);
+        unitOf.set(v, u);
+      }
+      return v;
+    }
+
+    // Запись → объект склада (новая запись старого кода, набор со старыми разделами)
+    const split = (rec, t, skip) => {
+      const props = {}, obs = {}, st = {};
+      const special = SPECIAL[t], o = new Set(OBSERVED[t]);
+      Object.keys(rec).forEach((k) => {
+        if (special[k] || skip.includes(k) || k === "folderIds") return;
+        if (o.has(k)) obs[k] = rec[k];
+        else props[k] = rec[k];
+      });
+      if ("online" in rec && special.online) st.link = rec.online === false ? "offline" : "online";
+      if (Object.keys(obs).length) st.observed = obs;
+      return { props, st };
+    };
+    function toUnit(t, rec) {
+      const { props, st } = split(rec, t, []);
+      const u = { uid: rec.id, kind: null, parentId: null, domainId: null, name: rec.name };
+      if (t === "domains") u.kind = "domain";
+      else if (t === "servers") Object.assign(u, { kind: "server", domainId: rec.domainId });
+      else if (t === "folders") Object.assign(u, { kind: "folder", parentId: rec.parentId || null, domainId: rec.domainId });
+      else if (t === "archives") {
+        const s = rec.serverId && store.get(rec.serverId);
+        Object.assign(u, { kind: `archive.${rec.kind}`, parentId: rec.serverId || null, domainId: rec.domainId || (s ? s.domainId : null) });
+      } else if (t === "volumes") {
+        const a = store.get(rec.archiveId);
+        Object.assign(u, { kind: "volume", parentId: rec.archiveId, domainId: a ? a.domainId : null });
+      } else Object.assign(u, { kind: rec.type, parentId: rec.parentId || null, domainId: rec.domainId });
+      u.version = rec.version;
+      u.properties = props;
+      const flags = SECRET_FLAGS[t] || {};
+      Object.keys(flags).forEach((f) => rec[f] && secretSet(u, flags[f], true));
+      if (t === "devices" && Array.isArray(rec.writableFields)) u.writable = rec.writableFields.slice();
+      if (Object.keys(st).length) u.status = st;
+      return u;
+    }
+    function streamUnit(cam, rec, n) {
+      const { props, st } = split(rec, "streams", []);
+      return Object.assign({ uid: streamUid(cam.uid, n), kind: "stream", parentId: cam.uid, domainId: cam.domainId, name: rec.name, version: hooks.version ? hooks.version() : cam.version,
+        properties: Object.assign({ streamId: rec.id }, props) }, Object.keys(st).length ? { status: st } : {});
+    }
+    // Новый состав потоков камеры: объекты потоков по коду потока правятся на месте, новых — новые номера, лишние уходят
+    function setStreams(cam, next) {
+      const was = children(cam);
+      const byCode = new Map(was.map((s) => [s.properties.streamId, s]));
+      const kept = new Set();
+      let n = was.reduce((m, s) => Math.max(m, streamNo(s.uid)), 0);
+      next.forEach((x) => {
+        const own = unitOf.get(x);
+        const s = own && own.parentId === cam.uid ? own : byCode.get(x.id);
+        if (s && !kept.has(s)) {
+          kept.add(s);
+          if (own === s) return;
+          const fresh = streamUnit(cam, x, streamNo(s.uid));
+          Object.keys(s).forEach((k) => delete s[k]);
+          Object.assign(s, fresh);
+          touched(s);
+          return;
+        }
+        const made = streamUnit(cam, unitOf.has(x) ? JSON.parse(JSON.stringify(x)) : x, ++n);
+        kept.add(made);
+        store.put(made);
+      });
+      was.filter((s) => !kept.has(s)).forEach((s) => store.remove(s.uid));
+    }
+    // Состав папки: только устройства, объекты незнакомых видов в папке остаются как были
+    function setMembers(folder, ids) {
+      const want = new Set(ids);
+      store.byFolder(folder.uid).forEach((d) => {
+        if (!DEVICE_TYPES.has(d.kind) || want.has(d.uid)) return;
+        d.folders = d.folders.filter((f) => f !== folder.uid);
+        if (!d.folders.length) delete d.folders;
+        touched(d);
+      });
+      ids.forEach((id) => {
+        const d = store.get(id);
+        if (!d || (d.folders || []).includes(folder.uid)) return;
+        d.folders = (d.folders || []).concat(folder.uid);
+        touched(d);
+      });
+    }
+    // Запись в склад: объект, его потоки, состав папки. Возвращает запись-представление
+    function put(t, rec) {
+      if (unitOf.has(rec)) {
+        const u = unitOf.get(rec);
+        if (!store.has(u.uid)) store.put(u);
+        return rec;
+      }
+      const u = store.put(toUnit(t, rec));
+      if (t === "devices" && rec.streams) setStreams(u, rec.streams);
+      if (t === "folders" && rec.deviceIds) setMembers(u, rec.deviceIds);
+      return view(u);
+    }
+    function drop(u) {
+      if (tableOf(u.kind) === "devices") children(u).forEach((s) => store.remove(s.uid));
+      store.remove(u.uid);
+    }
+    function rebuild() {
+      OLD_TABLES.forEach((t) => (tables[t] = []));
+      for (const u of store.all()) {
+        const t = tableOf(u.kind);
+        if (t) tables[t].push(view(u));
+      }
+    }
+    // Старые разделы набора (fixturePatch тестов старых путей) заменяют объекты своих таблиц. Состав папок — из
+    // folders[].deviceIds, без раздела folders — прежний. Объекты незнакомых видов без родителя или домена уходят
+    function importTables(given) {
+      const order = ["domains", "servers", "folders", "archives", "volumes", "devices"].filter((t) => Array.isArray(given[t]));
+      if (!order.length) return;
+      const memberOf = new Map();
+      for (const u of store.all()) if (u.folders && !(given.folders && DEVICE_TYPES.has(u.kind))) memberOf.set(u.uid, u.folders.slice());
+      order.forEach((t) => {
+        [...store.all()].filter((u) => tableOf(u.kind) === t).forEach(drop);
+        given[t].forEach((rec) => put(t, rec));
+      });
+      memberOf.forEach((folders, uid) => {
+        const u = store.get(uid);
+        const live = folders.filter((f) => store.has(f));
+        if (!u || !live.length) return;
+        u.folders = [...new Set((u.folders || []).concat(live))];
+        touched(u);
+      });
+      for (let gone = true; gone; ) {
+        gone = false;
+        [...store.all()].forEach((u) => {
+          if (tableOf(u.kind) || ((!u.parentId || store.has(u.parentId)) && (!u.domainId || store.has(u.domainId)))) return;
+          drop(u);
+          gone = true;
+        });
+      }
+    }
+    // Присваивание таблицы целиком (db.devices = db.devices.filter(…)): чего нет — уходит со склада, новое — приходит
+    function setTable(t, list) {
+      const next = list.map((x) => put(t, x));
+      const keep = new Set(next.map((v) => unitOf.get(v)));
+      (tables[t] || []).forEach((v) => {
+        const u = unitOf.get(v);
+        if (!keep.has(u) && store.get(u.uid) === u) drop(u);
+      });
+      tables[t] = next;
+    }
+    // Объект пришёл на склад или ушёл с него не через таблицу (пути ядра): таблица догоняет
+    function attach(u) {
+      const t = tableOf(u.kind);
+      if (t && tables[t] && !tables[t].includes(view(u))) tables[t].push(view(u));
+    }
+    function detach(u) {
+      const t = tableOf(u.kind);
+      if (t && tables[t]) tables[t] = tables[t].filter((v) => unitOf.get(v) !== u);
+    }
+    return {
+      view,
+      unitOf: (rec) => unitOf.get(rec) || null,
+      table: (t) => tables[t],
+      setTable,
+      add(t, rec) {
+        const v = put(t, rec);
+        if (!tables[t].includes(v)) tables[t].push(v);
+        return v;
+      },
+      importTables,
+      rebuild,
+      attach,
+      detach,
+    };
+  }
+
+  // Набор со старыми разделами для тестов и инструментов старых путей: выведены из units, исходный набор не меняется
+  function legacyFixture(fixture) {
+    if (!fixture || !fixture.units || OLD_TABLES.every((t) => t in fixture)) return fixture;
+    const Units = typeof window !== "undefined" && window.ConsolemUnits ? window.ConsolemUnits : require("./units.js");
+    const store = Units.create();
+    store.load(JSON.parse(JSON.stringify(fixture.units)));
+    const legacy = Legacy(store, {});
+    legacy.rebuild();
+    const out = Object.assign({}, fixture);
+    OLD_TABLES.forEach((t) => {
+      if (!(t in out)) out[t] = JSON.parse(JSON.stringify(legacy.table(t)));
+    });
+    return out;
+  }
 
   function create(opts) {
     const SPEC = opts.openapi || null;
@@ -90,6 +477,85 @@
 
     let db = null;
     let me = null;
+    // Склад объектов, описания видов и старые таблицы над складом — собираются в load()
+    let kinds = null, store = null, legacy = null, kindList = null;
+    // Состояние хуков профилей (итоги круга домена…): сбрасывается в load()
+    let profileState = {};
+    /* Хуки профилей (profiles.js) и то, что они видят у сервера: склад, описания видов, старые таблицы и общие помощники старых
+       путей. Помощники — обёртки: сами функции объявлены ниже, хук зовёт их, когда сервер уже собран */
+    const HOOKS = Profiles.HOOKS;
+    const hFolder = HOOKS["vms.folder/1"];
+    const hDevice = Profiles.DEVICE, hCamera = HOOKS["vms.camera/1"], hStream = HOOKS["vms.stream/1"], hDetector = HOOKS["vms.detector/1"], hAcs = HOOKS["vms.acs/1"];
+    const hLive = HOOKS["vms.live/1"], hPtz = HOOKS["vms.ptz/1"], hTalk = HOOKS["vms.talk/1"], hTimeline = HOOKS["vms.timeline/1"];
+    const pctx = {
+      get units() { return store; },
+      get kinds() { return kinds; },
+      get db() { return db; },
+      get state() { return profileState; },
+      get formatting() { return formatting; },
+      get VIEW_ROUND_MS() { return VIEW_ROUND_MS; },
+      get FORMAT_MS() { return FORMAT_MS; },
+      legacy: {
+        view: (u) => legacy.view(u),
+        unitOf: (rec) => legacy.unitOf(rec),
+        add: (t, rec) => legacy.add(t, rec),
+        isDevice: (u) => tableOf(u.kind) === "devices",
+      },
+      problem: (status, code, message, extra) => problem(status, code, message, extra),
+      send: (type, fields) => send(type, fields),
+      now: () => now(),
+      iso: (ms) => iso(ms),
+      byId: (table, id) => byId(table, id),
+      uuid: (kind) => uuid(kind),
+      newVersion: () => newVersion(),
+      bump: (rec) => bump(rec),
+      changed: (kind, rec) => changed(kind, rec),
+      lockedProblem: (ids, test) => lockedProblem(ids, test),
+      // Занятость «кроме своей операции»: внутри шага операции — кроме неё самой (heldNow), иначе — любая
+      held: (id) => (heldNow || held)(id),
+      isAdmin: () => holdsAdmin(db.access, me),
+      domainDown: (id) => domainDown(id),
+      featureProblem: (kind, patch) => featureProblem(kind, patch),
+      folderable: (d) => folderable(d),
+      specOf: (a) => specOf(a),
+      kindSpec: (kind) => kindSpec(kind),
+      serverWideChanged: (a) => serverWideChanged(a),
+      dropStreamGrants: (fn) => dropStreamGrants(fn),
+      // Устройства (DEVICE, vms.camera/1…): то, что старые пути делают с записью устройства
+      applyPatch: (rec, patch) => applyPatch(rec, patch),
+      withChildren: (id) => withChildren(id),
+      removeDevice: (id) => removeDevice(id),
+      copiesProblem: (s, copies) => copiesProblem(s, copies),
+      myLogin: () => myLogin(),
+      pageList: (q, name, rows, key, show, extra) => pageList(q, name, rows, key, show, extra),
+      // Вид объекта в событии: на путях ядра — вид объекта (camera, archive.local), на старых — вид таблицы (evKind)
+      evKind: (kind, x) => evKind(kind, x),
+      // Шаг операции: всё, что план меняет у этого объекта (правки этого и следующих шагов, слитые), — камера сверяет запись целиком
+      get plan() { return planNow; },
+      // Идёт запрос пути ядра или шаг по uid: событие — с видом объекта (решение 5)
+      get core() { return coreMode; },
+    };
+    // Хуки вида — по его профилям (implements), только те, что сервер знает. У устройств (таблица devices) первыми — общие
+    // хуки устройства (DEVICE: система, папки, ссылки, сервер-исполнитель, удаление), затем — профилей
+    const hooksOf = (kind) => {
+      const own = ((kinds.get(kind) || {}).implements || []).map((p) => HOOKS[p]).filter(Boolean);
+      return tableOf(kind) === "devices" && kinds.get(kind) ? [hDevice].concat(own) : own;
+    };
+    // Что уходит и что меняется с объектом — по всем его хукам (dependents): у камеры — дочерние, строки незнакомых видов
+    // под ней, камеры, что пишут по её детекторам
+    function dependentsOf(u) {
+      const remove = new Set(), detach = new Set();
+      hooksOf(u.kind).forEach((h) => {
+        if (!h.dependents) return;
+        const d = h.dependents(u, pctx);
+        (d.remove || []).forEach((x) => remove.add(x));
+        (d.detach || []).forEach((x) => detach.add(x));
+      });
+      return { remove: [...remove], detach: [...detach].filter((x) => !remove.has(x)) };
+    }
+    let planNow = null;
+    const hookOf = (kind, name) => hooksOf(kind).find((h) => h[name]) || null;
+    let heldNow = null;
     // Пароли — отдельно от записей: в ответах их нет, только hasPassword
     let secrets = new Map();
     const seq = {};
@@ -110,16 +576,32 @@
       secrets = new Map();
       ops = new Map();
       redoStack = [];
-      ptzLeases = new Map();
       expWork = new Map();
       formatting = new Map();
+      applying = new Map();
+      profileState = {};
       scanning = new Map();
       db.archiveWatches = db.archiveWatches || [];
       db.archiveScans = db.archiveScans || [];
       db.stand = db.stand || {};
+      // Склад — из units набора; старые разделы, если набор их принёс (fixturePatch тестов старых путей), заменяют объекты
+      // своих таблиц. db.domains … db.volumes дальше — представления склада
+      // Новое описание вида (PUT /test/kinds/{kind}) меняет набор ссылок x-ref: объекты вида переиндексируются
+      kindList = null;
+      kinds = Kinds.create(db.kinds || [], db.profiles || [], { onPut: (kind) => { kindList = null; if (store) store.byKind(kind).forEach((u) => store.reindex(u.uid)); } });
+      store = Units.create({ refs: unitRefs });
+      store.load(db.units || []);
+      legacy = Legacy(store, { version: () => newVersion(), refKey: (kind, key) => kinds.refNames(kind).has(key) });
+      const given = {};
+      OLD_TABLES.forEach((t) => {
+        if (Array.isArray(db[t])) given[t] = db[t];
+        delete db[t];
+      });
+      ["units", "kinds", "profiles"].forEach((k) => delete db[k]);
+      legacy.importTables(given);
+      legacy.rebuild();
+      OLD_TABLES.forEach((t) => Object.defineProperty(db, t, { get: () => legacy.table(t), set: (list) => legacy.setTable(t, list), enumerable: true, configurable: true }));
       if (db.stand.large) expandLarge(db.stand.large);
-      revisions = new Map();
-      summaries = new Map();
       treePending = {};
       viewStamp++;
       searches = new Map();
@@ -127,7 +609,8 @@
       answered.clear();
       // Номера новых id — после самых больших в наборе
       Object.keys(seq).forEach((k) => delete seq[k]);
-      const idsOf = (node) => JSON.stringify(node).replace(/"id":"([0-9a-f])(\d{7})-(\d{4})-4000-8000-0{12}"/g, (m, kind, n, sub) => {
+      // Объекты склада без старой таблицы (незнакомые виды) — по uid: их номера тоже заняты
+      const idsOf = (node) => JSON.stringify(node).replace(/"u?id":"([0-9a-f])(\d{7})-(\d{4})-4000-8000-0{12}"/g, (m, kind, n, sub) => {
         const k = sub === "0000" ? kind : `${kind}-${sub}`;
         seq[k] = Math.max(seq[k] || 0, Number(n));
         return "";
@@ -136,7 +619,7 @@
       if (db.stand.large) {
         idsOf(Object.assign({}, db, { devices: [] }));
         seq[KIND.device] = db.devices.length + 1000;
-      } else idsOf(db);
+      } else idsOf(Object.assign({}, db, { units: [...store.all()].filter((u) => !tableOf(u.kind)) }));
     }
     const uuid = (kind) => {
       const k = KIND[kind];
@@ -144,252 +627,33 @@
       seq[k] = (seq[k] || 0) + 1;
       return `${first}${String(seq[k]).padStart(7, "0")}-${sub || "0000"}-4000-8000-000000000000`;
     };
-    const engine = Engine.forDb(() => db);
+    // Движок правил — на складе объектов и описаниях видов. Список видов — тот же, пока его не сменило новое описание (onPut)
+    const engine = Engine.create({
+      tz: () => db.timezone, store: () => store, kinds: () => kindList || (kindList = kinds.list()),
+      rules: () => db.rules, schedules: () => db.schedules, dayGroups: () => db.dayGroups, modes: () => db.modes, manualMode: () => db.modeManual,
+      windows: () => db.maintenanceWindows, roles: () => db.access.roles, users: () => db.access.users,
+    });
     let lastMode = null;
-    // Устройства — по карте: на большом наборе перебор на каждый запрос не годится. Карта судит себя сама:
-    // другой массив или другая длина — собирается заново
-    let devMap = null, devArr = null, devLen = -1;
-    function devIndex() {
-      if (devArr !== db.devices || devLen !== db.devices.length) {
-        devMap = new Map(db.devices.map((d) => [d.id, d]));
-        devArr = db.devices;
-        devLen = db.devices.length;
-      }
-      return devMap;
+    // Записи старых таблиц — по складу: объект по uid и его запись-представление, если он из этой таблицы
+    const byId = (table, id) => {
+      if (!OLD_TABLES.includes(table)) return db[table].find((r) => r.id === id) || null;
+      const u = id == null ? null : store.get(id);
+      return u && tableOf(u.kind) === table ? legacy.view(u) : null;
+    };
+    // Ссылки объекта для индекса склада: свойства с x-ref и сервер размещения из status.observed
+    function unitRefs(u) {
+      const out = kinds.refsOf(u).map((r) => r.uid);
+      const s = u.status && u.status.observed && u.status.observed.serverId;
+      if (typeof s === "string") out.push(s);
+      return out;
     }
-    const byId = (table, id) => (table === "devices" ? devIndex().get(id) || null : db[table].find((r) => r.id === id) || null);
     // Возможности системы — из набора: так же их объявляет бэкенд в GET /reference
     const caps = () => db.reference.capabilities;
-    // Раздача камеры (V/03.1): создаётся первым зрителем, держится LIVE_GRACE_SEC, метки — сеть, для которой создана
     // Журнал камеры — она и единицы про неё: дети и источник событий, привязанный к ней
     const journalAbout = (e, id) => {
       if (e.deviceId === id) return true;
       const rec = e.deviceId && byId("devices", e.deviceId);
       return !!rec && (rec.parentId === id || rec.cameraId === id);
-    };
-    const LIVE_GRACE_SEC = 60;
-    const liveLabels = (network) => (network === "outside" ? ["public-address"] : []);
-    const liveFan = (rec) => {
-      const f = (db.stand.live || {})[rec.id];
-      return f && f.until > now() ? f : null;
-    };
-    const liveKeep = (rec, labels) => {
-      db.stand.live = db.stand.live || {};
-      db.stand.live[rec.id] = { labels, until: now() + LIVE_GRACE_SEC * 1000 };
-    };
-    // Шкала заглушки считается из id и часов, не хранится: так она живёт и на 250 000 камер. Сетка 4 часа: спаны не меняются
-    // с ходом часов, spanId держится. Вторая по времени сетка — две эпохи над одним отрезком, дальше дозапись, резерв, устройство
-    const TL_STEP = 4 * 3600000, TL_LEN = 3 * 3600000, TL_CELLS = 42;
-    function camSpans(rec) {
-      const main = rec.archiveId || ((rec.extraArchives || [])[0] || {}).archiveId;
-      if (!main) return [];
-      const t = now(), base = Math.floor(t / TL_STEP) * TL_STEP, out = [], extra = ((rec.extraArchives || [])[0] || {}).archiveId || main;
-      const add = (startMs, endMs, epoch, source, over) => {
-        const s = Object.assign({ startMs, endMs, epoch, source, backupOnly: false, fenced: false, archiveId: main, recordingId: rec.id }, over);
-        s.spanId = `${s.recordingId}.e${epoch}.${source}.${s.fenced ? "f" : "n"}.${startMs}`;
-        out.push(s);
-      };
-      for (let i = 0; i < TL_CELLS; i++) {
-        const start = base - i * TL_STEP, end = i ? start + TL_LEN : Math.max(start + 60000, Math.floor(t / 60000) * 60000);
-        add(start, end, 2, i === 2 ? "backfill" : "live");
-        if (i === 1) add(start, end, 1, "live", { fenced: true });
-        if (i === 3) add(end, start + TL_STEP - 60000 * 30, 1, "live", { backupOnly: true, archiveId: extra, recordingId: `${rec.id}-backup` });
-        if (i === 4) add(end, start + TL_STEP - 60000 * 30, 1, "device", { backupOnly: false });
-      }
-      return out.filter((s) => s.endMs > s.startMs);
-    }
-    const spanShow = (s) => ({ spanId: s.spanId, start: iso(s.startMs), end: iso(s.endMs), archiveId: s.archiveId, recordingId: s.recordingId, epoch: s.epoch, source: s.source, backupOnly: s.backupOnly, fenced: s.fenced });
-    const recordingsOf = (rec) => [...new Set(camSpans(rec).map((s) => s.recordingId))];
-    function timelineGone(rec) {
-      const out = clone(db.stand.timelineUnavailable || []), srv = rec.serverId && byId("servers", rec.serverId);
-      if (srv && srv.online === false) out.push({ what: "server", id: srv.id, reason: "Регистратор не отвечает: архив не утрачен, лента может быть неполной" });
-      return out;
-    }
-    const holdsAll = () => db.holds || (db.holds = []);
-    const marksAll = () => db.bookmarks || (db.bookmarks = []);
-    // Закладка — момент или отрезок (ADR-0117 доп. (1) п. 2): у старых строк типа нет, это момент
-    const markShow = (m) => Object.assign({ type: "moment" }, clone(m));
-    const markEnd = (m) => Date.parse(m.type === "span" && m.to ? m.to : m.occurred);
-    /* ----- Выгрузка (ADR-0117): задание — части по камерам, ход по часам стенда, файлы со сроком ----- */
-    const expAll = () => db.exports || (db.exports = []);
-    const expFeat = (f) => caps().features.includes(f);
-    const expRef = () => db.reference.export;
-    // Права человека: стенд правит их через stand.exportGrant (тесты), по умолчанию можно всё и без пароля
-    const expGrant = () => Object.assign({ allowed: true, passwordRequired: false, privacyForced: false, supervisorRequired: false, watermark: false, depthHours: 0 }, db.stand.exportGrant || {});
-    const expBad = (status, code, message, field, params) => ({ status, body: Object.assign({ code, message }, field ? { field } : {}, params ? { params } : {}) });
-    const expOverlap = (rec, a, b) => camSpans(rec).some((s) => s.startMs < b && s.endMs > a);
-    const expSec = (body) => (body.periods || []).reduce((n, p) => n + Math.max(0, (Date.parse(p.to) - Date.parse(p.from)) / 1000), 0);
-    const expTranscode = (b) => {
-      const q = b.quality || {}, t = b.titles || {};
-      return b.mode === "video" && ((q.codec && q.codec !== "source") || (q.resolution && q.resolution !== "source") || (q.compression && q.compression !== "default") || q.fpsDivisor > 1 || !!q.maxFps || q.speed > 1
-        || ((t.fields || []).length > 0 && t.overlay !== "soft") || b.cameras.some((c) => c.area));
-    };
-    const expClean = (s) => String(s).replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "");
-    function expNames(b) {
-      const f = expRef().formats.find((x) => x.id === b.format), zip = !!b.password && f && f.password === "zip";
-      const ext = zip ? "zip" : b.format;
-      const at = b.mode === "frame" ? (b.source === "live" ? now() : Date.parse(b.at)) : Math.min(...(b.periods || []).map((p) => Date.parse(p.from)));
-      // Время в имени — по часам системы (Me.timezone), как его видит оператор
-      const stamp = new Date(Number.isFinite(at) && at > 0 ? at : now()).toLocaleString("sv-SE", { timeZone: db.timezone || "UTC" }).replace(/[-:]/g, "").replace(" ", "-");
-      const cam = (c) => { const rec = byId("devices", c.deviceId), srv = rec && rec.serverId && byId("servers", rec.serverId); return expClean(`${srv ? srv.name : "VMS"}_${rec ? rec.name : c.deviceId}`); };
-      if (b.singleFile && b.cameras.length > 1) return [{ name: `${expClean(b.name || `${b.cameras.length}_камер`)}[${stamp}].${ext}` }];
-      return b.cameras.map((c, i) => ({ deviceId: c.deviceId, name: `${b.name ? expClean(b.name) + (b.cameras.length > 1 ? `_${i + 1}` : "") : cam(c)}[${stamp}].${ext}` }));
-    }
-    // Все отказы заказа по порядку полей. Первый — ответ POST /exports, все — POST /exports/check
-    function expProblems(b) {
-      const out = [], R = expRef(), L = R.limits, g = expGrant(), add = (status, code, message, field, params) => out.push(expBad(status, code, message, field, params));
-      if (!g.allowed) add(403, "PERMISSION_DENIED", "Нет права на выгрузку");
-      if (g.refusal) add(403, "PERMISSION_DENIED", g.refusal);
-      const f = R.formats.find((x) => x.id === b.format), live = b.source === "live";
-      if (!f) add(422, "NOT_SUPPORTED", "Такого формата нет", "/format");
-      else if (f.kind !== b.mode || (live ? !f.entries.includes("live") : !f.entries.includes("archive"))) add(422, "NOT_SUPPORTED", "Формат не подходит к выгрузке", "/format");
-      if (b.mode === "video" && !expFeat("exportVideo")) add(422, "NOT_SUPPORTED", "Видео система не выгружает", "/mode");
-      if (b.mode === "frame" && !live && !expFeat("exportFrame")) add(422, "NOT_SUPPORTED", "Кадр архива система не выгружает", "/mode");
-      if (live && (b.mode !== "frame" || !expFeat("exportLiveFrame"))) add(422, "NOT_SUPPORTED", "Живым бывает только кадр", "/source");
-      if (b.cameras.length > L.maxCameras) add(422, "LIMIT_EXCEEDED", "Слишком много камер", "/cameras", { limit: "maxCameras", max: L.maxCameras });
-      if (b.cameras.length > 1 && !expFeat("exportMultiCamera")) add(422, "NOT_SUPPORTED", "Одна камера в задании", "/cameras");
-      if (b.cameras.length > 1 && b.mode === "frame") add(422, "NOT_SUPPORTED", "Кадр — одной камеры", "/cameras");
-      b.cameras.forEach((c, i) => {
-        const rec = byId("devices", c.deviceId), w = `/cameras/${i}`;
-        if (!rec) return add(404, "NOT_FOUND", "Камеры нет", w);
-        if (rec.type !== "camera") return add(422, "NOT_SUPPORTED", "Выгрузка — только у камеры", w);
-        if ((db.stand.otherCluster || {})[rec.id]) add(409, "OTHER_CLUSTER", "Камера другого кластера: выгрузка через него", w, { url: db.stand.otherCluster[rec.id] });
-        if ((db.stand.exportDenied || []).includes(rec.id)) add(403, "PERMISSION_DENIED", "Нет права на эту камеру", w);
-        if (live && rec.online === false) add(409, "DEVICE_OFFLINE", "Камера без связи", w);
-        const a = c.area;
-        if (a) {
-          if (!expFeat("exportArea")) add(422, "NOT_SUPPORTED", "Область кадра система не обрезает", `${w}/area`);
-          else if (!(a.w > 0 && a.h > 0 && a.x + a.w <= 1 + 1e-9 && a.y + a.h <= 1 + 1e-9)) add(422, "VALIDATION_FAILED", "Область выходит за кадр или пуста", `${w}/area`);
-        }
-      });
-      if (b.mode === "video") {
-        const ps = b.periods || [];
-        if (!ps.length) add(422, "VALIDATION_FAILED", "Укажите отрезок", "/periods");
-        if (ps.length > L.maxPeriods) add(422, "LIMIT_EXCEEDED", "Слишком много отрезков", "/periods", { limit: "maxPeriods", max: L.maxPeriods });
-        if (ps.length > 1 && !expFeat("exportMultiPeriod")) add(422, "NOT_SUPPORTED", "Один отрезок в задании", "/periods");
-        ps.forEach((p, i) => { if (!(Date.parse(p.to) > Date.parse(p.from))) add(422, "VALIDATION_FAILED", "Конец позже начала", `/periods/${i}/to`); else if (Date.parse(p.from) > now()) add(422, "VALIDATION_FAILED", "Отрезок в будущем", `/periods/${i}/from`); });
-        if (expSec(b) * b.cameras.length > L.maxTotalSec) add(422, "LIMIT_EXCEEDED", "Видео в задании слишком много", "/periods", { limit: "maxTotalSec", max: L.maxTotalSec });
-        const recs = b.cameras.map((c) => byId("devices", c.deviceId)).filter((r) => r && r.type === "camera");
-        ps.forEach((p, i) => { if (Date.parse(p.to) > Date.parse(p.from) && recs.length && !recs.some((r) => expOverlap(r, Date.parse(p.from), Date.parse(p.to)))) add(422, "NO_RECORDING", "В отрезке нет записи", `/periods/${i}`); });
-      }
-      if (b.mode === "frame" && !live) {
-        const at = Date.parse(b.at), rec = byId("devices", (b.cameras[0] || {}).deviceId);
-        if (!(at > 0)) add(422, "VALIDATION_FAILED", "Укажите момент кадра", "/at");
-        else if (rec && rec.type === "camera" && !expOverlap(rec, at - 10000, at + 1)) add(422, "NO_RECORDING", "В этот момент записи нет", "/at");
-      }
-      if (b.singleFile && b.cameras.length > 1 && !(expFeat("exportSingleFile") && f && f.singleFile === "tracks")) add(422, "NOT_SUPPORTED", "«В один файл» — только MKV", "/singleFile");
-      if (b.password && !expFeat("exportPassword")) add(422, "NOT_SUPPORTED", "Пароль система не ставит", "/password");
-      if (g.passwordRequired && !b.password) add(422, "PASSWORD_REQUIRED", "Политика требует пароль", "/password");
-      const q = b.quality || {};
-      if (q.codec && f && !f.codecs.includes(q.codec)) add(422, "NOT_SUPPORTED", "Кодек не подходит к формату", "/quality/codec");
-      if (expTranscode(Object.assign({}, b, { cameras: [] })) && !expFeat("exportTranscode")) add(422, "NOT_SUPPORTED", "Перекодирование система не делает", "/quality");
-      if ((b.titles || {}).fields && b.titles.fields.length && !expFeat("exportTitles")) add(422, "NOT_SUPPORTED", "Титры система не накладывает", "/titles");
-      if (((b.titles || {}).eventSource || {}).on && !expFeat("exportEventTitles")) add(422, "NOT_SUPPORTED", "Титров источника событий система не накладывает", "/titles/eventSource");
-      if ((b.titles || {}).overlay === "soft" && f && !f.softTitles) add(422, "NOT_SUPPORTED", "Программные титры — не в этом формате", "/titles/overlay");
-      const sp = b.special || {};
-      if (sp.audio && !expFeat("exportAudio")) add(422, "NOT_SUPPORTED", "Звук система не выгружает", "/special/audio");
-      if (sp.player && !(expFeat("exportPlayer") && f && f.player)) add(422, "NOT_SUPPORTED", "Плеера нет", "/special/player");
-      if (sp.maxFileMb > L.maxFileMbMax) add(422, "LIMIT_EXCEEDED", "Часть файла больше предела", "/special/maxFileMb", { limit: "maxFileMbMax", max: L.maxFileMbMax });
-      if (b.highlight && !expFeat("exportTracks")) add(422, "NOT_SUPPORTED", "Треков система не рисует", "/highlight");
-      if (b.privacy && b.privacy.mode !== "none" && !expFeat("exportPrivacy")) add(422, "NOT_SUPPORTED", "Маскирования нет", "/privacy");
-      if (b.supervisor && !expFeat("accessSupervision")) add(422, "NOT_SUPPORTED", "Подтверждения супервизора нет", "/supervisor");
-      if (b.destination === "cloud" && !expFeat("exportCloud")) add(422, "NOT_SUPPORTED", "Выгрузки в облако нет", "/destination");
-      return out;
-    }
-    const expPublic = (b) => { const r = clone(b); delete r.password; if (r.supervisor) delete r.supervisor.password; delete r.idempotencyKey; return r; };
-    const expShow = (x) => { const r = clone(x); return r; };
-    // Ход части: длительность по объёму, кадр — за секунду с небольшим. Состояние считается в tick, не по таймеру браузера
-    let expWork = new Map();
-    function expMake(b, retryOf) {
-      const g = expGrant(), live = b.source === "live", t = now(), names = expNames(b);
-      const span = b.mode === "video" ? { from: iso(Math.min(...b.periods.map((p) => Date.parse(p.from)))), to: iso(Math.max(...b.periods.map((p) => Date.parse(p.to)))) } : { at: iso(live ? t : Date.parse(b.at)) };
-      const x = { id: uuid("export"), state: "queued", createdAt: iso(t), by: myLogin(), progress: { percent: 0, done: 0, total: b.cameras.length },
-        parts: b.cameras.map((c) => Object.assign({ deviceId: c.deviceId, state: "wait", percent: 0 }, span)), files: [], request: expPublic(b),
-        enforced: { privacy: g.privacyForced, watermark: g.watermark, password: g.passwordRequired }, transcode: expTranscode(b) };
-      if (b.supervisor) x.supervisedBy = b.supervisor.login;
-      if (retryOf) x.retryOf = retryOf;
-      const sec = expSec(b), dur = b.mode === "frame" ? 1200 : Math.min(2500 + (sec / 3600) * (x.transcode ? 9000 : 4000), 15000);
-      expWork.set(x.id, { start: t + 300, dur, names, sentAt: 0, sizes: b.cameras.map(() => (b.mode === "frame" ? 180000 + Math.floor(Math.random() * 90000) : Math.max(1, Math.round(sec * (x.transcode ? 220000 : 500000))))) });
-      expAll().push(x);
-      return x;
-    }
-    function expPartFate(x, i) {
-      const b = x.request, rec = byId("devices", x.parts[i].deviceId), fail = (db.stand.exportFail || {})[x.parts[i].deviceId];
-      if (fail) return { state: "fail", code: fail };
-      if (!rec) return { state: "fail", code: "unreachable" };
-      if (b.source === "live") return rec.online === false ? { state: "fail", code: "offline" } : { state: "ok" };
-      if (b.mode === "frame") return expOverlap(rec, Date.parse(b.at) - 10000, Date.parse(b.at) + 1) ? { state: "ok" } : { state: "fail", code: "no_recording" };
-      const has = b.periods.map((p) => expOverlap(rec, Date.parse(p.from), Date.parse(p.to)));
-      if (!has.some(Boolean)) return { state: "fail", code: "no_recording" };
-      const full = b.periods.every((p) => camSpans(rec).some((s) => s.startMs <= Date.parse(p.from) && s.endMs >= Date.parse(p.to)));
-      return full ? { state: "ok" } : { state: "ok", partial: true };
-    }
-    const expMedia = { mkv: "video/x-matroska", mp4: "video/mp4", avi: "video/x-msvideo", jpg: "image/jpeg", pdf: "application/pdf", zip: "application/zip" };
-    function expFinish(x, w) {
-      const done = x.parts.filter((p) => p.state === "ok");
-      x.state = x.state === "cancelled" ? "cancelled" : done.length ? "done" : "failed";
-      x.finishedAt = iso(now());
-      if (x.state === "done") {
-        const keep = now() + expRef().limits.keepSec * 1000, single = w.names.length === 1 && x.parts.length > 1;
-        x.files = (single ? [w.names[0]] : x.parts.map((p, i) => (p.state === "ok" ? w.names[i] : null))).map((n, i) => n && {
-          id: `f${i + 1}`, deviceId: single ? undefined : x.parts[i].deviceId, name: n.name, sizeBytes: single ? w.sizes.reduce((a, b2) => a + b2, 0) : w.sizes[i],
-          sha256: (x.id.replace(/-/g, "") + "0".repeat(64)).slice(0, 56) + String(i + 1).padStart(8, "0"), mediaType: expMedia[n.name.split(".").pop()] || "application/octet-stream", expiresAt: iso(keep) }).filter(Boolean);
-        x.files.forEach((f) => f.deviceId === undefined && delete f.deviceId);
-        x.expiresAt = iso(keep);
-      }
-      x.progress = { percent: 100, done: x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length, total: x.parts.length };
-      send("export.finished", { kind: "export", entityId: x.id, payload: { state: x.state, files: clone(x.files) } });
-    }
-    function exportTick() {
-      const t = now();
-      expAll().forEach((x) => {
-        if (x.state === "done" && x.expiresAt && Date.parse(x.expiresAt) <= t) {
-          x.state = "expired"; x.files = [];
-          send("entity.changed", { kind: "export", entityId: x.id });
-          return;
-        }
-        if (x.state !== "queued" && x.state !== "running") return;
-        const w = expWork.get(x.id);
-        if (!w || t < w.start) return;
-        x.state = "running";
-        let moved = false;
-        x.parts.forEach((p, i) => {
-          if (p.state !== "wait" && p.state !== "run") return;
-          // Части идут рядом со своими записями, поэтому параллельно; у каждой свой темп
-          const pct = Math.min(100, Math.floor(((t - w.start) / (w.dur * (1 + i * 0.15))) * 100));
-          if (pct < 100) { if (p.state !== "run" || pct - p.percent >= 5) { p.state = "run"; p.percent = pct; moved = true; } return; }
-          const fate = expPartFate(x, i);
-          Object.assign(p, { state: fate.state, percent: fate.state === "ok" ? 100 : p.percent });
-          if (fate.code) p.code = fate.code;
-          if (fate.partial) p.partial = true;
-          moved = true;
-        });
-        const finished = x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length;
-        x.progress = { percent: Math.floor(x.parts.reduce((n, p) => n + (p.state === "run" || p.state === "ok" ? p.percent : p.state === "wait" ? 0 : 100), 0) / x.parts.length), done: finished, total: x.parts.length };
-        if (finished === x.parts.length) return expFinish(x, w);
-        if (moved && t - w.sentAt >= 400) { w.sentAt = t; send("export.progress", { kind: "export", entityId: x.id, payload: { progress: clone(x.progress), parts: clone(x.parts) } }); }
-      });
-    }
-    // Сутки с записью — в поясе системы
-    const expDay = (ms) => new Date(ms).toLocaleDateString("sv-SE", { timeZone: db.timezone || "UTC" });
-    const holdShow = (h) => {
-      const rec = byId("devices", h.deviceId), ids = [...new Set(camSpans(rec).map((s) => s.archiveId))];
-      return Object.assign(clone(h), { states: ids.map((archiveId) => ({ archiveId, state: db.stand.holdState || "here" })) });
-    };
-    // Запись удержаний, отметок и дозаписи чужого кластера не идёт: чтение есть, правка — нет
-    const keepRefused = (rec) => {
-      if (!rec) return notFound("Устройство");
-      if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Только у камеры", { field: "type" });
-      if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
-      if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права");
-      return null;
-    };
-    const liveRefused = (rec) => {
-      if (!rec) return notFound("Устройство");
-      if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Живое видео — только у камеры", { field: "type" });
-      if ((db.stand.otherCluster || {})[rec.id]) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url: db.stand.otherCluster[rec.id] } });
-      if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера без связи");
-      return null;
     };
     const can = (feature) => caps().features.includes(feature);
 
@@ -413,7 +677,7 @@
     const wants = (c, m) => !m.near || m.near.some((id) => c.watch.has(id));
     function send(type, fields) {
       const message = Object.assign({ id: String(++seqEvent), type, at: iso(now()) }, fields || {});
-      if (message.kind === "device") {
+      if (message.kind === "device" || DEVICE_TYPES.has(message.kind)) {
         viewStamp++;
         const rec = byId("devices", message.entityId);
         const near = rec ? nearOf(rec) : goneNear.get(message.entityId) || [message.entityId];
@@ -449,7 +713,17 @@
       treePending = {};
       layouts.forEach((layout) => send("tree.changed", { layout, parentIds: [...pending[layout]] }));
     }
-    const changed = (kind, rec) => send("entity.changed", { kind, entityId: rec.id, version: rec.version });
+    const changed = (kind, rec) => send("entity.changed", { kind: evKind(kind, rec), entityId: rec.id, version: rec.version });
+    // Запрос пути ядра (/units…) и шаг операции по uid: событие об объекте несёт вид объекта (camera, archive.local), в том числе
+    // о том, что сделали хуки и помощники моста (changed("device", …)). Вне запроса (события стенда /test/events, часы) — вид
+    // таблицы (device, archive)
+    let coreMode = false;
+    const evKind = (kind, x) => {
+      if (!coreMode || !x) return kind;
+      if (x.uid && x.kind) return x.kind;
+      const u = x.id ? store.get(x.id) : null;
+      return u ? u.kind : kind;
+    };
     // Переподключение с Last-Event-ID: пропущенное досылается; если его уже нет — stream.reset,
     // и клиент перечитывает всё
     // watch — список наблюдаемых из запроса открытия, GET /stream?watch=…
@@ -503,438 +777,67 @@
 
     /* ===== Устройства ===== */
 
-    function device(rec) {
-      const out = clone(rec);
-      if (secrets.has(rec.id)) out.hasPassword = true;
-      // Детектор просит метку: нет сервера с ней — считать негде, причина словами
-      const miss = rec.type === "det" && !rec.builtin ? (rec.labels || []).find((l) => !db.servers.some((s) => s.domainId === rec.domainId && (s.labels || []).includes(l))) : null;
-      if (miss && !out.faultText) out.faultText = `Нет сервера с меткой ${miss}`;
-      const edge = serverWideRows(rec);
-      if (edge.length) out.extraArchives = (out.extraArchives || []).concat(edge);
-      if (rec.type === "camera") {
-        out.detectorKinds = [...detKindsOf(rec.id)];
-        replicaView(out);
-        if ((out.recordMode === "sched" || (out.extraArchives || []).some((x) => x.recordMode === "sched")) && out.recordScheduleId && !byId("schedules", out.recordScheduleId)) Object.assign(out, { recordState: "waiting", recordReason: "Расписание снято: запись ждёт" });
-      }
-      return out;
-    }
-    const DET_KINDS = ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "other"];
     // Выводное поле камеры «детекторы»: виды встроенных и серверных (cameraId) детекторов, без повторов
     function detKindsOf(camId, all) {
       const kinds = new Set();
       (all || db.devices).forEach((d) => d.type === "det" && (d.parentId === camId || d.cameraId === camId) && d.detectorKind && kinds.add(d.detectorKind));
       return kinds;
     }
-    // Для прохода по многим камерам: камера → виды её детекторов, одним проходом
-    function detKindsMap() {
-      const m = new Map();
-      db.devices.forEach((d) => {
-        if (d.type !== "det" || !d.detectorKind) return;
-        [d.parentId, d.cameraId].filter(Boolean).forEach((c) => (m.get(c) || m.set(c, new Set()).get(c)).add(d.detectorKind));
-      });
-      return m;
-    }
-    // replica: поля только у этого режима; источник сняли — запись ждёт, уже забранное живёт своим сроком
-    function replicaView(out) {
-      const has = (id) => out.archiveId === id || (out.extraArchives || []).some((x) => x.archiveId === id);
-      if (out.recordMode !== "replica") {
-        delete out.replicaFrom;
-        delete out.replicaLagSec;
-      } else if (out.replicaFrom && !has(out.replicaFrom)) Object.assign(out, { recordState: "waiting", recordReason: SOURCE_GONE });
-      (out.extraArchives || []).forEach((x) => {
-        if (x.recordMode !== "replica") {
-          delete x.replicaFrom;
-          delete x.replicaLagSec;
-        } else if (x.replicaFrom && !has(x.replicaFrom)) Object.assign(x, { state: "waiting", reason: SOURCE_GONE });
-      });
-    }
-    const SOURCE_GONE = "Источник снят: запись ждёт";
+    /* ----- Смысл устройств — в хуках profiles.js (DEVICE, vms.camera/1, vms.stream/1, vms.detector/1, vms.acs/1): старые
+       пути зовут тот же код, что пути ядра ----- */
+    const replicaView = (out) => hCamera.replicaView(out);
+    const SOURCE_GONE = hCamera.SOURCE_GONE;
+    const serverWideRows = (rec) => hCamera.serverWideRows(rec, pctx);
+    const serverWideChanged = (a) => hCamera.serverWideChanged(a, pctx);
+    const cardProblem = (rec, patch) => hCamera.cardProblem(rec, patch, pctx);
+    const hasBuiltIn = (rec) => hCamera.hasBuiltIn(rec, pctx);
+    const rowOf = (rec, archiveId) => hCamera.archiveRowOf(rec, archiveId);
+    const offline = (s) => hDevice.offline(s);
+    const keptTick = () => hDevice.keptTick(pctx);
+    const unitType = (type) => hDevice.unitKind(type, pctx);
+    const isUnit = (d) => hDevice.isUnit(d, pctx);
+    const folderable = (d) => hDevice.folderable(d, pctx);
+    const numberOf = (d) => hDevice.numberOf(d);
+    const goneWith = (rec) => hDevice.goneWith(rec, pctx);
+    const detOption = (d, cam) => hDetector.detOption(d, cam, pctx);
+    const zoneProblem = (z) => hDetector.zoneProblem(z, pctx);
+    const sensProblem = (d, value, cam) => hDetector.sensProblem(d, value, cam, pctx);
+    const sizeOf = (res) => hStream.sizeOf(res);
+    const resProblem = (options, res) => hStream.resProblem(options, res, pctx);
     /* ----- Виды хранилищ: что отдал сервер ----- */
 
-    const kindSpec = (kind) => (db.reference.archiveKinds || []).find((k) => k.kind === kind) || null;
+    // Вид хранилища (local, network…) — из описания вида archive.<вид>: x-archive (адрес, режимы, шифрование); вида нет — null
+    const kindSpec = (kind) => {
+      const k = kinds.get(`archive.${kind}`);
+      return k && k["x-archive"] ? Object.assign({ kind }, k["x-archive"]) : null;
+    };
     const NO_KIND = { address: "disk", recordModes: [], archiveModes: [], serverWide: false, encryption: false, admits: true };
     const specOf = (a) => kindSpec(a.kind) || NO_KIND;
-    // Архив на весь сервер работает со всеми его камерами: привязывать не надо, строка только для чтения
-    function serverWideRows(rec) {
-      if (rec.type !== "camera") return [];
-      const s = serverOf(rec);
-      if (!s) return [];
-      const main = (streamsOf(rec)[0] || {}).id;
-      return db.archives.filter((a) => a.serverId === s.id && specOf(a).serverWide).map((a) => stripUndefined({ archiveId: a.id, recordMode: a.recordMode, stream: main, readOnly: true }));
-    }
-    // Строки на весь сервер видны у всех его камер: их изменение меняет запись камеры
-    function serverWideChanged(a) {
-      if (!a.serverId) return;
-      db.devices.filter((d) => d.type === "camera" && (serverOf(d) || {}).id === a.serverId).forEach((d) => {
-        bump(d);
-        changed("device", d);
-      });
-    }
     const archiveWrites = (d, id) => d.archiveId === id || (d.extraArchives || []).some((x) => x.archiveId === id);
-    // Запись камеры и вид хранилища: камера привязывается только туда, где её режим допустим. Основной бывает
-    // только на виде с режимом кроме backup. Новая привязка к архиву, который не принимает записи, — отказ
-    function archiveRowProblem(x, main, was) {
-      const a = byId("archives", x.archiveId);
-      if (!a) return null;
-      const spec = specOf(a);
-      const field = main ? "archiveId" : "extraArchives";
-      if (main && x.recordMode === "backup") return problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" });
-      if (main ? !spec.recordModes.some((m) => m !== "backup") : !spec.recordModes.length) return problem(422, "NOT_SUPPORTED", `На архив вида ${a.kind} камера не привязывается`, { field });
-      if (x.recordMode && x.recordMode !== "none" && !spec.recordModes.includes(x.recordMode)) return problem(422, "NOT_SUPPORTED", `Режим ${x.recordMode} на архиве вида ${a.kind} недоступен`, { field: "recordMode" });
-      if (a.admits === false && !was) return problem(422, "VALIDATION_FAILED", "Архив не принимает записи", { field });
-      return null;
-    }
-    function recordingProblem(rec, patch) {
-      if (rec.type === "storage") return cardProblem(rec, patch);
-      if (rec.type !== "camera" || !RECORD_FIELDS.some((k) => k in patch)) return null;
-      const next = Object.assign({}, rec, patch);
-      const main = next.archiveId ? archiveRowProblem({ archiveId: next.archiveId, recordMode: next.recordMode }, true, next.archiveId === rec.archiveId) : next.recordMode === "backup" ? problem(422, "NOT_SUPPORTED", "Резерв на сбой — только дополнительная запись", { field: "recordMode" }) : null;
-      if (main) return main;
-      for (const x of next.extraArchives || []) {
-        const bad = archiveRowProblem(x, false, archiveWrites(rec, x.archiveId));
-        if (bad) return bad;
-      }
-      const rows = (next.archiveId ? [{ archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream, replicaFrom: next.replicaFrom, retentionDays: next.retentionDays, minDepthDays: next.minDepthDays }] : []).concat(next.extraArchives || []);
-      return replicaProblem(rec, rows) || scheduleProblem(rec, next, rows) || depthProblem(rows) || micProblem(rec, patch);
-    }
-    // Режим sched без своего расписания записывать нечем. Снятое позже — запись ждёт
-    function scheduleProblem(rec, next, rows) {
-      if (!rows.some((x) => x.recordMode === "sched")) return null;
-      if (next.recordScheduleId && byId("schedules", next.recordScheduleId)) return null;
-      if (next.recordScheduleId && next.recordScheduleId === rec.recordScheduleId) return null;
-      return problem(422, "VALIDATION_FAILED", "Для записи по расписанию нужно расписание", { field: "recordScheduleId" });
-    }
-    function depthProblem(rows) {
-      const days = (x) => (x.retentionDays != null ? x.retentionDays : (byId("archives", x.archiveId) || {}).retentionDays || 0);
-      const bad = rows.some((x) => x.minDepthDays != null && days(x) > 0 && x.minDepthDays > days(x));
-      return bad ? problem(422, "VALIDATION_FAILED", "Наименьшая глубина больше срока хранения", { field: "minDepthDays" }) : null;
-    }
-    function micProblem(rec, patch) {
-      if (patch.audioDeviceId == null || !rec.id) return null;
-      const m = byId("devices", patch.audioDeviceId);
-      return m && m.type === "mic" && m.parentId === rec.id ? null : problem(422, "VALIDATION_FAILED", "Микрофон — запись mic этой камеры", { field: "audioDeviceId" });
-    }
-    const RECORD_FIELDS = ["archiveId", "recordMode", "stream", "extraArchives", "replicaFrom", "recordScheduleId", "retentionDays", "minDepthDays", "audioDeviceId"];
-    // Карта камеры w2c: режим самой карты и её объём
-    function cardProblem(rec, patch) {
-      if ("recordMode" in patch && !["always", "backup"].includes(patch.recordMode)) return problem(422, "VALIDATION_FAILED", "У карты — постоянно или только при сбое", { field: "recordMode" });
-      return volumePatchProblem(rec, patch);
-    }
-    // Встроенное хранилище — под самой камерой или под её регистратором
-    const hasBuiltIn = (rec) => db.devices.some((d) => d.type === "storage" && (d.parentId === rec.id || (rec.parentId && d.parentId === rec.parentId)));
-    const rowOf = (rec, archiveId) => (rec.archiveId === archiveId ? rec : (rec.extraArchives || []).find((x) => x.archiveId === archiveId)) || null;
-    function replicaProblem(rec, rows) {
-      const bad = (text) => problem(422, "VALIDATION_FAILED", text, { field: "replicaFrom" });
-      const main = (streamsOf(rec)[0] || {}).id;
-      const sources = rows.concat(serverWideRows(rec));
-      for (const x of rows) {
-        if (x.recordMode !== "replica") continue;
-        const from = x.replicaFrom == null ? null : x.replicaFrom;
-        if (from === null) {
-          // У новой камеры хранилище ещё не найдено: запись дождётся
-          if (rec.id && !hasBuiltIn(rec)) return bad("У камеры нет встроенного хранилища: назовите другой архив");
-          if (x.stream != null && main != null && x.stream !== main) return problem(422, "NOT_SUPPORTED", "Со встроенного хранилища забирается только основной поток", { field: "stream" });
-          continue;
-        }
-        if (from === x.archiveId) return bad("Архив не забирает записи у самого себя");
-        const src = sources.find((y) => y.archiveId === from);
-        if (!src) {
-          const was = rowOf(rec, x.archiveId);
-          if (was && was.replicaFrom === from) continue;
-          return bad("Источник — другой архив этой камеры");
-        }
-        const a = byId("archives", from);
-        if (!a || !specOf(a).replicaSource) return bad("Этот архив источником не бывает");
-        if ((src.stream == null ? main : src.stream) !== (x.stream == null ? main : x.stream)) return problem(422, "VALIDATION_FAILED", "Забирать можно только поток источника", { field: "stream" });
-      }
-      const next = new Map(rows.filter((x) => x.recordMode === "replica" && x.replicaFrom).map((x) => [x.archiveId, x.replicaFrom]));
-      for (const start of next.keys()) {
-        const seen = new Set();
-        for (let at = start; next.has(at); at = next.get(at)) {
-          if (seen.has(at)) return bad("Архивы забирают записи друг у друга");
-          seen.add(at);
-        }
-      }
-      return null;
-    }
-    // Сервер устройства: свой (камера, регистратор, детектор, служба) или ближайшего родителя
-    function serverOf(dev) {
-      for (let d = dev; d; d = d.parentId ? byId("devices", d.parentId) : null) if (d.serverId) return byId("servers", d.serverId);
-      return null;
-    }
-    const offline = (s) => !!s && s.online === false && s.allocated;
-
-    /* ----- Профиль при добавлении ----- */
-
-    // Встроенный сервер описаний драйверов не имеет: умолчания модели одни на всех
-    const MODEL_DEFAULT = { res: "1920x1080", fps: 25 };
-    function profileProblem(spec) {
-      if (spec.configMode === "default" && !(spec.vendor && spec.model)) return { code: "VALIDATION_FAILED", field: "configMode" };
-      if (spec.configMode !== "template") return null;
-      const src = spec.templateId ? byId("devices", spec.templateId) : null;
-      return src && src.type === "camera" && src.vendor === spec.vendor && src.model === spec.model ? null : { code: "VALIDATION_FAILED", field: "templateId" };
-    }
-    // Разовая копия: связи с источником после создания нет
-    function applyProfile(d, s) {
-      if (s.configMode === "default") Object.assign(d, MODEL_DEFAULT);
-      if (s.configMode !== "template") return;
-      const src = byId("devices", s.templateId);
-      ["res", "fps", "firmware"].forEach((k) => { if (k in src) d[k] = src[k]; });
-      if (src.streams) d.streams = src.streams.map(({ id, name, res, fps, width, height }) => stripUndefined({ id, name, res, fps, width, height, online: true }));
-    }
-
-    /* ----- Единицы СКУД ----- */
-
-    const ACS_UNITS = new Set(["acfa_sensor", "acfa_lock", "acfa_fence"]);
-    const OWN_LINK = ["ip", "port", "vendor"];
-    // Родитель единицы: acfa (контроллер тоже), домофон-камера, регистратор. Реле — только в СКУД, контроллер — только в acfa
-    const parentFits = (type, parent) => {
-      if (ACS_UNITS.has(type)) return !!parent && ["acfa", "camera", "ipsrv"].includes(parent.type);
-      if (type === "acfa") return !parent || parent.type === "acfa";
-      return true;
-    };
-    // Шаблоны единиц — у ближайшего родителя, который их назвал
-    function unitOptionsFor(parent) {
-      for (let p = parent; p; p = parentOf(p)) if (p.unitOptions) return p.unitOptions;
-      return null;
-    }
-    function unitCreateProblem(spec, parent) {
-      if (!ACS_UNITS.has(spec.type) && !(spec.type === "relay" && parent && ACS.has(parent.type)) && spec.type !== "acfa") return null;
-      if (!parentFits(spec.type, parent)) return { code: "PARENT_MISMATCH", field: "parentId" };
-      if (spec.type === "acfa" && parent) {
-        const field = OWN_LINK.find((k) => k in spec);
-        return field ? { code: "NOT_SUPPORTED", field } : null;
-      }
-      const list = spec.type === "acfa" ? null : unitOptionsFor(parent);
-      if (list && spec.model != null && !list.some((o) => o.model === spec.model && o.type === spec.type)) return { code: "VALIDATION_FAILED", field: "model" };
-      return null;
-    }
-    // Команда на реле двери идёт операцией единицы
+    // Команда на реле двери идёт операцией единицы (unitAction unit), а не выходом
     function doorRelayIssue(c) {
       const hit = (t) => (t ? t.include : []).some((x) => {
-        const d = x.kind === "device" ? byId("devices", x.id) : null;
+        const d = !x.area ? byId("devices", x.uid) : null;
         return !!d && d.type === "relay" && isUnit(d);
       });
-      const walk = (l) => l.some((a) => (a.action === "output" && hit(a.target)) || walk(a.yes || []) || walk(a.no || []));
+      const walk = (l) => l.some((a) => (a.type === "unitAction" && a.action === "output" && hit(a.target)) || walk(a.yes || []) || walk(a.no || []));
       return walk(c.steps) ? problem(422, "NOT_SUPPORTED", "Реле двери управляется операцией единицы", { field: "steps" }) : null;
     }
 
-    /* ----- Источник событий ----- */
-
-    // Касса подключается к адресу сервера или к имени кассы: «все адреса» склеили бы источники
-    const wildIp = (ip) => ip === "0.0.0.0" || ip === "::";
-    const posProblem = (type, patch) => (type === "eventsrc" && wildIp(patch.ip) ? problem(422, "VALIDATION_FAILED", "Нужен адрес сервера или имя кассы", { field: "ip" }) : null);
-    // Сервер источника: не задан — выбирает система; второй на тот же порт сервера не запустится
-    function placeSource(d) {
-      if (!d.serverId) {
-        const s = db.servers.find((x) => x.domainId === d.domainId && x.allocated && x.online);
-        if (s) d.serverId = s.id;
-        d.faultText = "Сервер выбран системой, переноса при падении нет";
-      }
-      if (db.devices.some((x) => x !== d && x.type === "eventsrc" && x.serverId === d.serverId && x.port === d.port)) {
-        d.online = false;
-        d.fault = "conn";
-        d.faultText = `Порт ${d.port} на этом сервере занят другим источником`;
-      }
-    }
-
-    /* ----- Правка камеры-кластера ----- */
-
-    // Камера за NAT применяет правку сама, с периодом отчёта: правка хранится, а ответ — 409 SERVER_OFFLINE с kept, срок вышел.
-    // Настоящий бэкенд ждёт исход в пределах срока маршрута (V/11.4 Н1.13); здесь срок всегда выходит: так виден случай
-    const KEPT_MS = 60000;
-    let keptEdits = new Map();
-    function keptProblem(rec, set) {
-      if (rec.direct !== false) return null;
-      const was = keptEdits.get(rec.id);
-      if (was && JSON.stringify(was.set) !== JSON.stringify(set)) return problem(412, "VERSION_MISMATCH", "Прежняя правка камеры ещё не применилась", { current: clone(rec) });
-      const edit = was || { id: uuid("operation"), set: clone(set), at: now() + KEPT_MS };
-      keptEdits.set(rec.id, edit);
-      return problem(409, "SERVER_OFFLINE", "Правка принята и применится с периодом камеры", { params: { targetId: rec.id, kept: edit.id } });
-    }
-    function keptTick() {
-      keptEdits.forEach((e, id) => {
-        if (e.at > now()) return;
-        keptEdits.delete(id);
-        const rec = byId("devices", id);
-        if (!rec) return;
-        applyPatch(rec, e.set);
-        changed("device", rec);
-      });
-    }
-
-    /* ----- PTZ: свойство камеры ----- */
-
-    // Аренда — на человека и камеру. Встроенный сервер камерами не движет: только срок
-    let ptzLeases = new Map();
-    // Камера w2c молчит сама: своего сервера у неё нет. Устройство сервера молчит с ним
-    function silentProblem(rec) {
-      if (rec.direct === false && rec.online === false) return problem(409, "DEVICE_OFFLINE", "Камера не отвечает");
-      return offline(serverOf(rec)) ? problem(409, "SERVER_OFFLINE", "Сервер не отвечает") : null;
-    }
     // Папки ведёт центр домена
     const domainDown = (id) => (byId("domains", id) || {}).online === false;
-    function ptzProblem(rec) {
-      if (rec.type !== "camera" || !rec.ptz) return problem(422, "NOT_SUPPORTED", "У камеры нет PTZ", { field: "ptz" });
-      return rec.online === false ? problem(409, "DEVICE_OFFLINE", "Камера без связи") : null;
-    }
-    const presetCameraProblem = (rec) => (rec.type === "camera" ? null : problem(422, "NOT_SUPPORTED", "Пресеты бывают только у камеры", { field: "ptz" }));
+    // Новый состав пресетов — одиночная правка в стопке, шаг по uid: откат — правкой properties.presets
     function setPresets(rec, next) {
-      const patch = { presets: next.sort((a, b) => a.n - b.n) };
-      const before = applyPatch(rec, patch);
+      const presets = next.sort((a, b) => a.n - b.n);
+      const before = applyPatch(rec, { presets });
       changed("device", rec);
-      recordSingle([setStep(rec, patch, before)]);
-      return one(device(rec));
+      const u = store.get(rec.id), patch = { properties: { presets: clone(presets) } };
+      recordSingle([{ targetId: u.uid, version: u.version, before: { unitPatch: { properties: { presets: before.presets } } }, after: unitFieldsOf(u, patch), secret: false, req: { uid: u.uid, patch } }]);
     }
 
     /* ----- Детекторы ----- */
 
     const parentOf = (d) => (d.parentId ? byId("devices", d.parentId) : null);
-    const detOption = (d, cam) => ((cam || parentOf(d) || {}).detectorOptions || []).find((o) => o.template === d.template) || null;
-    function zoneProblem(z) {
-      if (!z) return null;
-      const n = z.points.length;
-      const fits = (z.shape === "polygon" ? n >= 3 : n === 2) && z.points.every((p) => p.length === 2 && p.every((v) => v >= 0 && v <= 1));
-      return fits ? null : problem(422, "VALIDATION_FAILED", "Зона: rect и line — две точки, polygon — от трёх, доли от 0 до 1", { field: "zone" });
-    }
-    // Чувствительность — своя у детектора; настройки нет — и поля нет
-    function sensProblem(d, value, cam) {
-      const o = detOption(d, cam);
-      if (value == null || !o) return null;
-      if (o.sensitivityMin == null) return problem(422, "NOT_SUPPORTED", "У детектора нет чувствительности", { field: "sensitivity" });
-      return value < o.sensitivityMin || value > o.sensitivityMax ? problem(422, "VALIDATION_FAILED", `Чувствительность от ${o.sensitivityMin} до ${o.sensitivityMax}`, { field: "sensitivity" }) : null;
-    }
-    // Включённый детектор, с которым этот на одном канале вместе не работает
-    function conflictWith(d, cam) {
-      const own = detOption(d, cam);
-      if (!own) return null;
-      return db.devices.find((x) => {
-        if (x.parentId !== (cam ? cam.id : d.parentId) || x.id === d.id || x.type !== "det" || x.enabled === false) return false;
-        const o = detOption(x, cam);
-        return !!o && ((own.conflicts || []).includes(o.template) || (o.conflicts || []).includes(own.template));
-      }) || null;
-    }
-    const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
-    const detProblem = (rec, patch) => posProblem(rec.type, patch) || (rec.type === "det" ? zoneProblem(patch.zone) || sensProblem(rec, patch.sensitivity) : null);
-    // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
-    function clashProblem(rec, patch) {
-      const x = rec.type === "det" && patch.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
-      return x ? problem(409, "BUSY", "Детектор несовместим с включённым на этом канале", { field: "enabled", params: conflictParams(x) }) : null;
-    }
-    // Новый детектор: шаблон из того, что умеет камера. cam — запись родителя, если она уже есть
-    function detCreateProblem(spec, cam) {
-      if (spec.type !== "det") return null;
-      const bad = zoneProblem(spec.zone);
-      if (bad) return { code: "VALIDATION_FAILED", field: "zone" };
-      if (!spec.builtin || !cam) return null;
-      if (!cam.detectorOptions) return { code: "NOT_SUPPORTED", field: "builtin" };
-      if (!detOption(spec, cam)) return { code: "VALIDATION_FAILED", field: "template" };
-      const s = sensProblem(spec, spec.sensitivity, cam);
-      if (s) return { code: s.body.code, field: "sensitivity" };
-      if (spec.enabled !== false && conflictWith(spec, cam)) return { code: "BUSY", field: "enabled" };
-      return null;
-    }
-
-    /* ----- Потоки камеры ----- */
-
-    const RES = /^(\d+)x(\d+)$/;
-    const sizeOf = (res) => {
-      const m = RES.exec(res || "");
-      return m ? { width: Number(m[1]), height: Number(m[2]) } : {};
-    };
-    const streamsOf = (rec) => rec.streams || [];
-    // Разрешение — из вариантов устройства, если устройство их назвало
-    const resProblem = (options, res) => (res != null && options && !options.includes(res) ? problem(422, "VALIDATION_FAILED", `Разрешение ${res} камера не поддерживает`, { field: "res" }) : null);
-    // Поток записи — один из потоков камеры
-    function streamRefProblem(rec, patch) {
-      if (!rec.streams) return null;
-      const known = (id) => id == null || rec.streams.some((s) => s.id === id);
-      if ("stream" in patch && !known(patch.stream)) return problem(422, "VALIDATION_FAILED", `Нет потока ${patch.stream}`, { field: "stream" });
-      return (patch.extraArchives || []).some((x) => !known(x.stream)) ? problem(422, "VALIDATION_FAILED", "Нет такого потока", { field: "extraArchives" }) : null;
-    }
-    // Новый состав потоков: основной поток — это Device.res, Device.fps. Правка — одиночная операция в стопке
-    function setStreams(rec, next) {
-      const patch = { streams: next };
-      const main = next[0];
-      if (main) ["res", "fps"].forEach((k) => { if (main[k] !== rec[k]) patch[k] = main[k] == null ? null : main[k]; });
-      const before = applyPatch(rec, patch);
-      changed("device", rec);
-      recordSingle([setStep(rec, patch, before)]);
-      return one(device(rec));
-    }
-
-    /* ----- Виды устройств: что находит сервер, что заводит оператор ----- */
-
-    const found = (type) => (caps().foundDeviceTypes || []).includes(type);
-    const unitType = (type) => (caps().unitTypes || []).includes(type);
-    const ACS = new Set(["acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]);
-    // Единица СКУД: вид acfa_* или вид-единица под родителем из СКУД (реле замка)
-    const isUnit = (d) => {
-      if (!unitType(d.type)) return false;
-      if (!found(d.type)) return true;
-      const p = d.parentId ? byId("devices", d.parentId) : null;
-      return !!p && ACS.has(p.type);
-    };
-    // Вид, который можно создать под этим родителем. parent — запись или описание родителя из children
-    const creatable = (spec, parent) => caps().deviceTypes.includes(spec.type) && (!found(spec.type) || (unitType(spec.type) && !!parent && ACS.has(parent.type)));
-    const alienType = (spec, parent) => !creatable(spec, parent) || (spec.children || []).some((c) => alienType(c, spec));
-    // В папках лежат камеры, регистраторы с записью, источники событий, СКУД; входы, выходы и единицы — нет
-    const folderable = (d) => !found(d.type) && !unitType(d.type) && !d.derived && !(d.type === "acfa" && d.parentId);
-    // Что можно менять у записи: capabilities.writableFields; у выведенного ipsrv — ничего
-    function fieldProblem(rec, patch) {
-      if (rec.type === "acfa" && rec.parentId) {
-        const link = OWN_LINK.find((k) => k in patch);
-        if (link) return problem(422, "NOT_SUPPORTED", "У контроллера нет своего подключения", { field: link });
-      }
-      const w = rec.writableFields || (caps().writableFields || {})[rec.type];
-      if (!rec.derived && !w) return null;
-      if (rec.derived || !w.length) return problem(422, "NOT_SUPPORTED", "У этой записи нет правок", { field: "type" });
-      const field = Object.keys(patch).find((k) => k !== "confirmShrinkBytes" && (!w.includes(k) || (k === "path" && !isUnit(rec))));
-      return field ? problem(422, "NOT_SUPPORTED", `Поле ${field} у этого вида не правится`, { field }) : null;
-    }
-    // Правка не оставляет камеру без адреса
-    const addressProblem = (rec, patch) => {
-      if (rec.type !== "camera" || rec.parentId || !["rtspUrl", "vendor", "model"].some((k) => k in patch)) return null;
-      return hasAddress(Object.assign({}, rec, patch)) ? null : problem(422, "VALIDATION_FAILED", "Нужен адрес камеры или производитель и модель", { field: "rtspUrl" });
-    };
-    const videoProblem = (rec, patch) => resProblem(rec.resOptions, patch.res) || streamRefProblem(rec, patch);
-    // Device.res, Device.fps — это основной поток
-    function syncMain(rec, patch) {
-      const main = streamsOf(rec)[0];
-      if (!main || !("res" in patch || "fps" in patch)) return;
-      ["res", "fps"].forEach((k) => { if (k in rec) main[k] = rec[k]; else delete main[k]; });
-      Object.assign(main, sizeOf(main.res));
-    }
-    const deleteProblem = (d) => (d.derived || (found(d.type) && !isUnit(d)) ? problem(422, "NOT_SUPPORTED", "Запись не удаляется: её ведёт сервер", { field: "type" }) : null);
-
-    // Проверка изменения до выполнения: ссылки ведут в существующие записи, имя не пустое
-    function patchProblem(patch) {
-      if ("name" in patch && !String(patch.name || "").trim()) return problem(422, "NAME_REQUIRED", "Имя не может быть пустым", { field: "name" });
-      const refs = { serverId: "servers", archiveId: "archives", cameraId: "devices" };
-      for (const [field, table] of Object.entries(refs)) {
-        if (patch[field] != null && !byId(table, patch[field])) return problem(422, "VALIDATION_FAILED", `Нет записи ${patch[field]}`, { field });
-      }
-      for (const x of patch.extraArchives || []) {
-        if (!byId("archives", x.archiveId)) return problem(422, "VALIDATION_FAILED", `Нет хранилища ${x.archiveId}`, { field: "extraArchives" });
-      }
-      return null;
-    }
-    // Объект изменения по id: устройство, сервер или домен — у каждого своя схема изменения
-    const KINDS = [
-      ["devices", "device", "DevicePatch"],
-      ["servers", "server", "ServerPatch"],
-      ["domains", "domain", "DomainPatch"],
-      ["archives", "archive", "ArchivePatch"],
-      ["volumes", "volume", "VolumePatch"],
-    ];
-    function targetOf(id) {
-      for (const [table, kind, schema] of KINDS) {
-        const rec = byId(table, id);
-        if (rec) return { table, kind, schema, rec };
-      }
-      return null;
-    }
-    const view = (t) => (t.kind === "device" ? device(t.rec) : t.kind === "volume" ? volume(t.rec) : t.kind === "folder" ? folderView(t.rec) : clone(t.rec));
 
     /* ===== Тома ===== */
 
@@ -944,88 +847,6 @@
     // Скан кончается по часам сервера: задача → когда закончится
     const SCAN_MS = 1500;
     let scanning = new Map();
-    function volume(rec) {
-      const out = clone(rec);
-      if (secrets.has(rec.id)) out.hasPassword = true;
-      if (secrets.has(rec.id + ":secret")) out.hasSecret = true;
-      // Держатель тома: сервер хранилища на связи. Хранилище на весь домен — первый живой сервер; stand.noHolder — нет
-      const a = byId("archives", rec.archiveId), srv = a && a.serverId ? byId("servers", a.serverId) : db.servers.find((s) => s.allocated && s.online);
-      out.heldBy = !db.stand.noHolder && srv && srv.online !== false ? srv.name : null;
-      return out;
-    }
-    // Том годится для хранилища: у локального — диск его сервера, не занятый разделом и не повторяющийся
-    // в этом хранилище; у облачного — бакет
-    function volumeProblem(a, v) {
-      if (!String(v.disk || "").trim()) return problem(422, "VALIDATION_FAILED", "Укажите диск или путь", { field: "disk" });
-      const address = specOf(a).address;
-      if (address === "bucket" && !String(v.bucket || "").trim()) return problem(422, "VALIDATION_FAILED", "Укажите бакет", { field: "bucket" });
-      if (address !== "disk") return null;
-      const s = byId("servers", a.serverId);
-      if (!s.disks.some((d) => d.disk === v.disk)) return problem(422, "VALIDATION_FAILED", `На сервере нет диска ${v.disk}`, { field: "disk" });
-      const onDisk = db.volumes.filter((x) => x.disk === v.disk && db.archives.some((y) => y.id === x.archiveId && specOf(y).address === "disk" && y.serverId === a.serverId));
-      if (onDisk.some((x) => x.archiveId === a.id || x.mode === "part") || (v.mode === "part" && onDisk.length))
-        return problem(409, "DISK_TAKEN", `Диск ${v.disk} занят`, { field: "disk" });
-      return null;
-    }
-    function newVolume(a, spec) {
-      const v = { id: uuid("volume"), archiveId: a.id, name: spec.name, disk: spec.disk, sizeBytes: spec.sizeBytes, usedPercent: 0,
-        // Раздел целиком подключают неотформатированным: форматируют отдельно, когда решат
-        state: specOf(a).address === "disk" && spec.mode === "part" ? "unfmt" : "ready", online: true };
-      Object.entries(spec).forEach(([k, x]) => {
-        if (k === "password") secrets.set(v.id, x);
-        else if (k === "secret") secrets.set(v.id + ":secret", x);
-        else if (!(k in v)) v[k] = clone(x);
-      });
-      v.version = newVersion();
-      db.volumes.push(v);
-      return v;
-    }
-    // Меньшая квота стирает старое: применяется, только если подтверждение называет то же число
-    function volumePatchProblem(rec, patch) {
-      if ("confirmShrinkBytes" in patch && patch.confirmShrinkBytes !== patch.sizeBytes) return problem(422, "VALIDATION_FAILED", "Подтверждение не совпадает с новым объёмом", { field: "confirmShrinkBytes" });
-      if (patch.sizeBytes != null && patch.sizeBytes < rec.sizeBytes && patch.confirmShrinkBytes !== patch.sizeBytes) return problem(422, "VALIDATION_FAILED", "Уменьшение стирает старые записи: нужно подтверждение", { field: "sizeBytes" });
-      return null;
-    }
-    // Изменение тома → поля записи: подтверждение не хранится, включение меняет состояние, подтверждённое снимает ожидание
-    function volumeSet(rec, set) {
-      const out = Object.assign({}, set);
-      delete out.confirmShrinkBytes;
-      if ("enabled" in out && (rec.state === "ready" || rec.state === "off")) out.state = out.enabled === false ? "off" : "ready";
-      if (rec.shrinkPendingBytes != null && out.sizeBytes != null && out.sizeBytes <= rec.shrinkPendingBytes) out.shrinkPendingBytes = null;
-      return out;
-    }
-    const noConfirm = (set) => { const out = Object.assign({}, set); delete out.confirmShrinkBytes; return out; };
-    const setOf = (t, set) => (t.kind === "volume" ? volumeSet(t.rec, set) : noConfirm(set));
-    // Режим, приём записей и шифрование — как у вида
-    function archivePatchProblem(a, patch) {
-      const spec = specOf(a);
-      if (patch.recordMode != null && !spec.archiveModes.includes(patch.recordMode)) return problem(422, "NOT_SUPPORTED", `У вида ${a.kind} такого режима нет`, { field: "recordMode" });
-      if (patch.admits === true && !spec.admits) return problem(422, "VALIDATION_FAILED", "Этот вид записи не принимает", { field: "admits" });
-      if (patch.encrypted === true && !spec.encryption) return problem(422, "NOT_SUPPORTED", "У этого вида нет шифрования", { field: "encrypted" });
-      return null;
-    }
-    function domainNameProblem(name, exceptId) {
-      const v = String(name || "").trim();
-      if (!v) return problem(422, "NAME_REQUIRED", "Укажите имя домена", { field: "name" });
-      if (db.domains.some((d) => d.id !== exceptId && d.name.trim().toLowerCase() === v.toLowerCase())) return problem(409, "NAME_TAKEN", "Домен с таким именем уже есть", { field: "name" });
-      return null;
-    }
-    // Изменение — по схеме своего вида и по смыслу: ссылки ведут в существующие записи, имя не пустое,
-    // имя домена не занято
-    // whole — всё, что план меняет у этой записи: запись камеры проверяется целиком, а не по шагам
-    function setProblem(t, patch, whole) {
-      if (SPEC && window.ConsolemContract) {
-        const errs = window.ConsolemContract.check(SPEC, { $ref: `#/components/schemas/${t.schema}` }, patch, "set", []);
-        if (errs.length) {
-          const field = (errs[0].match(/^set\.?([^:\s[]*)/) || [])[1];
-          return problem(422, "VALIDATION_FAILED", errs.slice(0, 3).join("; "), field ? { field } : {});
-        }
-      }
-      if (t.kind === "domain" && "name" in patch) return domainNameProblem(patch.name, t.rec.id);
-      if (t.kind === "volume") return volumePatchProblem(t.rec, patch);
-      if (t.kind === "archive") return archivePatchProblem(t.rec, patch) || featureProblem(t.kind, patch) || patchProblem(patch);
-      return (t.kind === "device" ? fieldProblem(t.rec, patch) || addressProblem(t.rec, patch) || videoProblem(t.rec, patch) || detProblem(t.rec, patch) : null) || featureProblem(t.kind, patch) || patchProblem(patch) || (t.kind === "device" ? recordingProblem(t.rec, whole || patch) : null);
-    }
     // Необязательные настройки, которых в системе нет (capabilities.features), менять нельзя
     const FEATURE_FIELDS = { server: { role: "serverRoles", netmask: "serverNetwork", gateway: "serverNetwork", dns: "serverNetwork" } };
     function featureProblem(kind, patch) {
@@ -1036,21 +857,9 @@
     }
     // Значения до изменения — для отката: поля, которых не было, — null
     // Что говорит о строке записи сервер, правка строки не стирает; в запись это не попадает
-    function keepRows(rec, patch) {
-      if (!patch.extraArchives) return patch;
-      const rows = patch.extraArchives.map((x) => {
-        const was = (rec.extraArchives || []).find((y) => y.archiveId === x.archiveId);
-        const row = Object.assign({}, x);
-        ["state", "reason", "replicaLagSec", "readOnly"].forEach((k) => delete row[k]);
-        if (was) ["state", "reason", "replicaLagSec"].forEach((k) => { if (k in was) row[k] = was[k]; });
-        return row;
-      });
-      return Object.assign({}, patch, { extraArchives: rows });
-    }
+    const keepRows = (rec, patch) => hCamera.keepRows(rec, patch);
     function applyPatch(rec, patch) {
       const before = {};
-      // Камера-кластер: своя строка без записи и детекторов — их правка её revision не двигает
-      if (rec.type === "camera" && Object.keys(patch).some((k) => !RECORD_FIELDS.includes(k))) revisions.set(rec.id, revisionOf(rec) + 1);
       Object.entries(keepRows(rec, patch)).forEach(([k, v]) => {
         if (k === "password" || k === "secret") {
           const sk = k === "password" ? rec.id : rec.id + ":secret";
@@ -1069,95 +878,6 @@
 
     /* ===== Устройства: создание и удаление ===== */
 
-    // Номер устройства (ID в системе) — у камер, регистраторов, источников событий и СКУД; без своего
-    // номера считается короткое имя, если оно числом
-    const NUMBERED = new Set(["camera", "ipsrv", "eventsrc", "acfa"]);
-    const numberOf = (d) => (d.identifier != null && d.identifier !== "" ? String(d.identifier) : /^\d+$/.test(String(d.short || "")) ? String(d.short) : "");
-    function nextIdentifier() {
-      return String(Math.max(0, ...db.devices.filter((d) => NUMBERED.has(d.type)).map((d) => Number(numberOf(d)) || 0)) + 1);
-    }
-    // Адрес камеры: свой rtspUrl или адрес драйвера по производителю и модели
-    const hasAddress = (d) => !!d.rtspUrl || (!!d.vendor && !!d.model);
-    function createProblem(spec, domainId, parentId, folderId) {
-      if (!byId("domains", domainId)) return { code: "NOT_FOUND", field: "domainId" };
-      if (parentId) {
-        const p = byId("devices", parentId);
-        if (!p) return { code: "NOT_FOUND", field: "parentId" };
-        if (p.domainId !== domainId) return { code: "PARENT_MISMATCH", field: "parentId" };
-      }
-      if (alienType(spec, parentId ? byId("devices", parentId) : null)) return { code: "NOT_SUPPORTED", field: "type" };
-      if (folderId) {
-        const f = byId("folders", folderId);
-        if (!f || f.domainId !== domainId) return { code: "VALIDATION_FAILED", field: "folderId" };
-        if (!folderable(Object.assign({ parentId }, spec))) return { code: "NOT_SUPPORTED", field: "folderId" };
-      }
-      const bad = patchProblem(spec);
-      if (bad) return { code: bad.body.code, field: bad.body.field };
-      if (spec.type === "camera" && !parentId && !hasAddress(spec)) return { code: "VALIDATION_FAILED", field: "rtspUrl" };
-      const rec = recordingProblem({ type: spec.type }, spec);
-      if (rec) return { code: rec.body.code, field: rec.body.field };
-      const det = detCreateProblem(spec, parentId ? byId("devices", parentId) : null);
-      if (det) return det;
-      if (posProblem(spec.type, spec)) return { code: "VALIDATION_FAILED", field: "ip" };
-      const unit = unitCreateProblem(spec, parentId ? byId("devices", parentId) : null);
-      if (unit) return unit;
-      const profile = profileProblem(spec);
-      if (profile) return profile;
-      if (NUMBERED.has(spec.type) && spec.identifier != null && spec.identifier !== "") {
-        if (db.devices.some((d) => NUMBERED.has(d.type) && numberOf(d) === String(spec.identifier))) return { code: "IDENTIFIER_TAKEN", field: "identifier" };
-      }
-      for (const c of spec.children || []) {
-        const e = patchProblem(c);
-        if (e) return { code: e.body.code, field: "children" };
-      }
-      return null;
-    }
-    // Устройство с дочерними — родитель первым, как в списке устройств
-    function createDevice(spec, domainId, parentId, folderId) {
-      const bad = createProblem(spec, domainId, parentId, folderId);
-      if (bad) return bad;
-      const devices = [];
-      const make = (s, parent) => {
-        const d = { id: uuid("device"), type: s.type, parentId: parent, domainId };
-        Object.entries(s).forEach(([k, v]) => {
-          if (k === "children" || k === "type" || k === "configMode" || k === "templateId") return;
-          if (k === "password") {
-            if (v) secrets.set(d.id, v);
-            return;
-          }
-          d[k] = clone(v);
-        });
-        if (!parent && NUMBERED.has(s.type) && (d.identifier == null || d.identifier === "")) d.identifier = nextIdentifier();
-        if (!("enabled" in d)) d.enabled = true;
-        d.online = true;
-        applyProfile(d, s);
-        if (s.type === "det" && !s.builtin && !("labels" in s)) d.labels = ["gpu"];
-        if (s.type === "camera" && !d.streams) d.streams = [Object.assign({ id: "main", name: "Основной", online: true }, d.res ? { res: d.res, ...sizeOf(d.res) } : {}, d.fps ? { fps: d.fps } : {})];
-        d.version = newVersion();
-        db.devices.push(d);
-        if (d.type === "eventsrc") placeSource(d);
-        devices.push(d);
-        send("entity.created", { kind: "device", entityId: d.id, version: d.version });
-        (s.children || []).forEach((c) => make(c, d.id));
-      };
-      make(spec, parentId || null);
-      const folders = [];
-      if (folderId) {
-        const f = byId("folders", folderId);
-        f.deviceIds = f.deviceIds.concat(devices[0].id);
-        bump(f);
-        changed("folder", f);
-        folders.push(f);
-      }
-      return { devices, folders };
-    }
-    // Что пропадает с записью: дочерние. Камеры регистратора остаются — снимается только запись устройства
-    function goneWith(rec) {
-      const gone = withChildren(rec.id);
-      if (rec.type !== "ipsrv") return gone;
-      db.devices.filter((d) => d.parentId === rec.id && d.type === "camera").forEach((c) => withChildren(c.id).forEach((x) => gone.delete(x)));
-      return gone;
-    }
     // Вместе с дочерними; ссылки на него убираются из папок и из записи по детекторам
     // Удалённое уходит из доступа учёток потоков, снимок прав меняется
     function dropStreamGrants(fn) {
@@ -1172,6 +892,10 @@
     }
     function removeDevice(id) {
       const gone = goneWith(byId("devices", id));
+      // Строки незнакомых видов под камерой (w2c.example/rows и потомки) уходят с ней — dependents профиля vms.camera/1
+      const rows = dependentsOf(store.get(id)).remove.filter((x) => !gone.has(x) && store.has(x) && tableOf(store.get(x).kind) !== "devices");
+      // Вид удалённого — до удаления: на путях ядра событие несёт его (camera, det)
+      const kindOf = new Map([...gone].map((x) => [x, (store.get(x) || {}).kind]));
       gone.forEach((x) => { const d = byId("devices", x); if (d) goneNear.set(x, nearOf(d)); });
       db.devices.filter((d) => d.parentId === id && !gone.has(d.id)).forEach((c) => {
         c.parentId = null;
@@ -1196,54 +920,25 @@
         bump(d);
         changed("device", d);
       });
+      rows.slice().reverse().forEach((x) => {
+        const u = store.get(x);
+        store.remove(x);
+        legacy.detach(u);
+        applying.delete(x);
+        [...secrets.keys()].filter((key) => secretOfUnit(x, key)).forEach((key) => secrets.delete(key));
+        send("entity.deleted", { kind: u.kind, entityId: x });
+      });
+      // Прочие ссылки x-ref на удалённое — как у удаления путями ядра (refsCleanup)
+      refsCleanup(new Set([...gone, ...rows]));
       gone.forEach((x) => {
-        secrets.delete(x);
+        // Пароль (ключ — id) и прочие секреты объекта (логин путей ядра: id#login)
+        [...secrets.keys()].filter((key) => secretOfUnit(x, key)).forEach((key) => secrets.delete(key));
         wasRemoved.add(x);
-        send("entity.deleted", { kind: "device", entityId: x });
+        send("entity.deleted", { kind: evKind("device", { uid: x, kind: kindOf.get(x) }), entityId: x });
         goneNear.delete(x);
       });
     }
 
-    // Папка — вместе с подпапками; сами устройства остаются в системе
-    function removeFolder(f) {
-      const gone = withSubfolders(f);
-      db.folders = db.folders.filter((x) => !gone.has(x.id));
-      dropStreamGrants((g) => { g.folderIds = g.folderIds.filter((x) => !gone.has(x)); });
-      gone.forEach((id) => send("entity.deleted", { kind: "folder", entityId: id }));
-    }
-    // Хранилище — с томами. Камеры остаются: основным становится первое дополнительное хранилище, без него
-    // запись выключается
-    function removeArchive(a) {
-      db.devices.forEach((d) => {
-        const extra = (d.extraArchives || []).filter((x) => x.archiveId !== a.id);
-        const main = d.archiveId === a.id;
-        if (!main && extra.length === (d.extraArchives || []).length) return;
-        if (d.extraArchives) d.extraArchives = extra;
-        if (main) {
-          // Резерв на сбой основным не становится
-          const i = extra.findIndex((x) => x.recordMode !== "backup");
-          const next = i >= 0 ? extra.splice(i, 1)[0] : null;
-          if (next) Object.assign(d, { archiveId: next.archiveId, recordMode: next.recordMode, stream: next.stream });
-          else Object.assign(d, { archiveId: null, recordMode: "none" });
-          ["replicaFrom", "replicaLagSec", "retentionDays", "minDepthDays"].forEach((k) => {
-            if (next && k in next) d[k] = next[k];
-            else delete d[k];
-          });
-        }
-        bump(d);
-        changed("device", d);
-      });
-      db.volumes.filter((v) => v.archiveId === a.id).forEach(removeVolume);
-      db.archives = db.archives.filter((x) => x !== a);
-      send("entity.deleted", { kind: "archive", entityId: a.id });
-      if (specOf(a).serverWide) serverWideChanged(a);
-      // Минуты из обхода сохранять больше некуда: обход остаётся и только ищет
-      db.archiveWatches.filter((w) => w.archiveId === a.id).forEach((w) => {
-        Object.assign(w, { archiveId: null, keep: "none" });
-        bump(w);
-        send("entity.changed", { kind: "archiveWatch", entityId: w.id, version: w.version });
-      });
-    }
     // Правило — с историей версий и своими расписаниями, если они больше нигде не используются;
     // журнал его запусков остаётся
     function removeRule(r) {
@@ -1265,12 +960,16 @@
     /* ----- Обход и скан архива ----- */
 
     const fieldBad = (field, text) => problem(422, "VALIDATION_FAILED", text, { field });
-    const kindKnown = (k) => (db.reference.detectorKinds || []).includes(k);
+    // Коды событий из описаний видов (UnitKind.events): что бывает тревогой
+    // alarm:false — событие в тревоги не берут (other, segment.lost)
+    const eventCodes = () => new Set(kinds.list().flatMap((k) => (k.events || []).filter((e) => e.alarm !== false).map((e) => e.id)));
+    // Вид детектора — из перечня detectorKind схемы вида det
+    const kindKnown = (k) => ((((kinds.get("det") || {}).schema || {}).properties || {}).detectorKind || {}).enum?.includes(k) || false;
     const cameraArchive = (cam, id) => !!rowOf(cam, id) || serverWideRows(cam).some((x) => x.archiveId === id);
     function jobProblem(x) {
       if (x.mask && zoneProblem(x.mask)) return fieldBad("mask", "Маска задана неверно");
-      const known = db.reference.eventKinds || [];
-      if ((x.alarms || []).some((a) => !known.includes(a))) return fieldBad("alarms", "Нет такого вида события");
+      const known = eventCodes();
+      if ((x.alarms || []).some((a) => !known.has(a))) return fieldBad("alarms", "Нет такого вида события");
       return null;
     }
     function watchProblem(w, was) {
@@ -1302,11 +1001,6 @@
       bump(x);
       send("entity.changed", { kind: "archiveScan", entityId: x.id, version: x.version });
     }
-    function removeVolume(v) {
-      db.volumes = db.volumes.filter((x) => x !== v);
-      formatting.delete(v.id);
-      send("entity.deleted", { kind: "volume", entityId: v.id });
-    }
     // Запись с потомками по parentId: устройство — с дочерними, папка — с подпапками
     function subtree(table, id) {
       const all = new Set([id]);
@@ -1322,22 +1016,17 @@
       return all;
     }
     const withChildren = (id) => subtree("devices", id);
-    const withSubfolders = (f) => subtree("folders", f.id);
     // Что меняет удаление записи (для проверки на групповую операцию): устройство — с дочерними и камеры, что
     // записывают по его детекторам; папка — состав, то есть папки лежащих в ней устройств; хранилище — с томами
     // и камерами, что в него пишут
     function touchedBy(table, rec) {
       if (table === "devices") {
-        const gone = withChildren(rec.id);
-        return [...gone].concat(db.devices.filter((d) => (d.recordDetectorIds || []).some((x) => gone.has(x))).map((d) => d.id));
+        const d = dependentsOf(legacy.unitOf(rec));
+        return d.remove.concat(d.detach);
       }
-      if (table === "folders") {
-        const gone = withSubfolders(rec);
-        return [...gone].concat(db.folders.filter((f) => gone.has(f.id)).flatMap((f) => f.deviceIds));
-      }
-      if (table === "archives") {
-        const writes = (d) => d.archiveId === rec.id || (d.extraArchives || []).some((x) => x.archiveId === rec.id);
-        return [rec.id].concat(db.volumes.filter((v) => v.archiveId === rec.id).map((v) => v.id), db.devices.filter(writes).map((d) => d.id));
+      if (table === "folders" || table === "archives") {
+        const d = hookOf(legacy.unitOf(rec).kind, "dependents").dependents(legacy.unitOf(rec), pctx);
+        return d.remove.concat(d.detach);
       }
       return [rec.id];
     }
@@ -1360,16 +1049,16 @@
       });
       walk(c.steps);
     }
-    // Удалённое устройство остаётся в цели битым элементом — по имени; исключение удалённого просто снимается.
+    // Удалённый объект остаётся в цели битым элементом — по имени; исключение удалённого просто снимается.
     // В версиях истории — так же, иначе «Сравнить» покажет удаление как правку
     function rulesGone(names) {
       if (!names.size) return;
       const fix = (t) => {
         if (!t) return t;
-        const hit = t.include.filter((x) => x.kind === "device" && names.has(x.id));
+        const hit = t.include.filter((x) => !x.area && names.has(x.uid));
         if (!hit.length && !t.exclude.some((x) => names.has(x))) return t;
         return Object.assign({}, t, { include: t.include.filter((x) => !hit.includes(x)), exclude: t.exclude.filter((x) => !names.has(x)),
-          gone: [...t.gone, ...hit.map((x) => names.get(x.id))] });
+          gone: [...t.gone, ...hit.map((x) => names.get(x.uid))] });
       };
       db.rules.forEach((r) => {
         const was = JSON.stringify(r);
@@ -1401,11 +1090,12 @@
     // Номер входа и выхода — в записи. Поле правила, если оно есть, значит то же самое
     function portIssue(c) {
       const off = (target, port) => (target ? target.include : []).some((x) => {
-        const d = x.kind === "device" ? byId("devices", x.id) : null;
+        const d = !x.area ? byId("devices", x.uid) : null;
         return !!d && d.channel != null && d.channel !== Number(port);
       });
-      if (c.triggers.some((t) => t.kind === "io.input" && t.match.port != null && off(t.target, t.match.port))) return "trigger.portMismatch";
-      const walk = (l) => l.some((a) => (a.action === "output" && a.port != null && off(a.target, a.port)) || walk(a.yes || []) || walk(a.no || []));
+      if (c.triggers.some((t) => t.event === "io.input" && t.match.port != null && off(t.target, t.match.port))) return "trigger.portMismatch";
+      const port = (a) => (a.type === "unitAction" && a.action === "output" && a.params && a.params.port != null ? a.params.port : null);
+      const walk = (l) => l.some((a) => (port(a) != null && off(a.target, port(a))) || walk(a.yes || []) || walk(a.no || []));
       return walk(c.steps) ? "action.portMismatch" : null;
     }
     // Живые роли человека: личные и через группы
@@ -1416,12 +1106,28 @@
     }
     // Автор отвечает за всё, что правило называет: иначе правило стало бы способом командовать чужой камерой
     function ruleRightProblem(c) {
-      const bad = engine.forbidden(c, myRoleIds());
-      return bad ? problem(403, "PERMISSION_DENIED", "Нет права на то, что называет правило", { params: { target: { kind: bad.kind, id: bad.id } } }) : null;
+      const bad = engine.forbidden(c, myRoleIds(), db.reference);
+      return bad ? problem(403, "PERMISSION_DENIED", "Нет права на то, что называет правило", { params: { target: clone(bad) } }) : null;
+    }
+    // Тип поля шага unitAction — по схеме params команды вида (ActionDescriptor.params) у видов, где команда — действие правила.
+    // Не тот тип — 422 VALIDATION_FAILED и у выключенного правила: такое значение не исполнит никто. Поле вне схемы, значение
+    // вне enum — забота каталога (action.fieldNotDeclared, только у включённого)
+    function stepTypeProblem(c) {
+      const is = (x, v) => (x === "integer" ? Number.isInteger(v) : x === "number" ? typeof v === "number" : x === "null" ? v === null : x === "array" ? Array.isArray(v) :
+        x === "object" ? !!v && typeof v === "object" && !Array.isArray(v) : typeof v === x);
+      const typeOk = (sch, v) => { const t = [].concat(sch.type || []); return !t.length || t.some((x) => is(x, v)); };
+      const props = (a, n) => kinds.list().map((k) => (k.actions || []).find((x) => x.id === a.action && x.ruleAction)).filter(Boolean)
+        .map((d) => ((d.params || {}).properties || {})[n]).filter(Boolean);
+      const bad = (a) => a.type === "unitAction" && Object.entries(a.params || {}).find(([n, v]) => { const l = props(a, n); return l.length && !l.some((x) => typeOk(x, v)); });
+      let hit = null;
+      const walk = (l) => l.some((a) => (hit = bad(a)) || walk(a.yes || []) || walk(a.no || []));
+      return walk(c.steps) ? problem(422, "VALIDATION_FAILED", `Поле ${hit[0]} — не того типа, что в описании команды`, { field: "steps", params: { keyword: "type", param: hit[0] } }) : null;
     }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
       if (c.runAsRoleId && !db.access.roles.some((x) => x.id === c.runAsRoleId)) return problem(422, "VALIDATION_FAILED", `Роли ${c.runAsRoleId} нет`, { field: "runAsRoleId" });
+      const typed = stepTypeProblem(c);
+      if (typed) return typed;
       const door = doorRelayIssue(c);
       if (door) return door;
       const port = portIssue(c);
@@ -1555,6 +1261,19 @@
       if (f.pause) runPause(run, f.pause);
       return rec;
     }
+    // Выполнить шаги запуска, которые движок счёл выполненными: команды объектов (unitAction) — как POST /units/{uid}/actions/…
+    // Только мгновенные команды вида и не «Только журнал»; итог — в status.observed объекта
+    function fireDo(f) {
+      if (!f || f.logOnly) return;
+      f.steps.forEach((x) => {
+        if (x.state !== "ok" || !x.action || x.action.type !== "unitAction" || !x.deviceId) return;
+        const u = store.get(x.deviceId), desc = u && unitCommand(u.kind, x.action.action);
+        if (!desc || desc.execution === "longRunning") return;
+        const params = clone(x.action.params || {}), run = actionRun(u.kind, desc.id);
+        if (run) run(u, params, pctx, desc.id);
+        else runAction(u, desc, params);
+      });
+    }
     function storeFire(f) {
       const rec = Object.assign({ id: uuid("fire") }, f);
       db.ruleFires.push(rec);
@@ -1627,11 +1346,19 @@
     }
     // Что система не объявила, в черновик не проходит: уровни, функции, запреты и плагины — из
     // reference.access, части прав — из capabilities.features. Встроенная роль судится отдельно
+    // Классы доступа и их уровни: из описаний видов (access и access.also; вид без класса — свой код, view < edit < admin),
+    // прочие — из reference.access.levels (map, alert, bm, ur, vw, macro, plug)
+    function accessClasses() {
+      const out = new Map(Object.entries(db.reference.access.levels));
+      kinds.list().forEach((k) => (k.access ? [k.access, ...(k.access.also || [])] : [{ class: k.kind, levels: ["view", "edit", "admin"] }]).forEach((c) => out.set(c.class, c.levels)));
+      return out;
+    }
     function accessPartProblem(a) {
       const ref = db.reference.access;
       const on = (f) => db.reference.capabilities.features.includes(f);
       const no = (field, id, what) => problem(422, "NOT_SUPPORTED", `Система этого не поддерживает: ${what}`, { field, params: { id } });
-      const lv = (kind, v) => (ref.levels[kind] || []).includes(v);
+      const classes = accessClasses();
+      const lv = (cls, v) => (classes.get(cls) || []).includes(v);
       const lowest = (v) => v === "FORBID" || v === "NO";
       const fields = (map, r, name) => {
         for (const [key, row] of Object.entries(map)) {
@@ -1645,11 +1372,12 @@
         if (g.unr) continue;
         const bad = g.feat.find((x) => !ref.features.includes(x));
         if (bad) return no("global.feat", r.id, `функция ${bad}`);
-        const kinds = Object.fromEntries(ref.defaults.concat(ref.globals).map((x) => [x.key, x.levels]));
+        const globals = Object.fromEntries(ref.globals.map((x) => [x.key, x.levels]));
         for (const k of Object.keys(g)) {
-          if (!/^(d[A-Z]|map$|alert$|bm$)/.test(k)) continue;
-          if (kinds[k] ? !lv(kinds[k], g[k]) : !lowest(g[k])) return no(`global.${k}`, r.id, `уровень ${g[k]}`);
+          if (!/^(map|alert|bm)$/.test(k)) continue;
+          if (globals[k] ? !lv(globals[k], g[k]) : !lowest(g[k])) return no(`global.${k}`, r.id, `уровень ${g[k]}`);
         }
+        for (const [cls, v] of Object.entries(r.kindAccess || {})) if (!lv(cls, v)) return no(`kindAccess.${cls}`, r.id, classes.has(cls) ? `уровень ${v}` : `класс ${cls}`);
         const f = fields(r.folderAccess, r, "folderAccess") || fields(r.objectAccess, r, "objectAccess");
         if (f) return f;
         const restr = Object.keys(g.restr).filter((k) => g.restr[k]);
@@ -1954,19 +1682,13 @@
 
     /* ===== Папки устройства ===== */
 
-    const foldersOf = (deviceId) => db.folders.filter((f) => f.deviceIds.includes(deviceId)).map((f) => f.id);
-    function setFolders(deviceId, folderIds) {
-      const before = foldersOf(deviceId);
-      db.folders.forEach((f) => {
-        const has = f.deviceIds.includes(deviceId);
-        const want = folderIds.includes(f.id);
-        if (has === want) return;
-        f.deviceIds = want ? f.deviceIds.concat(deviceId) : f.deviceIds.filter((x) => x !== deviceId);
-        bump(f);
-        changed("folder", f);
-      });
-      return before;
-    }
+    // Папки устройства — Unit.folders объекта склада, в порядке таблицы папок
+    const foldersOf = (deviceId) => {
+      const u = store.get(deviceId);
+      if (!u || !u.folders) return [];
+      const at = (id) => db.folders.indexOf(byId("folders", id));
+      return u.folders.filter((f) => at(f) >= 0).sort((a, b) => at(a) - at(b));
+    };
 
     /* ===== Групповые операции ===== */
 
@@ -1980,19 +1702,16 @@
     function undoTop() {
       const all = [...ops.values()];
       if (all.some(undoing)) return null;
-      return all.filter((x) => x.state === "done" && !x.revertOf && !x.reverted && x.items.some((i) => i.state === "ok"))
+      return all.filter((x) => x.state === "done" && !x.revertOf && !x.reverted && !x.noUndo && x.items.some((i) => i.state === "ok"))
         .reduce((top, x) => (!top || Date.parse(x.finishedAt) >= Date.parse(top.finishedAt) ? x : top), null);
     }
     const revertReason = (op) =>
-      op.revertOf ? "isRevert" : op.state !== "done" ? "running" : op.reverted ? "reverted" : !op.items.some((x) => x.state === "ok") ? "empty" : now() - Date.parse(op.finishedAt) > UNDO_MS ? "expired" : undoTop() !== op ? "notLast" : null;
+      op.revertOf ? "isRevert" : op.state !== "done" ? "running" : op.reverted ? "reverted" : op.noUndo || !op.items.some((x) => x.state === "ok") ? "empty" : now() - Date.parse(op.finishedAt) > UNDO_MS ? "expired" : undoTop() !== op ? "notLast" : null;
     // Почему отменённую операцию нельзя повторить: null — можно. Очищенное и просроченное — stale
     function redoReason(op) {
       if (!redoStack.includes(op.id) || now() - Date.parse(op.finishedAt) > UNDO_MS) return "stale";
       return redoStack[redoStack.length - 1] !== op.id || [...ops.values()].some(undoing) ? "notLast" : null;
     }
-    // Поля записи, которые изменил шаг: откат сверяет именно их
-    const fieldsOf = (rec, set) => Object.fromEntries(Object.keys(set).filter((k) => k !== "password" && k !== "secret" && k !== "confirmShrinkBytes").map((k) => [k, k in rec ? clone(rec[k]) : null]));
-    const sameFields = (rec, want) => Object.entries(want).every(([k, v]) => JSON.stringify(k in rec ? rec[k] : null) === JSON.stringify(v));
     // Одиночная правка — законченная операция из одного шага. Так откат идёт цепочкой назад и через правки
     // по одной. Ответ правки не меняется, id — из GET /operations
     function recordSingle(steps) {
@@ -2005,28 +1724,10 @@
       trimOps();
       send("operation.finished", { kind: "operation", entityId: op.id, payload: { state: "done", ok: op.items.length, failed: 0, cancelled: 0 } });
     }
-    // Шаг, который снимет созданное: у созданного своя версия, цель шага — родитель или сама запись
-    const createdStep = (rec) => ({ targetId: rec.id, version: rec.version, createdId: rec.id, createdVersion: rec.version, before: { remove: rec.id } });
-    function removeCreated(t) {
-      if (t.kind === "device") removeDevice(t.rec.id);
-      else if (t.kind === "archive") removeArchive(t.rec);
-      else removeVolume(t.rec);
-    }
-    // В хранилище уже пишут камеры: снять его откатом — значит снять и запись
-    const archiveWritten = (a) => db.devices.some((d) => archiveWrites(d, a.id));
     function trimOps() {
       const done = [...ops.values()].filter((op) => op.state === "done");
       done.slice(0, Math.max(0, done.length - UNDO_KEEP)).forEach((op) => ops.delete(op.id));
     }
-    // Адрес и объём тома откат не возвращает: записи на нём уже стёрты или лежат по новому адресу.
-    // Объём карты камеры w2c — так же: откат увеличения был бы уменьшением без подтверждения
-    const VOLUME_FIXED = ["sizeBytes", "disk", "mode", "dir", "file", "bucket", "region", "path", "host", "port", "proto", "endpoint", "style", "account"];
-    const volumeFixed = (step) => {
-      if (!step.before.set) return false;
-      if (byId("volumes", step.targetId)) return VOLUME_FIXED.some((k) => k in step.before.set);
-      return (byId("devices", step.targetId) || {}).type === "storage" && "sizeBytes" in step.before.set;
-    };
-    const setStep = (rec, set, before) => ({ targetId: rec.id, version: rec.version, before: { set: before }, after: fieldsOf(rec, set), secret: "password" in set || "secret" in set });
     const opView = (op) => ({
       id: op.id,
       state: op.state,
@@ -2051,11 +1752,17 @@
         return out;
       }),
     });
-    const pending = (fn) => [...ops.values()].some((op) => op.state !== "done" && op.items.some((x) => (x.state === "wait" || x.state === "run") && fn(x)));
+    // Шаг долгой команды, которая объект не держит (req.free: format тома — как в базе, где том на время форматирования
+    // правится и удаляется), занятым его не делает
+    const pending = (fn) => [...ops.values()].some((op) => op.state !== "done" && op.items.some((x) => (x.state === "wait" || x.state === "run") && !x.req.free && fn(x)));
     const busy = (targetId) => pending((x) => x.targetId === targetId);
-    // Папка из folderIds или хранилище из set.archiveId ещё не выполненного шага: удалить их — шаг молча
+    // Папка из folders или хранилище из properties.archiveId ещё не выполненного шага: удалить их — шаг молча
     // выполнится не так, как просили. Менять можно, удалять нельзя
-    const held = (id) => busy(id) || pending((x) => (x.req.folderIds || []).includes(id) || (x.req.set || {}).archiveId === id || ((x.req.set || {}).extraArchives || []).some((e) => e.archiveId === id));
+    const stepProps = (x) => ((x.req.patch || {}).properties) || {};
+    const holds = (x, id) => x.targetId === id || (x.req.folders || []).includes(id) || ((x.req.patch || {}).folders || []).includes(id) || stepProps(x).archiveId === id || (stepProps(x).extraArchives || []).some((e) => e.archiveId === id);
+    const held = (id) => pending((x) => holds(x, id));
+    // То же для шага, который выполняется сейчас: сам он ждёт в своей операции, но объект не держит
+    const heldBy = (self) => (id) => pending((x) => x !== self && holds(x, id));
 
     function startOperation(requests, extra) {
       // Новая правка очищает повтор; откат и повтор сами стопку не трогают
@@ -2068,7 +1775,8 @@
           finishedAt: null,
           revertOf: null,
           retryOf: null,
-          items: requests.map((r, index) => ({ index, targetId: r.targetId, state: "wait", code: null, req: r })),
+          // Шаг — по uid: цель шага (targetId в ответе) — uid объекта
+          items: requests.map((r, index) => ({ index, targetId: r.uid, state: "wait", code: null, req: r })),
           nextAt: now() + stepMs(0),
         },
         extra || {}
@@ -2077,53 +1785,10 @@
       return op;
     }
 
-    // Отказы — как в очереди макета: сервер устройства без связи не примет изменение; включить
-    // камеру с превышенной лицензией нельзя; версия объекта для отката не совпала — его меняли после
+    // Шаг, который назад не вернуть (откат удаления, команды, секрета), — отказ NOT_SUPPORTED с причиной; остальное — шаг по uid
     function runItem(op, item) {
       if (item.req.undoable === false) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" }, item.req.why ? { params: { reason: item.req.why } } : {});
-      const t = targetOf(item.targetId);
-      if (!t) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
-      const rec = t.rec;
-      // Снять можно только то, что осталось как создано: сверяется созданная запись, а не родитель из цели шага
-      if (item.req.remove) {
-        const made = targetOf(item.req.remove);
-        if (!made) return Object.assign(item, { state: "fail", code: "NOT_FOUND" });
-        if (made.rec.version !== item.req.expect || (made.kind === "archive" && archiveWritten(made.rec))) return Object.assign(item, { state: "fail", code: "NOT_SUPPORTED" });
-      }
-      if (item.req.expectFields && !sameFields(rec, item.req.expectFields)) return Object.assign(item, { state: "fail", code: "VERSION_MISMATCH" });
-      // Изменение устройства применяет его сервер, изменение сервера — сам сервер; домен — без сервера
-      const archiveServer = (a) => (a && a.serverId ? byId("servers", a.serverId) : null);
-      const via =
-        t.kind === "device" ? serverOf(rec) : t.kind === "server" ? rec : t.kind === "archive" ? archiveServer(rec) : t.kind === "volume" ? archiveServer(byId("archives", rec.archiveId)) : null;
-      if (offline(via)) return Object.assign(item, { state: "fail", code: "SERVER_OFFLINE" });
-      if (t.kind === "device" && item.req.set) {
-        const held = keptProblem(rec, item.req.set);
-        if (held) return Object.assign(item, { state: "fail", code: held.body.code }, held.body.params ? { params: held.body.params } : {});
-      }
-      if (item.req.set) {
-        if (t.kind === "device" && item.req.set.enabled === true && rec.licenseExceeded) return Object.assign(item, { state: "fail", code: "LICENSE_EXCEEDED" });
-        const clash = rec.type === "det" && item.req.set.enabled === true && rec.enabled === false ? conflictWith(rec) : null;
-        if (clash) return Object.assign(item, { state: "fail", code: "BUSY", params: conflictParams(clash) });
-        item.before = { set: applyPatch(rec, setOf(t, item.req.set)) };
-        if (t.kind === "device") syncMain(rec, item.req.set);
-        if (t.kind === "archive" && "recordMode" in item.req.set) serverWideChanged(rec);
-        item.after = fieldsOf(rec, item.req.set);
-        item.secret = "password" in item.req.set || "secret" in item.req.set;
-        changed(t.kind, rec);
-      } else if (item.req.create) {
-        const res = createDevice(item.req.create, rec.domainId, rec.id, null);
-        if (res.code) return Object.assign(item, { state: "fail", code: res.code });
-        item.createdId = res.devices[0].id;
-        item.createdVersion = res.devices[0].version;
-        item.before = { remove: item.createdId };
-      } else if (item.req.remove) {
-        removeCreated(targetOf(item.req.remove));
-        item.before = {};
-      } else {
-        if (domainDown(rec.domainId)) return Object.assign(item, { state: "fail", code: "SERVER_OFFLINE" });
-        item.before = { folderIds: setFolders(rec.id, item.req.folderIds) };
-      }
-      return Object.assign(item, { state: "ok", code: null, version: rec.version });
+      return runUnitItem(op, item);
     }
 
     function finish(op, fired) {
@@ -2155,6 +1820,7 @@
         fired.push({ kind: "catalog", id: cid });
       });
       tickDiscovery(fired);
+      applyTick(fired);
       runTick();
       modeTick();
       exportTick();
@@ -2275,98 +1941,388 @@
       if (start + limit < sorted.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
       return { status: 200, body };
     }
-    /* ----- Строка устройства, камера-кластер ----- */
+    /* ----- Камера-кластер, дочерние устройства ----- */
 
     // Камера-кластер: сама себе член домена, в виде нет ни сервера, ни родителя
     const isClusterCam = (d) => d.type === "camera" && !d.parentId && !d.serverId;
-    let revisions = new Map();
-    const revisionOf = (rec) => revisions.get(rec.id) || 1;
-    let viewStamp = 0, viewMade = -1, viewPartsList = [], viewKids = new Map();
+    // Дочерние записи устройств — индекс, который строится заново, когда меняется состав (viewStamp)
+    let viewStamp = 0, viewMade = -1, viewKids = new Map();
     function viewIndex() {
       if (viewMade === viewStamp) return;
       viewMade = viewStamp;
-      viewPartsList = Array.from({ length: partsCount() }, () => []);
       viewKids = new Map();
       db.devices.forEach((d) => {
-        viewPartsList[partOf(d.id)].push(d);
         if (d.parentId) (viewKids.get(d.parentId) || viewKids.set(d.parentId, []).get(d.parentId)).push(d);
       });
-      viewPartsList.forEach((p) => p.sort((a, b) => (a.id < b.id ? -1 : 1)));
     }
     const kidsOf = (id) => (viewIndex(), viewKids.get(id) || []);
-    function deviceRow(rec) {
-      const cluster = isClusterCam(rec);
-      const row = { id: rec.id, type: rec.type, domainId: rec.domainId, name: rec.name, online: rec.online !== false, enabled: rec.enabled !== false,
-        fault: rec.fault || null, licenseExceeded: !!rec.licenseExceeded, version: cluster ? `r${revisionOf(rec)}` : rec.version };
-      if (rec.subtype) row.subtype = rec.subtype;
-      row.parentId = rec.parentId || null;
-      row.serverId = cluster ? null : rec.serverId || null;
-      row.hasChildren = cluster || kidsOf(rec.id).length > 0;
-      return row;
-    }
     const recording = (d) => (!!d.archiveId && !!d.recordMode && d.recordMode !== "none") || (d.extraArchives || []).some((x) => x.recordMode && x.recordMode !== "none");
-    function statusHit(d, words) {
-      const on = d.enabled !== false, lic = !!d.licenseExceeded, sig = d.online !== false;
-      return words.some((w) => (w === "off" ? !on : w === "license" ? on && lic : w === "nosignal" ? on && !lic && !sig : w === "run" ? on && !lic && sig : false));
+    /* ----- Дерево ----- */
+
+    // Дерево — по складу: дети узла — из индексов (родитель, папка, ссылка на сервер), без прохода всех объектов.
+    // Узел — объект склада: вид, значок и профили из описания вида, краткий объект (UnitBrief). Потоки камеры и документы
+    // домена (shape: document) — не узлы
+    const LAYOUTS = ["folders", "servers", "archives", "detectors"];
+    const unallocOf = (id) => (String(id).startsWith("unalloc:") ? id.slice(8) : null);
+    const SERVICE = new Set(["export", "email", "sms"]);
+    const isArchive = (u) => tableOf(u.kind) === "archives";
+    const inTree = (u) => u.kind !== "stream" && (kinds.get(u.kind) || {}).shape !== "document";
+    const props = (u) => u.properties || {};
+    const ofKind = (kind, domainId) => store.byKind(kind).filter((u) => u.domainId === domainId);
+    const archivesOf = (pred) => kinds.list().filter((k) => tableOf(k.kind) === "archives").flatMap((k) => store.byKind(k.kind)).filter(pred);
+    const isDetector = (u) => kinds.profileOf(u.kind, "vms.detector/1");
+    // Сервер размещения объекта: status.observed.serverId или свойство вида с x-ref на сервер (имена — раз на описание)
+    const toServer = (ref) => (ref.kinds || []).includes("server") || (ref.implements || []).includes("vms.server/1");
+    const serverProps = new WeakMap();
+    function serverNames(kind) {
+      const k = kinds.get(kind);
+      if (!k) return [];
+      if (!serverProps.has(k)) {
+        const p = (k.schema || {}).properties || {};
+        serverProps.set(k, Object.keys(p).filter((n) => p[n] && p[n]["x-ref"] && toServer(p[n]["x-ref"])));
+      }
+      return serverProps.get(k);
     }
-    // Запрос с q, type, status, domainId, noFolder, noRecord, noDetector: не больше scanPartsMax разделов, порядок — разделы
-    function devicesPage(q) {
+    function serverOfUnit(u) {
+      const o = u.status && u.status.observed && u.status.observed.serverId;
+      if (typeof o === "string") return o;
+      const n = serverNames(u.kind).find((x) => typeof props(u)[x] === "string");
+      return n ? props(u)[n] : null;
+    }
+    function unitBrief(u) {
+      const out = { uid: u.uid, kind: u.kind, name: u.name, parentId: u.parentId == null ? null : u.parentId, domainId: u.domainId == null ? null : u.domainId, version: u.version };
+      if (u.status && u.status.link) out.status = { link: u.status.link };
+      if (typeof props(u).subtype === "string" && props(u).subtype) out.subtype = props(u).subtype; // как DeviceRow.subtype
+      const brief = {};
+      (kinds.get(u.kind) ? kinds.briefNames(u.kind) : []).forEach((n) => n in props(u) && (brief[n] = clone(props(u)[n])));
+      // Строке дерева без строки устройства: выключенность и сервер — свойства вида (если они в схеме), сбой и лицензия — наблюдаемое
+      const own = (((kinds.get(u.kind) || {}).schema || {}).properties) || {};
+      if ("enabled" in own) brief.enabled = props(u).enabled !== false;
+      if ("serverId" in own && typeof props(u).serverId === "string") brief.serverId = props(u).serverId;
+      if (Object.keys(brief).length) out.brief = brief;
+      const obs = (u.status && u.status.observed) || {}, seen = {};
+      if (typeof obs.fault === "string" && obs.fault) seen.fault = obs.fault;
+      if (obs.licenseExceeded) seen.licenseExceeded = true;
+      if (Object.keys(seen).length) out.status = Object.assign(out.status || {}, { observed: seen });
+      return out;
+    }
+    const treeChildrenOf = (u) => store.byParent(u.uid).filter(inTree);
+    function unitHasChildren(u) {
+      if (u.kind === "domain") return true;
+      if (u.kind === "folder") return store.byFolder(u.uid).length > 0 || store.byParent(u.uid).some((x) => x.kind === "folder");
+      if (isArchive(u)) return store.byParent(u.uid).some((x) => x.kind === "volume");
+      // Устройство: дочерние записи устройства; камера-кластер — «может быть» (дети приходят от её серверов)
+      if (tableOf(u.kind) === "devices" && (isClusterCam(legacy.view(u)) || kidsOf(u.uid).length > 0)) return true;
+      return treeChildrenOf(u).length > 0;
+    }
+    function unitNode(u, parentId, hasChildren) {
+      const k = kinds.get(u.kind);
+      const node = { id: u.uid, kind: u.kind, name: u.name, parentId, hasChildren: hasChildren === undefined ? unitHasChildren(u) : hasChildren };
+      if (k && k.icon) node.icon = k.icon;
+      node.implements = k ? (k.implements || []).slice() : [];
+      node.unit = unitBrief(u);
+      return node;
+    }
+    // Узел позже: строка устройства считается только для страницы, которую отдают
+    const lazy = (u, parentId, hasChildren) => () => unitNode(u, parentId, hasChildren);
+    const camHasDets = (u) => store.byParent(u.uid).some(isDetector);
+    // Дети узла: [ключ порядка, узел]. Ключ решает порядок: на верхнем уровне и в папках — разделы, в члене — имя
+    function treeKids(layout, parentId) {
+      const k = (group, id) => `${group}:${partKey(id)}`;
+      const name = (group, u) => `${group}:${u.name} ${u.uid}`;
+      if (!parentId) return store.byKind("domain").map((d) => [k(1, d.uid), unitNode(d, null, true)]);
+      const un = unallocOf(parentId);
+      if (un) return ofKind("server", un).filter((s) => !props(s).allocated).map((s) => [k(1, s.uid), unitNode(s, parentId, false)]);
+      const u = store.get(parentId);
+      if (!u) return null;
+      if (u.kind === "domain") {
+        if (layout === "folders") return ofKind("folder", u.uid).filter((f) => !f.parentId).map((f) => [k(1, f.uid), unitNode(f, parentId)]);
+        const servers = ofKind("server", u.uid);
+        const out = servers.filter((s) => props(s).allocated).map((s) => [k(1, s.uid), unitNode(s, parentId, true)]);
+        if (layout === "servers" && servers.some((s) => !props(s).allocated)) out.push(["2", { id: `unalloc:${u.uid}`, kind: "unalloc", name: "Нераспределённые серверы", parentId, hasChildren: true }]);
+        if (layout === "archives") archivesOf((a) => !a.parentId && a.domainId === u.uid).forEach((a) => out.push([k(3, a.uid), unitNode(a, parentId)]));
+        // Корни домена без сервера размещения: камеры-кластеры, регистраторы, СКУД, объекты незнакомых видов. Детекторы
+        // камеры-кластера видны только при её раскрытии: сводного списка в detectors у них нет
+        if (layout === "servers")
+          store.byParent(null, u.uid).forEach((x) => {
+            if (!inTree(x) || ["server", "folder", "domain", "volume"].includes(x.kind) || isArchive(x) || SERVICE.has(x.kind) || serverOfUnit(x)) return;
+            out.push([k(4, x.uid), lazy(x, parentId)]);
+          });
+        return out;
+      }
+      if (u.kind === "server") {
+        if (layout === "archives") return store.byParent(u.uid).filter(isArchive).map((a) => [name(1, a), unitNode(a, parentId)]);
+        const placed = store.byRef(u.uid).filter((x) => !x.parentId && inTree(x) && serverOfUnit(x) === u.uid);
+        return (layout === "detectors" ? placed.filter(camHasDets) : placed).map((x) => [name(1, x), lazy(x, parentId)]);
+      }
+      if (u.kind === "folder") {
+        const subs = store.byParent(u.uid).filter((f) => f.kind === "folder").map((f) => [k(1, f.uid), unitNode(f, parentId)]);
+        const members = store.byFolder(u.uid).filter(inTree);
+        return subs.concat((layout === "detectors" ? members.filter((x) => kinds.profileOf(x.kind, "vms.camera/1")) : members).map((x) => [k(2, x.uid), lazy(x, parentId)]));
+      }
+      if (isArchive(u)) return store.byParent(u.uid).filter((v) => v.kind === "volume").map((v) => [name(1, v), unitNode(v, parentId, false)]);
+      if (u.kind === "volume") return [];
+      const kids = treeChildrenOf(u);
+      return (layout === "detectors" ? kids.filter(isDetector) : kids).map((x) => [name(1, x), lazy(x, parentId)]);
+    }
+    function treeChildren(q) {
+      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const rows = treeKids(q.layout, q.parentId);
+      if (!rows) return notFound("Узел");
+      return pageList(q, "tree", rows, (x) => x[0], (x) => (typeof x[1] === "function" ? x[1]() : x[1]), q.parentId ? { parentCount: rows.length } : {});
+    }
+    // Хранилища, в которые пишет объект: кандидаты — его ссылки (индекс), запись — как у старых путей (archiveWrites)
+    const writesInto = (u, archiveId) =>
+      tableOf(u.kind) === "devices" ? archiveWrites(legacy.view(u), archiveId) : kinds.refsOf(u).some((r) => r.uid === archiveId);
+    // Цепочки от корня: шаг — {id, kind, name}, kind — вид объекта (TreePathStep.kind — код вида, как TreeNode.kind). Путь —
+    // по parentId до корня, у корня без родителя — его домен; таблицы старых видов не участвуют, так что путь есть у любого
+    // вида склада. Объект вне ветки домена (камера, контроллер — корень домена) кладётся по раскладке: в папках — под каждой
+    // своей папкой (Unit.folders), в хранилищах — под хранилищами, куда пишет, в серверах — под сервером записи
+    function treeChains(layout, id) {
+      const step = (x) => ({ id: x.uid, kind: x.kind, name: x.name });
+      const domainStep = (domainId) => {
+        const d = domainId && store.get(domainId);
+        return d && kinds.profileOf(d.kind, "vms.domain/1") ? [step(d)] : [];
+      };
+      // Цепочка объекта по parentId: от корня (домен — сам; корень без родителя — с доменом впереди) до объекта
+      const upChain = (x) => {
+        const line = [];
+        const seen = new Set();
+        let top = x;
+        for (;;) {
+          line.unshift(step(top));
+          seen.add(top.uid);
+          const par = top.parentId ? store.get(top.parentId) : null;
+          if (!par || seen.has(par.uid)) break;
+          top = par;
+        }
+        const rooted = !!kinds.profileOf(top.kind, "vms.domain/1");
+        return { line, top, rooted };
+      };
+      const chainOf = (x) => {
+        const c = upChain(x);
+        return c.rooted ? c.line : domainStep(c.top.domainId).concat(c.line);
+      };
+      const u = store.get(id);
+      if (!u) return [];
+      const { line, top, rooted } = upChain(u);
+      // Ветка домена (серверы, хранилища, тома) и сами папки — путь по parentId при любой раскладке
+      if (rooted || kinds.profileOf(top.kind, "vms.folder/1") || tableOf(top.kind) === "servers" || isArchive(top)) return [rooted ? line : domainStep(top.domainId).concat(line)];
+      const plain = [domainStep(top.domainId).concat(line)];
+      if (layout === "folders") {
+        const homes = foldersOf(top.uid).map((x) => store.get(x)).filter(Boolean);
+        return homes.length ? homes.map((h) => chainOf(h).concat(line)) : plain;
+      }
+      if (layout === "archives") {
+        const order = (a) => db.archives.indexOf(legacy.view(a));
+        const rows = [...new Set(kinds.refsOf(top).map((r) => r.uid))].map((x) => store.get(x)).filter((a) => a && isArchive(a) && writesInto(top, a.uid)).sort((a, b) => order(a) - order(b));
+        return rows.length ? rows.map((a) => chainOf(a).concat(line)) : plain;
+      }
+      const srv = serverOfUnit(top) && store.get(serverOfUnit(top));
+      return srv ? [chainOf(srv).concat(line)] : plain;
+    }
+    function treePaths(q) {
+      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const ids = String(q.ids || "").split(",").filter(Boolean);
+      if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
+      return { status: 200, body: { items: ids.map((id) => ({ id, chains: treeChains(q.layout, id) })).filter((x) => x.chains.length) } };
+    }
+
+    /* ----- Ядро: виды и объекты склада ----- */
+
+    // Описания видов: ETag — хэш описаний; тот же ETag в If-None-Match — 304 без тела
+    function kindsList(headers) {
+      const tag = kinds.etag();
+      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag } };
+      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag } };
+    }
+    // Секреты старых путей сервер держит отдельно (secrets): пароль устройства и тома, секрет облачного тома
+    const keptSecrets = (u) => {
+      const t = tableOf(u.kind);
+      if (t !== "devices" && t !== "volumes") return [];
+      return [secrets.has(u.uid) && "password", t === "volumes" && secrets.has(u.uid + ":secret") && "secret"].filter(Boolean);
+    };
+    // Наследуемое свойство (x-inherit): своё значение объекта, иначе — из документа домена (вид с shape: document, в нём раздел
+    // с кодом вида объекта), иначе — умолчание схемы. Документ домена ищется по виду документа: их мало, домен целиком не проходится
+    function inheritedOf(u, shown) {
+      const names = kinds.inheritNames(u.kind);
+      if (!names.length) return null;
+      const docs = kinds.documentKinds().flatMap((k) => store.byKind(k)).filter((d) => d.domainId === u.domainId);
+      const p = (kinds.get(u.kind).schema || {}).properties || {};
+      const out = {};
+      names.forEach((name) => {
+        if (name in props(u)) return (out[name] = { from: "unit" });
+        const doc = docs.find((d) => props(d)[u.kind] && typeof props(d)[u.kind] === "object" && name in props(d)[u.kind]);
+        if (doc) {
+          shown[name] = clone(props(doc)[u.kind][name]);
+          out[name] = { from: "domain", uid: doc.uid, version: doc.version };
+        } else if ("default" in p[name]) {
+          shown[name] = clone(p[name].default);
+          out[name] = { from: "default" };
+        }
+      });
+      return out;
+    }
+    // Объект в ответе: значений секретов (writeOnly) нет — только secrets[имя] = true. Вид без описания — свойства как есть.
+    // Наследуемые свойства (x-inherit) — со значением, откуда оно, — в inherited
+    function unitView(u, extra) {
+      const hide = new Set(kinds.get(u.kind) ? kinds.secretNames(u.kind) : []);
+      const out = { uid: u.uid, kind: u.kind, parentId: u.parentId == null ? null : u.parentId, name: u.name, domainId: u.domainId == null ? null : u.domainId };
+      if (u.folders && u.folders.length) out.folders = u.folders.slice();
+      out.version = u.version;
+      const shown = {}, set = Object.assign({}, u.secrets || {});
+      Object.keys(props(u)).forEach((key) => {
+        const v = props(u)[key];
+        if (!hide.has(key)) shown[key] = clone(v);
+        else if (v != null && v !== "") set[key] = true;
+      });
+      keptSecrets(u).forEach((n) => (set[n] = true));
+      const inherited = kinds.get(u.kind) ? inheritedOf(u, shown) : null;
+      out.properties = shown;
+      if (Object.keys(set).length) out.secrets = set;
+      if (inherited && Object.keys(inherited).length) out.inherited = inherited;
+      // Что правится у объекта сейчас (уже, чем схема вида): карта камеры w2c, обычное встроенное хранилище, камера w2c
+      if (Array.isArray(u.writable)) out.writable = u.writable.slice();
+      if (u.status && Object.keys(u.status).length) out.status = clone(u.status);
+      out.hasChildren = unitHasChildren(u); // как в дереве: потоки и документы дочерними не считаются
+      // Вычисляемое профилем (status.observed): итог круга домена, держатель тома
+      hooksOf(u.kind).forEach((h) => h.view && h.view(out, pctx));
+      return Object.assign(out, extra || {});
+    }
+    // Поиск q: имя, short (если оно есть у вида), uid, свойства с x-search; fields — где искать. Ответ — где нашлось
+    // Где нашлось q: имя, short, свойства x-search, uid. uid — только целиком: часть uid (цифра «1») есть почти у каждого
+    // объекта, а /devices?q= базы по id не искал. Так q без fields находит то же, что база (имя, номер, адрес, производитель, модель)
+    function matchOf(u, text, fields) {
+      const k = kinds.get(u.kind);
+      const names = ["name"].concat((k ? "short" in ((k.schema || {}).properties || {}) : "short" in props(u)) ? ["short"] : [], k ? kinds.searchNames(u.kind).filter((n) => n !== "short") : [], ["uid"]);
+      const value = (f) => (f === "name" ? u.name : f === "uid" ? u.uid : props(u)[f]);
+      const hit = (f) => (f === "uid" ? String(text).trim().toLowerCase() === u.uid.toLowerCase() : textHit(text, Array.isArray(value(f)) ? value(f).join(" ") : value(f)));
+      return names.find((f) => (!fields || fields.includes(f)) && hit(f)) || null;
+    }
+    // noDetector — флаг или код вида детектора: перечень свойства detectorKind видов профиля vms.detector/1
+    const detectorCodes = () => new Set(kinds.list().filter((k) => kinds.profileOf(k.kind, "vms.detector/1")).flatMap((k) => ((((k.schema || {}).properties || {}).detectorKind || {}).enum || [])));
+    const flagBad = (q) => ["noFolder", "noRecord", "noDetector"].find((n) => q[n] !== undefined && q[n] !== "true" && q[n] !== "false" && !(n === "noDetector" && detectorCodes().has(q[n])));
+    const isCamera = (u) => kinds.profileOf(u.kind, "vms.camera/1");
+    // Детекторы камеры — дочерние и серверные (ссылка x-ref на камеру); code — только этого вида
+    const hasDetector = (u, code) => store.byParent(u.uid).concat(store.byRef(u.uid)).some((d) => isDetector(d) && (!code || props(d).detectorKind === code));
+    function unitStatusHit(u, words) {
+      const link = (u.status && u.status.link) || "unknown", obs = (u.status && u.status.observed) || {};
+      const on = props(u).enabled !== false, lic = !!obs.licenseExceeded, sig = link !== "offline";
+      return words.some((w) => (w === link ? true : w === "off" ? !on : w === "license" ? on && lic : w === "nosignal" ? on && !lic && !sig : w === "run" ? on && !lic && sig : false));
+    }
+    // Отбор строки: false — мимо, true — подходит, {field} — подходит по q
+    function unitFilter(q) {
+      const list = (v) => String(v).split(",").filter(Boolean);
+      const kindSet = q.kind ? new Set(list(q.kind)) : null;
+      const implSet = q.implements ? new Set(list(q.implements).flatMap((p) => kinds.implementers(p))) : null;
+      const words = q.status ? list(q.status) : null;
+      const fields = q.fields ? list(q.fields) : null;
+      const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true";
+      const noDet = q.noDetector === "true" || (q.noDetector !== undefined && q.noDetector !== "false"), detCode = noDet && q.noDetector !== "true" ? q.noDetector : null;
+      const hidden = hiddenServers();
+      // Объекты без права view отсеяны дверью (стенд: stand.hiddenIds): страница короче limit и бывает пустой при живом nextCursor
+      const noView = new Set(db.stand.hiddenIds || []);
+      const folderFree = (u) => !u.parentId && !(u.folders || []).length &&
+        (tableOf(u.kind) === "devices" ? folderable(legacy.view(u)) : ((kinds.get(u.kind) || {}).capabilities || []).includes("folders"));
+      const filtered = !!(q.q || kindSet || implSet || words || q.domainId || noFolder || noRecord || noDet);
+      const hit = (u) => {
+        if ((kindSet && !kindSet.has(u.kind)) || (implSet && !implSet.has(u.kind)) || (q.domainId && u.domainId !== q.domainId)) return false;
+        if ((words && !unitStatusHit(u, words)) || (noFolder && !folderFree(u)) || (noRecord && !(isCamera(u) && !recording(props(u)))) || (noDet && !(isCamera(u) && !hasDetector(u, detCode)))) return false;
+        // Без связи с доменом сервер входа видит только свой кластер: чужие серверы и то, что на них, не показываются
+        if (hidden.size && (hidden.has(u.uid) || hidden.has(serverOfUnit(u)))) return false;
+        if (noView.has(u.uid)) return false;
+        if (!q.q) return true;
+        const field = matchOf(u, q.q, fields);
+        return field ? { field } : false;
+      };
+      return { hit, filtered };
+    }
+    // Разделы склада для прохода без члена: порядок — байты uid, не сдвигается вставкой. Пересобираются, когда меняется состав
+    // или сам склад: POST /test/reset строит новый склад, и его stamp может совпасть со stamp прежнего
+    let unitParts = null, unitPartsAt = -1, unitPartsOf = null;
+    function unitPartsList() {
+      if (unitParts && unitPartsOf === store && unitPartsAt === store.stamp() && unitParts.length === partsCount()) return unitParts;
+      unitPartsAt = store.stamp();
+      unitPartsOf = store;
+      unitParts = Array.from({ length: partsCount() }, () => []);
+      for (const u of store.all()) unitParts[partOf(u.uid)].push(u);
+      unitParts.forEach((p) => p.sort((a, b) => (a.uid < b.uid ? -1 : 1)));
+      return unitParts;
+    }
+    // Порядок перечня по профилю: домены и серверы — как /domains и /servers базы (порядок таблицы: заведённый и принятый
+    // в домен сервер — последним), сначала домены, потом серверы; остальное — по разделам (partKey), как /folders, /archives,
+    // /volumes базы. Номер в таблице — с запасом под курсор, ключ — строка
+    const rankOf = new Map();
+    function tableRank(u) {
+      const t = tableOf(u.kind);
+      if (t !== "domains" && t !== "servers") return `2:${partKey(u.uid)}`;
+      // Номера таблицы — заново, когда таблица сменилась (приём сервера пересобирает db.servers) или выросла
+      let r = rankOf.get(t);
+      if (!r || r.list !== db[t] || r.n !== db[t].length) rankOf.set(t, (r = { list: db[t], n: db[t].length, at: new Map(db[t].map((x, i) => [x.id, i])) }));
+      const at = r.at.has(u.uid) ? r.at.get(u.uid) : -1;
+      return `${t === "domains" ? 0 : 1}:${String(at < 0 ? 99999999 : at).padStart(8, "0")}:${u.uid}`;
+    }
+    // GET /units: ids — по записи; parentId, folderId, ref, serverId, archiveId — один член из индекса склада, порядок по
+    // имени; остальное — разделы склада, с отбором не больше scanPartsMax разделов за страницу (как /devices)
+    function unitsPage(q) {
       const limit = limitOf(q);
       if (limit === null) return limitBad();
+      const flag = flagBad(q);
+      if (flag) return problem(422, "VALIDATION_FAILED", flag === "noDetector" ? "noDetector — true, false или код вида детектора" : `${flag} — true или false`, { field: flag });
       if (q.ids !== undefined) {
         const ids = String(q.ids).split(",").filter(Boolean);
         if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
-        return { status: 200, body: { items: ids.map((id) => byId("devices", id)).filter(Boolean).map(deviceRow) } };
+        return { status: 200, body: { items: ids.map((id) => store.get(id)).filter(Boolean).map((u) => unitView(u)) } };
       }
-      if (q.folderId !== undefined) {
-        const f = byId("folders", q.folderId);
-        if (!f) return notFound("Папка");
-        const scope = scopeOf("devices", q), cur = cursorRead(q, scope);
-        if (cur.bad) return cur.bad;
-        const keyed = f.deviceIds.map((id) => [partKey(id), id]).sort((a, b) => (a[0] < b[0] ? -1 : 1));
-        const from = cur.at === null ? 0 : keyed.findIndex((x) => x[0] > cur.at);
-        const start = from < 0 ? keyed.length : from;
-        const chunk = keyed.slice(start, start + limit);
-        // Единицы без права view отсеяны дверью: страница короче limit и бывает пустой при живом nextCursor
-        const hidden = db.stand.hiddenIds || [];
-        const body = { items: chunk.map((x) => byId("devices", x[1])).filter((d) => d && !hidden.includes(d.id)).map(deviceRow) };
-        if (start + limit < keyed.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
-        return { status: 200, body };
+      const { hit, filtered } = unitFilter(q);
+      const show = ([u, m]) => unitView(u, m === true ? null : { match: m });
+      const MEMBER = {
+        parentId: [(v) => store.byParent(v), (u, v) => u.parentId === v],
+        folderId: [(v) => store.byFolder(v), (u, v) => (u.folders || []).includes(v)],
+        ref: [(v) => store.byRef(v), (u, v) => kinds.refsOf(u).some((r) => r.uid === v)],
+        serverId: [(v) => store.byRef(v).filter((u) => serverOfUnit(u) === v), (u, v) => serverOfUnit(u) === v],
+        archiveId: [(v) => store.byRef(v).filter((u) => writesInto(u, v)), (u, v) => writesInto(u, v)],
+      };
+      const members = Object.keys(MEMBER).filter((n) => q[n] !== undefined);
+      if (members.length) {
+        const [first, ...rest] = members;
+        const rows = MEMBER[first][0](q[first]).filter((u) => rest.every((n) => MEMBER[n][1](u, q[n]))).map((u) => [u, hit(u)]).filter((x) => x[1]);
+        return pageList(q, "units", rows, ([u]) => `${u.name} ${u.uid}`, show);
       }
-      const words = q.status ? String(q.status).split(",") : null;
-      const types = q.type ? String(q.type).split(",") : null;
-      const noFolder = q.noFolder === "true", noRecord = q.noRecord === "true", noDet = q.noDetector || null;
-      if (noDet && !DET_KINDS.includes(noDet)) return problem(422, "VALIDATION_FAILED", "Такого вида детектора нет", { field: "noDetector" });
-      const inFolder = noFolder ? new Set(db.folders.flatMap((f) => f.deviceIds)) : null;
-      const dets = noDet ? detKindsMap() : null;
-      const filtered = !!(q.q || types || words || q.domainId || noFolder || noRecord || noDet);
-      const hidden = hiddenServers();
-      const hit = (d) => !hidden.has(d.serverId) && (!q.domainId || d.domainId === q.domainId) && (!types || types.includes(d.type)) && (!words || statusHit(d, words)) &&
-        (!q.q || textHit(q.q, d.name, d.short, d.identifier, d.ip, d.vendor, d.model)) &&
-        (!noFolder || (!d.parentId && folderable(d) && !inFolder.has(d.id))) && (!noRecord || (d.type === "camera" && !recording(d))) &&
-        (!noDet || (d.type === "camera" && !(dets.get(d.id) || new Set()).has(noDet)));
-      // Один член: порядок по имени, разделы ни при чём
-      const member = q.serverId !== undefined || q.parentId !== undefined || q.archiveId !== undefined;
-      if (member) {
-        const rows = q.parentId !== undefined ? kidsOf(q.parentId) : db.devices.filter((d) => (q.serverId === undefined || d.serverId === q.serverId) && (q.archiveId === undefined || archiveWrites(d, q.archiveId)));
-        return pageList(q, "devices", rows.filter(hit), (d) => `${d.name} ${d.id}`, deviceRow);
+      // Только implements (можно с domainId): строки из индекса вида, порядок тот же (раздел, uid), страницы полные. Это чтение
+      // по профилю вместо таблиц базы (/domains, /servers, /folders, /archives, /volumes), у которых первая страница полная.
+      // kind= — отбор, как /devices?type= базы: ограниченный проход ниже. Иначе первая страница kind= несёт больше строк, чем
+      // в базе, и кэш формы (выбор цели правила читает одну страницу по виду) расходится с базой — с ним и дерево
+      if (q.implements && !q.kind && !(q.q || q.status || q.noFolder === "true" || q.noRecord === "true" || (q.noDetector !== undefined && q.noDetector !== "false"))) {
+        const ks = String(q.implements).split(",").filter(Boolean).flatMap((pr) => kinds.implementers(pr));
+        const rows = [...new Set(ks)].flatMap((k) => store.byKind(k)).map((u) => [u, hit(u)]).filter((x) => x[1]);
+        return pageList(q, "units-kind", rows, ([u]) => tableRank(u), show);
       }
-      const scope = scopeOf("devices", q), cur = cursorRead(q, scope);
+      // kind= вместе с domainId (и без других отборов): объекты названных видов одного домена — из индекса вида, в порядке
+      // разделов (partKey), страницы полные. Нужно узким чтениям по виду в домене (держатель удержаний читает два-три вида
+      // хранилищ вместо всех хранилищ домена). kind= без domainId — по-прежнему ограниченный проход, как type у /devices
+      if (q.kind && q.domainId && !q.implements && !(q.q || q.status || q.noFolder === "true" || q.noRecord === "true" || (q.noDetector !== undefined && q.noDetector !== "false"))) {
+        const ks = [...new Set(String(q.kind).split(",").filter(Boolean))];
+        const rows = ks.flatMap((k) => store.byKind(k)).map((u) => [u, hit(u)]).filter((x) => x[1]);
+        return pageList(q, "units-kind", rows, ([u]) => tableRank(u), show);
+      }
+      const scope = scopeOf("units", q), cur = cursorRead(q, scope);
       if (cur.bad) return cur.bad;
-      viewIndex();
+      const parts = unitPartsList();
       const at = cur.at || { p: 0, a: null };
       const budget = filtered ? db.reference.limits.scanPartsMax : Infinity;
       const out = [];
       let p = at.p, after = at.a, seen = 0, stopped = null;
-      for (; p < viewPartsList.length && seen < budget && !stopped; ) {
-        const list = viewPartsList[p];
+      for (; p < parts.length && seen < budget && !stopped; ) {
+        const list = parts[p];
         for (let i = 0; i < list.length; i++) {
-          const d = list[i];
-          if (after !== null && d.id <= after) continue;
-          if (!hit(d)) continue;
-          out.push(d);
+          const u = list[i];
+          if (after !== null && u.uid <= after) continue;
+          const m = hit(u);
+          if (!m) continue;
+          out.push([u, m]);
           if (out.length === limit) {
-            stopped = { p, a: d.id };
+            stopped = { p, a: u.uid };
             break;
           }
         }
@@ -2376,136 +2332,823 @@
           after = null;
         }
       }
-      const body = { items: out.map(deviceRow) };
+      const body = { items: out.map(show) };
       if (stopped) {
-        const left = viewPartsList.slice(stopped.p).some((list, i) => list.some((d) => (i > 0 || d.id > stopped.a) && hit(d)));
+        const left = parts.slice(stopped.p).some((list, i) => list.some((u) => (i > 0 || u.uid > stopped.a) && hit(u)));
         if (left) body.nextCursor = cursorMake(scope, stopped, cur.exp);
-      } else if (p < viewPartsList.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
-      if (!filtered) body.total = db.devices.length;
+      } else if (p < parts.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
+      if (!filtered) body.total = store.size();
       return { status: 200, body };
     }
-    /* ----- Дерево ----- */
+    // Что можно создать под объектом: виды, у которых его вид — в createParents. Вид устройства, которого система не
+    // объявила, — нет; единица СКУД под родителем с dynamicCreate — если её называют шаблоны единиц родителя (unitOptions)
+    function creatableOf(u) {
+      const parent = tableOf(u.kind) === "devices" ? legacy.view(u) : null;
+      const options = parent && (kinds.get(u.kind) || {}).dynamicCreate ? hAcs.unitOptionsFor(parent, pctx) : null;
+      return kinds.creatable(u.kind).map((kind) => {
+        const no = (reason) => ({ kind, allowed: false, reason });
+        if (options && unitType(kind) && !options.some((o) => o.type === kind)) return no("NOT_SUPPORTED");
+        return { kind, allowed: true };
+      });
+    }
+    /* ----- Ядро: запись объектов ----- */
 
-    const archDomain = (a) => a.domainId || (byId("servers", a.serverId) || {}).domainId || null;
-    const LAYOUTS = ["folders", "servers", "archives", "detectors"];
-    const unallocOf = (id) => (String(id).startsWith("unalloc:") ? id.slice(8) : null);
-    const devNode = (d, parentId, hasChildren) => ({ id: d.id, kind: "device", name: d.name, parentId, hasChildren: hasChildren === undefined ? deviceRow(d).hasChildren : hasChildren, row: deviceRow(d) });
-    const camsOfServer = (sid) => db.devices.filter((d) => d.serverId === sid && !d.parentId);
-    const camHasDets = (d) => kidsOf(d.id).some((k) => k.type === "det");
-    // Дети узла: [ключ порядка, узел]. Ключ решает порядок: на верхнем уровне и в папках — разделы, в члене — имя
-    function treeKids(layout, parentId) {
-      const k = (group, id) => `${group}:${partKey(id)}`;
-      const name = (group, rec) => `${group}:${rec.name} ${rec.id}`;
-      if (!parentId) return db.domains.map((d) => [k(1, d.id), { id: d.id, kind: "domain", name: d.name, parentId: null, hasChildren: true }]);
-      const un = unallocOf(parentId);
-      if (un) return db.servers.filter((s) => s.domainId === un && !s.allocated).map((s) => [k(1, s.id), { id: s.id, kind: "server", name: s.name, parentId, hasChildren: false }]);
-      const dom = byId("domains", parentId);
-      if (dom) {
-        if (layout === "folders") return db.folders.filter((f) => f.domainId === dom.id && !f.parentId).map((f) => [k(1, f.id), folderNode(f, parentId)]);
-        const out = db.servers.filter((s) => s.domainId === dom.id && s.allocated).map((s) => [k(1, s.id), { id: s.id, kind: "server", name: s.name, parentId, hasChildren: true }]);
-        if (layout === "servers" && db.servers.some((s) => s.domainId === dom.id && !s.allocated)) out.push(["2", { id: `unalloc:${dom.id}`, kind: "unalloc", name: "Нераспределённые серверы", parentId, hasChildren: true }]);
-        if (layout === "archives") db.archives.filter((a) => !a.serverId && a.domainId === dom.id).forEach((a) => out.push([k(3, a.id), archiveNode(a, parentId)]));
-        if (layout === "servers") db.devices.forEach((d) => { if (d.domainId === dom.id && !d.parentId && !d.serverId && !SERVICE.has(d.type)) out.push([k(4, d.id), () => devNode(d, parentId)]); });
-        // Детекторы камеры-кластера видны только при её раскрытии: сводного списка в detectors у них нет
-        return out;
+    /* Пути ядра пишут объект по описанию его вида: схема (readOnly, writeOnly, x-immutable, x-bound-to, x-unique), родители
+       (parents, createParents), capabilities, actions, events. Смысл сверх описания — у хуков профилей (profiles.js): домен,
+       сервер, папка, хранилище, том (vms.domain/1, vms.server/1, vms.folder/1, vms.archive/1, vms.volume/1), устройства — общие
+       хуки DEVICE и профили vms.camera/1, vms.stream/1, vms.detector/1, vms.acs/1. Пишутся виды с описанием, у которых каждый
+       профиль vms.* сервер знает (хук есть). Остальным — 422 NOT_SUPPORTED, field /kind. Объект вида без описания читается, но не пишется. Ошибки — {code, field, params}: field — JSON Pointer в теле
+       запроса (у строки POST /units — в строке); ошибку хука (field старого пути) переводит pointerOf.
+       Секреты (writeOnly) хранятся отдельно от объекта, как пароли старых путей (secrets): в объекте — только secrets[имя]. */
+    const coreKind = (kind) => {
+      const k = kinds.get(kind);
+      if (!k) return false;
+      return (k.implements || []).filter((p) => String(p).startsWith("vms.")).every((p) => !!HOOKS[p]);
+    };
+    // Правка только папок (Unit.folders): у устройства её пишет ядро уже сейчас — членство ведёт профиль папки
+    const foldersOnly = (patch) => !!patch && patch.folders !== undefined && Object.keys(patch).every((k) => k === "folders");
+    const membersOnly = (u, patch) => tableOf(u.kind) === "devices" && !!kinds.get(u.kind) && foldersOnly(patch);
+    const capOf = (kind, cap) => ((kinds.get(kind) || {}).capabilities || []).includes(cap);
+    const esc = (name) => String(name).replace(/~/g, "~0").replace(/\//g, "~1");
+    const err = (code, field, params) => Object.assign({ code }, field !== undefined ? { field } : {}, params ? { params } : {});
+    const errOut = (e) => Object.assign({ code: e.code }, e.field !== undefined ? { field: e.field } : {}, e.params ? { params: clone(e.params) } : {});
+    // Первая ошибка — в code/field/params, все — в errors. Статус — заданный, у ошибки хука — её (409 NAME_TAKEN…), иначе 422
+    function errsProblem(errs, message, status) {
+      const [first] = errs;
+      return problem(status || first.status || 422, first.code, message, Object.assign(first.field !== undefined ? { field: first.field } : {}, first.params ? { params: clone(first.params) } : {}, { errors: errs.map(errOut) }));
+    }
+    const kindErrs = (kind, at) => (coreKind(kind) ? [] : [err("NOT_SUPPORTED", `${at || ""}/kind`, { kind })]);
+    // Поле ошибки хука (имя поля старого пути) → указатель в теле запроса ядра: свойства — /properties/…, параметры команды
+    // и переноса — base /params/
+    const POINTER = { name: "/name", parentId: "/parentId", serverId: "/parentId", archiveId: "/parentId", domainId: "/domainId", kind: "/kind", folders: "/folders", moveTo: "/moveTo" };
+    // У устройства serverId, archiveId — свойства (сервер записи, хранилище), а не родитель; папка старого пути — folderId
+    const DEVICE_POINTER = { name: "/name", parentId: "/parentId", domainId: "/domainId", kind: "/kind", type: "/kind", folders: "/folders", folderId: "/folders", children: "/children" };
+    const pointerOf = (field, base, kind) => (field == null ? undefined : String(field).startsWith("/") ? field : (kind && tableOf(kind) === "devices" ? DEVICE_POINTER : POINTER)[field] || `${base || "/properties/"}${esc(field)}`);
+    // Отказ хука (Problem) → ошибка строки {code, field, params}; at — указатель строки, kind — вид объекта
+    const hookErr = (res, at, base, kind) => Object.assign(err(res.body.code, `${at || ""}${pointerOf(res.body.field, base, kind) || ""}` || undefined, res.body.params), { status: res.status });
+    // Отказ хука → ответ ядра: тот же статус и код, field — указателем
+    function hookProblem(res, base, kind) {
+      const field = pointerOf(res.body.field, base, kind);
+      return { status: res.status, body: Object.assign({}, res.body, field !== undefined ? { field } : {}) };
+    }
+    // Хуки вида по очереди: первый отказ
+    function hooksProblem(kind, name, args) {
+      for (const h of hooksOf(kind)) {
+        const bad = h[name] ? h[name](...args, pctx) : null;
+        if (bad) return bad;
       }
-      const srv = byId("servers", parentId);
-      if (srv) {
-        if (layout === "archives") return db.archives.filter((a) => a.serverId === srv.id).map((a) => [name(1, a), archiveNode(a, parentId)]);
-        const devs = camsOfServer(srv.id);
-        return (layout === "detectors" ? devs.filter(camHasDets) : devs).map((d) => [name(1, d), () => devNode(d, parentId)]);
-      }
-      const fol = byId("folders", parentId);
-      if (fol) {
-        const subs = db.folders.filter((f) => f.parentId === fol.id).map((f) => [k(1, f.id), folderNode(f, parentId)]);
-        const devs = fol.deviceIds.map((id) => byId("devices", id)).filter(Boolean);
-        return subs.concat((layout === "detectors" ? devs.filter((d) => d.type === "camera") : devs).map((d) => [k(2, d.id), () => devNode(d, parentId)]));
-      }
-      const arc = byId("archives", parentId);
-      if (arc) return db.volumes.filter((v) => v.archiveId === arc.id).map((v) => [name(1, v), { id: v.id, kind: "volume", name: v.name, parentId, hasChildren: false }]);
-      const dev = byId("devices", parentId);
-      if (dev) return (layout === "detectors" ? kidsOf(dev.id).filter((c) => c.type === "det") : kidsOf(dev.id)).map((c) => [name(1, c), () => devNode(c, parentId)]);
       return null;
     }
-    const SERVICE = new Set(["export", "email", "sms"]);
-    const folderNode = (f, parentId) => ({ id: f.id, kind: "folder", name: f.name, parentId, hasChildren: f.deviceIds.length > 0 || db.folders.some((x) => x.parentId === f.id) });
-    const archiveNode = (a, parentId) => ({ id: a.id, kind: "archive", name: a.name, parentId, hasChildren: db.volumes.some((v) => v.archiveId === a.id) });
-    function treeChildren(q) {
-      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
-      const rows = treeKids(q.layout, q.parentId);
-      if (!rows) return notFound("Узел");
-      return pageList(q, "tree", rows, (x) => x[0], (x) => (typeof x[1] === "function" ? x[1]() : x[1]), q.parentId ? { parentCount: rows.length } : {});
+    // Объект на склад: у видов старых таблиц — и в таблицу (запись-представление), как legacy.add
+    function unitPut(u) {
+      store.put(u);
+      legacy.attach(u);
+      return tableOf(u.kind) ? legacy.view(u) : u;
     }
-    // Цепочки от корня: шаг — {id, kind, name}. Домен, дальше по раскладке
-    function treeChains(layout, id) {
-      const step = (rec, kind) => ({ id: rec.id, kind, name: rec.name });
-      const domainStep = (domainId) => { const d = byId("domains", domainId); return d ? [step(d, "domain")] : []; };
-      const folderChain = (f) => (f.parentId ? folderChain(byId("folders", f.parentId)) : domainStep(f.domainId)).concat(step(f, "folder"));
-      const serverChain = (s) => domainStep(s.domainId).concat(step(s, "server"));
-      const archiveChain = (a) => (a.serverId ? serverChain(byId("servers", a.serverId)) : domainStep(a.domainId)).concat(step(a, "archive"));
-      const s = byId("servers", id);
-      if (s) return [serverChain(s)];
-      const f = byId("folders", id);
-      if (f) return [folderChain(f)];
-      const a = byId("archives", id);
-      if (a) return [archiveChain(a)];
-      const v = byId("volumes", id);
-      if (v) return [archiveChain(byId("archives", v.archiveId)).concat(step(v, "volume"))];
-      const d = byId("devices", id);
-      if (!d) return [];
-      const line = [];
-      let top = d;
-      for (; top; top = top.parentId ? byId("devices", top.parentId) : null) {
-        line.unshift(step(top, "device"));
-        if (!top.parentId) break;
-      }
-      if (layout === "folders") {
-        const homes = foldersOf(top.id).map((x) => byId("folders", x));
-        return homes.length ? homes.map((h) => folderChain(h).concat(line)) : [domainStep(top.domainId).concat(line)];
-      }
-      if (layout === "archives") {
-        const rows = db.archives.filter((x) => archiveWrites(top, x.id));
-        return rows.length ? rows.map((x) => archiveChain(x).concat(line)) : [domainStep(top.domainId).concat(line)];
-      }
-      const srv = top.serverId ? byId("servers", top.serverId) : null;
-      return [(srv ? serverChain(srv) : domainStep(top.domainId)).concat(line)];
+    // Сервер-исполнитель изменения объекта (хук профиля executor): запись сервера или null
+    function executorOf(u) {
+      const h = u ? hookOf(u.kind, "executor") : null;
+      const id = h ? h.executor(u, pctx) : null;
+      return id ? byId("servers", id) : null;
     }
-    function treePaths(q) {
-      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
-      const ids = String(q.ids || "").split(",").filter(Boolean);
-      if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
-      return { status: 200, body: { items: ids.map((id) => ({ id, chains: treeChains(q.layout, id) })).filter((x) => x.chains.length) } };
+    const kindProblem = (kind) => {
+      const e = kindErrs(kind);
+      return e.length ? errsProblem(e, kinds.get(kind) ? `Вид ${kind} путями ядра пока не пишется: его смысл — у своих путей` : `Описания вида ${kind} нет: объект только читается`) : null;
+    };
+    const isDocument = (kind) => (kinds.get(kind) || {}).shape === "document";
+    // Ключ секрета — как у старых путей: пароль — uid, секрет облачного тома — uid:secret, прочие — uid#имя
+    const secretKey = (uid, name) => (name === "password" ? uid : name === "secret" ? `${uid}:secret` : `${uid}#${name}`);
+    const secretOfUnit = (uid, key) => key === uid || key.startsWith(`${uid}:`) || key.startsWith(`${uid}#`);
+    // Объект с потомками по parentId: сначала он, потом дети
+    function unitSubtree(u) {
+      const out = [u];
+      for (let i = 0; i < out.length; i++) store.byParent(out[i].uid).forEach((c) => out.push(c));
+      return out;
     }
-    /* ----- Домен: итог круга ----- */
-
-    let summaries = new Map();
-    function domainSummary(id) {
-      if (db.stand.summaryOff) return null;
-      const was = summaries.get(id);
-      if (was && now() - Date.parse(was.at) < VIEW_ROUND_MS) return was;
-      const s = { total: 0, offline: 0, silent: 0, at: iso(now()) };
-      db.devices.forEach((d) => {
-        if (d.domainId !== id || d.type !== "camera" || d.enabled === false) return;
-        s.total++;
-        // Встроенный сервер фаз не знает: связь есть у всех, кто online; поток упал — fault drv
-        if (d.online === false && d.fault === "drv") s.silent++;
-        else if (d.online === false || d.licenseExceeded) s.offline++;
+    // Ветка изменилась: tree.changed — как у устройств (treeTouch)
+    function unitTreeTouch(u) {
+      const add = (layout, id) => id && (treePending[layout] = treePending[layout] || new Set()).add(id);
+      add("servers", u.parentId || u.domainId);
+      (u.folders || []).forEach((f) => add("folders", f));
+    }
+    // Версия из If-Match: нет — 428, не та — 412 с объектом, над объектом идёт операция — 409 BUSY
+    function unitPrecondition(u, headers) {
+      const v = parseMatch(headers["if-match"]);
+      if (v == null || v === "") return problem(428, "PRECONDITION_REQUIRED", "Нужен заголовок If-Match с версией объекта");
+      if (v !== u.version) return problem(412, "VERSION_MISMATCH", "Объект изменился с момента чтения", { current: unitView(u) });
+      return lockedProblem([u.uid]);
+    }
+    // x-unique: у строк с хозяином (вид без корня в parents) — среди строк того же хозяина, у остальных — среди объектов вида
+    // rows — уже проверенные соседние строки того же нового родителя (UnitCreate.children): их ещё нет на складе
+    function uniqueErrs(kind, parentId, values, selfUid, at, rows) {
+      const names = kinds.uniqueNames(kind).filter((n) => values[n] !== undefined && values[n] !== null);
+      if (!names.length) return [];
+      const owned = !((kinds.get(kind) || {}).parents || []).includes(null);
+      const peers = (owned ? (parentId ? store.byParent(parentId) : []) : store.byKind(kind)).filter((x) => x.kind === kind && x.uid !== selfUid).concat((rows || []).filter((x) => x.kind === kind));
+      return names.filter((n) => peers.some((x) => JSON.stringify(props(x)[n]) === JSON.stringify(values[n]))).map((n) => err("VALIDATION_FAILED", `${at || ""}/properties/${esc(n)}`, { keyword: "x-unique" }));
+    }
+    // Папки объекта: вид с возможностью folders, папки — того же домена
+    function foldersErrs(kind, domainId, folders, at) {
+      if (!folders || !folders.length) return [];
+      if (!capOf(kind, "folders")) return [err("NOT_SUPPORTED", `${at}/folders`, { capability: "folders" })];
+      const bad = folders.findIndex((f) => {
+        const x = store.get(f);
+        return !x || x.kind !== "folder" || x.domainId !== domainId;
       });
-      if (db.stand.unread) s.unread = db.stand.unread;
-      summaries.set(id, s);
-      return s;
+      return bad >= 0 ? [err("VALIDATION_FAILED", `${at}/folders/${bad}`, { keyword: "x-ref" })] : [];
     }
-    function domainView(r) {
-      const out = clone(r);
-      const s = domainSummary(r.id);
-      if (s) out.stateSummary = clone(s);
+    // Новые папки объекта: по описанию вида (foldersErrs) и по смыслу профиля папки — центр домена на связи, запись в папки
+    // входит (хук vms.folder/1). Сверяются папки, которые меняются: добавленные и убранные
+    function folderChangeErrs(u, folders) {
+      // Вид без папок: и пустой набор — не про него
+      if (!capOf(u.kind, "folders")) return [err("NOT_SUPPORTED", "/folders", { capability: "folders" })];
+      const errs = foldersErrs(u.kind, u.domainId, folders, "");
+      if (errs.length) return errs;
+      const was = u.folders || [];
+      const bad = hFolder.memberProblem(u, folders.filter((f) => !was.includes(f)).concat(was.filter((f) => !folders.includes(f))), pctx);
+      return bad ? [hookErr(bad, "", undefined, u.kind)] : [];
+    }
+
+    // Правка (UnitPatch: name, folders, properties — JSON Merge Patch) против описания вида. У документа (shape: document)
+    // properties — запись целиком: проверяется как новое целое, а не как правка
+    function unitPatchErrs(u, patch) {
+      const out = membersOnly(u, patch) ? [] : kindErrs(u.kind);
+      if (out.length) return out;
+      if (patch.name !== undefined && patch.name !== u.name) {
+        if (!String(patch.name).trim()) return [err("NAME_REQUIRED", "/name")];
+        if (!capOf(u.kind, "rename")) return [err("NOT_SUPPORTED", "/name", { capability: "rename" })];
+      }
+      if (patch.folders) out.push(...folderChangeErrs(u, patch.folders));
+      if (out.length) return out;
+      let whole = null;
+      if (patch.properties) {
+        // Секреты лежат не в объекте: заданные (secrets[имя]) для обязательности целого — есть
+        const errs = isDocument(u.kind) ? kinds.validate(u.kind, patch.properties, {}) : kinds.validate(u.kind, patch.properties, { partial: true, old: props(u), secrets: Object.keys(u.secrets || {}) });
+        if (errs.length) return errs;
+        whole = isDocument(u.kind) ? patch.properties : Kinds.mergePatch(props(u), patch.properties);
+        const uniq = uniqueErrs(u.kind, u.parentId, whole, u.uid, "");
+        if (uniq.length) return uniq;
+      }
+      // Смысл профиля: хук может привести правку к виду записи (обрезать имя) — patch у зовущего копия
+      const bad = membersOnly(u, patch) ? null : hooksProblem(u.kind, "beforeSet", [u, patch, whole]);
+      return bad ? [hookErr(bad, "", undefined, u.kind)] : [];
+    }
+    // Свойства с x-transient (подтверждение уменьшения тома) — только проверка правки, в объекте не хранятся
+    const transientNames = (kind) => Object.entries(((kinds.get(kind) || {}).schema || {}).properties || {}).filter(([, s]) => s && s["x-transient"]).map(([n]) => n);
+    // Обратная правка: по ней откат вернёт прежнее. Вложенные объекты — тоже правкой: добавленное снимается null
+    function inverseOf(old, patch) {
+      const out = {};
+      Object.keys(patch).forEach((k) => {
+        const a = old ? old[k] : undefined, b = patch[k];
+        const plain = (v) => v && typeof v === "object" && !Array.isArray(v);
+        out[k] = plain(a) && plain(b) ? inverseOf(a, b) : a === undefined ? null : clone(a);
+      });
       return out;
     }
-    function folderView(f) {
-      const out = clone(f);
-      delete out.deviceIds;
+    // Значения полей, которые трогает правка: откат и повтор сверяют их, а не версию
+    function unitFieldsOf(u, patch) {
+      const out = {};
+      if (patch.name !== undefined) out.name = u.name;
+      if (patch.folders !== undefined) out.folders = (u.folders || []).slice();
+      if (patch.properties) {
+        const hide = new Set(kinds.secretNames(u.kind).concat(transientNames(u.kind)));
+        out.properties = isDocument(u.kind) ? clone(props(u)) : Object.fromEntries(Object.keys(patch.properties).filter((n) => !hide.has(n)).map((n) => [n, n in props(u) ? clone(props(u)[n]) : null]));
+      }
       return out;
     }
+    const sameUnitFields = (u, want) => JSON.stringify(unitFieldsOf(u, want)) === JSON.stringify(want);
+    // Секреты правки и создания: значение — в secrets, в объекте — только флаг; null снимает секрет
+    function setSecret(u, name, value) {
+      const key = secretKey(u.uid, name);
+      if (value === null || value === "") {
+        secrets.delete(key);
+        if (u.secrets) delete u.secrets[name];
+        if (u.secrets && !Object.keys(u.secrets).length) delete u.secrets;
+      } else {
+        secrets.set(key, value);
+        (u.secrets || (u.secrets = {}))[name] = true;
+      }
+    }
+    const touchesSecret = (u, patch) => !!patch.properties && kinds.secretNames(u.kind).some((n) => n in patch.properties);
+    // Правка: возвращает обратную правку. Версия, «ещё не применилось» и событие — unitChanged
+    function applyUnitPatch(u, patch) {
+      const before = {};
+      if (patch.name !== undefined) {
+        before.name = u.name;
+        u.name = patch.name;
+      }
+      if (patch.folders !== undefined) {
+        before.folders = (u.folders || []).slice();
+        if (patch.folders.length) u.folders = [...new Set(patch.folders)];
+        else delete u.folders;
+        store.reindex(u.uid);
+      }
+      if (patch.properties) {
+        const hide = new Set(kinds.secretNames(u.kind).concat(transientNames(u.kind)));
+        const open = Object.fromEntries(Object.entries(patch.properties).filter(([n]) => !hide.has(n)));
+        Object.entries(patch.properties).filter(([n]) => hide.has(n) && kinds.secretNames(u.kind).includes(n)).forEach(([n, v]) => setSecret(u, n, v));
+        if (isDocument(u.kind)) {
+          before.properties = clone(props(u));
+          u.properties = clone(open);
+        } else {
+          before.properties = inverseOf(props(u), open);
+          u.properties = Kinds.mergePatch(props(u), open);
+        }
+        if ([...kinds.refNames(u.kind)].some((n) => n in open)) store.reindex(u.uid);
+      }
+      hooksOf(u.kind).forEach((h) => h.afterSet && h.afterSet(u, before, pctx));
+      return before;
+    }
+    // Правку система применяет не сразу: status.observedVersion отстаёт от version, условие Applied: false — до такта часов
+    const APPLY_MS = 600;
+    let applying = new Map();
+    function setApplied(u, ok) {
+      const s = u.status || (u.status = {});
+      s.conditions = (s.conditions || []).filter((c) => c.type !== "Applied").concat({ type: "Applied", status: ok ? "true" : "false", reason: ok ? "Applied" : "Pending", since: iso(now()) });
+      if (ok) s.observedVersion = u.version;
+    }
+    function unitChanged(u, pending) {
+      const was = u.version;
+      bump(u);
+      if (pending) {
+        const s = u.status || (u.status = {});
+        if (s.observedVersion === undefined) s.observedVersion = was;
+        setApplied(u, false);
+        applying.set(u.uid, now() + APPLY_MS);
+      }
+      send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version });
+      unitTreeTouch(u);
+    }
+    function applyTick(fired) {
+      applying.forEach((at, uid) => {
+        if (at > now()) return;
+        applying.delete(uid);
+        const u = store.get(uid);
+        if (!u) return;
+        setApplied(u, true);
+        send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version, payload: { status: true } });
+        fired.push({ kind: u.kind, id: uid });
+      });
+    }
+
+    // Новый объект (UnitCreate) — проверка строки целиком, с дочерними: at — указатель строки (/children/0…).
+    // parent — объект склада, null — корень домена, { fresh } — родитель из той же строки (ещё не создан)
+    function unitCreateErrs(spec, parent, at) {
+      at = at || "";
+      const k = kinds.get(spec.kind);
+      const out = kindErrs(spec.kind, at);
+      if (out.length) return out;
+      let par = parent;
+      // Родитель задан местом (дочерний строки, шаг createUnit): parentId в теле, если есть, — он же
+      if (par) {
+        if (spec.parentId != null && (par.fresh || spec.parentId !== par.uid)) return [err("PARENT_MISMATCH", `${at}/parentId`, { kind: spec.kind })];
+      } else if (spec.parentId != null) {
+        par = store.get(spec.parentId);
+        if (!par) return [err("VALIDATION_FAILED", `${at}/parentId`, { keyword: "x-ref" })];
+      }
+      // Под этим родителем вид бывает (parents), но заводит его не оператор (находит сервер) — NOT_SUPPORTED; не бывает — PARENT_MISMATCH.
+      // Дочерняя строка нового родителя (UnitCreate.children) судится по children родителя и create вида: вид с пустым
+      // createParents заводится только так, вместе с родителем (том — с новым хранилищем); непустой createParents должен
+      // называть вид родителя, как у существующего
+      const pk = par ? par.kind : null;
+      const withParent = par && par.fresh && ((kinds.get(pk) || {}).children || []).includes(spec.kind) && !(k.createParents || []).length;
+      // create снят с вида — отдельно его не заводят, но первый том (vms.volume/1 в children нового хранилища, createParents пуст) идёт его дочерней строкой
+      if (!capOf(spec.kind, "create") && !(withParent && kinds.profileOf(spec.kind, "vms.volume/1"))) return [err("NOT_SUPPORTED", `${at}/kind`, { kind: spec.kind, capability: "create" })];
+      if (!withParent && !(k.createParents || []).includes(pk)) return [(k.parents || []).includes(pk) ? err("NOT_SUPPORTED", `${at}/kind`, { kind: spec.kind, parentKind: pk }) : err("PARENT_MISMATCH", `${at}/parentId`, { kind: spec.kind, parentKind: pk })];
+      // Домен — сам себе корень: domainId у него нет
+      const selfRoot = kinds.profileOf(spec.kind, "vms.domain/1");
+      const domainId = selfRoot ? null : par ? par.domainId : spec.domainId;
+      if (selfRoot) {
+        if (spec.domainId) return [err("VALIDATION_FAILED", `${at}/domainId`, { keyword: "const", value: null })];
+      } else if (!par) {
+        if (!domainId) return [err("VALIDATION_FAILED", `${at}/domainId`, { keyword: "required" })];
+        const d = store.get(domainId);
+        if (!d || d.kind !== "domain") return [err("VALIDATION_FAILED", `${at}/domainId`, { keyword: "x-ref" })];
+      } else if (spec.domainId && spec.domainId !== domainId) return [err("VALIDATION_FAILED", `${at}/domainId`, { keyword: "const", value: domainId })];
+      if (spec.name !== undefined && !String(spec.name).trim()) return [err("NAME_REQUIRED", `${at}/name`)];
+      out.push(...foldersErrs(spec.kind, domainId, spec.folders, at));
+      // Папки ведёт центр домена: без связи с ним новый объект в папку не войдёт — как правка folders (memberProblem)
+      if (!out.length && (spec.folders || []).length && domainDown(domainId)) out.push(Object.assign(err("SERVER_OFFLINE", `${at}/folders`), { status: 409 }));
+      out.push(...kinds.validate(spec.kind, spec.properties || {}).map((e) => Object.assign({}, e, { field: at + e.field })));
+      // Дочерние строки одного нового родителя сверяются и между собой (par.rows — уже проверенные соседи): x-unique здесь,
+      // смысл профиля (второй том того же хранилища на том же диске — DISK_TAKEN) — у хука, родитель строки несёт rows
+      if (!out.length) out.push(...uniqueErrs(spec.kind, par && !par.fresh ? par.uid : null, spec.properties || {}, null, at, par && par.fresh ? par.rows : null));
+      if (out.length) return out;
+      // Смысл профиля: хук смотрит будущий объект (имя, адрес сервера, диск тома…)
+      const draft = unitDraft(spec, par, domainId);
+      const bad = hooksProblem(spec.kind, "beforeCreate", [draft, par]);
+      if (bad) return [hookErr(bad, at, undefined, spec.kind)];
+      if (par && par.fresh && par.rows) par.rows.push(draft);
+      const fresh = { fresh: true, kind: spec.kind, domainId, parentId: par && !par.fresh ? par.uid : null, rows: [] };
+      for (const [i, c] of (spec.children || []).entries()) {
+        const e = unitCreateErrs(c, fresh, `${at}/children/${i}`);
+        if (e.length) return e;
+      }
+      return [];
+    }
+    // Будущий объект строки (ещё без uid и версии): хуки профиля проверяют его и дополняют умолчаниями. Секретов в нём нет
+    function unitDraft(spec, parent, domainId) {
+      const u = { uid: null, kind: spec.kind, parentId: parent && !parent.fresh ? parent.uid : null, domainId: domainId == null ? null : domainId, name: spec.name, properties: {} };
+      if (spec.folders && spec.folders.length) u.folders = [...new Set(spec.folders)];
+      const hide = new Set(kinds.secretNames(spec.kind).concat(transientNames(spec.kind)));
+      Object.entries(spec.properties || {}).forEach(([n, v]) => {
+        if (!hide.has(n) && v !== null) u.properties[n] = clone(v);
+      });
+      // Строка целиком (x-transient-свойства: профиль камеры при добавлении; candidateId) — хукам, в объекте не хранится
+      Object.defineProperty(u, "spec", { value: spec, enumerable: false, configurable: true });
+      return u;
+    }
+    // Имя по шаблону вида: подпись и номер
+    const unitName = (kind) => `${((kinds.get(kind) || {}).label || {}).text || kind} ${store.byKind(kind).length + 1}`;
+    // Создать проверенную строку: объект и дочерние. Первый в ответе — сам объект
+    // Умолчания и поля нового объекта — хуки профиля (beforeCreate), после создания — afterSet(unit, null). uid — с цифрой
+    // своей таблицы (домен 1…, сервер 2…), у видов без таблицы — как у устройств
+    function unitMake(spec, parent) {
+      const domainId = kinds.profileOf(spec.kind, "vms.domain/1") ? null : parent ? parent.domainId : spec.domainId;
+      const u = unitDraft(spec, parent, domainId);
+      hooksOf(spec.kind).forEach((h) => h.beforeCreate && h.beforeCreate(u, parent, pctx));
+      // uid — с цифрой своей таблицы; у потока — по камере (хук newUid)
+      const nu = parent && !parent.fresh ? hookOf(spec.kind, "newUid") : null;
+      u.uid = nu ? nu.newUid(u, parent, pctx) : uuid(TABLES[tableOf(spec.kind)] || "device");
+      if (u.name === undefined) u.name = unitName(spec.kind);
+      u.version = newVersion();
+      kinds.secretNames(spec.kind).forEach((n) => spec.properties && n in spec.properties && setSecret(u, n, spec.properties[n]));
+      u.status = Object.assign({ link: "unknown" }, u.status);
+      setApplied(u, true);
+      unitPut(u);
+      send("entity.created", { kind: u.kind, entityId: u.uid, version: u.version });
+      unitTreeTouch(u);
+      hooksOf(u.kind).forEach((h) => h.afterSet && h.afterSet(u, null, pctx));
+      delete u.spec;
+      return [u].concat(...(spec.children || []).map((c) => unitMake(c, u)));
+    }
+    // Удалить объект с потомками: снимок для отката (с секретами), события — от детей к родителю
+    function unitRemoveTree(u) {
+      const all = unitSubtree(u);
+      const snap = all.map((x) => ({ unit: clone(x), secrets: [...secrets.entries()].filter(([key]) => secretOfUnit(x.uid, key)) }));
+      all.slice().reverse().forEach((x) => {
+        store.remove(x.uid);
+        legacy.detach(x);
+        applying.delete(x.uid);
+        snap.find((s) => s.unit.uid === x.uid).secrets.forEach(([key]) => secrets.delete(key));
+        send("entity.deleted", { kind: x.kind, entityId: x.uid });
+        unitTreeTouch(x);
+      });
+      // Ссылки на удалённое у остальных — снять; откат вернёт (snap[0].refs)
+      snap[0].refs = refsCleanup(new Set(all.map((x) => x.uid)));
+      return snap;
+    }
+    const nullable = (s) => [].concat((s || {}).type || []).includes("null");
+    // Элемент массива ссылается на удалённое — сам или полем строки (extraArchives[].archiveId)
+    // Элемент массива держится на удалённом: сам — ссылка на него, или у строки обязательное поле ссылается на него
+    // (extraArchives[].archiveId). Необязательное поле строки (extraArchives[].replicaFrom) снимается, строка остаётся
+    // Ссылка снимается, если цель удалили и у x-ref нет onDelete: "keep" (висящая ссылка — норма профиля: источник replica)
+    const refGone = (s, v, gone) => !!s["x-ref"] && s["x-ref"].onDelete !== "keep" && gone.has(v);
+    const refHit = (s, x, gone) => !!s && x != null && (typeof x === "string" ? refGone(s, x, gone) : typeof x === "object" && !Array.isArray(x) && (s.required || []).some((k) => refHit((s.properties || {})[k], x[k], gone)));
+    // Значение без ссылок на удалённое: одиночная ссылка — null (схема null не допускает — undefined: свойство снимается),
+    // из массива уходит элемент, который на удалённом держится, у остальных элементов и вложенных объектов — то же по полям
+    function refStrip(s, v, gone) {
+      if (v == null || !s) return v;
+      if (typeof v === "string") return refGone(s, v, gone) ? (nullable(s) ? null : undefined) : v;
+      if (Array.isArray(v)) return v.filter((x) => !refHit(s.items, x, gone)).map((x) => refStrip(s.items, x, gone));
+      if (typeof v !== "object") return v;
+      const out = {};
+      Object.entries(v).forEach(([k, x]) => {
+        const y = refStrip((s.properties || {})[k], x, gone);
+        if (y !== undefined) out[k] = y;
+      });
+      return out;
+    }
+    /* Удалили объекты (gone — uid): у остальных объектов склада ссылки x-ref на них снимаются, как это делают хуки удаления
+       (removeDevice — детекторы записи; хранилища камер хук хранилища снимает по-своему). Версия объекта
+       растёт, в поток — entity.changed. Ответ — что вернуть откатом: [{uid, properties: прежние значения, version: после}] */
+    function refsCleanup(gone) {
+      const out = [];
+      const seen = new Set();
+      gone.forEach((id) => store.byRef(id).forEach((u) => {
+        if (gone.has(u.uid) || seen.has(u.uid) || !kinds.get(u.kind)) return;
+        seen.add(u.uid);
+        const names = [...new Set(kinds.refsOf(u).filter((r) => gone.has(r.uid)).map((r) => r.name))];
+        const schema = (kinds.get(u.kind).schema || {}).properties || {};
+        const before = {};
+        names.forEach((n) => {
+          const v = refStrip(schema[n], props(u)[n], gone);
+          // onDelete: "keep" — значение то же: свойство не трогается
+          if (JSON.stringify(v) === JSON.stringify(props(u)[n])) return;
+          before[n] = clone(props(u)[n]);
+          if (v === undefined) delete u.properties[n];
+          else u.properties[n] = v;
+        });
+        if (!Object.keys(before).length) return;
+        store.reindex(u.uid);
+        bump(u);
+        send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version });
+        out.push({ uid: u.uid, properties: before, version: u.version });
+      }));
+      return out;
+    }
+    /* Своё удаление профиля (хук remove) на путях ядра, затем — общая очистка ссылок x-ref на всё, что ушло со склада:
+       хранилище с томами, папка с подпапками, домен. Хук делает своё (хранилище переназначает камерам основное), остальные
+       ссылки снимает refsCleanup — кроме x-ref с onDelete: "keep" (replicaFrom: запись ждёт источник, SOURCE_GONE). Ответ
+       хука и refs — что сняли */
+    function hookRemove(rem, u, params) {
+      const was = new Set(unitSubtree(u).map((x) => x.uid).concat(dependentsOf(u).remove));
+      const res = Object.assign({}, rem.remove(u, params, pctx));
+      res.refs = refsCleanup(new Set([...was].filter((id) => !store.has(id))));
+      return res;
+    }
+    // Откат: ссылки возвращаются объектам, которые после очистки не меняли
+    function refsRestore(list) {
+      (list || []).forEach((r) => {
+        const u = store.get(r.uid);
+        if (!u || u.version !== r.version) return;
+        Object.entries(r.properties).forEach(([n, v]) => (u.properties[n] = clone(v)));
+        store.reindex(u.uid);
+        bump(u);
+        send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version });
+      });
+    }
+    // Откат удаления: объекты возвращаются с теми же uid, если uid свободны и родитель с доменом на месте; версия — новая
+    function unitRestore(snap) {
+      const root = snap[0].unit;
+      if (snap.some((s) => store.has(s.unit.uid))) return "NOT_SUPPORTED";
+      if ((root.parentId && !store.has(root.parentId)) || (root.domainId && !store.has(root.domainId))) return "NOT_FOUND";
+      snap.forEach((s) => {
+        const u = clone(s.unit);
+        if (u.folders) u.folders = u.folders.filter((f) => store.has(f));
+        if (u.folders && !u.folders.length) delete u.folders;
+        u.version = newVersion();
+        setApplied(u, true);
+        s.secrets.forEach(([key, value]) => secrets.set(key, value));
+        unitPut(u);
+        send("entity.created", { kind: u.kind, entityId: u.uid, version: u.version });
+        unitTreeTouch(u);
+      });
+      refsRestore(snap[0].refs);
+      return null;
+    }
+    // Удаление: возможность delete; объект и его потомки не заняты операцией (общее правило всех видов: том под format,
+    // камера под шагом — 409 BUSY на любом пути удаления: DELETE, /objects/delete, шаг delete); у вида со своим удалением
+    // (хук remove) — проверки хука (beforeDelete: последний домен, непустой без moveTo, занятость затронутого), без них —
+    // каскад ядра по parentId. Занятость — «кроме своей операции» внутри шага (heldNow), иначе — любая (held)
+    function unitDeleteErrs(u, params) {
+      const out = kindErrs(u.kind);
+      if (out.length) return out;
+      if (!capOf(u.kind, "delete")) return [err("NOT_SUPPORTED", "/kind", { kind: u.kind, capability: "delete" })];
+      const locked = lockedProblem(unitSubtree(u).map((x) => x.uid), heldNow || held);
+      if (locked) return [Object.assign(err("BUSY", undefined, locked.body.params), { status: 409 })];
+      const bad = hooksProblem(u.kind, "beforeDelete", [u, params || {}]);
+      if (bad) return [hookErr(bad, "", undefined, u.kind)];
+      if (hookOf(u.kind, "remove")) return [];
+      // Потомок вида с профилем (смысл удаления — у его пути) не уходит каскадом ядра
+      const foreign = unitSubtree(u).find((x) => !coreKind(x.kind));
+      return foreign ? [err("NOT_SUPPORTED", "/kind", { kind: foreign.kind, uid: foreign.uid })] : [];
+    }
+    // Перенос к другому родителю: возможность move, родитель — из UnitKind.parents, не свой потомок, в том же домене
+    // У вида со своим переносом (хук move: сервер — приём в домен и исключение) родителя и параметры судит хук (beforeMove),
+    // у остальных параметров переноса нет
+    function unitMoveErrs(u, parentId, params) {
+      const out = kindErrs(u.kind);
+      if (out.length) return out;
+      if (!capOf(u.kind, "move")) return [err("NOT_SUPPORTED", "/parentId", { capability: "move" })];
+      if (hookOf(u.kind, "move")) {
+        const bad = hooksProblem(u.kind, "beforeMove", [u, parentId == null ? null : parentId, params || {}]);
+        return bad ? [hookErr(bad, "", "/params/", u.kind)] : [];
+      }
+      const extra = Object.keys(params || {});
+      if (extra.length) return [err("VALIDATION_FAILED", `/params/${esc(extra[0])}`, { keyword: "additionalProperties" })];
+      const par = parentId == null ? null : store.get(parentId);
+      if (parentId != null && !par) return [err("VALIDATION_FAILED", "/parentId", { keyword: "x-ref" })];
+      if (!kinds.parentsOk(u.kind, par ? par.kind : null)) return [err("PARENT_MISMATCH", "/parentId", { kind: u.kind, parentKind: par ? par.kind : null })];
+      if (par && unitSubtree(u).some((x) => x.uid === par.uid)) return [err("PARENT_MISMATCH", "/parentId", { reason: "cycle" })];
+      if (par && par.domainId !== u.domainId) return [err("VALIDATION_FAILED", "/parentId", { keyword: "domain" })];
+      return [];
+    }
+    // Перенос со смыслом (хук move профиля). moveBack хука — как вернуть объект туда, где он сейчас: снимок до переноса — шаг
+    // отката, снимок после — то, что откат сверяет (here). Объект сменился (камера w2c вместо сервера) или стоит, где стоял, —
+    // возвращать нечего
+    function hookMove(mv, u, parentId, params) {
+      const back = mv.moveBack ? mv.moveBack(u, pctx) : null;
+      const unit = mv.move(u, parentId, params || {}, pctx);
+      const here = back && unit === u ? mv.moveBack(u, pctx) : null;
+      return { unit, before: here && JSON.stringify(here) !== JSON.stringify(back) ? { hookMove: true, back, here } : { hookMove: true } };
+    }
+    const sameHere = (u, want) => {
+      const h = hookOf(u.kind, "moveBack");
+      return !!h && JSON.stringify(h.moveBack(u, pctx)) === JSON.stringify(want);
+    };
+    function applyUnitMove(u, parentId) {
+      const was = u.parentId;
+      unitTreeTouch(u);
+      u.parentId = parentId == null ? null : parentId;
+      store.reindex(u.uid);
+      unitChanged(u, true);
+      return was;
+    }
+
+    /* Команды объекта (ActionDescriptor) у видов без профиля исполняются одинаково:
+       - право: ActionDescriptor.right {class?, level} — уровень класса доступа вида (нет class — основной класс вида) хотя бы у одной
+         живой роли: исключение объекта (objectAccess по uid), иначе папки объекта, иначе домен, иначе Role.kindAccess; ниже —
+         403 PERMISSION_DENIED, params.right — нужное право. Встроенная «Администратор» может всё;
+       - команда ruleOnly — только шагом правила: здесь её нет (404);
+       - параметры — по ActionDescriptor.params: ошибка — 422 с field /params/<имя>; без params в описании параметров быть не должно;
+       - объект без связи (status.link offline) — 409 DEVICE_OFFLINE, над объектом идёт операция — 409 BUSY;
+       - instant — ответ сразу: {result, unit}; longRunning — 202, операция из одного шага, шаг идёт по часам сервера;
+       - итог пишется в status.observed (версия настроек не меняется, в поток — entity.changed с payload.status):
+         парная команда — флаг: X и UN<X> или DIS<X> (ARM/DISARM, BYPASS/UNBYPASS) → observed[<x>ed] = true / false
+         (armed, bypassed); у команды без пары — observed[<код строчными>] = {at, result?} — когда выполнена;
+       - событие вида: если у вида есть событие с кодом команды или её причастием (ARM → ARM или ARMED, DISARM → DISARMED) —
+         запись журнала и journal.event (kind события, source — вид объекта). Других событий вида команда не порождает. */
+    const past = (w) => (w.endsWith("e") ? `${w}d` : `${w}ed`);
+    function actionFlag(kind, id) {
+      const low = id.toLowerCase(), names = new Set(((kinds.get(kind) || {}).actions || []).map((a) => a.id.toLowerCase()));
+      for (const pre of ["un", "dis"]) if (low.startsWith(pre) && names.has(low.slice(pre.length))) return { key: past(low.slice(pre.length)), value: false };
+      if (names.has(`un${low}`) || names.has(`dis${low}`)) return { key: past(low), value: true };
+      return null;
+    }
+    // Право {class?, level} на объект u — у одной из живых ролей человека; нет — 403 с нужным правом
+    function rightProblem(u, right, text) {
+      const need = engine.rightOf(right ? { right } : null, u.kind);
+      if (!need || myRoleIds().some((id) => engine.roleAllows(id, u.uid, need))) return null;
+      return problem(403, "PERMISSION_DENIED", text, { params: { right: { class: need.cls, level: need.level } } });
+    }
+    const actionRightProblem = (u, desc) => rightProblem(u, desc.right, `Команде ${desc.id} нужен уровень ${(desc.right || {}).level}`);
+    // Команда, которую можно отдать объекту: есть в описании вида, не только шагом правила, scope — объекту (нет поля — объекту)
+    const actionScope = (desc) => desc.scope || ["unit"];
+    const unitCommand = (kind, id) => {
+      const desc = kinds.action(kind, id);
+      return desc && !desc.ruleOnly && actionScope(desc).includes("unit") ? desc : null;
+    };
+    // Команда, которую объект называет своей (properties.operations: реле под замком СКУД — on, off), а описание вида не знает:
+    // устройство её не выполнит — 409 DEVICE_REFUSED reason noOperation, как /devices/{id}/operations/{op} базы (без связи —
+    // DEVICE_OFFLINE). Команды нет ни там, ни там — null: 404
+    function strayCommandProblem(u, id) {
+      if (!((props(u).operations || []).includes(id))) return null;
+      if ((u.status || {}).link === "offline") return problem(409, "DEVICE_OFFLINE", "Устройство без связи");
+      return problem(409, "DEVICE_REFUSED", "Такой команды у устройства нет", { params: { reason: "noOperation", operation: id } });
+    }
+    // Команда вида без объекта (scope ∋ kind)
+    const kindCommand = (kind, id) => {
+      const desc = kinds.action(kind, id);
+      return desc && !desc.ruleOnly && actionScope(desc).includes("kind") ? desc : null;
+    };
+    // Право команды вида: объекта нет — судит умолчание роли по классу (Role.kindAccess); встроенная «Администратор» — всё
+    function kindRightProblem(kind, desc) {
+      const need = engine.rightOf(desc.right ? { right: desc.right } : null, kind);
+      if (!need) return null;
+      const acc = (kinds.get(kind) || {}).access;
+      // Класс — свой у вида или другого вида набора (Right.class): уровни — у того, кто его объявил
+      const classesOf = (a) => (a ? [a].concat(a.also || []) : []);
+      const cls = classesOf(acc).find((c) => c.class === need.cls) || kinds.list().flatMap((k) => classesOf(k.access)).find((c) => c.class === need.cls);
+      const levels = cls ? cls.levels : ["view", "edit", "admin"];
+      const ok = (v) => !!v && levels.indexOf(v) >= levels.indexOf(need.level) && levels.indexOf(need.level) >= 0;
+      if (db.access.roles.some((r) => myRoleIds().includes(r.id) && (r.global.unr || ok((r.kindAccess || {})[need.cls])))) return null;
+      return problem(403, "PERMISSION_DENIED", `Команде ${desc.id} нужен уровень ${need.level}`, { params: { right: { class: need.cls, level: need.level } } });
+    }
+    function actionParamErrs(desc, params) {
+      const C = typeof window !== "undefined" ? window.ConsolemContract : null;
+      if (desc.params) return C ? C.validate(desc.params, params, "/params", { dir: "write" }).map((e) => err(e.code, e.field, e.params)) : [];
+      return Object.keys(params).map((n) => err("VALIDATION_FAILED", `/params/${esc(n)}`, { keyword: "additionalProperties" }));
+    }
+    // Итог по ActionDescriptor.result: у встроенного сервера — постоянные значения по типу
+    function actionResult(desc) {
+      const out = {};
+      Object.entries(((desc.result || {}).properties) || {}).forEach(([n, s]) => {
+        const t = [].concat(s.type || [])[0];
+        if (t === "number" || t === "integer") out[n] = 1;
+        else if (t === "boolean") out[n] = true;
+        else if (t === "string") out[n] = "";
+      });
+      return out;
+    }
+    // Всё, что мешает выполнить команду сейчас: {status, body} или null
+    function actionProblem(u, desc, params) {
+      const right = actionRightProblem(u, desc);
+      if (right) return right;
+      const errs = actionParamErrs(desc, params);
+      if (errs.length) return errsProblem(errs, "Параметры команды не подходят под ActionDescriptor.params");
+      if (u.status && u.status.link === "offline") return problem(409, "DEVICE_OFFLINE", "Объект без связи: команда не дойдёт");
+      return null;
+    }
+    // Поведение команды — у хука профиля: своё по коду или общее ("*": команды единицы СКУД из её operations)
+    function actionRun(kind, id) {
+      const h = hooksOf(kind).find((x) => x.actions && (x.actions[id] || x.actions["*"]));
+      return h ? h.actions[id] || h.actions["*"] : null;
+    }
+    function runAction(u, desc, params) {
+      const at = iso(now());
+      const result = actionResult(desc);
+      const st = u.status || (u.status = {});
+      const obs = st.observed || (st.observed = {});
+      const flag = actionFlag(u.kind, desc.id);
+      if (flag) obs[flag.key] = flag.value;
+      else obs[desc.id.toLowerCase()] = Object.assign({ at }, Object.keys(result).length ? { result: clone(result) } : {});
+      send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version, payload: { status: true } });
+      const low = desc.id.toLowerCase();
+      const ev = ((kinds.get(u.kind) || {}).events || []).find((e) => [low, past(low)].includes(String(e.id).toLowerCase()));
+      if (ev) {
+        const e = { id: uuid("journal"), at, occurredAt: at, category: ["alarm", "critical", "error"].includes(ev.severity) ? "alarm" : "info",
+          text: `${(ev.label || {}).text || ev.id}: ${u.name}`, deviceId: u.uid, source: u.kind, kind: ev.id, fields: Object.assign({ action: desc.id }, Object.keys(params || {}).length ? { params: clone(params) } : {}) };
+        db.journal.unshift(e);
+        send("journal.event", { entityId: u.uid, payload: clone(e) });
+      }
+      return result;
+    }
+
+    // Шаг операции по uid: patch, action (+params), delete, folders, createUnit, move (+params). Служебные шаги отката и повтора:
+    // restore (вернуть удалённое), unitRemove (снять созданное), move (вернуть родителя); expectUnit, expectParent — значения,
+    // которые шаг сверяет перед тем, как выполниться (чужая правка после — VERSION_MISMATCH). Смысл профиля — хуки (удаление,
+    // перенос, команды, сервер-исполнитель). Отказ — по строке, params.field — указатель. Внутри шага занятость «кроме этой
+    // операции» видят и хуки (heldNow)
+    function runUnitItem(op, item) {
+      heldNow = heldBy(item);
+      coreMode = true;
+      // План объекта: правки этого и следующих шагов по тому же uid, слитые (камера сверяет запись целиком)
+      const later = item.req.patch ? op.items.slice(op.items.indexOf(item)).filter((x) => x.req.uid === item.req.uid && x.req.patch && x.req.patch.properties) : [];
+      planNow = later.length > 1 ? { properties: Object.assign({}, ...later.map((x) => x.req.patch.properties)) } : null;
+      try {
+        return runUnitStep(op, item);
+      } finally {
+        heldNow = null;
+        coreMode = false;
+        planNow = null;
+      }
+    }
+    function runUnitStep(op, item) {
+      const r = item.req;
+      const fail = (code, params) => Object.assign(item, { state: "fail", code }, params ? { params } : {});
+      // Указатель (OperationItem.params.field — JSON Pointer в теле шага) старше одноимённого params ошибки (x-bound-to: имя поля)
+      const failErr = (e) => fail(e.code, Object.assign({}, e.params || {}, e.field !== undefined ? { field: e.field } : {}));
+      const ok = (version) => Object.assign(item, { state: "ok", code: null }, version !== undefined ? { version } : {});
+      if (r.restore) {
+        const bad = unitRestore(r.restore);
+        if (bad) return fail(bad);
+        item.before = {};
+        return ok(store.get(r.restore[0].unit.uid).version);
+      }
+      if (r.unitRemove) {
+        const made = store.get(r.unitRemove);
+        if (!made) return fail("NOT_FOUND");
+        const sub = unitSubtree(made).map((x) => x.uid);
+        if (made.version !== r.expect || lockedProblem(sub, heldBy(item))) return fail("NOT_SUPPORTED");
+        // На созданное уже ссылаются (камера пишет в созданное хранилище): снять его — снять и чужую настройку
+        if (sub.some((id) => store.byRef(id).some((x) => !sub.includes(x.uid)))) return fail("NOT_SUPPORTED");
+        const rem = hookOf(made.kind, "remove");
+        if (rem) hookRemove(rem, made, {});
+        else unitRemoveTree(made);
+        item.before = {};
+        return ok();
+      }
+      const u = store.get(r.uid);
+      if (!u) return fail("NOT_FOUND");
+      // Шаг createUnit меняет не цель, а создаёт под ней: судит вид создаваемого (хозяин строки может быть камерой)
+      const kindBad = r.createUnit || (r.folders && membersOnly(u, { folders: r.folders })) ? [] : kindErrs(u.kind);
+      if (kindBad.length) return failErr(kindBad[0]);
+      if ((r.expectUnit && !sameUnitFields(u, r.expectUnit)) || (r.expectParent !== undefined && (u.parentId || null) !== r.expectParent) || (r.expectHere && !sameHere(u, r.expectHere))) return fail("VERSION_MISMATCH");
+      // Изменение применяет сервер-исполнитель (хук executor): без связи — отказ. Папки — не запись на сервер устройства: их судит
+      // профиль папки (центр домена на связи), как PATCH {folders}
+      // Правка только папок (Unit.folders) — дело центра домена, не сервера устройства: как PATCH /units {folders}
+      const via = (r.patch && !foldersOnly(r.patch)) || r.delete ? executorOf(u) : null;
+      if (via && via.online === false) return fail("SERVER_OFFLINE");
+      if (r.patch) {
+        // Копия: хук может привести правку к виду записи (имя без пробелов по краям), исходная нужна повтору
+        const patch = clone(r.patch);
+        const errs = unitPatchErrs(u, patch);
+        if (errs.length) return failErr(errs[0]);
+        const held = hooksProblem(u.kind, "beforeApply", [u, patch, true]);
+        if (held) return failErr(hookErr(held, "", undefined, u.kind));
+        item.before = { unitPatch: applyUnitPatch(u, patch) };
+        item.after = unitFieldsOf(u, patch);
+        item.secret = touchesSecret(u, patch);
+        unitChanged(u, true);
+      } else if (r.move !== undefined) {
+        const errs = unitMoveErrs(u, r.move, r.params);
+        if (errs.length) return failErr(errs[0]);
+        const mv = hookOf(u.kind, "move");
+        if (mv) {
+          const res = hookMove(mv, u, r.move, r.params);
+          item.before = res.before;
+          // Перенос заменил объект (сервер вида camera принят камерой, запись сервера снята): итог называет новый объект
+          if (res.unit.uid !== u.uid) item.createdId = res.unit.uid;
+          return ok(res.unit.version);
+        }
+        item.before = { parentId: applyUnitMove(u, r.move) };
+        item.after = { parentId: u.parentId };
+      } else if (r.action) {
+        const desc = unitCommand(u.kind, r.action);
+        if (!desc) {
+          const stray = strayCommandProblem(u, r.action);
+          return stray ? fail(stray.body.code, Object.assign({ field: "/action" }, stray.body.params || {})) : fail("NOT_FOUND", { field: "/action" });
+        }
+        // Долгая команда с поведением уже запущена (POST /units/{uid}/actions/…): шаг — её срок по часам сервера
+        if (r.until !== undefined) {
+          item.before = {};
+          return ok(u.version);
+        }
+        const bad = actionProblem(u, desc, r.params || {});
+        if (bad) return fail(bad.body.code, Object.assign({}, bad.body.params || {}, bad.body.field ? { field: bad.body.field } : {}));
+        const run = actionRun(u.kind, desc.id);
+        if (run) {
+          const res = run(u, clone(r.params || {}), pctx, desc.id);
+          if (Profiles.isProblem(res)) return failErr(hookErr(res, "", "/params/", u.kind));
+        } else runAction(u, desc, r.params || {});
+        item.before = {};
+      } else if (r.delete) {
+        const errs = unitDeleteErrs(u, {});
+        if (errs.length) return failErr(errs[0]);
+        const version = u.version;
+        const rem = hookOf(u.kind, "remove");
+        if (rem) {
+          // Своё удаление (каскад профиля): откат его не возвращает, как удаление старых путей
+          hookRemove(rem, u, {});
+          item.before = { deleted: true };
+          return ok(version);
+        }
+        // Потомок, над которым идёт другая операция (или другой шаг этой), — как у DELETE /units/{uid}: отказ BUSY
+        const locked = lockedProblem(unitSubtree(u).map((x) => x.uid), heldBy(item));
+        if (locked) return fail("BUSY", locked.body.params);
+        item.before = { restore: unitRemoveTree(u) };
+        return ok(version);
+      } else if (r.folders) {
+        const errs = folderChangeErrs(u, r.folders);
+        if (errs.length) return failErr(errs[0]);
+        item.before = { folders: applyUnitPatch(u, { folders: r.folders }).folders };
+        unitChanged(u, false);
+      } else if (r.createUnit) {
+        const errs = unitCreateErrs(r.createUnit, u, "");
+        if (errs.length) return failErr(errs[0]);
+        const made = unitMake(r.createUnit, u)[0];
+        Object.assign(item, { createdId: made.uid, createdVersion: made.version, before: { unitRemove: made.uid } });
+      } else return fail("NOT_SUPPORTED");
+      return ok(u.version);
+    }
+    // Шаг отката по выполненному шагу x: что вернуть. Команду и папки назад не вернуть (как папки старых путей), секрет — тоже
+    function unitUndo(x) {
+      const r = x.req, uid = r.uid;
+      if (r.patch) {
+        if (x.secret) return { uid, undoable: false, why: "secret" };
+        // Свойства, которые откат не возвращает (хук fixed: адрес и объём тома)
+        const fixed = hooksOf(unitKindOf(x)).flatMap((h) => h.fixed || []);
+        if (Object.keys(r.patch.properties || {}).some((n) => fixed.includes(n))) return { uid, undoable: false };
+        return { uid, patch: x.before.unitPatch, expectUnit: x.after, forward: r.patch };
+      }
+      if (r.delete) return x.before.deleted ? { uid, undoable: false } : { uid, restore: x.before.restore };
+      if (r.createUnit) return { uid, unitRemove: x.createdId, expect: x.createdVersion };
+      if (r.move !== undefined && x.before.hookMove) {
+        // Перенос со смыслом: назад — в прежнее место (у сервера — домен и распределён ли), если там, куда перенесли, он и стоит
+        const b = x.before;
+        return b.back ? { uid, move: b.back.parentId, params: clone(b.back.params), expectHere: b.here, forward: { move: r.move, params: clone(r.params || {}) } } : { uid, undoable: false };
+      }
+      if (r.move !== undefined) return { uid, move: x.before.parentId, expectParent: x.after.parentId };
+      return { uid, undoable: false, why: r.folders ? "folders" : "action" };
+    }
+    // Вид объекта шага: объект на складе, а если его уже нет — вид из снимка удаления
+    const unitKindOf = (x) => (store.get(x.req.uid) || (x.before.restore ? x.before.restore[0].unit : {})).kind;
+    // Шаг повтора по удачному шагу отката: то же, что делал исходный шаг. Снятое откатом созданное заново не создаётся
+    function unitRedo(x) {
+      const r = x.req, uid = r.uid;
+      if (r.patch) return { uid, patch: r.forward, expectUnit: x.after };
+      if (r.restore) return { uid, delete: true };
+      if (r.move !== undefined && r.forward) return x.before.here ? { uid, move: r.forward.move, params: clone(r.forward.params), expectHere: x.before.here } : { uid, undoable: false };
+      if (r.move !== undefined) return { uid, move: r.expectParent, expectParent: r.move };
+      return { uid, undoable: false };
+    }
+    // Шаг по uid в POST /operations: ровно одно действие; params — только у action и move. Цель — объект склада
+    const UNIT_STEP = ["patch", "action", "delete", "folders", "createUnit", "move"];
+    function unitStepProblem(r, i) {
+      const at = `/items/${i}`;
+      if (UNIT_STEP.filter((k) => r[k] !== undefined).length !== 1) return problem(422, "VALIDATION_FAILED", `У шага ровно одно из ${UNIT_STEP.join(", ")}`, { field: at });
+      if (r.params !== undefined && r.action === undefined && r.move === undefined) return problem(422, "VALIDATION_FAILED", "params — только у action и move", { field: `${at}/params` });
+      // Объекта шага нет — как состав папки базы (/folders/{id}/devices): 422 на всю операцию, указатель — uid шага
+      if (!store.get(r.uid)) return problem(422, "VALIDATION_FAILED", `Объекта ${r.uid} нет: операция не запущена, ничего не изменено`, { field: `${at}/uid`, params: { keyword: "x-ref", targetId: r.uid } });
+      return null;
+    }
+    // Версия цели нужна шагам, которые меняют сам объект: patch, delete, folders, move. Команде и созданию дочернего — нет
+    const unitStepNeedsVersion = (r) => r.patch !== undefined || r.delete !== undefined || r.folders !== undefined || r.move !== undefined;
+    // Состав папок в шагах проверяется до запуска, как состав папки в базе (/folders/{id}/devices, шаг folderIds у /operations):
+    // папки нет или она в другом домене, запись в папки не входит — отклоняется вся операция, ничего не применено. Ответ —
+    // отказ шага: field — указатель в теле запроса (/items/{i}/folders/0, /items/{i}/patch/folders/0), params.targetId — объект
+    // шага. Права и связь с центром домена — при выполнении (как у шага базы): у шагов одной папки отказ одинаков у всех.
+    // Прочее (описание вида, смысл профиля, связь сервера, перенос, удаление, команда) судится при выполнении, по строке
+    function unitStepsPreflight(items) {
+      for (const [i, r] of items.entries()) {
+        const folders = r.folders !== undefined ? r.folders : r.patch && r.patch.folders;
+        if (!folders) continue;
+        const u = store.get(r.uid), at = r.folders !== undefined ? `/items/${i}` : `/items/${i}/patch`;
+        let errs = !capOf(u.kind, "folders") ? [err("NOT_SUPPORTED", "/folders", { capability: "folders" })] : foldersErrs(u.kind, u.domainId, folders, "");
+        if (!errs.length && tableOf(u.kind) === "devices" && folders.some((f) => !(u.folders || []).includes(f)) && !folderable(legacy.view(u))) errs = [err("NOT_SUPPORTED", "/folders")];
+        if (!errs.length) continue;
+        const e = errs[0];
+        return problem(422, e.code, e.code === "NOT_SUPPORTED" ? "Эта запись в папки не входит: операция не запущена, ничего не изменено" : "Папки нет в домене объекта: операция не запущена, ничего не изменено",
+          { field: at + e.field, params: Object.assign({}, e.params || {}, { targetId: r.uid }) });
+      }
+      return null;
+    }
+    // Мгновенный шаг (patch, folders, move: без команды устройству, удаления и создания) — у операции с wait выполняется
+    // в самом запросе, как быстрые записи базы (/devices/update, /folders/{id}/devices, /servers/assign)
+    const unitStepInstant = (r) => r.patch !== undefined || r.folders !== undefined || r.move !== undefined;
+    /* ----- Домен: итог круга — хук vms.domain/1 (в ядре — status.observed.stateSummary) ----- */
+
     /* ----- Большой набор ----- */
 
     // stand.large: устройства, серверы, папки, хранилища считаются при загрузке из номера: в файле набора только числа.
@@ -2519,30 +3162,218 @@
       db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
       db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
       db.folders = Array.from({ length: L.folders }, (x, i) => ({ id: uuidOf("4", 1000 + i), name: `Папка ${i + 1}`, domainId: dom, parentId: null, deviceIds: [], version: "v0" }));
-      db.devices = new Array(L.cameras);
+      // Камеры — сразу объектами склада: 250 000 записей через перевод старой таблицы шли бы дольше.
       // Первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
-      const onServer = L.serverCameras, firstBranch = L.firstBranch;
+      const onServer = L.serverCameras, firstBranch = L.firstBranch, folders = db.folders.map((f) => f.id);
+      const servers = db.servers.map((s) => s.id), archives = db.archives.map((a) => a.id);
       for (let i = 0; i < L.cameras; i++) {
         const id = uuidOf("3", 100000 + i);
         const sid = i < firstBranch ? 0 : i < onServer ? 1 + ((i - firstBranch) % (L.servers - 1)) : -1;
-        const d = { id, type: "camera", parentId: null, domainId: dom, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, online: i % 50 !== 7, enabled: i % 200 !== 11, version: "v0" };
-        if (sid >= 0) {
-          d.serverId = db.servers[sid].id;
-          d.archiveId = db.archives[sid].id;
-          d.recordMode = "always";
-        }
-        db.devices[i] = d;
-        if (i % 40 === 0 && db.folders.length) db.folders[(i / 40) % db.folders.length].deviceIds.push(id);
+        const u = { uid: id, kind: "camera", parentId: null, domainId: dom, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, version: "v0",
+          properties: { enabled: i % 200 !== 11 }, status: { link: i % 50 !== 7 ? "online" : "offline" } };
+        if (sid >= 0) Object.assign(u.properties, { serverId: servers[sid], archiveId: archives[sid], recordMode: "always" });
+        if (i % 40 === 0 && folders.length) u.folders = [folders[(i / 40) % folders.length]];
+        store.put(u);
       }
+      legacy.rebuild();
     }
+
+    /* ===== Выгрузка (ADR-0117): задание — части по камерам, ход по часам стенда, файлы со сроком =====
+       Как api/server.js базы, но камера — объект по uid, вид которого реализует vms.camera/1; записи камеры — шкала хука
+       vms.timeline/1 (profiles.js). Не камера — 422 NOT_SUPPORTED, нет объекта — 404, field — /cameras/i */
+    const expAll = () => db.exports || (db.exports = []);
+    const expRef = () => db.reference.export;
+    // Права человека: стенд правит их через stand.exportGrant (тесты), по умолчанию можно всё и без пароля
+    const expGrant = () => Object.assign({ allowed: true, passwordRequired: false, privacyForced: false, supervisorRequired: false, watermark: false, depthHours: 0 }, db.stand.exportGrant || {});
+    const expBad = (status, code, message, field, params) => ({ status, body: Object.assign({ code, message }, field ? { field } : {}, params ? { params } : {}) });
+    // Камера заказа — запись-представление объекта склада; не камера или нет объекта — null
+    const expCam = (uid) => {
+      const u = uid == null ? null : store.get(uid);
+      return u && tableOf(u.kind) === "devices" && isCamera(u) ? legacy.view(u) : null;
+    };
+    const expOverlap = (rec, a, b) => hTimeline.camSpans(rec, pctx).some((s) => s.startMs < b && s.endMs > a);
+    const expSec = (body) => (body.periods || []).reduce((n, p) => n + Math.max(0, (Date.parse(p.to) - Date.parse(p.from)) / 1000), 0);
+    const expTranscode = (b) => {
+      const q = b.quality || {}, t = b.titles || {};
+      return b.mode === "video" && ((q.codec && q.codec !== "source") || (q.resolution && q.resolution !== "source") || (q.compression && q.compression !== "default") || q.fpsDivisor > 1 || !!q.maxFps || q.speed > 1
+        || ((t.fields || []).length > 0 && t.overlay !== "soft") || b.cameras.some((c) => c.area));
+    };
+    const expClean = (s) => String(s).replace(/[\\/:*?"<>|\s]+/g, "_").replace(/^_+|_+$/g, "");
+    function expNames(b) {
+      const f = expRef().formats.find((x) => x.id === b.format), zip = !!b.password && f && f.password === "zip";
+      const ext = zip ? "zip" : b.format;
+      const at = b.mode === "frame" ? (b.source === "live" ? now() : Date.parse(b.at)) : Math.min(...(b.periods || []).map((p) => Date.parse(p.from)));
+      // Время в имени — по часам системы (Me.timezone), как его видит оператор
+      const stamp = new Date(Number.isFinite(at) && at > 0 ? at : now()).toLocaleString("sv-SE", { timeZone: db.timezone || "UTC" }).replace(/[-:]/g, "").replace(" ", "-");
+      const cam = (c) => { const rec = expCam(c.uid), srv = rec && rec.serverId && byId("servers", rec.serverId); return expClean(`${srv ? srv.name : "VMS"}_${rec ? rec.name : c.uid}`); };
+      if (b.singleFile && b.cameras.length > 1) return [{ name: `${expClean(b.name || `${b.cameras.length}_камер`)}[${stamp}].${ext}` }];
+      return b.cameras.map((c, i) => ({ uid: c.uid, name: `${b.name ? expClean(b.name) + (b.cameras.length > 1 ? `_${i + 1}` : "") : cam(c)}[${stamp}].${ext}` }));
+    }
+    // Все отказы заказа по порядку полей. Первый — ответ POST /exports, все — POST /exports/check
+    function expProblems(b) {
+      const out = [], R = expRef(), L = R.limits, g = expGrant(), add = (status, code, message, field, params) => out.push(expBad(status, code, message, field, params));
+      if (!g.allowed) add(403, "PERMISSION_DENIED", "Нет права на выгрузку");
+      if (g.refusal) add(403, "PERMISSION_DENIED", g.refusal);
+      const f = R.formats.find((x) => x.id === b.format), live = b.source === "live";
+      if (!f) add(422, "NOT_SUPPORTED", "Такого формата нет", "/format");
+      else if (f.kind !== b.mode || (live ? !f.entries.includes("live") : !f.entries.includes("archive"))) add(422, "NOT_SUPPORTED", "Формат не подходит к выгрузке", "/format");
+      if (b.mode === "video" && !can("exportVideo")) add(422, "NOT_SUPPORTED", "Видео система не выгружает", "/mode");
+      if (b.mode === "frame" && !live && !can("exportFrame")) add(422, "NOT_SUPPORTED", "Кадр архива система не выгружает", "/mode");
+      if (live && (b.mode !== "frame" || !can("exportLiveFrame"))) add(422, "NOT_SUPPORTED", "Живым бывает только кадр", "/source");
+      if (b.cameras.length > L.maxCameras) add(422, "LIMIT_EXCEEDED", "Слишком много камер", "/cameras", { limit: "maxCameras", max: L.maxCameras });
+      if (b.cameras.length > 1 && !can("exportMultiCamera")) add(422, "NOT_SUPPORTED", "Одна камера в задании", "/cameras");
+      if (b.cameras.length > 1 && b.mode === "frame") add(422, "NOT_SUPPORTED", "Кадр — одной камеры", "/cameras");
+      b.cameras.forEach((c, i) => {
+        const u = store.get(c.uid), rec = expCam(c.uid), w = `/cameras/${i}`;
+        if (!u) return add(404, "NOT_FOUND", "Камеры нет", w);
+        if (!rec) return add(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует vms.camera/1: выгрузка — только у камеры`, w, { kind: u.kind, profile: "vms.camera/1" });
+        if ((db.stand.otherCluster || {})[rec.id]) add(409, "OTHER_CLUSTER", "Камера другого кластера: выгрузка через него", w, { url: db.stand.otherCluster[rec.id] });
+        if ((db.stand.exportDenied || []).includes(rec.id)) add(403, "PERMISSION_DENIED", "Нет права на эту камеру", w);
+        if (live && rec.online === false) add(409, "DEVICE_OFFLINE", "Камера без связи", w);
+        const a = c.area;
+        if (a) {
+          if (!can("exportArea")) add(422, "NOT_SUPPORTED", "Область кадра система не обрезает", `${w}/area`);
+          else if (!(a.w > 0 && a.h > 0 && a.x + a.w <= 1 + 1e-9 && a.y + a.h <= 1 + 1e-9)) add(422, "VALIDATION_FAILED", "Область выходит за кадр или пуста", `${w}/area`);
+        }
+      });
+      if (b.mode === "video") {
+        const ps = b.periods || [];
+        if (!ps.length) add(422, "VALIDATION_FAILED", "Укажите отрезок", "/periods");
+        if (ps.length > L.maxPeriods) add(422, "LIMIT_EXCEEDED", "Слишком много отрезков", "/periods", { limit: "maxPeriods", max: L.maxPeriods });
+        if (ps.length > 1 && !can("exportMultiPeriod")) add(422, "NOT_SUPPORTED", "Один отрезок в задании", "/periods");
+        ps.forEach((p, i) => { if (!(Date.parse(p.to) > Date.parse(p.from))) add(422, "VALIDATION_FAILED", "Конец позже начала", `/periods/${i}/to`); else if (Date.parse(p.from) > now()) add(422, "VALIDATION_FAILED", "Отрезок в будущем", `/periods/${i}/from`); });
+        if (expSec(b) * b.cameras.length > L.maxTotalSec) add(422, "LIMIT_EXCEEDED", "Видео в задании слишком много", "/periods", { limit: "maxTotalSec", max: L.maxTotalSec });
+        const recs = b.cameras.map((c) => expCam(c.uid)).filter(Boolean);
+        ps.forEach((p, i) => { if (Date.parse(p.to) > Date.parse(p.from) && recs.length && !recs.some((r) => expOverlap(r, Date.parse(p.from), Date.parse(p.to)))) add(422, "NO_RECORDING", "В отрезке нет записи", `/periods/${i}`); });
+      }
+      if (b.mode === "frame" && !live) {
+        const at = Date.parse(b.at), rec = expCam((b.cameras[0] || {}).uid);
+        if (!(at > 0)) add(422, "VALIDATION_FAILED", "Укажите момент кадра", "/at");
+        else if (rec && !expOverlap(rec, at - 10000, at + 1)) add(422, "NO_RECORDING", "В этот момент записи нет", "/at");
+      }
+      if (b.singleFile && b.cameras.length > 1 && !(can("exportSingleFile") && f && f.singleFile === "tracks")) add(422, "NOT_SUPPORTED", "«В один файл» — только MKV", "/singleFile");
+      if (b.password && !can("exportPassword")) add(422, "NOT_SUPPORTED", "Пароль система не ставит", "/password");
+      if (g.passwordRequired && !b.password) add(422, "PASSWORD_REQUIRED", "Политика требует пароль", "/password");
+      const q = b.quality || {};
+      if (q.codec && f && !f.codecs.includes(q.codec)) add(422, "NOT_SUPPORTED", "Кодек не подходит к формату", "/quality/codec");
+      if (expTranscode(Object.assign({}, b, { cameras: [] })) && !can("exportTranscode")) add(422, "NOT_SUPPORTED", "Перекодирование система не делает", "/quality");
+      if ((b.titles || {}).fields && b.titles.fields.length && !can("exportTitles")) add(422, "NOT_SUPPORTED", "Титры система не накладывает", "/titles");
+      if (((b.titles || {}).eventSource || {}).on && !can("exportEventTitles")) add(422, "NOT_SUPPORTED", "Титров источника событий система не накладывает", "/titles/eventSource");
+      if ((b.titles || {}).overlay === "soft" && f && !f.softTitles) add(422, "NOT_SUPPORTED", "Программные титры — не в этом формате", "/titles/overlay");
+      const sp = b.special || {};
+      if (sp.audio && !can("exportAudio")) add(422, "NOT_SUPPORTED", "Звук система не выгружает", "/special/audio");
+      if (sp.player && !(can("exportPlayer") && f && f.player)) add(422, "NOT_SUPPORTED", "Плеера нет", "/special/player");
+      if (sp.maxFileMb > L.maxFileMbMax) add(422, "LIMIT_EXCEEDED", "Часть файла больше предела", "/special/maxFileMb", { limit: "maxFileMbMax", max: L.maxFileMbMax });
+      if (b.highlight && !can("exportTracks")) add(422, "NOT_SUPPORTED", "Треков система не рисует", "/highlight");
+      if (b.privacy && b.privacy.mode !== "none" && !can("exportPrivacy")) add(422, "NOT_SUPPORTED", "Маскирования нет", "/privacy");
+      if (b.supervisor && !can("accessSupervision")) add(422, "NOT_SUPPORTED", "Подтверждения супервизора нет", "/supervisor");
+      if (b.destination === "cloud" && !can("exportCloud")) add(422, "NOT_SUPPORTED", "Выгрузки в облако нет", "/destination");
+      return out;
+    }
+    const expPublic = (b) => { const r = clone(b); delete r.password; if (r.supervisor) delete r.supervisor.password; delete r.idempotencyKey; return r; };
+    // Ход части: длительность по объёму, кадр — за секунду с небольшим. Состояние считается в tick, не по таймеру браузера
+    let expWork = new Map();
+    function expMake(b, retryOf) {
+      const g = expGrant(), live = b.source === "live", t = now(), names = expNames(b);
+      const span = b.mode === "video" ? { from: iso(Math.min(...b.periods.map((p) => Date.parse(p.from)))), to: iso(Math.max(...b.periods.map((p) => Date.parse(p.to)))) } : { at: iso(live ? t : Date.parse(b.at)) };
+      const x = { id: uuid("export"), state: "queued", createdAt: iso(t), by: myLogin(), progress: { percent: 0, done: 0, total: b.cameras.length },
+        parts: b.cameras.map((c) => Object.assign({ uid: c.uid, state: "wait", percent: 0 }, span)), files: [], request: expPublic(b),
+        enforced: { privacy: g.privacyForced, watermark: g.watermark, password: g.passwordRequired }, transcode: expTranscode(b) };
+      if (b.supervisor) x.supervisedBy = b.supervisor.login;
+      if (retryOf) x.retryOf = retryOf;
+      const sec = expSec(b), dur = b.mode === "frame" ? 1200 : Math.min(2500 + (sec / 3600) * (x.transcode ? 9000 : 4000), 15000);
+      expWork.set(x.id, { start: t + 300, dur, names, sentAt: 0, sizes: b.cameras.map(() => (b.mode === "frame" ? 180000 + Math.floor(Math.random() * 90000) : Math.max(1, Math.round(sec * (x.transcode ? 220000 : 500000))))) });
+      expAll().push(x);
+      return x;
+    }
+    function expPartFate(x, i) {
+      const b = x.request, rec = expCam(x.parts[i].uid), fail = (db.stand.exportFail || {})[x.parts[i].uid];
+      if (fail) return { state: "fail", code: fail };
+      if (!rec) return { state: "fail", code: "unreachable" };
+      if (b.source === "live") return rec.online === false ? { state: "fail", code: "offline" } : { state: "ok" };
+      if (b.mode === "frame") return expOverlap(rec, Date.parse(b.at) - 10000, Date.parse(b.at) + 1) ? { state: "ok" } : { state: "fail", code: "no_recording" };
+      const has = b.periods.map((p) => expOverlap(rec, Date.parse(p.from), Date.parse(p.to)));
+      if (!has.some(Boolean)) return { state: "fail", code: "no_recording" };
+      const spans = hTimeline.camSpans(rec, pctx);
+      const full = b.periods.every((p) => spans.some((s) => s.startMs <= Date.parse(p.from) && s.endMs >= Date.parse(p.to)));
+      return full ? { state: "ok" } : { state: "ok", partial: true };
+    }
+    const expMedia = { mkv: "video/x-matroska", mp4: "video/mp4", avi: "video/x-msvideo", jpg: "image/jpeg", pdf: "application/pdf", zip: "application/zip" };
+    function expFinish(x, w) {
+      const done = x.parts.filter((p) => p.state === "ok");
+      x.state = x.state === "cancelled" ? "cancelled" : done.length ? "done" : "failed";
+      x.finishedAt = iso(now());
+      if (x.state === "done") {
+        const keep = now() + expRef().limits.keepSec * 1000, single = w.names.length === 1 && x.parts.length > 1;
+        x.files = (single ? [w.names[0]] : x.parts.map((p, i) => (p.state === "ok" ? w.names[i] : null))).map((n, i) => n && {
+          id: `f${i + 1}`, uid: single ? undefined : x.parts[i].uid, name: n.name, sizeBytes: single ? w.sizes.reduce((a, b2) => a + b2, 0) : w.sizes[i],
+          sha256: (x.id.replace(/-/g, "") + "0".repeat(64)).slice(0, 56) + String(i + 1).padStart(8, "0"), mediaType: expMedia[n.name.split(".").pop()] || "application/octet-stream", expiresAt: iso(keep) }).filter(Boolean);
+        x.files.forEach((f) => f.uid === undefined && delete f.uid);
+        x.expiresAt = iso(keep);
+      }
+      x.progress = { percent: 100, done: x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length, total: x.parts.length };
+      send("export.finished", { kind: "exportJob", entityId: x.id, payload: { state: x.state, files: clone(x.files) } });
+    }
+    function exportTick() {
+      const t = now();
+      expAll().forEach((x) => {
+        if (x.state === "done" && x.expiresAt && Date.parse(x.expiresAt) <= t) {
+          x.state = "expired"; x.files = [];
+          send("entity.changed", { kind: "exportJob", entityId: x.id });
+          return;
+        }
+        if (x.state !== "queued" && x.state !== "running") return;
+        const w = expWork.get(x.id);
+        if (!w || t < w.start) return;
+        x.state = "running";
+        let moved = false;
+        x.parts.forEach((p, i) => {
+          if (p.state !== "wait" && p.state !== "run") return;
+          // Части идут рядом со своими записями, поэтому параллельно; у каждой свой темп
+          const pct = Math.min(100, Math.floor(((t - w.start) / (w.dur * (1 + i * 0.15))) * 100));
+          if (pct < 100) { if (p.state !== "run" || pct - p.percent >= 5) { p.state = "run"; p.percent = pct; moved = true; } return; }
+          const fate = expPartFate(x, i);
+          Object.assign(p, { state: fate.state, percent: fate.state === "ok" ? 100 : p.percent });
+          if (fate.code) p.code = fate.code;
+          if (fate.partial) p.partial = true;
+          moved = true;
+        });
+        const finished = x.parts.filter((p) => p.state !== "wait" && p.state !== "run").length;
+        x.progress = { percent: Math.floor(x.parts.reduce((n, p) => n + (p.state === "run" || p.state === "ok" ? p.percent : p.state === "wait" ? 0 : 100), 0) / x.parts.length), done: finished, total: x.parts.length };
+        if (finished === x.parts.length) return expFinish(x, w);
+        if (moved && t - w.sentAt >= 400) { w.sentAt = t; send("export.progress", { kind: "exportJob", entityId: x.id, payload: { progress: clone(x.progress), parts: clone(x.parts) } }); }
+      });
+    }
+    const expFind = (id) => expAll().find((e) => e.id === id);
 
     /* ===== Маршруты ===== */
 
     const notFound = (what) => problem(404, "NOT_FOUND", `${what} не найден(а)`);
+    // Путь ядра /units/{uid}/…: вид объекта реализует профиль. field отказа — указатель: свойство объекта — /properties/…,
+    // поле тела — /<имя> (тело — та же схема, что у старого пути), тип записи — /kind
+    const SUBJECT_POINTER = { type: "/kind", ptz: "/properties/ptz", direct: "/properties/direct" };
+    function subject(uid, profile, fn) {
+      const u = store.get(uid);
+      if (!u) return notFound("Объект");
+      if (tableOf(u.kind) !== "devices" || !kinds.profileOf(u.kind, profile)) return problem(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует ${profile}`, { field: "/kind", params: { kind: u.kind, profile } });
+      // Право на профиль — UnitKind.apiRights (PTZ камеры — класс tel); нет записи — не судится
+      const denied = rightProblem(u, ((kinds.get(u.kind) || {}).apiRights || {})[profile], `Пути ${profile} нужно право ${profile}`);
+      if (denied) return denied;
+      const res = fn(legacy.view(u));
+      const f = res && res.status >= 400 && res.body ? res.body.field : undefined;
+      if (f == null || String(f).startsWith("/")) return res;
+      return { status: res.status, body: Object.assign({}, res.body, { field: SUBJECT_POINTER[f] || `/${f}` }) };
+    }
+    // Пресеты по хуку vms.ptz/1: отказ, «менять нечего» или новый состав; ответ — объект
+    function presetsDone(rec, r) {
+      if (Profiles.isProblem(r)) return r;
+      if (!r.same) setPresets(rec, r.presets);
+      return one(unitView(store.get(rec.id)));
+    }
     function getter(table, label) {
-      const show = (r) => (table === "devices" ? Object.assign(device(r), { folderIds: foldersOf(r.id) }) : table === "volumes" ? volume(r) : table === "rules" ? ruleView(r) : table === "folders" ? folderView(r) : table === "domains" ? domainView(r) : clone(r));
+      const show = (r) => (table === "rules" ? ruleView(r) : clone(r));
       return [
-        ["GET", `/${table}`, LISTS[table] || (() => items(db[table].map(show)))],
+        ["GET", `/${table}`, () => items(db[table].map(show))],
         [
           "GET",
           `/${table}/{id}`,
@@ -2565,19 +3396,6 @@
       });
       return out;
     }
-    const LISTS = {
-      servers: () => { const hidden = hiddenServers(); return items(db.servers.filter((s) => !hidden.has(s.id)).map(clone)); },
-      devices: (p, q) => devicesPage(q),
-      folders: (p, q) => {
-        const rows = db.folders.filter((f) => (q.parentId === undefined || (f.parentId || "") === q.parentId) && (!q.domainId || f.domainId === q.domainId) && (!q.q || textHit(q.q, f.name)));
-        return pageList(q, "folders", rows, (f) => partKey(f.id), folderView);
-      },
-      archives: (p, q) => {
-        const rows = db.archives.filter((a) => (!q.kind || a.kind === q.kind) && (!q.serverId || a.serverId === q.serverId) && (!q.domainId || archDomain(a) === q.domainId) && (!q.q || textHit(q.q, a.name)));
-        return pageList(q, "archives", rows, (a) => partKey(a.id), clone);
-      },
-      volumes: (p, q) => pageList(q, "volumes", db.volumes.filter((v) => !q.archiveId || v.archiveId === q.archiveId), (v) => partKey(v.id), volume),
-    };
     const ROUTES = [
       [
         "GET",
@@ -2617,294 +3435,165 @@
       }],
       ["GET", "/tree/children", (p, q) => treeChildren(q)],
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
-      ...getter("domains", "Домен"),
-      ...getter("servers", "Сервер"),
-      ...getter("devices", "Устройство"),
-      ...getter("folders", "Папка"),
-      ...getter("archives", "Хранилище"),
-      ...getter("volumes", "Том"),
+      /* ----- Ядро: виды и объекты ----- */
+      ["GET", "/kinds", (p, q, body, headers) => kindsList(headers)],
+      ["GET", "/kinds/{kind}", (p) => {
+        const k = kinds.get(p.kind);
+        return k ? { status: 200, body: clone(k), headers: { ETag: kinds.etag() } } : notFound(`Вид ${p.kind}`);
+      }],
+      ["GET", "/units", (p, q) => unitsPage(q)],
+      ["GET", "/units/{uid}", (p) => {
+        const u = store.get(p.uid);
+        return u ? one(unitView(u)) : notFound("Объект");
+      }],
+      ["GET", "/units/{uid}/schema", (p) => {
+        const u = store.get(p.uid);
+        if (!u) return notFound("Объект");
+        const k = kinds.get(u.kind);
+        if (!k || !k.schemaPerUnit) return problem(422, "NOT_SUPPORTED", "Схема своя только у объектов вида со schemaPerUnit: у остальных — схема вида, GET /kinds/{kind}");
+        return { status: 200, body: kinds.unitSchema(u.kind, u.properties), headers: { ETag: `"${u.version}"` } };
+      }],
+      ["GET", "/units/{uid}/creatable", (p) => {
+        const u = store.get(p.uid);
+        return u ? { status: 200, body: { items: creatableOf(u) } } : notFound("Объект");
+      }],
+      /* ----- Ядро: запись объектов видов без профиля ----- */
+      ["POST", "/units", (p, q, body) => {
+        const done = [], failed = [];
+        body.items.forEach((spec, index) => {
+          const errs = unitCreateErrs(spec, null, "");
+          if (errs.length) return failed.push(Object.assign({ index }, errOut(errs[0]), { errors: errs.map(errOut) }));
+          const made = unitMake(spec, spec.parentId ? store.get(spec.parentId) : null);
+          done.push({ index, units: made.map((u) => unitView(u)) });
+          recordSingle([{ targetId: made[0].uid, version: made[0].version, createdId: made[0].uid, createdVersion: made[0].version, before: { unitRemove: made[0].uid }, req: { uid: made[0].uid, createUnit: clone(spec) } }]);
+        });
+        return { status: 200, body: { done, failed } };
+      }],
+      ["POST", "/units/validate", (p, q, body) => {
+        // Строка — либо правка объекта (uid + patch), либо создание (create): обе сразу — неясно, что проверять
+        const both = body.items.findIndex((x) => x.create && (x.uid !== undefined || x.patch !== undefined));
+        if (both >= 0) return problem(422, "VALIDATION_FAILED", "В строке либо uid с patch, либо create", { field: `/items/${both}` });
+        return {
+        status: 200,
+        body: {
+          items: body.items.map((x, index) => {
+            const u = x.create ? null : store.get(x.uid);
+            const errs = x.create ? unitCreateErrs(x.create, null, "") : !u ? [err("NOT_FOUND", "/uid")] : unitPatchErrs(u, x.patch);
+            return errs.length ? { index, ok: false, errors: errs.map(errOut) } : { index, ok: true };
+          }),
+        },
+        };
+      }],
+      ["PATCH", "/units/{uid}", (p, q, body, headers) => {
+        const u = store.get(p.uid);
+        if (!u) return notFound("Объект");
+        const bad = unitPrecondition(u, headers) || (membersOnly(u, body) ? null : kindProblem(u.kind));
+        if (bad) return bad;
+        // Копия: хук может привести правку к виду записи (имя без пробелов по краям)
+        const patch = clone(body);
+        const errs = unitPatchErrs(u, patch);
+        if (errs.length) return errsProblem(errs, "Правка не подходит под описание вида");
+        const held = hooksProblem(u.kind, "beforeApply", [u, patch, false]);
+        if (held) return hookProblem(held, undefined, u.kind);
+        const before = applyUnitPatch(u, patch);
+        unitChanged(u, true);
+        recordSingle([{ targetId: u.uid, version: u.version, before: { unitPatch: before }, after: unitFieldsOf(u, patch), secret: touchesSecret(u, patch), req: { uid: u.uid, patch: clone(body) } }]);
+        return one(unitView(u));
+      }],
+      ["DELETE", "/units/{uid}", (p, q, body, headers) => {
+        const u = store.get(p.uid);
+        if (!u) return notFound("Объект");
+        const bad = unitPrecondition(u, headers) || kindProblem(u.kind);
+        if (bad) return bad;
+        // Параметры удаления — в запросе: moveTo у домена (куда перенести содержимое)
+        const params = q.moveTo !== undefined ? { moveTo: q.moveTo } : {};
+        const errs = unitDeleteErrs(u, params);
+        if (errs.length) return errsProblem(errs, "Удалить нельзя");
+        const version = u.version;
+        const rem = hookOf(u.kind, "remove");
+        if (rem) {
+          // Своё удаление профиля: в стопке — шаг, который назад не вернуть (record), как у DELETE старых путей
+          if (hookRemove(rem, u, params).record) recordSingle([{ targetId: u.uid, version, before: { deleted: true }, req: { uid: u.uid, delete: true } }]);
+          return { status: 204, body: null };
+        }
+        const locked = lockedProblem(unitSubtree(u).map((x) => x.uid), held);
+        if (locked) return locked;
+        recordSingle([{ targetId: u.uid, version, before: { restore: unitRemoveTree(u) }, req: { uid: u.uid, delete: true } }]);
+        return { status: 204, body: null };
+      }],
+      ["POST", "/units/{uid}/move", (p, q, body, headers) => {
+        const u = store.get(p.uid);
+        if (!u) return notFound("Объект");
+        const bad = unitPrecondition(u, headers) || kindProblem(u.kind);
+        if (bad) return bad;
+        const errs = unitMoveErrs(u, body.parentId, body.params);
+        if (errs.length) return errsProblem(errs, "Под этим родителем объекту этого вида не место");
+        const mv = hookOf(u.kind, "move");
+        // Перенос со смыслом (сервер: приём в домен, исключение) — в стопке отката, если его можно вернуть. Ответ — объект после
+        // переноса: у камеры w2c, принятой в домен, это новая запись
+        if (mv) {
+          const res = hookMove(mv, u, body.parentId == null ? null : body.parentId, body.params);
+          if (res.before.back) recordSingle([{ targetId: u.uid, version: u.version, before: res.before, req: { uid: u.uid, move: body.parentId == null ? null : body.parentId, params: clone(body.params || {}) } }]);
+          return one(unitView(res.unit));
+        }
+        const was = applyUnitMove(u, body.parentId);
+        recordSingle([{ targetId: u.uid, version: u.version, before: { parentId: was }, after: { parentId: u.parentId }, req: { uid: u.uid, move: u.parentId } }]);
+        return one(unitView(u));
+      }],
+      // Команда вида без объекта (ActionDescriptor.scope ∋ kind): определить модель, опросить адреса, проверить подключение до
+      // создания. Поведение — тот же хук профиля, что у команды объекта; объекта у хука нет — черновик с кодом вида
+      ["POST", "/kinds/{kind}/actions/{action}", (p, q, body) => {
+        if (!kinds.get(p.kind)) return notFound(`Вид ${p.kind}`);
+        const desc = kindCommand(p.kind, p.action);
+        if (!desc) return problem(404, "NOT_FOUND", `Команды ${p.action} без объекта у вида ${p.kind} нет`);
+        const params = body.params || {};
+        const refused = kindRightProblem(p.kind, desc);
+        if (refused) return refused;
+        const errs = actionParamErrs(desc, params);
+        if (errs.length) return errsProblem(errs, "Параметры команды не подходят под ActionDescriptor.params");
+        const run = actionRun(p.kind, desc.id);
+        if (!run) return { status: 200, body: { result: actionResult(desc) } };
+        const res = run({ uid: null, kind: p.kind, parentId: null, domainId: null, name: "", properties: {}, status: {} }, clone(params), pctx, desc.id);
+        if (Profiles.isProblem(res)) return hookProblem(res, "/params/", p.kind);
+        return { status: 200, body: { result: res.result } };
+      }],
+      ["POST", "/units/{uid}/actions/{action}", (p, q, body) => {
+        const u = store.get(p.uid);
+        if (!u) return notFound("Объект");
+        const bad = kindProblem(u.kind);
+        if (bad) return bad;
+        const desc = unitCommand(u.kind, p.action);
+        if (!desc) return strayCommandProblem(u, p.action) || problem(404, "NOT_FOUND", `Команды ${p.action} у вида ${u.kind} нет`);
+        const params = body.params || {};
+        const refused = actionProblem(u, desc, params) || lockedProblem([u.uid]);
+        if (refused) return refused;
+        // Команда с поведением (хук профиля): итог сразу или долгая — операция, которая идёт до срока хука
+        const run = actionRun(u.kind, desc.id);
+        if (run) {
+          const res = run(u, clone(params), pctx, desc.id);
+          if (Profiles.isProblem(res)) return hookProblem(res, "/params/", u.kind);
+          if (res.operation) {
+            const op = startOperation([Object.assign({ uid: u.uid, action: desc.id, params: clone(params), until: res.operation.until }, res.operation.free ? { free: true } : {})], { noUndo: true });
+            op.nextAt = res.operation.until;
+            return { status: 202, body: opView(op) };
+          }
+          return { status: 200, body: { result: res.result, unit: unitView(store.get(u.uid) || u) } };
+        }
+        // Долгая команда — операция из одного шага: в стопку отката не попадает, назад её не вернуть
+        if (desc.execution === "longRunning") return { status: 202, body: opView(startOperation([{ uid: u.uid, action: desc.id, params: clone(params) }], { noUndo: true })) };
+        const result = runAction(u, desc, params);
+        return { status: 200, body: { result, unit: unitView(u) } };
+      }],
       ...getter("rules", "Правило"),
-      [
-        "PATCH",
-        "/devices/{id}",
-        (p, q, body, headers) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const bad = precondition(rec, headers) || silentProblem(rec) || fieldProblem(rec, body) || addressProblem(rec, body) || videoProblem(rec, body) || detProblem(rec, body) || clashProblem(rec, body) || patchProblem(body) || recordingProblem(rec, body);
-          if (bad) return bad;
-          const set = noConfirm(body);
-          const held = keptProblem(rec, set);
-          if (held) return held;
-          const before = applyPatch(rec, set);
-          syncMain(rec, set);
-          changed("device", rec);
-          recordSingle([setStep(rec, set, before)]);
-          return one(device(rec));
-        },
-      ],
-      [
-        "PUT",
-        "/devices/{id}/recording-target",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Назначение — только у камеры", { field: "type" });
-          const locked = lockedProblem([rec.id]);
-          if (locked) return locked;
-          if (body.serverId === null) {
-            if (body.copies.length) return problem(422, "VALIDATION_FAILED", "Назначение снято: копий быть не может", { field: "copies" });
-            delete rec.recordingTarget;
-            delete rec.serverId;
-          } else {
-            const s = byId("servers", body.serverId);
-            if (!s || !s.allocated) return problem(422, "VALIDATION_FAILED", "Нет такого сервера", { field: "serverId" });
-            const why = copiesProblem(s, body.copies);
-            if (why) return problem(422, "VALIDATION_FAILED", why, { field: "copies" });
-            if (offline(s)) return problem(409, "SERVER_OFFLINE", "Сервер не отвечает");
-            rec.recordingTarget = { serverId: s.id, copies: clone(body.copies) };
-            rec.serverId = s.id;
-          }
-          bump(rec);
-          changed("device", rec);
-          return one(device(rec));
-        },
-      ],
-      [
-        "POST",
-        "/devices/{id}/live",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          const bad = liveRefused(rec);
-          if (bad) return bad;
-          if (body.streamId !== undefined && !streamsOf(rec).some((s) => s.id === body.streamId)) return problem(422, "VALIDATION_FAILED", "У камеры нет такого потока", { field: "streamId" });
-          const labels = liveLabels(body.network), fan = liveFan(rec);
-          if (fan && !sameJson(fan.labels, labels)) return problem(409, "OTHER_NETWORK", "Раздачу создали для другой сети", { params: { labels: fan.labels } });
-          liveKeep(rec, labels);
-          const ask = body.streamId !== undefined ? `stream=${encodeURIComponent(body.streamId)}` : `width=${body.width}&height=${body.height}`;
-          // Настоящего видео встроенный сервер не отдаёт: на stub:// отвечает сама страница, api/whep-stub.js
-          return { status: 200, body: { whepUrl: `stub://live/whep/${rec.id}?${ask}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + LIVE_GRACE_SEC * 1000), gateway: labels.length ? "stub-public" : "stub-local" } };
-        },
-      ],
-      [
-        "PUT",
-        "/devices/{id}/live",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          const bad = liveRefused(rec);
-          if (bad) return bad;
-          if (db.stand.liveMoveDenied) return problem(403, "PERMISSION_DENIED", "Нет права переразмещать раздачу");
-          liveKeep(rec, liveLabels(body.network));
-          return { status: 204, body: null };
-        },
-      ],
-      [
-        "POST",
-        "/devices/{id}/streams",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Потоки — только у камеры", { field: "type" });
-          if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя потока", { field: "name" });
-          const locked = lockedProblem([rec.id]);
-          if (locked) return locked;
-          let n = 1;
-          while (streamsOf(rec).some((s) => s.id === `s${n}`)) n++;
-          const res = setStreams(rec, streamsOf(rec).concat(Object.assign({ id: `s${n}`, online: true }, clone(body), { name: body.name.trim() }, sizeOf(body.res))));
-          return Object.assign(res, { status: 201 });
-        },
-      ],
-      [
-        "PATCH",
-        "/devices/{id}/streams/{streamId}",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const st = streamsOf(rec).find((s) => s.id === p.streamId);
-          if (!st) return notFound("Поток");
-          if ("name" in body && !String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя потока", { field: "name" });
-          const bad = resProblem(st.resOptions, body.res) || lockedProblem([rec.id]);
-          if (bad) return bad;
-          return setStreams(rec, streamsOf(rec).map((s) => (s === st ? Object.assign(clone(s), clone(body), sizeOf(body.res)) : clone(s))));
-        },
-      ],
-      [
-        "DELETE",
-        "/devices/{id}/streams/{streamId}",
-        (p) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const i = streamsOf(rec).findIndex((s) => s.id === p.streamId);
-          if (i < 0) return notFound("Поток");
-          if (i === 0) return problem(422, "NOT_SUPPORTED", "Основной поток не удаляется", { field: "streamId" });
-          const used = rec.stream === p.streamId || (rec.extraArchives || []).some((x) => x.stream === p.streamId) || db.devices.some((d) => d.parentId === rec.id && d.stream === p.streamId);
-          if (used) return problem(422, "VALIDATION_FAILED", "Поток используется записью или детектором", { field: "stream" });
-          const locked = lockedProblem([rec.id]);
-          if (locked) return locked;
-          return setStreams(rec, streamsOf(rec).filter((s) => s.id !== p.streamId));
-        },
-      ],
-      [
-        "PUT",
-        "/devices/{id}/presets/{n}",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const n = Number(p.n);
-          // Имя устройству не идёт: связь и ptz его не судят
-          const named = "name" in body;
-          const bad = (named ? presetCameraProblem(rec) : ptzProblem(rec)) || lockedProblem([rec.id]);
-          if (bad) return bad;
-          // Положение пишет устройство в момент просьбы: у камеры за NAT связи нет, входа тоже. Подпись идёт правкой: ADR-0111 доп. (1)
-          if (!named && rec.direct === false) return problem(409, "OTHER_CLUSTER", "Камера за NAT: положение пресета здесь не сохранить");
-          if (!Number.isInteger(n) || n < 1) return problem(422, "VALIDATION_FAILED", "Номер пресета — с 1", { field: "n" });
-          if (rec.presetMax != null && n > rec.presetMax) return notFound("Пресет");
-          const had = (rec.presets || []).find((x) => x.n === n);
-          // Без имени — положение: встроенный сервер камерами не движет, запись появляется с пустым именем
-          if (!named && had) return one(device(rec));
-          const name = named ? String(body.name).trim() : "";
-          return setPresets(rec, (rec.presets || []).filter((x) => x.n !== n).map(clone).concat([{ n, name }]));
-        },
-      ],
-      [
-        "DELETE",
-        "/devices/{id}/presets/{n}",
-        (p) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const bad = presetCameraProblem(rec) || lockedProblem([rec.id]);
-          if (bad) return bad;
-          if (rec.presetMax != null && Number(p.n) > rec.presetMax) return notFound("Пресет");
-          // Запись снимается всегда; просьба камере забыть положение у встроенного сервера не моделируется
-          if (!(rec.presets || []).some((x) => x.n === Number(p.n))) return one(device(rec));
-          return setPresets(rec, rec.presets.filter((x) => x.n !== Number(p.n)).map(clone));
-        },
-      ],
-      [
-        "PUT",
-        "/devices/{id}/ptz",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          const bad = ptzProblem(rec) || (rec.direct === false ? problem(422, "NOT_SUPPORTED", "Движение арендой недоступно: камера за NAT", { field: "direct" }) : null);
-          if (bad) return bad;
-          const expiresAt = iso(now() + body.ttlSec * 1000);
-          ptzLeases.set(`${rec.id}:${me}`, expiresAt);
-          return { status: 200, body: { expiresAt } };
-        },
-      ],
-      [
-        "DELETE",
-        "/devices/{id}/ptz",
-        (p) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          ptzLeases.delete(`${rec.id}:${me}`);
-          return { status: 204, body: null };
-        },
-      ],
-      [
-        "POST",
-        "/devices/{id}/operations/{operation}",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type === "relay") {
-            if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Реле без связи");
-            if (p.operation !== "output") return problem(409, "DEVICE_REFUSED", "Такой команды у реле нет", { params: { reason: "noOperation", operation: p.operation } });
-            if (!body || typeof body.state !== "boolean") return problem(422, "VALIDATION_FAILED", "Укажите состояние реле", { field: "state" });
-            return { status: 200, body: { done: true } };
-          }
-          if (!isUnit(rec)) return problem(422, "NOT_SUPPORTED", "Команды — только у единиц СКУД", { field: "type" });
-          if (rec.online === false) return problem(409, "DEVICE_OFFLINE", "Единица без связи");
-          if (!(rec.operations || []).includes(p.operation)) return problem(409, "DEVICE_REFUSED", "Такой команды у единицы нет", { params: { reason: "noOperation", operation: p.operation } });
-          return { status: 200, body: { done: true } };
-        },
-      ],
       /* ----- Просмотр: разговор, шкала, куски, удержания, отметки ----- */
-      [
-        "POST",
-        "/devices/{id}/talk",
-        (p) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "spk") return problem(422, "NOT_SUPPORTED", "Разговор — только через динамик", { field: "type" });
-          const owner = rec.parentId || rec.id, url = (db.stand.otherCluster || {})[owner];
-          if (url) return problem(409, "OTHER_CLUSTER", "Камера другого кластера: откройте вход через него", { params: { url } });
-          if (rec.online === false || rec.enabled === false) return problem(409, "DEVICE_OFFLINE", "Динамик без связи");
-          if (db.stand.talkDenied) return problem(403, "PERMISSION_DENIED", "Нет права говорить через этот динамик");
-          if (db.stand.talkRefused) return problem(409, "DEVICE_REFUSED", "Устройство отказало", { params: { reason: "refused" } });
-          return { status: 200, body: { url: `stub://live/talk/${owner}/${rec.id}`, token: `stub-${newVersion()}`, expiresAt: iso(now() + LIVE_GRACE_SEC * 1000), gateway: "stub-local" } };
-        },
-      ],
-      [
-        "GET",
-        "/devices/{id}/timeline",
-        (p, q) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Шкала — только у камеры", { field: "type" });
-          const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
-          if (from >= to) return problem(422, "VALIDATION_FAILED", "Конец окна раньше начала", { field: "to" });
-          const rows = camSpans(rec).filter((s) => s.startMs < to && s.endMs > from);
-          return pageList(q, `timeline:${rec.id}`, rows, (s) => `${String(s.startMs).padStart(15, "0")}|${s.spanId}`, spanShow, { unavailable: timelineGone(rec) });
-        },
-      ],
-      [
-        "GET",
-        "/devices/{id}/playback",
-        (p, q) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Записи — только у камеры", { field: "type" });
-          const at = Date.parse(q.at);
-          if (!(at > 0)) return problem(422, "VALIDATION_FAILED", "Укажите момент", { field: "at" });
-          const list = camSpans(rec), over = list.filter((s) => s.startMs <= at && at < s.endMs);
-          const span = q.spanId ? list.find((s) => s.spanId === q.spanId && s.startMs <= at && at < s.endMs) : over.find((s) => !s.fenced) || over[0];
-          if (!span) return notFound("Запись");
-          const k = Math.floor((at - span.startMs) / 60000), from = span.startMs + k * 60000, end = Math.min(from + 60000, span.endMs);
-          return { status: 200, body: { url: `stub://piece/${rec.id}/e${span.epoch}/${from}-${end}.mp4?t=stub-${newVersion()}`, from: iso(from), to: iso(end), expiresAt: iso(now() + 120000), spanId: span.spanId } };
-        },
-      ],
-      [
-        "GET",
-        "/devices/{id}/holds",
-        (p, q) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          return pageList(q, `holds:${rec.id}`, holdsAll().filter((h) => h.deviceId === rec.id), (h) => h.id, holdShow);
-        },
-      ],
-      [
-        "POST",
-        "/devices/{id}/holds",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          const bad = keepRefused(rec);
-          if (bad) return bad;
-          const from = Math.floor(Date.parse(body.from) / 1000), to = Math.floor(Date.parse(body.to) / 1000);
-          if (!(to > from)) return problem(422, "VALIDATION_FAILED", "Конец позже начала", { field: "to" });
-          const id = `${rec.id}-${from}-${to}`, all = recordingsOf(rec), ids = body.recordingIds || all;
-          const was = holdsAll().find((h) => h.id === id);
-          if (was) {
-            was.recordingIds = [...new Set(was.recordingIds.concat(ids))];
-            send("entity.changed", { kind: "hold", entityId: id, payload: { deviceId: rec.id } });
-            return { status: 200, body: holdShow(was) };
-          }
-          const h = { id, deviceId: rec.id, from: iso(from * 1000), to: iso(to * 1000), recordingIds: ids, by: myLogin(), at: iso(now()), releasedAt: null };
-          if (body.note) h.note = body.note;
-          holdsAll().push(h);
-          send("entity.created", { kind: "hold", entityId: id, payload: { deviceId: rec.id } });
-          return { status: 201, body: holdShow(h) };
-        },
-      ],
       [
         "DELETE",
         "/holds/{id}",
         (p) => {
-          const i = holdsAll().findIndex((h) => h.id === p.id);
+          const i = hTimeline.holdsAll(pctx).findIndex((h) => h.id === p.id);
           if (i < 0) return notFound("Удержание");
           if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права снимать удержание");
-          const [h] = holdsAll().splice(i, 1);
+          const [h] = hTimeline.holdsAll(pctx).splice(i, 1);
           send("entity.deleted", { kind: "hold", entityId: h.id, payload: { deviceId: h.deviceId } });
           return { status: 204, body: null };
         },
@@ -2913,42 +3602,32 @@
         "POST",
         "/holds/{id}/verify",
         (p) => {
-          const h = holdsAll().find((x) => x.id === p.id);
+          const h = hTimeline.holdsAll(pctx).find((x) => x.id === p.id);
           if (!h) return notFound("Удержание");
           return { status: 200, body: { results: h.recordingIds.map((recordingId) => ({ recordingId, result: db.stand.holdVerify || "ok" })) } };
         },
       ],
-      [
-        "GET",
-        "/devices/{id}/bookmarks",
-        (p, q) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (db.stand.keepDenied) return problem(403, "PERMISSION_DENIED", "Нет права на отметки");
-          const from = q.from ? Date.parse(q.from) : -Infinity, to = q.to ? Date.parse(q.to) : Infinity;
-          const rows = marksAll().filter((m) => m.deviceId === rec.id && markEnd(m) >= from && Date.parse(m.occurred) <= to);
-          return pageList(q, `bookmarks:${rec.id}`, rows, (m) => `${backTime(m.occurred)}|${m.id}`, markShow);
-        },
-      ],
-      [
-        "POST",
-        "/devices/{id}/bookmarks",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          const bad = keepRefused(rec);
-          if (bad) return bad;
-          if (!String(body.note).trim()) return problem(422, "VALIDATION_FAILED", "Напишите заметку", { field: "note" });
-          const at = iso(now()), type = body.type || "moment", m = { id: uuid("bookmark"), deviceId: rec.id, note: body.note.trim(), type, occurred: body.occurred || at, at, by: myLogin() };
-          if (type === "span") {
-            if (!(Date.parse(body.to) > Date.parse(m.occurred))) return problem(422, "VALIDATION_FAILED", "Конец отрезка позже начала", { field: "to" });
-            m.to = body.to;
-          } else if (body.to) return problem(422, "VALIDATION_FAILED", "Конец — только у отрезка", { field: "to" });
-          marksAll().push(m);
-          send("entity.created", { kind: "bookmark", entityId: m.id, payload: { deviceId: rec.id } });
-          return { status: 201, body: markShow(m) };
-        },
-      ],
-      /* ----- Выгрузка ----- */
+      /* ----- Предметные API объекта (/units/{uid}/…): вид объекта реализует профиль (vms.live/1, vms.talk/1, vms.timeline/1,
+         vms.ptz/1, vms.camera/1). Тела и ответы — те же схемы, что у старых путей (у пресетов и назначения записи — объект Unit);
+         смысл — те же хуки. Нет объекта — 404, вид без профиля — 422 NOT_SUPPORTED, field /kind ----- */
+      ["POST", "/units/{uid}/live", (p, q, body) => subject(p.uid, "vms.live/1", (rec) => hLive.start(rec, body, pctx))],
+      ["PUT", "/units/{uid}/live", (p, q, body) => subject(p.uid, "vms.live/1", (rec) => hLive.move(rec, body, pctx))],
+      ["POST", "/units/{uid}/talk", (p) => subject(p.uid, "vms.talk/1", (rec) => hTalk.start(rec, pctx))],
+      ["GET", "/units/{uid}/timeline", (p, q) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.spans(rec, q, pctx))],
+      ["GET", "/units/{uid}/playback", (p, q) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.playback(rec, q, pctx))],
+      ["GET", "/units/{uid}/holds", (p, q) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.holds(rec, q, pctx))],
+      ["POST", "/units/{uid}/holds", (p, q, body) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.hold(rec, body, pctx))],
+      ["GET", "/units/{uid}/bookmarks", (p, q) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.bookmarks(rec, q, pctx))],
+      ["POST", "/units/{uid}/bookmarks", (p, q, body) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.bookmark(rec, body, pctx))],
+      ["POST", "/units/{uid}/archive-fetch", (p, q, body) => subject(p.uid, "vms.timeline/1", (rec) => hTimeline.fetch(rec, body, pctx))],
+      ["PUT", "/units/{uid}/ptz", (p, q, body) => subject(p.uid, "vms.ptz/1", (rec) => hPtz.lease(rec, body, me, pctx))],
+      ["DELETE", "/units/{uid}/ptz", (p) => subject(p.uid, "vms.ptz/1", (rec) => hPtz.release(rec, me, pctx))],
+      ["PUT", "/units/{uid}/presets/{n}", (p, q, body) => subject(p.uid, "vms.ptz/1", (rec) => presetsDone(rec, hPtz.put(rec, Number(p.n), body, pctx)))],
+      ["DELETE", "/units/{uid}/presets/{n}", (p) => subject(p.uid, "vms.ptz/1", (rec) => presetsDone(rec, hPtz.drop(rec, Number(p.n), pctx)))],
+      ["PUT", "/units/{uid}/recording-target", (p, q, body) => subject(p.uid, "vms.camera/1", (rec) => hCamera.setTarget(rec, body, pctx) || one(unitView(store.get(rec.id))))],
+      // Сутки с записью для календаря окна выгрузки: камера — профилем vms.camera/1, сутки — по шкале хука vms.timeline/1
+      ["GET", "/units/{uid}/recording-days", (p, q) => subject(p.uid, "vms.camera/1", (rec) => hTimeline.days(rec, q, pctx))],
+      /* ----- Выгрузка: камеры заказа — по uid ----- */
       [
         "GET",
         "/me/export",
@@ -2957,27 +3636,10 @@
           const lim = db.reference.limits.idsMax || 200;
           if (ids.length > lim) return problem(422, "VALIDATION_FAILED", `Не больше ${lim} id`, { field: "ids" });
           const body = { allowed: g.allowed, passwordRequired: g.passwordRequired, privacyForced: g.privacyForced, supervisorRequired: g.supervisorRequired, watermark: g.watermark, depthHours: g.depthHours,
-            devices: ids.map((id) => { const rec = byId("devices", id), no = !rec || rec.type !== "camera" || (db.stand.exportDenied || []).includes(id) || !g.allowed;
-              return { deviceId: id, archive: !no, live: !no && rec.online !== false }; }) };
+            devices: ids.map((uid) => { const rec = expCam(uid), no = !rec || (db.stand.exportDenied || []).includes(uid) || !g.allowed;
+              return { uid, archive: !no, live: !no && rec.online !== false }; }) };
           if (g.refusal) body.refusal = g.refusal;
           return { status: 200, body };
-        },
-      ],
-      [
-        "GET",
-        "/devices/{id}/recording-days",
-        (p, q) => {
-          const rec = byId("devices", p.id);
-          if (!rec) return notFound("Устройство");
-          if (rec.type !== "camera") return problem(422, "NOT_SUPPORTED", "Записи — только у камеры", { field: "type" });
-          const day = 86400000, to = q.to ? Date.parse(q.to + "T12:00:00Z") : now(), from = q.from ? Date.parse(q.from + "T12:00:00Z") : to - 30 * day;
-          if (!(to >= from)) return problem(422, "VALIDATION_FAILED", "Конец раньше начала", { field: "to" });
-          if ((to - from) / day > 366) return problem(422, "VALIDATION_FAILED", "Не больше года", { field: "from" });
-          const got = new Set();
-          camSpans(rec).forEach((s) => { for (let t = s.startMs; t < s.endMs; t += 3600000) got.add(expDay(t)); got.add(expDay(s.endMs - 1)); });
-          const days = [];
-          for (let t = from; t <= to + 1; t += day) { const d = expDay(t); if (!days.length || days[days.length - 1].date !== d) days.push({ date: d, recorded: got.has(d) }); }
-          return { status: 200, body: { days, unavailable: timelineGone(rec) } };
         },
       ],
       [
@@ -2985,9 +3647,8 @@
         "/exports/check",
         (p, q, body) => {
           const errs = expProblems(body), sec = expSec(body), tr = expTranscode(body);
-          const recs = body.cameras.map((c) => byId("devices", c.deviceId));
           const noRec = [];
-          if (body.mode === "video") recs.forEach((r, ci) => r && r.type === "camera" && (body.periods || []).forEach((pp, pi) => { if (Date.parse(pp.to) > Date.parse(pp.from) && !expOverlap(r, Date.parse(pp.from), Date.parse(pp.to))) noRec.push({ camera: ci, period: pi }); }));
+          if (body.mode === "video") body.cameras.map((c) => expCam(c.uid)).forEach((r, ci) => r && (body.periods || []).forEach((pp, pi) => { if (Date.parse(pp.to) > Date.parse(pp.from) && !expOverlap(r, Date.parse(pp.from), Date.parse(pp.to))) noRec.push({ camera: ci, period: pi }); }));
           const bytes = body.mode === "frame" ? 220000 : Math.round(sec * body.cameras.length * (tr ? 220000 : 500000));
           return { status: 200, body: { ok: !errs.length, errors: errs.map((e) => e.body), transcode: tr, estimate: { bytes, sec: body.mode === "frame" ? 2 : Math.max(3, Math.round(sec / (tr ? 8 : 120))) }, files: expNames(body), noRecording: noRec } };
         },
@@ -2998,7 +3659,7 @@
         (p, q) => {
           const states = q.state ? String(q.state).split(",") : null, mine = q.mine === "true", login = myLogin();
           const rows = expAll().filter((x) => (!mine || x.by === login) && (!states || states.includes(x.state)));
-          return pageList(q, `exports:${mine}:${q.state || ""}`, rows, (x) => `${backTime(x.createdAt)}|${x.id}`, expShow);
+          return pageList(q, `exports:${mine}:${q.state || ""}`, rows, (x) => `${backTime(x.createdAt)}|${x.id}`, clone);
         },
       ],
       [
@@ -3010,18 +3671,11 @@
           const login = myLogin(), active = expAll().filter((x) => x.by === login && (x.state === "queued" || x.state === "running")).length, max = expRef().limits.maxActivePerUser;
           if (active >= max) return problem(409, "BUSY", "Активных выгрузок слишком много: дождитесь или отмените", { params: { limit: "maxActivePerUser", max } });
           const x = expMake(body);
-          send("entity.created", { kind: "export", entityId: x.id });
-          return { status: 202, body: expShow(x), headers: { Location: `/exports/${x.id}` } };
+          send("entity.created", { kind: "exportJob", entityId: x.id });
+          return { status: 202, body: clone(x), headers: { Location: `/exports/${x.id}` } };
         },
       ],
-      [
-        "GET",
-        "/exports/{id}",
-        (p) => {
-          const x = expAll().find((e) => e.id === p.id);
-          return x ? { status: 200, body: expShow(x) } : notFound("Выгрузка");
-        },
-      ],
+      ["GET", "/exports/{id}", (p) => { const x = expFind(p.id); return x ? { status: 200, body: clone(x) } : notFound("Выгрузка"); }],
       [
         "DELETE",
         "/exports/{id}",
@@ -3031,7 +3685,7 @@
           if (expAll()[i].by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Чужую выгрузку удаляет администратор выгрузки камеры");
           expAll().splice(i, 1);
           expWork.delete(p.id);
-          send("entity.deleted", { kind: "export", entityId: p.id });
+          send("entity.deleted", { kind: "exportJob", entityId: p.id });
           return { status: 204, body: null };
         },
       ],
@@ -3039,40 +3693,41 @@
         "POST",
         "/exports/{id}/cancel",
         (p) => {
-          const x = expAll().find((e) => e.id === p.id);
+          const x = expFind(p.id);
           if (!x) return notFound("Выгрузка");
           if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Отменяет автор");
           if (x.state !== "queued" && x.state !== "running") return problem(409, "NOT_RUNNABLE", "Выгрузка уже закончилась");
-          x.parts.forEach((pp) => { if (pp.state === "wait" || pp.state === "run") pp.state = "cancel"; else if (pp.state === "ok") pp.state = "cancel"; });
+          // Готовые части тоже отменяются: их файлы удаляются вместе с заданием
+          x.parts.forEach((pp) => { if (pp.state === "wait" || pp.state === "run" || pp.state === "ok") pp.state = "cancel"; });
           x.state = "cancelled";
           x.files = [];
           expFinish(x, expWork.get(x.id) || { names: [] });
-          return { status: 200, body: expShow(x) };
+          return { status: 200, body: clone(x) };
         },
       ],
       [
         "POST",
         "/exports/{id}/retry-failed",
         (p, q, body) => {
-          const x = expAll().find((e) => e.id === p.id);
+          const x = expFind(p.id);
           if (!x) return notFound("Выгрузка");
           if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Повторяет автор");
-          const failed = new Set(x.parts.filter((pp) => pp.state === "fail" || pp.state === "cancel").map((pp) => pp.deviceId));
+          const failed = new Set(x.parts.filter((pp) => pp.state === "fail" || pp.state === "cancel").map((pp) => pp.uid));
           if (!failed.size || x.state === "queued" || x.state === "running") return problem(409, "NOT_RUNNABLE", "Неудачных частей нет");
-          const b = Object.assign(clone(x.request), { cameras: x.request.cameras.filter((c) => failed.has(c.deviceId)) });
+          const b = Object.assign(clone(x.request), { cameras: x.request.cameras.filter((c) => failed.has(c.uid)) });
           if (body && body.password) b.password = body.password;
           const errs = expProblems(b);
           if (errs.length) return errs[0];
           const n = expMake(b, x.id);
-          send("entity.created", { kind: "export", entityId: n.id });
-          return { status: 202, body: expShow(n), headers: { Location: `/exports/${n.id}` } };
+          send("entity.created", { kind: "exportJob", entityId: n.id });
+          return { status: 202, body: clone(n), headers: { Location: `/exports/${n.id}` } };
         },
       ],
       [
         "POST",
         "/exports/{id}/files/{fileId}/link",
         (p) => {
-          const x = expAll().find((e) => e.id === p.id);
+          const x = expFind(p.id);
           if (!x) return notFound("Выгрузка");
           if (x.by !== myLogin()) return problem(403, "PERMISSION_DENIED", "Файл получает только автор");
           if (x.state === "expired") return problem(410, "EXPORT_EXPIRED", "Файл удалён по сроку");
@@ -3081,482 +3736,7 @@
           return { status: 200, body: { url: `stub://export/${x.id}/${f.id}/${encodeURIComponent(f.name)}?t=stub-${newVersion()}`, expiresAt: iso(now() + expRef().limits.linkTtlSec * 1000) } };
         },
       ],
-      [
-        "POST",
-        "/devices/{id}/archive-fetch",
-        (p, q, body) => {
-          const rec = byId("devices", p.id);
-          const bad = keepRefused(rec);
-          if (bad) return bad;
-          const from = Date.parse(body.from), to = Date.parse(body.to);
-          if (!(to > from)) return problem(422, "VALIDATION_FAILED", "Конец позже начала", { field: "to" });
-          if (rec.archiveId !== body.archiveId) return problem(409, "NO_PRIMARY", "Основной записи своего кластера нет: закрепить некуда", { field: "archiveId" });
-          const parts = [];
-          for (let a = from; a < to; a += 86400000) parts.push({ from: iso(a), to: iso(Math.min(a + 86400000, to)) });
-          const free = 7 - (db.stand.fetchTaken || 0), ok = parts.slice(0, Math.max(free, 0));
-          db.stand.fetchTaken = (db.stand.fetchTaken || 0) + ok.length;
-          return { status: 200, body: { accepted: ok.length, refused: parts.slice(ok.length).map((x) => Object.assign(x, { reason: "per_person" })) } };
-        },
-      ],
-      /* ----- Домены ----- */
-      [
-        "POST",
-        "/domains",
-        (p, q, body) => {
-          const bad = domainNameProblem(body.name);
-          if (bad) return bad;
-          const d = { id: uuid("domain"), name: body.name.trim(), license: "", online: true, version: newVersion() };
-          db.domains.push(d);
-          send("entity.created", { kind: "domain", entityId: d.id, version: d.version });
-          return one(domainView(d), 201);
-        },
-      ],
-      [
-        "PATCH",
-        "/domains/{id}",
-        (p, q, body, headers) => {
-          const t = targetOf(p.id);
-          if (!t || t.kind !== "domain") return notFound("Домен");
-          const bad = precondition(t.rec, headers) || setProblem(t, body);
-          if (bad) return bad;
-          if ("name" in body) body.name = body.name.trim();
-          applyPatch(t.rec, body);
-          changed("domain", t.rec);
-          return one(domainView(t.rec));
-        },
-      ],
-      [
-        "DELETE",
-        "/domains/{id}",
-        (p, q, body, headers) => {
-          const d = byId("domains", p.id);
-          if (!d) return notFound("Домен");
-          const bad = precondition(d, headers);
-          if (bad) return bad;
-          if (db.domains.length < 2) return problem(409, "LAST_DOMAIN", "Последний домен удалить нельзя");
-          const inside = (r) => r.domainId === d.id;
-          const busyWith = db.servers.some(inside) || db.folders.some(inside) || db.devices.some(inside) || db.archives.some(inside);
-          const to = q.moveTo ? byId("domains", q.moveTo) : null;
-          if (busyWith && (!to || to.id === d.id)) return problem(422, "DOMAIN_NOT_EMPTY", "Укажите домен, куда перенести содержимое", { field: "moveTo" });
-          const locked = lockedProblem([db.servers, db.devices, db.archives].flatMap((t) => t.filter(inside).map((r) => r.id)));
-          if (locked) return locked;
-          // Ничего не пропадает: серверы становятся нераспределёнными в домене moveTo, папки, устройства и
-          // сетевые хранилища меняют домен, найденное поиском переходит туда же
-          const move = (table, kind, extra) =>
-            db[table].filter(inside).forEach((r) => {
-              Object.assign(r, { domainId: to.id }, extra || {});
-              bump(r);
-              changed(kind, r);
-            });
-          if (to) {
-            move("servers", "server", { allocated: false });
-            move("folders", "folder");
-            move("devices", "device");
-            move("archives", "archive");
-            const from = db.discovery.find((x) => x.domainId === d.id);
-            if (from) {
-              const into = db.discovery.find((x) => x.domainId === to.id);
-              if (into) into.candidateIds = into.candidateIds.concat(from.candidateIds.filter((c) => !into.candidateIds.includes(c)));
-              else from.domainId = to.id;
-            }
-            db.network.forEach((c) => (c.domainIds = [...new Set(c.domainIds.map((x) => (x === d.id ? to.id : x)))]));
-          }
-          db.discovery = db.discovery.filter((x) => x.domainId !== d.id);
-          db.domains = db.domains.filter((x) => x !== d);
-          send("entity.deleted", { kind: "domain", entityId: d.id });
-          return { status: 204, body: null };
-        },
-      ],
-
-      /* ----- Серверы ----- */
-      [
-        "POST",
-        "/servers",
-        (p, q, body) => {
-          if (!byId("domains", body.domainId)) return notFound("Домен");
-          const ip = String(body.ip).trim();
-          if (!/^[\w.-]+$/.test(ip)) return problem(422, "INVALID_IP", "Неверный адрес", { field: "ip" });
-          if (db.servers.some((s) => s.ip.toLowerCase() === ip.toLowerCase() && s.port === body.port)) return problem(409, "ADDRESS_TAKEN", "Сервер с таким адресом уже есть", { field: "ip" });
-          // Найденный опросом сервер сообщает о себе имя, нагрузку и диски; встроенный сервер их придумывает
-          const s = {
-            id: uuid("server"),
-            name: `Сервер — ${ip}`,
-            ip,
-            port: body.port,
-            role: "node",
-            domainId: body.domainId,
-            allocated: false,
-            class: "server",
-            online: true,
-            telemetry: { cpu: 5, ram: 18, net: 2, disk: 0 },
-            gpu: null,
-            disks: [["C:", 256 * GB, true], ["D:", 4 * TB], ["E:", 6 * TB], ["F:", 8 * TB], ["G:", 12 * TB]].map(([disk, sizeBytes, system]) => ({ disk, sizeBytes, system: !!system })),
-            version: newVersion(),
-          };
-          db.servers.push(s);
-          send("entity.created", { kind: "server", entityId: s.id, version: s.version });
-          return one(clone(s), 201);
-        },
-      ],
-      [
-        "PATCH",
-        "/servers/{id}",
-        (p, q, body, headers) => {
-          const t = targetOf(p.id);
-          if (!t || t.kind !== "server") return notFound("Сервер");
-          const bad = precondition(t.rec, headers) || setProblem(t, body);
-          if (bad) return bad;
-          applyPatch(t.rec, body);
-          changed("server", t.rec);
-          return one(clone(t.rec));
-        },
-      ],
-      [
-        "POST",
-        "/servers/probe",
-        (p, q, body) => {
-          const max = db.reference.limits.ipScanMax;
-          if (body.targets.length > max) return problem(422, "IP_RANGE_TOO_LARGE", `За раз — не больше ${max} адресов`, { params: { max } });
-          // Отвечает ли адрес — у встроенного сервера по хешу адреса: так же, как в макете на константах
-          const hash = (s) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0);
-          const items = body.targets.map(({ ip, port }) => {
-            const s = db.servers.find((x) => x.ip.toLowerCase() === ip.toLowerCase() && x.port === port);
-            if (s) return { ip, port, status: s.allocated ? "in-domain" : "found", serverId: s.id, domainId: s.allocated ? s.domainId : null };
-            return { ip, port, status: hash(`${ip}:${port}`) % 3 === 0 ? "dead" : "found", serverId: null, domainId: null };
-          });
-          return { status: 200, body: { items } };
-        },
-      ],
-      [
-        "POST",
-        "/servers/assign",
-        (p, q, body) => {
-          // Приём меняет состав домена: судит администратор домена, а не право на кластер
-          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Принять и исключить может администратор домена");
-          const done = [];
-          const failed = [];
-          body.items.forEach((x) => {
-            const s = byId("servers", x.serverId);
-            if (!s) return failed.push({ serverId: x.serverId, code: "NOT_FOUND" });
-            if (x.allocated && !s.allocated && s.fingerprint && x.fingerprint !== s.fingerprint) return failed.push({ serverId: x.serverId, code: "FINGERPRINT_MISMATCH" });
-            if (!byId("domains", x.domainId)) return failed.push({ serverId: x.serverId, code: "NOT_FOUND" });
-            if (s.version !== x.version) return failed.push({ serverId: x.serverId, code: "VERSION_MISMATCH" });
-            if (busy(s.id)) return failed.push({ serverId: x.serverId, code: "BUSY" });
-            if (s.domainId !== x.domainId || s.allocated !== x.allocated) {
-              Object.assign(s, { domainId: x.domainId, allocated: x.allocated });
-              bump(s);
-              // Добавленный встаёт в конец списка — там, где его и ждут увидеть
-              db.servers = db.servers.filter((r) => r !== s).concat(s);
-              changed("server", s);
-            }
-            done.push(clone(s));
-            // Камера w2c: после приёма записи сервера нет, это запись camera
-            if (s.class === "camera" && s.allocated) {
-              db.servers = db.servers.filter((r) => r !== s);
-              send("entity.deleted", { kind: "server", entityId: s.id });
-              const cam = { id: uuid("device"), type: "camera", parentId: null, domainId: s.domainId, name: s.name, online: s.online !== false, enabled: true, direct: false, writableFields: ["name", "enabled", "labels"], version: newVersion() };
-              db.devices.push(cam);
-              send("entity.created", { kind: "device", entityId: cam.id, version: cam.version });
-            }
-          });
-          return { status: 200, body: { done, failed } };
-        },
-      ],
-
-      /* ----- Папки ----- */
-      [
-        "POST",
-        "/folders",
-        (p, q, body) => {
-if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
-          if (!byId("domains", body.domainId)) return notFound("Домен");
-          if (domainDown(body.domainId)) return problem(409, "SERVER_OFFLINE", "Нет связи с доменом");
-          if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
-          if (body.parentId) {
-            const parent = byId("folders", body.parentId);
-            if (!parent) return notFound("Папка");
-            if (parent.domainId !== body.domainId) return problem(422, "VALIDATION_FAILED", "Родительская папка — в другом домене", { field: "parentId" });
-          }
-          const f = { id: uuid("folder"), name: body.name.trim(), domainId: body.domainId, parentId: body.parentId, deviceIds: [], version: newVersion() };
-          db.folders.push(f);
-          send("entity.created", { kind: "folder", entityId: f.id, version: f.version });
-          return one(folderView(f), 201);
-        },
-      ],
-      [
-        "PATCH",
-        "/folders/{id}",
-        (p, q, body, headers) => {
-          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
-          const f = byId("folders", p.id);
-          if (!f) return notFound("Папка");
-          const bad = precondition(f, headers) || (domainDown(f.domainId) ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null);
-          if (bad) return bad;
-          if ("name" in body && !String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя папки", { field: "name" });
-          if ("name" in body) body.name = body.name.trim();
-          applyPatch(f, body);
-          changed("folder", f);
-          return one(folderView(f));
-        },
-      ],
-      [
-        "POST",
-        "/folders/{id}/devices",
-        (p, q, body) => {
-          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
-          const f = byId("folders", p.id);
-          if (!f) return notFound("Папка");
-          if (domainDown(f.domainId)) return problem(409, "SERVER_OFFLINE", "Нет связи с доменом");
-          if (body.add.length + body.remove.length > db.reference.limits.selectMax) return problem(422, "VALIDATION_FAILED", "Больше, чем selectMax: несколькими операциями", { field: "add" });
-          const add = [...new Set(body.add)], remove = [...new Set(body.remove)];
-          const alien = add.concat(remove).find((id) => {
-            const d = byId("devices", id);
-            return !d || d.domainId !== f.domainId;
-          });
-          if (alien) return problem(422, "VALIDATION_FAILED", `Устройства ${alien} нет в домене папки`, { field: "add" });
-          if (add.some((id) => !folderable(byId("devices", id)) && !f.deviceIds.includes(id))) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "add" });
-          // Состав папки — это папки устройства: добавить или убрать устройство групповой операции нельзя
-          const fresh = add.filter((id) => !f.deviceIds.includes(id)), out = remove.filter((id) => f.deviceIds.includes(id));
-          const locked = lockedProblem(fresh.concat(out));
-          if (locked) return locked;
-          if (!fresh.length && !out.length) return one(folderView(f));
-          const steps = fresh.concat(out).map((id) => ({ targetId: id, version: byId("devices", id).version, before: { folderIds: foldersOf(id) } }));
-          f.deviceIds = f.deviceIds.filter((id) => !out.includes(id)).concat(fresh);
-          bump(f);
-          changed("folder", f);
-          fresh.concat(out).forEach((id) => changed("device", byId("devices", id)));
-          recordSingle(steps);
-          return one(folderView(f));
-        },
-      ],
-      [
-        "DELETE",
-        "/folders/{id}",
-        (p, q, body, headers) => {
-          if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Папки ведёт только администратор");
-          const f = byId("folders", p.id);
-          if (!f) return notFound("Папка");
-          const bad = precondition(f, headers) || (domainDown(f.domainId) ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null) || lockedProblem(touchedBy("folders", f), held);
-          if (bad) return bad;
-          removeFolder(f);
-          return { status: 204, body: null };
-        },
-      ],
-      /* ----- Хранилища и тома ----- */
-      [
-        "POST",
-        "/archives",
-        (p, q, body) => {
-          if (!String(body.name).trim()) return problem(422, "NAME_REQUIRED", "Укажите имя хранилища", { field: "name" });
-          if ((body.serverId == null) === (body.domainId == null)) return problem(422, "VALIDATION_FAILED", "Владелец — ровно один из serverId и domainId", { field: "serverId" });
-          if (body.serverId && !byId("servers", body.serverId)) return notFound("Сервер");
-          if (body.domainId && !byId("domains", body.domainId)) return notFound("Домен");
-          const spec = kindSpec(body.kind);
-          if (!spec) return problem(422, "NOT_SUPPORTED", `Вид ${body.kind} система не заводит`, { field: "kind" });
-          if (spec.serverRequired && !body.serverId) return problem(422, "VALIDATION_FAILED", "Это хранилище — на сервере", { field: "serverId" });
-          if (spec.serverWide && db.archives.some((x) => x.kind === body.kind && x.serverId === body.serverId)) return problem(422, "VALIDATION_FAILED", "На сервере уже есть такой архив: он один на сервер", { field: "serverId" });
-          const unsupported = featureProblem("archive", body) || (body.recordMode != null || body.admits != null || body.encrypted ? archivePatchProblem(body, stripUndefined({ recordMode: body.recordMode === null ? undefined : body.recordMode, admits: body.admits === null ? undefined : body.admits, encrypted: body.encrypted || undefined })) : null);
-          if (unsupported) return unsupported;
-          const bucket = spec.address === "bucket";
-          const a = {
-            id: uuid("archive"),
-            name: body.name.trim(),
-            kind: body.kind,
-            storage: bucket ? "object" : body.storage,
-            // Шифрование — только у объектного и бакета
-            encrypted: !!body.encrypted && spec.encryption && (bucket || body.storage === "object"),
-            retentionDays: body.retentionDays,
-            provider: bucket ? body.provider : null,
-            serverId: body.serverId,
-            domainId: body.domainId,
-            admits: spec.admits && body.admits !== false,
-            version: newVersion(),
-          };
-          if (spec.archiveModes.length && body.recordMode) a.recordMode = body.recordMode;
-          const bad = volumeProblem(a, body.firstVolume);
-          if (bad) return bad;
-          db.archives.push(a);
-          const v = newVolume(a, body.firstVolume);
-          send("entity.created", { kind: "archive", entityId: a.id, version: a.version });
-          send("entity.created", { kind: "volume", entityId: v.id, version: v.version });
-          if (spec.serverWide) serverWideChanged(a);
-          recordSingle([createdStep(a)]);
-          return { status: 201, body: { archive: clone(a), volumes: [volume(v)] } };
-        },
-      ],
-      [
-        "POST",
-        "/archives/check",
-        (p, q, body) => {
-          // Встроенный сервер не ходит в сеть: подключение «удаётся», если заполнено то, без чего не подключиться
-          const v = body.volume;
-          const spec = kindSpec(body.kind);
-          if (!spec || !spec.check) return problem(422, "NOT_SUPPORTED", `У вида ${body.kind} нет проверки подключения`, { field: "kind" });
-          const missing = spec.address === "nas" ? !v.disk.trim() || !String(v.login || "").trim() : spec.address === "bucket" ? !String(v.bucket || "").trim() : false;
-          return { status: 200, body: { ok: !missing, code: missing ? "CONNECTION_FAILED" : null } };
-        },
-      ],
-      [
-        "PATCH",
-        "/archives/{id}",
-        (p, q, body, headers) => {
-          const t = targetOf(p.id);
-          if (!t || t.kind !== "archive") return notFound("Хранилище");
-          const bad = precondition(t.rec, headers) || setProblem(t, body);
-          if (bad) return bad;
-          const before = applyPatch(t.rec, body);
-          changed("archive", t.rec);
-          if ("recordMode" in body) serverWideChanged(t.rec);
-          recordSingle([setStep(t.rec, body, before)]);
-          return one(clone(t.rec));
-        },
-      ],
-      [
-        "DELETE",
-        "/archives/{id}",
-        (p, q, body, headers) => {
-          const a = byId("archives", p.id);
-          if (!a) return notFound("Хранилище");
-          const bad = precondition(a, headers) || lockedProblem(touchedBy("archives", a), held);
-          if (bad) return bad;
-          removeArchive(a);
-          recordSingle([{ targetId: a.id, version: a.version, before: { deleted: true } }]);
-          return { status: 204, body: null };
-        },
-      ],
-      [
-        "POST",
-        "/archives/{id}/volumes",
-        (p, q, body) => {
-          const a = byId("archives", p.id);
-          if (!a) return notFound("Хранилище");
-          const bad = volumeProblem(a, body);
-          if (bad) return bad;
-          const v = newVolume(a, body);
-          send("entity.created", { kind: "volume", entityId: v.id, version: v.version });
-          recordSingle([createdStep(v)]);
-          return one(volume(v), 201);
-        },
-      ],
-      [
-        "PATCH",
-        "/volumes/{id}",
-        (p, q, body, headers) => {
-          const t = targetOf(p.id);
-          if (!t || t.kind !== "volume") return notFound("Том");
-          const bad = precondition(t.rec, headers) || setProblem(t, body);
-          if (bad) return bad;
-          const before = applyPatch(t.rec, volumeSet(t.rec, body));
-          changed("volume", t.rec);
-          recordSingle([setStep(t.rec, body, before)]);
-          return one(volume(t.rec));
-        },
-      ],
-      [
-        "DELETE",
-        "/volumes/{id}",
-        (p, q, body, headers) => {
-          const v = byId("volumes", p.id);
-          if (!v) return notFound("Том");
-          const bad = precondition(v, headers);
-          if (bad) return bad;
-          removeVolume(v);
-          recordSingle([{ targetId: v.id, version: v.version, before: { deleted: true } }]);
-          return { status: 204, body: null };
-        },
-      ],
-      [
-        "POST",
-        "/volumes/{id}/format",
-        (p) => {
-          const v = byId("volumes", p.id);
-          if (!v) return notFound("Том");
-          if (v.state === "format") return problem(409, "BUSY", "Том уже форматируется");
-          const locked = lockedProblem([v.id]);
-          if (locked) return locked;
-          v.state = "format";
-          bump(v);
-          formatting.set(v.id, now() + FORMAT_MS);
-          changed("volume", v);
-          // Записи стёрты: форматирование в стопке, но назад не возвращается
-          recordSingle([{ targetId: v.id, version: v.version, before: { deleted: true } }]);
-          return one(volume(v), 202);
-        },
-      ],
-      /* ----- Устройства: добавить, изменить сразу, удалить, определить модель ----- */
-      [
-        "POST",
-        "/devices",
-        (p, q, body) => {
-          const done = [];
-          const failed = [];
-          body.items.forEach((x, index) => {
-            // MAC камеры, источника и СКУД — только из поиска
-            if (!x.candidateId && ["camera", "eventsrc", "acfa"].includes(x.device.type)) delete x.device.mac;
-            if (x.folderId && domainDown(x.domainId)) return failed.push({ index, code: "VALIDATION_FAILED", field: "folderId" });
-            const res = createDevice(x.device, x.domainId, x.parentId, x.folderId);
-            if (res.code) return failed.push(Object.assign({ index, code: res.code }, res.field ? { field: res.field } : {}));
-            if (x.candidateId) {
-              const d = db.discovery.find((y) => y.domainId === x.domainId);
-              if (d) d.candidateIds = d.candidateIds.filter((c) => c !== x.candidateId);
-            }
-            done.push({ index, devices: res.devices.map(device), folders: res.folders.map(folderView) });
-            recordSingle([createdStep(res.devices[0])]);
-          });
-          return { status: 200, body: { done, failed } };
-        },
-      ],
-      [
-        "POST",
-        "/devices/update",
-        (p, q, body) => {
-          const done = [];
-          const failed = [];
-          const steps = [];
-          body.items.forEach((x) => {
-            const t = targetOf(x.deviceId);
-            if (!t || t.kind !== "device") return failed.push({ deviceId: x.deviceId, code: "NOT_FOUND" });
-            if (t.rec.version !== x.version) return failed.push({ deviceId: x.deviceId, code: "VERSION_MISMATCH" });
-            if (busy(x.deviceId)) return failed.push({ deviceId: x.deviceId, code: "BUSY" });
-            const bad = setProblem(t, x.set) || clashProblem(t.rec, x.set);
-            if (bad) return failed.push(Object.assign({ deviceId: x.deviceId, code: bad.body.code }, bad.body.field ? { field: bad.body.field } : {}));
-            const held = keptProblem(t.rec, x.set);
-            if (held) return failed.push(Object.assign({ deviceId: x.deviceId, code: held.body.code }, held.body.params ? { params: held.body.params } : {}));
-            const before = applyPatch(t.rec, x.set);
-            syncMain(t.rec, x.set);
-            changed("device", t.rec);
-            steps.push(setStep(t.rec, x.set, before));
-            done.push(device(t.rec));
-          });
-          recordSingle(steps);
-          return { status: 200, body: { done, failed } };
-        },
-      ],
-      [
-        "POST",
-        "/devices/probe",
-        (p, q, body) => {
-          // Модель «сообщает» устройство; у встроенного сервера — по сумме чисел адреса, как в макете
-          const models = (db.reference.deviceModels.find((m) => m.vendor === body.vendor) || {}).models || [];
-          // Драйверу нужен вход: стенд с stand.probeNeedsLogin без логина модели не называет
-          if (!models.length || (db.stand.probeNeedsLogin && !(body.login && body.password))) return { status: 200, body: { model: null } };
-          const sum = body.ip.split(".").reduce((s, x) => s + (Number(x) || 0), 0);
-          return { status: 200, body: { model: models[Math.abs(sum) % models.length] } };
-        },
-      ],
-      [
-        "DELETE",
-        "/devices/{id}",
-        (p, q, body, headers) => {
-          const d = byId("devices", p.id);
-          if (!d) return notFound("Устройство");
-          const bad = precondition(d, headers) || deleteProblem(d) || lockedProblem(touchedBy("devices", d), held);
-          if (bad) return bad;
-          removeDevice(d.id);
-          recordSingle([{ targetId: d.id, version: d.version, before: { deleted: true } }]);
-          return { status: 204, body: null };
-        },
-      ],
+      /* ----- Домен: поиск устройств (discovery); объекты домена — пути ядра /units ----- */
       [
         "POST",
         "/domains/{id}/discovery",
@@ -3591,19 +3771,33 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const done = [];
           const failed = [];
           const steps = [];
-          const kinds = { devices: (r) => removeDevice(r.id), folders: removeFolder, archives: removeArchive, volumes: removeVolume, rules: removeRule };
           body.items.forEach((x) => {
-            const table = Object.keys(kinds).find((k) => byId(k, x.id));
-            // Уже удалён вместе с родителем из этого же запроса — тоже удалён
-            if (!table) return done.includes(x.id) || wasRemoved.has(x.id) ? done.push(x.id) : failed.push({ id: x.id, code: "NOT_FOUND" });
-            const rec = byId(table, x.id);
-            // r<revision> сверяет только строку камеры: чужая правка записи или детектора удаление не остановит
-            if (rec.version !== x.version && !(table === "devices" && x.version === `r${revisionOf(rec)}`)) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
-            if (table === "devices" && deleteProblem(rec)) return failed.push({ id: x.id, code: "NOT_SUPPORTED" });
-            if (lockedProblem(touchedBy(table, rec), held)) return failed.push({ id: x.id, code: "BUSY" });
-            kinds[table](rec);
+            // Объект склада — по uid, как DELETE /units/{uid}: вид со своим удалением (хук remove) — по хуку, в стопке шаг, который
+            // назад не вернуть; остальные — каскадом ядра, откат возвращает их. Серверы и домены так не удаляют — NOT_FOUND
+            const u = store.get(x.id);
+            if (u && (kinds.profileOf(u.kind, "vms.server/1") || kinds.profileOf(u.kind, "vms.domain/1"))) return failed.push({ id: x.id, code: "NOT_FOUND" });
+            if (u) {
+              if (u.version !== x.version) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
+              const errs = unitDeleteErrs(u);
+              if (errs.length) return failed.push({ id: x.id, code: errs[0].code === "BUSY" ? "BUSY" : "NOT_SUPPORTED" });
+              const rem = hookOf(u.kind, "remove");
+              if (rem) {
+                if (hookRemove(rem, u, {}).record) steps.push({ targetId: u.uid, version: u.version, before: { deleted: true }, req: { uid: u.uid, delete: true } });
+                return done.push(x.id);
+              }
+              if (lockedProblem(unitSubtree(u).map((y) => y.uid), held)) return failed.push({ id: x.id, code: "BUSY" });
+              const snap = unitRemoveTree(u);
+              snap.forEach((y) => wasRemoved.add(y.unit.uid));
+              done.push(x.id);
+              return steps.push({ targetId: u.uid, version: u.version, before: { restore: snap }, req: { uid: u.uid, delete: true } });
+            }
+            // Правило — по id. Уже удалён вместе с родителем из этого же запроса — тоже удалён
+            const rule = byId("rules", x.id);
+            if (!rule) return done.includes(x.id) || wasRemoved.has(x.id) ? done.push(x.id) : failed.push({ id: x.id, code: "NOT_FOUND" });
+            if (rule.version !== x.version) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
+            if (lockedProblem(touchedBy("rules", rule), held)) return failed.push({ id: x.id, code: "BUSY" });
+            removeRule(rule);
             done.push(x.id);
-            if (table === "devices" || table === "archives" || table === "volumes") steps.push({ targetId: rec.id, version: rec.version, before: { deleted: true } });
           });
           wasRemoved.clear();
           recordSingle(steps);
@@ -3635,8 +3829,8 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const s = db.settings;
           const bad = precondition(s, headers);
           if (bad) return bad;
-          const kinds = body.values["alarms.domain"];
-          if (kinds && kinds.some((k) => !(db.reference.eventKinds || []).includes(k))) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: "alarms.domain" });
+          const alarms = body.values["alarms.domain"], known = eventCodes();
+          if (alarms && alarms.some((k) => !known.has(k))) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: "alarms.domain" });
           Object.assign(s.values, clone(body.values));
           bump(s);
           send("entity.changed", { kind: "settings", version: s.version });
@@ -3820,7 +4014,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const pre = r.enabled ? [] : [{ code: "testOff", params: {}, ok: true, reason: null }];
           let events;
           if (r.start === "event") {
-            events = (body.events || []).map((e) => ({ source: e.source, kind: e.kind, match: e.match || {}, deviceId: e.deviceId, at: iso(at) }));
+            events = (body.events || []).map((e) => ({ source: e.source, event: e.event, match: e.match || {}, deviceId: e.deviceId, at: iso(at) }));
             pre.push(...engine.eventChecks(r, events));
           }
           const f = engine.fire(r, { by: "test", at, now: !body.at, watch: true, events, pre, br: body.branches || {} });
@@ -4219,41 +4413,44 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         "POST",
         "/operations",
         (p, q, body) => {
+          // Шаг по uid: patch, action, delete, folders, createUnit, move. patch, folders, createUnit проверяются до запуска
+          // (unitStepsPreflight): не пройдёт один — отклонена вся операция. Остальное (связь сервера, перенос, удаление,
+          // команда) — при выполнении шага: отказ одного объекта не останавливает остальные. Шагов по папкам (folders, patch только с folders) — до
+          // selectMax (reference.limits): состав папок за раз, как у групповой правки папок; прочие шаги предела не имеют
+          const folderSteps = body.items.filter((r) => r.folders !== undefined || (r.patch && Object.keys(r.patch).length && Object.keys(r.patch).every((k) => k === "folders"))).length;
+          if (folderSteps > db.reference.limits.selectMax) return problem(422, "VALIDATION_FAILED", "Шагов по папкам больше, чем selectMax: несколькими операциями", { field: "items" });
           for (const [i, r] of body.items.entries()) {
-            if ([r.set, r.folderIds, r.create].filter(Boolean).length !== 1) return problem(422, "VALIDATION_FAILED", "У шага ровно одно из set, folderIds и create", { field: `items[${i}]` });
-            const t = targetOf(r.targetId);
-            if (!t) return problem(404, "NOT_FOUND", `Объект ${r.targetId} не найден`, { params: { targetId: r.targetId } });
-            if (r.set) {
-              const whole = Object.assign({}, ...body.items.filter((x) => x.targetId === r.targetId && x.set).map((x) => x.set));
-              const bad = setProblem(t, r.set, whole);
-              if (bad) return bad;
-            }
-            if (r.create) {
-              if (t.kind !== "device") return problem(422, "VALIDATION_FAILED", "Дочерние — только у устройства", { field: `items[${i}].create` });
-              const e = createProblem(r.create, t.rec.domainId, t.rec.id, null);
-              if (e) return problem(422, e.code === "IDENTIFIER_TAKEN" ? "VALIDATION_FAILED" : e.code, "Шаг create не пройдёт", { field: `items[${i}].create` });
-            }
-            if (r.folderIds) {
-              if (t.kind !== "device") return problem(422, "VALIDATION_FAILED", "В папках лежат только устройства", { field: `items[${i}].folderIds` });
-              const dev = t.rec;
-              const wrong = r.folderIds.find((f) => {
-                const folder = byId("folders", f);
-                return !folder || folder.domainId !== dev.domainId;
-              });
-              if (wrong) return problem(422, "VALIDATION_FAILED", `Папки ${wrong} нет в домене устройства`, { field: `items[${i}].folderIds` });
-              if (!folderable(dev)) return problem(422, "NOT_SUPPORTED", "Эта запись в папки не входит", { field: "folderIds" });
-            }
+            const bad = unitStepProblem(r, i);
+            if (bad) return bad;
           }
-          const targets = [...new Set(body.items.map((r) => r.targetId))];
-          const missing = targets.find((t) => !(t in body.expectedVersions));
+          const targets = [...new Set(body.items.map((r) => r.uid))];
+          // Версия нужна шагу, который меняет сам объект (patch, delete, folders, move)
+          const needs = new Set(body.items.filter(unitStepNeedsVersion).map((r) => r.uid));
+          const missing = targets.find((t) => needs.has(t) && !(t in body.expectedVersions));
           if (missing) return problem(428, "PRECONDITION_REQUIRED", "Для каждого объекта нужна версия, по которой построен план", { params: { targetId: missing } });
           for (const id of targets) {
-            const t = targetOf(id);
-            if (t.rec.version !== body.expectedVersions[id]) return problem(412, "VERSION_MISMATCH", "Объект изменился с момента построения плана", { current: view(t), params: { targetId: id } });
+            if (!(id in body.expectedVersions)) continue;
+            const u = store.get(id);
+            if (u.version !== body.expectedVersions[id]) return problem(412, "VERSION_MISMATCH", "Объект изменился с момента построения плана", { current: unitView(u), params: { targetId: id } });
           }
           const taken = targets.find(busy);
           if (taken) return problem(409, "BUSY", "Над объектом выполняется другая операция", { params: { targetId: taken } });
-          return { status: 202, body: opView(startOperation(body.items.map(clone))) };
+          const early = unitStepsPreflight(body.items);
+          if (early) return early;
+          // Только команды — назад не вернуть: такая операция в стопку отката не попадает
+          const commands = body.items.every((r) => r.action !== undefined);
+          const op = startOperation(body.items.map(clone), commands ? { noUndo: true } : undefined);
+          // wait и все шаги мгновенные: шаги — сразу, ответ — законченная операция (200), опрашивать нечего
+          if (body.wait && body.items.every(unitStepInstant)) {
+            op.items.forEach((item) => {
+              runItem(op, item);
+              const v = opView(op);
+              send("operation.progress", { kind: "operation", entityId: op.id, payload: { item: v.items[item.index], done: v.done, total: v.total } });
+            });
+            finish(op);
+            return { status: 200, body: opView(op) };
+          }
+          return { status: 202, body: opView(op) };
         },
       ],
       ["GET", "/operations", (p, q) => {
@@ -4308,9 +4505,11 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const failed = op.items.filter((x) => x.state === "fail");
           if (op.state !== "done" || !failed.length) return problem(409, "BUSY", "Повторять нечего: операция не завершена или неудачных шагов нет");
           // Повтор и откат — новые операции: занятый другой операцией объект они тоже не трогают
-          const lockedRetry = lockedProblem(failed.map((x) => x.req.targetId));
+          const lockedRetry = lockedProblem(failed.map((x) => x.targetId));
           if (lockedRetry) return lockedRetry;
-          return { status: 202, body: opView(startOperation(failed.map((x) => ({ targetId: x.req.targetId, set: x.req.set, folderIds: x.req.folderIds, create: x.req.create })).map(stripUndefined), { retryOf: op.id })) };
+          // Шаг повторяется теми же полями запроса; служебные шаги отката (restore, unitRemove…) — отказом
+          const again = (r) => ({ uid: r.uid, patch: r.patch, action: r.action, params: r.params, delete: r.delete, folders: r.folders, createUnit: r.createUnit });
+          return { status: 202, body: opView(startOperation(failed.map((x) => stripUndefined(again(x.req))), { retryOf: op.id, noUndo: op.noUndo })) };
         },
       ],
       [
@@ -4322,25 +4521,13 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const reason = revertReason(op);
           if (reason) return problem(409, "NOT_REVERTIBLE", "Откатить нельзя", { params: { reason } });
           const done = op.items.filter((x) => x.state === "ok");
-          // Кроме самих объектов — то, что откат удалит: созданное шагом устройство с дочерними
-          const removes = done.map((x) => x.before.remove && targetOf(x.before.remove)).filter(Boolean);
-          const lockedRevert = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)).concat(removes.flatMap((t) => touchedBy(t.table, t.rec))), held);
+          // Кроме самих объектов — созданное шагом createUnit: откат его снимет
+          const lockedRevert = lockedProblem(done.flatMap((x) => [x.targetId].concat(x.before.unitRemove ? [x.before.unitRemove] : [])).filter((id) => store.has(id)), held);
           if (lockedRevert) return lockedRevert;
           op.reverted = true;
           // Шаги — в обратном порядке. Шаг сверяет значения своих полей с записанными: другое значение — объект
-          // меняли после, шаг не выполняется. Удаление, папки, секреты, адрес и объём тома назад не возвращаются
-          const requests = done.slice().reverse().map((x) =>
-            stripUndefined({
-              targetId: x.targetId,
-              set: x.before.set,
-              remove: x.before.remove,
-              expect: x.before.remove ? x.createdVersion : undefined,
-              expectFields: x.after,
-              undoable: x.before.deleted || x.before.folderIds || x.secret || volumeFixed(x) ? false : undefined,
-              // Папки вне отката, ADR-0106 п. 1: шаг говорит это словом
-              why: x.before.folderIds ? "folders" : undefined,
-            })
-          );
+          // меняли после, шаг не выполняется. Удаление со своим смыслом, папки, секреты, адрес и объём тома назад не возвращаются
+          const requests = done.slice().reverse().map((x) => stripUndefined(unitUndo(x)));
           return { status: 202, body: opView(startOperation(requests, { revertOf: op.id })) };
         },
       ],
@@ -4355,10 +4542,10 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const undo = [...ops.values()].filter((x) => x.revertOf === op.id).pop();
           // Только то, что отмена вернула: её удачные шаги в исходном порядке. Откат снял созданное — заново не создаётся
           const done = undo.items.filter((x) => x.state === "ok").reverse();
-          const locked = lockedProblem(done.map((x) => x.targetId).filter((id) => targetOf(id)), held);
+          const locked = lockedProblem(done.map((x) => x.targetId).filter((id) => store.has(id)), held);
           if (locked) return locked;
           redoStack.pop();
-          const requests = done.map((x) => (x.req.remove ? { targetId: x.targetId, undoable: false } : { targetId: x.targetId, set: x.req.expectFields, expectFields: x.req.set }));
+          const requests = done.map((x) => stripUndefined(unitRedo(x)));
           return { status: 202, body: opView(startOperation(requests, { redoOf: op.id })) };
         },
       ],
@@ -4380,7 +4567,6 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           // Часы останавливаются: время в тестах идёт только по /test/clock
           clock.frozenAt = body.freezeClock === false ? null : realNow() + clock.offset;
           load(body.fixturePatch ? mergePatch(base, body.fixturePatch) : base);
-          keptEdits = new Map();
           if (body.actAs) {
             const u = db.access.users.find((x) => x.login === body.actAs);
             if (!u) return problem(404, "NOT_FOUND", `Пользователя ${body.actAs} нет`);
@@ -4390,6 +4576,14 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           return { status: 200, body: { fixture: body.fixture, now: iso(now()), frozen: clock.frozenAt != null } };
         },
       ],
+      // Описание вида на ходу — как установка или обновление плагина: новый ETag /kinds, kinds.changed в поток. Склад
+      // переиндексирует объекты вида (ссылки x-ref могли измениться) — хук onPut реестра
+      ["PUT", "/test/kinds/{kind}", (p, q, body) => {
+        if (body.kind !== p.kind) return errsProblem([err("VALIDATION_FAILED", "/kind", { keyword: "const", value: p.kind })], "Код вида в теле — не тот, что в пути");
+        kinds.put(clone(body));
+        send("kinds.changed", { payload: { kinds: [p.kind] } });
+        return { status: 200, body: clone(kinds.get(p.kind)) };
+      }],
       // Второй экземпляр консоли: поток идёт, а PUT наблюдения попадает туда, где его нет
       ["POST", "/test/stream-elsewhere", () => {
         clients.forEach((c) => (c.elsewhere = true));
@@ -4404,7 +4598,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
           const fired = [];
           const target = now() + ms;
           for (let t = now(); ; ) {
-            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at), ...runDue());
+            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at), ...applying.values(), ...runDue());
             if (clock.frozenAt != null) clock.frozenAt = Math.max(t, due);
             else clock.offset += Math.max(t, due) - now();
             fired.push(...tick());
@@ -4442,13 +4636,24 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             (db.scenarioStatus[body.domainId] = db.scenarioStatus[body.domainId] || {})[body.name] = clone(body.status);
             return { status: 200, body: { applied: true } };
           }
+          // Событие объекта из описания его вида (UnitKind.events): запускает включённые правила с этим одним событием,
+          // уточнение правила (match) — подмножество полей события, сравнение строгое. Шаги-команды объектов выполняются
+          if (body.type === "unit.event") {
+            const u = store.get(body.deviceId);
+            if (!u) return notFound("Объект");
+            if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === body.eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${body.eventId}`, { field: "eventId" });
+            const match = clone(body.match || {}), ev = { source: "unit", event: body.eventId, match, deviceId: u.uid, at: iso(now()) };
+            const fits = (t) => Object.entries(t.match || {}).every(([k, v]) => k in match && JSON.stringify(match[k]) === JSON.stringify(v));
+            db.rules.filter((r) => r.enabled && r.start === "event" && r.runMode !== "manual" && r.triggers.length === 1 && engine.hears(r.triggers[0], body.eventId, u.uid) && fits(r.triggers[0]))
+              .forEach((r) => fireDo(ruleStart(r, { via: "event", events: [ev], src: [u.uid] })));
+            return { status: 200, body: { applied: true } };
+          }
           const dev = byId("devices", body.deviceId);
           if (!dev) return notFound("Устройство");
           // Сервер сам находит и теряет записи, когда устройство ответило иначе
           if (body.type === "device.found") {
             if (!body.found) return problem(422, "VALIDATION_FAILED", "Нужно found", { field: "found" });
-            const d = Object.assign({ id: uuid("device"), type: body.found.type, parentId: dev.id, domainId: dev.domainId, name: body.found.name, online: true, enabled: true, version: newVersion() }, body.found.channel != null ? { channel: body.found.channel } : {});
-            db.devices.push(d);
+            const d = legacy.add("devices", Object.assign({ id: uuid("device"), type: body.found.type, parentId: dev.id, domainId: dev.domainId, name: body.found.name, online: true, enabled: true, version: newVersion() }, body.found.channel != null ? { channel: body.found.channel } : {}));
             send("entity.created", { kind: "device", entityId: d.id, version: d.version });
             return { status: 200, body: { applied: true, deviceId: d.id } };
           }
@@ -4461,11 +4666,11 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
             if (!body.value) return problem(422, "VALIDATION_FAILED", "Нужно value", { field: "value" });
             const at = iso(now());
             if (body.value === "active") {
-              const ev = { source: "vms", kind: "io.input", match: { value: "active" }, deviceId: dev.id, at };
+              const ev = { source: "unit", event: "io.input", match: { value: "active" }, deviceId: dev.id, at };
               db.rules.filter((r) => r.enabled && r.start === "event" && r.runMode !== "manual" && r.triggers.length === 1 && (r.triggers[0].match.value || "active") === "active" && engine.hears(r.triggers[0], "io.input", dev.id))
                 .forEach((r) => ruleStart(r, { via: "event", events: [ev], src: [dev.id] }));
             } else
-              ruleRuns.filter((x) => x.pause && x.pause.control.stop === "reset" && x.events.some((e) => e.kind === "io.input" && e.deviceId === dev.id)).forEach((x) => {
+              ruleRuns.filter((x) => x.pause && x.pause.control.stop === "reset" && x.events.some((e) => e.event === "io.input" && e.deviceId === dev.id)).forEach((x) => {
                 const level = x.pause.reached;
                 promptsClose(x, "reset");
                 runDecide(x, "reset", { level, at });
@@ -4494,9 +4699,66 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       ],
     ];
 
-    // Заглушка ассистента: разбор — по словам просьбы, чтобы сценарии были предсказуемы. Это не модель, план здесь
-    // никто не проверяет: у бэкенда проверяет код. «сбой» — error, «маска сети» — refused, нет действия или камер — question
-    const ASSIST_STOP = ["камер", "запис", "включ", "выклу", "парол", "секре", "смени", "всех", "этаж"];
+    /* ----- Заглушка ассистента: разбор — по словам просьбы, чтобы сценарии были предсказуемы. Это не модель, план здесь
+       никто не проверяет: у бэкенда проверяет код. Мир — объекты и описания видов: слова просьбы сверяются с подписями вида
+       (label, x-label, x-enum-labels), значениями свойств с x-search и подписями команд. Кода под вид нет — незнакомый вид
+       понимается по своему описанию. Слова профилей, которых в подписях нет («запись» камеры), — ASSIST_PHRASES.
+       «сбой» — error, поля нет в описаниях — refused, значение вне схемы — refused с указателем, не понял — question ----- */
+    const ASSIST_STOP = ["камер", "запис", "включ", "выклу", "парол", "секре", "смени", "помен", "измен", "поста", "устан", "задай", "перев", "сдела", "всех", "этаж"];
+    // «включи/выключи запись» — режим записи профиля камеры: в подписях схемы этого слова нет («Когда писать»)
+    const ASSIST_PHRASES = [
+      { re: /выключи\S*\s.*запис|запис\S*.*выключи/, profile: "vms.camera/1", name: "recordMode", value: "none" },
+      { re: /(^|[^ы])включи\S*\s.*запис/, profile: "vms.camera/1", name: "recordMode", value: "always" },
+    ];
+    const assistNorm = (t) => String(t == null ? "" : t).toLowerCase().replace(/ё/g, "е");
+    const assistWords = (t) => assistNorm(t).split(/[^a-zа-я0-9]+/).filter(Boolean);
+    const assistText = (t) => (t && typeof t === "object" ? t.text || t.key || "" : String(t || ""));
+    // Основа слова без окончания: «камера» → «камер», «ручной» → «ручн»
+    const assistStem = (w) => w.replace(/[аеиоуыэюяйь]+$/, "");
+    const assistWordHit = (req, lab) => req === lab || (assistStem(lab).length >= 4 && req.startsWith(assistStem(lab)));
+    // Подпись в словах просьбы: каждое значимое слово подписи (от min букв) — в каком-то слове просьбы. Ответ — слова
+    // просьбы, которые её назвали, или null. Подпись из одного короткого слова («Реле», «Том») — только целым словом
+    function assistLabelHit(words, label, min) {
+      const all = assistWords(assistText(label));
+      const sig = all.filter((w) => w.length >= (min || 3));
+      const need = sig.length ? sig : all.length === 1 && !min ? all : [];
+      if (!need.length) return null;
+      const got = need.map((w) => words.find((r) => assistWordHit(r, w)));
+      return got.every(Boolean) ? got : null;
+    }
+    const assistEat = (rest, words) => words.reduce((s, w) => s.replace(new RegExp(`(^|[^a-zа-я0-9])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[^a-zа-я0-9]|$)`, "g"), "$1 "), rest);
+    // Виды по подписи (UnitKind.label): подпись из большего числа слов главнее — «датчик acfa», а не «датчик»
+    function assistKindsIn(rest) {
+      const words = assistWords(rest);
+      const hits = kinds.list().map((k) => ({ k, m: assistLabelHit(words, k.label) })).filter((h) => h.m);
+      return hits.filter((h) => !hits.some((o) => o !== h && o.m.length > h.m.length && h.m.every((w) => o.m.includes(w))));
+    }
+    const assistKindLabel = (kind) => assistText((kinds.get(kind) || {}).label) || kind;
+    const assistProps = (kind) => ((kinds.get(kind) || {}).schema || {}).properties || {};
+    const assistByName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.uid < b.uid ? -1 : 1);
+    // Команда над объектами: подпись команды вида (UnitKind.actions, кроме ruleOnly) — все её слова в просьбе (по пяти буквам:
+    // «поставь» — «Поставить»). Виды, названные в просьбе, сужают выбор
+    function assistActionOf(said) {
+      const words = assistWords(said);
+      const hit = (label) => {
+        const sig = assistWords(assistText(label)).filter((w) => w.length >= 4);
+        return sig.length && sig.every((w) => words.some((r) => r.slice(0, 5) === w.slice(0, 5)));
+      };
+      let found = [];
+      kinds.list().forEach((k) => (k.actions || []).forEach((a) => !a.ruleOnly && hit(a.label) && found.push({ kind: k.kind, a })));
+      const named = new Set(assistKindsIn(said).map((h) => h.k.kind));
+      if (named.size) found = found.filter((x) => named.has(x.kind));
+      if (!found.length) return null;
+      const id = found[0].a.id;
+      return { id, label: assistText(found[0].a.label), kinds: found.filter((x) => x.a.id === id).map((x) => x.kind) };
+    }
+    // AssistFoundFilter → запрос GET /units: kinds → kind, списки — через запятую, флаги — "true"
+    function assistUnitsQuery(f) {
+      const q = {};
+      Object.entries(f).forEach(([k, v]) => (q[k === "kinds" ? "kind" : k] = Array.isArray(v) ? v.join(",") : String(v)));
+      return q;
+    }
+
     // Заглушка плана правил: просьбы тестов, а не разбор языка. Настоящий ход — V/10.7: модель, проверка, сверка со словами
     function assistRulesStub(said, context, at) {
       const low = said.toLowerCase();
@@ -4527,13 +4789,14 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         if (!ready) return last({ type: "question", text: "По какому расписанию?", context });
         return last({ type: "plan", summary: "Create a window", context, rules: [win(copy(ready))] });
       }
-      const cam = db.devices.filter((d) => d.type === "camera" && low.includes(d.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
+      // Камера — объект профиля vms.camera/1 по имени в просьбе, самое длинное имя
+      const cam = [...store.all()].filter((u) => isCamera(u) && low.includes(String(u.name).toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0];
       if (!/движени/.test(low) && !asks && !escalates) return last({ type: "refused", text: "Не понял, какое правило нужно.", context });
       if (!cam) return last({ type: "question", text: "На какой камере?", context });
       const minutes = (low.match(/(\d+)\s*мин/) || [])[1];
       if (!minutes && !asks && !escalates) return last({ type: "question", text: "Сколько минут писать?", context });
-      const target = { include: [{ kind: "device", id: cam.id }], exclude: [], gone: [], fromEvent: false };
-      const record = { source: "rec", action: "record", target, duration: "min", minutes: Number(minutes || 5) };
+      const target = { include: [{ uid: cam.uid }], exclude: [], gone: [], fromEvent: false };
+      const record = { type: "unitAction", action: "record", target, params: { duration: "min", minutes: Number(minutes || 5) } };
       // Кому: роль по имени в просьбе, иначе охрана
       const roles = db.access.roles, guard = roles.find((x) => /^охрана$/i.test(x.name)) || roles[0];
       const role = roles.find((x) => low.includes(x.name.toLowerCase())) || guard, chief = roles.find((x) => /^старший охраны$/i.test(x.name) && x !== role);
@@ -4542,7 +4805,7 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         : escalates
           ? [record, { control: "escalate", levels: [{ roleId: role.id, via: "client", waitMin: 5 }].concat(chief ? [{ roleId: chief.id, via: "client", waitMin: 10 }] : []), stop: "ack" }]
           : [record];
-      const r = { name: `${asks ? "Вопрос" : escalates ? "Эскалация" : "Запись"} при движении: ${cam.name}`, start: "event", triggers: [{ source: "det", kind: "motion", target, match: {} }], conditions: [], steps: control };
+      const r = { name: `${asks ? "Вопрос" : escalates ? "Эскалация" : "Запись"} при движении: ${cam.name}`, start: "event", triggers: [{ source: "unit", kinds: [cam.kind], event: "motion", target, match: {} }], conditions: [], steps: control };
       Object.assign(r, /выключенн/.test(low) ? { enabled: false } : { enabled: true, logOnly: true });
       const rows = [{ table: "scenarios", op: "create", body: r }];
       if (fresh) {
@@ -4553,68 +4816,154 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       return last({ type: "plan", summary: "Create a rule", context, rules: rows });
     }
     // Что за реплика, заглушка решает сама по словам просьбы вместе с прежним context: поля типа в запросе нет.
-    // Выбранное держит в себе, в событиях его нет
+    // Порядок разбора: слова отбора («покажи») → вопрос о системе → правило → команда → правка. Команда над объектами
+    // («поставь контроллеры на охрану») — отбор: выполняет её человек. Подпись команды сравнивается по первым пяти буквам
+    // слов, поэтому она перехватывает просьбу, только если разбор правки не узнал в ней свойства: «включи запись» — правка,
+    // даже когда у вида есть команда «Включить». Выбранное держит в себе, в событиях его нет
     function assistKindOf(said) {
       const low = said.toLowerCase();
       if (/выгруз|экспорт|кадр с камер/.test(low) && caps().operations.includes("createExport")) return "export";
       if (/дай список|покажи|выведи/.test(low)) return "found";
       if (/сколько|почему|какой|какая|какие/.test(low)) return "explain";
       if (/правил|при движени|эскалац|спроси|окно обслуживания|расписани|услови|детектор на время|провер\S* архив|лимит/.test(low)) return "rules";
+      if (assistActionOf(said) && !assistEditOf(said).field.size) return "found";
       return "config";
     }
-    // Отбор: простые условия по словам просьбы, отбирает код по полям записей, не модель. Только читает. ids по имени,
-    // без повторов, до selectMax; больше — первые и truncated. Найдено 0 — тоже found
+    // Отбор: условия по словам просьбы — фильтры GET /units (AssistFoundFilter) и то, что фильтром не выражается (папка,
+    // значение перечня); отбирает код по объектам — тем же unitFilter, что GET /units, — не модель. Только читает. ids по имени,
+    // без повторов, до selectMax. Filter — когда всё выражается фильтром и отобрано больше selectMax или просили команду;
+    // есть условие, которое проверяется по объекту (папка, значение перечня), — ids (больше selectMax — первые и truncated),
+    // и с командой тоже: тогда action стоит рядом с ids
     function assistFoundStub(said, context, at) {
-      const low = said.toLowerCase();
-      const conditions = [], tests = [];
-      const add = (word, fn) => (conditions.push(word), tests.push(fn));
-      if (/камер/.test(low)) add("тип: камера", (d) => d.type === "camera");
-      const recOff = /без записи|запис\S* выключ|выключенн\S* запис|не пиш/.test(low);
-      if (recOff) add("запись: нет", (d) => d.type === "camera" && (d.recordMode || "none") === "none");
-      else if (/запис\S* всегда|пишут всегда/.test(low)) add("запись: всегда", (d) => d.recordMode === "always");
-      else if (/по движени/.test(low)) add("запись: по движению", (d) => d.recordMode === "motion");
-      if (!recOff && /выключенн|камер\S* выключен/.test(low)) add("включена: нет", (d) => d.enabled === false);
-      else if (!recOff && /(^|[^ы])включенн/.test(low)) add("включена: да", (d) => d.enabled !== false);
-      if (/не на связи|без связи|офлайн|оффлайн/.test(low)) add("на связи: нет", (d) => d.online === false);
-      else if (/на связи|онлайн/.test(low)) add("на связи: да", (d) => d.online !== false);
-      const vendor = [...new Set(db.devices.map((d) => d.vendor).filter(Boolean))].find((v) => low.includes(v.toLowerCase()));
-      if (vendor) add(`производитель: ${vendor}`, (d) => d.vendor === vendor);
-      const folder = /папк/.test(low) ? db.folders.filter((f) => low.includes(f.name.toLowerCase())).sort((a, b) => b.name.length - a.name.length)[0] : null;
-      if (folder) add(`папка: ${folder.name}`, (d) => folder.deviceIds.includes(d.id));
-      const name = ((low.match(/(?:имя содержит|с именем|в имени)\s*«?([^»,.]+)/) || [])[1] || "").trim();
-      if (name) add(`имя содержит: ${name}`, (d) => d.name.toLowerCase().includes(name));
-      const dets = /детектор\S* движени/.test(low) && /без|не настроен|нет/.test(low) ? detKindsMap() : null;
-      if (dets) add("детектор движения: нет", (d) => d.type === "camera" && !(dets.get(d.id) || new Set()).has("motion"));
+      let rest = assistNorm(said);
+      const eatRe = (re) => {
+        const m = rest.match(re);
+        if (m) rest = rest.replace(m[0], " ");
+        return m;
+      };
+      // Условие: rank — порядок слов в ответе, f — часть фильтра, test — проверка объекта, если фильтром не выразить
+      const conds = [];
+      const add = (rank, word, f, test) => conds.push({ rank, word, f, test });
+      const action = assistActionOf(said);
+      if (action) rest = assistEat(rest, assistWords(action.label).filter((w) => w.length >= 4).flatMap((w) => assistWords(rest).filter((r) => r.slice(0, 5) === w.slice(0, 5))));
+      const recOff = eatRe(/без записи|запис\S* выключ\S*|выключенн\S* запис\S*|не пиш\S*/);
+      if (recOff) add(1, "запись: нет", { noRecord: true });
+      const det = eatRe(/(?:без|нет) детектор\S*(?:\s+([a-zа-я]+))?/);
+      if (det) {
+        // Вид детектора — по подписи перечня detectorKind видов профиля vms.detector/1
+        const codes = det[1] ? kinds.list().filter((k) => kinds.profileOf(k.kind, "vms.detector/1")).flatMap((k) => Object.entries((assistProps(k.kind).detectorKind || {})["x-enum-labels"] || {})).filter(([, l]) => assistLabelHit([det[1]], l)).map(([c]) => c) : [];
+        if (codes.length) add(10, `детектор ${det[1]}: нет`, { noDetector: codes[0] });
+        else {
+          add(10, "детектор: нет", { noDetector: true });
+          if (det[1]) rest += ` ${det[1]}`;
+        }
+      }
+      if (eatRe(/без папк\S*|вне папок/)) add(8, "папка: нет", { noFolder: true });
+      // Папка и домен — объекты профилей vms.folder/1, vms.domain/1 по имени в просьбе, самое длинное
+      const named = (profile) => [...store.all()].filter((u) => kinds.profileOf(u.kind, profile) && u.name && rest.includes(assistNorm(u.name))).sort((a, b) => b.name.length - a.name.length)[0];
+      if (/папк/.test(rest)) {
+        const folder = named("vms.folder/1");
+        if (folder) {
+          add(6, `папка: ${folder.name}`, null, (u) => (u.folders || []).includes(folder.uid));
+          rest = rest.replace(assistNorm(folder.name), " ").replace(/\S*папк\S*/g, " ");
+        }
+      }
+      if (/домен/.test(rest)) {
+        const domain = named("vms.domain/1");
+        if (domain) {
+          add(7, `домен: ${domain.name}`, { domainId: domain.uid });
+          rest = rest.replace(assistNorm(domain.name), " ").replace(/\S*домен\S*/g, " ");
+        }
+      }
+      if (eatRe(/не на связи|без связи|офлайн|оффлайн/)) add(3, "на связи: нет", { status: ["offline"] });
+      else if (eatRe(/на связи|онлайн/)) add(3, "на связи: да", { status: ["online"] });
+      if (!recOff && eatRe(/выключенн\S*/)) add(2, "включена: нет", { status: ["off"] });
+      else if (!recOff && eatRe(/(^|[^ы])включенн\S*/)) add(2, "включена: да", { status: ["run", "nosignal", "license"] });
+      const name = eatRe(/(?:имя содержит|с именем|в имени)\s*«?([^»,.]+)»?/);
+      if (name && name[1].trim()) add(9, `имя содержит: ${name[1].trim()}`, { q: name[1].trim(), fields: ["name"] });
+      // Виды — по подписи вида; команда сама называет свои виды
+      const hits = assistKindsIn(rest);
+      rest = assistEat(rest, hits.flatMap((h) => h.m));
+      const scope = action ? action.kinds : hits.length ? [...new Set(hits.map((h) => h.k.kind))] : kinds.list().map((k) => k.kind);
+      if (action || hits.length) add(0, `тип: ${[...new Set(scope.map((k) => assistKindLabel(k).toLowerCase()))].join(", ")}`, { kinds: scope });
+      // Значение перечня по подписи (x-enum-labels) у видов отбора: «режим: ручной», «когда писать: всегда»
+      const enums = new Map();
+      scope.forEach((kind) => Object.entries(assistProps(kind)).forEach(([prop, s]) => {
+        const labels = (s && s["x-enum-labels"]) || {};
+        Object.entries(labels).forEach(([v, l]) => {
+          const m = assistLabelHit(assistWords(rest), l, 4);
+          if (!m) return;
+          const word = `${assistText(s["x-label"]).toLowerCase() || prop}: ${assistText(l).toLowerCase()}`;
+          const e = enums.get(word) || enums.set(word, { tests: [], m }).get(word);
+          e.tests.push((u) => u.kind === kind && (Array.isArray(props(u)[prop]) ? props(u)[prop].includes(v) : props(u)[prop] === v));
+        });
+      }));
+      enums.forEach((e, word) => add(4, word, null, (u) => e.tests.some((t) => t(u))));
+      enums.forEach((e) => (rest = assistEat(rest, e.m)));
+      // Значение свойства с x-search у объектов видов отбора, целым словом: «производитель: Axis», «серийный номер: TU-0001»
+      const values = new Map();
+      scope.forEach((kind) => kinds.searchNames(kind).forEach((prop) => store.byKind(kind).forEach((u) => {
+        [].concat(props(u)[prop]).forEach((v) => {
+          if (typeof v === "string" && v.length >= 3 && !values.has(assistNorm(v))) values.set(assistNorm(v), { v, prop, label: assistText((assistProps(kind)[prop] || {})["x-label"]).toLowerCase() || prop });
+        });
+      })));
+      [...values.keys()].sort((a, b) => b.length - a.length).forEach((key) => {
+        const at = new RegExp(`(^|[^a-zа-я0-9-])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[^a-zа-я0-9-]|$)`);
+        if (!at.test(rest)) return;
+        const x = values.get(key);
+        rest = rest.replace(at, "$1 ");
+        add(5, `${x.label}: ${x.v}`, { q: x.v, fields: [x.prop] }, null);
+      });
       const out = [{ type: "progress", at, text: "отбираю" }];
-      if (!tests.length) return out.concat({ type: "question", at, text: "По какому условию отобрать?", context });
-      const hidden = hiddenServers();
-      const all = db.devices.filter((d) => !hidden.has(d.serverId) && tests.every((t) => t(d))).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : 1));
-      const max = db.reference.limits.selectMax, ids = [...new Set(all.map((d) => d.id))];
-      const e = { type: "found", at, context, conditions, ids: ids.slice(0, max), total: ids.length };
-      if (ids.length > max) e.truncated = true;
-      e.text = !ids.length ? "Ничего не отобрано." : `Отобрано: ${ids.length}.${ids.length > max ? ` Показаны первые ${max}.` : ""}`;
+      if (!conds.length) return out.concat({ type: "question", at, text: "По какому условию отобрать?", context });
+      // Фильтр — из частей условий; ключ занят (второе q, второй status) — то условие проверкой объекта
+      const filter = {}, tests = [];
+      conds.sort((a, b) => a.rank - b.rank);
+      conds.forEach((c) => {
+        if (c.f && Object.keys(c.f).every((k) => !(k in filter))) Object.assign(filter, c.f);
+        else if (c.f) tests.push(c.f.q !== undefined ? (u) => !!matchOf(u, c.f.q, c.f.fields) : (u) => unitStatusHit(u, c.f.status));
+        else tests.push(c.test);
+      });
+      const { hit } = unitFilter(assistUnitsQuery(filter));
+      const all = [...store.all()].filter((u) => hit(u) && tests.every((t) => t(u))).sort(assistByName);
+      const max = db.reference.limits.selectMax, ids = [...new Set(all.map((u) => u.uid))];
+      const conditions = conds.map((c) => c.word);
+      const e = { type: "found", at, context, conditions };
+      if (!tests.length && (action || ids.length > max)) {
+        Object.assign(e, { filter, total: ids.length });
+        e.text = `Отобрано: ${ids.length}.${action ? ` Команда «${action.label}» — над отобранным, из групповой карточки.` : " Листается фильтром."}`;
+      } else {
+        Object.assign(e, { ids: ids.slice(0, max), total: ids.length });
+        if (ids.length > max) e.truncated = true;
+        e.text = !ids.length ? "Ничего не отобрано." : `Отобрано: ${ids.length}.${ids.length > max ? ` Показаны первые ${max}.` : ""}`;
+      }
+      if (action) e.action = action.id;
       return out.concat(e);
     }
-    // Вопрос о системе: только чтение, конечное событие answer, плана нет
+    // Вопрос о системе: только чтение, конечное событие answer, плана нет. Виды, названные в просьбе, — по подписи
     function assistExplainStub(said, context, at) {
       const low = said.toLowerCase();
-      const text = /правил/.test(low) ? `Правил: ${db.rules.length}.` : `Устройств: ${db.devices.length}, из них камер: ${db.devices.filter((d) => d.type === "camera").length}.`;
+      const count = (kind) => store.byKind(kind).length;
+      const named = assistKindsIn(said).map((h) => `, ${assistKindLabel(h.k.kind)}: ${count(h.k.kind)}`);
+      const text = /правил/.test(low) ? `Правил: ${db.rules.length}.` : `Объектов: ${store.size()}${[...new Set(named)].join("")}.`;
       return [{ type: "progress", at, text: "читаю систему" }, { type: "answer", at, text, context }];
     }
-    // Заказ выгрузки: камеры по словам имени, «кадр» — кадр архива минуту назад, «живой» — кадр сейчас, иначе видео
-    // за последние N минут (10 по умолчанию). Ход ничего не пишет: пароль и супервизора вводит человек в окне
+    // Заказ выгрузки: камеры — объекты профиля vms.camera/1 по словам имени, «кадр» — кадр архива минуту назад, «живой» —
+    // кадр сейчас, иначе видео за последние N минут (10 по умолчанию). Камеры заказа — по uid (ExportCamera.uid). Ход ничего
+    // не пишет: пароль и супервизора вводит человек в окне
     function assistExportStub(said, context, at) {
       const low = said.toLowerCase(), out = [{ type: "progress", at, text: "читаю камеры" }];
       const last = (e) => out.concat(Object.assign({ at }, e));
       if (/маск|облак/.test(low)) return last({ type: "refused", text: "Маскирования и выгрузки в облако в этой системе нет.", context });
       const words = low.split(/[^а-яёa-z0-9]+/).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w) && !["выгру", "экспо", "кадр", "кадра", "минут", "после", "живой", "сейча", "видео", "архив"].includes(w));
       // Имя камеры целиком в просьбе — только такие камеры, иначе — по словам имени
-      const named = db.devices.filter((d) => d.type === "camera" && low.includes(d.name.toLowerCase()));
-      const cams = named.length ? named : db.devices.filter((d) => d.type === "camera" && words.some((w) => d.name.toLowerCase().includes(w)));
+      const all = [...store.all()].filter(isCamera), nameOf = (u) => String(u.name).toLowerCase();
+      const named = all.filter((u) => low.includes(nameOf(u)));
+      const cams = named.length ? named : all.filter((u) => words.some((w) => nameOf(u).includes(w)));
       if (!cams.length) return last({ type: "question", text: "С каких камер выгрузить?", context });
       const ref = expRef(), fmt = (kind) => (ref.formats.find((f) => f.kind === kind) || {}).id;
       const frame = /кадр/.test(low), live = frame && /живо|сейчас/.test(low);
-      const body = { mode: frame ? "frame" : "video", cameras: (frame ? cams.slice(0, 1) : cams.slice(0, ref.limits.maxCameras)).map((d) => ({ deviceId: d.id })), format: fmt(frame ? "frame" : "video") };
+      const body = { mode: frame ? "frame" : "video", cameras: (frame ? cams.slice(0, 1) : cams.slice(0, ref.limits.maxCameras)).map((u) => ({ uid: u.uid })), format: fmt(frame ? "frame" : "video") };
       if (live) body.source = "live";
       else if (frame) body.at = iso(now() - 60000);
       else {
@@ -4622,9 +4971,80 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
         body.periods = [{ from: iso(now() - min * 60000), to: iso(now()) }];
       }
       out.push({ type: "progress", at, text: "собираю заказ" });
-      const names = body.cameras.map((c) => byId("devices", c.deviceId).name).join(", ");
+      const names = body.cameras.map((c) => store.get(c.uid).name).join(", ");
       return last({ type: "plan", summary: frame ? `Кадр: ${names}` : `Выгрузка: ${names}`, context, export: body });
     }
+    // Разбор правки: что меняется (вид → свойство) и кого. Слова профиля (ASSIST_PHRASES), «включи/выключи» — булево свойство
+    // с подписью «Включено…», «смени|поменяй|… <поле> … на <значение>» — свойство по x-label. field пуст — правку не узнали
+    function assistEditOf(said) {
+      const low = assistNorm(said);
+      // «смени … на <значение>»: значение — после последнего «на», в словах кого и что его нет
+      const setVerb = /(^|\s)(смени|поменяй|измени|поставь|установи|задай|переведи|сделай)(\s|$)/.test(low);
+      // «поменяй маску сети на камерах»: после «на» — вид, а не значение
+      const at4 = setVerb ? low.lastIndexOf(" на ") : -1;
+      const cut = at4 >= 0 && !assistKindsIn(low.slice(at4 + 4)).length ? at4 : -1;
+      const valueText = cut >= 0 ? said.slice(cut + 4).trim() : null;
+      let rest = cut >= 0 ? low.slice(0, cut) : low;
+      const hits = assistKindsIn(rest);
+      rest = assistEat(rest, hits.flatMap((h) => h.m));
+      const named = hits.length ? new Set(hits.map((h) => h.k.kind)) : null;
+      const inScope = (k) => !named || named.has(k.kind);
+      // Поле: вид → имя свойства; value — готовое значение (слова профиля, включи/выключи)
+      const field = new Map();
+      let value;
+      const phrase = ASSIST_PHRASES.find((p) => p.re.test(low));
+      if (phrase) {
+        kinds.list().filter((k) => inScope(k) && kinds.profileOf(k.kind, phrase.profile) && assistProps(k.kind)[phrase.name]).forEach((k) => field.set(k.kind, phrase.name));
+        value = phrase.value;
+        rest = rest.replace(/\S*запис\S*/g, " ");
+      } else if (setVerb) {
+        const words = assistWords(rest);
+        const found = [];
+        kinds.list().filter(inScope).forEach((k) => Object.entries(assistProps(k.kind)).forEach(([prop, s]) => {
+          const m = s && !s.readOnly && s["x-label"] && assistLabelHit(words, s["x-label"]);
+          if (m) found.push({ kind: k.kind, prop, m });
+        }));
+        const most = Math.max(0, ...found.map((x) => x.m.length));
+        found.filter((x) => x.m.length === most).forEach((x) => (field.has(x.kind) ? null : field.set(x.kind, x.prop)));
+        rest = assistEat(rest, found.flatMap((x) => x.m));
+      } else if (/(^|[^ы])включи|выключи/.test(low)) {
+        // «включи/выключи» без поля — булево свойство с подписью «Включено…»
+        kinds.list().filter(inScope).forEach((k) => {
+          const prop = Object.keys(assistProps(k.kind)).find((n) => [].concat(assistProps(k.kind)[n].type || []).includes("boolean") && (assistWords(assistText(assistProps(k.kind)[n]["x-label"]))[0] || "").startsWith("включ"));
+          if (prop) field.set(k.kind, prop);
+        });
+        value = !/выключи/.test(low);
+      }
+      return { setVerb, valueText, named, field, value, rest };
+    }
+    // Шаг плана против описания вида — как PATCH /units/{uid}: вид пишется, свойства — схемой в два прохода (contract.js),
+    // x-immutable, x-bound-to, x-unique. Смысл профиля (сервер без связи, хранилище записи) — не здесь: его скажет шаг при «Применить»
+    function assistPlanErrs(u, patch) {
+      const out = kindErrs(u.kind);
+      if (out.length || isDocument(u.kind)) return out;
+      const errs = kinds.validate(u.kind, patch.properties, { partial: true, old: props(u), secrets: Object.keys(u.secrets || {}) });
+      return errs.length ? errs : uniqueErrs(u.kind, u.parentId, Kinds.mergePatch(props(u), patch.properties), u.uid, "");
+    }
+    // Значение просьбы по схеме свойства: перечень — значение или его подпись (x-enum-labels), да/нет, число, иначе текст.
+    // Вне схемы — как есть: план проверяет схема вида
+    function assistValueOf(s, text) {
+      const t = String(text).trim(), low = assistNorm(t);
+      if (s.enum) {
+        const raw = s.enum.find((v) => assistNorm(v) === low);
+        if (raw !== undefined) return raw;
+        const byLabel = Object.entries(s["x-enum-labels"] || {}).find(([, l]) => assistLabelHit(assistWords(t), l));
+        return byLabel ? s.enum.find((v) => String(v) === byLabel[0]) : t;
+      }
+      const types = [].concat(s.type || []);
+      if (types.includes("boolean") && /^(да|вкл\S*|true)$/.test(low)) return true;
+      if (types.includes("boolean") && /^(нет|выкл\S*|false)$/.test(low)) return false;
+      if ((types.includes("integer") || types.includes("number")) && /^-?\d+([.,]\d+)?$/.test(t)) return Number(t.replace(",", "."));
+      return t;
+    }
+    // План настройки: шаги {uid, version, patch} — JSON Merge Patch объекта, как PATCH /units/{uid}; поле — JSON Pointer.
+    // Что меняется: слова профиля (ASSIST_PHRASES), «включи/выключи» — свойство с подписью «Включено», «смени <поле> на
+    // <значение>» — свойство по x-label. Кого: виды по подписи и имена объектов. Каждый шаг сверен со схемой вида, как PATCH:
+    // не подходит — отказ с указателем. Частичных планов нет
     function assistStub(body) {
       const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
       const kind = assistKindOf(said);
@@ -4632,32 +5052,52 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));
       if (kind === "found") return assistFoundStub(said, `stub:${said}`, iso(now()));
       if (kind === "export") return assistExportStub(said, `stub:${said}`, iso(now()));
-      const low = said.toLowerCase();
+      const low = assistNorm(said);
       const context = `stub:${said}`;
       const at = iso(now());
-      const out = [{ type: "progress", at, text: "читаю камеры" }];
+      const out = [{ type: "progress", at, text: "читаю объекты" }];
       const last = (e) => out.concat(Object.assign({ at }, e));
       if (/сбой/.test(low)) return last({ type: "error", code: "UPSTREAM_UNAVAILABLE", message: "модель не отвечает" });
-      if (/маск[аиу] сети/.test(low)) return last({ type: "refused", text: "Маски сети нет среди полей устройства.", context, field: "netmask" });
-      const secret = (low.match(/секрет\D*(\d+)/) || [])[1];
-      const set = /парол/.test(low) ? null : /выключи.*запис/.test(low) ? { recordMode: "none" } : /включи.*запис/.test(low) ? { recordMode: "always" } : /выключи/.test(low) ? { enabled: false } : /включи/.test(low) ? { enabled: true } : undefined;
-      if (set === undefined) return last({ type: "question", text: "Что изменить на камерах?", context });
-      if (!set && !(body.secrets || [])[Number(secret) - 1]) return last({ type: "question", text: "Какой секрет поставить паролем?", context });
-      const words = low.split(/[^а-яёa-z0-9]+/).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w));
-      // Частичных правок и пустых строк в плане нет: камера, где значение уже такое, в план не идёт
-      const already = (d) => set && Object.entries(set).every(([k, v]) => d[k] === v);
-      const found = db.devices.filter((d) => d.type === "camera" && words.some((w) => d.name.toLowerCase().includes(w)) && !already(d));
-      if (!found.length) return last({ type: "question", text: "На каких камерах?", context });
-      out.push({ type: "progress", at, text: "проверяю план" });
-      const items = found.map((d) => {
-        if (!set) {
-          return { deviceId: d.id, version: d.version, set: { password: body.secrets[Number(secret) - 1] }, name: d.name,
-            changes: [{ field: "password", after: `новый (секрет № ${secret})`, why: "просьба" }] };
+      const { setVerb, valueText, named, field, value, rest } = assistEditOf(said);
+      if (setVerb && !field.size) return last({ type: "refused", text: "Такого поля нет в описании видов.", context });
+      if (setVerb && !valueText) return last({ type: "question", text: "Какое значение поставить?", context });
+      if (!field.size) return last({ type: "question", text: "Что изменить?", context });
+      // Кого: объекты видов поля по словам имени; слов нет, но виды названы — все объекты этих видов
+      const words = assistWords(rest).map((w) => w.slice(0, 5)).filter((w) => w.length >= 4 && !ASSIST_STOP.includes(w));
+      if (!words.length && !named) return last({ type: "question", text: "На каких объектах?", context });
+      const units = [...field.keys()].flatMap((k) => store.byKind(k)).filter((u) => !words.length || words.some((w) => assistNorm(u.name).includes(w))).sort(assistByName);
+      // Значение — по схеме свойства вида; секрет — номер из полей ассистента, значение в пояснение не идёт
+      const secretNo = valueText ? (assistNorm(valueText).match(/^секрет\D*(\d+)/) || [])[1] : null;
+      const items = [];
+      for (const u of units) {
+        const prop = field.get(u.kind), s = assistProps(u.kind)[prop] || {};
+        let v = value;
+        if (s.writeOnly) {
+          v = secretNo ? (body.secrets || [])[Number(secretNo) - 1] : undefined;
+          if (v === undefined) return last({ type: "question", text: "Какой секрет поставить?", context });
+        } else if (v === undefined) v = assistValueOf(s, valueText);
+        // Частичных правок и пустых строк в плане нет: объект, где значение уже такое, в план не идёт
+        if (!s.writeOnly && JSON.stringify(props(u)[prop]) === JSON.stringify(v)) continue;
+        const patch = { properties: { [prop]: v } };
+        const errs = assistPlanErrs(u, patch);
+        if (errs.length) {
+          const shown = s.writeOnly ? `секрет № ${secretNo}` : JSON.stringify(v);
+          return last({ type: "refused", text: `${shown} не подходит под описание вида «${assistKindLabel(u.kind)}» (${errs[0].field}).`, context, field: errs[0].field });
         }
-        const [[field, after]] = Object.entries(set);
-        return { deviceId: d.id, version: d.version, set, name: d.name, changes: [{ field, before: d[field], after, why: "просьба" }] };
+        const change = { field: `/properties/${esc(prop)}`, after: s.writeOnly ? `новый (секрет № ${secretNo})` : v, why: "просьба" };
+        if (!s.writeOnly) change.before = props(u)[prop] === undefined ? null : clone(props(u)[prop]);
+        items.push({ uid: u.uid, version: u.version, patch, name: u.name, changes: [Object.assign({ field: change.field }, "before" in change ? { before: change.before } : {}, { after: change.after, why: change.why })] });
+      }
+      if (!items.length) return last({ type: "question", text: "На каких объектах?", context });
+      out.push({ type: "progress", at, text: "проверяю план" });
+      const per = new Map();
+      items.forEach((x) => {
+        const k = store.get(x.uid).kind;
+        const l = kinds.profileOf(k, "vms.camera/1") ? "Камеры" : assistKindLabel(k);
+        per.set(l, (per.get(l) || 0) + 1);
       });
-      return last({ type: "plan", summary: `Камеры: ${found.length}`, context, items });
+      // Итог плана — как у базы: у камер «Камеры: N» (во множественном числе); у видов, которых в базе нет, — подпись вида
+      return last({ type: "plan", summary: [...per].map(([l, n]) => `${l}: ${n}`).join(", "), context, items });
     }
 
     const compile = (list, test) =>
@@ -4686,7 +5126,9 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       if (SPEC && method !== "GET" && window.ConsolemContract) {
         const errs = window.ConsolemContract.requestProblems(SPEC, method, path, body);
         if (errs.length) {
-          const field = (errs[0].match(/^body\.?([^:\s[]*)/) || [])[1] || undefined;
+          let field = (errs[0].match(/^body\.?([^:\s[]*)/) || [])[1] || undefined;
+          // На путях ядра field — JSON Pointer в теле запроса
+          if (/^\/(units|kinds|test\/kinds|exports)(\/|$)/.test(path)) field = "/" + ((errs[0].match(/^body\.?([^:\s]*)/) || [])[1] || "").replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean).join("/");
           return problem(422, "VALIDATION_FAILED", errs.slice(0, 3).join("; "), field ? { field } : {});
         }
       }
@@ -4695,7 +5137,13 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
       const key = method === "POST" && body && body.idempotencyKey ? `${method} ${path} ${body.idempotencyKey}` : null;
       answered.forEach((a, k) => now() - a.at >= IDEMPOTENCY_MS && answered.delete(k));
       if (key && answered.has(key)) return clone(answered.get(key).res);
-      const res = route.fn(params, q, body || {}, h);
+      coreMode = /^\/units(\/|$)/.test(path);
+      let res;
+      try {
+        res = route.fn(params, q, body || {}, h);
+      } finally {
+        coreMode = false;
+      }
       const out = { status: res.status, body: res.body === undefined ? null : res.body, headers: res.headers || {} };
       if (key && res.status < 300) answered.set(key, { at: now(), res: clone(out) });
       return out;
@@ -4711,5 +5159,5 @@ if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Пап
     };
   }
 
-  window.ConsolemServer = { create };
+  window.ConsolemServer = { create, legacyFixture };
 })();

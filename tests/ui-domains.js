@@ -9,7 +9,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nd=domains[domains.length-1];
   commitTreeRename(nd.id,"Филиал Юг");
   ok(await until(()=>nd.name==="Филиал Юг"&&treeRenameId===null),"переименован");
-  ok((await API.get("/domains/"+nd.id)).name==="Филиал Юг","на сервере — новое имя");
+  ok((await uiRec(nd.id)).name==="Филиал Юг","на сервере — новое имя");
   treeRenameId=nd.id;treeRenameField="name";commitTreeRename(nd.id,domains[0].name);
   ok(treeRenameId===nd.id&&nd.name==="Филиал Юг","занятое имя — отказ, поле открыто");
   treeRenameId=null;
@@ -18,18 +18,41 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   excludeFromDomain(s.id);
   if(document.getElementById("confirm").classList.contains("open"))await confirmWith(1);   // прототип с подтверждением числом
   ok(await until(()=>d1.unallocServers.includes(s)&&!d1.servers.includes(s)),"исключён: в «Нераспределённых»");
-  ok((await API.get("/servers/"+s.id)).allocated===false,"на сервере — нераспределённый");
-  addToDomain(s.id,d1.id);
-  ok(await until(()=>d1.servers[d1.servers.length-1]===s),"добавлен обратно — в конец списка");
+  ok((await uiRec(s.id)).allocated===false,"на сервере — нераспределённый");
+  // Приём — операцией (шаг move): поток может переставить сервер раньше, чем придёт её итог, поэтому ждётся итог
+  const added=await addToDomain(s.id,d1.id);
+  ok(added&&await until(()=>d1.servers[d1.servers.length-1]===s),"добавлен обратно — в конец списка");
   ok(unallocDisplayCache[d1.id]?.find(r=>r.id===s.id)?.added,"строка «Нераспределённых» помечена «Добавлен»");
   // Групповое исключение и «Отменить»: серверы — на прежних местах
   const two=d1.servers.slice(0,2),pos=two.map(x=>d1.servers.indexOf(x));
   treeSel.clear();two.forEach(x=>treeSel.add(x.id));
+  window.CONSOLEM_TRACE=[];
   bulkExcludeServers();
   ok(await until(()=>two.every(x=>d1.unallocServers.includes(x))),"групповое исключение: 2 сервера");
-  const undo=document.querySelector("#ttu-bkexcl .ttu-act");ok(!!undo,"«Отменить» в тосте");undo&&undo.click();
+  // Как база одним POST /servers/assign: одна операция с шагами move, не перенос на каждый сервер
+  const exclTrace=CONSOLEM_TRACE.filter(t=>t.method==="POST"&&(t.path==="/operations"||/\/move$/.test(t.path)));
+  ok(exclTrace.length===1&&exclTrace[0].path==="/operations","групповое исключение — одна операция POST /operations: "+exclTrace.map(t=>t.path).join(" "));
+  delete window.CONSOLEM_TRACE;
+  ok(await until(()=>!!document.querySelector("#ttu-bkexcl .ttu-act")),"«Отменить» в тосте");
+  const undo=document.querySelector("#ttu-bkexcl .ttu-act");undo&&undo.click();
   ok(await until(()=>two.every((x,i)=>d1.servers.indexOf(x)===pos[i])),"«Отменить»: на прежних местах "+pos);
-  ok((await API.get("/servers/"+two[0].id)).allocated===true,"на сервере вернулись");
+  ok((await uiRec(two[0].id)).allocated===true,"на сервере вернулись");
+  // Отказ — по строке, как у /servers/assign базы: сервер, которого нет, и сервер с устаревшей версией не роняют остальных
+  const [sa,sb]=d1.servers.filter(x=>x.online!==false).slice(-2);
+  const ghost={id:"2fffffff-0000-4000-8000-000000000000",name:"Призрак"};
+  const r1=await serversAssign([{s:sa,domainId:d1.id,allocated:false},{s:ghost,domainId:d1.id,allocated:false}]);
+  r1.done.forEach(hwApplyServer);
+  ok(r1.done.length===1&&r1.done[0].id===sa.id&&r1.failed.length===1&&r1.failed[0].serverId===ghost.id&&(await uiRec(sa.id)).allocated===false,
+    "сервера нет — отказ его строки, второй исключён: "+JSON.stringify(r1.failed));
+  const realVer=hwVer.get(sa.id);hwVer.set(sa.id,"stale-ui-domains");
+  const r2=await serversAssign([{s:sa,domainId:d1.id,allocated:true},{s:sb,domainId:d1.id,allocated:false}]);
+  r2.done.forEach(hwApplyServer);
+  ok(r2.done.length===1&&r2.done[0].id===sb.id&&r2.failed.length===1&&r2.failed[0].serverId===sa.id&&r2.failed[0].code==="VERSION_MISMATCH"&&(await uiRec(sb.id)).allocated===false,
+    "устаревшая версия — отказ её строки, второй исключён: "+JSON.stringify(r2.failed.map(x=>x.code)));
+  hwVer.set(sa.id,realVer);
+  const r3=await serversAssign([{s:sa,domainId:d1.id,allocated:true},{s:sb,domainId:d1.id,allocated:true}]);
+  r3.done.forEach(placeInDomain);
+  ok(r3.done.length===2&&(await uiRec(sa.id)).allocated&&(await uiRec(sb.id)).allocated,"оба вернулись");
   // Карточка сервера: имя через план и операцию
   pick(s.id);goTab("gen");
   const inp=document.querySelector('input[data-df="Имя"]');inp.value="Сервер — проверка";inp.dispatchEvent(new Event("input"));
@@ -49,7 +72,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(await until(()=>servers.length===n0+1&&wizd.ipRows[0].added),"найденный адрес заведён и добавлен в домен");
     document.getElementById("wiz").classList.remove("open");
     const ns=servers[servers.length-1];
-    ok(d1.servers.includes(ns)&&(await API.get("/servers/"+ns.id)).allocated,"на сервере: в домене");
+    ok(d1.servers.includes(ns)&&(await uiRec(ns.id)).allocated,"на сервере: в домене");
   }else ok(true,"адрес не отвечает — добавлять нечего");
   // Папка: создать, очистить, удалить с вводом числа и отсчётом
   const root=folders.find(f=>f.domain===d1.id);
@@ -59,8 +82,12 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   commitTreeRename(nf.id,"Склад-3");
   ok(await until(()=>nf.name==="Склад-3"),"папка переименована");
   const full=flatFolders().find(f=>f.items.length>1&&folderDomain(f.id)===d1.id);
+  window.CONSOLEM_TRACE=[];
   const fullN=full.items.length;clearFolder(full.id);await confirmWith(fullN);
   ok(await until(()=>full.items.length===0),"папка очищена");
+  // Как база одним POST /folders/{id}/devices: шаги folders одной операцией, не PATCH на каждый объект
+  ok(CONSOLEM_TRACE.filter(t=>t.method==="POST"&&t.path==="/operations").length===1&&!CONSOLEM_TRACE.some(t=>t.method==="PATCH"),"очистка папки — одна операция POST /operations, без PATCH по объектам");
+  delete window.CONSOLEM_TRACE;
   ok((await uiFolderIds(full.id)).length===0,"на сервере — пусто");
   addSubfolder(nf.id);
   ok(await until(()=>(nf.folders||[]).length===1),"в ней подпапка");
@@ -73,20 +100,34 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(document.getElementById("confirmOk").disabled,"«Удалить» неактивна, пока не введено число");
   await confirmWith(1);
   ok(pendingDelHas(nf.id),"отсчёт с «Отменить»");
-  ok((await API.raw("GET","/folders/"+nf.id)).status===200,"во время отсчёта на сервере ещё есть");
+  ok((await API.raw("GET", "/units/" + nf.id)).status===200,"во время отсчёта на сервере ещё есть");
   ok(await until(()=>!folderById(nf.id)),"по истечении — удалена");
-  ok((await API.raw("GET","/folders/"+nf.id)).status===404,"на сервере — нет");
+  ok((await API.raw("GET", "/units/" + nf.id)).status===404,"на сервере — нет");
   await new Promise(r=>setTimeout(r,400));
   window.apiReload=reload0;
   ok(reloads===0&&ACC.ed===ed0,"без полного перечитывания: черновик «Прав» тот же (перечитываний "+reloads+")");
   ok(!hwVer.has(nf.id)&&!hwVer.has(sub.id)&&!folderById(sub.id),"папка и подпапка ушли из кэша");
+  // «Камера-коробка» и обычный сервер одним приёмом: в итоге оба, как база (шаг называет созданную камеру, createdId) —
+  // тост «Добавлено серверов: 2», коробка — камерой. Принятый сервер — последним и после перечитывания
+  const ttx=()=>document.getElementById("tt")?.textContent||"";
+  const box=d1.unallocServers.find(x=>x.cls==="camera"),plain=d1.unallocServers.find(x=>x.cls!=="camera"&&x.online!==false);
+  addUnallocServers([box.id,plain.id],d1.id);
+  // Отпечаток коробки сверяется до приёма (как база)
+  ok(await until(()=>document.getElementById("confirm")?.classList.contains("open")),"отпечатки — до приёма");
+  await confirmWith(null);
+  ok(await until(()=>/Добавлено серверов: 2/.test(ttx())),"коробка и сервер одним приёмом: «"+ttx()+"»");
+  ok(await until(()=>devicePool.some(n=>n.type==="camera"&&n.name===box.name)),"коробка принята камерой");
+  ok(await until(()=>domainById(d1.id).servers.at(-1)?.id===plain.id),"принятый сервер — последним");
+  apiReload();
+  await new Promise(r=>setTimeout(r,1500));
+  ok(await until(()=>domainById(d1.id).servers.at(-1)?.id===plain.id),"после перечитывания принятый сервер — по-прежнему последним: "+domainById(d1.id).servers.at(-1)?.name);
   // Удалить домен с переносом
   const d2=domains[1],moved=d2.servers.length+d2.unallocServers.length;
   deleteDomain(d2.id);
   const sel2=document.getElementById("domMoveTo");if(sel2)sel2.value=d1.id;
   await confirmWith(1);
   ok(await until(()=>!domainById(d2.id),30000),"домен удалён после отсчёта");
-  ok((await API.raw("GET","/domains/"+d2.id)).status===404,"на сервере — нет");
-  const srvs=(await API.get("/servers")).items.filter(x=>x.domainId===d1.id&&!x.allocated).length;
+  ok((await API.raw("GET", "/units/" + d2.id)).status===404,"на сервере — нет");
+  const srvs=(await uiRecs({kind:"server",domainId:d1.id})).filter(x=>!x.allocated).length;
   ok(domainById(d1.id).unallocServers.length===srvs&&srvs>=moved,"серверы перенесены нераспределёнными: "+srvs);
 });

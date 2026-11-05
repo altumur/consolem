@@ -1,10 +1,10 @@
-"""Старые разделы набора ⇄ склад объектов (api-generic): domains, servers, devices, folders, archives, volumes ⇄ units.
+"""Старые разделы набора ⇄ склад объектов: domains, servers, devices, folders, archives, volumes ⇄ units.
 
-Набор api-generic хранит только units (tools/generic_fixture.py). Старых путей у api-generic нет; инструменты и тесты, которым
-удобнее записи таблиц (выборки набора, fixturePatch старыми разделами), выводят их из units: tables_from_units — обратное
-units_from_tables. Тот же перевод в api-generic/server.js (Legacy): записи старых таблиц там — представления объектов склада.
+Эталонный набор api/fixtures/demo.json хранит только units, старых путей (/devices…) в контракте нет. Инструменты и тесты,
+которым удобнее записи таблиц (выборки набора, fixturePatch старыми разделами), выводят их из units: tables_from_units —
+обратное units_from_tables. Тот же перевод в api/server.js (Legacy): записи старых таблиц там — представления объектов склада.
 
-- units_from_tables(base) — объекты из записей старых разделов (generic_fixture.py, profile_fixture.py);
+- units_from_tables(base) — объекты из записей старых разделов (profile_fixture.py);
 - tables_from_units(units) — записи старых разделов из объектов (check_api.py, profile_fixture.py);
 - with_tables(fx) — набор с выведенными старыми разделами, если их в нём нет.
 Порядок ключей записи — свой, не исходный: сравнивать записи — по значению.

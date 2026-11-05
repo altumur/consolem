@@ -6,8 +6,9 @@ UiCheck(async ({ ok, until }) => {
   const onRow = () => document.querySelector("#tree .n.on")?.dataset.pick;
   // Берём заранее: чтение одной записи подтягивает в кэш соседей по папке
   const inFolders = [];
-  for (const r of (await API.get("/devices", { limit: 1000, type: "camera" })).items) {
-    if (!find(r.id) && (await API.get(`/devices/${r.id}`)).folderIds?.length) inFolders.push(r);
+  // Камеры — по профилю vms.camera/1; папки объекта — Unit.folders полной записи
+  for (const u of (await API.get("/units", { limit: 1000, implements: "vms.camera/1" })).items) {
+    if (!find(u.uid) && (await API.get(`/units/${u.uid}`)).folders?.length) inFolders.push({ id: u.uid });
   }
   const a = inFolders[0];
 

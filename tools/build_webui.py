@@ -48,10 +48,9 @@ SCRIPTS = {
     f"{API}/rule-engine.js": None,
     f"{API}/server.js": None,
 }
-# Склад объектов и реестр видов встроенного сервера — только у api-generic: тоже только для макета
+# Реестр видов, склад объектов и хуки профилей встроенного сервера — тоже только для макета
 for _name in ("kinds.js", "units.js", "profiles.js"):
-    if os.path.exists(os.path.join(ROOT, API, _name)):
-        SCRIPTS[f"{API}/{_name}"] = None
+    SCRIPTS[f"{API}/{_name}"] = None
 TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".mp4": "video/mp4"}
 
 

@@ -12,9 +12,9 @@ reference.capabilities, тесты и интерфейс прячут остал
 только числа: 250 000 камер, 500 серверов. Записи считает заглушка при загрузке (api/server.js, expandLarge), в файле
 набора их нет. Загружается ?fixture=large, POST /test/reset {fixture: "large"}, node tools/serve_api.mjs --fixture large.
 
-Набор универсальной модели (--api api-generic: units вместо domains, servers, devices, folders, archives, volumes) собирается
-теми же правилами: старые разделы выводятся из units (tools/generic_legacy.py), отбираются, и объекты собираются из них
-заново. Объектов незнакомых видов в профиле нет: в нём только камеры и детекторы.
+Набор хранит units вместо domains, servers, devices, folders, archives, volumes: старые разделы выводятся из units
+(tools/generic_legacy.py), отбираются, и объекты собираются из них заново. Объектов незнакомых видов в профиле нет: в нём
+только камеры и детекторы.
 
 Запуск из корня репозитория:
   python3 tools/profile_fixture.py          собрать
@@ -39,18 +39,16 @@ OUT_LARGE = f"{API}/fixtures/large.json"
 LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 50000, "firstBranch": 1000, "clusters": 40, "relayed": 5}
 
 DEVICE_TYPES = ["camera", "det"]
-# Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети
-# То же у видов универсальной модели: операций createDomain… у неё нет, завести и удалить вид — UnitKind.capabilities.
-# Второго тома в профиле нет (createVolume, deleteVolume): у вида тома сняты create и delete. Первый том хранилища
-# заводит само хранилище (createArchive) — вместе с ним строкой tom, отдельно том не создаётся
+# Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети.
+# Завести и удалить объект вида — UnitKind.capabilities: второго домена и второго тома в профиле нет, у видов домена и тома
+# сняты create и delete. Первый том хранилища заводит само хранилище — вместе с ним строкой tom, отдельно том не создаётся
 KIND_MISSING = {"domain": ["create", "delete"], "volume": ["create", "delete"]}
 KIND_ONLY_WITH_PARENT = ["volume"]
 # Виды плагинов и тестовые виды: в профиле «один домен» их нет — система объявляет только свои (тесты с needs "kind:…" пропускаются)
 PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
-# Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет: у базы это справочники
-# reference.ruleTriggers и ruleActions (вход датчика io.input, текст источника text, событие и команда единицы СКУД unit,
-# выход реле output) — редактор правил их предлагает. У универсальной модели каталог правил — из описаний видов, поэтому
-# описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
+# Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
+# текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
+# видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
 RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]
 MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
@@ -132,9 +130,9 @@ def build(demo):
     sids = {s["id"] for s in fx["servers"]}
     areas = {"device": kept, "folder": fids, "server": sids, "domain": {did}}
 
-    # Элемент цели: {kind, id} (api) или {uid} / {area, uid} (универсальная модель)
+    # Элемент цели: {uid} — объект, {area, uid} — область
     def item_kept(x):
-        return x["id"] in areas[x["kind"]] if "kind" in x else x["uid"] in areas[x.get("area", "device")]
+        return x["uid"] in areas[x.get("area", "device")]
 
     def tgt(t):
         if not t or t["fromEvent"]:
@@ -149,7 +147,7 @@ def build(demo):
             if a.get("action") in ACTIONS_OFF:
                 continue
             if a.get("action") == "record":
-                # Поля действия на объекте универсальной модели — в params
+                # Поля действия на объекте (unitAction) — в params
                 p = a
                 if a.get("type") == "unitAction":
                     p = a["params"] = dict(a["params"])
@@ -225,9 +223,6 @@ def build(demo):
         role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if obj_kept(k)}
 
     ref = fx["reference"]
-    # Виды хранилищ — как у w2c: пять, без «Облачного» (ADR-0112 доп. (5) п. 2); в эталонном наборе оно есть
-    if "archiveKinds" in ref:
-        ref["archiveKinds"] = [k for k in ref["archiveKinds"] if k["kind"] != "cloud"]
     ref["ruleActions"] = [a for a in ref["ruleActions"] if a["action"] not in ACTIONS_OFF]
     for a in ref["ruleActions"]:
         if a["action"] == "record":
@@ -271,7 +266,7 @@ def build(demo):
         g["feat"] = [x for x in g["feat"] if x in acc["features"]]
         if g.get("dCam") == "MON_PROT":
             g["dCam"] = "MON"
-        # Универсальная модель: умолчания роли — Role.kindAccess по классам
+        # Умолчания роли — Role.kindAccess по классам
         if "kindAccess" in role:
             levels_of(role["kindAccess"])
         if not g["unr"]:
@@ -281,45 +276,28 @@ def build(demo):
         role["folderAccess"] = {k: v for k, v in role["folderAccess"].items() if v}
         role["objectAccess"] = {k: v for k, v in role["objectAccess"].items() if v}
 
-    if "kinds" in fx:
-        generic_kinds(fx["kinds"], acc["levels"])
-        fx["kinds"] = profile_kinds(fx["kinds"])
+    # Какие виды есть у системы — описания видов (GET /kinds): виды устройств и хранилищ профиля, их права и действия
+    kinds_access(fx["kinds"], acc["levels"])
+    fx["kinds"] = profile_kinds(fx["kinds"])
 
-    # Справочники видов и виды устройств в capabilities — у базы api/; у универсальной модели их заменяют описания видов
-    if "deviceKinds" in ref:
-        kinds = []
-        for g in ref["deviceKinds"]:
-            types = [t for t in g["types"] if t.split("-")[0] in DEVICE_TYPES]
-            if types:
-                kinds.append(dict(g, types=types))
-        ref["deviceKinds"] = kinds
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
-    if "deviceTypes" in caps:
-        caps["deviceTypes"] = list(DEVICE_TYPES)
-        caps["foundDeviceTypes"] = [t for t in caps["foundDeviceTypes"] if t in DEVICE_TYPES]
-        caps["unitTypes"] = [t for t in caps["unitTypes"] if t in DEVICE_TYPES]
-        caps["writableFields"] = {t: v for t, v in caps["writableFields"].items() if t in DEVICE_TYPES}
-    # Только возможности, которые знает контракт этой папки API (Feature): у другой модели перечень может отстать от базы
+    # Только возможности, которые знает контракт (Feature)
     caps["features"] = [f for f in FEATURES if f in contract_features()]
     return fx
 
 
 def contract_features():
-    """Перечень Feature из openapi.json папки API; без контракта — все FEATURES, как прежде."""
-    path = os.path.join(ROOT, API, "openapi.json")
-    if not os.path.exists(path):
-        return set(FEATURES)
-    with open(path, encoding="utf-8") as f:
-        return set(json.load(f)["components"]["schemas"].get("Feature", {}).get("enum", []))
+    """Перечень Feature из {API}/openapi.json."""
+    with open(os.path.join(ROOT, API, "openapi.json"), encoding="utf-8") as f:
+        return set(json.load(f)["components"]["schemas"]["Feature"]["enum"])
 
 
 def profile_kinds(kinds):
     """Виды, которые объявляет система профиля (вместо capabilities.deviceTypes): из видов устройств — только DEVICE_TYPES,
-    хранилища — без «Облачного», как reference.archiveKinds базы; остальные виды — как в demo. Ссылки на снятые виды
-    (parents, createParents, children, x-ref kinds) уходят. Чего система не умеет с видом (у базы — операции MISSING:
-    createDomain, deleteDomain, createVolume, deleteVolume), то снято с UnitKind.capabilities (KIND_MISSING); том заводится
-    только вместе с новым хранилищем (KIND_ONLY_WITH_PARENT)."""
+    хранилища — без «Облачного», как у w2c (ADR-0112 доп. (5) п. 2); остальные виды — как в demo. Ссылки на снятые виды
+    (parents, createParents, children, x-ref kinds) уходят. Чего система не умеет с видом (второй домен, второй том), то снято
+    с UnitKind.capabilities (KIND_MISSING); том заводится только вместе с новым хранилищем (KIND_ONLY_WITH_PARENT)."""
     drop = {k for k in generic_legacy.DEVICE_TYPES if k not in DEVICE_TYPES + RULE_ONLY_KINDS} | {"archive.cloud"} | {k["kind"] for k in kinds if k["kind"] in PLUGIN_KINDS}
 
     def gone_ref(s):
@@ -366,8 +344,8 @@ def profile_kinds(kinds):
     return out
 
 
-def generic_kinds(kinds, levels):
-    """Описания видов универсальной модели — как справочник профиля: уровни классов — reference.access.levels, классов, которых
+def kinds_access(kinds, levels):
+    """Описания видов — как справочник профиля: уровни классов — reference.access.levels, классов, которых
     в профиле нет (tel), нет и у видов, у прав по ним — тоже; действий вне каталога (ACTIONS_OFF) нет, запись — только на минуты."""
     def cls_ok(right):
         return not right or "class" not in right or right["class"] in levels
@@ -421,16 +399,14 @@ def build_large(demo):
 UNIT_UID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4000-8000-[0-9a-f]{12}")
 
 
-def generic(build_fx):
-    """Сборка набора универсальной модели: старые разделы — из units, после отбора — снова объекты склада."""
+def via_units(build_fx):
+    """Сборка набора: старые разделы — из units, после отбора — снова объекты склада."""
     def run(demo):
-        if "units" not in demo:
-            return build_fx(demo)
         fx = build_fx(generic_legacy.with_tables(demo))
         fx["units"] = generic_legacy.units_from_tables(fx)
         for t in generic_legacy.OLD_TABLES:
             del fx[t]
-        # Журнал demo набор не отбирает; у универсальной модели его ссылки — на объекты склада (check_api.py), поэтому
+        # Журнал demo набор не отбирает; его ссылки — на объекты склада (check_api.py), поэтому
         # записи об объектах, которых в наборе нет, уходят. uid объекта склада — с первой цифрой 1–6, как в check_api.py
         have = {u["uid"] for u in fx["units"]}
         fx["journal"] = [j for j in fx.get("journal", []) if all(m[0] not in "123456" or m in have for m in UNIT_UID.findall(json.dumps(j)))]
@@ -446,7 +422,7 @@ def main():
     with open(os.path.join(ROOT, SRC), encoding="utf-8") as f:
         demo = json.load(f)
     code = 0
-    for out, fx in ((OUT, generic(build)(copy.deepcopy(demo))), (OUT_LARGE, generic(build_large)(copy.deepcopy(demo)))):
+    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo)))):
         text = render(fx)
         path = os.path.join(ROOT, out)
         if "--check" in sys.argv[1:]:

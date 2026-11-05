@@ -11,7 +11,7 @@
   const offline = FX.devices.find((d) => d.type === "camera" && d.archiveId && d.online === false);
   const det = FX.devices.find((d) => d.type === "det");
   const url = "https://b/backend/";
-  // Шкала стенда — сетка 4 ч: в каждой ячейке запись 3 ч, дальше дыра (api-generic/profiles.js, camSpans). Ячейка 5 — запись
+  // Шкала стенда — сетка 4 ч: в каждой ячейке запись 3 ч, дальше дыра (api/profiles.js, camSpans). Ячейка 5 — запись
   // целиком, конец ячейки 6 — дыра без записи
   const grid = (env) => Math.floor(env.now / (4 * H)) * 4 * H;
   const full = (env) => ({ from: iso(grid(env) - 20 * H + 10 * 60000), to: iso(grid(env) - 20 * H + 40 * 60000) });

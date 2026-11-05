@@ -7,8 +7,7 @@
    уникальны, ссылки между записями ведут в существующие записи. Возможности (reference.capabilities) —
    из контракта, demo умеет весь контракт, данные набора не противоречат объявленному; one-domain.json
    собран из нынешнего demo.json (tools/profile_fixture.py --check).
-   Набор универсальной модели (api-generic: в контракте есть UnitKind или в наборе — kinds): описания видов
-   (kinds) — схемы в подмножестве JSON Schema с расширениями x-*, родители и профили существуют; объекты (units) —
+   Описания видов (kinds) — схемы в подмножестве JSON Schema с расширениями x-*, родители и профили существуют; объекты (units) —
    uid уникальны, свойства проходят схему вида (ConsolemContract.validate из contract.js), родитель из parents,
    x-ref разрешаются; ссылки правил, прав, обходов, удержаний, отметок ведут в объекты склада.
 3. api/openapi.js и api/fixture.js собраны из нынешних JSON (tools/build_api.py --check).
@@ -19,10 +18,12 @@
    клиент, server.handle и данные сервера в HTML не встречаются.
 6. Каждая операция контракта реализована в api/server.js и каждый маршрут сервера описан в контракте.
 7. Числа в api/BACKEND.md (сколько операций и служебных) совпадают с контрактом.
+8. Ломающие изменения против контракта старого макета (git show 47d1310:api/openapi.json) названы в api/README.md;
+   без git или без этого коммита в истории — пропуск с пометкой.
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE]
-(--api — папка API вместо api, --page — страница вместо index.html; в документе ниже пути даны для умолчаний)
+(--page — прототип вместо index.html; --api — копия папки API вместо api; в документе выше пути даны для умолчаний)
 Код выхода 1, если что-то не прошло.
 """
 import json
@@ -275,16 +276,15 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     total = 0
     # Записи стенда шире ответов: состав папки и права целиком живут в наборе, наружу идут страницами
     schemas = spec["components"]["schemas"]
-    # Универсальная модель (api-generic): схем записей старых разделов (Domain, Device…) в контракте нет — их записи выводятся
-    # из units и проверяются по схемам видов (check_units)
+    # Схем записей старых разделов (Domain, Device…) в контракте нет — их записи выводятся из units и проверяются
+    # по схемам видов (check_units)
     collections = {k: n for k, n in collections.items() if n in schemas}
-    folder = dict(schemas["Folder"], properties=dict(schemas["Folder"]["properties"], deviceIds={"type": "array", "items": {"type": "string", "format": "uuid"}}), required=schemas["Folder"]["required"] + ["deviceIds"]) if "Folder" in schemas else None
     ref = lambda n: {"type": "array", "items": {"$ref": f"#/components/schemas/{n}"}}
     access = {"type": "object", "additionalProperties": False, "required": ["version", "roles", "users", "groups", "catalogs", "history", "cellHistory"],
               "properties": dict(schemas["Access"]["properties"], roles=ref("Role"), users=ref("AccessUser"), groups=ref("UserGroup"), history=ref("AccessHistoryEntry"), cellHistory=ref("AccessCellEntry"))}
     for key, name in collections.items():
         for i, rec in enumerate(fx.get(key, [])):
-            validate(spec, folder if key == "folders" else {"$ref": f"#/components/schemas/{name}"}, rec, f"{key}[{i}]", problems)
+            validate(spec, {"$ref": f"#/components/schemas/{name}"}, rec, f"{key}[{i}]", problems)
             total += 1
     validate(spec, access, fx.get("access"), "access", problems)
     for key, name in singles.items():
@@ -296,7 +296,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     # modeManual — режим, включённый вручную ({ modeId, until } или null): состояние стенда, ответ — GET /modes/current
     if fx.get("modeManual") is not None:
         validate(spec, {"$ref": "#/components/schemas/ModeCurrentWrite"}, fx["modeManual"], "modeManual", problems)
-    # kinds, profiles, units — набор универсальной модели (api-generic): их проверяет check_units
+    # kinds, profiles, units — описания видов, профили, объекты склада: их проверяет check_units
     known = set(collections) | set(singles) | set(generic_legacy.OLD_TABLES) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand", "scenarioDocs", "relays",
                                                 "kinds", "profiles", "units"}
     problems += [f"раздел {k} не описан в check_api.py" for k in fx if k not in known]
@@ -379,9 +379,9 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
         if not t:
             return
         for x in t["include"]:
-            # Элемент цели: {kind, id} (api/) или {uid} — объект, {area, uid} — область (api-generic/)
-            kind = x["kind"] if "kind" in x else x.get("area", "device")
-            must({"device": devices, "folder": folders, "server": servers, "domain": domains}[kind], x["id"] if "kind" in x else x["uid"], w, kind)
+            # Элемент цели: {uid} — объект, {area, uid} — область
+            kind = x.get("area", "device")
+            must({"device": devices, "folder": folders, "server": servers, "domain": domains}[kind], x["uid"], w, kind)
         for x in t["exclude"]:
             must(devices, x, w, "устройства")
 
@@ -486,7 +486,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     rep.check(f"{label} цел: id уникальны, ссылки ведут в существующие записи", problems, f"{len(ids)} записей")
 
 
-# ===== 2а. Набор универсальной модели: kinds, profiles, units =====
+# ===== 2а. Описания видов, профили, объекты склада: kinds, profiles, units =====
 # Подмножество JSON Schema для схем видов (описание JsonSchema в контракте) и расширения x-*.
 # Незнакомый x-* клиент пропускает, поэтому он не ошибка; незнакомое ключевое слово без x- — ошибка
 KIND_KEYWORDS = {"type", "enum", "const", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format",
@@ -498,7 +498,7 @@ UUID_ANY = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4000-8000-[0-9a-f]{12}")
 # Первая цифра uid объектов склада: домен, сервер, устройство (и объекты незнакомых видов), папка, хранилище, том
 UNIT_PREFIXES = "123456"
 # Имена status профиля, которых нет в status.observed объектов набора, но которые профиль обещает (поля Device без данных
-# в наборе). Тот же список — CAMERA_STATUS_EXTRA в tools/generic_fixture.py
+# в наборе)
 PROFILE_STATUS_EXTRA = {"vms.camera/1": ["detectorKinds", "direct", "recordingTarget"]}
 # Старые разделы, которые склад повторяет, пока сервер на них живёт (uid = id записи)
 OLD_UNIT_TABLES = ("domains", "servers", "devices", "folders", "archives", "volumes")
@@ -599,12 +599,8 @@ def unit_refs(schema, value, where, units, implements, out):
 
 
 def check_units(rep, spec, fx, label="Эталонный набор"):
-    """Набор универсальной модели: описания видов, профили и объекты склада.
-
-    Проверяется, когда в наборе есть kinds или контракт описывает UnitKind (api-generic): у базы api/ нет ни того, ни другого,
-    и её прогон прежний. Свойства объектов сверяет ConsolemContract.validate из {API}/contract.js — тот же, что у сервера."""
-    if "kinds" not in fx and "UnitKind" not in spec["components"]["schemas"]:
-        return
+    """Описания видов, профили и объекты склада. Свойства объектов сверяет ConsolemContract.validate из {API}/contract.js —
+    тот же, что у сервера."""
     schemas = spec["components"]["schemas"]
     problems = []
     for key, name in (("kinds", "UnitKind"), ("profiles", "Profile"), ("units", "Unit")):
@@ -632,7 +628,7 @@ def check_units(rep, spec, fx, label="Эталонный набор"):
 
     # Право {class?, level} (ActionDescriptor.right, EventDescriptor.right, UnitKind.apiRights): класс — свой у вида
     # (access.class или access.also) или класс другого вида набора (событие источника событий судится уровнем камер, cam, а
-    # своего класса cam у источника нет — как в «Правах» базы), нет class — основной; уровень — из уровней этого класса
+    # своего класса cam у источника нет — как в «Правах» старого макета), нет class — основной; уровень — из уровней этого класса
     declared = {}
     for x in fx["kinds"]:
         xa = x.get("access")
@@ -776,54 +772,48 @@ def check_capabilities(rep, spec, fixtures):
     противоречат объявленному (нет устройств неподдержанных видов, шифрования без archiveEncryption…)."""
     product = [o["operationId"] for item in spec["paths"].values() for m, o in item.items()
                if m in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", [])]
-    schemas = spec["components"]["schemas"]
-    # Универсальная модель: видов устройств в capabilities нет — какие виды есть у системы, говорит GET /kinds (раздел kinds)
-    generic = "DeviceType" not in schemas
-    types, features = (None if generic else schemas["DeviceType"]["enum"]), schemas["Feature"]["enum"]
+    # Видов устройств в capabilities нет — какие виды есть у системы, говорит GET /kinds (раздел kinds)
+    features = spec["components"]["schemas"]["Feature"]["enum"]
     problems = []
     for name, fx in fixtures.items():
         caps = fx["reference"]["capabilities"]
         ops = caps["operations"]
-        declared = {k["kind"] for k in fx.get("kinds", [])} if generic else set(caps["deviceTypes"])
+        declared = {k["kind"] for k in fx.get("kinds", [])}
         problems += [f"{name}: операции {o} нет в контракте или она служебная" for o in ops if o not in product]
         problems += [f"{name}: нет обязательной {o}" for o in ("getMe", "getReference", "stream") if o not in ops]
         if len(set(ops)) != len(ops):
             problems.append(f"{name}: операции повторяются")
         problems += [f"{name}: устройство {d['name']} вида {d['type']} — вид не объявлен" for d in fx["devices"] if d["type"] not in declared]
-        if generic:
-            problems += [f"{name}: объект {u['uid']} вида {u['kind']} — вида нет в kinds" for u in fx.get("units", []) if u["kind"] not in declared]
+        problems += [f"{name}: объект {u['uid']} вида {u['kind']} — вида нет в kinds" for u in fx.get("units", []) if u["kind"] not in declared]
         if "archiveEncryption" not in caps["features"]:
             problems += [f"{name}: хранилище {a['name']} зашифровано без archiveEncryption" for a in fx["archives"] if a["encrypted"]]
-        # Второй том хранилища и второй домен у универсальной модели — POST /units видом с возможностью create
+        # Второй том хранилища и второй домен — POST /units видом с возможностью create
         # (UnitKind.capabilities тома, домена): без неё том бывает только первым, вместе с новым хранилищем
         def creates(profile):
             return "createUnits" in ops and any("create" in (k.get("capabilities") or []) for k in fx.get("kinds", []) if profile in (k.get("implements") or []))
-        if not (creates("vms.volume/1") if generic else "createVolume" in ops):
+        if not creates("vms.volume/1"):
             per = {}
             for v in fx["volumes"]:
                 per[v["archiveId"]] = per.get(v["archiveId"], 0) + 1
-            how = "create у вида тома" if generic else "createVolume"
-            problems += [f"{name}: у хранилища {a} томов {n} без {how}" for a, n in per.items() if n > 1]
+            problems += [f"{name}: у хранилища {a} томов {n} без create у вида тома" for a, n in per.items() if n > 1]
         if "listLicenses" not in ops and fx["licenses"]:
             problems.append(f"{name}: лицензии без listLicenses")
         if "getDiscovery" not in ops and (fx["discovery"] or fx["network"]):
             problems.append(f"{name}: итоги поиска без getDiscovery")
-        if not (creates("vms.domain/1") if generic else "createDomain" in ops) and len(fx["domains"]) > 1:
-            problems.append(f"{name}: доменов {len(fx['domains'])} без {'create у вида домена' if generic else 'createDomain'}")
+        if not creates("vms.domain/1") and len(fx["domains"]) > 1:
+            problems.append(f"{name}: доменов {len(fx['domains'])} без create у вида домена")
     # Шаги ожидания оператора объявляются только вместе с дверью ответа
     for name, fx in fixtures.items():
         ops_ = fx["reference"]["capabilities"]["operations"]
         if any(c["control"] in ("ask", "escalate") for c in fx["reference"]["ruleControls"]) and not {"listRulePrompts", "answerRulePrompt"} <= set(ops_):
             problems.append(f"{name}: шаги ask, escalate объявлены без listRulePrompts, answerRulePrompt")
     demo = fixtures["demo"]["reference"]["capabilities"]
-    if generic:
-        stale = [k for k in ("deviceTypes", "foundDeviceTypes", "unitTypes", "writableFields") if k in demo]
-        if stale:
-            problems.append(f"demo: в capabilities есть {', '.join(stale)} — у универсальной модели их заменяют описания видов")
-        if {k: demo[k] for k in ("operations", "features")} != {"operations": product, "features": features}:
-            problems.append("demo: возможности — не весь контракт (соберите: python3 tools/generic_fixture.py)")
-    elif {k: demo[k] for k in ("operations", "deviceTypes", "features")} != {"operations": product, "deviceTypes": types, "features": features} or set(demo.get("foundDeviceTypes", [])) - set(types):
-        problems.append("demo: возможности — не весь контракт (соберите: tools/fixture_normalize.capabilities())")
+    stale = [k for k in ("deviceTypes", "foundDeviceTypes", "unitTypes", "writableFields") if k in demo]
+    if stale:
+        problems.append(f"demo: в capabilities есть {', '.join(stale)} — их заменяют описания видов")
+    if {k: demo[k] for k in ("operations", "features")} != {"operations": product, "features": features}:
+        problems.append("demo: возможности — не весь контракт: reference.capabilities.operations и features в demo.json — "
+                        "все операции (кроме служебных) и все Feature контракта, в порядке контракта")
     rep.check("Возможности в наборах: из контракта, demo — весь контракт, данные не противоречат объявленному", problems,
               "; ".join(f"{n}: операций {len(f['reference']['capabilities']['operations'])}" for n, f in fixtures.items()))
 
@@ -877,9 +867,9 @@ def check_server(rep, spec):
         f"global.window=global;require('./{API}/contract.js');require('./{API}/server.js');"
         f"const fx=require('./{API}/fixtures/demo.json');"
         "const s=window.ConsolemServer.create({fixture:fx,autoTick:false,testSupport:true});"
-        "const d=(window.ConsolemServer.legacyFixture?window.ConsolemServer.legacyFixture(fx):fx).devices[0];const got=[];const seen=f=>{const g=m=>{if(m.type==='stream.hello'){g.client=m.clientId;return}f(m)};return g};"
+        "const d=window.ConsolemServer.legacyFixture(fx).devices[0];const got=[];const seen=f=>{const g=m=>{if(m.type==='stream.hello'){g.client=m.clientId;return}f(m)};return g};"
         "const w=seen(m=>got.push(m));s.subscribe(w);"
-        "const P=s.routes.includes('PATCH /units/{uid}')?'/units/':'/devices/';let v=P==='/units/'?s.handle('GET',P+d.id).body.version:d.version;"
+        "const P='/units/';let v=s.handle('GET',P+d.id).body.version;"
         "const h=n=>{v=s.handle('PATCH',P+d.id,{name:n},{'If-Match':'\"'+v+'\"'}).body.version};"
         "setTimeout(()=>{s.handle('PUT','/stream/'+w.client+'/watch',{ids:[d.id]});h('a');h('b');h('c');"
         "setTimeout(()=>{const first=got[0].id,missed=[],reset=[];"
@@ -908,20 +898,16 @@ def check_server(rep, spec):
 
 # ===== 7. Памятка =====
 
-# Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер
-PAGED = ["/devices", "/archives", "/volumes", "/folders", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
+# Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер.
+# Перечни объектов — /units, предметные API — по uid
+PAGED = ["/units", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
          "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery",
-         "/devices/{deviceId}/timeline", "/devices/{deviceId}/holds", "/devices/{deviceId}/bookmarks"]
-# Универсальная модель (api-generic): перечни объектов — /units, предметные API — по uid
-PAGED_GENERIC = ["/units", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
-                 "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery",
-                 "/units/{uid}/timeline", "/units/{uid}/holds", "/units/{uid}/bookmarks"]
+         "/units/{uid}/timeline", "/units/{uid}/holds", "/units/{uid}/bookmarks"]
 
 
 def check_pages(rep, spec):
     problems = []
-    paged = PAGED if "/devices" in spec["paths"] else PAGED_GENERIC
-    for path in paged:
+    for path in PAGED:
         op = spec["paths"][path]["get"]
         names = {p["name"] for p in op.get("parameters", [])}
         if not {"limit", "cursor"} <= names:
@@ -933,7 +919,7 @@ def check_pages(rep, spec):
             problems.append(f"{path}: в ответе нет nextCursor")
     res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_pages.js"), API], capture_output=True, text=True, cwd=ROOT)
     problems += res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
-    rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(paged)} перечней")
+    rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(PAGED)} перечней")
 
 
 def check_backend_doc(rep, spec):
@@ -956,40 +942,60 @@ def check_backend_doc(rep, spec):
     rep.check("Числа в BACKEND.md совпадают с контрактом", problems, f"{main} + {test}")
 
 
+# Контракт старого макета (типизированные пути /devices, /servers…): последний коммит, где он был в api/openapi.json
+OLD_CONTRACT = ("47d1310", "api/openapi.json")
+BREAKING_TITLE = "Ломающие изменения против контракта старого макета (до 0.2.0, коммит 47d1310)"
+
+
+def old_contract():
+    """Контракт старого макета из истории git; None — git недоступен или коммита в истории нет (мелкий клон)."""
+    try:
+        res = subprocess.run(["git", "show", ":".join(OLD_CONTRACT)], capture_output=True, text=True, cwd=ROOT, timeout=60)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if res.returncode:
+        return None
+    try:
+        return json.loads(res.stdout)
+    except ValueError:
+        return None
+
+
 def check_breaking_doc(rep, spec):
-    """Контракт другой модели против базового api/openapi.json: каждая операция базы, которой в контракте нет, и каждая
-    снятая или изменённая (состав полей, перечень) схема названы в разделе README «Ломающие изменения против api/openapi.json»."""
-    if API == "api" or not os.path.exists(os.path.join(ROOT, "api", "openapi.json")):
+    """Контракт против контракта старого макета (git show 47d1310:api/openapi.json): каждая операция старого контракта, которой
+    в нынешнем нет, и каждая снятая или изменённая (состав полей, перечень) схема названы в разделе README BREAKING_TITLE."""
+    base = old_contract()
+    if base is None:
+        rep.info(f"{BREAKING_TITLE}: контракта {':'.join(OLD_CONTRACT)} не прочитать (нет git или коммита в истории) — сверка пропущена")
         return
-    base = load("api/openapi.json")
     doc = read(f"{API}/README.md") or ""
-    m = re.search(r"^## Ломающие изменения против `api/openapi\.json`\n(.*?)(?=^## )", doc, re.S | re.M)
+    m = re.search(r"^## " + re.escape(BREAKING_TITLE) + r"\n(.*?)(?=^## )", doc, re.S | re.M)
     if not m:
-        rep.fail("Ломающие изменения против api/openapi.json — в README", ["нет раздела «## Ломающие изменения против `api/openapi.json`»"])
+        rep.fail(f"{BREAKING_TITLE} — в README", [f"нет раздела «## {BREAKING_TITLE}»"])
         return
     text = m.group(1)
     named = set(re.findall(r"`([^`]+)`", text))
     def ops(d):
         return {o["operationId"] for item in d["paths"].values() for k, o in item.items() if k in METHODS}
-    problems = [f"операция базы {o} — нет в разделе" for o in sorted(ops(base) - ops(spec)) if o not in named]
+    problems = [f"операция старого контракта {o} — нет в разделе" for o in sorted(ops(base) - ops(spec)) if o not in named]
     sa, sb = base["components"]["schemas"], spec["components"]["schemas"]
-    problems += [f"схема базы {n} снята — нет в разделе" for n in sorted(set(sa) - set(sb)) if n not in named]
+    problems += [f"схема старого контракта {n} снята — нет в разделе" for n in sorted(set(sa) - set(sb)) if n not in named]
     for n in sorted(set(sa) & set(sb)):
         a, b = sa[n], sb[n]
         if set(a.get("properties") or {}) - set(b.get("properties") or {}) or set(a.get("enum") or []) - set(b.get("enum") or []):
             if n not in named:
                 problems.append(f"схема {n} изменена (снято поле или значение) — нет в разделе")
     if base["info"]["version"] == spec["info"]["version"]:
-        problems.append(f"info.version тот же, что у базы ({base['info']['version']}): несовместимый контракт — новая версия")
-    rep.check("Ломающие изменения против api/openapi.json названы в README", problems,
-              f"операций базы снято {len(ops(base) - ops(spec))}, схем снято {len(set(sa) - set(sb))}")
+        problems.append(f"info.version тот же, что у старого контракта ({base['info']['version']}): несовместимый контракт — новая версия")
+    rep.check("Ломающие изменения против контракта старого макета названы в README", problems,
+              f"операций старого контракта снято {len(ops(base) - ops(spec))}, схем снято {len(set(sa) - set(sb))}")
 
 
 def main():
     rep = Report()
     spec = load(f"{API}/openapi.json")
-    # Набор универсальной модели хранит только units: старые разделы для проверок записей и ссылок выводятся
-    # из units тем же мостом, что у генератора (tools/generic_legacy.py); у наборов со старыми разделами — как есть
+    # Набор хранит только units: старые разделы для проверок записей и ссылок выводятся из units тем же мостом,
+    # что у сервера и profile_fixture.py (tools/generic_legacy.py)
     from generic_legacy import with_tables
     fx = with_tables(load(f"{API}/fixtures/demo.json"))
     profile = with_tables(load(f"{API}/fixtures/one-domain.json"))

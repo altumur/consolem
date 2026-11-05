@@ -8,7 +8,7 @@
   python3 tools/run_api_tests.py [--only "имя теста"] [--fixture one-domain] [--clock real] [--tests DIR]
 --fixture — набор и с ним возможности системы (по умолчанию demo — весь контракт); --clock real — часы
 идут по-настоящему, /test/clock не вызывается: так тесты проходят против системы, чьи часы не остановить.
---tests — папка тестов вместо tests (страница api.html сама подключает свой API: api-generic в tests-generic).
+--tests — папка тестов вместо tests (страница api.html подключает API из соседней папки ../api).
 Код выхода 1, если тесты не прошли или отчёт не получен.
 """
 import html

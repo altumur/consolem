@@ -105,7 +105,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   openAddServers(d.id);
   probeTo(net2.ip);
   runIpProbe();
-  ok(posts.filter((p) => p === "/servers/probe").length === 1, "пока идёт опрос, второй не запускается");
+  // Опрос адресов — команда probe вида сервера (POST /kinds/server/actions/probe)
+  ok(posts.filter((p) => p === "/kinds/server/actions/probe").length === 1, "пока идёт опрос, второй не запускается");
 
   // Ответ опроса не попадает в окно, открытое заново
   const old = wizd;
@@ -141,7 +142,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addProbedServers();
   ok(await until(() => row.added), "новый адрес добавлен: " + document.querySelector(".srv-list").textContent.slice(0, 80));
   API.post = post;
-  ok(posts.filter((p) => p === "/servers").length === 1, "двойное нажатие заводит один сервер");
+  // Новый сервер — объект вида server (POST /units)
+  ok(posts.filter((p) => p === "/units").length === 1, "двойное нажатие заводит один сервер");
   closeWizard();
 
   // Под самопроверкой показа нет

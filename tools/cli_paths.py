@@ -1,8 +1,8 @@
 """Общие параметры путей для инструментов: --api DIR, --tests DIR, --page FILE.
 
-Без параметров — прежние пути (api, tests, index.html). Параметр вырезается из sys.argv,
-поэтому остальной разбор аргументов в инструментах не меняется. Нужен для параллельных копий:
-python3 tools/X.py --api api-generic --tests tests-generic --page index_generic.html
+Без параметров — основной макет: api, tests, index.html. Параметр вырезается из sys.argv,
+поэтому остальной разбор аргументов в инструментах не меняется. Прототип проверяют так:
+python3 tools/X.py --page index_NN_tema.html (API и сценарии у прототипа общие с index.html)
 """
 import sys
 

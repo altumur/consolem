@@ -21,13 +21,13 @@ import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
 globalThis.window = globalThis;
-// --api DIR — папка API вместо api, --tests DIR — папка сценариев вместо tests (например, api-generic и tests-generic)
+// --api DIR — папка API вместо api, --tests DIR — папка сценариев вместо tests (копии папок)
 const arg = (name, def) => (process.argv.includes(`--${name}`) ? process.argv[process.argv.indexOf(`--${name}`) + 1] : def);
 const API = arg("api", "api");
 const API_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", API);
 require(`${API_DIR}/contract.js`);
-// Склад и реестр видов (api-generic): server.js найдёт их и сам, но порядок подключения — как на странице
-for (const f of ["kinds.js", "units.js", "profiles.js"]) if (fs.existsSync(`${API_DIR}/${f}`)) require(`${API_DIR}/${f}`);
+// Реестр видов, склад и хуки профилей: server.js найдёт их и сам, но порядок подключения — как на странице
+for (const f of ["kinds.js", "units.js", "profiles.js"]) require(`${API_DIR}/${f}`);
 require(`${API_DIR}/server.js`);
 const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`) };
 const openapi = require(`${API_DIR}/openapi.json`);

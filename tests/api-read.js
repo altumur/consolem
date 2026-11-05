@@ -3,16 +3,22 @@
   const { test, makeEnv, assert, FX } = ApiTest;
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const DAY = 86400000;
+  // Разделы набора → где их читают: объекты — в /units (по профилю; устройства — по видам устройств), правила — своим путём
+  const DEVICE_KINDS = [...new Set(FX.devices.map((d) => d.type))].sort();
+  const TABLES = [["domains", "/units?implements=vms.domain/1"], ["servers", "/units?implements=vms.server/1"], ["devices", `/units?kind=${DEVICE_KINDS.join(",")}`],
+    ["folders", "/units?implements=vms.folder/1"], ["archives", "/units?implements=vms.archive/1"], ["volumes", "/units?implements=vms.volume/1"], ["rules", "/rules"]];
+  const idOf = (r) => r.uid || r.id;
+  const one = (path, id) => (path.startsWith("/units") ? `/units/${id}` : `${path}/${id}`);
 
   test("Чтение: каждая коллекция отдаёт столько записей, сколько в эталонном наборе", async () => {
     const env = await makeEnv();
     const sizes = [];
-    for (const table of ["domains", "servers", "devices", "folders", "archives", "volumes", "rules"]) {
-      const list = await env.list(`/${table}`);
+    for (const [table, path] of TABLES) {
+      const list = await env.list(path);
       assert.eq(list.length, FX[table].length, table);
       // Порядок выбирает сервер у страниц: важно, что он один и тот же при повторе и все записи на месте
-      assert.eq(list.map((r) => r.id).sort(), FX[table].map((r) => r.id).sort(), `${table}: те же записи`);
-      assert.eq((await env.list(`/${table}`)).map((r) => r.id), list.map((r) => r.id), `${table}: порядок не меняется между чтениями`);
+      assert.eq(list.map(idOf).sort(), FX[table].map((r) => r.id).sort(), `${table}: те же записи`);
+      assert.eq((await env.list(path)).map(idOf), list.map(idOf), `${table}: порядок не меняется между чтениями`);
       sizes.push(`${table} ${list.length}`);
     }
     return sizes.join(", ");
@@ -20,9 +26,9 @@
 
   test("Чтение одной записи: тело как в списке, версия в ETag", async () => {
     const env = await makeEnv();
-    for (const table of ["domains", "servers", "devices", "folders", "archives", "volumes", "rules"]) {
-      const first = (await env.list(`/${table}`))[0];
-      const res = await env.call("GET", `/${table}/${first.id}`);
+    for (const [table, path] of TABLES) {
+      const first = (await env.list(path))[0];
+      const res = await env.call("GET", one(path, idOf(first)));
       assert.status(res, 200, null, table);
       assert.eq(res.body, first, `${table}: запись`);
       assert.eq(res.headers.etag, `"${first.version}"`, `${table}: ETag`);
@@ -31,8 +37,8 @@
 
   test("Нет записи — 404 NOT_FOUND; нет операции — 404 NO_ROUTE", async () => {
     const env = await makeEnv();
-    for (const table of ["domains", "servers", "devices", "folders", "archives", "volumes", "rules"]) {
-      assert.status(await env.call("GET", `/${table}/${UNKNOWN}`), 404, "NOT_FOUND", table);
+    for (const [table, path] of TABLES) {
+      assert.status(await env.call("GET", one(path, UNKNOWN)), 404, "NOT_FOUND", table);
     }
     if (ApiTest.can("getDiscovery")) assert.status(await env.call("GET", `/domains/${UNKNOWN}/discovery`), 404, "NOT_FOUND", "поиск в неизвестном домене");
     assert.status(await env.call("GET", `/rules/${UNKNOWN}/fires`), 404, "NOT_FOUND", "срабатывания неизвестного правила");
@@ -68,7 +74,14 @@
     const ref = await env.ok("GET", "/reference");
     assert.eq(ref.recordModes, ["none", "always", "motion", "sched", "replica", "backup"], "режимы записи");
     assert.ok(ref.deviceModels.some((v) => v.vendor === "Hikvision"), "модели по производителям");
-    assert.ok(!JSON.stringify(ref.detectorKinds).match(/[а-яё]/i), "виды детекторов — кодами");
+    // Справочники видов — в описаниях видов: в reference их нет
+    const moved = ["deviceKinds", "deviceParams", "ipServerSubtypes", "detectorKinds", "archiveKinds", "storageTypes", "volumeStates", "unitOptions"];
+    assert.eq(moved.filter((k) => k in ref), [], "справочники видов — в /kinds");
+    assert.eq(["deviceTypes", "foundDeviceTypes", "unitTypes", "writableFields"].filter((k) => k in ref.capabilities), [], "виды и правимое — не в capabilities");
+    if (ApiTest.can("kind:det")) {
+      const det = await env.ok("GET", "/kinds/det");
+      assert.ok(!JSON.stringify(det.schema.properties.detectorKind.enum).match(/[а-яё]/i), "виды детекторов — кодами");
+    }
   });
 
   test("Возможности системы: объявлены в справочниках, как в наборе; обязательный минимум есть", async () => {
@@ -79,33 +92,36 @@
     assert.eq(caps.operations.filter((id) => !known.has(id)), [], "операции — из контракта");
     assert.eq(["getMe", "getReference", "stream"].filter((id) => !caps.operations.includes(id)), [], "минимум");
     assert.eq(caps.operations.filter((id) => ["testReset", "testClock", "testEvent"].includes(id)), [], "служебных стенда — нет");
-    return `операций ${caps.operations.length}, виды устройств: ${caps.deviceTypes.join(", ")}; необязательные: ${caps.features.join(", ") || "нет"}`;
+    const kinds = ApiTest.can("listKinds") ? (await env.ok("GET", "/kinds")).items.map((k) => k.kind) : [];
+    return `операций ${caps.operations.length}, видов: ${kinds.length}; необязательные: ${caps.features.join(", ") || "нет"}`;
   });
 
   test("Неподдержанные вид устройства и настройки — 422 NOT_SUPPORTED, ничего не меняется", async () => {
     const env = await makeEnv();
     const caps = ApiTest.caps();
     const notes = [];
-    const type = ["mic", "sensor", "relay", "eventsrc", "acfa", "email"].find((t) => !caps.deviceTypes.includes(t));
+    // Вид, которого система не объявила (нет в /kinds), — NOT_SUPPORTED с указателем /kind
+    const kinds = ApiTest.can("listKinds") ? (await env.ok("GET", "/kinds")).items.map((k) => k.kind) : [];
+    const type = ["mic", "sensor", "relay", "eventsrc", "acfa", "email"].find((t) => !kinds.includes(t));
     const dom = FX.domains[0];
-    if (type && caps.operations.includes("createDevices")) {
-      const res = await env.ok("POST", "/devices", { idempotencyKey: ApiTest.key(), items: [{ domainId: dom.id, parentId: null, folderId: null, device: { type, name: "Не тот вид" } }] });
-      assert.eq([res.done.length, res.failed.map((x) => [x.code, x.field])], [0, [["NOT_SUPPORTED", "type"]]], `вид ${type}`);
-      assert.ok(!(await env.list("/devices")).some((d) => d.name === "Не тот вид"), "не создано");
+    if (type && caps.operations.includes("createUnits")) {
+      const res = await env.ok("POST", "/units", { idempotencyKey: ApiTest.key(), items: [{ kind: type, parentId: null, domainId: dom.id, name: "Не тот вид", properties: {} }] });
+      assert.eq([res.done.length, res.failed.map((x) => [x.code, x.field])], [0, [["NOT_SUPPORTED", "/kind"]]], `вид ${type}`);
+      assert.ok(!(await env.list(`/units?q=${encodeURIComponent("Не тот вид")}`)).some((u) => u.name === "Не тот вид"), "не создано");
       notes.push(`вид ${type}`);
     }
     const srv = FX.servers.find((s) => s.allocated && s.online);
     for (const [feature, patch] of [["serverRoles", { role: "standby" }], ["serverNetwork", { dns: "10.0.0.53" }]]) {
       if (caps.features.includes(feature)) continue;
-      const res = await env.call("PATCH", `/servers/${srv.id}`, patch, { "If-Match": `"${srv.version}"` });
+      const res = await env.call("PATCH", `/units/${srv.id}`, { properties: patch }, { "If-Match": `"${srv.version}"` });
       assert.status(res, 422, "NOT_SUPPORTED", feature);
-      assert.eq(res.body.field, Object.keys(patch)[0], `${feature}: поле`);
+      assert.eq(res.body.field, `/properties/${Object.keys(patch)[0]}`, `${feature}: поле`);
       notes.push(feature);
     }
     if (!caps.features.includes("archiveEncryption")) {
       const a = FX.archives[0];
-      assert.status(await env.call("PATCH", `/archives/${a.id}`, { encrypted: true }, { "If-Match": `"${a.version}"` }), 422, "NOT_SUPPORTED", "шифрование");
-      assert.eq((await env.ok("GET", `/archives/${a.id}`)).version, a.version, "хранилище не изменилось");
+      assert.status(await env.call("PATCH", `/units/${a.id}`, { properties: { encrypted: true } }, { "If-Match": `"${a.version}"` }), 422, "NOT_SUPPORTED", "шифрование");
+      assert.eq((await env.ok("GET", `/units/${a.id}`)).version, a.version, "хранилище не изменилось");
       notes.push("archiveEncryption");
     }
     return notes.length ? `проверено: ${notes.join(", ")}` : "система поддерживает всё — проверять нечего";
@@ -181,18 +197,19 @@
 
   test("Стенд: устройство потеряло и вернуло связь — запись и поток, версия не растёт", async () => {
     const env = await makeEnv();
-    const cam = (await env.list("/devices")).find((d) => d.type === "camera" && d.online);
+    const cam = (await env.list("/units?kind=camera")).find((u) => (u.status || {}).link !== "offline");
     const seen = [];
-    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.id && seen.push(m), [cam.id]);
+    const stop = ApiTest.subscribeForTest((m) => m.entityId === cam.uid && seen.push(m), [cam.uid]);
     await ApiTest.settle();
-    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: false, fault: "auth" }), 200);
-    let now = await env.ok("GET", `/devices/${cam.id}`);
-    assert.eq([now.online, now.fault, now.version], [false, "auth", cam.version], "без связи");
-    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: true }), 200);
-    now = await env.ok("GET", `/devices/${cam.id}`);
-    assert.eq([now.online, "fault" in now], [true, false], "связь вернулась");
-    assert.status(await env.call("POST", "/test/events", { type: "device.fault", deviceId: cam.id, fault: "drv" }), 200, null, "причина");
-    assert.eq((await env.ok("GET", `/devices/${cam.id}`)).fault, "drv", "причина записана");
+    const obs = (u) => (u.status || {}).observed || {};
+    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.uid, online: false, fault: "auth" }), 200);
+    let now = await env.ok("GET", `/units/${cam.uid}`);
+    assert.eq([now.status.link, obs(now).fault, now.version], ["offline", "auth", cam.version], "без связи");
+    assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.uid, online: true }), 200);
+    now = await env.ok("GET", `/units/${cam.uid}`);
+    assert.eq([now.status.link, "fault" in obs(now)], ["online", false], "связь вернулась");
+    assert.status(await env.call("POST", "/test/events", { type: "device.fault", deviceId: cam.uid, fault: "drv" }), 200, null, "причина");
+    assert.eq(obs(await env.ok("GET", `/units/${cam.uid}`)).fault, "drv", "причина записана");
     assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: "30009999-0000-4000-8000-000000000000", online: true }), 404, "NOT_FOUND");
     await ApiTest.settle();
     stop();

@@ -40,7 +40,7 @@ UiCheck(async ({ ok, until }) => {
   goApp("hw");
 
   // Удалённое хранилище — на весь домен, без сервера
-  const before = (await API.get("/archives")).items.length;
+  const before = (await uiUnitsAll({ implements: "vms.archive/1" })).length;
   const dom = domains[0];
   addArchive(dom.id);
   anSet("kind", "network");
@@ -50,7 +50,7 @@ UiCheck(async ({ ok, until }) => {
   const spec = anArchive();
   ok(spec && spec.serverId === null && spec.domainId === dom.id, "хранилище домена: владелец — домен");
   closeBulkModal();
-  ok((await API.get("/archives")).items.length === before, "без «Создать» ничего не записано");
+  ok((await uiUnitsAll({ implements: "vms.archive/1" })).length === before, "без «Создать» ничего не записано");
   // Типы хранения — из справочника
   refStorage = ["block"];
   addArchive(servers[0].id);

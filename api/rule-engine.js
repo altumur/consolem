@@ -1,59 +1,43 @@
 /* Движок «Автоматизации» — сторона сервера. Считает то, что в продукте считает бэкенд: действует ли
    расписание, какой сейчас режим объекта, что сделает правило при запуске. Подключается во встроенном
-   сервере (api/server.js) и в сборке эталонного набора (tools/fixture_fires.js): демо-запуски набора
-   посчитаны им же.
+   сервере (api/server.js) и в сборке эталонного набора (tools/fixture_fires.js):
+   демо-запуски набора посчитаны им же.
 
-   Работает на записях API (правила, расписания, устройства — как в ответах сервера). Время — в часовом
-   поясе системы: «стенные» даты — объекты Date, у которых UTC-поля равны местному времени системы.
+   Работает на объектах склада (Unit) и описаниях видов (UnitKind), без кода под вид: события объектов — из
+   UnitKind.events (триггер {source: "unit", kinds?, implements?, event, match}), действия на объектах — из UnitKind.actions
+   с ruleAction (шаг {type: "unitAction", action, target, params}), право назвать объект в правиле — right события или
+   действия (уровень класса доступа вида, Role.kindAccess, folderAccess, objectAccess). Цель — {uid} или область
+   {area: folder | server | domain, uid}. В коде остаются действия и условия не про объекты: уведомления, раскладка,
+   запрос, запуск правила, время, режим, ход выполнения.
+   Время — в часовом поясе системы: «стенные» даты — объекты Date, у которых UTC-поля равны местному времени системы.
    Трасса запуска — кодами: { code, params }. Подписи по кодам собирает интерфейс.
 
-   create(world): world — доступ к данным сервера: devices(), servers(), domains(), folders(), archives(),
-   rules(), schedules(), dayGroups(), modes() → { items, otherwise }, manualMode() → { modeId, until } | null,
-   windows(), roles(), users(), tz — часовой пояс системы (строка или функция). */
+   create(world): world — доступ к данным сервера: store() — склад объектов (api/units.js: get, byKind, byFolder,
+   byParent), kinds() — описания видов, rules(), schedules(), dayGroups(), modes() → { items, otherwise },
+   manualMode() → { modeId, until } | null, windows(), roles(), users(), tz — часовой пояс системы (строка или функция). */
 (() => {
   const RULE_CHAIN_MAX = 5;
   const RULE_DEPTH = 2;
   const RULE_ESC_MAX = 5;
   const TPL_VARS = ["камера", "устройство", "событие", "время", "правило"];
-  const RULE_DEVTYPES = ["camera", "sensor", "acfa_sensor", "acfa_lock", "acfa_fence", "relay", "eventsrc"];
-  // Справочники кодами: виды событий, условий, действий и шагов хода выполнения
-  const TRIGGERS = [
-    { source: "vms", kind: "io.input", deviceTypes: ["sensor", "acfa_sensor"], ends: true },
-    { source: "det", kind: "motion", deviceTypes: ["camera"], ends: true },
-    { source: "det", kind: "linecross", deviceTypes: ["camera"] },
-    { source: "det", kind: "lpr", deviceTypes: ["camera"] },
-    { source: "det", kind: "other", deviceTypes: ["camera"] },
-    { source: "vms", kind: "text", deviceTypes: ["eventsrc"] },
-    { source: "vms", kind: "unit", deviceTypes: ["acfa_sensor", "acfa_lock", "acfa_fence"] },
-    { source: "vms", kind: "silent", deviceTypes: ["camera"] },
-    { source: "rec", kind: "segment.lost", deviceTypes: ["camera"] },
-  ];
+  // Справочники кодами: события и действия не про объекты (событий таких пока нет), условия, шаги хода выполнения.
+  // События и действия объектов — в описаниях видов
+  const TRIGGERS = [];
+  // target — условию нужна цель; implements — у каких объектов (нет — у любого объекта правил)
   const CONDITIONS = [
-    { kind: "time", deviceTypes: [] },
-    { kind: "mode", deviceTypes: [] },
-    { kind: "armed", deviceTypes: ["camera"] },
-    { kind: "recording", deviceTypes: ["camera"] },
-    { kind: "online", deviceTypes: ["camera", "sensor", "acfa_sensor", "relay"] },
+    { kind: "time" },
+    { kind: "mode" },
+    { kind: "armed", implements: ["vms.camera/1"], target: true },
+    { kind: "recording", implements: ["vms.camera/1"], target: true },
+    { kind: "online", target: true },
   ];
-  // fields — обязательные поля действия (кроме цели), tpl — поля-шаблоны
+  // Действия без объекта. fields — обязательные поля, tpl — поля-шаблоны, via — вид объекта-исполнителя (уведомитель)
   const ACTIONS = [
-    { source: "vms", action: "arm", deviceTypes: ["camera"], fields: [] },
-    { source: "vms", action: "disarm", deviceTypes: ["camera"], fields: [] },
-    { source: "vms", action: "preset", deviceTypes: ["camera"], fields: ["preset"] },
-    { source: "rec", action: "record", deviceTypes: ["camera"], fields: [] },
-    { source: "vms", action: "disable", deviceTypes: ["camera"], fields: ["minutes"] },
-    { source: "det", action: "detect", deviceTypes: ["camera"], fields: ["detectorKind"] },
-    { source: "det", action: "scan", deviceTypes: ["camera"], fields: ["detectorKind"] },
-    { source: "alarm", action: "alarm", deviceTypes: ["camera"], fields: [], tpl: ["text"] },
-    { source: "alarm", action: "alarmclose", deviceTypes: ["camera"], fields: [] },
-    { source: "client", action: "layout", deviceTypes: [], fields: ["layoutId", "roleId"] },
-    { source: "client", action: "wall", deviceTypes: ["camera"], fields: [] },
-    { source: "ntf", action: "email", deviceTypes: [], fields: ["to", "subject"], tpl: ["subject", "body"], via: "email" },
-    { source: "ntf", action: "tg", deviceTypes: [], fields: ["chat", "text"], tpl: ["text"] },
-    { source: "vms", action: "output", deviceTypes: ["relay"], fields: ["pulseMs"] },
-    { source: "vms", action: "unit", deviceTypes: ["acfa_lock", "acfa_sensor", "acfa_fence", "relay"], fields: ["operation"] },
-    { source: "net", action: "http", deviceTypes: [], fields: ["url"], tpl: ["url"] },
-    { source: "rule", action: "runrule", deviceTypes: [], fields: ["ruleId"] },
+    { source: "client", action: "layout", fields: ["layoutId", "roleId"] },
+    { source: "ntf", action: "email", fields: ["to", "subject"], tpl: ["subject", "body"], via: "email" },
+    { source: "ntf", action: "tg", fields: ["chat", "text"], tpl: ["text"] },
+    { source: "net", action: "http", fields: ["url"], tpl: ["url"] },
+    { source: "rule", action: "runrule", fields: ["ruleId"] },
   ];
   const CONTROLS = [
     { control: "wait", branches: [] },
@@ -61,11 +45,14 @@
     { control: "ask", branches: ["yes", "no"] },
     { control: "escalate", branches: [] },
   ];
-  const triggerKind = (t) => TRIGGERS.find((k) => k.source === t.source && k.kind === t.kind) || TRIGGERS[0];
+  const UNIT_ACTION = "unitAction";
+  const isUnitAction = (a) => !!a && a.type === UNIT_ACTION;
   const condKind = (c) => CONDITIONS.find((k) => k.kind === c.kind) || CONDITIONS[0];
-  const actionKind = (a) => ACTIONS.find((k) => k.source === a.source && k.action === a.action) || ACTIONS[ACTIONS.length - 3];
+  const sysAction = (a) => ACTIONS.find((k) => k.source === a.source && k.action === a.action) || null;
   const branchesOf = (c) => (CONTROLS.find((k) => k.control === c.control) || CONTROLS[0]).branches;
   const msg = (code, params) => ({ code, params: params || {} });
+  // Вид без класса доступа — класс = код вида, уровни view < edit < admin
+  const LEVELS_DEFAULT = ["view", "edit", "admin"];
 
   /* ===== Стенное время ===== */
 
@@ -246,12 +233,48 @@
       return modeSched(wall(ms));
     }
 
-    /* ===== Устройства и цели ===== */
 
-    const devById = (id) => world.devices().find((d) => d.id === id) || null;
-    const srvById = (id) => world.servers().find((s) => s.id === id) || null;
-    // Цепочка «устройство → родители → сервер службы»: связь теряется, если без связи кто-то из них
-    function ancestors(n) {
+    /* ===== Объекты, виды и цели ===== */
+
+    const store = () => world.store();
+    // Описания видов — по коду; кэш живёт, пока реестр отдаёт тот же список (put описания — новый список)
+    let kindList = null, kindMap = new Map();
+    function kindsNow() {
+      const list = world.kinds();
+      if (list !== kindList || list.length !== kindMap.size) {
+        kindList = list;
+        kindMap = new Map(list.map((k) => [k.kind, k]));
+      }
+      return kindMap;
+    }
+    const kindOf = (code) => kindsNow().get(code) || null;
+    const evDesc = (code, ev) => ((kindOf(code) || {}).events || []).find((e) => e.id === ev) || null;
+    const actDesc = (code, id) => ((kindOf(code) || {}).actions || []).find((a) => a.id === id && a.ruleAction) || null;
+    const implementers = (list) => [...kindsNow().values()].filter((k) => (k.implements || []).some((p) => list.includes(p))).map((k) => k.kind);
+    // Виды объектов правил: у вида есть события или действия правил
+    const ruleKinds = () => [...kindsNow().values()].filter((k) => (k.events || []).length || (k.actions || []).some((a) => a.ruleAction)).map((k) => k.kind);
+    // Виды события триггера: названные (kinds или implements), у которых это событие есть; не названы — все виды с этим событием
+    function trigKinds(t) {
+      const named = t.kinds ? t.kinds : t.implements ? implementers(t.implements) : [...kindsNow().keys()];
+      return named.filter((k) => { const e = evDesc(k, t.event); return !!e && e.rule !== false; }); // rule:false — не триггер правила
+    }
+    const ends = (t) => trigKinds(t).some((k) => evDesc(k, t.event).ends);
+    // Виды действия на объекте: у кого действие правила с этим кодом
+    const actKinds = (a) => (isUnitAction(a) ? [...kindsNow().keys()].filter((k) => !!actDesc(k, a.action)) : []);
+    const condKinds = (c) => (condKind(c).implements ? implementers(condKind(c).implements) : ruleKinds());
+
+    // Запись объекта для движка: свойства и наблюдаемое состояние — полями, как в записи устройства
+    function recOf(u) {
+      if (!u) return null;
+      const st = u.status || {};
+      return Object.assign({}, u.properties || {}, st.observed || {}, { id: u.uid, type: u.kind, parentId: u.parentId || null, domainId: u.domainId || null, name: u.name },
+        st.link ? { online: st.link !== "offline" } : {});
+    }
+    const devById = (id) => (id ? recOf(store().get(id)) : null);
+    const unitIs = (id, kind) => { const u = id ? store().get(id) : null; return !!u && u.kind === kind; };
+    // Цепочка «объект → родители»; у исполнителя уведомлений (svc) — ещё и сервер, на котором он живёт: связь теряется, если
+    // без связи кто-то из них
+    function ancestors(n, svc) {
       const out = [n];
       let x = n;
       while (x.parentId) {
@@ -260,158 +283,178 @@
         out.push(p);
         x = p;
       }
-      if (SERVICES.has(x.type)) {
-        const s = srvById(x.serverId);
-        if (s) out.push(Object.assign({ kind: "server" }, s));
-      }
+      if (svc && x.serverId && unitIs(x.serverId, "server")) out.push(Object.assign({ kind: "server" }, devById(x.serverId)));
       return out;
     }
-    const SERVICES = new Set(["export", "email", "sms"]);
+    // Сервер объекта: сервер-родитель, сервер в свойстве serverId, сервер хранилища, куда объект пишет
     function devServer(n) {
       for (const x of ancestors(n)) {
-        if (x.kind === "server") return x.id;
-        if (x.serverId && (x.type === "camera" || x.type === "ipsrv") && srvById(x.serverId)) return x.serverId;
+        if (x.type === "server") return x.id;
+        if (x.serverId && unitIs(x.serverId, "server")) return x.serverId;
         if (x.archiveId && x.recordMode && x.recordMode !== "none") {
-          const a = world.archives().find((y) => y.id === x.archiveId);
-          if (a && a.serverId && srvById(a.serverId)) return a.serverId;
+          const a = store().get(x.archiveId);
+          if (a && a.parentId && unitIs(a.parentId, "server")) return a.parentId;
         }
       }
       return "";
     }
-    const devDomain = (n) => {
-      const top = ancestors(n).filter((x) => x.kind !== "server").pop();
-      return top.domainId;
-    };
+    // Папка — с подпапками; в ней — объекты папок и их дочерние
     function folderDevs(fid) {
-      const f = world.folders().find((x) => x.id === fid), out = new Map();
-      if (!f) return out;
-      const ids = new Set();
-      const sub = (x) => {
-        x.deviceIds.forEach((id) => ids.add(id));
-        world.folders().filter((y) => y.parentId === x.id).forEach(sub);
+      const out = new Map();
+      if (!unitIs(fid, "folder")) return out;
+      const kids = (id) => store().byParent(id).forEach((u) => { out.set(u.uid, recOf(u)); kids(u.uid); });
+      const sub = (id) => {
+        store().byFolder(id).forEach((u) => {
+          out.set(u.uid, recOf(u));
+          kids(u.uid);
+        });
+        store().byParent(id).filter((u) => u.kind === "folder").forEach((f) => sub(f.uid));
       };
-      sub(f);
-      const kids = (id) => world.devices().filter((d) => d.parentId === id).forEach((d) => { out.set(d.id, d); kids(d.id); });
-      ids.forEach((id) => {
-        const n = devById(id);
-        if (!n) return;
-        out.set(n.id, n);
-        kids(n.id);
-      });
+      sub(fid);
       return out;
     }
-    // Цель → строки-элементы, как их сортирует интерфейс: устройство — id, область — вид:id, удалённое — gone:имя
-    const toks = (t) => (t ? [...t.include.map((x) => (x.kind === "device" ? x.id : `${x.kind}:${x.id}`)), ...t.gone.map((g) => "gone:" + g)].sort() : []);
+    // Цель → строки-элементы, как их сортирует интерфейс: объект — uid, область — вид:uid, удалённое — gone:имя
+    const toks = (t) => (t ? [...t.include.map((x) => (x.area ? `${x.area}:${x.uid}` : x.uid)), ...t.gone.map((g) => "gone:" + g)].sort() : []);
     const isArea = (tok) => /^(folder|server|domain):/.test(tok || "");
-    const isGroup = (t) => !!t && (t.include.length + t.gone.length > 1 || t.exclude.length > 0 || t.include.some((x) => x.kind !== "device"));
-    function tokNodes(tok, dt) {
+    const isGroup = (t) => !!t && (t.include.length + t.gone.length > 1 || t.exclude.length > 0 || t.include.some((x) => !!x.area));
+    function tokNodes(tok, kinds) {
       const i = tok.indexOf(":"), k = i < 0 ? "" : tok.slice(0, i), v = tok.slice(i + 1);
-      const all = () => world.devices().filter((n) => dt.includes(n.type));
-      if (k === "folder") return [...folderDevs(v).values()].filter((n) => dt.includes(n.type));
+      const all = () => kinds.flatMap((kind) => store().byKind(kind)).map(recOf);
+      if (k === "folder") return [...folderDevs(v).values()].filter((n) => kinds.includes(n.type));
       if (k === "server") return all().filter((n) => devServer(n) === v);
-      if (k === "domain") return all().filter((n) => devDomain(n) === v);
+      if (k === "domain") return all().filter((n) => n.domainId === v);
       if (k === "gone" || !tok) return [];
       const n = devById(tok);
       return n ? [n] : [];
     }
-    function nodes(t, dt) {
+    function nodes(t, kinds) {
       if (!t) return [];
-      dt = dt || RULE_DEVTYPES;
+      kinds = kinds || ruleKinds();
       const no = new Set(t.exclude), out = new Map();
-      toks(t).forEach((x) => tokNodes(x, dt).forEach((n) => { if (!no.has(n.id)) out.set(n.id, n); }));
+      toks(t).forEach((x) => tokNodes(x, kinds).forEach((n) => { if (!no.has(n.id)) out.set(n.id, n); }));
       return [...out.values()];
     }
     function tokBroken(tok) {
       if (tok.startsWith("gone:")) return true;
-      if (tok.startsWith("folder:")) return !world.folders().some((f) => f.id === tok.slice(7));
-      if (tok.startsWith("server:")) return !srvById(tok.slice(7));
-      if (tok.startsWith("domain:")) return !world.domains().some((d) => d.id === tok.slice(7));
-      return !devById(tok);
+      const i = tok.indexOf(":");
+      if (i > 0) return !unitIs(tok.slice(i + 1), tok.slice(0, i));
+      return !store().get(tok);
     }
     const brokenToks = (t) => toks(t).filter(tokBroken);
     const broken = (t) => brokenToks(t).length > 0;
-    const single = (t) => (t && !t.fromEvent && !isGroup(t) && t.include.length === 1 ? devById(t.include[0].id) : null);
-    const covers = (t, id, dt) => !!t && !!id && (single(t) ? single(t).id === id : isGroup(t) && nodes(t, dt).some((n) => n.id === id));
-    // Устройство, от которого пришло событие tk: из области — по номеру запуска
+    const single = (t) => (t && !t.fromEvent && !isGroup(t) && t.include.length === 1 ? devById(t.include[0].uid) : null);
+    const covers = (t, id, kinds) => !!t && !!id && (single(t) ? single(t).id === id : isGroup(t) && nodes(t, kinds).some((n) => n.id === id));
+    // Объект, от которого пришло событие tk: из области — по номеру запуска
     function eventDevices(tk, i) {
       if (isGroup(tk.target)) {
-        const ns = nodes(tk.target, triggerKind(tk).deviceTypes);
+        const ns = nodes(tk.target, trigKinds(tk));
         return ns.length ? [ns[(i || 0) % ns.length]] : [];
       }
       return [single(tk.target)].filter(Boolean);
     }
-    // Почему устройство не выполнит действие: без связи (оно или родитель), выключено, выключено правилом
-    function devDown(n, keepOff, at, past) {
-      for (const x of ancestors(n)) if (x.online === false && !(x.kind === "server" && x.allocated === false)) return msg("device.offline", { deviceId: x.id });
+    // Почему объект не выполнит действие: без связи (он или родитель), выключен, выключен правилом
+    function devDown(n, keepOff, at, past, svc) {
+      for (const x of ancestors(n, svc)) if (x.online === false && !(x.kind === "server" && x.allocated === false)) return msg("device.offline", { deviceId: x.id });
       if (keepOff) return null;
-      const off = n.type === "camera" && !!n.disabledByRuleId;
-      // История набора: камера выключена правилом с disabledByRuleAt — раньше этого времени суток она работала
+      const off = !!n.disabledByRuleId;
+      // История набора: объект выключен правилом с disabledByRuleAt — раньше этого времени суток он работал
       if (off && past && n.disabledByRuleAt && clock(wall(at)) < clock(wall(Date.parse(n.disabledByRuleAt)))) return null;
       if (off) return msg("device.ruleOff", { deviceId: n.id, ruleId: n.disabledByRuleId });
       return n.enabled === false ? msg("device.disabled", { deviceId: n.id }) : null;
     }
-    const recording = (n) => n.type === "camera" && !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
+    const recording = (n) => !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
     // Есть ли что проверять: у камеры есть запись, если названо хранилище — в нём
     const hasRecord = (n, archive) => (archive ? [n.archiveId, ...(n.extraArchives || []).map((x) => x.archiveId)].includes(archive) : !!n.archiveId || !!(n.extraArchives || []).length);
+    const paramsOf = (a) => (isUnitAction(a) ? a.params || {} : a);
 
     /* ===== Права ===== */
 
-    // Какой уровень даёт право на устройство: вид уровня и значения (reference.access.levels)
-    const COMMAND = { camera: ["cam", "dCam", ["FULL"]], eventsrc: ["cam", "dCam", ["FULL"]], sensor: ["sens", "dSens", ["MANAGE"]], relay: ["relay", "dRelay", ["MANAGE"]],
-      acfa_sensor: ["acfa", "dAcfa", ["MANAGE", "CONF"]], acfa_lock: ["acfa", "dAcfa", ["MANAGE", "CONF"]], acfa_fence: ["acfa", "dAcfa", ["MANAGE", "CONF"]] };
+    // Уровни класса cls: у вида — основной класс (access) и дополнительные (access.also); класс без описания у вида —
+    // по любому виду, который его объявил; вид без класса — свой код, view < edit < admin
+    function classLevels(code, cls) {
+      const k = kindOf(code) || {};
+      const own = [k.access, ...((k.access || {}).also || [])].filter(Boolean).find((x) => x.class === cls);
+      if (own) return own.levels;
+      if (!k.access && cls === code) return LEVELS_DEFAULT;
+      for (const x of kindsNow().values()) {
+        const hit = [x.access, ...((x.access || {}).also || [])].filter(Boolean).find((y) => y.class === cls);
+        if (hit) return hit.levels;
+      }
+      return null;
+    }
+    const primaryClass = (code) => (((kindOf(code) || {}).access || {}).class) || code;
+    // Право на объект вида code для события или действия: {cls, level} или null — не судится
+    function rightOf(desc, code) {
+      if (!desc || !desc.right || !desc.right.level) return null;
+      return { cls: desc.right.class || primaryClass(code), level: desc.right.level, kind: code };
+    }
     const roleById = (id) => world.roles().find((x) => x.id === id) || null;
-    // Права роли на устройство: запись самого устройства, папки над ним, домен, умолчание роли. Встроенная «Администратор» — всё
-    function roleAllows(id, n) {
+    const enough = (levels, need) => (v) => !!v && !!levels && levels.indexOf(v) >= levels.indexOf(need) && levels.indexOf(need) >= 0;
+    // Права роли на объект: запись самого объекта, папки над ним, домен, умолчание роли (kindAccess). Встроенная «Администратор» — всё
+    function roleAllows(id, n, right) {
       const role = roleById(id);
       if (!role) return false;
-      if (role.global.unr) return true;
-      const need = COMMAND[n.type];
-      if (!need) return true;
-      const [field, def, levels] = need, own = (role.objectAccess[n.id] || {})[field];
-      if (own) return levels.includes(own);
-      const inFolders = world.folders().filter((f) => f.deviceIds.includes(n.id)).flatMap((f) => folderChain(f)).map((f) => (role.folderAccess[f.id] || {})[field]).filter(Boolean);
-      if (inFolders.length) return inFolders.some((x) => levels.includes(x));
-      return levels.includes((role.folderAccess[n.domainId] || {})[field] || role.global[def]);
+      if (role.global.unr || !right) return true;
+      const ok = enough(classLevels(n.type, right.cls), right.level), cls = right.cls;
+      const own = (role.objectAccess[n.id] || {})[cls];
+      if (own) return ok(own);
+      const u = store().get(n.id);
+      const inFolders = ((u && u.folders) || []).map((fid) => store().get(fid)).filter(Boolean).flatMap(folderChain).map((f) => (role.folderAccess[f.uid] || {})[cls]).filter(Boolean);
+      if (inFolders.length) return inFolders.some(ok);
+      return ok((role.folderAccess[n.domainId] || {})[cls] || (role.kindAccess || {})[cls]);
     }
     function folderChain(f) {
       const out = [];
-      for (let x = f; x; x = x.parentId ? world.folders().find((y) => y.id === x.parentId) : null) out.push(x);
+      for (let x = f; x && x.kind === "folder"; x = x.parentId ? store().get(x.parentId) : null) out.push(x);
       return out;
     }
     // Права роли на область: папка и домен — своя запись или умолчание роли, сервер — только умолчание
-    function roleAllowsArea(id, x) {
+    function roleAllowsArea(id, x, right) {
       const role = roleById(id);
       if (!role) return false;
-      if (role.global.unr) return true;
-      const cam = x.kind === "server" ? null : (role.folderAccess[x.id] || {}).cam;
-      return (cam || role.global.dCam) === "FULL";
+      if (role.global.unr || !right) return true;
+      const own = x.area === "server" ? null : (role.folderAccess[x.uid] || {})[right.cls];
+      return enough(classLevels(right.kind, right.cls), right.level)(own || (role.kindAccess || {})[right.cls]);
     }
-    // Что правило называет: элементы include событий, шагов и ожидаемых событий. Условия и exclude — нет
+    // Права, которые нужны на элемент цели: по видам события или действия (у объекта — его вид, у области — все виды)
+    const eventRights = (t) => trigKinds(t).map((k) => rightOf(evDesc(k, t.event), k));
+    // Право действия в правиле: ruleRight описания, если у шага правила оно своё (команда реле: в правиле — уровень реле), иначе right
+    const ruleDesc = (d) => (d && d.ruleRight ? Object.assign({}, d, { right: d.ruleRight }) : d);
+    const actionRights = (a) => actKinds(a).map((k) => rightOf(ruleDesc(actDesc(k, a.action)), k));
+    // Что правило называет: элементы include событий, шагов и ожидаемых событий — с правами по их видам. Условия и exclude — нет
     function named(r) {
-      const out = [], add = (t) => t && t.include.forEach((x) => out.push(x));
-      r.triggers.forEach((t) => add(t.target));
+      const out = [], add = (t, rights) => t && t.include.forEach((x) => out.push({ x, rights }));
+      r.triggers.forEach((t) => add(t.target, eventRights(t)));
       items(r).forEach(({ it }) => {
-        add(it.target);
-        if (it.event) add(it.event.target);
+        if (isUnitAction(it)) add(it.target, actionRights(it));
+        if (it.event) add(it.event.target, eventRights(it.event));
       });
       return out;
     }
-    // Первое, на что ни у одной из ролей нет права, или null
-    function forbidden(r, roleIds) {
-      return named(r).find((x) => {
-        if (x.kind !== "device") return !roleIds.some((id) => roleAllowsArea(id, x));
-        const n = devById(x.id);
-        return !!n && !roleIds.some((id) => roleAllows(id, n));
-      }) || null;
+    // Первое, на что ни у одной из ролей нет права, или null: элемент цели {uid} или {area, uid}. Область судится одним правом
+    // справочника (ref.ruleTargets.areaRight), какими бы ни были события и действия; нет его — не судится
+    function forbidden(r, roleIds, ref) {
+      const ar = ((ref || {}).ruleTargets || {}).areaRight, area = ar && ar.class ? { cls: ar.class, level: ar.level, kind: null } : null;
+      const bad = named(r).find(({ x, rights }) => {
+        if (x.area) return !!area && !roleIds.some((id) => roleAllowsArea(id, x, area));
+        const n = devById(x.uid);
+        if (!n) return false;
+        const rt = rights.find((y) => y && y.kind === n.type) || null;
+        return !roleIds.some((id) => roleAllows(id, n, rt));
+      });
+      return bad ? bad.x : null;
     }
+    // Право шага на объекте n: по описанию действия его вида
+    const stepRight = (a, n) => rightOf(ruleDesc(actDesc(n.type, a.action)), n.type);
 
     /* ===== Домены правила ===== */
 
     // Домены целей: события, условия, шаги. Домен контракта — кластер правила (ADR-0111 пп. 8, 10)
     function domainsOf(r) {
       const out = new Set(), one = (x) => {
-        const rec = x.kind === "device" ? devById(x.id) : x.kind === "domain" ? { domainId: x.id } : (x.kind === "server" ? world.servers() : world.folders()).find((y) => y.id === x.id);
-        if (rec && rec.domainId) out.add(rec.domainId);
+        if (x.area === "domain") return out.add(x.uid);
+        const u = store().get(x.uid);
+        if (u && u.domainId) out.add(u.domainId);
       };
       const add = (t) => t && t.include.forEach(one);
       r.triggers.forEach((t) => add(t.target));
@@ -432,7 +475,7 @@
     /* ===== Проверка правила ===== */
 
     const ruleById = (id) => world.rules().find((r) => r.id === id) || null;
-    const hasEnds = (r) => r.triggers.some((t) => triggerKind(t).ends);
+    const hasEnds = (r) => r.triggers.some(ends);
     function items(r) {
       const out = [];
       const walk = (list, pre) => list.forEach((a, i) => {
@@ -444,7 +487,25 @@
       return out;
     }
     const tplUnknown = (s) => [...String(s || "").matchAll(/\{([^{}]+)\}/g)].map((m) => m[1]).filter((k) => !TPL_VARS.includes(k));
-    const srcOk = (r, dt) => r.triggers.some((t) => triggerKind(t).deviceTypes.some((x) => dt.includes(x)));
+    // Действие на объекте сверяется с описанием его вида: у объекта цели — его вид, иначе — первый вид, где действие есть
+    function descOf(a) {
+      const one = single(a.target);
+      if (one && actDesc(one.type, a.action)) return actDesc(one.type, a.action);
+      const k = actKinds(a)[0];
+      return k ? actDesc(k, a.action) : null;
+    }
+    // Схема параметров действия: обязательные (required), числа в пределах (minimum, maximum), шаблоны (x-template)
+    const propsOf = (d) => ((d && d.params) || {}).properties || {};
+    function paramIssue(a, d) {
+      const p = paramsOf(a), props = propsOf(d);
+      const miss = (((d && d.params) || {}).required || []).find((f) => !String(p[f] ?? "").trim());
+      if (miss) return msg("action.field", { action: a.action, field: miss });
+      const out = Object.keys(props).find((f) => typeof p[f] === "number" && ((props[f].minimum != null && p[f] < props[f].minimum) || (props[f].maximum != null && p[f] > props[f].maximum)));
+      return out ? msg("action.field", { action: a.action, field: out }) : null;
+    }
+    const tplOf = (a, d) => (isUnitAction(a) ? Object.keys(propsOf(d)).filter((f) => propsOf(d)[f]["x-template"]) : (sysAction(a) || {}).tpl || []);
+    // Действие с целью «объект из события»: среди событий правила есть событие объекта, на котором действие есть
+    const srcOk = (r, kinds) => r.triggers.some((t) => trigKinds(t).some((x) => kinds.includes(x)));
     const roleOk = (id) => world.roles().some((x) => x.id === id);
     // Первая ошибка правила кодом (те же проверки, что подсказка в интерфейсе) или null
     function issue(r) {
@@ -453,8 +514,8 @@
         if (r.triggers.length > 1 && !r.windowSec) return msg("rule.noWindow");
         if (r.triggers.length === 1 && r.windowSec) return msg("rule.extraWindow");
         for (const t of r.triggers) {
-          if (!t.target) return msg("trigger.noTarget", { kind: t.kind });
-          if (isGroup(t.target) && !broken(t.target) && !nodes(t.target, triggerKind(t).deviceTypes).length) return msg("trigger.areaEmpty", { kind: t.kind });
+          if (!t.target) return msg("trigger.noTarget", { event: t.event });
+          if (isGroup(t.target) && !broken(t.target) && !nodes(t.target, trigKinds(t)).length) return msg("trigger.areaEmpty", { event: t.event });
         }
       } else if (r.start === "schedule" && (!r.runAt || !r.runAt.days.length || !/^\d\d:\d\d$/.test(r.runAt.time || ""))) return msg("rule.noRunAt");
       for (const c of r.conditions) {
@@ -465,9 +526,9 @@
           if (!s) return msg("cond.scheduleGone");
           if (schEmpty(s)) return msg("cond.scheduleEmpty", { scheduleId: s.id });
         }
-        if (k.deviceTypes.length) {
+        if (k.target) {
           if (!c.target) return msg("cond.noTarget", { kind: c.kind });
-          if (isGroup(c.target) && !broken(c.target) && !nodes(c.target, k.deviceTypes).length) return msg("cond.areaEmpty", { kind: c.kind });
+          if (isGroup(c.target) && !broken(c.target) && !nodes(c.target, condKinds(c)).length) return msg("cond.areaEmpty", { kind: c.kind });
         }
       }
       const all = items(r);
@@ -479,25 +540,29 @@
           if (p) return p;
           continue;
         }
-        const k = actionKind(a);
-        if (k.deviceTypes.length && !a.target) return msg("action.noTarget", { action: a.action });
-        if (a.action === "record" && a.duration !== "event" && !(a.minutes > 0)) return msg("action.field", { action: a.action, field: "minutes" });
-        if (a.action === "detect" && !(a.minutes >= 1 && a.minutes <= 1440)) return msg("action.field", { action: a.action, field: "minutes" });
-        if (a.action === "scan" && (a.beforeSec ?? 60) === 0 && (a.afterSec ?? 60) === 0) return msg("action.scanWindow");
-        const miss = k.fields.find((f) => !String(a[f] ?? "").trim());
-        if (miss) return msg("action.field", { action: a.action, field: miss });
-        if (isGroup(a.target) && !broken(a.target) && !nodes(a.target, k.deviceTypes).length) return msg("action.areaEmpty", { action: a.action });
-        if (a.target && a.target.fromEvent && !srcOk(r, k.deviceTypes)) return msg("action.noEventDevice", { action: a.action });
-        if (k.via && !notifier()) return msg("action.noNotifier", { action: a.action });
-        if (a.action === "record" && a.duration === "event" && !hasEnds(r)) return msg("action.recordNoEnd");
+        const unit = isUnitAction(a), kinds = actKinds(a), d = unit ? descOf(a) : null, p = paramsOf(a);
+        if (unit && !a.target) return msg("action.noTarget", { action: a.action });
+        if (a.action === "record" && p.duration !== "event" && !(p.minutes > 0)) return msg("action.field", { action: a.action, field: "minutes" });
+        if (a.action === "scan" && (p.beforeSec ?? 60) === 0 && (p.afterSec ?? 60) === 0) return msg("action.scanWindow");
+        if (unit) {
+          const why = paramIssue(a, d);
+          if (why) return why;
+        } else {
+          const miss = ((sysAction(a) || {}).fields || []).find((f) => !String(a[f] ?? "").trim());
+          if (miss) return msg("action.field", { action: a.action, field: miss });
+        }
+        if (unit && isGroup(a.target) && !broken(a.target) && !nodes(a.target, kinds).length) return msg("action.areaEmpty", { action: a.action });
+        if (unit && a.target.fromEvent && !srcOk(r, kinds)) return msg("action.noEventDevice", { action: a.action });
+        if (!unit && (sysAction(a) || {}).via && !notifier(sysAction(a).via)) return msg("action.noNotifier", { action: a.action });
+        if (a.action === "record" && p.duration === "event" && !hasEnds(r)) return msg("action.recordNoEnd");
         if (a.action === "runrule") {
           if (a.ruleId === r.id) return msg("chain.self");
           const t = ruleById(a.ruleId);
           if (!t) return msg("chain.ruleGone");
           if (t.allowChain === false) return msg("chain.forbidden", { ruleId: t.id });
         }
-        for (const f of k.tpl || []) {
-          const u = tplUnknown(a[f])[0];
+        for (const f of tplOf(a, d)) {
+          const u = tplUnknown(p[f])[0];
           if (u) return msg("action.unknownVar", { action: a.action, name: u });
         }
       }
@@ -510,7 +575,7 @@
       if (c.control === "wait") return sec(c) ? null : msg("control.sec", { control: c.control });
       if (c.control === "waitEvent") {
         if (!c.event.target) return msg("control.noTarget", { control: c.control });
-        if (isGroup(c.event.target) && !broken(c.event.target) && !nodes(c.event.target, triggerKind(c.event).deviceTypes).length) return msg("control.areaEmpty", { control: c.control });
+        if (isGroup(c.event.target) && !broken(c.event.target) && !nodes(c.event.target, trigKinds(c.event)).length) return msg("control.areaEmpty", { control: c.control });
         return sec(c) ? null : msg("control.sec", { control: c.control });
       }
       if (c.control === "ask") {
@@ -528,28 +593,49 @@
       if (c.stop === "reset" && !hasEnds(r)) return msg("escalate.resetNoEnd");
       return null;
     }
-    const notifier = () => world.devices().find((d) => d.type === "email") || null;
+    // Исполнитель уведомлений: первый объект вида via
+    const notifier = (via) => recOf(store().byKind(via || "email")[0]);
 
     /* ===== Каталог: что объявила система ===== */
 
-    // Необязательные поля действия: нет в справочнике — у действия их нет (reference.ruleActions)
-    const FIELDS_OPTIONAL = ["duration", "afterSec", "archive", "priority", "params", "beforeSec"];
-    // Правило вне каталога: { field — раздел, issue } или null. ref — справочник системы
+    // Необязательные поля действия без объекта: нет в справочнике — у действия их нет (reference.ruleActions)
+    const FIELDS_OPTIONAL = ["method", "body"];
+    // Правило вне каталога: { field — раздел, issue } или null. ref — справочник системы; события и действия объектов —
+    // описания видов
     function undeclared(r, ref) {
       const bad = (field, code, params) => ({ field, issue: msg(code, params) });
       const targetBad = (t, field) => {
         const on = ref.ruleTargets;
         if (!t || !on) return null;
-        const x = t.include.find((i) => !on.kinds.includes(i.kind));
-        if (x) return bad(field, "target.notDeclared", { kind: x.kind });
-        return t.fromEvent && !on.fromEvent ? bad(field, "target.notDeclared", { kind: "fromEvent" }) : null;
+        const x = t.include.find((i) => i.area && !on.areas.includes(i.area));
+        if (x) return bad(field, "target.notDeclared", { area: x.area });
+        return t.fromEvent && !on.fromEvent ? bad(field, "target.notDeclared", { fromEvent: true }) : null;
       };
-      const eventBad = (t, field) =>
-        ref.ruleTriggers.some((k) => k.source === t.source && k.kind === t.kind) ? targetBad(t.target, field) : bad(field, "trigger.notDeclared", { source: t.source, kind: t.kind });
+      const eventBad = (t, field) => {
+        if (t.source !== "unit") return (ref.ruleTriggers || TRIGGERS).some((k) => k.source === t.source && k.kind === t.kind) ? targetBad(t.target, field) : bad(field, "trigger.notDeclared", { source: t.source });
+        const named = t.kinds || [];
+        const stray = named.find((k) => !evDesc(k, t.event));
+        if (stray || !trigKinds(t).length) return bad(field, "trigger.notDeclared", Object.assign({ event: t.event }, stray ? { kind: stray } : {}));
+        return targetBad(t.target, field);
+      };
       const stepBad = (a) => {
         if (a.control) {
           if (!ref.ruleControls.some((k) => k.control === a.control)) return bad("steps", "control.notDeclared", { control: a.control });
           return a.event ? eventBad(a.event, "steps") : null;
+        }
+        if (isUnitAction(a)) {
+          const kinds = actKinds(a);
+          if (!kinds.length) return bad("steps", "action.notDeclared", { action: a.action });
+          const one = single(a.target);
+          if (one && !actDesc(one.type, a.action)) return bad("steps", "action.notDeclared", { action: a.action, kind: one.type });
+          const ds = one ? [actDesc(one.type, a.action)] : kinds.map((k) => actDesc(k, a.action));
+          const p = a.params || {};
+          const field = Object.keys(p).find((f) => p[f] != null && p[f] !== "" && !ds.some((d) => {
+            const s = propsOf(d)[f];
+            return !!s && (!s.enum || s.enum.includes(p[f]));
+          }));
+          if (field) return bad("steps", "action.fieldNotDeclared", { action: a.action, field });
+          return targetBad(a.target, "steps");
         }
         const k = ref.ruleActions.find((x) => x.source === a.source && x.action === a.action);
         if (!k) return bad("steps", "action.notDeclared", { action: a.action });
@@ -557,7 +643,7 @@
         if (value) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: value.id });
         const extra = FIELDS_OPTIONAL.find((f) => a[f] && !k.fields.some((x) => x.id === f));
         if (extra) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: extra });
-        return targetBad(a.target, "steps");
+        return null;
       };
       if (ref.ruleStarts && !ref.ruleStarts.includes(r.start)) return bad("start", "rule.startNotDeclared", { start: r.start });
       for (const t of r.triggers) {
@@ -594,7 +680,7 @@
         const m = o.now ? modeNow(fromWall(d)) : modeSched(d);
         return (c.modeIds || []).includes(m) ? { code: "cond", params: { condition: c }, ok: true, reason: null } : fail(msg("cond.mode", { modeId: m }));
       }
-      const k = condKind(c), ns = c.target && !broken(c.target) ? nodes(c.target, k.deviceTypes) : [];
+      const ns = c.target && !broken(c.target) ? nodes(c.target, condKinds(c)) : [];
       if (!ns.length) return fail(msg(!c.target ? "target.none" : broken(c.target) ? "target.deviceGone" : "target.areaEmpty"));
       const val = c.value !== false;
       const why = (n) => {
@@ -631,7 +717,7 @@
     function eventChecks(r, evs) {
       const used = new Set(), out = [];
       r.triggers.forEach((tk, j) => {
-        const hit = evs.findIndex((e, x) => !used.has(x) && e.source === tk.source && e.kind === tk.kind && covers(tk.target, e.deviceId, triggerKind(tk).deviceTypes) &&
+        const hit = evs.findIndex((e, x) => !used.has(x) && e.source === tk.source && e.event === tk.event && covers(tk.target, e.deviceId, trigKinds(tk)) &&
           Object.entries(tk.match || {}).every(([m, v]) => v === "" || v == null || (e.match || {})[m] === undefined || (e.match || {})[m] === v));
         if (hit >= 0) {
           used.add(hit);
@@ -642,7 +728,7 @@
         if (other >= 0) {
           used.add(other);
           const e = evs[other];
-          out.push({ code: "event.other", params: { event: { source: e.source, kind: e.kind, match: e.match || {} }, deviceId: e.deviceId }, ok: false, reason: msg("event.expected", { trigger: tk }) });
+          out.push({ code: "event.other", params: { event: { source: e.source, event: e.event, match: e.match || {} }, deviceId: e.deviceId }, ok: false, reason: msg("event.expected", { trigger: tk }) });
           return;
         }
         out.push({ code: "event.missing", params: { trigger: tk }, ok: false, reason: j > 0 ? msg("event.notInWindow", { sec: r.windowSec }) : msg("event.none") });
@@ -655,7 +741,7 @@
       if (c.control === "waitEvent") {
         const pick = (o.br && o.br[o.key]) || (!o.test && i % 3 === 2 ? "no" : "yes");
         const n = eventDevices(c.event, i)[0], s = Math.max(1, Math.min((c.sec || 1) - 1, 5 + ((i * 7) % 20)));
-        return { label: msg("ctl.waitEvent", { event: { source: c.event.source, kind: c.event.kind, match: c.event.match || {} }, target: c.event.target }), deviceId: n ? n.id : null, pick,
+        return { label: msg("ctl.waitEvent", { event: { source: c.event.source, event: c.event.event, match: c.event.match || {} }, target: c.event.target }), deviceId: n ? n.id : null, pick,
           note: pick === "yes" ? msg("waitEvent.came", { sec: s }) : msg("waitEvent.timeout", { sec: c.sec }) };
       }
       const who = o.who && o.who[o.key];
@@ -692,8 +778,8 @@
       return { label: msg("ctl.escalate", { roleIds: L.map((l) => l.roleId) }), note: msg("escalate.until", { stop: c.stop === "reset" ? "reset" : "ack" }), subs };
     }
     function stepDevices(a, src) {
-      const k = actionKind(a), ok = k.deviceTypes;
-      if (!ok.length) return k.via ? [notifier()].filter(Boolean) : [];
+      if (!isUnitAction(a)) return (sysAction(a) || {}).via ? [notifier(sysAction(a).via)].filter(Boolean) : [];
+      const ok = actKinds(a);
       if (a.target && a.target.fromEvent) return (src || []).map(devById).filter((n) => n && ok.includes(n.type));
       if (isGroup(a.target)) return nodes(a.target, ok);
       return [single(a.target)].filter(Boolean);
@@ -719,11 +805,11 @@
           return;
         }
         if (o.only && !o.only.has(key)) return;
-        const k = actionKind(a), devs = stepDevices(a, o.src), keep = a.action === "disable";
+        const unit = isUnitAction(a), via = unit ? null : (sysAction(a) || {}).via, devs = stepDevices(a, o.src), keep = a.action === "disable", p = paramsOf(a);
         let note = null;
-        if (a.action === "record" && a.duration === "event" && o.via === "event") {
-          const ev = r.triggers.find((t) => triggerKind(t).ends);
-          note = msg("record.untilEnd", { trigger: ev ? { source: ev.source, kind: ev.kind } : null, at: instant(o.endAt), afterSec: a.afterSec || 0 });
+        if (a.action === "record" && p.duration === "event" && o.via === "event") {
+          const ev = r.triggers.find(ends);
+          note = msg("record.untilEnd", { trigger: ev ? { source: ev.source, event: ev.event } : null, at: instant(o.endAt), afterSec: p.afterSec || 0 });
         }
         const mk = (id, why) => out.push({ path: key, deviceId: id, action: JSON.parse(JSON.stringify(a)), label: null, control: false, skip: false,
           state: why ? "fail" : o.watch ? "would" : "ok", reason: why || null, note, depth });
@@ -745,14 +831,14 @@
               .forEach((x) => out.push(Object.assign({}, x, { control: true, path: "", depth: x.depth + depth + 1 })));
           return;
         }
-        // Удалённые части цели — отдельные отказавшие шаги: остальные устройства выполняются
-        brokenToks(a.target).forEach((t) => mk(null, t.startsWith("gone:") ? msg("target.gone", { name: t.slice(5), area: false }) : msg(isArea(t) ? "target.areaGone" : "target.deviceGone", { token: t })));
-        if (!devs.length && !broken(a.target)) {
-          if (k.via) return mk(null, msg("notifier.gone"));
-          if (!k.deviceTypes.length) return mk(null, null);
+        // Удалённые части цели — отдельные отказавшие шаги: остальные объекты выполняются
+        (unit ? brokenToks(a.target) : []).forEach((t) => mk(null, t.startsWith("gone:") ? msg("target.gone", { name: t.slice(5), area: false }) : msg(isArea(t) ? "target.areaGone" : "target.deviceGone", { token: t })));
+        if (!devs.length && !(unit && broken(a.target))) {
+          if (via) return mk(null, msg("notifier.gone"));
+          if (!unit) return mk(null, null);
           return mk(single(a.target) ? single(a.target).id : null, msg(!a.target ? "target.none" : a.target.fromEvent ? "target.noEventDevice" : isGroup(a.target) ? "target.areaEmpty" : "target.deviceGone"));
         }
-        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now) || (a.action === "scan" && !hasRecord(n, a.archive) ? msg("target.noRecord", { deviceId: n.id }) : null) || (r.runAsRoleId && !roleAllows(r.runAsRoleId, n) ? msg("role.denied", { roleId: r.runAsRoleId, deviceId: n.id }) : null) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
+        devs.forEach((n) => mk(n.id, devDown(n, keep, fromWall(o.at), !o.now, !!via) || (a.action === "scan" && !hasRecord(n, p.archive) ? msg("target.noRecord", { deviceId: n.id }) : null) || (unit && r.runAsRoleId && !roleAllows(r.runAsRoleId, n, stepRight(a, n)) ? msg("role.denied", { roleId: r.runAsRoleId, deviceId: n.id }) : null) || (o.flaky && o.flaky(key) ? msg("relay.timeout") : null)));
       });
       walk(r.steps, [], 0);
       return out;
@@ -773,7 +859,7 @@
         if (via === "event")
           r.triggers.forEach((tk, j) => {
             const n = eventDevices(tk, i)[0];
-            ev.push({ source: tk.source, kind: tk.kind, match: tk.match || {}, deviceId: n ? n.id : null,
+            ev.push({ source: tk.source, event: tk.event, match: tk.match || {}, deviceId: n ? n.id : null,
               at: instant(new Date(d.getTime() - (r.triggers.length - 1 - j) * (6 + (i % 5)) * 1000)) });
           });
       }
@@ -796,19 +882,18 @@
     // Значения подстановок запуска — в тексте вопроса оператору
     function fillText(text, r, f) {
       const n = (f.sourceDeviceIds[0] && devById(f.sourceDeviceIds[0])) || null, ev = f.events[f.events.length - 1];
-      const v = { камера: n ? n.name : "", устройство: n ? n.id : "", событие: ev ? ev.kind : "", время: stamp(wall(Date.parse(f.at))), правило: r.name };
+      const v = { камера: n ? n.name : "", устройство: n ? n.id : "", событие: ev ? ev.event : "", время: stamp(wall(Date.parse(f.at))), правило: r.name };
       return String(text || "").replace(/\{([^{}]+)\}/g, (m, k) => (k in v ? v[k] : m));
     }
-    // Событие подходит правилу: вид и устройство
-    const hears = (t, kind, id) => t.kind === kind && covers(t.target, id, triggerKind(t).deviceTypes);
+    // Событие подходит правилу: код события и объект
+    const hears = (t, event, id) => t.source === "unit" && t.event === event && covers(t.target, id, trigKinds(t));
 
     // Повтор невыполненного: те же шаги (действия, как они были в том запуске) — на нынешних устройствах
     const retryable = (s) => s.state === "fail" && !s.control && s.action && s.action.action !== "runrule";
     function retry(r, f, at) {
       const steps = f.steps.filter(retryable).map((s) => {
-        const n = s.deviceId ? devById(s.deviceId) : null, keep = s.action.action === "disable";
-        const k = actionKind(s.action);
-        const why = n ? devDown(n, keep) : !k.deviceTypes.length && !s.deviceId && !(s.reason && /^target\./.test(s.reason.code)) ? null
+        const n = s.deviceId ? devById(s.deviceId) : null, keep = s.action.action === "disable", via = isUnitAction(s.action) ? null : (sysAction(s.action) || {}).via;
+        const why = n ? devDown(n, keep, undefined, undefined, !!via) : !isUnitAction(s.action) && !s.deviceId && !(s.reason && /^target\./.test(s.reason.code)) ? null
           : s.reason && /^target\.(gone|areaGone)$/.test(s.reason.code) ? s.reason : msg("target.deviceGone");
         return Object.assign({}, s, { state: why ? "fail" : "ok", reason: why, depth: 0 });
       });
@@ -824,29 +909,42 @@
       const unfit = [], unchecked = [];
       const name = (n) => `«${n.name}»`;
       const down = (n) => n.online === false && unchecked.push(`${name(n)}: нет связи, что умеет устройство, не проверено`);
-      r.triggers.forEach((t) => (t.target && !broken(t.target) ? nodes(t.target, triggerKind(t).deviceTypes) : []).forEach(down));
+      r.triggers.forEach((t) => (t.target && !broken(t.target) ? nodes(t.target, trigKinds(t)) : []).forEach(down));
       items(r).forEach(({ it: a }) => {
-        if (!a.action || !a.target || a.target.fromEvent) return;
-        (broken(a.target) ? [] : nodes(a.target, actionKind(a).deviceTypes)).forEach((n) => {
+        if (!isUnitAction(a) || !a.target || a.target.fromEvent) return;
+        const p = paramsOf(a);
+        (broken(a.target) ? [] : nodes(a.target, actKinds(a))).forEach((n) => {
           down(n);
-          if (a.action === "preset" && n.presetMax && a.preset > n.presetMax) unfit.push(`${name(n)}: нет пресета ${a.preset}, предел ${n.presetMax}`);
-          if (a.action === "scan" && !hasRecord(n, a.archive)) unfit.push(`${name(n)}: нечего проверять, запись не ведётся`);
+          if (a.action === "preset" && n.presetMax && p.preset > n.presetMax) unfit.push(`${name(n)}: нет пресета ${p.preset}, предел ${n.presetMax}`);
+          if (a.action === "scan" && !hasRecord(n, p.archive)) unfit.push(`${name(n)}: нечего проверять, запись не ведётся`);
         });
       });
       if (unfit.length) return { state: "unfit", reason: [...new Set(unfit)].join("; ") };
       return unchecked.length ? { state: "unchecked", reason: [...new Set(unchecked)].join("; ") } : { state: "watching", reason: "" };
     }
 
-    return { fire, retry, retryable, outcome, fillText, hears, issue, undeclared, status, forbidden, domainsOf, crossDomain, eventChecks, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
+    return { fire, retry, retryable, outcome, fillText, hears, issue, undeclared, status, forbidden, domainsOf, crossDomain, eventChecks, rightOf, roleAllows: (id, uid, right) => { const n = devById(uid); return !!n && roleAllows(id, n, right); }, schActive: (id, ms) => schActive(id, wall(ms)), modeNow, modeNext, stamp: (ms) => stamp(wall(ms)), clock: (ms) => clock(wall(ms)), wall, fromWall };
   }
 
-  // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние
-  const forDb = (db) => create({
-    tz: () => db().timezone,
-    devices: () => db().devices, servers: () => db().servers, domains: () => db().domains, folders: () => db().folders, archives: () => db().archives,
-    rules: () => db().rules, schedules: () => db().schedules, dayGroups: () => db().dayGroups, modes: () => db().modes, manualMode: () => db().modeManual,
-    windows: () => db().maintenanceWindows, roles: () => db().access.roles, users: () => db().access.users,
-  });
+  // world поверх данных в виде набора (api/fixtures/demo.json): db() отдаёт их текущее состояние. Склад объектов
+  // собирается из db().units и живёт, пока набор отдаёт тот же список
+  function forDb(db) {
+    let units = null, st = null;
+    const store = () => {
+      if (db().units !== units) {
+        const Units = typeof window !== "undefined" && window.ConsolemUnits ? window.ConsolemUnits : require("./units.js");
+        units = db().units;
+        st = Units.create();
+        st.load(units);
+      }
+      return st;
+    };
+    return create({
+      tz: () => db().timezone, store, kinds: () => db().kinds,
+      rules: () => db().rules, schedules: () => db().schedules, dayGroups: () => db().dayGroups, modes: () => db().modes, manualMode: () => db().modeManual,
+      windows: () => db().maintenanceWindows, roles: () => db().access.roles, users: () => db().access.users,
+    });
+  }
   const api = { create, forDb, TRIGGERS, CONDITIONS, ACTIONS, CONTROLS };
   if (typeof window !== "undefined") window.ConsolemRuleEngine = api;
   if (typeof module !== "undefined") module.exports = api;

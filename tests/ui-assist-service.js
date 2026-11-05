@@ -1,5 +1,6 @@
 /* Сценарий интерфейса: служба ассистента демо-страницы (?assist=URL, метка consolem-assist). Служба подставная:
-   fetch страницы отвечает за неё заготовленными ответами, настоящей модели здесь нет. Метка ставится на время
+   fetch страницы отвечает за неё заготовленными ответами, настоящей модели здесь нет. Мир службы — объекты и описания
+   видов (AssistWorld: kinds, units), шаг плана — {uid, version, patch} (AssistPlanItem), отбор — фильтры GET /units. Метка ставится на время
    сценария: в index.html её нет. На стенде (?api=, сборка консоли) служба не работает, и это тоже проверяется.
    Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
@@ -110,8 +111,12 @@ UiCheck(async ({ ok, until }) => {
   ok(asstMode(asst) === "on", "код читается из sessionStorage");
 
   // Ход: прямо в службу, с кодом и снимком, без куки. Ход ничего не пишет
-  const camera = (await uiDevices()).find((d) => d.type === "camera" && d.name.includes("Главный вход"));
-  const cam = await API.get(`/devices/${camera.id}`);
+  // Объекты — страницами GET /units, шаг плана — как PATCH /units/{uid}: patch и поле JSON Pointer
+  const unitsAll = async (q) => { const out = []; let cursor = null; do { const r = await API.get("/units", Object.assign({ cursor, limit: 1000 }, q || {})); out.push(...r.items); cursor = r.nextCursor || null; } while (cursor); return out; };
+  const planItem = (u, properties, why) => ({ uid: u.uid, version: u.version, patch: { properties }, name: u.name,
+    changes: Object.entries(properties).map(([k, v]) => ({ field: `/properties/${k}`, before: u.properties[k], after: v, why: why || "просьба" })) });
+  const camera = (await unitsAll({ kind: "camera" })).find((u) => u.name === "Главный вход");
+  const cam = await API.get(`/units/${camera.uid}`);
   answer = hold({ type: "progress", text: "в очереди: место 2" });
   say("выключи запись Главный вход");
   ok(await until(() => calls.length === 1), "запрос ушёл в службу");
@@ -139,7 +144,7 @@ UiCheck(async ({ ok, until }) => {
   feed({ type: "progress", text: "читаю устройства" });
   ok(await until(() => /читаю устройства/.test(el("asstLine")?.textContent || "")), "строка хода сменилась");
   ok(document.activeElement === gq, "строка хода курсор из пустой строки поиска не забрала");
-  last({ type: "plan", summary: "Камеры: 1", context: "b1:plan", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
+  last({ type: "plan", summary: "Камеры: 1", context: "b1:plan", items: [planItem(cam, { recordMode: "none" })] });
   ok(await until(() => el("asstPlanNote")), "план службы показан");
   ok(document.activeElement === gq && gq.value === "", "конец хода курсор из пустой строки поиска не забрал");
   typeKeys(gq, "камера");
@@ -148,10 +153,10 @@ UiCheck(async ({ ok, until }) => {
   gq.blur();
   ok(await until(() => !el("asstCancel")), "ход кончился, отмены нет");
 
-  // Снимок: все ключи, полные записи, по контракту, паролей нет
-  ok(["reference", "devices", "folders", "rules", "schedules", "modes", "maintenanceWindows", "me"].every((k) => k in world), "в снимке все ключи: " + Object.keys(world).join());
-  ok(Object.keys(world).length === 11, "лишних ключей нет: " + Object.keys(world).join());
-  ok(JSON.stringify(world.servers) === JSON.stringify((await API.get("/servers")).items), "серверы как в GET /servers");
+  // Снимок: все ключи, полные записи, по контракту, паролей нет. Устройств, папок и серверов отдельно нет — это объекты
+  ok(["reference", "kinds", "units", "rules", "schedules", "modes", "maintenanceWindows", "me"].every((k) => k in world), "в снимке все ключи: " + Object.keys(world).join());
+  ok(Object.keys(world).length === 10 && !["devices", "folders", "servers"].some((k) => k in world), "лишних ключей нет: " + Object.keys(world).join());
+  ok(JSON.stringify(world.kinds) === JSON.stringify((await API.get("/kinds")).items), "описания видов как в GET /kinds");
   ok(JSON.stringify(world.licenses) === JSON.stringify((await API.get("/licenses")).items), "лицензии как в GET /licenses");
   // Роли — только id и name: для шагов ask, escalate
   const accRolesAll = (await API.get("/access")).roles;
@@ -160,14 +165,18 @@ UiCheck(async ({ ok, until }) => {
   ok(!/objectAccess|folderAccess/.test(JSON.stringify(world.roles)), "прав и объектов ролей нет");
   const rolesSize = JSON.stringify(world.roles).length;
   ok(rolesSize < 2048, `роли почти не весят: ${rolesSize} байт из ${call.init.body.length}`);
-  let all = 0, cursor = null;
-  do { const r = await API.get("/devices", { cursor, limit: 1000 }); all += r.items.length; cursor = r.nextCursor || null; } while (cursor);
-  ok(world.devices.length === all && all > 100, "устройства целиком: " + world.devices.length);
-  ok(JSON.stringify(world.devices.find((d) => d.id === cam.id)) === JSON.stringify(cam), "запись устройства полная, как GET /devices/{id}");
-  ok(world.devices.some((d) => (d.folderIds || []).length), "состав папок — Device.folderIds");
-  ok(world.devices.every((d) => typeof d.id === "string" && typeof d.type === "string" && typeof d.name === "string"), "у каждого устройства id, type, name: служба судит снимок по ним");
-  ok(world.folders.length === (await API.get("/folders", { limit: 1000 })).items.length && world.rules.length === (await API.get("/rules")).items.length, "папки и правила целиком");
+  // Старый снимок (без units, kinds) не роняет сценарий: проверки ниже падают по одной
+  const wu = world.units || [], wk = world.kinds || [];
+  const all = (await unitsAll()).length;
+  ok(wu.length === all && all > 100, "объекты целиком: " + wu.length);
+  ok(JSON.stringify(wu.find((u) => u.uid === cam.uid)) === JSON.stringify(cam), "объект полный, как GET /units/{uid}");
+  ok(wu.some((u) => (u.folders || []).length), "состав папок — Unit.folders");
+  ok(wu.every((u) => typeof u.uid === "string" && typeof u.kind === "string" && typeof u.name === "string"), "у каждого объекта uid, kind, name: служба судит снимок по ним");
+  ok(wu.filter((u) => u.kind === "folder").length === (await unitsAll({ kind: "folder" })).length && world.rules.length === (await API.get("/rules")).items.length, "папки и правила целиком");
+  ok(wu.some((u) => u.kind === "security_controller/CONTROLLER") && wk.some((k) => k.kind === "security_controller/CONTROLLER"), "незнакомый вид — в снимке вместе с описанием");
   ok(world.schedules.length && world.maintenanceWindows.length && world.modes.items && world.reference.capabilities && world.me.userId, "расписания, окна, режимы, справочник, сессия");
+  { const secret = new Map(wk.map((k) => [k.kind, Object.entries((k.schema || {}).properties || {}).filter(([, s]) => s && s.writeOnly).map(([n]) => n)]));
+    ok(wu.every((u) => (secret.get(u.kind) || []).every((n) => !(n in (u.properties || {})))), "паролей в снимке нет: значений writeOnly у объектов нет"); }
   // В справочнике поле password есть у описания формата выгрузки («zip» — вид защиты): это не пароль, справочник обходим.
   // В остальном снимке нет ни одного непустого строкового поля, в имени которого есть «pass»
   const passFields = [], walkPass = (v, path) => { if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => { if (/pass/i.test(k) && typeof x === "string" && x) passFields.push(path + "." + k); walkPass(x, path + "." + k); }); };
@@ -177,22 +186,22 @@ UiCheck(async ({ ok, until }) => {
   ok(!ConsolemContract.requestProblems(window.CONSOLEM_OPENAPI, "POST", "/assist/turns", call.body).length, "тело по контракту: " + ConsolemContract.requestProblems(window.CONSOLEM_OPENAPI, "POST", "/assist/turns", call.body).slice(0, 2).join("; "));
 
   // «Применить» — за человеком, черновиком групповой карточки: без него ничего не записано, запись — во встроенный сервер
-  ok((await API.get(`/devices/${cam.id}`)).version === cam.version, "ход ничего не записал");
-  ok(await until(() => bulkActive() && treeSel.has(cam.id) && el("asstTag")), "план одной камеры — тоже групповая карточка, тег над деревом");
+  ok((await API.get(`/units/${cam.uid}`)).version === cam.version, "ход ничего не записал");
+  ok(await until(() => bulkActive() && treeSel.has(cam.uid) && el("asstTag")), "план одной камеры — тоже групповая карточка, тег над деревом");
   ok(!el("asstApply"), "в панели «Применить» нет");
   const foot = el("bulkFoot"), showPlan = foot && [...foot.querySelectorAll("button")].find((b) => /Показать план|Применить/.test(b.textContent));
   press(showPlan);
   if (await until(() => el("bmodal")?.classList.contains("open"), 2000)) press([...document.querySelectorAll("#bmodal button")].find((b) => /^Применить/.test(b.textContent)));
   ok(await until(() => bq && bq.finished), "«Применить» в карточке мышью");
   let made = null;
-  for (let i = 0; i < 200 && (made = await API.get(`/devices/${cam.id}`)).recordMode !== "none"; i++) await new Promise((r) => setTimeout(r, 25));
-  ok(made.recordMode === "none", "«Применить» записало во встроенный сервер");
-  await API.patch(`/devices/${cam.id}`, { recordMode: cam.recordMode }, made.version);
+  for (let i = 0; i < 200 && (made = await API.get(`/units/${cam.uid}`)).properties.recordMode !== "none"; i++) await new Promise((r) => setTimeout(r, 25));
+  ok(made.properties.recordMode === "none", "«Применить» записало во встроенный сервер");
+  await API.patch(`/units/${cam.uid}`, { properties: { recordMode: cam.properties.recordMode } }, made.version);
   ok(calls.length === 1, "запись не ходит в службу");
 
   // Уточнить план через службу: тот же ход, context плана, снимок свежий, план снят и не возвращается
   open();
-  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:первый", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
+  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:первый", items: [planItem(cam, { recordMode: "none" })] });
   say("выключи запись Главный вход");
   ok(await until(() => el("asstPlanNote")), "план службы для уточнения");
   ok(field()?.placeholder === "Уточнить" && el("asstSend")?.textContent === "Уточнить", "под планом поле «Уточнить»");
@@ -204,7 +213,7 @@ UiCheck(async ({ ok, until }) => {
   ok(!el("asstPlanNote") && !asst.plan && el("asstCancel") && !bulkDraft.plan, "пока идёт ход, плана нет ни в панели, ни в черновике");
   ok([...el("asstBlock").querySelectorAll(".asst-u")].map((x) => x.textContent).join("|") === "выключи запись Главный вход|и Запасной вход", "история просьб, свежая последней");
   ok(el("asstLine")?.firstElementChild?.classList.contains("dev-spin"), "значок хода — в начале строки хода");
-  last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "уточнение" }] }] });
+  last({ type: "plan", summary: "Камеры: 2", context: "b1:второй", items: [planItem(cam, { recordMode: "none" }, "уточнение")] });
   ok(await until(() => el("asstPlanNote") && /уточнение/.test(text()) && bulkDraft.plan), "новый план целиком, снова в черновике");
   ok(!document.querySelector("#asstBlock .dev-spin"), "ход кончился — значка хода нет");
   answer = sse({ type: "question", text: "На какой камере?", context: "b1:вопрос2" });
@@ -266,7 +275,7 @@ UiCheck(async ({ ok, until }) => {
   ok(lastCall().body.context === "b1:ответ" && !("kind" in lastCall().body), "с context прошлого ответа");
   ok(!/Серверов: 12/.test(el("asstAnswer").textContent), "прежний ответ снят");
   // Типа в событиях нет: лишний kind форма не читает, план показан как план
-  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", kind: "explain", summary: "Камеры: 1", context: "b1:п", items: [{ deviceId: cam.id, version: cam.version, set: { recordMode: "none" }, name: cam.name, changes: [{ field: "recordMode", before: cam.recordMode, after: "none", why: "просьба" }] }] });
+  answer = sse({ type: "progress", kind: "explain", text: "смотрю" }, { type: "plan", kind: "explain", summary: "Камеры: 1", context: "b1:п", items: [planItem(cam, { recordMode: "none" })] });
   say("выключи запись Главный вход");
   ok(await until(() => el("asstPlanNote")), "kind в событиях форма пропускает: план показан");
   ok(!el("asstRefused") && !el("asstErr") && !/Тип:/.test(text()), "ни отказа, ни ошибки, ни строки типа");
@@ -314,11 +323,11 @@ UiCheck(async ({ ok, until }) => {
   API.stream = streamWas;
   ok(calls.length === nStub, "служба не вызывалась");
 
-  // Отбор службы (found): ids с total и truncated; filter — форма листает GET /devices сама; лишний kind пропущен
+  // Отбор службы (found): ids с total и truncated; filter — форма листает GET /units сама; лишний kind пропущен
   ok(asstEnds({ type: "found" }), "found — конечное событие");
   goApp("hw");
   const tagT = () => el("asstTag")?.textContent || "";
-  const camIds = (await uiDevices()).filter((d) => d.type === "camera").map((d) => d.id);
+  const camIds = (await unitsAll({ kind: "camera" })).map((u) => u.uid);
   open();
   answer = sse({ type: "progress", kind: "found", text: "отбираю" }, { type: "found", kind: "found", text: "Отобрано 700, показаны первые 5.", context: "b1:отбор", ids: camIds.slice(0, 5), total: 700, truncated: true, conditions: ["запись: нет"] });
   say("выведи камеры без записи");
@@ -330,14 +339,14 @@ UiCheck(async ({ ok, until }) => {
   say("а только Axis");
   ok(await until(() => tagT().startsWith("Ассистент: 2 · запись: нет · производитель: Axis")), "уточнение отбора: " + tagT());
   ok(lastCall().body.context === "b1:отбор", "разговор идёт с context отбора");
-  // Форма filter: те же фильтры GET /devices, листается ограниченным проходом
+  // Форма filter: AssistFoundFilter — фильтры GET /units (kinds → kind через запятую, флаги — "true"), ограниченным проходом
   const gets = [], getWas = API.get;
-  API.get = (p, q) => { if (p === "/devices" && q && q.noRecord) gets.push(q); return getWas(p, q); };
-  const noRecIds = (await uiDevices()).filter((d) => d.type === "camera" && (d.recordMode || "none") === "none").map((d) => d.id);
-  answer = sse({ type: "found", text: "Камер без записи много: листаю фильтром.", context: "b1:фильтр", filter: { type: "camera", noRecord: true }, truncated: true, conditions: ["тип: камера", "запись: нет"] });
+  API.get = (p, q) => { if (p === "/units" && q && q.noRecord) gets.push(q); return getWas(p, q); };
+  const noRecIds = (await unitsAll({ kind: "camera", noRecord: "true" })).map((u) => u.uid);
+  answer = sse({ type: "found", text: "Камер без записи много: листаю фильтром.", context: "b1:фильтр", filter: { kinds: ["camera"], noRecord: true }, truncated: true, conditions: ["тип: камера", "запись: нет"] });
   say("выведи все камеры без записи");
   ok(await until(() => fs?.pick && fs.filter && fs.done), "форма filter: дерево листает сама");
-  ok(gets.length && gets.every((q) => q.type === "camera" && q.noRecord === "true" && !("ids" in q)), "запросы GET /devices с фильтром отбора: " + JSON.stringify(gets[0]));
+  ok(gets.length && gets.every((q) => q.kind === "camera" && q.noRecord === "true" && !("ids" in q) && !("kinds" in q)), "запросы GET /units с фильтром отбора: " + JSON.stringify(gets[0]));
   ok(fs.hits.size === noRecIds.length && noRecIds.every((id) => fs.hits.has(id)), "отобраны камеры без записи: " + fs.hits.size);
   ok(tagT().startsWith(`Ассистент: ${noRecIds.length}`) && tagT().includes("тип: камера · запись: нет"), "тег формы filter: " + tagT());
   API.get = getWas;
@@ -349,6 +358,25 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => tagT().startsWith("Ассистент: 0")) && el("asstFoundPick")?.disabled, "пустой отбор — тег с нулём, выбирать нечего");
   press(el("asstTag").querySelector("button"));
   ok(!asstPick && !el("asstTag"), "тег снят крестиком");
+  // Незнакомый вид: отбор фильтром вида с командой из UnitKind.actions — дерево листает GET /units?kind=, команда названа
+  // подписью вида; выполняет её человек из групповой карточки, ход ничего не выполняет
+  const CTRL = "security_controller/CONTROLLER", ctrls = await unitsAll({ kind: CTRL });
+  answer = sse({ type: "found", text: `Отобрано: ${ctrls.length}.`, context: "b1:охрана", filter: { kinds: [CTRL] }, action: "ARM", total: ctrls.length, conditions: ["тип: контроллер"] });
+  say("поставь контроллеры на охрану");
+  ok(await until(() => fs?.pick && fs.filter && fs.done), "отбор незнакомого вида фильтром");
+  ok(fs.hits.size === ctrls.length && ctrls.every((u) => fs.hits.has(u.uid)), "отобраны контроллеры: " + fs.hits.size);
+  ok(/Поставить на охрану/.test(text()), "команда отбора — подписью из описания вида: " + text().slice(0, 200));
+  ok(JSON.stringify((await unitsAll({ kind: CTRL })).map((u) => u.version)) === JSON.stringify(ctrls.map((u) => u.version)), "команда не выполнена");
+  press(el("asstTag").querySelector("button"));
+  close();
+  // План незнакомого вида: поле из его схемы — подписью x-label, значение — подписью x-enum-labels; объект отмечен
+  const ctrl = ctrls.find((u) => u.properties.mode !== "manual");
+  open();
+  answer = sse({ type: "plan", summary: "Контроллер: 1", context: "b1:режим", items: [planItem(ctrl, { mode: "manual" })] });
+  say("смени режим контроллера на manual");
+  ok(await until(() => el("asstPlanNote") && treeSel.has(ctrl.uid)), "план незнакомого вида показан, объект отмечен");
+  ok(/Режим/.test(text()) && /Ручной/.test(text()) && !text().includes("/properties/mode"), "поле и значение — подписями схемы, не указателем: " + text().slice(0, 200));
+  ok((await API.get(`/units/${ctrl.uid}`)).version === ctrl.version, "ход ничего не записал");
   close();
 
   // Пароль наружу не уходит: ни полем, ни словами, ни ответом на вопрос
@@ -417,23 +445,23 @@ UiCheck(async ({ ok, until }) => {
 
   // План настройки с полем вне групповой карточки: поле названо словами, обхода нет
   open();
-  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:ip", items: [{ deviceId: cam.id, version: cam.version, set: { ip: "10.0.0.9", enabled: false }, name: cam.name, changes: [] }] });
+  answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:ip", items: [Object.assign(planItem(cam, { ip: "10.0.0.9", enabled: false }), { changes: [] })] });
   say("смени адрес камеры");
   ok(await until(() => el("asstPlanNote") && el("asstPlanLost")), "план с полем вне карточки");
-  ok(/ip/.test(el("asstPlanLost").textContent) && !bulkDraft.plan.ip && bulkDraft.plan.enabled?.[cam.id] === "off", "ip назван словами и в черновик не лёг, «Включено» — лёг");
+  ok(/\bip\b/.test(el("asstPlanLost").textContent) && !el("asstPlanLost").textContent.includes("/properties/") && !bulkDraft.plan.ip && bulkDraft.plan.enabled?.[cam.uid] === "off", "ip назван кодом поля, как в базе, не указателем, и в черновик не лёг, «Включено» — лёг: " + el("asstPlanLost").textContent.slice(0, 120));
   ok(!el("asstApply"), "обхода карточки нет");
   // Разные значения по объектам: поле — «— разные —», раскладка плана под полем, каждому объекту уходит своё
   const twoCams = [];
-  for (const d of (await uiDevices()).filter((x) => x.type === "camera" && x.recordMode === "motion")) {
-    const sv = srv(d.id);
-    if (sv && !hasNoSignal(sv) && d.enabled !== false) twoCams.push(await API.get(`/devices/${d.id}`));
+  for (const u of (await unitsAll({ kind: "camera" })).filter((x) => x.properties.recordMode === "motion")) {
+    const sv = srv(u.uid);
+    if (sv && !hasNoSignal(sv) && u.properties.enabled !== false) twoCams.push(await API.get(`/units/${u.uid}`));
     if (twoCams.length === 2) break;
   }
   const [c1, c2] = twoCams;
   open();
   answer = sse({ type: "plan", summary: "Камеры: 2", context: "b1:разные", items: [
-    { deviceId: c1.id, version: c1.version, set: { recordMode: "none" }, name: c1.name, changes: [{ field: "recordMode", before: "motion", after: "none", why: "просьба" }] },
-    { deviceId: c2.id, version: c2.version, set: { recordMode: "always" }, name: c2.name, changes: [{ field: "recordMode", before: "motion", after: "always", why: "просьба" }] }] });
+    planItem(c1, { recordMode: "none" }),
+    planItem(c2, { recordMode: "always" })] });
   say("первой выключи запись, второй — всегда");
   ok(await until(() => el("asstPlanNote") && bulkActive() && treeSel.size === 2), "план двух камер: обе отмечены, карточка выборки");
   ok(tab === "rec" && /Архив и запись/.test(el("main")?.textContent || ""), "карточка открыта на вкладке «Архив»: план меняет режим записи");
@@ -449,10 +477,11 @@ UiCheck(async ({ ok, until }) => {
   press([...document.querySelectorAll("#bmodal button")].find((b) => /^Применить/.test(b.textContent)));
   ok(await until(() => bq && bq.finished), "применено одной операцией");
   let r1 = null, r2 = null;
-  for (let i = 0; i < 200; i++) { r1 = await API.get(`/devices/${c1.id}`); r2 = await API.get(`/devices/${c2.id}`); if (r1.recordMode === "none" && r2.recordMode === "always") break; await new Promise((r) => setTimeout(r, 25)); }
-  ok(r1.recordMode === "none" && r2.recordMode === "always", "каждой камере — её значение плана: " + r1.recordMode + ", " + r2.recordMode);
-  await API.patch(`/devices/${c1.id}`, { recordMode: "motion" }, r1.version);
-  await API.patch(`/devices/${c2.id}`, { recordMode: "motion" }, r2.version);
+  const rec = (u) => u.properties.recordMode;
+  for (let i = 0; i < 200; i++) { r1 = await API.get(`/units/${c1.uid}`); r2 = await API.get(`/units/${c2.uid}`); if (rec(r1) === "none" && rec(r2) === "always") break; await new Promise((r) => setTimeout(r, 25)); }
+  ok(rec(r1) === "none" && rec(r2) === "always", "каждой камере — её значение плана: " + rec(r1) + ", " + rec(r2));
+  await API.patch(`/units/${c1.uid}`, { properties: { recordMode: "motion" } }, r1.version);
+  await API.patch(`/units/${c2.uid}`, { properties: { recordMode: "motion" } }, r2.version);
 
   // Отказы словами
   open();
