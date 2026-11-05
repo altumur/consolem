@@ -155,6 +155,8 @@ def build(out, learn=True):
     page = re.sub(r"<!-- API: контракт.*?-->\n", "", page)
     for src, target in scripts.items():
         tag = f'<script src="{src}"></script>'
+        if target and target[0] not in files:
+            continue
         page = page.replace(tag + "\n", (f'<script src="{target[0]}?v={ver(target[0])}"></script>\n' if target else ""), 1)
     meta = (f'<meta name="consolem-api" content="{API_URL}">\n<meta name="consolem-login" content="{LOGIN_URL}">\n')
     if demo_files:
