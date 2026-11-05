@@ -2897,6 +2897,16 @@ function searchFieldApi(k){return k==="id"?"identifier":k}
 let refScenKinds=null;
 const LIM={pageMax:1000,idsMax:200,selectMax:500,watchMax:200};
 const servers=[],domains=[];
+// Индекс кэша для find и сторож индекса — у hwIdxBuild
+let hwIdx=null,hwIdxGen=0;
+const IDX_GUARD={on:/[?&]selftest\b/.test(location.search),ok:null,bad:[],n:0,k:0};
+try{
+  let uc;
+  Object.defineProperty(window,"UiCheck",{configurable:true,get:()=>uc,set(f){
+    IDX_GUARD.on=true;
+    uc=fn=>f(async h=>{IDX_GUARD.ok=h.ok;idxGuardFlush();try{return await fn(h)}finally{idxGuardFlush();if(IDX_GUARD.n>5)h.ok(false,`сторож индекса: всего расхождений ${IDX_GUARD.n}`);IDX_GUARD.ok=null}});
+  }});
+}catch(e){}
 // Версия записи — для If-Match и плана операции. В объекты кэша не кладётся:
 // иначе она попала бы в «было → станет» карточки.
 const hwVer=new Map();
@@ -3711,7 +3721,7 @@ function schemaSearchText(n){
 // Кэш «Оборудования» неполный: домены и серверы целиком (их мало), папки, хранилища и тома — первой страницей,
 // устройства — только то, что раскрыли, нашли или открыли. Режим один на любом размере.
 function hwFill(L){
-  [servers,domains,devicePool,folders,arch].forEach(x=>x.length=0);
+  [servers,domains,devicePool,folders,arch].forEach(x=>x.length=0);hwIdxDrop();
   [SERVER_DOMAIN,DEVICE_DOMAIN,SERVER_GPU,SERVER_DISKS].forEach(x=>Object.keys(x).forEach(k=>delete x[k]));
   hwVer.clear();
   const ver=r=>hwVer.set(r.id,r.version);
@@ -3720,6 +3730,7 @@ function hwFill(L){
   L.domains.forEach(r=>{ver(r);domains.push({...domNode(r),
     servers:L.servers.filter(s=>s.domainId===r.id&&s.allocated).map(s=>byId.get(s.id)),
     unallocServers:L.servers.filter(s=>s.domainId===r.id&&!s.allocated).map(s=>byId.get(s.id))})});
+  hwIdxDrop();
   folderAdd(L.folders);
   L.archives.forEach(archAdd);
   L.volumes.forEach(volAdd);
@@ -3732,14 +3743,14 @@ function folderAdd(list){
     if(folderById(r.id))return false;
     if(r.parentId&&!folderById(r.parentId))return true;
     hwVer.set(r.id,r.version);
-    const f=folderNode(r);(r.parentId?folderById(r.parentId).folders:folders).push(f);
+    const par=r.parentId?folderById(r.parentId):null,f=folderNode(r);(par?par.folders:folders).push(f);hwIdxAddFolder(f,par);
     return false;
   });
   if(left.length&&left.length<list.length)folderAdd(left);
   return left;
 }
-function archAdd(r){if(archById(r.id))return;hwVer.set(r.id,r.version);arch.push(archNode(r))}
-function volAdd(r){const a=archById(r.archiveId);if(!a||a.vols.some(v=>v.id===r.id))return;hwVer.set(r.id,r.version);a.vols.push(volNode(r))}
+function archAdd(r){if(archById(r.id))return;hwVer.set(r.id,r.version);const a=archNode(r);arch.push(a);hwIdxAddArch(a)}
+function volAdd(r){const a=archById(r.archiveId);if(!a||a.vols.some(v=>v.id===r.id))return;hwVer.set(r.id,r.version);const v=volNode(r);a.vols.push(v);hwIdxAddVol(v)}
 // Дочитаны ли перечни до конца: нет — запись по чужому id читается отдельно
 const hwDone={folders:false,archives:false,volumes:false};
 let hwTotal=null,hwReadAt=0;
@@ -3785,10 +3796,11 @@ function cardKeepNode(n,snap,live){
     if(k==="devices"||CARD_SKIP.has(k)||k.startsWith("_"))return;
     if(JSON.stringify(live[k])===JSON.stringify(snap[k]))return;
     if(live[k]===undefined)delete n[k];else n[k]=cardClone({v:live[k]}).v;
+    if(IDX_KEYS.has(k))hwIdxDrop();
   });
   const sd=new Map((snap.devices||[]).map(d=>[d.id,d]));
   (live.devices||[]).forEach(d=>{
-    if(!sd.has(d.id)){(n.devices||(n.devices=[])).push(cardClone(d));return}
+    if(!sd.has(d.id)){(n.devices||(n.devices=[])).push(cardClone(d));hwIdxDrop();return}
     const nd=(n.devices||[]).find(x=>x.id===d.id);if(nd)cardKeepNode(nd,sd.get(d.id),d);
   });
   return base;
@@ -3824,8 +3836,10 @@ const KEEP_DEVICE=new Set(["devices","_f"]),KEEP_ROW=new Set(["devices","_f","_m
 function hwReparent(n,parentId,domainId){
   const f=find(n.id),list=f?.p?f.p.devices:devicePool;
   const i=list?list.indexOf(n):-1;if(i>=0)list.splice(i,1);
+  hwIdxDrop();
   if(parentId){const p=find(parentId)?.n;if(!p)return hwReloadSoon();(p.devices||(p.devices=[])).push(n);delete DEVICE_DOMAIN[n.id]}
   else{devicePool.push(n);DEVICE_DOMAIN[n.id]=domainId}
+  hwIdxDrop();
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
 }
 function hwApplyDevice(r){
@@ -3843,10 +3857,10 @@ function hwApplyDevice(r){
 function hwApplyServer(r){
   const fresh=srvNode(r);
   let s=servers.find(x=>x.id===r.id);
-  if(!s){s=fresh;servers.push(s)}
+  if(!s){s=fresh;servers.push(s);hwIdxDrop()}
   else hwFresh(s,fresh,KEEP_SERVER);
   const now=r.allocated?domainOf(s.id)?.id:unallocDomainOf(s.id);
-  if(now!==r.domainId){takeServer(s.id);domainById(r.domainId)?.[r.allocated?"servers":"unallocServers"].push(s)}
+  if(now!==r.domainId){takeServer(s.id);domainById(r.domainId)?.[r.allocated?"servers":"unallocServers"].push(s);hwIdxDrop()}
   SERVER_DOMAIN[r.id]=r.domainId;hwVer.set(r.id,r.version);
 }
 function hwApplyDomain(r){
@@ -3860,9 +3874,9 @@ function hwAddDevices(list,flds){
     if(find(r.id))return;
     hwVer.set(r.id,r.version);
     const n=devNode(r);
-    if(r.parentId){const p=find(r.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(r.type))servers.find(s=>s.id===r.serverId)?.devices.push(n);
-    else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+    if(r.parentId){const p=find(r.parentId)?.n;if(p){(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}}
+    else if(SVC_TYPES.has(r.type)){servers.find(s=>s.id===r.serverId)?.devices.push(n);hwIdxDrop()}
+    else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId;hwIdxAdd(n,null)}
     hwFolderIds(r);
   });
   (flds||[]).forEach(hwApplyFolder);
@@ -3876,9 +3890,9 @@ function hwAddUnits(list){
     if(INFRA_SCREENS.has(t)){hwAddRow(u);return}
     hwVer.set(u.uid,u.version);
     const n=unitNode(u),r=unitRec(u);
-    if(u.parentId){const p=find(u.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(t))servers.find(s=>s.id===r.serverId)?.devices.push(n);
-    else{devicePool.push(n);DEVICE_DOMAIN[u.uid]=u.domainId}
+    if(u.parentId){const p=find(u.parentId)?.n;if(p){(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}}
+    else if(SVC_TYPES.has(t)){servers.find(s=>s.id===r.serverId)?.devices.push(n);hwIdxDrop()}
+    else{devicePool.push(n);DEVICE_DOMAIN[u.uid]=u.domainId;hwIdxAdd(n,null)}
     hwFolderIds({id:u.uid,folderIds:u.folders||[]});
   });
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
@@ -3930,9 +3944,9 @@ function hwAddRow(u){
   if(HAND_SCREENS.has(t)&&u.kind!==t)n._kind=u.kind;
   n._row=true;if(r.hasChildren)n._more=true;
   hwVer.set(r.id,r.version);
-  if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n)}
-  else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s)s.devices.push(n)}
-  else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+  if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}
+  else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s){s.devices.push(n);hwIdxAdd(n,s)}}
+  else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId;hwIdxAdd(n,null)}
   return n;
 }
 // Вход по чужому id (поиск, журнал, правило, права): запись сперва дочитывается, родители — раньше детей
@@ -3973,6 +3987,7 @@ function hwRemoveFolder(id){
   const parent=folderParent(id);
   if(parent)parent.folders=parent.folders.filter(x=>x.id!==id);
   else{const i=folders.findIndex(x=>x.id===id);if(i>=0)folders.splice(i,1)}
+  hwIdxDrop();
   const gone=[id];walkFolders(x=>gone.push(x.id),f.folders||[]);
   gone.forEach(x=>{hwVer.delete(x);open.delete(x)});
   if(gone.includes(selFolder))selFolder=null;
@@ -3985,6 +4000,7 @@ function hwRemoveDevice(id){
   const gone=new Set();walk(n=>gone.add(n.id),[f.n],null);gone.add(id);
   const list=f.p?f.p.devices:devicePool.includes(f.n)?devicePool:servers.find(s=>s.devices.includes(f.n))?.devices;
   if(list){const i=list.indexOf(f.n);if(i>=0)list.splice(i,1)}
+  hwIdxDrop();
   walkFolders(x=>{x.items=(x.items||[]).filter(y=>!gone.has(y))});
   walkAll(n=>{if(n.recDets)n.recDets=n.recDets.filter(y=>!gone.has(y))});
   gone.forEach(x=>{hwVer.delete(x);delete DEVICE_DOMAIN[x]});
@@ -4107,7 +4123,7 @@ function hwApplyVolume(r){
   const a=archById(r.archiveId);if(!a)return;
   const fresh=volNode(r);
   let v=a.vols.find(x=>x.id===r.id);
-  if(!v){a.vols.push(fresh);v=fresh}else hwFresh(v,fresh,KEEP_NONE);
+  if(!v){a.vols.push(fresh);v=fresh;hwIdxAddVol(fresh)}else hwFresh(v,fresh,KEEP_NONE);
   const snap=cardBase&&cardBase.id===a.id?cardBase.snap.vols:null;
   if(snap){const i=snap.findIndex(x=>x.id===r.id);if(i>=0)snap[i]=cardClone(fresh);else snap.push(cardClone(fresh))}
   hwVer.set(r.id,r.version);
@@ -4328,8 +4344,15 @@ function matchesDomain(n){return!domainFilter||nodeDomainId(n)===domainFilter}
 function scopedDomains(){return domains.filter(matchesDomain)}
 const folders=[];
 function walkFolders(fn,list,parent){(list||folders).forEach(f=>{fn(f,parent||null);walkFolders(fn,f.folders,f)})}
-function folderById(id){let o=null;walkFolders(f=>{if(f.id===id)o=f});return o}
-function folderParent(id){let o=null;walkFolders((f,p)=>{if(f.id===id)o=p});return o}
+// Папка и её родитель — по индексу кэша (hwIdx), в проверках сверяются с перебором
+function folderById(id){
+  const o=hwIdxGet().fold.get(id)?.n||null;
+  return IDX_GUARD.on?idxGuard("folderById",id,o,()=>{let w=null;walkFolders(f=>{if(f.id===id)w=f});return w}):o;
+}
+function folderParent(id){
+  const o=hwIdxGet().fold.get(id)?.p||null;
+  return IDX_GUARD.on?idxGuard("folderParent",id,o,()=>{let w=null;walkFolders((f,p)=>{if(f.id===id)w=p});return w}):o;
+}
 function folderPath(id){const out=[];let f=folderById(id);while(f){out.unshift(f);f=folderParent(f.id)}return out}
 function folderPathName(id){return folderPath(id).map(f=>locName(f)).join(" / ")}
 function folderDomain(id){return folderPath(id)[0]?.domain||null}
@@ -4457,14 +4480,18 @@ function volDesc(v){
 }
 function volStateText(v){return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
 function archVols(a){return a?.vols||[]}
-function volById(id){if(typeof id!=="string")return null;for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v)return v}return null}
+function volById(id){
+  if(typeof id!=="string")return null;
+  const o=hwIdxGet().vol.get(id)||null;
+  return IDX_GUARD.on?idxGuard("volById",id,o,()=>{for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v)return v}return null}):o;
+}
 function sizeTb(str){const m=/([\d.,]+)\s*(ТБ|ГБ|TB|GB)/.exec(str||"");if(!m)return 0;const n=parseFloat(m[1].replace(",","."));return/Г|G/.test(m[2])?n/1024:n}
 function fmtTb(n){return n>=1?String(Math.round(n*10)/10).replace(".",",")+" "+i18n("ТБ"):Math.round(n*1024)+" "+i18n("ГБ")}
 function archSizeTb(a){return archVols(a).reduce((t,v)=>t+sizeTb(v.size),0)}
 function archSize(a){return fmtTb(archSizeTb(a))}
 function archUsed(a){const t=archSizeTb(a);if(!t)return"0%";const u=archVols(a).reduce((x,v)=>x+sizeTb(v.size)*(parseFloat(v.used)||0)/100,0);return Math.round(u/t*100)+"%"}
 function archDiskLabel(a){const v=archVols(a);return v.length===1?(archAddr(a)==="bucket"?volLabelOf(a,v[0]):v[0].disk):`${v.length} ${i18n(plural(v.length,"том|тома|томов"))}`}
-function archById(id){return arch.find(a=>a.id===id)||null}
+function archById(id){const o=hwIdxGet().ar.get(id)||null;return IDX_GUARD.on?idxGuard("archById",id,o,()=>arch.find(a=>a.id===id)||null):o}
 // Камера без сервера (добавлена без него) подключается к серверу первого
 // своего хранилища — дальше сервер остаётся с ней и без записи.
 // Где serverId — наблюдение, а не настройка, сервер объявляет его только для чтения: форма не закрепляет его сама
@@ -4486,12 +4513,12 @@ function setDevServer(node,sid){
 // Сервер камеры без поиска по дереву: свой, иначе — через хранилище записи
 function camSrvId(n){return n.srvId||(isRecording(n)?archById(n.arch)?.server:null)||null}
 // Камера внутри регистратора наследует его сервер
-let srvCamMemo=null;
 function serverCameras(sid){
-  // Сервер за сервером — квадрат: на одну отрисовку раскладка считается один раз
+  // Сервер за сервером — квадрат: на одну отрисовку (withFind) раскладка считается один раз
   if(findMemo){
+    let srvCamMemo=findMemo.srvCam;
     if(!srvCamMemo){
-      srvCamMemo=new Map();const via=new Map();
+      srvCamMemo=findMemo.srvCam=new Map();const via=new Map();
       walkAll((n,p)=>{
         const s=((n.type==="camera"||n.type==="ipsrv")&&n.srvId)||(p&&via.get(p.id))||null;
         if(s)via.set(n.id,s);
@@ -5272,20 +5299,91 @@ function walkAll(fn){
 const ACFA_NODE_IDS=new Set();
 function markAcfa(list,inside=false){(list||[]).forEach(n=>{const under=inside||n.type==="acfa";if(under)ACFA_NODE_IDS.add(n.id);markAcfa(n.devices,under)})}
 function remakeAcfa(){ACFA_NODE_IDS.clear();markAcfa(devicePool);servers.forEach(s=>markAcfa(s.devices))}
-// Перебор кэша на каждый find в отрисовке — квадрат: на время одной отрисовки кэш не меняется, карта собирается один раз
+// На время одной отрисовки кэш не меняется: производные карты (папки объекта, камеры сервера) собираются один раз.
+// Сам find идёт по постоянному индексу (hwIdx), withFind ему не нужен
 let findMemo=null;
 function withFind(fn){
   if(findMemo)return fn();
-  const m=new Map();walkAll((n,p)=>m.set(n.id,{n,p}));
-  findMemo=m;
+  findMemo={};
   try{return fn()}finally{findMemo=null}
 }
+// Индекс кэша: id → {n, p} одним проходом вместо перебора всего кэша на каждый find (квадрат «строк × кэш»).
+// Слои — в порядке прежнего поиска: объекты дерева (walkAll; повтор id — последний), папки (последний), хранилища и тома
+// (первый). Индекс держит ссылки на объекты, поэтому правка полей (имя, связь, запись) его не трогает. Состав списков кэша
+// и родителя узла меняют только места с hwIdxDrop: индекс сбрасывается (поколение +1) и собирается заново при первом find.
+// Строки перечня (hwAddRow), созданные объекты, папки, хранилища и тома дописываются в готовый индекс точечно (hwIdxAdd…):
+// страница ветки или волна поиска — сотни строк, пересборка на каждую вернула бы квадрат
+function hwIdxDrop(){hwIdx=null;hwIdxGen++}
+// Поля узла со списками других узлов: черновик карточки (cardRestoreNode, cardKeepNode) кладёт в них копии — состав меняется
+const IDX_KEYS=new Set(["servers","unallocServers","vols","folders"]);
+function hwIdxBuild(){
+  const core=new Map(),fold=new Map(),ar=new Map(),vol=new Map(),sv=new Map();
+  walkAll((n,p)=>core.set(n.id,{n,p}));
+  servers.forEach(s=>{if(!sv.has(s.id))sv.set(s.id,s)});
+  walkFolders((f,p)=>fold.set(f.id,{n:f,p}));
+  arch.forEach(a=>{if(!ar.has(a.id))ar.set(a.id,a);(a.vols||[]).forEach(v=>{if(!vol.has(v.id))vol.set(v.id,v)})});
+  return hwIdx={core,fold,ar,vol,sv};
+}
+// Сервер по id из общего списка servers (как servers.find) — по индексу
+function serverById(id){const o=hwIdxGet().sv.get(id)||null;return IDX_GUARD.on?idxGuard("serverById",id,o,()=>servers.find(x=>x.id===id)||null):o}
+function hwIdxGet(){return hwIdx||hwIdxBuild()}
+// Новый узел дерева со всей начинкой — в готовый индекс. walkAll спускается в devices серверов домена и устройств, но не
+// домена, «нераспределённых» и их серверов; родитель не из дерева (или уже другой объект) — тоже сброс: прежний поиск
+// такой узел не нашёл бы, пусть решает пересборка
+function hwIdxAdd(n,p){
+  if(!hwIdx)return;
+  const e=p&&hwIdx.core.get(p.id);
+  if(p&&(!e||e.n!==p||p.type==="domain"||p.type==="unalloc"||e.p?.type==="unalloc")){hwIdxDrop();return}
+  const core=hwIdx.core;core.set(n.id,{n,p});walk((x,q)=>core.set(x.id,{n:x,p:q}),n.devices,n);
+}
+function hwIdxAddFolder(f,parent){if(hwIdx){hwIdx.fold.set(f.id,{n:f,p:parent||null});walkFolders((x,q)=>hwIdx.fold.set(x.id,{n:x,p:q}),f.folders||[],f)}}
+function hwIdxAddArch(a){if(hwIdx){if(!hwIdx.ar.has(a.id))hwIdx.ar.set(a.id,a);(a.vols||[]).forEach(hwIdxAddVol)}}
+function hwIdxAddVol(v){if(hwIdx&&!hwIdx.vol.has(v.id))hwIdx.vol.set(v.id,v)}
+// Сторож индекса — только в проверках. tests/ui-harness.js ставит window.UiCheck (check_ui.py, check_scale.py, страницы
+// сценариев ?selftest-run), ?selftest — страница самопроверки. Ответ индекса сверяется с прежним перебором; расхождение —
+// строка FAIL в отчёте сценария (с id и вызовом), индекс сбрасывается, find отдаёт ответ перебора. Так правка кэша,
+// что забыла hwIdxDrop, падает в проверках, а не тихо врёт. У оператора (нет UiCheck и ?selftest) сверки нет.
+// Перебор find — весь кэш: на большом сверяется каждый k-й вызов, k = объектов в кэше / 4 000 (до 4 000 шагов на вызов)
+function idxGuardFlush(){const g=IDX_GUARD;if(g.ok)g.bad.splice(0).forEach(m=>g.ok(false,m))}
+function idxGuardText(o){
+  if(!o)return"нет";
+  if(!("n" in o&&"p" in o))return`${o.type||"?"} ${o.id}`;
+  return`${o.n.type||"?"} ${o.n.id}`+(o.p?` под ${o.p.type||"?"} ${o.p.id}`:" без родителя");
+}
+function idxGuardBad(what,id,got,want){
+  const g=IDX_GUARD;g.n++;
+  if(g.n>5)return;
+  const at=(new Error().stack||"").split("\n").slice(1).filter(l=>!/idxGuard|findWalk|\bfind \(|ById \(|folderParent \(/.test(l)).slice(0,3)
+    .map(l=>l.trim().replace(/^at /,"").replace(/\(?\S*?:(\d+):\d+\)?$/,":$1")).join(" ← ");
+  const m=`сторож индекса: ${what}(${id}) — индекс «${idxGuardText(got)}», перебор «${idxGuardText(want)}»: правка кэша без hwIdxDrop; вызов ${at}`;
+  console.error(m);g.bad.push(m);idxGuardFlush();
+}
+// Сверить ответ индекса с перебором (только в проверках). Не совпало — сброс и ответ перебора
+function idxGuard(what,id,got,walkFn,same){
+  const want=walkFn();
+  if(same?same(got,want):got===want)return got;
+  idxGuardBad(what,id,got,want);hwIdxDrop();
+  return want;
+}
+function idxGuardDue(){const k=Math.ceil((hwIdx?.core.size||0)/4000)||1;return++IDX_GUARD.k%k===0}
+// Прежний find перебором — эталон сторожа
+function findWalk(id){
+  let o;walkAll((n,p)=>{if(n.id===id)o={n,p}});
+  if(!o){let f=null,fp=null;walkFolders((x,q)=>{if(x.id===id){f=x;fp=q}});if(f)o={n:f,p:fp}}
+  if(!o){const a=arch.find(x=>x.id===id);if(a)o={n:a,p:archOwner(a)}}
+  if(!o&&typeof id==="string")for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v){o={n:v,p:arch.find(x=>x.id===v.archId)||null};break}}
+  return o;
+}
+// «Нераспределённые» — узел, который walkAll собирает заново: тот же, если тот же домен и тот же список серверов
+function findSameNode(a,b){return a===b||!!a&&!!b&&a.type==="unalloc"&&b.type==="unalloc"&&a.id===b.id&&a.servers===b.servers}
+function findSame(a,b){return!a||!b?!a===!b:findSameNode(a.n,b.n)&&findSameNode(a.p,b.p)}
 function find(id){
-  let o;
-  if(findMemo)o=findMemo.get(id);else walkAll((n,p)=>{if(n.id===id)o={n,p}});
-  if(!o){const f=folderById(id);if(f)o={n:f,p:folderParent(id)}}
-  if(!o){const a=archById(id);if(a)o={n:a,p:archOwner(a)}}
-  if(!o){const v=volById(id);if(v)o={n:v,p:archById(v.archId)}}
+  const X=hwIdxGet();
+  let o=X.core.get(id);
+  if(!o)o=X.fold.get(id);
+  if(!o){const a=X.ar.get(id);if(a)o={n:a,p:archOwner(a)}}
+  if(!o){const v=X.vol.get(id);if(v)o={n:v,p:archById(v.archId)}}
+  if(IDX_GUARD.on&&idxGuardDue())o=idxGuard("find",id,o,()=>findWalk(id),findSame);
   if(!o&&id.startsWith("gpu:")){const sv=servers.find(x=>x.id===id.slice(4));if(sv&&serverGpu(sv))o={n:gpuNode(sv),p:sv}}
   if(!o&&id.startsWith("norec:")){const d=domains.find(x=>x.id===id.slice(6));if(d)o={n:norecNode(d.id),p:d}}
   if(!o&&id.startsWith("nofolder:")){const d=domains.find(x=>x.id===id.slice(9));if(d)o={n:nofolderNode(d.id),p:d}}
@@ -5309,9 +5407,9 @@ function srv(id){
   while(f){
     const n=f.n;
     if(n.type==="server")return n;
-    if(n.srvId&&(n.type==="camera"||n.type==="ipsrv")){const s=servers.find(x=>x.id===n.srvId);if(s)return s}
+    if(n.srvId&&(n.type==="camera"||n.type==="ipsrv")){const s=serverById(n.srvId);if(s)return s}
     if(n.arch&&n.rec&&n.rec!=="none"){
-      const a=arch.find(x=>x.id===n.arch),s=a&&servers.find(x=>x.id===a.server);
+      const a=archById(n.arch),s=a&&serverById(a.server);
       if(s)return s;
     }
     f=f.p?find(f.p.id):null;
@@ -5380,9 +5478,9 @@ function isUnallocated(serverId){return domains.some(d=>d.unallocServers.some(s=
 function takeServer(serverId){
   for(const d of domains){
     let i=d.servers.findIndex(s=>s.id===serverId);
-    if(i>=0)return d.servers.splice(i,1)[0];
+    if(i>=0){hwIdxDrop();return d.servers.splice(i,1)[0]}
     i=d.unallocServers.findIndex(s=>s.id===serverId);
-    if(i>=0)return d.unallocServers.splice(i,1)[0];
+    if(i>=0){hwIdxDrop();return d.unallocServers.splice(i,1)[0]}
   }
   return null;
 }
@@ -5537,7 +5635,7 @@ function createDomain(r){
   // Уже пришёл с перечитанным кэшем (событие обогнало ответ)
   if(domainById(r.id)){hwVer.set(r.id,r.version);return domainById(r.id)}
   const d={id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,servers:[],unallocServers:[]};
-  domains.push(d);found[d.id]=[];hwVer.set(r.id,r.version);
+  domains.push(d);hwIdxDrop();found[d.id]=[];hwVer.set(r.id,r.version);
   open.add(d.id);
   treeMatchCache.clear();searchMatchCache.clear();
   return d;
@@ -5747,11 +5845,12 @@ function cardDiff(){
 }
 // Вернуть объект к снимку «до»: по ключам, начинку — по id, добавленное — убрать.
 function cardRestoreNode(live,snap){
-  Object.keys(live).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)&&!(k in snap))delete live[k]});
-  Object.keys(snap).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k))live[k]=cardClone({v:snap[k]}).v});
+  Object.keys(live).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)&&!(k in snap)){delete live[k];if(IDX_KEYS.has(k))hwIdxDrop()}});
+  Object.keys(snap).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)){live[k]=cardClone({v:snap[k]}).v;if(IDX_KEYS.has(k))hwIdxDrop()}});
   if(live.devices){
-    const sk=new Map((snap.devices||[]).map(d=>[d.id,d]));
+    const sk=new Map((snap.devices||[]).map(d=>[d.id,d])),was=live.devices.length;
     live.devices=live.devices.filter(d=>sk.has(d.id));
+    if(live.devices.length!==was)hwIdxDrop();
     live.devices.forEach(d=>cardRestoreNode(d,sk.get(d.id)));
   }
 }
@@ -5827,7 +5926,7 @@ function cardApply(ok){
   const set=(o,k,v)=>{if(v===undefined)delete o[k];else o[k]=cardClone({v}).v};
   const ops=d.map(r=>{
     if(r.folders)return mkOp(n,`${r.label}: ${r.toT}`,"folder",()=>cardSetFolders(n.id,r.folders),null,()=>cardSetFolders(n.id,r.fromFolders));
-    if(r.add)return mkOp(r.node,r.label,"param",()=>{(r.node.devices||(r.node.devices=[])).push(r.add)},null,()=>{r.node.devices=r.node.devices.filter(x=>x!==r.add)});
+    if(r.add)return mkOp(r.node,r.label,"param",()=>{(r.node.devices||(r.node.devices=[])).push(r.add);hwIdxDrop()},null,()=>{r.node.devices=r.node.devices.filter(x=>x!==r.add);hwIdxDrop()});
     if(r.fld||r.edit){const k=r.prop,prev=k?n[k]:undefined,v=k==="port"||k==="ch"?Number(r.to)||r.to:String(r.to).trim();
       const pf=n._f?.[r.fld];
       return mkOp(n,`${r.label}: ${r.toT}`,"param",()=>{if(k)n[k]=v;else(n._f||(n._f={}))[r.fld]=r.to},null,()=>{if(k)set(n,k,prev);else if(pf===undefined)delete n._f[r.fld];else n._f[r.fld]=pf})}
@@ -7697,7 +7796,6 @@ function paintMain(html){
 }
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
   const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
-  srvCamMemo=null;
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
   const html=withFind(()=>fn?fn():"");
@@ -8824,7 +8922,7 @@ function folderCreate(name,parent,did){
 function folderAdded(r,parent,did){
   hwVer.set(r.id,r.version);
   const f=folderById(r.id)||folderNode(r);
-  if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f)}
+  if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f);hwIdxDrop()}
   open.add(parent?parent.id:did);
   treeMatchCache.clear();searchMatchCache.clear();
   return f;
@@ -11400,7 +11498,7 @@ function detKindText(d,cam){const o=detOption(cam||find(d.id)?.p,d);return d.kin
 function addDetector(camId){
   const f=find(camId);if(!f||f.n.type!=="camera")return;
   const d={id:"det"+Date.now(),type:"det",name:i18n("Новый детектор"),kind:DET_TYPES[0],sens:"12",online:true,devices:[]};
-  (f.n.devices||(f.n.devices=[])).push(d);
+  (f.n.devices||(f.n.devices=[])).push(d);hwIdxDrop();
   detSel=d.id;tab="det";setD(true);
   if(slice==="det")openCamDets(f.n,null);
   toast(i18n("Детектор добавлен"));applyFiltersFromState();
@@ -11422,7 +11520,7 @@ function deleteDetector(camId,detId){
 // Детектор, ещё не применённый карточкой, есть только в черновике: удаляется там же
 function deleteDetectorDraft(f,detId){
   const was=sel===detId;
-  f.n.devices=f.n.devices.filter(x=>x.id!==detId);
+  f.n.devices=f.n.devices.filter(x=>x.id!==detId);hwIdxDrop();
   detAfterDelete(f.n.id,detId,was);
 }
 // Удалили детектор из его собственной карточки: открываем его камеру, а не пустое место.
@@ -23188,8 +23286,8 @@ function createArchive(){
   wzDrop("arch");
   const au=units.find(u=>screenType(u.kind)==="archive");
   const a=archById(au.uid)||archNode(unitRec(au));
-  if(!arch.includes(a))arch.push(a);
-  units.filter(u=>u!==au).forEach(u=>{if(!volById(u.uid))a.vols.push(volNode(unitRec(u)))});
+  if(!arch.includes(a)){arch.push(a);hwIdxDrop()}
+  units.filter(u=>u!==au).forEach(u=>{if(!volById(u.uid)){a.vols.push(volNode(unitRec(u)));hwIdxDrop()}});
   archServerTouched(a);
   const v=a.vols[0];
   an=null;closeBulkModal();
@@ -23204,7 +23302,7 @@ function addVolume(archId){
   if(!d){toast("Свободных дисков нет: на одном диске у хранилища один том, а разделы других хранилищ заняты");return}
   unitsCreate([Object.assign(volToUnit(volSpec(a,d)),{parentId:a.id})]).then(([u])=>{
     const r=unitRec(u);
-    if(!volById(r.id))a.vols.push(volNode(r));
+    if(!volById(r.id)){a.vols.push(volNode(r));hwIdxDrop()}
     open.add(a.id);sel=r.id;tab="gen";setD(true);
     toast(i18n("Том добавлен"));
     paint();
@@ -23224,7 +23322,7 @@ function deleteVolume(id){
     (last&&n?`${i18n("Это последний том: хранилищу будет некуда писать, камер:")} ${n}. `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`${i18n("Том")} «${vName}»`,commit:()=>{
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>{
-      const i=a.vols.indexOf(v);if(i>=0)a.vols.splice(i,1);
+      const i=a.vols.indexOf(v);if(i>=0){a.vols.splice(i,1);hwIdxDrop()}
       hwVer.delete(id);
       if(sel===id){sel=a.id;tab="arch"}
       setD(false);
@@ -26158,7 +26256,9 @@ function selCandidates(){
 }
 // Отмечаемые потомки контейнера: сервер, регистратор, папка, домен, архив.
 // withParts — вместе с начинкой камер.
-function selDescendants(n,withParts){
+// Кэш на время подсчёта не меняется: камеры серверов (serverCameras) считаются один раз на весь вызов
+function selDescendants(n,withParts){return withFind(()=>selDescendantsRun(n,withParts))}
+function selDescendantsRun(n,withParts){
   const q=qval(),out=[],seen=new Set(),busy=busyIds();
   // Начинка камеры и регистратора (датчики, реле, микрофоны, встроенное
   // хранилище, каналы) в групповую выборку не идёт — её отмечают поштучно.
@@ -26197,7 +26297,9 @@ const MARK_TYPE_ORDER=["camera","ipsrv","channel","relay","sensor","mic","spk","
 const MARK_TYPE_RU={camera:"Камеры",ipsrv:"IP-серверы",channel:"Каналы",relay:"Реле",sensor:"Датчики",mic:"Микрофоны",spk:"Динамики",eventsrc:"Источники событий"};
 function markTypeLabel(t){return i18n(MARK_TYPE_RU[t]||LB[t]||t)}
 function markTypeRank(t){const i=MARK_TYPE_ORDER.indexOf(t);return i<0?99:i}
-function decorateTreeSel(){
+// Отметки строк меняют только разметку: кэш на это время прежний, производные карты (withFind) — одни на все строки
+function decorateTreeSel(){return withFind(decorateTreeSelRun)}
+function decorateTreeSelRun(){
   const treeEl=document.getElementById("tree");if(!treeEl)return;
   const on=selMode&&app==="hw",busy=busyIds();
   treeEl.classList.toggle("selmode",on);
@@ -26718,7 +26820,7 @@ function bulkExcludeServers(){
       // «Отменить» — обратный запрос; серверы встают на прежние места в списке
       serversAssign(done.map(({s,d})=>({s,domainId:d.id,allocated:true}))).then(r2=>{
         r2.done.forEach(r=>{hwApplyServer(r);const b=done.find(x=>x.s.id===r.id);
-          b.d.servers=b.d.servers.filter(x=>x!==b.s);b.d.servers.splice(Math.min(b.i,b.d.servers.length),0,b.s);resetUnallocDisplay(b.d.id)});
+          b.d.servers=b.d.servers.filter(x=>x!==b.s);b.d.servers.splice(Math.min(b.i,b.d.servers.length),0,b.s);hwIdxDrop();resetUnallocDisplay(b.d.id)});
         treeMatchCache.clear();searchMatchCache.clear();paint();toast("Серверы возвращены в домен");
       }).catch(e=>toast(problemText(e)));
     },8000);
@@ -26759,7 +26861,7 @@ function bulkAddToDomain(did,sure){
     toastAction("bkadddom",`${i18n("Добавлено в")} «${locName(d)}» ${i18n("серверов")}: ${done.length}`,i18n("Отменить"),()=>{
       serversAssign(done.map(({s,from})=>({s,domainId:(from||d).id,allocated:false}))).then(r2=>{
         r2.done.forEach(r=>{hwApplyServer(r);const b=done.find(x=>x.s.id===r.id),to=b.from||d;
-          to.unallocServers=to.unallocServers.filter(x=>x!==b.s);to.unallocServers.splice(b.i<0?to.unallocServers.length:Math.min(b.i,to.unallocServers.length),0,b.s);resetUnallocDisplay(to.id)});
+          to.unallocServers=to.unallocServers.filter(x=>x!==b.s);to.unallocServers.splice(b.i<0?to.unallocServers.length:Math.min(b.i,to.unallocServers.length),0,b.s);hwIdxDrop();resetUnallocDisplay(to.id)});
         resetUnallocDisplay(d.id);treeMatchCache.clear();searchMatchCache.clear();paint();toast("Серверы снова нераспределённые");
       }).catch(e=>toast(problemText(e)));
     },8000);
@@ -26931,7 +27033,7 @@ function bulkChanges(draft,nodesIn){
   if(vid.length)step("video",`Видео: ${vid.map(k=>({res:"разрешение",fps:"к/с"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток переоткроется, запись прервётся на секунды")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   [...(d.addDet?[d.addDet]:[]),...(d.addDetMany||[])].forEach(kind=>{
     step("addDet:"+kind,`Детектор «${i18n(kind)}»`,nodes.filter(n=>n.type==="camera"&&!camDetectors(n).some(x=>(x.kind||DET_TYPES[0])===kind)).map(n=>mkOp(n,`Детектор «${i18n(kind)}»`,"det",()=>{
-      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});
+      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});hwIdxDrop();
     },sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("зону детекции задают на каждой камере отдельно")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   });
   // Копия конкретных детекторов камеры: программный — на любую модель,
@@ -26939,7 +27041,7 @@ function bulkChanges(draft,nodesIn){
   (d.copyDets||[]).forEach((x,i)=>{
     const has=n=>camDetectors(n).some(y=>(y.kind||DET_TYPES[0])===x.kind&&locName(y)===x.name);
     const ops=nodes.filter(n=>n.type==="camera"&&!has(n)).map(n=>mkOp(n,`Детектор «${x.name}»`,"det",()=>{
-      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});
+      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});hwIdxDrop();
     },x.builtin&&modelOf(n)!==d.detModel?`${i18n("встроенный детектор, другая модель")}: ${modelOf(n)||"—"}`:null));
     step("copyDet:"+i,`Детектор «${x.name}» (${i18n(x.kind)})`,ops,
       (x.builtin?`${i18n("встроен в камеру — только для модели")} ${d.detModel}`:i18n("считается на сервере — для любой модели"))+`; ${i18n("зону детекции задают на каждой камере отдельно")}`);
