@@ -2158,7 +2158,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <input id="gq" autocomplete="off" data-i18n-placeholder="Имя, IP, раздел, настройка…" placeholder="Имя, IP, раздел, настройка…"
       data-i18n-title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
       title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
-      data-on-input='[["goInput",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
+      data-on-input='[["goType",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
     <button type="button" class="gojump-clear hide" id="goClear" data-i18n-title="Очистить" title="Очистить" aria-label="Очистить" data-on-click='[["clearTreeQ",{"$on":"event"}]]'><svg class="ic-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <span class="gojump-hint" aria-hidden="true">Ctrl K</span>
     <div class="gopop" id="gopop"><div id="goList"></div></div>
@@ -2186,7 +2186,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <div id="domainMenuHost"></div>
 <div class="jump" id="jump" data-on-click='[[".self"],["closeJump"]]'>
   <div class="jbox" data-on-click='[[".stop"]]'>
-    <input id="jq" data-i18n-placeholder="Перейти к объекту…  (камера, датчик, сервер)" placeholder="Перейти к объекту…  (камера, датчик, сервер)" data-on-input='[["jumpList"]]' autofocus>
+    <input id="jq" data-i18n-placeholder="Перейти к объекту…  (камера, датчик, сервер)" placeholder="Перейти к объекту…  (камера, датчик, сервер)" data-on-input='[["jumpType"]]' autofocus>
     <div class="jlist" id="jlist"></div>
   </div>
 </div>
@@ -2328,7 +2328,9 @@ onEv.key=(...keys)=>[".key",...keys];
       if(name===".ifValue"){if(!el.value)return;continue}
       const fn=window[name];
       if(typeof fn!=="function")throw new Error(`data-on-${type}: нет функции ${name}`);
-      fn.apply(el,args.map(a=>live(el,ev,a)));
+      // onEv.now — событие, которое сейчас обрабатывается: по нему typeLater отличает настоящий ввод от вызова из кода
+      const was=onEv.now;onEv.now=ev;
+      try{fn.apply(el,args.map(a=>live(el,ev,a)))}finally{onEv.now=was}
     }
   }
   // Перехват на документе: шаги идут раньше слушателей ниже по дереву и раньше «клика снаружи» на
@@ -2345,6 +2347,53 @@ onEv.key=(...keys)=>[".key",...keys];
       }
     },true));
 })();
+// ── Поиск и фильтры — после паузы в наборе ───────────────────────────────
+// Буква в поле видна сразу, а поиск и перестройка длинного списка идут через TYPE_PAUSE_MS после последней клавиши:
+// на большом наборе поиск занимает секунды, и ввод стоял на каждой букве («чтобы был таймер, тогда будет полное
+// ощущение лёгкости при вводе» — слово владельца). 200 мс — из задачи ускорения 3а (perf-3a-brief.md): дольше паузы
+// между буквами при обычном наборе (80–120 мс), так что посреди слова поиск не запускается, и ещё не ощущается
+// ожиданием после последней буквы. Ею же ждут поиск камер экспорта и сценария (expPickQ, scenCamFind).
+// Задержка действует только на настоящий ввод: событие input от браузера (isTrusted). Вызов из кода, клик по крестику
+// и сценарии tests/ui-*.js (value и dispatchEvent(new Event("input")) — isTrusted=false) применяют запрос сразу, как
+// раньше: сценарии проверяют результат сразу после ввода. Пустое поле применяется сразу. Enter — сразу (typeFlushAll,
+// у поиска в шапке — goKey).
+// Пока поиск ждёт паузы, на экране прежний результат: состояние фильтра пишется сразу, перерисовка — по таймеру
+const TYPE_PAUSE_MS=200;
+const typeWait=new Map();   // ключ поля → {t, fn}
+// fn(late): late — вызов по таймеру или по Enter, а не из самого события: курсор в поле возвращают, только если человек
+// из него не ушёл (typeFocused). Отложенный вызов идёт, только пока место набора живо (typeLive)
+function typeLater(key,fn,now){
+  typeDrop(key);
+  const ev=onEv.now;
+  if(now||!ev||ev.type!=="input"||!ev.isTrusted){fn(false);return}
+  const at={el:ev.target,sel,app},run=()=>{if(typeLive(key,at))fn(true)};
+  typeWait.set(key,{fn:run,t:setTimeout(()=>{typeWait.delete(key);run()},TYPE_PAUSE_MS)});
+}
+// За паузу человек мог закрыть окно (Esc, подложка), уйти на другой объект или в другой раздел. Тогда перерисовка
+// по набранному уже не к месту: она открыла бы закрытое окно снова (renderCopyDialog, raRender зовут openBulkModal)
+// или перерисовала бы чужую карточку. Не к месту, если поля уже нет в DOM (окно или карточку перерисовали — новое
+// поле нарисовано по уже записанному запросу), его окно закрыто или сменились объект и раздел. Поиск в шапке
+// (#gq) один на все разделы: для него — только поле
+const TYPE_WINDOWS="#bmodal,#jump,.mask";
+function typeLive(key,at){
+  const el=at.el;
+  if(!el||!el.isConnected)return false;
+  const win=el.closest?.(TYPE_WINDOWS);
+  if(win&&!win.classList.contains("open"))return false;
+  return key==="gq"||(sel===at.sel&&app===at.app);
+}
+function typeDrop(key){const w=typeWait.get(key);if(!w)return false;clearTimeout(w.t);typeWait.delete(key);return true}
+function typeFlush(key){const w=typeWait.get(key);if(!w)return false;typeDrop(key);w.fn(true);return true}
+// Поиск в шапке Enter ведёт сам (goKey): Enter к ассистенту искать по дереву не должен
+function typeFlushAll(){[...typeWait.keys()].filter(k=>k!=="gq").forEach(typeFlush)}
+function typePending(key){return typeWait.has(key)}
+function typeFocused(late,target){
+  if(!late)return true;
+  const a=document.activeElement;
+  return !!a&&(typeof target==="string"?!!a.matches?.(target):a===target);
+}
+// Enter в поле поиска или фильтра — применить набранное сразу, раньше обработчиков страницы
+addEventListener("keydown",e=>{if(e.key==="Enter"&&typeWait.size)typeFlushAll()},true);
 const svgIc=(d,vb="0 0 16 16")=>`<svg class="ic-svg" viewBox="${vb}" width="14" height="14" aria-hidden="true">${d}</svg>`;
 // Иконки — Lucide (ISC, v1.46.0, из ONE.PSIM.PrototypeKit): одно семейство на весь макет вместо
 // залитых глифов, эмодзи и текстовых символов (AGENTS.md «one coherent icon family», D-005).
@@ -6557,6 +6606,20 @@ function goInput(v){
   setTreeQ(v);
   goSearch(v);
 }
+// Набор в поле — после паузы (typeLater): буква видна сразу, дерево и список — через TYPE_PAUSE_MS после последней
+// клавиши. До тех пор на месте прежний результат. Пустое поле — сразу. Вызов goInput из кода и сценариев — тоже сразу
+function goType(v){
+  const q=String(v||"");
+  goNav=false;                                    // Enter не выберет строку прежнего списка
+  document.getElementById("goClear")?.classList.toggle("hide",!q.trim());
+  typeLater("gq",late=>goTypeRun(late,q),!q.trim());
+}
+function goTypeRun(late,v){
+  if(!late){goInput(v);return}
+  setTreeQ(v);
+  // Пока ждали паузы, человек ушёл из поля (клик мимо, Tab): дерево сужено, список прежнего текста убираем
+  if(document.activeElement?.id==="gq")goSearch(v);else goClose();
+}
 // Что дерево уже показало — по самим строкам: у объектов ключ перехода равен
 // data-pick, у списков разделов — data-go.
 function treeShownKeys(){
@@ -6640,6 +6703,7 @@ function goRowHtml(t,i,q){
 }
 function goPick(i){
   const t=goHits[i];if(!t)return;
+  typeDrop("gq");                                 // набранное после списка уже не применится поверх перехода
   goClose();
   // Переход запрос исчерпал: оставленный фильтр сузил бы дерево там, куда
   // только что пришли.
@@ -6660,6 +6724,8 @@ function goClick(v){
   if(!document.getElementById("gopop")?.classList.contains("open"))goSearch(v);
 }
 function goKey(e){
+  // Стрелки ходят по свежему списку: набранное, что ждёт паузы, применяется сразу
+  if(e.key==="ArrowDown"||e.key==="ArrowUp")typeFlush("gq");
   const pop=document.getElementById("gopop"),open_=pop&&pop.classList.contains("open");
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){
     if(!open_)return;                             // список закрыт — стрелки ведут по дереву
@@ -6673,10 +6739,13 @@ function goKey(e){
   // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
   // разговор с ним, что бы ни нашёл поиск (слово владельца, 3ed4962). Без ассистента Enter значит «набранное — фильтр»:
   // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему.
+  // Набранное, что ждёт паузы, Enter применяет сразу. Кроме входа к ассистенту: он запрос поиска снимает, и искать
+  // по дереву перед этим незачем
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
-    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
+    if(e.target.value.trim()&&can("feature:assist")){typeDrop("gq");asstFromSearch();return}
+    typeFlush("gq");
     goClose();e.target.blur();
     return;
   }
@@ -6685,6 +6754,8 @@ function goKey(e){
     // того, кто просто убирал подсказки с глаз.
     e.preventDefault();e.stopPropagation();
     const inp=document.getElementById("gq");
+    // Набранное ещё ждало паузы — первый шаг тот же, что после поиска: дерево сужено набранным, списка нет
+    if(typeDrop("gq")){setTreeQ(inp?.value||"");goClose();return}
     if(open_){goClose();return}
     if(inp&&inp.value){clearTreeQ();return}
     inp&&inp.blur();
@@ -6724,6 +6795,7 @@ function escapeLayer(){
 }
 function closeJump(){document.getElementById("jump").classList.remove("open")}
 function openJump(){document.getElementById("jump").classList.add("open");setTimeout(()=>document.getElementById("jq").focus(),50);jumpList()}
+function jumpType(){typeLater("jq",jumpList,!(document.getElementById("jq")?.value||"").trim())}
 function jumpList(){const q=(document.getElementById("jq")||{value:""}).value.toLowerCase(),list=document.getElementById("jlist");if(!list)return;
   if(!q){list.innerHTML=`<div class="srh">Недавние</div>`+recent.map(id=>{const f=find(id);if(!f)return"";const top=jumpScope(f.n);
     return `<div class="res" ${onEv("click",["jumpTo",`${id}`])}><span>${ic(f.n.type)}</span><div style="flex:1;min-width:0"><div>${f.n.name}</div><div class="pth">${f.n.type==="domain"||f.n.type==="unalloc"?LB[f.n.type]:`${top.name} · ${LB[f.n.type]}`}</div></div></div>`}).join("")||`<div class="sub" style="padding:12px">Начните вводить имя…</div>`;return}
@@ -7250,9 +7322,11 @@ function updateFiltChrome(){
 // возвращают отдельно: сбросить фильтры может и кнопка, и смена среза.
 function syncGoInput(){
   const inp=document.getElementById("gq");
-  if(inp&&inp.value!==treeQ)inp.value=treeQ;
+  // Пока поиск ждёт паузы, в поле набранное, а treeQ — прежний запрос: поле не трогаем
+  const wait=typePending("gq");
+  if(inp&&!wait&&inp.value!==treeQ)inp.value=treeQ;
   const clr=document.getElementById("goClear");
-  if(clr)clr.classList.toggle("hide",!treeQ.trim());
+  if(clr)clr.classList.toggle("hide",!(wait?inp?.value||"":treeQ).trim());
 }
 function applyStrictIdFilter(q){
   if(!/^\d+$/.test(q))return;
@@ -7265,6 +7339,7 @@ function applyStrictIdFilter(q){
 function setTreeQ(v){treeQ=v;if(!/^\d+$/.test(v.trim()))strictIdSearch=false;searchMatchCache.clear();updateFiltChrome();renderTree()}
 function clearTreeQ(e){
   e&&e.stopPropagation();
+  typeDrop("gq");                                 // крестик и Esc — сразу: отложенный поиск после них не придёт
   treeQ="";strictIdSearch=false;
   searchMatchCache.clear();updateFiltChrome();renderTree();
   goClose();
@@ -8284,7 +8359,9 @@ async function filtPaths(run,ids,layout=treeLayout()){
     if(layout==="folders"&&x.chains.every(c=>!c.some(s=>screenType(s.kind)==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
   }
 }
-function filtPaint(){if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
+// Пока набранное в поиске ждёт паузы, волна прежнего текста дописывает кэш, но дерево под прежний текст не
+// перерисовывает: это была бы перерисовка ровно в то время, когда человек печатает. Новый текст применит таймер
+function filtPaint(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
 // ── Отбор ассистента над деревом ─────────────────────────────────────────
 // Дерево показывает только отобранное ассистентом: тег над деревом со словами отбора, крестик снимает его, срез
 // возвращается как был. Общий механизм для плана настройки и отбора (found). Список готов: записи и цепочки
@@ -9977,14 +10054,18 @@ function pagerHtml(key,total,how,unit){
 // обратно не сбрасывают отбор.
 const IC_FIND=lu("search",16);
 const listQ={};
+// Запрос — сразу, перерисовка списка — после паузы в наборе (typeLater)
 function listSetQ(key,v,how){
   listQ[key]=v;
   resetPage(key);
-  pageRepaint(how);
-  requestAnimationFrame(()=>{
-    const el=document.querySelector(`[data-lq="${key}"]`);
-    if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
-  });
+  typeLater("lq:"+key,late=>{
+    const back=typeFocused(late,`[data-lq="${key}"]`);
+    pageRepaint(how);
+    if(back)requestAnimationFrame(()=>{
+      const el=document.querySelector(`[data-lq="${key}"]`);
+      if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+    });
+  },!String(v||"").trim());
 }
 function listFound(o){
   const q=(listQ[o.key]||"").trim();
@@ -10160,13 +10241,19 @@ function setTblFilt(kind,key,val){
   tblFilt[kind][key]=val;
   // Отфильтрованный список короче — оставаться на седьмой странице из трёх незачем
   resetPage(tblPageKey(kind));
+  // Таблица — после паузы в наборе (typeLater); фильтры столбцов применяются одной перерисовкой
+  const tn=tableNode()?.id;
+  typeLater("tf:"+kind,late=>{if(late&&tableNode()?.id!==tn)return;tblFiltPaint(kind,key,late)},!String(val||"").trim());
+}
+function tblFiltPaint(kind,key,late){
+  const f=`[data-tf="${kind}-${key}"]`,back=typeFocused(late,f);
   const wrap=document.getElementById(kind==="cams"?"camsTbl":"acfaTbl");
   const caret=document.activeElement?.selectionStart;
   if(!wrap){gear();return}
   const tn=tableNode();if(!tn){gear();return}
   wrap.outerHTML=kind==="cams"?camsTableHtml(tn):acfaTableHtml(tn);
   tsFixInd();
-  const el=document.querySelector(`[data-tf="${kind}-${key}"]`);
+  const el=back&&document.querySelector(f);
   if(el){el.focus();if(caret!=null)try{el.setSelectionRange(caret,caret)}catch(e){}}
 }
 function clearTblFilt(kind){tblFilt[kind]={};resetPage(tblPageKey(kind));gear()}
@@ -10751,8 +10838,13 @@ function lanSort(k){
   if(lan.sort===k)lan.dir=-lan.dir;else{lan.sort=k;lan.dir=1}
   gear();
 }
-function lanSetQ(v){lan.q=v;lan.sel.clear();resetPage("lan:"+lan.owner);gear();
-  requestAnimationFrame(()=>{const el=document.getElementById("lanQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
+// Запрос и сброс отметок — сразу, перерисовка карточки — после паузы в наборе (typeLater)
+function lanSetQ(v){lan.q=v;lan.sel.clear();resetPage("lan:"+lan.owner);const own=lan.owner;typeLater("lan",late=>{if(late&&lan.owner!==own)return;lanQPaint(late)},!String(v||"").trim())}
+function lanQPaint(late){
+  const back=typeFocused(late,"#lanQ");
+  gear();
+  if(back)requestAnimationFrame(()=>{const el=document.getElementById("lanQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}});
+}
 function lanSetChip(k){lan.chip=k;lan.sel.clear();resetPage("lan:"+lan.owner);gear()}
 function lanSetArch(v){
   const prev=lan.arch;
@@ -12186,7 +12278,8 @@ function dcCamToggle(id,on){if(on)dc.cams.add(id);else dc.cams.delete(id);render
 function dcFacet(d,v){if(dc.f[d]===v)delete dc.f[d];else dc.f[d]=v;renderDetCreate()}
 function dcFacetClear(){dc.f={};renderDetCreate()}
 function dcFacetMore(d){dc.more.add(d);renderDetCreate()}
-function dcQ(el){dc.q=el.value;renderDetCreate();const i=document.querySelector(".dc-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
+function dcQ(el){dc.q=el.value;typeLater("dc",dcQPaint,!dc.q.trim())}
+function dcQPaint(late){const back=typeFocused(late,".dc-q input");renderDetCreate();const i=back&&document.querySelector(".dc-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
 function dcEnabled(v){dc.on=!!v;renderDetCreate()}
 function dcRuleSet(k,v){dc.rule[k]=v;renderDetCreate()}
 // Зоны прямо в мастере: детектора ещё нет, зона уходит в его создание (DeviceCreate.zone). Строка — будущий детектор
@@ -13434,7 +13527,7 @@ function expPickLoad(){
   // Камеры — все виды с профилем vms.camera/1, строки — как строки перечня базы (rowTrim): имя и сервер записи
   API.get("/units",Object.assign({implements:"vms.camera/1",limit:200},p.q.trim()?{q:p.q.trim()}:{})).then(r=>{if(seq===expPickSeq&&expPick===p){p.rows=r.items.map(u=>unitRec(rowTrim(u)));r.items.filter(x=>!find(x.uid)).forEach(hwAddRow);expRepaint()}}).catch(()=>{});
 }
-function expPickQ(v){if(!expPick)return;expPick.q=v;clearTimeout(expPick.t);expPick.t=setTimeout(expPickLoad,200)}
+function expPickQ(v){if(!expPick)return;expPick.q=v;clearTimeout(expPick.t);expPick.t=setTimeout(expPickLoad,TYPE_PAUSE_MS)}
 function expPickTab(t){if(expPick){expPick.tab=t;expRepaint()}}
 function expCamTog(id,on){
   const max=EXP_REF?.limits?.maxCameras||16;
@@ -13881,6 +13974,9 @@ function recCopyListHtml(n,t,all,q){
 // Поиск обновляет только список: поле ввода не перерисовывается и не теряет курсор
 function recCopySearch(id,q){
   recCopyFind={id,q};
+  typeLater("recCopy",()=>recCopyPaint(id,q),!String(q||"").trim());
+}
+function recCopyPaint(id,q){
   const n=find(id)?.n,t=n?.recordingTarget,box=document.getElementById("recCopyList"),dom=domains.find(d=>d.id===deviceDomain(id));
   if(box&&t)box.innerHTML=recCopyListHtml(n,t,dom?.servers||[],q);
 }
@@ -15676,7 +15772,7 @@ function rulePickRef(slot,i){
   rulePk={slot,i,dt,src:it.ref==="$src",toks:single?inc.filter(t=>!refTokBroken(t)):inc,ex:new Set(ex),shut,all:false,focus:"",warned:false};
   openBulkModal(`${i18n("Выбрать")}: ${i18n(ruleNounOf(dt)[5])}`,
     `<div class="rl-pkw" ${onEv("keydown",["rulePkWinKey",onEv.event])}>
-      <input type="text" id="rpQ" class="rl-pq" placeholder="${i18n("Область, название, тип или сервер…")}" aria-label="${i18n("Поиск областей и устройств")}" autocomplete="off" ${onEv("input",["rulePickList"])}>
+      <input type="text" id="rpQ" class="rl-pq" placeholder="${i18n("Область, название, тип или сервер…")}" aria-label="${i18n("Поиск областей и устройств")}" autocomplete="off" ${onEv("input",["rulePickType"])}>
       <div id="rpList" class="rl-pl" ${onEv("keydown",["rulePkKey",onEv.event])}></div>
       <div id="rpSum" class="rl-sum"></div>
     </div>`,
@@ -15811,6 +15907,8 @@ function ruleDotHtml(n){
   const t=off?"Нет связи":dis?"Выключено":"На связи";
   return`<span class="st-dot ${off?"st-nosignal":dis?"st-off":"st-run"}" role="img" aria-label="${i18n(t)}" title="${i18n(t)}"></span>`;
 }
+// Поиск областей и устройств — после паузы в наборе (typeLater)
+function rulePickType(){typeLater("rp",()=>rulePickList(),!(document.getElementById("rpQ")?.value||"").trim())}
 function rulePickList(){
   const host=document.getElementById("rpList"),body=document.getElementById("bmBody");if(!host||!rulePk)return;
   const r=curRule(),it=ruleSlotItem(rulePk.slot,rulePk.i);if(!r||!it)return;
@@ -16600,7 +16698,8 @@ function raOpen(id){
 }
 function raCancel(){closeBulkModal();ra=null}
 function raSet(id){ra.pick=id;raRender()}
-function raQ(el){ra.q=el.value;raRender();const i=document.querySelector(".ra-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
+function raQ(el){ra.q=el.value;typeLater("ra",raQPaint,!ra.q.trim())}
+function raQPaint(late){const back=typeFocused(late,".ra-q input");raRender();const i=back&&document.querySelector(".ra-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
 function raNew(){const id=ra.id;raCancel();ruleFromDevice(id)}
 function raRender(){
   if(!ra)return;
@@ -17034,7 +17133,7 @@ function scenCamFind(side,q){
     await hwEnsure(items.map(x=>x.parentId));items.forEach(hwAddRow);
     SCEN.found[side]=items.map(unitRec);paint();
     const el=document.getElementById("scenQ-"+side);if(el){el.value=q;el.focus()}
-  },200);
+  },TYPE_PAUSE_MS);
 }
 function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[];paint()}
 // base — документ, с которого начата правка: чтение из потока может подменить SCEN.doc под открытой
@@ -20252,9 +20351,10 @@ function accExDrop(rid,oid){
 }
 // «+ Исключение…»: выбор объекта без исключения; строка появляется со значениями «как в папках».
 function accExPick(el,rid){
-  accMenuOpen(el,`<div class="acc-expick"><input type="search" placeholder="${i18n("Найти объект")}" ${onEv("input",["accExPickList",`${rid}`,onEv.value])} aria-label="${i18n("Найти объект")}"><div id="accExPickL">${accExPickItems(rid,"")}</div></div>`);
+  accMenuOpen(el,`<div class="acc-expick"><input type="search" placeholder="${i18n("Найти объект")}" ${onEv("input",["accExPickType",`${rid}`,onEv.value])} aria-label="${i18n("Найти объект")}"><div id="accExPickL">${accExPickItems(rid,"")}</div></div>`);
   document.querySelector("#accMenu input")?.focus();
 }
+function accExPickType(rid,q){typeLater("accEx",()=>accExPickList(rid,q),!String(q||"").trim())}
 function accExPickList(rid,q){const box=document.getElementById("accExPickL");if(box)box.innerHTML=accExPickItems(rid,q)}
 function accExPickItems(rid,q){
   const r=accRole(rid);if(!r)return"";
@@ -20573,7 +20673,7 @@ function accMemSelAll(on){
 // «Добавить пользователей…»: окно с поиском и галочками для роли. Список
 // может быть на сотни строк, поэтому он прокручивается, а при вводе
 // перерисовывается только он — поле поиска фокус не теряет.
-function accAdSet(k,v){accAd[k]=v;accAdLive()}
+function accAdSet(k,v){accAd[k]=v;typeLater("accAd",accAdLive,k!=="q"||!String(v||"").trim())}
 function accAdUntil(v){accAd.until=v;accAdCheck()}
 function accAdOpen(rid){
   const r=accRole(rid);if(!r)return;
@@ -20964,7 +21064,7 @@ function accGmRemove(gid){
   }
 }
 // «Добавить пользователей…»: то же окно, что и для роли, но пул — те, кого в группе ещё нет.
-function accGmSet(k,v){accGm[k]=v;accGmLive()}
+function accGmSet(k,v){accGm[k]=v;typeLater("accGm",accGmLive,k!=="q"||!String(v||"").trim())}
 function accGmOpen(gid){
   const g=accUG(gid);if(!g||g.src)return;
   accMenuClose();
@@ -21682,7 +21782,7 @@ function accWzG(k,v){accWz.g[k]=v;accWzRender()}
 function accWzSupRole(v){accWz.sup.role=v;if(!v){accWz.sup.login=false;accWz.sup.export=false}else if(!accWz.sup.login&&!accWz.sup.export)accWz.sup.login=true;accWzRender()}
 function accWzSup(k,on){accWz.sup[k]=on}
 function accWzWho(k){accWz.who=k;accWzRender()}
-function accWzPkQ(v){accWz.pk.q=v;accWzPkLive()}
+function accWzPkQ(v){accWz.pk.q=v;typeLater("accWzPk",late=>{if(late&&!document.getElementById("accWzSel"))return;accWzPkLive()},!String(v||"").trim())}  // шаг мастера сменили, пока ждали паузы
 function accWzPkTab(id){accWz.pk.tab=id;accWz.pk.q="";accWzRender()}
 function accWzPkChip(id){accWz.pk.chip=id;accWzPkLive()}
 function accWzPkSel(){accWz.pk={tab:"users",q:"",chip:"sel"};accWzRender()}
@@ -22691,10 +22791,7 @@ function pruneSelectionToVisible(){
   [...wizd.devSelected].forEach(id=>{if(!vis.has(id))wizd.devSelected.delete(id)});
   if(!wizd.devSelected.size)wizd.devSelectedOnly=false;
 }
-function setDeviceFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.devFilter=v;renderDeviceWizard();
-  const el=document.getElementById("devFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
-}
+function setDeviceFilter(v){wizd.devFilter=v;typeLater("wdev",late=>wizFiltPaint("devFilter",late),!String(v||"").trim())}
 function hasDeviceStatusFilter(){
   const s=wizd.devStatuses;return !s.ok||!s.manual||!s.bad;
 }
@@ -22740,10 +22837,7 @@ function toggleDeviceModePop(e){
   if(wizd.modePop){wizd.tplPop=false;wizd.devFiltPop=false;wizd.devFieldsPop=false}
   renderDeviceWizard();
 }
-function setDeviceTplFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.tplFilter=v;renderDeviceWizard();
-  const el=document.getElementById("devTplFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
-}
+function setDeviceTplFilter(v){wizd.tplFilter=v;typeLater("wtpl",late=>wizFiltPaint("devTplFilter",late),!String(v||"").trim())}
 function setDeviceTemplate(v){
   if(!v){setDeviceMode("current");return}
   wizd.devMode="template";wizd.templateId=v;wizd.modePop=false;wizd.tplPop=false;wizd.tplFilter="";
@@ -24355,9 +24449,13 @@ function toggleCsvAll(on){
   csvSelChanged();
 }
 function toggleCsvSelOnly(){wizd.csvSelOnly=!wizd.csvSelOnly&&csvPickedRows().length>0;renderDeviceWizard()}
-function setCsvFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.csvFilter=v;renderDeviceWizard();
-  const el=document.getElementById("csvFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
+function setCsvFilter(v){wizd.csvFilter=v;typeLater("wcsv",late=>wizFiltPaint("csvFilter",late),!String(v||"").trim())}
+// Фильтр списка мастера — перерисовка после паузы в наборе (typeLater); курсор — на место, если человек из поля не ушёл
+function wizFiltPaint(id,late){
+  if(late&&!wizOpen()&&!wizardInlineHost())return;   // мастер закрыли, пока ждали паузы
+  const back=typeFocused(late,"#"+id),pos=back?document.activeElement?.selectionStart:null;
+  renderDeviceWizard();
+  const el=back&&document.getElementById(id);if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
 }
 function setCsvStatus(k,v){wizd.csvStatuses[k]=v;renderDeviceWizard()}
 function toggleCsvFiltPop(e){e.stopPropagation();wizd.csvFiltPop=!wizd.csvFiltPop;renderDeviceWizard()}
@@ -25188,7 +25286,8 @@ function faRows(){
   return lanSysDevices(own).filter(d=>deviceDomain(d.id)===did&&inFolders(d)).map(d=>({d,b:lanBindOf(own,d)})).filter(x=>x.b.k!=="here")
     .filter(x=>!q||ws.some(words=>matchWords(words,[locName(x.d),x.d.ip,modelOf(x.d),x.b.t])));
 }
-function faSetQ(v){faS.q=v;renderDeviceWizard();requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
+function faSetQ(v){faS.q=v;typeLater("fa",faQPaint,!String(v||"").trim())}
+function faQPaint(late){if(late&&!wizOpen()&&!wizardInlineHost())return;const back=typeFocused(late,"#faQ");renderDeviceWizard();if(back)requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
 function faSetChip(k){faS.chip=k;renderDeviceWizard()}
 function faPick(id,on){if(on)faS.sel.add(id);else faS.sel.delete(id);renderDeviceWizard()}
 function faPickAll(on,ids){ids.forEach(id=>on?faS.sel.add(id):faS.sel.delete(id));renderDeviceWizard()}
@@ -28984,9 +29083,10 @@ function cpRowNote(n){
 }
 function cpFilterSet(k){cp.filter=k;renderCopyDialog()}
 // Поиск перерисовывает диалог — поле возвращает фокус себе
-function cpQ(el){cp.q=el.value;renderCopyDialog();el.focus()}
+// Курсор в поле поиска — только если человек из него не ушёл: renderCopyDialog(noFocus) его тогда не ставит
+function cpQ(el){cp.q=el.value;typeLater("cp",late=>{const back=typeFocused(late,el);renderCopyDialog(!back);if(back&&el.isConnected)el.focus()},!cp.q.trim())}
 function cpCancel(){closeBulkModal();cp=null}
-function renderCopyDialog(){
+function renderCopyDialog(noFocus){
   if(!cp)return;
   const src=cp.src,cam=src.type==="camera",all=cpCandidates(src),list=cpFiltered();
   // Окно перерисовывается целиком — прокрутку списков возвращаем на место.
@@ -29019,7 +29119,7 @@ function renderCopyDialog(){
     `<button type="button" class="btn" ${onEv("click",["cpCancel"])}>${i18n("Отмена")}</button>${foot?`<span class="cp-foot-note">${lu("triangle-alert")} ${foot}</span>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" ${onEv("click",["cpShowPlan"])} ${cp.picked.size&&what?"":"disabled"} title="${what?"":i18n("Отметьте, что копировать")}">${i18n("Показать план")} (${cp.picked.size})</button>`,"bbox-wide bbox-copy");
   requestAnimationFrame(()=>{
     document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]});
-    const i=document.querySelector(".cp-sq input");if(i&&cp?.q){i.focus();i.setSelectionRange(i.value.length,i.value.length)}
+    const i=document.querySelector(".cp-sq input");if(i&&cp?.q&&!noFocus){i.focus();i.setSelectionRange(i.value.length,i.value.length)}
     const h=document.querySelector(".cp-dets-all");if(h)h.indeterminate=h.dataset.part==="1";
   });
 }
