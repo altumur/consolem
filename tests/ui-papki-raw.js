@@ -2,7 +2,7 @@
    Запуск — python3 tools/check_ui.py tests/ui-papki-raw.js */
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
-  const on = () => document.getElementById("viewBtn").getAttribute("aria-checked") === "true";
+  const on = () => { const b = document.getElementById("viewBtn"); return (b.getAttribute("aria-pressed") ?? b.getAttribute("aria-checked")) === "true"; };
   const onRow = () => document.querySelector("#tree .n.on")?.dataset.pick;
   // Берём заранее: чтение одной записи подтягивает в кэш соседей по папке
   const inFolders = [];
