@@ -11,7 +11,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   const hint = () => document.getElementById("filtHint").textContent;
   const treeRows = () => [...document.querySelectorAll("#tree .n[data-pick]")];
   const svcGroups = () => [...document.querySelectorAll('#tree .n[data-tid^="svcs:"]')];
-  const shownObjects = () => new Set(treeRows().map((e) => find(e.dataset.pick)?.n).filter((n) => n && (slice === "det" ? n.type === "det" : selfOrDet(n))).map((n) => n.id)).size;
+  const shownObjects = () => new Set(treeRows().map((e) => find(e.dataset.pick)?.n).filter((n) => n && (slice === "det" ? n.type === "det" : selfOrDet(n) && !(inRow && slice === "arch" && statusFilts.size && n.type === "server"))).map((n) => n.id)).size;
 
   // Старт и выбор среза
   ok(slice === "all" && group() === "folder" && on(), "при старте папки включены");
@@ -20,21 +20,20 @@ UiCheck(async ({ ok, until, sleep }) => {
   for (const s of ["cam", "acfa", "all"]) { click(s); ok(slice === s && on(), `срез ${s} не меняет включённые «Папки»`); }
   // В «Детекторах» у «Папок» своё положение: второе положение — виды, при входе стоят они
   click("det");
-  ok(slice === "det" && group() === "kind" && !on(), "«Детекторы»: при входе положение «Виды», «Папки» выключены");
+  ok(slice === "det" && (inRow ? group() === "folder" && on() : group() === "kind" && !on()), inRow ? "«Детекторы»: положение то же, «Папки» включены" : "«Детекторы»: при входе положение «Виды», «Папки» выключены");
   click("cam");
   btn().click();
   ok(!on() && group() === "server", "выключили в «Камерах»");
   for (const s of ["acfa", "all"]) { click(s); ok(!on(), `срез ${s}: выключенные «Папки» не включились`); }
   click("det");
-  ok(group() === "kind" && !on(), "«Детекторы» своё положение сохранили");
+  ok(group() === "kind" && !on(), "«Детекторы» при выключенных «Папках» — виды");
   btn().click();
   ok(on() && group() === "folder", "включили «Папки» в «Детекторах»");
   click("cam");
-  ok(!on() && group() === "server", "«Камеры»: «Папки» остались выключенными, «Детекторы» их не включили");
-  btn().click();
-  ok(on(), "включили обратно");
+  ok(inRow ? on() && group() === "folder" : !on() && group() === "server", inRow ? "«Камеры»: «Папки» включены, положение общее" : "«Камеры»: «Папки» остались выключенными, «Детекторы» их не включили");
+  if (!inRow) { btn().click(); ok(on(), "включили обратно"); }
   click("det");
-  ok(on() && group() === "folder", "«Детекторы»: своё положение — «Папки» — сохранилось");
+  ok(on() && group() === "folder", "«Детекторы»: «Папки» включены");
 
   // Серверы и Хранилища: папок нет, срез кнопка не переключает, состояние ждёт возврата
   for (const s of ["srv", "arch"]) {

@@ -128,15 +128,18 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-choice:hover{background:var(--one-control-hover);border-color:var(--one-border);color:var(--tx)}
 .ph-choice.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-/* «Папки» — не срез, а настройка раскладки: своя строка и переключатель вместо кнопки-выбора. */
-.ph-switch{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--tx);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer}
-.ph-switch:hover{background:var(--one-control-hover)}
-.ph-switch:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-.ph-switch .sw{width:28px;height:16px}
-.ph-switch .sw:after{width:12px;height:12px}
-.ph-switch .sw.on:after{left:14px}
-.ph-switch:disabled{opacity:.45;cursor:default;background:transparent}
-.ph-switch:disabled .sw{cursor:default}
+/* За чертой — не срезы, а настройка показа: «Папки» и статус. Черта держится вместе с последним срезом, поэтому настройки не уезжают отдельной строкой. */
+.ph-slices{display:contents}
+.ph-tail{display:inline-flex;align-items:center;gap:4px;flex:none;max-width:100%;min-width:0}
+.ph-fold{position:relative;display:inline-flex;align-items:center;gap:4px;min-width:0;margin-left:2px;padding-left:7px}
+.ph-fold:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--one-border-strong)}
+.ph-fold svg.ic-svg{width:14px;height:14px;flex:none}
+/* Нажатые «Папки» — как кнопка статуса с выбранным фильтром: настройки за чертой выглядят одинаково и отличаются от выбранного среза */
+.ph-fold #viewBtn.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
+.ph-fold #viewBtn.on:hover:not(:disabled){background:var(--one-selected-neutral-hover);border-color:var(--one-selected-indicator);color:var(--one-fg)}
+.ph-fold #viewBtn:disabled{opacity:.45;cursor:default}
+.ph-fold #viewBtn:disabled:not(.on):hover{background:transparent;border-color:transparent;color:var(--one-fg-muted)}
+.ph-status-label{max-width:104px;overflow:hidden;text-overflow:ellipsis}
 .ph-cnt{flex:none;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--one-control-bg);color:var(--one-fg-muted);font-size:10px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .ph-choice.on .ph-cnt{background:var(--one-selected-neutral);color:var(--one-fg)}
 .ph-chevron{font-size:9px;opacity:.7}
@@ -737,6 +740,8 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-n{flex:none;min-width:34px;color:var(--mu);font-size:12px;text-transform:lowercase}
 .rl-f{flex:1 1 140px;min-width:0}
 .rl-f input,.rl-f select{width:100%}
+select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([multiple]){padding-right:28px}
+.rl-f:has(>select){flex:1 1 auto;max-width:100%}.rl-f>select{field-sizing:content;min-width:120px}
 .rl-mx summary{cursor:pointer;color:var(--mut,inherit);font-size:12px;white-space:nowrap}
 .rl-mx input{margin-top:4px}
 .rl-ref{display:flex;align-items:center;gap:6px}
@@ -751,6 +756,19 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-none{padding:10px 12px}
 .rl-h{font-weight:600;margin:4px 0 6px}
 .rl-opts{display:grid;gap:8px;margin-bottom:14px}
+.rl-opts-2{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.rl-tpl-g{grid-column:1/-1;margin:6px 0 -2px;color:var(--mu);font-size:12px;font-weight:600}
+.rl-tpl-q{width:100%;margin:0 0 10px}.rl-tpl-none{grid-column:1/-1;margin:0}
+.rl-opt[hidden],.rl-tpl-g[hidden],.rl-tpl-none[hidden],.cbx-n[hidden]{display:none}
+.cbx{position:fixed;z-index:20000;display:flex;flex-direction:column;box-sizing:border-box;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 8px 24px #0006}
+.cbx-q{flex:none;width:auto;margin:6px;box-sizing:border-box}
+.cbx-l{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable;padding:0 4px 4px}
+.cbx-g{position:sticky;top:0;padding:6px 8px 2px;background:var(--p);color:var(--mu);font-size:11px;font-weight:600}
+.cbx-o{padding:5px 8px;border-radius:5px;font-size:13px;cursor:pointer}
+.cbx-o.act{background:var(--one-nav-hover)}.cbx-o[aria-selected="true"]{font-weight:600}
+.cbx-o[aria-disabled="true"]{color:var(--mu);cursor:default}
+.cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
+.cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
 .rl-opt:hover{background:color-mix(in srgb,var(--one-control-hover) 50%,transparent)}
 .rl-opt.on{background:var(--one-accent-soft);border-color:var(--one-selected-indicator)}
@@ -2494,7 +2512,7 @@ const SLICE_SW={...SLICE_SW_RU};
 const SLICE_IC={all:"svcs",cam:"camera",acfa:"acfa",srv:"server",arch:"archive",det:"det"};
 // Раскладка одна на все срезы и меняется кнопкой «Папки», а не выбором среза.
 // В Серверах и Архивах папок нет: кнопка там неактивна, раскладка ждёт возврата.
-// В Детекторах кнопка переключает папки и виды.
+// В Детекторах кнопка переключает папки и виды, положение то же, что у остальных срезов.
 const SLICE_GROUPS={all:["server","folder"],cam:["folder","server"],acfa:["folder","server"],srv:["server"],arch:["server"],det:["kind","folder"]};
 // Старые ссылки звали срез «Всё оборудование» — ведём их в «Камеры».
 const SLICE_ALIAS={dev:"cam",srvs:"srv"};
@@ -2569,12 +2587,12 @@ const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rul
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
   {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"},{id:"learn",label:"Обучение",ic:"sec_learn"}];
 let slice="all";
-// Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
-// У Детекторов своё положение: там второе положение — виды, а при входе нужны они (прототип 18).
-const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"kind"};
+// Группировка общая на все срезы: кнопку «Папки» человек нажимает сам, выбор среза её не трогает. В Детекторах «выключено» — виды.
+
+const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"folder"};
 function setGroupAll(g){
-  if(slice==="det"){if(SLICE_GROUPS.det.includes(g))groupBy.det=g;return}
-  Object.keys(groupBy).forEach(s=>{if(s!=="det"&&SLICE_GROUPS[s].includes(g))groupBy[s]=g});
+  const on=g==="folder";
+  Object.keys(groupBy).forEach(s=>{groupBy[s]=on?"folder":s==="det"?"kind":"server"});
 }
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
@@ -2582,7 +2600,9 @@ function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:slice
 // её ради переименования значило бы менять работающее без причины.
 // По умолчанию дерево занимает 30% окна. Границы ограничивают ширину панели,
 // а размер, выбранный перетаскиванием, запоминается.
-function asideWidthClamp(w){return Math.max(280,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
+// Нижняя граница — чтобы последний срез, «Папки» и статус помещались в одну строку
+const ASIDE_MIN=400;
+function asideWidthClamp(w){return Math.max(ASIDE_MIN,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
 function asideWidthDefault(){
   try{const saved=parseInt(localStorage.getItem("cfg.asideW"),10);if(saved)return asideWidthClamp(saved)}catch(e){}
   // В срезе «Хранилища» дерево только выбирает место: ширина отдана таблице.
@@ -6177,6 +6197,8 @@ function inSlice(n){
 }
 function selfInView(n){
   if(n.type==="domain"||n.type==="unalloc"||n.type==="folder")return false;
+  // «Детекторы» при статусе: статус у детектора, камера показана только ради своих детекторов
+  if(slice==="det"&&n.type==="camera"&&statusFilts.size)return false;
   // Встроенное хранилище — дочерняя строка камеры или канала регистратора:
   // видно, у кого есть карта памяти или диск, без захода в карточку.
   return matchesDomain(n)&&inSlice(n)&&matchesType(n)&&matchesStatus(n);
@@ -7118,7 +7140,7 @@ function filtHitCount(){
   const ids=new Set();
   fs.order.forEach(id=>{
     const n=find(id)?.n;if(!n||!matchesDomain(n))return;
-    if(n.type==="det")ids.add(id);
+    if(n.type==="det"){if(matchesStatus(n))ids.add(id)}
     else if(n.type==="camera"&&treeQ.trim())(n.devices||[]).forEach(d=>{if(d.type==="det"&&matchesStatus(d))ids.add(d.id)});
   });
   return ids.size;
@@ -7127,6 +7149,7 @@ function countFiltered(){
   if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
   const q=qval();let n=0;
   walkSliceObjects((node,p)=>{if(slice==="det"){if(matchesStatus(node)&&detSliceHit(node,p,q))n++;return}
+    if(slice==="arch"&&statusFilts.size){if(node.type==="archive"&&matchesStatus(node)&&matchesSearch(node,q))n++;return}
     if(node.type==="det"||node.type==="domain"||node.type==="unalloc")return;if(selfInView(node)&&matchesSearch(node,q))n++});
   return n;
 }
@@ -7853,7 +7876,9 @@ let revealAt=0;
 const SLICE_READ={cam:TF_CAM,acfa:TF_ACFA,det:[["det"]]},SLICE_READ_MAX=5000;
 const sliceReads=new Map();
 function sliceReadKey(){return slice+"|"+treeLayout()}
-function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done}
+// Статус дочитан и нарисован деревом: всё найденное уже здесь, непрочитанная ветка для него пуста.
+// Поиск — другое: он находит и папки, и серверы, строка нужна со стрелкой
+function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done&&!(statusFilts.size&&fs&&!fs.pick&&fs.done&&!fs.failed&&!fs.flat)}
 async function sliceRead(){
   const key=sliceReadKey(),layout=treeLayout();
   if(!SLICE_READ[slice]||sliceReads.has(key)||!can("getTreePaths"))return;
@@ -7886,9 +7911,11 @@ async function sliceRead(){
   }
 }
 // Строка конца ветки: читается или есть продолжение
-function treeMoreRow(id,l){
+function treeMoreRow(id,l,key=id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!treeOpenable(id,layout)||(b&&b.done&&!b.failed))return"";
+  // Ветку раскрыл статус, а не человек: всё найденное уже пришло отбором, читать её незачем
+  if(statusFilts.size&&!b&&!open.has(key))return"";
   if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
   const scan=treeVirtual(id);
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
@@ -8152,6 +8179,21 @@ function asstFilterQuery(f){
   }
   return out;
 }
+// Отбор идёт только по видам среза: иначе страницу занимают чужие объекты.
+// Камеры — без одних служб: срез решает по месту в дереве (замок под камерой — в «Камерах»), чужое отсеивает filtSeen
+function filtSliceKinds(){
+  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));
+  if(slice==="det"){
+    if(!qval())return kindsOfScreen("det");
+    // Камера, найденная по тексту, показывает свои детекторы: текст ищем и по камерам
+    return statusFilts.size?[...kindsOfScreen("det"),...kindsOfScreen("camera")]:dev;
+  }
+  if(slice==="acfa")return[...new Set(TF_ACFA.flatMap(([t])=>kindsOfScreen(t)))];
+  if(slice==="cam"){const not=new Set(TF_SVC.map(([t])=>t));return dev.filter(k=>!not.has(screenType(k)))}
+  return dev;
+}
+// Сколько из прочитанного покажет срез: по этому числу дерево или плоский список, а не по всем ответам сервера
+function filtSeen(run){return run.pick?run.hits.size:filtHitCount()}
 function filtParams(run){
   if(run.filter)return Object.assign({limit:FILT_PAGE,cursor:run.cursor},asstFilterQuery(run.filter));
   const out={limit:FILT_PAGE,cursor:run.cursor};
@@ -8163,8 +8205,9 @@ function filtParams(run){
   if(typeFilts.size)out.kind=[...new Set([...typeFilts].flatMap(kindsOfScreen))].join(",");
   // Без чипа — только устройства, как /devices базы: инфраструктура (серверы, папки, хранилища, тома, потоки) не занимает
   // места на странице, иначе страница кончается раньше и отбор не доходит до конца там, где база дошла
-  else{const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));if(dev.length)out.kind=dev.join(",")}
-  if(statusFilts.size)out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
+  else{const dev=filtSliceKinds();if(dev.length)out.kind=dev.join(",")}
+  // «Детекторы» с текстом: статус у детектора, а его камеру находят по имени с любым статусом — детекторы отбирает дерево
+  if(statusFilts.size&&!(slice==="det"&&qval()))out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
   if(domainFilter)out.domainId=domainFilter;
   return out;
 }
@@ -8173,7 +8216,7 @@ async function filtWave(run){
   if(run.busy)return;
   run.busy=true;
   try{
-    while(run===fs&&!run.done&&run.hits.size<run.want){
+    while(run===fs&&!run.done&&filtSeen(run)<run.want){
       let r;
       // Поиск и фильтры дерева — без инфраструктуры (у неё свои списки); отбор ассистента — как отобран, любого вида
       try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
@@ -8185,7 +8228,7 @@ async function filtWave(run){
       run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
       if(run===fs){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
     }
-    if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
+    if(run===fs&&run.done&&filtSeen(run)<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
   finally{run.busy=false;if(run===fs){filtPaint();if(run.pick)asstPickLoaded()}}
 }
@@ -8254,7 +8297,7 @@ function asstPickClear(){asstPickDrop();filtSync();applyFiltersFromState();aside
 // Отобранное видно в дереве сейчас: «Показать в дереве», «Открыть в дереве» нужны, только когда его не видно
 function asstPickShown(src){return!!src&&asstPick?.src===src&&app==="hw"&&PICK_SLICES.includes(slice)}
 function asstPickLoaded(){const p=asstPick;if(p?.loaded){const f=p.loaded;p.loaded=null;f()}}
-function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaint()}
+function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:filtSeen(fs))+FILT_PAGE;filtWave(fs);filtPaint()}
 function filtHint(){
   if(fs?.pick&&asstPick){
     const p=asstPick;
@@ -8268,7 +8311,10 @@ function filtHint(){
 }
 function treeFlat(){
   const q=qval();
-  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+  // «Детекторы» при статусе: найденный детектор и детекторы найденной камеры — столько же, сколько в filtHitCount
+  const dets=n=>!n?[]:n.type==="det"?(matchesStatus(n)?[n]:[]):n.type==="camera"&&q?(n.devices||[]).filter(d=>d.type==="det"&&matchesStatus(d)):[];
+  const list=slice==="det"&&statusFilts.size?[...new Set(fs.order.flatMap(id=>dets(find(id)?.n)))]:fs.order.map(id=>find(id)?.n);
+  const rows=list.filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
     <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
   const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.pick&&!fs.filter?(fs.busy?"Загружаем…":"Показать ещё"):fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
   return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
@@ -8319,7 +8365,7 @@ function statusLabel(id){
 }
 function statusCount(id){
   const q=qval();let n=0;
-  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||statusIs(x,id)))n++});
+  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||(statusIs(x,id)&&(slice!=="arch"||x.type==="archive"))))n++});
   return n;
 }
 function pickStatus(id){
@@ -8338,12 +8384,15 @@ function sliceCount(id){
 function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
 function panelHeadHtml(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
-  const canFolders=sliceGroups().includes("folder"),foldersOn=canFolders&&group()==="folder",st=curStatus();
-  return`<div class="ph"><div class="ph-row" role="group" aria-label="${i18n("Срез дерева")}">
-    ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`).join("")}
-  </div><div class="ph-row">
-    <button type="button" class="ph-switch" id="viewBtn" role="switch" aria-checked="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}><span>${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
+  // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
+  const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
+  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`;
+  return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
+    ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
+  </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
+    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
+  </span></span></div><div class="ph-row">
     <span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
       <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
       <button type="button" class="ph-tool" id="treeExpandBtn" title="${i18n("Развернуть всё")}" aria-label="${i18n("Развернуть всё")}" ${onEv("click",["treeExpandAll"])}>${TREE_IC.open}</button>
@@ -9101,7 +9150,7 @@ function svcrow(n,l){
 function srow(s,l=1,bare=false){
   const q=qval();
   if(bare){
-    if(!matchesStatus(s)||!matchesSearch(s,q))return"";
+    if((statusFilts.size&&slice!=="srv")||!matchesStatus(s)||!matchesSearch(s,q))return"";
     // Нераспределённые ещё не подключены к домену — всегда серым
     let h=`<div class="n srv ${sel===s.id?"on":""} off${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}>
       <span class="tw"></span>
@@ -9109,8 +9158,9 @@ function srow(s,l=1,bare=false){
     return h;
   }
   const offline=hasNoSignal(s);
-  const srvHit=matchesStatus(s)&&matchesSearch(s,q);
   const srvSlice=slice==="srv";        // опись сервера: архивы, GPU, службы
+  // Статус отбирает объекты среза: сервер без найденного показан только в «Серверах»
+  const srvHit=(srvSlice||!statusFilts.size)&&matchesStatus(s)&&matchesSearch(s,q);
   // Нет сигнала — дочерние в дереве не показываем
   const archs=offline?[]:serverArchives(s.id);
   const devs=offline?[]:(s.devices||[]).filter(d=>d.type!=="det");
@@ -9139,7 +9189,7 @@ function drow(d){
   const q=qval();
   // Без связи с доменом ответы несут только своё: показываем, что есть, чужое не считаем удалённым
   const offline=false;
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(d)&&matchesSearch(d,q);
   const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
   const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
   // Устройство без сервера стоит прямо под доменом, после серверов и их групп
@@ -9347,7 +9397,7 @@ function domainTreeDeviceCount(did){
 }
 function dfrow(d){
   const q=qval();
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=!statusFilts.size&&matchesSearch(d,q);
   const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1)+svcsrow(d,1);
   if(!selfHit&&!kidsHtml)return"";
   // У домена есть «Без папки» и строка создания папки. На вкладке с прочитанными объектами стрелка — только если есть что показать
@@ -9372,9 +9422,8 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
-  if(slice==="arch")return treeArchives();
-  if(slice==="det")return treeDetectors();
-  return group()==="server"?treeServers():treeDev();
+  const h=slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
@@ -9436,7 +9485,7 @@ function gcamrow(cam,dets,l,ctx){
   const available=slice==="cam"?[]:dets.filter(matchesStatus);
   const vis=available.filter(d=>matchesSearch(d,q));
   const parentHit=matchesSearch(cam,q);
-  const selfHit=(slice==="cam"?selfInView(cam):matchesStatus(cam))&&parentHit;
+  const selfHit=(slice==="cam"?selfInView(cam):slice==="det"&&statusFilts.size?false:matchesStatus(cam))&&parentHit;
   const shown=parentHit?available:vis;
   if(!selfHit&&!shown.length)return"";
   const hasKids=!!shown.length||!!cam._more;
@@ -9447,7 +9496,7 @@ function gcamrow(cam,dets,l,ctx){
   let h=`<div class="n ${rowOn(cam.id,ctx)}${slice==="det"?sliceParentClass(cam.id):""}" style="--l:${l}"${treeRowPick(cam.id,ctx)}${treeCtxAttr(cam.id)}${treeExpandMeta(ok,"node",hasKids)}>
     ${treeChevron(ok,"node",hasKids,op)}
     ${treeIconHtml(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
-  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1);
+  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1,ok);
   return h;
 }
 // Узкие срезы сохраняют домены и выбранную группировку, исключая остальные
@@ -9501,13 +9550,13 @@ function treeArchives(){
     d.servers.forEach(s=>{
       const all=serverArchives(s.id),list=all.filter(a=>matchesStatus(a)&&matchesSearch(a,q));
       if(list.length)withArch.push(archTreeRow(s,1,list.map(a=>arow(a,2)).join(""),list.length,"as:"+s.id));
-      else if(!all.length&&matchesStatus(s)&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
-      else if(all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&!all.length&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
     });
     const empty=bare.length?archGroupRow("as:bare:"+d.id,"Серверы без хранилищ","unalloc",bare.length,bare.join(""),[["archGroupOpen",`${"as:bare:"+d.id}`]],false):"";
     const children=net+withArch.join("")+empty;
-    return children||retainEmptySliceParents()||(matchesStatus(d)&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
-  }).join("")+archUnlinkedRow();
+    return children||retainEmptySliceParents()||(!statusFilts.size&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
+  }).join("")+(statusFilts.size?"":archUnlinkedRow());
 }
 // Камеры без привязки к хранилищу: всегда внизу, при входе в срез свёрнуты
 const AS_NOREC="as:norec";
@@ -9668,7 +9717,7 @@ function treeDetectors(){
   if(group()==="kind")return treeDetKinds();
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
-  const branch=(n,l,children)=>children||retainEmptySliceParents()||treeUnread(n.id)||(qval()&&matchesSearch(n,qval())&&matchesStatus(n))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
+  const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size)||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
     const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},folderDeviceNodes(f));
     const children=(f.folders||[]).map(x=>folderRow(x,l+1)).join("")+rows(direct,l+1,"f:"+f.id);
@@ -9695,7 +9744,7 @@ function gpurow(sv,l){
   const list=gpuCameras(sv.id);
   // В срезе «Серверы» GPU показан строкой состава, без камер и детекторов.
   const children=slice==="srv"?"":list.map(x=>gcamrow(x.cam,x.dets,l+1,ctx)).join("");
-  const selfHit=matchesStatus(node)&&matchesText(q,locName(node),"gpu");
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(node)&&matchesText(q,locName(node),"gpu");
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
   const op=hasKids&&(open.has(node.id)||autoExpand());
@@ -9712,7 +9761,8 @@ function arow(a,l){
   if(slice==="acfa"||slice==="det")return"";
   const q=qval(),inventory=slice==="srv"||slice==="arch";
   const allCams=archCameras(a.id),cams=allCams.filter(selfInView);
-  const selfHit=matchesStatus(a)&&matchesSearch(a,q);
+  // Статус отбирает объекты среза: хранилище — объект только в описи
+  const selfHit=(inventory||!statusFilts.size)&&matchesStatus(a)&&matchesSearch(a,q);
   const children="";
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
@@ -9730,10 +9780,10 @@ function arow(a,l){
 function norow(d,l){
   const q=qval(),cams=norecList(d.id).filter(selfInView),vis=cams.filter(c=>matchesSearch(c,q));
   const n=norecNode(d.id);
-  if(statusFilts.size&&!cams.length&&!treeUnread(n.id))return"";
+  if(statusFilts.size&&!cams.length&&!sliceUnread(n.id))return"";
   const selfHit=matchesText(q,locName(n));
   if(!selfHit&&!vis.length)return"";
-  const hasKids=!!cams.length||treeUnread(n.id);
+  const hasKids=!!cams.length||(statusFilts.size?sliceUnread(n.id):treeUnread(n.id));
   const op=hasKids&&(open.has(n.id)||(autoExpand()&&!!vis.length));
   let h=`<div class="n srv norec ${sel===n.id?"on":""}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}
@@ -11845,6 +11895,7 @@ function detKindPick(k){
 }
 function treeDetKinds(){
   const q=qval(),rows=detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q));
+  if(!rows.length&&hasActiveFilters())return"";
   const by=new Map();
   rows.forEach(x=>{const k=detKindLabel(x.d,x.cam);if(!by.has(k))by.set(k,[]);by.get(k).push(x)});
   const onAll=detListOn()&&!dl.kind;
@@ -13328,7 +13379,7 @@ function expBody(d){
   if(d.nameSet&&d.name.trim())b.name=d.name.trim();
   if(d.password)b.password=d.password;
   if(d.comment.trim())b.comment=d.comment.trim();
-  if(expGrantV?.supervisorRequired&&expOn("accessSupervision"))b.supervisor={login:d.supLogin,password:d.supPwd};
+  if(d.supLogin&&d.supPwd)b.supervisor={login:d.supLogin,password:d.supPwd};
   if(expMulti(d)&&!frame&&f?.singleFile==="tracks"&&expOn("exportSingleFile"))b.singleFile=!!d.single;
   if(expOn("exportTranscode")){
     const q={};
@@ -13390,6 +13441,8 @@ function expCheckSoon(){
   },250);
 }
 // Поле формы: ключ из умолчаний живёт в adv, остальные — в самом заказе (правило монитора)
+// Поля супервизора проверяются по уходу из поля, а не на каждую паузу: система проверяет пароль, и неполный ввод может запереть учётную запись
+function expSupType(k,v){if(expD)expD[k]=v}
 function expSet(k,v,repaint=true){
   if(!expD)return;
   if(k in EXP_DEF)expD.adv[k]=v;
@@ -13543,11 +13596,11 @@ function expErrText(e){
   const p=e.params||{};
   return({PASSWORD_REQUIRED:i18n("Без пароля экспорт запрещён политикой системы"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"За выбранный период записи нет"),
     LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"периодов",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
-    PERMISSION_DENIED:i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
+    PERMISSION_DENIED:p.reason==="privacy"?(expGrantV?.refusal||e.message||i18n("Нет права на экспорт")):i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
     DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: экспорт через него"),
     VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Укажите время кадра":"Проверьте поле"),
     NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
-    SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
+    SUPERVISOR_REQUIRED:i18n("Нужно подтверждение супервизора"),SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
 }
 function expErrHtml(list){return list.map(e=>`<p class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</p>`).join("")}
 const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
@@ -13590,14 +13643,15 @@ function expMainHtml(d){
   const files=!expOneFile(d)&&d.cams.length>1?(expChk?.files||[]).map(x=>x.name):[];
   const zip=!!d.password&&f?.password==="zip";
   const area=d.cams.map((c,i)=>c.area?`<div class="nt exp-area-nt" data-exp-area><b>${i18n("Область кадра выделена")}</b> — ${escHtml(expCamName(c.id))}: ${escHtml(expAreaText(c.area))} — ${i18n("экспортируется только она")}. <button type="button" class="lk" ${onEv("click",["expAreaReset",i])}>${i18n("Весь кадр")}</button>${expErrHtml(expErrs(`/cameras/${i}/area`))}</div>`:"").join("");
-  const sup=g?.supervisorRequired&&expOn("accessSupervision")?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSet","supLogin",onEv.value,false])}></div>
-      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSet","supPwd",onEv.value,false])}></div></div>
+  if(expErrs("/supervisor").length)d.supAsk=true; // Сервер спросил супервизора, а выдача прав устарела: поля остаются до конца заказа
+  const sup=g?.supervisorRequired||d.supAsk?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSupType","supLogin",onEv.value])} ${onEv("change",["expCheckSoon"])}></div>
+      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSupType","supPwd",onEv.value])} ${onEv("change",["expCheckSoon"])}></div></div>
     ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры подтверждает второй пользователь с правом супервизора.")}</p>`}`):"";
   const file=card("Файл",`<div class="g"><div><label>${i18n("Формат")}</label>${fmtSel}</div>
       <div>${one?`<label>${i18n("Один файл")}</label><div class="ln ln-sw" style="padding:4px 0">${accSw(d.single,["expSet","single",!d.single],false,i18n("Один файл"))}<div>${i18n("Склеить")} ${d.cams.length} ${i18n(plural(d.cams.length,"камеру|камеры|камер"))} ${i18n("в один файл")}</div></div>`:""}</div>
       <div style="grid-column:1/-1"><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.nameSet?d.name:expAutoName())}" ${d.nameSet&&!d.name.trim()?'aria-invalid="true"':""} ${onEv("input",["expSet","name",onEv.value,false])} ${onEv("change",["expRepaint"])}>
         ${d.nameSet&&!d.name.trim()?`<p class="exp-err">${i18n("Имя файла не может быть пустым")}</p>`:files.length?`<p class="sub">${escHtml(files.slice(0,2).join(", "))}${files.length>2?` ${i18n("и ещё")} ${files.length-2}`:""}</p>`:""}${expErrHtml(expErrs("/name"))}</div>
-      ${expOn("exportPassword")&&f&&f.password!=="none"?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
+      ${expOn("exportPassword")&&f&&f.password!=="none"&&!(g?.privacyForced&&g?.refusal)?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
         ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Файл придёт архивом .zip и откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
       <div><label>${i18n("Комментарий")}</label><textarea rows="2" data-exp-comment ${onEv("input",["expSet","comment",onEv.value,false])}>${escHtml(d.comment)}</textarea></div></div>
     ${expErrHtml(expErrs("/format").concat(expErrs("/singleFile")))}`);
@@ -13737,10 +13791,27 @@ function treeExp(){
 function expPick1(id){expSel=id;if(id==="new"&&!expD){expD=expDraftNew({});expCheckSoon()}paint()}
 function expCancel(id){API.post(`/exports/${id}/cancel`,{}).then(expUpsert).catch(e=>toast(problemText(e)))}
 function expRetry(id){
-  const x=expRowOf(id),need=expGrantV?.passwordRequired||!!x?.enforced?.password;
-  const go=pw=>API.post(`/exports/${id}/retry-failed`,pw?{password:pw}:{}).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>toast(e?.problem?expErrText(e.problem):problemText(e)));
-  if(!need)return go("");
-  askConfirm("Повторить неудачные",`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`,"","Повторить",()=>go(document.getElementById("expRetryPw").value),{html:true});
+  // Права нужны на камеры этого заказа: expGrantV — про камеры черновика
+  const ids=(expRowOf(id)?.parts||[]).filter(p=>p.state==="fail"||p.state==="cancel").map(p=>p.uid).join(",");
+  const load=can("getExportGrant")?API.get("/me/export",ids?{ids}:{}).catch(()=>expGrantV):Promise.resolve(expGrantV);
+  return load.then(g=>expRetryAsk(id,g,{}));
+}
+// force — что спросил сервер в прошлой попытке, если выдача прав этого не обещала
+function expRetryAsk(id,g,force){
+  const x=expRowOf(id),needPw=force.pw||!(g?.privacyForced&&g?.refusal)&&(g?.passwordRequired||!!x?.enforced?.password),needSup=force.sup||!!g?.supervisorRequired||!!x?.supervisedBy;
+  const go=b=>API.post(`/exports/${id}/retry-failed`,b).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>{
+    toast(e?.problem?expErrText(e.problem):problemText(e));
+    const f=e?.problem?.field;
+    if(f==="/supervisor"||f==="/password")expRetryAsk(id,g,{pw:needPw||f==="/password",sup:needSup||f==="/supervisor"});
+  });
+  if(!needPw&&!needSup)return go({});
+  const val=k=>document.getElementById(k)?.value||"";
+  askConfirm("Повторить неудачные",`${needPw?`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`:""}${needSup?`<div><label>${i18n("Логин супервизора")}</label><input id="expRetrySupLogin" autocomplete="off"></div><div><label>${i18n("Пароль супервизора")}</label><input type="password" id="expRetrySupPwd" autocomplete="off"></div>`:""}`,"","Повторить",()=>{
+    const b={},pw=val("expRetryPw"),l=val("expRetrySupLogin"),s=val("expRetrySupPwd");
+    if(pw)b.password=pw;
+    if(l&&s)b.supervisor={login:l,password:s};
+    go(b);
+  },{html:true});
 }
 function expAgain(id){
   const x=expRowOf(id),r=x?.request;if(!r)return;
@@ -14625,7 +14696,7 @@ const CTL_KINDS=[
    },
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
-     return`<div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,k),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
+     return`<div class="rl-f">${trigSelHtml(k,`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
        ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${matchExtraHtml(k,c.ev.match,["setWevExtra",`${ps}`,onEv.value])}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
@@ -15524,16 +15595,37 @@ const RULE_STARTS=[
   ["sched","По расписанию","Запустится само в заданные дни и время."],
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
+// Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
 const RULE_TPL=[
-  {id:"door",start:"event",name:"Дверь открыта — сирена",sub:"Вход датчика «разомкнут» включает реле на 5 секунд",
-   make:()=>({when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+  // Охрана
+  {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
+   make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
+  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
+   make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
               then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
-  {id:"night",start:"event",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
+  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
    make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"lost",start:"event",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
+  {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
+   make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
+  {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке: реле открывает шлагбаум на 3 секунды",
+   make:()=>({when:[{sub:"unit",kind:"plate.list",ref:"",match:{presence:"yes"}}],then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})},
+  {id:"aclose",start:"event",grp:"Охрана и реагирование",name:"Тревога обработана — камера в исходный пресет",sub:"Оператор обработал тревогу: поворотная камера возвращается в пресет",
+   make:()=>({when:[{sub:"unit",kind:"alarm.closed",ref:"",match:{}}],then:[{sub:"vms",action:"preset",ref:"$src",n:""}]})},
+  {id:"aconf",start:"event",grp:"Охрана и реагирование",name:"Тревога подтверждена — письмо",sub:"Оператор подтвердил тревогу: письмо с кадром уходит ответственному",
+   make:()=>({when:[{sub:"unit",kind:"alarm.confirmed",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Подтверждена тревога: {камера}"}]})},
+  // Состояние системы
+  {id:"lost",start:"event",grp:"Состояние системы",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
    make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
+  {id:"off",start:"event",grp:"Состояние системы",name:"Камера не на связи — письмо",sub:"Связь не вернулась за 5 минут: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"device.lost",ref:"",match:{}}],then:[{ctl:"waitev",ev:{sub:"unit",kind:"device.restored",ref:"$src",match:{}},sec:300,yes:[],no:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с камерой: {камера}"}]}]})},
+  {id:"tamp",start:"event",grp:"Состояние системы",name:"Камеру закрыли или сдвинули — письмо",sub:"Письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"tamper",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Камера закрыта или сдвинута: {камера}"}]})},
+  {id:"vol",start:"event",grp:"Состояние системы",name:"Ошибка архива — письмо",sub:"Том архива перешёл в ошибку: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"volume.error",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Ошибка тома архива"}]})},
+  {id:"srv",start:"event",grp:"Состояние системы",name:"Сервер не на связи — письмо",sub:"Письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"server.down",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с сервером"}]})},
   {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
    make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
@@ -15541,8 +15633,11 @@ const RULE_TPL=[
 // Шаблон с тем, чего система не объявила, не предлагается
 function ruleTplDeclared(t){
   const b=t.make();
-  return(b.when||[]).every(x=>trigDeclared(triggerKind(x)))&&(b.cond||[]).every(x=>condDeclared(condKind(x)))
-    &&(b.then||[]).every(x=>(x.ctl?ctlDeclared(ctlKind(x)):actDeclared(actionKind(x)))&&(x.ref!=="$src"||srcDeclared()));
+  // Поиск без triggerKind: тот заводит незнакомому виду запись. У вида из описания шаблон не задаёт уточнений, которых вид не объявил
+  const trig=x=>{const k=TRIGGER_KINDS.find(y=>y.sub===x.sub&&y.kind===x.kind);
+    return!!k&&trigDeclared(k)&&(!k.gen||Object.keys(x.match||{}).every(f=>k.match.some(m=>m.id===f)))&&(x.ref!=="$src"||srcDeclared())};
+  const step=x=>(x.ctl?ctlDeclared(ctlKind(x))&&(!x.ev||trig(x.ev))&&(x.yes||[]).every(step)&&(x.no||[]).every(step):actDeclared(actionKind(x)))&&(x.ref!=="$src"||srcDeclared());
+  return(b.when||[]).every(trig)&&(b.cond||[]).every(x=>condDeclared(condKind(x))&&(x.modes||[]).every(Boolean))&&(b.then||[]).every(step);
 }
 let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
@@ -15555,11 +15650,28 @@ function ruleNewOpen(preset){
     ruleNewRender();
   },()=>!preset);
 }
-function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
+function ruleNewSet(k,v){rnw[k]=v;if(k==="start"){rnw.tpl="";rnw.q=""}ruleNewRender()}
+// Карточки шаблонов: то же правило длинного списка, что у <select> (CBX_MIN). «С нуля» остаётся всегда: это выход из поиска
+function ruleTplFilter(v){
+  rnw.q=v;
+  const host=document.querySelector("#bmodal [data-rnw]");if(!host)return;
+  let shown=0,g=null,gn=0;
+  const closeG=()=>{if(g)g.hidden=!gn};
+  [...host.children].forEach(el=>{
+    if(el.classList.contains("rl-tpl-g")){closeG();g=el;gn=0;return}
+    if(!el.dataset.tpl)return;
+    const on=matchesText(v.trim(),el.textContent);
+    el.hidden=!on;if(on){gn++;shown++}
+  });
+  closeG();
+  const no=host.querySelector(".rl-tpl-none");if(no)no.hidden=shown>0;
+}
 function ruleNewRender(){
   const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
+  let tplGrp="";
   const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
-    .map(t=>`<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+    .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}" ${t.id?`data-tpl="${t.id}"`:""}><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+  const tplCount=RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t)).length;
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
   const steps=RULE_NEW_STEPS,last=rnw.step===steps.length-1,st=steps[rnw.step];
@@ -15567,9 +15679,10 @@ function ruleNewRender(){
   const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
     st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
-      :`${pre}<div class="rl-opts" data-rnw>${tpls}</div>
+      :`${pre}${tplCount>=CBX_MIN?`<input type="text" class="rl-tpl-q" placeholder="${i18n("Найти шаблон…")}" aria-label="${i18n("Найти шаблон")}" autocomplete="off" value="${escHtml(rnw.q||"")}" ${onEv("input",["ruleTplFilter",onEv.value])}>`:""}<div class="rl-opts rl-opts-2" data-rnw>${tpls}<p class="sub rl-tpl-none" hidden>${i18n("Ничего не найдено")}</p></div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
     wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
+  if(rnw.q&&st.k==="tpl"&&tplCount>=CBX_MIN)ruleTplFilter(rnw.q);
 }
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
@@ -15586,7 +15699,7 @@ function ruleNewMerge(){
   const t=RULE_TPL.find(x=>x.id===rnw.tpl),b=t?t.make():{},p=rnw.preset||{},st=rnw.start;
   const when=st==="event"?ruleClone(b.when||[]):[],then=ruleClone(b.then||[]),notes=[];
   const put=(list,pt,kindOf,word)=>{
-    const kd=kindOf(pt),i=list.findIndex(x=>{const k=kindOf(x);
+    const kd=kindOf(pt),i=list.findIndex(x=>{if(x.ctl)return false;const k=kindOf(x);
       return pt.ref?(!x.ref&&k.devTypes.some(d=>kd.devTypes.includes(d))):(k===kd)});
     const lab=word==="событие"?triggerLabel(pt):actionLabel(pt);
     if(i>=0){
@@ -16043,12 +16156,26 @@ function refFieldHtml(slot,i,ref,ph){
   const hint=`${rulePickTitle(slot,it||{})}…`,live=group&&!bad&&refParts(ref).inc.some(refIsArea);
   return`<div class="rl-f"><div class="rl-ref"><button type="button" class="btn s rl-pick ${bad?"bad":""}" ${onEv("click",["rulePickRef",`${slot}`,`${i}`])} title="${escHtml(ref?ruleRefTitle(ref,dt):hint)}">${escHtml(ref?refLabel(ref,dt,slot):hint)}</button>${go?`<button type="button" class="lk rl-go" title="${i18n("Открыть в «Оборудовании»")}" ${onEv("click",["ruleGoDevice",`${go}`])}>${lu("square-arrow-out-up-right")}</button>`:""}${group?`<button type="button" class="lk lk-act rl-comp-lk" ${onEv("click",["ruleCompOpen",`${slot}`,`${i}`])}>${i18n("Состав")} (${refNodes(ref,dt).length})</button>`:""}</div>${live?`<div class="sub rl-live">${i18n(ruleNounOf(dt)[4])} ${i18n("области войдут сами")}</div>`:""}</div>`;
 }
+// Группы в списке событий: длинный плоский список читать трудно
+function trigGroup(k){
+  const c=k.kind.toLowerCase();
+  if(k.sub==="det"||/^(tamper|fire|smoke|face|plate)/.test(c))return"Детекторы и распознавание";
+  if(/^alarm/.test(c))return"Тревоги";
+  if(/^(device|silent|arm|ptz)/.test(c))return"Камера: связь и состояние";
+  if(/^(rec|segment|volume)/.test(c))return"Запись и архив";
+  if(/^(server|load|license|sched)/.test(c))return"Сервер и система";
+  return"Входы, выходы, СКУД";
+}
+const TRIG_GROUPS=["Детекторы и распознавание","Входы, выходы, СКУД","Тревоги","Камера: связь и состояние","Запись и архив","Сервер и система"];
+function trigSelHtml(k,on,label){
+  const cur=TRIGGER_KINDS.indexOf(k),opts=kindOpts(TRIGGER_KINDS,trigDeclared,k).map(([v,l])=>({v,l,g:trigGroup(TRIGGER_KINDS[v])}));
+  return`<select aria-label="${escHtml(i18n(label))}" ${onEv("change",on)}>${TRIG_GROUPS.map(g=>{const o=opts.filter(x=>x.g===g);return o.length?`<optgroup label="${escHtml(i18n(g))}">${o.map(x=>`<option value="${x.v}" ${x.v===cur?"selected":""}>${escHtml(i18n(x.l))}</option>`).join("")}</optgroup>`:""}).join("")}</select>`;
+}
 function triggerRowHtml(t,i,n){
-  const k=triggerKind(t),ki=TRIGGER_KINDS.indexOf(k);
-  const kinds=kindOpts(TRIGGER_KINDS,trigDeclared,k);
+  const k=triggerKind(t);
   return`<div class="rl-row">
-    <div class="rl-n">${n}</div>
-    <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
+    <div class="rl-n">${i18n(n)}</div>
+    <div class="rl-f">${trigSelHtml(k,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${i+1}`)}</div>
     ${refFieldHtml("when",i,t.ref)}
     ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`,t.ref)}
     ${matchExtraHtml(k,t.match,["setTriggerExtra",i,onEv.value])}
@@ -16074,7 +16201,7 @@ function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(tri
 function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
-  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:k.gen&&m.label!==m.id?`${i18n(m.label)}: ${i18n("любое")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -26295,7 +26422,7 @@ function selDescendants(n,withParts){
     // В раскладке по папкам (ОПС/СКД, «Папки») под доменом не серверы, а
     // папки и «Без папки» — домен отмечает и то, что лежит в них.
     if(x.type==="domain"){folders.filter(f=>folderDomain(f.id)===x.id).forEach(f=>visit(f,false));unfolderedDevices(x.id).forEach(c=>visit(c,false))}
-    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c,false));
+    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c.cam,false));
     // Сервер и хранилище отмечают всё, что под ними в дереве: регистраторы
     // вместе с их камерами и отдельные камеры.
     if(x.type==="server"&&!isUnallocated(x.id)){
@@ -29136,6 +29263,146 @@ function cpApplyGeneric(){
   const{ch,nodes}=cpPlan;cpPlan=null;cp=null;closeBulkModal();
   bulkRun(ch,null,nodes);
 }
+
+// ── Длинный список — с поиском (CLAUDE.md, «Правила интерфейса») ──
+// Обычный <select> с CBX_MIN и больше пунктов открывается с полем поиска. Менять разметку не нужно: <select> остаётся
+// на месте и хранит значение, выбор приходит к его обработчику обычным change. Сенсорным экранам — системный выбор.
+const CBX_MIN=8;
+let cbx=null;
+function cbxFits(s){
+  return!!s&&s.tagName==="SELECT"&&!s.multiple&&s.size<=1&&!s.disabled&&!matchMedia("(pointer:coarse)").matches
+    &&[...s.options].filter(o=>o.value!=="").length>=CBX_MIN;
+}
+function cbxItems(s){
+  const out=[];
+  [...s.children].forEach(c=>{
+    const one=(o,g)=>{if(!o.hidden)out.push({v:o.value,l:o.textContent,g,dis:o.disabled,on:o.selected})};
+    if(c.tagName==="OPTGROUP")[...c.children].forEach(o=>one(o,c.label));else one(c,"");
+  });
+  return out;
+}
+function cbxOpen(s,text){
+  if(cbx)cbxClose();
+  const box=document.createElement("div");box.className="cbx";
+  const q=document.createElement("input");q.type="text";q.className="cbx-q";q.autocomplete="off";
+  q.placeholder=i18n("Поиск в списке…");
+  q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
+  q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
+  const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
+  box.append(q,list,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,items:cbxItems(s),shown:[],act:-1,up:null,frame:0};
+  q.value=text||"";
+  q.addEventListener("input",cbxPaint);
+  q.addEventListener("keydown",cbxKey);
+  list.addEventListener("mousedown",e=>e.preventDefault());
+  list.addEventListener("mousemove",e=>{const o=e.target.closest(".cbx-o");if(o&&o.getAttribute("aria-disabled")!=="true")cbxActive(+o.dataset.i,false)});
+  list.addEventListener("click",e=>{const o=e.target.closest(".cbx-o");if(o)cbxPick(+o.dataset.i)});
+  box.addEventListener("click",e=>e.stopPropagation());
+  // Щелчок в списке не считается щелчком мимо всплывающего окна, из которого открыт список
+  box.addEventListener("mousedown",e=>e.stopPropagation());
+  cbxPaint();cbxPlace();q.focus();
+  q.setSelectionRange(q.value.length,q.value.length);
+  cbxFollow();
+}
+function cbxPaint(){
+  const c=cbx;if(!c)return;
+  const t=c.q.value.trim();
+  c.shown=c.items.filter(x=>matchesText(t,x.l,x.g));
+  let g="",h="";
+  c.shown.forEach((x,i)=>{
+    if(x.g&&x.g!==g)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
+    g=x.g;
+    h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
+  });
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n("Ничего не найдено")}</div>`;
+  c.foot.hidden=!t;
+  c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
+  const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
+  cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+function cbxActive(i,scroll=true){
+  const c=cbx;if(!c)return;
+  c.list.querySelector(".cbx-o.act")?.classList.remove("act");
+  c.act=i;
+  const el=i>=0?c.list.querySelector(`#cbxO${i}`):null;
+  if(el){el.classList.add("act");c.q.setAttribute("aria-activedescendant",el.id);if(scroll)el.scrollIntoView({block:"nearest"})}
+  else c.q.removeAttribute("aria-activedescendant");
+}
+function cbxStep(d){
+  const c=cbx;if(!c||!c.shown.length)return;
+  const n=c.shown.length,dir=Math.sign(d);
+  let i=Math.max(0,Math.min(n-1,c.act+d));
+  while(i>=0&&i<n&&c.shown[i].dis)i+=dir;
+  if(i>=0&&i<n)cbxActive(i);
+}
+function cbxKey(e){
+  const c=cbx;if(!c)return;
+  if(e.key==="Tab"){const s=c.sel;cbxClose();s.focus();return}
+  e.stopPropagation();
+  if(e.key==="ArrowDown"){e.preventDefault();cbxStep(1)}
+  else if(e.key==="ArrowUp"){e.preventDefault();cbxStep(-1)}
+  else if(e.key==="PageDown"){e.preventDefault();cbxStep(8)}
+  else if(e.key==="PageUp"){e.preventDefault();cbxStep(-8)}
+  else if(e.key==="Enter"){e.preventDefault();if(c.act>=0)cbxPick(c.act)}
+  else if(e.key==="Escape"){e.preventDefault();const s=c.sel;cbxClose();s.focus()}
+}
+function cbxPick(i){
+  const c=cbx;if(!c)return;
+  const x=c.shown[i];if(!x||x.dis)return;
+  const s=c.sel;cbxClose();
+  const lab=s.getAttribute("aria-label"),ks=s.dataset.ks,same=lab?`select[aria-label="${CSS.escape(lab)}"]`:"",nth=same?[...document.querySelectorAll(same)].indexOf(s):-1;
+  if(s.value!==x.v){s.value=x.v;s.dispatchEvent(new Event("change",{bubbles:true}))}
+  // Обработчик мог перерисовать карточку: фокус возвращается на такое же поле, клавиатура не теряет место
+  const next=s.isConnected?s:ks?document.querySelector(`select[data-ks="${CSS.escape(ks)}"]`):same?document.querySelectorAll(same)[nth]:null;
+  next?.focus({preventScroll:true});
+}
+function cbxClose(){
+  if(!cbx)return;
+  cancelAnimationFrame(cbx.frame);cbx.box.remove();cbx=null;
+}
+// Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
+function cbxPlace(){
+  const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
+  const w=Math.min(Math.max(r.width,320),innerWidth-pad*2);
+  const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
+  if(c.up===null)c.up=below<240&&above>below;
+  const room=c.up?above:below;
+  c.box.style.width=`${w}px`;
+  c.box.style.maxHeight=`${Math.max(140,Math.min(380,room))}px`;
+  c.box.style.left=`${Math.max(pad,Math.min(r.left,innerWidth-w-pad))}px`;
+  c.box.style.top=c.up?"":`${r.bottom+gap}px`;
+  c.box.style.bottom=c.up?`${innerHeight-r.top+gap}px`:"";
+}
+function cbxFollow(){
+  if(!cbx)return;
+  if(!cbx.sel.isConnected||!cbx.sel.getClientRects().length){cbxClose();return}
+  cbxPlace();
+  cbx.frame=requestAnimationFrame(cbxFollow);
+}
+document.addEventListener("mousedown",e=>{
+  const s=e.target.closest?.("select"),same=!!cbx&&cbx.sel===s;
+  if(cbx&&!cbx.box.contains(e.target))cbxClose();
+  if(e.button===0&&cbxFits(s)){e.preventDefault();if(same)s.focus();else cbxOpen(s)}
+},true);
+// Клик без мыши (detail 0): показ или сценарий
+document.addEventListener("click",e=>{
+  const s=e.target.closest?.("select");
+  if(e.detail===0&&cbxFits(s)&&!cbx)cbxOpen(s);
+},true);
+// Поле в одну строку: обрезанный текст виден целиком в подсказке
+document.addEventListener("mouseover",e=>{
+  const s=e.target.closest?.("select");
+  if(s&&!s.multiple&&!s.classList.contains("sf-bad"))s.title=s.selectedOptions[0]?.textContent||"";
+},true);
+document.addEventListener("keydown",e=>{
+  const s=e.target;
+  if(cbx||!cbxFits(s)||e.ctrlKey||e.metaKey)return;
+  const text=e.key.length===1&&e.key!==" "&&!e.altKey;
+  if(!text&&!["ArrowDown","ArrowUp","Enter"," ","F4"].includes(e.key))return;
+  e.preventDefault();e.stopPropagation();
+  cbxOpen(s,text?e.key:"");
+},true);
 
 // Старт: данные с сервера, затем первая отрисовка. Раскрыто то же, что в
 // макете на константах: первый и третий домен, нераспределённые первого,

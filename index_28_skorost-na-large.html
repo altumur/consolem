@@ -93,6 +93,25 @@ html[data-theme="light"] .usign:hover{background:var(--one-danger-bg)}
   grid-template-areas:"rail aside rsz hd" "rail aside rsz main"}
 #rail{grid-area:rail}#aside{grid-area:aside}.rsz{grid-area:rsz}#main{grid-area:main}
 .ws.one{grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"rail hd" "rail main"}.ws.one .rsz,.ws.one #aside{display:none}
+/* Раздел «Обучение» */
+.lrn{display:flex;flex-direction:column;gap:12px}
+.lrn .card{margin:0}
+.lrn-why{margin:0;max-width:70ch;font-size:14px;line-height:1.5}
+.lrn-meta{margin:-6px 0 0}
+.lrn-sep{margin:0 6px}
+.lrn-steps{margin:0;padding:10px 16px 12px 36px;display:grid;gap:6px;line-height:1.45;max-width:80ch}
+.lrn-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.lrn-facts>div{display:flex;flex-direction:column;gap:2px}
+.lrn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.lrn-topic{display:flex;flex-direction:column;gap:6px;padding:14px 16px}
+.lrn-topic p{margin:0;flex:1;line-height:1.45}
+.lrn-t{font-weight:600;font-size:14px}
+.lrn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
+.lrn-tbl{width:100%;table-layout:fixed;border-collapse:collapse}
+.lrn-tbl th,.lrn-tbl td{padding:8px 12px;text-align:left;vertical-align:top}
+.lrn-tbl td{border-top:1px solid var(--ln);line-height:1.4}
+.lrn-c1{width:210px}.lrn-c3{width:112px}.lrn-c4{width:130px}
+.lrn-nav{display:flex;justify-content:space-between;gap:12px}
 /* Во весь экран: дерево и рельс уходят, панель занимает всё окно. */
 .ws.full{grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "main"}.ws.full>#rail,.ws.full>#aside,.ws.full>.rsz{display:none}
 .rail{width:var(--rail-w);min-height:0;flex:none;display:flex;flex-direction:column;gap:4px;padding:var(--gut);background:var(--p);border-right:1px solid var(--ln);overflow:hidden}
@@ -109,15 +128,18 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-choice:hover{background:var(--one-control-hover);border-color:var(--one-border);color:var(--tx)}
 .ph-choice.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-/* «Папки» — не срез, а настройка раскладки: своя строка и переключатель вместо кнопки-выбора. */
-.ph-switch{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--tx);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer}
-.ph-switch:hover{background:var(--one-control-hover)}
-.ph-switch:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-.ph-switch .sw{width:28px;height:16px}
-.ph-switch .sw:after{width:12px;height:12px}
-.ph-switch .sw.on:after{left:14px}
-.ph-switch:disabled{opacity:.45;cursor:default;background:transparent}
-.ph-switch:disabled .sw{cursor:default}
+/* За чертой — не срезы, а настройка показа: «Папки» и статус. Черта держится вместе с последним срезом, поэтому настройки не уезжают отдельной строкой. */
+.ph-slices{display:contents}
+.ph-tail{display:inline-flex;align-items:center;gap:4px;flex:none;max-width:100%;min-width:0}
+.ph-fold{position:relative;display:inline-flex;align-items:center;gap:4px;min-width:0;margin-left:2px;padding-left:7px}
+.ph-fold:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--one-border-strong)}
+.ph-fold svg.ic-svg{width:14px;height:14px;flex:none}
+/* Нажатые «Папки» — как кнопка статуса с выбранным фильтром: настройки за чертой выглядят одинаково и отличаются от выбранного среза */
+.ph-fold #viewBtn.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
+.ph-fold #viewBtn.on:hover:not(:disabled){background:var(--one-selected-neutral-hover);border-color:var(--one-selected-indicator);color:var(--one-fg)}
+.ph-fold #viewBtn:disabled{opacity:.45;cursor:default}
+.ph-fold #viewBtn:disabled:not(.on):hover{background:transparent;border-color:transparent;color:var(--one-fg-muted)}
+.ph-status-label{max-width:104px;overflow:hidden;text-overflow:ellipsis}
 .ph-cnt{flex:none;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--one-control-bg);color:var(--one-fg-muted);font-size:10px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .ph-choice.on .ph-cnt{background:var(--one-selected-neutral);color:var(--one-fg)}
 .ph-chevron{font-size:9px;opacity:.7}
@@ -718,6 +740,8 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-n{flex:none;min-width:34px;color:var(--mu);font-size:12px;text-transform:lowercase}
 .rl-f{flex:1 1 140px;min-width:0}
 .rl-f input,.rl-f select{width:100%}
+select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([multiple]){padding-right:28px}
+.rl-f:has(>select){flex:1 1 auto;max-width:100%}.rl-f>select{field-sizing:content;min-width:120px}
 .rl-mx summary{cursor:pointer;color:var(--mut,inherit);font-size:12px;white-space:nowrap}
 .rl-mx input{margin-top:4px}
 .rl-ref{display:flex;align-items:center;gap:6px}
@@ -732,6 +756,19 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-none{padding:10px 12px}
 .rl-h{font-weight:600;margin:4px 0 6px}
 .rl-opts{display:grid;gap:8px;margin-bottom:14px}
+.rl-opts-2{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.rl-tpl-g{grid-column:1/-1;margin:6px 0 -2px;color:var(--mu);font-size:12px;font-weight:600}
+.rl-tpl-q{width:100%;margin:0 0 10px}.rl-tpl-none{grid-column:1/-1;margin:0}
+.rl-opt[hidden],.rl-tpl-g[hidden],.rl-tpl-none[hidden],.cbx-n[hidden]{display:none}
+.cbx{position:fixed;z-index:20000;display:flex;flex-direction:column;box-sizing:border-box;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 8px 24px #0006}
+.cbx-q{flex:none;width:auto;margin:6px;box-sizing:border-box}
+.cbx-l{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable;padding:0 4px 4px}
+.cbx-g{position:sticky;top:0;padding:6px 8px 2px;background:var(--p);color:var(--mu);font-size:11px;font-weight:600}
+.cbx-o{padding:5px 8px;border-radius:5px;font-size:13px;cursor:pointer}
+.cbx-o.act{background:var(--one-nav-hover)}.cbx-o[aria-selected="true"]{font-weight:600}
+.cbx-o[aria-disabled="true"]{color:var(--mu);cursor:default}
+.cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
+.cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
 .rl-opt:hover{background:color-mix(in srgb,var(--one-control-hover) 50%,transparent)}
 .rl-opt.on{background:var(--one-accent-soft);border-color:var(--one-selected-indicator)}
@@ -2122,6 +2159,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -2158,7 +2196,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <input id="gq" autocomplete="off" data-i18n-placeholder="Имя, IP, раздел, настройка…" placeholder="Имя, IP, раздел, настройка…"
       data-i18n-title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
       title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
-      data-on-input='[["goInput",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
+      data-on-input='[["goType",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
     <button type="button" class="gojump-clear hide" id="goClear" data-i18n-title="Очистить" title="Очистить" aria-label="Очистить" data-on-click='[["clearTreeQ",{"$on":"event"}]]'><svg class="ic-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <span class="gojump-hint" aria-hidden="true">Ctrl K</span>
     <div class="gopop" id="gopop"><div id="goList"></div></div>
@@ -2186,7 +2224,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <div id="domainMenuHost"></div>
 <div class="jump" id="jump" data-on-click='[[".self"],["closeJump"]]'>
   <div class="jbox" data-on-click='[[".stop"]]'>
-    <input id="jq" data-i18n-placeholder="Перейти к объекту…  (камера, датчик, сервер)" placeholder="Перейти к объекту…  (камера, датчик, сервер)" data-on-input='[["jumpList"]]' autofocus>
+    <input id="jq" data-i18n-placeholder="Перейти к объекту…  (камера, датчик, сервер)" placeholder="Перейти к объекту…  (камера, датчик, сервер)" data-on-input='[["jumpType"]]' autofocus>
     <div class="jlist" id="jlist"></div>
   </div>
 </div>
@@ -2328,7 +2366,9 @@ onEv.key=(...keys)=>[".key",...keys];
       if(name===".ifValue"){if(!el.value)return;continue}
       const fn=window[name];
       if(typeof fn!=="function")throw new Error(`data-on-${type}: нет функции ${name}`);
-      fn.apply(el,args.map(a=>live(el,ev,a)));
+      // onEv.now — событие, которое сейчас обрабатывается: по нему typeLater отличает настоящий ввод от вызова из кода
+      const was=onEv.now;onEv.now=ev;
+      try{fn.apply(el,args.map(a=>live(el,ev,a)))}finally{onEv.now=was}
     }
   }
   // Перехват на документе: шаги идут раньше слушателей ниже по дереву и раньше «клика снаружи» на
@@ -2345,6 +2385,54 @@ onEv.key=(...keys)=>[".key",...keys];
       }
     },true));
 })();
+// ── Поиск и фильтры — после паузы в наборе ───────────────────────────────
+// Буква в поле видна сразу, а поиск и перестройка длинного списка идут через TYPE_PAUSE_MS после последней клавиши:
+// на большом наборе поиск занимает секунды, и ввод стоял на каждой букве («чтобы был таймер, тогда будет полное
+// ощущение лёгкости при вводе» — слово владельца). 200 мс — из задачи ускорения 3а (perf-3a-brief.md): дольше паузы
+// между буквами при обычном наборе (80–120 мс), так что посреди слова поиск не запускается, и ещё не ощущается
+// ожиданием после последней буквы. Ею же ждут поиск камер экспорта и сценария (expPickQ, scenCamFind).
+// Задержка действует только на настоящий ввод: событие input от браузера (isTrusted). Вызов из кода, клик по крестику
+// и сценарии tests/ui-*.js (value и dispatchEvent(new Event("input")) — isTrusted=false) применяют запрос сразу, как
+// раньше: сценарии проверяют результат сразу после ввода. Пустое поле применяется сразу. Enter — сразу (typeFlushAll,
+// у поиска в шапке — goKey).
+// Пока поиск ждёт паузы, на экране прежний результат: состояние фильтра пишется сразу, перерисовка — по таймеру
+const TYPE_PAUSE_MS=200;
+const typeWait=new Map();   // ключ поля → {t, fn}
+// fn(late): late — вызов по таймеру или по Enter, а не из самого события: курсор в поле возвращают, только если человек
+// из него не ушёл (typeFocused). Отложенный вызов идёт, только пока место набора живо (typeLive).
+// evt — событие для слушателя, заведённого addEventListener, а не onEv (поиск в длинном списке cbx): onEv.now там пуст
+function typeLater(key,fn,now,evt){
+  typeDrop(key);
+  const ev=evt||onEv.now;
+  if(now||!ev||ev.type!=="input"||!ev.isTrusted){fn(false);return}
+  const at={el:ev.target,sel,app},run=()=>{if(typeLive(key,at))fn(true)};
+  typeWait.set(key,{fn:run,t:setTimeout(()=>{typeWait.delete(key);run()},TYPE_PAUSE_MS)});
+}
+// За паузу человек мог закрыть окно (Esc, подложка), уйти на другой объект или в другой раздел. Тогда перерисовка
+// по набранному уже не к месту: она открыла бы закрытое окно снова (renderCopyDialog, raRender зовут openBulkModal)
+// или перерисовала бы чужую карточку. Не к месту, если поля уже нет в DOM (окно или карточку перерисовали — новое
+// поле нарисовано по уже записанному запросу), его окно закрыто или сменились объект и раздел. Поиск в шапке
+// (#gq) один на все разделы: для него — только поле
+const TYPE_WINDOWS="#bmodal,#jump,.mask";
+function typeLive(key,at){
+  const el=at.el;
+  if(!el||!el.isConnected)return false;
+  const win=el.closest?.(TYPE_WINDOWS);
+  if(win&&!win.classList.contains("open"))return false;
+  return key==="gq"||(sel===at.sel&&app===at.app);
+}
+function typeDrop(key){const w=typeWait.get(key);if(!w)return false;clearTimeout(w.t);typeWait.delete(key);return true}
+function typeFlush(key){const w=typeWait.get(key);if(!w)return false;typeDrop(key);w.fn(true);return true}
+// Поиск в шапке Enter ведёт сам (goKey): Enter к ассистенту искать по дереву не должен
+function typeFlushAll(){[...typeWait.keys()].filter(k=>k!=="gq").forEach(typeFlush)}
+function typePending(key){return typeWait.has(key)}
+function typeFocused(late,target){
+  if(!late)return true;
+  const a=document.activeElement;
+  return !!a&&(typeof target==="string"?!!a.matches?.(target):a===target);
+}
+// Enter в поле поиска или фильтра — применить набранное сразу, раньше обработчиков страницы
+addEventListener("keydown",e=>{if(e.key==="Enter"&&typeWait.size)typeFlushAll()},true);
 const svgIc=(d,vb="0 0 16 16")=>`<svg class="ic-svg" viewBox="${vb}" width="14" height="14" aria-hidden="true">${d}</svg>`;
 // Иконки — Lucide (ISC, v1.46.0, из ONE.PSIM.PrototypeKit): одно семейство на весь макет вместо
 // залитых глифов, эмодзи и текстовых символов (AGENTS.md «one coherent icon family», D-005).
@@ -2435,6 +2523,10 @@ IC.sec_acc=lu("user");
 IC.sec_sys=lu("settings");
 IC.sec_log=lu("list");
 IC.sec_exp=lu("download");
+LU["graduation-cap"]='<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>';
+LU["book-open"]=LU["book-open"]||'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>';
+LU["play"]=LU["play"]||'<path d="M6 4l14 8-14 8z"/>';
+IC.sec_learn=lu("graduation-cap");
 IC.archive=IC.storage;LU.network=`<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>`;IC.asnet=lu("network");IC.asdisk=lu("hard-drive");
 // Строки-списки — те же знаки, что у их содержимого, только серые: сервер
 // для «Нераспределённых серверов», хранилище для «Без записи», папка для
@@ -2470,7 +2562,7 @@ const SLICE_SW={...SLICE_SW_RU};
 const SLICE_IC={all:"svcs",cam:"camera",acfa:"acfa",srv:"server",arch:"archive",det:"det"};
 // Раскладка одна на все срезы и меняется кнопкой «Папки», а не выбором среза.
 // В Серверах и Архивах папок нет: кнопка там неактивна, раскладка ждёт возврата.
-// В Детекторах кнопка переключает папки и виды.
+// В Детекторах кнопка переключает папки и виды, положение то же, что у остальных срезов.
 const SLICE_GROUPS={all:["server","folder"],cam:["folder","server"],acfa:["folder","server"],srv:["server"],arch:["server"],det:["kind","folder"]};
 // Старые ссылки звали срез «Всё оборудование» — ведём их в «Камеры».
 const SLICE_ALIAS={dev:"cam",srvs:"srv"};
@@ -2543,14 +2635,14 @@ let deviceSearchTimer=null,deviceSearchInterval=null;
 let app="hw",_lastApp=null,sel="d1",tab="gen",dirty=false,rule="overview",ruleTab="cfg",role="adm",sys="ntp",tview="cam";
 const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rules",label:"Автоматизация",ic:"sec_rules"},
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
-  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"}];
+  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"},{id:"learn",label:"Обучение",ic:"sec_learn"}];
 let slice="all";
-// Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
-// У Детекторов своё положение: там второе положение — виды, а при входе нужны они (прототип 18).
-const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"kind"};
+// Группировка общая на все срезы: кнопку «Папки» человек нажимает сам, выбор среза её не трогает. В Детекторах «выключено» — виды.
+
+const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"folder"};
 function setGroupAll(g){
-  if(slice==="det"){if(SLICE_GROUPS.det.includes(g))groupBy.det=g;return}
-  Object.keys(groupBy).forEach(s=>{if(s!=="det"&&SLICE_GROUPS[s].includes(g))groupBy[s]=g});
+  const on=g==="folder";
+  Object.keys(groupBy).forEach(s=>{groupBy[s]=on?"folder":s==="det"?"kind":"server"});
 }
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
@@ -2558,7 +2650,9 @@ function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:slice
 // её ради переименования значило бы менять работающее без причины.
 // По умолчанию дерево занимает 30% окна. Границы ограничивают ширину панели,
 // а размер, выбранный перетаскиванием, запоминается.
-function asideWidthClamp(w){return Math.max(280,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
+// Нижняя граница — чтобы последний срез, «Папки» и статус помещались в одну строку
+const ASIDE_MIN=400;
+function asideWidthClamp(w){return Math.max(ASIDE_MIN,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
 function asideWidthDefault(){
   try{const saved=parseInt(localStorage.getItem("cfg.asideW"),10);if(saved)return asideWidthClamp(saved)}catch(e){}
   // В срезе «Хранилища» дерево только выбирает место: ширина отдана таблице.
@@ -2662,7 +2756,16 @@ function apiUnauthorized(){
   else setTimeout(()=>toast(i18n("Сессия истекла — войдите снова")),0);
 }
 const API=(()=>{
-  const q=new URLSearchParams(location.search),base=q.get("api")||pageMeta("consolem-api"),latency=+q.get("latency")||0;
+  const q=new URLSearchParams(location.search),latency=+q.get("latency")||0;
+  // Учебный режим (раздел «Обучение») — всегда на встроенном сервере: настоящая система в нём не участвует
+  const base=window.Tour?.demo?null:q.get("api")||pageMeta("consolem-api");
+  // Файлы сервера показа не загрузились (сборка без demo/): обычная страница вместо пустой
+  if(window.Tour?.demo&&typeof ConsolemServer==="undefined"){
+    const u=new URL(location.href);
+    ["tour","demo","play","all"].forEach(k=>u.searchParams.delete(k));
+    location.replace(u.href);
+    throw new Error("Учебный режим: файлы demo/ не загрузились");
+  }
   if(base)return ConsolemApi.create({baseUrl:base,latency,onUnauthorized:apiUnauthorized});
   const all=window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE};
   // ?drop=op1,op2 — система, которая не объявила эти операции: так проверяется запуск без необязательного
@@ -2825,7 +2928,7 @@ function kindsChanged(){
   kindsBusy=kindsLoad().then(changed=>{
     if(!changed)return;
     treeMatchCache.clear();searchMatchCache.clear();
-    if(app==="hw"){renderTree();gear()}
+    if(app==="hw"){renderTreeSoon();gear()}
   }).catch(()=>{}).finally(()=>{kindsBusy=null});
   return kindsBusy;
 }
@@ -2897,6 +3000,16 @@ function searchFieldApi(k){return k==="id"?"identifier":k}
 let refScenKinds=null;
 const LIM={pageMax:1000,idsMax:200,selectMax:500,watchMax:200};
 const servers=[],domains=[];
+// Индекс кэша для find и сторож индекса — у hwIdxBuild
+let hwIdx=null,hwIdxGen=0;
+const IDX_GUARD={on:/[?&]selftest\b/.test(location.search),ok:null,bad:[],n:0,k:0};
+try{
+  let uc;
+  Object.defineProperty(window,"UiCheck",{configurable:true,get:()=>uc,set(f){
+    IDX_GUARD.on=true;
+    uc=fn=>f(async h=>{IDX_GUARD.ok=h.ok;idxGuardFlush();try{return await fn(h)}finally{idxGuardFlush();if(IDX_GUARD.n>5)h.ok(false,`сторож индекса: всего расхождений ${IDX_GUARD.n}`);IDX_GUARD.ok=null}});
+  }});
+}catch(e){}
 // Версия записи — для If-Match и плана операции. В объекты кэша не кладётся:
 // иначе она попала бы в «было → станет» карточки.
 const hwVer=new Map();
@@ -3711,7 +3824,7 @@ function schemaSearchText(n){
 // Кэш «Оборудования» неполный: домены и серверы целиком (их мало), папки, хранилища и тома — первой страницей,
 // устройства — только то, что раскрыли, нашли или открыли. Режим один на любом размере.
 function hwFill(L){
-  [servers,domains,devicePool,folders,arch].forEach(x=>x.length=0);
+  [servers,domains,devicePool,folders,arch].forEach(x=>x.length=0);hwIdxDrop();
   [SERVER_DOMAIN,DEVICE_DOMAIN,SERVER_GPU,SERVER_DISKS].forEach(x=>Object.keys(x).forEach(k=>delete x[k]));
   hwVer.clear();
   const ver=r=>hwVer.set(r.id,r.version);
@@ -3720,6 +3833,7 @@ function hwFill(L){
   L.domains.forEach(r=>{ver(r);domains.push({...domNode(r),
     servers:L.servers.filter(s=>s.domainId===r.id&&s.allocated).map(s=>byId.get(s.id)),
     unallocServers:L.servers.filter(s=>s.domainId===r.id&&!s.allocated).map(s=>byId.get(s.id))})});
+  hwIdxDrop();
   folderAdd(L.folders);
   L.archives.forEach(archAdd);
   L.volumes.forEach(volAdd);
@@ -3732,14 +3846,14 @@ function folderAdd(list){
     if(folderById(r.id))return false;
     if(r.parentId&&!folderById(r.parentId))return true;
     hwVer.set(r.id,r.version);
-    const f=folderNode(r);(r.parentId?folderById(r.parentId).folders:folders).push(f);
+    const par=r.parentId?folderById(r.parentId):null,f=folderNode(r);(par?par.folders:folders).push(f);hwIdxAddFolder(f,par);
     return false;
   });
   if(left.length&&left.length<list.length)folderAdd(left);
   return left;
 }
-function archAdd(r){if(archById(r.id))return;hwVer.set(r.id,r.version);arch.push(archNode(r))}
-function volAdd(r){const a=archById(r.archiveId);if(!a||a.vols.some(v=>v.id===r.id))return;hwVer.set(r.id,r.version);a.vols.push(volNode(r))}
+function archAdd(r){if(archById(r.id))return;hwVer.set(r.id,r.version);const a=archNode(r);arch.push(a);hwIdxAddArch(a)}
+function volAdd(r){const a=archById(r.archiveId);if(!a||a.vols.some(v=>v.id===r.id))return;hwVer.set(r.id,r.version);const v=volNode(r);a.vols.push(v);hwIdxAddVol(v)}
 // Дочитаны ли перечни до конца: нет — запись по чужому id читается отдельно
 const hwDone={folders:false,archives:false,volumes:false};
 let hwTotal=null,hwReadAt=0;
@@ -3785,10 +3899,11 @@ function cardKeepNode(n,snap,live){
     if(k==="devices"||CARD_SKIP.has(k)||k.startsWith("_"))return;
     if(JSON.stringify(live[k])===JSON.stringify(snap[k]))return;
     if(live[k]===undefined)delete n[k];else n[k]=cardClone({v:live[k]}).v;
+    if(IDX_KEYS.has(k))hwIdxDrop();
   });
   const sd=new Map((snap.devices||[]).map(d=>[d.id,d]));
   (live.devices||[]).forEach(d=>{
-    if(!sd.has(d.id)){(n.devices||(n.devices=[])).push(cardClone(d));return}
+    if(!sd.has(d.id)){(n.devices||(n.devices=[])).push(cardClone(d));hwIdxDrop();return}
     const nd=(n.devices||[]).find(x=>x.id===d.id);if(nd)cardKeepNode(nd,sd.get(d.id),d);
   });
   return base;
@@ -3824,8 +3939,10 @@ const KEEP_DEVICE=new Set(["devices","_f"]),KEEP_ROW=new Set(["devices","_f","_m
 function hwReparent(n,parentId,domainId){
   const f=find(n.id),list=f?.p?f.p.devices:devicePool;
   const i=list?list.indexOf(n):-1;if(i>=0)list.splice(i,1);
+  hwIdxDrop();
   if(parentId){const p=find(parentId)?.n;if(!p)return hwReloadSoon();(p.devices||(p.devices=[])).push(n);delete DEVICE_DOMAIN[n.id]}
   else{devicePool.push(n);DEVICE_DOMAIN[n.id]=domainId}
+  hwIdxDrop();
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
 }
 function hwApplyDevice(r){
@@ -3843,10 +3960,10 @@ function hwApplyDevice(r){
 function hwApplyServer(r){
   const fresh=srvNode(r);
   let s=servers.find(x=>x.id===r.id);
-  if(!s){s=fresh;servers.push(s)}
+  if(!s){s=fresh;servers.push(s);hwIdxDrop()}
   else hwFresh(s,fresh,KEEP_SERVER);
   const now=r.allocated?domainOf(s.id)?.id:unallocDomainOf(s.id);
-  if(now!==r.domainId){takeServer(s.id);domainById(r.domainId)?.[r.allocated?"servers":"unallocServers"].push(s)}
+  if(now!==r.domainId){takeServer(s.id);domainById(r.domainId)?.[r.allocated?"servers":"unallocServers"].push(s);hwIdxDrop()}
   SERVER_DOMAIN[r.id]=r.domainId;hwVer.set(r.id,r.version);
 }
 function hwApplyDomain(r){
@@ -3860,9 +3977,9 @@ function hwAddDevices(list,flds){
     if(find(r.id))return;
     hwVer.set(r.id,r.version);
     const n=devNode(r);
-    if(r.parentId){const p=find(r.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(r.type))servers.find(s=>s.id===r.serverId)?.devices.push(n);
-    else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+    if(r.parentId){const p=find(r.parentId)?.n;if(p){(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}}
+    else if(SVC_TYPES.has(r.type)){servers.find(s=>s.id===r.serverId)?.devices.push(n);hwIdxDrop()}
+    else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId;hwIdxAdd(n,null)}
     hwFolderIds(r);
   });
   (flds||[]).forEach(hwApplyFolder);
@@ -3876,9 +3993,9 @@ function hwAddUnits(list){
     if(INFRA_SCREENS.has(t)){hwAddRow(u);return}
     hwVer.set(u.uid,u.version);
     const n=unitNode(u),r=unitRec(u);
-    if(u.parentId){const p=find(u.parentId)?.n;if(p)(p.devices||(p.devices=[])).push(n)}
-    else if(SVC_TYPES.has(t))servers.find(s=>s.id===r.serverId)?.devices.push(n);
-    else{devicePool.push(n);DEVICE_DOMAIN[u.uid]=u.domainId}
+    if(u.parentId){const p=find(u.parentId)?.n;if(p){(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}}
+    else if(SVC_TYPES.has(t)){servers.find(s=>s.id===r.serverId)?.devices.push(n);hwIdxDrop()}
+    else{devicePool.push(n);DEVICE_DOMAIN[u.uid]=u.domainId;hwIdxAdd(n,null)}
     hwFolderIds({id:u.uid,folderIds:u.folders||[]});
   });
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
@@ -3930,9 +4047,9 @@ function hwAddRow(u){
   if(HAND_SCREENS.has(t)&&u.kind!==t)n._kind=u.kind;
   n._row=true;if(r.hasChildren)n._more=true;
   hwVer.set(r.id,r.version);
-  if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n)}
-  else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s)s.devices.push(n)}
-  else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId}
+  if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}
+  else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s){s.devices.push(n);hwIdxAdd(n,s)}}
+  else{devicePool.push(n);DEVICE_DOMAIN[r.id]=r.domainId;hwIdxAdd(n,null)}
   return n;
 }
 // Вход по чужому id (поиск, журнал, правило, права): запись сперва дочитывается, родители — раньше детей
@@ -3973,6 +4090,7 @@ function hwRemoveFolder(id){
   const parent=folderParent(id);
   if(parent)parent.folders=parent.folders.filter(x=>x.id!==id);
   else{const i=folders.findIndex(x=>x.id===id);if(i>=0)folders.splice(i,1)}
+  hwIdxDrop();
   const gone=[id];walkFolders(x=>gone.push(x.id),f.folders||[]);
   gone.forEach(x=>{hwVer.delete(x);open.delete(x)});
   if(gone.includes(selFolder))selFolder=null;
@@ -3985,6 +4103,7 @@ function hwRemoveDevice(id){
   const gone=new Set();walk(n=>gone.add(n.id),[f.n],null);gone.add(id);
   const list=f.p?f.p.devices:devicePool.includes(f.n)?devicePool:servers.find(s=>s.devices.includes(f.n))?.devices;
   if(list){const i=list.indexOf(f.n);if(i>=0)list.splice(i,1)}
+  hwIdxDrop();
   walkFolders(x=>{x.items=(x.items||[]).filter(y=>!gone.has(y))});
   walkAll(n=>{if(n.recDets)n.recDets=n.recDets.filter(y=>!gone.has(y))});
   gone.forEach(x=>{hwVer.delete(x);delete DEVICE_DOMAIN[x]});
@@ -4107,7 +4226,7 @@ function hwApplyVolume(r){
   const a=archById(r.archiveId);if(!a)return;
   const fresh=volNode(r);
   let v=a.vols.find(x=>x.id===r.id);
-  if(!v){a.vols.push(fresh);v=fresh}else hwFresh(v,fresh,KEEP_NONE);
+  if(!v){a.vols.push(fresh);v=fresh;hwIdxAddVol(fresh)}else hwFresh(v,fresh,KEEP_NONE);
   const snap=cardBase&&cardBase.id===a.id?cardBase.snap.vols:null;
   if(snap){const i=snap.findIndex(x=>x.id===r.id);if(i>=0)snap[i]=cardClone(fresh);else snap.push(cardClone(fresh))}
   hwVer.set(r.id,r.version);
@@ -4181,11 +4300,11 @@ function apiOnEvent(m){
   const dev=hwEventDevice(m.kind);
   if(m.type==="entity.created"&&dev&&!hwVer.has(m.entityId)){
     // Чужой новый объект — одной записью, если его родитель уже в кэше
-    API.get(`/units/${m.entityId}`).then(u=>{if(u.parentId&&!find(u.parentId))return;hwAddUnits([u]);renderTree()}).catch(()=>{});
+    API.get(`/units/${m.entityId}`).then(u=>{if(u.parentId&&!find(u.parentId))return;hwAddUnits([u]);renderTreeSoon()}).catch(()=>{});
     return;
   }
-  if(m.type==="entity.deleted"&&dev&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTree();if(sel===m.entityId)paint();return}
-  if(m.type==="entity.deleted"&&screenType(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTree();if(own)paint();return}
+  if(m.type==="entity.deleted"&&dev&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTreeSoon();if(sel===m.entityId)paintTreeSoon();return}
+  if(m.type==="entity.deleted"&&screenType(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTreeSoon();if(own)paintTreeSoon();return}
   // Устройства нет в кэше — читать нечего: кэш неполный, перечитывание целиком отменено
   if(dev&&m.type!=="entity.changed")return;
   if(m.type==="entity.created"||m.type==="entity.deleted"){if((m.type==="entity.created")!==hwVer.has(m.entityId))hwReloadSoon(m);return}
@@ -4194,7 +4313,7 @@ function apiOnEvent(m){
   if(dev&&!hwVer.has(m.entityId))return;
   API.get(`/units/${m.entityId}`).then(u=>{
     hwApplyUnit(u);treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();if(sel===m.entityId&&!cardDraft&&!(bq&&!bq.finished))paint();
+    renderTreeSoon();if(sel===m.entityId&&!cardDraft&&!(bq&&!bq.finished))paintTreeSoon();
   }).catch(()=>{});
 }
 // Поток потерян: перечитывается только то, что есть в кэше. Весь перечень не читается никогда
@@ -4234,7 +4353,7 @@ async function hwTouched(ids){
   for(let i=0;i<list.length;i+=16)await Promise.all(list.slice(i,i+16).map(id=>API.get(`/units/${id}`).then(hwApplyUnit).catch(()=>{})));
   if(!list.length)return;
   treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"){renderTree();if(list.includes(sel)&&!cardDraft&&!(bq&&!bq.finished))paint()}
+  if(app==="hw"){renderTreeSoon();if(list.includes(sel)&&!cardDraft&&!(bq&&!bq.finished))paint()}
 }
 function hwCachedIds(){return hwRowsDropped?[]:(()=>{const out=[];walk(n=>out.push(n.id),devicePool,null);servers.forEach(s=>walk(n=>out.push(n.id),s.devices,s));return out})()}
 // Стенд сброшен: прежние id ничего не значат
@@ -4328,8 +4447,15 @@ function matchesDomain(n){return!domainFilter||nodeDomainId(n)===domainFilter}
 function scopedDomains(){return domains.filter(matchesDomain)}
 const folders=[];
 function walkFolders(fn,list,parent){(list||folders).forEach(f=>{fn(f,parent||null);walkFolders(fn,f.folders,f)})}
-function folderById(id){let o=null;walkFolders(f=>{if(f.id===id)o=f});return o}
-function folderParent(id){let o=null;walkFolders((f,p)=>{if(f.id===id)o=p});return o}
+// Папка и её родитель — по индексу кэша (hwIdx), в проверках сверяются с перебором
+function folderById(id){
+  const o=hwIdxGet().fold.get(id)?.n||null;
+  return IDX_GUARD.on?idxGuard("folderById",id,o,()=>{let w=null;walkFolders(f=>{if(f.id===id)w=f});return w}):o;
+}
+function folderParent(id){
+  const o=hwIdxGet().fold.get(id)?.p||null;
+  return IDX_GUARD.on?idxGuard("folderParent",id,o,()=>{let w=null;walkFolders((f,p)=>{if(f.id===id)w=p});return w}):o;
+}
 function folderPath(id){const out=[];let f=folderById(id);while(f){out.unshift(f);f=folderParent(f.id)}return out}
 function folderPathName(id){return folderPath(id).map(f=>locName(f)).join(" / ")}
 function folderDomain(id){return folderPath(id)[0]?.domain||null}
@@ -4457,14 +4583,18 @@ function volDesc(v){
 }
 function volStateText(v){return v.state&&v.state!=="ready"?i18n(VOL_STATES[v.state]||v.state):`${i18n("Готов")} (${v.used})`}
 function archVols(a){return a?.vols||[]}
-function volById(id){if(typeof id!=="string")return null;for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v)return v}return null}
+function volById(id){
+  if(typeof id!=="string")return null;
+  const o=hwIdxGet().vol.get(id)||null;
+  return IDX_GUARD.on?idxGuard("volById",id,o,()=>{for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v)return v}return null}):o;
+}
 function sizeTb(str){const m=/([\d.,]+)\s*(ТБ|ГБ|TB|GB)/.exec(str||"");if(!m)return 0;const n=parseFloat(m[1].replace(",","."));return/Г|G/.test(m[2])?n/1024:n}
 function fmtTb(n){return n>=1?String(Math.round(n*10)/10).replace(".",",")+" "+i18n("ТБ"):Math.round(n*1024)+" "+i18n("ГБ")}
 function archSizeTb(a){return archVols(a).reduce((t,v)=>t+sizeTb(v.size),0)}
 function archSize(a){return fmtTb(archSizeTb(a))}
 function archUsed(a){const t=archSizeTb(a);if(!t)return"0%";const u=archVols(a).reduce((x,v)=>x+sizeTb(v.size)*(parseFloat(v.used)||0)/100,0);return Math.round(u/t*100)+"%"}
 function archDiskLabel(a){const v=archVols(a);return v.length===1?(archAddr(a)==="bucket"?volLabelOf(a,v[0]):v[0].disk):`${v.length} ${i18n(plural(v.length,"том|тома|томов"))}`}
-function archById(id){return arch.find(a=>a.id===id)||null}
+function archById(id){const o=hwIdxGet().ar.get(id)||null;return IDX_GUARD.on?idxGuard("archById",id,o,()=>arch.find(a=>a.id===id)||null):o}
 // Камера без сервера (добавлена без него) подключается к серверу первого
 // своего хранилища — дальше сервер остаётся с ней и без записи.
 // Где serverId — наблюдение, а не настройка, сервер объявляет его только для чтения: форма не закрепляет его сама
@@ -4486,12 +4616,12 @@ function setDevServer(node,sid){
 // Сервер камеры без поиска по дереву: свой, иначе — через хранилище записи
 function camSrvId(n){return n.srvId||(isRecording(n)?archById(n.arch)?.server:null)||null}
 // Камера внутри регистратора наследует его сервер
-let srvCamMemo=null;
 function serverCameras(sid){
-  // Сервер за сервером — квадрат: на одну отрисовку раскладка считается один раз
+  // Сервер за сервером — квадрат: на одну отрисовку (withFind) раскладка считается один раз
   if(findMemo){
+    let srvCamMemo=findMemo.srvCam;
     if(!srvCamMemo){
-      srvCamMemo=new Map();const via=new Map();
+      srvCamMemo=findMemo.srvCam=new Map();const via=new Map();
       walkAll((n,p)=>{
         const s=((n.type==="camera"||n.type==="ipsrv")&&n.srvId)||(p&&via.get(p.id))||null;
         if(s)via.set(n.id,s);
@@ -4563,7 +4693,7 @@ async function archCamsLoad(aid,more){
     await hwEnsure(r.items.map(x=>x.parentId));
     r.items.forEach(x=>{hwAddRow(x);b.ids.add(x.uid)});
     b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
-    if(r.items.length&&sel===aid&&app==="hw"){renderTree();gear()}
+    if(r.items.length&&sel===aid&&app==="hw"){renderTreeSoon();gear()}
   }catch(e){b.done=true}
   finally{b.busy=false}
 }
@@ -4784,7 +4914,7 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
 function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():true);
+  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():a.id==="learn"?learnShown():true);
 }
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
@@ -5272,20 +5402,91 @@ function walkAll(fn){
 const ACFA_NODE_IDS=new Set();
 function markAcfa(list,inside=false){(list||[]).forEach(n=>{const under=inside||n.type==="acfa";if(under)ACFA_NODE_IDS.add(n.id);markAcfa(n.devices,under)})}
 function remakeAcfa(){ACFA_NODE_IDS.clear();markAcfa(devicePool);servers.forEach(s=>markAcfa(s.devices))}
-// Перебор кэша на каждый find в отрисовке — квадрат: на время одной отрисовки кэш не меняется, карта собирается один раз
+// На время одной отрисовки кэш не меняется: производные карты (папки объекта, камеры сервера) собираются один раз.
+// Сам find идёт по постоянному индексу (hwIdx), withFind ему не нужен
 let findMemo=null;
 function withFind(fn){
   if(findMemo)return fn();
-  const m=new Map();walkAll((n,p)=>m.set(n.id,{n,p}));
-  findMemo=m;
+  findMemo={};
   try{return fn()}finally{findMemo=null}
 }
+// Индекс кэша: id → {n, p} одним проходом вместо перебора всего кэша на каждый find (квадрат «строк × кэш»).
+// Слои — в порядке прежнего поиска: объекты дерева (walkAll; повтор id — последний), папки (последний), хранилища и тома
+// (первый). Индекс держит ссылки на объекты, поэтому правка полей (имя, связь, запись) его не трогает. Состав списков кэша
+// и родителя узла меняют только места с hwIdxDrop: индекс сбрасывается (поколение +1) и собирается заново при первом find.
+// Строки перечня (hwAddRow), созданные объекты, папки, хранилища и тома дописываются в готовый индекс точечно (hwIdxAdd…):
+// страница ветки или волна поиска — сотни строк, пересборка на каждую вернула бы квадрат
+function hwIdxDrop(){hwIdx=null;hwIdxGen++}
+// Поля узла со списками других узлов: черновик карточки (cardRestoreNode, cardKeepNode) кладёт в них копии — состав меняется
+const IDX_KEYS=new Set(["servers","unallocServers","vols","folders"]);
+function hwIdxBuild(){
+  const core=new Map(),fold=new Map(),ar=new Map(),vol=new Map(),sv=new Map();
+  walkAll((n,p)=>core.set(n.id,{n,p}));
+  servers.forEach(s=>{if(!sv.has(s.id))sv.set(s.id,s)});
+  walkFolders((f,p)=>fold.set(f.id,{n:f,p}));
+  arch.forEach(a=>{if(!ar.has(a.id))ar.set(a.id,a);(a.vols||[]).forEach(v=>{if(!vol.has(v.id))vol.set(v.id,v)})});
+  return hwIdx={core,fold,ar,vol,sv};
+}
+// Сервер по id из общего списка servers (как servers.find) — по индексу
+function serverById(id){const o=hwIdxGet().sv.get(id)||null;return IDX_GUARD.on?idxGuard("serverById",id,o,()=>servers.find(x=>x.id===id)||null):o}
+function hwIdxGet(){return hwIdx||hwIdxBuild()}
+// Новый узел дерева со всей начинкой — в готовый индекс. walkAll спускается в devices серверов домена и устройств, но не
+// домена, «нераспределённых» и их серверов; родитель не из дерева (или уже другой объект) — тоже сброс: прежний поиск
+// такой узел не нашёл бы, пусть решает пересборка
+function hwIdxAdd(n,p){
+  if(!hwIdx)return;
+  const e=p&&hwIdx.core.get(p.id);
+  if(p&&(!e||e.n!==p||p.type==="domain"||p.type==="unalloc"||e.p?.type==="unalloc")){hwIdxDrop();return}
+  const core=hwIdx.core;core.set(n.id,{n,p});walk((x,q)=>core.set(x.id,{n:x,p:q}),n.devices,n);
+}
+function hwIdxAddFolder(f,parent){if(hwIdx){hwIdx.fold.set(f.id,{n:f,p:parent||null});walkFolders((x,q)=>hwIdx.fold.set(x.id,{n:x,p:q}),f.folders||[],f)}}
+function hwIdxAddArch(a){if(hwIdx){if(!hwIdx.ar.has(a.id))hwIdx.ar.set(a.id,a);(a.vols||[]).forEach(hwIdxAddVol)}}
+function hwIdxAddVol(v){if(hwIdx&&!hwIdx.vol.has(v.id))hwIdx.vol.set(v.id,v)}
+// Сторож индекса — только в проверках. tests/ui-harness.js ставит window.UiCheck (check_ui.py, check_scale.py, страницы
+// сценариев ?selftest-run), ?selftest — страница самопроверки. Ответ индекса сверяется с прежним перебором; расхождение —
+// строка FAIL в отчёте сценария (с id и вызовом), индекс сбрасывается, find отдаёт ответ перебора. Так правка кэша,
+// что забыла hwIdxDrop, падает в проверках, а не тихо врёт. У оператора (нет UiCheck и ?selftest) сверки нет.
+// Перебор find — весь кэш: на большом сверяется каждый k-й вызов, k = объектов в кэше / 4 000 (до 4 000 шагов на вызов)
+function idxGuardFlush(){const g=IDX_GUARD;if(g.ok)g.bad.splice(0).forEach(m=>g.ok(false,m))}
+function idxGuardText(o){
+  if(!o)return"нет";
+  if(!("n" in o&&"p" in o))return`${o.type||"?"} ${o.id}`;
+  return`${o.n.type||"?"} ${o.n.id}`+(o.p?` под ${o.p.type||"?"} ${o.p.id}`:" без родителя");
+}
+function idxGuardBad(what,id,got,want){
+  const g=IDX_GUARD;g.n++;
+  if(g.n>5)return;
+  const at=(new Error().stack||"").split("\n").slice(1).filter(l=>!/idxGuard|findWalk|\bfind \(|ById \(|folderParent \(/.test(l)).slice(0,3)
+    .map(l=>l.trim().replace(/^at /,"").replace(/\(?\S*?:(\d+):\d+\)?$/,":$1")).join(" ← ");
+  const m=`сторож индекса: ${what}(${id}) — индекс «${idxGuardText(got)}», перебор «${idxGuardText(want)}»: правка кэша без hwIdxDrop; вызов ${at}`;
+  console.error(m);g.bad.push(m);idxGuardFlush();
+}
+// Сверить ответ индекса с перебором (только в проверках). Не совпало — сброс и ответ перебора
+function idxGuard(what,id,got,walkFn,same){
+  const want=walkFn();
+  if(same?same(got,want):got===want)return got;
+  idxGuardBad(what,id,got,want);hwIdxDrop();
+  return want;
+}
+function idxGuardDue(){const k=Math.ceil((hwIdx?.core.size||0)/4000)||1;return++IDX_GUARD.k%k===0}
+// Прежний find перебором — эталон сторожа
+function findWalk(id){
+  let o;walkAll((n,p)=>{if(n.id===id)o={n,p}});
+  if(!o){let f=null,fp=null;walkFolders((x,q)=>{if(x.id===id){f=x;fp=q}});if(f)o={n:f,p:fp}}
+  if(!o){const a=arch.find(x=>x.id===id);if(a)o={n:a,p:archOwner(a)}}
+  if(!o&&typeof id==="string")for(const a of arch){const v=(a.vols||[]).find(x=>x.id===id);if(v){o={n:v,p:arch.find(x=>x.id===v.archId)||null};break}}
+  return o;
+}
+// «Нераспределённые» — узел, который walkAll собирает заново: тот же, если тот же домен и тот же список серверов
+function findSameNode(a,b){return a===b||!!a&&!!b&&a.type==="unalloc"&&b.type==="unalloc"&&a.id===b.id&&a.servers===b.servers}
+function findSame(a,b){return!a||!b?!a===!b:findSameNode(a.n,b.n)&&findSameNode(a.p,b.p)}
 function find(id){
-  let o;
-  if(findMemo)o=findMemo.get(id);else walkAll((n,p)=>{if(n.id===id)o={n,p}});
-  if(!o){const f=folderById(id);if(f)o={n:f,p:folderParent(id)}}
-  if(!o){const a=archById(id);if(a)o={n:a,p:archOwner(a)}}
-  if(!o){const v=volById(id);if(v)o={n:v,p:archById(v.archId)}}
+  const X=hwIdxGet();
+  let o=X.core.get(id);
+  if(!o)o=X.fold.get(id);
+  if(!o){const a=X.ar.get(id);if(a)o={n:a,p:archOwner(a)}}
+  if(!o){const v=X.vol.get(id);if(v)o={n:v,p:archById(v.archId)}}
+  if(IDX_GUARD.on&&idxGuardDue())o=idxGuard("find",id,o,()=>findWalk(id),findSame);
   if(!o&&id.startsWith("gpu:")){const sv=servers.find(x=>x.id===id.slice(4));if(sv&&serverGpu(sv))o={n:gpuNode(sv),p:sv}}
   if(!o&&id.startsWith("norec:")){const d=domains.find(x=>x.id===id.slice(6));if(d)o={n:norecNode(d.id),p:d}}
   if(!o&&id.startsWith("nofolder:")){const d=domains.find(x=>x.id===id.slice(9));if(d)o={n:nofolderNode(d.id),p:d}}
@@ -5309,9 +5510,9 @@ function srv(id){
   while(f){
     const n=f.n;
     if(n.type==="server")return n;
-    if(n.srvId&&(n.type==="camera"||n.type==="ipsrv")){const s=servers.find(x=>x.id===n.srvId);if(s)return s}
+    if(n.srvId&&(n.type==="camera"||n.type==="ipsrv")){const s=serverById(n.srvId);if(s)return s}
     if(n.arch&&n.rec&&n.rec!=="none"){
-      const a=arch.find(x=>x.id===n.arch),s=a&&servers.find(x=>x.id===a.server);
+      const a=archById(n.arch),s=a&&serverById(a.server);
       if(s)return s;
     }
     f=f.p?find(f.p.id):null;
@@ -5380,9 +5581,9 @@ function isUnallocated(serverId){return domains.some(d=>d.unallocServers.some(s=
 function takeServer(serverId){
   for(const d of domains){
     let i=d.servers.findIndex(s=>s.id===serverId);
-    if(i>=0)return d.servers.splice(i,1)[0];
+    if(i>=0){hwIdxDrop();return d.servers.splice(i,1)[0]}
     i=d.unallocServers.findIndex(s=>s.id===serverId);
-    if(i>=0)return d.unallocServers.splice(i,1)[0];
+    if(i>=0){hwIdxDrop();return d.unallocServers.splice(i,1)[0]}
   }
   return null;
 }
@@ -5537,7 +5738,7 @@ function createDomain(r){
   // Уже пришёл с перечитанным кэшем (событие обогнало ответ)
   if(domainById(r.id)){hwVer.set(r.id,r.version);return domainById(r.id)}
   const d={id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,servers:[],unallocServers:[]};
-  domains.push(d);found[d.id]=[];hwVer.set(r.id,r.version);
+  domains.push(d);hwIdxDrop();found[d.id]=[];hwVer.set(r.id,r.version);
   open.add(d.id);
   treeMatchCache.clear();searchMatchCache.clear();
   return d;
@@ -5747,11 +5948,12 @@ function cardDiff(){
 }
 // Вернуть объект к снимку «до»: по ключам, начинку — по id, добавленное — убрать.
 function cardRestoreNode(live,snap){
-  Object.keys(live).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)&&!(k in snap))delete live[k]});
-  Object.keys(snap).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k))live[k]=cardClone({v:snap[k]}).v});
+  Object.keys(live).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)&&!(k in snap)){delete live[k];if(IDX_KEYS.has(k))hwIdxDrop()}});
+  Object.keys(snap).forEach(k=>{if(k!=="devices"&&!CARD_SKIP.has(k)){live[k]=cardClone({v:snap[k]}).v;if(IDX_KEYS.has(k))hwIdxDrop()}});
   if(live.devices){
-    const sk=new Map((snap.devices||[]).map(d=>[d.id,d]));
+    const sk=new Map((snap.devices||[]).map(d=>[d.id,d])),was=live.devices.length;
     live.devices=live.devices.filter(d=>sk.has(d.id));
+    if(live.devices.length!==was)hwIdxDrop();
     live.devices.forEach(d=>cardRestoreNode(d,sk.get(d.id)));
   }
 }
@@ -5827,7 +6029,7 @@ function cardApply(ok){
   const set=(o,k,v)=>{if(v===undefined)delete o[k];else o[k]=cardClone({v}).v};
   const ops=d.map(r=>{
     if(r.folders)return mkOp(n,`${r.label}: ${r.toT}`,"folder",()=>cardSetFolders(n.id,r.folders),null,()=>cardSetFolders(n.id,r.fromFolders));
-    if(r.add)return mkOp(r.node,r.label,"param",()=>{(r.node.devices||(r.node.devices=[])).push(r.add)},null,()=>{r.node.devices=r.node.devices.filter(x=>x!==r.add)});
+    if(r.add)return mkOp(r.node,r.label,"param",()=>{(r.node.devices||(r.node.devices=[])).push(r.add);hwIdxDrop()},null,()=>{r.node.devices=r.node.devices.filter(x=>x!==r.add);hwIdxDrop()});
     if(r.fld||r.edit){const k=r.prop,prev=k?n[k]:undefined,v=k==="port"||k==="ch"?Number(r.to)||r.to:String(r.to).trim();
       const pf=n._f?.[r.fld];
       return mkOp(n,`${r.label}: ${r.toT}`,"param",()=>{if(k)n[k]=v;else(n._f||(n._f={}))[r.fld]=r.to},null,()=>{if(k)set(n,k,prev);else if(pf===undefined)delete n._f[r.fld];else n._f[r.fld]=pf})}
@@ -6144,6 +6346,8 @@ function inSlice(n){
 }
 function selfInView(n){
   if(n.type==="domain"||n.type==="unalloc"||n.type==="folder")return false;
+  // «Детекторы» при статусе: статус у детектора, камера показана только ради своих детекторов
+  if(slice==="det"&&n.type==="camera"&&statusFilts.size)return false;
   // Встроенное хранилище — дочерняя строка камеры или канала регистратора:
   // видно, у кого есть карта памяти или диск, без захода в карточку.
   return matchesDomain(n)&&inSlice(n)&&matchesType(n)&&matchesStatus(n);
@@ -6379,6 +6583,7 @@ registerJumpSource(()=>accCats().map(c=>({kind:"Каталог",title:c.n,sub:c.
   go(){goApp("acc");accGo("cat:"+c.id)}})));
 registerJumpSource(()=>rules.map(r=>({kind:"Правило",title:r.name,sub:i18n(r.on?(r.watch?"Только журнал":"Работает"):"Выключено"),icon:"svcs",goId:"rule:"+r.id,
   go(){goApp("rules");ruleOpen(r.id,true)}})));
+registerJumpSource(()=>learnShown()?learnTopics().flatMap((tp,k)=>tp.chapters.map((c,n)=>({kind:"Обучение",title:i18n(c.title),sub:i18n(tp.title),icon:"svcs",goId:`learn:${k}.${n}`,go(){learnLink(`${k}.${n}`)}}))):[]);
 registerJumpSource(()=>logCats.map(c=>({kind:"Журнал",title:c.n,sub:i18n("Категория журнала"),icon:"svcs",goId:"log:"+c.id,
   go(){goApp("log");logGo(c.id)}})));
 registerJumpSource(()=>{                          // закладки выбранного объекта
@@ -6457,6 +6662,20 @@ function goTargets(){
 function goInput(v){
   setTreeQ(v);
   goSearch(v);
+}
+// Набор в поле — после паузы (typeLater): буква видна сразу, дерево и список — через TYPE_PAUSE_MS после последней
+// клавиши. До тех пор на месте прежний результат. Пустое поле — сразу. Вызов goInput из кода и сценариев — тоже сразу
+function goType(v){
+  const q=String(v||"");
+  goNav=false;                                    // Enter не выберет строку прежнего списка
+  document.getElementById("goClear")?.classList.toggle("hide",!q.trim());
+  typeLater("gq",late=>goTypeRun(late,q),!q.trim());
+}
+function goTypeRun(late,v){
+  if(!late){goInput(v);return}
+  setTreeQ(v);
+  // Пока ждали паузы, человек ушёл из поля (клик мимо, Tab): дерево сужено, список прежнего текста убираем
+  if(document.activeElement?.id==="gq")goSearch(v);else goClose();
 }
 // Что дерево уже показало — по самим строкам: у объектов ключ перехода равен
 // data-pick, у списков разделов — data-go.
@@ -6541,6 +6760,7 @@ function goRowHtml(t,i,q){
 }
 function goPick(i){
   const t=goHits[i];if(!t)return;
+  typeDrop("gq");                                 // набранное после списка уже не применится поверх перехода
   goClose();
   // Переход запрос исчерпал: оставленный фильтр сузил бы дерево там, куда
   // только что пришли.
@@ -6561,6 +6781,8 @@ function goClick(v){
   if(!document.getElementById("gopop")?.classList.contains("open"))goSearch(v);
 }
 function goKey(e){
+  // Стрелки ходят по свежему списку: набранное, что ждёт паузы, применяется сразу
+  if(e.key==="ArrowDown"||e.key==="ArrowUp")typeFlush("gq");
   const pop=document.getElementById("gopop"),open_=pop&&pop.classList.contains("open");
   if(e.key==="ArrowDown"||e.key==="ArrowUp"){
     if(!open_)return;                             // список закрыт — стрелки ведут по дереву
@@ -6574,10 +6796,13 @@ function goKey(e){
   // Строку из списка выбирают стрелками — тогда Enter туда и ведёт. Без выбора набранное при ассистенте — новый
   // разговор с ним, что бы ни нашёл поиск (слово владельца, 3ed4962). Без ассистента Enter значит «набранное — фильтр»:
   // список уходит, дерево остаётся сужённым, и стрелки уже ходят по нему.
+  // Набранное, что ждёт паузы, Enter применяет сразу. Кроме входа к ассистенту: он запрос поиска снимает, и искать
+  // по дереву перед этим незачем
   if(e.key==="Enter"){
     e.preventDefault();
     if(open_&&goNav){goPick(goSel);return}
-    if(e.target.value.trim()&&can("feature:assist")){asstFromSearch();return}
+    if(e.target.value.trim()&&can("feature:assist")){typeDrop("gq");asstFromSearch();return}
+    typeFlush("gq");
     goClose();e.target.blur();
     return;
   }
@@ -6586,6 +6811,8 @@ function goKey(e){
     // того, кто просто убирал подсказки с глаз.
     e.preventDefault();e.stopPropagation();
     const inp=document.getElementById("gq");
+    // Набранное ещё ждало паузы — первый шаг тот же, что после поиска: дерево сужено набранным, списка нет
+    if(typeDrop("gq")){setTreeQ(inp?.value||"");goClose();return}
     if(open_){goClose();return}
     if(inp&&inp.value){clearTreeQ();return}
     inp&&inp.blur();
@@ -6625,6 +6852,7 @@ function escapeLayer(){
 }
 function closeJump(){document.getElementById("jump").classList.remove("open")}
 function openJump(){document.getElementById("jump").classList.add("open");setTimeout(()=>document.getElementById("jq").focus(),50);jumpList()}
+function jumpType(){typeLater("jq",jumpList,!(document.getElementById("jq")?.value||"").trim())}
 function jumpList(){const q=(document.getElementById("jq")||{value:""}).value.toLowerCase(),list=document.getElementById("jlist");if(!list)return;
   if(!q){list.innerHTML=`<div class="srh">Недавние</div>`+recent.map(id=>{const f=find(id);if(!f)return"";const top=jumpScope(f.n);
     return `<div class="res" ${onEv("click",["jumpTo",`${id}`])}><span>${ic(f.n.type)}</span><div style="flex:1;min-width:0"><div>${f.n.name}</div><div class="pth">${f.n.type==="domain"||f.n.type==="unalloc"?LB[f.n.type]:`${top.name} · ${LB[f.n.type]}`}</div></div></div>`}).join("")||`<div class="sub" style="padding:12px">Начните вводить имя…</div>`;return}
@@ -7037,14 +7265,14 @@ function commitTreeRename(id,val){
     API.patch(`/units/${id}`,renamePatch(field,v),hwVer.get(id)).then(u=>{
       treeRenamePending=false;hwApplyUnit(u);
       if(treeRenameId===id){treeRenameId=null;treeRenameField="name"}
-      treeMatchCache.clear();searchMatchCache.clear();renderTree();
+      treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();
       if(sel===id)gear();
     }).catch(e=>{
       treeRenamePending=false;toast(problemText(e,f.n));
       if(problemKept(e)){
         keptNote(id);
         if(treeRenameId===id){treeRenameId=null;treeRenameField="name"}
-        renderTree();
+        renderTreeSoon();
         return;
       }
       requestAnimationFrame(()=>{const el=document.querySelector(".nm-inp");if(el){el.focus();el.select&&el.select()}});
@@ -7084,7 +7312,7 @@ function filtHitCount(){
   const ids=new Set();
   fs.order.forEach(id=>{
     const n=find(id)?.n;if(!n||!matchesDomain(n))return;
-    if(n.type==="det")ids.add(id);
+    if(n.type==="det"){if(matchesStatus(n))ids.add(id)}
     else if(n.type==="camera"&&treeQ.trim())(n.devices||[]).forEach(d=>{if(d.type==="det"&&matchesStatus(d))ids.add(d.id)});
   });
   return ids.size;
@@ -7093,6 +7321,7 @@ function countFiltered(){
   if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
   const q=qval();let n=0;
   walkSliceObjects((node,p)=>{if(slice==="det"){if(matchesStatus(node)&&detSliceHit(node,p,q))n++;return}
+    if(slice==="arch"&&statusFilts.size){if(node.type==="archive"&&matchesStatus(node)&&matchesSearch(node,q))n++;return}
     if(node.type==="det"||node.type==="domain"||node.type==="unalloc")return;if(selfInView(node)&&matchesSearch(node,q))n++});
   return n;
 }
@@ -7129,7 +7358,13 @@ function syncSelectionOld(){
 function applyFiltersFromState(){
   treeMatchCache.clear();searchMatchCache.clear();updateFiltChrome();renderTree();gear();
 }
+// Шапка фильтра сразу (действие человека); ожидающая просьба шапки из очереди кадра (filtChromeSoon) поглощается
 function updateFiltChrome(){
+  const q=treeSoonQ;
+  if(q.chrome){q.chrome=false;if(!q.tree)treeSoonClear()}
+  filtChromePaint();
+}
+function filtChromePaint(){
   syncDomainChrome();
   const btn=document.getElementById("filtBtn"),tags=document.getElementById("filtTags"),hint=document.getElementById("filtHint");
   if(btn){
@@ -7151,9 +7386,11 @@ function updateFiltChrome(){
 // возвращают отдельно: сбросить фильтры может и кнопка, и смена среза.
 function syncGoInput(){
   const inp=document.getElementById("gq");
-  if(inp&&inp.value!==treeQ)inp.value=treeQ;
+  // Пока поиск ждёт паузы, в поле набранное, а treeQ — прежний запрос: поле не трогаем
+  const wait=typePending("gq");
+  if(inp&&!wait&&inp.value!==treeQ)inp.value=treeQ;
   const clr=document.getElementById("goClear");
-  if(clr)clr.classList.toggle("hide",!treeQ.trim());
+  if(clr)clr.classList.toggle("hide",!(wait?inp?.value||"":treeQ).trim());
 }
 function applyStrictIdFilter(q){
   if(!/^\d+$/.test(q))return;
@@ -7166,6 +7403,7 @@ function applyStrictIdFilter(q){
 function setTreeQ(v){treeQ=v;if(!/^\d+$/.test(v.trim()))strictIdSearch=false;searchMatchCache.clear();updateFiltChrome();renderTree()}
 function clearTreeQ(e){
   e&&e.stopPropagation();
+  typeDrop("gq");                                 // крестик и Esc — сразу: отложенный поиск после них не придёт
   treeQ="";strictIdSearch=false;
   searchMatchCache.clear();updateFiltChrome();renderTree();
   goClose();
@@ -7684,7 +7922,7 @@ function paintInto(host,html,key,seen){
   if(st)restoreView(host,st);
 }
 const mainSeen={key:null},asideSeen={key:null},treeSeen={key:null},favSeen={key:null};
-function mainKey(){return app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
+function mainKey(){return app==="learn"?`learn|${learnSel}`:app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
 function paintMain(html){
   const host=document.getElementById("main");
   const snap=bulkScopeSnap();
@@ -7695,13 +7933,123 @@ function paintMain(html){
   fitCrumbs();
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
 }
-function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
-  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
-  srvCamMemo=null;
+// ── Перерисовка дерева — не чаще раза в кадр ────────────────────────────
+// Дерево перестраивается целиком (innerHTML всех строк), и на large это сотни миллисекунд. Асинхронные источники —
+// событие потока, ответ чтения, волна поиска, дочитанная ветка или срез, таймер очереди — просят перерисовку
+// renderTreeSoon(): все просьбы до ближайшего кадра (requestAnimationFrame) дают одну перерисовку, и рисует она
+// состояние на момент кадра, а не на момент просьбы. То же для шапки фильтра — filtChromeSoon(): очередь одна.
+// Действие человека (клик, клавиша, вызов из onEv) зовёт renderTree() и рисует сразу, как раньше: моргание, фокус,
+// scrollIntoView и сценарии, читающие DOM сразу после клика, этого ждут. Немедленная перерисовка поглощает
+// ожидающую: второй в том же кадре нет. renderTreeFlush() — дорисовать ожидающее сейчас (тем, кто читает строки
+// дерева из DOM после асинхронного шага).
+// Кадр ничего не делает, если с просьбы сменился раздел (новый раздел уже нарисован) или дерева нет. Если все
+// просьбы — от волн поиска (wave), а набранное в #gq ждёт паузы, кадр тоже пропускается: перерисовка под прежний
+// текст шла бы ровно тогда, когда человек печатает (filtPaint). Пометку снимает любая не-волновая просьба: если в один
+// кадр сошлись волна и, например, событие потока, кадр рисует дерево и при ожидающем #gq — под прежний запрос, как
+// поток рисовал и до задержки ввода (3а); набранное в поле перерисовка не трогает (syncGoInput). Пока человек переименовывает строку дерева (поле
+// .nm-inp в фокусе), кадр откладывается: перерисовка стёрла бы набранное; завершение переименования рисует сразу.
+// Кадра может не быть: вкладка скрыта, страница сценария в невидимом iframe самопроверки. Тогда через
+// TREE_SOON_LATE_MS перерисовку делает таймер: строки дерева запускают дочитывание веток и наблюдение (treeNeed,
+// watchSoon) — без кадра оно стояло бы.
+const TREE_SOON_LATE_MS=100;
+const treeSoonQ={raf:0,t:0,app:null,tree:false,chrome:false,wave:true,after:[]};
+function treeSoonAsk(part,wave,after){
+  const q=treeSoonQ;
+  // Просьба прежнего раздела снимается: её кадр всё равно ничего бы не сделал
+  if((q.tree||q.chrome)&&q.app!==app){q.tree=q.chrome=false;q.wave=true;q.after=[]}
+  q.app=app;q[part]=true;
+  if(!wave)q.wave=false;
+  if(after)q.after.push(after);
+  treeSoonArm();
+}
+function treeSoonArm(){
+  const q=treeSoonQ;
+  if(!q.raf)q.raf=requestAnimationFrame(()=>{q.raf=0;treeSoonRun()});
+  if(!q.t)q.t=setTimeout(()=>{q.t=0;treeSoonRun()},TREE_SOON_LATE_MS);
+}
+function treeSoonDisarm(){
+  const q=treeSoonQ;
+  if(q.raf){cancelAnimationFrame(q.raf);q.raf=0}
+  if(q.t){clearTimeout(q.t);q.t=0}
+}
+function treeSoonClear(){const q=treeSoonQ;q.tree=q.chrome=false;q.wave=true;q.after=[];treeSoonDisarm()}
+// Перерисовка по просьбе асинхронного источника; after — что сделать после неё (прокрутка к цели перехода, счётчики)
+function renderTreeSoon(after,wave){treeSoonAsk("tree",!!wave,after)}
+function filtChromeSoon(wave){treeSoonAsk("chrome",!!wave)}
+function treeSoonPending(){return treeSoonQ.tree||treeSoonQ.chrome}
+function treeRenaming(){return!!treeRenameId&&!!document.activeElement?.classList?.contains("nm-inp")}
+function treeSoonRun(){
+  const q=treeSoonQ;
+  if(!q.tree&&!q.chrome){treeSoonDisarm();return}
+  if(q.app!==app||!document.getElementById("tree")){treeSoonClear();return}
+  if(q.wave&&typePending("gq")){treeSoonClear();return}
+  // Переименование: ждёт только дерево, шапка фильтра поле не трогает и рисуется
+  if(treeRenaming()){
+    if(q.chrome){q.chrome=false;filtChromePaint()}
+    treeSoonDisarm();treeSoonArm();return;
+  }
+  const tree=q.tree,chrome=q.chrome,after=q.after;
+  treeSoonClear();
+  if(tree){const f=treeFocusKeep();treePaint();treeFocusBack(f)}
+  if(chrome)filtChromePaint();
+  after.forEach(f=>f());
+}
+// Фокус в дереве (кнопка строки, галочка правила) переживает перерисовку по просьбе: человек ничего не нажимал, и
+// фокус не должен уходить в никуда. Поля возвращает сама перерисовка (paintInto → restoreView)
+function treeFocusKeep(){
+  const a=document.activeElement,t=document.getElementById("tree");
+  if(!a||!t||a===t||!t.contains(a)||/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return null;
+  const row=a.closest(".n");
+  return row?{a,key:treeRowKey(row),cls:a===row?null:a.classList[0]||null}:null;
+}
+function treeFocusBack(k){
+  if(!k||k.a.isConnected)return;
+  const row=[...document.querySelectorAll("#tree .n")].find(el=>treeRowKey(el)===k.key);if(!row)return;
+  const el=k.cls?row.querySelector("."+CSS.escape(k.cls)):row;
+  try{el?.focus({preventScroll:true})}catch(e){}
+}
+function renderTreeFlush(){if(treeSoonPending())treeSoonRun()}
+// Немедленная перерисовка: ожидающая просьба дерева поглощается, её after выполняется после этой перерисовки
+// (если просьба того же раздела)
+function renderTree(){
+  const q=treeSoonQ;
+  let after=[];
+  if(q.tree){
+    if(q.app===app)after=q.after;
+    q.tree=false;q.after=[];
+    if(!q.chrome)treeSoonClear();
+  }
+  treePaint();
+  after.forEach(f=>f());
+}
+// Моргание строки дерева (acc-flash: переход по ссылке, treeReveal) переживает перерисовку: новая строка той же
+// цели продолжает вспышку с того же места анимации, а не обрывает её
+function treeRowKey(el){return[el.dataset.pick,el.dataset.ctx,el.dataset.go,el.dataset.tid].map(x=>x||"").join("|")}
+function treeFlashAnim(el){return el.getAnimations?.().find(a=>a.animationName==="accFlash")}
+function treeFlashKeep(treeEl){
+  const els=treeEl.querySelectorAll(".n.acc-flash");
+  return els.length?[...els].map(el=>({el,key:treeRowKey(el),t:treeFlashAnim(el)?.currentTime})):null;
+}
+function treeFlashCarry(treeEl,kept){
+  if(!kept)return;
+  const gone=kept.filter(k=>!k.el.isConnected&&typeof k.t==="number");
+  if(!gone.length)return;
+  const rows=new Map([...treeEl.querySelectorAll(".n")].map(el=>[treeRowKey(el),el]));
+  gone.forEach(k=>{
+    const el=rows.get(k.key);if(!el)return;
+    el.classList.add("acc-flash");
+    const a=treeFlashAnim(el);if(a)try{a.currentTime=k.t}catch(e){}
+    setTimeout(()=>el.classList.remove("acc-flash"),Math.max(0,2600-k.t));
+  });
+}
+function treePaint(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
+  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp,learn:treeLearn}[app];
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
   const html=withFind(()=>fn?fn():"");
+  const flash=treeFlashKeep(treeEl);
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
+  treeFlashCarry(treeEl,flash);
   if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();detHostMark();renderSelBar();
   if(app==="hw")treeOpenStore();
@@ -7807,10 +8155,14 @@ async function treeNeed(){
     any=true;
     await Promise.all(jobs);
   }
+  // Ветка дочиталась после перехода: цель перехода снова прокручивается к окну. Дочитывание идёт в кадр; сразу (через
+  // очередь, ожидающая просьба поглощается) — только когда дочитано всё и ни одна ветка больше не занята: кто дождался
+  // конца чтения, видит его строки, а строка «Показать ещё» у конца, которую подхватывает прокрутка, появляется до
+  // того, а не после. Одновременных treeNeed бывает несколько (каждая перерисовка запускает свой): их промежуточные
+  // концы сливаются в кадр, а не дают по полной перерисовке каждый
   if(any&&app==="hw"&&document.getElementById("tree")){
-    renderTree();
-    // Ветка дочиталась после перехода: цель перехода снова прокручивается к окну
-    if(Date.now()-revealAt<3000)document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
+    renderTreeSoon(()=>{if(Date.now()-revealAt<3000)document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"})});
+    if(![...treeBr.values()].some(b=>b.busy))renderTreeFlush();
   }
 }
 let revealAt=0;
@@ -7819,7 +8171,9 @@ let revealAt=0;
 const SLICE_READ={cam:TF_CAM,acfa:TF_ACFA,det:[["det"]]},SLICE_READ_MAX=5000;
 const sliceReads=new Map();
 function sliceReadKey(){return slice+"|"+treeLayout()}
-function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done}
+// Статус дочитан и нарисован деревом: всё найденное уже здесь, непрочитанная ветка для него пуста.
+// Поиск — другое: он находит и папки, и серверы, строка нужна со стрелкой
+function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done&&!(statusFilts.size&&fs&&!fs.pick&&fs.done&&!fs.failed&&!fs.flat)}
 async function sliceRead(){
   const key=sliceReadKey(),layout=treeLayout();
   if(!SLICE_READ[slice]||sliceReads.has(key)||!can("getTreePaths"))return;
@@ -7846,15 +8200,18 @@ async function sliceRead(){
     run.done=!cursor;
   }catch(e){return}// Не прочиталось — стрелки остаются: ветку прочитает её раскрытие
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"&&document.getElementById("tree")){
-    renderTree();
+  // Срез дочитан (sliceReads…done) — дерево и счётчики этого итога сразу: через очередь (ожидающая просьба поглощается),
+  // но без кадра — кто дождался done, читает уже серые ветки и стрелки по прочитанному. Чтение среза одно на срез
+  if(app==="hw"&&document.getElementById("tree")){renderTreeSoon(()=>{
     document.querySelectorAll(".ph-choice[data-slice]").forEach(b=>{const c=b.querySelector(".ph-cnt");if(c)c.textContent=sliceCountText(b.dataset.slice)});
-  }
+  });renderTreeFlush()}
 }
 // Строка конца ветки: читается или есть продолжение
-function treeMoreRow(id,l){
+function treeMoreRow(id,l,key=id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!treeOpenable(id,layout)||(b&&b.done&&!b.failed))return"";
+  // Ветку раскрыл статус, а не человек: всё найденное уже пришло отбором, читать её незачем
+  if(statusFilts.size&&!b&&!open.has(key))return"";
   if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
   const scan=treeVirtual(id);
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
@@ -7869,7 +8226,8 @@ function groupCntHtml(id,n){
 function treeMore(id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!b||b.busy||b.done)return Promise.resolve();
-  const p=treeLoad(layout,id).then(renderTree);
+  // Нажатие рисует сразу («Загрузка…» в строке), дочитанная страница — в кадр
+  const p=treeLoad(layout,id).then(()=>renderTreeSoon());
   renderTree();
   return p;
 }
@@ -8118,6 +8476,21 @@ function asstFilterQuery(f){
   }
   return out;
 }
+// Отбор идёт только по видам среза: иначе страницу занимают чужие объекты.
+// Камеры — без одних служб: срез решает по месту в дереве (замок под камерой — в «Камерах»), чужое отсеивает filtSeen
+function filtSliceKinds(){
+  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));
+  if(slice==="det"){
+    if(!qval())return kindsOfScreen("det");
+    // Камера, найденная по тексту, показывает свои детекторы: текст ищем и по камерам
+    return statusFilts.size?[...kindsOfScreen("det"),...kindsOfScreen("camera")]:dev;
+  }
+  if(slice==="acfa")return[...new Set(TF_ACFA.flatMap(([t])=>kindsOfScreen(t)))];
+  if(slice==="cam"){const not=new Set(TF_SVC.map(([t])=>t));return dev.filter(k=>!not.has(screenType(k)))}
+  return dev;
+}
+// Сколько из прочитанного покажет срез: по этому числу дерево или плоский список, а не по всем ответам сервера
+function filtSeen(run){return run.pick?run.hits.size:filtHitCount()}
 function filtParams(run){
   if(run.filter)return Object.assign({limit:FILT_PAGE,cursor:run.cursor},asstFilterQuery(run.filter));
   const out={limit:FILT_PAGE,cursor:run.cursor};
@@ -8129,8 +8502,9 @@ function filtParams(run){
   if(typeFilts.size)out.kind=[...new Set([...typeFilts].flatMap(kindsOfScreen))].join(",");
   // Без чипа — только устройства, как /devices базы: инфраструктура (серверы, папки, хранилища, тома, потоки) не занимает
   // места на странице, иначе страница кончается раньше и отбор не доходит до конца там, где база дошла
-  else{const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));if(dev.length)out.kind=dev.join(",")}
-  if(statusFilts.size)out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
+  else{const dev=filtSliceKinds();if(dev.length)out.kind=dev.join(",")}
+  // «Детекторы» с текстом: статус у детектора, а его камеру находят по имени с любым статусом — детекторы отбирает дерево
+  if(statusFilts.size&&!(slice==="det"&&qval()))out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
   if(domainFilter)out.domainId=domainFilter;
   return out;
 }
@@ -8139,7 +8513,7 @@ async function filtWave(run){
   if(run.busy)return;
   run.busy=true;
   try{
-    while(run===fs&&!run.done&&run.hits.size<run.want){
+    while(run===fs&&!run.done&&filtSeen(run)<run.want){
       let r;
       // Поиск и фильтры дерева — без инфраструктуры (у неё свои списки); отбор ассистента — как отобран, любого вида
       try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
@@ -8151,9 +8525,9 @@ async function filtWave(run){
       run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
       if(run===fs){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
     }
-    if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
+    if(run===fs&&run.done&&filtSeen(run)<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs){filtPaint();if(run.pick)asstPickLoaded()}}
+  finally{run.busy=false;if(run===fs){filtPaint();renderTreeFlush();if(run.pick)asstPickLoaded()}}
 }
 async function pickWave(run){
   if(run.busy)return;
@@ -8169,7 +8543,7 @@ async function pickWave(run){
     }
     run.done=run.at>=run.order.length;
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs){filtPaint();asstPickLoaded()}}
+  finally{run.busy=false;if(run===fs){filtPaint();renderTreeFlush();asstPickLoaded()}}
 }
 // Цепочки найденного: подпись в плоском списке, раскрытие и папки в дереве
 async function filtPaths(run,ids,layout=treeLayout()){
@@ -8186,7 +8560,14 @@ async function filtPaths(run,ids,layout=treeLayout()){
     if(layout==="folders"&&x.chains.every(c=>!c.some(s=>screenType(s.kind)==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
   }
 }
-function filtPaint(){if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
+// Пока набранное в поиске ждёт паузы, волна прежнего текста дописывает кэш, но дерево под прежний текст не
+// перерисовывает: это была бы перерисовка ровно в то время, когда человек печатает. Новый текст применит таймер
+// Волна просит кадр (renderTreeSoon, filtChromeSoon с пометкой wave): за кадр приходят десятки волн, рисуется одна.
+// Кадр под ожидающий паузы #gq тоже пропускается (treeSoonRun). Проход волн кончился (дошёл до конца, набрал страницу
+// или упал) — итог дорисовывается сразу (renderTreeFlush в finally filtWave/pickWave): кто ждёт fs.done или !fs.busy,
+// читает уже дерево и шапку этого итога. filtPaintNow — «Искать дальше» (клик), сразу
+function filtPaint(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTreeSoon(null,true);filtChromeSoon(true)}}
+function filtPaintNow(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
 // ── Отбор ассистента над деревом ─────────────────────────────────────────
 // Дерево показывает только отобранное ассистентом: тег над деревом со словами отбора, крестик снимает его, срез
 // возвращается как был. Общий механизм для плана настройки и отбора (found). Список готов: записи и цепочки
@@ -8220,7 +8601,7 @@ function asstPickClear(){asstPickDrop();filtSync();applyFiltersFromState();aside
 // Отобранное видно в дереве сейчас: «Показать в дереве», «Открыть в дереве» нужны, только когда его не видно
 function asstPickShown(src){return!!src&&asstPick?.src===src&&app==="hw"&&PICK_SLICES.includes(slice)}
 function asstPickLoaded(){const p=asstPick;if(p?.loaded){const f=p.loaded;p.loaded=null;f()}}
-function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaint()}
+function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:filtSeen(fs))+FILT_PAGE;filtWave(fs);filtPaintNow()}
 function filtHint(){
   if(fs?.pick&&asstPick){
     const p=asstPick;
@@ -8234,7 +8615,10 @@ function filtHint(){
 }
 function treeFlat(){
   const q=qval();
-  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+  // «Детекторы» при статусе: найденный детектор и детекторы найденной камеры — столько же, сколько в filtHitCount
+  const dets=n=>!n?[]:n.type==="det"?(matchesStatus(n)?[n]:[]):n.type==="camera"&&q?(n.devices||[]).filter(d=>d.type==="det"&&matchesStatus(d)):[];
+  const list=slice==="det"&&statusFilts.size?[...new Set(fs.order.flatMap(id=>dets(find(id)?.n)))]:fs.order.map(id=>find(id)?.n);
+  const rows=list.filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
     <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
   const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.pick&&!fs.filter?(fs.busy?"Загружаем…":"Показать ещё"):fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
   return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
@@ -8285,7 +8669,7 @@ function statusLabel(id){
 }
 function statusCount(id){
   const q=qval();let n=0;
-  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||statusIs(x,id)))n++});
+  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||(statusIs(x,id)&&(slice!=="arch"||x.type==="archive"))))n++});
   return n;
 }
 function pickStatus(id){
@@ -8304,12 +8688,15 @@ function sliceCount(id){
 function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
 function panelHeadHtml(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
-  const canFolders=sliceGroups().includes("folder"),foldersOn=canFolders&&group()==="folder",st=curStatus();
-  return`<div class="ph"><div class="ph-row" role="group" aria-label="${i18n("Срез дерева")}">
-    ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`).join("")}
-  </div><div class="ph-row">
-    <button type="button" class="ph-switch" id="viewBtn" role="switch" aria-checked="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}><span>${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
+  // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
+  const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
+  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`;
+  return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
+    ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
+  </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
+    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
+  </span></span></div><div class="ph-row">
     <span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
       <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
       <button type="button" class="ph-tool" id="treeExpandBtn" title="${i18n("Развернуть всё")}" aria-label="${i18n("Развернуть всё")}" ${onEv("click",["treeExpandAll"])}>${TREE_IC.open}</button>
@@ -8369,9 +8756,10 @@ function treeCollapseAll(){
 async function treeExpandRows(scope){
   if(!document.getElementById("tree"))return;
   const gen=treeExpandGen,key=treeOpenCur;
-  let idle=0;
+  let idle=0,first=true;
   // Проход считается только за новый уровень: пока ветки читаются, ждём ответа, сколько бы он ни шёл
   for(let pass=0;pass<12&&idle<2;){
+    renderTreeFlush();                            // строки берутся из разметки: прошлый проход дорисован
     const tree=document.getElementById("tree");
     // «Свернуть всё», смена среза или раздела отменяют раскрытие
     if(!tree||gen!==treeExpandGen||key!==treeOpenCur||app!=="hw")return;
@@ -8379,7 +8767,9 @@ async function treeExpandRows(scope){
     if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк: остальное раскройте по веткам")}`);return}
     idle=closed.length||[...treeBr.values()].some(b=>b.busy)?0:idle+1;
     closed.forEach(r=>open.add(r.dataset.tid));
-    if(closed.length){pass++;renderTree()}
+    // Первый проход — ответ на клик, сразу; следующие идут по таймеру — в кадр
+    if(closed.length){pass++;first?renderTree():renderTreeSoon()}
+    first=false;
     await new Promise(r=>setTimeout(r,120));
   }
 }
@@ -8415,7 +8805,7 @@ function treeReveal(){
   expandTo(sel,selCtx);renderTree();revealSel();
   const q=`#tree .n[data-pick="${sel}"]`;
   const row=(selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`))||document.querySelector(q);
-  if(row){row.scrollIntoView({block:"center"});accFlash(()=>[row],true)}
+  if(row){row.scrollIntoView({block:"center"});accFlash(()=>{const r=(selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`))||document.querySelector(q);return r?[r]:null},true)}
 }
 function toggleFolders(){setGroup(group()==="folder"?sliceGroups().find(g=>g!=="folder"):"folder")}
 function setSlice(v){
@@ -8542,11 +8932,14 @@ function hwFromLink(){
   if(t.closest("#tree,.tabs,.rail,#selBar"))return false;
   return!!t.closest("#main,#favWrap,.ttu,.cbox,#tctx");
 }
+// Места ищутся в миг выставления вспышки (accFlash зовёт find через 30 мс): перерисовка дерева между поиском и
+// вспышкой заменила бы строку, и вспышка ушла бы на отсоединённую
+const HW_FLASH_AT=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"];
 function hwFlashLanding(){
   setTimeout(()=>{
-    const els=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    renderTreeFlush();
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(HW_FLASH_AT.some(q=>document.querySelector(q)))accFlash(()=>HW_FLASH_AT.map(q=>document.querySelector(q)).filter(Boolean),true);
   },40);
 }
 function fld(l,v,tp="text"){v=cardFldOrig(l,v);const d=cardFldVal(l,v);return `<div><label>${i18n(l)}</label><input type="${tp}" value="${escHtml(d??"")}" data-df="${escHtml(l)}" data-orig="${escHtml(v??"")}" ${onEv("input",["cardFld",onEv.el])}></div>`}
@@ -8824,7 +9217,7 @@ function folderCreate(name,parent,did){
 function folderAdded(r,parent,did){
   hwVer.set(r.id,r.version);
   const f=folderById(r.id)||folderNode(r);
-  if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f)}
+  if(!folderById(r.id)){if(parent)parent.folders.push(f);else folders.push(f);hwIdxDrop()}
   open.add(parent?parent.id:did);
   treeMatchCache.clear();searchMatchCache.clear();
   return f;
@@ -9067,7 +9460,7 @@ function svcrow(n,l){
 function srow(s,l=1,bare=false){
   const q=qval();
   if(bare){
-    if(!matchesStatus(s)||!matchesSearch(s,q))return"";
+    if((statusFilts.size&&slice!=="srv")||!matchesStatus(s)||!matchesSearch(s,q))return"";
     // Нераспределённые ещё не подключены к домену — всегда серым
     let h=`<div class="n srv ${sel===s.id?"on":""} off${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}>
       <span class="tw"></span>
@@ -9075,8 +9468,9 @@ function srow(s,l=1,bare=false){
     return h;
   }
   const offline=hasNoSignal(s);
-  const srvHit=matchesStatus(s)&&matchesSearch(s,q);
   const srvSlice=slice==="srv";        // опись сервера: архивы, GPU, службы
+  // Статус отбирает объекты среза: сервер без найденного показан только в «Серверах»
+  const srvHit=(srvSlice||!statusFilts.size)&&matchesStatus(s)&&matchesSearch(s,q);
   // Нет сигнала — дочерние в дереве не показываем
   const archs=offline?[]:serverArchives(s.id);
   const devs=offline?[]:(s.devices||[]).filter(d=>d.type!=="det");
@@ -9105,7 +9499,7 @@ function drow(d){
   const q=qval();
   // Без связи с доменом ответы несут только своё: показываем, что есть, чужое не считаем удалённым
   const offline=false;
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(d)&&matchesSearch(d,q);
   const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
   const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
   // Устройство без сервера стоит прямо под доменом, после серверов и их групп
@@ -9313,7 +9707,7 @@ function domainTreeDeviceCount(did){
 }
 function dfrow(d){
   const q=qval();
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=!statusFilts.size&&matchesSearch(d,q);
   const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1)+svcsrow(d,1);
   if(!selfHit&&!kidsHtml)return"";
   // У домена есть «Без папки» и строка создания папки. На вкладке с прочитанными объектами стрелка — только если есть что показать
@@ -9338,9 +9732,8 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
-  if(slice==="arch")return treeArchives();
-  if(slice==="det")return treeDetectors();
-  return group()==="server"?treeServers():treeDev();
+  const h=slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
@@ -9402,7 +9795,7 @@ function gcamrow(cam,dets,l,ctx){
   const available=slice==="cam"?[]:dets.filter(matchesStatus);
   const vis=available.filter(d=>matchesSearch(d,q));
   const parentHit=matchesSearch(cam,q);
-  const selfHit=(slice==="cam"?selfInView(cam):matchesStatus(cam))&&parentHit;
+  const selfHit=(slice==="cam"?selfInView(cam):slice==="det"&&statusFilts.size?false:matchesStatus(cam))&&parentHit;
   const shown=parentHit?available:vis;
   if(!selfHit&&!shown.length)return"";
   const hasKids=!!shown.length||!!cam._more;
@@ -9413,7 +9806,7 @@ function gcamrow(cam,dets,l,ctx){
   let h=`<div class="n ${rowOn(cam.id,ctx)}${slice==="det"?sliceParentClass(cam.id):""}" style="--l:${l}"${treeRowPick(cam.id,ctx)}${treeCtxAttr(cam.id)}${treeExpandMeta(ok,"node",hasKids)}>
     ${treeChevron(ok,"node",hasKids,op)}
     ${treeIconHtml(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
-  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1);
+  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1,ok);
   return h;
 }
 // Узкие срезы сохраняют домены и выбранную группировку, исключая остальные
@@ -9452,7 +9845,7 @@ async function archDomLoad(did){
     }while(cursor);
   }catch(e){toast(problemText(e))}
   archDomDoneSet.add(did);
-  if(slice==="arch"&&app==="hw"){renderTree();if(tab==="stor")gear()}
+  if(slice==="arch"&&app==="hw"){renderTreeSoon();if(tab==="stor")gear()}
 }
 function treeArchives(){
   const q=qval();
@@ -9467,13 +9860,13 @@ function treeArchives(){
     d.servers.forEach(s=>{
       const all=serverArchives(s.id),list=all.filter(a=>matchesStatus(a)&&matchesSearch(a,q));
       if(list.length)withArch.push(archTreeRow(s,1,list.map(a=>arow(a,2)).join(""),list.length,"as:"+s.id));
-      else if(!all.length&&matchesStatus(s)&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
-      else if(all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&!all.length&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
     });
     const empty=bare.length?archGroupRow("as:bare:"+d.id,"Серверы без хранилищ","unalloc",bare.length,bare.join(""),[["archGroupOpen",`${"as:bare:"+d.id}`]],false):"";
     const children=net+withArch.join("")+empty;
-    return children||retainEmptySliceParents()||(matchesStatus(d)&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
-  }).join("")+archUnlinkedRow();
+    return children||retainEmptySliceParents()||(!statusFilts.size&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
+  }).join("")+(statusFilts.size?"":archUnlinkedRow());
 }
 // Камеры без привязки к хранилищу: всегда внизу, при входе в срез свёрнуты
 const AS_NOREC="as:norec";
@@ -9491,7 +9884,7 @@ async function archUnlinkedRead(did){
   }
 }
 function archUnlinkedMore(did){
-  const p=archUnlinkedRead(did).then(()=>{if(slice==="arch")renderTree()});
+  const p=archUnlinkedRead(did).then(()=>{if(slice==="arch")renderTreeSoon()});
   renderTree();
   return p;
 }
@@ -9551,7 +9944,7 @@ function archTblEnsure(n,list){
   need.forEach(a=>archTblTried.add(a.id));
   Promise.all(need.flatMap(a=>[volsEnsure(a).catch(()=>{}),archCamsLoad(a.id).catch(()=>{})])).then(()=>{
     need.forEach(a=>{if(archCamIds.has(a.id))archTblTried.delete(a.id)});
-    if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTree();gear()}
+    if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTreeSoon();gear()}
   });
 }
 function archUsedPct(a){return parseInt(archUsed(a),10)||0}
@@ -9634,7 +10027,7 @@ function treeDetectors(){
   if(group()==="kind")return treeDetKinds();
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
-  const branch=(n,l,children)=>children||retainEmptySliceParents()||treeUnread(n.id)||(qval()&&matchesSearch(n,qval())&&matchesStatus(n))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
+  const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size)||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
     const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},folderDeviceNodes(f));
     const children=(f.folders||[]).map(x=>folderRow(x,l+1)).join("")+rows(direct,l+1,"f:"+f.id);
@@ -9661,7 +10054,7 @@ function gpurow(sv,l){
   const list=gpuCameras(sv.id);
   // В срезе «Серверы» GPU показан строкой состава, без камер и детекторов.
   const children=slice==="srv"?"":list.map(x=>gcamrow(x.cam,x.dets,l+1,ctx)).join("");
-  const selfHit=matchesStatus(node)&&matchesText(q,locName(node),"gpu");
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(node)&&matchesText(q,locName(node),"gpu");
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
   const op=hasKids&&(open.has(node.id)||autoExpand());
@@ -9678,7 +10071,8 @@ function arow(a,l){
   if(slice==="acfa"||slice==="det")return"";
   const q=qval(),inventory=slice==="srv"||slice==="arch";
   const allCams=archCameras(a.id),cams=allCams.filter(selfInView);
-  const selfHit=matchesStatus(a)&&matchesSearch(a,q);
+  // Статус отбирает объекты среза: хранилище — объект только в описи
+  const selfHit=(inventory||!statusFilts.size)&&matchesStatus(a)&&matchesSearch(a,q);
   const children="";
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
@@ -9696,10 +10090,10 @@ function arow(a,l){
 function norow(d,l){
   const q=qval(),cams=norecList(d.id).filter(selfInView),vis=cams.filter(c=>matchesSearch(c,q));
   const n=norecNode(d.id);
-  if(statusFilts.size&&!cams.length&&!treeUnread(n.id))return"";
+  if(statusFilts.size&&!cams.length&&!sliceUnread(n.id))return"";
   const selfHit=matchesText(q,locName(n));
   if(!selfHit&&!vis.length)return"";
-  const hasKids=!!cams.length||treeUnread(n.id);
+  const hasKids=!!cams.length||(statusFilts.size?sliceUnread(n.id):treeUnread(n.id));
   const op=hasKids&&(open.has(n.id)||(autoExpand()&&!!vis.length));
   let h=`<div class="n srv norec ${sel===n.id?"on":""}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}
@@ -9713,6 +10107,88 @@ function optGo(id){sys=id;tab="gen";paint()}
 function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();else if(logQOn())logQueryRun();paint()}
 function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).map(o=>
   `<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span></div>`).join("")}
+// ── Обучение: темы и главы демо ─────────────────────────────────────────────
+// Раздел открывает сам человек: без автозапуска. Содержание — assets/tour-demos.js, движок — assets/tour.js.
+// Показ идёт в учебном режиме (?demo): перезагрузка на встроенном сервере, настоящая система не участвует.
+// В сборке для консоли сервер показа грузится только при ?demo; с --without-learn движка и раздела нет.
+let learnSel="home";
+const learnOpen=new Set();
+function learnTopics(){return window.Tour?.topics||[]}
+function learnShown(){return!!window.Tour&&(window.Tour.lazy||typeof ConsolemServer!=="undefined")}
+function learnParse(id){const[a,b]=String(id).split(".");const tp=learnTopics()[+a];return{k:tp?+a:null,tp:tp||null,c:b==null||!tp?null:+b,ch:tp&&b!=null?tp.chapters[+b]||null:null}}
+function learnTitle(id){const{tp,ch}=learnParse(id);return ch?i18n(ch.title):tp?i18n(tp.title):""}
+function learnCount(n,forms){return`${n} ${i18n(plural(n,forms))}`}
+function learnMins(s){return`${i18n("около")} ${Math.max(1,Math.round(s/60))} ${i18n("мин")}`}
+function learnSelect(id){learnSel=id;const{k}=learnParse(id);if(k!=null)learnOpen.add(k);paint()}
+function learnTree(id){
+  const{k,c}=learnParse(id);
+  if(k!=null&&c==null&&learnSel===id){if(learnOpen.has(k))learnOpen.delete(k);else learnOpen.add(k);paint();return}
+  learnSelect(id);
+}
+function learnToggle(k){if(learnOpen.has(k))learnOpen.delete(k);else learnOpen.add(k);renderTree()}
+// Переход по ссылке моргает на месте прихода: заголовок и строка дерева
+function learnLink(id){
+  navMark();
+  if(app!=="learn")setApp("learn");
+  learnSelect(id);
+  accFlash(()=>[document.querySelector(".hd h1"),document.querySelector("#tree .n.on")].filter(Boolean));
+}
+// #learn=2 или #learn=2.1: сюда возвращает выход из показа
+function learnFromHash(){
+  if(window.Tour?.demo)return;
+  const m=/^#learn=(\d+(?:\.\d+)?)$/.exec(location.hash);if(!m||!learnShown())return;
+  const u=new URL(location.href),lang=u.searchParams.get("lang");
+  u.searchParams.delete("lang");
+  history.replaceState(history.state,"",u.pathname+u.search);
+  if(lang==="en")setUiLang("en");
+  const{k,c,ch}=learnParse(m[1]);if(k==null)return;
+  learnSel=ch?`${k}.${c}`:String(k);learnOpen.add(k);setApp("learn");
+  accFlash(()=>[document.querySelector(".hd h1"),document.querySelector("#tree .n.on")].filter(Boolean),true);
+}
+function learnPlay(k,c){window.Tour.play(k,c)}
+function treeLearn(){
+  const q=qval();
+  let h=matchesText(q,i18n("С чего начать"))?`<div class="n ${learnSel==="home"?"on":""}" data-go="learn:home" ${onEv("click",["learnTree","home"])}><span class="tw"></span><span class="ici">${lu("graduation-cap")}</span><span class="nm">${hlText(i18n("С чего начать"),q)}</span></div>`:"";
+  learnTopics().forEach((tp,k)=>{
+    const chs=tp.chapters.map((c,n)=>({c,n})).filter(({c})=>matchesText(q,i18n(c.title),i18n(tp.title)));
+    if(!chs.length)return;
+    const op=learnOpen.has(k)||!!q;
+    h+=`<div class="n ${learnSel===String(k)?"on":""}" data-go="learn:${k}" ${onEv("click",["learnTree",`${k}`])}><span class="tw" ${onEv("click",onEv.stop,["learnToggle",k])}>${op?TW_OPEN:TW_SHUT}</span><span class="ici">${lu("book-open")}</span><span class="nm">${hlText(i18n(tp.title),q)}</span>${treeCntHtml(tp.chapters.length)}</div>`;
+    if(op)h+=chs.map(({c,n})=>`<div class="n ${learnSel===`${k}.${n}`?"on":""}" style="--l:1" data-go="learn:${k}.${n}" ${onEv("click",["learnTree",`${k}.${n}`])}><span class="tw"></span><span class="ici">${lu("play")}</span><span class="nm">${hlText(i18n(c.title),q)}</span></div>`).join("");
+  });
+  return h||`<div class="sub rl-none">${i18n("Ничего не найдено")}</div>`;
+}
+function learnCrumbs(parts){return parts.map(([id,t],i)=>i===parts.length-1?`<span class="cr-it cr-last"><span class="cr-cur">${escHtml(t)}</span></span>`:`<button type="button" class="as-link" ${onEv("click",["learnLink",id])}>${escHtml(t)}</button><span class="sub lrn-sep" aria-hidden="true">›</span>`).join("")}
+function learnPlayBtn(k,c,label,pri=true){return`<button type="button" class="btn ${pri?"pri":""} s" ${onEv("click",["learnPlay",k,c])}>${lu("play")}${i18n(label)}</button>`}
+function learnUI(){
+  const{k,tp,c,ch}=learnParse(learnSel);
+  if(ch){
+    const steps=tp.steps.slice(ch.from,ch.to+1),prev=tp.chapters[c-1],next=tp.chapters[c+1];
+    paintMain(mainHd(learnCrumbs([["home",i18n("Обучение")],[`${k}`,i18n(tp.title)],[learnSel,i18n(ch.title)]]),i18n(ch.title),"",null,learnPlayBtn(k,c,"Смотреть"))+
+      `<div class="sc lrn"><p class="lrn-why">${escHtml(i18n(ch.why))}</p>
+      <p class="sub lrn-meta">${learnCount(steps.length,"шаг|шага|шагов")} · ${learnMins(ch.secs)} · ${i18n("на учебных данных")}${uiLang==="ru"?"":` · ${i18n("показ на русском языке")}`}</p>
+      <div class="card"><div class="ch">${i18n("Что покажем")}</div><ol class="lrn-steps">${steps.map(s=>`<li>${escHtml(i18n(s.say))}</li>`).join("")}</ol></div>
+      <div class="lrn-nav">${prev?`<button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${c-1}`])}>‹ ${escHtml(i18n(prev.title))}</button>`:"<span></span>"}${next?`<button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${c+1}`])}>${escHtml(i18n(next.title))} ›</button>`:""}</div></div>`);
+    return;
+  }
+  if(tp){
+    paintMain(mainHd(learnCrumbs([["home",i18n("Обучение")],[`${k}`,i18n(tp.title)]]),i18n(tp.title),"",null,learnPlayBtn(k,null,"Смотреть всю тему"))+
+      `<div class="sc lrn"><p class="lrn-why">${escHtml(i18n(tp.why))}</p>
+      <p class="sub lrn-meta">${learnCount(tp.chapters.length,"глава|главы|глав")} · ${learnMins(tp.secs)} · ${i18n("на учебных данных")}${uiLang==="ru"?"":` · ${i18n("показ на русском языке")}`}</p>
+      <div class="card"><table class="lrn-tbl"><colgroup><col class="lrn-c1"><col><col class="lrn-c3"><col class="lrn-c4"></colgroup>
+      <tr><th>${i18n("Глава")}</th><th>${i18n("Зачем это нужно")}</th><th>${i18n("Время")}</th><th></th></tr>
+      ${tp.chapters.map((x,n)=>`<tr><td><button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${n}`])}>${escHtml(i18n(x.title))}</button></td><td class="sub">${escHtml(i18n(x.why))}</td><td class="sub">${learnMins(x.secs)}</td><td>${learnPlayBtn(k,n,"Смотреть",false)}</td></tr>`).join("")}</table></div></div>`);
+    return;
+  }
+  paintMain(mainHd("",`<span class="hd-ic">${lu("graduation-cap")}</span>${i18n("Обучение")}`,"")+
+    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотрите, как работает конфигуратор. Курсор сам проходит задачу в настоящем интерфейсе, а подпись объясняет, что происходит и зачем.")}</p>
+    <div class="lrn-facts">
+      <div><b>${i18n("Ничего не сломается")}</b><span class="sub">${i18n("Показ идёт на учебных данных. Настоящая система, ваши настройки и черновики не меняются.")}</span></div>
+      <div><b>${i18n("Показом управляете вы")}</b><span class="sub">${i18n("Пауза, шаг назад и вперёд, скорость. Esc закрывает показ.")}</span></div>
+      <div><b>${i18n("Можно попробовать самому")}</b><span class="sub">${i18n("После главы страница остаётся на учебных данных: нажимайте что угодно.")}</span></div>
+    </div>
+    <div class="lrn-grid">${learnTopics().map((t,n)=>`<div class="card lrn-topic"><button type="button" class="as-link lrn-t" ${onEv("click",["learnLink",`${n}`])}>${escHtml(i18n(t.title))}</button><p class="sub">${escHtml(i18n(t.why))}</p><div class="lrn-foot"><span class="sub">${learnCount(t.chapters.length,"глава|главы|глав")} · ${learnMins(t.secs)}</span>${learnPlayBtn(n,null,"Смотреть")}</div></div>`).join("")}</div></div>`);
+}
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
 
 function tabsFor(n){
@@ -9879,14 +10355,18 @@ function pagerHtml(key,total,how,unit){
 // обратно не сбрасывают отбор.
 const IC_FIND=lu("search",16);
 const listQ={};
+// Запрос — сразу, перерисовка списка — после паузы в наборе (typeLater)
 function listSetQ(key,v,how){
   listQ[key]=v;
   resetPage(key);
-  pageRepaint(how);
-  requestAnimationFrame(()=>{
-    const el=document.querySelector(`[data-lq="${key}"]`);
-    if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
-  });
+  typeLater("lq:"+key,late=>{
+    const back=typeFocused(late,`[data-lq="${key}"]`);
+    pageRepaint(how);
+    if(back)requestAnimationFrame(()=>{
+      const el=document.querySelector(`[data-lq="${key}"]`);
+      if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}
+    });
+  },!String(v||"").trim());
 }
 function listFound(o){
   const q=(listQ[o.key]||"").trim();
@@ -10062,13 +10542,19 @@ function setTblFilt(kind,key,val){
   tblFilt[kind][key]=val;
   // Отфильтрованный список короче — оставаться на седьмой странице из трёх незачем
   resetPage(tblPageKey(kind));
+  // Таблица — после паузы в наборе (typeLater); фильтры столбцов применяются одной перерисовкой
+  const tn=tableNode()?.id;
+  typeLater("tf:"+kind,late=>{if(late&&tableNode()?.id!==tn)return;tblFiltPaint(kind,key,late)},!String(val||"").trim());
+}
+function tblFiltPaint(kind,key,late){
+  const f=`[data-tf="${kind}-${key}"]`,back=typeFocused(late,f);
   const wrap=document.getElementById(kind==="cams"?"camsTbl":"acfaTbl");
   const caret=document.activeElement?.selectionStart;
   if(!wrap){gear();return}
   const tn=tableNode();if(!tn){gear();return}
   wrap.outerHTML=kind==="cams"?camsTableHtml(tn):acfaTableHtml(tn);
   tsFixInd();
-  const el=document.querySelector(`[data-tf="${kind}-${key}"]`);
+  const el=back&&document.querySelector(f);
   if(el){el.focus();if(caret!=null)try{el.setSelectionRange(caret,caret)}catch(e){}}
 }
 function clearTblFilt(kind){tblFilt[kind]={};resetPage(tblPageKey(kind));gear()}
@@ -10653,8 +11139,13 @@ function lanSort(k){
   if(lan.sort===k)lan.dir=-lan.dir;else{lan.sort=k;lan.dir=1}
   gear();
 }
-function lanSetQ(v){lan.q=v;lan.sel.clear();resetPage("lan:"+lan.owner);gear();
-  requestAnimationFrame(()=>{const el=document.getElementById("lanQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
+// Запрос и сброс отметок — сразу, перерисовка карточки — после паузы в наборе (typeLater)
+function lanSetQ(v){lan.q=v;lan.sel.clear();resetPage("lan:"+lan.owner);const own=lan.owner;typeLater("lan",late=>{if(late&&lan.owner!==own)return;lanQPaint(late)},!String(v||"").trim())}
+function lanQPaint(late){
+  const back=typeFocused(late,"#lanQ");
+  gear();
+  if(back)requestAnimationFrame(()=>{const el=document.getElementById("lanQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}});
+}
 function lanSetChip(k){lan.chip=k;lan.sel.clear();resetPage("lan:"+lan.owner);gear()}
 function lanSetArch(v){
   const prev=lan.arch;
@@ -11400,7 +11891,7 @@ function detKindText(d,cam){const o=detOption(cam||find(d.id)?.p,d);return d.kin
 function addDetector(camId){
   const f=find(camId);if(!f||f.n.type!=="camera")return;
   const d={id:"det"+Date.now(),type:"det",name:i18n("Новый детектор"),kind:DET_TYPES[0],sens:"12",online:true,devices:[]};
-  (f.n.devices||(f.n.devices=[])).push(d);
+  (f.n.devices||(f.n.devices=[])).push(d);hwIdxDrop();
   detSel=d.id;tab="det";setD(true);
   if(slice==="det")openCamDets(f.n,null);
   toast(i18n("Детектор добавлен"));applyFiltersFromState();
@@ -11422,7 +11913,7 @@ function deleteDetector(camId,detId){
 // Детектор, ещё не применённый карточкой, есть только в черновике: удаляется там же
 function deleteDetectorDraft(f,detId){
   const was=sel===detId;
-  f.n.devices=f.n.devices.filter(x=>x.id!==detId);
+  f.n.devices=f.n.devices.filter(x=>x.id!==detId);hwIdxDrop();
   detAfterDelete(f.n.id,detId,was);
 }
 // Удалили детектор из его собственной карточки: открываем его камеру, а не пустое место.
@@ -11729,6 +12220,7 @@ function detKindPick(k){
 }
 function treeDetKinds(){
   const q=qval(),rows=detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q));
+  if(!rows.length&&hasActiveFilters())return"";
   const by=new Map();
   rows.forEach(x=>{const k=detKindLabel(x.d,x.cam);if(!by.has(k))by.set(k,[]);by.get(k).push(x)});
   const onAll=detListOn()&&!dl.kind;
@@ -12088,7 +12580,8 @@ function dcCamToggle(id,on){if(on)dc.cams.add(id);else dc.cams.delete(id);render
 function dcFacet(d,v){if(dc.f[d]===v)delete dc.f[d];else dc.f[d]=v;renderDetCreate()}
 function dcFacetClear(){dc.f={};renderDetCreate()}
 function dcFacetMore(d){dc.more.add(d);renderDetCreate()}
-function dcQ(el){dc.q=el.value;renderDetCreate();const i=document.querySelector(".dc-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
+function dcQ(el){dc.q=el.value;typeLater("dc",dcQPaint,!dc.q.trim())}
+function dcQPaint(late){const back=typeFocused(late,".dc-q input");renderDetCreate();const i=back&&document.querySelector(".dc-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
 function dcEnabled(v){dc.on=!!v;renderDetCreate()}
 function dcRuleSet(k,v){dc.rule[k]=v;renderDetCreate()}
 // Зоны прямо в мастере: детектора ещё нет, зона уходит в его создание (DeviceCreate.zone). Строка — будущий детектор
@@ -13212,7 +13705,7 @@ function expBody(d){
   if(d.nameSet&&d.name.trim())b.name=d.name.trim();
   if(d.password)b.password=d.password;
   if(d.comment.trim())b.comment=d.comment.trim();
-  if(expGrantV?.supervisorRequired&&expOn("accessSupervision"))b.supervisor={login:d.supLogin,password:d.supPwd};
+  if(d.supLogin&&d.supPwd)b.supervisor={login:d.supLogin,password:d.supPwd};
   if(expMulti(d)&&!frame&&f?.singleFile==="tracks"&&expOn("exportSingleFile"))b.singleFile=!!d.single;
   if(expOn("exportTranscode")){
     const q={};
@@ -13274,6 +13767,8 @@ function expCheckSoon(){
   },250);
 }
 // Поле формы: ключ из умолчаний живёт в adv, остальные — в самом заказе (правило монитора)
+// Поля супервизора проверяются по уходу из поля, а не на каждую паузу: система проверяет пароль, и неполный ввод может запереть учётную запись
+function expSupType(k,v){if(expD)expD[k]=v}
 function expSet(k,v,repaint=true){
   if(!expD)return;
   if(k in EXP_DEF)expD.adv[k]=v;
@@ -13336,7 +13831,7 @@ function expPickLoad(){
   // Камеры — все виды с профилем vms.camera/1, строки — как строки перечня базы (rowTrim): имя и сервер записи
   API.get("/units",Object.assign({implements:"vms.camera/1",limit:200},p.q.trim()?{q:p.q.trim()}:{})).then(r=>{if(seq===expPickSeq&&expPick===p){p.rows=r.items.map(u=>unitRec(rowTrim(u)));r.items.filter(x=>!find(x.uid)).forEach(hwAddRow);expRepaint()}}).catch(()=>{});
 }
-function expPickQ(v){if(!expPick)return;expPick.q=v;clearTimeout(expPick.t);expPick.t=setTimeout(expPickLoad,200)}
+function expPickQ(v){if(!expPick)return;expPick.q=v;clearTimeout(expPick.t);expPick.t=setTimeout(expPickLoad,TYPE_PAUSE_MS)}
 function expPickTab(t){if(expPick){expPick.tab=t;expRepaint()}}
 function expCamTog(id,on){
   const max=EXP_REF?.limits?.maxCameras||16;
@@ -13427,11 +13922,11 @@ function expErrText(e){
   const p=e.params||{};
   return({PASSWORD_REQUIRED:i18n("Без пароля экспорт запрещён политикой системы"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"За выбранный период записи нет"),
     LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"периодов",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
-    PERMISSION_DENIED:i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
+    PERMISSION_DENIED:p.reason==="privacy"?(expGrantV?.refusal||e.message||i18n("Нет права на экспорт")):i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
     DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: экспорт через него"),
     VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Укажите время кадра":"Проверьте поле"),
     NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
-    SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
+    SUPERVISOR_REQUIRED:i18n("Нужно подтверждение супервизора"),SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
 }
 function expErrHtml(list){return list.map(e=>`<p class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</p>`).join("")}
 const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
@@ -13474,14 +13969,15 @@ function expMainHtml(d){
   const files=!expOneFile(d)&&d.cams.length>1?(expChk?.files||[]).map(x=>x.name):[];
   const zip=!!d.password&&f?.password==="zip";
   const area=d.cams.map((c,i)=>c.area?`<div class="nt exp-area-nt" data-exp-area><b>${i18n("Область кадра выделена")}</b> — ${escHtml(expCamName(c.id))}: ${escHtml(expAreaText(c.area))} — ${i18n("экспортируется только она")}. <button type="button" class="lk" ${onEv("click",["expAreaReset",i])}>${i18n("Весь кадр")}</button>${expErrHtml(expErrs(`/cameras/${i}/area`))}</div>`:"").join("");
-  const sup=g?.supervisorRequired&&expOn("accessSupervision")?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSet","supLogin",onEv.value,false])}></div>
-      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSet","supPwd",onEv.value,false])}></div></div>
+  if(expErrs("/supervisor").length)d.supAsk=true; // Сервер спросил супервизора, а выдача прав устарела: поля остаются до конца заказа
+  const sup=g?.supervisorRequired||d.supAsk?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSupType","supLogin",onEv.value])} ${onEv("change",["expCheckSoon"])}></div>
+      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSupType","supPwd",onEv.value])} ${onEv("change",["expCheckSoon"])}></div></div>
     ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры подтверждает второй пользователь с правом супервизора.")}</p>`}`):"";
   const file=card("Файл",`<div class="g"><div><label>${i18n("Формат")}</label>${fmtSel}</div>
       <div>${one?`<label>${i18n("Один файл")}</label><div class="ln ln-sw" style="padding:4px 0">${accSw(d.single,["expSet","single",!d.single],false,i18n("Один файл"))}<div>${i18n("Склеить")} ${d.cams.length} ${i18n(plural(d.cams.length,"камеру|камеры|камер"))} ${i18n("в один файл")}</div></div>`:""}</div>
       <div style="grid-column:1/-1"><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.nameSet?d.name:expAutoName())}" ${d.nameSet&&!d.name.trim()?'aria-invalid="true"':""} ${onEv("input",["expSet","name",onEv.value,false])} ${onEv("change",["expRepaint"])}>
         ${d.nameSet&&!d.name.trim()?`<p class="exp-err">${i18n("Имя файла не может быть пустым")}</p>`:files.length?`<p class="sub">${escHtml(files.slice(0,2).join(", "))}${files.length>2?` ${i18n("и ещё")} ${files.length-2}`:""}</p>`:""}${expErrHtml(expErrs("/name"))}</div>
-      ${expOn("exportPassword")&&f&&f.password!=="none"?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
+      ${expOn("exportPassword")&&f&&f.password!=="none"&&!(g?.privacyForced&&g?.refusal)?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
         ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Файл придёт архивом .zip и откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
       <div><label>${i18n("Комментарий")}</label><textarea rows="2" data-exp-comment ${onEv("input",["expSet","comment",onEv.value,false])}>${escHtml(d.comment)}</textarea></div></div>
     ${expErrHtml(expErrs("/format").concat(expErrs("/singleFile")))}`);
@@ -13621,10 +14117,27 @@ function treeExp(){
 function expPick1(id){expSel=id;if(id==="new"&&!expD){expD=expDraftNew({});expCheckSoon()}paint()}
 function expCancel(id){API.post(`/exports/${id}/cancel`,{}).then(expUpsert).catch(e=>toast(problemText(e)))}
 function expRetry(id){
-  const x=expRowOf(id),need=expGrantV?.passwordRequired||!!x?.enforced?.password;
-  const go=pw=>API.post(`/exports/${id}/retry-failed`,pw?{password:pw}:{}).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>toast(e?.problem?expErrText(e.problem):problemText(e)));
-  if(!need)return go("");
-  askConfirm("Повторить неудачные",`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`,"","Повторить",()=>go(document.getElementById("expRetryPw").value),{html:true});
+  // Права нужны на камеры этого заказа: expGrantV — про камеры черновика
+  const ids=(expRowOf(id)?.parts||[]).filter(p=>p.state==="fail"||p.state==="cancel").map(p=>p.uid).join(",");
+  const load=can("getExportGrant")?API.get("/me/export",ids?{ids}:{}).catch(()=>expGrantV):Promise.resolve(expGrantV);
+  return load.then(g=>expRetryAsk(id,g,{}));
+}
+// force — что спросил сервер в прошлой попытке, если выдача прав этого не обещала
+function expRetryAsk(id,g,force){
+  const x=expRowOf(id),needPw=force.pw||!(g?.privacyForced&&g?.refusal)&&(g?.passwordRequired||!!x?.enforced?.password),needSup=force.sup||!!g?.supervisorRequired||!!x?.supervisedBy;
+  const go=b=>API.post(`/exports/${id}/retry-failed`,b).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>{
+    toast(e?.problem?expErrText(e.problem):problemText(e));
+    const f=e?.problem?.field;
+    if(f==="/supervisor"||f==="/password")expRetryAsk(id,g,{pw:needPw||f==="/password",sup:needSup||f==="/supervisor"});
+  });
+  if(!needPw&&!needSup)return go({});
+  const val=k=>document.getElementById(k)?.value||"";
+  askConfirm("Повторить неудачные",`${needPw?`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`:""}${needSup?`<div><label>${i18n("Логин супервизора")}</label><input id="expRetrySupLogin" autocomplete="off"></div><div><label>${i18n("Пароль супервизора")}</label><input type="password" id="expRetrySupPwd" autocomplete="off"></div>`:""}`,"","Повторить",()=>{
+    const b={},pw=val("expRetryPw"),l=val("expRetrySupLogin"),s=val("expRetrySupPwd");
+    if(pw)b.password=pw;
+    if(l&&s)b.supervisor={login:l,password:s};
+    go(b);
+  },{html:true});
 }
 function expAgain(id){
   const x=expRowOf(id),r=x?.request;if(!r)return;
@@ -13682,7 +14195,7 @@ function expUpsert(x){
   const i=(expRows||[]).findIndex(r=>r.id===x.id);
   if(i<0)expRows=[x].concat(expRows||[]);else expRows[i]=x;
   if(expPrintWait.has(x.id)&&x.state!=="queued"&&x.state!=="running"){expPrintWait.delete(x.id);if(x.files[0])expFile(x.id,x.files[0].id,true)}
-  if(app==="exp"){renderTree();if(expSel===x.id)expUI()}
+  if(app==="exp"){renderTreeSoon();if(expSel===x.id)expUI()}
 }
 // Поток: ход и итог приходят только автору; истина — GET, поэтому итог перечитывается
 function expOnEvent(m){
@@ -13783,12 +14296,15 @@ function recCopyListHtml(n,t,all,q){
 // Поиск обновляет только список: поле ввода не перерисовывается и не теряет курсор
 function recCopySearch(id,q){
   recCopyFind={id,q};
+  typeLater("recCopy",()=>recCopyPaint(id,q),!String(q||"").trim());
+}
+function recCopyPaint(id,q){
   const n=find(id)?.n,t=n?.recordingTarget,box=document.getElementById("recCopyList"),dom=domains.find(d=>d.id===deviceDomain(id));
   if(box&&t)box.innerHTML=recCopyListHtml(n,t,dom?.servers||[],q);
 }
 function recTargetPut(id,serverId,copies){
   const n=find(id)?.n;
-  return API.put(`/units/${id}/recording-target`,{serverId:serverId||null,copies}).then(r=>{hwApplyUnit(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
+  return API.put(`/units/${id}/recording-target`,{serverId:serverId||null,copies}).then(r=>{hwApplyUnit(r);treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
 function recTargetSet(id,serverId){
   const n=find(id)?.n;
@@ -14509,7 +15025,7 @@ const CTL_KINDS=[
    },
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
-     return`<div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,k),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
+     return`<div class="rl-f">${trigSelHtml(k,`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
        ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${matchExtraHtml(k,c.ev.match,["setWevExtra",`${ps}`,onEv.value])}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
@@ -15408,16 +15924,37 @@ const RULE_STARTS=[
   ["sched","По расписанию","Запустится само в заданные дни и время."],
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
+// Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
 const RULE_TPL=[
-  {id:"door",start:"event",name:"Дверь открыта — сирена",sub:"Вход датчика «разомкнут» включает реле на 5 секунд",
-   make:()=>({when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+  // Охрана
+  {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
+   make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
+  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
+   make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
               then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
-  {id:"night",start:"event",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
+  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
    make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"lost",start:"event",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
+  {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
+   make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
+  {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке: реле открывает шлагбаум на 3 секунды",
+   make:()=>({when:[{sub:"unit",kind:"plate.list",ref:"",match:{presence:"yes"}}],then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})},
+  {id:"aclose",start:"event",grp:"Охрана и реагирование",name:"Тревога обработана — камера в исходный пресет",sub:"Оператор обработал тревогу: поворотная камера возвращается в пресет",
+   make:()=>({when:[{sub:"unit",kind:"alarm.closed",ref:"",match:{}}],then:[{sub:"vms",action:"preset",ref:"$src",n:""}]})},
+  {id:"aconf",start:"event",grp:"Охрана и реагирование",name:"Тревога подтверждена — письмо",sub:"Оператор подтвердил тревогу: письмо с кадром уходит ответственному",
+   make:()=>({when:[{sub:"unit",kind:"alarm.confirmed",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Подтверждена тревога: {камера}"}]})},
+  // Состояние системы
+  {id:"lost",start:"event",grp:"Состояние системы",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
    make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
+  {id:"off",start:"event",grp:"Состояние системы",name:"Камера не на связи — письмо",sub:"Связь не вернулась за 5 минут: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"device.lost",ref:"",match:{}}],then:[{ctl:"waitev",ev:{sub:"unit",kind:"device.restored",ref:"$src",match:{}},sec:300,yes:[],no:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с камерой: {камера}"}]}]})},
+  {id:"tamp",start:"event",grp:"Состояние системы",name:"Камеру закрыли или сдвинули — письмо",sub:"Письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"tamper",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Камера закрыта или сдвинута: {камера}"}]})},
+  {id:"vol",start:"event",grp:"Состояние системы",name:"Ошибка архива — письмо",sub:"Том архива перешёл в ошибку: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"volume.error",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Ошибка тома архива"}]})},
+  {id:"srv",start:"event",grp:"Состояние системы",name:"Сервер не на связи — письмо",sub:"Письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"server.down",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с сервером"}]})},
   {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
    make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
@@ -15425,8 +15962,11 @@ const RULE_TPL=[
 // Шаблон с тем, чего система не объявила, не предлагается
 function ruleTplDeclared(t){
   const b=t.make();
-  return(b.when||[]).every(x=>trigDeclared(triggerKind(x)))&&(b.cond||[]).every(x=>condDeclared(condKind(x)))
-    &&(b.then||[]).every(x=>(x.ctl?ctlDeclared(ctlKind(x)):actDeclared(actionKind(x)))&&(x.ref!=="$src"||srcDeclared()));
+  // Поиск без triggerKind: тот заводит незнакомому виду запись. У вида из описания шаблон не задаёт уточнений, которых вид не объявил
+  const trig=x=>{const k=TRIGGER_KINDS.find(y=>y.sub===x.sub&&y.kind===x.kind);
+    return!!k&&trigDeclared(k)&&(!k.gen||Object.keys(x.match||{}).every(f=>k.match.some(m=>m.id===f)))&&(x.ref!=="$src"||srcDeclared())};
+  const step=x=>(x.ctl?ctlDeclared(ctlKind(x))&&(!x.ev||trig(x.ev))&&(x.yes||[]).every(step)&&(x.no||[]).every(step):actDeclared(actionKind(x)))&&(x.ref!=="$src"||srcDeclared());
+  return(b.when||[]).every(trig)&&(b.cond||[]).every(x=>condDeclared(condKind(x))&&(x.modes||[]).every(Boolean))&&(b.then||[]).every(step);
 }
 let rnw={start:"event",tpl:"",preset:null};
 // preset — {start, when, then}: точки входа из других разделов приносят готовое
@@ -15439,11 +15979,30 @@ function ruleNewOpen(preset){
     ruleNewRender();
   },()=>!preset);
 }
-function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
+function ruleNewSet(k,v){rnw[k]=v;if(k==="start"){rnw.tpl="";rnw.q=""}ruleNewRender()}
+// Карточки шаблонов: то же правило длинного списка, что у <select> (CBX_MIN). «С нуля» остаётся всегда: это выход из поиска
+// Набор — после паузы (typeLater), как остальные фильтры длинных списков: запрос пишется сразу, карточки — по таймеру
+function ruleTplType(v){rnw.q=v;typeLater("rnwTpl",()=>ruleTplFilter(rnw.q),!String(v||"").trim())}
+function ruleTplFilter(v){
+  rnw.q=v;
+  const host=document.querySelector("#bmodal [data-rnw]");if(!host)return;
+  let shown=0,g=null,gn=0;
+  const closeG=()=>{if(g)g.hidden=!gn};
+  [...host.children].forEach(el=>{
+    if(el.classList.contains("rl-tpl-g")){closeG();g=el;gn=0;return}
+    if(!el.dataset.tpl)return;
+    const on=matchesText(v.trim(),el.textContent);
+    el.hidden=!on;if(on){gn++;shown++}
+  });
+  closeG();
+  const no=host.querySelector(".rl-tpl-none");if(no)no.hidden=shown>0;
+}
 function ruleNewRender(){
   const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
+  let tplGrp="";
   const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
-    .map(t=>`<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+    .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}" ${t.id?`data-tpl="${t.id}"`:""}><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+  const tplCount=RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t)).length;
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
   const steps=RULE_NEW_STEPS,last=rnw.step===steps.length-1,st=steps[rnw.step];
@@ -15451,9 +16010,10 @@ function ruleNewRender(){
   const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
     st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
-      :`${pre}<div class="rl-opts" data-rnw>${tpls}</div>
+      :`${pre}${tplCount>=CBX_MIN?`<input type="text" class="rl-tpl-q" placeholder="${i18n("Найти шаблон…")}" aria-label="${i18n("Найти шаблон")}" autocomplete="off" value="${escHtml(rnw.q||"")}" ${onEv("input",["ruleTplType",onEv.value])}>`:""}<div class="rl-opts rl-opts-2" data-rnw>${tpls}<p class="sub rl-tpl-none" hidden>${i18n("Ничего не найдено")}</p></div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
     wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
+  if(rnw.q&&st.k==="tpl"&&tplCount>=CBX_MIN)ruleTplFilter(rnw.q);
 }
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
@@ -15470,7 +16030,7 @@ function ruleNewMerge(){
   const t=RULE_TPL.find(x=>x.id===rnw.tpl),b=t?t.make():{},p=rnw.preset||{},st=rnw.start;
   const when=st==="event"?ruleClone(b.when||[]):[],then=ruleClone(b.then||[]),notes=[];
   const put=(list,pt,kindOf,word)=>{
-    const kd=kindOf(pt),i=list.findIndex(x=>{const k=kindOf(x);
+    const kd=kindOf(pt),i=list.findIndex(x=>{if(x.ctl)return false;const k=kindOf(x);
       return pt.ref?(!x.ref&&k.devTypes.some(d=>kd.devTypes.includes(d))):(k===kd)});
     const lab=word==="событие"?triggerLabel(pt):actionLabel(pt);
     if(i>=0){
@@ -15578,7 +16138,7 @@ function rulePickRef(slot,i){
   rulePk={slot,i,dt,src:it.ref==="$src",toks:single?inc.filter(t=>!refTokBroken(t)):inc,ex:new Set(ex),shut,all:false,focus:"",warned:false};
   openBulkModal(`${i18n("Выбрать")}: ${i18n(ruleNounOf(dt)[5])}`,
     `<div class="rl-pkw" ${onEv("keydown",["rulePkWinKey",onEv.event])}>
-      <input type="text" id="rpQ" class="rl-pq" placeholder="${i18n("Область, название, тип или сервер…")}" aria-label="${i18n("Поиск областей и устройств")}" autocomplete="off" ${onEv("input",["rulePickList"])}>
+      <input type="text" id="rpQ" class="rl-pq" placeholder="${i18n("Область, название, тип или сервер…")}" aria-label="${i18n("Поиск областей и устройств")}" autocomplete="off" ${onEv("input",["rulePickType"])}>
       <div id="rpList" class="rl-pl" ${onEv("keydown",["rulePkKey",onEv.event])}></div>
       <div id="rpSum" class="rl-sum"></div>
     </div>`,
@@ -15713,6 +16273,8 @@ function ruleDotHtml(n){
   const t=off?"Нет связи":dis?"Выключено":"На связи";
   return`<span class="st-dot ${off?"st-nosignal":dis?"st-off":"st-run"}" role="img" aria-label="${i18n(t)}" title="${i18n(t)}"></span>`;
 }
+// Поиск областей и устройств — после паузы в наборе (typeLater)
+function rulePickType(){typeLater("rp",()=>rulePickList(),!(document.getElementById("rpQ")?.value||"").trim())}
 function rulePickList(){
   const host=document.getElementById("rpList"),body=document.getElementById("bmBody");if(!host||!rulePk)return;
   const r=curRule(),it=ruleSlotItem(rulePk.slot,rulePk.i);if(!r||!it)return;
@@ -15927,12 +16489,26 @@ function refFieldHtml(slot,i,ref,ph){
   const hint=`${rulePickTitle(slot,it||{})}…`,live=group&&!bad&&refParts(ref).inc.some(refIsArea);
   return`<div class="rl-f"><div class="rl-ref"><button type="button" class="btn s rl-pick ${bad?"bad":""}" ${onEv("click",["rulePickRef",`${slot}`,`${i}`])} title="${escHtml(ref?ruleRefTitle(ref,dt):hint)}">${escHtml(ref?refLabel(ref,dt,slot):hint)}</button>${go?`<button type="button" class="lk rl-go" title="${i18n("Открыть в «Оборудовании»")}" ${onEv("click",["ruleGoDevice",`${go}`])}>${lu("square-arrow-out-up-right")}</button>`:""}${group?`<button type="button" class="lk lk-act rl-comp-lk" ${onEv("click",["ruleCompOpen",`${slot}`,`${i}`])}>${i18n("Состав")} (${refNodes(ref,dt).length})</button>`:""}</div>${live?`<div class="sub rl-live">${i18n(ruleNounOf(dt)[4])} ${i18n("области войдут сами")}</div>`:""}</div>`;
 }
+// Группы в списке событий: длинный плоский список читать трудно
+function trigGroup(k){
+  const c=k.kind.toLowerCase();
+  if(k.sub==="det"||/^(tamper|fire|smoke|face|plate)/.test(c))return"Детекторы и распознавание";
+  if(/^alarm/.test(c))return"Тревоги";
+  if(/^(device|silent|arm|ptz)/.test(c))return"Камера: связь и состояние";
+  if(/^(rec|segment|volume)/.test(c))return"Запись и архив";
+  if(/^(server|load|license|sched)/.test(c))return"Сервер и система";
+  return"Входы, выходы, СКУД";
+}
+const TRIG_GROUPS=["Детекторы и распознавание","Входы, выходы, СКУД","Тревоги","Камера: связь и состояние","Запись и архив","Сервер и система"];
+function trigSelHtml(k,on,label){
+  const cur=TRIGGER_KINDS.indexOf(k),opts=kindOpts(TRIGGER_KINDS,trigDeclared,k).map(([v,l])=>({v,l,g:trigGroup(TRIGGER_KINDS[v])}));
+  return`<select aria-label="${escHtml(i18n(label))}" ${onEv("change",on)}>${TRIG_GROUPS.map(g=>{const o=opts.filter(x=>x.g===g);return o.length?`<optgroup label="${escHtml(i18n(g))}">${o.map(x=>`<option value="${x.v}" ${x.v===cur?"selected":""}>${escHtml(i18n(x.l))}</option>`).join("")}</optgroup>`:""}).join("")}</select>`;
+}
 function triggerRowHtml(t,i,n){
-  const k=triggerKind(t),ki=TRIGGER_KINDS.indexOf(k);
-  const kinds=kindOpts(TRIGGER_KINDS,trigDeclared,k);
+  const k=triggerKind(t);
   return`<div class="rl-row">
-    <div class="rl-n">${n}</div>
-    <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
+    <div class="rl-n">${i18n(n)}</div>
+    <div class="rl-f">${trigSelHtml(k,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${i+1}`)}</div>
     ${refFieldHtml("when",i,t.ref)}
     ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`,t.ref)}
     ${matchExtraHtml(k,t.match,["setTriggerExtra",i,onEv.value])}
@@ -15958,7 +16534,7 @@ function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(tri
 function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
-  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:k.gen&&m.label!==m.id?`${i18n(m.label)}: ${i18n("любое")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -16502,7 +17078,8 @@ function raOpen(id){
 }
 function raCancel(){closeBulkModal();ra=null}
 function raSet(id){ra.pick=id;raRender()}
-function raQ(el){ra.q=el.value;raRender();const i=document.querySelector(".ra-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
+function raQ(el){ra.q=el.value;typeLater("ra",raQPaint,!ra.q.trim())}
+function raQPaint(late){const back=typeFocused(late,".ra-q input");raRender();const i=back&&document.querySelector(".ra-q input");if(i){i.focus();i.setSelectionRange(i.value.length,i.value.length)}}
 function raNew(){const id=ra.id;raCancel();ruleFromDevice(id)}
 function raRender(){
   if(!ra)return;
@@ -16936,7 +17513,7 @@ function scenCamFind(side,q){
     await hwEnsure(items.map(x=>x.parentId));items.forEach(hwAddRow);
     SCEN.found[side]=items.map(unitRec);paint();
     const el=document.getElementById("scenQ-"+side);if(el){el.value=q;el.focus()}
-  },200);
+  },TYPE_PAUSE_MS);
 }
 function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[];paint()}
 // base — документ, с которого начата правка: чтение из потока может подменить SCEN.doc под открытой
@@ -19064,7 +19641,8 @@ function accSrcLink(rid,s,f,label){
 var accFlashReq=0;
 function accFlash(find,keepScroll){
   accFlashReq++;
-  setTimeout(()=>{const els=find();if(!els||!els.length)return;
+  // Ожидающая перерисовка дерева — до поиска мест: иначе она заменила бы строку сразу после вспышки
+  setTimeout(()=>{renderTreeFlush();const els=find();if(!els||!els.length)return;
     if(!keepScroll)els[0].scrollIntoView({block:"center",inline:"center",behavior:"smooth"});
     els.forEach(el=>{el.classList.remove("acc-flash");void el.offsetWidth;el.classList.add("acc-flash")});
     setTimeout(()=>els.forEach(el=>el.classList.remove("acc-flash")),2600);
@@ -19076,9 +19654,10 @@ function accFlash(find,keepScroll){
 function accFlashLanding(){
   const at=accFlashReq;
   setTimeout(()=>{if(accFlashReq!==at)return;
-    const els=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    renderTreeFlush();
+    const at2=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"],els=()=>at2.map(q=>document.querySelector(q)).filter(Boolean);
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(els().length)accFlash(els,true);
   },40);
 }
 // Переход по ссылке — не по дереву, вкладкам и шагам: им подсветка не нужна,
@@ -20154,9 +20733,10 @@ function accExDrop(rid,oid){
 }
 // «+ Исключение…»: выбор объекта без исключения; строка появляется со значениями «как в папках».
 function accExPick(el,rid){
-  accMenuOpen(el,`<div class="acc-expick"><input type="search" placeholder="${i18n("Найти объект")}" ${onEv("input",["accExPickList",`${rid}`,onEv.value])} aria-label="${i18n("Найти объект")}"><div id="accExPickL">${accExPickItems(rid,"")}</div></div>`);
+  accMenuOpen(el,`<div class="acc-expick"><input type="search" placeholder="${i18n("Найти объект")}" ${onEv("input",["accExPickType",`${rid}`,onEv.value])} aria-label="${i18n("Найти объект")}"><div id="accExPickL">${accExPickItems(rid,"")}</div></div>`);
   document.querySelector("#accMenu input")?.focus();
 }
+function accExPickType(rid,q){typeLater("accEx",()=>accExPickList(rid,q),!String(q||"").trim())}
 function accExPickList(rid,q){const box=document.getElementById("accExPickL");if(box)box.innerHTML=accExPickItems(rid,q)}
 function accExPickItems(rid,q){
   const r=accRole(rid);if(!r)return"";
@@ -20475,7 +21055,7 @@ function accMemSelAll(on){
 // «Добавить пользователей…»: окно с поиском и галочками для роли. Список
 // может быть на сотни строк, поэтому он прокручивается, а при вводе
 // перерисовывается только он — поле поиска фокус не теряет.
-function accAdSet(k,v){accAd[k]=v;accAdLive()}
+function accAdSet(k,v){accAd[k]=v;typeLater("accAd",accAdLive,k!=="q"||!String(v||"").trim())}
 function accAdUntil(v){accAd.until=v;accAdCheck()}
 function accAdOpen(rid){
   const r=accRole(rid);if(!r)return;
@@ -20866,7 +21446,7 @@ function accGmRemove(gid){
   }
 }
 // «Добавить пользователей…»: то же окно, что и для роли, но пул — те, кого в группе ещё нет.
-function accGmSet(k,v){accGm[k]=v;accGmLive()}
+function accGmSet(k,v){accGm[k]=v;typeLater("accGm",accGmLive,k!=="q"||!String(v||"").trim())}
 function accGmOpen(gid){
   const g=accUG(gid);if(!g||g.src)return;
   accMenuClose();
@@ -21584,7 +22164,7 @@ function accWzG(k,v){accWz.g[k]=v;accWzRender()}
 function accWzSupRole(v){accWz.sup.role=v;if(!v){accWz.sup.login=false;accWz.sup.export=false}else if(!accWz.sup.login&&!accWz.sup.export)accWz.sup.login=true;accWzRender()}
 function accWzSup(k,on){accWz.sup[k]=on}
 function accWzWho(k){accWz.who=k;accWzRender()}
-function accWzPkQ(v){accWz.pk.q=v;accWzPkLive()}
+function accWzPkQ(v){accWz.pk.q=v;typeLater("accWzPk",late=>{if(late&&!document.getElementById("accWzSel"))return;accWzPkLive()},!String(v||"").trim())}  // шаг мастера сменили, пока ждали паузы
 function accWzPkTab(id){accWz.pk.tab=id;accWz.pk.q="";accWzRender()}
 function accWzPkChip(id){accWz.pk.chip=id;accWzPkLive()}
 function accWzPkSel(){accWz.pk={tab:"users",q:"",chip:"sel"};accWzRender()}
@@ -22593,10 +23173,7 @@ function pruneSelectionToVisible(){
   [...wizd.devSelected].forEach(id=>{if(!vis.has(id))wizd.devSelected.delete(id)});
   if(!wizd.devSelected.size)wizd.devSelectedOnly=false;
 }
-function setDeviceFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.devFilter=v;renderDeviceWizard();
-  const el=document.getElementById("devFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
-}
+function setDeviceFilter(v){wizd.devFilter=v;typeLater("wdev",late=>wizFiltPaint("devFilter",late),!String(v||"").trim())}
 function hasDeviceStatusFilter(){
   const s=wizd.devStatuses;return !s.ok||!s.manual||!s.bad;
 }
@@ -22642,10 +23219,7 @@ function toggleDeviceModePop(e){
   if(wizd.modePop){wizd.tplPop=false;wizd.devFiltPop=false;wizd.devFieldsPop=false}
   renderDeviceWizard();
 }
-function setDeviceTplFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.tplFilter=v;renderDeviceWizard();
-  const el=document.getElementById("devTplFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
-}
+function setDeviceTplFilter(v){wizd.tplFilter=v;typeLater("wtpl",late=>wizFiltPaint("devTplFilter",late),!String(v||"").trim())}
 function setDeviceTemplate(v){
   if(!v){setDeviceMode("current");return}
   wizd.devMode="template";wizd.templateId=v;wizd.modePop=false;wizd.tplPop=false;wizd.tplFilter="";
@@ -23188,8 +23762,8 @@ function createArchive(){
   wzDrop("arch");
   const au=units.find(u=>screenType(u.kind)==="archive");
   const a=archById(au.uid)||archNode(unitRec(au));
-  if(!arch.includes(a))arch.push(a);
-  units.filter(u=>u!==au).forEach(u=>{if(!volById(u.uid))a.vols.push(volNode(unitRec(u)))});
+  if(!arch.includes(a)){arch.push(a);hwIdxDrop()}
+  units.filter(u=>u!==au).forEach(u=>{if(!volById(u.uid)){a.vols.push(volNode(unitRec(u)));hwIdxDrop()}});
   archServerTouched(a);
   const v=a.vols[0];
   an=null;closeBulkModal();
@@ -23204,7 +23778,7 @@ function addVolume(archId){
   if(!d){toast("Свободных дисков нет: на одном диске у хранилища один том, а разделы других хранилищ заняты");return}
   unitsCreate([Object.assign(volToUnit(volSpec(a,d)),{parentId:a.id})]).then(([u])=>{
     const r=unitRec(u);
-    if(!volById(r.id))a.vols.push(volNode(r));
+    if(!volById(r.id)){a.vols.push(volNode(r));hwIdxDrop()}
     open.add(a.id);sel=r.id;tab="gen";setD(true);
     toast(i18n("Том добавлен"));
     paint();
@@ -23224,7 +23798,7 @@ function deleteVolume(id){
     (last&&n?`${i18n("Это последний том: хранилищу будет некуда писать, камер:")} ${n}. `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`${i18n("Том")} «${vName}»`,commit:()=>{
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>{
-      const i=a.vols.indexOf(v);if(i>=0)a.vols.splice(i,1);
+      const i=a.vols.indexOf(v);if(i>=0){a.vols.splice(i,1);hwIdxDrop()}
       hwVer.delete(id);
       if(sel===id){sel=a.id;tab="arch"}
       setD(false);
@@ -24257,9 +24831,13 @@ function toggleCsvAll(on){
   csvSelChanged();
 }
 function toggleCsvSelOnly(){wizd.csvSelOnly=!wizd.csvSelOnly&&csvPickedRows().length>0;renderDeviceWizard()}
-function setCsvFilter(v){
-  const pos=document.activeElement?.selectionStart;wizd.csvFilter=v;renderDeviceWizard();
-  const el=document.getElementById("csvFilter");if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
+function setCsvFilter(v){wizd.csvFilter=v;typeLater("wcsv",late=>wizFiltPaint("csvFilter",late),!String(v||"").trim())}
+// Фильтр списка мастера — перерисовка после паузы в наборе (typeLater); курсор — на место, если человек из поля не ушёл
+function wizFiltPaint(id,late){
+  if(late&&!wizOpen()&&!wizardInlineHost())return;   // мастер закрыли, пока ждали паузы
+  const back=typeFocused(late,"#"+id),pos=back?document.activeElement?.selectionStart:null;
+  renderDeviceWizard();
+  const el=back&&document.getElementById(id);if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos)}
 }
 function setCsvStatus(k,v){wizd.csvStatuses[k]=v;renderDeviceWizard()}
 function toggleCsvFiltPop(e){e.stopPropagation();wizd.csvFiltPop=!wizd.csvFiltPop;renderDeviceWizard()}
@@ -24572,7 +25150,7 @@ function comboBlur(el){
 // дереву его не трогают, закрытие страницы — предупреждает.
 const addPlan={rows:[],links:[],key:null,keySig:null,applying:false,last:null,added:[]};
 let planSeq=0;
-window.addEventListener("beforeunload",e=>{if(addPlan.rows.length||addPlan.links.length){e.preventDefault();e.returnValue=""}});
+window.addEventListener("beforeunload",e=>{if(!window.Tour?.demo&&(addPlan.rows.length||addPlan.links.length)){e.preventDefault();e.returnValue=""}});
 // Набор строк изменился — прежний ключ запроса уже не про этот набор
 function planTouch(){addPlan.key=null;addPlan.keySig=null}
 // Счётчик на верхней панели: цифра сама по себе не говорит, что это несохранённый план
@@ -25090,7 +25668,8 @@ function faRows(){
   return lanSysDevices(own).filter(d=>deviceDomain(d.id)===did&&inFolders(d)).map(d=>({d,b:lanBindOf(own,d)})).filter(x=>x.b.k!=="here")
     .filter(x=>!q||ws.some(words=>matchWords(words,[locName(x.d),x.d.ip,modelOf(x.d),x.b.t])));
 }
-function faSetQ(v){faS.q=v;renderDeviceWizard();requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
+function faSetQ(v){faS.q=v;typeLater("fa",faQPaint,!String(v||"").trim())}
+function faQPaint(late){if(late&&!wizOpen()&&!wizardInlineHost())return;const back=typeFocused(late,"#faQ");renderDeviceWizard();if(back)requestAnimationFrame(()=>{const el=document.getElementById("faQ");if(el){el.focus();el.setSelectionRange(el.value.length,el.value.length)}})}
 function faSetChip(k){faS.chip=k;renderDeviceWizard()}
 function faPick(id,on){if(on)faS.sel.add(id);else faS.sel.delete(id);renderDeviceWizard()}
 function faPickAll(on,ids){ids.forEach(id=>on?faS.sel.add(id):faS.sel.delete(id));renderDeviceWizard()}
@@ -25675,8 +26254,12 @@ function wnx(){
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
   }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
-function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
-  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI};
+// paintTreeSoon — то же, что paint, но дерево просит кадр (renderTreeSoon): событие потока об открытом объекте
+// перерисовывает карточку сразу, а дерево — вместе с прочими событиями пачки
+let paintTreeLater=false;
+function paintTreeSoon(){paintTreeLater=true;try{paint()}finally{paintTreeLater=false}}
+function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else if(paintTreeLater)renderTreeSoon();else renderTree();syncDomainChrome();renderFavs();
+  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI,learn:learnUI};
   (ui[app]||gear)();
   syncHeaderLoad();
 }
@@ -25711,7 +26294,7 @@ function navMark(){
 // запоминается, чтобы вернуть его, если с тех пор выборку сняли.
 function navLoc(){
   const bulk=app==="hw"&&bulkActive()&&!bulkPeek;
-  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,
+  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,learnSel,
     bsel:bulk?[...treeSel].map(id=>[id,selWhere.get(id)??null]):null};
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
@@ -25723,6 +26306,7 @@ function navTitle(){
   else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы объекта",maint:"Окна обслуживания",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
   else if(app==="sys")t=sysOpts.find(o=>o.id===sys)?.n||"";
   else if(app==="log")t=logCats.find(c=>c.id===logFilt)?.n||"";
+  else if(app==="learn")t=learnTitle(learnSel);
   else if(app==="exp")t=expSel==="new"?i18n("Новая выгрузка"):expRowOf(expSel)?expJobTitle(expRowOf(expSel)):"";
   else if(app==="acc"){
     if(accSel.startsWith("role:"))t=`${i18n("Роль")} «${accRoleName(accSel.slice(5))}»`;
@@ -25751,7 +26335,7 @@ function navApply(loc){
   navLock=true;
   try{
     app=loc.app;sel=loc.sel;tab=loc.tab;slice=loc.slice;selFolder=loc.selFolder;detSel=loc.detSel;
-    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
+    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;learnSel=loc.learnSel||"home";expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
     syncViews();treeOpenFollow();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
     // Шаг «выборка» возвращает её состав; шаг объекта при живой выборке
     // открывает объект поверх неё — выборка остаётся.
@@ -26128,7 +26712,7 @@ function busyIds(){
 }
 // Откат и повтор очередь не показывает, но это тоже операции: их объекты заняты до конца
 const opRunning=new Map();
-function opBusyPaint(){treeMatchCache.clear();searchMatchCache.clear();renderTree();if(sel&&(app==="hw"||app==="dev"||app==="srvs"))gear()}
+function opBusyPaint(){treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();if(sel&&(app==="hw"||app==="dev"||app==="srvs"))gear()}
 function opFollow(op,done){
   if(op.state==="done"){done({state:op.state,ok:op.ok,failed:op.failed,cancelled:op.cancelled});return}
   opRunning.set(op.id,new Set(op.items.map(x=>x.targetId)));
@@ -26158,7 +26742,9 @@ function selCandidates(){
 }
 // Отмечаемые потомки контейнера: сервер, регистратор, папка, домен, архив.
 // withParts — вместе с начинкой камер.
-function selDescendants(n,withParts){
+// Кэш на время подсчёта не меняется: камеры серверов (serverCameras) считаются один раз на весь вызов
+function selDescendants(n,withParts){return withFind(()=>selDescendantsRun(n,withParts))}
+function selDescendantsRun(n,withParts){
   const q=qval(),out=[],seen=new Set(),busy=busyIds();
   // Начинка камеры и регистратора (датчики, реле, микрофоны, встроенное
   // хранилище, каналы) в групповую выборку не идёт — её отмечают поштучно.
@@ -26178,7 +26764,7 @@ function selDescendants(n,withParts){
     // В раскладке по папкам (ОПС/СКД, «Папки») под доменом не серверы, а
     // папки и «Без папки» — домен отмечает и то, что лежит в них.
     if(x.type==="domain"){folders.filter(f=>folderDomain(f.id)===x.id).forEach(f=>visit(f,false));unfolderedDevices(x.id).forEach(c=>visit(c,false))}
-    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c,false));
+    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c.cam,false));
     // Сервер и хранилище отмечают всё, что под ними в дереве: регистраторы
     // вместе с их камерами и отдельные камеры.
     if(x.type==="server"&&!isUnallocated(x.id)){
@@ -26197,7 +26783,9 @@ const MARK_TYPE_ORDER=["camera","ipsrv","channel","relay","sensor","mic","spk","
 const MARK_TYPE_RU={camera:"Камеры",ipsrv:"IP-серверы",channel:"Каналы",relay:"Реле",sensor:"Датчики",mic:"Микрофоны",spk:"Динамики",eventsrc:"Источники событий"};
 function markTypeLabel(t){return i18n(MARK_TYPE_RU[t]||LB[t]||t)}
 function markTypeRank(t){const i=MARK_TYPE_ORDER.indexOf(t);return i<0?99:i}
-function decorateTreeSel(){
+// Отметки строк меняют только разметку: кэш на это время прежний, производные карты (withFind) — одни на все строки
+function decorateTreeSel(){return withFind(decorateTreeSelRun)}
+function decorateTreeSelRun(){
   const treeEl=document.getElementById("tree");if(!treeEl)return;
   const on=selMode&&app==="hw",busy=busyIds();
   treeEl.classList.toggle("selmode",on);
@@ -26718,7 +27306,7 @@ function bulkExcludeServers(){
       // «Отменить» — обратный запрос; серверы встают на прежние места в списке
       serversAssign(done.map(({s,d})=>({s,domainId:d.id,allocated:true}))).then(r2=>{
         r2.done.forEach(r=>{hwApplyServer(r);const b=done.find(x=>x.s.id===r.id);
-          b.d.servers=b.d.servers.filter(x=>x!==b.s);b.d.servers.splice(Math.min(b.i,b.d.servers.length),0,b.s);resetUnallocDisplay(b.d.id)});
+          b.d.servers=b.d.servers.filter(x=>x!==b.s);b.d.servers.splice(Math.min(b.i,b.d.servers.length),0,b.s);hwIdxDrop();resetUnallocDisplay(b.d.id)});
         treeMatchCache.clear();searchMatchCache.clear();paint();toast("Серверы возвращены в домен");
       }).catch(e=>toast(problemText(e)));
     },8000);
@@ -26759,7 +27347,7 @@ function bulkAddToDomain(did,sure){
     toastAction("bkadddom",`${i18n("Добавлено в")} «${locName(d)}» ${i18n("серверов")}: ${done.length}`,i18n("Отменить"),()=>{
       serversAssign(done.map(({s,from})=>({s,domainId:(from||d).id,allocated:false}))).then(r2=>{
         r2.done.forEach(r=>{hwApplyServer(r);const b=done.find(x=>x.s.id===r.id),to=b.from||d;
-          to.unallocServers=to.unallocServers.filter(x=>x!==b.s);to.unallocServers.splice(b.i<0?to.unallocServers.length:Math.min(b.i,to.unallocServers.length),0,b.s);resetUnallocDisplay(to.id)});
+          to.unallocServers=to.unallocServers.filter(x=>x!==b.s);to.unallocServers.splice(b.i<0?to.unallocServers.length:Math.min(b.i,to.unallocServers.length),0,b.s);hwIdxDrop();resetUnallocDisplay(to.id)});
         resetUnallocDisplay(d.id);treeMatchCache.clear();searchMatchCache.clear();paint();toast("Серверы снова нераспределённые");
       }).catch(e=>toast(problemText(e)));
     },8000);
@@ -26931,7 +27519,7 @@ function bulkChanges(draft,nodesIn){
   if(vid.length)step("video",`Видео: ${vid.map(k=>({res:"разрешение",fps:"к/с"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток переоткроется, запись прервётся на секунды")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   [...(d.addDet?[d.addDet]:[]),...(d.addDetMany||[])].forEach(kind=>{
     step("addDet:"+kind,`Детектор «${i18n(kind)}»`,nodes.filter(n=>n.type==="camera"&&!camDetectors(n).some(x=>(x.kind||DET_TYPES[0])===kind)).map(n=>mkOp(n,`Детектор «${i18n(kind)}»`,"det",()=>{
-      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});
+      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});hwIdxDrop();
     },sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("зону детекции задают на каждой камере отдельно")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   });
   // Копия конкретных детекторов камеры: программный — на любую модель,
@@ -26939,7 +27527,7 @@ function bulkChanges(draft,nodesIn){
   (d.copyDets||[]).forEach((x,i)=>{
     const has=n=>camDetectors(n).some(y=>(y.kind||DET_TYPES[0])===x.kind&&locName(y)===x.name);
     const ops=nodes.filter(n=>n.type==="camera"&&!has(n)).map(n=>mkOp(n,`Детектор «${x.name}»`,"det",()=>{
-      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});
+      (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});hwIdxDrop();
     },x.builtin&&modelOf(n)!==d.detModel?`${i18n("встроенный детектор, другая модель")}: ${modelOf(n)||"—"}`:null));
     step("copyDet:"+i,`Детектор «${x.name}» (${i18n(x.kind)})`,ops,
       (x.builtin?`${i18n("встроен в камеру — только для модели")} ${d.detModel}`:i18n("считается на сервере — для любой модели"))+`; ${i18n("зону детекции задают на каждой камере отдельно")}`);
@@ -28428,7 +29016,7 @@ function opOnEvent(m){
     const it=m.payload.item,o=ops[it.index];if(!o||o.done)return;
     // Шаг create создал устройство — в кэш, как только сервер его отдаст
     // Выбранный в карточке новый детектор остаётся выбранным и под id сервера
-    if(it.createdId)API.get(`/units/${it.createdId}`).then(u=>{hwAddUnits([u]);if(o.tempId&&detSel===o.tempId){detSel=u.uid;if(app==="hw")gear()}renderTree()}).catch(()=>{});
+    if(it.createdId)API.get(`/units/${it.createdId}`).then(u=>{hwAddUnits([u]);if(o.tempId&&detSel===o.tempId){detSel=u.uid;if(app==="hw")gear()}renderTreeSoon()}).catch(()=>{});
     if(it.state==="ok"){o.state="ok";o.msg="";bq.ok++}
     else if(problemKept(it)){o.state="ok";o.kept=true;o.msg=i18n("Принято, применится");bq.ok++;keptNote(it.targetId)}
     else{o.state="fail";o.msg=problemText(it.code,o.n);bq.fail++}
@@ -28437,7 +29025,7 @@ function opOnEvent(m){
     bq.steps.forEach(s=>s.ops.forEach(x=>{if(x.state==="run"&&x!==nx)x.state=x.done?x.state:"wait"}));
     bq.cur=bq.steps.find(s=>s.ops.some(x=>!x.done))?.label||"";
     treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();renderRailStatus();syncQueueModal();
+    renderTreeSoon();renderRailStatus();syncQueueModal();
   }else if(m.type==="operation.finished")queueFinish();
 }
 function apiQueueOp(path){return API.post(`/operations/${bq.api}/${path}`)}
@@ -28472,7 +29060,7 @@ function queueTick(){
     else{try{o.run()}catch(e){}o.state="ok";o.msg="";bq.ok++}
     o.done=true;bq.done++;
     treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();renderRailStatus();syncQueueModal();
+    renderTreeSoon();renderRailStatus();syncQueueModal();
     queueTick();
   },90+Math.random()*140);
 }
@@ -28882,9 +29470,10 @@ function cpRowNote(n){
 }
 function cpFilterSet(k){cp.filter=k;renderCopyDialog()}
 // Поиск перерисовывает диалог — поле возвращает фокус себе
-function cpQ(el){cp.q=el.value;renderCopyDialog();el.focus()}
+// Курсор в поле поиска — только если человек из него не ушёл: renderCopyDialog(noFocus) его тогда не ставит
+function cpQ(el){cp.q=el.value;typeLater("cp",late=>{const back=typeFocused(late,el);renderCopyDialog(!back);if(back&&el.isConnected)el.focus()},!cp.q.trim())}
 function cpCancel(){closeBulkModal();cp=null}
-function renderCopyDialog(){
+function renderCopyDialog(noFocus){
   if(!cp)return;
   const src=cp.src,cam=src.type==="camera",all=cpCandidates(src),list=cpFiltered();
   // Окно перерисовывается целиком — прокрутку списков возвращаем на место.
@@ -28917,7 +29506,7 @@ function renderCopyDialog(){
     `<button type="button" class="btn" ${onEv("click",["cpCancel"])}>${i18n("Отмена")}</button>${foot?`<span class="cp-foot-note">${lu("triangle-alert")} ${foot}</span>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" ${onEv("click",["cpShowPlan"])} ${cp.picked.size&&what?"":"disabled"} title="${what?"":i18n("Отметьте, что копировать")}">${i18n("Показать план")} (${cp.picked.size})</button>`,"bbox-wide bbox-copy");
   requestAnimationFrame(()=>{
     document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]});
-    const i=document.querySelector(".cp-sq input");if(i&&cp?.q){i.focus();i.setSelectionRange(i.value.length,i.value.length)}
+    const i=document.querySelector(".cp-sq input");if(i&&cp?.q&&!noFocus){i.focus();i.setSelectionRange(i.value.length,i.value.length)}
     const h=document.querySelector(".cp-dets-all");if(h)h.indeterminate=h.dataset.part==="1";
   });
 }
@@ -29020,6 +29609,151 @@ function cpApplyGeneric(){
   bulkRun(ch,null,nodes);
 }
 
+// ── Длинный список — с поиском (CLAUDE.md, «Правила интерфейса») ──
+// Обычный <select> с CBX_MIN и больше пунктов открывается с полем поиска. Менять разметку не нужно: <select> остаётся
+// на месте и хранит значение, выбор приходит к его обработчику обычным change. Сенсорным экранам — системный выбор.
+const CBX_MIN=8;
+let cbx=null;
+function cbxFits(s){
+  return!!s&&s.tagName==="SELECT"&&!s.multiple&&s.size<=1&&!s.disabled&&!matchMedia("(pointer:coarse)").matches
+    &&[...s.options].filter(o=>o.value!=="").length>=CBX_MIN;
+}
+function cbxItems(s){
+  const out=[];
+  [...s.children].forEach(c=>{
+    const one=(o,g)=>{if(!o.hidden)out.push({v:o.value,l:o.textContent,g,dis:o.disabled,on:o.selected})};
+    if(c.tagName==="OPTGROUP")[...c.children].forEach(o=>one(o,c.label));else one(c,"");
+  });
+  return out;
+}
+function cbxOpen(s,text){
+  if(cbx)cbxClose();
+  const box=document.createElement("div");box.className="cbx";
+  const q=document.createElement("input");q.type="text";q.className="cbx-q";q.autocomplete="off";
+  q.placeholder=i18n("Поиск в списке…");
+  q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
+  q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
+  const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
+  box.append(q,list,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,items:cbxItems(s),shown:[],act:-1,up:null,frame:0};
+  q.value=text||"";
+  q.addEventListener("input",cbxType);
+  q.addEventListener("keydown",cbxKey);
+  list.addEventListener("mousedown",e=>e.preventDefault());
+  list.addEventListener("mousemove",e=>{const o=e.target.closest(".cbx-o");if(o&&o.getAttribute("aria-disabled")!=="true")cbxActive(+o.dataset.i,false)});
+  list.addEventListener("click",e=>{const o=e.target.closest(".cbx-o");if(o)cbxPick(+o.dataset.i)});
+  box.addEventListener("click",e=>e.stopPropagation());
+  // Щелчок в списке не считается щелчком мимо всплывающего окна, из которого открыт список
+  box.addEventListener("mousedown",e=>e.stopPropagation());
+  cbxPaint();cbxPlace();q.focus();
+  q.setSelectionRange(q.value.length,q.value.length);
+  cbxFollow();
+}
+// Набор в поиске списка — после паузы (typeLater): буква видна сразу, список — через TYPE_PAUSE_MS. Пустое поле — сразу
+function cbxType(e){typeLater("cbx",cbxPaint,!cbx?.q.value.trim(),e)}
+function cbxPaint(){
+  const c=cbx;if(!c)return;
+  const t=c.q.value.trim();
+  c.shown=c.items.filter(x=>matchesText(t,x.l,x.g));
+  let g="",h="";
+  c.shown.forEach((x,i)=>{
+    if(x.g&&x.g!==g)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
+    g=x.g;
+    h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
+  });
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n("Ничего не найдено")}</div>`;
+  c.foot.hidden=!t;
+  c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
+  const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
+  cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+function cbxActive(i,scroll=true){
+  const c=cbx;if(!c)return;
+  c.list.querySelector(".cbx-o.act")?.classList.remove("act");
+  c.act=i;
+  const el=i>=0?c.list.querySelector(`#cbxO${i}`):null;
+  if(el){el.classList.add("act");c.q.setAttribute("aria-activedescendant",el.id);if(scroll)el.scrollIntoView({block:"nearest"})}
+  else c.q.removeAttribute("aria-activedescendant");
+}
+function cbxStep(d){
+  const c=cbx;if(!c||!c.shown.length)return;
+  const n=c.shown.length,dir=Math.sign(d);
+  let i=Math.max(0,Math.min(n-1,c.act+d));
+  while(i>=0&&i<n&&c.shown[i].dis)i+=dir;
+  if(i>=0&&i<n)cbxActive(i);
+}
+function cbxKey(e){
+  const c=cbx;if(!c)return;
+  if(e.key==="Tab"){const s=c.sel;cbxClose();s.focus();return}
+  // Стрелки и Enter — по набранному, а не по прежнему списку: ожидающий набор применяется сразу (Enter — ещё и typeFlushAll)
+  if(["ArrowDown","ArrowUp","PageDown","PageUp","Enter"].includes(e.key))typeFlush("cbx");
+  e.stopPropagation();
+  if(e.key==="ArrowDown"){e.preventDefault();cbxStep(1)}
+  else if(e.key==="ArrowUp"){e.preventDefault();cbxStep(-1)}
+  else if(e.key==="PageDown"){e.preventDefault();cbxStep(8)}
+  else if(e.key==="PageUp"){e.preventDefault();cbxStep(-8)}
+  else if(e.key==="Enter"){e.preventDefault();if(c.act>=0)cbxPick(c.act)}
+  else if(e.key==="Escape"){e.preventDefault();const s=c.sel;cbxClose();s.focus()}
+}
+function cbxPick(i){
+  const c=cbx;if(!c)return;
+  const x=c.shown[i];if(!x||x.dis)return;
+  const s=c.sel;cbxClose();
+  const lab=s.getAttribute("aria-label"),ks=s.dataset.ks,same=lab?`select[aria-label="${CSS.escape(lab)}"]`:"",nth=same?[...document.querySelectorAll(same)].indexOf(s):-1;
+  if(s.value!==x.v){s.value=x.v;s.dispatchEvent(new Event("change",{bubbles:true}))}
+  // Обработчик мог перерисовать карточку: фокус возвращается на такое же поле, клавиатура не теряет место
+  const next=s.isConnected?s:ks?document.querySelector(`select[data-ks="${CSS.escape(ks)}"]`):same?document.querySelectorAll(same)[nth]:null;
+  next?.focus({preventScroll:true});
+}
+function cbxClose(){
+  typeDrop("cbx");
+  if(!cbx)return;
+  cancelAnimationFrame(cbx.frame);cbx.box.remove();cbx=null;
+}
+// Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
+function cbxPlace(){
+  const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
+  const w=Math.min(Math.max(r.width,320),innerWidth-pad*2);
+  const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
+  if(c.up===null)c.up=below<240&&above>below;
+  const room=c.up?above:below;
+  c.box.style.width=`${w}px`;
+  c.box.style.maxHeight=`${Math.max(140,Math.min(380,room))}px`;
+  c.box.style.left=`${Math.max(pad,Math.min(r.left,innerWidth-w-pad))}px`;
+  c.box.style.top=c.up?"":`${r.bottom+gap}px`;
+  c.box.style.bottom=c.up?`${innerHeight-r.top+gap}px`:"";
+}
+function cbxFollow(){
+  if(!cbx)return;
+  if(!cbx.sel.isConnected||!cbx.sel.getClientRects().length){cbxClose();return}
+  cbxPlace();
+  cbx.frame=requestAnimationFrame(cbxFollow);
+}
+document.addEventListener("mousedown",e=>{
+  const s=e.target.closest?.("select"),same=!!cbx&&cbx.sel===s;
+  if(cbx&&!cbx.box.contains(e.target))cbxClose();
+  if(e.button===0&&cbxFits(s)){e.preventDefault();if(same)s.focus();else cbxOpen(s)}
+},true);
+// Клик без мыши (detail 0): показ или сценарий
+document.addEventListener("click",e=>{
+  const s=e.target.closest?.("select");
+  if(e.detail===0&&cbxFits(s)&&!cbx)cbxOpen(s);
+},true);
+// Поле в одну строку: обрезанный текст виден целиком в подсказке
+document.addEventListener("mouseover",e=>{
+  const s=e.target.closest?.("select");
+  if(s&&!s.multiple&&!s.classList.contains("sf-bad"))s.title=s.selectedOptions[0]?.textContent||"";
+},true);
+document.addEventListener("keydown",e=>{
+  const s=e.target;
+  if(cbx||!cbxFits(s)||e.ctrlKey||e.metaKey)return;
+  const text=e.key.length===1&&e.key!==" "&&!e.altKey;
+  if(!text&&!["ArrowDown","ArrowUp","Enter"," ","F4"].includes(e.key))return;
+  e.preventDefault();e.stopPropagation();
+  cbxOpen(s,text?e.key:"");
+},true);
+
 // Старт: данные с сервера, затем первая отрисовка. Раскрыто то же, что в
 // макете на константах: первый и третий домен, нераспределённые первого,
 // первый сервер, первое хранилище, первая папка с подпапкой.
@@ -29042,5 +29776,6 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
+<script src="assets/tour-demos.js"></script>
 </body>
 </html>

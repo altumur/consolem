@@ -6,10 +6,10 @@ UiCheck(async ({ ok, until }) => {
 
   // Раздел и дерево
   ok(appsShown().some((a) => a.id === "learn"), "вкладка «Обучение» в рельсе");
-  ok(Tour.topics.length === 5, "пять тем");
+  ok(Tour.topics.length === 6, "шесть тем");
   ok(/Ничего не сломается/.test(main().textContent), "первый экран объясняет, зачем раздел");
   const closed = rows().length;
-  ok(closed === 6, "дерево свёрнуто: «С чего начать» и темы, строк: " + closed);
+  ok(closed === 7, "дерево свёрнуто: «С чего начать» и темы, строк: " + closed);
   ok(!Tour.demo && !document.querySelector(".tour-panel,.tour-mode"), "пока показ не запущен, учебного режима нет");
 
   learnTree("0");
