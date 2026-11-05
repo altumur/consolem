@@ -126,7 +126,10 @@ UiCheck(async ({ ok, until }) => {
   // Выход: раздел на той же главе, учебного режима нет, язык вернулся, у записи истории есть состояние для «Назад»
   const ex = open(`tour=1&demo=${chapters[1].from}&lang=en`, false);
   const barBtn = () => ex.contentDocument?.querySelector(".tour-mode button");
-  ok(await until(() => barBtn(), 60000), "полоса учебного режима с кнопкой выхода");
+  ok(await until(() => barBtn() && ex.contentDocument.querySelector(".tour-block"), 60000), "полоса учебного режима с кнопкой выхода");
+  // Настоящий клик попадает в кнопку, а не в слой, который закрывает страницу на время показа
+  const br = barBtn().getBoundingClientRect();
+  ok(ex.contentDocument.elementFromPoint(br.left + br.width / 2, br.top + br.height / 2) === barBtn(), "во время показа кнопка выхода доступна мышью");
   barBtn()?.click();
   ok(await until(() => ex.contentWindow?.appReady && ex.contentWindow.location.hash === "" && !/demo/.test(ex.contentWindow.location.search) && ex.contentDocument?.querySelector("#tree .n.on"), 60000), "выход: обычная страница");
   const xw = ex.contentWindow;

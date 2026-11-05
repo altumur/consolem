@@ -60,7 +60,8 @@
 .tour-bar i{display:block;height:100%;background:var(--one-focus-ring,#3b82f6);transition:width .3s}
 .tour-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .tour-ti{margin:0 0 2px;font-weight:600}
-.tour-mode{display:flex;align-items:center;justify-content:center;gap:12px;padding:6px 16px;background:var(--one-warning-bg,#4a3a10);color:var(--one-warning-text,#ffe9a8);font-size:13px;line-height:1.3}
+/* Над слоем .tour-block: выйти из учебных данных можно и во время показа */
+.tour-mode{position:relative;z-index:100001;display:flex;align-items:center;justify-content:center;gap:12px;padding:6px 16px;background:var(--one-warning-bg,#4a3a10);color:var(--one-warning-text,#ffe9a8);font-size:13px;line-height:1.3}
 .tour-mode b{font-weight:600}
 .tour-mode button{font:inherit;font-weight:600;color:inherit;background:none;border:1px solid currentColor;border-radius:6px;padding:3px 10px;cursor:pointer}
 .tour-mode button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
@@ -178,13 +179,14 @@
     // Клавиши на время показа — только его: стрелка иначе пойдёт по дереву, Esc закроет окно
     const key = (e) => {
       e.stopImmediatePropagation();
-      // Enter и пробел на кнопке панели нажимают её
-      if ((e.key === "Enter" || e.key === " ") && panel.contains(e.target)) return;
+      // Enter и пробел на кнопке панели и кнопке выхода нажимают её
+      const exit = document.querySelector(".tour-mode button");
+      if ((e.key === "Enter" || e.key === " ") && (panel.contains(e.target) || e.target === exit)) return;
       e.preventDefault();
       if (e.type !== "keydown") return;
       if (e.key === "Tab") {
-        // Фокус ходит только по панели
-        const all = [...panel.querySelectorAll("button:not(:disabled)")];
+        // Фокус ходит только по панели и кнопке выхода
+        const all = [...panel.querySelectorAll("button:not(:disabled)"), exit].filter(Boolean);
         const at = all.indexOf(document.activeElement);
         all[(at + (e.shiftKey ? -1 : 1) + all.length) % all.length]?.focus();
       } else if (e.key === "Escape") stop();
