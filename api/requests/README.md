@@ -47,3 +47,4 @@
 | 2026-11-04 | w2c | [Выгрузка под надзором и пароль: код `SUPERVISOR_REQUIRED`, поля супервизора без `accessSupervision`, недостижимый `PASSWORD_REQUIRED`, супервизор в повторе](2026-11-04-170936Z-w2c-export-supervision-password-request.md) | заменён | [запрос 2026-11-05 на 0.2.0](2026-11-05-082435Z-w2c-export-supervision-password-request.md) |
 | 2026-11-04 | mockup | [Макет как основа продукта: условия и план перевода на React + TypeScript](2026-11-04-185448Z-mockup-product-webui-request.md) | новый | |
 | 2026-11-05 | w2c | [Выгрузка под надзором и пароль на 0.2.0: код `SUPERVISOR_REQUIRED`, поля супервизора без `accessSupervision`, недостижимый `PASSWORD_REQUIRED`, супервизор в повторе; камеры по `uid`](2026-11-05-082435Z-w2c-export-supervision-password-request.md) | новый | — |
+| 2026-11-05 | mockup | [Раздел «Обучение» и сервер показа в сборке для консоли: варианты для w2c](2026-11-05-093202Z-mockup-learn-section-console-request.md) | новый | |
