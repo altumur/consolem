@@ -36,8 +36,13 @@ UiCheck(async ({ ok, sleep }) => {
   ok(on(), "при старте «Папки» нажаты");
   const bg = (el) => getComputedStyle(el).backgroundColor;
   const sliceBg = bg(document.querySelector('#aside .ph-choice.on[data-slice="all"]'));
-  ok(bg(btn()) === "rgba(0, 0, 0, 0)" && sliceBg !== "rgba(0, 0, 0, 0)", `нажатые «Папки» без заливки, выбранный срез с заливкой: ${bg(btn())} / ${sliceBg}`);
-  ok(getComputedStyle(btn()).borderTopColor !== "rgba(0, 0, 0, 0)", "у нажатых «Папок» видна рамка");
+  pickStatus("nosignal");
+  await sleep(30);
+  const look = (el) => { const c = getComputedStyle(el); return c.backgroundColor + " " + c.borderTopColor; };
+  ok(look(btn()) === look(statusBtn()), `нажатые «Папки» — как статус с фильтром: ${look(btn())}`);
+  pickStatus("");
+  await sleep(30);
+  ok(bg(btn()) !== sliceBg || getComputedStyle(btn()).borderTopColor !== "rgba(0, 0, 0, 0)", "нажатые «Папки» отличаются от выбранного среза");
 
   // Положение сохраняется: нажаты
   for (const s of ["srv", "arch"]) {
@@ -61,16 +66,21 @@ UiCheck(async ({ ok, sleep }) => {
     ok(!btn().disabled && !on() && group() === "server", `срез ${s}: «Папки» сами не включились`);
   }
 
-  // «Детекторы» — своё положение; неактивная кнопка показывает общее, а не положение «Детекторов»
+  // «Детекторы» — то же положение: «выключено» там значит виды, инверсии нет
   click("det");
-  ok(group() === "kind" && !on() && !btn().disabled, "«Детекторы»: при входе — виды");
+  ok(group() === "kind" && !on() && !btn().disabled, "«Детекторы»: «Папки» выключены — виды");
   btn().click();
   ok(on() && group() === "folder", "«Детекторы»: включили «Папки»");
-  click("srv");
-  ok(!on(), "«Серверы» показывают положение камер, а не «Детекторов»");
-  click("cam");
-  ok(!on() && group() === "server", "«Камеры»: «Детекторы» положение не поменяли");
+  for (const s of ["srv", "arch"]) { click(s); ok(btn().disabled && on(), `срез ${s}: кнопка неактивна и включена`); }
+  for (const s of ["acfa", "cam", "all"]) { click(s); ok(on() && group() === "folder", `срез ${s}: «Папки» включены, дерево по папкам`); }
+  click("det");
+  ok(on() && group() === "folder", "снова «Детекторы»: «Папки» включены");
   btn().click();
+  ok(!on() && group() === "kind", "«Детекторы»: выключили «Папки»");
+  for (const s of ["acfa", "cam", "all"]) { click(s); ok(!on() && group() === "server", `срез ${s}: «Папки» выключены`); }
+  btn().click();
+  ok(on(), "вернули включёнными");
+  click("det");
+  ok(on() && group() === "folder", "«Детекторы» снова по папкам");
   click("all");
-  ok(on(), "вернули включённым");
 });

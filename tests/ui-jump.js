@@ -11,8 +11,8 @@ UiCheck(async ({ ok, sleep, until }) => {
     });
   };
   // «Папки» меняются только от нажатия: в раскладке по папкам у не встроенного детектора своей строки нет,
-  // подсвечена строка его камеры. Во всех остальных случаях цель — строка самого объекта
-  const shownDev = (d) => d.type === "det" && !d.builtin && group() === "folder" ? shown(d.parentId, true) : shown(d.id);
+  // подсвечена строка его камеры (в срезе «Детекторы» — и у встроенного). Во всех остальных случаях цель — строка самого объекта
+  const shownDev = (d) => d.type === "det" && (!d.builtin || slice === "det") && group() === "folder" ? shown(d.parentId, true) : shown(d.id);
   const note = (bad, key, name) => (bad[key] = bad[key] || []).push(name);
   const report = (bad) => Object.entries(bad).map(([k, v]) => `${k}=${v.length} [${v.slice(0, 2).join(", ")}]`).join(" | ").slice(0, 1200);
   // Каждое устройство: поиск, затем его родитель и каждый шаг пути

@@ -115,10 +115,9 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-fold{position:relative;display:inline-flex;align-items:center;gap:4px;min-width:0;margin-left:2px;padding-left:7px}
 .ph-fold:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--one-border-strong)}
 .ph-fold svg.ic-svg{width:14px;height:14px;flex:none}
-/* Нажатая настройка — рамка без заливки: выбранный срез залит, настройка только отмечена */
-.ph-fold #viewBtn.on{background:transparent;border-color:var(--bl);color:var(--one-fg)}
-.ph-fold #viewBtn.on:hover:not(:disabled){background:var(--one-control-hover);border-color:var(--bl);color:var(--one-fg)}
-.ph-fold #viewBtn.on svg.ic-svg{color:var(--bl);fill:color-mix(in srgb,var(--bl) 35%,transparent)}
+/* Нажатые «Папки» — как кнопка статуса с выбранным фильтром: настройки за чертой выглядят одинаково и отличаются от выбранного среза */
+.ph-fold #viewBtn.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
+.ph-fold #viewBtn.on:hover:not(:disabled){background:var(--one-selected-neutral-hover);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-fold #viewBtn:disabled{opacity:.45;cursor:default}
 .ph-fold #viewBtn:disabled:not(.on):hover{background:transparent;border-color:transparent;color:var(--one-fg-muted)}
 .ph-status-label{max-width:104px;overflow:hidden;text-overflow:ellipsis}
@@ -2474,7 +2473,7 @@ const SLICE_SW={...SLICE_SW_RU};
 const SLICE_IC={all:"svcs",cam:"camera",acfa:"acfa",srv:"server",arch:"archive",det:"det"};
 // Раскладка одна на все срезы и меняется кнопкой «Папки», а не выбором среза.
 // В Серверах и Архивах папок нет: кнопка там неактивна, раскладка ждёт возврата.
-// В Детекторах кнопка переключает папки и виды.
+// В Детекторах кнопка переключает папки и виды, положение то же, что у остальных срезов.
 const SLICE_GROUPS={all:["server","folder"],cam:["folder","server"],acfa:["folder","server"],srv:["server"],arch:["server"],det:["kind","folder"]};
 // Старые ссылки звали срез «Всё оборудование» — ведём их в «Камеры».
 const SLICE_ALIAS={dev:"cam",srvs:"srv"};
@@ -2549,12 +2548,12 @@ const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rul
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
   {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"}];
 let slice="all";
-// Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
-// У Детекторов своё положение: там второе положение — виды, а при входе нужны они (прототип 18).
-const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"kind"};
+// Группировка общая на все срезы: кнопку «Папки» человек нажимает сам, выбор среза её не трогает. В Детекторах «выключено» — виды.
+
+const groupBy={all:"folder",cam:"folder",acfa:"folder",srv:"folder",arch:"folder",det:"folder"};
 function setGroupAll(g){
-  if(slice==="det"){if(SLICE_GROUPS.det.includes(g))groupBy.det=g;return}
-  Object.keys(groupBy).forEach(s=>{if(s!=="det"&&SLICE_GROUPS[s].includes(g))groupBy[s]=g});
+  const on=g==="folder";
+  Object.keys(groupBy).forEach(s=>{groupBy[s]=on?"folder":s==="det"?"kind":"server"});
 }
 function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
