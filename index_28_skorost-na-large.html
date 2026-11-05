@@ -2874,7 +2874,7 @@ function kindsChanged(){
   kindsBusy=kindsLoad().then(changed=>{
     if(!changed)return;
     treeMatchCache.clear();searchMatchCache.clear();
-    if(app==="hw"){renderTree();gear()}
+    if(app==="hw"){renderTreeSoon();gear()}
   }).catch(()=>{}).finally(()=>{kindsBusy=null});
   return kindsBusy;
 }
@@ -4246,11 +4246,11 @@ function apiOnEvent(m){
   const dev=hwEventDevice(m.kind);
   if(m.type==="entity.created"&&dev&&!hwVer.has(m.entityId)){
     // Чужой новый объект — одной записью, если его родитель уже в кэше
-    API.get(`/units/${m.entityId}`).then(u=>{if(u.parentId&&!find(u.parentId))return;hwAddUnits([u]);renderTree()}).catch(()=>{});
+    API.get(`/units/${m.entityId}`).then(u=>{if(u.parentId&&!find(u.parentId))return;hwAddUnits([u]);renderTreeSoon()}).catch(()=>{});
     return;
   }
-  if(m.type==="entity.deleted"&&dev&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTree();if(sel===m.entityId)paint();return}
-  if(m.type==="entity.deleted"&&screenType(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTree();if(own)paint();return}
+  if(m.type==="entity.deleted"&&dev&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTreeSoon();if(sel===m.entityId)paintTreeSoon();return}
+  if(m.type==="entity.deleted"&&screenType(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTreeSoon();if(own)paintTreeSoon();return}
   // Устройства нет в кэше — читать нечего: кэш неполный, перечитывание целиком отменено
   if(dev&&m.type!=="entity.changed")return;
   if(m.type==="entity.created"||m.type==="entity.deleted"){if((m.type==="entity.created")!==hwVer.has(m.entityId))hwReloadSoon(m);return}
@@ -4259,7 +4259,7 @@ function apiOnEvent(m){
   if(dev&&!hwVer.has(m.entityId))return;
   API.get(`/units/${m.entityId}`).then(u=>{
     hwApplyUnit(u);treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();if(sel===m.entityId&&!cardDraft&&!(bq&&!bq.finished))paint();
+    renderTreeSoon();if(sel===m.entityId&&!cardDraft&&!(bq&&!bq.finished))paintTreeSoon();
   }).catch(()=>{});
 }
 // Поток потерян: перечитывается только то, что есть в кэше. Весь перечень не читается никогда
@@ -4299,7 +4299,7 @@ async function hwTouched(ids){
   for(let i=0;i<list.length;i+=16)await Promise.all(list.slice(i,i+16).map(id=>API.get(`/units/${id}`).then(hwApplyUnit).catch(()=>{})));
   if(!list.length)return;
   treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"){renderTree();if(list.includes(sel)&&!cardDraft&&!(bq&&!bq.finished))paint()}
+  if(app==="hw"){renderTreeSoon();if(list.includes(sel)&&!cardDraft&&!(bq&&!bq.finished))paint()}
 }
 function hwCachedIds(){return hwRowsDropped?[]:(()=>{const out=[];walk(n=>out.push(n.id),devicePool,null);servers.forEach(s=>walk(n=>out.push(n.id),s.devices,s));return out})()}
 // Стенд сброшен: прежние id ничего не значат
@@ -4639,7 +4639,7 @@ async function archCamsLoad(aid,more){
     await hwEnsure(r.items.map(x=>x.parentId));
     r.items.forEach(x=>{hwAddRow(x);b.ids.add(x.uid)});
     b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
-    if(r.items.length&&sel===aid&&app==="hw"){renderTree();gear()}
+    if(r.items.length&&sel===aid&&app==="hw"){renderTreeSoon();gear()}
   }catch(e){b.done=true}
   finally{b.busy=false}
 }
@@ -7208,14 +7208,14 @@ function commitTreeRename(id,val){
     API.patch(`/units/${id}`,renamePatch(field,v),hwVer.get(id)).then(u=>{
       treeRenamePending=false;hwApplyUnit(u);
       if(treeRenameId===id){treeRenameId=null;treeRenameField="name"}
-      treeMatchCache.clear();searchMatchCache.clear();renderTree();
+      treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();
       if(sel===id)gear();
     }).catch(e=>{
       treeRenamePending=false;toast(problemText(e,f.n));
       if(problemKept(e)){
         keptNote(id);
         if(treeRenameId===id){treeRenameId=null;treeRenameField="name"}
-        renderTree();
+        renderTreeSoon();
         return;
       }
       requestAnimationFrame(()=>{const el=document.querySelector(".nm-inp");if(el){el.focus();el.select&&el.select()}});
@@ -7300,7 +7300,13 @@ function syncSelectionOld(){
 function applyFiltersFromState(){
   treeMatchCache.clear();searchMatchCache.clear();updateFiltChrome();renderTree();gear();
 }
+// Шапка фильтра сразу (действие человека); ожидающая просьба шапки из очереди кадра (filtChromeSoon) поглощается
 function updateFiltChrome(){
+  const q=treeSoonQ;
+  if(q.chrome){q.chrome=false;if(!q.tree)treeSoonClear()}
+  filtChromePaint();
+}
+function filtChromePaint(){
   syncDomainChrome();
   const btn=document.getElementById("filtBtn"),tags=document.getElementById("filtTags"),hint=document.getElementById("filtHint");
   if(btn){
@@ -7869,12 +7875,123 @@ function paintMain(html){
   fitCrumbs();
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
 }
-function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
+// ── Перерисовка дерева — не чаще раза в кадр ────────────────────────────
+// Дерево перестраивается целиком (innerHTML всех строк), и на large это сотни миллисекунд. Асинхронные источники —
+// событие потока, ответ чтения, волна поиска, дочитанная ветка или срез, таймер очереди — просят перерисовку
+// renderTreeSoon(): все просьбы до ближайшего кадра (requestAnimationFrame) дают одну перерисовку, и рисует она
+// состояние на момент кадра, а не на момент просьбы. То же для шапки фильтра — filtChromeSoon(): очередь одна.
+// Действие человека (клик, клавиша, вызов из onEv) зовёт renderTree() и рисует сразу, как раньше: моргание, фокус,
+// scrollIntoView и сценарии, читающие DOM сразу после клика, этого ждут. Немедленная перерисовка поглощает
+// ожидающую: второй в том же кадре нет. renderTreeFlush() — дорисовать ожидающее сейчас (тем, кто читает строки
+// дерева из DOM после асинхронного шага).
+// Кадр ничего не делает, если с просьбы сменился раздел (новый раздел уже нарисован) или дерева нет. Если все
+// просьбы — от волн поиска (wave), а набранное в #gq ждёт паузы, кадр тоже пропускается: перерисовка под прежний
+// текст шла бы ровно тогда, когда человек печатает (filtPaint). Пометку снимает любая не-волновая просьба: если в один
+// кадр сошлись волна и, например, событие потока, кадр рисует дерево и при ожидающем #gq — под прежний запрос, как
+// поток рисовал и до задержки ввода (3а); набранное в поле перерисовка не трогает (syncGoInput). Пока человек переименовывает строку дерева (поле
+// .nm-inp в фокусе), кадр откладывается: перерисовка стёрла бы набранное; завершение переименования рисует сразу.
+// Кадра может не быть: вкладка скрыта, страница сценария в невидимом iframe самопроверки. Тогда через
+// TREE_SOON_LATE_MS перерисовку делает таймер: строки дерева запускают дочитывание веток и наблюдение (treeNeed,
+// watchSoon) — без кадра оно стояло бы.
+const TREE_SOON_LATE_MS=100;
+const treeSoonQ={raf:0,t:0,app:null,tree:false,chrome:false,wave:true,after:[]};
+function treeSoonAsk(part,wave,after){
+  const q=treeSoonQ;
+  // Просьба прежнего раздела снимается: её кадр всё равно ничего бы не сделал
+  if((q.tree||q.chrome)&&q.app!==app){q.tree=q.chrome=false;q.wave=true;q.after=[]}
+  q.app=app;q[part]=true;
+  if(!wave)q.wave=false;
+  if(after)q.after.push(after);
+  treeSoonArm();
+}
+function treeSoonArm(){
+  const q=treeSoonQ;
+  if(!q.raf)q.raf=requestAnimationFrame(()=>{q.raf=0;treeSoonRun()});
+  if(!q.t)q.t=setTimeout(()=>{q.t=0;treeSoonRun()},TREE_SOON_LATE_MS);
+}
+function treeSoonDisarm(){
+  const q=treeSoonQ;
+  if(q.raf){cancelAnimationFrame(q.raf);q.raf=0}
+  if(q.t){clearTimeout(q.t);q.t=0}
+}
+function treeSoonClear(){const q=treeSoonQ;q.tree=q.chrome=false;q.wave=true;q.after=[];treeSoonDisarm()}
+// Перерисовка по просьбе асинхронного источника; after — что сделать после неё (прокрутка к цели перехода, счётчики)
+function renderTreeSoon(after,wave){treeSoonAsk("tree",!!wave,after)}
+function filtChromeSoon(wave){treeSoonAsk("chrome",!!wave)}
+function treeSoonPending(){return treeSoonQ.tree||treeSoonQ.chrome}
+function treeRenaming(){return!!treeRenameId&&!!document.activeElement?.classList?.contains("nm-inp")}
+function treeSoonRun(){
+  const q=treeSoonQ;
+  if(!q.tree&&!q.chrome){treeSoonDisarm();return}
+  if(q.app!==app||!document.getElementById("tree")){treeSoonClear();return}
+  if(q.wave&&typePending("gq")){treeSoonClear();return}
+  // Переименование: ждёт только дерево, шапка фильтра поле не трогает и рисуется
+  if(treeRenaming()){
+    if(q.chrome){q.chrome=false;filtChromePaint()}
+    treeSoonDisarm();treeSoonArm();return;
+  }
+  const tree=q.tree,chrome=q.chrome,after=q.after;
+  treeSoonClear();
+  if(tree){const f=treeFocusKeep();treePaint();treeFocusBack(f)}
+  if(chrome)filtChromePaint();
+  after.forEach(f=>f());
+}
+// Фокус в дереве (кнопка строки, галочка правила) переживает перерисовку по просьбе: человек ничего не нажимал, и
+// фокус не должен уходить в никуда. Поля возвращает сама перерисовка (paintInto → restoreView)
+function treeFocusKeep(){
+  const a=document.activeElement,t=document.getElementById("tree");
+  if(!a||!t||a===t||!t.contains(a)||/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName))return null;
+  const row=a.closest(".n");
+  return row?{a,key:treeRowKey(row),cls:a===row?null:a.classList[0]||null}:null;
+}
+function treeFocusBack(k){
+  if(!k||k.a.isConnected)return;
+  const row=[...document.querySelectorAll("#tree .n")].find(el=>treeRowKey(el)===k.key);if(!row)return;
+  const el=k.cls?row.querySelector("."+CSS.escape(k.cls)):row;
+  try{el?.focus({preventScroll:true})}catch(e){}
+}
+function renderTreeFlush(){if(treeSoonPending())treeSoonRun()}
+// Немедленная перерисовка: ожидающая просьба дерева поглощается, её after выполняется после этой перерисовки
+// (если просьба того же раздела)
+function renderTree(){
+  const q=treeSoonQ;
+  let after=[];
+  if(q.tree){
+    if(q.app===app)after=q.after;
+    q.tree=false;q.after=[];
+    if(!q.chrome)treeSoonClear();
+  }
+  treePaint();
+  after.forEach(f=>f());
+}
+// Моргание строки дерева (acc-flash: переход по ссылке, treeReveal) переживает перерисовку: новая строка той же
+// цели продолжает вспышку с того же места анимации, а не обрывает её
+function treeRowKey(el){return[el.dataset.pick,el.dataset.ctx,el.dataset.go,el.dataset.tid].map(x=>x||"").join("|")}
+function treeFlashAnim(el){return el.getAnimations?.().find(a=>a.animationName==="accFlash")}
+function treeFlashKeep(treeEl){
+  const els=treeEl.querySelectorAll(".n.acc-flash");
+  return els.length?[...els].map(el=>({el,key:treeRowKey(el),t:treeFlashAnim(el)?.currentTime})):null;
+}
+function treeFlashCarry(treeEl,kept){
+  if(!kept)return;
+  const gone=kept.filter(k=>!k.el.isConnected&&typeof k.t==="number");
+  if(!gone.length)return;
+  const rows=new Map([...treeEl.querySelectorAll(".n")].map(el=>[treeRowKey(el),el]));
+  gone.forEach(k=>{
+    const el=rows.get(k.key);if(!el)return;
+    el.classList.add("acc-flash");
+    const a=treeFlashAnim(el);if(a)try{a.currentTime=k.t}catch(e){}
+    setTimeout(()=>el.classList.remove("acc-flash"),Math.max(0,2600-k.t));
+  });
+}
+function treePaint(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
   const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
   const html=withFind(()=>fn?fn():"");
+  const flash=treeFlashKeep(treeEl);
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
+  treeFlashCarry(treeEl,flash);
   if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();detHostMark();renderSelBar();
   if(app==="hw")treeOpenStore();
@@ -7980,10 +8097,14 @@ async function treeNeed(){
     any=true;
     await Promise.all(jobs);
   }
+  // Ветка дочиталась после перехода: цель перехода снова прокручивается к окну. Дочитывание идёт в кадр; сразу (через
+  // очередь, ожидающая просьба поглощается) — только когда дочитано всё и ни одна ветка больше не занята: кто дождался
+  // конца чтения, видит его строки, а строка «Показать ещё» у конца, которую подхватывает прокрутка, появляется до
+  // того, а не после. Одновременных treeNeed бывает несколько (каждая перерисовка запускает свой): их промежуточные
+  // концы сливаются в кадр, а не дают по полной перерисовке каждый
   if(any&&app==="hw"&&document.getElementById("tree")){
-    renderTree();
-    // Ветка дочиталась после перехода: цель перехода снова прокручивается к окну
-    if(Date.now()-revealAt<3000)document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
+    renderTreeSoon(()=>{if(Date.now()-revealAt<3000)document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"})});
+    if(![...treeBr.values()].some(b=>b.busy))renderTreeFlush();
   }
 }
 let revealAt=0;
@@ -8019,10 +8140,11 @@ async function sliceRead(){
     run.done=!cursor;
   }catch(e){return}// Не прочиталось — стрелки остаются: ветку прочитает её раскрытие
   remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"&&document.getElementById("tree")){
-    renderTree();
+  // Срез дочитан (sliceReads…done) — дерево и счётчики этого итога сразу: через очередь (ожидающая просьба поглощается),
+  // но без кадра — кто дождался done, читает уже серые ветки и стрелки по прочитанному. Чтение среза одно на срез
+  if(app==="hw"&&document.getElementById("tree")){renderTreeSoon(()=>{
     document.querySelectorAll(".ph-choice[data-slice]").forEach(b=>{const c=b.querySelector(".ph-cnt");if(c)c.textContent=sliceCountText(b.dataset.slice)});
-  }
+  });renderTreeFlush()}
 }
 // Строка конца ветки: читается или есть продолжение
 function treeMoreRow(id,l){
@@ -8042,7 +8164,8 @@ function groupCntHtml(id,n){
 function treeMore(id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!b||b.busy||b.done)return Promise.resolve();
-  const p=treeLoad(layout,id).then(renderTree);
+  // Нажатие рисует сразу («Загрузка…» в строке), дочитанная страница — в кадр
+  const p=treeLoad(layout,id).then(()=>renderTreeSoon());
   renderTree();
   return p;
 }
@@ -8326,7 +8449,7 @@ async function filtWave(run){
     }
     if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs){filtPaint();if(run.pick)asstPickLoaded()}}
+  finally{run.busy=false;if(run===fs){filtPaint();renderTreeFlush();if(run.pick)asstPickLoaded()}}
 }
 async function pickWave(run){
   if(run.busy)return;
@@ -8342,7 +8465,7 @@ async function pickWave(run){
     }
     run.done=run.at>=run.order.length;
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs){filtPaint();asstPickLoaded()}}
+  finally{run.busy=false;if(run===fs){filtPaint();renderTreeFlush();asstPickLoaded()}}
 }
 // Цепочки найденного: подпись в плоском списке, раскрытие и папки в дереве
 async function filtPaths(run,ids,layout=treeLayout()){
@@ -8361,7 +8484,12 @@ async function filtPaths(run,ids,layout=treeLayout()){
 }
 // Пока набранное в поиске ждёт паузы, волна прежнего текста дописывает кэш, но дерево под прежний текст не
 // перерисовывает: это была бы перерисовка ровно в то время, когда человек печатает. Новый текст применит таймер
-function filtPaint(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
+// Волна просит кадр (renderTreeSoon, filtChromeSoon с пометкой wave): за кадр приходят десятки волн, рисуется одна.
+// Кадр под ожидающий паузы #gq тоже пропускается (treeSoonRun). Проход волн кончился (дошёл до конца, набрал страницу
+// или упал) — итог дорисовывается сразу (renderTreeFlush в finally filtWave/pickWave): кто ждёт fs.done или !fs.busy,
+// читает уже дерево и шапку этого итога. filtPaintNow — «Искать дальше» (клик), сразу
+function filtPaint(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTreeSoon(null,true);filtChromeSoon(true)}}
+function filtPaintNow(){if(typePending("gq"))return;if(app==="hw"&&document.getElementById("tree")){renderTree();updateFiltChrome()}}
 // ── Отбор ассистента над деревом ─────────────────────────────────────────
 // Дерево показывает только отобранное ассистентом: тег над деревом со словами отбора, крестик снимает его, срез
 // возвращается как был. Общий механизм для плана настройки и отбора (found). Список готов: записи и цепочки
@@ -8395,7 +8523,7 @@ function asstPickClear(){asstPickDrop();filtSync();applyFiltersFromState();aside
 // Отобранное видно в дереве сейчас: «Показать в дереве», «Открыть в дереве» нужны, только когда его не видно
 function asstPickShown(src){return!!src&&asstPick?.src===src&&app==="hw"&&PICK_SLICES.includes(slice)}
 function asstPickLoaded(){const p=asstPick;if(p?.loaded){const f=p.loaded;p.loaded=null;f()}}
-function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaint()}
+function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaintNow()}
 function filtHint(){
   if(fs?.pick&&asstPick){
     const p=asstPick;
@@ -8544,9 +8672,10 @@ function treeCollapseAll(){
 async function treeExpandRows(scope){
   if(!document.getElementById("tree"))return;
   const gen=treeExpandGen,key=treeOpenCur;
-  let idle=0;
+  let idle=0,first=true;
   // Проход считается только за новый уровень: пока ветки читаются, ждём ответа, сколько бы он ни шёл
   for(let pass=0;pass<12&&idle<2;){
+    renderTreeFlush();                            // строки берутся из разметки: прошлый проход дорисован
     const tree=document.getElementById("tree");
     // «Свернуть всё», смена среза или раздела отменяют раскрытие
     if(!tree||gen!==treeExpandGen||key!==treeOpenCur||app!=="hw")return;
@@ -8554,7 +8683,9 @@ async function treeExpandRows(scope){
     if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк: остальное раскройте по веткам")}`);return}
     idle=closed.length||[...treeBr.values()].some(b=>b.busy)?0:idle+1;
     closed.forEach(r=>open.add(r.dataset.tid));
-    if(closed.length){pass++;renderTree()}
+    // Первый проход — ответ на клик, сразу; следующие идут по таймеру — в кадр
+    if(closed.length){pass++;first?renderTree():renderTreeSoon()}
+    first=false;
     await new Promise(r=>setTimeout(r,120));
   }
 }
@@ -8590,7 +8721,7 @@ function treeReveal(){
   expandTo(sel,selCtx);renderTree();revealSel();
   const q=`#tree .n[data-pick="${sel}"]`;
   const row=(selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`))||document.querySelector(q);
-  if(row){row.scrollIntoView({block:"center"});accFlash(()=>[row],true)}
+  if(row){row.scrollIntoView({block:"center"});accFlash(()=>{const r=(selCtx&&document.querySelector(`${q}[data-ctx="${selCtx}"]`))||document.querySelector(q);return r?[r]:null},true)}
 }
 function toggleFolders(){setGroup(group()==="folder"?sliceGroups().find(g=>g!=="folder"):"folder")}
 function setSlice(v){
@@ -8717,11 +8848,14 @@ function hwFromLink(){
   if(t.closest("#tree,.tabs,.rail,#selBar"))return false;
   return!!t.closest("#main,#favWrap,.ttu,.cbox,#tctx");
 }
+// Места ищутся в миг выставления вспышки (accFlash зовёт find через 30 мс): перерисовка дерева между поиском и
+// вспышкой заменила бы строку, и вспышка ушла бы на отсоединённую
+const HW_FLASH_AT=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"];
 function hwFlashLanding(){
   setTimeout(()=>{
-    const els=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    renderTreeFlush();
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(HW_FLASH_AT.some(q=>document.querySelector(q)))accFlash(()=>HW_FLASH_AT.map(q=>document.querySelector(q)).filter(Boolean),true);
   },40);
 }
 function fld(l,v,tp="text"){v=cardFldOrig(l,v);const d=cardFldVal(l,v);return `<div><label>${i18n(l)}</label><input type="${tp}" value="${escHtml(d??"")}" data-df="${escHtml(l)}" data-orig="${escHtml(v??"")}" ${onEv("input",["cardFld",onEv.el])}></div>`}
@@ -9627,7 +9761,7 @@ async function archDomLoad(did){
     }while(cursor);
   }catch(e){toast(problemText(e))}
   archDomDoneSet.add(did);
-  if(slice==="arch"&&app==="hw"){renderTree();if(tab==="stor")gear()}
+  if(slice==="arch"&&app==="hw"){renderTreeSoon();if(tab==="stor")gear()}
 }
 function treeArchives(){
   const q=qval();
@@ -9666,7 +9800,7 @@ async function archUnlinkedRead(did){
   }
 }
 function archUnlinkedMore(did){
-  const p=archUnlinkedRead(did).then(()=>{if(slice==="arch")renderTree()});
+  const p=archUnlinkedRead(did).then(()=>{if(slice==="arch")renderTreeSoon()});
   renderTree();
   return p;
 }
@@ -9726,7 +9860,7 @@ function archTblEnsure(n,list){
   need.forEach(a=>archTblTried.add(a.id));
   Promise.all(need.flatMap(a=>[volsEnsure(a).catch(()=>{}),archCamsLoad(a.id).catch(()=>{})])).then(()=>{
     need.forEach(a=>{if(archCamIds.has(a.id))archTblTried.delete(a.id)});
-    if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTree();gear()}
+    if(app==="hw"&&slice==="arch"&&tab==="stor"&&sel===n.id){renderTreeSoon();gear()}
   });
 }
 function archUsedPct(a){return parseInt(archUsed(a),10)||0}
@@ -13873,7 +14007,7 @@ function expUpsert(x){
   const i=(expRows||[]).findIndex(r=>r.id===x.id);
   if(i<0)expRows=[x].concat(expRows||[]);else expRows[i]=x;
   if(expPrintWait.has(x.id)&&x.state!=="queued"&&x.state!=="running"){expPrintWait.delete(x.id);if(x.files[0])expFile(x.id,x.files[0].id,true)}
-  if(app==="exp"){renderTree();if(expSel===x.id)expUI()}
+  if(app==="exp"){renderTreeSoon();if(expSel===x.id)expUI()}
 }
 // Поток: ход и итог приходят только автору; истина — GET, поэтому итог перечитывается
 function expOnEvent(m){
@@ -13982,7 +14116,7 @@ function recCopyPaint(id,q){
 }
 function recTargetPut(id,serverId,copies){
   const n=find(id)?.n;
-  return API.put(`/units/${id}/recording-target`,{serverId:serverId||null,copies}).then(r=>{hwApplyUnit(r);treeMatchCache.clear();searchMatchCache.clear();renderTree();gear()}).catch(e=>{toast(problemText(e,n));gear()});
+  return API.put(`/units/${id}/recording-target`,{serverId:serverId||null,copies}).then(r=>{hwApplyUnit(r);treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();gear()}).catch(e=>{toast(problemText(e,n));gear()});
 }
 function recTargetSet(id,serverId){
   const n=find(id)?.n;
@@ -19261,7 +19395,8 @@ function accSrcLink(rid,s,f,label){
 var accFlashReq=0;
 function accFlash(find,keepScroll){
   accFlashReq++;
-  setTimeout(()=>{const els=find();if(!els||!els.length)return;
+  // Ожидающая перерисовка дерева — до поиска мест: иначе она заменила бы строку сразу после вспышки
+  setTimeout(()=>{renderTreeFlush();const els=find();if(!els||!els.length)return;
     if(!keepScroll)els[0].scrollIntoView({block:"center",inline:"center",behavior:"smooth"});
     els.forEach(el=>{el.classList.remove("acc-flash");void el.offsetWidth;el.classList.add("acc-flash")});
     setTimeout(()=>els.forEach(el=>el.classList.remove("acc-flash")),2600);
@@ -19273,9 +19408,10 @@ function accFlash(find,keepScroll){
 function accFlashLanding(){
   const at=accFlashReq;
   setTimeout(()=>{if(accFlashReq!==at)return;
-    const els=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    renderTreeFlush();
+    const at2=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"],els=()=>at2.map(q=>document.querySelector(q)).filter(Boolean);
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(els().length)accFlash(els,true);
   },40);
 }
 // Переход по ссылке — не по дереву, вкладкам и шагам: им подсветка не нужна,
@@ -25872,7 +26008,11 @@ function wnx(){
     document.getElementById("wiz").classList.remove("open");toast(name+" добавлен");paint();
   }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
-function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
+// paintTreeSoon — то же, что paint, но дерево просит кадр (renderTreeSoon): событие потока об открытом объекте
+// перерисовывает карточку сразу, а дерево — вместе с прочими событиями пачки
+let paintTreeLater=false;
+function paintTreeSoon(){paintTreeLater=true;try{paint()}finally{paintTreeLater=false}}
+function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else if(paintTreeLater)renderTreeSoon();else renderTree();syncDomainChrome();renderFavs();
   const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI};
   (ui[app]||gear)();
   syncHeaderLoad();
@@ -26325,7 +26465,7 @@ function busyIds(){
 }
 // Откат и повтор очередь не показывает, но это тоже операции: их объекты заняты до конца
 const opRunning=new Map();
-function opBusyPaint(){treeMatchCache.clear();searchMatchCache.clear();renderTree();if(sel&&(app==="hw"||app==="dev"||app==="srvs"))gear()}
+function opBusyPaint(){treeMatchCache.clear();searchMatchCache.clear();renderTreeSoon();if(sel&&(app==="hw"||app==="dev"||app==="srvs"))gear()}
 function opFollow(op,done){
   if(op.state==="done"){done({state:op.state,ok:op.ok,failed:op.failed,cancelled:op.cancelled});return}
   opRunning.set(op.id,new Set(op.items.map(x=>x.targetId)));
@@ -28629,7 +28769,7 @@ function opOnEvent(m){
     const it=m.payload.item,o=ops[it.index];if(!o||o.done)return;
     // Шаг create создал устройство — в кэш, как только сервер его отдаст
     // Выбранный в карточке новый детектор остаётся выбранным и под id сервера
-    if(it.createdId)API.get(`/units/${it.createdId}`).then(u=>{hwAddUnits([u]);if(o.tempId&&detSel===o.tempId){detSel=u.uid;if(app==="hw")gear()}renderTree()}).catch(()=>{});
+    if(it.createdId)API.get(`/units/${it.createdId}`).then(u=>{hwAddUnits([u]);if(o.tempId&&detSel===o.tempId){detSel=u.uid;if(app==="hw")gear()}renderTreeSoon()}).catch(()=>{});
     if(it.state==="ok"){o.state="ok";o.msg="";bq.ok++}
     else if(problemKept(it)){o.state="ok";o.kept=true;o.msg=i18n("Принято, применится");bq.ok++;keptNote(it.targetId)}
     else{o.state="fail";o.msg=problemText(it.code,o.n);bq.fail++}
@@ -28638,7 +28778,7 @@ function opOnEvent(m){
     bq.steps.forEach(s=>s.ops.forEach(x=>{if(x.state==="run"&&x!==nx)x.state=x.done?x.state:"wait"}));
     bq.cur=bq.steps.find(s=>s.ops.some(x=>!x.done))?.label||"";
     treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();renderRailStatus();syncQueueModal();
+    renderTreeSoon();renderRailStatus();syncQueueModal();
   }else if(m.type==="operation.finished")queueFinish();
 }
 function apiQueueOp(path){return API.post(`/operations/${bq.api}/${path}`)}
@@ -28673,7 +28813,7 @@ function queueTick(){
     else{try{o.run()}catch(e){}o.state="ok";o.msg="";bq.ok++}
     o.done=true;bq.done++;
     treeMatchCache.clear();searchMatchCache.clear();
-    renderTree();renderRailStatus();syncQueueModal();
+    renderTreeSoon();renderRailStatus();syncQueueModal();
     queueTick();
   },90+Math.random()*140);
 }
