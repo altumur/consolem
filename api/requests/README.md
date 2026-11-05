@@ -49,3 +49,4 @@
 | 2026-11-05 | w2c | [Выгрузка под надзором и пароль на 0.2.0: код `SUPERVISOR_REQUIRED`, поля супервизора без `accessSupervision`, недостижимый `PASSWORD_REQUIRED`, супервизор в повторе; камеры по `uid`](2026-11-05-082435Z-w2c-export-supervision-password-request.md) | новый | — |
 | 2026-11-05 | mockup | [Раздел «Обучение» и сервер показа в сборке для консоли: варианты для w2c](2026-11-05-093202Z-mockup-learn-section-console-request.md) | новый | |
 | 2026-11-05 | w2c | [`field` отказа на путях `/units/{uid}/…` — везде JSON Pointer: шесть описаний с именем поля](2026-11-05-100905Z-w2c-unit-field-pointer-request.md) | новый | |
+| 2026-11-05 | mockup | [Раздел «Обучение» теперь в сборке по умолчанию: дополнение для w2c и владельца](2026-11-05-103525Z-mockup-learn-section-default-request.md) | новый | |

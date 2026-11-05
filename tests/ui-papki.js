@@ -3,7 +3,9 @@
    Запуск — python3 tools/check_ui.py tests/ui-papki.js */
 UiCheck(async ({ ok, until, sleep }) => {
   const btn = () => document.getElementById("viewBtn");
-  const on = () => btn().getAttribute("aria-checked") === "true";
+  // Прототип 29: кнопка в ряду срезов (aria-pressed), неактивная показывает положение; основной — переключатель (aria-checked)
+  const inRow = !!document.getElementById("phSliceLast");
+  const on = () => (btn().getAttribute("aria-pressed") ?? btn().getAttribute("aria-checked")) === "true";
   const click = (s) => document.querySelector(`#aside [data-slice="${s}"]`).click();
   const settle = async () => { await until(() => !fs || (fs.done && !fs.busy)); await sleep(50); };
   const hint = () => document.getElementById("filtHint").textContent;
@@ -13,7 +15,7 @@ UiCheck(async ({ ok, until, sleep }) => {
 
   // Старт и выбор среза
   ok(slice === "all" && group() === "folder" && on(), "при старте папки включены");
-  ok(btn().getAttribute("role") === "switch" && btn().querySelector(".sw.on"), "«Папки» — переключатель");
+  ok(inRow || (btn().getAttribute("role") === "switch" && btn().querySelector(".sw.on")), "«Папки» — переключатель");
   ok(!btn().closest('[aria-label="' + i18n("Срез дерева") + '"]'), "переключатель не среди срезов");
   for (const s of ["cam", "acfa", "all"]) { click(s); ok(slice === s && on(), `срез ${s} не меняет включённые «Папки»`); }
   // В «Детекторах» у «Папок» своё положение: второе положение — виды, при входе стоят они
@@ -37,7 +39,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   // Серверы и Хранилища: папок нет, срез кнопка не переключает, состояние ждёт возврата
   for (const s of ["srv", "arch"]) {
     click(s);
-    ok(btn().disabled && !on() && btn().title === i18n("В этом срезе нет папок"), `срез ${s}: кнопка неактивна и говорит почему`);
+    ok(btn().disabled && (inRow ? on() : !on()) && btn().title === i18n("В этом срезе нет папок"), `срез ${s}: кнопка неактивна и говорит почему`);
     btn().click();
     ok(slice === s, `срез ${s}: нажатие не сменило срез`);
   }

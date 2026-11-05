@@ -93,6 +93,25 @@ html[data-theme="light"] .usign:hover{background:var(--one-danger-bg)}
   grid-template-areas:"rail aside rsz hd" "rail aside rsz main"}
 #rail{grid-area:rail}#aside{grid-area:aside}.rsz{grid-area:rsz}#main{grid-area:main}
 .ws.one{grid-template-columns:max-content minmax(0,1fr);grid-template-areas:"rail hd" "rail main"}.ws.one .rsz,.ws.one #aside{display:none}
+/* Раздел «Обучение» */
+.lrn{display:flex;flex-direction:column;gap:12px}
+.lrn .card{margin:0}
+.lrn-why{margin:0;max-width:70ch;font-size:14px;line-height:1.5}
+.lrn-meta{margin:-6px 0 0}
+.lrn-sep{margin:0 6px}
+.lrn-steps{margin:0;padding:10px 16px 12px 36px;display:grid;gap:6px;line-height:1.45;max-width:80ch}
+.lrn-facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.lrn-facts>div{display:flex;flex-direction:column;gap:2px}
+.lrn-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.lrn-topic{display:flex;flex-direction:column;gap:6px;padding:14px 16px}
+.lrn-topic p{margin:0;flex:1;line-height:1.45}
+.lrn-t{font-weight:600;font-size:14px}
+.lrn-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px}
+.lrn-tbl{width:100%;table-layout:fixed;border-collapse:collapse}
+.lrn-tbl th,.lrn-tbl td{padding:8px 12px;text-align:left;vertical-align:top}
+.lrn-tbl td{border-top:1px solid var(--ln);line-height:1.4}
+.lrn-c1{width:210px}.lrn-c3{width:112px}.lrn-c4{width:130px}
+.lrn-nav{display:flex;justify-content:space-between;gap:12px}
 /* Во весь экран: дерево и рельс уходят, панель занимает всё окно. */
 .ws.full{grid-template-columns:minmax(0,1fr);grid-template-areas:"hd" "main"}.ws.full>#rail,.ws.full>#aside,.ws.full>.rsz{display:none}
 .rail{width:var(--rail-w);min-height:0;flex:none;display:flex;flex-direction:column;gap:4px;padding:var(--gut);background:var(--p);border-right:1px solid var(--ln);overflow:hidden}
@@ -2122,6 +2141,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/server.js"></script>
 <script src="api/client.js"></script>
 <script src="api/whep-stub.js"></script>
+<script src="assets/tour.js"></script>
 </head>
 <body>
 <div class="app">
@@ -2435,6 +2455,10 @@ IC.sec_acc=lu("user");
 IC.sec_sys=lu("settings");
 IC.sec_log=lu("list");
 IC.sec_exp=lu("download");
+LU["graduation-cap"]='<path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16a6 3 0 0 0 12 0v-3.5"/>';
+LU["book-open"]=LU["book-open"]||'<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>';
+LU["play"]=LU["play"]||'<path d="M6 4l14 8-14 8z"/>';
+IC.sec_learn=lu("graduation-cap");
 IC.archive=IC.storage;LU.network=`<rect x="16" y="16" width="6" height="6" rx="1"/><rect x="2" y="16" width="6" height="6" rx="1"/><rect x="9" y="2" width="6" height="6" rx="1"/><path d="M5 16v-3a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v3"/><path d="M12 12V8"/>`;IC.asnet=lu("network");IC.asdisk=lu("hard-drive");
 // Строки-списки — те же знаки, что у их содержимого, только серые: сервер
 // для «Нераспределённых серверов», хранилище для «Без записи», папка для
@@ -2543,7 +2567,7 @@ let deviceSearchTimer=null,deviceSearchInterval=null;
 let app="hw",_lastApp=null,sel="d1",tab="gen",dirty=false,rule="overview",ruleTab="cfg",role="adm",sys="ntp",tview="cam";
 const APPS_LIST=[{id:"hw",label:"Оборудование",ic:"sec_hw"},{id:"rules",label:"Автоматизация",ic:"sec_rules"},
   {id:"acc",label:"Права",ic:"sec_acc"},{id:"sys",label:"Опции",ic:"sec_sys"},
-  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"}];
+  {id:"exp",label:"Экспорт",ic:"sec_exp"},{id:"log",label:"Журнал",ic:"sec_log"},{id:"learn",label:"Обучение",ic:"sec_learn"}];
 let slice="all";
 // Группировка общая: кнопку «Папки» человек нажимает сам, выбор среза её не трогает.
 // У Детекторов своё положение: там второе положение — виды, а при входе нужны они (прототип 18).
@@ -2662,7 +2686,16 @@ function apiUnauthorized(){
   else setTimeout(()=>toast(i18n("Сессия истекла — войдите снова")),0);
 }
 const API=(()=>{
-  const q=new URLSearchParams(location.search),base=q.get("api")||pageMeta("consolem-api"),latency=+q.get("latency")||0;
+  const q=new URLSearchParams(location.search),latency=+q.get("latency")||0;
+  // Учебный режим (раздел «Обучение») — всегда на встроенном сервере: настоящая система в нём не участвует
+  const base=window.Tour?.demo?null:q.get("api")||pageMeta("consolem-api");
+  // Файлы сервера показа не загрузились (сборка без demo/): обычная страница вместо пустой
+  if(window.Tour?.demo&&typeof ConsolemServer==="undefined"){
+    const u=new URL(location.href);
+    ["tour","demo","play","all"].forEach(k=>u.searchParams.delete(k));
+    location.replace(u.href);
+    throw new Error("Учебный режим: файлы demo/ не загрузились");
+  }
   if(base)return ConsolemApi.create({baseUrl:base,latency,onUnauthorized:apiUnauthorized});
   const all=window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE};
   // ?drop=op1,op2 — система, которая не объявила эти операции: так проверяется запуск без необязательного
@@ -4784,7 +4817,7 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
 function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():true);
+  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():a.id==="learn"?learnShown():true);
 }
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
@@ -6379,6 +6412,7 @@ registerJumpSource(()=>accCats().map(c=>({kind:"Каталог",title:c.n,sub:c.
   go(){goApp("acc");accGo("cat:"+c.id)}})));
 registerJumpSource(()=>rules.map(r=>({kind:"Правило",title:r.name,sub:i18n(r.on?(r.watch?"Только журнал":"Работает"):"Выключено"),icon:"svcs",goId:"rule:"+r.id,
   go(){goApp("rules");ruleOpen(r.id,true)}})));
+registerJumpSource(()=>learnShown()?learnTopics().flatMap((tp,k)=>tp.chapters.map((c,n)=>({kind:"Обучение",title:i18n(c.title),sub:i18n(tp.title),icon:"svcs",goId:`learn:${k}.${n}`,go(){learnLink(`${k}.${n}`)}}))):[]);
 registerJumpSource(()=>logCats.map(c=>({kind:"Журнал",title:c.n,sub:i18n("Категория журнала"),icon:"svcs",goId:"log:"+c.id,
   go(){goApp("log");logGo(c.id)}})));
 registerJumpSource(()=>{                          // закладки выбранного объекта
@@ -7684,7 +7718,7 @@ function paintInto(host,html,key,seen){
   if(st)restoreView(host,st);
 }
 const mainSeen={key:null},asideSeen={key:null},treeSeen={key:null},favSeen={key:null};
-function mainKey(){return app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
+function mainKey(){return app==="learn"?`learn|${learnSel}`:app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
 function paintMain(html){
   const host=document.getElementById("main");
   const snap=bulkScopeSnap();
@@ -7696,7 +7730,7 @@ function paintMain(html){
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
 }
 function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
-  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp}[app];
+  const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp,learn:treeLearn}[app];
   srvCamMemo=null;
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
@@ -9713,6 +9747,88 @@ function optGo(id){sys=id;tab="gen";paint()}
 function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();else if(logQOn())logQueryRun();paint()}
 function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).map(o=>
   `<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span></div>`).join("")}
+// ── Обучение: темы и главы демо ─────────────────────────────────────────────
+// Раздел открывает сам человек: без автозапуска. Содержание — assets/tour-demos.js, движок — assets/tour.js.
+// Показ идёт в учебном режиме (?demo): перезагрузка на встроенном сервере, настоящая система не участвует.
+// В сборке для консоли сервер показа грузится только при ?demo; с --without-learn движка и раздела нет.
+let learnSel="home";
+const learnOpen=new Set();
+function learnTopics(){return window.Tour?.topics||[]}
+function learnShown(){return!!window.Tour&&(window.Tour.lazy||typeof ConsolemServer!=="undefined")}
+function learnParse(id){const[a,b]=String(id).split(".");const tp=learnTopics()[+a];return{k:tp?+a:null,tp:tp||null,c:b==null||!tp?null:+b,ch:tp&&b!=null?tp.chapters[+b]||null:null}}
+function learnTitle(id){const{tp,ch}=learnParse(id);return ch?i18n(ch.title):tp?i18n(tp.title):""}
+function learnCount(n,forms){return`${n} ${i18n(plural(n,forms))}`}
+function learnMins(s){return`${i18n("около")} ${Math.max(1,Math.round(s/60))} ${i18n("мин")}`}
+function learnSelect(id){learnSel=id;const{k}=learnParse(id);if(k!=null)learnOpen.add(k);paint()}
+function learnTree(id){
+  const{k,c}=learnParse(id);
+  if(k!=null&&c==null&&learnSel===id){if(learnOpen.has(k))learnOpen.delete(k);else learnOpen.add(k);paint();return}
+  learnSelect(id);
+}
+function learnToggle(k){if(learnOpen.has(k))learnOpen.delete(k);else learnOpen.add(k);renderTree()}
+// Переход по ссылке моргает на месте прихода: заголовок и строка дерева
+function learnLink(id){
+  navMark();
+  if(app!=="learn")setApp("learn");
+  learnSelect(id);
+  accFlash(()=>[document.querySelector(".hd h1"),document.querySelector("#tree .n.on")].filter(Boolean));
+}
+// #learn=2 или #learn=2.1: сюда возвращает выход из показа
+function learnFromHash(){
+  if(window.Tour?.demo)return;
+  const m=/^#learn=(\d+(?:\.\d+)?)$/.exec(location.hash);if(!m||!learnShown())return;
+  const u=new URL(location.href),lang=u.searchParams.get("lang");
+  u.searchParams.delete("lang");
+  history.replaceState(history.state,"",u.pathname+u.search);
+  if(lang==="en")setUiLang("en");
+  const{k,c,ch}=learnParse(m[1]);if(k==null)return;
+  learnSel=ch?`${k}.${c}`:String(k);learnOpen.add(k);setApp("learn");
+  accFlash(()=>[document.querySelector(".hd h1"),document.querySelector("#tree .n.on")].filter(Boolean),true);
+}
+function learnPlay(k,c){window.Tour.play(k,c)}
+function treeLearn(){
+  const q=qval();
+  let h=matchesText(q,i18n("С чего начать"))?`<div class="n ${learnSel==="home"?"on":""}" data-go="learn:home" ${onEv("click",["learnTree","home"])}><span class="tw"></span><span class="ici">${lu("graduation-cap")}</span><span class="nm">${hlText(i18n("С чего начать"),q)}</span></div>`:"";
+  learnTopics().forEach((tp,k)=>{
+    const chs=tp.chapters.map((c,n)=>({c,n})).filter(({c})=>matchesText(q,i18n(c.title),i18n(tp.title)));
+    if(!chs.length)return;
+    const op=learnOpen.has(k)||!!q;
+    h+=`<div class="n ${learnSel===String(k)?"on":""}" data-go="learn:${k}" ${onEv("click",["learnTree",`${k}`])}><span class="tw" ${onEv("click",onEv.stop,["learnToggle",k])}>${op?TW_OPEN:TW_SHUT}</span><span class="ici">${lu("book-open")}</span><span class="nm">${hlText(i18n(tp.title),q)}</span>${treeCntHtml(tp.chapters.length)}</div>`;
+    if(op)h+=chs.map(({c,n})=>`<div class="n ${learnSel===`${k}.${n}`?"on":""}" style="--l:1" data-go="learn:${k}.${n}" ${onEv("click",["learnTree",`${k}.${n}`])}><span class="tw"></span><span class="ici">${lu("play")}</span><span class="nm">${hlText(i18n(c.title),q)}</span></div>`).join("");
+  });
+  return h||`<div class="sub rl-none">${i18n("Ничего не найдено")}</div>`;
+}
+function learnCrumbs(parts){return parts.map(([id,t],i)=>i===parts.length-1?`<span class="cr-it cr-last"><span class="cr-cur">${escHtml(t)}</span></span>`:`<button type="button" class="as-link" ${onEv("click",["learnLink",id])}>${escHtml(t)}</button><span class="sub lrn-sep" aria-hidden="true">›</span>`).join("")}
+function learnPlayBtn(k,c,label,pri=true){return`<button type="button" class="btn ${pri?"pri":""} s" ${onEv("click",["learnPlay",k,c])}>${lu("play")}${i18n(label)}</button>`}
+function learnUI(){
+  const{k,tp,c,ch}=learnParse(learnSel);
+  if(ch){
+    const steps=tp.steps.slice(ch.from,ch.to+1),prev=tp.chapters[c-1],next=tp.chapters[c+1];
+    paintMain(mainHd(learnCrumbs([["home",i18n("Обучение")],[`${k}`,i18n(tp.title)],[learnSel,i18n(ch.title)]]),i18n(ch.title),"",null,learnPlayBtn(k,c,"Смотреть"))+
+      `<div class="sc lrn"><p class="lrn-why">${escHtml(i18n(ch.why))}</p>
+      <p class="sub lrn-meta">${learnCount(steps.length,"шаг|шага|шагов")} · ${learnMins(ch.secs)} · ${i18n("на учебных данных")}${uiLang==="ru"?"":` · ${i18n("показ на русском языке")}`}</p>
+      <div class="card"><div class="ch">${i18n("Что покажем")}</div><ol class="lrn-steps">${steps.map(s=>`<li>${escHtml(i18n(s.say))}</li>`).join("")}</ol></div>
+      <div class="lrn-nav">${prev?`<button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${c-1}`])}>‹ ${escHtml(i18n(prev.title))}</button>`:"<span></span>"}${next?`<button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${c+1}`])}>${escHtml(i18n(next.title))} ›</button>`:""}</div></div>`);
+    return;
+  }
+  if(tp){
+    paintMain(mainHd(learnCrumbs([["home",i18n("Обучение")],[`${k}`,i18n(tp.title)]]),i18n(tp.title),"",null,learnPlayBtn(k,null,"Смотреть всю тему"))+
+      `<div class="sc lrn"><p class="lrn-why">${escHtml(i18n(tp.why))}</p>
+      <p class="sub lrn-meta">${learnCount(tp.chapters.length,"глава|главы|глав")} · ${learnMins(tp.secs)} · ${i18n("на учебных данных")}${uiLang==="ru"?"":` · ${i18n("показ на русском языке")}`}</p>
+      <div class="card"><table class="lrn-tbl"><colgroup><col class="lrn-c1"><col><col class="lrn-c3"><col class="lrn-c4"></colgroup>
+      <tr><th>${i18n("Глава")}</th><th>${i18n("Зачем это нужно")}</th><th>${i18n("Время")}</th><th></th></tr>
+      ${tp.chapters.map((x,n)=>`<tr><td><button type="button" class="as-link" ${onEv("click",["learnLink",`${k}.${n}`])}>${escHtml(i18n(x.title))}</button></td><td class="sub">${escHtml(i18n(x.why))}</td><td class="sub">${learnMins(x.secs)}</td><td>${learnPlayBtn(k,n,"Смотреть",false)}</td></tr>`).join("")}</table></div></div>`);
+    return;
+  }
+  paintMain(mainHd("",`<span class="hd-ic">${lu("graduation-cap")}</span>${i18n("Обучение")}`,"")+
+    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотрите, как работает конфигуратор. Курсор сам проходит задачу в настоящем интерфейсе, а подпись объясняет, что происходит и зачем.")}</p>
+    <div class="lrn-facts">
+      <div><b>${i18n("Ничего не сломается")}</b><span class="sub">${i18n("Показ идёт на учебных данных. Настоящая система, ваши настройки и черновики не меняются.")}</span></div>
+      <div><b>${i18n("Показом управляете вы")}</b><span class="sub">${i18n("Пауза, шаг назад и вперёд, скорость. Esc закрывает показ.")}</span></div>
+      <div><b>${i18n("Можно попробовать самому")}</b><span class="sub">${i18n("После главы страница остаётся на учебных данных: нажимайте что угодно.")}</span></div>
+    </div>
+    <div class="lrn-grid">${learnTopics().map((t,n)=>`<div class="card lrn-topic"><button type="button" class="as-link lrn-t" ${onEv("click",["learnLink",`${n}`])}>${escHtml(i18n(t.title))}</button><p class="sub">${escHtml(i18n(t.why))}</p><div class="lrn-foot"><span class="sub">${learnCount(t.chapters.length,"глава|главы|глав")} · ${learnMins(t.secs)}</span>${learnPlayBtn(n,null,"Смотреть")}</div></div>`).join("")}</div></div>`);
+}
 function treeLog(){const q=qval();return logCats.filter(c=>matchesText(q,c.n)).map(c=>`<div class="n ${logFilt===c.id?"on":""}" data-go="log:${c.id}" ${onEv("click",["logGo",c.id])}><span class="tw"></span><span class="ici">${lu("scroll-text")}</span><span class="nm">${hlText(c.n,q)}</span></div>`).join("")}
 
 function tabsFor(n){
@@ -24572,7 +24688,7 @@ function comboBlur(el){
 // дереву его не трогают, закрытие страницы — предупреждает.
 const addPlan={rows:[],links:[],key:null,keySig:null,applying:false,last:null,added:[]};
 let planSeq=0;
-window.addEventListener("beforeunload",e=>{if(addPlan.rows.length||addPlan.links.length){e.preventDefault();e.returnValue=""}});
+window.addEventListener("beforeunload",e=>{if(!window.Tour?.demo&&(addPlan.rows.length||addPlan.links.length)){e.preventDefault();e.returnValue=""}});
 // Набор строк изменился — прежний ключ запроса уже не про этот набор
 function planTouch(){addPlan.key=null;addPlan.keySig=null}
 // Счётчик на верхней панели: цифра сама по себе не говорит, что это несохранённый план
@@ -25676,7 +25792,7 @@ function wnx(){
   }).catch(e=>toast(problemText(e))).finally(()=>{w.adding=false});
 }
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else renderTree();syncDomainChrome();renderFavs();
-  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI};
+  const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI,learn:learnUI};
   (ui[app]||gear)();
   syncHeaderLoad();
 }
@@ -25711,7 +25827,7 @@ function navMark(){
 // запоминается, чтобы вернуть его, если с тех пор выборку сняли.
 function navLoc(){
   const bulk=app==="hw"&&bulkActive()&&!bulkPeek;
-  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,
+  return{app,sel,tab,slice,selFolder,detSel,sview,tview,rule,ruleTab,sys,logFilt,accSel,accTab,domainFilter,bulk,expSel,learnSel,
     bsel:bulk?[...treeSel].map(id=>[id,selWhere.get(id)??null]):null};
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
@@ -25723,6 +25839,7 @@ function navTitle(){
   else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы объекта",maint:"Окна обслуживания",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
   else if(app==="sys")t=sysOpts.find(o=>o.id===sys)?.n||"";
   else if(app==="log")t=logCats.find(c=>c.id===logFilt)?.n||"";
+  else if(app==="learn")t=learnTitle(learnSel);
   else if(app==="exp")t=expSel==="new"?i18n("Новая выгрузка"):expRowOf(expSel)?expJobTitle(expRowOf(expSel)):"";
   else if(app==="acc"){
     if(accSel.startsWith("role:"))t=`${i18n("Роль")} «${accRoleName(accSel.slice(5))}»`;
@@ -25751,7 +25868,7 @@ function navApply(loc){
   navLock=true;
   try{
     app=loc.app;sel=loc.sel;tab=loc.tab;slice=loc.slice;selFolder=loc.selFolder;detSel=loc.detSel;
-    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
+    rule=loc.rule;ruleTab=loc.ruleTab||"cfg";sys=loc.sys;logFilt=loc.logFilt;learnSel=loc.learnSel||"home";expSel=loc.expSel||"new";accSel=loc.accSel;accTab=loc.accTab;domainFilter=loc.domainFilter||"";domainPop=false;
     syncViews();treeOpenFollow();sview=loc.sview;tview=loc.tview;   // syncViews ставит виды по срезу, шаг их уточняет
     // Шаг «выборка» возвращает её состав; шаг объекта при живой выборке
     // открывает объект поверх неё — выборка остаётся.
@@ -29044,5 +29161,6 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
+<script src="assets/tour-demos.js"></script>
 </body>
 </html>

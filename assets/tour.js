@@ -1,11 +1,43 @@
-/* Показ прототипа: виртуальный курсор сам проходит сценарий и подписывает каждый шаг, чтобы смотрящий не искал, что изменилось.
-   Шаги задаёт прототип: Tour.offer("Подпись кнопки", шаги). С ?demo в адресе показ стартует сам, с ?selftest его нет.
-   Несколько вызовов Tour.offer на странице — несколько показов: кнопка открывает список, ?tour=K&demo запускает K-й (с 1).
-   Шаг: {say:"текст", at:()=>элемент, act:"click"|"type", text:"что ввести", before:()=>…}.
-   Шаги идут сами. Панель остаётся и после последнего шага: «Назад» и «Дальше» проходят их вручную, «Закрыть» отдаёт страницу.
-   Клики и ввод настоящие: идут через обычные обработчики страницы и контракт. Данные встроенного сервера живут до перезагрузки,
-   поэтому запуск и «Назад» перезагружают страницу: ?demo=N быстро проходит шаги до N и ждёт на нём. Не часть продукта: в index.html не переносится. */
+/* Обучение: виртуальный курсор сам проходит задачу в настоящем интерфейсе, а подпись объясняет каждый шаг.
+   Темы задаёт assets/tour-demos.js: Tour.add({id, title, why, steps}), в конце Tour.start(). Глава начинается шагом с полем ch:{title, why}.
+   Шаг: {say:"текст", at:()=>элемент, act:"click"|"type", text:"что ввести", before:()=>…, ch:{…}}.
+   ?tour=K&demo=N — тема K (с 1), шаг N (с 0). &play — идти сразу, без него ждать на шаге; &all — вся тема, без остановок между главами.
+   Учебный режим — это ?demo в адресе: страница работает на встроенном сервере (см. API в index.html), localStorage — копия в памяти,
+   настоящие черновики и настройки не меняются. Данные живут до перезагрузки: запуск и «Назад» перезагружают страницу и быстро проходят шаги до нужного.
+   В сборке для консоли (tools/build_webui.py) сервер показа лежит в demo/ и грузится только при ?demo; с --without-learn раздела нет. */
 (() => {
+  const DEMO = /[?&]demo\b/.test(location.search) && !/[?&]selftest(-run)?\b/.test(location.search);
+  if (DEMO) {
+    let realStore = null;
+    try {
+      realStore = window.localStorage;
+    } catch {}
+    // В показ идут только тема и ширина панели: черновики и раскрытые папки увели бы шаги в сторону. Запись остаётся в памяти этой страницы
+    const mem = new Map();
+    try {
+      ["kit-theme", "cfg.asideW"].forEach((k) => {
+        const v = realStore.getItem(k);
+        if (v != null) mem.set(k, v);
+      });
+    } catch {}
+    const fake = {
+      getItem: (k) => (mem.has(String(k)) ? mem.get(String(k)) : null),
+      setItem: (k, v) => void mem.set(String(k), String(v)),
+      removeItem: (k) => void mem.delete(String(k)),
+      clear: () => mem.clear(),
+      key: (i) => [...mem.keys()][i] ?? null,
+      get length() {
+        return mem.size;
+      },
+    };
+    try {
+      Object.defineProperty(window, "localStorage", { value: fake, configurable: true });
+    } catch {}
+  }
+  // Сборка для консоли: сервера показа нет на обычной странице, он загружается только в учебном режиме, до кода страницы
+  const lazy = document.querySelector('meta[name="consolem-demo-files"]')?.content || "";
+  if (DEMO && lazy) lazy.split(",").forEach((src) => document.write(`<script src="${src}"><\/script>`));
+  const t = (s) => (typeof i18n === "function" ? i18n(s) : s);
   const CSS = `
 .tour-block{position:fixed;inset:0;z-index:100000;background:transparent}
 .tour-cur{position:fixed;left:0;top:0;width:22px;height:22px;z-index:100003;pointer-events:none;transition:transform .75s cubic-bezier(.45,.05,.25,1);filter:drop-shadow(0 2px 3px #0009)}
@@ -27,13 +59,13 @@
 .tour-bar{height:3px;margin:0 0 10px;background:var(--ln,#2d3743);border-radius:2px;overflow:hidden}
 .tour-bar i{display:block;height:100%;background:var(--one-focus-ring,#3b82f6);transition:width .3s}
 .tour-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-.tour-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
-.tour-offer[hidden]{display:none}
-.tour-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}
-.tour-menu{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:15;display:flex;flex-direction:column;gap:2px;min-width:240px;max-width:calc(100vw - 32px);max-height:calc(100vh - 88px);overflow:auto;box-sizing:border-box;padding:6px;background:var(--p,#1a2129);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 6px 18px #0006}
-.tour-menu[hidden]{display:none}
-.tour-menu button{padding:8px 10px;border:0;border-radius:6px;background:transparent;color:var(--tx,#e4e9ef);font:13px/1.3 inherit;text-align:left;cursor:pointer}
-.tour-menu button:hover,.tour-menu button:focus-visible{background:var(--one-focus-ring,#3b82f6);color:#fff;outline:0}
+.tour-ti{margin:0 0 2px;font-weight:600}
+/* Над слоем .tour-block: выйти из учебных данных можно и во время показа */
+.tour-mode{position:relative;z-index:100001;display:flex;align-items:center;justify-content:center;gap:12px;padding:6px 16px;background:var(--one-warning-bg,#4a3a10);color:var(--one-warning-text,#ffe9a8);font-size:13px;line-height:1.3}
+.tour-mode b{font-weight:600}
+.tour-mode button{font:inherit;font-weight:600;color:inherit;background:none;border:1px solid currentColor;border-radius:6px;padding:3px 10px;cursor:pointer}
+.tour-mode button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.app.tour-on{grid-template-rows:auto minmax(0,1fr)}
 @media(prefers-reduced-motion:reduce){.tour-cur,.tour-panel.tour-fly{transition:none}.tour-ripple{display:none}}`;
   const ARROW = '<svg viewBox="0 0 22 22" aria-hidden="true"><path d="M4 2l13.5 11.2-6.3.5 3.6 6.9-2.7 1.4-3.6-7L4 19z" fill="#fff" stroke="#111" stroke-width="1.3" stroke-linejoin="round"/></svg>';
   const reduced = () => matchMedia("(prefers-reduced-motion:reduce)").matches;
@@ -51,11 +83,11 @@
     b.addEventListener("click", fn);
     return b;
   };
-  // Скорость переживает перезагрузку на «Назад» и новый запуск
+  // Скорость переживает перезагрузку на «Назад» и новый запуск в этой вкладке; настоящий localStorage показ не трогает
   const SPEEDS = [1, 2, 4, 8];
   const loadSpeed = () => {
     try {
-      const v = Number(localStorage.getItem("tourSpeed"));
+      const v = Number(sessionStorage.getItem("tourSpeed"));
       return SPEEDS.includes(v) ? v : 1;
     } catch {
       return 1;
@@ -63,31 +95,41 @@
   };
   const saveSpeed = (v) => {
     try {
-      localStorage.setItem("tourSpeed", String(v));
+      sessionStorage.setItem("tourSpeed", String(v));
     } catch {}
   };
   // Показ всегда на чистых данных: сценарий рассчитан на набор, каким он был при загрузке
-  const reloadAt = (step, tour) => {
+  const urlFor = (params) => {
     const u = new URL(location.href);
-    if (tour) u.searchParams.set("tour", String(tour));
-    u.searchParams.set("demo", step == null ? "" : String(step));
+    ["tour", "demo", "play", "all"].forEach((k) => u.searchParams.delete(k));
+    Object.entries(params).forEach(([k, v]) => u.searchParams.set(k, String(v)));
     // Без якоря: адрес с одним только якорем страницу не перезагрузит
     u.hash = "";
-    location.href = u.href;
+    return u;
+  };
+  const leave = (k, c) => {
+    const u = urlFor({});
+    u.hash = `learn=${c == null ? k : `${k}.${c}`}`;
+    // Без записи в историю: «Назад» после выхода не запускает показ снова
+    location.replace(u.href);
   };
 
-  function run(steps, startAt) {
-    const last = steps.length - 1;
+  function run(topic, k, startAt, opts) {
+    const steps = topic.steps, chapters = topic.chapters, last = steps.length - 1;
+    const chOf = (at) => Math.max(0, chapters.findIndex((c) => at >= c.from && at <= c.to));
+    let ch = chOf(startAt), from = opts.all ? 0 : chapters[ch].from, to = opts.all ? last : chapters[ch].to, nextCh = false;
+    const reloadAt = (step, play) => {
+      location.href = urlFor({ tour: k + 1, demo: step, ...(play ? { play: 1 } : {}), ...(opts.all ? { all: 1 } : {}) }).href;
+    };
     let i = 0, paused = false, stopped = false, skip = false, back = false, ended = false, target = null, goal = null, corner = "bl", flyTimer = 0, pinned = false, triedAt = null, frame = 0, speed = loadSpeed();
     const block = make("div", "tour-block"), cur = make("div", "tour-cur", ARROW), ring = make("div", "tour-ring"), panel = make("div", "tour-panel");
     panel.setAttribute("role", "status");
     panel.setAttribute("aria-live", "polite");
-    const n = make("p", "tour-n"), bar = make("div", "tour-bar", "<i></i>"), say = make("p", "tour-say"), hint = make("p", "tour-hint"), btns = make("div", "tour-btns");
-    hint.textContent = "Показ окончен. «Назад» пройдёт шаги заново, «Закрыть» вернёт страницу: можно попробовать самому.";
+    const ti = make("p", "tour-ti"), n = make("p", "tour-n"), bar = make("div", "tour-bar", "<i></i>"), say = make("p", "tour-say"), hint = make("p", "tour-hint"), btns = make("div", "tour-btns");
     hint.hidden = true;
     const top = make("div", "tour-top"), speeds = make("div", "tour-speed");
     speeds.setAttribute("role", "group");
-    speeds.setAttribute("aria-label", "Скорость показа");
+    speeds.setAttribute("aria-label", t("Скорость показа"));
     const speedBtns = SPEEDS.map((v) => {
       const b = button(`×${v}`, "", () => setSpeed(v));
       speeds.append(b);
@@ -101,42 +143,50 @@
     }
     setSpeed(speed);
     top.append(n, speeds);
-    panel.append(top, bar, say, hint, btns);
+    panel.append(ti, top, bar, say, hint, btns);
     const goBack = () => {
-      if (i > 0) back = true;
+      if (i > from) back = true;
     };
     const goNext = () => {
-      skip = true;
+      if (!ended) skip = true;
+      else if (to < last) nextCh = true;
     };
-    const backBtn = button("Назад", "btn s", goBack);
-    const pauseBtn = button("Пауза", "btn s", () => (ended ? reloadAt() : setPaused(!paused)));
-    const nextBtn = button("Дальше", "btn s", goNext);
-    btns.append(backBtn, pauseBtn, nextBtn, button("Закрыть", "btn s", stop));
+    const backBtn = button(t("Назад"), "btn s", goBack);
+    const pauseBtn = button(t("Пауза"), "btn s", () => (ended ? reloadAt(from, true) : setPaused(!paused)));
+    const nextBtn = button(t("Дальше"), "btn s", goNext);
+    const tryBtn = button(t("Попробовать самому"), "btn s", tryIt);
+    tryBtn.style.display = "none";
+    btns.append(backBtn, pauseBtn, tryBtn, nextBtn, button(t("Закрыть"), "btn s", stop));
     ring.style.opacity = "0";
     cur.style.transform = `translate(${innerWidth / 2}px,${innerHeight / 2}px)`;
     document.body.append(block, ring, cur, panel);
     function setPaused(v) {
       paused = v;
-      pauseBtn.textContent = v ? "Продолжить" : "Пауза";
+      pauseBtn.textContent = t(v ? "Продолжить" : "Пауза");
     }
     function setEnded(v) {
       ended = v;
       hint.hidden = !v;
-      nextBtn.disabled = v;
-      pauseBtn.textContent = v ? "Показать снова" : paused ? "Продолжить" : "Пауза";
+      tryBtn.style.display = v ? "" : "none";
+      nextBtn.style.display = v && to >= last ? "none" : "";
+      hint.textContent = t(to >= last ? "Это конец темы. Её можно посмотреть снова или попробовать самому на тех же учебных данных." : "Глава окончена. Её можно посмотреть снова, перейти к следующей или попробовать самому на тех же учебных данных.");
+      nextBtn.textContent = t(v ? "Следующая глава" : "Дальше");
+      nextBtn.className = v ? "btn pri s" : "btn s";
+      pauseBtn.textContent = t(v ? "Показать снова" : paused ? "Продолжить" : "Пауза");
       // Высота панели изменилась: сразу на место, а не со следующим кадром
       place();
     }
     // Клавиши на время показа — только его: стрелка иначе пойдёт по дереву, Esc закроет окно
     const key = (e) => {
       e.stopImmediatePropagation();
-      // Enter и пробел на кнопке панели нажимают её
-      if ((e.key === "Enter" || e.key === " ") && panel.contains(e.target)) return;
+      // Enter и пробел на кнопке панели и кнопке выхода нажимают её
+      const exit = document.querySelector(".tour-mode button");
+      if ((e.key === "Enter" || e.key === " ") && (panel.contains(e.target) || e.target === exit)) return;
       e.preventDefault();
       if (e.type !== "keydown") return;
       if (e.key === "Tab") {
-        // Фокус ходит только по панели
-        const all = [...panel.querySelectorAll("button:not(:disabled)")];
+        // Фокус ходит только по панели и кнопке выхода
+        const all = [...panel.querySelectorAll("button:not(:disabled)"), exit].filter(Boolean);
         const at = all.indexOf(document.activeElement);
         all[(at + (e.shiftKey ? -1 : 1) + all.length) % all.length]?.focus();
       } else if (e.key === "Escape") stop();
@@ -212,21 +262,29 @@
     function stop() {
       clear();
       panel.remove();
-      offerShow(true);
+      leave(k, opts.all ? null : ch);
+    }
+    // Страница остаётся на учебных данных: выйти можно кнопкой в полосе режима
+    function tryIt() {
+      clear();
+      panel.remove();
+      Tour.at = [k, ch];
     }
     function broken() {
       clear();
-      n.textContent = "Показ прервался";
+      n.textContent = t("Показ прервался");
       speeds.remove();
       bar.remove();
-      say.textContent = "На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.";
-      btns.replaceChildren(button("Показать снова", "btn s", () => reloadAt()), button("Закрыть", "btn pri s", stop));
+      say.textContent = t("На экране нет того, что нужно показать дальше. Обычно дело в узком окне: в нём карточка скрыта. Откройте окно пошире.");
+      btns.replaceChildren(button(t("Показать снова"), "btn s", () => reloadAt(from, true)), button(t("Закрыть"), "btn pri s", stop));
     }
     function draw(s) {
-      n.textContent = `Шаг ${i + 1} из ${steps.length}`;
-      bar.firstChild.style.width = `${Math.round(((i + 1) / steps.length) * 100)}%`;
-      say.textContent = s.say;
-      backBtn.disabled = i === 0;
+      ch = chOf(i);
+      ti.textContent = `${t(topic.title)} · ${t(chapters[ch].title)}`;
+      n.textContent = `${t("Шаг")} ${i - from + 1} ${t("из")} ${to - from + 1}`;
+      bar.firstChild.style.width = `${Math.round(((i - from + 1) / (to - from + 1)) * 100)}%`;
+      say.textContent = t(s.say);
+      backBtn.disabled = i === from;
       place();
     }
     // Ждать, уважая паузу; «Дальше» и «Назад» обрывают ожидание. Нажатые, пока курсор кликал или вводил, сработают здесь
@@ -276,8 +334,9 @@
     }
     // Шаги до нужного — без курсора и ожиданий: они только восстанавливают состояние
     async function rewind() {
-      n.textContent = `Шаг ${startAt + 1} из ${steps.length}`;
-      say.textContent = "Перематываю…";
+      ti.textContent = `${t(topic.title)} · ${t(chapters[ch].title)}`;
+      n.textContent = "";
+      say.textContent = t("Готовлю учебные данные…");
       cur.style.opacity = "0";
       for (i = 0; i < startAt && !stopped; i++) {
         const s = steps[i];
@@ -294,10 +353,10 @@
       }
       cur.style.opacity = "";
       skip = false;
-      setPaused(true);
+      setPaused(!opts.play);
     }
     (async () => {
-      if (startAt !== null) await rewind();
+      await rewind();
       while (!stopped) {
         const s = steps[i];
         draw(s);
@@ -313,12 +372,19 @@
           point(el);
         }
         place();
-        if (i === last) {
+        if (i === to) {
           setEnded(true);
-          while (!stopped && !back) await sleep(50);
+          while (!stopped && !back && !nextCh) await sleep(50);
+          if (nextCh) {
+            nextCh = false;
+            from = chapters[chOf(to + 1)].from;
+            to = chapters[chOf(from)].to;
+            setPaused(false);
+            setEnded(false);
+          }
         } else await hold(Math.max(2500, s.say.length * 55));
         if (stopped) return;
-        if (back) return reloadAt(i - 1);
+        if (back) return reloadAt(i - 1, false);
         if (el && s.act === "click") {
           const fresh = s.at() || el;
           await press(fresh);
@@ -333,67 +399,56 @@
         }
         i++;
       }
-    })();
+    })().catch((e) => {
+      console.error(e);
+      broken();
+    });
   }
 
-  let offerEl = null;
-  let menuEl = null;
-  const offers = [];
-  const menuShow = (v) => {
-    if (!menuEl) return;
-    menuEl.hidden = !v;
-    offerEl.setAttribute("aria-expanded", String(v));
-    if (v) menuEl.querySelector("button").focus();
-  };
-  const offerShow = (v) => {
-    if (offerEl) offerEl.hidden = !v;
-    if (!v) menuShow(false);
-  };
   const mount = () => {
     const st = make("style", "");
     st.textContent = CSS;
     document.head.append(st);
-    const q = new URLSearchParams(location.search);
-    const many = offers.length > 1;
-    if (many) {
-      // Несколько показов: кнопка открывает список, выбор перезагружает страницу, потому что показ идёт на чистых данных
-      offerEl = button("▶ Показы", "tour-offer", () => menuShow(menuEl.hidden));
-      offerEl.setAttribute("aria-haspopup", "true");
-      offerEl.setAttribute("aria-expanded", "false");
-      menuEl = make("div", "tour-menu");
-      menuEl.hidden = true;
-      menuEl.setAttribute("role", "group");
-      menuEl.setAttribute("aria-label", "Показы");
-      offers.forEach((o, k) => menuEl.append(button(o.label, "", () => reloadAt(null, k + 1))));
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !menuEl.hidden) {
-          e.stopPropagation();
-          menuShow(false);
-          offerEl.focus();
-        }
-      }, true);
-      document.addEventListener("pointerdown", (e) => {
-        if (!menuEl.hidden && !menuEl.contains(e.target) && !offerEl.contains(e.target)) menuShow(false);
-      }, true);
-      document.body.append(menuEl);
-    } else offerEl = button(`▶ ${offers[0].label}`, "tour-offer", () => reloadAt());
-    document.body.append(offerEl);
-    const demo = q.get("demo");
-    if (demo === null) return;
-    const now = many ? offers[Number(q.get("tour")) - 1] : offers[0];
-    // ?demo без номера показа на странице с несколькими показами: выбрать должен зритель
-    if (!now) return menuShow(true);
-    offerShow(false);
-    // ?demo — сам с начала, ?demo=N — ждёт на шаге
-    const at = demo === "" ? NaN : Number(demo);
-    run(now.steps, Number.isInteger(at) ? Math.max(0, Math.min(at, now.steps.length - 1)) : null);
+    if (!DEMO) return;
+    const q = new URLSearchParams(location.search), k = Number(q.get("tour")) - 1, topic = Tour.topics[k];
+    const app = document.querySelector(".app"), bar = make("div", "tour-mode");
+    bar.setAttribute("role", "status");
+    bar.append(make("span", "", `<b>${t("Учебные данные.")}</b> ${t("Настоящая система не меняется.")}`), button(t("Выйти из учебных данных"), "", () => leave(...(Tour.at || [Math.max(k, 0), null]))));
+    app.classList.add("tour-on");
+    app.prepend(bar);
+    if (!topic) return;
+    const at = Number(q.get("demo"));
+    run(topic, k, Number.isInteger(at) ? Math.max(0, Math.min(at, topic.steps.length - 1)) : 0, { play: q.has("play") || q.get("demo") === "", all: q.has("all") });
   };
-  window.Tour = {
-    offer(label, steps) {
-      if (/[?&]selftest(-run)?\b/.test(location.search)) return;
-      offers.push({ label, steps });
-      // Вызовы идут подряд в конце скрипта страницы: кнопка ставится один раз, когда все уже известны
-      if (offers.length === 1) (window.appReady || Promise.resolve()).then(mount);
+  // Примерное время при скорости ×1: как в run — чтение подписи, плюс ход курсора
+  const secs = (steps) => steps.reduce((sum, s) => sum + Math.max(2500, s.say.length * 55) + (s.act ? 1300 : 0), 0) / 1000;
+  const Tour = {
+    demo: DEMO,
+    lazy: !!lazy,
+    topics: [],
+    add(topic) {
+      const chapters = [];
+      topic.steps.forEach((s, at) => {
+        if (s.ch || !chapters.length) chapters.push({ ...(s.ch || { title: topic.title, why: topic.why }), from: at, to: at });
+        chapters[chapters.length - 1].to = at;
+      });
+      chapters.forEach((c) => (c.secs = secs(topic.steps.slice(c.from, c.to + 1))));
+      Tour.topics.push({ ...topic, chapters, secs: secs(topic.steps) });
+    },
+    // Запуск главы c темы k; без c — вся тема подряд. Перезагрузка: показ идёт на чистых данных
+    play(k, c) {
+      const all = c == null;
+      // Показ идёт на русском: шаги ищут элементы по русским подписям. Язык возвращается при выходе (learnFromHash в index.html)
+      const lang = typeof uiLang !== "undefined" && uiLang !== "ru" ? { lang: uiLang } : {};
+      location.href = urlFor({ tour: k + 1, demo: all ? 0 : Tour.topics[k].chapters[c].from, play: 1, ...(all ? { all: 1 } : {}), ...lang }).href;
+    },
+    // Вызов в конце файла с темами: темы уже известны, страница — после загрузки данных
+    start() {
+      (window.appReady || Promise.resolve()).then(() => {
+        mount();
+        window.learnFromHash?.();
+      });
     },
   };
+  window.Tour = Tour;
 })();
