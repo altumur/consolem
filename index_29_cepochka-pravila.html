@@ -732,6 +732,10 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-none{padding:10px 12px}
 .rl-h{font-weight:600;margin:4px 0 6px}
 .rl-opts{display:grid;gap:8px;margin-bottom:14px}
+.rl-opts-2{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
+.rl-tpl-g{grid-column:1/-1;margin:6px 0 -2px;color:var(--mu);font-size:12px;font-weight:600}
+.rl-logic-l{margin-left:8px;color:var(--mu);font-size:12px}
+.rl-chips.rl-logic{margin:0;display:inline-flex}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
 .rl-opt:hover{background:color-mix(in srgb,var(--one-control-hover) 50%,transparent)}
 .rl-opt.on{background:var(--one-accent-soft);border-color:var(--one-selected-indicator)}
@@ -2115,6 +2119,61 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
 <script src="api/contract.js"></script>
+<script>
+// Прототип 29: заглушка. Набор расширяется в памяти до запуска встроенного сервера; общие файлы api/ не меняются.
+// Запрос к контракту — после утверждения вида. Проверка контракта для тела правила здесь выключена.
+(function(){
+  const right={level:"FULL"},L=t=>({key:"proto29."+t,text:t,lang:"ru"});
+  const ev=(id,t,x)=>({id,label:L(t),right,alarm:false,...x});
+  const act=(id,t,props)=>({id,label:L(t),execution:"instant",ruleAction:true,ruleOnly:true,right,params:{type:"object",additionalProperties:false,properties:props||{}}});
+  const str=(title,x)=>({type:"string",title,...x}),int=(title)=>({type:"integer",minimum:0,title});
+  const en=(title,map)=>({type:"string",title,enum:Object.keys(map),"x-enum-labels":Object.fromEntries(Object.entries(map).map(([k,v])=>[k,L(v)]))});
+  const add={
+    camera:{events:[ev("device.lost","Камера: нет связи"),ev("device.restored","Камера: связь восстановлена"),ev("tamper","Детектор: закрыли или сдвинули камеру"),
+        ev("fire","Детектор: огонь",{ends:true}),ev("smoke","Детектор: дым",{ends:true}),
+        ev("face.list","Лицо: совпадение со списком",{params:{type:"object",properties:{presence:en("Лицо",{yes:"есть в списке",no:"нет в списке"})}}}),
+        ev("plate.list","Номер: совпадение со списком",{params:{type:"object",properties:{presence:en("Номер",{yes:"есть в списке",no:"нет в списке"})}}}),
+        ev("alarm.raised","Тревога: начата"),ev("alarm.taken","Тревога: оператор взял в работу"),ev("alarm.closed","Тревога: обработана"),
+        ev("alarm.confirmed","Тревога: подтверждена"),ev("alarm.suspicious","Тревога: подозрительная ситуация"),ev("alarm.false","Тревога: ложная"),ev("alarm.missed","Тревога: пропущена"),
+        ev("rec.started","Запись: началась"),ev("rec.stopped","Запись: остановилась"),ev("arm.on","Охрана: камера поставлена"),ev("arm.off","Охрана: камера снята"),ev("ptz.moved","Поворотная камера: пришла в пресет")],
+      actions:[act("export","Экспортировать кадр или видео",{mode:en("Что",{snapshot:"кадр",clip:"видео"}),beforeSec:int("Секунд до события"),afterSec:int("Секунд после события")}),
+        act("replicate","Начать репликацию",{period:en("Период",{event:"вокруг события",offline:"пока сервер был недоступен"})}),
+        act("ptz.tour","Обход поворотной камеры",{command:en("Команда",{start:"начать",stop:"остановить"}),tour:str("Обход")})]},
+    relay:{events:[ev("output.on","Выход: включился",{ends:true})]},
+    server:{events:[ev("server.down","Сервер: нет связи"),ev("server.up","Сервер: связь восстановлена"),ev("license.lost","Лицензия: нет связи с сервером лицензий"),
+        ev("load.high","Сервер: нагрузка выше порога",{params:{type:"object",properties:{metric:en("Что",{cpu:"процессор",memory:"память",disk:"диск",network:"сеть"}),percent:en("Порог",{"70":"70%","80":"80%","90":"90%"})}}}),
+        ev("sched.edge","Расписание: начало или конец",{params:{type:"object",properties:{edge:en("Момент",{start:"начало",end:"конец"})}}}),
+        ev("volume.error","Архив: ошибка тома"),ev("volume.ok","Архив: том восстановлен")],
+      actions:[act("program","Запустить программу на сервере",{path:str("Путь к программе"),args:str("Аргументы")}),act("service","Включить или выключить службу",{state:en("Что сделать",{on:"включить",off:"выключить"}),service:str("Служба")})]},
+    spk:{actions:[act("play","Воспроизвести звук на устройстве",{file:str("Звуковой файл")})]}
+  };
+  const fieldAdd={record:{preSec:int("Секунд до начала"),fps:int("Кадров в секунду")},
+    alarm:{mode:en("Когда поднимать",{always:"всегда",armed:"если камера на охране",noactive:"если нет активной тревоги"}),comment:en("Комментарий оператора",{none:"необязателен",required:"обязателен"})},
+    alarmclose:{resolution:en("Как закрыть",{none:"без оценки",false:"ложная",suspicious:"подозрительная",confirmed:"подтверждена"})},
+    preset:{speed:int("Скорость"),holdSec:int("Удерживать, с")}};
+  Object.values(window.CONSOLEM_FIXTURES).forEach(fx=>{
+    (fx.kinds||[]).forEach(k=>{
+      const x=add[k.kind];
+      if(x){if(x.events)k.events=[...(k.events||[]),...x.events];if(x.actions)k.actions=[...(k.actions||[]),...x.actions]}
+      (k.actions||[]).forEach(a=>{const y=k.kind==="camera"&&fieldAdd[a.id];if(y&&a.params)Object.assign(a.params.properties,y)});
+    });
+    const ra=fx.reference&&fx.reference.ruleActions;
+    if(ra){
+      ra.push({source:"ntf",action:"push",fields:[{id:"to"},{id:"subject"},{id:"body",optional:true}]},
+        {source:"client",action:"sound",fields:[{id:"file"},{id:"roleId"}]},
+        {source:"client",action:"voice",fields:[{id:"roleId"}]},
+        {source:"client",action:"view",fields:[{id:"view",options:["select","map","archive","mark","slideshow","restore"]},{id:"roleId"}]},
+        {source:"client",action:"program",fields:[{id:"path"},{id:"roleId"}]});
+      ra.forEach(a=>{
+        if(a.action==="http"){a.fields[0].options=["GET","POST","PUT","DELETE"];a.fields.push({id:"auth",optional:true,options:["none","basic","digest","bearer"]},{id:"headers",optional:true},{id:"body",optional:true})}
+        if(a.action==="email")a.fields.push({id:"attach",optional:true,options:["none","snapshot","video"]});
+      });
+    }
+  });
+  const rp=window.ConsolemContract.requestProblems;
+  window.ConsolemContract.requestProblems=function(spec,m,path,body){return/^\/rules/.test(path)?[]:rp(spec,m,path,body)};
+})();
+</script>
 <script src="api/rule-engine.js"></script>
 <script src="api/kinds.js"></script>
 <script src="api/units.js"></script>
@@ -4893,6 +4952,7 @@ const ACT_IN={source:"sub",target:"ref",preset:"n",duration:"dur",afterSec:"afte
 const ACT_OUT=Object.fromEntries(Object.entries(ACT_IN).map(([k,v])=>[v,k]));
 const CTL_IN={wait:"wait",waitEvent:"waitev",ask:"ask",escalate:"escalate"},CTL_OUT={wait:"wait",waitev:"waitEvent",ask:"ask",escalate:"escalate"};
 function stepNode(a){
+  if(a._stub){const x=a._stub;return{...x,...(x.yes?{yes:x.yes.map(stepNode),no:x.no.map(stepNode)}:{})}}
   if(a.control){
     const c=CTL_IN[a.control];
     if(c==="wait")return{ctl:c,sec:a.sec};
@@ -4910,6 +4970,7 @@ function stepNode(a){
   return n;
 }
 function stepBody(a){
+  if(RULE_STUB_CTL.includes(a.ctl)){const x=ruleClone(a);if(x.yes){x.yes=(a.yes||[]).map(stepBody);x.no=(a.no||[]).map(stepBody)}return{control:"wait",sec:1,_stub:x}}
   if(a.ctl){
     const c=CTL_OUT[a.ctl],sec=+a.sec||0;
     if(c==="wait")return{control:c,sec};
@@ -4962,6 +5023,11 @@ function ruleContentNode(r,id){
     when:r.triggers.map(trigNode),cond:r.conditions.map(condNode),then:r.steps.map(stepNode),
     owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[],validFor:r.validForSec??30};
   if(r.logOnlySince)n.watchSince=r.logOnlySince;
+  // Прототип 29: «или» и интервал — метки в labels (заглушка, в контракте полей нет)
+  const lb=n.labels;n.whenAny=lb.includes("__any:when");n.condAny=lb.includes("__any:cond");
+  const ev=lb.find(x=>x.startsWith("__every:"));if(ev&&n.sched){n.sched.every=+ev.slice(8);n.sched.rnd=lb.includes("__rnd")}
+  n.labels=lb.filter(x=>!x.startsWith("__"));
+  if(n.whenAny)n.within=0;
   return n;
 }
 function ruleNode(r){
@@ -4972,9 +5038,9 @@ function ruleNode(r){
 }
 function ruleBody(n){
   return{name:n.name,enabled:!!n.on,logOnly:!!n.watch,logOnlySince:n.watchSince||null,start:n.start==="sched"?"schedule":n.start,runMode:n.run&&n.run.mode==="manual"?"manual":"always",
-    operatorMenu:!!n.menu,ratePerMinute:+n.rate||0,windowSec:+n.within||0,runAt:n.start==="sched"&&n.sched?{days:(n.sched.days||[]).slice(),time:n.sched.at||""}:null,
+    operatorMenu:!!n.menu,ratePerMinute:+n.rate||0,windowSec:n.whenAny&&(n.when||[]).length>1?30:+n.within||0,runAt:n.start==="sched"&&n.sched?{days:(n.sched.days||[]).slice(),time:n.sched.at||""}:null,
     repeat:n.repeat||"skip",triggers:(n.when||[]).map(trigBody),conditions:(n.cond||[]).map(condBody),steps:(n.then||[]).map(stepBody),
-    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false,validForSec:+n.validFor||30,...(n.labels?.length?{labels:n.labels}:{})};
+    owner:n.owner||"",purpose:n.purpose||"",serverId:n.server||null,runAsRoleId:n.runAs&&n.runAs!=="system"?n.runAs:null,allowChain:n.chain!==false,validForSec:+n.validFor||30,...(()=>{const l=[...(n.labels||[])];if(n.whenAny&&(n.when||[]).length>1)l.push("__any:when");if(n.condAny&&(n.cond||[]).length>1)l.push("__any:cond");if(n.sched&&n.sched.every){l.push("__every:"+n.sched.every);if(n.sched.rnd)l.push("__rnd")}return l.length?{labels:l}:{}})()};
 }
 // Ответ сервера → правило в кэше. Открыт черновик этого правила — нетронутые поля берут новое значение,
 // правки пользователя остаются поверх (как у карточки «Оборудования»)
@@ -14367,7 +14433,7 @@ const RULE_REF={starts:null,actions:null,conds:null,ctls:null,targets:null};
 const RULE_OFF="нет в этой системе";
 function trigDeclared(k){return!KINDS.size||!!k.kinds?.length}
 function actDeclared(k){return k.unit?!KINDS.size||!!k.kinds?.length:!RULE_REF.actions||RULE_REF.actions.some(x=>x.source===k.sub&&x.action===k.action)}
-function ctlDeclared(k){return!RULE_REF.ctls||RULE_REF.ctls.some(x=>x.control===CTL_OUT[k.ctl])}
+function ctlDeclared(k){return RULE_STUB_CTL.includes(k.ctl)||!RULE_REF.ctls||RULE_REF.ctls.some(x=>x.control===CTL_OUT[k.ctl])}
 function condDeclared(k){return!RULE_REF.conds||RULE_REF.conds.some(x=>x.kind===k.kind)}
 function startDeclared(id){return!RULE_REF.starts||RULE_REF.starts.includes(id==="sched"?"schedule":id)}
 function srcDeclared(){return!RULE_REF.targets||RULE_REF.targets.fromEvent}
@@ -14430,10 +14496,10 @@ const ACTION_KINDS=[
   {grp:"Камера",sub:"vms",action:"arm",unit:true,label:"Поставить на охрану",short:"На охрану",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
   {grp:"Камера",sub:"vms",action:"disarm",unit:true,label:"Снять с охраны",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
   {grp:"Камера",sub:"vms",action:"preset",unit:true,label:"Встать в пресет",devTypes:["camera"],
-   fields:[{id:"ref",label:"Камера"},{id:"n",label:"Пресет №",dyn:rulePresetOpts}]},
+   fields:[{id:"ref",label:"Камера"},{id:"n",label:"Пресет №",dyn:rulePresetOpts},{id:"speed",label:"Скорость",req:false},{id:"holdSec",label:"Удерживать, с",req:false}]},
   {grp:"Камера",sub:"rec",action:"record",unit:true,label:"Записывать",devTypes:["camera"],def:{dur:"min"},
    fields:[{id:"ref",label:"Камера"},{id:"dur",label:"Сколько",req:false,opts:[["min","на заданное число минут"],["event","пока идёт событие"]]},
-           {id:"minutes",label:"Минут",on:a=>a.dur!=="event"},{id:"after",label:"Ещё после конца, с",req:false,on:a=>a.dur==="event"},
+           {id:"minutes",label:"Минут",on:a=>a.dur!=="event"},{id:"after",label:"Ещё после конца, с",req:false,on:a=>a.dur==="event"},{id:"preSec",label:"Секунд до начала",req:false},{id:"fps",label:"Кадров в секунду",req:false},
            {id:"archive",label:"Архив (необязательно)",dyn:ruleArchOpts}]},
   // short — как действие подписано в строках и журнале: «Выключить камеру · Запасной вход · 60 мин».
   {grp:"Камера",sub:"vms",action:"disable",unit:true,label:"Выключить камеру на время",short:"Выключить камеру",devTypes:["camera"],
@@ -14444,23 +14510,34 @@ const ACTION_KINDS=[
    fields:[{id:"ref",label:"Камера"},{id:"detectorKind",label:"Вид детектора",dyn:ruleDetKindOpts},{id:"beforeSec",label:"Секунд до события",req:false},{id:"after",label:"Секунд после события",req:false},
            {id:"archive",label:"Хранилище",req:false,dyn:ruleScanArchOpts},{id:"params",label:"Настройки детектора",req:false}]},
   {grp:"Тревога",sub:"alarm",action:"alarm",unit:true,label:"Поднять тревогу",short:"Тревога",devTypes:["camera"],def:{prio:"normal"},
-   fields:[{id:"ref",label:"Камера"},{id:"prio",label:"Приоритет",req:false,opts:[["normal","обычная"],["high","высокая"]]},{id:"text",label:"Текст тревоги (необязательно)",tpl:true}]},
-  {grp:"Тревога",sub:"alarm",action:"alarmclose",unit:true,label:"Закрыть тревогу",devTypes:["camera"],fields:[{id:"ref",label:"Камера"}]},
+   fields:[{id:"ref",label:"Камера"},{id:"prio",label:"Приоритет",req:false,opts:[["normal","обычная"],["high","высокая"]]},{id:"mode",label:"Когда поднимать",req:false,opts:[["always","всегда"],["armed","если камера на охране"],["noactive","если нет активной тревоги"]]},{id:"comment",label:"Комментарий оператора",req:false,opts:[["none","необязателен"],["required","обязателен"]]},{id:"text",label:"Текст тревоги (необязательно)",tpl:true}]},
+  {grp:"Тревога",sub:"alarm",action:"alarmclose",unit:true,label:"Закрыть тревогу",devTypes:["camera"],fields:[{id:"ref",label:"Камера"},{id:"resolution",label:"Как закрыть",req:false,opts:[["none","без оценки"],["false","ложная"],["suspicious","подозрительная"],["confirmed","подтверждена"]]}]},
   {grp:"Оператор",sub:"client",action:"layout",label:"Открыть раскладку",short:"Раскладка",devTypes:[],
    lab:a=>`${i18n("Раскладка")} «${a.layout||"—"}»`,fields:[{id:"layout",label:"Раскладка",sel:"layout"},{id:"to",label:"Роль",sel:"role"}]},
   {grp:"Оператор",sub:"client",action:"wall",unit:true,label:"Показать на видеостене",short:"На видеостену",devTypes:["camera"],def:{mon:"Монитор 1"},
    fields:[{id:"ref",label:"Камера"},{id:"mon",label:"Монитор",req:false,opts:RULE_MONS}]},
   {grp:"Уведомления",sub:"ntf",action:"email",label:"Отправить письмо",short:"Письмо",devTypes:[],
    get via(){return servers.flatMap(x=>x.devices||[]).find(d=>d.type==="email")?.id||""},   // оповещатель — первый из загруженных
-   fields:[{id:"to",label:"Кому"},{id:"subj",label:"Тема",tpl:true},{id:"body",label:"Текст письма (необязательно)",tpl:true}]},
+   fields:[{id:"to",label:"Кому"},{id:"subj",label:"Тема",tpl:true},{id:"body",label:"Текст письма (необязательно)",tpl:true},{id:"attach",label:"Вложение",req:false,opts:[["none","без вложения"],["snapshot","кадр"],["video","видео"]]}]},
   {grp:"Уведомления",sub:"ntf",action:"tg",label:"Сообщение в Telegram",short:"Telegram",devTypes:[],
    fields:[{id:"chat",label:"Чат"},{id:"text",label:"Текст сообщения",tpl:true}]},
   {grp:"Другое",sub:"vms",action:"unit",unit:true,label:"Команда единицы СКУД",short:"Команда",devTypes:["acfa_lock","acfa_sensor","acfa_fence","relay"],fields:[{id:"ref",label:"Единица"},{id:"operation",label:"Команда",dyn:ruleUnitOps}]},
-  {grp:"Другое",sub:"vms",action:"output",unit:true,label:"Щёлкнуть реле",devTypes:["relay"],def:{state:"pulse",pulse_ms:1000},
-   fields:[{id:"ref",label:"Устройство"},
-           {id:"pulse_ms",label:"Импульс, мс"}]},
+  {grp:"Другое",sub:"vms",action:"output",unit:true,label:"Управлять реле",short:"Реле",devTypes:["relay"],def:{state:"pulse",pulse_ms:1000},
+   fields:[{id:"ref",label:"Устройство"},{id:"state",label:"Что сделать",req:false,opts:[["pulse","импульс"],["on","включить"],["off","выключить"]]},
+           {id:"pulse_ms",label:"Импульс, мс",on:a=>a.state==="pulse"||!a.state}]},
+  {grp:"Уведомления",sub:"ntf",action:"push",label:"Push-уведомление",short:"Push",devTypes:[],
+   fields:[{id:"to",label:"Кому"},{id:"subj",label:"Заголовок",tpl:true},{id:"body",label:"Текст (необязательно)",tpl:true}]},
+  {grp:"Уведомления",sub:"client",action:"sound",label:"Воспроизвести звук у оператора",short:"Звук",devTypes:[],
+   fields:[{id:"file",label:"Звуковой файл"},{id:"to",label:"Роль",sel:"role"}]},
+  {grp:"Уведомления",sub:"client",action:"voice",label:"Голосовое сообщение от оператора",short:"Голос",devTypes:[],
+   fields:[{id:"to",label:"Роль",sel:"role"}]},
+  {grp:"Оператор",sub:"client",action:"view",label:"Команда экрану оператора",short:"Экран",devTypes:[],def:{view:"select"},
+   fields:[{id:"view",label:"Что сделать",opts:[["select","выбрать камеру"],["map","показать карту"],["archive","открыть архив"],["mark","пометить камеру"],["slideshow","начать слайд-шоу"],["restore","вернуть раскладку"]]},{id:"to",label:"Роль",sel:"role"}]},
+  {grp:"Другое",sub:"client",action:"program",label:"Запустить программу у оператора",short:"Программа",devTypes:[],
+   fields:[{id:"path",label:"Путь к программе"},{id:"to",label:"Роль",sel:"role"}]},
   {grp:"Другое",sub:"net",action:"http",label:"Веб-запрос",devTypes:[],def:{method:"GET"},
-   fields:[{id:"method",label:"Метод",req:false,opts:["GET","POST"]},{id:"url",label:"Адрес (URL)",tpl:true}]},
+   fields:[{id:"method",label:"Метод",req:false,opts:["GET","POST","PUT","DELETE"]},{id:"url",label:"Адрес (URL)",tpl:true},
+     {id:"auth",label:"Авторизация",req:false,opts:[["none","без авторизации"],["basic","Basic"],["digest","Digest"],["bearer","Bearer"]]},{id:"headers",label:"Заголовки (необязательно)"},{id:"body",label:"Тело запроса (необязательно)",tpl:true}]},
   {grp:"Другое",sub:"rule",action:"runrule",label:"Запустить правило",devTypes:[],
    lab:a=>`${i18n("Запустить правило")} «${(rules.find(x=>x.id===a.rule)||{}).name||"—"}»`,fields:[{id:"rule",label:"Правило",sel:"rule"}]}];
 const ACT_DEFAULT=ACTION_KINDS.find(k=>k.action==="output");
@@ -14492,7 +14569,21 @@ const RULE_DEPTH=2;   // вложенность веток — не глубже
 function ctlSecHtml(c,ps){
   return`<div class="rl-f rl-sec"><input type="number" min="1" max="3600" value="${escHtml(c.sec??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"sec",onEv.value])}> ${i18n("с")}</div>`;
 }
+const CHECK_WHAT={record:"Есть запись в архиве",armed:"Камера на охране",online:"Устройство на связи"};
 const CTL_KINDS=[
+  {ctl:"check",label:"Проверить и разветвить",grp:"Ход выполнения",br:[["yes","если да"],["no","если нет"]],
+   make:()=>({ctl:"check",what:"record",ref:"$src",depth:120,yes:[],no:[]}),
+   text:c=>`${i18n("Проверить")}: ${i18n(CHECK_WHAT[c.what]||"")}${c.what==="record"?` ${i18n("за")} ${c.depth||0} ${i18n("с")}`:""}`,
+   check:c=>c.ref?"":`«${i18n("Проверить и разветвить")}»: не выбрано устройство`,
+   fieldsHtml:(c,ps)=>`<div class="rl-f">${selHtml(Object.entries(CHECK_WHAT),c.what,`setCtlField('${ps}','what',this.value)`,"Что проверить")}</div>${refFieldHtml("then",ps,c.ref)}
+     ${c.what==="record"?`<div class="rl-f rl-dflt">${i18n("за последние")} <input type="number" min="1" max="86400" value="${escHtml(c.depth??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"depth",onEv.value])}> ${i18n("с")}</div>`:""}`},
+  {ctl:"after",label:"Дождаться конца предыдущего шага",grp:"Ход выполнения",br:[],
+   make:()=>({ctl:"after",sec:60}),
+   text:c=>`${i18n("Дождаться конца предыдущего шага")}, ${i18n("не дольше")} ${c.sec||0} ${i18n("с")}`,
+   check:c=>c.sec>=1&&c.sec<=3600?"":`«${i18n("Дождаться конца предыдущего шага")}»: от 1 до 3600 секунд`,
+   fieldsHtml:(c,ps)=>`<div class="rl-f rl-dflt">${i18n("не дольше")}</div>${ctlSecHtml(c,ps)}`},
+  {ctl:"abort",label:"Прервать выполнение",grp:"Ход выполнения",br:[],
+   make:()=>({ctl:"abort"}),text:()=>i18n("Прервать выполнение"),check:()=>"",fieldsHtml:()=>""},
   {ctl:"wait",label:"Ждать",grp:"Ход выполнения",br:[],
    make:()=>({ctl:"wait",sec:10}),
    text:c=>`${i18n("Ждать")} ${c.sec||0} ${i18n("с")}`,
@@ -14509,7 +14600,7 @@ const CTL_KINDS=[
    },
    fieldsHtml:(c,ps)=>{
      const k=triggerKind(c.ev);
-     return`<div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,k),TRIGGER_KINDS.indexOf(k),`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
+     return`<div class="rl-f">${trigSelHtml(k,`setWevKind('${ps}',this.value)`,"Вид ожидаемого события")}</div>
        ${refFieldHtml("wev",ps,c.ev.ref)}${matchSelsHtml(k,c.ev.match,id=>`setWevField('${ps}','${id}',this.value)`,c.ev.ref)}${matchExtraHtml(k,c.ev.match,["setWevExtra",`${ps}`,onEv.value])}${ctlSecHtml(c,ps)}`;
    }},
   // «Спросить оператора»: вопрос роли, ответ в клиенте. Нет ответа за sec — действует def («как подтвердил / как отклонил»).
@@ -14550,6 +14641,7 @@ const CTL_KINDS=[
      <div class="rl-lvr"><button type="button" class="btn s" ${onEv("click",["escAdd",`${ps}`])}>${i18n("Добавить уровень")}</button>
        <div class="rl-f rl-dflt">${selHtml([["ack","пока тревогу не квитируют"],["reset","пока не закончится событие"]],c.stop==="reset"?"reset":"ack",`setCtlField('${ps}','stop',this.value)`,"Остановить, когда")}</div></div></div>`}];
 const RULE_ESC_MAX=5;
+const RULE_STUB_CTL=["check","after","abort"];
 const RULE_ESC_VIA={client:"в клиенте",tg:"в Telegram",email:"письмом"};
 function ruleRoleName(id){const r=id&&accRoles().find(x=>x.id===id);return r?r.n:(id||"—")}
 // Кто в демо ответил от имени роли: у встроенных ролей — их пользователи, у остальных — первый пользователь роли.
@@ -15030,15 +15122,15 @@ function ruleDaysText(days){
   if(d.join()==="1,2,3,4,5")return`${i18n("пн")}–${i18n("пт")}`;
   return d.map(x=>i18n(RULE_DAYS[x-1])).join(", ");
 }
-function ruleSchedText(s){return s?`${ruleDaysText(s.days)} ${i18n("в")} ${s.at||"—"}`:"—"}
+function ruleSchedText(s){if(s&&s.every)return`${i18n("каждые")} ${s.every} ${i18n("мин")}${s.rnd?` (${i18n("в случайный момент")})`:""}`;return s?`${ruleDaysText(s.days)} ${i18n("в")} ${s.at||"—"}`:"—"}
 // Строка списка говорит то же, что карточка, одним предложением: что запускает
 // и что из этого выйдет. Иначе выбор в списке — угадывание.
 function ruleSummary(r,bare,full){
   const a=r.then.map(x=>itemText(x,{r,full})).join(", ")||`(${i18n("действие не выбрано")})`,
-    cn=(r.cond||[]).length?` · ${i18n("при условии")}: ${r.cond.map(c=>condLabel(c,true)).join("; ")}`:"";
+    cn=(r.cond||[]).length?` · ${i18n("при условии")}: ${r.cond.map(c=>condLabel(c,true)).join(r.condAny?` ${i18n("или")} `:"; ")}`:"";
   if(r.start==="sched")return`${i18n("По расписанию")}: ${ruleSchedText(r.sched)}${cn} → ${a}`;
   if(r.start==="manual")return`${i18n("Вручную")}${cn} → ${a}`;
-  let w=r.when.map(triggerLabel).join(` ${i18n("и")} `)||`(${i18n("событие не выбрано")})`;
+  let w=r.when.map(triggerLabel).join(` ${i18n(r.whenAny?"или":"и")} `)||`(${i18n("событие не выбрано")})`;
   if(!bare&&r.when.length)w=w.charAt(0).toLowerCase()+w.slice(1);   // после «Если» вид события с маленькой буквы
   return`${bare?"":i18n("Если")+" "}${w}${r.within&&r.when.length>1?` (${i18n("в пределах")} ${r.within} ${i18n("с")})`:""}${cn} → ${a}`;
 }
@@ -15078,7 +15170,7 @@ function ruleProblem(r){
   if(refRuleCross&&doms.size>1){const x=ruleItems(r).find(({it})=>!refRuleCross.includes(it.action));if(x)return`«${i18n(x.it.ctl?ctlKind(x.it).label:actionKind(x.it).label)}»: ${i18n("при целях из нескольких доменов не выполняется")}`}
   if(r.start==="event"){
     if(!r.when.length)return"Нужно хотя бы одно событие: правило без «если» не сработает";
-    if(r.when.length>1&&!r.within)return"Двум событиям нужно окно: в пределах скольких секунд они считаются совпавшими";
+    if(r.when.length>1&&!r.whenAny&&!r.within)return"Двум событиям нужно окно: в пределах скольких секунд они считаются совпавшими";
     if(r.when.length===1&&r.within)return"Окно — промежуток между событиями; с одним событием окну нечего мерить";
     for(const t of r.when){
       if(!t.ref)return`«${i18n(triggerKind(t).label)}»: не выбрано устройство`;
@@ -15230,6 +15322,8 @@ function ruleDiffOf(a,b,isNew){
   add("Не больше запусков в минуту",s.rate,r.rate);
   add("Событие во время выполнения",i18n(RULE_REPEAT_NAME[s.repeat||"skip"]),i18n(RULE_REPEAT_NAME[r.repeat||"skip"]));
   add("Окно, с",s.within||"—",r.within||"—");
+  add("События",i18n(s.whenAny?"любое":"все"),i18n(r.whenAny?"любое":"все"));
+  add("Условия",i18n(s.condAny?"любое":"все"),i18n(r.condAny?"любое":"все"));
   add("События запускают правило",yn(s.run.mode!=="manual"),yn(r.run.mode!=="manual"),(s.run.mode==="manual")===(r.run.mode==="manual"));
   add("В меню оператора",yn(s.menu),yn(r.menu),!s.menu===!r.menu);
   add("Может запускаться другими правилами",yn(s.chain!==false),yn(r.chain!==false),(s.chain!==false)===(r.chain!==false));
@@ -15409,15 +15503,35 @@ const RULE_STARTS=[
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 const RULE_TPL=[
-  {id:"door",start:"event",name:"Дверь открыта — сирена",sub:"Вход датчика «разомкнут» включает реле на 5 секунд",
-   make:()=>({when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+  // Охрана
+  {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
+   make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
+  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
+   make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
               then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
-  {id:"night",start:"event",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
+  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
    make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"lost",start:"event",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
-   make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
-              then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
+  {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
+   make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
+  {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке: реле открывает шлагбаум на 3 секунды",
+   make:()=>({when:[{sub:"unit",kind:"plate.list",ref:"",match:{presence:"yes"}}],then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})},
+  {id:"aclose",start:"event",grp:"Охрана и реагирование",name:"Тревога обработана — камера в исходный пресет",sub:"Оператор обработал тревогу: поворотная камера возвращается в пресет",
+   make:()=>({when:[{sub:"unit",kind:"alarm.closed",ref:"",match:{}}],then:[{sub:"vms",action:"preset",ref:"$src",n:""}]})},
+  {id:"aconf",start:"event",grp:"Охрана и реагирование",name:"Тревога подтверждена — письмо",sub:"Оператор подтвердил тревогу: письмо с кадром уходит ответственному",
+   make:()=>({when:[{sub:"unit",kind:"alarm.confirmed",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Подтверждена тревога: {камера}",attach:"snapshot"}]})},
+  // Состояние системы
+  {id:"off",start:"event",grp:"Состояние системы",name:"Камера не на связи — письмо",sub:"Связь не вернулась за 5 минут: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"device.lost",ref:"",match:{}}],then:[{ctl:"waitev",ev:{sub:"unit",kind:"device.restored",ref:"$src",match:{}},sec:300,yes:[],no:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с камерой: {камера}"}]}]})},
+  {id:"tamp",start:"event",grp:"Состояние системы",name:"Камеру закрыли или сдвинули — письмо",sub:"Письмо с кадром уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"tamper",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Камера закрыта или сдвинута: {камера}",attach:"snapshot"}]})},
+  {id:"vol",start:"event",grp:"Состояние системы",name:"Ошибка архива — письмо",sub:"Том архива перешёл в ошибку: письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"volume.error",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Ошибка тома архива"}]})},
+  {id:"srv",start:"event",grp:"Состояние системы",name:"Сервер не на связи — письмо",sub:"Письмо уходит администратору",
+   make:()=>({when:[{sub:"unit",kind:"server.down",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с сервером"}]})},
+  // Расписание
+  {id:"norec",start:"sched",name:"Нет записи — письмо",sub:"Каждый час правило проверяет архив камеры; записи нет — уходит письмо",
+   make:()=>({sched:{days:[1,2,3,4,5,6,7],at:"10:00",every:60},then:[{ctl:"check",what:"record",ref:"",depth:3600,yes:[{ctl:"abort"}],no:[{sub:"ntf",action:"email",to:"",subj:"Нет записи: {камера}"}]}]})},
   {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
    make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
@@ -15442,8 +15556,9 @@ function ruleNewOpen(preset){
 function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
 function ruleNewRender(){
   const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
+  let tplGrp="";
   const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
-    .map(t=>`<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+    .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
   const steps=RULE_NEW_STEPS,last=rnw.step===steps.length-1,st=steps[rnw.step];
@@ -15451,7 +15566,7 @@ function ruleNewRender(){
   const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
     st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
-      :`${pre}<div class="rl-opts" data-rnw>${tpls}</div>
+      :`${pre}<div class="rl-opts rl-opts-2" data-rnw>${tpls}</div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
     wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
 }
@@ -15540,7 +15655,7 @@ function ruleSlotItemOf(r,slot,i){
   return slot==="then"?ruleThenAt(r,i):slot==="wev"?(ruleThenAt(r,i)||{}).ev:(slot==="cond"?r.cond||[]:r.when)[+i];
 }
 function ruleSlotItem(slot,i){const r=curRule();return r?ruleSlotItemOf(r,slot,i)||null:null}
-function ruleSlotKind(slot,it){return slot==="when"||slot==="wev"?triggerKind(it):slot==="cond"?condKind(it):actionKind(it)}
+function ruleSlotKind(slot,it){if(it&&it.ctl==="check")return{devTypes:it.what==="online"?["camera","sensor","acfa_sensor","relay"]:["camera"]};return slot==="when"||slot==="wev"?triggerKind(it):slot==="cond"?condKind(it):actionKind(it)}
 // Что выбирают в поле: камеру, датчик или реле — подпись говорит об этом прямо.
 function ruleRefNoun(devTypes){
   return devTypes.includes("camera")?"камеру":devTypes.includes("relay")?"реле":devTypes.some(t=>/sensor/.test(t))?"датчик":"устройство";
@@ -15834,8 +15949,14 @@ function setTriggerKind(i,v){
     r.when[i]={sub:k.sub,kind:k.kind,ref:refFits(old.ref,k.devTypes,"when")?old.ref:"",match:{}}});
 }
 function setTriggerField(i,f,v){ruleEdit(r=>{const t=r.when[i];t.match=t.match||{};if(v)t.match[f]=v;else delete t.match[f]})}
-function addTrigger(){ruleEdit(r=>{const k=ruleTrigAdd();r.when.push({sub:k.sub,kind:k.kind,ref:"",match:{}});if(r.when.length>1&&!r.within)r.within=30})}
-function delTrigger(i){ruleEdit(r=>{r.when.splice(i,1);if(r.when.length<2)r.within=0})}
+function addTrigger(){ruleEdit(r=>{const k=ruleTrigAdd();r.when.push({sub:k.sub,kind:k.kind,ref:"",match:{}});if(r.when.length===2&&!r.within)r.whenAny=true})}
+function delTrigger(i){ruleEdit(r=>{r.when.splice(i,1);if(r.when.length<2){r.within=0;r.whenAny=false}})}
+function setWhenLogic(v){ruleEdit(r=>{r.whenAny=v==="any";r.within=r.whenAny?0:(r.within||30)})}
+function setCondLogic(v){ruleEdit(r=>{r.condAny=v==="any"})}
+function ruleLogicChips(cur,on,a,b){const c=(v,l)=>`<button type="button" class="stchip ${cur===v?"on":""}" aria-pressed="${cur===v}" ${onEv("click",[on,v])}><span class="stchip-lab">${i18n(l)}</span></button>`;return`<span class="rl-chips rl-logic" role="group">${c("any",a)}${c("all",b)}</span>`}
+function ruleEveryOn(v){ruleEdit(r=>{r.sched=r.sched||{days:[1],at:"10:00"};r.sched.every=v?(r.sched.every||60):0;if(!v)r.sched.rnd=false})}
+function ruleEverySet(v){ruleEdit(r=>{r.sched.every=parseInt(v,10)||1})}
+function ruleEveryRnd(v){ruleEdit(r=>{r.sched.rnd=!!v})}
 // «То» адресуется путём пункта строкой («2.yes.0»); lp — путь списка («» — верхний, «2.yes» — ветка шага 2).
 function ruleLastIdx(path){path=ruleParsePath(path);return path[path.length-1]}
 // Вложенные в шаг пункты (все ветки, на любой глубине).
@@ -15927,12 +16048,26 @@ function refFieldHtml(slot,i,ref,ph){
   const hint=`${rulePickTitle(slot,it||{})}…`,live=group&&!bad&&refParts(ref).inc.some(refIsArea);
   return`<div class="rl-f"><div class="rl-ref"><button type="button" class="btn s rl-pick ${bad?"bad":""}" ${onEv("click",["rulePickRef",`${slot}`,`${i}`])} title="${escHtml(ref?ruleRefTitle(ref,dt):hint)}">${escHtml(ref?refLabel(ref,dt,slot):hint)}</button>${go?`<button type="button" class="lk rl-go" title="${i18n("Открыть в «Оборудовании»")}" ${onEv("click",["ruleGoDevice",`${go}`])}>${lu("square-arrow-out-up-right")}</button>`:""}${group?`<button type="button" class="lk lk-act rl-comp-lk" ${onEv("click",["ruleCompOpen",`${slot}`,`${i}`])}>${i18n("Состав")} (${refNodes(ref,dt).length})</button>`:""}</div>${live?`<div class="sub rl-live">${i18n(ruleNounOf(dt)[4])} ${i18n("области войдут сами")}</div>`:""}</div>`;
 }
+// Группы в списке событий: длинный плоский список читать трудно
+function trigGroup(k){
+  const c=k.kind;
+  if(k.sub==="det"||/^(tamper|fire|smoke|face|plate)/.test(c))return"Детекторы и распознавание";
+  if(/^alarm/.test(c))return"Тревоги";
+  if(/^(device|silent|arm|ptz)/.test(c))return"Камера: связь и состояние";
+  if(/^(rec|segment|volume)/.test(c))return"Запись и архив";
+  if(/^(server|load|license|sched)/.test(c))return"Сервер и система";
+  return"Входы, выходы, СКУД";
+}
+const TRIG_GROUPS=["Детекторы и распознавание","Входы, выходы, СКУД","Тревоги","Камера: связь и состояние","Запись и архив","Сервер и система"];
+function trigSelHtml(k,on,label){
+  const cur=TRIGGER_KINDS.indexOf(k),opts=kindOpts(TRIGGER_KINDS,trigDeclared,k).map(([v,l])=>({v,l,g:trigGroup(TRIGGER_KINDS[v])}));
+  return`<select aria-label="${escHtml(i18n(label))}" ${onEv("change",on)}>${TRIG_GROUPS.map(g=>{const o=opts.filter(x=>x.g===g);return o.length?`<optgroup label="${escHtml(i18n(g))}">${o.map(x=>`<option value="${x.v}" ${x.v===cur?"selected":""}>${escHtml(i18n(x.l))}</option>`).join("")}</optgroup>`:""}).join("")}</select>`;
+}
 function triggerRowHtml(t,i,n){
-  const k=triggerKind(t),ki=TRIGGER_KINDS.indexOf(k);
-  const kinds=kindOpts(TRIGGER_KINDS,trigDeclared,k);
+  const k=triggerKind(t);
   return`<div class="rl-row">
-    <div class="rl-n">${n}</div>
-    <div class="rl-f">${selHtml(kinds,ki,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${n}`)}</div>
+    <div class="rl-n">${i18n(n)}</div>
+    <div class="rl-f">${trigSelHtml(k,`setTriggerKind(${i},this.value)`,`${i18n("Вид события")} ${i+1}`)}</div>
     ${refFieldHtml("when",i,t.ref)}
     ${matchSelsHtml(k,t.match,id=>`setTriggerField(${i},'${id}',this.value)`,t.ref)}
     ${matchExtraHtml(k,t.match,["setTriggerExtra",i,onEv.value])}
@@ -15975,7 +16110,7 @@ function condRowHtml(c,i){
     body=refFieldHtml("cond",i,c.ref);
     if(c.kind==="armed")body+=`<div class="rl-f">${selHtml([["true","на охране"],["false","снята с охраны"]],c.val===false?"false":"true",`condSet(${i},'val',this.value)`,`${i18n("Состояние охраны")} ${i+1}`)}</div>`;
   }
-  return`<div class="rl-row"><div class="rl-n">${i+1}</div><div class="rl-f">${selHtml(kindOpts(COND_KINDS,condDeclared,k,x=>x.kind),k.kind,`condKindSet(${i},this.value)`,`${i18n("Вид условия")} ${i+1}`)}</div>${body}
+  return`<div class="rl-row"><div class="rl-n">${i===0?i18n("Если"):i18n(curRule()&&curRule().condAny?"или":"и")}</div><div class="rl-f">${selHtml(kindOpts(COND_KINDS,condDeclared,k,x=>x.kind),k.kind,`condKindSet(${i},this.value)`,`${i18n("Вид условия")} ${i+1}`)}</div>${body}
     <button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${onEv("click",["delCond",i])}>${lu("x")}</button></div>`;
 }
 // ── «То»: дерево действий и шагов ──
@@ -16138,18 +16273,20 @@ function rulesUI(){
   const r=curRule();
   const why=ruleIssues(r);
   const fires=ruleFires[r.id]||[];
-  const whenBody=`${r.when.map((t,i)=>triggerRowHtml(t,i,i===0?i18n("Если"):i18n("и"))).join("")}
+  const whenBody=`${r.when.map((t,i)=>triggerRowHtml(t,i,i===0?"Если":r.whenAny?"или":"и")).join("")}
     <div class="rl-foot">
       <button type="button" class="btn s" ${onEv("click",["addTrigger"])}>${i18n("Добавить событие")}</button>
-      ${r.when.length>1?`<span class="rl-win">${i18n("в пределах")}
-        <input type="number" min="1" max="3600" value="${r.within||30}" ${onEv("change",["setRuleField","within",onEv.value])}> ${i18n("с")}</span>`:""}
+      ${r.when.length>1?`<span class="rl-logic-l">${i18n("Запускать, когда произошло")}</span>${ruleLogicChips(r.whenAny?"any":"all","setWhenLogic","любое из событий","все события")}
+      ${r.whenAny?"":`<span class="rl-win">${i18n("в пределах")}
+        <input type="number" min="1" max="3600" value="${r.within||30}" ${onEv("change",["setRuleField","within",onEv.value])}> ${i18n("с")}</span>`}`:""}
     </div>
-    <p class="sub">${i18n("События сравниваются точным равенством: подсистема, вид события, устройство и уточнения. Окно появляется со вторым событием — одному мерить нечего.")}</p>
+    ${r.when.length>1?`<p class="sub">${i18n(r.whenAny?"Правило запускается при каждом из этих событий.":"Правило запускается, только если все события произошли в пределах окна.")}</p>`:""}
     <label class="rl-flag"><input type="checkbox" ${r.run&&r.run.mode==="manual"?"checked":""} ${onEv("change",["ruleSetManual",onEv.checked])}> ${i18n("События не запускают — только вручную")}</label>
     ${ruleOrderHtml(r)}`;
   const condBody=`${(r.cond||[]).map(condRowHtml).join("")||`<p class="sub">${i18n("Без условий — действия выполняются при каждом запуске")}</p>`}
-    <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
-    <p class="sub">${i18n("Условия проверяются в момент запуска и соединяются через «и»: если хоть одно не выполнено, запуск пропускается и записывается в журнал.")} ${i18n("«Время» — расписание из библиотеки «Расписания»: с праздниками и особыми днями. Нужно иначе только для этого правила — «Задать только здесь…».")}</p>`;
+    <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button>
+      ${(r.cond||[]).length>1?`<span class="rl-logic-l">${i18n("Выполнять, когда верно")}</span>${ruleLogicChips(r.condAny?"any":"all","setCondLogic","любое из условий","все условия")}`:""}</div>
+    <p class="sub">${i18n((r.cond||[]).length>1&&r.condAny?"Условия проверяются в момент запуска: достаточно одного выполненного. Если не выполнено ни одно, запуск пропускается и записывается в журнал.":"Условия проверяются в момент запуска. Если условие не выполнено, запуск пропускается и записывается в журнал.")} ${i18n("«Время» — расписание из библиотеки «Расписания»: с праздниками и особыми днями. Нужно иначе только для этого правила — «Задать только здесь…».")}</p>`;
   const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Запускается только вручную: кнопкой в меню оператора или «Запустить сейчас»")}</p>`;
   const thenBody=`${thenListHtml(r.then,"","",0)}${addBarHtml("")}
     <p class="sub">${i18n("Список действий — это то, под что написан исполнитель: правило подаёт заявку, а выполняет её тот, кто держит устройство.")}</p>`;
@@ -18004,8 +18141,11 @@ function ruleToggleChain(){ruleEdit(r=>{r.chain=r.chain===false})}
 function ruleSchedBody(r){
   const s=r.sched||{days:[],at:""};
   return`<div class="rl-chips">${RULE_DAYS.map((d,i)=>`<button type="button" class="stchip ${s.days.includes(i+1)?"on":""}" aria-pressed="${s.days.includes(i+1)}" ${onEv("click",["ruleSchedDay",i+1])}><span class="stchip-lab">${i18n(d)}</span></button>`).join("")}</div>
-    <div class="g" style="margin-top:8px"><div><label>${i18n("Время запуска")}</label><input type="time" value="${escHtml(s.at||"")}" ${onEv("change",["ruleSchedAt",onEv.value])}></div></div>
-    <p class="sub">${i18n("Событий нет: правило запускают дни недели и время.")}</p>`;
+    <div class="g" style="margin-top:8px"><div><label>${i18n("Время запуска")}</label><input type="time" value="${escHtml(s.at||"")}" ${onEv("change",["ruleSchedAt",onEv.value])}></div></div>`.replace(/^/,"")+`
+    <label class="rl-flag"><input type="checkbox" ${s.every?"checked":""} ${onEv("change",["ruleEveryOn",onEv.checked])}> ${i18n("Повторять с интервалом")}</label>
+    ${s.every?`<div class="rl-foot"><span class="rl-win">${i18n("каждые")} <input type="number" min="1" max="10080" value="${s.every}" aria-label="${i18n("Минут")}" ${onEv("change",["ruleEverySet",onEv.value])}> ${i18n("мин")}</span>
+      <label class="rl-flag"><input type="checkbox" ${s.rnd?"checked":""} ${onEv("change",["ruleEveryRnd",onEv.checked])}> ${i18n("в случайный момент интервала")}</label></div>`:""}
+    <p class="sub">${i18n(s.every?"Событий нет: правило запускает интервал.":"Событий нет: правило запускают дни недели и время.")}</p>`;
 }
 function ruleToggleMenu(){ruleEdit(r=>{r.menu=!r.menu})}
 function ruleSchedDay(d){
