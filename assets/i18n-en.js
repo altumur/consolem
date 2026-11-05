@@ -1248,6 +1248,8 @@ window.I18N_EN={
 "Срок вышел":"Expired",
 "Ссылка берётся перед самым скачиванием и живёт недолго":"The link is taken right before downloading and lives briefly",
 "Супервизор не подтвердил":"The supervisor did not confirm",
+"Нужно подтверждение супервизора":"Supervisor confirmation is required",
+"Пароль супервизора":"Supervisor password",
 "Сутки с записью":"Days with recording",
 "Тестовый стенд: настоящего видео нет.":"Test stand: there is no real video.",
 "Тип закладки":"Bookmark type",

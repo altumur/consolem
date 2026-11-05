@@ -78,4 +78,108 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     kindsApply();
     if (find(pc.id)) delete find(pc.id).n._kind;
   }
+
+  // Надзор над выгрузкой: поля и supervisor — по выдаче прав, accessSupervision ни при чём. Система без этой возможности,
+  // как w2c; выдача прав и проверка заказа подменены, потому что встроенный сервер страницы служебных операций не имеет
+  const hadSup = CAPS.features.has("accessSupervision"), getReal = API.get, postReal = API.post, wasRows = expRows;
+  let grant = { allowed: true, supervisorRequired: true, passwordRequired: false, privacyForced: false, watermark: false, depthHours: 0, devices: [] };
+  let chkErrs = [{ code: "SUPERVISOR_REQUIRED", field: "/supervisor", message: "" }];
+  const posted = [];
+  CAPS.features.delete("accessSupervision");
+  API.get = function (path, ...rest) { return path === "/me/export" ? Promise.resolve(grant) : getReal.call(this, path, ...rest); };
+  API.post = function (path, body, ...rest) {
+    if (path === "/exports/check") return Promise.resolve({ ok: !chkErrs.length, errors: chkErrs, files: [] });
+    if (/retry-failed$/.test(path)) { posted.push(body); return Promise.reject({ problem: { code: "SUPERVISOR_REJECTED", field: "/supervisor", message: "" } }); }
+    return postReal.call(this, path, body, ...rest);
+  };
+  try {
+    goApp("exp");
+    expOpen({ cams: [cam.id] });
+    ok(await until(() => expGrantV === grant && !!expD), "окно читает выдачу прав");
+    expRepaint();
+    const mainText = () => document.getElementById("main").textContent;
+    ok(await until(() => /Логин супервизора/.test(mainText())), "supervisorRequired без accessSupervision — поля супервизора есть");
+    ok(await until(() => /Нужно подтверждение супервизора/.test(mainText())), "SUPERVISOR_REQUIRED — своё слово, а не «пароль неверен»");
+    ok(!("supervisor" in expBody(expD)), "ничего не введено — supervisor в теле нет");
+    expD.supLogin = "boss"; expD.supPwd = "x";
+    const sent = expBody(expD).supervisor;
+    ok(sent && sent.login === "boss" && sent.password === "x", "введено — supervisor в теле, без accessSupervision");
+    expD.supLogin = ""; expD.supPwd = "";
+
+    // Выдача прав устарела: надзора в ней нет, а сервер спрашивает супервизора — поля открываются
+    grant = Object.assign({}, grant, { supervisorRequired: false });
+    expOpen({ cams: [cam.id] });
+    await until(() => expGrantV === grant);
+    await expCheckRound();
+    ok(await until(() => /Логин супервизора/.test(mainText())), "SUPERVISOR_REQUIRED при старой выдаче прав открывает поля");
+    chkErrs = [];
+    await expCheckRound();
+    ok(/Логин супервизора/.test(mainText()), "поля не пропадают, когда отказ ушёл");
+    expOpen({ cams: [cam.id] });
+    await until(() => expGrantV === grant);
+    await expCheckRound();
+    ok(!/Логин супервизора/.test(mainText()), "без надзора и без отказа полей нет");
+
+    // Маска, которую система не делает: отказ есть, пароль не просим
+    const pf = (EXP_REF?.formats || []).find((f) => f.kind === "video" && f.password && f.password !== "none");
+    if (pf && can("feature:exportPassword")) {
+      expD.format = pf.id;
+      grant = Object.assign({}, grant, { passwordRequired: true });
+      expGrantV = grant;
+      expRepaint();
+      ok(!!document.querySelector("[data-exp-pass]"), "пароль по политике — поле есть");
+      const msg = "Маскирования нет, а маска обязательна";
+      grant = Object.assign({}, grant, { privacyForced: true, refusal: msg });
+      expGrantV = grant;
+      expRepaint();
+      ok(!document.querySelector("[data-exp-pass]"), "privacyForced и refusal — пароль не просим");
+      ok(mainText().includes(msg), "текст отказа виден");
+      ok(expErrText({ code: "PERMISSION_DENIED", field: "/cameras/0", params: { reason: "privacy" } }) === msg, "reason: privacy — текст refusal, а не «нет права»");
+    }
+
+    // Повтор под надзором спрашивает супервизора и шлёт его в теле
+    grant = Object.assign({}, grant, { supervisorRequired: true, passwordRequired: false, privacyForced: false, refusal: undefined });
+    expGrantV = grant;
+    const rid = "exp-retry-check";
+    expRows = [{ id: rid, state: "failed", parts: [], files: [], enforced: {}, request: {} }].concat(expRows || []);
+    const supInput = () => document.getElementById("expRetrySupLogin");
+    await expRetry(rid);
+    ok(!!supInput() && !!document.getElementById("expRetrySupPwd"), "повтор спрашивает супервизора");
+    ok(!document.getElementById("expRetryPw"), "пароль выгрузки не нужен — его не спрашивает");
+    if (supInput()) {
+      supInput().value = "boss"; document.getElementById("expRetrySupPwd").value = "x";
+      document.getElementById("confirmOk").click();
+      ok(await until(() => posted.length === 1), "повтор отправлен");
+      ok(posted[0]?.supervisor?.login === "boss" && posted[0]?.supervisor?.password === "x", "supervisor в теле повтора");
+      ok(await until(() => !!supInput() && !supInput().value), "сервер отказал — поля спрошены снова, пустые");
+      document.getElementById("confirmCancel").click();
+    }
+    // Выдача прав молчит о надзоре, а сервер отказывает: повтор уходит без полей, по отказу поля открываются
+    grant = Object.assign({}, grant, { supervisorRequired: false });
+    posted.length = 0;
+    await expRetry(rid);
+    ok(await until(() => posted.length === 1), "выдача прав без надзора — повтор сразу");
+    ok(!posted[0]?.supervisor, "supervisor в теле нет");
+    ok(await until(() => !!supInput()), "отказ по /supervisor открывает поля");
+    if (supInput()) document.getElementById("confirmCancel").click();
+    // Половина ввода не уходит на проверку
+    expOpen({ cams: [cam.id] });
+    expD.supLogin = "boss";
+    ok(!("supervisor" in expBody(expD)), "только логин — supervisor в теле нет");
+    expD.supLogin = "";
+  } finally {
+    API.get = getReal;
+    API.post = postReal;
+    expRows = wasRows;
+    expD = null;
+    expChk = null;
+    if (hadSup) CAPS.features.add("accessSupervision");
+    await expGrantLoad();
+  }
+
+  async function expCheckRound() {
+    expCheckSoon();
+    await sleep(700);
+    expRepaint();
+  }
 });

@@ -13328,7 +13328,7 @@ function expBody(d){
   if(d.nameSet&&d.name.trim())b.name=d.name.trim();
   if(d.password)b.password=d.password;
   if(d.comment.trim())b.comment=d.comment.trim();
-  if(expGrantV?.supervisorRequired&&expOn("accessSupervision"))b.supervisor={login:d.supLogin,password:d.supPwd};
+  if(d.supLogin&&d.supPwd)b.supervisor={login:d.supLogin,password:d.supPwd};
   if(expMulti(d)&&!frame&&f?.singleFile==="tracks"&&expOn("exportSingleFile"))b.singleFile=!!d.single;
   if(expOn("exportTranscode")){
     const q={};
@@ -13390,6 +13390,8 @@ function expCheckSoon(){
   },250);
 }
 // Поле формы: ключ из умолчаний живёт в adv, остальные — в самом заказе (правило монитора)
+// Поля супервизора проверяются по уходу из поля, а не на каждую паузу: система проверяет пароль, и неполный ввод может запереть учётную запись
+function expSupType(k,v){if(expD)expD[k]=v}
 function expSet(k,v,repaint=true){
   if(!expD)return;
   if(k in EXP_DEF)expD.adv[k]=v;
@@ -13543,11 +13545,11 @@ function expErrText(e){
   const p=e.params||{};
   return({PASSWORD_REQUIRED:i18n("Без пароля экспорт запрещён политикой системы"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"За выбранный период записи нет"),
     LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"периодов",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
-    PERMISSION_DENIED:i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
+    PERMISSION_DENIED:p.reason==="privacy"?(expGrantV?.refusal||e.message||i18n("Нет права на экспорт")):i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
     DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: экспорт через него"),
     VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Укажите время кадра":"Проверьте поле"),
     NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
-    SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
+    SUPERVISOR_REQUIRED:i18n("Нужно подтверждение супервизора"),SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
 }
 function expErrHtml(list){return list.map(e=>`<p class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</p>`).join("")}
 const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
@@ -13590,14 +13592,15 @@ function expMainHtml(d){
   const files=!expOneFile(d)&&d.cams.length>1?(expChk?.files||[]).map(x=>x.name):[];
   const zip=!!d.password&&f?.password==="zip";
   const area=d.cams.map((c,i)=>c.area?`<div class="nt exp-area-nt" data-exp-area><b>${i18n("Область кадра выделена")}</b> — ${escHtml(expCamName(c.id))}: ${escHtml(expAreaText(c.area))} — ${i18n("экспортируется только она")}. <button type="button" class="lk" ${onEv("click",["expAreaReset",i])}>${i18n("Весь кадр")}</button>${expErrHtml(expErrs(`/cameras/${i}/area`))}</div>`:"").join("");
-  const sup=g?.supervisorRequired&&expOn("accessSupervision")?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSet","supLogin",onEv.value,false])}></div>
-      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSet","supPwd",onEv.value,false])}></div></div>
+  if(expErrs("/supervisor").length)d.supAsk=true; // Сервер спросил супервизора, а выдача прав устарела: поля остаются до конца заказа
+  const sup=g?.supervisorRequired||d.supAsk?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSupType","supLogin",onEv.value])} ${onEv("change",["expCheckSoon"])}></div>
+      <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSupType","supPwd",onEv.value])} ${onEv("change",["expCheckSoon"])}></div></div>
     ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры подтверждает второй пользователь с правом супервизора.")}</p>`}`):"";
   const file=card("Файл",`<div class="g"><div><label>${i18n("Формат")}</label>${fmtSel}</div>
       <div>${one?`<label>${i18n("Один файл")}</label><div class="ln ln-sw" style="padding:4px 0">${accSw(d.single,["expSet","single",!d.single],false,i18n("Один файл"))}<div>${i18n("Склеить")} ${d.cams.length} ${i18n(plural(d.cams.length,"камеру|камеры|камер"))} ${i18n("в один файл")}</div></div>`:""}</div>
       <div style="grid-column:1/-1"><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.nameSet?d.name:expAutoName())}" ${d.nameSet&&!d.name.trim()?'aria-invalid="true"':""} ${onEv("input",["expSet","name",onEv.value,false])} ${onEv("change",["expRepaint"])}>
         ${d.nameSet&&!d.name.trim()?`<p class="exp-err">${i18n("Имя файла не может быть пустым")}</p>`:files.length?`<p class="sub">${escHtml(files.slice(0,2).join(", "))}${files.length>2?` ${i18n("и ещё")} ${files.length-2}`:""}</p>`:""}${expErrHtml(expErrs("/name"))}</div>
-      ${expOn("exportPassword")&&f&&f.password!=="none"?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
+      ${expOn("exportPassword")&&f&&f.password!=="none"&&!(g?.privacyForced&&g?.refusal)?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
         ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Файл придёт архивом .zip и откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
       <div><label>${i18n("Комментарий")}</label><textarea rows="2" data-exp-comment ${onEv("input",["expSet","comment",onEv.value,false])}>${escHtml(d.comment)}</textarea></div></div>
     ${expErrHtml(expErrs("/format").concat(expErrs("/singleFile")))}`);
@@ -13737,10 +13740,27 @@ function treeExp(){
 function expPick1(id){expSel=id;if(id==="new"&&!expD){expD=expDraftNew({});expCheckSoon()}paint()}
 function expCancel(id){API.post(`/exports/${id}/cancel`,{}).then(expUpsert).catch(e=>toast(problemText(e)))}
 function expRetry(id){
-  const x=expRowOf(id),need=expGrantV?.passwordRequired||!!x?.enforced?.password;
-  const go=pw=>API.post(`/exports/${id}/retry-failed`,pw?{password:pw}:{}).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>toast(e?.problem?expErrText(e.problem):problemText(e)));
-  if(!need)return go("");
-  askConfirm("Повторить неудачные",`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`,"","Повторить",()=>go(document.getElementById("expRetryPw").value),{html:true});
+  // Права нужны на камеры этого заказа: expGrantV — про камеры черновика
+  const ids=(expRowOf(id)?.parts||[]).filter(p=>p.state==="fail"||p.state==="cancel").map(p=>p.uid).join(",");
+  const load=can("getExportGrant")?API.get("/me/export",ids?{ids}:{}).catch(()=>expGrantV):Promise.resolve(expGrantV);
+  return load.then(g=>expRetryAsk(id,g,{}));
+}
+// force — что спросил сервер в прошлой попытке, если выдача прав этого не обещала
+function expRetryAsk(id,g,force){
+  const x=expRowOf(id),needPw=force.pw||!(g?.privacyForced&&g?.refusal)&&(g?.passwordRequired||!!x?.enforced?.password),needSup=force.sup||!!g?.supervisorRequired||!!x?.supervisedBy;
+  const go=b=>API.post(`/exports/${id}/retry-failed`,b).then(n=>{expUpsert(n);expSel=n.id;paint()}).catch(e=>{
+    toast(e?.problem?expErrText(e.problem):problemText(e));
+    const f=e?.problem?.field;
+    if(f==="/supervisor"||f==="/password")expRetryAsk(id,g,{pw:needPw||f==="/password",sup:needSup||f==="/supervisor"});
+  });
+  if(!needPw&&!needSup)return go({});
+  const val=k=>document.getElementById(k)?.value||"";
+  askConfirm("Повторить неудачные",`${needPw?`<div><label>${i18n("Пароль")}</label><input type="password" id="expRetryPw" autocomplete="new-password"></div>`:""}${needSup?`<div><label>${i18n("Логин супервизора")}</label><input id="expRetrySupLogin" autocomplete="off"></div><div><label>${i18n("Пароль супервизора")}</label><input type="password" id="expRetrySupPwd" autocomplete="off"></div>`:""}`,"","Повторить",()=>{
+    const b={},pw=val("expRetryPw"),l=val("expRetrySupLogin"),s=val("expRetrySupPwd");
+    if(pw)b.password=pw;
+    if(l&&s)b.supervisor={login:l,password:s};
+    go(b);
+  },{html:true});
 }
 function expAgain(id){
   const x=expRowOf(id),r=x?.request;if(!r)return;
