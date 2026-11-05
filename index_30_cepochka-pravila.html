@@ -2133,7 +2133,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/fixture.js"></script>
 <script src="api/contract.js"></script>
 <script>
-// Прототип 29: заглушка. Набор расширяется в памяти до запуска встроенного сервера; общие файлы api/ не меняются.
+// Прототип 30: заглушка. Набор расширяется в памяти до запуска встроенного сервера; общие файлы api/ не меняются.
 // Запрос к контракту: api/requests/2026-11-05-130700Z-mockup-rule-chain-request.md. Проверка контракта для тела правила здесь выключена.
 (function(){
   const right={level:"FULL"},L=t=>({key:"proto29."+t,text:t,lang:"ru"});
@@ -5037,7 +5037,7 @@ function ruleContentNode(r,id){
     when:r.triggers.map(trigNode),cond:r.conditions.map(condNode),then:r.steps.map(stepNode),
     owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[],validFor:r.validForSec??30};
   if(r.logOnlySince)n.watchSince=r.logOnlySince;
-  // Прототип 29: «или» и интервал — метки в labels (заглушка, в контракте полей нет)
+  // Прототип 30: «или» и интервал — метки в labels (заглушка, в контракте полей нет)
   const lb=n.labels;n.whenAny=lb.includes("__any:when");n.condAny=lb.includes("__any:cond");
   const ev=lb.find(x=>x.startsWith("__every:"));if(ev&&n.sched){n.sched.every=+ev.slice(8);n.sched.rnd=lb.includes("__rnd")}
   n.labels=lb.filter(x=>!x.startsWith("__"));
@@ -29362,7 +29362,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
 </script>
 <script src="assets/tour.js"></script>
 <script>
-// Показы прототипа 29: по одному на тему. Клики и ввод настоящие; в длинных обзорах пункт меняет собственный обработчик страницы.
+// Показы прототипа 30: по одному на тему. Клики и ввод настоящие; в длинных обзорах пункт меняет собственный обработчик страницы.
 (()=>{
   const $=s=>document.querySelector(s),main=()=>$("#main")||document;
   const btn=(t,root)=>[...(root||document).querySelectorAll("button")].find(b=>b.textContent.trim()===t);
