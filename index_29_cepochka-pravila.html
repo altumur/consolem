@@ -2129,19 +2129,19 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
   const str=(title,x)=>({type:"string",title,...x}),int=(title)=>({type:"integer",minimum:0,title});
   const en=(title,map)=>({type:"string",title,enum:Object.keys(map),"x-enum-labels":Object.fromEntries(Object.entries(map).map(([k,v])=>[k,L(v)]))});
   const add={
-    camera:{events:[ev("device.lost","Камера: нет связи"),ev("device.restored","Камера: связь восстановлена"),ev("tamper","Детектор: закрыли или сдвинули камеру"),
+    camera:{events:[ev("device.lost","Камера: нет связи",{params:{type:"object",properties:{thresholdSec:int("Не считать обрыв короче, с")}}}),ev("device.restored","Камера: связь восстановлена"),ev("device.auth","Камера: ошибка авторизации"),ev("device.enabled","Камера: включена в настройках"),ev("device.disabled","Камера: выключена в настройках"),ev("tamper","Детектор: закрыли или сдвинули камеру"),
         ev("fire","Детектор: огонь",{ends:true}),ev("smoke","Детектор: дым",{ends:true}),
         ev("face.list","Лицо: совпадение со списком",{params:{type:"object",properties:{presence:en("Лицо",{yes:"есть в списке",no:"нет в списке"})}}}),
         ev("plate.list","Номер: совпадение со списком",{params:{type:"object",properties:{presence:en("Номер",{yes:"есть в списке",no:"нет в списке"})}}}),
         ev("alarm.raised","Тревога: начата"),ev("alarm.taken","Тревога: оператор взял в работу"),ev("alarm.closed","Тревога: обработана"),
         ev("alarm.confirmed","Тревога: подтверждена"),ev("alarm.suspicious","Тревога: подозрительная ситуация"),ev("alarm.false","Тревога: ложная"),ev("alarm.missed","Тревога: пропущена"),
-        ev("rec.started","Запись: началась"),ev("rec.stopped","Запись: остановилась"),ev("arm.on","Охрана: камера поставлена"),ev("arm.off","Охрана: камера снята"),ev("ptz.moved","Поворотная камера: пришла в пресет")],
+        ev("rec.started","Запись: началась"),ev("rec.stopped","Запись: остановилась"),ev("rec.lost","Запись: нет записи в архив"),ev("rec.back","Запись: запись в архив восстановлена"),ev("arm.on","Охрана: камера поставлена"),ev("arm.private","Охрана: камера поставлена в приватном режиме"),ev("arm.off","Охрана: камера снята"),ev("ptz.moved","Поворотная камера: пришла в пресет"),ev("ptz.manual","Поворотная камера: сдвинули вручную"),ev("ptz.failed","Поворотная камера: не пришла в пресет")],
       actions:[act("export","Экспортировать кадр или видео",{mode:en("Что",{snapshot:"кадр",clip:"видео"}),beforeSec:int("Секунд до события"),afterSec:int("Секунд после события")}),
         act("replicate","Начать репликацию",{period:en("Период",{event:"вокруг события",offline:"пока сервер был недоступен"})}),
         act("ptz.tour","Обход поворотной камеры",{command:en("Команда",{start:"начать",stop:"остановить"}),tour:str("Обход")})]},
     relay:{events:[ev("output.on","Выход: включился",{ends:true})]},
     server:{events:[ev("server.down","Сервер: нет связи"),ev("server.up","Сервер: связь восстановлена"),ev("license.lost","Лицензия: нет связи с сервером лицензий"),
-        ev("load.high","Сервер: нагрузка выше порога",{params:{type:"object",properties:{metric:en("Что",{cpu:"процессор",memory:"память",disk:"диск",network:"сеть"}),percent:en("Порог",{"70":"70%","80":"80%","90":"90%"})}}}),
+        ev("load.high","Сервер: нагрузка выше порога",{params:{type:"object",properties:{metric:en("Что",{cpu:"процессор",memory:"память",disk:"диск",network:"сеть",archive:"заполнение архива"}),percent:en("Порог",{"70":"70%","80":"80%","90":"90%"}),trend:en("Как меняется",{any:"не важно",up:"растёт",down:"падает",leave:"вышло из диапазона"})}}}),
         ev("sched.edge","Расписание: начало или конец",{params:{type:"object",properties:{edge:en("Момент",{start:"начало",end:"конец"})}}}),
         ev("volume.error","Архив: ошибка тома"),ev("volume.ok","Архив: том восстановлен")],
       actions:[act("program","Запустить программу на сервере",{path:str("Путь к программе"),args:str("Аргументы")}),act("service","Включить или выключить службу",{state:en("Что сделать",{on:"включить",off:"выключить"}),service:str("Служба")})]},
@@ -2159,7 +2159,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     });
     const ra=fx.reference&&fx.reference.ruleActions;
     if(ra){
-      ra.push({source:"ntf",action:"push",fields:[{id:"to"},{id:"subject"},{id:"body",optional:true}]},
+      ra.push({source:"ntf",action:"push",fields:[{id:"to"},{id:"subject"},{id:"body",optional:true},{id:"attach",optional:true,options:["none","snapshot","video"]}]},
         {source:"client",action:"sound",fields:[{id:"file"},{id:"roleId"}]},
         {source:"client",action:"voice",fields:[{id:"roleId"}]},
         {source:"client",action:"view",fields:[{id:"view",options:["select","map","archive","mark","slideshow","restore"]},{id:"roleId"}]},
@@ -14526,7 +14526,7 @@ const ACTION_KINDS=[
    fields:[{id:"ref",label:"Устройство"},{id:"state",label:"Что сделать",req:false,opts:[["pulse","импульс"],["on","включить"],["off","выключить"]]},
            {id:"pulse_ms",label:"Импульс, мс",on:a=>a.state==="pulse"||!a.state}]},
   {grp:"Уведомления",sub:"ntf",action:"push",label:"Push-уведомление",short:"Push",devTypes:[],
-   fields:[{id:"to",label:"Кому"},{id:"subj",label:"Заголовок",tpl:true},{id:"body",label:"Текст (необязательно)",tpl:true}]},
+   fields:[{id:"to",label:"Кому"},{id:"subj",label:"Заголовок",tpl:true},{id:"body",label:"Текст (необязательно)",tpl:true},{id:"attach",label:"Вложение",req:false,opts:[["none","без вложения"],["snapshot","кадр"],["video","видео"]]}]},
   {grp:"Уведомления",sub:"client",action:"sound",label:"Воспроизвести звук у оператора",short:"Звук",devTypes:[],
    fields:[{id:"file",label:"Звуковой файл"},{id:"to",label:"Роль",sel:"role"}]},
   {grp:"Уведомления",sub:"client",action:"voice",label:"Голосовое сообщение от оператора",short:"Голос",devTypes:[],
@@ -14569,14 +14569,14 @@ const RULE_DEPTH=2;   // вложенность веток — не глубже
 function ctlSecHtml(c,ps){
   return`<div class="rl-f rl-sec"><input type="number" min="1" max="3600" value="${escHtml(c.sec??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"sec",onEv.value])}> ${i18n("с")}</div>`;
 }
-const CHECK_WHAT={record:"Есть запись в архиве",armed:"Камера на охране",online:"Устройство на связи"};
+const CHECK_WHAT={record:"Есть запись в архиве",safe:"Есть защищённая запись в архиве",armed:"Камера на охране",online:"Устройство на связи"};
 const CTL_KINDS=[
   {ctl:"check",label:"Проверить и разветвить",grp:"Ход выполнения",br:[["yes","если да"],["no","если нет"]],
    make:()=>({ctl:"check",what:"record",ref:"$src",depth:120,yes:[],no:[]}),
-   text:c=>`${i18n("Проверить")}: ${i18n(CHECK_WHAT[c.what]||"")}${c.what==="record"?` ${i18n("за")} ${c.depth||0} ${i18n("с")}`:""}`,
+   text:c=>`${i18n("Проверить")}: ${i18n(CHECK_WHAT[c.what]||"")}${c.what==="record"||c.what==="safe"?` ${i18n("за")} ${c.depth||0} ${i18n("с")}`:""}`,
    check:c=>c.ref?"":`«${i18n("Проверить и разветвить")}»: не выбрано устройство`,
    fieldsHtml:(c,ps)=>`<div class="rl-f">${selHtml(Object.entries(CHECK_WHAT),c.what,`setCtlField('${ps}','what',this.value)`,"Что проверить")}</div>${refFieldHtml("then",ps,c.ref)}
-     ${c.what==="record"?`<div class="rl-f rl-dflt">${i18n("за последние")} <input type="number" min="1" max="86400" value="${escHtml(c.depth??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"depth",onEv.value])}> ${i18n("с")}</div>`:""}`},
+     ${c.what==="record"||c.what==="safe"?`<div class="rl-f rl-dflt">${i18n("за последние")} <input type="number" min="1" max="86400" value="${escHtml(c.depth??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"depth",onEv.value])}> ${i18n("с")}</div>`:""}`},
   {ctl:"after",label:"Дождаться конца предыдущего шага",grp:"Ход выполнения",br:[],
    make:()=>({ctl:"after",sec:60}),
    text:c=>`${i18n("Дождаться конца предыдущего шага")}, ${i18n("не дольше")} ${c.sec||0} ${i18n("с")}`,
