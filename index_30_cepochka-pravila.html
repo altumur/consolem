@@ -29364,6 +29364,8 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
 <script>
 // Показы прототипа 30: по одному на тему. Клики и ввод настоящие; в длинных обзорах пункт меняет собственный обработчик страницы.
 (()=>{
+  // Движок показов общий с разделом «Обучение»: тема Tour.add, запуск Tour.start. Раздела в прототипе нет, поэтому кнопка запуска своя.
+  const offer=(title,steps)=>{steps[0].ch={title,why:""};Tour.add({id:"p"+(Tour.topics.length+1),title:"Прототип 30",why:"",steps})};
   const $=s=>document.querySelector(s),main=()=>$("#main")||document;
   const btn=(t,root)=>[...(root||document).querySelectorAll("button")].find(b=>b.textContent.trim()===t);
   const fresh=(tpl,start)=>{
@@ -29385,7 +29387,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     {say:sayType,at:cbxQ,act:"type",text},
     {say:`Остался короткий список. Выбираем «${label}».`,at:()=>opt(label),act:"click"}];
 
-  Tour.offer("Поиск в длинных списках",[
+  offer("Поиск в длинных списках",[
     {say:"В списке событий около пятидесяти пунктов. Раньше его приходилось листать. Щелчок теперь открывает поле поиска.",before:()=>fresh("mrec"),at:()=>evSel(1),act:"click"},
     {say:"Поле поиска уже в фокусе, а группы списка остались. Текущий пункт виден сразу.",at:()=>$(".cbx")},
     {say:"Вводим часть слова.",at:cbxQ,act:"type",text:"трев"},
@@ -29395,7 +29397,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     {say:"Короткий список остаётся обычным: выбор из семи пунктов и меньше быстрее глазами.",before:()=>addItem(""),at:()=>ctlRow("1")?.querySelector('select[aria-label="Сколько"]')||stepSel("1")},
     {say:"Правило записано в CLAUDE.md: список из 8 пунктов и больше получает поиск. Поиск подключается к любому <select> прототипа сам."}]);
 
-  Tour.offer("Шаблоны в мастере",[
+  offer("Шаблоны в мастере",[
     {say:"Открываем мастер нового правила.",before:()=>{wzDrop("rule");if(app!=="rules")setApp("rules")},at:()=>btn("Правило",$("#aside")),act:"click"},
     {say:"Шаг «Как запускается» остался прежним.",at:()=>$("#bmodal [data-rnw]")},
     {say:"Переходим к шаблонам.",at:()=>btn("Далее",$("#bmodal")),act:"click"},
@@ -29408,7 +29410,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     {say:"Письмо лежит в ветке «если не пришло». Короткий обрыв письма не вызовет.",at:()=>branch("если не пришло")},
     {say:"Шаблон сразу даёт рабочую логику: остаётся выбрать камеру и получателя."}]);
 
-  Tour.offer("Логика «и / или»",[
+  offer("Логика «и / или»",[
     {say:"Было: второе событие всегда шло через «и». Начинаем с шаблона «Движение — запись».",before:()=>fresh("mrec"),at:()=>btn("Добавить событие",main()),act:"click"},
     {say:"Второе событие теперь идёт через «или», как в Axxon One: любое событие запускает правило.",at:()=>$(".rl-logic")},
     ...choose(()=>evSel(2),"дым","Детектор: дым","Выбираем второе событие.","Ищем в длинном списке."),
@@ -29424,7 +29426,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     {say:"Переключатель действует на весь блок, поэтому выразить «A и (B или C)» нельзя. Связка в каждой строке — открытый вопрос в отчёте."}]);
 
   const evStep=(kind,say)=>({say,before:()=>setTriggerKind(0,String(TRIGGER_KINDS.findIndex(k=>k.kind===kind))),at:()=>row(evSel(1))});
-  Tour.offer("Новые события",[
+  offer("Новые события",[
     {say:"Покажем новые события по группам. Каждое выбираем в первой строке блока «Если».",before:()=>fresh("mrec"),at:()=>evSel(1)},
     evStep("device.lost","Связь с камерой пропала. Поле порога отсекает короткие обрывы. Также есть «связь восстановлена», ошибка входа и включение камеры."),
     evStep("tamper","Камеру закрыли или сдвинули. Рядом есть детекторы огня и дыма."),
@@ -29441,7 +29443,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     evStep("volume.error","Ошибка тома архива. В прототипе событие привязано к серверу: в наборе нет томов для выбора."),
     {say:"Все эти события — заглушка в файле прототипа. Они описаны в запросе к контракту."}]);
 
-  Tour.offer("Ветвления и ход выполнения",[
+  offer("Ветвления и ход выполнения",[
     {say:"Шаблон «Нет записи — письмо» запускается по расписанию и повторяется с интервалом. Раньше у расписания были только дни и время.",before:()=>fresh("norec","sched"),at:()=>[...document.querySelectorAll("#main label,#main .rl-f")].find(e=>/Повторять/.test(e.textContent)&&e.textContent.length<80)},
     {say:"Новый шаг «Проверить и разветвить». Раньше такая проверка могла только остановить правило, а веток не было.",at:()=>stepSel("0")},
     {say:"Что проверить и за какой период: здесь запись в архиве за последний час.",at:()=>ctlRow("0")},
@@ -29459,7 +29461,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
 
   const actKind=label=>"a:"+ACTION_KINDS.findIndex(k=>k.label===label);
   const actStep=(label,say,then)=>({say,before:()=>{setStepKind("0",actKind(label));if(then)then()},at:()=>ctlRow("0")});
-  Tour.offer("Новые действия",[
+  offer("Новые действия",[
     {say:"Список действий с поиском один и для действий, и для шагов хода выполнения. Покажем новые действия по очереди.",before:()=>fresh("mrec"),at:()=>stepSel("0")},
     actStep("Записывать","Запись получила новые поля: секунды до начала и число кадров в секунду."),
     actStep("Экспортировать кадр или видео","Экспорт кадра или видео вокруг события."),
@@ -29480,6 +29482,26 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     actStep("Закрыть тревогу","Закрытие тревоги получило оценку: ложная, подозрительная, подтверждена."),
     actStep("Веб-запрос","Веб-запрос: методы PUT и DELETE, авторизация, заголовки, тело. Через него делают и Telegram-рецепт Axxon One."),
     {say:"Все новые действия — заглушка в файле прототипа. Выполнять их встроенный сервер не умеет: показан только вид настройки."}]);
+  Tour.start();
+  // Кнопка запуска и список показов: только на обычной странице
+  if(!Tour.demo&&!/[?&]selftest/.test(location.search)){
+    const st=document.createElement("style");
+    st.textContent=`.p30-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
+.p30-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.p30-menu{position:fixed;left:50%;bottom:56px;transform:translateX(-50%);z-index:15;display:flex;flex-direction:column;gap:2px;min-width:240px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:6px;background:var(--p,#1a2129);border:1px solid var(--ln,#2d3743);border-radius:10px;box-shadow:0 6px 18px #0006}
+.p30-menu[hidden]{display:none}
+.p30-menu a{padding:8px 10px;border-radius:6px;color:var(--tx,#e4e9ef);font:13px/1.3 inherit;text-decoration:none}
+.p30-menu a:hover,.p30-menu a:focus-visible{background:var(--one-focus-ring,#3b82f6);color:#fff;outline:0}`;
+    const btn0=document.createElement("button"),menu=document.createElement("div");
+    btn0.type="button";btn0.className="p30-offer";btn0.textContent="▶ Показы";btn0.setAttribute("aria-haspopup","true");btn0.setAttribute("aria-expanded","false");
+    menu.className="p30-menu";menu.hidden=true;menu.setAttribute("aria-label","Показы");
+    Tour.topics.forEach((t,k)=>{const a=document.createElement("a");a.href=`?tour=${k+1}&demo`;a.textContent=t.chapters[0].title;menu.append(a)});
+    const show=v=>{menu.hidden=!v;btn0.setAttribute("aria-expanded",String(v))};
+    btn0.addEventListener("click",()=>show(menu.hidden));
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!menu.hidden){show(false);btn0.focus()}});
+    document.addEventListener("mousedown",e=>{if(!menu.hidden&&!menu.contains(e.target)&&!btn0.contains(e.target))show(false)});
+    document.head.append(st);document.body.append(menu,btn0);
+  }
 })();
 </script>
 </body>
