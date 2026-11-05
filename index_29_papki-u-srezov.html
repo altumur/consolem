@@ -109,15 +109,29 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-choice:hover{background:var(--one-control-hover);border-color:var(--one-border);color:var(--tx)}
 .ph-choice.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-/* «Папки» — не срез, а настройка раскладки: своя строка и переключатель вместо кнопки-выбора. */
-.ph-switch{display:inline-flex;align-items:center;gap:6px;flex:none;height:28px;border:0;border-radius:6px;padding:0 8px;background:transparent;color:var(--tx);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer}
-.ph-switch:hover{background:var(--one-control-hover)}
+/* «Папки» — не срез, а настройка раскладки: в строке срезов, но за чертой, своим видом и своим цветом. Срезы переносятся, кнопка стоит на месте. */
+.ph-row-slices{flex-wrap:nowrap;align-items:stretch;gap:8px}
+.ph-slices{display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:1 1 auto;min-width:0}
+.ph-fold{flex:none;display:flex;align-items:flex-start;padding-left:8px;border-left:1px solid var(--one-border)}
+.ph-switch{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;height:28px;border:1px solid var(--one-border);border-radius:6px;padding:0 8px;background:transparent;color:var(--mu);font-size:12.5px;font-weight:500;white-space:nowrap;cursor:pointer}
+.ph-switch svg{width:14px;height:14px;flex:none}
+.ph-switch:hover{background:var(--one-control-hover);color:var(--tx)}
 .ph-switch:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
-.ph-switch .sw{width:28px;height:16px}
+.ph-switch.on{background:color-mix(in srgb,var(--bl) 18%,transparent);border-color:var(--bl);color:var(--tx)}
+.ph-switch.on svg{color:var(--bl)}
+.ph-switch.on:hover{background:color-mix(in srgb,var(--bl) 26%,transparent)}
+.ph-switch:disabled,.ph-switch:disabled:hover{opacity:.45;cursor:default;color:var(--mu)}
+.ph-switch:disabled:not(.on):hover{background:transparent}
+.ph-switch:disabled.on:hover{background:color-mix(in srgb,var(--bl) 18%,transparent)}
+.ph-switch .sw{display:none;width:28px;height:16px}
 .ph-switch .sw:after{width:12px;height:12px}
 .ph-switch .sw.on:after{left:14px}
-.ph-switch:disabled{opacity:.45;cursor:default;background:transparent}
 .ph-switch:disabled .sw{cursor:default}
+/* Варианты на время согласования: ?fv=a|b|c */
+.ph-fv-b .ph-switch{width:28px;padding:0}.ph-fv-b .ph-sw-label{display:none}
+.ph-fv-c .ph-switch,.ph-fv-c .ph-switch.on,.ph-fv-c .ph-switch.on:hover,.ph-fv-c .ph-switch:disabled.on:hover{background:transparent;border-color:transparent;color:var(--tx)}
+.ph-fv-c .ph-switch:hover{background:var(--one-control-hover)}
+.ph-fv-c .ph-switch svg{display:none}.ph-fv-c .ph-switch .sw{display:inline-block}
 .ph-cnt{flex:none;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--one-control-bg);color:var(--one-fg-muted);font-size:10px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .ph-choice.on .ph-cnt{background:var(--one-selected-neutral);color:var(--one-fg)}
 .ph-chevron{font-size:9px;opacity:.7}
@@ -8302,13 +8316,16 @@ function sliceCount(id){
 }
 // Без фильтра — оценка сервера со знаком «≈», иначе считается загруженное
 function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
+const PH_FV=/^[abc]$/.test(new URLSearchParams(location.search).get("fv")||"")?new URLSearchParams(location.search).get("fv"):"a";
 function panelHeadHtml(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
-  const canFolders=sliceGroups().includes("folder"),foldersOn=canFolders&&group()==="folder",st=curStatus();
-  return`<div class="ph"><div class="ph-row" role="group" aria-label="${i18n("Срез дерева")}">
+  // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
+  const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
+  return`<div class="ph"><div class="ph-row ph-row-slices"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}">
     ${Object.keys(SLICE).map(id=>`<button type="button" class="ph-choice ${slice===id?"on":""}" data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`).join("")}
-  </div><div class="ph-row">
-    <button type="button" class="ph-switch" id="viewBtn" role="switch" aria-checked="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}><span>${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
+  </div><span class="ph-fold ph-fv-${PH_FV}">
+    <button type="button" class="ph-switch ${foldersOn?"on":""}" id="viewBtn" role="switch" aria-checked="${foldersOn}" aria-label="${i18n("Папки")}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span class="ph-sw-label">${i18n("Папки")}</span><span class="sw ${foldersOn?"on":""}" aria-hidden="true"></span></button>
+  </span></div><div class="ph-row">
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
     <span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
       <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
