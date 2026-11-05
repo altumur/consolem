@@ -18,13 +18,14 @@ import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
 globalThis.window = globalThis;
 // --api DIR — папка API вместо api, --tests DIR — папка сценариев вместо tests (копии папок)
 const arg = (name, def) => (process.argv.includes(`--${name}`) ? process.argv[process.argv.indexOf(`--${name}`) + 1] : def);
 const API = arg("api", "api");
-const API_DIR = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", API);
+const API_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", API);
 require(`${API_DIR}/contract.js`);
 // Реестр видов, склад и хуки профилей: server.js найдёт их и сам, но порядок подключения — как на странице
 for (const f of ["kinds.js", "units.js", "profiles.js"]) require(`${API_DIR}/${f}`);
@@ -40,7 +41,7 @@ const port = Number(process.argv.find((a) => /^\d+$/.test(a)) || 8787);
 const exitOnReport = process.argv.includes("--exit-on-report");
 const webui = process.argv.includes("--webui") ? path.resolve(process.argv[process.argv.indexOf("--webui") + 1]) : null;
 const TESTS_NAME = arg("tests", "tests");
-const TESTS = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..", TESTS_NAME);
+const TESTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", TESTS_NAME);
 // Заголовок консоли — как прислала команда w2c, без добавлений
 const CSP = "script-src 'self'; object-src 'none'; base-uri 'none'";
 const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".json": "application/json", ".mp4": "video/mp4" };

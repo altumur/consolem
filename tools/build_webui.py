@@ -6,7 +6,8 @@ api/requests/2026-10-29-184430Z-w2c-webui-csp-request.md): код — тольк
 <script> и атрибуты onclick="…" не выполняются. Поэтому:
   - главный встроенный <script> index.html → app.js, встроенный <style> и assets/one-psim/bridge.css
     (с его @import) → app.css;
-  - встроенного сервера и наборов в сборке нет (api/server.js, fixture.js, contract.js, rule-engine.js):
+  - обычная страница работает без встроенного сервера и наборов (api/server.js, fixture.js, contract.js, rule-engine.js):
+    они лежат в demo/ и грузятся только в учебном режиме раздела «Обучение» (?demo, assets/tour.js);
     интерфейс работает с бэкендом консоли по адресу из <meta name="consolem-api" content="api">
     (относительно страницы: страница /backend/, API /backend/api/…), по 401 уходит на
     <meta name="consolem-login" content="../">;
@@ -18,6 +19,7 @@ api/requests/2026-10-29-184430Z-w2c-webui-csp-request.md): код — тольк
 Запуск из корня репозитория:
   python3 tools/build_webui.py               собрать в build/webui/
   python3 tools/build_webui.py --out DIR     собрать в DIR
+  python3 tools/build_webui.py --without-learn  без раздела «Обучение»: без движка показа и файлов demo/
 """
 import hashlib
 import json
@@ -51,6 +53,15 @@ SCRIPTS = {
 # Реестр видов, склад объектов и хуки профилей встроенного сервера — тоже только для макета
 for _name in ("kinds.js", "units.js", "profiles.js"):
     SCRIPTS[f"{API}/{_name}"] = None
+# Обучение идёт только на встроенном сервере: в сборке он лежит в demo/, с --without-learn раздела нет (build, learn=False)
+SCRIPTS["assets/tour.js"] = None
+SCRIPTS["assets/tour-demos.js"] = None
+LEARN_SCRIPTS = {
+    "assets/tour.js": ("tour.js", "раздел «Обучение»: движок показа и учебный режим"),
+    "assets/tour-demos.js": ("tour-demos.js", "раздел «Обучение»: темы и главы"),
+}
+# Сервер показа в порядке подключения; грузится только при ?demo (assets/tour.js)
+DEMO_FILES = ["fixture.js", "contract.js", "rule-engine.js", "kinds.js", "units.js", "profiles.js", "server.js"]
 TYPES = {".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".woff2": "font/woff2", ".mp4": "video/mp4"}
 
 
@@ -89,7 +100,8 @@ def inline_css(rel, seen=()):
 inline_css.files = set()
 
 
-def build(out):
+def build(out, learn=True):
+    scripts = {**SCRIPTS, **LEARN_SCRIPTS} if learn else SCRIPTS
     page = read(PAGE)
     m = re.search(r"\n<style>\n(.*?)\n</style>\n", page, re.S)
     if not m or page.count("<style>") != 1:
@@ -120,23 +132,33 @@ def build(out):
         return hashlib.sha256(files[name][0]).hexdigest()[:12]
 
     head_scripts = []
-    for src, target in SCRIPTS.items():
+    for src, target in scripts.items():
         tag = f'<script src="{src}"></script>'
         if page.count(tag) != 1:
+            # Прототип, скопированный до раздела «Обучение», собирается без него
+            if src in LEARN_SCRIPTS:
+                continue
             sys.exit(f"{PAGE}: не нашли {tag}")
         if target:
             name, why = target
             files[name] = (read(src).encode("utf-8"), why)
             head_scripts.append(name)
+    demo_files = []
+    if "tour.js" in files:
+        for name in DEMO_FILES:
+            files["demo/" + name] = (read(f"{API}/{name}").encode("utf-8"), "сервер показа раздела «Обучение»: только в учебном режиме, с API консоли не работает")
+            demo_files.append("demo/" + name)
     # Шапка: подключения файлов сборки вместо макетных, адреса API и входа
     page = page[:s0] + f'<script src="app.js?v={ver("app.js")}"></script>' + page[s1 + len("</script>"):]
     page = page.replace(m.group(0), "\n", 1)
     page = page.replace(link, f'<link rel="stylesheet" href="app.css?v={ver("app.css")}">', 1)
     page = re.sub(r"<!-- API: контракт.*?-->\n", "", page)
-    for src, target in SCRIPTS.items():
+    for src, target in scripts.items():
         tag = f'<script src="{src}"></script>'
         page = page.replace(tag + "\n", (f'<script src="{target[0]}?v={ver(target[0])}"></script>\n' if target else ""), 1)
     meta = (f'<meta name="consolem-api" content="{API_URL}">\n<meta name="consolem-login" content="{LOGIN_URL}">\n')
+    if demo_files:
+        meta += '<meta name="consolem-demo-files" content="' + ",".join(f"{n}?v={ver(n)}" for n in demo_files) + '">\n'
     page = page.replace('<meta name="viewport"', meta + '<meta name="viewport"', 1)
     page = page.replace("<!doctype html>\n", f"<!doctype html>\n<!-- Собрано tools/build_webui.py из {PAGE} — руками не править -->\n", 1)
     files["index.html"] = (page.encode("utf-8"), "входная страница: разметка index.html, подключает файлы сборки")
@@ -148,6 +170,7 @@ def build(out):
     if os.path.isdir(out):
         shutil.rmtree(out)
     order = ["index.html", "app.js", "app.css", "client.js", "whep-stub.js", "openapi.js", "i18n-en.js", "assets/stub-piece.mp4"] + sorted(n for n in files if n.startswith("fonts/"))
+    order += [n for n in ("tour.js", "tour-demos.js") if n in files] + demo_files
     assert sorted(order) == sorted(files), (order, sorted(files))
     manifest = []
     for name in order:
@@ -191,7 +214,7 @@ def check_refs(files):
     out = []
 
     def need(where, ref):
-        name = os.path.normpath(re.split(r"[?#]", ref)[0])
+        name = os.path.normpath(re.split(r"[?#]", ref)[0]).replace(os.sep, "/")
         if name not in files and name not in NOT_IN_BUILD:
             out.append(f"{where} ссылается на {ref}, его нет в сборке — добавьте его в tools/build_webui.py (скрипт — в SCRIPTS) или уберите ссылку")
 
@@ -210,7 +233,7 @@ def check_refs(files):
 def main():
     args = sys.argv[1:]
     out = os.path.abspath(args[args.index("--out") + 1]) if "--out" in args else DEFAULT_OUT
-    manifest = build(out)
+    manifest = build(out, learn="--without-learn" not in args)
     total = sum(x["size"] for x in manifest)
     for x in manifest:
         print(f"{x['name']:28} {x['size']:>9}  {x['sha256'][:16]}…")
