@@ -28105,10 +28105,8 @@ function asstInput(v){if(asst){asst.text=v;asstMicDrop()}}
 function asstSendText(){if(asst)asst.text.trim()?asstSend(null,asst.text):toast("Напишите просьбу")}
 function asstSecret(i,v){if(asst)asst.secrets[i]=v}
 function asstSecretAdd(){if(asst){asst.secrets.push("");asstRender()}}
-// Слова хода — процесс, а не итог: всегда с многоточием в конце («читаю систему…»), как бы их ни прислала служба
-const asstDots=t=>{const s=String(t||"").trim().replace(/[\s.…:]+$/,"");return s?s+"…":""};
 function asstEvent(a,m){
-  if(m.type==="progress")a.line=asstDots(m.text);
+  if(m.type==="progress")a.line=m.text;
   // Тип хода служба держит в себе: в событиях его нет, лишнее поле (мост Пилота шлёт kind в progress) форма пропускает
   if("context" in m){a.context=m.context;a.ctxLive=a.live}
   if(m.type==="question")a.ask=m.text;
