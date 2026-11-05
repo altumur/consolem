@@ -261,6 +261,56 @@
     assert.ok(!("password" in again.body.request), "пароля в новом задании нет");
   }, { needs: ["createExport", "retryExport", "getExport", "feature:exportMultiCamera", "feature:exportPassword"] });
 
+  test("Надзор: без supervisor — 403 SUPERVISOR_REQUIRED, чужой пароль и сам автор — SUPERVISOR_REJECTED, верный — 202 и supervisedBy; в проверке те же коды; от accessSupervision не зависит", async () => {
+    const noFeature = { reference: { capabilities: { features: FX.reference.capabilities.features.filter((f) => f !== "accessSupervision") } } };
+    const stand = { exportGrant: { supervisorRequired: true }, exportSupervisor: { login: "boss", password: "верный" } };
+    for (const env of [await makeEnv({ fixturePatch: { stand } }), await makeEnv({ fixturePatch: Object.assign({ stand }, noFeature) })]) {
+      assert.ok((await env.ok("GET", "/me/export")).supervisorRequired, "выдача прав говорит о надзоре");
+      refused(await env.call("POST", "/exports", video(env)), 403, "SUPERVISOR_REQUIRED", "/supervisor", "без супервизора");
+      assert.eq(errs(await env.ok("POST", "/exports/check", video(env))), [["SUPERVISOR_REQUIRED", "/supervisor"]], "в проверке — нужен супервизор");
+      const wrong = video(env, { supervisor: { login: "boss", password: "неверный" } });
+      refused(await env.call("POST", "/exports", wrong), 403, "SUPERVISOR_REJECTED", "/supervisor", "неверный пароль");
+      assert.status(await env.call("POST", "/exports", video(env, { supervisor: { login: "boss" } })), 422, "VALIDATION_FAILED", "в запросе пароль супервизора обязателен");
+      assert.eq(errs(await env.ok("POST", "/exports/check", wrong)), [["SUPERVISOR_REJECTED", "/supervisor"]], "в проверке — не подошёл");
+      const x = await env.call("POST", "/exports", video(env, { supervisor: { login: "boss", password: "верный" } }));
+      assert.status(x, 202);
+      assert.eq(x.body.supervisedBy, "boss", "кто подтвердил");
+      assert.ok(!("password" in x.body.request.supervisor), "пароля супервизора в задании нет");
+    }
+    const probe = await makeEnv();
+    const me = await probe.ok("GET", "/me");
+    const self = await makeEnv({ fixturePatch: { stand: { exportGrant: { supervisorRequired: true }, exportSupervisor: { login: me.login, password: "верный" } } } });
+    refused(await self.call("POST", "/exports", video(self, { supervisor: { login: me.login, password: "верный" } })), 403, "SUPERVISOR_REJECTED", "/supervisor", "сам автор");
+    // Без надзора поле принимается и ни на что не влияет
+    const free = await makeEnv({ fixturePatch: noFeature });
+    const y = await free.call("POST", "/exports", video(free, { supervisor: { login: "boss", password: "x" } }));
+    assert.status(y, 202);
+    assert.ok(!y.body.supervisedBy, "подтверждения не было");
+  }, { needs: ["createExport", "checkExport", "getExportGrant", "feature:exportVideo"] });
+
+  test("Надзор при повторе: прежний супервизор не действует; без него 403 SUPERVISOR_REQUIRED, чужой — SUPERVISOR_REJECTED, верный — 202", async () => {
+    const env = await makeEnv({ fixturePatch: { stand: { exportFail: { [cam2.id]: "unreachable" }, exportGrant: { supervisorRequired: true }, exportSupervisor: { login: "boss", password: "верный" } } } });
+    const sup = { login: "boss", password: "верный" };
+    const x = await env.ok("POST", "/exports", video(env, { cameras: [{ uid: cam.id }, { uid: cam2.id }], supervisor: sup }));
+    await done(env, x.id);
+    refused(await env.call("POST", `/exports/${x.id}/retry-failed`, {}), 403, "SUPERVISOR_REQUIRED", "/supervisor", "логин прежнего заказа не считается подтверждением");
+    refused(await env.call("POST", `/exports/${x.id}/retry-failed`, { supervisor: { login: "boss", password: "неверный" } }), 403, "SUPERVISOR_REJECTED", "/supervisor", "неверный пароль");
+    const again = await env.call("POST", `/exports/${x.id}/retry-failed`, { supervisor: sup });
+    assert.status(again, 202);
+    assert.eq([again.body.retryOf, again.body.supervisedBy], [x.id, "boss"], "новое задание подтверждено");
+    assert.ok(!("password" in again.body.request.supervisor), "пароля супервизора в задании нет");
+  }, { needs: ["createExport", "retryExport", "getExport", "feature:exportMultiCamera"] });
+
+  test("Маска, которую система не делает: refusal при privacyForced — 403 с params.reason: privacy; обычный refusal — без причины", async () => {
+    const msg = "Маскирования нет, а маска обязательна";
+    const env = await makeEnv({ fixturePatch: { stand: { exportGrant: { privacyForced: true, passwordRequired: true, refusal: msg } } } });
+    const r = await env.call("POST", "/exports", video(env));
+    assert.status(r, 403, "PERMISSION_DENIED");
+    assert.eq([r.body.message, r.body.params && r.body.params.reason], [msg, "privacy"], "текст и причина");
+    const plain = await makeEnv({ fixturePatch: { stand: { exportGrant: { refusal: msg } } } });
+    assert.ok(!(await plain.call("POST", "/exports", video(plain))).body.params, "обычный отказ без причины");
+  }, { needs: ["createExport", "feature:exportVideo"] });
+
   test("Отказ политики: exportGrant.refusal — 403 с его текстом, в проверке заказа и при создании; камеры и поля не названы", async () => {
     const msg = "Выгрузка запрещена политикой смены";
     const env = await makeEnv({ fixturePatch: { stand: { exportGrant: { refusal: msg } } } });

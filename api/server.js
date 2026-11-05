@@ -3185,6 +3185,7 @@
     const expRef = () => db.reference.export;
     // Права человека: стенд правит их через stand.exportGrant (тесты), по умолчанию можно всё и без пароля
     const expGrant = () => Object.assign({ allowed: true, passwordRequired: false, privacyForced: false, supervisorRequired: false, watermark: false, depthHours: 0 }, db.stand.exportGrant || {});
+    const expSupervisor = () => Object.assign({ login: "supervisor", password: "supervisor" }, db.stand.exportSupervisor || {});
     const expBad = (status, code, message, field, params) => ({ status, body: Object.assign({ code, message }, field ? { field } : {}, params ? { params } : {}) });
     // Камера заказа — запись-представление объекта склада; не камера или нет объекта — null
     const expCam = (uid) => {
@@ -3213,7 +3214,7 @@
     function expProblems(b) {
       const out = [], R = expRef(), L = R.limits, g = expGrant(), add = (status, code, message, field, params) => out.push(expBad(status, code, message, field, params));
       if (!g.allowed) add(403, "PERMISSION_DENIED", "Нет права на выгрузку");
-      if (g.refusal) add(403, "PERMISSION_DENIED", g.refusal);
+      if (g.refusal) add(403, "PERMISSION_DENIED", g.refusal, undefined, g.privacyForced ? { reason: "privacy" } : undefined);
       const f = R.formats.find((x) => x.id === b.format), live = b.source === "live";
       if (!f) add(422, "NOT_SUPPORTED", "Такого формата нет", "/format");
       else if (f.kind !== b.mode || (live ? !f.entries.includes("live") : !f.entries.includes("archive"))) add(422, "NOT_SUPPORTED", "Формат не подходит к выгрузке", "/format");
@@ -3253,7 +3254,7 @@
       }
       if (b.singleFile && b.cameras.length > 1 && !(can("exportSingleFile") && f && f.singleFile === "tracks")) add(422, "NOT_SUPPORTED", "«В один файл» — только MKV", "/singleFile");
       if (b.password && !can("exportPassword")) add(422, "NOT_SUPPORTED", "Пароль система не ставит", "/password");
-      if (g.passwordRequired && !b.password) add(422, "PASSWORD_REQUIRED", "Политика требует пароль", "/password");
+      if (g.passwordRequired && !b.password && !g.refusal) add(422, "PASSWORD_REQUIRED", "Политика требует пароль", "/password");
       const q = b.quality || {};
       if (q.codec && f && !f.codecs.includes(q.codec)) add(422, "NOT_SUPPORTED", "Кодек не подходит к формату", "/quality/codec");
       if (expTranscode(Object.assign({}, b, { cameras: [] })) && !can("exportTranscode")) add(422, "NOT_SUPPORTED", "Перекодирование система не делает", "/quality");
@@ -3266,7 +3267,12 @@
       if (sp.maxFileMb > L.maxFileMbMax) add(422, "LIMIT_EXCEEDED", "Часть файла больше предела", "/special/maxFileMb", { limit: "maxFileMbMax", max: L.maxFileMbMax });
       if (b.highlight && !can("exportTracks")) add(422, "NOT_SUPPORTED", "Треков система не рисует", "/highlight");
       if (b.privacy && b.privacy.mode !== "none" && !can("exportPrivacy")) add(422, "NOT_SUPPORTED", "Маскирования нет", "/privacy");
-      if (b.supervisor && !can("accessSupervision")) add(422, "NOT_SUPPORTED", "Подтверждения супервизора нет", "/supervisor");
+      // Надзор над выгрузкой — по выдаче прав, от accessSupervision не зависит. Кто подходит — задаёт стенд (stand.exportSupervisor)
+      if (g.supervisorRequired) {
+        const s = b.supervisor, right = expSupervisor();
+        if (!s) add(403, "SUPERVISOR_REQUIRED", "Нужно подтверждение супервизора", "/supervisor");
+        else if (s.login === myLogin() || s.login !== right.login || s.password !== right.password) add(403, "SUPERVISOR_REJECTED", "Супервизор не подтвердил", "/supervisor");
+      }
       if (b.destination === "cloud" && !can("exportCloud")) add(422, "NOT_SUPPORTED", "Выгрузки в облако нет", "/destination");
       return out;
     }
@@ -3279,7 +3285,7 @@
       const x = { id: uuid("export"), state: "queued", createdAt: iso(t), by: myLogin(), progress: { percent: 0, done: 0, total: b.cameras.length },
         parts: b.cameras.map((c) => Object.assign({ uid: c.uid, state: "wait", percent: 0 }, span)), files: [], request: expPublic(b),
         enforced: { privacy: g.privacyForced, watermark: g.watermark, password: g.passwordRequired }, transcode: expTranscode(b) };
-      if (b.supervisor) x.supervisedBy = b.supervisor.login;
+      if (b.supervisor && g.supervisorRequired) x.supervisedBy = b.supervisor.login;
       if (retryOf) x.retryOf = retryOf;
       const sec = expSec(b), dur = b.mode === "frame" ? 1200 : Math.min(2500 + (sec / 3600) * (x.transcode ? 9000 : 4000), 15000);
       expWork.set(x.id, { start: t + 300, dur, names, sentAt: 0, sizes: b.cameras.map(() => (b.mode === "frame" ? 180000 + Math.floor(Math.random() * 90000) : Math.max(1, Math.round(sec * (x.transcode ? 220000 : 500000))))) });
@@ -3716,6 +3722,9 @@
           if (!failed.size || x.state === "queued" || x.state === "running") return problem(409, "NOT_RUNNABLE", "Неудачных частей нет");
           const b = Object.assign(clone(x.request), { cameras: x.request.cameras.filter((c) => failed.has(c.uid)) });
           if (body && body.password) b.password = body.password;
+          // Супервизор подтверждает каждый заказ: логин прежнего заказа не действует
+          delete b.supervisor;
+          if (body && body.supervisor) b.supervisor = body.supervisor;
           const errs = expProblems(b);
           if (errs.length) return errs[0];
           const n = expMake(b, x.id);

@@ -13,6 +13,8 @@
   const kindOf = (v) =>
     v === null ? "null" : Array.isArray(v) ? "array" : Number.isInteger(v) ? "integer" : typeof v === "number" ? "number" : typeof v;
 
+  // Сверка ответов (problems): обязательное writeOnly-поле обязательно только в запросе, в ответе его нет (OpenAPI)
+  let reading = false;
   function check(spec, schema, value, where, out) {
     if (!schema || out.length > 40) return out;
     if (schema.$ref) return check(spec, spec.components.schemas[schema.$ref.split("/").pop()], value, where, out);
@@ -45,7 +47,7 @@
     if (kind === "object") {
       const props = schema.properties || {};
       (schema.required || []).forEach((name) => {
-        if (!(name in value)) out.push(`${where}: нет обязательного поля ${name}`);
+        if (!(name in value) && !(reading && props[name] && props[name].writeOnly)) out.push(`${where}: нет обязательного поля ${name}`);
       });
       const extra = schema.additionalProperties === undefined ? true : schema.additionalProperties;
       Object.entries(value).forEach(([name, v]) => {
@@ -159,6 +161,14 @@
 
   // Записанные ответы против схем: { method, template, status, body, kind: "http"|"stream" }
   function problems(spec, recorded) {
+    reading = true;
+    try {
+      return problemsOf(spec, recorded);
+    } finally {
+      reading = false;
+    }
+  }
+  function problemsOf(spec, recorded) {
     const out = [];
     recorded.forEach((r) => {
       if (r.kind === "stream") {
