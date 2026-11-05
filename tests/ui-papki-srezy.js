@@ -1,5 +1,5 @@
-/* Сценарий прототипа 29: «Папки» и статус в ряду срезов за чертой; в «Серверах» и «Хранилищах» кнопка неактивна и хранит положение.
-   Запуск — python3 tools/check_ui.py --page index_29_papki-u-srezov.html tests/ui-papki-srezy.js */
+/* «Папки» и статус в ряду срезов за чертой (из прототипа 29); в «Серверах» и «Хранилищах» кнопка неактивна и хранит положение.
+   Запуск — python3 tools/check_ui.py tests/ui-papki-srezy.js */
 UiCheck(async ({ ok, sleep }) => {
   if (!document.getElementById("phSliceLast")) { ok(true, "на этой странице «Папок» в ряду срезов нет"); return; }
   const btn = () => document.getElementById("viewBtn");
