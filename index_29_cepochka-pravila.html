@@ -718,7 +718,7 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-n{flex:none;min-width:34px;color:var(--mu);font-size:12px;text-transform:lowercase}
 .rl-f{flex:1 1 140px;min-width:0}
 .rl-f input,.rl-f select{width:100%}
-select{white-space:nowrap;overflow:hidden}:root select:not([multiple]){padding-right:28px}select[multiple]{white-space:normal}
+select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([multiple]){padding-right:28px}
 .rl-f:has(>select){flex:1 1 auto;max-width:100%}.rl-f>select{field-sizing:content;min-width:120px}
 .rl-mx summary{cursor:pointer;color:var(--mut,inherit);font-size:12px;white-space:nowrap}
 .rl-mx input{margin-top:4px}
@@ -2134,7 +2134,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <script src="api/contract.js"></script>
 <script>
 // Прототип 29: заглушка. Набор расширяется в памяти до запуска встроенного сервера; общие файлы api/ не меняются.
-// Запрос к контракту — после утверждения вида. Проверка контракта для тела правила здесь выключена.
+// Запрос к контракту: api/requests/2026-11-05-130700Z-mockup-rule-chain-request.md. Проверка контракта для тела правила здесь выключена.
 (function(){
   const right={level:"FULL"},L=t=>({key:"proto29."+t,text:t,lang:"ru"});
   const ev=(id,t,x)=>({id,label:L(t),right,alarm:false,...x});
@@ -4737,7 +4737,7 @@ function ruleActs(r){return ruleItems(r).filter(x=>x.it.action)}
 // Пункты со ссылкой на устройство: события, условия, действия и события ожидания.
 function ruleRefItems(r){
   const out=[...r.when,...(r.cond||[])];
-  ruleItems(r).forEach(({it})=>{if(it.action)out.push(it);if(it.ev)out.push(it.ev)});
+  ruleItems(r).forEach(({it})=>{if(it.action||it.ctl==="check")out.push(it);if(it.ev)out.push(it.ev)});
   return out;
 }
 function ruleStepDevices(it,src){
@@ -4965,7 +4965,7 @@ const ACT_IN={source:"sub",target:"ref",preset:"n",duration:"dur",afterSec:"afte
 const ACT_OUT=Object.fromEntries(Object.entries(ACT_IN).map(([k,v])=>[v,k]));
 const CTL_IN={wait:"wait",waitEvent:"waitev",ask:"ask",escalate:"escalate"},CTL_OUT={wait:"wait",waitev:"waitEvent",ask:"ask",escalate:"escalate"};
 function stepNode(a){
-  if(a._stub){const x=a._stub;return{...x,...(x.yes?{yes:x.yes.map(stepNode),no:x.no.map(stepNode)}:{})}}
+  if(a._stub){const x=a._stub;return{...x,...(a.yes?{yes:a.yes.map(stepNode),no:a.no.map(stepNode)}:{})}}
   if(a.control){
     const c=CTL_IN[a.control];
     if(c==="wait")return{ctl:c,sec:a.sec};
@@ -4976,14 +4976,15 @@ function stepNode(a){
   if(a.type==="unitAction")return stepUnitNode(a);
   const n={};
   Object.entries(a).forEach(([k,v])=>{
-    if(k==="roleId"&&a.action==="layout"){n.to=v||"";return}
+    if(k==="roleId"&&(a.action==="layout"||a.source==="client")){n.to=v||"";return}
     const f=ACT_IN[k]||k;
     n[f]=k==="target"?refOf(v):k==="layoutId"?REF_LAYOUT.get(v)||"":k==="monitorId"?REF_MONITOR.get(v)||"":v;
   });
   return n;
 }
 function stepBody(a){
-  if(RULE_STUB_CTL.includes(a.ctl)){const x=ruleClone(a);if(x.yes){x.yes=(a.yes||[]).map(stepBody);x.no=(a.no||[]).map(stepBody)}return{control:"wait",sec:1,_stub:x}}
+  if(a.ctl==="check"){const{yes,no,...x}=ruleClone(a);return{control:"ask",text:i18n("Проверить")+": "+i18n(CHECK_WHAT[a.what]||""),roleId:(accRoles()[0]||{}).id||null,sec:1,default:"no",yes:(yes||[]).map(stepBody),no:(no||[]).map(stepBody),_stub:x}}
+  if(RULE_STUB_CTL.includes(a.ctl))return{control:"wait",sec:1,_stub:ruleClone(a)};
   if(a.ctl){
     const c=CTL_OUT[a.ctl],sec=+a.sec||0;
     if(c==="wait")return{control:c,sec};
@@ -4994,18 +4995,18 @@ function stepBody(a){
   if(actionKind(a).unit||a.sub==="unit")return stepUnitBody(a);
   const o={};
   Object.entries(a).forEach(([k,v])=>{
-    if(k==="to"&&a.action==="layout"){if(v)o.roleId=v;return}
+    if(k==="to"&&(a.action==="layout"||a.sub==="client")){if(v)o.roleId=v;return}
     const f=ACT_OUT[k]||k;
     if(f==="target"){o.target=targetOf(v);return}
     if(v===""||v==null)return;
-    o[f]=f==="layoutId"?REF_LAYOUT.get(v)||v:f==="monitorId"?REF_MONITOR.get(v)||v:["preset","port","minutes","afterSec","beforeSec","pulseMs"].includes(f)?autoNum(v):v;
+    o[f]=f==="layoutId"?REF_LAYOUT.get(v)||v:f==="monitorId"?REF_MONITOR.get(v)||v:ACT_NUM.includes(f)?autoNum(v):v;
   });
   return o;
 }
 // Команда объекта в правиле {type:"unitAction", action, target, params} ↔ пункт раздела. У известных команд (ручной
 // пункт каталога) параметры — полями пункта, как их читает редактор (preset → n, duration → dur…); у команд из описаний
 // видов и незнакомых — как есть, в args: их поля — форма по ActionDescriptor.params. Реле: state булев ↔ pulse/on/off
-const ACT_NUM=["preset","port","minutes","afterSec","beforeSec","pulseMs"];
+const ACT_NUM=["preset","port","minutes","afterSec","beforeSec","pulseMs","preSec","fps","speed","holdSec"];
 function stepUnitNode(a){
   const k=ACTION_KINDS.find(x=>x.unit&&!x.stray&&x.action===a.action),p=a.params||{};
   const n={sub:k?k.sub:"unit",action:a.action,ref:refOf(a.target)};
@@ -14587,7 +14588,13 @@ const CTL_KINDS=[
   {ctl:"check",label:"Проверить и разветвить",grp:"Ход выполнения",br:[["yes","если да"],["no","если нет"]],
    make:()=>({ctl:"check",what:"record",ref:"$src",depth:120,yes:[],no:[]}),
    text:c=>`${i18n("Проверить")}: ${i18n(CHECK_WHAT[c.what]||"")}${c.what==="record"||c.what==="safe"?` ${i18n("за")} ${c.depth||0} ${i18n("с")}`:""}`,
-   check:c=>c.ref?"":`«${i18n("Проверить и разветвить")}»: не выбрано устройство`,
+   check:(c,r)=>{
+     const t=`«${i18n("Проверить и разветвить")}»`;
+     if(!c.ref)return`${t}: не выбрано устройство`;
+     if(c.ref==="$src"&&!ruleSrcOk(r,ruleSlotKind("then",c).devTypes))return`${t}: «${i18n("Устройство из события")}» можно выбрать, только если в «Если» есть событие от устройства того же типа`;
+     if((c.what==="record"||c.what==="safe")&&!(+c.depth>=1&&+c.depth<=86400))return`${t}: ${i18n("глубина от 1 до 86400 секунд")}`;
+     return"";
+   },
    fieldsHtml:(c,ps)=>`<div class="rl-f">${selHtml(Object.entries(CHECK_WHAT),c.what,`setCtlField('${ps}','what',this.value)`,"Что проверить")}</div>${refFieldHtml("then",ps,c.ref)}
      ${c.what==="record"||c.what==="safe"?`<div class="rl-f rl-dflt">${i18n("за последние")} <input type="number" min="1" max="86400" value="${escHtml(c.depth??"")}" aria-label="${i18n("Секунд")}" ${onEv("change",["setCtlField",`${ps}`,"depth",onEv.value])}> ${i18n("с")}</div>`:""}`},
   {ctl:"after",label:"Дождаться конца предыдущего шага",grp:"Ход выполнения",br:[],
@@ -14655,6 +14662,7 @@ const CTL_KINDS=[
        <div class="rl-f rl-dflt">${selHtml([["ack","пока тревогу не квитируют"],["reset","пока не закончится событие"]],c.stop==="reset"?"reset":"ack",`setCtlField('${ps}','stop',this.value)`,"Остановить, когда")}</div></div></div>`}];
 const RULE_ESC_MAX=5;
 const RULE_STUB_CTL=["check","after","abort"];
+const RULE_NUM_RANGE={preSec:[0,3600],fps:[1,120],speed:[1,100],holdSec:[0,86400]};
 const RULE_ESC_VIA={client:"в клиенте",tg:"в Telegram",email:"письмом"};
 function ruleRoleName(id){const r=id&&accRoles().find(x=>x.id===id);return r?r.n:(id||"—")}
 // Кто в демо ответил от имени роли: у встроенных ролей — их пользователи, у остальных — первый пользователь роли.
@@ -15213,6 +15221,8 @@ function ruleProblem(r){
     const need=k.fields.filter(f=>!/необязательно/.test(f.label)&&f.req!==false&&(!f.on||f.on(a))).map(f=>f.id);
     const miss=need.find(id=>!String(a[id]??"").trim());
     if(miss)return`«${i18n(k.label)}»: ${miss==="ref"?"не выбрано устройство":`не заполнено поле «${i18n((k.fields.find(f=>f.id===miss)||{}).label||miss)}»`}`;
+    const outN=Object.keys(RULE_NUM_RANGE).find(f=>k.fields.some(x=>x.id===f)&&String(a[f]??"").trim()!==""&&!(+a[f]>=RULE_NUM_RANGE[f][0]&&+a[f]<=RULE_NUM_RANGE[f][1]));
+    if(outN)return`«${i18n(k.label)}»: «${i18n(k.fields.find(x=>x.id===outN).label)}» — ${i18n("от")} ${RULE_NUM_RANGE[outN][0]} ${i18n("до")} ${RULE_NUM_RANGE[outN][1]}`;
     if(refIsGroup(a.ref)&&!refBroken(a.ref)&&!refNodes(a.ref,k.devTypes).length)return`«${i18n(k.label)}»: в выбранной области нет подходящих устройств`;
     if(a.ref==="$src"&&!ruleSrcOk(r,k.devTypes))return`«${i18n(k.label)}»: «${i18n("Устройство из события")}» можно выбрать, только если в «Если» есть событие от устройства того же типа`;
     if(k.via&&!find(k.via))return`${i18n("нет оповещателя для")} «${i18n(k.short||k.label)}»`;
@@ -15985,7 +15995,7 @@ function setWhenLogic(v){ruleEdit(r=>{r.whenAny=v==="any";r.within=r.whenAny?0:(
 function setCondLogic(v){ruleEdit(r=>{r.condAny=v==="any"})}
 function ruleLogicChips(cur,on,a,b){const c=(v,l)=>`<button type="button" class="stchip ${cur===v?"on":""}" aria-pressed="${cur===v}" ${onEv("click",[on,v])}><span class="stchip-lab">${i18n(l)}</span></button>`;return`<span class="rl-chips rl-logic" role="group">${c("any",a)}${c("all",b)}</span>`}
 function ruleEveryOn(v){ruleEdit(r=>{r.sched=r.sched||{days:[1],at:"10:00"};r.sched.every=v?(r.sched.every||60):0;if(!v)r.sched.rnd=false})}
-function ruleEverySet(v){ruleEdit(r=>{r.sched.every=parseInt(v,10)||1})}
+function ruleEverySet(v){ruleEdit(r=>{r.sched.every=Math.min(10080,Math.max(1,parseInt(v,10)||1))})}
 function ruleEveryRnd(v){ruleEdit(r=>{r.sched.rnd=!!v})}
 // «То» адресуется путём пункта строкой («2.yes.0»); lp — путь списка («» — верхний, «2.yes» — ветка шага 2).
 function ruleLastIdx(path){path=ruleParsePath(path);return path[path.length-1]}
@@ -16010,7 +16020,7 @@ function setStepKind(ps,v){
 function setActionField(ps,f,v){
   ruleEdit(r=>{
     const a=ruleThenAt(r,ps);if(!a)return;
-    const o=a[f],num=(typeof o==="number"||f==="after"||f==="minutes")&&String(v).trim()!==""&&!isNaN(+v);
+    const o=a[f],num=(typeof o==="number"||f==="after"||f==="minutes"||f in RULE_NUM_RANGE)&&String(v).trim()!==""&&!isNaN(+v);
     a[f]=num?+v:v;
     if(f==="dur"&&v==="event"&&a.after===undefined)a.after=0;
   });
@@ -16566,7 +16576,7 @@ function ruleCheckRender(){
     const cands=rck.cands.map((c,i)=>`<label class="rl-pk rl-cand"><input type="radio" name="rckPick" ${rck.pick===i?"checked":""} ${onEv("change",["ruleCheckSet","pick",i])}><span>${escHtml(c.text?`${c.t} · ${c.text}`:`${c.t} · ${c.evs.map(ruleEvText).join(" + ")}`)}</span><small>${escHtml(c.from)}</small></label>`).join("");
     const rows=r.when.map((t,j)=>{
       const w=rck.rows[j],kd=TRIGGER_KINDS[w.kind];
-      return`<div class="rl-row"><div class="rl-n">${j?i18n("и"):i18n("Если")}</div>
+      return`<div class="rl-row"><div class="rl-n">${j?i18n(r.whenAny?"или":"и"):i18n("Если")}</div>
         <div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,TRIGGER_KINDS[w.kind]),w.kind,`ruleCheckRow(${j},'kind',this.value)`)}</div>
         <div class="rl-f">${ruleCheckDevSel(t,kd,w.ref,j)}</div></div>`}).join("");
     h+=`<div class="rl-h">${i18n("Источник события")}</div><div class="rl-opts">
@@ -29429,7 +29439,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     evStep("load.high","Нагрузка выше порога: что считать, процент и тренд. Сервер прототипа это не считает, поля показывают вид."),
     evStep("sched.edge","Начало или конец расписания как событие."),
     evStep("volume.error","Ошибка тома архива. В прототипе событие привязано к серверу: в наборе нет томов для выбора."),
-    {say:"Все эти события — заглушка в файле прототипа. После утверждения вида они войдут в запрос к контракту."}]);
+    {say:"Все эти события — заглушка в файле прототипа. Они описаны в запросе к контракту."}]);
 
   Tour.offer("Ветвления и ход выполнения",[
     {say:"Шаблон «Нет записи — письмо» запускается по расписанию и повторяется с интервалом. Раньше у расписания были только дни и время.",before:()=>fresh("norec","sched"),at:()=>[...document.querySelectorAll("#main label,#main .rl-f")].find(e=>/Повторять/.test(e.textContent)&&e.textContent.length<80)},
@@ -29458,7 +29468,7 @@ if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement
     actStep("Отправить письмо","Письмо теперь может взять вложение: кадр или видео."),
     actStep("Push-уведомление","Push-уведомление с заголовком, текстом и вложением."),
     actStep("Воспроизвести звук у оператора","Звук в клиенте для выбранной роли."),
-    actStep("Голосовое сообщение от оператора","Голосовое сообщение от оператора на устройство."),
+    actStep("Голосовое сообщение от оператора","Голосовое сообщение от оператора: выбирается роль."),
     actStep("Команда экрану оператора","Команда экрану: камера, карта, архив, пометка, слайд-шоу, возврат раскладки."),
     actStep("Запустить программу у оператора","Программа на компьютере оператора."),
     actStep("Запустить программу на сервере","Программа на сервере, с аргументами."),
