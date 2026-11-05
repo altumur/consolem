@@ -67,10 +67,12 @@ UiCheck(async ({ ok, until }) => {
 
   // Учебный режим — страница в окне, на всю ширину. Адрес API задан нарочно: запросы туда идти не должны
   const API_ADDR = "http://127.0.0.1:9";
+  // Прототип со своим файлом тем называет себя сам: иначе показ в окне открыл бы темы index.html
+  const LEARN_PAGE = document.querySelector('meta[name="learn-page"]')?.content || "index.html";
   const open = (query, withApi = true) => {
     const f = document.createElement("iframe");
     f.style.cssText = "position:fixed;width:1440px;height:900px;left:-3000px;top:0;border:0";
-    f.src = new URL(`index.html?${withApi ? `api=${encodeURIComponent(API_ADDR)}&` : ""}${query}`, document.baseURI).href;
+    f.src = new URL(`${LEARN_PAGE}?${withApi ? `api=${encodeURIComponent(API_ADDR)}&` : ""}${query}`, document.baseURI).href;
     document.body.appendChild(f);
     return f;
   };
