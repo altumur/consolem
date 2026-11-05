@@ -718,6 +718,8 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-n{flex:none;min-width:34px;color:var(--mu);font-size:12px;text-transform:lowercase}
 .rl-f{flex:1 1 140px;min-width:0}
 .rl-f input,.rl-f select{width:100%}
+select{white-space:nowrap;overflow:hidden}:root select:not([multiple]){padding-right:28px}select[multiple]{white-space:normal}
+.rl-f:has(>select){flex:1 1 auto;max-width:100%}.rl-f>select{field-sizing:content;min-width:120px}
 .rl-mx summary{cursor:pointer;color:var(--mut,inherit);font-size:12px;white-space:nowrap}
 .rl-mx input{margin-top:4px}
 .rl-ref{display:flex;align-items:center;gap:6px}
@@ -29311,6 +29313,11 @@ document.addEventListener("mousedown",e=>{
 document.addEventListener("click",e=>{
   const s=e.target.closest?.("select");
   if(e.detail===0&&cbxFits(s)&&!cbx)cbxOpen(s);
+},true);
+// Поле в одну строку: обрезанный текст виден целиком в подсказке
+document.addEventListener("mouseover",e=>{
+  const s=e.target.closest?.("select");
+  if(s&&!s.multiple)s.title=s.selectedOptions[0]?.textContent||"";
 },true);
 document.addEventListener("keydown",e=>{
   const s=e.target;
