@@ -56,7 +56,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
 
   // «Камеры без архива»: внизу дерева, свёрнут, список от сервера
   const top = () => tree().querySelector(".as-norec-top");
-  const expected = (await API.get("/devices", { domainId: dom.id, noRecord: true })).items;
+  const expected = (await API.get("/units", { domainId: dom.id, noRecord: true })).items.filter(uiIsDevice);
   ok(expected.length > 0, "в наборе есть камеры без записи");
   ok(await until(() => top() && archUnlinked(dom.id).length >= expected.length), "пункт появился, камеры прочитаны");
   ok(!open.has(AS_NOREC) && !tree().querySelector(".as-norec-top ~ .n[data-pick]"), "пункт свёрнут");
@@ -140,7 +140,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await made("Проба локальное"), "локальное создано");
   await landed("локальное с домена", "Проба локальное");
   const localMade = find(sel).n;
-  ok((await API.get("/archives/" + localMade.id)).serverId === bare.id, "на сервере: владелец — выбранный сервер");
+  ok((await uiRec(localMade.id)).serverId === bare.id, "на сервере: владелец — выбранный сервер");
 
   pick(dom.id, { force: true });
   addArchive(dom.id);
@@ -149,7 +149,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await made("Проба сетевое"), "сетевое создано");
   await landed("сетевое с домена", "Проба сетевое");
   const netMade = find(sel).n;
-  const netApi = await API.get("/archives/" + netMade.id);
+  const netApi = await uiRec(netMade.id);
   ok(!netApi.serverId && netApi.domainId === dom.id, "на сервере: владелец — домен");
   ok(open.has("as:net:" + dom.id), "группа сетевых раскрыта");
 

@@ -1,24 +1,23 @@
 /* Общее правило страницы на встроенном сервере: tools/check_api.py читает отсюда JSON со списком расхождений.
    Каждый перечень таблицы предложения: limit, обход до конца без потерь и повторов, чужой курсор, пределы limit. Пустая страница
-   с nextCursor на фильтре и в папке. Обе формы version в /objects/delete. У универсальной модели (api-generic: есть GET /units)
-   перечни объектов — /units, предметные API — /units/{uid}/…, в /objects/delete — Unit.version объекта и Rule.version правила. */
+   с nextCursor на фильтре и в папке. Обе формы version в /objects/delete. Перечни объектов — /units, предметные API —
+   /units/{uid}/…, в /objects/delete — Unit.version объекта и Rule.version правила. */
 global.window = global;
-// Папка API — первый аргумент (по умолчанию api): node tools/check_pages.js api-generic
+// Папка API — первый аргумент (по умолчанию api): node tools/check_pages.js [DIR]
 const API = require("path").resolve(__dirname, "..", process.argv[2] || "api");
 require(API + "/contract.js");
 require(API + "/server.js");
 const raw = require(API + "/fixtures/demo.json");
-// Набор универсальной модели (api-generic) — без старых разделов: записи для выборки ниже выводим из units тем же мостом, что у сервера
-const fx = window.ConsolemServer.legacyFixture ? window.ConsolemServer.legacyFixture(raw) : raw;
+// Набор хранит только units: записи для выборки ниже (domains, devices…) выводим из них тем же мостом, что у сервера
+const fx = window.ConsolemServer.legacyFixture(raw);
 const openapi = require(API + "/openapi.json");
 const s = window.ConsolemServer.create({ fixture: raw, fixtures: { demo: raw }, openapi, autoTick: false, testSupport: true });
 const bad = [];
 const get = (p) => s.handle("GET", p);
 const sep = (p) => (p.includes("?") ? "&" : "?");
 const rule = fx.ruleFires[0].ruleId, did = fx.domains[0].id;
-const G = s.routes.includes("GET /units");
-const OBJ = G ? "/units" : "/devices";
-const LISTS = [...(G ? ["/units"] : ["/devices", "/archives", "/volumes", "/folders"]), "/journal", "/operations", `/rules/${rule}/fires`, "/archive-watches", "/archive-scans",
+const OBJ = "/units";
+const LISTS = ["/units", "/journal", "/operations", `/rules/${rule}/fires`, "/archive-watches", "/archive-scans",
   "/access/users", "/access/groups", "/access/history", "/access/cell-history", `/access/roles/${fx.access.roles[0].id}/objects`, `/tree/children?layout=servers&parentId=${did}`];
 const recCam = fx.devices.find((d) => d.type === "camera" && d.archiveId);
 LISTS.push(`${OBJ}/${recCam.id}/timeline`, `${OBJ}/${recCam.id}/holds`, `${OBJ}/${recCam.id}/bookmarks`);
@@ -26,7 +25,7 @@ LISTS.push(`${OBJ}/${recCam.id}/timeline`, `${OBJ}/${recCam.id}/holds`, `${OBJ}/
   s.handle("POST", `${OBJ}/${recCam.id}/holds`, { from, to });
   s.handle("POST", `${OBJ}/${recCam.id}/bookmarks`, { note: "проба", occurred: from });
 });
-const first = fx.devices[0], firstVersion = G ? get(`/units/${first.id}`).body.version : first.version;
+const first = fx.devices[0], firstVersion = get(`/units/${first.id}`).body.version;
 s.handle("PATCH", `${OBJ}/${first.id}`, { name: "Проба" }, { "If-Match": `"${firstVersion}"` });
 for (const path of LISTS) {
   const all = [];
@@ -58,17 +57,11 @@ if (!empties) bad.push(`${OBJ}: нет пустой страницы с nextCurs
 // Обе формы version
 const a = fx.devices.find((d) => d.type === "camera" && !d.parentId && d.serverId);
 const del = (id, version) => s.handle("POST", "/objects/delete", { idempotencyKey: `probe-${id}-${version}`, items: [{ id, version }] }).body;
-const versionOf = (d) => (G ? get(`/units/${d.id}`).body.version : d.version);
+const versionOf = (d) => get(`/units/${d.id}`).body.version;
 if (del(a.id, versionOf(a) + "x").failed[0]?.code !== "VERSION_MISMATCH") bad.push("/objects/delete: чужая версия прошла");
-const b = fx.devices.find((d) => d.type === "camera" && !d.parentId && d.serverId && d.id !== a.id);
-if (G) {
-  // Объект — по Unit.version, правило — по Rule.version
-  if (del(a.id, versionOf(a)).done[0] !== a.id) bad.push("/objects/delete: форма Unit.version не принята");
-  const r = fx.rules[0];
-  if (del(r.id, get(`/rules/${r.id}`).body.version).done[0] !== r.id) bad.push("/objects/delete: форма Rule.version не принята");
-} else {
-  if (del(a.id, "r1").done[0] !== a.id) bad.push("/objects/delete: форма r<revision> не принята");
-  if (del(b.id, get(`/devices/${b.id}`).body.version).done[0] !== b.id) bad.push("/objects/delete: форма Device.version не принята");
-}
+// Объект — по Unit.version, правило — по Rule.version
+if (del(a.id, versionOf(a)).done[0] !== a.id) bad.push("/objects/delete: форма Unit.version не принята");
+const r = fx.rules[0];
+if (del(r.id, get(`/rules/${r.id}`).body.version).done[0] !== r.id) bad.push("/objects/delete: форма Rule.version не принята");
 console.log(JSON.stringify(bad));
 process.exit(0);

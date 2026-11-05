@@ -72,7 +72,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   ok(await until(() => /Новое из потока/.test(text("[data-feed]"))), "лента: новое из потока");
   ok(reads.filter((p) => p === "/journal").length === fed, "без чтения по таймеру");
   const pos = devicePool.find((n) => n.type === "eventsrc");
-  await API.patch(`/devices/${pos.id}`, { cameraId: cam.id, overlayDelayMs: 0, overlayDurationSec: 2 }, hwVer.get(pos.id));
+  await uiPatch(pos.id, { cameraId: cam.id, overlayDelayMs: 0, overlayDurationSec: 2 }, hwVer.get(pos.id));
   await emit(pos.id, { text: "Чек", source: "pos", kind: "text", fields: { lines: ["Молоко 100", "<b>ИТОГО</b>"], word: "ОТМЕНА" } });
   ok(await until(() => /ИТОГО/.test(text("[data-live-titles]"))), "титр поверх видео");
   const tt = q("[data-live-titles]");
@@ -130,7 +130,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   await until(() => lv.tl && !lv.tl.busy && q("[data-relay] button"));
   const relay = q("[data-relay] button");
   const op = [];
-  API.post = (p, b, h) => (/operations\/output/.test(p) && op.push(b), post0(p, b, h));
+  API.post = (p, b, h) => (/actions\/output$/.test(p) && op.push(b.params), post0(p, b, h));
   relay.click();
   ok(await until(() => op.length === 1 && op[0].state === true), "реле: замкнуть");
   q("[data-relay] button:nth-of-type(3)").click();
@@ -296,11 +296,24 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const v = lv;
   await until(() => v.noHolder === false || v.noHolder === true);
   ok(v.noHolder === false && !q("[data-hold-warn]"), "держатель есть: предупреждения нет");
+  // Первая страница отбора пустая при живом nextCursor (ограниченный проход большого домена): держатель всё равно найден
+  const realGet = API.get;
+  API.get = function (path, params) {
+    const archQ = path === "/units" && params && (params.implements === "vms.archive/1" || /archive\.incidents/.test(params.kind || ""));
+    if (archQ && !params.cursor) return Promise.resolve({ items: [], nextCursor: "ui-view-empty" });
+    if (archQ && params.cursor === "ui-view-empty") { const p = Object.assign({}, params); delete p.cursor; return realGet.call(this, path, p); }
+    return realGet.call(this, path, params);
+  };
+  try {
+    v.noHolder = undefined;
+    await holdsHolder(v);
+    ok(v.noHolder === false, "держатель найден, хотя первая страница пустая с nextCursor");
+  } finally { API.get = realGet; }
   v.noHolder = true;
   viewFill();
   ok(/только пока его хранит архив записи/.test(text("[data-hold-warn]")), "нет держателя: предупреждение");
   // Потеря удержанного не молчит, под угрозой — слабее
-  const incVols = (await Promise.all((await API.get("/archives", { kind: "incidents", limit: 5 })).items.map((a) => API.get("/volumes", { archiveId: a.id, limit: 50 })))).flatMap((x) => x.items);
+  const incVols = (await Promise.all((await API.get("/units", { implements: "vms.archive/1", limit: 1000 })).items.filter((a) => archHoldKinds().includes(a.kind)).slice(0, 5).map((a) => uiRecs({ kind: "volume", parentId: a.uid })))).flat();
   if (incVols.some((x) => x.incidentsLost)) {
     ok(/потерял удержанное: 1 удержание, 7 мин записи перезаписано кольцом/.test(text("[data-hold-lost]")), "потеря: " + text("[data-hold-lost]"));
     ok(q("[data-hold-lost]").classList.contains("nt") && /Под угрозой на томе инцидентов: 1 удержание/.test(text("[data-hold-risk]")), "под угрозой: " + text("[data-hold-risk]"));

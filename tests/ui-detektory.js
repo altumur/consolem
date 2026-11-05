@@ -12,16 +12,8 @@ UiCheck(async ({ ok, until }) => {
   detCreateOpen();
   ok(await until(() => dc && dc.ready), "мастер прочитал камеры");
   ok(dcSteps().map((x) => x.k).join() === "what,cams,zones,rule,end", "пять шагов");
-  const dets = async () => {
-    const out = [];
-    let cursor = null;
-    do {
-      const r = await API.get("/devices", { type: "det", cursor, limit: 100 });
-      out.push(...r.items);
-      cursor = r.nextCursor || null;
-    } while (cursor);
-    return out;
-  };
+  // Детекторы на сервере — по профилю vms.detector/1, страницами до конца
+  const dets = () => uiUnitsAll({ implements: "vms.detector/1" });
   const before = (await dets()).length;
   const line = "s:" + DET_TYPES.find((t) => DET_KIND_CODE[t] === "linecross");
   const area = "s:" + DET_TYPES.find((t) => DET_KIND_CODE[t] === "motion");
@@ -164,7 +156,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => bq?.finished), "операция закончилась");
   ok((await dets()).length === before + 4, `созданы четыре детектора: ${(await dets()).length - before}`);
   const made = (await dets()).filter((x) => x.parentId === cams[0].id);
-  const full = await Promise.all(made.map((x) => API.get(`/devices/${x.id}`)));
+  const full = await Promise.all(made.map((x) => uiRec(x.uid)));
   ok(full.some((x) => x.zone?.shape === "line") && full.some((x) => x.zone?.shape === "rect"), "зоны прочитаны с сервера");
   ok(await until(() => rules.filter((r) => r.then[0]?.archive === archive).length === 2), "создано два правила с архивом");
   ok(rules.filter((r) => r.then[0]?.archive === archive).every((r) => r.when.length === 1 && r.cond.length === 1), "правило: одно событие, условие на месте");
@@ -236,9 +228,12 @@ UiCheck(async ({ ok, until }) => {
   document.getElementById("confirmOk").click();
 
   // Система не объявила поле «Сколько»: его нет в действии и нет варианта «пока идёт событие»
-  const refActs = RULE_REF.actions;
-  RULE_REF.actions = refActs?.map((a) => (a.action === "record" ? { ...a, fields: a.fields.filter((f) => f.id !== (ACT_OUT.dur || "dur")) } : a)) || null;
-  if (RULE_REF.actions) {
+  // В модели запись — команда вида камеры (UnitKind.actions, ruleAction): поле «Сколько» — свойство её params
+  const recK = ACTION_KINDS.find((k) => k.unit && !k.stray && k.action === "record"), recParams = recK?.params;
+  const durName = ACT_OUT.dur || "dur";
+  if (recParams) recK.params = { ...recParams, properties: Object.fromEntries(Object.entries(recParams.properties || {}).filter(([n]) => n !== durName)) };
+  ok(!!recParams && !!recParams.properties?.[durName], "у команды записи есть поле «Сколько»: " + durName);
+  if (recParams) {
     detCreateOpen();
     ok(await until(() => dc && dc.ready), "мастер открыт без поля «Сколько»");
     dcItemToggle(area, true);
@@ -252,7 +247,7 @@ UiCheck(async ({ ok, until }) => {
     dcCancel();
     document.getElementById("confirmOk").click();
   }
-  RULE_REF.actions = refActs;
+  if (recParams) recK.params = recParams;
 
   // Запись и тревога доходят до сервера одним правилом на вид
   detCreateOpen();

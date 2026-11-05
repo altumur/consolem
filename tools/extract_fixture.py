@@ -10,13 +10,13 @@
 Запуски правил считает движок сервера (tools/fixture_fires.js) — так же, как
 макет считал свои демо-запуски.
 
-Так набор совпадает с тем, что прототип показывал до переделки. Дальше набор
-правят руками: этот скрипт перезапишет правки, поэтому без --force он
-отказывается писать поверх существующего файла.
+Так набор совпадал с тем, что прототип показывал до переделки. С переходом на модель объектов
+(после 47d1310) api/fixtures/demo.json — набор модели, его правят руками; этот скрипт собирает
+набор прежнего контракта и пишет его только в --out ФАЙЛ (сам модуль нужен compare_screens.py).
 
 Запуск из корня репозитория:
   python3 tools/extract_fixture.py --raw /tmp/raw.json   только снимок памяти
-  python3 tools/extract_fixture.py --force               перезаписать набор
+  python3 tools/extract_fixture.py --out FILE            набор прежнего контракта в FILE (не в api/fixtures/demo.json)
   python3 tools/extract_fixture.py --source 3f9863a:index_09_one-psim.html --raw /tmp/raw.json
                                                          снимок другого макета (файл или «коммит:путь»)
 """
@@ -108,18 +108,20 @@ def snapshot(source=BASELINE):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--raw", help="записать снимок памяти как есть и выйти")
-    ap.add_argument("--force", action="store_true", help="перезаписать существующий набор")
+    ap.add_argument("--out", help="куда записать набор прежнего контракта (api/fixtures/demo.json — нельзя: там набор модели объектов)")
     ap.add_argument("--source", default=BASELINE,
                     help="макет, из которого снимать данные (по умолчанию %(default)s)")
     args = ap.parse_args()
+    # Набор собирается в форме прежнего контракта (до 47d1310); api/fixtures/demo.json теперь — набор модели объектов,
+    # его правят руками, и этот скрипт его не пишет
+    if not args.raw and (not args.out or os.path.abspath(args.out) == OUT):
+        sys.exit(f"набор прежнего контракта — только в --out ФАЙЛ, не в {OUT}: там набор модели объектов, его правят руками")
     raw = snapshot(args.source)
     if args.raw:
         with open(args.raw, "w", encoding="utf-8") as f:
             json.dump(raw, f, ensure_ascii=False, indent=1)
         print(f"Снимок: {args.raw}")
         return 0
-    if os.path.exists(OUT) and not args.force:
-        sys.exit(f"{OUT} уже есть и мог быть поправлен руками; перезаписать — --force")
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from fixture_normalize import normalize
 
@@ -131,11 +133,11 @@ def main():
     if res.returncode:
         sys.exit("Запуски правил не посчитаны:\n" + res.stderr[-2000:])
     fixture["ruleFires"] = json.loads(res.stdout)
-    os.makedirs(os.path.dirname(OUT), exist_ok=True)
-    with open(OUT, "w", encoding="utf-8") as f:
+    os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
+    with open(args.out, "w", encoding="utf-8") as f:
         json.dump(fixture, f, ensure_ascii=False, indent=1)
         f.write("\n")
-    print(f"Набор: {OUT}")
+    print(f"Набор: {args.out}")
     return 0
 
 

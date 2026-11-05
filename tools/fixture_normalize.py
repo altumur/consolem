@@ -514,11 +514,24 @@ def normalize(raw, captured_at):
     return out
 
 
+# Контракт старого макета (пути по видам, DeviceType): снимок на константах переводится в его записи. Нынешний
+# api/openapi.json — универсальная модель, поэтому старый берётся из истории git
+OLD_CONTRACT = "47d1310:api/openapi.json"
+
+
+def old_contract():
+    import subprocess
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
+    res = subprocess.run(["git", "show", OLD_CONTRACT], capture_output=True, text=True, cwd=root)
+    if res.returncode:
+        raise SystemExit(f"Нет контракта старого макета {OLD_CONTRACT} (нужен git с этим коммитом): {res.stderr.strip()}")
+    return json.loads(res.stdout)
+
+
 def capabilities():
     """Эталонный набор — система, которая умеет весь контракт: все операции, кроме служебных /test/…,
     все виды устройств и все необязательные возможности."""
-    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "api", "openapi.json"), encoding="utf-8") as f:
-        spec = json.load(f)
+    spec = old_contract()
     ops = [o["operationId"] for item in spec["paths"].values() for m, o in item.items()
            if m in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", [])]
     schemas = spec["components"]["schemas"]

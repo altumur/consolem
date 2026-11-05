@@ -1,8 +1,8 @@
 /* Сценарии интерфейса: журнал операций и откат цепочкой. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until }) => {
   const cam = (await uiDevices()).find((d) => d.type === "camera");
-  const a = await API.patch(`/devices/${cam.id}`, { short: "A" }, cam.version);
-  await API.patch(`/devices/${cam.id}`, { short: "B" }, a.version);
+  const a = await uiPatch(cam.id, { short: "A" }, cam.version);
+  await uiPatch(cam.id, { short: "B" }, a.version);
   goApp("log");
   logGo("ops");
   ok(await until(() => logOps.length >= 2), "обе правки в журнале операций");
@@ -32,15 +32,15 @@ UiCheck(async ({ ok, until }) => {
   btn("data-op", younger).click();
   ok(await until(() => find(cam.id)?.n.short === "A"), "повтор отменён как обычная операция");
   ok(await until(() => btn("data-redo", younger)), "и снова повторяется");
-  await API.patch(`/devices/${cam.id}`, { short: "C" }, hwVer.get(cam.id));
+  await uiPatch(cam.id, { short: "C" }, hwVer.get(cam.id));
   ok(await until(() => !document.querySelector("[data-redo]")), "новая правка очищает повтор");
   // Хранилище и том — в той же стопке: строка называет их, размер тома не возвращается
   const remote = arch.find((a) => a.kind === "network" && a.vols.length);
-  await API.patch(`/archives/${remote.id}`, { retentionDays: 77 }, hwVer.get(remote.id));
+  await uiPatch(remote.id, { retentionDays: 77 }, hwVer.get(remote.id));
   ok(await until(() => logOps[0]?.items[0]?.targetId === remote.id), "правка хранилища в журнале операций");
   ok(document.getElementById("main").textContent.includes(locName(remote)), "строка называет хранилище");
-  const volV = remote.vols[0], volR = await API.get(`/volumes/${volV.id}`);
-  await API.patch(`/volumes/${volV.id}`, { sizeBytes: volR.sizeBytes + 1024 ** 3 }, volR.version);
+  const volV = remote.vols[0], volR = await uiRec(volV.id);
+  await uiPatch(volV.id, { sizeBytes: volR.sizeBytes + 1024 ** 3 }, volR.version);
   ok(await until(() => logOps[0]?.items[0]?.targetId === volV.id && btn("data-op", logOps[0])), "правка тома — верхняя");
   const volOp = logOps[0];
   btn("data-op", volOp).click();
@@ -49,8 +49,8 @@ UiCheck(async ({ ok, until }) => {
   goApp("log");
   logGo("ops");
   // Камера не наблюдается: версию берём у сервера
-  const camNow = (await API.get(`/devices/${cam.id}`)).version;
-  const plan = await API.post("/operations", { idempotencyKey: "ui-ops-busy", items: ["D", "E", "F", "G", "H", "I", "J", "K"].map((short) => ({ targetId: cam.id, set: { short } })), expectedVersions: { [cam.id]: camNow } });
+  const camNow = (await uiRec(cam.id)).version;
+  const plan = await API.post("/operations", { idempotencyKey: "ui-ops-busy", items: ["D", "E", "F", "G", "H", "I", "J", "K"].map((short) => ({ uid: cam.id, patch: { properties: { short } } })), expectedVersions: { [cam.id]: camNow } });
   ok(await until(() => logOps[0]?.id === plan.id && btn("data-op", logOps[0])), "операция из восьми шагов — верхняя");
   const posts = [];
   const patch0 = API.patch;

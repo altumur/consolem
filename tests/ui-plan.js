@@ -101,7 +101,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // 4. Ошибки и предупреждения
   wizStepGo(1);
   const camId = (await uiDevices()).find((d) => d.type === "camera" && d.identifier).id;
-  const takenId = (await API.get("/devices/" + camId)).identifier;
+  const takenId = (await uiRec(camId)).identifier;
   const csvRow = addPlan.rows.find((x) => x.source === "csv");
   csvRow.r.identifier = takenId;
   ok(planRowIssues(csvRow).some((i) => i.err && /уже используется/.test(i.text)), "занятый ID — ошибка строки");
@@ -116,11 +116,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   expand.click();
   ok(document.querySelector(`.plan-row[data-pid="${csvRow.pid}"] .plan-edit`) && document.querySelector(`.plan-row[data-pid="${csvRow.pid}"] input[type=password]`), "строка раскрывается: поля и пароль");
 
-  // 5. Применить: один POST /devices, подтверждение из-за предупреждения
+  // 5. Применить: один POST /units, подтверждение из-за предупреждения
   const posts = [];
   const realPost = API.post;
   API.post = function (path, body, ...rest) {
-    if (path === "/devices") posts.push(body);
+    if (path === "/units") posts.push(body);
     return realPost.call(this, path, body, ...rest);
   };
   planApply();
@@ -131,7 +131,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const applyRows = planOkRows().slice();
   await confirmWith();
   ok(await until(() => !addPlan.applying && addPlan.added.length === 3), "план применён");
-  ok(posts.length === 1 && posts[0].items.length === 3, "ушёл один POST /devices на 3 устройства");
+  ok(posts.length === 1 && posts[0].items.length === 3, "ушёл один POST /units на 3 устройства");
   const after = await uiDevices();
   ok(after.filter((d) => d.type !== "det").length === n0 + 3, "на сервере +3 устройства: " + (n0 + 3));
   const made = applyRows.map((x) => after.find((d) => d.ip === x.r.ip));
@@ -154,7 +154,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   pick(d1.id);
   goTab("gen");
   planOpen("manual");
-  await API.post("/devices", { idempotencyKey: "occupy-9001", items: [{ device: { type: "camera", name: "Занято", identifier: "9001", rtspUrl: "rtsp://10.9.9.9/1" }, domainId: d1.id, parentId: null, folderId: null }] }).then((r) => ok(r.done.length === 1, "занято: " + JSON.stringify(r.failed)), (e) => ok(false, "occupy " + JSON.stringify(e)));
+  await API.post("/units", { idempotencyKey: "occupy-9001", items: [{ kind: "camera", name: "Занято", parentId: null, domainId: d1.id, properties: { identifier: "9001", rtspUrl: "rtsp://10.9.9.9/1" } }] }).then((r) => ok(r.done.length === 1, "занято: " + JSON.stringify(r.failed)), (e) => ok(false, "occupy " + JSON.stringify(e)));
   const mk = (ip, id) => {
     Object.assign(wizd.manual, { type: "camera", ip, port: "80", vendor: "Axis", model: "P3245-LV", user: "admin", pass: "pw", name: "Камера " + ip, identifier: id, short: "", rtsp: "" });
     planAddManual();
@@ -185,7 +185,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const keys = [];
   let cut = true;
   API.post = function (path, body, ...rest) {
-    if (path === "/devices") {
+    if (path === "/units") {
       keys.push(body.idempotencyKey);
       if (cut) {
         cut = false;
@@ -217,7 +217,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!headText().some((t) => /В плане/.test(t)), "на кнопках шапки метки плана нет: " + headText().join(" | "));
   // Кнопки устройства ведут в тот же план; «Добавить службу» в план не ведёт
   const headAdd = () => [...document.querySelectorAll("#main .hd-act > button")].find((b) => /^Добавить/.test(b.textContent.trim()));
-  const allDevs = await API.get("/devices", { limit: 1000 }).then((r) => r.items);
+  const allDevs = (await uiUnitsAll()).filter(uiIsDevice).map(uiFlat);
   const devOf = (fn) => allDevs.find((d) => fn(d) && find(d.id));
   for (const [what, d] of [["камера", devOf((x) => x.type === "camera")], ["ACFA", devOf((x) => x.type === "acfa")]]) {
     pick(d.id);
@@ -268,7 +268,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     const fdRow = foundAll(fdDom.id).find((r) => r.status === "ok" && !r.added);
     const fdPosts = [];
     API.post = function (path, body, ...rest) {
-      if (path === "/devices") fdPosts.push(body);
+      if (path === "/units") fdPosts.push(body);
       return realPost.call(this, path, body, ...rest);
     };
     pick(`fdev:${fdDom.id}:${fdRow.id}`);
@@ -322,7 +322,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   planApply();
   ok(await until(() => !addPlan.applying && addPlan.added.length === 1), "применено при открытой вкладке «Устройства»");
   ok(/Добавлено \(1\)/.test(document.getElementById("planPanel").textContent) && !/идёт…/.test(document.getElementById("planPanel").textContent), "панель показывает «Добавлено (1)», а не «идёт…»");
-  await API.post("/devices", { idempotencyKey: "occupy-9002", items: [{ device: { type: "camera", name: "Занято 2", identifier: "9002", rtspUrl: "rtsp://10.9.9.8/1" }, domainId: d1.id, parentId: null, folderId: null }] });
+  await API.post("/units", { idempotencyKey: "occupy-9002", items: [{ kind: "camera", name: "Занято 2", parentId: null, domainId: d1.id, properties: { identifier: "9002", rtspUrl: "rtsp://10.9.9.8/1" } }] });
   // кэш интерфейса уже знает «9002» из потока событий: на время проверки отключаем его знание, чтобы отказал сервер
   const realTaken = planIdTaken;
   planIdTaken = () => false;
@@ -392,7 +392,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   planApply();
   ok(await until(() => !addPlan.applying && addPlan.added.length === 1), "F8: регистратор применён");
   const nvrId = addPlan.added[0].id;
-  ok((await API.get("/devices/" + nvrId)).serverId === nrow.serverId, "F8: регистратор — на сервере строки");
+  ok((await uiRec(nvrId)).serverId === nrow.serverId, "F8: регистратор — на сервере строки");
   closeWizard();
   addPlan.rows = [];
   planTouch();
@@ -579,7 +579,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !an && arch.some((a) => a.name === "Общее хранилище — срез 2")), "диалог домена: хранилище создано, диалог закрыт");
   ok(open.has(d2Dom.id) && !open.has(undefined) && document.querySelectorAll("#tree .n.on").length === 1, "созданное видно и выделено в дереве, домен раскрыт");
   const d2Made = arch.find((a) => a.name === "Общее хранилище — срез 2");
-  const d2SharedRec = await API.get("/archives/" + d2Made.id);
+  const d2SharedRec = await uiRec(d2Made.id);
   ok(!d2SharedRec.serverId && d2SharedRec.domainId === d2Dom.id && domainArchives(d2Dom.id).includes(d2Made), "на сервере — хранилище домена, оно в его списке");
   pick(d2Dom.id);
   goTab("srvs");
@@ -645,7 +645,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(anArchive().firstVolume.disk === d2Nas(78), "путь NAS дошёл до запроса: " + anArchive().firstVolume.disk);
   createArchive();
   ok(await until(() => arch.some((a) => a.name === "Сетевое на сервере — срез 2")), "сетевое хранилище создано с сервера");
-  const d2Rec = await API.get("/archives/" + arch.find((a) => a.name === "Сетевое на сервере — срез 2").id);
+  const d2Rec = await uiRec(arch.find((a) => a.name === "Сетевое на сервере — срез 2").id);
   ok(d2Rec.serverId === d2Srv.id, "на сервере: сетевое хранилище этого сервера, serverId " + d2Rec.serverId);
   ok(serverArchives(d2Srv.id).some((a) => a.id === d2Rec.id), "оно в списке хранилищ сервера");
   pick(d2Srv.id);
@@ -672,7 +672,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   createArchive();
   ok(await until(() => !an && arch.some((a) => a.name === "S3 на сервере — срез 2")), "S3: создано с сервера");
   const d2S3 = arch.find((a) => a.name === "S3 на сервере — срез 2");
-  const d2S3Rec = await API.get("/archives/" + d2S3.id);
+  const d2S3Rec = await uiRec(d2S3.id);
   ok(d2S3Rec.kind === "cloud" && d2S3Rec.provider === "s3" && d2S3Rec.storage === "object" && d2S3Rec.serverId === d2Srv.id, "S3: сервер записал вид, провайдера и владельца — " + d2S3Rec.kind + ", " + d2S3Rec.provider);
   ok(document.querySelector("#tree .n.on .tag-cloud")?.textContent === "S3" && serverArchives(d2Srv.id).includes(d2S3), "S3: метка S3 в дереве, хранилище в списке сервера");
   ok(/^s3:\/\/vms-archive\//.test(archDiskLabel(d2S3)), "S3: в строке списка адрес бакета, а не код провайдера — " + archDiskLabel(d2S3));
@@ -696,16 +696,17 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   anSet("name", "S3 на домене — срез 2", true);
   createArchive();
   ok(await until(() => !an && arch.some((a) => a.name === "S3 на домене — срез 2")), "S3: создано с домена");
-  const d2S3Dom = await API.get("/archives/" + arch.find((a) => a.name === "S3 на домене — срез 2").id);
+  const d2S3Dom = await uiRec(arch.find((a) => a.name === "S3 на домене — срез 2").id);
   ok(d2S3Dom.kind === "cloud" && d2S3Dom.provider === "minio" && !d2S3Dom.serverId && d2S3Dom.domainId === d2Dom.id, "S3 с домена: владелец — домен, провайдер MinIO");
   } else ok(!arch.some((a) => a.kind === "cloud"), "S3: вид не объявлен — форма его не предлагает");
   pick(d2Srv.id);
   goTab("disk");
 
-  // Нет операции createArchive — нигде не предлагается
-  const d2Can = CAPS.operations;
-  CAPS.operations = new Set([...d2Can].filter((o) => o !== "createArchive"));
-  ok(!can("createArchive"), "операция снята");
+  // Хранилище не заводится — нигде не предлагается. Завести объект вида — возможность вида (UnitKind.capabilities create):
+  // у всех видов хранилищ её сняли
+  const archKindsSaved = new Map([...KINDS].filter(([k]) => screenType(k) === "archive"));
+  archKindsSaved.forEach((k, kind) => KINDS.set(kind, Object.assign({}, k, { capabilities: (k.capabilities || []).filter((c) => c !== "create") })));
+  ok(!canCreateKind("archive") && can("createUnits"), "возможность create у видов хранилищ снята");
   ok(!/Создать хранилище/.test(srvMenu(d2Srv)) && addSplitItems(d2Srv).every(([l]) => !/Хранилище/.test(l)), "без операции: в меню сервера нет");
   paint();
   ok(![...d2Main().querySelectorAll("button")].some((b) => /Создать хранилище…/.test(b.textContent)), "без операции: кнопки на вкладке дисков нет");
@@ -716,7 +717,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!/хранилище/i.test(srvMenu(d2Empty)) && addSplitItems(d2Empty).every(([l]) => !/хранилище/i.test(l)), "без операции: в меню домена нет");
   goTab("gen");
   ok(!/хранилище/i.test(document.querySelector(".dom-acts").textContent), "без операции: в «Действиях» домена нет");
-  CAPS.operations = d2Can;
+  archKindsSaved.forEach((k, kind) => KINDS.set(kind, k));
   goTab("gen");
 
   // Срез 3. Метка плана, поле с автокомплитом, порядок формы «По адресу», производители драйвер-пака, файл
@@ -896,7 +897,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   planSend(addPlan.rows.slice(), false);
   await until(() => !addPlan.applying && !addPlan.rows.length);
   ok(!addPlan.rows.length, "файл: план применён целиком");
-  const s3Got = addPlan.added.find((x) => x.ip === "10.8.1.2"), s3Made = s3Got && (await API.get("/devices/" + s3Got.id));
+  const s3Got = addPlan.added.find((x) => x.ip === "10.8.1.2"), s3Made = s3Got && (await uiRec(s3Got.id));
   ok(s3Made && s3Made.vendor === "Bosch", "на сервере производитель из файла, регистр поправлен — " + (s3Made && s3Made.vendor));
 
   // Находки ревью: положение списка, тот же выбор, Enter, адрес, которого не видно, найденное со своим текстом

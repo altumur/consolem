@@ -9,11 +9,11 @@
 макета (по выгрузке tools/extract_fixture.py), затем снимки сравниваются построчно.
 
 Запуск из корня репозитория:
-  python3 tools/compare_screens.py              ОСТАРЕЛО: сверка с макетом на константах (BASELINE) даёт FAIL на всех экранах,
-                                                index.html с тех пор намеренно менялся; для сверки используйте --against
+  python3 tools/compare_screens.py --baseline   ОСТАРЕЛО: сверка с макетом на константах (BASELINE) даёт FAIL на всех экранах,
+                                                index.html с тех пор намеренно менялся; без --against и --baseline — подсказка
   python3 tools/compare_screens.py --diff DIR   ещё и снимки обоих прототипов в DIR
-  python3 tools/compare_screens.py --page index_generic.html --api api-generic --against index.html [--with-extras]
-      обе страницы — через свой API (index.html над api/, --page над --api), одни id и одни экраны;
+  python3 tools/compare_screens.py --page index_NN_tema.html --against index.html
+      прототип против основного: обе страницы — через API (общий api/), одни id и одни экраны;
       разметка сравнивается как есть. Ожидаемые отличия (EXPECTED_AGAINST) выводятся как EXPECT, не FAIL.
 Код выхода 1, если хоть один экран отличается.
 """
@@ -54,35 +54,8 @@ API = cli_paths.opt("api", "api")  # --api DIR: страница сама под
 AGAINST = cli_paths.opt("against", "")  # --against FILE: сравнить с другой страницей через API, а не с макетом на константах
 BEFORE = AGAINST or extract_fixture.BASELINE
 
-# Объекты и виды, которых нет в базовом наборе: их добавляет tools/generic_fixture.py ради тестов видов
-# (security_controller/*, test.*, w2c.example/*, domain.shared). Они меняют счётчики и состав дерева, колонки матрицы прав
-# и списки событий и команд правил на каждом экране, поэтому в режиме --against убираются из набора сравниваемой
-# страницы (--with-extras — оставить, тогда они видны как отличия); что убрано, печатается первой строкой прогона
-EXTRA_KINDS = r"^(security_controller|test\.|w2c\.example|domain\.shared)"
-PATCH_FIXTURE = """<script>(()=>{const re=new RegExp(%s),dropExtras=%s;
-for(const f of Object.values(window.CONSOLEM_FIXTURES||{})){
-  if(dropExtras&&Array.isArray(f.units)){
-    const drop=new Set(f.units.filter(u=>re.test(u.kind)).map(u=>u.uid));
-    let more=true;while(more){more=false;for(const u of f.units)if(!drop.has(u.uid)&&drop.has(u.parentId)){drop.add(u.uid);more=true}}
-    f.units=f.units.filter(u=>!drop.has(u.uid));
-    f.units.forEach(u=>{if(Array.isArray(u.folders)&&u.folders.some(x=>drop.has(x)))u.folders=u.folders.filter(x=>!drop.has(x))});
-  }
-  if(dropExtras&&Array.isArray(f.kinds))f.kinds=f.kinds.filter(k=>!re.test(k.kind));
-}})();</script>"""
-
-# Ожидаемые отличия режима --against: строка разметки и почему она отличается
+# Ожидаемые отличия режима --against: строка разметки и почему она отличается (pattern, note); пока пусто
 EXPECTED_AGAINST = [
-    (r'^<button class="tab ?(on)?">(Дополнительно|Additional)</button>$',
-     "вкладка «Дополнительно»: свойства вида сверх профиля (у камеры configMode, templateId); в базе такой вкладки нет"),
-]
-# Отличия набора данных, а не страницы: за них отвечает tools/generic_fixture.py (api-generic/fixtures/demo.json). Выводятся
-# отдельной меткой FIXTURE, код выхода от них не зависит; ушли из набора — строки пропадут сами
-FIXTURE_AGAINST = [
-    (r'^<option value="\d+">(Abandoned object|Removed object|Crowd|Оставленный предмет|Исчезновение предмета|Скопление людей)</option>$',
-     "список событий правила: у вида camera в наборе объявлены события abandoned, disappeared, crowd, а в базовом "
-     "reference.ruleTriggers их нет (страница строит пункты по описаниям видов, как и должна)"),
-    (r'^<button type="button" class="pf-chip" data-chip="(other|lpr|silent|segment\.lost|abandoned|disappeared|crowd)">[^<]*</button>$',
-     "«Что считать тревогой» (карточка камеры): список и порядок кодов из событий вида camera набора, в базе — из reference.eventKinds"),
 ]
 
 # Экраны: [раздел, id объекта макета или null, вкладка или null, действия до показа]
@@ -165,11 +138,8 @@ ready.then(async()=>{
 })();</script>"""
 
 
-def capture(page_name, ids, patch=None, settle=False):
+def capture(page_name, ids, settle=False):
     page = extract_fixture.read_source(page_name)
-    if patch:  # убрать лишние виды и объекты — набор страницы правится до старта
-        script = PATCH_FIXTURE % (json.dumps(EXTRA_KINDS), json.dumps(patch))
-        page = re.sub(r'(<script src="[^"]*fixture\.js"></script>)', lambda m: m.group(1) + script, page, count=1)
     run = RUN.replace("__IDS__", json.dumps(ids)).replace("__SCREENS__", json.dumps(SCREENS)).replace("__SETTLE__", "true" if settle else "false")
     page = page.replace("<head>", '<head><base href="file://%s/">' % ROOT + extract_fixture.FREEZE + RANDOM, 1)
     page = page.replace("</body>", run + "</body>", 1)
@@ -206,29 +176,13 @@ def check_api_dir():
         sys.exit(f"--api {API}: страница {AFTER} подключает {sorted(set(srcs)) or 'не api-каталог'}")
 
 
-def extras_report():
-    """Первая строка прогона: что убрано из набора сравниваемой страницы (список видов и число объектов)."""
-    with open(os.path.join(ROOT, API, "fixtures", "demo.json"), encoding="utf-8") as f:
-        fx = json.load(f)
-    rx = re.compile(EXTRA_KINDS)
-    kinds = [k["kind"] for k in fx.get("kinds", []) if rx.search(k["kind"])]
-    drop = {u["uid"] for u in fx.get("units", []) if rx.search(u["kind"])}
-    more = True
-    while more:
-        more = False
-        for u in fx.get("units", []):
-            if u["uid"] not in drop and u.get("parentId") in drop:
-                drop.add(u["uid"])
-                more = True
-    print(f"убрано видов: {len(kinds)}, объектов: {len(drop)} (--with-extras — оставить): {', '.join(kinds)}")
-    return kinds
-
-
 def main():
-    skipped = []
+    if not AGAINST and "--baseline" not in sys.argv:
+        sys.exit("сверка с макетом на константах устарела (index.html с тех пор намеренно менялся): "
+                 "прототип против основного — python3 tools/compare_screens.py --page index_NN_tema.html --against index.html; "
+                 "старая сверка — --baseline")
     if AGAINST:
         check_api_dir()
-        skipped = extras_report() if "--with-extras" not in sys.argv else []
     out_dir = sys.argv[sys.argv.index("--diff") + 1] if "--diff" in sys.argv else None
     raw = extract_fixture.snapshot()
     normalize(raw, extract_fixture.CAPTURED_AT)
@@ -239,14 +193,14 @@ def main():
     handlers = re.compile(r''' (?:on[a-z]+|data-on-[a-z]+)=(?:"[^"]*"|'[^']*')''')
     if AGAINST:
         # обе страницы работают с UUID: id подставляются в экраны одни и те же, обратная замена не нужна
-        before = [handlers.sub("", s) for s in capture(BEFORE, ids, None, True)]
-        after = [handlers.sub("", s) for s in capture(AFTER, ids, '--with-extras' not in sys.argv, True)]
+        before = [handlers.sub("", s) for s in capture(BEFORE, ids, True)]
+        after = [handlers.sub("", s) for s in capture(AFTER, ids, True)]
     else:
         before = [handlers.sub("", s) for s in capture(BEFORE, {})]
         after = [handlers.sub("", uuid_re.sub(lambda m: back.get(m.group(0), m.group(0)), s)) for s in capture(AFTER, ids)]
     known = EXPECTED_AGAINST if AGAINST else KNOWN
     mark = "EXPECT" if AGAINST else "KNOWN"
-    bad = fixture_only = 0
+    bad = 0
     for i, (screen, a, b) in enumerate(zip(SCREENS, before, after)):
         name = " · ".join(str(x) for x in screen[:3] if x) + (f" · {', '.join(screen[3])}" if screen[3] else "")
         if a == b:
@@ -261,11 +215,6 @@ def main():
         if all(any(re.search(pattern, d) for pattern, _ in known) for d in changed):
             print(f"{mark:<6} {name} — {'; '.join(sorted(why))}")
             continue
-        if AGAINST and all(any(re.search(pattern, d) for pattern, _ in known + FIXTURE_AGAINST) for d in changed):
-            fixture_only += 1
-            why = {note for pattern, note in FIXTURE_AGAINST for d in changed if re.search(pattern, d)}
-            print(f"FIXTURE {name} — {'; '.join(sorted(why))}")
-            continue
         bad += 1
         print(f"FAIL  {name} — {sum(1 for d in diff if d[:1] in '+-' and d[:3] not in ('+++', '---'))} строк отличается:")
         for d in diff[2:14]:
@@ -275,10 +224,7 @@ def main():
             for side, s in (("before", a), ("after", b)):
                 with open(os.path.join(out_dir, f"{i:02d}-{side}.html"), "w", encoding="utf-8") as f:
                     f.write("\n".join(lines(s)))
-    if skipped:
-        print(f"EXPECT не сравнивались: виды {', '.join(skipped)} и их объекты (нет в базе; --with-extras — сравнить)")
-    extra = f", только набором данных (FIXTURE) {fixture_only}" if fixture_only else ""
-    print(f"RESULT {'fail' if bad else 'pass'} — экранов {len(SCREENS)}, отличаются {bad}{extra}")
+    print(f"RESULT {'fail' if bad else 'pass'} — экранов {len(SCREENS)}, отличаются {bad}")
     return 1 if bad else 0
 
 

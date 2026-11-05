@@ -18,11 +18,17 @@
   const apiBase = params.get("api");
   const spec = window.CONSOLEM_OPENAPI;
   const fixtureName = params.get("fixture") || "demo";
-  const FX = (window.CONSOLEM_FIXTURES || {})[fixtureName] || null;
+  // Набор как есть уходит встроенному серверу. Тестам — он же, а старые разделы (domains, servers, devices, folders, archives,
+  // volumes), которых в наборе универсальной модели нет, выведены из units тем же переводом, что у сервера: тесты выбирают по
+  // ним записи набора и подменяют их (fixturePatch), а запросы шлют путями ядра
+  const RAW = (window.CONSOLEM_FIXTURES || {})[fixtureName] || null;
+  const FX = RAW && window.ConsolemServer && window.ConsolemServer.legacyFixture ? window.ConsolemServer.legacyFixture(RAW) : RAW;
   // Часы стенда: остановлены (по умолчанию) или идут по-настоящему (?clock=real)
   const frozen = params.get("clock") !== "real";
   // Что умеет система — из GET /reference, читается перед тестами
   let CAPS = null;
+  // Виды и профили системы — из GET /kinds (если система его объявила): для needs "kind:<вид>", "implements:<профиль>"
+  let KINDS = null;
 
   let api = null;
   async function connect() {
@@ -38,7 +44,7 @@
       return ConsolemApi.create({ baseUrl: new URL("loopback-api", location.href).href });
     }
     if (apiBase) return ConsolemApi.create({ baseUrl: apiBase });
-    return ConsolemApi.create({ server: ConsolemServer.create({ fixture: FX, fixtures: window.CONSOLEM_FIXTURES, openapi: spec, autoTick: !frozen, testSupport: true }) });
+    return ConsolemApi.create({ server: ConsolemServer.create({ fixture: RAW, fixtures: window.CONSOLEM_FIXTURES, openapi: spec, autoTick: !frozen, testSupport: true }) });
   }
 
   // Каждый ответ запоминается вместе с операцией контракта — для сверки схем и покрытия
@@ -101,8 +107,7 @@
         });
         return got;
       },
-      // Перечень целиком: тесту можно дочитать его до конца, форме нельзя. Устройства — полными записями:
-      // старые проверки смотрят поля, которых нет в строке. Каждая запись читается как GET /devices/{id}
+      // Перечень целиком: тесту можно дочитать его до конца, форме нельзя
       async pages(path) {
         const out = [];
         let cursor = null;
@@ -114,13 +119,10 @@
         } while (cursor);
         return out;
       },
-      async list(path) {
-        const rows = await env.pages(path);
-        if (!/^\/devices(\?|$)/.test(path)) return rows;
-        return Promise.all(rows.map((r) => api.raw("GET", `/devices/${r.id}`).then((x) => x.body)));
-      },
-      // Состав папки — страницами дверью единиц папки
-      folderIds: async (id) => (await env.pages(`/devices?folderId=${id}&limit=1000`)).map((d) => d.id),
+      // Объекты /units — строки и есть объекты целиком: дочитывать нечего
+      list: (path) => env.pages(path),
+      // Состав папки — объекты папки (Unit.folders) страницами
+      folderIds: async (id) => (await env.pages(`/units?folderId=${id}&limit=1000`)).map((u) => u.uid),
       // Права целиком: снимок и его перечни. Для проверок, которые смотрят всё сразу
       async access() {
         const a = JSON.parse(JSON.stringify(await env.ok("GET", "/access")));
@@ -185,15 +187,34 @@
   const key = () => `test-${Date.now().toString(36)}-${++keySeq}`;
 
   // needs — что тесту нужно от системы: operationId, "type:<вид устройства>", "feature:<возможность>",
-  // "clock" — остановленные часы. Чего нет — тест пропускается (SKIP) и не считается провалом
+  // "kind:<вид объекта>", "implements:<профиль>" (по GET /kinds), "clock" — остановленные часы. Чего нет — тест
+  // пропускается (SKIP) и не считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units)
   function test(name, fn, opts) {
-    tests.push({ name, fn, needs: (opts && opts.needs) || [] });
+    const src = document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "";
+    tests.push({ name, fn, needs: (opts && opts.needs) || [], file: src });
   }
+  // Вид, с которым тест может работать: система его объявила (GET /kinds), и объект этого вида можно завести (create) или он
+  // есть в наборе. Вид, объявленный только ради каталога правил (профиль «один домен»: события датчика, источника, единиц
+  // СКУД и выход реле, а объектов нет и завести их нельзя), тестам объектов не годится
+  const usableKind = (code) => !!KINDS && KINDS.items.some((k) => k.kind === code && ((k.capabilities || []).includes("create") || ((RAW && RAW.units) || []).some((u) => u.kind === code)));
   function lacks(needs) {
     return needs.filter((n) => {
       if (n === "clock") return !frozen;
-      if (n.startsWith("type:")) return !CAPS.deviceTypes.includes(n.slice(5));
+      // type:<вид> — вид, который объявила система (GET /kinds): видов устройств в capabilities у универсальной модели нет
+      if (n.startsWith("type:")) return !usableKind(n.slice(5));
       if (n.startsWith("feature:")) return !CAPS.features.includes(n.slice(8));
+      if (n.startsWith("kind:")) return !usableKind(n.slice(5));
+      // cap:<вид>:<capability> — что система умеет с видом (UnitKind.capabilities): завести, удалить домен или том
+      if (n.startsWith("cap:")) {
+        const at = n.lastIndexOf(":");
+        const k = KINDS && KINDS.items.find((x) => x.kind === n.slice(4, at));
+        return !k || !(k.capabilities || []).includes(n.slice(at + 1));
+      }
+      // under:<вид> — вид заводится под существующим объектом (createParents не пуст), а не только с новым родителем
+      if (n.startsWith("under:")) return !KINDS || !KINDS.items.some((k) => k.kind === n.slice(6) && (k.createParents || []).length);
+      // class:<класс> — класс доступа, который объявляет хоть один вид (access.class или access.also[].class): в профиле «один домен» нет tel
+      if (n.startsWith("class:")) return !KINDS || !KINDS.items.some((k) => k.access && [k.access.class].concat((k.access.also || []).map((x) => x.class)).includes(n.slice(6)));
+      if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
       return !CAPS.operations.includes(n);
     });
   }
@@ -248,8 +269,12 @@
       lines.push(`FAIL  Система объявляет возможности — GET /reference → ${ref.status}, нет capabilities`);
       return finish(lines, "Тесты API не запущены: неизвестно, что умеет система", true);
     }
+    if (CAPS.operations.includes("listKinds")) {
+      const kinds = await api.raw("GET", "/kinds");
+      KINDS = kinds.status === 200 ? kinds.body : null;
+    }
     const undeclared = allOps().filter((op) => !op.test && !CAPS.operations.includes(op.id));
-    lines.push(`INFO  Возможности: операций ${CAPS.operations.length}, видов устройств ${CAPS.deviceTypes.length}, необязательных ${CAPS.features.length}${undeclared.length ? `; не поддержаны: ${undeclared.map((o) => o.id).join(", ")}` : ""}`);
+    lines.push(`INFO  Возможности: операций ${CAPS.operations.length}, видов ${KINDS ? KINDS.items.length : 0}, необязательных ${CAPS.features.length}${undeclared.length ? `; не поддержаны: ${undeclared.map((o) => o.id).join(", ")}` : ""}`);
     // Файлы тестов загрузились целиком: каждый в конце объявляет себя (loaded)
     const files = [...document.scripts].map((x) => (x.getAttribute("src") || "").split("/").pop()).filter((n) => /^api-.+\.js$/.test(n));
     const broken = files.filter((n) => !declared.has(n)).map((n) => `${n} не загрузился целиком`).concat(window.API_LOAD_ERRORS || []);
@@ -259,11 +284,14 @@
     } else lines.push(`PASS  Файлы тестов загрузились — ${files.length}`);
     const only = params.get("only");
     let skipped = 0;
+    // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида), — покрытие их не требует
+    const waived = new Set();
     for (const t of tests) {
-      if (only && t.name !== only) continue;
+      if (only && t.name !== only && t.file !== only) continue;
       const missing = lacks(t.needs);
       if (missing.length) {
         skipped += 1;
+        if (missing.some((n) => /^(kind|implements|under|cap):/.test(n))) t.needs.forEach((n) => waived.add(n));
         lines.push(`SKIP  ${t.name} — система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`);
         continue;
       }
@@ -296,7 +324,8 @@
     // Покрытие — по объявленным операциям; служебные стенда — те, что нужны в этом режиме часов
     const called = new Set(recorded.map((r) => `${r.method} ${r.template}`));
     const ops = allOps().filter((op) => (op.test ? op.id !== "testClock" || frozen : CAPS.operations.includes(op.id))).map((op) => `${op.method} ${op.path}`);
-    const uncovered = ops.filter((op) => !called.has(op) && !NOT_COVERED.includes(op));
+    const opId = new Map(allOps().map((o) => [`${o.method} ${o.path}`, o.id]));
+    const uncovered = ops.filter((op) => !called.has(op) && !NOT_COVERED.includes(op) && !waived.has(opId.get(op)));
     if (uncovered.length) {
       failed += 1;
       lines.push(`FAIL  Каждая объявленная операция покрыта тестами — без тестов: ${uncovered.join(", ")}`);

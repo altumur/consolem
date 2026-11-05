@@ -13,8 +13,11 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(planShown), "из поиска — сразу план");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
   goClose();
-  const camId = (await uiDevices()).find((d) => d.type === "camera" && d.name.includes("Главный вход")).id;
-  const before = (await API.get(`/devices/${camId}`)).recordMode;
+  // Объекты — страницами GET /units, свойства — в properties
+  const unitsAll = async (q) => { const out = []; let cursor = null; do { const r = await API.get("/units", Object.assign({ cursor, limit: 1000 }, q || {})); out.push(...r.items); cursor = r.nextCursor || null; } while (cursor); return out; };
+  const recOf = async (uid) => (await API.get(`/units/${uid}`)).properties.recordMode;
+  const camId = (await unitsAll({ kind: "camera" })).find((u) => u.name.includes("Главный вход")).uid;
+  const before = await recOf(camId);
   // Ответ и уточнение — в поле под ответом, клавиатурой, как человек. Строка поиска — новая просьба, новый разговор
   const key = (el, k) => el.dispatchEvent(new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true }));
   const enter = () => key(inp, "Enter");
@@ -58,22 +61,22 @@ UiCheck(async ({ ok, until }) => {
   // Ответ строит план: объекты — в дереве тегом и выбором, значения — в групповой карточке как правка человека
   say("Главный вход");
   ok(await until(() => document.getElementById("asstPlanNote") && bulkActive()), "план показан, открыта групповая карточка");
-  ok(/Камеры: \d+/.test(body()) && body().includes("recordMode"), "кого выбрали и что меняется");
+  ok(/Камеры: \d+/.test(body()) && body().includes("recordMode") && !body().includes("/properties/"), "кого выбрали и что меняется — кодом поля, как в базе: " + body().slice(0, 200));
   ok(!document.getElementById("asstApply") && !document.getElementById("asstDecline") && /в групповой карточке/.test(document.getElementById("asstPlanNote")?.textContent || ""), "в панели «Применить» нет: применение — в карточке");
-  const planIds = asst.plan.items.map((x) => x.deviceId);
+  const planIds = asst.plan.items.map((x) => x.uid);
   ok(tag()?.textContent === `Ассистент: ${planIds.length}`, "тег над деревом: " + tag()?.textContent);
   ok(treeSel.size === planIds.length && planIds.every((id) => treeSel.has(id)), "все объекты плана отмечены");
   // Камеры сервера без связи раскладка по серверам не раскрывает, по папкам видны все: строки — часть плана, лишних нет
   const onLine = planIds.filter((id) => { const sv = srv(id); return !(sv && hasNoSignal(sv)); });
   ok(onLine.length < planIds.length, "в плане есть камера сервера без связи");
-  ok(await until(() => camRows().length === (group() === "server" ? onLine.length : planIds.length)) &&camRows().every((id) => planIds.includes(id)), "в дереве только объекты плана: " + camRows().length + " из " + planIds.length);
+  ok(await until(() => camRows().length === (group() === "server" ? onLine.length : planIds.length)) && camRows().every((id) => planIds.includes(id)), "в дереве только объекты плана: " + camRows().length + " из " + planIds.length);
   const recBox = document.querySelector('[data-bk="rec"]');
   ok(recBox && recBox.classList.contains("bk-set") && recBox.querySelector("select").value === "none", "поле «Режим» заполнено значением плана и подсвечено");
   ok(/по плану ассистента: Нет ×\d+/.test(recBox.textContent), "под полем — значения плана: " + recBox.textContent.slice(0, 160));
-  ok((await API.get(`/devices/${camId}`)).recordMode === before, "без «Применить» ничего не записано");
+  ok((await recOf(camId)) === before, "без «Применить» ничего не записано");
   // «Применить» — черновиком карточки: одна групповая операция с откатом
   ok(await cardApply(), "«Показать план» → «Применить» мышью");
-  ok(await untilA(async () => (await API.get(`/devices/${camId}`)).recordMode === "none"), "записано на сервере");
+  ok(await untilA(async () => (await recOf(camId)) === "none"), "записано на сервере");
   ok(await until(() => find(camId)?.n.rec === "none"), "дерево обновилось потоком");
   ok(/План применён через карточку/.test(document.getElementById("asstInfo")?.textContent || "") && !document.getElementById("asstPlanNote") && !document.getElementById("asstPlanOpen"), "в панели — что план применён");
   const op1 = (await API.get("/operations", { limit: 1 })).items[0];
@@ -82,8 +85,10 @@ UiCheck(async ({ ok, until }) => {
   await API.post(`/operations/${op1.id}/revert`);
   ok(await until(() => find(camId)?.n.rec === before), "откат одной операцией: значение вернулось");
 
-  // Отказ: без плана
-  say("поменяй маску сети");
+  // Отказ: без плана. Новый разговор: заглушка читает просьбу вместе с context, а в нём — «выключи запись»
+  goClose();
+  asstOpen();
+  say("поменяй маску сети на камерах");
   ok(await until(() => document.getElementById("asstRefused")), "отказ показан");
   ok(!planShown(), "плана нет");
   // Устаревший план: версии плана уходят с «Применить», чужая правка после плана — обычный отказ версии, ничего не записано
@@ -91,12 +96,12 @@ UiCheck(async ({ ok, until }) => {
   asstOpen();
   say("выключи запись Главный вход");
   ok(await until(() => document.getElementById("asstPlanNote") && bulkActive()), "новый план в карточке");
-  const d = await API.get(`/devices/${camId}`);
-  await API.patch(`/devices/${camId}`, { name: d.name + " 2" }, d.version);
+  const d = await API.get(`/units/${camId}`);
+  await API.patch(`/units/${camId}`, { name: d.name + " 2" }, d.version);
   ok(await cardApply(), "«Применить» мышью");
   ok(bq.fail > 0 && bq.steps.every((st) => st.ops.every((o) => o.state === "fail" || o.state === "excl" || o.state === "skip")), "отказ всей операции: ни один шаг не выполнен");
   ok(/изменил/.test(bq.steps[0].ops.find((o) => o.state === "fail")?.msg || ""), "причина словами: " + bq.steps[0].ops.find((o) => o.state === "fail")?.msg);
-  ok((await API.get(`/devices/${camId}`)).recordMode === before, "ничего не записано");
+  ok((await recOf(camId)) === before, "ничего не записано");
   closeBulkModal();   // за открытым отчётом план не трогает дерево
   goClose();
 
@@ -193,9 +198,9 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => rows().join() === "ok,ok"), "расписание и правило: " + rows().join());
   const withSc = (await API.get("/rules")).items.find((x) => x.name === ruleName), newSc = (await API.get("/schedules")).items.find((x) => x.name === "Смена из просьбы");
   ok(withSc.conditions[0].scheduleId === newSc.id, "ссылка «@ref» — id созданного");
-  await planRules([{ table: "scenarios", op: "create", body: Object.assign({}, base, { name: "Детектор от модели", steps: [{ source: "det", action: "detect", target: base.steps[0].target, detectorKind: "motion", minutes: 5 }] }) }]);
+  await planRules([{ table: "scenarios", op: "create", body: Object.assign({}, base, { name: "Детектор от модели", steps: [{ type: "unitAction", action: "detect", target: base.steps[0].target, params: { detectorKind: "motion", minutes: 5 } }] }) }]);
   document.getElementById("asstApply").click();
-  ok(await until(() => rows().join() === "ok"), "законный RuleWrite с det/detect форма не отказывает");
+  ok(await until(() => rows().join() === "ok"), "законный RuleWrite с командой detect (unitAction) форма не отказывает");
 
   // Окно: ссылка на новое расписание — телом окна, без POST /schedules; окно выключено, что бы ни пришло в плане
   const posts = [], post = API.post;
@@ -349,10 +354,11 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => document.getElementById("asstPlanNote") && bulkDraft.plan?.rec), "новый план в карточке");
   ok(/Камеры: \d+/.test(body()) && /recordMode: none → always/.test(body()) && asst.context !== planContext && asst.context.includes("Переговорная"), "новый план целиком, было → станет: " + body().slice(0, 200));
   ok(document.activeElement === field(), "курсор снова в поле");
-  say("поменяй маску сети");
+  // Уточнение с context плана: заглушка читает его вместе с просьбой, отказ — на просьбу, которую она не исполняет
+  say("проверь архив за ночь");
   ok(await until(() => document.getElementById("asstRefused")), "уточнение кончилось отказом");
   ok(!asst.plan && !planShown() && !bulkDraft.plan, "отказ: прежний план не вернулся");
-  ok(saidRows().join("|") === "включи запись Главный вход|и Переговорная|поменяй маску сети" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
+  ok(saidRows().join("|") === "включи запись Главный вход|и Переговорная|проверь архив за ночь" && !document.querySelector("[data-asst-dropped]"), "история — только просьбы: " + saidRows().join("|"));
   goClose();
   asstOpen("");
   typed("включи запись Главный вход");
@@ -490,8 +496,8 @@ UiCheck(async ({ ok, until }) => {
   setSelMode(false);
   const all0 = treeIds().length;
   const sliceWas = slice;
-  const camsAll = (await uiDevices()).filter((d) => d.type === "camera");
-  const noRec = camsAll.filter((d) => (d.recordMode || "none") === "none");
+  const camsAll = await Promise.all((await unitsAll({ kind: "camera" })).map((u) => API.get(`/units/${u.uid}`)));
+  const noRec = camsAll.filter((u) => (u.properties.recordMode || "none") === "none");
   typeQ("выведи камеры без записи");
   ok(askBtn(), "строка ассистента");
   mouse(askBtn());
@@ -499,7 +505,7 @@ UiCheck(async ({ ok, until }) => {
   ok(tag().textContent.startsWith(`Ассистент: ${noRec.length} · тип: камера · запись: нет`), "тег: число и условия словами — " + tag().textContent);
   ok(/Отобрано ассистентом: \d+/.test(document.getElementById("filtHint")?.textContent || ""), "подсказка над деревом: " + document.getElementById("filtHint")?.textContent);
   const want = new Set(asst.found.ids);
-  ok(want.size === noRec.length && noRec.every((d) => want.has(d.id)), "отобраны камеры без записи");
+  ok(want.size === noRec.length && noRec.every((u) => want.has(u.uid)), "отобраны камеры без записи");
   ok(await until(() => camRows().length === want.size) && camRows().every((id) => want.has(id)), "в дереве только отобранные камеры: " + camRows().length + " из " + want.size);
   ok(document.getElementById("asstFound")?.textContent === asst.found.text && /условия — над деревом/.test(document.getElementById("asstFoundNote")?.textContent || ""), "в панели текст и подпись отбора");
   ok(/тип: камера · запись: нет/.test(document.getElementById("asstFoundWhy")?.textContent || "") && /В дереве: \d+/.test(document.getElementById("asstFoundCount")?.textContent || ""), "в панели условия и число");
@@ -527,9 +533,9 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => app === "hw" && tag() && !document.getElementById("asstFoundOpen")), "кнопка вернула дерево с отбором");
   // Разговор продолжается с context: уточнить отбор в поле под ответом
   say("а только Axis");
-  const axis = noRec.filter((d) => d.vendor === "Axis");
+  const axis = noRec.filter((u) => u.properties.vendor === "Axis");
   ok(await until(() => asst.found && asst.found.conditions.length === 3 && tag()?.textContent.includes("производитель: Axis")), "уточнение: третье условие — " + tag()?.textContent);
-  ok(await until(() => camRows().length === axis.length) && camRows().every((id) => axis.some((d) => d.id === id)), "дерево сузилось до уточнённого: " + camRows().length);
+  ok(await until(() => camRows().length === axis.length) && camRows().every((id) => axis.some((u) => u.uid === id)), "дерево сузилось до уточнённого: " + camRows().length);
   // Пусто — тоже отбор: тег с нулём, «Выбрать всё» неактивна
   say("покажи камеры с именем «такого нет»");
   ok(await until(() => asst.found && asst.found.ids.length === 0 && tag()?.textContent.startsWith("Ассистент: 0")), "пустой отбор: " + tag()?.textContent);

@@ -20,7 +20,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => cams.every((c) => c.enabled === false && c.rec === "motion" && c.user === "op")), "кэш обновлён из потока");
   ok(await until(() => cams.every((c) => folder.items.includes(c.id))), "в папке");
   ok(detCams.length > 0 && (await until(() => detCams.every((c, i) => camDetectors(c).length === dets0[i] + 1))), "детекторы созданы: " + detCams.length);
-  const r0 = await API.get("/devices/" + cams[0].id);
+  const r0 = await uiRec(cams[0].id);
   ok(r0.enabled === false && r0.recordMode === "motion" && r0.login === "op" && r0.hasPassword, "на сервере — изменено, пароль задан");
   ok(cams[0].pass !== "p", "пароль в кэш не попадает");
   // Пауза (есть не на всех страницах): шаги на сервере стоят
@@ -28,7 +28,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   treeSel.clear();
   many.forEach((c) => treeSel.add(c.id));
   // Версии до операции: камеры вне наблюдения, кэш узнаёт о шагах после её конца
-  const verOf = Object.fromEntries(await Promise.all(many.map(async (c) => [c.id, (await API.get("/devices/" + c.id)).version])));
+  const verOf = Object.fromEntries(await Promise.all(many.map(async (c) => [c.id, (await uiRec(c.id)).version])));
   bulkRun(bulkChanges({ pre: "9" }));
   ok(await until(() => bq.api && bq.api !== "pending" && bq.done > 0), "идёт: " + bq.done + " из " + bq.total);
   if (typeof queuePause === "function") {
@@ -48,7 +48,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(busyRefuse(left[0].id) === true, "правка занятого объекта отклонена");
     const last = left[left.length - 1];
     const opId = bq.api;
-    const refused = await API.patch("/devices/" + last.id, { name: last.name }, verOf[last.id]).then(() => null, (e) => e);
+    const refused = await uiPatch(last.id, { name: last.name }, verOf[last.id]).then(() => null, (e) => e);
     // Шаг мог успеть раньше запроса на занятой странице: тогда операция уже кончилась, а версия ушла вперёд. Пока она идёт — только BUSY
     const running = (await API.get("/operations/" + opId)).state === "running";
     ok(refused && refused.problem && (refused.problem.code === "BUSY" || (!running && refused.problem.code === "VERSION_MISMATCH")), "сервер: правка занятого объекта — " + (refused && refused.problem ? refused.problem.code : "принята"));
@@ -72,7 +72,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(2);
   ok(del.every((id) => pendingDelHas(id)), "отсчёт с «Отменить»");
   ok(await until(() => del.every((id) => !find(id)), 30000), "удалены по истечении отсчёта");
-  ok((await API.raw("GET", "/devices/" + del[0])).status === 404, "на сервере — нет");
+  ok((await API.raw("GET", "/units/" + del[0])).status === 404, "на сервере — нет");
   // После удаления кэш перечитан — папка ищется заново
   ok(!folderById(folder.id).items.includes(del[0]), "из папки убраны");
   // Имена по шаблону: в выборке и камера, и сервер — одной операцией на сервере, и у сервера тоже
@@ -85,7 +85,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   bulkRun(bulkChanges({ rename: "type-ip" }));
   ok(!!(bq && bq.api), "переименование камеры и сервера — операцией на сервере");
   ok(await until(() => bq.finished) && bq.fail === 0, "без отказов");
-  const [rc, rs] = await Promise.all([API.get("/devices/" + cam.id), API.get("/servers/" + s1.id)]);
+  const [rc, rs] = await Promise.all([uiRec(cam.id), uiRec(s1.id)]);
   ok(rc.name === want[0] && rs.name === want[1], "на сервере новые имена: " + rc.name + "; " + rs.name);
   ok(await until(() => find(cam.id)?.n.name === want[0] && find(s1.id)?.n.name === want[1]), "и в дереве");
   // Шаг, который у объекта ничего не меняет (имя уже по шаблону), не уводит всю правку мимо сервера
@@ -96,7 +96,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   bulkRun(bulkChanges({ rename: "type-ip" }));
   ok(!!(bq && bq.api), "одно имя уже по шаблону — всё равно операцией на сервере");
   ok(await until(() => bq.finished) && bq.fail === 0 && bq.ok === 2, "оба шага выполнены: ok " + bq.ok);
-  ok((await API.get("/devices/" + cam2.id)).name === want2, "на сервере новое имя: " + want2);
+  ok((await uiRec(cam2.id)).name === want2, "на сервере новое имя: " + want2);
   // Учётные данные, скопированные с камеры: пароль источника клиенту не известен — маска на сервер не уходит
   const cp1 = bulkChanges({ user: "op3", pass: "********", passCopied: true }).find((s) => s.key === "creds");
   ok(cp1 && cp1.ops.every((o) => o.api.set.login === "op3" && !("password" in o.api.set)), "копия: на сервер — логин, без пароля");

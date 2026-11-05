@@ -14,14 +14,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(cam.name==="Главный вход","кэш не меняется до ответа сервера");
   ok(await until(()=>bq&&bq.finished),"операция завершилась: ok "+bq?.ok+", не ок "+bq?.fail);
   ok(await until(()=>cam.name==="Вход — пилот"&&cam.rec==="motion"),"кэш обновлён из потока: "+cam.name+", "+cam.rec);
-  const srvRec=await API.get("/devices/"+cam.id);
+  const srvRec=await uiRec(cam.id);
   ok(srvRec.name==="Вход — пилот"&&srvRec.recordMode==="motion"&&srvRec.version!==v0,"на сервере: "+srvRec.name+", "+srvRec.recordMode+", версия "+srvRec.version);
   ok(document.querySelector(".tree, #tree, aside")?.textContent.includes("Вход — пилот"),"дерево показывает новое имя");
   const undo=document.querySelector("#ttu-undo .ttu-act");
   ok(!!undo,"в тосте есть «Отменить»");
   undo&&undo.click();
   ok(await until(()=>cam.name==="Главный вход"&&cam.rec==="always"),"«Отменить» вернуло на сервере и в кэше: "+cam.name+", "+cam.rec);
-  ok((await API.get("/devices/"+cam.id)).name==="Главный вход","на сервере вернулось");
+  ok((await uiRec(cam.id)).name==="Главный вход","на сервере вернулось");
   // Переименование в дереве
   treeRenameId=cam.id;treeRenameField="name";
   commitTreeRename(cam.id,"Главный вход 2");
@@ -53,14 +53,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   };
   const em=first("email");
   pick(em.id,{force:true});goTab("gen");setFld("SMTP сервер","smtp.test.local");setFld("Режим","SMTP сервер");
-  await viaApi("email: SMTP и режим",async()=>{const r=await API.get("/devices/"+em.id);return r.smtp==="smtp.test.local"&&r.mode==="smtp"});
+  await viaApi("email: SMTP и режим",async()=>{const r=await uiRec(em.id);return r.smtp==="smtp.test.local"&&r.mode==="smtp"});
   const ev=first("eventsrc");
   pick(ev.id,{force:true});goTab("overlay");setFld("Задержка, мс","250");setFld("Длительность, с","7");
-  await viaApi("титры: задержка и длительность",async()=>{const r=await API.get("/devices/"+ev.id);return r.overlayDelayMs===250&&r.overlayDurationSec===7});
+  await viaApi("титры: задержка и длительность",async()=>{const r=await uiRec(ev.id);return r.overlayDelayMs===250&&r.overlayDurationSec===7});
   ok(document.querySelector('[data-df="Задержка, мс"]')?.value==="250","карточка показывает значение сервера");
   const kid=first("relay")||first("sensor");
   pick(kid.id,{force:true});goTab("gen");setFld("Имя","Выход из сценария");
-  await viaApi("имя начинки",async()=>(await API.get("/devices/"+kid.id)).name==="Выход из сценария");
+  await viaApi("имя начинки",async()=>(await uiRec(kid.id)).name==="Выход из сценария");
   ok(!document.querySelector('[data-df="Номер"]'),"номер начинки только для чтения");
   // Детектор: у камеры во вкладке только список, параметры — в карточке самого детектора
   pick(cam.id,{force:true});goTab("det");
@@ -68,7 +68,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const d0=camDetectors(cam).find(d=>{const o=detOption(cam,d);return!o||o.sensitivityMin!=null});
   pick(d0.id,{force:true});gear();
   setFld("Чувствительность","33");
-  await viaApi("чувствительность детектора из его карточки",async()=>(await API.get("/devices/"+d0.id)).sensitivity===33);
+  await viaApi("чувствительность детектора из его карточки",async()=>(await uiRec(d0.id)).sensitivity===33);
   pick(cam.id,{force:true});
   // Черновик карточки переживает перечитывание всего кэша (удаление другого объекта, потеря потока)
   setCamRec(cam.id,cam.rec==="motion"?"always":"motion");

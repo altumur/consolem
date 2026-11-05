@@ -297,10 +297,23 @@
     const reader = A.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !A.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
     const env = await makeEnv({ actAs: reader.login });
     const f = FX.folders[0];
-    assert.status(await env.call("POST", "/folders", { name: "Новая", domainId: FX.domains[0].id, parentId: null }), 403, "PERMISSION_DENIED", "создать");
-    assert.status(await env.call("PATCH", `/folders/${f.id}`, { name: "Другая" }, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "переименовать");
-    assert.status(await env.call("DELETE", `/folders/${f.id}`, undefined, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "удалить");
-  });
+    const made = await env.ok("POST", "/units", { idempotencyKey: ApiTest.key(), items: [{ kind: "folder", name: "Новая", domainId: FX.domains[0].id, parentId: null, properties: {} }] });
+    assert.eq(made.failed.map((x) => x.code), ["PERMISSION_DENIED"], "создать");
+    assert.status(await env.call("PATCH", `/units/${f.id}`, { name: "Другая" }, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "переименовать");
+    assert.status(await env.call("DELETE", `/units/${f.id}`, undefined, { "If-Match": `"${f.version}"` }), 403, "PERMISSION_DENIED", "удалить");
+    // Состав папки — тоже: PATCH {folders}, шаг folders и шаг patch только с folders (база: POST /folders/{id}/devices — 403)
+    const g = FX.folders.find((x) => (x.deviceIds || []).length);
+    const dev = await env.ok("GET", `/units/${g.deviceIds[0]}`);
+    const next = (dev.folders || []).filter((x) => x !== g.id);
+    const denied = await env.call("PATCH", `/units/${dev.uid}`, { folders: next }, { "If-Match": `"${dev.version}"` });
+    assert.status(denied, 403, "PERMISSION_DENIED", "состав папки: PATCH {folders}");
+    assert.eq(denied.body.field, "/folders", "указатель — на папки");
+    for (const item of [{ uid: dev.uid, folders: next }, { uid: dev.uid, patch: { folders: next } }]) {
+      const op = await env.runOperation({ idempotencyKey: ApiTest.key(), items: [item], expectedVersions: { [dev.uid]: dev.version } });
+      assert.eq(op.items.map((x) => [x.state, x.code]), [["fail", "PERMISSION_DENIED"]], `состав папки: шаг ${item.folders ? "folders" : "patch {folders}"}`);
+    }
+    assert.eq((await env.ok("GET", `/units/${dev.uid}`)).folders, dev.folders, "папки объекта на месте");
+  }, { needs: ["createUnits", "patchUnit", "deleteUnit", "createOperation", "implements:vms.folder/1"] });
 
   test("Учётки потоков: доступ к камерам через Access; ссылки проверяются; удаление учётки, камеры и папки убирает доступ", async () => {
     const env = await makeEnv();
@@ -324,14 +337,14 @@
     assert.status(await send([{ account: "videowall", all: false, folderIds: [], deviceIds: [notCam.id] }]), 422, "VALIDATION_FAILED", "не камера");
     assert.status(await send([{ account: "videowall", all: false, folderIds: ["bfff9999-0000-4000-8000-000000000000"], deviceIds: [] }]), 422, "VALIDATION_FAILED", "папки нет");
     assert.status(await send([g]), 200);
-    assert.status(await env.call("DELETE", `/devices/${g.deviceIds[0]}`, undefined, { "If-Match": `"${(await env.ok("GET", `/devices/${g.deviceIds[0]}`)).version}"` }), 204);
+    assert.status(await env.call("DELETE", `/units/${g.deviceIds[0]}`, undefined, { "If-Match": `"${(await env.ok("GET", `/units/${g.deviceIds[0]}`)).version}"` }), 204);
     assert.eq((await env.access()).streamGrants[0].deviceIds, [], "камеры нет");
     const v = (await env.access()).version;
     assert.status(await env.call("DELETE", "/stream-accounts/videowall"), 204);
     const after = await env.access();
     assert.eq(after.streamGrants, [], "учётки нет — доступа нет");
     assert.ok(after.version !== v, "версия снимка сдвинулась");
-  }, { needs: ["feature:streamGrants"] });
+  }, { needs: ["feature:streamGrants", "deleteUnit"] });
 
   test("Учётки потоков: без возможности непустой список — 422 NOT_SUPPORTED", async () => {
     const env = await makeEnv({ fixturePatch: { reference: { capabilities: { features: [] } }, access: { streamGrants: [], catalogs: [], groups: [] } } });
@@ -394,19 +407,28 @@
     assert.status(await send(fresh()), 200);
   });
 
-  test("Справочник: уровень, функция, запрет, плагин вне reference.access — 422 NOT_SUPPORTED", async () => {
-    const env = await makeEnv({ fixturePatch: { reference: { access: { levels: { cam: FX.reference.access.levels.cam.filter((x) => x !== "ONLY_ARCHIVE") } } } } });
+  // Уровни класса cam без ONLY_ARCHIVE: и в описаниях видов, и в справочнике
+  const camLess = (levels) => levels.filter((x) => x !== "ONLY_ARCHIVE");
+  const withoutLevel = () => ({
+    kinds: FX.kinds.map((k) => (k.access && k.access.class === "cam" ? Object.assign({}, k, { access: Object.assign({}, k.access, { levels: camLess(k.access.levels) }) }) : k)),
+    reference: { access: { levels: { cam: camLess(FX.reference.access.levels.cam) } } },
+  });
+
+  test("Справочник: уровень, класс, функция, запрет, плагин вне описаний видов и reference.access — 422 NOT_SUPPORTED", async () => {
+    const env = await makeEnv({ fixturePatch: withoutLevel() });
     const cases = [
       ["folderAccess.cam", (r) => (r.folderAccess[FX.domains[0].id] = { cam: "ONLY_ARCHIVE" })],
       ["objectAccess.cam", (r) => (r.objectAccess[FX.devices.find((x) => x.type === "camera").id] = { cam: "ONLY_ARCHIVE" })],
-      ["global.dCam", (r) => (r.global.dCam = "ONLY_ARCHIVE")],
+      ["kindAccess.cam", (r) => (r.kindAccess.cam = "ONLY_ARCHIVE")],
+      ["kindAccess.no-such", (r) => (r.kindAccess["no-such"] = "view")],
+      ["kindAccess.security_controller", (r) => (r.kindAccess.security_controller = "FULL")],
       ["global.feat", (r) => r.global.feat.push("NO_SUCH_FEATURE")],
       ["objectAccess", (r) => (r.objectAccess["plug:no-such"] = {})],
     ];
     for (const [field, spoil] of cases) {
       const d = draft();
       d.roles.filter((r) => !r.global.unr).forEach((r) => {
-        if (r.global.dCam === "ONLY_ARCHIVE") r.global.dCam = "FORBID";
+        if (r.kindAccess.cam === "ONLY_ARCHIVE") r.kindAccess.cam = "FORBID";
         [r.folderAccess, r.objectAccess].forEach((m) => Object.values(m).forEach((row) => { if (row.cam === "ONLY_ARCHIVE") row.cam = "FORBID"; }));
       });
       spoil(d.roles.find((r) => !r.global.unr));
@@ -415,6 +437,79 @@
       assert.eq(res.body.field, field, "путь поля");
     }
   });
+
+  /* ----- Права по описаниям видов: Role.kindAccess, классы и уровни из UnitKind.access, право команды и предметного API ----- */
+
+  const kindOf = (code) => FX.kinds.find((k) => k.kind === code);
+  const classesOf = (k) => (k.access ? [k.access].concat(k.access.also || []) : []);
+  // Роль и человек с одной этой ролью: правки роли — поверх «Аудитора» без прав
+  const NEW_ROLE = "8fff0001-0000-4000-8000-000000000001", NEW_USER = "9fff0002-0000-4000-8000-000000000002";
+  const asRole = (over, patch) => {
+    const base = A.roles.find((r) => !r.global.unr && !Object.keys(r.folderAccess).length);
+    const role = Object.assign(JSON.parse(JSON.stringify(base)), { id: NEW_ROLE, name: "Проверка прав" }, over);
+    const user = Object.assign(JSON.parse(JSON.stringify(A.users.find((u) => u.id !== meId))), { id: NEW_USER, login: "rights-check", name: "Проверка прав", roleIds: [NEW_ROLE], roleUntil: {}, enabled: true, expiresDate: null });
+    return makeEnv({ actAs: user.login, fixturePatch: Object.assign({ access: { roles: A.roles.concat([role]), users: A.users.concat([user]) } }, patch || {}) });
+  };
+
+  test("Роль: kindAccess {класс: уровень} вместо dCam, dSens…; уровни не беднеют — классы и уровни из описаний видов, tel — дополнительный класс камеры", async () => {
+    const env = await makeEnv();
+    const a = await env.access();
+    const cam = await env.ok("GET", "/kinds/camera");
+    assert.eq([cam.access.class, (cam.access.also || []).map((x) => x.class)], ["cam", ["tel"]], "камера: основной класс cam, дополнительный tel");
+    const ref = FX.reference.access;
+    Object.entries(ref.levels).forEach(([cls, levels]) => FX.kinds.forEach((k) => classesOf(k).filter((x) => x.class === cls).forEach((x) =>
+      assert.eq(x.levels, levels, `уровни класса ${cls} у вида ${k.kind} — те же, что в справочнике`))));
+    ref.defaults.forEach((d) => assert.ok(ref.levels[d.levels], "у класса умолчания есть уровни: " + d.key));
+    a.roles.forEach((r) => {
+      assert.ok(!Object.keys(r.global).some((k) => /^d[A-Z]/.test(k)), "в global нет умолчаний dCam…: " + r.name);
+      Object.entries(r.kindAccess).forEach(([cls, v]) => assert.ok((ref.levels[cls] || []).includes(v), `${r.name}: ${cls} = ${v} — уровень класса`));
+    });
+    const op = a.roles.find((r) => r.name === "Оператор");
+    assert.eq([op.kindAccess.cam, op.kindAccess.tel, op.kindAccess.relay], ["MON", "LOW", "FORBID"], "умолчания роли — по классам");
+    assert.ok(Object.keys(op.folderAccess).every((k) => FX.units.some((u) => u.uid === k && ["folder", "domain"].includes(u.kind))), "folderAccess — по uid папки или домена");
+  }, { needs: ["class:tel"] });
+
+  test("Команда объекта: право — уровень класса вида (ActionDescriptor.right); роль с kindAccess security_controller=view не может ARM — 403", async () => {
+    const ctrl = FX.units.find((u) => u.kind === "security_controller/CONTROLLER" && u.status.link === "online");
+    const arm = kindOf(ctrl.kind).actions.find((x) => x.id === "ARM");
+    assert.eq(arm.right, { level: "edit" }, "ARM нужен уровень edit класса вида");
+    const view = await asRole({ kindAccess: { security_controller: "view" } });
+    const no = await view.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} });
+    assert.status(no, 403, "PERMISSION_DENIED", "view ниже edit");
+    assert.eq(no.body.params.right, { class: "security_controller", level: "edit" }, "какое право нужно");
+    assert.eq((await view.ok("GET", `/units/${ctrl.uid}`)).status.observed.armed, false, "команда не выполнена");
+    const none = await asRole({ kindAccess: {} });
+    assert.status(await none.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} }), 403, "PERMISSION_DENIED", "уровня класса нет — права нет");
+    const edit = await asRole({ kindAccess: { security_controller: "edit" } });
+    assert.status(await edit.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} }), 200, null, "edit — можно");
+    const own = await asRole({ kindAccess: { security_controller: "view" }, objectAccess: { [ctrl.uid]: { security_controller: "admin" } } });
+    assert.status(await own.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} }), 200, null, "исключение объекта по uid поднимает уровень");
+    const low = await asRole({ kindAccess: { security_controller: "admin" }, objectAccess: { [ctrl.uid]: { security_controller: "view" } } });
+    assert.status(await low.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} }), 403, "PERMISSION_DENIED", "и опускает");
+    const folder = (ctrl.folders || [])[0];
+    if (folder) {
+      const f = await asRole({ kindAccess: { security_controller: "view" }, folderAccess: { [folder]: { security_controller: "edit" } } });
+      assert.status(await f.call("POST", `/units/${ctrl.uid}/actions/ARM`, { params: {} }), 200, null, "папка по uid даёт уровень своим объектам");
+    }
+  }, { needs: ["runUnitAction", "kind:security_controller/CONTROLLER"] });
+
+  test("PTZ — как в базе: путь /units/{uid}/ptz правом роли не судится (у камеры нет apiRights); вид, объявивший apiRights, — 403 по классу", async () => {
+    const env = await makeEnv();
+    const c = (await env.pages("/units?kind=camera&limit=1000")).find((u) => u.properties.ptz && u.status.link === "online");
+    assert.ok(!("apiRights" in kindOf("camera")), "у камеры права на пути профилей нет — в базе PTZ не судится");
+    const low = await asRole({ kindAccess: { cam: "FULL", tel: "NO" } });
+    assert.status(await low.call("PUT", `/units/${c.uid}/ptz`, { pan: 0.5, ttlSec: 3 }), 200, null, "tel NO — PTZ как в базе");
+    // Механизм: вид объявляет право профиля — сервер судит его по классу вида
+    const need = { class: "tel", level: "LOWEST" };
+    const kinds = FX.kinds.map((k) => (k.kind === "camera" ? Object.assign({}, k, { apiRights: { "vms.ptz/1": need } }) : k));
+    const judged = await asRole({ kindAccess: { cam: "FULL", tel: "NO" } }, { kinds });
+    const no = await judged.call("PUT", `/units/${c.uid}/ptz`, { pan: 0.5, ttlSec: 3 });
+    assert.status(no, 403, "PERMISSION_DENIED", "камеры — да, телеметрии нет");
+    assert.eq(no.body.params.right, need, "какое право нужно");
+    assert.status(await judged.call("PUT", `/units/${c.uid}/presets/1`, { name: "Вход" }), 403, "PERMISSION_DENIED", "пресеты — тоже PTZ");
+    const ok = await asRole({ kindAccess: { cam: "MON", tel: "LOWEST" } }, { kinds });
+    assert.status(await ok.call("PUT", `/units/${c.uid}/ptz`, { pan: 0.5, ttlSec: 3 }), 200, null, "tel с LOWEST — можно");
+  }, { needs: ["putUnitPtz", "implements:vms.ptz/1", "class:tel"] });
 
   test("Синхронизация каталога: сразу run, через 1,5 с ok и время; во время — 409; группа отдельно", async () => {
     const env = await makeEnv();

@@ -2,7 +2,7 @@
    меню содержит только действия того, по чему щёлкнули, поле ввода показывает своё меню.
    На странице без единого правого клика (старые прототипы) сценарий молчит. У прототипов на основе 21
    своя таблица детекторов и свой мастер серверов: их ветки — по наличию функций.
-   Запуск — tools/check_ui.py tests/ui-rc-menu.js */
+   Запуск — python3 tools/check_ui.py tests/ui-rc-menu.js */
 UiCheck(async ({ ok, sleep, until, confirmWith }) => {
   if (typeof rcOnContext !== "function") { ok(true, "на этой странице единого правого клика нет"); return; }
   const menuEl = () => document.getElementById("tctx");
