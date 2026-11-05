@@ -39,7 +39,7 @@ iframe{border:0;width:100%;height:100%;display:block;background:#0d1117}
 <body>
 <aside>
   <h1>Показы от ассистента · опыт</h1>
-  <p class="lead">Человек просит «покажи, как…». Показ написала модель: ей дали только карту интерфейса, собранную из кода, — сам код страницы она не видела. Каждый показ прогнан на учебных данных; что не прошло, модель один раз исправила по отчёту прогона. Справа — консоль на учебных данных: клики настоящие, но до системы ничего не доходит.</p>
+  <p class="lead">Человек просит «покажи, как…». Ассистент не пишет показ наперёд, а проходит его сам в учебной копии консоли: делает шаг, смотрит, что на экране, выбирает следующий — до цели. Пройденный путь и есть показ. Справа — консоль на учебных данных: клики настоящие, но до системы ничего не доходит.</p>
   <div class="sum" id="sum"></div>
   <ol id="list"></ol>
   <p class="note">На панели показа: «Пауза», «Назад», «Дальше», скорость ×1–×8, Esc закрывает. Показ всегда начинается на свежих учебных данных.</p>
@@ -55,7 +55,7 @@ iframe{border:0;width:100%;height:100%;display:block;background:#0d1117}
   const res = (t) => D.results[t.id] || { status: "bad" };
   const counts = { ok: 0, part: 0, bad: 0 }, first = D.tours.filter((t) => res(t).round === 1).length;
   D.tours.forEach((t) => counts[res(t).status]++);
-  document.getElementById("sum").innerHTML = `<span>всего ${D.tours.length}</span><span>до цели ${counts.ok} (с первого раза ${first})</span><span>с огрехами ${counts.part}</span><span>не прошли ${counts.bad}</span>`;
+  document.getElementById("sum").innerHTML = `<span>всего ${D.tours.length}</span><span>до цели ${counts.ok}</span>${counts.part ? `<span>с огрехами ${counts.part}</span>` : ""}${counts.bad ? `<span>не прошли ${counts.bad}</span>` : ""}<span>прошлые опыты «вслепую»: 5–6 из 10</span>`;
   let current = 0;
   D.tours.forEach((t, k) => {
     const r = res(t), [cls, word] = STATUS[r.status];
@@ -63,7 +63,7 @@ iframe{border:0;width:100%;height:100%;display:block;background:#0d1117}
     li.innerHTML = `<p class="rq"></p><p class="tt"></p><p class="nt"></p><div class="row"><span class="st ${cls}"></span><button type="button">Показать</button></div>`;
     li.querySelector(".rq").textContent = `«${t.request}»`;
     li.querySelector(".tt").textContent = `${t.title} · ${t.steps.length} шагов`;
-    li.querySelector(".st").textContent = r.status === "bad" && r.step ? `${word}: шаг ${r.step}` : r.round ? `${word} · ${r.round === 1 ? "с первого раза" : "после исправления"}` : word;
+    li.querySelector(".st").textContent = r.status === "bad" && r.step ? `${word}: шаг ${r.step}` : word;
     li.querySelector(".nt").textContent = r.note || "";
     const b = li.querySelector("button");
     b.addEventListener("click", () => {
