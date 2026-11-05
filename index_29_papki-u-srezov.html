@@ -111,7 +111,7 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
 /* За чертой — не срезы, а настройка показа: «Папки» и статус. Черта держится вместе с последним срезом, поэтому настройки не уезжают отдельной строкой. */
 .ph-slices{display:contents}
-.ph-tail{display:inline-flex;align-items:center;gap:4px;flex:none;max-width:100%;min-width:0}
+.ph-tail{display:inline-flex;align-items:center;gap:4px;flex:1 0 auto;max-width:100%;min-width:0}
 .ph-fold{position:relative;display:inline-flex;align-items:center;gap:4px;min-width:0;margin-left:2px;padding-left:7px}
 .ph-fold:before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:1px;background:var(--one-border-strong)}
 .ph-fold svg.ic-svg{width:14px;height:14px;flex:none}
@@ -2561,8 +2561,8 @@ function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:slice
 // её ради переименования значило бы менять работающее без причины.
 // По умолчанию дерево занимает 30% окна. Границы ограничивают ширину панели,
 // а размер, выбранный перетаскиванием, запоминается.
-// Нижняя граница — чтобы последний срез, «Папки» и статус помещались в одну строку
-const ASIDE_MIN=400;
+// Нижняя граница — чтобы последний срез, «Папки», статус и кнопки дерева помещались в одну строку
+const ASIDE_MIN=480;
 function asideWidthClamp(w){return Math.max(ASIDE_MIN,Math.min(Math.round(window.innerWidth/2),Math.round(w)))}
 function asideWidthDefault(){
   try{const saved=parseInt(localStorage.getItem("cfg.asideW"),10);if(saved)return asideWidthClamp(saved)}catch(e){}
@@ -8317,13 +8317,11 @@ function panelHeadHtml(){
   </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
     <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
-  </span></span></div><div class="ph-row">
-    <span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
+  </span><span class="ph-tools" role="group" aria-label="${i18n("Раскрытие дерева")}">
       <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
       <button type="button" class="ph-tool" id="treeExpandBtn" title="${i18n("Развернуть всё")}" aria-label="${i18n("Развернуть всё")}" ${onEv("click",["treeExpandAll"])}>${TREE_IC.open}</button>
       <button type="button" class="ph-tool" id="treeRevealBtn" title="${i18n("Показать открытый объект в дереве")}" aria-label="${i18n("Показать открытый объект в дереве")}" ${onEv("click",["treeReveal"])}>${TREE_IC.here}</button>
-    </span>
-  </div></div>`;
+    </span></span></div></div>`;
 }
 // ── Раскрытие дерева ─────────────────────────────────────────────────────
 // Дерево открывается коротким: домены и их первый уровень. У каждого среза и
