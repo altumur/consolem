@@ -734,6 +734,17 @@ html[data-theme="light"] .lst-sq:focus-within{border-color:var(--one-editor-bord
 .rl-opts{display:grid;gap:8px;margin-bottom:14px}
 .rl-opts-2{grid-template-columns:repeat(auto-fill,minmax(280px,1fr))}
 .rl-tpl-g{grid-column:1/-1;margin:6px 0 -2px;color:var(--mu);font-size:12px;font-weight:600}
+.rl-tpl-q{width:100%;margin:0 0 10px}.rl-tpl-none{grid-column:1/-1;margin:0}
+.rl-opt[hidden],.rl-tpl-g[hidden],.rl-tpl-none[hidden],.cbx-n[hidden]{display:none}
+.cbx{position:fixed;z-index:20000;display:flex;flex-direction:column;box-sizing:border-box;background:var(--p);border:1px solid var(--ln);border-radius:8px;box-shadow:0 8px 24px #0006}
+.cbx-q{flex:none;width:auto;margin:6px;box-sizing:border-box}
+.cbx-l{flex:1;min-height:0;overflow-y:auto;scrollbar-gutter:stable;padding:0 4px 4px}
+.cbx-g{position:sticky;top:0;padding:6px 8px 2px;background:var(--p);color:var(--mu);font-size:11px;font-weight:600}
+.cbx-o{padding:5px 8px;border-radius:5px;font-size:13px;cursor:pointer}
+.cbx-o.act{background:var(--one-nav-hover)}.cbx-o[aria-selected="true"]{font-weight:600}
+.cbx-o[aria-disabled="true"]{color:var(--mu);cursor:default}
+.cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
+.cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
 .rl-logic-l{margin-left:8px;color:var(--mu);font-size:12px}
 .rl-chips.rl-logic{margin:0;display:inline-flex}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
@@ -2126,10 +2137,10 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
   const right={level:"FULL"},L=t=>({key:"proto29."+t,text:t,lang:"ru"});
   const ev=(id,t,x)=>({id,label:L(t),right,alarm:false,...x});
   const act=(id,t,props)=>({id,label:L(t),execution:"instant",ruleAction:true,ruleOnly:true,right,params:{type:"object",additionalProperties:false,properties:props||{}}});
-  const str=(title,x)=>({type:"string",title,...x}),int=(title)=>({type:"integer",minimum:0,title});
-  const en=(title,map)=>({type:"string",title,enum:Object.keys(map),"x-enum-labels":Object.fromEntries(Object.entries(map).map(([k,v])=>[k,L(v)]))});
+  const str=(title,x)=>({type:"string",title,"x-label":L(title),...x}),int=(title)=>({type:"integer",minimum:0,title,"x-label":L(title)});
+  const en=(title,map)=>({type:"string",title,"x-label":L(title),enum:Object.keys(map),"x-enum-labels":Object.fromEntries(Object.entries(map).map(([k,v])=>[k,L(v)]))});
   const add={
-    camera:{events:[ev("device.lost","Камера: нет связи",{params:{type:"object",properties:{thresholdSec:int("Не считать обрыв короче, с")}}}),ev("device.restored","Камера: связь восстановлена"),ev("device.auth","Камера: ошибка авторизации"),ev("device.enabled","Камера: включена в настройках"),ev("device.disabled","Камера: выключена в настройках"),ev("tamper","Детектор: закрыли или сдвинули камеру"),
+    camera:{events:[ev("device.lost","Камера: нет связи",{params:{type:"object",properties:{thresholdSec:en("Порог обрыва",{10:"обрыв дольше 10 с",30:"обрыв дольше 30 с",60:"обрыв дольше 1 мин",300:"обрыв дольше 5 мин"})}}}),ev("device.restored","Камера: связь восстановлена"),ev("device.auth","Камера: ошибка авторизации"),ev("device.enabled","Камера: включена в настройках"),ev("device.disabled","Камера: выключена в настройках"),ev("tamper","Детектор: закрыли или сдвинули камеру"),
         ev("fire","Детектор: огонь",{ends:true}),ev("smoke","Детектор: дым",{ends:true}),
         ev("face.list","Лицо: совпадение со списком",{params:{type:"object",properties:{presence:en("Лицо",{yes:"есть в списке",no:"нет в списке"})}}}),
         ev("plate.list","Номер: совпадение со списком",{params:{type:"object",properties:{presence:en("Номер",{yes:"есть в списке",no:"нет в списке"})}}}),
@@ -15553,12 +15564,28 @@ function ruleNewOpen(preset){
     ruleNewRender();
   },()=>!preset);
 }
-function ruleNewSet(k,v){rnw[k]=v;if(k==="start")rnw.tpl="";ruleNewRender()}
+function ruleNewSet(k,v){rnw[k]=v;if(k==="start"){rnw.tpl="";rnw.q=""}ruleNewRender()}
+// Карточки шаблонов: то же правило длинного списка, что у <select> (CBX_MIN). «С нуля» остаётся всегда: это выход из поиска
+function ruleTplFilter(v){
+  rnw.q=v;
+  const host=document.querySelector("#bmodal [data-rnw]");if(!host)return;
+  let shown=0,g=null,gn=0;
+  const closeG=()=>{if(g)g.hidden=!gn};
+  [...host.children].forEach(el=>{
+    if(el.classList.contains("rl-tpl-g")){closeG();g=el;gn=0;return}
+    if(!el.dataset.tpl)return;
+    const on=matchesText(v.trim(),el.textContent);
+    el.hidden=!on;if(on){gn++;shown++}
+  });
+  closeG();
+  const no=host.querySelector(".rl-tpl-none");if(no)no.hidden=shown>0;
+}
 function ruleNewRender(){
   const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
   let tplGrp="";
   const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
-    .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}"><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+    .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}" ${t.id?`data-tpl="${t.id}"`:""}><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
+  const tplCount=RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t)).length;
   const m=ruleNewMerge();
   const pre=rnw.preset?`<div class="nt">${rnw.preset.note?escHtml(i18n(rnw.preset.note))+" ":""}${m.notes.map(x=>escHtml(x)).join("; ")}</div>`:"";
   const steps=RULE_NEW_STEPS,last=rnw.step===steps.length-1,st=steps[rnw.step];
@@ -15566,9 +15593,10 @@ function ruleNewRender(){
   const tplName=rnw.tpl?RULE_TPL.find(x=>x.id===rnw.tpl)?.name:"С нуля";
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
     st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
-      :`${pre}<div class="rl-opts rl-opts-2" data-rnw>${tpls}</div>
+      :`${pre}${tplCount>=CBX_MIN?`<input type="text" class="rl-tpl-q" placeholder="${i18n("Найти шаблон…")}" aria-label="${i18n("Найти шаблон")}" autocomplete="off" value="${escHtml(rnw.q||"")}" ${onEv("input",["ruleTplFilter",onEv.value])}>`:""}<div class="rl-opts rl-opts-2" data-rnw>${tpls}<p class="sub rl-tpl-none" hidden>${i18n("Ничего не найдено")}</p></div>
      <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
     wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
+  if(rnw.q&&st.k==="tpl")ruleTplFilter(rnw.q);
 }
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
@@ -16093,7 +16121,7 @@ function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(tri
 function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
-  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:k.gen&&m.label!==m.id?`${i18n(m.label)}: ${i18n("любое")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -29160,6 +29188,139 @@ function cpApplyGeneric(){
   bulkRun(ch,null,nodes);
 }
 
+// ── Длинный список — с поиском (CLAUDE.md, «Правила интерфейса») ──
+// Обычный <select> с CBX_MIN и больше пунктов открывается с полем поиска. Менять разметку не нужно: <select> остаётся
+// на месте и хранит значение, выбор приходит к его обработчику обычным change. Сенсорным экранам — системный выбор.
+const CBX_MIN=8;
+let cbx=null;
+function cbxFits(s){
+  return!!s&&s.tagName==="SELECT"&&!s.multiple&&s.size<=1&&!s.disabled&&!matchMedia("(pointer:coarse)").matches
+    &&[...s.options].filter(o=>o.value!=="").length>=CBX_MIN;
+}
+function cbxItems(s){
+  const out=[];
+  [...s.children].forEach(c=>{
+    const one=(o,g)=>{if(!o.hidden)out.push({v:o.value,l:o.textContent,g,dis:o.disabled,on:o.selected})};
+    if(c.tagName==="OPTGROUP")[...c.children].forEach(o=>one(o,c.label));else one(c,"");
+  });
+  return out;
+}
+function cbxOpen(s,text){
+  if(cbx)cbxClose();
+  const box=document.createElement("div");box.className="cbx";
+  const q=document.createElement("input");q.type="text";q.className="cbx-q";q.autocomplete="off";
+  q.placeholder=i18n("Поиск в списке…");
+  q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
+  q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
+  const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
+  box.append(q,list,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,items:cbxItems(s),shown:[],act:-1,up:null,frame:0};
+  q.value=text||"";
+  q.addEventListener("input",cbxPaint);
+  q.addEventListener("keydown",cbxKey);
+  list.addEventListener("mousedown",e=>e.preventDefault());
+  list.addEventListener("mousemove",e=>{const o=e.target.closest(".cbx-o");if(o&&o.getAttribute("aria-disabled")!=="true")cbxActive(+o.dataset.i,false)});
+  list.addEventListener("click",e=>{const o=e.target.closest(".cbx-o");if(o)cbxPick(+o.dataset.i)});
+  box.addEventListener("click",e=>e.stopPropagation());
+  cbxPaint();cbxPlace();q.focus();
+  q.setSelectionRange(q.value.length,q.value.length);
+  cbxFollow();
+}
+function cbxPaint(){
+  const c=cbx;if(!c)return;
+  const t=c.q.value.trim();
+  c.shown=c.items.filter(x=>matchesText(t,x.l,x.g));
+  let g="",h="";
+  c.shown.forEach((x,i)=>{
+    if(x.g&&x.g!==g)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
+    g=x.g;
+    h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
+  });
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n("Ничего не найдено")}</div>`;
+  c.foot.hidden=!t;
+  c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
+  const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
+  cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+function cbxActive(i,scroll=true){
+  const c=cbx;if(!c)return;
+  c.list.querySelector(".cbx-o.act")?.classList.remove("act");
+  c.act=i;
+  const el=i>=0?c.list.querySelector(`#cbxO${i}`):null;
+  if(el){el.classList.add("act");c.q.setAttribute("aria-activedescendant",el.id);if(scroll)el.scrollIntoView({block:"nearest"})}
+  else c.q.removeAttribute("aria-activedescendant");
+}
+function cbxStep(d){
+  const c=cbx;if(!c||!c.shown.length)return;
+  const n=c.shown.length,dir=Math.sign(d);
+  let i=Math.max(0,Math.min(n-1,c.act+d));
+  while(i>=0&&i<n&&c.shown[i].dis)i+=dir;
+  if(i>=0&&i<n)cbxActive(i);
+}
+function cbxKey(e){
+  const c=cbx;if(!c)return;
+  if(e.key==="Tab"){const s=c.sel;cbxClose();s.focus();return}
+  e.stopPropagation();
+  if(e.key==="ArrowDown"){e.preventDefault();cbxStep(1)}
+  else if(e.key==="ArrowUp"){e.preventDefault();cbxStep(-1)}
+  else if(e.key==="PageDown"){e.preventDefault();cbxStep(8)}
+  else if(e.key==="PageUp"){e.preventDefault();cbxStep(-8)}
+  else if(e.key==="Enter"){e.preventDefault();if(c.act>=0)cbxPick(c.act)}
+  else if(e.key==="Escape"){e.preventDefault();const s=c.sel;cbxClose();s.focus()}
+}
+function cbxPick(i){
+  const c=cbx;if(!c)return;
+  const x=c.shown[i];if(!x||x.dis)return;
+  const s=c.sel;cbxClose();
+  if(s.value!==x.v){s.value=x.v;s.dispatchEvent(new Event("change",{bubbles:true}))}
+  // Обработчик мог перерисовать карточку: фокус возвращается на такое же поле, клавиатура не теряет место
+  const lab=s.getAttribute("aria-label"),ks=s.dataset.ks;
+  const next=s.isConnected?s:ks?document.querySelector(`select[data-ks="${CSS.escape(ks)}"]`):lab?document.querySelector(`select[aria-label="${CSS.escape(lab)}"]`):null;
+  next?.focus({preventScroll:true});
+}
+function cbxClose(){
+  if(!cbx)return;
+  cancelAnimationFrame(cbx.frame);cbx.box.remove();cbx=null;
+}
+// Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
+function cbxPlace(){
+  const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
+  const w=Math.min(Math.max(r.width,320),innerWidth-pad*2);
+  const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
+  if(c.up===null)c.up=below<240&&above>below;
+  const room=c.up?above:below;
+  c.box.style.width=`${w}px`;
+  c.box.style.maxHeight=`${Math.max(140,Math.min(380,room))}px`;
+  c.box.style.left=`${Math.max(pad,Math.min(r.left,innerWidth-w-pad))}px`;
+  c.box.style.top=c.up?"":`${r.bottom+gap}px`;
+  c.box.style.bottom=c.up?`${innerHeight-r.top+gap}px`:"";
+}
+function cbxFollow(){
+  if(!cbx)return;
+  if(!cbx.sel.isConnected||!cbx.sel.getClientRects().length){cbxClose();return}
+  cbxPlace();
+  cbx.frame=requestAnimationFrame(cbxFollow);
+}
+document.addEventListener("mousedown",e=>{
+  const s=e.target.closest?.("select"),same=!!cbx&&cbx.sel===s;
+  if(cbx&&!cbx.box.contains(e.target))cbxClose();
+  if(e.button===0&&cbxFits(s)){e.preventDefault();if(same)s.focus();else cbxOpen(s)}
+},true);
+// Клик без мыши (detail 0): показ или сценарий
+document.addEventListener("click",e=>{
+  const s=e.target.closest?.("select");
+  if(e.detail===0&&cbxFits(s)&&!cbx)cbxOpen(s);
+},true);
+document.addEventListener("keydown",e=>{
+  const s=e.target;
+  if(cbx||!cbxFits(s)||e.ctrlKey||e.metaKey)return;
+  const text=e.key.length===1&&e.key!==" "&&!e.altKey;
+  if(!text&&!["ArrowDown","ArrowUp","Enter"," ","F4"].includes(e.key))return;
+  e.preventDefault();e.stopPropagation();
+  cbxOpen(s,text?e.key:"");
+},true);
+
 // Старт: данные с сервера, затем первая отрисовка. Раскрыто то же, что в
 // макете на константах: первый и третий домен, нераспределённые первого,
 // первый сервер, первое хранилище, первая папка с подпапкой.
@@ -29181,6 +29342,128 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 });
 // ?selftest — самопроверка прототипа через API (tests/selftest.js); ?selftest-run=… — страница одного её сценария
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
+</script>
+<script src="assets/tour.js"></script>
+<script>
+// Показы прототипа 29: по одному на тему. Клики и ввод настоящие; в длинных обзорах пункт меняет собственный обработчик страницы.
+(()=>{
+  const $=s=>document.querySelector(s),main=()=>$("#main")||document;
+  const btn=(t,root)=>[...(root||document).querySelectorAll("button")].find(b=>b.textContent.trim()===t);
+  const fresh=(tpl,start)=>{
+    wzDrop("rule");
+    if(app!=="rules")setApp("rules");
+    rnw={step:1,start:start||"event",tpl,preset:null};
+    ruleNewCreate();
+  };
+  const evSel=i=>$(`select[aria-label^="Вид события ${i}"]`);
+  const row=el=>el&&el.closest(".rl-row");
+  const stepSel=ps=>$(`select[data-ks="${ps}"]`);
+  const ctlRow=ps=>row(stepSel(ps));
+  const opt=t=>[...document.querySelectorAll(".cbx-o")].find(o=>o.textContent.trim()===t);
+  const cbxQ=()=>$(".cbx-q");
+  const branch=w=>[...document.querySelectorAll(".rl-br")].find(b=>b.querySelector(".rl-brh").textContent.trim()===w);
+  // Три шага: открыть список, ввести, выбрать
+  const choose=(at,text,label,sayOpen,sayType)=>[
+    {say:sayOpen,at,act:"click"},
+    {say:sayType,at:cbxQ,act:"type",text},
+    {say:`Остался короткий список. Выбираем «${label}».`,at:()=>opt(label),act:"click"}];
+
+  Tour.offer("Поиск в длинных списках",[
+    {say:"В списке событий около пятидесяти пунктов. Раньше его приходилось листать. Щелчок теперь открывает поле поиска.",before:()=>fresh("mrec"),at:()=>evSel(1),act:"click"},
+    {say:"Поле поиска уже в фокусе, а группы списка остались. Текущий пункт виден сразу.",at:()=>$(".cbx")},
+    {say:"Вводим часть слова.",at:cbxQ,act:"type",text:"трев"},
+    {say:"Список сузился, совпадения подсвечены, внизу итог «Показано N из M». Стрелки и Enter выбирают, Esc отменяет.",at:()=>$(".cbx-l")},
+    {say:"Выбор идёт через обычный обработчик списка, поэтому правило меняется как раньше.",at:()=>opt("Тревога: подтверждена"),act:"click"},
+    {say:"В поле теперь выбранное событие. Щёлкать не обязательно: первая буква в поле тоже открывает поиск.",at:()=>evSel(1)},
+    {say:"Короткий список остаётся обычным: выбор из семи пунктов и меньше быстрее глазами.",before:()=>addItem(""),at:()=>ctlRow("1")?.querySelector('select[aria-label="Сколько"]')||stepSel("1")},
+    {say:"Правило записано в CLAUDE.md: список из 8 пунктов и больше получает поиск. Поиск подключается к любому <select> прототипа сам."}]);
+
+  Tour.offer("Шаблоны в мастере",[
+    {say:"Открываем мастер нового правила.",before:()=>{wzDrop("rule");if(app!=="rules")setApp("rules")},at:()=>btn("Правило",$("#aside")),act:"click"},
+    {say:"Шаг «Как запускается» остался прежним.",at:()=>$("#bmodal [data-rnw]")},
+    {say:"Переходим к шаблонам.",at:()=>btn("Далее",$("#bmodal")),act:"click"},
+    {say:"Шаблонов стало 11, они разбиты на группы «Охрана и реагирование» и «Состояние системы». Набор собран из документов VMS. Статистики частоты нет ни у кого.",at:()=>$("#bmodal .rl-tpl-q")&&$("#bmodal [data-rnw]")},
+    {say:"Здесь больше восьми пунктов, поэтому над карточками тоже есть поиск. «С нуля» остаётся всегда.",at:()=>$("#bmodal .rl-tpl-q"),act:"type",text:"письмо"},
+    {say:"Берём шаблон с самой сложной логикой внутри: письмо уходит, только если связь не вернулась за 5 минут.",at:()=>$('#bmodal [data-tpl="off"]'),act:"click"},
+    {say:"Создаём правило. Устройства шаблон оставляет пустыми: их выбирают в карточке.",at:()=>btn("Создать правило",$("#bmodal")),act:"click"},
+    {say:"Шаблон поставил новое событие «Камера: нет связи».",at:()=>evSel(1)},
+    {say:"А в блоке «То» стоит шаг «Ждать событие» с двумя ветками: связь вернулась и связь не вернулась.",at:()=>ctlRow("0")},
+    {say:"Письмо лежит в ветке «если не пришло». Короткий обрыв письма не вызовет.",at:()=>branch("если не пришло")},
+    {say:"Шаблон сразу даёт рабочую логику: остаётся выбрать камеру и получателя."}]);
+
+  Tour.offer("Логика «и / или»",[
+    {say:"Было: второе событие всегда шло через «и». Начинаем с шаблона «Движение — запись».",before:()=>fresh("mrec"),at:()=>btn("Добавить событие",main()),act:"click"},
+    {say:"Второе событие теперь идёт через «или», как в Axxon One: любое событие запускает правило.",at:()=>$(".rl-logic")},
+    ...choose(()=>evSel(2),"дым","Детектор: дым","Выбираем второе событие.","Ищем в длинном списке."),
+    {say:"Вторая строка подписана «или». Под строками написано, что это значит.",at:()=>row(evSel(2))?.querySelector(".rl-n")},
+    {say:"Переключаем на «все события».",at:()=>btn("все события",main()),act:"click"},
+    {say:"Строка теперь подписана «и». Появилось окно: оба события должны случиться в пределах N секунд. Это логика старого макета; в Axxon One такой нет.",at:()=>$(".rl-win")},
+    {say:"Возвращаем «любое из событий».",at:()=>btn("любое из событий",main()),act:"click"},
+    {say:"Добавляем условие в блок «При условии».",at:()=>btn("Добавить условие",main()),act:"click"},
+    {say:"И второе условие.",at:()=>btn("Добавить условие",main()),act:"click"},
+    {say:"Условия по умолчанию идут через «и»: должны выполниться все.",at:()=>btn("все условия",main())},
+    {say:"Включаем «любое из условий».",at:()=>btn("любое из условий",main()),act:"click"},
+    {say:"Вторая строка условий подписана «или». Достаточно одного выполненного условия.",at:()=>{const rows=[...document.querySelectorAll('select[aria-label^="Вид условия"]')];return row(rows[rows.length-1])?.querySelector(".rl-n")}},
+    {say:"Переключатель действует на весь блок, поэтому выразить «A и (B или C)» нельзя. Связка в каждой строке — открытый вопрос в отчёте."}]);
+
+  const evStep=(kind,say)=>({say,before:()=>setTriggerKind(0,String(TRIGGER_KINDS.findIndex(k=>k.kind===kind))),at:()=>row(evSel(1))});
+  Tour.offer("Новые события",[
+    {say:"Покажем новые события по группам. Каждое выбираем в первой строке блока «Если».",before:()=>fresh("mrec"),at:()=>evSel(1)},
+    evStep("device.lost","Связь с камерой пропала. Поле порога отсекает короткие обрывы. Также есть «связь восстановлена», ошибка входа и включение камеры."),
+    evStep("tamper","Камеру закрыли или сдвинули. Рядом есть детекторы огня и дыма."),
+    evStep("face.list","Лицо есть или нет в списке. Уточнение выбирается в строке."),
+    evStep("plate.list","То же для номера: на этом событии построен шаблон шлагбаума."),
+    evStep("alarm.closed","Жизнь тревоги: начата, взята в работу, обработана, подтверждена, подозрительная, ложная. На них можно строить реакцию."),
+    evStep("rec.lost","Запись: началась, остановилась, нет записи в архив, запись вернулась."),
+    evStep("arm.off","Охрана: камера поставлена на охрану, режим приватности, снята с охраны."),
+    evStep("ptz.failed","Поворотная камера: движение, ручное управление, сбой."),
+    evStep("output.on","Выход устройства включился. Событие имеет конец, поэтому действие может идти, пока выход включён."),
+    evStep("server.down","Система: нет связи с сервером, связь восстановлена, нет связи с сервером лицензий."),
+    evStep("load.high","Нагрузка выше порога: что считать, процент и тренд. Сервер прототипа это не считает, поля показывают вид."),
+    evStep("sched.edge","Начало или конец расписания как событие."),
+    evStep("volume.error","Ошибка тома архива. В прототипе событие привязано к серверу: в наборе нет томов для выбора."),
+    {say:"Все эти события — заглушка в файле прототипа. После утверждения вида они войдут в запрос к контракту."}]);
+
+  Tour.offer("Ветвления и ход выполнения",[
+    {say:"Шаблон «Нет записи — письмо» запускается по расписанию и повторяется с интервалом. Раньше у расписания были только дни и время.",before:()=>fresh("norec","sched"),at:()=>[...document.querySelectorAll("#main label,#main .rl-f")].find(e=>/Повторять/.test(e.textContent)&&e.textContent.length<80)},
+    {say:"Новый шаг «Проверить и разветвить». Раньше такая проверка могла только остановить правило, а веток не было.",at:()=>stepSel("0")},
+    {say:"Что проверить и за какой период: здесь запись в архиве за последний час.",at:()=>ctlRow("0")},
+    {say:"Ветка «если да»: запись есть. Шаг «Прервать выполнение» завершает правило.",at:()=>branch("если да")},
+    {say:"Ветка «если нет»: записи нет, уходит письмо.",at:()=>branch("если нет")},
+    {say:"Проверка может спросить и другое. «Камера на охране» не имеет периода, поэтому поле периода ушло.",before:()=>setCtlField("0","what","armed"),at:()=>ctlRow("0")},
+    {say:"Также можно проверить защищённую запись и связь с устройством.",before:()=>setCtlField("0","what","online"),at:()=>ctlRow("0")},
+    {say:"Возвращаем проверку записи и добавляем пункт в ветку «если нет».",before:()=>setCtlField("0","what","record"),at:()=>$('[data-fk="add:0.no"]'),act:"click"},
+    ...choose(()=>stepSel("0.no.1"),"дождаться","Дождаться конца предыдущего шага","Новый пункт сразу просит выбрать вид.","В группе «Ход выполнения» теперь три новых шага."),
+    {say:"Шаг ждёт, пока закончится письмо, но не дольше заданного времени. Так следующий шаг не начнётся раньше.",at:()=>ctlRow("0.no.1")},
+    {say:"Добавляем ещё один пункт.",at:()=>$('[data-fk="add:0.no"]'),act:"click"},
+    ...choose(()=>stepSel("0.no.2"),"ждать соб","Ждать событие","Выбираем шаг с собственными ветками.","Ветки могут быть вложенными."),
+    {say:"Второй уровень ветвления: ждём событие и идём разными путями. Глубже двух уровней шаги с ветками не предлагаются.",at:()=>ctlRow("0.no.2")},
+    {say:"Логика видна целиком: нумерация показывает путь. 1Б.3А.1 значит шаг 1, ветка Б, шаг 3, ветка А. Пробный запуск встроенного сервера этих новых шагов пока не считает."}]);
+
+  const actKind=label=>"a:"+ACTION_KINDS.findIndex(k=>k.label===label);
+  const actStep=(label,say,then)=>({say,before:()=>{setStepKind("0",actKind(label));if(then)then()},at:()=>ctlRow("0")});
+  Tour.offer("Новые действия",[
+    {say:"Список действий с поиском один и для действий, и для шагов хода выполнения. Покажем новые действия по очереди.",before:()=>fresh("mrec"),at:()=>stepSel("0")},
+    actStep("Записывать","Запись получила новые поля: секунды до начала и число кадров в секунду."),
+    actStep("Экспортировать кадр или видео","Экспорт кадра или видео вокруг события."),
+    actStep("Начать репликацию","Репликация: вокруг события или за время, пока сервер был недоступен."),
+    actStep("Обход поворотной камеры","Обход поворотной камеры: начать или остановить. В Axxon One это есть только в API."),
+    actStep("Отправить письмо","Письмо теперь может взять вложение: кадр или видео."),
+    actStep("Push-уведомление","Push-уведомление с заголовком, текстом и вложением."),
+    actStep("Воспроизвести звук у оператора","Звук в клиенте для выбранной роли."),
+    actStep("Голосовое сообщение от оператора","Голосовое сообщение от оператора на устройство."),
+    actStep("Команда экрану оператора","Команда экрану: камера, карта, архив, пометка, слайд-шоу, возврат раскладки."),
+    actStep("Запустить программу у оператора","Программа на компьютере оператора."),
+    actStep("Запустить программу на сервере","Программа на сервере, с аргументами."),
+    actStep("Включить или выключить службу","Служба на сервере: включить или выключить."),
+    actStep("Воспроизвести звук на устройстве","Звук на динамике устройства."),
+    actStep("Управлять реле","Реле раньше умело только импульс. Теперь его можно включить и выключить; поле импульса ушло.",()=>setActionField("0","state","on")),
+    actStep("Встать в пресет","Пресет получил скорость и время удержания."),
+    actStep("Поднять тревогу","Тревога: когда поднимать и обязателен ли комментарий оператора."),
+    actStep("Закрыть тревогу","Закрытие тревоги получило оценку: ложная, подозрительная, подтверждена."),
+    actStep("Веб-запрос","Веб-запрос: методы PUT и DELETE, авторизация, заголовки, тело. Через него делают и Telegram-рецепт Axxon One."),
+    {say:"Все новые действия — заглушка в файле прототипа. Выполнять их встроенный сервер не умеет: показан только вид настройки."}]);
+})();
 </script>
 </body>
 </html>
