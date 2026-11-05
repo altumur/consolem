@@ -6149,6 +6149,8 @@ function inSlice(n){
 }
 function selfInView(n){
   if(n.type==="domain"||n.type==="unalloc"||n.type==="folder")return false;
+  // «Детекторы» при статусе: статус у детектора, камера показана только ради своих детекторов
+  if(slice==="det"&&n.type==="camera"&&statusFilts.size)return false;
   // Встроенное хранилище — дочерняя строка камеры или канала регистратора:
   // видно, у кого есть карта памяти или диск, без захода в карточку.
   return matchesDomain(n)&&inSlice(n)&&matchesType(n)&&matchesStatus(n);
@@ -7089,7 +7091,7 @@ function filtHitCount(){
   const ids=new Set();
   fs.order.forEach(id=>{
     const n=find(id)?.n;if(!n||!matchesDomain(n))return;
-    if(n.type==="det")ids.add(id);
+    if(n.type==="det"){if(matchesStatus(n))ids.add(id)}
     else if(n.type==="camera"&&treeQ.trim())(n.devices||[]).forEach(d=>{if(d.type==="det"&&matchesStatus(d))ids.add(d.id)});
   });
   return ids.size;
@@ -7098,6 +7100,7 @@ function countFiltered(){
   if(fs&&!(fs.pick&&treeQ.trim()))return fs.pick?fs.hits.size:filtHitCount();
   const q=qval();let n=0;
   walkSliceObjects((node,p)=>{if(slice==="det"){if(matchesStatus(node)&&detSliceHit(node,p,q))n++;return}
+    if(slice==="arch"&&statusFilts.size){if(node.type==="archive"&&matchesStatus(node)&&matchesSearch(node,q))n++;return}
     if(node.type==="det"||node.type==="domain"||node.type==="unalloc")return;if(selfInView(node)&&matchesSearch(node,q))n++});
   return n;
 }
@@ -7824,7 +7827,9 @@ let revealAt=0;
 const SLICE_READ={cam:TF_CAM,acfa:TF_ACFA,det:[["det"]]},SLICE_READ_MAX=5000;
 const sliceReads=new Map();
 function sliceReadKey(){return slice+"|"+treeLayout()}
-function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done}
+// Статус дочитан и нарисован деревом: всё найденное уже здесь, непрочитанная ветка для него пуста.
+// Поиск — другое: он находит и папки, и серверы, строка нужна со стрелкой
+function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done&&!(statusFilts.size&&fs&&!fs.pick&&fs.done&&!fs.failed&&!fs.flat)}
 async function sliceRead(){
   const key=sliceReadKey(),layout=treeLayout();
   if(!SLICE_READ[slice]||sliceReads.has(key)||!can("getTreePaths"))return;
@@ -7857,9 +7862,11 @@ async function sliceRead(){
   }
 }
 // Строка конца ветки: читается или есть продолжение
-function treeMoreRow(id,l){
+function treeMoreRow(id,l,key=id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!treeOpenable(id,layout)||(b&&b.done&&!b.failed))return"";
+  // Ветку раскрыл статус, а не человек: всё найденное уже пришло отбором, читать её незачем
+  if(statusFilts.size&&!b&&!open.has(key))return"";
   if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
   const scan=treeVirtual(id);
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
@@ -8123,6 +8130,21 @@ function asstFilterQuery(f){
   }
   return out;
 }
+// Отбор идёт только по видам среза: иначе страницу занимают чужие объекты.
+// Камеры — без одних служб: срез решает по месту в дереве (замок под камерой — в «Камерах»), чужое отсеивает filtSeen
+function filtSliceKinds(){
+  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));
+  if(slice==="det"){
+    if(!qval())return kindsOfScreen("det");
+    // Камера, найденная по тексту, показывает свои детекторы: текст ищем и по камерам
+    return statusFilts.size?[...kindsOfScreen("det"),...kindsOfScreen("camera")]:dev;
+  }
+  if(slice==="acfa")return[...new Set(TF_ACFA.flatMap(([t])=>kindsOfScreen(t)))];
+  if(slice==="cam"){const not=new Set(TF_SVC.map(([t])=>t));return dev.filter(k=>!not.has(screenType(k)))}
+  return dev;
+}
+// Сколько из прочитанного покажет срез: по этому числу дерево или плоский список, а не по всем ответам сервера
+function filtSeen(run){return run.pick?run.hits.size:filtHitCount()}
 function filtParams(run){
   if(run.filter)return Object.assign({limit:FILT_PAGE,cursor:run.cursor},asstFilterQuery(run.filter));
   const out={limit:FILT_PAGE,cursor:run.cursor};
@@ -8134,8 +8156,9 @@ function filtParams(run){
   if(typeFilts.size)out.kind=[...new Set([...typeFilts].flatMap(kindsOfScreen))].join(",");
   // Без чипа — только устройства, как /devices базы: инфраструктура (серверы, папки, хранилища, тома, потоки) не занимает
   // места на странице, иначе страница кончается раньше и отбор не доходит до конца там, где база дошла
-  else{const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));if(dev.length)out.kind=dev.join(",")}
-  if(statusFilts.size)out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
+  else{const dev=filtSliceKinds();if(dev.length)out.kind=dev.join(",")}
+  // «Детекторы» с текстом: статус у детектора, а его камеру находят по имени с любым статусом — детекторы отбирает дерево
+  if(statusFilts.size&&!(slice==="det"&&qval()))out.status=[...new Set([...statusFilts].map(x=>{const s=x.split(":")[0];return s==="on"?"run":s}))].join(",");
   if(domainFilter)out.domainId=domainFilter;
   return out;
 }
@@ -8144,7 +8167,7 @@ async function filtWave(run){
   if(run.busy)return;
   run.busy=true;
   try{
-    while(run===fs&&!run.done&&run.hits.size<run.want){
+    while(run===fs&&!run.done&&filtSeen(run)<run.want){
       let r;
       // Поиск и фильтры дерева — без инфраструктуры (у неё свои списки); отбор ассистента — как отобран, любого вида
       try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
@@ -8156,7 +8179,7 @@ async function filtWave(run){
       run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
       if(run===fs){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
     }
-    if(run===fs&&run.done&&run.hits.size<=LIM.idsMax){run.flat=false;filtPaint()}
+    if(run===fs&&run.done&&filtSeen(run)<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
   finally{run.busy=false;if(run===fs){filtPaint();if(run.pick)asstPickLoaded()}}
 }
@@ -8225,7 +8248,7 @@ function asstPickClear(){asstPickDrop();filtSync();applyFiltersFromState();aside
 // Отобранное видно в дереве сейчас: «Показать в дереве», «Открыть в дереве» нужны, только когда его не видно
 function asstPickShown(src){return!!src&&asstPick?.src===src&&app==="hw"&&PICK_SLICES.includes(slice)}
 function asstPickLoaded(){const p=asstPick;if(p?.loaded){const f=p.loaded;p.loaded=null;f()}}
-function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:fs.hits.size)+FILT_PAGE;filtWave(fs);filtPaint()}
+function filtMore(){if(!fs||fs.done)return;fs.want=(fs.pick?fs.at:filtSeen(fs))+FILT_PAGE;filtWave(fs);filtPaint()}
 function filtHint(){
   if(fs?.pick&&asstPick){
     const p=asstPick;
@@ -8239,7 +8262,10 @@ function filtHint(){
 }
 function treeFlat(){
   const q=qval();
-  const rows=fs.order.map(id=>find(id)?.n).filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+  // «Детекторы» при статусе: найденный детектор и детекторы найденной камеры — столько же, сколько в filtHitCount
+  const dets=n=>!n?[]:n.type==="det"?(matchesStatus(n)?[n]:[]):n.type==="camera"&&q?(n.devices||[]).filter(d=>d.type==="det"&&matchesStatus(d)):[];
+  const list=slice==="det"&&statusFilts.size?[...new Set(fs.order.flatMap(id=>dets(find(id)?.n)))]:fs.order.map(id=>find(id)?.n);
+  const rows=list.filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
     <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
   const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.pick&&!fs.filter?(fs.busy?"Загружаем…":"Показать ещё"):fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
   return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
@@ -8290,7 +8316,7 @@ function statusLabel(id){
 }
 function statusCount(id){
   const q=qval();let n=0;
-  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||statusIs(x,id)))n++});
+  walkSliceObjects((x,p)=>{if((slice==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))&&matchesType(x)&&(!id||(statusIs(x,id)&&(slice!=="arch"||x.type==="archive"))))n++});
   return n;
 }
 function pickStatus(id){
@@ -9075,7 +9101,7 @@ function svcrow(n,l){
 function srow(s,l=1,bare=false){
   const q=qval();
   if(bare){
-    if(!matchesStatus(s)||!matchesSearch(s,q))return"";
+    if((statusFilts.size&&slice!=="srv")||!matchesStatus(s)||!matchesSearch(s,q))return"";
     // Нераспределённые ещё не подключены к домену — всегда серым
     let h=`<div class="n srv ${sel===s.id?"on":""} off${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}>
       <span class="tw"></span>
@@ -9083,8 +9109,9 @@ function srow(s,l=1,bare=false){
     return h;
   }
   const offline=hasNoSignal(s);
-  const srvHit=matchesStatus(s)&&matchesSearch(s,q);
   const srvSlice=slice==="srv";        // опись сервера: архивы, GPU, службы
+  // Статус отбирает объекты среза: сервер без найденного показан только в «Серверах»
+  const srvHit=(srvSlice||!statusFilts.size)&&matchesStatus(s)&&matchesSearch(s,q);
   // Нет сигнала — дочерние в дереве не показываем
   const archs=offline?[]:serverArchives(s.id);
   const devs=offline?[]:(s.devices||[]).filter(d=>d.type!=="det");
@@ -9113,7 +9140,7 @@ function drow(d){
   const q=qval();
   // Без связи с доменом ответы несут только своё: показываем, что есть, чужое не считаем удалённым
   const offline=false;
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(d)&&matchesSearch(d,q);
   const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
   const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
   // Устройство без сервера стоит прямо под доменом, после серверов и их групп
@@ -9321,7 +9348,7 @@ function domainTreeDeviceCount(did){
 }
 function dfrow(d){
   const q=qval();
-  const selfHit=matchesStatus(d)&&matchesSearch(d,q);
+  const selfHit=!statusFilts.size&&matchesSearch(d,q);
   const kidsHtml=domainFolders(d.id).map(f=>frow(f,1)).filter(Boolean).join("")+nfrow(d,1)+svcsrow(d,1);
   if(!selfHit&&!kidsHtml)return"";
   // У домена есть «Без папки» и строка создания папки. На вкладке с прочитанными объектами стрелка — только если есть что показать
@@ -9346,9 +9373,8 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
-  if(slice==="arch")return treeArchives();
-  if(slice==="det")return treeDetectors();
-  return group()==="server"?treeServers():treeDev();
+  const h=slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
@@ -9410,7 +9436,7 @@ function gcamrow(cam,dets,l,ctx){
   const available=slice==="cam"?[]:dets.filter(matchesStatus);
   const vis=available.filter(d=>matchesSearch(d,q));
   const parentHit=matchesSearch(cam,q);
-  const selfHit=(slice==="cam"?selfInView(cam):matchesStatus(cam))&&parentHit;
+  const selfHit=(slice==="cam"?selfInView(cam):slice==="det"&&statusFilts.size?false:matchesStatus(cam))&&parentHit;
   const shown=parentHit?available:vis;
   if(!selfHit&&!shown.length)return"";
   const hasKids=!!shown.length||!!cam._more;
@@ -9421,7 +9447,7 @@ function gcamrow(cam,dets,l,ctx){
   let h=`<div class="n ${rowOn(cam.id,ctx)}${slice==="det"?sliceParentClass(cam.id):""}" style="--l:${l}"${treeRowPick(cam.id,ctx)}${treeCtxAttr(cam.id)}${treeExpandMeta(ok,"node",hasKids)}>
     ${treeChevron(ok,"node",hasKids,op)}
     ${treeIconHtml(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
-  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1);
+  if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1,ok);
   return h;
 }
 // Узкие срезы сохраняют домены и выбранную группировку, исключая остальные
@@ -9475,13 +9501,13 @@ function treeArchives(){
     d.servers.forEach(s=>{
       const all=serverArchives(s.id),list=all.filter(a=>matchesStatus(a)&&matchesSearch(a,q));
       if(list.length)withArch.push(archTreeRow(s,1,list.map(a=>arow(a,2)).join(""),list.length,"as:"+s.id));
-      else if(!all.length&&matchesStatus(s)&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
-      else if(all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&!all.length&&matchesSearch(s,q))bare.push(archTreeRow(s,2,"",0,"as:"+s.id));
+      else if(!statusFilts.size&&all.length&&matchesSearch(s,q))withArch.push(archTreeRow(s,1,"",0,"as:"+s.id));
     });
     const empty=bare.length?archGroupRow("as:bare:"+d.id,"Серверы без хранилищ","unalloc",bare.length,bare.join(""),[["archGroupOpen",`${"as:bare:"+d.id}`]],false):"";
     const children=net+withArch.join("")+empty;
-    return children||retainEmptySliceParents()||(matchesStatus(d)&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
-  }).join("")+archUnlinkedRow();
+    return children||retainEmptySliceParents()||(!statusFilts.size&&matchesSearch(d,q))?archTreeRow(d,0,children,sliceParentCount(d.id),d.id):"";
+  }).join("")+(statusFilts.size?"":archUnlinkedRow());
 }
 // Камеры без привязки к хранилищу: всегда внизу, при входе в срез свёрнуты
 const AS_NOREC="as:norec";
@@ -9642,7 +9668,7 @@ function treeDetectors(){
   if(group()==="kind")return treeDetKinds();
   const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
-  const branch=(n,l,children)=>children||retainEmptySliceParents()||treeUnread(n.id)||(qval()&&matchesSearch(n,qval())&&matchesStatus(n))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
+  const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size)||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
     const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},folderDeviceNodes(f));
     const children=(f.folders||[]).map(x=>folderRow(x,l+1)).join("")+rows(direct,l+1,"f:"+f.id);
@@ -9669,7 +9695,7 @@ function gpurow(sv,l){
   const list=gpuCameras(sv.id);
   // В срезе «Серверы» GPU показан строкой состава, без камер и детекторов.
   const children=slice==="srv"?"":list.map(x=>gcamrow(x.cam,x.dets,l+1,ctx)).join("");
-  const selfHit=matchesStatus(node)&&matchesText(q,locName(node),"gpu");
+  const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(node)&&matchesText(q,locName(node),"gpu");
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
   const op=hasKids&&(open.has(node.id)||autoExpand());
@@ -9686,7 +9712,8 @@ function arow(a,l){
   if(slice==="acfa"||slice==="det")return"";
   const q=qval(),inventory=slice==="srv"||slice==="arch";
   const allCams=archCameras(a.id),cams=allCams.filter(selfInView);
-  const selfHit=matchesStatus(a)&&matchesSearch(a,q);
+  // Статус отбирает объекты среза: хранилище — объект только в описи
+  const selfHit=(inventory||!statusFilts.size)&&matchesStatus(a)&&matchesSearch(a,q);
   const children="";
   if(!selfHit&&!children)return"";
   const hasKids=!!children;
@@ -9704,10 +9731,10 @@ function arow(a,l){
 function norow(d,l){
   const q=qval(),cams=norecList(d.id).filter(selfInView),vis=cams.filter(c=>matchesSearch(c,q));
   const n=norecNode(d.id);
-  if(statusFilts.size&&!cams.length&&!treeUnread(n.id))return"";
+  if(statusFilts.size&&!cams.length&&!sliceUnread(n.id))return"";
   const selfHit=matchesText(q,locName(n));
   if(!selfHit&&!vis.length)return"";
-  const hasKids=!!cams.length||treeUnread(n.id);
+  const hasKids=!!cams.length||(statusFilts.size?sliceUnread(n.id):treeUnread(n.id));
   const op=hasKids&&(open.has(n.id)||(autoExpand()&&!!vis.length));
   let h=`<div class="n srv norec ${sel===n.id?"on":""}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
     ${treeChevron(n.id,"dom",hasKids,op)}
@@ -11737,6 +11764,7 @@ function detKindPick(k){
 }
 function treeDetKinds(){
   const q=qval(),rows=detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q));
+  if(!rows.length&&hasActiveFilters())return"";
   const by=new Map();
   rows.forEach(x=>{const k=detKindLabel(x.d,x.cam);if(!by.has(k))by.set(k,[]);by.get(k).push(x)});
   const onAll=detListOn()&&!dl.kind;
@@ -26186,7 +26214,7 @@ function selDescendants(n,withParts){
     // В раскладке по папкам (ОПС/СКД, «Папки») под доменом не серверы, а
     // папки и «Без папки» — домен отмечает и то, что лежит в них.
     if(x.type==="domain"){folders.filter(f=>folderDomain(f.id)===x.id).forEach(f=>visit(f,false));unfolderedDevices(x.id).forEach(c=>visit(c,false))}
-    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c,false));
+    if(x.type==="gpu")gpuCameras(x.serverId).forEach(c=>visit(c.cam,false));
     // Сервер и хранилище отмечают всё, что под ними в дереве: регистраторы
     // вместе с их камерами и отдельные камеры.
     if(x.type==="server"&&!isUnallocated(x.id)){

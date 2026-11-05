@@ -11,7 +11,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   const hint = () => document.getElementById("filtHint").textContent;
   const treeRows = () => [...document.querySelectorAll("#tree .n[data-pick]")];
   const svcGroups = () => [...document.querySelectorAll('#tree .n[data-tid^="svcs:"]')];
-  const shownObjects = () => new Set(treeRows().map((e) => find(e.dataset.pick)?.n).filter((n) => n && (slice === "det" ? n.type === "det" : selfOrDet(n))).map((n) => n.id)).size;
+  const shownObjects = () => new Set(treeRows().map((e) => find(e.dataset.pick)?.n).filter((n) => n && (slice === "det" ? n.type === "det" : selfOrDet(n) && !(inRow && slice === "arch" && statusFilts.size && n.type === "server"))).map((n) => n.id)).size;
 
   // Старт и выбор среза
   ok(slice === "all" && group() === "folder" && on(), "при старте папки включены");
