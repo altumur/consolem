@@ -2158,6 +2158,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-34.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -12191,7 +12192,7 @@ function dcMin(){
 function dcResume(){
   if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
   if(app!=="hw"){
-    if(app==="rules"&&ruleDiffLive().length){toast("Сначала примените или сбросьте изменения правила");return}
+    if(app==="rules"&&ruleDiffLive().length){toast("Сначала применить или сбросить изменения правила");return}
     setApp("hw");
   }
   if(!dc){const x=dcPeek();if(!x)return;dc={...x,items:new Set(x.items),cams:new Set(x.cams),more:new Set(),ready:false}}
@@ -12437,7 +12438,7 @@ function dcRuleHtml(gs){
   if(r.adv){
     const issues=ruleIssues(c);
     return`${head}
-    <div class="dc-sec">${i18n("При условии")}</div>${(c.cond||[]).map(condRowHtml).join("")||`<p class="sub dc-note">${i18n("Без условий — действия выполняются при каждом запуске")}</p>`}
+    <div class="dc-sec">${i18n("При условии")}</div>${(c.cond||[]).map(condRowHtml).join("")||`<p class="sub dc-note">${i18n("Условий нет. Правило выполняет действия при каждом запуске")}</p>`}
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
     <div class="dc-sec">${i18n("То")}</div>${thenListHtml(c.then,"","",0)}${addBarHtml("")}
     ${issues.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
@@ -15382,7 +15383,7 @@ function ruleDraftBegin(){
   // Все пути ухода с правила спрашивают про черновик, так что чужого здесь быть
   // не должно; если всё же есть — молча не сбрасываем, а не даём править.
   if(ruleDraft&&ruleDraft.id!==r.id){toast("Сначала примените или сбросьте изменения другого правила");return null}
-  if(rulePendingIds().has(r.id)){toast("Правило удаляется — изменения не сохранятся");return null}
+  if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return null}
   if(!ruleDraft)ruleDraft={id:r.id,snap:r._new?null:ruleClone(r)};
   return r;
 }
@@ -15567,7 +15568,7 @@ function rulePlan(){
 function ruleApply(){
   const d=ruleDraft;if(!d||ruleSaving)return;
   const r=rules.find(x=>x.id===d.id);if(!r)return;
-  if(rulePendingIds().has(r.id)){toast("Правило удаляется — изменения не сохранятся");return}
+  if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return}
   if(r.on&&ruleIssues(r).length){toast("Правило с ошибкой нельзя применить включённым — исправьте ошибку или выключите правило");return}
   const wasNew=!d.snap,snap=d.snap,body=ruleBody(r),fv=d.fromVer&&(ruleHist[r.id]||[]).find(x=>x.v===d.fromVer);
   if(fv)body.historyNote={code:"restore",params:{number:fv.v,edited:ruleDiffOf(fv.snap,r).length>0}};
@@ -16359,12 +16360,12 @@ function ruleAsideSync(){
 const RULE_GROUPS=[["event","По событию"],["sched","По расписанию"],["manual","Вручную"]];
 function ruleSearchFields(r){return[r.name,ruleSummary(r),...r.when.map(x=>refName(x.ref,triggerKind(x).devTypes,"when")),...(r.cond||[]).map(x=>refName(x.ref,condKind(x).devTypes)),...ruleActs(r).map(x=>refName(x.it.ref,actionKind(x.it).devTypes,"then"))]}
 // Подпись режима для всплывающей подсказки строки списка.
-const RULE_WATCH_TIP="Только журнал: правило запускается и записывает в журнал, что сделало бы, но действий не выполняет";
+const RULE_WATCH_TIP="Только журнал: правило запускается, но не выполняет действия. Правило записывает в журнал, что оно сделало бы";
 function ruleRowHtml(r,q){
   const st=ruleState(r),why=ruleIssues(r),f=ruleFires[r.id]||[],real=ruleRealFires(r.id);
   const last=real.length?real[0].t.slice(0,5):"";
   const dr=ruleDraft&&ruleDraft.id===r.id&&ruleDiffLive().length;
-  const chip=dr?`<span class="draft-chip rl-chip" title="${i18n("Изменения ждут «Показать план» внизу карточки")}">${i18n(r._new?"новое, не применено":"не применено")}</span>`:"";
+  const chip=dr?`<span class="draft-chip rl-chip" title="${i18n("Изменения ещё не применены. Чтобы применить их, нажать «Показать план» внизу карточки")}">${i18n(r._new?"новое, не применено":"не применено")}</span>`:"";
   const idle=ruleIdleNote(r),pend=rulePendingIds().has(r.id);
   const tip=(st==="err"?`⚠ ${why.map(x=>i18n(x)).join("; ")}\n`:"")+(pend?`${i18n("Удаляется")}\n`:"")+(st==="watch"?`${i18n(RULE_WATCH_TIP)}\n`:"")+(idle?`${idle}\n`:"")+ruleSummary(r);
   const menu=`<span class="n-fav" aria-hidden="true"></span><button type="button" class="n-menu" tabindex="-1" aria-label="${i18n("Действия")}" title="${i18n("Действия")}" aria-haspopup="menu" ${onEv("click",["ruleCtx",onEv.event,`${r.id}`])}>${lu("ellipsis-vertical",16)}</button>`;
@@ -16390,7 +16391,7 @@ function treeRules(){
     const l=list.filter(r=>r.start===g);if(!l.length)return;
     h+=`<div class="n rl-grp"><span class="tw"></span><span class="nm">${i18n(lab)}</span>${treeTail({cnt:treeCntHtml(l.length)})}</div>`+l.map(r=>ruleRowHtml(r,q)).join("");
   });
-  if(!list.length)h+=`<div class="sub rl-none">${i18n(rules.length?"Ничего не найдено":"Правил пока нет. Нажмите «Правило» над деревом")}</div>`;
+  if(!list.length)h+=`<div class="sub rl-none">${i18n(rules.length?"Ничего не найдено":"Правил пока нет. Чтобы создать правило, нажать «Правило» над деревом")}</div>`;
   return h;
 }
 
@@ -16423,28 +16424,28 @@ function rulesUI(){
       ${r.when.length>1?`<span class="rl-win">${i18n("в пределах")}
         <input type="number" min="1" max="3600" value="${r.within||30}" ${onEv("change",["setRuleField","within",onEv.value])}> ${i18n("с")}</span>`:""}
     </div>
-    <p class="sub">${i18n("События сравниваются точным равенством: подсистема, вид события, устройство и уточнения. Окно появляется со вторым событием — одному мерить нечего.")}</p>
-    <label class="rl-flag"><input type="checkbox" ${r.run&&r.run.mode==="manual"?"checked":""} ${onEv("change",["ruleSetManual",onEv.checked])}> ${i18n("События не запускают — только вручную")}</label>
+    <p class="sub">${i18n("Правило сравнивает у событий подсистему, вид события, устройство и уточнения. Все они должны совпасть точно. Поле «в пределах» появляется, когда в правиле два события или больше.")}</p>
+    <label class="rl-flag"><input type="checkbox" ${r.run&&r.run.mode==="manual"?"checked":""} ${onEv("change",["ruleSetManual",onEv.checked])}> ${i18n("Запускать только вручную, не по событиям")}</label>
     ${ruleOrderHtml(r)}`;
-  const condBody=`${(r.cond||[]).map(condRowHtml).join("")||`<p class="sub">${i18n("Без условий — действия выполняются при каждом запуске")}</p>`}
+  const condBody=`${(r.cond||[]).map(condRowHtml).join("")||`<p class="sub">${i18n("Условий нет. Правило выполняет действия при каждом запуске")}</p>`}
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
-    <p class="sub">${i18n("Условия проверяются в момент запуска и соединяются через «и»: если хоть одно не выполнено, запуск пропускается и записывается в журнал.")} ${i18n("«Время» — расписание из библиотеки «Расписания»: с праздниками и особыми днями. Нужно иначе только для этого правила — «Задать только здесь…».")}</p>`;
-  const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Запускается только вручную: кнопкой в меню оператора или «Запустить сейчас»")}</p>`;
+    <p class="sub">${i18n("Правило проверяет условия в момент запуска. Должны выполниться все условия. Если одно условие не выполнено, правило пропускает запуск и записывает это в журнал.")} ${i18n("Условие «Время» берёт расписание из раздела «Расписания». Это расписание учитывает праздники и особые дни. Чтобы задать время только для этого правила, выбрать «Задать только здесь…».")}</p>`;
+  const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Правило запускается только вручную. Оператор запускает его кнопкой в своём меню, администратор — кнопкой «Запустить сейчас»")}</p>`;
   const thenBody=`${thenListHtml(r.then,"","",0)}${addBarHtml("")}
-    <p class="sub">${i18n("Список действий — это то, под что написан исполнитель: правило подаёт заявку, а выполняет её тот, кто держит устройство.")}</p>`;
+    <p class="sub">${i18n("Правило не управляет устройством само. Правило отправляет заявку, и заявку выполняет сервер, к которому подключено устройство. Поэтому в списке только те действия, которые этот сервер умеет выполнять.")}</p>`;
   const foot=ruleFootHtml();                        // подвал считает черновик — после него и «не применено»
   const idle=ruleIdleNote(r),unapplied=ruleDraft&&ruleDraft.id===r.id&&ruleDiffLive().length>0;
   const pend=rulePendingIds().has(r.id),left=pend?[...pendingDel.values()].filter(p=>p.rules&&p.rules.includes(r.id)).map(pendingLeft)[0]:0;
-  const runWhy=pend?"Правило удаляется":why.length?"Правило с ошибкой не запустить":!r.on?"Правило выключено":unapplied?"Сначала примените изменения":"";
-  const chkWhy=pend?"Правило удаляется":why.length?"Правило с ошибкой не проверить":"";
+  const runWhy=pend?"Консоль удаляет правило":why.length?"Правило с ошибкой нельзя запустить":!r.on?"Правило выключено":unapplied?"Сначала применить изменения":"";
+  const chkWhy=pend?"Консоль удаляет правило":why.length?"Правило с ошибкой нельзя проверить":"";
   // В шапке две главные кнопки; остальное — в «Ещё ▾» (то же меню, что по правой кнопке на строке дерева).
-  const act=`<button type="button" class="btn s" data-fk="check" ${chkWhy?"disabled":""} title="${chkWhy?i18n(chkWhy):i18n("Посмотреть, что сделало бы правило, ничего не выполняя")}" ${onEv("click",["ruleCheckOpen"])}>${i18n("Пробный запуск")}…</button>`+
-    `<button type="button" class="btn s" data-fk="run" ${runWhy?"disabled":""} title="${runWhy?i18n(runWhy):i18n("Выполнить действия правила сейчас, не дожидаясь запуска")}" ${onEv("click",["ruleRunNow"])}>${i18n("Запустить сейчас")}</button>`+
+  const act=`<button type="button" class="btn s" data-fk="check" ${chkWhy?"disabled":""} title="${chkWhy?i18n(chkWhy):i18n("Посмотреть, что сделало бы правило. Правило не выполнит действия")}" ${onEv("click",["ruleCheckOpen"])}>${i18n("Пробный запуск")}…</button>`+
+    `<button type="button" class="btn s" data-fk="run" ${runWhy?"disabled":""} title="${runWhy?i18n(runWhy):i18n("Выполнить действия правила сейчас")}" ${onEv("click",["ruleRunNow"])}>${i18n("Запустить сейчас")}</button>`+
     `<button type="button" class="btn s" data-fk="more" aria-haspopup="menu" ${pend?"disabled":""} ${onEv("click",["ruleMore",onEv.event,`${r.id}`])}>${i18n("Ещё")}${CHEV_BTN}</button>`;
   paintMain(
     mainHd(i18n("Автоматизация"),`<span class="rl-h1" title="${escHtml(r.name)}">${ruleIcon(r)} ${escHtml(r.name)}</span>`,ruleSumHtml(r),ruleTabsHtml(r),act)+
     `<div class="sc"><div class="rl-sr" role="status" aria-live="polite">${escHtml(ruleLiveTake())}</div>
-      ${pend?`<div class="nt" role="status">${i18n("Правило удаляется")} — ${i18n("через")} ${left} ${i18n("с")}. ${i18n("Отменить можно в уведомлении внизу.")}</div>`:""}
+      ${pend?`<div class="nt" role="status">${i18n("Консоль удаляет правило")} — ${i18n("через")} ${left} ${i18n("с")}. ${i18n("Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`:""}
       ${ruleStatusBand(r)}
       ${why.length?`<div class="nt err" role="status">${why.map(x=>escHtml(i18n(x))).join("<br>")}</div>`:""}
       ${ruleTab==="hist"?ruleHistCard(r):ruleTab==="runs"?ruleFiresCard(r,fires):ruleTab==="pass"?card("Паспорт правила",rulePassportBody(r)):`${card("Правило",`<div class="g">
@@ -16453,7 +16454,7 @@ function rulesUI(){
           ${r.start==="event"?`<div><label>${i18n("Событие во время выполнения")}</label>${selHtml(RULE_REPEAT,r.repeat||"skip","setRuleField('repeat',this.value)","Событие во время выполнения")}</div>`:""}
           <div><label>${i18n("Годность действия")}</label><div class="rl-rate"><input type="number" min="10" max="600" value="${r.validFor??30}" aria-label="${i18n("Годность действия, с")}" ${onEv("change",["setRuleField","validFor",onEv.value])}> ${i18n("с после события")}</div></div>
         </div>
-        ${r.start==="event"?`<p class="sub">${i18n("Лимит не даёт правилу запускаться без конца: если датчик дребезжит, сирена не будет выть бесконечно.")}</p>`:""}
+        ${r.start==="event"?`<p class="sub">${i18n("Лимит ограничивает число запусков. Если датчик часто подаёт ложные сигналы, сирена всё равно не будет звучать без остановки.")}</p>`:""}
         <div class="rl-st"><label>${i18n("Состояние")}</label>${ruleStateSegHtml(r)}</div>
         ${ruleSrvStatusHtml(r)}
         ${ruleMenuHtml(r)}${ruleChainHtml(r)}`)}
@@ -16464,8 +16465,8 @@ function rulesUI(){
 }
 // ── Состояние ──
 const RULE_STATES=[
-  ["off","Выключено","Правило не запускается: ни по событию, ни по расписанию, ни вручную."],
-  ["watch","Только журнал","Правило запускается и записывает в журнал, что сделало бы, но действий не выполняет. Удобно проверить новое правило на живом объекте."],
+  ["off","Выключено","Правило не запускается. Его не запускают события, расписание и оператор."],
+  ["watch","Только журнал","Правило запускается, но не выполняет действия. Правило записывает в журнал, что оно сделало бы. Так можно проверить новое правило на работающем объекте."],
   ["work","Работает","Правило запускается и выполняет действия."]];
 // Сегменты — одна точка Tab, стрелки меняют выбор; после перерисовки фокус остаётся на выбранном.
 function ruleSegFocus(){const f=()=>document.querySelector('.rl-seg [aria-checked="true"]')?.focus();f();setTimeout(f,0)}
@@ -16524,7 +16525,7 @@ function ruleTraceHtml(f,modal){
   const ch=f.checks.length?`<div class="rl-th">${i18n("Проверки")}</div><ul class="rl-tl">${f.checks.map(c=>li(lu(c.ok?"check":"x"),c.ok?"ok":"fail",i18n(c.ok?"пройдена":"не пройдена"),`${escHtml(c.label)}${c.why?` — ${escHtml(c.why)}`:""}`)).join("")}</ul>`:"";
   const st=`<div class="rl-th">${i18n("Действия")}</div>`+(f.steps.length?`<ul class="rl-tl">${f.steps.map(s=>{const[sym,lab]=RULE_STEP_SYM[s.st];
     return li(sym,s.st,i18n(lab),`${s.skip?`<span class="rl-why">${escHtml(s.label)}</span>`:escHtml(s.label)}${s.ref?` · ${ruleDevLink(s.ref,modal,f.t)}`:""}${s.why?` — <span class="rl-why">${escHtml(s.why)}</span>`:""}${s.note?` — <span class="rl-why">${escHtml(s.note)}</span>`:""}`,s.depth)}).join("")}</ul>`:`<p class="sub">${i18n("Действий нет")}</p>`);
-  return`<div class="rl-tr">${f.watch&&f.by!=="test"?`<p class="sub">${i18n("Правило было в режиме «Только журнал»: действия не выполнялись.")}</p>`:""}${ev}${ch}${st}</div>`;
+  return`<div class="rl-tr">${f.watch&&f.by!=="test"?`<p class="sub">${i18n("Правило было в состоянии «Только журнал». Правило не выполнило действия.")}</p>`:""}${ev}${ch}${st}</div>`;
 }
 function ruleFireRow(r,f){
   const k=ruleTraceKey(r,f),open=ruleTraceOpen.has(k),[sym,txt,cls]=ruleResInfo(f),tid="rlt-"+f.seq;
@@ -16546,7 +16547,7 @@ function ruleFiresCard(r,fires){
       text:f=>[f.t,ruleByText(f),ruleResInfo(f)[1],...f.checks.map(c=>c.label),...f.steps.map(s=>`${s.label} ${refName(s.ref)} ${s.why}`)],
       row:f=>ruleFireRow(r,f),
       wrap:rows=>`<table class="rl-ft"><tr><th>${i18n("Время")}</th><th>${i18n("Как запущено")}</th><th>${i18n("Итог")}</th></tr>${rows}</table>`,
-      empty:fires.length?"Нет запусков под этим фильтром.":"Ещё не запускалось.",
+      empty:fires.length?"Нет запусков, которые подходят к фильтру.":"Ещё не запускалось.",
       ph:"Время, событие или действие…",
       unit:"запуск|запуска|запусков",
       extra:retry
@@ -16570,8 +16571,8 @@ function ruleGoArchive(id,t){
 }
 // Почему повторять нельзя: тот же перечень, что у «Запустить сейчас», плюс «Только журнал».
 function ruleRetryWhy(r){
-  return rulePendingIds().has(r.id)?"Правило удаляется":ruleDraft&&ruleDraft.id===r.id?"Сначала примените изменения":ruleIssues(r).length?"Правило с ошибкой не запустить"
-    :!r.on?"Правило выключено":r.watch?"В режиме «Только журнал» действия не выполняются":"";
+  return rulePendingIds().has(r.id)?"Консоль удаляет правило":ruleDraft&&ruleDraft.id===r.id?"Сначала применить изменения":ruleIssues(r).length?"Правило с ошибкой нельзя запустить"
+    :!r.on?"Правило выключено":r.watch?"В состоянии «Только журнал» правило не выполняет действия":"";
 }
 // Повтор — это те же действия на тех же устройствах, где был отказ: берутся из записи, а не из правила,
 // которое с тех пор могли изменить.
@@ -16583,9 +16584,9 @@ function ruleTraceRetry(id,k){
   const bad=f.steps.filter(ruleRetryable);
   const acts=ruleActs(r).map(x=>JSON.stringify(x.it)),changed=bad.some(s=>!acts.includes(JSON.stringify(s.act)));   // по содержимому: перестановка правкой не считается
   askConfirm("Повторить невыполненное?",
-    `<p>${i18n("Ещё раз выполнятся только эти действия")}:</p><ul class="bk-del">${bad.map(s=>`<li>${escHtml(s.label)} · ${escHtml(refName(s.ref))}${s.why?` — ${escHtml(s.why)}`:""}</li>`).join("")}</ul>
-     <p>${i18n("Остальные действия запуска не повторяются.")}</p>
-     ${changed?`<div class="nt bk-warn">${i18n("Правило с тех пор изменено — повторится действие из этой записи")}</div>`:""}`,
+    `<p>${i18n("Правило выполнит ещё раз только эти действия")}:</p><ul class="bk-del">${bad.map(s=>`<li>${escHtml(s.label)} · ${escHtml(refName(s.ref))}${s.why?` — ${escHtml(s.why)}`:""}</li>`).join("")}</ul>
+     <p>${i18n("Правило не повторит другие действия запуска.")}</p>
+     ${changed?`<div class="nt bk-warn">${i18n("После этого запуска правило изменили. Правило повторит действие из этой записи")}</div>`:""}`,
     "","Повторить",()=>{
       // Повтор — на сервере: шаги из той записи, на нынешних устройствах
       API.post(`/rules/${id}/fires/${f.id}/retry`,{idempotencyKey:opKey()}).then(x=>{
@@ -16662,11 +16663,11 @@ function ruleCheckTime(v){ruleCheckSet("time",v||rck.nowTime)}
 function ruleCheckRender(){
   const r=curRule();if(!r||!rck)return;
   const drafted=ruleDraft&&ruleDraft.id===r.id&&ruleDiffLive().length>0;
-  const note=drafted?`<div class="nt">${i18n("Проверяется черновик: изменения ещё не применены")}</div>`:"";
+  const note=drafted?`<div class="nt">${i18n("Консоль проверяет черновик. Изменения ещё не применены")}</div>`:"";
   const title=`${i18n("Пробный запуск правила")} «${escHtml(r.name)}»`;
   if(rck.rec){
-    openBulkModal(title,`${note}<p class="sub">${i18n("Как правило отработало бы в")} ${escHtml(rck.time)}</p>${ruleTraceHtml(rck.rec,true)}
-        <div class="nt"><b>${i18n("Ничего не выполнено — это проверка")}</b></div>`,
+    openBulkModal(title,`${note}<p class="sub">${i18n("Что правило сделало бы в")} ${escHtml(rck.time)}</p>${ruleTraceHtml(rck.rec,true)}
+        <div class="nt"><b>${i18n("Это проверка. Правило ничего не выполнило")}</b></div>`,
       `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Закрыть")}</button><button type="button" class="btn" ${onEv("click",["ruleCheckEdit"])}>${i18n("Изменить условия")}</button><button type="button" class="btn pri" ${onEv("click",["ruleCheckLog"])}>${i18n("Записать в журнал")}</button>`,"bbox-wide");
     return;
   }
@@ -16680,7 +16681,7 @@ function ruleCheckRender(){
         <div class="rl-f">${selHtml(kindOpts(TRIGGER_KINDS,trigDeclared,TRIGGER_KINDS[w.kind]),w.kind,`ruleCheckRow(${j},'kind',this.value)`)}</div>
         <div class="rl-f">${ruleCheckDevSel(t,kd,w.ref,j)}</div></div>`}).join("");
     h+=`<div class="rl-h">${i18n("Источник события")}</div><div class="rl-opts">
-      <label class="rl-opt ${hand?"":"on"}"><input type="radio" name="rckSrc" ${hand?"":"checked"} ${rck.cands.length?"":"disabled"} ${onEv("change",["ruleCheckSet","src","log"])}><span><b>${i18n("Событие из журнала")}</b><small>${rck.cands.length?i18n("Последние события, подходящие по виду"):i18n("Подходящих событий в журнале нет")}</small>${hand?"":`<div class="rl-cands">${cands}</div>`}</span></label>
+      <label class="rl-opt ${hand?"":"on"}"><input type="radio" name="rckSrc" ${hand?"":"checked"} ${rck.cands.length?"":"disabled"} ${onEv("change",["ruleCheckSet","src","log"])}><span><b>${i18n("Событие из журнала")}</b><small>${rck.cands.length?i18n("Последние события того же вида"):i18n("В журнале нет событий того же вида")}</small>${hand?"":`<div class="rl-cands">${cands}</div>`}</span></label>
       <label class="rl-opt ${hand?"on":""}"><input type="radio" name="rckSrc" ${hand?"checked":""} ${onEv("change",["ruleCheckSet","src","hand"])}><span><b>${i18n("Задать вручную")}</b><small>${i18n("Вид события и устройство")}</small>${hand?rows:""}</span></label></div>`;
   }
   // Шаги с ветками: пробный запуск показывает выбранную ветку, другая — «не выполнилась бы».
@@ -16690,7 +16691,7 @@ function ruleCheckRender(){
     const key=path.join("."),num=ruleNumPath(path),outs=ctlOuts(it);
     return`<div><label>${i18n("Шаг")} ${num}: ${escHtml(ctlKind(it).text(it,ruleRtVars(r)))}</label>${selHtml(outs,(rck.br||{})[key]||outs[0][0],`ruleCheckBr('${key}',this.value)`)}</div>`}).join("")}</div>`;
   h+=`<div class="g"><div><label>${i18n(r.start==="event"?"Время проверки":"Время запуска")}</label><input type="time" value="${escHtml(rck.time)}" ${onEv("change",["ruleCheckTime",onEv.value])}></div></div>
-    <p class="sub">${i18n("Режим объекта и потолок проверяются по этому времени. Ничего не выполняется.")}</p>`;
+    <p class="sub">${i18n("Консоль проверяет режим объекта и лимит на это время. Правило ничего не выполнит.")}</p>`;
   openBulkModal(title,h,`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Закрыть")}</button><button type="button" class="btn pri" ${onEv("click",["ruleCheckRun"])}>${i18n("Запустить пробно")}</button>`,"bbox-wide");
 }
 function ruleCheckRun(){
@@ -16786,7 +16787,7 @@ function raRender(){
   const c=raCands(),hit=c.find(x=>x.r.id===ra.pick&&!x.has);
   const rows=c.map(x=>`<label class="rl-opt ${x.has?"ra-off":""} ${ra.pick===x.r.id?"on":""}"><input type="radio" name="raPick" ${ra.pick===x.r.id?"checked":""} ${x.has?"disabled":""} ${onEv("change",["raSet",`${x.r.id}`])}><span>${ruleIcon(x.r)} ${escHtml(x.r.name)}<small>${escHtml(triggerBare(x.t))}${x.has?` · ${i18n("камера уже входит")}`:""}</small></span></label>`).join("")||`<p class="sub">${i18n(ra.q?"Ничего не найдено":"Нет правил по этому событию. Создайте новое.")}</p>`;
   openBulkModal(`${i18n("Добавить камеру к правилу")}`,
-    `<p class="sub" style="margin:0 0 8px">${i18n("Камера")} «${escHtml(locName(ra.cam))}» ${i18n("будет запускать выбранное правило. Остальное в правиле не меняется.")}</p>
+    `<p class="sub" style="margin:0 0 8px">${i18n("Камера")} «${escHtml(locName(ra.cam))}» ${i18n("будет запускать выбранное правило. Консоль не изменит другие настройки правила.")}</p>
      <div class="sq lan-sq cp-sq ra-q"><input value="${escHtml(ra.q)}" placeholder="${i18n("Название правила…")}" ${onEv("input",["raQ",onEv.el])}></div>
      <div class="ra-list">${rows}</div>`,
     `<button type="button" class="btn" ${onEv("click",["raCancel"])}>${i18n("Отмена")}</button><button type="button" class="btn" ${onEv("click",["raNew"])}>${i18n("Создать новое…")}</button><span class="tfoot-gap"></span><button type="button" class="btn pri" ${hit?"":"disabled"} ${onEv("click",["raApply"])}>${i18n("Добавить")}</button>`);
@@ -16851,9 +16852,9 @@ function ruleAuditBuild(){
     if(k.action==="output"){
       const relay=hosts.get(ruleHostId(first)),host=ruleNodeById(ruleHostId(first));
       add("loop",a,`${i18n("Щёлкает")} «${locName(relay)}» — ${i18n("срабатывает вход на том же устройстве")}${host?` «${locName(host)}»`:""} ${i18n("и может запустить")} ${names}`,
-        i18n("Проверьте, не замыкает ли реле эти входы: иначе правила будут запускать друг друга по кругу. Если замыкает — выберите другое реле"),others);
+        i18n("Проверить, замыкает ли реле эти входы. Если замыкает, правила будут запускать друг друга без остановки. В этом случае выбрать другое реле"),others);
     }else add("loop",a,`${i18n("Выключение камеры")} «${locName(first)}» ${i18n("вызовет событие «Обрыв потока камеры» в")} ${names}`,
-      i18n("Исключите эту камеру из события «Обрыв потока камеры» или не включайте оба правила вместе"),others);
+      i18n("Убрать эту камеру из события «Обрыв потока камеры» или не включать оба правила одновременно"),others);
   }));
   // Петли через «Запустить правило»: A запускает B, B запускает A. Цепочка оборвётся на глубине RULE_CHAIN_MAX, но это не замысел.
   // Правило с chain:false в цепочку не входит (там ошибка правила-источника).
@@ -16864,7 +16865,7 @@ function ruleAuditBuild(){
         const key=[...path].sort().join();if(cyc.has(key))return;cyc.add(key);
         const nm=[...path,a.id].map(x=>`«${(rules.find(y=>y.id===x)||{}).name}»`).join(" → ");
         add("loop",a,`${i18n("«Запустить правило» замыкает цепочку")}: ${nm}. ${i18n("Она оборвётся на глубине")} ${RULE_CHAIN_MAX}`,
-          i18n("Уберите «Запустить правило» в одном из звеньев или выключите «Может запускаться другими правилами» у одного из правил"),path.slice(1).map(x=>rules.find(y=>y.id===x)));
+          i18n("Убрать действие «Запустить правило» в одном из правил цепочки. Или выключить «Может запускаться другими правилами» у одного из правил"),path.slice(1).map(x=>rules.find(y=>y.id===x)));
       }else if(!path.includes(n)&&path.length<RULE_CHAIN_MAX)go(n,[...path,n]);
     });
     go(a.id,[a.id]);
@@ -16877,13 +16878,13 @@ function ruleAuditBuild(){
     const nm=shared.slice(0,2).map(x=>`«${locName(ruleNodeById(x))}»`).join(", ")+(shared.length>2?` ${i18n("и ещё")} ${shared.length-2}`:"");
     const first=ruleOrdList(a)[0];
     add("same",a,`${i18n("Правила")} «${a.name}» ${i18n("и")} «${b.name}» ${i18n("реагируют на одно событие и управляют")} ${nm}`,
-      `${i18n("Порядок задаётся в карточке «Если»: сейчас первым идёт")} «${first.name}»`,[b]);
+      `${i18n("Порядок задают в карточке «Если». Сейчас первым выполняется правило")} «${first.name}»`,[b]);
   }));
   // Приглушены дольше суток — скорее забыли, чем так задумано.
   live.forEach(r=>{
     const m=ruleMuteNow(r);if(!m||!m.since)return;
     const hrs=Math.floor((Date.now()-new Date(m.since.replace(" ","T")).getTime())/36e5);
-    if(hrs>=24)add("mute",r,`${i18n("Приглушено с")} ${ruleMuteTill({until:m.since})} ${i18n("до")} ${ruleMuteTill(m)}${m.why?` (${m.by}: ${m.why})`:` (${m.by})`}`,i18n("Снимите приглушение или оформите окно обслуживания"));
+    if(hrs>=24)add("mute",r,`${i18n("Приглушено с")} ${ruleMuteTill({until:m.since})} ${i18n("до")} ${ruleMuteTill(m)}${m.why?` (${m.by}: ${m.why})`:` (${m.by})`}`,i18n("Снять приглушение или создать окно обслуживания"));
   });
   // Действия на недоступных устройствах включённых правил.
   live.filter(r=>r.on).forEach(r=>ruleActs(r).forEach(({it:act})=>{
@@ -16895,13 +16896,13 @@ function ruleAuditBuild(){
     add("down",r,devs.length===1?`${i18n("Действие")} ${lab} ${i18n("не выполнится")}: ${ruleDevDown(bad[0],keep)}`
       :bad.length===devs.length?`${i18n("Действие")} ${lab} ${i18n("не выполнится")}: ${i18n("все")} ${devs.length} ${i18n("недоступны")} (${why})`
       :`${i18n("Действие")} ${lab} ${i18n("выполнится частично")}: ${i18n("недоступно")} ${bad.length} ${i18n("из")} ${devs.length} (${why})`,
-      i18n("Проверьте связь с устройствами или выберите другие"));
+      i18n("Проверить связь с устройствами или выбрать другие устройства"));
   }));
   live.filter(r=>r.on&&!r._new&&!ruleRealFires(r.id).length)
-    .forEach(r=>add("idle",r,i18n("Запусков нет"),i18n("Проверьте условия запуска или выключите правило")));
+    .forEach(r=>add("idle",r,i18n("Запусков нет"),i18n("Проверить условия запуска или выключить правило")));
   live.filter(r=>r.on&&r.watch&&r.watchSince).forEach(r=>{
     const days=Math.floor((Date.now()-new Date(r.watchSince+"T00:00:00").getTime())/864e5);
-    if(days>7)add("watch",r,`${i18n("Уже")} ${days} ${i18n(plural(days,"день|дня|дней"))} (${i18n("с")} ${r.watchSince.slice(8,10)}.${r.watchSince.slice(5,7)})`,i18n("Переведите правило в «Работает» или выключите"));
+    if(days>7)add("watch",r,`${i18n("Уже")} ${days} ${i18n(plural(days,"день|дня|дней"))} (${i18n("с")} ${r.watchSince.slice(8,10)}.${r.watchSince.slice(5,7)})`,i18n("Перевести правило в состояние «Работает» или выключить его"));
   });
   return out;
 }
@@ -16916,7 +16917,7 @@ function ruleAuditOpen(){
   }).join("");
   openBulkModal(i18n("Проверка правил"),
     `<p><b>${escHtml(sum)}</b></p>${list.length?`<table class="bk-table rl-audit"><thead><tr><th>${i18n("Правило")}</th><th>${i18n("Что не так")}</th><th>${i18n("Что сделать")}</th></tr></thead><tbody>${rows}</tbody></table>`:""}
-     <p class="sub">${i18n("Проверка ничего не меняет: откройте правило по ссылке и исправляйте в карточке правила.")}</p>`,
+     <p class="sub">${i18n("Проверка ничего не изменяет. Чтобы исправить правило, открыть его по ссылке и изменить в карточке правила.")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Закрыть")}</button>`,"bbox-wide");
 }
 
@@ -16970,11 +16971,11 @@ function ruleOrderHtml(r){
   const l=ruleOrdList(r);if(l.length<2)return"";
   const i=l.indexOf(r),n=l.length-1;
   const mv=(d,sym,t,dis)=>`<button type="button" class="btn s btn-icon" ${dis||rulePendingIds().has(r.id)?"disabled":""} title="${i18n(t)}" aria-label="${i18n(t)}" data-fk="ord:${r.id}:${d}" ${onEv("click",["ruleOrderMove",`${r.id}`,d])}>${sym}</button>`;
-  return`<div class="rl-ord" role="group" aria-label="${i18n("Порядок выполнения")}"><div class="rl-th">${i18n("На это же событие реагируют ещё")} ${n} ${i18n(plural(n,"правило|правила|правил"))}</div>
+  return`<div class="rl-ord" role="group" aria-label="${i18n("Порядок выполнения")}"><div class="rl-th">${i18n("На это событие также реагируют ещё")} ${n} ${i18n(plural(n,"правило|правила|правил"))}</div>
     <ol class="rl-ordl">${l.map(b=>b===r
       ?`<li class="cur"><b>${escHtml(b.name)}</b> <span class="sub">· ${i18n("это правило")}</span> ${mv(-1,lu("arrow-up"),"Выполнять раньше",i===0)}${mv(1,lu("arrow-down"),"Выполнять позже",i===l.length-1)}</li>`
       :`<li><button type="button" class="lk" ${onEv("click",["ruleOpen",`${b.id}`,true])}>${escHtml(b.name)}</button> <span class="sub">· ${i18n(ruleStateName(b))}</span></li>`).join("")}</ol>
-    <p class="sub">${i18n("Правила выполняются в этом порядке. Порядок относится ко всем этим правилам сразу, поэтому меняется без плана; отменить можно в уведомлении внизу.")}</p></div>`;
+    <p class="sub">${i18n("Сервер выполняет правила в этом порядке. Порядок действует для всех этих правил, поэтому консоль изменяет его сразу, без плана. Чтобы отменить изменение, нажать «Отменить» в уведомлении внизу.")}</p></div>`;
 }
 
 // ── Тишина: разовое приглушение и окна обслуживания ──
@@ -17012,11 +17013,11 @@ function ruleMuteRender(){
   const n=rmu.ids.length,opt=(v,t,extra="")=>`<label class="rl-opt ${rmu.opt===v?"on":""}"><input type="radio" name="rmuOpt" ${rmu.opt===v?"checked":""} ${onEv("change",["ruleMuteOpt",v])}><span><b>${i18n(t)}</b>${extra}</span></label>`;
   const names=rmu.ids.slice(0,5).map(id=>`<li>«${escHtml(rules.find(r=>r.id===id).name)}»</li>`).join("")+(n>5?`<li>${i18n("и ещё")} ${n-5}</li>`:"");
   openBulkModal(`${i18n("Приглушить")}: ${n} ${i18n(plural(n,"правило|правила|правил"))}`,
-    `<p>${i18n("Правило запускается и пишет трассу, но действия не выполняет: в трассе будет «действия не выполнены: приглушено до …».")}</p><ul class="bk-del">${names}</ul>
+    `<p>${i18n("Правило запускается и записывает трассу, но не выполняет действия. В трассе будет запись «действия не выполнены: приглушено до …».")}</p><ul class="bk-del">${names}</ul>
      <div class="rl-opts">${opt("1h","На 1 час")}${opt("day","До конца дня")}${opt("until","До даты и времени…",rmu.opt==="until"?`<small><input type="datetime-local" aria-label="${i18n("Дата и время")}" value="${escHtml(rmu.until)}" ${onEv("input",["ruleMuteUntil",onEv.value])} ${onEv("change",["ruleMuteUntil",onEv.value])}></small>`:"")}</div>
      <div class="g" style="margin-top:10px"><div><label for="rmuWhy">${i18n("Причина")}</label><input type="text" id="rmuWhy" value="${escHtml(rmu.why)}" placeholder="${i18n("Например: пусконаладка, ремонт датчика")}" ${onEv("input",["ruleMuteWhy",onEv.value])} ${onEv("keydown",["ruleMuteKey",onEv.event])}></div></div>
-     ${ruleMuteOk()?"":`<p class="sub" role="status">${i18n("Время уже прошло: выберите момент в будущем.")}</p>`}
-     <p class="sub">${i18n("Применяется сразу. Отменить можно в уведомлении внизу или кнопкой «Снять сейчас» в карточке правила.")}</p>`,
+     ${ruleMuteOk()?"":`<p class="sub" role="status">${i18n("Это время уже прошло. Выбрать время в будущем.")}</p>`}
+     <p class="sub">${i18n("Консоль применяет это сразу. Чтобы отменить, нажать «Отменить» в уведомлении внизу или «Снять сейчас» в карточке правила.")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" id="rmuApply" ${ruleMuteOk()?"":"disabled"} ${onEv("click",["ruleMuteApply"])}>${i18n("Приглушить")}</button>`);
   setTimeout(()=>{const a=document.activeElement;if(!a||a===document.body||!document.getElementById("bmodal")?.contains(a))document.querySelector('#bmodal input[name="rmuOpt"]:checked')?.focus()},30);
 }
@@ -17095,7 +17096,7 @@ function maintDelAsk(id){
   const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w||w._pend)return;
   askConfirm("Удалить окно обслуживания?",
     `<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(w.name)}» — ${escHtml(maintWhenText(w))}</li></ul>
-     <p>${i18n("Останется")}: ${i18n("правила и журнал их запусков; в эти часы правила снова будут выполнять действия.")}</p>`,
+     <p>${i18n("Останется")}: ${i18n("правила и журнал их запусков. В эти часы правила снова будут выполнять действия.")}</p>`,
     "",i18n("Удалить"),()=>maintDelSchedule(id),{html:true,typeCount:1});
 }
 function maintDelSchedule(id){
@@ -17115,7 +17116,7 @@ function maintCardHtml(w){
   const chip=(on,click,lab)=>`<button type="button" class="stchip ${on?"on":""}" aria-pressed="${on}" ${onEv("click",click)}><span class="stchip-lab">${i18n(lab)}</span></button>`;
   const all=w.scope==="all",sc=Array.isArray(w.scope)?w.scope:[];
   const ws=schById(w.sched);
-  const warn=!ws?i18n("Расписание окна удалено — выберите другое"):schEmpty(ws)?i18n("Расписание не действует ни в один день: окно не наступит"):!all&&!sc.length?i18n("Выберите правила, иначе окно ни на что не действует"):"";
+  const warn=!ws?i18n("Расписание окна удалено. Выбрать другое расписание"):schEmpty(ws)?i18n("Расписание не действует ни в один день. Окно никогда не начнётся"):!all&&!sc.length?i18n("Выбрать правила. Без правил окно ни на что не действует"):"";
   const dis=w._pend?"disabled":"";
   return`<div class="rl-mw ${w._pend?"pending":""}"><div class="rl-row"><div class="rl-f"><input type="text" data-mwn="${w.id}" value="${escHtml(w.name)}" aria-label="${i18n("Название окна")}" ${dis} ${onEv("change",["maintName",`${w.id}`,onEv.value])}></div>
       <label class="rl-flag" style="margin:0"><input type="checkbox" ${w.on?"checked":""} ${dis} ${onEv("change",["maintOn",`${w.id}`])}> ${i18n("Включено")}</label>
@@ -17126,15 +17127,15 @@ function maintCardHtml(w){
     <div class="rl-opts"><label class="rl-opt ${all?"on":""}"><input type="radio" name="mws-${w.id}" ${all?"checked":""} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,true])}><span><b>${i18n("Все правила")}</b></span></label>
       <label class="rl-opt ${all?"":"on"}"><input type="radio" name="mws-${w.id}" ${all?"":"checked"} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,false])}><span><b>${i18n("Выбранные правила")}</b>${all?"":`<div class="rl-mwr">${rules.map(r=>`<label class="rl-flag"><input type="checkbox" ${sc.includes(r.id)?"checked":""} ${dis} ${onEv("change",["maintRule",`${w.id}`,`${r.id}`])}> ${escHtml(r.name)}</label>`).join("")}</div>`}</span></label></div>
     ${warn?`<div class="nt err" role="status">${warn}</div>`:""}
-    <p class="sub">${w._pend?i18n("Окно удаляется: пока идёт отсчёт, оно не действует."):`${i18n("В эти часы правила запускаются и пишут трассу, но действия не выполняют")}. ${i18n("Действует на")}: ${escHtml(maintScopeText(w))}.`}</p></div>`;
+    <p class="sub">${w._pend?i18n("Консоль удаляет окно. Во время отсчёта окно не действует."):`${i18n("В эти часы правила запускаются и записывают трассу, но не выполняют действия")}. ${i18n("Действует на")}: ${escHtml(maintScopeText(w))}.`}</p></div>`;
 }
 function ruleMaintUI(){
   const now=MAINT_WINDOWS.filter(w=>(w.on&&!w._pend)&&ruleTimeIn(w,new Date()));
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Окна обслуживания"),"В окно обслуживания выбранные правила не выполняют действия: плановые работы не поднимают тревог")+
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Окна обслуживания"),"Во время окна обслуживания выбранные правила не выполняют действия. Поэтому плановые работы не вызывают тревог")+
     `<div class="sc">
       ${card("Окна",`${MAINT_WINDOWS.map(maintCardHtml).join("")||`<p class="sub">${i18n("Окон обслуживания нет")}</p>`}
         <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["maintAdd"])}>${i18n("Добавить окно")}</button></div>
-        <p class="sub">${now.length?`${i18n("Сейчас идёт")}: ${now.map(w=>`«${escHtml(w.name)}»`).join(", ")}.`:i18n("Сейчас ни одно окно не идёт.")} ${i18n("Правка окна применяется сразу, отменить можно в уведомлении внизу. Разовая тишина — «Приглушить…» в карточке правила.")}</p>`)}
+        <p class="sub">${now.length?`${i18n("Сейчас идёт")}: ${now.map(w=>`«${escHtml(w.name)}»`).join(", ")}.`:i18n("Сейчас ни одно окно не действует.")} ${i18n("Консоль применяет изменение окна сразу. Чтобы отменить, нажать «Отменить» в уведомлении внизу. Чтобы выключить действия правила один раз, нажать «Приглушить…» в карточке правила.")}</p>`)}
     </div>`);
 }
 
@@ -17165,7 +17166,7 @@ function scenUI(){
   const rows=SCEN.doc.items.map((x,i)=>`<div class="it" data-scen="${i}"><span>${escHtml(x.name)}<small>${escHtml(scenCam(x.when.deviceId))} · ${escHtml(x.when.kind)} → ${escHtml(scenCam(x.then.deviceId))} · ${escHtml(scenAct(x.then))}</small></span>${scenStateHtml(x)}
     <button type="button" class="btn s" ${onEv("click",["scenEdit",i])}>${i18n("Изменить")}</button><button type="button" class="btn s" ${onEv("click",["scenDelAsk",i])}>${i18n("Удалить")}</button></div>`).join("");
   const doms=domains.length>1?`<div><label>${i18n("Домен")}</label><select ${onEv("change",["scenPick",onEv.value])}>${domains.map(d=>`<option value="${d.id}" ${d.id===SCEN.did?"selected":""}>${escHtml(locName(d))}</option>`).join("")}</select></div>`:"";
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Между камерами"),"Событие одной камеры — действие на камере другого кластера. Это не правило: сценарии живут в документе домена")+
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Между камерами"),"Событие на одной камере запускает действие на камере другого кластера. Это не правило. Домен хранит такие сценарии в своём документе")+
     `<div class="sc">${SCEN.note?`<div class="nt">${escHtml(SCEN.note)}</div>`:""}${doms}
       ${card("Сценарии",`${rows||`<p class="sub">${i18n("Сценариев нет")}</p>`}<div class="rl-foot"><button type="button" class="btn s" id="scenAdd" ${onEv("click",["scenNew"])}>${i18n("Сценарий")}</button></div>`)}
       ${SCEN.edit?scenFormHtml():""}</div>`);
@@ -17229,7 +17230,7 @@ async function scenWrite(items,after,base=SCEN.doc){
     await scenLoad(SCEN.did);
     if(SCEN.edit)SCEN.edit.base=SCEN.doc;
     const now=SCEN.doc.items,diff=[...now.filter(x=>was.get(x.name)!==JSON.stringify(x)).map(x=>x.name),...[...was.keys()].filter(n=>!now.some(x=>x.name===n))];
-    SCEN.note=`${i18n("Документ изменился, ваша правка не записана. Изменились:")} ${diff.join(", ")||"—"}`;
+    SCEN.note=`${i18n("Документ изменился. Консоль не записала ваше изменение. Изменились:")} ${diff.join(", ")||"—"}`;
     paint();
   }
 }
@@ -17240,7 +17241,7 @@ function scenSave(){
 }
 function scenDelAsk(i){
   const x=SCEN.doc.items[i];
-  askConfirm("Удалить сценарий?",`<p>«${escHtml(x.name)}»: ${i18n("пропадёт только этот сценарий. Камеры и другие сценарии останутся.")}</p>`,"",i18n("Удалить"),()=>scenDelRun(x.name),{html:true,typeCount:1});
+  askConfirm("Удалить сценарий?",`<p>«${escHtml(x.name)}»: ${i18n("консоль удалит только этот сценарий. Камеры и другие сценарии останутся.")}</p>`,"",i18n("Удалить"),()=>scenDelRun(x.name),{html:true,typeCount:1});
 }
 function scenDelRun(name){
   const key="sdel:"+name,timer=setTimeout(()=>{removeToastAction(key);scenWrite(SCEN.doc.items.filter(x=>x.name!==name))},10000);
@@ -17256,11 +17257,11 @@ function scenDelRun(name){
 // сутки с 08:00; ["00:00","00:00"] — весь день. own — «местное» расписание одного места
 // (условие правила, окно обслуживания): в выборе других мест его нет, пока не сделают общим.
 const SCH_KINDS=[
-  {id:"always",name:"Круглосуточно",hint:"Действует всегда, каждый день. Если некоторые даты иные — добавьте особые дни ниже."},
-  {id:"week",name:"По дням недели",hint:"Неделя повторяется: у каждого дня свои интервалы. Проведите мышью по полосе, чтобы добавить интервал, или задайте время в полях."},
-  {id:"cycle",name:"Цикл смен",hint:"Образец повторяется каждые N дней от даты начала, независимо от дней недели — например, «сутки через трое»."},
-  {id:"dates",name:"Отдельные даты",hint:"Действует только в перечисленные даты, ничего не повторяется — для разовых мероприятий."},
-  {id:"astro",name:"По солнцу",hint:"От заката до рассвета или от рассвета до заката: время считается по координатам объекта и само сдвигается в течение года."}];
+  {id:"always",name:"Круглосуточно",hint:"Действует всегда, каждый день. Если для некоторых дат нужно другое время, добавить особые дни ниже."},
+  {id:"week",name:"По дням недели",hint:"Расписание повторяется каждую неделю. У каждого дня свои интервалы. Чтобы добавить интервал, провести мышью по полосе или ввести время в поля."},
+  {id:"cycle",name:"Цикл смен",hint:"Образец повторяется каждые N дней от даты начала. Дни недели не имеют значения. Пример: «сутки через трое»."},
+  {id:"dates",name:"Отдельные даты",hint:"Действует только в даты из списка и не повторяется. Подходит для разовых мероприятий."},
+  {id:"astro",name:"По солнцу",hint:"От заката до рассвета или от рассвета до заката. Консоль вычисляет время по координатам объекта и сдвигает его в течение года."}];
 const SCH_DAY_FULL=["понедельник","вторник","среда","четверг","пятница","суббота","воскресенье"];
 const SCH_MONTHS=["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
 const SCH_MONTHS_GEN=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
@@ -17719,12 +17720,12 @@ function schRowHtml(e,label,list,p,o={}){
 const schCarry=l=>(l||[]).map(schRaw).filter(([,b])=>b>1440).map(([,b])=>[0,Math.min(b-1440,1440)]);
 function schKindBody(e){
   const s=e.d,k=e.k,ro=schRO(e),dis=ro?"disabled":"",t=new Date(),nowM=t.getHours()*60+t.getMinutes();
-  if(s.kind==="always")return`<p class="sub">${i18n("Рисовать нечего: расписание действует каждую минуту каждого дня.")}</p>`;
-  if(s.kind==="never")return`<p class="sub">${i18n("Не действует никогда. На него переходят условия и окна, чьё расписание удалили.")}</p>`;
+  if(s.kind==="always")return`<p class="sub">${i18n("Расписание действует каждую минуту каждого дня. Интервалов нет.")}</p>`;
+  if(s.kind==="never")return`<p class="sub">${i18n("Никогда не действует. Если расписание удалили, консоль ставит это расписание в условия и окна, где было удалённое.")}</p>`;
   if(s.kind==="week"){
     const td=schDow(t)-1;
     const tools=ro?"":`<div class="sch-tools"><select aria-label="${i18n("Шаблон недели")}" ${onEv("change",["schTpl",`${k}`,onEv.value])}><option value="">${i18n("Шаблон…")}</option>${SCH_TPL.map(x=>`<option value="${x[0]}">${escHtml(i18n(x[1]))}</option>`).join("")}</select>
-      <button type="button" class="btn s" ${onEv("click",["schCopyMon",`${k}`,"wd"])}>${i18n("Как в понедельник — все будни")}</button>
+      <button type="button" class="btn s" ${onEv("click",["schCopyMon",`${k}`,"wd"])}>${i18n("Все будни как понедельник")}</button>
       <button type="button" class="btn s" ${onEv("click",["schCopyMon",`${k}`,"all"])}>${i18n("— все дни")}</button></div>`;
     return tools+`<div class="sch-rows">${schRulerHtml()}${s.week.map((l,i)=>schRowHtml(e,i18n(RULE_DAYS[i]),l,"w:"+i,{today:i===td,now:i===td?nowM:null,carry:schCarry(s.week[(i+6)%7])})).join("")}</div>`;
   }
@@ -17739,7 +17740,7 @@ function schKindBody(e){
     const ti=schIso(t);
     return(s.dates.length?`<div class="sch-rows">${schRulerHtml()}`:"")+s.dates.map((x,i)=>`<div class="sch-dt"><input type="date" value="${escHtml(x.d)}" ${dis} aria-label="${i18n("Дата")} ${i+1}" ${onEv("change",["schDateSet",`${k}`,i,onEv.value])}><span class="sub">${x.d?i18n(SCH_DAY_FULL[schDow(schDate(x.d))-1]):""}</span>${ro?"":`<button type="button" class="lk lk-act" ${onEv("click",["schDateDel",`${k}`,i])}>${i18n("Убрать дату")}</button>`}</div>
       ${schRowHtml(e,x.d?schDateShort(schDate(x.d)):"—",x.iv,"d:"+i,{today:x.d===ti,now:x.d===ti?nowM:null})}`).join("")
-      +(s.dates.length?"</div>":"")+(s.dates.length?"":`<p class="sub">${i18n("Дат пока нет — добавьте первую.")}</p>`)
+      +(s.dates.length?"</div>":"")+(s.dates.length?"":`<p class="sub">${i18n("Дат пока нет. Добавить первую дату.")}</p>`)
       +(ro?"":`<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["schDateAdd",`${k}`])}>${lu("plus")}${i18n("Дата")}</button></div>`);
   }
   // По солнцу
@@ -17747,7 +17748,7 @@ function schKindBody(e){
   const num=(f,lab,step)=>`<div><label>${i18n(lab)}</label><input type="number" step="${step||1}" value="${escHtml(String(a[f]))}" ${dis} ${onEv("change",["schAstro",`${k}`,`${f}`,onEv.value])}></div>`;
   return`<div class="g sch-g3"><div><label>${i18n("Когда действует")}</label>${ro?`<div class="sch-val">${a.win==="day"?i18n("от рассвета до заката"):i18n("от заката до рассвета")}</div>`:selHtml([["night","От заката до рассвета"],["day","От рассвета до заката"]],a.win,`schAstro('${k}','win',this.value)`,"Когда действует")}</div>
       ${num("off1","Сдвиг начала, мин")}${num("off2","Сдвиг конца, мин")}${num("lat","Широта",".01")}${num("lon","Долгота",".01")}${num("tz","Часовой пояс объекта, UTC+")}</div>
-    <p class="sub">${i18n("Сдвиг меньше нуля — раньше: «−30» у начала включит за полчаса до заката.")}</p>
+    <p class="sub">${i18n("Отрицательный сдвиг переносит время раньше. Сдвиг «−30» у начала включает расписание за 30 минут до заката.")}</p>
     <div class="sch-rows">${schRulerHtml()}<div class="sch-row today"><div class="sch-lab">${i18n("сегодня")}</div>${schBarHtml(iv?[iv]:[],[],nowM,"","",true)}<div class="sch-ivs sub">${i18n("рассвет")} ${sun.rise.m==null?"—":schHM(sun.rise.m)} · ${i18n("закат")} ${sun.set.m==null?"—":schHM(sun.set.m)}${iv?` · ${schHM(iv[0])}–${schHM(iv[1])}, ${schDur(Math.min(iv[1]-iv[0],1440))}`:""}</div></div></div>`;
 }
 function schMainCard(e){
@@ -17783,17 +17784,17 @@ function schOvrCard(e){
     const next=g?grpNext(g,3):[],sh=o?schOvrShadow(s,i):0,dis=ro?"disabled":"";
     const sel=(opts,cur,on,lab)=>ro?`<div class="sch-val">${escHtml(i18n((opts.find(x=>String(x[0])===String(cur))||["",""])[1]))}</div>`:selHtml(opts,cur,on,lab);
     return`<div class="sch-ovr"><div class="rl-row">
-      <div class="rl-f sch-og"><b>${g?escHtml(g.name):i18n("удалённая группа")}</b><span class="sub">${g?`${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена: выбор для неё не действует.")}</span></div>
+      <div class="rl-f sch-og"><b>${g?escHtml(g.name):i18n("удалённая группа")}</b><span class="sub">${g?`${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена. Выбор для этой группы не действует.")}</span></div>
       <div class="rl-f">${sel(mopts,o?o.m:"",`schOvrPick('${k}','${gid}',this.value)`,"Что делать в эти дни")}</div>
       ${o&&o.m==="same"?`<div class="rl-f sch-f-s">${sel(RULE_DAYS.map((d,j)=>[j+1,d]),o.dow||1,`schOvrSet('${k}',${i},'dow',this.value)`,"Какой день недели")}</div>`:""}
       ${o&&!ro?`<button type="button" class="btn s btn-icon" ${i?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["schOvrMove",`${k}`,i,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" ${i<s.ovr.length-1?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["schOvrMove",`${k}`,i,1])}>${lu("arrow-down")}</button>`:""}
       ${g?`<button type="button" class="lk lk-act sch-og-l" ${onEv("click",["schGoGroup",`${k}`,`${gid}`])}>${i18n("Даты")}…</button>`:""}</div>
       ${o&&o.m==="custom"?`<div class="sch-rows">${schRowHtml(e,i18n("в эти дни"),o.iv,"o:"+i)}</div>`:""}
-      ${sh?`<p class="sub"><span class="sch-warn">${i18n("Никогда не сработает")}: ${i18n("группа")} «${escHtml(grpName(s.ovr[sh-1].g))}» ${i18n("выше покрывает те же даты")}</span></p>`:""}</div>`;
+      ${sh?`<p class="sub"><span class="sch-warn">${i18n("Никогда не действует")}: ${i18n("группа")} «${escHtml(grpName(s.ovr[sh-1].g))}» ${i18n("выше в списке содержит те же даты")}</span></p>`:""}</div>`;
   }).join("");
-  return card("В особые дни",`<p class="sub">${i18n("Особые дни — праздники, предпраздничные и санитарные — общие для всех расписаний: даты заданы в")} <button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>«${i18n("Особые дни")}»</button>. ${i18n("Здесь — что это расписание делает в такие дни.")}</p>
+  return card("В особые дни",`<p class="sub">${i18n("Особые дни — это праздники, предпраздничные и санитарные дни. Они общие для всех расписаний. Их даты задают в разделе")} <button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>«${i18n("Особые дни")}»</button>. ${i18n("Здесь задают, что это расписание делает в такие дни.")}</p>
     ${rows||`<p class="sub">${i18n("Групп особых дней пока нет.")}</p>`}
-    <p class="sub">${i18n("Если дата попадает в две группы, действует верхняя.")}</p>
+    <p class="sub">${i18n("Если дата есть в двух группах, действует группа выше в списке.")}</p>
     <div class="rl-foot"><button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>${i18n("Изменить даты и группы")}…</button></div>`);
 }
 function schMiniHtml(iv,col){return`<span class="sch-mini">${iv.map(([a,b])=>`<i style="left:${schPc(a)};width:${schPc(Math.max(b-a,20))}${col?";background:"+col:""}"></i>`).join("")}</span>`}
@@ -17804,11 +17805,11 @@ function schWhyLines(s,d){
   else if(o.src==="ovr"){
     const x=s.ovr[o.n];
     L.push(`${i18n("Особый день")} «${escHtml(grpName(x.g))}» — ${escHtml(schOvrText(x))}.`);
-    if(o.also.length)L.push(`${i18n(o.also.length>1?"Группы":"Группа")} ${o.also.map(n=>"«"+escHtml(grpName(s.ovr[n].g))+"»").join(", ")} ${i18n(o.also.length>1?"тоже подходят к этой дате, но стоят ниже и не действуют":"тоже подходит к этой дате, но стоит ниже и не действует")}.`);
+    if(o.also.length)L.push(`${i18n(o.also.length>1?"Группы":"Группа")} ${o.also.map(n=>"«"+escHtml(grpName(s.ovr[n].g))+"»").join(", ")} ${i18n(o.also.length>1?"тоже содержат эту дату, но они ниже в списке и не действуют":"тоже содержит эту дату, но она ниже в списке и не действует")}.`);
   }
   else if(s.kind==="week")L.push(`${i18n("Обычный день")}, ${i18n(SCH_DAY_FULL[dw])}: ${escHtml(schListText(s.week[dw]))}.`);
   else if(s.kind==="cycle"){const k=schCycleDay(s,d);L.push(`${i18n("День")} ${k+1} ${i18n("из")} ${s.cycle.len} ${i18n("цикла")} (${i18n("день 1 —")} ${schDateText(s.cycle.start,true)}): ${escHtml(schListText(s.cycle.days[k]))}.`)}
-  else if(s.kind==="dates")L.push(i18n(s.dates.some(x=>x.d===schIso(d))?"Дата есть в списке — действуют её интервалы.":"Даты нет в списке — в этот день расписание не действует."));
+  else if(s.kind==="dates")L.push(i18n(s.dates.some(x=>x.d===schIso(d))?"Дата есть в списке. Действуют её интервалы.":"Даты нет в списке. В этот день расписание не действует."));
   else if(s.kind==="astro"){const t=schSunDay(s,d);L.push(`${i18n("По солнцу")}: ${i18n("рассвет")} ${t.rise.m==null?"—":schHM(t.rise.m)}, ${i18n("закат")} ${t.set.m==null?"—":schHM(t.set.m)}.`)}
   else if(s.kind==="always")L.push(i18n("Образец: круглосуточно."));
   else L.push(i18n("Расписание не действует никогда."));
@@ -17841,26 +17842,26 @@ function schCalCard(e){
   return card("Проверка по календарю",`${schCalNav(e.month,e.k,"schCalMonth",`${i18n("за месяц")}: ${schDur(tot)}`)}${cal}
     <div class="sch-lg"><span><i></i>${i18n("обычный день")}</span><span><i class="ovr"></i>${i18n("особый день")}</span><span><i class="out"></i>${i18n("вне срока действия")}</span></div>
     <div class="sch-why" role="status"><b>${schDateText(e.day,true)}, ${i18n(SCH_DAY_FULL[schDow(schDate(e.day))-1])}</b><ul>${schWhyLines(s,schDate(e.day)).map(x=>`<li>${x}</li>`).join("")}</ul></div>
-    <p class="sub">${i18n("Нажмите на день, чтобы увидеть, почему он такой.")}</p>`);
+    <p class="sub">${i18n("Чтобы узнать, почему день такой, нажать на него.")}</p>`);
 }
 function schValidCard(e){
   const s=e.d,k=e.k,dis=schRO(e)?"disabled":"";
   return card("Срок действия",`<div class="g"><div><label>${i18n("С")}</label><input type="date" value="${escHtml(s.valid.from)}" ${dis} aria-label="${i18n("Действует с")}" ${onEv("change",["schValid",`${k}`,"from",onEv.value])}></div>
     <div><label>${i18n("По")}</label><input type="date" value="${escHtml(s.valid.to)}" ${dis} aria-label="${i18n("Действует по")}" ${onEv("change",["schValid",`${k}`,"to",onEv.value])}></div></div>
-    <p class="sub">${i18n("Пусто — без ограничения. Вне срока расписание не действует; в календаре такие дни серые.")}</p>`);
+    <p class="sub">${i18n("Если поле пустое, срок не ограничен. Вне срока расписание не действует. Календарь показывает такие дни серым цветом.")}</p>`);
 }
 function schUsesHtml(id,links){
   const u=schUses(id);
   if(!u.length)return`<p class="sub">${i18n("Не используется.")}</p>`;
   const grp=[["mode","Режимы объекта"],["rule","Правила — условие «Время»"],["maint","Окна обслуживания"]];
   return grp.map(([k,t])=>{const l=u.filter(x=>x.k===k);return l.length?`<div class="sch-use"><b>${i18n(t)}</b>: ${l.map(x=>links?`<button type="button" class="lk" ${onEv("click",schUseGo(x))}>${escHtml(x.name)}</button>`:`«${escHtml(x.name)}»`).join(", ")}</div>`:""}).join("")
-    +`<p class="sub">${i18n("Если расписание удалить, режимы перейдут на «только вручную», условия и окна — на «Никогда».")}</p>`;
+    +`<p class="sub">${i18n("Если удалить расписание, режимы будут включаться только вручную. Условия и окна получат расписание «Никогда».")}</p>`;
 }
 function schNotesHtml(e){
   const s=schById(e.id),n=[];
-  if(e.d.builtin)n.push(`<div class="nt">${i18n("Встроенное расписание: его нельзя изменить или удалить. Нужны другие часы — выберите другое расписание или «Задать только здесь…».")}</div>`);
-  if(s&&s._pend)n.push(`<div class="nt err">${i18n("Расписание удаляется: отменить можно в уведомлении внизу.")}</div>`);
-  if(e.d.own)n.push(`<div class="nt">${i18n("Местное расписание — только для")} ${escHtml(schOwnText(e.d))}. ${i18n("В выборе других мест его нет.")}${e.k==="p"&&s?` <button type="button" class="lk lk-act" ${onEv("click",["schShare",`${e.id}`])}>${i18n("Сделать общим")}</button>`:""}</div>`);
+  if(e.d.builtin)n.push(`<div class="nt">${i18n("Это встроенное расписание. Его нельзя изменить или удалить. Чтобы задать другое время, выбрать другое расписание или «Задать только здесь…».")}</div>`);
+  if(s&&s._pend)n.push(`<div class="nt err">${i18n("Консоль удаляет расписание. Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`);
+  if(e.d.own)n.push(`<div class="nt">${i18n("Это местное расписание. Оно действует только для")} ${escHtml(schOwnText(e.d))}. ${i18n("Другие места не могут выбрать это расписание.")}${e.k==="p"&&s?` <button type="button" class="lk lk-act" ${onEv("click",["schShare",`${e.id}`])}>${i18n("Сделать общим")}</button>`:""}</div>`);
   return n.join("");
 }
 function schEditorHtml(e){return schNotesHtml(e)+schMainCard(e)+schOvrCard(e)+schCalCard(e)+schValidCard(e)}
@@ -17974,7 +17975,7 @@ function schShare(id){
   const was=s.own;
   schOwnerPut(id,null).then(()=>{
     paint();
-    toastAction("sshare:"+id+":"+(++ruleUndoSeq),`«${s.name}» ${i18n("теперь общее: его можно выбрать в любом месте")}`,i18n("Отменить"),()=>{
+    toastAction("sshare:"+id+":"+(++ruleUndoSeq),`«${s.name}» ${i18n("теперь общее. Его можно выбрать в любом месте")}`,i18n("Отменить"),()=>{
       schOwnerPut(id,was).then(()=>{if(schEd&&schEd.id===id)schEd=null;paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
     },10000);
   }).catch(e=>toast(problemText(e)));
@@ -18005,9 +18006,9 @@ function schSave(k){
 function schDelAsk(id){
   const s=schById(id);if(!s||s.builtin||s._pend)return;
   const u=schUses(id);
-  const li=u.map(x=>`<li>${escHtml(x.what)} «${escHtml(x.name)}» — ${i18n(x.k==="mode"?"будет включаться только вручную":x.k==="rule"?"перейдёт на «Никогда»: правило перестанет запускаться":"перейдёт на «Никогда»: окно перестанет действовать")}</li>`).join("");
+  const li=u.map(x=>`<li>${escHtml(x.what)} «${escHtml(x.name)}» — ${i18n(x.k==="mode"?"будет включаться только вручную":x.k==="rule"?"получит расписание «Никогда». Правило больше не будет запускаться":"получит расписание «Никогда». Окно больше не будет действовать")}</li>`).join("");
   askConfirm("Удалить расписание?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(s.name)}» — ${escHtml(schText(s))}</li></ul>
-    ${u.length?`<p>${i18n("Где используется и что станет")}:</p><ul class="bk-del">${li}</ul>`:`<p>${i18n("Расписание нигде не используется.")}</p>`}
+    ${u.length?`<p>${i18n("Где используется и что изменится")}:</p><ul class="bk-del">${li}</ul>`:`<p>${i18n("Расписание нигде не используется.")}</p>`}
     <p>${i18n("Останется")}: ${i18n("группы особых дней, другие расписания, журнал запусков правил.")}</p>`,"",i18n("Удалить"),()=>schDelRun(id),{html:true,typeCount:1});
 }
 function schDelRun(id){
@@ -18049,7 +18050,7 @@ function schDlgPaint(){
   document.getElementById("schdlgT").innerHTML=`${i18n(e.isNew?"Новое расписание":"Расписание")} «${escHtml(e.d.name||i18n("Без названия"))}»${schDirty(e)&&!e.isNew?` <span class="draft-chip rl-chip">${i18n("не сохранено")}</span>`:""}`;
   // Предупреждаем о других местах, кроме того, откуда окно открыли.
   const oth=u.filter(x=>!(e.from&&x.k===e.from.k&&x.id===e.from.id));
-  const warn=!ro&&!e.d.own&&oth.length?`<div class="nt">${i18n(e.from?"Расписание общее: правка сразу изменит и другие места":"Расписание общее: правка сразу изменит все места, где оно выбрано")} (${oth.length}): ${oth.map(x=>`${escHtml(x.what)} «${escHtml(x.name)}»`).join(", ")}.${e.from&&e.from.k!=="mode"?` ${i18n("Нужно иначе только здесь — закройте окно и выберите «Задать только здесь…».")}`:""}</div>`:"";
+  const warn=!ro&&!e.d.own&&oth.length?`<div class="nt">${i18n(e.from?"Это общее расписание. Изменение сразу действует и в других местах":"Это общее расписание. Изменение сразу действует во всех местах, где выбрано это расписание")} (${oth.length}): ${oth.map(x=>`${escHtml(x.what)} «${escHtml(x.name)}»`).join(", ")}.${e.from&&e.from.k!=="mode"?` ${i18n("Чтобы изменить время только здесь, закрыть окно и выбрать «Задать только здесь…».")}`:""}</div>`:"";
   paintInto(document.getElementById("schdlgB"),warn+schEditorHtml(e)+(orig?card("Где используется",schUsesHtml(e.id,false)):""),"sch|"+e.id,schDlgSeen);
   document.getElementById("schdlgF").innerHTML=`${orig?`<button type="button" class="lk lk-act sch-dlg-lib" ${onEv("click",["schDlgToLib"])}>${i18n("Открыть в «Расписаниях»")}</button>`:""}<span style="flex:1"></span>
     <button type="button" class="btn" ${onEv("click",["schDlgCancel"])}>${i18n(ro?"Закрыть":"Отмена")}</button>${ro?"":`<button type="button" class="btn pri" ${onEv("click",["schSave","d"])}>${i18n(e.isNew?"Создать":"Сохранить")}</button>`}`;
@@ -18098,8 +18099,8 @@ function grpDelAsk(id){
   const g=grpById(id);if(!g||g._pend)return;
   const u=grpUses(id);
   askConfirm("Удалить группу особых дней?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(g.name)}» — ${escHtml(grpText(g))}</li></ul>
-    ${u.length?`<p>${i18n("Из расписаний пропадёт выбор для этой группы в блоке «В особые дни»")}:</p><ul class="bk-del">${u.map(x=>`<li>«${escHtml(x.s.name)}» — ${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")}</li>`).join("")}</ul>`:`<p>${i18n("Группа особых дней ни в одном расписании не используется.")}</p>`}
-    <p>${i18n("Останется")}: ${i18n("сами расписания — в эти даты будут действовать их обычные интервалы.")}</p>`,"",i18n("Удалить"),()=>grpDelRun(id),{html:true,typeCount:1});
+    ${u.length?`<p>${i18n("Консоль удалит выбор для этой группы в блоке «В особые дни» в расписаниях")}:</p><ul class="bk-del">${u.map(x=>`<li>«${escHtml(x.s.name)}» — ${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")}</li>`).join("")}</ul>`:`<p>${i18n("Ни одно расписание не использует эту группу особых дней.")}</p>`}
+    <p>${i18n("Останется")}: ${i18n("расписания. В эти даты будут действовать их обычные интервалы.")}</p>`,"",i18n("Удалить"),()=>grpDelRun(id),{html:true,typeCount:1});
 }
 function grpDelRun(id){
   const g=grpById(id);if(!g)return;
@@ -18133,14 +18134,14 @@ function schDaysUI(){
     const u=grpUses(g.id),dis=g._pend?"disabled":"",next=grpNext(g,5);
     return`<div class="card sch-grp ${g._pend?"pending":""}" id="grp-${escHtml(g.id)}"><div class="ch sch-gh"><input type="text" data-gn="${g.id}" value="${escHtml(g.name)}" ${dis} aria-label="${i18n("Название группы особых дней")}" ${onEv("change",["grpRename",`${g.id}`,onEv.value])}>
         <button type="button" class="btn s" ${dis} ${onEv("click",["grpDelAsk",`${g.id}`])}>${i18n("Удалить")}…</button></div>
-      <div class="cb">${g.rules.map((r,i)=>grpRuleHtml(g,r,i,dis)).join("")||`<p class="sub">${i18n("Дат нет: группа ни на что не действует.")}</p>`}
+      <div class="cb">${g.rules.map((r,i)=>grpRuleHtml(g,r,i,dis)).join("")||`<p class="sub">${i18n("Дат нет. Группа ни на что не действует.")}</p>`}
         ${g._pend?"":`<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpRuleAdd",`${g.id}`,"range"])}>${lu("plus")}${i18n("Дата или период")}</button><button type="button" class="btn s" ${onEv("click",["grpRuleAdd",`${g.id}`,"ord"])}>${lu("plus")}${i18n("«Второе воскресенье мая»")}</button></div>`}
         <p class="sub">${i18n("Ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}</p>
-        <p class="sub">${u.length?`${i18n("Используется в расписаниях")}: ${u.map(x=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`sch:${x.s.id}`,true])}>${escHtml(x.s.name)}</button> (${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")})`).join(", ")}`:i18n("Не используется ни в одном расписании.")}${g._pend?` · ${i18n("удаляется")}`:""}</p></div></div>`;
+        <p class="sub">${u.length?`${i18n("Используется в расписаниях")}: ${u.map(x=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`sch:${x.s.id}`,true])}>${escHtml(x.s.name)}</button> (${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")})`).join(", ")}`:i18n("Ни одно расписание не использует эту группу.")}${g._pend?` · ${i18n("удаляется")}`:""}</p></div></div>`;
   }).join("");
-  paintMain(mainHd(schCrumb(),i18n("Особые дни"),"Праздники, предпраздничные и санитарные дни — общие для всех расписаний. Даты правят здесь один раз; что делать в такие дни, каждое расписание решает само — в блоке «В особые дни»")+
+  paintMain(mainHd(schCrumb(),i18n("Особые дни"),"Праздники, предпраздничные и санитарные дни общие для всех расписаний. Даты задают здесь один раз. Что делать в такие дни, задаёт каждое расписание в блоке «В особые дни»")+
     `<div class="sc">${cards}<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpAdd"])}>${lu("plus")}${i18n("Группа особых дней")}</button></div>
-      <p class="sub">${i18n("Правка группы применяется сразу, отменить можно в уведомлении внизу. Что делать в такие дни, говорит каждое расписание само — в блоке «В особые дни».")}</p></div>`);
+      <p class="sub">${i18n("Консоль применяет изменение группы сразу. Чтобы отменить, нажать «Отменить» в уведомлении внизу. Что делать в такие дни, задаёт каждое расписание в блоке «В особые дни».")}</p></div>`);
 }
 // ── Страница «Режимы объекта» ──
 let modeCal=null;
@@ -18185,10 +18186,10 @@ function modeDelAsk(id){
   const m=OBJ_MODES.find(x=>x.id===id);if(!m||m.sys||m._pend)return;
   const using=rules.filter(r=>ruleCondModes(r).includes(id));
   const li=using.map(r=>{const only=(r.cond||[]).some(c=>c.kind==="mode"&&(c.modes||[]).length===1&&c.modes[0]===id);
-    return`<li>«${escHtml(r.name)}» — ${i18n(only?"в условии «Режим объекта» не останется режимов: правило станет ошибкой и не запустится":"из условия «Режим объекта» уйдёт этот режим, остальные останутся")}</li>`}).join("");
+    return`<li>«${escHtml(r.name)}» — ${i18n(only?"в условии «Режим объекта» не останется режимов. Правило получит ошибку и не будет запускаться":"консоль удалит этот режим из условия «Режим объекта». Другие режимы останутся")}</li>`}).join("");
   askConfirm("Удалить режим объекта?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(m.name)}» — ${escHtml(modeWhenText(m))}</li></ul>
-    ${using.length?`<p>${i18n("Правила с этим режимом")}:</p><ul class="bk-del">${li}</ul>`:`<p>${i18n("Ни одно правило этот режим не называет.")}</p>`}
-    <p>${i18n("Останется")}: ${i18n("расписание режима — в библиотеке «Расписания»; другие режимы.")}${objModeElse===id?` ${i18n("Режимом «Иначе» станет")} «${escHtml((OBJ_MODES.find(x=>x.id!==id&&!x._pend)||{}).name||"")}».`:""}</p>`,
+    ${using.length?`<p>${i18n("Правила с этим режимом")}:</p><ul class="bk-del">${li}</ul>`:`<p>${i18n("Ни одно правило не использует этот режим.")}</p>`}
+    <p>${i18n("Останется")}: ${i18n("расписание режима в разделе «Расписания» и другие режимы.")}${objModeElse===id?` ${i18n("Режимом «Иначе» станет")} «${escHtml((OBJ_MODES.find(x=>x.id!==id&&!x._pend)||{}).name||"")}».`:""}</p>`,
     "",i18n("Удалить"),()=>modeDelRun(id),{html:true,typeCount:1});
 }
 function modeDelRun(id){
@@ -18231,7 +18232,7 @@ function modeCalMonth(k,d){
 }
 function modeCalPick(k,iso){if(!modeCal)modeCalMonth("m",0);modeCal.day=iso;paint()}
 function modeWhyHtml(d){
-  const segs=modeDaySegs(d),lines=segs.map(s=>`<li><span class="sch-sw" style="background:${modeColor(s.mode)}"></span><b>${schHM(s.from)}–${s.to>=1440?"24:00":schHM(s.to)}</b> «${escHtml(i18n(ruleModeName(s.mode)))}» — ${s.sched?`${i18n("расписание")} «${escHtml(schName(s.sched))}»`:i18n("ни одно расписание не действует — режим «Иначе»")}</li>`);
+  const segs=modeDaySegs(d),lines=segs.map(s=>`<li><span class="sch-sw" style="background:${modeColor(s.mode)}"></span><b>${schHM(s.from)}–${s.to>=1440?"24:00":schHM(s.to)}</b> «${escHtml(i18n(ruleModeName(s.mode)))}» — ${s.sched?`${i18n("расписание")} «${escHtml(schName(s.sched))}»`:i18n("ни одно расписание не действует, поэтому действует режим «Иначе»")}</li>`);
   modeLive().forEach(m=>{const s=m.sched&&schById(m.sched);if(!s)return;const o=schOwn(s,d);
     if(o.src==="ovr")lines.push(`<li class="sub">${i18n("Расписание")} «${escHtml(s.name)}» (${i18n("режим")} «${escHtml(m.name)}»): ${i18n("особый день")} «${escHtml(grpName(s.ovr[o.n].g))}» — ${escHtml(schOvrText(s.ovr[o.n]))}.</li>`)});
   return`<div class="sch-why" role="status"><b>${schDateText(schIso(d),true)}, ${i18n(SCH_DAY_FULL[schDow(d)-1])}</b><ul>${lines.join("")}</ul></div>`;
@@ -18258,8 +18259,8 @@ function ruleModesUI(){
   const cur=OBJ_MODES.find(m=>m.id===objMode)||OBJ_MODES[0],nx=objModeNext(),t=new Date(),nm=t.getHours()*60+t.getMinutes();
   const seg=modeDaySegs(t).find(s=>nm>=s.from&&nm<s.to);
   const using=id=>rules.filter(r=>ruleCondModes(r).includes(id));
-  const how=objModeManual?(objModeManual.until?`${i18n("включён вручную до")} ${objModeManual.until}`:i18n("включён вручную, пока не переключат обратно"))
-    :seg&&seg.sched?`${i18n("по расписанию")} <button type="button" class="lk" ${onEv("click",["schDlgOpen",`${seg.sched}`])}>«${escHtml(schName(seg.sched))}»</button>`:i18n("ни одно расписание сейчас не действует — режим «Иначе»");
+  const how=objModeManual?(objModeManual.until?`${i18n("включён вручную до")} ${objModeManual.until}`:i18n("включён вручную до ручного переключения"))
+    :seg&&seg.sched?`${i18n("по расписанию")} <button type="button" class="lk" ${onEv("click",["schDlgOpen",`${seg.sched}`])}>«${escHtml(schName(seg.sched))}»</button>`:i18n("сейчас ни одно расписание не действует, поэтому действует режим «Иначе»");
   const live=modeLive();
   const opts=[["","Переключить на…"],...live.filter(m=>m.id!==objMode).map(m=>[m.id,m.name]),
     ...(objModeManual?[["auto",`${i18n("Вернуть по расписанию")}: ${i18n(ruleModeName(objModeSched()))}`]]:[])];
@@ -18270,17 +18271,17 @@ function ruleModesUI(){
       <td><div class="sch-mp">${modeSchedPick(m)}${s?`<button type="button" class="btn s" ${dis} ${onEv("click",["schDlgOpen",m.sched,{from:{k:"mode",id:m.id}}])}>${i18n("Изменить…")}</button>`:""}</div><div class="sub">${s?escHtml(schText(s)):i18n("включают только вручную")}</div></td>
       <td class="bk-num">${u.length}</td>
       <td>${u.length?u.map(r=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`).join(", "):"—"}</td>
-      <td class="sch-ma"><button type="button" class="btn s btn-icon" data-mv="-1" ${i&&!m._pend?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["modeMove",`${m.id}`,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" data-mv="1" ${i<OBJ_MODES.length-1&&!m._pend?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["modeMove",`${m.id}`,1])}>${lu("arrow-down")}</button><button type="button" class="btn s btn-icon" ${m.sys||m._pend?`disabled title="${i18n(m.sys?"Встроенный режим не удаляется":"Удаляется")}"`:""} aria-label="${i18n("Удалить режим")}" ${onEv("click",["modeDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
+      <td class="sch-ma"><button type="button" class="btn s btn-icon" data-mv="-1" ${i&&!m._pend?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["modeMove",`${m.id}`,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" data-mv="1" ${i<OBJ_MODES.length-1&&!m._pend?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["modeMove",`${m.id}`,1])}>${lu("arrow-down")}</button><button type="button" class="btn s btn-icon" ${m.sys||m._pend?`disabled title="${i18n(m.sys?"Встроенный режим нельзя удалить":"Удаляется")}"`:""} aria-label="${i18n("Удалить режим")}" ${onEv("click",["modeDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
   }).join("");
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Режимы объекта"),"Режим объекта включает и выключает правила целыми группами. Когда какой режим — решают расписания")+
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Режимы объекта"),"Режим объекта включает и выключает группы правил. Расписания задают, когда действует каждый режим")+
     `<div class="sc">
       ${card("Сейчас",`<div class="rl-mode-now"><span class="sch-sw lg" style="background:${modeColor(cur.id)}"></span>${escHtml(i18n(cur.name))}</div><p class="sub">${how}${nx&&!objModeManual?` · ${i18n("следующее переключение")}: ${schWhenText(nx.at)} → «${escHtml(i18n(ruleModeName(nx.mode)))}»`:""}</p>
         <div class="g"><div><label>${i18n("Переключить на…")}</label>${selHtml(opts,"","ruleModeSwitch(this.value)")}</div></div>
-        <p class="sub">${i18n("Ручное переключение действует до следующего переключения по расписанию; «Обслуживание» — пока не вернут обратно.")}</p>`)}
-      ${card("Неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную — полосы показывают, что будет по расписанию.")}</p>`:""}${modeWeekHtml()}`)}
-      ${card("Режимы и расписания",`<p class="sub">${i18n("Режимы проверяются сверху вниз: действует первый, чьё расписание сейчас действует. Выше — важнее: ночь перекрывает выходной, выходной — рабочее время.")}</p>
+        <p class="sub">${i18n("Ручное переключение действует до следующего переключения по расписанию. Режим «Обслуживание» действует до ручного переключения.")}</p>`)}
+      ${card("Неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную. Полосы показывают режимы по расписанию.")}</p>`:""}${modeWeekHtml()}`)}
+      ${card("Режимы и расписания",`<p class="sub">${i18n("Консоль проверяет режимы сверху вниз. Действует первый режим, расписание которого действует сейчас. Режим выше в списке важнее: «Ночь» действует вместо «Выходного», «Выходной» — вместо «Рабочего времени».")}</p>
         <table class="sch-mt"><tr><th>№</th><th>${i18n("Режим")}</th><th>${i18n("Расписание")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th><th></th></tr>${rows}
-        <tr class="sch-else"><td></td><td colspan="5">${i18n("Иначе — если ни одно расписание не действует")}: ${selHtml(live.map(m=>[m.id,m.name]),objModeElse,"modeElseSet(this.value)","Режим «Иначе»")}</td></tr></table>
+        <tr class="sch-else"><td></td><td colspan="5">${i18n("Если ни одно расписание не действует")}: ${selHtml(live.map(m=>[m.id,m.name]),objModeElse,"modeElseSet(this.value)","Режим «Иначе»")}</td></tr></table>
         <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button><button type="button" class="lk lk-act" ${onEv("click",["ruleOpenSch",true])}>${i18n("Все расписания")}…</button></div>`)}
       ${card("Календарь режимов",modeCalHtml())}
     </div>`);
@@ -18288,12 +18289,12 @@ function ruleModesUI(){
 
 // ── В меню оператора ──
 function ruleMenuHtml(r){
-  return`<div class="ln ln-sw"><div>${i18n("В меню оператора")}<br><span class="sub">${i18n("Оператор запустит правило кнопкой в клиенте")}</span></div><div class="sw ${r.menu?"on":""}" role="switch" aria-checked="${!!r.menu}" title="${r.menu?i18n("Убрать из меню оператора"):i18n("Показать в меню оператора")}" ${onEv("click",["ruleToggleMenu"])}></div></div>`;
+  return`<div class="ln ln-sw"><div>${i18n("В меню оператора")}<br><span class="sub">${i18n("Оператор запускает правило кнопкой в клиенте")}</span></div><div class="sw ${r.menu?"on":""}" role="switch" aria-checked="${!!r.menu}" title="${r.menu?i18n("Убрать из меню оператора"):i18n("Показать в меню оператора")}" ${onEv("click",["ruleToggleMenu"])}></div></div>`;
 }
 // Запуск другими правилами («Запустить правило»): по умолчанию разрешён; выключенный — защита от случайных цепочек.
 function ruleChainHtml(r){
   const on=r.chain!==false;
-  return`<div class="ln ln-sw"><div>${i18n("Может запускаться другими правилами")}<br><span class="sub">${i18n("Если выключить, «Запустить правило» с этим правилом в других правилах будет ошибкой")}</span></div><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${i18n(on?"Запретить запуск другими правилами":"Разрешить запуск другими правилами")}" ${onEv("click",["ruleToggleChain"])}></div></div>`;
+  return`<div class="ln ln-sw"><div>${i18n("Может запускаться другими правилами")}<br><span class="sub">${i18n("Если выключить, действие «Запустить правило» с этим правилом в других правилах станет ошибкой")}</span></div><div class="sw ${on?"on":""}" role="switch" aria-checked="${on}" title="${i18n(on?"Запретить запуск другими правилами":"Разрешить запуск другими правилами")}" ${onEv("click",["ruleToggleChain"])}></div></div>`;
 }
 function ruleToggleChain(){ruleEdit(r=>{r.chain=r.chain===false})}
 // Расписание — это запуск, поэтому оно в карточке «Запуск», а не среди условий.
@@ -18301,7 +18302,7 @@ function ruleSchedBody(r){
   const s=r.sched||{days:[],at:""};
   return`<div class="rl-chips">${RULE_DAYS.map((d,i)=>`<button type="button" class="stchip ${s.days.includes(i+1)?"on":""}" aria-pressed="${s.days.includes(i+1)}" ${onEv("click",["ruleSchedDay",i+1])}><span class="stchip-lab">${i18n(d)}</span></button>`).join("")}</div>
     <div class="g" style="margin-top:8px"><div><label>${i18n("Время запуска")}</label><input type="time" value="${escHtml(s.at||"")}" ${onEv("change",["ruleSchedAt",onEv.value])}></div></div>
-    <p class="sub">${i18n("Событий нет: правило запускают дни недели и время.")}</p>`;
+    <p class="sub">${i18n("Событий нет. Правило запускается по дням недели и времени.")}</p>`;
 }
 function ruleToggleMenu(){ruleEdit(r=>{r.menu=!r.menu})}
 function ruleSchedDay(d){
@@ -18326,7 +18327,7 @@ function rulePassportBody(r){
   const who=x=>`${escHtml(x.by)}, ${escHtml(x.at)}`;
   return`<div class="g">
       <div><label>${i18n("Владелец")}</label>${selHtml(users.map(u=>[u,u]),r.owner,"setRuleField('owner',this.value)","Владелец")}</div>
-      <div><label>${i18n("Назначение")}</label><input type="text" value="${escHtml(r.purpose||"")}" placeholder="${i18n("Одной фразой: что и зачем делает правило")}" ${onEv("change",["setRuleField","purpose",onEv.value])}></div>
+      <div><label>${i18n("Назначение")}</label><input type="text" value="${escHtml(r.purpose||"")}" placeholder="${i18n("Одно предложение: что делает правило и для чего")}" ${onEv("change",["setRuleField","purpose",onEv.value])}></div>
       <div><label>${i18n("Выполняется на сервере")}</label>${selHtml(svs.map(x=>[x.id,locName(x)]),r.server,"setRuleField('server',this.value)","Выполняется на сервере")}</div>
       <div><label>${i18n("Выполняется от имени")}</label>${selHtml([["system","Система"],...accRoles().map(x=>[x.id,x.n])],r.runAs,"setRuleField('runAs',this.value)","Выполняется от имени")}</div>
       <div><label>${i18n("Метки серверов")}</label>${chipsHtml(refLabels,r.labels,"ruleLabelToggle")}</div>
@@ -18334,7 +18335,7 @@ function rulePassportBody(r){
       <div><label>${i18n("Изменено")}</label><input type="text" value="${who(r.changed)}" readonly disabled></div>
     </div>
     ${ruleRunnersHtml(r)}
-    <p class="sub">${i18n("Правило выполняет сервер от имени выбранной роли: устройства, к которым у неё нет доступа, остаются недоступными и правилу.")} ${i18n("«Система» — без ограничений по ролям.")}</p>`;
+    <p class="sub">${i18n("Сервер выполняет правило от имени выбранной роли. Если у роли нет доступа к устройству, у правила тоже нет доступа к нему.")} ${i18n("У роли «Система» нет ограничений.")}</p>`;
 }
 
 // ── История версий ──
@@ -18369,8 +18370,8 @@ function ruleTabKey(e){
 }
 function ruleHistCard(r){
   const h=ruleHist[r.id]||[];
-  if(!h.length)return card("История версий",`<p class="sub">${i18n("Версий пока нет: первая появится после «Применить».")}</p>`);
-  const cur=h[h.length-1].v,pend=rulePendingIds().has(r.id),why=pend?"Правило удаляется":"";
+  if(!h.length)return card("История версий",`<p class="sub">${i18n("Версий пока нет. Первая версия появится после «Применить».")}</p>`);
+  const cur=h[h.length-1].v,pend=rulePendingIds().has(r.id),why=pend?"Консоль удаляет правило":"";
   const rows=[...h].reverse().map(e=>{
     const i=h.indexOf(e),d=i?ruleDiffOf(h[i-1].snap,e.snap):[],isCur=e.v===cur;
     const li=d.slice(0,4).map(x=>`<li>${escHtml(x.label)}: ${escHtml(x.fromT)} → <b>${escHtml(x.toT)}</b></li>`).join("")+(d.length>4?`<li class="sub">${i18n("и ещё")} ${d.length-4}</li>`:"")
@@ -18381,7 +18382,7 @@ function ruleHistCard(r){
       <td class="rl-vw">${escHtml(e.at)}<br><span class="sub">${escHtml(e.by)}</span></td>
       <td><ul class="rl-vl">${li||`<li class="sub">${i18n(i?"Без видимых изменений":"Первая версия")}</li>`}</ul></td><td class="rl-va">${btns}</td></tr>`;
   }).join("");
-  return card("История версий",`<p class="sub">${i18n("Версия появляется после каждого «Применить» и перевода в другое состояние. Вернуть эту версию — подставить её значения в черновик: вы увидите план и сможете отменить возврат. Приглушение и порядок версия не возвращает.")}</p>
+  return card("История версий",`<p class="sub">${i18n("Консоль создаёт версию после каждого «Применить» и после каждого изменения состояния. Чтобы вернуть версию, консоль копирует её значения в черновик. Потом консоль показывает план, и возврат можно отменить. Версия не возвращает приглушение и порядок.")}</p>
     <table class="rl-ver"><tr><th>${i18n("Версия")}</th><th>${i18n("Когда и кто")}</th><th>${i18n("Что изменилось")}</th><th></th></tr>${rows}</table>`);
 }
 function ruleHistCompare(id,v){
@@ -18397,7 +18398,7 @@ const RULE_HIST_KEEP=["id","created","changed","mute","order","_new","_auto"];
 function ruleHistRestore(id,v){
   closeBulkModal();
   const r=rules.find(x=>x.id===id),e=(ruleHist[id]||[]).find(x=>x.v===v);if(!r||!e)return;
-  if(rulePendingIds().has(id)){toast("Правило удаляется — изменения не сохранятся");return}
+  if(rulePendingIds().has(id)){toast("Консоль удаляет правило. Изменения не сохранятся");return}
   if(ruleGuard(()=>ruleHistRestore(id,v)))return;           // есть неприменённые правки — сначала вопрос
   const live=rules.find(x=>x.id===id);
   if(!ruleDiffOf(e.snap,ruleCurSnap(live)).length){toast("Версия совпадает с текущей");return}
@@ -18419,7 +18420,7 @@ function ruleRunners(r){
 }
 function ruleRunnersHtml(r){
   const l=ruleRunners(r);
-  const lk=x=>`<button type="button" class="lk" title="${i18n(x.src.k==="obj"?"Исключение для этого правила":"Право по умолчанию «Правила автоматизации»")}" ${onEv("click",["ruleGoRole",`${x.r.id}`,`${x.src.k}`])}>${escHtml(x.r.n)}</button>`;
+  const lk=x=>`<button type="button" class="lk" title="${i18n(x.src.k==="obj"?"Исключение для этого правила":"Право по умолчанию для «Правил автоматизации»")}" ${onEv("click",["ruleGoRole",`${x.r.id}`,`${x.src.k}`])}>${escHtml(x.r.n)}</button>`;
   return`<p class="rl-who">${i18n("Запускать вручную могут")}: ${l.length?l.map(x=>"«"+lk(x)+"»").join(", "):i18n("никто, кроме администраторов")}</p>`;
 }
 // Переход в «Права» на роль: к исключению для правила, если оно задано, иначе к праву по умолчанию; место подсвечивается.
@@ -18454,7 +18455,7 @@ function ruleOverviewUI(){
   const live=rules.filter(r=>!rulePendingIds().has(r.id));
   const top=live.map(r=>({r,n:ruleRealFires(r.id).length,skip:ruleRateSkips(r)})).filter(x=>x.n).sort((a,b)=>b.n-a.n||a.r.name.localeCompare(b.r.name)).slice(0,5);
   const freq=card("Самые частые за сутки",top.length?`<table><tr><th>${i18n("Правило")}</th><th>${i18n("Запусков")}</th><th>${i18n("Пропущено по лимиту")}</th><th>${i18n("Лимит")}</th></tr>${top.map(x=>`<tr><td>${ruleLk(x.r)}</td><td class="bk-num">${x.n}</td><td class="bk-num">${x.skip||"—"}</td><td class="bk-num">${x.r.rate} ${i18n("в минуту")}</td></tr>`).join("")}</table>
-    <p class="sub">${i18n("Самые частые правила — кандидаты на лимит: проверьте, что лимит подходит и пропуски по лимиту не прячут настоящие события.")}</p>`:`<p class="sub">${i18n("За сутки запусков не было")}</p>`);
+    <p class="sub">${i18n("Этим правилам может быть нужен лимит. Проверить, что лимит подходит. Проверить, что лимит не пропускает настоящие события.")}</p>`:`<p class="sub">${i18n("За сутки запусков не было")}</p>`);
   const bad=live.map(r=>({r,n:ruleFailFires(r)})).filter(x=>x.n).sort((a,b)=>b.n-a.n);
   const fails=card("Отказы за сутки",bad.length?`<ul class="rl-ovl">${bad.map(x=>`<li>${ruleLk(x.r)} <span class="sub">· ${x.n} ${i18n(plural(x.n,"запуск|запуска|запусков"))} ${i18n("с отказами")}</span> <button type="button" class="lk lk-act" ${onEv("click",["ruleOvFails",`${x.r.id}`])}>${i18n("Показать запуски")}</button></li>`).join("")}</ul>`:`<p class="sub">${i18n("Отказов нет")}</p>`);
   const why={muted:r=>`${i18n("приглушено до")} ${ruleMuteTill(ruleMuteNow(r))}`,maint:r=>`${i18n("окно обслуживания")} «${ruleMaintNow(r).name}»`,mode:()=>i18n("условие «Режим объекта» не выполнено"),
@@ -18463,8 +18464,8 @@ function ruleOverviewUI(){
     ["watch","Только журнал",live.filter(r=>r.on&&r.watch)],["off","Выключены",live.filter(r=>!r.on)]];
   const idle=card("Не работают сейчас",`<table><tr><th>${i18n("Причина")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th></tr>${off.map(([k,lab,l])=>`<tr><td>${i18n(lab)}</td><td class="bk-num">${l.length&&k!=="maint"&&k!=="mode"?`<button type="button" class="lk" aria-label="${i18n("Показать в дереве")}: ${i18n(lab).toLowerCase()}, ${l.length}" ${onEv("click",["ruleOvFilt",`${k}`])}>${l.length}</button>`:l.length}</td>
       <td>${l.slice(0,3).map(r=>`${ruleLk(r)} <span class="sub">(${escHtml(why[k](r))})</span>`).join(", ")}${l.length>3?` ${i18n("и ещё")} ${l.length-3}`:""}</td></tr>`).join("")}</table>
-    <p class="sub">${i18n("Число открывает список таких правил в дереве.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","maint",true])}>${i18n("Окна обслуживания")}</button></p>`);
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Обзор"),"Какие правила запускаются чаще всего, где отказы и что не работает")+`<div class="sc">${freq}${fails}${idle}</div>`);
+    <p class="sub">${i18n("Чтобы открыть список этих правил в дереве, нажать на число.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","maint",true])}>${i18n("Окна обслуживания")}</button></p>`);
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Обзор"),"Какие правила запускаются чаще всего, у каких правил отказы и что не работает")+`<div class="sc">${freq}${fails}${idle}</div>`);
 }
 
 // ── Запуск, копия ──
@@ -18480,8 +18481,8 @@ function ruleRunNow(){
   const bad=ruleChecksFor(r,{via:"manual",date:new Date(),now:true}).filter(c=>!c.ok),mu=ruleMuteNow(r);
   askConfirm(`${i18n("Запустить")} «${r.name}» ${i18n("сейчас")}?`,
     `${bad.length?`<div class="nt bk-warn" role="alert">${lu("triangle-alert")} ${bad.map(c=>`${i18n("Не выполнено условие")}: ${escHtml(ruleCondTail(c))}${c.why?` (${escHtml(c.why)})`:""}`).join("; ")} — ${i18n("запуск будет пропущен")}</div>`:""}
-     ${mu?`<p class="sub">${i18n("Правило приглушено, но запуск вручную это не останавливает: действия выполнятся.")}</p>`:""}
-     <p>${i18n(r.watch?"Правило в режиме «Только журнал»: действия не выполнятся, в журнал запишется, что они сделали бы":"Выполнятся действия")}:</p>
+     ${mu?`<p class="sub">${i18n("Правило приглушено. Но при ручном запуске правило выполнит действия.")}</p>`:""}
+     <p>${i18n(r.watch?"Правило в состоянии «Только журнал». Правило не выполнит действия и запишет в журнал, что оно сделало бы":"Выполнятся действия")}:</p>
      <ul class="bk-del">${acts.map(x=>`<li>${"↳ ".repeat(x.depth)}${x.a.ctl?escHtml(ctlKind(x.a).text(x.a,ruleRtVars(r))):`${escHtml(actionLabelBare(x.a,{r}))}${x.names?` · ${escHtml(x.names)}`:""}`}</li>`).join("")}</ul>`,
     down.length&&!r.watch?`${i18n("Действие не выполнится")}: ${down.join("; ")}`:"","Запустить",()=>{
       ruleFireRun(r).then(rec=>{
@@ -18489,15 +18490,15 @@ function ruleRunNow(){
         ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";ruleTab="runs";
         paint();
         if(rec.res==="skip"){const c=rec.checks.find(x=>!x.ok);toast(`${i18n("Запуск пропущен")}: ${c?ruleCondTail(c):""}`);return}
-        if(rec.res==="waiting"){toast(`${i18n("Правило запущено и ждёт ответа оператора")}: ${g} ${i18n("из")} ${n}`);return}
+        if(rec.res==="waiting"){toast(`${i18n("Правило запущено и ждёт ответ оператора")}: ${g} ${i18n("из")} ${n}`);return}
         toast(`${i18n(r.watch?"Записано в журнал: выполнилось бы":"Правило выполнено:")} ${g} ${i18n("из")} ${n}`);
       }).catch(e=>toast(problemText(e)));
-    },{html:true,rawTitle:true,cancelLabel:"Отменить",okOff:bad.length?"Условия не выполнены: запуск был бы пропущен":""});
+    },{html:true,rawTitle:true,cancelLabel:"Отменить",okOff:bad.length?"Условия не выполнены. Правило пропустило бы запуск":""});
 }
 function ruleDuplicate(id){
   const src=rules.find(x=>x.id===id);if(!src)return;
   closeTreeCtx();
-  if(rulePendingIds().has(id)){toast("Правило удаляется — копировать нечего");return}
+  if(rulePendingIds().has(id)){toast("Консоль удаляет правило — копировать нечего");return}
   if(ruleGuard(()=>ruleDuplicate(id)))return;
   if(!rules.includes(src))return;                  // ответ «Сбросить и перейти» мог убрать исходное новое правило
   const now=ruleNow(),r=ruleClone(src);
@@ -18540,7 +18541,7 @@ const RULE_MODE_VERB={on:"Включить",watch:"Только журнал",of
 function ruleBulkVerdict(r,mode){
   if(ruleDraft&&ruleDraft.id===r.id&&ruleDiffLive().length)return["skip","пропущено: есть неприменённые изменения"];
   if(rulePendingIds().has(r.id))return["skip","пропущено: ждёт удаления"];
-  if(ruleStateName(r)===RULE_MODE_NAME[mode])return["same",mode==="off"?"уже выключено":mode==="watch"?"уже в режиме «Только журнал»":"уже работает"];
+  if(ruleStateName(r)===RULE_MODE_NAME[mode])return["same",mode==="off"?"уже выключено":mode==="watch"?"уже в состоянии «Только журнал»":"уже работает"];
   if(mode!=="off"&&ruleIssues(r).length)return["skip","пропущено: ошибка в правиле"];
   return["ok",""];
 }
@@ -18550,8 +18551,8 @@ function ruleWideActs(r){
 }
 function ruleWideList(rs){
   const rows=rs.map(r=>{const w=ruleWideActs(r),top=w.reduce((m,x)=>x.n>m.n?x:m,w[0]);return`<li>«${escHtml(r.name)}» — ${escHtml(ruleCntOf(top.n,top.k.devTypes))}</li>`}).join("");
-  return`<div class="nt bk-warn" role="alert">${lu("triangle-alert")} ${i18n("Действие коснётся многих устройств сразу")}:<ul class="bk-del">${rows}</ul></div>
-    <label class="rl-opt" style="margin-top:10px"><input type="checkbox" ${onEv("change",["rwApplyGate",onEv.checked])}><span>${i18n("Понимаю, что действия правил коснутся этих устройств")}</span></label>`;
+  return`<div class="nt bk-warn" role="alert">${lu("triangle-alert")} ${i18n("Действие изменит много устройств одновременно")}:<ul class="bk-del">${rows}</ul></div>
+    <label class="rl-opt" style="margin-top:10px"><input type="checkbox" ${onEv("change",["rwApplyGate",onEv.checked])}><span>${i18n("Я понимаю, что действия правил изменят эти устройства")}</span></label>`;
 }
 // «Включить» одного правила (меню, перевод в «Работает») с широким действием — через такое же подтверждение.
 function rwApplyGate(ok){document.getElementById("rwApply").disabled=!ok}
@@ -18574,7 +18575,7 @@ function ruleBulkToggle(mode){
   }).join("");
   openBulkModal(`${i18n(RULE_MODE_VERB[mode])}: ${list.length} ${i18n(plural(list.length,"правило|правила|правил"))}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Правило")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
-     ${ok<list.length?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("Часть правил пропущена: у них ошибка, неприменённые изменения или они уже в нужном состоянии.")}</div>`:""}${wide.length?ruleWideList(wide):""}`,
+     ${ok<list.length?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("Консоль пропустила некоторые правила. У них есть ошибка или неприменённые изменения, или они уже в нужном состоянии.")}</div>`:""}${wide.length?ruleWideList(wide):""}`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" id="rwApply" ${ok&&!wide.length?"":"disabled"} ${onEv("click",["closeBulkModal"],["ruleBulkApply",`${mode}`])}>${i18n("Применить")} (${ok})</button>`,"bbox-wide");
 }
 function ruleBulkApply(mode){
@@ -18605,10 +18606,10 @@ function ruleSetMode(ids,mode){
 function ruleToggleOne(id,mode){
   closeTreeCtx();
   const r=rules.find(x=>x.id===id);if(!r)return;
-  if(rulePendingIds().has(id)){toast("Правило удаляется — включать нечего");return}
+  if(rulePendingIds().has(id)){toast("Консоль удаляет правило — включать нечего");return}
   mode=mode||(r.on?"off":"on");
   const[v,why]=ruleBulkVerdict(r,mode);
-  if(v!=="ok"){toast(why==="пропущено: ошибка в правиле"?"Правило с ошибкой нельзя включить":v==="same"?why:"Сначала примените или сбросьте изменения правила");return}
+  if(v!=="ok"){toast(why==="пропущено: ошибка в правиле"?"Правило с ошибкой нельзя включить":v==="same"?why:"Сначала применить или сбросить изменения правила");return}
   ruleWideGate([r],mode,()=>ruleSetMode([id],mode));
 }
 
@@ -18625,7 +18626,7 @@ function ruleDeleteAsk(ids){
   closeTreeCtx();
   const pend=rulePendingIds();
   const list=ids.map(id=>rules.find(x=>x.id===id)).filter(r=>r&&!pend.has(r.id));
-  if(!list.length){toast("Правило уже ждёт удаления — отменить можно в тосте");return}
+  if(!list.length){toast("Консоль уже удаляет правило. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   const n=list.length,menuN=list.filter(r=>r.menu).length;
   const drafted=ruleDraft&&list.find(r=>r.id===ruleDraft.id&&ruleDiffLive().length);
   const names=list.slice(0,5).map(r=>`<li>«${escHtml(r.name)}»</li>`).join("")+(n>5?`<li>${i18n("и ещё")} ${n-5}</li>`:"");
@@ -18635,7 +18636,7 @@ function ruleDeleteAsk(ids){
   askConfirm(n===1?"Удалить правило?":"Удалить правила?",
     `<p>${i18n("Пропадёт")}:</p><ul class="bk-del">${names}${hist?`<li>${i18n(n===1?"история версий правила":"история версий правил")}</li>`:""}${menuN?`<li>${i18n("кнопки в меню оператора")}: ${menuN}</li>`:""}${drafted?`<li>${i18n("неприменённые изменения правила")} «${escHtml(drafted.name)}»</li>`:""}</ul>
      ${callers.length?`<p>${i18n("Перестанут работать")}:</p><ul class="bk-del">${callers.slice(0,5).map(x=>`<li>«${escHtml(x.name)}» — ${i18n("запускает")} ${i18n(n===1?"это правило":"удаляемые правила")}</li>`).join("")}</ul>`:""}
-     <p>${i18n("Останется")}: ${i18n("журнал запусков; устройства, на которые ссылались правила, не меняются.")}</p>`,
+     <p>${i18n("Останется")}: ${i18n("журнал запусков. Консоль не изменит устройства из этих правил.")}</p>`,
     "",i18n("Удалить"),()=>ruleDeleteSchedule(list.map(r=>r.id)),{html:true,typeCount:n});
 }
 function ruleDeleteSchedule(ids){
@@ -18721,7 +18722,7 @@ function ruleFromLog(text){
     :/пересечение/i.test(t)?{sub:"det",kind:"linecross",ref:"",match:{}}
     :{sub:"det",kind:"motion",ref:"",match:{}};
   ruleQuiet=true;setApp("rules");ruleQuiet=false;
-  ruleNewOpen({start:"event",when:[w],note:`Событие подобрано по тексту — проверьте: «${t}».`});
+  ruleNewOpen({start:"event",when:[w],note:`Консоль выбрала событие по тексту. Проверить: «${t}».`});
 }
 // Переход по ссылке из карточки, а не по рейке и дереву — как hwFromLink в «Оборудовании».
 function ruleFromLink(){
@@ -26504,7 +26505,7 @@ function decorateTreeSel(){
   treeEl.querySelectorAll(".draft-chip:not(.rl-chip)").forEach(el=>el.remove());
   // Открытый объект с неприменёнными правками — видно и в дереве.
   if(cardDraft&&cardDiff().length)treeEl.querySelectorAll(`.n[data-pick="${cardDraft.id}"]`).forEach(row=>{
-    const chip=document.createElement("span");chip.className="draft-chip";chip.textContent=i18n("не применено");chip.title=i18n("Изменения ждут «Показать план» внизу карточки");
+    const chip=document.createElement("span");chip.className="draft-chip";chip.textContent=i18n("не применено");chip.title=i18n("Изменения ещё не применены. Чтобы применить их, нажать «Показать план» внизу карточки");
     row.querySelector(":scope>.nm")?.after(chip);
   });
   treeEl.querySelectorAll(".n[data-pick]").forEach(row=>{
