@@ -8527,7 +8527,9 @@ const sliceReads=new Map();
 function sliceReadKey(){return slice+"|"+treeLayout()}
 // Статус дочитан и нарисован деревом: всё найденное уже здесь, непрочитанная ветка для него пуста.
 // Поиск — другое: он находит и папки, и серверы, строка нужна со стрелкой
-function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done&&!(statusFilts.size&&fs&&!fs.pick&&fs.done&&!fs.failed&&!fs.flat)}
+// Проход отбора дошёл до конца (fs.done): сервер искал по всему срезу, и всё найденное уже в кэше
+function filtDoneAll(){return!!fs&&!fs.pick&&fs.done&&!fs.failed&&!fs.flat}
+function sliceUnread(id){return treeUnread(id)&&!sliceReads.get(sliceReadKey())?.done&&!(statusFilts.size&&filtDoneAll())}
 async function sliceRead(){
   const key=sliceReadKey(),layout=treeLayout();
   if(!SLICE_READ[slice]||sliceReads.has(key)||!can("getTreePaths"))return;
@@ -9965,7 +9967,10 @@ function srow(s,l=1,bare=false){
   const anyKid=want?!!kidsHtml:(!srvSlice&&recordedCameraAny(cams,l+1,ctxS))||others.some(x=>nrow(x,l+1,ctxS)!=="")
     ||archs.some(a=>arow(a,l+1)!=="")||(!!gpu&&gpurow(s,l+1)!=="")||svcs.some(d=>svcrow(d,l+1)!=="");
   const unread=!offline&&!srvSlice&&sliceUnread(s.id);
-  if(!srvHit&&!anyKid&&!unread)return"";
+  // Непрочитанный сервер «может содержать что угодно» и стоит в дереве — но не после прохода по тексту: проход искал по
+  // всему срезу, найденное уже пришло. Иначе при одном найденном стоят все непрочитанные серверы, раскрытые отбором.
+  // Стрелка у найденного по имени сервера остаётся (hasKids): его можно раскрыть и прочитать
+  if(!srvHit&&!anyKid&&!(unread&&!(qval()&&filtDoneAll())))return"";
   const cnt=srvSlice?devs.length:(treeCount(s.id)??cams.length);
   const hasKids=anyKid||unread;
   const op=hasKids&&want;
@@ -10539,7 +10544,7 @@ function treeDetectors(){
   if(group()==="kind")return treeDetKinds();
   const cameras=[];walkAll(n=>{if(n.type==="camera"&&!treeHidQ(n))cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
-  const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size)||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
+  const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size&&!filtDoneAll())||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
     if(treeHidQ(f))return"";
     const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},treeFolderNodes(f));
