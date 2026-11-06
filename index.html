@@ -5604,7 +5604,7 @@ function addDomain(){
     if(domainFilter){domainFilter=d.id;if(accSel.startsWith("grp:"))accSel="grp:"+d.id}
     resetTreeSel(d.id);
     sel=d.id;tab="gen";setD(false);editClear();
-    treeRenameId=d.id;treeRenameField="name";
+    treeRenameId=d.id;treeRenameField="name";treeRenameDraft=null;
     if(domainFilter)aside();
     paint();
     requestAnimationFrame(()=>{const el=document.querySelector(".nm-inp");if(el){el.focus();el.select&&el.select()}});
@@ -7038,9 +7038,9 @@ function applyShiftRange(id,ctx){
 }
 function treeNameCell(n,q){
   if(treeRenameId===n.id){
-    const val=treeRenameField==="short"?String(n.short??""):(n.name||"");
+    const dr=treeRenameDraft,val=dr&&dr.id===n.id&&dr.field===treeRenameField?dr.v:treeRenameField==="short"?String(n.short??""):(n.name||"");
     const err=n.type==="domain"&&treeRenameField==="name"?domainNameError(val,n.id):"";
-    return `<input class="nm-inp ${err?"dup":""}" value="${escHtml(val)}" title="${escHtml(err)}" ${onEv("click",onEv.stop)} ${onEv("mousedown",onEv.stop)} ${onEv("input",["treeRenameInput",onEv.el,`${n.id}`])} ${onEv("keydown",["treeRenameKey",onEv.event,`${n.id}`])} ${onEv("blur",["commitTreeRename",`${n.id}`,onEv.value])}>`;
+    return `<input class="nm-inp ${err?"dup":""}" value="${escHtml(val)}" title="${escHtml(err)}" ${onEv("click",onEv.stop)} ${onEv("mousedown",onEv.stop)} ${onEv("input",["treeRenameInput",onEv.el,`${n.id}`])} ${onEv("keydown",["treeRenameKey",onEv.event,`${n.id}`])} ${onEv("blur",["treeRenameBlur",`${n.id}`,onEv.value])}>`;
   }
   return displayNameHtml(n,q);
 }
@@ -7061,8 +7061,11 @@ function treeAttrTags(n,q){
   }).join("");
   return`<span class="n-tags">${inner}</span>`;
 }
+// Набранное, но не сохранённое имя: перерисовка строит поле заново, и текст берётся отсюда, а не из объекта
+let treeRenameDraft=null;
 // Занятое имя видно сразу, а не после нажатия Enter: подсвечиваем по вводу.
 function treeRenameInput(el,id){
+  treeRenameDraft={id,field:treeRenameField,v:el.value};
   const n=find(id)?.n;
   if(!n||n.type!=="domain"||treeRenameField!=="name")return;
   const err=domainNameError(el.value,id);
@@ -7119,6 +7122,12 @@ function commitTreeRename(id,val){
   if(f)f.n.name=name;
   treeRenameId=null;treeRenameField="name";renderTree();
   if(sel===id)gear();
+}
+// Уход фокуса сохраняет имя. Перерисовка заменяет поле, и Chrome шлёт blur полю, которое уходит из разметки: это
+// не уход человека, поле остаётся открытым (renderTree ставит фокус в новое поле)
+function treeRenameBlur(id,val){
+  if(paintBusy)return;
+  commitTreeRename(id,val);
 }
 function cancelTreeRename(){
   if(!treeRenameId)return;
@@ -7537,7 +7546,7 @@ function aside(){
     ?`${gearScope}${gearBody}<div class="fav-wrap" id="favWrap"></div>`
     :`${srvScope}<div class="box">${asideAdd()}</div><div class="tree" id="tree"></div>`);
   const askip=akey===asideSeen.key&&ahtml===asideSeen.html;
-  if(!askip){host.innerHTML=ahtml;asideSeen.key=akey;asideSeen.html=ahtml}
+  if(!askip){paintBusy++;try{host.innerHTML=ahtml}finally{paintBusy--}asideSeen.key=akey;asideSeen.html=ahtml}
   document.documentElement.style.setProperty("--aw",asideW+"px");
   renderTree();renderFavs();
   if(!askip)restoreView(host,ast);
@@ -7725,6 +7734,11 @@ function restoreView(host,st){
   if(!el||el===document.activeElement&&st.s==null)return;
   try{el.focus({preventScroll:true});if(st.s!=null&&el.setSelectionRange)el.setSelectionRange(st.s,st.e)}catch(err){}
 }
+// Идёт замена разметки в paintInto: blur в это время шлёт уходящее поле, а не человек
+let paintBusy=0;
+// Вспышка места прихода, которую paintInto ставит заново новым элементам (flashReapply)
+const FLASH_MS=2400;
+let flashKeep=null;
 // Восстанавливаем, только если на месте остаётся то же самое: при переходе к
 // другому объекту прокрутка предыдущего — чужая.
 function paintInto(host,html,key,seen){
@@ -7736,9 +7750,11 @@ function paintInto(host,html,key,seen){
   // тогда пропуск оставил бы его пустым.
   if(same&&html===seen.html&&seen.el===host)return;
   const st=same&&seen.el===host?viewState(host):null;
-  host.innerHTML=html;
+  paintBusy++;
+  try{host.innerHTML=html}finally{paintBusy--}
   seen.key=key;seen.html=html;seen.el=host;
   if(st)restoreView(host,st);
+  flashReapply();
 }
 const mainSeen={key:null},asideSeen={key:null},treeSeen={key:null},favSeen={key:null};
 function mainKey(){return app==="learn"?`learn|${learnSel}`:app==="exp"?`exp|${expSel}`:app==="acc"?`acc|${accSel}|${accTab}`:app==="rules"?`rules|${rule}|${ruleTab}`:`${app}|${bulkActive()&&!bulkPeek?"bulk:"+bulkSelKey():sel}|${tab}`}
@@ -7763,7 +7779,15 @@ function renderTree(){ruleIdxDrop();const treeEl=document.getElementById("tree")
   decorateTreeSel();detHostMark();renderSelBar();
   if(app==="hw")treeOpenStore();
   if(app==="hw"){treeNeed();sliceRead();filtSync();watchSoon()}
-  if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
+  // После перерисовки фокус — в новое поле. Набранное не выделяем: следующая буква стёрла бы его. Строки с полем может
+  // ещё не быть (новая папка появляется после чтения ветки): переименование ждёт её
+  if(treeRenameId)requestAnimationFrame(()=>{
+    const el=treeEl.querySelector(".nm-inp");
+    if(!el||document.activeElement===el)return;
+    el.focus();
+    const dr=treeRenameDraft;
+    if(dr&&dr.id===treeRenameId&&dr.field===treeRenameField)el.setSelectionRange(el.value.length,el.value.length);else el.select();
+  });
 }
 // ── Дерево по запросу ───────────────────────────────────────────────────
 // Отрисовка идёт по кэшу, как раньше. Открытая ветка, которую ещё не читали, читается страницей и дорисовывается:
@@ -8627,9 +8651,9 @@ function hwFromLink(){
 }
 function hwFlashLanding(){
   setTimeout(()=>{
-    const els=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    const sels=[".hd h1",".hd .hd-cr .cr-cur",".hd .tabs .tab.on","#tree .n.on"],els=sels.map(q=>document.querySelector(q)).filter(Boolean);
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(els.length){accFlash(()=>els,true);flashKeepSet(sels)}
   },40);
 }
 function fld(l,v,tp="text"){v=cardFldOrig(l,v);const d=cardFldVal(l,v);return `<div><label>${i18n(l)}</label><input type="${tp}" value="${escHtml(d??"")}" data-df="${escHtml(l)}" data-orig="${escHtml(v??"")}" ${onEv("input",["cardFld",onEv.el])}></div>`}
@@ -8919,7 +8943,7 @@ function addSubfolder(parentId,domainId){
   folderCreate(i18n("Новая папка"),parent,did).then(r=>{
     const f=folderAdded(r,parent,did);
     sel=f.id;selFolder=f.id;tab="gen";setD(false);expandTo(f.id);
-    treeRenameId=f.id;treeRenameField="name";
+    treeRenameId=f.id;treeRenameField="name";treeRenameDraft=null;
     paint();
   }).catch(e=>toast(problemText(e)));
 }
@@ -8987,7 +9011,7 @@ function tctxDanger(label,action,disabled){return tctxItem(label,action,null,dis
 function ctxRename(id,field){
   closeTreeCtx();
   resetTreeSel(id);
-  treeRenameId=id;treeRenameField=field==="short"?"short":"name";sel=id;tab="gen";setD(false);expandTo(id);renderTree();gear();
+  treeRenameId=id;treeRenameField=field==="short"?"short":"name";treeRenameDraft=null;sel=id;tab="gen";setD(false);expandTo(id);renderTree();gear();
 }
 function canRenameShort(n){
   return n&&n.type!=="domain"&&n.type!=="server"&&n.type!=="unalloc"&&n.type!=="det"&&n.type!=="folder"&&treeKind(n)===tview;
@@ -19309,7 +19333,7 @@ function accFlash(find,keepScroll){
   accFlashReq++;
   setTimeout(()=>{const els=find();if(!els||!els.length)return;
     if(!keepScroll)els[0].scrollIntoView({block:"center",inline:"center",behavior:"smooth"});
-    els.forEach(el=>{el.classList.remove("acc-flash");void el.offsetWidth;el.classList.add("acc-flash")});
+    els.forEach(el=>{el.classList.remove("acc-flash");el.style.animationDelay="";el._fk=null;void el.offsetWidth;el.classList.add("acc-flash")});
     setTimeout(()=>els.forEach(el=>el.classList.remove("acc-flash")),2600);
   },30);
 }
@@ -19319,10 +19343,25 @@ function accFlash(find,keepScroll){
 function accFlashLanding(){
   const at=accFlashReq;
   setTimeout(()=>{if(accFlashReq!==at)return;
-    const els=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"].map(q=>document.querySelector(q)).filter(Boolean);
+    const sels=[".hd h1",".hd .tabs .tab.on",".acc-subnav .acc-pill.on","#tree .n.on"],els=sels.map(q=>document.querySelector(q)).filter(Boolean);
     document.querySelector("#tree .n.on")?.scrollIntoView({block:"nearest"});
-    if(els.length)accFlash(()=>els,true);
+    if(els.length){accFlash(()=>els,true);flashKeepSet(sels)}
   },40);
+}
+// Вспышка места прихода переживает перерисовку: paintInto заменяет заголовок, вкладку и строку дерева, и новые
+// элементы получают ту же вспышку с того же мига. Ушли на другую страницу (mainKey) или вспышка кончилась — не трогаем
+function flashKeepSet(sels){flashKeep={sels,key:mainKey(),t0:performance.now()+30}}
+function flashReapply(){
+  const k=flashKeep;if(!k)return;
+  const t=performance.now()-k.t0;
+  if(t>=FLASH_MS||k.key!==mainKey()){flashKeep=null;return}
+  k.sels.forEach(q=>{
+    const el=document.querySelector(q);
+    if(!el||el.classList.contains("acc-flash"))return;
+    el.style.animationDelay=`${-Math.max(0,t)}ms`;el._fk=k;el.classList.add("acc-flash");
+    // Снимаем только свою вспышку: новая (accFlash) сбрасывает метку
+    setTimeout(()=>{if(el._fk!==k)return;el._fk=null;el.classList.remove("acc-flash");el.style.animationDelay=""},FLASH_MS-t+200);
+  });
 }
 // Переход по ссылке — не по дереву, вкладкам и шагам: им подсветка не нужна,
 // место и так под рукой.
