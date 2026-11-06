@@ -1229,7 +1229,7 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .hd-mode:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .hd-mode[hidden]{display:none}
 .hd-mode .sch-sw{width:8px;height:8px;border-radius:50%}
-.hd-mode.manual{border-color:var(--one-palette-amber);background:color-mix(in srgb,var(--one-palette-amber) 18%,transparent)}
+.hd-mode.manual{border-color:color-mix(in srgb,var(--one-palette-amber) 65%,var(--tx));background:color-mix(in srgb,var(--one-palette-amber) 18%,transparent)}
 .hd-mode small{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--tx);opacity:.85}
 .msw{border:0;margin:8px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}.msw legend{padding:0 0 6px;font-weight:600}
 .ttu.no-timer .ttu-timer{display:none}
@@ -1245,7 +1245,7 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 #umQ{width:100%;box-sizing:border-box;margin-top:4px}
 .um-base td{background:var(--one-surface-2,transparent)}
 .um-on{font-weight:600;color:var(--one-success-text)}
-.mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>label,.rl-tags>legend{display:block;font-weight:600;margin:12px 0 4px;padding:0}fieldset.rl-tags{border:0;padding:0;min-width:0}
+.mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>legend{display:block;font-weight:600;margin:12px 0 4px;padding:0}fieldset.rl-tags{border:0;padding:0;min-width:0}
 .sch-mt2 td{vertical-align:top}
 /* Поле с автокомплитом: одна строка, длинное значение — с многоточием; полное — в подсказке и в списке */
 .combo{position:relative;display:block;width:100%;min-width:0}
@@ -5200,7 +5200,7 @@ function fireNode(f,r){
   const ctx={vars:r?ruleVarsOf(r,rec):{}};
   const isMode=c=>c.code==="cond"&&c.params&&c.params.condition&&c.params.condition.kind==="mode";
   // Условие режима скрыто в интерфейсе (прототип 32); невыполненное — причина пропуска, его показываем
-  rec.checks=f.checks.filter(c=>!(isMode(c)&&c.ok)).map(c=>isMode(c)?{label:i18n("Скрытое условие «Режим объекта» не выполнено"),ok:false}:fireCheck(c,ctx));
+  rec.checks=f.checks.filter(c=>!(isMode(c)&&c.ok)).map(c=>isMode(c)?{label:i18n("Скрытое условие режима не выполнено"),ok:false}:fireCheck(c,ctx));
   let chain=null;   // шаги правила, запущенного «Запустить правило», идут следом с пустым путём
   rec.steps=f.steps.map(s=>{
     const act=s.action?stepNode(s.action):undefined,nested=s.path===""&&s.control;
@@ -16706,7 +16706,7 @@ function ruleCheckRender(){
     const key=path.join("."),num=ruleNumPath(path),outs=ctlOuts(it);
     return`<div><label>${i18n("Шаг")} ${num}: ${escHtml(ctlKind(it).text(it,ruleRtVars(r)))}</label>${selHtml(outs,(rck.br||{})[key]||outs[0][0],`ruleCheckBr('${key}',this.value)`)}</div>`}).join("")}</div>`;
   h+=`<div class="g"><div><label>${i18n(r.start==="event"?"Время проверки":"Время запуска")}</label><input type="time" value="${escHtml(rck.time)}" ${onEv("change",["ruleCheckTime",onEv.value])}></div></div>
-    <p class="sub">${i18n("Режим объекта и потолок проверяются по этому времени. Ничего не выполняется.")}</p>`;
+    <p class="sub">${i18n("Расписания и потолок проверяются по этому времени. Ничего не выполняется.")}</p>`;
   openBulkModal(title,h,`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Закрыть")}</button><button type="button" class="btn pri" ${onEv("click",["ruleCheckRun"])}>${i18n("Запустить пробно")}</button>`,"bbox-wide");
 }
 function ruleCheckRun(){
@@ -18281,7 +18281,7 @@ function umOff(){
 // Шапка консоли: действующий режим и меню «Включить…»
 let umLastCur;
 // Режим по расписанию начинается и кончается без действий пользователя: раз в 30 с сверяем действующий режим
-setInterval(()=>{if(!umSeeded)return;const c=umCurrent();if(c!==umLastCur){ruleIdxDrop();paint()}},30000);
+setInterval(()=>{if(!umSeeded)return;const c=umCurrent();if(c!==umLastCur){umLastCur=c;ruleIdxDrop();paint()}},30000);
 function hdModePaint(){
   const b=document.getElementById("hdMode");if(!b)return;
   b.hidden=!rules.length||!can("listRules");if(b.hidden)return;
@@ -26036,7 +26036,7 @@ function navTitle(){
   let t="";
   if(app==="hw"&&bulkActive()&&!bulkPeek)t=`${i18n("Выборка")} (${bulkSelNodes().length})`;
   else if(app==="hw"){const n=find(sel)?.n;t=n?locName(n):""}
-  else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы объекта",maint:"Окна обслуживания",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
+  else if(app==="rules")t=rules.find(r=>r.id===rule)?.name||i18n({overview:"Обзор",modes:"Режимы",maint:"Режимы",schdays:"Особые дни"}[rule]||(rule.startsWith("sch:")?`${i18n("Расписания")} › ${schName(rule.slice(4))}`:""));
   else if(app==="sys")t=sysOpts.find(o=>o.id===sys)?.n||"";
   else if(app==="log")t=logCats.find(c=>c.id===logFilt)?.n||"";
   else if(app==="learn")t=learnTitle(learnSel);
