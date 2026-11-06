@@ -8,4 +8,10 @@ Object.assign(window.I18N_EN=window.I18N_EN||{},{
 "Документ изменился. Консоль не записала ваше изменение. Изменились:":"The document changed. The console did not save your change. Changed:",
 "Условий нет. Правило выполняет действия при каждом запуске":"There are no conditions. The rule does the actions at each start",
 "Правило запущено и ждёт ответ оператора":"The rule started and waits for the operator's answer",
+"Для двух событий нужно окно. Окно задаёт, за сколько секунд должны произойти оба события":"Two events need a window. The window sets in how many seconds both events must occur",
+"Цели правила находятся в другом домене, не в домене его сервера. Выбрать сервер из домена целей":"The targets of the rule are in a different domain from its server. Select a server from the domain of the targets",
+"Окно — это время между событиями. Для одного события окно не нужно":"The window is the time between the events. One event does not need a window",
+"не выполняется, если цели правила взяты из нескольких доменов":"does not run if the targets of the rule are from more than one domain",
+"задать окно: секунды до или после события":"set the window: seconds before or after the event",
+"Годность действия должна быть от 10 до 600 секунд":"The action validity must be from 10 to 600 seconds",
 });

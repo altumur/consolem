@@ -14740,9 +14740,9 @@ const CTL_KINDS=[
    text:(c,v)=>`${i18n("Спросить оператора")} «${v?ruleTplFill(c.text||"",v):c.text||""}» · ${ruleRoleName(c.to)} · ${i18n("ответ до")} ${c.sec||0} ${i18n("с")}`,
    check:c=>{
      const t=`«${i18n("Спросить оператора")}»`;
-     if(!String(c.text||"").trim())return`${t}: не заполнено поле «Вопрос оператору»`;
+     if(!String(c.text||"").trim())return`${t}: поле «Вопрос оператору» пустое`;
      const u=ruleTplUnknown(c.text)[0];if(u)return`${i18n("неизвестная переменная")} {${u}} ${i18n("в")} ${t}`;
-     if(!accRoles().some(x=>x.id===c.to))return`${t}: не выбрана роль, которой задать вопрос`;
+     if(!accRoles().some(x=>x.id===c.to))return`${t}: не выбрана роль, которая получит вопрос`;
      return c.sec>=1&&c.sec<=3600?"":`${t}: от 1 до 3600 секунд`;
    },
    outs:()=>[["yes","подтвердил"],["no","отклонил"],["none","нет ответа"]],
@@ -14756,11 +14756,11 @@ const CTL_KINDS=[
    text:c=>`${i18n("Эскалация")}: ${(c.levels||[]).map(l=>ruleRoleName(l.to)).join(" → ")||"—"}`,
    check:(c,r)=>{
      const t=`«${i18n("Эскалация")}»`,l=c.levels||[];
-     if(!l.length)return`${t}: нужен хотя бы один уровень`;
+     if(!l.length)return`${t}: нужен минимум один уровень`;
      if(l.length>RULE_ESC_MAX)return`${t}: уровней не больше ${RULE_ESC_MAX}`;
      if(l.some(x=>!accRoles().some(y=>y.id===x.to)))return`${t}: на каждом уровне нужна роль`;
-     if(l.slice(0,-1).some(x=>!(x.wait>=1&&x.wait<=120)))return`${t}: ожидание квитирования — от 1 до 120 минут`;
-     if(c.stop==="reset"&&!ruleHasEnds(r))return`${t}: «событие закончилось» можно выбрать только для событий с окончанием (движение, вход)`;
+     if(l.slice(0,-1).some(x=>!(x.wait>=1&&x.wait<=120)))return`${t}: время ожидания квитирования должно быть от 1 до 120 минут`;
+     if(c.stop==="reset"&&!ruleHasEnds(r))return`${t}: «событие закончилось» можно выбрать, только если у события есть окончание (движение, вход)`;
      return"";
    },
    outs:c=>[...(c.levels||[]).map((l,j)=>["ack:"+(j+1),`${i18n("квитировали на уровне")} ${j+1}`]),["none","никто не квитировал"],...(c.stop==="reset"?[["reset","событие закончилось"]]:[])],
@@ -15296,25 +15296,25 @@ function ruleAutoName(r){
 function ruleProblem(r){
   const off=ruleOutOfCat(r);if(off)return off;
   const doms=ruleDomains(r);
-  if(r.on&&r.server&&doms.size===1&&domainOf(r.server)&&!doms.has(domainOf(r.server).id))return"Цели правила — в другом домене, чем его сервер: выберите сервер этого домена";
-  if(refRuleCross&&doms.size>1){const x=ruleItems(r).find(({it})=>!refRuleCross.includes(it.action));if(x)return`«${i18n(x.it.ctl?ctlKind(x.it).label:actionKind(x.it).label)}»: ${i18n("при целях из нескольких доменов не выполняется")}`}
+  if(r.on&&r.server&&doms.size===1&&domainOf(r.server)&&!doms.has(domainOf(r.server).id))return"Цели правила находятся в другом домене, не в домене его сервера. Выбрать сервер из домена целей";
+  if(refRuleCross&&doms.size>1){const x=ruleItems(r).find(({it})=>!refRuleCross.includes(it.action));if(x)return`«${i18n(x.it.ctl?ctlKind(x.it).label:actionKind(x.it).label)}»: ${i18n("не выполняется, если цели правила взяты из нескольких доменов")}`}
   if(r.start==="event"){
-    if(!r.when.length)return"Нужно хотя бы одно событие: правило без «если» не сработает";
-    if(r.when.length>1&&!r.within)return"Двум событиям нужно окно: в пределах скольких секунд они считаются совпавшими";
-    if(r.when.length===1&&r.within)return"Окно — промежуток между событиями; с одним событием окну нечего мерить";
+    if(!r.when.length)return"Нужно минимум одно событие. Без события в «Если» правило не запустится";
+    if(r.when.length>1&&!r.within)return"Для двух событий нужно окно. Окно задаёт, за сколько секунд должны произойти оба события";
+    if(r.when.length===1&&r.within)return"Окно — это время между событиями. Для одного события окно не нужно";
     for(const t of r.when){
       if(!t.ref)return`«${i18n(triggerKind(t).label)}»: не выбрано устройство`;
       if(refIsGroup(t.ref)&&!refBroken(t.ref)&&!refNodes(t.ref,triggerKind(t).devTypes).length)return`«${i18n(triggerKind(t).label)}»: в выбранной области нет подходящих устройств`;
     }
   }else if(r.start==="sched"&&(!r.sched||!r.sched.days.length||!/^\d\d:\d\d$/.test(r.sched.at||"")))
-    return"Расписанию нужны дни недели и время запуска";
+    return"Задать в расписании дни недели и время запуска";
   for(const c of(r.cond||[])){
     const k=condKind(c);
-    if(c.kind==="mode"&&!(c.modes||[]).length)return"Выберите хотя бы один режим объекта: иначе правило нигде не действует";
+    if(c.kind==="mode"&&!(c.modes||[]).length)return"Выбрать минимум один режим объекта. Без режима правило никогда не действует";
     if(c.kind==="time"){
       const s=schById(c.sched);
-      if(!s)return"Условию «Время» нужно расписание: выбранное удалено";
-      if(schEmpty(s))return`Расписание «${s.name}» не действует ни в один день: условие «Время» не выполнится`;
+      if(!s)return"Выбранное расписание удалено. Выбрать расписание для условия «Время»";
+      if(schEmpty(s))return`Расписание «${s.name}» не действует ни в один день. Условие «Время» никогда не выполнится`;
     }
     if(k.devTypes.length){
       if(!c.ref)return`«${i18n(k.label)}»: не выбрано устройство`;
@@ -15322,30 +15322,30 @@ function ruleProblem(r){
     }
   }
   const items=ruleItems(r);
-  if(!items.some(x=>x.it.action))return"Нужно хотя бы одно действие: иначе правило только наблюдает";
+  if(!items.some(x=>x.it.action))return"Нужно минимум одно действие. Без действия правило ничего не делает";
   for(const{it:a,path}of items){
-    if((path.length-1)/2>RULE_DEPTH)return"Шаги вложены глубже двух уровней: уберите лишнюю вложенность";
+    if((path.length-1)/2>RULE_DEPTH)return"Шаги вложены больше чем на два уровня. Убрать лишние уровни";
     if(a.ctl){const p=ctlKind(a).check(a,r);if(p)return p;continue}
     const k=actionKind(a);
     const need=k.fields.filter(f=>!/необязательно/.test(f.label)&&f.req!==false&&(!f.on||f.on(a))).map(f=>f.id);
     const miss=need.find(id=>!String(a[id]??"").trim());
     if(miss)return`«${i18n(k.label)}»: ${miss==="ref"?"не выбрано устройство":`не заполнено поле «${i18n((k.fields.find(f=>f.id===miss)||{}).label||miss)}»`}`;
     if(refIsGroup(a.ref)&&!refBroken(a.ref)&&!refNodes(a.ref,k.devTypes).length)return`«${i18n(k.label)}»: в выбранной области нет подходящих устройств`;
-    if(a.ref==="$src"&&!ruleSrcOk(r,k.devTypes))return`«${i18n(k.label)}»: «${i18n("Устройство из события")}» можно выбрать, только если в «Если» есть событие от устройства того же типа`;
+    if(a.ref==="$src"&&!ruleSrcOk(r,k.devTypes))return`«${i18n(k.label)}»: «${i18n("Устройство из события")}» можно выбрать, только если в «Если» есть событие от устройства этого типа`;
     if(k.via&&!find(k.via))return`${i18n("нет оповещателя для")} «${i18n(k.short||k.label)}»`;
-    if(k.action==="record"&&a.dur==="event"&&!ruleHasEnds(r))return"Записывать, пока идёт событие, можно только для событий с окончанием (движение, вход)";
+    if(k.action==="record"&&a.dur==="event"&&!ruleHasEnds(r))return"Запись «пока идёт событие» можно выбрать, только если у события есть окончание (движение, вход)";
     if(k.action==="detect"&&!(+a.minutes>=1&&+a.minutes<=1440))return`«${i18n(k.label)}»: ${i18n("от 1 до 1440 минут")}`;
-    if(k.action==="scan"&&+(a.beforeSec??60)===0&&+(a.after??60)===0)return`«${i18n(k.label)}»: ${i18n("нужно окно: секунды до или после события")}`;
+    if(k.action==="scan"&&+(a.beforeSec??60)===0&&+(a.after??60)===0)return`«${i18n(k.label)}»: ${i18n("задать окно: секунды до или после события")}`;
     if(k.action==="runrule"){
       if(a.rule===r.id)return"Правило не может запускать само себя";
       const t=rules.find(x=>x.id===a.rule);
-      if(!t)return"«Запустить правило»: запускаемое правило удалено";
+      if(!t)return"«Запустить правило»: правило для запуска удалено";
       if(t.chain===false)return`${i18n("правило")} «${t.name}» ${i18n("не разрешает запуск другими правилами")}`;
     }
     for(const f of k.fields.filter(x=>x.tpl)){const u=ruleTplUnknown(a[f.id])[0];if(u)return`${i18n("неизвестная переменная")} {${u}} ${i18n("в")} «${i18n(k.short||k.label)}»`}
   }
-  if(r.rate<1||r.rate>600)return"Допустимо от 1 до 600 запусков в минуту";
-  if(r.validFor<10||r.validFor>600)return"Годность действия — от 10 до 600 секунд";
+  if(r.rate<1||r.rate>600)return"Лимит должен быть от 1 до 600 запусков в минуту";
+  if(r.validFor<10||r.validFor>600)return"Годность действия должна быть от 10 до 600 секунд";
   return"";
 }
 // Все причины, по которым правило нельзя включить: ошибка формы и битые ссылки.
@@ -15355,9 +15355,9 @@ function ruleIssues(r){
   if(b.length){
     // Битый элемент набора — такая же ошибка, как битая одиночная ссылка: правило не включить, пока его не заменят.
     const bad=b.flatMap(x=>refBrokenToks(x.ref)),areas=bad.filter(refIsArea),names=[...new Set(bad.filter(t=>!refIsArea(t)).map(t=>`«${refGoneName(t)}»`))];
-    if(names.length===1)out.push(`Правило ссылается на удалённое устройство ${names[0]} — выберите другое, иначе правило не сработает`);
-    else if(names.length)out.push(`Правило ссылается на удалённые устройства: ${names.join(", ")} — выберите другие, иначе правило не сработает`);
-    if(areas.length)out.push(areas.every(t=>t.startsWith("folder:"))?"Правило ссылается на удалённую папку — выберите другую, иначе правило не сработает":"Правило ссылается на удалённую область (папка, сервер или домен) — выберите другую, иначе правило не сработает");
+    if(names.length===1)out.push(`Правило ссылается на удалённое устройство ${names[0]}. Выбрать другое устройство, иначе правило не будет работать`);
+    else if(names.length)out.push(`Правило ссылается на удалённые устройства: ${names.join(", ")}. Выбрать другие устройства, иначе правило не будет работать`);
+    if(areas.length)out.push(areas.every(t=>t.startsWith("folder:"))?"Правило ссылается на удалённую папку. Выбрать другую папку, иначе правило не будет работать":"Правило ссылается на удалённую область (папку, сервер или домен). Выбрать другую область, иначе правило не будет работать");
   }
   return out;
 }
@@ -15382,7 +15382,7 @@ function ruleDraftBegin(){
   const r=curRule();if(!r)return null;
   // Все пути ухода с правила спрашивают про черновик, так что чужого здесь быть
   // не должно; если всё же есть — молча не сбрасываем, а не даём править.
-  if(ruleDraft&&ruleDraft.id!==r.id){toast("Сначала примените или сбросьте изменения другого правила");return null}
+  if(ruleDraft&&ruleDraft.id!==r.id){toast("Сначала применить или сбросить изменения другого правила");return null}
   if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return null}
   if(!ruleDraft)ruleDraft={id:r.id,snap:r._new?null:ruleClone(r)};
   return r;
@@ -15558,18 +15558,18 @@ function rulePlan(){
   const rows=d.map((x,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(x.label)}</td><td class="bk-note">${escHtml(x.fromT)}</td><td><b>${escHtml(x.toT)}</b></td></tr>`).join("");
   openBulkModal(`${i18n("План")}: «${escHtml(r.name)}», ${d.length} ${i18n(plural(d.length,"изменение|изменения|изменений"))}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Параметр")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
-     ${why.length?`<div class="nt bk-warn">${why.some(x=>/нескольких доменов/.test(x))&&can("getScenarios")?`<button type="button" class="lk lk-act" ${onEv("click",["closeBulkModal"],["ruleOpen","between"])}>${i18n("Сценарий между камерами")}</button> `:""}${lu("triangle-alert")} ${r.on?i18n("Правило с ошибкой нельзя применить включённым — исправьте ошибку или выключите правило"):i18n("В правиле есть ошибка: оно применится выключенным и не заработает, пока её не исправят")}: ${why.map(x=>escHtml(i18n(x))).join("; ")}</div>`:""}
+     ${why.length?`<div class="nt bk-warn">${why.some(x=>/нескольких доменов/.test(x))&&can("getScenarios")?`<button type="button" class="lk lk-act" ${onEv("click",["closeBulkModal"],["ruleOpen","between"])}>${i18n("Сценарий между камерами")}</button> `:""}${lu("triangle-alert")} ${r.on?i18n("Правило с ошибкой нельзя применить включённым. Исправить ошибку или выключить правило"):i18n("В правиле есть ошибка. Консоль применит правило выключенным. Правило не будет работать, пока ошибку не исправят")}: ${why.map(x=>escHtml(i18n(x))).join("; ")}</div>`:""}
      ${live?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("С этого момента правило будет выполнять действия")}: ${escHtml(ruleActs(r).map(x=>actionLabel(x.it,{r})).join("; ")||"—")}</div>`:""}
      ${wide.map(x=>`<div class="nt bk-warn" role="alert">${lu("triangle-alert")} ${i18n("Действие")} «${escHtml(actionLabelBare(x.a))}» ${i18n("коснётся")} ${escHtml(ruleCntOf(x.n,x.k.devTypes))}</div>`).join("")}
      ${ask.length?`<label class="rl-opt" style="margin-top:10px"><input type="checkbox" ${onEv("change",["rpApplyGate",block?false:onEv.checked])}><span>${i18n("Понимаю, что действие коснётся")} ${escHtml(ruleCntOf(top.n,top.k.devTypes))}</span></label>`:""}
-     <p class="sub" style="margin:10px 0 0">${!ruleDraft.snap?i18n(!r.on?"Правило появится в списке выключенным — включите его в карточке. Создание можно отменить в течение 10 секунд.":r.watch?"Правило появится в списке в режиме «Только журнал»: действия не выполняются. Создание можно отменить в течение 10 секунд.":"Правило появится в списке и сразу начнёт действовать. Создание можно отменить в течение 10 секунд."):!r.on?i18n("Изменения сохранятся, правило останется выключенным."):r.watch?i18n("Правило останется в режиме «Только журнал»: действия не выполняются."):i18n("После применения правило начнёт действовать по новым условиям; в течение десяти секунд изменение можно отменить.")}</p>`,
+     <p class="sub" style="margin:10px 0 0">${!ruleDraft.snap?i18n(!r.on?"Правило появится в списке выключенным. Чтобы включить его, открыть карточку правила. Создание можно отменить в течение 10 секунд.":r.watch?"Правило появится в списке в состоянии «Только журнал». Правило не будет выполнять действия. Создание можно отменить в течение 10 секунд.":"Правило появится в списке и сразу начнёт работать. Создание можно отменить в течение 10 секунд."):!r.on?i18n("Консоль сохранит изменения. Правило останется выключенным."):r.watch?i18n("Правило останется в состоянии «Только журнал». Правило не будет выполнять действия."):i18n("После применения правило начнёт работать по новым условиям. Изменение можно отменить в течение 10 секунд.")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" id="rpApply" ${block||ask.length?"disabled":""} ${onEv("click",["closeBulkModal"],["ruleApply"])}>${i18n("Применить")} (${d.length})</button>`,"bbox-wide");
 }
 function ruleApply(){
   const d=ruleDraft;if(!d||ruleSaving)return;
   const r=rules.find(x=>x.id===d.id);if(!r)return;
   if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return}
-  if(r.on&&ruleIssues(r).length){toast("Правило с ошибкой нельзя применить включённым — исправьте ошибку или выключите правило");return}
+  if(r.on&&ruleIssues(r).length){toast("Правило с ошибкой нельзя применить включённым. Исправить ошибку или выключить правило");return}
   const wasNew=!d.snap,snap=d.snap,body=ruleBody(r),fv=d.fromVer&&(ruleHist[r.id]||[]).find(x=>x.v===d.fromVer);
   if(fv)body.historyNote={code:"restore",params:{number:fv.v,edited:ruleDiffOf(fv.snap,r).length>0}};
   // «Применить» — правило целиком: новое — POST, прежнее — PUT с версией. Кэш и экран меняет ответ
@@ -15626,46 +15626,46 @@ function ruleGoDevice(id){
 
 // ── Создание ──
 const RULE_STARTS=[
-  ["event","По событию","Сработает, когда в системе что-то случится: открылась дверь, есть движение, оборвался поток камеры."],
-  ["sched","По расписанию","Запустится само в заданные дни и время."],
-  ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
+  ["event","По событию","Правило запускается, когда в системе происходит событие. Примеры: дверь открылась, камера видит движение, поток камеры оборвался."],
+  ["sched","По расписанию","Правило запускается в заданные дни и время."],
+  ["manual","Вручную","Правило запускается только кнопкой. Оператор нажимает кнопку в своём меню, администратор — в конфигураторе."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 // Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
 // Ночные шаблоны: условие «Время» по расписанию «Ночь»; нет такого — без расписания, карточка попросит его выбрать
 function tplNightCond(){const n=SCHEDS.find(x=>!x.builtin&&!x.own&&x.name==="Ночь");return{kind:"time",sched:n?n.id:""}}
 const RULE_TPL=[
   // Охрана
-  {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
+  {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера записывает видео, пока есть движение, и ещё 10 секунд после движения",
    make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
-  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
+  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Ночью сработал вход датчика. Реле включает сирену на 5 секунд",
    make:()=>({cond:[tplNightCond()],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
               then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
-  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
+  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера, которая видит движение, записывает видео 10 минут. Реле срабатывает. Правило действует только ночью",
    make:()=>({cond:[tplNightCond()],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
+  {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера создаёт тревогу с высоким приоритетом. Видео камеры появляется на видеостене",
    make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
-  {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке: реле открывает шлагбаум на 3 секунды",
+  {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке. Реле открывает шлагбаум на 3 секунды",
    make:()=>({when:[{sub:"unit",kind:"plate.list",ref:"",match:{presence:"yes"}}],then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})},
-  {id:"aclose",start:"event",grp:"Охрана и реагирование",name:"Тревога обработана — камера в исходный пресет",sub:"Оператор обработал тревогу: поворотная камера возвращается в пресет",
+  {id:"aclose",start:"event",grp:"Охрана и реагирование",name:"Тревога обработана — камера в исходный пресет",sub:"Оператор обработал тревогу. Поворотная камера возвращается в пресет",
    make:()=>({when:[{sub:"unit",kind:"alarm.closed",ref:"",match:{}}],then:[{sub:"vms",action:"preset",ref:"$src",n:""}]})},
-  {id:"aconf",start:"event",grp:"Охрана и реагирование",name:"Тревога подтверждена — письмо",sub:"Оператор подтвердил тревогу: письмо с кадром уходит ответственному",
+  {id:"aconf",start:"event",grp:"Охрана и реагирование",name:"Тревога подтверждена — письмо",sub:"Оператор подтвердил тревогу. Сервер отправляет письмо с кадром ответственному сотруднику",
    make:()=>({when:[{sub:"unit",kind:"alarm.confirmed",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Подтверждена тревога: {камера}"}]})},
   // Состояние системы
-  {id:"lost",start:"event",grp:"Состояние системы",name:"Обрыв потока — писать соседнюю",sub:"Когда у камеры обрывается открытый поток, другая записывает 15 минут",
+  {id:"lost",start:"event",grp:"Состояние системы",name:"Обрыв потока — писать соседнюю",sub:"Если поток одной камеры оборвался, другая камера записывает видео 15 минут",
    make:()=>({when:[{sub:"vms",kind:"silent",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"",minutes:15}]})},
-  {id:"off",start:"event",grp:"Состояние системы",name:"Камера не на связи — письмо",sub:"Связь не вернулась за 5 минут: письмо уходит администратору",
+  {id:"off",start:"event",grp:"Состояние системы",name:"Камера не на связи — письмо",sub:"Если связь не вернулась за 5 минут, сервер отправляет письмо администратору",
    make:()=>({when:[{sub:"unit",kind:"device.lost",ref:"",match:{}}],then:[{ctl:"waitev",ev:{sub:"unit",kind:"device.restored",ref:"$src",match:{}},sec:300,yes:[],no:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с камерой: {камера}"}]}]})},
-  {id:"tamp",start:"event",grp:"Состояние системы",name:"Камеру закрыли или сдвинули — письмо",sub:"Письмо уходит администратору",
+  {id:"tamp",start:"event",grp:"Состояние системы",name:"Камеру закрыли или сдвинули — письмо",sub:"Сервер отправляет письмо администратору",
    make:()=>({when:[{sub:"unit",kind:"tamper",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Камера закрыта или сдвинута: {камера}"}]})},
-  {id:"vol",start:"event",grp:"Состояние системы",name:"Ошибка архива — письмо",sub:"Том архива перешёл в ошибку: письмо уходит администратору",
+  {id:"vol",start:"event",grp:"Состояние системы",name:"Ошибка архива — письмо",sub:"У тома архива ошибка. Сервер отправляет письмо администратору",
    make:()=>({when:[{sub:"unit",kind:"volume.error",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Ошибка тома архива"}]})},
-  {id:"srv",start:"event",grp:"Состояние системы",name:"Сервер не на связи — письмо",sub:"Письмо уходит администратору",
+  {id:"srv",start:"event",grp:"Состояние системы",name:"Сервер не на связи — письмо",sub:"Сервер отправляет письмо администратору",
    make:()=>({when:[{sub:"unit",kind:"server.down",ref:"",match:{}}],then:[{sub:"ntf",action:"email",to:"",subj:"Нет связи с сервером"}]})},
-  {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"По понедельникам в 10:00 реле коротко щёлкает",
+  {id:"test",start:"sched",name:"Проверка реле раз в неделю",sub:"Каждый понедельник в 10:00 реле срабатывает на 1 секунду",
    make:()=>({sched:{days:[1],at:"10:00"},then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
-  {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора щёлкает реле на 3 секунды",
+  {id:"gate",start:"manual",name:"Открыть шлагбаум",sub:"Кнопка в меню оператора включает реле на 3 секунды",
    make:()=>({menu:true,then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:3000}]})}];
 // Шаблон с тем, чего система не объявила, не предлагается
 function ruleTplDeclared(t){
@@ -15706,7 +15706,7 @@ function ruleTplFilter(v){
 function ruleNewRender(){
   const starts=RULE_STARTS.filter(([id])=>startDeclared(id)).map(([id,t,sub])=>`<label class="rl-opt ${rnw.start===id?"on":""}"><input type="radio" name="rnwStart" ${rnw.start===id?"checked":""} ${onEv("change",["ruleNewSet","start",`${id}`])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`).join("");
   let tplGrp="";
-  const tpls=[{id:"",name:"С нуля",sub:"Пустое правило: событие и действие вы выберете сами"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
+  const tpls=[{id:"",name:"С нуля",sub:"Пустое правило. Событие и действие нужно выбрать самому"},...RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t))]
     .map(t=>`${t.grp&&t.grp!==tplGrp?`<div class="rl-tpl-g">${i18n(tplGrp=t.grp)}</div>`:""}<label class="rl-opt ${rnw.tpl===t.id?"on":""}" ${t.id?`data-tpl="${t.id}"`:""}><input type="radio" name="rnwTpl" ${rnw.tpl===t.id?"checked":""} ${onEv("change",["ruleNewSet","tpl",`${t.id}`])}><span><b>${i18n(t.name)}</b><small>${i18n(t.sub)}</small></span></label>`).join("");
   const tplCount=RULE_TPL.filter(t=>t.start===rnw.start&&ruleTplDeclared(t)).length;
   const m=ruleNewMerge();
@@ -15717,7 +15717,7 @@ function ruleNewRender(){
   wzPaintBm("rule",st.k,"m",i18n("Новое правило"),wzBarHtml(steps,rnw.step,()=>true,["ruleNewGo"]),
     st.k==="start"?`${pre}<div class="rl-opts" data-rnw>${starts}</div>`
       :`${pre}${tplCount>=CBX_MIN?`<input type="text" class="rl-tpl-q" placeholder="${i18n("Найти шаблон…")}" aria-label="${i18n("Найти шаблон")}" autocomplete="off" value="${escHtml(rnw.q||"")}" ${onEv("input",["ruleTplFilter",onEv.value])}>`:""}<div class="rl-opts rl-opts-2" data-rnw>${tpls}<p class="sub rl-tpl-none" hidden>${i18n("Ничего не найдено")}</p></div>
-     <p class="sub">${i18n("Правило создаётся выключенным. Оно появится в списке после «Применить» — включите его в карточке.")}</p>`,
+     <p class="sub">${i18n("Консоль создаёт правило выключенным. Правило появится в списке после «Применить». Чтобы включить правило, открыть его карточку.")}</p>`,
     wzFootHtml({cancel:["wzCancel","rule"],sum:[i18n(startName),rnw.step?i18n(tplName):""].filter(Boolean).join(" · "),back:rnw.step?["ruleNewGo",0]:null,next:{label:i18n(last?"Создать правило":"Далее"),on:last?["ruleNewCreate"]:["ruleNewGo",1]}}));
   if(rnw.q&&st.k==="tpl"&&tplCount>=CBX_MIN)ruleTplFilter(rnw.q);
 }
@@ -15745,7 +15745,7 @@ function ruleNewMerge(){
     }else{list.push(ruleClone(pt));notes.push(`${i18n(word)} «${lab}» ${i18n("добавлено")} ${i18n("как")} ${list.length}-е`)}
   };
   if(st==="event")(p.when||[]).forEach(pt=>put(when,pt,triggerKind,"событие"));
-  else if((p.when||[]).length)notes.push(i18n("событие подходит только правилу по событию — оно не добавлено"));
+  else if((p.when||[]).length)notes.push(i18n("событие подходит только для правила по событию. Консоль не добавила событие"));
   (p.then||[]).forEach(pt=>put(then,pt,actionKind,"действие"));
   return{t,b,when,then,notes};
 }
@@ -15918,7 +15918,7 @@ function rulePkChips(){
 function rulePkDevices(q){
   const pk=rulePk,dt=pk.dt,cover=rulePkAreaCover();
   let h=`<div class="rl-pk-g">${i18n(q?"Устройства":"Отдельные устройства")}</div>${rulePkChips()}`;
-  if(!q)return h+`<p class="sub">${i18n("Начните вводить название, тип или сервер")}</p>`;
+  if(!q)return h+`<p class="sub">${i18n("Ввести название, тип или сервер")}</p>`;
   const hits=[];
   ruleUniverse(dt).forEach(n=>{
     const ty=LB[n.type]||n.type,sv=ruleSrvName(n);
@@ -15938,7 +15938,7 @@ function rulePkDevices(q){
 // Итог выбора (закреплён): что отмечено, сколько устройств выйдет, предупреждение о широком действии.
 function rulePkSummary(){
   const pk=rulePk,dt=pk.dt;
-  if(pk.src)return`<p><b>${i18n("Выбрано")}:</b> ${i18n("устройство из события")} — ${i18n("то, от которого пришло событие")} · <button type="button" class="lk lk-act" data-key="sum:clear" ${onEv("click",["rulePkClear"])}>${i18n("Снять всё")}</button></p>`;
+  if(pk.src)return`<p><b>${i18n("Выбрано")}:</b> ${i18n("устройство из события")} — ${i18n("устройство, которое отправило событие")} · <button type="button" class="lk lk-act" data-key="sum:clear" ${onEv("click",["rulePkClear"])}>${i18n("Снять всё")}</button></p>`;
   if(!pk.toks.length)return`<p class="sub">${i18n("Ничего не выбрано")}</p>`;
   const ref=refMake(pk.toks,[...pk.ex]),nodes=refNodes(ref,dt),{inc,ex}=refParts(ref);
   const parts=ruleCountsText(inc.filter(refIsArea),inc.filter(t=>!refIsArea(t)),dt)+(ex.length?`, ${i18n("кроме")} ${ruleCntOf(ex.length,dt)}`:"");
@@ -15959,7 +15959,7 @@ function rulePkTail(){
   const notes=areas.filter(t=>!refTokBroken(t)).map(t=>ruleAreaNote(t,dt));
   let h="";
   if(notes.length)h+=`<ul class="rl-notes">${notes.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul>`;
-  if(devs.length||ex.length)h+=`<p class="sub">${i18n("Отдельно выбранные устройства и исключения не меняются сами: новые устройства в них не попадут.")}</p>`;
+  if(devs.length||ex.length)h+=`<p class="sub">${i18n("Консоль не изменяет отдельно выбранные устройства и исключения. Новые устройства не попадут в них.")}</p>`;
   if(pk.all)h+=rulePkComposition(inc,dt);
   return h;
 }
@@ -15971,7 +15971,7 @@ function rulePkComposition(inc,dt){
     const on=!pk.ex.has(n.id);
     return`<label class="rl-comp ${on?"":"off"}"><input type="checkbox" ${on?"checked":""} data-key="comp:${escHtml(n.id)}" data-id="${escHtml(n.id)}" ${onEv("change",["rulePkEx",onEv.data("id"),onEv.checked])}>${ruleDotHtml(n)}<span>${escHtml(locName(n))}</span><small>${escHtml(`${LB[n.type]||n.type} · ${ruleSrvName(n)}`)}</small></label>`;
   }).join("");
-  return`<div class="rl-complist" role="group" aria-label="${i18n("Состав")}">${rows}</div><p class="sub">${i18n("Снятая галочка — исключение: устройство не войдёт в этот выбор, даже если область его содержит.")}</p>`;
+  return`<div class="rl-complist" role="group" aria-label="${i18n("Состав")}">${rows}</div><p class="sub">${i18n("Если снять флажок, устройство станет исключением. Оно не войдёт в выбор, даже если оно есть в области.")}</p>`;
 }
 // Точка связи — как в дереве «Оборудования»: зелёная, красная (нет связи) или серая (выключено).
 function ruleDotHtml(n){
@@ -15991,7 +15991,7 @@ function rulePickList(){
   // Особый пункт «из события» — отдельной строкой наверху, взаимоисключающий с остальным выбором.
   let h="";
   if(srcOk&&srcDeclared()&&matchesText(q,i18n("Устройство из события")))
-    h+=`<button type="button" role="radio" aria-checked="${pk.src}" class="rl-pk rl-src ${pk.src?"on":""}" data-key="src" ${onEv("click",["rulePkSrc"])}><span class="rl-cb ${pk.src?"on":""}" aria-hidden="true">${pk.src?lu("check"):""}</span><span>${i18n("Устройство из события")}</span><small>${i18n("то, от которого пришло событие")}</small></button>`;
+    h+=`<button type="button" role="radio" aria-checked="${pk.src}" class="rl-pk rl-src ${pk.src?"on":""}" data-key="src" ${onEv("click",["rulePkSrc"])}><span class="rl-cb ${pk.src?"on":""}" aria-hidden="true">${pk.src?lu("check"):""}</span><span>${i18n("Устройство из события")}</span><small>${i18n("устройство, которое отправило событие")}</small></button>`;
   if(!pk.src)h+=(q?rulePkSearch(q):`<div class="rl-pk-g">${i18n("Области")}</div><div role="tree" aria-label="${i18n("Области")}">${rulePkTree()}</div>`+rulePkDevices(""))+rulePkTail();
   host.innerHTML=h;
   document.getElementById("rpSum").innerHTML=rulePkSummary();
@@ -16118,7 +16118,7 @@ function setStepKind(ps,v){
     if(toK){const nw=toK.make();if(keeps)ctlBranches(nw).forEach(([b])=>{if(old[b])nw[b]=old[b]});l[ix]=nw}
     else l[ix]=ruleNewAct(ACTION_KINDS[+v.slice(2)],old,r);
   });
-  if(n&&!keeps)askConfirm("Убрать ветки?",`<p>${i18n("Убрать ветки вместе с")} ${n} ${i18n(plural(n,"действием|действиями|действиями"))}?</p><p class="sub">${i18n("Это можно вернуть кнопкой «Сбросить» до применения.")}</p>`,"",i18n("Убрать"),go,{html:true,cancelLabel:"Отмена",onCancel:()=>paint()});
+  if(n&&!keeps)askConfirm("Убрать ветки?",`<p>${i18n("Убрать ветки вместе с")} ${n} ${i18n(plural(n,"действием|действиями|действиями"))}?</p><p class="sub">${i18n("До применения это можно вернуть кнопкой «Сбросить».")}</p>`,"",i18n("Убрать"),go,{html:true,cancelLabel:"Отмена",onCancel:()=>paint()});
   else go();
 }
 // Число остаётся числом: иначе выбор того же «1» в списке выглядел бы правкой.
@@ -16147,7 +16147,7 @@ function addStep(lp){ruleEdit(r=>{const l=ruleListAt(r,lp);if(l)l.push((CTL_KIND
 function delAction(ps){
   const cr=curRule(),o=cr&&ruleThenAt(cr,ps),n=o?ruleNestCount(o):0;
   const go=()=>ruleEdit(r=>{const l=ruleThenList(r,ps);if(l)l.splice(ruleLastIdx(ps),1)});
-  if(n)askConfirm("Убрать шаг?",`<p>${i18n("Шаг уберётся вместе с")} ${n} ${i18n(plural(n,"вложенным действием|вложенными действиями|вложенными действиями"))}.</p><p class="sub">${i18n("Это можно вернуть кнопкой «Сбросить» до применения.")}</p>`,"",i18n("Убрать"),go,{html:true,cancelLabel:"Отмена"});
+  if(n)askConfirm("Убрать шаг?",`<p>${i18n("Шаг уберётся вместе с")} ${n} ${i18n(plural(n,"вложенным действием|вложенными действиями|вложенными действиями"))}.</p><p class="sub">${i18n("До применения это можно вернуть кнопкой «Сбросить».")}</p>`,"",i18n("Убрать"),go,{html:true,cancelLabel:"Отмена"});
   else go();
 }
 // Порядок — только внутри своего списка (верхнего или ветки).
