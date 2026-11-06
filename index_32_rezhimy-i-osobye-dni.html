@@ -18289,7 +18289,7 @@ function hdModePaint(){
   b.classList.toggle("manual",!!man);
   b.title=`${i18n("Режим")}: ${umName(cur)}${t?` (${t})`:""}`;
   b.setAttribute("aria-label",`${i18n("Режим")}: ${umName(cur)}. ${i18n("Включить другой режим")}`);
-  b.innerHTML=`${cur?`<span class="sch-sw" style="background:${cur.color}"></span>`:""}<b>${escHtml(umName(cur))}</b>${man?`<small>${escHtml(t)}</small>`:""}${lu("chevron-down")}`;
+  b.innerHTML=`${cur?`<span class="sch-sw" style="background:${cur.color}"></span>`:""}<b>${escHtml(umName(cur))}</b>${man?`<small>${escHtml(t)}</small>`:""}${CHEV_BTN}`;
 }
 function hdModeMenu(ev){
   ev.stopPropagation();
