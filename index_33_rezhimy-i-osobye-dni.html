@@ -5054,7 +5054,7 @@ function ruleContentNode(r,id){
     when:r.triggers.map(trigNode),cond:r.conditions.filter(c=>c.kind!=="mode").map(condNode),then:r.steps.map(stepNode),
     owner:r.owner,purpose:r.purpose,server:r.serverId||"",runAs:r.runAsRoleId||"system",watch:r.logOnly,chain:r.allowChain,labels:r.labels||[],validFor:r.validForSec??30};
   if(r.logOnlySince)n.watchSince=r.logOnlySince;
-  // Прототип 32: условия «mode» интерфейс не показывает — режим сам выключает правила по меткам. Хранятся как есть и уходят на сервер без изменений
+  // Прототип 33: условия «mode» интерфейс не показывает — режим сам выключает правила по меткам. Хранятся как есть и уходят на сервер без изменений
   const hid=r.conditions.map((raw,at)=>({at,raw})).filter(x=>x.raw.kind==="mode");
   if(hid.length)n.condHid=hid;
   return n;
@@ -5085,7 +5085,7 @@ function ruleSet(x,oldId){
   if(oldId&&oldId!==x.id){
     ruleFires[x.id]=ruleFires[oldId]||[];delete ruleFires[oldId];ruleHist[x.id]=ruleHist[oldId]||[];delete ruleHist[oldId];
     if(rule===oldId)rule=x.id;
-    UMODES.forEach(m=>{m.off.ids=m.off.ids.map(v=>v===oldId?x.id:v)});   // режимы прототипа 32 — на клиенте
+    UMODES.forEach(m=>{m.off.ids=m.off.ids.map(v=>v===oldId?x.id:v)});   // режимы прототипа 33 — на клиенте
   }
   autoVer.set(x.id,x.version);
   ruleIdxDrop();treeMatchCache.clear();searchMatchCache.clear();
@@ -5199,7 +5199,7 @@ function fireNode(f,r){
     checks:[],steps:[],res:f.result};
   const ctx={vars:r?ruleVarsOf(r,rec):{}};
   const isMode=c=>c.code==="cond"&&c.params&&c.params.condition&&c.params.condition.kind==="mode";
-  // Условие режима скрыто в интерфейсе (прототип 32); невыполненное — причина пропуска, его показываем
+  // Условие режима скрыто в интерфейсе (прототип 33); невыполненное — причина пропуска, его показываем
   rec.checks=f.checks.filter(c=>!(isMode(c)&&c.ok)).map(c=>isMode(c)?{label:i18n("Скрытое условие режима не выполнено"),ok:false}:fireCheck(c,ctx));
   let chain=null;   // шаги правила, запущенного «Запустить правило», идут следом с пустым путём
   rec.steps=f.steps.map(s=>{
@@ -5300,10 +5300,10 @@ async function autoLoad(){
     }
   }
   if(!schLast||!SCHEDS.some(s=>s.id===schLast))schLast=(SCHEDS.find(s=>!s.builtin)||{}).id||null;
-  // Режим объекта — в шапке консоли на любом экране: режимы и текущий режим читаются при старте (прототип 32)
+  // Режим объекта — в шапке консоли на любом экране: режимы и текущий режим читаются при старте (прототип 33)
   if(can("getModes"))modesApply(await API.get("/modes"));
   if(can("getModeCurrent"))modeCurApply(await API.get("/modes/current"));
-  // Прототип 32: окна обслуживания — тоже режимы, а режимы видны в шапке сразу
+  // Прототип 33: окна обслуживания — тоже режимы, а режимы видны в шапке сразу
   if(can("listMaintenanceWindows")){const mw=await API.get("/maintenance-windows");MAINT_WINDOWS.length=0;mw.items.forEach(winSet)}
   umReady=true;
   Object.keys(ruleFires).forEach(k=>delete ruleFires[k]);Object.keys(ruleHist).forEach(k=>delete ruleHist[k]);
@@ -16428,7 +16428,7 @@ function rulesUI(){
     return;
   }
   if(rule==="between"){scenUI();return}
-  if(rule==="maint"){rule="modes";renderTree();ruleModesUI();return}   // прототип 32: окна обслуживания — это режимы
+  if(rule==="maint"){rule="modes";renderTree();ruleModesUI();return}   // прототип 33: окна обслуживания — это режимы
   const r=curRule();
   const why=ruleIssues(r);
   const fires=ruleFires[r.id]||[];
@@ -17509,7 +17509,7 @@ function ruleIdleNote(r){
   return[m?`${i18n("приглушено до")} ${ruleMuteTill(m)}`:"",w?`${i18n("выключено режимом")} «${i18n(w.name)}»`:""].filter(Boolean).join("; ");
 }
 // Режимы объекта, которые правило называет в условиях «Режим объекта».
-// Ручное включение режима (или «Обычной работы») — всегда на срок, не больше 8 часов (прототип 32):
+// Ручное включение режима (или «Обычной работы») — всегда на срок, не больше 8 часов (прототип 33):
 // он заменяет режим по расписанию, а забытое включение кончается само.
 const MODE_TERMS=[[30,"30 минут"],[60,"1 час"],[120,"2 часа"],[240,"4 часа"],[480,"8 часов"]];
 const MODE_TERM_MAX=480,MODE_REMIND=10;
@@ -18101,7 +18101,7 @@ function schDaysUI(){
     `<div class="sc">${cards}<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpAdd"])}>${lu("plus")}${i18n("Группа особых дней")}</button></div>
       <p class="sub">${i18n("Правка группы применяется сразу, отменить можно в уведомлении внизу. Что делать в такие дни, говорит каждое расписание само — в блоке «В особые дни».")}</p></div>`);
 }
-// ── Прототип 32: режим — одно понятие вместо «Режимов объекта» и «Окон обслуживания» ──
+// ── Прототип 33: режим — одно понятие вместо «Режимов объекта» и «Окон обслуживания» ──
 // Режим выключает правила: все (и те, что добавят потом) или выбранные. В каждый момент действует один режим
 // или «Обычная работа» — тогда все правила работают по своим условиям. Расписания режимов не пересекаются:
 // пересекающееся расписание выбрать нельзя. Оператор включает режим (или «Обычную работу») вручную на срок —
@@ -29364,7 +29364,7 @@ function cbxOpen(s,text){
   const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
   const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;foot.setAttribute("role","status");foot.setAttribute("aria-live","polite");
   const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
-  // Категории — левой панелью: все группы видны сразу, клик оставляет одну справа (прототип 32)
+  // Категории — левой панелью: все группы видны сразу, клик оставляет одну справа (прототип 33)
   const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","group");chips.setAttribute("aria-label",i18n("Категории: стрелки ← → в пустом поле поиска"));
   chips.hidden=groups.length<2;
   const body=document.createElement("div");body.className="cbx-b";body.append(chips,list);
