@@ -3459,7 +3459,7 @@ function sfFieldHtml(scope,owner,f,p,v,o={}){
     return`<div>${lab}<div class="sf-multi${o.err?" bad sf-bad":""}" ${at}="${escHtml(f)}"${o.err?` title="${escHtml(o.err)}"`:""}>${(it.enum||[]).map(x=>`<label class="chk"><input type="checkbox" value="${escHtml(x)}" ${cur.has(x)?"checked":""} ${ev("change")}> ${escHtml(sfEnumText(it,x))}</label>`).join("")}</div>${hint}</div>`;
   }
   if(w==="textarea")return`<div class="sf-wide">${lab}<textarea rows="3" ${at}="${escHtml(f)}"${bad} ${p.maxLength?`maxlength="${p.maxLength}"`:""} ${ev("input")}>${escHtml(v??"")}</textarea>${hint}</div>`;
-  if(w==="password")return`<div>${lab}<input type="password" autocomplete="new-password" ${at}="${escHtml(f)}"${bad} value="${escHtml(v??"")}" placeholder="${escHtml(o.set?i18n("задан — введите новый, чтобы сменить"):"")}" ${ev("input")}>${hint}</div>`;
+  if(w==="password")return`<div>${lab}<input type="password" autocomplete="new-password" ${at}="${escHtml(f)}"${bad} value="${escHtml(v??"")}" placeholder="${escHtml(o.set?i18n("задан. Чтобы изменить, ввести новый"):"")}" ${ev("input")}>${hint}</div>`;
   if(w==="number"){
     const lim=[["min",p.minimum],["max",p.maximum]].filter(([,x])=>x!=null).map(([k,x])=>`${k}="${x}"`).join(" ");
     return`<div>${lab}<input type="number" step="${t==="integer"?1:"any"}" ${lim} ${at}="${escHtml(f)}"${bad} value="${escHtml(v??"")}" ${ev("input")}>${hint}</div>`;
@@ -3537,7 +3537,7 @@ function schemaPluginLink(n){
 function schemaHeadHtml(n,k){
   const o=k?.origin||{},from=o.plugin?`${i18n("плагин")} ${escHtml(o.plugin)}${o.pluginVersion?" "+escHtml(o.pluginVersion):""}`:"";
   const plug=schemaPluginLink(n);
-  return`<div class="nt" data-schema-head>${i18n("Вид")}: <b>${escHtml(kindText(nodeKind(n)))}</b>${from?` · ${from}`:""}${k?"":` · ${i18n("описания вида нет — только просмотр")}`}${plug?` <span class="tfoot-gap"></span>${plug}`:""}</div>`;
+  return`<div class="nt" data-schema-head>${i18n("Вид")}: <b>${escHtml(kindText(nodeKind(n)))}</b>${from?` · ${from}`:""}${k?"":` · ${i18n("описания вида нет, поэтому только просмотр")}`}${plug?` <span class="tfoot-gap"></span>${plug}`:""}</div>`;
 }
 // Наблюдаемое состояние (status.observed): только просмотр, по ключам
 function schemaStateHtml(n){
@@ -3619,7 +3619,7 @@ async function schemaAddOpen(parentUid,kind,domainId){
     try{offer=(await API.get(`/units/${parentUid}/creatable`)).items||[]}catch(e){toast(problemText(e));return}
   }else offer=schemaKindsUnder(p).map(k=>({kind:k,allowed:true}));
   const first=(kind&&offer.find(x=>x.kind===kind&&x.allowed))||offer.find(x=>x.allowed);
-  if(!first){toast(offer.length?`${i18n("Создать нельзя")} — ${problemText(offer[0].reason)}`:"Под этим объектом ничего не создаётся");return}
+  if(!first){toast(offer.length?`${i18n("Создать нельзя")} — ${problemText(offer[0].reason)}`:"Под этим объектом нельзя создать объекты");return}
   swd={parent:parentUid||null,domainId:p?nodeDomainId(p):domainId||domainFilter||domains[0]?.id||null,offer,kind:first.kind,name:"",props:{},errs:{},key:opKey()};
   swd.props=sfDefaults(swdSchema());
   const pn=p?` «${escHtml(locName(p))}»`:"";
@@ -3635,7 +3635,7 @@ function schemaWizardHtml(kind,parentUid){
   return`<div class="g"><div><label>${i18n("Вид")}</label><select id="swKind" ${onEv("change",["schemaWizKind",onEv.value])}>${opts}</select></div>
     <div><label>${i18n("Имя")}</label><input type="text" data-sw-name value="${escHtml(o.name)}"${o.errs.name?` class="bad sf-bad" title="${escHtml(o.errs.name)}"`:""} placeholder="${escHtml(i18n("по умолчанию — даст сервер"))}" ${onEv("input",["schemaWizName",onEv.value])}></div>
     ${fields}</div>${o.errs[""]?`<div class="nt bk-warn">${escHtml(o.errs[""])}</div>`:""}
-    <p class="sub" style="margin:10px 0 0">${p?`${i18n("Родитель")}: «${escHtml(locName(p))}». `:""}${i18n("Объект создаётся сразу, без плана; удалить — из его карточки.")}</p>`;
+    <p class="sub" style="margin:10px 0 0">${p?`${i18n("Родитель")}: «${escHtml(locName(p))}». `:""}${i18n("Консоль создаёт объект сразу, без плана. Удалить объект можно в его карточке.")}</p>`;
 }
 function schemaWizRepaint(){const b=document.getElementById("bmBody");if(b&&swd)b.innerHTML=schemaWizardHtml(swd.kind,swd.parent)}
 function schemaWizKind(v){if(!swd)return;swd.kind=v;swd.errs={};swd.props=sfDefaults(swdSchema());schemaWizRepaint()}
@@ -3693,7 +3693,7 @@ function unitActConfirm(){
   if(!actd)return;
   const a=actd.desc,n=find(actd.uid)?.n,lb=textOf(a.label)||a.id;
   if(a.confirm){
-    askConfirm(`${lb} — «${locName(n||{})}»?`,textOf(a.confirm.text)||i18n("Выполнить команду?"),"",lb,()=>unitActRun(),a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, введите число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
+    askConfirm(`${lb} — «${locName(n||{})}»?`,textOf(a.confirm.text)||i18n("Выполнить команду?"),"",lb,()=>unitActRun(),a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
     return;
   }
   unitActRun();
@@ -3709,7 +3709,7 @@ async function unitActRun(){
     if(r&&"result"in r){
       const rs=a.result?.properties||{},parts=Object.entries(r.result||{}).map(([k,v])=>`${propLabel(rs[k],k)}: ${typeof v==="object"?JSON.stringify(v):v}`);
       toast(`${lb}: ${parts.length?parts.join(", "):i18n("выполнено")}`);
-    }else toast(`${lb}: ${i18n("запущено — ход в журнале операций")}`);
+    }else toast(`${lb}: ${i18n("запущено. Ход выполнения есть в журнале операций")}`);
     if(sel===x.uid&&app==="hw")gear();
   }catch(e){
     const p=e?.problem||{},list=p.errors?.length?p.errors:p.field?[p]:[];
@@ -3745,7 +3745,7 @@ function schemaExtraHtml(n){
   const kind=nodeKind(n),schema=KINDS.get(kind)?.schema,names=new Set(nodeExtraProps(n)),groups=new Map();
   sfEntries(schema).forEach(([f,p])=>{if(!names.has(f))return;const g=sfGroup(p);(groups.get(g)||groups.set(g,[]).get(g)).push([f,p])});
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=n.xprops||xpropsServer(n);
-  let out=`<div class="nt" data-schema-extra>${i18n("Свойства вида")} «${escHtml(kindText(kind))}» ${i18n("сверх его профилей")}: ${i18n("ручной экран их не показывает")}.</div>`;
+  let out=`<div class="nt" data-schema-extra>${i18n("Свойства вида")} «${escHtml(kindText(kind))}» ${i18n("сверх его профилей")}: ${i18n("ручной экран не показывает их")}.</div>`;
   groups.forEach((fs,g)=>{
     // Разовое при создании (x-transient) после создания не хранится и не правится
     const body=fs.map(([f,p])=>sfFieldHtml("xcard",n.id,f,p,vals[f],{ro:!!n.derived||sfReadOnly(p)||!!p["x-transient"],err:err[f],req:req.has(f),schema})).join("");
@@ -4315,36 +4315,36 @@ function problemText(e,n){
   const s=n?srv(n.id):null;
   return{
     SERVER_OFFLINE:problemKept(e)?i18n("Принято, применится"):s?`${i18n("сервер")} «${locName(s)}» ${i18n("не отвечает")}`:i18n("сервер не отвечает"),
-    LICENSE_EXCEEDED:i18n("лицензия превышена — камера останется выключенной"),
-    DEVICE_OFFLINE:i18n("устройство не отвечает — проверьте сеть и учётные данные"),
-    VERSION_MISMATCH:n&&KEPT_WAIT.has(n.id)?i18n("прежняя правка камеры ещё не применилась: дождитесь её и повторите"):i18n("объект изменился — откройте его заново"),
-    BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("над объектом выполняется групповая операция"),
+    LICENSE_EXCEEDED:i18n("лицензия превышена, поэтому камера останется выключенной"),
+    DEVICE_OFFLINE:i18n("устройство не отвечает. Проверить сеть и учётные данные"),
+    VERSION_MISMATCH:n&&KEPT_WAIT.has(n.id)?i18n("предыдущее изменение камеры ещё не применено. Подождать и повторить"):i18n("объект изменился. Открыть его снова"),
+    BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("консоль выполняет групповую операцию над объектом"),
     NAME_REQUIRED:i18n("Укажите имя"),
     // Входа может и не быть: у камеры за NAT и у кластера без адреса ссылки нет, обещать её нельзя
-    OTHER_CLUSTER:i18n(n?.direct===false?"камера за NAT: связи с ней нет, действие недоступно":(e?.problem?.params||e?.params)?.url?"камера другого кластера: откройте вход через него":"камера другого кластера: отсюда это недоступно"),
-    OTHER_NETWORK:i18n("раздачу создали для другой сети"),
+    OTHER_CLUSTER:i18n(n?.direct===false?"камера за NAT. Связи с ней нет, поэтому действие недоступно":(e?.problem?.params||e?.params)?.url?"камера другого кластера. Открыть вход через этот кластер":"камера другого кластера. Отсюда это недоступно"),
+    OTHER_NETWORK:i18n("раздача создана для другой сети"),
     FINGERPRINT_MISMATCH:i18n("отпечаток не совпал"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
     ADDRESS_TAKEN:i18n("Сервер с таким адресом уже есть"),
     LAST_DOMAIN:i18n("Последний домен удалить нельзя"),
-    DOMAIN_NOT_EMPTY:i18n("Укажите, куда перенести содержимое домена"),
+    DOMAIN_NOT_EMPTY:i18n("Указать, куда перенести содержимое домена"),
     INVALID_IP:i18n("Неверный адрес"),
     DISK_TAKEN:i18n("Диск уже занят"),
     IDENTIFIER_TAKEN:i18n("ID уже используется"),
     LOGIN_TAKEN:i18n("Логин уже занят"),
-    SELF_LOCKOUT:i18n("Изменение оставит систему без администратора или лишит вас входа"),
-    PASSWORD_NOT_ADMIN:i18n("Пароль этому пользователю задал не администратор: сначала смените его"),
+    SELF_LOCKOUT:i18n("После изменения в системе не останется администратора, или вы не сможете войти"),
+    PASSWORD_NOT_ADMIN:i18n("Пароль этого пользователя задал не администратор. Сначала изменить пароль"),
     PASSWORD_POLICY:i18n("Пароль не соответствует политике паролей"),
     PERMISSION_DENIED:permText(e?.problem?.params||e?.params||{}),
     BUILTIN:i18n("Встроенное не меняется"),
-    PARENT_MISMATCH:i18n("Родительский объект — в другом домене"),
+    PARENT_MISMATCH:i18n("Родительский объект находится в другом домене"),
     CONNECTION_FAILED:i18n("Не удалось подключиться"),
-    IP_RANGE_TOO_LARGE:i18n("Слишком много адресов за раз"),
+    IP_RANGE_TOO_LARGE:i18n("Слишком много адресов в одном запросе"),
     DEVICE_REFUSED:`${i18n("устройство отказало")}${(e?.problem?.params?.reason)==="noOperation"?`: ${i18n("такой команды нет")}`:""}`,
     NOT_FOUND:i18n("объект не найден"),
     UPSTREAM_UNAVAILABLE:i18n("сервер недоступен, повторите"),
-    NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("откатить можно только последнюю операцию"):i18n("откатить нельзя: срок вышел или уже откачено"),
-    NOT_SUPPORTED:e?.problem?.params?.reason==="folders"||e?.params?.reason==="folders"?i18n("папки вне отката: состав папки не возвращается"):e?.problem?.params?.issue?i18n("Система этого не исполняет"):i18n("этого не вернуть"),
+    NOT_REVERTIBLE:e?.problem?.params?.reason==="notLast"?i18n("можно откатить только последнюю операцию"):i18n("откатить нельзя. Срок истёк, или операция уже откачена"),
+    NOT_SUPPORTED:e?.problem?.params?.reason==="folders"||e?.params?.reason==="folders"?i18n("откат не действует на папки. Консоль не вернёт состав папки"):e?.problem?.params?.issue?i18n("Система этого не исполняет"):i18n("этого не вернуть"),
   }[code]||(e?.status===0||!code?i18n("сервер не ответил"):`${i18n("ошибка")}: ${code}`);
 }
 // 403 словами: правило называет чужое (params.target — {uid} или область {area, uid}), команде или пути объекта не
@@ -4352,7 +4352,7 @@ function problemText(e,n){
 function permText(p){
   if(p.target){
     const t=p.target,id=t.uid||t.id,name=t.area==="domain"?domainById(id)&&locName(domainById(id)):t.area==="folder"?folderById(id)&&locName(folderById(id)):t.area==="server"?servers.find(x=>x.id===id)&&locName(servers.find(x=>x.id===id)):locName(find(id)?.n);
-    return`${i18n("Нет права на то, что называет правило")}: «${name||id}»`;
+    return`${i18n("Нет прав на объекты в правиле")}: «${name||id}»`;
   }
   if(p.right?.level){
     const cls=p.right.class||accClassOfUnit(p.uid||p.unit||sel),row=cls&&ACC_DEFS.find(d=>d[2]===cls);
@@ -4458,12 +4458,12 @@ const arch=[];
 // вне подписей показывается кодом. Адрес тома (address) решает, какие поля у него есть: network бывает и бакетом.
 const ARCH_LABEL={local:"Локальное",network:"Сетевое",cloud:"Облачное",backup:"Резерв на сбой",edge:"Карта сервера",incidents:"Инциденты"};
 const ARCH_TAG={local:"локальное",network:"сетевое",backup:"резерв",edge:"карта",incidents:"инциденты"};
-const ARCH_DESC={local:"Диски сервера: папка на диске или, у блочного, раздел целиком.",network:"Папка на NAS по SMB/NFS. Том — файл заданного размера.",
-  backup:"Только для резерва: сюда пишется живой поток, пока основная запись должна идти и не идёт.",edge:"Карта или флеш маленькой коробки. Одна на сервер, сразу работает со всеми его камерами.",incidents:"Для копий отмеченных записей. Камеры сюда не пишут."};
-const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет Amazon S3, MinIO, любого S3-совместимого сервиса или контейнер Azure."};
+const ARCH_DESC={local:"Диски сервера. Том — это папка на диске или весь раздел у блочного хранилища.",network:"Папка на NAS по SMB/NFS. Том — это файл заданного размера.",
+  backup:"Только для резерва. Сервер записывает сюда живой поток, когда основная запись не идёт по ошибке.",edge:"Карта памяти или флеш-память маленькой коробки. Одна на сервер. Работает сразу со всеми камерами сервера.",incidents:"Для копий отмеченных записей. Камеры не записывают сюда видео."};
+const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет Amazon S3, MinIO или другого S3-совместимого сервиса. Или контейнер Azure."};
 const ARCH_MODE_RU={always:"Постоянно",backup:"Только при сбое"};
 // Нет поля — «Авто»: так значит норма, первое слово списка умолчанием не бывает
-const ARCH_AUTO_HINT="При сбое, а без основной записи — постоянно";
+const ARCH_AUTO_HINT="При сбое. Если основной записи нет — всегда";
 function archModeOpts(spec,cur){return[["","Авто"],...spec.archiveModes.map(m=>[m,ARCH_MODE_RU[m]||m])].map(([v,t])=>`<option value="${v}" ${v?"":`title="${i18n(ARCH_AUTO_HINT)}"`} ${v===cur?"selected":""}>${i18n(t)}</option>`).join("")}
 // При создании: выбор человека, «Авто» — пустая строка; ещё не выбирал — то, что предлагает вид
 function anMode(spec){return an.recordMode??spec.archiveModeDefault??""}
@@ -4809,7 +4809,7 @@ function ruleChecksFor(r,o){
   if(o.busy){
     const rp=r.repeat||"skip";
     c.push(rp==="skip"?{label:i18n("Прежний запуск ещё шёл"),ok:false,why:i18n("новое событие пропущено")}
-      :{label:i18n("Прежний запуск ещё шёл"),ok:true,why:i18n(rp==="restart"?"прежний запуск остановлен, начат заново":"запуск поставлен в очередь после текущего")});
+      :{label:i18n("Прежний запуск ещё шёл"),ok:true,why:i18n(rp==="restart"?"предыдущий запуск остановлен, новый запуск начат":"запуск добавлен в очередь после текущего запуска")});
   }
   return c;
 }
@@ -5083,9 +5083,9 @@ function sysParts(iso){
 }
 // Запуск: трасса кодами → запись раздела с подписями (label, why, note), как её строил макет
 const STEP_WHY={"relay.timeout":"реле не ответило за 2 с","target.gone":"устройство удалено","target.areaGone":"область удалена","target.deviceGone":"устройство удалено",
-  "run.stopped":"запуск снят: правило изменили или запустили заново","notifier.gone":"оповещатель удалён","target.noRecord":"запись не ведётся: проверять нечего","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
+  "run.stopped":"запуск отменён. Правило изменили или запустили снова","notifier.gone":"оповещатель удалён","target.noRecord":"запись не идёт. Проверять нечего","target.none":"устройство не выбрано","target.noEventDevice":"нет устройства из события","target.areaEmpty":"в области нет подходящих устройств",
   skipped:"запуск пропущен","chain.ruleGone":"правило удалено","chain.ruleOff":"правило выключено","busy.skip":"новое событие пропущено",
-  "busy.restart":"прежний запуск остановлен, начат заново","busy.queue":"запуск поставлен в очередь после текущего","event.none":"событие не получено"};
+  "busy.restart":"предыдущий запуск остановлен, новый запуск начат","busy.queue":"запуск добавлен в очередь после текущего запуска","event.none":"событие не получено"};
 function fireDev(id){const n=id?find(id)?.n:null;return n}
 function fireWhy(m,ctx){
   if(!m)return"";
@@ -5101,7 +5101,7 @@ function fireWhy(m,ctx){
   if(m.code==="chain.invalid")return`${i18n("правило")} «${t?t.name:""}»: ${i18n((t&&ruleIssues(t)[0])||"")}`;
   if(m.code==="chain.check"){const c=fireCheck(p.check,ctx);return`${i18n("правило")} «${t?t.name:""}»: ${c.label}${c.why&&c.why!==i18n("запуск пропущен")?` — ${c.why}`:""}`}
   if(m.code==="event.expected")return`${i18n("не подходит: правило ждёт")} «${triggerLabel(trigNode(p.trigger))}»`;
-  if(m.code==="event.notInWindow")return`${i18n("ещё одно событие не пришло в пределах")} ${p.sec} ${i18n("с")}`;
+  if(m.code==="event.notInWindow")return`${i18n("второе событие не пришло в течение")} ${p.sec} ${i18n("с")}`;
   const fail=w=>`${i18n("условие не выполнено")}: ${w}`;
   if(m.code==="cond.time"){const x=sysParts(p.at);return fail(`${i18n("сейчас")} ${ruleDaysText([x.dow])} ${x.hm} — ${i18n("вне расписания")}`)}
   if(m.code==="cond.mode")return fail(`${i18n("сейчас режим")} «${i18n(ruleModeName(p.modeId))}»`);
@@ -5123,7 +5123,7 @@ function fireCheck(c,ctx){
   if(c.code==="rateHit")return out(`${i18n("Лимит в минуту")}: ${i18n("превышен")} (${p.max})`);
   if(c.code==="rate")return out(`${i18n("Лимит в минуту")}: ${p.n} ${i18n("из")} ${p.max}`);
   if(c.code==="busy")return out(i18n("Прежний запуск ещё шёл"));
-  if(c.code==="testOff")return out(i18n("Правило выключено — проверка покажет, как оно отработает после включения"));
+  if(c.code==="testOff")return out(i18n("Правило выключено. Проверка покажет, что правило сделает после включения"));
   if(c.code==="event.came")return out(`${i18n("Событие")} «${triggerBare(trigNode(p.trigger))} · ${dev(p.deviceId)}» ${i18n("пришло")}`);
   if(c.code==="event.other")return out(`${i18n("Событие")} «${triggerBare({sub:p.event.source,kind:p.event.kind,match:p.event.match})} · ${dev(p.deviceId)}»`);
   if(c.code==="event.missing")return out(`${i18n("Событие")} «${triggerLabel(trigNode(p.trigger))}»`);
@@ -5139,7 +5139,7 @@ function fireLabel(m,ctx){
   if(m.code==="esc.level")return`${i18n("Уровень")} ${p.n}: «${ruleRoleName(p.roleId)}» — ${i18n(p.needed?ESC_VIA_TXT(p.via):"не потребовался")}`;
   if(m.code==="esc.ack")return`${i18n("Квитировал")} ${p.login} ${i18n("в")} ${ck(p.at)} — ${i18n("эскалация остановлена")}`;
   if(m.code==="esc.reset")return`${i18n("Событие закончилось в")} ${ck(p.at)} — ${i18n("эскалация остановлена")}`;
-  if(m.code==="esc.none")return i18n("Никто не квитировал — эскалация закончена");
+  if(m.code==="esc.none")return i18n("Никто не квитировал. Эскалация закончена");
   if(m.code==="esc.wait")return`${i18n("Ждать квитирования")} ${p.min} ${i18n("мин")} — ${i18n("не квитировали")}`;
   if(m.code==="branch"){const l=(ctlBranches({ctl:CTL_IN[p.control]}).find(([b])=>b===p.branch)||[,p.branch])[1];
     return`${i18n("ветка")} «${i18n(l)}»: ${i18n(p.test?"не выполнилась бы":"пропущена")}`}
@@ -5453,7 +5453,7 @@ function takeServer(serverId){
 function excludeFromDomain(serverId){
   const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
   if(!s||!dom)return;
-  askConfirm("Исключить сервер из домена?",`<ul class="bk-del"><li>${i18n("Сервер")} «${escHtml(locName(s))}» ${i18n("выйдет из домена")} «${escHtml(locName(dom))}».</li><li>${i18n("Останется: сервер в списке нераспределённых этого домена, его можно добавить снова.")}</li></ul>`,"",i18n("Исключить"),()=>excludeFromDomainRun(serverId),{html:true,typeCount:1});
+  askConfirm("Исключить сервер из домена?",`<ul class="bk-del"><li>${i18n("Сервер")} «${escHtml(locName(s))}» ${i18n("выйдет из домена")} «${escHtml(locName(dom))}».</li><li>${i18n("Останется: сервер в списке нераспределённых серверов этого домена. Его можно добавить снова.")}</li></ul>`,"",i18n("Исключить"),()=>excludeFromDomainRun(serverId),{html:true,typeCount:1});
 }
 function excludeFromDomainRun(serverId){
   const dom=domainOf(serverId),s=servers.find(x=>x.id===serverId);
@@ -5558,7 +5558,7 @@ function addToDomain(serverId,domainId,sure){
   const d=domainById(domainId)||domains[0],s=servers.find(x=>x.id===serverId);
   if(!s)return Promise.resolve(false);
   // Без сверки отпечатка в домен можно принять чужую коробку
-  if(s.fingerprint&&!sure)return new Promise(done=>askConfirm("Сверьте отпечаток",`<p>${escHtml(locName(s))}${s.cls==="camera"?` · ${i18n("камера")}`:""}</p><p><code id="fpShown">${escHtml(s.fingerprint)}</code></p><p class="sub">${i18n("Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую")}</p>`,"",i18n("Отпечаток совпал, добавить"),()=>addToDomain(serverId,domainId,true).then(done),{html:true}));
+  if(s.fingerprint&&!sure)return new Promise(done=>askConfirm("Сверьте отпечаток",`<p>${escHtml(locName(s))}${s.cls==="camera"?` · ${i18n("камера")}`:""}</p><p><code id="fpShown">${escHtml(s.fingerprint)}</code></p><p class="sub">${i18n("Сравнить с отпечатком на коробке. Без сравнения можно добавить в домен чужую коробку")}</p>`,"",i18n("Отпечаток совпал, добавить"),()=>addToDomain(serverId,domainId,true).then(done),{html:true}));
   return serversAssign([{s,domainId:d.id,allocated:true}]).then(res=>{
     res.done.forEach(placeInDomain);
     if(res.failed.length)toast(problemText(res.failed[0].code,s));
@@ -5569,7 +5569,7 @@ function addToDomain(serverId,domainId,sure){
 function askFingerprints(list,onOk){
   const rows=list.map(s=>`<li>${escHtml(locName(s))}${s.ip?` · ${escHtml(s.ip)}`:""}<code>${escHtml(s.fingerprint)}</code></li>`).join("");
   askConfirm(list.length===1?i18n("Сверьте отпечаток"):`${i18n("Сверьте отпечатки")}: ${list.length}`,
-    `<ul class="fp-list">${rows}</ul><p class="sub">${i18n("Сравните с отпечатком на самой коробке. Без сверки в домен можно принять чужую")}</p>`,
+    `<ul class="fp-list">${rows}</ul><p class="sub">${i18n("Сравнить с отпечатком на коробке. Без сравнения можно добавить в домен чужую коробку")}</p>`,
     "",i18n("Отпечатки совпали, добавить"),onOk,{html:true,rawTitle:true});
 }
 function goAddedServer(serverId){
@@ -5648,14 +5648,14 @@ function deleteDomain(id){
   const body=`<p>${i18n("Будет удалён домен")} «${escHtml(locName(d))}».</p>`+
     (items.length
       ?`<div class="dom-del-list">${items.map(([n,l])=>`<div><span>${i18n(l)}</span><b>${n}</b></div>`).join("")}</div>
-        <p>${i18n("Ничего не пропадёт — укажите, куда это перенести.")}</p>
+        <p>${i18n("Консоль ничего не удалит. Указать, куда перенести содержимое.")}</p>
         <div class="g"><div><label>${i18n("Перенести в домен")}</label>
           <select id="domMoveTo">${others.map(o=>`<option value="${o.id}">${escHtml(locName(o))}</option>`).join("")}</select></div></div>
-        <p class="sub" style="margin:8px 0 0">${i18n("Серверы станут нераспределёнными в выбранном домене; папки, устройства и сетевые архивы переедут туда же.")}</p>`
+        <p class="sub" style="margin:8px 0 0">${i18n("Серверы станут нераспределёнными в выбранном домене. Консоль перенесёт туда папки, устройства и сетевые архивы.")}</p>`
       :`<p class="sub" style="margin:0">${i18n("Домен пуст.")}</p>`);
-  if(pendingDelHas(id)){toast("Домен уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(id)){toast("Консоль уже удаляет домен. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
-  askConfirm("Удалить домен?",body+`<p class="sub" style="margin:10px 0 0">${i18n("После подтверждения будет отсчёт с кнопкой «Отменить».")}</p>`,"",i18n("Удалить"),()=>{
+  askConfirm("Удалить домен?",body+`<p class="sub" style="margin:10px 0 0">${i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить».")}</p>`,"",i18n("Удалить"),()=>{
     const to=document.getElementById("domMoveTo")?.value||others[0]?.id;
     scheduleDelete([id],{label:`${i18n("Домен")} «${locName(d)}»`,commit:()=>{
     if(!domainById(id))return;
@@ -5837,7 +5837,7 @@ function cardFootHtml(){
   if(!d.length)return`<div id="cardFoot" hidden></div>`;
   return`<div class="main-actions bk-foot card-foot" id="cardFoot"><span class="sub bk-foot-text">${i18n("Не применено")}: <b>${d.length}</b> ${i18n(plural(d.length,"изменение|изменения|изменений"))} — ${escHtml(d.slice(0,2).map(r=>r.label).join(", "))}${d.length>2?"…":""}</span><span class="tfoot-gap"></span>
     <button type="button" class="btn s" ${onEv("click",["cardReset"])}>${i18n("Сбросить")}</button>
-    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Над объектом выполняется групповая операция":"Выполняется групповая операция — план можно применить после её конца")}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
+    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Консоль выполняет групповую операцию над объектом":"Консоль выполняет групповую операцию. План можно применить после конца операции")}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
 }
 function cardFootRefresh(){
   const el=document.getElementById("cardFoot");if(el)el.outerHTML=cardFootHtml();
@@ -5845,7 +5845,7 @@ function cardFootRefresh(){
 }
 function cardPlan(){
   const d=cardDiff();if(!d.length){toast("Нечего применять");return}
-  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(busyRefuse(cardDraft.id))return;
   // Объект по схеме вида: сервер сначала проверяет правку, план открывается без ошибок
   const n=find(cardDraft.id).n;
@@ -5858,20 +5858,20 @@ function cardPlanOpen(){
   const rows=d.map((r,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(r.label)}</td><td class="bk-note">${escHtml(r.fromT)}</td><td><b>${escHtml(r.toT)}</b></td></tr>`).join("");
   openBulkModal(`${i18n("План")}: «${escHtml(locName(n))}», ${d.length} ${i18n(plural(d.length,"изменение|изменения|изменений"))}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Параметр")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
-     ${off?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("сервер")} «${escHtml(locName(s))}» ${i18n("без связи — изменения не применятся, в отчёте они будут «не применено»")}</div>`:""}
-     <p class="sub" style="margin:10px 0 0">${i18n("Так же, как правка выборки: изменения уходят на сервер одной операцией, итог — в отчёте; после применения — «Отменить».")}</p>`,
+     ${off?`<div class="nt bk-warn">${lu("triangle-alert")} ${i18n("сервер")} «${escHtml(locName(s))}» ${i18n("без связи. Консоль не применит изменения, в отчёте у них будет статус «не применено»")}</div>`:""}
+     <p class="sub" style="margin:10px 0 0">${i18n("Как изменение выборки: консоль отправляет изменения на сервер одной операцией. Итог будет в отчёте. После применения можно нажать «Отменить».")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${onEv("click",["closeBulkModal"],["cardApply"])}>${i18n("Применить")} (${d.length})</button>`,"bbox-wide");
 }
 function cardApply(ok){
   const d=cardDiff();if(!d.length)return;
-  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(busyRefuse(cardDraft.id))return;
   const n=find(cardDraft.id).n;
   const items=cardApiItems(n,d);
   // Меньший объём тома или карты камеры стирает старое: без второго слова сервер откажет
   const less=(items||[]).filter(x=>x.set?.sizeBytes!=null&&(volById(x.targetId)||find(x.targetId)?.n)?.bytes>x.set.sizeBytes);
   if(less.length&&!ok){
-    askConfirm(less.every(x=>volById(x.targetId))?"Уменьшить том":"Уменьшить карту",`${i18n("Новый объём меньше прежнего")}: ${less.map(x=>escHtml(bytesText(x.set.sizeBytes))).join(", ")}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>cardApply(true),{rawMsg:true});
+    askConfirm(less.every(x=>volById(x.targetId))?"Уменьшить том":"Уменьшить карту",`${i18n("Новый объём меньше прежнего")}: ${less.map(x=>escHtml(bytesText(x.set.sizeBytes))).join(", ")}.`,i18n("Сервер сотрёт старые записи, которые не помещаются в новый объём."),"Уменьшить",()=>cardApply(true),{rawMsg:true});
     return;
   }
   less.forEach(x=>{x.set.confirmShrinkBytes=x.set.sizeBytes});
@@ -6061,11 +6061,11 @@ function deviceStatusDotKind(n){
 // входе, не отвечает по сети или упал драйвер. Чинят каждую по-своему,
 // поэтому в дереве она видна сразу, а не только в карточке.
 const DEV_ERR={
-  auth:{t:"Ошибка авторизации",s:"не авторизован",fix:"Проверьте логин и пароль — вкладка «Подключение».",
+  auth:{t:"Ошибка авторизации",s:"не авторизован",fix:"Проверить логин и пароль на вкладке «Подключение».",
     ic:`<rect x="3.5" y="7.2" width="9" height="6.3" rx="1.2"/><path d="M5.6 7.2V5.3a2.4 2.4 0 0 1 4.8 0v1.9"/>`},
-  conn:{t:"Нет связи с устройством",s:"нет связи",fix:"Проверьте сеть, IP-адрес и порт.",
+  conn:{t:"Нет связи с устройством",s:"нет связи",fix:"Проверить сеть, IP-адрес и порт.",
     ic:`<path d="M6.6 9.4 5 11a2.1 2.1 0 0 1-3-3l1.6-1.6M9.4 6.6 11 5a2.1 2.1 0 0 1 3 3l-1.6 1.6M5.4 2.6l.7 1.5M2.6 5.4l1.5.7M10.6 13.4l-.7-1.5M13.4 10.6l-1.5-.7"/>`},
-  drv:{t:"Внутренняя ошибка драйвера",s:"сбой драйвера",fix:"Перезапустите устройство; если повторяется — обновите драйвер.",
+  drv:{t:"Внутренняя ошибка драйвера",s:"сбой драйвера",fix:"Перезапустить устройство. Если ошибка повторяется, обновить драйвер.",
     ic:`<rect x="4.2" y="4.2" width="7.6" height="7.6" rx="1.2"/><path d="M6.6 6.6l2.8 2.8M9.4 6.6 6.6 9.4M6.2 2v2.2M9.8 2v2.2M6.2 11.8V14M9.8 11.8V14M2 6.2h2.2M2 9.8h2.2M11.8 6.2H14M11.8 9.8H14"/>`}
 };
 function devIsIp(n){return n?.type==="camera"||n?.type==="ipsrv"||n?.type==="acfa"}
@@ -6109,7 +6109,7 @@ function domainFresh(n){
   hwReadAt=Date.now();
   API.get(`/units/${n.id}`).then(unitRec).then(r=>{const was=JSON.stringify(n.summary);n.summary=r.stateSummary||null;if(sel===n.id&&was!==JSON.stringify(n.summary)&&app==="hw")gear()}).catch(()=>{});
 }
-function domainLostHtml(n){return n.online===false?`<div class="nt bk-warn" id="domLost">${i18n("Нет связи с доменом, показано только своё")}</div>`:""}
+function domainLostHtml(n){return n.online===false?`<div class="nt bk-warn" id="domLost">${i18n("Нет связи с доменом. Консоль показывает только свои данные")}</div>`:""}
 function domainSummaryHtml(n){
   const s=n.summary;if(!s)return"";
   const num=x=>Number(x).toLocaleString("ru-RU");
@@ -6125,15 +6125,15 @@ function objectStatusNotesRest(n){
 }
 function objectStateNotesHtml(n){
   const e=n&&devErr(n);
-  const busyNote=n&&busyIds().has(n.id)?`<div class="nt" role="status">${i18n("Над объектом выполняется групповая операция — изменить можно после её окончания или отмены")}</div>`:"";
+  const busyNote=n&&busyIds().has(n.id)?`<div class="nt" role="status">${i18n("Консоль выполняет групповую операцию над объектом. Изменить объект можно после конца или отмены операции")}</div>`:"";
   const errNote=e?`<div class="nt err dev-err-nt" role="status"><span class="n-err e-${e}">${devErrIc(e)}</span><span><b>${i18n("Нет сигнала")}: ${i18n(DEV_ERR[e].t)}.</b> ${i18n(DEV_ERR[e].fix)}${e==="auth"&&tab!=="gen"?` <button type="button" class="lk lk-act" ${onEv("click",["goTab","gen"])}>${i18n("К подключению")}</button>`:""}</span></div>`:"";
   if(!n||n.type!=="camera")return busyNote+errNote;
   const st=nodeStatus(n);let h=busyNote+errNote;
-  if(st.license)h+=`<div class="nt err" role="status">${i18n("Лицензия превышена. Камера недоступна до освобождения лицензии.")} <button type="button" class="lk lk-act" ${onEv("click",["goApp","sys"])}>${i18n("К опциям / лицензиям")}</button></div>`;
+  if(st.license)h+=`<div class="nt err" role="status">${i18n("Лицензия превышена. Камера недоступна, пока лицензия не освободится.")} <button type="button" class="lk lk-act" ${onEv("click",["goApp","sys"])}>${i18n("К опциям / лицензиям")}</button></div>`;
   if(st.ruleOff){
     const rr=typeof n.ruleOff==="string"?rules.find(x=>x.id===n.ruleOff):null;
     h+=rr?`<div class="nt" role="status">${i18n("Выключена правилом")} «${escHtml(rr.name)}» ${i18n("на время")}. <button type="button" class="lk lk-act" ${onEv("click",["ruleGoRule",`${rr.id}`])}>${i18n("Открыть правило")}</button></div>`
-      :`<div class="nt" role="status">${i18n("Отключена по правилу (временно). Управление — в разделе")} <button type="button" class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button>.</div>`;
+      :`<div class="nt" role="status">${i18n("Правило временно выключило камеру. Правила настраивают в разделе")} <button type="button" class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизация")}</button>.</div>`;
   }
   return h;
 }
@@ -6377,7 +6377,7 @@ function goAddServer(domainId){
 }
 // Опрос по адресу (команда probe вида сервера) и создание сервера система может не объявлять: коробка приходит сама
 function openFindServerByIp(domainId){
-  if(!kindActionOn("server","probe")&&!canCreateKind("server")){toast("Серверы приходят сами: смотрите «Нераспределённые серверы»");return}
+  if(!kindActionOn("server","probe")&&!canCreateKind("server")){toast("Серверы появляются сами. Смотреть «Нераспределённые серверы»");return}
   openAddServers(domainId,true);
 }
 // Окно одно, откуда бы его ни открыли: пришёл за адресом — курсор сразу в поле адресов,
@@ -6503,7 +6503,7 @@ function jumpToNode(n){
   // paint не перерисовывает шапку дерева: срез и «Папки» должны показать, куда пришли. До revealSel: он прокручивает к строке
   if(headWas!==`${app}|${slice}|${group()}`)aside();
   paint();revealSel();hwFlashLanding();
-  if(wasFiltered)toast(i18n("Фильтры сброшены, чтобы показать найденное"));
+  if(wasFiltered)toast(i18n("Консоль сбросила фильтры, чтобы показать результаты поиска"));
 }
 function expandSubtree(n){
   if(n.type==="folder"){folderPath(n.id).forEach(f=>open.add(f.id));(function w(f){open.add(f.id);(f.folders||[]).forEach(w)})(n);return}
@@ -6725,7 +6725,7 @@ function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
     const k=String(opts.typeCount);
     const w=document.createElement("div");w.id="confirmCount";w.className="confirm-count";
     // countLabel — подпись поля у команды, которая ничего не удаляет (формат, сброс): «удаляемых объектов» там неправда
-    w.innerHTML=`<label for="confirmCountInp">${i18n(opts.countLabel||"Чтобы подтвердить, введите число удаляемых объектов")}: <b>${k}</b></label>
+    w.innerHTML=`<label for="confirmCountInp">${i18n(opts.countLabel||"Чтобы подтвердить, ввести число удаляемых объектов")}: <b>${k}</b></label>
       <input id="confirmCountInp" inputmode="numeric" autocomplete="off">`;
     document.querySelector("#confirm .cbody").appendChild(w);
     const inp=w.querySelector("input");
@@ -6738,12 +6738,12 @@ function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
 }
 let skipCredentialsWarn=localStorage.getItem("skipCredentialsWarn")==="1";
 function credentialsWarnHtml(bulk){
-  const tail=`<p>Для завершения настройки выберите ${bulk?"устройства":"устройство"} в дереве оборудования, введите учетные данные и переведите переключатель в положение «Включено».</p>`;
+  const tail=`<p>Чтобы закончить настройку, выбрать ${bulk?"устройства":"устройство"} в дереве оборудования, ввести учётные данные и установить переключатель в положение «Включено».</p>`;
   const opt=`<label class="confirm-opt"><input type="checkbox" id="confirmDontShow"> Больше не показывать</label>`;
   if(bulk){
-    return `<p>Для части устройств не указаны имя пользователя и пароль.</p><p>Чтобы устройства не были заблокировано при попытке аутентификации, они будет добавлены в конфигурацию выключенным.</p>${tail}${opt}`;
+    return `<p>Для части устройств не указаны имя пользователя и пароль.</p><p>Консоль добавит эти устройства выключенными. Так устройства не заблокируют вход после неверной аутентификации.</p>${tail}${opt}`;
   }
-  return `<p>Вы не указали имя пользователя и пароль.</p><p>Чтобы устройство не было заблокировано при попытке аутентификации, оно будет добавлено в конфигурацию выключенным.</p>${tail}${opt}`;
+  return `<p>Имя пользователя и пароль не указаны.</p><p>Консоль добавит устройство выключенным. Так устройство не заблокирует вход после неверной аутентификации.</p>${tail}${opt}`;
 }
 function missingDeviceCredentials(r){
   return!r.user||r.user==="Авто"||!r.pass;
@@ -6856,7 +6856,7 @@ function serverLoadHtml(s){
     <div class="mc"><span>${i18n("ОЗУ")}</span><b>${v(s.ram??s.cpu??0)}</b></div>
     <div class="mc"><span>${i18n("Сеть")}</span><b>${v(s.net??0)}</b></div>
     <div class="mc"><span>${i18n("Диск")}</span><b>${v(s.disk??0)}</b></div>
-  </div>${offline?`<p class="sub">${i18n("Сервер не на связи — показатели недоступны.")}</p>`:""}`;
+  </div>${offline?`<p class="sub">${i18n("Нет связи с сервером. Показатели недоступны.")}</p>`:""}`;
 }
 // Запрос один на все разделы — тот, что набран в шапке.
 // Отбор ассистента сужает дерево, как запрос: дерево фильтрует по q. Пустой запрос при отборе — метка, а не слово
@@ -7196,7 +7196,7 @@ function selectionHiddenByFilter(){
 }
 function hiddenByFilterNoteHtml(){
   if(!selectionHiddenByFilter())return"";
-  return`<div class="nt" style="margin-bottom:12px">${i18n("Объект скрыт текущими фильтрами — в дереве его сейчас нет.")}
+  return`<div class="nt" style="margin-bottom:12px">${i18n("Текущие фильтры скрывают объект. Сейчас дерево не показывает его.")}
     <button class="lk lk-act" style="margin-left:6px" ${onEv("click",["resetAllFilters"])}>${i18n("Сбросить фильтры")}</button></div>`;
 }
 function syncSelectionOld(){
@@ -7681,13 +7681,13 @@ function favRowHtml(f,i){
 }
 function goFav(i){
   const f=favs[i];if(!f)return;
-  if(!find(f.id)){toast("Объект удалён — ярлык можно убрать");return}
+  if(!find(f.id)){toast("Объект удалён. Ярлык можно убрать");return}
   goApp("hw");
   if(f.slice&&f.slice!==slice&&SLICE[f.slice])setSlice(f.slice);
   // Статус переживает смену среза, но ярлык ведёт к объекту: если статус его прячет, снимаем, как при переходе из поиска
   if(!matchesStatus(find(f.id).n)){
     statusFilts.clear();applyFiltersFromState();aside();
-    toast(i18n("Фильтры сброшены, чтобы показать найденное"));
+    toast(i18n("Консоль сбросила фильтры, чтобы показать результаты поиска"));
   }
   // Место из ярлыка — только в той раскладке, где его сохранили: раскладку ярлык не меняет
   pick(f.id,{ctx:f.group===group()&&f.ctx||null});
@@ -8066,11 +8066,11 @@ function g7Build(n){
 }
 function g7Html(n){
   const d=g7DomainOf(n),alone=n.type==="server"&&!d?.servers.includes(n);
-  const empty=alone?i18n("Сервер ещё не в домене: связей нет"):!d.servers.length?i18n("В домене нет серверов"):"";
+  const empty=alone?i18n("Сервер ещё не в домене. Связей нет"):!d.servers.length?i18n("В домене нет серверов"):"";
   const lv=g7Level(n);
   return`<div class="g7-wrap" id="g7Wrap"><div class="g7-hd"><span id="g7Info" class="g7-info"></span>${alone?"":`<div class="g7-bar"><span class="g7-lab">${i18n("Уровень")}</span>${[1,2,3].map(x=>`<button type="button" class="${lv===x?"on":""}" ${onEv("click",["g7SetLevel",x])}>${x}</button>`).join("")}</div>`}</div>
     ${empty?`<div class="nt" id="g7Empty">${empty}</div>`:""}
-    <div class="g7-stage"><canvas id="g7c" role="img" aria-label="${i18n("Топология")}"></canvas><div class="g7-tip" id="g7Tip"></div><div class="g7-hint">${i18n("Тянуть узел — двигать · колесо — масштаб · клик — открыть в дереве · фон — сдвиг")}</div></div>
+    <div class="g7-stage"><canvas id="g7c" role="img" aria-label="${i18n("Топология")}"></canvas><div class="g7-tip" id="g7Tip"></div><div class="g7-hint">${i18n("Перетащить узел — переместить · колесо — масштаб · нажать — открыть в дереве · перетащить фон — сдвинуть")}</div></div>
     <details class="g7-list"><summary>${i18n("Узлы списком")}</summary><div id="g7List"></div></details></div>`;
 }
 function g7SetLevel(x){const n=find(sel)?.n;if(!n)return;G7.chosen.set(n.id,x);gear()}
@@ -8494,7 +8494,7 @@ async function treeExpandRows(scope){
     // «Свернуть всё», смена среза или раздела отменяют раскрытие
     if(!tree||gen!==treeExpandGen||key!==treeOpenCur||app!=="hw")return;
     const closed=scope(tree).filter(r=>r.dataset.tid&&!open.has(r.dataset.tid));
-    if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк: остальное раскройте по веткам")}`);return}
+    if(tree.querySelectorAll(".n").length>TREE_EXPAND_MAX){toast(`${i18n("Показано больше")} ${TREE_EXPAND_MAX} ${i18n("строк. Остальные ветки раскрыть по одной")}`);return}
     idle=closed.length||[...treeBr.values()].some(b=>b.busy)?0:idle+1;
     closed.forEach(r=>open.add(r.dataset.tid));
     if(closed.length){pass++;renderTree()}
@@ -8925,7 +8925,7 @@ function clearFolder(folderId){
   const count=(f.items||[]).length;
   if(!count){toast(i18n("Папка пуста"));return}
   if(busyRefuse(folderId))return;
-  askConfirm("Убрать все объекты из папки?",`${i18n("Из папки будет убрано объектов:")} ${count}.`,i18n("Сами устройства останутся в системе."),i18n("Убрать"),()=>{
+  askConfirm("Убрать все объекты из папки?",`${i18n("Консоль уберёт из папки объектов:")} ${count}.`,i18n("Устройства останутся в системе."),i18n("Убрать"),()=>{
     folderClear(f).then(r=>{
       hwApplyFolder(r);
       treeMatchCache.clear();searchMatchCache.clear();
@@ -8961,11 +8961,11 @@ function addSubfolder(parentId,domainId){
 function deleteFolder(id){
   closeTreeCtx();
   const f=folderById(id);if(!f)return;
-  if(pendingDelHas(id)){toast("Папка уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(id)){toast("Консоль уже удаляет папку. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   const cnt=folderDeviceIds(f).size;
   askConfirm("Удалить папку?",`${i18n("Будет удалена папка")} «${escHtml(f.name)}».`,
-    (cnt?`${i18n("Устройства останутся в системе")} (${cnt}). `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),i18n("Удалить"),()=>scheduleDelete([id],{label:`${i18n("Папка")} «${f.name}»`,commit:()=>{
+    (cnt?`${i18n("Устройства останутся в системе")} (${cnt}). `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),i18n("Удалить"),()=>scheduleDelete([id],{label:`${i18n("Папка")} «${f.name}»`,commit:()=>{
     // Родитель — до запроса: событие об удалении может прийти раньше ответа и убрать папку из кэша
     const parent=folderParent(id);
     API.del(`/units/${id}`,hwVer.get(id)).then(()=>{
@@ -8980,7 +8980,7 @@ function deleteFolder(id){
 function deleteTreeNode(id){
   closeTreeCtx();
   const f=find(id);if(!f||!canTreeCtxDelete(f.n))return;
-  if(pendingDelHas(id)){toast("Объект уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(id)){toast("Консоль уже удаляет объект. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   if(bulkBusyGuard())return;
   const back=f.p?f.p.id:(foldersOfDevice(id)[0]?.id||selFolder||folders[0]?.id);
@@ -9237,7 +9237,7 @@ function drow(d){
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeRowMeta(d,q,domainServerCount(d),op)}</div>`;
   if(op){
-    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
+    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом. Консоль показывает только свои данные")}</span></div>`;
     if(childHtml)h+=childHtml;
     h+=uaHtml+treeMoreRow(d.id,1);
   }
@@ -9420,7 +9420,7 @@ function fdevrow(did,r,l){
   const title=DEVICE_STATUS_LABELS[r.status]||"";
   const known=r.vendor||r.model
     ?foundTag(r.vendor,"Производитель")+foundTag(r.model,"Модель")
-    :`<span class="tag" title="Ни производитель, ни модель не определились">не определено</span>`;
+    :`<span class="tag" title="Консоль не определила производителя и модель">не определено</span>`;
   return`<div class="n ${on?"on":""}" style="--l:${l}"${treeRowPick(id)}>
     <span class="tw"></span>${ic("camera")}<span class="nm nm-ip">${hlText(r.ip,q)}${r.port&&r.port!==80?`<span class="sub">:${r.port}</span>`:""}</span>
     ${treeTail({tags:`<span class="n-tags">${known}</span>`,status:`<span class="n-tail"><span class="dev-dot ${escHtml(r.status)}" title="${escHtml(title)}"></span></span>`})}</div>`;
@@ -9442,7 +9442,7 @@ function dfrow(d){
     ${treeChevron(d.id,"dom",hasKids,op)}
     ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
   if(op){
-    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
+    if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом. Консоль показывает только свои данные")}</span></div>`;
     h+=kidsHtml+treeMoreRow(d.id,1);
   }
   return h;
@@ -9677,7 +9677,7 @@ function archTrouble(a){return archVols(a).some(v=>v.state==="error"||v.online==
 function archStateHtml(a){
   if(archTrouble(a))return`<span class="pf-st bad">${i18n("Ошибка тома")}</span>`;
   if(archVols(a).some(v=>v.state==="maint"))return`<span class="pf-st off">${i18n("Обслуживание")}</span>`;
-  if(a.admits===false)return`<span class="pf-st off" title="${i18n("Новые камеры сюда не привязываются")}">${i18n("Не принимает")}</span>`;
+  if(a.admits===false)return`<span class="pf-st off" title="${i18n("Консоль не привязывает сюда новые камеры")}">${i18n("Не принимает")}</span>`;
   return`<span class="pf-st ok">${i18n("Работает")}</span>`;
 }
 function archOwnerCell(a,n){
@@ -9716,7 +9716,7 @@ function archTableCard(n){
   const chips=`<div class="as-chips">${chip("all","Все",all.length)}${chip("srv",isDom?"На серверах":"Этого сервера",own.length)}${chip("net",isDom?"Сетевые":"Сетевые домена",netN)}${bad.length?chip("bad","С ошибками",bad.length,"warn"):""}</div>`;
   // Отбор ничего не дал: кнопки отбора остаются, иначе из пустого отбора не выйти.
   if(!items.length){
-    const why=all.length?"В этом отборе хранилищ нет":statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет — камеры сервера не пишутся";
+    const why=all.length?"Нет хранилищ, которые подходят к отбору":statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет. Камеры сервера не записывают видео";
     return card(title,`${all.length||statusFilts.size?chips:""}<p class="sub">${i18n(why)}</p>`);
   }
   const shown=[];
@@ -9906,11 +9906,11 @@ function learnUI(){
     return;
   }
   paintMain(mainHd("",`<span class="hd-ic">${lu("graduation-cap")}</span>${i18n("Обучение")}`,"")+
-    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотрите, как работает конфигуратор. Курсор сам проходит задачу в настоящем интерфейсе, а подпись объясняет, что происходит и зачем.")}</p>
+    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотреть, как работает конфигуратор. Курсор сам выполняет задачу в настоящем интерфейсе. Подпись объясняет, что происходит и для чего.")}</p>
     <div class="lrn-facts">
-      <div><b>${i18n("Ничего не сломается")}</b><span class="sub">${i18n("Показ идёт на учебных данных. Настоящая система, ваши настройки и черновики не меняются.")}</span></div>
-      <div><b>${i18n("Показом управляете вы")}</b><span class="sub">${i18n("Пауза, шаг назад и вперёд, скорость. Esc закрывает показ.")}</span></div>
-      <div><b>${i18n("Можно попробовать самому")}</b><span class="sub">${i18n("После главы страница остаётся на учебных данных: нажимайте что угодно.")}</span></div>
+      <div><b>${i18n("Ничего не сломается")}</b><span class="sub">${i18n("Показ использует учебные данные. Показ не изменяет настоящую систему, ваши настройки и черновики.")}</span></div>
+      <div><b>${i18n("Показом управляете вы")}</b><span class="sub">${i18n("Пауза, шаг назад и вперёд, скорость. Клавиша Esc закрывает показ.")}</span></div>
+      <div><b>${i18n("Можно попробовать самому")}</b><span class="sub">${i18n("После главы страница остаётся на учебных данных. Можно нажимать что угодно.")}</span></div>
     </div>
     <div class="lrn-grid">${learnTopics().map((t,n)=>`<div class="card lrn-topic"><button type="button" class="as-link lrn-t" ${onEv("click",["learnLink",`${n}`])}>${escHtml(i18n(t.title))}</button><p class="sub">${escHtml(i18n(t.why))}</p><div class="lrn-foot"><span class="sub">${learnCount(t.chapters.length,"глава|главы|глав")} · ${learnMins(t.secs)}</span>${learnPlayBtn(n,null,"Смотреть")}</div></div>`).join("")}</div></div>`);
 }
@@ -10160,7 +10160,7 @@ function periphCardHtml(n){
       <button class="btn s" ${onEv("click",["periphBulkEnable",`${n.id}`,false])}>${i18n("Выключить")}</button>
       <button class="btn s" ${onEv("click",["periphToTree",`${n.id}`])}>${i18n("Отметить в дереве")}</button>
       <button class="lk lk-act" ${onEv("click",["periphClear",`${n.id}`])}>${i18n("Снять")}</button>`
-    :`<span class="sub">${i18n("Отметьте строки или нажмите тип — выберутся все объекты этого типа.")}</span>`;
+    :`<span class="sub">${i18n("Отметить строки или нажать тип. Если нажать тип, консоль выберет все объекты этого типа.")}</span>`;
   const rows=items.map(d=>{
     const on=d.enabled!==false,chk=ids.has(d.id);
     return`<tr class="${chk?"pf-on":""}">
@@ -10173,7 +10173,7 @@ function periphCardHtml(n){
   return card("Периферия",`<div class="pf-chips">${chips}</div>
     <div class="pf-bar">${bar}</div>
     <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n("Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c">${i18n("Вкл.")}</th></tr>${rows}</table>
-    <p class="sub" style="margin-top:8px">${i18n("Галочка камеры в дереве периферию не отмечает. Чтобы править её вместе с периферией других камер — «Отметить в дереве».")}</p>`,
+    <p class="sub" style="margin-top:8px">${i18n("Флажок камеры в дереве не отмечает её периферию. Чтобы изменить её вместе с периферией других камер, нажать «Отметить в дереве».")}</p>`,
     `<span class="sub" style="font-weight:400">${items.length}</span>`);
 }
 // Сводка на первой вкладке: сколько чего, а сам список — во вкладке «Периферия».
@@ -10210,7 +10210,7 @@ function periphBulkEnable(cid,on){
 function periphToTree(cid){
   const n=periphCam(cid);if(!n)return;
   const list=periphItems(n).filter(d=>periphIds(n).has(d.id)&&canMultiPick(d));
-  if(!list.length){toast("Отмеченные объекты в дереве не отмечаются");return}
+  if(!list.length){toast("Консоль не отмечает эти объекты в дереве");return}
   selMode=true;treeSel.clear();
   list.forEach(d=>{treeSel.add(d.id,null);expandTo(d.id)});
   open.add(n.id);
@@ -10637,7 +10637,7 @@ function lanNvrHeadHtml(n,nvrId,found){
   // когда узкая ширина прячет колонки производителя и модели.
   return`<tr class="lan-grp"><td class="lan-chk"><input type="checkbox" ${on?"checked":""} ${pk.length?"":"disabled"} aria-label="${i18n("Отметить камеры регистратора")}" ${onEv("change",["lanPickNvr",`${nvrId}`,onEv.checked])}></td>
     <td><span class="lan-grp-h">${ic("ipsrv")}<b>${escHtml(locName(nvr))}</b></span><span class="lan-sub lan-grp-sub">${mates.length} ${i18n(plural(mates.length,"камера|камеры|камер"))} ${i18n("на одном IP")}</span></td>
-    <td><span class="tag tag-ip" title="${i18n("Единственный IP: камеры регистратора своих адресов не имеют")}">${escHtml(nvr.ip||"—")}</span></td>
+    <td><span class="tag tag-ip" title="${i18n("Единственный IP. У камер регистратора нет своих адресов")}">${escHtml(nvr.ip||"—")}</span></td>
     <td>${escHtml(nvr.mac||"")}</td><td>${escHtml(nvr.vendor||"")}</td><td>${escHtml(nvr.model||"")}</td>
     <td><span class="sub">${mates.length} ${i18n(plural(mates.length,"камера|камеры|камер"))}${edge?` · ${i18n("архив")} ${escHtml(edge.size||"")}`:""}</span></td>
     <td class="lan-act"><button type="button" class="lk lk-act" ${onEv("click",["pick",`${nvrId}`])}>${i18n("Карточка")}</button></td></tr>`;
@@ -10677,14 +10677,14 @@ function lanAction(n,r){
     return{label:i18n("В план"),fn:`planFromLanOne('${r.key}')`,pri:true,net:true};
   }
   if(folder){
-    if(r.nested)return{off:i18n("Объект лежит во вложенной папке")};
+    if(r.nested)return{off:i18n("Объект находится во вложенной папке")};
     if(r.bind==="here")return{label:i18n("Убрать"),fn:`lanUnbindKeys(['${r.key}'])`,unbind:true};
     // Устройства ещё нет в системе: его не «привязывают», а заводят — поля
     // для этого уже в строке, кнопка только подтверждает.
     if(r.kind==="net")return{label:i18n("В план"),fn:`planFromLanOne('${r.key}')`,pri:true,net:true};
     return{label:i18n("В папку"),fn:`lanBindKeys(['${r.key}'])`,pri:true};
   }
-  if(r.type!=="camera"&&r.type!=="ipsrv")return{off:i18n("Запись в архив ведут только камеры")};
+  if(r.type!=="camera"&&r.type!=="ipsrv")return{off:i18n("Только камеры записывают видео в архив")};
   if(!lanTargets(n).length)return{off:i18n("У сервера нет архива")};
   if(r.bind==="here")return{label:i18n("Отвязать"),fn:`lanUnbindKeys(['${r.key}'])`,unbind:true};
   const far=r.kind==="sys"?lanFarServer(n,r.node):null;
@@ -10827,7 +10827,7 @@ function lanUnbindKeys(keys){
   const where=folder?`${i18n("из папки")} «${escHtml(locName(n))}»`:`${i18n("от")} «${escHtml(lanIsArch(n)?locName(n):locName(n))}»`;
   const stop=folder?"":rows.map(r=>find(r.id)?.n).filter(Boolean).flatMap(d=>d.type==="ipsrv"?ipsrvCameras(d):[d]).filter(c=>camArchs(c).filter(x=>x.rec!=="none").length===1).length;
   askConfirm(folder?"Убрать из папки":"Отвязать от хранилища",`${i18n(folder?"Убрать":"Отвязать")} ${names} ${where}?`,
-    folder?i18n("Сами устройства останутся в системе."):`${i18n("Запись в это хранилище прекратится; уже записанное хранится до конца глубины.")}${stop?` ${stop} ${i18n(plural(stop,"камера перестанет|камеры перестанут|камер перестанут"))} ${i18n("писаться совсем — других хранилищ у них нет.")}`:""}`,
+    folder?i18n("Устройства останутся в системе."):`${i18n("Запись в это хранилище остановится. Записанное видео хранится до конца глубины архива.")}${stop?` ${stop} ${i18n(plural(stop,"камера перестанет|камеры перестанут|камер перестанут"))} ${i18n("записывать видео. У них нет других хранилищ.")}`:""}`,
     folder?"Убрать":"Отвязать",()=>{
       const undo=lanSnap(rows.map(r=>r.id)),fold=folder?folderById(n.id):null,prev=fold?[...fold.items]:null;
       keys.forEach(k=>lan.sel.delete(k));
@@ -10898,7 +10898,7 @@ function lanSysRowHtml(n,r){
   return`<tr class="gtbl-r lan-r ${r.nvr?"lan-r-nvr":""} ${lanChecked(r)?"ts-on":""}" ${onEv("click",["pick",`${r.id}`])}>
     <td class="lan-chk">${chk}</td>
     <td><span class="lan-name">${hlText(r.name,lan.q)}</span><span class="lan-sub">${escHtml(r.nvr?`${i18n("канал")} ${r.ch} · ${r.nvrName}`:[r.vendor,r.model].filter(Boolean).join(" · "))}</span></td>
-    <td>${r.nvr?`<span class="tag tag-ch" title="${i18n("Своего IP нет — видео идёт через регистратор")} ${escHtml(r.ip)}">${i18n("кан.")} ${escHtml(r.ch)}</span> <span class="lan-ip-via">${i18n("через")} ${hlText(r.ip,lan.q)}</span>`:hlText(r.ip,lan.q)}</td><td>${hlText(r.mac,lan.q)}</td>
+    <td>${r.nvr?`<span class="tag tag-ch" title="${i18n("Своего IP нет. Видео идёт через регистратор")} ${escHtml(r.ip)}">${i18n("кан.")} ${escHtml(r.ch)}</span> <span class="lan-ip-via">${i18n("через")} ${hlText(r.ip,lan.q)}</span>`:hlText(r.ip,lan.q)}</td><td>${hlText(r.mac,lan.q)}</td>
     <td>${hlText(r.vendor,lan.q)}</td><td>${hlText(r.model,lan.q)}</td>
     <td><span class="lan-bind lan-bind-${r.bind}">${escHtml(r.bindText)}</span></td>
     <td class="lan-act">${btn}</td></tr>`;
@@ -10960,7 +10960,7 @@ function lanCardBuild(n){
     // Пока опрос идёт, пустая таблица — это не ответ «ничего нет», а «ещё не
     // дошло»; говорить об этом надо разными словами.
     :`<tr><td class="empty" colspan="8">${lan.chip==="here"&&!lan.q.trim()&&!lanIsPlace(n)
-      ?`${i18n("Сюда пока никто не пишет.")} ${i18n("Привязать:")} <button type="button" class="lk" ${onEv("click",["lanSetChip","free"])}>${i18n("свободные")} (${counts.free})</button> · <button type="button" class="lk" ${onEv("click",["lanSetChip","other"])}>${i18n("пишущие в другое хранилище")} (${counts.other})</button>`
+      ?`${i18n("Пока никто не записывает сюда видео.")} ${i18n("Привязать:")} <button type="button" class="lk" ${onEv("click",["lanSetChip","free"])}>${i18n("свободные")} (${counts.free})</button> · <button type="button" class="lk" ${onEv("click",["lanSetChip","other"])}>${i18n("пишущие в другое хранилище")} (${counts.other})</button>`
       :lan.state==="searching"
       ?`${i18n("Идёт поиск в сети")}… ${lan.progress}%`
       :i18n("Ничего не найдено")}</td></tr>`;
@@ -11038,7 +11038,7 @@ function unallocIpBtn(domainId){
 }
 function unallocIpFoot(domainId){
   return `<div class="unalloc-foot">
-    <p class="sub unalloc-hint">${i18n("Если нужных серверов нет в списке — найдите их по адресам: списком, диапазоном или подсетью.")}</p>
+    <p class="sub unalloc-hint">${i18n("Если нужных серверов нет в списке, найти их по адресам: списком, диапазоном или подсетью.")}</p>
     ${unallocIpBtn(domainId)}
   </div>`;
 }
@@ -11171,7 +11171,7 @@ function deviceFoldersCardHtml(n){
     ph:"Имя или путь папки…",
     unit:"папка|папки|папок",
     extra:`<div class="g" style="margin-top:10px"><div><label>${i18n("Добавить в папку")}</label><select ${onEv("change",["addDeviceToFolderPick",onEv.el,n.id])}>${folderOptions("")}</select></div></div>
-     <p class="sub">${sv?i18n("Запись ведётся на сервер:")+` <b>${escHtml(locName(sv))}</b>`:i18n("Запись не настроена — сервер объекту не нужен.")}</p>`
+     <p class="sub">${sv?i18n("Запись ведётся на сервер:")+` <b>${escHtml(locName(sv))}</b>`:i18n("Запись не настроена, поэтому объекту не нужен сервер.")}</p>`
   });
 }
 // Итог прошлого поиска читается только в окне поиска, страницами
@@ -11201,7 +11201,7 @@ function foundCardHtml(did){
   if(!planInDrawer())ensureFoundWizard(did);
   const pending=foundPending(did).length;
   return`<div class="card"><div class="cb"><div class="found-foot" id="foundFoot"></div><div id="foundPanel"></div></div></div>`+
-    `<p class="sub">Поиск в сети, ручной ввод и импорт из файла — всё здесь. Найденное можно добавить разом или открыть в дереве и завести по одному. Пока устройство в этом списке, в системе его нет: ни идентификатора, ни папки, ни записи.</p>`;
+    `<p class="sub">Здесь есть поиск в сети, ручной ввод и импорт из файла. Найденные устройства можно добавить все сразу или по одному из дерева. Пока устройство в этом списке, его нет в системе: у него нет идентификатора, папки и записи.</p>`;
 }
 function foundCardField(rid,key,value){
   const r=wizd.devResults?.find(x=>x.id===rid);if(!r)return;
@@ -11225,7 +11225,7 @@ function foundDeviceCardHtml(n){
       </div>`)+
     (r.added?card("Добавлено",`<p class="sub">Устройство уже в системе.</p>
         <button class="btn s" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>Перейти к объекту →</button>`)
-      :r.planned?card(i18n("В плане"),`<p class="sub">${i18n("В системе его ещё нет: откройте план и нажмите «Добавить»")}</p>
+      :r.planned?card(i18n("В плане"),`<p class="sub">${i18n("Его ещё нет в системе. Открыть план и нажать «Добавить»")}</p>
         <div class="dev-action-btns dev-action-btns-inline"><button type="button" class="btn s" ${onEv("click",["foundPlanOpen",`${did}`])}>${i18n("Открыть план")}</button><button type="button" class="btn s" ${onEv("click",["planRemove",`${r.planned}`])}>${i18n("Убрать")}</button></div>`)
       :card("Добавить",`<div class="g">
         <div><label>Имя</label><input value="${escHtml(r.name||"")}" placeholder="${escHtml(r.discoveredName||"")}" ${onEv("input",["foundCardField",`${r.id}`,"name",onEv.value])}></div>
@@ -11237,8 +11237,8 @@ function foundDeviceCardHtml(n){
           ?`<select ${onEv("change",["foundCardField",`${r.id}`,"record",onEv.value])}>${foundRecordOptions(r)}</select>`
           :`<select disabled tabindex="-1"><option>—</option></select>`}</div>
       </div>
-      ${hasLinkedArchive(r.arch)?"":`<p class="sub" style="margin-top:8px">Пока архив не выбран, режим записи задать нечему: камера будет только раздавать живое видео.</p>`}
-      ${r.status==="bad"?`<div class="nt err" style="margin-top:10px">Работа этого устройства не гарантируется: производитель и модель не определились.</div>`:""}
+      ${hasLinkedArchive(r.arch)?"":`<p class="sub" style="margin-top:8px">Пока архив не выбран, режим записи задать нельзя. Камера будет только раздавать живое видео.</p>`}
+      ${r.status==="bad"?`<div class="nt err" style="margin-top:10px">Работа этого устройства не гарантирована. Консоль не определила производителя и модель.</div>`:""}
       <button class="btn pri" style="margin-top:12px" ${r.status==="bad"?"disabled":""} ${onEv("click",["planAddOne",`${r.id}`])}>${i18n("В план")}</button>
       <p class="sub" style="margin-top:10px">Папка и архив по умолчанию — выбранные в панели найденных; здесь их можно переопределить для этого устройства.</p>`));
 }
@@ -11334,7 +11334,7 @@ function flSelItems(f){
 }
 function flBarHtml(f){
   const s=flSelItems(f),devs=s.filter(it=>!it.fld),k=s.length;
-  const noDev=k?i18n("Папку так не перенести: только устройства"):i18n("Сначала выберите устройство");
+  const noDev=k?i18n("Так нельзя перенести папку, только устройства"):i18n("Сначала выберите устройство");
   const dis=devs.length?"":`disabled title="${noDev}"`,noF=f.type==="nofolder",rem=devs.filter(it=>flHomes(f,it).length);
   const n=devs.length?` (${devs.length})`:"";
   return`<div class="fl-bar" id="flBar">
@@ -11342,7 +11342,7 @@ function flBarHtml(f){
     <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выберите одну строку")}"`} ${onEv("click",["flOpenCur"])}>${i18n("Открыть")}</button>
     ${noF?"":`<button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"move"])}>${i18n("Переместить в")}…${n}</button>`}
     <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"copy"])}>${i18n(noF?"Положить в папку":"Добавить ещё в")}…${n}</button>
-    ${noF?"":`<button type="button" class="btn s" ${rem.length?`title="${i18n("Само устройство останется в системе")}"`:`disabled title="${noDev}"`} ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${rem.length?` (${rem.length})`:""}</button>`}
+    ${noF?"":`<button type="button" class="btn s" ${rem.length?`title="${i18n("Устройство останется в системе")}"`:`disabled title="${noDev}"`} ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${rem.length?` (${rem.length})`:""}</button>`}
     ${devs.length>1?`<button type="button" class="btn s" ${onEv("click",["bulkPeekOff"])}>${i18n("Изменить параметры")}…</button>`:""}
   </div>`;
 }
@@ -11372,7 +11372,7 @@ function flRowHtml(f,it){
 function flToolsHtml(f,key){
   return`<div class="fl-tools">
     ${listSearchHtml(key,"Имя, IP, модель или сервер…","list")}
-    ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, вместе с устройствами самой папки: у каждого подписано, где оно лежит")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Устройства из всех папок":"Устройства из всех подпапок")}</span></label>`}
+    ${f.type==="nofolder"?"":`<label class="fl-nested" title="${i18n("Одним списком, вместе с устройствами этой папки. У каждого устройства указано, где оно находится")}"><input type="checkbox" ${fl.nested?"checked":""} ${onEv("change",["flNested",onEv.checked])}><span>${i18n(f.type==="domain"?"Устройства из всех папок":"Устройства из всех подпапок")}</span></label>`}
     ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
@@ -11412,10 +11412,10 @@ function folderCardHtml(f){
   if(!items.length&&!flFresh.has(f.id+"|"+fl.nested))return`<div class="card" id="flCard"><div class="cb"><p class="sub">${i18n("Загрузка…")}</p></div></div>`;
   const failed=treeBr.get("folders|"+f.id)?.failed,retry=failed?`<button type="button" class="lk" ${onEv("click",["flRetry",`${f.id}`])}>${i18n("Повторить")}</button>`:"";
   if(failed&&!items.filter(it=>!it.nf).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Не удалось прочитать содержимое")}</b><p class="sub">${retry}</p></div></div>`;
-  const hint=`<p class="sub">${f.type==="nofolder"?i18n("Устройства домена, которые не лежат ни в одной папке. Работают как обычно; положить в папку можно панелью над списком."):i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
-  if(f.type==="nofolder"&&!f.items.length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена разложены по папкам")}</b></div></div>`;
+  const hint=`<p class="sub">${f.type==="nofolder"?i18n("Устройства домена, которых нет ни в одной папке. Они работают как обычно. Чтобы добавить их в папку, использовать панель над списком."):i18n("Папка задаёт физическое расположение. Один объект может быть в нескольких папках. Запись на сервер настраивают через архив.")}</p>`;
+  if(f.type==="nofolder"&&!f.items.length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена находятся в папках")}</b></div></div>`;
   if(f.type==="folder"&&fl.draft==null&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
-      <p class="sub">${i18n("Положите сюда устройства: найденные в сети, добавленные по адресу или из файла, или те, что уже есть в системе.")}</p>
+      <p class="sub">${i18n("Добавить сюда устройства: найденные в сети, добавленные по адресу или из файла, или уже добавленные в систему.")}</p>
       <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
   const found=flFound(f);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
@@ -11609,9 +11609,9 @@ function addDetector(camId){
 function deleteDetector(camId,detId){
   const f=find(camId);if(!f)return;
   const d=camDetectors(f.n).find(x=>x.id===detId);if(!d)return;
-  if(pendingDelHas(detId)){toast("Детектор уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(detId)){toast("Консоль уже удаляет детектор. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(detId)||busyRefuse(camId))return;
-  askConfirm("Удалить детектор?",`${i18n("Будет удалён")} «${escHtml(locName(d))}».`,i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),i18n("Удалить"),()=>scheduleDelete([detId],{label:`${i18n("Детектор")} «${locName(d)}»`,commit:()=>{
+  askConfirm("Удалить детектор?",`${i18n("Будет удалён")} «${escHtml(locName(d))}».`,i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),i18n("Удалить"),()=>scheduleDelete([detId],{label:`${i18n("Детектор")} «${locName(d)}»`,commit:()=>{
     if(!hwVer.has(detId)){deleteDetectorDraft(f,detId);return}
     API.del(`/units/${detId}`,hwVer.get(detId)).then(()=>{
     const was=sel===detId;
@@ -11695,8 +11695,8 @@ function detZoneCardHtml(cam,d){
   const kind=d.kind||DET_TYPES[0],draw=zoneDraw?.id===d.id?zoneDraw:null,zv=dzZone(d);
   const svg=`<svg class="zone-svg${draw?" on":""}" data-zone="${escHtml(d.id)}" viewBox="0 0 100 100" preserveAspectRatio="none" ${onEv("mousedown",["zoneDown",onEv.el,onEv.event,`${d.id}`])}><g>${draw?"":zoneShapeSvg(zv)}</g><g data-zone-draft></g></svg>`;
   return dzBarHtml(cam,d)+card("Зона",`${liveFrameHtml(cam,svg)}
-    ${kind==="Пересечение линии"&&zv?.shape!=="line"?`<div class="nt">${i18n("Детектору линии нужна линия: нарисуйте её на кадре.")}</div>`:""}
-    <p class="sub">${draw?i18n(draw.shape==="polygon"?"Щёлкайте по кадру: точка за точкой, замкнуть — в первую точку или кнопкой.":"Проведите мышью по кадру."):`${i18n("Зона")}: ${escHtml(zoneText(zv))}${dzDrafted(d.id)?` · <span class="dl-warn">${i18n("не сохранена")}</span>`:""}`}</p>
+    ${kind==="Пересечение линии"&&zv?.shape!=="line"?`<div class="nt">${i18n("Детектору линии нужна линия. Нарисовать её на кадре.")}</div>`:""}
+    <p class="sub">${draw?i18n(draw.shape==="polygon"?"Нажимать на кадр, чтобы поставить точки. Чтобы замкнуть контур, нажать на первую точку или на кнопку.":"Проведите мышью по кадру."):`${i18n("Зона")}: ${escHtml(zoneText(zv))}${dzDrafted(d.id)?` · <span class="dl-warn">${i18n("не сохранена")}</span>`:""}`}</p>
     <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
       ${ZONE_SHAPES.map(([s,l])=>`<button type="button" class="btn s${draw?.shape===s?" pri":""}" data-zone-shape="${s}" ${onEv("click",["zoneMode",`${d.id}`,`${s}`])}>${i18n(l)}</button>`).join("")}
       ${draw?.shape==="polygon"?`<button type="button" class="btn s" data-zone-close disabled ${onEv("click",["zoneClose",`${d.id}`])}>${i18n("Замкнуть")}</button>`:""}
@@ -11735,16 +11735,16 @@ function detPlace(camId,detId,v){
 function detServerNoteHtml(cam,d){
   const sid=detServerId(cam,d),sv=sid?servers.find(x=>x.id===sid):null;
   if(d.builtin)return"";
-  if(!sv)return`<p class="sub">${i18n("Сервер выберет система по меткам.")}</p>`;
+  if(!sv)return`<p class="sub">${i18n("Система выберет сервер по меткам.")}</p>`;
   const g=serverGpu(sv);
-  return`<p class="sub">${i18n("Считается на сервере")} <b>${escHtml(locName(sv))}</b>${g?` · <button class="lk" ${onEv("click",["goApp","hw"],["setSrvView","cam"],["pick",`${gpuId(sv.id)}`])}>${escHtml(g.model)} →</button>`:` · ${i18n("без видеоускорителя, расчёт на ЦПУ")}`}</p>`;
+  return`<p class="sub">${i18n("Считается на сервере")} <b>${escHtml(locName(sv))}</b>${g?` · <button class="lk" ${onEv("click",["goApp","hw"],["setSrvView","cam"],["pick",`${gpuId(sv.id)}`])}>${escHtml(g.model)} →</button>`:` · ${i18n("без видеоускорителя, расчёт на процессоре")}`}</p>`;
 }
 function camDetectorsHtml(n){
   const dets=camDetectors(n);
   const addBtn=`<button type="button" class="btn s" ${onEv("click",["detCreateOpen",`${n.id}`])}>${lu("plus")}${i18n("Детектор")}</button>`;
   if(!dets.length)return card("Детекторы камеры",
     `<p class='sub'>${i18n("У камеры нет детекторов")}</p>
-     <p class="sub">${i18n("Детектор считается на сервере, где ведётся запись, либо на самой камере, если она это умеет. События детектора доступны в")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизации")}</button>. <button type="button" class="lk lk-act" ${onEv("click",["ruleFromDevice",`${n.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,addBtn);
+     <p class="sub">${i18n("Детектор работает на сервере, который записывает видео, или на камере, если камера это умеет. События детектора можно использовать в")} <button class="lk" ${onEv("click",["goApp","rules"])}>${i18n("Автоматизации")}</button>. <button type="button" class="lk lk-act" ${onEv("click",["ruleFromDevice",`${n.id}`])}>${i18n("Создать правило по событию…")}</button></p>`,addBtn);
   return listCard({
     key:"det:"+n.id,
     title:"Детекторы камеры",
@@ -11894,7 +11894,7 @@ function detListHtml(){
   const head=mainHd(bulkPeekCrumbHtml(),`${i18n("Детекторы")}${dl.kind?`<span class="dl-ti-k"> · ${escHtml(dl.kind)}</span>`:""}`,"","",add);
   if(detLoadState<2)return head+`<div class="sc sub">${i18n("Загрузка…")}</div>`;
   const scope=detScope(),found=detFound(scope),f=detF(),on=Object.values(f).some(Boolean);
-  if(!detRows().length)return head+`<div class="sc"><div class="fl-empty"><div class="fl-empty-ic">${ic("det")}</div><p>${i18n("Детекторов пока нет. Добавьте их сразу на нужные камеры.")}</p><div class="fl-empty-act">${add}</div></div></div>`;
+  if(!detRows().length)return head+`<div class="sc"><div class="fl-empty"><div class="fl-empty-ic">${ic("det")}</div><p>${i18n("Детекторов пока нет. Добавить их сразу на нужные камеры.")}</p><div class="fl-empty-act">${add}</div></div></div>`;
   const facets=facetRowsHtml(DL_DIMS,scope,f,"detFacet",dl.more,"detFacetMore");
   const said=DL_DIMS.filter(([d])=>f[d]).map(([d,,,lab])=>lab?lab(f[d]):f[d]).join(" · ");
   const sorted=detSorted(found),body=sorted.map(detRowHtml).join(""),rowIds=sorted.map(x=>x.d.id),chkHead=tsHead("dets",rowIds,rowIds);
@@ -12061,12 +12061,12 @@ function wzClose(id){
 }
 function wzResume(id){
   const d=WZD[id],s=wzPeek(id);if(!s)return;
-  if(d.valid&&!d.valid(s)){wzDrop(id);toast(i18n(d.gone||"Черновик устарел: того, для чего он создан, больше нет"));return}
+  if(d.valid&&!d.valid(s)){wzDrop(id);toast(i18n(d.gone||"Черновик устарел. Объекта для этого черновика больше нет"));return}
   delete wzMem[id];d.set?.(s);d.show(s);wzDock();
 }
 function wzCancel(id){
   const d=WZD[id],s=d.get()||wzPeek(id),stop=()=>{d.clear?.();wzDrop(id);d.hide()};
-  if(d.busy?.()){toast("План ещё применяется — дождитесь конца");return}
+  if(d.busy?.()){toast("Консоль ещё применяет план. Подождать конца");return}
   if(!s||!d.work(s)){stop();return}
   askConfirm(i18n("Отменить создание?"),i18n(d.lost),"",i18n(d.drop||"Удалить черновик"),stop,{cancelLabel:i18n("Остаться")});
 }
@@ -12100,27 +12100,27 @@ function wzDock(){
 window.addEventListener("load",()=>wzDock());
 window.addEventListener("pagehide",()=>Object.keys(WZD).forEach(wzSave));
 const WZD={
-  srv:{t:"Добавление серверов",lost:"Выбранные серверы и введённые адреса пропадут.",
+  srv:{t:"Добавление серверов",lost:"Консоль не сохранит выбранные серверы и введённые адреса.",
     get:()=>wizOpen()&&wizd?.mode==="server-add"?wizd:null,hide:()=>closeWizard(),
     show:s=>{openAddServers(s.domain,false,s)},
     work:s=>!!(s.ipText||"").trim()||!!s.ipPick?.size,
     pack:s=>({domain:s.domain,ipText:s.ipText||"",srvStep:0,ipPick:new Set()}),
     where:s=>[s.srvStep||0,SRV_STEPS.length,SRV_STEPS[s.srvStep||0].t],
     sum:s=>s.ipPick?.size?`${i18n("выбрано")} ${s.ipPick.size}`:escHtml(locName(domainById(s.domain)||{}))},
-  plan:{t:"Добавление устройств",lost:"Строки плана пропадут. Вернуть их можно сразу после отмены, из сообщения внизу.",
+  plan:{t:"Добавление устройств",lost:"Консоль удалит строки плана. Вернуть их можно сразу после отмены, в уведомлении внизу.",
     get:()=>planInDrawer()?addPlan:null,peek:()=>addPlan,busy:()=>!!addPlan.applying,hide:()=>closeWizard(),clear:()=>planClear(),
     show:()=>planHeadOpen(),work:s=>s.rows.length+s.links.length>0,
     where:()=>[1,DEV_STEPS.length,DEV_STEPS[1].t],sum:s=>`${i18n("в плане")} ${s.rows.length+s.links.length}`},
-  arch:{t:"Новое хранилище",lost:"Выбранный вид и настройки хранилища пропадут.",
+  arch:{t:"Новое хранилище",lost:"Консоль не сохранит выбранный вид и настройки хранилища.",
     get:()=>an,set:s=>{an=s;if(s.needKey&&!s.vol?.secret&&!s.vol?.pass)s.step=Math.min(s.step||0,2)},hide:()=>{an=null;closeBulkModal()},show:()=>{if(app!=="hw")setApp("hw");renderArchNew()},
     pack:s=>({...s,needKey:!!(s.vol?.secret||s.vol?.pass)}),
     work:s=>!!(s.step||s.name.trim()),
     where:s=>[s.step||0,AN_STEPS.length,AN_STEPS[s.step||0].t],sum:s=>escHtml(s.name.trim()||i18n(archKindName(s.kind)))},
-  accWiz:{t:"Новая роль",lost:"Имя, права и назначения роли пропадут.",drop:"Не создавать",
+  accWiz:{t:"Новая роль",lost:"Консоль не сохранит имя, права и назначения роли.",drop:"Не создавать",
     get:()=>accWz,set:s=>{s.pwd=s.pwd||"";s.ugs=new Set([...s.ugs].filter(id=>accUG(id)));s.assigned=new Set([...s.assigned].filter(id=>accUser(id)));accWz=s},hide:()=>accDrawerClose("accWiz"),show:()=>{accDrawer("accWiz","Новая роль");accWzRender()},
     work:s=>!!(s.step||s.name.trim()),
     where:s=>[s.step,ACC_WZ.length,ACC_WZ[s.step][1]],sum:s=>s.name.trim()?`«${escHtml(s.name.trim())}»`:""},
-  accUd:{t:"Новый пользователь",lost:"Заполненные поля и выбранные роли пропадут.",drop:"Не создавать",
+  accUd:{t:"Новый пользователь",lost:"Консоль не сохранит заполненные поля и выбранные роли.",drop:"Не создавать",
     get:()=>accUd,set:s=>{s.pwd=s.pwd||"";s.roles=new Set([...s.roles].filter(id=>accRole(id)));accUd=s},hide:()=>accDrawerClose("accUd"),show:()=>{accDrawer("accUd","Новый пользователь");accUdRender()},
     work:s=>!!(s.step||s.login.trim()||s.uname.trim()),
     where:s=>[s.step,ACC_UD.length,ACC_UD[s.step][1]],sum:s=>escHtml(s.login.trim())},
@@ -12129,20 +12129,20 @@ const WZD={
     work:s=>!!(s.step||s.n.trim()||s.server.trim()),
     where:s=>[s.step,ACC_CT.length,ACC_CT[s.step][1]],sum:s=>escHtml(s.n.trim())},
   // Короткие мастера. Сохраняем при закрытии и при уходе со страницы
-  rule:{t:"Новое правило",lost:"Выбранный запуск и шаблон пропадут.",drop:"Не создавать",
+  rule:{t:"Новое правило",lost:"Консоль не сохранит выбранный запуск и шаблон.",drop:"Не создавать",
     get:()=>document.querySelector("#bmodal.open [data-rnw]")?rnw:null,set:s=>{rnw=s},hide:()=>closeBulkModal(),show:()=>{if(app!=="rules")setApp("rules");ruleNewRender()},
     work:s=>!!(s.step||s.tpl||s.preset||s.start!==ruleNewStartDef()),
     where:s=>[s.step||0,RULE_NEW_STEPS.length,RULE_NEW_STEPS[s.step||0].t],sum:s=>escHtml(i18n((RULE_STARTS.find(([id])=>id===s.start)||[])[1]||""))},
-  accUg:{t:"Новая группа пользователей",lost:"Название и описание группы пропадут.",drop:"Не создавать",
+  accUg:{t:"Новая группа пользователей",lost:"Консоль не сохранит название и описание группы.",drop:"Не создавать",
     get:()=>accDrawerOpen("accUg")&&accUgd&&!accUgd.gid?accUgd:null,set:s=>{accData();s.members=(s.members||[]).filter(id=>accUser(id));accUgd=s},hide:()=>accDrawerClose("accUg"),show:()=>accUgPaint(),
     work:s=>!!(s.name.trim()||s.comment.trim()||s.members?.length),
     where:()=>[0,1,""],sum:s=>escHtml(s.name.trim())},
-  accCg:{t:"Подключение группы каталога",lost:"Название, роли и срок группы пропадут.",drop:"Не создавать",
+  accCg:{t:"Подключение группы каталога",lost:"Консоль не сохранит название, роли и срок группы.",drop:"Не создавать",
     get:()=>accDrawerOpen("accCg")?accCg:null,set:s=>{s.roles=new Set([...s.roles].filter(id=>accRole(id)));accCg=s},hide:()=>accDrawerClose("accCg"),show:()=>{accDrawer("accCg","Подключить группу каталога");accCgRender()},
-    valid:s=>{accData();return accCat(s.cid)?.avail[s.idx]?.dn===s.dn},gone:"Черновик устарел: этой группы в каталоге больше нет",
+    valid:s=>{accData();return accCat(s.cid)?.avail[s.idx]?.dn===s.dn},gone:"Черновик устарел. Этой группы больше нет в каталоге",
     work:s=>!!(s.step||s.roles.size||s.until||s.name!==s.name0),
     where:s=>[s.step,ACC_CG.length,ACC_CG[s.step][1]],sum:s=>escHtml(s.name.trim())},
-  obj:{t:"Добавление объекта",lost:"Выбранный тип и параметры пропадут.",drop:"Не создавать",
+  obj:{t:"Добавление объекта",lost:"Консоль не сохранит выбранный тип и параметры.",drop:"Не создавать",
     get:()=>{if(!wizOpen()||!wizd||wizd.mode==="server-add"||wizd.mode==="device-add")return null;wizObjGrab();wizd.step=ws;return wizd},
     set:s=>{s.drawn=0;s.resumed=true;if(s.parentId&&!find(s.parentId))s.parentId=null;wizd=s},hide:()=>closeWizard(),show:s=>{if(app!=="hw")setApp("hw");ws=s.step||1;wizObjShow()},
     work:s=>!!s.mode,
@@ -12158,11 +12158,11 @@ const WZD={
 function detCreateOpen(lock){
   const saved=dc||dcPeek();
   if(saved&&(!lock||saved.lock===lock)){dcResume();return}
-  if(saved){askConfirm("Есть незавершённое создание",dcSummary(saved),"Новое создание заменит его: выбранное и нарисованные зоны пропадут.","Начать заново",()=>{dcDrop();dcFresh(lock)},{rawMsg:true,cancelLabel:"Оставить"});return}
+  if(saved){askConfirm("Есть незавершённое создание",dcSummary(saved),"Новое создание заменит его. Консоль не сохранит выбор и нарисованные зоны.","Начать заново",()=>{dcDrop();dcFresh(lock)},{rawMsg:true,cancelLabel:"Оставить"});return}
   dcFresh(lock);
 }
 function dcFresh(lock){
-  if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(busyIds().size){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   dc={lock:lock||null,step:0,items:new Set(!lock&&DET_TYPES.includes(dl.kind)?["s:"+dl.kind]:[]),cams:new Set(lock?[lock]:[]),q:"",f:{},more:new Set(),on:true,ready:false,rule:{mode:"new",watch:false,pick:"",adv:!srcDeclared()},zoneBy:{},zoneAt:"",custom:null,min:false};
   renderDetCreate();dcLoad();
 }
@@ -12190,7 +12190,7 @@ function dcMin(){
   closeBulkModal();liveSync();dcDock();paint();
 }
 function dcResume(){
-  if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(busyIds().size){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(app!=="hw"){
     if(app==="rules"&&ruleDiffLive().length){toast("Сначала применить или сбросить изменения правила");return}
     setApp("hw");
@@ -12205,7 +12205,7 @@ function dcCancel(){
   const stop=()=>{dcDrop();closeBulkModal();liveSync();paint()};
   const d=dc||dcPeek();
   if(!d||!dcHasWork(d)){stop();return}
-  askConfirm("Отменить создание?","Выбранные камеры, нарисованные зоны и настройка правила пропадут.","","Удалить черновик",stop,{cancelLabel:"Остаться"});
+  askConfirm("Отменить создание?","Консоль не сохранит выбранные камеры, нарисованные зоны и настройку правила.","","Удалить черновик",stop,{cancelLabel:"Остаться"});
 }
 // Что есть незавершённого, видно в любом разделе
 function dcDock(){
@@ -12222,7 +12222,7 @@ function dcPrune(){
   const cams=[];walkAll(n=>{if(n.type==="camera")cams.push(n)});
   const ids=new Set(cams.map(c=>c.id)),lost=[...dc.cams].filter(id=>!ids.has(id));
   lost.forEach(id=>dc.cams.delete(id));
-  if(dc.lock&&!ids.has(dc.lock)){dc.lock=null;dc.step=0;toast("Камеры этого черновика больше нет: выберите другие")}
+  if(dc.lock&&!ids.has(dc.lock)){dc.lock=null;dc.step=0;toast("Камер этого черновика больше нет. Выбрать другие камеры")}
   else if(lost.length)toast(`${i18n("Камер больше нет в системе")}: ${lost.length}`);
   const tpl=new Set(dcTemplates(cams).map(t=>t.key));
   [...dc.items].filter(k=>k.startsWith("t:")?!tpl.has(k):!DET_TYPES.includes(k.slice(2))).forEach(k=>dc.items.delete(k));
@@ -12412,7 +12412,7 @@ function dcRulePick(k){
   };
   if(cur!=="custom"){apply();return}
   renderDetCreate();
-  askConfirm("Заменить настройку правила?","Условия и действия, настроенные подробно, пропадут.","",k==="alarm"?"Записывать и поднять тревогу":"Записывать видео",apply,{cancelLabel:"Оставить"});
+  askConfirm("Заменить настройку правила?","Консоль не сохранит подробно настроенные условия и действия.","",k==="alarm"?"Записывать и поднять тревогу":"Записывать видео",apply,{cancelLabel:"Оставить"});
 }
 function dcRuleAdv(on){if(on)dc.rule.mode="new";dc.rule.adv=!!on;renderDetCreate()}
 function dcRecLen(v){
@@ -12433,7 +12433,7 @@ function dcRecHtml(c){
 function dcRuleHtml(gs){
   const r=dc.rule,cands=dcRuleCands(gs),c=dcCustomRule(gs),cur=dcActKey(c),on=r.mode==="new"?cur:r.mode;
   const one=gs.length<=1;
-  const count=one?"":`<p class="sub dc-note">${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}, ${i18n("по одному на вид: при условии и то у них общие.")}</p>`;
+  const count=one?"":`<p class="sub dc-note">${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}, ${i18n("по одному на вид. У них общие «При условии» и «То».")}</p>`;
   const head=`<div class="dc-sec">${i18n("Если")}</div>${gs.map(g=>`<div class="dc-plan">${escHtml(triggerLabel(dcRuleWhen(g)))}</div>`).join("")}${count}`;
   if(r.adv){
     const issues=ruleIssues(c);
@@ -12442,7 +12442,7 @@ function dcRuleHtml(gs){
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
     <div class="dc-sec">${i18n("То")}</div>${thenListHtml(c.then,"","",0)}${addBarHtml("")}
     ${issues.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
-    <label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что сделало бы. Действия включите после проверки.")}</small></span></label>
+    <label class="dc-on"><input type="checkbox" ${r.watch?"checked":""} ${onEv("change",["dcRuleSet","watch",onEv.checked])}><span>${i18n("Сначала «Только журнал»")}<small>${i18n("Правило запишет, что оно сделало бы. Включить действия после проверки.")}</small></span></label>
     <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",false])}>${i18n("Вернуться к простому виду")}</button>`;
   }
   const opt=(id,t,sub,more,pick)=>`<label class="rl-opt ${on===id?"on":""}"><input type="radio" name="dcRule" ${on===id?"checked":""} ${onEv("change",pick||["dcRulePick",`${id}`])}><span><b>${i18n(t)}</b><small>${sub}</small></span></label>${on===id?more:""}`;
@@ -12454,15 +12454,15 @@ function dcRuleHtml(gs){
   };
   // «Далее» неактивна не молча: причина видна и в простом виде
   const why=r.mode==="new"?ruleIssues(c):[];
-  const pickSel=`<div class="dc-sub"><select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Камеры встанут в событие правила. Остальное в нём не изменится.")}</p></div>`;
+  const pickSel=`<div class="dc-sub"><select aria-label="${i18n("Правило")}" ${onEv("change",["dcRuleSet","pick",onEv.value])}><option value="">${i18n("Выберите правило…")}</option>${cands.map(x=>`<option value="${escHtml(x.id)}" ${r.pick===x.id?"selected":""}>${escHtml(x.name)}</option>`).join("")}</select><p class="sub dc-note">${i18n("Консоль добавит камеры в событие правила. Другие настройки правила не изменятся.")}</p></div>`;
   return`${head}
     <div class="dc-sec" style="margin-top:14px">${i18n("То")}</div>
     <div class="dc-opts">
       ${shown("record")?opt("record","Записывать видео",i18n("С камеры, на которой сработал детектор"),on==="record"?dcRecHtml(c):""):""}
-      ${shown("record")&&shown("alarm")?opt("alarm","Записывать и поднять тревогу",i18n("Запись с этой камеры, оператор увидит тревогу по ней"),on==="alarm"?dcRecHtml(c):""):""}
+      ${shown("record")&&shown("alarm")?opt("alarm","Записывать и поднять тревогу",i18n("Запись с этой камеры. Оператор увидит тревогу по этой камере"),on==="alarm"?dcRecHtml(c):""):""}
       ${cur==="custom"?opt("custom","Своё правило",summary(),"",["dcRuleAdv",true]):""}
       ${cands.length?opt("add","Добавить к правилу",i18n("В правило, которое уже работает"),pickSel):""}
-      ${opt("none","Ничего не делать",i18n("Событие попадёт только в журнал. Правило не создаётся."),"")}
+      ${opt("none","Ничего не делать",i18n("Консоль запишет событие только в журнал. Консоль не создаст правило."),"")}
     </div>
     ${why.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
     <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",true])}>${i18n("Настроить подробно: условия и другие действия")}</button>`;
@@ -12512,11 +12512,11 @@ function renderDetCreate(){
   const okStep=x=>x.k==="what"?dc.items.size>0:x.k==="cams"?total>0:x.k==="rule"?dcRuleOk(gs):true;
   const secWhat=()=>{
     const srvItems=DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",lockWhy("s:"+k)));
-    const noSrv=`<p class="sub">${i18n("Сервер не объявил видов детекторов.")}</p>`;
+    const noSrv=`<p class="sub">${i18n("Сервер не сообщил виды детекторов.")}</p>`;
     const camItems=tpl.map(t=>{const m=[...t.models];return dcItemRow(t.key,t.o.name,lock?"":`${t.cams} ${i18n(plural(t.cams,"камера умеет|камеры умеют|камер умеют"))}${m.length?" · "+m.slice(0,2).join(", ")+(m.length>2?` +${m.length-2}`:""):""}`,"","",clash(t.key)||lockWhy(t.key))});
     return`<section class="cp-col"><div class="cp-scroll dc-what2" data-cp-scroll="i">
       <div><div class="dc-sec">${i18n("Серверные")}<small>${i18n("Подойдёт любая камера")}</small></div>${srvItems.join("")||noSrv}</div>
-      <div><div class="dc-sec">${i18n("Встроенные")}<small>${i18n(lock?"Работают на самой камере: то, что она умеет":"Работают на самой камере: только те, что это умеют")}</small></div>${dc.ready?(camItems.join("")||`<p class="sub">${i18n(lock?"Камера не объявила встроенных детекторов.":"Камеры не объявили встроенных детекторов.")}</p>`):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div>
+      <div><div class="dc-sec">${i18n("Встроенные")}<small>${i18n(lock?"Работают на камере: то, что камера умеет":"Работают на камере: только на камерах, которые это умеют")}</small></div>${dc.ready?(camItems.join("")||`<p class="sub">${i18n(lock?"Камера не сообщила встроенные детекторы.":"Камеры не сообщили встроенные детекторы.")}</p>`):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div>
     </div></section>`;
   };
   const secCams=()=>{
@@ -12538,7 +12538,7 @@ function renderDetCreate(){
   };
   const secZones=()=>{
     const rows=dcRowsOf(plan),r=rows.find(x=>x.id===dc.zoneAt)||rows[0];
-    if(!r)return`<section class="cp-col"><p class="sub">${i18n("Выберите, что создать и на каких камерах.")}</p></section>`;
+    if(!r)return`<section class="cp-col"><p class="sub">${i18n("Выбрать, что создать и на каких камерах.")}</p></section>`;
     const z=dcZoneOf(r.id),draw=zoneDraw?.id===r.id?zoneDraw:null,same=z?dcZoneTargets(r,z,rows).length:0,more=rows.findIndex(x=>x.id===r.id)<rows.length-1;
     // Галочка — к камере можно не возвращаться; у копии контур: сцена на её кадре другая
     const isDone=x=>!!dc.zoneBy[x.id]&&!dcNeedsLine(x);
@@ -12554,8 +12554,8 @@ function renderDetCreate(){
     return`<section class="cp-col"><div class="dc-z"><div class="dc-z-list" data-cp-scroll="z"><div class="dc-z-cnt">${i18n("Настроено")} ${doneN} ${i18n("из")} ${rows.length}</div>${list}</div><div class="dc-z-main">
       <div class="dc-z-head"><b>${escHtml(locName(r.cam))}</b> · ${escHtml(r.name)}</div>
       ${liveFrameHtml(r.cam,svg)}
-      ${dcNeedsLine(r)?`<div class="nt">${i18n("Детектору линии нужна линия: без неё он не сработает.")}</div>`:""}
-      <p class="sub">${draw?i18n(draw.shape==="polygon"?"Щёлкайте по кадру: точка за точкой, замкнуть — в первую точку или кнопкой.":"Проведите мышью по кадру."):`${i18n("Зона")}: ${escHtml(zoneText(z))}`}</p>
+      ${dcNeedsLine(r)?`<div class="nt">${i18n("Детектору линии нужна линия. Без линии детектор не сработает.")}</div>`:""}
+      <p class="sub">${draw?i18n(draw.shape==="polygon"?"Нажимать на кадр, чтобы поставить точки. Чтобы замкнуть контур, нажать на первую точку или на кнопку.":"Проведите мышью по кадру."):`${i18n("Зона")}: ${escHtml(zoneText(z))}`}</p>
       <div class="dc-z-acts">
         ${ZONE_SHAPES.map(([x,l])=>`<button type="button" class="btn s${draw?.shape===x?" pri":""}" data-zone-shape="${x}" ${onEv("click",["zoneMode",`${r.id}`,`${x}`])}>${i18n(l)}</button>`).join("")}
         ${draw?.shape==="polygon"?`<button type="button" class="btn s" data-zone-close disabled ${onEv("click",["zoneClose",`${r.id}`])}>${i18n("Замкнуть")}</button>`:""}
@@ -12564,7 +12564,7 @@ function renderDetCreate(){
         ${same?`<button type="button" class="btn s" ${onEv("click",["dcZoneCopy"])}>${i18n("Такую же остальным")} (${same})</button>`:""}
         ${more?`<button type="button" class="btn s ${z?"pri":""}" ${onEv("click",["dcZoneNext"])}>${i18n(z?"Следующая камера":"Пропустить камеру")}</button>`:""}
       </div>
-      ${same?`<p class="sub dc-note">${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект. Зоны, нарисованные рукой, не заменятся.")}</p>`:""}
+      ${same?`<p class="sub dc-note">${i18n("У камер разные кадры. Консоль поставит зону на то же место кадра, а не на тот же объект. Консоль не заменит зоны, нарисованные вручную.")}</p>`:""}
     </div></div></section>`;
   };
   const secRule=()=>`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="r">${dc.ready?dcRuleHtml(gs):`<p class="sub">${i18n("Читаю, что умеют камеры…")}</p>`}</div></section>`;
@@ -12574,12 +12574,12 @@ function renderDetCreate(){
     const tr=rows.map((x,i)=>{const o=dc.zoneBy[x.id];return`<tr><td class="bk-num">${i+1}</td><td>${escHtml(locName(x.cam))}</td><td>${escHtml(x.name)}</td><td>${dcNeedsLine(x)?`<span class="dl-warn">${lu("triangle-alert",11)} ${i18n("нет линии")}</span>`:o?`${escHtml(zoneText(o.z))}${o.from?` · ${i18n("копия")}`:""}`:i18n("вся картинка")}</td></tr>`}).join("");
     const skips=plan.flatMap(p=>[...p.skip.entries()].map(([w,c])=>`<div class="dc-plan-s">${escHtml(p.name)}: ${i18n("пропустим")} ${c}, ${escHtml(w)}</div>`)).join("");
     const r=dc.rule,acts=r.mode==="new"?dcCustomRule(gs).then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; "):"";
-    const ruleLines=r.mode==="none"?`<p class="sub dc-note">${i18n("Без правила: событие попадёт только в журнал.")}</p>`
-      :r.mode==="add"?`<p class="sub dc-note">${r.pick?`${i18n("Камеры встанут в правило")} «${escHtml(rules.find(x=>x.id===r.pick)?.name||"")}».${dcPickMiss(gs,r.pick).length?` ${i18n("Без правила останутся")}: ${escHtml(dcPickMiss(gs,r.pick).flatMap(g=>g.names).join(", "))}.`:""}`:i18n("Правило не выбрано: детекторы создадутся без него.")}</p>`
+    const ruleLines=r.mode==="none"?`<p class="sub dc-note">${i18n("Без правила. Консоль запишет событие только в журнал.")}</p>`
+      :r.mode==="add"?`<p class="sub dc-note">${r.pick?`${i18n("Камеры встанут в правило")} «${escHtml(rules.find(x=>x.id===r.pick)?.name||"")}».${dcPickMiss(gs,r.pick).length?` ${i18n("Без правила останутся")}: ${escHtml(dcPickMiss(gs,r.pick).flatMap(g=>g.names).join(", "))}.`:""}`:i18n("Правило не выбрано. Консоль создаст детекторы без правила.")}</p>`
       :gs.map(g=>`<div class="dc-plan"><div>${escHtml(triggerLabel(dcRuleWhen(g)))}</div><div class="dc-plan-s">${escHtml(acts)}${dc.custom?.cond.length?` · ${i18n("условий")}: ${dc.custom.cond.length}`:""}${r.watch?` · ${i18n("только журнал")}`:""}</div></div>`).join("");
     return`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="p"><p class="dc-total"><b>${total}</b> ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} <b>${camsHit}</b> ${i18n(plural(camsHit,"камере|камерах|камерах"))}</p>${skips}
       <table class="bk-table"><thead><tr><th>#</th><th>${i18n("Камера")}</th><th>${i18n("Детектор")}</th><th>${i18n("Зона")}</th></tr></thead><tbody>${tr}</tbody></table>
-      ${noLine?`<div class="nt bk-warn">${lu("triangle-alert")} ${noLine} ${i18n(plural(noLine,"детектору|детекторам|детекторам"))} ${i18n("пересечения линии нужна линия: без неё они не сработают.")}</div>`:""}
+      ${noLine?`<div class="nt bk-warn">${lu("triangle-alert")} ${noLine} ${i18n(plural(noLine,"детектору|детекторам|детекторам"))} ${i18n("пересечения линии нужна линия. Без линии детекторы не сработают.")}</div>`:""}
       <div class="dc-sec" style="margin-top:12px">${i18n("Правило по событию")}</div>${ruleLines}
       <label class="dc-on"><input type="checkbox" ${dc.on?"checked":""} ${onEv("change",["dcEnabled",onEv.checked])}><span>${i18n("Включить детекторы сразу")}</span></label></div></section>`;
   };
@@ -12641,7 +12641,7 @@ function dcRuleAdd(gs,id){
     const fresh=[...g.cams].filter(c=>!ruleRefCovers(t.ref,c,triggerKind(t).devTypes));if(!fresh.length)return;
     const p=refParts(t.ref);t.ref=refMake([...p.inc,...fresh],p.ex);added+=fresh.length;
   });
-  if(!added){toast("Камеры уже входят в это правило");return}
+  if(!added){toast("Камеры уже есть в этом правиле");return}
   API.put(`/rules/${r.id}`,ruleBody(next),autoVer.get(r.id)).then(async y=>{
     ruleSet(y);await ruleHistLoad(y.id);
     toastAction("dcrule",`${i18n("Камер добавлено к правилу")} «${y.name}»: ${added}`,i18n("Открыть"),()=>ruleGoRule(y.id),12000);
@@ -12681,7 +12681,7 @@ function dzSaveNext(){dzSave(dzNext)}
 // С черновиком не уходим молча: нарисованное теряется
 function dzAsk(then){
   if(!dzDrafted(dz?.ids[dz.at])){then();return}
-  askConfirm("Зона не сохранена",i18n("Вы нарисовали зону, но не сохранили её."),i18n("Сохраните зону или останьтесь на этой камере."),i18n("Сохранить"),()=>dzSave(then));
+  askConfirm("Зона не сохранена",i18n("Вы нарисовали зону, но не сохранили её."),i18n("Сохранить зону или остаться на этой камере."),i18n("Сохранить"),()=>dzSave(then));
 }
 function dzAskPrev(){dzAsk(dzPrev)}
 function dzAskEnd(){dzAsk(dzEnd)}
@@ -12705,22 +12705,22 @@ function dzCopyScope(d,z){
 // План, как у карточки: что станет на каждом детекторе, применяется одной операцией
 function dzCopy(){
   const d=detNodeOf(dz?.ids[dz.at]),z=d&&dzZone(d);if(!z)return;
-  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   const{rest,left}=dzCopyScope(d,z),all=[...(dzDrafted(d.id)?[d]:[]),...rest];
   if(!rest.length)return;
   const cams=new Map(detRows().map(x=>[x.d.id,x.cam])),off=new Set(bulkStats(all).offline.map(n=>n.id));
   const rows=all.map((n,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(locName(cams.get(n.id)||{name:""}))}</td><td>${escHtml(locName(n))}</td><td class="bk-note">${escHtml(zoneText(n.zone))}${n.zone?` · ${i18n("заменится")}`:""}</td><td>${off.has(n.id)?`<span class="bk-mixed">${i18n("сервер без связи")}</span>`:`<b>${escHtml(zoneText(z))}</b>`}</td></tr>`).join("");
   const live=all.length-off.size,what=i18n(plural(all.length,"детектор|детектора|детекторов"));
-  const nextText=left.length?`${i18n("Затем очередь продолжится")}: ${left.length} ${i18n(plural(left.length,"детектор|детектора|детекторов"))} ${i18n(z.shape==="line"?"с областью. Линия не подходит.":"с линией. Область не подходит.")}`:i18n("Очередь зон на этом закончится. Итог и «Отменить» будут в отчёте.");
+  const nextText=left.length?`${i18n("Затем очередь продолжится")}: ${left.length} ${i18n(plural(left.length,"детектор|детектора|детекторов"))} ${i18n(z.shape==="line"?"с областью. Линия не подходит.":"с линией. Область не подходит.")}`:i18n("Очередь зон закончится здесь. Итог и кнопка «Отменить» будут в отчёте.");
   openBulkModal(`${i18n("План")}: ${i18n("такая же зона")}, ${all.length} ${what}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Камера")}</th><th>${i18n("Детектор")}</th><th>${i18n("Было")}</th><th>${i18n("Станет")}</th></tr></thead><tbody>${rows}</tbody></table>
-     <div class="nt bk-warn">${lu("triangle-alert")} ${i18n("Кадры у камер разные: зона встанет на то же место кадра, а не на тот же объект.")}</div>
+     <div class="nt bk-warn">${lu("triangle-alert")} ${i18n("У камер разные кадры. Консоль поставит зону на то же место кадра, а не на тот же объект.")}</div>
      <p class="sub" style="margin:10px 0 0">${nextText}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${live?"":"disabled"} ${onEv("click",["closeBulkModal"],["dzCopyApply"])}>${i18n("Применить")} (${live})</button>`,"bbox-wide");
 }
 function dzCopyApply(){
   const d=detNodeOf(dz?.ids[dz.at]),z=d&&dzZone(d);if(!z)return;
-  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   const{rest,left}=dzCopyScope(d,z),all=[...(dzDrafted(d.id)?[d]:[]),...rest],v=ruleClone(z);
   bulkRun([{label:"Зона",ops:all.map(n=>{const was=n.zone;return mkOp(n,"Зона","param",()=>{n.zone=ruleClone(v)},null,()=>{n.zone=was})})}],{undo:true},all);
   dz.draft=undefined;dz.drawn+=all.length;
@@ -12774,7 +12774,7 @@ function liveSync(){
   liveShow();
 }
 function liveCanStart(n){return!!n&&n.online!==false&&can("startUnitLive")&&hwVer.has(n.id)}
-const LIVE_STUB_NOTE="Тестовая картинка: настоящего видео на стенде нет";
+const LIVE_STUB_NOTE="Тестовая картинка. На стенде нет настоящего видео";
 function liveWordsOf(v,n){
   if(n?.online===false)return i18n("Камера без связи");
   if(!can("startUnitLive"))return i18n("Живое видео недоступно");
@@ -12838,8 +12838,8 @@ async function liveAsk(v,gen,body){
     if(lv!==v||v.gen!==gen)return{};
     const p=e?.problem;
     if(!e?.status||e.status>=500)return{again:true};
-    if(p?.code==="OTHER_CLUSTER"){v.open=p.params?.url||"";liveRefuse(v,i18n(find(v.id)?.n?.direct===false?"Камера за NAT: видео идёт через её кластер":"Камера другого кластера"));return{}}
-    if(p?.code==="OTHER_NETWORK"){v.move=p.params?.labels||[];liveRefuse(v,i18n("Раздачу создали для другой сети"));return{}}
+    if(p?.code==="OTHER_CLUSTER"){v.open=p.params?.url||"";liveRefuse(v,i18n(find(v.id)?.n?.direct===false?"Камера за NAT. Видео идёт через её кластер":"Камера другого кластера"));return{}}
+    if(p?.code==="OTHER_NETWORK"){v.move=p.params?.labels||[];liveRefuse(v,i18n("Раздача создана для другой сети"));return{}}
     liveRefuse(v,problemText(e,find(v.id)?.n));return{};
   }
 }
@@ -12859,7 +12859,7 @@ async function liveGo(v,gen){
   const alive=()=>lv===v&&v.gen===gen,n=find(v.id)?.n;
   liveSay(v,"conn");
   if(typeof RTCPeerConnection!=="function")return liveRefuse(v,i18n("Браузер не умеет WebRTC"));
-  if(liveNeedsH265(n,v.stream)&&!liveH265Ok())return liveRefuse(v,i18n("Камера отдаёт H.265, этот браузер его не показывает"));
+  if(liveNeedsH265(n,v.stream)&&!liveH265Ok())return liveRefuse(v,i18n("Камера отправляет H.265. Этот браузер не показывает H.265"));
   let pc;
   try{pc=new RTCPeerConnection()}catch(e){return liveRefuse(v,i18n("Браузер не умеет WebRTC"))}
   v.pc=pc;
@@ -12897,7 +12897,7 @@ async function liveGo(v,gen){
       v.sess=s;
       if(!v.gateway)try{v.gateway=new URLSearchParams(loc.split("?")[1]).get("gateway")||""}catch(e){}
       try{await pc.setRemoteDescription({type:"answer",sdp:await r.text()})}
-      catch(e){if(alive())liveRefuse(v,i18n("Браузер не принял ответ шлюза"));return}
+      catch(e){if(alive())liveRefuse(v,i18n("Браузер отклонил ответ шлюза"));return}
       if(alive()&&pc.connectionState==="connected")liveSay(v,"live");
       return;
     }
@@ -12958,7 +12958,7 @@ function liveNetSet(net){if(!lv)return;lv.net=net;liveRestart()}
 function liveOpen(){if(lv?.open)window.open(lv.open,"_blank","noopener")}
 function liveMove(){
   const v=lv;if(!v?.move)return;
-  askConfirm("Переразместить раздачу","Раздачу создали для другой сети. Зрители этой камеры переподключатся.","","Переразместить",()=>{
+  askConfirm("Переразместить раздачу","Раздача создана для другой сети. Зрители этой камеры подключатся снова.","","Переразместить",()=>{
     API.put(`/units/${v.id}/live`,{network:v.net}).then(()=>{if(lv===v)liveStart()}).catch(e=>{if(lv===v)liveRefuse(v,problemText(e,find(v.id)?.n))});
   });
 }
@@ -13016,7 +13016,7 @@ function liveTitle(v,e){
 }
 function liveFeedHtml(v){
   const rows=(v.feed||[]).map(e=>`<li><span class="sub">${escHtml(tlClock(eventMs(e)))}</span> ${escHtml(e.text)}</li>`).join("");
-  return(rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.feedOn?"Событий пока нет":"Лента идёт, пока вы смотрите")}</p>`)+(v.feedWithheld?`<p class="sub">${i18n("Скрыто правами")}: ${v.feedWithheld}</p>`:"");
+  return(rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.feedOn?"Событий пока нет":"Лента обновляется, пока вы смотрите")}</p>`)+(v.feedWithheld?`<p class="sub">${i18n("Скрыто правами")}: ${v.feedWithheld}</p>`:"");
 }
 // ── Разговор: браузер говорит в динамик камеры (V/08.3 Н1.2 п. 9) ─────────
 // Занятость говорит дверь на офере, выдача адреса её не судит. 404 not yet, 500, 503 — через 1,5 с, всего 9 оферов, после 500 просьба снова
@@ -13067,7 +13067,7 @@ async function talkStart(id){
     }
     if(r?.status===201){
       const loc=r.headers.get("Location");if(loc)t.sess=whepSessionUrl(t.door.url,loc);
-      try{await pc.setRemoteDescription({type:"answer",sdp:await r.text()})}catch(e){if(alive())talkEnd(i18n("Браузер не принял ответ шлюза"));return}
+      try{await pc.setRemoteDescription({type:"answer",sdp:await r.text()})}catch(e){if(alive())talkEnd(i18n("Браузер отклонил ответ шлюза"));return}
       if(alive())talkSay(i18n("Говорите"));
       return;
     }
@@ -13186,7 +13186,7 @@ function tlCardHtml(v,n){
     return`<li class="tl-go" ${onEv("click",["pbEvent",eventMs(e)])}><span class="sub">${escHtml(tlDate(eventMs(e)))}</span> ${escHtml(e.text)}${late?` <span class="sub">${i18n("записано в")} ${escHtml(tlClock(Date.parse(e.at)))}</span>`:""}</li>`}).join("");
   return`<div class="live-row">${TL_WINDOWS.map(([k,l])=>`<button type="button" class="btn s${t.win===k?" pri":""}" data-tl-win="${k}" ${onEv("click",["tlWin",k])}>${i18n(l)}</button>`).join("")}
       <label>${i18n("Подсистема")} <select data-tl-source ${onEv("change",["tlSource",onEv.value])}><option value="">${i18n("Все")}</option>${t.sources.map(s=>`<option value="${escHtml(s)}" ${s===t.source?"selected":""}>${escHtml(s)}</option>`).join("")}</select></label>
-      <span class="sub">${t.busy?i18n("Загрузка…"):t.spans.length?"":i18n("За это окно записей нет")}</span></div>
+      <span class="sub">${t.busy?i18n("Загрузка…"):t.spans.length?"":i18n("В этом окне времени записей нет")}</span></div>
     ${tlBarHtml(v)}
     ${t.next?`<button type="button" class="lk" data-tl-more ${onEv("click",["tlMore"])}>${i18n("Показать дальше")}</button>`:""}
     ${t.err?`<div class="nt bk-warn">${escHtml(t.err)}</div>`:""}
@@ -13198,7 +13198,7 @@ function tlCardHtml(v,n){
 // ── Проигрыватель ─────────────────────────────────────────────────────────
 // Куски по 60 с, следующий — по окончании. Каждый момент один раз: очередь идёт от конца поставленного, а не от начала
 // следующего спана. Кусок не отдан — подпись, один повтор через 5 с с новым адресом, потом дальше (V/08.3 Н1.1)
-const PB_RETRY_MS=5000,PB_STUB_NOTE="Подставной кусок: настоящей записи на стенде нет";
+const PB_RETRY_MS=5000,PB_STUB_NOTE="Тестовый фрагмент. На стенде нет настоящей записи";
 function pbPlay(v,at,spanId,chosen){
   v.gen++;liveDrop(v);
   v.pb={gen:v.gen,chosen:chosen||null,piece:null};
@@ -13243,7 +13243,7 @@ function pbWords(p){
   return[`${i18n("Запись")} ${tlDate(p.from)}–${tlClock(p.to)}`,s?.epoch?`${i18n("эпоха")} ${s.epoch}`:"",s?.backupOnly?i18n("из резервного"):"",s?.source==="backfill"?i18n("дозаписано"):""].filter(Boolean).join(" · ");
 }
 function pbFail(v,gen,at,spanId){
-  liveSay(v,"retry2",i18n("Дверь архива занята или отказала: повтор через 5 с"));
+  liveSay(v,"retry2",i18n("Доступ к архиву занят или не работает. Повтор через 5 с"));
   v.pbWait=setTimeout(()=>{if(lv===v&&v.gen===gen)pbPiece(v,gen,at,spanId,true)},PB_RETRY_MS);
 }
 function pbGoOn(v,gen,at){
@@ -13319,7 +13319,7 @@ function holdRowHtml(h){
 }
 function holdsCardHtml(v){
   if(!can("listUnitHolds"))return"";
-  return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержанное держится, только пока его хранит архив записи: у тома инцидентов нет держателя")}</div>`:""}
+  return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержание действует, только пока архив записи хранит видео. У тома инцидентов нет удержания")}</div>`:""}
     ${v.holdLost?`<div class="nt bk-warn" data-hold-lost>${i18n("Том инцидентов потерял удержанное")}: ${v.holdLost.n} ${i18n(plural(v.holdLost.n,"удержание|удержания|удержаний"))}, ${escHtml(lagText(v.holdLost.sec))} ${i18n("записи перезаписано кольцом")}</div>`:""}
     ${v.holdRisk?`<p class="sub" data-hold-risk>${i18n("Под угрозой на томе инцидентов")}: ${v.holdRisk} ${i18n(plural(v.holdRisk,"удержание|удержания|удержаний"))}</p>`:""}
     ${(v.holds||[]).length?`<table class="ca-tbl"><tbody>${v.holds.map(holdRowHtml).join("")}</tbody></table>`:`<p class="sub">${i18n("Удержаний нет")}</p>`}
@@ -13346,11 +13346,11 @@ function holdAsk(){
 // Сняты все галочки: пустой список значил бы «все записи камеры», запроса нет
 function holdRecsCheck(){
   const ok=document.getElementById("confirmOk"),none=!document.querySelector(".hold-rec:checked");
-  ok.disabled=none;ok.title=none?i18n("Отметьте хотя бы одну запись: пустой список значит все записи камеры"):"";
+  ok.disabled=none;ok.title=none?i18n("Отметить минимум одну запись. Пустой список означает все записи камеры"):"";
 }
 function holdDrop(id){
   const v=lv;if(!v)return;
-  askConfirm("Снять удержание","Отрезок снова подчиняется сроку хранения.","","Снять",()=>{
+  askConfirm("Снять удержание","Для отрезка снова действует срок хранения.","","Снять",()=>{
     API.del(`/holds/${encodeURIComponent(id)}`).then(()=>{if(lv===v)holdsRead(v)}).catch(e=>toast(problemText(e)));
   },{typeCount:1});
 }
@@ -13876,7 +13876,7 @@ function expFromAssist(r){
 function expDel(id){
   const x=expRowOf(id);if(!x)return;
   if(pendingDelHas("exp:"+id)){toast("Выгрузка уже ждёт удаления — отменить можно в тосте");return}
-  askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","Останутся камеры и их записи. После подтверждения будет отсчёт с кнопкой «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
+  askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","Останутся камеры и их записи. После подтверждения консоль покажет отсчёт и кнопку «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
 }
 function expDelRun(id){
   const x=expRowOf(id),name=x?expJobTitle(x):id;
@@ -13935,7 +13935,7 @@ function markAdd(){
 function marksCardHtml(v){
   if(!can("listUnitBookmarks"))return"";
   const rows=(v.marks||[]).map(m=>`<li class="tl-go" data-mark="${escHtml(m.id)}" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}${m.type==="span"&&m.to?`–${escHtml(tlClock(Date.parse(m.to)))}`:""}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span>${can("createExport")?` <button type="button" class="lk" data-mark-exp ${onEv("click",onEv.stop,["expFromMark",v.id,m.id])}>${i18n("Экспорт")}</button>`:""}</li>`).join("");
-  return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"Отметок за это окно нет")}</p>`}
+  return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"В этом окне времени отметок нет")}</p>`}
     ${can("createUnitBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><select data-mark-type aria-label="${i18n("Тип закладки")}" ${onEv("change",["markTypeSet",onEv.value])}><option value="moment" ${markType==="moment"?"selected":""}>${i18n("Момент")}</option><option value="span" ${markType==="span"?"selected":""}>${i18n("Отрезок")}</option></select>${markType==="span"?`<label>${i18n("длиной, с")} <input type="number" min="1" style="width:80px" data-mark-len value="${markLen}" ${onEv("change",["markLenSet",onEv.value])}></label>`:""}<button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
 }
 // Закладка «Просмотр»: разметка карт постоянна, данные пишет viewFill, поэтому приход ответа не перерисовывает видео
@@ -13955,7 +13955,7 @@ function viewFill(){
     if(v.title){tt.style.color=v.title.color;tt.style.background=v.title.bg;v.title.lines.forEach(l=>{const d=document.createElement("div");d.textContent=l;tt.appendChild(d)})}
   }
 }
-// Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения — запись не идёт.
+// Какой сервер записывает камеру: настройка, а serverId только для чтения. Нет назначения, поэтому запись не идёт.
 // Копии — дополнительные приёмники по порядку, копия — это кластер: сервер занятого кластера не предлагается. Назначение
 // держит кластер: на чтении может вернуться другой его сервер, это не чужая правка, показывается как пришло
 const REC_COPY_SHOWN=8;
@@ -13972,10 +13972,10 @@ function recTargetCardHtml(n){
   const main=t&&servers.find(s=>s.id===t.serverId),cluster=main&&g7ClusterOf(main);
   const inCopies=new Set((t?.copies||[]).map(id=>servers.find(s=>s.id===id)).filter(Boolean).map(recClusterKey));
   const opts=all.filter(s=>s.id===t?.serverId||!inCopies.has(recClusterKey(s)));
-  const hidden=recTakenWord(inCopies,"В приёмнике не предлагаются серверы кластеров, занятых копиями");
+  const hidden=recTakenWord(inCopies,"Консоль не предлагает в приёмнике серверы кластеров, которые уже хранят копии");
   return card("Сервер записи",`<div><label>${i18n("Приёмник")}</label><select id="recTarget" ${onEv("change",["recTargetSet",`${n.id}`,onEv.value])}>
     <option value="">${i18n("Не назначен")}</option>${opts.map(s=>`<option value="${s.id}" ${t?.serverId===s.id?"selected":""}>${escHtml(recServerLabel(s))}</option>`).join("")}</select></div>
-    ${t?"":`<p class="sub">${i18n("Нет назначения — запись не идёт")}</p>`}
+    ${t?"":`<p class="sub">${i18n("Нет назначения, поэтому запись не идёт")}</p>`}
     ${cluster?`<p class="sub" id="recCluster">${i18n("Назначение держит кластер")} «${escHtml(cluster)}»: ${i18n("запись может идти на другой его сервер")}</p>`:""}
     ${hidden?`<p class="sub" id="recMainTaken">${escHtml(hidden)}</p>`:""}
     ${t?recCopiesHtml(n,t,all):""}`);
@@ -13990,14 +13990,14 @@ function recCopiesHtml(n,t,all){
   }).join("");
   return`<div class="rec-copies" id="recCopies"><label>${i18n("Копии")}</label>
     ${rows||`<p class="sub" id="recNoCopies">${i18n("Копий нет")}</p>`}
-    <p class="sub">${i18n("Порядок значим. Копия — это кластер: на кластер один сервер")}</p>
+    <p class="sub">${i18n("Порядок важен. Одна копия — это один кластер. Для кластера выбирают один сервер")}</p>
     <input id="recCopyQ" type="search" autocomplete="off" aria-label="${i18n("Найти сервер для копии")}" placeholder="${i18n("Найти сервер для копии")}" value="${escHtml(q)}" ${onEv("input",["recCopySearch",`${n.id}`,onEv.value])}>
     <div id="recCopyList">${recCopyListHtml(n,t,all,q)}</div></div>`;
 }
 function recCopyListHtml(n,t,all,q){
   const busy=new Set([t.serverId,...t.copies].map(id=>servers.find(s=>s.id===id)).filter(Boolean).map(recClusterKey));
   const low=q.trim().toLowerCase(),free=all.filter(s=>!busy.has(recClusterKey(s))&&(!low||s.name.toLowerCase().includes(low)));
-  const shown=free.slice(0,REC_COPY_SHOWN),word=recTakenWord(busy,"Не предлагаются серверы занятых кластеров");
+  const shown=free.slice(0,REC_COPY_SHOWN),word=recTakenWord(busy,"Консоль не предлагает серверы занятых кластеров");
   return`${shown.map(s=>`<button type="button" class="btn s rec-pick" data-rec-pick="${s.id}" ${onEv("click",["recCopyAdd",`${n.id}`,`${s.id}`])}>${lu("plus")}${escHtml(recServerLabel(s))}${s.online===false?` · ${i18n("нет связи")}`:""}</button>`).join("")||`<p class="sub" id="recCopyNone">${i18n("Подходящих серверов нет")}</p>`}
     ${free.length>shown.length?`<p class="sub">${i18n("Ещё")} ${free.length-shown.length}: ${i18n("уточните поиск")}</p>`:""}
     ${word?`<p class="sub" id="recCopyTaken">${escHtml(word)}</p>`:""}`;
@@ -14052,7 +14052,7 @@ function camViewHtml(n){
       <button type="button" class="btn s" data-talk hidden ${onEv("click",["talkToggle",`${n.id}`])}>${i18n("Говорить")}</button><span class="sub" data-talk-state></span>
       <span class="sub" data-live-state role="status" aria-live="polite"></span>
       ${can("createExport")?`<button type="button" class="btn s" data-exp-cam-go ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download")}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live ${onEv("click",["expFromCam",n.id,"live"])}>${i18n("Кадр сейчас")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go ${onEv("click",["expCropStart",n.id])}>${i18n("Выбрать область кадра")}</button>`:""}`:""}</div>`)
-    +(n.ptz&&can("putUnitPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока кнопка нажата")}</p>`):"")
+    +(n.ptz&&can("putUnitPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока вы нажимаете кнопку")}</p>`):"")
     +(can("listJournal")?card("События",`<div data-feed></div>`):"")
     +`<div data-relay-card></div>`
     +(can("getUnitTimeline")?card("Шкала времени",`<div data-tl></div>`):"")
@@ -14108,9 +14108,9 @@ function ptzCardHtml(n){
   // подпись пресета идёт правкой: ADR-0111 доп. (1)
   const list=presetRows(n),nat=n.direct===false,off=n.online===false||nat,full=presetFree(n)==null;
   const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
-    <td class="ca-x"><button type="button" class="btn s" data-preset-save ${off?"disabled":""} title="${i18n(nat?"Камера за NAT: положение здесь не запомнить, связи с ней нет. Подпись можно":"Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
+    <td class="ca-x"><button type="button" class="btn s" data-preset-save ${off?"disabled":""} title="${i18n(nat?"Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение. Подпись можно":"Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
   return card("Пресеты",`${ptzPadHtml(n)}
-    <p class="sub" ${nat?"data-preset-nat":""}>${i18n(nat?"Камера за NAT: двигать её и запоминать положение отсюда нельзя, связи с ней нет. Подпись пресета можно":"Наведите камеру по кадру выше, держа кнопку, и запомните положение.")}</p>
+    <p class="sub" ${nat?"data-preset-nat":""}>${i18n(nat?"Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно":"Навести камеру по кадру выше кнопкой и запомнить положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
     <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
 }
@@ -14137,7 +14137,7 @@ function presetName(id,no,v){presetPut(id,no,{name:String(v).trim()})}
 function presetDel(id,no){
   const n=find(id)?.n,p=n&&presetRows(n).find(x=>x.n===no);if(!p)return;
   const name=p.name||`${i18n("Пресет")} ${no}`;
-  askConfirm("Удалить пресет?",`<ul class="bk-del"><li>${i18n("Будет удалён пресет")} «${escHtml(name)}»</li><li>${i18n("Правила с этим номером перестанут наводить камеру")}</li><li>${i18n("Камера и другие пресеты останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`${id}#${no}`],{label:`«${name}»`,commit:()=>{
+  askConfirm("Удалить пресет?",`<ul class="bk-del"><li>${i18n("Будет удалён пресет")} «${escHtml(name)}»</li><li>${i18n("Правила с этим номером больше не будут наводить камеру")}</li><li>${i18n("Камера и другие пресеты останутся")}</li></ul>`,"",i18n("Удалить"),()=>scheduleDelete([`${id}#${no}`],{label:`«${name}»`,commit:()=>{
     API.del(`/units/${id}/presets/${no}`).then(r=>{hwApplyUnit(r);gear();toast(i18n("Пресет удалён"))}).catch(e=>toast(problemText(e,n)));
   }}),{html:true,typeCount:1});
 }
@@ -14256,17 +14256,17 @@ function formBase(n){
     const sv=archServer(n),cams=archCameras(n.id),net=archIsNetwork(n),vols=archVols(n),k=archAddr(n),spec=archSpec(n);
     if(tab==="cams"&&spec.recordModes.length)return lanCardHtml(n);
     const canEnc=archCanEncrypt(n);
-    const rules={disk:"На одном диске у хранилища один том: раздел целиком (диск отформатирован в SolidStore и заполняется до конца) или файл заданного размера. Системный диск целиком не отдаётся.",
+    const rules={disk:"На одном диске у хранилища один том. Том — это весь раздел или файл заданного размера. Весь раздел форматируют в SolidStore, и запись заполняет его до конца. Системный диск нельзя отдать целиком.",
       nas:"Том — файл заданного размера в папке NAS (SMB2/SMB3, NFS, CIFS, iSCSI). Пользователь — с префиксом домена или компьютера: домен\\имя. В Windows к одному NAS одновременно подключается один пользователь.",
-      bucket:"Том — бакет (у Azure — контейнер), заведённый заранее в консоли провайдера. Томов может быть несколько, объём не ограничен и меняется без перезапуска; тома одного размера — иначе при записи по кругу глубина архива поплывёт."}[k];
+      bucket:"Том — это бакет (у Azure — контейнер). Его создают заранее в консоли провайдера. Томов может быть несколько. Объём не ограничен, его можно изменить без перезапуска. Делать тома одного размера, иначе глубина архива будет меняться при записи по кругу."}[k];
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
       <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задаётся при создании и не меняется — тома размечены под него")}</div></div>
+        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Тома размечены под этот размер")}</div></div>
         ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
-      ${spec.serverWide?`<div class="nt">${i18n("Один на сервер, работает со всеми его камерами: привязывать их не надо, выключить одной камере нельзя.")}</div>`:""}
-      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено — новые камеры сюда не привязываются")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры сюда не пишут: только копии отмеченных записей.")}</div>`}
+      ${spec.serverWide?`<div class="nt">${i18n("Один на сервер. Работает со всеми камерами сервера. Привязывать камеры не нужно. Выключить его для одной камеры нельзя.")}</div>`:""}
+      ${spec.serverWide?"":spec.admits?`<div class="ln ln-sw" data-arch-admits><div>${i18n("Принимает записи")} <span class="sub">${i18n("выключено. Консоль не привязывает сюда новые камеры")}</span></div><div class="sw ${n.admits===false?"":"on"}" ${onEv("click",["archAdmitsToggle",onEv.el,n.id])}></div></div>`:`<div class="nt" data-arch-noadmit>${i18n("Камеры не записывают сюда видео. Здесь только копии отмеченных записей.")}</div>`}
       ${spec.encryption?`<div class="ln ln-sw" data-needs="feature:archiveEncryption"><div>${i18n("Шифрование томов")} <span class="sub">${canEnc?"AES-256-GCM":i18n("— только у объектного хранилища")}</span></div><div class="sw ${n.enc&&canEnc?"on":""} ${canEnc?"":"dis"}" ${canEnc?`${onEv("click",["archEncToggle",onEv.el,n.id])}`:""}></div></div>`:""}
       <div class="mx" style="margin-top:10px">
         <button type="button" class="mc" ${onEv("click",["goTab","cams"])}><span>${i18n("Камер пишется")}</span><b>${cams.length}</b></button>
@@ -14274,8 +14274,8 @@ function formBase(n){
         <div class="mc"><span>${i18n("Объём")}</span><b>${archSize(n)}</b></div>
         <div class="mc"><span>${i18n("Занято")}</span><b>${archUsed(n)}</b></div>
       </div>
-      <p class="sub" style="margin-top:10px">${net?i18n("Камеры сетевого хранилища не закреплены за сервером — запись ведёт любой сервер домена.")
-        :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>.${spec.recordModes.some(m=>m!=="backup")?` ${i18n("Камера попадает под сервер именно через хранилище.")}`:""}`}</p>`)+
+      <p class="sub" style="margin-top:10px">${net?i18n("Камеры сетевого хранилища не закреплены за сервером. Любой сервер домена может записывать их видео.")
+        :`${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>.${spec.recordModes.some(m=>m!=="backup")?` ${i18n("Камера получает сервер только через хранилище.")}`:""}`}</p>`)+
       listCard({
         key:"avol:"+n.id,
         title:"Тома",
@@ -14291,7 +14291,7 @@ function formBase(n){
   }
   if(n.type==="vol"){
     const a=archById(n.archId),k=archAddr(a),spec=archSpec(a);
-    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Старые записи будут стёрты, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${n.state==="unfmt"?`<div class="nt err">${i18n("Раздел не отформатирован — записывать на него нельзя. Отформатируйте его, когда будете готовы: данные на диске пропадут.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
+    return card("Том хранилища",`${n.shrink!=null?`<div class="nt err" data-vol-shrink>${i18n("Объявлен меньший объём")}: ${escHtml(bytesText(n.shrink))}. ${i18n("Сервер сотрёт старые записи, поэтому нужно второе подтверждение.")} <button type="button" class="lk lk-act" ${onEv("click",["volShrinkConfirm",`${n.id}`])}>${i18n("Подтвердить…")}</button></div>`:""}${n.state==="unfmt"?`<div class="nt err">${i18n("Раздел не отформатирован, поэтому запись на него невозможна. Отформатировать раздел, когда вы будете готовы. Форматирование удалит все данные на диске.")}</div>`:""}<div class="nt ok">${i18n("Том хранилища")} <button type="button" class="lk" ${onEv("click",["pick",`${a.id}`])}><b>${escHtml(locName(a))}</b></button> · ${escHtml(archKindLabel(a))}</div>
       ${volFieldsHtml(a,n,["volSet",n.id])}
       <div class="ln ln-sw" data-vol-enabled><div>${i18n("Том включён")}</div><div class="sw ${n.enabled===false?"":"on"}" ${onEv("click",["volEnabledToggle",onEv.el,n.id])}></div></div>
       <div class="mx" style="margin-top:10px">
@@ -14302,7 +14302,7 @@ function formBase(n){
         ${k==="disk"&&n.mode==="part"?`<button type="button" class="btn s" ${onEv("click",["formatVolume",`${n.id}`])} ${n.state==="format"?"disabled":""}>${i18n("Форматировать…")}</button>`:""}${spec.check?`<button type="button" class="btn s" ${onEv("click",["volCheck",`${n.id}`])}>${i18n(k==="bucket"?"Проверить подключение":"Подключиться")}</button>`:""}
         <button type="button" class="btn s" data-needs="kind:volume/delete" ${onEv("click",["deleteVolume",`${n.id}`])}>${i18n("Удалить том")}</button>
       </div>
-      <p class="sub" style="margin-top:10px">${i18n("Глубина и шифрование задаются на хранилище; у тома — где он лежит и какого он размера.")}</p>`);
+      <p class="sub" style="margin-top:10px">${i18n("Глубину и шифрование задают у хранилища. У тома задают место и размер.")}</p>`);
   }
   if(n.type==="gpu"){
     const sv=servers.find(x=>x.id===n.serverId),g=n.gpu||{};
@@ -14314,14 +14314,14 @@ function formBase(n){
         <div class="mc"><span>${i18n("Камер")}</span><b>${list.length}</b></div>
         <div class="mc"><span>${i18n("Детекторов")}</span><b>${dets}</b></div>
       </div>
-      <p class="sub" style="margin-top:10px">${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>. ${i18n("На видеоускорителе считаются детекторы камер, назначенных этому серверу. Сервер детектора задаётся в карточке камеры, вкладка «Детекторы».")}</p>`)+
+      <p class="sub" style="margin-top:10px">${i18n("Сервер:")} <b>${escHtml(sv?locName(sv):"—")}</b>. ${i18n("Видеоускоритель выполняет детекторы камер этого сервера. Сервер детектора задают в карточке камеры на вкладке «Детекторы».")}</p>`)+
       listCard({
         key:"gpucam:"+n.id,
         title:"Камеры с детекторами на этом сервере",
         items:list,
         text:x=>[locName(x.cam),x.cam.ip,...x.dets.map(d=>locName(d))],
         row:x=>`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${x.cam.id}`],["goTab","det"])}><span>${ic("camera")}</span><span>${escHtml(locName(x.cam))}<small>${x.dets.map(d=>escHtml(locName(d))).join(", ")}</small></span><span class="sub">${x.dets.length}</span></div>`,
-        empty:"Детекторы на этот сервер не назначены",
+        empty:"У этого сервера нет детекторов",
         ph:"Камера или детектор…",
         unit:"камера|камеры|камер"
       });
@@ -14339,7 +14339,7 @@ function formBase(n){
       ph:"Имя, IP или папка…",
       unit:"камера|камеры|камер"
     })+
-      `<p class="sub">${i18n("Эти камеры работают, но архив им не назначен, поэтому сервера у них нет. Назначить архив — на камере, вкладка «Архив».")}</p>`;
+      `<p class="sub">${i18n("Эти камеры работают, но у них нет архива, поэтому у них нет сервера. Архив назначают в карточке камеры на вкладке «Архив».")}</p>`;
   }
   if(n.type==="folder"){
     if(tab==="tbl"){
@@ -14370,7 +14370,7 @@ function formBase(n){
       });
     if(tab==="stor")return archTableCard(n);
     if(tab==="srvs")return domainServersCard(n)+
-      (canCreateKind("archive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Хранилище на дисках тоже создают здесь: в окне выберите вид и сервер.":"Хранилищу на дисках нужен сервер: сначала добавьте его.")}</p>`:"")+
+      (canCreateKind("archive")?`<p class="sub" data-arch-where>${i18n(n.servers.length?"Хранилище на дисках тоже создают здесь. В окне выбрать вид и сервер.":"Хранилищу на дисках нужен сервер. Сначала добавить сервер.")}</p>`:"")+
       (!domainArchives(n.id).length&&!canDomainArch()?"":listCard({
         key:"darc:"+n.id,
         title:"Сетевые хранилища домена",
@@ -14420,15 +14420,15 @@ function formBase(n){
         items:on,
         text:a=>[locName(a),...archVols(a).map(v=>v.disk),archSize(a)],
         row:a=>`<div class="it" ${onEv("click",["pick",`${a.id}`])}><span>${archIcon(a)}</span><span>${escHtml(locName(a))}<small>${escHtml(archKindTag(a))} · ${escHtml(archDiskLabel(a))} · ${archSize(a)} · ${i18n("занято")} ${archUsed(a)} · ${a.days} ${i18n("дн.")} · ${archCameras(a.id).length} ${i18n("камер")}</small></span></div>`,
-        empty:"Хранилищ нет — камеры сервера не пишутся",
+        empty:"Хранилищ нет. Камеры сервера не записывают видео",
         ph:"Имя или путь…",
         unit:"хранилище|хранилища|хранилищ",
         head:archCreateBtn(n)
       })+
-      `<p class="sub">${i18n("Хранилище — объект сервера: срок хранения, шифрование и тома. Камеры привязываются к хранилищу; исключения по сроку — на камере, вкладка «Архив».")}</p>`+
+      `<p class="sub">${i18n("Хранилище — это объект сервера: срок хранения, шифрование и тома. Камеры привязывают к хранилищу. Исключения по сроку задают в карточке камеры на вкладке «Архив».")}</p>`+
       listCard({
         key:"srec:"+n.id,
-        title:"Камеры, которые пишутся на этот сервер",
+        title:"Камеры, которые записывают видео на этот сервер",
         items:recCams,
         text:c=>[locName(c),c.ip,deviceFolderNote(c.id)],
         row:c=>`<div class="it" ${onEv("click",["goApp","hw"],["pick",`${c.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(c))}<small>${escHtml(deviceFolderNote(c.id))}</small></span></div>`,
@@ -14463,14 +14463,14 @@ function formBase(n){
         <div class="mc"><span>${i18n("Ошибки")}</span><b>0</b></div>
       </div>
       <p class="sub" style="margin-top:10px">${i18n("Домен:")} <b>${locName(domainOf(n.id)||{name:"—"})}</b></p>
-      <p class="sub">${i18n("Устройства не привязаны к серверу — они в разделе")} <button class="lk" ${onEv("click",["goApp","hw"])}>${i18n("Устройства")}</button>. ${i18n("Сервер появляется у камеры только через архив, на котором ведётся запись.")}</p>`)}
+      <p class="sub">${i18n("Устройства не привязаны к серверу. Они находятся в разделе")} <button class="lk" ${onEv("click",["goApp","hw"])}>${i18n("Устройства")}</button>. ${i18n("Камера получает сервер только через архив, на который идёт запись.")}</p>`)}
   if(n.type==="ipsrv"){
     if(tab==="rec")return nvrRecCardHtml(n);
     if(tab==="kids")return childListCard(n,{filter:d=>d.type!=="storage",head:`<button class="btn s btn-icon" aria-label="${i18n("Добавить")}" title="${i18n("Добавить")}" ${onEv("click",["openW"])}>${lu("plus")}</button>${unitAddBtn()}`})+
-      (n.subtype==="nvr"?`<p class="sub">NVR отображается как IP-сервер с камерами и каналами. Под каналом — датчики и реле.</p>`:
-      n.subtype==="io"?`<p class="sub">I/O-устройство без камер: датчики и реле под каналом.</p>`:
-      n.subtype==="sip"||n.subtype==="mic"?`<p class="sub">Аудио-устройство: микрофоны и/или динамики без видеоканалов.</p>`:"");
-    return card("Подключение",`${bdg(n)}${n.derived?`<p class="sub">${i18n("Регистратор выведен из устройства, своей записи у него нет: имя, адрес и состав задаёт устройство, удалить его нельзя.")}</p>`:""}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("ID",deviceIdentifierValue(n)||"—")}${devFld(n,"IP","ip",n.ip)}${devFld(n,"Порт","port",n.port||80,"number")}
+      (n.subtype==="nvr"?`<p class="sub">NVR консоль показывает как IP-сервер с камерами и каналами. Под каналом находятся датчики и реле.</p>`:
+      n.subtype==="io"?`<p class="sub">I/O-устройство без камер. Датчики и реле находятся под каналом.</p>`:
+      n.subtype==="sip"||n.subtype==="mic"?`<p class="sub">Аудиоустройство: микрофоны, динамики или оба, без видеоканалов.</p>`:"");
+    return card("Подключение",`${bdg(n)}${n.derived?`<p class="sub">${i18n("Консоль создала регистратор из устройства. У регистратора нет своей записи. Имя, адрес и состав задаёт устройство. Удалить регистратор нельзя.")}</p>`:""}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${fldRo("ID",deviceIdentifierValue(n)||"—")}${devFld(n,"IP","ip",n.ip)}${devFld(n,"Порт","port",n.port||80,"number")}
       ${devFld(n,"Производитель","vendor",n.vendor)}${devFld(n,"Модель","model",n.model)}${devFld(n,"MAC","mac",n.mac||"")}${fldRo("Тип",IPSUB[n.subtype]||"IP-сервер")}</div>
       <div class="g" style="margin-top:10px">${devFld(n,"Широта","lat",n.lat??"")}${devFld(n,"Долгота","lon",n.lon??"")}${devFld(n,"Азимут","azimuth",n.azimuth??"","number")}</div>
       <div class="ln"><div>Отправлять настройки устройству</div><div class="sw on" ${onEv("click",["swToggle",onEv.el])}></div></div>`)
@@ -14484,7 +14484,7 @@ function formBase(n){
       return card("Область титров",`<div class="g"><div><label>${i18n("Камера")}</label><select ${onEv("change",["overlaySetCam",`${n.id}`,onEv.value])}><option value="">${i18n("— не выбрана —")}</option>${overlayCameras(n).map(c=>`<option value="${escHtml(c.id)}" ${c.id===n.camera?"selected":""}>${escHtml(locName(c))}</option>`).join("")}</select></div></div>
       ${cam?liveFrameHtml(cam):`<div class="vid"><span class="sub">${i18n("Выберите камеру")}</span></div>`}
       <div class="g">${fld("Задержка, мс","")}${fld("Длительность, с","")}</div>
-      <p class="sub">${i18n("Здесь только настройка. Титры рисует консоль просмотра поверх живого видео и архива, в видео текст не вжигается.")}</p>`);
+      <p class="sub">${i18n("Здесь только настройка. Консоль просмотра показывает титры поверх живого видео и архива. Текст не добавляется в само видео.")}</p>`);
     }
     if(tab==="words")return card("Подсветка слов",`<table class="ca-tbl"><thead><tr><th>${i18n("Сообщение")}</th><th>${i18n("Цвет")}</th><th>${i18n("Фон")}</th><th></th></tr></thead><tbody>
       ${(n.words||[]).map((w,i)=>`<tr data-word="${i}"><td><input value="${escHtml(w.msg)}" aria-label="${i18n("Сообщение")}" ${onEv("change",["wordSet",`${n.id}`,i,"msg",onEv.value])}></td>
@@ -14494,14 +14494,14 @@ function formBase(n){
       <div class="ca-foot"><button class="btn s" ${onEv("click",["wordAdd",`${n.id}`])}>${lu("plus")}${i18n("Слово")}</button></div>`);
     return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}
       ${fld("Адрес кассы или сервера",n.ip)}${fld("Порт",n.port,"number")}${sourceServerHtml(n)}${fldRo("MAC",n.mac||"—")}</div>
-      <p class="sub">${i18n("Принимает события от внешних систем (POS, кассы). Источник работает на одном сервере, переноса при падении нет. Адрес — сервера или имя кассы, не 0.0.0.0.")}</p>`)+deviceFoldersCardHtml(n)}
+      <p class="sub">${i18n("Получает события от внешних систем (POS, кассы). Источник работает на одном сервере. Если сервер не работает, источник не переходит на другой сервер. Адрес — адрес сервера или имя кассы, не 0.0.0.0.")}</p>`)+deviceFoldersCardHtml(n)}
   if(n.type==="acfa"){
     const nested=!!find(n.id)?.p;
     if(tab==="kids"){const types=["acfa","acfa_sensor","acfa_lock","acfa_fence"];
       return types.map(tp=>childListCard(n,{key:tp,title:tp==="acfa"?"Контроллеры":LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет",head:tp==="acfa"?unitAddBtn():""})).join("")+
         `<p class="sub">ACFA-устройства (пожарная защита, СКУД): датчики, замки, шлейфы и другие подобъекты с собственной иерархией.</p>`}
     if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Адрес",n.path||"")}</div>
-      <p class="sub">${i18n("Контроллер работает через родительское устройство, своего подключения у него нет.")}</p>`);
+      <p class="sub">${i18n("Контроллер работает через родительское устройство. У контроллера нет своего подключения.")}</p>`);
     return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${fld("IP",n.ip)}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
   if(n.type==="export")return card("Экспорт видео",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Папка",n.path)}${sl("Формат",["MP4","AVI"],n.format)}</div>
     <p class="sub">Используется в правилах автоматизации: при срабатывании экспортирует фрагмент в указанную папку на сервере.</p>`);
@@ -14522,13 +14522,13 @@ function formBase(n){
     if(tab==="rec"){
       const noRec=!isRecording(n),edge=recEdge(n),list=camArchs(n);
       return recTargetCardHtml(n)+camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}${recSchedHtml(n)}${recMicHtml(n)}</div>
-      ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет: репликация забирает записи только из другого архива этой камеры.")}</p>`}
-      ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры лежат на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("оттуда их и забирает сервер.")} `:""}${i18n("Сервер забирает записи к себе без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Период выбирает сервер, отставание видно в строке записи. Минуты, которые источник стёр раньше, чем их забрали, пропадают: об этом говорит строка и журнал.")}</div>`:""}
-      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое: живой поток идёт сюда, только пока основная запись должна идти и не идёт.")}</div>`:""}
-      <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Привяжите камеру к хранилищу, чтобы включить запись. Без хранилища камера остаётся под своим сервером, просто не пишется.")
-          :i18n("Привяжите камеру к хранилищу, чтобы включить запись. Камера ещё не подключена к серверу — подключится к серверу выбранного хранилища."))
-        :i18n("Основное хранилище задаёт сервер камеры; дополнительные пишут тот же или второй поток — например, основной поток в локальное хранилище, второй в облако.")}</p>
-      ${ipsrvOwnerNode(n)?`<p class="sub">${i18n("Камера входит в регистратор")} <button class="lk" ${onEv("click",["pick",`${ipsrvOwnerNode(n).id}`],["goTab","rec"])}>${escHtml(locName(ipsrvOwnerNode(n)))}</button> — ${i18n("там режим задаётся сразу для всех его камер.")}</p>`:""}`)
+      ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет. Репликация берёт записи только из другого архива этой камеры.")}</p>`}
+      ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
+      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись не идёт по ошибке.")}</div>`:""}
+      <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Чтобы включить запись, привязать камеру к хранилищу. Без хранилища камера остаётся у своего сервера, но не записывает видео.")
+          :i18n("Чтобы включить запись, привязать камеру к хранилищу. Камера ещё не подключена к серверу. Камера подключится к серверу выбранного хранилища."))
+        :i18n("Основное хранилище задаёт сервер камеры. Дополнительные хранилища записывают тот же поток или второй поток. Пример: основной поток — в локальное хранилище, второй — в облако.")}</p>
+      ${ipsrvOwnerNode(n)?`<p class="sub">${i18n("Камера входит в регистратор")} <button class="lk" ${onEv("click",["pick",`${ipsrvOwnerNode(n).id}`],["goTab","rec"])}>${escHtml(locName(ipsrvOwnerNode(n)))}</button> — ${i18n("там режим задают сразу для всех его камер.")}</p>`:""}`)
       +edgeStorageCardHtml(n)+(list.some(x=>x.rec==="motion")?camRecDetsHtml(n):"")+rwCardsHtml(n);
     }
     const ips=ipsrvOwnerNode(n);
@@ -14537,7 +14537,7 @@ function formBase(n){
     const vchFld=underIpsrv?fldRo("Номер видеоканала",ipsrvCameraVideoChannel(n,ips)):"";
     return card("Идентификация объекта",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Короткое имя",n.short??"")}${camIdFld}${vchFld}</div>`)
       +(underIpsrv&&!n.ip?card("Подключение",`<div class="g">${fldRo("Регистратор",locName(ips))}${fldRo("IP регистратора",ips.ip||"—")}${fldRo("RTSP",cardFldOrig("RTSP","")||"—")}</div>
-        <p class="sub">${i18n("Своего IP у камеры регистратора нет: сервер забирает её видео через регистратор, по номеру канала. Адрес и учётные данные — в карточке")} <button class="lk" ${onEv("click",["pick",`${ips.id}`])}>${escHtml(locName(ips))}</button>.</p>`)
+        <p class="sub">${i18n("У камеры регистратора нет своего IP. Сервер берёт её видео через регистратор по номеру канала. Адрес и учётные данные есть в карточке")} <button class="lk" ${onEv("click",["pick",`${ips.id}`])}>${escHtml(locName(ips))}</button>.</p>`)
         :card("Подключение",`<div class="g">${fld("IP",n.ip)}${fld("Производитель",n.vendor||"")}${fld("Модель",n.model||"")}${fld("RTSP","")}${fldRo("MAC",n.mac||"—")}</div>`))+deviceFoldersCardHtml(n)+placeCardHtml(n)+periphSummaryHtml(n)}
   if(n.type==="det"){
     const cam=find(n.id)?.p;
@@ -14550,7 +14550,7 @@ function formBase(n){
     const sizeF=canWrite(n,"sizeBytes")?`<div data-card-size><label>${i18n("Объём")}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(n.size)||""}" ${onEv("input",["storageSet",`${n.id}`,"size",onEv.value])}><span>${i18n("ГБ")}</span></div></div>`:fldRo("Объём",n.size||"—");
     const modeF=canWrite(n,"recordMode")?`<div data-card-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["storageSet",`${n.id}`,"rec",onEv.value])}>${["backup","always"].map(m=>`<option value="${m}" ${n.rec===m?"selected":""}>${i18n(ARCH_MODE_RU[m])}</option>`).join("")}</select></div>`:"";
     return card("Встроенное хранилище",`${bdg(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",locName(n))}${sizeF}${modeF}</div>
-      <p class="sub">${i18n(canWrite(n,"sizeBytes")?"Карта этой камеры: заводится сама, в список архивов не попадает. Запись с неё — режим «Репликация», источник «Встроенное хранилище».":"Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера — режим «Репликация» на вкладке «Архив» камеры.")}</p>`)+
+      <p class="sub">${i18n(canWrite(n,"sizeBytes")?"Карта этой камеры. Консоль добавляет её сама, в списке архивов её нет. Чтобы брать записи с карты, выбрать режим «Репликация» и источник «Встроенное хранилище».":"Карта памяти или диск внутри устройства. Записи с него можно переносить в архив сервера. Для этого выбрать режим «Репликация» на вкладке «Архив» камеры.")}</p>`)+
       (owner&&owner.type==="camera"?card("Камера",`<div class="it" ${onEv("click",["pick",`${owner.id}`])}><span>${ic("camera")}</span><span>${escHtml(locName(owner))}<small>${i18n(recordModeLabel(owner.rec))}</small></span></div>`):"");
   }
   if(n.type==="spk")
@@ -23139,8 +23139,8 @@ function edgeStorageCardHtml(owner){
       <div class="mc"><span>${i18n("Состояние")}</span><b>${state}</b></div>
       <div class="mc"><span>${i18n("Репликация")}</span><b>${rep?i18n("идёт"):i18n("не настроена")}</b></div>
     </div>
-    <p class="sub">${i18n(nvr?"Диск внутри регистратора. Записи с него забирает сервер в режиме «Репликация» — сразу для всех камер регистратора."
-      :"Карта памяти внутри камеры. Записи с неё забирает сервер в режиме «Репликация», а после обрыва связи — восполняет пропуски в архиве.")}</p>
+    <p class="sub">${i18n(nvr?"Диск внутри регистратора. Сервер берёт с него записи в режиме «Репликация» сразу для всех камер регистратора."
+      :"Карта памяти внутри камеры. Сервер берёт с неё записи в режиме «Репликация». После обрыва связи сервер заполняет пропуски в архиве.")}</p>
 `);
 }
 function camRecSelectHtml(n){
@@ -23277,7 +23277,7 @@ function volEnabledToggle(el,id){const v=volById(id);if(!v)return;if(el.classLis
 // Объявленное уменьшение: второе слово человека, то же число
 function volShrinkConfirm(id){
   const v=volById(id);if(!v||v.shrink==null)return;
-  askConfirm("Уменьшить том",`${i18n("Том")} «${escHtml(v.disk)}» ${i18n("станет")} ${escHtml(bytesText(v.shrink))}.`,i18n("Старые записи сверх нового объёма будут стёрты."),"Уменьшить",()=>{
+  askConfirm("Уменьшить том",`${i18n("Том")} «${escHtml(v.disk)}» ${i18n("станет")} ${escHtml(bytesText(v.shrink))}.`,i18n("Сервер сотрёт старые записи, которые не помещаются в новый объём."),"Уменьшить",()=>{
     API.patch(`/units/${id}`,{properties:{sizeBytes:v.shrink,confirmShrinkBytes:v.shrink}},hwVer.get(id)).then(u=>{hwApplyUnit(u);setD(false);gear()}).catch(e=>toast(problemText(e)));
   },{rawMsg:true});
 }
@@ -23518,7 +23518,7 @@ function deleteVolume(id){
   if(pendingDelHas(id)){toast("Том уже ждёт удаления — отменить можно в тосте");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить том",i18n("Том «{v}» хранилища «{a}» будет удалён вместе с записями на нём.").replace("{v}",()=>escHtml(vName)).replace("{a}",()=>escHtml(locName(a))),
-    (last&&n?`${i18n("Это последний том: хранилищу будет некуда писать, камер:")} ${n}. `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),
+    (last&&n?`${i18n("Это последний том: хранилищу будет некуда писать, камер:")} ${n}. `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`${i18n("Том")} «${vName}»`,commit:()=>{
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>{
       const i=a.vols.indexOf(v);if(i>=0)a.vols.splice(i,1);
@@ -23540,7 +23540,7 @@ function deleteArchive(id){
   if(pendingDelHas(id)){toast("Хранилище уже ждёт удаления — отменить можно в тосте");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить хранилище",`${i18n("Хранилище")} «${locName(a)}» ${i18n("будет удалено вместе с томами.")}`,
-    (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Сами камеры останутся в системе — в разделе «Без записи».")} `:"")+i18n("После подтверждения будет отсчёт с кнопкой «Отменить»."),
+    (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Сами камеры останутся в системе — в разделе «Без записи».")} `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`«${locName(a)}»`,commit:()=>{
       // Камеры, что писали сюда, сервер переводит на следующее хранилище или выключает им запись
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>hwReload()).then(()=>{
@@ -26446,7 +26446,7 @@ function busyHit(id){
 }
 function busyRefuse(id){
   if(!busyHit(id))return false;
-  toast("Над объектом выполняется групповая операция — дождитесь её конца");return true;
+  toast("Консоль выполняет групповую операцию над объектом — дождитесь её конца");return true;
 }
 // Всё, что можно отметить в текущем срезе под текущими фильтрами и поиском.
 function selCandidates(){
@@ -26580,7 +26580,7 @@ function selDeep(n){
 }
 function selChkClick(id,ctx){
   const f=find(id);if(!f)return;
-  if(blockedId(id)){toast(pendingDelHas(id)?"Объект ждёт удаления — отмените его в тосте":"Над объектом выполняется групповая операция — дождитесь её конца");return}
+  if(blockedId(id)){toast(pendingDelHas(id)?"Объект ждёт удаления — отмените его в тосте":"Консоль выполняет групповую операцию над объектом — дождитесь её конца");return}
   const entering=!selMode;selMode=true;
   // Открытые домен, сервер, папка или хранилище — это обычно место, откуда
   // начинают отмечать, а не первый объект выборки: галочка у другой строки
@@ -27163,8 +27163,8 @@ function bulkFootHtml(){
 function opFail(n,kind){
   const s=srv(n.id);
   if(s&&hasNoSignal(s))return{code:"srv",msg:`${i18n("сервер")} «${locName(s)}» ${i18n("не отвечает")}`};
-  if(kind==="enable"&&n.licenseExceeded)return{code:"lic",msg:i18n("лицензия превышена — камера останется выключенной")};
-  if((kind==="creds"||kind==="video")&&n.online===false)return{code:"dev",msg:i18n("устройство не отвечает — проверьте сеть и учётные данные"),transient:true};
+  if(kind==="enable"&&n.licenseExceeded)return{code:"lic",msg:i18n("лицензия превышена, поэтому камера останется выключенной")};
+  if((kind==="creds"||kind==="video")&&n.online===false)return{code:"dev",msg:i18n("устройство не отвечает. Проверить сеть и учётные данные"),transient:true};
   return null;
 }
 function mkOp(n,label,kind,run,skip,undo){return{n,label,kind,run,skip:skip||null,undo:undo||null}}
@@ -28441,7 +28441,7 @@ function asstPlanDrop(p){
   if(bulkDraft.planOf===p){delete bulkDraft.plan;delete bulkDraft.planVer;delete bulkDraft.planOf;if(app==="hw")gear()}
 }
 function bulkBusyGuard(){
-  if(bq&&!bq.finished){toast("Групповая операция ещё выполняется — дождитесь её конца");return true}
+  if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return true}
   const busy=busyIds();
   if(bulkScopeNodes().some(n=>busy.has(n.id)||pendingDelHas(n.id))){toast("В выборке есть объекты, над которыми идёт операция или которые ждут удаления");return true}
   return false;
@@ -28451,7 +28451,7 @@ function bulkBusyGuard(){
 function bulkShowPlan(chIn,nodesIn,applyJs,backJs){
   const ch=chIn||bulkChanges(),nodes=nodesIn||bulkScopeNodes();
   if(!ch.length){toast("Нечего применять");return}
-  if(chIn?(bq&&!bq.finished&&(toast("Групповая операция ещё выполняется — дождитесь её конца"),true)):bulkBusyGuard())return;
+  if(chIn?(bq&&!bq.finished&&(toast("Групповая операция ещё не закончена. Подождать её конца"),true)):bulkBusyGuard())return;
   const st=bulkStats(nodes);
   const excluded=new Set(st.offline.map(n=>n.id));
   let total=0,skip=0;
@@ -28961,7 +28961,7 @@ function confirmDeleteNodes(roots,back,skipped){
   if(vl.length)lines.push(`${i18n("томов")}: ${vl.length} — ${i18n("вместе с записями на них")}`);
   if(skipped?.length)lines.push(`<span class="sub">${i18n("Не удаляются")}: ${bulkKinds(skipped).map(([k,c])=>`${escHtml(kindLabel(k).toLowerCase())} (${c})`).join(", ")} — ${i18n("сервер исключают из домена, домен удаляют по одному из его меню")}</span>`);
   const html=`<ul class="bk-del">${lines.map(l=>`<li>${l}</li>`).join("")}</ul>
-    <p class="sub" style="margin:10px 0 0">${i18n("После подтверждения будет отсчёт с кнопкой «Отменить».")}</p>`;
+    <p class="sub" style="margin:10px 0 0">${i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить».")}</p>`;
   const opts=one?{label:`«${locName(one)}»`,back}:{back};
   askConfirm(one?`${i18n("Удалить")} «${escHtml(locName(one))}»?`:"Удалить выбранные объекты?",html,"","Удалить",()=>scheduleDelete(roots,opts),{html:true,typeCount:count});
 }
@@ -29157,7 +29157,7 @@ function cpFiltered(){
 }
 function openCopyDialog(id){
   const f=find(id);if(!f||!cpCanCopy(f.n))return;
-  if(busyIds().size){toast("Групповая операция ещё выполняется — дождитесь её конца");return}
+  if(busyIds().size){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   const src=f.n,all=cpCandidates(src);
   if(!all.length){toast(src.type==="camera"?"Других камер нет":"Других устройств этого типа нет");return}
   cp={src,groups:new Set(),dets:new Set(),picked:new Set(),filter:"all",q:""};
