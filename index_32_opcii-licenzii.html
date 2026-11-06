@@ -1729,7 +1729,7 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .lic-doms{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-2px 0 10px;font-size:12px}.lic-dom{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.lic-dom.lic-dim{opacity:.6}
 .lic-card .nt{margin-bottom:10px}
 .lic-tools{display:flex;justify-content:flex-end;margin:-4px 0 12px}.lic-tools .btn{display:inline-flex;align-items:center;gap:6px}
-.lic-acts{display:inline-flex;gap:6px;flex-wrap:wrap}
+.lic-acts{display:inline-flex;gap:6px;flex-wrap:wrap}.lic-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--ln)}
 .lic-rm{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:4px;background:none;color:var(--mu);cursor:pointer}.lic-rm:hover,.lic-rm:focus-visible{background:var(--one-danger-bg);color:var(--one-danger-text)}
 .lw-intro{margin:0 0 12px}.lw-lab{display:block;font-size:12px;color:var(--mu);margin:4px 0 4px}.lw-serial{width:180px;font-variant-numeric:tabular-nums}
 .lw-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.lw-file .btn{display:inline-flex;align-items:center;gap:6px}
@@ -22919,6 +22919,7 @@ function licCard(K){
       ${L.feats.length?`<table class="lic-tb"><colgroup><col class="lic-c1"><col class="lic-c2"><col class="lic-c3"><col class="lic-c4"><col class="lic-c5"></colgroup>
         <tr><th>${i18n("Функция")}</th><th>${i18n(shared?"Занято по доменам":"Занято")}</th><th class="lic-num">${i18n("Сколько")}</th><th class="lic-num">${i18n("Свободно")}</th><th></th></tr>
         ${L.feats.map(f=>licFeatRow(L,f)).join("")}</table>`:""}
+      ${L.none?"":`<div class="lic-foot">${L.doms.length>1?`<button type="button" class="btn s" ${ro?"disabled":""} ${onEv("click",["licRmAll",L.id])}>${i18n("Снять все домены…")}</button>`:""}<button type="button" class="btn s danger" ${ro?`disabled title="${escHtml(i18n("Нет связи с доменами ключа"))}"`:""} ${onEv("click",["licDelKey",L.id])}>${i18n("Удалить ключ…")}</button></div>`}
     </div></div>`;
 }
 function licUI(o){
@@ -22977,6 +22978,29 @@ function licRmDom(kid,i){
     const snap=licSnap();LIC_ORPHAN[i]=licDetach(i);licRepaint();
     toastAction("licrm",`${locName(domains[i])} ${i18n("снят с ключа")} ${k.serial}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint()},10000);
   },{html:true,typeCount:1,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
+}
+
+// Снять с ключа все его домены: ключ остаётся, его можно назначить снова
+function licRmAll(kid){
+  const k=LIC_KEYS.find(x=>x.id===kid);if(!k||!k.dom.length)return;const ids=k.dom.slice();
+  askConfirm("Снять все домены с ключа?",licRmHtml(k,ids),"","Снять все домены",()=>{
+    const snap=licSnap();ids.forEach(i=>{LIC_ORPHAN[i]=licDetach(i)});licRepaint();
+    toastAction("licrm",`${i18n("С ключа")} ${k.serial} ${i18n("сняты домены")}: ${ids.length}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint()},10000);
+  },{html:true,typeCount:ids.length,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
+}
+// Удалить ключ: его домены остаются без лицензий; сам ключ можно добавить снова из файла или по серийному номеру
+function licDelKey(kid){
+  const k=LIC_KEYS.find(x=>x.id===kid);if(!k)return;
+  const L=licData({...k,doms:k.dom.map(i=>domains[i])});
+  const lost=k.dom.map((i,j)=>{const items=L.feats.filter(f=>f.by[j]).map(f=>`${escHtml(i18n(f.n))} ${f.by[j]}`);
+    return`<li><b>${escHtml(locName(domains[i]))}</b>: ${items.length?`${items.join(", ")} — ${i18n("эти устройства перестанут работать, пока домен не получит ключ")}`:i18n("лицензий сейчас не занимает")}</li>`}).join("");
+  const msg=`<p>${i18n("Ключ")} <b>${escHtml(k.serial!=="—"?k.serial:k.product)}</b> ${i18n("будет удалён")}${k.dom.length?`, ${i18n("его домены останутся без ключа")}`:""}.</p>
+    <div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul><li>${i18n("лицензии ключа")}: ${L.feats.map(f=>`${escHtml(i18n(f.n))} ${f.total}`).join(", ")||"—"}</li>${lost}${Object.keys(k.lim||{}).length?`<li>${i18n("лимиты доменов в ключе")}</li>`:""}</ul></div>
+    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${k.dom.length?`${i18n("домены")} ${k.dom.map(i=>escHtml(locName(domains[i]))).join(", ")} ${i18n("— их камеры, архив и настройки")}`:i18n("домены и их настройки: ключ не назначен ни одному домену")}</li><li>${i18n("ключ можно добавить снова — из файла или по серийному номеру")}</li></ul></div>`;
+  askConfirm("Удалить ключ?",msg,"","Удалить ключ",()=>{
+    const snap=licSnap();k.dom.slice().forEach(i=>{LIC_ORPHAN[i]=licDetach(i)});LIC_KEYS=LIC_KEYS.filter(x=>x.id!==kid);licRepaint();
+    toastAction("licdel",`${licKeyName(k)} ${i18n("удалён")}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint();setTimeout(()=>licGoKey(kid),60)},10000);
+  },{html:true,typeCount:1});
 }
 
 // ── Мастер ключа: «Ключ → Домены → Лимиты → Проверка». Устроен как «Новое правило»: wzPaintBm, wzBarHtml, wzFootHtml ──
@@ -23133,11 +23157,11 @@ function licWzApply(){
   if(removed.length)askConfirm(removed.length>1?"Снять домены с ключа?":"Снять домен с ключа?",licRmHtml(k,removed),"","Сохранить и снять",go,{html:true,typeCount:removed.length,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
   else go();
 }
-WZD.licWz={t:"Новый ключ",lost:"Выбранный ключ, домены и лимиты пропадут.",drop:"Не добавлять",
+WZD.licWz={t:"Ключ лицензии",lost:"Выбранный ключ, домены и лимиты пропадут.",drop:"Не добавлять",
   get:()=>document.querySelector("#bmodal.open [data-lw]")?lw:null,set:s=>{s.doms=new Set(s.doms||[]);lw=s},hide:()=>closeBulkModal(),
   show:()=>{if(app!=="sys")goApp("sys");licWzRender()},
   work:s=>!!(s.kid||s.file||(s.serial||"").trim()||(s.doms&&(s.doms.size??s.doms.length))),
-  where:s=>[s.step||0,LW_STEPS.length,LW_STEPS[s.step||0].t],sum:s=>escHtml(s.kid?(LIC_KEYS.find(k=>k.id===s.kid)?.serial||""):LIC_NEW.product)};
+  where:s=>[s.step||0,LW_STEPS.length,LW_STEPS[s.step||0].t],sum:s=>escHtml(s.kid?(LIC_KEYS.find(k=>k.id===s.kid)?.serial||""):`${i18n("новый")} · ${LIC_NEW.product}`)};
 // Найденная настройка подсвечивается на открывшейся странице: иначе переход
 // приводит на страницу и бросает искать глазами.
 function flashSetting(){
