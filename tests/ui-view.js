@@ -178,7 +178,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const made = stub.pieces.length, p2 = lv.pb.piece;
   liveEl.dispatchEvent(new Event("ended"));
   ok(await until(() => stub.pieces.length === made + 1), "кусок не отдан: запрошен");
-  ok(await until(() => /[пП]овтор через 5 с/.test(state())), "подпись о повторе: " + state());
+  ok(await until(() => /[пП]овтор через 5 с|повторит запрос через 5 с/.test(state())), "подпись о повторе: " + state());
   ok(await until(() => stub.pieces.length >= made + 2), "повтор с новым адресом");
   ok(stub.pieces[made] !== stub.pieces[made + 1], "адрес новый");
   ok(await until(() => stub.pieces.length >= made + 3), "не вышло — дальше");

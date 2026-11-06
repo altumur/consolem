@@ -127,7 +127,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     clearTreeQ();
   } else ok(false, "нет нечитанной папки с объектом");
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся
-  ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) .match(/^(папки вне отката: состав папки не возвращается|откат не действует на папки\. Консоль не вернёт состав папки)$/) !== null, "слово шага понятно человеку");
+  ok(/^(папки вне отката: состав папки не возвращается|откат не действует на папки\. Консоль не вернёт состав папки)$/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } })), "слово шага понятно человеку");
   setSlice("all");
   setGroup("server");
   // Поток: наблюдаемое — раскрытые ветки и карточка, не больше watchMax

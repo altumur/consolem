@@ -164,7 +164,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accEdited();
   accPlan();
   await confirmWith(null);
-  ok(await until(() => /без администратора|лишит вас входа|не останется администратора|не сможете войти/.test(toastText())), "сервер отказал: «" + toastText() + "»");
+  ok(await until(() => /без администратора|лишит вас входа|не сможете войти/.test(toastText())), "сервер отказал: «" + toastText() + "»");
   ok(accVer === vNo && accSrv().roles.some((r) => r.own.unr), "на сервере не изменилось");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();

@@ -125,9 +125,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => presetRows(find(ptz.id).n).find((x) => x.n === presetNo)?.name === label), "подпись пришла в форму");
   ok((await uiRec(ptz.id)).presets.find((x) => x.n === presetNo).name === label, "подпись сохранена на сервере");
   API.put = putBefore;
-  ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id, direct: false }) .match(/^камера за NAT(: связи с ней нет, действие недоступно|\. Связи с ней нет, поэтому действие недоступно)$/) !== null, "problemText: за NAT без обещания входа");
-  ok(problemText({ problem: { code: "OTHER_CLUSTER", params: { url: "https://x" } } }, { id: ptz.id }) .match(/^камера другого кластера(: откройте вход через него|\. Открыть вход через этот кластер)$/) !== null, "problemText: есть ссылка — есть вход");
-  ok(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id }) .match(/^камера другого кластера[:.] [оО]тсюда это недоступно$/) !== null, "problemText: ссылки нет — входа не обещает");
+  ok(/^камера за NAT(: связи с ней нет, действие недоступно|\. Связи с ней нет, поэтому действие недоступно)$/.test(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id, direct: false })), "problemText: за NAT без обещания входа");
+  ok(/^камера другого кластера(: откройте вход через него|\. Открыть вход через этот кластер)$/.test(problemText({ problem: { code: "OTHER_CLUSTER", params: { url: "https://x" } } }, { id: ptz.id })), "problemText: есть ссылка — есть вход");
+  ok(/^камера другого кластера[:.] [оО]тсюда это недоступно$/.test(problemText({ problem: { code: "OTHER_CLUSTER" } }, { id: ptz.id })), "problemText: ссылки нет — входа не обещает");
   delete ptz.direct;
   // Камера-кластер: правка принята, это не отказ. Настоящая камера, приём сервера вида camera
   const knockCam = d.unallocServers.find((s) => s.cls === "camera" && s.fingerprint) || d.unallocServers.find((s) => s.cls === "camera");

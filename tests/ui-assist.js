@@ -154,7 +154,7 @@ UiCheck(async ({ ok, until }) => {
   talk("в правиле Охрана входа ночью убери условия");
   ok(await until(() => document.getElementById("asstApply")), "план правки");
   ok(document.querySelectorAll("[data-asst-gone]").length === r0.conditions.length && /Условие 1/.test(body()) && /выпадает/.test(body()), "выпавшие условия видны до «Применить»: " + body().slice(0, 240));
-  ok(/наблюдения нет|без проверки/.test(body()), "предел назван");
+  ok(/наблюдения нет|без режима «Только журнал»/.test(body()), "предел назван");
   ok((await server(R1)).version === r0.version, "ход ничего не записал");
   document.getElementById("asstApply").click();
   ok(await until(() => rows().join() === "ok"), "записано");

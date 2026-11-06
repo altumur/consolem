@@ -4322,7 +4322,7 @@ function problemText(e,n){
     NAME_REQUIRED:i18n("Укажите имя"),
     // Входа может и не быть: у камеры за NAT и у кластера без адреса ссылки нет, обещать её нельзя
     OTHER_CLUSTER:i18n(n?.direct===false?"камера за NAT. Связи с ней нет, поэтому действие недоступно":(e?.problem?.params||e?.params)?.url?"камера другого кластера. Открыть вход через этот кластер":"камера другого кластера. Отсюда это недоступно"),
-    OTHER_NETWORK:i18n("раздача создана для другой сети"),
+    OTHER_NETWORK:i18n("раздачу создали для другой сети"),
     FINGERPRINT_MISMATCH:i18n("отпечаток не совпал"),
     NAME_TAKEN:n?.type==="domain"?i18n("Домен с таким именем уже есть"):i18n("Имя уже занято"),
     ADDRESS_TAKEN:i18n("Сервер с таким адресом уже есть"),
@@ -4459,7 +4459,7 @@ const arch=[];
 const ARCH_LABEL={local:"Локальное",network:"Сетевое",cloud:"Облачное",backup:"Резерв на сбой",edge:"Карта сервера",incidents:"Инциденты"};
 const ARCH_TAG={local:"локальное",network:"сетевое",backup:"резерв",edge:"карта",incidents:"инциденты"};
 const ARCH_DESC={local:"Диски сервера. Том — это папка на диске или весь раздел у блочного хранилища.",network:"Папка на NAS по SMB/NFS. Том — это файл заданного размера.",
-  backup:"Только для резерва. Сервер записывает сюда живой поток, когда основная запись не идёт по ошибке.",edge:"Карта памяти или флеш-память маленькой коробки. Одна на сервер. Работает сразу со всеми камерами сервера.",incidents:"Для копий отмеченных записей. Камеры не записывают сюда видео."};
+  backup:"Только для резерва. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.",edge:"Карта памяти или флеш-память маленькой коробки. Одна на сервер. Работает сразу со всеми камерами сервера.",incidents:"Для копий отмеченных записей. Камеры не записывают сюда видео."};
 const ARCH_ADDR_DESC={disk:"Диски сервера.",nas:"Папка на NAS.",bucket:"Бакет Amazon S3, MinIO или другого S3-совместимого сервиса. Или контейнер Azure."};
 const ARCH_MODE_RU={always:"Постоянно",backup:"Только при сбое"};
 // Нет поля — «Авто»: так значит норма, первое слово списка умолчанием не бывает
@@ -5101,7 +5101,7 @@ function fireWhy(m,ctx){
   if(m.code==="chain.invalid")return`${i18n("правило")} «${t?t.name:""}»: ${i18n((t&&ruleIssues(t)[0])||"")}`;
   if(m.code==="chain.check"){const c=fireCheck(p.check,ctx);return`${i18n("правило")} «${t?t.name:""}»: ${c.label}${c.why&&c.why!==i18n("запуск пропущен")?` — ${c.why}`:""}`}
   if(m.code==="event.expected")return`${i18n("не подходит: правило ждёт")} «${triggerLabel(trigNode(p.trigger))}»`;
-  if(m.code==="event.notInWindow")return`${i18n("второе событие не пришло в течение")} ${p.sec} ${i18n("с")}`;
+  if(m.code==="event.notInWindow")return`${i18n("следующее событие не пришло в течение")} ${p.sec} ${i18n("с")}`;
   const fail=w=>`${i18n("условие не выполнено")}: ${w}`;
   if(m.code==="cond.time"){const x=sysParts(p.at);return fail(`${i18n("сейчас")} ${ruleDaysText([x.dow])} ${x.hm} — ${i18n("вне расписания")}`)}
   if(m.code==="cond.mode")return fail(`${i18n("сейчас режим")} «${i18n(ruleModeName(p.modeId))}»`);
@@ -5653,7 +5653,7 @@ function deleteDomain(id){
           <select id="domMoveTo">${others.map(o=>`<option value="${o.id}">${escHtml(locName(o))}</option>`).join("")}</select></div></div>
         <p class="sub" style="margin:8px 0 0">${i18n("Серверы станут нераспределёнными в выбранном домене. Консоль перенесёт туда папки, устройства и сетевые архивы.")}</p>`
       :`<p class="sub" style="margin:0">${i18n("Домен пуст.")}</p>`);
-  if(pendingDelHas(id)){toast("Консоль уже удаляет домен. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(id)){toast("Консоль удалит домен после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить домен?",body+`<p class="sub" style="margin:10px 0 0">${i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить».")}</p>`,"",i18n("Удалить"),()=>{
     const to=document.getElementById("domMoveTo")?.value||others[0]?.id;
@@ -6377,7 +6377,7 @@ function goAddServer(domainId){
 }
 // Опрос по адресу (команда probe вида сервера) и создание сервера система может не объявлять: коробка приходит сама
 function openFindServerByIp(domainId){
-  if(!kindActionOn("server","probe")&&!canCreateKind("server")){toast("Серверы появляются сами. Смотреть «Нераспределённые серверы»");return}
+  if(!kindActionOn("server","probe")&&!canCreateKind("server")){toast("Серверы появляются сами. Открыть «Нераспределённые серверы» в дереве");return}
   openAddServers(domainId,true);
 }
 // Окно одно, откуда бы его ни открыли: пришёл за адресом — курсор сразу в поле адресов,
@@ -6426,7 +6426,7 @@ function applyDeepLink(){
 const jumpSources=[];
 function registerJumpSource(fn){jumpSources.push(fn)}
 let goSel=0,goHits=[],goNav=false;
-registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",
+registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",
   go(){goApp(a.id)}})));
 registerJumpSource(()=>Object.entries(SLICE_SW).map(([id,l])=>({kind:"Срез",title:i18n(l),sub:SLICE[id],icon:SLICE_IC[id],
   go(){goApp("hw");setSlice(id)}})));
@@ -6564,7 +6564,7 @@ function goSearch(v){
       sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
     const favIds=new Set(favs.map(f=>f.id));
     const rec=recent.filter(id=>!favIds.has(id)).map(id=>{const f=find(id);return f?jumpNodeTarget(f.n):null}).filter(Boolean).slice(0,6);
-    const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел конфигуратора"),icon:"svcs",go(){goApp(a.id)}}));
+    const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
     goHits=[...fav,...rec,...apps];
     let i=0;
     const sect=(head,list)=>list.length?`<div class="gohead">${head}</div>`+list.map(t=>goRowHtml(t,i++,"")).join(""):"";
@@ -6741,9 +6741,9 @@ function credentialsWarnHtml(bulk){
   const tail=`<p>Чтобы закончить настройку, выбрать ${bulk?"устройства":"устройство"} в дереве оборудования, ввести учётные данные и установить переключатель в положение «Включено».</p>`;
   const opt=`<label class="confirm-opt"><input type="checkbox" id="confirmDontShow"> Больше не показывать</label>`;
   if(bulk){
-    return `<p>Для части устройств не указаны имя пользователя и пароль.</p><p>Консоль добавит эти устройства выключенными. Так устройства не заблокируют вход после неверной аутентификации.</p>${tail}${opt}`;
+    return `<p>Для части устройств вы не указали имя пользователя и пароль.</p><p>Консоль добавит эти устройства выключенными. Так устройства не заблокируют вход после неверной аутентификации.</p>${tail}${opt}`;
   }
-  return `<p>Имя пользователя и пароль не указаны.</p><p>Консоль добавит устройство выключенным. Так устройство не заблокирует вход после неверной аутентификации.</p>${tail}${opt}`;
+  return `<p>Вы не указали имя пользователя и пароль.</p><p>Консоль добавит устройство выключенным. Так устройство не заблокирует вход после неверной аутентификации.</p>${tail}${opt}`;
 }
 function missingDeviceCredentials(r){
   return!r.user||r.user==="Авто"||!r.pass;
@@ -8925,7 +8925,7 @@ function clearFolder(folderId){
   const count=(f.items||[]).length;
   if(!count){toast(i18n("Папка пуста"));return}
   if(busyRefuse(folderId))return;
-  askConfirm("Убрать все объекты из папки?",`${i18n("Консоль уберёт из папки объектов:")} ${count}.`,i18n("Устройства останутся в системе."),i18n("Убрать"),()=>{
+  askConfirm("Убрать все объекты из папки?",`${i18n("Консоль уберёт из папки объекты:")} ${count}.`,i18n("Устройства останутся в системе."),i18n("Убрать"),()=>{
     folderClear(f).then(r=>{
       hwApplyFolder(r);
       treeMatchCache.clear();searchMatchCache.clear();
@@ -8961,7 +8961,7 @@ function addSubfolder(parentId,domainId){
 function deleteFolder(id){
   closeTreeCtx();
   const f=folderById(id);if(!f)return;
-  if(pendingDelHas(id)){toast("Консоль уже удаляет папку. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(id)){toast("Консоль удалит папку после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   const cnt=folderDeviceIds(f).size;
   askConfirm("Удалить папку?",`${i18n("Будет удалена папка")} «${escHtml(f.name)}».`,
@@ -8980,7 +8980,7 @@ function deleteFolder(id){
 function deleteTreeNode(id){
   closeTreeCtx();
   const f=find(id);if(!f||!canTreeCtxDelete(f.n))return;
-  if(pendingDelHas(id)){toast("Консоль уже удаляет объект. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(id)){toast("Консоль удалит объект после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   if(bulkBusyGuard())return;
   const back=f.p?f.p.id:(foldersOfDevice(id)[0]?.id||selFolder||folders[0]?.id);
@@ -9716,7 +9716,7 @@ function archTableCard(n){
   const chips=`<div class="as-chips">${chip("all","Все",all.length)}${chip("srv",isDom?"На серверах":"Этого сервера",own.length)}${chip("net",isDom?"Сетевые":"Сетевые домена",netN)}${bad.length?chip("bad","С ошибками",bad.length,"warn"):""}</div>`;
   // Отбор ничего не дал: кнопки отбора остаются, иначе из пустого отбора не выйти.
   if(!items.length){
-    const why=all.length?"Нет хранилищ, которые подходят к отбору":statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет. Камеры сервера не записывают видео";
+    const why=all.length?"Нет хранилищ, которые подходят под отбор":statusFilts.size?"Нет хранилищ с выбранным статусом":isDom?"В домене нет хранилищ":"Хранилищ нет. Камеры сервера не записывают видео";
     return card(title,`${all.length||statusFilts.size?chips:""}<p class="sub">${i18n(why)}</p>`);
   }
   const shown=[];
@@ -9906,7 +9906,7 @@ function learnUI(){
     return;
   }
   paintMain(mainHd("",`<span class="hd-ic">${lu("graduation-cap")}</span>${i18n("Обучение")}`,"")+
-    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотреть, как работает конфигуратор. Курсор сам выполняет задачу в настоящем интерфейсе. Подпись объясняет, что происходит и для чего.")}</p>
+    `<div class="sc lrn"><p class="lrn-why">${i18n("Посмотреть, как работает консоль. Курсор сам выполняет задачу в настоящем интерфейсе. Подпись объясняет, что происходит и для чего.")}</p>
     <div class="lrn-facts">
       <div><b>${i18n("Ничего не сломается")}</b><span class="sub">${i18n("Показ использует учебные данные. Показ не изменяет настоящую систему, ваши настройки и черновики.")}</span></div>
       <div><b>${i18n("Показом управляете вы")}</b><span class="sub">${i18n("Пауза, шаг назад и вперёд, скорость. Клавиша Esc закрывает показ.")}</span></div>
@@ -11609,7 +11609,7 @@ function addDetector(camId){
 function deleteDetector(camId,detId){
   const f=find(camId);if(!f)return;
   const d=camDetectors(f.n).find(x=>x.id===detId);if(!d)return;
-  if(pendingDelHas(detId)){toast("Консоль уже удаляет детектор. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(detId)){toast("Консоль удалит детектор после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(detId)||busyRefuse(camId))return;
   askConfirm("Удалить детектор?",`${i18n("Будет удалён")} «${escHtml(locName(d))}».`,i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),i18n("Удалить"),()=>scheduleDelete([detId],{label:`${i18n("Детектор")} «${locName(d)}»`,commit:()=>{
     if(!hwVer.has(detId)){deleteDetectorDraft(f,detId);return}
@@ -12462,7 +12462,7 @@ function dcRuleHtml(gs){
       ${shown("record")&&shown("alarm")?opt("alarm","Записывать и поднять тревогу",i18n("Запись с этой камеры. Оператор увидит тревогу по этой камере"),on==="alarm"?dcRecHtml(c):""):""}
       ${cur==="custom"?opt("custom","Своё правило",summary(),"",["dcRuleAdv",true]):""}
       ${cands.length?opt("add","Добавить к правилу",i18n("В правило, которое уже работает"),pickSel):""}
-      ${opt("none","Ничего не делать",i18n("Консоль запишет событие только в журнал. Консоль не создаст правило."),"")}
+      ${opt("none","Ничего не делать",i18n("Сервер запишет событие только в журнал. Консоль не создаст правило."),"")}
     </div>
     ${why.map(x=>`<div class="nt">${escHtml(i18n(x))}</div>`).join("")}
     <button type="button" class="dc-more" ${onEv("click",["dcRuleAdv",true])}>${i18n("Настроить подробно: условия и другие действия")}</button>`;
@@ -12574,7 +12574,7 @@ function renderDetCreate(){
     const tr=rows.map((x,i)=>{const o=dc.zoneBy[x.id];return`<tr><td class="bk-num">${i+1}</td><td>${escHtml(locName(x.cam))}</td><td>${escHtml(x.name)}</td><td>${dcNeedsLine(x)?`<span class="dl-warn">${lu("triangle-alert",11)} ${i18n("нет линии")}</span>`:o?`${escHtml(zoneText(o.z))}${o.from?` · ${i18n("копия")}`:""}`:i18n("вся картинка")}</td></tr>`}).join("");
     const skips=plan.flatMap(p=>[...p.skip.entries()].map(([w,c])=>`<div class="dc-plan-s">${escHtml(p.name)}: ${i18n("пропустим")} ${c}, ${escHtml(w)}</div>`)).join("");
     const r=dc.rule,acts=r.mode==="new"?dcCustomRule(gs).then.map(x=>x.ctl?i18n(ctlKind(x).label):actionLabel(x)).join("; "):"";
-    const ruleLines=r.mode==="none"?`<p class="sub dc-note">${i18n("Без правила. Консоль запишет событие только в журнал.")}</p>`
+    const ruleLines=r.mode==="none"?`<p class="sub dc-note">${i18n("Без правила. Сервер запишет событие только в журнал.")}</p>`
       :r.mode==="add"?`<p class="sub dc-note">${r.pick?`${i18n("Камеры встанут в правило")} «${escHtml(rules.find(x=>x.id===r.pick)?.name||"")}».${dcPickMiss(gs,r.pick).length?` ${i18n("Без правила останутся")}: ${escHtml(dcPickMiss(gs,r.pick).flatMap(g=>g.names).join(", "))}.`:""}`:i18n("Правило не выбрано. Консоль создаст детекторы без правила.")}</p>`
       :gs.map(g=>`<div class="dc-plan"><div>${escHtml(triggerLabel(dcRuleWhen(g)))}</div><div class="dc-plan-s">${escHtml(acts)}${dc.custom?.cond.length?` · ${i18n("условий")}: ${dc.custom.cond.length}`:""}${r.watch?` · ${i18n("только журнал")}`:""}</div></div>`).join("");
     return`<section class="cp-col"><div class="cp-scroll" data-cp-scroll="p"><p class="dc-total"><b>${total}</b> ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} <b>${camsHit}</b> ${i18n(plural(camsHit,"камере|камерах|камерах"))}</p>${skips}
@@ -12839,7 +12839,7 @@ async function liveAsk(v,gen,body){
     const p=e?.problem;
     if(!e?.status||e.status>=500)return{again:true};
     if(p?.code==="OTHER_CLUSTER"){v.open=p.params?.url||"";liveRefuse(v,i18n(find(v.id)?.n?.direct===false?"Камера за NAT. Видео идёт через её кластер":"Камера другого кластера"));return{}}
-    if(p?.code==="OTHER_NETWORK"){v.move=p.params?.labels||[];liveRefuse(v,i18n("Раздача создана для другой сети"));return{}}
+    if(p?.code==="OTHER_NETWORK"){v.move=p.params?.labels||[];liveRefuse(v,i18n("Раздачу создали для другой сети"));return{}}
     liveRefuse(v,problemText(e,find(v.id)?.n));return{};
   }
 }
@@ -12958,7 +12958,7 @@ function liveNetSet(net){if(!lv)return;lv.net=net;liveRestart()}
 function liveOpen(){if(lv?.open)window.open(lv.open,"_blank","noopener")}
 function liveMove(){
   const v=lv;if(!v?.move)return;
-  askConfirm("Переразместить раздачу","Раздача создана для другой сети. Зрители этой камеры подключатся снова.","","Переразместить",()=>{
+  askConfirm("Переразместить раздачу","Раздачу создали для другой сети. Зрители этой камеры подключатся снова.","","Переразместить",()=>{
     API.put(`/units/${v.id}/live`,{network:v.net}).then(()=>{if(lv===v)liveStart()}).catch(e=>{if(lv===v)liveRefuse(v,problemText(e,find(v.id)?.n))});
   });
 }
@@ -13186,7 +13186,7 @@ function tlCardHtml(v,n){
     return`<li class="tl-go" ${onEv("click",["pbEvent",eventMs(e)])}><span class="sub">${escHtml(tlDate(eventMs(e)))}</span> ${escHtml(e.text)}${late?` <span class="sub">${i18n("записано в")} ${escHtml(tlClock(Date.parse(e.at)))}</span>`:""}</li>`}).join("");
   return`<div class="live-row">${TL_WINDOWS.map(([k,l])=>`<button type="button" class="btn s${t.win===k?" pri":""}" data-tl-win="${k}" ${onEv("click",["tlWin",k])}>${i18n(l)}</button>`).join("")}
       <label>${i18n("Подсистема")} <select data-tl-source ${onEv("change",["tlSource",onEv.value])}><option value="">${i18n("Все")}</option>${t.sources.map(s=>`<option value="${escHtml(s)}" ${s===t.source?"selected":""}>${escHtml(s)}</option>`).join("")}</select></label>
-      <span class="sub">${t.busy?i18n("Загрузка…"):t.spans.length?"":i18n("В этом окне времени записей нет")}</span></div>
+      <span class="sub">${t.busy?i18n("Загрузка…"):t.spans.length?"":i18n("За этот период записей нет")}</span></div>
     ${tlBarHtml(v)}
     ${t.next?`<button type="button" class="lk" data-tl-more ${onEv("click",["tlMore"])}>${i18n("Показать дальше")}</button>`:""}
     ${t.err?`<div class="nt bk-warn">${escHtml(t.err)}</div>`:""}
@@ -13243,7 +13243,7 @@ function pbWords(p){
   return[`${i18n("Запись")} ${tlDate(p.from)}–${tlClock(p.to)}`,s?.epoch?`${i18n("эпоха")} ${s.epoch}`:"",s?.backupOnly?i18n("из резервного"):"",s?.source==="backfill"?i18n("дозаписано"):""].filter(Boolean).join(" · ");
 }
 function pbFail(v,gen,at,spanId){
-  liveSay(v,"retry2",i18n("Доступ к архиву занят или не работает. Повтор через 5 с"));
+  liveSay(v,"retry2",i18n("Архив занят или не отвечает. Консоль повторит запрос через 5 с"));
   v.pbWait=setTimeout(()=>{if(lv===v&&v.gen===gen)pbPiece(v,gen,at,spanId,true)},PB_RETRY_MS);
 }
 function pbGoOn(v,gen,at){
@@ -13319,7 +13319,7 @@ function holdRowHtml(h){
 }
 function holdsCardHtml(v){
   if(!can("listUnitHolds"))return"";
-  return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержание действует, только пока архив записи хранит видео. У тома инцидентов нет удержания")}</div>`:""}
+  return`${v.noHolder?`<div class="nt bk-warn" data-hold-warn>${i18n("Удержание действует, только пока архив записи хранит видео. Ни один сервер на связи не обслуживает том инцидентов")}</div>`:""}
     ${v.holdLost?`<div class="nt bk-warn" data-hold-lost>${i18n("Том инцидентов потерял удержанное")}: ${v.holdLost.n} ${i18n(plural(v.holdLost.n,"удержание|удержания|удержаний"))}, ${escHtml(lagText(v.holdLost.sec))} ${i18n("записи перезаписано кольцом")}</div>`:""}
     ${v.holdRisk?`<p class="sub" data-hold-risk>${i18n("Под угрозой на томе инцидентов")}: ${v.holdRisk} ${i18n(plural(v.holdRisk,"удержание|удержания|удержаний"))}</p>`:""}
     ${(v.holds||[]).length?`<table class="ca-tbl"><tbody>${v.holds.map(holdRowHtml).join("")}</tbody></table>`:`<p class="sub">${i18n("Удержаний нет")}</p>`}
@@ -13875,7 +13875,7 @@ function expFromAssist(r){
 // Удаление — с вводом числа и отсчётом в тосте (правила интерфейса): до конца отсчёта на сервере ничего не уходит
 function expDel(id){
   const x=expRowOf(id);if(!x)return;
-  if(pendingDelHas("exp:"+id)){toast("Консоль уже удаляет выгрузку. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas("exp:"+id)){toast("Консоль удалит выгрузку после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   askConfirm("Удалить выгрузку","Консоль удалит задание и его файлы навсегда.","Останутся камеры и их записи. После подтверждения консоль покажет отсчёт и кнопку «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
 }
 function expDelRun(id){
@@ -13935,7 +13935,7 @@ function markAdd(){
 function marksCardHtml(v){
   if(!can("listUnitBookmarks"))return"";
   const rows=(v.marks||[]).map(m=>`<li class="tl-go" data-mark="${escHtml(m.id)}" ${onEv("click",["pbEvent",Date.parse(m.occurred)])}><span class="sub">${escHtml(tlDate(Date.parse(m.occurred)))}${m.type==="span"&&m.to?`–${escHtml(tlClock(Date.parse(m.to)))}`:""}</span> ${escHtml(m.note)} <span class="sub">${escHtml(m.by)}</span>${can("createExport")?` <button type="button" class="lk" data-mark-exp ${onEv("click",onEv.stop,["expFromMark",v.id,m.id])}>${i18n("Экспорт")}</button>`:""}</li>`).join("");
-  return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"В этом окне времени отметок нет")}</p>`}
+  return`${rows?`<ul class="tl-ev">${rows}</ul>`:`<p class="sub">${i18n(v.marksDenied?"Отметки недоступны":"За этот период отметок нет")}</p>`}
     ${can("createUnitBookmark")&&!v.marksDenied?`<div class="live-row"><input data-mark-note maxlength="500" placeholder="${i18n("Что вы видите")}" aria-label="${i18n("Заметка")}"><select data-mark-type aria-label="${i18n("Тип закладки")}" ${onEv("change",["markTypeSet",onEv.value])}><option value="moment" ${markType==="moment"?"selected":""}>${i18n("Момент")}</option><option value="span" ${markType==="span"?"selected":""}>${i18n("Отрезок")}</option></select>${markType==="span"?`<label>${i18n("длиной, с")} <input type="number" min="1" style="width:80px" data-mark-len value="${markLen}" ${onEv("change",["markLenSet",onEv.value])}></label>`:""}<button type="button" class="btn s" data-mark-add ${onEv("click",["markAdd"])}>${i18n("Отметить")}</button></div>`:""}`;
 }
 // Закладка «Просмотр»: разметка карт постоянна, данные пишет viewFill, поэтому приход ответа не перерисовывает видео
@@ -14052,7 +14052,7 @@ function camViewHtml(n){
       <button type="button" class="btn s" data-talk hidden ${onEv("click",["talkToggle",`${n.id}`])}>${i18n("Говорить")}</button><span class="sub" data-talk-state></span>
       <span class="sub" data-live-state role="status" aria-live="polite"></span>
       ${can("createExport")?`<button type="button" class="btn s" data-exp-cam-go ${onEv("click",["expFromCam",n.id,"video"])}>${lu("download")}${i18n("Экспорт…")}</button>${can("feature:exportLiveFrame")?`<button type="button" class="btn s" data-exp-live ${onEv("click",["expFromCam",n.id,"live"])}>${i18n("Кадр сейчас")}</button>`:""}${can("feature:exportArea")?`<button type="button" class="btn s" data-exp-area-go ${onEv("click",["expCropStart",n.id])}>${i18n("Выбрать область кадра")}</button>`:""}`:""}</div>`)
-    +(n.ptz&&can("putUnitPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока вы нажимаете кнопку")}</p>`):"")
+    +(n.ptz&&can("putUnitPtz")?card("Поворот",`${ptzPadHtml(n)}<p class="sub">${i18n("Камера движется, пока вы держите кнопку")}</p>`):"")
     +(can("listJournal")?card("События",`<div data-feed></div>`):"")
     +`<div data-relay-card></div>`
     +(can("getUnitTimeline")?card("Шкала времени",`<div data-tl></div>`):"")
@@ -14110,7 +14110,7 @@ function ptzCardHtml(n){
   const rows=list.map(p=>`<tr data-preset="${p.n}"><td>${p.n}</td><td><input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}></td>
     <td class="ca-x"><button type="button" class="btn s" data-preset-save ${off?"disabled":""} title="${i18n(nat?"Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение. Подпись можно":"Запомнить нынешнее положение камеры")}" ${onEv("click",["presetSave",`${n.id}`,p.n])}>${i18n("Запомнить здесь")}</button> <button type="button" class="btn s" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${i18n("Удалить")}</button></td></tr>`).join("");
   return card("Пресеты",`${ptzPadHtml(n)}
-    <p class="sub" ${nat?"data-preset-nat":""}>${i18n(nat?"Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно":"Навести камеру по кадру выше кнопкой и запомнить положение.")}</p>
+    <p class="sub" ${nat?"data-preset-nat":""}>${i18n(nat?"Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно":"Навести камеру по кадру выше. Держать кнопку, пока камера не придёт в нужное положение. Затем запомнить положение.")}</p>
     ${list.length?`<table class="ca-tbl"><thead><tr><th>№</th><th>${i18n("Имя")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`:`<p class="sub">${i18n("Пресетов нет")}</p>`}
     <div class="ca-foot"><button type="button" class="btn s" ${full?"disabled":""} ${full?`title="${i18n("Все номера заняты")}"`:""} ${onEv("click",["presetAdd",`${n.id}`])}>${lu("plus")}${i18n("Пресет")}</button>${n.presetMax?`<span class="sub" data-preset-max>${i18n("номера до")} ${n.presetMax}</span>`:""}</div>`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
 }
@@ -14484,7 +14484,7 @@ function formBase(n){
       return card("Область титров",`<div class="g"><div><label>${i18n("Камера")}</label><select ${onEv("change",["overlaySetCam",`${n.id}`,onEv.value])}><option value="">${i18n("— не выбрана —")}</option>${overlayCameras(n).map(c=>`<option value="${escHtml(c.id)}" ${c.id===n.camera?"selected":""}>${escHtml(locName(c))}</option>`).join("")}</select></div></div>
       ${cam?liveFrameHtml(cam):`<div class="vid"><span class="sub">${i18n("Выберите камеру")}</span></div>`}
       <div class="g">${fld("Задержка, мс","")}${fld("Длительность, с","")}</div>
-      <p class="sub">${i18n("Здесь только настройка. Консоль просмотра показывает титры поверх живого видео и архива. Текст не добавляется в само видео.")}</p>`);
+      <p class="sub">${i18n("Здесь только настройка. Клиент оператора показывает титры поверх живого видео и архива. Клиент не добавляет текст в само видео.")}</p>`);
     }
     if(tab==="words")return card("Подсветка слов",`<table class="ca-tbl"><thead><tr><th>${i18n("Сообщение")}</th><th>${i18n("Цвет")}</th><th>${i18n("Фон")}</th><th></th></tr></thead><tbody>
       ${(n.words||[]).map((w,i)=>`<tr data-word="${i}"><td><input value="${escHtml(w.msg)}" aria-label="${i18n("Сообщение")}" ${onEv("change",["wordSet",`${n.id}`,i,"msg",onEv.value])}></td>
@@ -14524,7 +14524,7 @@ function formBase(n){
       return recTargetCardHtml(n)+camArchsCardHtml(n)+card("Запись",`<div class="g">${n.rec==="replica"?fldRo("Предзапись, с","—"):fld("Предзапись, с",String(n.pre??5),"number")}${recSchedHtml(n)}${recMicHtml(n)}</div>
       ${edge?"":`<p class="sub">${i18n("Встроенного хранилища нет. Репликация берёт записи только из другого архива этой камеры.")}</p>`}
       ${list.some(x=>x.rec==="replica")?`<div class="nt" data-replica-note>${!edgeStorage(n)&&edge&&list.some(x=>x.rec==="replica"&&!x.replicaFrom)?`${i18n("Записи этой камеры находятся на диске регистратора")} «${escHtml(locName(ipsrvOwnerNode(n)))}» — ${i18n("сервер берёт их оттуда.")} `:""}${i18n("Сервер берёт записи без постоянного потока: из встроенного хранилища или из другого архива этой камеры. Сервер сам выбирает период. Строка записи показывает отставание. Если источник стёр минуты записи раньше, чем сервер их взял, эти минуты пропадают. Строка и журнал сообщают об этом.")}</div>`:""}
-      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись не идёт по ошибке.")}</div>`:""}
+      ${list.some(x=>x.rec==="backup")?`<div class="nt" data-backup-note>${i18n("Резерв при сбое. Сервер записывает сюда живой поток, только когда основная запись должна идти, но не идёт из-за сбоя.")}</div>`:""}
       <p class="sub">${noRec?(cameraTreeServer(n.id)?i18n("Чтобы включить запись, привязать камеру к хранилищу. Без хранилища камера остаётся у своего сервера, но не записывает видео.")
           :i18n("Чтобы включить запись, привязать камеру к хранилищу. Камера ещё не подключена к серверу. Камера подключится к серверу выбранного хранилища."))
         :i18n("Основное хранилище задаёт сервер камеры. Дополнительные хранилища записывают тот же поток или второй поток. Пример: основной поток — в локальное хранилище, второй — в облако.")}</p>
@@ -15383,7 +15383,7 @@ function ruleDraftBegin(){
   // Все пути ухода с правила спрашивают про черновик, так что чужого здесь быть
   // не должно; если всё же есть — молча не сбрасываем, а не даём править.
   if(ruleDraft&&ruleDraft.id!==r.id){toast("Сначала применить или сбросить изменения другого правила");return null}
-  if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return null}
+  if(rulePendingIds().has(r.id)){toast("Консоль удалит правило после отсчёта. Изменения не сохранятся");return null}
   if(!ruleDraft)ruleDraft={id:r.id,snap:r._new?null:ruleClone(r)};
   return r;
 }
@@ -15568,7 +15568,7 @@ function rulePlan(){
 function ruleApply(){
   const d=ruleDraft;if(!d||ruleSaving)return;
   const r=rules.find(x=>x.id===d.id);if(!r)return;
-  if(rulePendingIds().has(r.id)){toast("Консоль удаляет правило. Изменения не сохранятся");return}
+  if(rulePendingIds().has(r.id)){toast("Консоль удалит правило после отсчёта. Изменения не сохранятся");return}
   if(r.on&&ruleIssues(r).length){toast("Правило с ошибкой нельзя применить включённым. Исправить ошибку или выключить правило");return}
   const wasNew=!d.snap,snap=d.snap,body=ruleBody(r),fv=d.fromVer&&(ruleHist[r.id]||[]).find(x=>x.v===d.fromVer);
   if(fv)body.historyNote={code:"restore",params:{number:fv.v,edited:ruleDiffOf(fv.snap,r).length>0}};
@@ -15628,7 +15628,7 @@ function ruleGoDevice(id){
 const RULE_STARTS=[
   ["event","По событию","Правило запускается, когда в системе происходит событие. Примеры: дверь открылась, камера видит движение, поток камеры оборвался."],
   ["sched","По расписанию","Правило запускается в заданные дни и время."],
-  ["manual","Вручную","Правило запускается только кнопкой. Оператор нажимает кнопку в своём меню, администратор — в конфигураторе."]];
+  ["manual","Вручную","Правило запускается только кнопкой. Оператор нажимает кнопку в своём меню, пользователь консоли — в консоли."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 // Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
 // Ночные шаблоны: условие «Время» по расписанию «Ночь»; нет такого — без расписания, карточка попросит его выбрать
@@ -16429,15 +16429,15 @@ function rulesUI(){
     ${ruleOrderHtml(r)}`;
   const condBody=`${(r.cond||[]).map(condRowHtml).join("")||`<p class="sub">${i18n("Условий нет. Правило выполняет действия при каждом запуске")}</p>`}
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
-    <p class="sub">${i18n("Правило проверяет условия в момент запуска. Должны выполниться все условия. Если одно условие не выполнено, правило пропускает запуск и записывает это в журнал.")} ${i18n("Условие «Время» берёт расписание из раздела «Расписания». Это расписание учитывает праздники и особые дни. Чтобы задать время только для этого правила, выбрать «Задать только здесь…».")}</p>`;
-  const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Правило запускается только вручную. Оператор запускает его кнопкой в своём меню, администратор — кнопкой «Запустить сейчас»")}</p>`;
+    <p class="sub">${i18n("Правило проверяет условия в момент запуска. Должны выполниться все условия. Если хотя бы одно условие не выполнено, правило пропускает запуск и записывает это в журнал.")} ${i18n("Условие «Время» берёт расписание из раздела «Расписания». Это расписание учитывает праздники и особые дни. Чтобы задать время только для этого правила, выбрать «Задать только здесь…».")}</p>`;
+  const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Правило запускается только вручную. Оператор запускает его кнопкой в своём меню, пользователь консоли — кнопкой «Запустить сейчас»")}</p>`;
   const thenBody=`${thenListHtml(r.then,"","",0)}${addBarHtml("")}
     <p class="sub">${i18n("Правило не управляет устройством само. Правило отправляет заявку, и заявку выполняет сервер, к которому подключено устройство. Поэтому в списке только те действия, которые этот сервер умеет выполнять.")}</p>`;
   const foot=ruleFootHtml();                        // подвал считает черновик — после него и «не применено»
   const idle=ruleIdleNote(r),unapplied=ruleDraft&&ruleDraft.id===r.id&&ruleDiffLive().length>0;
   const pend=rulePendingIds().has(r.id),left=pend?[...pendingDel.values()].filter(p=>p.rules&&p.rules.includes(r.id)).map(pendingLeft)[0]:0;
-  const runWhy=pend?"Консоль удаляет правило":why.length?"Правило с ошибкой нельзя запустить":!r.on?"Правило выключено":unapplied?"Сначала применить изменения":"";
-  const chkWhy=pend?"Консоль удаляет правило":why.length?"Правило с ошибкой нельзя проверить":"";
+  const runWhy=pend?"Консоль удалит правило после отсчёта":why.length?"Правило с ошибкой нельзя запустить":!r.on?"Правило выключено":unapplied?"Сначала применить изменения":"";
+  const chkWhy=pend?"Консоль удалит правило после отсчёта":why.length?"Правило с ошибкой нельзя проверить":"";
   // В шапке две главные кнопки; остальное — в «Ещё ▾» (то же меню, что по правой кнопке на строке дерева).
   const act=`<button type="button" class="btn s" data-fk="check" ${chkWhy?"disabled":""} title="${chkWhy?i18n(chkWhy):i18n("Посмотреть, что сделало бы правило. Правило не выполнит действия")}" ${onEv("click",["ruleCheckOpen"])}>${i18n("Пробный запуск")}…</button>`+
     `<button type="button" class="btn s" data-fk="run" ${runWhy?"disabled":""} title="${runWhy?i18n(runWhy):i18n("Выполнить действия правила сейчас")}" ${onEv("click",["ruleRunNow"])}>${i18n("Запустить сейчас")}</button>`+
@@ -16445,7 +16445,7 @@ function rulesUI(){
   paintMain(
     mainHd(i18n("Автоматизация"),`<span class="rl-h1" title="${escHtml(r.name)}">${ruleIcon(r)} ${escHtml(r.name)}</span>`,ruleSumHtml(r),ruleTabsHtml(r),act)+
     `<div class="sc"><div class="rl-sr" role="status" aria-live="polite">${escHtml(ruleLiveTake())}</div>
-      ${pend?`<div class="nt" role="status">${i18n("Консоль удаляет правило")} — ${i18n("через")} ${left} ${i18n("с")}. ${i18n("Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`:""}
+      ${pend?`<div class="nt" role="status">${i18n("Консоль удалит правило через")} ${left} ${i18n("с")}. ${i18n("Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`:""}
       ${ruleStatusBand(r)}
       ${why.length?`<div class="nt err" role="status">${why.map(x=>escHtml(i18n(x))).join("<br>")}</div>`:""}
       ${ruleTab==="hist"?ruleHistCard(r):ruleTab==="runs"?ruleFiresCard(r,fires):ruleTab==="pass"?card("Паспорт правила",rulePassportBody(r)):`${card("Правило",`<div class="g">
@@ -16465,7 +16465,7 @@ function rulesUI(){
 }
 // ── Состояние ──
 const RULE_STATES=[
-  ["off","Выключено","Правило не запускается. Его не запускают события, расписание и оператор."],
+  ["off","Выключено","Правило не запускается. Его не запускают ни события, ни расписание, ни оператор."],
   ["watch","Только журнал","Правило запускается, но не выполняет действия. Правило записывает в журнал, что оно сделало бы. Так можно проверить новое правило на работающем объекте."],
   ["work","Работает","Правило запускается и выполняет действия."]];
 // Сегменты — одна точка Tab, стрелки меняют выбор; после перерисовки фокус остаётся на выбранном.
@@ -16547,7 +16547,7 @@ function ruleFiresCard(r,fires){
       text:f=>[f.t,ruleByText(f),ruleResInfo(f)[1],...f.checks.map(c=>c.label),...f.steps.map(s=>`${s.label} ${refName(s.ref)} ${s.why}`)],
       row:f=>ruleFireRow(r,f),
       wrap:rows=>`<table class="rl-ft"><tr><th>${i18n("Время")}</th><th>${i18n("Как запущено")}</th><th>${i18n("Итог")}</th></tr>${rows}</table>`,
-      empty:fires.length?"Нет запусков, которые подходят к фильтру.":"Ещё не запускалось.",
+      empty:fires.length?"Нет запусков, которые подходят под фильтр.":"Ещё не запускалось.",
       ph:"Время, событие или действие…",
       unit:"запуск|запуска|запусков",
       extra:retry
@@ -16571,7 +16571,7 @@ function ruleGoArchive(id,t){
 }
 // Почему повторять нельзя: тот же перечень, что у «Запустить сейчас», плюс «Только журнал».
 function ruleRetryWhy(r){
-  return rulePendingIds().has(r.id)?"Консоль удаляет правило":ruleDraft&&ruleDraft.id===r.id?"Сначала применить изменения":ruleIssues(r).length?"Правило с ошибкой нельзя запустить"
+  return rulePendingIds().has(r.id)?"Консоль удалит правило после отсчёта":ruleDraft&&ruleDraft.id===r.id?"Сначала применить изменения":ruleIssues(r).length?"Правило с ошибкой нельзя запустить"
     :!r.on?"Правило выключено":r.watch?"В состоянии «Только журнал» правило не выполняет действия":"";
 }
 // Повтор — это те же действия на тех же устройствах, где был отказ: берутся из записи, а не из правила,
@@ -17127,7 +17127,7 @@ function maintCardHtml(w){
     <div class="rl-opts"><label class="rl-opt ${all?"on":""}"><input type="radio" name="mws-${w.id}" ${all?"checked":""} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,true])}><span><b>${i18n("Все правила")}</b></span></label>
       <label class="rl-opt ${all?"":"on"}"><input type="radio" name="mws-${w.id}" ${all?"":"checked"} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,false])}><span><b>${i18n("Выбранные правила")}</b>${all?"":`<div class="rl-mwr">${rules.map(r=>`<label class="rl-flag"><input type="checkbox" ${sc.includes(r.id)?"checked":""} ${dis} ${onEv("change",["maintRule",`${w.id}`,`${r.id}`])}> ${escHtml(r.name)}</label>`).join("")}</div>`}</span></label></div>
     ${warn?`<div class="nt err" role="status">${warn}</div>`:""}
-    <p class="sub">${w._pend?i18n("Консоль удаляет окно. Во время отсчёта окно не действует."):`${i18n("В эти часы правила запускаются и записывают трассу, но не выполняют действия")}. ${i18n("Действует на")}: ${escHtml(maintScopeText(w))}.`}</p></div>`;
+    <p class="sub">${w._pend?i18n("Консоль удалит окно после отсчёта. Во время отсчёта окно не действует."):`${i18n("В эти часы правила запускаются и записывают трассу, но не выполняют действия")}. ${i18n("Действует на")}: ${escHtml(maintScopeText(w))}.`}</p></div>`;
 }
 function ruleMaintUI(){
   const now=MAINT_WINDOWS.filter(w=>(w.on&&!w._pend)&&ruleTimeIn(w,new Date()));
@@ -17135,7 +17135,7 @@ function ruleMaintUI(){
     `<div class="sc">
       ${card("Окна",`${MAINT_WINDOWS.map(maintCardHtml).join("")||`<p class="sub">${i18n("Окон обслуживания нет")}</p>`}
         <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["maintAdd"])}>${i18n("Добавить окно")}</button></div>
-        <p class="sub">${now.length?`${i18n("Сейчас идёт")}: ${now.map(w=>`«${escHtml(w.name)}»`).join(", ")}.`:i18n("Сейчас ни одно окно не действует.")} ${i18n("Консоль применяет изменение окна сразу. Чтобы отменить, нажать «Отменить» в уведомлении внизу. Чтобы выключить действия правила один раз, нажать «Приглушить…» в карточке правила.")}</p>`)}
+        <p class="sub">${now.length?`${i18n("Сейчас идёт")}: ${now.map(w=>`«${escHtml(w.name)}»`).join(", ")}.`:i18n("Сейчас ни одно окно не действует.")} ${i18n("Консоль применяет изменение окна сразу. Чтобы отменить, нажать «Отменить» в уведомлении внизу. Чтобы приглушить правило до заданного времени, нажать «Приглушить…» в карточке правила.")}</p>`)}
     </div>`);
 }
 
@@ -17860,8 +17860,8 @@ function schUsesHtml(id,links){
 function schNotesHtml(e){
   const s=schById(e.id),n=[];
   if(e.d.builtin)n.push(`<div class="nt">${i18n("Это встроенное расписание. Его нельзя изменить или удалить. Чтобы задать другое время, выбрать другое расписание или «Задать только здесь…».")}</div>`);
-  if(s&&s._pend)n.push(`<div class="nt err">${i18n("Консоль удаляет расписание. Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`);
-  if(e.d.own)n.push(`<div class="nt">${i18n("Это местное расписание. Оно действует только для")} ${escHtml(schOwnText(e.d))}. ${i18n("Другие места не могут выбрать это расписание.")}${e.k==="p"&&s?` <button type="button" class="lk lk-act" ${onEv("click",["schShare",`${e.id}`])}>${i18n("Сделать общим")}</button>`:""}</div>`);
+  if(s&&s._pend)n.push(`<div class="nt err">${i18n("Консоль удалит расписание после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении внизу.")}</div>`);
+  if(e.d.own)n.push(`<div class="nt">${i18n("Это местное расписание. Оно действует только для")} ${escHtml(schOwnText(e.d))}. ${i18n("В других местах это расписание выбрать нельзя.")}${e.k==="p"&&s?` <button type="button" class="lk lk-act" ${onEv("click",["schShare",`${e.id}`])}>${i18n("Сделать общим")}</button>`:""}</div>`);
   return n.join("");
 }
 function schEditorHtml(e){return schNotesHtml(e)+schMainCard(e)+schOvrCard(e)+schCalCard(e)+schValidCard(e)}
@@ -18279,7 +18279,7 @@ function ruleModesUI(){
         <div class="g"><div><label>${i18n("Переключить на…")}</label>${selHtml(opts,"","ruleModeSwitch(this.value)")}</div></div>
         <p class="sub">${i18n("Ручное переключение действует до следующего переключения по расписанию. Режим «Обслуживание» действует до ручного переключения.")}</p>`)}
       ${card("Неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную. Полосы показывают режимы по расписанию.")}</p>`:""}${modeWeekHtml()}`)}
-      ${card("Режимы и расписания",`<p class="sub">${i18n("Консоль проверяет режимы сверху вниз. Действует первый режим, расписание которого действует сейчас. Режим выше в списке важнее: «Ночь» действует вместо «Выходного», «Выходной» — вместо «Рабочего времени».")}</p>
+      ${card("Режимы и расписания",`<p class="sub">${i18n("Консоль проверяет режимы сверху вниз. Действует первый режим, расписание которого действует сейчас. Режим выше в списке важнее. Например, режим «Ночь» важнее режима «Выходной», а режим «Выходной» важнее режима «Рабочее время».")}</p>
         <table class="sch-mt"><tr><th>№</th><th>${i18n("Режим")}</th><th>${i18n("Расписание")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th><th></th></tr>${rows}
         <tr class="sch-else"><td></td><td colspan="5">${i18n("Если ни одно расписание не действует")}: ${selHtml(live.map(m=>[m.id,m.name]),objModeElse,"modeElseSet(this.value)","Режим «Иначе»")}</td></tr></table>
         <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button><button type="button" class="lk lk-act" ${onEv("click",["ruleOpenSch",true])}>${i18n("Все расписания")}…</button></div>`)}
@@ -18371,7 +18371,7 @@ function ruleTabKey(e){
 function ruleHistCard(r){
   const h=ruleHist[r.id]||[];
   if(!h.length)return card("История версий",`<p class="sub">${i18n("Версий пока нет. Первая версия появится после «Применить».")}</p>`);
-  const cur=h[h.length-1].v,pend=rulePendingIds().has(r.id),why=pend?"Консоль удаляет правило":"";
+  const cur=h[h.length-1].v,pend=rulePendingIds().has(r.id),why=pend?"Консоль удалит правило после отсчёта":"";
   const rows=[...h].reverse().map(e=>{
     const i=h.indexOf(e),d=i?ruleDiffOf(h[i-1].snap,e.snap):[],isCur=e.v===cur;
     const li=d.slice(0,4).map(x=>`<li>${escHtml(x.label)}: ${escHtml(x.fromT)} → <b>${escHtml(x.toT)}</b></li>`).join("")+(d.length>4?`<li class="sub">${i18n("и ещё")} ${d.length-4}</li>`:"")
@@ -18398,7 +18398,7 @@ const RULE_HIST_KEEP=["id","created","changed","mute","order","_new","_auto"];
 function ruleHistRestore(id,v){
   closeBulkModal();
   const r=rules.find(x=>x.id===id),e=(ruleHist[id]||[]).find(x=>x.v===v);if(!r||!e)return;
-  if(rulePendingIds().has(id)){toast("Консоль удаляет правило. Изменения не сохранятся");return}
+  if(rulePendingIds().has(id)){toast("Консоль удалит правило после отсчёта. Изменения не сохранятся");return}
   if(ruleGuard(()=>ruleHistRestore(id,v)))return;           // есть неприменённые правки — сначала вопрос
   const live=rules.find(x=>x.id===id);
   if(!ruleDiffOf(e.snap,ruleCurSnap(live)).length){toast("Версия совпадает с текущей");return}
@@ -18498,7 +18498,7 @@ function ruleRunNow(){
 function ruleDuplicate(id){
   const src=rules.find(x=>x.id===id);if(!src)return;
   closeTreeCtx();
-  if(rulePendingIds().has(id)){toast("Консоль удаляет правило — копировать нечего");return}
+  if(rulePendingIds().has(id)){toast("Консоль удалит правило после отсчёта. Копировать нечего");return}
   if(ruleGuard(()=>ruleDuplicate(id)))return;
   if(!rules.includes(src))return;                  // ответ «Сбросить и перейти» мог убрать исходное новое правило
   const now=ruleNow(),r=ruleClone(src);
@@ -18606,7 +18606,7 @@ function ruleSetMode(ids,mode){
 function ruleToggleOne(id,mode){
   closeTreeCtx();
   const r=rules.find(x=>x.id===id);if(!r)return;
-  if(rulePendingIds().has(id)){toast("Консоль удаляет правило — включать нечего");return}
+  if(rulePendingIds().has(id)){toast("Консоль удалит правило после отсчёта. Включать нечего");return}
   mode=mode||(r.on?"off":"on");
   const[v,why]=ruleBulkVerdict(r,mode);
   if(v!=="ok"){toast(why==="пропущено: ошибка в правиле"?"Правило с ошибкой нельзя включить":v==="same"?why:"Сначала применить или сбросить изменения правила");return}
@@ -18626,7 +18626,7 @@ function ruleDeleteAsk(ids){
   closeTreeCtx();
   const pend=rulePendingIds();
   const list=ids.map(id=>rules.find(x=>x.id===id)).filter(r=>r&&!pend.has(r.id));
-  if(!list.length){toast("Консоль уже удаляет правило. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(!list.length){toast("Консоль удалит правило после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   const n=list.length,menuN=list.filter(r=>r.menu).length;
   const drafted=ruleDraft&&list.find(r=>r.id===ruleDraft.id&&ruleDiffLive().length);
   const names=list.slice(0,5).map(r=>`<li>«${escHtml(r.name)}»</li>`).join("")+(n>5?`<li>${i18n("и ещё")} ${n-5}</li>`:"");
@@ -19826,7 +19826,7 @@ function accStreamUI(name){
     wrap:rows=>`<table class="acc-tbl"><tr><th>№</th><th>${i18n("Камера")}</th><th>${i18n("Выдано")}</th><th>${i18n("Итог")}</th></tr>${rows}</table>`,
     ph:"Поиск по камерам",unit:"камера|камеры|камер",empty:"Камер нет"});
   paintMain(mainHd(cr,`<span class="hd-ic">${ic("acc_user")}</span>${escHtml(name)}`,`${i18n("Доступ к камерам")}: ${accStreamSum(g)} · ${i18n("видит")} ${seen.length} ${plural(seen.length,"камеру|камеры|камер")}${acc?.disabled?` · ${i18n("отключена")}`:""}`,accListTabs(),accActsHtml())+
-    `<div class="sc"><p class="acc-hint">${i18n("Учётка получает поток только тех камер, которые выданы здесь. Доступ только добавляется. У учётки нет запретов и исключений")}</p>
+    `<div class="sc"><p class="acc-hint">${i18n("Учётка получает поток только тех камер, которые вы выдали ей здесь. У учётки нет запретов и исключений")}</p>
       ${card("Все камеры",`<div class="ln ln-sw">${accSw(g.all,`accStreamAll('${name}',${!g.all})`,false,"Все камеры")}<div>${i18n("Все камеры домена, в том числе новые")}</div></div>`)}
       ${card("Папки устройств",folders||`<p class="sub">${i18n("Папок нет")}</p>`)}${cams}</div>`);
 }
@@ -19837,7 +19837,7 @@ function accStreamsUI(){
     <button type="button" class="btn s" ${onEv("click",["streamAccPass",`${a.name}`])}>${i18n("Новый пароль")}</button>
     <button type="button" class="btn s" ${onEv("click",["streamAccOn",`${a.name}`,!!a.disabled])}>${i18n(a.disabled?"Включить":"Отключить")}</button>
     <button type="button" class="btn s" ${onEv("click",["streamAccDel",`${a.name}`])}>${i18n("Удалить")}</button></td></tr>`).join("");
-  paintMain(mainHd("",i18n("Учётки потоков"),i18n(grants?"Учётки подключают внешние клиенты к потоку. Доступ к камерам выдают здесь. Консоль применяет его вместе с правами":"Для подключения внешних клиентов к потоку"),accListTabs(),accActsHtml())+
+  paintMain(mainHd("",i18n("Учётки потоков"),i18n(grants?"Внешние клиенты подключаются к потоку по этим учёткам. Доступ к камерам выдают здесь. Сервер учитывает его вместе с правами":"Для подключения внешних клиентов к потоку"),accListTabs(),accActsHtml())+
     `<div class="sc">${card("Учётки потоков",`<table class="ca-tbl"><thead><tr><th>${i18n("Имя")}</th><th>${i18n("Состояние")}</th>${grants?`<th>${i18n("Камеры")}</th>`:""}<th>${i18n("Изменена")}</th><th>${i18n("Кем")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>
       <div class="ca-foot"><input placeholder="${i18n("Имя учётки")}" aria-label="${i18n("Имя учётки")}" value="${escHtml(streamDraft)}" ${onEv("input",["streamDraftSet",onEv.value])}> <button type="button" class="btn s" ${onEv("click",["streamAccAdd"])}>${lu("plus")}${i18n("Учётка")}</button></div>`,`<span class="sub" style="font-weight:400">${streamAccs.length}</span>`)}</div>`);
 }
@@ -20059,7 +20059,7 @@ function accBulkOn(on){
 function accUserDelete(){
   const ids=accBulkIds("u"),n=ids.length;if(!n)return;
   const logins=ids.slice(0,5).map(id=>escHtml(accUser(id).login)).join(", ")+(n>5?` ${i18n("и ещё")} ${n-5}`:"");
-  if(ids.some(pendingDelHas)){toast("Консоль уже удаляет выбранное. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(ids.some(pendingDelHas)){toast("Консоль удалит выбранное после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   askConfirm(`${i18n("Удалить")} ${accWhoGen(n)}?`,`<p>${logins}</p><p class="sub">${i18n("Консоль добавит изменение в черновик. Пользователи останутся на сервере, пока вы не примените изменения")}</p>`,"","Удалить",()=>scheduleDelete(ids,{label:accWho(n),commit:()=>{
     if(accBulkRun(ids,null,true)){accSelMe=false;toast(`${i18n("Удалено")}: ${accWho(n)} — ${i18n("в черновике")}`)}
   }}),{html:true,rawTitle:true,typeCount:n});
@@ -20178,7 +20178,7 @@ function accRoleUI(r){
 function accDeleteRole(rid,stay){
   const r=accRole(rid),us=accRoleUsers(rid);
   if(r?.g.unr){toast(i18n("Встроенную роль «Администратор» удалить нельзя"));return}
-  if(pendingDelHas(rid)){toast("Консоль уже удаляет роль. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(rid)){toast("Консоль удалит роль после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   askConfirm("Удалить роль?",`${i18n("Роль")} «${r.n}» ${i18n("будет удалена")}${us.length?`, ${us.length} ${plural(us.length,"пользователь потеряет|пользователя потеряют|пользователей потеряют")} ${i18n("её права")}`:""}. ${i18n("Консоль добавит изменение в черновик")}`,"","Удалить",()=>scheduleDelete([rid],{label:`${i18n("Роль")} «${r.n}»`,commit:()=>{
     const ok=accGuard(st=>{st.roles=st.roles.filter(x=>x.id!==rid);st.users.forEach(u=>{u.roles=u.roles.filter(x=>x!==rid);if(u.until)delete u.until[rid]});(st.groups||[]).forEach(g=>{g.roles=g.roles.filter(x=>x!==rid)});st.roles.forEach(x=>{if(x.sup?.role===rid)x.sup={role:"",login:false,export:false}})});
     if(ok){accResolveAll();if(stay)accUI();else accGo("roles")}
@@ -20200,7 +20200,7 @@ function accGlobalHtml(r,ro){
   const g=r.g;
   if(g.unr)return`<div class="nt">${i18n("Все функции, все карты, тревоги и закладки, управление правами и доступ ко всем устройствам")}</div>`;
   if(accHasNo(g)&&!accSetting[r.id]&&!ro&&!accRoleDiff(r.id).global)
-    return`<div class="card"><div class="cb acc-empty"><p>${i18n("Права не заданы. С этой ролью вход невозможен")}</p>
+    return`<div class="card"><div class="cb acc-empty"><p>${i18n("Права не заданы. С этой ролью пользователь не сможет войти")}</p>
       <button type="button" class="btn pri" ${onEv("click",["accSettingOpen",r.id])}>${i18n("Задать")}</button></div></div>`;
   const dis=ro||g.unr;
   const warn=[];
@@ -20657,7 +20657,7 @@ function accEffTreeHtml(rows,many){
     key:"acceff",how:"acc",title:`${i18n("Найденные объекты")} · ${accDomName(domainFilter)}`,head:asSeg,items:rows.filter(x=>facetHit(ACC_EFF_DIMS,x,accEffF)),text:o.text,
     row:x=>`<tr>${accEffRowCells(x,many,true)}</tr>`,
     wrap:r=>`<table class="acc-tbl eff-tbl"><tr><th>${i18n("Объект")}</th><th>${i18n("Доступ")}</th><th>${i18n("Откуда")}</th><th></th></tr>${r}</table>`,
-    ph:"Проверить объект…",unit:"объект|объекта|объектов",empty:"Нет объектов, которые подходят к фильтру"
+    ph:"Проверить объект…",unit:"объект|объекта|объектов",empty:"Нет объектов, которые подходят под фильтр"
   })}</div>`;
   const line=(n,depth)=>{
     if(!n.all.some(x=>hit.has(x.i)))return"";
@@ -20888,7 +20888,7 @@ function accPwSave(){
 }
 function accDeleteUser(uid){
   const u=accUser(uid);
-  if(pendingDelHas(uid)){toast("Консоль уже удаляет пользователя. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(uid)){toast("Консоль удалит пользователя после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   askConfirm("Удалить пользователя?",`${i18n("Учётная запись")} ${u.login} (${u.name}) ${i18n("будет удалена вместе с назначениями ролей. Консоль добавит изменение в черновик")}`,"","Удалить",()=>scheduleDelete([uid],{label:u.login,commit:()=>{
     const ok=accGuard(st=>accDropUsers(st,new Set([uid])));
     if(ok)accGo("users");
@@ -21108,7 +21108,7 @@ function accUGMenu(el,gid){
 function accUGDelete(gid,stay){
   const g=accUG(gid);if(!g)return;
   const l=accLoss(st=>accUGRemove(st,gid));
-  if(pendingDelHas(gid)){toast("Консоль уже удаляет группу. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(gid)){toast("Консоль удалит группу после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   askConfirm(g.src?"Отключить группу каталога?":"Удалить группу?",`<p>${i18n("Группа")} «${escHtml(g.n)}» ${i18n("будет удалена")}${g.members.length?` (${g.members.length} ${plural(g.members.length,"участник|участника|участников")})`:""}${g.src?`; ${i18n("в каталоге она останется")}`:""}</p>${accLossHtml(l)}<p class="sub">${i18n("Консоль добавит изменение в черновик")}</p>`,"",g.src?"Отключить":"Удалить",()=>scheduleDelete([gid],{label:`${i18n("Группа")} «${g.n}»`,commit:()=>{
     if(!accGuard(st=>accUGRemove(st,gid)))return;
     toast(`${i18n(g.src?"Группа каталога отключена":"Группа удалена")}: «${g.n}» — ${i18n("в черновике")}`);
@@ -21607,7 +21607,7 @@ function accPlanGroups(out){
   sgs.forEach(s=>{
     if(egs.some(g=>g.id===s.id))return;
     const gone=srv.users.filter(u=>u.synced===s.id&&!accUser(u.id)).length,alive=s.members.filter(id=>accUser(id));
-    put(s,s.src?`${i18n("Отключена группа каталога")} «${escHtml(s.src.dn)}»: ${i18n("группа")} ${nm(s)} ${i18n("удалена")} (${n1(s.members.length)}${gone?`, ${i18n("консоль удалит пользователей от синхронизации")}: ${gone}`:""})`
+    put(s,s.src?`${i18n("Отключена группа каталога")} «${escHtml(s.src.dn)}»: ${i18n("группа")} ${nm(s)} ${i18n("удалена")} (${n1(s.members.length)}${gone?`, ${i18n("консоль удалит пользователей, которых создала синхронизация")}: ${gone}`:""})`
       :`${i18n("Группа")} ${nm(s)} ${i18n("удалена")} (${n1(s.members.length)})`,[{ids:alive,short:`${i18n("Исключён из группы")} «${s.n}» (${i18n("группа удалена")})`}]);
   });
   (ed.cats||[]).forEach(c=>{
@@ -21694,7 +21694,7 @@ function accIssues(st){
     if(accUserActive(u)&&accUserRoles(u,true,st).length&&accStale(u)&&u.login!==ACC_ME)out.push({key:"u-stale:"+u.id,k:"user",sev:1,text:`${login}: ${i18n("не входил")} ${accAgo(u.last)}`,go:`accGo('user:${u.id}')`,act:[i18n("Выключить"),`accUserOn('${u.id}')`]});
   });
   const admins=us.filter(u=>accProven(u,st)),adm=rs.find(r=>r.g.unr);
-  if(admins.length===1)out.push({key:"one-admin",k:"user",sev:2,text:`${i18n("Администратор только один —")} ${escHtml(admins[0].login)}: ${i18n("если пароль будет потерян, никто не сможет восстановить систему")}`,go:`accGo('role:${adm.id}','members')`});
+  if(admins.length===1)out.push({key:"one-admin",k:"user",sev:2,text:`${i18n("Администратор только один —")} ${escHtml(admins[0].login)}: ${i18n("если вы потеряете пароль, никто не сможет восстановить систему")}`,go:`accGo('role:${adm.id}','members')`});
   return out.sort((a,b)=>b.sev-a.sev);
 }
 // Моргнуть строками с исключениями-понижениями на вкладке «Объекты»
@@ -22480,7 +22480,7 @@ function accImpPick(){document.getElementById("accImpFile").click()}
 function accImField(k,v){accIm[k]=v}
 function accImpSrcHtml(){
   const m=accIm,ph=ACC_CSV_COLS.slice(0,10).join(";")+"\nguard21;Пост охраны № 21;;1;Охрана;;Охрана — Площадка 1;;1;0\noperator.new;Иван Сидоров;i.sidorov@example.com;1;Оператор;;;;2;1";
-  return`<p class="acc-hint">${i18n("Вставить строки CSV или выбрать файл. Роли и группы — названия через «|». Срок роли — «Роль=дата». Формат даты — ГГГГ-ММ-ДД или ДД.ММ.ГГГГ. Для существующего пользователя пустая ячейка не изменяет значение. Заполненные роли и группы заменяют текущие. Участие в группах каталога не изменяется")}</p>
+  return`<p class="acc-hint">${i18n("Вставить строки CSV или выбрать файл. Роли и группы — названия через «|». Срок роли — «Роль=дата». Формат даты — ГГГГ-ММ-ДД или ДД.ММ.ГГГГ. Для существующего пользователя пустая ячейка не изменяет значение. Заполненные роли и группы заменяют текущие. Импорт не меняет группы каталога у пользователя")}</p>
     ${m.err?`<div class="nt err" id="accImpErr">${escHtml(m.err)}</div>`:""}
     <textarea class="acc-imp-ta" id="accImpTa" spellcheck="false" placeholder="${escHtml(ph)}" ${onEv("input",["accImpType",onEv.value])}>${escHtml(m.text)}</textarea>
     <div class="acc-pwd" style="margin-top:8px"><button type="button" class="btn s" ${onEv("click",["accImpPick"])}>${i18n("Выбрать файл…")}</button>
@@ -23233,9 +23233,9 @@ function volFieldsHtml(a,v,set){
     return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}
       ${sel("Размещение","mode",[["part",i18n("Раздел целиком")+(d?.sys?" — "+i18n("не для системного диска"):others?" — "+i18n("на диске есть другие тома"):""),partOff],["file",i18n("Файл в папке")]],
         v.mode==="part"?i18n("занимает весь диск. Неотформатированный диск форматируют отдельно кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой. Для FAT32 — не больше 4 ГБ"))}
-      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("консоль создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
+      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("сервер создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
   }
-  if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища всегда является файлом")}
+  if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — это всегда файл")}
       ${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>`;
   const p=a.provider||"s3";
   if(p==="azure")return`<div class="g" style="margin-top:10px">${inp("Учётная запись хранилища","account")}${inp("Ключ доступа","secret","password")}${inp("Контейнер","bucket","text","создаётся заранее в портале Azure")}${inp("Путь в контейнере","path")}${gb("Объём")}</div>`;
@@ -23248,7 +23248,7 @@ function volFieldsHtml(a,v,set){
       ${inp("Бакет","bucket","text","создать заранее в консоли сервиса")}${sel("Адресация бакета","style",[["path",i18n("Путём: endpoint/бакет")],["vhost",i18n("Поддоменом: бакет.endpoint")]],i18n("у большинства локальных S3 — путём"))}
       ${keys}${inp("Путь в бакете","path")}${gb("Объём")}</div>`;
   return`<div class="g" style="margin-top:10px">${sel("Регион","region",(CLOUD_REGIONS[p]||CLOUD_REGIONS.s3).map(r=>[r,r]),i18n("у ближайшего к серверу задержка меньше"))}
-      ${inp("Бакет","bucket","text","создать заранее в консоли провайдера. Имя должно быть уникальным")}${keys}${inp("Путь в бакете","path")}${gb("Объём","не ограничен. Тома должны быть одного размера")}</div>`;
+      ${inp("Бакет","bucket","text","создать заранее в консоли провайдера. Имя должно быть уникальным")}${keys}${inp("Путь в бакете","path")}${gb("Объём","не ограничен. Лучше делать тома одного размера")}</div>`;
 }
 // Обзор папок на сервере — в макете подставляем папку по умолчанию на диске.
 function volPickDir(btn,disk){
@@ -23515,7 +23515,7 @@ function deleteVolume(id){
   const last=archVols(a).length===1,n=archCameras(a.id).length;
   // У бакета в disk лежит код провайдера: два тома одного хранилища различаются только адресом
   const vName=archAddr(a)==="bucket"?volLabel(v):v.disk;
-  if(pendingDelHas(id)){toast("Консоль уже удаляет том. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(id)){toast("Консоль удалит том после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить том",i18n("Том «{v}» хранилища «{a}» будет удалён вместе с записями на нём.").replace("{v}",()=>escHtml(vName)).replace("{a}",()=>escHtml(locName(a))),
     (last&&n?`${i18n("Это последний том. Хранилище не сможет записывать видео камер:")} ${n}. `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
@@ -23537,7 +23537,7 @@ function deleteArchive(id){
   closeTreeCtx();
   const a=arch.find(x=>x.id===id);if(!a)return;
   const n=archCameras(id).length;
-  if(pendingDelHas(id)){toast("Консоль уже удаляет хранилище. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  if(pendingDelHas(id)){toast("Консоль удалит хранилище после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить хранилище",`${i18n("Хранилище")} «${locName(a)}» ${i18n("будет удалено вместе с томами.")}`,
     (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Камеры останутся в системе, в разделе «Без записи».")} `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
@@ -24262,7 +24262,7 @@ function deviceSearchHtml(){
       ${deviceResultCard(r)}
       <div class="dev-actions">${action}</div>
     </div></div>`;
-  }).join("")+(searching?`<div class="dev-searching-note"><span class="dev-spin" aria-hidden="true"></span> Поиск продолжается… ${progress}%</div>`:""):searching?`<div class="dev-empty dev-empty-search"><span class="dev-spin" aria-hidden="true"></span>Ожидание первых результатов… ${progress}%</div>`:wizd.devState==="idle"?`<div class="dev-empty">Запуск поиска устройств…</div>`:foundTotal?`<div class="dev-empty">Нет устройств, которые подходят к выбранным фильтрам.</div>`:`<div class="dev-empty">Консоль не нашла устройства в сети.</div>`;
+  }).join("")+(searching?`<div class="dev-searching-note"><span class="dev-spin" aria-hidden="true"></span> Поиск продолжается… ${progress}%</div>`:""):searching?`<div class="dev-empty dev-empty-search"><span class="dev-spin" aria-hidden="true"></span>Ожидание первых результатов… ${progress}%</div>`:wizd.devState==="idle"?`<div class="dev-empty">Запуск поиска устройств…</div>`:foundTotal?`<div class="dev-empty">Нет устройств, которые подходят под выбранные фильтры.</div>`:`<div class="dev-empty">Консоль не нашла устройства в сети.</div>`;
   // Одна строка управления вместо трёх: выбор, поиск по списку, обновление и
   // действие над выбранным — всё там же, где на него смотрят.
   return `<div class="dev-search-head">
@@ -26580,7 +26580,7 @@ function selDeep(n){
 }
 function selChkClick(id,ctx){
   const f=find(id);if(!f)return;
-  if(blockedId(id)){toast(pendingDelHas(id)?"Консоль удаляет объект. Чтобы отменить, нажать «Отменить» в уведомлении":"Консоль выполняет групповую операцию над объектом. Подождать её конца");return}
+  if(blockedId(id)){toast(pendingDelHas(id)?"Консоль удалит объект после отсчёта. Чтобы отменить, нажать «Отменить» в уведомлении":"Консоль выполняет групповую операцию над объектом. Подождать её конца");return}
   const entering=!selMode;selMode=true;
   // Открытые домен, сервер, папка или хранилище — это обычно место, откуда
   // начинают отмечать, а не первый объект выборки: галочка у другой строки
@@ -27537,7 +27537,7 @@ function asstFoundToTree(m){
 }
 function asstFoundCount(m){return m.filter?(asstPick?.src===m&&fs?.pick?fs.hits.size:0):(m.ids||[]).length}
 function asstFoundHtml(m){
-  const k=asstFoundCount(m),n=m.filter?`${i18n("Отбор по фильтру. Результаты есть в дереве")}${k?`, ${i18n("уже")} ${k}`:""}`
+  const k=asstFoundCount(m),n=m.filter?`${i18n("Отбор по фильтру. Консоль показывает результаты в дереве")}${k?`. ${i18n("Число результатов")}: ${k}`:""}`
     :`${i18n("В дереве")}: ${k}${m.total!=null&&m.total>k?` ${i18n("из")} ${m.total}`:m.truncated?` (${i18n("первые; всего больше")})`:""}`;
   return`<div class="asst-note" id="asstFoundNote">${i18n("Отбор ассистента. Условия находятся над деревом. Проверить их")}</div>`+
     (m.text?`<div class="asst-msg" id="asstFound">${escHtml(m.text)}</div>`:"")+
@@ -28110,7 +28110,7 @@ function asstRuleView(e,all){
       v.summary=ruleSummary(after);
       v.note=i18n(after.on?"Консоль создаст правило в состоянии «Только журнал». Включает его пользователь":"Заведётся выключенным: включает человек");
     }else{
-      v.note=i18n("Изменение действует сразу, без проверки. Сравнить, что было и что будет");
+      v.note=i18n("Консоль применяет изменение сразу, без режима «Только журнал». Сравнить, что было и что будет");
       if(!v.rows.length)v.note=i18n("Изменений нет");
       if(v.rows.some(x=>x.gone))v.warn=i18n("Консоль уберёт из правила отмеченное");
     }
@@ -28443,7 +28443,7 @@ function asstPlanDrop(p){
 function bulkBusyGuard(){
   if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return true}
   const busy=busyIds();
-  if(bulkScopeNodes().some(n=>busy.has(n.id)||pendingDelHas(n.id))){toast("В выборке есть объекты, над которыми консоль выполняет операцию или которые консоль удаляет");return true}
+  if(bulkScopeNodes().some(n=>busy.has(n.id)||pendingDelHas(n.id))){toast("В выборке есть объекты, над которыми консоль выполняет операцию или которые консоль удалит после отсчёта");return true}
   return false;
 }
 // План по выборке дерева; «Применить к другим» для устройств без галочек
@@ -28933,7 +28933,7 @@ function deleteSelected(only){
   if(!ids.length){toast(skipped.length?"Серверы исключают из домена, а домены удаляют по одному, из их меню":all.length?"Эти записи создаёт сервер. Их нельзя удалить":"Нечего удалять");return}
   const idSet=new Set(ids);
   const roots=ids.filter(id=>{const n=find(id).n;if(n.type==="vol"&&idSet.has(n.archId))return false;return!path(id).slice(0,-1).some(x=>idSet.has(x.id))}).filter(id=>!pendingDelHas(id));
-  if(!roots.length){toast("Выбранное уже ждёт удаления");return}
+  if(!roots.length){toast("Консоль удалит выбранное после отсчёта");return}
   confirmDeleteNodes(roots,null,skipped);
 }
 function confirmDeleteNodes(roots,back,skipped){
