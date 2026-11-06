@@ -1237,7 +1237,13 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .hd-mode b{flex:none}.hd-mode .sch-sw,.hd-mode svg{flex:none}
 .mode-now{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .mode-now b{font-size:15px}
-.sch-mt2{table-layout:fixed;width:100%}.sch-mt2 th:nth-child(1){width:28%}.sch-mt2 th:nth-child(3){width:32%}.sch-mt2 th:nth-child(4){width:44px}
+.sch-mt2{table-layout:fixed;width:100%}.sch-mt2 th:nth-child(1){width:24%}.sch-mt2 th:nth-child(3){width:22%}.sch-mt2 th:nth-child(4){width:18%}.sch-mt2 th:nth-child(5){width:44px}
+.sch-mt2 select{max-width:100%}
+.um-ck{display:flex;align-items:center;gap:8px;padding:3px 0;cursor:pointer}.um-ck .sch-sw{width:8px;height:8px;border-radius:50%;flex:none}
+.um-list{max-height:320px;overflow-y:auto;scrollbar-gutter:stable;border:1px solid var(--ln);border-radius:6px;padding:4px 8px;margin-top:6px}
+.um-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
+#umQ{width:100%;box-sizing:border-box;margin-top:4px}
+.um-on{font-weight:600;color:var(--one-success-text)}
 .mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>label{display:block;font-weight:600;margin:12px 0 4px}
 .sch-mt2 td{vertical-align:top}
 /* Поле с автокомплитом: одна строка, длинное значение — с многоточием; полное — в подсказке и в списке */
@@ -5259,7 +5265,7 @@ function modesApply(M){
   objModeElse=M.otherwise;
 }
 const modeBody=m=>({id:m.id,name:(m.name||"").trim(),scheduleId:m.sched||null,system:modeCode(m.id),color:m.color||null});
-function modeCurApply(c){objMode=c.modeId;objModeManual=c.manual?{until:c.manual.until?schWhenText(new Date(c.manual.until)):""}:null;modeCurRaw=c;modeRemindPlan()}
+function modeCurApply(c){objMode=c.modeId;objModeManual=c.manual?{until:c.manual.until?schWhenText(new Date(c.manual.until)):""}:null;modeCurRaw=c}
 let modeCurRaw=null;
 async function modeCurLoad(){const c=await API.get("/modes/current");const was=objMode;modeCurApply(c);hdModePaint();if(was!==objMode&&app==="rules")paint()}
 function winNode(w){return{id:w.id,name:w.name,sched:w.scheduleId,scope:w.ruleIds==null?"all":w.ruleIds.slice(),on:w.enabled}}
@@ -5293,6 +5299,8 @@ async function autoLoad(){
   // Режим объекта — в шапке консоли на любом экране: режимы и текущий режим читаются при старте (прототип 32)
   if(can("getModes"))modesApply(await API.get("/modes"));
   if(can("getModeCurrent"))modeCurApply(await API.get("/modes/current"));
+  // Прототип 32: окна обслуживания — тоже режимы, а режимы видны в шапке сразу
+  if(can("listMaintenanceWindows")){const mw=await API.get("/maintenance-windows");MAINT_WINDOWS.length=0;mw.items.forEach(winSet)}
   Object.keys(ruleFires).forEach(k=>delete ruleFires[k]);Object.keys(ruleHist).forEach(k=>delete ruleHist[k]);
   ruleFireSeq=0;
   // Раздел уже открывали: перечитывается то, что в нём было
@@ -16389,8 +16397,8 @@ function treeRules(){
   let h=matchesText(q,i18n("Обзор"))
     ?`<div class="n ${rule==="overview"?"on":""}" data-go="rule:overview" ${onEv("click",["ruleOpen","overview"])}><span class="tw"></span><span class="ici">${RULE_IC.ov}</span><span class="nm">${hlText(i18n("Обзор"),q)}</span></div>`:"";
   h+=schTreeHtml(q);
-  h+=matchesText(q,i18n("Окна обслуживания"))
-    ?`<div class="n ${rule==="maint"?"on":""}" data-go="rule:maint" ${onEv("click",["ruleOpen","maint"])}><span class="tw"></span><span class="ici">${RULE_IC.maint}</span><span class="nm">${hlText(i18n("Окна обслуживания"),q)}</span>${treeTail({cnt:treeCntHtml(MAINT_WINDOWS.length)})}</div>`:"";
+  h+=matchesText(q,i18n("Режимы"),i18n("Окна обслуживания"))
+    ?`<div class="n ${rule==="modes"||rule==="maint"?"on":""}" data-go="rule:modes" ${onEv("click",["ruleOpen","modes"])}><span class="tw"></span><span class="ici">${RULE_IC.modes}</span><span class="nm">${hlText(i18n("Режимы"),q)}</span>${treeTail({cnt:treeCntHtml(umList().length)})}</div>`:"";
   if(can("getScenarios")&&matchesText(q,i18n("Между камерами")))h+=`<div class="n ${rule==="between"?"on":""}" data-go="rule:between" ${onEv("click",["ruleOpen","between"])}><span class="tw"></span><span class="ici">${RULE_IC.maint}</span><span class="nm">${hlText(i18n("Между камерами"),q)}</span></div>`;
   // Открытое правило не выпадает из дерева, даже если правка увела его из фильтра.
   const list=rules.filter(r=>(r.id===rule||ruleFiltOk(r,ruleFilt))&&matchesText(q,...ruleSearchFields(r)));
@@ -16418,10 +16426,7 @@ function rulesUI(){
     return;
   }
   if(rule==="between"){scenUI();return}
-  if(rule==="maint"){
-    ruleMaintUI();
-    return;
-  }
+  if(rule==="maint"){rule="modes";renderTree();ruleModesUI();return}   // прототип 32: окна обслуживания — это режимы
   const r=curRule();
   const why=ruleIssues(r);
   const fires=ruleFires[r.id]||[];
@@ -16436,7 +16441,7 @@ function rulesUI(){
     ${ruleOrderHtml(r)}`;
   const condBody=`${(r.cond||[]).map(condRowHtml).join("")||`<p class="sub">${i18n("Без условий — действия выполняются при каждом запуске")}</p>`}
     <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["addCond"])}>${i18n("Добавить условие")}</button></div>
-    ${ruleTagsHtml(r)}
+    ${ruleModesHtml(r)}
     <p class="sub">${i18n("Условия проверяются в момент запуска и соединяются через «и»: если хоть одно не выполнено, запуск пропускается и записывается в журнал.")} ${i18n("«Время» — расписание из библиотеки «Расписания»: с праздниками и особыми днями. Нужно иначе только для этого правила — «Задать только здесь…».")}</p>`;
   const startBody=r.start==="sched"?ruleSchedBody(r):`<p>${i18n("Запускается только вручную: кнопкой в меню оператора или «Запустить сейчас»")}</p>`;
   const thenBody=`${thenListHtml(r.then,"","",0)}${addBarHtml("")}
@@ -17055,7 +17060,6 @@ function ruleMuteSetTo(ids,m){
 const MAINT_WINDOWS=[]
 let maintSeq=1;
 function ruleMaintHit(w,r,d){return!!w.on&&!w._pend&&(w.scope==="all"||(w.scope||[]).includes(r.id))&&ruleTimeIn(w,d)}
-function ruleMaintNow(r){return MAINT_WINDOWS.find(w=>ruleMaintHit(w,r,new Date()))}
 function maintWhenText(w){return schText(schById(w.sched))}
 function maintScopeText(w){
   if(w.scope==="all")return i18n("все правила");
@@ -17603,7 +17607,7 @@ function ruleSrvStatusHtml(r){
 function ruleStatusBand(r){
   const m=ruleMuteNow(r),w=ruleMaintNow(r),c=ruleModeIdle(r),parts=[];
   if(m)parts.push(`${i18n("приглушено до")} ${escHtml(ruleMuteTill(m))}${m.why?` (${escHtml(m.by)}: ${escHtml(m.why)})`:""} · <button type="button" class="lk lk-act" ${onEv("click",["ruleMuteSetTo",[r.id],null])}>${i18n("Снять сейчас")}</button>`);
-  if(w)parts.push(`${i18n("окно обслуживания")} «${escHtml(w.name)}»`);
+  if(w)parts.push(`${i18n("выключено режимом")} «${escHtml(i18n(w.name))}» (${escHtml(umNowText(w))}) · <button type="button" class="lk lk-act" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button>`);
   if(c)parts.push(`${i18n("выключено режимом")} «${escHtml(i18n(c.name))}» · <button type="button" class="lk lk-act" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы объекта")}</button>`);
   return parts.length?`<div class="nt" role="status">${ruleMuteIc()} ${i18n("Сейчас не действует")}: ${parts.join("; ")}</div>`:"";
 }
@@ -17633,21 +17637,19 @@ function ruleMore(e,id){
 }
 function ruleIdleNote(r){
   const c=ruleModeOffNow(r),m=ruleMuteNow(r),w=ruleMaintNow(r);
-  return[m?`${i18n("приглушено до")} ${ruleMuteTill(m)}`:"",w?`${i18n("окно обслуживания")} «${w.name}»`:"",
+  return[m?`${i18n("приглушено до")} ${ruleMuteTill(m)}`:"",w?`${i18n("выключено режимом")} «${i18n(w.name)}»`:"",
     c?`${i18n("выключено режимом")} «${i18n(c.name)}»`:""].filter(Boolean).join("; ");
 }
 // Режимы объекта, которые правило называет в условиях «Режим объекта».
 function ruleCondModes(r){return(r.cond||[]).filter(c=>c.kind==="mode").flatMap(c=>c.modes||[])}
-// Ручное переключение режима — всегда на срок, не больше 8 часов (прототип 32): забытое переключение
-// кончается само, режим возвращается по расписанию. Срок выбирают в окне; «Вернуть по расписанию» — сразу.
+// Ручное включение режима — всегда на срок, не больше 8 часов (прототип 32): забытый режим выключится сам.
 const MODE_TERMS=[[30,"30 минут"],[60,"1 час"],[120,"2 часа"],[240,"4 часа"],[480,"8 часов"]];
 const MODE_TERM_MAX=480,MODE_REMIND=10;
-let modeSw=null;   // окно переключения: {id, min, at} — min минут или до времени at ("ЧЧ:ММ")
-function ruleModeSwitch(v){
-  if(!v)return;
-  if(v==="auto"){if(objModeManual)modeSwSend({modeId:null,until:null});return}
-  modeSw={id:v,min:60,at:""};
-  openBulkModal(escHtml(`${i18n("Переключить на")} «${i18n(ruleModeName(v))}»`),"","","");
+let modeSw=null;   // окно включения: {id, min, at} — min минут или до времени at ("ЧЧ:ММ")
+function ruleModeSwitch(id){
+  const m=umById(id);if(!m)return;
+  modeSw={id,min:60,at:""};
+  openBulkModal(escHtml(`${i18n("Включить")} «${i18n(m.name)}»`),"","","");
   modeSwPaint();
   setTimeout(()=>document.querySelector('#bmBody input[name="msw"]:checked')?.focus(),30);
 }
@@ -17657,52 +17659,43 @@ function modeSwUntil(){
   const[h,m]=w.at.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);if(d<=new Date())d.setDate(d.getDate()+1);return d;
 }
 function modeSwErr(u){return!u?"Укажите время":u-Date.now()>MODE_TERM_MAX*60000?"Не больше 8 часов от текущего времени":""}
-function modeSwTerm(v){modeSw.min=+v;if(!modeSw.min&&!modeSw.at){const d=new Date(Date.now()+60*60000);modeSw.at=schHM(d.getHours()*60+d.getMinutes())}modeSwPaint();if(!modeSw.min)setTimeout(()=>document.getElementById("mswAt")?.focus(),20)}
+function modeSwTerm(v){modeSw.min=+v;if(!modeSw.min&&!modeSw.at){const d=new Date(Date.now()+60*60000);modeSw.at=umHM(d)}modeSwPaint();if(!modeSw.min)setTimeout(()=>document.getElementById("mswAt")?.focus(),20)}
 function modeSwAt(v){modeSw.at=v;modeSwPaint()}
 function modeSwPaint(){
-  const w=modeSw,u=modeSwUntil(),err=modeSwErr(u),back=u&&!err?objModeSched(u):null;
-  const opt=(v,l)=>`<label class="msw-o"><input type="radio" name="msw" value="${v}" ${w.min===v?"checked":""} ${onEv("change",["modeSwTerm",onEv.value])}>${i18n(l)}</label>`;
-  document.getElementById("bmBody").innerHTML=`<p>${i18n("Сейчас")}: «${escHtml(i18n(ruleModeName(objMode)))}»${objModeManual?` (${escHtml(modeNowText())})`:""}.</p>
-    <fieldset class="msw"><legend>${i18n("На сколько")}</legend>${MODE_TERMS.map(([v,l])=>opt(v,l)).join("")}${opt(0,"До времени")}
+  const w=modeSw,m=umById(w.id),u=modeSwUntil(),err=modeSwErr(u),l=umRules(m);
+  const nm=x=>x.slice(0,4).map(r=>"«"+escHtml(r.name)+"»").join(", ")+(x.length>4?` ${i18n("и ещё")} ${x.length-4}`:"");
+  const opt=(v,t)=>`<label class="msw-o"><input type="radio" name="msw" value="${v}" ${w.min===v?"checked":""} ${onEv("change",["modeSwTerm",onEv.value])}>${i18n(t)}</label>`;
+  document.getElementById("bmBody").innerHTML=`<p>${m.off.all?`${i18n("Выключит все правила")} (${l.length})`:`${i18n("Выключит")} ${l.length} ${i18n(plural(l.length,"правило|правила|правил"))}: ${nm(l)}`}.${m.off.all?` ${i18n("Новые правила — тоже.")}`:` ${i18n("Остальные правила работают по своим условиям.")}`}</p>
+    <fieldset class="msw"><legend>${i18n("На сколько")}</legend>${MODE_TERMS.map(([v,t])=>opt(v,t)).join("")}${opt(0,"До времени")}
       ${w.min?"":`<input type="time" id="mswAt" value="${escHtml(w.at)}" aria-label="${i18n("До какого времени")}" ${onEv("change",["modeSwAt",onEv.value])}>`}</fieldset>
-    ${err?`<div class="nt err" role="alert">${i18n(err)}</div>`:`<p role="status">${i18n("До")} <b>${schWhenText(u)}</b> ${i18n("действует")} «${escHtml(i18n(ruleModeName(w.id)))}». ${i18n("Потом режим вернётся по расписанию")}: «${escHtml(i18n(ruleModeName(back)))}».</p>`}
-    ${(()=>{const on=modeOffRules(w.id),was=new Set(modeOffRules(objMode).map(r=>r.id)),back=modeOffRules(objMode).filter(r=>!on.some(x=>x.id===r.id)),nm=l=>l.slice(0,4).map(r=>"«"+escHtml(r.name)+"»").join(", ")+(l.length>4?` ${i18n("и ещё")} ${l.length-4}`:"");
-      return`<p>${on.length?`${i18n("Выключит")} ${on.length} ${i18n(on.length===1?"правило":on.length<5?"правила":"правил")} (${escHtml(modeOffText(w.id))}): ${nm(on)}`:i18n("Ничего не выключит: все правила работают по своим условиям")}.${back.length?` ${i18n("Снова заработают")}: ${nm(back)}.`:""}</p>`})()}
-    <p class="sub">${i18n("Ручной режим держится не больше 8 часов: забытое переключение закончится само. За 10 минут до конца консоль напомнит и предложит продлить.")}</p>`;
-  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${err?"disabled":""} ${onEv("click",["modeSwGo"])}>${i18n("Переключить")}</button>`;
+    ${err?`<div class="nt err" role="alert">${i18n(err)}</div>`:`<p role="status">${i18n("До")} <b>${schWhenText(u)}</b> ${i18n("действует")} «${escHtml(i18n(m.name))}». ${i18n("Потом режим выключится сам.")}</p>`}
+    <p class="sub">${i18n("Режим вручную — не больше 8 часов: забытый режим выключится сам. За 10 минут до конца консоль напомнит и предложит продлить.")}</p>`;
+  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${err?"disabled":""} ${onEv("click",["modeSwGo"])}>${i18n("Включить")}</button>`;
 }
 function modeSwGo(){
-  const w=modeSw,u=modeSwUntil();if(!w||modeSwErr(u))return;
-  closeBulkModal();modeSwSend({modeId:w.id,until:u.toISOString()});
+  const w=modeSw,u=modeSwUntil(),m=w&&umById(w.id);if(!m||modeSwErr(u))return;
+  closeBulkModal();umSetMan(m,u);
 }
-function modeSwSend(body){
-  const prev=modeCurRaw;
-  const set=b=>API.post("/modes/current",b).then(c=>{modeCurApply(c);ruleIdxDrop()});
-  set(body).then(()=>{
-    paint();
-    toastAction("rmode",`${i18n("Режим объекта")}: «${i18n(ruleModeName(objMode))}»${objModeManual?`, ${modeNowText()}`:""}`,i18n("Отменить"),()=>{
-      set(prev&&prev.manual?{modeId:prev.modeId,until:prev.manual.until}:{modeId:null,until:null}).then(()=>{paint();toast("Переключение отменено")}).catch(e=>toast(problemText(e)));
-    },10000);
-  }).catch(e=>toast(problemText(e)));
+function umSetMan(m,until){
+  const was=m.man;
+  umEdit(()=>{m.man={until}});umRemindPlan(m);
+  toastAction("rmode:"+m.id,`«${i18n(m.name)}» ${i18n("включён до")} ${umHM(until)}`,i18n("Отменить"),()=>{umEdit(()=>{m.man=was});umRemindPlan(m)},10000);
 }
-// Напоминание за 10 минут до конца ручного режима: «Продлить на 1 час»; не ответили — режим вернётся сам
-let modeRemindT=null,modeReminded="";
-function modeRemindPlan(){
-  clearTimeout(modeRemindT);
-  const m=modeCurRaw&&modeCurRaw.manual,until=m&&m.until?Date.parse(m.until):0;
-  if(!until){removeToastAction("mremind");return}
-  const at=until-MODE_REMIND*60000,key=modeCurRaw.modeId+"|"+m.until;
-  if(modeReminded===key)return;
-  modeRemindT=setTimeout(()=>{
-    if(!modeCurRaw||!modeCurRaw.manual||modeCurRaw.manual.until!==m.until)return;
-    modeReminded=key;
-    const back=objModeSched(new Date(until));
-    toastAction("mremind",`${i18n("Режим")} «${i18n(ruleModeName(objMode))}» ${i18n("включён вручную — в")} ${schHM(new Date(until).getHours()*60+new Date(until).getMinutes())} ${i18n("вернётся")} «${i18n(ruleModeName(back))}»`,i18n("Продлить на 1 час"),()=>{
-      const nu=new Date(Math.min(until+60*60000,Date.now()+MODE_TERM_MAX*60000));
-      modeSwSend({modeId:modeCurRaw.modeId,until:nu.toISOString()});
+// Напоминание за 10 минут до конца: «Продлить на 1 час»; не ответили — режим выключится сам
+const umRemindT=new Map();
+function umRemindPlan(m){
+  clearTimeout(umRemindT.get(m.id));removeToastAction("mremind:"+m.id);
+  if(!m.man)return;
+  const until=+m.man.until;
+  umRemindT.set(m.id,setTimeout(()=>{
+    if(!m.man||+m.man.until!==until)return;
+    toastAction("mremind:"+m.id,`«${i18n(m.name)}» ${i18n("выключится в")} ${umHM(new Date(until))}`,i18n("Продлить на 1 час"),()=>{
+      umSetMan(m,new Date(Math.min(until+60*60000,Date.now()+MODE_TERM_MAX*60000)));
     },Math.max(1000,until-Date.now()));
-    document.getElementById("ttu-mremind")?.classList.add("no-timer");   // время возврата — в тексте, отсчёт в секундах не нужен
-  },Math.max(0,at-Date.now()));
+    document.getElementById("ttu-mremind:"+m.id)?.classList.add("no-timer");
+  },Math.max(0,until-MODE_REMIND*60000-Date.now())));
+  // Срок вышел — режим выключился: шапка и статусы правил перерисовываются
+  setTimeout(()=>{if(m.man&&+m.man.until===until){m.man=null;ruleIdxDrop();paint()}},Math.max(0,until-Date.now())+200);
 }
 // ── Редактор расписания ──
 // Один редактор на двух местах: страница «Расписания» (k="p") и окно поверх любого места,
@@ -17962,7 +17955,7 @@ function schPageId(){return rule.startsWith("sch:")?rule.slice(4):null}
 // В дереве: узел «Расписания», под ним — расписания и «Особые дни». Раскрыт, пока открыта страница
 // расписаний (или по стрелке); при поиске показывает подходящие.
 let schTreeOpen=null;
-function schTreeIsOpen(){return schTreeOpen===null?rule.startsWith("sch")||rule==="modes":schTreeOpen}
+function schTreeIsOpen(){return schTreeOpen===null?rule.startsWith("sch"):schTreeOpen}
 function schTreeToggle(){schTreeOpen=!schTreeIsOpen();renderTree()}
 // Последнее открытое расписание (или список)
 function ruleOpenSch(flash){ruleOpen("sch:"+schLast,flash)}
@@ -17970,16 +17963,16 @@ function schTreeHtml(q){
   const all=SCHEDS.filter(s=>!s._gone);
   if(schEd&&schEd.k==="p"&&schEd.isNew&&rule==="sch:"+schEd.id)all.push(schEd.d);
   const order=[...all.filter(s=>!s.own&&!s.builtin),...all.filter(s=>s.own),...all.filter(s=>s.builtin)];
-  const self=matchesText(q,i18n("Расписания")),kids=self?order:order.filter(s=>matchesText(q,s.name)),days=self||matchesText(q,i18n("Особые дни")),modes=self||matchesText(q,i18n("Режимы объекта"));
-  if(!self&&!kids.length&&!days&&!modes)return"";
+  const self=matchesText(q,i18n("Расписания")),kids=self?order:order.filter(s=>matchesText(q,s.name)),days=self||matchesText(q,i18n("Особые дни"));
+  if(!self&&!kids.length&&!days)return"";
   const open=q?true:schTreeIsOpen();
   const row=s=>{
     const u=schById(s.id)?schUses(s.id).length:0,tag=!schById(s.id)?"новое":s._pend?"удаляется":s.own?"местное":s.builtin?"встроенное":"";
     return`<div class="n ${rule==="sch:"+s.id?"on":""} ${s._pend?"pending":""}" style="--l:1" data-go="rule:sch:${s.id}" ${onEv("click",["ruleOpen",`sch:${s.id}`])} title="${escHtml(`${s.name}\n${schText(s)}\n${i18n(schActive(s)?"Сейчас действует":"Сейчас не действует")}`)}"><span class="tw"></span><span class="ici"><span class="sch-dot ${schActive(s)?"":"off"}"></span></span><span class="nm">${hlText(s.name,q)}</span>${tag?`<span class="sch-tn">${i18n(tag)}</span>`:""}${treeTail({cnt:u?treeCntHtml(u):""})}</div>`;
   };
-  return`<div class="n ${(rule.startsWith("sch")||rule==="modes")&&!open?"on":""}" data-go="rule:sch" ${onEv("click",["ruleOpenSch"])}><span class="tw" role="button" aria-expanded="${open}" aria-label="${i18n(open?"Свернуть":"Развернуть")}" ${onEv("click",onEv.stop,["schTreeToggle"])}>${open?TW_OPEN:TW_SHUT}</span><span class="ici">${RULE_IC.sched}</span><span class="nm">${hlText(i18n("Расписания"),q)}</span>${treeTail({cnt:treeCntHtml(SCHEDS.filter(s=>!s._gone).length)})}</div>`
+  return`<div class="n ${rule.startsWith("sch")&&!open?"on":""}" data-go="rule:sch" ${onEv("click",["ruleOpenSch"])}><span class="tw" role="button" aria-expanded="${open}" aria-label="${i18n(open?"Свернуть":"Развернуть")}" ${onEv("click",onEv.stop,["schTreeToggle"])}>${open?TW_OPEN:TW_SHUT}</span><span class="ici">${RULE_IC.sched}</span><span class="nm">${hlText(i18n("Расписания"),q)}</span>${treeTail({cnt:treeCntHtml(SCHEDS.filter(s=>!s._gone).length)})}</div>`
     +(open?kids.map(row).join("")+(days?`<div class="n ${rule==="schdays"?"on":""}" style="--l:1" data-go="rule:schdays" ${onEv("click",["ruleOpen","schdays"])}><span class="tw"></span><span class="ici">${RULE_IC.maint}</span><span class="nm">${hlText(i18n("Особые дни"),q)}</span>${treeTail({cnt:treeCntHtml(DAY_GROUPS.filter(g=>!g._gone).length)})}</div>`:"")
-      +(modes?`<div class="n ${rule==="modes"?"on":""}" style="--l:1" data-go="rule:modes" ${onEv("click",["ruleOpen","modes"])}><span class="tw"></span><span class="ici">${RULE_IC.modes}</span><span class="nm">${hlText(i18n("Режимы объекта"),q)}</span>${treeTail({cnt:treeCntHtml(modeLive().length)})}</div>`:""):"");
+:"");
 }
 const schCrumb=()=>`${i18n("Автоматизация")}<span class="cr-sep">/</span>${i18n("Расписания")}`;
 function schPageUI(){
@@ -18236,233 +18229,158 @@ function schDaysUI(){
     `<div class="sc">${cards}<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpAdd"])}>${lu("plus")}${i18n("Группа особых дней")}</button></div>
       <p class="sub">${i18n("Правка группы применяется сразу, отменить можно в уведомлении внизу. Что делать в такие дни, говорит каждое расписание само — в блоке «В особые дни».")}</p></div>`);
 }
-// ── Прототип 32: режим выключает правила по меткам ──
-// Заглушка на клиенте: в контракте нет ни меток правил (Rule.labels — метки серверов), ни поля режима «что выключает».
-// Нужен запрос владельцу контракта. После перезагрузки страницы — снова набор ниже.
-const RULE_TAGS=new Map();   // id правила → ["охрана", …]
-const MODE_OFF=new Map();    // id режима → {kind:"none"|"tags"|"all", tags:[…]}
-let modeStubSeeded=false;
-function modeStubSeed(){
-  if(modeStubSeeded||!rules.length||!OBJ_MODES.length)return;modeStubSeeded=true;
-  const tag=(n,t)=>{const r=rules.find(x=>x.name===n);if(r)RULE_TAGS.set(r.id,[t])};
-  ["Охрана входа ночью","Сирена по двери","Тревога на периметре"].forEach(n=>tag(n,"охрана"));
-  ["Вопрос оператору: проверка","Эскалация оператору: проверка"].forEach(n=>tag(n,"вопросы оператору"));
-  OBJ_MODES.forEach(m=>{const c=modeCode(m.id);MODE_OFF.set(m.id,c==="service"?{kind:"all",tags:[]}:c==="work"?{kind:"tags",tags:["охрана"]}:{kind:"none",tags:[]})});
+// ── Прототип 32: режим — одно понятие вместо «Режимов объекта» и «Окон обслуживания» ──
+// Режим выключает правила: все (и те, что добавят потом) или выбранные. Включает его расписание или оператор
+// на срок. Режимов может действовать несколько: правило выключено, если его выключает хоть один действующий.
+// Заглушка на клиенте: в контракте режимы (/modes) и окна (/maintenance-windows) — разные сущности. Набор
+// собирается из окон сервера и двух режимов; после перезагрузки страницы — снова он. Нужен запрос владельцу контракта.
+const UMODES=[];let umSeeded=false;
+const UM_PALETTE=["var(--one-palette-teal)","var(--one-palette-purple)","var(--one-palette-magenta)","var(--one-palette-amber)","var(--one-palette-green)"];
+function umSeed(){
+  if(umSeeded||!rules.length)return;umSeeded=true;
+  UMODES.push({id:"um-service",name:"Обслуживание",color:"var(--one-palette-orange)",sched:null,off:{all:true,ids:[]},man:null,sys:true});
+  const guard=rules.filter(r=>["Охрана входа ночью","Сирена по двери","Тревога на периметре"].includes(r.name)).map(r=>r.id);
+  const work=SCHEDS.find(s=>s.name==="Рабочие дни");
+  UMODES.push({id:"um-unguard",name:"Охрана снята",color:"var(--one-palette-green)",sched:work?work.id:null,off:{all:false,ids:guard},man:null});
+  MAINT_WINDOWS.forEach((w,i)=>UMODES.push({id:"um-"+w.id,name:w.name,color:UM_PALETTE[i%UM_PALETTE.length],sched:w.on?w.sched:null,off:w.scope==="all"?{all:true,ids:[]}:{all:false,ids:(w.scope||[]).slice()},man:null}));
 }
-function ruleTags(id){modeStubSeed();return RULE_TAGS.get(id)||[]}
-function tagsAll(){modeStubSeed();return[...new Set([...[...RULE_TAGS.values()].flat(),...[...MODE_OFF.values()].flatMap(x=>x.tags)])].sort((a,b)=>a.localeCompare(b))}
-function modeOff(id){modeStubSeed();if(!MODE_OFF.has(id))MODE_OFF.set(id,{kind:"none",tags:[]});return MODE_OFF.get(id)}
-function modeOffHits(r,id){const o=modeOff(id);return o.kind==="all"||o.kind==="tags"&&ruleTags(r.id).some(t=>o.tags.includes(t))}
-function modeOffRules(id){return rules.filter(r=>!r._new&&modeOffHits(r,id))}
-function ruleModeOffNow(r){return objMode&&modeOffHits(r,objMode)?OBJ_MODES.find(m=>m.id===objMode):null}
-function modeOffText(id){const o=modeOff(id);return o.kind==="all"?i18n("все правила"):o.kind==="tags"&&o.tags.length?`${i18n("с метками")} ${o.tags.map(t=>"«"+t+"»").join(", ")}`:i18n("ничего")}
-function modeOffSet(id,v){const o=modeOff(id);o.kind=v;if(v!=="tags")o.tags=[];ruleIdxDrop();paint()}
-function modeOffTag(id,t){const o=modeOff(id);o.tags=listToggled(o.tags,t);ruleIdxDrop();paint()}
-function modeOffTagAdd(id,v){v=(v||"").trim().toLowerCase();if(!v)return;const o=modeOff(id);if(!o.tags.includes(v))o.tags.push(v);ruleIdxDrop();paint()}
-function ruleTagToggle(id,t){RULE_TAGS.set(id,listToggled(ruleTags(id),t));ruleIdxDrop();paint()}
-function ruleTagAdd(id,v){v=(v||"").trim().toLowerCase();if(!v)return;const l=ruleTags(id);if(!l.includes(v))RULE_TAGS.set(id,[...l,v]);ruleIdxDrop();paint()}
-// Какие режимы выключают правило: «Рабочее время» (метка «охрана»), «Обслуживание» (все правила)
-function ruleOffModesText(r){
-  return modeLive().filter(m=>modeOffHits(r,m.id)).map(m=>{const o=modeOff(m.id);
-    return`«${escHtml(i18n(m.name))}» (${o.kind==="all"?i18n("все правила"):`${i18n("метка")} ${ruleTags(r.id).filter(t=>o.tags.includes(t)).map(t=>"«"+escHtml(t)+"»").join(", ")}`})`}).join(", ");
+function umList(){umSeed();return UMODES}
+function umById(id){return umList().find(m=>m.id===id)}
+// Как режим действует сейчас: "man" — включён вручную, "sched" — по расписанию, null — не действует
+function umActive(m,d){
+  d=d||new Date();
+  if(m.man&&m.man.until>d)return"man";
+  const s=m.sched&&schById(m.sched);
+  return s&&schActive(s,d)?"sched":null;
 }
-function ruleTagsHtml(r){
-  const off=ruleOffModesText(r);
-  return`<div class="rl-tags"><label>${i18n("Метки правила")}</label>${chipsHtml(tagsAll(),ruleTags(r.id),"ruleTagToggle",`${r.id}`)}
-    <input type="text" class="rl-tag-new" placeholder="${i18n("Новая метка")}" aria-label="${i18n("Новая метка правила")}" ${onEv("change",["ruleTagAdd",`${r.id}`,onEv.value])}>
-    <p class="sub">${i18n("Режимы объекта выключают правила по меткам.")} ${off?`${i18n("Это правило выключают режимы")}: ${off}.`:i18n("Ни один режим это правило не выключает: оно работает по своим условиям всегда.")}</p></div>`;
+// Конец текущего участка расписания: «до 20:00»
+function umSchedEnd(m){
+  const s=schById(m.sched),t=new Date(),nm=t.getHours()*60+t.getMinutes(),iv=s?schDay(s,t).iv.find(([a,b])=>nm>=a&&nm<b):null;
+  return iv?(iv[1]>=1440?i18n("конца суток"):schHM(iv[1])):"";
 }
-// ── Страница «Режимы объекта» ──
-let modeCal=null;
-const modeRulesOpen=new Set();         // режимы, у которых список правил показан целиком
-function modeRulesToggle(id){if(modeRulesOpen.has(id))modeRulesOpen.delete(id);else modeRulesOpen.add(id);paint()}
-function modeGoModes(){ruleOpen("modes",true)}
-function modeEdit(what,fn,after){
-  // Режимы — списком целиком (PUT /modes с версией). Новое состояние считается на копии: fn меняет список,
-  // он тут же возвращается как был, а меняет его ответ сервера
-  const prev={m:ruleClone(OBJ_MODES),e:objModeElse};
-  fn();
-  const body={items:OBJ_MODES.filter(m=>!m._gone).map(modeBody),otherwise:objModeElse};
-  OBJ_MODES.splice(0,OBJ_MODES.length,...prev.m);objModeElse=prev.e;
-  const put=b=>API.put("/modes",b,modesVer).then(M=>{modesApply(M);return modeCurLoad()}).then(()=>{ruleIdxDrop();treeMatchCache.clear();searchMatchCache.clear()});
-  put(body).then(()=>{
-    if(after)after();
-    paint();
-    toastAction("mode:"+(++ruleUndoSeq),`${i18n("Режимы объекта")}: ${i18n(what)}`,i18n("Отменить"),()=>{
-      put({items:prev.m.map(modeBody),otherwise:prev.e}).then(()=>{autoDirty.add("rule");return autoFlush()}).then(()=>{paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
-    },10000);
-  }).catch(e=>{toast(problemText(e));paint()});
+function umHM(d){return schHM(d.getHours()*60+d.getMinutes())}
+function umNowText(m){const a=umActive(m);return a==="man"?`${i18n("вручную до")} ${umHM(m.man.until)}`:a==="sched"?`${i18n("по расписанию до")} ${umSchedEnd(m)}`:""}
+function umHits(m,r){return m.off.all||m.off.ids.includes(r.id)}
+function umRules(m){return rules.filter(r=>!r._new&&umHits(m,r))}
+function umOffText(m){return m.off.all?i18n("все правила"):`${m.off.ids.length} ${i18n(plural(m.off.ids.length,"правило|правила|правил"))}`}
+function umNow(){return umList().filter(m=>umActive(m))}
+// Совместимость со статусами правила: «выключено режимом «X»»
+function ruleMaintNow(r){return umNow().find(m=>umHits(m,r))}
+function ruleModeOffNow(){return null}
+function umEdit(fn){fn();ruleIdxDrop();treeMatchCache.clear();searchMatchCache.clear();paint()}
+function umRename(id,v){v=(v||"").trim();const m=umById(id);if(m&&v)umEdit(()=>{m.name=v})}
+function umSched(id,v){
+  const m=umById(id);if(!m)return;
+  if(v==="__new"){const d=schBlank({name:m.name});schDlgOpen(d.id,{draft:d,isNew:true,onSave:sid=>umEdit(()=>{m.sched=sid})});paint();return}
+  umEdit(()=>{m.sched=v||null});
 }
-function modeRename(id,v){const m=OBJ_MODES.find(x=>x.id===id);if(m&&v.trim()&&v.trim()!==m.name)modeEdit("переименован режим",()=>{m.name=v.trim()})}
-function modeSched(id,v){
-  const m=OBJ_MODES.find(x=>x.id===id);if(!m)return;
-  if(v==="__new"){
-    const d=schBlank({name:m.name});
-    schDlgOpen(d.id,{draft:d,isNew:true,onSave:sid=>{const x=OBJ_MODES.find(y=>y.id===id);if(x)modeEdit(`«${x.name}» — ${i18n("расписание")} «${schName(sid)}»`,()=>{x.sched=sid})}});paint();return;
+function umOffKind(id,v){const m=umById(id);if(!m)return;if(v==="some"&&!m.off.ids.length){umRulesOpen(id);return}umEdit(()=>{m.off.all=v==="all"})}
+function umAdd(){
+  const m={id:"um-"+accNewId(),name:i18n("Новый режим"),color:UM_PALETTE[UMODES.length%UM_PALETTE.length],sched:null,off:{all:false,ids:[]},man:null};
+  umEdit(()=>UMODES.push(m));
+  setTimeout(()=>{const n=document.querySelector(`tr[data-mode="${m.id}"] input`);if(n){n.focus();n.select()}},30);
+}
+function umDelAsk(id){
+  const m=umById(id);if(!m||m.sys)return;
+  askConfirm("Удалить режим?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(m.name)}» — ${i18n("выключает")} ${escHtml(umOffText(m))}${umActive(m)?`; ${i18n("сейчас действует")}`:""}</li></ul>
+    <p>${i18n("Останется")}: ${i18n("правила — они снова работают по своим условиям; расписание режима — в библиотеке «Расписания».")}</p>`,"",i18n("Удалить"),()=>{
+      const i=UMODES.findIndex(x=>x.id===id);if(i<0)return;const was=UMODES[i];
+      umEdit(()=>UMODES.splice(i,1));
+      toastAction("umdel:"+id,`«${was.name}» ${i18n("удалён")}`,i18n("Отменить"),()=>umEdit(()=>UMODES.splice(Math.min(i,UMODES.length),0,was)),10000);
+    },{html:true,typeCount:1});
+}
+// Правило ↔ режим из карточки правила
+function umToggleRule(mid,rid){const m=umById(mid);if(!m||m.off.all)return;umEdit(()=>{m.off.ids=listToggled(m.off.ids,rid)})}
+function ruleModesHtml(r){
+  const l=umList();
+  return`<div class="rl-tags"><label>${i18n("Выключают режимы")}</label>
+    ${l.map(m=>`<label class="um-ck"><input type="checkbox" ${umHits(m,r)?"checked":""} ${m.off.all?"disabled":""} ${onEv("change",["umToggleRule",`${m.id}`,`${r.id}`])}><span class="sch-sw" style="background:${m.color}"></span>${escHtml(i18n(m.name))}${m.off.all?` <span class="sub">— ${i18n("выключает все правила")}</span>`:""}${umActive(m)?` <span class="sub">· ${i18n("сейчас действует")}</span>`:""}</label>`).join("")}
+    <p class="sub">${i18n("Отмеченный режим выключает это правило, пока действует. Что не выключено, работает по своим условиям.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button></p></div>`;
+}
+// Окно «Что выключает режим»: все правила или выбранные — флажками, с поиском
+let umDlg=null;
+function umRulesOpen(id){
+  const m=umById(id);if(!m)return;
+  umDlg={id,all:m.off.all,ids:new Set(m.off.ids),q:""};
+  openBulkModal(escHtml(`«${i18n(m.name)}» ${i18n("выключает")}`),"","","bbox-wide");
+  document.getElementById("bmBody").innerHTML=`<fieldset class="msw"><legend class="asst-sr">${i18n("Что выключает")}</legend>
+      <label class="msw-o"><input type="radio" name="umk" value="all" ${umDlg.all?"checked":""} ${onEv("change",["umDlgKind","all"])}>${i18n("Все правила — и те, что добавят потом")}</label>
+      <label class="msw-o"><input type="radio" name="umk" value="some" ${umDlg.all?"":"checked"} ${onEv("change",["umDlgKind","some"])}>${i18n("Выбранные правила")}</label></fieldset>
+    <div id="umPick"></div>`;
+  umDlgPaint(true);
+}
+function umDlgKind(v){umDlg.all=v==="all";umDlgPaint(true)}
+function umDlgQ(v){umDlg.q=v;umDlgPaint(false)}
+function umDlgCk(rid,on){if(on)umDlg.ids.add(rid);else umDlg.ids.delete(rid);umDlgPaint(false)}
+function umDlgAll(on){umDlgVis().forEach(r=>on?umDlg.ids.add(r.id):umDlg.ids.delete(r.id));umDlgPaint(false)}
+function umDlgVis(){return rules.filter(r=>!r._new&&matchesText(umDlg.q,...ruleSearchFields(r)))}
+function umDlgPaint(full){
+  const w=umDlg,box=document.getElementById("umPick");if(!box)return;
+  if(w.all){box.innerHTML=`<p class="sub">${i18n("Режим выключит все правила, сколько бы их ни было; новые правила тоже.")} ${rules.filter(r=>!r._new).length} ${i18n("правил сейчас")}.</p>`}
+  else{
+    const vis=umDlgVis(),all=rules.filter(r=>!r._new),grp=[["event","По событию"],["sched","По расписанию"],["manual","Вручную"]];
+    const list=grp.map(([k,t])=>{const l=vis.filter(r=>r.start===k);return l.length?`<div class="cbx-g">${i18n(t)}</div>${l.map(r=>`<label class="um-ck"><input type="checkbox" ${w.ids.has(r.id)?"checked":""} ${onEv("change",["umDlgCk",`${r.id}`,onEv.checked])}><span>${hlText(r.name,w.q)}</span></label>`).join("")}`:""}).join("");
+    const allOn=vis.length&&vis.every(r=>w.ids.has(r.id));
+    if(full||!document.getElementById("umList"))box.innerHTML=`<input type="search" id="umQ" placeholder="${i18n("Найти правило")}" aria-label="${i18n("Найти правило")}" value="${escHtml(w.q)}" ${onEv("input",["umDlgQ",onEv.value])}>
+      <div class="um-bar"><label class="um-ck"><input type="checkbox" id="umAll" ${onEv("change",["umDlgAll",onEv.checked])}>${i18n("Выбрать все найденные")}</label><span id="umCnt" class="sub" role="status"></span></div><div id="umList" class="um-list"></div>`;
+    document.getElementById("umList").innerHTML=list||`<p class="sub">${i18n("Ничего не найдено")}</p>`;
+    const a=document.getElementById("umAll");a.checked=!!allOn;a.indeterminate=!allOn&&vis.some(r=>w.ids.has(r.id));
+    document.getElementById("umCnt").textContent=`${i18n("Выбрано")} ${w.ids.size} · ${i18n("Показано")} ${vis.length} ${i18n("из")} ${all.length}`;
   }
-  modeEdit(`«${m.name}» — ${v?`${i18n("расписание")} «${schName(v)}»`:i18n("только вручную")}`,()=>{m.sched=v||null});
+  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${!w.all&&!w.ids.size?"disabled":""} ${onEv("click",["umDlgSave"])}>${i18n("Готово")}</button>`;
 }
-function modeAdd(){
-  const used=OBJ_MODES.map(m=>m.color).filter(Boolean);
-  // id нового режима задаёт клиент (UUID): список уходит целиком
-  const m={id:accNewId(),name:i18n("Новый режим"),sched:null,color:MODE_PALETTE.find(c=>!used.includes(c))||MODE_PALETTE[0]};
-  modeEdit("добавлен режим",()=>{OBJ_MODES.push(m)},()=>{setTimeout(()=>{const n=document.querySelector(`tr[data-mode="${m.id}"] input`);if(n){n.focus();n.select()}},30)});
-}
-function modeDelAsk(id){
-  const m=OBJ_MODES.find(x=>x.id===id);if(!m||m.sys||m._pend)return;
-  const using=rules.filter(r=>ruleCondModes(r).includes(id));
-  const li=using.map(r=>{const only=(r.cond||[]).some(c=>c.kind==="mode"&&(c.modes||[]).length===1&&c.modes[0]===id);
-    return`<li>«${escHtml(r.name)}» — ${i18n(only?"в условии «Режим объекта» не останется режимов: правило станет ошибкой и не запустится":"из условия «Режим объекта» уйдёт этот режим, остальные останутся")}</li>`}).join("");
-  askConfirm("Удалить режим объекта?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(m.name)}» — ${escHtml(modeWhenText(m))}</li></ul>
-    ${using.length?`<p>${i18n("Правила с этим режимом")}:</p><ul class="bk-del">${li}</ul>`:`<p>${i18n("Ни одно правило этот режим не называет.")}</p>`}
-    <p>${i18n("Останется")}: ${i18n("расписание режима — в библиотеке «Расписания»; другие режимы.")}${objModeElse===id?` ${i18n("Режимом по умолчанию станет")} «${escHtml((OBJ_MODES.find(x=>x.id!==id&&!x._pend)||{}).name||"")}».`:""}</p>`,
-    "",i18n("Удалить"),()=>modeDelRun(id),{html:true,typeCount:1});
-}
-function modeDelRun(id){
-  const m=OBJ_MODES.find(x=>x.id===id);if(!m)return;
-  m._pend=true;AUTO_PEND.add(id);objModeRefresh();paint();
-  const key="mdl:"+id,timer=setTimeout(()=>{removeToastAction(key);
-    const i=OBJ_MODES.findIndex(x=>x.id===id);if(i<0||!OBJ_MODES[i]._pend)return;
-    // После отсчёта — список без режима: из условий правил и из «включён вручную» его убирает сервер
-    const rest=OBJ_MODES.filter(x=>x.id!==id),other=objModeElse===id?(rest.find(x=>modeCode(x.id)!=="service")||rest[0]).id:objModeElse;
-    API.put("/modes",{items:rest.map(modeBody),otherwise:other},modesVer).then(async M=>{
-      modesApply(M);await modeCurLoad();autoDirty.add("rule");await autoFlush();toast("Режим удалён");
-    }).catch(e=>{const x=OBJ_MODES.find(y=>y.id===id);AUTO_PEND.delete(id);if(x)delete x._pend;toast(problemText(e));paint()})},10000);
-  toastAction(key,`«${m.name}» — ${i18n("удаление через")}`,i18n("Отменить"),()=>{clearTimeout(timer);const x=OBJ_MODES.find(y=>y.id===id);AUTO_PEND.delete(id);if(x)delete x._pend;objModeRefresh();paint();toast("Удаление отменено")},10000);
-}
-function modeSegTip(s){return`${schHM(s.from)}–${s.to>=1440?"24:00":schHM(s.to)} · ${i18n(ruleModeName(s.mode))}`}
-function modeStripHtml(d,now){
-  const segs=modeDaySegs(d);
-  return`<div class="sch-bar ro mode-bar">${segs.map(s=>`<span class="sch-blk" style="left:${schPc(s.from)};width:${schPc(s.to-s.from)};background:${modeColor(s.mode)}" title="${escHtml(modeSegTip(s))}"></span>`).join("")}${now!=null?`<span class="sch-now" style="left:${schPc(now)}"></span>`:""}</div>`;
-}
-// Особые дни, которые изменили расписания режимов в дату d: ["Праздники РФ", …].
-function modeDayTags(d){
-  const t=new Set();
-  modeLive().forEach(m=>{const s=m.sched&&schById(m.sched);if(s){const o=schOwn(s,d);if(o.src==="ovr")t.add(grpName(s.ovr[o.n].g))}});
-  return[...t];
-}
-function modeWeekHtml(){
-  const t=new Date(),t0=schToday(),nowM=t.getHours()*60+t.getMinutes();
-  const rows=[0,1,2,3,4,5,6].map(k=>{
-    const d=schAdd(t0,k),tags=modeDayTags(d);
-    return`<div class="sch-row ${k?"":"today"}"><div class="sch-lab">${k===0?i18n("сегодня"):k===1?i18n("завтра"):i18n(RULE_DAYS[schDow(d)-1])}<small>${schDateShort(d)}</small></div>${modeStripHtml(d,k?null:nowM)}<div class="sch-ivs">${tags.map(x=>`<span class="sch-tag">${escHtml(x)}</span>`).join("")}</div></div>`;
-  }).join("");
-  return`<div class="sch-rows">${schRulerHtml()}${rows}</div>`+modeLegendHtml();
-}
-function modeLegendHtml(){return`<div class="sch-lg">${modeLive().map(m=>`<span><i style="background:${modeColor(m.id)}"></i>${escHtml(i18n(m.name))}</span>`).join("")}</div>`}
-function modeCalMonth(k,d){
-  if(!modeCal){const t=schIso(new Date());modeCal={month:t.slice(0,7),day:t}}
-  if(!d){const t=schIso(new Date());modeCal={month:t.slice(0,7),day:t}}
-  else{const[y,m]=modeCal.month.split("-").map(Number);modeCal.month=schIso(new Date(y,m-1+d,1)).slice(0,7)}
-  paint();
-}
-function modeCalPick(k,iso){if(!modeCal)modeCalMonth("m",0);modeCal.day=iso;paint()}
-function modeWhyHtml(d){
-  const segs=modeDaySegs(d),lines=segs.map(s=>`<li><span class="sch-sw" style="background:${modeColor(s.mode)}"></span><b>${schHM(s.from)}–${s.to>=1440?"24:00":schHM(s.to)}</b> «${escHtml(i18n(ruleModeName(s.mode)))}» — ${s.sched?`${i18n("расписание")} «${escHtml(schName(s.sched))}»`:i18n("ни одно расписание режима не действует — режим по умолчанию")}</li>`);
-  modeLive().forEach(m=>{const s=m.sched&&schById(m.sched);if(!s)return;const o=schOwn(s,d);
-    if(o.src==="ovr")lines.push(`<li class="sub">${i18n("Расписание")} «${escHtml(s.name)}» (${i18n("режим")} «${escHtml(m.name)}»): ${i18n("особый день")} «${escHtml(grpName(s.ovr[o.n].g))}» — ${escHtml(schOvrText(s.ovr[o.n]))}.</li>`)});
-  return`<div class="sch-why" role="status"><b>${schDateText(schIso(d),true)}, ${i18n(SCH_DAY_FULL[schDow(d)-1])}</b><ul>${lines.join("")}</ul></div>`;
-}
-function modeCalHtml(){
-  if(!modeCal){const t=schIso(new Date());modeCal={month:t.slice(0,7),day:t}}
-  const cal=schMonthHtml(modeCal.month,modeCal.day,"m",d=>{
-    const segs=modeDaySegs(d),tags=modeDayTags(d);
-    return{cls:tags.length?"ovr":"",tip:`${schDateText(schIso(d))}: ${segs.map(modeSegTip).join("; ")}${tags.length?` (${tags.join(", ")})`:""}`,
-      mini:`<span class="sch-mini">${segs.map(s=>`<i style="left:${schPc(s.from)};width:${schPc(s.to-s.from)};background:${modeColor(s.mode)}"></i>`).join("")}</span>`,
-      extra:tags.length?escHtml(tags[0]):""};
-  },"modeCalPick");
-  return schCalNav(modeCal.month,"m","modeCalMonth","")+cal+modeLegendHtml()+modeWhyHtml(schDate(modeCal.day));
-}
-function modeSchedPick(m){
-  const l=SCHEDS.filter(s=>!s._gone&&!s.own&&(!s._pend||s.id===m.sched));
-  return`<select aria-label="${escHtml(i18n("Расписание режима")+" «"+m.name+"»")}" ${m._pend?"disabled":""} ${onEv("change",["modeSched",`${m.id}`,onEv.value])}>
-    <option value="" ${m.sched?"":"selected"}>${i18n("Только вручную")}</option>
-    ${m.sched&&!schById(m.sched)?`<option selected disabled>${i18n("— удалено —")}</option>`:""}
-    <optgroup label="${i18n("Расписания")}">${l.map(s=>`<option value="${s.id}" ${s.id===m.sched?"selected":""}>${escHtml(s.name)}</option>`).join("")}</optgroup>
-    <optgroup label="${i18n("Ещё")}"><option value="__new">${i18n("Новое расписание…")}</option></optgroup></select>`;
-}
-// Прототип 32 (запрос владельца контракта 2026-11-06): режимов мало, приоритета по порядку нет — действует
-// последнее переключение; режим по умолчанию — одно поле; «сейчас» — одна строка; полосы и календарь — под «Подробнее».
-let modeMore=false;
-function modeMoreToggle(){modeMore=!modeMore;paint()}
-// «Ночь, до 08:00» / «Обслуживание, вручную»
-function modeNowText(){
-  if(objModeManual)return objModeManual.until?`${i18n("вручную до")} ${objModeManual.until}`:i18n("вручную, пока не переключат");
-  const u=objModeUntil();return u?`${i18n("до")} ${u}`:"";
-}
-// Расписания режимов, которые пересекаются в ближайшие 7 дней: [[режим, режим], …]
-function modeOverlaps(){
-  const l=modeLive().filter(m=>m.sched&&schById(m.sched)),out=[],t0=schToday();
-  for(let i=0;i<l.length;i++)for(let j=i+1;j<l.length;j++){
-    const hit=[0,1,2,3,4,5,6].some(k=>{const d=schAdd(t0,k),A=schDay(schById(l[i].sched),d).iv,B=schDay(schById(l[j].sched),d).iv;
-      return A.some(([a,b])=>B.some(([c,e])=>a<e&&c<b))});
-    if(hit)out.push([l[i],l[j]]);
-  }
-  return out;
-}
-function modeWhenSet(id,v){
-  const m=OBJ_MODES.find(x=>x.id===id);if(!m)return;
-  if(v==="__def"){modeEdit(`«${m.name}» — ${i18n("режим по умолчанию")}`,()=>{objModeElse=id;m.sched=null});return}
-  modeSched(id,v);
-}
-function modeWhenPick(m){
-  const l=SCHEDS.filter(s=>!s._gone&&!s.own&&(!s._pend||s.id===m.sched)),def=m.id===objModeElse;
-  const cur=m.sched||(def?"__def":"");
-  return`<select aria-label="${escHtml(i18n("Когда включается режим")+" «"+m.name+"»")}" ${m._pend?"disabled":""} ${onEv("change",["modeWhenSet",`${m.id}`,onEv.value])}>
-    <option value="__def" ${cur==="__def"?"selected":""}>${i18n("По умолчанию")}</option>
-    <option value="" ${cur===""?"selected":""}>${i18n("Только вручную")}</option>
-    ${m.sched&&!schById(m.sched)?`<option selected disabled>${i18n("— удалено —")}</option>`:""}
-    <optgroup label="${i18n("По расписанию")}">${l.map(s=>`<option value="${s.id}" ${s.id===m.sched?"selected":""}>${escHtml(s.name)}</option>`).join("")}</optgroup>
-    <optgroup label="${i18n("Ещё")}"><option value="__new">${i18n("Новое расписание…")}</option></optgroup></select>`;
-}
+function umDlgSave(){const w=umDlg,m=umById(w.id);if(!m)return;closeBulkModal();umEdit(()=>{m.off={all:w.all,ids:w.all?m.off.ids:[...w.ids]}})}
+// Страница «Режимы»
 function ruleModesUI(){
-  const cur=OBJ_MODES.find(m=>m.id===objMode)||OBJ_MODES[0];
-  const def=OBJ_MODES.find(m=>m.id===objModeElse);
-  const rows=OBJ_MODES.map(m=>{
-    const u=modeOffRules(m.id),o=modeOff(m.id),s=m.sched&&schById(m.sched),dis=m._pend?"disabled":"",keep=modeCode(m.id)==="service"||m.sys;
-    const sub=s?escHtml(schText(s)):m.id===objModeElse?i18n("когда ни одно расписание режима не действует"):i18n("включает оператор");
-    const tags=[m.id===objMode?i18n("действует сейчас"):"",m.id===objModeElse&&s?i18n("и режим по умолчанию"):""].filter(Boolean).join(" · ");
-    return`<tr data-mode="${m.id}" class="${m._pend?"pending":""}">
-      <td><div class="sch-mn"><span class="sch-sw" style="background:${modeColor(m.id)}"></span><input type="text" value="${escHtml(m.name)}" ${dis} title="${i18n("Переименовать")}" aria-label="${i18n("Название режима")}" ${onEv("change",["modeRename",`${m.id}`,onEv.value])}><span class="sch-pen" aria-hidden="true">✎</span></div>${m._pend?`<span class="sub">${i18n("удаляется")}</span>`:tags?`<span class="sub">${tags}</span>`:""}</td>
-      <td><div class="sch-mp">${modeWhenPick(m)}</div><div class="sub">${sub}${s&&!m._pend?` · <button type="button" class="lk" ${onEv("click",["schDlgOpen",m.sched,{from:{k:"mode",id:m.id}}])}>${i18n("Изменить…")}</button>`:""}</div></td>
-      <td><select aria-label="${escHtml(i18n("Что выключает режим")+" «"+m.name+"»")}" ${dis} ${onEv("change",["modeOffSet",`${m.id}`,onEv.value])}>${[["none","Ничего"],["tags","Правила с метками"],["all","Все правила"]].map(([v,l])=>`<option value="${v}" ${o.kind===v?"selected":""}>${i18n(l)}</option>`).join("")}</select>
-        ${o.kind==="tags"?`<div class="mode-tags">${chipsHtml(tagsAll(),o.tags,"modeOffTag",`${m.id}`)}<input type="text" class="rl-tag-new" placeholder="${i18n("Метка")}" aria-label="${i18n("Новая метка")}" ${onEv("change",["modeOffTagAdd",`${m.id}`,onEv.value])}></div>`:""}
-        <div class="sub">${o.kind==="none"?i18n("правила работают по своим условиям"):u.length?`<button type="button" class="lk" aria-expanded="${modeRulesOpen.has(m.id)}" ${onEv("click",["modeRulesToggle",`${m.id}`])}>${i18n("выключит")} ${u.length} ${i18n(u.length===1?"правило":u.length<5?"правила":"правил")}</button>`:i18n("под метки не попало ни одно правило")}</div>
-        ${modeRulesOpen.has(m.id)&&u.length&&o.kind!=="none"?`<div class="sch-ru">${u.map(r=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`).join("<br>")}</div>`:""}</td>
-      <td class="sch-ma"><button type="button" class="btn s btn-icon" ${keep||m._pend?`disabled title="${i18n(keep?"Встроенный режим не удаляется":"Удаляется")}"`:`title="${i18n("Удалить режим…")}"`} aria-label="${i18n("Удалить режим")}" ${onEv("click",["modeDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
+  const l=umList(),now=umNow(),offNow=rules.filter(r=>!r._new&&now.some(m=>umHits(m,r)));
+  const rows=l.map(m=>{
+    const s=m.sched&&schById(m.sched),a=umActive(m),u=umRules(m);
+    const schedSel=`<select aria-label="${escHtml(i18n("Когда включается режим")+" «"+m.name+"»")}" ${onEv("change",["umSched",`${m.id}`,onEv.value])}>
+      <option value="" ${m.sched?"":"selected"}>${i18n("Только вручную")}</option>
+      <optgroup label="${i18n("По расписанию")}">${SCHEDS.filter(x=>!x._gone&&(!x.own||x.id===m.sched)).map(x=>`<option value="${x.id}" ${x.id===m.sched?"selected":""}>${escHtml(x.own?`${x.name} (${i18n("только здесь")})`:x.name)}</option>`).join("")}</optgroup>
+      <optgroup label="${i18n("Ещё")}"><option value="__new">${i18n("Новое расписание…")}</option></optgroup></select>`;
+    const offSel=`<select aria-label="${escHtml(i18n("Что выключает режим")+" «"+m.name+"»")}" ${onEv("change",["umOffKind",`${m.id}`,onEv.value])}><option value="all" ${m.off.all?"selected":""}>${i18n("Все правила")}</option><option value="some" ${m.off.all?"":"selected"}>${i18n("Выбранные правила")}</option></select>`;
+    return`<tr data-mode="${m.id}">
+      <td><div class="sch-mn"><span class="sch-sw" style="background:${m.color}"></span><input type="text" value="${escHtml(m.name)}" title="${i18n("Переименовать")}" aria-label="${i18n("Название режима")}" ${onEv("change",["umRename",`${m.id}`,onEv.value])}><span class="sch-pen" aria-hidden="true">✎</span></div></td>
+      <td>${schedSel}<div class="sub">${s?`${escHtml(schText(s))} · <button type="button" class="lk" ${onEv("click",["schDlgOpen",m.sched,{from:{k:"mode",id:m.id}}])}>${i18n("Изменить…")}</button>`:i18n("включает оператор на срок")}</div></td>
+      <td>${offSel}<div class="sub">${m.off.all?i18n("и новые правила тоже"):`<button type="button" class="lk" ${onEv("click",["umRulesOpen",`${m.id}`])}>${u.length} ${i18n(plural(u.length,"правило|правила|правил"))} · ${i18n("Выбрать…")}</button>`}</div></td>
+      <td>${a?`<span class="um-on">${i18n("действует")}</span><div class="sub">${escHtml(umNowText(m))}</div>${a==="man"?`<button type="button" class="lk lk-act" ${onEv("click",["umOff",`${m.id}`])}>${i18n("Выключить")}</button>`:""}`
+        :`<button type="button" class="btn s" ${onEv("click",["ruleModeSwitch",`${m.id}`])}>${i18n("Включить…")}</button>`}</td>
+      <td class="sch-ma"><button type="button" class="btn s btn-icon" ${m.sys?`disabled title="${i18n("Встроенный режим не удаляется")}"`:`title="${i18n("Удалить режим…")}"`} aria-label="${i18n("Удалить режим")}" ${onEv("click",["umDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
   }).join("");
-  const ov=modeOverlaps();
-  const ovHtml=ov.length?`<div class="nt" role="status">${i18n("Расписания режимов пересекаются")}: ${ov.map(([x,y])=>`«${escHtml(x.name)}» ${i18n("и")} «${escHtml(y.name)}»`).join(", ")}. ${i18n("В пересечении действует режим, который включился позже.")}</div>`:"";
-  const nowTxt=modeNowText();
-  paintMain(mainHd(schCrumb(),i18n("Режимы объекта"),"Режим — состояние объекта: «Обычный», «Обслуживание». Его включает расписание или оператор вручную; действует последнее переключение. Режим выключает правила — все или по меткам; что режим не выключил, работает по своим условиям")+
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Режимы"),"Режим выключает правила — все или выбранные. Его включает расписание или оператор на срок. Режимов может действовать несколько: правило выключено, если его выключает хоть один действующий режим. Что не выключено, работает по своим условиям")+
     `<div class="sc">
-      <div class="card"><div class="cb mode-now"><span class="sch-sw lg" style="background:${modeColor(cur.id)}"></span><span>${i18n("Сейчас")}: <b>${escHtml(i18n(cur.name))}</b>${nowTxt?`, ${escHtml(nowTxt)}`:""}</span>
-        <button type="button" class="btn s" aria-haspopup="menu" ${onEv("click",["hdModeMenu",onEv.event])}>${i18n("Переключить…")}</button>
-        <button type="button" class="lk lk-act" aria-expanded="${modeMore}" ${onEv("click",["modeMoreToggle"])}>${i18n(modeMore?"Скрыть подробности":"Подробнее")}</button></div></div>
-      ${modeMore?card("Неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную — полосы показывают, что будет по расписанию.")}</p>`:""}${modeWeekHtml()}`)+card("Календарь",modeCalHtml()):""}
-      ${card("Режимы",`${ovHtml}<table class="bk-t sch-mt2"><tr><th>${i18n("Режим")}</th><th>${i18n("Включается")}</th><th>${i18n("Выключает")}</th><th></th></tr>${rows}</table>
-        ${def?"":`<p class="sub">${i18n("Режим по умолчанию не выбран.")}</p>`}
-        <p class="sub">${i18n("Режим по умолчанию действует, когда ни одно расписание режима не действует. Ручное переключение — на срок, который выбирают при переключении, не больше 8 часов; потом режим вернётся по расписанию. За 10 минут до конца срока консоль напомнит и предложит продлить.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
+      <div class="card"><div class="cb mode-now">${now.length?`<span>${i18n("Сейчас действуют")}: ${now.map(m=>`<b>${escHtml(i18n(m.name))}</b> <span class="sub">(${escHtml(umNowText(m))})</span>`).join(", ")} — ${i18n("выключено")} ${offNow.length} ${i18n(plural(offNow.length,"правило|правила|правил"))}</span>`
+        :`<span>${i18n("Сейчас ни один режим не действует: все правила работают по своим условиям.")}</span>`}</div></div>
+      ${card("Режимы",`<table class="bk-t sch-mt2"><tr><th>${i18n("Режим")}</th><th>${i18n("Включается")}</th><th>${i18n("Выключает")}</th><th>${i18n("Сейчас")}</th><th></th></tr>${rows}</table>
+        <p class="sub">${i18n("Оператор включает режим на срок, не больше 8 часов; потом режим выключится сам. За 10 минут до конца срока консоль напомнит и предложит продлить. Режим по расписанию действует, пока действует расписание.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["umAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
     </div>`);
 }
-// Шапка консоли: текущий режим и переключатель — на любом экране
+function umOff(id){
+  const m=umById(id);if(!m||!m.man)return;const was=m.man;
+  umEdit(()=>{m.man=null});removeToastAction("mremind:"+id);
+  toastAction("umoff:"+id,`«${i18n(m.name)}» ${i18n("выключен")}`,i18n("Отменить"),()=>{umEdit(()=>{m.man=was});umRemindPlan(m)},10000);
+}
+// Шапка консоли: какие режимы действуют, и меню «Включить… / Выключить»
 function hdModePaint(){
   const b=document.getElementById("hdMode");if(!b)return;
-  const cur=OBJ_MODES.find(m=>m.id===objMode);
-  b.hidden=!cur||!can("getModeCurrent");if(b.hidden)return;
-  const t=modeNowText();
-  b.title=`${i18n("Режим объекта")}: ${i18n(cur.name)}${t?`, ${t}`:""}\n${i18n("Переключить…")}`;
-  b.setAttribute("aria-label",`${i18n("Режим объекта")}: ${i18n(cur.name)}. ${i18n("Переключить")}`);
-  b.classList.toggle("manual",!!objModeManual);
-  b.innerHTML=`<span class="sch-sw" style="background:${modeColor(cur.id)}"></span><b>${escHtml(i18n(cur.name))}</b>${objModeManual?`<small>${escHtml(objModeManual.until?`${i18n("вручную до")} ${objModeManual.until}`:i18n("вручную"))}</small>`:""}${lu("chevron-down")}`;
+  b.hidden=!rules.length||!can("listRules");if(b.hidden)return;
+  const now=umNow(),man=now.find(m=>umActive(m)==="man");
+  b.classList.toggle("manual",!!man);
+  b.title=now.length?`${i18n("Действуют режимы")}: ${now.map(m=>`${i18n(m.name)} (${umNowText(m)})`).join(", ")}`:i18n("Ни один режим не действует: все правила работают по своим условиям");
+  b.setAttribute("aria-label",`${now.length?`${i18n("Режим")}: ${now.map(m=>i18n(m.name)).join(", ")}`:i18n("Обычная работа")}. ${i18n("Включить или выключить режим")}`);
+  b.innerHTML=now.length?`<span class="sch-sw" style="background:${now[0].color}"></span><b>${escHtml(i18n(now[0].name))}${now.length>1?` +${now.length-1}`:""}</b>${man?`<small>${escHtml(umNowText(man))}</small>`:""}${lu("chevron-down")}`
+    :`<b>${i18n("Обычная работа")}</b>${lu("chevron-down")}`;
 }
 function hdModeMenu(ev){
   ev.stopPropagation();
   const menu=document.getElementById("tctx"),btn=ev.currentTarget;if(!menu)return;
-  const live=modeLive().filter(m=>m.id!==objMode);
-  menu.innerHTML=[...live.map(m=>tctxItem(`${i18n("Переключить на")} «${escHtml(i18n(m.name))}»`,`closeTreeCtx();ruleModeSwitch('${m.id}')`,`<span class="tctx-ic"><span class="sch-sw" style="background:${modeColor(m.id)}"></span></span>`)),
-    ...(objModeManual?[tctxSep(),tctxItem(`${i18n("Вернуть по расписанию")}: «${escHtml(i18n(ruleModeName(objModeSched())))}»`,`closeTreeCtx();ruleModeSwitch('auto')`)]:[]),
-    tctxSep(),tctxItem(`${i18n("Режимы объекта")}…`,`closeTreeCtx();hdModeGo()`)].join("");
+  const sw=m=>`<span class="tctx-ic"><span class="sch-sw" style="background:${m.color}"></span></span>`;
+  menu.innerHTML=[...umList().map(m=>{const a=umActive(m);
+      return a==="man"?tctxItem(`${i18n("Выключить")} «${escHtml(i18n(m.name))}» · ${escHtml(umNowText(m))}`,`closeTreeCtx();umOff('${m.id}')`,sw(m))
+        :a==="sched"?tctxItem(`«${escHtml(i18n(m.name))}» · ${escHtml(umNowText(m))}`,"",sw(m),true)
+        :tctxItem(`${i18n("Включить")} «${escHtml(i18n(m.name))}»…`,`closeTreeCtx();ruleModeSwitch('${m.id}')`,sw(m))}),
+    tctxSep(),tctxItem(`${i18n("Режимы")}…`,`closeTreeCtx();hdModeGo()`)].join("");
   menu.classList.add("open");menu.style.left="0px";menu.style.top="0px";
   const b=btn.getBoundingClientRect(),mw=menu.offsetWidth,mh=menu.offsetHeight;
   menu.style.left=Math.max(8,Math.min(Math.round(b.right-mw),innerWidth-mw-8))+"px";
@@ -18653,13 +18571,13 @@ function ruleOverviewUI(){
     <p class="sub">${i18n("Самые частые правила — кандидаты на лимит: проверьте, что лимит подходит и пропуски по лимиту не прячут настоящие события.")}</p>`:`<p class="sub">${i18n("За сутки запусков не было")}</p>`);
   const bad=live.map(r=>({r,n:ruleFailFires(r)})).filter(x=>x.n).sort((a,b)=>b.n-a.n);
   const fails=card("Отказы за сутки",bad.length?`<ul class="rl-ovl">${bad.map(x=>`<li>${ruleLk(x.r)} <span class="sub">· ${x.n} ${i18n(plural(x.n,"запуск|запуска|запусков"))} ${i18n("с отказами")}</span> <button type="button" class="lk lk-act" ${onEv("click",["ruleOvFails",`${x.r.id}`])}>${i18n("Показать запуски")}</button></li>`).join("")}</ul>`:`<p class="sub">${i18n("Отказов нет")}</p>`);
-  const why={muted:r=>`${i18n("приглушено до")} ${ruleMuteTill(ruleMuteNow(r))}`,maint:r=>`${i18n("окно обслуживания")} «${ruleMaintNow(r).name}»`,mode:r=>`${i18n("режим")} «${i18n(ruleModeOffNow(r).name)}»`,
+  const why={muted:r=>`${i18n("приглушено до")} ${ruleMuteTill(ruleMuteNow(r))}`,maint:r=>`${i18n("режим")} «${i18n(ruleMaintNow(r).name)}»`,mode:r=>`${i18n("режим")} «${i18n(ruleModeOffNow(r).name)}»`,
     watch:()=>i18n("только журнал"),off:()=>i18n("выключено")};
-  const off=[["muted","Приглушены",live.filter(r=>ruleMuteNow(r))],["maint","В окне обслуживания",live.filter(r=>ruleMaintNow(r))],["mode","Выключены режимом объекта",live.filter(r=>r.on&&!r.watch&&ruleModeIdle(r))],
+  const off=[["muted","Приглушены",live.filter(r=>ruleMuteNow(r))],["maint","Выключены режимом",live.filter(r=>ruleMaintNow(r))],
     ["watch","Только журнал",live.filter(r=>r.on&&r.watch)],["off","Выключены",live.filter(r=>!r.on)]];
   const idle=card("Не работают сейчас",`<table><tr><th>${i18n("Причина")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th></tr>${off.map(([k,lab,l])=>`<tr><td>${i18n(lab)}</td><td class="bk-num">${l.length&&k!=="maint"&&k!=="mode"?`<button type="button" class="lk" aria-label="${i18n("Показать в дереве")}: ${i18n(lab).toLowerCase()}, ${l.length}" ${onEv("click",["ruleOvFilt",`${k}`])}>${l.length}</button>`:l.length}</td>
       <td>${l.slice(0,3).map(r=>`${ruleLk(r)} <span class="sub">(${escHtml(why[k](r))})</span>`).join(", ")}${l.length>3?` ${i18n("и ещё")} ${l.length-3}`:""}</td></tr>`).join("")}</table>
-    <p class="sub">${i18n("Число открывает список таких правил в дереве.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","maint",true])}>${i18n("Окна обслуживания")}</button></p>`);
+    <p class="sub">${i18n("Число открывает список таких правил в дереве.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button></p>`);
   paintMain(mainHd(i18n("Автоматизация"),i18n("Обзор"),"Какие правила запускаются чаще всего, где отказы и что не работает")+`<div class="sc">${freq}${fails}${idle}</div>`);
 }
 
