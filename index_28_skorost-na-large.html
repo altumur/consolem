@@ -10830,6 +10830,46 @@ function pageNums(cur,last){
   list.forEach((p,i)=>{if(i&&p-list[i-1]>1)out.push(null);out.push(p)});
   return out;
 }
+// Постоянная высота страницы. Листалка помечает себя data-pg="число строк на странице|ключ"; область строк — предыдущий
+// брат подвала (.tfoot) или .pg-rows — тянется до pageSize строк по средней высоте строки (min-height), поэтому
+// последняя неполная страница и «Ничего не найдено» не схлопывают карточку и листалка не прыгает. Список на одну
+// страницу без «Показать ещё» не помечается. Строки на странице считаются в тех единицах, в каких режет pageSlice
+// (у таблиц с группами — группы). Делает MutationObserver (микрозадача — до кадра), чтобы не править каждый список.
+const pgAvg={},pgU={},pgS={},pgHold={};
+function pgMark(key,total,last,more){
+  // Высота держится, пока человек в этом списке: поиск или фильтр, сузившие список до одной страницы, её не снимают
+  // (pgHold стоит с первой полной страницы и снимается при выходе из списка, pgFix, и при смене размера страницы)
+  const full=total&&(last>1||more);
+  if(full)pgHold[key]=true;
+  if(!full&&!(pgHold[key]&&pgS[key]===pageSize)&&!(!total&&pgAvg[key]))return"";
+  const cur=pageCur(key,total),n=total?Math.min(total,cur*pageSize)-(cur-1)*pageSize:0;
+  return`" data-pg="${n}" data-pgk="${escHtml(key)}`;
+}
+function pgFix(){
+  const seen=new Set();
+  document.querySelectorAll("[data-pg]").forEach(el=>{
+    seen.add(el.dataset.pgk);
+    const foot=el.closest(".tfoot"),box=foot&&(foot.parentNode.querySelector(":scope>.pg-rows")||foot.previousElementSibling);
+    if(!box)return;
+    const n=el.dataset.pg,key=el.dataset.pgk,rows=box.querySelector("tbody")||box,units=+n;
+    const sig=pageSize+":"+n+":"+box.childElementCount+":"+rows.childElementCount;
+    if(el._pgSig===sig&&box.style.minHeight===el._pgMin)return;
+    box.style.minHeight="";
+    // Область, высоту которой задаёт контейнер (flex-область или прокрутка внутри неё), не растягиваем: inline min-height
+    // перебил бы min-height:0 и вытолкнул подвал. Таблица камер с overflow:auto сюда не попадает — её растягиваем.
+    const cs=getComputedStyle(box);
+    if(cs.maxHeight!=="none"||parseFloat(cs.flexGrow)>0||box.scrollHeight>box.clientHeight+1){el._pgSig=sig;el._pgMin="";return}
+    const hdr=[...box.querySelectorAll(".gtbl-h,.gtbl-f")].reduce((t,x)=>t+(x.parentNode===box||x.closest("table")?0:x.offsetHeight),0);
+    const rowsH=rows===box?box.offsetHeight-hdr:rows.offsetHeight,chrome=box.offsetHeight-rowsH;
+    // Средняя высота — по самой полной из виденных страниц: одна строка последней страницы даёт грубую оценку
+    if(units&&(units>=(pgU[key]||0)||pgS[key]!==pageSize)){pgAvg[key]=rowsH/units;pgU[key]=units;pgS[key]=pageSize}
+    const avg=pgAvg[key],want=avg?Math.ceil(Math.max(box.offsetHeight,chrome+avg*pageSize)):0;
+    box.style.minHeight=want?want+"px":"";
+    el._pgSig=sig;el._pgMin=box.style.minHeight;
+  });
+  Object.keys(pgHold).forEach(k=>{if(!seen.has(k))delete pgHold[k]});
+}
+if(window.MutationObserver)new MutationObserver(pgFix).observe(document.body,{childList:true,subtree:true});
 // 1 устройство, 2 устройства, 5 устройств — формы задаются через «|».
 function plural(n,forms){
   const f=String(forms).split("|"),a=Math.abs(n)%100,b=a%10;
@@ -10850,8 +10890,8 @@ function pagerHtml(key,total,how,unit,more){
     :i18n(more?"Среди прочитанного нет":"Нет записей"))+"</span>"+(more||"");
   const sizeSel=`<label class="pg-size">${i18n("На странице")}
     <select ${onEv("change",["setPageSize",onEv.value,`${how}`])}>${PAGE_SIZES.map(v=>`<option value="${v}" ${v===pageSize?"selected":""}>${v}</option>`).join("")}</select></label>`;
-  const infoCls=more?"sub pg-info":"sub";
-  if(last<2)return`<span class="${infoCls}">${info}<span class="tfoot-gap"></span>${total>PAGE_SIZES[0]||pageSize!==PAGE_SIZES[0]?`<div class="pg">${sizeSel}</div>`:""}`;
+  const infoCls=(more?"sub pg-info":"sub")+pgMark(key,total,last,more);
+  if(last<2)return`<span class="${infoCls}">${info}<span class="tfoot-gap"></span>${total>PAGE_SIZES[0]||pageSize!==PAGE_SIZES[0]||infoCls.includes("data-pg")?`<div class="pg">${sizeSel}</div>`:""}`;
   const step=(p,lbl,dis,title)=>`<button type="button" class="pg-b" ${dis?"disabled":""} title="${title}" aria-label="${title}" ${onEv("click",["setPage",`${key}`,p,`${how}`])}>${lbl}</button>`;
   const nums=pageNums(cur,last).map(p=>p===null
     ?`<span class="pg-gap">…</span>`
@@ -10906,9 +10946,9 @@ function listBodyHtml(o){
   const found=listFound(o),rows=pageSlice(o.key,found).map(o.row).join("");
   return listSearchHtml(o.key,o.ph,o.how)
     +(o.mid?o.mid(found):"")
-    +(rows?(o.wrap?o.wrap(rows):rows):`<p class="sub">${i18n("Ничего не найдено")}</p>`)
+    +`<div class="pg-rows">${rows?(o.wrap?o.wrap(rows):rows):`<p class="sub">${i18n("Ничего не найдено")}</p>`}</div>`
     +(o.extra||"")
-    +(found.length?`<div class="tfoot">${pagerHtml(o.key,found.length,o.how||"list",o.unit)}</div>`:"");
+    +(found.length||pgAvg[o.key]?`<div class="tfoot">${pagerHtml(o.key,found.length,o.how||"list",o.unit)}</div>`:"");
 }
 function listCard(o){return card(o.title,listBodyHtml(o),o.head||"")}
 // Дочерние объекты перечисляют пять разных карточек, и каждая — тот же список.
