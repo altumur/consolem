@@ -14372,7 +14372,7 @@ function formBase(n){
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
       <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Тома размечены под этот тип")}</div></div>
+        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Сервер размечает тома под этот тип")}</div></div>
         ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
       ${spec.serverWide?`<div class="nt">${i18n("Один на сервер. Работает со всеми камерами сервера. Привязывать камеры не нужно. Выключить его для одной камеры нельзя.")}</div>`:""}
@@ -22701,7 +22701,7 @@ const SETTINGS=[
   {id:"alarm.cmtFalse",page:"alarm",card:"Комментарий обязателен",label:"Ложная тревога",type:"bool",def:false},
   {id:"alarms.domain",page:"alarm",card:"Тревога на весь домен",label:"События, которые поднимают тревогу",type:"kinds",def:[],api:true,help:"Тревогу видят все операторы домена."},
   {id:"ptz.idle",page:"ptz",card:"Очередь управления",label:"Отдать управление через",type:"num",unit:"с",min:5,max:600,def:30,help:"Если камеру ждёт другой оператор, текущий оператор теряет управление после этого времени без команд."},
-  {id:"ptz.showPrio",page:"ptz",card:"Очередь управления",label:"Показывать, кто управляет",type:"bool",def:true,help:"Консоль показывает имя пользователя, у которого приоритет выше."},
+  {id:"ptz.showPrio",page:"ptz",card:"Очередь управления",label:"Показывать, кто управляет",type:"bool",def:true,help:"Оператор видит имя пользователя, у которого приоритет выше."},
   {id:"sec.pwdlen",page:"sec",card:"Пароль",label:"Длина пароля, не меньше",type:"num",unit:"знаков",min:8,max:20,def:8},
   {id:"sec.pwdrule",page:"sec",card:"Пароль",label:"Сложность пароля",type:"select",def:"mix",opts:[["none","Любой"],["mix","Буквы и цифры"],["full","Буквы, цифры и знаки"]],help:"Сервер проверяет сложность, когда пользователь меняет пароль."},
   {id:"sec.pwdage",page:"sec",card:"Пароль",label:"Сменить пароль через",type:"limit",unit:"дн",min:1,max:999,def:90,offText:"Не требовать",api:true},
@@ -22725,7 +22725,7 @@ const SETTINGS=[
   {id:"au.spk",page:"audio",card:"Звук камер и тревог",label:"Динамик",type:"select",def:"default",opts:[["default","Как в системе (Динамики Realtek)"],["hdmi","Монитор DELL U2723QE (HDMI)"],["usb","USB-гарнитура Jabra Evolve2 40"],["jack","Наушники (разъём 3,5 мм)"]],help:"Браузер выводит на это устройство звук камер и сигнал тревоги."},
   {id:"au.mic",page:"audio",card:"Разговор с камерой",label:"Микрофон",type:"select",def:"",opts:[["","Не выбран"],["default","Как в системе (Микрофон Realtek)"],["usb","USB-гарнитура Jabra Evolve2 40"],["cam","Веб-камера Logitech C920"]],help:"Ваш голос звучит в динамике камеры."},
   {id:"keep.sysLogClean",page:"keep",card:"Журнал",label:"Чистить системный журнал каждые",type:"num",unit:"ч",min:1,max:1000,def:720},
-  {id:"keep.metaPath",page:"keep",card:"Метаданные детекторов",label:"Сетевая папка для метаданных",type:"text",def:"",help:"Пусто — на диске сервера. Пример: \\\\nas\\meta\\"},
+  {id:"keep.metaPath",page:"keep",card:"Метаданные детекторов",label:"Сетевая папка для метаданных",type:"text",def:"",help:"Если поле пустое, сервер хранит метаданные на своём диске. Пример: \\\\nas\\meta\\"},
   {id:"keep.metaUser",page:"keep",card:"Метаданные детекторов",label:"Пользователь сетевой папки",type:"text",def:""},
   {id:"keep.metaPwd",page:"keep",card:"Метаданные детекторов",label:"Пароль сетевой папки",type:"text",pw:true,def:""},
   {id:"ptz.joy",page:"ptz",card:"Джойстик",label:"Чувствительность джойстика",type:"num",unit:"",min:5,max:100,def:50,help:"Для пошаговых команд PTZ. Пределы зависят от модели джойстика."},
@@ -23205,7 +23205,7 @@ function licDelKey(kid){
     return`<li><b>${escHtml(locName(domains[i]))}</b>: ${items.length?`${items.join(", ")} — ${i18n("эти устройства перестанут работать, пока домен не получит ключ")}`:i18n("лицензий сейчас не занимает")}</li>`}).join("");
   const msg=`<p>${i18n("Ключ")} <b>${escHtml(k.serial!=="—"?k.serial:k.product)}</b> ${i18n("будет удалён")}${k.dom.length?`, ${i18n("его домены останутся без ключа")}`:""}.</p>
     <div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul><li>${i18n("лицензии ключа")}: ${L.feats.map(f=>`${escHtml(i18n(f.n))} ${f.total}`).join(", ")||"—"}</li>${lost}${Object.keys(k.lim||{}).length?`<li>${i18n("лимиты доменов в ключе")}</li>`:""}</ul></div>
-    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${k.dom.length?`${i18n("домены")} ${k.dom.map(i=>escHtml(locName(domains[i]))).join(", ")} ${i18n("— их камеры, архив и настройки")}`:i18n("домены и их настройки, но ключ не будет назначен ни одному домену")}</li><li>${i18n("ключ можно добавить снова из файла или по серийному номеру")}</li></ul></div>`;
+    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${k.dom.length?`${i18n("домены")} ${k.dom.map(i=>escHtml(locName(domains[i]))).join(", ")} ${i18n("— их камеры, архив и настройки")}`:i18n("домены и их настройки, потому что у ключа нет доменов")}</li><li>${i18n("ключ можно добавить снова из файла или по серийному номеру")}</li></ul></div>`;
   askConfirm("Удалить ключ?",msg,"","Удалить ключ",()=>{
     const snap=licSnap();k.dom.slice().forEach(i=>{LIC_ORPHAN[i]=licDetach(i)});LIC_KEYS=LIC_KEYS.filter(x=>x.id!==kid);licRepaint();
     toastAction("licdel",`${licKeyName(k)} ${i18n("удалён")}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint();setTimeout(()=>licGoKey(kid),60)},10000);
