@@ -870,7 +870,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wizd.csvRows[0].vendor === "Hikvision" && !wizd.csvRows[0].warns.length, "файл: регистр производителя поправлен");
   ok(wizd.csvRows[2].warns.length === 1 && wizd.csvRows[3].warns.length === 1 && !wizd.csvRows[1].warns.length, "файл: предупреждения только у неизвестных");
   renderDeviceWizard();
-  ok(/исправьте в плане/.test(document.querySelector(".csv-preview").textContent), "файл: в таблице сказано, где исправить");
+  ok(/исправ(ьте|ить) в плане/.test(document.querySelector(".csv-preview").textContent), "файл: в таблице сказано, где исправить");
   toggleCsvAll(true);
   planAddCsv();
   ok(addPlan.rows.length === 4, "файл: строки в плане — " + addPlan.rows.length);
