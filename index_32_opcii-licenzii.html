@@ -1678,6 +1678,61 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 /* Кнопки шапки — у правого края, и когда ряд перенёсся. Заголовок не растягивается (bridge.css), место забирает его отступ. */
 .hd-act{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .hd-act>.hd-ti{margin:0 auto 0 0}
+/* Прототип 32: опции и лицензии */
+.op-tg{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;padding:10px 10px 4px}
+.op-tcnt{margin-left:auto;font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
+.op-page{scrollbar-gutter:stable}
+.op-where{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 12px;margin-bottom:12px;border:1px solid var(--ln);border-radius:8px;background:var(--one-surface-muted);font-size:12px;color:var(--one-fg-muted)}
+.op-where-off{border-color:var(--one-warning-icon);background:var(--one-warning-bg);color:var(--one-warning-text)}
+.op-where svg{width:16px;height:16px;flex:none}.op-where>span{flex:1 1 240px}
+.op-found{margin:0 0 10px}
+.op-list{display:flex;flex-direction:column;container-type:inline-size}
+.op-row{display:grid;grid-template-columns:minmax(200px,1fr) minmax(240px,1.2fr);gap:6px 24px;padding:10px 0;border-top:1px solid var(--ln);align-items:start}
+.op-row:first-child{border-top:0;padding-top:2px}
+.op-lb{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-weight:600;font-size:13px}
+.op-h{font-size:12px;color:var(--mu);margin-top:3px;line-height:1.4}
+.op-c{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap;min-width:0}
+.op-c select{field-sizing:content;max-width:100%;min-width:120px}
+.op-in{width:auto}.op-txt{field-sizing:content;min-width:200px;max-width:100%}
+.op-num{display:inline-flex;align-items:center;gap:6px}.op-num input{width:90px}.op-unit{color:var(--mu);font-size:12px;white-space:nowrap}
+.op-off input{opacity:.5}
+.op-chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;white-space:nowrap;cursor:pointer}
+button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-swt{font-size:12px;color:var(--mu)}
+.op-bd{font-size:10px;font-weight:500;padding:1px 6px;border-radius:99px;background:var(--one-control-bg);color:var(--mu);white-space:nowrap}
+.op-bd-ch{background:var(--one-accent-soft,var(--one-control-bg));color:var(--one-fg)}
+.op-bd-diff{background:var(--one-warning-bg);color:var(--one-warning-text)}
+.op-rst{font-size:12px}
+.op-scope{width:100%;margin:0}
+.op-ro{width:100%;margin:0}
+.op-dom{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:8px;width:100%}
+.op-dc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.op-dn{font-size:12px;color:var(--one-fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.op-dom-off .sub{font-size:12px}
+@container (max-width:560px){.op-row{grid-template-columns:1fr}}
+.lic-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.lic-dn{font-weight:700}.lic-acts{margin-left:auto}
+.lic-st{font-size:11px;font-weight:500;padding:2px 8px;border-radius:99px;white-space:nowrap}
+.lic-st-ok{background:var(--one-success-bg);color:var(--one-success-text)}.lic-st-warn{background:var(--one-warning-bg);color:var(--one-warning-text)}
+.lic-st-err{background:var(--one-danger-bg);color:var(--one-danger-text)}.lic-st-mu{background:var(--one-control-bg);color:var(--mu)}
+.lic-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 16px;margin-bottom:12px}
+.lic-meta span{display:block;font-size:11px;color:var(--mu)}.lic-meta b{font-size:13px}.lic-warn{color:var(--one-warning-text)}
+.lic-tb{width:100%;table-layout:fixed;border-collapse:collapse;font-size:12px}
+.lic-tb th{text-align:left;font-weight:500;color:var(--mu);padding:4px 8px 6px 0}
+.lic-tb td .lk{white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:inline-block;vertical-align:middle}
+.lic-tb td{padding:7px 8px 7px 0;border-top:1px solid var(--ln);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.lic-num{text-align:right;font-variant-numeric:tabular-nums}
+.lic-bar{height:8px;border-radius:99px;background:var(--one-control-bg);overflow:hidden}.lic-bar span{display:block;height:100%;border-radius:99px}
+.lic-bar-ok span{background:var(--one-success-icon)}.lic-bar-warn span{background:var(--one-warning-icon)}.lic-bar-err span{background:var(--one-danger)}
+tr.lic-over td{color:var(--one-danger-text)}.lic-neg{color:var(--one-danger-text);font-weight:600}
+tr.lic-own td{white-space:normal;border-top:0;padding-top:0}
+.lic-ownc{display:inline-block;font-size:11px;padding:2px 8px;margin:0 6px 4px 0;border-radius:99px;background:var(--one-control-bg)}
+.lic-srvt{display:inline-flex;align-items:center;gap:4px;margin-top:10px;font-size:12px}.lic-srvt svg{width:14px;height:14px}
+.lic-srv{margin-top:6px;max-width:420px}
+.lic-offline .cb{opacity:.75}
+.lic-iss{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+.lic-iss li{display:flex;gap:8px;align-items:baseline;font-size:12px}
+.lic-iss li:before{content:"";width:8px;height:8px;border-radius:99px;flex:none;transform:translateY(-1px)}
+.lic-l3:before{background:var(--one-danger)}.lic-l2:before{background:var(--one-warning-icon)}.lic-l1:before{background:var(--one-fg-subtle)}
+.lic-iss .lk{text-align:left}
 .set-flash{outline:2px solid var(--bl);outline-offset:4px;border-radius:8px;transition:outline-color .4s}
 /* ── Прототип 06: групповые операции ─────────────────────────────────── */
 .n-chk{flex:none;width:14px;height:14px;box-sizing:border-box;border:1.5px solid var(--one-border-strong);border-radius:4px;background:transparent;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;margin-right:2px;opacity:0;transition:opacity .12s}
@@ -2651,8 +2706,23 @@ const typeFilts=new Set(),searchFields=new Set(),treeTags=new Set(["ip"]);
 // Что раскрыто при первом показе, задаёт старт (appReady): данные приходят с сервера
 const open=new Set();
 const treeMatchCache=new Map(),searchMatchCache=new Map();
-const sysOptsRU=[{id:"ntp",n:"Время",i:"clock"},{id:"sec",n:"Безопасность",i:"lock"},{id:"mail",n:"Уведомления",i:"mail"},{id:"keep",n:"Хранение",i:"clock"},{id:"lic",n:"Лицензии",i:"clipboard-list"}];
-const sysOptsEN=[{id:"ntp",n:"Time",i:"clock"},{id:"sec",n:"Security",i:"lock"},{id:"mail",n:"Notifications",i:"mail"},{id:"keep",n:"Retention",i:"clock"},{id:"lic",n:"Licenses",i:"clipboard-list"}];
+// ── Опции (прототип 32): группы «Рабочее место» и «Домен», значения по доменам, лицензии ──
+// ЗАГЛУШКА прототипа 32. В контракте 0.2.0 опции общие на систему (GET /settings, 9 значений), а лицензии — без
+// домена (GET /licenses). Опции домена по доменам, новые опции по образцу Axxon One и лицензии по доменам живут
+// здесь, в памяти страницы, до ответа на запрос api/requests/2026-11-06-094022Z-mockup-domain-licenses-request.md.
+// Опции из контракта (api:true) по-прежнему уходят на сервер PATCH /settings — для всех доменов сразу.
+// Опции рабочего места — в localStorage этого браузера: API им не нужен.
+const OPT_GROUPS=[{id:"ws",n:"Рабочее место",sub:"Только этот браузер"},{id:"dom",n:"Домен",sub:"Все серверы домена"},{id:"lic",n:"Лицензии",sub:""}];
+const sysOptsRU=[
+  {id:"ui",g:"ws",n:"Интерфейс",i:"layout-dashboard"},{id:"region",g:"ws",n:"Язык и формат",i:"sun-moon"},{id:"session",g:"ws",n:"Выход и блокировка",i:"lock"},
+  {id:"keep",g:"dom",n:"Хранение данных",i:"database"},{id:"alarm",g:"dom",n:"Обработка тревог",i:"siren"},{id:"ptz",g:"dom",n:"Управление PTZ",i:"move"},
+  {id:"sec",g:"dom",n:"Безопасность",i:"shield-check"},{id:"ntp",g:"dom",n:"Время",i:"clock"},{id:"mail",g:"dom",n:"Уведомления",i:"mail"},{id:"maps",g:"dom",n:"Карты",i:"layout-grid"},
+  {id:"lic",g:"lic",n:"Лицензии",i:"id-card"}];
+const sysOptsEN=[
+  {id:"ui",g:"ws",n:"Interface",i:"layout-dashboard"},{id:"region",g:"ws",n:"Language and format",i:"sun-moon"},{id:"session",g:"ws",n:"Logout and lock",i:"lock"},
+  {id:"keep",g:"dom",n:"Data retention",i:"database"},{id:"alarm",g:"dom",n:"Alarm handling",i:"siren"},{id:"ptz",g:"dom",n:"PTZ control",i:"move"},
+  {id:"sec",g:"dom",n:"Security",i:"shield-check"},{id:"ntp",g:"dom",n:"Time",i:"clock"},{id:"mail",g:"dom",n:"Notifications",i:"mail"},{id:"maps",g:"dom",n:"Maps",i:"layout-grid"},
+  {id:"lic",g:"lic",n:"Licenses",i:"id-card"}];
 const sysOpts=sysOptsRU.map(o=>({...o}));
 const logCatsRU=[{id:"all",n:"Все события"},{id:"audit",n:"Аудит"},{id:"alarm",n:"Тревоги"},{id:"info",n:"Информация"},{id:"ops",n:"Операции"}];
 const logCatsEN=[{id:"all",n:"All events"},{id:"audit",n:"Audit"},{id:"alarm",n:"Alarms"},{id:"info",n:"Information"},{id:"ops",n:"Operations"}];
@@ -9795,8 +9865,13 @@ function treeServers(){return scopedDomains().map(d=>drow(d)).join("")}
 // Пункт «Опций» и раздел журнала в дереве
 function optGo(id){sys=id;tab="gen";paint()}
 function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();else if(logQOn())logQueryRun();paint()}
-function treeOpts(){const q=qval();return sysOpts.filter(o=>matchesText(q,o.n)).map(o=>
-  `<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span></div>`).join("")}
+let optLastQ="";
+function treeOpts(){const q=qval();if(q!==optLastQ){optLastQ=q;if(app==="sys")queueMicrotask(sysUI)}
+  // Группы как у Axxon One: «Рабочее место», «Домен», затем «Лицензии». Поиск ищет и в опциях страницы: число — сколько опций нашлось
+  return OPT_GROUPS.map(g=>{const rows=sysOpts.filter(o=>o.g===g.id).map(o=>{const hits=optPageHits(o,q).length,own=matchesText(q,o.n);
+      if(q&&!own&&!hits)return"";
+      return`<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span>${q&&!own&&hits?`<span class="op-tcnt" title="${escHtml(i18n("Найдено опций"))}">${hits}</span>`:""}</div>`}).join("");
+    return rows?`${g.id==="lic"?"":`<div class="op-tg">${i18n(g.n)}</div>`}${rows}`:""}).join("")||`<div class="n n-more"><span class="tw"></span><span class="nm sub">${i18n("Ничего не найдено")}</span></div>`}
 // ── Обучение: темы и главы демо ─────────────────────────────────────────────
 // Раздел открывает сам человек: без автозапуска. Содержание — assets/tour-demos.js, движок — assets/tour.js.
 // Показ идёт в учебном режиме (?demo): перезагрузка на встроенном сервере, настоящая система не участвует.
@@ -22520,36 +22595,287 @@ ESC_LAYERS.splice(2,0,
 // что на экране.
 // Подписи, страницы и варианты опций — интерфейс; значения — с сервера (GET /settings)
 const SETTINGS=[
-  {id:"ntp.server",page:"ntp",card:"NTP",label:"Сервер времени",type:"text"},
-  {id:"ntp.tz",page:"ntp",card:"NTP",label:"Часовой пояс",type:"select",opts:["Europe/Moscow","UTC"]},
-  {id:"sec.pwdage",page:"sec",card:"Политика",label:"Срок пароля, дн",type:"text"},
-  {id:"sec.2fa",page:"sec",card:"Политика",label:"Двухфакторная аутентификация",type:"select",opts:["Нет","Обязательно админам"]},
-  {id:"mail.smtp",page:"mail",card:"Каналы",label:"SMTP-сервер",type:"text"},
-  {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text"},
-  {id:"events.retentionDays",page:"keep",card:"Срок хранения",label:"События, дней",type:"text",num:true},
-  {id:"alarms.retentionDays",page:"keep",card:"Срок хранения",label:"Тревоги, дней",type:"text",num:true},
-  {id:"alarms.domain",page:"keep",card:"Тревоги",label:"Что считать тревогой на весь домен",type:"kinds"}
+  // Рабочее место
+  {id:"ui.prompts",page:"ui",card:"Подсказки",label:"Подсказки при наведении",type:"bool",def:true,help:"Короткое пояснение к кнопкам и полям."},
+  {id:"ui.shortName",page:"ui",card:"Дерево и списки",label:"Короткие имена камер",type:"bool",def:false,help:"В дереве — короткое имя вместо полного, если оно задано."},
+  {id:"ui.sortByName",page:"ui",card:"Дерево и списки",label:"Сортировать по имени",type:"bool",def:true,help:"Иначе — в порядке добавления."},
+  {id:"ui.onlyActive",page:"ui",card:"Дерево и списки",label:"Только включённые устройства",type:"bool",def:false},
+  {id:"ui.slideSec",page:"ui",card:"Просмотр",label:"Смена раскладок в слайд-шоу",type:"num",unit:"с",min:1,max:360,def:3},
+  {id:"ui.ctlPos",page:"ui",card:"Просмотр",label:"Кнопки управления камерой",type:"select",def:"inside",opts:[["inside","Внутри кадра"],["side","Сбоку кадра"],["outside","Под кадром"]]},
+  {id:"reg.lang",page:"region",card:"Язык",label:"Язык интерфейса",type:"select",def:"ru",opts:[["ru","Русский"],["en","English"]],restart:"page"},
+  {id:"reg.date",page:"region",card:"Дата и время",label:"Формат даты",type:"select",def:"dmy",opts:[["dmy","06.11.2026"],["ymd","2026-11-06"],["mdy","11/06/2026"]]},
+  {id:"reg.week",page:"region",card:"Дата и время",label:"Первый день недели",type:"select",def:"mon",opts:[["mon","Понедельник"],["sun","Воскресенье"]]},
+  {id:"ses.logout",page:"session",card:"Без действий оператора",label:"Выйти из системы через",type:"limit",unit:"мин",min:1,max:1440,def:0,offText:"Не выходить",help:"Время без нажатий и движения мыши."},
+  {id:"ses.lock",page:"session",card:"Без действий оператора",label:"Заблокировать экран через",type:"limit",unit:"мин",min:1,max:1440,def:15,offText:"Не блокировать",help:"Разблокировка — паролем того же пользователя."},
+  // Домен
+  {id:"events.retentionDays",page:"keep",card:"Журнал",label:"Хранить события",type:"num",unit:"дн",min:1,max:1000,def:90,api:true},
+  {id:"alarms.retentionDays",page:"keep",card:"Журнал",label:"Хранить тревоги",type:"num",unit:"дн",min:1,max:1000,def:365,api:true},
+  {id:"keep.sysLogDays",page:"keep",card:"Журнал",label:"Хранить системный журнал",type:"num",unit:"дн",min:1,max:1000,def:30},
+  {id:"keep.metaDays",page:"keep",card:"Метаданные детекторов",label:"Хранить метаданные",type:"limit",unit:"дн",min:1,max:1000,def:30,offText:"Без срока",help:"Нужны для поиска по архиву. Без срока — пока хватает места на диске."},
+  {id:"alarm.react",page:"alarm",card:"Реакция оператора",label:"Время на реакцию",type:"num",unit:"мин",min:2,max:120,def:5,help:"Не меньше 2 мин. После него тревога считается пропущенной."},
+  {id:"alarm.onLayout",page:"alarm",card:"Реакция оператора",label:"Камера на тревожной раскладке",type:"num",unit:"мин",min:1,max:120,def:3},
+  {id:"alarm.cmtConfirmed",page:"alarm",card:"Комментарий обязателен",label:"Тревога подтверждена",type:"bool",def:false},
+  {id:"alarm.cmtSuspicious",page:"alarm",card:"Комментарий обязателен",label:"Подозрительная ситуация",type:"bool",def:true},
+  {id:"alarm.cmtFalse",page:"alarm",card:"Комментарий обязателен",label:"Ложная тревога",type:"bool",def:false},
+  {id:"alarms.domain",page:"alarm",card:"Тревога на весь домен",label:"События, которые поднимают тревогу",type:"kinds",def:[],api:true,help:"Тревогу видят все операторы домена."},
+  {id:"ptz.idle",page:"ptz",card:"Очередь управления",label:"Отдать управление через",type:"num",unit:"с",min:5,max:600,def:30,help:"Сколько оператор может не трогать камеру, пока её ждёт другой."},
+  {id:"ptz.showPrio",page:"ptz",card:"Очередь управления",label:"Показывать, кто управляет",type:"bool",def:true,help:"Имя пользователя с более высоким приоритетом."},
+  {id:"sec.pwdlen",page:"sec",card:"Пароль",label:"Длина пароля, не меньше",type:"num",unit:"знаков",min:8,max:20,def:8},
+  {id:"sec.pwdrule",page:"sec",card:"Пароль",label:"Сложность пароля",type:"select",def:"mix",opts:[["none","Любой"],["mix","Буквы и цифры"],["full","Буквы, цифры и знаки"]],help:"Проверяется при смене пароля."},
+  {id:"sec.pwdage",page:"sec",card:"Пароль",label:"Сменить пароль через",type:"limit",unit:"дн",min:1,max:999,def:90,offText:"Не требовать",api:true},
+  {id:"sec.pwdhist",page:"sec",card:"Пароль",label:"Не повторять последние",type:"num",unit:"паролей",min:0,max:24,def:3},
+  {id:"sec.2fa",page:"sec",card:"Вход",label:"Двухфакторная аутентификация",type:"select",def:"Нет",opts:[["Нет","Не требовать"],["Обязательно админам","Обязательна администраторам"]],api:true},
+  {id:"sec.single",page:"sec",card:"Вход",label:"Один вход на пользователя",type:"bool",def:false,help:"Второй вход под тем же именем закрывает первый."},
+  {id:"sec.remember",page:"sec",card:"Вход",label:"Разрешить «Запомнить меня»",type:"bool",def:true},
+  {id:"sec.lockTries",page:"sec",card:"Блокировка",label:"Блокировать после неудачных входов",type:"limit",unit:"раз",min:1,max:999,def:5,offText:"Не блокировать"},
+  {id:"sec.lockMin",page:"sec",card:"Блокировка",label:"Блокировать на",type:"num",unit:"мин",min:1,max:99999,def:30},
+  {id:"sec.mask",page:"sec",card:"Приватность",label:"Маска приватности",type:"select",def:"mosaic",opts:[["mosaic","Мозаика"],["black","Чёрная заливка"]]},
+  {id:"ntp.on",page:"ntp",card:"Синхронизация",label:"Синхронизировать время серверов",type:"bool",def:true},
+  {id:"ntp.server",page:"ntp",card:"Синхронизация",label:"Сервер времени",type:"text",def:"pool.ntp.org",api:true,help:"Имя или IP-адрес NTP-сервера."},
+  {id:"ntp.every",page:"ntp",card:"Синхронизация",label:"Синхронизировать каждые",type:"num",unit:"мин",min:15,max:10080,def:1440},
+  {id:"ntp.devices",page:"ntp",card:"Синхронизация",label:"Также на IP-устройствах",type:"bool",def:false,help:"Только устройства ONVIF."},
+  {id:"ntp.tz",page:"ntp",card:"Часовой пояс",label:"Часовой пояс домена",type:"select",def:"Europe/Moscow",opts:[["Europe/Moscow","Москва (UTC+3)"],["Europe/Samara","Самара (UTC+4)"],["Asia/Yekaterinburg","Екатеринбург (UTC+5)"],["UTC","UTC"]],api:true},
+  {id:"mail.smtp",page:"mail",card:"Каналы",label:"SMTP-сервер",type:"text",def:"smtp.local",api:true,help:"Для писем о тревогах и отчётов."},
+  {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text",def:"",api:true,help:"Адрес, на который сервер отправляет события (POST)."},
+  {id:"map.provider",page:"maps",card:"Подложка",label:"Поставщик карт",type:"select",def:"osm",opts:[["osm","OpenStreetMap"],["yandex","Яндекс Карты"],["none","Без подложки"]],restart:"page"},
+  {id:"map.zoom",page:"maps",card:"Подложка",label:"Масштаб при открытии",type:"num",unit:"",min:0,max:19,def:12,help:"0 — весь мир, 19 — здание."}
 ];
 let settingHighlight=null;
-function settingKindToggle(id,k){const st=SETTINGS.find(x=>x.id===id);settingSet(id,listToggled(st.value,k))}
-function settingFieldHtml(st){
-  const body=st.type==="kinds"?chipsHtml(refEvents,st.value,"settingKindToggle",`${st.id}`):st.type==="select"
-    ?`<select ${onEv("change",["settingSet",`${st.id}`,onEv.value])}>${st.opts.map(o=>`<option value="${escHtml(o)}" ${o===st.value?"selected":""}>${i18n(o)}</option>`).join("")}</select>`
-    :`<input type="text" value="${escHtml(st.value??"")}" ${onEv("input",["setD",true])} ${onEv("change",["settingSet",`${st.id}`,onEv.value])}>`;
-  return`<div data-set="${st.id}"><label>${i18n(st.label)}</label>${body}</div>`;
+// ЗАГЛУШКА: значения опций домена по доменам. Старт — значение сервера (общее) или значение по умолчанию; у
+// некоторых доменов — свои значения, чтобы был виден случай «разные значения».
+const OPT_STUB_DIFF=[{},{"alarm.react":10,"sec.pwdlen":10},{"sec.pwdlen":12,"ntp.server":"ntp.kzn.local","ntp.tz":"Europe/Samara"},{"keep.metaDays":0}];
+const OPT_OBSERVED="10:40";   // домен без связи: «последние известные значения на …»
+const optDomVals=new Map();
+function optNorm(st,v){return st.type==="num"||st.type==="limit"?Number(v):st.type==="bool"?!!v:Array.isArray(v)?v.slice():String(v??"")}
+function optDomStore(d){
+  if(!optDomVals.has(d.id)){
+    const i=Math.max(0,domains.indexOf(d)),diff=OPT_STUB_DIFF[i%OPT_STUB_DIFF.length]||{},o={};
+    SETTINGS.filter(st=>OPT_PAGE_G(st.page)==="dom").forEach(st=>{
+      const base=st.api&&st.value!==undefined?st.value:st.def;
+      o[st.id]=optNorm(st,diff[st.id]!==undefined?diff[st.id]:base)});
+    optDomVals.set(d.id,o);
+  }
+  return optDomVals.get(d.id);
+}
+// Рабочее место: localStorage. Нет доступа к хранилищу — значения живут до перезагрузки.
+let optWs=null;
+function optWsStore(){
+  if(optWs)return optWs;
+  let saved={};try{saved=JSON.parse(localStorage.getItem("consolem.p32.ws")||"{}")||{}}catch(e){}
+  optWs={};SETTINGS.filter(st=>OPT_PAGE_G(st.page)==="ws").forEach(st=>{optWs[st.id]=optNorm(st,saved[st.id]!==undefined?saved[st.id]:st.def)});
+  return optWs;
+}
+function optWsSave(){try{localStorage.setItem("consolem.p32.ws",JSON.stringify(optWs))}catch(e){}}
+function OPT_PAGE_G(page){return(sysOptsRU.find(o=>o.id===page)||{}).g||"dom"}
+function optSame(a,b){return JSON.stringify(a)===JSON.stringify(b)}
+function optShownDomains(){return domainFilter?domains.filter(d=>d.id===domainFilter):domains.slice()}
+function optVal(st,d){return OPT_PAGE_G(st.page)==="ws"?optWsStore()[st.id]:optDomStore(d)[st.id]}
+// Показ значения словами: для тоста, домена без связи и «по умолчанию»
+function optText(st,v){
+  if(st.type==="bool")return i18n(v?"включено":"выключено");
+  if(st.type==="limit"&&!Number(v))return i18n(st.offText);
+  if(st.type==="select")return i18n((st.opts.find(o=>o[0]===v)||[v,v])[1]);
+  if(st.type==="kinds")return v.length?v.map(k=>refEventLabel?refEventLabel(k):k).join(", "):i18n("ничего");
+  if(st.type==="text")return v||i18n("не задан");
+  return`${v}${st.unit?" "+i18n(st.unit):""}`;
+}
+function refEventLabel(k){return i18n(EVENT_RU[k]||k)}
+
+// Поиск: строка поиска над деревом сужает и список страниц, и опции на странице
+function optHit(st,q){const p=sysOpts.find(o=>o.id===st.page);return matchesText(q,i18n(st.label),i18n(st.help||""),i18n(st.card),p?.n||"")}
+function optPageHits(o,q){const own=SETTINGS.filter(st=>st.page===o.id);return!q||matchesText(q,o.n)?own:own.filter(st=>optHit(st,q))}
+
+// Изменение: сразу на сервер (или в заглушку), тост с «Отменить»
+function optApply(st,targets,v){
+  const before=targets.map(d=>[d,optVal(st,d)]);
+  const put=(d,x)=>{if(OPT_PAGE_G(st.page)==="ws"){optWsStore()[st.id]=x;optWsSave()}else optDomStore(d)[st.id]=x};
+  targets.forEach(d=>put(d,v));
+  if(st.api)settingSet(st.id,Array.isArray(v)?v:String(v));
+  sysUI();
+  const where=OPT_PAGE_G(st.page)==="ws"?i18n("в этом браузере"):targets.length===1?`«${locName(targets[0])}»`:`${i18n("доменов")}: ${targets.length}`;
+  const tail=st.restart==="page"?` · ${i18n("действует после перезагрузки страницы")}`:"";
+  toastAction("optset",`${i18n(st.label)}: ${optText(st,v)} — ${where}${tail}`,i18n("Отменить"),()=>{
+    before.forEach(([d,x])=>put(d,x));
+    if(st.api)settingSet(st.id,Array.isArray(before[0][1])?before[0][1]:String(before[0][1]));
+    sysUI();toast(i18n("Изменение отменено"));
+  },8000);
+}
+function optTargets(dom){
+  if(dom==="*")return optShownDomains().filter(d=>d.online!==false);
+  const d=domains.find(x=>x.id===dom);return d?[d]:[domains[0]].filter(Boolean);
+}
+function optSet(id,dom,raw){
+  const st=SETTINGS.find(x=>x.id===id);if(!st)return;
+  let v=raw;
+  if(st.type==="num"||st.type==="limit"){
+    v=Number(String(raw).replace(",","."));
+    if(!Number.isFinite(v)||v<st.min||v>st.max){toast(`${i18n(st.label)}: ${i18n("от")} ${st.min} ${i18n("до")} ${st.max}${st.unit?" "+i18n(st.unit):""}`);sysUI();return}
+    v=Math.round(v);
+  }
+  const t=optTargets(dom);
+  if(t.every(d=>optSame(optVal(st,d),v)))return;
+  optApply(st,t,v);
+}
+function optBool(id,dom){const st=SETTINGS.find(x=>x.id===id),t=optTargets(dom);optSet(id,dom,!optVal(st,t[0]))}
+function optLimitOff(id,dom,off){const st=SETTINGS.find(x=>x.id===id);optSet(id,dom,off?0:(st.def||st.min))}
+function optKind(id,dom,k){const st=SETTINGS.find(x=>x.id===id),t=optTargets(dom);optSet(id,dom,listToggled(optVal(st,t[0]),k))}
+function optReset(id,dom){const st=SETTINGS.find(x=>x.id===id);optSet(id,dom,st.def)}
+function optAlign(id,fromDom){const st=SETTINGS.find(x=>x.id===id),d=domains.find(x=>x.id===fromDom);if(st&&d)optSet(id,"*",optVal(st,d))}
+
+// Поле опции. dom — id домена или "*" (все показанные домены с одинаковым значением)
+function optControl(st,v,dom,ro){
+  const lbl=escHtml(i18n(st.label)),dis=ro?"disabled":"";
+  if(st.type==="bool")return`<button type="button" class="sw op-sw ${v?"on":""}" role="switch" aria-checked="${!!v}" aria-label="${lbl}" ${dis} ${ro?"":onEv("click",["optBool",st.id,dom])}></button><span class="op-swt">${i18n(v?"Включено":"Выключено")}</span>`;
+  if(st.type==="select")return`<select aria-label="${lbl}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>${st.opts.map(([k,t])=>`<option value="${escHtml(k)}" ${k===v?"selected":""}>${escHtml(i18n(t))}</option>`).join("")}</select>`;
+  if(st.type==="kinds")return ro?`<span class="sub">${escHtml(optText(st,v))}</span>`:chipsHtml(refEvents,v,"optKind",st.id,dom);
+  if(st.type==="text")return`<input type="text" class="op-in op-txt" aria-label="${lbl}" value="${escHtml(v??"")}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>`;
+  const off=st.type==="limit"&&!Number(v);
+  const num=`<span class="op-num ${off?"op-off":""}"><input type="number" class="op-in" aria-label="${lbl}" min="${st.min}" max="${st.max}" value="${off?"":escHtml(v)}" ${dis||off?"disabled":""} ${onEv("change",["optSet",st.id,dom,onEv.value])}>${st.unit?`<span class="op-unit">${escHtml(i18n(st.unit))}</span>`:""}</span>`;
+  if(st.type!=="limit")return num;
+  return`${num}<label class="op-chk"><input type="checkbox" ${off?"checked":""} ${dis} ${onEv("change",["optLimitOff",st.id,dom,onEv.checked])}>${escHtml(i18n(st.offText))}</label>`;
+}
+function optBadges(st,v){
+  const b=[];
+  if(!optSame(v,st.def))b.push(`<span class="op-bd op-bd-ch" title="${escHtml(i18n("По умолчанию")+": "+optText(st,st.def))}">${i18n("изменено")}</span>`);
+  if(st.restart==="page")b.push(`<span class="op-bd" title="${escHtml(i18n("Новое значение действует после перезагрузки страницы"))}">${i18n("после перезагрузки")}</span>`);
+  return b.join("");
+}
+function optResetLink(st,v,dom,ro){
+  if(ro||optSame(v,st.def))return"";
+  return`<button type="button" class="lk lk-act op-rst" ${onEv("click",["optReset",st.id,dom])}>${i18n("Вернуть")} «${escHtml(optText(st,st.def))}»</button>`;
+}
+function optRow(st,q){
+  const ws=OPT_PAGE_G(st.page)==="ws",label=hlText(i18n(st.label),q),help=st.help?`<div class="op-h">${hlText(i18n(st.help),q)}</div>`:"";
+  const head=(v,extra="")=>`<div class="op-l"><div class="op-lb">${label}${optBadges(st,v)}${extra}</div>${help}</div>`;
+  if(ws){const v=optVal(st);return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,"*",false)}${optResetLink(st,v,"*",false)}</div></div>`}
+  const doms=optShownDomains(),on=doms.filter(d=>d.online!==false),off=doms.filter(d=>d.online===false);
+  const offNote=d=>`<div class="op-dom op-dom-off"><span class="op-dn">${escHtml(locName(d))}</span><span class="sub">${i18n("нет связи")} · ${i18n("было")} «${escHtml(optText(st,optVal(st,d)))}» ${i18n("на")} ${OPT_OBSERVED}</span></div>`;
+  if(doms.length===1){
+    const d=doms[0],v=optVal(st,d),ro=d.online===false;
+    return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,d.id,ro)}${optResetLink(st,v,d.id,ro)}</div></div>`;
+  }
+  const vals=on.map(d=>optVal(st,d)),same=vals.every(x=>optSame(x,vals[0]));
+  if(same&&vals.length){
+    const v=vals[0],offDiff=off.filter(d=>!optSame(optVal(st,d),v));
+    return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,"*",false)}${optResetLink(st,v,"*",false)}
+      ${offDiff.map(offNote).join("")}</div></div>`;
+  }
+  const first=on[0];
+  return`<div class="op-row op-row-diff" data-set="${st.id}">${head(vals[0],`<span class="op-bd op-bd-diff">${i18n("разные значения")}</span>`)}<div class="op-c">
+    ${on.map(d=>{const v=optVal(st,d);return`<div class="op-dom"><span class="op-dn" title="${escHtml(locName(d))}">${escHtml(locName(d))}</span><span class="op-dc">${optControl(st,v,d.id,false)}</span></div>`}).join("")}
+    ${off.map(offNote).join("")}
+    ${st.type==="kinds"?"":`<button type="button" class="lk lk-act op-rst" ${onEv("click",["optAlign",st.id,first.id])}>${i18n("Всем доменам как в")} «${escHtml(locName(first))}»</button>`}</div></div>`;
+}
+function optScopeLine(o){
+  if(o.g==="ws")return`<div class="op-where">${lu("monitor")}<span>${i18n("Действует только в этом браузере. У других операторов и на других компьютерах — свои значения.")}</span></div>`;
+  const doms=optShownDomains(),off=doms.filter(d=>d.online===false);
+  if(doms.length===1&&off.length)return`<div class="op-where op-where-off">${lu("unplug")}<span>${i18n("Нет связи с доменом")} «${escHtml(locName(doms[0]))}». ${i18n("Показаны последние известные значения на")} ${OPT_OBSERVED}. ${i18n("Изменить их можно, когда связь вернётся.")}</span>
+    <button type="button" class="lk lk-act" ${onEv("click",["pickDomain",""])}>${i18n("Все домены")}</button></div>`;
+  const names=doms.length===1?`«${escHtml(locName(doms[0]))}»`:`${i18n("во всех показанных доменах")}: ${doms.length}`;
+  return`<div class="op-where">${lu("server")}<span>${i18n("Действует на всех серверах домена")} — ${names}.${doms.length>1?` ${i18n("Где значения разные, показана строка на каждый домен.")}`:""}${off.length?` ${i18n("Домен без связи показан с последними известными значениями.")}`:""}</span>
+    <button type="button" class="lk lk-act" ${onEv("click",["toggleDomainPop",onEv.event])}>${i18n(doms.length===1?"Другой домен":"Выбрать домен")}</button></div>`;
 }
 function sysUI(){
   const o=sysOpts.find(x=>x.id===sys)||sysOpts[0];
-  // Показывается то, что отдал сервер: система без настройки поля не получает
-  const own=SETTINGS.filter(x=>x.page===o.id&&x.value!==undefined);
+  if(o.id==="lic"){licUI(o);return}
+  const q=qval(),all=SETTINGS.filter(x=>x.page===o.id&&(!x.api||x.value!==undefined)),own=optPageHits(o,q).filter(x=>all.includes(x));
   const cards={};
   own.forEach(st=>{(cards[st.card]=cards[st.card]||[]).push(st)});
-  let body=Object.entries(cards).map(([title,list])=>card(title,`<div class="g">${list.map(settingFieldHtml).join("")}</div>`)).join("");
-  if(o.id==="mail")body+=`<p class="sub">${i18n("Глобальные настройки. Оповещатели сервера — в разделе «Оборудование», срез «Службы».")}</p>`;
-  const lic=k=>{const x=licenses.find(l=>l.kind===k);return x?`${x.used}/${x.total}`:"—"};
-  if(o.id==="lic")body=card("Лицензии",`<div class="mx"><div class="mc"><span>${i18n("Камеры")}</span><b>${lic("cameras")}</b></div><div class="mc"><span>ACFA</span><b>${lic("acfa")}</b></div></div>`);
-  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,"Параметры кластера")+`<div class="sc">${body}</div>`);
+  let body=optScopeLine(o);
+  if(q)body+=`<p class="sub op-found">${i18n("Показано")} ${own.length} ${i18n("из")} ${all.length} · <button type="button" class="lk lk-act" ${onEv("click",["optSearchClear"])}>${i18n("Показать все опции страницы")}</button></p>`;
+  body+=Object.entries(cards).map(([title,list])=>card(title,`<div class="op-list">${list.map(st=>optRow(st,q)).join("")}</div>`)).join("");
+  if(o.id==="mail")body+=`<p class="sub">${i18n("Оповещатели сервера — в разделе «Оборудование», срез «Службы».")}</p>`;
+  const grp=OPT_GROUPS.find(g=>g.id===o.g);
+  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n(grp.n)} · ${i18n(grp.sub)}`)+`<div class="sc op-page">${body}</div>`);
   flashSetting();
+}
+function optSearchClear(){const el=document.getElementById("gq");if(el){el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));el.blur();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}))}else paint()}
+
+// ── Лицензии по доменам — ЗАГЛУШКА прототипа 32 (запрос api/requests/2026-11-06-094022Z-…, пп. 1–3, 5) ──
+// Ключ у каждого домена свой (Axxon One: ключ действует на все серверы одного домена), поэтому общей суммы
+// «свободно» нет: свободные лицензии одного домена не закрывают нехватку в другом.
+const LIC_FEATS=[["cameras","IP-камеры"],["acfa","СКУД"],["faceSearch","Поиск лиц"],["faceRt","Распознавание лиц"],["lpr","Распознавание номеров"],["tnt","Tag-n-Track"],["fire","Пожар и дым"]];
+const LIC_STUB=[
+  // Камеры — как в демо-наборе: в «Домене 1» 90 камер, у 3 превышена лицензия; в «Домене 2» 50, у одной
+  {product:"Professional",serial:"72785-4410",days:208,state:"active",f:{cameras:[90,87],acfa:[3,10],faceSearch:[4,8],lpr:[2,2],tnt:[0,16]}},
+  {product:"Start",serial:"81403-0921",days:12,state:"expiring",f:{cameras:[50,49],acfa:[0,4],lpr:[1,4]}},
+  {product:"Enterprise",serial:"90112-3377",days:340,state:"mismatch",stateText:"Ключ выпущен для другого компьютера: идентификатор оборудования сервера «Удалённый офис» не совпал. Пока ключ не заменят, камеры домена не работают.",f:{cameras:[0,32],faceRt:[0,4]}},
+  {product:"Free",serial:"—",days:null,state:"active",f:{cameras:[3,4]}}
+];
+const LIC_OWNERS={lpr:["Въезд — шлагбаум 1","Въезд — шлагбаум 2"],faceSearch:["Холл — вход","Лестница","КПП — турникеты","Столовая"],faceRt:["Проходная","Вход — ресепшн"],fire:["Склад — стеллажи"],acfa:["Турникет 1","Турникет 2","Дверь серверной"]};
+const LIC_PRODUCT={demo:"Демо",free:"Free",start:"Start",professional:"Professional",enterprise:"Enterprise",unified:"Unified"};
+const licOpen=new Set();
+function licData(d){
+  const i=Math.max(0,domains.indexOf(d)),s=LIC_STUB[i%LIC_STUB.length];
+  const exp=s.days==null?null:new Date(Date.now()+s.days*864e5);
+  const feats=LIC_FEATS.filter(([k])=>s.f[k]).map(([k,n])=>({code:k,n,used:s.f[k][0],total:s.f[k][1]}));
+  // По серверам: камеры домена раскладываются по его серверам (заглушка)
+  const srv=d.servers||[],cam=feats.find(f=>f.code==="cameras");
+  const perSrv=srv.map((x,j)=>({s:x,used:cam?Math.floor(cam.used/srv.length)+(j<cam.used%srv.length?1:0):0}));
+  const over=feats.filter(f=>f.used>f.total);
+  const state=d.online===false?"offline":s.state;
+  return{...s,exp,feats,perSrv,over,state};
+}
+function licDays(n){return`${n} ${i18n(plural(n,"день|дня|дней"))}`}
+function licStateChip(L){
+  const m={active:["ok","Действует"],expiring:["warn",`Кончается через ${licDays(L.days)}`],expired:["err","Срок истёк"],mismatch:["err","Ключ не подходит"],offline:["mu",`Нет связи · данные на ${OPT_OBSERVED}`]}[L.state]||["mu",L.state];
+  return`<span class="lic-st lic-st-${m[0]}">${i18n(m[1])}</span>`;
+}
+// Что требует внимания: по убыванию срочности
+function licIssues(){
+  const out=[];
+  optShownDomains().forEach(d=>{const L=licData(d),n=locName(d);
+    if(L.state==="mismatch")out.push({d,lvl:3,t:`${n}: ${i18n("ключ не подходит — лицензии не действуют")}`});
+    L.over.forEach(f=>out.push({d,lvl:3,t:`${n}: ${i18n(f.n)} — ${f.used} ${i18n("из")} ${f.total}, ${i18n("без лицензии")} ${f.used-f.total}`}));
+    if(L.state==="expiring")out.push({d,lvl:2,t:`${n}: ${i18n("ключ кончается через")} ${licDays(L.days)}`});
+    L.feats.filter(f=>f.used===f.total&&f.total>0).forEach(f=>out.push({d,lvl:1,t:`${n}: ${i18n(f.n)} — ${i18n("заняты все")} ${f.total}`}));
+    if(L.state==="offline")out.push({d,lvl:1,t:`${n}: ${i18n("нет связи, показаны данные на")} ${OPT_OBSERVED}`});
+  });
+  return out.sort((a,b)=>b.lvl-a.lvl);
+}
+function licBar(f){
+  const pct=f.total?Math.min(100,Math.round(f.used/f.total*100)):0,cls=f.used>f.total?"err":f.used===f.total?"warn":f.used/f.total>=.9?"warn":"ok";
+  return`<div class="lic-bar lic-bar-${cls}" role="img" aria-label="${escHtml(`${f.used} ${i18n("из")} ${f.total}`)}"><span style="width:${pct}%"></span></div>`;
+}
+function licFeatRow(d,f){
+  const free=f.total-f.used,key=`${d.id}:${f.code}`,owners=f.code==="cameras"?null:LIC_OWNERS[f.code]||[];
+  const ownTxt=f.code==="cameras"?`<button type="button" class="lk lk-act" ${onEv("click",["licShowCams",d.id,f.used>f.total])}>${i18n(f.used>f.total?"Без лицензии: ":"Показать камеры")+(f.used>f.total?f.used-f.total:"")}</button>`
+    :f.used?`<button type="button" class="lk lk-act" aria-expanded="${licOpen.has(key)}" ${onEv("click",["licToggle",key])}>${i18n("Кто занимает")}: ${f.used}</button>`:`<span class="sub">${i18n("не используется")}</span>`;
+  return`<tr class="${f.used>f.total?"lic-over":""}"><td title="${escHtml(i18n(f.n))}">${escHtml(i18n(f.n))}</td><td>${licBar(f)}</td><td class="lic-num"><b>${f.used}</b> ${i18n("из")} ${f.total}</td>
+    <td class="lic-num">${free<0?`<span class="lic-neg">${i18n("не хватает")} ${-free}</span>`:free}</td><td>${ownTxt}</td></tr>
+    ${owners&&licOpen.has(key)?`<tr class="lic-own"><td></td><td colspan="4">${owners.slice(0,f.used).map(x=>`<span class="lic-ownc">${escHtml(x)}</span>`).join("")}</td></tr>`:""}`;
+}
+function licCard(d){
+  const L=licData(d),srvKey=d.id+":srv",ro=L.state==="offline";
+  const exp=L.exp?new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(L.exp):i18n("бессрочно");
+  return`<div class="card lic-card lic-${L.state}" data-lic="${d.id}"><div class="ch lic-hd"><span class="lic-dn">${escHtml(locName(d))}</span>${licStateChip(L)}
+      <span class="lic-acts"><button type="button" class="btn s" ${ro?"disabled":""} ${onEv("click",["licLoadKey",d.id])}>${i18n("Загрузить ключ…")}</button></span></div>
+    <div class="cb">
+      <div class="lic-meta"><div><span>${i18n("Тип")}</span><b>${escHtml(L.product)}</b></div><div><span>${i18n("Серийный номер")}</span><b>${escHtml(L.serial)}</b></div>
+        <div><span>${i18n("Действует до")}</span><b class="${L.state==="expiring"?"lic-warn":""}">${escHtml(exp)}</b></div><div><span>${i18n("Серверов")}</span><b>${(d.servers||[]).length}</b></div></div>
+      ${L.stateText?`<div class="nt err" role="status">${escHtml(i18n(L.stateText))}</div>`:""}
+      <table class="lic-tb"><colgroup><col style="width:24%"><col><col style="width:88px"><col style="width:116px"><col style="width:190px"></colgroup>
+        <tr><th>${i18n("Функция")}</th><th>${i18n("Занято")}</th><th class="lic-num">${i18n("Сколько")}</th><th class="lic-num">${i18n("Свободно")}</th><th></th></tr>
+        ${L.feats.map(f=>licFeatRow(d,f)).join("")}</table>
+      ${L.perSrv.length>1?`<button type="button" class="lk lk-act lic-srvt" aria-expanded="${licOpen.has(srvKey)}" ${onEv("click",["licToggle",srvKey])}>${lu(licOpen.has(srvKey)?"minus":"plus")}${i18n("Камеры по серверам")}: ${L.perSrv.length}</button>
+        ${licOpen.has(srvKey)?`<table class="lic-tb lic-srv"><colgroup><col><col style="width:96px"></colgroup>${L.perSrv.map(p=>`<tr><td>${escHtml(locName(p.s))}</td><td class="lic-num">${p.used}</td></tr>`).join("")}</table>`:""}`:""}
+    </div></div>`;
+}
+function licUI(o){
+  const doms=optShownDomains(),iss=licIssues();
+  let body=`<div class="op-where">${lu("id-card")}<span>${i18n("У каждого домена свой ключ: свободные лицензии одного домена не переходят в другой.")}</span>${doms.length>1?"":`<button type="button" class="lk lk-act" ${onEv("click",["pickDomain",""])}>${i18n("Все домены")}</button>`}</div>`;
+  if(iss.length)body+=`<div class="card lic-att"><div class="ch">${i18n("Требует внимания")}: ${iss.length}</div><div class="cb"><ul class="lic-iss">${iss.map(x=>`<li class="lic-l${x.lvl}"><button type="button" class="lk" ${onEv("click",["licGoDomain",x.d.id])}>${escHtml(x.t)}</button></li>`).join("")}</ul></div></div>`;
+  else body+=`<p class="sub">${i18n("Все ключи действуют, свободные лицензии есть.")}</p>`;
+  body+=doms.map(licCard).join("");
+  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,doms.length>1?`${i18n("Домены")}: ${doms.length}`:locName(doms[0]||{name:""}))+`<div class="sc op-page">${body}</div>`);
+}
+function licToggle(k){if(licOpen.has(k))licOpen.delete(k);else licOpen.add(k);sysUI()}
+function licGoDomain(id){const el=document.querySelector(`[data-lic="${id}"]`);if(!el)return;el.scrollIntoView({block:"start",behavior:"smooth"});accFlash(()=>[el.querySelector(".lic-hd")])}
+function licLoadKey(id){toast(i18n("В макете ключ не загружается. В системе: файл ключа или серийный номер, затем активация."))}
+function licShowCams(id,over){
+  navMark();goApp("hw");domainFilter=id;sel=id;tab="gen";open.add(id);renderDomainMenu();
+  statusFilts.clear();if(over)statusFilts.add("license");
+  applyFiltersFromState();paint();
 }
 // Найденная настройка подсвечивается на открывшейся странице: иначе переход
 // приводит на страницу и бросает искать глазами.
