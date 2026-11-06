@@ -769,6 +769,9 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .cbx-o[aria-disabled="true"]{color:var(--mu);cursor:default}
 .cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
 .cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
+.cbx-c{flex:none;display:flex;flex-wrap:wrap;gap:4px;padding:0 6px 6px;border-bottom:1px solid var(--ln)}
+.cbx-c .stchip-cnt{padding:0 8px 0 0;font-weight:500;opacity:.75}
+.cbx-c .stchip.zero{opacity:.45}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
 .rl-opt:hover{background:color-mix(in srgb,var(--one-control-hover) 50%,transparent)}
 .rl-opt.on{background:var(--one-accent-soft);border-color:var(--one-selected-indicator)}
@@ -29080,8 +29083,14 @@ function cbxOpen(s,text){
   q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
   const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
   const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
-  box.append(q,list,foot);document.body.append(box);
-  cbx={sel:s,box,q,list,foot,items:cbxItems(s),shown:[],act:-1,up:null,frame:0};
+  const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
+  // Категории — чипами под полем поиска: все группы видны сразу, клик оставляет одну (прототип 32)
+  const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","toolbar");chips.setAttribute("aria-label",i18n("Категории"));
+  chips.hidden=groups.length<2;
+  box.append(q,chips,list,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,chips,items,groups,cat:"",shown:[],act:-1,up:null,frame:0};
+  chips.addEventListener("mousedown",e=>e.preventDefault());
+  chips.addEventListener("click",e=>{const b=e.target.closest(".stchip");if(b)cbxCat(b.dataset.g)});
   q.value=text||"";
   q.addEventListener("input",cbxPaint);
   q.addEventListener("keydown",cbxKey);
@@ -29098,18 +29107,36 @@ function cbxOpen(s,text){
 function cbxPaint(){
   const c=cbx;if(!c)return;
   const t=c.q.value.trim();
-  c.shown=c.items.filter(x=>matchesText(t,x.l,x.g));
+  const hit=c.items.filter(x=>matchesText(t,x.l,x.g));
+  c.shown=c.cat?hit.filter(x=>x.g===c.cat||x.v===""&&!x.g):hit;
+  if(!c.chips.hidden){
+    const n=g=>hit.filter(x=>x.v!==""&&(!g||x.g===g)).length;
+    c.chips.innerHTML=[["",i18n("Все")],...c.groups.map(g=>[g,g])].map(([g,l])=>{const k=n(g);
+      return`<button type="button" tabindex="-1" class="stchip ${c.cat===g?"on":""} ${k?"":"zero"}" data-g="${escHtml(g)}" aria-pressed="${c.cat===g}"><span class="stchip-lab">${escHtml(l)}</span><span class="stchip-cnt">${k}</span></button>`}).join("");
+  }
   let g="",h="";
   c.shown.forEach((x,i)=>{
-    if(x.g&&x.g!==g)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
+    if(x.g&&x.g!==g&&!c.cat)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
     g=x.g;
     h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
   });
-  c.list.innerHTML=h||`<div class="cbx-none">${i18n("Ничего не найдено")}</div>`;
-  c.foot.hidden=!t;
+  const other=c.cat&&t&&hit.some(x=>x.v!==""&&x.g!==c.cat);
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n(c.cat?`В «${c.cat}» ничего не найдено`:"Ничего не найдено")}${other?` — ${i18n("есть в других категориях, выберите «Все»")}`:""}</div>`;
+  c.list.scrollTop=0;
+  c.foot.hidden=!t&&!c.cat;
   c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
   const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
   cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+function cbxCat(g){
+  const c=cbx;if(!c)return;
+  c.cat=g||"";cbxPaint();c.q.focus();
+}
+// Стрелки влево и вправо в пустом поле листают категории
+function cbxCatStep(d){
+  const c=cbx;if(!c||c.chips.hidden)return false;
+  const all=["",...c.groups],i=all.indexOf(c.cat);
+  cbxCat(all[(i+d+all.length)%all.length]);return true;
 }
 function cbxActive(i,scroll=true){
   const c=cbx;if(!c)return;
@@ -29132,6 +29159,7 @@ function cbxKey(e){
   e.stopPropagation();
   if(e.key==="ArrowDown"){e.preventDefault();cbxStep(1)}
   else if(e.key==="ArrowUp"){e.preventDefault();cbxStep(-1)}
+  else if((e.key==="ArrowLeft"||e.key==="ArrowRight")&&!c.q.value&&cbxCatStep(e.key==="ArrowRight"?1:-1))e.preventDefault();
   else if(e.key==="PageDown"){e.preventDefault();cbxStep(8)}
   else if(e.key==="PageUp"){e.preventDefault();cbxStep(-8)}
   else if(e.key==="Enter"){e.preventDefault();if(c.act>=0)cbxPick(c.act)}
@@ -29154,12 +29182,14 @@ function cbxClose(){
 // Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
 function cbxPlace(){
   const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
-  const w=Math.min(Math.max(r.width,320),innerWidth-pad*2);
+  const w=Math.min(Math.max(r.width,c.chips.hidden?320:440),innerWidth-pad*2);   // с чипами шире: категории в две строки
   const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
   if(c.up===null)c.up=below<240&&above>below;
   const room=c.up?above:below;
   c.box.style.width=`${w}px`;
   c.box.style.maxHeight=`${Math.max(140,Math.min(380,room))}px`;
+  // С чипами окно не меняет высоту при смене категории: чипы не прыгают
+  c.box.style.height=c.chips.hidden?"":c.box.style.maxHeight;
   c.box.style.left=`${Math.max(pad,Math.min(r.left,innerWidth-w-pad))}px`;
   c.box.style.top=c.up?"":`${r.bottom+gap}px`;
   c.box.style.bottom=c.up?`${innerHeight-r.top+gap}px`:"";
