@@ -117,7 +117,11 @@ const ROWS = `document.querySelectorAll("#tree .n[data-pick]").length`;
 // Полнота дерева: все серверы домена (в группировке «Серверы» их строки видны во всех срезах, кроме «Хранилищ») и все
 // папки (в группировке «Папки»)
 const ALL_SRV = [`__perf.allIn(domains[0].servers)`, "в дереве не все серверы домена"];
-const ALL_FLD = [`__perf.allIn(folders)`, "в дереве не все папки"];
+// Папки кэша — первого домена всегда и других раскрытых доменов. Большой домен страница по умолчанию держит свёрнутым
+// (xl: 4 домена), у свёрнутого строк папок нет. Первый домен — якорь: свёрнут он — шаг не проходит (FLD_OPEN), а пустой
+// отбор не даёт пройти вхолостую
+const ALL_FLD = [`__perf.allIn(folders.filter(f=>{const d=folderDomain(f.id);return d===domains[0].id||open.has(d)}))`, "в дереве не все папки первого и раскрытых доменов"];
+const FLD_OPEN = [`open.has(domains[0].id)`, "первый домен свёрнут"];
 const sliceStep = (id, title, v, other, full) => ({
   id, title, limit: "click", prep: [`if(slice===${JSON.stringify(v)})setSlice(${JSON.stringify(other)})`], act: `setSlice(${JSON.stringify(v)})`,
   expect: [[`slice===${JSON.stringify(v)}`, `срез не «${v}»`], [`__perf.treeDone()`, "дерево"], ...(full ? [[`group()!=="server"||(${full[0]})`, full[1]]] : [])],
@@ -269,7 +273,7 @@ const STEPS = [
   sliceStep("slice-all", "срез «Все»", "all", "cam", ALL_SRV),
   {
     id: "group-folder", title: "группировка «Папки»", limit: "click", prep: [`if(group()==="folder")setGroup("server")`], act: `setGroup("folder")`,
-    expect: [[`group()==="folder"`, "группировка не «Папки»"], [`__perf.treeDone()`, "дерево"], ALL_FLD],
+    expect: [[`group()==="folder"`, "группировка не «Папки»"], [`__perf.treeDone()`, "дерево"], FLD_OPEN, ALL_FLD],
   },
   {
     id: "group-server-big", title: "«Папки» → «Серверы» (2 700 строк)", limit: "coarse", prep: [`if(group()==="server")setGroup("folder")`], act: `setGroup("server")`,

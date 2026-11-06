@@ -125,6 +125,8 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 /* Срезы видны сразу и переносятся целыми кнопками, как строки в образце. */
 .ph-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:0 0 100%;min-width:0}
 .ph-choice{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:none;height:28px;border:1px solid transparent;border-radius:6px;padding:0 8px;background:transparent;color:var(--mu);font-size:12.5px;font-weight:500;white-space:nowrap}
+/* В ряду срезов поля кнопок уже: с числом на «Серверах» ряд на large и xl иначе уходит в третью строку */
+.ph .ph-choice{gap:4px;padding:0 5px}
 .ph-choice:hover{background:var(--one-control-hover);border-color:var(--one-border);color:var(--tx)}
 .ph-choice.on{background:var(--one-selected-neutral);border-color:var(--one-selected-indicator);color:var(--one-fg)}
 .ph-choice:focus-visible{outline:2px solid var(--bl);outline-offset:1px}
@@ -1403,6 +1405,16 @@ html[data-theme="light"] .acc-date{color-scheme:light}
 .acc-flash,tr.acc-flash>td,.acc-flash select,.acc-flash input{animation:accFlash 2.4s ease-out}
 [data-def].acc-flash{border-radius:6px;padding:4px;margin:-4px}
 h1.acc-flash,.tab.acc-flash,.n.acc-flash{border-radius:6px}
+/* Заголовок карточки моргает теми же цветами, но прозрачностью двух слоёв под текстом: фон и обводка. Прозрачность
+   анимирует компоновщик, а цвет фона и тень перерисовывал главный поток каждый кадр 2,4 с — и с каждым кадром
+   пересчитывал видимость всех строк дерева (content-visibility): на 6 000 строк это 40 % потока. Переход цвета
+   из transparent — тот же переход прозрачности, кадры совпадают */
+h1.acc-flash{animation:none;position:relative;isolation:isolate}
+h1.acc-flash::before,h1.acc-flash::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:-1;opacity:0;animation:2.4s ease-out}
+h1.acc-flash::before{background:color-mix(in srgb, var(--one-accent) 33%, transparent);animation-name:accFlashBg}
+h1.acc-flash::after{box-shadow:inset 0 0 0 2px var(--bl);animation-name:accFlashLn}
+@keyframes accFlashBg{0%{opacity:0}12%,44%{opacity:1}28%,60%{opacity:.3636}100%{opacity:0}}
+@keyframes accFlashLn{0%{opacity:0}12%,28%,44%,60%{opacity:1}100%{opacity:0}}
 .cr-cur.acc-flash{border-radius:6px;padding:0 4px;margin:0 -4px}
 .acc-ovnote{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.acc-ovnote>div:first-child{flex:1;min-width:260px}.acc-ovnote-a{display:flex;gap:6px}
 .acc-mx td.inh{color:var(--one-fg-subtle)}.acc-mx td.def{color:var(--one-fg-subtle);font-style:italic}
@@ -2717,11 +2729,13 @@ let domainFilter="",domainPop=false;
 // selWhere помнит контекст строки; null — место не задано (основное вхождение).
 const selWhere=new Map();
 let selOver=false;
+// treeSelVer — номер состава отметок: по нему дерево знает, что набор «не прятать» (treeKeepIds) устарел
+let treeSelVer=0;
 const treeSel=new (class extends Set{
   // Предел выбора: больше selectMax не отмечается, такое проводится несколькими операциями
-  add(id,ctx){if(!this.has(id)&&this.size>=LIM.selectMax){selOver=true;return this}if(ctx!==undefined||!this.has(id))selWhere.set(id,ctx||null);return super.add(id)}
-  delete(id){selWhere.delete(id);return super.delete(id)}
-  clear(){selWhere.clear();super.clear()}
+  add(id,ctx){if(!this.has(id)&&this.size>=LIM.selectMax){selOver=true;return this}if(ctx!==undefined||!this.has(id))selWhere.set(id,ctx||null);if(!this.has(id))treeSelVer++;return super.add(id)}
+  delete(id){selWhere.delete(id);if(this.has(id))treeSelVer++;return super.delete(id)}
+  clear(){selWhere.clear();if(this.size)treeSelVer++;super.clear()}
 })();
 let treeAnchor=null;
 const statusFilts=new Set();
@@ -3881,12 +3895,16 @@ function hwFill(L){
   treeMatchCache.clear();searchMatchCache.clear();
 }
 // Папки и хранилища дописываются страницами: родителя может ещё не быть, тогда папка ждёт его чтения
+// Запись приносит поиск — метка _q у новых (hwAddRow, folderAdd; см. treeHidQ)
+let hwAddQ=false;
 function folderAdd(list){
   const left=list.filter(r=>{
-    if(folderById(r.id))return false;
+    // Папку, которую раньше принёс поиск, теперь принесла не она — метка _q снимается (hwAddQ — у hwAddRow)
+    const was=folderById(r.id);
+    if(was){if(!hwAddQ)delete was._q;return false}
     if(r.parentId&&!folderById(r.parentId))return true;
     hwVer.set(r.id,r.version);
-    const par=r.parentId?folderById(r.parentId):null,f=folderNode(r);(par?par.folders:folders).push(f);hwIdxAddFolder(f,par);
+    const par=r.parentId?folderById(r.parentId):null,f=folderNode(r);if(hwAddQ)f._q=true;(par?par.folders:folders).push(f);hwIdxAddFolder(f,par);
     return false;
   });
   if(left.length&&left.length<list.length)folderAdd(left);
@@ -4048,10 +4066,63 @@ function hwFolderIds(r){
     const has=f.items.includes(r.id),want=r.folderIds.includes(f.id);
     if(want&&!has)f.items.push(r.id);
     else if(!want&&has)f.items=f.items.filter(x=>x!==r.id);
+    if(want)f._qi?.delete(r.id);
   });
 }
 // Строка перечня (объект ядра из перечня или краткий объект узла дерева): запись кэша, _row — полную ещё не читали,
-// _more — могут быть дети. Инфраструктура (сервер, папка, хранилище, том) — в свои списки
+// _more — могут быть дети. Инфраструктура (сервер, папка, хранилище, том) — в свои списки.
+// _q — запись принёс поиск (проход отбора, список под строкой поиска), а не ветка дерева: без отбора в дереве её нет
+// (treeHidQ), иначе после очистки поиска в развёрнутой ветке остаются найденные строки сверх прочитанных страниц.
+// Чтение ветки (treeAdd) и выбор объекта (pick) метку снимают
+// Метка _q — запись принёс поиск. Без отбора (нет прохода и текста) её в дереве нет: оно как до поиска. Кроме открытого и
+// отмеченного галочкой (treeKeepIds): у открытой карточки строка в дереве есть всегда, отмеченные не пропадают
+function treeHidQ(n){return!!n._q&&!fs&&!qval()&&!treeKeepIds().has(n.id)}
+// То же для записи и всей её цепочки родителей: строки, которые строятся не обходом дерева сверху (виды детекторов)
+function treeHidQUp(n){
+  if(fs||qval())return false;
+  for(let f=find(n.id);f;f=f.p?find(f.p.id):null)if(treeHidQ(f.n))return true;
+  return false;
+}
+// Что дерево не прячет, даже если это принёс поиск: открытый объект и отмеченные, их родители, папки, где они лежат, и
+// цепочки этих папок. Набор живёт в кэше дерева (сброс кэша — данные сменились) и пока не сменились выбор и отметки.
+// Сменился набор, а в нём есть записи с меткой — сбрасываем и кэш: у родителя там могло остаться «пусто»
+let treeKeepSig="";
+function treeKeepIds(){
+  const key=sel+"|"+treeSelVer,m=treeMatchCache.get("\0keep");
+  if(m?.key===key)return m.ids;
+  const ids=new Set(),fl=flatFolders(),fmark=fl.some(f=>f._q||f._qi?.size);
+  const add=id=>{
+    if(folderById(id)){folderPath(id).forEach(f=>ids.add(f.id));return}
+    for(let f=find(id);f&&!ids.has(f.n.id);f=f.p?find(f.p.id):null)ids.add(f.n.id);
+  };
+  if(sel)add(sel);
+  treeSel.forEach(add);
+  if(fmark&&ids.size)fl.forEach(fd=>{if(fd.items.some(x=>ids.has(x)))folderPath(fd.id).forEach(f=>ids.add(f.id))});
+  let marked=false;
+  for(const id of ids){if(find(id)?.n?._q||folderById(id)?._q){marked=true;break}}
+  if(!marked&&fmark)marked=fl.some(fd=>fd._qi?.size&&[...fd._qi].some(x=>ids.has(x)));
+  const sig=marked?key:"";
+  if(sig!==treeKeepSig){treeKeepSig=sig;treeMatchCache.clear();searchMatchCache.clear()}
+  treeMatchCache.set("\0keep",{key,ids});
+  return ids;
+}
+// Пришли к объекту (выбор в дереве, список под строкой поиска, палитра, ссылка): он и его место остаются в дереве и
+// после того, как уйдём с него. Метки снимаются со всей цепочки родителей и с папок, где лежит любое её звено. Обход
+// папок — только когда есть папки или состав от поиска; кэш дерева сбрасывается, только если метка была
+function treeKeepQ(id){
+  const own=new Set();let hit=false;
+  const un=x=>{if(x._q){delete x._q;hit=true}};
+  if(folderById(id))folderPath(id).forEach(f=>{own.add(f.id);un(f)});
+  for(let f=find(id);f;f=f.p?find(f.p.id):null){own.add(f.n.id);un(f.n)}
+  const fl=flatFolders();
+  if(fl.some(f=>f._q||f._qi?.size))fl.forEach(fd=>{
+    if(fd._qi?.size)own.forEach(x=>{if(fd._qi.delete(x))hit=true});
+    if(fd.items.some(x=>own.has(x)))folderPath(fd.id).forEach(un);
+  });
+  if(hit){treeMatchCache.clear();searchMatchCache.clear()}
+}
+// Записи в кэш; q — их принёс поиск (метка _q у новых)
+function hwAddFound(items,q=true){hwAddQ=q;try{items.forEach(hwAddRow)}finally{hwAddQ=false}}
 function hwAddRow(u){
   const t=screenType(u.kind);
   if(INFRA_SCREENS.has(t)){
@@ -4085,7 +4156,7 @@ function hwAddRow(u){
   if(!row.licenseExceeded)delete row.licenseExceeded;
   const n=HAND_SCREENS.has(t)?devNode(row):schemaNode(u);
   if(HAND_SCREENS.has(t)&&u.kind!==t)n._kind=u.kind;
-  n._row=true;if(r.hasChildren)n._more=true;
+  n._row=true;if(r.hasChildren)n._more=true;if(hwAddQ)n._q=true;
   hwVer.set(r.id,r.version);
   if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}
   else if(SVC_TYPES.has(r.type)){const s=servers.find(x=>x.id===r.serverId);if(s){s.devices.push(n);hwIdxAdd(n,s)}}
@@ -4093,12 +4164,12 @@ function hwAddRow(u){
   return n;
 }
 // Вход по чужому id (поиск, журнал, правило, права): запись сперва дочитывается, родители — раньше детей
-async function hwEnsure(ids){
+async function hwEnsure(ids,q=false){
   const need=[...new Set(ids.filter(Boolean))].filter(id=>!find(id));
   for(let i=0;i<need.length;i+=LIM.idsMax){
     const rows=(await API.get("/units",{ids:need.slice(i,i+LIM.idsMax).join(",")})).items;
-    await hwEnsure(rows.map(r=>r.parentId));
-    rows.forEach(hwAddRow);
+    await hwEnsure(rows.map(r=>r.parentId),q);
+    hwAddFound(rows,q);
   }
   if(need.length){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear()}
 }
@@ -4521,6 +4592,10 @@ function foldersOfDevice(id){
   return flatFolders().filter(fd=>fd.items.some(x=>own.has(x)));
 }
 function folderDeviceNodes(f){return(f.items||[]).map(id=>find(id)?.n).filter(Boolean)}
+// Состав папки, который знает только поиск (f._qi — что дописали цепочки найденного, filtPaths): без отбора в дереве
+// его нет, как и записей с меткой _q (treeHidQ). Снимают чтение ветки папки, полная запись объекта и выбор объекта
+function treeHidQIn(f,id){return!!f._qi?.has(id)&&!fs&&!qval()&&!treeKeepIds().has(id)}
+function treeFolderNodes(f){return f._qi?.size?folderDeviceNodes(f).filter(n=>!treeHidQIn(f,n.id)):folderDeviceNodes(f)}
 function folderAddDevice(fid,deviceId){
   const f=folderById(fid);if(!f||!deviceId)return;
   if(!f.items.includes(deviceId))f.items.push(deviceId);
@@ -4533,7 +4608,8 @@ function nofolderNode(did){return{id:nofolderId(did),type:"nofolder",name:"Бе�
 // Для дерева берём всех: канал без папки иначе пропадёт из раскладки по папкам. Карточка «Без папки» — только то, что можно положить в папку
 function unfolderedDevices(did,forTree){
   const inF=new Set();
-  walkFolders(f=>{if(f.domain===did||folderDomain(f.id)===did)f.items.forEach(id=>inF.add(id))});
+  // В дереве папка, которую знает только поиск (treeHidQ), без отбора не в счёт — как до поиска
+  walkFolders(f=>{if((f.domain===did||folderDomain(f.id)===did)&&!(forTree&&treeHidQ(f)))f.items.forEach(id=>{if(!(forTree&&treeHidQIn(f,id)))inF.add(id)})});
   return devicePool.filter(d=>DEVICE_DOMAIN[d.id]===did&&!inF.has(d.id)&&d._nf&&(forTree||inFolders(d)));
 }
 // Хранилище живёт на сервере или в домене (сетевое). Камера пишет только в
@@ -5845,6 +5921,19 @@ function domainFolderCount(did){
   let n=0;walkFolders(f=>{if(folderDomain(f.id)===did)n++});
   return n;
 }
+// Число папок домена для показа. Перечень папок дочитан (hwDone.folders) — число по кэшу полное. Нет — известное, со
+// знаком «+», как у срезов: прочитанное в кэше или корневые папки домена по словам сервера (parentCount ветки «Папки»,
+// если её читали; вложенные сервер не считает). Ничего не известно — без числа, «Ещё не прочитано». Читать ради числа
+// все папки домена незачем
+function domainFolderInfo(did){
+  const n=domainFolderCount(did);
+  if(hwDone.folders)return{text:String(n),title:""};
+  // Числа соседних плиток карточки — без разрядов, это тоже
+  const root=treeBr.get("folders|"+did)?.count||0;
+  if(!n&&!root)return{text:"—",title:i18n("Ещё не прочитано")};
+  if(root>n)return{text:`${root}+`,title:`${i18n("Корневых папок")}: ${root} — ${i18n("вложенные не посчитаны")}`};
+  return{text:`${n}+`,title:`${i18n("Прочитано пока")}: ${n} — ${i18n("может быть больше")}`};
+}
 function canDeleteDomain(){return domains.length>1}
 // Перенос содержимого удаляемого домена делает сервер (DELETE /domains/{id}?moveTo=):
 // серверы становятся нераспределёнными в выбранном домене, папки, устройства и
@@ -6435,6 +6524,7 @@ function selfInView(n){
 }
 function filtKey(){return[...typeFilts].sort().join(",")+"|"+[...searchFields].sort().join(",")+"|"+[...statusFilts].sort().join(",")+"|"+strictIdSearch+"|"+domainFilter}
 function hasTreeIn(n){
+  if(treeHidQ(n))return false;
   const key=slice+"|"+group()+"|"+filtKey()+"|"+n.id;if(treeMatchCache.has(key))return treeMatchCache.get(key);
   // Встроенный детектор работает на камере и стоит под ней; серверный — под GPU и в срезе «Детекторы»
   if(n.type==="det"&&slice!=="det")return!!n.builtin&&(slice==="all"||slice==="cam")&&matchesDomain(n)&&matchesStatus(n)&&matchesType(n);
@@ -6496,7 +6586,8 @@ function expandTo(id,ctx){
     if(kind==="arch"){const a=archById(key),ow=archOwner(a);if(ow){const dm=ow.type==="domain"?ow:domainOf(ow.id);if(dm)open.add(dm.id);open.add(ow.id);open.add(key)}return}
     if(kind==="norec"){open.add(key);open.add(norecId(key));return}
     if(kind==="nf"){open.add(key);open.add(nofolderId(key));return}
-    if(kind==="f"){const fd=folderById(key);if(fd){const dm=folderDomain(key);if(dm)open.add(dm.id);folderPath(key).forEach(x=>open.add(x.id))}return}
+    // folderDomain — id домена, а не узел
+    if(kind==="f"){const fd=folderById(key);if(fd){const dm=folderDomain(key);if(dm)open.add(dm);folderPath(key).forEach(x=>open.add(x.id))}return}
   }
   const root=path(id)[0];if(!root)return;
   if(root.type==="folder"){const d=folderDomain(root.id);if(d)open.add(d);return}
@@ -6613,7 +6704,7 @@ function openNode(id,opts={}){
   tab=opts.tab||archSliceTab(f.n)||"gen";
   if(opts.view)tview=opts.view;
   else if(f.n.type!=="server"&&f.n.type!=="domain"&&f.n.type!=="unalloc")tview=treeKind(f.n)||tview;
-  clearGearFilters();filtPop=false;expandTo(id);archSliceOpen(f.n);sel=id;pushRecent(id);
+  clearGearFilters();filtPop=false;treeKeepQ(id);expandTo(id);archSliceOpen(f.n);sel=id;pushRecent(id);
   {const done=revealPlan();paint();revealSel(done)}
 }
 function goAddServer(domainId){
@@ -6740,7 +6831,7 @@ function jumpToNode(n){
   if((n.type==="archive"||n.type==="vol")&&!["all","cam","srv","arch"].includes(slice)){slice="srv";syncViews()}
   if(n.type==="server"&&group()!=="server"&&sliceGroups().includes("server"))setGroupAll("server");
   if(n.type==="folder"&&group()!=="folder"&&sliceGroups().includes("folder"))setGroupAll("folder");
-  treeMatchCache.clear();searchMatchCache.clear();
+  treeKeepQ(n.id);treeMatchCache.clear();searchMatchCache.clear();
   treeOpenFollow();
   sel=n.id;selCtx=null;tab=archSliceTab(n)||"gen";setD(false);expandTo(n.id);archSliceOpen(n);
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
@@ -6857,8 +6948,8 @@ function goNet(q,waited=0){
       if(!kind)return;
       const r=await API.get("/units",{q,kind,limit:20});
       if(!r.items.length)return;
-      await hwEnsure(r.items.map(x=>x.parentId));
-      r.items.forEach(hwAddRow);
+      await hwEnsure(r.items.map(x=>x.parentId),true);
+      hwAddFound(r.items);
       const inp=document.getElementById("gq");
       if(inp&&inp.value.trim()===q&&document.getElementById("gopop")?.classList.contains("open"))goSearch(q);
     }catch(e){}
@@ -8289,8 +8380,13 @@ function treePaint(){const treeEl=document.getElementById("tree");if(!treeEl){ru
   // setTreeQ до filtSync, — по прежнему проходу (fs.pre.old), вместе с чтением веток и среза. Один раз
   const pre=app==="hw"&&fs?.pre,cur=pre?fs:null;
   if(pre){fs.pre=null;fs=pre.old}
+  // Отбор сняли (стёрли поиск, крестик, Esc, сняли статус или тип): прежний проход (fs) больше не действует. Рисовать по
+  // нему нельзя — в дереве остался бы его плоский список или «Ищем дальше…», а filtSync в конце снимает проход без
+  // перерисовки. Снимаем до сборки разметки; готовая разметка (revealPlan) могла быть собрана по нему же
+  const drop=app==="hw"&&!pre&&!!fs&&!filtKeyNow();
+  if(drop)filtSync();
   try{
-    const ready=pre?null:treeHtmlReady;treeHtmlReady=null;
+    const ready=pre||drop?null:treeHtmlReady;treeHtmlReady=null;
     const html=ready&&ready.key===treeReadyKey()?(ruleIdxDrop(),treeHtmlReadyCheck(ready.html)):treeHtmlNow();
     const flash=treeFlashKeep(treeEl);
     paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
@@ -8343,17 +8439,20 @@ async function treeAdd(items,parent,layout){
   await hwEnsure(rows.map(r=>r.parentId));
   rows.forEach(hwAddRow);
   const f=folderById(parent);
-  if(f)rows.forEach(r=>{if(!f.items.includes(r.id))f.items.push(r.id)});
+  if(f)rows.forEach(r=>{if(!f.items.includes(r.id))f.items.push(r.id);f._qi?.delete(r.id)});
   if(parent.startsWith("nofolder:"))rows.forEach(r=>{const n=find(r.id)?.n;if(n)n._nf=true});
   if(parent.startsWith("norec:"))rows.forEach(r=>{const n=find(r.id)?.n;if(n)n._nr=true});
+  // Строку и папку прочитала ветка — они в дереве и без поиска
+  rows.forEach(r=>{const n=find(r.id)?.n;if(n)delete n._q});
+  items.forEach(x=>{if(screenType(x.kind)==="folder"){const fd=folderById(x.id);if(fd)delete fd._q}});
   if(rows.length){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear()}
 }
 // Папка и хранилище по чужому id: родитель читается раньше
-async function folderEnsure(id){
+async function folderEnsure(id,q=false){
   if(folderById(id))return;
   const r=unitRec(await API.get(`/units/${id}`));
-  if(r.parentId)await folderEnsure(r.parentId);
-  folderAdd([r]);
+  if(r.parentId)await folderEnsure(r.parentId,q);
+  hwAddQ=q;try{folderAdd([r])}finally{hwAddQ=false}
 }
 async function archEnsure(id){if(!archById(id))archAdd(unitRec(await API.get(`/units/${id}`)))}
 // Ветка дерева: узлы GET /tree/children. Виртуальные группы «Без папки» и «Без записи» — отбором GET /units
@@ -8465,8 +8564,9 @@ async function sliceRead(){
 function treeMoreRow(id,l,key=id){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!treeOpenable(id,layout)||(b&&b.done&&!b.failed))return"";
-  // Ветку раскрыл статус, а не человек: всё найденное уже пришло отбором, читать её незачем
-  if(statusFilts.size&&!b&&!open.has(key))return"";
+  // Ветку раскрыл отбор (статус или текст), а не человек: всё найденное уже пришло отбором, читать её незачем, и
+  // «Загрузка…» под ней висела бы без чтения (treeNeed читает только раскрытое человеком, open)
+  if((statusFilts.size||qval())&&!b&&!open.has(key))return"";
   if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
   const scan=treeVirtual(id);
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
@@ -8788,8 +8888,9 @@ async function filtWave(run){
       try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
       catch(e){if(e?.problem?.code!=="INVALID_CURSOR"||!run.cursor)throw e;run.cursor=null;continue}
       if(run!==fs)return;
-      await hwEnsure(r.items.map(x=>x.parentId));
-      r.items.forEach(x=>{hwAddRow(x);if(!run.hits.has(x.uid)){run.hits.add(x.uid);run.order.push(x.uid)}});
+      await hwEnsure(r.items.map(x=>x.parentId),true);
+      hwAddFound(r.items);
+      r.items.forEach(x=>{if(!run.hits.has(x.uid)){run.hits.add(x.uid);run.order.push(x.uid)}});
       await filtPaths(run,r.items.map(x=>x.uid));
       run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
       if(run===fs){run.pre=null;remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
@@ -8804,7 +8905,7 @@ async function pickWave(run){
   try{
     while(run===fs&&run.at<run.order.length&&(!run.flat||run.at<run.want)){
       const part=run.order.slice(run.at,run.at+LIM.idsMax);
-      await hwEnsure(part);
+      await hwEnsure(part,true);
       if(run!==fs)return;
       await filtPaths(run,part);
       run.at+=part.length;
@@ -8822,9 +8923,10 @@ async function filtPaths(run,ids,layout=treeLayout()){
     run.paths.set(x.id,(x.chains[0]||[]).slice(0,-1).map(s=>s.name).join(" / "));
     // TreePathStep.kind — код вида (как TreeNode.kind): папка — вид экрана «папка», объект в ней — любой не инфраструктурный
     for(const c of x.chains)for(const s of c)if(screenType(s.kind)==="folder"){
-      await folderEnsure(s.id).catch(()=>{});
+      // Цепочку принёс поиск (у прохода отбора есть key), а не чтение среза
+      await folderEnsure(s.id,!!run.key).catch(()=>{});
       const f=folderById(s.id),top=c[c.findIndex(y=>y===s)+1];
-      if(f&&top&&!INFRA_SCREENS.has(screenType(top.kind))&&!f.items.includes(top.id))f.items.push(top.id);
+      if(f&&top&&!INFRA_SCREENS.has(screenType(top.kind))&&!f.items.includes(top.id)){f.items.push(top.id);if(run.key)(f._qi||(f._qi=new Set())).add(top.id)}
     }
     if(layout==="folders"&&x.chains.every(c=>!c.some(s=>screenType(s.kind)==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
   }
@@ -8952,6 +9054,7 @@ function pickStatus(id){
 // (sliceCountsAll): условие и проход те же, что у sliceCount, совпадение с запросом — одно на объект
 let sliceCountMemo=null;
 function sliceCountsAll(ids){
+  ids=ids.filter(id=>id!=="srv");// «Серверы» — по перечню серверов (sliceSrvCount), без прохода кэша
   const q=qval(),prev=slice,out=new Map(ids.map(id=>[id,0]));
   const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
   try{
@@ -8965,7 +9068,15 @@ function withSliceCounts(ids,fn){
   sliceCountMemo=sliceCountsAll(ids);
   try{return fn()}finally{sliceCountMemo=null}
 }
+// «Серверы» считает серверы, а не службы: перечень серверов страница читает на старте до конца — число полное, с поиском
+// и фильтрами — сколько серверов проходит отбор (как строка сервера в этом срезе: srow)
+function sliceSrvCount(){
+  const q=qval(),prev=slice;slice="srv";let n=0;
+  try{servers.forEach(s=>{if(matchesDomain(s)&&matchesStatus(s)&&matchesSearch(s,q))n++})}finally{slice=prev}
+  return n;
+}
 function sliceCount(id){
+  if(id==="srv")return sliceSrvCount();
   if(sliceCountMemo?.has(id))return sliceCountMemo.get(id);
   const prev=slice,q=qval();slice=id;let n=0;
   try{walkSliceObjects((x,p)=>{if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&matchesSearch(x,q))n++})}finally{slice=prev}
@@ -8975,8 +9086,8 @@ function sliceCount(id){
 function sliceCounts(x,id){return inSlice(x)&&!(x.type==="server"&&(id==="cam"||id==="arch"))}
 // Срез прочитан целиком, без фильтров: число на кнопке — полное, а не прочитанное. «Камеры» и «ОПС/СКД» — чтение среза
 // (sliceRead) дошло до конца в любой раскладке; «Детекторы» — оно или перечень детекторов (detLoad); «Хранилища» —
-// перечни хранилищ (на старте или по доменам) и томов. Службы «Серверов» до конца не читает никто (сами серверы
-// прочитаны на старте, но в число среза не входят), «Оборудование» — камеры и службы: оба всегда со знаком «+» или «≈»
+// перечни хранилищ (на старте или по доменам) и томов. «Серверы» считает серверы (sliceSrvCount): их перечень полный
+// с самого старта. «Оборудование» — камеры и службы: всегда со знаком «+» или «≈»
 function sliceReadDone(id){for(const[k,r]of sliceReads)if(r.done&&k.startsWith(id+"|"))return true;return false}
 function sliceAllRead(id){
   if(id==="cam"||id==="acfa")return sliceReadDone(id);
@@ -9008,10 +9119,12 @@ function sliceEstimate(id){
 // - дочитано (найдено до конца) — число.
 // wide — оценка: место под неё у кнопки есть всегда (невидимый двойник), кнопка не прыгает, когда поиск сняли
 function sliceCountInfo(id){
+  // Двойник — число без поиска: кнопка не сужается, пока идёт поиск, и соседи не ездят (как у оценки)
+  if(id==="srv"){const N=sliceNum(sliceCount(id));return{text:N,wide:sliceNum(servers.filter(matchesDomain).length),title:`${i18n("Серверов")}: ${N}`}}
   const n=sliceCount(id),dom=sliceDomOnly(),f=hasActiveFilters()&&!dom,full=sliceAllRead(id)||f&&sliceFoundAll(id),N=sliceNum(n);
   const est=sliceEstimate(id),wide=est==null?"":`≈${sliceNum(est)}`;
   if(!f&&!full&&est>n)return{text:wide,wide,title:`${i18n(id==="cam"?"Оценка снизу — включённые камеры":"Оценка снизу — включённые камеры и серверы, без хранилищ и томов")}: ${sliceNum(est)}. ${i18n("Прочитано пока")}: ${N}`};
-  if(!full&&!n)return{text:"",wide,title:i18n(f?"Пока не найдено — прочитано не всё":id==="srv"?"Службы серверов ещё не прочитаны":"Ещё не прочитано")};
+  if(!full&&!n)return{text:"",wide,title:i18n(f?"Пока не найдено — прочитано не всё":"Ещё не прочитано")};
   if(!full)return{text:`${N}+`,wide,title:`${i18n(f?"Найдено пока":"Прочитано пока")}: ${N} — ${i18n("может быть больше")}`};
   // «Прочитано до конца», а не «всего»: чтение среза идёт по видам его экранов, в срез по месту в дереве попадает чуть больше
   return{text:N,wide,title:`${i18n(f?"Найдено до конца":"Прочитано до конца")}: ${N}`};
@@ -9047,7 +9160,7 @@ function panelHeadHtmlRun(){
   </div></div>`;
 }
 // ── Раскрытие дерева ─────────────────────────────────────────────────────
-// Дерево открывается коротким: домены и их первый уровень. У каждого среза и
+// Дерево открывается коротким: небольшие домены и домен открытого объекта с их первым уровнем. У каждого среза и
 // раскладки своё раскрытие; оно хранится в браузере и переживает перезагрузку.
 const TREE_OPEN_LS="consolem.treeOpen",TREE_EXPAND_MAX=3000;
 const TREE_IC={shut:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 20 5-5 5 5"/><path d="m7 4 5 5 5-5"/></svg>`,open:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></svg>`,here:`<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v4"/><path d="M12 18v4"/><path d="M2 12h4"/><path d="M18 12h4"/></svg>`};
@@ -9074,10 +9187,17 @@ function treeOpenStore(){
     try{localStorage.setItem(TREE_OPEN_LS,JSON.stringify(Object.fromEntries(treeOpenBy)))}catch(e){}
   },400);
 }
+// Раскрыт по умолчанию — домен открытого объекта (любого: домен, сервер, папка, камера, хранилище; без него — первый)
+// и каждый небольшой домен. Большой домен
+// (итог домена и серверы — больше TREE_DOMAIN_BIG) свёрнут: на xl 4 домена по 500 серверов давали дерево вдвое
+// длиннее, а оператор работает в одном. Раскрытое руками хранится, как раньше (treeOpenSave)
+const TREE_DOMAIN_BIG=2000;
+function treeDomainBig(d){return(d.summary?.total||0)+(d.servers||[]).length>TREE_DOMAIN_BIG}
 function treeOpenDefault(){
   treeExpandGen++;
   [...open].filter(treeOpenOwn).forEach(id=>open.delete(id));
-  domains.forEach(d=>open.add(d.id));
+  const own=(sel&&domainById(nodeDomainId(find(sel)?.n)))||domains[0];
+  domains.forEach(d=>{if(d===own||!treeDomainBig(d))open.add(d.id)});
 }
 function treeOpenRestore(){
   treeOpenAllShown=false;
@@ -9230,6 +9350,8 @@ function pick(id,opts){
   if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))pick(id,opts)}).catch(()=>{});return}
   // Ушли с объекта с неприменёнными правками — спрашиваем, а не теряем молча.
   if(!opts?.force&&cardDraft&&cardDraft.id!==id&&cardDiff().length){cardLeaveAsk(()=>pick(id,{...(opts||{}),force:true}));return}
+  // Открытый объект — в дереве и после поиска, который его принёс (метки _q, _qi)
+  treeKeepQ(id);
   const range=!!opts?.range,additive=!!opts?.additive,multi=range||additive;
   const ctx=normalizeTreeCtx(opts?.ctx);
   if(range&&canMultiPick(f.n)){
@@ -9788,6 +9910,7 @@ function treeCtx(e,id,row){
   if(rcByKey(e))rcFocusFirst();
 }
 function nrow(n,l,ctx){
+  if(treeHidQ(n))return"";
   const q=qval();
   const det=n.type==="det";
   if(det?!n.builtin:treeKind(n)!==tview)return"";
@@ -9896,18 +10019,24 @@ function folderDeviceIds(f,acc){
   (f.folders||[]).forEach(x=>folderDeviceIds(x,acc));
   return acc;
 }
+// Состав и вложенные папки, которые знает только поиск (_qi, _q), без отбора в счёт не идут: их строк нет
 function folderCount(f){
-  let n=0;
-  folderDeviceIds(f).forEach(id=>{const d=find(id)?.n;if(d&&hasTreeIn(d))n++});
-  return n;
+  let n=0;const seen=new Set();
+  const walk=x=>{
+    if(x!==f&&treeHidQ(x))return;
+    (x.items||[]).forEach(id=>{if(seen.has(id)||treeHidQIn(x,id))return;seen.add(id);const d=find(id)?.n;if(d&&hasTreeIn(d))n++});
+    (x.folders||[]).forEach(walk);
+  };
+  walk(f);return n;
 }
 function folderHasTreeIn(f){
   if(!(f.items||[]).length&&!(f.folders||[]).length)return true;// пустая папка видна всегда
   if(treeUnread(f.id)&&!qval()&&!typeFilts.size&&!statusFilts.size)return true;// не читали — может быть что угодно
-  if(folderDeviceNodes(f).some(hasTreeIn))return true;
+  if(treeFolderNodes(f).some(hasTreeIn))return true;
   return(f.folders||[]).some(folderHasTreeIn);
 }
 function frow(f,l){
+  if(treeHidQ(f))return"";
   const q=qval();
   const selfHit=matchesText(q,locName(f));
   // Без дополнительных фильтров сохраняем и пустые для среза папки.
@@ -9916,7 +10045,7 @@ function frow(f,l){
   const want=open.has(f.id)||autoExpand();
   const subs=want?(f.folders||[]).map(x=>frow(x,l+1)).filter(Boolean).join(""):"";
   const anySub=want?!!subs:(f.folders||[]).some(x=>frow(x,l+1)!=="");
-  const devs=folderDeviceNodes(f).filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
+  const devs=treeFolderNodes(f).filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
   if(statusFilts.size&&!anySub&&!devs.length)return"";
   if(!selfHit&&!anySub&&!devs.length)return"";
   const hasKids=anySub||!!devs.length||sliceUnread(f.id);
@@ -10169,7 +10298,9 @@ function gdetrow(d,l,ctx,parentHit=false){
     <span class="tw"></span>${ic("det")}<span class="nm">${hlText(locName(d),q)}</span>${treeTail({tags:`<span class="tag">${escHtml(i18n(d.kind||DET_TYPES[0]))}</span>`,status:treeStatusSlot(d)})}</div>`;
 }
 function gcamrow(cam,dets,l,ctx){
+  if(treeHidQ(cam))return"";// камера под GPU сервера: строится не обходом дерева, метку смотрим здесь
   const q=qval();
+  if(dets.some(d=>d._q))dets=dets.filter(d=>!treeHidQ(d));
   const available=slice==="cam"?[]:dets.filter(matchesStatus);
   const vis=available.filter(d=>matchesSearch(d,q));
   const parentHit=matchesSearch(cam,q);
@@ -10406,11 +10537,12 @@ function archTableCard(n){
 }
 function treeDetectors(){
   if(group()==="kind")return treeDetKinds();
-  const cameras=[];walkAll(n=>{if(n.type==="camera")cameras.push(n)});
+  const cameras=[];walkAll(n=>{if(n.type==="camera"&&!treeHidQ(n))cameras.push(n)});
   const rows=(list,l,ctx)=>list.map(c=>gcamrow(c,camDetectors(c),l,ctx)).join("");
   const branch=(n,l,children)=>children||retainEmptySliceParents()||(treeUnread(n.id)&&!statusFilts.size)||(!statusFilts.size&&qval()&&matchesSearch(n,qval()))?sliceBranchRow(n,l,children,sliceParentCount(n.id)):"";
   function folderRow(f,l){
-    const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},folderDeviceNodes(f));
+    if(treeHidQ(f))return"";
+    const direct=[];walk(n=>{if(n.type==="camera")direct.push(n)},treeFolderNodes(f));
     const children=(f.folders||[]).map(x=>folderRow(x,l+1)).join("")+rows(direct,l+1,"f:"+f.id);
     return branch(f,l,children);
   }
@@ -10419,7 +10551,8 @@ function treeDetectors(){
     // Строки кэша без полей: детекторы видны по родителю и по раскрытию
     if(group()==="folder"){
       children=domainFolders(d.id).map(f=>folderRow(f,1)).join("");
-      children+=rows(cameras.filter(c=>deviceDomain(c.id)===d.id&&!foldersOfDevice(c.id).length),1);
+      // Папка, которую знает только поиск (treeHidQ), без отбора не в счёт: камера стоит под доменом, как до поиска
+      children+=rows(cameras.filter(c=>deviceDomain(c.id)===d.id&&!foldersOfDevice(c.id).some(f=>!treeHidQ(f)&&!treeHidQIn(f,c.id))),1);
     }else{
       children=d.servers.map(s=>{
         const list=cameras.filter(c=>srv(c.id)?.id===s.id),body=rows(list,2);
@@ -12721,7 +12854,8 @@ function detKindPick(k){
   if(d&&find(sel)?.n?.type!=="domain")pick(d.id);else paint();
 }
 function treeDetKinds(){
-  const q=qval(),rows=detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q));
+  // Детекторы, которые принёс поиск, без отбора не показываем: виды строятся по кэшу, а не обходом дерева (treeHidQUp)
+  const q=qval(),rows=detRows().filter(x=>matchesStatus(x.d)&&detSliceHit(x.d,x.cam,q)&&!treeHidQUp(x.d));
   if(!rows.length&&hasActiveFilters())return"";
   const by=new Map();
   rows.forEach(x=>{const k=detKindLabel(x.d,x.cam);if(!by.has(k))by.set(k,[]);by.get(k).push(x)});
@@ -15180,7 +15314,7 @@ function formBase(n){
       }));
     const hw=n.servers.reduce((a,s)=>a+(s.devices||[]).filter(x=>x.type!=="det").length,0);// службы серверов домена
     const unN=(n.unallocServers||[]).length,arcN=domainArchives(n.id).length;
-    const fldN=domainFolderCount(n.id),devN=domainDeviceCount(n);
+    const fldN=domainFolderInfo(n.id),devN=domainDeviceCount(n);
     return card("Домен",`${bdg(n)}
       <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${fldEdit("Серийный номер лицензии",n.id,"license",n.license||"")}</div>
       <div class="mx" style="margin-top:10px">
@@ -15188,7 +15322,7 @@ function formBase(n){
         <button type="button" class="mc" ${onEv("click",["pick",`${unallocId(n.id)}`])}><span>${i18n("Нераспределённых")}</span><b>${unN}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Служб на серверах")}</span><b>${hw}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Сетевых хранилищ")}</span><b>${arcN}</b></button>
-        <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Папок")}</span><b>${fldN}</b></button>
+        <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}${fldN.title?` title="${escHtml(fldN.title)}"`:""}><span>${i18n("Папок")}</span><b>${fldN.text}</b></button>
         <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>
       </div>`)+
       card("Действия",`<div class="dom-acts">
@@ -30267,9 +30401,8 @@ document.addEventListener("keydown",e=>{
   cbxOpen(s,text?e.key:"");
 },true);
 
-// Старт: данные с сервера, затем первая отрисовка. Раскрыто то же, что в
-// макете на константах: первый и третий домен, нераспределённые первого,
-// первый сервер, первое хранилище, первая папка с подпапкой.
+// Старт: данные с сервера, затем первая отрисовка. Раскрыто — по treeOpenDefault (небольшие домены и домен
+// открытого объекта) и то, что человек раскрыл раньше (TREE_OPEN_LS).
 window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(autoLoad).then(async()=>{
   sel=domains[0]?.id||null;appSel.srvs=sel;
   // Короткое дерево при первом входе; дальше — как оставил пользователь.
