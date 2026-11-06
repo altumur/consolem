@@ -4452,7 +4452,7 @@ const arch=[];
 // доступа и путём внутри; бакет заводят заранее в консоли провайдера. Томов
 // несколько, объём не ограничен и меняется без перезапуска.
 // Тип хранения у локального и сетевого: блочное — меньше задержка под
-// нагрузкой; объектное — объём тома меняется на ходу, том можно зашифровать.
+// нагрузкой; объектное — объём тома можно изменить без перезапуска, том можно зашифровать.
 // Срок — «глубина, дней», 0 — без ограничения. Том больше 30 ТБ не советуют.
 // Виды — то, что отдал сервер (reference.archiveKinds), с полями этого вида. Подпись и описание — по коду, вид
 // вне подписей показывается кодом. Адрес тома (address) решает, какие поля у него есть: network бывает и бакетом.
@@ -22582,7 +22582,7 @@ const SETTINGS=[
   {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text"},
   {id:"events.retentionDays",page:"keep",card:"Срок хранения",label:"События, дней",type:"text",num:true},
   {id:"alarms.retentionDays",page:"keep",card:"Срок хранения",label:"Тревоги, дней",type:"text",num:true},
-  {id:"alarms.domain",page:"keep",card:"Тревоги",label:"Что считать тревогой на весь домен",type:"kinds"}
+  {id:"alarms.domain",page:"keep",card:"Тревоги",label:"Какие события домен считает тревогой",type:"kinds"}
 ];
 let settingHighlight=null;
 function settingKindToggle(id,k){const st=SETTINGS.find(x=>x.id===id);settingSet(id,listToggled(st.value,k))}
@@ -22599,7 +22599,7 @@ function sysUI(){
   const cards={};
   own.forEach(st=>{(cards[st.card]=cards[st.card]||[]).push(st)});
   let body=Object.entries(cards).map(([title,list])=>card(title,`<div class="g">${list.map(settingFieldHtml).join("")}</div>`)).join("");
-  if(o.id==="mail")body+=`<p class="sub">${i18n("Глобальные настройки. Оповещатели сервера — в разделе «Оборудование», срез «Службы».")}</p>`;
+  if(o.id==="mail")body+=`<p class="sub">${i18n("Глобальные настройки. Оповещатели сервера находятся в разделе «Оборудование», срез «Службы».")}</p>`;
   const lic=k=>{const x=licenses.find(l=>l.kind===k);return x?`${x.used}/${x.total}`:"—"};
   if(o.id==="lic")body=card("Лицензии",`<div class="mx"><div class="mc"><span>${i18n("Камеры")}</span><b>${lic("cameras")}</b></div><div class="mc"><span>ACFA</span><b>${lic("acfa")}</b></div></div>`);
   paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,"Параметры кластера")+`<div class="sc">${body}</div>`);
@@ -22648,7 +22648,7 @@ function logFilterHtml(){
     <div><label>${i18n("С")}</label><input type="datetime-local" value="${escHtml(logQ.from)}" ${onEv("change",["logSet","from",onEv.value])}></div>
     <div><label>${i18n("По")}</label><input type="datetime-local" value="${escHtml(logQ.to)}" ${onEv("change",["logSet","to",onEv.value])}></div>
     <div><label>${i18n("Строк")}</label>${selHtml([["",i18n("Все")],["50","50"],["200","200"],["1000","1000"]],logQ.limit,["logSet","limit",onEv.value],"Строк")}</div>
-    </div>${logQOn()?`<p class="sub"><button type="button" class="lk lk-act" ${onEv("click",["logReset"])}>${i18n("Сбросить отбор")}</button>${logRes?.truncated?` · <span data-log-truncated>${i18n("показаны не все, уточните отбор")}</span>`:""}${logRes?.withheldCount?` · ${i18n("скрыто правами")}: ${logRes.withheldCount}`:""}</p>`:""}`;
+    </div>${logQOn()?`<p class="sub"><button type="button" class="lk lk-act" ${onEv("click",["logReset"])}>${i18n("Сбросить отбор")}</button>${logRes?.truncated?` · <span data-log-truncated>${i18n("консоль показывает не все. Уточнить отбор")}</span>`:""}${logRes?.withheldCount?` · ${i18n("скрыто правами")}: ${logRes.withheldCount}`:""}</p>`:""}`;
 }
 // Операции: групповые и одиночные правки оборудования. Откатывается только последняя: кнопка — у строки с revertible
 let logOps=[];
@@ -22778,7 +22778,7 @@ function abortDeviceSearch(){
   renderDeviceWizard();
 }
 function deviceArchiveWarning(){
-  return arch.length?"":`<div class="archive-warning"><span>В системе не создано ни одного архива. Камеры можно добавить, но запись будет недоступна.</span><button type="button" class="lk lk-act" ${onEv("click",["goDeviceArchives"])}>Перейти к архивам</button></div>`;
+  return arch.length?"":`<div class="archive-warning"><span>В системе нет архивов. Камеры можно добавить, но они не смогут записывать видео.</span><button type="button" class="lk lk-act" ${onEv("click",["goDeviceArchives"])}>Перейти к архивам</button></div>`;
 }
 function goDeviceArchives(){closeWizard();goApp("srvs");setSrvView("cam")}
 // Списки на вкладках — разные, а место прокрутки восстанавливается по одному классу
@@ -22915,9 +22915,9 @@ function onDeviceFiltOutside(e){
 function setDeviceStatus(k,v){wizd.devStatuses[k]=v;renderDeviceWizard()}
 function deviceAddModes(){
   return[
-    {id:"current",label:"Как на устройстве",hint:"На камере ничего не меняется: её настройки остаются такими, как заданы на ней самой."},
-    {id:"default",label:"По умолчанию",hint:"Умолчания модели: разрешение и частота кадров потоков. Настройки на камере будут изменены. Камере без модели недоступно."},
-    {id:"template",label:"С другой камеры",hint:"Разовая копия с уже добавленной камеры той же модели: потоки, их разрешение и частота кадров, версия драйвера. Адрес, учётные данные, имя, записи, папки, детекторы и настройки входов не копируются."}
+    {id:"current",label:"Как на устройстве",hint:"Консоль ничего не изменяет на камере. Камера сохраняет свои настройки."},
+    {id:"default",label:"По умолчанию",hint:"Значения модели по умолчанию: разрешение и частота кадров потоков. Консоль изменит настройки на камере. Для камеры без модели это недоступно."},
+    {id:"template",label:"С другой камеры",hint:"Консоль один раз копирует настройки с добавленной камеры той же модели: потоки, их разрешение и частоту кадров, версию драйвера. Консоль не копирует адрес, учётные данные, имя, записи, папки, детекторы и настройки входов."}
   ];
 }
 function setDeviceMode(v){
@@ -22981,7 +22981,7 @@ function deviceAddParamsHtml(){
   const modes=deviceAddModes();
   const q=(wizd.tplFilter||"").trim().toLowerCase();
   const filtered=templates.filter(t=>!q||templateCameraLabel(t).toLowerCase().includes(q));
-  const tip=`<p>Это не поля в таблице ниже (IP, логин, архив), а <b>профиль при добавлении</b>: прошивка, параметры видеопотоков, буферизация и блок «Прочее».</p>${modes.map(m=>`<p><b>${escHtml(m.label)}.</b> ${escHtml(m.hint)}</p>`).join("")}`;
+  const tip=`<p>Это не поля в таблице ниже (IP, логин, архив). Это <b>профиль при добавлении</b>: прошивка, параметры видеопотоков, буферизация и блок «Прочее».</p>${modes.map(m=>`<p><b>${escHtml(m.label)}.</b> ${escHtml(m.hint)}</p>`).join("")}`;
   const modeOpts=modes.filter(m=>m.id!=="template").map(m=>`<button type="button" class="dev-mode-opt base ${wizd.devMode===m.id?"on":""}" ${onEv("click",["setDeviceMode",`${m.id}`])}>${escHtml(m.label)}</button>`).join("");
   const camOpts=filtered.map(t=>`<button type="button" class="dev-mode-opt ${wizd.devMode==="template"&&t.id===wizd.templateId?"on":""}" ${onEv("click",["setDeviceTemplate",`${t.id}`])}>${escHtml(templateCameraLabel(t))}</button>`).join("");
   const btnLabel=deviceProfileButtonLabel();
@@ -23103,7 +23103,7 @@ function toggleRecDet(camId,detId){
 }
 function camRecDetsHtml(n){
   const dets=camDetectors(n);
-  if(!dets.length)return`<div class="nt">${i18n("У камеры нет детекторов — записывать нечему.")} <button class="lk lk-act" ${onEv("click",["goTab","det"])}>${i18n("Создать детектор")} →</button></div>`;
+  if(!dets.length)return`<div class="nt">${i18n("У камеры нет детекторов, поэтому запись по событию невозможна.")} <button class="lk lk-act" ${onEv("click",["goTab","det"])}>${i18n("Создать детектор")} →</button></div>`;
   const on=new Set(camRecDets(n));
   return listCard({
     key:"recdet:"+n.id,
@@ -23114,7 +23114,7 @@ function camRecDetsHtml(n){
       <div class="sw ${on.has(d.id)?"on":""}" ${onEv("click",["toggleRecDet",`${n.id}`,`${d.id}`])}></div></div>`,
     ph:"Имя или тип детектора…",
     unit:"детектор|детектора|детекторов",
-    extra:on.size?"":`<p class="sub">${i18n("Не выбран ни один детектор — запись по событию не пойдёт.")}</p>`,
+    extra:on.size?"":`<p class="sub">${i18n("Детектор не выбран, поэтому запись по событию не будет работать.")}</p>`,
     head:`<span class="sub" style="font-weight:400">${on.size}/${dets.length}</span>`
   });
 }
@@ -23171,7 +23171,7 @@ function setNvrArch(id,v){
     bindArchServer(c);
   });
   treeMatchCache.clear();searchMatchCache.clear();setD(true);
-  toast(v?`${i18n("Архив назначен камерам:")} ${cams.length}`:i18n("Запись отключена для всех камер регистратора"));
+  toast(v?`${i18n("Архив назначен камерам:")} ${cams.length}`:i18n("Запись выключена для всех камер регистратора"));
   paint();
 }
 function setNvrRec(id,v){
@@ -23220,7 +23220,7 @@ function volFieldsHtml(a,v,set){
   const dir=hint=>`<div><label>${i18n("Папка на диске")}</label><div class="gb-in"><input value="${escHtml(v.dir||"")}" ${onEv("input",[...set,"dir",onEv.value,true])}><button type="button" class="btn s" title="${i18n("Выбрать папку на диске")}" ${onEv("click",["volPickDir",onEv.el,`${v.disk}`])}>${i18n("Обзор…")}</button></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   if(k==="disk"){
     const sid=a.server;
-    if(!sid)return`<div class="nt" style="margin-top:10px">${i18n("Сначала выберите сервер — тома локального хранилища лежат на его дисках.")}</div>`;
+    if(!sid)return`<div class="nt" style="margin-top:10px">${i18n("Сначала выбрать сервер. Тома локального хранилища находятся на дисках сервера.")}</div>`;
     const disks=serverDisks(sid),obj=a.storage==="object";
     const opts=disks.map(d=>{
       const use=diskUse(sid,d.disk),mine=use.vols.some(x=>x.a.id===a.id&&x.v!==v),busy=use.part&&use.part.v!==v;
@@ -23228,14 +23228,14 @@ function volFieldsHtml(a,v,set){
       return[d.disk,`${d.disk} · ${d.size}${d.sys?" · "+i18n("системный"):""}${why?" — "+why:""}`,!!why];
     });
     const d=disks.find(x=>x.disk===v.disk),others=diskUse(sid,v.disk).vols.filter(x=>x.v!==v).length;
-    if(obj)return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}${dir("объектное хранилище пишет в папку; на одном диске у хранилища один том")}${gb("Размер","меняется на ходу, без перезапуска")}</div>`;
+    if(obj)return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}${dir("объектное хранилище записывает в папку. На одном диске у хранилища один том")}${gb("Размер","можно изменить без перезапуска")}</div>`;
     const partOff=d?.sys||others>0;
     return`<div class="g" style="margin-top:10px">${sel("Диск","disk",opts)}
       ${sel("Размещение","mode",[["part",i18n("Раздел целиком")+(d?.sys?" — "+i18n("не для системного диска"):others?" — "+i18n("на диске есть другие тома"):""),partOff],["file",i18n("Файл в папке")]],
-        v.mode==="part"?i18n("занимает весь диск; неотформатированный диск форматируют отдельно — кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой; FAT32 — не больше 4 ГБ"))}
-      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("файл тома создаётся в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
+        v.mode==="part"?i18n("занимает весь диск. Неотформатированный диск форматируют отдельно кнопкой «Форматировать» у тома"):i18n("на диске с файловой системой. Для FAT32 — не больше 4 ГБ"))}
+      ${v.mode==="part"?fldRo("Объём",d?.size||v.size):dir("консоль создаёт файл тома в этой папке")+gb("Размер файла","не меньше 1 ГБ")}</div>`;
   }
-  if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища — всегда файл")}
+  if(k==="nas")return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","\\\\nas01\\vms или //nas01/vms")}${gb("Размер файла","том сетевого хранилища всегда является файлом")}
       ${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>`;
   const p=a.provider||"s3";
   if(p==="azure")return`<div class="g" style="margin-top:10px">${inp("Учётная запись хранилища","account")}${inp("Ключ доступа","secret","password")}${inp("Контейнер","bucket","text","создаётся заранее в портале Azure")}${inp("Путь в контейнере","path")}${gb("Объём")}</div>`;
@@ -23245,10 +23245,10 @@ function volFieldsHtml(a,v,set){
   // Любое хранилище с API S3: Ceph, Yandex Object Storage, VK Cloud, Selectel,
   // NetApp StorageGRID — адрес сервиса и, если надо, адресация бакета путём.
   if(p==="s3c")return`<div class="g" style="margin-top:10px">${inp("Endpoint","endpoint","text","адрес S3 API сервиса","https://storage.example.com")}${inp("Регион","region","text","если сервис его требует","us-east-1")}
-      ${inp("Бакет","bucket","text","создаётся заранее в консоли сервиса")}${sel("Адресация бакета","style",[["path",i18n("Путём: endpoint/бакет")],["vhost",i18n("Поддоменом: бакет.endpoint")]],i18n("у большинства локальных S3 — путём"))}
+      ${inp("Бакет","bucket","text","создать заранее в консоли сервиса")}${sel("Адресация бакета","style",[["path",i18n("Путём: endpoint/бакет")],["vhost",i18n("Поддоменом: бакет.endpoint")]],i18n("у большинства локальных S3 — путём"))}
       ${keys}${inp("Путь в бакете","path")}${gb("Объём")}</div>`;
-  return`<div class="g" style="margin-top:10px">${sel("Регион","region",(CLOUD_REGIONS[p]||CLOUD_REGIONS.s3).map(r=>[r,r]),i18n("ближайший к серверу — меньше задержка"))}
-      ${inp("Бакет","bucket","text","создаётся заранее в консоли провайдера, имя уникально")}${keys}${inp("Путь в бакете","path")}${gb("Объём","не ограничен; тома лучше одного размера")}</div>`;
+  return`<div class="g" style="margin-top:10px">${sel("Регион","region",(CLOUD_REGIONS[p]||CLOUD_REGIONS.s3).map(r=>[r,r]),i18n("у ближайшего к серверу задержка меньше"))}
+      ${inp("Бакет","bucket","text","создать заранее в консоли провайдера. Имя должно быть уникальным")}${keys}${inp("Путь в бакете","path")}${gb("Объём","не ограничен. Тома должны быть одного размера")}</div>`;
 }
 // Обзор папок на сервере — в макете подставляем папку по умолчанию на диске.
 function volPickDir(btn,disk){
@@ -23283,8 +23283,8 @@ function volShrinkConfirm(id){
 }
 function formatVolume(id){
   const v=volById(id),a=v&&archById(v.archId);if(!v||!a)return;
-  askConfirm("Форматировать том",`${i18n("Диск")} ${escHtml(v.disk)} ${i18n("будет отформатирован в SolidStore для хранилища")} «${escHtml(locName(a))}».`,
-    i18n("Всё, что на диске есть, пропадёт, записи этого тома — тоже."),"Форматировать",()=>{
+  askConfirm("Форматировать том",`${i18n("Диск")} ${escHtml(v.disk)} ${i18n("сервер отформатирует в SolidStore для хранилища")} «${escHtml(locName(a))}».`,
+    i18n("Форматирование удалит все данные на диске, также записи этого тома."),"Форматировать",()=>{
       // Форматирует сервер: сразу «Форматируется», «Готов» приходит событием
       // Команда format долгая: ответ — операция, состояние тома — событием
       unitAction(id,"format").then(()=>{volFormatting.add(id);return API.get(`/units/${id}`)}).then(u=>{hwApplyUnit(u);gear()}).catch(e=>toast(problemText(e)));
@@ -23360,7 +23360,7 @@ const AN_STEPS=[{k:"kind",t:"Вид"},{k:"set",t:"Настройка"},{k:"vol",
 function anBlockKind(){
   const spec=kindOf(an.kind);
   if(!an.server&&spec.serverRequired)return i18n("Выберите сервер");
-  if(spec.serverWide&&arch.some(a=>a.kind===an.kind&&a.server===an.server))return i18n("На этом сервере такой архив уже есть: он один на сервер");
+  if(spec.serverWide&&arch.some(a=>a.kind===an.kind&&a.server===an.server))return i18n("На этом сервере уже есть такой архив. Он может быть только один на сервер");
   return"";
 }
 function anBlockVol(){
@@ -23371,7 +23371,7 @@ function anBlockVol(){
   }
   if(addr!=="disk"||v.mode!=="part")if(!gbOf(v.size))return i18n("Укажите размер в ГБ");
   if(addr==="nas"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Укажите путь и пользователя");
-  if(an.needKey&&!String(v.secret||v.pass||"").trim())return i18n("Введите пароль или секрет заново: в черновике они не хранятся");
+  if(an.needKey&&!String(v.secret||v.pass||"").trim())return i18n("Ввести пароль или секрет снова. Черновик не хранит их");
   if(addr==="bucket"&&!String(v.bucket||"").trim())return i18n(an.provider==="azure"?"Укажите контейнер":"Укажите бакет");
   if(addr==="bucket"&&an.provider==="minio"&&!String(v.host||"").trim())return i18n("Укажите хост MinIO");
   if(addr==="bucket"&&an.provider==="s3c"&&!String(v.endpoint||"").trim())return i18n("Укажите endpoint");
@@ -23401,7 +23401,7 @@ function anServerField(spec,addr){
   const list=(domains.find(d=>d.id===an.domain)?.servers||[]).filter(s=>!isUnallocated(s.id));
   const opt=(v,l)=>`<option value="${v}" ${an.server===v?"selected":""}>${escHtml(l)}</option>`;
   const first=spec.serverRequired?(an.server?"":opt("",i18n("Выберите сервер…"))):opt("",i18n("Весь домен"));
-  const where=!an.server?(spec.serverRequired?"":"Хранилище может взять любой сервер домена."):addr==="disk"?"":spec.serverRequired?"Писать в него будет только этот сервер.":"Писать в него будет только этот сервер. Чтобы писали все серверы, выберите «Весь домен».";
+  const where=!an.server?(spec.serverRequired?"":"Любой сервер домена может использовать хранилище."):addr==="disk"?"":spec.serverRequired?"Только этот сервер будет записывать в хранилище.":"Только этот сервер будет записывать в хранилище. Чтобы записывали все серверы, выбрать «Весь домен».";
   return`<div class="g an-srv"><div><label>${i18n("Сервер")}</label><select ${onEv("change",["anSet","server",onEv.value])}>${first}${list.map(x=>opt(x.id,locName(x)+(hasNoSignal(x)?" — "+i18n("нет связи"):""))).join("")}</select></div></div>${where?`<div class="an-srv bk-hint" data-arch-where>${i18n(where)}</div>`:""}`;
 }
 function renderArchNew(){
@@ -23419,11 +23419,11 @@ function renderArchNew(){
       <div><label>${i18n("Имя")}</label><input value="${escHtml(an.name)}" placeholder="${escHtml(defName)}" ${onEv("input",["anSet","name",onEv.value,true])}></div>
       <div><label>${i18n("Глубина, дней")}</label><input type="number" value="${an.days}" ${onEv("input",["anSet","days",onEv.value,true])}><div class="bk-hint">${i18n("0 — без ограничения")}</div></div>
       ${spec.archiveModes.length?`<div><label>${i18n("Когда писать")}</label><select ${onEv("change",["anSet","recordMode",onEv.value])}>${archModeOpts(spec,anMode(spec))}</select>${anMode(spec)?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
-      ${addr==="bucket"?fldRo("Тип хранения",i18n("Облачное")):spec.serverWide?"":`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома меняется на ходу, том можно зашифровать":"меньше задержка под большой нагрузкой")}</div></div>`}
+      ${addr==="bucket"?fldRo("Тип хранения",i18n("Облачное")):spec.serverWide?"":`<div><label>${i18n("Тип хранения")}</label><select ${onEv("change",["anSet","storage",onEv.value])}>${archStorages().map(([v,l])=>`<option value="${v}" ${an.storage===v?"selected":""}>${i18n(l)}</option>`).join("")}</select><div class="bk-hint">${i18n(an.storage==="object"?"объём тома можно изменить без перезапуска, том можно зашифровать":"задержка меньше при большой нагрузке")}</div></div>`}
       ${spec.encryption?`<div data-needs="feature:archiveEncryption"><label>${i18n("Шифрование")}</label><select ${canEnc?"":"disabled"} ${onEv("change",["anSetEnc",onEv.value])}><option value="0">${i18n("Нет")}</option><option value="1" ${an.enc&&canEnc?"selected":""}>AES-256-GCM</option></select>${canEnc?"":`<div class="bk-hint">${i18n("только у объектного хранилища")}</div>`}</div>`:""}
     </div>`
-  :st.k==="vol"?`<div class="an-step"><p class="sub dc-note">${i18n("Остальные тома добавляют кнопкой «＋ Том» в карточке хранилища.")}</p>
-    ${addr==="disk"&&!an.server?`<div class="bk-hint">${i18n("Сначала выберите сервер: диски у каждого свои.")}</div>`:addr==="disk"&&!an.vol.disk?`<div class="nt err">${i18n("Свободных дисков на сервере нет: на каждом уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}</div>`
+  :st.k==="vol"?`<div class="an-step"><p class="sub dc-note">${i18n("Другие тома добавляют кнопкой «＋ Том» в карточке хранилища.")}</p>
+    ${addr==="disk"&&!an.server?`<div class="bk-hint">${i18n("Сначала выбрать сервер. У каждого сервера свои диски.")}</div>`:addr==="disk"&&!an.vol.disk?`<div class="nt err">${i18n("На сервере нет свободных дисков. На каждом диске уже есть раздел хранилища.")}</div>`:volFieldsHtml(a,an.vol,["anSet"])}</div>`
   :anEndHtml(spec,addr,defName,owner);
   wzPaintBm("arch",st.k,{kind:"l",set:"m",vol:"m",end:"m"}[st.k],`${i18n("Новое хранилище")}${owner?" · "+escHtml(locName(owner)):""}`,anBarHtml(),body,anFootHtml());
   wzSave("arch");
@@ -23467,7 +23467,7 @@ function anCheck(){
   if(!an)return;
   const body=anArchive(),kind="archive."+body.kind;
   // Проверка — команда check вида хранилища: хранилища ещё нет, её исполняет система (POST /kinds/{kind}/actions/check)
-  if(!kindActionOn(kind,"check")){toast("Проверить подключение заранее система не умеет: оно проверится при создании");return}
+  if(!kindActionOn(kind,"check")){toast("Система не может проверить подключение заранее. Система проверит его при создании");return}
   kindAction(kind,"check",{provider:body.provider,volume:body.firstVolume})
     .then(r=>toast(r.ok?i18n(kindOf(an.kind).address==="bucket"?"Подключение к бакету проверено":"Подключение к NAS проверено"):problemText(r.code)))
     .catch(e=>toast(problemText(e)));
@@ -23491,14 +23491,14 @@ function createArchive(){
   const v=a.vols[0];
   an=null;closeBulkModal();
   open.add(a.server||a.domain);expandTo(a.id);archSliceOpen(a);resetTreeSel(a.id);sel=a.id;tab="arch";setD(true);
-  toast(v.state==="unfmt"?i18n("Хранилище создано. Раздел не отформатирован — отформатируйте его у тома, когда будете готовы"):i18n("Хранилище создано"));
+  toast(v.state==="unfmt"?i18n("Хранилище создано. Раздел не отформатирован. Отформатировать его у тома, когда вы будете готовы"):i18n("Хранилище создано"));
   paint();revealSel();hwFlashLanding();
   }).catch(e=>{was.busy=false;toast(problemText(e))});
 }
 function addVolume(archId){
   const a=archById(archId);if(!a)return;
   const d=volDefaults(a);
-  if(!d){toast("Свободных дисков нет: на одном диске у хранилища один том, а разделы других хранилищ заняты");return}
+  if(!d){toast("Свободных дисков нет. На одном диске у хранилища один том, и другие хранилища уже используют свои разделы");return}
   unitsCreate([Object.assign(volToUnit(volSpec(a,d)),{parentId:a.id})]).then(([u])=>{
     const r=unitRec(u);
     if(!volById(r.id))a.vols.push(volNode(r));
@@ -23515,10 +23515,10 @@ function deleteVolume(id){
   const last=archVols(a).length===1,n=archCameras(a.id).length;
   // У бакета в disk лежит код провайдера: два тома одного хранилища различаются только адресом
   const vName=archAddr(a)==="bucket"?volLabel(v):v.disk;
-  if(pendingDelHas(id)){toast("Том уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(id)){toast("Консоль уже удаляет том. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить том",i18n("Том «{v}» хранилища «{a}» будет удалён вместе с записями на нём.").replace("{v}",()=>escHtml(vName)).replace("{a}",()=>escHtml(locName(a))),
-    (last&&n?`${i18n("Это последний том: хранилищу будет некуда писать, камер:")} ${n}. `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
+    (last&&n?`${i18n("Это последний том. Хранилище не сможет записывать видео камер:")} ${n}. `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`${i18n("Том")} «${vName}»`,commit:()=>{
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>{
       const i=a.vols.indexOf(v);if(i>=0)a.vols.splice(i,1);
@@ -23537,10 +23537,10 @@ function deleteArchive(id){
   closeTreeCtx();
   const a=arch.find(x=>x.id===id);if(!a)return;
   const n=archCameras(id).length;
-  if(pendingDelHas(id)){toast("Хранилище уже ждёт удаления — отменить можно в тосте");return}
+  if(pendingDelHas(id)){toast("Консоль уже удаляет хранилище. Чтобы отменить, нажать «Отменить» в уведомлении");return}
   if(busyRefuse(id))return;
   askConfirm("Удалить хранилище",`${i18n("Хранилище")} «${locName(a)}» ${i18n("будет удалено вместе с томами.")}`,
-    (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Сами камеры останутся в системе — в разделе «Без записи».")} `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
+    (n?`${i18n("Перестанут писать камер:")} ${n}. ${i18n("Камеры останутся в системе, в разделе «Без записи».")} `:"")+i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить»."),
     "Удалить",()=>scheduleDelete([id],{label:`«${locName(a)}»`,commit:()=>{
       // Камеры, что писали сюда, сервер переводит на следующее хранилище или выключает им запись
       API.del(`/units/${id}`,hwVer.get(id)).then(()=>hwReload()).then(()=>{
@@ -23554,7 +23554,7 @@ function deleteArchive(id){
 function archOwnerLine(a){
   const sv=archServer(a),dm=archDomain(a);
   if(sv)return`${i18n("Хранилище сервера")} <button type="button" class="as-link" ${onEv("click",["pick",`${sv.id}`])}>${escHtml(locName(sv))}</button>`;
-  if(dm)return`${i18n("Сетевое хранилище домена")} <button type="button" class="as-link" ${onEv("click",["pick",`${dm.id}`])}>${escHtml(locName(dm))}</button> — ${i18n("доступно любому серверу домена, запись не привязана к конкретному серверу.")}`;
+  if(dm)return`${i18n("Сетевое хранилище домена")} <button type="button" class="as-link" ${onEv("click",["pick",`${dm.id}`])}>${escHtml(locName(dm))}</button> — ${i18n("доступно любому серверу домена. Запись не привязана к одному серверу.")}`;
   return i18n("Владелец не задан");
 }
 function nvrRecCardHtml(n){
@@ -23566,14 +23566,14 @@ function nvrRecCardHtml(n){
   const modeSel=`<div><label>${i18n("Режим")}</label><select ${onEv("change",["setNvrRec",`${n.id}`,onEv.value])}>${mixOpt(mode)}${
     recModes().map(([v,l])=>`<option value="${v}" ${mode===v?"selected":""} ${v==="replica"&&!canRep?"disabled":""}>${i18n(l)}</option>`).join("")}</select></div>`;
   const note=edge
-    ?`<div class="nt">${i18n("У регистратора есть встроенный архив")} (${escHtml(edge.size||"—")}). ${i18n("В режиме репликации сервер заберёт записи с самого регистратора — одной настройкой для всех его камер, без потока с каждой камеры отдельно.")}</div>`
-    :`<p class="sub">${i18n("Встроенного архива у регистратора нет — репликация недоступна. Камеры пишутся на сервер потоком.")}</p>`;
+    ?`<div class="nt">${i18n("У регистратора есть встроенный архив")} (${escHtml(edge.size||"—")}). ${i18n("В режиме «Репликация» сервер возьмёт записи с регистратора. Одна настройка действует для всех его камер. Отдельный поток с каждой камеры не нужен.")}</div>`
+    :`<p class="sub">${i18n("У регистратора нет встроенного архива, поэтому репликация недоступна. Камеры записывают видео на сервер потоком.")}</p>`;
   const table=`<table><tr><th>${i18n("Камера")}</th><th>${i18n("Архив")}</th><th>${i18n("Режим")}</th></tr>${
     cams.map(c=>`<tr ${onEv("click",["pick",`${c.id}`])} style="cursor:pointer"><td>${escHtml(locName(c))}</td><td>${escHtml(c.arch?locName(arch.find(a=>a.id===c.arch)||{name:"—"}):"—")}</td><td>${i18n(recordModeLabel(c.rec))}</td></tr>`).join("")
     ||`<tr><td class="empty" colspan="3">${i18n("У регистратора нет камер")}</td></tr>`}</table>`;
   return card("Запись камер регистратора",`${note}<div class="g" style="margin-top:10px">${archSel}${modeSel}</div>
     ${archChoicesNote(n)}
-    <p class="sub">${i18n("Настройка применяется сразу ко всем камерам регистратора. Отдельную камеру можно переопределить в её карточке, вкладка «Архив».")}</p>`,
+    <p class="sub">${i18n("Консоль применяет настройку сразу ко всем камерам регистратора. Для одной камеры можно задать другое значение в её карточке на вкладке «Архив».")}</p>`,
     `<span class="sub" style="font-weight:400">${cams.length}</span>`)+
     edgeStorageCardHtml(n)+card("Камеры регистратора",table);
 }
@@ -23597,7 +23597,7 @@ function archForeignReason(n,a){
 }
 function archChoicesNote(n){
   const s=cameraTreeServer(n.id);
-  return s?`<p class="sub">${i18n(n.type==="ipsrv"?"Регистратор на сервере":"Камера на сервере")} <b>${escHtml(locName(s))}</b>: ${i18n("доступны хранилища этого сервера и сетевые хранилища домена.")}</p>`:"";
+  return s?`<p class="sub">${i18n(n.type==="ipsrv"?"Регистратор на сервере":"Камера на сервере")} <b>${escHtml(locName(s))}</b>: ${i18n("можно выбрать хранилища этого сервера и сетевые хранилища домена.")}</p>`:"";
 }
 // Хранилища камеры списком: у каждой строки своё хранилище, поток и режим.
 // Первая строка — основное хранилище, через него камера получает сервер.
@@ -23682,7 +23682,7 @@ function rwSet(k,v){
   rwModal();
 }
 function rwChip(k,x){if(rwEd){rwEd[k]=listToggled(rwEd[k],x);rwModal()}}
-const RW_START={now:"С этого момента",earliest:"С самого раннего в архиве устройства"},RW_KEEP={none:"Только события",hits:"Минуты вокруг находок"};
+const RW_START={now:"С этого момента",earliest:"С самой ранней записи в архиве устройства"},RW_KEEP={none:"Только события",hits:"Минуты вокруг находок"};
 function rwOpt(map,cur){return Object.entries(map).map(([v,l])=>`<option value="${v}" ${v===cur?"selected":""}>${i18n(l)}</option>`).join("")}
 function rwKinds(cur){return refDetKinds.map(k=>`<option value="${k}" ${k===cur?"selected":""}>${escHtml(detKindRu(k))}</option>`).join("")}
 function rwCommon(n){
@@ -23727,7 +23727,7 @@ function rwSave(){
   return(e.id?API.patch(`/archive-watches/${e.id}`,body,e.version):API.post("/archive-watches",{deviceId:e.deviceId,detectorKind:e.detectorKind,...body})).then(done).catch(fail);
 }
 // Правка и снятие — право admin на камеру, признака в контракте нет: 403 приходит отказом, список перечитывается
-function rwFail(id){return e=>{toast(e?.status===403?i18n("Менять и снимать может администратор камеры"):problemText(e));return rwLoad(id)}}
+function rwFail(id){return e=>{toast(e?.status===403?i18n("Изменить и снять может администратор камеры"):problemText(e));return rwLoad(id)}}
 function rwWatchToggle(id){const w=rw.watches.find(x=>x.id===id);if(w)API.patch(`/archive-watches/${id}`,{enabled:!w.enabled},w.version).then(()=>rwLoad(w.deviceId)).catch(rwFail(w.deviceId))}
 function rwWatchDel(id){
   const w=rw.watches.find(x=>x.id===id);if(!w)return;
@@ -23735,12 +23735,12 @@ function rwWatchDel(id){
 }
 function rwScanDel(id){const x=rw.scans.find(y=>y.id===id);if(x)API.del(`/archive-scans/${id}`).then(()=>rwLoad(x.deviceId)).catch(rwFail(x.deviceId))}
 function rwCardsHtml(n){
-  if(n.archiveJobs===false)return card("Скан и обход",`<p class="sub" data-rw-off>${i18n("Скан и обход недоступны: запись этой камеры хранится в другом кластере")}</p>`);
+  if(n.archiveJobs===false)return card("Скан и обход",`<p class="sub" data-rw-off>${i18n("Скан и обход недоступны. Записи этой камеры хранятся в другом кластере")}</p>`);
   rwOpen(n);
   const out=[];
-  if(can("listArchiveWatches")&&recEdge(n))out.push(card("Обход архива устройства",`<p class="sub">${i18n("Детектор смотрит архив устройства постоянно, без потока на сервер.")}</p>${rw.watches.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Дошёл до")}</th><th>${i18n("Сохраняет")}</th><th></th></tr></thead><tbody>${rw.watches.map(w=>`<tr data-watch="${w.id}"><td>${escHtml(detKindRu(w.detectorKind))}</td><td>${w.through?escHtml(clockText(w.through,false)):"—"}${w.overrunSec?`<div class="bk-hint">${i18n("устройство стёрло раньше")}: ${escHtml(lagText(w.overrunSec))}</div>`:""}</td><td>${i18n(RW_KEEP[w.keep]||w.keep)}${w.archiveId?`<div class="bk-hint">${escHtml(locName(archById(w.archiveId)||{name:""}))}</div>`:""}</td><td class="ca-x"><div class="sw ${w.enabled?"on":""}" ${onEv("click",["rwWatchToggle",`${w.id}`])}></div> <button type="button" class="btn s" ${onEv("click",["rwWatchEdit",`${n.id}`,`${w.id}`])}>${i18n("Изменить")}</button> <button type="button" class="btn s" ${onEv("click",["rwWatchDel",`${w.id}`])}>${i18n("Снять")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
+  if(can("listArchiveWatches")&&recEdge(n))out.push(card("Обход архива устройства",`<p class="sub">${i18n("Детектор всё время проверяет архив устройства, без потока на сервер.")}</p>${rw.watches.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Дошёл до")}</th><th>${i18n("Сохраняет")}</th><th></th></tr></thead><tbody>${rw.watches.map(w=>`<tr data-watch="${w.id}"><td>${escHtml(detKindRu(w.detectorKind))}</td><td>${w.through?escHtml(clockText(w.through,false)):"—"}${w.overrunSec?`<div class="bk-hint">${i18n("устройство стёрло раньше")}: ${escHtml(lagText(w.overrunSec))}</div>`:""}</td><td>${i18n(RW_KEEP[w.keep]||w.keep)}${w.archiveId?`<div class="bk-hint">${escHtml(locName(archById(w.archiveId)||{name:""}))}</div>`:""}</td><td class="ca-x"><div class="sw ${w.enabled?"on":""}" ${onEv("click",["rwWatchToggle",`${w.id}`])}></div> <button type="button" class="btn s" ${onEv("click",["rwWatchEdit",`${n.id}`,`${w.id}`])}>${i18n("Изменить")}</button> <button type="button" class="btn s" ${onEv("click",["rwWatchDel",`${w.id}`])}>${i18n("Снять")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
     `<button type="button" class="btn s" data-needs="createArchiveWatch" data-watch-add ${onEv("click",["rwWatchEdit",`${n.id}`,""])}>${lu("plus")}${i18n("Обход")}</button>`));
-  if(can("listArchiveScans")&&camArchs(n).length)out.push(card("Скан архива",`<p class="sub">${i18n("Проверка детектором отрезка записи. Итог приходит, когда задача кончится.")}</p>${rw.scans.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Отрезок")}</th><th>${i18n("Итог")}</th><th></th></tr></thead><tbody>${rw.scans.map(x=>`<tr data-scan="${x.id}"><td>${escHtml(detKindRu(x.detectorKind))}</td><td>${escHtml(clockText(x.from,false))} – ${escHtml(clockText(x.to,false))}</td><td>${x.result?`${i18n(x.result.end==="done"?"готово":"не вышло")}: ${i18n("событий")} ${x.result.events}, ${Math.round(x.result.covered/x.result.asked*100)||0}%${x.result.why?` · ${escHtml(x.result.why)}`:""}`:i18n("идёт")}</td><td class="ca-x"><button type="button" class="btn s" ${onEv("click",["rwScanDel",`${x.id}`])}>${i18n(x.result?"Убрать":"Отменить")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
+  if(can("listArchiveScans")&&camArchs(n).length)out.push(card("Скан архива",`<p class="sub">${i18n("Детектор проверяет отрезок записи. Итог появится, когда задача закончится.")}</p>${rw.scans.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Детектор")}</th><th>${i18n("Отрезок")}</th><th>${i18n("Итог")}</th><th></th></tr></thead><tbody>${rw.scans.map(x=>`<tr data-scan="${x.id}"><td>${escHtml(detKindRu(x.detectorKind))}</td><td>${escHtml(clockText(x.from,false))} – ${escHtml(clockText(x.to,false))}</td><td>${x.result?`${i18n(x.result.end==="done"?"готово":"не вышло")}: ${i18n("событий")} ${x.result.events}, ${Math.round(x.result.covered/x.result.asked*100)||0}%${x.result.why?` · ${escHtml(x.result.why)}`:""}`:i18n("идёт")}</td><td class="ca-x"><button type="button" class="btn s" ${onEv("click",["rwScanDel",`${x.id}`])}>${i18n(x.result?"Убрать":"Отменить")}</button></td></tr>`).join("")}</tbody></table>`:""}`,
     `<button type="button" class="btn s" data-needs="createArchiveScan" data-scan-add ${onEv("click",["rwScanNew",`${n.id}`])}>${lu("plus")}${i18n("Скан")}</button>`));
   return out.join("");
 }
@@ -23760,7 +23760,7 @@ function camArchsCardHtml(n){
   const free=(n.arch?archRowChoices(n):archChoicesFor(n)).filter(a=>!used.has(a.id));
   const rows=list.map((x,i)=>{
     const a=archById(x.arch),opts=(x.main?archChoicesFor(n):archRowChoices(n)).filter(o=>o.id===x.arch||!used.has(o.id));
-    if(x.ro)return`<tr data-arch-ro="${x.arch}"><td>${escHtml(a?locName(a):x.arch)} · ${escHtml(a?archKindTag(a):"")}<div class="bk-hint">${i18n("работает со всеми камерами сервера, у камеры только для чтения")}</div>${recStateHtml(x)}</td>
+    if(x.ro)return`<tr data-arch-ro="${x.arch}"><td>${escHtml(a?locName(a):x.arch)} · ${escHtml(a?archKindTag(a):"")}<div class="bk-hint">${i18n("работает со всеми камерами сервера. У камеры это значение можно только читать")}</div>${recStateHtml(x)}</td>
       <td>${escHtml(camStreams(n).find(s=>s.id===x.stream)?.name||x.stream||"")}</td><td>${escHtml(i18n(a&&archSpec(a).archiveModes.length?ARCH_MODE_RU[x.rec]||x.rec||"Авто":recordModeLabel(x.rec)))}</td><td></td></tr>`;
     const recOpts=(a?recModesOf(a):REC_MODES_ALL.slice(1)).filter(([v])=>x.main?v!=="backup":true);
     return`<tr><td><select ${onEv("change",["camArchRowSet",`${n.id}`,i,"arch",onEv.value])}>${opts.map(o=>`<option value="${o.id}" ${o.id===x.arch?"selected":""}>${escHtml(locName(o))} · ${escHtml(archKindTag(o))}</option>`).join("")}</select>
@@ -23772,7 +23772,7 @@ function camArchsCardHtml(n){
   const add=free.length?`<select class="ca-add" ${onEv("change",onEv.ifValue,["camArchRowAdd",n.id,onEv.value])}><option value="">＋ ${i18n("Привязать к хранилищу")}…</option>${free.map(a=>`<option value="${a.id}">${escHtml(locName(a))} · ${escHtml(archKindTag(a))}</option>`).join("")}</select>`
     :`<span class="sub">${i18n(list.length?"Других доступных хранилищ нет":"Доступных хранилищ нет")}</span>`;
   return card("Хранилища камеры",`${list.length?`<table class="ca-tbl"><thead><tr><th>${i18n("Хранилище")}</th><th>${i18n("Поток")}</th><th>${i18n("Режим записи")}</th><th></th></tr></thead><tbody>${rows}</tbody></table>`
-      :`<div class="nt">${i18n("Камера не привязана ни к одному хранилищу — запись не идёт.")}</div>`}
+      :`<div class="nt">${i18n("Камера не привязана к хранилищу, поэтому запись не идёт.")}</div>`}
     <div class="ca-foot">${add}</div>${archChoicesNote(n)}`,`<span class="sub" style="font-weight:400">${list.length}</span>`);
 }
 function camArchRowAdd(id,aid){
@@ -24070,7 +24070,7 @@ function applyBulkEdit(){
   if(!list.length){toast("Выберите устройства");return}
   const b=wizd.bulkEdit;
   const keys=["vendor","model","user","pass","name","arch","group","record"];
-  if(!keys.some(k=>b[k]!==""&&b[k]!=null)){toast("Укажите хотя бы один параметр");return}
+  if(!keys.some(k=>b[k]!==""&&b[k]!=null)){toast("Указать минимум один параметр");return}
   list.forEach(r=>{
     if(b.vendor){r.vendor=b.vendor;r.model=b.model||manualModels(b.vendor)[0]||r.model}
     else if(b.model)r.model=b.model;
@@ -24191,7 +24191,7 @@ function deviceResultCard(r){
     }
   }
   const rowCls=rows===1?"dev-card-1row":rows===2?"dev-card-2row":"dev-card-3row";
-  const conflictHtml=conflict?`<div class="dev-conflict" style="grid-column:1/-1;grid-row:${rows+1}">IP-адрес и порт уже используются другим устройством, но MAC-адрес отличается.</div>`:"";
+  const conflictHtml=conflict?`<div class="dev-conflict" style="grid-column:1/-1;grid-row:${rows+1}">Другое устройство уже использует этот IP-адрес и порт, но у него другой MAC-адрес.</div>`:"";
   return `<div class="dev-card-wrap"><div class="dev-card ${rowCls}">${parts.join("")}${conflictHtml}</div></div>`;
 }
 function deviceFocusIconSvg(){
@@ -24262,14 +24262,14 @@ function deviceSearchHtml(){
       ${deviceResultCard(r)}
       <div class="dev-actions">${action}</div>
     </div></div>`;
-  }).join("")+(searching?`<div class="dev-searching-note"><span class="dev-spin" aria-hidden="true"></span> Поиск продолжается… ${progress}%</div>`:""):searching?`<div class="dev-empty dev-empty-search"><span class="dev-spin" aria-hidden="true"></span>Ожидание первых результатов… ${progress}%</div>`:wizd.devState==="idle"?`<div class="dev-empty">Запуск поиска устройств…</div>`:foundTotal?`<div class="dev-empty">Устройства не найдены с учётом выбранных фильтров.</div>`:`<div class="dev-empty">Устройства в сети не найдены.</div>`;
+  }).join("")+(searching?`<div class="dev-searching-note"><span class="dev-spin" aria-hidden="true"></span> Поиск продолжается… ${progress}%</div>`:""):searching?`<div class="dev-empty dev-empty-search"><span class="dev-spin" aria-hidden="true"></span>Ожидание первых результатов… ${progress}%</div>`:wizd.devState==="idle"?`<div class="dev-empty">Запуск поиска устройств…</div>`:foundTotal?`<div class="dev-empty">Нет устройств, которые подходят к выбранным фильтрам.</div>`:`<div class="dev-empty">Консоль не нашла устройства в сети.</div>`;
   // Одна строка управления вместо трёх: выбор, поиск по списку, обновление и
   // действие над выбранным — всё там же, где на него смотрят.
   return `<div class="dev-search-head">
   ${deviceArchiveWarning()}
   <div class="dev-toolbar">
     <div class="dev-toolbar-row">
-      <input type="checkbox" id="devSelectAll" aria-label="Выбрать все найденные устройства" ${allSelected?"checked":""} ${available&&!selectedOnly?"":"disabled"} title="${selectedOnly?"Снимите «Показать только выбранные», чтобы изменить выбор":""}" ${onEv("change",["toggleSelectAllVisible",onEv.checked])}>
+      <input type="checkbox" id="devSelectAll" aria-label="Выбрать все найденные устройства" ${allSelected?"checked":""} ${available&&!selectedOnly?"":"disabled"} title="${selectedOnly?"Чтобы изменить выбор, снять «Показать только выбранные»":""}" ${onEv("change",["toggleSelectAllVisible",onEv.checked])}>
       <span class="dev-list-head-spacer" aria-hidden="true"></span>
       ${deviceFilterFieldHtml(selectedCount)}
       <div class="dev-toolbar-actions">${deviceSearchRefreshBtn(searching)}${deviceHeadActionsHtml(selectedCount,!!(rows.length||foundTotal))}
@@ -24302,9 +24302,9 @@ function detectManualModel(){
   // Модель сообщает само устройство: спрашиваем через сервер. Определить модель может только драйвер: вместе с адресом
   // уходят логин и пароль, если введены. Команда probe вида камеры (ipsrv): устройства ещё нет — POST /kinds/{kind}/actions/probe
   const kind=m.type==="ipsrv"?"ipsrv":"camera";
-  if(!kindActionOn(kind,"probe")){toast("Определить модель система не умеет: выберите модель вручную");return}
+  if(!kindActionOn(kind,"probe")){toast("Система не может определить модель. Выбрать модель вручную");return}
   kindAction(kind,"probe",Object.assign({ip:m.ip,port:+m.port||80,vendor:m.vendor},m.user?{login:m.user}:{},m.pass?{password:m.pass}:{})).then(r=>{
-    if(!r.model){toast(m.user&&m.pass?"Подходящая модель не найдена":"Модель не определена: укажите логин и пароль");return}
+    if(!r.model){toast(m.user&&m.pass?"Подходящая модель не найдена":"Модель не определена. Указать логин и пароль");return}
     m.model=r.model;
     renderDeviceWizard();toast("Модель устройства определена");
   }).catch(e=>toast(problemText(e)));
@@ -24313,7 +24313,7 @@ function addManualDevice(){
   const m=wizd.manual,s=deviceTarget();
   if(!s){toast("Выберите папку");return}
   if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
-  if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Заполните производителя и модель или адрес RTSP");return}
+  if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Указать производителя и модель или адрес RTSP");return}
   if(m.type!=="camera"&&(!m.ip||!m.vendor||!m.model)){toast("Заполните IP, производителя и модель");return}
   if(missingManualCredentials(m)){askAddWithoutCredentials(()=>commitManualDevice(true));return}
   commitManualDevice(false);
@@ -24381,7 +24381,7 @@ function deviceManualHtml(){
       <div><label>Широта</label><input value="${escHtml(m.lat)}" ${onEv("input",["updateManual","lat",onEv.value])}></div>
       <div><label>Долгота</label><input value="${escHtml(m.lon)}" ${onEv("input",["updateManual","lon",onEv.value])}></div>
       <div><label>Азимут</label><input type="number" value="${escHtml(m.azimuth)}" ${onEv("input",["updateManual","azimuth",onEv.value])}></div>
-      ${m.record==="motion"?`<p class="motion-note">Предзапись — 3 секунды. Создаётся серверный детектор движения; встроенный можно завести в карточке камеры, когда устройство ответит.</p>`:""}`:""}
+      ${m.record==="motion"?`<p class="motion-note">Предзапись — 3 секунды. Консоль создаёт серверный детектор движения. Встроенный детектор можно добавить в карточке камеры, когда устройство ответит.</p>`:""}`:""}
     </div>
   </div>${wizd.manualAddedId?`<div class="nt ok">Устройство добавлено в конфигурацию</div>`:""}`;
 }
@@ -24512,7 +24512,7 @@ function csvDeviceNode(r,s,disabled,mode){
   return n;
 }
 function importCsvDevices(){
-  const valid=csvImportableRows(wizd.csvRows),s=deviceTarget();if(!s||!valid.length){toast("Нет корректных строк для импорта");return}
+  const valid=csvImportableRows(wizd.csvRows),s=deviceTarget();if(!s||!valid.length){toast("Нет правильных строк для импорта");return}
   // Номера «Авто» — по порядку строк, как раньше: от номера регистратора считаются короткие имена его каналов
   let next=+nextDeviceIdentifier(s)||1;
   const rows=valid.map(r0=>{
@@ -24584,7 +24584,7 @@ function csvRowHtml(r){
   const can=csvImportableRows([r]).length>0;
   const st=r.added?`${i18n("Добавлено")} · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>${i18n("Перейти")}</button>`:r.planned?`${i18n("В плане")} · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>${i18n("Убрать")}</button>`:r.skipImport?i18n("Пропуск (отчёт)"):r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:r.warns?.length?`${i18n("Готово")} · ${escHtml(r.warns.join(", "))}: ${i18n("исправьте в плане")}`:i18n("Готово");
   const cls=r.added||r.planned?"ok":r.skipImport?"":r.errors.length?"err":"ok";
-  const why=i18n(r.added?"Уже добавлено":r.planned?"Уже в плане":can?"":"Эта строка в план не пойдёт");
+  const why=i18n(r.added?"Уже добавлено":r.planned?"Уже в плане":can?"":"Консоль не добавит эту строку в план");
   return`<tr class="${cls}"><td class="csv-chk"><input type="checkbox" aria-label="Выбрать ${escHtml(r.ip||r.name||r.id)}" ${wizd.csvSel.has(r.id)&&can?"checked":""} ${can?"":`disabled title="${why}"`} ${onEv("change",["toggleCsvRow",`${r.id}`,onEv.checked])}></td><td>${escHtml(r.id.replace("csv",""))}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`;
 }
 function csvListHtml(){
@@ -24617,7 +24617,7 @@ function renderDeviceWizardFooter(){
   const step=wizd.planStep||0,n=addPlan.rows.length+addPlan.links.length;
   df.style.display="";
   const warn=step?planWarnText():"";
-  foot.textContent=warn||n?(warn||`${i18n("В плане")}: ${n}`):addPlan.added.length?`${i18n("Добавлено")}: ${addPlan.added.length}`:i18n("Отметьте устройства и нажмите «В план»");
+  foot.textContent=warn||n?(warn||`${i18n("В плане")}: ${n}`):addPlan.added.length?`${i18n("Добавлено")}: ${addPlan.added.length}`:i18n("Отметить устройства и нажать «В план»");
   wb.style.display=step?"":"none";wb.textContent=i18n("Назад");
   wn.style.display=step?"none":"";wn.textContent=i18n("Далее");wn.disabled=!n&&!addPlan.added.length;
   fr.innerHTML=step?`<span id="planFoot" class="wz-plan-ft">${planFootHtml()}</span>`:"";
@@ -24754,7 +24754,7 @@ function comboRender(){
     if(o.g)g=o.g;
     return`${head}<div id="comboO${i}" role="option" aria-selected="${i===c.idx}" class="combo-opt ${i===c.idx?"on":""} ${o.v===c.cv?"cur":""}" ${onEv("click",onEv.stop,["comboPick",i])}>${hlText(o.l,c.q)}${o.sub?`<span class="combo-sub">${hlText(o.sub,c.q)}</span>`:""}</div>`;
   }).join("");
-  const none=list.length?"":`<div class="combo-note">${i18n(c.spec.free&&q?"В списке нет: останется то, что введено":c.spec.src==="arch"&&!q?"Архивы не созданы":"Ничего не найдено")}</div>`;
+  const none=list.length?"":`<div class="combo-note">${i18n(c.spec.free&&q?"Этого нет в списке. Консоль сохранит введённое значение":c.spec.src==="arch"&&!q?"Архивы не созданы":"Ничего не найдено")}</div>`;
   const more=list.length>COMBO_MAX?`<div class="combo-note">${i18n("Показаны первые")} ${COMBO_MAX} ${i18n("из")} ${list.length}: ${i18n("уточните запрос")}</div>`:"";
   const p=comboPop();
   p.innerHTML=rows+none+more;
@@ -24876,7 +24876,7 @@ function planTouch(){addPlan.key=null;addPlan.keySig=null}
 function planBtnCount(){const n=addPlan.rows.length+addPlan.links.length;return n?`${i18n("В плане")}: ${n}`:""}
 function planBtnHint(){
   const n=addPlan.rows.length+addPlan.links.length;
-  return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n(addPlan.rows.length?"В системе их ещё нет: откройте и нажмите «Применить план»":"Откройте и нажмите «Применить план»")}`:"";
+  return n?`${i18n("В плане")} ${n} ${planPlural(n,"устройство|устройства|устройств")}. ${i18n(addPlan.rows.length?"Их ещё нет в системе. Открыть и нажать «Применить план»":"Открыть и нажать «Применить план»")}`:"";
 }
 function planHeadSync(){
   wzDock();
@@ -24928,7 +24928,7 @@ function planServerBarHtml(){
   if(!list.length)ctl=`<span class="sub">${i18n("В домене нет серверов")}</span>`;
   else if(list.length===1)ctl=`<span class="plan-srv-one">${nm(list[0])}</span>`;
   else ctl=`<select id="planSrv" ${onEv("change",["planSetServer",onEv.value])}>${list.map(s=>`<option value="${s.id}" ${s.id===cur?"selected":""} ${s.online===false?"disabled":""}>${nm(s)}</option>`).join("")}</select>`;
-  return`<div class="plan-srv"><label for="planSrv">${i18n("Сервер")}:</label>${ctl}<span class="sub">${i18n("Действует на строки, которые добавляете дальше")}</span></div>`;
+  return`<div class="plan-srv"><label for="planSrv">${i18n("Сервер")}:</label>${ctl}<span class="sub">${i18n("Действует на строки, которые вы добавите потом")}</span></div>`;
 }
 function planAllowedArchives(sid,did){return[...serverArchives(sid),...domainArchives(did)]}
 // Сервер, к которому привязано хранилище; у сетевого хранилища домена его нет
@@ -25172,7 +25172,7 @@ function planRowIssues(row){
   // Производитель решает, какой драйвер возьмёт устройство: не из списка — поправить здесь же, в строке
   const typed=planIsCam(row)&&!planIsRtsp(r);
   const keys=Object.keys(DEVICE_MODELS).length;
-  if(!conn&&typed&&keys&&!Object.hasOwn(DEVICE_MODELS,r.vendor))err("Такого производителя нет в списке драйверов: выберите из списка");
+  if(!conn&&typed&&keys&&!Object.hasOwn(DEVICE_MODELS,r.vendor))err("Этого производителя нет в списке драйверов. Выбрать производителя из списка");
   const sid=planRowServer(row);
   if(sid){const s=find(sid)?.n;if(!s)err("Сервер не найден");else if(s.online===false)err("Сервер не отвечает")}
   const id=isAutoIdentifier(r.identifier)?"":String(r.identifier).trim();
@@ -25192,8 +25192,8 @@ function planRowIssues(row){
       const noUser=!r.user||r.user==="Авто",noPass=!r.pass;
       warn(`${i18n(noUser&&noPass?"Нет логина и пароля":noPass?"Нет пароля":"Нет логина")} — ${i18n("добавится выключенным")}`);
     }
-    if(typed&&keys&&manualModels(r.vendor).length&&!manualModels(r.vendor).includes(r.model))warn("Модели нет в справочнике: проверьте, что драйвер её поддерживает");
-    if(planIsCam(row)&&!r.arch)warn("Без архива: записи не будет");
+    if(typed&&keys&&manualModels(r.vendor).length&&!manualModels(r.vendor).includes(r.model))warn("Модели нет в справочнике. Проверить, что драйвер поддерживает эту модель");
+    if(planIsCam(row)&&!r.arch)warn("Без архива. Запись не будет работать");
     if(row.archWas)warn(`${i18n("Архив")} «${row.archWas}» ${i18n("недоступен выбранному серверу")} — ${r.arch?i18n("выбран другой"):i18n("архив не задан")}`);
   }
   return out;
@@ -25232,7 +25232,7 @@ function planApply(retry){
   const where=[...per].map(([sid,k])=>`${sid?locName(find(sid)?.n||{name:"—"}):i18n("сервер выберет система")}: ${k}`).join(", ");
   const off=rows.filter(x=>missingDeviceCredentials(x.r)).length,noArch=rows.filter(x=>planIsCam(x)&&!x.r.arch).length;
   const msg=`${i18n("Будет добавлено")}: ${rows.length} ${planPlural(rows.length,"устройство|устройства|устройств")} — ${where}.`
-    +(off?` ${i18n("Нет логина или пароля — добавятся выключенными")}: ${off}.`:"")+(noArch?` ${i18n("Без архива, записи не будет")}: ${noArch}.`:"");
+    +(off?` ${i18n("Нет логина или пароля. Консоль добавит устройства выключенными")}: ${off}.`:"")+(noArch?` ${i18n("Без архива, запись не будет работать")}: ${noArch}.`:"");
   askConfirm("Применить план",msg,"",`${i18n("Добавить")} ${rows.length}`,go,{rawMsg:true});
 }
 function planRetry(){planApply(true)}
@@ -25355,7 +25355,7 @@ function planPanelHtml(){
   const sum=addPlan.last&&failN?`<div class="plan-sum">${i18n("Добавлено")} ${addPlan.last.done} · ${i18n("не добавлено")} ${failN}</div>`:"";
   let list="";
   const groups=new Map();rows.forEach(x=>{const k=planRowServer(x)||"";(groups.get(k)||groups.set(k,[]).get(k)).push(x)});
-  if(!rows.length&&!addPlan.links.length)list=`<div class="plan-empty">${i18n("План пуст. На шаге «Что добавить» отметьте устройства и нажмите «В план». Пока вы не примените план, в системе ничего не появится.")}</div>`;
+  if(!rows.length&&!addPlan.links.length)list=`<div class="plan-empty">${i18n("План пуст. На шаге «Что добавить» отметить устройства и нажать «В план». Пока вы не примените план, в системе ничего не изменится.")}</div>`;
   else list=planLinksHtml()+[...groups].map(([sid,part])=>`<div class="plan-grp">${sid?escHtml(locName(find(sid)?.n||{name:"—"})):i18n("Сервер выберет система")} · ${part.length}</div>`+part.map(planRowHtml).join("")).join("");
   return`<div class="plan-hd"><b>${i18n("План")} · ${rows.length+addPlan.links.length}</b>${rows.length||addPlan.links.length?`<button type="button" class="lk" ${addPlan.applying?`disabled title="${i18n("Идёт применение плана")}"`:""} ${onEv("click",["planClear"])}>${i18n("Очистить план")}</button>`:""}</div>
     <div class="plan-rows">${added}${sum}${list}</div>`;
@@ -25410,7 +25410,7 @@ async function faLoadAll(did){
 }
 function deviceSysHtml(){
   const f=faFolder();
-  if(!f)return`<p class="sub">${i18n("Выберите папку сверху: уже заведённое кладут в конкретную папку.")}</p>`;
+  if(!f)return`<p class="sub">${i18n("Выбрать папку сверху. Уже добавленные устройства помещают в определённую папку.")}</p>`;
   faLoadAll(folderDomain(f.id));
   const rows=faRows(),cnt=k=>rows.filter(x=>x.b.k===k).length;
   // В строке перечня нет адреса и модели: дочитываем то, что показываем
@@ -25425,7 +25425,7 @@ function deviceSysHtml(){
       <td><span class="fl-nm"><span class="fl-nm-ic">${ic(d.type)}</span><span class="lan-name">${escHtml(locName(d))}</span></span></td><td>${escHtml(d.ip||"—")}</td><td>${escHtml(modelOf(d)||"—")}</td>
       <td>${inPlan?`<span class="tag plan-tag">${i18n("В плане")}</span>`:`<span class="lan-bind lan-bind-${b.k}" title="${escHtml(b.t)}">${escHtml(b.t)}</span>`}</td></tr>`}).join("");
   return`<div class="fa-wrap">
-    <p class="sub fa-lead">${i18n("Устройства, которые уже работают в системе. Они останутся там, где есть, и появятся ещё и в папке")} «${escHtml(locName(f))}».</p>
+    <p class="sub fa-lead">${i18n("Устройства, которые уже работают в системе. Они останутся на своём месте и также появятся в папке")} «${escHtml(locName(f))}».</p>
     <div class="lan-chips">${chips.map(([k,l,c])=>`<button type="button" class="stchip ${faS.chip===k?"on":""}" ${onEv("click",["faSetChip",`${k}`])}><span class="stchip-lab">${i18n(l)}</span><span class="stchip-cnt">${c}</span></button>`).join("")}</div>
     <div class="fl-tools"><div class="sq lan-sq"><span class="sq-lead" aria-hidden="true">${lu("funnel")}</span><input id="faQ" value="${escHtml(faS.q)}" placeholder="${i18n("Имя, IP или модель…")}" ${onEv("input",["faSetQ",onEv.value])} autocomplete="off"></div>
       <button type="button" class="btn pri s" ${faS.sel.size?"":"disabled"} ${onEv("click",["faToPlan"])}>${i18n("В план")} (${faS.sel.size})</button></div>
@@ -25436,7 +25436,7 @@ function deviceSysHtml(){
 // Куда попадут новые строки — всегда на виду: папка не должна подставляться молча
 function planFolderBarHtml(){
   const cur=wizd.noFolder?"":wizd.folder||"";
-  return`<div class="plan-srv plan-fld"><label>${i18n("Папка")}:</label><span class="plan-fld-c">${comboFolderHtml(cur,["planSetFolder"],{head:[["",i18n("Без папки")]],aria:i18n("Папка"),ctx:{did:wizd.domain}})}</span><span class="sub">${i18n(cur?"Куда положить то, что добавляете дальше":"Разложить можно позже: устройство будет в «Без папки»")}</span></div>`;
+  return`<div class="plan-srv plan-fld"><label>${i18n("Папка")}:</label><span class="plan-fld-c">${comboFolderHtml(cur,["planSetFolder"],{head:[["",i18n("Без папки")]],aria:i18n("Папка"),ctx:{did:wizd.domain}})}</span><span class="sub">${i18n(cur?"Куда поместить устройства, которые вы добавите потом":"Поместить в папку можно позже. До этого устройство будет в «Без папки»")}</span></div>`;
 }
 function planSetFolder(id){
   faS.sel.clear();
@@ -25649,10 +25649,10 @@ function runIpProbe(){
   w.ipText=text;
   const{targets,bad,over}=parseIpTargets(text);
   w.ipBad=bad;
-  w.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("За раз опрашиваем не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
+  w.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("Консоль опрашивает за один раз не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
   if(!targets.length){wd();return}
   // Отвечает ли адрес и заведён ли уже такой сервер — знает система: команда probe вида сервера (POST /kinds/server/actions/probe)
-  if(!kindActionOn("server","probe")){w.ipMsg=i18n("Опросить адреса система не умеет: серверы приходят сами");wd();return}
+  if(!kindActionOn("server","probe")){w.ipMsg=i18n("Система не может опросить адреса. Серверы появляются сами");wd();return}
   w.ipBusy=true;wd();
   kindAction("server","probe",{targets:targets.map(t=>({ip:t.ip,port:t.port}))}).then(res=>{
     if(wizd!==w)return;
@@ -25749,7 +25749,7 @@ function srvAddrHtml(){
       <textarea class="ip-bulk-ta" id="wizIps" rows="${Math.min(4,(wizd.ipText||"").split("\n").length)}" spellcheck="false" placeholder="10.30.0.12, 10.30.0.20-40, 10.30.1.0/24" ${onEv("input",["ipTextSet",onEv.el])} ${onEv("keydown",["ipBulkKey",onEv.event])}>${escHtml(wizd.ipText||"")}</textarea>
       <button type="button" class="btn" ${wizd.ipBusy?"disabled":""} ${onEv("click",["runIpProbe"])}>${i18n(wizd.ipBusy?"Опрашиваем…":"Найти")}</button>
     </div>
-    ${msg?`<p class="srv-bad" role="alert">${escHtml(msg)}</p>`:`<p class="srv-hint">${i18n("IP, диапазон или подсеть, можно списком. Порт — через двоеточие, по умолчанию 20111.")}</p>`}
+    ${msg?`<p class="srv-bad" role="alert">${escHtml(msg)}</p>`:`<p class="srv-hint">${i18n("IP, диапазон или подсеть, можно списком. Порт указывают через двоеточие. Порт по умолчанию — 20111.")}</p>`}
   </div>`;
 }
 function srvRowHtml(r){
@@ -25761,7 +25761,7 @@ function srvRowHtml(r){
   const st=r.added?`<span class="unalloc-added"><span class="unalloc-added-st">${i18n("Добавлен")}</span>${go(r.serverId)}</span>`
     :fail?`<span class="ip-st bad">${escHtml(fail)}</span>`
     :r.status==="in-domain"?`<span class="unalloc-added"><span class="ip-st dup">${escHtml(probeLabel(r))}</span>${go(r.serverId)}</span>`
-    :r.status==="found"&&!r.serverId&&!canCreateKind("server")?`<span class="ip-st dead">${i18n("Заводить по адресу здесь нельзя")}</span>`
+    :r.status==="found"&&!r.serverId&&!canCreateKind("server")?`<span class="ip-st dead">${i18n("Здесь нельзя добавить сервер по адресу")}</span>`
     :r.net?"":`<span class="ip-st ${cls[r.status]||""}">${escHtml(probeLabel(r))}</span>`;
   return`<div class="it${on?"":" srv-off"}"${on?` ${onEv("click",["toggleIpRow",`${r.key}`])}`:""}>${chk}<span>${ic("server")}</span>
     <span style="flex:1;min-width:0">${escHtml(srvRowName(r))}${sub?`<small>${escHtml(sub)}</small>`:""}</span>${st}</div>`;
@@ -25777,7 +25777,7 @@ function srvListHtml(){
   const addrCap=`<div class="srv-cap"><b>${i18n("По адресам")}</b><span>${i18n("опрошено")} ${probed.length}${counts?` · ${counts}`:""}</span><button type="button" class="ch-act" ${onEv("click",["ipClear"])}>${i18n("Убрать")}</button></div>`;
   const netCap=`<div class="srv-cap"><b>${i18n("В сети")}</b><span>${netAll.length||""}</span><button type="button" class="ch-act" title="${i18n("Обновить список")}" ${onEv("click",["refreshUnallocInWizard",`${did}`])}>${lu("refresh-cw")}${i18n("Обновить")}</button></div>`;
   const q=(listQ[key]||"").trim();
-  const netEmpty=!netAll.length&&!q?`<p class="srv-empty">${i18n(kindActionOn("server","probe")?"В сети серверов не нашлось. Введите адреса выше.":"В сети серверов не нашлось.")}</p>`:"";
+  const netEmpty=!netAll.length&&!q?`<p class="srv-empty">${i18n(kindActionOn("server","probe")?"Консоль не нашла серверы в сети. Ввести адреса выше.":"Консоль не нашла серверы в сети.")}</p>`:"";
   const none=q&&!rows.length?`<p class="srv-empty">${i18n("Ничего не найдено")}</p>`:"";
   const showNet=pNet.length||!netAll.length;
   return(pAddr.length?addrCap+pAddr.map(srvRowHtml).join(""):"")
@@ -25800,7 +25800,7 @@ function renderServerAdd(){
   wb.style.display=step?"":"none";wb.textContent=i18n("Назад");
   wn.textContent=step?`${i18n("Добавить")} ${n} ${i18n(plural(n,"сервер|сервера|серверов"))}`:i18n("Далее");
   wn.disabled=!n||!!wizd.ipAdding;
-  document.getElementById("wizFoot").textContent=n?`${i18n("Выбрано")} ${n} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`:`${i18n("Отметьте серверы или введите адреса")} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`;
+  document.getElementById("wizFoot").textContent=n?`${i18n("Выбрано")} ${n} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`:`${i18n("Отметить серверы или ввести адреса")} · ${i18n("в домен")} «${locName(domainById(did)||{})}»`;
   if(step){
     wbd.innerHTML=srvCheckHtml(did);
   }else{
@@ -25819,7 +25819,7 @@ function srvCheckHtml(did){
   const tr=list.map((r,i)=>`<tr><td class="bk-num">${i+1}</td><td>${escHtml(srvRowName(r))}</td><td>${escHtml(r.ip||"—")}${r.port?`:${r.port}`:""}</td><td>${i18n(r.net?"Из сети":"По адресу")}</td><td>${fail[r.key]?`<span class="dl-warn">${lu("triangle-alert",11)} ${escHtml(fail[r.key])}</span>`:i18n("будет добавлен")}</td></tr>`).join("");
   return`<p class="dc-total"><b>${list.length}</b> ${i18n(plural(list.length,"сервер|сервера|серверов"))} ${i18n("в домен")} <b>«${escHtml(locName(domainById(did)||{}))}»</b></p>
     <table class="bk-table"><thead><tr><th>#</th><th>${i18n("Сервер")}</th><th>${i18n("Адрес")}</th><th>${i18n("Откуда")}</th><th>${i18n("Что будет")}</th></tr></thead><tbody>${tr}</tbody></table>
-    <p class="sub dc-note">${i18n("Перед добавлением сверим отпечатки сертификатов: у каждого нового сервера.")}</p>`;
+    <p class="sub dc-note">${i18n("Перед добавлением консоль покажет отпечатки сертификатов каждого нового сервера для сравнения.")}</p>`;
 }
 // Нужен ли родитель: вид не создаётся в корне (createParents без null). Единицу СКУД заводят под СКУД и в мастере
 function needsParent(type){
@@ -25919,8 +25919,8 @@ function wd(){
     const s=svcFlow?list.find(x=>x.id===wizd.server):deviceTarget();
     const label=WIZ[wizd.cat]?.types.find(t=>t[0]===wizd.type)?.[1]||"Объект";
     h+=`<div class="wsec">Куда добавить</div>`;
-    if(svcFlow&&!list.length)h+=`<div class="nt">Сначала добавьте сервер в домен.</div>`;
-    else if(!svcFlow&&!flatFolders().length)h+=`<div class="nt">Сначала создайте папку в разделе «Устройства».</div>`;
+    if(svcFlow&&!list.length)h+=`<div class="nt">Сначала добавить сервер в домен.</div>`;
+    else if(!svcFlow&&!flatFolders().length)h+=`<div class="nt">Сначала создать папку в разделе «Устройства».</div>`;
     else{
       h+=svcFlow
         ?`<div class="g"><div><label>Сервер</label><select id="wizServer" ${onEv("change",["wizPlace","server",onEv.value])}>
