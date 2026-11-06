@@ -12700,7 +12700,7 @@ function renderDetCreate(){
   const reach=i=>steps.slice(0,i).every(okStep);
   const bar=wzBarHtml(steps,dc.step,reach,["dcStepGo"],true);
   const skipN=plan.reduce((n,p)=>n+[...p.skip.values()].reduce((a,b)=>a+b,0),0);
-  const sum=!dc.items.size?i18n("Выбрать, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выберите камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
+  const sum=!dc.items.size?i18n("Выбрать, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выбрать камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
   const go=last?`<button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`
     :`<button type="button" class="btn pri" ${okStep(st)?"":"disabled"} ${onEv("click",["dcStepGo",`${dc.step+1}`])}>${i18n("Далее")}</button>`;
   openBulkModal(`${lock?`${i18n("Добавить детекторы на камеру")} «${escHtml(locName(lock))}»`:i18n("Добавить детекторы")}<span class="dc-tools"><button type="button" class="dc-x" aria-label="${i18n("Свернуть")}" title="${i18n("Свернуть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("minus")}</button><button type="button" class="dc-x" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("x")}</button></span>`,
@@ -14372,7 +14372,7 @@ function formBase(n){
     return card("Параметры хранилища",`<div class="nt ${net?"":"ok"}">${archOwnerLine(n)}</div>
       <div class="g" style="margin-top:10px">${archFld(n.id,"Имя","name",locName(n))}${archFld(n.id,"Глубина, дней","days",n.days,"number","0 — без ограничения")}
         ${fldRo("Тип",archKindLabel(n))}
-        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Тома размечены под этот размер")}</div></div>
+        <div>${fldRo("Тип хранения",k==="bucket"?i18n("Облачное"):i18n((ARCH_STORAGE.find(x=>x[0]===n.storage)||ARCH_STORAGE[0])[1])).replace(/^<div>|<\/div>$/g,"")}<div class="bk-hint">${i18n("задают при создании, потом его нельзя изменить. Тома размечены под этот тип")}</div></div>
         ${spec.archiveModes.length?`<div data-arch-mode><label>${i18n("Когда писать")}</label><select ${onEv("change",["archSet",`${n.id}`,"recordMode",onEv.value])}>${archModeOpts(spec,n.recordMode||"")}</select>${n.recordMode?"":`<small class="sub" data-arch-auto>${i18n(ARCH_AUTO_HINT)}</small>`}</div>`:""}
       </div>
       ${spec.serverWide?`<div class="nt">${i18n("Один на сервер. Работает со всеми камерами сервера. Привязывать камеры не нужно. Выключить его для одной камеры нельзя.")}</div>`:""}
@@ -25348,7 +25348,7 @@ function csvFilterFieldHtml(picked){
 }
 function csvRowHtml(r){
   const can=csvImportableRows([r]).length>0;
-  const st=r.added?`${i18n("Добавлено")} · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>${i18n("Перейти")}</button>`:r.planned?`${i18n("В плане")} · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>${i18n("Убрать")}</button>`:r.skipImport?i18n("Пропуск (отчёт)"):r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:r.warns?.length?`${i18n("Готово")} · ${escHtml(r.warns.join(", "))}: ${i18n("исправьте в плане")}`:i18n("Готово");
+  const st=r.added?`${i18n("Добавлено")} · <button class="lk lk-act" ${onEv("click",["goAddedDevice",`${r.addedId}`])}>${i18n("Перейти")}</button>`:r.planned?`${i18n("В плане")} · <button class="lk lk-act" ${onEv("click",["planRemove",`${r.planned}`])}>${i18n("Убрать")}</button>`:r.skipImport?i18n("Пропуск (отчёт)"):r.errors.length?`<span class="csv-error">${r.errors.join(", ")}</span>`:r.warns?.length?`${i18n("Готово")} · ${escHtml(r.warns.join(", "))}: ${i18n("исправить в плане")}`:i18n("Готово");
   const cls=r.added||r.planned?"ok":r.skipImport?"":r.errors.length?"err":"ok";
   const why=i18n(r.added?"Уже добавлено":r.planned?"Уже в плане":can?"":"Консоль не добавит эту строку в план");
   return`<tr class="${cls}"><td class="csv-chk"><input type="checkbox" aria-label="Выбрать ${escHtml(r.ip||r.name||r.id)}" ${wizd.csvSel.has(r.id)&&can?"checked":""} ${can?"":`disabled title="${why}"`} ${onEv("change",["toggleCsvRow",`${r.id}`,onEv.checked])}></td><td>${escHtml(r.id.replace("csv",""))}</td><td>${escHtml(r.ip||"—")}:${r.port}</td><td>${escHtml(r.vendor||"—")}</td><td>${escHtml(r.model||"—")}</td><td>${escHtml(r.name||"—")}</td><td>${st}</td></tr>`;
@@ -28874,7 +28874,7 @@ function asstRuleView(e,all){
     v.rows=ruleDiffOf(before,after,e.op==="create").filter(x=>x.label!==i18n("Создание")&&!(e.op==="create"&&x.label===i18n("Состояние"))).map(x=>({label:x.label,from:x.fromT,to:x.toT,gone:e.op==="update"&&x.toT==="—"}));
     if(e.op==="create"){
       v.summary=ruleSummary(after);
-      v.note=i18n(after.on?"Консоль создаст правило в состоянии «Только журнал». Включает его пользователь":"Заведётся выключенным: включает человек");
+      v.note=i18n(after.on?"Консоль создаст правило в состоянии «Только журнал». Включает его пользователь":"Консоль создаст правило выключенным. Включает его пользователь");
     }else{
       v.note=i18n("Консоль применяет изменение сразу, без режима «Только журнал». Сравнить, что было и что будет");
       if(!v.rows.length)v.note=i18n("Изменений нет");
@@ -28887,7 +28887,7 @@ function asstRuleView(e,all){
     if(e.table==="windows"){
       const ids=e.body.ruleIds;
       v.rows=[{label:i18n("Правила"),from:"—",to:ids?ids.map(id=>rules.find(r=>r.id===id)?.name||id).join(", "):i18n("все правила")}];
-      v.note=i18n("Заведётся выключенным: включает человек");
+      v.note=i18n("Консоль создаст окно выключенным. Включает его пользователь");
     }
   }
   return v;

@@ -142,7 +142,7 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => document.getElementById("asstApply")), "снова план");
   await planRules([{ table: "scenarios", op: "create", body: Object.assign({}, asst.plan.rules[0].body, { name: "Действующее от модели", enabled: true, logOnly: false }) },
     { table: "scenarios", op: "create", body: Object.assign({}, asst.plan.rules[0].body, { name: "Выключенное от модели", enabled: false, logOnly: false }) }]);
-  ok(/Заведётся выключенным/.test(body()), "выключенное названо");
+  ok(/Заведётся выключенным|создаст (правило|окно) выключенным/.test(body()), "выключенное названо");
   document.getElementById("asstApply").click();
   ok(await until(() => rows().join() === "ok,ok"), "обе записи: " + rows().join());
   const all = (await API.get("/rules")).items, live = all.find((x) => x.name === "Действующее от модели"), off = all.find((x) => x.name === "Выключенное от модели");
@@ -209,7 +209,7 @@ UiCheck(async ({ ok, until }) => {
   const s0 = await schCount();
   talk("заведи окно обслуживания по новому расписанию");
   ok(await until(() => document.getElementById("asstApply")), "план окна");
-  ok(/Отдельно не записывается: идёт телом окна|не записывает это отдельно\. Это часть окна/.test(body()) && /Новое окно обслуживания «Окно из просьбы»/.test(body()) && /Заведётся выключенным/.test(body()), "показ окна: " + body().slice(0, 240));
+  ok(/Отдельно не записывается: идёт телом окна|не записывает это отдельно\. Это часть окна/.test(body()) && /Новое окно обслуживания «Окно из просьбы»/.test(body()) && /Заведётся выключенным|создаст (правило|окно) выключенным/.test(body()), "показ окна: " + body().slice(0, 240));
   asst.plan.rules[1].body.enabled = true;
   posts.length = 0;
   document.getElementById("asstApply").click();
@@ -272,9 +272,9 @@ UiCheck(async ({ ok, until }) => {
   const a2 = await planned("эскалация при движении на Запасной вход", /Эскалац/);
   ok(a2.enabled && a2.logOnly && a2.steps[1].control === "escalate" && a2.steps[1].levels.length === 2, "escalate: «Только журнал»");
   await API.post("/rules/update", { idempotencyKey: opKey(), items: [a1, a2].map((x) => ({ ruleId: x.id, version: x.version, set: { enabled: false } })) });
-  const a3 = await planned("при движении на Служебный вход спроси оператора, выключенным", /Заведётся выключенным/);
+  const a3 = await planned("при движении на Служебный вход спроси оператора, выключенным", /Заведётся выключенным|создаст (правило|окно) выключенным/);
   ok(a3.enabled === false && a3.steps[0].control === "ask", "просили выключенным — выключено");
-  const a4 = await planned("эскалация при движении на Служебный вход, выключенным", /Заведётся выключенным/);
+  const a4 = await planned("эскалация при движении на Служебный вход, выключенным", /Заведётся выключенным|создаст (правило|окно) выключенным/);
   ok(a4.enabled === false && a4.steps[1].control === "escalate", "эскалация выключенным");
   ok(!(await API.get("/rule-prompts")).items.length, "вопросов нет");
 

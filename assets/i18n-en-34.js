@@ -299,4 +299,8 @@ Object.assign(window.I18N_EN=window.I18N_EN||{},{
 "Консоль удалит выбранное после отсчёта":"The console will delete the selection after the countdown",
 "Число результатов":"Number of results",
 "Консоль удалит правило через":"The console will delete the rule in",
+"Выбрать камеры":"Select cameras",
+"исправить в плане":"fix in the plan",
+"Консоль создаст правило выключенным. Включает его пользователь":"The console will create the rule turned off. A user turns it on",
+"Консоль создаст окно выключенным. Включает его пользователь":"The console will create the window turned off. A user turns it on",
 });
