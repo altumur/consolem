@@ -1,9 +1,13 @@
-/* Стенд большого домена: 250 000 камер, 500 серверов. Запуск — tools/check_scale.py, страница с ?fixture=large.
+/* Стенд большого домена: 250 000 камер, 500 серверов (large) или 1 000 000 камер, 2 000 серверов (xl). Запуск —
+   tools/check_scale.py [--fixture xl], страница с ?fixture=large или ?fixture=xl; числа — из stand.large набора.
    Старт формы: не больше 15 запросов, ни одного ответа больше 1 МБ, ни один перечень не прочитан до конца.
    Дальше — то, что оператор делает на таком домене: каждый шаг в тех же пределах ответа. */
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
   const MB = 1024 * 1024, trace = window.CONSOLEM_TRACE;
+  // Числа стенда — из набора страницы: large или xl (тот же large с другими stand.large)
+  const FX_NAME = new URLSearchParams(location.search).get("fixture") || "large";
+  const L = window.CONSOLEM_FIXTURES[FX_NAME].stand.large;
   const LISTS = /^\/(units|devices|folders|archives|volumes|journal|operations|access\/\w+|tree\/children)(\?|$)/;
   const sizeOk = (from) => trace.slice(from).every((x) => x.bytes <= MB);
   const big = (from) => Math.max(0, ...trace.slice(from).map((x) => x.bytes));
@@ -12,7 +16,6 @@ UiCheck(async ({ ok, until }) => {
   // после последнего чтения дерева, которого старт дожидается. К этому моменту сценарий может и опоздать, поэтому он не считается
   const PROMPTS = "/rule-prompts", startTrace = trace.filter((x) => x.path !== PROMPTS);
   const start = startTrace.length;
-  ok(start <= 15, `старт: ${start} запросов, не больше 15: ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
   ok(sizeOk(0), `старт: самый большой ответ ${big(0)} байт, не больше 1 МБ`);
   ok(await until(() => trace.some((x) => x.path === PROMPTS && x.status === 200)), "вопросы операторам прочитаны: чтение отложено, а не отключено");
   const treeLast = trace.map((x) => /^\/tree\/children/.test(x.path)).lastIndexOf(true, start);
@@ -23,6 +26,11 @@ UiCheck(async ({ ok, until }) => {
   const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
   const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
+  // Старт не растёт с объёмом: 15 запросов. Сверх них — только продолжения перечня доменов и серверов (он читается
+  // целиком, как /servers базы, страницами по pageMax): на xl 2 001 строка — три страницы вместо одной
+  const infraMore = startTrace.filter((x) => infra(x.path) && unitsQ(x.path).has("cursor")).length;
+  const infraWant = Math.ceil((L.servers + domains.length) / LIM.pageMax) - 1;
+  ok(start - infraMore <= 15 && infraMore === infraWant, `старт: ${start - infraMore} запросов, не больше 15, и ещё ${infraMore} страниц серверов (их ${L.servers}, pageMax ${LIM.pageMax}): ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
   // Детекторы для среза «Детекторы» база читает на старте (detLoad: /devices?type=det до selectMax строк). В ядре — по профилю
   // vms.detector/1 из индекса вида: на стенде детекторов нет, ответ пуст — это конец пустого перечня, а не перечень домена
   const detEmpty = (x) => { const q = unitsQ(x.path); return !!q && q.get("implements") === "vms.detector/1" && x.empty; };
@@ -30,18 +38,19 @@ UiCheck(async ({ ok, until }) => {
   ok(!whole.length, "старт: ни один перечень не прочитан до конца: " + whole.map((x) => x.path).join(" "));
   ok(!trace.some((x) => /\/discovery|\/journal|\/licenses|\/fires|\/versions|\/access\/users/.test(x.path)), "старт: поиск, журнал, лицензии, история правил и люди не читаются");
   const d = domains[0];
-  ok(d.summary && d.summary.total > 240000 && d.summary.at, `итог домена: всего ${d.summary?.total}, без связи ${d.summary?.offline}`);
+  ok(d.summary && d.summary.total > L.cameras * 0.96 && d.summary.at, `итог домена: всего ${d.summary?.total}, без связи ${d.summary?.offline}`);
   ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent), "число без фильтра — со знаком ≈: " + document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent);
-  ok(d.servers.length === 500 && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
+  ok(d.servers.length === L.servers && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
   // Камеры-кластеры: под доменом, порядок не алфавитный, строка (в базе версия r<revision>; в ядре у строки и полной
   // записи одна Unit.version — строку отличает _row: полную запись ещё не читали)
   // Раскладка по умолчанию — папки (как база): ветка домена по серверам читается после переключения группировки
   if (group() !== "server") { setGroup("server"); renderTree(); await until(() => treeBr.get("servers|" + d.id)?.cursor || treeBr.get("servers|" + d.id)?.done); }
   const domBranch = treeBr.get("servers|" + d.id);
-  ok(domBranch && domBranch.count > 200000 && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
+  ok(domBranch && domBranch.count > L.cameras - L.serverCameras && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
   let mark = trace.length;
   let guard = 0;
-  while (!devicePool.some((n) => !n.srvId) && guard++ < 5) await treeMore(d.id);
+  // Под доменом сначала серверы, потом камеры-кластеры: страниц — по числу серверов
+  while (!devicePool.some((n) => !n.srvId) && guard++ < 5 + Math.ceil(L.servers / 100)) await treeMore(d.id);
   const loose = devicePool.filter((n) => !n.srvId && n.type === "camera");
   ok(loose.length > 0 && loose.every((n) => n._row && hwVer.has(n.id) && n._more), `камеры-кластеры подгружены строкой, версия ${hwVer.get(loose[0]?.id)}, стрелка «может быть»`);
   const names = loose.map((n) => n.name);
@@ -82,15 +91,53 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => treeBr.get("folders|" + fl.id)?.done || treeBr.get("folders|" + fl.id)?.cursor), "папка читается дверью");
   const inFolder = folderDeviceNodes(fl).map((n) => n.name);
   ok(inFolder.length > 1 && inFolder.join() !== inFolder.slice().sort().join(), "порядок в папке — не алфавит");
-  // Поиск волнами: редкое имя, домен просмотрен до конца, пустые страницы законны
+  // Поиск волнами: редкое имя, домен просмотрен до конца. Сервер дописывает страницу до limit или бюджета времени
+  // (api/README.md, «Страницы ограниченного прохода»): волн в десятки раз меньше, чем по scanPartsMax разделов на запрос
+  // (4 096 разделов / 8 = 512), пустых страниц почти нет
   setGroup("server");
   mark = trace.length;
   setTreeQ("Камера 000123");
   ok(await until(() => fs && fs.done, 170000), "поиск дошёл до конца");
   const waves = trace.slice(mark).filter((x) => /^\/(units|devices)\?/.test(x.path));
-  ok(waves.length > 100 && waves.some((x) => x.empty && x.more) && sizeOk(mark), `волн ${waves.length}, пустые страницы с nextCursor есть`);
+  const sparseWaves = Math.ceil(4096 / LIM.scanPartsMax), empties = waves.filter((x) => x.empty && x.more).length;
+  ok(waves.length * 10 <= sparseWaves && empties * 10 <= sparseWaves && sizeOk(mark), `волн ${waves.length}, пустых страниц с nextCursor ${empties}: в десятки раз меньше ${sparseWaves}`);
   ok(fs.hits.size === 1 && !fs.flat, `найдено ${fs.hits.size}: дошло до конца и до idsMax — дерево`);
   setTreeQ("");
+  // Бэкенд вправе страницу не дописывать: пустые страницы с nextCursor подряд законны, форма их выдерживает. Обёртка над
+  // API.get — такой бэкенд: перед каждой настоящей страницей поиска две пустые с курсором-заменой, а конец приходит пустой
+  // страницей после последней с найденным. Поиск доходит до того же итога
+  {
+    const realGet = API.get, held = new Map();
+    let n = 0, empties = 0;
+    const fake = (state) => { const key = `sparse-${++n}`; held.set(key, state); return key; };
+    API.get = async (path, params) => {
+      if (path !== "/units" || !params || params.q === undefined) return realGet(path, params);
+      const st = params.cursor && held.get(params.cursor);
+      if (!st) {
+        empties++;
+        return { items: [], nextCursor: fake({ step: 1, real: params.cursor || null }) };
+      }
+      held.delete(params.cursor);
+      if (st.step === 1) {
+        empties++;
+        return { items: [], nextCursor: fake({ step: 2, real: st.real }) };
+      }
+      if (st.step === 3) {
+        empties++;
+        return { items: [] };
+      }
+      const r = await realGet(path, Object.assign({}, params, { cursor: st.real || undefined }));
+      return r.nextCursor ? r : Object.assign({}, r, { nextCursor: fake({ step: 3 }) });
+    };
+    try {
+      setTreeQ("Камера 000123");
+      ok(await until(() => fs && fs.done, 170000), "пустые страницы с nextCursor: поиск дошёл до конца");
+      ok(empties >= 3 && fs.hits.size === 1 && !fs.flat && !fs.failed, `пустых страниц ${empties}, найдено ${fs.hits.size}: то же, что без них`);
+    } finally {
+      API.get = realGet;
+      setTreeQ("");
+    }
+  }
   // Широкий запрос: плоский список страницами с путём в строке
   mark = trace.length;
   setTreeQ("Камера");
@@ -114,14 +161,14 @@ UiCheck(async ({ ok, until }) => {
   ok(trace.slice(mark).filter((x) => x.path.startsWith("/access/users")).length === 1 && sizeOk(mark), "«Права»: одна страница людей");
   goApp("hw");
   ok(sizeOk(0), `за весь сценарий самый большой ответ ${big(0)} байт`);
-  // Топология: граф всегда полный, серверов до 500, запросы только о ретрансляторах
+  // Топология: граф всегда полный, все серверы и кластеры стенда, запросы только о ретрансляторах
   mark = trace.length;
   pick(d.id, { force: true });
   await until(() => sel === d.id);
   goTab("topo");
   ok(await until(() => G7.relays.get(d.id)?.size > 0), "ретрансляторы прочитаны");
   g7SetLevel(3);
-  ok(G7.g.nodes.filter((n) => n.kind === "server").length === 500 && G7.g.nodes.filter((n) => n.kind === "cluster").length === 40, `топология: ${G7.g.nodes.length} узлов, ${G7.g.edges.length} связей`);
+  ok(G7.g.nodes.filter((n) => n.kind === "server").length === L.servers && G7.g.nodes.filter((n) => n.kind === "cluster").length === L.clusters, `топология: ${G7.g.nodes.length} узлов, ${G7.g.edges.length} связей`);
   ok(!G7.g.nodes.some((n) => /^cam-/.test(n.name)), "камеры ретранслятора не рисуются");
   ok(trace.length - mark <= 6 && sizeOk(mark), `топология: ${trace.length - mark} запросов, самый большой ответ ${big(mark)} байт`);
   const t0 = performance.now();
@@ -148,8 +195,10 @@ UiCheck(async ({ ok, until }) => {
   // Закладка «Просмотр»: только эта камера. Шкала и удержания — страницами, по открытию и по окну, перечней домена нет, таймера нет
   open.add(d.servers[0].id);
   renderTree();
-  ok(await until(() => devicePool.some((n) => n.type === "camera" && n.srvId)), "камера под сервером");
-  const rc = devicePool.find((n) => n.type === "camera" && n.srvId);
+  // Камера этого сервера, а не любая с сервером: в кэше уже есть камеры других серверов из поиска «Камера»
+  const underS0 = (n) => n.type === "camera" && n.srvId === d.servers[0].id;
+  ok(await until(() => devicePool.some(underS0)), "камера под сервером");
+  const rc = devicePool.find(underS0);
   pick(rc.id, { force: true });
   ok(await until(() => !rc._row && sel === rc.id), "её карточка");
   // Ветка сервера, раскрытая выше, читается своими страницами (пустые страницы ограниченного прохода — подряд): «Просмотр»

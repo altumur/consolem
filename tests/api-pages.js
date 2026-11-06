@@ -81,11 +81,12 @@
       assert.eq(new Set(walked).size, walked.length, `${filter}: без повторов`);
       assert.ok(sizes.slice(0, -1).every((n) => n === 4) && sizes[sizes.length - 1] >= 1, `${filter}: страницы полные до конца (${sizes.join(",")})`);
     }
-    // kind= — как type у /devices в базе: ограниченный проход, первая страница не полная. Выбор цели правила формы читает
-    // одну страницу по виду и кладёт её в кэш дерева: полная страница здесь сдвигает дерево против базы (сверка экранов)
+    // kind= — как type у /devices в базе: ограниченный проход в порядке разделов. Встроенный сервер дописывает страницу до
+    // limit или бюджета времени (api/README.md, «Страницы ограниченного прохода»): на demo все камеры — первой страницей.
+    // Бэкенд вправе отдать её короче, с nextCursor
     const all = await env.pages("/units?implements=vms.camera/1&limit=1000");
     const first = await env.ok("GET", "/units?kind=camera&limit=200");
-    assert.ok(all.length < 200 && first.items.length < all.length && first.nextCursor, `kind=camera: первая страница — проход (${first.items.length} из ${all.length})`);
+    if (!ApiTest.external) assert.ok(all.length < 200 && first.items.length === all.length && !first.nextCursor, `kind=camera: первая страница дописана до конца (${first.items.length} из ${all.length})`);
     assert.eq(first.items.map((u) => u.uid), all.slice(0, first.items.length).map((u) => u.uid), "kind=camera: те же строки в том же порядке, что по индексу");
     assert.eq((await env.pages("/units?kind=camera&limit=200")).map((u) => u.uid), all.map((u) => u.uid), "kind=camera: обход курсором находит всё");
     // kind= вместе с domainId — по индексу вида: страница полная, хранилище на месте, порядок прежний
@@ -122,22 +123,55 @@
     assert.ok(!("total" in (await env.ok("GET", q("/units", { q: "а" })))), "с фильтром total нет");
   });
 
-  test("Объекты: фильтр идёт ограниченным проходом, пустая страница с nextCursor законна, обход находит всё", async () => {
+  // Обход отбора страницами: найденное, число запросов, пустые страницы с nextCursor
+  async function walk(env, params, limit) {
+    let cursor = null, found = [], empties = 0, n = 0, sizes = [];
+    do {
+      const res = await env.ok("GET", q("/units", Object.assign({}, params, limit ? { limit } : {}, cursor ? { cursor } : {})));
+      if (!res.items.length && res.nextCursor) empties++;
+      found.push(...res.items.map((u) => u.uid));
+      sizes.push(res.items.length);
+      cursor = res.nextCursor || null;
+      assert.ok(++n < 2000, "страницы кончаются");
+    } while (cursor);
+    return { found, empties, n, sizes };
+  }
+
+  test("Объекты: фильтр идёт ограниченным проходом — страница дописывается до limit, бюджета времени или конца разделов", async () => {
     const env = await makeEnv();
     const lim = (await env.ok("GET", "/reference")).limits.scanPartsMax;
     assert.ok(lim > 0, "scanPartsMax объявлен");
     const cam = FX.devices.find((d) => d.type === "camera");
-    let cursor = null, found = [], empties = 0, n = 0;
-    do {
-      const res = await env.ok("GET", q("/units", Object.assign({ q: cam.name, domainId: cam.domainId }, cursor ? { cursor } : {})));
-      if (!res.items.length && res.nextCursor) empties++;
-      found.push(...res.items.map((u) => u.uid));
-      cursor = res.nextCursor || null;
-      n++;
-    } while (cursor);
-    assert.ok(found.includes(cam.id), "нашлась");
-    assert.ok(n > 1, "за один запрос весь домен не просмотрен");
-    assert.ok(empties > 0, "пустая страница с nextCursor");
+    const rare = await walk(env, { q: cam.name, domainId: cam.domainId });
+    assert.ok(rare.found.includes(cam.id), "нашлась");
+    // Дописывание — рекомендация бэкенду (api/README.md, «Страницы ограниченного прохода»), а не норма: числа запросов — у
+    // встроенного сервера. demo мал: весь домен — в бюджете одного запроса, хотя разделов больше scanPartsMax
+    if (!ApiTest.external) assert.eq([rare.n, rare.empties], [1, 0], "встроенный сервер: редкое имя — одной страницей, без пустых");
+    // Частый отбор с малым limit: страницы полные, короче — только последняя; ничего не теряется и не повторяется
+    const all = await walk(env, { q: "1" }, 200);
+    const small = await walk(env, { q: "1" }, 7);
+    assert.eq(small.found, all.found, "limit 7: те же объекты в том же порядке");
+    if (!ApiTest.external) assert.ok(small.sizes.slice(0, -1).every((x) => x === 7), `встроенный сервер: страницы полные, кроме последней: ${small.sizes.join(" ")}`);
+  });
+
+  test("Объекты: бэкенд вправе страницу не дописывать — пустая страница с nextCursor законна, обход находит всё", async () => {
+    // Образец порядка — с дописыванием; makeEnv сбрасывает стенд, поэтому сначала он
+    const all = await walk(await makeEnv(), { q: "1" }, 7);
+    // stand.sparsePages — встроенный сервер как бэкенд, который не дописывает: ровно scanPartsMax разделов на запрос
+    const env = await makeEnv({ fixturePatch: { stand: { sparsePages: true } } });
+    const cam = FX.devices.find((d) => d.type === "camera");
+    const rare = await walk(env, { q: cam.name, domainId: cam.domainId });
+    assert.ok(rare.found.includes(cam.id), "нашлась");
+    if (!ApiTest.external) {
+      assert.ok(rare.n > 1, "за один запрос весь домен не просмотрен");
+      assert.ok(rare.empties > 0, "пустая страница с nextCursor");
+    }
+    const sparse = await walk(env, { q: "1" }, 7);
+    assert.eq(sparse.found, all.found, "те же объекты в том же порядке, что и с дописыванием");
+  });
+
+  test("Объекты: status и kind — ИЛИ внутри себя", async () => {
+    const env = await makeEnv();
     const both = await env.pages(q("/units", { status: "off,license", kind: "camera,ipsrv" }));
     const off = (u) => u.properties.enabled === false || ((u.status || {}).observed || {}).licenseExceeded === true;
     assert.ok(both.length && both.every((u) => ["camera", "ipsrv"].includes(u.kind) && off(u)), "status и kind — это ИЛИ внутри себя");

@@ -16,6 +16,7 @@ headless Chrome по CDP без виртуального времени (tools/c
   python3 tools/check_perf.py --fixture "" --quick --behavior   проверки поведения ввода (пауза в наборе, Enter, Esc…) на demo
   python3 tools/check_perf.py --json FILE          сырые числа — сравнить до и после
   python3 tools/check_perf.py --fixture ""         набор demo: быстрая самопроверка инструмента
+  python3 tools/check_perf.py --fixture xl         стенд xl: 1 000 000 камер, 2 000 серверов, 1 200 папок
   python3 tools/check_perf.py --runs N --timeout С --cpu N   прогонов, сторож на шаг, замедление ЦП (проверка калибровки)
 Код выхода 1, если хоть один шаг за пределом или не выполнен. Нужны Node.js 22 и Google Chrome.
 """

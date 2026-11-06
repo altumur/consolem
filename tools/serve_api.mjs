@@ -4,7 +4,7 @@
    досылка по Last-Event-ID) и CORS для страницы с диска (Origin: null) — так, как это описано в
    api/BACKEND.md. Часы идут по-настоящему, пока их не остановит /test/reset.
 
-   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain] [--api DIR] [--tests DIR]   (порт по умолчанию 8787)
+   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl] [--api DIR] [--tests DIR]   (порт по умолчанию 8787)
    Затем: index.html?api=http://127.0.0.1:8787  или  tests/api.html?api=http://127.0.0.1:8787
    ASSIST_BRIDGE_URL=http://127.0.0.1:18600 — ход ассистента идёт в мост Пилота (настоящая модель), без
    неё — прежняя заглушка. Проверка связки на этой машине, не приёмка.
@@ -31,6 +31,16 @@ require(`${API_DIR}/contract.js`);
 for (const f of ["kinds.js", "units.js", "profiles.js"]) require(`${API_DIR}/${f}`);
 require(`${API_DIR}/server.js`);
 const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`) };
+// Наборы-наложения (tools/profile_fixture.py): "$base" — целый набор, остальные поля — поверх него, как в api/fixture.js
+// (tools/build_api.py): объекты сливаются по ключам, так что новый ключ базы (например, в stand) не теряется
+const deepMerge = (base, over) =>
+  base && over && typeof base === "object" && typeof over === "object" && !Array.isArray(base) && !Array.isArray(over)
+    ? Object.assign({}, base, Object.fromEntries(Object.entries(over).map(([k, v]) => [k, deepMerge(base[k], v)])))
+    : over;
+for (const name of ["xl"]) {
+  const { $base, ...over } = require(`${API_DIR}/fixtures/${name}.json`);
+  fixtures[name] = deepMerge(fixtures[$base], over);
+}
 const openapi = require(`${API_DIR}/openapi.json`);
 // --fixture one-domain — стартовать с набором профиля (тесты всё равно начинают с /test/reset)
 const start = process.argv.includes("--fixture") ? process.argv[process.argv.indexOf("--fixture") + 1] : "demo";

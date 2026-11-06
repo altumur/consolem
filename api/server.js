@@ -1896,6 +1896,12 @@
 
     // Круг вида: столько живёт курсор и столько отстаёт итог домена
     const VIEW_ROUND_MS = 20 * 60000;
+    // Бюджет времени одного запроса ограниченного прохода (отбор по /units без члена): проход дописывает страницу, пока она
+    // не набрала limit, не вышло это время или не кончились разделы, и только тогда отдаёт nextCursor. Встроенный сервер
+    // работает в той же вкладке, что и страница: бюджет — время, когда страница не отвечает, поэтому он меньше
+    // рекомендации бэкенду (~100–200 мс, api/README.md, «Страницы ограниченного прохода»). Часы — настоящие, не часы стенда
+    const SCAN_BUDGET_MS = 40;
+    const workNow = typeof performance !== "undefined" && performance.now ? () => performance.now() : () => Date.now();
     const hashOf = (text) => {
       let h = 2166136261;
       for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
@@ -2263,7 +2269,8 @@
       return `${t === "domains" ? 0 : 1}:${String(at < 0 ? 99999999 : at).padStart(8, "0")}:${u.uid}`;
     }
     // GET /units: ids — по записи; parentId, folderId, ref, serverId, archiveId — один член из индекса склада, порядок по
-    // имени; остальное — разделы склада, с отбором не больше scanPartsMax разделов за страницу (как /devices)
+    // имени; остальное — разделы склада, с отбором — ограниченный проход: не меньше scanPartsMax разделов, дальше страница
+    // дописывается до limit или до бюджета времени SCAN_BUDGET_MS
     function unitsPage(q) {
       const limit = limitOf(q);
       if (limit === null) return limitBad();
@@ -2310,10 +2317,15 @@
       if (cur.bad) return cur.bad;
       const parts = unitPartsList();
       const at = cur.at || { p: 0, a: null };
-      const budget = filtered ? db.reference.limits.scanPartsMax : Infinity;
+      // С отбором: не меньше scanPartsMax разделов (и хотя бы один — проход всегда движется), дальше — до limit или до
+      // бюджета времени. stand.sparsePages — бэкенд, который страницу не дописывает: ровно scanPartsMax разделов, пустая
+      // страница с nextCursor (её клиент обязан выдерживать — tests/api-pages.js)
+      const minParts = filtered ? Math.max(1, db.reference.limits.scanPartsMax) : Infinity;
+      const until = filtered && !db.stand.sparsePages ? workNow() + SCAN_BUDGET_MS : null;
+      const more = () => seen < minParts || (until !== null && workNow() < until);
       const out = [];
       let p = at.p, after = at.a, seen = 0, stopped = null;
-      for (; p < parts.length && seen < budget && !stopped; ) {
+      for (; p < parts.length && !stopped && more(); ) {
         const list = parts[p];
         for (let i = 0; i < list.length; i++) {
           const u = list[i];
@@ -2334,7 +2346,15 @@
       }
       const body = { items: out.map(show) };
       if (stopped) {
-        const left = parts.slice(stopped.p).some((list, i) => list.some((u) => (i > 0 || u.uid > stopped.a) && hit(u)));
+        // Есть ли что дальше — смотрим остаток, пока не вышел бюджет. Не успели — курсор: пустая следующая страница законна
+        let left = false;
+        for (let i = stopped.p; i < parts.length && !left; i++) {
+          if (until !== null && i > stopped.p && workNow() >= until) {
+            left = true;
+            break;
+          }
+          left = parts[i].some((u) => (i > stopped.p || u.uid > stopped.a) && hit(u));
+        }
         if (left) body.nextCursor = cursorMake(scope, stopped, cur.exp);
       } else if (p < parts.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
       if (!filtered) body.total = store.size();

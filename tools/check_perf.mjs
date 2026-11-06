@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Сценарий tools/check_perf.py: скорость интерфейса в настоящем времени, на стенде large.
+/* Сценарий tools/check_perf.py: скорость интерфейса в настоящем времени, на стенде large (или xl: --fixture xl).
 
    check_ui.py и check_scale.py идут в виртуальном времени (--virtual-time-budget) и секунд не видят. Здесь страница
    открывается в headless Chrome по CDP без виртуального времени, шаги — те же функции страницы, что в сценариях
@@ -19,7 +19,7 @@
    той же сессии Chrome, что и шаги). Медиана N прогонов, сторож.
 
    Запуск — через tools/check_perf.py; напрямую: node tools/check_perf.mjs --root DIR [--page FILE] [--chrome PATH]
-   [--runs N | --quick] [--steps a,b] [--behavior] [--fixture large|""] [--timeout С] [--json FILE] [--cpu N]
+   [--runs N | --quick] [--steps a,b] [--behavior] [--fixture large|xl|""] [--timeout С] [--json FILE] [--cpu N]
    --behavior — только проверки поведения ввода (шаги BEHAVE_STEPS): путь с паузой в наборе, настоящими клавишами
    Код выхода 1, если хоть один шаг за пределом, не выполнен или упал хотя бы в одном прогоне; 2 — неверные параметры. */
 import { spawn } from "node:child_process";
@@ -57,7 +57,10 @@ const resultLimit = (factor, pause) => pause + LIMITS.click * factor;
 const REF_CALIB_MS = 362;
 const CALIB_NOISE = 0.15;
 const FACTOR_MAX = 1.3;
-// Сторож на шаг, с: шаг дольше — итог «> предела», сессия Chrome перезапускается, предыдущие шаги повторяются без замера
+// Сторож на шаг, с: шаг дольше — итог «> предела», сессия Chrome перезапускается, предыдущие шаги повторяются без замера.
+// На xl тот же: вкладка домена «Папки» там идёт 22–30 с (4 205 запросов), и с большим сторожем после неё прототип 28
+// собирает дерево строкой длиннее предела V8 (RangeError: Invalid string length в drow ← treeServers) — девять следующих
+// шагов падают. С перезапуском после сторожа они меряются (api/TESTS.md, § 9)
 const STEP_TIMEOUT_S = 20;
 const QUIET_MS = 1000; // «тихо»: столько без запросов, долгих задач и занятости потока сверх простоя
 const QUIET_BUSY_MS = 60; // занятость за последнюю секунду сверх простоя, при которой страница ещё считается тихой
@@ -150,7 +153,7 @@ const BEHAVE_STEPS = [
     post: [`can=__perfCan;delete window.__perfCan`, ...gqPost],
   }),
   // С ассистентом Enter начинает разговор, запрос поиска снимается: отложенный поиск не должен прийти после. Без
-  // ассистента (на large его нет: feature:assist) шаг не выполняется: итог «не проверялось», ни PASS, ни FAIL
+  // ассистента (на one-domain его нет: feature:assist) шаг не выполняется: итог «не проверялось», ни PASS, ни FAIL
   behave("gq-enter-asst", "поиск: Enter к ассистенту", [
     { type: "Кам" }, { key: "Enter" },
     { check: [`!can("feature:assist")||(!typePending("gq")&&treeQ===""&&${GQ}.value===""&&asstDockOpen)`, "Enter: нет разговора или запрос не снят"] },
