@@ -17061,129 +17061,11 @@ function ruleMuteSetTo(ids,m){
 const MAINT_WINDOWS=[]
 let maintSeq=1;
 function ruleMaintHit(w,r,d){return!!w.on&&!w._pend&&(w.scope==="all"||(w.scope||[]).includes(r.id))&&ruleTimeIn(w,d)}
-function maintWhenText(w){return schText(schById(w.sched))}
-function maintScopeText(w){
-  if(w.scope==="all")return i18n("все правила");
-  const l=(w.scope||[]).map(id=>(rules.find(r=>r.id===id)||{}).name).filter(Boolean);
-  return l.length?l.map(x=>`«${x}»`).join(", "):i18n("правила не выбраны");
-}
 // Правка окна — сразу, с «Отменить»: окно обслуживания — настройка объекта, а не правила.
-function maintEdit(id,what,fn){
-  const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w||w._pend)return;
-  // Правка — на копии, на сервер окном целиком (PUT с версией)
-  const prev=ruleClone(w),c=ruleClone(w);fn(c);
-  API.put(`/maintenance-windows/${id}`,winBody(c),autoVer.get(id)).then(x=>{
-    winSet(x);ruleIdxDrop();paint();
-    toastAction("maint:"+id+":"+(++ruleUndoSeq),`${i18n("Окно обслуживания")} «${x.name}»: ${i18n(what)}`,i18n("Отменить"),()=>{
-      API.put(`/maintenance-windows/${id}`,winBody(prev),autoVer.get(id)).then(y=>{winSet(y);ruleIdxDrop();paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
-    },10000);
-  }).catch(e=>{toast(problemText(e));paint()});
-}
-function maintName(id,v){maintEdit(id,"переименовано",w=>{w.name=v.trim()||w.name})}
-function maintOn(id){const w=MAINT_WINDOWS.find(x=>x.id===id);maintEdit(id,w&&w.on?"выключено":"включено",x=>{x.on=!x.on})}
-function maintSched(id,v){
-  const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w)return;
-  if(v==="__new"||v==="__here"){
-    const d=v==="__here"?schBlank({from:schById(w.sched),own:{k:"maint",id},name:`${w.name} — ${i18n("время")}`}):schBlank();
-    schDlgOpen(d.id,{draft:d,isNew:true,onSave:sid=>maintEdit(id,"изменено расписание",x=>{x.sched=sid})});paint();return;
-  }
-  maintEdit(id,"изменено расписание",x=>{x.sched=v});
-}
 // Окно: своё время или общее расписание. «Своё» — местное расписание окна (есть — вернуть, нет — создать); «общее» — первое общее
-function maintWhen(id,own){
-  const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w||w._pend)return;
-  const cur=schById(w.sched);
-  if(own){
-    if(cur&&cur.own){paint();return}
-    const mine=SCHEDS.find(s=>!s._gone&&!s._pend&&s.own&&s.own.k==="maint"&&s.own.id===id);
-    if(mine)maintEdit(id,"изменено расписание",x=>{x.sched=mine.id});else maintSched(id,"__here");
-    return;
-  }
-  if(cur&&!cur.own){paint();return}
-  const sh=SCHEDS.filter(s=>!s._gone&&!s._pend&&!s.own),first=sh.find(s=>!s.builtin)||sh[0];
-  if(first)maintEdit(id,"изменено расписание",x=>{x.sched=first.id});else paint();
-}
 // Выбор общего расписания окна: только общие и встроенные
-function maintSharedPick(w){
-  const ok=SCHEDS.filter(s=>!s._gone&&!s.own&&(!s._pend||s.id===w.sched));
-  const o=s=>`<option value="${s.id}" ${s.id===w.sched?"selected":""}>${escHtml(s.name)}${s.builtin?` — ${i18n("встроенное")}`:""}${s._pend?` (${i18n("удаляется")})`:""}</option>`;
-  return`<select aria-label="${escHtml(i18n("Общее расписание окна"))}" ${w._pend?"disabled":""} ${onEv("change",["maintSched",`${w.id}`,onEv.value])}>
-    ${ok.filter(s=>!s.builtin).map(o).join("")}${ok.filter(s=>s.builtin).map(o).join("")}
-    <option value="__new">${i18n("Новое общее расписание…")}</option></select>`;
-}
 // Где ещё общее расписание используется (кроме этого окна)
-function maintUsedElse(w){
-  const u=schUses(w.sched).filter(x=>!(x.k==="maint"&&x.id===w.id));
-  return u.length?`${i18n("Используется ещё")}: ${u.map(x=>`${x.what} «${escHtml(x.name)}»`).join(", ")}`:i18n("Больше нигде не используется");
-}
-function maintScopeMode(id,all){maintEdit(id,"изменён состав правил",w=>{w.scope=all?"all":[]})}
-function maintRule(id,rid){maintEdit(id,"изменён состав правил",w=>{const a=Array.isArray(w.scope)?w.scope:(w.scope=[]),j=a.indexOf(rid);if(j<0)a.push(rid);else a.splice(j,1)})}
-function maintAdd(){
-  const s=schBlank({name:`${i18n("По вторникам")} 10:00–12:00`});s.week=schW({"2":[["10:00","12:00"]]});delete s.own;
-  // Окно — вместе со своим расписанием одним запросом
-  API.post("/maintenance-windows",{name:i18n("Новое окно"),enabled:true,ruleIds:null,schedule:schBody(s)}).then(res=>{
-    schSet(res.schedule);const w=winSet(res.window);paint();
-    const nm=document.querySelector(`input[data-mwn="${w.id}"]`);if(nm){nm.scrollIntoView({block:"center"});nm.focus();nm.select()}
-    toastAction("maint:"+w.id+":"+(++ruleUndoSeq),`${i18n("Окно обслуживания")} «${w.name}»: ${i18n("добавлено")}`,i18n("Отменить"),()=>{
-      API.del(`/maintenance-windows/${w.id}`,autoVer.get(w.id)).then(()=>{
-        const i=MAINT_WINDOWS.findIndex(x=>x.id===w.id);if(i>=0)MAINT_WINDOWS.splice(i,1);const j=SCHEDS.findIndex(x=>x.id===res.schedule.id);if(j>=0)SCHEDS.splice(j,1);paint();toast("Изменение отменено");
-      }).catch(e=>toast(problemText(e)));
-    },10000);
-  }).catch(e=>toast(problemText(e)));
-}
 // Удаление — как у правил: число подтверждает, затем отсчёт в тосте с «Отменить»; пока он идёт, окно не действует.
-function maintDelAsk(id){
-  const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w||w._pend)return;
-  askConfirm("Удалить окно обслуживания?",
-    `<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(w.name)}» — ${escHtml(maintWhenText(w))}</li></ul>
-     <p>${i18n("Останется")}: ${i18n("правила и журнал их запусков; в эти часы правила снова будут выполнять действия.")}</p>`,
-    "",i18n("Удалить"),()=>maintDelSchedule(id),{html:true,typeCount:1});
-}
-function maintDelSchedule(id){
-  const w=MAINT_WINDOWS.find(x=>x.id===id);if(!w)return;
-  w._pend=true;AUTO_PEND.add(id);ruleIdxDrop();paint();
-  const key="mdel:"+id,timer=setTimeout(()=>{removeToastAction(key);
-    const x=MAINT_WINDOWS.find(y=>y.id===id);if(!x||!x._pend)return;
-    // После отсчёта — DELETE: своё расписание окна сервер удаляет вместе с ним, если оно больше нигде не нужно
-    API.del(`/maintenance-windows/${id}`,autoVer.get(id)).then(async()=>{
-      const i=MAINT_WINDOWS.findIndex(y=>y.id===id);if(i>=0)MAINT_WINDOWS.splice(i,1);
-      autoDirty.add("schedule");await autoFlush();toast("Окно обслуживания удалено");
-    }).catch(e=>{const y=MAINT_WINDOWS.find(z=>z.id===id);AUTO_PEND.delete(id);if(y)delete y._pend;toast(problemText(e));paint()});
-  },10000);
-  toastAction(key,`«${w.name}» — ${i18n("удаление через")}`,i18n("Отменить"),()=>{clearTimeout(timer);const x=MAINT_WINDOWS.find(y=>y.id===id);AUTO_PEND.delete(id);if(x)delete x._pend;ruleIdxDrop();paint();toast("Удаление отменено")},10000);
-}
-function maintWhenHtml(w,ws,dis){
-  const own=!!(ws&&ws.own);
-  const edit=ws?`<button type="button" class="btn s" ${dis} ${onEv("click",["schDlgOpen",w.sched,{from:{k:"maint",id:w.id}}])}>${i18n(ws.builtin?"Посмотреть…":"Изменить…")}</button>`:"";
-  const editLk=ws?`<button type="button" class="lk lk-act" ${dis} ${onEv("click",["schDlgOpen",w.sched,{from:{k:"maint",id:w.id}}])}>${i18n("Изменить…")}</button>`:"";
-  return`<div class="rl-th">${i18n("Когда")}</div><div class="rl-opts"><label class="rl-opt ${own?"on":""}"><input type="radio" name="mwh-${w.id}" ${own?"checked":""} ${dis} ${onEv("change",["maintWhen",`${w.id}`,true])}><span><b>${i18n("Своё время для этого окна")}</b>${own?`<div class="sub rl-cond-sub">${escHtml(schText(ws))} · ${editLk}</div><div class="sub">${i18n("Это время есть только у этого окна")}</div>`:""}</span></label>
-    <label class="rl-opt ${own?"":"on"}"><input type="radio" name="mwh-${w.id}" ${own?"":"checked"} ${dis} ${onEv("change",["maintWhen",`${w.id}`,false])}><span><b>${i18n("По общему расписанию")}</b>${own?"":`<div class="rl-row"><div class="rl-f">${maintSharedPick(w)}</div>${edit}</div>
-      ${ws?`<div class="sub rl-cond-sub">${escHtml(schText(ws))}</div><div class="sub">${maintUsedElse(w)}</div><div class="sub">${ws.builtin?i18n("Встроенное расписание нельзя изменить."):i18n("Общее расписание одно на все места: правка изменит их все.")} <button type="button" class="lk lk-act" ${onEv("click",["ruleOpen",`sch:${ws.id}`,true])}>${i18n("Открыть в «Расписаниях»")}</button></div>`:""}`}</span></label></div>`;
-}
-function maintCardHtml(w){
-  const chip=(on,click,lab)=>`<button type="button" class="stchip ${on?"on":""}" aria-pressed="${on}" ${onEv("click",click)}><span class="stchip-lab">${i18n(lab)}</span></button>`;
-  const all=w.scope==="all",sc=Array.isArray(w.scope)?w.scope:[];
-  const ws=schById(w.sched);
-  const warn=!ws?i18n("Расписание окна удалено — выберите другое"):schEmpty(ws)?i18n("Расписание не действует ни в один день: окно не наступит"):!all&&!sc.length?i18n("Выберите правила, иначе окно ни на что не действует"):"";
-  const dis=w._pend?"disabled":"";
-  return`<div class="rl-mw ${w._pend?"pending":""}"><div class="rl-row"><div class="rl-f"><input type="text" data-mwn="${w.id}" value="${escHtml(w.name)}" aria-label="${i18n("Название окна")}" ${dis} ${onEv("change",["maintName",`${w.id}`,onEv.value])}></div>
-      <label class="rl-flag" style="margin:0"><input type="checkbox" ${w.on?"checked":""} ${dis} ${onEv("change",["maintOn",`${w.id}`])}> ${i18n("Включено")}</label>
-      <button type="button" class="btn s" ${dis} ${onEv("click",["maintDelAsk",`${w.id}`])}>${i18n("Удалить")}…</button></div>
-    ${maintWhenHtml(w,ws,dis)}
-    <div class="rl-opts"><label class="rl-opt ${all?"on":""}"><input type="radio" name="mws-${w.id}" ${all?"checked":""} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,true])}><span><b>${i18n("Все правила")}</b></span></label>
-      <label class="rl-opt ${all?"":"on"}"><input type="radio" name="mws-${w.id}" ${all?"":"checked"} ${dis} ${onEv("change",["maintScopeMode",`${w.id}`,false])}><span><b>${i18n("Выбранные правила")}</b>${all?"":`<div class="rl-mwr">${rules.map(r=>`<label class="rl-flag"><input type="checkbox" ${sc.includes(r.id)?"checked":""} ${dis} ${onEv("change",["maintRule",`${w.id}`,`${r.id}`])}> ${escHtml(r.name)}</label>`).join("")}</div>`}</span></label></div>
-    ${warn?`<div class="nt err" role="status">${warn}</div>`:""}
-    <p class="sub">${w._pend?i18n("Окно удаляется: пока идёт отсчёт, оно не действует."):`${i18n("В эти часы правила запускаются и пишут трассу, но действия не выполняют")}. ${i18n("Действует на")}: ${escHtml(maintScopeText(w))}.`}</p></div>`;
-}
-function ruleMaintUI(){
-  const now=MAINT_WINDOWS.filter(w=>(w.on&&!w._pend)&&ruleTimeIn(w,new Date()));
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Окна обслуживания"),"В окно обслуживания выбранные правила не выполняют действия: плановые работы не поднимают тревог")+
-    `<div class="sc">
-      ${card("Окна",`${MAINT_WINDOWS.map(maintCardHtml).join("")||`<p class="sub">${i18n("Окон обслуживания нет")}</p>`}
-        <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["maintAdd"])}>${i18n("Добавить окно")}</button></div>
-        <p class="sub">${now.length?`${i18n("Сейчас идёт")}: ${now.map(w=>`«${escHtml(w.name)}»`).join(", ")}.`:i18n("Сейчас ни одно окно не идёт.")} ${i18n("Правка окна применяется сразу, отменить можно в уведомлении внизу. Разовая тишина — «Приглушить…» в карточке правила.")}</p>`)}
-    </div>`);
-}
 
 // ── Между камерами: документ V/07.5 ──
 // Сценарий между камерами — не Rule: документ домена, пишется целиком. Форма говорит deviceId, член камеры выводит сервер.
@@ -17557,7 +17439,6 @@ function schErr(s){
 const OBJ_MODES=[]
 let objModeElse=null,modeSeq=1
 const MODE_PALETTE=["var(--one-palette-magenta)","var(--one-palette-teal)","var(--one-palette-amber)","var(--one-palette-green)","var(--one-palette-purple)"];
-function modeColor(id){return{work:"var(--one-accent)",night:"var(--one-palette-purple)",weekend:"var(--one-palette-green)",service:"var(--one-palette-orange)"}[modeCode(id)]||(OBJ_MODES.find(m=>m.id===id)||{}).color||"var(--mu)"}
 function modeWhenText(m){return m.sched?`${i18n("по расписанию")} «${schName(m.sched)}»`:i18n("только вручную")}
 function modeLive(){return OBJ_MODES.filter(m=>!m._pend)}
 // Режимы за сутки d: [{from,to,mode,sched}] — участки, где режим один.
@@ -17578,14 +17459,6 @@ function objModeSched(d){
   return(modeDaySegs(d).find(s=>m>=s.from&&m<s.to)||{mode:objModeElse}).mode;
 }
 // Следующее переключение по расписанию: {at, mode}.
-function objModeNext(){
-  const now=new Date(),cur=objModeSched(now),t0=schToday();
-  for(let k=0;k<9;k++){
-    const d=schAdd(t0,k);
-    for(const s of modeDaySegs(d)){const t=new Date(d);t.setMinutes(s.from);if(t>now&&s.mode!==cur)return{at:t,mode:s.mode}}
-  }
-  return null;
-}
 function schWhenText(t){
   const k=Math.round((schAdd(t,0)-schToday())/864e5),hm=schHM(t.getHours()*60+t.getMinutes());
   return k===0?hm:k===1?`${hm} ${i18n("завтра")}`:`${hm} ${schDateShort(t)}`;
@@ -17593,10 +17466,8 @@ function schWhenText(t){
 // objModeManual — ручное переключение: {until} до конца периода ("" — пока не вернут обратно).
 // Текущий режим считает сервер (GET /modes/current): здесь — его ответ
 let objMode=null,objModeManual=null
-function objModeUntil(){const n=objModeNext();return n?schWhenText(n.at):""}
 // После правки расписаний и режимов: режим по расписанию пересчитывается, ручной — остаётся.
 // Текущий режим считает сервер: после правок расписаний и режимов — перечитать
-function objModeRefresh(){modeCurLoad().catch(()=>{})}
 // Пометка для правил, которые в текущем режиме молчат.
 // Одна полоса «Сейчас не действует»: приглушение (со «Снять сейчас»), окно обслуживания, невыполненный режим.
 // Что о правиле говорит сервер: Rule.status, слово причины — как есть
@@ -17642,7 +17513,6 @@ function ruleIdleNote(r){
     c?`${i18n("выключено режимом")} «${i18n(c.name)}»`:""].filter(Boolean).join("; ");
 }
 // Режимы объекта, которые правило называет в условиях «Режим объекта».
-function ruleCondModes(r){return(r.cond||[]).filter(c=>c.kind==="mode").flatMap(c=>c.modes||[])}
 // Ручное включение режима (или «Обычной работы») — всегда на срок, не больше 8 часов (прототип 32):
 // он заменяет режим по расписанию, а забытое включение кончается само.
 const MODE_TERMS=[[30,"30 минут"],[60,"1 час"],[120,"2 часа"],[240,"4 часа"],[480,"8 часов"]];
