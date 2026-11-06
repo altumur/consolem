@@ -4935,7 +4935,7 @@ function settingsApply(s){
   SETTINGS.forEach(st=>{const v=s.values[st.id];if(v===undefined)return;st.value=st.id==="sec.2fa"?TWO_FA_RU[v]||v:Array.isArray(v)?v.slice():String(v)});
 }
 function settingSet(id,v){
-  const num=id==="sec.pwdage"||SETTINGS.find(x=>x.id===id)?.num;
+  const sd=SETTINGS.find(x=>x.id===id),num=id==="sec.pwdage"||sd?.num||sd?.type==="num"||sd?.type==="limit";
   const val=id==="sec.2fa"?TWO_FA_CODE[v]||v:num?(/^\d+$/.test(v)?Number(v):v):v;
   API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false);if(Array.isArray(val))sysUI()}).catch(e=>{toast(problemText(e));sysUI()});
 }
