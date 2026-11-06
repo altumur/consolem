@@ -772,7 +772,7 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .cbx-b{flex:1;min-height:0;display:flex;flex-direction:column}
 .cbx.pane .cbx-b{flex-direction:row;border-top:1px solid var(--ln)}
 .cbx-c{flex:none;width:180px;display:flex;flex-direction:column;gap:1px;padding:4px;border-right:1px solid var(--ln);overflow-y:auto;scrollbar-gutter:stable}
-.cbx-cat{display:flex;align-items:baseline;gap:6px;width:100%;text-align:left;border:0;background:0;color:var(--fg);font:inherit;font-size:13px;padding:5px 8px;border-radius:5px;cursor:pointer}
+.cbx-cat{display:flex;align-items:baseline;gap:6px;width:100%;text-align:left;border:0;background:0;color:var(--tx);font:inherit;font-size:13px;padding:5px 8px;border-radius:5px;cursor:pointer}
 .cbx-cat span{margin-left:auto;color:var(--mu);font-size:12px;font-variant-numeric:tabular-nums}
 .cbx-cat:hover{background:var(--one-nav-hover)}
 .cbx-cat.on{background:var(--one-selected-neutral);box-shadow:inset 2px 0 0 var(--one-selected-indicator);font-weight:600}
@@ -1224,17 +1224,17 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .hd-plan:hover{filter:brightness(1.1)}
 .hd-plan:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .hd-plan[hidden]{display:none}
-.hd-mode{flex:0 1 auto;min-width:76px;max-width:340px;overflow:hidden;display:inline-flex;align-items:center;gap:6px;height:var(--ctrl-h);padding:0 10px;border:1px solid var(--ln);border-radius:8px;background:transparent;color:var(--fg);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
+.hd-mode{flex:0 1 auto;min-width:76px;max-width:340px;overflow:hidden;display:inline-flex;align-items:center;gap:6px;height:var(--ctrl-h);padding:0 10px;border:1px solid var(--ln);border-radius:8px;background:transparent;color:var(--tx);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
 .hd-mode:hover{background:var(--one-nav-hover)}
 .hd-mode:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .hd-mode[hidden]{display:none}
 .hd-mode .sch-sw{width:8px;height:8px;border-radius:50%}
 .hd-mode.manual{border-color:var(--one-palette-amber);background:color-mix(in srgb,var(--one-palette-amber) 18%,transparent)}
-.hd-mode small{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--fg);opacity:.85}
+.hd-mode small{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--tx);opacity:.85}
 .msw{border:0;margin:8px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}.msw legend{padding:0 0 6px;font-weight:600}
 .ttu.no-timer .ttu-timer{display:none}
 .msw-o{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
-.hd-mode b{flex:none}.hd-mode .sch-sw,.hd-mode svg{flex:none}
+.hd-mode b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hd-mode .sch-sw,.hd-mode svg{flex:none}
 .mode-now{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .mode-now b{font-size:15px}
 .sch-mt2{table-layout:fixed;width:100%}.sch-mt2 th:nth-child(1){width:24%}.sch-mt2 th:nth-child(3){width:22%}.sch-mt2 th:nth-child(4){width:18%}.sch-mt2 th:nth-child(5){width:44px}
@@ -1245,7 +1245,7 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 #umQ{width:100%;box-sizing:border-box;margin-top:4px}
 .um-base td{background:var(--one-surface-2,transparent)}
 .um-on{font-weight:600;color:var(--one-success-text)}
-.mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>label{display:block;font-weight:600;margin:12px 0 4px}
+.mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>label,.rl-tags>legend{display:block;font-weight:600;margin:12px 0 4px;padding:0}fieldset.rl-tags{border:0;padding:0;min-width:0}
 .sch-mt2 td{vertical-align:top}
 /* Поле с автокомплитом: одна строка, длинное значение — с многоточием; полное — в подсказке и в списке */
 .combo{position:relative;display:block;width:100%;min-width:0}
@@ -2240,7 +2240,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
     <div class="gopop" id="gopop"><div id="goList"></div></div>
   </div>
   <button type="button" class="hd-plan" id="hdPlan" hidden data-on-click='[["planHeadOpen"]]'></button>
-  <button type="button" class="hd-mode" id="hdMode" hidden aria-haspopup="menu" data-on-click='[["hdModeMenu",{"$on":"event"}]]'></button>
+  <button type="button" class="hd-mode" id="hdMode" hidden aria-haspopup="menu" aria-expanded="false" data-on-click='[["hdModeMenu",{"$on":"event"}]]'></button>
   <div class="hd-status" id="hdStatus" hidden></div>
   <button type="button" class="hd-asst" id="hdAsst" data-needs="feature:assist" aria-expanded="false" aria-controls="asstDock" title="Ассистент (Ctrl+I)" data-on-click='[["asstToggle"]]'></button>
   <span class="asst-sr" id="asstLive" role="status"></span>
@@ -5085,6 +5085,7 @@ function ruleSet(x,oldId){
   if(oldId&&oldId!==x.id){
     ruleFires[x.id]=ruleFires[oldId]||[];delete ruleFires[oldId];ruleHist[x.id]=ruleHist[oldId]||[];delete ruleHist[oldId];
     if(rule===oldId)rule=x.id;
+    UMODES.forEach(m=>{m.off.ids=m.off.ids.map(v=>v===oldId?x.id:v)});   // режимы прототипа 32 — на клиенте
   }
   autoVer.set(x.id,x.version);
   ruleIdxDrop();treeMatchCache.clear();searchMatchCache.clear();
@@ -5197,7 +5198,9 @@ function fireNode(f,r){
     ev:f.events.map(e=>{const t=trigNode({...e,target:null});return{label:triggerBare(t),sub:t.sub,kind:t.kind,match:{...e.match},ref:e.deviceId||"",t:clockText(e.at,true)}}),
     checks:[],steps:[],res:f.result};
   const ctx={vars:r?ruleVarsOf(r,rec):{}};
-  rec.checks=f.checks.filter(c=>!(c.code==="cond"&&c.params&&c.params.condition&&c.params.condition.kind==="mode")).map(c=>fireCheck(c,ctx));
+  const isMode=c=>c.code==="cond"&&c.params&&c.params.condition&&c.params.condition.kind==="mode";
+  // Условие режима скрыто в интерфейсе (прототип 32); невыполненное — причина пропуска, его показываем
+  rec.checks=f.checks.filter(c=>!(isMode(c)&&c.ok)).map(c=>isMode(c)?{label:i18n("Скрытое условие «Режим объекта» не выполнено"),ok:false}:fireCheck(c,ctx));
   let chain=null;   // шаги правила, запущенного «Запустить правило», идут следом с пустым путём
   rec.steps=f.steps.map(s=>{
     const act=s.action?stepNode(s.action):undefined,nested=s.path===""&&s.control;
@@ -5302,6 +5305,7 @@ async function autoLoad(){
   if(can("getModeCurrent"))modeCurApply(await API.get("/modes/current"));
   // Прототип 32: окна обслуживания — тоже режимы, а режимы видны в шапке сразу
   if(can("listMaintenanceWindows")){const mw=await API.get("/maintenance-windows");MAINT_WINDOWS.length=0;mw.items.forEach(winSet)}
+  umReady=true;
   Object.keys(ruleFires).forEach(k=>delete ruleFires[k]);Object.keys(ruleHist).forEach(k=>delete ruleHist[k]);
   ruleFireSeq=0;
   // Раздел уже открывали: перечитывается то, что в нём было
@@ -9049,7 +9053,7 @@ function closeTreeCtx(){
   addSplitMenu.from=null;
   rcCloseMark(m);
   if(m)m.classList.remove("open");
-  document.querySelectorAll(".btn-split-arrow").forEach(b=>b.setAttribute("aria-expanded","false"));
+  document.querySelectorAll(".btn-split-arrow,#hdMode").forEach(b=>b.setAttribute("aria-expanded","false"));
   if(back&&back.isConnected)back.focus();
 }
 function openTreeCtx(n,xy){
@@ -14807,12 +14811,11 @@ const COND_KINDS=[
   {kind:"recording",label:"Камера пишет в архив",devTypes:["camera"]},
   {kind:"online",label:"Устройство на связи",devTypes:["camera","sensor","acfa_sensor","relay"]}];
 // Подсказки к видам условий: вид выбирают обычным списком, поэтому подсказка — под строкой для выбранного вида
-const COND_HINT={mode:"Режим объекта — вместе с другими правилами этого режима; оператор может переключить режим вручную"};
+const COND_HINT={};
 function condKind(c){return COND_KINDS.find(k=>k.kind===c.kind)||COND_KINDS[0]}
 function condNew(kind,old){
   const k=COND_KINDS.find(x=>x.kind===kind)||COND_KINDS[0];
   if(kind==="time")return{kind,sched:(SCHEDS.find(s=>!s.builtin)||{}).id||""};
-  if(kind==="mode")return{kind,modes:[objMode||modeByCode("night")]};
   const ref=old&&old.ref&&refFits(old.ref,k.devTypes,"cond")?old.ref:"";
   return kind==="armed"?{kind,ref,val:true}:{kind,ref};
 }
@@ -16264,10 +16267,8 @@ function condRowHtml(c,i){
     body=`<div class="rl-f">${schPickHtml(c.sched,`condSched(${i},this.value)`,r?{k:"rule",id:r.id}:null,`${i18n("Расписание условия")} ${i+1}`)}</div>
     ${s?`<button type="button" class="btn s" ${onEv("click",["condSchedEdit",i])}>${i18n(s.builtin?"Посмотреть…":"Изменить…")}</button>`:""}
     <div class="sub rl-cond-sub">${s?`${escHtml(schText(s))} · ${i18n(schActive(s)?"сейчас действует":"сейчас не действует")}`:i18n("Расписание удалено — выберите другое")}</div>
-    <div class="sub rl-cond-sub">${i18n("Правило работает только в это время. Режим объекта может выключить правило по метке")}</div>`;
+    <div class="sub rl-cond-sub">${i18n("Правило работает только в это время. Режим может выключить правило — «Выключают режимы» ниже")}</div>`;
   }
-  else if(c.kind==="mode")body=`<div class="rl-f"><div class="rl-chips" style="margin-top:0">${modeLive().map(x=>chip((c.modes||[]).includes(x.id),`condMode(${i},'${x.id}')`,x.name,modeWhenText(x))).join("")}</div></div>
-    <div class="sub rl-cond-sub"><button type="button" class="lk" ${onEv("click",["modeGoModes"])}>${i18n("Какой режим когда — в «Режимах объекта»")}</button></div>`;
   else{
     body=refFieldHtml("cond",i,c.ref);
     if(c.kind==="armed")body+=`<div class="rl-f">${selHtml([["true","на охране"],["false","снята с охраны"]],c.val===false?"false":"true",`condSet(${i},'val',this.value)`,`${i18n("Состояние охраны")} ${i+1}`)}</div>`;
@@ -16729,7 +16730,7 @@ function ruleCheckRun(){
 function ruleCheckLog(){
   const r=curRule();if(!r||!rck||!rck.rec)return;
   const rec=rck.rec,ev=rck.apiEvs||[],at=rck.apiAt||null,br=rck.br||{};rck=null;
-  const done=x=>{ruleTraceOpen.add(ruleTraceKey(r,x));listQ["fires:"+r.id]="";ruleTraceFilt="all";closeBulkModal();paint();toast("Проверка записана в журнал")};
+  const done=x=>{ruleTraceOpen.add(ruleTraceKey(r,x));listQ["fires:"+r.id]="";ruleTraceFilt="all";ruleTab="runs";closeBulkModal();paint();toast("Проверка записана в журнал")};
   // Журнал неприменённого нового правила — часть черновика: на сервер он уходит только у сохранённого
   if(r._new){(ruleFires[r.id]=ruleFires[r.id]||[]).unshift(rec);done(rec);return}
   API.post("/rules/test",{ruleId:r.id,rule:ruleBody(r),events:ev,at,branches:br,log:true}).then(f=>done(fireAdd(r.id,f))).catch(e=>toast(problemText(e)));
@@ -17384,9 +17385,8 @@ function schText(s,short){
 // Где используется: режимы, условия «Время» правил, окна обслуживания.
 function schUses(id){
   const u=[];
-  OBJ_MODES.forEach(m=>{if(m.sched===id&&!m._pend)u.push({k:"mode",id:m.id,name:m.name,what:i18n("режим объекта")})});
+  umList().forEach(m=>{if(m.sched===id)u.push({k:"mode",id:m.id,name:m.name,what:i18n("режим")})});
   rules.forEach(r=>{if((r.cond||[]).some(c=>c.kind==="time"&&c.sched===id))u.push({k:"rule",id:r.id,name:r.name,what:i18n("условие «Время» правила")})});
-  MAINT_WINDOWS.forEach(w=>{if(w.sched===id&&!w._pend)u.push({k:"maint",id:w.id,name:w.name,what:i18n("окно обслуживания")})});
   return u;
 }
 function schUseGo(u){return u.k==="mode"?"ruleOpen('modes',true)":u.k==="rule"?`ruleOpen('${u.id}',true)`:"ruleOpen('maint',true)"}
@@ -17439,7 +17439,6 @@ function schErr(s){
 const OBJ_MODES=[]
 let objModeElse=null,modeSeq=1
 const MODE_PALETTE=["var(--one-palette-magenta)","var(--one-palette-teal)","var(--one-palette-amber)","var(--one-palette-green)","var(--one-palette-purple)"];
-function modeWhenText(m){return m.sched?`${i18n("по расписанию")} «${schName(m.sched)}»`:i18n("только вручную")}
 function modeLive(){return OBJ_MODES.filter(m=>!m._pend)}
 // Режимы за сутки d: [{from,to,mode,sched}] — участки, где режим один.
 function modeDaySegs(d){
@@ -17477,13 +17476,11 @@ function ruleSrvStatusHtml(r){
   return`<p class="sub" data-rule-status="${escHtml(s.state)}">${i18n("Сервер")}: ${i18n(RULE_SRV_STATUS[s.state]||s.state)}${s.reason?` — ${escHtml(s.reason)}`:""}</p>`;
 }
 function ruleStatusBand(r){
-  const m=ruleMuteNow(r),w=ruleMaintNow(r),c=ruleModeIdle(r),parts=[];
+  const m=ruleMuteNow(r),w=ruleMaintNow(r),parts=[];
   if(m)parts.push(`${i18n("приглушено до")} ${escHtml(ruleMuteTill(m))}${m.why?` (${escHtml(m.by)}: ${escHtml(m.why)})`:""} · <button type="button" class="lk lk-act" ${onEv("click",["ruleMuteSetTo",[r.id],null])}>${i18n("Снять сейчас")}</button>`);
   if(w)parts.push(`${i18n("выключено режимом")} «${escHtml(i18n(w.name))}» (${escHtml(umNowText())}) · <button type="button" class="lk lk-act" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button>`);
-  if(c)parts.push(`${i18n("выключено режимом")} «${escHtml(i18n(c.name))}» · <button type="button" class="lk lk-act" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы объекта")}</button>`);
   return parts.length?`<div class="nt" role="status">${ruleMuteIc()} ${i18n("Сейчас не действует")}: ${parts.join("; ")}</div>`:"";
 }
-function ruleModeIdle(r){return ruleModeOffNow(r)}
 // Фраза-итог — не больше двух строк; полный текст раскрывается кнопкой.
 let ruleSumOpen=false;
 function ruleSumHtml(r){
@@ -17508,9 +17505,8 @@ function ruleMore(e,id){
   menu.style.top=Math.round(b.bottom+4+mh>innerHeight-8?Math.max(8,b.top-mh-4):b.bottom+4)+"px";
 }
 function ruleIdleNote(r){
-  const c=ruleModeOffNow(r),m=ruleMuteNow(r),w=ruleMaintNow(r);
-  return[m?`${i18n("приглушено до")} ${ruleMuteTill(m)}`:"",w?`${i18n("выключено режимом")} «${i18n(w.name)}»`:"",
-    c?`${i18n("выключено режимом")} «${i18n(c.name)}»`:""].filter(Boolean).join("; ");
+  const m=ruleMuteNow(r),w=ruleMaintNow(r);
+  return[m?`${i18n("приглушено до")} ${ruleMuteTill(m)}`:"",w?`${i18n("выключено режимом")} «${i18n(w.name)}»`:""].filter(Boolean).join("; ");
 }
 // Режимы объекта, которые правило называет в условиях «Режим объекта».
 // Ручное включение режима (или «Обычной работы») — всегда на срок, не больше 8 часов (прототип 32):
@@ -17531,8 +17527,10 @@ function modeSwUntil(){
   const[h,m]=w.at.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);if(d<=new Date())d.setDate(d.getDate()+1);return d;
 }
 function modeSwErr(u){return!u?"Укажите время":u-Date.now()>MODE_TERM_MAX*60000?"Не больше 8 часов от текущего времени":""}
-function modeSwTerm(v){modeSw.min=+v;if(!modeSw.min&&!modeSw.at){const d=new Date(Date.now()+60*60000);modeSw.at=umHM(d)}modeSwPaint();if(!modeSw.min)setTimeout(()=>document.getElementById("mswAt")?.focus(),20)}
-function modeSwAt(v){modeSw.at=v;modeSwPaint()}
+// Окно перерисовывается целиком — фокус возвращаем на тот же переключатель (или поле времени)
+function modeSwTerm(v){modeSw.min=+v;if(!modeSw.min&&!modeSw.at){const d=new Date(Date.now()+60*60000);modeSw.at=umHM(d)}modeSwPaint();
+  (modeSw.min?document.querySelector(`#bmBody input[name="msw"][value="${modeSw.min}"]`):document.getElementById("mswAt"))?.focus()}
+function modeSwAt(v){modeSw.at=v;modeSwPaint();document.getElementById("mswAt")?.focus()}
 function modeSwPaint(){
   const w=modeSw,m=w.id==="none"?null:umById(w.id),u=modeSwUntil(),err=modeSwErr(u),l=umRules(m),cur=umCurrent(),back=u&&!err?umSchedAt(new Date(+u+1000)):null;
   const nm=x=>x.slice(0,4).map(r=>"«"+escHtml(r.name)+"»").join(", ")+(x.length>4?` ${i18n("и ещё")} ${x.length-4}`:"");
@@ -17734,7 +17732,7 @@ function schGoGroup(k,gid){
 // Запись overrides есть только у групп, где выбрано не «Как обычно»; порядок записей — приоритет.
 function schOvrCard(e){
   const s=e.d,k=e.k,ro=schRO(e);
-  const mopts=[["","Как обычно, по дню недели"],["none","Не действует весь день"],["full","Действует круглосуточно"],...(s.kind==="week"?[["same","Как в другой день недели…"]]:[]),["custom","Свои интервалы"]];
+  const mopts=[["",s.kind==="week"?"Как обычно, по дню недели":"Как обычно"],["none","Не действует весь день"],["full","Действует круглосуточно"],...(s.kind==="week"?[["same","Как в другой день недели…"]]:[]),["custom","Свои интервалы"]];
   const lib=DAY_GROUPS.filter(g=>!g._gone&&!g._pend);
   const rest=lib.filter(g=>!s.ovr.some(o=>o.g===g.id));
   const list=[...s.ovr.map((o,i)=>({o,i,g:grpById(o.g),gid:o.g})),...rest.map(g=>({o:null,i:-1,g,gid:g.id}))];
@@ -17742,7 +17740,7 @@ function schOvrCard(e){
     const next=g?grpNext(g,3):[],sh=o?schOvrShadow(s,i):0,dis=ro?"disabled":"";
     const sel=(opts,cur,on,lab)=>ro?`<div class="sch-val">${escHtml(i18n((opts.find(x=>String(x[0])===String(cur))||["",""])[1]))}</div>`:selHtml(opts,cur,on,lab);
     return`<div class="sch-ovr"><div class="rl-row">
-      <div class="rl-f sch-og"><b>${g?escHtml(g.name):i18n("удалённая группа")}</b><span class="sub">${g?`${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена: запись не действует.")}</span></div>
+      <div class="rl-f sch-og"><b>${g?escHtml(g.name):i18n("удалённая группа")}</b><span class="sub">${g?`${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена: выбор для неё не действует.")}</span></div>
       <div class="rl-f">${sel(mopts,o?o.m:"",`schOvrPick('${k}','${gid}',this.value)`,"Что делать в эти дни")}</div>
       ${o&&o.m==="same"?`<div class="rl-f sch-f-s">${sel(RULE_DAYS.map((d,j)=>[j+1,d]),o.dow||1,`schOvrSet('${k}',${i},'dow',this.value)`,"Какой день недели")}</div>`:""}
       ${o&&!ro?`<button type="button" class="btn s btn-icon" ${i?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["schOvrMove",`${k}`,i,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" ${i<s.ovr.length-1?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["schOvrMove",`${k}`,i,1])}>${lu("arrow-down")}</button>`:""}
@@ -17811,9 +17809,9 @@ function schValidCard(e){
 function schUsesHtml(id,links){
   const u=schUses(id);
   if(!u.length)return`<p class="sub">${i18n("Не используется.")}</p>`;
-  const grp=[["mode","Режимы объекта"],["rule","Правила — условие «Время»"],["maint","Окна обслуживания"]];
+  const grp=[["mode","Режимы"],["rule","Правила — условие «Время»"]];
   return grp.map(([k,t])=>{const l=u.filter(x=>x.k===k);return l.length?`<div class="sch-use"><b>${i18n(t)}</b>: ${l.map(x=>links?`<button type="button" class="lk" ${onEv("click",schUseGo(x))}>${escHtml(x.name)}</button>`:`«${escHtml(x.name)}»`).join(", ")}</div>`:""}).join("")
-    +`<p class="sub">${i18n("Если расписание удалить, режимы перейдут на «только вручную», условия и окна — на «Никогда».")}</p>`;
+    +`<p class="sub">${i18n("Если расписание удалить, режимы перейдут на «Только вручную», условия «Время» — на «Никогда».")}</p>`;
 }
 function schNotesHtml(e){
   const s=schById(e.id),n=[];
@@ -17981,6 +17979,7 @@ function schDelFinish(id){
   // После отсчёта — DELETE. Где использовалось, переводит сервер: режим — только вручную, «Время» и окна — «Никогда»
   API.del(`/schedules/${id}`,autoVer.get(id)).then(async()=>{
     const j=SCHEDS.findIndex(s=>s.id===id);if(j>=0)SCHEDS.splice(j,1);
+    UMODES.forEach(m=>{if(m.sched===id)m.sched=null});   // режим прототипа — только вручную
     if(schEd&&schEd.id===id)schEd=null;
     if(schLast===id)schLast=(SCHEDS.find(s=>!s.builtin)||{}).id||null;
     autoDirty.add("rule");autoDirty.add("modes");autoDirty.add("maintenanceWindow");await autoFlush();
@@ -18112,15 +18111,16 @@ function schDaysUI(){
 const UMODES=[];let umSeeded=false;
 let umMan=null;   // ручное включение: {id — режим или null («Обычная работа»), until: Date}
 const UM_PALETTE=["var(--one-palette-teal)","var(--one-palette-purple)","var(--one-palette-magenta)","var(--one-palette-amber)","var(--one-palette-green)"];
+let umReady=false;   // autoLoad прочитал правила и окна
 function umSeed(){
-  if(umSeeded||!rules.length)return;umSeeded=true;
+  if(umSeeded||!umReady)return;umSeeded=true;
   UMODES.push({id:"um-service",name:"Обслуживание",color:"var(--one-palette-orange)",sched:null,off:{all:true,ids:[]},sys:true});
   const guard=rules.filter(r=>["Охрана входа ночью","Сирена по двери","Тревога на периметре"].includes(r.name)).map(r=>r.id);
   const work=SCHEDS.find(s=>s.name==="Рабочие дни");
   UMODES.push({id:"um-unguard",name:"Охрана снята",color:"var(--one-palette-green)",sched:work?work.id:null,off:{all:false,ids:guard}});
   MAINT_WINDOWS.forEach((w,i)=>UMODES.push({id:"um-"+w.id,name:w.name,color:UM_PALETTE[i%UM_PALETTE.length],sched:w.on?w.sched:null,off:w.scope==="all"?{all:true,ids:[]}:{all:false,ids:(w.scope||[]).slice()}}));
 }
-function umList(){umSeed();return UMODES}
+function umList(){umSeed();return UMODES.filter(m=>!m._pend)}
 function umById(id){return umList().find(m=>m.id===id)}
 function umManNow(d){return umMan&&umMan.until>(d||new Date())?umMan:null}
 // Режим по расписанию в момент d (расписания не пересекаются — подходит не больше одного)
@@ -18133,18 +18133,21 @@ function umColor(m){return m?m.color:"var(--mu)"}
 // Конец текущего участка расписания: «20:00»
 function umSchedEnd(m){
   const s=schById(m.sched),t=new Date(),nm=t.getHours()*60+t.getMinutes(),iv=s?schDay(s,t).iv.find(([a,b])=>nm>=a&&nm<b):null;
-  return iv?(iv[1]>=1440?i18n("конца суток"):schHM(iv[1])):"";
+  if(!iv)return"";if(iv[1]<1440)return schHM(iv[1]);
+  // Участок идёт за полночь: конец — в один из следующих дней
+  for(let k=1;k<=7;k++){const d=schAdd(schToday(),k),x=schDay(s,d).iv.find(([a])=>a===0);if(!x)return k===1?`${i18n("полуночи")}`:`${schDateShort(d)} 00:00`;
+    if(x[1]<1440)return k===1?`${i18n("завтра")} ${schHM(x[1])}`:`${schDateShort(d)} ${schHM(x[1])}`}
+  return i18n("дальше недели");
 }
 function umHM(d){return schHM(d.getHours()*60+d.getMinutes())}
 // «вручную до 14:50» / «по расписанию до 20:00» — для действующего режима (или «Обычной работы»)
 function umNowText(){const x=umManNow(),c=umCurrent();return x?`${i18n("вручную до")} ${umHM(x.until)}`:c?`${i18n("по расписанию до")} ${umSchedEnd(c)}`:""}
 function umHits(m,r){return m.off.all||m.off.ids.includes(r.id)}
 function umRules(m){return m?rules.filter(r=>!r._new&&umHits(m,r)):[]}
-function umOffText(m){return m.off.all?i18n("все правила"):`${m.off.ids.length} ${i18n(plural(m.off.ids.length,"правило|правила|правил"))}`}
+function umOffText(m){const n=umRules(m).length;return m.off.all?i18n("все правила"):`${n} ${i18n(plural(n,"правило|правила|правил"))}`}
 function umNow(){const c=umCurrent();return c?[c]:[]}
 // Совместимость со статусами правила: «выключено режимом «X»»
 function ruleMaintNow(r){const c=umCurrent();return c&&umHits(c,r)?c:null}
-function ruleModeOffNow(){return null}
 function umEdit(fn){fn();ruleIdxDrop();treeMatchCache.clear();searchMatchCache.clear();paint()}
 function umRename(id,v){v=(v||"").trim();const m=umById(id);if(m&&v)umEdit(()=>{m.name=v})}
 // Пересечение расписаний за две недели вперёд: [{m, day, from, to}] — первое найденное
@@ -18157,14 +18160,14 @@ function umOverlap(sid,self){
   }
   return null;
 }
-function umOverlapText(x){return`«${escHtml(i18n(x.m.name))}»: ${schDateShort(x.d)} ${schHM(x.from)}–${x.to>=1440?"24:00":schHM(x.to)}`}
+function umOverlapText(x,plain){const n=i18n(x.m.name);return`«${plain?n:escHtml(n)}»: ${schDateShort(x.d)} ${schHM(x.from)}–${x.to>=1440?"24:00":schHM(x.to)}`}
 function umSched(id,v){
   const m=umById(id);if(!m)return;
-  const set=sid=>{const x=sid&&umOverlap(sid,id);if(x){toast(`${i18n("Расписание пересекается с режимом")} ${umOverlapText(x).replace(/&[^;]+;/g,"")}. ${i18n("Режимы не накладываются — выберите другое расписание.")}`);paint();return}umEdit(()=>{m.sched=sid||null})};
-  if(v==="__new"){const d=schBlank({name:m.name});schDlgOpen(d.id,{draft:d,isNew:true,onSave:set});paint();return}
+  const set=(sid,made)=>{const x=sid&&umOverlap(sid,id);if(x){toast(`${i18n("Расписание пересекается с режимом")} ${umOverlapText(x,true)}. ${i18n("Режимы не накладываются — выберите другое расписание.")}${made?` ${i18n("Новое расписание")} «${schById(sid)?.name||""}» ${i18n("осталось в «Расписаниях»: поправьте его время и выберите снова.")}`:""}`);paint();return}umEdit(()=>{m.sched=sid||null})};
+  if(v==="__new"){const d=schBlank({name:m.name});schDlgOpen(d.id,{draft:d,isNew:true,onSave:sid=>set(sid,true)});paint();return}
   set(v);
 }
-function umOffKind(id,v){const m=umById(id);if(!m)return;if(v==="some"&&!m.off.ids.length){umRulesOpen(id);return}umEdit(()=>{m.off.all=v==="all"})}
+function umOffKind(id,v){const m=umById(id);if(!m)return;if(v==="some"&&m.off.all&&!m.off.ids.some(x=>rules.some(r=>r.id===x))){paint();umRulesOpen(id,"some");return}umEdit(()=>{m.off.all=v==="all"})}
 function umAdd(){
   const m={id:"um-"+accNewId(),name:i18n("Новый режим"),color:UM_PALETTE[UMODES.length%UM_PALETTE.length],sched:null,off:{all:false,ids:[]}};
   umEdit(()=>UMODES.push(m));
@@ -18174,24 +18177,26 @@ function umDelAsk(id){
   const m=umById(id);if(!m||m.sys)return;
   askConfirm("Удалить режим?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(m.name)}» — ${i18n("выключает")} ${escHtml(umOffText(m))}${umActive(m)?`; ${i18n("сейчас действует")}`:""}</li></ul>
     <p>${i18n("Останется")}: ${i18n("правила — они снова работают по своим условиям; расписание режима — в библиотеке «Расписания».")}</p>`,"",i18n("Удалить"),()=>{
-      const i=UMODES.findIndex(x=>x.id===id);if(i<0)return;const was=UMODES[i],man=umMan;
-      umEdit(()=>{UMODES.splice(i,1);if(umMan&&umMan.id===id)umMan=null});
-      toastAction("umdel:"+id,`«${was.name}» ${i18n("удалён")}`,i18n("Отменить"),()=>umEdit(()=>{UMODES.splice(Math.min(i,UMODES.length),0,was);umMan=man}),10000);
+      const was=umById(id);if(!was)return;const man=umMan&&umMan.id===id?umMan:null;
+      umEdit(()=>{was._pend=true;if(man)umMan=null});umRemindPlan();
+      const key="umdel:"+id,timer=setTimeout(()=>{removeToastAction(key);const i=UMODES.indexOf(was);if(i>=0&&was._pend)umEdit(()=>UMODES.splice(i,1))},10000);
+      toastAction(key,`«${was.name}» — ${i18n("удаление через")}`,i18n("Отменить"),()=>{clearTimeout(timer);
+        umEdit(()=>{delete was._pend;if(man&&umMan===null&&man.until>new Date())umMan=man});umRemindPlan();toast("Удаление отменено")},10000);
     },{html:true,typeCount:1});
 }
 // Правило ↔ режим из карточки правила
 function umToggleRule(mid,rid){const m=umById(mid);if(!m||m.off.all)return;umEdit(()=>{m.off.ids=listToggled(m.off.ids,rid)})}
 function ruleModesHtml(r){
   const l=umList();
-  return`<div class="rl-tags"><label>${i18n("Выключают режимы")}</label>
+  return`<fieldset class="rl-tags"><legend>${i18n("Выключают режимы")}</legend>
     ${l.map(m=>`<label class="um-ck"><input type="checkbox" ${umHits(m,r)?"checked":""} ${m.off.all?"disabled":""} ${onEv("change",["umToggleRule",`${m.id}`,`${r.id}`])}><span class="sch-sw" style="background:${m.color}"></span><span>${escHtml(i18n(m.name))}${m.off.all?` <span class="sub">— ${i18n("выключает все правила")}</span>`:""}${umActive(m)?` <span class="sub">· ${i18n("сейчас действует")}</span>`:""}</span></label>`).join("")}
-    <p class="sub">${i18n("Отмеченный режим выключает это правило, пока действует. Действует один режим за раз; в «Обычной работе» правило работает по своим условиям.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button></p></div>`;
+    <p class="sub">${i18n("Отмеченный режим выключает это правило, пока действует. Действует один режим за раз; в «Обычной работе» правило работает по своим условиям.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","modes",true])}>${i18n("Режимы")}</button></p></fieldset>`;
 }
 // Окно «Что выключает режим»: все правила или выбранные — флажками, с поиском
 let umDlg=null;
-function umRulesOpen(id){
+function umRulesOpen(id,kind){
   const m=umById(id);if(!m)return;
-  umDlg={id,all:m.off.all,ids:new Set(m.off.ids),q:""};
+  umDlg={id,all:kind?kind==="all":m.off.all,ids:new Set(m.off.ids.filter(x=>rules.some(r=>r.id===x))),q:""};
   openBulkModal(escHtml(`«${i18n(m.name)}» ${i18n("выключает")}`),"","","bbox-wide");
   document.getElementById("bmBody").innerHTML=`<fieldset class="msw"><legend class="asst-sr">${i18n("Что выключает")}</legend>
       <label class="msw-o"><input type="radio" name="umk" value="all" ${umDlg.all?"checked":""} ${onEv("change",["umDlgKind","all"])}>${i18n("Все правила — и те, что добавят потом")}</label>
@@ -18201,7 +18206,7 @@ function umRulesOpen(id){
 }
 function umDlgKind(v){umDlg.all=v==="all";umDlgPaint(true)}
 function umDlgQ(v){umDlg.q=v;umDlgPaint(false)}
-function umDlgCk(rid,on){if(on)umDlg.ids.add(rid);else umDlg.ids.delete(rid);umDlgPaint(false)}
+function umDlgCk(rid,on){if(on)umDlg.ids.add(rid);else umDlg.ids.delete(rid);umDlgMeta()}   // список не трогаем: фокус остаётся на флажке
 function umDlgAll(on){umDlgVis().forEach(r=>on?umDlg.ids.add(r.id):umDlg.ids.delete(r.id));umDlgPaint(false)}
 function umDlgVis(){return rules.filter(r=>!r._new&&matchesText(umDlg.q,...ruleSearchFields(r)))}
 function umDlgPaint(full){
@@ -18210,14 +18215,20 @@ function umDlgPaint(full){
   else{
     const vis=umDlgVis(),all=rules.filter(r=>!r._new),grp=[["event","По событию"],["sched","По расписанию"],["manual","Вручную"]];
     const list=grp.map(([k,t])=>{const l=vis.filter(r=>r.start===k);return l.length?`<div class="cbx-g">${i18n(t)}</div>${l.map(r=>`<label class="um-ck"><input type="checkbox" ${w.ids.has(r.id)?"checked":""} ${onEv("change",["umDlgCk",`${r.id}`,onEv.checked])}><span>${hlText(r.name,w.q)}</span></label>`).join("")}`:""}).join("");
-    const allOn=vis.length&&vis.every(r=>w.ids.has(r.id));
+    
     if(full||!document.getElementById("umList"))box.innerHTML=`<input type="search" id="umQ" placeholder="${i18n("Найти правило")}" aria-label="${i18n("Найти правило")}" value="${escHtml(w.q)}" ${onEv("input",["umDlgQ",onEv.value])}>
       <div class="um-bar"><label class="um-ck"><input type="checkbox" id="umAll" ${onEv("change",["umDlgAll",onEv.checked])}>${i18n("Выбрать все найденные")}</label><span id="umCnt" class="sub" role="status"></span></div><div id="umList" class="um-list"></div>`;
     document.getElementById("umList").innerHTML=list||`<p class="sub">${i18n("Ничего не найдено")}</p>`;
-    const a=document.getElementById("umAll");a.checked=!!allOn;a.indeterminate=!allOn&&vis.some(r=>w.ids.has(r.id));
-    document.getElementById("umCnt").textContent=`${i18n("Выбрано")} ${w.ids.size} · ${i18n("Показано")} ${vis.length} ${i18n("из")} ${all.length}`;
   }
-  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${!w.all&&!w.ids.size?"disabled":""} ${onEv("click",["umDlgSave"])}>${i18n("Готово")}</button>`;
+  umDlgMeta();
+}
+function umDlgMeta(){
+  const w=umDlg,a=document.getElementById("umAll");
+  if(!w.all&&a){const vis=umDlgVis(),allOn=vis.length&&vis.every(r=>w.ids.has(r.id));
+    a.checked=!!allOn;a.indeterminate=!allOn&&vis.some(r=>w.ids.has(r.id));
+    document.getElementById("umCnt").textContent=`${i18n("Выбрано")} ${w.ids.size} · ${i18n("Показано")} ${vis.length} ${i18n("из")} ${rules.filter(r=>!r._new).length}`;}
+  const off=!w.all&&!w.ids.size;
+  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${off?`disabled title="${i18n("Выберите хотя бы одно правило")}"`:""} ${onEv("click",["umDlgSave"])}>${i18n("Готово")}</button>`;
 }
 function umDlgSave(){const w=umDlg,m=umById(w.id);if(!m)return;closeBulkModal();umEdit(()=>{m.off={all:w.all,ids:w.all?m.off.ids:[...w.ids]}})}
 // Страница «Режимы»
@@ -18231,11 +18242,11 @@ function ruleModesUI(){
       <optgroup label="${i18n("По расписанию")}">${SCHEDS.filter(x=>!x._gone&&(!x.own||x.id===m.sched)).map(x=>`<option value="${x.id}" ${x.id===m.sched?"selected":""}>${escHtml(x.own?`${x.name} (${i18n("только здесь")})`:x.name)}</option>`).join("")}</optgroup>
       <optgroup label="${i18n("Ещё")}"><option value="__new">${i18n("Новое расписание…")}</option></optgroup></select>`;
     const offSel=`<select aria-label="${escHtml(i18n("Что выключает режим")+" «"+m.name+"»")}" ${onEv("change",["umOffKind",`${m.id}`,onEv.value])}><option value="all" ${m.off.all?"selected":""}>${i18n("Все правила")}</option><option value="some" ${m.off.all?"":"selected"}>${i18n("Выбранные правила")}</option></select>`;
-    const nowCell=a?`<span class="um-on">${i18n("действует")}</span><div class="sub">${escHtml(umNowText())}</div>${a==="man"?`<button type="button" class="lk lk-act" ${onEv("click",["umOff"])}>${i18n("Выключить")}</button>`:""}`
+    const nowCell=a?`<span class="um-on">${i18n("действует")}</span><div class="sub">${escHtml(umNowText())}</div>${a==="man"?`<button type="button" class="lk lk-act" ${onEv("click",["umOff"])}>${i18n("Вернуть по расписанию")}</button>`:""}`
       :man&&sch===m?`<span class="sub">${i18n("по расписанию, но сейчас заменён до")} ${umHM(man.until)}</span>`
       :`<button type="button" class="btn s" ${onEv("click",["ruleModeSwitch",`${m.id}`])}>${i18n("Включить…")}</button>`;
     return`<tr data-mode="${m.id}">
-      <td><div class="sch-mn"><span class="sch-sw" style="background:${m.color}"></span><input type="text" value="${escHtml(m.name)}" title="${i18n("Переименовать")}" aria-label="${i18n("Название режима")}" ${onEv("change",["umRename",`${m.id}`,onEv.value])}><span class="sch-pen" aria-hidden="true">✎</span></div></td>
+      <td><div class="sch-mn"><span class="sch-sw" style="background:${m.color}"></span><input type="text" value="${escHtml(m.name)}" title="${escHtml(m.name)} — ${i18n("Переименовать")}" aria-label="${i18n("Название режима")}" ${onEv("change",["umRename",`${m.id}`,onEv.value])}><span class="sch-pen" aria-hidden="true">✎</span></div></td>
       <td>${schedSel}<div class="sub">${s?`${escHtml(schText(s))} · <button type="button" class="lk" ${onEv("click",["schDlgOpen",m.sched,{from:{k:"mode",id:m.id}}])}>${i18n("Изменить…")}</button>`:i18n("включает оператор на срок")}</div></td>
       <td>${offSel}<div class="sub">${m.off.all?i18n("и новые правила тоже"):`<button type="button" class="lk" ${onEv("click",["umRulesOpen",`${m.id}`])}>${u.length} ${i18n(plural(u.length,"правило|правила|правил"))} · ${i18n("Выбрать…")}</button>`}</div></td>
       <td>${nowCell}</td>
@@ -18268,10 +18279,13 @@ function umOff(){
   toastAction("umoff",`${i18n("Снова по расписанию")}: «${umName(umCurrent())}»`,i18n("Отменить"),()=>{umEdit(()=>{umMan=was});umRemindPlan()},10000);
 }
 // Шапка консоли: действующий режим и меню «Включить…»
+let umLastCur;
+// Режим по расписанию начинается и кончается без действий пользователя: раз в 30 с сверяем действующий режим
+setInterval(()=>{if(!umSeeded)return;const c=umCurrent();if(c!==umLastCur){ruleIdxDrop();paint()}},30000);
 function hdModePaint(){
   const b=document.getElementById("hdMode");if(!b)return;
   b.hidden=!rules.length||!can("listRules");if(b.hidden)return;
-  const cur=umCurrent(),man=umManNow(),t=umNowText();
+  const cur=umCurrent(),man=umManNow(),t=umNowText();umLastCur=cur;
   b.classList.toggle("manual",!!man);
   b.title=`${i18n("Режим")}: ${umName(cur)}${t?` (${t})`:""}`;
   b.setAttribute("aria-label",`${i18n("Режим")}: ${umName(cur)}. ${i18n("Включить другой режим")}`);
@@ -18286,10 +18300,12 @@ function hdModeMenu(ev){
     ...(cur?[tctxItem(`${i18n("Обычная работа")}…`,`closeTreeCtx();ruleModeSwitch('none')`,sw(null))]:[]),
     ...umList().filter(m=>m!==cur).map(m=>tctxItem(`${i18n("Включить")} «${escHtml(i18n(m.name))}»…`,`closeTreeCtx();ruleModeSwitch('${m.id}')`,sw(m))),
     tctxSep(),tctxItem(`${i18n("Режимы")}…`,`closeTreeCtx();hdModeGo()`)].join("");
-  menu.classList.add("open");menu.style.left="0px";menu.style.top="0px";
+  menu.classList.add("open");btn.setAttribute("aria-expanded","true");menu.style.left="0px";menu.style.top="0px";
   const b=btn.getBoundingClientRect(),mw=menu.offsetWidth,mh=menu.offsetHeight;
   menu.style.left=Math.max(8,Math.min(Math.round(b.right-mw),innerWidth-mw-8))+"px";
   menu.style.top=Math.round(b.bottom+4+mh>innerHeight-8?Math.max(8,b.top-mh-4):b.bottom+4)+"px";
+  addSplitMenu.from=btn;   // Esc и выбор пункта возвращают фокус на кнопку
+  menu.querySelector("button:not(:disabled)")?.focus();
 }
 function hdModeGo(){if(app!=="rules")setApp("rules");ruleOpen("modes",true)}
 
@@ -18476,7 +18492,7 @@ function ruleOverviewUI(){
     <p class="sub">${i18n("Самые частые правила — кандидаты на лимит: проверьте, что лимит подходит и пропуски по лимиту не прячут настоящие события.")}</p>`:`<p class="sub">${i18n("За сутки запусков не было")}</p>`);
   const bad=live.map(r=>({r,n:ruleFailFires(r)})).filter(x=>x.n).sort((a,b)=>b.n-a.n);
   const fails=card("Отказы за сутки",bad.length?`<ul class="rl-ovl">${bad.map(x=>`<li>${ruleLk(x.r)} <span class="sub">· ${x.n} ${i18n(plural(x.n,"запуск|запуска|запусков"))} ${i18n("с отказами")}</span> <button type="button" class="lk lk-act" ${onEv("click",["ruleOvFails",`${x.r.id}`])}>${i18n("Показать запуски")}</button></li>`).join("")}</ul>`:`<p class="sub">${i18n("Отказов нет")}</p>`);
-  const why={muted:r=>`${i18n("приглушено до")} ${ruleMuteTill(ruleMuteNow(r))}`,maint:r=>`${i18n("режим")} «${i18n(ruleMaintNow(r).name)}»`,mode:r=>`${i18n("режим")} «${i18n(ruleModeOffNow(r).name)}»`,
+  const why={muted:r=>`${i18n("приглушено до")} ${ruleMuteTill(ruleMuteNow(r))}`,maint:r=>`${i18n("режим")} «${i18n(ruleMaintNow(r).name)}»`,
     watch:()=>i18n("только журнал"),off:()=>i18n("выключено")};
   const off=[["muted","Приглушены",live.filter(r=>ruleMuteNow(r))],["maint","Выключены режимом",live.filter(r=>ruleMaintNow(r))],
     ["watch","Только журнал",live.filter(r=>r.on&&r.watch)],["off","Выключены",live.filter(r=>!r.on)]];
@@ -18505,7 +18521,7 @@ function ruleRunNow(){
     down.length&&!r.watch?`${i18n("Действие не выполнится")}: ${down.join("; ")}`:"","Запустить",()=>{
       ruleFireRun(r).then(rec=>{
         const n=ruleActSteps(rec).length,g=ruleStepGood(rec);
-        ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";
+        ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";ruleTab="runs";
         paint();
         if(rec.res==="skip"){const c=rec.checks.find(x=>!x.ok);toast(`${i18n("Запуск пропущен")}: ${c?ruleCondTail(c):""}`);return}
         if(rec.res==="waiting"){toast(`${i18n("Правило запущено и ждёт ответа оператора")}: ${g} ${i18n("из")} ${n}`);return}
@@ -29349,7 +29365,7 @@ function cbxOpen(s,text){
   const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;foot.setAttribute("role","status");foot.setAttribute("aria-live","polite");
   const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
   // Категории — левой панелью: все группы видны сразу, клик оставляет одну справа (прототип 32)
-  const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","toolbar");chips.setAttribute("aria-label",i18n("Категории"));
+  const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","group");chips.setAttribute("aria-label",i18n("Категории: стрелки ← → в пустом поле поиска"));
   chips.hidden=groups.length<2;
   const body=document.createElement("div");body.className="cbx-b";body.append(chips,list);
   box.append(q,body,foot);document.body.append(box);
