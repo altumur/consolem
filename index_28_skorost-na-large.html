@@ -504,6 +504,11 @@ label{display:block;font-size:12px;color:var(--mu);margin-bottom:4px}
 .fl-draft-hint{display:inline;margin:0 0 0 10px;font-size:12px}
 .fl-nested{display:inline-flex;align-items:center;gap:6px;font-size:12px;margin:0;cursor:pointer;white-space:nowrap}
 .fl-sum{font-size:12px;color:var(--mu);margin:0 0 8px}
+/* «Показать ещё» в подвале списка папки: за итогом, ширина не зависит от занятости — листалка не прыгает */
+.tfoot .fl-more{flex:none;white-space:nowrap}
+/* Итог перед «Показать ещё» — с запасом на рост числа («из 200+» → «из 10 000+»): кнопка не сдвигается */
+.tfoot .pg-info{min-width:38ch}
+.tfoot .fl-more[aria-busy="true"]{cursor:progress;opacity:.6}
 .fl-bar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding:6px 8px;margin:0 0 8px;border:1px solid var(--ln);border-radius:8px;background:var(--p2);min-height:40px}
 .fl-bar-n{font-size:12px;color:var(--mu);margin-right:6px;white-space:nowrap}
 table.gtbl-cams tbody tr.fl-r{cursor:default;user-select:none}
@@ -4178,6 +4183,7 @@ async function folderClear(f){
 // запись не входит в папки, объекта нет — 422/404 на всю операцию) — отказ исключением, ничего не применено, кэш прежний.
 // Права и связь домена сервер судит по строке: кэш состава папки — по итогу шагов, отказ — первый из отказов строк
 async function folderChange(fid,add,remove){
+  flCntDrop(fid);
   const ids=[...new Set([...add,...remove])],addSet=new Set(add);
   const okAdd=new Set(),okRemove=new Set(),failed=[];
   for(let i=0;i<ids.length;i+=LIM.selectMax){
@@ -8084,7 +8090,14 @@ async function treeAdd(items,parent,layout){
   // Объекты узлов: устройства и объекты видов без своего списка (у инфраструктуры — свои списки)
   const rows=items.map(x=>x.uid?rowTrim(x):x.unit||x.row?treeUnit(x):null).filter(u=>u&&!INFRA_SCREENS.has(screenType(u.kind))).map(u=>Object.assign(u,{id:u.uid}));
   const missing=items.filter(x=>screenType(x.kind)==="folder"&&!folderById(x.id));
-  if(missing.length)await Promise.all(missing.map(x=>folderEnsure(x.id)));
+  // Папок ветки нет в кэше (перечень папок при старте — первой страницей): одним запросом по ids, а не запросом на
+  // папку — страница корня домена на large и xl это 100–200 папок. Чей родитель не нашёлся — по одной, с цепочкой
+  if(missing.length){
+    const got=await unitsByIds(missing.map(x=>x.id)).catch(()=>[]);
+    if(got.length)folderAdd(got.map(unitRec));
+    const left=missing.filter(x=>!folderById(x.id));
+    if(left.length)await Promise.all(left.map(x=>folderEnsure(x.id)));
+  }
   await hwEnsure(rows.map(r=>r.parentId));
   rows.forEach(hwAddRow);
   const f=folderById(parent);
@@ -8240,6 +8253,7 @@ document.addEventListener("scroll",e=>{
 // tree.changed: ветка изменилась вне наблюдения. Загруженная и открытая перечитывается, закрытая — при раскрытии
 function treeChanged(m){
   (m.parentIds||[]).forEach(id=>{
+    if(m.layout==="folders")flCntDrop(id);
     const key=m.layout+"|"+id;
     if(!treeBr.has(key))return;
     treeBr.delete(key);
@@ -10325,21 +10339,24 @@ function plural(n,forms){
 }
 // Единицу счёта называем словом: в заголовке карточки счётчик камер, а здесь —
 // строк верхнего уровня, и без подписи разница в числах выглядит ошибкой.
-function pagerHtml(key,total,how,unit){
+// more — список прочитан не весь: к числу «+», за итогом — кнопка «Показать ещё» (разметка вызывающего).
+// Кнопка — слева, за итогом: листалка справа не сдвигается, когда меняется ширина итога
+function pagerHtml(key,total,how,unit,more){
   const last=pageLast(total),cur=pageCur(key,total);
   const from=total?(cur-1)*pageSize+1:0,to=Math.min(total,cur*pageSize);
   const word=unit?" "+i18n(plural(total,unit)):"";
-  const info=total
-    ?`${i18n("Показано:")} ${from}–${to} ${i18n("из")} ${total}${word}`
-    :i18n("Нет записей");
+  const info=(total
+    ?`${i18n("Показано:")} ${from}–${to} ${i18n("из")} ${total}${more?"+":""}${word}`
+    :i18n(more?"Среди прочитанного нет":"Нет записей"))+"</span>"+(more||"");
   const sizeSel=`<label class="pg-size">${i18n("На странице")}
     <select ${onEv("change",["setPageSize",onEv.value,`${how}`])}>${PAGE_SIZES.map(v=>`<option value="${v}" ${v===pageSize?"selected":""}>${v}</option>`).join("")}</select></label>`;
-  if(last<2)return`<span class="sub">${info}</span><span class="tfoot-gap"></span>${total>PAGE_SIZES[0]||pageSize!==PAGE_SIZES[0]?`<div class="pg">${sizeSel}</div>`:""}`;
+  const infoCls=more?"sub pg-info":"sub";
+  if(last<2)return`<span class="${infoCls}">${info}<span class="tfoot-gap"></span>${total>PAGE_SIZES[0]||pageSize!==PAGE_SIZES[0]?`<div class="pg">${sizeSel}</div>`:""}`;
   const step=(p,lbl,dis,title)=>`<button type="button" class="pg-b" ${dis?"disabled":""} title="${title}" aria-label="${title}" ${onEv("click",["setPage",`${key}`,p,`${how}`])}>${lbl}</button>`;
   const nums=pageNums(cur,last).map(p=>p===null
     ?`<span class="pg-gap">…</span>`
     :`<button type="button" class="pg-b ${p===cur?"on":""}" ${p===cur?'aria-current="page"':""} ${onEv("click",["setPage",`${key}`,p,`${how}`])}>${p}</button>`).join("");
-  return`<span class="sub">${info}</span><span class="tfoot-gap"></span>
+  return`<span class="${infoCls}">${info}<span class="tfoot-gap"></span>
     <div class="pg">
       <div class="pg-nav">${step(cur-1,lu("chevron-left"),cur<=1,i18n("Предыдущая страница"))}${nums}${step(cur+1,lu("chevron-right"),cur>=last,i18n("Следующая страница"))}</div>
       ${sizeSel}
@@ -11536,11 +11553,12 @@ function foundDeviceCardHtml(n){
 // Один список: подпапки сверху, устройства за ними. Щелчок по строке выбирает её,
 // открывает — двойной щелчок, Enter или имя-ссылка; Backspace и «Вверх» — на уровень выше.
 const FL_FILT0={kind:"",srv:"",model:"",st:""};
-const fl={owner:null,nested:false,sort:"name",dir:1,filt:{...FL_FILT0},cur:null,lastId:null,lastT:0,anchor:null};
+const fl={owner:null,nested:false,sort:"name",dir:1,filt:{...FL_FILT0},cur:null,lastId:null,lastT:0,anchor:null,more:new Set(),moreBusy:new Set()};
 function flSt(n){const s=nodeStatus(n);return s.license?"Лицензия превышена":s.off?"Выключены":s.nosignal?"Нет сигнала":"Работают"}
 function flStBad(n){const s=nodeStatus(n);return s.license||s.off||s.nosignal}
 // Те же измерения, что в «Применить к»: чипы фильтруют, но подписаны и считаются так же
-const FL_DIMS=[["kind","Типы",cpKind,kindLabel],["srv","Серверы",n=>serverNameOf(n),x=>x],["model","Модели",n=>modelOf(n)||i18n("модель не указана"),x=>x],["st","Состояние",flSt,x=>i18n(x)]];
+// Значение — у строки списка (папка, устройство): папка считается только в типах, у прочих измерений её нет
+const FL_DIMS=[["kind","типы",it=>it.fld?"folder":cpKind(it.n),kindLabel],["srv","серверы",it=>it.fld?"":serverNameOf(it.n),x=>x],["model","модели",it=>it.fld?"":modelOf(it.n),x=>x],["st","состояние",it=>it.fld?"":flSt(it.n),x=>i18n(x)]];
 // Корень домена и «Без папки» показываются тем же списком, что папка: владелец с теми же полями
 function flHolder(id){
   const f=folderById(id);if(f)return f;
@@ -11578,16 +11596,10 @@ function flHomes(f,it){
   if(!fl.nested||f.type==="nofolder")return it.at?[it.at]:[];
   return flatFolders().filter(x=>x.items.includes(it.n.id)&&(f.type==="domain"?folderDomain(x.id)===f.id:folderPath(x.id).some(p=>p.id===f.id))).map(x=>x.id);
 }
-function flMatch(it,skip){
-  return FL_DIMS.every(([d,,fn])=>{
-    if(d===skip||!fl.filt[d])return true;
-    if(it.fld)return d==="kind"&&fl.filt.kind==="folder";
-    return fn(it.n)===fl.filt[d];
-  });
-}
+function flMatch(it,skip){return facetHit(FL_DIMS,it,fl.filt,skip)}
 function flEnsure(f){
   if(fl.owner===f.id)return;
-  fl.owner=f.id;fl.filt={...FL_FILT0};fl.nested=false;fl.anchor=null;fl.draft=null;fl.draftBusy=false;
+  fl.owner=f.id;fl.filt={...FL_FILT0};fl.more=new Set();fl.nested=false;fl.anchor=null;fl.draft=null;fl.draftBusy=false;
   if(fl.nextCur)delete listQ["fld:"+f.id];
   fl.cur=fl.nextCur||null;fl.jump=!!fl.nextCur;fl.nextCur=null;
 }
@@ -11595,25 +11607,26 @@ function flSortRows(list){
   const val={name:it=>locName(it.n),type:it=>it.fld?"":LB[it.n.type]||it.n.type,ip:it=>it.n.ip||"",srv:it=>it.fld?"":serverNameOf(it.n),model:it=>it.fld?"":modelOf(it.n),st:it=>it.fld?"":flSt(it.n)}[fl.sort];
   return list.slice().sort((a,b)=>(b.fld-a.fld)||(!!a.nf-!!b.nf)||String(val(a)).localeCompare(String(val(b)),"ru",{numeric:true})*fl.dir);
 }
-function flFound(f){
-  const items=flItems(f).filter(it=>flMatch(it));
-  return flSortRows(listFound({key:"fld:"+f.id,items,text:it=>[locName(it.n),it.n.ip,it.fld?i18n("Папка"):(LB[it.n.type]||it.n.type),it.fld?"":modelOf(it.n),it.fld?"":serverNameOf(it.n)]}));
-}
+// Строки после поиска (до чипов): по ним считаются чипы и итог фильтра
+function flScope(f,items){return listFound({key:"fld:"+f.id,items:items||flItems(f),text:it=>[locName(it.n),it.n.ip,it.fld?i18n("Папка"):(LB[it.n.type]||it.n.type),it.fld?"":modelOf(it.n),it.fld?"":serverNameOf(it.n)]})}
+function flFound(f,scope){return flSortRows((scope||flScope(f)).filter(it=>flMatch(it)))}
 function flFiltSet(d,k){fl.filt={...fl.filt,[d]:fl.filt[d]===k?"":k};fl.cur=null;resetPage("fld:"+fl.owner);gear()}
 function flFiltClear(){fl.filt={...FL_FILT0};fl.cur=null;resetPage("fld:"+fl.owner);gear()}
 function flSortBy(k){if(fl.sort===k)fl.dir=-fl.dir;else{fl.sort=k;fl.dir=1}gear()}
 function flNested(on){fl.nested=!!on;fl.cur=null;resetPage("fld:"+fl.owner);gear()}
-function flFacetsHtml(items){
-  const rows=FL_DIMS.map(([d,label,fn,lab])=>{
-    const nodes=items.filter(it=>flMatch(it,d)&&(d==="kind"||!it.fld)&&(d!=="model"||modelOf(it.n))).map(it=>it.n);
-    const ent=countBy(nodes,fn);
-    // Каждое значение по разу — такой чип нашёл бы одну строку: это работа поиска, а не фильтра
-    if((ent.length<2||ent.every(([,c])=>c===1))&&!fl.filt[d])return"";
-    return`<div class="bk-sum-row bk-facet"><span class="bk-facet-l">${i18n(label.toLowerCase())}</span>${ent.map(([k,c])=>`<button type="button" class="stchip bk-chip ${fl.filt[d]===k?"on":""}" ${onEv("click",["flFiltSet",`${d}`,k])}><span class="stchip-lab">${escHtml(lab(k))}</span><span class="stchip-cnt">${c}</span></button>`).join("")}</div>`;
-  }).join("");
-  if(!rows)return"";
+function flFacetMore(d){fl.more.add(d);gear()}
+// Фильтр карточки — по образцу «Применить к»: «все», строки измерений (facetRowsHtml), итог «Показано N из M».
+// scope — строки после поиска, found — после чипов. Прочитано не всё (more) — счётчики по прочитанному, итог так и говорит
+function flFacetsHtml(scope,found,more){
+  // Каждое значение по разу — такой чип нашёл бы одну строку: это работа поиска, а не фильтра
+  const once=([d,,fn])=>{const m=new Map();scope.filter(it=>flMatch(it,d)).forEach(it=>{const v=fn(it);if(v!=null&&v!=="")m.set(v,(m.get(v)||0)+1)});return[...m.values()].every(c=>c===1)};
+  const dims=FL_DIMS.filter(x=>fl.filt[x[0]]||!once(x));
+  const rows=facetRowsHtml(dims,scope,fl.filt,"flFiltSet",fl.more,"flFacetMore");
   const on=Object.values(fl.filt).some(Boolean);
-  return`<div class="bk-sum bk-scope fl-facets"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" class="stchip ${on?"":"on"}" ${onEv("click",["flFiltClear"])}><span class="stchip-lab">${i18n("всё")}</span><span class="stchip-cnt">${items.length}</span></button><span class="sub bk-scope-or">${i18n("или уточните")}:</span></div>${rows}</div>`;
+  if(!rows&&!on)return"";
+  const said=FL_DIMS.filter(([d])=>fl.filt[d]).map(([d,,,lab])=>lab(fl.filt[d])).join(" · ");
+  const plus=more?"+":"";
+  return`<div class="bk-sum bk-scope fl-facets"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" data-fk="all" class="stchip ${on?"":"on"}" ${onEv("click",["flFiltClear"])}><span class="stchip-lab">${i18n("все")}</span><span class="stchip-cnt">${scope.length}${plus}</span></button>${rows?`<span class="sub bk-scope-or" data-fk="or">${i18n("или уточните")}:</span>`:""}</div>${rows}${on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Показано")} <b>${found} ${i18n("из")} ${scope.length}</b>: ${escHtml(said)}${more?` · ${i18n("по прочитанному, есть ещё")}`:""}</div>`:""}</div>`;
 }
 // Что выбрано: галочки (общие с деревом), а без них — строка под курсором
 function flSelItems(f){
@@ -11652,7 +11665,7 @@ function flRowHtml(f,it){
   const cell=v=>`<td>${v?escHtml(v):`<span class="fl-none">—</span>`}</td>`;
   return`<tr class="gtbl-r fl-r ${fl.cur===id?"on":""} ${checked?"ts-on":""}" data-fl="${id}" tabindex="0" ${onEv("click",["flClick",`${id}`,onEv.event])}>
     <td class="lan-chk">${it.nf?"":tsChk(id,name)}</td>
-    <td class="fl-nm"><span class="fl-nm-ic">${it.nf?ic("nofolder"):it.fld?ic("folder"):ic(n.type)}</span><span class="fl-nm-tx">${open}<span class="lan-sub">${it.fld?`${flCnt(n)} ${i18n(plural(flCnt(n),"объект|объекта|объектов"))}`:escHtml([modelOf(n),serverNameOf(n)].filter(Boolean).join(" · "))}</span>${note?`<span class="fl-also" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</span></td>
+    <td class="fl-nm"><span class="fl-nm-ic">${it.nf?ic("nofolder"):it.fld?ic("folder"):ic(n.type)}</span><span class="fl-nm-tx">${open}<span class="lan-sub">${it.fld?flCntText(n):escHtml([modelOf(n),serverNameOf(n)].filter(Boolean).join(" · "))}</span>${note?`<span class="fl-also" title="${escHtml(note)}">${escHtml(note)}</span>`:""}</span></td>
     ${cell(it.nf?i18n("Вне папок"):it.fld?i18n("Папка"):(LB[n.type]||n.type))}
     ${cell(it.fld?"":n.ip)}
     ${cell(it.fld?"":serverNameOf(n))}
@@ -11666,8 +11679,8 @@ function flToolsHtml(f,key){
     ${f.type==="nofolder"?"":f.type==="domain"?`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>`:`<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button>`}
   </div>`;
 }
-// Содержимое читается веткой дерева: кэш знает только открытое. В строке перечня нет адреса и модели,
-// поэтому колонки дочитывают полные записи (GET /devices/{id}) — на большой папке это много запросов
+// Содержимое читается веткой дерева: кэш знает только открытое. Карточка читает, как раскрытие узла, — первую страницу
+// ветки (treeLoad), дальше — по «Показать ещё». До конца ветку дочитывает только flReadBranch (мастер «Из системы»)
 const flLoaded=new Set();
 async function flReadBranch(id){
   for(let i=0;i<2000;i++){
@@ -11677,24 +11690,139 @@ async function flReadBranch(id){
     await treeLoad("folders",id);
   }
 }
+function flBr(id){return treeBr.get("folders|"+id)}
+// Ветку уже читает кто-то другой (дерево, раскрытие узла) — дождаться его страницы, ничего не читая самому
+async function flWait(id){for(let i=0;i<600&&flBr(id)?.busy;i++)await new Promise(r=>setTimeout(r,30))}
+// Одна страница ветки: занята — ждём чужую страницу (она и есть эта порция), иначе читаем следующую сами
+async function flStep(id){
+  if(flBr(id)?.busy){await flWait(id);return}
+  if(!flBr(id)?.done)await treeLoad("folders",id);
+}
+// «Вложенные» — без чтения всего поддерева: ветки по порядку обхода (сама папка, подпапки вглубь, у домена в конце
+// «Без папки»), страница за страницей, пока не прибавится FL_MORE_ROWS устройств или не уйдёт FL_MORE_REQ запросов.
+// Следующая порция — по «Показать ещё», с того же места: где остановились, помнит treeBr
+const FL_MORE_ROWS=200,FL_MORE_REQ=10;
+function flNestOn(f){return fl.nested&&f.type!=="nofolder"}
+function flNestNext(f){
+  const walk=x=>{if(!flBr(x.id)?.done)return x.id;for(const c of x.folders||[]){const r=walk(c);if(r)return r}return null};
+  return walk(f)||(f.type==="domain"&&!flBr(nofolderId(f.id))?.done?nofolderId(f.id):null);
+}
+function flDevCount(f){const ids=folderDeviceIds(f);if(f.type==="domain")unfolderedDevices(f.id).forEach(d=>ids.add(d.id));return ids.size}
+// Прочитано ли всё, что показывает список: без «вложенных» — своя ветка, с ними — все ветки обхода.
+// Корень домена без «вложенных» — его папки и строка «Без папки»: перечень папок дочитан при старте — всё здесь
+function flDomAll(f){return f.type==="domain"&&!flNestOn(f)&&hwDone.folders}
+function flMoreLeft(f){return flNestOn(f)?!!flNestNext(f):!flDomAll(f)&&!flBr(f.id)?.done}
+// Сколько строк в ветке всего, если сервер сказал (parentCount у /tree/children; у отбора «Без папки» числа нет)
+function flTotal(f){const b=flBr(f.id);return!flNestOn(f)&&b&&!b.done&&b.count!=null?b.count:null}
+// Порция: без «вложенных» — следующая страница своей ветки; с ними — до FL_MORE_ROWS новых устройств (first — до
+// FL_MORE_ROWS всего: первый показ). Возвращает прочитанные ветки
+async function flReadMore(id,first){
+  let f=flHolder(id);if(!f)return[];
+  if(!flNestOn(f)){await flStep(f.id);return[f.id]}
+  const read=[],n0=first?0:flDevCount(f);
+  for(let i=0;i<FL_MORE_REQ;i++){
+    f=flHolder(id);const next=f&&flNestNext(f);if(!next)break;
+    await flStep(next);read.push(next);
+    if(flDevCount(flHolder(id))-n0>=FL_MORE_ROWS)break;
+  }
+  return read;
+}
+// Пришли данные или нажата «Показать ещё» — перерисовывается только список (#flCard), а не вся карточка: шапка, вкладки
+// и кнопки над списком остаются теми же элементами (фокус, открытое меню «Ещё», нажатие, попавшее между перерисовками).
+// Прокрутка, фокус и курсор в поле поиска списка переносятся, чипы фильтра съезжают плавно (FLIP), как в paintMain
+function flRepaint(id){
+  // Списка на экране нет (другая вкладка, окно) — обновлять нечего: следующий показ нарисует свежее
+  const old=document.getElementById("flCard"),f=flHolder(id);
+  if(!old)return;
+  if(!f){gear();return}
+  const tpl=document.createElement("template");tpl.innerHTML=folderCardHtml(f);
+  const nu=tpl.content.getElementById("flCard");
+  // Пояснение под списком есть не у всех состояний (у «Загрузка…» его нет): поменялся состав — вся карточка
+  const hintOld=old.nextElementSibling?.classList.contains("fl-hint")?old.nextElementSibling:null,hintNu=tpl.content.querySelector(".fl-hint");
+  if(!nu||!hintOld!==!hintNu){gear();return}
+  if(hintNu&&hintNu.outerHTML!==hintOld.outerHTML)hintOld.replaceWith(hintNu);
+  if(nu.outerHTML===old.outerHTML)return;
+  const st=viewState(old),snap=bulkScopeSnap();
+  old.replaceWith(nu);
+  restoreView(nu,st);bulkScopeFlip(snap);tsFixInd(nu);
+  // Разметка #main уже не та, что запомнил paintMain: следующий gear() рисует заново, а не пропускает «то же самое»
+  mainSeen.html=null;
+}
+function flOnCard(id){return app==="hw"&&sel===id&&!cardDraft&&(find(id)?.n?.type!=="domain"||tab==="flds")}
 async function flLoad(f){
   const key=f.id+"|"+fl.nested;
   if(flLoaded.has(key))return;
   flLoaded.add(key);
-  const walk=async x=>{await flReadBranch(x.id);if(fl.nested)for(const c of x.folders||[])await walk(c)};
-  await flReadBranch(f.id);
-  f=flHolder(f.id)||f;
-  if(fl.nested)for(const c of f.folders||[])await walk(c);
-  if(f.type==="domain")await flReadBranch(nofolderId(f.id));
-  await Promise.all((f.folders||[]).map(c=>flReadBranch(c.id)));
-  await hwFullAll(flItems(f).filter(it=>!it.fld).map(it=>it.n.id).slice(0,500)).catch(()=>{});
+  const id=f.id,jobs=[];
+  // Первая страница, как раскрытие узла. Ветку уже читали (дерево, прошлый показ) — она в кэше, лишней страницы нет
+  if(flNestOn(f))jobs.push(flReadMore(id,true));
+  else if((!flBr(id)||flBr(id).busy)&&!flDomAll(f))jobs.push(flStep(id));
+  // Строке «Без папки» нужно число: первая страница отбора, дальше — «N+» по прочитанному. Читает дерево — ждём его
+  if(f.type==="domain"&&(!flBr(nofolderId(id))||flBr(nofolderId(id)).busy))jobs.push(flStep(nofolderId(id)));
+  await Promise.all(jobs).catch(()=>{});
   flFresh.add(key);
   treeMatchCache.clear();searchMatchCache.clear();
-  if(app==="hw"&&sel===f.id&&!cardDraft&&(f.type!=="domain"||tab==="flds"))gear();
+  if(flOnCard(id))flRepaint(id);
+}
+// Видимая страница списка: у папок — число, у устройств — полная запись (в строке перечня нет адреса и модели).
+// Только строки на экране: остальное — когда до него долистают. Число папки — parentCount страницы с limit=1:
+// строки ветки в кэш не попадают (кэш после вкладки не растёт на содержимое папок), пачками по FL_CNT_BATCH.
+// Ветку уже читает дерево — число всё равно спрашивается: страница дерева может прийти без parentCount
+const flAsked=new Set(),flCounts=new Map(),FL_CNT_BATCH=10;
+function flCntDrop(id){flCounts.delete(id);flAsked.delete(id)}
+function flCntKnown(x){const b=flBr(x.id);return!!(b&&((b.done&&!b.failed)||b.count!=null))||flCounts.has(x.id)}
+async function flCntRead(ids){
+  for(let i=0;i<ids.length;i+=FL_CNT_BATCH)await Promise.all(ids.slice(i,i+FL_CNT_BATCH).map(id=>
+    API.get("/tree/children",{layout:"folders",parentId:id,limit:1}).then(r=>{if(r.parentCount!=null)flCounts.set(id,r.parentCount)}).catch(()=>{})));
+}
+function flVisNeed(f,rows){
+  const br=rows.filter(it=>it.fld&&!it.nf&&!flCntKnown(it.n)&&!flAsked.has(it.n.id)).map(it=>it.n.id);
+  const full=rows.filter(it=>!it.fld&&it.n._row&&!flAsked.has(it.n.id)).map(it=>it.n.id);
+  if(!br.length&&!full.length)return;
+  br.concat(full).forEach(id=>flAsked.add(id));
+  const owner=f.id;
+  Promise.allSettled([flCntRead(br),hwFullAll(full)]).then(()=>{
+    // Число пришло — папку можно спросить снова, когда его сбросят (перенос, tree.changed); не пришло — не просим по кругу.
+    // Полная запись, которая не прочиталась, второй раз не просится
+    br.forEach(id=>{if(flCounts.has(id))flAsked.delete(id)});
+    treeMatchCache.clear();searchMatchCache.clear();
+    if(flOnCard(owner))flRepaint(owner);
+  });
+}
+function treeOpenHas(id){for(const raw of open){const s=String(raw);if(s.slice(s.lastIndexOf("|")+1)===id)return true}return false}
+// «Показать ещё»: следующая порция. Нажатие рисует сразу (кнопка занята), порция — по приходу
+function flMoreGo(id){
+  if(fl.moreBusy.has(id))return;
+  fl.moreBusy.add(id);flRepaint(id);
+  flReadMore(id,false).catch(()=>[]).then(read=>{
+    fl.moreBusy.delete(id);
+    treeMatchCache.clear();searchMatchCache.clear();
+    if(flOnCard(id))flRepaint(id);
+    // Ветка раскрыта и в дереве — там тоже её новые строки
+    if(app==="hw"&&document.getElementById("tree")&&(read||[]).some(treeOpenHas))renderTreeSoon();
+  });
+}
+function flMoreHtml(f){
+  if(!flMoreLeft(f))return"";
+  const busy=fl.moreBusy.has(f.id);
+  return`<button type="button" class="btn s fl-more" data-fk="fl-more" ${busy?`aria-busy="true" aria-disabled="true"`:""} title="${i18n("Прочитать следующую страницу")}" ${onEv("click",["flMoreGo",`${f.id}`])}>${i18n("Показать ещё")}</button>`;
 }
 const flFresh=new Set();
 function flRetry(id){treeBr.delete("folders|"+id);[true,false].forEach(n=>{flLoaded.delete(id+"|"+n);flFresh.delete(id+"|"+n)});gear()}
-function flCnt(x){if(x.type==="nofolder")return unfolderedDevices(x.domainId).length;const b=treeBr.get("folders|"+x.id);return b&&(!b.done||b.failed)&&b.count!=null?b.count:(x.folders||[]).length+(x.items||[]).length}
+// Число в строке папки. «Без папки»: дочитано — точное, нет — «N+» по прочитанному, ничего — «…».
+// Папка: дочитана — по кэшу, сервер сказал (parentCount ветки или страницы limit=1) — его число, нет — «…» (спросится,
+// когда строка на экране)
+function flCntText(x){
+  const word=n=>i18n(plural(n,"объект|объекта|объектов")),b=flBr(x.id);
+  if(x.type==="nofolder"){
+    const n=unfolderedDevices(x.domainId).length;
+    if(b&&b.done&&!b.failed)return`${n} ${word(n)}`;
+    return n?`${n}+ ${word(n)}`:"…";
+  }
+  if(b&&b.done&&!b.failed){const n=(x.folders||[]).length+(x.items||[]).length;return`${n} ${word(n)}`}
+  const n=b&&b.count!=null?b.count:flCounts.get(x.id);
+  return n!=null?`${n} ${word(n)}`:"…";
+}
 function folderCardHtml(f){
   flEnsure(f);
   flLoad(f);
@@ -11702,28 +11830,34 @@ function folderCardHtml(f){
   if(!items.length&&!flFresh.has(f.id+"|"+fl.nested))return`<div class="card" id="flCard"><div class="cb"><p class="sub">${i18n("Загрузка…")}</p></div></div>`;
   const failed=treeBr.get("folders|"+f.id)?.failed,retry=failed?`<button type="button" class="lk" ${onEv("click",["flRetry",`${f.id}`])}>${i18n("Повторить")}</button>`:"";
   if(failed&&!items.filter(it=>!it.nf).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Не удалось прочитать содержимое")}</b><p class="sub">${retry}</p></div></div>`;
-  const hint=`<p class="sub">${f.type==="nofolder"?i18n("Устройства домена, которые не лежат ни в одной папке. Работают как обычно; положить в папку можно панелью над списком."):i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
-  if(f.type==="nofolder"&&!f.items.length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена разложены по папкам")}</b></div></div>`;
-  if(f.type==="folder"&&fl.draft==null&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
+  const hint=`<p class="sub fl-hint">${f.type==="nofolder"?i18n("Устройства домена, которые не лежат ни в одной папке. Работают как обычно; положить в папку можно панелью над списком."):i18n("Папка задаёт физическое расположение. Один объект может входить в несколько папок; запись на сервер настраивается через архив.")}</p>`;
+  // До первого чтения неизвестно, есть ли ещё: «+» и кнопка — после него, иначе они мигали бы на коротком списке
+  const more=flFresh.has(f.id+"|"+fl.nested)&&flMoreLeft(f);
+  if(f.type==="nofolder"&&!f.items.length&&!more)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена разложены по папкам")}</b></div></div>`;
+  if(f.type==="folder"&&fl.draft==null&&!more&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
       <p class="sub">${i18n("Положите сюда устройства: найденные в сети, добавленные по адресу или из файла, или те, что уже есть в системе.")}</p>
       <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
-  const found=flFound(f);
+  const scope=flScope(f,items),found=flFound(f,scope);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
   if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr&&flFocusFree()){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
   const rows=pageSlice(key,found);
+  flVisNeed(f,rows);
   const head=tsHead(key,rows.filter(it=>!it.nf).map(it=>it.n.id),found.filter(it=>!it.nf).map(it=>it.n.id));
   const nf=items.filter(it=>it.fld&&!it.nf).length,nd=items.filter(it=>!it.fld).length;
   const sum=[nf?`${nf} ${i18n(plural(nf,"папка|папки|папок"))}`:"",nd?`${nd} ${i18n(plural(nd,"устройство|устройства|устройств"))}`:""].filter(Boolean).join(" · ")||i18n("Пусто");
+  // Прочитано не всё: сколько из скольких, а если сервер числа не дал — «есть ещё»
+  const total=flTotal(f),readN=nf+nd;
+  const note=more?` · ${i18n("прочитано")} ${readN}${total!=null?` ${i18n("из")} ${total}`:`, ${i18n("есть ещё")}`}`:"";
   const th=[["name","Имя"],["type","Тип"],["ip","IP-адрес"],["srv","Сервер"],["model","Модель"],["st","Состояние"]].map(([k,l])=>`<th class="lan-th ${fl.sort===k?"on":""}" ${onEv("click",["flSortBy",`${k}`])}><span class="gtbl-th-txt">${i18n(l)}${fl.sort===k?(fl.dir>0?lu("arrow-up",12):lu("arrow-down",12)):""}</span></th>`).join("");
   if(fl.draft!=null&&!fl.draftBusy)flDraftFocus();
   const body=flDraftRowHtml()+(rows.length?rows.map(it=>flRowHtml(f,it)).join(""):fl.draft!=null?"":`<tr><td class="empty" colspan="7">${i18n("Ничего не найдено")}</td></tr>`);
   return`<div class="card" id="flCard"><div class="cb">
     ${flToolsHtml(f,key)}
-    ${flFacetsHtml(items.filter(it=>!it.nf))}
-    <div class="fl-sum">${sum}${failed?` · ${i18n("Прочитано не всё")} ${retry}`:""}</div>
+    ${flFacetsHtml(scope.filter(it=>!it.nf),found.filter(it=>!it.nf).length,more)}
+    <div class="fl-sum">${sum}${note}${failed?` · ${i18n("Прочитано не всё")} ${retry}`:""}</div>
     ${flBarHtml(f)}${tsBanner(key)}
     <div class="lan-wrap"><table class="gtbl-cams lan-tbl fl-tbl"><thead><tr class="gtbl-h"><th class="lan-chk">${head}</th>${th}</tr></thead><tbody>${body}</tbody></table></div>
-    <div class="tfoot">${pagerHtml(key,found.length,"list","объект|объекта|объектов")}</div>
+    <div class="tfoot">${pagerHtml(key,found.length,"list","объект|объекта|объектов",more?flMoreHtml(f):"")}</div>
   </div></div>${hint}`;
 }
 // Щелчок выбирает без перерисовки всей панели: иначе второй щелчок двойного попал бы в другую строку
