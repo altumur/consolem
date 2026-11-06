@@ -15538,7 +15538,7 @@ function ruleOpen(id,flash){
   // На правило, у которого сам черновик, спрашивать нечего.
   if(!(ruleDraft&&ruleDraft.id===id)&&ruleGuard(()=>ruleOpen(id,flash)))return;
   unhide();
-  if(id!==rule){ruleTab="cfg";if(ruleTraceKeep)ruleTraceKeep=false;else ruleTraceFilt="all"}   // вкладка «История» и фильтр трассы — не чужие
+  if(id!==rule){ruleTab=ruleTraceKeep?"runs":"cfg";if(ruleTraceKeep)ruleTraceKeep=false;else ruleTraceFilt="all"}   // вкладка и фильтр трассы — не чужие; переход к запускам — на «Запуски»
   rule=id;tab="gen";paint();
   if(flash)ruleFlashLanding();
 }
@@ -15557,10 +15557,18 @@ const RULE_STARTS=[
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 // Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
+// Ночные шаблоны: условие «Время» по расписанию «Ночь»; нет такого — как новое условие «Время»
+function tplNightCond(){const n=SCHEDS.find(x=>!x.builtin&&!x.own&&x.name==="Ночь");return n?{kind:"time",sched:n.id}:condNew("time")}
 const RULE_TPL=[
   // Охрана
   {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
    make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
+  {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
+   make:()=>({cond:[tplNightCond()],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+              then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
+  {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
+   make:()=>({cond:[tplNightCond()],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
+              then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
    make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
   {id:"plate",start:"event",grp:"Охрана и реагирование",name:"Номер в списке — открыть шлагбаум",sub:"Номер есть в списке: реле открывает шлагбаум на 3 секунды",
@@ -16356,7 +16364,7 @@ function rulesUI(){
       ${pend?`<div class="nt" role="status">${i18n("Правило удаляется")} — ${i18n("через")} ${left} ${i18n("с")}. ${i18n("Отменить можно в уведомлении внизу.")}</div>`:""}
       ${ruleStatusBand(r)}
       ${why.length?`<div class="nt err" role="status">${why.map(x=>escHtml(i18n(x))).join("<br>")}</div>`:""}
-      ${ruleTab==="hist"?ruleHistCard(r):`${card("Правило",`<div class="g">
+      ${ruleTab==="hist"?ruleHistCard(r):ruleTab==="runs"?ruleFiresCard(r,fires):ruleTab==="pass"?card("Паспорт правила",rulePassportBody(r)):`${card("Правило",`<div class="g">
           <div><label>${i18n("Название")}</label><input type="text" value="${escHtml(r.name)}" ${onEv("change",["setRuleField","name",onEv.value])}></div>
           <div><label>${i18n("Лимит")}</label><div class="rl-rate">${i18n("Не больше")} <input type="number" min="1" max="600" value="${r.rate}" aria-label="${i18n("Не больше запусков в минуту")}" ${onEv("change",["setRuleField","rate",onEv.value])}> ${i18n("запусков в минуту")}</div></div>
           ${r.start==="event"?`<div><label>${i18n("Событие во время выполнения")}</label>${selHtml(RULE_REPEAT,r.repeat||"skip","setRuleField('repeat',this.value)","Событие во время выполнения")}</div>`:""}
@@ -16368,9 +16376,7 @@ function rulesUI(){
         ${ruleMenuHtml(r)}${ruleChainHtml(r)}`)}
       ${r.start==="event"?card("Если",whenBody):card("Запуск",startBody)}
       ${card("При условии",condBody)}
-      ${card("То",thenBody)}
-      ${ruleFiresCard(r,fires)}
-      ${card("Паспорт правила",rulePassportBody(r))}`}
+      ${card("То",thenBody)}`}
     </div>`+foot);
 }
 // ── Состояние ──
@@ -18089,13 +18095,16 @@ function ruleHistFromNote(r,fv){
   const e=fv&&(ruleHist[r.id]||[]).find(x=>x.v===fv);if(!e)return"";
   return`${i18n("Возврат к версии")} ${fv}${ruleDiffOf(e.snap,ruleCurSnap(r)).length?`, ${i18n("с дополнительными правками")}`:""}`;
 }
+// Вкладки карточки правила: настройка, журнал запусков, паспорт и история версий
+const RULE_TABS=[["cfg","Настройка"],["runs","Запуски"],["pass","Паспорт"],["hist","История"]];
 function ruleTabsHtml(r){
-  return[["cfg","Настройка"],["hist","История"]].map(([id,x])=>`<button type="button" role="tab" aria-selected="${ruleTab===id}" tabindex="${ruleTab===id?0:-1}" data-fk="tab:${id}" class="tab ${ruleTab===id?"on":""}" ${onEv("keydown",["ruleTabKey",onEv.event])} ${onEv("click",["ruleTabSet",`${id}`])}>${i18n(x)}${id==="hist"?` <span class="acc-tabcnt">${(ruleHist[r.id]||[]).length}</span>`:""}</button>`).join("");
+  return RULE_TABS.map(([id,x])=>`<button type="button" role="tab" aria-selected="${ruleTab===id}" tabindex="${ruleTab===id?0:-1}" data-fk="tab:${id}" class="tab ${ruleTab===id?"on":""}" ${onEv("keydown",["ruleTabKey",onEv.event])} ${onEv("click",["ruleTabSet",`${id}`])}>${i18n(x)}${id==="hist"||id==="runs"?` <span class="acc-tabcnt">${((id==="hist"?ruleHist:ruleFires)[r.id]||[]).length}</span>`:""}</button>`).join("");
 }
 function ruleTabSet(t){ruleTab=t;paint();document.querySelector(".hd .tabs .tab.on")?.focus({preventScroll:true})}
 function ruleTabKey(e){
   const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(!d)return;
-  e.preventDefault();ruleTabSet(ruleTab==="cfg"?"hist":"cfg");
+  e.preventDefault();const ids=RULE_TABS.map(x=>x[0]),i=ids.indexOf(ruleTab);
+  ruleTabSet(ids[(i+d+ids.length)%ids.length]);
 }
 function ruleHistCard(r){
   const h=ruleHist[r.id]||[];
@@ -18182,11 +18191,10 @@ function ruleLoadNow(){
 function ruleRateSkips(r){return ruleRealFires(r.id).filter(f=>f.checks.some(c=>!c.ok&&c.label.includes(i18n("Лимит в минуту")))).length}
 function ruleFailFires(r){return ruleRealFires(r.id).filter(f=>ruleFireIn(f,"fail")).length}
 function ruleLk(r){return`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`}
-// Правило с фильтром трассы «С отказами»: открывается карточка, прокрученная к журналу запусков.
+// Правило с фильтром трассы «С отказами»: открывается карточка на вкладке «Запуски».
 function ruleOvFails(id){
-  ruleTraceFilt="fail";ruleTraceKeep=true;resetPage("fires:"+id);listQ["fires:"+id]="";ruleTab="cfg";
+  ruleTraceFilt="fail";ruleTraceKeep=true;resetPage("fires:"+id);listQ["fires:"+id]="";ruleTab="runs";
   ruleOpen(id,true);ruleTraceKeep=false;
-  setTimeout(()=>[...document.querySelectorAll("#main .card .ch")].find(e=>e.textContent.includes(i18n("Последние запуски")))?.scrollIntoView({block:"start"}),90);
 }
 // Фильтр дерева: остаёмся на «Обзоре», место прихода — активный чип фильтра.
 function ruleOvFilt(k){
