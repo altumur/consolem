@@ -769,6 +769,15 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .cbx-o[aria-disabled="true"]{color:var(--mu);cursor:default}
 .cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
 .cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
+.cbx-b{flex:1;min-height:0;display:flex;flex-direction:column}
+.cbx.pane .cbx-b{flex-direction:row;border-top:1px solid var(--ln)}
+.cbx-c{flex:none;width:180px;display:flex;flex-direction:column;gap:1px;padding:4px;border-right:1px solid var(--ln);overflow-y:auto;scrollbar-gutter:stable}
+.cbx-cat{display:flex;align-items:baseline;gap:6px;width:100%;text-align:left;border:0;background:0;color:var(--tx);font:inherit;font-size:13px;padding:5px 8px;border-radius:5px;cursor:pointer}
+.cbx-cat span{margin-left:auto;color:var(--mu);font-size:12px;font-variant-numeric:tabular-nums}
+.cbx-cat:hover{background:var(--one-nav-hover)}
+.cbx-cat.on{background:var(--one-selected-neutral);box-shadow:inset 2px 0 0 var(--one-selected-indicator);font-weight:600}
+.cbx-cat.zero{color:var(--mu)}
+.cbx.pane .cbx-l{padding-top:4px}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
 .rl-opt:hover{background:color-mix(in srgb,var(--one-control-hover) 50%,transparent)}
 .rl-opt.on{background:var(--one-accent-soft);border-color:var(--one-selected-indicator)}
@@ -865,7 +874,8 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .sch-g3{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:8px}
 .sch-val{padding:7px 0}
 .sch-ovr{padding:4px 0 8px;border-bottom:1px solid var(--ln)}.sch-ovr:last-of-type{border-bottom:0}
-.sch-ovr>.sub{margin:4px 0 0 36px;font-size:12px}
+.sch-ovr>.sub{margin:4px 0 0 0;font-size:12px}
+.sch-og{display:flex;flex-direction:column;min-width:160px}.sch-og .sub{font-size:12px}.sch-og-l{white-space:nowrap}
 .sch-f-s{flex:0 1 110px}
 .sch-warn{color:var(--rd)}
 .sch-calhd{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}.sch-calhd b{min-width:120px;text-align:center}.sch-calhd .sub{margin:0 0 0 auto}
@@ -976,7 +986,7 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .rl-h1{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rl-clamp.c2{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .rl-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
-.rl-ovn{font:var(--one-type-heading-sm);letter-spacing:var(--one-type-heading-sm-tracking);margin:0 0 8px}.rl-ovl{margin:4px 0 8px;padding-left:18px}.rl-ovl li{padding:2px 0}
+.rl-ovl{margin:4px 0 8px;padding-left:18px}.rl-ovl li{padding:2px 0}
 .rl-mw{padding:8px 0 10px;border-bottom:1px solid var(--ln)}
 .rl-mw.pending{opacity:.55}
 .rl-mwr{display:flex;flex-direction:column;gap:2px;margin-top:6px}
@@ -15601,7 +15611,7 @@ function ruleOpen(id,flash){
   // На правило, у которого сам черновик, спрашивать нечего.
   if(!(ruleDraft&&ruleDraft.id===id)&&ruleGuard(()=>ruleOpen(id,flash)))return;
   unhide();
-  if(id!==rule){ruleTab="cfg";if(ruleTraceKeep)ruleTraceKeep=false;else ruleTraceFilt="all"}   // вкладка «История» и фильтр трассы — не чужие
+  if(id!==rule){ruleTab=ruleTraceKeep?"runs":"cfg";if(ruleTraceKeep)ruleTraceKeep=false;else ruleTraceFilt="all"}   // вкладка и фильтр трассы — не чужие; переход к запускам — на «Запуски»
   rule=id;tab="gen";paint();
   if(flash)ruleFlashLanding();
 }
@@ -15620,15 +15630,17 @@ const RULE_STARTS=[
   ["manual","Вручную","Запускается только кнопкой: оператором из меню или из конфигуратора."]];
 // Шаблоны оставляют устройства пустыми: их выбирают в карточке, где видно, что подходит.
 // Шаблоны на событиях, которых нет в системе, скрыты (ruleTplDeclared): появляются, когда сервер их объявит в /kinds
+// Ночные шаблоны: условие «Время» по расписанию «Ночь»; нет такого — без расписания, карточка попросит его выбрать
+function tplNightCond(){const n=SCHEDS.find(x=>!x.builtin&&!x.own&&x.name==="Ночь");return{kind:"time",sched:n?n.id:""}}
 const RULE_TPL=[
   // Охрана
   {id:"mrec",start:"event",grp:"Охрана и реагирование",name:"Движение — запись",sub:"Камера пишет, пока есть движение, и ещё 10 секунд после него",
    make:()=>({when:[{sub:"det",kind:"motion",ref:"",match:{}}],then:[{sub:"rec",action:"record",ref:"$src",dur:"event",after:10}]})},
   {id:"door",start:"event",grp:"Охрана и реагирование",name:"Дверь открыта ночью — сирена",sub:"Вход датчика сработал ночью: реле включает сирену на 5 секунд",
-   make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
+   make:()=>({cond:[tplNightCond()],when:[{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}],
               then:[{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:5000}]})},
   {id:"night",start:"event",grp:"Охрана и реагирование",name:"Движение ночью — запись и реле",sub:"Камера с движением пишет 10 минут, реле срабатывает; действует только ночью",
-   make:()=>({cond:[{kind:"mode",modes:[modeByCode("night")]}],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
+   make:()=>({cond:[tplNightCond()],when:[{sub:"det",kind:"motion",ref:"",match:{}}],
               then:[{sub:"rec",action:"record",ref:"$src",minutes:10},{sub:"vms",action:"output",ref:"",state:"pulse",pulse_ms:1000}]})},
   {id:"line",start:"event",grp:"Охрана и реагирование",name:"Пересечение линии — тревога",sub:"Камера поднимает тревогу с высоким приоритетом и показывает видео на стене",
    make:()=>({when:[{sub:"det",kind:"linecross",ref:"",match:{}}],then:[{sub:"alarm",action:"alarm",ref:"$src",prio:"high"},{sub:"client",action:"wall",ref:"$src",mon:"Монитор 1"}]})},
@@ -16435,7 +16447,7 @@ function rulesUI(){
       ${pend?`<div class="nt" role="status">${i18n("Правило удаляется")} — ${i18n("через")} ${left} ${i18n("с")}. ${i18n("Отменить можно в уведомлении внизу.")}</div>`:""}
       ${ruleStatusBand(r)}
       ${why.length?`<div class="nt err" role="status">${why.map(x=>escHtml(i18n(x))).join("<br>")}</div>`:""}
-      ${ruleTab==="hist"?ruleHistCard(r):`${card("Правило",`<div class="g">
+      ${ruleTab==="hist"?ruleHistCard(r):ruleTab==="runs"?ruleFiresCard(r,fires):ruleTab==="pass"?card("Паспорт правила",rulePassportBody(r)):`${card("Правило",`<div class="g">
           <div><label>${i18n("Название")}</label><input type="text" value="${escHtml(r.name)}" ${onEv("change",["setRuleField","name",onEv.value])}></div>
           <div><label>${i18n("Лимит")}</label><div class="rl-rate">${i18n("Не больше")} <input type="number" min="1" max="600" value="${r.rate}" aria-label="${i18n("Не больше запусков в минуту")}" ${onEv("change",["setRuleField","rate",onEv.value])}> ${i18n("запусков в минуту")}</div></div>
           ${r.start==="event"?`<div><label>${i18n("Событие во время выполнения")}</label>${selHtml(RULE_REPEAT,r.repeat||"skip","setRuleField('repeat',this.value)","Событие во время выполнения")}</div>`:""}
@@ -16447,9 +16459,7 @@ function rulesUI(){
         ${ruleMenuHtml(r)}${ruleChainHtml(r)}`)}
       ${r.start==="event"?card("Если",whenBody):card("Запуск",startBody)}
       ${card("При условии",condBody)}
-      ${card("То",thenBody)}
-      ${ruleFiresCard(r,fires)}
-      ${card("Паспорт правила",rulePassportBody(r))}`}
+      ${card("То",thenBody)}`}
     </div>`+foot);
 }
 // ── Состояние ──
@@ -16704,7 +16714,7 @@ function ruleCheckRun(){
 function ruleCheckLog(){
   const r=curRule();if(!r||!rck||!rck.rec)return;
   const rec=rck.rec,ev=rck.apiEvs||[],at=rck.apiAt||null,br=rck.br||{};rck=null;
-  const done=x=>{ruleTraceOpen.add(ruleTraceKey(r,x));listQ["fires:"+r.id]="";ruleTraceFilt="all";closeBulkModal();paint();toast("Проверка записана в журнал")};
+  const done=x=>{ruleTraceOpen.add(ruleTraceKey(r,x));listQ["fires:"+r.id]="";ruleTraceFilt="all";ruleTab="runs";closeBulkModal();paint();toast("Проверка записана в журнал")};
   // Журнал неприменённого нового правила — часть черновика: на сервер он уходит только у сохранённого
   if(r._new){(ruleFires[r.id]=ruleFires[r.id]||[]).unshift(rec);done(rec);return}
   API.post("/rules/test",{ruleId:r.id,rule:ruleBody(r),events:ev,at,branches:br,log:true}).then(f=>done(fireAdd(r.id,f))).catch(e=>toast(problemText(e)));
@@ -17239,7 +17249,7 @@ function scenDelRun(name){
 // ── Расписания ──
 // Расписание — общий образец «когда»: на него ссылаются режимы объекта, условие «Время» в
 // правилах и окна обслуживания. Тип выбирают один раз, и редактор показывает только то, что
-// нужно этому типу. Особые дни (праздники, предпраздничные, санитарные) — общие группы дат:
+// нужно этому типу. Особые дни (праздники, предпраздничные, санитарные) — общие группы особых дней:
 // расписание выбирает группы и говорит, что делать в эти дни; правила проверяются сверху
 // вниз, первое подошедшее побеждает.
 // Интервал ["20:00","08:00"] идёт через полночь и относится ко дню начала; ["08:00","08:00"] —
@@ -17650,10 +17660,16 @@ function schDateSet(k,i,v){schMut(k,s=>{s.dates[i].d=v;s.dates.sort((a,b)=>Strin
 function schDateDel(k,i){schMut(k,s=>{s.dates.splice(i,1)})}
 function schAstro(k,f,v){schMut(k,s=>{s.astro[f]=f==="win"?v:(parseFloat(String(v).replace(",","."))||0)})}
 function schValid(k,f,v){schMut(k,s=>{s.valid[f]=v})}
-function schOvrAdd(k){schMut(k,s=>{const g=DAY_GROUPS.find(x=>!x._gone&&!s.ovr.some(o=>o.g===x.id))||DAY_GROUPS[0];if(g)s.ovr.push({g:g.id,m:"none"})})}
+// «Что делать в особые дни» для группы gid: "" — как обычно (записи нет), иначе запись overrides создаётся или меняется
+function schOvrPick(k,gid,v){schMut(k,s=>{
+  const i=s.ovr.findIndex(o=>o.g===gid);
+  if(!v){if(i>=0)s.ovr.splice(i,1);return}
+  const o=i>=0?s.ovr[i]:s.ovr[s.ovr.push({g:gid,m:v})-1];o.m=v;
+  if(v==="custom"&&!(o.iv||[]).length)o.iv=[["09:00","15:00"]];
+  if(v==="same"&&!o.dow)o.dow=6;
+})}
 function schOvrSet(k,i,f,v){schMut(k,s=>{const o=s.ovr[i];o[f]=f==="dow"?+v:v;if(f==="m"&&v==="custom"&&!(o.iv||[]).length)o.iv=[["09:00","15:00"]];if(f==="m"&&v==="same"&&!o.dow)o.dow=6})}
 function schOvrMove(k,i,d){schMut(k,s=>{const j=i+d;if(j<0||j>=s.ovr.length)return;[s.ovr[i],s.ovr[j]]=[s.ovr[j],s.ovr[i]]})}
-function schOvrDel(k,i){schMut(k,s=>{s.ovr.splice(i,1)})}
 function schCalMonth(k,d){
   const e=schE(k);if(!e)return;
   if(!d){const t=schIso(new Date());e.month=t.slice(0,7);e.day=t}
@@ -17748,24 +17764,37 @@ function schOvrShadow(s,i){
   for(let j=0;j<i;j++){const h=grpById(s.ovr[j].g);if(h&&ds.every(d=>grpHit(h,d)))return j+1}
   return 0;
 }
+// Переход к карточке группы в библиотеке «Особые дни»: страница открывается с морганием, карточка группы — тоже
+function schGoGroup(k,gid){
+  const go=()=>{ruleOpen("schdays",true);let n=0;
+    const t=setInterval(()=>{const el=document.getElementById("grp-"+gid);if(el||++n>100){clearInterval(t);if(el&&rule==="schdays")accFlash(()=>[el])}},120)};
+  if(k==="d"){schDlgCancel(go);return}
+  go();
+}
+// Блок расписания «В особые дни»: даты групп задаёт библиотека, здесь — что расписание делает в такие дни.
+// Запись overrides есть только у групп, где выбрано не «Как обычно»; порядок записей — приоритет.
 function schOvrCard(e){
   const s=e.d,k=e.k,ro=schRO(e);
-  const gopts=DAY_GROUPS.filter(g=>!g._gone).map(g=>[g.id,g.name]);
-  const mopts=[["none","Не действует весь день"],["full","Действует круглосуточно"],...(s.kind==="week"?[["same","Как в обычный день недели…"]]:[]),["custom","Свои интервалы"]];
-  const rows=s.ovr.map((o,i)=>{
-    const g=grpById(o.g),next=g?grpNext(g,3):[],sh=schOvrShadow(s,i),dis=ro?"disabled":"";
+  const mopts=[["",s.kind==="week"?"Как обычно, по дню недели":"Как обычно"],["none","Не действует весь день"],["full","Действует круглосуточно"],...(s.kind==="week"?[["same","Как в другой день недели…"]]:[]),["custom","Свои интервалы"]];
+  const lib=DAY_GROUPS.filter(g=>!g._gone&&!g._pend);
+  const rest=lib.filter(g=>!s.ovr.some(o=>o.g===g.id));
+  const list=[...s.ovr.map((o,i)=>({o,i,g:grpById(o.g),gid:o.g})),...rest.map(g=>({o:null,i:-1,g,gid:g.id}))];
+  const rows=list.map(({o,i,g,gid})=>{
+    const next=g?grpNext(g,3):[],sh=o?schOvrShadow(s,i):0,dis=ro?"disabled":"";
     const sel=(opts,cur,on,lab)=>ro?`<div class="sch-val">${escHtml(i18n((opts.find(x=>String(x[0])===String(cur))||["",""])[1]))}</div>`:selHtml(opts,cur,on,lab);
-    return`<div class="sch-ovr"><div class="rl-row"><div class="rl-n">${i+1}</div>
-      <div class="rl-f">${sel(gopts.concat(g?[]:[[o.g,i18n("удалённая группа")]]),o.g,`schOvrSet('${k}',${i},'g',this.value)`,"Группа дней")}</div>
-      <div class="rl-f">${sel(mopts,o.m,`schOvrSet('${k}',${i},'m',this.value)`,"Что делать в эти дни")}</div>
-      ${o.m==="same"?`<div class="rl-f sch-f-s">${sel(RULE_DAYS.map((d,j)=>[j+1,d]),o.dow||1,`schOvrSet('${k}',${i},'dow',this.value)`,"Какой день недели")}</div>`:""}
-      ${ro?"":`<button type="button" class="btn s btn-icon" ${i?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["schOvrMove",`${k}`,i,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" ${i<s.ovr.length-1?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["schOvrMove",`${k}`,i,1])}>${lu("arrow-down")}</button><button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать правило")}" ${dis} ${onEv("click",["schOvrDel",`${k}`,i])}>${lu("x")}</button>`}</div>
-      ${o.m==="custom"?`<div class="sch-rows">${schRowHtml(e,i18n("в эти дни"),o.iv,"o:"+i)}</div>`:""}
-      <p class="sub">${g?`${escHtml(grpText(g))} · ${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена: правило не действует.")}${sh?` · <span class="sch-warn">${i18n("Никогда не сработает")}: ${i18n("правило")} №${sh} ${i18n("выше покрывает те же даты")}</span>`:""}</p></div>`;
+    return`<div class="sch-ovr"><div class="rl-row">
+      <div class="rl-f sch-og"><b>${g?escHtml(g.name):i18n("удалённая группа")}</b><span class="sub">${g?`${i18n("ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}`:i18n("Группа удалена: выбор для неё не действует.")}</span></div>
+      <div class="rl-f">${sel(mopts,o?o.m:"",`schOvrPick('${k}','${gid}',this.value)`,"Что делать в эти дни")}</div>
+      ${o&&o.m==="same"?`<div class="rl-f sch-f-s">${sel(RULE_DAYS.map((d,j)=>[j+1,d]),o.dow||1,`schOvrSet('${k}',${i},'dow',this.value)`,"Какой день недели")}</div>`:""}
+      ${o&&!ro?`<button type="button" class="btn s btn-icon" ${i?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["schOvrMove",`${k}`,i,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" ${i<s.ovr.length-1?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["schOvrMove",`${k}`,i,1])}>${lu("arrow-down")}</button>`:""}
+      ${g?`<button type="button" class="lk lk-act sch-og-l" ${onEv("click",["schGoGroup",`${k}`,`${gid}`])}>${i18n("Даты")}…</button>`:""}</div>
+      ${o&&o.m==="custom"?`<div class="sch-rows">${schRowHtml(e,i18n("в эти дни"),o.iv,"o:"+i)}</div>`:""}
+      ${sh?`<p class="sub"><span class="sch-warn">${i18n("Никогда не сработает")}: ${i18n("группа")} «${escHtml(grpName(s.ovr[sh-1].g))}» ${i18n("выше покрывает те же даты")}</span></p>`:""}</div>`;
   }).join("");
-  return card("Особые дни",`<p class="sub">${i18n("Праздники, предпраздничные и санитарные дни — группы дат, общие для всех расписаний. Правила проверяются сверху вниз: в дату действует первое подошедшее.")}</p>
-    ${rows||`<p class="sub">${i18n("Особых дней нет — образец действует каждый день.")}</p>`}
-    <div class="rl-foot">${ro?"":`<button type="button" class="btn s" ${onEv("click",["schOvrAdd",`${k}`])}>${lu("plus")}${i18n("Особые дни")}</button>`}<button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>${i18n("Группы дат")}…</button></div>`);
+  return card("В особые дни",`<p class="sub">${i18n("Особые дни — праздники, предпраздничные и санитарные — общие для всех расписаний: даты заданы в")} <button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>«${i18n("Особые дни")}»</button>. ${i18n("Здесь — что это расписание делает в такие дни.")}</p>
+    ${rows||`<p class="sub">${i18n("Групп особых дней пока нет.")}</p>`}
+    <p class="sub">${i18n("Если дата попадает в две группы, действует верхняя.")}</p>
+    <div class="rl-foot"><button type="button" class="lk lk-act" ${onEv("click",["schGoDays",`${k}`])}>${i18n("Изменить даты и группы")}…</button></div>`);
 }
 function schMiniHtml(iv,col){return`<span class="sch-mini">${iv.map(([a,b])=>`<i style="left:${schPc(a)};width:${schPc(Math.max(b-a,20))}${col?";background:"+col:""}"></i>`).join("")}</span>`}
 function schValidText(s){const v=s.valid||{};return v.from||v.to?`${v.from?`${i18n("с")} ${schDateText(v.from,true)}`:""}${v.to?` ${i18n("по")} ${schDateText(v.to,true)}`:""}`.trim():i18n("без ограничения")}
@@ -17774,8 +17803,8 @@ function schWhyLines(s,d){
   if(o.src==="out")L.push(`${i18n("Вне срока действия")} (${escHtml(schValidText(s))}) — ${i18n("интервалов нет")}.`);
   else if(o.src==="ovr"){
     const x=s.ovr[o.n];
-    L.push(`${i18n("Особый день")}: ${i18n("правило")} №${o.n+1} «${escHtml(grpName(x.g))}» — ${escHtml(schOvrText(x))}.`);
-    if(o.also.length)L.push(`${i18n("Правила")} ${o.also.map(n=>"№"+(n+1)).join(", ")} ${i18n("тоже подходят к этой дате, но стоят ниже и не действуют")}.`);
+    L.push(`${i18n("Особый день")} «${escHtml(grpName(x.g))}» — ${escHtml(schOvrText(x))}.`);
+    if(o.also.length)L.push(`${i18n(o.also.length>1?"Группы":"Группа")} ${o.also.map(n=>"«"+escHtml(grpName(s.ovr[n].g))+"»").join(", ")} ${i18n(o.also.length>1?"тоже подходят к этой дате, но стоят ниже и не действуют":"тоже подходит к этой дате, но стоит ниже и не действует")}.`);
   }
   else if(s.kind==="week")L.push(`${i18n("Обычный день")}, ${i18n(SCH_DAY_FULL[dw])}: ${escHtml(schListText(s.week[dw]))}.`);
   else if(s.kind==="cycle"){const k=schCycleDay(s,d);L.push(`${i18n("День")} ${k+1} ${i18n("из")} ${s.cycle.len} ${i18n("цикла")} (${i18n("день 1 —")} ${schDateText(s.cycle.start,true)}): ${escHtml(schListText(s.cycle.days[k]))}.`)}
@@ -18037,7 +18066,7 @@ function schDlgCancel(then){
   close();
 }
 function schDlgToLib(){const id=schDlg&&schDlg.id;if(id)schDlgCancel(()=>ruleOpen("sch:"+id,true))}
-// ── Особые дни: общие группы дат ──
+// ── Особые дни: общие группы особых дней ──
 // Правка группы — сразу, с «Отменить»: группа общая, её даты меняют все расписания, где она выбрана.
 let schDaysCal=null;
 function grpEdit(id,what,fn){
@@ -18046,7 +18075,7 @@ function grpEdit(id,what,fn){
   const prev=ruleClone(g),c=ruleClone(g);fn(c);
   API.put(`/day-groups/${id}`,grpBody(c),autoVer.get(id)).then(x=>{
     grpSet(x);modeCurLoad().catch(()=>{});ruleIdxDrop();paint();
-    toastAction("grp:"+id+":"+(++ruleUndoSeq),`${i18n("Группа")} «${x.name}»: ${i18n(what)}`,i18n("Отменить"),()=>{
+    toastAction("grp:"+id+":"+(++ruleUndoSeq),`${i18n("Группа особых дней")} «${x.name}»: ${i18n(what)}`,i18n("Отменить"),()=>{
       API.put(`/day-groups/${id}`,grpBody(prev),autoVer.get(id)).then(y=>{grpSet(y);modeCurLoad().catch(()=>{});paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
     },10000);
   }).catch(e=>{toast(problemText(e));paint()});
@@ -18056,11 +18085,11 @@ function grpRuleSet(id,i,f,v){grpEdit(id,"изменены даты",g=>{const r
 function grpRuleAdd(id,t){grpEdit(id,"добавлено правило",g=>{g.rules.push(t==="ord"?{t:"ord",nth:2,dow:7,month:5}:{t:"range",from:schIso(schToday()),to:"",yearly:false})})}
 function grpRuleDel(id,i){grpEdit(id,"убрано правило",g=>{g.rules.splice(i,1)})}
 function grpAdd(){
-  const g={name:i18n("Новая группа"),rules:[{t:"range",from:schIso(schToday()),to:"",yearly:false}]};
+  const g={name:i18n("Новая группа особых дней"),rules:[{t:"range",from:schIso(schToday()),to:"",yearly:false}]};
   API.post("/day-groups",grpBody(g)).then(x=>{
     const n=grpSet(x);paint();
     const el=document.querySelector(`input[data-gn="${n.id}"]`);if(el){el.scrollIntoView({block:"center"});el.focus();el.select()}
-    toastAction("grp:"+n.id+":"+(++ruleUndoSeq),`${i18n("Группа")} «${n.name}»: ${i18n("добавлена")}`,i18n("Отменить"),()=>{
+    toastAction("grp:"+n.id+":"+(++ruleUndoSeq),`${i18n("Группа особых дней")} «${n.name}»: ${i18n("добавлена")}`,i18n("Отменить"),()=>{
       API.del(`/day-groups/${n.id}`,autoVer.get(n.id)).then(()=>{const i=DAY_GROUPS.findIndex(y=>y.id===n.id);if(i>=0)DAY_GROUPS.splice(i,1);paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
     },10000);
   }).catch(e=>toast(problemText(e)));
@@ -18068,8 +18097,8 @@ function grpAdd(){
 function grpDelAsk(id){
   const g=grpById(id);if(!g||g._pend)return;
   const u=grpUses(id);
-  askConfirm("Удалить группу дат?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(g.name)}» — ${escHtml(grpText(g))}</li></ul>
-    ${u.length?`<p>${i18n("Из расписаний пропадут правила особых дней")}:</p><ul class="bk-del">${u.map(x=>`<li>«${escHtml(x.s.name)}» — ${x.n.map(n=>`${i18n("правило")} №${n+1} (${escHtml(schOvrText(x.s.ovr[n]))})`).join(", ")}</li>`).join("")}</ul>`:`<p>${i18n("Группа ни в одном расписании не используется.")}</p>`}
+  askConfirm("Удалить группу особых дней?",`<p>${i18n("Пропадёт")}:</p><ul class="bk-del"><li>«${escHtml(g.name)}» — ${escHtml(grpText(g))}</li></ul>
+    ${u.length?`<p>${i18n("Из расписаний пропадёт выбор для этой группы в блоке «В особые дни»")}:</p><ul class="bk-del">${u.map(x=>`<li>«${escHtml(x.s.name)}» — ${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")}</li>`).join("")}</ul>`:`<p>${i18n("Группа особых дней ни в одном расписании не используется.")}</p>`}
     <p>${i18n("Останется")}: ${i18n("сами расписания — в эти даты будут действовать их обычные интервалы.")}</p>`,"",i18n("Удалить"),()=>grpDelRun(id),{html:true,typeCount:1});
 }
 function grpDelRun(id){
@@ -18081,7 +18110,7 @@ function grpDelRun(id){
     API.del(`/day-groups/${id}`,autoVer.get(id)).then(async()=>{
       const j=DAY_GROUPS.findIndex(x=>x.id===id);if(j>=0)DAY_GROUPS.splice(j,1);
       [schEd,schDlg].forEach(e=>{if(e){e.d.ovr=e.d.ovr.filter(o=>o.g!==id);const b=e.base&&JSON.parse(e.base);if(b){b.ovr=b.ovr.filter(o=>o.g!==id);e.base=JSON.stringify(b)}}});
-      autoDirty.add("schedule");await autoFlush();modeCurLoad().catch(()=>{});toast("Группа удалена");
+      autoDirty.add("schedule");await autoFlush();modeCurLoad().catch(()=>{});toast("Группа особых дней удалена");
     }).catch(e=>{const x=grpById(id);AUTO_PEND.delete(id);if(x)delete x._pend;toast(problemText(e));paint()})},10000);
   toastAction(key,`«${g.name}» — ${i18n("удаление через")}`,i18n("Отменить"),()=>{clearTimeout(timer);const x=grpById(id);AUTO_PEND.delete(id);if(x)delete x._pend;paint();toast("Удаление отменено")},10000);
 }
@@ -18102,16 +18131,16 @@ function schDaysUI(){
   const groups=DAY_GROUPS.filter(g=>!g._gone);
   const cards=groups.map(g=>{
     const u=grpUses(g.id),dis=g._pend?"disabled":"",next=grpNext(g,5);
-    return`<div class="card sch-grp ${g._pend?"pending":""}"><div class="ch sch-gh"><input type="text" data-gn="${g.id}" value="${escHtml(g.name)}" ${dis} aria-label="${i18n("Название группы")}" ${onEv("change",["grpRename",`${g.id}`,onEv.value])}>
+    return`<div class="card sch-grp ${g._pend?"pending":""}" id="grp-${escHtml(g.id)}"><div class="ch sch-gh"><input type="text" data-gn="${g.id}" value="${escHtml(g.name)}" ${dis} aria-label="${i18n("Название группы особых дней")}" ${onEv("change",["grpRename",`${g.id}`,onEv.value])}>
         <button type="button" class="btn s" ${dis} ${onEv("click",["grpDelAsk",`${g.id}`])}>${i18n("Удалить")}…</button></div>
       <div class="cb">${g.rules.map((r,i)=>grpRuleHtml(g,r,i,dis)).join("")||`<p class="sub">${i18n("Дат нет: группа ни на что не действует.")}</p>`}
         ${g._pend?"":`<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpRuleAdd",`${g.id}`,"range"])}>${lu("plus")}${i18n("Дата или период")}</button><button type="button" class="btn s" ${onEv("click",["grpRuleAdd",`${g.id}`,"ord"])}>${lu("plus")}${i18n("«Второе воскресенье мая»")}</button></div>`}
         <p class="sub">${i18n("Ближайшие")}: ${next.map(schDateShort).join(", ")||"—"}</p>
         <p class="sub">${u.length?`${i18n("Используется в расписаниях")}: ${u.map(x=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`sch:${x.s.id}`,true])}>${escHtml(x.s.name)}</button> (${x.n.map(n=>escHtml(schOvrText(x.s.ovr[n]))).join(", ")})`).join(", ")}`:i18n("Не используется ни в одном расписании.")}${g._pend?` · ${i18n("удаляется")}`:""}</p></div></div>`;
   }).join("");
-  paintMain(mainHd(schCrumb(),i18n("Особые дни"),"Группы дат — праздники, предпраздничные, санитарные дни. Общие для всех расписаний: даты правят один раз, и каждое расписание с этой группой следует за ними")+
-    `<div class="sc">${cards}<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpAdd"])}>${lu("plus")}${i18n("Группа дат")}</button></div>
-      <p class="sub">${i18n("Правка группы применяется сразу, отменить можно в уведомлении внизу. Что делать в эти дни, говорит каждое расписание само — в карточке «Особые дни».")}</p></div>`);
+  paintMain(mainHd(schCrumb(),i18n("Особые дни"),"Праздники, предпраздничные и санитарные дни — общие для всех расписаний. Даты правят здесь один раз; что делать в такие дни, каждое расписание решает само — в блоке «В особые дни»")+
+    `<div class="sc">${cards}<div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["grpAdd"])}>${lu("plus")}${i18n("Группа особых дней")}</button></div>
+      <p class="sub">${i18n("Правка группы применяется сразу, отменить можно в уведомлении внизу. Что делать в такие дни, говорит каждое расписание само — в блоке «В особые дни».")}</p></div>`);
 }
 // ── Страница «Режимы объекта» ──
 let modeCal=null;
@@ -18327,13 +18356,16 @@ function ruleHistFromNote(r,fv){
   const e=fv&&(ruleHist[r.id]||[]).find(x=>x.v===fv);if(!e)return"";
   return`${i18n("Возврат к версии")} ${fv}${ruleDiffOf(e.snap,ruleCurSnap(r)).length?`, ${i18n("с дополнительными правками")}`:""}`;
 }
+// Вкладки карточки правила: настройка, журнал запусков, паспорт и история версий
+const RULE_TABS=[["cfg","Настройка"],["runs","Запуски"],["pass","Паспорт"],["hist","История"]];
 function ruleTabsHtml(r){
-  return[["cfg","Настройка"],["hist","История"]].map(([id,x])=>`<button type="button" role="tab" aria-selected="${ruleTab===id}" tabindex="${ruleTab===id?0:-1}" data-fk="tab:${id}" class="tab ${ruleTab===id?"on":""}" ${onEv("keydown",["ruleTabKey",onEv.event])} ${onEv("click",["ruleTabSet",`${id}`])}>${i18n(x)}${id==="hist"?` <span class="acc-tabcnt">${(ruleHist[r.id]||[]).length}</span>`:""}</button>`).join("");
+  return RULE_TABS.map(([id,x])=>`<button type="button" role="tab" aria-selected="${ruleTab===id}" tabindex="${ruleTab===id?0:-1}" data-fk="tab:${id}" class="tab ${ruleTab===id?"on":""}" ${onEv("keydown",["ruleTabKey",onEv.event])} ${onEv("click",["ruleTabSet",`${id}`])}>${i18n(x)}${id==="hist"||id==="runs"?` <span class="acc-tabcnt">${((id==="hist"?ruleHist:ruleFires)[r.id]||[]).length}</span>`:""}</button>`).join("");
 }
 function ruleTabSet(t){ruleTab=t;paint();document.querySelector(".hd .tabs .tab.on")?.focus({preventScroll:true})}
 function ruleTabKey(e){
   const d=e.key==="ArrowRight"?1:e.key==="ArrowLeft"?-1:0;if(!d)return;
-  e.preventDefault();ruleTabSet(ruleTab==="cfg"?"hist":"cfg");
+  e.preventDefault();const ids=RULE_TABS.map(x=>x[0]),i=ids.indexOf(ruleTab);
+  ruleTabSet(ids[(i+d+ids.length)%ids.length]);
 }
 function ruleHistCard(r){
   const h=ruleHist[r.id]||[];
@@ -18397,34 +18429,21 @@ function ruleGoRole(rid,k){
 }
 
 // ── Обзор ──
-// Что выполняется, что запускается чаще всего, где отказы и что сейчас не работает. Данные — из журнала запусков
-// (ruleFires) и состояния правил; «Сейчас» — детерминированное демо: движка исполнения в макете нет.
-function ruleOvLive(r){return!!r&&r.on&&!r.watch&&!ruleMuteNow(r)&&!rulePendingIds().has(r.id)&&!ruleIssues(r).length}
+// Что запускается чаще всего, где отказы и что сейчас не работает. Данные — из журнала запусков
+// (ruleFires) и состояния правил.
 // Переменные для рантайм-мест («Сейчас», «Запустить сейчас», пробный запуск): значения последнего настоящего запуска.
 // Проверка без слова «Условие»: ««Режим объекта»: Ночь».
 function ruleCondTail(c){const pre=i18n("Условие");return c.label.startsWith(pre)?c.label.slice(pre.length).replace(/^:?\s*/,""):c.label}
 function ruleRtVars(r){return ruleVarsOf(r,ruleRealFires(r.id)[0]||null)}
 // Обзор: что выполняется сейчас — первое работающее правило с каждым долгим шагом (ждёт событие, эскалация,
 // вопрос оператору). Демо-нагрузка: в API её нет, считается по правилам
-function ruleLoadNow(){
-  const run=[],queue=[];
-  ["waitev","escalate","ask"].forEach(k=>{
-    const r=rules.find(x=>ruleItems(x).some(y=>y.it.ctl===k));if(!ruleOvLive(r))return;
-    const x=ruleItems(r).find(y=>y.it.ctl===k);if(!x)return;
-    const what=k==="escalate"?`${i18n("эскалация, уровень")} 2 ${i18n("из")} ${x.it.levels.length}`:ctlKind(x.it).text(x.it,ruleRtVars(r));
-    run.push({r,step:`${ruleStepPathText(x.path,r,r)}: ${what}`});
-  });
-  rules.filter(r=>r.repeat==="queue"&&run.some(x=>x.r===r)).forEach(r=>queue.push({r,why:i18n("второй запуск ждёт окончания текущего")}));
-  return{run,queue};
-}
 function ruleRateSkips(r){return ruleRealFires(r.id).filter(f=>f.checks.some(c=>!c.ok&&c.label.includes(i18n("Лимит в минуту")))).length}
 function ruleFailFires(r){return ruleRealFires(r.id).filter(f=>ruleFireIn(f,"fail")).length}
 function ruleLk(r){return`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`}
-// Правило с фильтром трассы «С отказами»: открывается карточка, прокрученная к журналу запусков.
+// Правило с фильтром трассы «С отказами»: открывается карточка на вкладке «Запуски».
 function ruleOvFails(id){
-  ruleTraceFilt="fail";ruleTraceKeep=true;resetPage("fires:"+id);listQ["fires:"+id]="";ruleTab="cfg";
+  ruleTraceFilt="fail";ruleTraceKeep=true;resetPage("fires:"+id);listQ["fires:"+id]="";ruleTab="runs";
   ruleOpen(id,true);ruleTraceKeep=false;
-  setTimeout(()=>[...document.querySelectorAll("#main .card .ch")].find(e=>e.textContent.includes(i18n("Последние запуски")))?.scrollIntoView({block:"start"}),90);
 }
 // Фильтр дерева: остаёмся на «Обзоре», место прихода — активный чип фильтра.
 function ruleOvFilt(k){
@@ -18432,12 +18451,7 @@ function ruleOvFilt(k){
   setTimeout(()=>{const el=document.querySelector("#aside .rl-chips .stchip.on");if(el)accFlash(()=>[el],true)},40);
 }
 function ruleOverviewUI(){
-  const ld=ruleLoadNow(),live=rules.filter(r=>!rulePendingIds().has(r.id));
-  const row=(r,t)=>`<li>${ruleLk(r)} <span class="sub">· ${escHtml(t)}</span></li>`;
-  const now=card("Сейчас",`<p class="rl-ovn">${i18n("Идёт выполнение")}: <b>${ld.run.length}</b> · ${i18n("в очереди")}: <b>${ld.queue.length}</b></p>
-    ${ld.run.length?`<div class="rl-th">${i18n("Выполняются")}</div><ul class="rl-ovl">${ld.run.map(x=>row(x.r,x.step)).join("")}</ul>`:""}
-    ${ld.queue.length?`<div class="rl-th">${i18n("В очереди")}</div><ul class="rl-ovl">${ld.queue.map(x=>row(x.r,x.why)).join("")}</ul>`:""}
-    <p class="sub">${i18n("В очередь встают запуски правил с режимом «выполнить после текущего запуска».")}</p>`);
+  const live=rules.filter(r=>!rulePendingIds().has(r.id));
   const top=live.map(r=>({r,n:ruleRealFires(r.id).length,skip:ruleRateSkips(r)})).filter(x=>x.n).sort((a,b)=>b.n-a.n||a.r.name.localeCompare(b.r.name)).slice(0,5);
   const freq=card("Самые частые за сутки",top.length?`<table><tr><th>${i18n("Правило")}</th><th>${i18n("Запусков")}</th><th>${i18n("Пропущено по лимиту")}</th><th>${i18n("Лимит")}</th></tr>${top.map(x=>`<tr><td>${ruleLk(x.r)}</td><td class="bk-num">${x.n}</td><td class="bk-num">${x.skip||"—"}</td><td class="bk-num">${x.r.rate} ${i18n("в минуту")}</td></tr>`).join("")}</table>
     <p class="sub">${i18n("Самые частые правила — кандидаты на лимит: проверьте, что лимит подходит и пропуски по лимиту не прячут настоящие события.")}</p>`:`<p class="sub">${i18n("За сутки запусков не было")}</p>`);
@@ -18450,7 +18464,7 @@ function ruleOverviewUI(){
   const idle=card("Не работают сейчас",`<table><tr><th>${i18n("Причина")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th></tr>${off.map(([k,lab,l])=>`<tr><td>${i18n(lab)}</td><td class="bk-num">${l.length&&k!=="maint"&&k!=="mode"?`<button type="button" class="lk" aria-label="${i18n("Показать в дереве")}: ${i18n(lab).toLowerCase()}, ${l.length}" ${onEv("click",["ruleOvFilt",`${k}`])}>${l.length}</button>`:l.length}</td>
       <td>${l.slice(0,3).map(r=>`${ruleLk(r)} <span class="sub">(${escHtml(why[k](r))})</span>`).join(", ")}${l.length>3?` ${i18n("и ещё")} ${l.length-3}`:""}</td></tr>`).join("")}</table>
     <p class="sub">${i18n("Число открывает список таких правил в дереве.")} <button type="button" class="lk" ${onEv("click",["ruleOpen","maint",true])}>${i18n("Окна обслуживания")}</button></p>`);
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Обзор"),"Что выполняется сейчас, какие правила запускаются чаще всего, где отказы и что не работает")+`<div class="sc">${now}${freq}${fails}${idle}</div>`);
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Обзор"),"Какие правила запускаются чаще всего, где отказы и что не работает")+`<div class="sc">${freq}${fails}${idle}</div>`);
 }
 
 // ── Запуск, копия ──
@@ -18472,7 +18486,7 @@ function ruleRunNow(){
     down.length&&!r.watch?`${i18n("Действие не выполнится")}: ${down.join("; ")}`:"","Запустить",()=>{
       ruleFireRun(r).then(rec=>{
         const n=ruleActSteps(rec).length,g=ruleStepGood(rec);
-        ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";
+        ruleTraceOpen.add(ruleTraceKey(r,rec));listQ["fires:"+r.id]="";ruleTraceFilt="all";ruleTab="runs";
         paint();
         if(rec.res==="skip"){const c=rec.checks.find(x=>!x.ok);toast(`${i18n("Запуск пропущен")}: ${c?ruleCondTail(c):""}`);return}
         if(rec.res==="waiting"){toast(`${i18n("Правило запущено и ждёт ответа оператора")}: ${g} ${i18n("из")} ${n}`);return}
@@ -29328,9 +29342,17 @@ function cbxOpen(s,text){
   q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
   q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
   const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
-  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
-  box.append(q,list,foot);document.body.append(box);
-  cbx={sel:s,box,q,list,foot,items:cbxItems(s),shown:[],act:-1,up:null,frame:0};
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;foot.setAttribute("role","status");foot.setAttribute("aria-live","polite");
+  const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
+  // Категории — левой панелью: все группы видны сразу, клик оставляет одну справа (прототип 33)
+  const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","group");chips.setAttribute("aria-label",i18n("Категории: стрелки ← → в пустом поле поиска"));
+  chips.hidden=groups.length<2;
+  const body=document.createElement("div");body.className="cbx-b";body.append(chips,list);
+  box.append(q,body,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,chips,items,groups,cat:"",shown:[],act:-1,up:null,frame:0};
+  box.classList.toggle("pane",!chips.hidden);
+  chips.addEventListener("mousedown",e=>e.preventDefault());
+  chips.addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(b)cbxCat(b.dataset.g)});
   q.value=text||"";
   q.addEventListener("input",cbxPaint);
   q.addEventListener("keydown",cbxKey);
@@ -29347,18 +29369,36 @@ function cbxOpen(s,text){
 function cbxPaint(){
   const c=cbx;if(!c)return;
   const t=c.q.value.trim();
-  c.shown=c.items.filter(x=>matchesText(t,x.l,x.g));
+  const hit=c.items.filter(x=>matchesText(t,x.l,x.g));
+  c.shown=c.cat?hit.filter(x=>x.g===c.cat||x.v===""&&!x.g):hit;
+  if(!c.chips.hidden){
+    const n=g=>hit.filter(x=>x.v!==""&&(!g||x.g===g)).length;
+    c.chips.innerHTML=[["",i18n("Все")],...c.groups.map(g=>[g,g])].map(([g,l])=>{const k=n(g);
+      return`<button type="button" tabindex="-1" class="cbx-cat ${c.cat===g?"on":""} ${k?"":"zero"}" data-g="${escHtml(g)}" aria-pressed="${c.cat===g}">${escHtml(l)}<span>${k}</span></button>`}).join("");
+  }
   let g="",h="";
   c.shown.forEach((x,i)=>{
-    if(x.g&&x.g!==g)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
+    if(x.g&&x.g!==g&&!c.cat)h+=`<div class="cbx-g" role="presentation">${hlText(x.g,t)}</div>`;
     g=x.g;
     h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
   });
-  c.list.innerHTML=h||`<div class="cbx-none">${i18n("Ничего не найдено")}</div>`;
-  c.foot.hidden=!t;
-  c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
+  const other=c.cat&&t&&hit.some(x=>x.v!==""&&x.g!==c.cat);
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n(c.cat?`В «${c.cat}» ничего не найдено`:"Ничего не найдено")}${other?` — ${i18n("есть в других категориях, выберите «Все»")}`:""}</div>`;
+  c.list.scrollTop=0;
+  c.foot.hidden=!t&&!c.cat;
+  c.foot.textContent=t||c.cat?`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`:"";
   const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
   cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+function cbxCat(g){
+  const c=cbx;if(!c)return;
+  c.cat=g||"";cbxPaint();c.q.focus();
+}
+// Стрелки влево и вправо в пустом поле листают категории
+function cbxCatStep(d){
+  const c=cbx;if(!c||c.chips.hidden)return false;
+  const all=["",...c.groups],i=all.indexOf(c.cat);
+  cbxCat(all[(i+d+all.length)%all.length]);return true;
 }
 function cbxActive(i,scroll=true){
   const c=cbx;if(!c)return;
@@ -29381,6 +29421,7 @@ function cbxKey(e){
   e.stopPropagation();
   if(e.key==="ArrowDown"){e.preventDefault();cbxStep(1)}
   else if(e.key==="ArrowUp"){e.preventDefault();cbxStep(-1)}
+  else if((e.key==="ArrowLeft"||e.key==="ArrowRight")&&!c.q.value&&cbxCatStep(e.key==="ArrowRight"?1:-1))e.preventDefault();
   else if(e.key==="PageDown"){e.preventDefault();cbxStep(8)}
   else if(e.key==="PageUp"){e.preventDefault();cbxStep(-8)}
   else if(e.key==="Enter"){e.preventDefault();if(c.act>=0)cbxPick(c.act)}
@@ -29403,12 +29444,14 @@ function cbxClose(){
 // Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
 function cbxPlace(){
   const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
-  const w=Math.min(Math.max(r.width,320),innerWidth-pad*2);
+  const w=Math.min(Math.max(r.width,c.chips.hidden?320:580),innerWidth-pad*2);   // с категориями — две панели, окно шире
   const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
   if(c.up===null)c.up=below<240&&above>below;
   const room=c.up?above:below;
   c.box.style.width=`${w}px`;
   c.box.style.maxHeight=`${Math.max(140,Math.min(380,room))}px`;
+  // С категориями окно не меняет высоту при смене категории
+  c.box.style.height=c.chips.hidden?"":c.box.style.maxHeight;
   c.box.style.left=`${Math.max(pad,Math.min(r.left,innerWidth-w-pad))}px`;
   c.box.style.top=c.up?"":`${r.bottom+gap}px`;
   c.box.style.bottom=c.up?`${innerHeight-r.top+gap}px`:"";
