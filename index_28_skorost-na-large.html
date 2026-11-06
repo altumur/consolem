@@ -142,6 +142,10 @@ aside,main{min-height:0;overflow:hidden}aside{background:var(--one-canvas);borde
 .ph-status-label{max-width:104px;overflow:hidden;text-overflow:ellipsis}
 .ph-cnt{flex:none;min-width:18px;padding:1px 5px;border-radius:99px;background:var(--one-control-bg);color:var(--one-fg-muted);font-size:10px;font-weight:600;line-height:1.4;font-variant-numeric:tabular-nums}
 .ph-choice.on .ph-cnt{background:var(--one-selected-neutral);color:var(--one-fg)}
+/* Число среза: нет числа — нет и места; у оценки («Камеры», «Оборудование») место под «≈оценку» есть всегда — невидимый двойник */
+.ph-cnt:empty:not([data-wide]){display:none}
+.ph-cnt[data-wide]{display:inline-flex;flex-direction:column;align-items:flex-start;text-align:start}
+.ph-cnt[data-wide]::after{content:attr(data-wide);height:0;overflow:hidden;visibility:hidden}
 .ph-chevron{font-size:9px;opacity:.7}
 .domain-switch-label,.domain-menu-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .domain-switch{align-self:center;width:calc(100% + 12px);gap:2px;padding:0 2px;margin-bottom:12px}
@@ -7533,8 +7537,7 @@ function filtChromePaint(){
     const dot=btn.querySelector(".st-dot");if(dot)dot.className=`st-dot st-${(st||"all").split(":")[0]}`;
     const label=btn.querySelector(".ph-status-label");if(label)label.textContent=statusLabel(st);
   }
-  const cnts=[...document.querySelectorAll("#aside [data-slice] .ph-cnt")].map(el=>[el,el.closest("[data-slice]").dataset.slice]);
-  withSliceCounts(cnts.map(x=>x[1]),()=>cnts.forEach(([el,id])=>{el.textContent=sliceCountText(id)}));
+  sliceCntsPaint([...document.querySelectorAll("#aside .ph-choice[data-slice]")]);
   syncGoInput();
   if(tags)tags.innerHTML=tagsHtml();
   if(hint)hint.textContent=filtHint();
@@ -8455,7 +8458,7 @@ async function sliceRead(){
   // Срез дочитан (sliceReads…done) — дерево и счётчики этого итога сразу: через очередь (ожидающая просьба поглощается),
   // но без кадра — кто дождался done, читает уже серые ветки и стрелки по прочитанному. Чтение среза одно на срез
   if(app==="hw"&&document.getElementById("tree")){renderTreeSoon(()=>{
-    document.querySelectorAll(".ph-choice[data-slice]").forEach(b=>{const c=b.querySelector(".ph-cnt");if(c)c.textContent=sliceCountText(b.dataset.slice)});
+    sliceCntsPaint([...document.querySelectorAll(".ph-choice[data-slice]")]);
   });renderTreeFlush()}
 }
 // Строка конца ветки: читается или есть продолжение
@@ -8950,7 +8953,7 @@ function pickStatus(id){
 let sliceCountMemo=null;
 function sliceCountsAll(ids){
   const q=qval(),prev=slice,out=new Map(ids.map(id=>[id,0]));
-  const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):inSlice(x)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
+  const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
   try{
     walkAll((n,p)=>{if(matchesDomain(n))visit(n,p,ids)});
     if(out.has("arch"))arch.forEach(a=>{const p=archOwner(a);if(matchesDomain(a))visit(a,p,["arch"])});
@@ -8965,17 +8968,71 @@ function withSliceCounts(ids,fn){
 function sliceCount(id){
   if(sliceCountMemo?.has(id))return sliceCountMemo.get(id);
   const prev=slice,q=qval();slice=id;let n=0;
-  try{walkSliceObjects((x,p)=>{if(id==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))n++})}finally{slice=prev}
+  try{walkSliceObjects((x,p)=>{if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&matchesSearch(x,q))n++})}finally{slice=prev}
   return n;
 }
-// Без фильтра — оценка сервера со знаком «≈», иначе считается загруженное
-function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
+// Сервер в «Камерах» и «Хранилищах» — строка-место, как папка: в дереве он есть (inSlice), в число среза не входит
+function sliceCounts(x,id){return inSlice(x)&&!(x.type==="server"&&(id==="cam"||id==="arch"))}
+// Срез прочитан целиком, без фильтров: число на кнопке — полное, а не прочитанное. «Камеры» и «ОПС/СКД» — чтение среза
+// (sliceRead) дошло до конца в любой раскладке; «Детекторы» — оно или перечень детекторов (detLoad); «Хранилища» —
+// перечни хранилищ (на старте или по доменам) и томов. Службы «Серверов» до конца не читает никто (сами серверы
+// прочитаны на старте, но в число среза не входят), «Оборудование» — камеры и службы: оба всегда со знаком «+» или «≈»
+function sliceReadDone(id){for(const[k,r]of sliceReads)if(r.done&&k.startsWith(id+"|"))return true;return false}
+function sliceAllRead(id){
+  if(id==="cam"||id==="acfa")return sliceReadDone(id);
+  if(id==="det")return detAll||sliceReadDone("det");
+  if(id==="arch")return(hwDone.archives||domains.every(d=>archDomDoneSet.has(d.id)))&&(hwDone.volumes||arch.every(a=>volsDone.has(a.id)));
+  return false;
+}
+// С поиском: волна поиска среза (fs) дошла до конца — найденное всё в кэше. Сервер ищет по видам среза, «Оборудование» —
+// по всем устройствам, так что его конец закрывает и «Камеры», «ОПС/СКД» и службы. Чипы и статус сужают сам поиск: с ними
+// найденное — не всё, что совпало с текстом, а кнопки считают по тексту
+function sliceFoundAll(id){
+  return!!fs&&!fs.pick&&fs.done&&!fs.failed&&!typeFilts.size&&!statusFilts.size&&(id===slice||slice==="all"&&["cam","acfa","srv"].includes(id));
+}
+const sliceNum=n=>Number(n).toLocaleString("ru-RU");
+// Из фильтров действует только домен: оценка сервера есть и для него — итог домена
+function sliceDomOnly(){return!!domainFilter&&!typeFilts.size&&!searchFields.size&&!statusFilts.size&&!treeQ.trim()&&!asstPick}
+// Оценка сервера для «Камер» и «Оборудования»: итог доменов (stateSummary.total — включённые камеры), у «Оборудования»
+// с серверами — они прочитаны на старте целиком. Снизу: выключенные камеры, датчики, каналы и службы в неё не входят
+function sliceEstimate(id){
+  if(id!=="cam"&&id!=="all"||hwTotal==null)return null;
+  const cams=domainFilter?domains.find(d=>d.id===domainFilter)?.summary?.total:hwTotal;
+  if(cams==null)return null;
+  return cams+(id==="all"?(domainFilter?servers.filter(matchesDomain).length:servers.length):0);
+}
+// Число на кнопке среза и откуда оно (подсказка):
+// - не дочитано, без фильтра (или только домен), есть оценка больше прочитанного — «≈оценка»;
+// - не дочитано и прочитано (найдено) 0 — числа нет: «0+» читается как «ноль с чем-то» и ничего не сообщает;
+// - не дочитано — прочитанное (найденное) со знаком «+»;
+// - дочитано (найдено до конца) — число.
+// wide — оценка: место под неё у кнопки есть всегда (невидимый двойник), кнопка не прыгает, когда поиск сняли
+function sliceCountInfo(id){
+  const n=sliceCount(id),dom=sliceDomOnly(),f=hasActiveFilters()&&!dom,full=sliceAllRead(id)||f&&sliceFoundAll(id),N=sliceNum(n);
+  const est=sliceEstimate(id),wide=est==null?"":`≈${sliceNum(est)}`;
+  if(!f&&!full&&est>n)return{text:wide,wide,title:`${i18n(id==="cam"?"Оценка снизу — включённые камеры":"Оценка снизу — включённые камеры и серверы, без хранилищ и томов")}: ${sliceNum(est)}. ${i18n("Прочитано пока")}: ${N}`};
+  if(!full&&!n)return{text:"",wide,title:i18n(f?"Пока не найдено — прочитано не всё":id==="srv"?"Службы серверов ещё не прочитаны":"Ещё не прочитано")};
+  if(!full)return{text:`${N}+`,wide,title:`${i18n(f?"Найдено пока":"Прочитано пока")}: ${N} — ${i18n("может быть больше")}`};
+  // «Прочитано до конца», а не «всего»: чтение среза идёт по видам его экранов, в срез по месту в дереве попадает чуть больше
+  return{text:N,wide,title:`${i18n(f?"Найдено до конца":"Прочитано до конца")}: ${N}`};
+}
+function sliceCountText(id){return sliceCountInfo(id).text}
+// Двойник оценки — data-wide (CSS ::after той же ширины, невидимый): ширина числа — большее из двух, без замеров
+function sliceCntAttr(k){return k.wide?` data-wide="${escHtml(k.wide)}"`:""}
+function sliceCntPaint(btn){
+  const c=btn.querySelector(".ph-cnt");if(!c)return;
+  const k=sliceCountInfo(btn.dataset.slice);
+  if(c.textContent!==k.text)c.textContent=k.text;
+  if(k.wide){if(c.dataset.wide!==k.wide)c.dataset.wide=k.wide}else if(c.hasAttribute("data-wide"))c.removeAttribute("data-wide");
+  if(btn.title!==k.title)btn.title=k.title;
+}
+function sliceCntsPaint(btns){withSliceCounts(btns.map(b=>b.dataset.slice),()=>btns.forEach(sliceCntPaint))}
 function panelHeadHtml(){return withSliceCounts(Object.keys(SLICE),panelHeadHtmlRun)}
 function panelHeadHtmlRun(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
   // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
   const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
-  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt">${sliceCountText(id)}</span></button>`;
+  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
   return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
     ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
   </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
@@ -12494,7 +12551,8 @@ function camDetectorsHtml(n){
 // Строка перечня (DeviceRow) не называет вид, зону и модель камеры, поэтому список читает полные записи
 // детекторов и их камер; на большом домене это много запросов (нужен запрос к API).
 const dl={f:{},more:new Set(),sort:"",dir:1,kind:null};
-let detLoadState=0;
+// detAll — перечень детекторов дочитан до конца (не упёрся в selectMax): число на кнопке «Детекторы» полное
+let detLoadState=0,detAll=false;
 async function detLoad(){
   if(detLoadState)return;
   detLoadState=1;
@@ -12505,7 +12563,7 @@ async function detLoad(){
     await hwEnsure(rows.map(r=>r.parentId));
     rows.forEach(hwAddRow);
     await hwFullAll([...new Set(rows.map(r=>r.parentId).filter(Boolean)),...rows.map(r=>r.uid)]);
-    detLoadState=2;
+    detAll=!cursor;detLoadState=2;
   }catch(e){detLoadState=0;toast(problemText(e));return}
   treeMatchCache.clear();searchMatchCache.clear();
   if(app==="hw"){aside();gear()}
@@ -12633,7 +12691,7 @@ function detListHtml(){
   const said=DL_DIMS.filter(([d])=>f[d]).map(([d,,,lab])=>lab?lab(f[d]):f[d]).join(" · ");
   const sorted=detSorted(found),body=sorted.map(detRowHtml).join(""),rowIds=sorted.map(x=>x.d.id),chkHead=tsHead("dets",rowIds,rowIds);
   requestAnimationFrame(()=>{
-    const c=document.querySelector('[data-slice="det"] .ph-cnt');if(c)c.textContent=sliceCountText("det");
+    const b=document.querySelector('.ph-choice[data-slice="det"]');if(b)sliceCntPaint(b);
   });
   return head+`<div class="sc"><div class="dl-tools">${listSearchHtml("dets","Имя, вид, камера или модель…","list")}</div>
     <div class="bk-sum bk-scope"><div class="bk-scope-h"><span class="bk-scope-l">${i18n("Показать")}</span><button type="button" data-fk="all" class="stchip ${on?"":"on"}" ${onEv("click",["detFacetClear"])}><span class="stchip-lab">${i18n("все")}</span><span class="stchip-cnt">${scope.length}</span></button>${facets?`<span class="sub bk-scope-or" data-fk="or">${i18n("или уточните")}:</span>`:""}</div>${facets}${on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Показано")} <b>${found.length} ${i18n("из")} ${scope.length}</b>: ${escHtml(said)}</div>`:""}</div>
