@@ -29082,7 +29082,7 @@ function cbxOpen(s,text){
   q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
   q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
   const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
-  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;foot.setAttribute("role","status");foot.setAttribute("aria-live","polite");
   const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
   // Категории — чипами под полем поиска: все группы видны сразу, клик оставляет одну (прототип 32)
   const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","toolbar");chips.setAttribute("aria-label",i18n("Категории"));
