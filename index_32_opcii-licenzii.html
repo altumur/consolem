@@ -1732,7 +1732,7 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .cl-dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:0 0 12px;font-size:13px}.cl-dl dt{color:var(--mu)}.cl-dl dd{margin:0}
 .cl-acts{display:flex;gap:8px;flex-wrap:wrap}.cl-ext{display:inline-flex;align-items:center;gap:6px}
 .cl-steps{margin:0 0 12px;padding-left:20px;display:grid;gap:10px}.cl-steps li{line-height:1.5}.cl-steps li>.btn{margin-left:6px;vertical-align:middle}
-.cl-f{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}.cl-f>span{min-width:150px;color:var(--mu);font-size:12px}.cl-tok{display:inline-flex;margin:0 8px 0 0}.cl-f select{width:auto;min-width:200px;field-sizing:content}.cl-tok-in{width:200px;font-family:var(--mono,monospace)}
+.cl-f{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}.cl-f>span{min-width:150px;color:var(--mu);font-size:12px}.cl-tok{display:inline-flex;margin:0 8px 0 0}.cl-url{margin:6px 0 2px}.cl-url-in{min-width:240px}.cl-bad{border-color:var(--one-danger-text)!important}.cl-url-err{color:var(--one-danger-text);font-size:12px;margin:2px 0 0}.cl-f select{width:auto;min-width:200px;field-sizing:content}.cl-tok-in{width:200px;font-family:var(--mono,monospace)}
 .cl-adv summary{cursor:pointer;color:var(--x-link);font-size:13px}.cl-adv[open] summary{margin-bottom:6px}.cl-hint{margin:2px 0 0}
 .cl-err{display:flex;gap:6px;align-items:flex-start}
 .cl-wait{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:13px}.cl-bar{width:80px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--one-selected-neutral) 0 30%,var(--one-accent) 30% 60%,var(--one-selected-neutral) 60%);background-size:200% 100%;animation:clbar 1s linear infinite}
@@ -22886,17 +22886,20 @@ function cloudForm(d,c){
   const pxRows=px?`<label class="cl-f"><span>${i18n("Адрес прокси")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.pxAddr)}" placeholder="10.0.0.5:3128" ${dis} ${onEv("change",["cloudSet",d.id,"pxAddr",onEv.value])}></label>
     <label class="cl-f"><span>${i18n("Пользователь прокси")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.pxUser)}" ${dis} ${onEv("change",["cloudSet",d.id,"pxUser",onEv.value])}></label>
     <label class="cl-f"><span>${i18n("Пароль прокси")}</span><input type="password" class="op-in op-txt" value="${escHtml(c.pxPwd)}" ${dis} ${onEv("change",["cloudSet",d.id,"pxPwd",onEv.value])}></label>`:"";
-  const adv=px||c.url!==CLOUD_URL;
+  const own=c.url!==CLOUD_URL,bad=!!c.urlErr;
   return`<ol class="cl-steps">
-    <li><span>${i18n("Откройте AxxonNet и войдите в свою учётную запись.")}</span> <button type="button" class="btn s cl-ext" ${onEv("click",["cloudSite",d.id])}>${lu("external-link",14)}${escHtml(c.url.replace(/^https?:\/\//,""))}</button></li>
+    <li><span>${i18n("Откройте сайт облака и войдите в свою учётную запись.")}</span>
+      <div class="cl-f cl-url"><span>${i18n("Адрес облака")}</span><input type="text" class="op-in op-txt cl-url-in ${bad?"cl-bad":""}" data-cl-url="${did}" value="${escHtml(c.urlErr?c.urlDraft:c.url)}" placeholder="${CLOUD_URL}" aria-label="${i18n("Адрес облака")}" aria-invalid="${bad}" autocomplete="off" spellcheck="false" ${dis} ${onEv("change",["cloudUrl",d.id,onEv.value])} ${onEv("keydown",["cloudUrlKey",d.id,onEv.event])}>
+        <button type="button" class="btn s cl-ext" ${bad||wait?"disabled":""} ${onEv("click",["cloudSite",d.id])}>${lu("external-link",14)}${i18n("Открыть")}</button>
+        ${own&&!bad?`<button type="button" class="lk lk-act" ${dis} ${onEv("click",["cloudUrl",d.id,""])}>${i18n("Вернуть")} ${CLOUD_URL.replace(/^https:\/\//,"")}</button>`:""}</div>
+      ${bad?`<p class="cl-url-err" role="alert">${escHtml(c.urlErr)}</p>`:`<p class="sub cl-hint">${i18n(own?"Своё облако: токен берите на этом сайте, к нему же подключится сервер.":"Облако AxxonSoft. Своё облако — впишите его адрес.")}</p>`}</li>
     <li>${i18n("На вкладке «Домены» нажмите «+», затем «Привязать». Сайт покажет токен.")}</li>
     <li><label class="cl-f cl-tok"><span>${i18n("Вставьте токен")}</span><input type="text" class="op-in cl-tok-in" data-cl-tok="${did}" value="${escHtml(c.token)}" placeholder="${i18n("например")} is8gzpz4sQ" autocomplete="off" spellcheck="false" ${dis} ${onEv("input",["cloudTok",d.id,onEv.value])} ${onEv("keydown",["cloudTokKey",d.id,onEv.event])}></label>
-      <button type="button" class="btn s pri" data-cl-go="${did}" ${wait||!c.token.trim()?"disabled":""} ${onEv("click",["cloudConnect",d.id])}>${i18n("Подключить домен")}</button></li></ol>
-    <details class="cl-adv" ${adv?"open":""}><summary>${i18n("Прокси и адрес облака")}${adv?"":` · <span class="sub">${cloudProxyText(c)}</span>`}</summary>
+      <button type="button" class="btn s pri" data-cl-go="${did}" ${wait||bad||!c.token.trim()?"disabled":""} ${onEv("click",["cloudConnect",d.id])}>${i18n("Подключить домен")}</button></li></ol>
+    <details class="cl-adv" ${px?"open":""}><summary>${i18n("Прокси")}${px?"":` · <span class="sub">${cloudProxyText(c)}</span>`}</summary>
       <label class="cl-f"><span>${i18n("Прокси")}</span><select ${dis} ${onEv("change",["cloudSet",d.id,"proxy",onEv.value])}>${[["none","Без прокси"],["http","HTTP"],["https","HTTPS"],["socks5","SOCKS5"]].map(([k,t])=>`<option value="${k}" ${k===c.proxy?"selected":""}>${i18n(t)}</option>`).join("")}</select></label>
       ${pxRows}
-      <label class="cl-f"><span>${i18n("Адрес облака")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.url)}" ${dis} ${onEv("change",["cloudSet",d.id,"url",onEv.value])}></label>
-      <p class="sub cl-hint">${i18n("Меняйте адрес, только если облако у вас своё. Пустое поле — снова")} ${CLOUD_URL}.</p></details>`;
+      <p class="sub cl-hint">${i18n("Нужен, если сервер выходит в интернет только через прокси.")}</p></details>`;
 }
 function cloudCard(d){
   const c=cloudOf(d),off=d.online===false;
@@ -22907,7 +22910,7 @@ function cloudCard(d){
     <div class="cl-acts"><button type="button" class="btn s cl-ext" ${onEv("click",["cloudSite",d.id])}>${lu("external-link",14)}${i18n("Открыть в AxxonNet")}</button>
       <button type="button" class="btn s danger" ${onEv("click",["cloudOff",d.id])}>${i18n("Отключить домен…")}</button></div>`;
   else{
-    const err=c.st==="err"?`<div class="nt bk-warn cl-err" role="status">${lu("triangle-alert")} ${i18n("AxxonNet не принял токен. Токен действует один раз — получите новый на сайте и вставьте его снова.")}</div>`:"";
+    const err=c.st==="err"?`<div class="nt bk-warn cl-err" role="status">${lu("triangle-alert")} ${i18n("Облако не приняло токен. Токен действует один раз — получите новый на сайте облака и вставьте его снова.")}</div>`:"";
     const wait=c.st==="wait"?`<div class="cl-wait" role="status"><span class="cl-bar"></span>${i18n(c.act==="out"?"Отключение от AxxonNet…":"Подключение к AxxonNet… Сервер проверяет токен.")}</div>`:"";
     b=(c.st==="wait"&&c.act==="out")?wait:`${err}${wait}${cloudForm(d,c)}`;
   }
@@ -22916,13 +22919,28 @@ function cloudCard(d){
 function cloudUI(o){
   const doms=optShownDomains(),on=doms.filter(d=>d.online!==false&&cloudOf(d).st==="on").length;
   let body=optScopeLine(o);
-  body+=`<p class="sub cl-lead">${i18n("AxxonNet — облако AxxonSoft: удалённый доступ к домену без белого IP-адреса, почта через облако. Серверу нужен интернет: порты 80 и 443 к")} axxonnet.com.${doms.length>1?` <b>${i18n("Подключено")}: ${on} ${i18n("из")} ${doms.length}.</b>`:""}</p>`;
+  body+=`<p class="sub cl-lead">${i18n("AxxonNet — облако AxxonSoft: удалённый доступ к домену без белого IP-адреса, почта через облако. Серверу нужен интернет: порты 80 и 443 к адресу облака (по умолчанию")} axxonnet.com).${doms.length>1?` <b>${i18n("Подключено")}: ${on} ${i18n("из")} ${doms.length}.</b>`:""}</p>`;
   body+=doms.map(cloudCard).join("");
   optPaint(o,body);
 }
 function cloudTok(did,v){const d=domains.find(x=>x.id===did);if(!d)return;cloudOf(d).token=v;const b=document.querySelector(`[data-cl-go="${CSS.escape(did)}"]`);if(b)b.disabled=!v.trim()}
 function cloudTokKey(did,e){if(e.key==="Enter"){e.preventDefault();cloudConnect(did)}}
 function cloudSet(did,k,v){const d=domains.find(x=>x.id===did);if(!d)return;const c=cloudOf(d);c[k]=k==="url"?(String(v).trim().replace(/\/+$/,"")||CLOUD_URL):v;sysUI()}
+function cloudUrlNorm(v){
+  v=String(v||"").trim();if(!v)return{url:CLOUD_URL};
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(v))v="https://"+v;
+  let u;try{u=new URL(v)}catch(e){return{err:"Адрес не похож на адрес сайта. Пример: https://cloud.example.com"}}
+  if(!/^https?:$/.test(u.protocol))return{err:"Адрес должен начинаться с https:// или http://"};
+  if(!u.hostname||/\s/.test(v)||!/[.:]|^localhost$/.test(u.host))return{err:"В адресе нет имени сайта или IP-адреса. Пример: https://cloud.example.com"};
+  return{url:v.replace(/\/+$/,"")};
+}
+function cloudUrl(did,v){
+  const d=domains.find(x=>x.id===did);if(!d)return;const c=cloudOf(d),r=cloudUrlNorm(v);
+  if(r.err){c.urlErr=i18n(r.err);c.urlDraft=String(v)}else{c.urlErr="";c.urlDraft="";c.url=r.url}
+  sysUI();
+  if(r.err)requestAnimationFrame(()=>document.querySelector(`[data-cl-url="${CSS.escape(did)}"]`)?.focus());
+}
+function cloudUrlKey(did,e){if(e.key==="Enter"){e.preventDefault();e.target.blur()}}
 function cloudSite(did){const d=domains.find(x=>x.id===did),c=d&&cloudOf(d);toast(`${i18n("Откроется в новой вкладке")}: ${c?c.url:CLOUD_URL} · ${i18n("в прототипе ссылки нет")}`)}
 function cloudConnect(did){
   const d=domains.find(x=>x.id===did);if(!d)return;const c=cloudOf(d);if(!c.token.trim()||c.st==="wait")return;
