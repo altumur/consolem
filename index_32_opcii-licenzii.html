@@ -1702,8 +1702,6 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .op-bd-ch{background:var(--one-accent-soft,var(--one-control-bg));color:var(--one-fg)}
 .op-bd-diff{background:var(--one-warning-bg);color:var(--one-warning-text)}
 .op-rst{font-size:12px}
-.op-scope{width:100%;margin:0}
-.op-ro{width:100%;margin:0}
 .op-dom{display:grid;grid-template-columns:110px 1fr;align-items:center;gap:8px;width:100%}
 .op-dc{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
 .op-dn{font-size:12px;color:var(--one-fg-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -1743,7 +1741,7 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .lw-intro{margin:0 0 12px}.lw-lab{display:block;font-size:12px;color:var(--mu);margin:4px 0 4px}.lw-serial{width:180px;font-variant-numeric:tabular-nums}
 .lw-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.lw-file .btn{display:inline-flex;align-items:center;gap:6px}
 .lw-parsed{margin-top:14px;padding:12px;border:1px solid var(--ln);border-radius:8px}.lw-ph{font-weight:600;margin-bottom:8px}.lw-parsed .sub{margin:8px 0 0}
-.lw-doms{display:grid;gap:8px}.lw-dom{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}.lw-dom.on{border-color:var(--one-accent)}.lw-dom small{display:block;color:var(--mu);margin-top:2px}.lw-dom input{margin-top:3px}
+.lw-doms{display:grid;gap:8px}.lw-dom[hidden]{display:none}.lw-dom{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}.lw-dom.on{border-color:var(--one-accent)}.lw-dom small{display:block;color:var(--mu);margin-top:2px}.lw-dom input{margin-top:3px}
 .lw-feat{border:1px solid var(--ln);border-radius:8px;padding:10px 12px;margin-bottom:10px}.lw-fh{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
 .lw-row{display:grid;grid-template-columns:minmax(0,1fr) 92px auto 150px;gap:10px;align-items:center;padding:5px 0;border-top:1px solid var(--ln)}.lw-dn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .lw-nl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px}.lw-in{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}.lw-in[hidden]{display:none}.lw-num{width:76px;text-align:right;font-variant-numeric:tabular-nums}.lw-num:disabled{opacity:.45}
@@ -1758,8 +1756,6 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 tr.lic-over td{color:var(--one-danger-text)}.lic-neg{color:var(--one-danger-text);font-weight:600}
 tr.lic-own td{white-space:normal;border-top:0;padding-top:0}
 .lic-ownc{display:inline-block;font-size:11px;padding:2px 8px;margin:0 6px 4px 0;border-radius:99px;background:var(--one-control-bg)}
-.lic-srvt{display:inline-flex;align-items:center;gap:4px;margin-top:10px;font-size:12px}.lic-srvt svg{width:14px;height:14px}
-.lic-srv{margin-top:6px;max-width:420px}
 .lic-offline .cb{opacity:.75}
 .lic-iss{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
 .lic-iss li{display:flex;gap:8px;align-items:baseline;font-size:12px}
@@ -4934,10 +4930,10 @@ function settingsApply(s){
   settingsVer=s.version;
   SETTINGS.forEach(st=>{const v=s.values[st.id];if(v===undefined)return;st.value=st.id==="sec.2fa"?TWO_FA_RU[v]||v:Array.isArray(v)?v.slice():String(v)});
 }
-function settingSet(id,v){
+function settingSet(id,v,onFail){
   const sd=SETTINGS.find(x=>x.id===id),num=id==="sec.pwdage"||sd?.num||sd?.type==="num"||sd?.type==="limit";
   const val=id==="sec.2fa"?TWO_FA_CODE[v]||v:num?(/^\d+$/.test(v)?Number(v):v):v;
-  API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false);if(Array.isArray(val))sysUI()}).catch(e=>{toast(problemText(e));sysUI()});
+  API.patch("/settings",{values:{[id]:val}},settingsVer).then(s=>{settingsApply(s);setD(false);if(app==="sys")sysUI()}).catch(e=>{if(onFail)onFail();toast(problemText(e));if(app==="sys")sysUI()});
 }
 let licenses=[];
 const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
@@ -22726,7 +22722,11 @@ function optWsSave(){try{localStorage.setItem("consolem.p32.ws",JSON.stringify(o
 function OPT_PAGE_G(page){return(sysOptsRU.find(o=>o.id===page)||{}).g||"dom"}
 function optSame(a,b){return JSON.stringify(a)===JSON.stringify(b)}
 function optShownDomains(){return domainFilter?domains.filter(d=>d.id===domainFilter):domains.slice()}
-function optVal(st,d){return OPT_PAGE_G(st.page)==="ws"?optWsStore()[st.id]:optDomStore(d)[st.id]}
+function optVal(st,d){
+  if(OPT_PAGE_G(st.page)==="ws")return optWsStore()[st.id];
+  if(st.api&&st.value!==undefined)return optNorm(st,st.value);   // общее значение сервера: PATCH /settings меняет все домены
+  return optDomStore(d)[st.id];
+}
 // Показ значения словами: для тоста, домена без связи и «по умолчанию»
 function optText(st,v){
   if(st.type==="bool")return i18n(v?"включено":"выключено");
@@ -22745,16 +22745,19 @@ function optPageHits(o,q){const own=SETTINGS.filter(st=>st.page===o.id);return!q
 // Изменение: сразу на сервер (или в заглушку), тост с «Отменить»
 function optApply(st,targets,v){
   const before=targets.map(d=>[d,optVal(st,d)]);
-  const put=(d,x)=>{if(OPT_PAGE_G(st.page)==="ws"){optWsStore()[st.id]=x;optWsSave()}else optDomStore(d)[st.id]=x};
+  const ws=OPT_PAGE_G(st.page)==="ws",srv=x=>Array.isArray(x)?x.slice():String(x);
+  const put=(d,x)=>{if(ws){optWsStore()[st.id]=x;optWsSave()}else if(st.api)st.value=srv(x);else optDomStore(d)[st.id]=x};
+  const was=st.value;
   targets.forEach(d=>put(d,v));
-  if(st.api)settingSet(st.id,Array.isArray(v)?v:String(v));
+  if(st.api)settingSet(st.id,srv(v),()=>{st.value=was});
   sysUI();
-  const where=OPT_PAGE_G(st.page)==="ws"?i18n("в этом браузере"):targets.length===1?`«${locName(targets[0])}»`:`${i18n("доменов")}: ${targets.length}`;
+  const where=ws?i18n("в этом браузере"):st.api?i18n("во всех доменах"):targets.length===1?`«${locName(targets[0])}»`:`${i18n("доменов")}: ${targets.length}`;
   const tail=st.restart==="page"?` · ${i18n("действует после перезагрузки страницы")}`:"";
   toastAction("optset",`${i18n(st.label)}: ${optText(st,v)} — ${where}${tail}`,i18n("Отменить"),()=>{
+    const now=st.value;
     before.forEach(([d,x])=>put(d,x));
-    if(st.api)settingSet(st.id,Array.isArray(before[0][1])?before[0][1]:String(before[0][1]));
-    sysUI();toast(i18n("Изменение отменено"));
+    if(st.api)settingSet(st.id,srv(before[0][1]),()=>{st.value=now});
+    if(app==="sys")sysUI();toast(i18n("Изменение отменено"));
   },8000);
 }
 function optTargets(dom){
@@ -22766,23 +22769,23 @@ function optSet(id,dom,raw){
   let v=raw;
   if(st.type==="num"||st.type==="limit"){
     v=Number(String(raw).replace(",","."));
-    if(!Number.isFinite(v)||v<st.min||v>st.max){toast(`${i18n(st.label)}: ${i18n("от")} ${st.min} ${i18n("до")} ${st.max}${st.unit?" "+i18n(st.unit):""}`);sysUI();return}
+    if(!Number.isFinite(v)||(!(st.type==="limit"&&v===0)&&(v<st.min||v>st.max))){toast(`${i18n(st.label)}: ${i18n("от")} ${st.min} ${i18n("до")} ${st.max}${st.unit?" "+i18n(st.unit):""}`);sysUI();return}
     v=Math.round(v);
   }
-  const t=optTargets(dom);
-  if(t.every(d=>optSame(optVal(st,d),v)))return;
+  const t=OPT_PAGE_G(st.page)==="ws"?[null]:optTargets(dom);
+  if(!t.length||t.every(d=>optSame(optVal(st,d),v)))return;
   optApply(st,t,v);
 }
-function optBool(id,dom){const st=SETTINGS.find(x=>x.id===id),t=optTargets(dom);optSet(id,dom,!optVal(st,t[0]))}
+function optBool(id,dom){const st=SETTINGS.find(x=>x.id===id),t=OPT_PAGE_G(st.page)==="ws"?[null]:optTargets(dom);optSet(id,dom,!optVal(st,t[0]))}
 function optLimitOff(id,dom,off){const st=SETTINGS.find(x=>x.id===id);optSet(id,dom,off?0:(st.def||st.min))}
-function optKind(id,dom,k){const st=SETTINGS.find(x=>x.id===id),t=optTargets(dom);optSet(id,dom,listToggled(optVal(st,t[0]),k))}
+function optKind(id,dom,k){const st=SETTINGS.find(x=>x.id===id),t=OPT_PAGE_G(st.page)==="ws"?[null]:optTargets(dom);optSet(id,dom,listToggled(optVal(st,t[0]),k))}
 function optReset(id,dom){const st=SETTINGS.find(x=>x.id===id);optSet(id,dom,st.def)}
 function optAlign(id,fromDom){const st=SETTINGS.find(x=>x.id===id),d=domains.find(x=>x.id===fromDom);if(st&&d)optSet(id,"*",optVal(st,d))}
 
 // Поле опции. dom — id домена или "*" (все показанные домены с одинаковым значением)
 function optControl(st,v,dom,ro){
   const lbl=escHtml(i18n(st.label)),dis=ro?"disabled":"";
-  if(st.type==="bool")return`<button type="button" class="sw op-sw ${v?"on":""}" role="switch" aria-checked="${!!v}" aria-label="${lbl}" ${dis} ${ro?"":onEv("click",["optBool",st.id,dom])}></button><span class="op-swt">${i18n(v?"Включено":"Выключено")}</span>`;
+  if(st.type==="bool")return`<button type="button" class="sw op-sw ${v?"on":""}" data-fk="op:${escHtml(st.id)}:${escHtml(dom)}" role="switch" aria-checked="${!!v}" aria-label="${lbl}" ${dis} ${ro?"":onEv("click",["optBool",st.id,dom])}></button><span class="op-swt">${i18n(v?"Включено":"Выключено")}</span>`;
   if(st.type==="select")return`<select aria-label="${lbl}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>${st.opts.map(([k,t])=>`<option value="${escHtml(k)}" ${k===v?"selected":""}>${escHtml(i18n(t))}</option>`).join("")}</select>`;
   if(st.type==="kinds")return ro?`<span class="sub">${escHtml(optText(st,v))}</span>`:chipsHtml(refEvents,v,"optKind",st.id,dom);
   if(st.type==="text")return`<input type="${st.pw?"password":"text"}" class="op-in op-txt" aria-label="${lbl}" value="${escHtml(v??"")}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>`;
@@ -22811,6 +22814,7 @@ function optRow(st,q){
     const d=doms[0],v=optVal(st,d),ro=d.online===false;
     return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,d.id,ro)}${optResetLink(st,v,d.id,ro)}</div></div>`;
   }
+  if(!on.length)return`<div class="op-row" data-set="${st.id}">${head(off.length?optVal(st,off[0]):st.def)}<div class="op-c">${off.length?off.map(offNote).join(""):`<span class="sub">${i18n("Доменов нет")}</span>`}</div></div>`;
   const vals=on.map(d=>optVal(st,d)),same=vals.every(x=>optSame(x,vals[0]));
   if(same&&vals.length){
     const v=vals[0],offDiff=off.filter(d=>!optSame(optVal(st,d),v));
@@ -22983,8 +22987,9 @@ let LIC_ORPHAN={},licSeq=3;
 const LIC_OWNERS={lpr:[["Въезд — шлагбаум 1","Въезд — шлагбаум 2"],["Склад — ворота","Парковка"]],faceSearch:[["Холл — вход","Лестница","КПП — турникеты","Столовая"]],faceRt:[["Проходная","Вход — ресепшн"]],fire:[["Склад — стеллажи"]],acfa:[["Турникет 1","Турникет 2","Дверь серверной"]]};
 const licOpen=new Set();
 function licFeatName(c){return(LIC_FEATS.find(x=>x[0]===c)||[c,c])[1]}
+function licDoms(k){return k.dom.map(i=>domains[i]).filter(Boolean)}
 function licKeys(){
-  const ks=LIC_KEYS.map(k=>({...k,doms:k.dom.map(i=>domains[i]).filter(Boolean)}));
+  const ks=LIC_KEYS.map(k=>({...k,doms:licDoms(k)}));
   domains.forEach((d,i)=>{if(!ks.some(k=>k.doms.includes(d))){const o=LIC_ORPHAN[i]||{cameras:0};
     ks.push({id:"none-"+i,none:true,product:"—",serial:"—",days:null,state:"missing",dom:[i],doms:[d],lim:{},f:Object.fromEntries(Object.entries(o).map(([c,u])=>[c,[[u],0]]))})}});
   return ks;
@@ -23035,7 +23040,7 @@ function licBar(L,f){
 }
 function licFeatRow(L,f){
   const free=f.total-f.used,key=`${L.id}:${f.code}`,owners=f.code==="cameras"?null:LIC_OWNERS[f.code]||[];
-  const ownTxt=f.code==="cameras"?`<button type="button" class="lk lk-act" ${onEv("click",["licShowCams",L.id,f.used>f.total])}>${i18n(f.used>f.total?"Без лицензии: ":"Показать камеры")+(f.used>f.total?f.used-f.total:"")}</button>`
+  const ownTxt=f.code==="cameras"&&L.doms.length?`<button type="button" class="lk lk-act" ${onEv("click",["licShowCams",L.id,f.used>f.total])}>${i18n(f.used>f.total?"Без лицензии: ":"Показать камеры")+(f.used>f.total?f.used-f.total:"")}</button>`
     :f.used?`<button type="button" class="lk lk-act" aria-expanded="${licOpen.has(key)}" ${onEv("click",["licToggle",key])}>${i18n("Кто занимает")}: ${f.used}</button>`:`<span class="sub">${i18n("не используется")}</span>`;
   const chips=owners?f.by.flatMap((u,j)=>(owners[j]||[]).slice(0,u).map(x=>`<span class="lic-ownc">${L.doms.length>1?`<i class="lic-sw lic-seg${j%4}" title="${escHtml(locName(L.doms[j]))}"></i>`:""}${escHtml(x)}</span>`)).join(""):"";
   return`<tr class="${f.used>f.total?"lic-over":""}"><td title="${escHtml(i18n(f.n))}">${escHtml(i18n(f.n))}<div class="lic-nbar">${licBar(L,f)}</div></td><td>${licBar(L,f)}</td><td class="lic-num"><b>${f.used}</b> ${i18n("из")} ${f.total}</td>
@@ -23079,18 +23084,18 @@ function licUI(o){
   if(iss.length)body+=`<div class="card lic-att"><div class="ch">${i18n("Требует внимания")}: ${iss.length}</div><div class="cb"><ul class="lic-iss">${iss.map(x=>`<li class="lic-l${x.lvl}"><button type="button" class="lk" ${onEv("click",["licGoKey",x.k.id])}>${escHtml(x.t)}</button></li>`).join("")}</ul></div></div>`;
   else body+=`<p class="sub">${i18n("Все ключи действуют, свободные лицензии есть.")}</p>`;
   body+=keys.map(licCard).join("");
-  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n("Ключи")}: ${keys.filter(k=>!k.none).length} · ${doms.length>1?`${i18n("Домены")}: ${doms.length}`:locName(doms[0]||{name:""})}`)+`<div class="sc op-page">${body}</div>`);
+  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n("Ключи")}: ${keys.filter(k=>!k.none).length} · ${doms.length>1?`${i18n("Домены")}: ${doms.length}`:escHtml(locName(doms[0]||{name:""}))}`)+`<div class="sc op-page">${body}</div>`);
 }
 function licToggle(k){if(licOpen.has(k))licOpen.delete(k);else licOpen.add(k);sysUI()}
 function licGoKey(id){const el=document.querySelector(`[data-lic="${id}"]`);if(!el)return;el.scrollIntoView({block:"start",behavior:"smooth"});accFlash(()=>[el.querySelector(".lic-hd")])}
 function licLoadKey(id){toast(i18n("В макете ключ не заменяется. В системе: файл ключа или серийный номер, затем активация; домены и лимиты останутся."))}
-function licGoHw(id){navMark();goApp("hw");domainFilter=id;sel=id;tab="gen";open.add(id);renderDomainMenu();applyFiltersFromState();paint()}
+function licGoHw(id){navMark();goApp("hw");domainFilter=id;sel=id;tab="gen";open.add(id);renderDomainMenu();applyFiltersFromState();paint();hwFlashLanding()}
 // Камеры ключа: один домен — фильтр на него; общий ключ — все домены, открыты домены ключа
 function licShowCams(kid,over){
-  const k=licKeys().find(x=>x.id===kid);if(!k)return;
+  const k=licKeys().find(x=>x.id===kid);if(!k||!k.doms.length)return;
   navMark();goApp("hw");domainFilter=k.doms.length===1?k.doms[0].id:"";sel=k.doms[0].id;tab="gen";k.doms.forEach(d=>open.add(d.id));renderDomainMenu();
   statusFilts.clear();if(over)statusFilts.add("license");
-  applyFiltersFromState();paint();
+  applyFiltersFromState();paint();hwFlashLanding();
 }
 
 // ── Изменения ключей (заглушка: в памяти страницы) ──
@@ -23113,7 +23118,7 @@ function licRestore(s){const x=JSON.parse(s);LIC_KEYS=x.k;LIC_ORPHAN=x.o;licSeq=
 function licRepaint(){if(app==="sys"&&sys==="lic")sysUI()}
 // Что пропадёт и что останется, если снять домены с ключа
 function licRmHtml(k,ids){
-  const L=licData({...k,doms:k.dom.map(i=>domains[i])}),rest=k.dom.filter(i=>!ids.includes(i)).map(i=>escHtml(locName(domains[i])));
+  const L=licData({...k,doms:licDoms(k)}),rest=k.dom.filter(i=>!ids.includes(i)).map(i=>escHtml(locName(domains[i])));
   const lost=ids.map(i=>{const j=k.dom.indexOf(i),items=L.feats.filter(f=>f.by[j]).map(f=>`${escHtml(i18n(f.n))} ${f.by[j]}`);
     return`<li><b>${escHtml(locName(domains[i]))}</b>: ${items.length?`${items.join(", ")} — ${i18n("эти устройства перестанут работать, пока домен не получит ключ")}`:i18n("лицензий сейчас не занимает")}</li>`}).join("");
   const freed=L.feats.map(f=>[f,ids.reduce((a,i)=>a+(f.by[k.dom.indexOf(i)]||0),0)]).filter(x=>x[1]).map(([f,n])=>`${escHtml(i18n(f.n))} ${n}`);
@@ -23141,7 +23146,7 @@ function licRmAll(kid){
 // Удалить ключ: его домены остаются без лицензий; сам ключ можно добавить снова из файла или по серийному номеру
 function licDelKey(kid){
   const k=LIC_KEYS.find(x=>x.id===kid);if(!k)return;
-  const L=licData({...k,doms:k.dom.map(i=>domains[i])});
+  const L=licData({...k,doms:licDoms(k)});
   const lost=k.dom.map((i,j)=>{const items=L.feats.filter(f=>f.by[j]).map(f=>`${escHtml(i18n(f.n))} ${f.by[j]}`);
     return`<li><b>${escHtml(locName(domains[i]))}</b>: ${items.length?`${items.join(", ")} — ${i18n("эти устройства перестанут работать, пока домен не получит ключ")}`:i18n("лицензий сейчас не занимает")}</li>`}).join("");
   const msg=`<p>${i18n("Ключ")} <b>${escHtml(k.serial!=="—"?k.serial:k.product)}</b> ${i18n("будет удалён")}${k.dom.length?`, ${i18n("его домены останутся без ключа")}`:""}.</p>
@@ -23213,7 +23218,7 @@ function lwParsedHtml(){
     <p class="sub">${i18n("В макете ключ не проверяется: показано, что сервер прочтёт из ключа.")}</p></div>`;
 }
 function lwKeyHtml(k){
-  if(k){const L=licData({...k,doms:k.dom.map(i=>domains[i])});
+  if(k){const L=licData({...k,doms:licDoms(k)});
     return`<dl class="wz-kv"><dt>${i18n("Ключ")}</dt><dd>${escHtml(licKeyName(L))}</dd><dt>${i18n("Тип")}</dt><dd>${escHtml(k.product)}</dd>
       <dt>${i18n("Лицензии")}</dt><dd>${L.feats.map(f=>`${escHtml(i18n(f.n))} ${f.total}`).join(", ")}</dd></dl>
       <p class="sub">${i18n("Сам ключ здесь не меняется. Заменить его — кнопка «Заменить ключ…» в карточке: домены и лимиты останутся.")}</p>`}
@@ -23287,7 +23292,7 @@ function licWzRender(){
   wzPaintBm("licWz",st.k,"m",title,wzBarHtml(LW_STEPS,lw.step,lwReach,["licWzGo"]),`<div data-lw>${body}</div>`,
     wzFootHtml({cancel:["wzCancel","licWz"],sum:why?`<span class="lic-warn">${escHtml(i18n(why))}</span>`:lwSum(),back:lw.step?["licWzGo",String(lw.step-1)]:null,
       next:{id:"lwNext",label:i18n(last?fin:"Далее"),off:last?!lwReach(3):!lwReach(lw.step+1),on:last?["licWzApply"]:["licWzGo",String(lw.step+1)]}}));
-  if(st.k==="doms"&&lw.q)licWzDomQ(lw.q);
+  if(st.k==="doms")licWzDomQ(lw.q||"");
 }
 function licWzApply(){
   const k=lwKey(),ids=[...lw.doms].sort((a,b)=>a-b),removed=k?k.dom.filter(i=>!lw.doms.has(i)):[],st={...lw,doms:new Set(lw.doms)};
@@ -23307,7 +23312,7 @@ function licWzApply(){
   if(removed.length)askConfirm(removed.length>1?"Снять домены с ключа?":"Снять домен с ключа?",licRmHtml(k,removed),"","Сохранить и снять",go,{html:true,typeCount:removed.length,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
   else go();
 }
-WZD.licWz={t:"Ключ лицензии",lost:"Выбранный ключ, домены и лимиты пропадут.",drop:"Не добавлять",
+WZD.licWz={t:"Ключ лицензии",valid:s=>!s.kid||LIC_KEYS.some(k=>k.id===s.kid),gone:"Ключа, для которого был черновик, больше нет",lost:"Выбранный ключ, домены и лимиты пропадут.",drop:"Не добавлять",
   get:()=>document.querySelector("#bmodal.open [data-lw]")?lw:null,set:s=>{s.doms=new Set(s.doms||[]);lw=s},hide:()=>closeBulkModal(),
   show:()=>{if(app!=="sys")goApp("sys");licWzRender()},
   work:s=>!!(s.kid||s.file||(s.serial||"").trim()||(s.doms&&(s.doms.size??s.doms.length))),
