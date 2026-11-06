@@ -295,6 +295,12 @@
     assert.eq(s.total, cams.filter((d) => d.enabled !== false).length, "выключенные вне total");
     assert.ok(s.offline + s.silent <= s.total, "не пересекаются");
     assert.ok(Date.parse(s.at) > 0 && !("unread" in s), "время есть, unread нет");
+    // Круг идёт одним проходом на все домены: у каждого домена — свои камеры, как при прямом подсчёте
+    for (const dom of FX.domains) {
+      const own = FX.devices.filter((d) => d.domainId === dom.id && d.type === "camera" && d.enabled !== false);
+      const got = ((await env.ok("GET", `/units/${dom.id}`)).status.observed || {}).stateSummary;
+      assert.eq(got && [got.total, got.offline + got.silent], [own.length, own.filter((d) => d.online === false || d.licenseExceeded).length], `итог домена «${dom.name}» — его камеры`);
+    }
     const cam = cams.find((d) => d.enabled !== false && d.online !== false);
     await env.ok("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: false });
     assert.eq((await summary(env)).offline, s.offline, "отстаёт на круг");

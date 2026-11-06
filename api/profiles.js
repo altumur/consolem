@@ -48,24 +48,31 @@
     if (ctx.db.domains.some((d) => d.id !== exceptId && d.name.trim().toLowerCase() === v.toLowerCase())) return ctx.problem(409, "NAME_TAKEN", "Домен с таким именем уже есть", { field: "name" });
     return null;
   }
-  // Итог круга по камерам домена: числа не пересекаются, выключенные вне total; отстаёт на круг (VIEW_ROUND_MS)
+  // Итог круга по камерам домена: числа не пересекаются, выключенные вне total; отстаёт на круг (VIEW_ROUND_MS).
+  // Круг — один проход по устройствам на все домены сразу (Map домен → итог): на стенде xl четыре домена по 250 000 камер,
+  // проход на каждый был бы четырьмя проходами по миллиону. Итог, которому круг ещё не вышел, проход не трогает: число
+  // и время у каждого домена — как при подсчёте поодиночке
   function domainSummary(id, ctx) {
     const db = ctx.db;
     if (db.stand.summaryOff) return null;
     const all = ctx.state.summaries || (ctx.state.summaries = new Map());
-    const was = all.get(id);
-    if (was && ctx.now() - Date.parse(was.at) < ctx.VIEW_ROUND_MS) return was;
-    const s = { total: 0, offline: 0, silent: 0, at: ctx.iso(ctx.now()) };
+    const t = ctx.now(), fresh = (s) => !!s && t - Date.parse(s.at) < ctx.VIEW_ROUND_MS;
+    if (fresh(all.get(id))) return all.get(id);
+    const at = ctx.iso(t), next = new Map();
+    db.domains.map((d) => d.id).concat(id).forEach((x) => !fresh(all.get(x)) && next.set(x, { total: 0, offline: 0, silent: 0, at }));
     db.devices.forEach((d) => {
-      if (d.domainId !== id || d.type !== "camera" || d.enabled === false) return;
+      const s = next.get(d.domainId);
+      if (!s || d.type !== "camera" || d.enabled === false) return;
       s.total++;
       // Встроенный сервер фаз не знает: связь есть у всех, кто online; поток упал — fault drv
       if (d.online === false && d.fault === "drv") s.silent++;
       else if (d.online === false || d.licenseExceeded) s.offline++;
     });
-    if (db.stand.unread) s.unread = db.stand.unread;
-    all.set(id, s);
-    return s;
+    next.forEach((s, x) => {
+      if (db.stand.unread) s.unread = db.stand.unread;
+      all.set(x, s);
+    });
+    return all.get(id);
   }
   // Удалить домен: не последний; непустой — только с moveTo (другой домен); над содержимым не идёт операция
   function domainDeleteProblem(u, params, ctx) {

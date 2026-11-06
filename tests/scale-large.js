@@ -1,4 +1,4 @@
-/* Стенд большого домена: 250 000 камер, 500 серверов (large) или 1 000 000 камер, 2 000 серверов (xl). Запуск —
+/* Стенд большого домена: 250 000 камер, 500 серверов (large) или 1 000 000 камер, 2 000 серверов в 4 доменах (xl). Запуск —
    tools/check_scale.py [--fixture xl], страница с ?fixture=large или ?fixture=xl; числа — из stand.large набора.
    Старт формы: не больше 15 запросов, ни одного ответа больше 1 МБ, ни один перечень не прочитан до конца.
    Дальше — то, что оператор делает на таком домене: каждый шаг в тех же пределах ответа. */
@@ -8,6 +8,9 @@ UiCheck(async ({ ok, until }) => {
   // Числа стенда — из набора страницы: large или xl (тот же large с другими stand.large)
   const FX_NAME = new URLSearchParams(location.search).get("fixture") || "large";
   const L = window.CONSOLEM_FIXTURES[FX_NAME].stand.large;
+  // Числа stand.large — на весь набор; сервер делит их между доменами поровну, остаток — первым доменам (на xl — 4 домена,
+  // expandLarge, share). Сценарий идёт по первому домену: его доля. Ветка первого сервера (firstBranch) — своя в каждом домене
+  const D = L.domains || 1, per = (n) => Math.floor(n / D) + (n % D ? 1 : 0);
   const LISTS = /^\/(units|devices|folders|archives|volumes|journal|operations|access\/\w+|tree\/children)(\?|$)/;
   const sizeOk = (from) => trace.slice(from).every((x) => x.bytes <= MB);
   const big = (from) => Math.max(0, ...trace.slice(from).map((x) => x.bytes));
@@ -27,30 +30,39 @@ UiCheck(async ({ ok, until }) => {
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
   const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
   // Старт не растёт с объёмом: 15 запросов. Сверх них — только продолжения перечня доменов и серверов (он читается
-  // целиком, как /servers базы, страницами по pageMax): на xl 2 001 строка — три страницы вместо одной
+  // целиком, как /servers базы, страницами по pageMax): на xl 2 004 строки (4 домена и 2 000 серверов) — три страницы
+  // вместо одной. Растёт с числом серверов всего набора, домены добавляют по строке
   const infraMore = startTrace.filter((x) => infra(x.path) && unitsQ(x.path).has("cursor")).length;
   const infraWant = Math.ceil((L.servers + domains.length) / LIM.pageMax) - 1;
-  ok(start - infraMore <= 15 && infraMore === infraWant, `старт: ${start - infraMore} запросов, не больше 15, и ещё ${infraMore} страниц серверов (их ${L.servers}, pageMax ${LIM.pageMax}): ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
+  // Доменов больше одного (xl): на старте раскрыты все, у каждого — страница ветки (/tree/children) и папки этой страницы,
+  // которых нет в первой странице перечня папок, — чтением по ids (сервер больше idsMax в запросе не примет). Это растёт
+  // с числом доменов, а не с объёмом: в 15 входит ветка одного домена, ветки остальных и дочитывание папок по ids идут
+  // сверх, не больше двух чтений на домен. На одном домене (large) поблажки нет: старт — 15 запросов, как всегда
+  const idsRead = (x) => { const q = unitsQ(x.path); return !!q && q.has("ids"); };
+  const branchReads = startTrace.filter((x) => /^\/tree\/children/.test(x.path) || idsRead(x)).length;
+  const extra = D > 1 ? Math.max(0, branchReads - 1) : 0;
+  const own = start - infraMore - extra;
+  ok(own <= 15 && (D === 1 || branchReads <= 2 * domains.length) && infraMore === infraWant, `старт: ${own} запросов, не больше 15; ещё ${infraMore} страниц серверов (их ${L.servers}, pageMax ${LIM.pageMax}) и ${extra} чтений веток доменов и их папок (доменов ${domains.length}): ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
   // Детекторы для среза «Детекторы» база читает на старте (detLoad: /devices?type=det до selectMax строк). В ядре — по профилю
   // vms.detector/1 из индекса вида: на стенде детекторов нет, ответ пуст — это конец пустого перечня, а не перечень домена
   const detEmpty = (x) => { const q = unitsQ(x.path); return !!q && q.get("implements") === "vms.detector/1" && x.empty; };
-  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path) && !oneMember(x.path) && !infra(x.path) && !detEmpty(x));
+  const whole = trace.filter((x) => LISTS.test(x.path) && x.method === "GET" && !x.more && !/[?&](serverId|archiveId)=/.test(x.path) && !oneMember(x.path) && !infra(x.path) && !detEmpty(x) && !(D > 1 && idsRead(x)));
   ok(!whole.length, "старт: ни один перечень не прочитан до конца: " + whole.map((x) => x.path).join(" "));
   ok(!trace.some((x) => /\/discovery|\/journal|\/licenses|\/fires|\/versions|\/access\/users/.test(x.path)), "старт: поиск, журнал, лицензии, история правил и люди не читаются");
   const d = domains[0];
-  ok(d.summary && d.summary.total > L.cameras * 0.96 && d.summary.at, `итог домена: всего ${d.summary?.total}, без связи ${d.summary?.offline}`);
+  ok(domains.length === D && d.summary && d.summary.total > per(L.cameras) * 0.96 && d.summary.at, `доменов ${domains.length}; итог первого: всего ${d.summary?.total}, без связи ${d.summary?.offline}`);
   ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent), "число без фильтра — со знаком ≈: " + document.querySelector('#aside [data-slice="all"] .ph-cnt').textContent);
-  ok(d.servers.length === L.servers && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
+  ok(d.servers.length === per(L.servers) && devicePool.length < 5000, `кэш неполный: серверов ${d.servers.length}, устройств в кэше ${devicePool.length}`);
   // Камеры-кластеры: под доменом, порядок не алфавитный, строка (в базе версия r<revision>; в ядре у строки и полной
   // записи одна Unit.version — строку отличает _row: полную запись ещё не читали)
   // Раскладка по умолчанию — папки (как база): ветка домена по серверам читается после переключения группировки
   if (group() !== "server") { setGroup("server"); renderTree(); await until(() => treeBr.get("servers|" + d.id)?.cursor || treeBr.get("servers|" + d.id)?.done); }
   const domBranch = treeBr.get("servers|" + d.id);
-  ok(domBranch && domBranch.count > L.cameras - L.serverCameras && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
+  ok(domBranch && domBranch.count > per(L.cameras) - per(L.serverCameras) && domBranch.cursor, `под доменом ${domBranch?.count} узлов, прочитана страница`);
   let mark = trace.length;
   let guard = 0;
   // Под доменом сначала серверы, потом камеры-кластеры: страниц — по числу серверов
-  while (!devicePool.some((n) => !n.srvId) && guard++ < 5 + Math.ceil(L.servers / 100)) await treeMore(d.id);
+  while (!devicePool.some((n) => !n.srvId) && guard++ < 5 + Math.ceil(per(L.servers) / 100)) await treeMore(d.id);
   const loose = devicePool.filter((n) => !n.srvId && n.type === "camera");
   ok(loose.length > 0 && loose.every((n) => n._row && hwVer.has(n.id) && n._more), `камеры-кластеры подгружены строкой, версия ${hwVer.get(loose[0]?.id)}, стрелка «может быть»`);
   const names = loose.map((n) => n.name);
@@ -161,14 +173,14 @@ UiCheck(async ({ ok, until }) => {
   ok(trace.slice(mark).filter((x) => x.path.startsWith("/access/users")).length === 1 && sizeOk(mark), "«Права»: одна страница людей");
   goApp("hw");
   ok(sizeOk(0), `за весь сценарий самый большой ответ ${big(0)} байт`);
-  // Топология: граф всегда полный, все серверы и кластеры стенда, запросы только о ретрансляторах
+  // Топология: граф всегда полный, все серверы и кластеры домена, запросы только о ретрансляторах
   mark = trace.length;
   pick(d.id, { force: true });
   await until(() => sel === d.id);
   goTab("topo");
   ok(await until(() => G7.relays.get(d.id)?.size > 0), "ретрансляторы прочитаны");
   g7SetLevel(3);
-  ok(G7.g.nodes.filter((n) => n.kind === "server").length === L.servers && G7.g.nodes.filter((n) => n.kind === "cluster").length === L.clusters, `топология: ${G7.g.nodes.length} узлов, ${G7.g.edges.length} связей`);
+  ok(G7.g.nodes.filter((n) => n.kind === "server").length === per(L.servers) && G7.g.nodes.filter((n) => n.kind === "cluster").length === per(L.clusters), `топология: ${G7.g.nodes.length} узлов, ${G7.g.edges.length} связей`);
   ok(!G7.g.nodes.some((n) => /^cam-/.test(n.name)), "камеры ретранслятора не рисуются");
   ok(trace.length - mark <= 6 && sizeOk(mark), `топология: ${trace.length - mark} запросов, самый большой ответ ${big(mark)} байт`);
   const t0 = performance.now();

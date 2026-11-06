@@ -3172,29 +3172,62 @@
     /* ----- Большой набор ----- */
 
     // stand.large: устройства, серверы, папки, хранилища считаются при загрузке из номера: в файле набора только числа.
+    // Числа — на весь набор. stand.large.domains (по умолчанию 1) — доменов, всё делится между ними поровну блоками по
+    // порядку: серверы с хранилищами и томами, кластеры, папки, камеры (под серверами, ветка первого сервера, без сервера).
+    // Домены сверх первого — копии первого объекта набора с именами из domainNames (иначе «Домен N»), ретранслятор — у первого.
+    // Номера (uid, имена серверов, папок, камер) — сквозные по набору: при domains 1 раскладка та же, что без этих чисел
     function expandLarge(L) {
-      const dom = db.domains[0].id;
+      const D = Math.max(1, L.domains || 1), names = L.domainNames || [];
       const uuidOf = (kind, n) => `${kind}${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
-      const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
-      db.servers = Array.from({ length: L.servers }, (x, i) => Object.assign({}, base, { id: uuidOf("2", 1000 + i), name: `Кластер ${(i % L.clusters) + 1}/Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
-      // Ретранслятор: кластеры и камеры за ним. Камеры в составе не совпадут с именами кластеров
-      db.relays = { [dom]: { "Кластер 1": Array.from({ length: L.relayed }, (x, i) => `Кластер ${L.clusters - i}`).concat(Array.from({ length: 3000 }, (x, i) => `cam-${i}`)) } };
-      db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
-      db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
-      db.folders = Array.from({ length: L.folders }, (x, i) => ({ id: uuidOf("4", 1000 + i), name: `Папка ${i + 1}`, domainId: dom, parentId: null, deviceIds: [], version: "v0" }));
-      // Камеры — сразу объектами склада: 250 000 записей через перевод старой таблицы шли бы дольше.
-      // Первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
-      const onServer = L.serverCameras, firstBranch = L.firstBranch, folders = db.folders.map((f) => f.id);
-      const servers = db.servers.map((s) => s.id), archives = db.archives.map((a) => a.id);
-      for (let i = 0; i < L.cameras; i++) {
-        const id = uuidOf("3", 100000 + i);
-        const sid = i < firstBranch ? 0 : i < onServer ? 1 + ((i - firstBranch) % (L.servers - 1)) : -1;
-        const u = { uid: id, kind: "camera", parentId: null, domainId: dom, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, version: "v0",
-          properties: { enabled: i % 200 !== 11 }, status: { link: i % 50 !== 7 ? "online" : "offline" } };
-        if (sid >= 0) Object.assign(u.properties, { serverId: servers[sid], archiveId: archives[sid], recordMode: "always" });
-        if (i % 40 === 0 && folders.length) u.folders = [folders[(i / 40) % folders.length]];
+      // Доля домена d из n и её начало: остаток — первым доменам
+      const share = (n, d) => Math.floor(n / D) + (d < n % D ? 1 : 0);
+      const from = (n, d) => d * Math.floor(n / D) + Math.min(d, n % D);
+      const first = store.get(db.domains[0].id);
+      if (names[0]) first.name = names[0];
+      for (let d = 1; d < D; d++) {
+        const u = clone(first);
+        Object.assign(u, { uid: uuidOf("1", Number(first.uid.slice(1, 8)) + d), name: names[d] || `Домен ${d + 1}` });
         store.put(u);
       }
+      legacy.rebuild();
+      const doms = db.domains.slice(0, D).map((x) => x.id), dom = doms[0];
+      const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
+      const srv = [], fold = [];
+      doms.forEach((domainId, d) => {
+        // Кластеров меньше, чем доменов: у домена без своей доли — один кластер (иначе в имени сервера был бы NaN)
+        const s0 = from(L.servers, d), c0 = from(L.clusters, d), nc = Math.max(1, share(L.clusters, d)), f0 = from(L.folders, d);
+        for (let j = 0; j < share(L.servers, d); j++) {
+          const i = s0 + j;
+          srv.push(Object.assign({}, base, { domainId, id: uuidOf("2", 1000 + i), name: `Кластер ${c0 + (j % nc) + 1}/Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
+        }
+        for (let j = 0; j < share(L.folders, d); j++) fold.push({ id: uuidOf("4", 1000 + f0 + j), name: `Папка ${f0 + j + 1}`, domainId, parentId: null, deviceIds: [], version: "v0" });
+      });
+      db.servers = srv;
+      // Ретранслятор первого домена: его доля кластеров (последние кластеры домена) и камеры за ним. Камеры в составе не
+      // совпадут с именами кластеров
+      const relayed = Math.min(share(L.relayed, 0), share(L.clusters, 0)), last = share(L.clusters, 0);
+      db.relays = { [dom]: { "Кластер 1": Array.from({ length: relayed }, (x, i) => `Кластер ${last - i}`).concat(Array.from({ length: 3000 }, (x, i) => `cam-${i}`)) } };
+      db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
+      db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
+      db.folders = fold;
+      // Камеры — сразу объектами склада: 250 000 записей через перевод старой таблицы шли бы дольше.
+      // В каждом домене первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
+      const firstBranch = L.firstBranch, folders = db.folders.map((f) => f.id);
+      const servers = db.servers.map((s) => s.id), archives = db.archives.map((a) => a.id);
+      doms.forEach((domainId, d) => {
+        const n0 = from(L.cameras, d), s0 = from(L.servers, d), ns = share(L.servers, d), f0 = from(L.folders, d), nf = share(L.folders, d);
+        const onServer = share(L.serverCameras, d);
+        for (let k = 0; k < share(L.cameras, d); k++) {
+          const i = n0 + k;
+          const id = uuidOf("3", 100000 + i);
+          const sid = k < firstBranch ? 0 : k < onServer ? (ns > 1 ? 1 + ((k - firstBranch) % (ns - 1)) : 0) : -1;
+          const u = { uid: id, kind: "camera", parentId: null, domainId, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, version: "v0",
+            properties: { enabled: i % 200 !== 11 }, status: { link: i % 50 !== 7 ? "online" : "offline" } };
+          if (sid >= 0 && ns) Object.assign(u.properties, { serverId: servers[s0 + sid], archiveId: archives[s0 + sid], recordMode: "always" });
+          if (k % 40 === 0 && nf) u.folders = [folders[f0 + ((k / 40) % nf)]];
+          store.put(u);
+        }
+      });
       legacy.rebuild();
     }
 
