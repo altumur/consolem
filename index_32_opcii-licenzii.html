@@ -1728,6 +1728,19 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .lic-sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
 .lic-doms{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-2px 0 10px;font-size:12px}.lic-dom{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.lic-dom.lic-dim{opacity:.6}
 .lic-card .nt{margin-bottom:10px}
+.op-key{width:150px;text-align:center;font-variant-numeric:tabular-nums;cursor:pointer;caret-color:transparent}.op-key:focus{border-color:var(--one-accent);box-shadow:0 0 0 2px var(--one-selected-neutral)}
+.op-freed{color:var(--one-warning-text);display:flex;gap:4px;align-items:center;width:100%}
+.cl-card .ch{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.cl-lead{margin:0 0 12px}.cl-txt{margin:0 0 10px}
+.cl-dl{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;margin:0 0 12px;font-size:13px}.cl-dl dt{color:var(--mu)}.cl-dl dd{margin:0}
+.cl-acts{display:flex;gap:8px;flex-wrap:wrap}.cl-ext{display:inline-flex;align-items:center;gap:6px}
+.cl-steps{margin:0 0 12px;padding-left:20px;display:grid;gap:10px}.cl-steps li{line-height:1.5}.cl-steps li>.btn{margin-left:6px;vertical-align:middle}
+.cl-f{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:6px 0}.cl-f>span{min-width:150px;color:var(--mu);font-size:12px}.cl-tok{display:inline-flex;margin:0 8px 0 0}.cl-f select{width:auto;min-width:200px;field-sizing:content}.cl-tok-in{width:200px;font-family:var(--mono,monospace)}
+.cl-adv summary{cursor:pointer;color:var(--x-link);font-size:13px}.cl-adv[open] summary{margin-bottom:6px}.cl-hint{margin:2px 0 0}
+.cl-err{display:flex;gap:6px;align-items:flex-start}
+.cl-wait{display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:13px}.cl-bar{width:80px;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--one-selected-neutral) 0 30%,var(--one-accent) 30% 60%,var(--one-selected-neutral) 60%);background-size:200% 100%;animation:clbar 1s linear infinite}
+@keyframes clbar{to{background-position:-200% 0}}@media(prefers-reduced-motion:reduce){.cl-bar{animation:none;background:var(--one-accent)}}
+.bm-add{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}.bm-add .btn,.op-ch-act{display:inline-flex;align-items:center;gap:6px}.bm-err{color:var(--one-danger-text);margin:0 0 8px;font-size:13px}
+.bm-row .op-c{display:flex;gap:10px;align-items:center;justify-content:flex-end}.card .ch .op-ch-act{margin-left:auto}
 .lic-tools{display:flex;justify-content:flex-end;margin:-4px 0 12px}.lic-tools .btn{display:inline-flex;align-items:center;gap:6px}
 .lic-acts{display:inline-flex;gap:6px;flex-wrap:wrap}.lic-foot{display:flex;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--ln)}
 .lic-rm{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:4px;background:none;color:var(--mu);cursor:pointer}.lic-rm:hover,.lic-rm:focus-visible{background:var(--one-danger-bg);color:var(--one-danger-text)}
@@ -2465,7 +2478,7 @@ onEv.key=(...keys)=>[".key",...keys];
 const svgIc=(d,vb="0 0 16 16")=>`<svg class="ic-svg" viewBox="${vb}" width="14" height="14" aria-hidden="true">${d}</svg>`;
 // Иконки — Lucide (ISC, v1.46.0, из ONE.PSIM.PrototypeKit): одно семейство на весь макет вместо
 // залитых глифов, эмодзи и текстовых символов (AGENTS.md «one coherent icon family», D-005).
-const LU={"paperclip":"<path d=\"m16 6-8.414 8.586a2 2 0 0 0 2.828 2.828l8.414-8.586a4 4 0 0 0-5.656-5.656l-8.415 8.585a6 6 0 1 0 8.486 8.486l8.757-8.757\"/>","bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\"/>", "volume-x": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><line x1=\"22\" x2=\"16\" y1=\"9\" y2=\"15\"/><line x1=\"16\" x2=\"22\" y1=\"9\" y2=\"15\"/>", "house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
+const LU={"cloud":"<path d=\"M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z\"/>","keyboard":"<path d=\"M10 8h.01\"/><path d=\"M12 12h.01\"/><path d=\"M14 8h.01\"/><path d=\"M16 12h.01\"/><path d=\"M18 8h.01\"/><path d=\"M6 8h.01\"/><path d=\"M7 16h10\"/><path d=\"M8 12h.01\"/><rect width=\"20\" height=\"16\" x=\"2\" y=\"4\" rx=\"2\"/>","bookmark":"<path d=\"m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z\"/>","flask-conical":"<path d=\"M14 2v6a2 2 0 0 0 .245.96l5.51 10.08A2 2 0 0 1 18 22H6a2 2 0 0 1-1.755-2.96l5.51-10.08A2 2 0 0 0 10 8V2\"/><path d=\"M6.453 15h11.094\"/><path d=\"M8.5 2h7\"/>","file-text":"<path d=\"M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z\"/><path d=\"M14 2v4a2 2 0 0 0 2 2h4\"/><path d=\"M10 9H8\"/><path d=\"M16 13H8\"/><path d=\"M16 17H8\"/>","camera":"<path d=\"M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z\"/><circle cx=\"12\" cy=\"13\" r=\"3\"/>","external-link":"<path d=\"M15 3h6v6\"/><path d=\"M10 14 21 3\"/><path d=\"M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6\"/>","paperclip":"<path d=\"m16 6-8.414 8.586a2 2 0 0 0 2.828 2.828l8.414-8.586a4 4 0 0 0-5.656-5.656l-8.415 8.585a6 6 0 1 0 8.486 8.486l8.757-8.757\"/>","bell": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326\"/>", "volume-x": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><line x1=\"22\" x2=\"16\" y1=\"9\" y2=\"15\"/><line x1=\"16\" x2=\"22\" y1=\"9\" y2=\"15\"/>", "house": "<path d=\"M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8\"/><path d=\"M3 10a2 2 0 0 1 .709-1.528l7-6a2 2 0 0 1 2.582 0l7 6A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z\"/>", "server": "<rect width=\"20\" height=\"8\" x=\"2\" y=\"2\" rx=\"2\" ry=\"2\"/><rect width=\"20\" height=\"8\" x=\"2\" y=\"14\" rx=\"2\" ry=\"2\"/><line x1=\"6\" x2=\"6.01\" y1=\"6\" y2=\"6\"/><line x1=\"6\" x2=\"6.01\" y1=\"18\" y2=\"18\"/>", "cctv": "<path d=\"M16.75 12h3.632a1 1 0 0 1 .894 1.447l-2.034 4.069a1 1 0 0 1-1.708.134l-2.124-2.97\"/><path d=\"M17.106 9.053a1 1 0 0 1 .447 1.341l-3.106 6.211a1 1 0 0 1-1.342.447L3.61 12.3a2.92 2.92 0 0 1-1.3-3.91L3.69 5.6a2.92 2.92 0 0 1 3.92-1.3z\"/><path d=\"M2 19h3.76a2 2 0 0 0 1.8-1.1L9 15\"/><path d=\"M2 21v-4\"/><path d=\"M7 9h.01\"/>", "hard-drive": "<path d=\"M10 16h.01\"/><path d=\"M2.212 11.577a2 2 0 0 0-.212.896V18a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5.527a2 2 0 0 0-.212-.896L18.55 5.11A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z\"/><path d=\"M21.946 12.013H2.054\"/><path d=\"M6 16h.01\"/>", "monitor-play": "<path d=\"M15.033 9.44a.647.647 0 0 1 0 1.12l-4.065 2.352a.645.645 0 0 1-.968-.56V7.648a.645.645 0 0 1 .967-.56z\"/><path d=\"M12 17v4\"/><path d=\"M8 21h8\"/><rect x=\"2\" y=\"3\" width=\"20\" height=\"14\" rx=\"2\"/>", "mic": "<path d=\"M12 19v3\"/><path d=\"M19 10v2a7 7 0 0 1-14 0v-2\"/><rect x=\"9\" y=\"2\" width=\"6\" height=\"13\" rx=\"3\"/>", "radar": "<path d=\"M19.07 4.93A10 10 0 0 0 6.99 3.34\"/><path d=\"M4 6h.01\"/><path d=\"M2.29 9.62A10 10 0 1 0 21.31 8.35\"/><path d=\"M16.24 7.76A6 6 0 1 0 8.23 16.67\"/><path d=\"M12 18h.01\"/><path d=\"M17.99 11.66A6 6 0 0 1 15.77 16.67\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/><path d=\"m13.41 10.59 5.66-5.66\"/>", "toggle-left": "<circle cx=\"9\" cy=\"12\" r=\"3\"/><rect width=\"20\" height=\"14\" x=\"2\" y=\"5\" rx=\"7\"/>", "volume-2": "<path d=\"M11 4.702a.705.705 0 0 0-1.203-.498L6.413 7.587A1.4 1.4 0 0 1 5.416 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.416a1.4 1.4 0 0 1 .997.413l3.383 3.384A.705.705 0 0 0 11 19.298z\"/><path d=\"M16 9a5 5 0 0 1 0 6\"/><path d=\"M19.364 18.364a9 9 0 0 0 0-12.728\"/>", "scan-eye": "<path d=\"M3 7V5a2 2 0 0 1 2-2h2\"/><path d=\"M17 3h2a2 2 0 0 1 2 2v2\"/><path d=\"M21 17v2a2 2 0 0 1-2 2h-2\"/><path d=\"M7 21H5a2 2 0 0 1-2-2v-2\"/><circle cx=\"12\" cy=\"12\" r=\"1\"/><path d=\"M18.944 12.33a1 1 0 0 0 0-.66 7.5 7.5 0 0 0-13.888 0 1 1 0 0 0 0 .66 7.5 7.5 0 0 0 13.888 0\"/>", "radio": "<path d=\"M16.247 7.761a6 6 0 0 1 0 8.478\"/><path d=\"M19.075 4.933a10 10 0 0 1 0 14.134\"/><path d=\"M4.925 19.067a10 10 0 0 1 0-14.134\"/><path d=\"M7.753 16.239a6 6 0 0 1 0-8.478\"/><circle cx=\"12\" cy=\"12\" r=\"2\"/>", "shield": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/>", "siren": "<path d=\"M7 18v-6a5 5 0 1 1 10 0v6\"/><path d=\"M5 21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-1a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2z\"/><path d=\"M21 12h1\"/><path d=\"M18.5 4.5 18 5\"/><path d=\"M2 12h1\"/><path d=\"M12 2v1\"/><path d=\"m4.929 4.929.707.707\"/><path d=\"M12 12v6\"/>", "lock": "<rect width=\"18\" height=\"11\" x=\"3\" y=\"11\" rx=\"2\" ry=\"2\"/><path d=\"M7 11V7a5 5 0 0 1 10 0v4\"/>", "fence": "<path d=\"M4 3 2 5v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M6 8h4\"/><path d=\"M6 18h4\"/><path d=\"m12 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/><path d=\"M14 8h4\"/><path d=\"M14 18h4\"/><path d=\"m20 3-2 2v15c0 .6.4 1 1 1h2c.6 0 1-.4 1-1V5Z\"/>", "download": "<path d=\"M12 15V3\"/><path d=\"M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4\"/><path d=\"m7 10 5 5 5-5\"/>", "layout-grid": "<rect width=\"7\" height=\"7\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"14\" y=\"14\" rx=\"1\"/><rect width=\"7\" height=\"7\" x=\"3\" y=\"14\" rx=\"1\"/>", "mail": "<path d=\"m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7\"/><rect x=\"2\" y=\"4\" width=\"20\" height=\"16\" rx=\"2\"/>", "message-square": "<path d=\"M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z\"/>", "move": "<path d=\"M12 2v20\"/><path d=\"m15 19-3 3-3-3\"/><path d=\"m19 9 3 3-3 3\"/><path d=\"M2 12h20\"/><path d=\"m5 9-3 3 3 3\"/><path d=\"m9 5 3-3 3 3\"/>", "database": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5V19A9 3 0 0 0 21 19V5\"/><path d=\"M3 12A9 3 0 0 0 21 12\"/>", "search": "<path d=\"m21 21-4.34-4.34\"/><circle cx=\"11\" cy=\"11\" r=\"8\"/>", "cpu": "<path d=\"M12 20v2\"/><path d=\"M12 2v2\"/><path d=\"M17 20v2\"/><path d=\"M17 2v2\"/><path d=\"M2 12h2\"/><path d=\"M2 17h2\"/><path d=\"M2 7h2\"/><path d=\"M20 12h2\"/><path d=\"M20 17h2\"/><path d=\"M20 7h2\"/><path d=\"M7 20v2\"/><path d=\"M7 2v2\"/><rect x=\"4\" y=\"4\" width=\"16\" height=\"16\" rx=\"2\"/><rect x=\"8\" y=\"8\" width=\"8\" height=\"8\" rx=\"1\"/>", "link": "<path d=\"M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71\"/><path d=\"M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71\"/>", "folder": "<path d=\"M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z\"/>", "folder-open": "<path d=\"m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2\"/>", "monitor": "<rect width=\"20\" height=\"14\" x=\"2\" y=\"3\" rx=\"2\"/><line x1=\"8\" x2=\"16\" y1=\"21\" y2=\"21\"/><line x1=\"12\" x2=\"12\" y1=\"17\" y2=\"21\"/>", "zap": "<path d=\"M15.914 4a1.5 1.5 0 00-2.474-1.561l-9 9A1.5 1.5 0 005.5 14h4.002a.5.5 0 01.471.666L8.086 20a1.5 1.5 0 002.475 1.56l9-9A1.5 1.5 0 0018.5 10h-3.997a.5.5 0 01-.472-.667z\"/>", "user": "<path d=\"M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2\"/><circle cx=\"12\" cy=\"7\" r=\"4\"/>", "settings": "<path d=\"M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "list": "<path d=\"M3 5h.01\"/><path d=\"M3 12h.01\"/><path d=\"M3 19h.01\"/><path d=\"M8 5h13\"/><path d=\"M8 12h13\"/><path d=\"M8 19h13\"/>", "cylinder": "<ellipse cx=\"12\" cy=\"5\" rx=\"9\" ry=\"3\"/><path d=\"M3 5v14a9 3 0 0 0 18 0V5\"/>", "shield-check": "<path d=\"M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z\"/><path d=\"m9 12 2 2 4-4\"/>", "id-card": "<path d=\"M13 19a4 4 0 00-8 0\"/><path d=\"M16 10h2\"/><path d=\"M16 14h2\"/><circle cx=\"9\" cy=\"12\" r=\"3\"/><rect x=\"2\" y=\"5\" width=\"20\" height=\"14\" rx=\"2\"/>", "triangle-alert": "<path d=\"m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3\"/><path d=\"M12 9v4\"/><path d=\"M12 17h.01\"/>", "circle-check": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "tv": "<path d=\"m17 2-5 5-5-5\"/><rect width=\"20\" height=\"15\" x=\"2\" y=\"7\" rx=\"2\"/>", "puzzle": "<path d=\"M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z\"/>", "users": "<path d=\"M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2\"/><path d=\"M16 3.128a4 4 0 0 1 0 7.744\"/><path d=\"M22 21v-2a4 4 0 0 0-3-3.87\"/><circle cx=\"9\" cy=\"7\" r=\"4\"/>", "library": "<path d=\"m16 6 4 14\"/><path d=\"M12 6v14\"/><path d=\"M8 8v12\"/><path d=\"M4 4v16\"/>", "x": "<path d=\"M18 6 6 18\"/><path d=\"m6 6 12 12\"/>", "check": "<path d=\"M20 6 9 17l-5-5\"/>", "star": "<path d=\"M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z\"/>", "chevron-left": "<path d=\"m15 18-6-6 6-6\"/>", "chevron-right": "<path d=\"m9 18 6-6-6-6\"/>", "arrow-up": "<path d=\"m5 12 7-7 7 7\"/><path d=\"M12 19V5\"/>", "arrow-down": "<path d=\"M12 5v14\"/><path d=\"m19 12-7 7-7-7\"/>", "panel-left": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"M9 3v18\"/>", "square-arrow-out-up-right": "<path d=\"M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6\"/><path d=\"m21 3-9 9\"/><path d=\"M15 3h6v6\"/>", "plus": "<path d=\"M5 12h14\"/><path d=\"M12 5v14\"/>", "funnel": "<path d=\"M10 20a1 1 0 0 0 .553.895l2 1A1 1 0 0 0 14 21v-7a2 2 0 0 1 .517-1.341L21.74 4.67A1 1 0 0 0 21 3H3a1 1 0 0 0-.742 1.67l7.225 7.989A2 2 0 0 1 10 14z\"/>", "refresh-cw": "<path d=\"M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8\"/><path d=\"M21 3v5h-5\"/><path d=\"M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16\"/><path d=\"M8 16H3v5\"/>", "square": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/>", "maximize-2": "<path d=\"M15 3h6v6\"/><path d=\"m21 3-7 7\"/><path d=\"m3 21 7-7\"/><path d=\"M9 21H3v-6\"/>", "minimize-2": "<path d=\"m14 10 7-7\"/><path d=\"M20 10h-6V4\"/><path d=\"m3 21 7-7\"/><path d=\"M4 14h6v6\"/>", "copy": "<rect width=\"14\" height=\"14\" x=\"8\" y=\"8\" rx=\"2\" ry=\"2\"/><path d=\"M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2\"/>", "trash": "<path d=\"M10 11v6\"/><path d=\"M14 11v6\"/><path d=\"M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6\"/><path d=\"M3 6h18\"/><path d=\"M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2\"/>", "eye": "<path d=\"M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0\"/><circle cx=\"12\" cy=\"12\" r=\"3\"/>", "eye-off": "<path d=\"M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49\"/><path d=\"M14.084 14.158a3 3 0 0 1-4.242-4.242\"/><path d=\"M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143\"/><path d=\"m2 2 20 20\"/>", "crosshair": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"22\" x2=\"18\" y1=\"12\" y2=\"12\"/><line x1=\"6\" x2=\"2\" y1=\"12\" y2=\"12\"/><line x1=\"12\" x2=\"12\" y1=\"6\" y2=\"2\"/><line x1=\"12\" x2=\"12\" y1=\"22\" y2=\"18\"/>", "square-check": "<rect width=\"18\" height=\"18\" x=\"3\" y=\"3\" rx=\"2\"/><path d=\"m16 9-5.5 5.5L8 12\"/>", "clock": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 6v6l4 2\"/>", "clipboard-list": "<rect width=\"8\" height=\"4\" x=\"8\" y=\"2\" rx=\"1\" ry=\"1\"/><path d=\"M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2\"/><path d=\"M12 11h4\"/><path d=\"M12 16h4\"/><path d=\"M8 11h.01\"/><path d=\"M8 16h.01\"/>", "sun-moon": "<path d=\"M12 2v2\"/><path d=\"M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715\"/><path d=\"M16 12a4 4 0 0 0-4-4\"/><path d=\"m19 5-1.256 1.256\"/><path d=\"M20 12h2\"/>", "unplug": "<path d=\"m19 5 3-3\"/><path d=\"m2 22 3-3\"/><path d=\"M6.3 20.3a2.4 2.4 0 0 0 3.4 0L12 18l-6-6-2.3 2.3a2.4 2.4 0 0 0 0 3.4Z\"/><path d=\"M7.5 13.5 10 11\"/><path d=\"M10.5 16.5 13 14\"/><path d=\"m12 6 6 6 2.3-2.3a2.4 2.4 0 0 0 0-3.4l-2.6-2.6a2.4 2.4 0 0 0-3.4 0Z\"/>", "scroll-text": "<path d=\"M15 12h-5\"/><path d=\"M15 8h-5\"/><path d=\"M19 17V5a2 2 0 0 0-2-2H4\"/><path d=\"M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3\"/>", "book-user": "<path d=\"M15 13a3 3 0 1 0-6 0\"/><path d=\"M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20\"/><circle cx=\"12\" cy=\"8\" r=\"2\"/>", "layout-dashboard": "<rect width=\"7\" height=\"9\" x=\"3\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"14\" y=\"3\" rx=\"1\"/><rect width=\"7\" height=\"9\" x=\"14\" y=\"12\" rx=\"1\"/><rect width=\"7\" height=\"5\" x=\"3\" y=\"16\" rx=\"1\"/>", "calendar-days": "<path d=\"M8 2v4\"/><path d=\"M16 2v4\"/><rect width=\"18\" height=\"18\" x=\"3\" y=\"4\" rx=\"2\"/><path d=\"M3 10h18\"/><path d=\"M8 14h.01\"/><path d=\"M12 14h.01\"/><path d=\"M16 14h.01\"/><path d=\"M8 18h.01\"/><path d=\"M12 18h.01\"/><path d=\"M16 18h.01\"/>", "wrench": "<path d=\"M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z\"/>", "bell-off": "<path d=\"M10.268 21a2 2 0 0 0 3.464 0\"/><path d=\"M17 17H4a1 1 0 0 1-.74-1.673C4.59 13.956 6 12.499 6 8a6 6 0 0 1 .258-1.742\"/><path d=\"m2 2 20 20\"/><path d=\"M8.668 3.01A6 6 0 0 1 18 8c0 2.687.77 4.653 1.707 6.05\"/>", "circle-play": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><polygon points=\"10 8 16 12 10 16 10 8\"/>", "circle-pause": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><line x1=\"10\" x2=\"10\" y1=\"15\" y2=\"9\"/><line x1=\"14\" x2=\"14\" y1=\"15\" y2=\"9\"/>", "contrast": "<circle cx=\"12\" cy=\"12\" r=\"10\"/><path d=\"M12 18a6 6 0 0 0 0-12v12z\"/>", "ellipsis-vertical": "<circle cx=\"12\" cy=\"12\" r=\"1\"/><circle cx=\"12\" cy=\"5\" r=\"1\"/><circle cx=\"12\" cy=\"19\" r=\"1\"/>", "minus": "<path d=\"M5 12h14\"/>"};
 const lu=(n,sz=14,cls="ic-svg")=>`<svg class="${cls}" viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${LU[n]||""}</svg>`;
 const STAR_ON=lu("star").replace('fill="none"','fill="currentColor"'),STAR_OFF=lu("star");
 // Шеврон DS (ChevronIcon): у дерева — обычный глиф 45 %, 9 из 20 (ступень кита D-069; «сильный» из
@@ -2739,13 +2752,19 @@ const treeMatchCache=new Map(),searchMatchCache=new Map();
 const OPT_GROUPS=[{id:"ws",n:"Рабочее место",sub:"Только этот браузер"},{id:"dom",n:"Домен",sub:"Все серверы домена"},{id:"lic",n:"Лицензии",sub:""}];
 const sysOptsRU=[
   {id:"ui",g:"ws",n:"Интерфейс",i:"layout-dashboard"},{id:"region",g:"ws",n:"Язык и формат",i:"sun-moon"},{id:"session",g:"ws",n:"Выход и блокировка",i:"lock"},
+  {id:"audio",g:"ws",n:"Звук",i:"mic",kw:"микрофон"},{id:"keys",g:"ws",n:"Горячие клавиши",i:"keyboard",kw:"сочетание клавиш"},{id:"snap",g:"ws",n:"Кадр в файл",i:"camera",kw:"быстрый экспорт снимок"},{id:"exp",g:"ws",n:"Экспериментальные",i:"flask-conical"},
   {id:"keep",g:"dom",n:"Хранение данных",i:"database"},{id:"alarm",g:"dom",n:"Обработка тревог",i:"siren"},{id:"ptz",g:"dom",n:"Управление PTZ",i:"move"},
-  {id:"sec",g:"dom",n:"Безопасность",i:"shield-check"},{id:"ntp",g:"dom",n:"Время",i:"clock"},{id:"mail",g:"dom",n:"Уведомления",i:"mail"},{id:"maps",g:"dom",n:"Карты",i:"layout-grid"},
+  {id:"sec",g:"dom",n:"Безопасность",i:"shield-check"},{id:"ntp",g:"dom",n:"Время",i:"clock"},{id:"cloud",g:"dom",n:"AxxonNet",i:"cloud",kw:"облако токен прокси подключить домен"},
+  {id:"sched",g:"dom",n:"Расписания",i:"calendar-days",kw:"часовые зоны интервалы запись"},{id:"export",g:"dom",n:"Шаблон экспорта",i:"file-text",kw:"pdf водяной знак"},{id:"bm",g:"dom",n:"Закладки",i:"bookmark",kw:"категории закладок"},
+  {id:"mail",g:"dom",n:"Уведомления",i:"mail"},{id:"maps",g:"dom",n:"Карты",i:"layout-grid"},
   {id:"lic",g:"lic",n:"Лицензии",i:"id-card"}];
 const sysOptsEN=[
   {id:"ui",g:"ws",n:"Interface",i:"layout-dashboard"},{id:"region",g:"ws",n:"Language and format",i:"sun-moon"},{id:"session",g:"ws",n:"Logout and lock",i:"lock"},
+  {id:"audio",g:"ws",n:"Sound",i:"mic",kw:"microphone"},{id:"keys",g:"ws",n:"Hot keys",i:"keyboard",kw:"shortcut"},{id:"snap",g:"ws",n:"Snapshot to file",i:"camera",kw:"quick export"},{id:"exp",g:"ws",n:"Experimental",i:"flask-conical"},
   {id:"keep",g:"dom",n:"Data retention",i:"database"},{id:"alarm",g:"dom",n:"Alarm handling",i:"siren"},{id:"ptz",g:"dom",n:"PTZ control",i:"move"},
-  {id:"sec",g:"dom",n:"Security",i:"shield-check"},{id:"ntp",g:"dom",n:"Time",i:"clock"},{id:"mail",g:"dom",n:"Notifications",i:"mail"},{id:"maps",g:"dom",n:"Maps",i:"layout-grid"},
+  {id:"sec",g:"dom",n:"Security",i:"shield-check"},{id:"ntp",g:"dom",n:"Time",i:"clock"},{id:"cloud",g:"dom",n:"AxxonNet",i:"cloud",kw:"cloud token proxy connect domain"},
+  {id:"sched",g:"dom",n:"Schedules",i:"calendar-days",kw:"time zones intervals"},{id:"export",g:"dom",n:"Export template",i:"file-text",kw:"pdf watermark"},{id:"bm",g:"dom",n:"Bookmarks",i:"bookmark",kw:"bookmark categories"},
+  {id:"mail",g:"dom",n:"Notifications",i:"mail"},{id:"maps",g:"dom",n:"Maps",i:"layout-grid"},
   {id:"lic",g:"lic",n:"Licenses",i:"id-card"}];
 const sysOpts=sysOptsRU.map(o=>({...o}));
 const logCatsRU=[{id:"all",n:"Все события"},{id:"audit",n:"Аудит"},{id:"alarm",n:"Тревоги"},{id:"info",n:"Информация"},{id:"ops",n:"Операции"}];
@@ -9892,7 +9911,7 @@ function logGo(id){logFilt=id;if(id==="ops")logOpsLoad();else if(logQOn())logQue
 let optLastQ="";
 function treeOpts(){const q=qval();if(q!==optLastQ){optLastQ=q;if(app==="sys")queueMicrotask(sysUI)}
   // Группы как у Axxon One: «Рабочее место», «Домен», затем «Лицензии». Поиск ищет и в опциях страницы: число — сколько опций нашлось
-  return OPT_GROUPS.map(g=>{const rows=sysOpts.filter(o=>o.g===g.id).map(o=>{const hits=optPageHits(o,q).length,own=matchesText(q,o.n);
+  return OPT_GROUPS.map(g=>{const rows=sysOpts.filter(o=>o.g===g.id).map(o=>{const hits=optPageHits(o,q).length,own=matchesText(q,o.n,o.kw||"");
       if(q&&!own&&!hits)return"";
       return`<div class="n ${sys===o.id?"on":""}" data-go="opt:${o.id}" ${onEv("click",["optGo",o.id])}><span class="tw"></span><span class="ici">${lu(o.i)}</span><span class="nm">${hlText(o.n,q)}</span>${q&&!own&&hits?`<span class="op-tcnt" title="${escHtml(i18n("Найдено опций"))}">${hits}</span>`:""}</div>`}).join("");
     return rows?`${g.id==="lic"?"":`<div class="op-tg">${i18n(g.n)}</div>`}${rows}`:""}).join("")||`<div class="n n-more"><span class="tw"></span><span class="nm sub">${i18n("Ничего не найдено")}</span></div>`}
@@ -22661,8 +22680,77 @@ const SETTINGS=[
   {id:"ntp.tz",page:"ntp",card:"Часовой пояс",label:"Часовой пояс домена",type:"select",def:"Europe/Moscow",opts:[["Europe/Moscow","Москва (UTC+3)"],["Europe/Samara","Самара (UTC+4)"],["Asia/Yekaterinburg","Екатеринбург (UTC+5)"],["UTC","UTC"]],api:true},
   {id:"mail.smtp",page:"mail",card:"Каналы",label:"SMTP-сервер",type:"text",def:"smtp.local",api:true,help:"Для писем о тревогах и отчётов."},
   {id:"mail.hook",page:"mail",card:"Каналы",label:"Webhook",type:"text",def:"",api:true,help:"Адрес, на который сервер отправляет события (POST)."},
-  {id:"map.provider",page:"maps",card:"Подложка",label:"Поставщик карт",type:"select",def:"osm",opts:[["osm","OpenStreetMap"],["yandex","Яндекс Карты"],["none","Без подложки"]],restart:"page"},
-  {id:"map.zoom",page:"maps",card:"Подложка",label:"Масштаб при открытии",type:"num",unit:"",min:0,max:19,def:12,help:"0 — весь мир, 19 — здание."}
+  {id:"map.provider",page:"maps",card:"Подложка",label:"Поставщик карт",type:"select",def:"osm",opts:[["osm","OpenStreetMap"],["google","Google Maps"],["yandex","Яндекс Карты"],["2gis","2ГИС"],["image","Своё изображение"]],restart:"page"},
+  {id:"map.zoom",page:"maps",card:"Подложка",label:"Масштаб при открытии",type:"num",unit:"",min:0,max:19,def:12,help:"0 — весь мир, 19 — здание."},
+  // Раунд 5: поля Axxon One, которых не было (Lexiro 599301, 292591, 590805, 292594, 596568, 292607, 292611, 594406, 590806, 292642)
+  {id:"ui.smooth",page:"ui",card:"Просмотр",label:"Плавные переходы",type:"bool",def:true,help:"Анимация при смене раскладок и вкладок."},
+  {id:"ui.hideDate",page:"ui",card:"Просмотр",label:"Скрывать дату в кадре",type:"bool",def:true,help:"В кадре остаётся только время."},
+  {id:"ui.liveTime",page:"ui",card:"Просмотр",label:"Время вместо метки «Живое»",type:"bool",def:false},
+  {id:"ui.ctlSel",page:"ui",card:"Просмотр",label:"Кнопки — только у выбранного кадра",type:"bool",def:false,help:"Для кнопок «Под кадром»."},
+  {id:"ui.dblMax",page:"ui",card:"Просмотр",label:"Развернуть кадр двойным щелчком",type:"bool",def:false},
+  {id:"ui.hidePanels",page:"ui",card:"Просмотр",label:"Скрывать панели у развёрнутого кадра",type:"bool",def:false},
+  {id:"ui.layoutSort",page:"ui",card:"Дерево и списки",label:"Порядок раскладок",type:"select",def:"custom",opts:[["custom","Свой порядок"],["name","По имени"]],help:"«По имени» — раскладки нельзя переставлять."},
+  {id:"ui.aspect",page:"ui",card:"Видео",label:"Сохранять пропорции кадра",type:"bool",def:true,help:"Иначе видео растягивается на весь кадр."},
+  {id:"ui.fitBorder",page:"ui",card:"Видео",label:"Рамка кадра по размеру видео",type:"bool",def:false,help:"Только когда пропорции сохраняются."},
+  {id:"ui.decim",page:"ui",card:"Видео",label:"Уменьшать видео до размера кадра",type:"bool",def:true,help:"Меньше нагрузка на процессор."},
+  {id:"ui.hw",page:"ui",card:"Видео",label:"Аппаратное декодирование",type:"bool",def:true,help:"Если браузер и видеокарта это умеют.",restart:"page"},
+  {id:"ui.stats",page:"ui",card:"Видео",label:"Статистика потока в кадре",type:"bool",def:false,help:"Кадров в секунду, битрейт, разрешение."},
+  {id:"ui.pip",page:"ui",card:"Тревоги",label:"Тревога в углу кадра",type:"bool",def:false,help:"Маленькое окно с камерой тревоги поверх текущего видео."},
+  {id:"ui.mapZoom",page:"ui",card:"Тревоги",label:"Карта приближается к камере тревоги",type:"bool",def:true},
+  {id:"au.mic",page:"audio",card:"Разговор с камерой",label:"Микрофон",type:"select",def:"",opts:[["","Не выбран"],["default","Микрофон по умолчанию"],["usb","USB-гарнитура"],["cam","Веб-камера ноутбука"]],help:"Ваш голос звучит в динамике камеры.",restart:"page"},
+  {id:"key.full",page:"keys",card:"Общие",label:"Во весь экран",type:"key",def:"F11"},
+  {id:"key.search",page:"keys",card:"Общие",label:"Поиск по архиву",type:"key",def:"Ctrl+F"},
+  {id:"key.layNext",page:"keys",card:"Раскладки",label:"Следующая раскладка",type:"key",def:"Ctrl+→"},
+  {id:"key.layPrev",page:"keys",card:"Раскладки",label:"Предыдущая раскладка",type:"key",def:"Ctrl+←"},
+  {id:"key.slide",page:"keys",card:"Раскладки",label:"Слайд-шоу: начать или остановить",type:"key",def:""},
+  {id:"key.snap",page:"keys",card:"Камера",label:"Кадр в файл",type:"key",def:"Ctrl+S"},
+  {id:"key.arch",page:"keys",card:"Камера",label:"Живое видео или архив",type:"key",def:"Ctrl+A"},
+  {id:"key.bm",page:"keys",card:"Камера",label:"Поставить закладку",type:"key",def:"Ctrl+B"},
+  {id:"key.alTake",page:"keys",card:"Тревоги",label:"Взять тревогу",type:"key",def:"Ctrl+Enter"},
+  {id:"key.alOk",page:"keys",card:"Тревоги",label:"Тревога подтверждена",type:"key",def:"Ctrl+1"},
+  {id:"key.alSusp",page:"keys",card:"Тревоги",label:"Подозрительная ситуация",type:"key",def:"Ctrl+2"},
+  {id:"key.alFalse",page:"keys",card:"Тревоги",label:"Ложная тревога",type:"key",def:"Ctrl+3"},
+  {id:"snap.type",page:"snap",card:"Файл",label:"Формат",type:"select",def:"jpg",opts:[["jpg","JPG"],["png","PNG"]]},
+  {id:"snap.tracks",page:"snap",card:"Файл",label:"Траектории детекторов",type:"bool",def:true},
+  {id:"snap.bmArea",page:"snap",card:"Файл",label:"Область закладки",type:"bool",def:false},
+  {id:"snap.ts",page:"snap",card:"Подписи на кадре",label:"Дата и время",type:"bool",def:true},
+  {id:"snap.short",page:"snap",card:"Подписи на кадре",label:"Короткое имя камеры",type:"bool",def:false},
+  {id:"snap.name",page:"snap",card:"Подписи на кадре",label:"Имя камеры",type:"bool",def:false},
+  {id:"snap.geo",page:"snap",card:"Подписи на кадре",label:"Координаты камеры",type:"bool",def:false},
+  {id:"snap.user",page:"snap",card:"Подписи на кадре",label:"Имя пользователя",type:"bool",def:false},
+  {id:"snap.bmTxt",page:"snap",card:"Подписи на кадре",label:"Текст закладки",type:"bool",def:false},
+  {id:"snap.pos",page:"snap",card:"Подписи на кадре",label:"Данные источника событий",type:"bool",def:false,help:"Например, чек кассы."},
+  {id:"snap.size",page:"snap",card:"Подписи на кадре",label:"Размер шрифта",type:"num",unit:"пт",min:8,max:72,def:16},
+  {id:"snap.color",page:"snap",card:"Подписи на кадре",label:"Цвет подписей",type:"select",def:"black",opts:[["black","Чёрный"],["white","Белый"],["yellow","Жёлтый"]]},
+  {id:"exp.archLimit",page:"exp",card:"Просмотр",label:"Архив — не больше камер на раскладке",type:"num",unit:"камер",min:0,max:256,def:256,help:"0 — скрыть кнопки «Живое» и «Архив»."},
+  {id:"exp.events",page:"exp",card:"Просмотр",label:"Событий на панели событий",type:"num",unit:"",min:1,max:1500,def:100},
+  {id:"exp.selCell",page:"exp",card:"Просмотр",label:"Подсвечивать выбранный кадр",type:"bool",def:true},
+  {id:"exp.bw",page:"exp",card:"Просмотр",label:"Предупреждать о слабой сети",type:"bool",def:false,help:"Надпись в кадре, если поток не успевает приходить."},
+  {id:"exp.thumb",page:"exp",card:"Архив",label:"Кадр при наведении на шкалу архива",type:"bool",def:false},
+  {id:"exp.searchStep",page:"exp",card:"Архив",label:"Делить период поиска на части по",type:"num",unit:"мин",min:1,max:1440,def:60,help:"Первые результаты приходят быстрее."},
+  {id:"exp.snapArch",page:"exp",card:"Архив",label:"Кадр в файл в живом видео — из архива",type:"bool",def:true,help:"Если кадр уже записан: он чётче."},
+  {id:"keep.sysLogClean",page:"keep",card:"Журнал",label:"Чистить системный журнал каждые",type:"num",unit:"ч",min:1,max:1000,def:720},
+  {id:"keep.metaPath",page:"keep",card:"Метаданные детекторов",label:"Сетевая папка для метаданных",type:"text",def:"",help:"Пусто — на диске сервера. Пример: \\\\nas\\meta\\"},
+  {id:"keep.metaUser",page:"keep",card:"Метаданные детекторов",label:"Пользователь сетевой папки",type:"text",def:""},
+  {id:"keep.metaPwd",page:"keep",card:"Метаданные детекторов",label:"Пароль сетевой папки",type:"text",pw:true,def:""},
+  {id:"ptz.joy",page:"ptz",card:"Джойстик",label:"Чувствительность джойстика",type:"num",unit:"",min:5,max:100,def:50,help:"Для пошаговых команд PTZ. Пределы зависят от модели джойстика."},
+  {id:"sec.ipAllow",page:"sec",card:"Вход",label:"Разрешённые адреса клиентов",type:"text",def:"",help:"Через запятую, с префиксом: 10.0.0.0/8, 192.168.1.0/24. Пусто — без ограничения."},
+  {id:"sec.integrity",page:"sec",card:"Целостность системы",label:"Если файлы системы изменены",type:"select",def:"admins",opts:[["admins","Предупредить администраторов"],["all","Предупредить всех"],["block","Не пускать пользователей без прав администратора"],["stop","Остановить службы, кроме основных"]],help:"Сервер проверяет подписи своих файлов при запуске."},
+  {id:"map.key",page:"maps",card:"Подложка",label:"Ключ API",type:"text",def:"",help:"Для Google Maps и для OpenStreetMap через Mapbox."},
+  {id:"map.min",page:"maps",card:"Масштаб и центр",label:"Масштаб — не меньше",type:"num",unit:"",min:0,max:19,def:3},
+  {id:"map.max",page:"maps",card:"Масштаб и центр",label:"Масштаб — не больше",type:"num",unit:"",min:0,max:19,def:17},
+  {id:"map.center",page:"maps",card:"Масштаб и центр",label:"Центр при открытии",type:"text",def:"55.7512, 37.6184",help:"Широта и долгота."},
+  {id:"xp.orient",page:"export",card:"Страница PDF",label:"Ориентация",type:"select",def:"portrait",opts:[["portrait","Книжная"],["landscape","Альбомная"]]},
+  {id:"xp.bg",page:"export",card:"Страница PDF",label:"Фон страницы",type:"text",def:"",help:"Файл PNG до 1 МБ на сервере. Пусто — белый фон."},
+  {id:"xp.font",page:"export",card:"Страница PDF",label:"Шрифт",type:"select",def:"Verdana",opts:[["Verdana","Verdana"],["Arial","Arial"],["Roboto","Roboto"]]},
+  {id:"xp.size",page:"export",card:"Страница PDF",label:"Размер шрифта",type:"num",unit:"пт",min:6,max:36,def:8},
+  {id:"xp.color",page:"export",card:"Страница PDF",label:"Цвет текста",type:"select",def:"black",opts:[["black","Чёрный"],["gray","Серый"],["blue","Синий"]]},
+  {id:"xp.wm",page:"export",card:"Водяной знак",label:"Файл водяного знака",type:"text",def:"",help:"PNG, JPEG или BMP до 1 МБ. Действует на все выгрузки домена."},
+  {id:"xp.wmOp",page:"export",card:"Водяной знак",label:"Непрозрачность",type:"num",unit:"%",min:0,max:100,def:0},
+  {id:"xp.wmL",page:"export",card:"Водяной знак",label:"Область — отступ слева",type:"num",unit:"%",min:0,max:100,def:0},
+  {id:"xp.wmT",page:"export",card:"Водяной знак",label:"Область — отступ сверху",type:"num",unit:"%",min:0,max:100,def:0},
+  {id:"xp.wmR",page:"export",card:"Водяной знак",label:"Область — правый край",type:"num",unit:"%",min:0,max:100,def:100},
+  {id:"xp.wmB",page:"export",card:"Водяной знак",label:"Область — нижний край",type:"num",unit:"%",min:0,max:100,def:100,help:"Знак стоит по центру этой области."}
 ];
 let settingHighlight=null;
 // ЗАГЛУШКА: значения опций домена по доменам. Старт — значение сервера (общее) или значение по умолчанию; у
@@ -22700,14 +22788,15 @@ function optText(st,v){
   if(st.type==="limit"&&!Number(v))return i18n(st.offText);
   if(st.type==="select")return i18n((st.opts.find(o=>o[0]===v)||[v,v])[1]);
   if(st.type==="kinds")return v.length?v.map(k=>refEventLabel?refEventLabel(k):k).join(", "):i18n("ничего");
-  if(st.type==="text")return v||i18n("не задан");
+  if(st.type==="key")return v||i18n("не задано");
+  if(st.type==="text")return st.pw?(v?"••••":i18n("не задан")):v||i18n("не задан");
   return`${v}${st.unit?" "+i18n(st.unit):""}`;
 }
 function refEventLabel(k){return i18n(EVENT_RU[k]||k)}
 
 // Поиск: строка поиска над деревом сужает и список страниц, и опции на странице
 function optHit(st,q){const p=sysOpts.find(o=>o.id===st.page);return matchesText(q,i18n(st.label),i18n(st.help||""),i18n(st.card),p?.n||"")}
-function optPageHits(o,q){const own=SETTINGS.filter(st=>st.page===o.id);return!q||matchesText(q,o.n)?own:own.filter(st=>optHit(st,q))}
+function optPageHits(o,q){const own=SETTINGS.filter(st=>st.page===o.id);return!q||matchesText(q,o.n,o.kw||"")?own:own.filter(st=>optHit(st,q))}
 
 // Изменение: сразу на сервер (или в заглушку), тост с «Отменить»
 function optApply(st,targets,v){
@@ -22752,7 +22841,8 @@ function optControl(st,v,dom,ro){
   if(st.type==="bool")return`<button type="button" class="sw op-sw ${v?"on":""}" role="switch" aria-checked="${!!v}" aria-label="${lbl}" ${dis} ${ro?"":onEv("click",["optBool",st.id,dom])}></button><span class="op-swt">${i18n(v?"Включено":"Выключено")}</span>`;
   if(st.type==="select")return`<select aria-label="${lbl}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>${st.opts.map(([k,t])=>`<option value="${escHtml(k)}" ${k===v?"selected":""}>${escHtml(i18n(t))}</option>`).join("")}</select>`;
   if(st.type==="kinds")return ro?`<span class="sub">${escHtml(optText(st,v))}</span>`:chipsHtml(refEvents,v,"optKind",st.id,dom);
-  if(st.type==="text")return`<input type="text" class="op-in op-txt" aria-label="${lbl}" value="${escHtml(v??"")}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>`;
+  if(st.type==="key")return`<input type="text" readonly class="op-in op-key" aria-label="${lbl}" value="${escHtml(v||"")}" placeholder="${i18n("не задано")}" ${dis} ${onEv("keydown",["optKeyDown",st.id,dom,onEv.event])}>`;
+  if(st.type==="text")return`<input type="${st.pw?"password":"text"}" class="op-in op-txt" aria-label="${lbl}" value="${escHtml(v??"")}" ${dis} ${onEv("change",["optSet",st.id,dom,onEv.value])}>`;
   const off=st.type==="limit"&&!Number(v);
   const num=`<span class="op-num ${off?"op-off":""}"><input type="number" class="op-in" aria-label="${lbl}" min="${st.min}" max="${st.max}" value="${off?"":escHtml(v)}" ${dis||off?"disabled":""} ${onEv("change",["optSet",st.id,dom,onEv.value])}>${st.unit?`<span class="op-unit">${escHtml(i18n(st.unit))}</span>`:""}</span>`;
   if(st.type!=="limit")return num;
@@ -22771,7 +22861,7 @@ function optResetLink(st,v,dom,ro){
 function optRow(st,q){
   const ws=OPT_PAGE_G(st.page)==="ws",label=hlText(i18n(st.label),q),help=st.help?`<div class="op-h">${hlText(i18n(st.help),q)}</div>`:"";
   const head=(v,extra="")=>`<div class="op-l"><div class="op-lb">${label}${optBadges(st,v)}${extra}</div>${help}</div>`;
-  if(ws){const v=optVal(st);return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,"*",false)}${optResetLink(st,v,"*",false)}</div></div>`}
+  if(ws){const v=optVal(st),fr=optKeyFreed&&optKeyFreed.id===st.id?`<div class="op-h op-freed">${lu("triangle-alert",13)} «${escHtml(optKeyFreed.combo)}» ${i18n("теперь у действия")} «${escHtml(i18n(optKeyFreed.to))}»</div>`:"";return`<div class="op-row" data-set="${st.id}">${head(v)}<div class="op-c">${optControl(st,v,"*",false)}${optResetLink(st,v,"*",false)}${fr}</div></div>`}
   const doms=optShownDomains(),on=doms.filter(d=>d.online!==false),off=doms.filter(d=>d.online===false);
   const offNote=d=>`<div class="op-dom op-dom-off"><span class="op-dn">${escHtml(locName(d))}</span><span class="sub">${i18n("нет связи")} · ${i18n("было")} «${escHtml(optText(st,optVal(st,d)))}» ${i18n("на")} ${OPT_OBSERVED}</span></div>`;
   if(doms.length===1){
@@ -22802,18 +22892,209 @@ function optScopeLine(o){
 function sysUI(){
   const o=sysOpts.find(x=>x.id===sys)||sysOpts[0];
   if(o.id==="lic"){licUI(o);return}
+  if(OPT_CUSTOM[o.id]){OPT_CUSTOM[o.id](o);return}
   const q=qval(),all=SETTINGS.filter(x=>x.page===o.id&&(!x.api||x.value!==undefined)),own=optPageHits(o,q).filter(x=>all.includes(x));
   const cards={};
   own.forEach(st=>{(cards[st.card]=cards[st.card]||[]).push(st)});
   let body=optScopeLine(o);
+  if(OPT_NOTE[o.id])body+=`<div class="op-where op-note-${o.id}">${lu(OPT_NOTE[o.id][0])}<span>${i18n(OPT_NOTE[o.id][1])}</span></div>`;
   if(q)body+=`<p class="sub op-found">${i18n("Показано")} ${own.length} ${i18n("из")} ${all.length} · <button type="button" class="lk lk-act" ${onEv("click",["optSearchClear"])}>${i18n("Показать все опции страницы")}</button></p>`;
   body+=Object.entries(cards).map(([title,list])=>card(title,`<div class="op-list">${list.map(st=>optRow(st,q)).join("")}</div>`)).join("");
-  if(o.id==="mail")body+=`<p class="sub">${i18n("Оповещатели сервера — в разделе «Оборудование», срез «Службы».")}</p>`;
+  if(o.id==="mail")body+=`<p class="sub">${i18n("Оповещатели сервера — в разделе «Оборудование», срез «Службы». Почта в режиме «Облачный AxxonNet» работает, когда домен подключён к AxxonNet.")}</p>`;
   const grp=OPT_GROUPS.find(g=>g.id===o.g);
   paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n(grp.n)} · ${i18n(grp.sub)}`)+`<div class="sc op-page">${body}</div>`);
   flashSetting();
 }
 function optSearchClear(){const el=document.getElementById("gq");if(el){el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));el.blur();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}))}else paint()}
+
+// ── Раунд 5: страницы Axxon One, которых не было, — ЗАГЛУШКИ прототипа 32 ──────────────────────────
+// AxxonNet, «Расписания» (в Axxon One — «Часовые зоны»), «Закладки» (категории), горячие клавиши.
+// Значения живут в памяти страницы; ждут отдельного запроса о полях опций (п. 4 запроса о лицензиях).
+const OPT_CUSTOM={cloud:cloudUI,sched:schedOptUI,bm:bmUI};
+const OPT_NOTE={
+  exp:["triangle-alert","Экспериментальные опции могут измениться или пропасть в следующем обновлении. Меняйте их, только если знаете, зачем."],
+  snap:["download","Кадр сохраняется в папку загрузок браузера. Сочетание клавиш — на странице «Горячие клавиши»."],
+  keys:["keyboard","Щёлкните поле и нажмите сочетание. Backspace — снять сочетание, Esc — выйти из поля."],
+  audio:["mic","Браузер спросит разрешение на микрофон при первом разговоре с камерой."]
+};
+function optPaint(o,body){
+  const grp=OPT_GROUPS.find(g=>g.id===o.g);
+  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n(grp.n)} · ${i18n(grp.sub)}`)+`<div class="sc op-page">${body}</div>`);
+  flashSetting();
+}
+
+// Горячие клавиши: поле ловит нажатое сочетание. Одно сочетание — одно действие: занятое снимается с прежнего.
+let optKeyFreed=null;   // {id, combo, to} — у какого действия сочетание сняли, показываем до следующей правки
+const KEY_NAMES={ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓"," ":"Пробел",Enter:"Enter",Delete:"Delete",Insert:"Insert",Home:"Home",End:"End",PageUp:"PageUp",PageDown:"PageDown"};
+function optKeyCombo(e){
+  if(["Control","Alt","Shift","Meta"].includes(e.key))return null;
+  let k=KEY_NAMES[e.key]||(/^F\d{1,2}$/.test(e.key)?e.key:e.key.length===1?e.key.toUpperCase():null);
+  if(!k)return null;
+  if(e.code&&/^Key[A-Z]$/.test(e.code))k=e.code.slice(3);   // русская раскладка: Ctrl+S, а не Ctrl+Ы
+  if(e.code&&/^Digit\d$/.test(e.code))k=e.code.slice(5);
+  return[e.ctrlKey&&"Ctrl",e.altKey&&"Alt",e.shiftKey&&"Shift",k].filter(Boolean).join("+");
+}
+function optKeyDown(id,dom,e){
+  if(e.key==="Tab")return;
+  e.preventDefault();
+  if(e.key==="Escape"){e.target.blur();return}
+  if((e.key==="Backspace"||e.key==="Delete")&&!e.ctrlKey&&!e.altKey){optKeyFreed=null;optSet(id,dom,"");return}
+  const c=optKeyCombo(e);if(!c)return;
+  const st=SETTINGS.find(x=>x.id===id),ws=optWsStore();
+  if(ws[id]===c)return;
+  const other=SETTINGS.find(x=>x.type==="key"&&x.id!==id&&ws[x.id]===c);
+  optKeyFreed=null;
+  if(other){ws[other.id]="";optWsSave();optKeyFreed={id:other.id,combo:c,to:st.label}}
+  optSet(id,dom,c);
+  requestAnimationFrame(()=>document.querySelector(`[data-set="${id}"] .op-key`)?.focus());
+}
+
+// ── AxxonNet: подключение домена к облаку ──
+// Как в Axxon One (Lexiro 522905, AxxonCloudSetingsEditor.cs): домен привязывают одноразовым токеном с сайта облака;
+// с облаком говорит сервер, а не браузер. Адрес облака и прокси меняют, пока домен не подключён.
+const CLOUD_URL="https://axxonnet.com";
+const CLOUD_STUB=[{st:"on",since:"12.10.2026"},{st:"off"},{st:"err",proxy:"http",pxAddr:"10.0.0.5:3128"},{st:"on",since:"02.11.2026"}];
+const cloudSt=new Map();
+function cloudOf(d){
+  if(!cloudSt.has(d.id)){const i=Math.max(0,domains.indexOf(d));
+    cloudSt.set(d.id,{token:"",proxy:"none",pxAddr:"",pxUser:"",pxPwd:"",url:CLOUD_URL,...(CLOUD_STUB[i%CLOUD_STUB.length]||{st:"off"})})}
+  return cloudSt.get(d.id);
+}
+function cloudChip(c,off){
+  if(off)return`<span class="lic-st lic-st-mu">${i18n("Нет связи")} · ${i18n("данные на")} ${OPT_OBSERVED}</span>`;
+  const m={on:["ok","Подключён"],off:["mu","Не подключён"],err:["err","Ошибка подключения"],wait:["warn",c.act==="out"?"Отключение…":"Подключение…"]}[c.st];
+  return`<span class="lic-st lic-st-${m[0]}">${i18n(m[1])}</span>`;
+}
+function cloudProxyText(c){return c.proxy==="none"?i18n("без прокси"):`${c.proxy.toUpperCase()} · ${escHtml(c.pxAddr||"—")}`}
+function cloudForm(d,c){
+  const did=escHtml(d.id),wait=c.st==="wait",dis=wait?"disabled":"";
+  const px=c.proxy!=="none";
+  const pxRows=px?`<label class="cl-f"><span>${i18n("Адрес прокси")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.pxAddr)}" placeholder="10.0.0.5:3128" ${dis} ${onEv("change",["cloudSet",d.id,"pxAddr",onEv.value])}></label>
+    <label class="cl-f"><span>${i18n("Пользователь прокси")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.pxUser)}" ${dis} ${onEv("change",["cloudSet",d.id,"pxUser",onEv.value])}></label>
+    <label class="cl-f"><span>${i18n("Пароль прокси")}</span><input type="password" class="op-in op-txt" value="${escHtml(c.pxPwd)}" ${dis} ${onEv("change",["cloudSet",d.id,"pxPwd",onEv.value])}></label>`:"";
+  const adv=px||c.url!==CLOUD_URL;
+  return`<ol class="cl-steps">
+    <li><span>${i18n("Откройте AxxonNet и войдите в свою учётную запись.")}</span> <button type="button" class="btn s cl-ext" ${onEv("click",["cloudSite",d.id])}>${lu("external-link",14)}${escHtml(c.url.replace(/^https?:\/\//,""))}</button></li>
+    <li>${i18n("На вкладке «Домены» нажмите «+», затем «Привязать». Сайт покажет токен.")}</li>
+    <li><label class="cl-f cl-tok"><span>${i18n("Вставьте токен")}</span><input type="text" class="op-in cl-tok-in" data-cl-tok="${did}" value="${escHtml(c.token)}" placeholder="${i18n("например")} is8gzpz4sQ" autocomplete="off" spellcheck="false" ${dis} ${onEv("input",["cloudTok",d.id,onEv.value])} ${onEv("keydown",["cloudTokKey",d.id,onEv.event])}></label>
+      <button type="button" class="btn s pri" data-cl-go="${did}" ${wait||!c.token.trim()?"disabled":""} ${onEv("click",["cloudConnect",d.id])}>${i18n("Подключить домен")}</button></li></ol>
+    <details class="cl-adv" ${adv?"open":""}><summary>${i18n("Прокси и адрес облака")}${adv?"":` · <span class="sub">${cloudProxyText(c)}</span>`}</summary>
+      <label class="cl-f"><span>${i18n("Прокси")}</span><select ${dis} ${onEv("change",["cloudSet",d.id,"proxy",onEv.value])}>${[["none","Без прокси"],["http","HTTP"],["https","HTTPS"],["socks5","SOCKS5"]].map(([k,t])=>`<option value="${k}" ${k===c.proxy?"selected":""}>${i18n(t)}</option>`).join("")}</select></label>
+      ${pxRows}
+      <label class="cl-f"><span>${i18n("Адрес облака")}</span><input type="text" class="op-in op-txt" value="${escHtml(c.url)}" ${dis} ${onEv("change",["cloudSet",d.id,"url",onEv.value])}></label>
+      <p class="sub cl-hint">${i18n("Меняйте адрес, только если облако у вас своё. Пустое поле — снова")} ${CLOUD_URL}.</p></details>`;
+}
+function cloudCard(d){
+  const c=cloudOf(d),off=d.online===false;
+  let b;
+  if(off)b=`<p class="sub">${i18n("Нет связи с доменом. На")} ${OPT_OBSERVED} ${i18n(c.st==="on"?"домен был подключён к AxxonNet.":"домен не был подключён к AxxonNet.")} ${i18n("Изменить можно, когда связь вернётся.")}</p>`;
+  else if(c.st==="on")b=`<p class="cl-txt">${i18n("Подключён с")} ${escHtml(c.since)}. ${i18n("Операторы открывают домен из браузера и мобильного приложения через")} ${escHtml(c.url.replace(/^https?:\/\//,""))}. ${i18n("Оповещатели в режиме «Облачный AxxonNet» отправляют почту через облако.")}</p>
+    <dl class="cl-dl"><dt>${i18n("Адрес облака")}</dt><dd>${escHtml(c.url)}</dd><dt>${i18n("Прокси")}</dt><dd>${cloudProxyText(c)}</dd></dl>
+    <div class="cl-acts"><button type="button" class="btn s cl-ext" ${onEv("click",["cloudSite",d.id])}>${lu("external-link",14)}${i18n("Открыть в AxxonNet")}</button>
+      <button type="button" class="btn s danger" ${onEv("click",["cloudOff",d.id])}>${i18n("Отключить домен…")}</button></div>`;
+  else{
+    const err=c.st==="err"?`<div class="nt bk-warn cl-err" role="status">${lu("triangle-alert")} ${i18n("AxxonNet не принял токен. Токен действует один раз — получите новый на сайте и вставьте его снова.")}</div>`:"";
+    const wait=c.st==="wait"?`<div class="cl-wait" role="status"><span class="cl-bar"></span>${i18n(c.act==="out"?"Отключение от AxxonNet…":"Подключение к AxxonNet… Сервер проверяет токен.")}</div>`:"";
+    b=(c.st==="wait"&&c.act==="out")?wait:`${err}${wait}${cloudForm(d,c)}`;
+  }
+  return`<div class="card cl-card" data-cl="${escHtml(d.id)}"><div class="ch">${escHtml(locName(d))}${cloudChip(c,off)}</div><div class="cb">${b}</div></div>`;
+}
+function cloudUI(o){
+  const doms=optShownDomains(),on=doms.filter(d=>d.online!==false&&cloudOf(d).st==="on").length;
+  let body=optScopeLine(o);
+  body+=`<p class="sub cl-lead">${i18n("AxxonNet — облако AxxonSoft: удалённый доступ к домену без белого IP-адреса, почта через облако. Серверу нужен интернет: порты 80 и 443 к")} axxonnet.com.${doms.length>1?` <b>${i18n("Подключено")}: ${on} ${i18n("из")} ${doms.length}.</b>`:""}</p>`;
+  body+=doms.map(cloudCard).join("");
+  optPaint(o,body);
+}
+function cloudTok(did,v){const d=domains.find(x=>x.id===did);if(!d)return;cloudOf(d).token=v;const b=document.querySelector(`[data-cl-go="${CSS.escape(did)}"]`);if(b)b.disabled=!v.trim()}
+function cloudTokKey(did,e){if(e.key==="Enter"){e.preventDefault();cloudConnect(did)}}
+function cloudSet(did,k,v){const d=domains.find(x=>x.id===did);if(!d)return;const c=cloudOf(d);c[k]=k==="url"?(String(v).trim().replace(/\/+$/,"")||CLOUD_URL):v;sysUI()}
+function cloudSite(did){const d=domains.find(x=>x.id===did),c=d&&cloudOf(d);toast(`${i18n("Откроется в новой вкладке")}: ${c?c.url:CLOUD_URL} · ${i18n("в прототипе ссылки нет")}`)}
+function cloudConnect(did){
+  const d=domains.find(x=>x.id===did);if(!d)return;const c=cloudOf(d);if(!c.token.trim()||c.st==="wait")return;
+  c.st="wait";c.act="in";sysUI();
+  setTimeout(()=>{
+    // Заглушка ответа сервера: короткий токен или со словом bad — «не подошёл»
+    const bad=c.token.trim().length<6||/bad/i.test(c.token);
+    c.token="";c.act=null;
+    if(bad){c.st="err";toast(`«${locName(d)}»: ${i18n("токен не подошёл")}`)}
+    else{c.st="on";c.since=new Date().toLocaleDateString("ru-RU");toast(`«${locName(d)}» ${i18n("подключён к AxxonNet")}`)}
+    if(app==="sys"&&sys==="cloud")sysUI();
+  },1400);
+}
+function cloudOff(did){
+  const d=domains.find(x=>x.id===did);if(!d)return;
+  const html=`<div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul><li>${i18n("удалённый доступ к домену через AxxonNet — из браузера и мобильного приложения")}</li><li>${i18n("почта оповещателей в режиме «Облачный AxxonNet»")}</li></ul></div>
+    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${i18n("камеры, архив, правила и пользователи домена")}</li><li>${i18n("доступ к домену в локальной сети")}</li></ul></div>
+    <p class="sub">${i18n("Подключить снова можно только новым токеном с сайта AxxonNet.")}</p>`;
+  askConfirm(`${i18n("Отключить")} «${locName(d)}» ${i18n("от AxxonNet?")}`,html,"",i18n("Отключить"),()=>{
+    const c=cloudOf(d);c.st="wait";c.act="out";sysUI();
+    setTimeout(()=>{c.st="off";c.act=null;toast(`«${locName(d)}» ${i18n("отключён от AxxonNet")}`);if(app==="sys"&&sys==="cloud")sysUI()},1000);
+  },{html:true,rawTitle:true});
+}
+
+// ── Расписания: в Axxon One — «Часовые зоны» (Lexiro 292617), интервалы по дням недели для записи архива.
+// В консоли расписания — общая библиотека «Автоматизации»: запись и правила берут их оттуда. Здесь — список и переход.
+function schedOptUI(o){
+  const list=(typeof SCHEDS!=="undefined"?SCHEDS:[]);
+  let body=`<div class="op-where">${lu("calendar-days")}<span>${i18n("В Axxon One это «Часовые зоны»: интервалы по дням недели, когда камера пишет в архив. В консоли расписания общие для записи и для правил и лежат в «Автоматизации».")}</span></div>`;
+  body+=card("Расписания",list.length?`<div class="op-list">${list.map(s=>`<div class="op-row sch-o"><div class="op-l"><div class="op-lb">${escHtml(i18n(s.name||s.id))}${s.builtin?`<span class="op-bd">${i18n("встроенное")}</span>`:""}</div><div class="op-h">${escHtml(schText(s))}</div></div>
+      <div class="op-c"><button type="button" class="lk lk-act" ${onEv("click",["schedOptGo",s.id])}>${i18n("Открыть в «Автоматизации»")}</button></div></div>`).join("")}</div>`
+    :`<p class="sub">${i18n("Расписаний пока нет.")}</p>`,`<button type="button" class="btn s op-ch-act" ${onEv("click",["schedOptGo",""])}>${lu("plus")}${i18n("Новое расписание…")}</button>`);
+  optPaint(o,body);
+}
+function schedOptGo(id){setApp("rules");if(id)ruleOpen("sch:"+id,true);else if(typeof schNew==="function")schNew();else ruleOpenSch(true)}
+
+// ── Закладки: категории закладок домена (Lexiro 588703) ──
+const BM_STUB=[["Инцидент","Проверка","Для полиции"],["Инцидент","Проверка","Для полиции","Склад"],["Инцидент","Проверка"],["Инцидент"]];
+const bmCats=new Map();let bmEdit=null,bmErr="";
+function bmOf(d){if(!bmCats.has(d.id)){const i=Math.max(0,domains.indexOf(d));bmCats.set(d.id,(BM_STUB[i%BM_STUB.length]||[]).slice())}return bmCats.get(d.id)}
+function bmUI(o){
+  const doms=optShownDomains(),on=doms.filter(d=>d.online!==false);
+  const names=[...new Set(on.flatMap(bmOf))];
+  const where=n=>{if(on.length<2)return"";const has=on.filter(d=>bmOf(d).includes(n));return has.length===on.length?i18n("во всех доменах"):`${i18n("только")}: ${has.map(d=>escHtml(locName(d))).join(", ")}`};
+  const rows=names.map(n=>{const en=escHtml(n);
+    if(bmEdit===n)return`<div class="op-row bm-row"><div class="op-l"><input type="text" class="op-in op-txt bm-ren" value="${en}" aria-label="${i18n("Новое имя категории")}" ${onEv("keydown",["bmRenKey",n,onEv.event])}></div><div class="op-c"><button type="button" class="btn s pri" ${onEv("click",["bmRenSave",n])}>${i18n("Сохранить")}</button><button type="button" class="btn s" ${onEv("click",["bmRenCancel"])}>${i18n("Отменить")}</button></div></div>`;
+    return`<div class="op-row bm-row"><div class="op-l"><div class="op-lb">${en}</div>${where(n)?`<div class="op-h">${where(n)}</div>`:""}</div>
+      <div class="op-c"><button type="button" class="lk lk-act" ${onEv("click",["bmRen",n])}>${i18n("Переименовать")}</button><button type="button" class="lic-rm" title="${i18n("Удалить категорию")} «${en}»" aria-label="${i18n("Удалить категорию")} «${en}»" ${onEv("click",["bmDel",n])}>${lu("x",14)}</button></div></div>`}).join("");
+  let body=optScopeLine(o);
+  body+=card("Категории закладок",`<p class="sub">${i18n("Оператор выбирает категорию, когда ставит закладку в архиве. По категории закладки ищут и выгружают.")}</p>
+    <div class="bm-add"><input type="text" class="op-in op-txt" id="bmNew" placeholder="${i18n("Имя новой категории")}" aria-label="${i18n("Имя новой категории")}" ${onEv("keydown",["bmAddKey",onEv.event])}><button type="button" class="btn s" ${onEv("click",["bmAdd"])}>${lu("plus")}${i18n("Добавить")}</button></div>
+    ${bmErr?`<p class="bm-err" role="alert">${escHtml(bmErr)}</p>`:""}
+    <div class="op-list">${rows||`<p class="sub">${i18n("Категорий нет: закладки ставят без категории.")}</p>`}</div>`);
+  optPaint(o,body);
+  if(bmEdit)requestAnimationFrame(()=>{const el=document.querySelector(".bm-ren");if(el){el.focus();el.select()}});
+}
+function bmTargets(){return optShownDomains().filter(d=>d.online!==false)}
+function bmAddKey(e){if(e.key==="Enter"){e.preventDefault();bmAdd()}}
+function bmAdd(){
+  const el=document.getElementById("bmNew"),n=(el?.value||"").trim();if(!n)return;
+  const t=bmTargets();
+  if(t.every(d=>bmOf(d).some(x=>x.toLowerCase()===n.toLowerCase()))){bmErr=i18n("Категория с таким именем уже есть.");sysUI();document.getElementById("bmNew")?.focus();return}
+  const added=t.filter(d=>!bmOf(d).some(x=>x.toLowerCase()===n.toLowerCase()));added.forEach(d=>bmOf(d).push(n));bmErr="";sysUI();
+  toastAction("bm",`${i18n("Категория")} «${n}» ${i18n("добавлена")}`,i18n("Отменить"),()=>{added.forEach(d=>{const a=bmOf(d),i=a.indexOf(n);if(i>=0)a.splice(i,1)});sysUI()},8000);
+  requestAnimationFrame(()=>document.getElementById("bmNew")?.focus());
+}
+function bmRen(n){bmEdit=n;bmErr="";sysUI()}
+function bmRenCancel(){bmEdit=null;sysUI()}
+function bmRenKey(n,e){if(e.key==="Enter"){e.preventDefault();bmRenSave(n)}else if(e.key==="Escape"){e.preventDefault();bmRenCancel()}}
+function bmRenSave(n){
+  const v=(document.querySelector(".bm-ren")?.value||"").trim();if(!v||v===n){bmRenCancel();return}
+  const t=bmTargets().filter(d=>bmOf(d).includes(n));
+  if(t.some(d=>bmOf(d).some(x=>x!==n&&x.toLowerCase()===v.toLowerCase()))){bmErr=i18n("Категория с таким именем уже есть.");bmEdit=null;sysUI();return}
+  t.forEach(d=>{const a=bmOf(d);a[a.indexOf(n)]=v});bmEdit=null;bmErr="";sysUI();
+  toastAction("bm",`«${n}» → «${v}»`,i18n("Отменить"),()=>{t.forEach(d=>{const a=bmOf(d),i=a.indexOf(v);if(i>=0)a[i]=n});sysUI()},8000);
+}
+function bmDel(n){
+  const t=bmTargets().filter(d=>bmOf(d).includes(n));
+  const html=`<div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul><li>${i18n("категория")} «${escHtml(n)}»${t.length>1?` ${i18n("в доменах")}: ${t.map(d=>escHtml(locName(d))).join(", ")}`:""}</li></ul></div>
+    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${i18n("закладки этой категории — без категории")}</li><li>${i18n("архив и комментарии закладок")}</li></ul></div>`;
+  askConfirm(`${i18n("Удалить категорию")} «${n}»?`,html,"",i18n("Удалить"),()=>{
+    const was=t.map(d=>[d,bmOf(d).indexOf(n)]);
+    was.forEach(([d,i])=>bmOf(d).splice(i,1));sysUI();
+    toastAction("bm",`${i18n("Категория")} «${n}» ${i18n("удалена")}`,i18n("Отменить"),()=>{was.forEach(([d,i])=>bmOf(d).splice(i,0,n));sysUI()},8000);
+  },{html:true,rawTitle:true,typeCount:1});
+}
 
 // ── Лицензии по ключам — ЗАГЛУШКА прототипа 32 (запрос api/requests/2026-11-06-094022Z-…, пп. 1–3, 5 и уточнения) ──
 // Ключ Axxon One действует на один домен или на несколько. Домены одного ключа берут лицензии из общего пула;
