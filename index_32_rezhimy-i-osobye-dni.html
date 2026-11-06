@@ -1243,6 +1243,7 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .um-list{max-height:320px;overflow-y:auto;scrollbar-gutter:stable;border:1px solid var(--ln);border-radius:6px;padding:4px 8px;margin-top:6px}
 .um-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:8px}
 #umQ{width:100%;box-sizing:border-box;margin-top:4px}
+.um-base td{background:var(--one-surface-2,transparent)}
 .um-on{font-weight:600;color:var(--one-success-text)}
 .mode-tags,.rl-tags{margin-top:6px}.rl-tag-new{width:140px;margin-top:4px}.rl-tags>label{display:block;font-weight:600;margin:12px 0 4px}
 .sch-mt2 td{vertical-align:top}
@@ -18370,6 +18371,15 @@ function ruleModesUI(){
       <td>${nowCell}</td>
       <td class="sch-ma"><button type="button" class="btn s btn-icon" ${m.sys?`disabled title="${i18n("Встроенный режим не удаляется")}"`:`title="${i18n("Удалить режим…")}"`} aria-label="${i18n("Удалить режим")}" ${onEv("click",["umDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
   }).join("");
+  // «Обычная работа» — режим по умолчанию: строка без настроек, действует всё время, не занятое другими режимами
+  const baseNow=!cur?`<span class="um-on">${i18n("действует")}</span>${man?`<div class="sub">${escHtml(umNowText())}</div><button type="button" class="lk lk-act" ${onEv("click",["umOff"])}>${i18n("Вернуть по расписанию")}</button>`:""}`
+    :`<button type="button" class="btn s" ${onEv("click",["ruleModeSwitch","none"])}>${i18n("Включить…")}</button>`;
+  const baseRow=`<tr data-mode="none" class="um-base">
+      <td><div class="sch-mn"><span class="sch-sw" style="background:var(--mu)"></span><b>${i18n("Обычная работа")}</b></div><div class="sub">${i18n("по умолчанию")}</div></td>
+      <td><select disabled aria-label="${i18n("Когда включается «Обычная работа»")}"><option>${i18n("Всё остальное время")}</option></select><div class="sub">${i18n("когда не действует другой режим")}</div></td>
+      <td><select disabled aria-label="${i18n("Что выключает «Обычная работа»")}"><option>${i18n("Ничего")}</option></select><div class="sub">${i18n("все правила работают по своим условиям")}</div></td>
+      <td>${baseNow}</td>
+      <td class="sch-ma"><button type="button" class="btn s btn-icon" disabled title="${i18n("Режим по умолчанию не удаляется")}" aria-label="${i18n("Удалить режим")}">${lu("x")}</button></td></tr>`;
   // Пересечения, которые уже есть (например, после правки расписания в библиотеке)
   const ov=l.map(m=>m.sched&&umOverlap(m.sched,m.id)).find(Boolean);
   const nowLine=`<span class="sch-sw lg" style="background:${umColor(cur)}"></span><span>${i18n("Сейчас")}: <b>${escHtml(umName(cur))}</b>${umNowText()?` <span class="sub">(${escHtml(umNowText())})</span>`:""} — ${cur?`${i18n("выключено")} ${offNow.length} ${i18n(plural(offNow.length,"правило|правила|правил"))}`:i18n("все правила работают по своим условиям")}${man?`. ${i18n("В")} ${umHM(man.until)} ${i18n("по расписанию будет")}: «${escHtml(umName(back))}»`:""}</span>
@@ -18378,8 +18388,8 @@ function ruleModesUI(){
     `<div class="sc">
       <div class="card"><div class="cb mode-now">${nowLine}</div></div>
       ${card("Режимы",`${ov?`<div class="nt err" role="alert">${i18n("Расписания режимов пересекаются")} — «${escHtml(i18n(l.find(m=>m.sched&&umOverlap(m.sched,m.id)).name))}» ${i18n("и")} ${umOverlapText(ov)}. ${i18n("Режимы не накладываются: поменяйте одно из расписаний.")}</div>`:""}
-        <table class="bk-t sch-mt2"><tr><th>${i18n("Режим")}</th><th>${i18n("Включается")}</th><th>${i18n("Выключает")}</th><th>${i18n("Сейчас")}</th><th></th></tr>${rows}</table>
-        <p class="sub">${i18n("Действует один режим за раз. Расписания режимов не пересекаются. Оператор включает режим вручную на срок, не больше 8 часов: он заменяет режим по расписанию, потом снова действует расписание. За 10 минут до конца срока консоль напомнит и предложит продлить.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["umAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
+        <table class="bk-t sch-mt2"><tr><th>${i18n("Режим")}</th><th>${i18n("Включается")}</th><th>${i18n("Выключает")}</th><th>${i18n("Сейчас")}</th><th></th></tr>${baseRow}${rows}</table>
+        <p class="sub">${i18n("Действует один режим за раз. Всё время, которое не занято расписанием другого режима, действует «Обычная работа». Расписания режимов не пересекаются. Оператор включает режим вручную на срок, не больше 8 часов: он заменяет режим по расписанию, потом снова действует расписание. За 10 минут до конца срока консоль напомнит и предложит продлить.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["umAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
     </div>`);
 }
 function umOff(){
