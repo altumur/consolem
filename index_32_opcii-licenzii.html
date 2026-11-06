@@ -1728,6 +1728,21 @@ button.op-sw{border:0;padding:0}.op-sw:disabled{opacity:.5;cursor:default}.op-sw
 .lic-sw{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
 .lic-doms{display:flex;flex-wrap:wrap;gap:6px 18px;margin:-2px 0 10px;font-size:12px}.lic-dom{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.lic-dom.lic-dim{opacity:.6}
 .lic-card .nt{margin-bottom:10px}
+.lic-tools{display:flex;justify-content:flex-end;margin:-4px 0 12px}.lic-tools .btn{display:inline-flex;align-items:center;gap:6px}
+.lic-acts{display:inline-flex;gap:6px;flex-wrap:wrap}
+.lic-rm{display:inline-grid;place-items:center;width:20px;height:20px;padding:0;border:0;border-radius:4px;background:none;color:var(--mu);cursor:pointer}.lic-rm:hover,.lic-rm:focus-visible{background:var(--one-danger-bg);color:var(--one-danger-text)}
+.lw-intro{margin:0 0 12px}.lw-lab{display:block;font-size:12px;color:var(--mu);margin:4px 0 4px}.lw-serial{width:180px;font-variant-numeric:tabular-nums}
+.lw-file{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.lw-file .btn{display:inline-flex;align-items:center;gap:6px}
+.lw-parsed{margin-top:14px;padding:12px;border:1px solid var(--ln);border-radius:8px}.lw-ph{font-weight:600;margin-bottom:8px}.lw-parsed .sub{margin:8px 0 0}
+.lw-doms{display:grid;gap:8px}.lw-dom{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}.lw-dom.on{border-color:var(--one-accent)}.lw-dom small{display:block;color:var(--mu);margin-top:2px}.lw-dom input{margin-top:3px}
+.lw-feat{border:1px solid var(--ln);border-radius:8px;padding:10px 12px;margin-bottom:10px}.lw-fh{display:flex;gap:10px;align-items:baseline;margin-bottom:6px}
+.lw-row{display:grid;grid-template-columns:minmax(0,1fr) 92px auto 150px;gap:10px;align-items:center;padding:5px 0;border-top:1px solid var(--ln)}.lw-dn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lw-nl{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;font-size:12px}.lw-in{display:inline-flex;align-items:center;gap:6px;justify-content:flex-end}.lw-in[hidden]{display:none}.lw-num{width:76px;text-align:right;font-variant-numeric:tabular-nums}.lw-num:disabled{opacity:.45}
+.lw-live{margin-top:6px;font-size:12px}.lw-tot{color:var(--mu)}.lw-w{margin:4px 0 0;padding-left:18px}.lw-w li{margin:2px 0}.lw-w-w,.lw-w-e{color:var(--one-warning-text)}.lw-w-e{color:var(--one-danger-text)}
+.lw-rev dd>div{margin-bottom:2px}.lw-chg{margin-left:8px;font-size:12px}
+.lw-cf{margin-top:12px;padding:10px 12px;border-radius:8px;background:var(--one-control-bg);font-size:13px}.lw-cf ul{margin:4px 0 0;padding-left:18px}.lw-cf-lost{background:var(--one-warning-bg)}
+#confirm .lw-cf{margin-top:8px}
+@media(max-width:560px){.lw-row{grid-template-columns:1fr auto}.lw-nl,.lw-in{grid-column:auto}}
 .lic-card .cb{container-type:inline-size}.lic-card .lic-tb td .lk.lk-act{white-space:nowrap}.lic-c1{width:24%}.lic-c3{width:108px}.lic-c4{width:116px}.lic-c5{width:190px}.lic-nbar{display:none}
 @container (max-width:640px){.lic-c1{width:auto}.lic-c2{width:0}.lic-c3{width:92px}.lic-c4{width:96px}.lic-c5{width:132px}.lic-tb td:nth-child(2),.lic-tb th:nth-child(2){display:none}.lic-nbar{display:block;margin-top:5px}.lic-tb tr.lic-own td:first-child{display:none}.lic-tb tr.lic-own td:nth-child(2){display:table-cell}}
 @container (max-width:460px){.lic-tb,.lic-tb tbody,.lic-tb tr,.lic-tb td{display:block}.lic-tb colgroup,.lic-tb tr:first-child{display:none}.lic-tb tr{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:baseline;padding:8px 0;border-top:1px solid var(--ln)}.lic-tb td{border:0;padding:0;overflow:visible}.lic-tb td:first-child{grid-column:1/-1}.lic-tb td.lic-num{text-align:left}.lic-tb td:nth-child(5){text-align:right;white-space:nowrap}.lic-tb td:nth-child(5) .lk{max-width:none;white-space:nowrap}.lic-tb td:nth-child(4):before{content:attr(data-h) " ";color:var(--mu)}.lic-tb tr.lic-own{border-top:0;padding-top:0}.lic-tb tr.lic-own td:nth-child(2){grid-column:1/-1}}
@@ -22800,49 +22815,60 @@ function sysUI(){
 }
 function optSearchClear(){const el=document.getElementById("gq");if(el){el.value="";el.dispatchEvent(new Event("input",{bubbles:true}));el.blur();document.dispatchEvent(new KeyboardEvent("keydown",{key:"Escape"}))}else paint()}
 
-// ── Лицензии по ключам — ЗАГЛУШКА прототипа 32 (запрос api/requests/2026-11-06-094022Z-…, пп. 1–3, 5 и уточнение) ──
+// ── Лицензии по ключам — ЗАГЛУШКА прототипа 32 (запрос api/requests/2026-11-06-094022Z-…, пп. 1–3, 5 и уточнения) ──
 // Ключ Axxon One действует на один домен или на несколько. Домены одного ключа берут лицензии из общего пула;
 // лицензии разных ключей не складываются. Поэтому карточка — у ключа, а в ней — домены ключа и доля каждого.
+// Лимит домена — потолок: сколько лицензий функции домен может взять из пула, не больше (не доля и не резерв).
 const LIC_FEATS=[["cameras","IP-камеры"],["acfa","СКУД"],["faceSearch","Поиск лиц"],["faceRt","Распознавание лиц"],["lpr","Распознавание номеров"],["tnt","Tag-n-Track"],["fire","Пожар и дым"]];
-// dom — номера доменов в списке domains; f[код] = [[занято в домене 1, в домене 2…], всего в ключе]
-const LIC_KEYS=[
+// dom — номера доменов в списке domains; f[код] = [[занято в домене 1, в домене 2…], всего в ключе];
+// lim[код] = [лимит домена 1, домена 2…], null — без ограничения
+let LIC_KEYS=[
   // Камеры — как в демо-наборе: в «Домене 1» 90 камер, в «Домене 2» 50; в пуле 136 — без лицензии 4 (3 и 1)
-  {id:"k1",product:"Professional",serial:"72785-4410",days:12,state:"expiring",dom:[0,1],f:{cameras:[[90,50],136],acfa:[[3,0],10],faceSearch:[[4,0],8],lpr:[[2,2],4],tnt:[[0,0],16]}},
-  {id:"k2",product:"Enterprise",serial:"90112-3377",days:340,state:"mismatch",dom:[2],stateText:"Ключ выпущен для другого компьютера: идентификатор оборудования сервера «Удалённый офис» не совпал. Пока ключ не заменят, камеры домена не работают.",f:{cameras:[[0],32],faceRt:[[0],4]}},
-  {id:"k3",product:"Free",serial:"—",days:null,state:"active",dom:[3],f:{cameras:[[3],4]}}
+  {id:"k1",product:"Professional",serial:"72785-4410",days:12,state:"expiring",dom:[0,1],f:{cameras:[[90,50],136],acfa:[[3,0],10],faceSearch:[[4,0],8],lpr:[[2,2],4],tnt:[[0,0],16]},lim:{cameras:[null,50],lpr:[null,2]}},
+  {id:"k2",product:"Enterprise",serial:"90112-3377",days:340,state:"mismatch",dom:[2],stateText:"Ключ выпущен для другого компьютера: идентификатор оборудования сервера «Удалённый офис» не совпал. Пока ключ не заменят, камеры домена не работают.",f:{cameras:[[0],32],faceRt:[[0],4]},lim:{}},
+  {id:"k3",product:"Free",serial:"—",days:null,state:"active",dom:[3],f:{cameras:[[3],4]},lim:{}}
 ];
+// Домен без ключа: устройства остались, лицензий нет. Номер домена → {код: занято}
+let LIC_ORPHAN={},licSeq=3;
 const LIC_OWNERS={lpr:[["Въезд — шлагбаум 1","Въезд — шлагбаум 2"],["Склад — ворота","Парковка"]],faceSearch:[["Холл — вход","Лестница","КПП — турникеты","Столовая"]],faceRt:[["Проходная","Вход — ресепшн"]],fire:[["Склад — стеллажи"]],acfa:[["Турникет 1","Турникет 2","Дверь серверной"]]};
 const licOpen=new Set();
+function licFeatName(c){return(LIC_FEATS.find(x=>x[0]===c)||[c,c])[1]}
 function licKeys(){
-  // Домены сверх заглушки получают свой ключ Free
-  const ks=LIC_KEYS.map(k=>({...k,doms:k.dom.map(i=>domains[i]).filter(Boolean)})).filter(k=>k.doms.length);
-  domains.forEach(d=>{if(!ks.some(k=>k.doms.includes(d)))ks.push({id:"f-"+d.id,product:"Free",serial:"—",days:null,state:"active",doms:[d],f:{cameras:[[0],4]}})});
+  const ks=LIC_KEYS.map(k=>({...k,doms:k.dom.map(i=>domains[i]).filter(Boolean)}));
+  domains.forEach((d,i)=>{if(!ks.some(k=>k.doms.includes(d))){const o=LIC_ORPHAN[i]||{cameras:0};
+    ks.push({id:"none-"+i,none:true,product:"—",serial:"—",days:null,state:"missing",dom:[i],doms:[d],lim:{},f:Object.fromEntries(Object.entries(o).map(([c,u])=>[c,[[u],0]]))})}});
   return ks;
 }
 function licData(k){
   const exp=k.days==null?null:new Date(Date.now()+k.days*864e5);
-  const feats=LIC_FEATS.filter(([c])=>k.f[c]).map(([c,n])=>{const by=k.doms.map((d,j)=>k.f[c][0][j]||0);return{code:c,n,by,used:by.reduce((a,b)=>a+b,0),total:k.f[c][1]}});
+  const feats=LIC_FEATS.filter(([c])=>k.f[c]).map(([c,n])=>{const by=k.doms.map((d,j)=>k.f[c][0][j]||0),lim=k.doms.map((d,j)=>(k.lim?.[c]||[])[j]??null);return{code:c,n,by,lim,used:by.reduce((a,b)=>a+b,0),total:k.f[c][1]}});
   const over=feats.filter(f=>f.used>f.total);
   const off=k.doms.filter(d=>d.online===false);
-  const state=off.length===k.doms.length?"offline":k.state;
-  return{...k,exp,feats,over,off,state};
+  const state=!k.doms.length?"unassigned":off.length===k.doms.length?"offline":k.state;
+  // Домен упёрся в свой лимит или занял больше лимита
+  const atLim=[];feats.forEach(f=>f.lim.forEach((l,j)=>{if(l!=null&&f.by[j]>=l)atLim.push({f,j,l})}));
+  return{...k,exp,feats,over,off,state,atLim};
 }
-// Ключи выбранных доменов: общий ключ показан целиком, даже если выбран один его домен — пул у них один
-function licShownKeys(){const sh=optShownDomains();return licKeys().filter(k=>k.doms.some(d=>sh.includes(d)))}
-function licKeyName(L){return L.serial!=="—"?`${i18n("Ключ")} ${L.serial}`:`${i18n("Ключ")} ${L.product}`}
+// Ключи выбранных доменов: общий ключ показан целиком, даже если выбран один его домен — пул у них один.
+// Ключ без доменов виден только при «Все домены»
+function licShownKeys(){const sh=optShownDomains();return licKeys().filter(k=>k.doms.some(d=>sh.includes(d))||(!k.doms.length&&!domainFilter))}
+function licKeyName(L){return L.none?i18n("Без ключа"):L.serial!=="—"?`${i18n("Ключ")} ${L.serial}`:`${i18n("Ключ")} ${L.product}`}
 function licDomList(L){return L.doms.map(locName).join(", ")}
 function licDays(n){return`${n} ${i18n(plural(n,"день|дня|дней"))}`}
 function licStateChip(L){
-  const m={active:["ok","Действует"],expiring:["warn",`Кончается через ${licDays(L.days)}`],expired:["err","Срок истёк"],mismatch:["err","Ключ не подходит"],offline:["mu",`Нет связи · данные на ${OPT_OBSERVED}`]}[L.state]||["mu",L.state];
+  const m={active:["ok","Действует"],expiring:["warn",`Кончается через ${licDays(L.days)}`],expired:["err","Срок истёк"],mismatch:["err","Ключ не подходит"],missing:["err","Нет ключа"],unassigned:["mu","Не назначен доменам"],offline:["mu",`Нет связи · данные на ${OPT_OBSERVED}`]}[L.state]||["mu",L.state];
   return`<span class="lic-st lic-st-${m[0]}">${i18n(m[1])}</span>`;
 }
 // Что требует внимания: по убыванию срочности. Беда общего ключа — у всех его доменов, поэтому домены названы
 function licIssues(){
   const out=[];
-  licShownKeys().forEach(k=>{const L=licData(k),n=`${licKeyName(L)} (${licDomList(L)})`;
+  licShownKeys().forEach(k=>{const L=licData(k),n=L.none?locName(L.doms[0]):L.doms.length?`${licKeyName(L)} (${licDomList(L)})`:licKeyName(L);
+    if(L.state==="missing"){out.push({k,lvl:3,t:`${n}: ${i18n("нет ключа — камеры домена не работают")}`});return}
+    if(L.state==="unassigned"){out.push({k,lvl:1,t:`${n}: ${i18n("не назначен ни одному домену — его лицензии не используются")}`});return}
     if(L.state==="mismatch")out.push({k,lvl:3,t:`${n}: ${i18n("ключ не подходит — лицензии не действуют")}`});
     L.over.forEach(f=>out.push({k,lvl:3,t:`${n}: ${i18n(f.n)} — ${f.used} ${i18n("из")} ${f.total}, ${i18n("без лицензии")} ${f.used-f.total}`}));
     if(L.state==="expiring")out.push({k,lvl:2,t:`${n}: ${i18n("ключ кончается через")} ${licDays(L.days)}${L.doms.length>1?`, ${i18n("затронет доменов")}: ${L.doms.length}`:""}`});
+    L.atLim.forEach(({f,j,l})=>out.push({k,lvl:f.by[j]>l?2:1,t:`${n}: ${locName(L.doms[j])} — ${i18n(f.n)} ${f.by[j]} ${i18n("из лимита")} ${l}${f.by[j]>l?`, ${i18n("без лицензии")} ${f.by[j]-l}`:f.used<f.total?`, ${i18n("в пуле свободно")} ${f.total-f.used}`:""}`}));
     L.feats.filter(f=>f.used===f.total&&f.total>0).forEach(f=>out.push({k,lvl:1,t:`${n}: ${i18n(f.n)} — ${i18n("заняты все")} ${f.total}`}));
     L.off.forEach(d=>out.push({k,lvl:1,t:`${n}: ${locName(d)} — ${i18n("нет связи, показаны данные на")} ${OPT_OBSERVED}`}));
   });
@@ -22851,7 +22877,7 @@ function licIssues(){
 // Полоса пула: доля каждого домена — свой отрезок; домен вне выбора — бледнее
 function licBar(L,f){
   const cls=f.used>f.total?"err":f.used>=f.total*.9?"warn":"ok",base=Math.max(f.total,f.used)||1,sh=optShownDomains();
-  const segs=f.by.map((u,j)=>u?`<span class="lic-seg${j%4}${sh.includes(L.doms[j])?(L.doms.every(x=>sh.includes(x))?"":" lic-hl"):" lic-dim"}" style="width:${u/base*100}%" title="${escHtml(`${locName(L.doms[j])}: ${u}`)}"></span>`:"").join("");
+  const segs=f.by.map((u,j)=>u?`<span class="lic-seg${j%4}${sh.includes(L.doms[j])?(L.doms.every(x=>sh.includes(x))?"":" lic-hl"):" lic-dim"}" style="width:${u/base*100}%" title="${escHtml(`${locName(L.doms[j])}: ${u}${f.lim[j]!=null?` ${i18n("из лимита")} ${f.lim[j]}`:""}`)}"></span>`:"").join("");
   const lab=L.doms.length>1?f.by.map((u,j)=>`${locName(L.doms[j])} ${u}`).join(", ")+`; ${i18n("всего")} ${f.used} ${i18n("из")} ${f.total}`:`${f.used} ${i18n("из")} ${f.total}`;
   // Общий ключ: доли раскрашены по доменам (как метки доменов), превышение — красная черта на границе пула
   const mark=f.used>f.total?`<i class="lic-lim" style="left:${f.total/base*100}%" title="${escHtml(`${i18n("В ключе")}: ${f.total}`)}"></i>`:"";
@@ -22866,40 +22892,47 @@ function licFeatRow(L,f){
     <td class="lic-num" data-h="${free<0?"":escHtml(i18n("свободно"))}">${free<0?`<span class="lic-neg">${i18n("не хватает")} ${-free}</span>`:free}</td><td>${ownTxt}</td></tr>
     ${owners&&licOpen.has(key)?`<tr class="lic-own"><td></td><td colspan="4">${chips}</td></tr>`:""}`;
 }
-// Домены ключа: у каждого — его доля пула; домен вне выбора — бледнее, домен без связи — с пометкой
+// Домены ключа: у каждого — его доля пула и лимиты; домен вне выбора — бледнее, домен без связи — с пометкой
 function licDomRow(L){
   const sh=optShownDomains(),cam=L.feats.find(f=>f.code==="cameras");
-  return`<div class="lic-doms">${L.doms.map((d,j)=>{const ns=(d.servers||[]).length;return`<span class="lic-dom${sh.includes(d)?"":" lic-dim"}">${L.doms.length>1?`<i class="lic-sw lic-seg${j%4}${sh.includes(d)&&!L.doms.every(x=>sh.includes(x))?" lic-hl":""}"></i>`:""}<button type="button" class="lk" ${onEv("click",["licGoHw",d.id])}>${escHtml(locName(d))}</button>
-    <span class="sub">${ns} ${i18n(plural(ns,"сервер|сервера|серверов"))}${cam&&L.doms.length>1?` · ${i18n("камер")} ${cam.by[j]}`:""}${d.online===false?` · ${i18n("нет связи")}`:""}</span></span>`}).join("")}</div>`;
+  return`<div class="lic-doms">${L.doms.map((d,j)=>{const ns=(d.servers||[]).length;
+    const lims=L.feats.filter(f=>f.lim[j]!=null).map(f=>`<span class="${f.by[j]>=f.lim[j]?"lic-warn":""}">${escHtml(i18n(f.n))} ${f.by[j]} ${i18n("из")} ${f.lim[j]}</span>`);
+    return`<span class="lic-dom${sh.includes(d)?"":" lic-dim"}">${L.doms.length>1?`<i class="lic-sw lic-seg${j%4}${sh.includes(d)&&!L.doms.every(x=>sh.includes(x))?" lic-hl":""}"></i>`:""}<button type="button" class="lk" ${onEv("click",["licGoHw",d.id])}>${escHtml(locName(d))}</button>
+    <span class="sub">${ns} ${i18n(plural(ns,"сервер|сервера|серверов"))}${cam&&L.doms.length>1?` · ${i18n("камер")} ${cam.by[j]}`:""}${d.online===false?` · ${i18n("нет связи")}`:""}${lims.length?` · ${i18n("лимит")}: ${lims.join(", ")}`:""}</span>
+    ${L.none?"":`<button type="button" class="lic-rm" title="${escHtml(i18n("Снять с ключа"))}" aria-label="${escHtml(`${i18n("Снять с ключа")}: ${locName(d)}`)}" ${onEv("click",["licRmDom",L.id,String(L.dom[j])])}>${lu("x",12)}</button>`}</span>`}).join("")}</div>`;
 }
 function licCard(K){
   const L=licData(K),ro=L.state==="offline",sh=optShownDomains(),shared=L.doms.length>1;
   const exp=L.exp?new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(L.exp):i18n("бессрочно");
   const outside=L.doms.filter(d=>!sh.includes(d));
+  const acts=L.none?`<button type="button" class="btn s pri" ${onEv("click",["licWzOpen","",String(L.dom[0])])}>${i18n("Добавить ключ…")}</button>`
+    :`<button type="button" class="btn s" ${ro?"disabled":""} ${onEv("click",["licWzOpen",L.id])}>${i18n(L.doms.length?"Домены и лимиты…":"Назначить домены…")}</button><button type="button" class="btn s" ${ro?"disabled":""} ${onEv("click",["licLoadKey",L.id])}>${i18n("Заменить ключ…")}</button>`;
   return`<div class="card lic-card lic-${L.state}" data-lic="${L.id}"><div class="ch lic-hd"><span class="lic-dn">${escHtml(licKeyName(L))}</span>${shared?`<span class="lic-st lic-st-mu">${i18n("Общий")} · ${L.doms.length} ${i18n(plural(L.doms.length,"домен|домена|доменов"))}</span>`:""}${licStateChip(L)}
-      <span class="lic-acts"><button type="button" class="btn s" ${ro?"disabled":""} ${onEv("click",["licLoadKey",L.id])}>${i18n("Заменить ключ…")}</button></span></div>
+      <span class="lic-acts">${acts}</span></div>
     <div class="cb">
-      <div class="lic-meta"><div><span>${i18n("Тип")}</span><b>${escHtml(L.product)}</b></div><div><span>${i18n("Серийный номер")}</span><b>${escHtml(L.serial)}</b></div>
-        <div><span>${i18n("Действует до")}</span><b class="${L.state==="expiring"?"lic-warn":""}">${escHtml(exp)}</b></div><div><span>${i18n("Серверов")}</span><b>${L.doms.reduce((a,d)=>a+(d.servers||[]).length,0)}</b></div></div>
-      ${licDomRow(L)}
-      ${shared?`<div class="nt" role="note">${outside.length?`${i18n("Ключ общий с")} ${outside.map(locName).join(", ")}: ${i18n("их доля показана бледнее, но занимает тот же пул.")}`:i18n("Домены берут лицензии из одного пула: свободная лицензия достаётся домену, который первым подключит устройство.")}</div>`:""}
+      ${L.none?"":`<div class="lic-meta"><div><span>${i18n("Тип")}</span><b>${escHtml(L.product)}</b></div><div><span>${i18n("Серийный номер")}</span><b>${escHtml(L.serial)}</b></div>
+        <div><span>${i18n("Действует до")}</span><b class="${L.state==="expiring"?"lic-warn":""}">${escHtml(exp)}</b></div><div><span>${i18n("Серверов")}</span><b>${L.doms.reduce((a,d)=>a+(d.servers||[]).length,0)}</b></div></div>`}
+      ${L.doms.length?licDomRow(L):`<div class="nt" role="note">${i18n("Ключ не назначен ни одному домену: его лицензии никто не использует. Назначьте домены — кнопка «Назначить домены…».")}</div>`}
+      ${L.none?`<div class="nt err" role="status">${i18n("У домена нет ключа: его камеры и детекторы не работают. Добавьте ключ или назначьте домену общий ключ.")}</div>`:""}
+      ${shared?`<div class="nt" role="note">${outside.length?`${i18n("Ключ общий с")} ${outside.map(locName).join(", ")}: ${i18n("их доля показана бледнее, но занимает тот же пул.")}`:i18n("Домены берут лицензии из одного пула: свободная лицензия достаётся домену, который первым подключит устройство. Лимит домена — сколько он может взять, не больше.")}</div>`:""}
       ${L.stateText?`<div class="nt err" role="status">${escHtml(i18n(L.stateText))}</div>`:""}
-      <table class="lic-tb"><colgroup><col class="lic-c1"><col class="lic-c2"><col class="lic-c3"><col class="lic-c4"><col class="lic-c5"></colgroup>
+      ${L.feats.length?`<table class="lic-tb"><colgroup><col class="lic-c1"><col class="lic-c2"><col class="lic-c3"><col class="lic-c4"><col class="lic-c5"></colgroup>
         <tr><th>${i18n("Функция")}</th><th>${i18n(shared?"Занято по доменам":"Занято")}</th><th class="lic-num">${i18n("Сколько")}</th><th class="lic-num">${i18n("Свободно")}</th><th></th></tr>
-        ${L.feats.map(f=>licFeatRow(L,f)).join("")}</table>
+        ${L.feats.map(f=>licFeatRow(L,f)).join("")}</table>`:""}
     </div></div>`;
 }
 function licUI(o){
   const doms=optShownDomains(),keys=licShownKeys(),iss=licIssues();
   let body=`<div class="op-where">${lu("id-card")}<span>${i18n("Ключ действует на один домен или на несколько. Домены одного ключа берут лицензии из общего пула; лицензии разных ключей не складываются.")}</span>${doms.length>1?"":`<button type="button" class="lk lk-act" ${onEv("click",["pickDomain",""])}>${i18n("Все домены")}</button>`}</div>`;
+  body+=`<div class="lic-tools"><button type="button" class="btn pri s" ${onEv("click",["licWzOpen",""])}>${lu("plus")}${i18n("Добавить ключ…")}</button></div>`;
   if(iss.length)body+=`<div class="card lic-att"><div class="ch">${i18n("Требует внимания")}: ${iss.length}</div><div class="cb"><ul class="lic-iss">${iss.map(x=>`<li class="lic-l${x.lvl}"><button type="button" class="lk" ${onEv("click",["licGoKey",x.k.id])}>${escHtml(x.t)}</button></li>`).join("")}</ul></div></div>`;
   else body+=`<p class="sub">${i18n("Все ключи действуют, свободные лицензии есть.")}</p>`;
   body+=keys.map(licCard).join("");
-  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n("Ключи")}: ${keys.length} · ${doms.length>1?`${i18n("Домены")}: ${doms.length}`:locName(doms[0]||{name:""})}`)+`<div class="sc op-page">${body}</div>`);
+  paintMain(mainHd("Опции",`<span class="hd-ic">${lu(o.i)}</span>${o.n}`,`${i18n("Ключи")}: ${keys.filter(k=>!k.none).length} · ${doms.length>1?`${i18n("Домены")}: ${doms.length}`:locName(doms[0]||{name:""})}`)+`<div class="sc op-page">${body}</div>`);
 }
 function licToggle(k){if(licOpen.has(k))licOpen.delete(k);else licOpen.add(k);sysUI()}
 function licGoKey(id){const el=document.querySelector(`[data-lic="${id}"]`);if(!el)return;el.scrollIntoView({block:"start",behavior:"smooth"});accFlash(()=>[el.querySelector(".lic-hd")])}
-function licLoadKey(id){toast(i18n("В макете ключ не загружается. В системе: файл ключа или серийный номер, затем активация."))}
+function licLoadKey(id){toast(i18n("В макете ключ не заменяется. В системе: файл ключа или серийный номер, затем активация; домены и лимиты останутся."))}
 function licGoHw(id){navMark();goApp("hw");domainFilter=id;sel=id;tab="gen";open.add(id);renderDomainMenu();applyFiltersFromState();paint()}
 // Камеры ключа: один домен — фильтр на него; общий ключ — все домены, открыты домены ключа
 function licShowCams(kid,over){
@@ -22908,6 +22941,203 @@ function licShowCams(kid,over){
   statusFilts.clear();if(over)statusFilts.add("license");
   applyFiltersFromState();paint();
 }
+
+// ── Изменения ключей (заглушка: в памяти страницы) ──
+function licKeyOf(i){return LIC_KEYS.find(x=>x.dom.includes(i))||null}
+// Сколько занято доменом сейчас — по его ключу или без ключа
+function licDomUse(i){
+  const k=licKeyOf(i);
+  if(k){const j=k.dom.indexOf(i);return Object.fromEntries(Object.entries(k.f).map(([c,v])=>[c,v[0][j]||0]))}
+  return{...(LIC_ORPHAN[i]||{})};
+}
+// Снять домен с ключа: вернуть, сколько он занимал
+function licDetach(i){
+  const u=licDomUse(i),k=licKeyOf(i);
+  if(k){const j=k.dom.indexOf(i);k.dom.splice(j,1);Object.values(k.f).forEach(v=>v[0].splice(j,1));Object.values(k.lim||{}).forEach(a=>a.splice(j,1))}
+  delete LIC_ORPHAN[i];
+  return u;
+}
+function licSnap(){return JSON.stringify({k:LIC_KEYS,o:LIC_ORPHAN,s:licSeq})}
+function licRestore(s){const x=JSON.parse(s);LIC_KEYS=x.k;LIC_ORPHAN=x.o;licSeq=x.s}
+function licRepaint(){if(app==="sys"&&sys==="lic")sysUI()}
+// Что пропадёт и что останется, если снять домены с ключа
+function licRmHtml(k,ids){
+  const L=licData({...k,doms:k.dom.map(i=>domains[i])}),rest=k.dom.filter(i=>!ids.includes(i)).map(i=>escHtml(locName(domains[i])));
+  const lost=ids.map(i=>{const j=k.dom.indexOf(i),items=L.feats.filter(f=>f.by[j]).map(f=>`${escHtml(i18n(f.n))} ${f.by[j]}`);
+    return`<li><b>${escHtml(locName(domains[i]))}</b>: ${items.length?`${items.join(", ")} — ${i18n("эти устройства перестанут работать, пока домен не получит ключ")}`:i18n("лицензий сейчас не занимает")}</li>`}).join("");
+  const freed=L.feats.map(f=>[f,ids.reduce((a,i)=>a+(f.by[k.dom.indexOf(i)]||0),0)]).filter(x=>x[1]).map(([f,n])=>`${escHtml(i18n(f.n))} ${n}`);
+  const many=ids.length>1;
+  return`<p>${ids.map(i=>`<b>${escHtml(locName(domains[i]))}</b>`).join(", ")} ${i18n(many?"снимутся с ключа":"снимется с ключа")} <b>${escHtml(k.serial)}</b>.</p>
+    <div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul>${lost}<li>${i18n(many?"лимиты этих доменов в ключе":"лимиты домена в ключе")}</li></ul></div>
+    <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${rest.length?`${i18n("ключ и его домены")}: ${rest.join(", ")}`:i18n("ключ — без доменов, его можно назначить снова")}</li><li>${i18n("камеры, архив и настройки доменов")}</li>${freed.length?`<li>${i18n("в пуле освободится")}: ${freed.join(", ")}</li>`:""}</ul></div>`;
+}
+function licRmDom(kid,i){
+  i=+i;const k=LIC_KEYS.find(x=>x.id===kid);if(!k||!k.dom.includes(i))return;
+  askConfirm("Снять домен с ключа?",licRmHtml(k,[i]),"","Снять с ключа",()=>{
+    const snap=licSnap();LIC_ORPHAN[i]=licDetach(i);licRepaint();
+    toastAction("licrm",`${locName(domains[i])} ${i18n("снят с ключа")} ${k.serial}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint()},10000);
+  },{html:true,typeCount:1,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
+}
+
+// ── Мастер ключа: «Ключ → Домены → Лимиты → Проверка». Устроен как «Новое правило»: wzPaintBm, wzBarHtml, wzFootHtml ──
+const LW_STEPS=[{k:"key",t:"Ключ"},{k:"doms",t:"Домены"},{k:"lim",t:"Лимиты"},{k:"rev",t:"Проверка"}];
+// Что сервер прочтёт из нового ключа — заглушка
+const LIC_NEW={product:"Professional",days:365,f:{cameras:64,faceSearch:8,lpr:4}};
+let lw=null;
+function lwKey(){return lw.kid?LIC_KEYS.find(k=>k.id===lw.kid)||null:null}
+function lwTotals(){const k=lwKey();return k?Object.fromEntries(Object.entries(k.f).map(([c,v])=>[c,v[1]])):LIC_NEW.f}
+function lwKeyOk(){return!!lw.kid||(lw.src==="file"?!!lw.file:/^\d{5}-\d{4}$/.test(lw.serial.trim()))}
+function lwLim(c,i){const v=lw.lim[c]?.[i];return v===undefined?null:v}
+function lwLimOk(){if(lw.doms.size<2)return true;return Object.keys(lwTotals()).every(c=>[...lw.doms].every(i=>{const v=lwLim(c,i);return v==null||(v!==""&&Number.isInteger(+v)&&+v>=0)}))}
+function lwReach(i){return i===0||(lwKeyOk()&&(i===1||(lw.doms.size>0&&(i<3||lwLimOk()))))}
+function lwUnit(c,n){return i18n(plural(n,c==="cameras"?"камера|камеры|камер":"объект|объекта|объектов"))}
+function lwSum(){const k=lwKey(),n=lw.doms.size;return`${escHtml(k?k.product:LIC_NEW.product)}${n?` · ${n} ${i18n(plural(n,"домен|домена|доменов"))}`:""}`}
+function licWzOpen(kid,domIdx){
+  const fresh=()=>{
+    const k=kid?LIC_KEYS.find(x=>x.id===kid):null;
+    const doms=new Set(k?k.dom:(domIdx!=null&&domIdx!==""?[+domIdx]:[])),lim={};
+    if(k)Object.entries(k.lim||{}).forEach(([c,a])=>{lim[c]={};k.dom.forEach((i,j)=>{lim[c][i]=a[j]??null})});
+    lw={kid:kid||"",step:k?1:0,src:"file",file:"",serial:"",doms,lim,q:""};
+    if(app!=="sys")goApp("sys");
+    licWzRender();
+  };
+  wzStart("licWz",fresh,s=>s.kid===(kid||""));
+}
+function licWzGo(i){i=+i;if(!lwReach(i))return;lw.step=i;licWzRender()}
+function licWzSet(k,v){lw[k]=v;licWzRender()}
+function licWzFile(){lw.file="axxon-one-55120-7781.key";licWzRender()}
+// Ввод серийного номера: номер стал верным или неверным — перерисовываем мастер (шаги, подвал, «Что в ключе»)
+// и возвращаем фокус в поле с курсором на прежнем месте
+function licWzSerial(v){
+  const was=lwKeyOk();lw.serial=v;if(lwKeyOk()===was)return;
+  const el=document.getElementById("lwSerial"),pos=el?el.selectionStart:v.length;
+  licWzRender();
+  const n=document.getElementById("lwSerial");if(n){n.focus();n.setSelectionRange(pos,pos)}
+}
+function licWzDom(i){i=+i;if(lw.doms.has(i))lw.doms.delete(i);else lw.doms.add(i);licWzRender()}
+function licWzDomQ(v){
+  lw.q=v;const host=document.querySelector("#bmodal [data-lw-doms]");if(!host)return;let n=0;
+  host.querySelectorAll(".lw-dom").forEach(el=>{const on=matchesText(v.trim(),el.textContent);el.hidden=!on;if(on)n++});
+  const t=document.getElementById("lwDomTot");if(t)t.textContent=`${i18n("Показано")} ${n} ${i18n("из")} ${domains.length}`;
+}
+// «Без ограничения» снят — предлагаем лимит, равный занятому сейчас: так ни одно устройство не потеряет лицензию
+function licWzNoLim(c,i){
+  lw.lim[c]=lw.lim[c]||{};const was=lwLim(c,i);
+  lw.lim[c][i]=was==null?(licDomUse(+i)[c]||0):null;
+  licWzRender();
+  if(was==null)setTimeout(()=>{const el=document.getElementById(`lwN-${c}-${i}`);el?.focus();el?.select()},30);
+}
+function licWzLim(c,i,v){
+  lw.lim[c]=lw.lim[c]||{};lw.lim[c][i]=v===""?"":Math.max(0,parseInt(v,10)||0);
+  const t=lwTotals()[c],live=document.getElementById("lwLive-"+c);if(live)live.innerHTML=lwLiveHtml(c,t);
+  const n=document.getElementById("lwNext");if(n)n.disabled=!lwLimOk();
+}
+function lwParsedHtml(){
+  const exp=new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",year:"numeric"}).format(new Date(Date.now()+LIC_NEW.days*864e5));
+  return`<div class="lw-parsed"><div class="lw-ph">${i18n("Что в ключе")}</div><dl class="wz-kv"><dt>${i18n("Тип")}</dt><dd>${escHtml(LIC_NEW.product)}</dd><dt>${i18n("Действует до")}</dt><dd>${escHtml(exp)}</dd>
+    <dt>${i18n("Лицензии")}</dt><dd>${Object.entries(LIC_NEW.f).map(([c,t])=>`${escHtml(i18n(licFeatName(c)))} ${t}`).join(", ")}</dd></dl>
+    <p class="sub">${i18n("В макете ключ не проверяется: показано, что сервер прочтёт из ключа.")}</p></div>`;
+}
+function lwKeyHtml(k){
+  if(k){const L=licData({...k,doms:k.dom.map(i=>domains[i])});
+    return`<dl class="wz-kv"><dt>${i18n("Ключ")}</dt><dd>${escHtml(licKeyName(L))}</dd><dt>${i18n("Тип")}</dt><dd>${escHtml(k.product)}</dd>
+      <dt>${i18n("Лицензии")}</dt><dd>${L.feats.map(f=>`${escHtml(i18n(f.n))} ${f.total}`).join(", ")}</dd></dl>
+      <p class="sub">${i18n("Сам ключ здесь не меняется. Заменить его — кнопка «Заменить ключ…» в карточке: домены и лимиты останутся.")}</p>`}
+  const opt=(v,t,sub)=>`<label class="rl-opt ${lw.src===v?"on":""}"><input type="radio" name="lwSrc" ${lw.src===v?"checked":""} ${onEv("change",["licWzSet","src",v])}><span><b>${i18n(t)}</b><small>${i18n(sub)}</small></span></label>`;
+  return`<div class="rl-opts">${opt("file","Файл ключа","Файл .key от поставщика. Подходит и без интернета.")}${opt("serial","Серийный номер","Сервер активирует ключ через интернет.")}</div>
+    ${lw.src==="file"?`<div class="lw-file"><button type="button" class="btn" ${onEv("click",["licWzFile"])}>${lu("paperclip")}${i18n(lw.file?"Выбрать другой файл…":"Выбрать файл…")}</button><span class="${lw.file?"":"sub"}">${lw.file?escHtml(lw.file):i18n("Файл не выбран")}</span></div>`
+      :`<label class="lw-lab" for="lwSerial">${i18n("Серийный номер")}</label><input id="lwSerial" class="lw-serial" value="${escHtml(lw.serial)}" placeholder="12345-6789" autocomplete="off" spellcheck="false" ${onEv("input",["licWzSerial",onEv.value])} ${onEv("change",["licWzRender"])}><p class="sub">${i18n("Формат: пять цифр, дефис, четыре цифры.")}</p>`}
+    <div id="lwParsed">${lwKeyOk()?lwParsedHtml():""}</div>`;
+}
+function lwDomsHtml(k){
+  const rows=domains.map((d,i)=>{const cur=licKeyOf(i),on=lw.doms.has(i),own=!!k&&cur===k,ns=(d.servers||[]).length,cams=licDomUse(i).cameras||0;
+    const move=on&&cur&&!own,drop=!on&&own;
+    const note=move?`${i18n("уйдёт с ключа")} ${cur.serial}: ${i18n("его устройства перейдут на этот ключ")}`:drop?i18n("снимется с ключа: его устройства останутся без лицензий"):own?i18n("на этом ключе"):cur?`${i18n("сейчас")}: ${licKeyName(cur)}`:i18n("сейчас без ключа");
+    return`<label class="lw-dom ${on?"on":""}"><input type="checkbox" ${on?"checked":""} ${onEv("change",["licWzDom",String(i)])}><span><b>${escHtml(locName(d))}</b>
+      <small>${ns} ${i18n(plural(ns,"сервер|сервера|серверов"))} · ${cams} ${lwUnit("cameras",cams)} · <span class="${move||drop?"lic-warn":""}">${escHtml(note)}</span>${d.online===false?` · ${i18n("нет связи: ключ применится, когда связь вернётся")}`:""}</small></span></label>`}).join("");
+  return`<p class="sub lw-intro">${i18n("Отметьте домены, на которые будет действовать ключ. Домены одного ключа берут лицензии из общего пула.")}</p>
+    ${domains.length>=CBX_MIN?`<input type="text" class="rl-tpl-q" placeholder="${i18n("Найти домен…")}" aria-label="${i18n("Найти домен")}" autocomplete="off" value="${escHtml(lw.q||"")}" ${onEv("input",["licWzDomQ",onEv.value])}>`:""}
+    <div class="lw-doms" data-lw-doms>${rows}</div>${domains.length>=CBX_MIN?`<p class="sub" id="lwDomTot"></p>`:""}`;
+}
+function lwLiveHtml(c,t){
+  const ids=[...lw.doms].sort((a,b)=>a-b),vals=ids.map(i=>lwLim(c,i)),set=vals.filter(v=>v!=null&&v!==""),sum=set.reduce((a,b)=>a+ +b,0),nl=vals.filter(v=>v==null).length;
+  const w=[];
+  ids.forEach((i,j)=>{const v=vals[j],u=licDomUse(i)[c]||0,n=escHtml(locName(domains[i]));
+    if(v==="")w.push(["e",`${n}: ${i18n("введите лимит или отметьте «Без ограничения»")}`]);
+    else if(v!=null&&+v<u)w.push(["w",`${n}: ${i18n("занято")} ${u}, ${i18n("лимит")} ${v} — ${u-v} ${lwUnit(c,u-v)} ${i18n("останутся без лицензии")}`]);
+    else if(v===0)w.push(["i",`${n} ${i18n("не получит ни одной лицензии этой функции")}`]);
+  });
+  if(sum>t)w.push(["w",`${i18n("Сумма лимитов больше пула на")} ${sum-t}: ${i18n("если пул кончится, домен может не получить свой лимит целиком")}`]);
+  if(!nl&&sum<t)w.push(["i",`${i18n("Без ограничения нет ни одного домена")}: ${t-sum} ${i18n("лицензий пула не достанутся никому")}`]);
+  return`<div class="lw-tot">${i18n("Сумма лимитов")}: <b>${sum}</b> ${i18n("из")} ${t}${nl?` · ${i18n("без ограничения")}: ${nl} ${i18n(plural(nl,"домен|домена|доменов"))}`:""}</div>${w.length?`<ul class="lw-w">${w.map(([c,x])=>`<li class="lw-w-${c}">${x}</li>`).join("")}</ul>`:""}`;
+}
+function lwLimHtml(tot){
+  if(lw.doms.size<2)return`<div class="nt" role="note">${i18n("Ключ действует на один домен: домен берёт весь пул, лимит не нужен. Лимиты появятся, когда ключ станет общим для нескольких доменов.")}</div>`;
+  const ids=[...lw.doms].sort((a,b)=>a-b);
+  return`<p class="sub lw-intro">${i18n("Лимит — сколько лицензий домен может взять из пула, не больше. Без ограничения домен берёт сколько есть в пуле.")}</p>`+
+    LIC_FEATS.filter(([c])=>tot[c]>0).map(([c,n])=>`<div class="lw-feat"><div class="lw-fh"><b>${escHtml(i18n(n))}</b><span class="sub">${i18n("в ключе")} ${tot[c]}</span></div>
+      ${ids.map(i=>{const v=lwLim(c,i),u=licDomUse(i)[c]||0,dn=escHtml(locName(domains[i]));
+        return`<div class="lw-row"><span class="lw-dn">${dn}</span><span class="sub lw-used">${i18n("занято")} ${u}</span>
+          <label class="lw-nl"><input type="checkbox" ${v==null?"checked":""} ${onEv("change",["licWzNoLim",c,String(i)])}>${i18n("Без ограничения")}</label>
+          <span class="lw-in"${v==null?" hidden":""}><label class="sub" for="lwN-${c}-${i}">${i18n("не больше")}</label><input type="number" id="lwN-${c}-${i}" min="0" max="${tot[c]}" inputmode="numeric" class="lw-num" aria-label="${escHtml(`${dn}, ${i18n(n)}: ${i18n("лимит")}`)}" value="${v??""}" ${v==null?"disabled":""} ${onEv("input",["licWzLim",c,String(i),onEv.value])} ${onEv("change",["licWzRender"])}></span></div>`}).join("")}
+      <div class="lw-live" id="lwLive-${c}">${lwLiveHtml(c,tot[c])}</div></div>`).join("");
+}
+// Что изменится — для проверки и для подтверждения
+function lwChanges(k,tot){
+  const out=[];
+  [...lw.doms].forEach(i=>{const cur=licKeyOf(i);if(cur&&cur!==k)out.push(["w",`${escHtml(locName(domains[i]))} ${i18n("уйдёт с ключа")} ${escHtml(cur.serial)}`])});
+  if(k)k.dom.filter(i=>!lw.doms.has(i)).forEach(i=>out.push(["w",`${escHtml(locName(domains[i]))} ${i18n("снимется с ключа: его устройства останутся без лицензий")}`]));
+  if(lw.doms.size>1)Object.keys(tot).forEach(c=>{const ids=[...lw.doms];const sum=ids.reduce((a,i)=>{const v=lwLim(c,i);return a+(v==null||v===""?0:+v)},0);
+    ids.forEach(i=>{const v=lwLim(c,i),u=licDomUse(i)[c]||0;if(v!=null&&v!==""&&+v<u)out.push(["w",`${escHtml(locName(domains[i]))}: ${escHtml(i18n(licFeatName(c)))} — ${u-v} ${lwUnit(c,u-v)} ${i18n("останутся без лицензии")}`])});
+    if(sum>tot[c])out.push(["i",`${escHtml(i18n(licFeatName(c)))}: ${i18n("сумма лимитов больше пула на")} ${sum-tot[c]}`])});
+  return out;
+}
+function lwRevHtml(k,tot){
+  const ids=[...lw.doms].sort((a,b)=>a-b),chg=(i,lab)=>`<button type="button" class="lk lk-act lw-chg" aria-label="${escHtml(`${i18n("Изменить")}: ${i18n(lab)}`)}" ${onEv("click",["licWzGo",String(i)])}>${i18n("Изменить")}</button>`;
+  const lims=ids.length<2?i18n("не нужны: ключ на одном домене"):ids.map(i=>{const p=Object.keys(tot).filter(c=>tot[c]>0).map(c=>{const v=lwLim(c,i);return v==null?null:`${escHtml(i18n(licFeatName(c)))} ${i18n("не больше")} ${v}`}).filter(Boolean);
+    return`<div><b>${escHtml(locName(domains[i]))}</b>: ${p.length?p.join("; "):i18n("без ограничения")}</div>`}).join("");
+  const c=lwChanges(k,tot);
+  return`<dl class="wz-kv lw-rev"><dt>${i18n("Ключ")}</dt><dd>${k?escHtml(licKeyName(k)):`${escHtml(LIC_NEW.product)} · ${escHtml(lw.src==="file"?lw.file:lw.serial.trim())}`} ${k?"":chg(0,"Ключ")}</dd>
+    <dt>${i18n("Домены")}</dt><dd>${ids.map(i=>escHtml(locName(domains[i]))).join(", ")} ${chg(1,"Домены")}</dd>
+    <dt>${i18n("Лимиты")}</dt><dd>${lims} ${ids.length>1?chg(2,"Лимиты"):""}</dd></dl>
+    ${c.length?`<div class="lw-cf${c.some(x=>x[0]==="w")?" lw-cf-lost":""}"><b>${i18n("Что изменится")}</b><ul>${c.map(([t,x])=>`<li>${x}</li>`).join("")}</ul></div>`:""}
+    <p class="sub">${i18n("Пока вы не нажмёте кнопку внизу, ничего не изменится.")}</p>`;
+}
+function licWzRender(){
+  if(!lw)return;
+  const st=LW_STEPS[lw.step],k=lwKey(),tot=lwTotals(),last=lw.step===LW_STEPS.length-1;
+  const body=st.k==="key"?lwKeyHtml(k):st.k==="doms"?lwDomsHtml(k):st.k==="lim"?lwLimHtml(tot):lwRevHtml(k,tot);
+  const why=lw.step===0&&!lwKeyOk()?(lw.src==="file"?"Выберите файл ключа":"Введите серийный номер: 12345-6789"):lw.step===1&&!lw.doms.size?"Отметьте хотя бы один домен":lw.step===2&&!lwLimOk()?"Введите лимит или отметьте «Без ограничения»":"";
+  const title=k?`${escHtml(licKeyName(k))}: ${i18n("домены и лимиты")}`:i18n("Новый ключ");
+  const fin=k?"Сохранить":"Активировать ключ";
+  wzPaintBm("licWz",st.k,"m",title,wzBarHtml(LW_STEPS,lw.step,lwReach,["licWzGo"]),`<div data-lw>${body}</div>`,
+    wzFootHtml({cancel:["wzCancel","licWz"],sum:why?`<span class="lic-warn">${escHtml(i18n(why))}</span>`:lwSum(),back:lw.step?["licWzGo",String(lw.step-1)]:null,
+      next:{id:"lwNext",label:i18n(last?fin:"Далее"),off:last?!lwReach(3):!lwReach(lw.step+1),on:last?["licWzApply"]:["licWzGo",String(lw.step+1)]}}));
+  if(st.k==="doms"&&lw.q)licWzDomQ(lw.q);
+}
+function licWzApply(){
+  const k=lwKey(),ids=[...lw.doms].sort((a,b)=>a-b),removed=k?k.dom.filter(i=>!lw.doms.has(i)):[],st={...lw,doms:new Set(lw.doms)};
+  const go=()=>{
+    const snap=licSnap();let key=k;
+    if(!key){key={id:"k"+(++licSeq),product:LIC_NEW.product,serial:st.src==="serial"?st.serial.trim():"55120-7781",days:LIC_NEW.days,state:"active",dom:[],f:Object.fromEntries(Object.entries(LIC_NEW.f).map(([c,t])=>[c,[[],t]])),lim:{}};LIC_KEYS.push(key)}
+    removed.forEach(i=>{LIC_ORPHAN[i]=licDetach(i)});
+    ids.filter(i=>!key.dom.includes(i)).forEach(i=>{const u=licDetach(i);key.dom.push(i);Object.entries(key.f).forEach(([c,v])=>{v[0][key.dom.length-1]=u[c]||0});Object.values(key.lim).forEach(a=>{a[key.dom.length-1]=null})});
+    // Ключ, с которого ушли все домены, остаётся: его можно назначить снова
+    key.lim={};if(key.dom.length>1)Object.keys(key.f).forEach(c=>{const a=key.dom.map(i=>{const v=st.lim[c]?.[i];return v==null||v===""?null:+v});if(a.some(v=>v!=null))key.lim[c]=a});
+    lw=null;wzDrop("licWz");closeBulkModal();
+    if(domainFilter&&!key.dom.includes(domains.findIndex(d=>d.id===domainFilter)))pickDomain("");
+    licRepaint();
+    toastAction("licwz",k?`${licKeyName(key)}: ${i18n("домены и лимиты сохранены")}`:`${licKeyName(key)} ${i18n("активирован")}`,i18n("Отменить"),()=>{licRestore(snap);licRepaint()},10000);
+    setTimeout(()=>licGoKey(key.id),60);
+  };
+  if(removed.length)askConfirm(removed.length>1?"Снять домены с ключа?":"Снять домен с ключа?",licRmHtml(k,removed),"","Сохранить и снять",go,{html:true,typeCount:removed.length,countLabel:"Чтобы подтвердить, введите число снимаемых доменов"});
+  else go();
+}
+WZD.licWz={t:"Новый ключ",lost:"Выбранный ключ, домены и лимиты пропадут.",drop:"Не добавлять",
+  get:()=>document.querySelector("#bmodal.open [data-lw]")?lw:null,set:s=>{s.doms=new Set(s.doms||[]);lw=s},hide:()=>closeBulkModal(),
+  show:()=>{if(app!=="sys")goApp("sys");licWzRender()},
+  work:s=>!!(s.kid||s.file||(s.serial||"").trim()||(s.doms&&(s.doms.size??s.doms.length))),
+  where:s=>[s.step||0,LW_STEPS.length,LW_STEPS[s.step||0].t],sum:s=>escHtml(s.kid?(LIC_KEYS.find(k=>k.id===s.kid)?.serial||""):LIC_NEW.product)};
 // Найденная настройка подсвечивается на открывшейся странице: иначе переход
 // приводит на страницу и бросает искать глазами.
 function flashSetting(){
