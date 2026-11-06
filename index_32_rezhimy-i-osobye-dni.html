@@ -1224,12 +1224,17 @@ html[data-theme="light"] .dev-bulk-badge{background:var(--one-control-hover);col
 .hd-plan:hover{filter:brightness(1.1)}
 .hd-plan:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .hd-plan[hidden]{display:none}
-.hd-mode{flex:0 1 auto;min-width:76px;max-width:300px;overflow:hidden;display:inline-flex;align-items:center;gap:6px;height:var(--ctrl-h);padding:0 10px;border:1px solid var(--ln);border-radius:8px;background:transparent;color:var(--fg);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
+.hd-mode{flex:0 1 auto;min-width:76px;max-width:340px;overflow:hidden;display:inline-flex;align-items:center;gap:6px;height:var(--ctrl-h);padding:0 10px;border:1px solid var(--ln);border-radius:8px;background:transparent;color:var(--fg);font:inherit;font-size:12px;white-space:nowrap;cursor:pointer}
 .hd-mode:hover{background:var(--one-nav-hover)}
 .hd-mode:focus-visible{outline:2px solid var(--one-focus-ring);outline-offset:1px}
 .hd-mode[hidden]{display:none}
 .hd-mode .sch-sw{width:8px;height:8px;border-radius:50%}
-.hd-mode b{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}.hd-mode .sch-sw,.hd-mode svg{flex:none}
+.hd-mode.manual{border-color:var(--one-palette-amber);background:color-mix(in srgb,var(--one-palette-amber) 18%,transparent)}
+.hd-mode small{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--fg);opacity:.85}
+.msw{border:0;margin:8px 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}.msw legend{padding:0 0 6px;font-weight:600}
+.ttu.no-timer .ttu-timer{display:none}
+.msw-o{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.hd-mode b{flex:none}.hd-mode .sch-sw,.hd-mode svg{flex:none}
 .mode-now{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
 .mode-now b{font-size:15px}
 .sch-mt2{table-layout:fixed;width:100%}.sch-mt2 th:nth-child(1){width:34%}.sch-mt2 th:nth-child(3){width:90px}.sch-mt2 th:nth-child(4){width:44px}
@@ -5248,7 +5253,7 @@ function modesApply(M){
   objModeElse=M.otherwise;
 }
 const modeBody=m=>({id:m.id,name:(m.name||"").trim(),scheduleId:m.sched||null,system:modeCode(m.id),color:m.color||null});
-function modeCurApply(c){objMode=c.modeId;objModeManual=c.manual?{until:c.manual.until?schWhenText(new Date(c.manual.until)):""}:null;modeCurRaw=c}
+function modeCurApply(c){objMode=c.modeId;objModeManual=c.manual?{until:c.manual.until?schWhenText(new Date(c.manual.until)):""}:null;modeCurRaw=c;modeRemindPlan()}
 let modeCurRaw=null;
 async function modeCurLoad(){const c=await API.get("/modes/current");const was=objMode;modeCurApply(c);hdModePaint();if(was!==objMode&&app==="rules")paint()}
 function winNode(w){return{id:w.id,name:w.name,sched:w.scheduleId,scope:w.ruleIds==null?"all":w.ruleIds.slice(),on:w.enabled}}
@@ -17627,20 +17632,69 @@ function ruleIdleNote(r){
 }
 // Режимы объекта, которые правило называет в условиях «Режим объекта».
 function ruleCondModes(r){return(r.cond||[]).filter(c=>c.kind==="mode").flatMap(c=>c.modes||[])}
+// Ручное переключение режима — всегда на срок, не больше 8 часов (прототип 32): забытое переключение
+// кончается само, режим возвращается по расписанию. Срок выбирают в окне; «Вернуть по расписанию» — сразу.
+const MODE_TERMS=[[30,"30 минут"],[60,"1 час"],[120,"2 часа"],[240,"4 часа"],[480,"8 часов"]];
+const MODE_TERM_MAX=480,MODE_REMIND=10;
+let modeSw=null;   // окно переключения: {id, min, at} — min минут или до времени at ("ЧЧ:ММ")
 function ruleModeSwitch(v){
   if(!v)return;
-  if(v!=="auto"&&v===objMode&&objModeManual)return;
-  if(v==="auto"&&!objModeManual)return;
+  if(v==="auto"){if(objModeManual)modeSwSend({modeId:null,until:null});return}
+  modeSw={id:v,min:60,at:""};
+  openBulkModal(escHtml(`${i18n("Переключить на")} «${i18n(ruleModeName(v))}»`),"","","");
+  modeSwPaint();
+  setTimeout(()=>document.querySelector('#bmBody input[name="msw"]:checked')?.focus(),30);
+}
+function modeSwUntil(){
+  const w=modeSw;if(w.min)return new Date(Date.now()+w.min*60000);
+  if(!/^\d\d:\d\d$/.test(w.at))return null;
+  const[h,m]=w.at.split(":").map(Number),d=new Date();d.setHours(h,m,0,0);if(d<=new Date())d.setDate(d.getDate()+1);return d;
+}
+function modeSwErr(u){return!u?"Укажите время":u-Date.now()>MODE_TERM_MAX*60000?"Не больше 8 часов от текущего времени":""}
+function modeSwTerm(v){modeSw.min=+v;if(!modeSw.min&&!modeSw.at){const d=new Date(Date.now()+60*60000);modeSw.at=schHM(d.getHours()*60+d.getMinutes())}modeSwPaint();if(!modeSw.min)setTimeout(()=>document.getElementById("mswAt")?.focus(),20)}
+function modeSwAt(v){modeSw.at=v;modeSwPaint()}
+function modeSwPaint(){
+  const w=modeSw,u=modeSwUntil(),err=modeSwErr(u),back=u&&!err?objModeSched(u):null;
+  const opt=(v,l)=>`<label class="msw-o"><input type="radio" name="msw" value="${v}" ${w.min===v?"checked":""} ${onEv("change",["modeSwTerm",onEv.value])}>${i18n(l)}</label>`;
+  document.getElementById("bmBody").innerHTML=`<p>${i18n("Сейчас")}: «${escHtml(i18n(ruleModeName(objMode)))}»${objModeManual?` (${escHtml(modeNowText())})`:""}.</p>
+    <fieldset class="msw"><legend>${i18n("На сколько")}</legend>${MODE_TERMS.map(([v,l])=>opt(v,l)).join("")}${opt(0,"До времени")}
+      ${w.min?"":`<input type="time" id="mswAt" value="${escHtml(w.at)}" aria-label="${i18n("До какого времени")}" ${onEv("change",["modeSwAt",onEv.value])}>`}</fieldset>
+    ${err?`<div class="nt err" role="alert">${i18n(err)}</div>`:`<p role="status">${i18n("До")} <b>${schWhenText(u)}</b> ${i18n("действует")} «${escHtml(i18n(ruleModeName(w.id)))}». ${i18n("Потом режим вернётся по расписанию")}: «${escHtml(i18n(ruleModeName(back)))}».</p>`}
+    <p class="sub">${i18n("Ручной режим держится не больше 8 часов: забытое переключение закончится само. За 10 минут до конца консоль напомнит и предложит продлить.")}</p>`;
+  document.getElementById("bmFoot").innerHTML=`<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отмена")}</button><button type="button" class="btn pri" ${err?"disabled":""} ${onEv("click",["modeSwGo"])}>${i18n("Переключить")}</button>`;
+}
+function modeSwGo(){
+  const w=modeSw,u=modeSwUntil();if(!w||modeSwErr(u))return;
+  closeBulkModal();modeSwSend({modeId:w.id,until:u.toISOString()});
+}
+function modeSwSend(body){
   const prev=modeCurRaw;
-  // Ручное переключение — на сервер (POST /modes/current): до следующей смены по расписанию, «Обслуживание» — до отмены
-  const nx=v!=="auto"&&modeCode(v)!=="service"?objModeNext():null;
   const set=b=>API.post("/modes/current",b).then(c=>{modeCurApply(c);ruleIdxDrop()});
-  set(v==="auto"?{modeId:null,until:null}:{modeId:v,until:nx?nx.at.toISOString():null}).then(()=>{
+  set(body).then(()=>{
     paint();
-    toastAction("rmode",`${i18n("Режим объекта")}: «${i18n(ruleModeName(objMode))}»`,i18n("Отменить"),()=>{
+    toastAction("rmode",`${i18n("Режим объекта")}: «${i18n(ruleModeName(objMode))}»${objModeManual?`, ${modeNowText()}`:""}`,i18n("Отменить"),()=>{
       set(prev&&prev.manual?{modeId:prev.modeId,until:prev.manual.until}:{modeId:null,until:null}).then(()=>{paint();toast("Переключение отменено")}).catch(e=>toast(problemText(e)));
     },10000);
   }).catch(e=>toast(problemText(e)));
+}
+// Напоминание за 10 минут до конца ручного режима: «Продлить на 1 час»; не ответили — режим вернётся сам
+let modeRemindT=null,modeReminded="";
+function modeRemindPlan(){
+  clearTimeout(modeRemindT);
+  const m=modeCurRaw&&modeCurRaw.manual,until=m&&m.until?Date.parse(m.until):0;
+  if(!until){removeToastAction("mremind");return}
+  const at=until-MODE_REMIND*60000,key=modeCurRaw.modeId+"|"+m.until;
+  if(modeReminded===key)return;
+  modeRemindT=setTimeout(()=>{
+    if(!modeCurRaw||!modeCurRaw.manual||modeCurRaw.manual.until!==m.until)return;
+    modeReminded=key;
+    const back=objModeSched(new Date(until));
+    toastAction("mremind",`${i18n("Режим")} «${i18n(ruleModeName(objMode))}» ${i18n("включён вручную — в")} ${schHM(new Date(until).getHours()*60+new Date(until).getMinutes())} ${i18n("вернётся")} «${i18n(ruleModeName(back))}»`,i18n("Продлить на 1 час"),()=>{
+      const nu=new Date(Math.min(until+60*60000,Date.now()+MODE_TERM_MAX*60000));
+      modeSwSend({modeId:modeCurRaw.modeId,until:nu.toISOString()});
+    },Math.max(1000,until-Date.now()));
+    document.getElementById("ttu-mremind")?.classList.add("no-timer");   // время возврата — в тексте, отсчёт в секундах не нужен
+  },Math.max(0,at-Date.now()));
 }
 // ── Редактор расписания ──
 // Один редактор на двух местах: страница «Расписания» (k="p") и окно поверх любого места,
@@ -18343,7 +18397,7 @@ function ruleModesUI(){
       ${modeMore?card("Неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную — полосы показывают, что будет по расписанию.")}</p>`:""}${modeWeekHtml()}`)+card("Календарь",modeCalHtml()):""}
       ${card("Режимы",`${ovHtml}<table class="bk-t sch-mt2"><tr><th>${i18n("Режим")}</th><th>${i18n("Включается")}</th><th>${i18n("Правила")}</th><th></th></tr>${rows}</table>
         ${def?"":`<p class="sub">${i18n("Режим по умолчанию не выбран.")}</p>`}
-        <p class="sub">${i18n("Режим по умолчанию действует, когда ни одно расписание режима не действует. Ручное переключение действует до следующего переключения по расписанию; «Обслуживание» — пока его не выключат.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
+        <p class="sub">${i18n("Режим по умолчанию действует, когда ни одно расписание режима не действует. Ручное переключение — на срок, который выбирают при переключении, не больше 8 часов; потом режим вернётся по расписанию. За 10 минут до конца срока консоль напомнит и предложит продлить.")}</p>`,`<button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
     </div>`);
 }
 // Шапка консоли: текущий режим и переключатель — на любом экране
@@ -18354,7 +18408,8 @@ function hdModePaint(){
   const t=modeNowText();
   b.title=`${i18n("Режим объекта")}: ${i18n(cur.name)}${t?`, ${t}`:""}\n${i18n("Переключить…")}`;
   b.setAttribute("aria-label",`${i18n("Режим объекта")}: ${i18n(cur.name)}. ${i18n("Переключить")}`);
-  b.innerHTML=`<span class="sch-sw" style="background:${modeColor(cur.id)}"></span><b>${escHtml(i18n(cur.name))}</b>${lu("chevron-down")}`;
+  b.classList.toggle("manual",!!objModeManual);
+  b.innerHTML=`<span class="sch-sw" style="background:${modeColor(cur.id)}"></span><b>${escHtml(i18n(cur.name))}</b>${objModeManual?`<small>${escHtml(objModeManual.until?`${i18n("вручную до")} ${objModeManual.until}`:i18n("вручную"))}</small>`:""}${lu("chevron-down")}`;
 }
 function hdModeMenu(ev){
   ev.stopPropagation();
