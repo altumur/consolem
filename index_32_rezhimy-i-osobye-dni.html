@@ -903,6 +903,10 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .sch-mt tr.pending{opacity:.55}
 .sch-else td{border-bottom:0}.sch-else td:nth-child(2){white-space:nowrap}.sch-else .sch-mp select{width:auto;flex:none}
 .rl-steps{margin:0 0 10px;padding-left:20px}.rl-steps li{margin:2px 0}
+.sch-mtw{overflow-x:auto}.sch-mt{table-layout:fixed;width:100%;min-width:820px}.sch-mt th:nth-child(1){width:34px}.sch-mt th:nth-child(2){width:25%}.sch-mt th:nth-child(3){width:26%}.sch-mt th:nth-child(4){width:12%}.sch-mt th:nth-child(5){width:64px}.sch-mt th:nth-child(6){width:15%}.sch-mt th:nth-child(7){width:132px}
+.sch-mn input{flex:1;min-width:0;text-overflow:ellipsis}.sch-pen{color:var(--x-sub,#8a8f98);margin-left:4px;font-size:13px;cursor:default;flex:none}
+.sch-ru{overflow-wrap:anywhere}
+.mode-help p{margin:0 0 8px}.mode-help p:last-child{margin:0}
 .sch-grp.pending{opacity:.55}
 .sch-gh{display:flex;gap:8px;align-items:center}.sch-gh input{flex:1;font-weight:600}
 .sch-f-d{flex:0 1 160px}
@@ -14760,6 +14764,8 @@ const COND_KINDS=[
   {kind:"armed",label:"Камера на охране / снята с охраны",devTypes:["camera"]},
   {kind:"recording",label:"Камера пишет в архив",devTypes:["camera"]},
   {kind:"online",label:"Устройство на связи",devTypes:["camera","sensor","acfa_sensor","relay"]}];
+// Подсказки к видам условий: вид выбирают обычным списком, поэтому подсказка — под строкой для выбранного вида
+const COND_HINT={mode:"Режим объекта — вместе с другими правилами этого режима; оператор может переключить режим вручную"};
 function condKind(c){return COND_KINDS.find(k=>k.kind===c.kind)||COND_KINDS[0]}
 function condNew(kind,old){
   const k=COND_KINDS.find(x=>x.kind===kind)||COND_KINDS[0];
@@ -16213,14 +16219,17 @@ function condRowHtml(c,i){
     const r=curRule(),s=schById(c.sched);
     body=`<div class="rl-f">${schPickHtml(c.sched,`condSched(${i},this.value)`,r?{k:"rule",id:r.id}:null,`${i18n("Расписание условия")} ${i+1}`)}</div>
     ${s?`<button type="button" class="btn s" ${onEv("click",["condSchedEdit",i])}>${i18n(s.builtin?"Посмотреть…":"Изменить…")}</button>`:""}
-    <div class="sub rl-cond-sub">${s?`${escHtml(schText(s))} · ${i18n(schActive(s)?"сейчас действует":"сейчас не действует")}`:i18n("Расписание удалено — выберите другое")}</div>`;
+    <div class="sub rl-cond-sub">${s?`${escHtml(schText(s))} · ${i18n(schActive(s)?"сейчас действует":"сейчас не действует")}`:i18n("Расписание удалено — выберите другое")}</div>
+    <div class="sub rl-cond-sub">${i18n("Правило работает только в это время, независимо от режима объекта")}</div>`;
   }
-  else if(c.kind==="mode")body=`<div class="rl-f"><div class="rl-chips" style="margin-top:0">${modeLive().map(x=>chip((c.modes||[]).includes(x.id),`condMode(${i},'${x.id}')`,x.name,modeWhenText(x))).join("")}</div></div>`;
+  else if(c.kind==="mode")body=`<div class="rl-f"><div class="rl-chips" style="margin-top:0">${modeLive().map(x=>chip((c.modes||[]).includes(x.id),`condMode(${i},'${x.id}')`,x.name,modeWhenText(x))).join("")}</div></div>
+    <div class="sub rl-cond-sub"><button type="button" class="lk" ${onEv("click",["modeGoModes"])}>${i18n("Какой режим когда — в «Режимах объекта»")}</button></div>`;
   else{
     body=refFieldHtml("cond",i,c.ref);
     if(c.kind==="armed")body+=`<div class="rl-f">${selHtml([["true","на охране"],["false","снята с охраны"]],c.val===false?"false":"true",`condSet(${i},'val',this.value)`,`${i18n("Состояние охраны")} ${i+1}`)}</div>`;
   }
   return`<div class="rl-row"><div class="rl-n">${i+1}</div><div class="rl-f">${selHtml(kindOpts(COND_KINDS,condDeclared,k,x=>x.kind),k.kind,`condKindSet(${i},this.value)`,`${i18n("Вид условия")} ${i+1}`)}</div>${body}
+    ${COND_HINT[k.kind]?`<div class="sub rl-cond-sub">${i18n(COND_HINT[k.kind])}</div>`:""}
     <button type="button" class="btn s btn-icon" title="${i18n("Убрать")}" aria-label="${i18n("Убрать")}" ${onEv("click",["delCond",i])}>${lu("x")}</button></div>`;
 }
 // ── «То»: дерево действий и шагов ──
@@ -18145,6 +18154,11 @@ function schDaysUI(){
 }
 // ── Страница «Режимы объекта» ──
 let modeCal=null;
+let modeHelpOpen=true;                 // карточка «Что такое режим»: развёрнута, пока не свернули
+const modeRulesOpen=new Set();         // режимы, у которых список правил показан целиком
+function modeHelpToggle(){modeHelpOpen=!modeHelpOpen;paint()}
+function modeRulesToggle(id){if(modeRulesOpen.has(id))modeRulesOpen.delete(id);else modeRulesOpen.add(id);paint()}
+function modeGoModes(){ruleOpen("modes",true)}
 function modeEdit(what,fn,after){
   // Режимы — списком целиком (PUT /modes с версией). Новое состояние считается на копии: fn меняет список,
   // он тут же возвращается как был, а меняет его ответ сервера
@@ -18281,23 +18295,28 @@ function ruleModesUI(){
   const rows=OBJ_MODES.map((m,i)=>{
     const u=using(m.id),s=m.sched&&schById(m.sched),dis=m._pend?"disabled":"";
     return`<tr data-mode="${m.id}" class="${m._pend?"pending":""}"><td class="bk-num">${i+1}</td>
-      <td><div class="sch-mn"><span class="sch-sw" style="background:${modeColor(m.id)}"></span><input type="text" value="${escHtml(m.name)}" ${dis} aria-label="${i18n("Название режима")}" ${onEv("change",["modeRename",`${m.id}`,onEv.value])}></div>${m._pend?`<span class="sub">${i18n("удаляется")}</span>`:""}</td>
+      <td><div class="sch-mn"><span class="sch-sw" style="background:${modeColor(m.id)}"></span><input type="text" value="${escHtml(m.name)}" ${dis} title="${i18n("Переименовать")}" aria-label="${i18n("Название режима")}" ${onEv("change",["modeRename",`${m.id}`,onEv.value])}><span class="sch-pen" aria-hidden="true">✎</span></div>${m._pend?`<span class="sub">${i18n("удаляется")}</span>`:""}</td>
       <td><div class="sch-mp">${modeSchedPick(m)}${s?`<button type="button" class="btn s" ${dis} ${onEv("click",["schDlgOpen",m.sched,{from:{k:"mode",id:m.id}}])}>${i18n("Изменить…")}</button>`:""}</div><div class="sub">${s?escHtml(schText(s)):i18n("включают только вручную")}</div></td>
       <td>${nowOf(m)}</td>
       <td class="bk-num">${u.length}</td>
-      <td>${u.length?u.map(r=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`).join(", "):"—"}</td>
-      <td class="sch-ma"><button type="button" class="btn s btn-icon" data-mv="-1" ${i&&!m._pend?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["modeMove",`${m.id}`,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" data-mv="1" ${i<OBJ_MODES.length-1&&!m._pend?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["modeMove",`${m.id}`,1])}>${lu("arrow-down")}</button><button type="button" class="btn s btn-icon" ${m.sys||m._pend?`disabled title="${i18n(m.sys?"Встроенный режим не удаляется":"Удаляется")}"`:""} aria-label="${i18n("Удалить режим")}" ${onEv("click",["modeDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
+      <td class="sch-ru">${u.length?(()=>{const all=modeRulesOpen.has(m.id),sh=all?u:u.slice(0,3);
+        return sh.map(r=>`<button type="button" class="lk" ${onEv("click",["ruleOpen",`${r.id}`,true])}>${escHtml(r.name)}</button>`).join(", ")+(u.length>3?` <button type="button" class="lk lk-act" ${onEv("click",["modeRulesToggle",`${m.id}`])}>${all?i18n("свернуть"):`${i18n("ещё")} ${u.length-3}`}</button>`:"")})():"—"}</td>
+      <td class="sch-ma"><button type="button" class="btn s btn-icon" data-mv="-1" ${i&&!m._pend?"":"disabled"} title="${i18n("Выше — важнее")}" aria-label="${i18n("Выше")}" ${onEv("click",["modeMove",`${m.id}`,-1])}>${lu("arrow-up")}</button><button type="button" class="btn s btn-icon" data-mv="1" ${i<OBJ_MODES.length-1&&!m._pend?"":"disabled"} aria-label="${i18n("Ниже")}" ${onEv("click",["modeMove",`${m.id}`,1])}>${lu("arrow-down")}</button><button type="button" class="btn s btn-icon" ${m.sys||m._pend?`disabled title="${i18n(m.sys?"Встроенный режим не удаляется":"Удаляется")}"`:`title="${i18n("Удалить режим…")}"`} aria-label="${i18n("Удалить режим")}" ${onEv("click",["modeDelAsk",`${m.id}`])}>${lu("x")}</button></td></tr>`;
   }).join("");
-  paintMain(mainHd(i18n("Автоматизация"),i18n("Режимы объекта"),"Режим объекта включает и выключает правила целыми группами. Какой режим действует, решают расписания: список проверяется сверху вниз")+
+  paintMain(mainHd(i18n("Автоматизация"),i18n("Режимы объекта"),"Режим — состояние объекта, одно в каждый момент: «Рабочее время», «Ночь», «Обслуживание». Правила ссылаются на режим условием «Режим объекта»; оператор может переключить режим вручную")+
     `<div class="sc">
+      <div class="card"><div class="ch">${i18n("Что такое режим")}<button type="button" class="btn s" aria-expanded="${modeHelpOpen}" ${onEv("click",["modeHelpToggle"])}>${i18n(modeHelpOpen?"Свернуть":"Показать")}</button></div>${modeHelpOpen?`<div class="cb mode-help">
+        <p><b>${i18n("Режим и расписание.")}</b> ${i18n("Расписание отвечает на вопрос «действует ли сейчас». Режим — имя состояния объекта; его включает расписание из списка «Режимы» или оператор вручную.")}</p>
+        <p><b>${i18n("Откуда названия.")}</b> ${i18n("Режимы задаёте вы. Четыре режима есть с самого начала: «Обслуживание», «Ночь», «Выходной», «Рабочее время». Эти четыре можно переименовать, но не удалить. Свои режимы добавляют кнопкой «+ Режим» и удаляют, когда они не нужны.")}</p>
+        <p><b>${i18n("Как правило узнаёт режим.")}</b> ${i18n("Правило работает только в нужном режиме, если у него есть условие «Режим объекта». Правило со своими часами без режима — условие «Время».")}</p></div>`:""}</div>
       ${card("Сейчас",`<div class="rl-mode-now"><span class="sch-sw lg" style="background:${modeColor(cur.id)}"></span>${escHtml(i18n(cur.name))}</div><p class="sub">${how}${nx&&!objModeManual&&!(seg&&seg.sched)?` · ${i18n("следующее переключение")}: ${schWhenText(nx.at)} → «${escHtml(i18n(ruleModeName(nx.mode)))}»`:""}</p>
         <div class="g"><div><label>${i18n("Переключить на…")}</label>${selHtml(opts,"","ruleModeSwitch(this.value)")}</div></div>
         <p class="sub">${i18n("Ручное переключение действует до следующего переключения по расписанию; «Обслуживание» — пока не вернут обратно.")}</p>`)}
       ${card("Что получается: неделя",`${objModeManual?`<p class="sub">${i18n("Сейчас режим включён вручную — полосы показывают, что будет по расписанию.")}</p>`:""}${modeWeekHtml()}`)}
-      ${card("Какой режим когда",`<ol class="sub rl-steps"><li>${i18n("Список проверяется сверху вниз.")}</li><li>${i18n("Действует первый режим, чьё расписание сейчас действует.")}</li><li>${i18n("Ни одно расписание не действует — действует режим из строки «Иначе».")}</li></ol>
-        <table class="sch-mt"><tr><th>№</th><th>${i18n("Режим")}</th><th>${i18n("Включает расписание")}</th><th>${i18n("Сейчас")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th><th></th></tr>${rows}
-        <tr class="sch-else"><td class="bk-num">—</td><td><b>${i18n("Иначе")}</b></td><td><div class="sch-mp">${selHtml(live.map(m=>[m.id,m.name]),objModeElse,"modeElseSet(this.value)","Режим «Иначе»")}</div><div class="sub">${i18n("когда ни одно расписание выше не действует")}</div></td><td>${elseNow}</td><td></td><td></td><td></td></tr></table>
-        <div class="rl-foot"><button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button><button type="button" class="lk lk-act" ${onEv("click",["ruleOpenSch",true])}>${i18n("Все расписания")}…</button></div>`)}
+      ${card("Режимы",`<p class="sub">${i18n("Каждая строка — режим: его название, расписание, которое его включает, и правила, которые на него ссылаются.")}</p><ol class="sub rl-steps"><li>${i18n("Список проверяется сверху вниз.")}</li><li>${i18n("Действует первый режим, чьё расписание сейчас действует.")}</li><li>${i18n("Ни одно расписание не действует — действует режим из строки «Иначе».")}</li></ol>
+        <div class="sch-mtw"><table class="sch-mt"><tr><th>№</th><th>${i18n("Режим")}</th><th>${i18n("Включает расписание")}</th><th>${i18n("Сейчас")}</th><th>${i18n("Правил")}</th><th>${i18n("Какие")}</th><th></th></tr>${rows}
+        <tr class="sch-else"><td class="bk-num">—</td><td><b>${i18n("Иначе")}</b></td><td><div class="sch-mp">${selHtml(live.map(m=>[m.id,m.name]),objModeElse,"modeElseSet(this.value)","Режим «Иначе»")}</div><div class="sub">${i18n("когда ни одно расписание выше не действует")}</div></td><td>${elseNow}</td><td></td><td></td><td></td></tr></table></div>
+        <div class="rl-foot"><button type="button" class="lk lk-act" ${onEv("click",["ruleOpenSch",true])}>${i18n("Все расписания")}…</button></div>`,`<button type="button" class="btn s" ${onEv("click",["modeAdd"])}>${lu("plus")}${i18n("Режим")}</button>`)}
       ${card("Что получается: календарь",modeCalHtml())}
     </div>`);
 }
