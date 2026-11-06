@@ -770,6 +770,20 @@ select:not([multiple]){white-space:nowrap;overflow:hidden}:root select:not([mult
 .cbx-o mark,.cbx-g mark{background:var(--one-success-bg);color:var(--one-success-text);border-radius:2px;padding:0 1px}
 .cbx-none,.cbx-n{padding:6px 10px;color:var(--mu);font-size:12px}.cbx-n{flex:none;border-top:1px solid var(--ln)}
 .cbx-c{flex:none;display:flex;flex-wrap:wrap;gap:4px;padding:0 6px 6px;border-bottom:1px solid var(--ln)}
+.cbx-b{flex:1;min-height:0;display:flex;flex-direction:column}
+.cbx.pane .cbx-b{flex-direction:row;border-top:1px solid var(--ln)}
+.cbx.pane .cbx-c{flex:none;width:200px;flex-direction:column;flex-wrap:nowrap;gap:1px;padding:4px;border-bottom:0;border-right:1px solid var(--ln);overflow-y:auto;scrollbar-gutter:stable}
+.cbx-cat{display:flex;align-items:baseline;gap:6px;width:100%;text-align:left;border:0;background:0;color:var(--fg);font:inherit;font-size:13px;padding:5px 8px;border-radius:5px;cursor:pointer}
+.cbx-cat span{margin-left:auto;color:var(--mu);font-size:12px;font-variant-numeric:tabular-nums}
+.cbx-cat:hover{background:var(--one-nav-hover)}
+.cbx-cat.on{background:var(--one-selected-neutral);box-shadow:inset 2px 0 0 var(--one-selected-indicator);font-weight:600}
+.cbx-cat.zero{color:var(--mu)}
+.cbx.pane .cbx-l{padding-top:4px}
+.cbx-n{display:flex;align-items:center;gap:8px}
+.cbx-n .cbx-cnt{flex:1;min-width:0}
+.cbx-view{display:inline-flex;border:1px solid var(--ln);border-radius:5px;overflow:hidden}
+.cbx-view button{border:0;background:0;color:var(--mu);font:inherit;font-size:11px;padding:2px 8px;cursor:pointer}
+.cbx-view button.on{background:var(--one-selected-neutral);color:var(--fg);font-weight:600}
 .cbx-c .stchip-cnt{padding:0 8px 0 0;font-weight:500;opacity:.75}
 .cbx-c .stchip.zero{opacity:.45}
 .rl-opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--ln);border-radius:8px;cursor:pointer}
@@ -29082,15 +29096,24 @@ function cbxOpen(s,text){
   q.setAttribute("role","combobox");q.setAttribute("aria-expanded","true");q.setAttribute("aria-controls","cbxList");q.setAttribute("aria-autocomplete","list");
   q.setAttribute("aria-label",s.getAttribute("aria-label")||s.parentElement?.querySelector("label")?.textContent||i18n("Поиск в списке"));
   const list=document.createElement("div");list.className="cbx-l";list.id="cbxList";list.setAttribute("role","listbox");
-  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;foot.setAttribute("role","status");foot.setAttribute("aria-live","polite");
+  const foot=document.createElement("div");foot.className="cbx-n";foot.hidden=true;
+  const cnt=document.createElement("span");cnt.className="cbx-cnt";cnt.setAttribute("role","status");cnt.setAttribute("aria-live","polite");
+  const view=document.createElement("span");view.className="cbx-view";view.setAttribute("role","group");view.setAttribute("aria-label",i18n("Вид списка"));
+  view.innerHTML=[["chips","Чипы"],["pane","Две панели"]].map(([k,l])=>`<button type="button" tabindex="-1" data-v="${k}">${i18n(l)}</button>`).join("");
+  foot.append(cnt,view);
   const items=cbxItems(s),groups=[...new Set(items.filter(x=>x.g&&x.v!=="").map(x=>x.g))];
   // Категории — чипами под полем поиска: все группы видны сразу, клик оставляет одну (прототип 32)
   const chips=document.createElement("div");chips.className="cbx-c";chips.setAttribute("role","toolbar");chips.setAttribute("aria-label",i18n("Категории"));
   chips.hidden=groups.length<2;
-  box.append(q,chips,list,foot);document.body.append(box);
-  cbx={sel:s,box,q,list,foot,chips,items,groups,cat:"",shown:[],act:-1,up:null,frame:0};
+  const body=document.createElement("div");body.className="cbx-b";body.append(chips,list);
+  view.hidden=groups.length<2;
+  box.append(q,body,foot);document.body.append(box);
+  cbx={sel:s,box,q,list,foot,cnt,view,chips,items,groups,cat:"",shown:[],act:-1,up:null,frame:0};
+  box.classList.toggle("pane",!chips.hidden&&cbxView==="pane");
+  view.addEventListener("mousedown",e=>e.preventDefault());
+  view.addEventListener("click",e=>{const b=e.target.closest("button");if(b)cbxViewSet(b.dataset.v)});
   chips.addEventListener("mousedown",e=>e.preventDefault());
-  chips.addEventListener("click",e=>{const b=e.target.closest(".stchip");if(b)cbxCat(b.dataset.g)});
+  chips.addEventListener("click",e=>{const b=e.target.closest("[data-g]");if(b)cbxCat(b.dataset.g)});
   q.value=text||"";
   q.addEventListener("input",cbxPaint);
   q.addEventListener("keydown",cbxKey);
@@ -29111,8 +29134,11 @@ function cbxPaint(){
   c.shown=c.cat?hit.filter(x=>x.g===c.cat||x.v===""&&!x.g):hit;
   if(!c.chips.hidden){
     const n=g=>hit.filter(x=>x.v!==""&&(!g||x.g===g)).length;
+    const pane=c.box.classList.contains("pane");
     c.chips.innerHTML=[["",i18n("Все")],...c.groups.map(g=>[g,g])].map(([g,l])=>{const k=n(g);
-      return`<button type="button" tabindex="-1" class="stchip ${c.cat===g?"on":""} ${k?"":"zero"}" data-g="${escHtml(g)}" aria-pressed="${c.cat===g}"><span class="stchip-lab">${escHtml(l)}</span><span class="stchip-cnt">${k}</span></button>`}).join("");
+      return pane?`<button type="button" tabindex="-1" class="cbx-cat ${c.cat===g?"on":""} ${k?"":"zero"}" data-g="${escHtml(g)}" aria-pressed="${c.cat===g}">${escHtml(l)}<span>${k}</span></button>`
+        :`<button type="button" tabindex="-1" class="stchip ${c.cat===g?"on":""} ${k?"":"zero"}" data-g="${escHtml(g)}" aria-pressed="${c.cat===g}"><span class="stchip-lab">${escHtml(l)}</span><span class="stchip-cnt">${k}</span></button>`}).join("");
+    c.view.querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===(pane?"pane":"chips")));
   }
   let g="",h="";
   c.shown.forEach((x,i)=>{
@@ -29123,10 +29149,16 @@ function cbxPaint(){
   const other=c.cat&&t&&hit.some(x=>x.v!==""&&x.g!==c.cat);
   c.list.innerHTML=h||`<div class="cbx-none">${i18n(c.cat?`В «${c.cat}» ничего не найдено`:"Ничего не найдено")}${other?` — ${i18n("есть в других категориях, выберите «Все»")}`:""}</div>`;
   c.list.scrollTop=0;
-  c.foot.hidden=!t&&!c.cat;
-  c.foot.textContent=`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`;
+  c.foot.hidden=!t&&!c.cat&&c.chips.hidden;
+  c.cnt.textContent=t||c.cat?`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`:"";
   const cur=t?-1:c.shown.findIndex(x=>x.on&&!x.dis);
   cbxActive(cur>=0?cur:c.shown.findIndex(x=>!x.dis));
+}
+// Прототип 32: два вида категорий для сравнения — «Чипы» и «Две панели»; выбор держится до перезагрузки страницы
+let cbxView="chips";
+function cbxViewSet(v){
+  const c=cbx;if(!c)return;
+  cbxView=v;c.box.classList.toggle("pane",v==="pane");cbxPlace();cbxPaint();c.q.focus();
 }
 function cbxCat(g){
   const c=cbx;if(!c)return;
@@ -29182,7 +29214,7 @@ function cbxClose(){
 // Список лежит поверх страницы и не двигает соседей; идёт за полем при прокрутке, поле пропало — закрывается
 function cbxPlace(){
   const c=cbx,r=c.sel.getBoundingClientRect(),gap=4,pad=8;
-  const w=Math.min(Math.max(r.width,c.chips.hidden?320:440),innerWidth-pad*2);   // с чипами шире: категории в две строки
+  const w=Math.min(Math.max(r.width,c.chips.hidden?320:c.box.classList.contains("pane")?620:440),innerWidth-pad*2);   // с чипами шире: категории в две строки; две панели — шире всего
   const below=innerHeight-r.bottom-gap-pad,above=r.top-gap-pad;
   if(c.up===null)c.up=below<240&&above>below;
   const room=c.up?above:below;
