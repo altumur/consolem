@@ -280,6 +280,17 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 .n:hover{background:var(--one-nav-hover)}.n.on{background:var(--one-surface-muted);border-left-color:var(--bl);color:var(--one-fg)}.n.mark{background:var(--one-surface-muted);border-left-color:var(--one-selected-indicator);color:var(--one-fg)}.n.on.mark{background:var(--one-control-bg);border-left-color:var(--bl);color:var(--one-fg)}
 .n.off .nm,.n.off .nm-inp{color:var(--one-fg-muted)}
 .n.off .ici>.ic-svg{opacity:.55}
+/* Дерево на тысячи строк. Строка вне окна не стилизуется и не раскладывается изнутри: её высота задана (--row-h),
+   поэтому место в прокрутке то же, а работа после перерисовки — только для видимых строк (на large 2 600 строк:
+   стиль и раскладка 310 → 25 мс). Внутри строки ничего не выходит за её край */
+#tree .n{content-visibility:auto;contain-intrinsic-size:auto var(--row-h)}
+/* Строка найденного с путём (n-2l) — в две строчки выше своей высоты: её не обрезаем */
+#tree .n.n-2l{content-visibility:visible}
+/* Значок строки дерева — маска из того же svg (ict): один элемент вместо svg с контурами в каждой строке */
+.icm{background-color:currentColor;-webkit-mask:var(--icm) center/100% 100% no-repeat;mask:var(--icm) center/100% 100% no-repeat;
+  -webkit-print-color-adjust:exact;print-color-adjust:exact}
+/* Значок — фон под маской: печать без фонов и высокий контраст (forced-colors) иначе стёрли бы его, как не стирают svg */
+@media (forced-colors:active){.icm{forced-color-adjust:none;background-color:CanvasText}}
 .n-add{color:var(--bl);font-weight:600;font-size:12px}.n-add:hover{background:var(--one-control-hover);color:var(--one-fg)}.n-add .nm{color:inherit}
 .n-connect .nm,.n-connect .ici{color:var(--bl)}
 .n-connect .nm{font-weight:600}
@@ -346,6 +357,8 @@ html[data-theme="light"] .status-pop .mi.on{background:var(--one-surface-muted);
 .n-menu{flex:none;display:inline-flex;align-items:center;justify-content:center;border:0;background:0;color:var(--one-fg-muted);font-size:15px;font-weight:700;line-height:1;padding:0;width:22px;height:22px;opacity:0;cursor:pointer;transition:color .12s,opacity .12s}
 span.n-menu{cursor:default}
 .n:hover button.n-menu,.n-menu:focus-visible{opacity:1}
+/* Кнопки строки дерева приходят к строке при наведении (treeActsAt): «⋮» проявляется, как раньше, а не вспыхивает */
+@starting-style{.n:hover button.n-menu.ta-in{opacity:0}}
 .n-menu:focus-visible{outline:1px solid var(--bl);outline-offset:-3px;border-radius:4px;color:var(--one-fg)}
 /* Пустые для выбранного среза родители остаются на своих местах. */
 .n-slice-empty>*{opacity:.38;transition:opacity .12s}
@@ -2488,6 +2501,8 @@ const CHEV_BTN=`<svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="cu
 const WARN_IC=lu("triangle-alert",14,"ic-svg ic-warn");
 function iconizeWarn(root){
   if(!root||!root.ownerDocument)return;
+  // Знака нет во всём тексте — обход не нужен (перерисовка дерева добавляет тысячи строк разом)
+  if(!(root.textContent||"").includes("⚠"))return;
   const w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:n=>n.nodeValue.includes("⚠")&&n.parentElement&&!n.parentElement.closest("script,style,textarea,option,title,select")?1:2});
   const list=[];while(w.nextNode())list.push(w.currentNode);
   for(const t of list){const parts=t.nodeValue.split(/⚠️?\s?/),f=document.createDocumentFragment();
@@ -2544,6 +2559,20 @@ const IC_NOSIG_BADGE=`<svg class="ici-overlay-svg" viewBox="0 0 10 10" aria-hidd
 const IC_RULETMP_BADGE=`<svg class="ici-overlay-svg" viewBox="0 0 10 10" aria-hidden="true"><circle cx="5" cy="5" r="${IC_OVERLAY_R}" fill="var(--one-fg-subtle)"/><path d="M5 5V2.25" stroke="var(--one-accent-on)" stroke-width="1.35" stroke-linecap="round"/><path d="M5 5h2.55" stroke="var(--one-accent-on)" stroke-width="1.15" stroke-linecap="round"/></svg>`;
 // Значок: экрана по типу узла, затем значок, объявленный видом (UnitKind.icon — код из того же набора), затем общий
 function ic(t){return `<span class="ici ici-${t||"x"}">${IC[t]||IC[KINDS.get(t)?.icon]||"•"}</span>`}
+// Значок строки дерева: тот же знак, что у ic(), но маской (.icm) из этого же svg — один пустой элемент вместо svg с
+// контурами. Правило маски заводится при первом показе знака. Знаки со своими цветами (значок с пометкой) — ic()
+const icmMade=new Set();let icmSheet=null;
+function ict(t){
+  const k=IC[t]?t:IC[KINDS.get(t)?.icon]?KINDS.get(t).icon:null;
+  if(!k||!/^[\w-]+$/.test(k))return ic(t);
+  if(!icmMade.has(k)){
+    icmMade.add(k);
+    if(!icmSheet){const st=document.createElement("style");st.id="icmSheet";document.head.appendChild(st);icmSheet=st.sheet}
+    const svg=IC[k].replace("<svg ",'<svg xmlns="http://www.w3.org/2000/svg" ');
+    icmSheet.insertRule(`.icm-${k}{--icm:url("data:image/svg+xml,${encodeURIComponent(svg)}")}`,icmSheet.cssRules.length);
+  }
+  return`<span class="ici ici-${t||"x"}"><i class="ic-svg icm icm-${k}"></i></span>`;
+}
 const LB_RU={domain:"Домен",unalloc:"Нераспределённые серверы",server:"Сервер",camera:"Камера",ipsrv:"IP-сервер",channel:"Канал",mic:"Микрофон",sensor:"Датчик",relay:"Реле",spk:"Динамик",
   det:"Детектор",eventsrc:"Источник событий",acfa:"ACFA",acfa_sensor:"Датчик ACFA",acfa_lock:"Замок",acfa_fence:"Шлейф",
   export:"Агент экспорта",email:"Email-оповещатель",sms:"SMS-оповещатель",ptz:"PTZ",storage:"Встроенное хранилище",archive:"Хранилище",vol:"Том"};
@@ -4688,7 +4717,23 @@ function camArchs(n){
 function camWritesTo(n,aid){return camArchs(n).some(x=>x.arch===aid&&x.rec&&x.rec!=="none")}
 // Камеры хранилища: у строки кэша записи нет, поэтому — и то, что прочитано дверью archiveId
 const archCamIds=new Map();
-function archCameras(aid){const ids=archCamIds.get(aid)?.ids,out=[];walkAll(n=>{if(n.type==="camera"&&(camWritesTo(n,aid)||ids?.has(n.id)))out.push(n)});return out}
+function archCameras(aid){
+  // В отрисовке (withFind) — одна карта «хранилище → камеры» на всё дерево: строка хранилища у каждого из сотен
+  // серверов проходила бы весь кэш заново. Порядок и повторы — как у прохода по одному хранилищу
+  if(findMemo){
+    if(!findMemo.archCam){
+      const m=findMemo.archCam=new Map(),loaded=[...archCamIds].filter(([,b])=>b.ids.size);
+      const put=(k,n)=>{const l=m.get(k);if(l)l.push(n);else m.set(k,[n])};
+      walkAll(n=>{
+        if(n.type!=="camera")return;
+        const to=new Set(camArchs(n).filter(x=>x.rec&&x.rec!=="none").map(x=>x.arch));
+        loaded.forEach(([k,b])=>{if(b.ids.has(n.id))to.add(k)});
+        to.forEach(k=>put(k,n));
+      });
+    }
+    return(findMemo.archCam.get(aid)||[]).slice();
+  }
+  const ids=archCamIds.get(aid)?.ids,out=[];walkAll(n=>{if(n.type==="camera"&&(camWritesTo(n,aid)||ids?.has(n.id)))out.push(n)});return out}
 async function archCamsLoad(aid,more){
   let b=archCamIds.get(aid);
   if(b&&(!more||b.busy||b.done))return;
@@ -6182,6 +6227,11 @@ function treeIconHtml(n){
   }
   return ic(n.type);
 }
+// В строке дерева — то же, простой знак маской (ict)
+function treeRowIcon(n){
+  if((n.type==="server"||n.type==="domain")&&hasNoSignal(n)||n.type==="camera"&&n.ruleOff)return treeIconHtml(n);
+  return ict(n.type);
+}
 function nodeStatus(n){
   const isCam=n.type==="camera";
   const ruleOff=isCam&&!!n.ruleOff;
@@ -6454,7 +6504,7 @@ function openCamDets(cam,gs){
 // Цель перехода — видимая строка дерева, прокрученная к ней. Нет строки в этом срезе и раскладке, а фильтры ни при
 // чём — срез и раскладка меняются на те, где она есть: карточка без строки в дереве теряет место
 function treeRowOf(id){return document.querySelector(`#tree .n.on[data-pick="${id}"]`)||document.querySelector(`#tree .n[data-pick="${id}"]`)}
-function revealSel(){
+function revealSel(done){
   revealAt=Date.now();
   if(app!=="hw"||!sel||detListOn())return;
   // Детектор без своей строки стоит на строке камеры, а в дереве видов камеры нет: срез и раскладка остаются
@@ -6465,25 +6515,52 @@ function revealSel(){
     if(treeRowOf(fs.p.id)){treeRowOf(fs.p.id).scrollIntoView({block:"nearest"});return}
     detHostRow=null;
   }
-  if(!treeRowOf(sel)&&!hasActiveFilters()&&!(slice==="arch"&&archStaysInSlice(find(sel)?.n))){
-    // Папки устройства называет только полная запись: пока её нет, «не в папке» ещё ничего не значит и «Папки» не трогаем
-    const id=sel,node=find(id)?.n;
-    if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return}
-    const was=slice,pref=groupBy.all;
-    treeOpenSave();
-    // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
-    const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);renderTree();return!!treeRowOf(sel)};
-    // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
-    const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
-      const gw=groupBy[s];
-      slice=s;groupBy[s]=g;syncViews();
-      if(look()){if(SLICE_GROUPS[s].includes("folder"))setGroupAll(g);return true}
-      groupBy[s]=gw;return false;
-    }));
-    if(hit)aside();
-    else{slice=was;syncViews();look()}
+  // done — место уже нашёл revealPlan до перерисовки перехода
+  if(!done){
+    const r=revealSearch(id=>!!treeRowOf(id));
+    if(r==="wait")return;
+    if(r==="hit")aside();else if(r==="miss")renderTree();
   }
   treeRowOf(sel)?.scrollIntoView({block:"nearest"});
+}
+// Место цели: строки нет, а фильтры ни при чём — перебор срезов и раскладок. Каждый вариант проверяется разметкой
+// дерева (treeHtmlNow), без вставки в DOM: на large перерисовка варианта — сотни миллисекунд, а вариантов до десятка.
+// Рисует вызывающий, один раз, — разметка найденного варианта ждёт его (treeHtmlKeep). has(id) — есть ли строка сейчас.
+// Итог: null — искать не нужно, "wait" — ждём полную запись (повтор — revealSel), "hit" — срез сменился (рисовать всю
+// панель, aside), "miss" — строки нет нигде, срез прежний
+function revealSearch(has){
+  if(has(sel)||hasActiveFilters()||slice==="arch"&&archStaysInSlice(find(sel)?.n))return null;
+  // Папки устройства называет только полная запись: пока её нет, «не в папке» ещё ничего не значит и «Папки» не трогаем
+  const id=sel,node=find(id)?.n;
+  if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return"wait"}
+  const was=slice,pref=groupBy.all;
+  treeOpenSave();
+  let html="";
+  // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
+  const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);html=treeHtmlNow();return treeHtmlHas(html,sel)};
+  // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
+  const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
+    const gw=groupBy[s];
+    slice=s;groupBy[s]=g;syncViews();
+    if(look()){if(SLICE_GROUPS[s].includes("folder"))setGroupAll(g);return true}
+    groupBy[s]=gw;return false;
+  }));
+  if(!hit){slice=was;syncViews();look()}
+  treeHtmlKeep(html);
+  return hit?"hit":"miss";
+}
+// Переход (pick, openNode) до своей перерисовки ищет место цели по разметке: дерево рисуется один раз, сразу там, где
+// строка есть. true — место решено, revealSel после перерисовки только прокручивает
+function revealPlan(){
+  if(app!=="hw"||!sel||detListOn())return false;
+  const fs=find(sel);
+  if(fs?.n.type==="camera"&&slice==="det"&&group()==="kind"||fs?.n.type==="det"&&fs.p)return false;
+  let html=null;
+  const r=revealSearch(id=>{html=treeHtmlNow();return treeHtmlHas(html,id)});
+  if(r===null&&html!==null)treeHtmlKeep(html);
+  // Срез сменился — перерисовка перехода рисует всю панель (aside), как revealSel после смены среза
+  if(r==="hit")_lastApp=null;
+  return true;
 }
 function pushRecent(id){recent=recent.filter(x=>x!==id);recent.unshift(id);if(recent.length>8)recent.pop()}
 function setFocus(id,keepSel){if(!keepSel){const s=servers.find(x=>x.id===id);sel=s?.devices?.find(d=>treeKind(d)===tview)?.id||id}expandTo(sel);paint()}
@@ -6512,7 +6589,7 @@ function openNode(id,opts={}){
   if(opts.view)tview=opts.view;
   else if(f.n.type!=="server"&&f.n.type!=="domain"&&f.n.type!=="unalloc")tview=treeKind(f.n)||tview;
   clearGearFilters();filtPop=false;expandTo(id);archSliceOpen(f.n);sel=id;pushRecent(id);
-  paint();revealSel();
+  {const done=revealPlan();paint();revealSel(done)}
 }
 function goAddServer(domainId){
   const id=unallocId(domainId);
@@ -6644,9 +6721,11 @@ function jumpToNode(n){
   // Найденный контейнер раскрывается со всем содержимым: искали его целиком.
   expandSubtree(n);
   pushRecent(n.id);
-  // paint не перерисовывает шапку дерева: срез и «Папки» должны показать, куда пришли. До revealSel: он прокручивает к строке
-  if(headWas!==`${app}|${slice}|${group()}`)aside();
-  paint();revealSel();hwFlashLanding();
+  // paint не перерисовывает шапку дерева: срез и «Папки» должны показать, куда пришли. До revealSel: он прокручивает к строке.
+  // Шапку и дерево рисует сама paint (aside вместо отдельной перерисовки дерева): дерево перехода рисуется один раз
+  const done=revealPlan();
+  if(headWas!==`${app}|${slice}|${group()}`)_lastApp=null;
+  paint();revealSel(done);hwFlashLanding();
   if(wasFiltered)toast(i18n("Фильтры сброшены, чтобы показать найденное"));
 }
 function expandSubtree(n){
@@ -7713,7 +7792,7 @@ function aside(){
       <div class="filt-tags" id="filtTags">${tagsHtml()}</div>
       <div class="filt-hint" id="filtHint">${filtHint()}</div>
       ${filtPopHtml()}
-    </div></div><div class="tree" id="tree"></div>
+    </div></div><div class="tree" id="tree" ${onEv("contextmenu",["treeRowCtx",onEv.event])}></div>
     <div class="sel-bar" id="selBar" role="toolbar" aria-label="${i18n("Отмеченные объекты")}" hidden></div></div>`:"";
   const srvScope="";
   // Дерево и избранное наполняются после перестройки панели, поэтому и
@@ -7796,9 +7875,64 @@ function canFav(n){
 // вовсе — поэтому у каждой строки есть и явная кнопка.
 // Колонка действий занимает место и там, где действий нет: иначе правый край
 // дерева расходится от строки к строке.
+// Сами кнопки «В избранное» и «⋮» строка не несёт: на large это две кнопки с svg и обработчиками в каждой из тысяч
+// строк — половина разметки дерева. В строке — их места (те же span, что у строки без действий) с адресом действий
+// (data-ta — объект, data-tc — место); кнопки ставит на эти места treeActsAt у строки под мышью или с фокусом, той же
+// разметкой, что была в строке. Звезда избранного видна всегда, поэтому у избранного она в строке сразу
 function rowActionsHtml(id,ctx){
   if(!id)return`<span class="n-fav" aria-hidden="true"></span><span class="n-menu" aria-hidden="true"></span>`;
-  return favStarHtml(id,ctx)+treeMenuBtnHtml(id);
+  return(isFav(id)?favStarHtml(id,ctx):`<span class="n-fav" aria-hidden="true"></span>`)
+    +`<span class="n-menu" data-ta="${id}"${ctx?` data-tc="${escHtml(String(ctx))}"`:""} aria-hidden="true"></span>`;
+}
+// Кнопки строки — одна пара на дерево: у строки под мышью (mouseover) или с фокусом (focusin), после перерисовки — у
+// новой строки того же места (treeActsBack), чтобы наведённая строка не теряла их, а фокус возвращался на кнопку.
+// Ушли на другую строку — прежняя получает места обратно. Кнопка с фокусом с клавиатуры при наведении на другую строку
+// остаётся
+let treeActs=null;
+function treeActsAt(row,fade){
+  if(!row||treeActs?.row===row)return;
+  const ph=row.querySelector(":scope>.n-meta>span.n-menu[data-ta]");
+  // Пара остаётся у строки, только пока в ней фокус, пришедший не от мыши (treeActs.kbd, см. treeActsBind). Фокус после
+  // щелчка по «⋮» — не причина: меню, открытое щелчком, фокус не берёт, Esc его не возвращает, и пара залипла бы —
+  // наведение на другие строки не показывало бы их кнопок. :focus-visible тут не годится: после Esc Chrome считает
+  // фокус щелчка клавиатурным
+  const kb=document.activeElement;
+  if(treeActs?.kbd&&ph&&kb&&treeActs.nodes.some(x=>x===kb||x.contains(kb)))return;
+  treeActsOff();
+  if(!ph)return;
+  const id=ph.dataset.ta,ctx=ph.dataset.tc||null,favPh=ph.previousElementSibling?.matches("span.n-fav")?ph.previousElementSibling:null;
+  const t=document.createElement("template");
+  t.innerHTML=(favPh?favStarHtml(id,ctx):"")+treeMenuBtnHtml(id);
+  const nodes=[...t.content.children];
+  if(fade)nodes.forEach(x=>x.classList.contains("n-menu")&&x.classList.add("ta-in"));
+  const places=favPh?[favPh,ph]:[ph];
+  places[0].before(...nodes);places.forEach(x=>x.remove());
+  treeActs={row,key:treeRowKey(row),nodes,places};
+}
+function treeActsOff(){
+  const a=treeActs;treeActs=null;
+  if(!a||!a.nodes[0]?.isConnected)return;
+  a.nodes[0].before(...a.places);a.nodes.forEach(x=>x.remove());
+}
+// После перерисовки дерева: строка с кнопками заменена — кнопки к строке того же места
+function treeActsBack(treeEl){
+  const a=treeActs;if(!a||a.row.isConnected)return;
+  treeActs=null;
+  const pick=a.key.split("|")[0];if(!pick)return;
+  const row=[...treeEl.querySelectorAll(`.n[data-pick="${CSS.escape(pick)}"]`)].find(el=>treeRowKey(el)===a.key);
+  if(row)treeActsAt(row,false);
+}
+// Фокус кнопки пары от нажатия мышью или пальцем (pointerdown в том же событии, что и фокус) пару не держит, остальной
+// (клавиатура, программный) — держит
+let treeActsPtr=false;
+function treeActsBind(treeEl){
+  treeEl.addEventListener("pointerdown",()=>{treeActsPtr=true;setTimeout(()=>{treeActsPtr=false})},true);
+  treeEl.addEventListener("mouseover",e=>{const row=e.target.closest?.(".n");if(row&&row.parentElement===treeEl)treeActsAt(row,true)});
+  treeEl.addEventListener("focusin",e=>{
+    const row=e.target.closest?.(".n");if(!row||row.parentElement!==treeEl)return;
+    treeActsAt(row,false);
+    if(treeActs?.row===row&&treeActs.nodes.some(x=>x===e.target||x.contains(e.target)))treeActs.kbd=!treeActsPtr;
+  });
 }
 function treeMenuBtnHtml(id){
   const n=find(id)?.n;
@@ -8048,13 +8182,39 @@ function treeFlashCarry(treeEl,kept){
     setTimeout(()=>el.classList.remove("acc-flash"),Math.max(0,2600-k.t));
   });
 }
-function treePaint(){ruleIdxDrop();const treeEl=document.getElementById("tree");if(!treeEl)return;
+// Разметка дерева для нынешнего состояния — без вставки в DOM
+function treeHtmlNow(){
+  ruleIdxDrop();
   const fn={hw:treeHw,dev:treeDev,srvs:treeServers,rules:treeRules,acc:treeRoles,sys:treeOpts,log:treeLog,exp:treeExp,learn:treeLearn}[app];
+  return withFind(()=>fn?fn():"");
+}
+function treeHtmlHas(html,id){return html.includes(` data-pick="${id}"`)}
+// Разметку, уже собранную для проверки (revealSearch), берёт ближайшая перерисовка дерева в том же шаге, если с тех пор
+// не сменились раздел, срез, раскладка, выбор, поиск, фильтры, раскрытие и избранное: второй сборки тысяч строк нет. До
+// конца шага (микрозадача). Ключ — грубый (размеры множеств, а не содержимое): между revealPlan и treePaint в том же шаге
+// содержимое не меняется. Если правка внутри paint() это нарушит — в проверках (UiCheck, ?selftest) treePaint сверяет
+// готовую разметку со свежей сборкой, и расхождение — FAIL сценария «сторож разметки», а не тихо устаревшее дерево
+let treeHtmlReady=null;
+function treeReadyKey(){return[app,slice,group(),sel,selCtx,tab,tview,treeQ,open.size,treeSel.size,favs.length,archTbl.kind,typeFilts.size,statusFilts.size,searchFields.size,strictIdSearch,domainFilter,treeRenameId,detHostRow,selMode].join("|")}
+function treeHtmlReadyCheck(html){
+  if(!IDX_GUARD.on)return html;
+  const now=treeHtmlNow();if(now===html)return html;
+  const m="сторож разметки: готовая разметка дерева (revealPlan) не совпала со свежей сборкой — состояние сменилось между revealPlan и treePaint, а ключ treeReadyKey этого не заметил";
+  console.error(m);IDX_GUARD.bad.push(m);idxGuardFlush();
+  return now;
+}
+function treeHtmlKeep(html){
+  const r=treeHtmlReady={html,key:treeReadyKey()};
+  queueMicrotask(()=>{if(treeHtmlReady===r)treeHtmlReady=null});
+}
+function treePaint(){const treeEl=document.getElementById("tree");if(!treeEl){ruleIdxDrop();return}
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
-  const html=withFind(()=>fn?fn():"");
+  const ready=treeHtmlReady;treeHtmlReady=null;
+  const html=ready&&ready.key===treeReadyKey()?(ruleIdxDrop(),treeHtmlReadyCheck(ready.html)):treeHtmlNow();
   const flash=treeFlashKeep(treeEl);
   paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
+  treeActsBack(treeEl);
   treeFlashCarry(treeEl,flash);
   if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
   decorateTreeSel();detHostMark();renderSelBar();
@@ -8228,7 +8388,7 @@ function treeMoreRow(id,l,key=id){
   if(b&&b.failed)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n("Не прочитано")}</span></div>`;
   const scan=treeVirtual(id);
   if(!b||b.busy||!b.cursor)return`<div class="n n-more" style="--l:${l}"><span class="tw"></span><span class="nm sub">${i18n(scan?"Ищем дальше…":"Загрузка…")}</span></div>`;
-  return`<div class="n n-more n-more-go" style="--l:${l}" ${onEv("click",onEv.stop,["treeMore",id])}><span class="tw"></span><span class="nm sub">${i18n(scan?"Искать дальше":"Показать ещё")}</span></div>`;
+  return`<div class="n n-more n-more-go" style="--l:${l}" data-more="${escHtml(id)}" ${onEv("click",onEv.stop,["treeMore",id])}><span class="tw"></span><span class="nm sub">${i18n(scan?"Искать дальше":"Показать ещё")}</span></div>`;
 }
 function treeVirtual(id){return id.startsWith("nofolder:")||id.startsWith("svcs:")||id.startsWith("norec:")}
 // Счётчик виртуальной группы — только по загруженному: полного числа нет, пока отбор не дошёл до конца
@@ -8236,19 +8396,25 @@ function groupCntHtml(id,n){
   const shown=hasSliceContext()?sliceParentCount(id):n;
   return treeUnread(id)?(shown?treeCntHtml(`${shown}+`):""):treeCntHtml(shown);
 }
-function treeMore(id){
+function treeMore(id,auto){
   const layout=treeLayout(),b=treeBr.get(layout+"|"+id);
   if(!b||b.busy||b.done)return Promise.resolve();
-  // Нажатие рисует сразу («Загрузка…» в строке), дочитанная страница — в кадр
+  // Нажатие рисует сразу («Загрузка…» в строке), дочитанная страница — в кадр. Подгрузку прокруткой (auto) человек не
+  // нажимал: «Загрузка…» — в тот же кадр, что и страница, если она успела; без отдельной перерисовки всего дерева
   const p=treeLoad(layout,id).then(()=>renderTreeSoon());
-  renderTree();
+  if(auto)renderTreeSoon();else renderTree();
   return p;
 }
 // Прокрутка к концу дерева подгружает то же, что кнопка
+// Строка «Показать ещё» — в окне или чуть ниже него. Уже прокрученная вверх не в счёт: иначе каждая прокрутка ниже
+// неё — и восстановление прокрутки после перерисовки, — дочитывала бы страницу ветки, которую человек миновал (на
+// large переход к объекту ниже раскрытого сервера на 1 000 камер читал так его страницы одну за другой)
 document.addEventListener("scroll",e=>{
-  const el=e.target;if(!el||!el.querySelector)return;
-  const row=el.querySelector("#tree .n-more-go")||(el.id==="tree"?el.querySelector(".n-more-go"):null);
-  if(row&&row.getBoundingClientRect().top<el.getBoundingClientRect().bottom+200)row.click();
+  const el=e.target;if(!el||!el.querySelector||!el.getBoundingClientRect)return;
+  const rows=el.querySelectorAll(el.id==="tree"?".n-more-go":"#tree .n-more-go");if(!rows.length)return;
+  const box=el.getBoundingClientRect();
+  const row=[...rows].find(r=>{const b=r.getBoundingClientRect();return b.bottom>box.top&&b.top<box.bottom+200});
+  if(row){if(row.dataset.more)treeMore(row.dataset.more,true);else row.click()}
 },true);
 // tree.changed: ветка изменилась вне наблюдения. Загруженная и открытая перечитывается, закрытая — при раскрытии
 function treeChanged(m){
@@ -8632,8 +8798,8 @@ function treeFlat(){
   // «Детекторы» при статусе: найденный детектор и детекторы найденной камеры — столько же, сколько в filtHitCount
   const dets=n=>!n?[]:n.type==="det"?(matchesStatus(n)?[n]:[]):n.type==="camera"&&q?(n.devices||[]).filter(d=>d.type==="det"&&matchesStatus(d)):[];
   const list=slice==="det"&&statusFilts.size?[...new Set(fs.order.flatMap(id=>dets(find(id)?.n)))]:fs.order.map(id=>find(id)?.n);
-  const rows=list.filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
-    <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
+  const rows=list.filter(n=>n&&selfOrDet(n)&&(!fs.pick||matchesSearch(n,q))).map(n=>`<div class="n n-2l ${rowOn(n.id,null)}" style="--l:0"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
+    <span class="tw"></span>${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}<small class="sub n-path">${escHtml(fs.paths.get(n.id)||"")}</small></span>${treeRowMeta(n,q,0,false)}</div>`).join("");
   const tail=fs.done?"":`<div class="n n-more ${fs.busy?"":"n-more-go"}" style="--l:0" ${fs.busy?"":onEv("click",onEv.stop,["filtMore"])}><span class="tw"></span><span class="nm sub">${i18n(fs.pick&&!fs.filter?(fs.busy?"Загружаем…":"Показать ещё"):fs.busy?"Ищем дальше…":"Искать дальше")}</span></div>`;
   return rows+tail||`<div class="sc sub">${i18n("Ничего не найдено")}</div>`;
 }
@@ -8932,7 +9098,9 @@ function pick(id,opts){
     gear();return
   }
   if(fromLink)hwFlashLanding();
-  paint();revealSel();
+  // Место строки ищется до перерисовки: дерево перехода рисуется один раз (revealPlan)
+  const done=revealPlan();
+  paint();revealSel(done);
 }
 // Переход по ссылке из карточки, пути, списка, поиска или тоста — как в
 // «Правах»: место, куда пришли, моргает — заголовок, вкладка и строка дерева.
@@ -9058,6 +9226,7 @@ function bindTreeDbl(){
   const treeEl=document.getElementById("tree");
   if(!treeEl||treeEl._dblBound)return;
   treeEl._dblBound=true;
+  treeActsBind(treeEl);
   let treePickTimer=null;
   treeEl.addEventListener("mousedown",e=>{
     if(e.button!==0)return;   // правая кнопка не меняет выбор: только показывает меню
@@ -9316,7 +9485,13 @@ function ctxRename(id,field){
 function canRenameShort(n){
   return n&&n.type!=="domain"&&n.type!=="server"&&n.type!=="unalloc"&&n.type!=="det"&&n.type!=="folder"&&treeKind(n)===tview;
 }
-function treeCtxAttr(id){return ` ${onEv("contextmenu",["treeCtx",onEv.event,`${id}`])}`;}
+// Правая кнопка по строке: метка data-rc, обработчик один — у #tree (data-on-contextmenu → treeRowCtx), а не onEv в каждой
+// строке. Порядок тот же: перехват onEv на документе доходит до #tree сразу за строкой, раньше rcOnContext
+function treeCtxAttr(id){return" data-rc"}
+function treeRowCtx(e){
+  const row=e.target?.closest?.("#tree>.n[data-rc]");
+  if(row)treeCtx(e,row.dataset.pick,row);
+}
 function closeTreeCtx(){
   const m=document.getElementById("tctx");
   // Меню открыла стрелка «Добавить устройства»: фокус из меню возвращается на неё
@@ -9441,13 +9616,13 @@ function rcDetKind(k,xy,el){
 }
 function rcDetAdd(k){closeTreeCtx();if(dl.kind!==k){dl.kind=k;if(detListOn())paint()}detCreateOpen()}
 function rcRun(fn,...args){closeTreeCtx();window[fn](...args)}
-function treeCtx(e,id){
+function treeCtx(e,id,row){
   if(rcNative(e))return;
   e.preventDefault();e.stopPropagation();
   if(app!=="hw")return;
   const f=find(id);if(!f||!canTreeCtx(f.n))return;
   openTreeCtx(f.n,rcPoint(e));
-  rcMark(e.currentTarget?.closest?.(".n")||e.currentTarget);
+  rcMark(row||e.currentTarget?.closest?.(".n")||e.currentTarget);
   if(rcByKey(e))rcFocusFirst();
 }
 function nrow(n,l,ctx){
@@ -9462,14 +9637,14 @@ function nrow(n,l,ctx){
   const childOff=canToggleEnabled(n)&&st.off;
   let h=`<div class="n ${treeRowHi(n.id,ctx)} ${childOff?"off":""}${n.type==="ipsrv"?sliceParentClass(n.id):""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",hasKids)}>
     ${treeChevron(n.id,"node",hasKids,op)}
-    ${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
+    ${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
   if(op)h+=shown.map(x=>nrow(x,l+1,ctx)).join("")+treeMoreRow(n.id,l+1);
   return h}
 function svcrow(n,l){
   const q=qval();
   if(!selfInView(n)||!matchesSearch(n,q))return"";
   return `<div class="n ${sel===n.id?"on":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}>
-    <span class="tw"></span>${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}</span>${(st=>treeTail({tags:treeErrTag(n,st)+treeAttrTags(n,q),status:st,acts:n.id}))(treeStatusSlot(n))}</div>`;
+    <span class="tw"></span>${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${(st=>treeTail({tags:treeErrTag(n,st)+treeAttrTags(n,q),status:st,acts:n.id}))(treeStatusSlot(n))}</div>`;
 }
 function srow(s,l=1,bare=false){
   const q=qval();
@@ -9478,7 +9653,7 @@ function srow(s,l=1,bare=false){
     // Нераспределённые ещё не подключены к домену — всегда серым
     let h=`<div class="n srv ${sel===s.id?"on":""} off${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}>
       <span class="tw"></span>
-      ${treeIconHtml(s)}<span class="nm">${treeNameCell(s,q)}</span>${treeTail({tags:treeAttrTags(s,q),acts:s.id})}</div>`;
+      ${treeRowIcon(s)}<span class="nm">${treeNameCell(s,q)}</span>${treeTail({tags:treeAttrTags(s,q),acts:s.id})}</div>`;
     return h;
   }
   const offline=hasNoSignal(s);
@@ -9489,24 +9664,29 @@ function srow(s,l=1,bare=false){
   const archs=offline?[]:serverArchives(s.id);
   const devs=offline?[]:(s.devices||[]).filter(d=>d.type!=="det");
   const gpu=offline||slice==="acfa"?null:serverGpu(s);
-  const svcHtml=devs.filter(d=>!q||matchesSearch(d,q)).map(d=>svcrow(d,l+1)).join("");
+  const svcs=devs.filter(d=>!q||matchesSearch(d,q));
   // Камеры стоят под сервером (и без записи, и на сетевом хранилище);
   // под хранилищем их в дереве нет — только счётчик.
   const cams=offline?[]:serverCameras(s.id);
   // Устройства сервера без камер: блок входов, SIP, источник событий. Регистратор с камерами стоит через них
-  const others=offline||srvSlice?[]:devicePool.filter(x=>x.type!=="camera"&&!isSvc(x)&&cameraTreeServer(x.id)?.id===s.id&&!(x.type==="ipsrv"&&cams.some(c=>ipsrvOwnerNode(c)===x)));
-  const kidsHtml=(srvSlice?"":recordedCameraRows(cams,l+1,"srv:"+s.id))
-    +others.map(x=>nrow(x,l+1,"srv:"+s.id)).join("")
+  const others=offline||srvSlice?[]:serverOtherDevices(s.id).filter(x=>!(x.type==="ipsrv"&&cams.some(c=>ipsrvOwnerNode(c)===x)));
+  // Свёрнутый сервер: строки внутри не строятся — нужно только знать, есть ли хоть одна (стрелка, серый сервер).
+  // Части те же и в том же порядке, проверка — до первой непустой строки
+  const want=open.has(s.id)||autoExpand(),ctxS="srv:"+s.id;
+  const kidsHtml=want?(srvSlice?"":recordedCameraRows(cams,l+1,ctxS))
+    +others.map(x=>nrow(x,l+1,ctxS)).join("")
     +archs.map(a=>arow(a,l+1)).join("")
-    +(gpu?gpurow(s,l+1):"")+svcHtml;
+    +(gpu?gpurow(s,l+1):"")+svcs.map(d=>svcrow(d,l+1)).join(""):"";
+  const anyKid=want?!!kidsHtml:(!srvSlice&&recordedCameraAny(cams,l+1,ctxS))||others.some(x=>nrow(x,l+1,ctxS)!=="")
+    ||archs.some(a=>arow(a,l+1)!=="")||(!!gpu&&gpurow(s,l+1)!=="")||svcs.some(d=>svcrow(d,l+1)!=="");
   const unread=!offline&&!srvSlice&&sliceUnread(s.id);
-  if(!srvHit&&!kidsHtml&&!unread)return"";
+  if(!srvHit&&!anyKid&&!unread)return"";
   const cnt=srvSlice?devs.length:(treeCount(s.id)??cams.length);
-  const hasKids=!!kidsHtml||unread;
-  const op=hasKids&&(open.has(s.id)||autoExpand());
+  const hasKids=anyKid||unread;
+  const op=hasKids&&want;
   let h=`<div class="n srv ${sel===s.id?"on":""}${sliceParentClass(s.id)}${treeRenameId===s.id?" renaming":""}" style="--l:${l}"${treeRowPick(s.id)}${treeCtxAttr(s.id)}${treeExpandMeta(s.id,"srv",hasKids)}>
     ${treeChevron(s.id,"srv",hasKids,op)}
-    ${treeIconHtml(s)}<span class="nm">${treeNameCell(s,q)}</span>${treeRowMeta(s,q,cnt,op)}</div>`;
+    ${treeRowIcon(s)}<span class="nm">${treeNameCell(s,q)}</span>${treeRowMeta(s,q,cnt,op)}</div>`;
   if(op)h+=kidsHtml+treeMoreRow(s.id,l+1);
   return h}
 function drow(d){
@@ -9514,17 +9694,20 @@ function drow(d){
   // Без связи с доменом ответы несут только своё: показываем, что есть, чужое не считаем удалённым
   const offline=false;
   const selfHit=(slice==="srv"||!statusFilts.size)&&matchesStatus(d)&&matchesSearch(d,q);
-  const netHtml=offline?"":domainArchives(d.id).map(a=>arow(a,1)).join("");
-  const childHtml=(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+netHtml;
+  // Свёрнутый домен: строки серверов и групп не строятся — только проверка, есть ли хоть одна (по порядку, до первой)
+  const want=open.has(d.id)||autoExpand(),nets=offline?[]:domainArchives(d.id);
   // Устройство без сервера стоит прямо под доменом, после серверов и их групп
-  const looseHtml=slice!=="srv"&&!offline?serverlessDevices(d.id).filter(n=>hasTreeIn(n)&&(!q||vis(n,q))).map(n=>nrow(n,1)).join(""):"";
-  const uaHtml=offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+looseHtml);
-  if(!selfHit&&!childHtml&&!uaHtml)return"";
-  const hasKids=!!(childHtml||uaHtml)||(!offline&&sliceUnread(d.id));
-  const op=hasKids&&(open.has(d.id)||autoExpand());
+  const loose=slice!=="srv"&&!offline?serverlessDevices(d.id).filter(n=>hasTreeIn(n)&&(!q||vis(n,q))):[];
+  const childHtml=want?(offline?"":d.servers.map(s=>srow(s,1)).filter(Boolean).join(""))+nets.map(a=>arow(a,1)).join(""):"";
+  const uaHtml=!want||offline?"":(slice==="srv"?urow(1,d):urow(1,d)+norow(d,1)+loose.map(n=>nrow(n,1)).join(""));
+  const anyKid=want?!!(childHtml||uaHtml):!offline&&(d.servers.some(s=>srow(s,1)!=="")||nets.some(a=>arow(a,1)!=="")
+    ||urow(1,d)!==""||slice!=="srv"&&(norow(d,1)!==""||loose.some(n=>nrow(n,1)!=="")));
+  if(!selfHit&&!anyKid)return"";
+  const hasKids=anyKid||(!offline&&sliceUnread(d.id));
+  const op=hasKids&&want;
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
-    ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeRowMeta(d,q,domainServerCount(d),op)}</div>`;
+    ${treeRowIcon(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeRowMeta(d,q,domainServerCount(d),op)}</div>`;
   if(op){
     if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
     if(childHtml)h+=childHtml;
@@ -9540,7 +9723,7 @@ function urow(l,domain){
   const op=open.has(ua.id)||autoExpand();
   let h=`<div class="n srv ${sel===ua.id?"on":""}${sliceParentClass(ua.id)}" style="--l:${l}" data-pick="${ua.id}"${treeCtxAttr(ua.id)}${treeExpandMeta(ua.id,"dom",true)}>
     ${treeChevron(ua.id,"dom",true,op)}
-    ${ic("unalloc")}<span class="nm">${displayNameHtml(ua,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(ua.id):list.length)})}</div>`;
+    ${ict("unalloc")}<span class="nm">${displayNameHtml(ua,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(ua.id):list.length)})}</div>`;
   if(op)h+=childHtml;
   return h}
 // ── Дерево «Устройства»: папки физического расположения ────────────────────
@@ -9567,15 +9750,18 @@ function frow(f,l){
   const selfHit=matchesText(q,locName(f));
   // Без дополнительных фильтров сохраняем и пустые для среза папки.
   if(!retainEmptySliceParents()&&!folderHasTreeIn(f)&&!(q&&selfHit))return"";
-  const subs=(f.folders||[]).map(x=>frow(x,l+1)).filter(Boolean).join("");
+  // Свёрнутая папка: строки подпапок не строятся — только проверка, есть ли хоть одна непустая
+  const want=open.has(f.id)||autoExpand();
+  const subs=want?(f.folders||[]).map(x=>frow(x,l+1)).filter(Boolean).join(""):"";
+  const anySub=want?!!subs:(f.folders||[]).some(x=>frow(x,l+1)!=="");
   const devs=folderDeviceNodes(f).filter(d=>hasTreeIn(d)&&(!q||vis(d,q)));
-  if(statusFilts.size&&!subs&&!devs.length)return"";
-  if(!selfHit&&!subs&&!devs.length)return"";
-  const hasKids=!!subs||!!devs.length||sliceUnread(f.id);
-  const op=hasKids&&(open.has(f.id)||(autoExpand()&&(!!subs||!!devs.length)));
+  if(statusFilts.size&&!anySub&&!devs.length)return"";
+  if(!selfHit&&!anySub&&!devs.length)return"";
+  const hasKids=anySub||!!devs.length||sliceUnread(f.id);
+  const op=hasKids&&(open.has(f.id)||(autoExpand()&&(anySub||!!devs.length)));
   let h=`<div class="n srv fld ${sel===f.id?"on":""}${sliceParentClass(f.id)}${treeRenameId===f.id?" renaming":""}" style="--l:${l}"${treeRowPick(f.id)}${treeCtxAttr(f.id)}${treeExpandMeta(f.id,"dom",hasKids)}>
     ${treeChevron(f.id,"dom",hasKids,op)}
-    ${ic(op?"folderOpen":"folder")}<span class="nm">${treeNameCell(f,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(f.id):(treeCount(f.id)??folderCount(f))),acts:f.id})}</div>`;
+    ${ict(op?"folderOpen":"folder")}<span class="nm">${treeNameCell(f,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(f.id):(treeCount(f.id)??folderCount(f))),acts:f.id})}</div>`;
   if(op){
     h+=subs;
     h+=devs.map(d=>nrow(d,l+1,"f:"+f.id)).join("")+treeMoreRow(f.id,l+1);
@@ -9596,7 +9782,7 @@ function nfrow(d,l){
   const op=hasKids&&(open.has(node.id)||(autoExpand()&&!!devs.length));
   let h=`<div class="n srv fld ${sel===node.id?"on":""}${sliceParentClass(node.id)}" style="--l:${l}"${treeRowPick(node.id)}${treeExpandMeta(node.id,"dom",hasKids)}>
     ${treeChevron(node.id,"dom",hasKids,op)}
-    ${ic("nofolder")}<span class="nm">${locName(node)}</span>${treeTail({cnt:groupCntHtml(node.id,all.length)})}</div>`;
+    ${ict("nofolder")}<span class="nm">${locName(node)}</span>${treeTail({cnt:groupCntHtml(node.id,all.length)})}</div>`;
   if(op)h+=devs.map(x=>nrow(x,l+1,"nf:"+d.id)).join("")+treeMoreRow(node.id,l+1);
   return h;
 }
@@ -9613,7 +9799,7 @@ function svcsrow(d,l){
   const op=open.has(id)||(autoExpand()&&!!devs.length);
   let h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(id,"dom",true)} ${onEv("click",["toggleDom",id,onEv.event])}>
     ${treeChevron(id,"dom",true,op)}
-    ${ic("svcs")}<span class="nm">${i18n("Службы")}</span>${treeTail({cnt:groupCntHtml(id,all.length)})}</div>`;
+    ${ict("svcs")}<span class="nm">${i18n("Службы")}</span>${treeTail({cnt:groupCntHtml(id,all.length)})}</div>`;
   if(op)h+=devs.map(x=>svcrow(x,l+1)).join("")+treeMoreRow(id,l+1);
   return h;
 }
@@ -9729,7 +9915,7 @@ function dfrow(d){
   const op=hasKids&&(open.has(d.id)||autoExpand());
   let h=`<div class="n srv ${sel===d.id?"on":""}${sliceParentClass(d.id)}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",hasKids)}>
     ${treeChevron(d.id,"dom",hasKids,op)}
-    ${treeIconHtml(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
+    ${treeRowIcon(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(hasSliceContext()?sliceParentCount(d.id):domainTreeDeviceCount(d.id)),acts:d.id})}</div>`;
   if(op){
     if(d.online===false)h+=`<div class="n n-more" style="--l:1"><span class="tw"></span><span class="nm sub">${i18n("Нет связи с доменом, показано только своё")}</span></div>`;
     h+=kidsHtml+treeMoreRow(d.id,1);
@@ -9761,7 +9947,7 @@ function scamrow(n,l,ctx){
   const op=hasKids&&(open.has(n.id)||autoExpand());
   const childOff=canToggleEnabled(n)&&nodeStatus(n).off;
   let h=`<div class="n ${rowOn(n.id,ctx)} ${childOff?"off":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",hasKids)}>
-    ${treeChevron(n.id,"node",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
+    ${treeChevron(n.id,"node",hasKids,op)}${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeRowMeta(n,q,shown.length,op,ctx)}</div>`;
   if(op)h+=shown.map(x=>nrow(x,l+1)).join("")+treeMoreRow(n.id,l+1);
   return h;
 }
@@ -9781,6 +9967,22 @@ function recordedCameraRows(cams,l,ctx){
   const{groups,loose}=groupCamsByIpsrv(cams);
   return groups.map(g=>nvrrow(g.owner,g.cams,l,ctx)).join("")+loose.map(c=>scamrow(c,l,ctx)).join("");
 }
+// Есть ли хоть одна строка из recordedCameraRows — без сборки остальных
+function recordedCameraAny(cams,l,ctx){
+  const{groups,loose}=groupCamsByIpsrv(cams);
+  return groups.some(g=>nvrrow(g.owner,g.cams,l,ctx)!=="")||loose.some(c=>scamrow(c,l,ctx)!=="");
+}
+// Устройства сервера без камер (блок входов, SIP, источник событий, регистратор) — в порядке devicePool. В отрисовке
+// (withFind) раскладка по серверам считается один раз, а не проходом всего кэша у каждого сервера
+function serverOtherDevices(sid){
+  const of=x=>x.type!=="camera"&&!isSvc(x)?cameraTreeServer(x.id)?.id||null:null;
+  if(!findMemo)return devicePool.filter(x=>of(x)===sid);
+  if(!findMemo.srvOther){
+    const m=findMemo.srvOther=new Map();
+    devicePool.forEach(x=>{const k=of(x);if(k)(m.get(k)||m.set(k,[]).get(k)).push(x)});
+  }
+  return findMemo.srvOther.get(sid)||[];
+}
 function nvrrow(owner,cams,l,ctx){
   const q=qval();
   cams=cams.filter(hasTreeIn);
@@ -9793,7 +9995,7 @@ function nvrrow(owner,cams,l,ctx){
   const edge=edgeStorage(owner);
   let h=`<div class="n srv ${rowOn(owner.id,ctx)}${sliceParentClass(owner.id)}" style="--l:${l}"${treeRowPick(owner.id,ctx)}${treeCtxAttr(owner.id)}${treeExpandMeta(owner.id,"srv",hasKids)}>
     ${treeChevron(owner.id,"srv",hasKids,op)}
-    ${treeIconHtml(owner)}<span class="nm">${displayNameHtml(owner,q)}</span>${treeTail({tags:edge?`<span class="n-tail"><span class="cnt" title="${i18n("Встроенное хранилище")}">${ic("storage")}</span></span>`:"",cnt:treeCntHtml(hasSliceContext()?sliceParentCount(owner.id):cams.length),acts:owner.id,ctx})}</div>`;
+    ${treeRowIcon(owner)}<span class="nm">${displayNameHtml(owner,q)}</span>${treeTail({tags:edge?`<span class="n-tail"><span class="cnt" title="${i18n("Встроенное хранилище")}">${ic("storage")}</span></span>`:"",cnt:treeCntHtml(hasSliceContext()?sliceParentCount(owner.id):cams.length),acts:owner.id,ctx})}</div>`;
   if(op)h+=(q?vis:cams).map(c=>scamrow(c,l+1,ctx)).join("")+rest.map(d=>nrow(d,l+1)).join("");
   return h;
 }
@@ -9819,7 +10021,7 @@ function gcamrow(cam,dets,l,ctx){
   const op=hasKids&&(open.has(ok)||autoExpand());
   let h=`<div class="n ${rowOn(cam.id,ctx)}${slice==="det"?sliceParentClass(cam.id):""}" style="--l:${l}"${treeRowPick(cam.id,ctx)}${treeCtxAttr(cam.id)}${treeExpandMeta(ok,"node",hasKids)}>
     ${treeChevron(ok,"node",hasKids,op)}
-    ${treeIconHtml(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
+    ${treeRowIcon(cam)}<span class="nm">${displayNameHtml(cam,q)}</span>${treeTail({cnt:treeCntHtml(slice==="det"?sliceParentCount(cam.id):available.length),acts:cam.id,ctx})}</div>`;
   if(op)h+=shown.map(d=>gdetrow(d,l+1,ctx,parentHit)).join("")+treeMoreRow(cam.id,l+1,ok);
   return h;
 }
@@ -9828,7 +10030,7 @@ function gcamrow(cam,dets,l,ctx){
 function sliceBranchRow(n,l,children,count,ctx){
   const hasKids=!!children||sliceUnread(n.id),op=hasKids&&(open.has(n.id)||autoExpand());
   return`<div class="n srv ${rowOn(n.id,ctx)}${sliceParentClass(n.id)}" style="--l:${l}"${treeRowPick(n.id,ctx)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"dom",hasKids)}>
-    ${treeChevron(n.id,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children+treeMoreRow(n.id,l+1):""}`;
+    ${treeChevron(n.id,"dom",hasKids,op)}${treeRowIcon(n)}<span class="nm">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id,ctx})}</div>${op?children+treeMoreRow(n.id,l+1):""}`;
 }
 // Дерево среза выбирает место, а хранилища показывает таблица справа: серверы
 // свёрнуты, сетевые хранилища собраны в одну строку сверху, серверы без хранилищ —
@@ -9837,7 +10039,7 @@ function archTreeRow(n,l,children,count,key,cls){
   const hasKids=!!children,op=hasKids&&(open.has(key)||autoExpand());
   const on=sel===n.id&&!(n.type==="domain"&&archTbl.kind==="net")?"on":"";
   return`<div class="n srv ${on}${cls||""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}${treeExpandMeta(key,"dom",hasKids)}>
-    ${treeChevron(key,"dom",hasKids,op)}${treeIconHtml(n)}<span class="nm" title="${escHtml(locName(n))}">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id})}</div>${op?children:""}`;
+    ${treeChevron(key,"dom",hasKids,op)}${treeRowIcon(n)}<span class="nm" title="${escHtml(locName(n))}">${treeNameCell(n,qval())}</span>${treeTail({cnt:treeCntHtml(count),acts:n.id})}</div>${op?children:""}`;
 }
 function archGroupRow(key,label,icon,count,children,click,on){
   const hasKids=!!children,op=hasKids&&(open.has(key)||autoExpand());
@@ -9912,12 +10114,15 @@ function archUnlinkedRow(){
   scopedDomains().forEach(d=>{
     if(archUnlinkedAsked.has(d.id))return;
     archUnlinkedAsked.add(d.id);
-    archUnlinkedMore(d.id).catch(()=>{});
+    // Первое чтение — из самой сборки дерева: строка ниже уже «Ищем дальше…» (чтение помечено сразу), отдельная
+    // перерисовка посреди сборки не нужна; дочитанное — в кадр. В кадр — и вне «Хранилищ»: та же ветка «Без записи»
+    // стоит под доменом во всех срезах «по серверам», и сборка для поиска места (revealSearch) читает её из чужого среза
+    archUnlinkedRead(d.id).then(()=>{if(app==="hw")renderTreeSoon()}).catch(()=>{});
   });
   const q=qval(),doms=scopedDomains().map(d=>[d,archUnlinked(d.id).filter(c=>matchesStatus(c)&&matchesSearch(c,q))]).filter(([,l])=>l.length);
   if(!doms.length)return"";
   const op=open.has(AS_NOREC)||autoExpand();
-  const cam=c=>`<div class="n ${rowOn(c.id)}" style="--l:1"${treeRowPick(c.id)}${treeCtxAttr(c.id)}><span class="tw"></span>${treeIconHtml(c)}<span class="nm" title="${escHtml(locName(c))}">${treeNameCell(c,q)}</span>${treeTail({acts:c.id})}</div>`;
+  const cam=c=>`<div class="n ${rowOn(c.id)}" style="--l:1"${treeRowPick(c.id)}${treeCtxAttr(c.id)}><span class="tw"></span>${treeRowIcon(c)}<span class="nm" title="${escHtml(locName(c))}">${treeNameCell(c,q)}</span>${treeTail({acts:c.id})}</div>`;
   const rows=doms.map(([d,l])=>(doms.length>1?`<div class="as-cap" style="--l:1">${escHtml(locName(d))}</div>`:"")+l.map(cam).join("")+archUnlinkedMoreRow(d.id)).join("");
   return`<div class="n srv as-norec-top" style="--l:0" ${onEv("click",["archGroupOpen",AS_NOREC])}${treeExpandMeta(AS_NOREC,"dom",true)}>
     ${treeChevron(AS_NOREC,"dom",true,op)}${ic("camera")}<span class="nm" title="${escHtml(i18n("Камеры без архива"))}">${i18n("Камеры без архива")}</span>${treeTail({cnt:treeCntHtml(doms.reduce((x,[,l])=>x+l.length,0)+(doms.some(([d])=>archUnlinkedMoreRow(d.id))?"+":""))})}</div>${op?rows:""}`;
@@ -10095,7 +10300,7 @@ function arow(a,l){
   const cnt=slice==="arch"&&!hwDone.archives&&!archCamIds.has(a.id)?"":inventory?allCams.length:hasSliceContext()?sliceParentCount(a.id):cams.length;
   let h=`<div class="n srv stor ${sel===a.id?"on":""}${inventory?"":sliceParentClass(a.id)}${treeRenameId===a.id?" renaming":""}" style="--l:${l}"${treeRowPick(a.id)}${treeCtxAttr(a.id)}${treeExpandMeta(a.id,"srv",hasKids)}>
     ${hasKids?treeChevron(a.id,"srv",hasKids,op):'<span class="tw"></span>'}
-    ${archIcon(a)}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:slice==="arch"?"":`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
+    ${ict(archAddr(a)==="disk"?"asdisk":"asnet")}${treeRenameId===a.id?treeNameCell(a,q):`<span class="nm" title="${escHtml(locName(a))} · ${escHtml(archKindLabel(a))}">${hlText(locName(a),selfHit?q:"")}</span>`}${treeTail({tags:slice==="arch"?"":`<span class="tag ${archAddr(a)==="bucket"?"tag-cloud":""}" title="${escHtml(archKindLabel(a))}">${escHtml(archKindTag(a))}</span>`,cnt:treeCntHtml(cnt),acts:a.id})}</div>`;
   if(op)h+=children;
   return h;
 }
@@ -23903,7 +24108,7 @@ function createArchive(){
   an=null;closeBulkModal();
   open.add(a.server||a.domain);expandTo(a.id);archSliceOpen(a);resetTreeSel(a.id);sel=a.id;tab="arch";setD(true);
   toast(v.state==="unfmt"?i18n("Хранилище создано. Раздел не отформатирован — отформатируйте его у тома, когда будете готовы"):i18n("Хранилище создано"));
-  paint();revealSel();hwFlashLanding();
+  {const done=revealPlan();paint();revealSel(done);hwFlashLanding()}
   }).catch(e=>{was.busy=false;toast(problemText(e))});
 }
 function addVolume(archId){
