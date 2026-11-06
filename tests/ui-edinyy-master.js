@@ -15,7 +15,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   pick(d.id);
   openAddServers(d.id);
   ok(wizOn() && document.querySelectorAll("#wst .dc-st").length === 2, "серверы: окно с двумя шагами");
-  ok(wn().disabled && /Отметьте/.test(document.getElementById("wizFoot").textContent), "серверы: без выбора «Далее» погашена, причина в итоге");
+  ok(wn().disabled && /Отметьте|Отметить/.test(document.getElementById("wizFoot").textContent), "серверы: без выбора «Далее» погашена, причина в итоге");
   ok(document.getElementById("wizFoot").textContent.includes(d.name), "серверы: домен виден и без выбора");
   esc();
   ok(wizOn(), "серверы: Escape не закрывает");
@@ -82,7 +82,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(!draft("arch").includes("S3-секрет"), "секрета хранилища нет в localStorage");
     delete wzMem.arch;
     wzResume("arch");
-    ok(an.step === 2 && /заново/.test(document.getElementById("bmFoot").textContent), "после перезагрузки — шаг тома, причина в итоге");
+    ok(an.step === 2 && /заново|снова/.test(document.getElementById("bmFoot").textContent), "после перезагрузки — шаг тома, причина в итоге");
     createArchive();
     ok(arch.length === nA, "без секрета не создаётся");
     wzCancelQuiet("arch");

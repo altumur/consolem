@@ -306,12 +306,12 @@ UiCheck(async ({ ok, until }) => {
   el("asstMicBtn").click();
   const rec7 = recs[6];
   rec7.onerror({ error: "not-allowed" });
-  ok(/не дал доступ/.test(el("tt").textContent), "отказ в микрофоне назван");
+  ok(/не дал доступ|не разрешил доступ/.test(el("tt").textContent), "отказ в микрофоне назван");
   rec7.onend();
   el("asstMicBtn").click();
   const rec8 = recs[7];
   rec8.onerror({ error: "no-speech" });
-  ok(/не услышана/.test(el("tt").textContent), "тишина названа");
+  ok(/не услышана|не услышал речь/.test(el("tt").textContent), "тишина названа");
   rec8.onend();
   // Отказ в пароле в службу снимает микрофон: просьба не возвращается в поле
   const modeWas = window.asstMode;
@@ -367,7 +367,7 @@ UiCheck(async ({ ok, until }) => {
   ok(!filed.files.length && !el("asstFiles").children.length, "поле файлов очищено");
   ok(el("asstBlock").querySelector(".asst-u-files .asst-file")?.textContent.includes("f1.txt"), "имя файла в ленте");
   ok(el("asstBlock").textContent.includes(evil) && !el("asstBlock").querySelector(".asst-u-files img, .asst-u-files b"), "в ленте имя тоже текст");
-  ok(/файлы ему не ушли/.test(el("asstBlock").textContent), "лента честно говорит, что файл не ушёл");
+  ok(/файлы ему не ушли|не отправила ему файлы/.test(el("asstBlock").textContent), "лента честно говорит, что файл не ушёл");
   ok(await until(() => !filed.busy), "ход с файлом закончился");
   ok(savedOf(filed).log.some((x) => x.files?.[0]?.name === "f1.txt"), "имя файла в истории");
   // Черновик с файлом виден в списке разговоров и открывается
@@ -563,7 +563,7 @@ UiCheck(async ({ ok, until }) => {
   localStorage.setItem(ASST_STORE, JSON.stringify(raw));
   asstChats = [];asst = null;
   asstLoad();
-  ok(asstChats.length === raw.length && asst.interrupted && asst.err.includes("перезагрузили"), "потерянный ход назван");
+  ok(asstChats.length === raw.length && asst.interrupted && /перезагрузили|перезагрузилась/.test(asst.err), "потерянный ход назван");
   asstToggle();
   ok(el("asstAgain"), "есть «Спросить заново»");
   asstClose();

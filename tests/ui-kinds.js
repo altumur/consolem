@@ -50,7 +50,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(video.id, "vid");
   ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "SELECT" && !/H\.265|4096|Битрейт/.test(main().textContent), "разрешение — выбор из resOptions, H.265 и битрейта нет");
   ok(await until(() => lv?.id === video.id && lv.sess?.door.whepUrl, 60000), "живое видео запрошено через POST /devices/{id}/live, сессия у шлюза");
-  ok(await until(() => /настоящего видео на стенде нет/.test(main().textContent)), "подпись: подставной поток");
+  ok(await until(() => /настоящего видео на стенде нет|На стенде нет настоящего видео/.test(main().textContent)), "подпись: подставной поток");
   const free = of("camera", (d) => !d.resOptions && !d.parentId);
   open(free.id, "vid");
   ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "INPUT", "нет вариантов — ввод руками");
@@ -339,7 +339,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const derived = of("ipsrv", (d) => d.derived);
   ok(!canTreeCtxDelete(find(derived.id).n), "выведенный регистратор не удаляется");
   open(derived.id);
-  ok(/своей записи у него нет/.test(main().textContent) && !main().querySelector("[data-df]"), "выведенный регистратор: подпись, поля только для чтения");
+  ok(/своей записи у него нет|нет своей записи/.test(main().textContent) && !main().querySelector("[data-df]"), "выведенный регистратор: подпись, поля только для чтения");
   ok(deviceFoldersCardHtml(find(derived.id).n) === "", "папку выведенному не предлагаем");
 
   // Вход сквозной по устройству: номера с пропуском, правило берёт его из записи

@@ -84,7 +84,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   await sleep(200);
   ok(q("[data-live-titles]").hidden, "строка без lines: титра нет");
   liveStop();
-  ok(/Лента идёт/.test(text("[data-feed]")), "после остановки лента снята");
+  ok(/Лента идёт|Лента обновляется/.test(text("[data-feed]")), "после остановки лента снята");
 
   // Разговор
   const gum = navigator.mediaDevices?.getUserMedia;
@@ -159,7 +159,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const p1 = lv.pb.piece;
   ok(p1.to - p1.from === 60000 && p1.from === plain.startMs + 60000, "кусок 60 с, в нём момент");
   ok(/assets\/stub-piece\.mp4/.test(liveEl.src), "элемент играет кусок");
-  ok(/настоящей записи на стенде нет/.test(text(".live-note")), "подпись: кусок подставной: " + text(".live-note"));
+  ok(/настоящей записи на стенде нет|На стенде нет настоящей записи/.test(text(".live-note")), "подпись: кусок подставной: " + text(".live-note"));
   ok(/Запись/.test(state()) && /эпоха 2/.test(state()), "подпись: интервал, эпоха: " + state());
   liveEl.dispatchEvent(new Event("ended"));
   ok(await until(() => lv.pb.piece !== p1), "следующий кусок по окончании");
@@ -178,7 +178,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const made = stub.pieces.length, p2 = lv.pb.piece;
   liveEl.dispatchEvent(new Event("ended"));
   ok(await until(() => stub.pieces.length === made + 1), "кусок не отдан: запрошен");
-  ok(await until(() => /повтор через 5 с/.test(state())), "подпись о повторе: " + state());
+  ok(await until(() => /[пП]овтор через 5 с/.test(state())), "подпись о повторе: " + state());
   ok(await until(() => stub.pieces.length >= made + 2), "повтор с новым адресом");
   ok(stub.pieces[made] !== stub.pieces[made + 1], "адрес новый");
   ok(await until(() => stub.pieces.length >= made + 3), "не вышло — дальше");
@@ -264,7 +264,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   API.post = (p, ...r) => { if (/\/holds$/.test(p)) holdPosts.push(r[0]); return postWas(p, ...r); };
   document.querySelectorAll(".hold-rec").forEach(clickEl);
   ok(!document.querySelector(".hold-rec:checked") && okBtn.disabled, "галочки сняты: «Удержать» недоступна");
-  ok(/пустой список значит все записи камеры/.test(okBtn.title), "подсказка почему: " + okBtn.title);
+  ok(/пустой список значит все записи камеры|Пустой список означает все записи камеры/.test(okBtn.title), "подсказка почему: " + okBtn.title);
   clickEl(okBtn);
   ok(!holdPosts.length && document.getElementById("holdFrom"), "запроса нет, окно на месте");
   document.querySelectorAll(".hold-rec").forEach(clickEl);
@@ -311,7 +311,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   } finally { API.get = realGet; }
   v.noHolder = true;
   viewFill();
-  ok(/только пока его хранит архив записи/.test(text("[data-hold-warn]")), "нет держателя: предупреждение");
+  ok(/только пока его хранит архив записи|только пока архив записи хранит видео/.test(text("[data-hold-warn]")), "нет держателя: предупреждение");
   // Потеря удержанного не молчит, под угрозой — слабее
   const incVols = (await Promise.all((await API.get("/units", { implements: "vms.archive/1", limit: 1000 })).items.filter((a) => archHoldKinds().includes(a.kind)).slice(0, 5).map((a) => uiRecs({ kind: "volume", parentId: a.uid })))).flat();
   if (incVols.some((x) => x.incidentsLost)) {

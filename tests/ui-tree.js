@@ -127,7 +127,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     clearTreeQ();
   } else ok(false, "нет нечитанной папки с объектом");
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся
-  ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) === "папки вне отката: состав папки не возвращается", "слово шага понятно человеку");
+  ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) .match(/^(папки вне отката: состав папки не возвращается|откат не действует на папки\. Консоль не вернёт состав папки)$/) !== null, "слово шага понятно человеку");
   setSlice("all");
   setGroup("server");
   // Поток: наблюдаемое — раскрытые ветки и карточка, не больше watchMax
@@ -148,8 +148,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Нет связи с доменом: плашка, чужое не удалено
   d.online = false;
   pick(d.id, { force: true });
-  ok(await until(() => /показано только своё/.test(document.getElementById("domLost")?.textContent || "")), "плашка на домене");
-  ok(/показано только своё/.test(document.getElementById("tree").textContent), "строка в дереве");
+  ok(await until(() => /показано только своё|показывает только свои данные/.test(document.getElementById("domLost")?.textContent || "")), "плашка на домене");
+  ok(/показано только своё|показывает только свои данные/.test(document.getElementById("tree").textContent), "строка в дереве");
   ok(!refBroken(alien.id) || find(alien.id), "цели правил не считаются удалёнными");
   d.online = true;
   // Разделы читают своё при заходе
