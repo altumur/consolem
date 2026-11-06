@@ -2205,8 +2205,8 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
   <div class="gojump" id="gojump">
     <span class="gojump-lead" aria-hidden="true"><svg class="ic-svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg></span>
     <input id="gq" autocomplete="off" data-i18n-placeholder="Имя, IP, раздел, настройка…" placeholder="Имя, IP, раздел, настройка…"
-      data-i18n-title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
-      title="Сужает дерево по имени, IP, ID, производителю и модели; разделы, настройки и объекты вне среза предлагает списком"
+      data-i18n-title="Фильтрует дерево по имени, IP, ID, производителю и модели. Разделы, настройки и объекты вне среза консоль показывает списком"
+      title="Фильтрует дерево по имени, IP, ID, производителю и модели. Разделы, настройки и объекты вне среза консоль показывает списком"
       data-on-input='[["goInput",{"$on":"value"}]]' data-on-focus='[["goSearch",{"$on":"value"}]]' data-on-click='[["goClick",{"$on":"value"}]]' data-on-keydown='[["goKey",{"$on":"event"}]]'>
     <button type="button" class="gojump-clear hide" id="goClear" data-i18n-title="Очистить" title="Очистить" aria-label="Очистить" data-on-click='[["clearTreeQ",{"$on":"event"}]]'><svg class="ic-svg" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
     <span class="gojump-hint" aria-hidden="true">Ctrl K</span>
@@ -2222,7 +2222,7 @@ html[data-theme="light"] .cp-step{background:var(--one-control-hover);color:var(
 <main id="main"></main></div>
 </div>
 <aside class="asst-dock" id="asstDock" aria-label="Ассистент" tabindex="-1" hidden>
-  <div class="asst-grip" id="asstGrip" role="separator" aria-orientation="vertical" aria-label="Ширина панели" data-i18n-title="Ширина панели: тяните край или нажимайте стрелки" title="Ширина панели: тяните край или нажимайте стрелки" tabindex="0"></div>
+  <div class="asst-grip" id="asstGrip" role="separator" aria-orientation="vertical" aria-label="Ширина панели" data-i18n-title="Ширина панели: перетащить край или нажать стрелки" title="Ширина панели: перетащить край или нажать стрелки" tabindex="0"></div>
   <div class="asst-head" id="asstHead"></div>
   <div id="asstBlock"></div>
   <div class="asst-foot" id="asstFoot">
@@ -2725,7 +2725,7 @@ const API=(()=>{
     const u=new URL(location.href);
     ["tour","demo","play","all"].forEach(k=>u.searchParams.delete(k));
     location.replace(u.href);
-    throw new Error("Учебный режим: файлы demo/ не загрузились");
+    throw new Error("Учебный режим: консоль не загрузила файлы demo/");
   }
   if(base)return ConsolemApi.create({baseUrl:base,latency,onUnauthorized:apiUnauthorized});
   const all=window.CONSOLEM_FIXTURES||{demo:window.CONSOLEM_FIXTURE};
@@ -5587,7 +5587,7 @@ function domainNameTaken(name,exceptId){
 }
 function domainNameError(name,exceptId){
   const v=String(name||"").trim();
-  if(!v)return i18n("Укажите имя домена");
+  if(!v)return i18n("Указать имя домена");
   if(domainNameTaken(v,exceptId))return i18n("Домен с таким именем уже есть");
   return"";
 }
@@ -9953,7 +9953,7 @@ function gear(){
   ruleIdxDrop();
   if(bulkActive()&&!bulkPeek){paintMain(bulkCardHtml());return}
   if(detListOn()){paintMain(detListHtml());return}
-  const f=find(sel);if(!f){paintMain(`<div class='sc'>${i18n("Выберите объект в дереве")}</div>`);return}
+  const f=find(sel);if(!f){paintMain(`<div class='sc'>${i18n("Выбрать объект в дереве")}</div>`);return}
   const n=f.n,tabs=tabsFor(n);
   // Строка перечня: полная запись читается по клику, коротко показываем загрузку
   if(n._row){
@@ -11334,12 +11334,12 @@ function flSelItems(f){
 }
 function flBarHtml(f){
   const s=flSelItems(f),devs=s.filter(it=>!it.fld),k=s.length;
-  const noDev=k?i18n("Так нельзя перенести папку, только устройства"):i18n("Сначала выберите устройство");
+  const noDev=k?i18n("Так нельзя перенести папку, только устройства"):i18n("Сначала выбрать устройство");
   const dis=devs.length?"":`disabled title="${noDev}"`,noF=f.type==="nofolder",rem=devs.filter(it=>flHomes(f,it).length);
   const n=devs.length?` (${devs.length})`:"";
   return`<div class="fl-bar" id="flBar">
     <span class="fl-bar-n">${k?`${i18n("Выбрано")}: <b>${k}</b>`:i18n("Ничего не выбрано")}</span>
-    <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выберите одну строку")}"`} ${onEv("click",["flOpenCur"])}>${i18n("Открыть")}</button>
+    <button type="button" class="btn s" ${k===1?"":`disabled title="${i18n("Выбрать одну строку")}"`} ${onEv("click",["flOpenCur"])}>${i18n("Открыть")}</button>
     ${noF?"":`<button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"move"])}>${i18n("Переместить в")}…${n}</button>`}
     <button type="button" class="btn s" ${dis} ${onEv("click",["flFolderMenu",onEv.event,"copy"])}>${i18n(noF?"Положить в папку":"Добавить ещё в")}…${n}</button>
     ${noF?"":`<button type="button" class="btn s" ${rem.length?`title="${i18n("Устройство останется в системе")}"`:`disabled title="${noDev}"`} ${onEv("click",["flRemoveSel"])}>${i18n("Убрать из папки")}${rem.length?` (${rem.length})`:""}</button>`}
@@ -12590,7 +12590,7 @@ function renderDetCreate(){
   const reach=i=>steps.slice(0,i).every(okStep);
   const bar=wzBarHtml(steps,dc.step,reach,["dcStepGo"],true);
   const skipN=plan.reduce((n,p)=>n+[...p.skip.values()].reduce((a,b)=>a+b,0),0);
-  const sum=!dc.items.size?i18n("Выберите, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выберите камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
+  const sum=!dc.items.size?i18n("Выбрать, что создать"):!total?`${i18n("Выбрано видов")}: ${dc.items.size}. ${i18n("Выберите камеры")}`:`${total} ${i18n(plural(total,"детектор|детектора|детекторов"))} ${i18n("на")} ${camsHit} ${i18n(plural(camsHit,"камере|камерах|камерах"))}${skipN?` · ${i18n("пропустим")} ${skipN}`:""}`;
   const go=last?`<button type="button" class="btn pri" ${total?"":"disabled"} ${onEv("click",["dcRun"])}>${total?`${i18n("Создать")} ${total} ${i18n(plural(total,"детектор|детектора|детекторов"))}${withRule?` ${dc.rule.mode==="new"?(gs.length>1?`${i18n("и")} ${gs.length} ${i18n(plural(gs.length,"правило|правила|правил"))}`:i18n("и правило")):i18n("и добавить к правилу")}`:""}`:i18n("Создать")}</button>`
     :`<button type="button" class="btn pri" ${okStep(st)?"":"disabled"} ${onEv("click",["dcStepGo",`${dc.step+1}`])}>${i18n("Далее")}</button>`;
   openBulkModal(`${lock?`${i18n("Добавить детекторы на камеру")} «${escHtml(locName(lock))}»`:i18n("Добавить детекторы")}<span class="dc-tools"><button type="button" class="dc-x" aria-label="${i18n("Свернуть")}" title="${i18n("Свернуть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("minus")}</button><button type="button" class="dc-x" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть: черновик сохранится")}" ${onEv("click",["dcMin"])}>${lu("x")}</button></span>`,
@@ -13523,12 +13523,12 @@ function expCalHtml(){
   for(let day=1;day<=n;day++){
     const key=`${p.y}-${exp2(p.m+1)}-${exp2(day)}`,future=new Date(p.y,p.m,day)>today,ok=!future&&(!rec||rec.busy||rec.days[key]!==false);
     const on=cur.getFullYear()===p.y&&cur.getMonth()===p.m&&cur.getDate()===day;
-    g+=`<button type="button" class="exp-cal-d" ${ok?onEv("click",["expCalDay",day]):"disabled"} aria-pressed="${on}" ${ok?"":`title="${i18n("За этот день записей нет")}"`}>${day}</button>`;
+    g+=`<button type="button" class="exp-cal-d" ${ok?onEv("click",["expCalDay",day]):"disabled"} aria-pressed="${on}" ${ok?"":`title="${i18n("В этот день записей нет")}"`}>${day}</button>`;
   }
   const mon=new Date(p.y,p.m,1).toLocaleDateString(uiLang==="ru"?"ru-RU":"en-GB",{month:"long",year:"numeric"});
   return`<div class="exp-cal-row">${p.which==="to"?"<div></div>":""}<div class="exp-cal" data-exp-cal>
     <div class="exp-cal-top"><button type="button" class="btn s" aria-label="${i18n("Предыдущий месяц")}" ${onEv("click",["expCalMon",-1])}>${lu("chevron-left")}</button><span class="exp-cal-mon">${escHtml(mon)}</span><button type="button" class="btn s" aria-label="${i18n("Следующий месяц")}" ${onEv("click",["expCalMon",1])}>${lu("chevron-right")}</button></div>
-    <div class="exp-cal-grid">${g}</div><p class="sub">${i18n("Дни без записи выбрать нельзя.")}</p></div></div>`;
+    <div class="exp-cal-grid">${g}</div><p class="sub">${i18n("Нельзя выбрать дни без записи.")}</p></div></div>`;
 }
 // Выбор камер — поиск и список по серверам или папкам, флажками, как в мониторе («Серверы», «Группы»)
 function expCamsPop(){
@@ -13629,13 +13629,13 @@ function expCropOk(){
 function expErrs(prefix,exact){return(expChk?.errors||[]).filter(e=>prefix===""?!e.field:typeof e.field==="string"&&(e.field===prefix||!exact&&e.field.startsWith(prefix+"/")))}
 function expErrText(e){
   const p=e.params||{};
-  return({PASSWORD_REQUIRED:i18n("Без пароля экспорт запрещён политикой системы"),NO_RECORDING:i18n(e.field==="/at"?"В этот момент записи нет":"За выбранный период записи нет"),
+  return({PASSWORD_REQUIRED:i18n("Политика системы запрещает экспорт без пароля"),NO_RECORDING:i18n(e.field==="/at"?"В это время записи нет":"В выбранном периоде записи нет"),
     LIMIT_EXCEEDED:`${i18n("Предел")}: ${p.max??""} ${i18n({maxCameras:"камер",maxPeriods:"периодов",maxTotalSec:"с видео",maxFileMbMax:"МБ",maxActivePerUser:"активных выгрузок"}[p.limit]||"")}`,
     PERMISSION_DENIED:p.reason==="privacy"?(expGrantV?.refusal||e.message||i18n("Нет права на экспорт")):i18n(/^\/cameras\/\d+$/.test(e.field||"")?"Нет права на эту камеру":"Нет права на экспорт"),
-    DEVICE_OFFLINE:i18n("Камера без связи: живого кадра нет"),OTHER_CLUSTER:i18n("Камера другого кластера: экспорт через него"),
-    VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пуста":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Укажите время кадра":"Проверьте поле"),
-    NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Активных выгрузок слишком много: дождитесь или отмените"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
-    SUPERVISOR_REQUIRED:i18n("Нужно подтверждение супервизора"),SUPERVISOR_REJECTED:i18n("Пользователь не найден или пароль неверен")}[e.code])||problemText({problem:e});
+    DEVICE_OFFLINE:i18n("Нет связи с камерой, поэтому нет живого кадра"),OTHER_CLUSTER:i18n("Камера другого кластера. Экспорт идёт через этот кластер"),
+    VALIDATION_FAILED:i18n(/area$/.test(e.field||"")?"Область выходит за кадр или пустая":/\/to$/.test(e.field||"")?"Конец раньше начала":/\/from$/.test(e.field||"")?"Период в будущем":e.field==="/periods"?"Укажите период":e.field==="/at"?"Указать время кадра":"Проверьте поле"),
+    NOT_SUPPORTED:i18n(e.field==="/cameras"?"Кадр — одной камеры":"Система этого не поддерживает"),BUSY:i18n("Слишком много активных выгрузок. Подождать или отменить выгрузку"),EXPORT_EXPIRED:i18n("Файл удалён по сроку"),
+    SUPERVISOR_REQUIRED:i18n("Нужно подтверждение супервизора"),SUPERVISOR_REJECTED:i18n("Пользователь не найден, или пароль неправильный")}[e.code])||problemText({problem:e});
 }
 function expErrHtml(list){return list.map(e=>`<p class="exp-err" data-exp-err="${escHtml(e.field||"")}">${escHtml(expErrText(e))}</p>`).join("")}
 const expMb=b=>b>=1e9?`${(b/1e9).toFixed(1)} ${i18n("ГБ")}`:b>=1e6?`${Math.round(b/1e6)} ${i18n("МБ")}`:`${Math.max(1,Math.round(b/1e3))} ${i18n("КБ")}`;
@@ -13656,7 +13656,7 @@ function expMainHtml(d){
       ${no?`<span class="pf-st bad">${i18n(live?"живой кадр нельзя":"нет права")}</span>`:""}
       ${live?"":`<button type="button" class="btn s" aria-label="${i18n("Убрать")} ${escHtml(expCamName(c.id))}" ${onEv("click",["expCamTog",c.id,false])}>${lu("x")}</button>`}</div>${expErrHtml(expErrs(`/cameras/${i}`))}`}).join("");
   const cams=card(live?"Камера":`${i18n("Камеры")}${d.cams.length>1?` · ${d.cams.length}`:""}`,`${rows}
-    ${live?`<p class="sub">${i18n("Живой кадр берётся с камеры, из которой открыт экспорт.")}</p>`:`<div class="exp-anchor"><button type="button" class="btn s" data-exp-cams-add ${onEv("click",["expCamsPop"])}>${lu("plus")}${i18n("Добавить камеры")}</button>${expPick?.type==="cams"?expPickHtml():""}</div>`}
+    ${live?`<p class="sub">${i18n("Консоль берёт живой кадр с камеры, из которой вы открыли экспорт.")}</p>`:`<div class="exp-anchor"><button type="button" class="btn s" data-exp-cams-add ${onEv("click",["expCamsPop"])}>${lu("plus")}${i18n("Добавить камеры")}</button>${expPick?.type==="cams"?expPickHtml():""}</div>`}
     ${expErrHtml(expErrs("/cameras",true))}`,d.cams.length>1?`<span class="sub" style="font-weight:400">${i18n("до")} ${L.maxCameras||16}</span>`:"");
   let time="";
   if(!live){
@@ -13681,13 +13681,13 @@ function expMainHtml(d){
   if(expErrs("/supervisor").length)d.supAsk=true; // Сервер спросил супервизора, а выдача прав устарела: поля остаются до конца заказа
   const sup=g?.supervisorRequired||d.supAsk?card("Подтверждение супервизора",`<div class="g"><div><label>${i18n("Логин супервизора")} <span class="exp-req">${i18n("обязательно")}</span></label><input value="${escHtml(d.supLogin)}" ${onEv("input",["expSupType","supLogin",onEv.value])} ${onEv("change",["expCheckSoon"])}></div>
       <div><label>${i18n("Пароль")}</label><input type="password" autocomplete="off" value="${escHtml(d.supPwd)}" ${onEv("input",["expSupType","supPwd",onEv.value])} ${onEv("change",["expCheckSoon"])}></div></div>
-    ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры подтверждает второй пользователь с правом супервизора.")}</p>`}`):"";
+    ${expErrs("/supervisor").length?expErrHtml(expErrs("/supervisor")):`<p class="sub">${i18n("Экспорт этой камеры должен подтвердить второй пользователь с правом супервизора.")}</p>`}`):"";
   const file=card("Файл",`<div class="g"><div><label>${i18n("Формат")}</label>${fmtSel}</div>
       <div>${one?`<label>${i18n("Один файл")}</label><div class="ln ln-sw" style="padding:4px 0">${accSw(d.single,["expSet","single",!d.single],false,i18n("Один файл"))}<div>${i18n("Склеить")} ${d.cams.length} ${i18n(plural(d.cams.length,"камеру|камеры|камер"))} ${i18n("в один файл")}</div></div>`:""}</div>
       <div style="grid-column:1/-1"><label>${i18n("Имя файла")}</label><input data-exp-name value="${escHtml(d.nameSet?d.name:expAutoName())}" ${d.nameSet&&!d.name.trim()?'aria-invalid="true"':""} ${onEv("input",["expSet","name",onEv.value,false])} ${onEv("change",["expRepaint"])}>
         ${d.nameSet&&!d.name.trim()?`<p class="exp-err">${i18n("Имя файла не может быть пустым")}</p>`:files.length?`<p class="sub">${escHtml(files.slice(0,2).join(", "))}${files.length>2?` ${i18n("и ещё")} ${files.length-2}`:""}</p>`:""}${expErrHtml(expErrs("/name"))}</div>
       ${expOn("exportPassword")&&f&&f.password!=="none"&&!(g?.privacyForced&&g?.refusal)?`<div><label>${i18n("Пароль")}${g?.passwordRequired?` <span class="exp-req">${i18n("обязательно")}</span>`:""}</label><input type="password" autocomplete="new-password" data-exp-pass value="${escHtml(d.password)}" ${onEv("input",["expSet","password",onEv.value,false])}>
-        ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Файл придёт архивом .zip и откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
+        ${expErrs("/password").length?expErrHtml(expErrs("/password")):`<p class="sub">${i18n(zip?"Вы получите файл в архиве .zip. Архив откроется только с этим паролем.":"Файл откроется только с этим паролем.")}</p>`}</div>`:"<div></div>"}
       <div><label>${i18n("Комментарий")}</label><textarea rows="2" data-exp-comment ${onEv("input",["expSet","comment",onEv.value,false])}>${escHtml(d.comment)}</textarea></div></div>
     ${expErrHtml(expErrs("/format").concat(expErrs("/singleFile")))}`);
   return cams+time+file+area+sup;
@@ -13704,29 +13704,29 @@ function expGroups(d){
       expRow("Уровень сжатия",expSelHtml("compression",(R.compression||[]).map(x=>[x.id,x.label||x.id]),a.compression,frame),"",frame)+
       expRow(frame?"Разрешение кадра":"Разрешение видео",expSelHtml("resolution",(R.resolutions||[]).map(x=>[x.id,x.label||x.id]),a.resolution))+
       expRow("Частота кадров",expSelHtml("fps",(R.fpsDivisors||[1]).map(n=>[n,n===1?"Исходная":`1/${n} ${i18n("исходной")}`]),a.fps,frame),"",frame)+
-      (frame?`<p class="sub">${i18n("Кодек, сжатие и частота кадров описывают поток, которого у кадра нет. Разрешение работает и для кадра.")}</p>`:"")+expErrHtml(expErrs("/quality")))});
+      (frame?`<p class="sub">${i18n("Кодек, сжатие и частота кадров относятся к потоку. У кадра нет потока. Разрешение действует и для кадра.")}</p>`:"")+expErrHtml(expErrs("/quality")))});
   }
   // 2. Специальные опции — недоступны кадру
   const mic=d.cams.some(c=>find(c.id)?.n?.audioDeviceId),playerOk=!!f?.player&&expOn("exportPlayer");
   diff=[];dd(a.player&&playerOk,i18n("плеер"));dd(a.audio,i18n("звук"));dd(+a.maxmb!==(R.limits?.maxFileMbDefault||4000),`${i18n("макс.")} ${a.maxmb} ${i18n("МБ")}`);dd(+a.thin>0,`${i18n("прореживание")} ${a.thin} ${i18n("кадр/с")}`);dd(+a.speed!==1,`${i18n("скорость")} ${a.speed}×`);
   out.push({key:"special",title:"Специальные опции",off:frame,sum:diff,html:card("Специальные опции",
-    `<div class="exp-ln">${expChk1("player",a.player&&playerOk,"Добавить плеер",!playerOk)}</div>${playerOk?"":`<p class="sub">${i18n("Плеера в веб-выгрузке нет: MKV и MP4 играют обычные плееры.")}</p>`}
-    ${expOn("exportAudio")&&mic?`<div class="exp-ln">${expChk1("audio",a.audio,"Экспортировать звук")}</div><p class="sub">${i18n("У выбранных камер есть микрофон. Без микрофона настройка не показывается.")}</p>`:""}
+    `<div class="exp-ln">${expChk1("player",a.player&&playerOk,"Добавить плеер",!playerOk)}</div>${playerOk?"":`<p class="sub">${i18n("В веб-выгрузке нет плеера. Файлы MKV и MP4 открывают обычные плееры.")}</p>`}
+    ${expOn("exportAudio")&&mic?`<div class="exp-ln">${expChk1("audio",a.audio,"Экспортировать звук")}</div><p class="sub">${i18n("У выбранных камер есть микрофон. Если микрофона нет, консоль не показывает эту настройку.")}</p>`:""}
     ${expRow("Максимальный размер файла, МБ",expNum("maxmb",a.maxmb))}
-    ${expOn("exportTranscode")?expRow("Прореживание, кадр/с",expNum("thin",a.thin),"0 — без прореживания: в файл идут все кадры архива.")+expRow("Скорость видео",expNum("speed",a.speed)):""}
+    ${expOn("exportTranscode")?expRow("Прореживание, кадр/с",expNum("thin",a.thin),"0 — без прореживания: файл получает все кадры архива.")+expRow("Скорость видео",expNum("speed",a.speed)):""}
     ${expErrHtml(expErrs("/special"))}`)});
   // 3. Выделение: треки детекторов и маркеры закладок
   if(expOn("exportTracks")){
     diff=[];dd(a.tracks.length,`${a.tracks.length} ${i18n(plural(a.tracks.length,"детектор|детектора|детекторов"))}`);dd(a.marks,i18n("маркеры закладок"));
     out.push({key:"tracks",title:"Выделение",sum:diff,html:card("Выделение",
-      expRow("Треки видеоаналитики",`<div class="exp-anchor"><button type="button" class="btn s" ${onEv("click",["expTracksPop"])}>${a.tracks.length?`${i18n("Выбрано")}: ${a.tracks.length}`:i18n("Выбрать детекторы")}</button>${expPick?.type==="tracks"?expTracksHtml():""}</div>`,"Треки рисуются в сам кадр там, где детектор что-то нашёл, — поэтому работают и для JPG с PDF.")+
+      expRow("Треки видеоаналитики",`<div class="exp-anchor"><button type="button" class="btn s" ${onEv("click",["expTracksPop"])}>${a.tracks.length?`${i18n("Выбрано")}: ${a.tracks.length}`:i18n("Выбрать детекторы")}</button>${expPick?.type==="tracks"?expTracksHtml():""}</div>`,"Консоль рисует треки в кадре там, где детектор нашёл объект. Поэтому треки работают и для JPG и PDF.")+
       `<div class="exp-ln">${expChk1("marks",a.marks,"Добавить маркеры закладки")}</div>${expErrHtml(expErrs("/highlight"))}`)});
   }
   // 4. Конфиденциальность. Нет права смотреть без маски — раздела нет, маску ставит сервер
   if(expOn("exportPrivacy")&&!expGrantV?.privacyForced){
     diff=[];dd(a.hide!=="none",i18n(EXP_HIDE[a.hide]).toLowerCase());
     out.push({key:"privacy",title:"Конфиденциальность",sum:diff,html:card("Конфиденциальность",
-      expRow("Скрыть обнаруженные объекты",expSelHtml("hide",(R.privacyModes||["none"]).map(m=>[m,EXP_HIDE[m]||m]),a.hide),"Права снимать маску у вас есть. Без него раздел не показывается, а маска остаётся включённой.")+expErrHtml(expErrs("/privacy")))});
+      expRow("Скрыть обнаруженные объекты",expSelHtml("hide",(R.privacyModes||["none"]).map(m=>[m,EXP_HIDE[m]||m]),a.hide),"У вас есть право снимать маску. Без этого права консоль не показывает раздел, и маска остаётся включённой.")+expErrHtml(expErrs("/privacy")))});
   }
   // 5. Титры. У кадра и у формата без дорожки субтитров — только вшитые
   if(expOn("exportTitles")){
@@ -13737,7 +13737,7 @@ function expGroups(d){
         <div class="g" style="margin-top:10px"><div><label>${i18n("Шрифт")}</label>${expSelHtml("font",fonts,a.font)}</div>
           <div><label>${i18n("Цвет и фон")}</label><div class="live-row"><input type="color" class="exp-swatch" value="${a.color}" aria-label="${i18n("Цвет шрифта")}" ${onEv("change",["expSet","color",onEv.value])}><input type="color" class="exp-swatch" value="${a.bg}" aria-label="${i18n("Цвет фона")}" ${onEv("change",["expSet","bg",onEv.value])}><span class="sub">${i18n("фон")} ${escHtml(a.alpha)} %</span></div></div></div>
         ${expRow("Прозрачность фона, %",expNum("alpha",a.alpha))}
-        ${expRow("Способ наложения",expSelHtml("over",overOpts,soft?a.over:"burned",!soft),soft?"":frame?"Для JPG и PDF только вшитые титры: программные живут дорожкой контейнера, а у кадра её нет.":"У этого формата нет дорожки субтитров: только вшитые титры.",!soft)}
+        ${expRow("Способ наложения",expSelHtml("over",overOpts,soft?a.over:"burned",!soft),soft?"":frame?"Для JPG и PDF есть только вшитые титры. Программные титры находятся в дорожке контейнера, а у кадра нет дорожки.":"У этого формата нет дорожки субтитров. Есть только вшитые титры.",!soft)}
         ${expErrHtml(expErrs("/titles"))}`)+
       (expOn("exportEventTitles")?card("Титры источника событий",`<div class="exp-ln">${expChk1("src",a.src,"Добавить титры источника событий")}</div>${a.src?expRow("Способ наложения",expSelHtml("srcOver",overOpts,soft?a.srcOver:"burned",!soft),"",!soft):""}`):"")});
   }
@@ -13755,11 +13755,11 @@ function expFormUI(){
   const cur=sec.find(s=>s.key===d.tab&&!s.off)||sec[0];d.tab=cur.key;
   const tabs=sec.map(s=>{const sum=s.off?`${i18n("недоступно для")} ${d.format.toUpperCase()}`:s.sum.length?s.sum.join(" · "):i18n("По умолчанию");
     return`<button type="button" class="tab ${s.key===cur.key?"on":""}" role="tab" aria-selected="${s.key===cur.key}" data-exp-tab="${s.key}" title="${escHtml(sum)}" ${s.off?"disabled":""} ${onEv("click",["expTabGo",s.key])}>${i18n(s.title)}${bad.has(s.key)?`<span class="exp-tdot" aria-label="${i18n("есть ошибка")}"></span>`:s.key!=="main"&&s.sum.length&&!s.off?` <span class="acc-tabcnt">${s.sum.length}</span>`:""}</button>`}).join("");
-  const g=expGrantV,denied=g&&!g.allowed?`<div class="nt bk-warn" data-exp-denied><b>${i18n("Экспорт запрещён")}</b> — ${i18n("у вашей роли нет права на экспорт. Форму можно посмотреть, но кнопок экспорта в ней нет.")}</div>`:g?.refusal?`<div class="nt bk-warn">${escHtml(g.refusal)}</div>`:"";
+  const g=expGrantV,denied=g&&!g.allowed?`<div class="nt bk-warn" data-exp-denied><b>${i18n("Экспорт запрещён")}</b> — ${i18n("у вашей роли нет права на экспорт. Форму можно посмотреть, но в ней нет кнопок экспорта.")}</div>`:g?.refusal?`<div class="nt bk-warn">${escHtml(g.refusal)}</div>`:"";
   const c=expChk,frame=expFrame(d),allowed=!(g&&!g.allowed)&&can("createExport");
   const blocked=!d.cams.length||(c&&!c.ok)||(d.nameSet&&!d.name.trim());
   const general=expErrs("").concat(errs.filter(e=>e.field&&!/^\/(cameras|periods|at|format|password|singleFile|name|quality|special|titles|highlight|privacy|supervisor)/.test(e.field)));
-  const sumT=!d.cams.length?i18n("Добавьте хотя бы одну камеру"):!c?i18n("Проверка…"):!c.ok?`${i18n("Есть ошибки")}: ${(c.errors||[]).length}`:
+  const sumT=!d.cams.length?i18n("Добавить минимум одну камеру"):!c?i18n("Проверка…"):!c.ok?`${i18n("Есть ошибки")}: ${(c.errors||[]).length}`:
     [c.estimate?`${i18n("около")} ${expMb(c.estimate.bytes)}, ${expSecText(c.estimate.sec)}`:"",c.transcode?i18n("с перекодированием"):frame?"":i18n("без перекодирования")].filter(Boolean).join(" · ");
   const foot=`<div class="main-actions bk-foot" data-exp-foot><span class="sub bk-foot-text" data-exp-sum>${escHtml(sumT)}</span>${general.length?`<span class="exp-err">${escHtml(general.map(expErrText).join("; "))}</span>`:""}<span class="tfoot-gap"></span>
     <button type="button" class="btn s" ${onEv("click",["expCancelForm"])}>${i18n("Отмена")}</button>
@@ -13796,7 +13796,7 @@ function expWhen(x){const p=x.parts?.[0];return p?.at?tlDate(Date.parse(p.at)):p
 function expJobHtml(x){
   const run=x.state==="queued"||x.state==="running",bad=x.parts.some(p=>p.state==="fail"||p.state==="cancel");
   const parts=x.parts.map(p=>`<tr data-exp-part="${escHtml(p.uid)}"><td>${escHtml(expCamName(p.uid))}</td><td>${escHtml(p.at?tlDate(Date.parse(p.at)):p.from?`${tlDate(Date.parse(p.from))}–${tlClock(Date.parse(p.to))}`:"")}</td>
-    <td><span class="pf-st ${p.state==="ok"?"ok":p.state==="fail"?"bad":""}">${i18n(EXP_PART[p.state]||p.state)}${p.state==="run"?` ${p.percent}%`:""}</span>${p.code?` <span class="sub">${i18n(EXP_PART_CODE[p.code]||p.code)}</span>`:""}${p.partial?` <span class="sub">${i18n("с дырами: отдано, что есть")}</span>`:""}</td></tr>`).join("");
+    <td><span class="pf-st ${p.state==="ok"?"ok":p.state==="fail"?"bad":""}">${i18n(EXP_PART[p.state]||p.state)}${p.state==="run"?` ${p.percent}%`:""}</span>${p.code?` <span class="sub">${i18n(EXP_PART_CODE[p.code]||p.code)}</span>`:""}${p.partial?` <span class="sub">${i18n("с пропусками: выгружено то, что есть")}</span>`:""}</td></tr>`).join("");
   const files=x.files.map(f=>`<tr data-exp-file="${escHtml(f.id)}"><td>${escHtml(f.name)}</td><td>${expMb(f.sizeBytes)}</td><td><span class="sub">${i18n("до")} ${escHtml(tlDate(Date.parse(f.expiresAt)))}</span></td>
     <td class="ca-x">${can("getExportFileLink")?`<button type="button" class="btn s pri" ${onEv("click",["expFile",x.id,f.id])}>${lu("download")}${i18n("Скачать")}</button>`:""}</td></tr>`).join("");
   const r=x.request||{},facts=[r.comment?`${i18n("Комментарий")}: ${escHtml(r.comment)}`:"",x.transcode?i18n("с перекодированием"):"",(r.cameras||[]).some(c=>c.area)?i18n("с областью кадра"):"",x.enforced?.password?i18n("пароль по политике"):"",x.retryOf?i18n("повтор неудачных"):""].filter(Boolean).join(" · ");
@@ -13808,7 +13808,7 @@ function expJobHtml(x){
       ${!run&&can("deleteExport")?`<button type="button" class="btn s" ${pendingDelHas("exp:"+x.id)?"disabled":""} ${onEv("click",["expDel",x.id])}>${lu("trash")}${i18n("Удалить")}</button>`:""}</div>
       <p class="sub">${i18n("Создано")} ${escHtml(tlDate(Date.parse(x.createdAt)))} · ${escHtml(x.by)}${facts?` · ${facts}`:""}</p>`)
     +card("Части",`<table class="ca-tbl"><thead><tr><th>${i18n("Камера")}</th><th>${i18n("Время")}</th><th>${i18n("Состояние")}</th></tr></thead><tbody>${parts}</tbody></table>`)
-    +(files?card("Файлы",`<table class="ca-tbl"><tbody>${files}</tbody></table><p class="sub">${i18n("Ссылка берётся перед самым скачиванием и живёт недолго")}</p>`):x.state==="expired"?card("Файлы",`<p class="sub">${i18n("Файлы удалены по сроку")}</p>`):"");
+    +(files?card("Файлы",`<table class="ca-tbl"><tbody>${files}</tbody></table><p class="sub">${i18n("Консоль получает ссылку перед скачиванием. Ссылка действует недолго")}</p>`):x.state==="expired"?card("Файлы",`<p class="sub">${i18n("Файлы удалены по сроку")}</p>`):"");
 }
 function expUI(){
   if(expSel!=="new"&&!expRowOf(expSel))expSel="new";
@@ -13875,8 +13875,8 @@ function expFromAssist(r){
 // Удаление — с вводом числа и отсчётом в тосте (правила интерфейса): до конца отсчёта на сервере ничего не уходит
 function expDel(id){
   const x=expRowOf(id);if(!x)return;
-  if(pendingDelHas("exp:"+id)){toast("Выгрузка уже ждёт удаления — отменить можно в тосте");return}
-  askConfirm("Удалить выгрузку","Задание и его файлы удаляются насовсем.","Останутся камеры и их записи. После подтверждения консоль покажет отсчёт и кнопку «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
+  if(pendingDelHas("exp:"+id)){toast("Консоль уже удаляет выгрузку. Чтобы отменить, нажать «Отменить» в уведомлении");return}
+  askConfirm("Удалить выгрузку","Консоль удалит задание и его файлы навсегда.","Останутся камеры и их записи. После подтверждения консоль покажет отсчёт и кнопку «Отменить».","Удалить",()=>expDelRun(id),{typeCount:1});
 }
 function expDelRun(id){
   const x=expRowOf(id),name=x?expJobTitle(x):id;
@@ -13892,7 +13892,7 @@ function expFile(id,fid,open){
   API.post(`/exports/${id}/files/${encodeURIComponent(fid)}/link`,{}).then(l=>{
     const x=expRowOf(id),f=x?.files.find(y=>y.id===fid),a=document.createElement("a");
     if(/^stub:/.test(l.url)){
-      const txt=`${i18n("Тестовый стенд: настоящего видео нет.")}\n${f?.name||""}\n${l.url}\n`;
+      const txt=`${i18n("Тестовый стенд. Настоящего видео нет.")}\n${f?.name||""}\n${l.url}\n`;
       a.href=URL.createObjectURL(new Blob([txt],{type:"text/plain"}));a.download=`${f?.name||"export"}.txt`;
       setTimeout(()=>URL.revokeObjectURL(a.href),5000);
     }else if(open){a.href=l.url;a.target="_blank";a.rel="noopener"}else{a.href=l.url;a.download=f?.name||""}
@@ -16248,7 +16248,7 @@ function condRowHtml(c,i){
     const r=curRule(),s=schById(c.sched);
     body=`<div class="rl-f">${schPickHtml(c.sched,`condSched(${i},this.value)`,r?{k:"rule",id:r.id}:null,`${i18n("Расписание условия")} ${i+1}`)}</div>
     ${s?`<button type="button" class="btn s" ${onEv("click",["condSchedEdit",i])}>${i18n(s.builtin?"Посмотреть…":"Изменить…")}</button>`:""}
-    <div class="sub rl-cond-sub">${s?`${escHtml(schText(s))} · ${i18n(schActive(s)?"сейчас действует":"сейчас не действует")}`:i18n("Расписание удалено — выберите другое")}</div>`;
+    <div class="sub rl-cond-sub">${s?`${escHtml(schText(s))} · ${i18n(schActive(s)?"сейчас действует":"сейчас не действует")}`:i18n("Расписание удалено. Выбрать другое расписание")}</div>`;
   }
   else if(c.kind==="mode")body=`<div class="rl-f"><div class="rl-chips" style="margin-top:0">${modeLive().map(x=>chip((c.modes||[]).includes(x.id),`condMode(${i},'${x.id}')`,x.name,modeWhenText(x))).join("")}</div></div>`;
   else{
@@ -16785,7 +16785,7 @@ function raNew(){const id=ra.id;raCancel();ruleFromDevice(id)}
 function raRender(){
   if(!ra)return;
   const c=raCands(),hit=c.find(x=>x.r.id===ra.pick&&!x.has);
-  const rows=c.map(x=>`<label class="rl-opt ${x.has?"ra-off":""} ${ra.pick===x.r.id?"on":""}"><input type="radio" name="raPick" ${ra.pick===x.r.id?"checked":""} ${x.has?"disabled":""} ${onEv("change",["raSet",`${x.r.id}`])}><span>${ruleIcon(x.r)} ${escHtml(x.r.name)}<small>${escHtml(triggerBare(x.t))}${x.has?` · ${i18n("камера уже входит")}`:""}</small></span></label>`).join("")||`<p class="sub">${i18n(ra.q?"Ничего не найдено":"Нет правил по этому событию. Создайте новое.")}</p>`;
+  const rows=c.map(x=>`<label class="rl-opt ${x.has?"ra-off":""} ${ra.pick===x.r.id?"on":""}"><input type="radio" name="raPick" ${ra.pick===x.r.id?"checked":""} ${x.has?"disabled":""} ${onEv("change",["raSet",`${x.r.id}`])}><span>${ruleIcon(x.r)} ${escHtml(x.r.name)}<small>${escHtml(triggerBare(x.t))}${x.has?` · ${i18n("камера уже входит")}`:""}</small></span></label>`).join("")||`<p class="sub">${i18n(ra.q?"Ничего не найдено":"Нет правил для этого события. Создать новое правило.")}</p>`;
   openBulkModal(`${i18n("Добавить камеру к правилу")}`,
     `<p class="sub" style="margin:0 0 8px">${i18n("Камера")} «${escHtml(locName(ra.cam))}» ${i18n("будет запускать выбранное правило. Консоль не изменит другие настройки правила.")}</p>
      <div class="sq lan-sq cp-sq ra-q"><input value="${escHtml(ra.q)}" placeholder="${i18n("Название правила…")}" ${onEv("input",["raQ",onEv.el])}></div>
@@ -17493,10 +17493,10 @@ function schBlank(o={}){
 }
 // Ошибки, из-за которых сохранить нельзя.
 function schErr(s){
-  if(!String(s.name||"").trim())return"Укажите название расписания";
+  if(!String(s.name||"").trim())return"Указать название расписания";
   const bad=l=>(l||[]).some(iv=>!/^\d\d:\d\d$/.test(iv[0]||"")||!/^\d\d:\d\d$/.test(iv[1]||""));
   if(s.kind==="week"&&s.week.some(bad))return"У интервала не задано начало или конец";
-  if(s.kind==="cycle"){if(!s.cycle.start)return"Укажите дату начала цикла";if(s.cycle.days.some(bad))return"У интервала не задано начало или конец"}
+  if(s.kind==="cycle"){if(!s.cycle.start)return"Указать дату начала цикла";if(s.cycle.days.some(bad))return"У интервала не задано начало или конец"}
   if(s.kind==="dates"){if(s.dates.some(x=>!x.d))return"У даты не выбран день";if(s.dates.some(x=>bad(x.iv)))return"У интервала не задано начало или конец"}
   if(s.ovr.some(o=>o.m==="custom"&&bad(o.iv)))return"В особых днях у интервала не задано начало или конец";
   if(s.valid.from&&s.valid.to&&s.valid.to<s.valid.from)return"Срок действия: конец раньше начала";
@@ -19787,7 +19787,7 @@ function streamPassShow(r){
   openBulkModal(`${i18n("Пароль учётки")} «${escHtml(r.name)}»`,`<p class="sub">${i18n("Консоль показывает пароль только один раз. Скопировать его сейчас.")}</p><p data-stream-pass>${copyChipHtml(r.password,"Пароль")}</p>`,`<button type="button" class="btn pri" ${onEv("click",["closeBulkModal"])}>${i18n("Готово")}</button>`);
 }
 function streamAccAdd(){
-  const name=streamDraft.trim();if(!name){toast("Укажите имя учётки");return}
+  const name=streamDraft.trim();if(!name){toast("Указать имя учётки");return}
   API.post("/stream-accounts",{name}).then(r=>{streamDraft="";streamPassShow(r);return streamAccsLoad()}).catch(e=>toast(problemText(e)));
 }
 function streamDraftSet(v){streamDraft=v}
@@ -21627,7 +21627,7 @@ function accCmpUI(){
   const a=accRole(accCmp[0]),b=accRole(accCmp[1]);
   const sel=i=>`<select ${onEv("change",["accCmpSet",i,onEv.value])}>${rs.map(r=>`<option value="${r.id}" ${r.id===accCmp[i]?"selected":""}>${escHtml(r.n)}</option>`).join("")}</select>`;
   const cr=`<button type="button" class="cr-link" ${onEv("click",["accGo","roles"])}>${i18n("Права")}</button><span class="cr-sep">/</span><button type="button" class="cr-link" ${onEv("click",["accGo","roles"])}>${i18n("Роли")}</button>`;
-  let body=`<div class="nt">${i18n("Выберите две роли")}</div>`;
+  let body=`<div class="nt">${i18n("Выбрать две роли")}</div>`;
   if(a&&b){
     const rows=[];
     const add=(sec,label,va,vb)=>rows.push({sec,label,va,vb,diff:va!==vb});
@@ -21809,7 +21809,7 @@ function accLoginIssue(login){
   if(taken(accUsers().map(u=>u.login),login))return"Логин уже занят";
   return null;
 }
-function accEmailIssue(email){return email.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())?"Проверьте e-mail: нужен адрес вида name@example.com":null}
+function accEmailIssue(email){return email.trim()&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())?"Проверить e-mail. Нужен адрес вида name@example.com":null}
 function accPwdIssue(pwd,login){return!pwd?"Заполните поле":accPwdRulesOf(pwd,login).some(x=>!x[1])?"Пароль не соответствует политике паролей":null}
 // Пароль в мастере роли (wz) и в карточке пользователя (ud)
 function accPwdW(k){return k==="wz"?accWz:accUd}
@@ -23035,7 +23035,7 @@ function applyFoundAuth(r){
 function foundConnectionError(r){
   if(!r.ip)return"Укажите IP-адрес";
   if(!r.port)return"Укажите порт";
-  if(r.status==="bad"||!r.vendor||!r.model)return"Укажите производителя и модель";
+  if(r.status==="bad"||!r.vendor||!r.model)return"Указать производителя и модель";
   if(!isAutoIdentifier(r.identifier)&&identifierTaken(deviceTarget(),r.identifier))return"ID уже используется";
   return"";
 }
@@ -23367,10 +23367,10 @@ function anBlockVol(){
   const v=an.vol,spec=kindOf(an.kind),addr=spec.address;
   if(addr==="disk"){
     if(!v.disk)return i18n("Нет свободного диска");
-    if(v.mode!=="part"&&!String(v.dir||"").trim())return i18n("Укажите папку на диске");
+    if(v.mode!=="part"&&!String(v.dir||"").trim())return i18n("Указать папку на диске");
   }
-  if(addr!=="disk"||v.mode!=="part")if(!gbOf(v.size))return i18n("Укажите размер в ГБ");
-  if(addr==="nas"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Укажите путь и пользователя");
+  if(addr!=="disk"||v.mode!=="part")if(!gbOf(v.size))return i18n("Указать размер в ГБ");
+  if(addr==="nas"&&(!String(v.disk||"").trim()||!String(v.user||"").trim()))return i18n("Указать путь и пользователя");
   if(an.needKey&&!String(v.secret||v.pass||"").trim())return i18n("Ввести пароль или секрет снова. Черновик не хранит их");
   if(addr==="bucket"&&!String(v.bucket||"").trim())return i18n(an.provider==="azure"?"Укажите контейнер":"Укажите бакет");
   if(addr==="bucket"&&an.provider==="minio"&&!String(v.host||"").trim())return i18n("Укажите хост MinIO");
@@ -24273,7 +24273,7 @@ function deviceSearchHtml(){
       <span class="dev-list-head-spacer" aria-hidden="true"></span>
       ${deviceFilterFieldHtml(selectedCount)}
       <div class="dev-toolbar-actions">${deviceSearchRefreshBtn(searching)}${deviceHeadActionsHtml(selectedCount,!!(rows.length||foundTotal))}
-        <button type="button" class="btn pri s" ${onEv("click",["planAddFound"])} ${selectedCount?"":`disabled title="Отметьте устройства в списке"`}>В план (${selectedCount})</button></div>
+        <button type="button" class="btn pri s" ${onEv("click",["planAddFound"])} ${selectedCount?"":`disabled title="Отметить устройства в списке"`}>В план (${selectedCount})</button></div>
     </div>
     ${statusHtml}
   </div>
@@ -24298,7 +24298,7 @@ function changeManualVendor(vendor){
 }
 function detectManualModel(){
   const m=wizd.manual;
-  if(!m.ip||!m.port||!m.vendor){toast("Укажите IP, порт и производителя");return}
+  if(!m.ip||!m.port||!m.vendor){toast("Указать IP, порт и производителя");return}
   // Модель сообщает само устройство: спрашиваем через сервер. Определить модель может только драйвер: вместе с адресом
   // уходят логин и пароль, если введены. Команда probe вида камеры (ipsrv): устройства ещё нет — POST /kinds/{kind}/actions/probe
   const kind=m.type==="ipsrv"?"ipsrv":"camera";
@@ -24312,7 +24312,7 @@ function detectManualModel(){
 function addManualDevice(){
   const m=wizd.manual,s=deviceTarget();
   if(!s){toast("Выберите папку");return}
-  if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
+  if(wizd.devMode==="template"&&!wizd.templateId){toast("Выбрать камеру-источник профиля");return}
   if(m.type==="camera"&&!m.rtsp&&(!m.vendor||!m.model)){toast("Указать производителя и модель или адрес RTSP");return}
   if(m.type!=="camera"&&(!m.ip||!m.vendor||!m.model)){toast("Заполните IP, производителя и модель");return}
   if(missingManualCredentials(m)){askAddWithoutCredentials(()=>commitManualDevice(true));return}
@@ -24598,7 +24598,7 @@ function csvListHtml(){
     <input type="checkbox" id="csvSelectAll" aria-label="Выбрать все строки файла" ${avail?"":"disabled"} ${onEv("change",["toggleCsvAll",onEv.checked])}>
     <span class="dev-list-head-spacer" aria-hidden="true"></span>
     ${csvFilterFieldHtml(picked)}
-    <div class="dev-toolbar-actions"><button type="button" class="btn pri s" id="csvToPlan" ${onEv("click",["planAddCsv"])} ${picked?"":`disabled title="${i18n("Отметьте строки в списке")}"`}>${i18n("В план")} (${picked})</button></div>
+    <div class="dev-toolbar-actions"><button type="button" class="btn pri s" id="csvToPlan" ${onEv("click",["planAddCsv"])} ${picked?"":`disabled title="${i18n("Отметить строки в списке")}"`}>${i18n("В план")} (${picked})</button></div>
   </div></div></div>
   ${vis.length?`<div class="csv-preview dev-results-scroll"><table><thead><tr><th class="csv-chk"></th><th>${i18n("Строка")}</th><th>${i18n("IP:порт")}</th><th>${i18n("Производитель")}</th><th>${i18n("Модель")}</th><th>${i18n("Название")}</th><th>${i18n("Статус")}</th></tr></thead><tbody>${vis.map(csvRowHtml).join("")}</tbody></table></div>`:`<div class="dev-empty">${i18n("Ничего не найдено")}</div>`}`;
 }
@@ -25027,7 +25027,7 @@ function planDone(n,dup){
 function planAddManual(){
   if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
   const m=wizd.manual;
-  if(wizd.devMode==="template"&&!wizd.templateId){toast("Выберите камеру-источник профиля");return}
+  if(wizd.devMode==="template"&&!wizd.templateId){toast("Выбрать камеру-источник профиля");return}
   const rtsp=manualIsRtsp(m);
   if(rtsp&&!String(m.rtsp||"").trim()){toast(i18n("Укажите адрес RTSP"));return}
   if(m.type==="camera"&&!rtsp&&!m.ip){toast(i18n("Укажите IP-адрес"));return}
@@ -25050,7 +25050,7 @@ function planAddManual(){
 function planAddCsv(){
   if(addPlan.applying){toast(i18n("Идёт применение плана"));return}
   const picked=csvPickedRows();
-  if(!picked.length){toast(i18n("Отметьте строки в списке"));return}
+  if(!picked.length){toast(i18n("Отметить строки в списке"));return}
   const did=SERVER_DOMAIN[planServerId()]||wizd.domain;
   let n=0,dup=0;
   picked.forEach(r0=>{
@@ -25146,13 +25146,13 @@ function planConnError(row){
   if(row.source==="found"||row.source==="lan"){
     if(!r.ip)return"Укажите IP-адрес";
     if(!r.port)return"Укажите порт";
-    if(r.status==="bad"||!r.vendor||!r.model)return"Укажите производителя и модель";
+    if(r.status==="bad"||!r.vendor||!r.model)return"Указать производителя и модель";
     return"";
   }
   if((r.type||"camera")==="camera"&&(r.rtspUrl||r.rtsp))return"";
   if((r.type||"camera")==="camera"&&isRtspVendor(r.vendor))return"Укажите адрес RTSP";
   if(!r.ip)return"Укажите IP-адрес";
-  if(!r.vendor||!r.model)return"Укажите производителя и модель";
+  if(!r.vendor||!r.model)return"Указать производителя и модель";
   return"";
 }
 // Камера ли строка: у регистратора из файла архива нет
@@ -25649,7 +25649,7 @@ function runIpProbe(){
   w.ipText=text;
   const{targets,bad,over}=parseIpTargets(text);
   w.ipBad=bad;
-  w.ipMsg=!targets.length&&!bad.length?i18n("Укажите адреса серверов"):over?`${i18n("Консоль опрашивает за один раз не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
+  w.ipMsg=!targets.length&&!bad.length?i18n("Указать адреса серверов"):over?`${i18n("Консоль опрашивает за один раз не больше")} ${IP_SCAN_LIMIT} ${i18n("адресов")}`:"";
   if(!targets.length){wd();return}
   // Отвечает ли адрес и заведён ли уже такой сервер — знает система: команда probe вида сервера (POST /kinds/server/actions/probe)
   if(!kindActionOn("server","probe")){w.ipMsg=i18n("Система не может опросить адреса. Серверы появляются сами");wd();return}
@@ -25902,7 +25902,7 @@ function wd(){
   wn.textContent=ws===2?i18n("Добавить"):i18n("Далее");
   wn.disabled=ws===1&&!wizd.mode;
   const picked=WIZ[wizd.cat]?.types.find(t=>t[0]===wizd.type)?.[1];
-  foot.textContent=picked?i18n(picked):i18n("Выберите, что нужно добавить");
+  foot.textContent=picked?i18n(picked):i18n("Выбрать, что нужно добавить");
   let h="";
     if(ws===1){
     h+=`<div class="wsec">Тип объекта</div>`;
@@ -25942,7 +25942,7 @@ function wnx(){
   if(wizd.mode==="device-add"){wizd.planStep=1;renderDeviceWizard();return}
   if(wizd.mode==="server-add"){if(wizd.srvStep)addProbedServers();else{wizd.srvStep=1;wd()}return}
   if(ws===1){
-    if(!wizd.mode){toast("Выберите, что нужно добавить");return}
+    if(!wizd.mode){toast("Выбрать, что нужно добавить");return}
     ws=2;wd();return;
   }
   if(wizd.unit){unitAdd();return}
@@ -26227,7 +26227,7 @@ function rcFieldDo(cmd){
   f.focus();
   if(rcFieldRange?.[0]!=null)try{f.setSelectionRange(rcFieldRange[0],rcFieldRange[1])}catch(err){}
   if(cmd!=="paste"){document.execCommand(cmd);return}
-  const denied=()=>toast(i18n("Браузер не дал прочитать буфер обмена: нажмите Ctrl+V"));
+  const denied=()=>toast(i18n("Браузер не разрешил прочитать буфер обмена. Нажать Ctrl+V"));
   if(!navigator.clipboard?.readText){denied();return}
   navigator.clipboard.readText().then(t=>{f.focus();document.execCommand("insertText",false,t)}).catch(denied);
 }
@@ -26239,7 +26239,7 @@ function rcSelectedText(t,byKey){
 }
 function rcCopy(){
   closeTreeCtx();
-  const done=()=>toast(i18n("Скопировано")),fail=()=>{document.execCommand("copy")?done():toast(i18n("Не удалось скопировать: нажмите Ctrl+C"))};
+  const done=()=>toast(i18n("Скопировано")),fail=()=>{document.execCommand("copy")?done():toast(i18n("Консоль не скопировала текст. Нажать Ctrl+C"))};
   if(navigator.clipboard?.writeText)navigator.clipboard.writeText(rcCopyText).then(done).catch(fail);else fail();
 }
 // Пустое место левой панели: только то, что создаётся в этом месте.
@@ -26446,7 +26446,7 @@ function busyHit(id){
 }
 function busyRefuse(id){
   if(!busyHit(id))return false;
-  toast("Консоль выполняет групповую операцию над объектом — дождитесь её конца");return true;
+  toast("Консоль выполняет групповую операцию над объектом. Подождать её конца");return true;
 }
 // Всё, что можно отметить в текущем срезе под текущими фильтрами и поиском.
 function selCandidates(){
@@ -26554,7 +26554,7 @@ function decorateTreeSel(){
     if(!ph&&!on&&!selRowPick(f.n)&&!selDescendants(f.n).length)ph=true;
     chk.className="n-chk"+(ph?" n-chk-ph":"")+(state?" "+state:"")+(blockedId(id)?" dis":"");
     chk.setAttribute("role","checkbox");chk.setAttribute("aria-checked",state==="part"?"mixed":state?"true":"false");
-    chk.title=blockedId(id)?i18n("Над объектом выполняется операция"):selDeep(f.n)?i18n("Отметить вместе со всем внутри; только сам объект — Ctrl+клик по строке"):selRowPick(f.n)?i18n("Отметить"):i18n("Отметить всё внутри");
+    chk.title=blockedId(id)?i18n("Над объектом выполняется операция"):selDeep(f.n)?i18n("Отметить вместе с содержимым. Чтобы отметить только объект, нажать на строку с Ctrl"):selRowPick(f.n)?i18n("Отметить"):i18n("Отметить всё внутри");
     const tw=row.querySelector(":scope>.tw");
     if(tw)tw.after(chk);else row.prepend(chk);
   });
@@ -26580,7 +26580,7 @@ function selDeep(n){
 }
 function selChkClick(id,ctx){
   const f=find(id);if(!f)return;
-  if(blockedId(id)){toast(pendingDelHas(id)?"Объект ждёт удаления — отмените его в тосте":"Консоль выполняет групповую операцию над объектом — дождитесь её конца");return}
+  if(blockedId(id)){toast(pendingDelHas(id)?"Консоль удаляет объект. Чтобы отменить, нажать «Отменить» в уведомлении":"Консоль выполняет групповую операцию над объектом. Подождать её конца");return}
   const entering=!selMode;selMode=true;
   // Открытые домен, сервер, папка или хранилище — это обычно место, откуда
   // начинают отмечать, а не первый объект выборки: галочка у другой строки
@@ -26621,7 +26621,7 @@ function selChkClick(id,ctx){
 // а не снимает её.
 function selToggle(id,ctx){
   const f=find(id);if(!f||!canMultiPick(f.n))return;
-  if(selShownAt(id,ctx))treeSel.delete(id);else{if(blockedId(id)){toast("Над объектом выполняется операция — отметить нельзя");return}treeSel.add(id,ctx)}
+  if(selShownAt(id,ctx))treeSel.delete(id);else{if(blockedId(id)){toast("Консоль выполняет операцию над объектом, поэтому его нельзя отметить");return}treeSel.add(id,ctx)}
   treeAnchor=id;
   afterSelChange(id,ctx);
 }
@@ -26644,7 +26644,7 @@ function selectAllFiltered(){
   selMode=true;
   selOver=false;
   all.forEach(x=>treeSel.add(x.id));
-  if(selOver)toast(`${i18n("Отмечено не больше")} ${LIM.selectMax}: ${i18n("остальное — следующей операцией, у каждой свой откат")}`);
+  if(selOver)toast(`${i18n("Отмечено не больше")} ${LIM.selectMax}: ${i18n("остальное — следующей операцией. У каждой операции свой откат")}`);
   afterSelChange(all[0].id);
 }
 function selectAllVisible(){
@@ -26697,7 +26697,7 @@ function renderSelBar(){
   host.innerHTML=`<span class="sel-ic" aria-hidden="true">${SEL_IC}</span>${peek
     ?`<button type="button" class="sel-back" title="${i18n("Открыт объект; выборка сохранена")}" ${onEv("click",["bulkBack"])}>${i18n("К выборке")} (${n}) →</button>`
     :`<span class="sel-cnt">${n?`${i18n("Отмечено")} <b class="${bump?"bump":""}">${n}</b> ${i18n("из")} ${LIM.selectMax}`:i18n("Отметьте объекты")}</span>`}
-    ${n&&here<n?`<span class="sel-here" title="${i18n("Остальные отмечены на других вкладках: они в выборке")}">${i18n("здесь")} ${here}</span>`:""}
+    ${n&&here<n?`<span class="sel-here" title="${i18n("Другие объекты отмечены на других вкладках. Они есть в выборке")}">${i18n("здесь")} ${here}</span>`:""}
     ${total&&!allOn?`<button type="button" class="lk lk-act" title="${i18n("Выбрать все")} ${total} ${scope}" ${onEv("click",["selectAllFiltered"])}>${i18n("Все")} ${total}</button>`:""}
     ${n?`<button type="button" class="lk lk-act" ${onEv("click",["clearTreeSel"])}>${i18n("Снять")}</button>`:""}
     <span class="sel-gap"></span>
@@ -26710,7 +26710,7 @@ function bulkPeekOn(){return app==="hw"&&bulkActive()&&bulkPeek}
 function bulkPeekCrumbHtml(){
   if(!bulkPeekOn())return"";
   const n=bulkSelNodes().length;
-  return`<span class="cr-it cr-sel-it"><button type="button" class="cr-link cr-sel" title="${i18n("Вернуться к выборке — она сохранена")}" ${onEv("click",["bulkBack"])}>${SEL_IC}${i18n("Выборка")} (${n})</button><span class="cr-sep">/</span></span>`;
+  return`<span class="cr-it cr-sel-it"><button type="button" class="cr-link cr-sel" title="${i18n("Вернуться к выборке. Консоль сохранила выборку")}" ${onEv("click",["bulkBack"])}>${SEL_IC}${i18n("Выборка")} (${n})</button><span class="cr-sep">/</span></span>`;
 }
 let bulkLastTab="gen";
 function bulkBack(){
@@ -26774,7 +26774,7 @@ function bulkFiltSet(patch){
   if(JSON.stringify(next)===JSON.stringify(bulkFilt))return;
   const had=Object.keys(bulkDraft).length;
   bulkFilt=next;bulkDraft={};tab=bulkTabFix(tab);gear();
-  if(had)toast("Черновик сброшен: правка теперь для других объектов");
+  if(had)toast("Консоль сбросила черновик. Изменение теперь для других объектов");
 }
 function bulkFiltClear(){bulkFiltSet({kind:"",srv:"",model:""})}
 function bulkFiltLabel(){
@@ -26842,11 +26842,11 @@ function bulkScopeHtml(all){
   // их касаются.
   const solo=sc.filter(bulkSolo),fields=n-solo.length,sk=bulkSoloKindsText(sc);
   const soloNote=!solo.length?"":fields
-    ?` <span class="bk-solo-note">${i18n("Поля ниже получат")} ${fields} ${i18n("из")} ${n}: ${sk} ${i18n("настраиваются по одному — им достаются только действия выборки.")}</span>`
-    :` <span class="bk-solo-note">${i18n("Общих полей нет")}: ${sk} ${i18n("настраиваются по одному — с ними работают действия ниже.")}</span>`;
-  const sum=on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Изменения получат")} <b>${n} ${i18n("из")} ${all.length}</b>: ${escHtml(bulkFiltLabel())}. ${i18n("Остальные")} ${all.length-n} ${i18n("не меняются и остаются в выборке")} · <button type="button" class="lk lk-act" ${onEv("click",["bulkKeepScope"])}>${i18n("Оставить в выборке только их")}</button>${soloNote}</div>`
+    ?` <span class="bk-solo-note">${i18n("Поля ниже получат")} ${fields} ${i18n("из")} ${n}: ${sk} ${i18n("настраивают по одному. Для них доступны только действия выборки.")}</span>`
+    :` <span class="bk-solo-note">${i18n("Общих полей нет")}: ${sk} ${i18n("настраивают по одному. Для них есть действия ниже.")}</span>`;
+  const sum=on?`<div class="bk-scope-sum on" data-fk="sum">${i18n("Изменения получат")} <b>${n} ${i18n("из")} ${all.length}</b>: ${escHtml(bulkFiltLabel())}. ${i18n("Остальные")} ${all.length-n} ${i18n("не изменятся и останутся в выборке")} · <button type="button" class="lk lk-act" ${onEv("click",["bulkKeepScope"])}>${i18n("Оставить в выборке только их")}</button>${soloNote}</div>`
     :solo.length?`<div class="bk-scope-sum" data-fk="sum">${i18n("Отмечено")} <b>${all.length}</b>.${soloNote}</div>`
-    :`<div class="bk-scope-sum" data-fk="sum">${i18n("Изменения получат все")} <b>${all.length}</b> ${i18n(plural(all.length,"отмеченный|отмеченных|отмеченных"))}. ${i18n("Показаны параметры, общие для всех.")}</div>`;
+    :`<div class="bk-scope-sum" data-fk="sum">${i18n("Изменения получат все")} <b>${all.length}</b> ${i18n(plural(all.length,"отмеченный|отмеченных|отмеченных"))}. ${i18n("Консоль показывает параметры, общие для всех.")}</div>`;
   return`<div class="bk-sum bk-scope">${head}${rows}${sum}</div>`;
 }
 // Что умеет объект — из этого собирается пересечение для «Все».
@@ -26938,7 +26938,7 @@ function bulkCardHtml(){
     ${nodes.length&&nodes.every(n=>n.type==="det")?`<button type="button" class="btn s" ${onEv("click",["dzFromSel"])}>${i18n("Нарисовать зоны")}</button>`:""}
     ${allCams?`<button type="button" class="btn s" title="${i18n("Архив и режим записи выбранных")}" ${onEv("click",["bulkGoTab","rec"])}>${i18n("Архив и запись")}…</button>`:""}
     <button type="button" class="btn s" ${onEv("click",["bulkMenu",onEv.event])}>${i18n("Ещё")}${CHEV_BTN}</button>${fullCardBtn()}`;
-  const offNote=st.offline.length?`<div class="nt" role="status">${st.offline.length} ${i18n(plural(st.offline.length,"объект|объекта|объектов"))} ${i18n("на сервере без связи")} (${[...new Set(st.offline.map(serverNameOf))].map(escHtml).join(", ")}). ${i18n("Изменения к ним не применятся — в отчёте они будут «не применено».")}</div>`:"";
+  const offNote=st.offline.length?`<div class="nt" role="status">${st.offline.length} ${i18n(plural(st.offline.length,"объект|объекта|объектов"))} ${i18n("на сервере без связи")} (${[...new Set(st.offline.map(serverNameOf))].map(escHtml).join(", ")}). ${i18n("Консоль не применит к ним изменения. В отчёте у них будет статус «не применено».")}</div>`:"";
   const solo=scope.filter(bulkSolo);
   const body=bulkScopeHtml(sel)+offNote+(!nodes.length?"":tab==="vid"?bulkVidHtml(nodes,st):tab==="rec"?bulkRecHtml(nodes):tab==="det"?bulkDetHtml(nodes,st):bulkGenHtml(nodes,allCams))+(solo.length&&tab==="gen"?bulkSoloHtml(solo,!nodes.length):"")+bulkListCard(sel);
   return mainHd(cr,title,"",tabsH,act,false)+`<div class="sc">${body}</div><div class="main-actions bk-foot" id="bulkFoot">${bulkFootHtml()}</div>`;
@@ -26954,18 +26954,18 @@ function bulkGenHtml(nodes,allCams){
     h+=card("Состояние",`<div class="g">${bkSelect("Включено","enabled",[["on",i18n("Включить")],["off",i18n("Выключить")]],en)}</div>`);
   }
   if(one)h+=bulkParamsHtml(one,nodes);
-  if(lack(canCreds,"Учётные данные"))h+=card("Учётные данные",`<div class="g">${bkInput("Имя пользователя","user","text",null,`<div class="bk-hint">${i18n("задано у всех, значения не показываются")}</div>`,"bkUser")}${bkInput("Пароль","pass","password",null,`<div class="bk-hint">${i18n("задан у всех · ввод заменит на всех")}</div>`)}</div>
-    <p class="sub">${i18n("Пароль только записывается: прежнее значение не показывается и не сравнивается. Устройства переподключатся — поэтому через план.")}</p>`);
+  if(lack(canCreds,"Учётные данные"))h+=card("Учётные данные",`<div class="g">${bkInput("Имя пользователя","user","text",null,`<div class="bk-hint">${i18n("задано у всех. Консоль не показывает значения")}</div>`,"bkUser")}${bkInput("Пароль","pass","password",null,`<div class="bk-hint">${i18n("задан у всех · новое значение заменит пароль у всех")}</div>`)}</div>
+    <p class="sub">${i18n("Консоль только записывает пароль. Консоль не показывает и не сравнивает старое значение. Устройства подключатся снова, поэтому изменение идёт через план.")}</p>`);
   if(lack(canFolder,"Расположение в папках")){
     const inFolders=countBy(nodes.flatMap(n=>foldersOfDevice(n.id).filter(f=>f.items.includes(n.id)).map(f=>f.id)),id=>id);
     const removeOpts=inFolders.map(([id,c])=>[id,`${folderPathName(id)} (${c})`]);
     const addOpts=flatFolders().map(f=>[f.id,folderPathName(f.id)]);
-    h+=card("Расположение",`<div class="g">${bkSelect("Добавить в папку","folderAdd",addOpts,null,"")}${bkSelect("Убрать из папки","folderRemove",removeOpts,null,removeOpts.length?"":`<div class="bk-hint">${i18n("ни один объект не входит в папки")}</div>`)}</div>`);
+    h+=card("Расположение",`<div class="g">${bkSelect("Добавить в папку","folderAdd",addOpts,null,"")}${bkSelect("Убрать из папки","folderRemove",removeOpts,null,removeOpts.length?"":`<div class="bk-hint">${i18n("ни одного объекта нет в папках")}</div>`)}</div>`);
   }
   if(!one&&kinds.length>1)miss.push(`${i18n("Параметры типов")} — ${i18n("у каждого типа свои")}`);
   if(miss.length)h+=card("Не показано",`<ul class="bk-miss">${miss.map(x=>`<li>${x}</li>`).join("")}</ul>
-    <p class="sub" style="margin:0">${i18n("Это не запрет: в «Применить к» уточните тип — его параметры появятся, изменения получит только он, выборка останется целой.")}</p>`);
-  h+=card("Идентификация",`<p class="sub" style="margin:0">${i18n("Имя, короткое имя, ID и IP у каждого объекта свои — массово не меняются. Имена по шаблону: «Ещё → Переименовать по шаблону…».")}</p>`);
+    <p class="sub" style="margin:0">${i18n("Это не запрет. В «Применить к» выбрать тип. Консоль покажет его параметры, и изменения получит только этот тип. Выборка не изменится.")}</p>`);
+  h+=card("Идентификация",`<p class="sub" style="margin:0">${i18n("У каждого объекта своё имя, короткое имя, ID и IP. Их нельзя изменить для всех сразу. Чтобы задать имена по шаблону, выбрать «Ещё → Переименовать по шаблону…».")}</p>`);
   return h;
 }
 // Хранилища, серверы, папки, домены, тома — что с ними можно сделать вместе.
@@ -26982,13 +26982,13 @@ function bulkSoloHtml(solo,only){
   const srvs=solo.filter(n=>n.type==="server"&&!isUnallocated(n.id)&&domainOf(n.id));
   const ren=solo.filter(bulkCanRename),del=solo.filter(n=>n.type!=="server"&&n.type!=="domain"&&canDeleteNode(n));
   const un=bulkUnallocServers(solo);
-  const btns=[cams.length?`<button type="button" class="btn s" title="${i18n("Выборка заменится этими камерами — с «Отменить»")}" ${onEv("click",["bulkMarkSoloCams"])}>${i18n(arcOnly?"Отметить камеры, что пишут сюда":"Отметить их камеры")} (${cams.length})</button>`:"",
+  const btns=[cams.length?`<button type="button" class="btn s" title="${i18n("Консоль заменит выборку этими камерами. Это можно отменить")}" ${onEv("click",["bulkMarkSoloCams"])}>${i18n(arcOnly?"Отметить камеры, которые записывают сюда":"Отметить их камеры")} (${cams.length})</button>`:"",
     ren.length?`<button type="button" class="btn s" ${onEv("click",["bulkRenameDialog"])}>${i18n("Переименовать по шаблону…")}${ren.length<solo.length?` (${ren.length})`:""}</button>`:"",
-    un.length?`<button type="button" class="btn s pri" title="${i18n("Серверы встанут в дерево выбранного домена, как «Сервер — Офис»")}" ${onEv("click",["bulkAddToDomainMenu",onEv.event])}>${i18n("Добавить в домен")}… (${un.length})</button>`:"",
+    un.length?`<button type="button" class="btn s pri" title="${i18n("Консоль добавит серверы в дерево выбранного домена, как «Сервер — Офис»")}" ${onEv("click",["bulkAddToDomainMenu",onEv.event])}>${i18n("Добавить в домен")}… (${un.length})</button>`:"",
     srvs.length?`<button type="button" class="btn s" ${onEv("click",["bulkExcludeServers"])}>${i18n("Исключить из домена")} (${srvs.length})</button>`:"",
     del.length?`<button type="button" class="btn s danger" ${onEv("click",["deleteSelected",del.map(n=>n.id)])}>${i18n("Удалить")}… (${del.length})</button>`:""].filter(Boolean).join("");
   return card(only?"Настраиваются по одному":"Не входят в правку полей",`${why}
-    <p class="sub">${i18n("Настройки — в карточке каждого: откройте нужный в «Составе выборки» ниже. Вместе с ними можно:")}</p>
+    <p class="sub">${i18n("Настройки находятся в карточке каждого объекта. Открыть нужный объект в «Составе выборки» ниже. Для всех вместе можно:")}</p>
     <div class="bk-keep">${btns}</div>`);
 }
 function bulkMarkSoloCams(){
@@ -27086,26 +27086,26 @@ function bulkRecHtml(nodes){
     .map(([a,k])=>[a.id,locName(a)+(k<cams.length?` — ${i18n("подходит")} ${k} ${i18n("из")} ${cams.length}`:"")])];
   const recOpts=recModes().map(([v,l])=>[v,i18n(l),v==="replica"&&!edgeAll]);
   return card("Архив и запись",`<div class="g">${bkSelect("Архив","arch",archOpts,archD)}${bkSelect("Режим","rec",recOpts,recD)}${bkInput("Предзапись, с","pre","number",preD)}</div>
-    <p class="sub">${i18n("Камера под сервером пишет только в хранилища своего сервера или в сетевые хранилища домена: камеры другого сервера в плане будут пропущены. Камера без сервера подключается к серверу выбранного хранилища, поэтому смена идёт через план. Всё применяется через план, после — «Отменить».")} ${edgeAll?"":`${i18n("Репликация недоступна: откуда забирать, есть у")} ${edgeN} ${i18n("из")} ${nodes.length}.`}</p>`);
+    <p class="sub">${i18n("Камера с сервером записывает только в хранилища своего сервера или в сетевые хранилища домена. План пропустит камеры другого сервера. Камера без сервера подключается к серверу выбранного хранилища, поэтому изменение идёт через план. Консоль применяет всё через план. После этого можно нажать «Отменить».")} ${edgeAll?"":`${i18n("Репликация недоступна. Источник для репликации есть только у")} ${edgeN} ${i18n("из")} ${nodes.length}.`}</p>`);
 }
 function bulkVidHtml(nodes,st){
-  if(st.models.length>1)return card("Видео",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Параметры видео доступны, если выбрать камеры одной модели.")}</div>
-    <div class="bk-keep">${st.models.map(([k,c])=>`<button type="button" class="btn s" title="${i18n("Выборка останется целой — правка пойдёт только камерам этой модели")}" ${onEv("click",["bulkFiltSet",{kind:"camera",model:k}])}>${i18n("Править только")} ${escHtml(k)} (${c})</button>`).join("")}</div>`);
+  if(st.models.length>1)return card("Видео",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Параметры видео доступны, если выбраны камеры одной модели.")}</div>
+    <div class="bk-keep">${st.models.map(([k,c])=>`<button type="button" class="btn s" title="${i18n("Выборка не изменится. Изменение получат только камеры этой модели")}" ${onEv("click",["bulkFiltSet",{kind:"camera",model:k}])}>${i18n("Править только")} ${escHtml(k)} (${c})</button>`).join("")}</div>`);
   const resD=countBy(nodes,n=>n._f?.["Разрешение"]||"—"),fpsD=countBy(nodes,n=>n._f?.["к/с"]||"—");
   // Варианты — пересечение resOptions выборки; у кого списка нет, тому разрешение вводят руками
   const opts=nodes.every(n=>n.resOptions?.length)?nodes[0].resOptions.filter(o=>nodes.every(n=>n.resOptions.includes(o))):null;
   return card("Видео",`<div class="g">${opts?bkSelect("Разрешение","res",opts.map(o=>[o,o]),resD):bkInput("Разрешение","res","text",resD)}${bkInput("к/с","fps","number",fpsD)}</div>
-    <p class="sub">${i18n("Одна модель")}: ${escHtml(st.models[0][0])}. ${i18n("Значения проверяются по пересечению допустимых диапазонов выбранных камер; поток переоткроется, поэтому через план.")}</p>`);
+    <p class="sub">${i18n("Одна модель")}: ${escHtml(st.models[0][0])}. ${i18n("Консоль проверяет значения по общей части допустимых диапазонов выбранных камер. Поток откроется снова, поэтому изменение идёт через план.")}</p>`);
 }
 function bulkDetHtml(nodes,st){
   const kinds=countBy(nodes.flatMap(n=>camDetectors(n).map(d=>d.kind||DET_TYPES[0])),k=>k);
-  const have=`<p class="sub">${kinds.length?`${i18n("Есть детекторы")}: ${kinds.map(([k,c])=>`${escHtml(i18n(k))} ×${c}`).join(" · ")}`:i18n("Детекторов у выбранных камер нет.")}</p>`;
-  if(st.models.length>1)return card("Детекторы",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Детекторы добавляются сразу всем камерам одной модели.")}</div>
-    <div class="bk-keep">${st.models.map(([k,c])=>`<button type="button" class="btn s" title="${i18n("Выборка останется целой — правка пойдёт только камерам этой модели")}" ${onEv("click",["bulkFiltSet",{kind:"camera",model:k}])}>${i18n("Править только")} ${escHtml(k)} (${c})</button>`).join("")}</div>${have}`);
+  const have=`<p class="sub">${kinds.length?`${i18n("Есть детекторы")}: ${kinds.map(([k,c])=>`${escHtml(i18n(k))} ×${c}`).join(" · ")}`:i18n("У выбранных камер нет детекторов.")}</p>`;
+  if(st.models.length>1)return card("Детекторы",`<div class="nt">${i18n("Выбрано моделей")}: ${st.models.length}. ${i18n("Консоль добавляет детекторы сразу всем камерам одной модели.")}</div>
+    <div class="bk-keep">${st.models.map(([k,c])=>`<button type="button" class="btn s" title="${i18n("Выборка не изменится. Изменение получат только камеры этой модели")}" ${onEv("click",["bulkFiltSet",{kind:"camera",model:k}])}>${i18n("Править только")} ${escHtml(k)} (${c})</button>`).join("")}</div>${have}`);
   const kind=bulkDraft.addDet||"";
   const missing=kind?nodes.filter(n=>!camDetectors(n).some(d=>(d.kind||DET_TYPES[0])===kind)).length:0;
   return card("Детекторы",`<div class="g">${bkSelect("Добавить детектор всем","addDet",DET_TYPES.map(k=>[k,i18n(k)]),null,kind?`<div class="bk-hint">${i18n("нет у")} ${missing} ${i18n("из")} ${nodes.length} — ${i18n("добавится только им")}</div>`:"")}</div>${have}
-    <p class="sub">${i18n("Зоны детекции массово не задаются: после добавления зону рисуют на каждой камере.")}</p>`);
+    <p class="sub">${i18n("Зоны детекции нельзя задать для всех сразу. После добавления зону рисуют на каждой камере.")}</p>`);
 }
 // «Убрать» снимает объект из выборки, где бы в дереве он ни был отмечен:
 // selToggle без места строки принимал камеру, отмеченную под сервером, за
@@ -27141,7 +27141,7 @@ function bulkCollapsible(ch){
 function bulkFootHtml(){
   const ch=bulkChanges(),nodes=bulkFieldNodes();
   const n=ch.reduce((s,c)=>s+c.ops.length,0);
-  if(!ch.length)return`<span class="sub bk-foot-text">${i18n("Ничего не изменено — поля стоят в «— не менять —» или «— разные —»")}</span><span class="tfoot-gap"></span>
+  if(!ch.length)return`<span class="sub bk-foot-text">${i18n("Ничего не изменено. Все поля имеют значение «— не менять —» или «— разные —»")}</span><span class="tfoot-gap"></span>
     <button type="button" class="btn s" disabled>${i18n("Сбросить")}</button><button type="button" class="btn s pri" disabled>${i18n("Показать план")}</button>`;
   if(bulkCollapsible(ch)){
     const c=ch[0];
@@ -27207,9 +27207,9 @@ function bulkChanges(draft,nodesIn){
       bindArchServer(n);
     },archForeignReason(n,a)));
     const as=a?archServer(a):null,sk=ops.filter(o=>o.skip).length;
-    const where=as?`${i18n("камеры без сервера перейдут на сервер")} «${locName(as)}»`:i18n("запись пойдёт в сетевое хранилище домена");
+    const where=as?`${i18n("камеры без сервера получат сервер")} «${locName(as)}»`:i18n("запись будет идти в сетевое хранилище домена");
     const skNote=sk?`; ${sk} ${i18n(plural(sk,"камера|камеры|камер"))} ${i18n("другого сервера")} ${i18n(plural(sk,"будет пропущена|будут пропущены|будут пропущены"))}`:"";
-    step("arch",a?`Архив «${locName(a)}»`:"Снять архив",ops,a?`${where}${skNote}${d.rec?"":`; ${i18n("у камер без записи режим станет «Всегда»")}`}`:i18n("запись у этих камер остановится"));
+    step("arch",a?`Архив «${locName(a)}»`:"Снять архив",ops,a?`${where}${skNote}${d.rec?"":`; ${i18n("у камер без записи режим будет «Всегда»")}`}`:i18n("запись этих камер остановится"));
   }
   if(d.rec){
     const ops=nodes.filter(n=>n.type==="camera"&&(n.rec||"none")!==d.rec).map(n=>{
@@ -27219,14 +27219,14 @@ function bulkChanges(draft,nodesIn){
       return mkOp(n,`Режим «${i18n(recordModeLabel(d.rec))}»`,"rec",()=>{
       n.rec=d.rec;if(d.rec!=="none"&&!n.arch){pinCamServer(n);n.arch=(want||archChoicesFor(n)[0]?.id)||null;bindArchServer(n)}
       camReplicaSync(n);
-    },d.rec==="replica"&&!replicaSources(n,camArchs(n)[0]||{arch:n.arch}).length?i18n("нет источника: ни встроенного хранилища, ни другого архива"):(d.rec!=="none"&&!n.arch&&!want?i18n("архив не задан — сначала привяжите камеру к архиву"):null),()=>{Object.assign(n,prev);if(prev.replicaFrom===undefined)delete n.replicaFrom;if(prev.stream===undefined)delete n.stream})});
+    },d.rec==="replica"&&!replicaSources(n,camArchs(n)[0]||{arch:n.arch}).length?i18n("нет источника: нет встроенного хранилища и другого архива"):(d.rec!=="none"&&!n.arch&&!want?i18n("архив не задан. Сначала привязать камеру к архиву"):null),()=>{Object.assign(n,prev);if(prev.replicaFrom===undefined)delete n.replicaFrom;if(prev.stream===undefined)delete n.stream})});
     const sk=ops.filter(o=>o.skip).length;
     step("rec",`Режим записи «${i18n(recordModeLabel(d.rec))}»`,ops,sk?`${sk} ${i18n(plural(sk,"камера|камеры|камер"))} ${i18n("будут пропущены")}`:"");
   }
   if(d.pre)step("pre",`Предзапись ${d.pre} с`,nodes.filter(n=>n.type==="camera"&&String(n.pre??5)!==String(d.pre)).map(n=>{const prev=n.pre;return mkOp(n,`Предзапись ${d.pre} с`,"rec",()=>{n.pre=Number(d.pre)},null,()=>{n.pre=prev})}));
   const vid=["res","fps"].filter(k=>d[k]);
   const sameModel=n=>!d.onlyModel||modelOf(n)===d.onlyModel;
-  if(vid.length)step("video",`Видео: ${vid.map(k=>({res:"разрешение",fps:"к/с"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток переоткроется, запись прервётся на секунды")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
+  if(vid.length)step("video",`Видео: ${vid.map(k=>({res:"разрешение",fps:"к/с"})[k]).join(", ")}`,nodes.filter(n=>n.type==="camera").map(n=>mkOp(n,"Параметры видео","video",()=>{vid.forEach(k=>n[k]=k==="fps"?Number(d[k]):d[k])},sameModel(n)?null:`${i18n("другая модель")}: ${modelOf(n)||"—"}`)),i18n("поток откроется снова, запись остановится на несколько секунд")+(d.onlyModel?`; ${i18n("только для модели")} ${d.onlyModel}`:""));
   [...(d.addDet?[d.addDet]:[]),...(d.addDetMany||[])].forEach(kind=>{
     step("addDet:"+kind,`Детектор «${i18n(kind)}»`,nodes.filter(n=>n.type==="camera"&&!camDetectors(n).some(x=>(x.kind||DET_TYPES[0])===kind)).map(n=>mkOp(n,`Детектор «${i18n(kind)}»`,"det",()=>{
       (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:i18n(kind),kind,sens:"12",online:true,devices:[]});
@@ -27240,7 +27240,7 @@ function bulkChanges(draft,nodesIn){
       (n.devices||(n.devices=[])).push({id:"det"+Date.now()+Math.random().toString(36).slice(2,6),type:"det",name:x.name,kind:x.kind,sens:x.sens,...(x.template&&detOption(n,x)?{builtin:true,template:x.template}:{}),online:true,devices:[]});
     },x.builtin&&modelOf(n)!==d.detModel?`${i18n("встроенный детектор, другая модель")}: ${modelOf(n)||"—"}`:null));
     step("copyDet:"+i,`Детектор «${x.name}» (${i18n(x.kind)})`,ops,
-      (x.builtin?`${i18n("встроен в камеру — только для модели")} ${d.detModel}`:i18n("считается на сервере — для любой модели"))+`; ${i18n("зону детекции задают на каждой камере отдельно")}`);
+      (x.builtin?`${i18n("встроен в камеру, только для модели")} ${d.detModel}`:i18n("работает на сервере, для любой модели"))+`; ${i18n("зону детекции задают на каждой камере отдельно")}`);
   });
   if(d.rename){
     step("rename",`Имена по шаблону`,bulkScopeNodes().filter(bulkCanRename).map(n=>mkOp(n,"Переименование","rename",()=>{n.name=bulkName(n,d.rename)})));
@@ -27281,7 +27281,7 @@ function bulkQuick(v){
 function bulkQuickFolder(fid){
   closeTreeCtx();
   const ch=bulkChanges({folderAdd:fid});
-  if(!ch.length){toast("Все выбранные уже в этой папке");return}
+  if(!ch.length){toast("Все выбранные объекты уже в этой папке");return}
   bulkPlanOf(ch);
 }
 function bulkFolderMenu(e){
@@ -27351,14 +27351,14 @@ function bulkRenameToPlan(){bulkSet("rename",document.getElementById("bkTpl").va
 function bulkRenameDialog(){
   closeTreeCtx();
   const nodes=bulkScopeNodes().filter(bulkCanRename);
-  if(!nodes.length){toast("Домены, папки и тома по шаблону не переименовываются");return}
+  if(!nodes.length){toast("Домены, папки и тома нельзя переименовать по шаблону");return}
   const opts=BULK_NAME_TEMPLATES.filter(([v])=>v).map(([v,l])=>`<option value="${v}">${escHtml(l)}</option>`).join("");
   const preview=tpl=>nodes.slice(0,3).map(n=>`<li>${escHtml(locName(n))} → <b>${escHtml(bulkName(n,tpl))}</b></li>`).join("");
   window._bkPreview=preview;
   openBulkModal(i18n("Переименовать по шаблону"),`<div class="g" style="grid-template-columns:1fr"><div><label>${i18n("Шаблон имени")}</label><select id="bkTpl" ${onEv("change",["bkPreviewSet",onEv.value])}>${opts}</select></div></div>
     ${bulkFiltOn()?`<div class="nt" style="margin-top:10px">${i18n("Переименуются")} ${nodes.length} — «${escHtml(bulkFiltLabel())}»; ${i18n("остальные")} ${bulkSelNodes().length-nodes.length} ${i18n("отмеченных не меняются.")}</div>`:""}
     <p class="sub" style="margin-top:10px">${i18n("Как будут называться первые три")}:</p><ul class="bk-prev" id="bkPrev">${preview("default")}</ul>
-    <p class="sub">${i18n("Короткие имена не меняются. Новые имена попадут в план вместе с остальными изменениями черновика.")}</p>`,
+    <p class="sub">${i18n("Консоль не изменит короткие имена. Консоль добавит новые имена в план вместе с другими изменениями черновика.")}</p>`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Отменить")}</button><button type="button" class="btn pri" ${onEv("click",["bulkRenameToPlan"])}>${i18n("В план")}</button>`);
 }
 
@@ -27436,10 +27436,10 @@ function asstMode(a){
 function asstSvcHtml(a,mode){
   // Отвечает модель — обычный случай, отдельной строки нет. Пишется только то, что отличается
   if(mode==="off"||mode==="on"&&!asstCodeGet(asstServiceUrl()))return"";
-  const word={fixture:"Служба работает только с демо-набором: здесь отвечает заглушка, не модель",
-    nocode:"Сейчас отвечает заглушка, не модель. Модель — по коду доступа",
-    stub:"В этом окне отвечает заглушка, не модель",
-    on:"Отвечает модель. Просьба и снимок демо-данных уходят в службу, пароли — нет"}[mode];
+  const word={fixture:"Служба работает только с демо-набором. Здесь отвечает заглушка, а не модель",
+    nocode:"Сейчас отвечает заглушка, а не модель. Модель отвечает после ввода кода доступа",
+    stub:"В этом окне отвечает заглушка, а не модель",
+    on:"Отвечает модель. Консоль отправляет в службу просьбу и снимок демо-данных. Пароли консоль не отправляет"}[mode];
   return`<div class="asst-svc" id="asstSvc" data-asst-mode="${mode}">${i18n(word)}${
     mode==="nocode"?`<div class="asst-code"><input id="asstCode" type="password" autocomplete="off" aria-label="${i18n("Код доступа")}" placeholder="${i18n("Код доступа")}" ${onEv("input",["asstCodeInput",onEv.value])} ${onEv("keydown",["asstCodeKey",onEv.event])}><button type="button" class="btn s" id="asstCodeSet" ${onEv("click",["asstCodeApply"])}>${i18n("Подключить")}</button></div>`:""}${
     mode==="on"&&asstCodeGet(asstServiceUrl())?`<div><button type="button" class="btn s" id="asstCodeForget" ${onEv("click",["asstCodeForget"])}>${i18n("Забыть код")}</button></div>`:""}${
@@ -27454,9 +27454,9 @@ function asstModeChanged(a){a.log=a.log.concat(asstLiveItems({ask:a.ask,answer:a
 function asstCodeApply(){
   const a=asst,url=asstServiceUrl();if(!a||!url)return;
   const code=(a.codeDraft||"").trim();
-  if(!code){toast("Введите код доступа");return}
+  if(!code){toast("Ввести код доступа");return}
   // Заголовок запроса несёт только латиницу: иначе fetch откажет и это выглядело бы как обрыв связи
-  if(/[^\x20-\x7e]/.test(code)){toast("Код доступа — латиницей и цифрами");return}
+  if(/[^\x20-\x7e]/.test(code)){toast("Код доступа: латинские буквы и цифры");return}
   asstCodeSave(url,code);
   a.codeDraft="";asstModeChanged(a);asstRender();
 }
@@ -27482,7 +27482,7 @@ function asstWhen(sec){
   if(sec<60)return`${sec} ${i18n("с")}`;
   return m<60?`${m} ${i18n("мин")}`:`${Math.floor(m/60)} ${i18n("ч")}${m%60?` ${m%60} ${i18n("мин")}`:""}`;
 }
-function asstDown(a){a.err=i18n("Служба ассистента недоступна. Можно продолжить с заглушкой: она не модель");a.down=true}
+function asstDown(a){a.err=i18n("Служба ассистента недоступна. Можно продолжить с заглушкой. Заглушка не является моделью");a.down=true}
 // Отказ службы: коды не общие problemText — там BUSY про групповую операцию, а 401 — про вход
 function asstServiceFail(a,e){
   if(e?.status===401){
@@ -27490,12 +27490,12 @@ function asstServiceFail(a,e){
     asstCodeDrop();
     asstCodeWanted=true;
     asstModeChanged(a);
-    a.err=i18n(had?"Неверный код доступа. Код сброшен, отвечает заглушка: введите код заново":"Служба просит код доступа. Пока кода нет, отвечает заглушка");
+    a.err=i18n(had?"Неправильный код доступа. Консоль сбросила код, и теперь отвечает заглушка. Ввести код снова":"Служба запрашивает код доступа. Пока кода нет, отвечает заглушка");
   }else if(e?.status===429){
     const word=e.problem?.message||i18n("Служба занята, повторите позже");
     a.err=e.retryAfter?`${word} ${i18n("Повторить можно через")} ${asstWhen(e.retryAfter)}`:word;
-  }else if(e?.status===413)a.err=i18n("Снимок демо-данных больше предела службы: запрос не принят");
-  else if(e?.status===422)a.err=i18n("Служба не приняла запрос: просьба или разговор слишком длинные. Сократите просьбу или начните разговор заново");
+  }else if(e?.status===413)a.err=i18n("Снимок демо-данных больше лимита службы. Служба отклонила запрос");
+  else if(e?.status===422)a.err=i18n("Служба отклонила запрос: просьба или разговор слишком длинные. Сократить просьбу или начать новый разговор");
   else asstDown(a);
 }
 function asstServiceError(a,m){
@@ -27537,13 +27537,13 @@ function asstFoundToTree(m){
 }
 function asstFoundCount(m){return m.filter?(asstPick?.src===m&&fs?.pick?fs.hits.size:0):(m.ids||[]).length}
 function asstFoundHtml(m){
-  const k=asstFoundCount(m),n=m.filter?`${i18n("Отбор по фильтру: листается в дереве")}${k?`, ${i18n("уже")} ${k}`:""}`
+  const k=asstFoundCount(m),n=m.filter?`${i18n("Отбор по фильтру. Результаты есть в дереве")}${k?`, ${i18n("уже")} ${k}`:""}`
     :`${i18n("В дереве")}: ${k}${m.total!=null&&m.total>k?` ${i18n("из")} ${m.total}`:m.truncated?` (${i18n("первые; всего больше")})`:""}`;
-  return`<div class="asst-note" id="asstFoundNote">${i18n("Отбор ассистента: условия — над деревом, проверьте их")}</div>`+
+  return`<div class="asst-note" id="asstFoundNote">${i18n("Отбор ассистента. Условия находятся над деревом. Проверить их")}</div>`+
     (m.text?`<div class="asst-msg" id="asstFound">${escHtml(m.text)}</div>`:"")+
     `<div class="asst-line" id="asstFoundCount">${n}</div>`+
     // Команда отбора — подписью из описания вида; выполняет её человек из карточки, ход ничего не выполняет
-    (m.action?`<div class="asst-line" id="asstFoundAction">${i18n("Команда")}: «${escHtml(asstActionText(m))}» — ${i18n("отметьте объекты и выполните её в карточке")}</div>`:"")+
+    (m.action?`<div class="asst-line" id="asstFoundAction">${i18n("Команда")}: «${escHtml(asstActionText(m))}» — ${i18n("отметить объекты и выполнить её в карточке")}</div>`:"")+
     ((m.conditions||[]).length?`<div class="asst-line" id="asstFoundWhy">${m.conditions.map(escHtml).join(" · ")}</div>`:"");
 }
 // Человек снял тег или ушёл из раздела: отбор возвращается в дерево
@@ -27566,7 +27566,7 @@ async function asstFoundPick(){
 // окончен: следующее сообщение начинает новый, иначе ответ на вопрос ушёл бы со второй попытки
 function asstHoldSecret(a){
   a.log=a.log.concat(asstLiveItems(a));
-  Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Просьба о пароле в службу не ушла: пароли остаются на этой странице. Задайте пароль в карточке устройства")});
+  Object.assign(a,{text:"",ask:"",answer:"",found:null,context:null,secrets:[],refused:"",plan:null,result:null,down:false,info:"",err:i18n("Консоль не отправила в службу просьбу о пароле. Пароли остаются на этой странице. Задать пароль в карточке устройства")});
   asstRender();
 }
 // Вход из строки поиска — Enter или строка «Спросить ассистента». Запрос поиска снимается: он сузил бы дерево до
@@ -27649,7 +27649,7 @@ function asstLayout(){
   dock.dataset.variant=pos;
   document.getElementById("ws")?.classList.toggle("asst-side",asstDockOpen&&pos==="side");
   const auto=document.getElementById("asstVarAuto");
-  if(auto)auto.title=`${i18n("Положение выбирается по ширине окна")}. ${i18n("Сейчас")}: ${i18n(pos==="side"?"рядом":"поверх")}`;
+  if(auto)auto.title=`${i18n("Консоль выбирает положение по ширине окна")}. ${i18n("Сейчас")}: ${i18n(pos==="side"?"рядом":"поверх")}`;
 }
 function asstWidthClamp(w){return Math.max(ASST_W_MIN,Math.min(ASST_W_MAX,window.innerWidth-120,Math.round(w)))}
 function asstWidthSet(w,save){
@@ -27677,7 +27677,7 @@ function asstGripInit(){
 /* Голос. Текст распознаёт браузер и кладёт в поле просьбы, отправляет человек. Служба распознавания — браузера:
    без связи с ней голос не работает. Записи голоса страница не держит */
 let asstMic=null;
-const ASST_MIC_ERR={"no-speech":"Речь не услышана. Проверьте микрофон","not-allowed":"Браузер не дал доступ к микрофону","service-not-allowed":"Браузер не разрешает распознавание речи","audio-capture":"Микрофон не найден","network":"Нет связи со службой распознавания браузера. Напишите просьбу текстом"};
+const ASST_MIC_ERR={"no-speech":"Браузер не услышал речь. Проверить микрофон","not-allowed":"Браузер не разрешил доступ к микрофону","service-not-allowed":"Браузер не разрешает распознавание речи","audio-capture":"Микрофон не найден","network":"Нет связи со службой распознавания браузера. Написать просьбу текстом"};
 function asstMicCtor(){return window.SpeechRecognition||window.webkitSpeechRecognition||null}
 function asstMicPress(){if(asstMicOn(asst))asstMicStop();else{asstMicDrop();asstMicStart()}}
 function asstMicStart(){
@@ -27692,11 +27692,11 @@ function asstMicStart(){
   };
   rec.onerror=e=>{
     if(asstMic!==m||e.error==="aborted")return;
-    toast(i18n(ASST_MIC_ERR[e.error]||"Голос не распознан. Напишите просьбу текстом"));
+    toast(i18n(ASST_MIC_ERR[e.error]||"Браузер не распознал голос. Написать просьбу текстом"));
   };
   rec.onend=()=>{if(asstMic===m){asstMic=null;asstRender()}};
   asstMic=m;
-  try{rec.start()}catch(e){asstMic=null;toast(i18n("Голос не распознан. Напишите просьбу текстом"))}
+  try{rec.start()}catch(e){asstMic=null;toast(i18n("Браузер не распознал голос. Написать просьбу текстом"))}
   asstRender();
 }
 // Договорить: браузер ещё отдаст последний итог и закончит сам
@@ -27711,7 +27711,7 @@ function asstMicDrop(){const m=asstMic;if(m){asstMic=null;m.rec.abort();asstRend
 function asstMicOn(a){return!!asstMic&&asstMic.chat===a&&!asstMic.stopping}
 function asstMicBtnHtml(a){
   if(!asstMicCtor())return`<button type="button" class="asst-ib" id="asstMicBtn" disabled aria-label="${i18n("Этот браузер не распознаёт речь")}" title="${i18n("Этот браузер не распознаёт речь")}">${lu("mic")}</button>`;
-  const on=asstMicOn(a),word=i18n(on?"Выключить микрофон":"Сказать голосом. Звук распознаёт служба браузера, не диктуйте пароли");
+  const on=asstMicOn(a),word=i18n(on?"Выключить микрофон":"Сказать голосом. Служба браузера распознаёт звук. Не говорить пароли вслух");
   return`<button type="button" class="asst-ib${on?" asst-mic-on":""}" id="asstMicBtn" aria-pressed="${on}" aria-label="${word}" title="${word}" ${onEv("click",["asstMicPress"])}>${lu("mic")}</button>`;
 }
 /* Файлы. В контракте их передать нельзя (запрос mockup assist-files): разговор показывает имена, содержимое никуда
@@ -27802,7 +27802,7 @@ function asstItemHtml(x){
   if(x.u!==undefined)return`<div class="asst-u">${escHtml(x.u)}</div>${x.files?.length?`<div class="asst-u-files">${x.files.map(f=>`<div class="asst-file"><span title="${escHtml(f.name)}">${escHtml(f.name)}</span><small>${asstFileSize(f.size)}</small></div>`).join("")}</div>`:""}`;
   if(x.k==="info")return`<div class="asst-line">${escHtml(x.t)}</div>`;
   if(x.k==="err")return`<div class="asst-msg err">${escHtml(x.t)}</div>`;
-  return`<div class="asst-who">${i18n(x.k==="answer"?"Ассистент · проверьте по разделу":"Ассистент")}</div><div class="asst-msg asst-answer">${escHtml(x.t)}</div>`;
+  return`<div class="asst-who">${i18n(x.k==="answer"?"Ассистент · проверить по разделу":"Ассистент")}</div><div class="asst-msg asst-answer">${escHtml(x.t)}</div>`;
 }
 // Хранение макета: браузер, не больше 30 разговоров. Значение пароля может прозвучать в любой реплике и в ответе,
 // поэтому от разговора о пароле сохраняется только след: ни слов, ни контекста
@@ -27811,7 +27811,7 @@ function asstSave(){
     localStorage.setItem(ASST_STORE,JSON.stringify(asstChats.filter(c=>c.log.length).slice(0,30).map(c=>{
       if(ASST_PASS.test(c.ask)||c.log.some(x=>ASST_PASS.test(x.t||""))||asstLiveItems(c).some(x=>ASST_PASS.test(x.t||"")))c.noStore=true;
       const base={id:c.id,at:c.at,unread:c.unread,running:c.busy};
-      if(c.noStore)return Object.assign(base,{noStore:true,title:i18n("Разговор с паролем"),last:"",context:null,log:[{k:"info",t:i18n("Реплики разговора с паролем не сохранены")}]});
+      if(c.noStore)return Object.assign(base,{noStore:true,title:i18n("Разговор с паролем"),last:"",context:null,log:[{k:"info",t:i18n("Консоль не сохранила реплики разговора с паролем")}]});
       return Object.assign(base,{title:c.title,last:c.last,context:c.context,ctxLive:!!c.ctxLive,log:c.log.concat(c.busy?[]:asstLiveItems(c)).map(({u,k,t,files})=>({u,k,t,files}))});
     })));
   }catch(e){}
@@ -27829,7 +27829,7 @@ function asstLoad(){
     const log=c.log||[],tail=log[log.length-1],ask=!c.running&&tail?.k==="ask"?tail.t:"";
     return Object.assign(asstNewChat(),{id:c.id,title:c.title,at:c.at,log:ask?log.slice(0,-1):log,ask,unread:!!c.unread||!!c.running,noStore:!!c.noStore,context:c.context||null,ctxLive:!!c.ctxLive,last:c.last||""},
       // Поток не продолжить после перезагрузки: для этого нужен запрос к API
-      c.running?{err:i18n("Страницу перезагрузили во время хода: ответ потерян. Спросите заново"),interrupted:true}:{});
+      c.running?{err:i18n("Страница перезагрузилась во время хода, и ответ потерян. Спросить снова"),interrupted:true}:{});
   });
   asst=asstChats[0]||null;
   asstHeadSync();
@@ -27859,8 +27859,8 @@ function asstActionText(m){
 function asstPlanTreeNote(a){
   if(!asstPickShown(a.plan))return"";
   const lost=a.planLost||[];
-  return`<div class="asst-line" id="asstPlanNote">${i18n("Объекты плана отмечены в дереве, значения — в групповой карточке: проверьте, поменяйте и примените там")}</div>`+
-    (lost.length?`<div class="asst-msg err" id="asstPlanLost">${i18n("Не перенесено в карточку")}: ${[...new Set(lost.map(l=>asstFieldText(l.uid,l.ptr)))].map(escHtml).join(", ")}. ${i18n("Эти поля массово не меняются: правьте их в карточке объекта или спросите иначе")}</div>`:"");
+  return`<div class="asst-line" id="asstPlanNote">${i18n("Консоль отметила объекты плана в дереве. Значения находятся в групповой карточке. Проверить, изменить и применить их там")}</div>`+
+    (lost.length?`<div class="asst-msg err" id="asstPlanLost">${i18n("Не перенесено в карточку")}: ${[...new Set(lost.map(l=>asstFieldText(l.uid,l.ptr)))].map(escHtml).join(", ")}. ${i18n("Эти поля нельзя изменить для всех сразу. Изменить их в карточке объекта или задать просьбу иначе")}</div>`:"");
 }
 function asstPlanHtml(p){
   return`<div class="asst-sum">${escHtml(p.summary)}</div>${p.items.map(x=>`<div class="asst-dev">${escHtml(x.name)}</div>${
@@ -28001,9 +28001,9 @@ function promptEvent(m){
 function promptClosedWord(p,x,mine){
   const ans=x.answer?i18n(PROMPT_WORD[x.answer]||x.answer):"";
   if(x.reason==="answered")return mine?`${i18n("Ответ принят")}: ${ans}`:`${i18n("Ответил другой оператор")}${x.by?` (${x.by})`:""}: ${ans}`;
-  if(x.reason==="expired")return i18n(p.kind==="ask"?"Срок вышел: правило пошло веткой по умолчанию":"Срок эскалации вышел");
+  if(x.reason==="expired")return i18n(p.kind==="ask"?"Срок истёк. Правило выполнило ветку по умолчанию":"Срок эскалации вышел");
   if(x.reason==="reset")return i18n("Событие кончилось: эскалация снята");
-  return i18n("Запуск снят: вопрос больше не действует");
+  return i18n("Запуск отменён. Вопрос больше не действует");
 }
 function promptGone(id,x){
   PROMPT.gone.add(id);
@@ -28020,9 +28020,9 @@ function promptTitle(p){const r=promptRuleName(p);return r?`«${r}»`:i18n("Во
 // Отказ двери словами: строка снимается, когда ответ уже ничего не решает
 function promptRefused(p,e){
   const code=e?.problem?.code,st=e?.status;
-  if(st===404)return i18n("Запуск снят: вопрос больше не действует");
-  if(st===409&&code==="BUSY")return i18n("На вопрос уже ответил другой оператор: ваш ответ не засчитан");
-  if(st===409&&code==="NOT_RUNNABLE")return i18n("Срок вышел: ответ не действует");
+  if(st===404)return i18n("Запуск отменён. Вопрос больше не действует");
+  if(st===409&&code==="BUSY")return i18n("Другой оператор уже ответил на вопрос. Консоль не учла ваш ответ");
+  if(st===409&&code==="NOT_RUNNABLE")return i18n("Срок истёк. Ответ не действует");
   return"";
 }
 function promptAnswer(id,answer){
@@ -28039,7 +28039,7 @@ function promptAnswer(id,answer){
       return;
     }
     PROMPT.sent.delete(id);
-    if(e?.status===403){promptNote(`${promptTitle(p)}: ${i18n("Отвечает человек с ролью шага")}`);promptsLoad()}
+    if(e?.status===403){promptNote(`${promptTitle(p)}: ${i18n("Отвечает пользователь с ролью шага")}`);promptsLoad()}
     else promptNote(`${promptTitle(p)}: ${problemText(e)}`);
     promptsRender();
   });
@@ -28068,7 +28068,7 @@ const RULE_WRITE=["name","enabled","logOnly","logOnlySince","start","runMode","o
 // Умолчания перевода: поля, которых строка плана не несёт
 const RULE_WRITE_DEF={enabled:true,logOnly:false,logOnlySince:null,start:"event",runMode:"always",operatorMenu:false,ratePerMinute:6,windowSec:0,runAt:null,repeat:"skip",triggers:[],conditions:[],steps:[],owner:"",purpose:"",serverId:null,runAsRoleId:null,allowChain:true};
 const ASST_DOOR={scenarios:"/rules",schedules:"/schedules",windows:"/maintenance-windows"};
-const ASST_ONLY_NEW="Расписание и окно план только заводит: правки нет";
+const ASST_ONLY_NEW="План только создаёт расписание и окно. Изменений нет";
 const ASST_TABLE={scenarios:["Новое правило","Правило"],schedules:["Новое расписание","Расписание"],windows:["Новое окно обслуживания","Окно обслуживания"]};
 const asstOmit=(o,...k)=>Object.fromEntries(Object.entries(o).filter(([x])=>!k.includes(x)));
 // День записи в поясе системы: logOnlySince — дата, момент записи в поле не помещается
@@ -28108,16 +28108,16 @@ function asstRuleView(e,all){
     v.rows=ruleDiffOf(before,after,e.op==="create").filter(x=>x.label!==i18n("Создание")&&!(e.op==="create"&&x.label===i18n("Состояние"))).map(x=>({label:x.label,from:x.fromT,to:x.toT,gone:e.op==="update"&&x.toT==="—"}));
     if(e.op==="create"){
       v.summary=ruleSummary(after);
-      v.note=i18n(after.on?"Заведётся в режиме «Только журнал»: включает человек":"Заведётся выключенным: включает человек");
+      v.note=i18n(after.on?"Консоль создаст правило в состоянии «Только журнал». Включает его пользователь":"Заведётся выключенным: включает человек");
     }else{
-      v.note=i18n("Правка действует сразу: наблюдения нет. Сверьте, что было и что станет");
+      v.note=i18n("Изменение действует сразу, без проверки. Сравнить, что было и что будет");
       if(!v.rows.length)v.note=i18n("Изменений нет");
-      if(v.rows.some(x=>x.gone))v.warn=i18n("Из правила выпадает то, что отмечено");
+      if(v.rows.some(x=>x.gone))v.warn=i18n("Консоль уберёт из правила отмеченное");
     }
   }else{
     const sc=e.table==="schedules"?e.body:asstWindowSchedule(e,all);
     try{v.summary=schText(schNode({id:"",...sc}))}catch(x){}
-    if(e.viaWindow)v.note=i18n("Отдельно не записывается: идёт телом окна");
+    if(e.viaWindow)v.note=i18n("Консоль не записывает это отдельно. Это часть окна");
     if(e.table==="windows"){
       const ids=e.body.ruleIds;
       v.rows=[{label:i18n("Правила"),from:"—",to:ids?ids.map(id=>rules.find(r=>r.id===id)?.name||id).join(", "):i18n("все правила")}];
@@ -28185,32 +28185,32 @@ function asstHeadHtml(a){
   const other=asstChats.some(c=>c!==a&&c.unread&&!c.busy);
   return`<div class="asst-title" id="asstTitle" title="${escHtml(a.title)}">${escHtml(asstHist?i18n("История разговоров"):a.title||i18n("Новый разговор"))}</div>
     <div class="asst-var" role="group" aria-label="${i18n("Положение панели")}">
-      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" title="${i18n("Панель сама встаёт рядом или поверх и закрывается кликом мимо")}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
+      <button type="button" id="asstVarAuto" aria-pressed="${asstVariant==="auto"}" title="${i18n("Консоль сама ставит панель рядом или поверх. Нажатие вне панели закрывает её")}" ${onEv("click",["asstVariantSet","auto"])}>${i18n("Авто")}</button>
       <button type="button" id="asstVarSide" aria-pressed="${asstVariant==="side"}" title="${i18n("Панель сужает рабочую область")}" ${onEv("click",["asstVariantSet","side"])}>${i18n("Рядом")}</button>
-      <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель лежит поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
+      <button type="button" id="asstVarOver" aria-pressed="${asstVariant==="over"}" title="${i18n("Панель находится поверх рабочей области")}" ${onEv("click",["asstVariantSet","over"])}>${i18n("Поверх")}</button>
     </div>
     <button type="button" class="asst-ib" id="asstHistBtn" aria-pressed="${asstHist}" aria-label="${i18n("История разговоров")}" title="${i18n("История разговоров")}" ${onEv("click",["asstHistToggle"])}>${lu("clock")}${other?`<i class="asst-dot"></i>`:""}</button>
     <button type="button" class="asst-ib" id="asstNew" aria-label="${i18n("Новый разговор")}" title="${i18n("Новый разговор")}" ${onEv("click",["asstNewPress"])}>${lu("plus")}</button>
-    <button type="button" class="asst-ib" id="asstCloseBtn" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть. Разговор и ход продолжатся")}" ${onEv("click",["asstClose"])}>${lu("x")}</button>`;
+    <button type="button" class="asst-ib" id="asstCloseBtn" aria-label="${i18n("Закрыть")}" title="${i18n("Закрыть. Разговор и ход не остановятся")}" ${onEv("click",["asstClose"])}>${lu("x")}</button>`;
 }
 function asstHistHtml(a){
   const rows=asstChats.filter(c=>c.log.length||c===a||c.text.trim()||c.files.length);
   return rows.map(c=>{const[cls,word]=asstState(c);
     return`<button type="button" class="asst-hrow ${c===a?"cur":""}" data-asst-chat="${escHtml(c.id)}" ${onEv("click",["asstSwitch",c.id])}><b>${escHtml(c.title||i18n("Новый разговор"))}</b><span class="asst-hmeta ${cls}">${cls==="ready"||cls==="wait"?`<i class="asst-dot"></i>`:""}${escHtml(word)}</span></button>`}).join("")+
-    `<div class="asst-hnote">${i18n("Макет: история лежит в этом браузере. Разговор, где названо слово «пароль», не сохраняется. Пароль без этого слова распознать нельзя: не пишите его сюда")}</div>`;
+    `<div class="asst-hnote">${i18n("Макет: этот браузер хранит историю. Консоль не сохраняет разговор со словом «пароль». Без этого слова консоль не может найти пароль в тексте. Не писать пароль сюда")}</div>`;
 }
 function asstThreadHtml(a,mode){
   const empty=!a.log.length&&!a.busy&&!a.err&&!a.answer&&!a.ask;
   return[
     asstSvcHtml(a,mode),
-    empty?`<div class="asst-empty" id="asstEmpty"><div>${i18n("Спросите о системе или попросите изменить настройку. Без «Применить» ничего не записывается. Панель можно закрыть: ход продолжится")}</div>${
+    empty?`<div class="asst-empty" id="asstEmpty"><div>${i18n("Задать вопрос о системе или попросить изменить настройку. Без «Применить» консоль ничего не записывает. Панель можно закрыть, ход не остановится")}</div>${
       ["сколько камер без связи","выключи запись на камере Главный вход","покажи камеры без детектора движения"].map(t=>`<button type="button" class="btn s" ${onEv("click",["asstExample",t])}>${escHtml(i18n(t))}</button>`).join("")}</div>`:"",
     a.log.map(asstItemHtml).join(""),
     // Строка хода; пока ход идёт — со значком в начале
     a.line||a.busy?`<div class="asst-line" id="asstLine">${a.busy?`<i class="dev-spin" role="status" aria-label="${i18n("Ассистент отвечает")}"></i>`:""}<span>${escHtml(a.line)}</span></div>`:"",
     a.ask?`<div class="asst-who">${i18n("Ассистент")}</div><div class="asst-msg" id="asstAsk">${escHtml(a.ask)}</div>`:"",
     // Ответ модели, а не данные системы: в замере Пилота бывают уверенно неверные числа
-    a.answer?`<div class="asst-who" id="asstAnswerNote">${i18n("Ассистент · проверьте по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
+    a.answer?`<div class="asst-who" id="asstAnswerNote">${i18n("Ассистент · проверить по разделу")}</div><div class="asst-msg asst-answer" id="asstAnswer">${escHtml(a.answer)}</div>`:"",
     a.found?asstFoundHtml(a.found):"",
     a.refused?`<div class="asst-msg err" id="asstRefused">${escHtml(a.refused)}</div>`:"",
     a.err?`<div class="asst-msg err" id="asstErr">${escHtml(a.err)}</div>`:"",
@@ -28224,8 +28224,8 @@ function asstActsHtml(a,mode){
     a.secrets.map((v,i)=>`<div class="asst-sec"><input type="password" id="asstSec${i}" autocomplete="off" aria-label="${i18n("Секрет")} № ${i+1}" placeholder="${i18n("Секрет")} № ${i+1}" value="${escHtml(v)}" ${onEv("input",["asstSecret",i,onEv.value])}></div>`).join(""),
     `<div class="asst-act">`,
     asstMicBtnHtml(a),
-    `<button type="button" class="asst-ib" id="asstFilePress" aria-label="${i18n("Приложить файл")}" title="${i18n("Приложить файл. Файлы можно и перетащить на панель")}" ${onEv("click",["asstFilePress"])}>${lu("paperclip")}</button>`,
-    a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Пароль — только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
+    `<button type="button" class="asst-ib" id="asstFilePress" aria-label="${i18n("Приложить файл")}" title="${i18n("Приложить файл. Файлы можно также перетащить на панель")}" ${onEv("click",["asstFilePress"])}>${lu("paperclip")}</button>`,
+    a.plan||mode==="on"?"":`<button type="button" class="btn s" title="${i18n("Вводить пароль только сюда, не в текст просьбы")}" ${onEv("click",["asstSecretAdd"])}>＋ ${i18n("Секрет")}</button>`,
     `<span class="asst-gap"></span>`,
     a.busy&&a.live?`<button type="button" class="btn s" id="asstCancel" ${onEv("click",["asstCancel"])}>${i18n("Отменить ход")}</button>`:"",
     a.down&&!a.busy?`<button type="button" class="btn s" id="asstToStub" ${onEv("click",["asstToStub"])}>${i18n("Работать с заглушкой")}</button>`:"",
@@ -28326,7 +28326,7 @@ function asstSend(again,said){
   const files=again?[]:a.files;
   if(!again)a.files=[];
   a.log=a.log.concat(asstLiveItems(a),a.plan?[{k:"info",t:i18n("План снят")}]:[],[files.length?{u:text,files}:{u:text}],
-    files.length?[{k:"info",t:i18n("Макет: ассистент видит только текст просьбы, файлы ему не ушли")}]:[]);
+    files.length?[{k:"info",t:i18n("Макет: ассистент видит только текст просьбы. Консоль не отправила ему файлы")}]:[]);
   if(!a.title)a.title=text;
   a.at=Date.now();a.unread=false;a.interrupted=false;
   if(a.plan?.items)asstPlanDrop(a.plan);
@@ -28393,7 +28393,7 @@ function asstPlanToTree(a,p,fromLink){
   // Панель поверх закрыла бы карточку плана: она уходит, разговор и уточнение ждут в кнопке шапки
   if(asstDockOpen&&asstPos()==="over"){
     asstDockOpen=false;asstHist=false;
-    toast(i18n("План — в групповой карточке. Уточнить его можно в панели: кнопка «Ассистент»"));
+    toast(i18n("План находится в групповой карточке. Чтобы уточнить его, нажать «Ассистент»"));
   }
   asstRender();
 }
@@ -28403,7 +28403,7 @@ function asstExportHtml(p){
   const e=p.export,per=e.periods?.[0],when=e.source==="live"?i18n("кадр сейчас"):e.at?tlDate(Date.parse(e.at)):per?`${tlDate(Date.parse(per.from))}–${tlClock(Date.parse(per.to))}`:"";
   return`${p.summary?`<div class="asst-sum">${escHtml(p.summary)}</div>`:""}<div class="asst-dev" data-asst-exp="${e.cameras.length}">${i18n("Камер")}: ${e.cameras.length}</div>
     <div class="asst-chg">${escHtml(i18n(e.mode==="frame"?"Кадр":"Видео"))}${when?` · ${escHtml(when)}`:""} · ${escHtml(String(e.format).toUpperCase())}</div>
-    <div class="asst-note">${i18n(expShown()?"Заказ открыт в разделе «Экспорт»: проверьте, введите пароль, если нужен, и нажмите «Экспорт»":"Выгрузки в этой системе нет")}</div>`;
+    <div class="asst-note">${i18n(expShown()?"Заказ открыт в разделе «Экспорт». Проверить его, ввести пароль, если нужно, и нажать «Экспорт»":"В этой системе нет выгрузки")}</div>`;
 }
 // Форма перерисовывается ответом /exports/check: моргает то, что на экране после него (не дождались за 2 с — что есть)
 function asstExportLanding(){
@@ -28417,14 +28417,14 @@ function asstToExport(body){
   asstExportLanding();
   if(asstDockOpen&&asstPos()==="over"){
     asstDockOpen=false;asstHist=false;
-    toast(i18n("Заказ — в разделе «Экспорт». Уточнить его можно в панели: кнопка «Ассистент»"));
+    toast(i18n("Заказ находится в разделе «Экспорт». Чтобы уточнить его, нажать «Ассистент»"));
     asstRender();
   }
 }
 function asstPlanOpen(){
   const a=asst,p=a?.plan;if(!p?.items)return;
   if(!asstDraftEdits()||bulkDraft.planOf===p){asstPlanToTree(a,p,true);return}
-  askConfirm("Заменить черновик карточки?",i18n("В групповой карточке есть правки, которые вы не применили. План ассистента заменит их."),"",i18n("Заменить"),()=>asstPlanToTree(a,p,true));
+  askConfirm("Заменить черновик карточки?",i18n("В групповой карточке есть изменения, которые вы не применили. План ассистента заменит их."),"",i18n("Заменить"),()=>asstPlanToTree(a,p,true));
 }
 // В групповой карточке есть правки человека, а не только значения плана
 function asstDraftEdits(){return Object.keys(bulkDraft).some(k=>!["plan","planVer","planOf"].includes(k))}
@@ -28432,7 +28432,7 @@ function asstDraftEdits(){return Object.keys(bulkDraft).some(k=>!["plan","planVe
 function asstPlanDone(p){
   const a=asstChats.find(c=>c.plan===p);if(!a)return;
   a.log=a.log.concat(asstLiveItems({plan:p}));
-  a.plan=null;a.planLost=[];a.info=i18n("План применён через карточку: ход и итог — в очереди операций");
+  a.plan=null;a.planLost=[];a.info=i18n("План применён через карточку. Ход и итог есть в очереди операций");
   asstSave();
   asstRender();
 }
@@ -28443,7 +28443,7 @@ function asstPlanDrop(p){
 function bulkBusyGuard(){
   if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return true}
   const busy=busyIds();
-  if(bulkScopeNodes().some(n=>busy.has(n.id)||pendingDelHas(n.id))){toast("В выборке есть объекты, над которыми идёт операция или которые ждут удаления");return true}
+  if(bulkScopeNodes().some(n=>busy.has(n.id)||pendingDelHas(n.id))){toast("В выборке есть объекты, над которыми консоль выполняет операцию или которые консоль удаляет");return true}
   return false;
 }
 // План по выборке дерева; «Применить к другим» для устройств без галочек
@@ -28463,13 +28463,13 @@ function bulkShowPlan(chIn,nodesIn,applyJs,backJs){
   }).join("");
   const secs=Math.max(1,Math.round(total*0.25));
   const warn=[];
-  if(excluded.size)warn.push(`${excluded.size} ${i18n(plural(excluded.size,"объект|объекта|объектов"))} ${i18n("на сервере без связи исключены из плана")}`);
+  if(excluded.size)warn.push(`${excluded.size} ${i18n(plural(excluded.size,"объект|объекта|объектов"))} ${i18n("на сервере без связи. Консоль убрала их из плана")}`);
   if(skip-excluded.size>0)warn.push(`${i18n("пропущено операций")}: ${skip-excluded.size} (${i18n("причины в отчёте")})`);
-  if(ch.some(c=>c.key==="arch"))warn.push(i18n("смена архива: новые записи пойдут в выбранное хранилище, прежние останутся в старом; камеры другого сервера к хранилищу сервера не привязываются"));
+  if(ch.some(c=>c.key==="arch"))warn.push(i18n("смена архива: новые записи будут идти в выбранное хранилище, старые останутся в старом. Камеры другого сервера нельзя привязать к хранилищу сервера"));
   openBulkModal(`${i18n("План")}: ${nodes.length} ${i18n(plural(nodes.length,"объект|объекта|объектов"))}, ${ch.length} ${i18n(plural(ch.length,"шаг|шага|шагов"))}, ≈ ${secs} ${i18n("с")}`,
     `<table class="bk-table"><thead><tr><th>#</th><th>${i18n("Шаг")}</th><th>${i18n("Объектов")}</th><th>${i18n("Сервер")}</th><th>${i18n("Что ещё произойдёт")}</th></tr></thead><tbody>${rows}</tbody></table>
      ${warn.map(w=>`<div class="nt bk-warn">${lu("triangle-alert")} ${w}</div>`).join("")}
-     <p class="sub" style="margin:10px 0 0">${i18n("Параметры применяются к каждому объекту по отдельности, шаги идут по порядку; итог по каждому объекту — в отчёте.")}</p>`,
+     <p class="sub" style="margin:10px 0 0">${i18n("Консоль применяет параметры к каждому объекту отдельно и выполняет шаги по порядку. Итог по каждому объекту есть в отчёте.")}</p>`,
     `<button type="button" class="btn" ${onEv("click",backJs||["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${onEv("click",applyJs||[["closeBulkModal"],["bulkApply"]])} ${total?"":"disabled"}>${i18n("Применить")} (${total})</button>`,"bbox-wide");
 }
 let bq=null,bqTimer=null;
@@ -28840,7 +28840,7 @@ function queueModalHtml(){
   const pct=bq.total?Math.round(bq.done/bq.total*100):100;
   return`<div class="bk-prog"><div class="bk-prog-l"><b>${bq.finished?i18n("Выполнено"):i18n("Применяется")}</b> ${bq.done} ${i18n("из")} ${bq.total}${bq.cur?` · ${escHtml(i18n(bq.cur))}`:""}</div><div class="rs-bar big"><i style="width:${pct}%"></i></div></div>
     <table class="bk-table"><thead><tr><th>#</th><th>${i18n("Шаг")}</th><th>${i18n("Операций")}</th><th>${i18n("Состояние")}</th></tr></thead><tbody>${rows}</tbody></table>
-    <p class="sub" style="margin:10px 0 0">${i18n("Выполненное не откатывается: «Отменить оставшееся» останавливает только то, что ещё не началось. Объекты операции помечены в дереве и недоступны для правки; с остальным интерфейсом можно работать.")}</p>`;
+    <p class="sub" style="margin:10px 0 0">${i18n("Консоль не откатывает выполненные шаги. «Отменить оставшееся» останавливает только шаги, которые ещё не начались. Дерево помечает объекты операции, и их нельзя изменить. Другие части интерфейса работают.")}</p>`;
 }
 function openQueueModal(){
   if(!bq)return;
@@ -28930,7 +28930,7 @@ function deleteSelected(only){
   const all=src.filter(id=>{const f=find(id);return f&&canMultiPick(f.n)});
   const skipped=all.map(id=>find(id).n).filter(n=>DEL_SOLO.has(n.type));
   const ids=all.filter(id=>{const n=find(id).n;return!DEL_SOLO.has(n.type)&&canDeleteNode(n)});
-  if(!ids.length){toast(skipped.length?"Серверы исключают из домена, домены удаляют по одному из их меню":all.length?"Эти записи ведёт сервер, они не удаляются":"Нечего удалять");return}
+  if(!ids.length){toast(skipped.length?"Серверы исключают из домена, а домены удаляют по одному, из их меню":all.length?"Эти записи создаёт сервер. Их нельзя удалить":"Нечего удалять");return}
   const idSet=new Set(ids);
   const roots=ids.filter(id=>{const n=find(id).n;if(n.type==="vol"&&idSet.has(n.archId))return false;return!path(id).slice(0,-1).some(x=>idSet.has(x.id))}).filter(id=>!pendingDelHas(id));
   if(!roots.length){toast("Выбранное уже ждёт удаления");return}
@@ -28950,16 +28950,16 @@ function confirmDeleteNodes(roots,back,skipped){
   if(cams.length)lines.push(`${i18n("камер")}: ${cams.length}, ${i18n("из них пишут в архив")}: ${rec} — ${i18n("запись остановится, архив останется")}`);
   if(dets)lines.push(`${i18n("детекторов")}: ${dets} — ${i18n("удалятся вместе с правилами")}`);
   const ownDets=nodes.filter(n=>n.type==="det").length;
-  if(ownDets&&!one)lines.push(`${i18n("детекторов")}: ${ownDets} — ${i18n("вместе с зонами и настройками; камеры и их записи останутся")}`);
-  if(used.length)lines.push(`${i18n("правил автоматизации перестанут работать")}: ${used.length} (${used.slice(0,3).map(r=>`«${escHtml(r.name)}»`).join(", ")}${used.length>3?`, ${i18n("и ещё")} ${used.length-3}`:""}) — ${i18n("в них удалённое устройство или область отметятся как удалённые")}`);
+  if(ownDets&&!one)lines.push(`${i18n("детекторов")}: ${ownDets} — ${i18n("вместе с зонами и настройками. Камеры и их записи останутся")}`);
+  if(used.length)lines.push(`${i18n("правил автоматизации перестанут работать")}: ${used.length} (${used.slice(0,3).map(r=>`«${escHtml(r.name)}»`).join(", ")}${used.length>3?`, ${i18n("и ещё")} ${used.length-3}`:""}) — ${i18n("в них консоль отметит удалённое устройство или область как удалённые")}`);
   if(fold.size)lines.push(`${i18n("папок, из которых пропадут объекты")}: ${fold.size}`);
   // Версия r<revision> сверяет только строку камеры: об этом пределе форма не молчит
-  if(nodes.some(n=>/^r\d+$/.test(hwVer.get(n.id)||"")))lines.push(i18n("сверяется только строка камеры: чужая правка записи или детектора удаление не остановит"));
+  if(nodes.some(n=>/^r\d+$/.test(hwVer.get(n.id)||"")))lines.push(i18n("консоль проверяет только строку камеры. Если кто-то изменил запись или детектор, удаление всё равно произойдёт"));
   const fl=nodes.filter(n=>n.type==="folder"),ar=nodes.filter(n=>n.type==="archive"),vl=nodes.filter(n=>n.type==="vol");
   if(fl.length&&!one)lines.push(`${i18n("папок")}: ${fl.length} — ${i18n("устройства из них останутся в системе")}`);
-  if(ar.length){const k=new Set(ar.flatMap(a=>archCameras(a.id).map(c=>c.id))).size;lines.push(`${i18n("хранилищ")}: ${ar.length}, ${i18n("вместе с томами")}${k?` — ${i18n("перестанут писать камер")}: ${k}, ${i18n("сами камеры останутся в «Без записи»")}`:""}`)}
+  if(ar.length){const k=new Set(ar.flatMap(a=>archCameras(a.id).map(c=>c.id))).size;lines.push(`${i18n("хранилищ")}: ${ar.length}, ${i18n("вместе с томами")}${k?` — ${i18n("перестанут писать камер")}: ${k}, ${i18n("камеры останутся в «Без записи»")}`:""}`)}
   if(vl.length)lines.push(`${i18n("томов")}: ${vl.length} — ${i18n("вместе с записями на них")}`);
-  if(skipped?.length)lines.push(`<span class="sub">${i18n("Не удаляются")}: ${bulkKinds(skipped).map(([k,c])=>`${escHtml(kindLabel(k).toLowerCase())} (${c})`).join(", ")} — ${i18n("сервер исключают из домена, домен удаляют по одному из его меню")}</span>`);
+  if(skipped?.length)lines.push(`<span class="sub">${i18n("Не удаляются")}: ${bulkKinds(skipped).map(([k,c])=>`${escHtml(kindLabel(k).toLowerCase())} (${c})`).join(", ")} — ${i18n("сервер исключают из домена, а домен удаляют по одному, из его меню")}</span>`);
   const html=`<ul class="bk-del">${lines.map(l=>`<li>${l}</li>`).join("")}</ul>
     <p class="sub" style="margin:10px 0 0">${i18n("После подтверждения консоль покажет отсчёт и кнопку «Отменить».")}</p>`;
   const opts=one?{label:`«${locName(one)}»`,back}:{back};
@@ -28991,7 +28991,7 @@ function tickPending(){
 function cancelDelete(key){
   const p=pendingDel.get(key);if(!p)return;
   clearTimeout(p.timer);pendingDel.delete(key);removeToastAction(key);
-  toast("Удаление отменено — ничего не отправлено");
+  toast("Удаление отменено. Консоль ничего не отправила");
   renderTree();
   if(app==="exp")expRepaint();
 }
@@ -29119,13 +29119,13 @@ function cpGroups(src){
       {key:"rec",label:"Настройки записи",value:`${i18n(recordModeLabel(src.rec||"none"))} · ${i18n("предзапись")} ${src.pre??5} ${i18n("с")}`},
       {key:"video",label:"Видео",value:`${src._f?.["Разрешение"]||"—"} · ${src._f?.["к/с"]||"—"} ${i18n("к/с")}`,tag:i18n("только та же модель")},
       en,fGroup,
-      {key:"creds",label:"Учётные данные",value:i18n("логин и пароль источника (пароль не показывается)")}
+      {key:"creds",label:"Учётные данные",value:i18n("логин и пароль источника (консоль не показывает пароль)")}
     ];
   }
   const out=(CP_FIELDS[src.type]||[]).map(g=>({...g,value:g.fields.map(k=>cpShow(src,k)).join(" · ")}));
   out.push(en);
   if(devicePool.includes(src))out.push(fGroup);
-  if(src.type==="ipsrv"||src.type==="acfa"||src.type==="eventsrc")out.push({key:"creds",label:"Учётные данные",value:i18n("логин и пароль источника (пароль не показывается)")});
+  if(src.type==="ipsrv"||src.type==="acfa"||src.type==="eventsrc")out.push({key:"creds",label:"Учётные данные",value:i18n("логин и пароль источника (консоль не показывает пароль)")});
   return out;
 }
 function cpCandidates(src){
@@ -29204,7 +29204,7 @@ function renderCopyDialog(){
     `<div class="cp-wrap ${hasDets?"cp-3":""}">
       <section class="cp-col"><div class="cp-h"><span class="cp-step">1</span>${i18n("Что копировать")}</div>
         <div class="cp-scroll" data-cp-scroll="g">${groups}</div>
-        <p class="sub cp-src">${i18n("Источник")}: ${escHtml(cam?(modelOf(src)||"—"):(LB[src.type]||src.type))}, ${escHtml(serverNameOf(src))}.${cam?" "+i18n("Привязка к хранилищу сервера доступна только камерам этого сервера; остальные будут пропущены с причиной."):" "+i18n("Получатели — только устройства того же типа.")}</p></section>
+        <p class="sub cp-src">${i18n("Источник")}: ${escHtml(cam?(modelOf(src)||"—"):(LB[src.type]||src.type))}, ${escHtml(serverNameOf(src))}.${cam?" "+i18n("Привязать к хранилищу сервера можно только камеры этого сервера. Консоль пропустит другие камеры и укажет причину."):" "+i18n("Получить настройки могут только устройства того же типа.")}</p></section>
       ${hasDets?cpDetsColHtml(src,dets):""}
       <section class="cp-col cp-col-list"><div class="cp-h"><span class="cp-step">${hasDets?3:2}</span>${i18n("Кому")}</div>
         <div class="bk-chips">${chips}</div>
@@ -29212,7 +29212,7 @@ function renderCopyDialog(){
         <div class="cp-tools"><label class="cp-all"><input type="checkbox" ${allOn?"checked":""} ${list.length?"":"disabled"} ${onEv("change",["cpPickAll",onEv.checked])}><span>${allOn?i18n("Снять выделение"):i18n("Выбрать всё")} (${list.length})</span></label><span class="sel-cnt">${i18n("Выбрано")}: <b>${cp.picked.size}</b></span></div>
         <div class="cp-list" data-cp-scroll="l">${rows}</div></section>
     </div>`,
-    `<button type="button" class="btn" ${onEv("click",["cpCancel"])}>${i18n("Отмена")}</button>${foot?`<span class="cp-foot-note">${lu("triangle-alert")} ${foot}</span>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" ${onEv("click",["cpShowPlan"])} ${cp.picked.size&&what?"":"disabled"} title="${what?"":i18n("Отметьте, что копировать")}">${i18n("Показать план")} (${cp.picked.size})</button>`,"bbox-wide bbox-copy");
+    `<button type="button" class="btn" ${onEv("click",["cpCancel"])}>${i18n("Отмена")}</button>${foot?`<span class="cp-foot-note">${lu("triangle-alert")} ${foot}</span>`:""}<span class="tfoot-gap"></span><button type="button" class="btn pri" ${onEv("click",["cpShowPlan"])} ${cp.picked.size&&what?"":"disabled"} title="${what?"":i18n("Отметить, что копировать")}">${i18n("Показать план")} (${cp.picked.size})</button>`,"bbox-wide bbox-copy");
   requestAnimationFrame(()=>{
     document.querySelectorAll("#bmBody [data-cp-scroll]").forEach(el=>{if(keep[el.dataset.cpScroll])el.scrollTop=keep[el.dataset.cpScroll]});
     const i=document.querySelector(".cp-sq input");if(i&&cp?.q){i.focus();i.setSelectionRange(i.value.length,i.value.length)}
@@ -29227,7 +29227,7 @@ function cpFootNote(){
   if(other)bits.push(`${other} ${i18n(plural(other,"камера|камеры|камер"))} ${i18n("другой модели:")} ${loss} ${i18n("к ним не применятся")}`);
   const a=cp.groups.has("arch")?archById(cp.src.arch):null;
   const far=a?picked.filter(n=>archForeignReason(n,a)).length:0;
-  if(far)bits.push(`${far} ${i18n(plural(far,"камера|камеры|камер"))} ${i18n("на другом сервере: к архиву не привяжутся")}`);
+  if(far)bits.push(`${far} ${i18n(plural(far,"камера|камеры|камер"))} ${i18n("на другом сервере. Консоль не привяжет их к архиву")}`);
   return bits.join("; ");
 }
 // Что не доедет до камеры другой модели: видео и встроенные детекторы.
@@ -29245,8 +29245,8 @@ function cpDetsColHtml(src,dets){
   const k=dets.filter(d=>cp.dets.has(d.id)).length,bi=dets.filter(d=>d.builtin).length;
   const rows=dets.map(d=>`<label class="cp-det"><input type="checkbox" ${cp.dets.has(d.id)?"checked":""} ${onEv("change",["cpToggleDet",`${d.id}`,onEv.checked])}>
       <span class="cp-det-nm">${escHtml(detTitle(d))}<small>${escHtml(i18n(d.kind||DET_TYPES[0]))} · ${i18n("чувствительность")} ${escHtml(String(d.sens||"12"))}</small></span>
-      ${d.builtin?`<span class="cp-det-tag bi" title="${i18n("Детектор работает в самой камере — переносится только на такую же модель")}">${i18n("в камере")}</span>`
-        :`<span class="cp-det-tag" title="${i18n("Детектор считается на сервере — подходит камере любой модели")}">${i18n("на сервере")}</span>`}</label>`).join("");
+      ${d.builtin?`<span class="cp-det-tag bi" title="${i18n("Детектор работает в камере. Перенести его можно только на ту же модель")}">${i18n("в камере")}</span>`
+        :`<span class="cp-det-tag" title="${i18n("Детектор работает на сервере. Он подходит для камеры любой модели")}">${i18n("на сервере")}</span>`}</label>`).join("");
   return`<section class="cp-col"><div class="cp-h"><span class="cp-step">2</span>${i18n("Детекторы")}<span class="cp-h-cnt">${k} ${i18n("из")} ${dets.length}</span></div>
     <label class="cp-tools cp-all"><input type="checkbox" class="cp-dets-all" ${k===dets.length?"checked":""} data-part="${k&&k<dets.length?1:0}" ${onEv("change",["cpAllDets",onEv.checked])}><span>${k===dets.length?i18n("Снять все"):i18n("Все детекторы")}</span></label>
     <div class="cp-det-list" data-cp-scroll="d">${rows}</div>
@@ -29292,7 +29292,7 @@ function cpChangesGeneric(src,nodes,groups){
       step("enabled",want?"Включить":"Выключить",nodes.filter(n=>(n.enabled!==false)!==want).map(n=>{const prev=n.enabled;return mkOp(n,want?"Включить":"Выключить",want?"enable":"disable",()=>{n.enabled=want},null,()=>{n.enabled=prev})}));
     }else if(g.key==="folders"){
       foldersOfDevice(src.id).filter(f=>f.items.includes(src.id)).forEach(f=>step("folderAdd:"+f.id,`В папку «${folderPathName(f.id)}»`,
-        nodes.filter(n=>!f.items.includes(n.id)).map(n=>mkOp(n,"В папку","folder",()=>folderAddDevice(f.id,n.id),devicePool.includes(n)?null:i18n("вложенный объект — папку задают его устройству"),()=>{f.items=f.items.filter(x=>x!==n.id)}))));
+        nodes.filter(n=>!f.items.includes(n.id)).map(n=>mkOp(n,"В папку","folder",()=>folderAddDevice(f.id,n.id),devicePool.includes(n)?null:i18n("вложенный объект. Папку задают для его устройства"),()=>{f.items=f.items.filter(x=>x!==n.id)}))));
     }else if(g.key==="creds"){
       // Пароль источника клиент не знает: на сервер уходит логин, маска — только в кэше
       step("creds","Учётные данные",nodes.map(n=>Object.assign(mkOp(n,"Учётные данные","creds",()=>{n.user=src.user||"admin";n.pass="•".repeat(8)}),{api:{set:{login:src.user||"admin"}}})),i18n("устройство переподключится"));
@@ -29384,7 +29384,7 @@ function cbxPaint(){
     h+=`<div class="cbx-o" id="cbxO${i}" role="option" data-i="${i}" aria-selected="${x.on}"${x.dis?` aria-disabled="true"`:""}>${hlText(x.l,t)}</div>`;
   });
   const other=c.cat&&t&&hit.some(x=>x.v!==""&&x.g!==c.cat);
-  c.list.innerHTML=h||`<div class="cbx-none">${i18n(c.cat?`В «${c.cat}» ничего не найдено`:"Ничего не найдено")}${other?` — ${i18n("есть в других категориях, выберите «Все»")}`:""}</div>`;
+  c.list.innerHTML=h||`<div class="cbx-none">${i18n(c.cat?`В «${c.cat}» ничего не найдено`:"Ничего не найдено")}${other?` — ${i18n("есть в других категориях. Выбрать «Все»")}`:""}</div>`;
   c.list.scrollTop=0;
   c.foot.hidden=!t&&!c.cat;
   c.foot.textContent=t||c.cat?`${i18n("Показано")} ${c.shown.filter(x=>x.v!=="").length} ${i18n("из")} ${c.items.filter(x=>x.v!=="").length}`:"";
