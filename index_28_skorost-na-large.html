@@ -2418,13 +2418,15 @@ const TYPE_PAUSE_MS=200;
 const typeWait=new Map();   // ключ поля → {t, fn}
 // fn(late): late — вызов по таймеру или по Enter, а не из самого события: курсор в поле возвращают, только если человек
 // из него не ушёл (typeFocused). Отложенный вызов идёт, только пока место набора живо (typeLive).
-// evt — событие для слушателя, заведённого addEventListener, а не onEv (поиск в длинном списке cbx): onEv.now там пуст
+// evt — событие для слушателя, заведённого addEventListener, а не onEv (поиск в длинном списке cbx): onEv.now там пуст.
+// typeAtPause — на время вызова fn по таймеру паузы (а не по Enter, стрелке, Esc): поиск в шапке рисует дерево в кадр (goTypeSoon)
+let typeAtPause=false;
 function typeLater(key,fn,now,evt){
   typeDrop(key);
   const ev=evt||onEv.now;
   if(now||!ev||ev.type!=="input"||!ev.isTrusted){fn(false);return}
   const at={el:ev.target,sel,app},run=()=>{if(typeLive(key,at))fn(true)};
-  typeWait.set(key,{fn:run,t:setTimeout(()=>{typeWait.delete(key);run()},TYPE_PAUSE_MS)});
+  typeWait.set(key,{fn:run,t:setTimeout(()=>{typeWait.delete(key);typeAtPause=true;try{run()}finally{typeAtPause=false}},TYPE_PAUSE_MS)});
 }
 // За паузу человек мог закрыть окно (Esc, подложка), уйти на другой объект или в другой раздел. Тогда перерисовка
 // по набранному уже не к месту: она открыла бы закрытое окно снова (renderCopyDialog, raRender зовут openBulkModal)
@@ -4682,6 +4684,18 @@ function gpuNode(s){const g=serverGpu(s);return{id:gpuId(s.id),type:"gpu",name:g
 // Сервер детектора: задан явно либо тот же, где архив камеры
 function detServerId(cam,d){return d.srvId||srv(cam?.id)?.id||null}
 function detectorsOnServer(sid){
+  // Сервер за сервером (срез «Камеры», строки GPU) — квадрат: на одну отрисовку (withFind) раскладка одним проходом, в том
+  // же порядке, что у прохода на каждый сервер
+  if(findMemo&&sid){
+    if(!findMemo.srvDet){
+      const m=findMemo.srvDet=new Map();
+      walkAll(n=>{
+        if(n.type!=="camera")return;
+        camDetectors(n).forEach(d=>{if(d.builtin)return;const k=detServerId(n,d);if(k)(m.get(k)||m.set(k,[]).get(k)).push({cam:n,det:d})});
+      });
+    }
+    return(findMemo.srvDet.get(sid)||[]).slice();
+  }
   const out=[];
   walkAll(n=>{
     if(n.type!=="camera")return;
@@ -4698,11 +4712,18 @@ function gpuCameras(sid){
   });
   return[...seen.values()];
 }
-function archServer(a){return a?servers.find(x=>x.id===a.server)||null:null}
+// Сервер хранилища — по индексу (serverById, как servers.find): строки хранилищ, список поиска в шапке зовут его на каждое
+function archServer(a){return a?serverById(a.server):null}
 function archDomain(a){return a?domains.find(x=>x.id===a.domain)||null:null}
 function archIsNetwork(a){return!!a&&!a.server&&!!a.domain}
 function archOwner(a){return archServer(a)||archDomain(a)}
-function serverArchives(sid){return arch.filter(a=>a.server===sid)}
+// Хранилища сервера: на одну отрисовку (withFind) — раскладка всех хранилищ по серверам одним проходом, в порядке arch,
+// а не фильтр всего списка у каждой строки сервера. Отдаётся копия: вызывающие вправе её менять
+function serverArchives(sid){
+  if(!findMemo||!sid)return arch.filter(a=>a.server===sid);
+  if(!findMemo.srvArch){const m=findMemo.srvArch=new Map();arch.forEach(a=>{if(a.server)(m.get(a.server)||m.set(a.server,[]).get(a.server)).push(a)})}
+  return(findMemo.srvArch.get(sid)||[]).slice();
+}
 function domainArchives(did){return arch.filter(a=>a.domain===did&&!a.server)}
 function archDomainId(a){return a?(a.domain||(a.server?SERVER_DOMAIN[a.server]:null)):null}
 function isRecording(n){return n&&n.type==="camera"&&!!n.arch&&n.rec&&n.rec!=="none"}
@@ -6691,7 +6712,7 @@ function jumpNodeTarget(n){
     :n.type==="archive"?(archServer(n)?locName(archServer(n)):`${i18n("Сетевое")} · ${locName(archDomain(n))}`)
     :n.type==="vol"?locName(archById(n.archId))
     :n.type==="domain"||n.type==="server"||n.type==="unalloc"?i18n("Инфраструктура")
-    :(foldersOfDevice(n.id)[0]?folderPathName(foldersOfDevice(n.id)[0].id):i18n("Без папки"));
+    :(()=>{const fd=firstFolderOf(n.id);return fd?folderPathName(fd.id):i18n("Без папки")})();
   // Тип в сопоставление не идёт: дерево по нему не ищет, и слово «камера»
   // высыпало бы в список все камеры разом — рядом с деревом, где они и стоят.
   return{kind,title:locName(n),sub,icon:n.type,goId:n.id,skipKind:true,extra:[n.short,n.ip,n.vendor,n.model,schemaSearchText(n)].filter(Boolean).join(" "),
@@ -6735,10 +6756,25 @@ function expandSubtree(n){
   if(n.type==="archive"){open.add(n.id);return}
   open.add(n.id);
 }
+// Список поиска в шапке собирает цели из всего кэша: первая папка объекта — по карте «объект → первая папка» на весь
+// вызов (jumpMemo), а не перебором всех папок на каждый объект
+let jumpMemo=null;
 function goTargets(){
   const out=[];
-  jumpSources.forEach(src=>{try{out.push(...src())}catch(e){}});
+  jumpMemo={};
+  try{jumpSources.forEach(src=>{try{out.push(...src())}catch(e){}})}finally{jumpMemo=null}
   return out;
+}
+// Первая папка объекта в порядке обхода папок — то же, что foldersOfDevice(id)[0] без памяти отрисовки
+function firstFolderOf(id){
+  if(!jumpMemo||findMemo)return foldersOfDevice(id)[0];
+  if(!jumpMemo.first){
+    const m=jumpMemo.first=new Map();let i=0;
+    walkFolders(fd=>{const at=i++;fd.items.forEach(x=>{if(!m.has(x))m.set(x,{fd,at})})});
+  }
+  let best=null,f=find(id);
+  while(f){const e=jumpMemo.first.get(f.n.id);if(e&&(!best||e.at<best.at))best=e;f=f.p?find(f.p.id):null}
+  return best?.fd;
 }
 // Поле поиска одно на всё окно: ввод сразу сужает дерево, а списком выдаётся
 // то, чего сужение не покажет, — разделы, настройки, объекты других срезов.
@@ -6758,10 +6794,40 @@ function goType(v){
 }
 function goTypeRun(late,v){
   if(!late){goInput(v);return}
+  if(typeAtPause&&goTypeSoon(v))return;
   setTreeQ(v);
   // Пока ждали паузы, человек ушёл из поля (клик мимо, Tab): дерево сужено, список прежнего текста убираем
   if(document.activeElement?.id==="gq")goSearch(v);else goClose();
 }
+// Пауза в наборе кончилась, и поиск дерева начинает новый проход волн (filtSync). Дерево — в кадр (renderTreeSoon), а не
+// сразу: раньше setTreeQ сразу рисовал дерево по кэшу, а первая страница встроенного сервера приходила через миллисекунды,
+// в той же задаче, и дерево рисовалось снова — уже найденным. Первую отрисовку (на large — 150 мс, тысячи строк) никто не
+// видел. Теперь проход начинается до отрисовки: страница пришла раньше кадра — дерево рисуется один раз, найденным. Кадр
+// раньше страницы (сервер по сети) — рисуется то же дерево по кэшу, что рисовал setTreeQ (fs.pre, treePaint), и итог
+// приходит следом, как раньше. Шапка фильтра — сразу, как у setTreeQ. Список под полем — после перерисовки дерева: он
+// не повторяет того, что стоит в дереве (treeShownKeys). Клавиша в поле до кадра дорисовывает сразу (goKey). Иначе —
+// без нового прохода, отбор ассистента — как раньше, сразу
+let goSoonV=null;
+function goTypeSoon(v){
+  treeQ=v;if(!/^\d+$/.test(v.trim()))strictIdSearch=false;
+  const key=filtKeyNow();
+  if(!key||key===(fs?.key||"")||asstPick)return false;
+  const prev=fs,inGq=document.activeElement?.id==="gq";
+  searchMatchCache.clear();updateFiltChrome();
+  filtSync();
+  if(fs&&fs!==prev)fs.pre={old:prev};
+  // Сетевой поиск списка ждёт свои 250 мс от последней клавиши, а не от перерисовки (goNet)
+  if(inGq)goNet(v.trim(),TYPE_PAUSE_MS);
+  goSoonV=v;
+  renderTreeSoon(()=>{
+    if(goSoonV!==v)return;
+    goSoonV=null;
+    if(treeQ!==v)return;                          // запрос уже сменили (крестик, Esc, переход): список не нужен
+    if(document.activeElement?.id==="gq")goSearch(v);else goClose();
+  });
+  return true;
+}
+function goSoonFlush(){if(goSoonV!=null)renderTreeFlush()}
 // Что дерево уже показало — по самим строкам: у объектов ключ перехода равен
 // data-pick, у списков разделов — data-go.
 function treeShownKeys(){
@@ -6771,12 +6837,16 @@ function treeShownKeys(){
   return keys;
 }
 // В шапке ищется кэш, а затем один запрос к серверу: найденное попадает в кэш и в список
-let goNetT=0,goNetQ="";
-function goNet(q){
-  clearTimeout(goNetT);
+// Запрос — через 250 мс от последней клавиши: waited — сколько из них уже прошло (пауза набора, goTypeSoon). Таймер,
+// заведённый для того же текста, не переносится: повторный вызов списка (goSearch после перерисовки) его не откладывает
+let goNetT=0,goNetQ="",goNetFor="";
+function goNet(q,waited=0){
+  if(goNetT&&goNetFor===q)return;
+  clearTimeout(goNetT);goNetT=0;
   if(q.length<2||q===goNetQ||!can("listUnits"))return;
+  goNetFor=q;
   goNetT=setTimeout(async()=>{
-    goNetQ=q;
+    goNetT=0;goNetQ=q;
     try{
       // Только устройства, как /devices базы: инфраструктура (хранилища, тома, серверы, папки) не делит с ними 20 мест
       const kind=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k))).join(",");
@@ -6788,7 +6858,7 @@ function goNet(q){
       const inp=document.getElementById("gq");
       if(inp&&inp.value.trim()===q&&document.getElementById("gopop")?.classList.contains("open"))goSearch(q);
     }catch(e){}
-  },250);
+  },Math.max(0,250-waited));
 }
 function goSearch(v){
   goNet(String(v||"").trim());
@@ -6813,10 +6883,11 @@ function goSearch(v){
     kind:"Фильтр",title:i18n("Фильтр строго по id"),sub:`ID = ${q}`,icon:"search",keepQuery:true,
     go(){applyStrictIdFilter(q)}
   }]:[];
+  const qw=queryWords(q);
   const targets=goTargets().filter(t=>{
     if(t.goId&&shown.has(t.goId))return false;   // это уже стоит в дереве
     const fields=[t.title,t.sub,t.skipKind?"":t.kind,t.extra].filter(Boolean);
-    return queryWords(q).some(words=>matchWords(words,fields));
+    return qw.some(words=>matchWords(words,fields));
   }).slice(0,40);
   // Строка ассистента — выше результатов и своим видом. Enter без выбора строки — тоже ассистенту
   const assist=can("feature:assist");
@@ -6866,6 +6937,8 @@ function goClick(v){
   if(!document.getElementById("gopop")?.classList.contains("open"))goSearch(v);
 }
 function goKey(e){
+  // Дерево и список после паузы ждут кадра (goTypeSoon): клавиша работает с уже нарисованными
+  goSoonFlush();
   // Стрелки ходят по свежему списку: набранное, что ждёт паузы, применяется сразу
   if(e.key==="ArrowDown"||e.key==="ArrowUp")typeFlush("gq");
   const pop=document.getElementById("gopop"),open_=pop&&pop.classList.contains("open");
@@ -7460,9 +7533,8 @@ function filtChromePaint(){
     const dot=btn.querySelector(".st-dot");if(dot)dot.className=`st-dot st-${(st||"all").split(":")[0]}`;
     const label=btn.querySelector(".ph-status-label");if(label)label.textContent=statusLabel(st);
   }
-  document.querySelectorAll("#aside [data-slice] .ph-cnt").forEach(el=>{
-    el.textContent=sliceCountText(el.closest("[data-slice]").dataset.slice);
-  });
+  const cnts=[...document.querySelectorAll("#aside [data-slice] .ph-cnt")].map(el=>[el,el.closest("[data-slice]").dataset.slice]);
+  withSliceCounts(cnts.map(x=>x[1]),()=>cnts.forEach(([el,id])=>{el.textContent=sliceCountText(id)}));
   syncGoInput();
   if(tags)tags.innerHTML=tagsHtml();
   if(hint)hint.textContent=filtHint();
@@ -8210,16 +8282,23 @@ function treeHtmlKeep(html){
 function treePaint(){const treeEl=document.getElementById("tree");if(!treeEl){ruleIdxDrop();return}
   // Строки выше появляются и пропадают: выбранная, если её было видно, из вида не уходит
   const on=treeEl.querySelector(".n.on"),bx=treeEl.getBoundingClientRect(),keep=on&&on.getBoundingClientRect().bottom>bx.top&&on.getBoundingClientRect().top<bx.bottom;
-  const ready=treeHtmlReady;treeHtmlReady=null;
-  const html=ready&&ready.key===treeReadyKey()?(ruleIdxDrop(),treeHtmlReadyCheck(ready.html)):treeHtmlNow();
-  const flash=treeFlashKeep(treeEl);
-  paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
-  treeActsBack(treeEl);
-  treeFlashCarry(treeEl,flash);
-  if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
-  decorateTreeSel();detHostMark();renderSelBar();
-  if(app==="hw")treeOpenStore();
-  if(app==="hw"){treeNeed();sliceRead();filtSync();watchSoon()}
+  // Новый проход поиска начат до отрисовки (goTypeSoon), а сервер ещё не ответил: эта отрисовка — та, что раньше делал
+  // setTreeQ до filtSync, — по прежнему проходу (fs.pre.old), вместе с чтением веток и среза. Один раз
+  const pre=app==="hw"&&fs?.pre,cur=pre?fs:null;
+  if(pre){fs.pre=null;fs=pre.old}
+  try{
+    const ready=pre?null:treeHtmlReady;treeHtmlReady=null;
+    const html=ready&&ready.key===treeReadyKey()?(ruleIdxDrop(),treeHtmlReadyCheck(ready.html)):treeHtmlNow();
+    const flash=treeFlashKeep(treeEl);
+    paintInto(treeEl,html,`${app}|${slice}|${group()}`,treeSeen);
+    treeActsBack(treeEl);
+    treeFlashCarry(treeEl,flash);
+    if(keep)treeEl.querySelector(".n.on")?.scrollIntoView({block:"nearest"});
+    decorateTreeSel();detHostMark();renderSelBar();
+    if(app==="hw")treeOpenStore();
+    if(app==="hw"){treeNeed();sliceRead()}
+  }finally{if(cur)fs=cur}
+  if(app==="hw"){filtSync();watchSoon()}
   if(treeRenameId)requestAnimationFrame(()=>{const el=treeEl.querySelector(".nm-inp");if(el){el.focus();el.select()}});
 }
 // ── Дерево по запросу ───────────────────────────────────────────────────
@@ -8235,7 +8314,7 @@ function treeOpenable(id,layout){
   if(id.startsWith("svcs:"))return layout==="folders"&&slice==="all";
   if(id.startsWith("norec:"))return layout==="servers";
   if(domains.some(d=>d.id===id))return true;
-  if(servers.some(s=>s.id===id))return layout==="servers"||layout==="detectors"||(layout==="archives"&&!hwDone.archives);
+  if(serverById(id))return layout==="servers"||layout==="detectors"||(layout==="archives"&&!hwDone.archives);
   if(folderById(id))return layout==="folders";
   return!!find(id)?.n?._more;
 }
@@ -8688,12 +8767,19 @@ function filtParams(run){
   if(domainFilter)out.domainId=domainFilter;
   return out;
 }
+// Между страницами прохода — отдать поток (taskYield): встроенный сервер отвечает в той же вкладке, без сети, и страницы
+// шли бы цепочкой микрозадач одной задачей — на large «Кластер» 9 страниц по 40 мс, 0,4 с без ответа на клавишу и клик.
+// Бюджет прохода у сервера и есть время, когда страница не отвечает; между страницами — кадр, ввод, таймеры. По сети
+// ответ и так приходит отдельной задачей
+const taskYield=()=>new Promise(r=>{const c=new MessageChannel();c.port1.onmessage=()=>{c.port1.close();r()};c.port2.postMessage(0)});
 async function filtWave(run){
   if(run.pick&&!run.filter)return pickWave(run);
   if(run.busy)return;
   run.busy=true;
   try{
+    let page=0;
     while(run===fs&&!run.done&&filtSeen(run)<run.want){
+      if(page++){await taskYield();if(run!==fs)return}
       let r;
       // Поиск и фильтры дерева — без инфраструктуры (у неё свои списки); отбор ассистента — как отобран, любого вида
       try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
@@ -8703,11 +8789,11 @@ async function filtWave(run){
       r.items.forEach(x=>{hwAddRow(x);if(!run.hits.has(x.uid)){run.hits.add(x.uid);run.order.push(x.uid)}});
       await filtPaths(run,r.items.map(x=>x.uid));
       run.cursor=r.nextCursor||null;run.done=!r.nextCursor;
-      if(run===fs){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
+      if(run===fs){run.pre=null;remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();filtPaint()}
     }
     if(run===fs&&run.done&&filtSeen(run)<=LIM.idsMax){run.flat=false;filtPaint()}
   }catch(e){if(run===fs){run.done=true;run.failed=true;toast(problemText(e))}}
-  finally{run.busy=false;if(run===fs){filtPaint();renderTreeFlush();if(run.pick)asstPickLoaded()}}
+  finally{run.busy=false;run.pre=null;if(run===fs){filtPaint();renderTreeFlush();if(run.pick)asstPickLoaded()}}
 }
 async function pickWave(run){
   if(run.busy)return;
@@ -8859,14 +8945,33 @@ function pickStatus(id){
   document.getElementById("filtBtn")?.focus({preventScroll:true});
 }
 // Счётчики всех срезов учитывают текст поиска, даже если срез не выбран.
+// Кнопки срезов в шапке (filtChromePaint на каждую волну поиска, panelHeadHtml) считаются одним проходом кэша на все срезы
+// (sliceCountsAll): условие и проход те же, что у sliceCount, совпадение с запросом — одно на объект
+let sliceCountMemo=null;
+function sliceCountsAll(ids){
+  const q=qval(),prev=slice,out=new Map(ids.map(id=>[id,0]));
+  const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):inSlice(x)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
+  try{
+    walkAll((n,p)=>{if(matchesDomain(n))visit(n,p,ids)});
+    if(out.has("arch"))arch.forEach(a=>{const p=archOwner(a);if(matchesDomain(a))visit(a,p,["arch"])});
+  }finally{slice=prev}
+  return out;
+}
+function withSliceCounts(ids,fn){
+  if(sliceCountMemo)return fn();
+  sliceCountMemo=sliceCountsAll(ids);
+  try{return fn()}finally{sliceCountMemo=null}
+}
 function sliceCount(id){
+  if(sliceCountMemo?.has(id))return sliceCountMemo.get(id);
   const prev=slice,q=qval();slice=id;let n=0;
   try{walkSliceObjects((x,p)=>{if(id==="det"?detSliceHit(x,p,q):inSlice(x)&&matchesSearch(x,q))n++})}finally{slice=prev}
   return n;
 }
 // Без фильтра — оценка сервера со знаком «≈», иначе считается загруженное
 function sliceCountText(id){return id==="all"&&hwTotal!=null&&!hasActiveFilters()?`≈${Number(hwTotal).toLocaleString("ru-RU")}`:String(sliceCount(id))}
-function panelHeadHtml(){
+function panelHeadHtml(){return withSliceCounts(Object.keys(SLICE),panelHeadHtmlRun)}
+function panelHeadHtmlRun(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
   // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
   const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
@@ -27083,6 +27188,16 @@ function selCandidates(){
 // withParts — вместе с начинкой камер.
 // Кэш на время подсчёта не меняется: камеры серверов (serverCameras) считаются один раз на весь вызов
 function selDescendants(n,withParts){return withFind(()=>selDescendantsRun(n,withParts))}
+// Камеры и IP-серверы перечня с этим сервером записи (srvId), в порядке devicePool: на одну отрисовку — одним проходом,
+// а не фильтром всего перечня у каждой строки сервера (отметки дерева в режиме выбора)
+function poolOnServer(sid){
+  if(!findMemo||!sid)return devicePool.filter(d=>(d.type==="camera"||d.type==="ipsrv")&&d.srvId===sid);
+  if(!findMemo.poolSrv){
+    const m=findMemo.poolSrv=new Map();
+    devicePool.forEach(d=>{if((d.type==="camera"||d.type==="ipsrv")&&d.srvId)(m.get(d.srvId)||m.set(d.srvId,[]).get(d.srvId)).push(d)});
+  }
+  return findMemo.poolSrv.get(sid)||[];
+}
 function selDescendantsRun(n,withParts){
   const q=qval(),out=[],seen=new Set(),busy=busyIds();
   // Начинка камеры и регистратора (датчики, реле, микрофоны, встроенное
@@ -27107,7 +27222,7 @@ function selDescendantsRun(n,withParts){
     // Сервер и хранилище отмечают всё, что под ними в дереве: регистраторы
     // вместе с их камерами и отдельные камеры.
     if(x.type==="server"&&!isUnallocated(x.id)){
-      devicePool.filter(d=>(d.type==="camera"||d.type==="ipsrv")&&d.srvId===x.id).forEach(d=>visit(d,false));
+      poolOnServer(x.id).forEach(d=>visit(d,false));
       serverCameras(x.id).forEach(c=>visit(c,false));
     }
     if(x.type==="archive"){
@@ -27599,11 +27714,12 @@ function bulkGenHtml(nodes,allCams){
 }
 // Хранилища, серверы, папки, домены, тома — что с ними можно сделать вместе.
 // Тупика нет: сказано, почему полей нет, где их настроить и что доступно.
-function bulkSoloCams(nodes){
+// Кэш на время подсчёта не меняется: производные карты (withFind) — одни на все отмеченные, а не на каждый
+function bulkSoloCams(nodes){return withFind(()=>{
   const seen=new Set(),out=[];
   nodes.forEach(n=>selDescendants(n,false).forEach(x=>{if((x.type==="camera"||x.type==="ipsrv")&&!seen.has(x.id)){seen.add(x.id);out.push(x)}}));
   return out;
-}
+})}
 function bulkSoloHtml(solo,only){
   const kinds=bulkKinds(solo);
   const why=`<ul class="bk-miss">${kinds.map(([k,c])=>`<li><b>${escHtml(kindLabel(k))}</b> (${c}) — ${i18n(BULK_SOLO_WHY[k]||"настраиваются по одному")}</li>`).join("")}</ul>`;
