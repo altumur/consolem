@@ -24,9 +24,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !row._row), "полная запись дочитана по клику");
   ok(await until(() => sel === row.id && document.getElementById("main").textContent.includes(row.name)), "карточка открыта");
   // Вход по чужому id: записи в кэше нет. Как в базе — камера: выбор цели правила (ruleTypesNeed) читает одну страницу по виду,
-  // kind= — ограниченный проход, поэтому камеры набора demo в кэше не все (иначе дерево расходится с базой)
-  const alien = (await uiDevices()).find((x) => x.type === "camera" && !find(x.id));
-  ok(!!alien, "чужая запись есть");
+  // kind= — ограниченный проход, поэтому камеры набора demo в кэше обычно не все (иначе дерево расходится с базой).
+  // Но сервер дописывает страницу прохода по бюджету времени: успел — в кэше все камеры. Тогда чужая запись — другое устройство
+  const devs = await uiDevices();
+  const alien = devs.find((x) => x.type === "camera" && !find(x.id)) || devs.find((x) => !find(x.id));
+  ok(!!alien, "чужая запись есть: " + (alien ? alien.type : "нет"));
   pick(alien.id, { force: true });
   ok(await until(() => sel === alien.id && !find(alien.id)?.n._row), "вход по чужому id: запись дочитана и открыта");
   // Поиск волнами: на маленьком наборе дошёл до конца — дерево, найденное видно строкой

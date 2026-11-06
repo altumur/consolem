@@ -35,13 +35,18 @@ UiCheck(async ({ ok, until }) => {
   goKey({ key: "Enter", target: inp, preventDefault() {} });
   ok(asstChats.length === 1 && !dock().hidden, "Enter начал разговор и открыл панель");
   ok(inp.value === "" && treeQ === "", "Enter снял запрос поиска");
+  // Разговор «камера» ждёт ответа человека, а «Ждёт ответа» на кнопке важнее «Готов ответ»: дальше он мешает, убираем
+  const camChat = asst;
+  asstChats = [];
+  asst = null;
+  asstRender();
 
   // Выбор строки: новый разговор, запрос поиска снят
   inp.value = "сколько камер";
   goInput(inp.value);
   hold();
   goPick(0);
-  ok(asstChats.length === 2 && !dock().hidden, "выбор строки открыл панель с новым разговором");
+  ok(asstChats.length === 1 && asst && asst !== camChat && !dock().hidden, "выбор строки открыл панель с новым разговором");
   ok(inp.value === "" && treeQ === "", "запрос поиска снят");
   ok(el("asstBlock").textContent.includes("сколько камер"), "просьба в ленте");
   ok(btn().classList.contains("run") && /Отвечает/.test(btn().textContent), "кнопка: отвечает");
