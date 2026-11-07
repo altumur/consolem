@@ -6,7 +6,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const all = (await uiUnitsAll()).filter(uiIsDevice).length;
   await until(() => !!streamClient);
   ok(pool0 < all, `кэш неполный: ${pool0} из ${all}`);
-  ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || ""), "число без фильтра — со знаком ≈");
+  ok(await until(() => /≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || "")), "число без фильтра — со знаком ≈");
   ok(treeBr.has(treeLayout() + "|" + d.id), "открытый домен прочитан");
   // Сервер раскрывается по запросу, версия в кэше — из строки
   setGroup("server");
