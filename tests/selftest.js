@@ -51,16 +51,15 @@
     "font:12px/1.5 ui-monospace,monospace;box-shadow:0 8px 24px rgba(0,0,0,.25)";
   document.body.appendChild(panel);
   const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
-  // «Копировать» — отчёт текстом целиком, со всеми строками сценариев: переслать тому, кто разбирается
+  // «Копировать ошибки» — только отказы: сценарии с отказами и их строки, без прошедших. Нет отказов — кнопка неактивна
   let lastDone = false;
   let copiedAt = 0;
   function reportText() {
     const lines = [panel.querySelector("b").textContent, location.href, new Date().toISOString(), ""];
     SCENARIOS.forEach((n) => {
       const log = results[n];
-      if (!log) return lines.push(`… ${n}`);
-      const fails = log.filter((l) => !l.startsWith("PASS"));
-      lines.push(`${fails.length ? "✗" : "✓"} ${n}: ${log.length - fails.length} из ${log.length}`, ...log.map((l) => `   ${l}`));
+      const fails = (log || []).filter((l) => !l.startsWith("PASS"));
+      if (fails.length) lines.push(`✗ ${n}: ${log.length - fails.length} из ${log.length}`, ...fails.map((l) => `   ${l}`));
     });
     return lines.join("\n");
   }
@@ -95,8 +94,8 @@
       : `Самопроверка идёт: сценариев ${Object.keys(results).length} из ${SCENARIOS.length}…`;
     const copied = Date.now() - copiedAt < 1500;
     panel.innerHTML =
-      `<b style="display:block;padding-right:110px;font:600 14px/1.4 system-ui,sans-serif">${esc(head)}</b>` +
-      `<button type="button" class="btn s" id="selftestCopy" style="position:absolute;top:10px;right:12px" title="Отчёт текстом — со всеми строками сценариев">${copied ? "Скопировано" : "Копировать"}</button>` +
+      `<b style="display:block;padding-right:170px;font:600 14px/1.4 system-ui,sans-serif">${esc(head)}</b>` +
+      `<button type="button" class="btn s" id="selftestCopy" style="position:absolute;top:10px;right:12px" ${bad ? "" : "disabled"} title="${bad ? "Скопировать отказы текстом: сценарии и строки, которые не прошли" : "Копировать нечего: отказов нет"}">${copied ? "Скопировано" : "Копировать ошибки"}</button>` +
       SCENARIOS.map((n) => {
         const log = results[n];
         if (!log) return `<div style="margin-top:8px">… ${esc(n)}</div>`;
