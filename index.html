@@ -8739,7 +8739,17 @@ function treeMore(id,auto){
 // Строка «Показать ещё» — в окне или чуть ниже него. Уже прокрученная вверх не в счёт: иначе каждая прокрутка ниже
 // неё — и восстановление прокрутки после перерисовки, — дочитывала бы страницу ветки, которую человек миновал (на
 // large переход к объекту ниже раскрытого сервера на 1 000 камер читал так его страницы одну за другой)
+// Только прокрутка человеком: колесо, касание, клавиши прокрутки, полоса прокрутки — меньше секунды назад. Прокрутку кодом
+// (переход держит цель в окне после каждой перерисовки) не считаем: строка «Показать ещё» соседней ветки стоит над целью,
+// и переход к домену под раскрытой «Без папки» соседа читал её страницу за страницей без конца. Клик мышью — не прокрутка
+let userScrollAt=0;
+const userScrollMark=()=>{userScrollAt=Date.now()};
+["wheel","touchmove"].forEach(t=>document.addEventListener(t,userScrollMark,{capture:true,passive:true}));
+document.addEventListener("keydown",e=>{if(/^(ArrowUp|ArrowDown|PageUp|PageDown|Home|End| )$/.test(e.key))userScrollMark()},true);
+// Нажатие на полосу прокрутки: точка за пределами содержимого элемента
+document.addEventListener("pointerdown",e=>{const el=e.target;if(el&&el.clientWidth&&e.offsetX>el.clientWidth)userScrollMark()},true);
 document.addEventListener("scroll",e=>{
+  if(Date.now()-userScrollAt>1000)return;
   const el=e.target;if(!el||!el.querySelector||!el.getBoundingClientRect)return;
   const rows=el.querySelectorAll(el.id==="tree"?".n-more-go":"#tree .n-more-go");if(!rows.length)return;
   const box=el.getBoundingClientRect();
