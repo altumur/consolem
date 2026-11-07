@@ -13,7 +13,10 @@
     let idx = null;
     const keys = new Map();
     let stamp = 0;
+    // onMembers(uid, true|false) — объект пришёл или ушёл; (null) — склад очищен. Замена объекта с тем же uid — не смена состава
+    const onMembers = (opts && opts.onMembers) || (() => {});
     const reset = () => {
+      onMembers(null);
       all = new Map();
       keys.clear();
       idx = { parent: new Map(), kind: new Map(), domain: new Map(), folder: new Map(), ref: new Map() };
@@ -61,6 +64,7 @@
       const was = all.get(u.uid);
       if (was) unindex(u.uid);
       if (was !== u) stamp++;
+      if (!was) onMembers(u.uid, true);
       all.set(u.uid, u);
       index(u);
       return u;
@@ -78,6 +82,7 @@
       unindex(uid);
       all.delete(uid);
       stamp++;
+      onMembers(uid, false);
       [...(idx.folder.get(uid) || [])].forEach((m) => {
         const x = all.get(m);
         x.folders = (x.folders || []).filter((f) => f !== uid);

@@ -589,7 +589,7 @@
       // Новое описание вида (PUT /test/kinds/{kind}) меняет набор ссылок x-ref: объекты вида переиндексируются
       kindList = null;
       kinds = Kinds.create(db.kinds || [], db.profiles || [], { onPut: (kind) => { kindList = null; if (store) store.byKind(kind).forEach((u) => store.reindex(u.uid)); } });
-      store = Units.create({ refs: unitRefs });
+      store = Units.create({ refs: unitRefs, onMembers: (uid, added) => partsMember(uid, added) });
       store.load(db.units || []);
       legacy = Legacy(store, { version: () => newVersion(), refKey: (kind, key) => kinds.refNames(kind).has(key) });
       const given = {};
@@ -602,6 +602,7 @@
       legacy.rebuild();
       OLD_TABLES.forEach((t) => Object.defineProperty(db, t, { get: () => legacy.table(t), set: (list) => legacy.setTable(t, list), enumerable: true, configurable: true }));
       if (db.stand.large) expandLarge(db.stand.large);
+      unitPartsWarm();
       treePending = {};
       viewStamp++;
       searches = new Map();
@@ -2278,16 +2279,72 @@
       };
       return { hit, filtered };
     }
-    // Разделы склада для прохода без члена: порядок — байты uid, не сдвигается вставкой. Пересобираются, когда меняется состав
-    // или сам склад: POST /test/reset строит новый склад, и его stamp может совпасть со stamp прежнего
-    let unitParts = null, unitPartsAt = -1, unitPartsOf = null;
+    // Разделы склада для прохода без члена: порядок — байты uid, не сдвигается вставкой. Разделы держат uid, а не объекты:
+    // замена объекта (смена статуса, правка) их не трогает. Собираются один раз на склад, дальше ведутся по месту — склад
+    // сообщает, что uid пришёл или ушёл (onMembers). На xl это миллион uid: пересборка на каждую запись — 0,2–0,4 с
+    let unitParts = null, unitPartsOf = null, partsWarm = null;
+    function partsPlace(parts, uid, added) {
+      const list = parts[partOf(uid)];
+      let lo = 0, hi = list.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid] < uid) lo = mid + 1; else hi = mid; }
+      const has = list[lo] === uid;
+      if (added && !has) list.splice(lo, 0, uid);
+      else if (!added && has) list.splice(lo, 1);
+    }
+    function partsMember(uid, added) {
+      if (uid === null) { unitParts = null; partsWarm = null; return; }
+      if (partsWarm) partsWarm.pending.push([uid, added]);
+      else if (unitParts) partsPlace(unitParts, uid, added);
+    }
+    // Сборка по шагам: раскладка uid по разделам, затем сортировка разделов, затем то, что пришло и ушло за время сборки.
+    // step(deadline) — до срока, true — готово. Раздел — через partOf: хеши запоминаются в простое и нужны и дереву (partKey
+    // у детей домена на xl — сотни тысяч строк)
+    function partsBuild() {
+      const n = partsCount(), parts = Array.from({ length: n }, () => []), it = store.all();
+      let sorted = 0, filled = false;
+      const w = {
+        store, parts, pending: [],
+        step(deadline) {
+          let i = 0;
+          while (!filled) {
+            const x = it.next();
+            if (x.done) { filled = true; break; }
+            parts[partOf(x.value.uid)].push(x.value.uid);
+            if (++i % 4096 === 0 && workNow() > deadline) return false;
+          }
+          while (sorted < n) {
+            parts[sorted++].sort();
+            if (sorted % 64 === 0 && workNow() > deadline) return false;
+          }
+          w.pending.forEach(([uid, added]) => partsPlace(parts, uid, added));
+          w.pending = [];
+          return true;
+        },
+      };
+      return w;
+    }
+    function partsDone(w) {
+      unitParts = w.parts;
+      unitPartsOf = w.store;
+      if (partsWarm === w) partsWarm = null;
+    }
+    // Большой стенд: разделы собираются заранее, в простое страницы кусками по 30 мс, а не первым запросом прохода. Запрос
+    // до конца сборки доделывает её сам
+    function unitPartsWarm() {
+      if (!db.stand.large || typeof setTimeout !== "function") return;
+      const w = (partsWarm = partsBuild());
+      const tick = () => {
+        if (partsWarm !== w || w.store !== store) return;
+        if (w.step(workNow() + 30)) partsDone(w);
+        else setTimeout(tick, 0);
+      };
+      setTimeout(tick, 0);
+    }
     function unitPartsList() {
-      if (unitParts && unitPartsOf === store && unitPartsAt === store.stamp() && unitParts.length === partsCount()) return unitParts;
-      unitPartsAt = store.stamp();
-      unitPartsOf = store;
-      unitParts = Array.from({ length: partsCount() }, () => []);
-      for (const u of store.all()) unitParts[partOf(u.uid)].push(u);
-      unitParts.forEach((p) => p.sort((a, b) => (a.uid < b.uid ? -1 : 1)));
+      if (unitParts && unitPartsOf === store && unitParts.length === partsCount()) return unitParts;
+      const w = partsWarm && partsWarm.store === store ? partsWarm : (partsWarm = partsBuild());
+      w.step(Infinity);
+      partsDone(w);
       return unitParts;
     }
     // Порядок перечня по профилю: домены и серверы — как /domains и /servers базы (порядок таблицы: заведённый и принятый
@@ -2363,8 +2420,9 @@
       for (; p < parts.length && !stopped && more(); ) {
         const list = parts[p];
         for (let i = 0; i < list.length; i++) {
-          const u = list[i];
-          if (after !== null && u.uid <= after) continue;
+          if (after !== null && list[i] <= after) continue;
+          const u = store.get(list[i]);
+          if (!u) continue;
           const m = hit(u);
           if (!m) continue;
           out.push([u, m]);
@@ -2388,7 +2446,7 @@
             left = true;
             break;
           }
-          left = parts[i].some((u) => (i > stopped.p || u.uid > stopped.a) && hit(u));
+          left = parts[i].some((uid) => { if (!(i > stopped.p || uid > stopped.a)) return false; const u = store.get(uid); return !!u && !!hit(u); });
         }
         if (left) body.nextCursor = cursorMake(scope, stopped, cur.exp);
       } else if (p < parts.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
