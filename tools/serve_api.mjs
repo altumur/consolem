@@ -4,7 +4,8 @@
    досылка по Last-Event-ID) и CORS для страницы с диска (Origin: null) — так, как это описано в
    api/BACKEND.md. Часы идут по-настоящему, пока их не остановит /test/reset.
 
-   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl] [--api DIR] [--tests DIR]   (порт по умолчанию 8787)
+   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl] [--api DIR] [--tests DIR] [--host ADDR] [--page]   (порт по умолчанию 8787, адрес — 127.0.0.1;
+   --page — и страницы репозитория на том же порту: http://<адрес>:<порт>/ открывает index.html с этим API)
    Затем: index.html?api=http://127.0.0.1:8787  или  tests/api.html?api=http://127.0.0.1:8787
    ASSIST_BRIDGE_URL=http://127.0.0.1:18600 — ход ассистента идёт в мост Пилота (настоящая модель), без
    неё — прежняя заглушка. Проверка связки на этой машине, не приёмка.
@@ -48,13 +49,38 @@ if (!fixtures[start]) throw new Error(`Набора ${start} нет: ${Object.ke
 const server = window.ConsolemServer.create({ fixture: fixtures[start], fixtures, openapi, testSupport: true });
 
 const port = Number(process.argv.find((a) => /^\d+$/.test(a)) || 8787);
+// --host ADDR — где слушать: по умолчанию только эта машина; 0.0.0.0 — вся сеть (зайти с другого компьютера)
+const HOST = arg("host", "127.0.0.1");
 const exitOnReport = process.argv.includes("--exit-on-report");
 const webui = process.argv.includes("--webui") ? path.resolve(process.argv[process.argv.indexOf("--webui") + 1]) : null;
 const TESTS_NAME = arg("tests", "tests");
 const TESTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", TESTS_NAME);
 // Заголовок консоли — как прислала команда w2c, без добавлений
 const CSP = "script-src 'self'; object-src 'none'; base-uri 'none'";
-const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".json": "application/json", ".mp4": "video/mp4" };
+const TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".woff2": "font/woff2", ".json": "application/json", ".mp4": "video/mp4",
+  ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".ico": "image/x-icon", ".webm": "video/webm", ".md": "text/plain; charset=utf-8" };
+// --page — страницы репозитория на том же порту, что и API: index.html, прототипы, assets/, tests/. Пути API без расширения,
+// с файлами не путаются. В страницу вставляется <meta name="consolem-api" content="/">: API — этот же сервер, ?api= не нужен
+const PAGE = process.argv.includes("--page");
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+function servePage(req, res) {
+  if (!PAGE || req.method !== "GET") return false;
+  const url = decodeURIComponent(req.url.split("?")[0]);
+  if (url === "/") {
+    res.writeHead(302, { Location: "/index.html" }).end();
+    return true;
+  }
+  if (!TYPES[path.extname(url)]) return false;
+  const file = path.resolve(ROOT, "." + url);
+  if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
+  let data = fs.readFileSync(file);
+  // Страница без ?api= подняла бы свой встроенный сервер на демо-наборе. API — этот же сервер: адрес в разметке, как в
+  // сборке для консоли VMS (<meta name="consolem-api">, index.html читает его, если ?api= нет)
+  if (path.extname(file) === ".html") data = data.toString("utf8").replace(/<head>/i, '<head><meta name="consolem-api" content="/">');
+  res.writeHead(200, { "Content-Type": TYPES[path.extname(file)], "Cache-Control": "no-store" });
+  res.end(data);
+  return true;
+}
 
 // Файл сборки или сценария: true — отдан
 function serveFile(req, res) {
@@ -116,6 +142,7 @@ http
     cors(req, res);
     if (req.method === "OPTIONS") return res.writeHead(204).end();
     if (serveFile(req, res)) return;
+    if (servePage(req, res)) return;
     // API консоли — под /backend/api/
     if (webui && req.url.startsWith("/backend/api/")) req.url = req.url.slice("/backend/api".length);
     let raw = "";
@@ -169,4 +196,4 @@ http
       res.end(JSON.stringify(out.body));
     });
   })
-  .listen(port, "127.0.0.1", () => console.error(`Стенд: http://127.0.0.1:${port}`));
+  .listen(port, HOST, () => console.error(`Стенд: http://${HOST}:${port}`));
