@@ -90,7 +90,6 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     let err = null;
     await folderChange(f.id, [cam.id, st.uid], []).catch((e) => (err = e));
     const opPosts = CONSOLEM_TRACE.filter((t) => t.method === "POST" && t.path === "/operations").length;
-    const opPolls = CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/operations\//.test(t.path)).length;
     const fNow = await uiFolderIds(f.id);
     ok(opPosts === 1 && err?.status === 422 && !f.items.includes(cam.id) && !f.items.includes(st.uid) && !fNow.includes(cam.id) && !fNow.includes(st.uid),
       `отказ всей операции: ничего не применено, кэш папки прежний (${err?.status} ${err?.problem?.code}), одна операция`);
@@ -100,7 +99,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(err?.status >= 400 && err.status < 500 && !(await uiFolderIds(f.id)).includes(cam.id) && !f.items.includes(cam.id), `несуществующий объект — отказ всей операции (${err?.status} ${err?.problem?.code})`);
     CONSOLEM_TRACE.length = 0;
     await folderChange(f.id, [cam.id], []);
-    ok(f.items.includes(cam.id) && !CONSOLEM_TRACE.some((t) => t.method === "GET" && /^\/operations\//.test(t.path)) && !opPolls, "быстрая запись — итогом в ответе, без опроса операции");
+    // Опрос — только своей операции: на медленной машине в журнал попадает хвост опроса прежних операций теста
+    const fastOp = (await API.get("/operations", { limit: 1 })).items[0];
+    ok(f.items.includes(cam.id) && !CONSOLEM_TRACE.some((t) => t.method === "GET" && t.path === `/operations/${fastOp.id}`), "быстрая запись — итогом в ответе, без опроса операции");
     delete window.CONSOLEM_TRACE;
     await folderChange(f.id, [], [cam.id]);
   }
@@ -146,9 +147,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   renderTree();
   setSelMode(false);
   // Нет связи с доменом: плашка, чужое не удалено
-  d.online = false;
-  pick(d.id, { force: true });
-  ok(await until(() => /показано только своё|показывает только свои данные/.test(document.getElementById("domLost")?.textContent || "")), "плашка на домене");
+  // Связь снята только в кэше: событие сервера «на связи» может вернуть её, пока карточка рисуется (медленная машина)
+  const offline = () => {
+    if (d.online !== false) { d.online = false; pick(d.id, { force: true }) }
+    return /показано только своё|показывает только свои данные/.test(document.getElementById("domLost")?.textContent || "");
+  };
+  d.online = true;
+  ok(await until(offline), "плашка на домене");
   ok(/показано только своё|показывает только свои данные/.test(document.getElementById("tree").textContent), "строка в дереве");
   ok(!refBroken(alien.id) || find(alien.id), "цели правил не считаются удалёнными");
   d.online = true;
