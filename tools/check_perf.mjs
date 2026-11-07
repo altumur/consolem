@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Сценарий tools/check_perf.py: скорость интерфейса в настоящем времени, на стенде large.
+/* Сценарий tools/check_perf.py: скорость интерфейса в настоящем времени, на стенде large (или xl: --fixture xl, 4 домена — шаги по первому).
 
    check_ui.py и check_scale.py идут в виртуальном времени (--virtual-time-budget) и секунд не видят. Здесь страница
    открывается в headless Chrome по CDP без виртуального времени, шаги — те же функции страницы, что в сценариях
@@ -19,7 +19,7 @@
    той же сессии Chrome, что и шаги). Медиана N прогонов, сторож.
 
    Запуск — через tools/check_perf.py; напрямую: node tools/check_perf.mjs --root DIR [--page FILE] [--chrome PATH]
-   [--runs N | --quick] [--steps a,b] [--behavior] [--fixture large|""] [--timeout С] [--json FILE] [--cpu N]
+   [--runs N | --quick] [--steps a,b] [--behavior] [--fixture large|xl|""] [--timeout С] [--json FILE] [--cpu N]
    --behavior — только проверки поведения ввода (шаги BEHAVE_STEPS): путь с паузой в наборе, настоящими клавишами
    Код выхода 1, если хоть один шаг за пределом, не выполнен или упал хотя бы в одном прогоне; 2 — неверные параметры. */
 import { spawn } from "node:child_process";
@@ -57,7 +57,8 @@ const resultLimit = (factor, pause) => pause + LIMITS.click * factor;
 const REF_CALIB_MS = 362;
 const CALIB_NOISE = 0.15;
 const FACTOR_MAX = 1.3;
-// Сторож на шаг, с: шаг дольше — итог «> предела», сессия Chrome перезапускается, предыдущие шаги повторяются без замера
+// Сторож на шаг, с: шаг дольше — итог «> предела», сессия Chrome перезапускается, предыдущие шаги повторяются без замера.
+// На xl (4 домена) тот же: у прототипа 28 шаги в него укладываются, самый долгий — «Отметить всё», ~15 с (api/TESTS.md, § 9)
 const STEP_TIMEOUT_S = 20;
 const QUIET_MS = 1000; // «тихо»: столько без запросов, долгих задач и занятости потока сверх простоя
 const QUIET_BUSY_MS = 60; // занятость за последнюю секунду сверх простоя, при которой страница ещё считается тихой
@@ -108,13 +109,19 @@ if (!fs.existsSync(path.join(ROOT, PAGE))) usage("Нет страницы " + pa
 // expect — список [условие, причина]: условие — выражение страницы, true или строка-причина от помощников __perf.
 // post — уборка без замера. replay:false — шаг не повторяется при перезапуске сессии. Шаги идут по порядку одной
 // сессией: состояние каждого — итог предыдущих, как у оператора. limit — ключ LIMITS
+// Шаги идут по первому домену. На xl доменов четыре по 250 000 камер и 500 серверов (stand.large.domains): меряется домен
+// размером с large, а склад и прочие домены — фоном (старт, поиск по всем доменам, итог круга)
 const S0 = `domains[0].servers[0].id`;
 const D0 = `domains[0].id`;
 const ROWS = `document.querySelectorAll("#tree .n[data-pick]").length`;
 // Полнота дерева: все серверы домена (в группировке «Серверы» их строки видны во всех срезах, кроме «Хранилищ») и все
 // папки (в группировке «Папки»)
 const ALL_SRV = [`__perf.allIn(domains[0].servers)`, "в дереве не все серверы домена"];
-const ALL_FLD = [`__perf.allIn(folders)`, "в дереве не все папки"];
+// Папки кэша — первого домена всегда и других раскрытых доменов. Большой домен страница по умолчанию держит свёрнутым
+// (xl: 4 домена), у свёрнутого строк папок нет. Первый домен — якорь: свёрнут он — шаг не проходит (FLD_OPEN), а пустой
+// отбор не даёт пройти вхолостую
+const ALL_FLD = [`__perf.allIn(folders.filter(f=>{const d=folderDomain(f.id);return d===domains[0].id||open.has(d)}))`, "в дереве не все папки первого и раскрытых доменов"];
+const FLD_OPEN = [`open.has(domains[0].id)`, "первый домен свёрнут"];
 const sliceStep = (id, title, v, other, full) => ({
   id, title, limit: "click", prep: [`if(slice===${JSON.stringify(v)})setSlice(${JSON.stringify(other)})`], act: `setSlice(${JSON.stringify(v)})`,
   expect: [[`slice===${JSON.stringify(v)}`, `срез не «${v}»`], [`__perf.treeDone()`, "дерево"], ...(full ? [[`group()!=="server"||(${full[0]})`, full[1]]] : [])],
@@ -150,7 +157,7 @@ const BEHAVE_STEPS = [
     post: [`can=__perfCan;delete window.__perfCan`, ...gqPost],
   }),
   // С ассистентом Enter начинает разговор, запрос поиска снимается: отложенный поиск не должен прийти после. Без
-  // ассистента (на large его нет: feature:assist) шаг не выполняется: итог «не проверялось», ни PASS, ни FAIL
+  // ассистента (на one-domain его нет: feature:assist) шаг не выполняется: итог «не проверялось», ни PASS, ни FAIL
   behave("gq-enter-asst", "поиск: Enter к ассистенту", [
     { type: "Кам" }, { key: "Enter" },
     { check: [`!can("feature:assist")||(!typePending("gq")&&treeQ===""&&${GQ}.value===""&&asstDockOpen)`, "Enter: нет разговора или запрос не снят"] },
@@ -266,7 +273,7 @@ const STEPS = [
   sliceStep("slice-all", "срез «Все»", "all", "cam", ALL_SRV),
   {
     id: "group-folder", title: "группировка «Папки»", limit: "click", prep: [`if(group()==="folder")setGroup("server")`], act: `setGroup("folder")`,
-    expect: [[`group()==="folder"`, "группировка не «Папки»"], [`__perf.treeDone()`, "дерево"], ALL_FLD],
+    expect: [[`group()==="folder"`, "группировка не «Папки»"], [`__perf.treeDone()`, "дерево"], FLD_OPEN, ALL_FLD],
   },
   {
     id: "group-server-big", title: "«Папки» → «Серверы» (2 700 строк)", limit: "coarse", prep: [`if(group()==="server")setGroup("folder")`], act: `setGroup("server")`,

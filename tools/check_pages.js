@@ -45,7 +45,9 @@ for (const path of LISTS) {
   if (get(`${path}${sep(path)}limit=0`).status !== 422 || get(`${path}${sep(path)}limit=1001`).status !== 422) bad.push(`${path}: limit вне 1–1000`);
   if (get(`${path}${sep(path)}cursor=чужой`).body.code !== "INVALID_CURSOR") bad.push(`${path}: чужой курсор`);
 }
-// Пустая страница с живым nextCursor законна
+// Пустая страница с живым nextCursor законна. Встроенный сервер дописывает страницу до limit или бюджета времени, и на demo
+// её не бывает: стенд stand.sparsePages — бэкенд, который не дописывает (ровно scanPartsMax разделов на запрос)
+s.handle("POST", "/test/reset", { fixture: "demo", fixturePatch: { stand: { sparsePages: true } } });
 const cam = fx.devices.find((d) => d.type === "camera");
 let empties = 0, cur = null;
 do {

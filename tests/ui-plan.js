@@ -34,7 +34,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addBtn.click();
   ok(document.getElementById("wiz").classList.contains("open") && !document.getElementById("planPanel"), "ящик открыт, на первом шаге источники без панели плана");
   wizStepGo(1);
-  ok(!!document.getElementById("planPanel") && /отметьте устройства и нажмите «В план»/.test(document.getElementById("planPanel").textContent), "пустой план на шаге «План» подсказывает, что делать");
+  ok(!!document.getElementById("planPanel") && /отметьте устройства и нажмите «В план»|отметить устройства и нажать «В план»/.test(document.getElementById("planPanel").textContent), "пустой план на шаге «План» подсказывает, что делать");
   wizStepGo(0);
   ok(document.querySelectorAll(".plan-tab").length === (can("startDiscovery") ? 3 : 2) && /Добавить устройства/.test(document.getElementById("wizT").textContent), "три вкладки и заголовок «Добавить устройства»");
   ok(!/Добавить вручную|Добавить из файла|К результатам поиска/.test(document.getElementById("wizFoot").textContent), "в подвале нет старых кнопок вкладок");
@@ -125,7 +125,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   };
   planApply();
   const dlg = document.getElementById("confirm");
-  ok(dlg.classList.contains("open") && /Применить план/.test(document.getElementById("confirmTitle").textContent) && /Нет логина или пароля — добавятся выключенными: 1/.test(document.getElementById("confirmMsg").textContent), "предупреждение — окно: " + document.getElementById("confirmMsg").textContent);
+  ok(dlg.classList.contains("open") && /Применить план/.test(document.getElementById("confirmTitle").textContent) && /(Нет логина или пароля — добавятся выключенными|Нет логина или пароля\. Консоль добавит устройства выключенными): 1/.test(document.getElementById("confirmMsg").textContent), "предупреждение — окно: " + document.getElementById("confirmMsg").textContent);
   ok(!document.getElementById("confirmCountInp"), "число вводить не нужно");
   ok(document.getElementById("confirmOk").textContent === "Добавить 3", "кнопка «Добавить 3»");
   const applyRows = planOkRows().slice();
@@ -553,7 +553,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   [...document.querySelectorAll(".dom-acts button")].find((b) => /Создать хранилище…/.test(b.textContent)).click();
   d2Opened("«Действия»");
   goTab("srvs");
-  ok(/выберите вид и сервер/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "вкладка «Серверы» домена: подсказка, где создают диски");
+  ok(/выберите вид и сервер|выбрать вид и сервер/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "вкладка «Серверы» домена: подсказка, где создают диски");
 
   // С домена: в окне все виды, но первым выбран вид без обязательного сервера; сервер выбирают, по умолчанию — весь домен, владелец — домен
   const d2Body = () => document.getElementById("bmBody");
@@ -561,7 +561,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(an && !an.server && kindOf(an.kind).serverRequired === false, "диалог домена: первым выбран вид без обязательного сервера — " + (an && an.kind));
   ok(d2Body().querySelectorAll(".an-kind").length === refArchKinds.length, "диалог домена: в окне все виды");
   ok(/Весь домен/.test(d2Body().querySelector(".an-srv select")?.textContent || "") && d2Body().querySelector(".an-srv select").value === "", "диалог домена: поле «Сервер», выбрано «Весь домен»");
-  ok(/любой сервер домена/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог домена: подсказка, что писать может любой сервер");
+  ok(/любой сервер домена|Любой сервер домена/.test(d2Body().querySelector("[data-arch-where]")?.textContent || ""), "диалог домена: подсказка, что писать может любой сервер");
   ok(/Новое хранилище/.test(document.getElementById("bmTitle").textContent) && document.getElementById("bmTitle").textContent.includes(locName(d2Dom)), "диалог домена: заголовок про хранилище и домен");
   const d2Need = refArchKinds.find((k) => k.serverRequired);
   if (d2Need) {
@@ -595,7 +595,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const d2Srvs = d2Empty.servers;
   d2Empty.servers = [];
   paint();
-  ok(/сначала добавьте его/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "домен без серверов: сначала добавить сервер");
+  ok(/сначала добавьте его|Сначала добавить сервер/.test(d2Main().querySelector("[data-arch-where]")?.textContent || ""), "домен без серверов: сначала добавить сервер");
   d2Empty.servers = d2Srvs;
   paint();
 
@@ -629,12 +629,12 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(locName(d2Srv) && document.getElementById("bmTitle").textContent.includes(locName(d2Srv)), "диалог сервера: сервер в заголовке");
   ok(!d2Body().querySelector("[data-arch-where]"), "диалог сервера: у локального подсказки нет");
   anSet("kind", "network");
-  ok(/только этот сервер.*«Весь домен»/.test(d2Body().querySelector("[data-arch-where]")?.textContent || "") && /Весь домен/.test(d2Body().querySelector(".an-srv select").textContent), "диалог сервера: у сетевого видно, что оно этого сервера, а общее — «Весь домен»");
+  ok(/[Тт]олько этот сервер.*«Весь домен»/.test(d2Body().querySelector("[data-arch-where]")?.textContent || "") && /Весь домен/.test(d2Body().querySelector(".an-srv select").textContent), "диалог сервера: у сетевого видно, что оно этого сервера, а общее — «Весь домен»");
   ok(d2Body().querySelector(".an-srv select").value === d2Srv.id && an.server === d2Srv.id, "диалог сервера: смена вида сервер не сбрасывает");
   const d2KindsAll = refArchKinds;
   refArchKinds = d2KindsAll.map((k) => ({ ...k, serverRequired: true }));
   renderArchNew();
-  ok(/только этот сервер/.test(d2Body().querySelector("[data-arch-where]")?.textContent || "") && !/Весь домен/.test(d2Body().querySelector("[data-arch-where]").textContent), "диалог сервера: «Весь домен» недоступен — про него не пишем");
+  ok(/[Тт]олько этот сервер/.test(d2Body().querySelector("[data-arch-where]")?.textContent || "") && !/Весь домен/.test(d2Body().querySelector("[data-arch-where]").textContent), "диалог сервера: «Весь домен» недоступен — про него не пишем");
   refArchKinds = d2KindsAll;
   renderArchNew();
   anSet("disk", d2Nas(78), true);
@@ -827,7 +827,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   s3Type(s3M, "m-29");
   ok(s3Opts().length === 11 && !/из 300/.test(s3Pop()), "модель: поиск сужает — " + s3Opts().length);
   s3Type(s3M, "Своя модель");
-  ok(/останется то, что введено/.test(s3Pop()), "модель: своё значение можно оставить");
+  ok(/останется то, что введено|сохранит введённое значение/.test(s3Pop()), "модель: своё значение можно оставить");
   await s3Leave(s3M);
   ok(wizd.manual.model === "Своя модель", "модель: своё значение сохранилось");
   delete DEVICE_MODELS["Длинный список"];
@@ -870,7 +870,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(wizd.csvRows[0].vendor === "Hikvision" && !wizd.csvRows[0].warns.length, "файл: регистр производителя поправлен");
   ok(wizd.csvRows[2].warns.length === 1 && wizd.csvRows[3].warns.length === 1 && !wizd.csvRows[1].warns.length, "файл: предупреждения только у неизвестных");
   renderDeviceWizard();
-  ok(/исправьте в плане/.test(document.querySelector(".csv-preview").textContent), "файл: в таблице сказано, где исправить");
+  ok(/исправ(ьте|ить) в плане/.test(document.querySelector(".csv-preview").textContent), "файл: в таблице сказано, где исправить");
   toggleCsvAll(true);
   planAddCsv();
   ok(addPlan.rows.length === 4, "файл: строки в плане — " + addPlan.rows.length);

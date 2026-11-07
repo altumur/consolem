@@ -130,7 +130,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ruleEdit((x) => { x.then = [{ sub: "det", action: "detect", ref: CAM, detectorKind: "motion", minutes: 10 }, { sub: "det", action: "scan", ref: CAM, detectorKind: "motion", beforeSec: 30, after: 90 }]; });
   ok(actionLabel(curRule().then[1]).includes("30") && actionLabel(curRule().then[1]).includes("90"), "подпись окна: " + actionLabel(curRule().then[1]));
   ruleEdit((x) => { x.then[1].beforeSec = 0; x.then[1].after = 0; x.when = [{ sub: "det", kind: "motion", ref: CAM, match: {} }]; });
-  ok(ruleIssues(curRule()).some((t) => /нужно окно/.test(t)), "пустое окно — ошибка заранее: " + ruleIssues(curRule()).join("; "));
+  ok(ruleIssues(curRule()).some((t) => /нужно окно|задать окно/.test(t)), "пустое окно — ошибка заранее: " + ruleIssues(curRule()).join("; "));
   ruleEdit((x) => { x.then[1].beforeSec = 30; x.then[1].after = 90; });
   ruleApply();
   ok(await until(() => rules.some((x) => x.name === "Детектор из сценария" && /^7/.test(x.id) && autoVer.has(x.id))), "сохранено: " + dtmp);
@@ -147,7 +147,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   refRuleCross = null;
 
   // Отказы сервера словами: чужое устройство называется по имени
-  ok(/Нет права на то, что называет правило: «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { uid: CAM } } } })), "403 правила называет устройство");
+  ok(/(Нет права на то, что называет правило|Нет прав на объекты в правиле): «.+»/.test(problemText({ problem: { code: "PERMISSION_DENIED", params: { target: { uid: CAM } } } })), "403 правила называет устройство");
   ok(/не исполняет/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { issue: { code: "action.notDeclared", params: {} } } } })), "422 вне каталога — своими словами");
 
   // Новое правило: до «Применить» — только у клиента, после — POST, id от сервера
@@ -201,7 +201,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   muteApply().click();
   ok(await until(() => r(R1).mute), "«На 1 час» в другом поясе: приглушено");
   ok(!!ruleMuteNow(r(R1)), "«На 1 час» в другом поясе: тишина действует, а не истекла сразу");
-  const muteLeft = Date.parse((await API.get("/rules/" + R1)).mute?.until || 0) - Date.now();
+  const muteLeft = Date.parse((await API.get("/rules/" + R1)).mute?.until || 0) - promptNow();
   ok(muteLeft > 57 * 6e4 && muteLeft <= 60 * 6e4, "«На 1 час» в другом поясе: на сервере через час, минут: " + Math.round(muteLeft / 6e4));
   sysTz = tz0;
   ruleMuteSetTo([R1], null);
@@ -243,7 +243,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok((await API.get("/rule-prompts")).items.length === 1, "вопрос на сервере");
   await API.post("/rules/update", { idempotencyKey: opKey(), items: [{ ruleId: askRule.id, version: autoVer.get(askRule.id), set: { enabled: false } }] });
   ok(await until(() => ruleFires[askRule.id][0].res !== "waiting"), "запуск снят, запись обновилась потоком: " + ruleFires[askRule.id][0].res);
-  ok(/запуск снят/.test(ruleTraceHtml(ruleFires[askRule.id][0])), "в трассе — причина");
+  ok(/запуск снят|запуск отменён/.test(ruleTraceHtml(ruleFires[askRule.id][0])), "в трассе — причина");
 
   // Пробный запуск: считает сервер, «Записать в журнал» — тоже на сервере
   ruleOpen(R1);

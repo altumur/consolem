@@ -179,7 +179,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   await API.post(`/rule-prompts/${row("ask").dataset.prompt}/answer`, { answer: "yes" });
   press(btn(row("ask"), "yes"));
   ok(await until(() => !row("ask")), "409 BUSY: строка снята");
-  ok(/уже ответил другой оператор: ваш ответ не засчитан/.test(notes()), "словами: " + notes());
+  ok(/уже ответил другой оператор: ваш ответ не засчитан|Другой оператор уже ответил на вопрос\. Консоль не учла ваш ответ/.test(notes()), "словами: " + notes());
   window.promptEvent = event;
   esc();
 
@@ -193,7 +193,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok((await open0()).length === 0, "выключение сняло запуск");
   press(btn(row("ask"), "yes"));
   ok(await until(() => !row("ask")), "404: строка снята");
-  ok(/Запуск снят: вопрос больше не действует/.test(notes()), "словами: " + notes());
+  ok(/Запуск снят: вопрос больше не действует|Запуск отменён\. Вопрос больше не действует/.test(notes()), "словами: " + notes());
   window.promptEvent = event;
   await ruleSet({ enabled: true });
   ok(rule.enabled, "правило возвращено");
@@ -206,7 +206,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   open();
   await ruleSet({ enabled: false });
   ok(await until(() => !row("ask")), "снят потоком: строка ушла");
-  ok(/Запуск снят/.test(notes()), "словами: " + notes());
+  ok(/Запуск снят|Запуск отменён/.test(notes()), "словами: " + notes());
   await ruleSet({ enabled: true });
   ok(await until(() => rules.find((x) => x.id === ASK).on), "правило включено снова");
   esc();
@@ -219,7 +219,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   open();
   clearInterval(PROMPT.timer);
   ok(await until(() => !row("ask") && count() === 0), "срок вышел: строка ушла");
-  ok(/Срок вышел: правило пошло веткой по умолчанию/.test(notes()), "словами: " + notes());
+  ok(/Срок вышел: правило пошло веткой по умолчанию|Срок истёк\. Правило выполнило ветку по умолчанию/.test(notes()), "словами: " + notes());
   f = await lastFire(SHORT);
   ok(f.steps.some((s) => s.path === "0.no.0"), "ветка по умолчанию: " + f.steps.map((s) => s.path).join(","));
   esc();
@@ -237,7 +237,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(await until(() => row("ask")?.querySelector("[data-prompt-left]").textContent !== left0), `таймер считает: ${left0} → ${row("ask")?.querySelector("[data-prompt-left]").textContent}`);
   PROMPT.skew = skew + 130000;
   ok(await until(() => !row("ask")), "до конца срока досчитал сам: строка ушла");
-  ok(/Срок вышел/.test(notes()), "словами: " + notes());
+  ok(/Срок вышел|Срок истёк/.test(notes()), "словами: " + notes());
   ok(reads === 0, "списка никто не перечитывал: опроса нет");
   API.get = spy;
   PROMPT.skew = skew;
@@ -254,7 +254,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(!(await open0()).length, "на сервере срок вышел");
   press(btn(row("ask"), "yes"));
   ok(await until(() => !row("ask")), "409 NOT_RUNNABLE: строка снята");
-  ok(/Срок вышел: ответ не действует/.test(notes()), "словами: " + notes());
+  ok(/Срок вышел: ответ не действует|Срок истёк\. Ответ не действует/.test(notes()), "словами: " + notes());
   window.promptEvent = event;
   esc();
 

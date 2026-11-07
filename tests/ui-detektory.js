@@ -123,7 +123,7 @@ UiCheck(async ({ ok, until }) => {
   ruleEdit((r) => { r.then = []; });
   ok(!dcRuleOk(dcTrigs(dcPlan(detCams(), []), [])), "без действий дальше нельзя");
   dcRuleAdv(false);
-  ok(onOpt() === "Своё правило" && box().querySelector(".dc-opts ~ .nt")?.textContent.includes("хотя бы одно действие"), "простой вид называет причину");
+  ok(onOpt() === "Своё правило" && box().querySelector(".dc-opts ~ .nt")?.textContent.match(/хотя бы одно действие|минимум одно действие/) != null, "простой вид называет причину");
   dcRuleAdv(true);
   ruleEdit((r) => { r.then = saved; });
 

@@ -40,7 +40,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   ok(/width=\d+&height=\d+/.test(post.url), "поток под размер окна");
   conn(lv.pc, "connected");
   ok(/Идёт/.test(state()) && /stub-/.test(state()), "идёт, через какой шлюз: " + state());
-  ok(/настоящего видео на стенде нет/.test(note()), "подпись: настоящего видео нет: " + note());
+  ok(/настоящего видео на стенде нет|На стенде нет настоящего видео/.test(note()), "подпись: настоящего видео нет: " + note());
   ok(q("[data-live-go]").textContent === "Остановить", "кнопка стоп");
 
   // Стоп: отбой на Location

@@ -12,7 +12,8 @@ UiCheck(async ({ ok, until }) => {
   ok(st.values["ntp.server"] === "time.local" && st.values["sec.2fa"] === "admins", "на сервере — кодом: " + st.values["sec.2fa"]);
   sys = "lic";
   paint();
-  ok(/48\/64/.test(document.body.textContent), "лицензии с сервера");
+  // Лицензии по ключам — заглушка, пока нет ответа на запрос 2026-11-06-094022Z-mockup-domain-licenses
+  ok(/Professional/.test(document.body.textContent) && /72785-4410/.test(document.body.textContent), "лицензии — карточки ключей");
   // Журнал
   goApp("log");
   ok(LOG_ROWS.length === 25 && /^\d\d:\d\d$/.test(LOG_ROWS[0][0]), "журнал с сервера: " + LOG_ROWS.length + ", первое в " + LOG_ROWS[0][0]);
@@ -25,13 +26,17 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => SETTINGS.find((x) => x.id === "events.retentionDays").value === "30"), "значение пришло с сервера");
   ok((await API.get("/settings")).values["events.retentionDays"] === 30, "на сервере — число");
   const al = SETTINGS.find((x) => x.id === "alarms.retentionDays"), keep = al.value;
-  // Тревожные виды на весь домен: чипы из reference.eventKinds, ключа нет — поля нет
+  // Тревожные виды на весь домен — на странице «Обработка тревог»: чипы из reference.eventKinds
+  sys = "alarm";
+  paint();
   const ad = SETTINGS.find((x) => x.id === "alarms.domain");
   ok(!!document.querySelector('[data-set="alarms.domain"] [data-chip="motion"]'), "виды — чипами");
   document.querySelector('[data-set="alarms.domain"] [data-chip="motion"]').click();
   ok(await until(() => (ad.value || []).includes("motion")), "вид отмечен");
   ok((await API.get("/settings")).values["alarms.domain"].join() === "motion", "на сервере — списком");
   ok(await until(() => document.querySelector('[data-set="alarms.domain"] [data-chip="motion"].on')), "страница показывает отмеченное");
+  // Ключа нет у сервера — поля нет
+  sys = "keep";
   al.value = undefined;
   sysUI();
   ok(!document.querySelector('[data-set="alarms.retentionDays"]'), "ключа нет у сервера — поля нет");

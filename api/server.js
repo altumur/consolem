@@ -589,7 +589,7 @@
       // Новое описание вида (PUT /test/kinds/{kind}) меняет набор ссылок x-ref: объекты вида переиндексируются
       kindList = null;
       kinds = Kinds.create(db.kinds || [], db.profiles || [], { onPut: (kind) => { kindList = null; if (store) store.byKind(kind).forEach((u) => store.reindex(u.uid)); } });
-      store = Units.create({ refs: unitRefs });
+      store = Units.create({ refs: unitRefs, onMembers: (uid, added) => partsMember(uid, added) });
       store.load(db.units || []);
       legacy = Legacy(store, { version: () => newVersion(), refKey: (kind, key) => kinds.refNames(kind).has(key) });
       const given = {};
@@ -602,6 +602,7 @@
       legacy.rebuild();
       OLD_TABLES.forEach((t) => Object.defineProperty(db, t, { get: () => legacy.table(t), set: (list) => legacy.setTable(t, list), enumerable: true, configurable: true }));
       if (db.stand.large) expandLarge(db.stand.large);
+      unitPartsWarm();
       treePending = {};
       viewStamp++;
       searches = new Map();
@@ -1896,6 +1897,12 @@
 
     // Круг вида: столько живёт курсор и столько отстаёт итог домена
     const VIEW_ROUND_MS = 20 * 60000;
+    // Бюджет времени одного запроса ограниченного прохода (отбор по /units без члена): проход дописывает страницу, пока она
+    // не набрала limit, не вышло это время или не кончились разделы, и только тогда отдаёт nextCursor. Встроенный сервер
+    // работает в той же вкладке, что и страница: бюджет — время, когда страница не отвечает, поэтому он меньше
+    // рекомендации бэкенду (~100–200 мс, api/README.md, «Страницы ограниченного прохода»). Часы — настоящие, не часы стенда
+    const SCAN_BUDGET_MS = 40;
+    const workNow = typeof performance !== "undefined" && performance.now ? () => performance.now() : () => Date.now();
     const hashOf = (text) => {
       let h = 2166136261;
       for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619);
@@ -1903,14 +1910,32 @@
     };
     // Раздел вида: порядок внутри — байты id, поэтому порядок перечня не алфавитный и не сдвигается вставкой
     const partsCount = () => (db.stand.large ? 4096 : 16);
-    const partOf = (id) => hashOf(id) % partsCount();
-    const partKey = (id) => `${String(partOf(id)).padStart(4, "0")}:${id}`;
+    // Раздел — по id и размеру стенда: запомнен (partOf и partKey), иначе каждая страница дерева и пересборка разделов
+    // склада заново хешируют все id
+    let partMemo = new Map(), partKeys = new Map(), partMemoLarge = null;
+    const partReset = () => { if (partMemoLarge !== !!db.stand.large) { partMemo = new Map(); partKeys = new Map(); partMemoLarge = !!db.stand.large; } };
+    const partOf = (id) => {
+      partReset();
+      let p = partMemo.get(id);
+      if (p === undefined) partMemo.set(id, (p = hashOf(id) % partsCount()));
+      return p;
+    };
+    const partKey = (id) => {
+      partReset();
+      let k = partKeys.get(id);
+      if (k === undefined) partKeys.set(id, (k = `${String(partOf(id)).padStart(4, "0")}:${id}`));
+      return k;
+    };
     // Новые первыми, место не зависит от того, что появится потом: номер записи с конца списка
     const backRank = (list, rec) => String(9999999 - (list.length - 1 - list.indexOf(rec))).padStart(8, "0");
     const backTime = (at) => String(9e15 - Date.parse(at)).padStart(17, "0");
+    // Поиск по складу проверяет сотни тысяч полей подряд: «ё» заменяется, только если она есть, а запрос нормализуется один раз
+    const normText = (v) => { const t = String(v).toLowerCase(); return t.includes("ё") ? t.replace(/ё/g, "е") : t; };
+    let needleOf = { q: null, n: "" };
+    const needleFor = (q) => (needleOf.q === q ? needleOf.n : (needleOf = { q, n: normText(String(q).trim()) }).n);
     const textHit = (q, ...fields) => {
-      const needle = String(q).trim().toLowerCase().replace(/ё/g, "е");
-      return fields.some((f) => f != null && String(f).toLowerCase().replace(/ё/g, "е").includes(needle));
+      const needle = needleFor(q);
+      return fields.some((f) => f != null && normText(f).includes(needle));
     };
     const scopeOf = (name, q) => hashOf(name + JSON.stringify(Object.keys(q).filter((k) => k !== "limit" && k !== "cursor").sort().map((k) => [k, q[k]]))).toString(36);
     const cursorMake = (scope, at, exp) => btoa(encodeURIComponent(JSON.stringify({ s: scope, a: at, e: exp || now() + VIEW_ROUND_MS })));
@@ -1933,12 +1958,22 @@
       if (limit === null) return limitBad();
       const scope = scopeOf(name, q), cur = cursorRead(q, scope);
       if (cur.bad) return cur.bad;
-      const sorted = rows.map((r) => [key(r), r]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-      const from = cur.at === null ? 0 : sorted.findIndex((x) => x[0] > cur.at);
-      const start = from < 0 ? sorted.length : from;
-      const chunk = sorted.slice(start, start + limit);
+      // Нужны только limit первых ключей после курсора: отбор за один проход, без сортировки всех строк (на large у узла
+      // тысячи детей, а страница — 200). top — отсортированные лучшие, не длиннее limit; rest — сколько строк после них
+      const top = [];
+      let after = 0;
+      for (const r of rows) {
+        const k = key(r);
+        if (cur.at !== null && !(k > cur.at)) continue;
+        if (top.length === limit && !(k < top[limit - 1][0])) { after++; continue; }
+        let lo = 0, hi = top.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (!(k < top[mid][0])) lo = mid + 1; else hi = mid; }
+        top.splice(lo, 0, [k, r]);
+        if (top.length > limit) { top.pop(); after++; }
+      }
+      const chunk = top;
       const body = Object.assign({ items: chunk.map((x) => show(x[1])) }, extra || {});
-      if (start + limit < sorted.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
+      if (after > 0) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
       return { status: 200, body };
     }
     /* ----- Камера-кластер, дочерние устройства ----- */
@@ -2192,9 +2227,16 @@
     // Поиск q: имя, short (если оно есть у вида), uid, свойства с x-search; fields — где искать. Ответ — где нашлось
     // Где нашлось q: имя, short, свойства x-search, uid. uid — только целиком: часть uid (цифра «1») есть почти у каждого
     // объекта, а /devices?q= базы по id не искал. Так q без fields находит то же, что база (имя, номер, адрес, производитель, модель)
+    // Поля поиска вида: запомнены по описанию вида (новое описание — новый объект, kinds.put), иначе собираются на каждый объект
+    const searchNamesMemo = new WeakMap();
+    function searchNamesOf(k) {
+      let n = searchNamesMemo.get(k);
+      if (!n) searchNamesMemo.set(k, (n = ["name"].concat("short" in ((k.schema || {}).properties || {}) ? ["short"] : [], kinds.searchNames(k.kind).filter((x) => x !== "short"), ["uid"])));
+      return n;
+    }
     function matchOf(u, text, fields) {
       const k = kinds.get(u.kind);
-      const names = ["name"].concat((k ? "short" in ((k.schema || {}).properties || {}) : "short" in props(u)) ? ["short"] : [], k ? kinds.searchNames(u.kind).filter((n) => n !== "short") : [], ["uid"]);
+      const names = k ? searchNamesOf(k) : ["name"].concat((k ? "short" in ((k.schema || {}).properties || {}) : "short" in props(u)) ? ["short"] : [], k ? kinds.searchNames(u.kind).filter((n) => n !== "short") : [], ["uid"]);
       const value = (f) => (f === "name" ? u.name : f === "uid" ? u.uid : props(u)[f]);
       const hit = (f) => (f === "uid" ? String(text).trim().toLowerCase() === u.uid.toLowerCase() : textHit(text, Array.isArray(value(f)) ? value(f).join(" ") : value(f)));
       return names.find((f) => (!fields || fields.includes(f)) && hit(f)) || null;
@@ -2237,16 +2279,72 @@
       };
       return { hit, filtered };
     }
-    // Разделы склада для прохода без члена: порядок — байты uid, не сдвигается вставкой. Пересобираются, когда меняется состав
-    // или сам склад: POST /test/reset строит новый склад, и его stamp может совпасть со stamp прежнего
-    let unitParts = null, unitPartsAt = -1, unitPartsOf = null;
+    // Разделы склада для прохода без члена: порядок — байты uid, не сдвигается вставкой. Разделы держат uid, а не объекты:
+    // замена объекта (смена статуса, правка) их не трогает. Собираются один раз на склад, дальше ведутся по месту — склад
+    // сообщает, что uid пришёл или ушёл (onMembers). На xl это миллион uid: пересборка на каждую запись — 0,2–0,4 с
+    let unitParts = null, unitPartsOf = null, partsWarm = null;
+    function partsPlace(parts, uid, added) {
+      const list = parts[partOf(uid)];
+      let lo = 0, hi = list.length;
+      while (lo < hi) { const mid = (lo + hi) >> 1; if (list[mid] < uid) lo = mid + 1; else hi = mid; }
+      const has = list[lo] === uid;
+      if (added && !has) list.splice(lo, 0, uid);
+      else if (!added && has) list.splice(lo, 1);
+    }
+    function partsMember(uid, added) {
+      if (uid === null) { unitParts = null; partsWarm = null; return; }
+      if (partsWarm) partsWarm.pending.push([uid, added]);
+      else if (unitParts) partsPlace(unitParts, uid, added);
+    }
+    // Сборка по шагам: раскладка uid по разделам, затем сортировка разделов, затем то, что пришло и ушло за время сборки.
+    // step(deadline) — до срока, true — готово. Раздел — через partOf: хеши запоминаются в простое и нужны и дереву (partKey
+    // у детей домена на xl — сотни тысяч строк)
+    function partsBuild() {
+      const n = partsCount(), parts = Array.from({ length: n }, () => []), it = store.all();
+      let sorted = 0, filled = false;
+      const w = {
+        store, parts, pending: [],
+        step(deadline) {
+          let i = 0;
+          while (!filled) {
+            const x = it.next();
+            if (x.done) { filled = true; break; }
+            parts[partOf(x.value.uid)].push(x.value.uid);
+            if (++i % 4096 === 0 && workNow() > deadline) return false;
+          }
+          while (sorted < n) {
+            parts[sorted++].sort();
+            if (sorted % 64 === 0 && workNow() > deadline) return false;
+          }
+          w.pending.forEach(([uid, added]) => partsPlace(parts, uid, added));
+          w.pending = [];
+          return true;
+        },
+      };
+      return w;
+    }
+    function partsDone(w) {
+      unitParts = w.parts;
+      unitPartsOf = w.store;
+      if (partsWarm === w) partsWarm = null;
+    }
+    // Большой стенд: разделы собираются заранее, в простое страницы кусками по 30 мс, а не первым запросом прохода. Запрос
+    // до конца сборки доделывает её сам
+    function unitPartsWarm() {
+      if (!db.stand.large || typeof setTimeout !== "function") return;
+      const w = (partsWarm = partsBuild());
+      const tick = () => {
+        if (partsWarm !== w || w.store !== store) return;
+        if (w.step(workNow() + 30)) partsDone(w);
+        else setTimeout(tick, 0);
+      };
+      setTimeout(tick, 0);
+    }
     function unitPartsList() {
-      if (unitParts && unitPartsOf === store && unitPartsAt === store.stamp() && unitParts.length === partsCount()) return unitParts;
-      unitPartsAt = store.stamp();
-      unitPartsOf = store;
-      unitParts = Array.from({ length: partsCount() }, () => []);
-      for (const u of store.all()) unitParts[partOf(u.uid)].push(u);
-      unitParts.forEach((p) => p.sort((a, b) => (a.uid < b.uid ? -1 : 1)));
+      if (unitParts && unitPartsOf === store && unitParts.length === partsCount()) return unitParts;
+      const w = partsWarm && partsWarm.store === store ? partsWarm : (partsWarm = partsBuild());
+      w.step(Infinity);
+      partsDone(w);
       return unitParts;
     }
     // Порядок перечня по профилю: домены и серверы — как /domains и /servers базы (порядок таблицы: заведённый и принятый
@@ -2263,7 +2361,8 @@
       return `${t === "domains" ? 0 : 1}:${String(at < 0 ? 99999999 : at).padStart(8, "0")}:${u.uid}`;
     }
     // GET /units: ids — по записи; parentId, folderId, ref, serverId, archiveId — один член из индекса склада, порядок по
-    // имени; остальное — разделы склада, с отбором не больше scanPartsMax разделов за страницу (как /devices)
+    // имени; остальное — разделы склада, с отбором — ограниченный проход: не меньше scanPartsMax разделов, дальше страница
+    // дописывается до limit или до бюджета времени SCAN_BUDGET_MS
     function unitsPage(q) {
       const limit = limitOf(q);
       if (limit === null) return limitBad();
@@ -2310,14 +2409,20 @@
       if (cur.bad) return cur.bad;
       const parts = unitPartsList();
       const at = cur.at || { p: 0, a: null };
-      const budget = filtered ? db.reference.limits.scanPartsMax : Infinity;
+      // С отбором: не меньше scanPartsMax разделов (и хотя бы один — проход всегда движется), дальше — до limit или до
+      // бюджета времени. stand.sparsePages — бэкенд, который страницу не дописывает: ровно scanPartsMax разделов, пустая
+      // страница с nextCursor (её клиент обязан выдерживать — tests/api-pages.js)
+      const minParts = filtered ? Math.max(1, db.reference.limits.scanPartsMax) : Infinity;
+      const until = filtered && !db.stand.sparsePages ? workNow() + SCAN_BUDGET_MS : null;
+      const more = () => seen < minParts || (until !== null && workNow() < until);
       const out = [];
       let p = at.p, after = at.a, seen = 0, stopped = null;
-      for (; p < parts.length && seen < budget && !stopped; ) {
+      for (; p < parts.length && !stopped && more(); ) {
         const list = parts[p];
         for (let i = 0; i < list.length; i++) {
-          const u = list[i];
-          if (after !== null && u.uid <= after) continue;
+          if (after !== null && list[i] <= after) continue;
+          const u = store.get(list[i]);
+          if (!u) continue;
           const m = hit(u);
           if (!m) continue;
           out.push([u, m]);
@@ -2334,7 +2439,15 @@
       }
       const body = { items: out.map(show) };
       if (stopped) {
-        const left = parts.slice(stopped.p).some((list, i) => list.some((u) => (i > 0 || u.uid > stopped.a) && hit(u)));
+        // Есть ли что дальше — смотрим остаток, пока не вышел бюджет. Не успели — курсор: пустая следующая страница законна
+        let left = false;
+        for (let i = stopped.p; i < parts.length && !left; i++) {
+          if (until !== null && i > stopped.p && workNow() >= until) {
+            left = true;
+            break;
+          }
+          left = parts[i].some((uid) => { if (!(i > stopped.p || uid > stopped.a)) return false; const u = store.get(uid); return !!u && !!hit(u); });
+        }
         if (left) body.nextCursor = cursorMake(scope, stopped, cur.exp);
       } else if (p < parts.length) body.nextCursor = cursorMake(scope, { p, a: null }, cur.exp);
       if (!filtered) body.total = store.size();
@@ -3152,29 +3265,62 @@
     /* ----- Большой набор ----- */
 
     // stand.large: устройства, серверы, папки, хранилища считаются при загрузке из номера: в файле набора только числа.
+    // Числа — на весь набор. stand.large.domains (по умолчанию 1) — доменов, всё делится между ними поровну блоками по
+    // порядку: серверы с хранилищами и томами, кластеры, папки, камеры (под серверами, ветка первого сервера, без сервера).
+    // Домены сверх первого — копии первого объекта набора с именами из domainNames (иначе «Домен N»), ретранслятор — у первого.
+    // Номера (uid, имена серверов, папок, камер) — сквозные по набору: при domains 1 раскладка та же, что без этих чисел
     function expandLarge(L) {
-      const dom = db.domains[0].id;
+      const D = Math.max(1, L.domains || 1), names = L.domainNames || [];
       const uuidOf = (kind, n) => `${kind}${String(n).padStart(7, "0")}-0000-4000-8000-000000000000`;
-      const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
-      db.servers = Array.from({ length: L.servers }, (x, i) => Object.assign({}, base, { id: uuidOf("2", 1000 + i), name: `Кластер ${(i % L.clusters) + 1}/Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
-      // Ретранслятор: кластеры и камеры за ним. Камеры в составе не совпадут с именами кластеров
-      db.relays = { [dom]: { "Кластер 1": Array.from({ length: L.relayed }, (x, i) => `Кластер ${L.clusters - i}`).concat(Array.from({ length: 3000 }, (x, i) => `cam-${i}`)) } };
-      db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
-      db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
-      db.folders = Array.from({ length: L.folders }, (x, i) => ({ id: uuidOf("4", 1000 + i), name: `Папка ${i + 1}`, domainId: dom, parentId: null, deviceIds: [], version: "v0" }));
-      // Камеры — сразу объектами склада: 250 000 записей через перевод старой таблицы шли бы дольше.
-      // Первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
-      const onServer = L.serverCameras, firstBranch = L.firstBranch, folders = db.folders.map((f) => f.id);
-      const servers = db.servers.map((s) => s.id), archives = db.archives.map((a) => a.id);
-      for (let i = 0; i < L.cameras; i++) {
-        const id = uuidOf("3", 100000 + i);
-        const sid = i < firstBranch ? 0 : i < onServer ? 1 + ((i - firstBranch) % (L.servers - 1)) : -1;
-        const u = { uid: id, kind: "camera", parentId: null, domainId: dom, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, version: "v0",
-          properties: { enabled: i % 200 !== 11 }, status: { link: i % 50 !== 7 ? "online" : "offline" } };
-        if (sid >= 0) Object.assign(u.properties, { serverId: servers[sid], archiveId: archives[sid], recordMode: "always" });
-        if (i % 40 === 0 && folders.length) u.folders = [folders[(i / 40) % folders.length]];
+      // Доля домена d из n и её начало: остаток — первым доменам
+      const share = (n, d) => Math.floor(n / D) + (d < n % D ? 1 : 0);
+      const from = (n, d) => d * Math.floor(n / D) + Math.min(d, n % D);
+      const first = store.get(db.domains[0].id);
+      if (names[0]) first.name = names[0];
+      for (let d = 1; d < D; d++) {
+        const u = clone(first);
+        Object.assign(u, { uid: uuidOf("1", Number(first.uid.slice(1, 8)) + d), name: names[d] || `Домен ${d + 1}` });
         store.put(u);
       }
+      legacy.rebuild();
+      const doms = db.domains.slice(0, D).map((x) => x.id), dom = doms[0];
+      const base = { port: 20111, role: "node", domainId: dom, allocated: true, class: "server", online: true, telemetry: { cpu: 20, ram: 40, net: 5, disk: 30 }, gpu: null, disks: [{ disk: "C:", sizeBytes: 274877906944, system: true }], version: "v0" };
+      const srv = [], fold = [];
+      doms.forEach((domainId, d) => {
+        // Кластеров меньше, чем доменов: у домена без своей доли — один кластер (иначе в имени сервера был бы NaN)
+        const s0 = from(L.servers, d), c0 = from(L.clusters, d), nc = Math.max(1, share(L.clusters, d)), f0 = from(L.folders, d);
+        for (let j = 0; j < share(L.servers, d); j++) {
+          const i = s0 + j;
+          srv.push(Object.assign({}, base, { domainId, id: uuidOf("2", 1000 + i), name: `Кластер ${c0 + (j % nc) + 1}/Сервер ${String(i + 1).padStart(3, "0")}`, ip: `10.${(i >> 8) & 255}.${i & 255}.10` }));
+        }
+        for (let j = 0; j < share(L.folders, d); j++) fold.push({ id: uuidOf("4", 1000 + f0 + j), name: `Папка ${f0 + j + 1}`, domainId, parentId: null, deviceIds: [], version: "v0" });
+      });
+      db.servers = srv;
+      // Ретранслятор первого домена: его доля кластеров (последние кластеры домена) и камеры за ним. Камеры в составе не
+      // совпадут с именами кластеров
+      const relayed = Math.min(share(L.relayed, 0), share(L.clusters, 0)), last = share(L.clusters, 0);
+      db.relays = { [dom]: { "Кластер 1": Array.from({ length: relayed }, (x, i) => `Кластер ${last - i}`).concat(Array.from({ length: 3000 }, (x, i) => `cam-${i}`)) } };
+      db.archives = db.servers.map((s, i) => ({ id: uuidOf("5", 1000 + i), name: `Хранилище ${i + 1}`, kind: "local", storage: "object", encrypted: false, retentionDays: 30, provider: null, serverId: s.id, domainId: null, version: "v0", admits: true }));
+      db.volumes = db.archives.map((a, i) => ({ id: uuidOf("6", 1000 + i), archiveId: a.id, name: "D:", disk: "D:", sizeBytes: 4398046511104, usedPercent: 40, state: "ready", online: true, mode: "dir", dir: "D:\\Archive", version: "v0" }));
+      db.folders = fold;
+      // Камеры — сразу объектами склада: 250 000 записей через перевод старой таблицы шли бы дольше.
+      // В каждом домене первый сервер — с большой веткой: его страница не кончается за одно чтение. Остальные поровну
+      const firstBranch = L.firstBranch, folders = db.folders.map((f) => f.id);
+      const servers = db.servers.map((s) => s.id), archives = db.archives.map((a) => a.id);
+      doms.forEach((domainId, d) => {
+        const n0 = from(L.cameras, d), s0 = from(L.servers, d), ns = share(L.servers, d), f0 = from(L.folders, d), nf = share(L.folders, d);
+        const onServer = share(L.serverCameras, d);
+        for (let k = 0; k < share(L.cameras, d); k++) {
+          const i = n0 + k;
+          const id = uuidOf("3", 100000 + i);
+          const sid = k < firstBranch ? 0 : k < onServer ? (ns > 1 ? 1 + ((k - firstBranch) % (ns - 1)) : 0) : -1;
+          const u = { uid: id, kind: "camera", parentId: null, domainId, name: `Камера ${String((i * 7919) % L.cameras).padStart(6, "0")}`, version: "v0",
+            properties: { enabled: i % 200 !== 11 }, status: { link: i % 50 !== 7 ? "online" : "offline" } };
+          if (sid >= 0 && ns) Object.assign(u.properties, { serverId: servers[s0 + sid], archiveId: archives[s0 + sid], recordMode: "always" });
+          if (k % 40 === 0 && nf) u.folders = [folders[f0 + ((k / 40) % nf)]];
+          store.put(u);
+        }
+      });
       legacy.rebuild();
     }
 
@@ -4719,7 +4865,7 @@
       { re: /выключи\S*\s.*запис|запис\S*.*выключи/, profile: "vms.camera/1", name: "recordMode", value: "none" },
       { re: /(^|[^ы])включи\S*\s.*запис/, profile: "vms.camera/1", name: "recordMode", value: "always" },
     ];
-    const assistNorm = (t) => String(t == null ? "" : t).toLowerCase().replace(/ё/g, "е");
+    const assistNorm = (t) => { const s = String(t == null ? "" : t).toLowerCase(); return s.includes("ё") ? s.replace(/ё/g, "е") : s; };
     const assistWords = (t) => assistNorm(t).split(/[^a-zа-я0-9]+/).filter(Boolean);
     const assistText = (t) => (t && typeof t === "object" ? t.text || t.key || "" : String(t || ""));
     // Основа слова без окончания: «камера» → «камер», «ручной» → «ручн»
@@ -4744,6 +4890,27 @@
     }
     const assistKindLabel = (kind) => assistText((kinds.get(kind) || {}).label) || kind;
     const assistProps = (kind) => ((kinds.get(kind) || {}).schema || {}).properties || {};
+    // Словарь значений x-search видов отбора. Один на набор видов, пока не изменились склад (stamp, а правку
+    // на месте выдаёт событие — seqEvent) и описания видов:
+    // на xl это миллион значений, и собирать его на каждую реплику — секунды
+    let assistValuesMemo = null;
+    function assistValuesOf(scope) {
+      const key = scope.join(",") + "|" + kinds.etag();
+      const m = assistValuesMemo;
+      if (m && m.key === key && m.store === store && m.stamp === store.stamp() && m.seq === seqEvent) return m;
+      const values = new Map();
+      const labelOf = (kind, prop) => assistText((assistProps(kind)[prop] || {})["x-label"]).toLowerCase() || prop;
+      // Объекты вида — одним списком на вид, а не на каждое свойство поиска: на xl это миллион записей
+      scope.forEach((kind) => { const units = store.byKind(kind); kinds.searchNames(kind).forEach((prop) => units.forEach((u) => {
+        [].concat(props(u)[prop]).forEach((v) => {
+          if (typeof v !== "string" || v.length < 3) return;
+          const n = assistNorm(v);
+          if (!values.has(n)) values.set(n, { v, prop, label: labelOf(kind, prop) });
+        });
+      })); });
+      assistValuesMemo = { key, store, stamp: store.stamp(), seq: seqEvent, values };
+      return assistValuesMemo;
+    }
     const assistByName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.uid < b.uid ? -1 : 1);
     // Команда над объектами: подпись команды вида (UnitKind.actions, кроме ruleOnly) — все её слова в просьбе (по пяти буквам:
     // «поставь» — «Поставить»). Виды, названные в просьбе, сужают выбор
@@ -4910,13 +5077,15 @@
       enums.forEach((e, word) => add(4, word, null, (u) => e.tests.some((t) => t(u))));
       enums.forEach((e) => (rest = assistEat(rest, e.m)));
       // Значение свойства с x-search у объектов видов отбора, целым словом: «производитель: Axis», «серийный номер: TU-0001»
-      const values = new Map();
-      scope.forEach((kind) => kinds.searchNames(kind).forEach((prop) => store.byKind(kind).forEach((u) => {
-        [].concat(props(u)[prop]).forEach((v) => {
-          if (typeof v === "string" && v.length >= 3 && !values.has(assistNorm(v))) values.set(assistNorm(v), { v, prop, label: assistText((assistProps(kind)[prop] || {})["x-label"]).toLowerCase() || prop });
-        });
-      })));
-      [...values.keys()].sort((a, b) => b.length - a.length).forEach((key) => {
+      // Кандидаты — куски фразы между границами слов (их десятки), а не весь словарь (на xl значений — миллион); длинные первыми
+      const { values } = assistValuesOf(scope);
+      const edge = (c) => c === undefined || !/[a-zа-я0-9-]/.test(c);
+      const keys = [];
+      for (let i = 0; i < rest.length; i++) {
+        if (!edge(rest[i - 1])) continue;
+        for (let j = i + 3; j <= rest.length; j++) if (edge(rest[j]) && values.has(rest.slice(i, j))) keys.push(rest.slice(i, j));
+      }
+      [...new Set(keys)].sort((a, b) => b.length - a.length).forEach((key) => {
         const at = new RegExp(`(^|[^a-zа-я0-9-])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[^a-zа-я0-9-]|$)`);
         if (!at.test(rest)) return;
         const x = values.get(key);
@@ -4934,17 +5103,28 @@
         else tests.push(c.test);
       });
       const { hit } = unitFilter(assistUnitsQuery(filter));
-      const all = [...store.all()].filter((u) => hit(u) && tests.every((t) => t(u))).sort(assistByName);
-      const max = db.reference.limits.selectMax, ids = [...new Set(all.map((u) => u.uid))];
+      // На xl под отбор попадает до миллиона объектов: сортировка по имени — только когда в ответ идут ids, и только первые
+      // selectMax (отбор за один проход), а для ответа фильтром нужно одно число. uid в складе уникальны
+      const all = [];
+      for (const u of store.all()) if (hit(u) && tests.every((t) => t(u))) all.push(u);
+      const max = db.reference.limits.selectMax, total = all.length;
       const conditions = conds.map((c) => c.word);
       const e = { type: "found", at, context, conditions };
-      if (!tests.length && (action || ids.length > max)) {
-        Object.assign(e, { filter, total: ids.length });
-        e.text = `Отобрано: ${ids.length}.${action ? ` Команда «${action.label}» — над отобранным, из групповой карточки.` : " Листается фильтром."}`;
+      if (!tests.length && (action || total > max)) {
+        Object.assign(e, { filter, total });
+        e.text = `Отобрано: ${total}.${action ? ` Команда «${action.label}» — над отобранным, из групповой карточки.` : " Листается фильтром."}`;
       } else {
-        Object.assign(e, { ids: ids.slice(0, max), total: ids.length });
-        if (ids.length > max) e.truncated = true;
-        e.text = !ids.length ? "Ничего не отобрано." : `Отобрано: ${ids.length}.${ids.length > max ? ` Показаны первые ${max}.` : ""}`;
+        const first = [];
+        for (const u of all) {
+          if (first.length === max && assistByName(u, first[max - 1]) >= 0) continue;
+          let lo = 0, hi = first.length;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (assistByName(first[mid], u) < 0) lo = mid + 1; else hi = mid; }
+          first.splice(lo, 0, u);
+          if (first.length > max) first.pop();
+        }
+        Object.assign(e, { ids: first.map((u) => u.uid), total });
+        if (total > max) e.truncated = true;
+        e.text = !total ? "Ничего не отобрано." : `Отобрано: ${total}.${total > max ? ` Показаны первые ${max}.` : ""}`;
       }
       if (action) e.action = action.id;
       return out.concat(e);

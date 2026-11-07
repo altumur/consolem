@@ -188,7 +188,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(vol.id, "gen");
   volSet(vol.id, "gb", String(Math.round(vol.bytes / 1024 ** 3 / 2)), true);
   cardApply();
-  ok(document.getElementById("confirm").classList.contains("open") && /стёрты/.test(document.getElementById("confirmWarn").textContent), "уменьшение спрашивает второй раз");
+  ok(document.getElementById("confirm").classList.contains("open") && /стёрты|сотрёт/.test(document.getElementById("confirmWarn").textContent), "уменьшение спрашивает второй раз");
   await confirmWith(null);
   ok(await until(() => bq && bq.finished), "план выполнен: не ок " + bq?.fail);
   const v2 = await uiRec(vol.id);

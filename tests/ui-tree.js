@@ -24,9 +24,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !row._row), "полная запись дочитана по клику");
   ok(await until(() => sel === row.id && document.getElementById("main").textContent.includes(row.name)), "карточка открыта");
   // Вход по чужому id: записи в кэше нет. Как в базе — камера: выбор цели правила (ruleTypesNeed) читает одну страницу по виду,
-  // kind= — ограниченный проход, поэтому камеры набора demo в кэше не все (иначе дерево расходится с базой)
-  const alien = (await uiDevices()).find((x) => x.type === "camera" && !find(x.id));
-  ok(!!alien, "чужая запись есть");
+  // kind= — ограниченный проход, поэтому камеры набора demo в кэше обычно не все (иначе дерево расходится с базой).
+  // Но сервер дописывает страницу прохода по бюджету времени: успел — в кэше все камеры. Тогда чужая запись — другое устройство
+  const devs = await uiDevices();
+  const alien = devs.find((x) => x.type === "camera" && !find(x.id)) || devs.find((x) => !find(x.id));
+  ok(!!alien, "чужая запись есть: " + (alien ? alien.type : "нет"));
   pick(alien.id, { force: true });
   ok(await until(() => sel === alien.id && !find(alien.id)?.n._row), "вход по чужому id: запись дочитана и открыта");
   // Поиск волнами: на маленьком наборе дошёл до конца — дерево, найденное видно строкой
@@ -88,7 +90,6 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     let err = null;
     await folderChange(f.id, [cam.id, st.uid], []).catch((e) => (err = e));
     const opPosts = CONSOLEM_TRACE.filter((t) => t.method === "POST" && t.path === "/operations").length;
-    const opPolls = CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/operations\//.test(t.path)).length;
     const fNow = await uiFolderIds(f.id);
     ok(opPosts === 1 && err?.status === 422 && !f.items.includes(cam.id) && !f.items.includes(st.uid) && !fNow.includes(cam.id) && !fNow.includes(st.uid),
       `отказ всей операции: ничего не применено, кэш папки прежний (${err?.status} ${err?.problem?.code}), одна операция`);
@@ -98,7 +99,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(err?.status >= 400 && err.status < 500 && !(await uiFolderIds(f.id)).includes(cam.id) && !f.items.includes(cam.id), `несуществующий объект — отказ всей операции (${err?.status} ${err?.problem?.code})`);
     CONSOLEM_TRACE.length = 0;
     await folderChange(f.id, [cam.id], []);
-    ok(f.items.includes(cam.id) && !CONSOLEM_TRACE.some((t) => t.method === "GET" && /^\/operations\//.test(t.path)) && !opPolls, "быстрая запись — итогом в ответе, без опроса операции");
+    // Опрос — только своей операции: на медленной машине в журнал попадает хвост опроса прежних операций теста
+    const fastOp = (await API.get("/operations", { limit: 1 })).items[0];
+    ok(f.items.includes(cam.id) && !CONSOLEM_TRACE.some((t) => t.method === "GET" && t.path === `/operations/${fastOp.id}`), "быстрая запись — итогом в ответе, без опроса операции");
     delete window.CONSOLEM_TRACE;
     await folderChange(f.id, [], [cam.id]);
   }
@@ -125,7 +128,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     clearTreeQ();
   } else ok(false, "нет нечитанной папки с объектом");
   // Откат папки — словом, запрет запроса 11 п. 23 остаётся
-  ok(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } }) === "папки вне отката: состав папки не возвращается", "слово шага понятно человеку");
+  ok(/^(папки вне отката: состав папки не возвращается|откат не действует на папки\. Консоль не вернёт состав папки)$/.test(problemText({ problem: { code: "NOT_SUPPORTED", params: { reason: "folders" } } })), "слово шага понятно человеку");
   setSlice("all");
   setGroup("server");
   // Поток: наблюдаемое — раскрытые ветки и карточка, не больше watchMax
@@ -144,10 +147,14 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   renderTree();
   setSelMode(false);
   // Нет связи с доменом: плашка, чужое не удалено
-  d.online = false;
-  pick(d.id, { force: true });
-  ok(await until(() => /показано только своё/.test(document.getElementById("domLost")?.textContent || "")), "плашка на домене");
-  ok(/показано только своё/.test(document.getElementById("tree").textContent), "строка в дереве");
+  // Связь снята только в кэше: событие сервера «на связи» может вернуть её, пока карточка рисуется (медленная машина)
+  const offline = () => {
+    if (d.online !== false) { d.online = false; pick(d.id, { force: true }) }
+    return /показано только своё|показывает только свои данные/.test(document.getElementById("domLost")?.textContent || "");
+  };
+  d.online = true;
+  ok(await until(offline), "плашка на домене");
+  ok(/показано только своё|показывает только свои данные/.test(document.getElementById("tree").textContent), "строка в дереве");
   ok(!refBroken(alien.id) || find(alien.id), "цели правил не считаются удалёнными");
   d.online = true;
   // Разделы читают своё при заходе

@@ -164,7 +164,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   accEdited();
   accPlan();
   await confirmWith(null);
-  ok(await until(() => /без администратора|лишит вас входа/.test(toastText())), "сервер отказал: «" + toastText() + "»");
+  ok(await until(() => /без администратора|лишит вас входа|не сможете войти/.test(toastText())), "сервер отказал: «" + toastText() + "»");
   ok(accVer === vNo && accSrv().roles.some((r) => r.own.unr), "на сервере не изменилось");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();
@@ -204,16 +204,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ACC_ME = plainU.login;
   ok(!accMeAdmin(), "вошёл не администратор");
   accGo("user:" + accUsers().find((x) => x.login === meWas).id, "gen");
-  ok(/менять его может только администратор/.test(document.querySelector("#main, main")?.textContent || ""), "предупреждение на карточке администратора");
+  ok(/менять его может только администратор|Изменить его может только администратор/.test(document.querySelector("#main, main")?.textContent || ""), "предупреждение на карточке администратора");
   ACC_ME = meWas;
   accGo("roles");
   // Повышение: отказ сервера с подсказкой сменить пароль
   const risky = accUsers().find((x) => x.pwAdmin === false);
   accAssign(risky.id, admRole.id, true);
-  ok(/сначала смените/.test(toastText()), "предупреждение при назначении: «" + toastText() + "»");
+  ok(/сначала смените|Сначала изменить пароль/.test(toastText()), "предупреждение при назначении: «" + toastText() + "»");
   accPlan();
   await confirmWith(null);
-  ok(await until(() => /сначала смените его/.test(toastText())), "отказ сервера с подсказкой");
+  ok(await until(() => /сначала смените его|Сначала изменить пароль/.test(toastText())), "отказ сервера с подсказкой");
   ACC.ed = accClone(ACC.srv);
   accResolveAll();
   // Учётка потока: доступ к камерам — черновиком, через «Применить»
@@ -251,7 +251,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(e.by === "max" && e.lv === "ARCHIVE", "исключение «Нет» в одной роли, папка другой роли — итог от другой: " + e.lv);
   ok(accExCuts(ra, cam0.id, "cam", dom0).some((x) => x.u.id === probe.id), "исключение снимает права: без него был бы «Полный»");
   const why = accEffWhyHtml(e, "cam");
-  ok(/acc-why-off/.test(why.lines) && /наибольшее по ролям/.test(why.foot), "«Почему так»: правило названо, низшая роль зачёркнута");
+  ok(/acc-why-off/.test(why.lines) && /наибольшее по ролям|наибольшее значение из всех ролей/.test(why.foot), "«Почему так»: правило названо, низшая роль зачёркнута");
   e = fx(() => { ra.objs[cam0.id] = { cam: "MON" }; rb.objs[cam0.id] = { cam: "ONLY_ARCHIVE" }; });
   ok(e.by === "join" && e.lv === "ARCHIVE", "«Просмотр» и «Просмотр архива» вместе — «Просмотр и архив»: " + e.lv);
   ACC.ed = accClone(ACC.srv);

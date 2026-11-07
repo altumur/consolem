@@ -169,7 +169,7 @@ UiCheck(async ({ ok, until, sleep }) => {
     setSlice("all");
     setGroup(g);
     renderTree();
-    ok(/показано только своё/.test(document.getElementById("tree").textContent), `${g}: нет связи с доменом — строка в дереве`);
+    ok(/показано только своё|показывает только свои данные/.test(document.getElementById("tree").textContent), `${g}: нет связи с доменом — строка в дереве`);
   }
   d.online = true;
 });

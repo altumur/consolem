@@ -7,6 +7,12 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   addDomain();
   ok(await until(()=>domains.length===before+1&&treeRenameId===domains[domains.length-1].id),"домен создан на сервере, строка открыта на переименование");
   const nd=domains[domains.length-1];
+  // Перерисовка дерева во время ввода: поле открыто, набранное на месте (Chrome шлёт blur заменяемому полю)
+  ok(await until(()=>document.querySelector("#tree .nm-inp")),"поле переименования в дереве");
+  const ri=document.querySelector("#tree .nm-inp");
+  ri.focus();ri.value="Фил";ri.dispatchEvent(new Event("input",{bubbles:true}));
+  renderTree();
+  ok(await until(()=>document.querySelector("#tree .nm-inp")?.value==="Фил")&&treeRenameId===nd.id,"перерисовка не закрыла поле и не стёрла набранное");
   commitTreeRename(nd.id,"Филиал Юг");
   ok(await until(()=>nd.name==="Филиал Юг"&&treeRenameId===null),"переименован");
   ok((await uiRec(nd.id)).name==="Филиал Юг","на сервере — новое имя");

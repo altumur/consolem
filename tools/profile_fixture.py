@@ -12,6 +12,12 @@ reference.capabilities, тесты и интерфейс прячут остал
 только числа: 250 000 камер, 500 серверов. Записи считает заглушка при загрузке (api/server.js, expandLarge), в файле
 набора их нет. Загружается ?fixture=large, POST /test/reset {fixture: "large"}, node tools/serve_api.mjs --fixture large.
 
+Набор api/fixtures/xl.json — тот же large с другими числами stand.large: 1 000 000 камер, 2 000 серверов, 1 200 папок
+в четырёх доменах (Москва, Санкт-Петербург, Казань, Новосибирск) по 250 000 камер, 500 серверов и 300 папок.
+В файле — только наложение: "$base": "large" и stand. Целый набор собирают из large при загрузке tools/build_api.py
+(в api/fixture.js — Object.assign поверх large, а не вторая копия) и tools/serve_api.mjs. Загружается ?fixture=xl,
+POST /test/reset {fixture: "xl"}, node tools/serve_api.mjs --fixture xl.
+
 Набор хранит units вместо domains, servers, devices, folders, archives, volumes: старые разделы выводятся из units
 (tools/generic_legacy.py), отбираются, и объекты собираются из них заново. Объектов незнакомых видов в профиле нет: в нём
 только камеры и детекторы.
@@ -34,9 +40,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = f"{API}/fixtures/demo.json"
 OUT = f"{API}/fixtures/one-domain.json"
 OUT_LARGE = f"{API}/fixtures/large.json"
+OUT_XL = f"{API}/fixtures/xl.json"
 # Камер всего, серверов, папок; под серверами из них 50 000, из них на первом — ветка больше страницы.
 # Остальные 200 000 — камеры-кластеры: без сервера и родителя, лежат прямо под доменом
 LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 50000, "firstBranch": 1000, "clusters": 40, "relayed": 5}
+# xl — large в четыре раза, четырьмя доменами: числа на весь набор, expandLarge делит их поровну, и каждый домен — как
+# large: 250 000 камер, 500 серверов в 40 кластерах, 300 папок, 50 000 камер под серверами (на сервере ~100, камер-кластеров
+# 80 %). Ветка первого сервера — 1 000 в каждом домене (firstBranch — на домен: она нужна длиннее страницы, а не
+# пропорциональной). Ретранслятор — у первого домена, за ним его доля: 5 кластеров из 20
+XL = {"cameras": 1000000, "servers": 2000, "folders": 1200, "serverCameras": 200000, "firstBranch": 1000, "clusters": 160, "relayed": 20,
+      "domains": 4, "domainNames": ["Москва", "Санкт-Петербург", "Казань", "Новосибирск"]}
 
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети.
@@ -384,6 +397,11 @@ def build_large(demo):
         "в файле только числа. Собран tools/profile_fixture.py из demo.json, руками не правится."
     )
     fx["stand"] = {"large": LARGE}
+    # В отличие от «одного домена» у большого стенда есть ассистент: check_perf меряет поиск вместе с ним (шаг gq-enter-asst).
+    # Операция и функция встают на свои места по порядку demo
+    caps, dcaps = fx["reference"]["capabilities"], demo["reference"]["capabilities"]
+    caps["operations"] = [o for o in dcaps["operations"] if o in caps["operations"] or o == "assistTurn"]
+    caps["features"] = [f for f in dcaps["features"] if f in caps["features"] or f == "assist"]
     for k in ("servers", "archives", "volumes", "devices", "folders", "rules", "ruleVersions", "ruleFires", "archiveScans", "archiveWatches", "journal"):
         fx[k] = []
     fx.pop("relays", None)
@@ -414,6 +432,19 @@ def via_units(build_fx):
     return run
 
 
+def build_xl():
+    """Наложение поверх large: только числа стенда. Остальное — из large (tools/build_api.py, tools/serve_api.mjs)."""
+    return {
+        "$comment": (
+            "Стенд xl: набор large с другими числами stand.large — 1 000 000 камер, 2 000 серверов, 1 200 папок "
+            "в четырёх доменах поровну. "
+            "Наложение: целый набор — large и поверх него эти поля. Собран tools/profile_fixture.py, руками не правится."
+        ),
+        "$base": "large",
+        "stand": {"large": XL},
+    }
+
+
 def render(fx):
     return json.dumps(fx, ensure_ascii=False, indent=1) + "\n"
 
@@ -422,7 +453,7 @@ def main():
     with open(os.path.join(ROOT, SRC), encoding="utf-8") as f:
         demo = json.load(f)
     code = 0
-    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo)))):
+    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo))), (OUT_XL, build_xl())):
         text = render(fx)
         path = os.path.join(ROOT, out)
         if "--check" in sys.argv[1:]:

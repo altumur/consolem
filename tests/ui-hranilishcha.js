@@ -106,7 +106,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(anBlock() === i18n("Выберите сервер") && document.querySelector("#bmFoot .btn.pri").disabled, "локальному нужен сервер: «Далее» погашена");
   ok(!/Весь домен/.test(dlg().querySelector(".an-srv select").textContent), "у локального нет «Весь домен»");
   anGo(2);
-  ok(/Сначала выберите сервер/.test(dlg().textContent), "диски — после выбора сервера");
+  ok(/Сначала выберите сервер|Сначала выбрать сервер/.test(dlg().textContent), "диски — после выбора сервера");
   await dropArch();
   addArchive(owner.id);
   ok(an.server === owner.id && an.kind === "local" && !anBlock(), "с сервера: локальное, сервер подставлен");

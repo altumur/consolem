@@ -15054,6 +15054,7 @@
     "getSettings",
     "patchSettings",
     "listJournal",
+    "assistTurn",
     "stream",
     "deleteObjects",
     "applyAccess",
@@ -15121,6 +15122,7 @@
     "validateUnits"
    ],
    "features": [
+    "assist",
     "exportVideo",
     "exportFrame",
     "exportLiveFrame",

@@ -82,7 +82,9 @@ UiCheck(async ({ ok, until }) => {
   localStorage.setItem(SENTRY, "до показа");
   localStorage.setItem(THEME, "light");
   localStorage.setItem(TREE_OPEN_LS, JSON.stringify({ all: ["svcs:*"] }));
-  const snap = () => JSON.stringify(Object.keys(localStorage).sort().map((k) => [k, localStorage.getItem(k)]));
+  // Раскрытие дерева в снимок не входит: в сборке под CSP внешняя страница стенда сама пишет его в то же хранилище
+  // в любой момент. Утечку папок из показа ловит отдельная проверка ниже.
+  const snap = () => JSON.stringify(Object.keys(localStorage).filter((k) => k !== TREE_OPEN_LS).sort().map((k) => [k, localStorage.getItem(k)]));
   const snapBefore = snap();
   for (let k = 0; k < Tour.topics.length; k++) {
     const t = Tour.topics[k], last = t.steps.length - 1, want = t.steps[last].say;
@@ -103,6 +105,8 @@ UiCheck(async ({ ok, until }) => {
       [...d.querySelectorAll(".tour-panel button")].find((b) => b.textContent.trim() === "×2")?.click();
     }
     ok(snap() === snapBefore, `«${t.title}»: настоящий localStorage не изменился`);
+    const demoOpen = reached ? w.localStorage.getItem(TREE_OPEN_LS) : null;
+    ok(demoOpen == null || localStorage.getItem(TREE_OPEN_LS) !== demoOpen, `«${t.title}»: раскрытие дерева из показа не попало в настоящий localStorage`);
     f.remove();
   }
   sessionStorage.removeItem("tourSpeed");

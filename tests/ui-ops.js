@@ -57,10 +57,10 @@ UiCheck(async ({ ok, until }) => {
   API.patch = (...a) => (posts.push(a[0]), patch0(...a));
   btn("data-op", logOps[0]).click();
   ok(await until(() => busyIds().has(cam.id)), "идёт откат: камера занята");
-  ok(busyRefuse(cam.id) && /групповая операция/.test(document.getElementById("tt")?.textContent || ""), "правка отказывает тостом");
+  ok(busyRefuse(cam.id) && /групповая операция|групповую операцию/.test(document.getElementById("tt")?.textContent || ""), "правка отказывает тостом");
   pick(cam.id, { force: true });
   goApp("hw");
-  ok(/Над объектом выполняется групповая операция/.test(document.getElementById("main").textContent), "в карточке — надпись");
+  ok(/Над объектом выполняется групповая операция|выполняет групповую операцию над объектом/.test(document.getElementById("main").textContent), "в карточке — надпись");
   ok(!posts.length, "до сервера правка не дошла");
   API.patch = patch0;
   ok(await until(() => !busyIds().size), "откат закончился");
