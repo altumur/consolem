@@ -18123,10 +18123,12 @@ function ruleOrderHtml(r){
 // ── Тишина: разовое приглушение и окна обслуживания ──
 // Приглушённое правило запускается и пишет трассу, но действий не выполняет: в журнале — «приглушено до …».
 function ruleStamp(d){return localStamp(d.toISOString())}
-function ruleMuteAt(r,d){const m=r.mute,t=ruleStamp(d||new Date());return m&&t<m.until&&(!m.since||t>=m.since)?m:null}
-function ruleMuteNow(r){return ruleMuteAt(r,new Date())}
+function ruleMuteAt(r,d){const m=r.mute,t=ruleStamp(d||ruleClockNow());return m&&t<m.until&&(!m.since||t>=m.since)?m:null}
+// Сейчас — по часам сервера: начало приглушения ставит сервер, а часы браузера могут от них отставать
+function ruleClockNow(){return new Date(promptNow())}
+function ruleMuteNow(r){return ruleMuteAt(r,ruleClockNow())}
 // «18:00» — если сегодня, иначе «24.10 18:00».
-function ruleMuteTill(m){return m.until.slice(0,10)===ruleStamp(new Date()).slice(0,10)?m.until.slice(11):`${m.until.slice(8,10)}.${m.until.slice(5,7)} ${m.until.slice(11)}`}
+function ruleMuteTill(m){return m.until.slice(0,10)===ruleStamp(ruleClockNow()).slice(0,10)?m.until.slice(11):`${m.until.slice(8,10)}.${m.until.slice(5,7)} ${m.until.slice(11)}`}
 function ruleMutePlate(r){
   const m=ruleMuteNow(r);if(!m)return"";
   return`<div class="nt" role="status">${ruleMuteIc()} ${i18n("Приглушено до")} ${escHtml(ruleMuteTill(m))} (${escHtml(m.by)}${m.why?`: ${escHtml(m.why)}`:""}) · <button type="button" class="lk lk-act" ${onEv("click",["ruleMuteSetTo",[r.id],null])}>${i18n("Снять сейчас")}</button></div>`;
@@ -18140,12 +18142,12 @@ function ruleMuteOpen(ids){
   ruleMuteRender();
 }
 function ruleMuteUntilStamp(){
-  const d=new Date();
+  const d=ruleClockNow();
   if(rmu.opt==="1h"){d.setHours(d.getHours()+1);return ruleStamp(d)}
   if(rmu.opt==="day")return`${ruleStamp(d).slice(0,10)} 23:59`;
   return rmu.until?rmu.until.replace("T"," ").slice(0,16):"";
 }
-function ruleMuteOk(){const u=ruleMuteUntilStamp();return!!u&&u>ruleStamp(new Date())}
+function ruleMuteOk(){const u=ruleMuteUntilStamp();return!!u&&u>ruleStamp(ruleClockNow())}
 function ruleMuteSync(){const b=document.getElementById("rmuApply");if(b)b.disabled=!ruleMuteOk()}
 function ruleMuteOpt(v){rmu.opt=v;ruleMuteRender()}
 function ruleMuteUntil(v){rmu.until=v;ruleMuteSync()}
@@ -18165,7 +18167,7 @@ function ruleMuteRender(){
 }
 function ruleMuteApply(){
   if(!rmu||!ruleMuteOk())return;
-  const m={since:ruleStamp(new Date()),until:ruleMuteUntilStamp(),by:ACC_ME,why:(rmu.why||"").trim()},ids=rmu.ids;
+  const m={since:ruleStamp(ruleClockNow()),until:ruleMuteUntilStamp(),by:ACC_ME,why:(rmu.why||"").trim()},ids=rmu.ids;
   closeBulkModal();ruleMuteSetTo(ids,m);
 }
 // m — новое приглушение или null (снять). Сразу, не через черновик; снимок черновика переживает сброс — см. ruleRestore.

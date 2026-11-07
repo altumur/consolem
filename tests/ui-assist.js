@@ -323,7 +323,8 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => document.getElementById("asstAsk")), "«Отправить» мышью: вопрос");
   ok(asst && dockOpen(), "панель открыта");
   typed("Главный вход");
-  ok(await until(() => document.getElementById("asstPlanNote") && bulkActive()), "ответ на вопрос мышью: план в карточке");
+  // Черновик карточки — после того, как консоль дочитала записи плана: по сети это не сразу
+  ok(await until(() => document.getElementById("asstPlanNote") && bulkActive() && bulkDraft.planOf === asst.plan), "ответ на вопрос мышью: план в карточке");
   ok(await cardApply(), "«Применить» в карточке мышью");
   ok(await until(() => /План применён через карточку/.test(body())), "в панели — итог словами");
   ok(asst && dockOpen(), "панель открыта после «Применить»");

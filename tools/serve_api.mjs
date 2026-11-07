@@ -132,8 +132,8 @@ function cors(req, res) {
   res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, If-Match, Last-Event-ID");
-  res.setHeader("Access-Control-Expose-Headers", "ETag");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, Last-Event-ID");
+  res.setHeader("Access-Control-Expose-Headers", "ETag, Location, Retry-After");
   res.setHeader("Vary", "Origin");
 }
 

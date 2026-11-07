@@ -444,7 +444,7 @@ UiCheck(async ({ ok, until }) => {
   ok(!asstDockOpen, "панель поверх закрылась");
   ok(treeSel.size > 0, "объекты плана отмечены");
   ok(btn().classList.contains("wait") && /Ждёт ответа/.test(btn().textContent), "кнопка: ждёт ответа");
-  ok(bulkDraft.planOf === pChat.plan, "черновик карточки из плана");
+  ok(await until(() => bulkDraft.planOf === pChat.plan), "черновик карточки из плана");
   asstPickClear();
   treeSel.clear();
   bulkDraft = {};

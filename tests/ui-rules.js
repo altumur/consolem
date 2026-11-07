@@ -201,7 +201,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   muteApply().click();
   ok(await until(() => r(R1).mute), "«На 1 час» в другом поясе: приглушено");
   ok(!!ruleMuteNow(r(R1)), "«На 1 час» в другом поясе: тишина действует, а не истекла сразу");
-  const muteLeft = Date.parse((await API.get("/rules/" + R1)).mute?.until || 0) - Date.now();
+  const muteLeft = Date.parse((await API.get("/rules/" + R1)).mute?.until || 0) - promptNow();
   ok(muteLeft > 57 * 6e4 && muteLeft <= 60 * 6e4, "«На 1 час» в другом поясе: на сервере через час, минут: " + Math.round(muteLeft / 6e4));
   sysTz = tz0;
   ruleMuteSetTo([R1], null);
