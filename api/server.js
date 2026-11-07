@@ -4807,7 +4807,7 @@
       { re: /выключи\S*\s.*запис|запис\S*.*выключи/, profile: "vms.camera/1", name: "recordMode", value: "none" },
       { re: /(^|[^ы])включи\S*\s.*запис/, profile: "vms.camera/1", name: "recordMode", value: "always" },
     ];
-    const assistNorm = (t) => String(t == null ? "" : t).toLowerCase().replace(/ё/g, "е");
+    const assistNorm = (t) => { const s = String(t == null ? "" : t).toLowerCase(); return s.includes("ё") ? s.replace(/ё/g, "е") : s; };
     const assistWords = (t) => assistNorm(t).split(/[^a-zа-я0-9]+/).filter(Boolean);
     const assistText = (t) => (t && typeof t === "object" ? t.text || t.key || "" : String(t || ""));
     // Основа слова без окончания: «камера» → «камер», «ручной» → «ручн»
@@ -4832,6 +4832,27 @@
     }
     const assistKindLabel = (kind) => assistText((kinds.get(kind) || {}).label) || kind;
     const assistProps = (kind) => ((kinds.get(kind) || {}).schema || {}).properties || {};
+    // Словарь значений x-search видов отбора. Один на набор видов, пока не изменились склад (stamp, а правку
+    // на месте выдаёт событие — seqEvent) и описания видов:
+    // на xl это миллион значений, и собирать его на каждую реплику — секунды
+    let assistValuesMemo = null;
+    function assistValuesOf(scope) {
+      const key = scope.join(",") + "|" + kinds.etag();
+      const m = assistValuesMemo;
+      if (m && m.key === key && m.store === store && m.stamp === store.stamp() && m.seq === seqEvent) return m;
+      const values = new Map();
+      const labelOf = (kind, prop) => assistText((assistProps(kind)[prop] || {})["x-label"]).toLowerCase() || prop;
+      // Объекты вида — одним списком на вид, а не на каждое свойство поиска: на xl это миллион записей
+      scope.forEach((kind) => { const units = store.byKind(kind); kinds.searchNames(kind).forEach((prop) => units.forEach((u) => {
+        [].concat(props(u)[prop]).forEach((v) => {
+          if (typeof v !== "string" || v.length < 3) return;
+          const n = assistNorm(v);
+          if (!values.has(n)) values.set(n, { v, prop, label: labelOf(kind, prop) });
+        });
+      })); });
+      assistValuesMemo = { key, store, stamp: store.stamp(), seq: seqEvent, values };
+      return assistValuesMemo;
+    }
     const assistByName = (a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.uid < b.uid ? -1 : 1);
     // Команда над объектами: подпись команды вида (UnitKind.actions, кроме ruleOnly) — все её слова в просьбе (по пяти буквам:
     // «поставь» — «Поставить»). Виды, названные в просьбе, сужают выбор
@@ -4998,13 +5019,15 @@
       enums.forEach((e, word) => add(4, word, null, (u) => e.tests.some((t) => t(u))));
       enums.forEach((e) => (rest = assistEat(rest, e.m)));
       // Значение свойства с x-search у объектов видов отбора, целым словом: «производитель: Axis», «серийный номер: TU-0001»
-      const values = new Map();
-      scope.forEach((kind) => kinds.searchNames(kind).forEach((prop) => store.byKind(kind).forEach((u) => {
-        [].concat(props(u)[prop]).forEach((v) => {
-          if (typeof v === "string" && v.length >= 3 && !values.has(assistNorm(v))) values.set(assistNorm(v), { v, prop, label: assistText((assistProps(kind)[prop] || {})["x-label"]).toLowerCase() || prop });
-        });
-      })));
-      [...values.keys()].sort((a, b) => b.length - a.length).forEach((key) => {
+      // Кандидаты — куски фразы между границами слов (их десятки), а не весь словарь (на xl значений — миллион); длинные первыми
+      const { values } = assistValuesOf(scope);
+      const edge = (c) => c === undefined || !/[a-zа-я0-9-]/.test(c);
+      const keys = [];
+      for (let i = 0; i < rest.length; i++) {
+        if (!edge(rest[i - 1])) continue;
+        for (let j = i + 3; j <= rest.length; j++) if (edge(rest[j]) && values.has(rest.slice(i, j))) keys.push(rest.slice(i, j));
+      }
+      [...new Set(keys)].sort((a, b) => b.length - a.length).forEach((key) => {
         const at = new RegExp(`(^|[^a-zа-я0-9-])${key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?=[^a-zа-я0-9-]|$)`);
         if (!at.test(rest)) return;
         const x = values.get(key);
@@ -5022,17 +5045,28 @@
         else tests.push(c.test);
       });
       const { hit } = unitFilter(assistUnitsQuery(filter));
-      const all = [...store.all()].filter((u) => hit(u) && tests.every((t) => t(u))).sort(assistByName);
-      const max = db.reference.limits.selectMax, ids = [...new Set(all.map((u) => u.uid))];
+      // На xl под отбор попадает до миллиона объектов: сортировка по имени — только когда в ответ идут ids, и только первые
+      // selectMax (отбор за один проход), а для ответа фильтром нужно одно число. uid в складе уникальны
+      const all = [];
+      for (const u of store.all()) if (hit(u) && tests.every((t) => t(u))) all.push(u);
+      const max = db.reference.limits.selectMax, total = all.length;
       const conditions = conds.map((c) => c.word);
       const e = { type: "found", at, context, conditions };
-      if (!tests.length && (action || ids.length > max)) {
-        Object.assign(e, { filter, total: ids.length });
-        e.text = `Отобрано: ${ids.length}.${action ? ` Команда «${action.label}» — над отобранным, из групповой карточки.` : " Листается фильтром."}`;
+      if (!tests.length && (action || total > max)) {
+        Object.assign(e, { filter, total });
+        e.text = `Отобрано: ${total}.${action ? ` Команда «${action.label}» — над отобранным, из групповой карточки.` : " Листается фильтром."}`;
       } else {
-        Object.assign(e, { ids: ids.slice(0, max), total: ids.length });
-        if (ids.length > max) e.truncated = true;
-        e.text = !ids.length ? "Ничего не отобрано." : `Отобрано: ${ids.length}.${ids.length > max ? ` Показаны первые ${max}.` : ""}`;
+        const first = [];
+        for (const u of all) {
+          if (first.length === max && assistByName(u, first[max - 1]) >= 0) continue;
+          let lo = 0, hi = first.length;
+          while (lo < hi) { const mid = (lo + hi) >> 1; if (assistByName(first[mid], u) < 0) lo = mid + 1; else hi = mid; }
+          first.splice(lo, 0, u);
+          if (first.length > max) first.pop();
+        }
+        Object.assign(e, { ids: first.map((u) => u.uid), total });
+        if (total > max) e.truncated = true;
+        e.text = !total ? "Ничего не отобрано." : `Отобрано: ${total}.${total > max ? ` Показаны первые ${max}.` : ""}`;
       }
       if (action) e.action = action.id;
       return out.concat(e);
