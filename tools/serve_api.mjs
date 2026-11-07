@@ -75,8 +75,9 @@ function servePage(req, res) {
   if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
   let data = fs.readFileSync(file);
   // Страница без ?api= подняла бы свой встроенный сервер на демо-наборе. API — этот же сервер: адрес в разметке, как в
-  // сборке для консоли VMS (<meta name="consolem-api">, index.html читает его, если ?api= нет)
-  if (path.extname(file) === ".html") data = data.toString("utf8").replace(/<head>/i, '<head><meta name="consolem-api" content="/">');
+  // сборке для консоли VMS (<meta name="consolem-api">, index.html читает его, если ?api= нет). consolem-fixture — набор
+  // запуска: самопроверка сбрасывает стенд на свои наборы, а в конце возвращает этот
+  if (path.extname(file) === ".html") data = data.toString("utf8").replace(/<head>/i, `<head><meta name="consolem-api" content="/"><meta name="consolem-fixture" content="${start}">`);
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)], "Cache-Control": "no-store" });
   res.end(data);
   return true;

@@ -164,7 +164,14 @@
             return frame(name);
           }),
       Promise.resolve()
-    ).catch((e) => {
+    )
+      // Стенд с набором запуска (<meta name="consolem-fixture">, tools/serve_api.mjs --page) — вернуть его: иначе
+      // после самопроверки стенд остаётся на demo, пока его не перезапустят
+      .then(() => {
+        const back = document.querySelector('meta[name="consolem-fixture"]')?.content;
+        if (back && back !== "demo") return API.raw("POST", "/test/reset", { fixture: back, freezeClock: false }).catch(() => {});
+      })
+      .catch((e) => {
       SCENARIOS.filter((n) => !results[n]).forEach((n) => (results[n] = [`FAIL  ${e.message}`]));
       render(true);
     });
