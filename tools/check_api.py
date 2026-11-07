@@ -961,6 +961,23 @@ def old_contract():
         return None
 
 
+def schema_removed(a, b, path):
+    """Что снято в схеме b против a, вглубь: поля (properties), значения перечня (enum), то же у items и additionalProperties.
+    Ссылки $ref не раскрываются: схема по ссылке сверяется своей строкой. Ответ — пути вида «Схема.поле.подполе»."""
+    if not isinstance(a, dict) or not isinstance(b, dict) or "$ref" in a or "$ref" in b:
+        return []
+    out = []
+    pa, pb = a.get("properties") or {}, b.get("properties") or {}
+    out += [f"{path}.{k}" for k in sorted(set(pa) - set(pb))]
+    ea, eb = a.get("enum") or [], b.get("enum") or []
+    out += [f"{path}={v!r}" for v in ea if v not in eb]
+    for k in sorted(set(pa) & set(pb)):
+        out += schema_removed(pa[k], pb[k], f"{path}.{k}")
+    for key, mark in (("items", "[]"), ("additionalProperties", "{}")):
+        out += schema_removed(a.get(key), b.get(key), path + mark)
+    return out
+
+
 def check_breaking_doc(rep, spec):
     """Контракт против контракта старого макета (git show 47d1310:api/openapi.json): каждая операция старого контракта, которой
     в нынешнем нет, и каждая снятая или изменённая (состав полей, перечень) схема названы в разделе README BREAKING_TITLE."""
@@ -981,10 +998,10 @@ def check_breaking_doc(rep, spec):
     sa, sb = base["components"]["schemas"], spec["components"]["schemas"]
     problems += [f"схема старого контракта {n} снята — нет в разделе" for n in sorted(set(sa) - set(sb)) if n not in named]
     for n in sorted(set(sa) & set(sb)):
-        a, b = sa[n], sb[n]
-        if set(a.get("properties") or {}) - set(b.get("properties") or {}) or set(a.get("enum") or []) - set(b.get("enum") or []):
-            if n not in named:
-                problems.append(f"схема {n} изменена (снято поле или значение) — нет в разделе")
+        gone = schema_removed(sa[n], sb[n], n)
+        if gone and n not in named:
+            more = f" и ещё {len(gone) - 3}" if len(gone) > 3 else ""
+            problems.append(f"схема {n} изменена (снято: {', '.join(gone[:3])}{more}) — нет в разделе")
     if base["info"]["version"] == spec["info"]["version"]:
         problems.append(f"info.version тот же, что у старого контракта ({base['info']['version']}): несовместимый контракт — новая версия")
     rep.check("Ломающие изменения против контракта старого макета названы в README", problems,
