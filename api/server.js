@@ -1909,14 +1909,32 @@
     };
     // Раздел вида: порядок внутри — байты id, поэтому порядок перечня не алфавитный и не сдвигается вставкой
     const partsCount = () => (db.stand.large ? 4096 : 16);
-    const partOf = (id) => hashOf(id) % partsCount();
-    const partKey = (id) => `${String(partOf(id)).padStart(4, "0")}:${id}`;
+    // Раздел — по id и размеру стенда: запомнен (partOf и partKey), иначе каждая страница дерева и пересборка разделов
+    // склада заново хешируют все id
+    let partMemo = new Map(), partKeys = new Map(), partMemoLarge = null;
+    const partReset = () => { if (partMemoLarge !== !!db.stand.large) { partMemo = new Map(); partKeys = new Map(); partMemoLarge = !!db.stand.large; } };
+    const partOf = (id) => {
+      partReset();
+      let p = partMemo.get(id);
+      if (p === undefined) partMemo.set(id, (p = hashOf(id) % partsCount()));
+      return p;
+    };
+    const partKey = (id) => {
+      partReset();
+      let k = partKeys.get(id);
+      if (k === undefined) partKeys.set(id, (k = `${String(partOf(id)).padStart(4, "0")}:${id}`));
+      return k;
+    };
     // Новые первыми, место не зависит от того, что появится потом: номер записи с конца списка
     const backRank = (list, rec) => String(9999999 - (list.length - 1 - list.indexOf(rec))).padStart(8, "0");
     const backTime = (at) => String(9e15 - Date.parse(at)).padStart(17, "0");
+    // Поиск по складу проверяет сотни тысяч полей подряд: «ё» заменяется, только если она есть, а запрос нормализуется один раз
+    const normText = (v) => { const t = String(v).toLowerCase(); return t.includes("ё") ? t.replace(/ё/g, "е") : t; };
+    let needleOf = { q: null, n: "" };
+    const needleFor = (q) => (needleOf.q === q ? needleOf.n : (needleOf = { q, n: normText(String(q).trim()) }).n);
     const textHit = (q, ...fields) => {
-      const needle = String(q).trim().toLowerCase().replace(/ё/g, "е");
-      return fields.some((f) => f != null && String(f).toLowerCase().replace(/ё/g, "е").includes(needle));
+      const needle = needleFor(q);
+      return fields.some((f) => f != null && normText(f).includes(needle));
     };
     const scopeOf = (name, q) => hashOf(name + JSON.stringify(Object.keys(q).filter((k) => k !== "limit" && k !== "cursor").sort().map((k) => [k, q[k]]))).toString(36);
     const cursorMake = (scope, at, exp) => btoa(encodeURIComponent(JSON.stringify({ s: scope, a: at, e: exp || now() + VIEW_ROUND_MS })));
@@ -1939,12 +1957,22 @@
       if (limit === null) return limitBad();
       const scope = scopeOf(name, q), cur = cursorRead(q, scope);
       if (cur.bad) return cur.bad;
-      const sorted = rows.map((r) => [key(r), r]).sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0));
-      const from = cur.at === null ? 0 : sorted.findIndex((x) => x[0] > cur.at);
-      const start = from < 0 ? sorted.length : from;
-      const chunk = sorted.slice(start, start + limit);
+      // Нужны только limit первых ключей после курсора: отбор за один проход, без сортировки всех строк (на large у узла
+      // тысячи детей, а страница — 200). top — отсортированные лучшие, не длиннее limit; rest — сколько строк после них
+      const top = [];
+      let after = 0;
+      for (const r of rows) {
+        const k = key(r);
+        if (cur.at !== null && !(k > cur.at)) continue;
+        if (top.length === limit && !(k < top[limit - 1][0])) { after++; continue; }
+        let lo = 0, hi = top.length;
+        while (lo < hi) { const mid = (lo + hi) >> 1; if (!(k < top[mid][0])) lo = mid + 1; else hi = mid; }
+        top.splice(lo, 0, [k, r]);
+        if (top.length > limit) { top.pop(); after++; }
+      }
+      const chunk = top;
       const body = Object.assign({ items: chunk.map((x) => show(x[1])) }, extra || {});
-      if (start + limit < sorted.length) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
+      if (after > 0) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
       return { status: 200, body };
     }
     /* ----- Камера-кластер, дочерние устройства ----- */
@@ -2198,9 +2226,16 @@
     // Поиск q: имя, short (если оно есть у вида), uid, свойства с x-search; fields — где искать. Ответ — где нашлось
     // Где нашлось q: имя, short, свойства x-search, uid. uid — только целиком: часть uid (цифра «1») есть почти у каждого
     // объекта, а /devices?q= базы по id не искал. Так q без fields находит то же, что база (имя, номер, адрес, производитель, модель)
+    // Поля поиска вида: запомнены по описанию вида (новое описание — новый объект, kinds.put), иначе собираются на каждый объект
+    const searchNamesMemo = new WeakMap();
+    function searchNamesOf(k) {
+      let n = searchNamesMemo.get(k);
+      if (!n) searchNamesMemo.set(k, (n = ["name"].concat("short" in ((k.schema || {}).properties || {}) ? ["short"] : [], kinds.searchNames(k.kind).filter((x) => x !== "short"), ["uid"])));
+      return n;
+    }
     function matchOf(u, text, fields) {
       const k = kinds.get(u.kind);
-      const names = ["name"].concat((k ? "short" in ((k.schema || {}).properties || {}) : "short" in props(u)) ? ["short"] : [], k ? kinds.searchNames(u.kind).filter((n) => n !== "short") : [], ["uid"]);
+      const names = k ? searchNamesOf(k) : ["name"].concat((k ? "short" in ((k.schema || {}).properties || {}) : "short" in props(u)) ? ["short"] : [], k ? kinds.searchNames(u.kind).filter((n) => n !== "short") : [], ["uid"]);
       const value = (f) => (f === "name" ? u.name : f === "uid" ? u.uid : props(u)[f]);
       const hit = (f) => (f === "uid" ? String(text).trim().toLowerCase() === u.uid.toLowerCase() : textHit(text, Array.isArray(value(f)) ? value(f).join(" ") : value(f)));
       return names.find((f) => (!fields || fields.includes(f)) && hit(f)) || null;
