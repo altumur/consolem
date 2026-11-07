@@ -880,6 +880,7 @@ window.I18N_EN={
 "объекта":"objects",
 "объектов":"objects",
 "папка":"folder",
+"папку":"folder",
 "папки":"folders",
 "Перемещено в":"Moved to",
 "Добавлено ещё в":"Also added to",

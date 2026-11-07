@@ -6049,7 +6049,7 @@ function domainFolderInfo(did){
   const root=treeBr.get("folders|"+did)?.count||0;
   if(!n&&!root)return{text:"—",title:i18n("Консоль ещё не прочитала папки домена")};
   if(root>n)return{text:`${root}+`,title:`${i18n("Корневых папок")}: ${root}. ${i18n("Сервер не считает вложенные папки.")}`};
-  return{text:`${n}+`,title:`${i18n("Консоль прочитала пока")} ${n} ${i18n(plural(n,"папка|папки|папок"))}. ${i18n("Их может быть больше.")}`};
+  return{text:`${n}+`,title:`${i18n("Консоль прочитала пока")} ${n} ${i18n(plural(n,"папку|папки|папок"))}. ${i18n("Их может быть больше.")}`};
 }
 function canDeleteDomain(){return domains.length>1}
 // Перенос содержимого удаляемого домена делает сервер (DELETE /domains/{id}?moveTo=):
