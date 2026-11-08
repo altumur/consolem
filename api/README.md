@@ -29,7 +29,8 @@
   - `?latency=300` — задержка ответа, как в медленной сети;
   - `?drop=listRules,getSettings` — система, которая не объявила эти операции: запуск без необязательного;
   - `?fixture=one-domain` — встроенный сервер с набором профиля: система, которая умеет часть контракта, и интерфейс без неподдержанного;
-  - `?assist=https://адрес` — ход ассистента идёт в службу с настоящей моделью, со снимком встроенного сервера: только встроенный сервер и набор `demo`; код доступа нужен, только если служба ответила `401` (`BACKEND.md`, «Служба демо-страницы»). Метка страницы `consolem-assist` — то же адресом в разметке, в `index.html` её нет;
+  - `?assist=https://адрес` — ход ассистента идёт в службу с настоящей моделью, со снимком встроенного сервера: только встроенный сервер и набор `demo`; код доступа нужен, только если служба ответила `401` (`BACKEND.md`, «Служба демо-страницы»). Метка страницы `consolem-assist` — то же адресом в разметке, в `index.html` её нет. В учебном режиме (`?demo`, раздел «Обучение») службы нет ни из `?assist=`, ни из меток: отвечает встроенная заглушка;
+  - `?tour=<тема>&ch=<глава>&demo=` — учебный показ главы по устойчивым ID (`assets/tour.js`); `&demoFail=server|storage` — проверка отказа показа: сервер показа не загрузился, хранилище не отделилось;
   - `?selftest` — самопроверка (см. «Проверки»).
 
 ## Файлы
@@ -78,7 +79,7 @@
 | `access` | `GET /access` — снимок прав (`Role.kindAccess` по классам доступа); `POST /access/apply` — черновик пакетом; `POST /access/catalogs/{id}/sync`; страницами — `GET /access/users`, `/access/groups`, `/access/history`, `/access/cell-history`, `/access/roles/{id}/objects` |
 | `access` — учётки потоков | `GET`, `POST /stream-accounts`; `PATCH`, `DELETE /stream-accounts/{name}`; `POST /stream-accounts/{name}/password` |
 | `settings`, `journal` | `GET`, `PATCH /settings`; `GET /licenses`; `GET /journal` |
-| `assist` | `POST /assist/turns` — ход разговора с ассистентом, ответ потоком (SSE); мир ассистента — `kinds` + `units` |
+| `assist` | `POST /assist/turns` — ход разговора с ассистентом, ответ потоком (SSE); мир ассистента — `kinds` + `units`; учебные ссылки `answer.learn` — только когда глава каталога нашлась, иначе прежний разбор (`BACKEND.md`) |
 | `stream` | `GET /stream` — поток событий (SSE); `PUT /stream/{clientId}/watch` — что наблюдает поток |
 | `test-support` | `POST /test/reset`, `/test/clock`, `/test/events`, `/test/stream-elsewhere`; `PUT /test/kinds/{kind}` (описание вида на ходу — `kinds.changed`) — только на тестовом стенде |
 

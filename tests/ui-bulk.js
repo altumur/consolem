@@ -44,18 +44,22 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     // Без паузы: объекты идущей операции заняты — интерфейс не даёт их править, сервер отвечает 409 BUSY;
     // после отмены остатка — свободны
     const left = bq.steps.flatMap((s) => s.ops).filter((o) => !o.done).map((o) => o.n);
-    ok(left.length > 0 && left.every((n) => blockedId(n.id)), "объекты операции заняты: " + left.length);
-    ok(busyRefuse(left[0].id) === true, "правка занятого объекта отклонена");
-    const last = left[left.length - 1];
-    const opId = bq.api;
-    const refused = await uiPatch(last.id, { name: last.name }, verOf[last.id]).then(() => null, (e) => e);
-    // Шаг мог успеть раньше запроса на занятой странице: тогда операция уже кончилась, а версия ушла вперёд. Пока она идёт — только BUSY
-    const running = (await API.get("/operations/" + opId)).state === "running";
-    ok(refused && refused.problem && (refused.problem.code === "BUSY" || (!running && refused.problem.code === "VERSION_MISMATCH")), "сервер: правка занятого объекта — " + (refused && refused.problem ? refused.problem.code : "принята"));
-    queueCancel();
-    ok(await until(() => bq.finished), "отмена оставшегося: ok " + bq.ok + ", отменено " + bq.steps[0].ops.filter((o) => o.state === "cancel").length);
-    ok(many.every((c) => !blockedId(c.id)), "после окончания объекты свободны");
-    ok(busyRefuse(many[0].id) === false, "правка свободного объекта разрешена");
+    // Медленная страница: операция могла кончиться до проверки — занятых объектов нет, проверять занятость нечего
+    if (!left.length) ok(await until(() => bq.finished && many.every((c) => !blockedId(c.id))), "операция кончилась раньше проверки: объекты свободны");
+    else {
+      ok(left.length > 0 && left.every((n) => blockedId(n.id)), "объекты операции заняты: " + left.length);
+      ok(busyRefuse(left[0].id) === true, "правка занятого объекта отклонена");
+      const last = left[left.length - 1];
+      const opId = bq.api;
+      const refused = await uiPatch(last.id, { name: last.name }, verOf[last.id]).then(() => null, (e) => e);
+      // Шаг мог успеть раньше запроса на занятой странице: тогда операция уже кончилась, а версия ушла вперёд. Пока она идёт — только BUSY
+      const running = (await API.get("/operations/" + opId)).state === "running";
+      ok(refused && refused.problem && (refused.problem.code === "BUSY" || (!running && refused.problem.code === "VERSION_MISMATCH")), "сервер: правка занятого объекта — " + (refused && refused.problem ? refused.problem.code : "принята"));
+      queueCancel();
+      ok(await until(() => bq.finished), "отмена оставшегося: ok " + bq.ok + ", отменено " + bq.steps[0].ops.filter((o) => o.state === "cancel").length);
+      ok(many.every((c) => !blockedId(c.id)), "после окончания объекты свободны");
+      ok(busyRefuse(many[0].id) === false, "правка свободного объекта разрешена");
+    }
   }
   // Камеры сервера без связи — исключены, на сервер не уходят
   const off = devicePool.filter((n) => n.type === "camera" && !online(n)).slice(0, 2);

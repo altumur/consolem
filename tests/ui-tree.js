@@ -6,7 +6,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const all = (await uiUnitsAll()).filter(uiIsDevice).length;
   await until(() => !!streamClient);
   ok(pool0 < all, `кэш неполный: ${pool0} из ${all}`);
-  ok(/≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || ""), "число без фильтра — со знаком ≈");
+  ok(await until(() => /≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || "")), "число без фильтра — со знаком ≈");
   ok(treeBr.has(treeLayout() + "|" + d.id), "открытый домен прочитан");
   // Сервер раскрывается по запросу, версия в кэше — из строки
   setGroup("server");
@@ -173,7 +173,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goSearch("Хранилище");
   const goText = () => document.getElementById("goList")?.textContent || "";
   ok(await until(() => /Встроенное хранилище/.test(goText())), "поиск в шапке находит встроенные хранилища: " + goText().slice(0, 80));
-  const netAsk = CONSOLEM_TRACE.find((t) => t.method === "GET" && /^\/units\?/.test(t.path) && /[?&]q=/.test(t.path));
+  // Найденное в кэше видно сразу, запрос к серверу уходит после паузы ввода: ждать его самого
+  const netFind = () => CONSOLEM_TRACE.find((t) => t.method === "GET" && /^\/units\?/.test(t.path) && /[?&]q=/.test(t.path));
+  await until(netFind);
+  const netAsk = netFind();
   const asked = netAsk ? (new URLSearchParams(netAsk.path.split("?")[1]).get("kind") || "").split(",") : [];
   ok(asked.length > 0 && !asked.some((k) => INFRA_SCREENS.has(screenType(k))), "запрос — только виды устройств: " + (netAsk?.path || "нет запроса").slice(0, 80));
   delete window.CONSOLEM_TRACE;

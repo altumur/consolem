@@ -442,5 +442,76 @@
     return `камер по слову: ${withWord.length}`;
   }, { needs: ["assistTurn", "createExport"] });
 
+  // Учебные ссылки (запрос w2c, ADR-VMS-0004): answer.learn — {catalog, topic, chapter} из каталога обучения консоли. Каталог даёт
+  // страница, у встроенного сервера своего нет: тест ставит маленький каталог в window.ApiTestLearnCatalog (harness.js).
+  // Стенд бэкенда каталог знает сам: там проверяется только форма — схемой, общей проверкой в конце прогона
+  const LEARN_CAT = {
+    format: "consolem-learn-catalog/1", version: "sha256:" + "ab".repeat(32), available: true,
+    topics: [
+      { id: "rules", title: "Как создать правило автоматизации", goal: "Правило само реагирует на событие.", lang: "ru", fixture: "demo",
+        chapters: [{ id: "rules.simple", title: "Простое правило: «Если» и «То»", goal: "Простое правило отвечает на два вопроса: что случилось и что сделать.", lang: "ru", fixture: "demo" },
+          { id: "rules.template", title: "Шаблон", goal: "Шаблон сразу даёт рабочую логику.", lang: "ru", fixture: "demo" }] },
+      { id: "tree", title: "Как найти объект в дереве", goal: "Срезы, папки и статус сужают дерево.", lang: "ru", fixture: "demo",
+        chapters: [{ id: "tree.status", title: "Отбор по статусу", goal: "Статус показывает, что требует внимания.", lang: "ru", fixture: "demo" }] },
+    ],
+  };
+  test("Ассистент: «покажи, как …», «как настроить …» — answer с учебными ссылками learn, только когда глава нашлась; нет главы или каталога — прежний разбор без learn", async () => {
+    const env = await makeEnv();
+    const turn = async (text) => (await env.stream("/assist/turns", { text })).map(({ at, ...e }) => e);
+    const end = async (text) => (await turn(text)).pop();
+    if (ApiTest.external) {
+      const e = await end("покажи, как создать правило");
+      assert.ok(["answer", "found", "question", "refused", "error", "plan"].includes(e.type), "конечное событие: " + e.type);
+      assert.ok(!e.learn || e.type === "answer", "learn — только у answer");
+      return e.learn ? `ссылок: ${e.learn.length}` : "стенд ответил без учебных ссылок";
+    }
+    try {
+      // (в) С каталогом и найденной главой — answer с learn
+      window.ApiTestLearnCatalog = LEARN_CAT;
+      const rule = await end("покажи, как создать простое правило");
+      assert.eq([rule.type, typeof rule.text, typeof rule.context], ["answer", "string", "string"], "ответ — answer с текстом и context");
+      assert.eq(rule.learn && rule.learn[0], { catalog: LEARN_CAT.version, topic: "rules", chapter: "rules.simple" }, "первая ссылка — глава каталога по ID");
+      assert.ok(rule.learn.every((l) => l.catalog === LEARN_CAT.version && l.chapter.startsWith(l.topic + ".") && LEARN_CAT.topics.some((t) => t.id === l.topic && t.chapters.some((c) => c.id === l.chapter))), "все ссылки — из каталога, глава своей темы");
+      assert.ok(rule.learn.every((l) => Object.keys(l).join() === "catalog,topic,chapter") && !/https?:|<|javascript:/i.test(JSON.stringify(rule.learn)), "в ссылке только ID: ни адреса, ни разметки");
+      const status = await end("как настроить отбор по статусу");
+      assert.eq(status.learn && status.learn.map((l) => l.chapter), ["tree.status"], "«как настроить …» — своя глава");
+      // Учебный ответ — только когда глава нашлась. Иначе — прежний разбор, тот же, что без каталога (и до учебных ссылок)
+      const same = async (text, what) => {
+        window.ApiTestLearnCatalog = LEARN_CAT;
+        const withCat = await turn(text);
+        window.ApiTestLearnCatalog = null;
+        const noCat = await turn(text);
+        window.ApiTestLearnCatalog = Object.assign({}, LEARN_CAT, { available: false });
+        const off = await turn(text);
+        assert.eq(withCat, noCat, `${what}: с каталогом без подходящей главы — как без каталога`);
+        assert.eq(off, noCat, `${what}: материал недоступен — как без каталога`);
+        assert.ok(noCat.every((e) => !("learn" in e)), `${what}: без learn`);
+        return noCat.pop();
+      };
+      // (а) «как выгрузить …» с камерой — план выгрузки, как раньше
+      if (ApiTest.can("createExport")) {
+        const exp = await same("как выгрузить видео с камеры Главный вход за 5 минут", "«как выгрузить …»");
+        assert.ok(exp.type === "plan" && exp.export && exp.export.cameras.length > 0 && exp.export.mode === "video", "«как выгрузить …» — план выгрузки: " + exp.type);
+      }
+      // (б) Без каталога «как создать правило» — прежний разбор правила: не понял, какое правило
+      window.ApiTestLearnCatalog = null;
+      const plain = await turn("как создать правило");
+      assert.eq([plain.at(-1).type, plain.at(-1).text, plain.some((e) => "learn" in e)], ["refused", "Не понял, какое правило нужно.", false], "«как создать правило» без каталога — прежний ответ, без learn");
+      window.ApiTestLearnCatalog = LEARN_CAT;
+      assert.ok((await end("как создать правило")).learn, "та же просьба с каталогом — учебная ссылка");
+      const cat = await same("как погладить кота", "«как погладить кота»");
+      assert.ok(cat.type !== "answer" || !cat.learn, "главы нет — прежний разбор: " + cat.type);
+      // Каталог есть, но просьба не учебная — прежний разбор
+      window.ApiTestLearnCatalog = LEARN_CAT;
+      const found = await end("покажи камеры без детектора движения");
+      assert.eq(found.type, "found", "«покажи» без «как» — прежний отбор");
+      const count = await end("сколько камер");
+      assert.eq([count.type, "learn" in count], ["answer", false], "вопрос о системе — answer без learn");
+      return `ссылок на «создать правило»: ${rule.learn.length}`;
+    } finally {
+      window.ApiTestLearnCatalog = null;
+    }
+  }, NEED);
+
   ApiTest.loaded("api-assist.js");
 })();

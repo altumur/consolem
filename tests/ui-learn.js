@@ -1,24 +1,37 @@
 /* Сценарий интерфейса: раздел «Обучение» и учебный режим. Запуск — tools/check_ui.py tests/ui-learn.js */
 UiCheck(async ({ ok, until }) => {
+  // Сборка без обучения (tools/build_webui.py --without-learn): раздела нет, каталог сборки — пустой с признаком
+  if (!window.Tour) {
+    ok(!learnShown() && !appsShown().some((a) => a.id === "learn"), "без обучения: вкладки «Обучение» нет");
+    const cat = await fetch(new URL("learn-catalog.json", location.href)).then((r) => (r.ok ? r.json() : null), () => null);
+    ok(cat && cat.available === false && cat.topics.length === 0 && cat.version === null, "без обучения: learn-catalog.json сборки — available:false, тем нет");
+    return;
+  }
   goApp("learn");
   const main = () => document.getElementById("main");
   const rows = () => [...document.querySelectorAll("#tree .n")];
 
   // Раздел и дерево
   ok(appsShown().some((a) => a.id === "learn"), "вкладка «Обучение» в рельсе");
-  ok(Tour.topics.length === 6, "шесть тем");
+  ok(Tour.topics.length >= 7 && Tour.find("assistant"), "темы на месте, с темой об ассистенте: " + Tour.topics.length);
+  // Тема Г: работа с ассистентом на заглушке — просьба, вопрос, план, проверка человеком, «Применить», отказ, конфликт версии,
+  // вопрос оператору и эскалация в «Только журнал». Каждая глава доходит до конца ниже (цикл по темам: все шаги подряд)
+  const AT = Tour.find("assistant")?.topic;
+  ok(AT && AT.chapters.map((c) => c.id).join() === "assistant.stub,assistant.question,assistant.check,assistant.refused,assistant.conflict,assistant.ask", "тема об ассистенте: главы по порядку");
+  ok(AT && /заглушка, а не живая модель/.test(AT.why + AT.chapters[0].why) && AT.steps.some((s) => /Только журнал/.test(s.say)) && AT.steps.some((s) => /не меняется/.test(s.say)), "тема об ассистенте: прямо сказано — заглушка, «Только журнал», настоящая система не меняется");
   ok(/Ничего не сломается/.test(main().textContent), "первый экран объясняет, зачем раздел");
   const closed = rows().length;
-  ok(closed === 7, "дерево свёрнуто: «С чего начать» и темы, строк: " + closed);
+  ok(closed === Tour.topics.length + 1, "дерево свёрнуто: «С чего начать» и темы, строк: " + closed);
   ok(!Tour.demo && !document.querySelector(".tour-panel,.tour-mode"), "пока показ не запущен, учебного режима нет");
 
-  learnTree("0");
+  const T0 = Tour.topics[0], T1 = Tour.topics[1];
+  learnTree(T0.id);
   ok(/Зачем это нужно/.test(main().textContent), "экран темы: таблица глав");
   ok(rows().length === closed + Tour.topics[0].chapters.length, "тема раскрылась");
   ok(getComputedStyle(document.querySelector(".lrn-tbl")).tableLayout === "fixed", "таблица глав не двигает столбцы");
 
-  learnTree("0.1");
-  const ch = Tour.topics[0].chapters[1];
+  const ch = T0.chapters[1];
+  learnTree(ch.id);
   ok(main().querySelector("h1, .hd")?.textContent.includes(ch.title), "экран главы: заголовок");
   ok(document.querySelectorAll(".lrn-steps li").length === ch.to - ch.from + 1, "экран главы: текст всех шагов");
   ok(/\d+ шаг/.test(document.querySelector(".lrn-meta").textContent), "экран главы: число шагов");
@@ -27,7 +40,7 @@ UiCheck(async ({ ok, until }) => {
   learnTree("home");
   learnOpen.clear();
   renderTree();
-  const arrow = () => document.querySelector('#tree .n[data-go="learn:1"] .tw');
+  const arrow = () => document.querySelector(`#tree .n[data-go="learn:${T1.id}"] .tw`);
   const n0 = rows().length;
   arrow().click();
   ok(rows().length === n0 + Tour.topics[1].chapters.length && learnSel === "home", "стрелка раскрыла тему, выбор на месте");
@@ -35,20 +48,62 @@ UiCheck(async ({ ok, until }) => {
   ok(rows().length === n0 && learnSel === "home", "стрелка свернула тему");
 
   // Ссылка моргает на месте прихода
-  learnLink("0");
+  learnLink(T0.id);
   ok(await until(() => document.querySelector("#tree .acc-flash")), "ссылка подсвечивает строку дерева");
 
-  // Адрес #learn: неверная глава ведёт к теме, неверная тема — никуда
+  // Адрес #learn — по ID: глава, тема; неверная глава ведёт к теме, неверная тема и прежний номер — на первый экран раздела
   const atHash = (h) => {
     history.replaceState(history.state, "", location.pathname + location.search + h);
     learnFromHash();
   };
-  atHash("#learn=0.99");
-  ok(learnSel === "0" && document.querySelector("#tree .n.on"), "#learn с неверной главой выбирает тему");
+  atHash(`#learn=${ch.id}`);
+  ok(learnSel === ch.id && document.querySelector("#tree .n.on"), "#learn с ID главы выбирает главу");
+  atHash(`#learn=${T0.id}.nope`);
+  ok(learnSel === T0.id && document.querySelector("#tree .n.on"), "#learn с неверной главой выбирает тему");
   learnSel = "home";
-  atHash("#learn=99");
+  atHash("#learn=nope");
   ok(learnSel === "home", "#learn с неверной темой ничего не выбирает");
+  atHash("#learn=0.1");
+  ok(learnSel === "home", "#learn прежним номером (0.1) главу по номеру не выбирает: первый экран раздела");
   ok(location.hash === "", "якорь снят");
+
+  // Устойчивые ID: у каждой темы и главы свой, латиницей, глава — «<тема>.<глава>», без повторов
+  const allIds = Tour.topics.flatMap((t) => [t.id, ...t.chapters.map((c) => c.id)]);
+  ok(Tour.topics.every((t) => t.stable && Tour.ID.test(t.id) && t.chapters.every((c) => c.stable && c.id.startsWith(t.id + ".") && Tour.ID.test(c.id.slice(t.id.length + 1)))), "у тем и глав устойчивые ID");
+  ok(new Set(allIds).size === allIds.length, "ID без повторов");
+  // Перестановка и удаление: глава находится по ID, а не по месту; удалённую главу консоль не берёт и ближайшую не подставляет
+  const keep = Tour.topics.slice();
+  const step = (id, title, say) => ({ ch: { id, title, why: "проверка" }, say });
+  Tour.add({ id: "zz-check", title: "Проверка", why: "проверка", steps: [step("one", "Первая", "1"), step("two", "Вторая", "2")] });
+  const before2 = Tour.find("zz-check", "zz-check.two");
+  Tour.topics.splice(0, Tour.topics.length, ...keep);
+  Tour.add({ id: "zz-check", title: "Проверка", why: "проверка", steps: [step("two", "Вторая", "2"), step("new", "Новая", "0"), step("one", "Первая", "1")] });
+  const after2 = Tour.find("zz-check", "zz-check.two"), after1 = Tour.find("zz-check", "zz-check.one");
+  ok(before2.c === 1 && after2.c === 0 && after2.chapter.title === "Вторая" && after1.chapter.title === "Первая", "перестановка и новая соседняя глава: ID ведёт к той же главе");
+  ok(new URL(Tour.url("zz-check", "zz-check.one"), location.href).searchParams.get("ch") === "zz-check.one", "адрес показа — ID главы, не номер");
+  Tour.topics.splice(0, Tour.topics.length, ...keep);
+  Tour.add({ id: "zz-check", title: "Проверка", why: "проверка", steps: [step("two", "Вторая", "2")] });
+  ok(Tour.find("zz-check", "zz-check.one").chapter === null && Tour.url("zz-check", "zz-check.one") === null && Tour.play("zz-check", "zz-check.one") === false, "удалённая глава: не найдена, показа нет");
+  ok(Tour.find("nope", null) === null && Tour.url("nope", null) === null, "неизвестная тема: показа нет");
+  Tour.topics.splice(0, Tour.topics.length, ...keep);
+  // Каталог — из тех же тем: ID, название, цель, язык, учебный набор, отпечаток; шагов и кода показа в нём нет
+  const cat = Tour.catalog();
+  ok(cat.format === "consolem-learn-catalog/1" && /^sha256:[0-9a-f]{64}$/.test(cat.version) && cat.available === true, "каталог: формат, отпечаток, материал доступен");
+  ok(cat.topics.length === Tour.topics.length && cat.topics.every((t, n) => t.id === Tour.topics[n].id && t.chapters.length === Tour.topics[n].chapters.length), "каталог: все темы и главы");
+  ok(cat.topics.every((t) => t.title && t.goal && t.lang === "ru" && t.fixture === "demo" && t.chapters.every((c) => c.title && c.goal && c.lang === "ru" && c.fixture === "demo" && Object.keys(c).join() === "id,title,goal,lang,fixture")), "каталог: у глав только id, title, goal, lang, fixture");
+  ok(!/"(say|before|at|act|steps|text)"/.test(JSON.stringify(cat)), "каталог: шагов, селекторов и действий нет");
+  ok(Tour.catalog().version === cat.version, "отпечаток повторяется");
+  Tour.add({ id: "zz-check", title: "Проверка", why: "проверка", steps: [step("one", "Первая", "1")] });
+  ok(Tour.catalog().version !== cat.version, "новая глава меняет отпечаток");
+  Tour.topics.splice(0, Tour.topics.length, ...keep);
+  ok(Tour.catalog().version === cat.version, "без неё отпечаток прежний");
+  // Сборка: learn-catalog.json — тот же каталог, что у страницы (tools/learn_catalog.mjs исполняет те же файлы)
+  if (Tour.lazy) {
+    const file = await fetch(new URL("learn-catalog.json", location.href)).then((r) => (r.ok ? r.json() : null), () => null);
+    ok(file && file.version === cat.version && file.available === true && JSON.stringify(file.topics) === JSON.stringify(cat.topics), "learn-catalog.json сборки совпадает с каталогом страницы");
+  }
+  // Номер темы и главы этой страницы (так зовут play прототипы) становится ID в адресе
+  ok(new URL(Tour.url(0, 1), location.href).searchParams.get("ch") === T0.chapters[1].id, "номер этой страницы переводится в ID");
 
   // Обычная страница сборки не загружает сервер показа
   if (Tour.lazy) ok(!performance.getEntriesByType("resource").some((e) => /\/demo\//.test(e.name)), "обычная страница без файлов demo/");
@@ -88,7 +143,7 @@ UiCheck(async ({ ok, until }) => {
   const snapBefore = snap();
   for (let k = 0; k < Tour.topics.length; k++) {
     const t = Tour.topics[k], last = t.steps.length - 1, want = t.steps[last].say;
-    const f = open(`tour=${k + 1}&demo=${last}`);
+    const f = open(`tour=${t.id}&ch=${t.chapters.at(-1).id}&demo=${last}`);
     // Кнопка появляется, когда последний шаг выполнен: одной подписи мало, она видна раньше
     const reached = await until(() => sayIn(f) === want && btnIn(f, "Показать снова"), 90000);
     ok(reached, `«${t.title}»: показ дошёл до последнего шага` + (reached ? "" : `, на экране: ${sayIn(f)}`));
@@ -97,6 +152,9 @@ UiCheck(async ({ ok, until }) => {
       ok(d.querySelector(".tour-mode")?.textContent.includes("Учебные данные"), `«${t.title}»: видна полоса учебного режима`);
       const urls = w.performance.getEntriesByType("resource").map((e) => e.name);
       ok(!urls.some((u) => u.startsWith(API_ADDR)), `«${t.title}»: запросов к адресу API нет`);
+      // Без внешних обращений: только файлы своей страницы — показ работает без интернета и внешней службы
+      const away = urls.filter((u) => !/^(file|data|blob):/.test(u) && new URL(u).origin !== location.origin);
+      ok(!away.length, `«${t.title}»: внешних обращений нет` + (away.length ? ": " + away[0] : ""));
       ok(w.localStorage.getItem(SENTRY) === null && w.localStorage.getItem(TREE_OPEN_LS) !== localStorage.getItem(TREE_OPEN_LS), `«${t.title}»: черновики и папки в показ не попали`);
       ok(w.localStorage.getItem(THEME) === "light", `«${t.title}»: тема пришла в показ`);
       w.localStorage.setItem(SENTRY, "из показа");
@@ -111,15 +169,41 @@ UiCheck(async ({ ok, until }) => {
   }
   sessionStorage.removeItem("tourSpeed");
 
+  // Рабочая история ассистента и код службы: в показ не переходят и показом не меняются. Две учебные вкладки сразу — у каждой
+  // своя память; перезагрузка показа начинает с чистых учебных данных, настоящее хранилище на месте
+  const histWas = localStorage.getItem(ASST_STORE), codeWas = sessionStorage.getItem(ASST_CODE_KEY);
+  localStorage.setItem(ASST_STORE, JSON.stringify([{ id: "work-1", at: Date.now(), title: "рабочий разговор", log: [{ u: "рабочая просьба" }] }]));
+  sessionStorage.setItem(ASST_CODE_KEY, JSON.stringify({ url: "https://svc.example.test", code: "рабочий-код" }));
+  const histSet = localStorage.getItem(ASST_STORE), codeSet = sessionStorage.getItem(ASST_CODE_KEY);
+  const AR = Tour.find("assistant", "assistant.refused")?.chapter;
+  if (AR) {
+    const t1 = open(`tour=assistant&ch=${AR.id}&demo=${AR.to}`), t2 = open(`tour=${T0.id}&ch=${T0.chapters[0].id}&demo=${T0.chapters[0].to}`);
+    const both = await until(() => t1.contentDocument?.getElementById("asstRefused") && t2.contentDocument?.querySelector(".tour-mode") && t2.contentWindow.appReady, 90000);
+    ok(both, "две учебные вкладки открыты сразу");
+    if (both) {
+      const w1 = t1.contentWindow, w2 = t2.contentWindow;
+      ok(!/рабочий разговор|рабочая просьба/.test(w1.localStorage.getItem(ASST_STORE) || "") && !/рабочая просьба/.test(t1.contentDocument.getElementById("asstDock").textContent), "рабочая история ассистента в показ не перешла");
+      ok(/цвет корпуса/.test(w1.localStorage.getItem(ASST_STORE) || "") && !/цвет корпуса/.test(w2.localStorage.getItem(ASST_STORE) || ""), "учебный разговор — в памяти своей вкладки, в другой учебной вкладке его нет");
+      ok(localStorage.getItem(ASST_STORE) === histSet && sessionStorage.getItem(ASST_CODE_KEY) === codeSet, "рабочая история и код службы не изменились");
+      w1.location.reload();
+      ok(await until(() => t1.contentWindow?.appReady && t1.contentDocument.getElementById("asstRefused"), 90000), "показ после перезагрузки снова дошёл до шага");
+      ok(localStorage.getItem(ASST_STORE) === histSet && sessionStorage.getItem(ASST_CODE_KEY) === codeSet && !/рабочая просьба/.test(t1.contentWindow.localStorage.getItem(ASST_STORE) || ""), "после перезагрузки: рабочее на месте и в показ не перешло");
+    }
+    t1.remove();
+    t2.remove();
+  }
+  if (histWas == null) localStorage.removeItem(ASST_STORE); else localStorage.setItem(ASST_STORE, histWas);
+  if (codeWas == null) sessionStorage.removeItem(ASST_CODE_KEY); else sessionStorage.setItem(ASST_CODE_KEY, codeWas);
+
   // Глава целиком, настоящим ходом курсора; без ?api= — адрес API из разметки сборки, если он есть
   const chapters = Tour.topics[0].chapters, lastCh = chapters.at(-1);
-  const pl = open(`tour=1&demo=${lastCh.from}&play`, false);
+  const pl = open(`tour=${T0.id}&ch=${lastCh.id}&demo=&play`, false);
   ok(await until(() => sayIn(pl) === Tour.topics[0].steps[lastCh.to].say && btnIn(pl, "Показать снова"), 120000), "глава прошла настоящим ходом до конца: " + sayIn(pl));
   ok(!pl.contentWindow.performance.getEntriesByType("resource").some((e) => /\/backend\/api\//.test(e.name)), "показ без ?api=: запросов к API сборки нет");
   pl.remove();
 
   // Конец главы: кнопки и переход к следующей главе без перезагрузки
-  const f = open(`tour=1&demo=${chapters[0].to}`);
+  const f = open(`tour=${T0.id}&ch=${chapters[0].id}&demo=${chapters[0].to}`);
   ok(await until(() => btnIn(f, "Следующая глава") && btnIn(f, "Попробовать самому") && btnIn(f, "Показать снова"), 60000), "конец главы: следующая глава, попробовать самому, показать снова");
   const mark = (f.contentWindow.__sameLoad = {});
   btnIn(f, "Следующая глава")?.click();
@@ -127,8 +211,21 @@ UiCheck(async ({ ok, until }) => {
   ok(f.contentWindow.__sameLoad === mark, "страница не перезагружалась");
   f.remove();
 
+  // Неизвестная глава, неизвестная тема и прежний адрес по номерам: показа нет, ближайшая глава не запускается, выход — в каталог
+  for (const [q, what] of [[`tour=${T0.id}&ch=${T0.id}.nope&demo=&play`, "неизвестная глава"], ["tour=nope&ch=nope.one&demo=&play", "неизвестная тема"], ["tour=1&demo=3&play", "прежний номер темы"]]) {
+    const mf = open(q);
+    const seen = await until(() => mf.contentDocument?.getElementById("tourMissing"), 60000);
+    ok(seen && !mf.contentDocument.querySelector(".tour-cur,.tour-block"), `${what}: показ не идёт, объяснение на экране`);
+    ok(seen && mf.contentDocument.querySelector(".tour-mode"), `${what}: страница на учебных данных`);
+    if (seen) {
+      [...mf.contentDocument.querySelectorAll("#tourMissing button")].find((b) => /Открыть каталог/.test(b.textContent))?.click();
+      ok(await until(() => mf.contentWindow?.appReady && !/demo/.test(mf.contentWindow.location.search) && mf.contentDocument.querySelector('#tree .n.on[data-go="learn:home"]'), 60000), `${what}: «Открыть каталог» — раздел «Обучение»`);
+    }
+    mf.remove();
+  }
+
   // Выход: раздел на той же главе, учебного режима нет, язык вернулся, у записи истории есть состояние для «Назад»
-  const ex = open(`tour=1&demo=${chapters[1].from}&lang=en`, false);
+  const ex = open(`tour=${T0.id}&ch=${chapters[1].id}&demo=&lang=en`, false);
   const barBtn = () => ex.contentDocument?.querySelector(".tour-mode button");
   ok(await until(() => barBtn() && ex.contentDocument.querySelector(".tour-block"), 60000), "полоса учебного режима с кнопкой выхода");
   // Настоящий клик попадает в кнопку, а не в слой, который закрывает страницу на время показа
@@ -141,6 +238,100 @@ UiCheck(async ({ ok, until }) => {
   ok(xw.document.documentElement.lang === "en" && !/lang=/.test(xw.location.search), "выход: язык вернулся, параметр снят");
   ok(xw.history.state != null, "выход: запись истории не потеряла состояние");
   ex.remove();
+
+  // Запуск — только кнопкой человека и после предупреждения: на время показа рабочих тревог в этой вкладке нет
+  const hrefWas = location.href;
+  learnPlay(T0.id, T0.chapters[0].id);
+  const cf = document.getElementById("confirm");
+  ok(cf.classList.contains("open") && /рабочие тревоги/.test(document.getElementById("confirmWarn").textContent) && /учебных данных/.test(document.getElementById("confirmMsg").textContent) && /Запустить показ/.test(document.getElementById("confirmOk").textContent), "перед показом — предупреждение: тревог нет, данные учебные");
+  document.getElementById("confirmCancel").click();
+  ok(!cf.classList.contains("open") && location.href === hrefWas, "«Отменить» — показа нет, адрес прежний");
+  learnPlay(T0.id, T0.id + ".nope");
+  ok(!cf.classList.contains("open") && location.href === hrefWas, "неизвестная глава: ни предупреждения, ни показа");
+  // Адрес показа — белый список: рабочие api, assist, fixture и прочее в него не переходят
+  const work = "https://console.example.test/backend/?api=https%3A%2F%2Fwork.example.test&assist=https%3A%2F%2Fsvc.example.test&fixture=one-domain&latency=300&drop=listRules&uid=u1#learn=x";
+  const show = new URL(Tour.url(T0.id, T0.chapters[1].id, work));
+  ok(show.origin + show.pathname === "https://console.example.test/backend/" && [...show.searchParams.keys()].every((k) => ["tour", "ch", "demo", "play", "lang"].includes(k)) && show.searchParams.get("ch") === T0.chapters[1].id && !show.hash, "адрес показа: путь страницы и только tour, ch, demo, play: " + show.search);
+  ok([...new URL(Tour.url(T0.id, null, work)).searchParams.keys()].sort().join() === "all,demo,play,tour", "вся тема: tour, all, demo, play");
+  // Весь путь в этой же вкладке: рабочий адрес с assist, fixture и своим параметром → предупреждение → показ без них → выход на тот же адрес
+  const wq = `fixture=demo&assist=${encodeURIComponent("https://svc.example.test")}&latency=0&keep=1`;
+  const wf = open(wq, false);
+  ok(await until(() => wf.contentWindow?.appReady && wf.contentWindow.learnPlay, 60000), "рабочая страница открылась");
+  const ww = () => wf.contentWindow, wd = () => wf.contentDocument;
+  const searchWas = ww().location.search;
+  ww().learnPlay(T0.id, T0.chapters[1].id);
+  ok(wd().getElementById("confirm").classList.contains("open"), "в рабочей вкладке — предупреждение");
+  wd().getElementById("confirmOk").click();
+  ok(await until(() => ww()?.Tour?.demo && wd().querySelector(".tour-mode") && wd().querySelector(".tour-panel"), 60000), "та же вкладка: показ с полосой учебного режима");
+  if (ww()?.Tour?.demo) {
+    const sq = new URLSearchParams(ww().location.search);
+    ok([...sq.keys()].every((k) => ["tour", "ch", "demo", "play", "lang"].includes(k)) && !sq.has("assist") && !sq.has("fixture") && !sq.has("keep"), "в адрес показа не перешли assist, fixture и другие рабочие параметры: " + ww().location.search);
+    ok(/Учебные данные/.test(wd().querySelector(".tour-mode").textContent), "полоса «Учебные данные» видна");
+    ok(ww().asstServiceUrl() === "", "в показе внешней службы нет");
+    wd().querySelector(".tour-mode button").click();
+    ok(await until(() => ww()?.appReady && !ww().Tour.demo && ww().location.hash === "" && wd().querySelector("#tree .n.on"), 60000), "выход: обычная страница");
+    ok(ww().location.search === searchWas && ww().location.pathname === new URL(wf.src).pathname, "выход вернул прежний рабочий адрес: " + ww().location.search);
+    ok(!wd().querySelector(".tour-mode") && wd().querySelector(`#tree .n.on[data-go="learn:${T0.chapters[1].id}"]`), "выход: раздел «Обучение» на той же главе, полосы нет: " + wd().querySelector("#tree .n.on")?.dataset.go);
+    ok(sessionStorage.getItem("tourBack") === null, "рабочий адрес после выхода не хранится");
+  }
+  wf.remove();
+
+  // Отказ показа закрыт по умолчанию: сервер показа не загрузился или хранилище не подменилось. Глава известная, каталог полный.
+  // Каждый отказ — с рабочим адресом в ?api= и без него (тогда адрес — метка consolem-api, если страница её задаёт: в сборке под CSP).
+  // Отказ виден, учебные параметры на месте, страница к API не обращается, настоящий localStorage не меняется
+  const metaApi = pageMeta("consolem-api"), metaApiUrl = metaApi ? new URL(metaApi, location.href).href : "";
+  const workHits = (w) => w.performance.getEntriesByType("resource").map((e) => e.name).filter((u) => u.startsWith(API_ADDR) || (metaApiUrl && u.startsWith(metaApiUrl)));
+  const sleepR = (ms) => new Promise((r) => setTimeout(r, ms));
+  for (const why of ["server", "storage"]) {
+    for (const withApi of [true, false]) {
+      const where = withApi ? "адрес в ?api=" : metaApi ? "адрес в метке consolem-api" : "без адреса API";
+      const before = snap();
+      const f = open(`tour=${T0.id}&ch=${T0.chapters[0].id}&demo=&play&demoFail=${why}`, withApi);
+      const shown = await until(() => f.contentDocument?.querySelector(`#learnRefused[data-why="${why}"]`), 30000);
+      ok(shown, `отказ «${why}», ${where}: понятный отказ показа`);
+      if (shown) {
+        const w = f.contentWindow, d = f.contentDocument;
+        ok(/Показ не запущен/.test(d.getElementById("learnRefused").textContent) && /Настоящая система не изменилась/.test(d.getElementById("learnRefused").textContent), `отказ «${why}»: текст называет, что случилось`);
+        await sleepR(1500);
+        ok(/[?&]demo\b/.test(w.location.search) && /[?&]tour=/.test(w.location.search), `отказ «${why}», ${where}: учебные параметры на месте, перехода нет`);
+        ok(!w.appReady && !d.querySelector(".tour-panel,.tour-mode"), `отказ «${why}»: страница дальше не пошла, показа нет`);
+        ok(workHits(w).length === 0, `отказ «${why}», ${where}: запросов к рабочему API нет` + (workHits(w).length ? ": " + workHits(w)[0] : ""));
+        if (why === "storage") ok(w.localStorage.getItem(SENTRY) === "до показа", "отказ «storage»: хранилище не подменилось — потому показ и не идёт");
+      }
+      ok(snap() === before, `отказ «${why}», ${where}: настоящий localStorage не изменился`);
+      f.remove();
+    }
+  }
+  // Выход из отказа — только кнопкой человека: обычная страница без учебных параметров
+  const rf = open(`tour=${T0.id}&ch=${T0.chapters[0].id}&demo=&demoFail=server`, false);
+  ok(await until(() => rf.contentDocument?.querySelector("#learnRefused button"), 30000), "в отказе есть кнопка «Вернуться к работе»");
+  rf.contentDocument.querySelector("#learnRefused button")?.click();
+  ok(await until(() => rf.contentWindow?.appReady && !/demo/.test(rf.contentWindow.location.search) && !rf.contentDocument.getElementById("learnRefused"), 60000), "«Вернуться к работе»: обычная страница");
+  rf.remove();
+
+  // Учебный режим: внешней службы ассистента нет ни из ?assist=, ни из метки consolem-assist. Разговор идёт на заглушке
+  const SVC = "https://assist.example.test";
+  const af = open(`tour=${T0.id}&ch=${T0.chapters[0].id}&demo=${T0.chapters[0].to}&assist=${encodeURIComponent(SVC)}`, false);
+  ok(await until(() => af.contentWindow?.appReady && af.contentDocument.querySelector(".tour-mode"), 60000), "учебный режим с ?assist= открылся");
+  const aw = af.contentWindow;
+  if (aw?.asstServiceUrl) {
+    ok(aw.asstServiceUrl() === "" && aw.asstMode(null) === "off", "учебный режим: ?assist= не включает службу");
+    const m = aw.document.createElement("meta");
+    m.name = "consolem-assist";
+    m.content = SVC;
+    aw.document.head.append(m);
+    ok(aw.asstServiceUrl() === "", "учебный режим: метка consolem-assist не включает службу");
+    aw.document.querySelectorAll(".tour-block,.tour-panel").forEach((e) => e.remove());
+    aw.asstOpen("");
+    const ta = aw.document.getElementById("asstText");
+    ta.value = "сколько камер";
+    ta.dispatchEvent(new aw.Event("input", { bubbles: true }));
+    aw.document.getElementById("asstSend").click();
+    ok(await until(() => aw.document.getElementById("asstAnswer")), "учебный разговор: ответила заглушка");
+    ok(!aw.performance.getEntriesByType("resource").some((e) => e.name.startsWith(SVC)), "учебный разговор: обращений к службе нет");
+    ok(workHits(aw).length === 0, "учебный разговор: запросов к рабочему API нет");
+  }
+  af.remove();
 
   localStorage.removeItem(SENTRY);
   if (themeWas == null) localStorage.removeItem(THEME); else localStorage.setItem(THEME, themeWas);

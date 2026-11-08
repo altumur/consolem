@@ -4992,7 +4992,8 @@
       return last({ type: "plan", summary: "Create a rule", context, rules: rows });
     }
     // Что за реплика, заглушка решает сама по словам просьбы вместе с прежним context: поля типа в запросе нет.
-    // Порядок разбора: слова отбора («покажи») → вопрос о системе → правило → команда → правка. Команда над объектами
+    // Порядок разбора: слова отбора («покажи») → вопрос о системе → правило → команда → правка. Просьбу научить assistStub
+    // проверяет раньше (assistLearnStub): глава нашлась — учебный ответ, нет — этот же разбор, как без обучения. Команда над объектами
     // («поставь контроллеры на охрану») — отбор: выполняет её человек. Подпись команды сравнивается по первым пяти буквам
     // слов, поэтому она перехватывает просьбу, только если разбор правки не узнал в ней свойства: «включи запись» — правка,
     // даже когда у вида есть команда «Включить». Выбранное держит в себе, в событиях его нет
@@ -5129,6 +5130,33 @@
       if (action) e.action = action.id;
       return out.concat(e);
     }
+    /* Просьба научить — «как» и глагол в неопределённой форме («покажи, как создать правило», «как настроить детекторы»):
+       answer с learn, ссылками на главы каталога обучения консоли (AssistLearnLink: версия каталога, ID темы и главы). Каталог
+       даёт страница (opts.learn — функция, Tour.catalog), у сервера своего нет. Глава — по словам просьбы в названии темы
+       и главы и в цели главы, название главы весит вдвое; лучшие, не больше трёх. Учебный ответ — только когда глава нашлась.
+       Каталога нет, материал недоступен или глав по словам нет — null: просьбу разбирают как раньше, без обучения
+       («как выгрузить видео…» — план выгрузки). Это не модель: настоящий выбор главы — у бэкенда VMS по его каталогу */
+    const LEARN_ASK = /(^|[^а-яё])как\s+[а-яё]+(ть|ться|ти|чь)(?![а-яё])/;
+    const LEARN_STOP = ["покаж", "научи", "объяс", "пожал", "можно", "нужно", "хочу", "консо", "систе", "через", "чтобы"];
+    function assistLearnStub(said, context, at) {
+      const out = [{ type: "progress", at, text: "ищу учебную главу" }];
+      const last = (e) => out.concat(Object.assign({ at, context }, e));
+      if (!LEARN_ASK.test(said.toLowerCase())) return null;
+      let cat = null;
+      try {
+        cat = typeof opts.learn === "function" ? opts.learn() : null;
+      } catch (e) {}
+      if (!cat || !cat.available || !/^sha256:[0-9a-f]{64}$/.test(cat.version || "") || !(cat.topics || []).length) return null;
+      const stem = (t) => assistWords(t).filter((w) => w.length >= 4).map((w) => w.slice(0, 5));
+      const want = [...new Set(stem(said).filter((w) => !LEARN_STOP.includes(w)))];
+      const hits = (t) => { const have = new Set(stem(t)); return want.filter((w) => have.has(w)).length; };
+      const scored = [];
+      cat.topics.forEach((tp) => (tp.chapters || []).forEach((ch) => scored.push({ tp, ch, n: hits(tp.title) + 2 * hits(ch.title) + hits(ch.goal) })));
+      const best = Math.max(0, ...scored.map((x) => x.n));
+      if (!best) return null;
+      const top = scored.filter((x) => x.n === best).slice(0, 3);
+      return last({ type: "answer", text: `Есть готовый учебный пример: «${top[0].ch.title}». Показ идёт на учебных данных и не меняет систему.`, learn: top.map((x) => ({ catalog: cat.version, topic: x.tp.id, chapter: x.ch.id })) });
+    }
     // Вопрос о системе: только чтение, конечное событие answer, плана нет. Виды, названные в просьбе, — по подписи
     function assistExplainStub(said, context, at) {
       const low = said.toLowerCase();
@@ -5236,6 +5264,8 @@
     // не подходит — отказ с указателем. Частичных планов нет
     function assistStub(body) {
       const said = `${(body.context || "").replace(/^stub:/, "")} ${body.text}`.trim();
+      const learn = assistLearnStub(said, `stub:${said}`, iso(now()));
+      if (learn) return learn;
       const kind = assistKindOf(said);
       if (kind === "rules") return assistRulesStub(said, `stub:${said}`, iso(now()));
       if (kind === "explain") return assistExplainStub(said, `stub:${said}`, iso(now()));

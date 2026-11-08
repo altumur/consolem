@@ -46,13 +46,17 @@ const openapi = require(`${API_DIR}/openapi.json`);
 // --fixture one-domain — стартовать с набором профиля (тесты всё равно начинают с /test/reset)
 const start = process.argv.includes("--fixture") ? process.argv[process.argv.indexOf("--fixture") + 1] : "demo";
 if (!fixtures[start]) throw new Error(`Набора ${start} нет: ${Object.keys(fixtures).join(", ")}`);
-const server = window.ConsolemServer.create({ fixture: fixtures[start], fixtures, openapi, testSupport: true });
+const webui = process.argv.includes("--webui") ? path.resolve(process.argv[process.argv.indexOf("--webui") + 1]) : null;
+// Каталог обучения — как у бэкенда консоли: learn-catalog.json сборки (--webui). По нему заглушка ассистента отвечает
+// учебными ссылками (answer.learn); без сборки каталога нет — ответ без ссылок
+const learnFile = webui && path.join(webui, "learn-catalog.json");
+const learn = () => (learnFile && fs.existsSync(learnFile) ? JSON.parse(fs.readFileSync(learnFile, "utf8")) : null);
+const server = window.ConsolemServer.create({ fixture: fixtures[start], fixtures, openapi, testSupport: true, learn });
 
 const port = Number(process.argv.find((a) => /^\d+$/.test(a)) || 8787);
 // --host ADDR — где слушать: по умолчанию только эта машина; 0.0.0.0 — вся сеть (зайти с другого компьютера)
 const HOST = arg("host", "127.0.0.1");
 const exitOnReport = process.argv.includes("--exit-on-report");
-const webui = process.argv.includes("--webui") ? path.resolve(process.argv[process.argv.indexOf("--webui") + 1]) : null;
 const TESTS_NAME = arg("tests", "tests");
 const TESTS = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", TESTS_NAME);
 // Заголовок консоли — как прислала команда w2c, без добавлений
@@ -75,8 +79,9 @@ function servePage(req, res) {
   if (!file.startsWith(ROOT + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) return false;
   let data = fs.readFileSync(file);
   // Страница без ?api= подняла бы свой встроенный сервер на демо-наборе. API — этот же сервер: адрес в разметке, как в
-  // сборке для консоли VMS (<meta name="consolem-api">, index.html читает его, если ?api= нет)
-  if (path.extname(file) === ".html") data = data.toString("utf8").replace(/<head>/i, '<head><meta name="consolem-api" content="/">');
+  // сборке для консоли VMS (<meta name="consolem-api">, index.html читает его, если ?api= нет). consolem-fixture — набор
+  // запуска: самопроверка сбрасывает стенд на свои наборы, а в конце возвращает этот
+  if (path.extname(file) === ".html") data = data.toString("utf8").replace(/<head>/i, `<head><meta name="consolem-api" content="/"><meta name="consolem-fixture" content="${start}">`);
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)], "Cache-Control": "no-store" });
   res.end(data);
   return true;
