@@ -15991,6 +15991,8 @@ function dwObjSvg(d,t){
     if(!lb&&DW_SUBP.has(k)){const s=c.subs.find(s=>s.on&&(s.kind==="dwell"||s.kind==="stop")&&s.time&&(k==="motion"||s.classes.includes(o.cls))&&dwIn(s.area.pts,pos[0],pos[1]));
       if(s){const n=dwRun(o,t,p=>dwIn(s.area.pts,p[0],p[1]),s.time);lb=`${s.name}: ${n} ${i18n("с из")} ${s.time}`}}
     box+=`<rect class="dw-box ${st}" x="${X.toFixed(1)}" y="${Y.toFixed(1)}" width="${W.toFixed(1)}" height="${H.toFixed(1)}"/>`;
+    // Время жизни трека (ЗАГЛУШКА «Архив и показ»): сколько секунд прошло с момента, когда детектор нашёл объект
+    if(c.arc?.showTracks&&c.arc.showLife&&DW_ARC_K.has(k)&&o.cls!=="noise"){const life=`${Math.max(0,Math.round(t-o.t0))} ${i18n("с")}`;lb=lb?`${lb} · ${life}`:life}
     if(lb){const end=X+W/2>DW_X*.7;box+=`<text class="dw-lb ${st}" x="${Math.min(DW_X-1,Math.max(1,end?X+W:X)).toFixed(1)}" y="${Math.max(3,Y-1).toFixed(1)}" text-anchor="${end?"end":"start"}">${escHtml(lb)}</text>`}
   }
   if(k==="crowd"&&c.areas[0]){const a=c.areas[0].pts,x=Math.max(...a.map(p=>p[0]))*DW_X,y=Math.min(...a.map(p=>p[1]))*DW_Y;
@@ -16094,7 +16096,7 @@ function dwDur(sec){sec=Math.floor(sec);return sec<60?`${sec} ${i18n("с")}`:`${
 // Как в Axxon One: Record mask to archive, Record objects tracking, Motion mask, Object tracking, Track lifespan.
 // Значения живут в браузере (dwArcStub), сервер их не получает. Поиск в архиве ищет только по записанным метаданным
 const DW_ARC_K=new Set(["motion","tracker","neural"]);
-const DW_ARC_F=[["recMask","Записывать маску движения",1],["recTracks","Записывать треки объектов",0],["showMask","Показывать маску движения",1],["showTracks","Показывать треки объектов",0],["showLife","Показывать время жизни трека",0]];
+const DW_ARC_F=[["recMask","Записывать маску движения",1],["recTracks","Записывать треки объектов",0],["showMask","Показывать маску движения",1],["showTracks","Показывать треки объектов",0],["showLife","Показывать время жизни трека в секундах",0]];
 const dwArcStub={};
 // Умолчания Axxon One: маска и треки пишутся, маска видна, треки и время жизни скрыты. Для демо у части детекторов запись треков выключена
 function dwArcDef(d){const k=dwKindOf(d),h=[...String(d.id)].reduce((a,ch)=>a*31+ch.charCodeAt(0)>>>0,7);
@@ -16128,8 +16130,8 @@ function dwArcHtml(d,k,c){
   const warn=noRec?`<div class="nt dw-arc-nt" role="status">${i18n("Детектор не записывает метаданные. Поиск в архиве не найдёт объекты этой камеры.")}</div>`:"";
   const keep=`<p class="sub dw-arc-keep">${i18n("Сервер хранит метаданные")}: <b>${escHtml(dwArcDays(d))}</b>. ${i18n("Срок задаёт домен.")} <button type="button" class="lk" ${onEv("click",["dwArcGoKeep",`${d.id}`])}>${i18n("Срок хранения метаданных")}</button></p>`;
   const show=(m?dwArcSw(d.id,c,"showMask","Оператор видит сетку на кадре: зелёные клетки — движение без сработки, красные — сработка."):"")
-    +dwArcSw(d.id,c,"showTracks","Оператор видит рамки и траектории объектов.")
-    +dwArcSw(d.id,c,"showLife","Оператор видит у объекта, сколько секунд детектор его ведёт.",a.showTracks?"":"Сначала включить показ треков.");
+    +dwArcSw(d.id,c,"showTracks","Оператор видит рамку объекта и линию его пути: трек.")
+    +dwArcSw(d.id,c,"showLife","Над рамкой объекта оператор видит число секунд с момента, когда детектор нашёл объект. Превью кадра показывает это число.",a.showTracks?"":"Сначала включить показ треков.");
   return dwSec("Архив и показ",`<h5 class="dw-arc-h">${i18n("Записывать в архив")}</h5>${rec}${warn}${keep}<h5 class="dw-arc-h">${i18n("Показывать на кадре")}</h5>${show}
     <p class="sub" data-plan-stub>${i18n("Заглушка: в контракте нет этих полей. Консоль хранит значения в браузере.")}</p>`,"",` data-dw-arc-sec`);
 }
