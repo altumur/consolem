@@ -3311,6 +3311,8 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 .dw-back{margin:0 0 10px}
 .dw-sec-n{margin-left:6px;padding:0 7px;border-radius:9px;background:var(--p2);color:var(--mu);font-size:11.5px;font-weight:600;vertical-align:1px}
 .dw-swl{display:flex;align-items:center;gap:8px;cursor:pointer}
+.dw-arc-h{margin:12px 0 6px;font-size:12px;font-weight:600;color:var(--mu)}.dw-arc-h:first-of-type{margin-top:2px}
+.dw-arc-f .dw-swl{justify-content:flex-start;align-items:center;color:var(--tx);font-size:13px}.dw-arc-f .dw-help{margin-left:44px}.dw-arc-f.dis .dw-swl{cursor:not-allowed;opacity:.55}.dw-arc-nt{margin:4px 0 8px}.dw-arc-keep{margin:4px 0 0}
 .dw-sa.sel{fill-opacity:.24;stroke-width:1;stroke-dasharray:none}
 .dw-sa.dim{opacity:.45}
 .dw-sa.mask{fill:#0b0f14;fill-opacity:.6;stroke-dasharray:1 1}
@@ -15555,7 +15557,7 @@ function dwFromUnit(d){
   return{areas,zraw:z?.shape==="rect"?JSON.parse(JSON.stringify(z)):null,zother:z&&(lc?!line:line)?JSON.parse(JSON.stringify(z)):null,line:line?dwCopy(z.points):null,dir:d.direction||"both",
     min:(os.min||[0,0]).slice(),max:(os.max||[1,1]).slice(),minAt:[.1,.97],maxAt:[.5,.97],
     sens:has?+d.sens:sd,sensNo:!has,sensDef:sd,delay:d.minDurationSec??0,classes:dwCls(d.classes),conf:d.confidence??60,
-    count:d.crowdMin??4,hold:d.crowdHoldSec??10,stay:d.stillSec??60,pw:[pw.min??0,pw.max??1],
+    count:d.crowdMin??4,hold:d.crowdHoldSec??10,stay:d.stillSec??60,pw:[pw.min??0,pw.max??1],arc:dwArcOf(d),
     subs:dwSubUnits(d).filter(s=>DW_SUBN[s.props?.subdetectorKind]).map(dwSubFromUnit)};
 }
 // Поддетектор: объект → модель. Нет поля — без группы, направление в обе стороны, скорость 0–500, смещение 15 × 10 %
@@ -16088,6 +16090,49 @@ function dwCmpStripHtml(d,C){
   return`<section class="dw-cs">${h}${strip.length?dwStripHtml(strip,s,k,20):`<p class="sub">${i18n(ap?"С новыми настройками детектор ещё не сработал.":"За этот период детектор не сработал.")}</p>`}</section>`;
 }
 function dwDur(sec){sec=Math.floor(sec);return sec<60?`${sec} ${i18n("с")}`:`${Math.floor(sec/60)} ${i18n("мин")}${sec%60?` ${sec%60} ${i18n("с")}`:""}`}
+// ── Архив и показ: запись маски и треков, показ на кадре (ЗАГЛУШКА: у вида det в контракте нет этих полей) ──
+// Как в Axxon One: Record mask to archive, Record objects tracking, Motion mask, Object tracking, Track lifespan.
+// Значения живут в браузере (dwArcStub), сервер их не получает. Поиск в архиве ищет только по записанным метаданным
+const DW_ARC_K=new Set(["motion","tracker","neural"]);
+const DW_ARC_F=[["recMask","Записывать маску движения",1],["recTracks","Записывать треки объектов",0],["showMask","Показывать маску движения",1],["showTracks","Показывать треки объектов",0],["showLife","Показывать время жизни трека",0]];
+const dwArcStub={};
+// Умолчания Axxon One: маска и треки пишутся, маска видна, треки и время жизни скрыты. Для демо у части детекторов запись треков выключена
+function dwArcDef(d){const k=dwKindOf(d),h=[...String(d.id)].reduce((a,ch)=>a*31+ch.charCodeAt(0)>>>0,7);
+  return{recMask:k==="motion",recTracks:h%3!==0,showMask:k==="motion",showTracks:h%4===1,showLife:false}}
+function dwArcOf(d){return Object.assign(dwArcDef(d),dwArcStub[d.id]||{})}
+function dwArcHas(d,f){const k=dwKindOf(d);return DW_ARC_K.has(k)&&(DW_ARC_F.find(x=>x[0]===f)[2]?k==="motion":true)}
+// Запись в заглушку: и в сохранённое, и в черновик окна, если он открыт без своих правок этого поля
+function dwArcPut(id,v){
+  const s=dw.saved[id],c=dw.cfg[id],was=s?JSON.stringify(s.arc):null;
+  dwArcStub[id]=Object.assign({},v);
+  if(s){if(c&&JSON.stringify(c.arc)===was)c.arc=Object.assign({},v);s.arc=Object.assign({},v)}
+}
+function dwArcSet(id,f){const c=dwC(detNodeOf(id));c.arc[f]=!c.arc[f];if(f==="showTracks"&&!c.arc.showTracks)c.arc.showLife=false;gear()}
+function dwArcSw(id,c,f,help,dis){
+  const on=!!c.arc[f],l=DW_ARC_F.find(x=>x[0]===f)[1].replace(/^(Записывать|Показывать) /,"");
+  return`<div class="dw-f dw-arc-f${dis?" dis":""}" data-dw-arc="${f}"><label class="dw-swl"${dis?` title="${i18n(dis)}"`:""}><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}"${dis?` aria-disabled="true"`:` ${onEv("click",["dwArcSet",id,f])}`} aria-label="${i18n(DW_ARC_F.find(x=>x[0]===f)[1])}"></span>${i18n(l[0].toUpperCase()+l.slice(1))}</label>${help?dwHelp(help):""}</div>`;
+}
+// Срок хранения метаданных — у домена детектора, страница «Хранение» опций
+function dwArcDays(d){const st=SETTINGS.find(x=>x.id==="keep.metaDays"),sv=srv(d.id),dm=sv?domainOf(sv.id):null;let v;try{v=st&&dm?optVal(st,dm):undefined}catch(e){}return st?optText(st,v??st.def):""}
+function dwArcGoKeep(id){
+  const sv=srv(id),d=sv?domainOf(sv.id):null;
+  navMark();goApp("sys");sys="keep";tab="gen";
+  if(d)domainFilter=d.id;
+  renderDomainMenu();paint();
+  accFlash(()=>[...document.querySelectorAll('#main .op-row[data-set="keep.metaDays"], #main .hd h1, #main h1, [data-go="opt:keep"]')].filter((e,i,a)=>a.indexOf(e)===i));
+}
+function dwArcHtml(d,k,c){
+  if(!DW_ARC_K.has(k))return"";
+  const m=k==="motion",a=c.arc,noRec=!a.recTracks&&!(m&&a.recMask);
+  const rec=(m?dwArcSw(d.id,c,"recMask","Нужна для быстрого поиска по движению в архиве."):"")+dwArcSw(d.id,c,"recTracks","Нужны для поиска в архиве по объектам. Сервер разбирает видео, поэтому нагрузка на сервер растёт.");
+  const warn=noRec?`<div class="nt dw-arc-nt" role="status">${i18n("Детектор не записывает метаданные. Поиск в архиве не найдёт объекты этой камеры.")}</div>`:"";
+  const keep=`<p class="sub dw-arc-keep">${i18n("Сервер хранит метаданные")}: <b>${escHtml(dwArcDays(d))}</b>. ${i18n("Срок задаёт домен.")} <button type="button" class="lk" ${onEv("click",["dwArcGoKeep",`${d.id}`])}>${i18n("Срок хранения метаданных")}</button></p>`;
+  const show=(m?dwArcSw(d.id,c,"showMask","Оператор видит сетку на кадре: зелёные клетки — движение без сработки, красные — сработка."):"")
+    +dwArcSw(d.id,c,"showTracks","Оператор видит рамки и траектории объектов.")
+    +dwArcSw(d.id,c,"showLife","Оператор видит у объекта, сколько секунд детектор его ведёт.",a.showTracks?"":"Сначала включить показ треков.");
+  return dwSec("Архив и показ",`<h5 class="dw-arc-h">${i18n("Записывать в архив")}</h5>${rec}${warn}${keep}<h5 class="dw-arc-h">${i18n("Показывать на кадре")}</h5>${show}
+    <p class="sub" data-plan-stub>${i18n("Заглушка: в контракте нет этих полей. Консоль хранит значения в браузере.")}</p>`,"",` data-dw-arc-sec`);
+}
 // ── Панель настроек ──
 function dwSec(title,body,x="",attr=""){return`<section class="dw-sec"${attr}><h4>${i18n(title)}${x}</h4>${body}</section>`}
 function dwHelp(t){return`<p class="sub dw-help">${i18n(t)}</p>`}
@@ -16245,6 +16290,7 @@ function dwDiffRows(d){
   if(c.count!==s.count)row(["count"],"Людей в зоне не меньше",s.count,c.count);
   if(c.hold!==s.hold)row(["hold"],"Группа стоит дольше",`${s.hold} ${i18n("с")}`,`${c.hold} ${i18n("с")}`);
   if(c.stay!==s.stay)row(["stay"],"Предмет лежит дольше",`${s.stay} ${i18n("с")}`,`${c.stay} ${i18n("с")}`);
+  if(c.arc&&s.arc)DW_ARC_F.forEach(([f,l])=>{if(dwArcHas(d,f)&&c.arc[f]!==s.arc[f])row(["arc"],l,i18n(s.arc[f]?"вкл":"выкл"),i18n(c.arc[f]?"вкл":"выкл"))});
   if(ne(c.subs,s.subs)){
     const was=new Map(s.subs.map(x=>[x.id,x]));
     c.subs.forEach(x=>{const o=was.get(x.id);if(!o)row(["subs"],`${i18n("Поддетектор")} «${x.name}»`,"—",i18n("консоль добавит"));
@@ -16321,6 +16367,9 @@ function dwApply(id){
   if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(!d.length){cardApply();return}
   if(busyRefuse(id))return;
+  // ЗАГЛУШКА «Архив и показ»: значения записи и показа сервер не получает, консоль хранит их в браузере
+  const arcRows=d.filter(r=>r.keys?.[0]==="arc");
+  if(arcRows.length){dwArcPut(id,dwC(n).arc);if(arcRows.length===d.length&&!cr.length){toast("Заглушка: консоль сохранила запись и показ в браузере. Сервер их не получил.");gear();return}}
   // Детектора ещё нет на сервере (черновик «Новый детектор»): настройки окна уходят после его создания
   if(!hwVer.has(id)){
     if(!cr.length){toast("Детектора ещё нет на сервере. Сначала применить новый детектор");return}
@@ -16377,9 +16426,10 @@ function dwPanelHtml(cam,d,k,c){
   if(k==="abandoned"&&dwHas("stillSec"))when.push(dwNum(id,"stay","Предмет лежит без движения дольше",5,1800,"с"));
   const adv=`<details class="dw-adv"><summary>${i18n("Дополнительно")}</summary><div class="dw-adv-b">${detFieldsHtml(cam,d,"Имя",sensUi)}${cam?detServerNoteHtml(cam,d):""}</div></details>`;
   const where=dwSec("Зоны детектирования",dwAreasHtml(id,k,c))+(DW_SIZE.has(k)&&dwHas("objectSize")?dwSizeSec(id):""),wh=when.length?dwSec("Условия срабатывания",when.join("")):"";
-  if(!hasS)return head+tabs+what+where+wh+adv;
+  const arcH=dwArcHtml(d,k,c);
+  if(!hasS)return head+tabs+what+where+wh+arcH+adv;
   // Вкладки: настройки детектора отдельно от поддетекторов, столбец короче
-  return head+tabs+(ptab==="det"?what+where+wh+adv:`<section class="dw-sec dw-subs-tab">${dwSubsHtml(id,k,c)}</section>`);
+  return head+tabs+(ptab==="det"?what+where+wh+arcH+adv:`<section class="dw-sec dw-subs-tab">${dwSubsHtml(id,k,c)}</section>`);
 }
 // ── Действия ──
 function dwRoot(){return document.querySelector("[data-dw]")}
@@ -36627,6 +36677,19 @@ function bulkCardHtml(){
 }
 // Карточка «Основные» — пересечение: раздел показан, только если его умеют
 // все объекты, к которым идёт правка. Чего нет — сказано, почему.
+// «Архив и показ» у выбранных детекторов (ЗАГЛУШКА, как в карточке детектора: значения в браузере)
+function bulkArcHtml(nodes){
+  if(!nodes.length||!nodes.every(n=>n.type==="det"))return"";
+  const ok=nodes.filter(n=>DW_ARC_K.has(dwKindOf(n)));if(!ok.length)return"";
+  const f=DW_ARC_F.map(([k,l])=>{const has=ok.filter(n=>dwArcHas(n,k));if(!has.length)return"";
+    const en=countBy(has,n=>i18n(dwArcOf(n)[k]?"включено":"выключено"));
+    // Поле есть не у всех выбранных: подсказка называет, у скольких оно есть и что у них сейчас
+    const part=has.length<nodes.length?`<div class="bk-hint${en.length>1?" bk-mixed":""}">${i18n("есть у")} ${has.length} ${i18n("из")} ${nodes.length} (${i18n(k==="recMask"||k==="showMask"?"детекторы движения":"детекторы движения и трекеры")}): ${en.map(([v,c])=>en.length>1?`${escHtml(v)} ×${c}`:escHtml(v)).join(" · ")}</div>`:null;
+    return bkSelect(l,"arc:"+k,[["on",i18n("Включить")],["off",i18n("Выключить")]],en,part)}).join("");
+  return card("Архив и показ",`<div class="g">${f}</div>
+    <p class="sub" style="margin:8px 0 0">${i18n("Треки и маска в архиве нужны для поиска в архиве. Запись треков нагружает сервер: сервер разбирает видео каждой камеры.")}</p>
+    <p class="sub" data-plan-stub>${i18n("Заглушка: в контракте нет этих полей. Консоль хранит значения в браузере.")}</p>`);
+}
 function bulkGenHtml(nodes,allCams){
   const miss=[],kinds=bulkKinds(nodes),one=kinds.length===1?kinds[0][0]:null;
   const lack=(fn,what)=>{const no=bulkKinds(nodes.filter(n=>!fn(n)));if(no.length)miss.push(`${i18n(what)} — ${i18n("нет у")}: ${no.map(([k,c])=>`${escHtml(kindLabel(k).toLowerCase())} (${c})`).join(", ")}`);return!no.length};
@@ -36636,6 +36699,7 @@ function bulkGenHtml(nodes,allCams){
     h+=card("Состояние",`<div class="g">${bkSelect("Включено","enabled",[["on",i18n("Включить")],["off",i18n("Выключить")]],en)}</div>`);
   }
   if(one)h+=bulkParamsHtml(one,nodes);
+  h+=bulkArcHtml(nodes);
   if(lack(canCreds,"Учётные данные"))h+=card("Учётные данные",`<div class="g">${bkInput("Имя пользователя","user","text",null,`<div class="bk-hint">${i18n("задано у всех. Консоль не показывает значения")}</div>`,"bkUser")}${bkInput("Пароль","pass","password",null,`<div class="bk-hint">${i18n("задан у всех · новое значение заменит пароль у всех")}</div>`)}</div>
     <p class="sub">${i18n("Консоль только записывает пароль. Консоль не показывает и не сравнивает старое значение. Устройства подключатся снова, поэтому изменение идёт через план.")}</p>`);
   if(lack(canFolder,"Расположение в папках")){
@@ -36871,6 +36935,14 @@ function bulkChanges(draft,nodesIn){
     const f=folderById(d.folderRemove);
     if(f)step("folderRemove",`Из папки «${folderPathName(f.id)}»`,nodes.filter(n=>f.items.includes(n.id)).map(n=>mkOp(n,"Из папки","folder",()=>{f.items=f.items.filter(x=>x!==n.id)},null,()=>folderAddDevice(f.id,n.id))));
   }
+  // «Архив и показ» детекторов (ЗАГЛУШКА): шаг меняет значение в браузере, на сервер уходит пустой шаг
+  Object.keys(d).filter(k=>k.startsWith("arc:")).forEach(key=>{
+    const f=key.slice(4),want=d[key]==="on",l=DW_ARC_F.find(x=>x[0]===f)?.[1];if(!l)return;
+    const ops=nodes.filter(n=>n.type==="det"&&dwArcHas(n,f)&&dwArcOf(n)[f]!==want).map(n=>{const prev=dwArcOf(n);
+      return mkOp(n,`${i18n(l)}: ${i18n(want?"вкл":"выкл")}`,"param",()=>{const v=Object.assign({},dwArcOf(n),{[f]:want});if(f==="showTracks"&&!want)v.showLife=false;dwArcPut(n.id,v)},
+        f==="showLife"&&want&&!dwArcOf(n).showTracks&&d["arc:showTracks"]!=="on"?i18n("показ треков выключен"):null,()=>dwArcPut(n.id,prev))});
+    step(key,`${i18n(l)}: ${i18n(want?"вкл":"выкл")}`,ops,f==="recTracks"&&want?i18n("нагрузка на серверы растёт"):"");
+  });
   // Параметры одного типа: шаг на поле, сразу с откатом.
   Object.keys(d).filter(k=>k.startsWith("p:")).forEach(key=>{
     const k=key.slice(2),v=d[key];
