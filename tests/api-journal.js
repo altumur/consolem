@@ -49,12 +49,20 @@
     assert.eq(notDev.length, all.filter((e) => e.deviceId !== devs[0]).length, "deviceIdNot");
   }, { needs: ["feature:journalSearch", "listJournal"] });
 
+  test("Журнал: автор у каждой записи — логин или «система», не пустой (0.14.0)", async () => {
+    const env = await makeEnv();
+    const all = await env.list("/journal?limit=1000");
+    assert.ok(all.length > 0, "в журнале есть записи");
+    const bad = all.filter((e) => typeof e.actor !== "string" || !e.actor);
+    assert.eq(bad.length, 0, `записи без автора: ${bad.slice(0, 3).map((e) => e.id).join(", ")}`);
+  }, { needs: ["listJournal"] });
+
   test("Журнал: автор — поле actor, отбор actor и actorNot", async () => {
     const env = await makeEnv();
     const all = await env.list("/journal?limit=1000");
     const who = all.find((e) => e.actor);
     if (!who) return assert.ok(true, "записей с автором в наборе нет — проверять нечего");
-    assert.ok(all.every((e) => e.actor === undefined || typeof e.actor === "string"), "actor — строка");
+    assert.ok(all.every((e) => typeof e.actor === "string" && e.actor), "actor — непустая строка");
     const mine = await env.list(`/journal?limit=1000&actor=${encodeURIComponent(who.actor)}`);
     assert.eq(mine.length, all.filter((e) => e.actor === who.actor).length, `actor=${who.actor}`);
     const other = await env.list(`/journal?limit=1000&actorNot=${encodeURIComponent(who.actor)}`);
