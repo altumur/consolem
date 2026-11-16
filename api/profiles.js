@@ -385,6 +385,8 @@
           if (next && k in next) d[k] = next[k];
           else delete d[k];
         });
+        // Своя предзапись строки (0.7.0) переходит к камере; строка без своей брала значение камеры, оно остаётся
+        if (next && next.preRecordSec != null) d.preRecordSec = next.preRecordSec;
       }
       ctx.bump(d);
       ctx.changed("device", d);
@@ -1066,7 +1068,17 @@
     // Создана: профиль при добавлении и основной поток (дочерний объект вида stream). Правка res, fps — это основной поток
     afterSet(u, before, ctx) {
       const d = recOf(u, ctx);
-      if (before) return syncMain(d, before.properties || {});
+      if (before) {
+        // Режим записи камеры решает mode встроенного хранилища: хранилище сообщает, что оно изменилось (vms.edge/1)
+        const was = before.properties || {};
+        // Пользователь сам поменял режим или архив: сервер забывает, что помнил
+        if (["recordMode", "archiveId"].some((k) => k in was)) edgeMemo(ctx).delete(u.uid);
+        if (["recordMode", "replicaFrom", "archiveId"].some((k) => k in was)) {
+          const st = edgeStorageOf(u, ctx);
+          if (st) edgeChanged(st, ctx);
+        }
+        return syncMain(d, was);
+      }
       applyProfile(d, Object.assign({}, rowProps(u), { vendor: d.vendor, model: d.model }), ctx);
       if (!streamsOf(d).length) d.streams = [mainStream(d)];
     },
@@ -1081,6 +1093,16 @@
     },
     dependents: (u, ctx) => ({ remove: cameraRows(u, ctx), detach: [] }),
   };
+  // Умолчания модели у встроенного сервера одни на всех: основной поток — MODEL_DEFAULT, остальные — SUB_DEFAULT.
+  // Разрешение — из вариантов устройства, если устройство их назвало и умолчания среди них нет. Варианты основного потока
+  // хранит запись камеры (Device.resOptions), а не объект потока: основной поток — это Device.res
+  const SUB_DEFAULT = { res: "640x360", fps: 25 };
+  function streamDefault(p, i, camOpts) {
+    const d = Object.assign({}, i ? SUB_DEFAULT : MODEL_DEFAULT), opts = p.resOptions || (i ? null : camOpts);
+    if (opts && opts.length && !opts.includes(d.res)) d.res = opts[0];
+    return d;
+  }
+  const camStreamUnits = (u, ctx) => ctx.units.byParent(u.uid).filter((x) => x.kind === "stream").sort((a, b) => streamNo(a.uid) - streamNo(b.uid));
 
   /* ===== vms.stream/1 — поток камеры: дочерний объект вида stream; основной поток — Device.res и Device.fps ===== */
 
@@ -1170,6 +1192,9 @@
         delete p.height;
         Object.assign(p, sizeOf(p.res));
       }
+      // Стенд: правку потока сервер передал камере — дальше камера сообщает на readConfig новое значение (stand.deviceConfig)
+      const told = ((ctx.db.stand || {}).deviceConfig || {})[u.uid];
+      if (told) ["res", "fps"].forEach((k) => { if (k in before.properties) delete told[k]; });
       const cam = camOfStream(u, ctx);
       const main = cam && streamsOf(cam)[0];
       if (!main || main.id !== p.streamId || !("res" in before.properties || "fps" in before.properties)) return;
@@ -1213,6 +1238,24 @@
     }) || null;
   }
   const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
+  // С 0.12.0: пара min/max — меньшее не выше большего. objectSize — [ширина, высота], plateWidth — число. {field, params} или null
+  const aboveMax = (lo, hi) => (Array.isArray(lo) ? Array.isArray(hi) && lo.some((v, i) => v > hi[i]) : typeof lo === "number" && typeof hi === "number" && lo > hi);
+  const rangeErr = (obj, name) => {
+    const r = obj && obj[name];
+    return r && aboveMax(r.min, r.max) ? { field: `/properties/${name}/min`, params: { reason: "minAboveMax" } } : null;
+  };
+  // Новые настройки детектора (objectSize, plateWidth, analyticsKind) по записи целиком: {field, params} или null. analyticsKind
+  // действует только при detectorKind: other; сервер не отказывает и не сбрасывает его, когда старый клиент меняет detectorKind
+  const settingsErr = (whole, set) => {
+    if (!whole) return null;
+    const bad = rangeErr(whole, "objectSize") || rangeErr(whole, "plateWidth");
+    if (bad) return bad;
+    return set.analyticsKind != null && whole.detectorKind !== "other" ? { field: "/properties/analyticsKind", params: { reason: "notOther" } } : null;
+  };
+  const settingsProblem = (whole, set, ctx) => {
+    const e = settingsErr(whole, set);
+    return e ? ctx.problem(422, "VALIDATION_FAILED", e.field.endsWith("/min") ? "Наименьшее значение выше наибольшего" : "Вид аналитики задают только при detectorKind: other", e) : null;
+  };
   const detProblem = (rec, patch, ctx) => (rec.type === "det" ? zoneProblem(patch.zone, ctx) || sensProblem(rec, patch.sensitivity, null, ctx) : null);
   // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
   function clashProblem(rec, patch, ctx) {
@@ -1223,6 +1266,8 @@
   function detCreateProblem(spec, cam, ctx) {
     if (spec.type !== "det") return null;
     if (zoneProblem(spec.zone, ctx)) return { code: "VALIDATION_FAILED", field: "zone" };
+    const ne = settingsErr(spec, spec);
+    if (ne) return Object.assign({ code: "VALIDATION_FAILED" }, ne);
     if (!spec.builtin || !cam) return null;
     if (!cam.detectorOptions) return { code: "NOT_SUPPORTED", field: "builtin" };
     if (!detOption(spec, cam, ctx)) return { code: "VALIDATION_FAILED", field: "template" };
@@ -1237,14 +1282,52 @@
     beforeCreate(u, parent, ctx) {
       const s = specOf(u);
       const bad = detCreateProblem(s, parent && !parent.fresh ? recOf(parent, ctx) : null, ctx);
-      if (bad) return ctx.problem(bad.code === "BUSY" ? 409 : 422, bad.code, "Детектор этой камеры так не заводится", { field: bad.field });
+      if (bad) return ctx.problem(bad.code === "BUSY" ? 409 : 422, bad.code, "Детектор этой камеры так не заводится", bad.params ? { field: bad.field, params: bad.params } : { field: bad.field });
       // Серверный детектор без меток считает на сервере с GPU
       if (!s.builtin && !("labels" in props(u))) props(u).labels = ["gpu"];
       return null;
     },
     beforeSet(u, patch, whole, ctx) {
       const rec = recOf(u, ctx), set = flat(patch);
-      return detProblem(rec, set, ctx) || clashProblem(rec, set, ctx);
+      return detProblem(rec, set, ctx) || settingsProblem(whole, set, ctx) || clashProblem(rec, set, ctx);
+    },
+    // Поддетекторы (с 0.12.0) уходят с детектором — как строки незнакомых видов под камерой; тоже без отката, как удаление детектора
+    dependents: (u, ctx) => ({ remove: cameraRows(u, ctx), detach: [] }),
+  };
+
+  /* ===== vms.subdetector/1 (с 0.12.0) — поддетектор: дочерний объект вида subdet под детектором-трекером или детектором движения ===== */
+
+  // Что принимает поддетекторы: движение, трекер объектов, нейросетевой трекер. null — не принимает
+  const subHost = (p) => (p.detectorKind === "motion" ? "motion" : p.detectorKind === "other" && (p.analyticsKind === "tracker" || p.analyticsKind === "neural") ? p.analyticsKind : null);
+  // Свойства поддетектора целиком (p) под родителя вида host. Блокировки родителя не берёт: над ним может идти операция плана
+  // с тем же детектором (ctx.lockedProblem без ctx.held отказал бы своей же операции — запрос про шаги потоков).
+  // host undefined — правило родителя не проверяется (правка, которая не трогает subdetectorKind)
+  function subProblem(p, host, ctx) {
+    const bad = (code, field, extra) => ctx.problem(422, code, extra.message, { field, params: extra.params });
+    if (host !== undefined && p.subdetectorKind === "abandoned" && host !== "tracker") return bad("NOT_SUPPORTED", "/properties/subdetectorKind", { message: "Оставленный предмет есть только у трекера объектов" });
+    const shape = (p.zone || {}).shape, wantLine = p.subdetectorKind === "line";
+    if (wantLine ? shape !== "line" : shape === "line") return bad("VALIDATION_FAILED", "/properties/zone", { message: wantLine ? "Для линии нужна зона line" : "Нужна зона rect или polygon", params: { reason: "shape" } });
+    const z = zoneProblem(p.zone, ctx);
+    if (z) return z;
+    if ((p.subdetectorKind === "a2a") !== (p.zoneTo != null)) return bad("VALIDATION_FAILED", "/properties/zoneTo", { message: "Вторая зона нужна только для перехода из области в область", params: { reason: p.zoneTo != null ? "unexpected" : "required" } });
+    if (["stop", "abandoned"].includes(p.subdetectorKind) && !(p.timeSec >= 1)) return bad("VALIDATION_FAILED", "/properties/timeSec", { message: "Время — не меньше 1 секунды", params: { reason: "required" } });
+    if (p.speed && aboveMax(p.speed.min, p.speed.max)) return bad("VALIDATION_FAILED", "/properties/speed/min", { message: "Наименьшая скорость выше наибольшей", params: { reason: "minAboveMax" } });
+    return null;
+  }
+  const subdetector = {
+    subHost, subProblem,
+    beforeCreate(u, parent, ctx) {
+      const host = parent ? subHost(parent.fresh ? parent.properties || {} : props(parent)) : null;
+      if (!host) return ctx.problem(422, "NOT_SUPPORTED", "Этот детектор поддетекторов не принимает", { field: "/parentId", params: { reason: "noSubdetectors" } });
+      return subProblem(props(u), host, ctx);
+    },
+    // Правило родителя («оставленный предмет» — только у трекера) — при создании и в правке, которая трогает subdetectorKind.
+    // Вид родителя сменили позже — поддетектор остаётся, и его можно править
+    beforeSet(u, patch, whole, ctx) {
+      if (!whole) return null;
+      const kindSet = !!(patch && patch.properties && "subdetectorKind" in patch.properties);
+      const parent = kindSet && u.parentId ? ctx.units.get(u.parentId) : null;
+      return subProblem(whole, kindSet ? (parent ? subHost(props(parent)) : null) : undefined, ctx);
     },
   };
 
@@ -1504,18 +1587,593 @@
       const from = Date.parse(body.from), to = Date.parse(body.to);
       if (!(to > from)) return ctx.problem(422, "VALIDATION_FAILED", "Конец позже начала", { field: "to" });
       if (rec.archiveId !== body.archiveId) return ctx.problem(409, "NO_PRIMARY", "Основной записи своего кластера нет: закрепить некуда", { field: "archiveId" });
+      // Камера со встроенным хранилищем: пропуски внутри периода заказываются отдельно от просьб «закрепить» и квоту не тратят (vms.edge/1)
+      const edgeOrdered = edgePull(rec.id, from, to, ctx);
+      if (body.edgeOnly === true) return { status: 200, body: { accepted: 0, refused: [], edgeOrdered } };
       const parts = [];
       for (let a = from; a < to; a += 86400000) parts.push({ from: ctx.iso(a), to: ctx.iso(Math.min(a + 86400000, to)) });
       const free = 7 - (ctx.db.stand.fetchTaken || 0), ok = parts.slice(0, Math.max(free, 0));
       ctx.db.stand.fetchTaken = (ctx.db.stand.fetchTaken || 0) + ok.length;
-      return { status: 200, body: { accepted: ok.length, refused: parts.slice(ok.length).map((x) => Object.assign(x, { reason: "per_person" })) } };
+      return { status: 200, body: { accepted: ok.length, refused: parts.slice(ok.length).map((x) => Object.assign(x, { reason: "per_person" })), edgeOrdered } };
+    },
+  };
+
+  /* ===== vms.pos/1 — источник событий (касса): камеры титров, вид титров, разбор чека, приём данных, сырые строки ===== */
+
+  // Зона титров, пока администратор её не задал: слева вверху, как пресет формы
+  const POS_AREA = { x: 0.02, y: 0.04, w: 0.52, h: 0.74 };
+  const POS_RAW_KEEP = 200;
+  const POS_RAW_SAMPLE = [["КАССА 3   СМЕНА 128", 20], ["ЧЕК 004512   08.11.2026 10:42", 18], ["Молоко 3,2% 1 л          89,90", 16], ["Хлеб бородинский         54,00", 15],
+    ["Пиво светлое 0,5 л      129,00", 13], ["Отмена позиции: Пиво    -129,00", 11], ["СКИДКА 10%               -14,39", 10], ["ИТОГО                   129,51", 9],
+    ["Оплата: карта ****1234", 8], ["СПАСИБО ЗА ПОКУПКУ", 8], ["КАССА 3   ОЖИДАНИЕ", 1]];
+  const rawOf = (ctx) => ctx.state.posRaw || (ctx.state.posRaw = new Map());
+  const RS232_ONLY = ["comPort", "baudRate", "parity"];
+  // Правка (или новый объект) приводится к согласованному виду: cameraId (устарело) — первая камера overlays; поля RS-232 и UDP
+  // — только у своего протокола. set — свойства правки (JSON Merge Patch; хук дополняет её), old — свойства объекта сейчас
+  function posNorm(set, old, ctx) {
+    const bad = (m) => ctx.problem(422, "VALIDATION_FAILED", m, { field: "overlays" });
+    const oldList = Array.isArray(old.overlays) ? old.overlays : [];
+    if ("overlays" in set) {
+      const list = set.overlays || [];
+      set.overlays = list;
+      if (list.length) set.cameraId = list[0].cameraId;
+      else if (old.cameraId != null || set.cameraId != null) set.cameraId = null;
+      else delete set.cameraId;
+    } else if ("cameraId" in set) {
+      const c = set.cameraId;
+      if (c == null) {
+        if (oldList.length) set.overlays = [];
+      } else {
+        const cam = ctx.byId("devices", c);
+        if (!cam || !ctx.kinds.profileOf(cam.type, "vms.camera/1")) return ctx.problem(422, "VALIDATION_FAILED", `Нет камеры ${c}`, { field: "cameraId" });
+        // Камера встаёт первой и берёт зону прежней первой; остальные остаются, повтор снимается
+        const next = oldList.length && oldList[0].cameraId === c ? oldList : [{ cameraId: c, area: clone((oldList[0] || {}).area || POS_AREA) }].concat(oldList.slice(1).filter((o) => o.cameraId !== c));
+        if (JSON.stringify(next) !== JSON.stringify(oldList)) set.overlays = next;
+      }
+    }
+    for (const o of set.overlays || []) {
+      const cam = ctx.byId("devices", o.cameraId);
+      if (!cam || !ctx.kinds.profileOf(cam.type, "vms.camera/1")) return bad(`Нет камеры ${o.cameraId}`);
+      if (o.area.x + o.area.w > 1 + 1e-9 || o.area.y + o.area.h > 1 + 1e-9) return bad("Зона выходит за кадр: x + w и y + h не больше 1");
+    }
+    if (new Set((set.overlays || []).map((o) => o.cameraId)).size !== (set.overlays || []).length) return bad("Камера в списке титров одна");
+    const final = Object.assign({}, old, set);
+    const proto = final.protocol || "tcp";
+    const stray = (names, want) => {
+      if (proto === want) return null;
+      const name = names.find((k) => set[k] != null);
+      if (name) return ctx.problem(422, "VALIDATION_FAILED", `Поле ${name} — только при protocol = ${want}`, { field: name });
+      names.forEach((k) => old[k] != null && !(k in set) && (set[k] = null));
+      return null;
+    };
+    return stray(RS232_ONLY, "rs232") || stray(["udpMaxPacket"], "udp");
+  }
+  const pos = {
+    // cameraId — копия первой камеры overlays: камеры, снятые удалением, не оставляют в нём чужого значения
+    view(out) {
+      const p = out.properties, list = p && p.overlays;
+      if (Array.isArray(list)) p.cameraId = list.length ? list[0].cameraId : null;
+    },
+    beforeCreate(u, parent, ctx) {
+      const set = props(u), bad = posNorm(set, {}, ctx);
+      Object.keys(set).forEach((k) => set[k] === null && delete set[k]);
+      return bad;
+    },
+    beforeSet(u, patch, whole, ctx) {
+      return patch.properties ? posNorm(patch.properties, props(u), ctx) : null;
+    },
+    // Сырые строки: от старых к новым, последние limit. Пока источнику ничего не подкладывали (и не очищали), вместо строк —
+    // пример чека (заглушка стенда): он не хранится, первая подложенная строка начинает список с []
+    raw(rec, q, ctx) {
+      const n = q.limit === undefined ? 50 : Number(q.limit);
+      if (!Number.isInteger(n) || n < 1 || n > 200) return ctx.problem(422, "VALIDATION_FAILED", "limit от 1 до 200", { field: "/limit" });
+      const list = rawOf(ctx).get(rec.id) || POS_RAW_SAMPLE.map(([text, ago]) => ({ at: ctx.iso(ctx.now() - ago * 1000), text }));
+      return { status: 200, body: { items: clone(list.slice(-n)) } };
+    },
+    // Строка от кассы по at (позже всех — в конец); clear: true очищает список, пример чека больше не возвращается
+    push(rec, body, ctx) {
+      const all = rawOf(ctx);
+      if (body.clear === true) {
+        all.set(rec.id, []);
+        return { status: 200, body: { applied: true } };
+      }
+      const text = body.text;
+      if (typeof text !== "string" || !text || text.length > 1000) return ctx.problem(422, "VALIDATION_FAILED", "text: строка до 1000 символов", { field: "text" });
+      const at = body.at === undefined ? ctx.iso(ctx.now()) : body.at;
+      if (Number.isNaN(Date.parse(at))) return ctx.problem(422, "VALIDATION_FAILED", "at: дата и время", { field: "at" });
+      const list = all.get(rec.id) || [];
+      let i = list.length;
+      while (i > 0 && Date.parse(list[i - 1].at) > Date.parse(at)) i--;
+      list.splice(i, 0, { at, text });
+      all.set(rec.id, list.slice(-POS_RAW_KEEP));
+      return { status: 200, body: { applied: true } };
+    },
+  };
+
+  /* ===== vms.edge/1 — встроенное хранилище камеры и регистратора: репликация в архив сервера ===== */
+
+  // Состояние репликации — status.observed.replicationStatus; свойство replication — настройка. Сервер хранит факты (пропуски, последний
+  // забор, байты за сутки), а state, timeLeftSec, nextTransferAt, cameras считает при чтении. mode all и recordMode replica камеры
+  // без replicaFrom — одно и то же: правка хранилища ставит режим камерам, правка камеры меняет mode при чтении
+  const EDGE_KEEP_MS = 7 * 86400000;
+  const EDGE_SEC_PER_MIN = 4; // секунд часов сервера на забор одной минуты записи
+  const EDGE_BYTES_PER_MIN = 30 * 1024 * 1024; // около 4 Мбит/с
+  const EDGE_WORST = ["waiting", "running", "planned", "ok", "off"];
+  const edgeRuns = (ctx) => ctx.state.edgeRuns || (ctx.state.edgeRuns = new Map());
+  const edgeSeen = (ctx) => ctx.state.edgeSeen || (ctx.state.edgeSeen = new Map());
+  const edgeOwner = (u, ctx) => (u.parentId ? ctx.units.get(u.parentId) : null);
+  const edgeIsNvr = (u, ctx) => (edgeOwner(u, ctx) || {}).kind === "ipsrv";
+  function edgeCams(u, ctx) {
+    const o = edgeOwner(u, ctx);
+    if (!o) return [];
+    return o.kind === "camera" ? [o] : ctx.units.byParent(o.uid).filter((x) => x.kind === "camera");
+  }
+  const edgeEmbedded = (c) => props(c).recordMode === "replica" && !props(c).replicaFrom;
+  const obsGet = (u, k) => ((u.status || {}).observed || {})[k];
+  const EDGE_NONE = { gaps: [], bytesToday: 0 };
+  const edgeRead = (u) => obsGet(u, "replicationStatus") || EDGE_NONE;
+  // Факты пишутся только здесь: чтение (view) их не создаёт. Хранилище с фактами попадает в такт часов (edgeActive)
+  function edgeFacts(u, ctx) {
+    const o = observedOf(u);
+    if (!o.replicationStatus) o.replicationStatus = { gaps: [], bytesToday: 0 };
+    edgeActive(ctx).add(u.uid);
+    return o.replicationStatus;
+  }
+  // Такт часов не обходит все хранилища (на большом стенде их тысячи): только те, у кого есть факты репликации
+  function edgeActive(ctx) {
+    if (!ctx.state.edgeActive) ctx.state.edgeActive = new Set(ctx.units.byKind("storage").filter((x) => obsGet(x, "replicationStatus")).map((x) => x.uid));
+    return ctx.state.edgeActive;
+  }
+  // Носитель с ошибкой или устройство не отдаёт записи по Profile G: сервер ничего не заберёт (reason media или profile)
+  const edgeBlocked = (u) => (obsGet(u, "mediaOk") === false ? "media" : obsGet(u, "profileG") === false ? "profile" : null);
+  const edgeLinkOk = (...list) => list.every((x) => !x || (x.status || {}).link !== "offline");
+  // Настройка, как её видит клиент. mode all — только если КАЖДАЯ камера, кроме исключённых, забирает с этого хранилища (replica без
+  // replicaFrom); иначе off (смешанное состояние: часть камер пишет сама). В mode all archiveId — общий архив этих камер, если он один
+  function edgeRepOf(u, ctx) {
+    const st = props(u).replication || {}, cams = edgeCams(u, ctx), ids = new Set(cams.map((c) => c.uid));
+    const excluded = (st.excludedCameras || []).filter((id) => ids.has(id));
+    const active = cams.filter((c) => !excluded.includes(c.uid));
+    const all = active.length > 0 && active.every(edgeEmbedded);
+    const arcs = new Set(active.map((c) => props(c).archiveId || null));
+    const first = active[0] || cams[0];
+    const archiveId = all && arcs.size === 1 ? [...arcs][0] : st.archiveId != null ? st.archiveId : first ? props(first).archiveId || null : null;
+    return { mode: all ? "all" : "off", archiveId, speedLimitMbps: st.speedLimitMbps || 0, excludedCameras: excluded };
+  }
+  // Сколько живёт запись на устройстве: объём / (около 43 ГБ в сутки на камеру); без объёма устройство не стирает (null)
+  function edgeKeepMs(u, ctx) {
+    const size = props(u).sizeBytes;
+    return size ? (size / GB / (43 * Math.max(1, edgeCams(u, ctx).length))) * 86400000 : null;
+  }
+  const edgeGapsOf = (u, c, f, ctx) => (f.gaps || []).filter((g) => !edgeIsNvr(u, ctx) || g.cameraId === c.uid);
+  const gapView = (g, withCamera) => {
+    const out = {};
+    if (withCamera && g.cameraId) out.cameraId = g.cameraId;
+    out.from = g.from;
+    out.to = g.to;
+    out.result = g.result;
+    return out;
+  };
+  const gapMin = (g) => Math.max(1, Math.round((Date.parse(g.to) - Date.parse(g.from)) / 60000));
+  // Состояние одной камеры (у хранилища камеры — единственной)
+  function edgeScope(u, c, rep, f, ctx) {
+    const now = ctx.now(), gaps = edgeGapsOf(u, c, f, ctx), queued = gaps.filter((g) => g.result === "queued");
+    const run = edgeRuns(ctx).get(`${u.uid}|${c.uid}`);
+    const eligible = edgeEmbedded(c) && !rep.excludedCameras.includes(c.uid);
+    const online = edgeLinkOk(u, edgeOwner(u, ctx), c) && !edgeBlocked(u);
+    const next = ctx.nextReplication(c);
+    // У регистратора последний забор — у каждой камеры свой; у исключённой камеры чужого забора нет
+    const last = edgeIsNvr(u, ctx) ? (f.lastBy && f.lastBy[c.uid]) || (eligible ? f.lastTransferAt : null) : f.lastTransferAt;
+    let state, timeLeftSec = null;
+    if (run && run.until > now) {
+      state = "running";
+      timeLeftSec = Math.ceil((run.until - now) / 1000);
+    } else if (queued.length) {
+      state = !online ? "waiting" : eligible || queued.some((g) => g.want) ? "running" : "planned";
+      if (state === "running") timeLeftSec = queued.reduce((a, g) => a + gapMin(g), 0) * EDGE_SEC_PER_MIN;
+    } else if (eligible) state = online ? "ok" : "waiting";
+    else state = last || gaps.some((g) => g.result === "done") ? "ok" : "off";
+    if ((state === "ok" || state === "off") && next) state = "planned";
+    return { state, timeLeftSec, nextTransferAt: next, lastTransferAt: last || null, eligible, gaps: gaps.filter((g) => Date.parse(g.to) >= now - EDGE_KEEP_MS).sort((x, y) => Date.parse(y.from) - Date.parse(x.from)) };
+  }
+  function edgeStatus(u, ctx) {
+    const rep = edgeRepOf(u, ctx), f = edgeRead(u), nvr = edgeIsNvr(u, ctx), cams = edgeCams(u, ctx);
+    const scopes = cams.map((c) => [c, edgeScope(u, c, rep, f, ctx)]);
+    const state = scopes.length ? EDGE_WORST.find((w) => scopes.some(([, s]) => s.state === w)) : "off";
+    const left = scopes.map(([, s]) => s.timeLeftSec).filter((x) => x != null);
+    const lags = cams.filter((c) => edgeEmbedded(c) && obsGet(c, "replicaLagSec") != null).map((c) => obsGet(c, "replicaLagSec"));
+    const out = { state, bytesToday: f.bytesToday || 0, lastTransferAt: f.lastTransferAt || null };
+    if (lags.length) out.lagSec = Math.max(...lags);
+    out.timeLeftSec = left.length ? left.reduce((a, b) => a + b, 0) : null;
+    out.nextTransferAt = scopes.map(([, s]) => s.nextTransferAt).filter(Boolean).sort()[0] || null;
+    out.gaps = scopes.flatMap(([, s]) => s.gaps).map((g) => gapView(g, nvr)).sort((a, b) => Date.parse(b.from) - Date.parse(a.from));
+    if (nvr) out.cameras = scopes.map(([c, s]) => ({ cameraId: c.uid, state: s.state, excluded: rep.excludedCameras.includes(c.uid), lastTransferAt: s.lastTransferAt, nextTransferAt: s.nextTransferAt, gaps: s.gaps.map((g) => gapView(g, false)) }));
+    return out;
+  }
+  // Состояния, которые клиент уже получил, — по ним сервер видит смену (replication.changed)
+  const edgeSnapshot = (u, ctx) => {
+    const s = edgeStatus(u, ctx);
+    return JSON.stringify([s.state, edgeRepOf(u, ctx).mode, (s.cameras || []).map((c) => [c.cameraId, c.state]), s.gaps]);
+  };
+  function edgeChanged(u, ctx, extra) {
+    const s = edgeStatus(u, ctx);
+    edgeSeen(ctx).set(u.uid, edgeSnapshot(u, ctx));
+    ctx.send("replication.changed", { kind: "storage", entityId: u.uid, payload: Object.assign({ state: s.state }, extra || {}) });
+  }
+  // Событие хранилища: запись журнала и запуск правил, которые его слушают
+  const edgeEvent = (u, id, fields, ctx) => ctx.unitEvent(u, id, fields, fields);
+  function edgeFail(u, reason, cameraId, ctx) {
+    edgeEvent(u, "replication.failed", cameraId ? { reason, cameraId } : { reason }, ctx);
+    return null;
+  }
+  function edgeStart(u, c, run, ctx) {
+    edgeRuns(ctx).set(`${u.uid}|${c.uid}`, run);
+  }
+  // Запуск забора камеры: на связи, носитель в порядке, есть что забрать (всё в очереди у камеры с mode all, иначе — заказанное)
+  function edgeMaybeStart(u, c, rep, f, ctx) {
+    const key = `${u.uid}|${c.uid}`;
+    if (edgeRuns(ctx).has(key) || !edgeLinkOk(u, edgeOwner(u, ctx), c) || edgeBlocked(u)) return;
+    const eligible = edgeEmbedded(c) && !rep.excludedCameras.includes(c.uid);
+    const take = edgeGapsOf(u, c, f, ctx).filter((g) => g.result === "queued" && (eligible || g.want));
+    if (!take.length) return;
+    const mins = take.reduce((a, g) => a + gapMin(g), 0);
+    edgeStart(u, c, { until: ctx.now() + Math.min(600, Math.max(3, mins * EDGE_SEC_PER_MIN)) * 1000, bytes: mins * EDGE_BYTES_PER_MIN, keys: take }, ctx);
+  }
+  // Забор начинается сразу, а не на следующем такте: /test/clock сразу после заказа или пропуска видит настоящий остаток
+  function edgeKick(u, ctx) {
+    const rep = edgeRepOf(u, ctx), f = edgeRead(u);
+    edgeCams(u, ctx).forEach((c) => edgeMaybeStart(u, c, rep, f, ctx));
+  }
+  // Заказ забора: правило (replicate) или ручной «Забрать период»; камера одна. Нет связи, ошибка носителя, нет хранилища — отказ
+  // с replication.failed. Что вернулось: true — принято
+  function edgeOrder(u, c, order, ctx) {
+    const rep = edgeRepOf(u, ctx), f = edgeFacts(u, ctx);
+    if (!edgeLinkOk(u, edgeOwner(u, ctx), c)) return edgeFail(u, "no_link", c.uid, ctx);
+    if (edgeBlocked(u)) return edgeFail(u, edgeBlocked(u), c.uid, ctx);
+    const archive = order.archive || rep.archiveId || props(c).archiveId;
+    if (!archive || !ctx.byId("archives", archive)) return edgeFail(u, "archive", c.uid, ctx);
+    const gaps = edgeGapsOf(u, c, f, ctx).filter((g) => g.result === "queued");
+    let minutes = 0, take = [];
+    if (order.period === "last") minutes = order.minutes || 10;
+    else if (order.period === "event") minutes = Math.max(1, Math.ceil(((order.beforeSec || 0) + (order.afterSec || 0) + 30) / 60));
+    else {
+      take = order.gaps || gaps;
+      take.forEach((g) => (g.want = true));
+    }
+    if (minutes) {
+      const run = edgeRuns(ctx).get(`${u.uid}|${c.uid}`);
+      const until = Math.max(run && run.until > ctx.now() ? run.until : 0, ctx.now() + Math.max(3, minutes * EDGE_SEC_PER_MIN) * 1000);
+      if (run && run.until > ctx.now()) {
+        run.until = until;
+        run.bytes += minutes * EDGE_BYTES_PER_MIN;
+      } else edgeStart(u, c, { until, bytes: minutes * EDGE_BYTES_PER_MIN, keys: [] }, ctx);
+    } else edgeMaybeStart(u, c, rep, f, ctx);
+    edgeChanged(u, ctx);
+    return true;
+  }
+  // Встроенное хранилище камеры: свое или регистратора
+  const edgeStorageOf = (cam, ctx) => ctx.units.byParent(cam.uid).find((x) => x.kind === "storage") || (cam.parentId ? ctx.units.byParent(cam.parentId).find((x) => x.kind === "storage") : null);
+  // Ручной забор периода (POST /units/{uid}/archive-fetch): пропуски камеры внутри периода уходят в заказ; сколько пропусков заказано
+  function edgePull(camId, from, to, ctx) {
+    const cam = ctx.units.get(camId), st = cam && edgeStorageOf(cam, ctx);
+    if (!st) return 0;
+    const gaps = edgeGapsOf(st, cam, edgeRead(st), ctx).filter((g) => g.result === "queued" && Date.parse(g.from) < to && Date.parse(g.to) > from);
+    return gaps.length && edgeOrder(st, cam, { period: "offline", gaps }, ctx) ? gaps.length : 0;
+  }
+  // Часы идут: потерянное устройством, начало и конец забора. Вызывает tick() сервера
+  function edgeTick(ctx, fired) {
+    const now = ctx.now(), seen = edgeSeen(ctx), day = ctx.iso(now).slice(0, 10);
+    edgeActive(ctx).forEach((uid) => {
+      const u = ctx.units.get(uid);
+      if (!u) return edgeActive(ctx).delete(uid);
+      const f = edgeRead(u), keep = edgeKeepMs(u, ctx), nvr = edgeIsNvr(u, ctx), cams = edgeCams(u, ctx), rep = edgeRepOf(u, ctx);
+      // Сутки по часам сервера: «за сутки забрано» начинается заново
+      if (f.day !== day) {
+        if (f.day) f.bytesToday = 0;
+        f.day = day;
+      }
+      const before = seen.has(uid) ? seen.get(uid) : edgeSnapshot(u, ctx);
+      let extra = null;
+      cams.forEach((c) => {
+        const gaps = edgeGapsOf(u, c, f, ctx), key = `${uid}|${c.uid}`, run = edgeRuns(ctx).get(key);
+        // Устройство записало поверх: пропуск, который сервер не успел забрать за срок хранения, потерян
+        gaps.filter((g) => g.result === "queued" && keep != null && now - Date.parse(g.from) > keep).forEach((g) => {
+          g.result = "lost";
+          delete g.want;
+          extra = { cameraId: nvr ? c.uid : undefined, gap: gapView(g, false) };
+          ctx.unitEvent(c, "segment.lost", { from: g.from, to: g.to }, { from: g.from, to: g.to });
+        });
+        if (run && run.until <= now) {
+          edgeRuns(ctx).delete(key);
+          run.keys.forEach((g) => g.result === "queued" && (g.result = "done"));
+          f.lastTransferAt = ctx.iso(run.until);
+          if (nvr) (f.lastBy || (f.lastBy = {}))[c.uid] = f.lastTransferAt;
+          f.bytesToday = (f.bytesToday || 0) + run.bytes;
+          edgeEvent(u, "replication.done", nvr ? { cameraId: c.uid } : {}, ctx);
+          fired.push({ kind: "storage", id: uid });
+        } else if (!run) {
+          // Есть что забрать, а носитель или Profile G мешают: один отказ, пока причина не пропала
+          const block = edgeBlocked(u), flag = `${key}|${block}`, flags = ctx.state.edgeFlags || (ctx.state.edgeFlags = new Set());
+          const wants = gaps.some((g) => g.result === "queued" && ((edgeEmbedded(c) && !rep.excludedCameras.includes(c.uid)) || g.want));
+          if (block && wants && edgeLinkOk(u, edgeOwner(u, ctx), c)) {
+            if (!flags.has(flag)) {
+              flags.add(flag);
+              edgeFail(u, block, c.uid, ctx);
+            }
+          } else {
+            ["media", "profile"].forEach((r) => flags.delete(`${key}|${r}`));
+            edgeMaybeStart(u, c, rep, f, ctx);
+          }
+        }
+      });
+      if (edgeSnapshot(u, ctx) !== before) edgeChanged(u, ctx, extra || undefined);
+      else seen.set(uid, before);
+    });
+  }
+  const edgeDue = (ctx) => [...edgeRuns(ctx).values()].map((r) => r.until);
+  // Пропуск, проверка носителя, отказ — тестовые события стенда (POST /test/events)
+  function edgeTest(u, body, ctx) {
+    const bad = (m, field) => ctx.problem(422, "VALIDATION_FAILED", m, { field });
+    const nvr = edgeIsNvr(u, ctx), cams = edgeCams(u, ctx);
+    if (body.cameraId != null && !cams.some((c) => c.uid === body.cameraId)) return bad("Камера не принадлежит этому хранилищу", "cameraId");
+    if (nvr && !body.cameraId && body.type !== "edge.check") return bad("У регистратора нужна камера", "cameraId");
+    if (body.type === "edge.check") {
+      ["mediaOk", "profileG"].forEach((k) => typeof body[k] === "boolean" && (observedOf(u)[k] = body[k]));
+      edgeChanged(u, ctx);
+    } else if (body.type === "edge.fail") {
+      if (!["no_link", "media", "archive", "space", "profile"].includes(body.reason)) return bad("reason: no_link, media, archive, space или profile", "reason");
+      edgeFail(u, body.reason, body.cameraId, ctx);
+    } else {
+      if (Number.isNaN(Date.parse(body.from)) || Number.isNaN(Date.parse(body.to)) || Date.parse(body.to) <= Date.parse(body.from)) return bad("from и to: период, to позже from", "from");
+      const result = body.result || "queued";
+      if (!["queued", "done", "lost"].includes(result)) return bad("result: queued, done или lost", "result");
+      const g = Object.assign(body.cameraId && nvr ? { cameraId: body.cameraId } : {}, { from: body.from, to: body.to, result });
+      edgeFacts(u, ctx).gaps.push(g);
+      const cam = cams.find((c) => c.uid === body.cameraId) || cams[0];
+      if (result === "queued") edgeKick(u, ctx);
+      edgeChanged(u, ctx, { cameraId: nvr ? body.cameraId : undefined, gap: gapView(g, false) });
+      if (result === "lost" && cam) ctx.unitEvent(cam, "segment.lost", { from: g.from, to: g.to }, { from: g.from, to: g.to });
+    }
+    return { status: 200, body: { applied: true } };
+  }
+  // Настройка против камер: mode all без хранилища для записей, лишние камеры, режим replica камеры, которая его не принимает
+  function edgeProblem(u, set, ctx) {
+    const bad = (m) => ctx.problem(422, "VALIDATION_FAILED", m, { field: "replication" });
+    const cams = edgeCams(u, ctx), nvr = edgeIsNvr(u, ctx);
+    const next = Object.assign({}, edgeRepOf(u, ctx), set);
+    if (!nvr && (next.excludedCameras || []).length) return bad("excludedCameras — только у хранилища регистратора");
+    if ((next.excludedCameras || []).some((id) => !cams.some((c) => c.uid === id))) return bad("excludedCameras — камеры этого регистратора");
+    if (next.archiveId) {
+      const a = ctx.byId("archives", next.archiveId);
+      if (!a) return bad(`Нет хранилища ${next.archiveId}`);
+      if (!ctx.specOf(a).recordModes.includes("replica")) return ctx.problem(422, "NOT_SUPPORTED", `На архив вида ${a.kind} репликация не идёт`, { field: "replication" });
+    }
+    if (next.mode !== "all") return null;
+    const targets = cams.filter((c) => !next.excludedCameras.includes(c.uid));
+    if (!targets.length) return bad("Нет камер, у которых сервер будет забирать записи");
+    for (const c of targets) {
+      // Архив камеры меняется, только если назван в правке или у камеры его нет; иначе остаётся её архив
+      const archiveId = set.archiveId || props(c).archiveId || next.archiveId;
+      if (!archiveId) return bad("Для mode all нужен archiveId: у камеры нет записи в архив");
+      const rec = ctx.byId("devices", c.uid);
+      const err = recordingProblem(rec, { archiveId, recordMode: "replica", replicaFrom: null }, ctx);
+      if (err) return err;
+    }
+    return null;
+  }
+  // Что сервер помнит о камере, когда сам ставит ей replica: прежние режим и архив — вернуть при выключении или исключении
+  const edgeMemo = (ctx) => ctx.state.edgeMemo || (ctx.state.edgeMemo = new Map());
+  // Камерам — replica (mode all) или прежний режим (mode off, исключённые): так же, как это сделал бы PATCH камеры. Трогаются только камеры,
+  // чья цель изменилась. it: что назвала правка — mode (all, off; null — не назван и режим смешанный), archive, excl
+  function edgeSync(u, ctx, it) {
+    const st = props(u).replication || {}, excl = st.excludedCameras || [], memo = edgeMemo(ctx);
+    edgeCams(u, ctx).forEach((c) => {
+      const rec = ctx.byId("devices", c.uid), has = edgeEmbedded(c), excluded = excl.includes(c.uid), p = props(c);
+      let patch = null;
+      if (it.mode === "all" && !excluded) {
+        patch = {};
+        const m = memo.get(c.uid) || {};
+        if (!has) {
+          Object.assign(patch, { recordMode: "replica", replicaFrom: null });
+          m.recordMode = p.recordMode;
+        }
+        const archiveId = (it.archive || !p.archiveId) && st.archiveId ? st.archiveId : null;
+        if (archiveId && p.archiveId !== archiveId) {
+          patch.archiveId = archiveId;
+          m.archiveId = p.archiveId;
+          m.setArchive = archiveId;
+        }
+        if (Object.keys(patch).length) memo.set(c.uid, m);
+      } else if (has && (it.mode === "off" || excluded)) {
+        const m = memo.get(c.uid) || {};
+        patch = { recordMode: m.recordMode && m.recordMode !== "replica" ? m.recordMode : "always" };
+        if (m.archiveId && m.setArchive === p.archiveId && m.archiveId !== p.archiveId) patch.archiveId = m.archiveId;
+        // Прежний режим мог стать невозможным (расписание, архив сняли): тогда always
+        if (patch.recordMode !== "always" && recordingProblem(rec, patch, ctx)) patch = { recordMode: "always" };
+        memo.delete(c.uid);
+      }
+      if (!patch || !Object.keys(patch).length) return;
+      ctx.applyPatch(rec, patch);
+      ctx.changed("device", rec);
+    });
+  }
+  const edge = {
+    view(out, ctx) {
+      const u = ctx.units.get(out.uid);
+      if (!u) return out;
+      out.properties = Object.assign({}, out.properties, { replication: edgeRepOf(u, ctx) });
+      const obs = Object.assign({}, (out.status || {}).observed, { replicationStatus: edgeStatus(u, ctx) });
+      obs.mediaOk = obs.mediaOk !== false;
+      obs.profileG = obs.profileG !== false;
+      out.status = Object.assign({}, out.status, { observed: obs });
+      return out;
+    },
+    // null и пустые поля приводятся к виду: replication: null — mode off с прежними исключениями; excludedCameras: null — пустой список.
+    // Что назвала правка (mode, archiveId, excludedCameras), решает, какие камеры тронет сервер: правка скорости камер не трогает
+    beforeSet(u, patch, whole, ctx) {
+      ctx.state.edgeIntent = null;
+      if (!patch.properties || !("replication" in patch.properties)) return null;
+      if (patch.properties.replication === null) patch.properties.replication = { mode: "off" };
+      const set = patch.properties.replication;
+      if ("mode" in set && set.mode == null) set.mode = "off";   // mode: null — как replication: null, выключено
+      if ("excludedCameras" in set && set.excludedCameras == null) set.excludedCameras = [];
+      if ("speedLimitMbps" in set && set.speedLimitMbps == null) set.speedLimitMbps = 0;
+      const bad = edgeProblem(u, set, ctx);
+      if (bad) return bad;
+      const cur = edgeRepOf(u, ctx);
+      ctx.state.edgeIntent = ("mode" in set || "archiveId" in set || "excludedCameras" in set)
+        ? { uid: u.uid, mode: "mode" in set ? set.mode : cur.mode === "all" ? "all" : null, archive: "archiveId" in set, excl: "excludedCameras" in set } : null;
+      // mode в хранилище лежит явно: откат правки возвращает его
+      if (!set.mode) set.mode = cur.mode;
+      props(u).replication = Object.assign({}, props(u).replication, { mode: cur.mode });
+      return null;
+    },
+    afterSet(u, before, ctx) {
+      const it = ctx.state.edgeIntent;
+      ctx.state.edgeIntent = null;
+      if (!before || !it || it.uid !== u.uid) return;
+      edgeSync(u, ctx, it);
+      edgeKick(u, ctx);
+      edgeChanged(u, ctx);
+    },
+    tick: edgeTick,
+    due: edgeDue,
+    test: edgeTest,
+    status: edgeStatus,
+  };
+  // Команды камеры: replicate шагом правила — камера забирает со своего встроенного хранилища или с диска регистратора;
+  // defaults и readConfig (с 0.10.0) — ниже
+  camera.actions = {
+    replicate(u, params, ctx) {
+      const st = edgeStorageOf(u, ctx);
+      if (!st) return { result: {} };
+      edgeOrder(st, u, { period: params.period || "offline", minutes: params.minutes, beforeSec: params.beforeSec, afterSec: params.afterSec, archive: params.archive }, ctx);
+      return { result: {} };
+    },
+    // Сброс к умолчаниям и загрузка настроек с устройства (Axxon One: Reset): обе команды только читают. Интерфейс показывает
+    // «Сейчас → Станет» и применяет значения обычной правкой потоков (PATCH /units/{uid}). Камера без связи — 409 у сервера
+    defaults(u, params, ctx) {
+      if (!recOf(u, ctx).model) return ctx.problem(422, "NOT_SUPPORTED", "Модель камеры не задана: умолчаний нет", { field: "/properties/model" });
+      const camOpts = recOf(u, ctx).resOptions;
+      return { result: { streams: camStreamUnits(u, ctx).map((s, i) => Object.assign({ uid: s.uid, streamId: props(s).streamId }, streamDefault(props(s), i, camOpts))) } };
+    },
+    readConfig(u, params, ctx) {
+      const told = (ctx.db.stand || {}).deviceConfig || {};
+      return {
+        result: {
+          streams: camStreamUnits(u, ctx).map((s) => {
+            const p = props(s), d = told[s.uid] || {};
+            return stripUndefined({ uid: s.uid, streamId: p.streamId, res: d.res !== undefined ? d.res : p.res, fps: d.fps !== undefined ? d.fps : p.fps });
+          }),
+        },
+      };
+    },
+  };
+
+  /* ===== vms.webserver/1 — веб-сервер и RTSP-сервер сервера ===== */
+
+  // Умолчания свойства webServer: поля нет — значение отсюда, как в Axxon One 3.0 «Свойства веб-сервера»
+  const WEB_DEFAULT = { enabled: true, httpPort: 80, httpsPort: 443, urlPrefix: "/", cors: false, recompress: false, rtspPort: 554, rtspHttpPort: 8554 };
+  const WEB_PORTS = ["httpPort", "httpsPort", "rtspPort", "rtspHttpPort"];
+  // Порты видео для браузера: 9001 и по одному на ядро. У встроенного сервера — 8 ядер у каждого сервера
+  const WEB_CORES = 8;
+  const webOf = (p) => Object.assign({}, WEB_DEFAULT, (p && p.webServer) || {});
+  const webReserved = () => ({ from: 9001, to: 9001 + WEB_CORES });
+  // Ключ лежит в секретах сервера (как пароли): в объекте и в ответах его нет
+  const WEB_KEY = "webPrivateKey";
+  function webPortsProblem(w, ctx) {
+    const res = webReserved(), seen = new Map();
+    for (const k of WEB_PORTS) {
+      const p = w[k], at = `/properties/webServer/${k}`;
+      if (p >= res.from && p <= res.to) return ctx.problem(422, "PORT_TAKEN", `Порты ${res.from}–${res.to} веб-сервер занимает под видео`, { field: at, params: { port: p, other: "webReservedPorts" } });
+      if (seen.has(p)) return ctx.problem(422, "PORT_TAKEN", `Порт ${p} уже занимает ${seen.get(p)}`, { field: at, params: { port: p, other: seen.get(p) } });
+      seen.set(p, k);
+    }
+    return null;
+  }
+  // PEM → блоки: BEGIN … END с типом; текст вне блоков — заголовок, который выводит openssl x509 -text
+  const pemBlocks = (s) => [...String(s).matchAll(/-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----/g)].map((m) => ({ type: m[1], body: m[2].replace(/\s+/g, "") }));
+  // Сведения о сертификате. Встроенный сервер X.509 не разбирает: берёт строки заголовка openssl x509 -text (Subject, Issuer,
+  // Not Before, Not After, DNS:) перед первым блоком; заголовка нет — самоподписанный «server.local» на год от загрузки
+  function webCertInfo(pem, now) {
+    const head = String(pem).split("-----BEGIN")[0];
+    const cn = (re) => { const m = head.match(re); if (!m) return null; const c = m[1].match(/CN\s*=\s*([^,/\n]+)/); return (c ? c[1] : m[1]).trim(); };
+    const when = (re) => { const m = head.match(re); const t = m ? Date.parse(m[1].replace(/\s+/g, " ").trim()) : NaN; return Number.isFinite(t) ? t : null; };
+    const subject = cn(/Subject:\s*([^\n]+)/i) || cn(/subject=\s*([^\n]+)/i) || "server.local";
+    const issuer = cn(/Issuer:\s*([^\n]+)/i) || cn(/issuer=\s*([^\n]+)/i) || subject;
+    const from = when(/Not Before\s*:\s*([^\n]+)/i), to = when(/Not After\s*:\s*([^\n]+)/i);
+    const names = [...head.matchAll(/DNS:([^,\s]+)/g)].map((m) => m[1]);
+    const certs = pemBlocks(pem).filter((b) => b.type === "CERTIFICATE").length;
+    return {
+      subject, issuer,
+      notBefore: new Date(from == null ? now : from).toISOString(),
+      notAfter: new Date(to == null ? now + 365 * 86400000 : to).toISOString(),
+      names: names.length ? names : [subject],
+      wildcard: [subject, ...names].some((x) => x.startsWith("*.")),
+      chain: issuer === subject ? "self" : certs > 1 ? "full" : "partial",
+      keyMatches: true,
+    };
+  }
+  // Проверка пары: формат PEM, ключ без пароля, срок, ключ к сертификату. Встроенный сервер пару по-настоящему не сверяет:
+  // ключ стенда со словом mismatch вне блока — «не подходит»
+  function webCertProblem(params, ctx) {
+    const bad = (code, msg, field) => ctx.problem(422, code, msg, { field });
+    const certs = pemBlocks(params.certificate).filter((b) => b.type === "CERTIFICATE");
+    if (!certs.length) return bad("CERTIFICATE_INVALID", "В файле сертификата нет блока PEM CERTIFICATE", "certificate");
+    // openssl ecparam -genkey пишет блок EC PARAMETERS перед ключом — это не второй ключ
+    const keys = pemBlocks(params.privateKey).filter((b) => b.type !== "EC PARAMETERS");
+    if (keys.some((b) => b.type === "ENCRYPTED PRIVATE KEY") || /Proc-Type:\s*4,ENCRYPTED/.test(params.privateKey)) return bad("CERTIFICATE_INVALID", "У ключа есть пароль", "privateKey");
+    if (keys.length !== 1 || !/^(RSA |EC )?PRIVATE KEY$/.test(keys[0].type)) return bad("CERTIFICATE_INVALID", "В файле ключа нет одного блока PEM PRIVATE KEY", "privateKey");
+    const info = webCertInfo(params.certificate, ctx.now());
+    if (Date.parse(info.notAfter) < ctx.now() || Date.parse(info.notBefore) > ctx.now()) return bad("CERTIFICATE_EXPIRED", "Сертификат сейчас не действует", "certificate");
+    if (/mismatch/i.test(String(params.privateKey).replace(/-----BEGIN[\s\S]*?-----END [A-Z ]+-----/g, ""))) return bad("KEY_MISMATCH", "Ключ не подходит к сертификату", "privateKey");
+    return null;
+  }
+  const webserver = {
+    // Поля webServer, которых нет, — умолчания; порты видео — из числа ядер
+    view(out) {
+      out.properties = Object.assign({}, out.properties, { webServer: webOf(out.properties) });
+      const obs = Object.assign({}, (out.status || {}).observed);
+      if (!("webCertificate" in obs)) obs.webCertificate = null;
+      obs.webReservedPorts = webReserved();
+      out.status = Object.assign({}, out.status, { observed: obs });
+      return out;
+    },
+    // Порты сверяются с итогом: в шаге операции — с правками следующих шагов по этому серверу (обмен портами HTTP и HTTPS
+    // двумя шагами проходит), иначе — с объектом после этой правки
+    beforeSet(u, patch, whole, ctx) {
+      if (!patch.properties || !("webServer" in patch.properties)) return null;
+      const merge = (a, b) => (b === null ? null : Object.entries(b || {}).reduce((o, [k, x]) => (x === null ? delete o[k] : (o[k] = x), o), Object.assign({}, a || {})));
+      const next = (ctx.planSteps || []).slice(1).filter((p) => "webServer" in p).reduce((w, p) => merge(w, p.webServer), whole.webServer);
+      return webPortsProblem(webOf({ webServer: next }), ctx);
+    },
+    actions: {
+      // Сертификат и ключ HTTPS: check — только проверка и сведения. Ключ — в секреты сервера; в журнал и ответы он не идёт
+      "webcert.set"(u, params, ctx) {
+        const bad = webCertProblem(params, ctx);
+        if (bad) return bad;
+        const info = Object.assign(webCertInfo(params.certificate, ctx.now()), params.certificateName ? { fileName: params.certificateName } : {});
+        if (params.check) return { result: info };
+        info.uploadedAt = ctx.iso(ctx.now());
+        observedOf(u).webCertificate = info;
+        ctx.secret(u.uid, WEB_KEY, params.privateKey);
+        ctx.send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version, payload: { status: true } });
+        return { result: clone(info) };
+      },
+      // Без сертификата веб-сервер отвечает только по HTTP
+      "webcert.remove"(u, params, ctx) {
+        observedOf(u).webCertificate = null;
+        ctx.secret(u.uid, WEB_KEY, null);
+        ctx.send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version, payload: { status: true } });
+        return { result: {} };
+      },
     },
   };
 
   const HOOKS = {
     "vms.domain/1": domain, "vms.server/1": server, "vms.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
-    "vms.camera/1": camera, "vms.stream/1": stream, "vms.detector/1": detector, "vms.acs/1": acs,
-    "vms.live/1": live, "vms.ptz/1": ptz, "vms.talk/1": talk, "vms.timeline/1": timeline,
+    "vms.camera/1": camera, "vms.stream/1": stream, "vms.detector/1": detector, "vms.subdetector/1": subdetector, "vms.acs/1": acs,
+    "vms.live/1": live, "vms.ptz/1": ptz, "vms.talk/1": talk, "vms.timeline/1": timeline, "vms.pos/1": pos, "vms.edge/1": edge,
+    "vms.webserver/1": webserver,
   };
 
   // DEVICE — хуки всех видов таблицы devices: сервер зовёт их первыми, затем хуки профилей вида

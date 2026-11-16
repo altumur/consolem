@@ -425,7 +425,11 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
             must(windows, s["owner"]["id"], f"schedule {s['name']}", "окна обслуживания")
     for m in modes.values():
         must(schedules, m["scheduleId"], f"mode {m['name']}", "расписания")
-    must(modes, fx["modes"]["otherwise"], "modes.otherwise", "режима")
+    if fx["modes"]["otherwise"] is not None:
+        must(modes, fx["modes"]["otherwise"], "modes.otherwise", "режима")
+    for m in modes.values():
+        for r in m["off"]["ruleIds"]:
+            must(rules, r, f"mode {m['name']}", "правила")
     if fx.get("modeManual"):
         must(modes, fx["modeManual"]["modeId"], "modeManual", "режима")
     for x in windows.values():
@@ -491,7 +495,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
 # Незнакомый x-* клиент пропускает, поэтому он не ошибка; незнакомое ключевое слово без x- — ошибка
 KIND_KEYWORDS = {"type", "enum", "const", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format",
                  "items", "minItems", "maxItems", "required", "default", "readOnly", "writeOnly", "if", "then", "else", "dependentSchemas",
-                 "description", "title", "properties", "additionalProperties"}
+                 "description", "title", "properties", "additionalProperties", "deprecated"}
 KIND_TYPES = {"string", "integer", "number", "boolean", "array", "object", "null"}
 KIND_FLAGS = ("x-search", "x-immutable", "x-unique", "x-ui-filter", "x-ui-advanced")
 UUID_ANY = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4000-8000-[0-9a-f]{12}")
@@ -922,6 +926,32 @@ def check_pages(rep, spec):
     rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(PAGED)} перечней")
 
 
+def check_core_field(rep, spec):
+    # Пути ядра (/kinds…, /units…): field отказа в описаниях — только JSON Pointer (запрос w2c 2026-11-05-100905Z)
+    problems, n = [], 0
+    def walk(node, where, query=()):
+        nonlocal n
+        if isinstance(node, dict):
+            for k, v in node.items():
+                if k in ("description", "summary") and isinstance(v, str):
+                    for m in re.finditer(r"\bfield:\s*`?([^\s`,.;)]+)", v):
+                        n += 1
+                        if not m.group(1).startswith("/") and m.group(1) not in query:
+                            problems.append(f"{where}: field {m.group(1)} — нужен указатель /…")
+                else:
+                    walk(v, where, query)
+        elif isinstance(node, list):
+            for v in node:
+                walk(v, where, query)
+    for path, item in spec["paths"].items():
+        if path.startswith(("/kinds", "/units")):
+            for method, op in item.items():
+                # параметр адреса (?noDetector=…) — не тело: его field остаётся именем
+                query = {p.get("name") for p in op.get("parameters", []) if isinstance(p, dict)} if isinstance(op, dict) else set()
+                walk(op, f"{method.upper()} {path}", query)
+    rep.check("Пути ядра: field отказа в описаниях — JSON Pointer", problems, f"{n} упоминаний")
+
+
 def check_backend_doc(rep, spec):
     doc = read(f"{API}/BACKEND.md")
     if doc is None:
@@ -1031,6 +1061,7 @@ def main():
     rep.check("openapi.js и fixture.js собраны из нынешних JSON", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     check_prototype(rep)
     check_server(rep, spec)
+    check_core_field(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)
     if "--lint" in sys.argv[1:]:

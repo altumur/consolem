@@ -1,5 +1,14 @@
 /* Сценарии интерфейса: виды устройств, которые находит сервер, карточки только для чтения. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until, confirmWith }) => {
+  // Прототип с планом камеры (camPlanRows): правка ждёт «Применить» — сценарий применяет план и ждёт итога.
+  // В index.html правка уже на сервере, и planApply ничего не делает
+  const planApply = async () => {
+    if (typeof camPlanRows !== "function" || !cardDraft || !cardDiff().length) return;
+    const was = bq;
+    cardApply();
+    await until(() => bq && bq !== was && bq.finished);
+    if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
+  };
   const devices = (await uiDevices());
   const of = (t, more) => devices.find((d) => d.type === t && (!more || more(d)));
   const main = () => document.getElementById("main");
@@ -38,30 +47,55 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/<label>RTSP/.test(deviceManualHtml()), "производитель RTSP: поле адреса называется RTSP");
   wizd.manual.vendor = manualVendor;
   ok(!/MAC-адрес/.test(deviceManualHtml()), "MAC вручную не вводится: он только из поиска");
+  // Карточка с «Изменить» у блоков (csEditSet): поля «Подключения» — после «Изменить», поле RTSP — только у производителя
+  // RTSP, как в окне добавления. Карточка без этого показывает поле RTSP сразу
+  const csMode = typeof csEditSet === "function";
+  const rtspOf = (id) => {
+    if (csMode) { csEditSet(id, "conn", true); camConnSet(id, "Производитель", "RTSP"); }
+    const v = document.querySelector('[data-df="RTSP"]')?.value;
+    if (csMode) { cardRestore(); csEditSet(id, "conn", false); }
+    return v;
+  };
   const withUrl = of("camera", (d) => d.rtspUrl);
   open(withUrl.id);
-  ok(document.querySelector('[data-df="RTSP"]')?.value === withUrl.rtspUrl, "карточка показывает rtspUrl");
+  ok(rtspOf(withUrl.id) === withUrl.rtspUrl, "карточка показывает rtspUrl");
   const noUrl = of("camera", (d) => !d.rtspUrl && !d.parentId);
   open(noUrl.id);
-  ok(document.querySelector('[data-df="RTSP"]')?.value === "", "адреса нет — поле пустое, а не собранное из IP");
+  ok(rtspOf(noUrl.id) === "", "адреса нет — поле пустое, а не собранное из IP");
 
   // Видео: своего не подставляем, потоки строками, разрешение — из вариантов
   const video = of("camera", (d) => d.resOptions && d.online);
   open(video.id, "vid");
-  ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "SELECT" && !/H\.265|4096|Битрейт/.test(main().textContent), "разрешение — выбор из resOptions, H.265 и битрейта нет");
+  // Вкладка «Видео» с режимом потоков (cvCfgOf): в «Настройках камеры» параметры только для чтения, правка — в «Настройках консоли»
+  const cvModes = typeof cvCfgOf === "function";
+  const resCtl = () => document.querySelector('[data-df="Разрешение"]');
+  // «Параметры потоков» с «Изменить» (cvEditStart): поля — после «Изменить»
+  const toConsole = (id) => { if (cvModes) { cvCfgOf(find(id).n).mode = "console"; if (typeof cvEditStart === "function") cvEditStart(id); mainSeen.html = null; gear(); } };
+  if (cvModes) ok(!resCtl(), "режим «Настройки камеры»: разрешение только для чтения");
+  toConsole(video.id);
+  const resVals = [...(resCtl()?.options || [])].map((o) => o.value).filter(Boolean);
+  ok(resCtl()?.tagName === "SELECT" && resVals.every((v) => video.resOptions.includes(v) || v === find(video.id).n.streams[0]?.res) && (cvModes || !/H\.265|4096|Битрейт/.test(main().textContent)), "разрешение — выбор из resOptions" + (cvModes ? "" : ", H.265 и битрейта нет"));
   ok(await until(() => lv?.id === video.id && lv.sess?.door.whepUrl, 60000), "живое видео запрошено через POST /devices/{id}/live, сессия у шлюза");
   ok(await until(() => /настоящего видео на стенде нет|На стенде нет настоящего видео/.test(main().textContent)), "подпись: подставной поток");
   const free = of("camera", (d) => !d.resOptions && !d.parentId);
   open(free.id, "vid");
-  ok(document.querySelector('[data-df="Разрешение"]')?.tagName === "INPUT", "нет вариантов — ввод руками");
+  toConsole(free.id);
+  ok(resCtl()?.tagName === "INPUT", "нет вариантов — ввод руками");
   open(video.id, "vid");
   const rowsBefore = main().querySelectorAll("[data-stream]").length;
   streamAdd(video.id);
   ok(await until(() => main().querySelectorAll("[data-stream]").length === rowsBefore + 1), "поток добавлен строкой");
   const added = find(video.id).n.streams.at(-1);
   streamDel(video.id, added.id);
-  ok(await until(() => document.getElementById("confirmCountInp")), "удаление потока — с вводом числа");
-  await confirmWith(1);
+  // Прототип с планом камеры: новый поток есть только в черновике, поэтому он уходит без вопроса — на сервере удалять нечего
+  if (!added._new) {
+    ok(await until(() => document.getElementById("confirmCountInp")), "удаление потока — с вводом числа");
+    await confirmWith(1);
+    // Отсчёт с «Отменить»; тест не ждёт 10 с, а сразу завершает отсчёт
+    const pd = pendingOf(`camstream:${video.id}/${added.id}`);
+    ok(!!pd, "удаление потока — отсчёт с «Отменить»");
+    if (pd) commitDelete(pd.key);
+  }
   ok(await until(() => find(video.id).n.streams.length === rowsBefore), "поток удалён после отсчёта");
   open(video.id, "rec");
   ok(!main().querySelector("select") || [...main().querySelectorAll("option")].some((o) => o.textContent === "Второй") || !camArchs(find(video.id).n).length, "поток записи — из потоков камеры");
@@ -79,8 +113,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => streamOf(multi.id, sub.id)?.name === "Второй поток") && (await onServer(sub.uid)) === "Второй поток" && !errs.length, "существующий поток переименован: " + (errs[0] || "без отказа"));
   streamSet(multi.id, sub.id, "fps", "12");
   ok(await until(() => streamOf(multi.id, sub.id)?.fps === 12) && !errs.length, "существующий поток: вторая правка проходит: " + (errs[0] || "без отказа"));
+  open(video.id, "vid");
   const before2 = find(video.id).n.streams.length;
   streamAdd(video.id);
+  await planApply();
   ok(await until(() => find(video.id).n.streams.length === before2 + 1), "новый поток добавлен");
   const fresh = find(video.id).n.streams.at(-1);
   streamSet(video.id, fresh.id, "name", "Поток А");
@@ -90,7 +126,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   streamDel(video.id, fresh.id);
   ok(await until(() => document.getElementById("confirmCountInp")), "удаление правленого потока — с вводом числа");
   await confirmWith(1);
-  ok(await until(() => find(video.id).n.streams.length === before2) && !errs.length, "правленый поток удалён: " + (errs[0] || "без отказа"));
+  const pd2 = pendingOf(`camstream:${video.id}/${fresh.id}`);
+  ok(!!pd2, "удаление правленого потока — отсчёт с «Отменить»");
+  if (pd2) commitDelete(pd2.key);
+  ok(await until(() => find(video.id).n.streams.length === before2), "правленый поток ушёл из черновика после отсчёта");
+  await planApply();
+  const goneOnServer = async (uid) => { try { await API.get(`/units/${uid}`); return false; } catch { return true; } };
+  ok((await goneOnServer(fresh.uid)) && !errs.length, "правленый поток удалён на сервере: " + (errs[0] || "без отказа"));
   window.toast = realToast;
 
   // Детекторы: новый создаёт мастер — встроенный из того, что умеет камера; линия рисуется мышью в кадре мастера и уходит на сервер
@@ -143,23 +185,28 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Полигон на готовом детекторе, «Сбросить»
   const line = devices.find((d) => d.parentId === camD.id && d.type === "det" && !d.builtin);
   open(line.id);
-  zoneMode(line.id, "polygon");
-  const pg = () => main().querySelector(`[data-zone="${line.id}"]`);
-  [[0.2, 0.2], [0.8, 0.2], [0.5, 0.8]].forEach(([x, y]) => at("mousedown", x, y, pg()));
-  zoneClose(line.id);
-  ok(find(line.id).n.zone?.shape === "polygon" && find(line.id).n.zone.points.length === 3, "полигон из трёх точек");
-  ok(/Показать план/.test(document.getElementById("cardFoot")?.textContent || ""), "зона — в черновике карточки");
-  cardApply();
-  await until(() => !bq || bq.finished);
-  ok((await uiRec(line.id)).zone?.points.length === 3, "зона на сервере");
-  open(line.id);
+  if (main().querySelector("[data-dw]")) {
+    // Прототип окна детектора: зону правят на кадре окна, «Применить» там — заглушка без запроса к серверу
+    ok(!!main().querySelector("[data-dw] svg"), "окно детектора: кадр с зоной");
+  } else {
+    zoneMode(line.id, "polygon");
+    const pg = () => main().querySelector(`[data-zone="${line.id}"]`);
+    [[0.2, 0.2], [0.8, 0.2], [0.5, 0.8]].forEach(([x, y]) => at("mousedown", x, y, pg()));
+    zoneClose(line.id);
+    ok(find(line.id).n.zone?.shape === "polygon" && find(line.id).n.zone.points.length === 3, "полигон из трёх точек");
+    ok(/Показать план/.test(document.getElementById("cardFoot")?.textContent || ""), "зона — в черновике карточки");
+    cardApply();
+    await until(() => !bq || bq.finished);
+    ok((await uiRec(line.id)).zone?.points.length === 3, "зона на сервере");
+    open(line.id);
+  }
   // Несовместимый: отказ сказан своими словами
   const clash = problemText({ problem: { code: "BUSY", params: { reason: "incompatible", with: line.id } } });
   ok(/несовместим/.test(clash), "несовместимый детектор: " + clash);
   ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
 
   // Карта камеры w2c: меньший объём — со вторым подтверждением
-  const cardN = of("storage", (d) => d.writableFields?.length);
+  const cardN = of("storage", (d) => d.writableFields?.includes("sizeBytes"));
   if (cardN) {
     const was = (await uiRec(cardN.id)).sizeBytes;
     open(cardN.id, "gen");
@@ -203,11 +250,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const realPut = API.put, realDel = API.del;
   API.put = (p, ...a) => (calls.push("PUT " + p), realPut(p, ...a));
   API.del = (p, ...a) => (calls.push("DEL " + p), realDel(p, ...a));
-  main().querySelector('[data-ptz="0"]').dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+  // Кнопка поворота: прежняя [data-ptz] или кнопка джойстика [data-joy-dir] вкладки «Видео»
+  const moving = () => (typeof cvMove !== "undefined" ? cvMove : ptzMove);
+  (main().querySelector('[data-ptz="0"]') || main().querySelector('[data-joy-dir="0"]')).dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
   ok(await until(() => calls.includes(`PUT /units/${ptz.id}/ptz`)), "кнопка нажата — аренда");
-  ok(!!ptzMove, "держим — продлевается");
+  ok(!!moving(), "держим — продлевается");
   window.dispatchEvent(new MouseEvent("mouseup", { bubbles: true }));
-  ok(await until(() => calls.includes(`DEL /units/${ptz.id}/ptz`)) && !ptzMove, "отпустили — стоп");
+  ok(await until(() => calls.includes(`DEL /units/${ptz.id}/ptz`)) && !moving(), "отпустили — стоп");
   API.put = realPut;
   API.del = realDel;
   const count = ptz.presets.length;
@@ -305,17 +354,57 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   goTab("gen");
   ok(/Метки сервера/.test(main().textContent), "метки в карточке сервера");
 
-  // Журнал: отбор на сервере
+  // Журнал: поиск, условия и счётчики — на сервере (контракт 0.8.0)
   goApp("log");
   logGo("all");
-  ok(!!document.querySelector(".log-filter"), "отбор журнала");
-  const rowsAll = (await API.get("/journal")).items.length;
-  logSet("limit", "50");
-  logSet("limit", "");
-  logSet("source", "backend");
-  ok(await until(() => logRes && logRes.items.every((e) => e.source === "backend") && logRes.items.length < rowsAll), "подсистема отобрана на сервере");
-  logReset();
-  ok(await until(() => logRes === null), "отбор снят");
+  ok(await until(() => pjRes && document.getElementById("pjList") && pjRes.fac), "журнал: список и счётчики с сервера");
+  ok(pjRes.p.levelNot === "service" && pjRes.base >= pjRes.total, "служебные скрыты, «из M» — события периода");
+  pjToggle("cats", "audit");
+  ok(await until(() => pjRes.p.level === "audit" && pjRes.items.every((e) => pjLevelOf(e) === "audit")), "категория отобрана на сервере");
+  ok(!!document.querySelector('#pjaConds [data-ck="pjToggle:cats:audit"]'), "условие — чипом над списком");
+  pjaIn = "Вход";
+  pjaCommitText();
+  ok(await until(() => pjRes.p.q === "Вход" && pjRes.items.every((e) => /вход/i.test(e.text + pjKindName(e.kind)))), "текст — в q");
+  pjaResetAll();
+  ok(await until(() => !pjRes.p.level && !pjRes.p.q && pjRes.p.levelNot === "service"), "«Сбросить всё»: исходный вид");
+  const jev = pjRes.items.find((e) => e.deviceId);
+  pjSelId = jev.id;
+  pjSelEv = jev;
+  pjMountDet();
+  ok(await until(() => document.querySelector(`#pjDet .pj-nr.on[data-v="${jev.id}"]`)), "«Рядом» — страница вокруг записи с сервера");
+  pjAct("inc", jev.deviceId, "objs");
+  ok(await until(() => pjRes.p.deviceId === jev.deviceId && pjRes.p.deviceMatch === "exact" && pjRes.items.every((e) => e.deviceId === jev.deviceId)), "«=» у объекта — условие deviceId");
+  pjaResetAll();
+  // Контракт 0.9.0: страницы «Назад» и «Вперёд», пояс в списке, два времени и «Кто» в панели, CSV на сервере
+  ok(await until(() => /Записи 1–\d+/.test(document.getElementById("pjPg")?.textContent || "")), "листалка: «Записи 1–N из M»");
+  ok(/UTC[+-]\d\d:\d\d/.test(document.querySelector(".pj-lh")?.textContent || ""), "пояс в заголовке «Время»");
+  pjSetRange("30d");
+  ok(await until(() => pjQ.range === "30d" && pjRes.key === pjKey()), "период 30 дней");
+  pjSetPageSize(50);
+  ok(await until(() => pjRes.items.length === 50 && !!pjRes.next), "размер страницы 50");
+  const p1 = pjRes.items[0].id;
+  pjPage(1);
+  ok(await until(() => pjRes.off === 50 && pjRes.items[0].id !== p1 && /Записи 51–/.test(document.getElementById("pjPg").textContent)), "«Вперёд» — следующая страница");
+  pjPage(-1);
+  ok(await until(() => pjRes.off === 0 && pjRes.items[0].id === p1 && document.querySelector("#pjPg .pg-b").disabled), "«Назад» — первая страница, «Назад» неактивна");
+  pjSetPageSize(100);
+  ok(await until(() => pjRes.items.length > 50 || !pjRes.next), "размер страницы 100");
+  pjSelId = pjRes.items[0].id;
+  pjSelEv = pjRes.items[0];
+  pjMountDet();
+  ok(/Случилось: .*\(UTC[+-]\d\d:\d\d\)/.test(document.getElementById("pjDet").textContent) && /Записано/.test(document.getElementById("pjDet").textContent) && /Кто/.test(document.getElementById("pjDet").textContent), "панель: «Случилось» с поясом, «Записано», «Кто»");
+  ok(pjRes.items.every((e) => !!e.actor), "«Кто» у каждой записи");
+  {
+    let blob = null;
+    const oc = URL.createObjectURL, ac = HTMLAnchorElement.prototype.click;
+    URL.createObjectURL = (b) => { blob = b; return oc.call(URL, b); };
+    HTMLAnchorElement.prototype.click = function () {};
+    try { await pjCsv(); } finally { URL.createObjectURL = oc; HTMLAnchorElement.prototype.click = ac; }
+    const text = blob ? await blob.text() : "";
+    const lines = text.split("\r\n").filter(Boolean);
+    ok(lines.length === pjRes.total + 1 && /T\d\d:\d\d:\d\d[+-]\d\d:\d\d/.test(lines[1] || ""), "CSV: все записи отбора, время ISO со смещением");
+  }
+  pjaResetAll();
 
   // Учётки потоков: пароль один раз, удаление с вводом числа
   goApp("acc");

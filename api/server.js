@@ -65,7 +65,7 @@
   // Хуки профилей vms.* (api/profiles.js): смысл известных видов — общий код старых путей и путей ядра
   const Profiles = typeof window !== "undefined" && window.ConsolemProfiles ? window.ConsolemProfiles : require("./profiles.js");
   // Содержимое правила: то, что правит администратор и что хранят версии истории
-  const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "runAt", "repeat",
+  const RULE_CONTENT = ["name", "enabled", "logOnly", "logOnlySince", "start", "runMode", "operatorMenu", "ratePerMinute", "windowSec", "whenLogic", "condLogic", "runAt", "repeat",
     "triggers", "conditions", "steps", "owner", "purpose", "serverId", "runAsRoleId", "allowChain", "labels", "validForSec"];
   const STREAM_DEPTH = 500;
   // Запусков одного правила на строке хода: идущий и очередь (repeat: queue), сверх — как skip
@@ -91,7 +91,7 @@
   const OBSERVED = {
     devices: ["fault", "faultText", "licenseExceeded", "recordState", "recordReason", "replicaLagSec", "armed", "disabledByRuleId", "disabledByRuleAt", "archiveJobs",
       "direct", "recordingTarget", "detectorKinds", "derived"],
-    servers: ["telemetry", "gpu", "disks", "class", "fingerprint"],
+    servers: ["telemetry", "gpu", "disks", "class", "fingerprint", "webCertificate", "webReservedPorts"],
     domains: ["stateSummary"],
     volumes: ["usedPercent", "shrinkPendingBytes", "heldBy", "incidentsLost", "incidentsAtRisk"],
     archives: [],
@@ -467,6 +467,16 @@
       Object.entries(SPEC.paths).forEach(([path, item]) =>
         Object.entries(item).forEach(([m, o]) => o && o.operationId && (OPERATION[`${m.toUpperCase()} ${shape(path)}`] = o.operationId))
       );
+    // Подпись операции для записи аудита — summary контракта; методы, которые меняют систему, — для каталога видов журнала
+    const OP_SUMMARY = new Map(), OP_WRITES = [];
+    if (SPEC)
+      Object.entries(SPEC.paths).forEach(([path, item]) =>
+        Object.entries(item).forEach(([m, o]) => {
+          if (!o || !o.operationId) return;
+          OP_SUMMARY.set(o.operationId, o.summary || o.operationId);
+          if (["post", "put", "patch", "delete"].includes(m) && !path.startsWith("/test/")) OP_WRITES.push(o.operationId);
+        })
+      );
     const testSupport = !!opts.testSupport;
 
     // Часы. Тестовый стенд их останавливает и сдвигает (/test/clock), иначе идут вместе с настоящими
@@ -481,12 +491,14 @@
     let kinds = null, store = null, legacy = null, kindList = null;
     // Состояние хуков профилей (итоги круга домена…): сбрасывается в load()
     let profileState = {};
+    // Расписание с интервалом: с какого момента правило видит сервер (/test/reset очищает)
+    const schedSeen = new Map();
     /* Хуки профилей (profiles.js) и то, что они видят у сервера: склад, описания видов, старые таблицы и общие помощники старых
        путей. Помощники — обёртки: сами функции объявлены ниже, хук зовёт их, когда сервер уже собран */
     const HOOKS = Profiles.HOOKS;
     const hFolder = HOOKS["vms.folder/1"];
     const hDevice = Profiles.DEVICE, hCamera = HOOKS["vms.camera/1"], hStream = HOOKS["vms.stream/1"], hDetector = HOOKS["vms.detector/1"], hAcs = HOOKS["vms.acs/1"];
-    const hLive = HOOKS["vms.live/1"], hPtz = HOOKS["vms.ptz/1"], hTalk = HOOKS["vms.talk/1"], hTimeline = HOOKS["vms.timeline/1"];
+    const hLive = HOOKS["vms.live/1"], hPtz = HOOKS["vms.ptz/1"], hTalk = HOOKS["vms.talk/1"], hTimeline = HOOKS["vms.timeline/1"], hPos = HOOKS["vms.pos/1"], hEdge = HOOKS["vms.edge/1"];
     const pctx = {
       get units() { return store; },
       get kinds() { return kinds; },
@@ -521,6 +533,8 @@
       kindSpec: (kind) => kindSpec(kind),
       serverWideChanged: (a) => serverWideChanged(a),
       dropStreamGrants: (fn) => dropStreamGrants(fn),
+      // Секрет объекта, которого нет в его свойствах (закрытый ключ веб-сервера): хранится с паролями, в ответах его нет; null — снять
+      secret: (uid, name, value) => (value == null ? secrets.delete(secretKey(uid, name)) : secrets.set(secretKey(uid, name), value)),
       // Устройства (DEVICE, vms.camera/1…): то, что старые пути делают с записью устройства
       applyPatch: (rec, patch) => applyPatch(rec, patch),
       withChildren: (id) => withChildren(id),
@@ -532,8 +546,13 @@
       evKind: (kind, x) => evKind(kind, x),
       // Шаг операции: всё, что план меняет у этого объекта (правки этого и следующих шагов, слитые), — камера сверяет запись целиком
       get plan() { return planNow; },
+      get planSteps() { return planSteps; },
       // Идёт запрос пути ядра или шаг по uid: событие — с видом объекта (решение 5)
       get core() { return coreMode; },
+      // Событие объекта изнутри сервера (репликация): запись журнала и запуск правил, что его слушают
+      unitEvent: (u, eventId, match, fields) => unitEvent(u, eventId, match, fields),
+      // Ближайший запуск правила по расписанию с командой replicate на эту камеру (ISO) или null
+      nextReplication: (cam) => nextReplication(cam),
     };
     // Хуки вида — по его профилям (implements), только те, что сервер знает. У устройств (таблица devices) первыми — общие
     // хуки устройства (DEVICE: система, папки, ссылки, сервер-исполнитель, удаление), затем — профилей
@@ -554,6 +573,8 @@
       return { remove: [...remove], detach: [...detach].filter((x) => !remove.has(x)) };
     }
     let planNow = null;
+    // Шаг операции: правки свойств этого и следующих шагов по тому же uid, по порядку (хук сливает их сам, вглубь)
+    let planSteps = null;
     const hookOf = (kind, name) => hooksOf(kind).find((h) => h[name]) || null;
     let heldNow = null;
     // Пароли — отдельно от записей: в ответах их нет, только hasPassword
@@ -569,7 +590,8 @@
       // Расписания и особые дни — календарь (праздники, даты ярмарки): их даты не сдвигаются
       db.schedules = clone(fixture.schedules || []);
       db.dayGroups = clone(fixture.dayGroups || []);
-      lastMode = null;
+      lastMode = undefined;
+      (db.modes.items || []).forEach(modeNorm);
       me = db.me.userId;
       ruleRuns = [];
       prompts = [];
@@ -580,6 +602,7 @@
       formatting = new Map();
       applying = new Map();
       profileState = {};
+      schedSeen.clear();
       scanning = new Map();
       db.archiveWatches = db.archiveWatches || [];
       db.archiveScans = db.archiveScans || [];
@@ -621,6 +644,7 @@
         idsOf(Object.assign({}, db, { devices: [] }));
         seq[KIND.device] = db.devices.length + 1000;
       } else idsOf(Object.assign({}, db, { units: [...store.all()].filter((u) => !tableOf(u.kind)) }));
+      journalInit();
     }
     const uuid = (kind) => {
       const k = KIND[kind];
@@ -634,7 +658,7 @@
       rules: () => db.rules, schedules: () => db.schedules, dayGroups: () => db.dayGroups, modes: () => db.modes, manualMode: () => db.modeManual,
       windows: () => db.maintenanceWindows, roles: () => db.access.roles, users: () => db.access.users,
     });
-    let lastMode = null;
+    let lastMode;   // ключ «режим|источник» на прошлом шаге часов; undefined — ещё не считали
     // Записи старых таблиц — по складу: объект по uid и его запись-представление, если он из этой таблицы
     const byId = (table, id) => {
       if (!OLD_TABLES.includes(table)) return db[table].find((r) => r.id === id) || null;
@@ -654,8 +678,405 @@
     const journalAbout = (e, id) => {
       if (e.deviceId === id) return true;
       const rec = e.deviceId && byId("devices", e.deviceId);
-      return !!rec && (rec.parentId === id || rec.cameraId === id);
+      return !!rec && (rec.parentId === id || rec.cameraId === id || (rec.overlays || []).some((o) => o.cameraId === id));
     };
+
+    /* ----- Журнал: поиск, счётчики, каталог видов (0.8.0) ----- */
+
+    // Порядок записи — номером записи: место в массиве (indexOf) на 200 000 записей дало бы квадрат.
+    // Новая запись — только через journalAdd: она получает следующий номер
+    let jSeq = new WeakMap(), jNext = 0;
+    const jRank = (e) => {
+      let n = jSeq.get(e);
+      if (n === undefined) { n = ++jNext; jSeq.set(e, n); }
+      return String(1e12 - n).padStart(13, "0");
+    };
+    // Кто сделал (0.9.0): у каждой записи. Запись в ходе запроса — пользователь запроса, иначе «система»
+    let reqActor = null, reqIp = null;
+    const J_SYSTEM = "система";
+    function journalAdd(e) {
+      if (!e.level) e.level = jLevelOf(e);
+      if (!e.actor) e.actor = reqActor || J_SYSTEM;
+      db.journal.unshift(e);
+      jSeq.set(e, ++jNext);
+    }
+    const J_LEVELS = ["alarm", "error", "audit", "info", "service"];
+    const jLevelOf = (e) => (J_LEVELS.includes(e.level) ? e.level : e.category === "audit" ? "audit" : e.category === "alarm" ? "alarm" : "info");
+    // Уровень события вида (EventDescriptor.severity) → группа журнала
+    const jLevelOfSeverity = (s) => (["alarm", "critical"].includes(s) ? "alarm" : ["error", "warning"].includes(s) ? "error" : "info");
+    // Время записи для отбора — occurredAt, иначе at; число в памяти, а не разбор строки на каждом запросе
+    let jTime = new WeakMap();
+    const jWhen = (e) => {
+      let t = jTime.get(e);
+      if (t === undefined) { t = Date.parse(e.occurredAt || e.at); jTime.set(e, t); }
+      return t;
+    };
+    // Виды событий стенда без объекта и с ним (stand.journal); подписи событий объектов — из описаний видов
+    const J_STAND_KINDS = [
+      ["det.start", "service", "Детектор: начало"], ["det.end", "service", "Детектор: конец"], ["rule.fire", "service", "Срабатывание правила"],
+      ["rec.start", "info", "Начало записи"], ["rec.stop", "info", "Конец записи"], ["cam.online", "info", "Камера в сети"],
+      ["ntp", "info", "Синхронизация времени"], ["srv.start", "info", "Запуск сервера"],
+      ["al.motion", "alarm", "Тревога: движение"], ["al.line", "alarm", "Тревога: пересечение линии"], ["al.tamper", "alarm", "Тревога: вскрытие корпуса"], ["al.ack", "alarm", "Оценка тревоги"],
+      ["cam.offline", "error", "Камера не в сети"], ["rec.lost", "error", "Потеря записи"], ["disk.full", "error", "Хранилище заполнено"], ["cam.auth", "error", "Ошибка входа камеры"],
+      ["login", "audit", "Вход в систему"], ["logout", "audit", "Выход из системы"], ["login.fail", "audit", "Неудачный вход"], ["cam.set", "audit", "Изменение камеры"],
+      ["dev.add", "audit", "Добавление устройства"], ["dev.del", "audit", "Удаление устройства"], ["rule.set", "audit", "Изменение правила"], ["role.set", "audit", "Изменение роли"],
+      ["arch.view", "audit", "Просмотр архива"], ["live.view", "audit", "Просмотр видео"], ["export", "audit", "Экспорт видео"], ["ptz", "audit", "Управление PTZ"], ["jexport", "audit", "Экспорт журнала"],
+    ];
+    // Каталог: события стенда, события видов объектов, общие коды записей набора (audit, alarm, info). Первое имя кода — главное
+    function journalKinds() {
+      const out = new Map();
+      const put = (id, text, level, key) => { if (!out.has(id)) out.set(id, { id, label: { key: key || `journal.kind.${id}`, text, lang: "ru" }, level }); };
+      J_STAND_KINDS.forEach(([id, level, text]) => put(id, text, level));
+      kinds.list().forEach((k) => (k.events || []).forEach((ev) => put(ev.id, (ev.label || {}).text || ev.id, jLevelOfSeverity(ev.severity), (ev.label || {}).key)));
+      put("audit", "Аудит", "audit"); put("alarm", "Тревога", "alarm"); put("info", "Информация", "info");
+      OP_WRITES.filter((op) => !AUDIT_SKIP.has(op)).forEach((op) => put(`api.${op}`, OP_SUMMARY.get(op), "audit"));
+      return [...out.values()];
+    }
+    let jKindText = null;
+    const jKindLabel = (id) => {
+      if (!jKindText) jKindText = new Map(journalKinds().map((k) => [k.id, k.label.text]));
+      return jKindText.get(id) || "";
+    };
+    // Текст для поиска: запись, подпись вида, группа, автор, адрес. Имя объекта — отдельно: его могут переименовать
+    let jHay = new WeakMap();
+    const J_LEVEL_TEXT = { alarm: "Тревога", error: "Ошибка", audit: "Аудит", info: "Информация", service: "Служебное" };
+    const jHayOf = (e) => {
+      let h = jHay.get(e);
+      if (h === undefined) { h = normText(`${e.text || ""} ${jKindLabel(e.kind)} ${J_LEVEL_TEXT[jLevelOf(e)]} ${e.actor || ""} ${(e.fields && e.fields.ip) || ""}`); jHay.set(e, h); }
+      return h;
+    };
+    // q: «|» — ИЛИ между группами, пробел — И, кавычки — фраза, «-слово» — без него
+    function jParseQ(s) {
+      s = normText(String(s || "").trim());
+      if (!s) return null;
+      const parts = [], groups = [], neg = [];
+      let cur = "", quote = false;
+      for (const ch of s) {
+        if (ch === '"') { quote = !quote; cur += ch; } else if (ch === "|" && !quote) { parts.push(cur); cur = ""; } else cur += ch;
+      }
+      parts.push(cur);
+      parts.forEach((g) => {
+        const terms = [];
+        g.replace(/(-?)"([^"]*)"|(\S+)/g, (m, minus, phrase, word) => {
+          let x = phrase !== undefined ? phrase.trim() : word, no = !!minus;
+          if (phrase === undefined && x.length > 1 && x[0] === "-") { no = true; x = x.slice(1); }
+          if (x && x !== "-") (no ? neg : terms).push(x);
+          return m;
+        });
+        if (terms.length) groups.push(terms);
+      });
+      return groups.length || neg.length ? { groups, neg } : null;
+    }
+    const jList = (v) => { const a = String(v == null ? "" : v).split(",").map((x) => x.trim()).filter(Boolean); return a.length ? new Set(a) : null; };
+    function jWhere(q) {
+      return {
+        cat: jList(q.category), catNot: jList(q.categoryNot), source: q.source || null,
+        from: q.from ? Date.parse(q.from) : null, to: q.to ? Date.parse(q.to) : null, text: jParseQ(q.q),
+        level: jList(q.level), levelNot: jList(q.levelNot), kind: jList(q.kind), kindNot: jList(q.kindNot),
+        dev: jList(q.deviceId), devNot: jList(q.deviceIdNot), exact: q.deviceMatch === "exact", actor: jList(q.actor), actorNot: jList(q.actorNot),
+      };
+    }
+    // Имя объекта записи для поиска — один раз за запрос
+    function jNameOf() {
+      const memo = new Map();
+      return (id) => {
+        if (!id) return "";
+        let n = memo.get(id);
+        if (n === undefined) { const u = store.get(id); n = u ? normText(u.name || "") : ""; memo.set(id, n); }
+        return n;
+      };
+    }
+    const jTextOk = (t, h, name) => {
+      const has = (x) => h.includes(x) || (!!name && name.includes(x));
+      if (t.neg.some(has)) return false;
+      return !t.groups.length || t.groups.some((g) => g.every(has));
+    };
+    // Общие условия (время, подсистема, категория, текст) и по полю: level, kind, deviceId, actor
+    function jPasser(w) {
+      const name = jNameOf();
+      const base = (e) => {
+        if (w.from !== null || w.to !== null) { const t = jWhen(e); if ((w.from !== null && !(t >= w.from)) || (w.to !== null && !(t <= w.to))) return false; }
+        if (w.source && e.source !== w.source) return false;
+        if ((w.cat && !w.cat.has(e.category)) || (w.catNot && w.catNot.has(e.category))) return false;
+        return !w.text || jTextOk(w.text, jHayOf(e), name(e.deviceId));
+      };
+      const level = (e) => { const l = jLevelOf(e); return (!w.level || w.level.has(l)) && !(w.levelNot && w.levelNot.has(l)); };
+      const kind = (e) => (!w.kind || w.kind.has(e.kind)) && !(w.kindNot && w.kindNot.has(e.kind));
+      const dev = (e) => (!w.dev || (w.exact ? w.dev.has(e.deviceId) : [...w.dev].some((id) => journalAbout(e, id)))) && !(w.devNot && w.devNot.has(e.deviceId));
+      const actor = (e) => (!w.actor || w.actor.has(e.actor)) && !(w.actorNot && w.actorNot.has(e.actor));
+      return { base, level, kind, dev, actor, all: (e) => base(e) && level(e) && kind(e) && dev(e) && actor(e) };
+    }
+    const jShow = (e) => { const o = clone(e); o.level = jLevelOf(e); return o; };
+    // Счётчики: поле считается без своего условия; periodTotal — за период, служебные — если их не скрывают
+    function journalFacets(q) {
+      const w = jWhere(q), P = jPasser(w);
+      const cnt = { level: new Map(), kind: new Map(), deviceId: new Map(), actor: new Map() };
+      const inc = (m, v) => { if (v) m.set(v, (m.get(v) || 0) + 1); };
+      const serviceHidden = (w.level && !w.level.has("service")) || (w.levelNot && w.levelNot.has("service"));
+      let total = 0, periodTotal = 0;
+      for (const e of db.journal) {
+        if (w.from !== null || w.to !== null) { const t = jWhen(e); if ((w.from !== null && !(t >= w.from)) || (w.to !== null && !(t <= w.to))) continue; }
+        const lv = jLevelOf(e);
+        if (!(serviceHidden && lv === "service")) periodTotal++;
+        if (!P.base(e)) continue;
+        const ok = [P.level(e), P.kind(e), P.dev(e), P.actor(e)], fails = ok.filter((x) => !x).length;
+        if (fails === 0) { total++; inc(cnt.level, lv); inc(cnt.kind, e.kind); inc(cnt.deviceId, e.deviceId); inc(cnt.actor, e.actor); } else if (fails === 1) {
+          if (!ok[0]) inc(cnt.level, lv); else if (!ok[1]) inc(cnt.kind, e.kind); else if (!ok[2]) inc(cnt.deviceId, e.deviceId); else inc(cnt.actor, e.actor);
+        }
+      }
+      const lim = q.facetLimit === undefined ? null : Number(q.facetLimit);
+      if (lim !== null && !(Number.isInteger(lim) && lim >= 1)) return problem(422, "VALIDATION_FAILED", "facetLimit — целое от 1", { field: "facetLimit" });
+      const facets = {}, more = {};
+      Object.entries(cnt).forEach(([f, m]) => {
+        const all = [...m].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || (a.value < b.value ? -1 : 1));
+        facets[f] = lim ? all.slice(0, lim) : all;
+        if (lim && all.length > lim) more[f] = all.length - lim;
+      });
+      return { status: 200, body: Object.assign({ total, periodTotal, facets }, Object.keys(more).length ? { more } : {}) };
+    }
+    function journalList(q) {
+      const w = jWhere(q), P = jPasser(w);
+      if (q.around !== undefined) {
+        const a = db.journal.find((e) => e.id === q.around);
+        if (!a) return notFound("Запись журнала");
+        const limit = limitOf(q);
+        if (limit === null) return limitBad();
+        const hit = db.journal.filter((e) => e === a || P.all(e));
+        const i = hit.indexOf(a), from = Math.max(0, Math.min(i - Math.floor((limit - 1) / 2), hit.length - limit));
+        return { status: 200, body: { items: hit.slice(from, from + limit).map(jShow), truncated: hit.length > limit, withheldCount: 0 } };
+      }
+      // Встроенный сервер права на журнал не проверяет: скрытых записей у него нет.
+      // Страница по ключу записи, как pageList: вставка новых записей не сдвигает. prevCursor (0.9.0) — страница перед
+      // первой записью этой; offset — сколько записей отбора перед страницей («Записи 101–200 из N»)
+      const limit = limitOf(q);
+      if (limit === null) return limitBad();
+      const scope = scopeOf("journal", q), cur = cursorRead(q, scope);
+      if (cur.bad) return cur.bad;
+      const rows = db.journal.filter(P.all);
+      let start = 0;
+      if (cur.at !== null) {
+        let i = rows.findIndex((e) => (cur.back ? !(jRank(e) < cur.at) : jRank(e) > cur.at));
+        if (i < 0) i = rows.length;
+        start = cur.back ? Math.max(0, i - limit) : i;
+      }
+      const page = rows.slice(start, start + limit), more = start + page.length < rows.length;
+      const body = { items: page.map(jShow), truncated: more, withheldCount: 0, offset: start };
+      if (more && page.length) body.nextCursor = cursorMake(scope, jRank(page[page.length - 1]), cur.exp);
+      if (start > 0 && page.length) body.prevCursor = cursorMake(scope, jRank(page[0]), cur.exp, true);
+      return { status: 200, body };
+    }
+    // Время ISO 8601 со смещением пояса tz: 2026-11-11T13:02:05+03:00. Смещение — одно на час, по кэшу
+    function jIsoIn(tz) {
+      const f = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "longOffset", year: "numeric" }), memo = new Map();
+      const offOf = (t) => {
+        const h = Math.floor(t / 36e5);
+        let o = memo.get(h);
+        if (o === undefined) {
+          const m = (f.formatToParts(new Date(h * 36e5)).find((x) => x.type === "timeZoneName") || {}).value || "GMT";
+          const g = m.match(/GMT([+-])(\d{1,2})(?::?(\d{2}))?/);
+          o = g ? (g[1] === "-" ? -1 : 1) * (Number(g[2]) * 60 + Number(g[3] || 0)) : 0;
+          memo.set(h, o);
+        }
+        return o;
+      };
+      const p2 = (x) => String(x).padStart(2, "0");
+      return (t) => {
+        const o = offOf(t), d = new Date(t + o * 6e4), a = Math.abs(o);
+        return `${d.toISOString().slice(0, 19)}${o < 0 ? "-" : "+"}${p2(Math.floor(a / 60))}:${p2(a % 60)}`;
+      };
+    }
+    // Выгрузка CSV (0.9.0): записи отбора GET /journal целиком, без курсора и предела. Время — в поясе tz (умолчание —
+    // Me.timezone), со смещением. Заголовки — lang (ru, en); разделитель — delimiter. Значение с «=», «+», «-», «@» в начале —
+    // с апострофом: иначе Excel выполнит его как формулу. Выгрузка сама — запись аудита «Экспорт журнала»
+    const J_LEVEL_EN = { alarm: "Alarm", error: "Error", audit: "Audit", info: "Information", service: "Service" };
+    function journalExport(q) {
+      const tz = q.tz || db.timezone || "UTC";
+      try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); } catch (e) { return problem(422, "VALIDATION_FAILED", "tz — имя часового пояса IANA, например Europe/Moscow", { field: "tz" }); }
+      const sep = q.delimiter === undefined ? "," : q.delimiter;
+      if (sep !== "," && sep !== ";") return problem(422, "VALIDATION_FAILED", "delimiter — «,» или «;»", { field: "delimiter" });
+      if (q.lang !== undefined && !["ru", "en"].includes(q.lang)) return problem(422, "VALIDATION_FAILED", "lang — ru или en", { field: "lang" });
+      const en = q.lang === "en", P = jPasser(jWhere(q)), at = jIsoIn(tz);
+      const cell = (x) => { x = String(x == null ? "" : x); if (/^[=+\-@\t\r]/.test(x)) x = "'" + x; return /["\n\r,;]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
+      const head = en ? ["ID", "Occurred", "Recorded", "Group", "Event code", "Event", "Object", "Object ID", "Who", "IP address", "Change", "Description"]
+        : ["ID", "Случилось", "Записано", "Группа", "Код события", "Событие", "Объект", "ID объекта", "Кто", "IP-адрес", "Было → стало", "Описание"];
+      const out = ["\ufeff" + head.map(cell).join(sep)], names = new Map();
+      const nameOf = (id) => { if (!id) return ""; if (!names.has(id)) { const u = store.get(id); names.set(id, u ? u.name || "" : ""); } return names.get(id); };
+      let n = 0;
+      for (const e of db.journal) {
+        if (!P.all(e)) continue;
+        n++;
+        const lv = jLevelOf(e), f = e.fields || {}, ch = f.change, t = Date.parse(e.occurredAt || e.at);
+        out.push([e.id, at(t), at(Date.parse(e.at)), en ? J_LEVEL_EN[lv] : J_LEVEL_TEXT[lv], e.kind || "", jKindLabel(e.kind) || "", nameOf(e.deviceId), e.deviceId || "",
+          e.actor || J_SYSTEM, f.ip || "", ch ? `${ch.field}: ${ch.before} → ${ch.after}` : "", e.text].map(cell).join(sep));
+      }
+      const stamp = at(now()).slice(0, 16).replace(/[-:]/g, "").replace("T", "-");
+      journalAdd({ id: uuid("journal"), at: iso(now()), occurredAt: iso(now()), category: "audit", level: "audit", kind: "jexport", source: "backend",
+        text: `Экспорт журнала в CSV: ${n} ${n % 10 === 1 && n % 100 !== 11 ? "запись" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "записи" : "записей"}`,
+        fields: Object.assign({ rows: n, operation: "exportJournal" }, reqIp ? { ip: reqIp } : {}) });
+      return { status: 200, body: out.join("\r\n") + "\r\n", headers: { "Content-Type": "text/csv; charset=utf-8", "Content-Disposition": `attachment; filename="journal-${stamp}.csv"` } };
+    }
+    /* Аудит (0.9.0): каждый запрос, который меняет систему (POST, PUT, PATCH, DELETE с ответом 2xx), — запись журнала:
+       кто (логин пользователя запроса), откуда (ip), операция контракта и для PUT и PATCH — «было → стало» по чтению того же
+       пути до и после. Не пишутся: разговор с ассистентом, наблюдение потока, проверки без записи. Частые команды (PTZ,
+       живое видео, разговор) того же пользователя по тому же пути за 30 с — одна запись; остальные — каждая.
+       Секреты не попадают в журнал: ключи с паролем, токеном, заголовками — «••••», в адресе — без имени и пароля,
+       в тексте — «Authorization: ••••» */
+    const AUDIT_SKIP = new Set(["assistTurn", "putStreamWatch", "validateUnits", "checkExport", "testRule"]);
+    const AUDIT_SAME_MS = 30000;
+    const AUDIT_SAME_OPS = new Set(["putUnitPtz", "deleteUnitPtz", "startUnitLive", "moveUnitLive", "startUnitTalk"]);
+    const AUDIT_HIDE = /pass(word)?|secret|token|apikey|api_key|private|credential|authorization|cookie|headers/i;
+    const AUDIT_SKIP_KEYS = new Set(["version", "status", "hasChildren", "updatedAt", "createdAt", "createdBy", "changedAt", "changedBy", "etag", "links"]);
+    const AUDIT_MASK = "••••";
+    // Строка без секретов: имя и пароль в адресе, «Authorization: …», «Bearer …», «password=…»
+    const auditText = (v) => String(v).replace(/(\/\/)[^/\s:@]+:[^/\s@]+@/g, `$1${AUDIT_MASK}@`)
+      .replace(/\b(authorization|bearer|password|passwd|pwd|token|secret|api[-_]?key)(\s*[:=]\s*|\s+)(?:bearer\s+|basic\s+)?[^\s,;&"']+/gi, `$1$2${AUDIT_MASK}`);
+    // Значение без секретов: ключи секретов — «••••», строки — через auditText, вглубь объектов и массивов
+    const auditMask = (v, key) => {
+      if (key && AUDIT_HIDE.test(key) && v !== null && v !== undefined && v !== "") return AUDIT_MASK;
+      if (typeof v === "string") return auditText(v);
+      if (Array.isArray(v)) return v.map((x) => auditMask(x));
+      if (v && typeof v === "object") return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, auditMask(x, k)]));
+      return v;
+    };
+    function auditSnap(path) {
+      const r = compiled.filter((x) => x.method === "GET" && !x.test && x.re.test(path)).sort((a, b) => a.names.length - b.names.length)[0];
+      if (!r) return null;
+      const m = path.match(r.re), params = {};
+      r.names.forEach((name, i) => (params[name] = decodeURIComponent(m[i + 1])));
+      const was = coreMode;
+      coreMode = /^\/units(\/|$)/.test(path);
+      try {
+        const res = r.fn(params, {}, {}, {});
+        return res && res.status === 200 && res.body && typeof res.body === "object" && !Array.isArray(res.body.items) ? clone(res.body) : null;
+      } catch (e) {
+        return null;
+      } finally {
+        coreMode = was;
+      }
+    }
+    // Плоский вид для сравнения: путь → значение; вглубь объектов и массивов (steps[0].url), глубже 4 — целиком, без секретов
+    function auditFlat(o, pre, out, depth) {
+      Object.entries(o || {}).forEach(([k, v]) => {
+        if (!pre && AUDIT_SKIP_KEYS.has(k)) return;
+        if (/Options$/.test(k)) return;
+        const key = pre ? (Array.isArray(o) ? `${pre}[${k}]` : `${pre}.${k}`) : k;
+        if (AUDIT_HIDE.test(k) && v !== null && v !== undefined && v !== "" && !(v && typeof v === "object" && !Object.keys(v).length)) out.set(key, { $secret: JSON.stringify(v) });
+        else if (v && typeof v === "object" && depth < 4 && Object.keys(v).length) auditFlat(v, key, out, depth + 1);
+        else out.set(key, auditMask(v));
+      });
+      return out;
+    }
+    function auditDiff(before, after) {
+      if (!before || !after) return [];
+      const a = auditFlat(before, "", new Map(), 0), b = auditFlat(after, "", new Map(), 0), out = [];
+      const schema = (((kinds && after.kind && kinds.get(after.kind)) || {}).schema || {}).properties || {};
+      const LABEL = { name: "Имя", parentId: "Родитель", folders: "Папки", enabled: "Включено" };
+      const show = (v) => (v === undefined || v === null || v === "" ? "—" : typeof v === "string" ? v : JSON.stringify(v)).slice(0, 200);
+      new Set([...a.keys(), ...b.keys()]).forEach((k) => {
+        if (out.length >= 20 || JSON.stringify(a.get(k)) === JSON.stringify(b.get(k))) return;
+        const prop = k.startsWith("properties.") ? schema[k.slice(11).split(/[.[]/)[0]] : null;
+        const hide = (x) => (x && x.$secret !== undefined) || (prop && prop.writeOnly);
+        const val = (x) => (hide(x) ? (x === undefined || x === null ? "—" : AUDIT_MASK) : show(x));
+        const field = (prop && prop["x-label"] && prop["x-label"].text) || LABEL[k] || k.replace(/^properties\./, "");
+        out.push({ field, before: val(a.get(k)), after: val(b.get(k)) });
+      });
+      return out;
+    }
+    function auditAdd(operationId, method, path, params, body, res, before, after) {
+      const summary = OP_SUMMARY.get(operationId) || operationId, kind = `api.${operationId}`, actor = reqActor || J_SYSTEM;
+      const uid = params.uid || (res.body && typeof res.body.uid === "string" ? res.body.uid : null);
+      const u = uid ? store.get(uid) : null;
+      const pick = (o) => (o && typeof o.name === "string" ? o.name : "");
+      const name = (u && u.name) || pick(after) || pick(before) || pick(res.body) || pick(body);
+      const changes = method === "PUT" || method === "PATCH" ? auditDiff(before, after) : [];
+      const top = db.journal[0];
+      if (AUDIT_SAME_OPS.has(operationId) && top && top.kind === kind && top.actor === actor && top.fields && top.fields.path === path && now() - Date.parse(top.at) < AUDIT_SAME_MS) return;
+      const at = iso(now());
+      const ruleId = params.ruleId || (/^\/rules\/[^/]+/.test(path) && params.id) || null;
+      const fields = Object.assign({ operation: operationId, method, path }, reqIp ? { ip: reqIp } : {}, ruleId ? { ruleId } : {},
+        changes.length ? { change: changes[0] } : {}, changes.length > 1 ? { changes } : {});
+      journalAdd(Object.assign({ id: uuid("journal"), at, occurredAt: at, category: "audit", level: "audit", kind, source: "backend", actor,
+        text: name ? `${summary}: ${name}` : summary, fields }, uid ? { deviceId: uid } : {}, u && u.kind === "camera" ? { cameraId: uid } : {}));
+    }
+    // Записи стенда (stand.journal: count, days, seed): события камер, серверов, правил и людей за days суток до «сейчас».
+    // Как бэкенд с большим журналом: набор в файле не растёт. Записи набора остаются, всё вместе — по времени, новые первыми
+    function journalStand(J) {
+      const n = Math.max(0, Math.floor(J.count || 0));
+      if (!n) return [];
+      let s = (J.seed >>> 0) || 1;
+      const r = () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; };
+      const pick = (a) => a[Math.floor(r() * a.length)];
+      const MIN = 6e4, DAY = 864e5;
+      const cams = store.byKind("camera").slice(0, 400), srvs = store.byKind("server").slice(0, 100), rules = (db.rules || []).slice(0, 50);
+      if (!cams.length) return [];
+      const srvName = (c) => { const p = c.parentId && store.get(c.parentId); return p && p.kind === "server" ? p.name : (srvs[0] || {}).name || ""; };
+      const logins = [...new Set(["root", "admin", ...db.access.users.map((u) => u.login)])].slice(0, 40);
+      const ipOf = (i) => `10.20.${1 + ((i * 7) % 40)}.${5 + ((i * 37) % 240)}`;
+      const STO = ["Хранилище — Офис", "Хранилище — Склад", "Хранилище — Парковка"];
+      const CAM_SET = [["Разрешение", "1920×1080", "2560×1440"], ["Частота кадров", "25 к/с", "15 к/с"], ["Битрейт", "4 Мбит/с", "2 Мбит/с"], ["Режим записи", "Постоянно", "По движению"], ["Звук", "Выключен", "Включён"]];
+      const RULE_SET = [["Расписание", "Всегда", "Рабочие часы"], ["Состояние", "Работает", "Выключено"]];
+      const ROLE_SET = [["Экспорт видео", "запрещено", "разрешено"], ["Управление PTZ", "разрешено", "запрещено"], ["Просмотр архива", "запрещено", "разрешено"]];
+      const hm = (t) => { const d = new Date(t); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+      const flip = ([p, a, b]) => (r() < 0.5 ? { field: p, before: a, after: b } : { field: p, before: b, after: a });
+      // [вид, на чём, вес, автор?, текст и подробности]
+      const K = [
+        ["det.start", "cam", 14, 0, (v) => [`Детектор движения камеры «${v.o}» начал срабатывание`]],
+        ["det.end", "cam", 14, 0, (v) => [`Детектор движения камеры «${v.o}» закончил срабатывание`]],
+        ["rule.fire", "rule", 8, 0, (v) => [`Правило «${v.o}» запустило действие «${pick(["Запись", "Тревога", "Письмо охране"])}»`]],
+        ["rec.start", "cam", 10, 0, (v) => { const x = pick(STO); return [`Камера «${v.o}» начала запись в «${x}»`, { storage: x }]; }],
+        ["rec.stop", "cam", 8, 0, (v) => { const x = pick(STO); return [`Камера «${v.o}» закончила запись в «${x}»`, { storage: x }]; }],
+        ["cam.online", "cam", 3, 0, (v) => [`Сервер «${v.s}» восстановил связь с камерой «${v.o}»`]],
+        ["ntp", "srv", 2, 0, (v) => [`Сервер «${v.o}» сверил время с NTP, сдвиг ${3 + Math.floor(r() * 40)} мс`]],
+        ["al.motion", "cam", 6, 0, (v) => [`Детектор движения камеры «${v.o}» поднял тревогу`, { detector: "motion" }]],
+        ["al.line", "cam", 3, 0, (v) => { const x = pick(["внутрь", "наружу"]); return [`Объект пересёк линию на камере «${v.o}», направление ${x}`, { detector: "line", direction: x }]; }],
+        ["al.tamper", "cam", 0.5, 0, (v) => [`Камера «${v.o}» сообщила о вскрытии корпуса`]],
+        ["al.ack", "cam", 3, 1, (v) => { const x = pick(["подтверждённая", "ложная", "ложная", "подозрительная"]); return [`Оценка тревоги камеры «${v.o}»: ${x}`, { verdict: x }]; }],
+        ["cam.offline", "cam", 2, 0, (v) => [`Сервер «${v.s}» потерял связь с камерой «${v.o}»`]],
+        ["rec.lost", "cam", 0.8, 0, (v) => { const m = 2 + Math.floor(r() * 30), x = pick(STO); return [`Камера «${v.o}» не записала ${m} мин: хранилище «${x}» не отвечало`, { lostMin: m, storage: x }]; }],
+        ["disk.full", "srv", 0.4, 0, (v) => [`Хранилище «${pick(STO)}» сервера «${v.o}» заполнено на ${95 + Math.floor(r() * 5)}%`]],
+        ["cam.auth", "cam", 0.6, 0, (v) => [`Камера «${v.o}» отклонила имя и пароль сервера «${v.s}»`]],
+        ["login", "none", 3, 1, (v) => [`Вход ${v.u} с адреса ${v.ip}`, { ip: v.ip }]],
+        ["logout", "none", 2.6, 1, (v) => [`Выход ${v.u}`]],
+        ["login.fail", "none", 0.5, 1, (v) => [`Неверный пароль для ${v.u}, адрес ${v.ip}`, { ip: v.ip }]],
+        ["cam.set", "cam", 1.2, 1, (v) => { const c = flip(pick(CAM_SET)); return [`Камера «${v.o}», ${c.field}: ${c.before} → ${c.after}`, { change: c }]; }],
+        ["rule.set", "rule", 0.5, 1, (v) => { const c = flip(pick(RULE_SET)); return [`Правило «${v.o}», ${c.field}: ${c.before} → ${c.after}`, { change: c }]; }],
+        ["role.set", "none", 0.2, 1, () => { const c = flip(pick(ROLE_SET)), role = pick(["Операторы", "Охрана", "Администраторы"]); return [`Роль «${role}», право «${c.field}»: ${c.before} → ${c.after}`, { change: c, role }]; }],
+        ["arch.view", "cam", 4, 1, (v) => { const b = (5 + Math.floor(r() * 600)) * MIN; return [`Архив камеры «${v.o}» за ${hm(v.t - b)}–${hm(v.t - b + 15 * MIN)}`]; }],
+        ["live.view", "cam", 5, 1, (v) => [`Живое видео камеры «${v.o}»`]],
+        ["export", "cam", 0.5, 1, (v) => [`Камера «${v.o}», фрагмент в файл MP4 ${20 + Math.floor(r() * 900)} МБ`]],
+        ["ptz", "cam", 1, 1, (v) => [`Камера «${v.o}» повернулась к предустановке «${pick(["Ворота", "Касса", "Вход", "Парковка"])}»`]],
+        ["jexport", "none", 0.05, 1, () => [`Файл CSV, ${100 + Math.floor(r() * 50000)} строк`]],
+      ];
+      const LV = new Map(J_STAND_KINDS.map(([id, level]) => [id, level]));
+      const CAT = { alarm: "alarm", error: "alarm", audit: "audit", info: "info", service: "info" };
+      const cum = (w) => { let t = 0; return w.map((x) => (t += x)); };
+      const bs = (a, x) => { let lo = 0, hi = a.length - 1; while (lo < hi) { const m = (lo + hi) >> 1; if (a[m] < x) lo = m + 1; else hi = m; } return lo; };
+      const kc = cum(K.map((k) => k[2])), cc = cum(cams.map((c, i) => (i % 8 === 3 ? 5 : 1))), uc = cum(logins.map((u, i) => (i === 0 ? 6 : i === 1 ? 4 : i < 5 ? 2 : 1)));
+      const end = now(), step = ((J.days || 30) * DAY) / n, out = new Array(n);
+      let t = end - r() * MIN;
+      for (let i = 0; i < n; i++) {
+        t -= step * -Math.log(1 - r() * 0.999);
+        if (t < end - (J.days || 30) * DAY) t = end - r() * (J.days || 30) * DAY;
+        const k = K[bs(kc, r() * kc[kc.length - 1])];
+        const v = { t, o: "", s: "", u: "", ip: "" };
+        let deviceId = null, cameraId = null, ruleId = null;
+        if (k[1] === "cam") { const c = cams[bs(cc, r() * cc[cc.length - 1])]; v.o = c.name; v.s = srvName(c); deviceId = cameraId = c.uid; } else if (k[1] === "srv" && srvs.length) { const c = pick(srvs); v.o = c.name; deviceId = c.uid; } else if (k[1] === "rule" && rules.length) { const x = pick(rules); v.o = x.name; ruleId = x.id; } else if (k[1] !== "none") { v.o = "—"; }
+        if (k[3]) { const ui = bs(uc, r() * uc[uc.length - 1]); v.u = logins[ui]; v.ip = ipOf(ui); }
+        const [text, extra] = k[4](v), at = iso(t), level = LV.get(k[0]);
+        out[i] = Object.assign({ id: uuid("journal"), at, occurredAt: at, category: CAT[level], level, text, source: k[1] === "none" || k[1] === "rule" ? "backend" : k[1] === "srv" ? "rec" : "cam", kind: k[0] },
+          deviceId ? { deviceId } : {}, cameraId ? { cameraId } : {}, k[3] ? { actor: v.u } : {}, { fields: Object.assign({}, extra || {}, k[3] ? { ip: v.ip } : {}, ruleId ? { ruleId } : {}) });
+      }
+      return out;
+    }
+    // После загрузки набора: группы, номера записи; записи стенда — вместе с записями набора, новые первыми
+    function journalInit() {
+      jSeq = new WeakMap(); jTime = new WeakMap(); jHay = new WeakMap(); jKindText = null; jNext = 0;
+      const all = (db.journal || []).concat(db.stand.journal ? journalStand(db.stand.journal) : []);
+      all.forEach((e) => { if (!e.level) e.level = jLevelOf(e); if (!e.actor) e.actor = J_SYSTEM; });
+      if (db.stand.journal) all.sort((a, b) => jWhen(b) - jWhen(a));
+      db.journal = all;
+      for (let i = all.length - 1; i >= 0; i--) jSeq.set(all[i], ++jNext);
+    }
     const can = (feature) => caps().features.includes(feature);
 
     /* ===== Поток событий ===== */
@@ -687,7 +1108,7 @@
       }
       if (message.type === "journal.event") {
         const rec = byId("devices", message.entityId);
-        Object.defineProperty(message, "near", { value: [message.entityId, rec && rec.parentId, rec && rec.cameraId].filter(Boolean), enumerable: false });
+        Object.defineProperty(message, "near", { value: [message.entityId, rec && rec.parentId, rec && rec.cameraId].concat(rec && Array.isArray(rec.overlays) ? rec.overlays.map((o) => o.cameraId) : []).filter(Boolean), enumerable: false });
       }
       history.push(message);
       if (history.length > STREAM_DEPTH) history.shift();
@@ -947,6 +1368,12 @@
       db.ruleVersions = db.ruleVersions.filter((v) => v.ruleId !== r.id);
       runsStop(r.id);
       send("entity.deleted", { kind: "rule", entityId: r.id });
+      // Режимы больше не называют удалённое правило
+      if (db.modes.items.some((m) => m.off.ruleIds.includes(r.id))) {
+        db.modes.items.forEach((m) => (m.off.ruleIds = m.off.ruleIds.filter((x) => x !== r.id)));
+        bump(db.modes);
+        send("entity.changed", { kind: "modes", version: db.modes.version });
+      }
       db.schedules.filter((sc) => sc.owner && sc.owner.kind === "rule" && sc.owner.id === r.id && !scheduleUsed(sc.id)).forEach(removeSchedule);
     }
     function dropWatch(w) {
@@ -1035,7 +1462,7 @@
     /* ===== Автоматизация ===== */
 
     // Правило в ответе: умолчание годности, состояние — только у включённого, в версию не входит
-    const ruleView = (r) => Object.assign(clone(r), { validForSec: r.validForSec ?? 30 }, r.enabled ? { status: engine.status(r, db.reference) } : {});
+    const ruleView = (r) => Object.assign(clone(r), { validForSec: r.validForSec ?? 30 }, r.enabled ? { status: engine.status(r, db.reference, now()) } : {});
     const content = (r) => Object.fromEntries(RULE_CONTENT.map((k) => [k, clone(r[k])]));
     const myLogin = () => (db.access.users.find((u) => u.id === me) || {}).login || "";
     // Цели правила (и вложенные — в шагах, ожидаемом событии): fn(target) → новая цель
@@ -1129,6 +1556,12 @@
       if (c.runAsRoleId && !db.access.roles.some((x) => x.id === c.runAsRoleId)) return problem(422, "VALIDATION_FAILED", `Роли ${c.runAsRoleId} нет`, { field: "runAsRoleId" });
       const typed = stepTypeProblem(c);
       if (typed) return typed;
+      // Команда с секретом в params (ActionDescriptor.direct, webcert.set) — не шаг правила, и выключенного тоже: правило и его
+      // история уходят в ответы GET /rules
+      const isDirect = (a) => a.type === "unitAction" && kinds.list().some((k) => (k.actions || []).some((x) => x.id === a.action && x.direct));
+      let direct = null;
+      const walkDirect = (l) => (l || []).some((a) => (isDirect(a) && (direct = a)) || walkDirect(a.yes) || walkDirect(a.no));
+      if (walkDirect(c.steps)) return problem(422, "NOT_SUPPORTED", `Команду ${direct.action} дают только прямым вызовом POST /units/{uid}/actions/${direct.action}`, { field: "steps", params: { reason: "direct" } });
       const door = doorRelayIssue(c);
       if (door) return door;
       const port = portIssue(c);
@@ -1254,14 +1687,70 @@
       const over = rp === "queue" && busy.length >= RUNS_MAX, queued = !!busy.length && rp === "queue" && !over;
       if (busy.length && rp === "restart") busy.forEach(runStop);
       const rule = clone(r), at = now();
-      const f = engine.fire(rule, Object.assign({ at, now: true, i: 0, live: true, busy: !!busy.length, busyAs: over ? "skip" : undefined, queued }, o));
+      const br = {};   // исходы шагов запуска: ответы людей и проверки check, судимые один раз
+      const f = engine.fire(rule, Object.assign({ at, now: true, i: 0, live: true, br, busy: !!busy.length, busyAs: over ? "skip" : undefined, queued }, o));
       const rec = storeFire(f);
       if (!queued && !f.pause) return rec;
-      const run = { ruleId: r.id, fireId: rec.id, rule, via: o.via, at, events: rec.events, src: rec.sourceDeviceIds, br: {}, who: {}, pause: null, queued };
+      const run = { ruleId: r.id, fireId: rec.id, rule, via: o.via, at, events: rec.events, src: rec.sourceDeviceIds, br, who: {}, pause: null, queued };
       ruleRuns.push(run);
       if (f.pause) runPause(run, f.pause);
       return rec;
     }
+    /* Событие объекта, которое сервер заметил сам (репликация встроенного хранилища: replication.done, failed, segment.lost
+       камеры): запись журнала (journal.event) и запуск включённых правил с этим событием, как POST /test/events unit.event.
+       У хранилища камеры в записи — камера, у хранилища регистратора — камера из fields.cameraId, иначе регистратор */
+    function unitEvent(u, eventId, match, fields) {
+      const ev = ((kinds.get(u.kind) || {}).events || []).find((e) => e.id === eventId);
+      if (!ev) return;
+      const at = iso(now()), owner = u.parentId ? store.get(u.parentId) : null;
+      const cameraId = u.kind === "camera" ? u.uid : (fields && fields.cameraId) || (owner && owner.kind === "camera" ? owner.uid : null);
+      const e = Object.assign({ id: uuid("journal"), at, occurredAt: at, category: ["alarm", "critical", "error"].includes(ev.severity) ? "alarm" : "info", level: jLevelOfSeverity(ev.severity),
+        text: `${(ev.label || {}).text || ev.id}: ${u.name}`, deviceId: u.uid, source: u.kind, kind: eventId }, cameraId ? { cameraId } : {}, fields && Object.keys(fields).length ? { fields: clone(fields) } : {});
+      journalAdd(e);
+      send("journal.event", { entityId: u.uid, payload: clone(e) });
+      // Правила слышат событие не сразу, а из очереди: событие, которое сервер поднял, пока шагал запуск правила (replicate →
+      // replication.failed), не запускает правила внутри шага. Событие из очереди — цепочка: правило с allowChain: false его
+      // не слышит; всего за один разбор не больше EV_DRAIN_MAX событий; частоту держит ratePerMinute правила
+      evQueue.push({ u, eventId, occurred: { source: "unit", event: eventId, match: clone(match || {}), deviceId: u.uid, at }, chain: evDraining });
+      evDrain();
+    }
+    const EV_DRAIN_MAX = 50;
+    const evQueue = [];
+    let evDraining = false;
+    function evDrain() {
+      if (evDraining) return;
+      evDraining = true;
+      try {
+        for (let n = 0; evQueue.length && n < EV_DRAIN_MAX; n++) {
+          const { u, eventId, occurred, chain } = evQueue.shift();
+          const fits = (t) => Object.entries(t.match || {}).every(([k, v]) => k in occurred.match && JSON.stringify(occurred.match[k]) === JSON.stringify(v));
+          db.rules.filter((r) => !(chain && r.allowChain === false) && ruleHears(r, (t) => engine.hears(t, eventId, u.uid) && fits(t)))
+            .forEach((r) => fireDo(ruleStart(r, { via: "event", events: [occurred], src: [u.uid] })));
+        }
+      } finally {
+        evQueue.length = 0;
+        evDraining = false;
+      }
+    }
+    // Правило-расписание с командой replicate, цель которого называет камеру: когда оно запустится в следующий раз
+    function nextReplication(cam) {
+      const hit = (t) => !!t && !t.fromEvent && (t.include || []).some((x) => (x.area ? areaHas(x, cam) : x.uid === cam.uid)) && !(t.exclude || []).includes(cam.uid);
+      const steps = (l) => l.flatMap((a) => [a].concat(steps(a.yes || []), steps(a.no || [])));
+      let best = null;
+      db.rules.forEach((r) => {
+        // Только то, что сервер запустит сам (schedOn): правило-расписание без everyMin он не запускает, времени у него нет
+        if (!schedOn(r) || !steps(r.steps || []).some((a) => a.type === "unitAction" && a.action === "replicate" && hit(a.target))) return;
+        const at = schedNext(r, now());
+        if (at != null && (best == null || at < best)) best = at;
+      });
+      return best == null ? null : iso(best);
+    }
+    const areaHas = (x, cam) => {
+      const p = props(cam), parent = cam.parentId ? store.get(cam.parentId) : null;
+      if (x.area === "server") return (p.serverId || (parent && props(parent).serverId)) === x.uid;
+      if (x.area === "folder") return (cam.folders || []).includes(x.uid);
+      return x.area === "domain" && cam.domainId === x.uid;
+    };
     // Выполнить шаги запуска, которые движок счёл выполненными: команды объектов (unitAction) — как POST /units/{uid}/actions/…
     // Только мгновенные команды вида и не «Только журнал»; итог — в status.observed объекта
     function fireDo(f) {
@@ -1269,6 +1758,11 @@
       f.steps.forEach((x) => {
         if (x.state !== "ok" || !x.action || x.action.type !== "unitAction" || !x.deviceId) return;
         const u = store.get(x.deviceId), desc = u && unitCommand(u.kind, x.action.action);
+        // Команда только для правила (ruleOnly) с поведением у хука профиля исполняется (replicate); без хука — только запись запуска
+        // Хук называет команду сам (actions[id]); общий "*" (единицы СКУД) сюда не входит
+        const own = u && !desc ? kinds.action(u.kind, x.action.action) : null;
+        const hook = own ? hooksOf(u.kind).find((h) => h.actions && h.actions[own.id]) : null;
+        if (own && own.ruleOnly && own.execution !== "longRunning" && hook) return hook.actions[own.id](u, clone(x.action.params || {}), pctx, own.id);
         if (!desc || desc.execution === "longRunning") return;
         const params = clone(x.action.params || {}), run = actionRun(u.kind, desc.id);
         if (run) run(u, params, pctx, desc.id);
@@ -1281,6 +1775,64 @@
       send("entity.created", { kind: "ruleFire", entityId: rec.id, payload: { ruleId: rec.ruleId } });
       return rec;
     }
+    // Событие запускает правило: включённое, по событию, не «только вручную», с одним событием или whenLogic: any (любое из
+    // событий запускает само). Несколько событий в окне (all) встроенный сервер не собирает: они проверяются пробным запуском
+    const ruleHears = (r, fits) => r.enabled && r.start === "event" && r.runMode !== "manual" && (r.triggers.length === 1 || r.whenLogic === "any") && r.triggers.some(fits);
+
+    /* ----- Расписание с интервалом: runAt.everyMin, randomShift -----
+       Встроенный сервер запускает по часам только правила с everyMin (/test/clock двигает часы, запрос тоже). Правило без everyMin
+       запускают вручную и по истории набора, как раньше. Запуск — не раньше, чем правило увидел сервер: прошлое не догоняется.
+       Сдвиг randomShift случаен, но постоянен для (правило, день, номер запуска): повтор прогона даёт те же минуты */
+    const schedHash = (s) => {
+      let h = 2166136261;
+      for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+      return h >>> 0;
+    };
+    const schedOn = (r) => r.enabled && r.start === "schedule" && r.runMode !== "manual" && r.runAt && r.runAt.everyMin > 0;
+    // Первый запуск правила позже момента after (мс) или null
+    function schedNext(r, after) {
+      const ra = r.runAt, step = ra.everyMin, [h, m] = ra.time.split(":").map(Number), from = h * 60 + m;
+      const day0 = engine.wall(after);
+      for (let k = 0; k < 9; k++) {
+        const day = new Date(Date.UTC(day0.getUTCFullYear(), day0.getUTCMonth(), day0.getUTCDate() + k));
+        if (!ra.days.includes(day.getUTCDay() || 7)) continue;
+        for (let n = 0; from + n * step < 1440; n++) {
+          const shift = ra.randomShift ? schedHash(`${r.id}|${day.toISOString().slice(0, 10)}|${n}`) % step : 0;
+          const at = engine.fromWall(new Date(day.getTime() + Math.min(from + n * step + shift, 1439) * 60000));
+          if (at > after) return at;
+        }
+      }
+      return null;
+    }
+    // Ближайший запуск по расписанию с интервалом — часам /test/clock: дойти до него и запустить
+    // Правило вышло из расписания с интервалом (выключено, ручное, без everyMin) — прошлое не догоняется, когда вернётся
+    const schedSync = () => db.rules.forEach((r) => schedOn(r) || schedSeen.delete(r.id));
+    function schedDue() {
+      schedSync();
+      const out = [];
+      db.rules.filter(schedOn).forEach((r) => {
+        const key = JSON.stringify([r.enabled, r.runMode, r.runAt]);
+        let s = schedSeen.get(r.id);
+        if (!s || s.key !== key) schedSeen.set(r.id, (s = { key, from: now() }));
+        const at = schedNext(r, s.from);
+        if (at != null) out.push(at);
+      });
+      return out;
+    }
+    function schedTick() {
+      schedSync();
+      db.rules.filter(schedOn).forEach((r) => {
+        const key = JSON.stringify([r.enabled, r.runMode, r.runAt]);
+        let s = schedSeen.get(r.id);
+        if (!s || s.key !== key) schedSeen.set(r.id, (s = { key, from: now() }));
+        for (let at = schedNext(r, s.from), n = 0; at != null && at <= now() && n < 100; at = schedNext(r, s.from), n++) {
+          s.from = at;
+          fireDo(ruleStart(r, { via: "sched" }));
+        }
+        s.from = Math.max(s.from, now());
+      });
+    }
+
     // Владелец расписания — существующее окно обслуживания или правило
     const ownerProblem = (o) =>
       o && !byId(o.kind === "rule" ? "rules" : "maintenanceWindows", o.id) ? problem(422, "VALIDATION_FAILED", `Владельца расписания ${o.id} нет`, { field: "owner" }) : null;
@@ -1313,16 +1865,53 @@
         changed("maintenanceWindow", w);
       });
     }
-    const modeCurrent = () => {
-      const m = db.modeManual, live = m && db.modes.items.some((x) => x.id === m.modeId) && (!m.until || Date.parse(m.until) > now());
-      return { modeId: engine.modeNow(now()), manual: live ? { until: m.until || null } : null };
+    // Ручное включение режима (или «Обычной работы», modeId null) на срок — пока срок не вышел и режим существует
+    const modeManualLive = () => {
+      const m = db.modeManual;
+      return m && (m.modeId === null || db.modes.items.some((x) => x.id === m.modeId)) && (!m.until || Date.parse(m.until) > now()) ? m : null;
     };
-    // Смена текущего режима (по расписанию или вручную) — событием objectMode
-    function modeTick() {
-      const m = engine.modeNow(now());
-      if (lastMode !== null && m !== lastMode) send("entity.changed", { kind: "objectMode", entityId: m });
-      lastMode = m;
+    // Режим 0.4.0: off и builtin есть всегда; запись старого вида (без них) дополняется умолчаниями
+    function modeNorm(m) {
+      if (!m.off || typeof m.off !== "object") m.off = { all: false, ruleIds: [] };
+      m.off.all = !!m.off.all;
+      m.off.ruleIds = Array.isArray(m.off.ruleIds) ? m.off.ruleIds : [];
+      if (typeof m.builtin !== "boolean") m.builtin = m.system === "service";
+      if (m.system === undefined) m.system = "";
+      if (m.color === undefined) m.color = null;
+      return m;
     }
+    const MODE_MAX_MS = 8 * 3600 * 1000, WEEK_MS = 14 * 24 * 3600 * 1000, MODE_STEP_MS = 60000;
+    // Первое пересечение расписаний a и b в ближайшие 14 дней: { from, to } (ISO) или null
+    function schedulesOverlap(a, b) {
+      // Шаг в минуту: расписания точны до минуты, поэтому короткое пересечение не пропускается
+      const t0 = Math.floor(now() / MODE_STEP_MS) * MODE_STEP_MS;
+      let from = null;
+      for (let t = t0; t < t0 + WEEK_MS; t += MODE_STEP_MS) {
+        const both = engine.schActive(a, t) && engine.schActive(b, t);
+        if (both && from === null) from = t;
+        if (!both && from !== null) return { from: iso(from), to: iso(t) };
+      }
+      return from === null ? null : { from: iso(from), to: iso(t0 + WEEK_MS) };
+    }
+    // Ближайшие моменты, когда меняется действующий режим: конец ручного срока и смена по расписанию
+    const modeDue = () => {
+      const m = modeManualLive(), nx = engine.modeNext(now());
+      return [m && m.until ? Date.parse(m.until) : null, nx == null ? null : +nx].filter((x) => x != null && x > now());
+    };
+    const modeCurrent = () => {
+      const m = modeManualLive(), nx = engine.modeNext(now());
+      return {
+        modeId: engine.modeNow(now()), source: m ? "manual" : "schedule", until: m ? m.until || null : nx == null ? null : iso(+nx),
+        by: m ? m.by || "" : "", manual: m ? { until: m.until || null } : null,
+      };
+    };
+    // Смена текущего режима — по расписанию, вручную или с концом срока — событием objectMode
+    function modeTick() {
+      const c = modeCurrent(), key = `${c.modeId}|${c.source}`;
+      if (lastMode !== undefined && key !== lastMode) modeEvent(c);
+      lastMode = key;
+    }
+    const modeEvent = (c) => send("entity.changed", { kind: "objectMode", entityId: c.modeId || "", payload: { modeId: c.modeId, source: c.source, until: c.until, by: c.by } });
 
     /* ===== Права ===== */
 
@@ -1822,7 +2411,9 @@
       });
       tickDiscovery(fired);
       applyTick(fired);
+      hEdge.tick(pctx, fired);
       runTick();
+      schedTick();
       modeTick();
       exportTick();
       formatting.forEach((at, id) => {
@@ -1938,13 +2529,14 @@
       return fields.some((f) => f != null && normText(f).includes(needle));
     };
     const scopeOf = (name, q) => hashOf(name + JSON.stringify(Object.keys(q).filter((k) => k !== "limit" && k !== "cursor").sort().map((k) => [k, q[k]]))).toString(36);
-    const cursorMake = (scope, at, exp) => btoa(encodeURIComponent(JSON.stringify({ s: scope, a: at, e: exp || now() + VIEW_ROUND_MS })));
+    // back — курсор назад (prevCursor журнала): страница кончается перед ключом at
+    const cursorMake = (scope, at, exp, back) => btoa(encodeURIComponent(JSON.stringify(Object.assign({ s: scope, a: at, e: exp || now() + VIEW_ROUND_MS }, back ? { b: 1 } : {}))));
     function cursorRead(q, scope) {
       if (q.cursor === undefined) return { at: null };
       let c = null;
       try { c = JSON.parse(decodeURIComponent(atob(q.cursor))); } catch (e) { c = null; }
       if (!c || c.s !== scope || !(now() <= c.e)) return { bad: problem(422, "INVALID_CURSOR", "Курсор просрочен или чужой: читайте с начала", { field: "cursor" }) };
-      return { at: c.a, exp: c.e };
+      return { at: c.a, exp: c.e, back: c.b === 1 };
     }
     function limitOf(q) {
       if (q.limit === undefined) return 200;
@@ -2006,6 +2598,7 @@
     const ofKind = (kind, domainId) => store.byKind(kind).filter((u) => u.domainId === domainId);
     const archivesOf = (pred) => kinds.list().filter((k) => tableOf(k.kind) === "archives").flatMap((k) => store.byKind(k.kind)).filter(pred);
     const isDetector = (u) => kinds.profileOf(u.kind, "vms.detector/1");
+    const isSubdetector = (u) => kinds.profileOf(u.kind, "vms.subdetector/1");
     // Сервер размещения объекта: status.observed.serverId или свойство вида с x-ref на сервер (имена — раз на описание)
     const toServer = (ref) => (ref.kinds || []).includes("server") || (ref.implements || []).includes("vms.server/1");
     const serverProps = new WeakMap();
@@ -2098,7 +2691,7 @@
       if (isArchive(u)) return store.byParent(u.uid).filter((v) => v.kind === "volume").map((v) => [name(1, v), unitNode(v, parentId, false)]);
       if (u.kind === "volume") return [];
       const kids = treeChildrenOf(u);
-      return (layout === "detectors" ? kids.filter(isDetector) : kids).map((x) => [name(1, x), lazy(x, parentId)]);
+      return (layout === "detectors" ? kids.filter((x) => isDetector(x) || isSubdetector(x)) : kids).map((x) => [name(1, x), lazy(x, parentId)]);
     }
     function treeChildren(q) {
       if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
@@ -2752,7 +3345,7 @@
       const bad = hooksProblem(spec.kind, "beforeCreate", [draft, par]);
       if (bad) return [hookErr(bad, at, undefined, spec.kind)];
       if (par && par.fresh && par.rows) par.rows.push(draft);
-      const fresh = { fresh: true, kind: spec.kind, domainId, parentId: par && !par.fresh ? par.uid : null, rows: [] };
+      const fresh = { fresh: true, kind: spec.kind, domainId, parentId: par && !par.fresh ? par.uid : null, rows: [], properties: spec.properties || {} };
       for (const [i, c] of (spec.children || []).entries()) {
         const e = unitCreateErrs(c, fresh, `${at}/children/${i}`);
         if (e.length) return e;
@@ -2852,6 +3445,15 @@
           if (v === undefined) delete u.properties[n];
           else u.properties[n] = v;
         });
+        // Источник событий: cameraId — всегда первая камера overlays (снятая из списка камера не оставляет прежнего значения)
+        const ov = props(u).overlays;
+        if (Array.isArray(ov) && names.length) {
+          const want = ov.length ? ov[0].cameraId : null;
+          if ((props(u).cameraId == null ? null : props(u).cameraId) !== want) {
+            if (!("cameraId" in before)) before.cameraId = props(u).cameraId === undefined ? null : clone(props(u).cameraId);
+            u.properties.cameraId = want;
+          }
+        }
         if (!Object.keys(before).length) return;
         store.reindex(u.uid);
         bump(u);
@@ -3060,9 +3662,9 @@
       const low = desc.id.toLowerCase();
       const ev = ((kinds.get(u.kind) || {}).events || []).find((e) => [low, past(low)].includes(String(e.id).toLowerCase()));
       if (ev) {
-        const e = { id: uuid("journal"), at, occurredAt: at, category: ["alarm", "critical", "error"].includes(ev.severity) ? "alarm" : "info",
+        const e = { id: uuid("journal"), at, occurredAt: at, category: ["alarm", "critical", "error"].includes(ev.severity) ? "alarm" : "info", level: jLevelOfSeverity(ev.severity),
           text: `${(ev.label || {}).text || ev.id}: ${u.name}`, deviceId: u.uid, source: u.kind, kind: ev.id, fields: Object.assign({ action: desc.id }, Object.keys(params || {}).length ? { params: clone(params) } : {}) };
-        db.journal.unshift(e);
+        journalAdd(e);
         send("journal.event", { entityId: u.uid, payload: clone(e) });
       }
       return result;
@@ -3079,12 +3681,14 @@
       // План объекта: правки этого и следующих шагов по тому же uid, слитые (камера сверяет запись целиком)
       const later = item.req.patch ? op.items.slice(op.items.indexOf(item)).filter((x) => x.req.uid === item.req.uid && x.req.patch && x.req.patch.properties) : [];
       planNow = later.length > 1 ? { properties: Object.assign({}, ...later.map((x) => x.req.patch.properties)) } : null;
+      planSteps = later.length > 1 ? later.map((x) => x.req.patch.properties) : null;
       try {
         return runUnitStep(op, item);
       } finally {
         heldNow = null;
         coreMode = false;
         planNow = null;
+        planSteps = null;
       }
     }
     function runUnitStep(op, item) {
@@ -3153,6 +3757,8 @@
           const stray = strayCommandProblem(u, r.action);
           return stray ? fail(stray.body.code, Object.assign({ field: "/action" }, stray.body.params || {})) : fail("NOT_FOUND", { field: "/action" });
         }
+        // Команда с секретом в params (ActionDescriptor.direct, webcert.set) — только прямым вызовом: шаги операции сервер хранит и отдаёт
+        if (desc.direct) return fail("NOT_SUPPORTED", { field: "/action", reason: "direct" });
         // Долгая команда с поведением уже запущена (POST /units/{uid}/actions/…): шаг — её срок по часам сервера
         if (r.until !== undefined) {
           item.before = {};
@@ -3234,6 +3840,9 @@
       if (r.params !== undefined && r.action === undefined && r.move === undefined) return problem(422, "VALIDATION_FAILED", "params — только у action и move", { field: `${at}/params` });
       // Объекта шага нет — как состав папки базы (/folders/{id}/devices): 422 на всю операцию, указатель — uid шага
       if (!store.get(r.uid)) return problem(422, "VALIDATION_FAILED", `Объекта ${r.uid} нет: операция не запущена, ничего не изменено`, { field: `${at}/uid`, params: { keyword: "x-ref", targetId: r.uid } });
+      // Команда с секретом в params (ActionDescriptor.direct) — не шаг: операцию сервер хранит и отдаёт в GET /operations
+      const cmd = r.action !== undefined ? unitCommand(store.get(r.uid).kind, r.action) : null;
+      if (cmd && cmd.direct) return problem(422, "NOT_SUPPORTED", `Команду ${r.action} дают только прямым вызовом POST /units/{uid}/actions/${r.action}`, { field: `${at}/action`, params: { reason: "direct" } });
       return null;
     }
     // Версия цели нужна шагам, которые меняют сам объект: patch, delete, folders, move. Команде и созданию дочернего — нет
@@ -3778,6 +4387,8 @@
       ["DELETE", "/units/{uid}/presets/{n}", (p) => subject(p.uid, "vms.ptz/1", (rec) => presetsDone(rec, hPtz.drop(rec, Number(p.n), pctx)))],
       ["PUT", "/units/{uid}/recording-target", (p, q, body) => subject(p.uid, "vms.camera/1", (rec) => hCamera.setTarget(rec, body, pctx) || one(unitView(store.get(rec.id))))],
       // Сутки с записью для календаря окна выгрузки: камера — профилем vms.camera/1, сутки — по шкале хука vms.timeline/1
+      // Сырые строки от кассы (vms.pos/1): настройка слов начала, конца и подсветки по живым данным
+      ["GET", "/units/{uid}/pos/raw", (p, q) => subject(p.uid, "vms.pos/1", (rec) => hPos.raw(rec, q, pctx))],
       ["GET", "/units/{uid}/recording-days", (p, q) => subject(p.uid, "vms.camera/1", (rec) => hTimeline.days(rec, q, pctx))],
       /* ----- Выгрузка: камеры заказа — по uid ----- */
       [
@@ -4165,6 +4776,8 @@
           if (body.ruleId && !saved) return notFound("Правило");
           if (body.log && !saved) return problem(422, "VALIDATION_FAILED", "Записать в журнал можно проверку сохранённого правила", { field: "log" });
           const r = Object.assign({ id: body.ruleId || null, mute: saved ? saved.mute : null, order: saved ? saved.order : 0 }, clone(body.rule));
+          const noTarget = (l) => l.some((a) => (a.control === "check" && !a.target) || noTarget(a.yes || []) || noTarget(a.no || []));
+          if (noTarget(r.steps || [])) return problem(422, "RULE_INVALID", "У шага «Проверить» не выбрана цель", { params: { issue: { code: "control.noTarget", params: { control: "check" } } } });
           const at = body.at ? Date.parse(body.at) : now();
           const pre = r.enabled ? [] : [{ code: "testOff", params: {}, ok: true, reason: null }];
           let events;
@@ -4322,13 +4935,31 @@
           const bad = precondition(M, headers);
           if (bad) return bad;
           const ids = new Set(body.items.map((m) => m.id));
-          const sys = M.items.find((m) => m.system && !ids.has(m.id));
-          if (sys) return problem(409, "BUILTIN", "Системный режим не удаляется", { params: { modeId: sys.id } });
-          if (!ids.has(body.otherwise)) return problem(422, "VALIDATION_FAILED", "Режим «иначе» — один из режимов", { field: "otherwise" });
+          const was = new Map(M.items.map((m) => [m.id, m]));
+          const sys = M.items.find((m) => m.builtin && !ids.has(m.id));
+          if (sys) return problem(409, "BUILTIN", "Встроенный режим не удаляется", { params: { modeId: sys.id } });
+          // otherwise — устарело: нет в записи — остаётся прежний (если режим жив), null — «Обычная работа»
+          const other = body.otherwise === undefined ? (ids.has(M.otherwise) ? M.otherwise : null) : body.otherwise;
+          if (other !== null && !ids.has(other)) return problem(422, "VALIDATION_FAILED", "Режим «иначе» — один из режимов", { field: "otherwise" });
           const blank = body.items.find((m) => !String(m.name || "").trim());
           if (blank) return problem(422, "NAME_REQUIRED", "Укажите название режима", { field: "items" });
+          const ruleIds = new Set(db.rules.map((r) => r.id));
+          const noRule = body.items.find((m) => m.off && (m.off.ruleIds || []).some((x) => !ruleIds.has(x)));
+          if (noRule) return problem(422, "VALIDATION_FAILED", "Правила, которое режим выключает, нет", { field: "items" });
+          // builtin ведёт сервер: у режима, которого не было, — false; у прежнего — как был
+          const items = body.items.map((m) => modeNorm(Object.assign(clone(m), { builtin: was.has(m.id) ? was.get(m.id).builtin : false }, m.off || !was.has(m.id) ? {} : { off: clone(was.get(m.id).off) })));
+          // Расписания режимов не пересекаются: проверяется то, что поменялось (новый режим или другое расписание)
+          if (items.some((m) => m.scheduleId && !byId("schedules", m.scheduleId))) return problem(422, "VALIDATION_FAILED", "Расписания нет", { field: "items" });
+          for (const m of items) {
+            if (!m.scheduleId || (was.has(m.id) && was.get(m.id).scheduleId === m.scheduleId)) continue;
+            for (const o of items) {
+              if (o === m || !o.scheduleId) continue;
+              const hit = schedulesOverlap(m.scheduleId, o.scheduleId);
+              if (hit) return problem(409, "SCHEDULE_OVERLAP", `Расписание режима «${m.name}» пересекается с режимом «${o.name}»`, { params: { modeId: o.id, from: hit.from, to: hit.to } });
+            }
+          }
           const gone = M.items.filter((m) => !ids.has(m.id)).map((m) => m.id);
-          Object.assign(M, { items: clone(body.items), otherwise: body.otherwise });
+          Object.assign(M, { items, otherwise: other });
           bump(M);
           send("entity.changed", { kind: "modes", version: M.version });
           // Удалённый режим уходит из условий «Режим объекта»; включённый вручную — снимается
@@ -4336,11 +4967,13 @@
             const hit = r.conditions.filter((c) => c.kind === "mode" && (c.modeIds || []).some((x) => gone.includes(x)));
             if (!hit.length) return;
             hit.forEach((c) => (c.modeIds = c.modeIds.filter((x) => !gone.includes(x))));
+            // Условие, где не осталось режимов, убирается: правило с ним было бы в ошибке, а пользователь условия не видит
+            r.conditions = r.conditions.filter((c) => c.kind !== "mode" || (c.modeIds || []).length);
             bump(r);
             runsStop(r.id);
             changed("rule", r);
           });
-          if (db.modeManual && gone.includes(db.modeManual.modeId)) db.modeManual = null;
+          if (db.modeManual && db.modeManual.modeId && gone.includes(db.modeManual.modeId)) db.modeManual = null;
           modeTick();
           return one(clone(M));
         },
@@ -4351,10 +4984,19 @@
         "/modes/current",
         (p, q, body) => {
           if (body.modeId && !db.modes.items.some((m) => m.id === body.modeId)) return notFound("Режим");
-          db.modeManual = body.modeId ? { modeId: body.modeId, until: body.until || null } : null;
-          send("entity.changed", { kind: "objectMode", entityId: engine.modeNow(now()) });
-          lastMode = engine.modeNow(now());
-          return { status: 200, body: modeCurrent() };
+          const has = body.until != null, until = has ? Date.parse(body.until) : null;
+          if (has && !Number.isFinite(until)) return problem(422, "VALIDATION_FAILED", "Срок — дата и время", { field: "until" });
+          if (has && until <= now()) return problem(422, "VALIDATION_FAILED", "Срок уже прошёл", { field: "until" });
+          if (has && until > now() + MODE_MAX_MS) return problem(422, "VALIDATION_FAILED", "Срок — не больше 8 часов от текущего времени", { field: "until" });
+          // Без срока: режим — на 8 часов; null без срока — вернуться к режиму по расписанию (так было до 0.4.0)
+          if (body.modeId == null && !has) db.modeManual = null;
+          else db.modeManual = { modeId: body.modeId || null, until: iso(has ? until : now() + MODE_MAX_MS), by: myLogin() };
+          lastMode = undefined;
+          modeTick();
+          const c = modeCurrent();
+          modeEvent(c);
+          lastMode = `${c.modeId}|${c.source}`;
+          return { status: 200, body: c };
         },
       ],
       ...getter("maintenanceWindows", "Окно обслуживания").map(([m, path, fn]) => [m, path.replace("/maintenanceWindows", "/maintenance-windows"), fn]),
@@ -4423,16 +5065,11 @@
       [
         "GET",
         "/journal",
-        (p, q) => {
-          const when = (e) => Date.parse(e.occurredAt || e.at);
-          const hit = db.journal.filter((e) => (!q.category || e.category === q.category) && (!q.deviceId || journalAbout(e, q.deviceId)) && (!q.source || e.source === q.source) &&
-            (!q.from || when(e) >= Date.parse(q.from)) && (!q.to || when(e) <= Date.parse(q.to)));
-          // Встроенный сервер права на журнал не проверяет: скрытых записей у него нет
-          const res = pageList(q, "journal", hit, (e) => backRank(db.journal, e), clone);
-          if (res.status !== 200) return res;
-          return { status: 200, body: Object.assign(res.body, { truncated: !!res.body.nextCursor, withheldCount: 0 }) };
-        },
+        (p, q) => journalList(q),
       ],
+      ["GET", "/journal/facets", (p, q) => journalFacets(q)],
+      ["GET", "/journal/export", (p, q) => journalExport(q)],
+      ["GET", "/journal/kinds", () => items(journalKinds())],
       /* ----- Учётки потоков ----- */
       ["GET", "/archive-watches", (p, q) => pageList(q, "archive-watches", db.archiveWatches.filter((w) => !q.deviceId || w.deviceId === q.deviceId), (w) => partKey(w.id), clone)],
       [
@@ -4736,6 +5373,8 @@
       ["PUT", "/test/kinds/{kind}", (p, q, body) => {
         if (body.kind !== p.kind) return errsProblem([err("VALIDATION_FAILED", "/kind", { keyword: "const", value: p.kind })], "Код вида в теле — не тот, что в пути");
         kinds.put(clone(body));
+        // Подписи видов в поиске журнала — заново
+        jKindText = null; jHay = new WeakMap();
         send("kinds.changed", { payload: { kinds: [p.kind] } });
         return { status: 200, body: clone(kinds.get(p.kind)) };
       }],
@@ -4753,7 +5392,7 @@
           const fired = [];
           const target = now() + ms;
           for (let t = now(); ; ) {
-            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at), ...applying.values(), ...runDue());
+            const due = Math.min(target, ...[...ops.values()].filter((o) => o.state === "running").map((o) => o.nextAt), ...formatting.values(), ...[...searches.values()].map((s) => s.nextAt), ...[...syncing.values()].map((s) => s.at), ...applying.values(), ...runDue(), ...schedDue(), ...modeDue(), ...hEdge.due(pctx));
             if (clock.frozenAt != null) clock.frozenAt = Math.max(t, due);
             else clock.offset += Math.max(t, due) - now();
             fired.push(...tick());
@@ -4779,11 +5418,25 @@
           }
           if (body.type === "journal.event") {
             if (!byId("devices", body.deviceId)) return notFound("Устройство");
-            const dev = byId("devices", body.deviceId), at = iso(now()), cameraId = dev.type === "camera" ? dev.id : dev.cameraId || dev.parentId;
+            const dev = byId("devices", body.deviceId), at = iso(now()), cameraId = dev.type === "camera" ? dev.id : (Array.isArray(dev.overlays) && dev.overlays.length ? dev.overlays[0].cameraId : dev.cameraId) || dev.parentId;
             const e = Object.assign({ id: uuid("journal"), at, occurredAt: at, category: "info", text: "", deviceId: body.deviceId }, cameraId ? { cameraId } : {}, clone(body.event || {}), { deviceId: body.deviceId });
-            db.journal.unshift(e);
+            journalAdd(e);
             send("journal.event", { entityId: e.deviceId, payload: clone(e) });
             return { status: 200, body: { applied: true } };
+          }
+          // Встроенное хранилище (vms.edge/1): пропуск, проверка носителя, отказ забора
+          if (typeof body.type === "string" && body.type.startsWith("edge.")) {
+            const u = store.get(body.deviceId);
+            if (!u) return notFound("Объект");
+            if (!kinds.profileOf(u.kind, "vms.edge/1")) return problem(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует vms.edge/1`, { field: "/kind", params: { kind: u.kind, profile: "vms.edge/1" } });
+            return hEdge.test(u, body, pctx);
+          }
+          // Касса передала сырую строку: к последним строкам источника (GET /units/{uid}/pos/raw)
+          if (body.type === "pos.raw") {
+            const u = store.get(body.deviceId);
+            if (!u) return notFound("Объект");
+            if (!kinds.profileOf(u.kind, "vms.pos/1")) return problem(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует vms.pos/1`, { field: "/kind", params: { kind: u.kind, profile: "vms.pos/1" } });
+            return hPos.push(legacy.view(u), body, pctx);
           }
           if (body.type === "scenario.outcome") {
             if (!byId("domains", body.domainId)) return notFound("Домен");
@@ -4799,7 +5452,7 @@
             if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === body.eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${body.eventId}`, { field: "eventId" });
             const match = clone(body.match || {}), ev = { source: "unit", event: body.eventId, match, deviceId: u.uid, at: iso(now()) };
             const fits = (t) => Object.entries(t.match || {}).every(([k, v]) => k in match && JSON.stringify(match[k]) === JSON.stringify(v));
-            db.rules.filter((r) => r.enabled && r.start === "event" && r.runMode !== "manual" && r.triggers.length === 1 && engine.hears(r.triggers[0], body.eventId, u.uid) && fits(r.triggers[0]))
+            db.rules.filter((r) => ruleHears(r, (t) => engine.hears(t, body.eventId, u.uid) && fits(t)))
               .forEach((r) => fireDo(ruleStart(r, { via: "event", events: [ev], src: [u.uid] })));
             return { status: 200, body: { applied: true } };
           }
@@ -4822,7 +5475,7 @@
             const at = iso(now());
             if (body.value === "active") {
               const ev = { source: "unit", event: "io.input", match: { value: "active" }, deviceId: dev.id, at };
-              db.rules.filter((r) => r.enabled && r.start === "event" && r.runMode !== "manual" && r.triggers.length === 1 && (r.triggers[0].match.value || "active") === "active" && engine.hears(r.triggers[0], "io.input", dev.id))
+              db.rules.filter((r) => ruleHears(r, (t) => (t.match.value || "active") === "active" && engine.hears(t, "io.input", dev.id)))
                 .forEach((r) => ruleStart(r, { via: "event", events: [ev], src: [dev.id] }));
             } else
               ruleRuns.filter((x) => x.pause && x.pause.control.stop === "reset" && x.events.some((e) => e.event === "io.input" && e.deviceId === dev.id)).forEach((x) => {
@@ -4843,6 +5496,18 @@
             dev.online = body.online;
             if (dev.online) delete dev.fault;
             else dev.fault = body.fault || dev.fault || "conn";
+            // Встроенное хранилище живёт в устройстве: связь камеры или регистратора — и его связь
+            if (dev.type === "camera" || dev.type === "ipsrv") {
+              // Через индекс склада (не обход всех устройств): сигналы идут сотнями. Событий об объекте нет — клиент берёт связь из replication.changed
+              const link = dev.online ? "online" : "offline";
+              store.byParent(dev.id).filter((x) => x.kind === "storage" && (x.status || {}).link !== link).forEach((x) => {
+                (x.status || (x.status = {})).link = link;
+                if (x.status.observed) {
+                  if (dev.online) delete x.status.observed.fault;
+                  else x.status.observed.fault = dev.fault;
+                }
+              });
+            }
           } else {
             if (body.fault) dev.fault = body.fault;
             else delete dev.fault;
@@ -5356,12 +6021,23 @@
       const key = method === "POST" && body && body.idempotencyKey ? `${method} ${path} ${body.idempotencyKey}` : null;
       answered.forEach((a, k) => now() - a.at >= IDEMPOTENCY_MS && answered.delete(k));
       if (key && answered.has(key)) return clone(answered.get(key).res);
+      const audited = !route.test && method !== "GET" && !!operationId && !AUDIT_SKIP.has(operationId);
+      if (!route.test) {
+        reqActor = (db.access.users.find((u) => u.id === me) || {}).login || null;
+        // Адрес клиента: стенд за прокси берёт последний адрес X-Forwarded-For — его дописал ближайший прокси, а не клиент
+        reqIp = (h["x-forwarded-for"] || "").split(",").pop().trim() || h["x-real-ip"] || "127.0.0.1";
+      }
+      const before = audited && method !== "POST" ? auditSnap(path) : null;
       coreMode = /^\/units(\/|$)/.test(path);
       let res;
       try {
         res = route.fn(params, q, body || {}, h);
+        // Запись аудита не ломает запрос: сбой здесь — ошибка сервера, а не отказ операции
+        if (audited && res.status < 300) try { auditAdd(operationId, method, path, params, body, res, before, method === "PUT" || method === "PATCH" ? auditSnap(path) : null); } catch (e) { console.error("аудит:", e); }
       } finally {
         coreMode = false;
+        reqActor = null;
+        reqIp = null;
       }
       const out = { status: res.status, body: res.body === undefined ? null : res.body, headers: res.headers || {} };
       if (key && res.status < 300) answered.set(key, { at: now(), res: clone(out) });

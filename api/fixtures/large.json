@@ -60,7 +60,8 @@
     "archive.incidents"
    ],
    "implements": [
-    "vms.server/1"
+    "vms.server/1",
+    "vms.webserver/1"
    ],
    "capabilities": [
     "create",
@@ -170,6 +171,100 @@
       "type": "boolean",
       "description": "false — сервер найден в сети домена, но ещё не добавлен («Нераспределённые»)",
       "readOnly": true
+     },
+     "webServer": {
+      "x-label": {
+       "key": "field.webServer",
+       "text": "Веб-сервер",
+       "lang": "ru"
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Веб-сервер и RTSP-сервер (vms.webserver/1). Поля нет — умолчание",
+      "properties": {
+       "enabled": {
+        "x-label": {
+         "key": "field.webServer.enabled",
+         "text": "Веб-сервер включён",
+         "lang": "ru"
+        },
+        "type": "boolean",
+        "default": true
+       },
+       "httpPort": {
+        "x-label": {
+         "key": "field.webServer.httpPort",
+         "text": "Порт HTTP",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 80
+       },
+       "httpsPort": {
+        "x-label": {
+         "key": "field.webServer.httpsPort",
+         "text": "Порт HTTPS",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 443
+       },
+       "urlPrefix": {
+        "x-label": {
+         "key": "field.webServer.urlPrefix",
+         "text": "Префикс адреса",
+         "lang": "ru"
+        },
+        "type": "string",
+        "pattern": "^/\\S*$",
+        "maxLength": 200,
+        "default": "/"
+       },
+       "cors": {
+        "x-label": {
+         "key": "field.webServer.cors",
+         "text": "Запросы с других сайтов (CORS)",
+         "lang": "ru"
+        },
+        "type": "boolean",
+        "default": false
+       },
+       "recompress": {
+        "x-label": {
+         "key": "field.webServer.recompress",
+         "text": "Перекодирование видео",
+         "lang": "ru"
+        },
+        "type": "boolean",
+        "default": false
+       },
+       "rtspPort": {
+        "x-label": {
+         "key": "field.webServer.rtspPort",
+         "text": "Порт RTSP",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 554
+       },
+       "rtspHttpPort": {
+        "x-label": {
+         "key": "field.webServer.rtspHttpPort",
+         "text": "Порт RTSP через HTTP",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 65535,
+        "default": 8554
+       }
+      }
      }
     }
    },
@@ -272,6 +367,440 @@
         }
        }
       }
+     }
+    },
+    {
+     "id": "program",
+     "label": {
+      "key": "action.server.program",
+      "text": "Запустить программу на сервере",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "ruleOnly": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "path": {
+        "type": "string",
+        "x-label": {
+         "key": "field.server.program.path",
+         "text": "Путь к программе",
+         "lang": "ru"
+        }
+       },
+       "args": {
+        "type": "string",
+        "x-label": {
+         "key": "field.server.program.args",
+         "text": "Аргументы",
+         "lang": "ru"
+        }
+       }
+      },
+      "required": [
+       "path"
+      ]
+     },
+     "right": {
+      "level": "admin"
+     }
+    },
+    {
+     "id": "service",
+     "label": {
+      "key": "action.server.service",
+      "text": "Включить или выключить службу",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "ruleOnly": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "state": {
+        "type": "string",
+        "enum": [
+         "on",
+         "off"
+        ],
+        "x-enum-labels": {
+         "on": {
+          "key": "field.server.service.state.on",
+          "text": "включить",
+          "lang": "ru"
+         },
+         "off": {
+          "key": "field.server.service.state.off",
+          "text": "выключить",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.server.service.state",
+         "text": "Что сделать",
+         "lang": "ru"
+        }
+       },
+       "service": {
+        "type": "string",
+        "x-label": {
+         "key": "field.server.service.service",
+         "text": "Служба",
+         "lang": "ru"
+        }
+       }
+      },
+      "required": [
+       "service"
+      ]
+     },
+     "right": {
+      "level": "admin"
+     }
+    },
+    {
+     "id": "webcert.set",
+     "label": {
+      "key": "action.server.webcert.set",
+      "text": "Загрузить сертификат HTTPS",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "scope": [
+      "unit"
+     ],
+     "direct": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "certificate",
+       "privateKey"
+      ],
+      "properties": {
+       "certificate": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 65536,
+        "x-label": {
+         "key": "field.server.webcert.certificate",
+         "text": "Файл сертификата",
+         "lang": "ru"
+        },
+        "description": "Сертификат и промежуточные сертификаты, PEM"
+       },
+       "privateKey": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 16384,
+        "writeOnly": true,
+        "x-label": {
+         "key": "field.server.webcert.privateKey",
+         "text": "Файл ключа",
+         "lang": "ru"
+        },
+        "description": "Закрытый ключ, PEM без пароля. Сервер хранит его у себя и не отдаёт"
+       },
+       "certificateName": {
+        "type": "string",
+        "maxLength": 255,
+        "description": "Имя файла сертификата: для показа"
+       },
+       "check": {
+        "type": "boolean",
+        "default": false,
+        "description": "true — только проверить пару и вернуть сведения, ничего не сохранять"
+       }
+      }
+     },
+     "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "subject",
+       "issuer",
+       "notBefore",
+       "notAfter",
+       "names",
+       "wildcard",
+       "chain",
+       "keyMatches"
+      ],
+      "properties": {
+       "subject": {
+        "type": "string"
+       },
+       "issuer": {
+        "type": "string"
+       },
+       "notBefore": {
+        "type": "string",
+        "format": "date-time"
+       },
+       "notAfter": {
+        "type": "string",
+        "format": "date-time"
+       },
+       "names": {
+        "type": "array",
+        "items": {
+         "type": "string"
+        }
+       },
+       "wildcard": {
+        "type": "boolean"
+       },
+       "chain": {
+        "type": "string",
+        "enum": [
+         "full",
+         "partial",
+         "self"
+        ]
+       },
+       "keyMatches": {
+        "type": "boolean"
+       },
+       "fileName": {
+        "type": "string"
+       },
+       "uploadedAt": {
+        "type": "string",
+        "format": "date-time"
+       }
+      }
+     },
+     "right": {
+      "level": "admin"
+     }
+    },
+    {
+     "id": "webcert.remove",
+     "label": {
+      "key": "action.server.webcert.remove",
+      "text": "Убрать сертификат HTTPS",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "scope": [
+      "unit"
+     ],
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+     },
+     "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {}
+     },
+     "right": {
+      "level": "admin"
+     }
+    }
+   ],
+   "events": [
+    {
+     "id": "server.down",
+     "label": {
+      "key": "event.server.down",
+      "text": "Сервер: нет связи",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "server.up",
+     "label": {
+      "key": "event.server.up",
+      "text": "Сервер: связь восстановлена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "license.lost",
+     "label": {
+      "key": "event.license.lost",
+      "text": "Лицензия: нет связи с сервером лицензий",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "load.high",
+     "label": {
+      "key": "event.load.high",
+      "text": "Сервер: нагрузка выше порога",
+      "lang": "ru"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "metric": {
+        "type": "string",
+        "enum": [
+         "cpu",
+         "memory",
+         "disk",
+         "network",
+         "archive"
+        ],
+        "x-label": {
+         "key": "field.event.load.high.metric",
+         "text": "Что",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "cpu": {
+          "key": "field.event.load.high.metric.cpu",
+          "text": "процессор",
+          "lang": "ru"
+         },
+         "memory": {
+          "key": "field.event.load.high.metric.memory",
+          "text": "память",
+          "lang": "ru"
+         },
+         "disk": {
+          "key": "field.event.load.high.metric.disk",
+          "text": "диск",
+          "lang": "ru"
+         },
+         "network": {
+          "key": "field.event.load.high.metric.network",
+          "text": "сеть",
+          "lang": "ru"
+         },
+         "archive": {
+          "key": "field.event.load.high.metric.archive",
+          "text": "заполнение архива",
+          "lang": "ru"
+         }
+        }
+       },
+       "percent": {
+        "type": "string",
+        "enum": [
+         "70",
+         "80",
+         "90"
+        ],
+        "x-label": {
+         "key": "field.event.load.high.percent",
+         "text": "Порог",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "70": {
+          "key": "field.event.load.high.percent.70",
+          "text": "70%",
+          "lang": "ru"
+         },
+         "80": {
+          "key": "field.event.load.high.percent.80",
+          "text": "80%",
+          "lang": "ru"
+         },
+         "90": {
+          "key": "field.event.load.high.percent.90",
+          "text": "90%",
+          "lang": "ru"
+         }
+        }
+       },
+       "trend": {
+        "type": "string",
+        "enum": [
+         "any",
+         "up",
+         "down",
+         "leave"
+        ],
+        "x-label": {
+         "key": "field.event.load.high.trend",
+         "text": "Как меняется",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "any": {
+          "key": "field.event.load.high.trend.any",
+          "text": "не важно",
+          "lang": "ru"
+         },
+         "up": {
+          "key": "field.event.load.high.trend.up",
+          "text": "растёт",
+          "lang": "ru"
+         },
+         "down": {
+          "key": "field.event.load.high.trend.down",
+          "text": "падает",
+          "lang": "ru"
+         },
+         "leave": {
+          "key": "field.event.load.high.trend.leave",
+          "text": "вышло из диапазона",
+          "lang": "ru"
+         }
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "sched.edge",
+     "label": {
+      "key": "event.sched.edge",
+      "text": "Расписание: начало или конец",
+      "lang": "ru"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "edge": {
+        "type": "string",
+        "enum": [
+         "start",
+         "end"
+        ],
+        "x-label": {
+         "key": "field.event.sched.edge.edge",
+         "text": "Момент",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "start": {
+          "key": "field.event.sched.edge.edge.start",
+          "text": "начало",
+          "lang": "ru"
+         },
+         "end": {
+          "key": "field.event.sched.edge.edge.end",
+          "text": "конец",
+          "lang": "ru"
+         }
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "view"
      }
     }
    ]
@@ -1379,6 +1908,30 @@
       }
      }
     }
+   ],
+   "events": [
+    {
+     "id": "volume.error",
+     "label": {
+      "key": "event.volume.error",
+      "text": "Архив: ошибка тома",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    },
+    {
+     "id": "volume.ok",
+     "label": {
+      "key": "event.volume.ok",
+      "text": "Архив: том восстановлен",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "view"
+     }
+    }
    ]
   },
   {
@@ -1657,6 +2210,11 @@
          "type": "integer",
          "minimum": 0,
          "description": "Наименьшая глубина этой записи, дней: ниже неё тревога. Больше срока — 422 VALIDATION_FAILED, field: minDepthDays"
+        },
+        "preRecordSec": {
+         "type": "integer",
+         "minimum": 0,
+         "description": "Предзапись этой записи, с: сколько секунд до начала записи по событию она добавляет. Поля нет — preRecordSec камеры, как до 0.7.0"
         }
        },
        "additionalProperties": false
@@ -1798,7 +2356,8 @@
        "text": "Предзапись, с",
        "lang": "ru"
       },
-      "type": "integer"
+      "type": "integer",
+      "description": "Предзапись основного архива (archiveId), с. Строки extraArchives без своего preRecordSec берут это значение"
      },
      "presetMax": {
       "type": "integer",
@@ -2191,6 +2750,122 @@
      }
     },
     {
+     "id": "defaults",
+     "label": {
+      "key": "action.camera.defaults",
+      "text": "Получить значения модели по умолчанию",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "scope": [
+      "unit"
+     ],
+     "params": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+     },
+     "result": {
+      "type": "object",
+      "required": [
+       "streams"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "streams": {
+        "type": "array",
+        "description": "Значения модели по умолчанию для каждого потока камеры. Команда ничего не меняет: интерфейс применяет значения правкой потоков (PATCH /units/{uid}). Камера без модели — 422 NOT_SUPPORTED, field /properties/model",
+        "items": {
+         "type": "object",
+         "required": [
+          "uid",
+          "streamId"
+         ],
+         "additionalProperties": false,
+         "properties": {
+          "uid": {
+           "type": "string",
+           "format": "uuid",
+           "description": "Поток — дочерний объект вида stream"
+          },
+          "streamId": {
+           "type": "string"
+          },
+          "res": {
+           "type": "string",
+           "pattern": "^[0-9]+x[0-9]+$",
+           "description": "Разрешение: ширина x высота. Нет поля — значение неизвестно"
+          },
+          "fps": {
+           "type": "integer",
+           "minimum": 1,
+           "description": "Кадров в секунду. Нет поля — значение неизвестно"
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    {
+     "id": "readConfig",
+     "label": {
+      "key": "action.camera.readConfig",
+      "text": "Прочитать настройки с устройства",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "scope": [
+      "unit"
+     ],
+     "params": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false
+     },
+     "result": {
+      "type": "object",
+      "required": [
+       "streams"
+      ],
+      "additionalProperties": false,
+      "properties": {
+       "streams": {
+        "type": "array",
+        "description": "Настройки потоков, которые сообщила камера. Команда ничего не меняет: интерфейс берёт значения правкой потоков (PATCH /units/{uid}). Камера без связи — 409 DEVICE_OFFLINE",
+        "items": {
+         "type": "object",
+         "required": [
+          "uid",
+          "streamId"
+         ],
+         "additionalProperties": false,
+         "properties": {
+          "uid": {
+           "type": "string",
+           "format": "uuid",
+           "description": "Поток — дочерний объект вида stream"
+          },
+          "streamId": {
+           "type": "string"
+          },
+          "res": {
+           "type": "string",
+           "pattern": "^[0-9]+x[0-9]+$",
+           "description": "Разрешение: ширина x высота. Нет поля — значение неизвестно"
+          },
+          "fps": {
+           "type": "integer",
+           "minimum": 1,
+           "description": "Кадров в секунду. Нет поля — значение неизвестно"
+          }
+         }
+        }
+       }
+      }
+     }
+    },
+    {
      "id": "arm",
      "label": {
       "key": "action.camera.arm",
@@ -2245,6 +2920,26 @@
        "preset": {
         "type": "integer",
         "minimum": 0
+       },
+       "speed": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 100,
+        "x-label": {
+         "key": "field.camera.preset.speed",
+         "text": "Скорость",
+         "lang": "ru"
+        }
+       },
+       "holdSec": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 86400,
+        "x-label": {
+         "key": "field.camera.preset.holdSec",
+         "text": "Удерживать, с",
+         "lang": "ru"
+        }
        }
       },
       "required": [
@@ -2281,6 +2976,26 @@
        },
        "archive": {
         "type": "string"
+       },
+       "preSec": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 3600,
+        "x-label": {
+         "key": "field.camera.record.preSec",
+         "text": "Секунд до начала",
+         "lang": "ru"
+        }
+       },
+       "fps": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 120,
+        "x-label": {
+         "key": "field.camera.record.fps",
+         "text": "Кадров в секунду",
+         "lang": "ru"
+        }
        }
       }
      },
@@ -2434,6 +3149,274 @@
        "text": {
         "type": "string",
         "x-template": true
+       },
+       "mode": {
+        "type": "string",
+        "enum": [
+         "always",
+         "armed",
+         "noactive"
+        ],
+        "x-enum-labels": {
+         "always": {
+          "key": "field.camera.alarm.mode.always",
+          "text": "всегда",
+          "lang": "ru"
+         },
+         "armed": {
+          "key": "field.camera.alarm.mode.armed",
+          "text": "если камера на охране",
+          "lang": "ru"
+         },
+         "noactive": {
+          "key": "field.camera.alarm.mode.noactive",
+          "text": "если нет активной тревоги",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.camera.alarm.mode",
+         "text": "Когда создавать тревогу",
+         "lang": "ru"
+        }
+       },
+       "comment": {
+        "type": "string",
+        "enum": [
+         "none",
+         "required"
+        ],
+        "x-enum-labels": {
+         "none": {
+          "key": "field.camera.alarm.comment.none",
+          "text": "необязателен",
+          "lang": "ru"
+         },
+         "required": {
+          "key": "field.camera.alarm.comment.required",
+          "text": "обязателен",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.camera.alarm.comment",
+         "text": "Комментарий оператора",
+         "lang": "ru"
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "export",
+     "label": {
+      "key": "action.camera.export",
+      "text": "Экспортировать кадр или видео",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "ruleOnly": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "mode": {
+        "type": "string",
+        "enum": [
+         "snapshot",
+         "clip"
+        ],
+        "x-enum-labels": {
+         "snapshot": {
+          "key": "field.camera.export.mode.snapshot",
+          "text": "кадр",
+          "lang": "ru"
+         },
+         "clip": {
+          "key": "field.camera.export.mode.clip",
+          "text": "видео",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.camera.export.mode",
+         "text": "Что",
+         "lang": "ru"
+        }
+       },
+       "beforeSec": {
+        "type": "integer",
+        "minimum": 0,
+        "x-label": {
+         "key": "field.camera.export.beforeSec",
+         "text": "Секунд до события",
+         "lang": "ru"
+        }
+       },
+       "afterSec": {
+        "type": "integer",
+        "minimum": 0,
+        "x-label": {
+         "key": "field.camera.export.afterSec",
+         "text": "Секунд после события",
+         "lang": "ru"
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "replicate",
+     "label": {
+      "key": "action.camera.replicate",
+      "text": "Начать репликацию",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "ruleOnly": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "period": {
+        "type": "string",
+        "enum": [
+         "event",
+         "offline",
+         "whole",
+         "last"
+        ],
+        "x-enum-labels": {
+         "event": {
+          "key": "field.camera.replicate.period.event",
+          "text": "вокруг события",
+          "lang": "ru"
+         },
+         "offline": {
+          "key": "field.camera.replicate.period.offline",
+          "text": "пока сервер был недоступен",
+          "lang": "ru"
+         },
+         "whole": {
+          "key": "field.camera.replicate.period.whole",
+          "text": "всё, чего нет в архиве",
+          "lang": "ru"
+         },
+         "last": {
+          "key": "field.camera.replicate.period.last",
+          "text": "последние минуты",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.camera.replicate.period",
+         "text": "Период",
+         "lang": "ru"
+        },
+        "description": "offline — пропуски, пока не было связи; whole — всё, чего нет в архиве; last — последние minutes минут; event — от начала события до его конца (beforeSec до начала, afterSec после конца). Нет значения — offline. Сервер забирает со встроенного хранилища камеры или регистратора и кладёт в archive"
+       },
+       "minutes": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 1440,
+        "x-label": {
+         "key": "field.camera.replicate.minutes",
+         "text": "Минут",
+         "lang": "ru"
+        },
+        "description": "Только period last"
+       },
+       "beforeSec": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 3600,
+        "x-label": {
+         "key": "field.camera.replicate.beforeSec",
+         "text": "Секунд до события",
+         "lang": "ru"
+        },
+        "description": "Только period event"
+       },
+       "afterSec": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 3600,
+        "x-label": {
+         "key": "field.camera.replicate.afterSec",
+         "text": "Секунд после конца события",
+         "lang": "ru"
+        },
+        "description": "Только period event"
+       },
+       "archive": {
+        "type": "string",
+        "format": "uuid",
+        "x-label": {
+         "key": "field.camera.replicate.archive",
+         "text": "Куда",
+         "lang": "ru"
+        },
+        "description": "Хранилище для забранных записей. Нет значения — replication.archiveId встроенного хранилища, иначе архив записи камеры"
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "ptz.tour",
+     "label": {
+      "key": "action.camera.ptz.tour",
+      "text": "Обход поворотной камеры",
+      "lang": "ru"
+     },
+     "execution": "instant",
+     "ruleAction": true,
+     "ruleOnly": true,
+     "params": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "command": {
+        "type": "string",
+        "enum": [
+         "start",
+         "stop"
+        ],
+        "x-enum-labels": {
+         "start": {
+          "key": "field.camera.ptz.tour.command.start",
+          "text": "начать",
+          "lang": "ru"
+         },
+         "stop": {
+          "key": "field.camera.ptz.tour.command.stop",
+          "text": "остановить",
+          "lang": "ru"
+         }
+        },
+        "x-label": {
+         "key": "field.camera.ptz.tour.command",
+         "text": "Команда",
+         "lang": "ru"
+        }
+       },
+       "tour": {
+        "type": "string",
+        "x-label": {
+         "key": "field.camera.ptz.tour.tour",
+         "text": "Обход",
+         "lang": "ru"
+        }
        }
       }
      },
@@ -2552,6 +3535,428 @@
       "lang": "ru"
      },
      "alarm": false,
+     "right": {
+      "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "from": {
+        "type": "string",
+        "format": "date-time",
+        "x-label": {
+         "key": "field.segment.from",
+         "text": "С",
+         "lang": "ru"
+        }
+       },
+       "to": {
+        "type": "string",
+        "format": "date-time",
+        "x-label": {
+         "key": "field.segment.to",
+         "text": "До",
+         "lang": "ru"
+        }
+       }
+      },
+      "description": "Потеря записи: период, которого нет ни в архиве, ни на устройстве. Приходит и когда встроенное хранилище перезаписало записи раньше, чем сервер их забрал"
+     }
+    },
+    {
+     "id": "device.lost",
+     "label": {
+      "key": "event.device.lost",
+      "text": "Камера: нет связи",
+      "lang": "ru"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "thresholdSec": {
+        "type": "string",
+        "enum": [
+         "10",
+         "30",
+         "60",
+         "300"
+        ],
+        "x-label": {
+         "key": "field.event.device.lost.thresholdSec",
+         "text": "Порог обрыва",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "10": {
+          "key": "field.event.device.lost.thresholdSec.10",
+          "text": "обрыв дольше 10 с",
+          "lang": "ru"
+         },
+         "30": {
+          "key": "field.event.device.lost.thresholdSec.30",
+          "text": "обрыв дольше 30 с",
+          "lang": "ru"
+         },
+         "60": {
+          "key": "field.event.device.lost.thresholdSec.60",
+          "text": "обрыв дольше 1 мин",
+          "lang": "ru"
+         },
+         "300": {
+          "key": "field.event.device.lost.thresholdSec.300",
+          "text": "обрыв дольше 5 мин",
+          "lang": "ru"
+         }
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "device.restored",
+     "label": {
+      "key": "event.device.restored",
+      "text": "Камера: связь восстановлена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "device.auth",
+     "label": {
+      "key": "event.device.auth",
+      "text": "Камера: ошибка авторизации",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "device.enabled",
+     "label": {
+      "key": "event.device.enabled",
+      "text": "Камера: включена в настройках",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "device.disabled",
+     "label": {
+      "key": "event.device.disabled",
+      "text": "Камера: выключена в настройках",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "tamper",
+     "label": {
+      "key": "event.tamper",
+      "text": "Детектор: закрыли или сдвинули камеру",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "fire",
+     "label": {
+      "key": "event.fire",
+      "text": "Детектор: огонь",
+      "lang": "ru"
+     },
+     "ends": true,
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "smoke",
+     "label": {
+      "key": "event.smoke",
+      "text": "Детектор: дым",
+      "lang": "ru"
+     },
+     "ends": true,
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "face.list",
+     "label": {
+      "key": "event.face.list",
+      "text": "Лицо: совпадение со списком",
+      "lang": "ru"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "presence": {
+        "type": "string",
+        "enum": [
+         "yes",
+         "no"
+        ],
+        "x-label": {
+         "key": "field.event.face.list.presence",
+         "text": "Лицо",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "yes": {
+          "key": "field.event.face.list.presence.yes",
+          "text": "есть в списке",
+          "lang": "ru"
+         },
+         "no": {
+          "key": "field.event.face.list.presence.no",
+          "text": "нет в списке",
+          "lang": "ru"
+         }
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "plate.list",
+     "label": {
+      "key": "event.plate.list",
+      "text": "Номер: совпадение со списком",
+      "lang": "ru"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "presence": {
+        "type": "string",
+        "enum": [
+         "yes",
+         "no"
+        ],
+        "x-label": {
+         "key": "field.event.plate.list.presence",
+         "text": "Номер",
+         "lang": "ru"
+        },
+        "x-enum-labels": {
+         "yes": {
+          "key": "field.event.plate.list.presence.yes",
+          "text": "есть в списке",
+          "lang": "ru"
+         },
+         "no": {
+          "key": "field.event.plate.list.presence.no",
+          "text": "нет в списке",
+          "lang": "ru"
+         }
+        }
+       }
+      }
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.raised",
+     "label": {
+      "key": "event.alarm.raised",
+      "text": "Тревога: начата",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.taken",
+     "label": {
+      "key": "event.alarm.taken",
+      "text": "Тревога: оператор взял в работу",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.closed",
+     "label": {
+      "key": "event.alarm.closed",
+      "text": "Тревога: обработана",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.confirmed",
+     "label": {
+      "key": "event.alarm.confirmed",
+      "text": "Тревога: подтверждена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.suspicious",
+     "label": {
+      "key": "event.alarm.suspicious",
+      "text": "Тревога: подозрительная ситуация",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.false",
+     "label": {
+      "key": "event.alarm.false",
+      "text": "Тревога: ложная",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "alarm.missed",
+     "label": {
+      "key": "event.alarm.missed",
+      "text": "Тревога: пропущена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "rec.started",
+     "label": {
+      "key": "event.rec.started",
+      "text": "Запись: началась",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "rec.stopped",
+     "label": {
+      "key": "event.rec.stopped",
+      "text": "Запись: остановилась",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "rec.lost",
+     "label": {
+      "key": "event.rec.lost",
+      "text": "Запись: нет записи в архив",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "rec.back",
+     "label": {
+      "key": "event.rec.back",
+      "text": "Запись: запись в архив восстановлена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "arm.on",
+     "label": {
+      "key": "event.arm.on",
+      "text": "Охрана: камера поставлена",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "arm.private",
+     "label": {
+      "key": "event.arm.private",
+      "text": "Охрана: камера поставлена в приватном режиме",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "arm.off",
+     "label": {
+      "key": "event.arm.off",
+      "text": "Охрана: камера снята",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "ptz.moved",
+     "label": {
+      "key": "event.ptz.moved",
+      "text": "Поворотная камера: пришла в пресет",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "ptz.manual",
+     "label": {
+      "key": "event.ptz.manual",
+      "text": "Поворотная камера: сдвинули вручную",
+      "lang": "ru"
+     },
+     "right": {
+      "level": "FULL"
+     }
+    },
+    {
+     "id": "ptz.failed",
+     "label": {
+      "key": "event.ptz.failed",
+      "text": "Поворотная камера: не пришла в пресет",
+      "lang": "ru"
+     },
      "right": {
       "level": "FULL"
      }
@@ -2889,6 +4294,20 @@
       "level": "MANAGE"
      }
     }
+   ],
+   "events": [
+    {
+     "id": "output.on",
+     "label": {
+      "key": "event.output.on",
+      "text": "Выход: включился",
+      "lang": "ru"
+     },
+     "ends": true,
+     "right": {
+      "level": "MANAGE"
+     }
+    }
    ]
   },
   {
@@ -3105,7 +4524,9 @@
     null
    ],
    "createParents": [],
-   "implements": [],
+   "implements": [
+    "vms.pos/1"
+   ],
    "capabilities": [
     "rename",
     "enable",
@@ -3130,6 +4551,31 @@
     "type": "object",
     "additionalProperties": false,
     "properties": {
+     "baudRate": {
+      "type": "integer",
+      "enum": [
+       300,
+       600,
+       1200,
+       2400,
+       4800,
+       9600,
+       14400,
+       19200,
+       38400,
+       56000,
+       57600,
+       115200,
+       128000
+      ],
+      "default": 9600,
+      "description": "RS-232: скорость, бит/с. Только при protocol = rs232"
+     },
+     "billsOnly": {
+      "type": "boolean",
+      "default": false,
+      "description": "Показывать в титрах только строки между словами начала и конца чека"
+     },
      "cameraId": {
       "x-label": {
        "key": "field.cameraId",
@@ -3141,13 +4587,20 @@
        "null"
       ],
       "format": "uuid",
-      "description": "eventsrc: камера титров. Здесь только настройка: титры рисует клиент просмотра поверх живого видео и архива",
+      "description": "Устарело, вместо него overlays. Первая камера титров: сервер держит её равной overlays[0].cameraId. Правка cameraId без overlays ставит камеру первой с зоной прежней первой камеры (камера не из vms.camera/1 — 422, field /properties/cameraId), null очищает overlays. Правка с обоими полями — действует overlays. Здесь только настройка: титры рисует клиент просмотра поверх живого видео и архива",
       "x-ref": {
        "implements": [
         "vms.camera/1"
        ]
       },
-      "x-ui-widget": "ref"
+      "x-ui-widget": "ref",
+      "deprecated": true
+     },
+     "comPort": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "RS-232: COM-порт (COM1, /dev/ttyS0). Только при protocol = rs232"
      },
      "enabled": {
       "x-label": {
@@ -3156,6 +4609,21 @@
        "lang": "ru"
       },
       "type": "boolean"
+     },
+     "encoding": {
+      "type": "string",
+      "enum": [
+       "auto",
+       "utf8",
+       "dos2win"
+      ],
+      "default": "auto",
+      "description": "Кодировка данных кассы: auto — Windows-1251, utf8, dos2win — DOS (CP866)"
+     },
+     "eraseOnEnd": {
+      "type": "boolean",
+      "default": false,
+      "description": "Убирать строки с экрана после конца чека"
      },
      "identifier": {
       "x-label": {
@@ -3166,6 +4634,11 @@
       "type": "string",
       "description": "Номер устройства в системе («16», «3/1» у канала регистратора)",
       "x-search": true
+     },
+     "ignoreCase": {
+      "type": "boolean",
+      "default": true,
+      "description": "Не учитывать регистр слов начала и конца чека"
      },
      "ip": {
       "x-label": {
@@ -3195,6 +4668,26 @@
       "description": "Модель. У единицы СКУД — шаблон из unitOptions: задаётся при создании, правка — 422 NOT_SUPPORTED, field: model",
       "x-search": true
      },
+     "overlayBg": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "default": "#000000",
+      "description": "Вид титров: цвет фона, #rrggbb"
+     },
+     "overlayBgTransparency": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "default": 40,
+      "x-ui-unit": "%",
+      "description": "Вид титров: прозрачность фона, % (0 — сплошной фон, 100 — без фона)"
+     },
+     "overlayColor": {
+      "type": "string",
+      "pattern": "^#[0-9a-fA-F]{6}$",
+      "default": "#ffffff",
+      "description": "Вид титров: цвет текста, #rrggbb"
+     },
      "overlayDelayMs": {
       "type": "integer",
       "description": "Титры источника событий: задержка показа, мс",
@@ -3202,8 +4695,100 @@
      },
      "overlayDurationSec": {
       "type": "integer",
-      "description": "Титры источника событий: сколько держать на экране, с",
+      "description": "Титры источника событий: сколько держать чек на экране после последней строки, с. 0 (и поле без значения) — держать до следующей строки; если касса молчала больше 10 секунд, новая строка начинает экран заново (как Display duration = 0 в Axxon One)",
       "minimum": 0
+     },
+     "overlayFont": {
+      "type": "string",
+      "maxLength": 64,
+      "default": "Courier New",
+      "description": "Вид титров: имя шрифта"
+     },
+     "overlayFontSize": {
+      "type": "integer",
+      "minimum": 6,
+      "maximum": 72,
+      "default": 12,
+      "x-ui-unit": "pt",
+      "description": "Вид титров: размер шрифта, пункты"
+     },
+     "overlays": {
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "cameraId",
+        "area"
+       ],
+       "properties": {
+        "cameraId": {
+         "type": "string",
+         "format": "uuid",
+         "x-ref": {
+          "implements": [
+           "vms.camera/1"
+          ]
+         },
+         "description": "Камера, на которой клиент просмотра рисует титры"
+        },
+        "area": {
+         "type": "object",
+         "additionalProperties": false,
+         "required": [
+          "x",
+          "y",
+          "w",
+          "h"
+         ],
+         "properties": {
+          "x": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1,
+           "description": "Слева, доля ширины кадра"
+          },
+          "y": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1,
+           "description": "Сверху, доля высоты кадра"
+          },
+          "w": {
+           "type": "number",
+           "exclusiveMinimum": 0,
+           "maximum": 1,
+           "description": "Ширина, доля ширины кадра"
+          },
+          "h": {
+           "type": "number",
+           "exclusiveMinimum": 0,
+           "maximum": 1,
+           "description": "Высота, доля высоты кадра"
+          }
+         },
+         "description": "Зона титров на кадре камеры: x + w ≤ 1 и y + h ≤ 1, иначе 422 VALIDATION_FAILED, field /properties/overlays"
+        }
+       }
+      },
+      "description": "Камеры титров и зона на каждой (не больше 16). Камера в списке один раз: повтор — 422 VALIDATION_FAILED, field /properties/overlays; камера — объект с vms.camera/1. Список заменяется целиком (JSON Merge Patch). Первая камера списка — cameraId (устарело). Удаление камеры снимает её из списка. Здесь только настройка: титры рисует клиент просмотра поверх живого видео и архива"
+     },
+     "parity": {
+      "type": "string",
+      "enum": [
+       "none",
+       "even",
+       "odd"
+      ],
+      "default": "none",
+      "description": "RS-232: чётность. Только при protocol = rs232"
+     },
+     "parserFile": {
+      "type": "string",
+      "maxLength": 260,
+      "pattern": "^.+\\.(txt|prl)$",
+      "description": "Файл шаблона разбора данных на сервере: .txt — парсер XML, .prl — парсер POS. На стенде — заглушка: имя хранится, файл не читается и данные им не разбираются"
      },
      "password": {
       "x-label": {
@@ -3223,6 +4808,60 @@
        "lang": "ru"
       },
       "type": "integer"
+     },
+     "processing": {
+      "type": "string",
+      "enum": [
+       "line",
+       "event",
+       "json"
+      ],
+      "default": "line",
+      "description": "Разбор данных: построчно, по событию или JSON. На стенде — заглушка: значение хранится, данные не разбираются"
+     },
+     "protocol": {
+      "type": "string",
+      "enum": [
+       "tcp",
+       "udp",
+       "rs232"
+      ],
+      "default": "tcp",
+      "description": "Приём данных: протокол. rs232 требует comPort и baudRate; comPort, baudRate, parity и udpMaxPacket в одной правке с другим протоколом — 422 VALIDATION_FAILED. Когда правка меняет протокол и не называет эти поля, сервер сам снимает поля прежнего протокола (RS-232 или UDP). ip и port нужны tcp и udp"
+     },
+     "receiptEndWords": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 128
+      },
+      "description": "Слова конца чека: строка со словом заканчивает чек. При receiptSplit = none сервер их не проверяет"
+     },
+     "receiptSplit": {
+      "type": "string",
+      "enum": [
+       "skip",
+       "none"
+      ],
+      "default": "skip",
+      "description": "Как делить строки на чеки (Repeats processing в Axxon One): skip — по словам начала и конца; none — только по словам начала, слова конца сервер не проверяет"
+     },
+     "receiptStartWords": {
+      "type": "array",
+      "maxItems": 32,
+      "items": {
+       "type": "string",
+       "minLength": 1,
+       "maxLength": 128
+      },
+      "description": "Слова начала чека: строка со словом начинает чек. Сравнение посимвольно, регистр — по ignoreCase. Без слов начала и конца сервер не делит строки на чеки и поиск по чекам в архиве не работает"
+     },
+     "retalix": {
+      "type": "boolean",
+      "default": false,
+      "description": "Касса Retalix (драйвер POSLegacy)"
      },
      "serverId": {
       "x-label": {
@@ -3250,6 +4889,33 @@
       "description": "Номер для показа в дереве («3.3.1»)",
       "x-search": true
      },
+     "terminalType": {
+      "type": "string",
+      "maxLength": 64,
+      "description": "Тип терминала из списка драйвера (POSLegacy): XML PROTOCOL, SUPERMAG UKM, ALOHA… Список зависит от vendor; на стенде значение хранится без проверки по списку драйвера"
+     },
+     "timeOffsetMs": {
+      "type": "integer",
+      "minimum": -5000,
+      "maximum": 5000,
+      "default": 0,
+      "description": "Разбор данных: сдвиг времени титров, мс (отрицательный — раньше)"
+     },
+     "timeoutMs": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 3000,
+      "default": 100,
+      "description": "Разбор данных: таймаут, мс"
+     },
+     "udpMaxPacket": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 4096,
+      "x-ui-unit": "байт",
+      "description": "UDP: наибольший пакет, байт. Только при protocol = udp"
+     },
      "vendor": {
       "x-label": {
        "key": "field.vendor",
@@ -3275,12 +4941,43 @@
         },
         "bg": {
          "type": "string"
+        },
+        "caseSensitive": {
+         "type": "boolean",
+         "default": false,
+         "description": "Различать заглавные и строчные буквы при поиске слова в строке"
+        },
+        "wholeLine": {
+         "type": "boolean",
+         "default": false,
+         "description": "Выделить цветом всю строку чека, в которой есть слово, а не только слово"
+        },
+        "bgEnabled": {
+         "type": "boolean",
+         "default": true,
+         "description": "Менять фон слова на bg; false — фон строки не меняется"
         }
        },
        "additionalProperties": false
       },
       "description": "Слова источника событий (POS) и их цвета"
      }
+    },
+    "if": {
+     "required": [
+      "protocol"
+     ],
+     "properties": {
+      "protocol": {
+       "const": "rs232"
+      }
+     }
+    },
+    "then": {
+     "required": [
+      "comPort",
+      "baudRate"
+     ]
     }
    },
    "events": [
@@ -4536,6 +6233,78 @@
     "bookmarks",
     "archive-fetch"
    ]
+  },
+  {
+   "id": "vms.pos/1",
+   "label": {
+    "key": "profile.vms.pos/1",
+    "text": "Источник событий (касса)",
+    "lang": "ru"
+   },
+   "properties": [
+    "overlays",
+    "cameraId",
+    "overlayDelayMs",
+    "overlayDurationSec",
+    "overlayFont",
+    "overlayFontSize",
+    "overlayColor",
+    "overlayBg",
+    "overlayBgTransparency",
+    "receiptStartWords",
+    "receiptEndWords",
+    "receiptSplit",
+    "ignoreCase",
+    "billsOnly",
+    "eraseOnEnd",
+    "words",
+    "protocol",
+    "comPort",
+    "baudRate",
+    "parity",
+    "udpMaxPacket",
+    "encoding",
+    "terminalType",
+    "parserFile",
+    "processing",
+    "timeoutMs",
+    "timeOffsetMs",
+    "retalix"
+   ],
+   "apis": [
+    "pos/raw"
+   ]
+  },
+  {
+   "id": "vms.edge/1",
+   "label": {
+    "key": "profile.vms.edge/1",
+    "text": "Встроенное хранилище устройства",
+    "lang": "ru"
+   },
+   "properties": [
+    "replication"
+   ],
+   "status": [
+    "replicationStatus",
+    "mediaOk",
+    "profileG"
+   ]
+  },
+  {
+   "id": "vms.webserver/1",
+   "label": {
+    "key": "profile.vms.webserver/1",
+    "text": "Веб-сервер и RTSP-сервер",
+    "lang": "ru"
+   },
+   "properties": [
+    "webServer"
+   ],
+   "status": [
+    "webCertificate",
+    "webReservedPorts"
+   ]
   }
  ],
  "units": [
@@ -5212,31 +6981,51 @@
     "name": "Обслуживание",
     "scheduleId": null,
     "system": "service",
-    "color": null
+    "color": "var(--one-palette-orange)",
+    "builtin": true,
+    "off": {
+     "all": true,
+     "ruleIds": []
+    }
    },
    {
     "id": "f0000002-0003-4000-8000-000000000000",
     "name": "Ночь",
     "scheduleId": "f0000002-0001-4000-8000-000000000000",
     "system": "night",
-    "color": null
+    "color": "var(--one-palette-purple)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": []
+    }
    },
    {
     "id": "f0000003-0003-4000-8000-000000000000",
     "name": "Выходной",
-    "scheduleId": "f0000003-0001-4000-8000-000000000000",
+    "scheduleId": null,
     "system": "weekend",
-    "color": null
+    "color": "var(--one-palette-green)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": []
+    }
    },
    {
     "id": "f0000004-0003-4000-8000-000000000000",
     "name": "Рабочее время",
     "scheduleId": "f0000001-0001-4000-8000-000000000000",
     "system": "work",
-    "color": null
+    "color": "var(--one-accent)",
+    "builtin": false,
+    "off": {
+     "all": false,
+     "ruleIds": []
+    }
    }
   ],
-  "otherwise": "f0000003-0003-4000-8000-000000000000",
+  "otherwise": null,
   "version": "1"
  },
  "modeManual": null,
@@ -5246,7 +7035,7 @@
    "name": "Ночная проверка сирен — по средам",
    "scheduleId": "f0000008-0001-4000-8000-000000000000",
    "ruleIds": [],
-   "enabled": true,
+   "enabled": false,
    "version": "1"
   }
  ],
@@ -14682,7 +16471,27 @@
    {
     "control": "escalate",
     "branches": []
+   },
+   {
+    "control": "check",
+    "branches": [
+     "yes",
+     "no"
+    ]
+   },
+   {
+    "control": "after",
+    "branches": []
+   },
+   {
+    "control": "abort",
+    "branches": []
    }
+  ],
+  "ruleFeatures": [
+   "whenAny",
+   "condAny",
+   "every"
   ],
   "layouts": [
    {
@@ -15054,6 +16863,9 @@
     "getSettings",
     "patchSettings",
     "listJournal",
+    "listJournalFacets",
+    "exportJournal",
+    "listJournalKinds",
     "assistTurn",
     "stream",
     "deleteObjects",
@@ -15109,6 +16921,7 @@
     "deleteUnitPreset",
     "putUnitRecordingTarget",
     "getUnitRecordingDays",
+    "listUnitPosRaw",
     "checkExport",
     "listExports",
     "createExport",
@@ -15133,7 +16946,9 @@
     "exportTranscode",
     "exportTitles",
     "exportAudio",
-    "exportPassword"
+    "exportPassword",
+    "journalSearch",
+    "journalAudit"
    ]
   },
   "serverLabels": [
@@ -15403,6 +17218,11 @@
    "firstBranch": 1000,
    "clusters": 40,
    "relayed": 5
+  },
+  "journal": {
+   "count": 200000,
+   "days": 30,
+   "seed": 20261110
   }
  }
 }

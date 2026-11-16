@@ -51,6 +51,9 @@ LARGE = {"cameras": 250000, "servers": 500, "folders": 300, "serverCameras": 500
 XL = {"cameras": 1000000, "servers": 2000, "folders": 1200, "serverCameras": 200000, "firstBranch": 1000, "clusters": 160, "relayed": 20,
       "domains": 4, "domainNames": ["Москва", "Санкт-Петербург", "Казань", "Новосибирск"]}
 
+# Журнал стенда large и xl: записи считает встроенный сервер при загрузке (journalStand в api/server.js), в файле их нет
+JOURNAL = {"count": 200000, "days": 30, "seed": 20261110}
+
 DEVICE_TYPES = ["camera", "det"]
 # Операции контракта, которых в профиле нет: второй домен, тома сверх первого, лицензии, поиск в сети.
 # Завести и удалить объект вида — UnitKind.capabilities: второго домена и второго тома в профиле нет, у видов домена и тома
@@ -59,6 +62,10 @@ KIND_MISSING = {"domain": ["create", "delete"], "volume": ["create", "delete"]}
 KIND_ONLY_WITH_PARENT = ["volume"]
 # Виды плагинов и тестовые виды: в профиле «один домен» их нет — система объявляет только свои (тесты с needs "kind:…" пропускаются)
 PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
+# Контракт 0.12.0: поддетекторы (вид subdet) и новые настройки детектора. Система объявляет, что поддерживает, схемой вида:
+# в профиле «один домен» вида subdet нет, у det нет и этих свойств, а трекеры (analyticsKind) не заводятся — как у w2c без них
+PLUGIN_KINDS += ["subdet"]
+DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec"]}
 # Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
@@ -66,8 +73,15 @@ RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_l
 MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
 FEATURES = ["exportVideo", "exportFrame", "exportLiveFrame", "exportArea", "exportMultiCamera", "exportMultiPeriod", "exportSingleFile", "exportTranscode", "exportTitles", "exportAudio", "exportPassword"]
+# Поиск в журнале (контракт 0.8.0): q, списки и «скрыть», счётчики по полям
+FEATURES += ["journalSearch"]
+# Аудит в журнале (контракт 0.9.0): автор у каждой записи, запись на каждое изменение через API, prevCursor и offset
+FEATURES += ["journalAudit"]
 # «Автоматизация» по части каталога, как у w2c: этих действий система не исполняет, запись — только на минуты
-ACTIONS_OFF = ["alarmclose", "layout", "wall", "email", "tg", "http"]
+# Команды видов (UnitKind.actions, ruleOnly), которых в профиле нет; действия системы (reference.ruleActions) — ACTIONS_OFF: к ним
+# добавлены ntf.push и client.*, которых у профиля нет, но команды видов с теми же кодами (program сервера) остаются
+KIND_ACTIONS_OFF = ["alarmclose", "layout", "wall", "email", "tg", "http"]
+ACTIONS_OFF = KIND_ACTIONS_OFF + ["push", "sound", "voice", "view", "program"]
 # Правило, сохранённое раньше и теперь вне каталога: остаётся выключенным, форма его показывает
 OUT_OF_CATALOG = "Вход на видеостене по движению"
 
@@ -104,8 +118,10 @@ def build(demo):
     # Устройства идут родитель первым: дочернее остаётся, только если остался родитель
     devices, kept = [], set()
     for d in fx["devices"]:
-        if d["domainId"] != did or d["type"] not in DEVICE_TYPES or (d["parentId"] and d["parentId"] not in kept):
+        if d["domainId"] != did or d["type"] not in DEVICE_TYPES or (d["parentId"] and d["parentId"] not in kept) or d.get("analyticsKind"):
             continue
+        for name in DROP_PROPS.get(d["type"], []):
+            d.pop(name, None)
         kept.add(d["id"])
         devices.append(d)
     for d in devices:
@@ -157,7 +173,7 @@ def build(demo):
         out = []
         for a in lst:
             a = dict(a)
-            if a.get("action") in ACTIONS_OFF:
+            if a.get("action") in (KIND_ACTIONS_OFF if a.get("type") == "unitAction" else ACTIONS_OFF):
                 continue
             if a.get("action") == "record":
                 # Поля действия на объекте (unitAction) — в params
@@ -213,6 +229,8 @@ def build(demo):
     for w in fx["maintenanceWindows"]:
         if w["ruleIds"] is not None:
             w["ruleIds"] = [x for x in w["ruleIds"] if x in rids]
+    for m in fx["modes"]["items"]:
+        m["off"]["ruleIds"] = [x for x in m["off"]["ruleIds"] if x in rids]
     for d in fx["devices"]:
         if d.get("disabledByRuleId") and d["disabledByRuleId"] not in rids:
             d["disabledByRuleId"], d["disabledByRuleAt"] = None, None
@@ -292,6 +310,13 @@ def build(demo):
     # Какие виды есть у системы — описания видов (GET /kinds): виды устройств и хранилищ профиля, их права и действия
     kinds_access(fx["kinds"], acc["levels"])
     fx["kinds"] = profile_kinds(fx["kinds"])
+    # Профили: без свойств и без профиля, которых у системы нет (см. DROP_PROPS, PLUGIN_KINDS)
+    if "profiles" in fx:
+        have = {i for k in fx["kinds"] for i in k.get("implements", [])}
+        fx["profiles"] = [p for p in fx["profiles"] if p["id"] in have or p["id"] != "vms.subdetector/1"]
+        for p in fx["profiles"]:
+            if p["id"] == "vms.detector/1":
+                p["properties"] = [n for n in p["properties"] if n not in DROP_PROPS["det"]]
 
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
@@ -341,6 +366,9 @@ def profile_kinds(kinds):
         for key in ("parents", "createParents", "children"):
             if key in k:
                 k[key] = [p for p in k[key] if p not in drop]
+        # Все дети вида сняты профилем: ключа нет, а не пустой список
+        if "children" in k and not k["children"]:
+            del k["children"]
         if k["kind"] in KIND_MISSING and "capabilities" in k:
             k["capabilities"] = [c for c in k["capabilities"] if c not in KIND_MISSING[k["kind"]]]
             # Не заводится — и заводить не под чем
@@ -352,6 +380,8 @@ def profile_kinds(kinds):
             k["capabilities"] = [c for c in k.get("capabilities", []) if c != "create"]
             k["createParents"] = []
             k.pop("x-ui-category", None)
+        for name in DROP_PROPS.get(k["kind"], []):
+            ((k.get("schema") or {}).get("properties") or {}).pop(name, None)
         clean(k.get("schema"))
         out.append(k)
     return out
@@ -376,7 +406,7 @@ def kinds_access(kinds, levels):
             if not k["apiRights"]:
                 del k["apiRights"]
         if "actions" in k:
-            k["actions"] = [a for a in k["actions"] if not (a.get("ruleOnly") and a["id"] in ACTIONS_OFF)]
+            k["actions"] = [a for a in k["actions"] if not (a.get("ruleOnly") and a["id"] in KIND_ACTIONS_OFF)]
             for a in k["actions"]:
                 for key in ("right", "ruleRight"):
                     if not cls_ok(a.get(key)):
@@ -396,7 +426,7 @@ def build_large(demo):
         "Стенд большого домена: 250 000 камер, 500 серверов. Записи считает заглушка из stand.large при загрузке, "
         "в файле только числа. Собран tools/profile_fixture.py из demo.json, руками не правится."
     )
-    fx["stand"] = {"large": LARGE}
+    fx["stand"] = {"large": LARGE, "journal": JOURNAL}
     # В отличие от «одного домена» у большого стенда есть ассистент: check_perf меряет поиск вместе с ним (шаг gq-enter-asst).
     # Операция и функция встают на свои места по порядку demo
     caps, dcaps = fx["reference"]["capabilities"], demo["reference"]["capabilities"]
@@ -408,6 +438,8 @@ def build_large(demo):
     for w in fx["maintenanceWindows"]:
         if w["ruleIds"] is not None:
             w["ruleIds"] = []
+    for m in fx["modes"]["items"]:
+        m["off"]["ruleIds"] = []
     for role in fx["access"]["roles"]:
         role["objectAccess"] = {}
         role["folderAccess"] = {k: v for k, v in role["folderAccess"].items() if k == fx["domains"][0]["id"]}
@@ -441,7 +473,7 @@ def build_xl():
             "Наложение: целый набор — large и поверх него эти поля. Собран tools/profile_fixture.py, руками не правится."
         ),
         "$base": "large",
-        "stand": {"large": XL},
+        "stand": {"large": XL, "journal": JOURNAL},
     }
 
 

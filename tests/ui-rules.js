@@ -1,6 +1,6 @@
 /* Сценарии интерфейса: «Автоматизация» через API — правка правила и «Отменить», новое правило, состояние и
    приглушение группой, порядок, удаление с отсчётом, «Запустить», пробный запуск, история версий, режим
-   объекта вручную, расписание, группа особых дней, окно обслуживания. Запуск — tools/check_ui.py. */
+   вручную, расписание, группа особых дней, режим. Запуск — tools/check_ui.py. */
 UiCheck(async ({ ok, until, confirmWith }) => {
   const R1 = "70000001-0000-4000-8000-000000000000";   // «Охрана входа ночью»
   const R2 = "70000002-0000-4000-8000-000000000000";   // «Сирена по двери»
@@ -30,7 +30,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(["abandoned", "disappeared", "crowd"].every((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
     const alarmWant = uniq(evs.filter((e) => e.alarm !== false).map((e) => e.id));
     ok(JSON.stringify(refEvents) === JSON.stringify(alarmWant), "тревожные виды — без alarm:false, порядок сервера: " + refEvents.join());
-    ok(refEvents.slice(0, 10).join() === "motion,linecross,abandoned,disappeared,crowd,lpr,silent,io.input,text,unit", "тревожные виды демо — как в базе (reference.eventKinds): " + refEvents.slice(0, 10).join());
+    const baseEv = ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "io.input", "text", "unit"];
+    ok(refEvents.filter((x) => baseEv.includes(x)).join() === baseEv.join(), "тревожные виды демо — прежние в прежнем порядке: " + refEvents.filter((x) => baseEv.includes(x)).join());
     const cam = devicePool.concat(...servers.map((s) => s.devices || [])).find((n) => n.type === "camera");
     const chips = [...new DOMParser().parseFromString(placeCardHtml(cam || { id: "x" }), "text/html").querySelectorAll(".pf-chip")].map((b) => b.dataset.chip);
     ok(chips.length && !chips.some((x) => noAlarm.includes(x)) && ["abandoned", "crowd"].every((x) => chips.includes(x)), "«Что считать тревогой» в карточке: без other и segment.lost: " + chips.join());
@@ -102,7 +103,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
 
   // Годность действия и прочие поля события — в содержимом правила, состояние — от сервера, только показ
   ruleOpen(R1);
-  ok(r(R1).validFor === 30 && r(R1).status && document.querySelector("[data-rule-status]"), "годность 30, состояние от сервера: " + JSON.stringify(r(R1).status));
+  // Состояние «выключено режимом» карточка показывает полосой «Сейчас не действует», а не строкой «Сервер: …» (ruleSrvStatusHtml).
+  // Какое из двух — зависит от часов: «Рабочее время» набора действует в будни днём, поэтому проверка принимает оба
+  {
+    const st = r(R1).status, line = document.querySelector("[data-rule-status]");
+    const band = [...document.querySelectorAll(".nt[role=status]")].some((e) => /Сейчас не действует/.test(e.textContent));
+    ok(r(R1).validFor === 30 && st && (st.state === "off" ? band && !line : line), "годность 30, состояние от сервера: " + JSON.stringify(st));
+  }
   const statusV = autoVer.get(R1);
   setRuleField("validFor", "120");
   setTriggerExtra(0, '{"pass": 3}');
@@ -262,13 +269,18 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => !ruleDraft && /Возврат к версии 1/.test(((ruleHist[R1] || []).slice(-1)[0] || {}).note || "")), "версия истории с пометкой: " + ((ruleHist[R1] || []).slice(-1)[0] || {}).note);
   ok(r(R1).name === "Охрана входа", "содержимое версии 1");
 
-  // Режим объекта вручную — POST /modes/current
-  const night = modeByCode("night"), cur0 = objMode;
-  ruleModeSwitch(night === cur0 ? modeByCode("work") : night);
-  ok(await until(() => objModeManual && objMode !== cur0), "режим включён вручную: " + ruleModeName(objMode));
-  ok((await API.get("/modes/current")).manual !== null, "на сервере — вручную");
+  // Режим вручную — POST /modes/current на срок; «Отменить» возвращает режим по расписанию
+  const svc = UMODES.find((m) => m.sys);
+  ruleModeSwitch(svc.id);
+  ok(!!modeSw && modeSw.min === 60, "окно включения открыто, срок по умолчанию — час");
+  modeSwTerm(120);
+  modeSwGo();
+  ok(await until(() => umManNow() && umCur.id === svc.id), "режим включён вручную: " + umName(umCurrent()));
+  const man = await API.get("/modes/current");
+  ok(man.source === "manual" && man.modeId === svc.id && Date.parse(man.until) > Date.now(), "на сервере — вручную, со сроком: " + man.until);
+  ok(document.getElementById("hdMode").classList.contains("manual"), "кнопка в шапке показывает ручной режим");
   undo("rmode").click();
-  ok(await until(() => !objModeManual && objMode === cur0), "«Отменить» — снова по расписаниям");
+  ok(await until(() => !umManNow()), "«Отменить» — снова по расписанию");
 
   // Расписание: сохранить — PUT, «Отменить» — обратный PUT
   const sw = SCHEDS.find((s) => s.name === "Рабочие дни");
@@ -291,15 +303,16 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   undo("grp:").click();
   ok(await until(() => DAY_GROUPS.length === g0), "«Отменить» удалило её");
 
-  // Окно обслуживания — вместе со своим расписанием; удаление с отсчётом
-  const w0 = MAINT_WINDOWS.length, s0 = SCHEDS.length;
-  maintAdd();
-  ok(await until(() => MAINT_WINDOWS.length === w0 + 1 && SCHEDS.length === s0 + 1), "окно и его расписание созданы");
-  const w = MAINT_WINDOWS[MAINT_WINDOWS.length - 1];
-  maintDelAsk(w.id);
+  // Режим: добавить — PUT /modes, «Отменить» — обратный PUT; удаление с отсчётом
+  const m0 = UMODES.length;
+  modeAdd();
+  ok(await until(() => UMODES.length === m0 + 1), "режим добавлен на сервере");
+  const nm = UMODES[UMODES.length - 1];
+  ok((await API.get("/modes")).items.some((m) => m.id === nm.id && m.builtin === false), "на сервере: встроенным он не стал");
+  modeDelAsk(nm.id);
   await confirmWith(1);
-  ok(await until(() => MAINT_WINDOWS.length === w0 && SCHEDS.length === s0, 40000), "после отсчёта удалено — и его расписание");
-  ok((await API.get("/maintenance-windows")).items.length === w0, "на сервере");
+  ok(await until(() => UMODES.length === m0, 40000), "после отсчёта режим удалён");
+  ok((await API.get("/modes")).items.length === m0, "на сервере");
   ok(mv === autoVer.get(R2), "версия приглушённого правила не менялась сама");
 
   // Новые «Спросить оператора» и «Эскалация» — с ролями охраны, как в макете
@@ -352,6 +365,149 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const nr = rules.find((x) => x.name === "Правило со своим временем").id;
   ok(await until(() => schById(sid2)?.own?.id === nr && autoVer.get(sid2)), "в интерфейсе владелец — сохранённое правило");
   ok((await API.get("/schedules/" + sid2)).owner?.id === nr, "и на сервере");
+
+  // Цепочка правила: «или» между событиями и условиями, шаги check, after, abort, расписание с интервалом, новые поля. Всё — настоящими
+  // полями контракта: ни меток __any:*, __every, ни служебных полей _stub в теле правила нет
+  {
+    const CAM2 = "30000013-0000-4000-8000-000000000000";
+    const rowLabels = () => [...document.querySelectorAll(".rl-row .rl-n")].map((e) => e.textContent.trim());
+    const fresh = (name, tplId, start) => {
+      ruleNewOpen(); rnw.tpl = tplId || ""; if (start) rnw.start = start; ruleNewCreate();
+      ruleEdit((x) => { delete x._auto; x.name = name; });
+    };
+    // «Или» между событиями: второе событие по умолчанию «любое из событий», окна нет
+    fresh("Цепочка: или", "mrec");
+    ruleEdit((x) => { x.when[0].ref = CAM2; });
+    addTrigger();
+    paint();
+    ok(curRule().whenAny === true && !curRule().within, "второе событие: любое из событий, окна нет");
+    ok(!!document.querySelector(".rl-chips.rl-logic") && !document.querySelector(".rl-win"), "переключатель есть, окна нет");
+    ok(rowLabels().slice(0, 2).join() === "Если,или", "строки подписаны «Если», «или»: " + rowLabels().join());
+    setWhenLogic("all"); paint();
+    ok(curRule().whenAny === false && curRule().within === 30 && !!document.querySelector(".rl-win") && rowLabels().slice(0, 2).join() === "Если,и", "все события: окно 30 с, строка «и»");
+    setWhenLogic("any");
+    const ev1 = TRIGGER_KINDS.findIndex((k) => k.kind === "linecross");
+    setTriggerKind(1, String(ev1));
+    ruleEdit((x) => { x.when[1].ref = CAM2; });
+    ok(/ или /.test(ruleSummary(curRule(), true)), "в сводке правила — «или»");
+    // «Или» между условиями
+    ruleEdit((x) => { x.cond = [{ kind: "armed", ref: CAM2, val: true }, { kind: "armed", ref: CAM2, val: false }]; x.condAny = true; });
+    paint();
+    ok(rowLabels().join().includes("Если,или") && !!document.querySelectorAll(".rl-chips.rl-logic")[1], "условия: «Если», «или» и свой переключатель");
+    ruleApply();
+    ok(await until(() => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id))), "сохранено");
+    const sv = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: или").id);
+    ok(sv.whenLogic === "any" && sv.windowSec === 0 && sv.condLogic === "any" && sv.triggers.length === 2 && sv.conditions.length === 2, "на сервере: whenLogic any, condLogic any, окна нет");
+    ok(!(sv.labels || []).some((l) => /^__/.test(l)) && !JSON.stringify(sv).includes("_stub"), "меток-заглушек и _stub в теле нет");
+    const back = ruleNode(sv);
+    ok(back.whenAny && back.condAny && back.within === 0, "из записи — обратно в правило");
+    // Все: окно и логика и/и уходят как были
+    ruleOpen(sv.id);
+    setWhenLogic("all"); setCondLogic("all");
+    ok(ruleDiffLive().some((d) => /Условия/.test(d.label)) && ruleDiffLive().some((d) => /События/.test(d.label)), "переключатели попадают в сравнение: " + ruleDiffLive().map((d) => d.label).join(", "));
+    const bd = ruleBody(curRule());
+    ok(bd.windowSec === 30 && !("whenLogic" in bd) && !("condLogic" in bd), "все: windowSec 30, полей логики нет — как до цепочки");
+    ruleRestore(); paint();
+
+    // Без reference.ruleFeatures форма «или» и интервал не предлагает: второе событие идёт с окном 30 с, как до цепочки
+    {
+      const wasFeat = RULE_REF.features;
+      RULE_REF.features = [];
+      fresh("Цепочка: без логики", "mrec");
+      ruleEdit((x) => { x.when[0].ref = CAM2; });
+      addTrigger();
+      paint();
+      ok(curRule().whenAny !== true && curRule().within === 30 && !document.querySelector(".rl-chips.rl-logic") && !!document.querySelector(".rl-win"), "логика не объявлена: окно 30 с, переключателя нет");
+      ok(!ruleTplDeclared(RULE_TPL.find((x) => x.id === "norec")), "интервал не объявлен: шаблона с интервалом нет");
+      ruleRestore();
+      RULE_REF.features = wasFeat;
+      paint();
+      ok(ruleFeat("whenAny") && ruleFeat("condAny") && ruleFeat("every"), "эталонный набор объявляет все три");
+    }
+    // Что прочитано из записи, уходит обратно как было
+    {
+      const base2 = { ...sv, whenLogic: "all", condLogic: "all", start: "schedule", runAt: { days: [1], time: "10:00", randomShift: true } };
+      const rb = ruleBody(ruleContentNode(base2, "x"));
+      ok(rb.whenLogic === "all" && rb.condLogic === "all" && rb.runAt.randomShift === true && !("everyMin" in rb.runAt), "явное all и randomShift без everyMin не теряются: " + JSON.stringify([rb.whenLogic, rb.condLogic, rb.runAt]));
+      ok(stepBody({ ctl: "check", what: "armed", ref: "", depth: 120, yes: [], no: [] }).depthSec === 120, "depthSec у armed не теряется");
+    }
+
+    // Новые шаги: проверка с ветками, ожидание конца шага, прерывание
+    fresh("Цепочка: шаги", "mrec");
+    ruleEdit((x) => {
+      x.when[0].ref = CAM2;
+      x.then = [{ ctl: "check", what: "online", ref: CAM2, depth: 120, yes: [{ ctl: "abort" }], no: [] },
+        { sub: "rec", action: "record", ref: CAM2, dur: "min", minutes: 5 }, { ctl: "after", sec: 30 }, { sub: "rec", action: "record", ref: CAM2, dur: "min", minutes: 1 }];
+    });
+    paint();
+    const stSel = document.querySelector('select[data-ks="0"]');
+    const labels = stSel ? [...stSel.options].map((o) => o.textContent) : [];
+    ok(["Проверить и разветвить", "Дождаться конца предыдущего шага", "Прервать выполнение"].every((x) => labels.includes(x)), "в списке шагов — три новых: " + labels.slice(-6).join(" | "));
+    ok(!!document.querySelector('[data-fk^="add:0.yes"]') || !!document.querySelector(".rl-br"), "у проверки — две ветки «если да», «если нет»");
+    ok(!ruleIssues(curRule()).length, "ошибок формы нет: " + ruleIssues(curRule()).join("; "));
+    ruleEdit((x) => { x.then[0].what = "record"; x.then[0].depth = 0; });
+    ok(/[Гг]лубина/.test(ruleIssues(curRule())[0] || ""), "запись без глубины — ошибка: " + ruleIssues(curRule())[0]);
+    ruleEdit((x) => { x.then[0].what = "online"; x.then[0].depth = 3600; });
+    ruleApply();
+    ok(await until(() => rules.some((x) => x.name === "Цепочка: шаги" && autoVer.has(x.id))), "правило с шагами сохранено");
+    const st = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: шаги").id);
+    ok(st.steps[0].control === "check" && st.steps[0].what === "online" && st.steps[0].depthSec === 3600 && st.steps[0].target.include[0].uid === CAM2 && st.steps[0].yes[0].control === "abort", "шаг check на сервере: " + JSON.stringify(st.steps[0]));
+    ok(st.steps[2].control === "after" && st.steps[2].sec === 30 && !JSON.stringify(st).includes("_stub") && !JSON.stringify(st).includes('"control":"ask"'), "шаг after на сервере, ask и _stub в теле нет");
+    const sr = rules.find((x) => x.name === "Цепочка: шаги");
+    await API.post("/rules/update", { idempotencyKey: opKey(), items: [{ ruleId: sr.id, version: autoVer.get(sr.id), set: { enabled: true } }] });
+    ok(await until(() => r(sr.id).on), "правило включено");
+    ruleOpen(sr.id);
+    const fr = await ruleFireRun(r(sr.id));
+    ok(fr.steps.some((s) => /Проверить/.test(s.label)) && fr.steps.some((s) => /Прервать/.test(s.label)), "в журнале запуска — подписи новых шагов: " + fr.steps.map((s) => s.label).join(" | "));
+    ok(fr.steps.filter((s) => !s.ctl).length === 0, "камера на связи, ветка «если да» прервала запуск: выполненных действий нет");
+
+    // Расписание с интервалом
+    fresh("Цепочка: интервал", "norec", "sched");
+    ruleEdit((x) => { x.then[0].ref = CAM2; });
+    paint();
+    ok(curRule().sched && curRule().sched.every === 60, "шаблон «Нет записи»: повтор каждые 60 мин");
+    ok(/каждые 60 мин/.test(ruleSchedText(curRule().sched)) && !!document.querySelector('input[aria-label="Минут"]'), "расписание показывает интервал");
+    ruleEveryRnd(true);
+    ruleApply();
+    ok(await until(() => rules.some((x) => x.name === "Цепочка: интервал" && autoVer.has(x.id))), "правило с интервалом сохранено");
+    const sd = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: интервал").id);
+    ok(sd.runAt.everyMin === 60 && sd.runAt.randomShift === true && !(sd.labels || []).some((l) => /^__/.test(l)), "runAt на сервере: " + JSON.stringify(sd.runAt));
+    ok(ruleNode(sd).sched.every === 60 && ruleNode(sd).sched.rnd === true, "из записи — обратно в расписание");
+    ruleOpen(sd.id);
+    ruleEveryOn(false);
+    ok(!("everyMin" in ruleBody(curRule()).runAt), "без повтора everyMin не уходит");
+    ruleRestore(); paint();
+
+    // Событие тома архива: том — объект своего вида, его выбирают в окне выбора, на сервере цель — uid тома
+    fresh("Цепочка: том", "vol");
+    const vol = arch.flatMap((a) => archVols(a)).find((v) => volById(v.id));
+    ruleEdit((x) => { x.when[0].ref = vol.id; x.then[0].to = "ops@example.test"; });
+    paint();
+    ok(refNodes(vol.id, ["vol"]).length === 1 && ruleUniverse(["vol"]).some((v) => v.id === vol.id), "том есть среди выбираемых объектов правила");
+    ok(!ruleIssues(curRule()).length, "ошибок формы нет: " + ruleIssues(curRule()).join("; "));
+    ruleApply();
+    ok(await until(() => rules.some((x) => x.name === "Цепочка: том" && autoVer.has(x.id))), "правило на томе сохранено");
+    const sv2 = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: том").id);
+    ok(sv2.triggers[0].event === "volume.error" && sv2.triggers[0].kinds.join() === "volume" && sv2.triggers[0].target.include[0].uid === vol.id, "на сервере: событие volume.error тома " + vol.id);
+
+    // Новые поля и действия: числа — числами, роль — roleId, вложение, методы веб-запроса
+    fresh("Цепочка: действия", "mrec");
+    const role = accRoles()[0].id;
+    ruleEdit((x) => {
+      x.when[0].ref = CAM2;
+      x.then = [{ sub: "rec", action: "record", ref: CAM2, dur: "min", minutes: 5, preSec: "7", fps: "12" }, { sub: "vms", action: "preset", ref: CAM2, n: 1, speed: "50", holdSec: "9" },
+        { sub: "ntf", action: "push", to: "ops", subj: "{камера}", attach: "snapshot" }, { sub: "client", action: "sound", file: "a.wav", to: role }, { sub: "client", action: "view", view: "map", to: role },
+        { sub: "net", action: "http", method: "PUT", url: "http://x.test/a", auth: "bearer", headers: "X: 1", body: "{}" }, { sub: "vms", action: "output", ref: "", state: "on" }];
+    });
+    const b2 = ruleBody(curRule()).steps;
+    ok(b2[0].params.preSec === 7 && b2[0].params.fps === 12 && b2[1].params.speed === 50 && b2[1].params.holdSec === 9, "числа record и preset — числами: " + JSON.stringify([b2[0].params, b2[1].params]));
+    ok(b2[2].source === "ntf" && b2[2].action === "push" && b2[2].subject === "{камера}" && b2[2].attach === "snapshot", "push: " + JSON.stringify(b2[2]));
+    ok(b2[3].roleId === role && b2[3].file === "a.wav" && b2[4].view === "map" && b2[5].method === "PUT" && b2[5].auth === "bearer" && b2[5].headers === "X: 1", "client.* и http: " + JSON.stringify([b2[3], b2[4], b2[5]]));
+    ok(b2[6].params.state === true, "реле: включить");
+    ruleEdit((x) => { x.then[1].speed = "500"; });
+    ok(/Скорость/.test(ruleIssues(curRule())[0] || ""), "скорость вне 1…100 — ошибка: " + ruleIssues(curRule())[0]);
+    ruleRestore(); paint();
+  }
 
   // Перечитывание всего (поток потерян) не сбрасывает черновик правила и отсчёт удаления
   const sdel = SCHEDS.find((s) => !s.builtin && !s.own && !s._pend && s.id !== sw.id);

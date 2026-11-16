@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.2.0",
+    "version": "0.12.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -1890,7 +1890,7 @@
         "tags": [
           "automation"
         ],
-        "summary": "Режимы объекта",
+        "summary": "Режимы",
         "responses": {
           "200": {
             "description": "Готово",
@@ -1920,8 +1920,8 @@
         "tags": [
           "automation"
         ],
-        "summary": "Режимы объекта целиком",
-        "description": "Удалённый режим уходит из условий «Режим объекта» правил; режим «иначе» — на другой; включённый вручную — снимается",
+        "summary": "Режимы целиком",
+        "description": "Режим можно удалить (если он не builtin): удалённый уходит из условий «Режим объекта» правил (устарело), включённый вручную — снимается. 409 SCHEDULE_OVERLAP — расписание нового или изменённого режима пересекается с расписанием другого",
         "parameters": [
           {
             "name": "If-Match",
@@ -1986,7 +1986,7 @@
         "tags": [
           "automation"
         ],
-        "summary": "Текущий режим объекта",
+        "summary": "Действующий режим",
         "responses": {
           "200": {
             "description": "Готово",
@@ -2011,7 +2011,7 @@
         "tags": [
           "automation"
         ],
-        "summary": "Включить режим вручную или вернуться к расписаниям",
+        "summary": "Включить режим вручную на срок или вернуться к расписанию",
         "requestBody": {
           "required": true,
           "content": {
@@ -2045,7 +2045,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "Срок — не больше 8 часов (422). Забытое переключение кончается само, по концу срока приходит событие objectMode. Кто включил — ModeCurrent.by"
       }
     },
     "/maintenance-windows": {
@@ -2084,7 +2085,9 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — это режим: расписание окна — ObjectMode.scheduleId, ruleIds (null — все) — ObjectMode.off. Интерфейс 0.4.0 окон не использует; сервер их по-прежнему ведёт и учитывает при запуске правил (проверка запуска maintenance)."
       },
       "post": {
         "operationId": "createMaintenanceWindow",
@@ -2122,7 +2125,9 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — это режим: расписание окна — ObjectMode.scheduleId, ruleIds (null — все) — ObjectMode.off. Интерфейс 0.4.0 окон не использует; сервер их по-прежнему ведёт и учитывает при запуске правил (проверка запуска maintenance)."
       }
     },
     "/maintenance-windows/{windowId}": {
@@ -2168,7 +2173,9 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — это режим: расписание окна — ObjectMode.scheduleId, ruleIds (null — все) — ObjectMode.off. Интерфейс 0.4.0 окон не использует; сервер их по-прежнему ведёт и учитывает при запуске правил (проверка запуска maintenance)."
       },
       "put": {
         "operationId": "putMaintenanceWindow",
@@ -2243,7 +2250,9 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — это режим: расписание окна — ObjectMode.scheduleId, ruleIds (null — все) — ObjectMode.off. Интерфейс 0.4.0 окон не использует; сервер их по-прежнему ведёт и учитывает при запуске правил (проверка запуска maintenance)."
       },
       "delete": {
         "operationId": "deleteMaintenanceWindow",
@@ -2251,7 +2260,7 @@
           "automation"
         ],
         "summary": "MaintenanceWindow: удалить",
-        "description": "Вместе со своим расписанием, если оно больше нигде не используется",
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — это режим: расписание окна — ObjectMode.scheduleId, ruleIds (null — все) — ObjectMode.off. Интерфейс 0.4.0 окон не использует; сервер их по-прежнему ведёт и учитывает при запуске правил (проверка запуска maintenance). Вместе со своим расписанием, если оно больше нигде не используется",
         "parameters": [
           {
             "name": "windowId",
@@ -2294,7 +2303,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "deprecated": true
       }
     },
     "/access": {
@@ -2493,6 +2503,15 @@
                     "nextCursor": {
                       "type": "string",
                       "description": "Есть — читать дальше. Нет — конец. Непрозрачный, хранит место, а не номер строки: вставка не сдвигает страницы"
+                    },
+                    "prevCursor": {
+                      "type": "string",
+                      "description": "С 0.9.0: есть — перед этой страницей есть записи отбора; передать в cursor, чтобы прочитать страницу перед ней (limit записей, у начала — первую страницу). Нет — это первая страница. Непрозрачный, как nextCursor. У страницы around нет. Отдаёт система с возможностью journalAudit; без неё клиент листает назад по своему списку курсоров"
+                    },
+                    "offset": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "С 0.9.0: сколько записей отбора перед этой страницей, для подписи «Записи 101–200 из N». Нет поля — сервер не считает; клиент считает страницы сам. У страницы around нет"
                     }
                   },
                   "additionalProperties": false,
@@ -2508,6 +2527,9 @@
           },
           "default": {
             "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
           }
         },
         "parameters": [
@@ -2516,24 +2538,18 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "enum": [
-                "audit",
-                "alarm",
-                "info"
-              ]
+              "type": "string"
             },
-            "description": "Категория; без неё — все"
+            "description": "Категория: audit, alarm, info; с 0.8.0 — несколько через запятую (ИЛИ). Без неё — все"
           },
           {
             "name": "deviceId",
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "format": "uuid"
+              "type": "string"
             },
-            "description": "Устройство"
+            "description": "Объект (uid): записи о нём, его детях, его камере и источниках событий с ней. С 0.8.0 — несколько через запятую (ИЛИ); точное совпадение — deviceMatch=exact"
           },
           {
             "name": "from",
@@ -2565,6 +2581,110 @@
             "description": "Подсистема"
           },
           {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Поиск по тексту записи, подписи вида события, подписи группы (level), имени объекта, автору и fields.ip. Слова через пробел — все должны встретиться (И); «|» — ИЛИ между группами слов; слова в кавычках — точная фраза; «-слово» — записи без него. Регистр не важен, «ё» = «е». Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Группы JournalLevel через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "levelNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть группы JournalLevel: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Виды события (JournalEvent.kind) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kindNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть виды события: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Авторы (JournalEvent.actor) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actorNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть авторов: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "categoryNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть категории: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceIdNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть записи об этих объектах (uid через запятую), всегда точное совпадение deviceId. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceMatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "related",
+                "exact"
+              ]
+            },
+            "description": "Как понимать deviceId: related (по умолчанию, как до 0.8.0) — объект, его дети, его камера и источники с ней; exact — только записи, где deviceId совпадает. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "around",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "id записи: страница вокруг неё — до limit записей, новые первыми, запись в середине (половина новее, половина старше; у края журнала — сколько есть). Отбор остальными параметрами действует, сама запись входит всегда. Курсора в ответе нет; cursor с around не передают. Записи нет — 404. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
             "name": "limit",
             "in": "query",
             "required": false,
@@ -2582,9 +2702,443 @@
             "schema": {
               "type": "string"
             },
-            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
+            "description": "nextCursor или prevCursor (с 0.9.0) прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
           }
-        ]
+        ],
+        "description": "Порядок — порядок записи, новые первыми. from и to отбирают по occurredAt, если он есть, иначе по at. С 0.8.0 (возможность journalSearch): поиск q, несколько значений и «скрыть» (…Not) у полей, группа level, автор actor, точный deviceId (deviceMatch=exact), страница вокруг записи (around). Счётчики по полям — GET /journal/facets, подписи видов — GET /journal/kinds"
+      }
+    },
+    "/journal/facets": {
+      "get": {
+        "operationId": "listJournalFacets",
+        "tags": [
+          "journal"
+        ],
+        "summary": "Журнал: общее число и счётчики по полям (с 0.8.0)",
+        "description": "Те же условия, что у GET /journal (без limit, cursor и around). Необязательная операция: система объявляет её в capabilities.operations; без неё интерфейс показывает список без счётчиков",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Категория: audit, alarm, info; с 0.8.0 — несколько через запятую (ИЛИ). Без неё — все"
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Объект (uid): записи о нём, его детях, его камере и источниках событий с ней. С 0.8.0 — несколько через запятую (ИЛИ); точное совпадение — deviceMatch=exact"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не раньше"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не позже"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Подсистема"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Поиск по тексту записи, подписи вида события, подписи группы (level), имени объекта, автору и fields.ip. Слова через пробел — все должны встретиться (И); «|» — ИЛИ между группами слов; слова в кавычках — точная фраза; «-слово» — записи без него. Регистр не важен, «ё» = «е». Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Группы JournalLevel через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "levelNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть группы JournalLevel: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Виды события (JournalEvent.kind) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kindNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть виды события: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Авторы (JournalEvent.actor) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actorNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть авторов: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "categoryNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть категории: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceIdNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть записи об этих объектах (uid через запятую), всегда точное совпадение deviceId. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceMatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "related",
+                "exact"
+              ]
+            },
+            "description": "Как понимать deviceId: related (по умолчанию, как до 0.8.0) — объект, его дети, его камера и источники с ней; exact — только записи, где deviceId совпадает. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "facetLimit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Сколько значений каждого поля отдать, больше — первыми. Нет — все. Не вошедшие — в more"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JournalFacets"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/journal/export": {
+      "get": {
+        "operationId": "exportJournal",
+        "tags": [
+          "journal"
+        ],
+        "summary": "Журнал: выгрузка в CSV (с 0.9.0)",
+        "description": "Все записи отбора GET /journal, новые первыми, без limit и cursor: сервер отдаёт файл целиком, потоком. Те же условия, что у GET /journal (без around). Столбцы: ID, «Случилось» (occurredAt), «Записано» (at) — ISO 8601 со смещением пояса tz (2026-11-11T13:02:05+03:00), группа (level), код события (kind), подпись вида, объект (имя), ID объекта, «Кто» (actor), IP-адрес (fields.ip), «Было → стало» (fields.change), описание (text). Файл в UTF-8 с BOM, строки через CRLF; значение с «=», «+», «-», «@» в начале — с апострофом (защита от формул). Сама выгрузка — запись аудита вида jexport. Необязательная операция: система объявляет её в capabilities.operations; без неё интерфейс собирает файл сам из страниц GET /journal",
+        "parameters": [
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Категория: audit, alarm, info; с 0.8.0 — несколько через запятую (ИЛИ). Без неё — все"
+          },
+          {
+            "name": "deviceId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Объект (uid): записи о нём, его детях, его камере и источниках событий с ней. С 0.8.0 — несколько через запятую (ИЛИ); точное совпадение — deviceMatch=exact"
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не раньше"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "description": "Не позже"
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Подсистема"
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Поиск по тексту записи, подписи вида события, подписи группы (level), имени объекта, автору и fields.ip. Слова через пробел — все должны встретиться (И); «|» — ИЛИ между группами слов; слова в кавычках — точная фраза; «-слово» — записи без него. Регистр не важен, «ё» = «е». Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Группы JournalLevel через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "levelNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть группы JournalLevel: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Виды события (JournalEvent.kind) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "kindNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть виды события: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Авторы (JournalEvent.actor) через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "actorNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть авторов: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "categoryNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть категории: через запятую (ИЛИ). Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceIdNot",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Скрыть записи об этих объектах (uid через запятую), всегда точное совпадение deviceId. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "deviceMatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "related",
+                "exact"
+              ]
+            },
+            "description": "Как понимать deviceId: related (по умолчанию, как до 0.8.0) — объект, его дети, его камера и источники с ней; exact — только записи, где deviceId совпадает. Только с возможностью journalSearch (capabilities.features)"
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Часовой пояс времени в файле, имя IANA (Europe/Moscow). Без него — Me.timezone. Неизвестный пояс — 422"
+          },
+          {
+            "name": "lang",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ru",
+                "en"
+              ]
+            },
+            "description": "Язык заголовков и названий групп. Без него — ru"
+          },
+          {
+            "name": "delimiter",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                ",",
+                ";"
+              ]
+            },
+            "description": "Разделитель столбцов: «,» (умолчание) или «;» — для Excel с русскими настройками"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Файл CSV. Content-Disposition: attachment; filename=\"journal-ГГГГММДД-ЧЧММ.csv\"",
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/journal/kinds": {
+      "get": {
+        "operationId": "listJournalKinds",
+        "tags": [
+          "journal"
+        ],
+        "summary": "Журнал: виды событий с подписями и группой (с 0.8.0)",
+        "description": "Каталог видов событий журнала: и события объектов (UnitKind.events), и события без объекта — вход, выход, изменение настроек. Запись с kind, которого в каталоге нет, интерфейс подписывает кодом. Необязательная операция: объявление — в capabilities.operations. С 0.9.0 — и виды записей аудита: api.<operationId> (подпись — summary операции) и jexport (выгрузка журнала)",
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/JournalKind"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
       }
     },
     "/assist/turns": {
@@ -3684,7 +4238,7 @@
           "hardware"
         ],
         "summary": "Дети узла дерева, страницами",
-        "description": "Без parentId — верхний уровень. Порядок детей — по имени внутри одного члена; на верхнем уровне и в папках порядок сервера: неизменный между страницами, не алфавитный. Камера-кластер в раскладке servers лежит под доменом: serverId в виде нет. Её детекторы видны только при раскрытии, сводного списка по домену в detectors нет. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "description": "Без parentId — верхний уровень. Порядок детей — по имени внутри одного члена; на верхнем уровне и в папках порядок сервера: неизменный между страницами, не алфавитный. Камера-кластер в раскладке servers лежит под доменом: serverId в виде нет. Её детекторы видны только при раскрытии, сводного списка по домену в detectors нет. Под детектором раскладка detectors показывает и его поддетекторы (вид subdet, с 0.12.0). Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
         "parameters": [
           {
             "name": "layout",
@@ -5464,7 +6018,7 @@
           "hardware"
         ],
         "summary": "Живое видео",
-        "description": "Предметный API объекта по uid (профиль vms.live/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.live/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nАдрес и токен для WebRTC: клиент шлёт офер WHEP на whepUrl с token, только приём. Без streamId поток под размер окна выбирает сервер. Закладка «Просмотр» и настройка детекторов, зоны, пресетов — один клиент. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED, чужой streamId — 422 VALIDATION_FAILED, field: streamId. Вошли через другой кластер, в том числе камера w2c за NAT (direct: false) — 409 OTHER_CLUSTER, params.url: форма даёт кнопку «Открыть». Раздача уже создана для другой сети — 409 OTHER_NETWORK, params.labels: метки раздачи, форма предлагает переразместить (PUT этой же двери) или ждать конца срока раздачи. Шлюза ещё нет — 503 UPSTREAM_UNAVAILABLE: клиент повторяет в счёте оферов. Отбой — DELETE на Location ответа WHEP, у этой двери его нет. Адрес stub:// выдаёт только стенд: настоящего видео там нет, форма отвечает на офер сама тестовой картинкой.",
+        "description": "Предметный API объекта по uid (профиль vms.live/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.live/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nАдрес и токен для WebRTC: клиент шлёт офер WHEP на whepUrl с token, только приём. Без streamId поток под размер окна выбирает сервер. Закладка «Просмотр» и настройка детекторов, зоны, пресетов — один клиент. Камера без связи — 409 DEVICE_OFFLINE, не камера — 422 NOT_SUPPORTED, чужой streamId — 422 VALIDATION_FAILED, field: /streamId. Вошли через другой кластер, в том числе камера w2c за NAT (direct: false) — 409 OTHER_CLUSTER, params.url: форма даёт кнопку «Открыть». Раздача уже создана для другой сети — 409 OTHER_NETWORK, params.labels: метки раздачи, форма предлагает переразместить (PUT этой же двери) или ждать конца срока раздачи. Шлюза ещё нет — 503 UPSTREAM_UNAVAILABLE: клиент повторяет в счёте оферов. Отбой — DELETE на Location ответа WHEP, у этой двери его нет. Адрес stub:// выдаёт только стенд: настоящего видео там нет, форма отвечает на офер сама тестовой картинкой.",
         "parameters": [
           {
             "name": "uid",
@@ -5577,7 +6131,7 @@
           "hardware"
         ],
         "summary": "Разговор через динамик",
-        "description": "Предметный API объекта по uid (профиль vms.talk/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.talk/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\ndeviceId — динамик spk. Адрес и токен для WebRTC: говорит браузер, направление обратное живому, поэтому поле url, а не whepUrl. Просьба к устройству и раздача хозяина — на сервере. Занятость говорит дверь на офере: 409 busy, этой операцией не судится; 404 not yet, 500, 503 — клиент повторяет через 1,5 с, всего 9 оферов, после 500 зовёт эту дверь снова. Отбой — DELETE на Location ответа. Устройство отказало — 409 DEVICE_REFUSED, params.reason: refused. Без связи или выключен — 409 DEVICE_OFFLINE, другой кластер — 409 OTHER_CLUSTER, не spk — 422 NOT_SUPPORTED, field: type, нет права — 403. stub:// — подставной адрес стенда.",
+        "description": "Предметный API объекта по uid (профиль vms.talk/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.talk/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\ndeviceId — динамик spk. Адрес и токен для WebRTC: говорит браузер, направление обратное живому, поэтому поле url, а не whepUrl. Просьба к устройству и раздача хозяина — на сервере. Занятость говорит дверь на офере: 409 busy, этой операцией не судится; 404 not yet, 500, 503 — клиент повторяет через 1,5 с, всего 9 оферов, после 500 зовёт эту дверь снова. Отбой — DELETE на Location ответа. Устройство отказало — 409 DEVICE_REFUSED, params.reason: refused. Без связи или выключен — 409 DEVICE_OFFLINE, другой кластер — 409 OTHER_CLUSTER, не spk — 422 NOT_SUPPORTED, field: /kind, нет права — 403. stub:// — подставной адрес стенда.",
         "parameters": [
           {
             "name": "uid",
@@ -5840,7 +6394,7 @@
           "hardware"
         ],
         "summary": "Удержать отрезок",
-        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nid — ключ {камера}-{from}-{to}, целые секунды. Новый — 201. Такой ключ уже есть — 200: recordingIds объединяются, заметка и releasedAt не стираются. Без recordingIds — все записи камеры сейчас. Конец не позже начала — 422 VALIDATION_FAILED, field: to. Камера другого кластера — 409 OTHER_CLUSTER, запись удержаний туда не идёт. Нет права — 403.",
+        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nid — ключ {камера}-{from}-{to}, целые секунды. Новый — 201. Такой ключ уже есть — 200: recordingIds объединяются, заметка и releasedAt не стираются. Без recordingIds — все записи камеры сейчас. Конец не позже начала — 422 VALIDATION_FAILED, field: /to. Камера другого кластера — 409 OTHER_CLUSTER, запись удержаний туда не идёт. Нет права — 403.",
         "parameters": [
           {
             "name": "uid",
@@ -5997,7 +6551,7 @@
           "hardware"
         ],
         "summary": "Поставить отметку",
-        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nТолько создать и смотреть: правки нет. occurred — момент на шкале, нет поля — сейчас. Пустая заметка — 422 VALIDATION_FAILED, field: note. Нет права bm — 403 PERMISSION_DENIED.",
+        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nТолько создать и смотреть: правки нет. occurred — момент на шкале, нет поля — сейчас. Пустая заметка — 422 VALIDATION_FAILED, field: /note. Нет права bm — 403 PERMISSION_DENIED.",
         "parameters": [
           {
             "name": "uid",
@@ -6058,7 +6612,7 @@
           "hardware"
         ],
         "summary": "Закрепить минуты в архиве",
-        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nПривезти минуты из резервного или с устройства в основной архив камеры. Отрезок делится по суткам, одна просьба на сутки, не больше 7 на человека: остальное в refused с причиной per_person. refused — только о подаче: отказ регистратора приходит поздно, в журнале archive.backfill.refused. Основной записи своего кластера нет — 409 NO_PRIMARY, форма кнопки не даёт. Конец не позже начала — 422, field: to. Другой кластер — 409 OTHER_CLUSTER.",
+        "description": "Предметный API объекта по uid (профиль vms.timeline/1): тело — схема ниже. Нет объекта — 404; вид объекта не реализует vms.timeline/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nПривезти минуты из резервного или с устройства в основной архив камеры. Отрезок делится по суткам, одна просьба на сутки, не больше 7 на человека: остальное в refused с причиной per_person. refused — только о подаче: отказ регистратора приходит поздно, в журнале archive.backfill.refused. Основной записи своего кластера нет — 409 NO_PRIMARY, форма кнопки не даёт. Конец не позже начала — 422, field: /to. Другой кластер — 409 OTHER_CLUSTER. Камера со встроенным хранилищем (vms.edge/1): запрос ещё и заказывает забор её пропусков внутри периода, edgeOrdered — сколько; edgeOnly: true делает только это, без квоты.",
         "parameters": [
           {
             "name": "uid",
@@ -6210,7 +6764,7 @@
           "hardware"
         ],
         "summary": "Задать пресет",
-        "description": "Предметный API объекта по uid (профиль vms.ptz/1): тело — схема ниже. Ответ — объект (Unit) после правки. Нет объекта — 404; вид объекта не реализует vms.ptz/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nPUT {} запоминает нынешнее положение камеры под номером n: записи нет — создаётся с пустым именем; камера без ptz — 422 NOT_SUPPORTED, field: ptz; без связи — 409 DEVICE_OFFLINE; камера за NAT (direct: false) — 409 OTHER_CLUSTER без ссылки, предел. PUT {name}, пустое тоже, положения не трогает и устройству не идёт, поэтому ни связь, ни ptz его не судят: записи нет — создаётся, есть — имя заменяется, пустое снимает подпись. Запись снимает только DELETE. Номер больше presetMax — 404 NOT_FOUND. Ответ — камера целиком",
+        "description": "Предметный API объекта по uid (профиль vms.ptz/1): тело — схема ниже. Ответ — объект (Unit) после правки. Нет объекта — 404; вид объекта не реализует vms.ptz/1 — 422 NOT_SUPPORTED, field /kind. field отказа — JSON Pointer: в теле запроса (/streamId), свойство объекта — /properties/<имя>.\n\nPUT {} запоминает нынешнее положение камеры под номером n: записи нет — создаётся с пустым именем; камера без ptz — 422 NOT_SUPPORTED, field: /properties/ptz; без связи — 409 DEVICE_OFFLINE; камера за NAT (direct: false) — 409 OTHER_CLUSTER без ссылки, предел. PUT {name}, пустое тоже, положения не трогает и устройству не идёт, поэтому ни связь, ни ptz его не судят: записи нет — создаётся, есть — имя заменяется, пустое снимает подпись. Запись снимает только DELETE. Номер больше presetMax — 404 NOT_FOUND. Ответ — камера целиком",
         "parameters": [
           {
             "name": "uid",
@@ -6437,6 +6991,63 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/RecordingDays"
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/units/{uid}/pos/raw": {
+      "get": {
+        "operationId": "listUnitPosRaw",
+        "tags": [
+          "units"
+        ],
+        "summary": "Последние строки от кассы",
+        "description": "Предметный API объекта по uid (профиль vms.pos/1): ответ — схема ниже. Нет объекта — 404; вид объекта не реализует vms.pos/1 — 422 NOT_SUPPORTED, field /kind. У этого GET тела нет: field отказа — JSON Pointer на параметр запроса (/limit).\n\nСырые строки, как касса их передала: до разбора, без слов начала, конца и подсветки. Администратор настраивает слова по живым строкам. Строки идут от старых к новым, берутся последние limit (умолчание 50, от 1 до 200); сервер хранит последние 200 строк источника. Нет строк — items: []. limit вне границ — 422 VALIDATION_FAILED, field: /limit.\n\nНа тестовом стенде строку подкладывает POST /test/events с type pos.raw (строки идут по at, от старых к новым). Пока источнику ничего не подкладывали и не очищали (clear: true), стенд вместо строк отдаёт пример чека (заглушка): он нигде не хранится, первая подложенная строка начинает список с пустого, после clear: true — items: []. Настоящий бэкенд отдаёт строки, которые получил от кассы.",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "uid объекта"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 50
+            },
+            "description": "Сколько последних строк вернуть"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PosRawLines"
                 }
               }
             }
@@ -6941,7 +7552,7 @@
           "units"
         ],
         "summary": "Схема объекта",
-        "description": "Только у видов с schemaPerUnit: схема свойств этого объекта поверх схемы вида",
+        "description": "Только у видов с schemaPerUnit: схема свойств этого объекта поверх схемы вида. Условия if/then/else — и верхнее, и части allOf — решены по свойствам объекта, ветки слиты со схемой; в ответе нет ни if, ни allOf. Пример — параметры драйвера камеры (RTSP, ONVIF, нативный): x-ui-tab — вкладка карточки, x-ui-group — блок",
         "parameters": [
           {
             "name": "uid",
@@ -7261,7 +7872,7 @@
         "description": "Событие, по которому запускается правило: событие объекта из описания его вида (UnitKind.events)"
       },
       "RuleAction": {
-        "description": "Действие правила. Действие объекта — {type: unitAction, action, target, params}: команда из UnitKind.actions с ruleAction, params — по её схеме params; камера: record, disable, alarm, wall, preset, arm, disarm, detect (включить детектор на minutes минут: повтор продлевает срок, свой включённый детектор этого вида второго не заводит), scan (проверить архив детектором за окно вокруг события: beforeSec до, afterSec после; одно окно — одна задача). Настраиваются только здесь, другой консоли нет. Действие системы (не объекта) — {source, action, …}: поля по справочнику ruleActions",
+        "description": "Действие правила. Действие объекта — {type: unitAction, action, target, params}: команда из UnitKind.actions с ruleAction, params — по её схеме params; камера: record, disable, alarm, wall, preset, arm, disarm, detect (включить детектор на minutes минут: повтор продлевает срок, свой включённый детектор этого вида второго не заводит), scan (проверить архив детектором за окно вокруг события: beforeSec до, afterSec после; одно окно — одна задача). Настраиваются только здесь, другой консоли нет. Действие системы (не объекта) — {source, action, …}: поля по справочнику ruleActions. Новые в 0.3.0: ntf.push (to, subject, body, attach), client.sound (file, roleId), client.voice (roleId), client.view (view, roleId), client.program (path, roleId); у ntf.email — attach; у net.http — методы PUT и DELETE, auth, headers, body. Встроенный сервер эти действия объявляет и пишет в журнал запуска, но не исполняет (заглушка стенда: у него нет клиента оператора и push-канала). Новые команды видов (UnitKind.actions с ruleAction): камера — export, replicate, ptz.tour; сервер — program, service; динамик — play; у камеры новые поля: record — preSec, fps; alarm — mode, comment; alarmclose — resolution; preset — speed, holdSec. Их встроенный сервер тоже только пишет в журнал и отмечает в status.observed объекта",
         "anyOf": [
           {
             "type": "object",
@@ -7350,13 +7961,15 @@
               },
               "to": {
                 "type": "string",
-                "description": "email: адрес"
+                "description": "email, push: адрес или получатель"
               },
               "subject": {
-                "type": "string"
+                "type": "string",
+                "description": "email: тема. push: заголовок. Шаблон, как text у tg"
               },
               "body": {
-                "type": "string"
+                "type": "string",
+                "description": "email, push: текст. http: тело запроса. Шаблон"
               },
               "chat": {
                 "type": "string"
@@ -7365,7 +7978,9 @@
                 "type": "string",
                 "enum": [
                   "GET",
-                  "POST"
+                  "POST",
+                  "PUT",
+                  "DELETE"
                 ]
               },
               "url": {
@@ -7374,6 +7989,49 @@
               "ruleId": {
                 "type": "string",
                 "format": "uuid"
+              },
+              "attach": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "snapshot",
+                  "video"
+                ],
+                "description": "email, push: вложение — кадр или видео события"
+              },
+              "auth": {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "basic",
+                  "digest",
+                  "bearer"
+                ],
+                "description": "http: способ авторизации"
+              },
+              "headers": {
+                "type": "string",
+                "description": "http: заголовки, по строке «Имя: значение»"
+              },
+              "file": {
+                "type": "string",
+                "description": "client.sound: звуковой файл"
+              },
+              "view": {
+                "type": "string",
+                "enum": [
+                  "select",
+                  "map",
+                  "archive",
+                  "mark",
+                  "slideshow",
+                  "restore"
+                ],
+                "description": "client.view: что сделать с экраном оператора — выбрать камеру, показать карту, открыть архив, пометить камеру, начать слайд-шоу, вернуть раскладку"
+              },
+              "path": {
+                "type": "string",
+                "description": "client.program: путь к программе на компьютере оператора"
               }
             }
           }
@@ -7434,7 +8092,23 @@
           "windowSec": {
             "type": "integer",
             "minimum": 0,
-            "description": "Окно, в которое должны прийти все события; 0 — одно событие"
+            "description": "Окно, в которое должны прийти все события (whenLogic: all); 0 — одно событие или whenLogic: any"
+          },
+          "whenLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как события triggers запускают правило. any — любое из событий: каждое запускает правило само, окна нет (windowSec — 0). all — нужны все события в пределах windowSec. Нет поля — all. Одно событие: поле ни на что не влияет. Без reference.ruleFeatures: whenAny — 422 NOT_SUPPORTED, field: triggers, rule.featureNotDeclared"
+          },
+          "condLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как соединены conditions. all — должны выполниться все (и). any — достаточно одного (или); если не выполнено ни одно, запуск пропущен. Нет поля — all. Группировку «A и (B или C)» поле не выражает: связка одна на весь блок. Без reference.ruleFeatures: condAny поле any — 422 NOT_SUPPORTED, field: conditions, rule.featureNotDeclared"
           },
           "runAt": {
             "anyOf": [
@@ -7454,6 +8128,16 @@
                     "type": "string",
                     "pattern": "^([01][0-9]|2[0-4]):[0-5][0-9]$",
                     "description": "Время суток ЧЧ:ММ в часовом поясе системы"
+                  },
+                  "everyMin": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Повторять запуск каждые everyMin минут: от time до конца суток в выбранные дни. Нет поля — один запуск в time. Встроенный сервер запускает такие правила по своим часам (/test/clock); запуск правил без everyMin по часам — как раньше, только вручную. Без reference.ruleFeatures: every — 422 NOT_SUPPORTED, field: start, rule.featureNotDeclared"
+                  },
+                  "randomShift": {
+                    "type": "boolean",
+                    "description": "Сдвигать каждый запуск на случайное число минут внутри интервала everyMin (0…everyMin−1). Только вместе с everyMin, иначе 422 RULE_INVALID, rule.noEvery. Без reference.ruleFeatures: every — так же"
                   }
                 },
                 "additionalProperties": false,
@@ -8735,14 +9419,90 @@
           },
           "fields": {
             "type": "object",
-            "properties": {},
+            "properties": {
+              "change": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "field",
+                  "before",
+                  "after"
+                ],
+                "description": "Что изменилось (с 0.8.0): одно поле, было и стало. Подпись поля — данные, как текст записи",
+                "properties": {
+                  "field": {
+                    "type": "string"
+                  },
+                  "before": {
+                    "type": "string"
+                  },
+                  "after": {
+                    "type": "string"
+                  }
+                }
+              },
+              "ip": {
+                "type": "string",
+                "description": "Адрес, с которого вошёл или пытался войти пользователь (с 0.8.0); с 0.9.0 — и адрес запроса у записи аудита"
+              },
+              "changes": {
+                "type": "array",
+                "description": "Все изменённые поля (с 0.9.0), если их больше одного; change — первое из них. Секреты (пароли, ключи) — «••••»",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "field",
+                    "before",
+                    "after"
+                  ],
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "before": {
+                      "type": "string"
+                    },
+                    "after": {
+                      "type": "string"
+                    }
+                  }
+                }
+              },
+              "operation": {
+                "type": "string",
+                "description": "Запись аудита (с 0.9.0): operationId запроса, который изменил систему"
+              },
+              "method": {
+                "type": "string",
+                "enum": [
+                  "POST",
+                  "PUT",
+                  "PATCH",
+                  "DELETE"
+                ],
+                "description": "Запись аудита (с 0.9.0): метод запроса"
+              },
+              "path": {
+                "type": "string",
+                "description": "Запись аудита (с 0.9.0): путь запроса"
+              }
+            },
             "additionalProperties": true,
-            "description": "Подробности события"
+            "description": "Подробности события. Известные ключи: change и ip (с 0.8.0); changes, operation, method, path (с 0.9.0); остальные ключи — коды, подписи к ним даёт интерфейс"
           },
           "cameraId": {
             "type": "string",
             "format": "uuid",
             "description": "Камера, про которую запись: сама, родитель единицы, камера источника событий. Заполнено в journal.event: по нему форма судит, чья строка, карточка источника может быть не прочитана"
+          },
+          "level": {
+            "$ref": "#/components/schemas/JournalLevel",
+            "description": "Группа записи (с 0.8.0). Нет поля — группа из category: audit → audit, alarm → alarm, info → info"
+          },
+          "actor": {
+            "type": "string",
+            "description": "Кто сделал (с 0.8.0): логин или «система», как actor в истории прав. Нет поля — автор неизвестен или это не действие человека. С 0.9.0 система с возможностью journalAudit заполняет его у каждой записи: логин пользователя запроса, у событий оборудования и расписаний — «система»"
           }
         },
         "additionalProperties": false,
@@ -8862,7 +9622,7 @@
                 "fields"
               ]
             },
-            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия: у поля options — его значения"
+            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия: у поля options — его значения. С 0.3.0: ntf.push, client.sound, client.voice, client.view, client.program; поля attach (email, push), auth, headers, body (http)"
           },
           "access": {
             "type": "object",
@@ -9158,7 +9918,19 @@
                 "branches"
               ]
             },
-            "description": "Шаги хода выполнения, которые исполняет система. Что не объявлено, форма не предлагает; как судится — описание ruleActions"
+            "description": "Шаги хода выполнения, которые исполняет система. Что не объявлено, форма не предлагает; как судится — описание ruleActions. check (ветки yes, no), after и abort (веток нет) — с 0.3.0: система, которая их не объявила, не получает их от формы, включённое правило с ними — 422 NOT_SUPPORTED, control.notDeclared"
+          },
+          "ruleFeatures": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "whenAny",
+                "condAny",
+                "every"
+              ]
+            },
+            "description": "Что из логики и расписания правила исполняет система: whenAny — Rule.whenLogic: any, condAny — Rule.condLogic: any, every — Rule.runAt.everyMin и randomShift. Чего нет в списке, того форма не предлагает; включённое правило с этим — 422 NOT_SUPPORTED, params.issue.code rule.featureNotDeclared, params.issue.params.feature. Нет поля — ничего из перечисленного не исполняется"
           },
           "layouts": {
             "type": "array",
@@ -9321,7 +10093,9 @@
           "exportAudio",
           "exportPassword",
           "exportPlayer",
-          "exportCloud"
+          "exportCloud",
+          "journalSearch",
+          "journalAudit"
         ],
         "description": "Необязательная возможность системы: без неё поле есть в записи, но менять его нельзя (422 NOT_SUPPORTED)",
         "x-enum-descriptions": {
@@ -9352,7 +10126,9 @@
           "exportAudio": "Звук",
           "exportPassword": "Пароль на файл",
           "exportPlayer": "Плеер в выдаче",
-          "exportCloud": "Выгрузка в облако"
+          "exportCloud": "Выгрузка в облако",
+          "journalSearch": "Поиск в журнале (с 0.8.0): у GET /journal параметры q, level, kind, actor, …Not, deviceMatch, around; в записи level и actor. Без неё интерфейс показывает журнал без поиска и фасетов",
+          "journalAudit": "Аудит в журнале (с 0.9.0): у каждой записи actor (логин или «система»); каждое изменение через API с ответом 2xx — запись level audit, kind api.<operationId>, с fields.ip, operation, method, path и «было → стало»; в ответе GET /journal — prevCursor и offset. Без неё клиент не ждёт ни автора у каждой записи, ни записей аудита, ни prevCursor"
         }
       },
       "Capabilities": {
@@ -9406,7 +10182,8 @@
               "journal.event",
               "kinds.changed",
               "export.progress",
-              "export.finished"
+              "export.finished",
+              "replication.changed"
             ],
             "x-enum-descriptions": {
               "stream.reset": "Пропущенное не дослать (Last-Event-ID слишком старый): клиент перечитывает то, что есть у него в кэше. Весь перечень не читается никогда",
@@ -9425,7 +10202,8 @@
               "journal.event": "Новая запись журнала об устройстве: entityId — устройство, payload — JournalEvent. Наблюдающим устройство, его родителя или камеру, к которой привязан источник событий: лента и титры закладки «Просмотр»",
               "kinds.changed": "Описания видов изменились: payload.kinds — коды. Подсказка, а не гарантия: после stream.reset клиент сам перечитывает GET /kinds с If-None-Match",
               "export.progress": "Ход выгрузки: kind=exportJob, entityId — задание, payload — progress и part. Только автору",
-              "export.finished": "Выгрузка закончилась: kind=exportJob, payload — state и files. Только автору"
+              "export.finished": "Выгрузка закончилась: kind=exportJob, payload — state и files. Только автору",
+              "replication.changed": "Изменилось состояние репликации встроенного хранилища (профиль vms.edge/1): kind=storage, entityId — хранилище, payload — state (общее состояние), cameraId (у регистратора — камера, чьё состояние изменилось), gap (новый или изменённый пропуск: from, to, result). Приходит при смене state и при новом или закрытом пропуске; клиент перечитывает объект (status.observed.replicationStatus)"
             }
           },
           "at": {
@@ -9586,7 +10364,7 @@
         "properties": {
           "type": {
             "type": "string",
-            "description": "device.signal — пропало или вернулось соединение с устройством (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId), io.input — сигнал входа deviceId (value): active запускает включённые правила по этому событию, normal кончает событие: эскалация с stop: reset останавливается, journal.event — новая запись журнала об устройстве deviceId (event): уходит в поток, unit.event — событие объекта deviceId из описания его вида (eventId, match): запускает включённые правила по этому событию, их шаги unitAction выполняются",
+            "description": "device.signal — пропало или вернулось соединение с устройством (online), device.fault — причина без связи, device.found — устройство назвало новую запись под deviceId (found), device.lost — запись deviceId пропала, device.parent — у записи сменился родитель (parentId), io.input — сигнал входа deviceId (value): active запускает включённые правила по этому событию, normal кончает событие: эскалация с stop: reset останавливается, journal.event — новая запись журнала об устройстве deviceId (event): уходит в поток, unit.event — событие объекта deviceId из описания его вида (eventId, match): запускает включённые правила по этому событию, их шаги unitAction выполняются, pos.raw — касса источника событий deviceId передала сырую строку (text, необязательно at): сервер добавляет её к последним строкам, их отдаёт GET /units/{uid}/pos/raw; вид без vms.pos/1 — 422 NOT_SUPPORTED, clear: true очищает список; пустой text или длиннее 1000 символов — 422 VALIDATION_FAILED, field: text. edge.gap — встроенное хранилище (deviceId — uid хранилища) получило пропуск: cameraId (у регистратора), from, to, result (queued по умолчанию, lost или done); edge.check — mediaOk и profileG хранилища; edge.fail — серверу не удалось забрать записи: reason (no_link, media, archive, space), cameraId",
             "enum": [
               "device.signal",
               "device.fault",
@@ -9597,7 +10375,11 @@
               "scenario.outcome",
               "domain.link",
               "journal.event",
-              "unit.event"
+              "unit.event",
+              "pos.raw",
+              "edge.gap",
+              "edge.check",
+              "edge.fail"
             ]
           },
           "deviceId": {
@@ -9683,6 +10465,62 @@
             "additionalProperties": true,
             "properties": {},
             "description": "unit.event: поля события"
+          },
+          "text": {
+            "type": "string",
+            "description": "pos.raw: строка от кассы"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "pos.raw: когда строка пришла; нет — по часам сервера"
+          },
+          "clear": {
+            "type": "boolean",
+            "description": "pos.raw: true — очистить строки источника (text не нужен): пример чека больше не возвращается, items: []"
+          },
+          "cameraId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "edge.gap, edge.fail: камера регистратора, к которой относится пропуск или отказ"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time",
+            "description": "edge.gap: начало пропуска"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time",
+            "description": "edge.gap: конец пропуска"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "done",
+              "lost"
+            ],
+            "description": "edge.gap: итог пропуска; нет поля — queued"
+          },
+          "mediaOk": {
+            "type": "boolean",
+            "description": "edge.check: карта или диск на месте и пишут"
+          },
+          "profileG": {
+            "type": "boolean",
+            "description": "edge.check: устройство отдаёт записи по ONVIF Profile G"
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "no_link",
+              "media",
+              "archive",
+              "space",
+              "profile"
+            ],
+            "description": "edge.fail: причина отказа (profile — устройство не отдаёт записи по ONVIF Profile G)"
           }
         },
         "additionalProperties": false,
@@ -10001,6 +10839,7 @@
           "NOT_SUPPORTED",
           "RULE_INVALID",
           "BUILTIN",
+          "SCHEDULE_OVERLAP",
           "NOT_RUNNABLE",
           "UPSTREAM_UNAVAILABLE",
           "NOT_REVERTIBLE",
@@ -10016,7 +10855,11 @@
           "LIMIT_EXCEEDED",
           "EXPORT_EXPIRED",
           "SUPERVISOR_REJECTED",
-          "SUPERVISOR_REQUIRED"
+          "SUPERVISOR_REQUIRED",
+          "PORT_TAKEN",
+          "CERTIFICATE_INVALID",
+          "CERTIFICATE_EXPIRED",
+          "KEY_MISMATCH"
         ],
         "description": "Машинный код ошибки: интерфейс показывает свой текст по коду",
         "x-enum-descriptions": {
@@ -10048,7 +10891,7 @@
           "PARENT_MISMATCH": "Родитель — в другом домене или такого вида дочерних у него не бывает (422)",
           "NOT_SUPPORTED": "Система этого не поддерживает: вид устройства или настройка вне GET /reference → capabilities (422; в групповых — по объекту)",
           "RULE_INVALID": "Включённое правило с ошибкой не сохраняется: что не так — в params.issue (422)",
-          "BUILTIN": "Встроенное не правится и не удаляется (409): «Всегда», «Никогда», системный режим; у роли «Администратор» меняются только назначения",
+          "BUILTIN": "Встроенное не правится и не удаляется (409): «Всегда», «Никогда», встроенный режим (ObjectMode.builtin); у роли «Администратор» меняются только назначения",
           "NOT_RUNNABLE": "Правило сейчас нельзя запустить: выключено, с ошибкой или только по событию — в params.reason (409)",
           "UPSTREAM_UNAVAILABLE": "Бэкенд недоступен, не ответил вовремя или занят (502, 503, 504; при 503 — Retry-After). Запись могла пройти: повтор — с тем же idempotencyKey или после перечитывания. У шага операции — шаг не выполнен из-за сбоя сервера, в объекте ничего не записано, retry-failed повторяет его",
           "NOT_REVERTIBLE": "Операцию нельзя откатить или повторить (409), причина в params.reason: notLast — не последняя в стопке, isRevert — это сам откат, expired — срок вышел, reverted — уже откачена, running — не закончена, empty — без удачных шагов, stale — повтор очищен или срок вышел",
@@ -10064,7 +10907,12 @@
           "LIMIT_EXCEEDED": "Предел выгрузки: params.limit — какой, params.max — сколько можно (422)",
           "EXPORT_EXPIRED": "Файл выгрузки удалён по сроку (410)",
           "SUPERVISOR_REJECTED": "Супервизор указан, но не подходит (403), field: /supervisor: неверный пароль, нет прав на камеру, сам автор или не из роли супервизоров",
-          "SUPERVISOR_REQUIRED": "Нужен супервизор, а его нет в теле (403), field: /supervisor"
+          "SUPERVISOR_REQUIRED": "Нужен супервизор, а его нет в теле (403), field: /supervisor",
+          "SCHEDULE_OVERLAP": "Расписание режима пересекается с расписанием другого режима (409): params {modeId, from, to} — режим и первое пересечение за 14 дней",
+          "PORT_TAKEN": "Порт уже занят другим портом этого сервера или портами видео веб-сервера (422), field — указатель на порт, params.other — поле, которое его занимает, или webReservedPorts",
+          "CERTIFICATE_INVALID": "Файл сертификата или ключа не в формате PEM, ключ с паролем или PFX (422), field: /params/certificate или /params/privateKey",
+          "CERTIFICATE_EXPIRED": "Срок сертификата кончился или ещё не начался (422), field: /params/certificate",
+          "KEY_MISMATCH": "Закрытый ключ не подходит к сертификату (422), field: /params/privateKey"
         }
       },
       "ObjectsDeleteRequest": {
@@ -10193,7 +11041,23 @@
           "windowSec": {
             "type": "integer",
             "minimum": 0,
-            "description": "Окно, в которое должны прийти все события; 0 — одно событие"
+            "description": "Окно, в которое должны прийти все события (whenLogic: all); 0 — одно событие или whenLogic: any"
+          },
+          "whenLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как события triggers запускают правило. any — любое из событий: каждое запускает правило само, окна нет (windowSec — 0). all — нужны все события в пределах windowSec. Нет поля — all. Одно событие: поле ни на что не влияет. Без reference.ruleFeatures: whenAny — 422 NOT_SUPPORTED, field: triggers, rule.featureNotDeclared"
+          },
+          "condLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как соединены conditions. all — должны выполниться все (и). any — достаточно одного (или); если не выполнено ни одно, запуск пропущен. Нет поля — all. Группировку «A и (B или C)» поле не выражает: связка одна на весь блок. Без reference.ruleFeatures: condAny поле any — 422 NOT_SUPPORTED, field: conditions, rule.featureNotDeclared"
           },
           "runAt": {
             "anyOf": [
@@ -10213,6 +11077,16 @@
                     "type": "string",
                     "pattern": "^([01][0-9]|2[0-4]):[0-5][0-9]$",
                     "description": "Время суток ЧЧ:ММ в часовом поясе системы"
+                  },
+                  "everyMin": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Повторять запуск каждые everyMin минут: от time до конца суток в выбранные дни. Нет поля — один запуск в time. Встроенный сервер запускает такие правила по своим часам (/test/clock); запуск правил без everyMin по часам — как раньше, только вручную. Без reference.ruleFeatures: every — 422 NOT_SUPPORTED, field: start, rule.featureNotDeclared"
+                  },
+                  "randomShift": {
+                    "type": "boolean",
+                    "description": "Сдвигать каждый запуск на случайное число минут внутри интервала everyMin (0…everyMin−1). Только вместе с everyMin, иначе 422 RULE_INVALID, rule.noEvery. Без reference.ruleFeatures: every — так же"
                   }
                 },
                 "additionalProperties": false,
@@ -10706,7 +11580,7 @@
               "recording",
               "online"
             ],
-            "description": "Справочник ruleConditions"
+            "description": "Справочник ruleConditions. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
           },
           "scheduleId": {
             "type": "string",
@@ -10719,7 +11593,8 @@
               "type": "string",
               "format": "uuid"
             },
-            "description": "mode: режимы объекта, в которых правило выполняется"
+            "description": "Устарело в 0.4.0, работает как раньше. mode: режимы объекта, в которых правило выполняется. Вместо условия режим сам выключает правила (ObjectMode.off)",
+            "deprecated": true
           },
           "target": {
             "anyOf": [
@@ -10938,9 +11813,18 @@
           },
           {
             "$ref": "#/components/schemas/RuleEscalate"
+          },
+          {
+            "$ref": "#/components/schemas/RuleCheck"
+          },
+          {
+            "$ref": "#/components/schemas/RuleAfter"
+          },
+          {
+            "$ref": "#/components/schemas/RuleAbort"
           }
         ],
-        "description": "Шаг «Тогда»: действие (action) или шаг хода выполнения (control)"
+        "description": "Шаг «Тогда»: действие (action) или шаг хода выполнения (control: wait, waitEvent, ask, escalate, check, after, abort)"
       },
       "RuleContent": {
         "type": "object",
@@ -10993,7 +11877,23 @@
           "windowSec": {
             "type": "integer",
             "minimum": 0,
-            "description": "Окно, в которое должны прийти все события; 0 — одно событие"
+            "description": "Окно, в которое должны прийти все события (whenLogic: all); 0 — одно событие или whenLogic: any"
+          },
+          "whenLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как события triggers запускают правило. any — любое из событий: каждое запускает правило само, окна нет (windowSec — 0). all — нужны все события в пределах windowSec. Нет поля — all. Одно событие: поле ни на что не влияет. Без reference.ruleFeatures: whenAny — 422 NOT_SUPPORTED, field: triggers, rule.featureNotDeclared"
+          },
+          "condLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как соединены conditions. all — должны выполниться все (и). any — достаточно одного (или); если не выполнено ни одно, запуск пропущен. Нет поля — all. Группировку «A и (B или C)» поле не выражает: связка одна на весь блок. Без reference.ruleFeatures: condAny поле any — 422 NOT_SUPPORTED, field: conditions, rule.featureNotDeclared"
           },
           "runAt": {
             "anyOf": [
@@ -11013,6 +11913,16 @@
                     "type": "string",
                     "pattern": "^([01][0-9]|2[0-4]):[0-5][0-9]$",
                     "description": "Время суток ЧЧ:ММ в часовом поясе системы"
+                  },
+                  "everyMin": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Повторять запуск каждые everyMin минут: от time до конца суток в выбранные дни. Нет поля — один запуск в time. Встроенный сервер запускает такие правила по своим часам (/test/clock); запуск правил без everyMin по часам — как раньше, только вручную. Без reference.ruleFeatures: every — 422 NOT_SUPPORTED, field: start, rule.featureNotDeclared"
+                  },
+                  "randomShift": {
+                    "type": "boolean",
+                    "description": "Сдвигать каждый запуск на случайное число минут внутри интервала everyMin (0…everyMin−1). Только вместе с everyMin, иначе 422 RULE_INVALID, rule.noEvery. Без reference.ruleFeatures: every — так же"
                   }
                 },
                 "additionalProperties": false,
@@ -11196,7 +12106,23 @@
           "windowSec": {
             "type": "integer",
             "minimum": 0,
-            "description": "Окно, в которое должны прийти все события; 0 — одно событие"
+            "description": "Окно, в которое должны прийти все события (whenLogic: all); 0 — одно событие или whenLogic: any"
+          },
+          "whenLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как события triggers запускают правило. any — любое из событий: каждое запускает правило само, окна нет (windowSec — 0). all — нужны все события в пределах windowSec. Нет поля — all. Одно событие: поле ни на что не влияет. Без reference.ruleFeatures: whenAny — 422 NOT_SUPPORTED, field: triggers, rule.featureNotDeclared"
+          },
+          "condLogic": {
+            "type": "string",
+            "enum": [
+              "any",
+              "all"
+            ],
+            "description": "Как соединены conditions. all — должны выполниться все (и). any — достаточно одного (или); если не выполнено ни одно, запуск пропущен. Нет поля — all. Группировку «A и (B или C)» поле не выражает: связка одна на весь блок. Без reference.ruleFeatures: condAny поле any — 422 NOT_SUPPORTED, field: conditions, rule.featureNotDeclared"
           },
           "runAt": {
             "anyOf": [
@@ -11216,6 +12142,16 @@
                     "type": "string",
                     "pattern": "^([01][0-9]|2[0-4]):[0-5][0-9]$",
                     "description": "Время суток ЧЧ:ММ в часовом поясе системы"
+                  },
+                  "everyMin": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10080,
+                    "description": "Повторять запуск каждые everyMin минут: от time до конца суток в выбранные дни. Нет поля — один запуск в time. Встроенный сервер запускает такие правила по своим часам (/test/clock); запуск правил без everyMin по часам — как раньше, только вручную. Без reference.ruleFeatures: every — 422 NOT_SUPPORTED, field: start, rule.featureNotDeclared"
+                  },
+                  "randomShift": {
+                    "type": "boolean",
+                    "description": "Сдвигать каждый запуск на случайное число минут внутри интервала everyMin (0…everyMin−1). Только вместе с everyMin, иначе 422 RULE_INVALID, rule.noEvery. Без reference.ruleFeatures: every — так же"
                   }
                 },
                 "additionalProperties": false,
@@ -12313,7 +13249,8 @@
               "string",
               "null"
             ],
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Расписание, по которому режим включается; null — режим включают только вручную. Расписания режимов не пересекаются: запись с пересечением — 409 SCHEDULE_OVERLAP"
           },
           "system": {
             "type": "string",
@@ -12324,13 +13261,41 @@
               "work",
               ""
             ],
-            "description": "Системный режим (не удаляется): его код; пусто — свой режим"
+            "description": "Устарело в 0.4.0: код прежнего системного режима (service, night, weekend, work); пусто — свой режим. Удаление теперь защищает builtin, а не system",
+            "deprecated": true
           },
           "color": {
             "type": [
               "string",
               "null"
             ]
+          },
+          "off": {
+            "type": "object",
+            "properties": {
+              "all": {
+                "type": "boolean",
+                "description": "true — режим выключает все правила, в том числе созданные потом"
+              },
+              "ruleIds": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": "Правила, которые режим выключает, когда all false. Удалённое правило уходит отсюда само"
+              }
+            },
+            "additionalProperties": false,
+            "required": [
+              "all",
+              "ruleIds"
+            ],
+            "description": "Что режим выключает, пока действует: сервер не запускает такие правила (RuleStatus.state off, проверка запуска modeOff). Нет в записи — {all: false, ruleIds: []}. Неизвестное правило в ruleIds — 422 VALIDATION_FAILED (field items)"
+          },
+          "builtin": {
+            "type": "boolean",
+            "description": "Встроенный режим не удаляется (409 BUILTIN). Значение ведёт сервер: клиент его не меняет, у нового режима оно false. Сейчас встроен один — «Обслуживание» (только вручную, выключает все правила)"
           }
         },
         "additionalProperties": false,
@@ -12338,9 +13303,9 @@
           "id",
           "name",
           "scheduleId",
-          "system",
           "color"
-        ]
+        ],
+        "description": "Режим: выключает правила на время. В каждый момент действует один режим или ни одного (modeId null, «Обычная работа»: все правила работают по своим условиям). Режим включает расписание scheduleId или оператор на срок (POST /modes/current)"
       },
       "Modes": {
         "type": "object",
@@ -12352,8 +13317,13 @@
             }
           },
           "otherwise": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "deprecated": true,
+            "description": "Устарело в 0.4.0, работает как раньше. Режим «иначе», когда ни одно расписание не действует. Теперь в этом случае нет режима (modeId null, «Обычная работа»); null — так и есть. Порядок items больше не значит приоритет: расписания не пересекаются"
           },
           "version": {
             "type": "string",
@@ -12364,10 +13334,9 @@
         "additionalProperties": false,
         "required": [
           "items",
-          "otherwise",
           "version"
         ],
-        "description": "Режимы объекта: по расписаниям, а когда ни одно не действует — otherwise. Версия одна на весь список"
+        "description": "Режимы объекта. Версия одна на весь список. Порядок items — устарело (приоритета нет: расписания не пересекаются)"
       },
       "ModesWrite": {
         "type": "object",
@@ -12379,23 +13348,31 @@
             }
           },
           "otherwise": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "deprecated": true,
+            "description": "Устарело в 0.4.0, работает как раньше. Нет в теле — остаётся прежний; null — нет режима «иначе»"
           }
         },
         "additionalProperties": false,
         "required": [
-          "items",
-          "otherwise"
+          "items"
         ],
-        "description": "Режимы целиком. id нового режима задаёт клиент (UUID)"
+        "description": "Режимы целиком. id нового режима задаёт клиент (UUID). Встроенный режим пропустить нельзя (409 BUILTIN); у режима с новым или другим расписанием, пересекающимся с расписанием другого режима, отказ 409 SCHEDULE_OVERLAP: params {modeId — режим, с которым пересеклось, from, to — первое пересечение за 14 дней}. Пересечение от правки общего расписания в библиотеке (PUT /schedules/{id}) запись принимает; интерфейс проверяет 14 дней вперёд и предупреждает. Правила в off.ruleIds и расписание scheduleId должны существовать: иначе 422 VALIDATION_FAILED, field items. Запись режима без off оставляет прежний off"
       },
       "ModeCurrent": {
         "type": "object",
         "properties": {
           "modeId": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "Действующий режим; null — «Обычная работа» (до 0.4.0 был всегда режим)"
           },
           "manual": {
             "anyOf": [
@@ -12419,15 +13396,39 @@
                 "type": "null"
               }
             ],
-            "description": "Включён вручную: до until (до следующей смены по расписанию) или до отмены (null)"
+            "description": "Устарело в 0.4.0, работает как раньше. Заменено полями source, until и by. Включён вручную: до until (до следующей смены по расписанию) или до отмены (null)",
+            "deprecated": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "schedule",
+              "manual"
+            ],
+            "description": "schedule — по расписанию (или расписание ничего не включает); manual — оператор включил вручную на срок"
+          },
+          "until": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "manual: конец срока ручного включения (не позже включения + 8 часов), потом снова действует расписание. schedule: ближайшая смена режима по расписаниям; null — смены не будет"
+          },
+          "by": {
+            "type": "string",
+            "description": "manual: логин того, кто включил; иначе пусто"
           }
         },
         "additionalProperties": false,
         "required": [
           "modeId",
+          "source",
+          "until",
+          "by",
           "manual"
         ],
-        "description": "Текущий режим объекта. Считает сервер; течение времени версией не считается — её здесь нет"
+        "description": "Текущий режим объекта. Считает сервер; течение времени версией не считается — её здесь нет. Смена (по расписанию, вручную, конец срока) — событие потока entity.changed, kind objectMode, payload {modeId, source, until, by}"
       },
       "ModeCurrentWrite": {
         "type": "object",
@@ -12444,15 +13445,15 @@
               "string",
               "null"
             ],
-            "format": "date-time"
+            "format": "date-time",
+            "description": "Конец ручного включения: не позже текущего времени + 8 часов (иначе 422, field until) и позже текущего времени. Нет или null при непустом modeId — сервер ставит максимум, 8 часов"
           }
         },
         "additionalProperties": false,
         "required": [
-          "modeId",
-          "until"
+          "modeId"
         ],
-        "description": "Включить режим вручную; modeId null — вернуться к расписаниям"
+        "description": "Включить режим вручную на срок. modeId — режим; null со сроком until — «Обычная работа» на этот срок; null без срока — вернуться к режиму по расписанию (так было и раньше). Ручное включение заменяет режим по расписанию; по концу срока снова действует расписание"
       },
       "MaintenanceWindow": {
         "type": "object",
@@ -12497,7 +13498,8 @@
           "enabled",
           "version"
         ],
-        "description": "Окно обслуживания: в его расписание правила не выполняют действий"
+        "description": "Устарело в 0.4.0, работает как раньше. Окно обслуживания — режим (ObjectMode): расписание окна — scheduleId режима, ruleIds — off. Окно обслуживания: в его расписание правила не выполняют действий",
+        "deprecated": true
       },
       "MaintenanceWindowWrite": {
         "type": "object",
@@ -12530,7 +13532,9 @@
           "scheduleId",
           "ruleIds",
           "enabled"
-        ]
+        ],
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше: окно обслуживания — это режим. "
       },
       "MaintenanceWindowCreate": {
         "type": "object",
@@ -12563,7 +13567,8 @@
           "enabled",
           "schedule"
         ],
-        "description": "Новое окно вместе со своим расписанием"
+        "description": "Устарело в 0.4.0, работает как раньше: окно обслуживания — это режим. Новое окно вместе со своим расписанием",
+        "deprecated": true
       },
       "MaintenanceWindowCreated": {
         "type": "object",
@@ -12579,7 +13584,9 @@
         "required": [
           "window",
           "schedule"
-        ]
+        ],
+        "deprecated": true,
+        "description": "Устарело в 0.4.0, работает как раньше: окно обслуживания — это режим. "
       },
       "AssistTurnRequest": {
         "type": "object",
@@ -12777,7 +13784,7 @@
             "items": {
               "$ref": "#/components/schemas/AssistLearnLink"
             },
-            "description": "answer: готовые учебные главы, от одной до трёх, по просьбе («покажи, как…», «как настроить…») — ссылки на каталог обучения консоли (learn-catalog.json сборки, Tour.catalog), не адрес и не код. Консоль сверяет каждую ссылку со своим каталогом и показывает карточку «Открыть учебный пример» с названием, целью и языком из каталога; показ запускает человек кнопкой, приход события сам ничего не открывает. Ссылка на неизвестную главу или чужую версию каталога не запускается: консоль предлагает свой каталог. Поля нет — обычный ответ. Только у answer"
+            "description": "answer: готовые учебные главы, от одной до трёх — на просьбу научить («покажи, как…», «как настроить…») или на вопрос о системе, к которому есть подходящая глава («где найти устройства без папки?» — ответ по данным и ссылка на главу). Ссылки на каталог обучения консоли (learn-catalog.json сборки, Tour.catalog), не адрес и не код. Консоль сверяет каждую ссылку со своим каталогом и показывает карточку «Открыть учебный пример» с названием, целью и языком из каталога; показ запускает человек кнопкой, приход события сам ничего не открывает. Ссылка на неизвестную главу или чужую версию каталога не запускается: консоль предлагает свой каталог. Поля нет — обычный ответ. Только у answer"
           }
         },
         "description": "Сообщение хода. Поток заканчивается одним из question, plan, refused, answer, found, error"
@@ -13693,18 +14700,37 @@
               "watching",
               "refused",
               "unfit",
-              "unchecked"
+              "unchecked",
+              "off"
             ],
             "x-enum-descriptions": {
               "watching": "Сервер следит за событиями правила",
               "refused": "Отказано: правило не проходит проверку и не срабатывает",
               "unfit": "Не годится: то, что называет правило, этого не умеет, правило молчит, пока не подойдёт",
-              "unchecked": "Не проверено: устройства не сказали, что умеют, правило работает"
+              "unchecked": "Не проверено: устройства не сказали, что умеют, правило работает",
+              "off": "Выключено: сейчас действует режим (modeId) или, по старому, окно обслуживания (windowId), которые выключают правило. Сервер правило не запускает, запись правила не меняется"
             }
           },
           "reason": {
             "type": "string",
             "description": "Почему — словами сервера, форма показывает как есть. У watching пусто"
+          },
+          "modeId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "off: режим, который выключил правило; иначе нет поля"
+          },
+          "windowId": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "deprecated": true,
+            "description": "Устарело в 0.4.0 вместе с окнами обслуживания. off: окно обслуживания, которое выключило правило (modeId тогда нет); иначе нет поля"
           }
         },
         "additionalProperties": false,
@@ -16319,6 +17345,10 @@
           "to": {
             "type": "string",
             "format": "date-time"
+          },
+          "edgeOnly": {
+            "type": "boolean",
+            "description": "Только пропуски встроенного хранилища (vms.edge/1): сервер заказывает забор пропусков камеры внутри периода, просьбы «закрепить» не подаёт и квоту на человека не тратит; accepted 0. Нет поля — false"
           }
         }
       },
@@ -16359,6 +17389,11 @@
                 }
               }
             }
+          },
+          "edgeOrdered": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Сколько пропусков встроенного хранилища камеры или регистратора внутри периода сервер заказал к забору (vms.edge/1). Не зависит от квоты на человека: refused о них не говорит. Нет встроенного хранилища или пропусков — 0"
           }
         }
       },
@@ -16388,7 +17423,7 @@
         "type": "object",
         "properties": {},
         "additionalProperties": true,
-        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, dependentSchemas, description, title. Расширения: x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
+        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
       },
       "AccessClass": {
         "type": "object",
@@ -16535,6 +17570,11 @@
           "ruleRight": {
             "$ref": "#/components/schemas/Right",
             "description": "Право на это действие в правиле (RuleAction unitAction) — отдельно от права на команду объекта (right). Нет поля — в правиле судится right. Пример: у реле команда правом не судится, а в правиле нужен уровень класса реле"
+          },
+          "direct": {
+            "type": "boolean",
+            "default": false,
+            "description": "true — команду дают только прямым вызовом POST /units/{uid}/actions/{id}: в шаг операции (POST /operations) и в шаг правила она не входит, такой шаг — 422 NOT_SUPPORTED. Так у команд, чьи params несут секрет (закрытый ключ webcert.set): шаги операции сервер хранит и отдаёт в GET /operations. Нет поля — false, как до 0.11.0"
           }
         }
       },
@@ -16714,7 +17754,7 @@
           },
           "schemaPerUnit": {
             "type": "boolean",
-            "description": "Схема зависит от объекта: GET /units/{uid}/schema"
+            "description": "Схема зависит от объекта: GET /units/{uid}/schema. Например, у камеры набор параметров задаёт её драйвер"
           },
           "shape": {
             "type": "string",
@@ -16942,7 +17982,40 @@
           },
           "observed": {
             "type": "object",
-            "properties": {},
+            "properties": {
+              "replicaLagSec": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Камера (vms.camera/1) в режиме replica: на сколько секунд архив отстаёт от источника. Нет значения — сервер не знает"
+              },
+              "replicationStatus": {
+                "$ref": "#/components/schemas/EdgeReplicationStatus",
+                "description": "Встроенное хранилище (vms.edge/1): состояние репликации"
+              },
+              "mediaOk": {
+                "type": "boolean",
+                "description": "Встроенное хранилище: карта или диск на месте и пишут. Нет значения — true. false: сервер ничего не заберёт, state waiting, replication.failed с reason media"
+              },
+              "profileG": {
+                "type": "boolean",
+                "description": "Встроенное хранилище: устройство отдаёт записи по ONVIF Profile G. Нет значения — true. false: сервер ничего не заберёт, state waiting, replication.failed с reason profile"
+              },
+              "webCertificate": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/WebCertificate"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Сервер (vms.webserver/1): сертификат HTTPS; null — сертификата нет"
+              },
+              "webReservedPorts": {
+                "$ref": "#/components/schemas/WebReservedPorts",
+                "description": "Сервер (vms.webserver/1): порты видео для браузера"
+              }
+            },
             "additionalProperties": true,
             "description": "Значения, которые система назначила или измерила сама: размещение, serverId, состояние"
           },
@@ -17555,6 +18628,556 @@
             "properties": {},
             "additionalProperties": true,
             "description": "Итог по ActionDescriptor.result"
+          }
+        }
+      },
+      "RuleCheck": {
+        "type": "object",
+        "properties": {
+          "control": {
+            "type": "string",
+            "enum": [
+              "check"
+            ]
+          },
+          "what": {
+            "type": "string",
+            "enum": [
+              "record",
+              "safe",
+              "armed",
+              "online"
+            ],
+            "description": "Что проверить: record — камера пишет в архив, safe — запись защищена, armed — камера на охране, online — устройство на связи"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RuleTarget"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Что проверять. Область — должны пройти все объекты. fromEvent — объект из события, запустившего правило"
+          },
+          "depthSec": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 86400,
+            "description": "record, safe: за сколько последних секунд, 1…86400 (у включённого правила 0 — 422 RULE_INVALID, control.depth). armed, online: поля нет"
+          },
+          "yes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleStep"
+            }
+          },
+          "no": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RuleStep"
+            }
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "control",
+          "what",
+          "target",
+          "yes",
+          "no"
+        ],
+        "description": "Проверить состояние и пойти по ветке: yes — проверка прошла у всех объектов цели, no — нет (в том числе цели нет в живых). Сервер судит по своим данным на момент шага, ничего не ждёт. Встроенный сервер глубину depthSec не применяет: у него нет шкалы архива, record — камера пишет в архив сейчас, safe — ещё и архив зашифрован. В пробном запуске исход можно задать в branches по пути шага"
+      },
+      "RuleAfter": {
+        "type": "object",
+        "properties": {
+          "control": {
+            "type": "string",
+            "enum": [
+              "after"
+            ]
+          },
+          "sec": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3600,
+            "description": "Секунд ждать конца предыдущего шага, 1…3600"
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "control",
+          "sec"
+        ],
+        "description": "Дождаться конца предыдущего шага, но не дольше sec секунд. Первый шаг списка ждать нечего. Встроенный сервер выполняет шаги сразу, поэтому ждать ему нечего: шаг только пишется в журнал запуска"
+      },
+      "RuleAbort": {
+        "type": "object",
+        "properties": {
+          "control": {
+            "type": "string",
+            "enum": [
+              "abort"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "required": [
+          "control"
+        ],
+        "description": "Прервать выполнение: шаги после этого, в том числе в охватывающих ветках, не выполняются. Запуск идёт к концу, итог по выполненным шагам"
+      },
+      "PosRawLines": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PosRawLine"
+            }
+          }
+        },
+        "description": "Последние сырые строки источника событий, от старых к новым"
+      },
+      "PosRawLine": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "at",
+          "text"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда сервер получил строку"
+          },
+          "text": {
+            "type": "string",
+            "description": "Строка как есть, без перевода строки в конце"
+          }
+        }
+      },
+      "EdgeReplicationStatus": {
+        "type": "object",
+        "additionalProperties": true,
+        "description": "status.observed.replicationStatus встроенного хранилища (профиль vms.edge/1), только чтение. Состояние считает сервер; у регистратора общее состояние — худшее из состояний камер (waiting, running, planned, ok, off), а cameras — состояние каждой камеры",
+        "required": [
+          "state",
+          "gaps"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "enum": [
+              "off",
+              "waiting",
+              "planned",
+              "running",
+              "ok"
+            ],
+            "description": "off — репликации нет, забранного нет; waiting — есть что забрать, нет связи; planned — есть что забрать, ждёт правила с командой replicate, ручного забора или времени запуска (nextTransferAt); running — сервер забирает сейчас; ok — всё забрано"
+          },
+          "lagSec": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "mode all: на сколько секунд архив отстаёт от устройства (replicaLagSec камеры). Нет значения — сервер не знает"
+          },
+          "timeLeftSec": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Сколько осталось забирать; нет значения, когда сервер не забирает"
+          },
+          "lastTransferAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "nextTransferAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Ближайший запуск правила по расписанию с командой replicate на камеры хранилища; нет — null"
+          },
+          "bytesToday": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Сколько сервер забрал за сутки"
+          },
+          "gaps": {
+            "type": "array",
+            "description": "Пропуски в архиве за 7 дней, новые первыми. У регистратора — всех камер, с cameraId",
+            "items": {
+              "$ref": "#/components/schemas/EdgeReplicationGap"
+            }
+          },
+          "cameras": {
+            "type": "array",
+            "description": "Только у хранилища регистратора: состояние каждой камеры регистратора",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "cameraId",
+                "state",
+                "gaps"
+              ],
+              "properties": {
+                "cameraId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "state": {
+                  "type": "string",
+                  "enum": [
+                    "off",
+                    "waiting",
+                    "planned",
+                    "running",
+                    "ok"
+                  ]
+                },
+                "excluded": {
+                  "type": "boolean",
+                  "description": "Камера в excludedCameras: постоянная репликация её не берёт"
+                },
+                "lastTransferAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "nextTransferAt": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date-time"
+                },
+                "gaps": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/EdgeReplicationGap"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "EdgeReplicationGap": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to",
+          "result"
+        ],
+        "description": "Пропуск в архиве: минуты, которые камера записала на встроенное хранилище, а на сервер они не дошли",
+        "properties": {
+          "cameraId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Только в общем списке хранилища регистратора"
+          },
+          "from": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "done",
+              "lost"
+            ],
+            "description": "queued — сервер ещё не забрал; done — забрал; lost — устройство записало поверх раньше, чем сервер забрал: минут нет нигде"
+          }
+        }
+      },
+      "JournalLevel": {
+        "type": "string",
+        "enum": [
+          "alarm",
+          "error",
+          "audit",
+          "info",
+          "service"
+        ],
+        "x-enum-descriptions": {
+          "alarm": "Тревога",
+          "error": "Ошибка, сбой",
+          "audit": "Действие пользователя",
+          "info": "Информация",
+          "service": "Служебное: начало и конец срабатывания детектора, запуск правила. Интерфейс по умолчанию их скрывает"
+        },
+        "description": "Группа записи журнала для отбора и показа (с 0.8.0). Незнакомое значение клиент показывает как info"
+      },
+      "JournalFacetValue": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "value",
+          "count"
+        ],
+        "properties": {
+          "value": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "JournalFacets": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "total",
+          "periodTotal",
+          "facets"
+        ],
+        "description": "Счётчики журнала (с 0.8.0). Счётчик поля считается со всеми условиями, кроме условий на само это поле (поле и поле…Not): у выбранного значения видно, сколько дадут другие",
+        "properties": {
+          "total": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Записей со всеми условиями: столько отдаст GET /journal с теми же параметрами, по всем страницам"
+          },
+          "periodTotal": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Записей за from–to без остальных условий. Записи группы service входят, только если их не скрывают level или levelNot: так считает «из N» интерфейс, который служебные по умолчанию скрывает"
+          },
+          "facets": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "level",
+              "kind",
+              "deviceId",
+              "actor"
+            ],
+            "description": "Значения поля с числом записей, больше — первыми. Записи без поля (без объекта, без автора) не считаются. deviceId — точное значение записи, без детей",
+            "properties": {
+              "level": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JournalFacetValue"
+                }
+              },
+              "kind": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JournalFacetValue"
+                }
+              },
+              "deviceId": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JournalFacetValue"
+                }
+              },
+              "actor": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/JournalFacetValue"
+                }
+              }
+            }
+          },
+          "more": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "description": "Сколько значений поля не вошло из-за facetLimit. Нет ключа — вошли все"
+          }
+        }
+      },
+      "JournalKind": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "level"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Код вида: JournalEvent.kind"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "level": {
+            "$ref": "#/components/schemas/JournalLevel"
+          }
+        }
+      },
+      "WebServerSettings": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Свойство webServer сервера (профиль vms.webserver/1): веб-сервер (браузер, мобильные клиенты, HTTP API) и RTSP-сервер. JSON Merge Patch по полям; поля нет — умолчание. Правка перезапускает веб-сервер или RTSP-сервер: клиенты теряют связь на время перезапуска. Порты — разные, вне webReservedPorts, иначе 422 PORT_TAKEN с field — указатель на порт и params.other — имя поля, которое уже занимает порт. HTTPS работает, только если у сервера есть сертификат (status.observed.webCertificate): без него веб-сервер отвечает только по HTTP",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Веб-сервер включён. false — браузер, мобильные клиенты и HTTP API не подключаются; RTSP-сервер работает"
+          },
+          "httpPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 80,
+            "description": "Порт HTTP"
+          },
+          "httpsPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 443,
+            "description": "Порт HTTPS: работает, когда у сервера есть сертификат"
+          },
+          "urlPrefix": {
+            "type": "string",
+            "pattern": "^/\\S*$",
+            "default": "/",
+            "description": "Префикс адреса: http(s)://адрес:порт<urlPrefix>. Начинается с «/», без пробелов. Не длиннее 200 символов (maxLength в схеме вида)"
+          },
+          "cors": {
+            "type": "boolean",
+            "default": false,
+            "description": "Разрешить запросы с других сайтов (CORS): GET и POST и предварительные запросы OPTIONS"
+          },
+          "recompress": {
+            "type": "boolean",
+            "default": false,
+            "description": "Перекодировать видео, которое браузер не показывает (H.265), в формат для браузера. Нагружает процессор сервера"
+          },
+          "rtspPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 554,
+            "description": "Порт RTSP. Клиент RTSP входит под именем и паролем пользователя и получает видео камер, которые пользователь может смотреть по своим правам"
+          },
+          "rtspHttpPort": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535,
+            "default": 8554,
+            "description": "Порт RTSP через HTTP (туннель RTSP over HTTP)"
+          }
+        }
+      },
+      "WebCertificate": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "subject",
+          "issuer",
+          "notBefore",
+          "notAfter",
+          "names",
+          "wildcard",
+          "chain",
+          "keyMatches"
+        ],
+        "description": "status.observed.webCertificate сервера (vms.webserver/1), только чтение: сертификат HTTPS, который сервер хранит. Закрытого ключа здесь нет и нигде в ответах нет. null или нет поля — сертификата нет, веб-сервер работает только по HTTP. Тот же объект — итог команды webcert.set",
+        "properties": {
+          "subject": {
+            "type": "string",
+            "description": "Кому выдан: CN сертификата, например *.vms.example.ru"
+          },
+          "issuer": {
+            "type": "string",
+            "description": "Кем выдан: CN издателя; у самоподписанного совпадает с subject"
+          },
+          "notBefore": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Действует с"
+          },
+          "notAfter": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Действует до"
+          },
+          "names": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Имена из subjectAltName (DNS)"
+          },
+          "wildcard": {
+            "type": "boolean",
+            "description": "Сертификат на все поддомены: subject или одно из names начинается с «*.»"
+          },
+          "chain": {
+            "type": "string",
+            "enum": [
+              "full",
+              "partial",
+              "self"
+            ],
+            "description": "full — в файле сертификат и промежуточные до корня; partial — нет промежуточного сертификата, часть браузеров не доверит серверу; self — самоподписанный, браузеры предупредят"
+          },
+          "keyMatches": {
+            "type": "boolean",
+            "description": "Сервер проверил, что закрытый ключ подходит к сертификату. Сохранённый сертификат — всегда true"
+          },
+          "fileName": {
+            "type": "string",
+            "description": "Имя файла сертификата, которое прислал клиент (params.certificateName): для показа"
+          },
+          "uploadedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда сервер принял сертификат"
+          }
+        }
+      },
+      "WebReservedPorts": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "from",
+          "to"
+        ],
+        "description": "status.observed.webReservedPorts сервера (vms.webserver/1), только чтение: порты, которые веб-сервер занимает под видео для браузера — from (9001) и по одному на ядро процессора. Их открывают в сетевом экране; порты webServer в них не попадают",
+        "properties": {
+          "from": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
+          },
+          "to": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 65535
           }
         }
       }

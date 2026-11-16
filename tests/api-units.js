@@ -753,6 +753,33 @@
     assert.status(await patch(env, a.uid, { properties: { channels: 2 } }), 200, null, "tp-100: в пределах");
   }, { needs: ["getUnitSchema", "patchUnit"] });
 
+  test("test.perunit: части allOf решаются по свойствам объекта, ветки слиты, PATCH проверяется по ним", async () => {
+    const env = await makeEnv();
+    const [a, b] = ofKind(PER);
+    const desc = copy(kindOf(PER));
+    // Независимое условие частью allOf: у tp-100 есть «Буфер, мс» до 3000, у tp-200 — нет
+    desc.schema.properties.bufferMs = { type: "integer", minimum: 50, "x-ui-tab": "gen", "x-ui-group": "buffer", "x-dev": true };
+    desc.schema.properties.bufferOn = { type: "boolean" };
+    desc.schema.allOf = [
+      { if: { properties: { model: { const: "tp-100" } }, required: ["model"] }, then: { properties: { bufferMs: { maximum: 3000 } } }, else: { properties: { bufferMs: { readOnly: true } } } },
+      // Вложенная часть: в ветке своё allOf; required ветки сливается со схемой
+      { if: { properties: { model: { const: "tp-100" } }, required: ["model"] }, then: { allOf: [{ if: { properties: { bufferOn: { const: true } }, required: ["bufferOn"] }, then: { required: ["bufferMs"] } }] } },
+    ];
+    assert.status(await env.call("PUT", testKindPath(PER), desc), 200, null, "вид с allOf");
+    const sa = await env.ok("GET", `/units/${a.uid}/schema`);
+    const sb = await env.ok("GET", `/units/${b.uid}/schema`);
+    assert.eq([sa.allOf, sa.if, sb.allOf], [undefined, undefined, undefined], "в схеме объекта нет ни allOf, ни if");
+    assert.eq([sa.properties.bufferMs.maximum, sa.properties.channels.maximum], [3000, 4], "tp-100: ветка allOf и верхняя ветка слиты");
+    assert.eq([sb.properties.bufferMs.readOnly, sb.properties.channels.maximum], [true, 16], "tp-200: ветка else части allOf");
+    assert.eq(sa.properties.bufferMs["x-dev"], true, "x-dev — в схеме объекта");
+    assert.ok(!(sa.required || []).includes("bufferMs"), "bufferOn не задан — вложенная ветка не действует");
+    assert.status(await patch(env, a.uid, { properties: { bufferOn: true, bufferMs: 400 } }), 200, null, "tp-100: буфер включён");
+    const sa2 = await env.ok("GET", `/units/${a.uid}/schema`);
+    assert.eq([sa2.allOf, (sa2.required || []).includes("bufferMs"), (sa2.required || []).includes("model")], [undefined, true, true], "вложенное allOf решено, required слиты с верхним");
+    invalid(await patch(env, a.uid, { properties: { bufferMs: 5000 } }), "/properties/bufferMs", "maximum", "tp-100: буфер больше 3000 мс");
+    assert.status(await patch(env, a.uid, { properties: { bufferMs: 500 } }), 200, null, "tp-100: буфер в пределах");
+  }, { needs: ["getUnitSchema", "patchUnit"] });
+
   test("запись ядром: вид без описания и вид с профилем vms.* — 422 NOT_SUPPORTED, field=/kind", async () => {
     const odd = { uid: "30009003-0000-4000-8000-000000000000", kind: "vendor.gone/THING", parentId: null, domainId: dom1(), name: "Объект без описания", version: "1", properties: { a: 1 } };
     const env = await makeEnv({ fixturePatch: { units: units().concat(odd) } });
@@ -935,7 +962,8 @@
   test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — не триггеры; other и segment.lost — не тревоги", async () => {
     const env = await makeEnv();
     const events = (await env.ok("GET", "/kinds/camera")).events;
-    assert.eq(events.map((e) => e.id), ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "other", "segment.lost"], "порядок событий камеры");
+    assert.eq(events.slice(0, 9).map((e) => e.id), ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "other", "segment.lost"], "порядок событий камеры: прежние первыми");
+    assert.ok(["device.lost", "tamper", "plate.list", "alarm.closed", "rec.lost", "arm.off", "ptz.failed"].every((id) => events.some((e) => e.id === id)), "события цепочки правила объявлены");
     const flags = (e) => [e.rule !== false, e.alarm !== false];
     events.forEach((e) => assert.eq(flags(e), [!["abandoned", "disappeared", "crowd"].includes(e.id), !["other", "segment.lost"].includes(e.id)], `флаги ${e.id}`));
     const s = await env.ok("GET", "/settings");
