@@ -3269,6 +3269,35 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 .dw-pd{fill:#fff;stroke:var(--c);stroke-width:.6;pointer-events:none}
 .dw-pd.first{fill:var(--c);stroke:#fff}
 .dw-sa.zf{stroke-width:1.1}
+/* Маска приватности камеры — кадр слева, области и пояснение справа */
+.pm-grid{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-start}
+.pm-left{flex:2 1 420px;min-width:0}
+.pm-right{flex:1 1 260px;min-width:0;max-width:100%}
+.pm-stage:focus-visible{outline:2px solid var(--bl);outline-offset:2px}
+.pm-ov{position:absolute;inset:0;width:100%;height:100%}
+.pm-a{stroke:#fbbf24;stroke-width:.6;cursor:move}
+.pm-a.sel{stroke-width:1.1}
+.pm-a.view{stroke:none;cursor:default}
+.pm-a.pm-draft{stroke-dasharray:1.5 1;opacity:.85;pointer-events:none}
+.pm-frame-t{position:absolute;left:8px;top:8px;font-size:11px;color:#fff;background:rgba(8,11,16,.6);padding:2px 8px;border-radius:6px;pointer-events:none}
+.pm-under{display:flex;align-items:flex-start;gap:10px;margin-top:6px}
+.pm-under .dw-hint{margin:0;flex:1;min-width:0}
+.pm-under .btn{display:inline-flex;align-items:center;gap:6px;white-space:nowrap;flex:none}
+.pm-h{display:flex;align-items:center;gap:6px;font-weight:600;margin:0 0 6px}
+.pm-clr{margin-left:auto;font-weight:400}
+.pm-list{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.pm-row{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 10px;border:1px solid var(--ln);border-radius:8px;transition:background .15s,border-color .15s}
+.pm-row.on{border-color:var(--bl);background:var(--one-info-bg)}
+.pm-row .sub{margin:0;white-space:nowrap}
+.pm-row .lk{white-space:nowrap}
+.pm-del{display:inline-grid;place-items:center;padding:4px 6px}
+.pm-empty{margin:0}
+.pm-who{display:block;margin:0 0 10px}
+.pm-who ul{margin:0;padding-left:18px}
+.pm-who li{margin:3px 0}
+.pm-stub{display:flex;gap:6px;align-items:flex-start;margin:0 0 10px;font-size:12px}
+.pm-acts{display:flex;gap:8px;flex-wrap:wrap}
+@media (prefers-reduced-motion:reduce){.pm-row{transition:none}}
 .dw-tx{font:600 3.2px Inter,sans-serif;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.7);stroke-width:.7px;pointer-events:none}
 .dw-box{fill:none;stroke-width:.55}
 .dw-box.ok{stroke:#4ade80}
@@ -20374,6 +20403,220 @@ function ttLicHtml(n){
   const used=[...ttState].filter(([id,s])=>find(id)&&s.mode!=="off"&&ttReady(s).length).length,total=k.f.tnt[1];
   return`<p class="sub tt-lic">${lu("lock",13)}${i18n("Лицензии Tag-n-Track")}: ${i18n("занято")} ${used} ${i18n("из")} ${total}</p>`;
 }
+// ── Маска приватности камеры: области на кадре (ЗАГЛУШКА: в контракте 0.13.0 маски приватности камеры нет) ──
+// ЗАГЛУШКА: в контракте 0.13.0 у камеры нет маски приватности (поле mask есть только у детектора). Сохранённые
+// области живут в памяти страницы (pmSaved) до перезагрузки. Области — в долях кадра, как зоны детектора.
+// Правка идёт в черновик камеры pmDrafts (свой у каждой камеры: переход на другую камеру его не теряет); pm — только
+// инструмент, выбор и рисование на кадре одной камеры. «Сохранить маску» переносит черновик в pmSaved, «Отменить правки» его сбрасывает
+const PM_PMAX=64,PM_C="#fbbf24";
+const pmSaved=new Map(),pmShots=new Map(),pmDrafts=new Map();
+let pm={id:null,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};
+function pmNode(id){return find(id)?.n||null}
+function pmCur(n){return pm.id===n.id?pm:{tool:null,poly:null,rect:null,sel:null,view:false}}
+function pmAreas(n){return pmDrafts.get(n.id)||pmSaved.get(n.id)||[]}
+function pmDirty(n){return pmDrafts.has(n.id)&&JSON.stringify(pmDrafts.get(n.id))!==JSON.stringify(pmSaved.get(n.id)||[])}
+function pmFocus(n){if(pm.id!==n.id)pm={id:n.id,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};return pm}
+function pmEdit(n){pmFocus(n);if(!pmDrafts.has(n.id))pmDrafts.set(n.id,JSON.parse(JSON.stringify(pmSaved.get(n.id)||[])));return pmDrafts.get(n.id)}
+// Вид маски задаёт опция домена sec.mask: мозаика или чёрная заливка
+function pmDomain(n){return domains.find(x=>x.id===nodeDomainId(n))||null}
+function pmLook(n){
+  const st=SETTINGS.find(x=>x.id==="sec.mask"),d=pmDomain(n);let v=null;
+  try{v=st&&d?optVal(st,d):null}catch(e){}
+  return v==="black"?"black":"mosaic";
+}
+function pmLookText(n){return i18n(pmLook(n)==="black"?"чёрная заливка":"мозаика")}
+function pmName(a){return`${i18n("Область")} ${a.n}`}
+function pmSum(n){const k=pmAreas(n).length;return k?`${k} ${i18n(plural(k,"область|области|областей"))} · ${pmLookText(n)}`:i18n("нет областей")}
+function pmShotAt(n){if(!pmShots.has(n.id))pmShots.set(n.id,Date.now());return new Date(pmShots.get(n.id)).toLocaleTimeString(uiLang==="en"?"en-GB":"ru-RU")}
+
+function pmSecHtml(n){
+  const sum=pmSum(n);
+  return`<div class="card pm-sec" data-sec="pm" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Маска приватности")}<span class="sub" style="font-weight:400" data-pm-sum>${escHtml(sum)}</span></div><div class="cb"><div data-pm-body>${pmBodyHtml(n)}</div></div></div>`;
+}
+function pmBodyHtml(n){
+  const c=pmCur(n),areas=pmAreas(n),dirty=pmDirty(n),d=pmDomain(n);
+  const sw=`<i class="dw-sw" style="background:${PM_C}"></i>`;
+  const tb=(t,l)=>`<button type="button" class="btn s${c.tool===t?" on":""}" aria-pressed="${c.tool===t}" ${onEv("click",["pmTool",n.id,t])}>${sw}${i18n(l)}</button>`;
+  const tools=`<div class="dw-tools"><span class="sub dw-tools-l">${i18n("Нарисовать")}:</span>${tb("poly","Многоугольник")}${tb("rect","Прямоугольник")}
+    <span class="dw-lay"><button type="button" class="btn s${c.view?" on":""}" aria-pressed="${c.view}" title="${i18n("Показать кадр так, как его видит оператор без права «Просмотр видео без масок приватности»")}" ${onEv("click",["pmView",n.id])}>${lu(c.view?"eye-off":"eye")}${i18n("Как видит оператор")}</button></span></div>`;
+  const stage=`<div class="dw-stage pm-stage${c.tool?" draw":""}" tabindex="0" role="application" aria-label="${i18n("Кадр камеры: области маски приватности")}" data-pm-stage="${escHtml(n.id)}" ${onEv("mousedown",["pmDown",n.id,onEv.el,onEv.event])} ${onEv("contextmenu",["pmCtx",n.id,onEv.el,onEv.event])} ${onEv("dblclick",["pmDbl",n.id,onEv.event])} ${onEv("keydown",["pmKey",n.id,onEv.event])}>
+      ${dwSceneSvg()}<svg class="pm-ov" viewBox="0 0 ${DW_X} ${DW_Y}" preserveAspectRatio="none" data-pm-geo>${pmGeoSvg(n)}</svg>
+      <span class="pm-frame-t">${i18n("Стоп-кадр")} · ${escHtml(pmShotAt(n))}</span></div>`;
+  const under=`<div class="pm-under"><p class="sub dw-hint" data-pm-hint>${i18n(pmHint(n))}</p><button type="button" class="btn s" title="${i18n("Взять с камеры новый кадр. Области остаются на своих местах кадра.")}" ${onEv("click",["pmShot",n.id])}>${lu("refresh-cw")}${i18n("Новый кадр")}</button></div>`;
+  const rows=areas.length?areas.map(a=>`<div class="pm-row${c.sel===a.id?" on":""}"><i class="dw-sw" style="background:${PM_C}"></i><button type="button" class="lk" aria-pressed="${c.sel===a.id}" ${onEv("click",["pmSel",n.id,a.id])}>${escHtml(pmName(a))}</button><span class="sub">${a.pts.length} ${i18n(plural(a.pts.length,"точка|точки|точек"))}</span><span class="tfoot-gap"></span><button type="button" class="btn s pm-del" title="${i18n("Убрать область")}" aria-label="${i18n("Убрать область")}: ${escHtml(pmName(a))}" ${onEv("click",["pmDel",n.id,a.id])}>${lu("trash")}</button></div>`).join("")
+    :`<p class="sub pm-empty">${i18n("Областей нет. Client показывает кадр целиком.")}</p>`;
+  const list=`<div class="pm-h">${i18n("Области")}${areas.length>1?`<button type="button" class="lk pm-clr" ${onEv("click",["pmClear",n.id])}>${i18n("Убрать все")}</button>`:""}</div><div class="pm-list">${rows}</div>`;
+  const who=`<div class="nt pm-who"><div class="pm-h">${i18n("Кто и где видит маску")}</div><ul>
+      <li>${i18n("Client закрывает эти области на живом видео, в архиве, при экспорте и на снимках.")}</li>
+      <li>${i18n("Маску видят пользователи, у роли которых нет права «Просмотр видео без масок приватности».")}</li>
+      <li>${i18n("Вид маски задаёт опция домена")}${d?` «${escHtml(locName(d))}»`:""}: <b>${pmLookText(n)}</b>. <button type="button" class="lk" ${onEv("click",["pmOptGo"])}>${i18n("Открыть опцию «Маска приватности»")}</button></li>
+    </ul></div>`;
+  const stub=`<p class="sub pm-stub">${lu("triangle-alert")} ${i18n("Заглушка: в контракте 0.13.0 у камеры нет маски приватности. Консоль хранит области в памяти страницы до перезагрузки.")}</p>`;
+  const acts=`<div class="pm-acts"><button type="button" class="btn pri" ${dirty?"":"disabled"} ${onEv("click",["pmSave",n.id])}>${i18n("Сохранить маску")}</button><button type="button" class="btn" ${dirty?"":"disabled"} ${onEv("click",["pmCancel",n.id])}>${i18n("Отменить правки")}</button></div>`;
+  return`<div class="pm-grid"><div class="pm-left">${tools}${stage}${under}</div><div class="pm-right">${list}${who}${stub}${acts}</div></div>`;
+}
+function pmHint(n){
+  const c=pmCur(n);
+  if(c.view)return"Так кадр видит оператор без права «Просмотр видео без масок приватности». Чтобы изменить маску, нажать «Как видит оператор» ещё раз.";
+  if(c.tool==="poly"&&c.poly)return"Чтобы добавить точку, щёлкнуть по кадру. Чтобы замкнуть область, щёлкнуть первую точку, дважды щёлкнуть или нажать Enter. Backspace или правый щелчок убирает последнюю точку. Esc отменяет область.";
+  if(c.tool==="poly")return"Щёлкнуть по кадру, чтобы поставить первую точку области.";
+  if(c.tool==="rect"&&c.rect)return"Щёлкнуть противоположный угол. Esc отменяет прямоугольник.";
+  if(c.tool==="rect")return"Протянуть мышью по кадру. Или щёлкнуть один угол, потом противоположный угол.";
+  if(c.pt)return"Щёлкнуть по кадру, чтобы поставить туда выбранную точку. Delete убирает точку, Esc отменяет выбор точки.";
+  if(c.sel)return"Чтобы сдвинуть точку, тянуть её или щёлкнуть её, потом новое место. Чтобы добавить точку, щёлкнуть «+» на стороне. Чтобы убрать точку, щёлкнуть её правой кнопкой. Стрелки сдвигают область, Delete убирает её.";
+  if(pmAreas(n).length)return"Щёлкнуть область, чтобы изменить её. Чтобы добавить область, выбрать «Многоугольник» или «Прямоугольник».";
+  return"Выбрать «Многоугольник» или «Прямоугольник» и закрыть на кадре то, что операторы не должны видеть: монитор, окно, пульт.";
+}
+// Мозаика — крупные квадраты разных тонов; чёрная заливка — сплошная
+function pmGeoSvg(n){
+  const c=pmCur(n),areas=pmAreas(n),fill=pmLook(n)==="black"?"#000":"url(#pmMos)";
+  const mos=[["#6b7686",0,0],["#8a94a3",3,0],["#4f5866",0,3],["#77808e",3,3]].map(([f,x,y])=>`<rect x="${x}" y="${y}" width="3" height="3" fill="${f}"/>`).join("");
+  let h=`<defs><pattern id="pmMos" width="6" height="6" patternUnits="userSpaceOnUse">${mos}</pattern></defs>`;
+  areas.forEach(a=>{
+    const on=c.sel===a.id;
+    h+=`<polygon class="pm-a${on?" sel":""}${c.view?" view":""}" data-b="${a.id}" points="${a.pts.map(dwP).join(" ")}" fill="${fill}"/>`;
+    if(c.view)return;
+    const top=a.pts.reduce((m,p)=>p[1]<m[1]||(p[1]===m[1]&&p[0]<m[0])?p:m,a.pts[0]);
+    h+=`<text class="dw-tx" x="${(top[0]*DW_X+1.5).toFixed(1)}" y="${(top[1]*DW_Y+4).toFixed(1)}">${escHtml(pmName(a))}</text>`;
+    if(c.tool)return;
+    if(on&&a.pts.length<PM_PMAX)a.pts.forEach((p,i)=>{const q=a.pts[(i+1)%a.pts.length],x=(p[0]+q[0])/2*DW_X,y=(p[1]+q[1])/2*DW_Y;
+      h+=`<g class="dw-mid" data-m="${a.id}:${i}" style="--c:${PM_C}"><title>${i18n("Добавить точку: щёлкнуть или тянуть")}</title><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.3"/><path d="M${(x-.75).toFixed(2)} ${y.toFixed(2)}h1.5M${x.toFixed(2)} ${(y-.75).toFixed(2)}v1.5"/></g>`});
+    if(on)a.pts.forEach((p,i)=>h+=`<circle class="dw-hd${c.pt&&c.pt.a===a.id&&c.pt.i===i?" on":""}" data-h="${a.id}:${i}" cx="${(p[0]*DW_X).toFixed(1)}" cy="${(p[1]*DW_Y).toFixed(1)}" r="1.7" style="--c:${PM_C}"><title>${i18n("Точка")} ${i+1}. ${i18n("Правый щелчок убирает точку.")}</title></circle>`);
+  });
+  if(c.view)return h;
+  if(c.poly){
+    const all=c.poly.q?[...c.poly.pts,c.poly.q]:c.poly.pts,close=c.poly.pts.length>=3;
+    h+=`<polyline class="dw-pl" points="${all.map(dwP).join(" ")}" style="--c:${PM_C}"/>`+c.poly.pts.map((q,i)=>`<circle class="dw-pd${i===0&&close?" first":""}" cx="${(q[0]*DW_X).toFixed(1)}" cy="${(q[1]*DW_Y).toFixed(1)}" r="${i===0&&close?2.2:1.3}" style="--c:${PM_C}"/>`).join("");
+  }
+  if(c.rect){const a=c.rect.a,b=c.rect.b||c.rect.q||a,pts=[a,[b[0],a[1]],b,[a[0],b[1]]];h+=`<polygon class="pm-a pm-draft" points="${pts.map(dwP).join(" ")}" fill="${fill}"/>`}
+  return h;
+}
+function pmStageEl(){return document.querySelector("#main [data-pm-stage]")}
+function pmPaintGeo(n){const g=document.querySelector("#main [data-pm-geo]");if(g)g.innerHTML=pmGeoSvg(n);const t=document.querySelector("#main [data-pm-hint]");if(t)t.textContent=i18n(pmHint(n))}
+function pmRepaint(n){
+  const b=document.querySelector("#main [data-pm-body]");if(!b){paint();return}
+  const had=document.activeElement===pmStageEl();
+  b.innerHTML=pmBodyHtml(n);
+  const s=document.querySelector("#main [data-pm-sum]");if(s)s.textContent=pmSum(n);
+  b.closest("[data-sec]")?.setAttribute("data-cs-sum",pmSum(n));
+  if(had)pmStageEl()?.focus({preventScroll:true});
+}
+// Сторона к курсору у многоугольника и второй угол прямоугольника — по движению мыши над кадром
+// Один слушатель на документ: кадр после любой перерисовки (paint, pmRepaint) работает без своей привязки
+document.addEventListener("mousemove",e=>{
+  if((!pm.poly&&!pm.rect)||pm.drag)return;
+  const st=e.target.closest?.("[data-pm-stage]"),m=pmNode(pm.id);if(!m)return;
+  const q=st&&st.dataset.pmStage===pm.id?dwXY(st,e):null,r=pm.poly||pm.rect;
+  if(!q&&!r.q)return;
+  r.q=q;pmPaintGeo(m);
+});
+// Как поиск по настройкам: раздел «Опции», страница «Безопасность», опция sec.mask подсвечена
+function pmOptGo(){goApp("sys");sys="sec";settingHighlight="sec.mask";paint()}
+function pmTool(id,t){const n=pmNode(id);if(!n)return;pmFocus(n);pm.pt=null;pm.tool=pm.tool===t?null:t;pm.poly=null;pm.rect=null;pm.view=false;if(pm.tool)pm.sel=null;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
+function pmView(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=!pm.view;pm.tool=null;pm.poly=null;pm.rect=null;pm.sel=null;pm.pt=null;pmRepaint(n)}
+function pmSel(id,aid){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=false;pm.tool=null;pm.poly=null;pm.rect=null;pm.pt=null;pm.sel=pm.sel===aid?null:aid;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
+function pmDel(id,aid){const n=pmNode(id);if(!n)return;const a=pmEdit(n),i=a.findIndex(x=>x.id===aid);if(i<0)return;a.splice(i,1);if(pm.sel===aid)pm.sel=null;if(pm.pt?.a===aid)pm.pt=null;pmRepaint(n)}
+function pmClear(id){const n=pmNode(id);if(!n)return;pmEdit(n).length=0;pm.sel=null;pm.pt=null;pmRepaint(n)}
+function pmSave(id){const n=pmNode(id);if(!n||!pmDirty(n))return;const d=pmDrafts.get(n.id),k=d.length;pmSaved.set(n.id,JSON.parse(JSON.stringify(d)));pmDrafts.delete(n.id);pmFocus(n);pm.sel=null;pm.pt=null;pmRepaint(n);
+  toast(k?`${i18n("Консоль сохранила маску приватности")}: ${k} ${i18n(plural(k,"область|области|областей"))}`:i18n("Консоль сняла маску приватности"))}
+function pmCancel(id){const n=pmNode(id);if(!n)return;pmFocus(n);pmDrafts.delete(n.id);pm.sel=null;pm.pt=null;pm.poly=null;pm.rect=null;pmRepaint(n)}
+function pmShot(id){const n=pmNode(id);if(!n)return;pmShots.set(n.id,Date.now());pmRepaint(n)}
+function pmAdd(n,pts){
+  const a=pmEdit(n),k=a.reduce((m,x)=>Math.max(m,x.n),0)+1,z={id:"m"+(Date.now()%1e7)+"_"+k,n:k,pts:pts.map(p=>p.slice())};
+  a.push(z);pm.sel=z.id;pm.tool=null;pm.poly=null;pm.rect=null;pmRepaint(n);
+}
+const pmFar=(p,q,r)=>Math.hypot((p[0]-q[0])*DW_X,(p[1]-q[1])*DW_Y)>r;
+function pmPolyClick(n,p){
+  if(!pm.poly){pm.poly={pts:[p],q:null};pmPaintGeo(n);return}
+  const P=pm.poly.pts;
+  if(P.length>=3&&!pmFar(p,P[0],3)){pmPolyClose(n);return}
+  if(!pmFar(p,P[P.length-1],1))return;   // второй щелчок двойного щелчка
+  if(P.length>=PM_PMAX){toast(`${i18n("В области не больше")} ${PM_PMAX} ${i18n("точек")}`);return}
+  P.push(p);pmPaintGeo(n);
+}
+function pmPolyClose(n){if(!pm.poly)return;if(pm.poly.pts.length<3){toast(i18n("В области должно быть не меньше 3 точек"));return}pmAdd(n,pm.poly.pts)}
+function pmRectEnd(n,a,b){
+  const x0=Math.min(a[0],b[0]),x1=Math.max(a[0],b[0]),y0=Math.min(a[1],b[1]),y1=Math.max(a[1],b[1]);
+  if(x1-x0<.02||y1-y0<.02){pm.rect=null;pmPaintGeo(n);return}
+  pmAdd(n,[[x0,y0],[x1,y0],[x1,y1],[x0,y1]]);
+}
+function pmDown(id,st,e){
+  const n=pmNode(id);if(!n||e.button)return;
+  pmFocus(n);
+  // preventDefault ниже не даёт кадру фокус: ставим его сами, иначе стрелки и Delete уходят дереву
+  (pmStageEl()||st).focus({preventScroll:true});
+  if(pm.view)return;
+  const p0=dwXY(st,e);if(!p0)return;
+  const t=e.target,h=t.dataset?.h,b=t.dataset?.b,mid=t.closest?.("[data-m]")?.dataset.m;
+  let move=null,done=null;
+  if(pm.tool==="poly"){e.preventDefault();pmPolyClick(n,p0);return}
+  if(pm.tool==="rect"){
+    e.preventDefault();
+    if(pm.rect){pmRectEnd(n,pm.rect.a,p0);return}
+    pm.rect={a:p0,b:null,q:null};
+    move=q=>{pm.rect.b=q};
+    // Щелчок без протяжки ставит первый угол: второй щелчок поставит противоположный (без перетаскивания, WCAG 2.5.7)
+    done=()=>{const r=pm.rect;if(!r)return;if(r.b&&pmFar(r.b,r.a,2))pmRectEnd(n,r.a,r.b);else{r.b=null;pmPaintGeo(n)}};
+  }else if(mid){
+    e.preventDefault();
+    const[aid,i]=mid.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
+    const j=+i+1;a.pts.splice(j,0,p0);pm.pt=null;move=q=>{a.pts[j]=q};
+  }else if(h){
+    e.preventDefault();
+    const[aid,i]=h.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
+    pm.pt={a:aid,i:+i};let moved=false;
+    move=q=>{moved=true;a.pts[+i]=q};
+    done=()=>{if(moved)pm.pt=null};
+  }else if(b){
+    e.preventDefault();
+    const a=pmEdit(n).find(x=>x.id===b);if(!a)return;
+    if(pm.sel!==b){pm.sel=b;pm.pt=null;pmRepaint(n)}
+    const orig=a.pts.map(p=>p.slice());
+    move=q=>{const dx=q[0]-p0[0],dy=q[1]-p0[1];orig.forEach((p,i)=>{a.pts[i]=[+Math.min(1,Math.max(0,p[0]+dx)).toFixed(4),+Math.min(1,Math.max(0,p[1]+dy)).toFixed(4)]})};
+  }else{
+    // Выбранная точка без перетаскивания (WCAG 2.5.7): щелчок по кадру ставит её сюда
+    const a=pm.pt&&pmEdit(n).find(x=>x.id===pm.pt.a);
+    if(a&&a.pts[pm.pt.i]){e.preventDefault();a.pts[pm.pt.i]=p0;pm.pt=null;pmRepaint(n);return}
+    if(pm.sel){pm.sel=null;pm.pt=null;pmRepaint(n)}
+    return;
+  }
+  const stage=pmStageEl()||st;
+  pm.drag=true;
+  const mm=ev=>{const q=dwXY(stage,ev);if(!q)return;move(q);pmPaintGeo(n)};
+  const up=()=>{window.removeEventListener("mousemove",mm);window.removeEventListener("mouseup",up);pm.drag=false;done?.();if(!pm.rect)pmRepaint(n)};
+  window.addEventListener("mousemove",mm);window.addEventListener("mouseup",up);
+}
+function pmDbl(id,e){const n=pmNode(id);if(!n||pm.id!==n.id||!pm.poly)return;e.preventDefault();pmPolyClose(n)}
+function pmCtx(id,st,e){
+  const n=pmNode(id);if(!n)return;e.preventDefault();pmFocus(n);
+  if(pm.poly){pm.poly.pts.pop();if(!pm.poly.pts.length)pm.poly=null;pmPaintGeo(n);return}
+  const h=e.target.dataset?.h;if(!h)return;
+  const[aid,i]=h.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
+  if(a.pts.length<=3){toast(i18n("В области должно быть не меньше 3 точек"));return}
+  a.pts.splice(+i,1);pm.pt=null;pmRepaint(n);
+}
+function pmKey(id,e){
+  const n=pmNode(id);if(!n)return;
+  const k=e.key,stop=()=>{e.preventDefault();e.stopPropagation()},arrow=/^Arrow/.test(k);
+  // Стрелки на кадре не уходят дереву: иначе они переключают камеру и бросают начатую область
+  if(arrow)stop();
+  if(pm.id!==n.id)return;
+  if(k==="Escape"&&pm.pt){stop();pm.pt=null;pmRepaint(n);return}
+  if(k==="Escape"&&(pm.poly||pm.rect||pm.tool)){stop();pm.poly=null;pm.rect=null;pm.tool=null;pmRepaint(n);return}
+  if(k==="Enter"&&pm.poly){stop();pmPolyClose(n);return}
+  if(k==="Backspace"&&pm.poly){stop();pm.poly.pts.pop();if(!pm.poly.pts.length)pm.poly=null;pmPaintGeo(n);return}
+  // Delete: выбрана точка — убрать точку (не меньше 3), иначе — выбранную область
+  const pa=pm.pt&&pmAreas(n).find(x=>x.id===pm.pt.a);
+  if((k==="Delete"||k==="Backspace")&&pa){stop();
+    if(pa.pts.length<=3){toast(i18n("В области должно быть не меньше 3 точек"));return}
+    pmEdit(n).find(x=>x.id===pa.id).pts.splice(pm.pt.i,1);pm.pt=null;pmRepaint(n);return}
+  const a=pm.sel&&pmAreas(n).find(x=>x.id===pm.sel);if(!a)return;
+  if(k==="Delete"||k==="Backspace"){stop();pmDel(id,a.id);return}
+  const d=e.shiftKey?.05:.01,v={ArrowLeft:[-d,0],ArrowRight:[d,0],ArrowUp:[0,-d],ArrowDown:[0,d]}[k];if(!v)return;
+  const z=pmEdit(n).find(x=>x.id===a.id),xs=z.pts.map(p=>p[0]),ys=z.pts.map(p=>p[1]);
+  const dx=Math.min(Math.max(v[0],-Math.min(...xs)),1-Math.max(...xs)),dy=Math.min(Math.max(v[1],-Math.min(...ys)),1-Math.max(...ys));
+  z.pts=z.pts.map(p=>[+(p[0]+dx).toFixed(4),+(p[1]+dy).toFixed(4)]);pmRepaint(n);
+}
 // ── Раздел «Слежение Tag&Track Pro» на вкладке «Видео»: после «Поворотного устройства (PTZ)» ──
 // Раздел во всю ширину: режим и время на объекте, карточки обзорных камер (кадр с точками и сеткой, состояние),
 // калибровка — на месте карточек: кадр PTZ и кадр обзорной камеры рядом, под ними таблица точек
@@ -21455,7 +21698,7 @@ function lanTabOpen(n){
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
 function form(n){
-  if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+(tab==="vid"?ttSecHtml(n):"")+ruleUsesFor(n)))}</div>`;
+  if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+(tab==="vid"?pmSecHtml(n)+ttSecHtml(n):"")+ruleUsesFor(n)))}</div>`;
   if(n.type==="ipsrv"&&!isSchemaNode(n))return`<div class="cs-cq">${ipsModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?ruleUsesFor(n):""))}</div>`;
   return tab==="topo"&&(n.type==="domain"||n.type==="server")?g7Html(n):formBase(n)+ruleUsesFor(n)}
 // Переключатель карточки: вид меняется сразу, значение уходит с «Применить»
@@ -26361,7 +26604,7 @@ const ACC_FEATURE_TEXT=[
   ["ADD_CAMERA_TO_LAYOUT_IN_MONITORING","Добавлять камеру на раскладку в реальном времени","Раскладки и PTZ"],["EDIT_PTZ_PRESETS","Править предустановки PTZ","Раскладки и PTZ"],
   ["SEARCH","Поиск в архиве","Архив и экспорт"],["COMMENT","Комментарии в архиве","Архив и экспорт"],["EXPORT","Экспорт","Архив и экспорт"],
   ["ALLOW_UNPROTECTED_EXPORT","Экспорт без защиты","Архив и экспорт"],["ALLOW_DELETE_RECORDS","Удалять записи","Архив и экспорт"],
-  ["ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE","Видео без маскирования в архиве","Архив и экспорт"],["ALLOW_SHOW_FACES_IN_LIVE","Лица в реальном времени","Архив и экспорт"],
+  ["ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE","Просмотр видео без масок приватности","Архив и экспорт"],["ALLOW_SHOW_FACES_IN_LIVE","Лица в реальном времени","Архив и экспорт"],
   ["CONFIDENTIAL_BOOKMARKS","Конфиденциальные закладки","Архив и экспорт"],
   ["SYSTEM_JOURNAL","Журнал событий","Журнал"]
 ];
@@ -26418,6 +26661,16 @@ const ACC_GLOB_TEXT=[["map","Карты","map"],["alert","Тревоги","alert
 let ACC_GLOB=ACC_GLOB_TEXT;
 const ACC_RESTR_TEXT=[["watermark","Водяной знак с логином на видео"],["noFaces","Запрет распознавания лиц"],["noLpr","Запрет распознавания номеров"],["noVehicles","Запрет распознавания транспорта"],["noSimilar","Запрет поиска похожих"],["noPwdChange","Запрет смены пароля"],["noClientOpts","Запрет спецнастроек клиента"]];
 let ACC_RESTR=ACC_RESTR_TEXT;
+// Подсказки к правам и ограничениям о масках
+const ACC_FEAT_NOTE={
+  ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE:"Право снимает все маски: маски приватности камер, маски детекторов и маски лиц, номеров и транспорта по ограничениям роли. Без права Client показывает маски на живом видео, в архиве, при экспорте и на снимках.",
+  ALLOW_SHOW_FACES_IN_LIVE:"Без права Client закрывает лица на живом видео. Сервер находит лица детектором лиц, поэтому на камере должен быть детектор лиц."
+};
+const ACC_RESTR_NOTE={
+  noFaces:"Сервер находит лица детектором лиц. Если на камере нет детектора лиц, ограничение на этой камере не действует.",
+  noLpr:"Действует на камерах с детектором номеров.",
+  noVehicles:"Действует на камерах с детектором транспорта."
+};
 const ACC_FIELD_NAME=Object.fromEntries([...ACC_GF_TEXT.map(([k,t])=>[k,t]),["arch","Архив"],["vw","Видеостена"],["plug","Плагин"],["macro","Правило автоматизации"]]);
 // Подпись типа доступа: известные — словарём, классы из описаний видов — подписью строки умолчаний или колонки папок
 function accFieldName(f){return ACC_FIELD_NAME[f]||ACC_DEFS.find(d=>d[2]===f)?.[1]||ACC_GF.find(x=>x[0]===f)?.[1]||f}
@@ -27809,12 +28062,12 @@ function accGlobalHtml(r,ro){
   const warn=[];
   if(!accCanSignIn(g))warn.push(`<div class="nt err">${i18n("Без права «Вход в веб-интерфейс» пользователи роли не смогут войти")}</div>`);
   const featGroups=ACC_FEAT_GROUPS.filter(gr=>ACC_FEATURES.some(f=>f[2]===gr)).map(gr=>`<div class="acc-fgrp"><div class="acc-fgrp-h">${i18n(gr)}</div>${ACC_FEATURES.filter(f=>f[2]===gr).map(([k,t])=>{
-    return`<div class="ln ln-sw">${accSw(g.feat.includes(k),`accFeat('${r.id}','${k}')`,dis||(k==="USERS_RIGHTS_SETUP"&&!accMeAdmin()),t)}<div>${i18n(t)}${k==="DEVICES_SETUP"?`<small>${i18n("Одно право разрешает и просмотр, и изменение камер. Право действует, где уровень камеры не «Нет». Если право по умолчанию «Нет», камеру вне папок создать нельзя")}</small>`:k==="ARCHIVES_SETUP"?`<small>${i18n("Действует, где уровень камеры даёт доступ к архиву")}</small>`:""}</div></div>`}).join("")}</div>`).join("");
+    return`<div class="ln ln-sw">${accSw(g.feat.includes(k),`accFeat('${r.id}','${k}')`,dis||(k==="USERS_RIGHTS_SETUP"&&!accMeAdmin()),t)}<div>${i18n(t)}${k==="DEVICES_SETUP"?`<small>${i18n("Одно право разрешает и просмотр, и изменение камер. Право действует, где уровень камеры не «Нет». Если право по умолчанию «Нет», камеру вне папок создать нельзя")}</small>`:k==="ARCHIVES_SETUP"?`<small>${i18n("Действует, где уровень камеры даёт доступ к архиву")}</small>`:ACC_FEAT_NOTE[k]?`<small>${i18n(ACC_FEAT_NOTE[k])}</small>`:""}</div></div>`}).join("")}</div>`).join("");
   const sel=(k,t,kind)=>`<div><label>${i18n(t)}</label>${accSelect(kind,g[k],`accSetOwnField('${r.id}','${k}',this.value)`,dis,false,t)}</div>`;
 
   const sup=r.sup||{role:"",login:false,export:false};
   const supRoles=accRoles().filter(x=>x.id!==r.id);
-  const restr=ACC_RESTR.map(([k,t])=>`<div class="ln ln-sw">${accSw(!!g.restr?.[k],`accRestr('${r.id}','${k}')`,ro,t)}<div>${i18n(t)}</div></div>`).join("");
+  const restr=ACC_RESTR.map(([k,t])=>`<div class="ln ln-sw">${accSw(!!g.restr?.[k],`accRestr('${r.id}','${k}')`,ro,t)}<div>${i18n(t)}${ACC_RESTR_NOTE[k]?`<small>${i18n(ACC_RESTR_NOTE[k])}</small>`:""}</div></div>`).join("");
   const parts=[can("feature:accessDepth")?`<div><label>${i18n("Глубина просмотра архива")}</label><div class="acc-pwd"><input type="number" min="0" step="1" value="${g.depth?Math.round(g.depth/24):0}" ${ro?"disabled":""} style="max-width:120px" ${onEv("change",["accDepthSet",r.id,onEv.value])}><span class="sub" style="align-self:center">${i18n("дней; 0 — без ограничения")}</span></div></div>`:"",can("feature:accessSupervision")?(sup.role||!ro?`<div><label>${i18n("Подтверждение супервизором")}</label><select ${ro?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"role",onEv.value])}><option value="">${i18n("не требуется")}</option>${supRoles.map(x=>`<option value="${x.id}" ${x.id===sup.role?"selected":""}>${i18n("роль")} «${escHtml(x.n)}»</option>`).join("")}</select>
         <div class="acc-chips" style="margin-top:6px"><label class="acc-chk"><input type="checkbox" ${sup.login?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"login",onEv.checked])}> ${i18n("вход")}</label><label class="acc-chk"><input type="checkbox" ${sup.export?"checked":""} ${ro||!sup.role?"disabled":""} ${onEv("change",["accSup",`${r.id}`,"export",onEv.checked])}> ${i18n("экспорт")}</label></div></div>`:""):""].filter(Boolean).join("");
   const showRestr=can("feature:accessRestrictions")&&ACC_RESTR.length;
