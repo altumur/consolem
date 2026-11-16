@@ -3295,8 +3295,6 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 .pm-who{display:block;margin:0 0 10px}
 .pm-who ul{margin:0;padding-left:18px}
 .pm-who li{margin:3px 0}
-.pm-warn{list-style:none;margin-left:-18px!important;display:flex;gap:6px;align-items:flex-start}
-.pm-warn svg{flex:none;width:14px;height:14px;margin-top:2px}
 .pm-stub{display:flex;gap:6px;align-items:flex-start;margin:0 0 10px;font-size:12px}
 .pm-acts{display:flex;gap:8px;flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){.pm-row{transition:none}}
@@ -20451,8 +20449,7 @@ function pmBodyHtml(n){
   const who=`<div class="nt pm-who"><div class="pm-h">${i18n("Кто и где видит маску")}</div><ul>
       <li>${i18n("Client закрывает эти области на живом видео, в архиве, при экспорте и на снимках.")}</li>
       <li>${i18n("Маску видят пользователи, у роли которых нет права «Просмотр видео без масок приватности».")}</li>
-      <li class="pm-warn">${lu("triangle-alert")} ${i18n("Маску показывает только standalone Client. Web Client и Mobile Client маску не показывают: в них кадр виден целиком.")}</li>
-      <li>${i18n("Вид маски задаёт опция домена")}${d?` «${escHtml(locName(d))}»`:""}: <b>${pmLookText(n)}</b>. <button type="button" class="lk" ${onEv("click",["optGo","sec"])}>${i18n("Открыть опции домена")}</button></li>
+      <li>${i18n("Вид маски задаёт опция домена")}${d?` «${escHtml(locName(d))}»`:""}: <b>${pmLookText(n)}</b>. <button type="button" class="lk" ${onEv("click",["pmOptGo"])}>${i18n("Открыть опцию «Маска приватности»")}</button></li>
     </ul></div>`;
   const stub=`<p class="sub pm-stub">${lu("triangle-alert")} ${i18n("Заглушка: в контракте 0.13.0 у камеры нет маски приватности. Консоль хранит области в памяти страницы до перезагрузки.")}</p>`;
   const acts=`<div class="pm-acts"><button type="button" class="btn pri" ${dirty?"":"disabled"} ${onEv("click",["pmSave",n.id])}>${i18n("Сохранить маску")}</button><button type="button" class="btn" ${dirty?"":"disabled"} ${onEv("click",["pmCancel",n.id])}>${i18n("Отменить правки")}</button></div>`;
@@ -20511,6 +20508,8 @@ function pmHoverBind(n){
   st.addEventListener("mousemove",e=>{const m=pmNode(st.dataset.pmStage);if(!m||pm.id!==m.id||(!pm.poly&&!pm.rect)||pm.drag)return;const q=dwXY(st,e);if(!q)return;if(pm.poly)pm.poly.q=q;else pm.rect.q=q;pmPaintGeo(m)});
   st.addEventListener("mouseleave",()=>{if(pm.poly){pm.poly.q=null;const m=pmNode(st.dataset.pmStage);if(m)pmPaintGeo(m)}});
 }
+// Как поиск по настройкам: раздел «Опции», страница «Безопасность», опция sec.mask подсвечена
+function pmOptGo(){goApp("sys");sys="sec";settingHighlight="sec.mask";paint()}
 function pmTool(id,t){const n=pmNode(id);if(!n)return;pmFocus(n);pm.pt=null;pm.tool=pm.tool===t?null:t;pm.poly=null;pm.rect=null;pm.view=false;if(pm.tool)pm.sel=null;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
 function pmView(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=!pm.view;pm.tool=null;pm.poly=null;pm.rect=null;pm.sel=null;pmRepaint(n)}
 function pmSel(id,aid){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=false;pm.tool=null;pm.poly=null;pm.rect=null;pm.pt=null;pm.sel=pm.sel===aid?null:aid;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
