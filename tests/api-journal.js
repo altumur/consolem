@@ -165,18 +165,22 @@
 
   test("Журнал: аудит — секреты не попадают в запись и в CSV; каждое удаление — своя запись с именем (0.9.0)", async () => {
     const env = await makeEnv();
-    const r = (await env.ok("GET", "/rules?limit=1")).items[0];
-    const got = await env.call("GET", `/rules/${r.id}`);
-    const body = JSON.parse(JSON.stringify(got.body));
-    ["id", "version", "status", "createdAt", "createdBy", "changedAt", "changedBy", "mute", "order"].forEach((k) => delete body[k]);
-    body.steps = [{ source: "net", action: "http", method: "POST", url: "https://admin:S3cr3tPw@hook.example/x?token=abc123", auth: "bearer", headers: "Authorization: Bearer TOPSECRET" }];
-    await env.ok("PUT", `/rules/${r.id}`, body, { "If-Match": `"${got.body.version}"` });
-    const top = (await env.ok("GET", "/journal?limit=1")).items[0];
-    assert.eq(top.kind, "api.putRule", "запись о правиле");
-    assert.eq(top.fields.ruleId, r.id, "ссылка на правило");
-    const csv = await env.call("GET", "/journal/export?level=audit");
-    const text = JSON.stringify(top) + (csv.status === 200 ? csv.body : "");
-    assert.ok(!/S3cr3tPw|TOPSECRET|abc123/.test(text), "пароль в адресе, заголовок и токен скрыты");
+    // Секреты — в шаге «HTTP-запрос» правила. Система, у которой в каталоге правил его нет (one-domain), эту часть пропускает
+    const ref = await env.ok("GET", "/reference");
+    if ((ref.ruleActions || []).some((a) => a.source === "net" && a.action === "http")) {
+      const r = (await env.ok("GET", "/rules?limit=1")).items[0];
+      const got = await env.call("GET", `/rules/${r.id}`);
+      const body = JSON.parse(JSON.stringify(got.body));
+      ["id", "version", "status", "createdAt", "createdBy", "changedAt", "changedBy", "mute", "order"].forEach((k) => delete body[k]);
+      body.steps = [{ source: "net", action: "http", method: "POST", url: "https://admin:S3cr3tPw@hook.example/x?token=abc123", auth: "bearer", headers: "Authorization: Bearer TOPSECRET" }];
+      await env.ok("PUT", `/rules/${r.id}`, body, { "If-Match": `"${got.body.version}"` });
+      const top = (await env.ok("GET", "/journal?limit=1")).items[0];
+      assert.eq(top.kind, "api.putRule", "запись о правиле");
+      assert.eq(top.fields.ruleId, r.id, "ссылка на правило");
+      const csv = await env.call("GET", "/journal/export?level=audit");
+      const text = JSON.stringify(top) + (csv.status === 200 ? csv.body : "");
+      assert.ok(!/S3cr3tPw|TOPSECRET|abc123/.test(text), "пароль в адресе, заголовок и токен скрыты");
+    }
     const sched = (await env.ok("GET", "/schedules?limit=3")).items.slice(0, 2);
     for (const x of sched) await env.ok("DELETE", `/schedules/${x.id}`, undefined, { "If-Match": `"${x.version}"` });
     const del = (await env.ok("GET", "/journal?limit=5&kind=api.deleteSchedule")).items;

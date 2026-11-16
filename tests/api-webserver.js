@@ -7,11 +7,18 @@
    ключ стенда со словом mismatch вне блока. */
 (() => {
   const { test, makeEnv, assert } = ApiTest;
-  const id = (n) => `${n}-0000-4000-8000-000000000000`;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;
-  // Офис — с сертификатом в наборе, Склад — без сертификата, Филиал — без связи
-  const S = { office: id(20000001), store: id(20000002), off: id(20000003) };
+  // Серверы берутся из системы, а не номерами набора: так тесты идут на любом наборе (one-domain) и на внешнем бэкенде.
+  // office — с сертификатом, store — на связи и без сертификата, off — без связи
+  const servers = async (env) => {
+    const all = await env.list("/units?kind=server");
+    const certOf = (u) => u.status && u.status.observed && u.status.observed.webCertificate;
+    const linked = (u) => u.status && u.status.link === "online";
+    const S = { office: (all.find(certOf) || {}).uid, store: (all.find((u) => linked(u) && !certOf(u)) || {}).uid, off: (all.find((u) => u.status && u.status.link === "offline") || {}).uid };
+    assert.ok(S.store, "в системе есть сервер на связи без сертификата");
+    return S;
+  };
   const DEF = { enabled: true, httpPort: 80, httpsPort: 443, urlPrefix: "/", cors: false, recompress: false, rtspPort: 554, rtspHttpPort: 8554 };
   const needs = ["patchUnit", "runUnitAction", "implements:vms.webserver/1"];
   const get = (env, uid) => env.ok("GET", U(uid));
@@ -37,10 +44,13 @@
 
   test("Веб-сервер: умолчания, сертификат и порты видео в ответе", async () => {
     const env = await makeEnv();
-    const office = await get(env, S.office);
-    assert.eq(web(office), DEF, "поля webServer нет в наборе — умолчания Axxon One");
-    assert.eq([cert(office).subject, cert(office).wildcard, cert(office).chain, cert(office).keyMatches], ["*.vms.example.ru", true, "full", true], "сертификат Офиса");
-    assert.eq(office.status.observed.webReservedPorts, { from: 9001, to: 9009 }, "9001 и по одному порту на ядро");
+    const S = await servers(env);
+    if (S.office) {
+      const office = await get(env, S.office);
+      assert.eq(web(office), DEF, "поля webServer нет в наборе — умолчания Axxon One");
+      assert.eq([cert(office).subject, cert(office).wildcard, cert(office).chain, cert(office).keyMatches], ["*.vms.example.ru", true, "full", true], "сертификат Офиса");
+      assert.eq(office.status.observed.webReservedPorts, { from: 9001, to: 9009 }, "9001 и по одному порту на ядро");
+    }
     const store = await get(env, S.store);
     assert.eq(cert(store), null, "у Склада сертификата нет: только HTTP");
     const row = (await env.list("/units?kind=server")).find((u) => u.uid === S.store);
@@ -49,6 +59,7 @@
 
   test("Веб-сервер: правка — по полям, остальное остаётся; выключение; отказы портов и префикса", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     let s = await get(env, S.store);
     let res = await setWeb(env, s, { httpPort: 8080, urlPrefix: "/vms" });
     assert.status(res, 200, null, "PATCH httpPort и urlPrefix");
@@ -76,6 +87,7 @@
 
   test("Веб-сервер: правка шагом операции и откат возвращают прежние значения", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const s = await get(env, S.store);
     const op = await env.runOperation({ idempotencyKey: "web-op-1", items: [{ uid: s.uid, patch: { properties: { webServer: { httpPort: 8081, rtspPort: 8554 + 1 } } } }], expectedVersions: { [s.uid]: s.version } });
     assert.eq(op.items.map((x) => x.state), ["ok"], "шаг выполнен");
@@ -91,6 +103,7 @@
 
   test("Веб-сервер: обмен портами HTTP и HTTPS двумя шагами одной операции — порты сверяются с итогом", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const s = await get(env, S.store);
     const op = await env.runOperation({ idempotencyKey: "web-swap", items: [
       { uid: s.uid, patch: { properties: { webServer: { httpPort: 443 } } } },
@@ -103,6 +116,7 @@
 
   test("Сертификат: проверка без сохранения, загрузка, сведения, удаление", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const now = env.now;
     let res = await act(env, S.store, "webcert.set", { certificate: certPem(now), privateKey: keyPem(), certificateName: "fullchain.pem", check: true });
     assert.status(res, 200, null, "check: true");
@@ -127,6 +141,7 @@
 
   test("Сертификат: отказы — не PEM, ключ с паролем, срок, ключ не подходит, нет ключа", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const now = env.now;
     const set = (params) => act(env, S.store, "webcert.set", params);
     field(await set({ certificate: "просто текст", privateKey: keyPem() }), "CERTIFICATE_INVALID", "/params/certificate", "сертификат не PEM");
@@ -137,11 +152,12 @@
     field(await set({ certificate: certPem(now), privateKey: keyPem("mismatch\n") }), "KEY_MISMATCH", "/params/privateKey", "ключ не подходит");
     field(await set({ certificate: certPem(now) }), "VALIDATION_FAILED", "/params/privateKey", "нет ключа");
     assert.eq(cert(await get(env, S.store)), null, "отказы ничего не сохранили");
-    assert.status(await act(env, S.off, "webcert.set", { certificate: certPem(now), privateKey: keyPem() }), 409, "DEVICE_OFFLINE", "сервер без связи");
+    if (S.off) assert.status(await act(env, S.off, "webcert.set", { certificate: certPem(now), privateKey: keyPem() }), 409, "DEVICE_OFFLINE", "сервер без связи");
   }, { needs });
 
   test("Закрытый ключ: нигде не отдаётся — объект, ответ команды, журнал; не шаг операции", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const now = env.now;
     const res = await act(env, S.store, "webcert.set", { certificate: certPem(now), privateKey: keyPem() });
     assert.status(res, 200, null, "загрузить");
@@ -161,6 +177,7 @@
 
   test("Закрытый ключ: webcert.set — не шаг правила, и выключенного тоже: правило с ключом не сохраняется", async () => {
     const env = await makeEnv();
+    const S = await servers(env);
     const before = (await env.list("/rules")).length;
     const rule = (enabled) => ({ name: "Сертификат по правилу", enabled, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6,
       windowSec: 0, runAt: null, repeat: "skip", triggers: [], conditions: [], owner: "admin", purpose: "", serverId: null, runAsRoleId: null, allowChain: true,
