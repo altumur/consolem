@@ -2152,21 +2152,34 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 .kb-rule{margin:0 0 8px}
 .kb-tabs{margin-bottom:8px}
 .kb-wrap{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
-.kb-wrap-pic{grid-template-columns:minmax(0,1fr) 300px}
-@container (max-width:700px){.kb-wrap-pic{grid-template-columns:minmax(0,1fr)}}
+.kb-wrap-pic{grid-template-columns:minmax(0,1fr) 264px}
+@container (max-width:820px){.kb-wrap-pic{grid-template-columns:minmax(0,1fr)}
+  .kb-wrap-pic .kb-pic{order:-1;position:static;display:grid;grid-template-columns:minmax(0,1fr);gap:6px;padding:10px 12px}
+  .kb-wrap-pic .kb-joy{display:none}.kb-wrap-pic .kb-pic-hd{margin:0}
+  .kb-wrap-pic .kb-pbs{grid-template-columns:repeat(auto-fill,minmax(48px,1fr))}
+  .kb-wrap-pic .kb-pic-ln{min-height:0;margin:4px 0 0}}
 .kb-tbl{width:100%;table-layout:fixed;border-collapse:collapse}
+.kb-ck{width:140px}.kb-cx{width:172px}
+@container (max-width:520px){.kb-ck{width:104px}.kb-cx{width:146px}.kb-xb .btn{padding-left:8px;padding-right:8px}.kb-xb{grid-template-columns:auto 24px 24px;gap:2px}.kb-ib,.kb-ib-n{width:24px}
+  .kb-capbox .kb-cap{display:none}.kb-tbl td{padding-left:6px;padding-right:6px}}
 .kb-tbl th{text-align:left;font-size:12px;font-weight:500;color:var(--one-fg-muted);padding:6px 8px;border-bottom:1px solid var(--ln)}
 .kb-tbl td{padding:7px 8px;border-bottom:1px solid var(--ln);vertical-align:middle}
-.kb-a{overflow:hidden}.kb-a small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kb-a{overflow-wrap:break-word}.kb-a small{display:block;line-height:1.35;margin-top:2px}
 .kb-k{white-space:nowrap}.kb-k>*{vertical-align:middle}
-.kb-x{text-align:right;white-space:nowrap}.kb-x .lk{margin-left:8px}
+.kb-x{white-space:nowrap}
+.kb-xb{display:grid;grid-template-columns:auto 28px 28px;justify-content:end;gap:4px;align-items:center}
+.kb-xb .btn{white-space:nowrap}
+.kb-ib,.kb-ib-n{width:28px;height:28px}
+.kb-ib{display:grid;place-items:center;padding:0;border:1px solid transparent;border-radius:6px;background:none;color:var(--one-fg-muted);cursor:pointer}
+.kb-ib:hover,.kb-ib:focus-visible{color:var(--one-fg);border-color:var(--one-border);background:var(--one-control-bg)}
+.kb-capbox{display:flex;align-items:center;gap:6px;height:28px}.kb-capbox .kb-cap{flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kb-capbox .kb-ib{margin-left:auto;flex:none}.kb-capbox .kb-pick{margin-left:0}
 .kb-sub td{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:var(--one-fg-muted);padding-top:14px}
 .kb-key{display:inline-block;min-width:22px;padding:1px 7px;border:1px solid var(--one-border);border-bottom-width:2px;border-radius:5px;background:var(--one-surface-muted);font:500 12px/18px ui-monospace,Menlo,monospace;text-align:center}
 .kb-lock{display:inline-flex;margin-left:6px;color:var(--one-fg-muted)}
 .kb-axis{font-size:12px;color:var(--one-fg-muted)}
 .kb-on td{background:color-mix(in srgb,var(--bl) 10%,transparent)}
 .kb-cap{display:inline-flex;align-items:center;gap:6px;color:var(--bl);font-weight:500;animation:kbPulse 1.2s ease-in-out infinite}
-.kb-pick{margin-left:6px;max-width:110px}
+.kb-pick{margin-left:6px;max-width:104px;flex:none}
 .kb-on .kb-k{white-space:nowrap}
 @keyframes kbPulse{50%{opacity:.45}}
 .kb-hit td{background:color-mix(in srgb,var(--one-success-bg) 70%,transparent)}
@@ -30665,18 +30678,18 @@ function kbRow(d,a,fixedAll){
   const cur=kbOf(d),def=kbDef(d),k=cur[a[0]]||"",fx=fixedAll||kbFixedAct(d,a),cap=kbCap===a[0],chg=(def[a[0]]||"")!==k;
   const others=k?KB_ACTS.filter(b=>b[0]!==a[0]&&b[1]!==a[1]&&cur[b[0]]===k):[];
   let keyCell;
-  if(cap)keyCell=`<span class="kb-cap" role="status">${lu("keyboard",14)}${i18n(d.kind==="pc"?"Нажать клавишу…":"Нажать кнопку…")}</span>
-    ${kbPickList(d)}<button type="button" class="lk lk-act" ${onEv("click",["kbCapStop"])}>${i18n("Отменить")}</button>`;
+  if(cap)keyCell=`<div class="kb-capbox"><span class="kb-cap" role="status">${lu("keyboard",14)}${i18n(d.kind==="pc"?"Нажать клавишу…":"Нажать кнопку…")}</span>
+    ${kbPickList(d)}<button type="button" class="kb-ib" title="${escHtml(i18n("Отменить (Esc)"))}" aria-label="${escHtml(i18n("Отменить"))}" ${onEv("click",["kbCapStop"])}>${lu("x",14)}</button></div>`;
   else keyCell=`${k?`<kbd class="kb-key">${escHtml(k)}</kbd>`:`<span class="sub">${i18n("Не назначена")}</span>`}${fx?`<span class="kb-lock" title="${escHtml(i18n(fixedAll?"Кнопки этого пульта задал производитель. Axxon One их не меняет.":"Эту клавишу Axxon One не меняет."))}">${lu("lock",12)}</span>`:""}`;
   const conf=kbConf&&kbConf.act===a[0]?kbConfHtml(d,a):"";
   const hit=kbHit&&kbHit.act===a[0]?" kb-hit":"";
   const subh=KB_SUB[a[0]]&&KB_ACTS.find(x=>x[0]===a[0])[1]===kbFn?`<tr class="kb-sub"><td colspan="3">${i18n(KB_SUB[a[0]])}</td></tr>`:"";
   return`${subh}<tr class="kb-tr ${cap?"kb-on":""}${hit}" data-kb-act="${a[0]}">
     <td class="kb-a">${i18n(a[2])}${others.length?`<small class="sub kb-also">${i18n("Эта же кнопка")} — ${others.map(b=>`«${i18n(b[2])}» (${kbFnName(b[1])})`).join(", ")}</small>`:""}</td>
-    <td class="kb-k" ${cap?'colspan="2"':""}>${keyCell}</td>
-    ${cap?"":`<td class="kb-x">`}${fx||cap?"":`<button type="button" class="btn s" ${onEv("click",["kbCapStart",a[0]])}>${i18n(k?"Изменить":"Назначить")}</button>
-      ${k?`<button type="button" class="lk lk-act" ${onEv("click",["kbClear",a[0]])}>${i18n("Убрать")}</button>`:""}
-      ${chg?`<button type="button" class="lk lk-act" title="${escHtml(i18n("По умолчанию")+": "+(def[a[0]]||i18n("не назначена")))}" ${onEv("click",["kbReset",a[0]])}>${i18n("Вернуть")}</button>`:""}`}${cap?"":"</td>"}</tr>${conf}`;
+    <td class="kb-k" ${cap||fx?'colspan="2"':""}>${keyCell}</td>
+    ${cap||fx?"":`<td class="kb-x">${fx?"":`<div class="kb-xb"><button type="button" class="btn s" ${onEv("click",["kbCapStart",a[0]])}>${i18n(k?"Изменить":"Назначить")}</button>
+      ${k?`<button type="button" class="kb-ib" title="${escHtml(i18n("Убрать кнопку"))}" aria-label="${escHtml(i18n("Убрать кнопку"))}" ${onEv("click",["kbClear",a[0]])}>${lu("x",14)}</button>`:`<span class="kb-ib-n"></span>`}
+      ${chg?`<button type="button" class="kb-ib" title="${escHtml(i18n("Вернуть по умолчанию")+": "+(def[a[0]]||i18n("не назначена")))}" aria-label="${escHtml(i18n("Вернуть по умолчанию"))}" ${onEv("click",["kbReset",a[0]])}>${lu("rotate-ccw",14)}</button>`:`<span class="kb-ib-n"></span>`}</div>`}</td>`}</tr>${conf}`;
 }
 // Выбор кнопки из списка — наравне с нажатием: браузер видит не каждый пульт, а клавиши браузера и Windows (Ctrl+W, Alt+Tab) не нажать
 function kbPickList(d){
@@ -30715,10 +30728,10 @@ function kbUI(o){
   const fnActs=KB_ACTS.filter(a=>a[1]===kbFn),rows=fnActs.filter(a=>!q||matchesText(q,i18n(a[2]),kbOf(d)[a[0]]||""));
   const tabs=KB_FN.map(([id,n])=>{const c=KB_ACTS.filter(a=>a[1]===id&&kbOf(d)[a[0]]).length;
     return`<button type="button" class="tab ${id===kbFn?"on":""}" role="tab" aria-selected="${id===kbFn}" ${onEv("click",["kbFnPick",id])}>${i18n(n)} <span class="sub">${c}</span></button>`}).join("");
-  const axes=d.kind==="pc"?"":KB_AXES.map(([a,k])=>`<tr class="kb-tr"><td class="kb-a">${i18n(a)}</td><td class="kb-k"><span class="kb-axis">${i18n(k)}</span><span class="kb-lock" title="${escHtml(i18n("Ось джойстика работает всегда. Чувствительность — в «Управлении PTZ»."))}">${lu("lock",12)}</span></td><td class="kb-x"></td></tr>`).join("");
+  const axes=d.kind==="pc"?"":KB_AXES.map(([a,k])=>`<tr class="kb-tr"><td class="kb-a">${i18n(a)}</td><td class="kb-k" colspan="2"><span class="kb-axis">${i18n(k)}</span><span class="kb-lock" title="${escHtml(i18n("Ось джойстика работает всегда. Чувствительность — в «Управлении PTZ»."))}">${lu("lock",12)}</span></td></tr>`).join("");
   const note=fixedAll?`<div class="op-where">${lu("lock")}<span>${i18n("Кнопки этого пульта задал производитель. Axxon One их не меняет: таблица показывает, что делает каждая кнопка.")}</span></div>`
     :`<p class="sub kb-rule">${i18n("Кнопка из «Общих» работает везде, поэтому её нельзя назначить в другой функции. В других функциях одна кнопка может делать разное: например, в «Живом видео» и в «Архиве».")}</p>`;
-  const tbl=`<table class="kb-tbl"><colgroup><col><col style="width:150px"><col style="width:176px"></colgroup>
+  const tbl=`<table class="kb-tbl"><colgroup><col><col class="kb-ck"><col class="kb-cx"></colgroup>
     <thead><tr><th>${i18n("Действие")}</th><th>${i18n(d.kind==="pc"?"Клавиша":"Кнопка")}</th><th></th></tr></thead>
     <tbody>${kbFn==="live"?axes:""}${rows.map(a=>kbRow(d,a,fixedAll)).join("")}</tbody></table>
     ${q?`<p class="sub">${i18n("Показано")} ${rows.length} ${i18n("из")} ${fnActs.length}</p>`:""}`;
