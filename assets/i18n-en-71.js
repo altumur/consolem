@@ -1,4 +1,4 @@
-// Прототип 68: Tag&Track Pro у PTZ-камеры. Подключён после assets/i18n-en.js
+// Прототип 71: Tag&Track Pro у PTZ-камеры. Подключён после assets/i18n-en.js
 Object.assign(window.I18N_EN,{
 "Автоматически":"Automatic",
 "В ключе нет лицензий Tag-n-Track. Слежение не заработает":"The key has no Tag-n-Track licenses. Tracking will not work",

@@ -747,7 +747,7 @@ div.exp-ln{display:flex;align-items:center;padding:8px 0}
 .cv-warn{margin:8px 0 0;padding-left:18px;font-size:12px;color:var(--one-warning-text)}
 .cv-stub{font-size:12px;border-left:3px dashed var(--one-warning-text);padding-left:8px;margin-top:10px}
 @media(prefers-reduced-motion:reduce){.joy-knob{transition:none}}
-/* Tag&Track Pro (прототип 68): раздел «Слежение Tag&Track Pro» на вкладке «Видео», после «Поворотного устройства» */
+/* Tag&Track Pro (прототип 71): раздел «Слежение Tag&Track Pro» на вкладке «Видео», после «Поворотного устройства» */
 .tt-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 24px;align-items:start}
 .tt-f{display:grid;gap:4px;font-size:12px;color:var(--mu);margin:0}.tt-f>small{line-height:1.35}
 .tt-f select{field-sizing:content;max-width:100%;justify-self:start}.tt-f .cv-num{justify-self:start}.tt-f .cv-num input{width:72px;flex:none}
@@ -3449,7 +3449,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
-<script src="assets/i18n-en-68.js"></script>
+<script src="assets/i18n-en-71.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -14586,7 +14586,7 @@ function csEditable(el){
     .some(c=>!(c.matches("input")&&csSearchInput(c))&&!c.closest(".cs-acts,.pg-size,.acc-bar"));
 }
 function csBlkLock(n,el,ch,k){
-  // «Слежение Tag&Track Pro» (прототип 68) — без «Изменить»: правки сразу идут в план карточки, как у туров PTZ,
+  // «Слежение Tag&Track Pro» (прототип 71) — без «Изменить»: правки сразу идут в план карточки, как у туров PTZ,
   // а снимает их «Сбросить» внизу. Калибровка — свой редактор с «Добавить в план» и «Отмена»
   if(el.dataset.sec==="tt")return;
   if(CS_LOCK_SKIP.has(tab)||ch.querySelector(".cs-acts")||!csEditable(el))return;
@@ -39626,7 +39626,7 @@ window.appReady=capsLoad().then(()=>Promise.all([hwLoad(),appLoad()])).then(auto
 if(/[?&]selftest(-run)?\b/.test(location.search)){const s=document.createElement("script");s.src="tests/selftest.js";document.body.appendChild(s)}
 </script>
 <script>
-// ── Показ прототипа 68: настройка Tag&Track Pro с нуля (тема «Обучение» tag-track; адрес ?tour=tag-track&all&demo&play) ──
+// ── Показ прототипа 71: настройка Tag&Track Pro с нуля (тема «Обучение» tag-track; адрес ?tour=tag-track&all&demo&play) ──
 // PTZ «Запасной вход» начинает без обзорных камер. Курсор жмёт настоящие кнопки раздела; поворот PTZ к месту на полу
 // делает симуляция стенда (так оператор поворачивает камеру стрелками), нажатие на обзорный кадр — настоящее событие мыши.
 // Тему регистрирует запуск (кнопка или ?tour=tag-track), а не загрузка страницы: общий tests/ui-learn.js проигрывает
@@ -39732,11 +39732,11 @@ if (new URLSearchParams(location.search).get("tour") === "tag-track") ttTopic();
 // Кнопка показа на странице прототипа. В учебном режиме и в самопроверке её нет
 if (!Tour.demo && !/[?&]selftest(-run)?\b/.test(location.search)) (window.appReady || Promise.resolve()).then(() => {
   const st = document.createElement("style");
-  st.textContent = `.p68-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
-.p68-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}`;
+  st.textContent = `.p71-offer{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:15;padding:9px 14px;border:0;border-radius:999px;background:var(--one-focus-ring,#3b82f6);color:#fff;font:600 13px/1 inherit;cursor:pointer;box-shadow:0 6px 18px #0006}
+.p71-offer:focus-visible{outline:2px solid #fff;outline-offset:2px}`;
   document.head.append(st);
   const b = document.createElement("button");
-  b.type = "button"; b.className = "p68-offer"; b.textContent = i18n("▶ Показ: Tag&Track Pro с нуля");
+  b.type = "button"; b.className = "p71-offer"; b.textContent = i18n("▶ Показ: Tag&Track Pro с нуля");
   b.addEventListener("click", () => { ttTopic(); learnPlay("tag-track", null); });
   document.body.append(b);
 });
