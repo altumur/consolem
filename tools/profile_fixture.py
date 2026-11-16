@@ -65,7 +65,9 @@ PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", 
 # Контракт 0.12.0: поддетекторы (вид subdet) и новые настройки детектора. Система объявляет, что поддерживает, схемой вида:
 # в профиле «один домен» вида subdet нет, у det нет и этих свойств, а трекеры (analyticsKind) не заводятся — как у w2c без них
 PLUGIN_KINDS += ["subdet"]
-DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec"]}
+DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec",
+  # Контракт 0.13.0: запись и показ маски и треков — в профиле «один домен» их тоже нет
+  "recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan"]}
 # Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)

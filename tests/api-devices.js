@@ -529,6 +529,28 @@
     assert.eq(Object.keys(good).map((n) => ok.properties[n]), Object.values(good), "верные сохранены");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
 
+  // prop:det.recordTracks в needs — знак, что сервер знает 0.13.0: без него этих свойств det нет, и тест пропускается
+  test("recordMask, recordTracks, showMask, showTracks, showTrackLifespan (0.13.0): нет поля — нет ключа; true и false сохраняются; не boolean — 422 type; null снимает", async () => {
+    const env = await makeEnv();
+    const REC = ["recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan"];
+    const d = await addDet(env, camU, "Запись и показ", { detectorKind: "motion", sensitivity: 10 });
+    assert.eq(REC.filter((n) => n in d.properties), [], "без полей — ключей нет: действуют умолчания");
+    for (const n of REC) {
+      const res = await props(env, d, { [n]: "yes" });
+      field(res, "VALIDATION_FAILED", P(n), `${n}: строка`);
+      assert.eq(res.body.params.keyword, "type", `${n}: слово схемы`);
+    }
+    const good = { recordMask: false, recordTracks: false, showMask: false, showTracks: true, showTrackLifespan: true };
+    const ok = await env.ok("PATCH", U(d.uid), { properties: good }, v(d));
+    assert.eq(REC.map((n) => ok.properties[n]), REC.map((n) => good[n]), "сохранены");
+    const again = await get(env, d.uid);
+    assert.eq(REC.map((n) => again.properties[n]), REC.map((n) => good[n]), "и при чтении");
+    const gone = await env.ok("PATCH", U(d.uid), { properties: Object.fromEntries(REC.map((n) => [n, null])) }, v(again));
+    assert.eq(REC.filter((n) => n in gone.properties), [], "null снимает: снова умолчания");
+    const tr = await addDet(env, camU, "Трекер с записью", { detectorKind: "other", analyticsKind: "tracker", sensitivity: 60, recordTracks: false, showTracks: true });
+    assert.eq([tr.properties.recordTracks, tr.properties.showTracks], [false, true], "и при создании");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.recordTracks"] });
+
   // kind:subdet в needs — знак, что сервер знает 0.12.0: без него этих свойств det нет, и тест пропускается
   test("analyticsKind: только при detectorKind other — иначе 422; detectorKind: motion у трекера проходит, поле остаётся без действия", async () => {
     const env = await makeEnv();

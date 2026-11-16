@@ -5931,6 +5931,24 @@
       },
       "description": "С 0.12.0. lpr: доли ширины кадра. Нет поля — без ограничения"
      },
+     "recordMask": {
+      "x-label": {
+       "key": "field.recordMask",
+       "text": "Записывать маску движения",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.13.0. motion: сервер пишет маску движения в архив вместе с видео; по ней ищет быстрый поиск по движению. Нет поля — true. У других видов поле не действует"
+     },
+     "recordTracks": {
+      "x-label": {
+       "key": "field.recordTracks",
+       "text": "Записывать треки объектов",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.13.0. motion, трекеры (analyticsKind): сервер пишет треки объектов в метаданные архива; по ним ищет поиск в архиве. Сервер разбирает видео, нагрузка растёт. Нет поля — true. Срок хранения — keep.metaDays домена"
+     },
      "sensitivity": {
       "x-label": {
        "key": "field.sensitivity",
@@ -5954,6 +5972,33 @@
        ]
       },
       "x-ui-widget": "ref"
+     },
+     "showMask": {
+      "x-label": {
+       "key": "field.showMask",
+       "text": "Показывать маску движения",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.13.0. motion: клиент рисует сетку маски движения на кадре. Нет поля — true. У других видов поле не действует"
+     },
+     "showTrackLifespan": {
+      "x-label": {
+       "key": "field.showTrackLifespan",
+       "text": "Показывать время жизни трека",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.13.0. motion, трекеры: клиент пишет над рамкой объекта число секунд с момента, когда детектор нашёл объект. Действует при showTracks: true. Нет поля — false"
+     },
+     "showTracks": {
+      "x-label": {
+       "key": "field.showTracks",
+       "text": "Показывать треки объектов",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.13.0. motion, трекеры: клиент рисует рамки и пути объектов на кадре. Нет поля — false"
      },
      "stillSec": {
       "x-label": {
@@ -9836,8 +9881,13 @@
     "objectSize",
     "params",
     "plateWidth",
+    "recordMask",
+    "recordTracks",
     "sensitivity",
     "serverId",
+    "showMask",
+    "showTrackLifespan",
+    "showTracks",
     "stillSec",
     "stream",
     "template",
@@ -14099,7 +14149,9 @@
     "builtin": false,
     "detectorKind": "motion",
     "sensitivity": 11,
-    "enabled": true
+    "enabled": true,
+    "recordTracks": false,
+    "recordMask": false
    },
    "status": {
     "link": "offline"
@@ -28415,7 +28467,8 @@
        0.85
       ]
      ]
-    }
+    },
+    "recordTracks": false
    },
    "status": {
     "link": "online"
@@ -28534,7 +28587,9 @@
        1
       ]
      ]
-    }
+    },
+    "showTracks": true,
+    "showTrackLifespan": true
    },
    "status": {
     "link": "online"
