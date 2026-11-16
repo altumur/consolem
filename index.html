@@ -608,6 +608,11 @@ td.fl-nm>.fl-nm-ic{display:inline-flex;vertical-align:middle;margin-right:8px}
 .web-cert span:first-child{display:block;color:var(--mu);font-size:12px}.web-cert .sub{margin:0;font-size:12px}
 .web-cert+.nt{margin-top:10px}
 .fld-err{font-size:11px;color:var(--one-danger);min-height:13px;margin-top:3px}
+/* Карточка «ONVIF-сервер» на вкладке «Веб, RTSP, ONVIF» (из прототипа 75) */
+.onvif-ok{display:flex;gap:6px;align-items:flex-start}.onvif-ok svg{flex:none;width:14px;height:14px;margin-top:2px;color:var(--one-success,#2e7d32)}
+.onvif-req{margin:4px 0 0;padding:0;list-style:none;display:grid;gap:8px;font-size:13px}.onvif-req li{display:flex;gap:8px;align-items:flex-start;max-width:90ch}.onvif-req li>svg{flex:none;width:16px;height:16px;margin-top:2px;color:var(--mu)}
+.onvif-req li.ok>svg{color:var(--one-success,#2e7d32)}.onvif-req li.bad>svg{color:var(--one-danger)}.onvif-req .cp{vertical-align:middle}
+.onvif-mj{margin-top:6px}.web-tab .nt[data-onvif-mjpeg]{margin-top:10px}
 .g input.bad,.g select.bad{border-color:var(--one-danger)}
 .g .sf-bad,.g textarea.bad{border-color:var(--one-danger)}.sf-multi{display:flex;flex-wrap:wrap;gap:4px 12px;padding:4px 0}.sf-multi.sf-bad{outline:1px solid var(--one-danger)}
 .g .sf-wide{grid-column:1/-1}.g .sf-wide textarea{width:100%}
@@ -2129,6 +2134,8 @@ html[data-theme="light"] .acc-sync.run{color:var(--one-warning-icon)}
 /* Кнопки шапки — у правого края, и когда ряд перенёсся. Заголовок не растягивается (bridge.css), место забирает его отступ. */
 .hd-act{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
 .hd-act>.hd-ti{margin:0 auto 0 0}
+/* Вкладки и подзаголовок не прилипают к кнопкам шапки — между рядами 10px (из прототипа 75) */
+.hd>.hd-act+*{margin-top:10px}
 /* Опции и лицензии */
 .op-tg{font-size:11px;color:var(--mu);text-transform:uppercase;letter-spacing:.04em;padding:10px 10px 4px}
 .op-tcnt{margin-left:auto;font-size:11px;color:var(--mu);font-variant-numeric:tabular-nums}
@@ -7730,7 +7737,8 @@ function cardPlanOpen(){
      ${webPlanNote(n,d)}
      ${d.some(r=>r.stub==="act")?`<p class="sub" data-plan-act>${i18n("Первая строка только называет действие. Консоль отправит на сервер строки ниже.")}</p>`:""}
      ${d.some(r=>r.stub==="mode")?`<p class="sub" data-plan-stub-mode>${i18n("Заглушка: признака «Отправлять настройки устройству» в контракте пока нет. «Применить» оставит его только в странице.")}</p>`:""}
-     ${d.some(r=>r.stub&&r.stub!=="act"&&r.stub!=="mode")?`<p class="sub" data-plan-stub>${i18n("Заглушка: консоль пока не отправляет на сервер параметры драйвера, кодек и битрейт потоков, туры и Tag&Track Pro. «Применить» оставит их как есть.")}</p>`:""}`,
+     ${d.some(r=>r.stub==="onvif")?`<p class="sub" data-plan-stub-onvif>${i18n("Заглушка: ONVIF-сервера в контракте пока нет. «Применить» оставит порт и флажок только в странице.")}</p>`:""}
+     ${d.some(r=>r.stub&&r.stub!=="act"&&r.stub!=="mode"&&r.stub!=="onvif")?`<p class="sub" data-plan-stub>${i18n("Заглушка: консоль пока не отправляет на сервер параметры драйвера, кодек и битрейт потоков, туры и Tag&Track Pro. «Применить» оставит их как есть.")}</p>`:""}`,
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" ${onEv("click",["closeBulkModal"],["cardApply"])}>${i18n("Применить")} (${d.length})</button>`,"bbox-wide");
 }
 function cardApply(ok){
@@ -12536,7 +12544,7 @@ function tabsForHand(n){
   if(n.type==="domain")return[["flds","Папки"],["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
   if(n.type==="unalloc")return[];
   if(n.type==="server"&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
-  if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],webHas(n)?[["web","Веб-сервер"]]:[],[["topo","Топология"]]);
+  if(n.type==="server")return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],webHas(n)?[["web","Веб, RTSP, ONVIF"]]:[],[["topo","Топология"]]);
   // Хранилище открывают ради камер, что в него пишут: «Устройства» — первая
   // вкладка и открывается по умолчанию, параметры и тома — во второй.
   // Вид, на который камеры не привязываются (карта сервера, инциденты), — только параметры и тома.
@@ -14559,7 +14567,7 @@ function camPlanCommit(id){
   const st=drvStore.get(id);if(st)st.base={};
   // После применённого сброса камера сообщает то, что консоль в неё записала (заглушка camDevReported)
   const n=find(id)?.n;if(n&&camPlanBase.get(id)?.act==="reset")camDevRep.set(id,{cv:cardClone({v:cvCfgOf(n).streams}).v,drv:{}});
-  camPlanBase.delete(id);webPlanForget(id);
+  camPlanBase.delete(id);onvifCommit(id);webPlanForget(id);
 }
 // «Сбросить» и уход с черновиком: заглушки — к значениям до плана, открытые блоки камеры закрываются
 function camPlanRestore(id){
@@ -21780,16 +21788,22 @@ function unitAddBtn(){return WIZ.acfa?`<button class="btn s btn-icon" aria-label
 // убирает сертификат. Ключ консоль держит только до «Применить» или «Сбросить» и больше не показывает: сервер его не отдаёт.
 // Образец полей — Axxon One 3.0 «Свойства веб-сервера».
 const WEB_PROFILE="vms.webserver/1";
-const WEB_DEF={on:true,http:80,https:443,prefix:"/",cors:false,recode:false,rtsp:554,rtspHttp:8554};
+const WEB_DEF={on:true,http:80,https:443,prefix:"/",cors:false,recode:false,rtsp:554,rtspHttp:8554,onvifOn:true,onvif:8081};
 const WEB_API={on:"enabled",http:"httpPort",https:"httpsPort",prefix:"urlPrefix",cors:"cors",recode:"recompress",rtsp:"rtspPort",rtspHttp:"rtspHttpPort"};
-const WEB_PORTS=[["http","Порт HTTP"],["https","Порт HTTPS"],["rtsp","Порт RTSP"],["rtspHttp","Порт RTSP через HTTP"]];
-const WEB_LBL={on:"Веб-сервер",http:"Порт HTTP",https:"Порт HTTPS",prefix:"Префикс адреса",cors:"Запросы с других сайтов (CORS)",recode:"Перекодирование видео",rtsp:"Порт RTSP",rtspHttp:"Порт RTSP через HTTP"};
+const WEB_PORTS=[["http","Порт HTTP"],["https","Порт HTTPS"],["rtsp","Порт RTSP"],["rtspHttp","Порт RTSP через HTTP"],["onvif","Порт ONVIF-сервера"]];
+const WEB_LBL={on:"Веб-сервер",http:"Порт HTTP",https:"Порт HTTPS",prefix:"Префикс адреса",cors:"Запросы с других сайтов (CORS)",recode:"Перекодирование видео",rtsp:"Порт RTSP",rtspHttp:"Порт RTSP через HTTP",onvifOn:"ONVIF-сервер",onvif:"Порт ONVIF-сервера"};
+// ONVIF-сервер, из прототипа 75 (ЗАГЛУШКА до контракта, запрос api/requests/2026-11-16-141022Z-mockup-onvif-server-request.md): ONVIF-сервер —
+// включён и порт по серверу живут в памяти страницы, на сервер ничего не уходит.
+// Образец — Axxon One 3.0 «Configuration of the ONVIF server»: параметр сервера «ONVIF server port», по умолчанию 8081
+const ONVIF_KEYS=["onvifOn","onvif"];
+const ONVIF_SRV=new Map();   // uid сервера → {onvifOn, onvif} после «Применить»
+const ONVIF_DP_MIN="3.74";   // Drivers Pack, с которого есть ONVIF-сервер
 const WEB_FILE_MAX=65536;
 // uid сервера → {vals, base: значения до плана или null, last: поле последней правки, cert и key: {name, text} — выбранные
 // файлы, drop: убрать сертификат сервера, check: {info} или {err} — итог проверки пары, checking: номер идущей проверки}
 const webStore=new Map();
 function webHas(n){return n?.type==="server"&&!isUnallocated(n.id)&&(KINDS.get(nodeKind(n))?.implements||[]).includes(WEB_PROFILE)}
-function webFromNode(n){const w=n.web||{},v={};Object.entries(WEB_API).forEach(([k,a])=>{v[k]=a in w?w[a]:WEB_DEF[k]});return v}
+function webFromNode(n){const w=n.web||{},v={};Object.entries(WEB_API).forEach(([k,a])=>{v[k]=a in w?w[a]:WEB_DEF[k]});const o=ONVIF_SRV.get(n.id)||{};ONVIF_KEYS.forEach(k=>{v[k]=k in o?o[k]:WEB_DEF[k]});return v}
 // Без правок значения идут от сервера: ответ и событие потока меняют их сразу
 function webOf(n){
   let st=webStore.get(n.id);
@@ -21852,6 +21866,7 @@ const WEB_CERT_ERR={
 function webErrors(n){
   const st=webOf(n),v=st.vals,err={},by=new Map(),res=n.webRes;
   WEB_PORTS.forEach(([k,l])=>{
+    if(k==="onvif"&&!v.onvifOn)return;
     const s=String(v[k]??"").trim(),p=Number(s);
     if(!/^\d+$/.test(s)||p<1||p>65535){err[k]=i18n("Ввести число от 1 до 65535");return}
     if(res&&p>=res.from&&p<=res.to){err[k]=`${i18n("Порты")} ${res.from}–${res.to} ${i18n("веб-сервер занимает под видео. Выбрать другой порт")}`;return}
@@ -21883,10 +21898,10 @@ function webStatusText(n){
   const st=webOf(n);
   return !st.vals.on?i18n("выключен"):webHttpsOn(n,st)?"HTTPS":"HTTP";
 }
-// Плитка на вкладке «Общие»: состояние веб-сервера, щелчок открывает вкладку «Веб-сервер»
+// Плитка на вкладке «Общие»: состояние веб-сервера и ONVIF-сервера, щелчок открывает вкладку «Веб, RTSP, ONVIF»
 function webTileHtml(n){
   if(!webHas(n))return"";
-  return`<button type="button" class="mc" data-web-tile ${onEv("click",["goTab","web"])}><span>${i18n("Веб-сервер")}</span><b>${escHtml(webStatusText(n))}</b></button>`;
+  return`<button type="button" class="mc" data-web-tile ${onEv("click",["goTab","web"])}><span>${i18n("Веб, RTSP, ONVIF")}</span><b>${escHtml(webStatusText(n))} · ONVIF ${escHtml(webOf(n).vals.onvifOn?String(webOf(n).vals.onvif):i18n("выключен"))}</b></button>`;
 }
 function webPortFld(n,k,l,err,dis){
   const v=webOf(n).vals;
@@ -21945,7 +21960,59 @@ function webSrvHtml(n){
     <p class="sub web-hint">${i18n("Плееры и другие системы забирают видео с сервера по RTSP. Они входят под именем и паролем пользователя консоли и получают видео только тех камер, которые этот пользователь может смотреть по своим правам.")}</p>
     <div class="web-rtsp-ex"><span class="web-addr-l">${i18n("Адрес потока камеры")}:</span> ${copyChipHtml(`rtsp://${i18n("имя")}:${i18n("пароль")}@${n.ip||"localhost"}${rp===554?"":":"+v.rtsp}/hosts/${i18n("ИМЯ-СЕРВЕРА")}/DeviceIpint.N/SourceEndpoint.video:0:0`,"Адрес")} <span class="sub web-rtsp-n">${i18n("N — номер камеры, имя сервера — заглавными буквами")}</span></div>
     <p class="sub web-hint">${i18n("Имя пользователя для RTSP начинается с латинской буквы и содержит только латинские буквы, цифры и символы / - _ . : +")}</p>`);
-  return`<div class="web-tab">${main}${webCertHtml(n,err,dis)}${video}${rtsp}</div>`;
+  return`<div class="web-tab">${main}${webCertHtml(n,err,dis)}${video}${rtsp}${onvifCardHtml(n,err)}</div>`;
+}
+// Камеры сервера, у которых поток в MJPEG: ONVIF-сервер их не отдаёт. Список — запрос /units?serverId, все страницы;
+// кодек — что отдаёт камера (properties.codec) или что задала консоль на вкладке «Видео» (заглушка cvCfg)
+const ONVIF_MJ=new Map();   // uid сервера → {cams: [{uid, name, codec}] | null, err}
+function onvifMjpegOf(n){
+  let m=ONVIF_MJ.get(n.id);if(m)return m;
+  m={cams:null,err:false};ONVIF_MJ.set(n.id,m);
+  unitsAll({serverId:n.id,implements:"vms.camera/1"}).then(items=>{m.cams=items.map(u=>({uid:u.uid,name:u.name,codec:u.properties?.codec||""}))})
+    // Отказ: сообщение остаётся до следующего открытия вкладки, тогда консоль спросит снова
+    .catch(()=>{m.err=true;ONVIF_MJ.delete(n.id)})
+    // Только блок камер, без перерисовки карточки: курсор в поле порта остаётся на месте
+    .finally(()=>{const box=app==="hw"&&sel===n.id&&tab==="web"&&document.querySelector("[data-onvif-mj-box]");if(box)box.innerHTML=onvifMjHtml(n,m)});
+  return m;
+}
+function onvifMjpegCams(n,m=onvifMjpegOf(n)){
+  const is=x=>/mjpe?g/i.test(x||"");
+  if(!m.cams)return null;
+  return m.cams.filter(c=>{const cfg=cvCfg.get(c.uid)?.streams;return cfg?Object.values(cfg).some(x=>is(x.codec)):is(c.codec)});
+}
+function onvifGoCam(uid){openNode(uid,{app:"hw",tab:"vid"});hwFlashLanding()}
+function onvifDpOk(v){return!!v&&verCmp(v,ONVIF_DP_MIN)>=0}
+function onvifPortOk(v){const s=String(v??"").trim();return/^\d+$/.test(s)&&+s>=1&&+s<=65535}
+function onvifAddr(n,v){return`${n.ip||"localhost"}:${String(v.onvif).trim()}`}
+function onvifAddrHtml(n){
+  const v=webOf(n).vals;
+  if(!v.onvifOn)return`<span class="sub">${i18n("ONVIF-сервер выключен. Другие VMS не получат видео этого сервера по ONVIF.")}</span>`;
+  if(!onvifPortOk(v.onvif))return"";
+  return`<span class="web-addr-l">${i18n("Адрес для другой VMS")}:</span> ${copyChipHtml(onvifAddr(n,v),"Адрес")}`;
+}
+function onvifBadge(v){return!v.onvifOn?i18n("выключен"):onvifPortOk(v.onvif)?`${i18n("порт")} ${String(v.onvif).trim()}`:i18n("нет порта")}
+function onvifMjHtml(n,m=onvifMjpegOf(n)){
+  const mj=onvifMjpegCams(n,m);
+  if(!mj)return`<p class="sub web-hint" data-onvif-mjpeg>${i18n(m.err?"Консоль не получила список камер сервера.":"Консоль проверяет кодеки камер…")}</p>`;
+  if(!mj.length)return`<p class="sub web-hint onvif-ok" data-onvif-mjpeg>${lu("circle-check")} <span>${i18n("На сервере нет камер с кодеком MJPEG, поэтому ONVIF-сервер отдаёт все камеры.")}</span></p>`;
+  const k=mj.length;
+  return`<div class="nt bk-warn" data-onvif-mjpeg>${lu("triangle-alert")} ${uiLang==="ru"?`У ${k} ${plural(k,"камеры|камер|камер")} кодек MJPEG. ONVIF-сервер не отдаёт эти камеры. Чтобы другая VMS получила их видео, сменить кодек камеры на H.264 или H.265.`:`${k} ${k===1?"camera uses":"cameras use"} the MJPEG codec. The ONVIF server does not send these cameras. To give their video to another VMS, change the camera codec to H.264 or H.265.`}
+      <div class="onvif-mj">${mj.slice(0,8).map(c=>`<button type="button" class="lk" ${onEv("click",["onvifGoCam",`${c.uid}`])}>${escHtml(c.name)}</button>`).join(", ")}${k>8?` ${i18n("и ещё")} ${k-8}`:""}</div></div>`;
+}
+function onvifCardHtml(n,err){
+  const v=webOf(n).vals,dis=v.onvifOn?"":"disabled",dp=srvVer(n).drivers;
+  const req=`<ul class="onvif-req">
+      <li class="${onvifDpOk(dp)?"ok":"bad"}">${lu(onvifDpOk(dp)?"circle-check":"circle-x")} <span>${i18n("ONVIF-серверу нужен Drivers Pack 3.74 или новее. На сервере версия")} <b>${escHtml(dp||"—")}</b>.</span></li>
+      <li>${lu("network")} <span>${i18n("Открыть порт ONVIF-сервера в сетевом экране сервера. Задать каждому узлу свой порт ONVIF-сервера.")}</span></li>
+    </ul>`;
+  return card("ONVIF-сервер",`
+    ${webSwHtml(n,"onvifOn","ONVIF-сервер включён","Другие VMS и программы ONVIF (например, ONVIF Device Manager) добавляют этот сервер как регистратор и получают видео его камер.")}
+    <div class="web-body ${v.onvifOn?"":"web-dim"}">
+      <div class="web-row">${webPortFld(n,"onvif","Порт ONVIF-сервера",err,dis)}</div>
+      <div class="web-addr" data-onvif-addr>${onvifAddrHtml(n)}</div>
+      ${req}
+      <div data-onvif-mj-box>${onvifMjHtml(n)}</div>
+    </div>`,`<span class="tfoot-gap"></span><span class="bd ${v.onvifOn?"":"off"}" data-onvif-badge>${escHtml(onvifBadge(v))}</span>`);
 }
 // После ввода: адрес и ошибки — без перерисовки карточки
 // typing — поле, в котором пользователь ещё вводит: его новую ошибку консоль покажет после ухода из поля, исправленную — сразу
@@ -21957,9 +22024,11 @@ function webRefresh(id,typing){
     el.parentElement?.querySelector("input:not([type=file])")?.setAttribute("aria-invalid",String(!!err[k]));
   });
   const a=document.querySelector("[data-web-addr]");if(a)a.innerHTML=webAddrHtml(n);
+  const o=document.querySelector("[data-onvif-addr]");if(o)o.innerHTML=onvifAddrHtml(n);
+  const ob=document.querySelector("[data-onvif-badge]"),ov=webOf(n).vals;if(ob)ob.textContent=onvifBadge(ov);
 }
 function webValText(k,v){
-  if(k==="on")return i18n(v?"включён":"выключен");
+  if(k==="on"||k==="onvifOn")return i18n(v?"включён":"выключен");
   if(k==="cors"||k==="recode")return i18n(v?"включено":"выключено");
   return String(v??"")||"—";
 }
@@ -21970,6 +22039,9 @@ function webPlanRows(n,out){
   const st=webStore.get(n.id);if(!st)return;
   if(st.base)Object.keys(WEB_DEF).forEach(k=>{
     if(String(st.base[k])===String(st.vals[k]))return;
+    // Порт с ошибкой при выключенном ONVIF-сервере в план не идёт: проверка его пропускает, а сохранять его нельзя
+    if(k==="onvif"&&!onvifPortOk(st.vals.onvif))return;
+    if(ONVIF_KEYS.includes(k)){out.push({node:n,stub:"onvif",onvifKey:k,label:k==="onvif"?`${i18n("ONVIF-сервер")}: ${i18n("Порт")}`:i18n("ONVIF-сервер"),fromT:webValText(k,st.base[k]),toT:webValText(k,st.vals[k])});return}
     out.push({node:n,webKey:k,from:st.base[k],to:st.vals[k],label:`${i18n(k.startsWith("rtsp")?"RTSP-сервер":"Веб-сервер")}: ${i18n(WEB_LBL[k])}`,fromT:webValText(k,st.base[k]),toT:webValText(k,st.vals[k])});
   });
   const lb=`${i18n("Веб-сервер")}: ${i18n("Сертификат HTTPS")}`,was=n.webCert?n.webCert.subject:"—";
@@ -21980,7 +22052,7 @@ function webPlanRows(n,out){
 function webPlanBlock(n){
   if(!webHas(n))return"";
   const st=webStore.get(n.id);if(!st)return"";
-  if(Object.keys(webErrors(n)).length)return"Исправить ошибки на вкладке «Веб-сервер»";
+  if(Object.keys(webErrors(n)).length)return"Исправить ошибки на вкладке «Веб, RTSP, ONVIF»";
   if(st.checking)return"Подождать: сервер проверяет файлы сертификата";
   return"";
 }
@@ -21995,15 +22067,30 @@ function webCallRun(n,r){
 }
 // «Применить» и «Сбросить»: черновик веб-сервера и выбранные файлы забываются, значения снова идут от сервера
 function webPlanForget(id){webStore.delete(id)}
+// «Применить»: ONVIF-сервер — заглушка, значения остаются в памяти страницы
+function onvifCommit(id){const st=webStore.get(id);if(st?.base)ONVIF_SRV.set(id,{onvifOn:!!st.vals.onvifOn,onvif:Number(onvifPortOk(st.vals.onvif)?st.vals.onvif:st.base.onvif)})}
+// ONVIF-сервер в плане: выключение, включение или новый порт — у каждого случая свои слова
+function onvifPlanNote(n,d){
+  const st=webOf(n),was=st.base||st.vals,v=st.vals,who=`${i18n("Сервер")} «${escHtml(locName(n))}»`;
+  const portMoved=d.some(r=>r.onvifKey==="onvif"),addr=`<b>${escHtml(onvifAddr(n,v))}</b>`;
+  let t;
+  if(was.onvifOn&&!v.onvifOn)t=`${who} ${i18n("выключит ONVIF-сервер. Другие VMS не получат видео этого сервера, пока ONVIF-сервер не включат снова.")}`;
+  else if(!was.onvifOn&&v.onvifOn)t=`${who} ${i18n("включит ONVIF-сервер.")} ${i18n("Адрес для другой VMS")}: ${addr}.${portMoved?` ${i18n("Порт новый. Поменять адрес устройства в другой VMS.")}`:""}`;
+  else if(v.onvifOn&&portMoved)t=`${who} ${i18n("перезапустит ONVIF-сервер. Другие VMS потеряют видео этого сервера на время перезапуска.")} ${i18n("Новый адрес для другой VMS")}: ${addr}. ${i18n("Поменять адрес устройства в другой VMS.")}`;
+  else t=`${who} ${i18n("сохранит порт ONVIF-сервера. ONVIF-сервер выключен, поэтому другие VMS ничего не заметят.")}`;
+  return`<div class="nt bk-warn" data-plan-onvif>${lu("triangle-alert")} ${t}</div>`;
+}
 // Предупреждение в плане: что перезапустится и где искать веб-сервер после применения
 function webPlanNote(n,d){
-  const rows=d.filter(r=>r.webKey||r.webCert);if(!rows.length)return"";
+  const rows=d.filter(r=>r.webKey||r.webCert),ov=d.some(r=>r.onvifKey);if(!rows.length&&!ov)return"";
+  const ovNote=ov?onvifPlanNote(n,d):"";
+  if(!rows.length)return ovNote;
   const st=webOf(n),was=webUrls(n,st.base||st.vals,!!n.webCert),now=webUrls(n,st.vals,webHttpsOn(n,st));
   const web=rows.some(r=>r.webCert||!r.webKey.startsWith("rtsp")),rt=rows.some(r=>r.webKey&&r.webKey.startsWith("rtsp"));
   const moved=JSON.stringify(was)!==JSON.stringify(now);
   return`<div class="nt bk-warn" data-plan-web>${lu("triangle-alert")} ${i18n("Сервер")} «${escHtml(locName(n))}» ${i18n("перезапустит")} ${web&&rt?i18n("веб-сервер и RTSP-сервер"):web?i18n("веб-сервер"):i18n("RTSP-сервер")}. ${i18n("Клиенты потеряют связь с сервером на время перезапуска.")}
     ${web&&moved?`<br>${now.length?`${i18n("Новый адрес")}: <b>${now.map(escHtml).join(" · ")}</b>. ${i18n("Если консоль открыта через этот веб-сервер, открыть её снова по новому адресу.")}`:i18n("После применения браузер и мобильные клиенты не подключатся к серверу. Если консоль открыта через этот веб-сервер, она потеряет связь с сервером.")}`:""}</div>
-    ${rows.some(r=>r.webCert)?`<p class="sub" data-plan-webcert>${i18n("Сертификат консоль отправит на сервер отдельным запросом до операции. «Отменить» после применения его не вернёт.")}</p>`:""}`;
+    ${ovNote}${rows.some(r=>r.webCert)?`<p class="sub" data-plan-webcert>${i18n("Сертификат консоль отправит на сервер отдельным запросом до операции. «Отменить» после применения его не вернёт.")}</p>`:""}`;
 }
 
 // ── Метки серверов и тревожные виды ───────────────────────────────────────
