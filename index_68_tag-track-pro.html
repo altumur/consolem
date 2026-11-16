@@ -747,35 +747,47 @@ div.exp-ln{display:flex;align-items:center;padding:8px 0}
 .cv-warn{margin:8px 0 0;padding-left:18px;font-size:12px;color:var(--one-warning-text)}
 .cv-stub{font-size:12px;border-left:3px dashed var(--one-warning-text);padding-left:8px;margin-top:10px}
 @media(prefers-reduced-motion:reduce){.joy-knob{transition:none}}
-/* Tag&Track Pro (прототип 68): вкладка «Слежение» и калибровка — два кадра рядом */
-.tt{display:flex;flex-direction:column;gap:6px;flex:1;min-height:0;overflow:auto;scrollbar-gutter:stable;margin-right:-12px;padding-right:6px}
-.cv-tabs button{white-space:nowrap;padding-left:6px;padding-right:6px}
-.tt-f{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--mu);margin:0}
-.tt-f select{field-sizing:content;max-width:100%}.tt-f .cv-num input{width:64px;flex:none}
-.tt-mode-d{margin:-2px 0 2px;font-size:12px}
-.tt-note{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:12px}.tt-note svg,.tt-lic svg{flex:none;margin-top:2px}
-.tt-ovh{display:flex;align-items:baseline;gap:8px;font-weight:600;font-size:13px;margin-top:6px;padding-top:8px;border-top:1px solid var(--ln)}.tt-ovh span{margin-left:auto;font-weight:400;font-size:12px;color:var(--mu)}
-.cv-pl.tt-ovl li{grid-template-columns:22px minmax(0,1fr) auto;padding:3px 0}
-.tt-st{display:grid;place-items:center;color:var(--mu)}.tt-st.ok{color:var(--one-success-text,#3c3)}.tt-st.bad{color:var(--one-warning-text)}
-.tt-add select{flex:1;min-width:0}
-.tt-need{margin:0;font-size:12px}
+/* Tag&Track Pro (прототип 68): раздел «Слежение Tag&Track Pro» на вкладке «Видео», после «Поворотного устройства» */
+.tt-top{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px 24px;align-items:start}
+.tt-f{display:grid;gap:4px;font-size:12px;color:var(--mu);margin:0}.tt-f>small{line-height:1.35}
+.tt-f select{field-sizing:content;max-width:100%;justify-self:start}.tt-f .cv-num{justify-self:start}.tt-f .cv-num input{width:72px;flex:none}
+.tt-f.dim{opacity:.6}
+.tt-note{display:flex;gap:6px;align-items:flex-start;margin:10px 0 0;font-size:12px;color:var(--one-warning-text)}.tt-note svg,.tt-lic svg{flex:none;margin-top:2px}
 .tt-lic{display:flex;gap:6px;align-items:flex-start;margin:0;font-size:12px}
-.cv.cv-has-ptz.cv-calib{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-.cv-calib .cv-side{min-height:0}.cv-calib .cv-side-in{position:static;inset:auto}
-.cv-calib .cv-side-in>.cv-ptz .joy{--d:120px}.cv-calib .cv-side-in>.cv-ptz .joy-dir{transform:rotate(calc(var(--a) - 90deg)) translateX(44px)}
-.cv-calib .cv-side-in>.cv-ptz .cv-ptz-row{justify-content:center}
-.tt-cal{gap:8px}
-.tt-cal-n{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
-.tt-seg{display:inline-flex;align-self:flex-start;border:1px solid var(--ln);border-radius:8px;padding:2px;gap:2px}
+.tt-ovh{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;font-weight:600;font-size:13px;margin-top:14px;padding-top:12px;border-top:1px solid var(--ln)}.tt-ovh span{font-weight:400;font-size:12px;color:var(--mu)}
+.tt-cards{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.tt-card{border:1px solid var(--ln);border-radius:8px;overflow:hidden;display:flex;flex-direction:column;background:var(--p1,transparent)}
+.tt-card.off{border-color:var(--one-warning-text)}
+.tt-thumb{display:block;padding:0;border:0;background:#111;cursor:pointer;aspect-ratio:16/9}.tt-thumb canvas{width:100%;height:100%;display:block}
+.tt-thumb:focus-visible{outline:2px solid var(--bl);outline-offset:-2px}
+.tt-card-b{display:grid;gap:6px;padding:10px 12px;min-width:0}
+.tt-card-h{display:flex;align-items:center;gap:6px;min-width:0}.tt-card-h b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.tt-chip{margin-left:auto;flex:none;font-size:11px;padding:1px 8px;border-radius:10px;border:1px solid currentColor;white-space:nowrap}.tt-chip.ok{color:var(--one-success-text,#3c3)}.tt-chip.bad{color:var(--one-warning-text)}
+.tt-card-t{font-size:12px;color:var(--mu)}
+.tt-card-a{display:flex;gap:6px;align-items:center;margin-top:2px}
+.tt-card-add{border-style:dashed;justify-content:center}.tt-card-add .sub{margin:0;font-size:12px}.tt-card-add select{field-sizing:content;max-width:100%;justify-self:start}
+.tt-st{display:grid;place-items:center;color:var(--mu)}.tt-st.ok{color:var(--one-success-text,#3c3)}.tt-st.bad{color:var(--one-warning-text)}
+.tt-ed{display:grid;gap:10px}
+.tt-ed.tt-in{animation:cv-in .25s ease-out}
+.tt-ed-h{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.tt-ed-h>b{font-size:14px}
+.tt-ed-h .lk{display:inline-flex;align-items:center;gap:2px}
+.tt-grid-t{margin-left:auto;font-size:12px}
+.tt-seg{display:inline-flex;border:1px solid var(--ln);border-radius:8px;padding:2px;gap:2px}
 .tt-seg button{display:flex;align-items:center;gap:4px;border:0;background:none;color:var(--mu);font:inherit;font-size:12px;padding:4px 10px;border-radius:6px;cursor:pointer;white-space:nowrap}
 .tt-seg button[aria-checked="true"]{background:var(--bl);color:#fff}
 .tt-seg button:disabled{opacity:.45;cursor:default}
-.tt-ov-f{position:relative;flex:none;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#111;cursor:crosshair;outline:none}
-.tt-ov-f.test{cursor:pointer}
+.tt-two{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:12px}
+.tt-fig{margin:0;display:grid;gap:6px;min-width:0}
+.tt-fig figcaption{display:flex;gap:8px;align-items:baseline;font-size:13px;font-weight:600;min-width:0}.tt-fig figcaption small{font-weight:400;color:var(--mu);margin-left:auto;white-space:nowrap}
+.tt-ptz-f,.tt-ov-f{position:relative;aspect-ratio:16/9;border-radius:6px;overflow:hidden;background:#111;outline:none}
+.tt-ptz-f{cursor:grab;touch-action:none}.tt-ptz-f.on{cursor:grabbing}
+.tt-ov-f{cursor:crosshair}.tt-ov-f.test{cursor:pointer}
 .tt-ov-f:focus-visible{box-shadow:0 0 0 2px var(--bl)}
-.tt-ov-f canvas{width:100%;height:100%;display:block}
-.tt-ov-name{position:absolute;left:8px;top:6px;font-size:12px;color:#fff;background:#000a;padding:1px 6px;border-radius:4px;pointer-events:none}
-.tt-pt{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:2px solid #fff;background:#0a6cff;color:#fff;font:600 11px/1 sans-serif;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:0 0 0 2px #000a,0 1px 4px #000a}
+.tt-ptz-f canvas,.tt-ov-f canvas{width:100%;height:100%;display:block}
+.tt-pad{display:flex;gap:4px;align-items:center}.tt-pad-s{width:8px}
+.tt-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mu);min-height:16px}.tt-legend span{display:flex;align-items:center;gap:6px}
+.tt-legend i{width:18px;height:0;border-top:2px solid}.tt-lg-p{border-color:rgb(80,200,255)!important}.tt-lg-t{border-color:rgb(255,206,84)!important}.tt-lg-o{height:10px!important;border:1px dashed #fff8!important;background:#0007}
+.tt-pt{position:absolute;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;border:2px solid #fff;background:#0a6cff;color:#fff;font:600 11px/1 sans-serif;display:grid;place-items:center;padding:0;cursor:pointer;box-shadow:0 0 0 2px #0007}
 .tt-pt.sel{background:#fff;color:#0a6cff;border-color:#0a6cff;transform:scale(1.15)}
 .tt-pt.bad{background:#d97706}
 .tt-hit{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #000a;pointer-events:none;animation:tt-hit .6s ease-out}
@@ -787,11 +799,15 @@ div.exp-ln{display:flex;align-items:center;padding:8px 0}
 .tt-meter{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mu)}.tt-meter b{color:var(--tx)}
 .tt-seg-b{display:inline-flex;gap:2px}.tt-seg-b i{width:12px;height:8px;border-radius:2px;background:var(--p2);border:1px solid var(--ln)}
 .tt-seg-b i.on{background:var(--one-warning-text);border-color:transparent}.tt-seg-b i.on.ok{background:var(--one-success-text,#3c3)}.tt-seg-b i.min{margin-right:4px}
-.cv-pl.tt-pl{flex:none;max-height:240px}
-.cv-pl.tt-pl li{grid-template-columns:32px minmax(0,1fr) auto auto}
-.cv-pl.tt-pl li.bad .cv-pn{border-color:var(--one-warning-text);color:var(--one-warning-text)}
-.tt-pt-t{display:grid;gap:1px;min-width:0;font-size:12px;padding:0 4px}.tt-pt-t span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tt-pt-t small{color:var(--mu)}
-@media(prefers-reduced-motion:reduce){.tt-hit{animation:none}}
+.tt-tw{overflow:auto;max-height:320px;scrollbar-gutter:stable;border:1px solid var(--ln);border-radius:6px}
+.tt-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
+.tt-tbl th{position:sticky;top:0;background:var(--p2);text-align:left;font-weight:600;padding:6px 8px;white-space:nowrap}
+.tt-tbl th:nth-child(1){width:44px}.tt-tbl th:nth-child(2){width:18%}.tt-tbl th:nth-child(4){width:24%}.tt-tbl th:nth-child(5){width:190px}
+.tt-tbl td{padding:4px 8px;border-top:1px solid var(--ln);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tt-tbl tr.on td{background:color-mix(in srgb,var(--bl) 12%,transparent)}
+.tt-tbl tr.bad .cv-pn{border-color:var(--one-warning-text);color:var(--one-warning-text)}
+.tt-tbl td.act{display:flex;gap:4px;justify-content:flex-end}
+@media(prefers-reduced-motion:reduce){.tt-hit,.tt-ed.tt-in{animation:none}}
 /* туры PTZ — вкладки «Пресеты | Туры», список, редактор */
 .cv-dot{width:7px;height:7px;border-radius:50%;background:var(--one-success-text,#3c3);display:inline-block;align-self:center}.cv-dot.pause{background:var(--one-warning-text)}.cv-dot[hidden]{display:none}
 .cv-tabs{display:flex;gap:2px;margin:-2px 0 8px;border-bottom:1px solid var(--ln)}
@@ -19577,10 +19593,10 @@ function camVideoHtml(n){
   // «Авто» нет: в превью одного размера оно прячет, какой поток на экране (как вкладки Main / Second stream в Axxon One)
   const cur=(lv?.id===n.id&&lv.stream)||camStreams(n)[0]?.id||"";
   const main=`<div class="card cv-main"><div class="ch cv-h"><span>${i18n("Видео")}</span>${bdg(n)}</div>
-    <div class="cb">${liveFrameHtml(n,ptz?cvSimHtml(n)+cvTourOvHtml(n)+cvOnVidHtml(n)+ttCrossHtml(n):"")}${cvStreamPickHtml(n,cur)}</div></div>`;
+    <div class="cb">${liveFrameHtml(n,ptz?cvSimHtml(n)+cvTourOvHtml(n)+cvOnVidHtml(n):"")}${cvStreamPickHtml(n,cur)}</div></div>`;
   const side=ptz?`<aside class="card cv-side" data-cv-side><div class="cv-side-in">${cvTourEdit?.id===n.id?"":cvPtzHtml(n)}${cvPresetsHtml(n)}</div></aside>`:"";
   // .cv-cq — контейнер: узкая область ставит «Поворот» под видео, широкая — рядом. Строка оглавления (csTabWrap) — над видео, как на других вкладках
-  return`<div class="cv-cq"><div class="cv ${ptz?"cv-has-ptz":""} ${ptz&&cvTourEdit?.id===n.id?"cv-editing":""} ${ptz&&cvCalib?.id===n.id?"cv-calib":""}">${main}${side}</div></div>${cvStreamsCardHtml(n)}`;
+  return`<div class="cv-cq"><div class="cv ${ptz?"cv-has-ptz":""} ${ptz&&cvTourEdit?.id===n.id?"cv-editing":""}">${main}${side}</div></div>${cvStreamsCardHtml(n)}`;
 }
 // Под видео — потоки камеры списком: строка на поток (имя, разрешение, к/с, кодек, битрейт), выбранная строка — поток
 // в просмотре. Список растёт вниз, поэтому третий и следующие потоки помещаются при любой ширине
@@ -19898,15 +19914,12 @@ function cvJoyKey(id){
 let cvSideTab="pre";
 function cvPresetsHtml(n){
   if(cvTourEdit?.id===n.id)return`<section class="cv-sec cv-pre cv-ed">${cvTourEditorHtml(n,cvTourEdit.t)}</section>`;
-  if(cvCalib?.id===n.id)return`<section class="cv-sec cv-pre cv-ed">${ttCalibHtml(n)}</section>`;
-  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideBodyHtml(n)}</div></section>`;
-}
-function cvSideBodyHtml(n){return cvSideTab==="tours"?cvToursHtml(n):cvSideTab==="tt"?ttTabHtml(n):cvPresetListHtml(n)
+  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideTab==="tours"?cvToursHtml(n):cvPresetListHtml(n)}</div></section>`;
 }
 function cvSideTabsHtml(n){
   const st=cvToursOf(n),run=st.run,pl=presetRows(n).length;
   const tab=(k,l,c,extra="")=>`<button type="button" role="tab" id="cv-tab-${k}" aria-selected="${cvSideTab===k}" tabindex="${cvSideTab===k?0:-1}" data-cv-tab="${k}" ${onEv("click",["cvSideTabSet",`${n.id}`,k])} ${onEv("keydown",["cvSideTabKey",`${n.id}`])}>${i18n(l)}<span>${c}</span>${extra}</button>`;
-  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${pl}${n.presetMax?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}${tab("tt","Слежение",ttOf(n).ovs.length)}</div>`;
+  return`<div class="cv-tabs" role="tablist" aria-label="${i18n("Пресеты и туры")}">${tab("pre","Пресеты",`${pl}${n.presetMax?`<span data-preset-max> ${i18n("из")} ${n.presetMax}</span>`:""}`)}${tab("tours","Туры",st.tours.length,`<i class="cv-dot ${run?.paused?"pause":""}" data-cv-tour-dot ${run?"":"hidden"} title="${i18n(run?.paused?"Тур на паузе":"Тур идёт")}"></i>`)}</div>`;
 }
 // Смена вкладки — только содержимое панели, с проявлением; видео и джойстик не трогает
 function cvSideTabSet(id,k){
@@ -19915,12 +19928,12 @@ function cvSideTabSet(id,k){
   const body=document.querySelector("#main [data-cv-tab-body]"),tabs=document.querySelector("#main .cv-tabs");
   if(!body||!tabs){cvSidePaint(n,true);return}
   tabs.outerHTML=cvSideTabsHtml(n);
-  body.innerHTML=cvSideBodyHtml(n);
+  body.innerHTML=k==="tours"?cvToursHtml(n):cvPresetListHtml(n);
   body.classList.remove("cv-in");void body.offsetWidth;body.classList.add("cv-in");
   document.getElementById("cv-tab-"+k)?.focus();mainSeen.html=null;
 }
 // Стрелки влево и вправо переключают вкладки, как в обычном tablist
-function cvSideTabKey(id){const e=onEv.now;if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;e.preventDefault();e.stopPropagation();const ks=["pre","tours","tt"],i=ks.indexOf(cvSideTab);cvSideTabSet(id,ks[(i+(e.key==="ArrowRight"?1:2))%3])}
+function cvSideTabKey(id){const e=onEv.now;if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;e.preventDefault();e.stopPropagation();cvSideTabSet(id,cvSideTab==="pre"?"tours":"pre")}
 // Боковая панель без перерисовки вкладки: тот же блок .cv, поэтому ширина колонки меняется плавно (transition),
 // а видео не перезапускается. anim — новое содержимое проявляется; без него (правка в редакторе) — сразу.
 function cvSidePaint(n,anim){
@@ -19930,10 +19943,8 @@ function cvSidePaint(n,anim){
   const ae=document.activeElement&&inn.contains(document.activeElement)?document.activeElement:null;
   const ed=cvTourEdit?.id===n.id,fk=ae?(ae.dataset.cvFk?`[data-cv-fk="${CSS.escape(ae.dataset.cvFk)}"]`:ae.getAttribute("aria-label")?`[aria-label="${CSS.escape(ae.getAttribute("aria-label"))}"]`:null):null;
   const keep=[...inn.querySelectorAll("[data-keep-scroll]")].map(el=>el.scrollTop);
-  const cal=cvCalib?.id===n.id;
-  cv.classList.toggle("cv-editing",ed);cv.classList.toggle("cv-calib",cal);
+  cv.classList.toggle("cv-editing",ed);
   inn.innerHTML=(ed?"":cvPtzHtml(n))+cvPresetsHtml(n);
-  const vid=cv.querySelector(".cv-main .live-frame");if(vid){vid.querySelector(".tt-cross")?.remove();if(cal)vid.insertAdjacentHTML("beforeend",ttCrossHtml(n))}
   if(!anim)inn.querySelectorAll("[data-keep-scroll]").forEach((el,i)=>{if(keep[i]!=null)el.scrollTop=keep[i]});
   if(anim){inn.classList.remove("cv-in");void inn.offsetWidth;inn.classList.add("cv-in")}
   if(fk)inn.querySelector(fk)?.focus();
@@ -20224,12 +20235,14 @@ function ttOvAngle(v,x,y){const hf=CV_SIM.fov/v.z,vf=hf*360/640;return{p:(v.p+(x
 function ttSeedPts(uid,xy,noise){const v=ttOvView(uid);return xy.map(([x,y],i)=>{const a=ttOvAngle(v,x,y),d=noise?((i*37)%7-3)*.3:0;return{x,y,p:(a.p+d+360)%360,t:a.t-d*.7,z:2.4}})}
 function ttOf(n){
   if(!ttState.has(n.id)){
-    const cams=ttCandidates(n),pk=cams.find(c=>/Парковка/.test(c.name))||cams[0],k1=cams.find(c=>/Коридор 1/.test(c.name))||cams.find(c=>c!==pk);
+    const cams=ttCandidates(n),pk=cams.find(c=>/Парковка/.test(c.name))||cams[0],rest=cams.filter(c=>c!==pk),k1=rest[0],k2=rest[1];
     const ovs=[];
     if(/Главный вход/.test(n.name)&&cams.length){
-      if(pk)ttViews.set(pk.id,{p:125,t:-5,z:64/90,f:0});if(k1)ttViews.set(k1.id,{p:250,t:-5,z:64/90,f:0});
+      const V=(c,p)=>{if(c)ttViews.set(c.id,{p,t:-5,z:64/90,f:0})};V(pk,125);V(k1,250);V(k2,30);
       if(pk)ovs.push({cam:pk.id,tested:true,pts:ttSeedPts(pk.id,[[.1,.62],[.36,.56],[.62,.66],[.9,.6],[.2,.86],[.52,.9],[.82,.86]],true)});
-      if(k1)ovs.push({cam:k1.id,tested:false,pts:ttSeedPts(k1.id,[[.2,.7],[.5,.72],[.8,.74]],true)});
+      // Вторая камера: точка 4 наведена мимо — сетка соответствия ломается возле неё, консоль предупреждает
+      if(k1){const pts=ttSeedPts(k1.id,[[.12,.6],[.45,.58],[.85,.62],[.3,.8],[.65,.84],[.9,.88]],true);pts[3].p=(pts[3].p+4.5)%360;pts[3].t-=2;ovs.push({cam:k1.id,tested:false,pts})}
+      if(k2)ovs.push({cam:k2.id,tested:false,pts:ttSeedPts(k2.id,[[.2,.7],[.5,.72],[.8,.74]],true)});
     }
     const st={mode:ovs.length?"user":"off",freq:3,ovs};
     if(!cams.length)return st;// дерево ещё не пришло: демо-набор положим при следующем вызове
@@ -20287,33 +20300,49 @@ function ttLicHtml(n){
   const used=[...ttState.values()].filter(s=>s.mode!=="off"&&ttReady(s).length).length,total=k.f.tnt[1];
   return`<p class="sub tt-lic">${lu("lock",13)}${i18n("Лицензии Tag-n-Track")}: ${i18n("занято")} ${used} ${i18n("из")} ${total}</p>`;
 }
-// ── Вкладка «Слежение» боковой панели ──
-function ttTabHtml(n){
+// ── Раздел «Слежение Tag&Track Pro» на вкладке «Видео»: после «Поворотного устройства (PTZ)» ──
+// Раздел во всю ширину: режим и время на объекте, карточки обзорных камер (кадр с точками и сеткой, состояние),
+// калибровка — на месте карточек: кадр PTZ и кадр обзорной камеры рядом, под ними таблица точек
+function ttSecHtml(n){
+  if(!n.ptz)return"";
+  const st=ttOf(n),m=TT_MODES.find(x=>x[0]===st.mode)||TT_MODES[0],ready=ttReady(st).length;
+  const sum=`${i18n(m[1])} · ${ready} ${i18n("из")} ${st.ovs.length} ${i18n("обзорных")}`;
+  return`<div class="card tt-sec" data-sec="tt" data-cs-sum="${escHtml(sum)}"><div class="ch">${i18n("Слежение Tag&Track Pro")}<span class="sub" style="font-weight:400">${escHtml(sum)}</span></div><div class="cb"><div data-tt-body>${ttBodyHtml(n)}</div></div></div>`;
+}
+function ttBodyHtml(n){return cvCalib?.id===n.id?ttCalibHtml(n):ttOverviewHtml(n)}
+function ttRepaint(n){const b=document.querySelector("#main [data-tt-body]");if(!b){paint();return}b.innerHTML=ttBodyHtml(n);const s=b.closest(".tt-sec"),st=ttOf(n);if(s){const m=TT_MODES.find(x=>x[0]===st.mode),t=`${i18n(m[1])} · ${ttReady(st).length} ${i18n("из")} ${st.ovs.length} ${i18n("обзорных")}`;s.dataset.csSum=t;const h=s.querySelector(":scope>.ch>.sub");if(h)h.textContent=t}}
+function ttOverviewHtml(n){
   const st=ttOf(n),m=TT_MODES.find(x=>x[0]===st.mode)||TT_MODES[0],ready=ttReady(st).length;
   const used=new Set(st.ovs.map(o=>o.cam)),cand=ttCandidates(n).filter(c=>!used.has(c.id));
-  const rows=st.ovs.map(o=>{const c=find(o.cam)?.n,s=ttOvStatus(o);return`<li class="tt-ov" data-tt-ov-row="${escHtml(o.cam)}">
-      <span class="tt-st ${s.cls}" aria-hidden="true">${lu(s.ic,14)}</span>
-      <button type="button" class="cv-tr-name" title="${i18n("Открыть калибровку")}" ${onEv("click",["ttCalibOpen",`${n.id}`,`${o.cam}`])}><b>${escHtml(c?.name||o.cam)}</b><small class="${s.cls==="bad"?"cv-bad":""}">${escHtml(s.t)}</small></button>
-      <button type="button" class="btn s btn-icon" title="${i18n("Отвязать обзорную камеру")}" aria-label="${escHtml(`${i18n("Отвязать обзорную камеру")} ${c?.name||""}`)}" ${pendingDelHas(`tt:${n.id}/${o.cam}`)?"disabled":""} ${onEv("click",["ttOvDel",`${n.id}`,`${o.cam}`])}>${lu("trash",14)}</button></li>`}).join("");
   const freqOn=["auto","user","ptz"].includes(st.mode);
-  const warn=st.mode!=="off"&&!ready?`<p class="sub cv-bad tt-note">${lu("triangle-alert",13)}${i18n(st.ovs.length?"Слежение не работает: ни у одной обзорной камеры нет калибровки":"Слежение не работает: нет обзорной камеры")}</p>`:"";
-  return`<div class="tt" data-tt>
-    <label class="tt-f">${i18n("Режим слежения")}<select data-cv-fk="tt-mode" ${onEv("change",["ttSet",`${n.id}`,"mode",onEv.value])}>${TT_MODES.map(([v,l])=>`<option value="${v}" ${v===st.mode?"selected":""}>${i18n(l)}</option>`).join("")}</select></label>
-    <p class="sub tt-mode-d">${i18n(m[2])}</p>
-    ${freqOn?`<label class="tt-f">${i18n("Время на одном объекте")}<span class="cv-num"><input type="number" min="1" max="600" value="${st.freq}" data-cv-fk="tt-freq" ${onEv("change",["ttSet",`${n.id}`,"freq",onEv.value])}><small>${i18n("с")}</small></span></label>`:""}
+  const cards=st.ovs.map(o=>{const c=find(o.cam)?.n,s=ttOvStatus(o),chk=ttCheck(o.pts),bound=!chk.block.length;
+    return`<li class="tt-card ${bound?"":"off"}" data-tt-ov-row="${escHtml(o.cam)}">
+      <button type="button" class="tt-thumb" title="${i18n("Открыть калибровку")}" aria-label="${escHtml(`${i18n("Открыть калибровку")} ${c?.name||""}`)}" ${onEv("click",["ttCalibOpen",`${n.id}`,`${o.cam}`])}><canvas data-tt-thumb="${escHtml(o.cam)}" data-tt-ptzid="${escHtml(n.id)}" width="480" height="270" aria-hidden="true"></canvas></button>
+      <div class="tt-card-b">
+        <div class="tt-card-h"><span class="tt-st ${s.cls}" aria-hidden="true">${lu(s.ic,14)}</span><b title="${escHtml(c?.name||"")}">${escHtml(c?.name||o.cam)}</b><span class="tt-chip ${bound?"ok":"bad"}">${i18n(bound?"привязана":"не привязана")}</span></div>
+        <div class="tt-card-t ${s.cls==="bad"?"cv-bad":""}">${escHtml(s.t)}</div>
+        ${chk.warn.length&&bound?`<div class="tt-card-t cv-bad">${escHtml(chk.warn[0])}</div>`:""}
+        <div class="tt-card-a"><button type="button" class="btn s ${bound?"":"pri"}" ${onEv("click",["ttCalibOpen",`${n.id}`,`${o.cam}`])}>${lu("crosshair",14)}${i18n(bound?"Изменить калибровку":"Продолжить калибровку")}</button>
+        <button type="button" class="btn s btn-icon" title="${i18n("Отвязать обзорную камеру")}" aria-label="${escHtml(`${i18n("Отвязать обзорную камеру")} ${c?.name||""}`)}" ${pendingDelHas(`tt:${n.id}/${o.cam}`)?"disabled":""} ${onEv("click",["ttOvDel",`${n.id}`,`${o.cam}`])}>${lu("trash",14)}</button></div>
+      </div></li>`}).join("");
+  const add=`<li class="tt-card tt-card-add"><div class="tt-card-b"><b>${i18n("Обзорная камера")}</b><p class="sub">${i18n("Обзорная камера видит объекты, PTZ-камера поворачивается к ним. Камере нужен детектор с трекером объектов")}</p>
+    <select data-tt-add aria-label="${i18n("Добавить обзорную камеру")}" ${cand.length?"":"disabled"} ${onEv("change",["ttOvAdd",`${n.id}`,onEv.value])}><option value="">${i18n(cand.length?"Добавить обзорную камеру…":"Других камер нет")}</option>${cand.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("")}</select></div></li>`;
+  const warn=st.mode!=="off"&&!ready?`<p class="nt tt-note">${lu("triangle-alert",14)}${i18n(st.ovs.length?"Слежение не работает: ни одна обзорная камера не привязана. Поставить у камеры не меньше шести точек":"Слежение не работает: нет обзорной камеры")}</p>`:"";
+  return`<div class="tt-top">
+      <label class="tt-f">${i18n("Режим слежения")}<select data-cv-fk="tt-mode" ${onEv("change",["ttSet",`${n.id}`,"mode",onEv.value])}>${TT_MODES.map(([v,l])=>`<option value="${v}" ${v===st.mode?"selected":""}>${i18n(l)}</option>`).join("")}</select><small>${i18n(m[2])}</small></label>
+      <label class="tt-f ${freqOn?"":"dim"}">${i18n("Время на одном объекте")}<span class="cv-num"><input type="number" min="1" max="600" value="${st.freq}" ${freqOn?"":"disabled"} data-cv-fk="tt-freq" ${onEv("change",["ttSet",`${n.id}`,"freq",onEv.value])}><small>${i18n("с")}</small></span><small>${i18n(freqOn?"Столько камера смотрит на объект, потом переходит к следующему":"Нужно в режимах, где камера переходит от объекта к объекту")}</small></label>
+      <div class="tt-f">${i18n("Лицензии")}${ttLicHtml(n)}</div>
+    </div>
     ${warn}
-    <div class="tt-ovh">${i18n("Обзорные камеры")}<span>${ready} ${i18n("из")} ${st.ovs.length} ${i18n("привязаны")}</span></div>
-    ${st.ovs.length?`<ul class="cv-pl tt-ovl" data-keep-scroll>${rows}</ul>`:`<p class="sub cv-pl-empty">${i18n("Обзорных камер нет. Обзорная камера видит объекты, PTZ-камера поворачивается к ним")}</p>`}
-    <div class="cv-pre-add tt-add"><select data-tt-add aria-label="${i18n("Обзорная камера")}" ${cand.length?"":"disabled"} ${onEv("change",["ttOvAdd",`${n.id}`,onEv.value])}><option value="">${i18n(cand.length?"Добавить обзорную камеру…":"Других камер нет")}</option>${cand.map(c=>`<option value="${escHtml(c.id)}">${escHtml(c.name)}</option>`).join("")}</select></div>
-    <p class="sub tt-need">${i18n("Обзорной камере нужен детектор с трекером объектов. Сменили детектор — поставить точки заново")}</p>
-    ${ttLicHtml(n)}
-  </div>`;
+    <div class="tt-ovh">${i18n("Обзорные камеры")}<span>${ready} ${i18n("из")} ${st.ovs.length} ${i18n("привязаны")} · ${i18n("сетка показывает, куда повернётся PTZ: ровная сетка — калибровка без грубых ошибок")}</span></div>
+    <ul class="tt-cards">${cards}${add}</ul>
+    <p class="sub cv-stub">${i18n("Прототип: обзорные камеры, точки, режим и время на объекте живут только в этой странице. В контракте API Tag&Track Pro нет. Кадр обзорной камеры и поворот PTZ — симуляция стенда")}</p>`;
 }
 function ttSet(id,k,v){
   const n=find(id)?.n;if(!n)return;const st=ttOf(n);
   camPlanTouch(n,"tt");
   if(k==="freq")st.freq=Math.max(1,Math.min(600,Math.round(+v)||st.freq));else st.mode=v;
-  setD(true);cvSidePaint(n);
+  setD(true);ttRepaint(n);
 }
 function ttOvAdd(id,cam){
   const n=find(id)?.n;if(!n||!cam)return;const st=ttOf(n);if(st.ovs.some(o=>o.cam===cam))return;
@@ -20330,58 +20359,83 @@ function ttOvDel(id,cam){
     toast(`${i18n("Консоль отвяжет камеру")} «${nm}» ${i18n("после «Применить»")}`);
   }}),{html:true,typeCount:1});
 }
-// ── Калибровка: два кадра рядом. Слева живое видео PTZ (навести — тянуть по кадру), справа кадр обзорной камеры ──
+// ── Калибровка: на месте карточек. Слева кадр PTZ (навести центр: тянуть по кадру или стрелки), справа обзорный ──
+let ttGridOn=true;
 function ttCalibOpen(id,cam){const n=find(id)?.n,o=n&&ttOf(n).ovs.find(x=>x.cam===cam);if(o)ttCalibStart(n,JSON.parse(JSON.stringify(o)),false)}
 function ttCalibStart(n,o,isNew){
   cvCalib={id:n.id,isNew,o,sel:-1,test:false,hit:null};cvCalib.orig=JSON.stringify(o.pts);
-  cvSideTab="tt";cvSidePaint(n,true);ttOvLoop();
+  ttRepaint(n);requestAnimationFrame(()=>{const s=document.querySelector("#main .tt-sec");s?.scrollIntoView({block:"start",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"});s?.querySelector(".tt-ed")?.classList.add("tt-in")});
 }
 function ttCalibHtml(n){
-  const e=cvCalib,o=e.o,c=find(o.cam)?.n,chk=ttCheck(o.pts),cnt=o.pts.length;
+  const e=cvCalib,o=e.o,c=find(o.cam)?.n,chk=ttCheck(o.pts),cnt=o.pts.length,off=n.online===false||n.direct===false;
   const seg=Array.from({length:TT_REC},(_,i)=>`<i class="${i<cnt?(i<TT_MIN?"on":"on ok"):""} ${i===TT_MIN-1?"min":""}"></i>`).join("");
   const marks=o.pts.map((q,i)=>`<button type="button" class="tt-pt ${i===e.sel?"sel":""} ${chk.bad.includes(i)?"bad":""}" style="left:${(q.x*100).toFixed(2)}%;top:${(q.y*100).toFixed(2)}%" title="${escHtml(`${i18n("Точка")} ${i+1}`)}" aria-label="${escHtml(`${i18n("Точка")} ${i+1}`)}" ${onEv("click",["ttPtPick",i])}>${i+1}</button>`).join("");
   const hit=e.hit?`<span class="tt-hit" style="left:${(e.hit.x*100).toFixed(2)}%;top:${(e.hit.y*100).toFixed(2)}%" aria-hidden="true"></span>`:"";
-  const rows=o.pts.map((q,i)=>`<li data-tt-pt="${i}" class="${i===e.sel?"on":""} ${chk.bad.includes(i)?"bad":""}">
-      <button type="button" class="cv-pn" title="${i18n("Повернуть PTZ в положение этой точки")}" ${onEv("click",["ttPtGo",i])}>${i+1}</button>
-      <span class="tt-pt-t"><span>${i18n("Пан")} ${Math.round(q.p)}° · ${i18n("наклон")} ${q.t.toFixed(0).replace("-","−")}°</span><small>${chk.fit?`${i18n("погрешность")} ${ttDeg(chk.fit.res[i])}`:i18n("погрешность — от 4 точек")}</small></span>
-      <button type="button" class="btn s btn-icon" title="${i18n("Записать в точку нынешнее положение PTZ")}" aria-label="${i18n("Переснять точку")} ${i+1}" ${onEv("click",["ttPtRetake",i])}>${lu("crosshair",14)}</button>
-      <button type="button" class="btn s btn-icon" title="${i18n("Удалить точку")}" aria-label="${i18n("Удалить точку")} ${i+1}" ${onEv("click",["ttPtDel",i])}>${lu("trash",14)}</button></li>`).join("");
-  const hint=e.test?i18n("Нажать точку или любое место на обзорном кадре. PTZ-камера повернётся туда. Если PTZ смотрит точно на это место, калибровка верна")
-    :i18n("1. Навести PTZ-камеру на заметное место на полу: тянуть по видео слева или джойстиком. 2. Нажать то же место на обзорном кадре. Точки ставить по всей зоне, и у дальнего края тоже: за точками PTZ наводится хуже");
-  return`<div class="cv-te tt-cal" data-tt-cal>
-    <div class="cv-te-h"><button type="button" class="lk" ${onEv("click",["ttCalibClose"])}>${lu("chevron-left",13)}${i18n("Слежение")}</button><b class="tt-cal-n">${i18n("Калибровка")}: «${escHtml(c?.name||o.cam)}»</b></div>
-    <div class="tt-seg" role="radiogroup" aria-label="${i18n("Что делает нажатие на кадр")}">
-      <button type="button" role="radio" aria-checked="${!e.test}" ${onEv("click",["ttTestSet",false])}>${lu("plus",13)}${i18n("Ставить точки")}</button>
-      <button type="button" role="radio" aria-checked="${e.test}" ${chk.block.length?"disabled":""} title="${escHtml(chk.block.length?i18n("Проверка — от шести точек не на одной линии"):i18n("Нажатие на кадр поворачивает PTZ-камеру"))}" ${onEv("click",["ttTestSet",true])}>${lu("scan-eye",13)}${i18n("Проверить")}</button>
-    </div>
-    <div class="tt-ov-f ${e.test?"test":""}" tabindex="0" role="application" aria-label="${escHtml(`${i18n("Кадр обзорной камеры")} «${c?.name||""}». ${e.test?i18n("Нажатие поворачивает PTZ-камеру"):i18n("Нажатие ставит точку. Delete удаляет выбранную точку")}`)}" ${onEv("click",["ttOvClick"])} ${onEv("keydown",["ttOvKey"])}>
-      <canvas data-tt-ov="${escHtml(o.cam)}" width="640" height="360" aria-hidden="true"></canvas>${marks}${hit}
-      <span class="tt-ov-name">${escHtml(c?.name||"")}</span>
+  const rows=o.pts.map((q,i)=>`<tr data-tt-pt="${i}" class="${i===e.sel?"on":""} ${chk.bad.includes(i)?"bad":""}">
+      <td><button type="button" class="cv-pn" title="${i18n("Повернуть PTZ в положение этой точки")}" ${onEv("click",["ttPtGo",i])}>${i+1}</button></td>
+      <td class="num">${Math.round(q.x*100)} % · ${Math.round(q.y*100)} %</td>
+      <td class="num">${i18n("пан")} ${Math.round(q.p)}° · ${i18n("наклон")} ${q.t.toFixed(0).replace("-","−")}° · ${i18n("зум")} ${q.z.toFixed(1).replace(".",",")}×</td>
+      <td class="num ${chk.bad.includes(i)?"cv-bad":""}">${chk.fit?ttDeg(chk.fit.res[i]):"—"}${chk.bad.includes(i)?` · ${i18n("далеко от остальных")}`:""}</td>
+      <td class="act"><button type="button" class="btn s" title="${i18n("Записать в точку нынешнее положение PTZ")}" ${onEv("click",["ttPtRetake",i])}>${lu("crosshair",14)}${i18n("Переснять")}</button><button type="button" class="btn s btn-icon" title="${i18n("Удалить точку")}" aria-label="${i18n("Удалить точку")} ${i+1}" ${onEv("click",["ttPtDel",i])}>${lu("trash",14)}</button></td></tr>`).join("");
+  const dir=(i,ic,l)=>`<button type="button" class="btn s btn-icon cv-hold" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["cvDirDown",`${n.id}`,i])}>${lu(ic,14)}</button>`;
+  const zm=(sg,ic,l)=>`<button type="button" class="btn s btn-icon cv-hold" title="${i18n(l)}" aria-label="${i18n(l)}" ${off?"disabled":""} ${onEv("mousedown",["cvHoldDown",`${n.id}`,"zoom",sg])}>${lu(ic,14)}</button>`;
+  const hint=e.test?i18n("Нажать точку или любое место на обзорном кадре. PTZ-камера повернётся туда. Если центр кадра PTZ стоит точно на этом месте, калибровка верна")
+    :i18n("Навести центр кадра PTZ на заметное место на полу, потом нажать то же место на обзорном кадре. Точки ставить по всей зоне, у дальнего края тоже: за точками PTZ наводится хуже");
+  return`<div class="tt-ed" data-tt-cal>
+    <div class="tt-ed-h"><button type="button" class="lk" ${onEv("click",["ttCalibClose"])}>${lu("chevron-left",13)}${i18n("Обзорные камеры")}</button><b>${i18n("Калибровка")}: «${escHtml(c?.name||o.cam)}» → «${escHtml(n.name)}»</b>
+      <span class="tt-seg" role="radiogroup" aria-label="${i18n("Что делает нажатие на обзорный кадр")}">
+        <button type="button" role="radio" aria-checked="${!e.test}" ${onEv("click",["ttTestSet",false])}>${lu("plus",13)}${i18n("Ставить точки")}</button>
+        <button type="button" role="radio" aria-checked="${e.test}" ${chk.block.length?"disabled":""} title="${escHtml(chk.block.length?i18n("Проверка — от шести точек не на одной линии"):i18n("Нажатие на обзорный кадр поворачивает PTZ-камеру"))}" ${onEv("click",["ttTestSet",true])}>${lu("scan-eye",13)}${i18n("Проверить")}</button>
+      </span>
+      <label class="cv-chk tt-grid-t"><input type="checkbox" ${ttGridOn?"checked":""} ${cnt<TT_MIN?"disabled":""} ${onEv("change",["ttGridSet",onEv.checked])}>${i18n("Сетка соответствия")}</label></div>
+    <div class="tt-two">
+      <figure class="tt-fig"><figcaption>${i18n("PTZ")} «${escHtml(n.name)}»<small>${i18n("тянуть по кадру или стрелки")}</small></figcaption>
+        <div class="tt-ptz-f" ${off?"":onEv("pointerdown",["ttPtzDown",`${n.id}`])}><canvas data-tt-ptz="${escHtml(n.id)}" width="640" height="360" aria-hidden="true"></canvas><span class="tt-cross" aria-hidden="true"></span></div>
+        <div class="tt-pad">${dir(6,"chevron-left","Влево")}${dir(0,"arrow-up","Вверх")}${dir(4,"arrow-down","Вниз")}${dir(2,"chevron-right","Вправо")}<span class="tt-pad-s"></span>${zm(1,"plus","Приблизить")}${zm(-1,"minus","Отдалить")}</div></figure>
+      <figure class="tt-fig"><figcaption>${i18n("Обзорная")} «${escHtml(c?.name||"")}»<small>${i18n(e.test?"нажатие поворачивает PTZ":"нажать то же место")}</small></figcaption>
+        <div class="tt-ov-f ${e.test?"test":""}" tabindex="0" role="application" aria-label="${escHtml(`${i18n("Кадр обзорной камеры")} «${c?.name||""}». ${e.test?i18n("Нажатие поворачивает PTZ-камеру"):i18n("Нажатие ставит точку. Delete удаляет выбранную точку")}`)}" ${onEv("click",["ttOvClick"])} ${onEv("keydown",["ttOvKey"])}>
+          <canvas data-tt-ov="${escHtml(o.cam)}" data-tt-ptzid="${escHtml(n.id)}" width="640" height="360" aria-hidden="true"></canvas>${marks}${hit}</div>
+        <div class="tt-legend">${ttGridOn&&cnt>=TT_MIN?`<span><i class="tt-lg-p"></i>${i18n("пан PTZ, шаг")} ${ttGridStep(o.pts).sp}°</span><span><i class="tt-lg-t"></i>${i18n("наклон PTZ, шаг")} ${ttGridStep(o.pts).st}°</span><span><i class="tt-lg-o"></i>${i18n("вне точек: PTZ наводится хуже")}</span>`:""}</div></figure>
     </div>
     <p class="sub tt-hint">${hint}</p>
-    <div class="tt-meter" title="${i18n("Нужно не меньше 6 точек, лучше 6–10")}"><span class="tt-seg-b">${seg}</span><span><b>${cnt}</b> ${i18n(plural(cnt,"точка|точки|точек"))} · ${i18n("нужно 6–10")}${chk.avg!=null?` · ${i18n("погрешность")} ${ttDeg(chk.avg)}`:""}</span></div>
+    <div class="tt-meter" title="${i18n("Нужно не меньше 6 точек, лучше 6–10")}"><span class="tt-seg-b">${seg}</span><span><b>${cnt}</b> ${i18n(plural(cnt,"точка|точки|точек"))} · ${i18n("нужно 6–10")}${chk.avg!=null?` · ${i18n("погрешность в среднем")} ${ttDeg(chk.avg)}`:""}</span></div>
     ${chk.block.length||chk.warn.length?`<ul class="cv-warn">${[...chk.block,...chk.warn].map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul>`:""}
-    ${cnt?`<ol class="cv-pl tt-pl" data-keep-scroll>${rows}</ol>`:`<p class="sub cv-pl-empty">${i18n("Точек нет. Все точки — на одной плоскости: на полу или на земле, не на стенах и столбах")}</p>`}
+    ${cnt?`<div class="tt-tw"><table class="tt-tbl"><thead><tr><th>№</th><th>${i18n("На обзорном кадре")}</th><th>${i18n("Положение PTZ")}</th><th>${i18n("Погрешность")}</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`:`<p class="sub">${i18n("Точек нет. Все точки — на одной плоскости: на полу или на земле, не на стенах и столбах")}</p>`}
     <div class="cv-te-f"><button type="button" class="btn s pri" ${chk.block.length?"disabled":""} title="${escHtml(chk.block[0]||i18n("Добавить калибровку в план карточки"))}" ${onEv("click",["ttCalibSave"])}>${i18n("Добавить в план")}</button><button type="button" class="btn s" ${onEv("click",["ttCalibClose"])}>${i18n("Отмена")}</button>${chk.block.length&&cnt?`<span class="sub">${i18n("Без шести точек камера не привязана")}</span>`:""}</div>
   </div>`;
 }
 function ttCE(){const n=cvCalib&&find(cvCalib.id)?.n;return n?{n,e:cvCalib}:null}
-function ttCalibRepaint(){const x=ttCE();if(x){cvSidePaint(x.n);ttOvLoop()}}
+function ttCalibRepaint(){const x=ttCE();if(x)ttRepaint(x.n)}
+function ttGridSet(v){ttGridOn=!!v;ttCalibRepaint()}
+// Тянуть по кадру PTZ — поворот, как «Поворот на видео» вверху вкладки: направление и скорость от точки нажатия
+let ttDrag=null;
+function ttPtzDown(id){
+  const e=onEv.now;if(!e||e.button!==0)return;
+  const r=this.getBoundingClientRect();ttDrag={id,x0:e.clientX,y0:e.clientY,r:Math.max(40,Math.min(r.width,r.height)/2)};this.classList.add("on");
+  document.addEventListener("pointermove",ttPtzMove);window.addEventListener("pointerup",ttPtzUp,{once:true});window.addEventListener("pointercancel",ttPtzUp,{once:true});
+}
+function ttPtzMove(e){
+  if(!ttDrag)return;const{r}=ttDrag;let dx=e.clientX-ttDrag.x0,dy=e.clientY-ttDrag.y0;const d=Math.hypot(dx,dy);if(d>r){dx*=r/d;dy*=r/d}
+  const dead=.08,pan=Math.abs(dx/r)<dead?0:+(dx/r).toFixed(2),tilt=Math.abs(dy/r)<dead?0:+(-dy/r).toFixed(2);
+  if(!pan&&!tilt){if(cvMove){cvMove.body={pan:0,tilt:0};cvPut()}return}
+  cvRun(ttDrag.id,{pan,tilt});
+}
+function ttPtzUp(){document.removeEventListener("pointermove",ttPtzMove);ttDrag=null;document.querySelector("#main .tt-ptz-f")?.classList.remove("on");cvStop()}
 function ttOvClick(){
   const x=ttCE();if(!x)return;const ev=onEv.now;if(ev.target.closest(".tt-pt"))return;
   const r=this.getBoundingClientRect(),px=Math.max(0,Math.min(1,(ev.clientX-r.left)/r.width)),py=Math.max(0,Math.min(1,(ev.clientY-r.top)/r.height));
   if(x.e.test){ttAim(x,px,py);return}
   const s=cvSimSnap(x.n.id);x.e.o.pts.push({x:px,y:py,p:s.p,t:s.t,z:s.z});x.e.sel=x.e.o.pts.length-1;x.e.o.tested=false;
-  ttCalibRepaint();requestAnimationFrame(()=>document.querySelector(`#main [data-tt-pt="${x.e.sel}"]`)?.scrollIntoView({block:"nearest"}));
+  ttCalibRepaint();requestAnimationFrame(()=>{const tr=document.querySelector(`#main [data-tt-pt="${x.e.sel}"]`);tr?.scrollIntoView({block:"nearest"});tr?.classList.add("acc-flash")});
 }
-// Проверка: PTZ поворачивается туда, куда ведёт калибровка (оценка ttFit). Отметка нажатия видна на обзорном кадре
+// Проверка: PTZ поворачивается туда, куда ведёт калибровка (ttMap). Отметка нажатия видна на обзорном кадре
 function ttAim(x,px,py){
-  const f=ttFit(x.e.o.pts);if(!f)return;const a=f.at(px,py),s=cvSimOf(x.n.id);
-  s.go={p:a.p,t:a.t,z:Math.max(2,s.z)};x.e.hit={x:px,y:py};x.e.o.tested=true;ttCalibRepaint();
+  const m=ttMap(x.e.o.pts);if(!m)return;const a=m(px,py),s=cvSimOf(x.n.id);
+  s.go={p:(a.p%360+360)%360,t:a.t,z:Math.max(2,s.z)};x.e.hit={x:px,y:py};x.e.o.tested=true;ttCalibRepaint();
 }
 function ttPtPick(i){const x=ttCE();if(!x)return;const q=x.e.o.pts[i];if(x.e.test){ttAim(x,q.x,q.y);return}x.e.sel=x.e.sel===i?-1:i;ttCalibRepaint();document.querySelector("#main .tt-ov-f")?.focus()}
 function ttPtGo(i){const x=ttCE(),q=x?.e.o.pts[i];if(!q)return;cvSimOf(x.n.id).go={p:q.p,t:q.t,z:q.z};x.e.sel=i;ttCalibRepaint()}
-function ttPtRetake(i){const x=ttCE(),q=x?.e.o.pts[i];if(!q)return;Object.assign(q,cvSimSnap(x.n.id));x.e.o.tested=false;x.e.sel=i;ttCalibRepaint();requestAnimationFrame(()=>{const li=document.querySelector(`#main [data-tt-pt="${i}"]`);li?.classList.add("acc-flash")})}
+function ttPtRetake(i){const x=ttCE(),q=x?.e.o.pts[i];if(!q)return;Object.assign(q,cvSimSnap(x.n.id));x.e.o.tested=false;x.e.sel=i;ttCalibRepaint();requestAnimationFrame(()=>document.querySelector(`#main [data-tt-pt="${i}"]`)?.classList.add("acc-flash"))}
 function ttPtDel(i){const x=ttCE();if(!x)return;x.e.o.pts.splice(i,1);x.e.o.tested=false;x.e.sel=-1;ttCalibRepaint()}
 function ttTestSet(v){const x=ttCE();if(!x)return;x.e.test=!!v;x.e.hit=null;ttCalibRepaint()}
 // Клавиатура на кадре: Delete удаляет выбранную точку. Точку не двигают: сдвиг обзорной точки без нового положения PTZ
@@ -20391,10 +20445,9 @@ function ttOvKey(){
   if((ev.key==="Delete"||ev.key==="Backspace")&&q){ev.preventDefault();ttPtDel(x.e.sel)}
 }
 function ttCalibClose(){
-  const x=ttCE();if(!x){cvCalib=null;gear();return}
-  const go=()=>{cvCalib=null;cvSidePaint(x.n,true)};
-  if(JSON.stringify(x.e.o.pts)===x.e.orig&&!x.e.isNew){go();return}
-  if(x.e.isNew&&!x.e.o.pts.length){go();return}
+  const x=ttCE();if(!x){cvCalib=null;paint();return}
+  const go=()=>{cvCalib=null;ttRepaint(x.n)};
+  if((JSON.stringify(x.e.o.pts)===x.e.orig&&!x.e.isNew)||(x.e.isNew&&!x.e.o.pts.length)){go();return}
   askConfirm("Закрыть без правок?",i18n("Консоль не добавит калибровку в план"),"",i18n("Закрыть"),go,{cancelLabel:"Вернуться"});
 }
 function ttCalibSave(){
@@ -20402,34 +20455,96 @@ function ttCalibSave(){
   camPlanTouch(x.n,"tt");
   const i=st.ovs.findIndex(v=>v.cam===o.cam);if(i<0)st.ovs.push(o);else st.ovs[i]=o;
   if(st.mode==="off")st.mode="user";
-  cvCalib=null;setD(true);cvSidePaint(x.n,true);toast(`${i18n("Консоль добавила в план калибровку")} «${nm}»`);
-  requestAnimationFrame(()=>document.querySelector(`#main [data-tt-ov-row="${CSS.escape(o.cam)}"]`)?.classList.add("acc-flash"));
+  cvCalib=null;setD(true);ttRepaint(x.n);toast(`${i18n("Консоль добавила в план калибровку")} «${nm}»`);
+  requestAnimationFrame(()=>{const li=document.querySelector(`#main [data-tt-ov-row="${CSS.escape(o.cam)}"]`);li?.scrollIntoView({block:"nearest"});li?.classList.add("acc-flash")});
 }
-// Кадр обзорной камеры рисуется, пока он на экране; человек и машина движутся, как в кадре PTZ
-let ttOvRaf=0;
-function ttOvLoop(){
-  if(ttOvRaf)return;
-  const tick=now=>{
-    const c=document.querySelector("#main canvas[data-tt-ov]");
-    if(!c||!cvCalib){ttOvRaf=0;return}
-    const n=find(c.dataset.ttOv)?.n||{name:""};
-    try{cvSimDraw(c,n,ttOvView(c.dataset.ttOv),now)}finally{ttOvRaf=requestAnimationFrame(tick)}
-  };
-  ttOvRaf=requestAnimationFrame(tick);
+// ── Сетка соответствия ──
+// Соответствие «точка обзорного кадра → пан и наклон PTZ»: аффинная оценка по всем точкам плюс поправка, которая
+// проходит точно через каждую точку (обратные расстояния). Хорошие точки дают ровную сетку; точка, наведённая мимо,
+// гнёт сетку возле себя — грубую ошибку видно сразу. Сетку рисуют линии равного пана и равного наклона PTZ.
+// Вне выпуклой оболочки точек кадр затенён: там PTZ наводится хуже (заметка PMD-6196 в lexiro)
+function ttMap(pts){
+  const f=ttFit(pts);if(!f)return null;const p0=pts[0].p;
+  const R=pts.map(q=>{const a=f.at(q.x,q.y);return{x:q.x,y:q.y,dp:cvSimWrap(q.p-a.p),dt:q.t-a.t}});
+  return(x,y)=>{const a=f.at(x,y);let w=0,dp=0,dt=0;for(const r of R){const d2=(x-r.x)**2+((y-r.y)*.5625)**2;if(d2<1e-9)return{p:a.p+r.dp,t:a.t+r.dt};const k=1/d2;w+=k;dp+=k*r.dp;dt+=k*r.dt}
+    return{p:p0+cvSimWrap(a.p+dp/w-p0),t:a.t+dt/w}};
 }
-// Перекрестье в центре кадра PTZ во время калибровки: точка пары — то, на что смотрит центр кадра
-function ttCrossHtml(n){return cvCalib?.id===n.id?`<span class="tt-cross" aria-hidden="true"></span>`:""}
+function ttGridStep(pts){
+  const p0=pts[0]?.p||0,ps=pts.map(q=>cvSimWrap(q.p-p0)),ts=pts.map(q=>q.t);
+  const nice=v=>[1,2,5,10,15,20].find(s=>v/s<=8)||30;
+  return{sp:nice(Math.max(...ps)-Math.min(...ps)||10),st:nice(Math.max(...ts)-Math.min(...ts)||10)};
+}
+function ttHull(pts){
+  const P=pts.map(q=>[q.x,q.y]).sort((a,b)=>a[0]-b[0]||a[1]-b[1]);if(P.length<3)return P;
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]),lo=[],up=[];
+  for(const p of P){while(lo.length>=2&&cr(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p)}
+  for(const p of P.slice().reverse()){while(up.length>=2&&cr(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p)}
+  return lo.slice(0,-1).concat(up.slice(0,-1));
+}
+// Изолинии по решётке кадра (марширующие квадраты): у каждой клетки ищем, где линия уровня пересекает рёбра
+function ttGridDraw(g,W,H,pts){
+  const m=ttMap(pts);if(!m)return;const NX=48,NY=27,P=[],T=[];
+  for(let j=0;j<=NY;j++){P[j]=[];T[j]=[];for(let i=0;i<=NX;i++){const a=m(i/NX,j/NY);P[j][i]=a.p;T[j][i]=a.t}}
+  const{sp,st}=ttGridStep(pts),hull=ttHull(pts);
+  g.save();
+  // Затенение вне точек
+  g.beginPath();g.rect(0,0,W,H);hull.forEach(([x,y],k)=>k?g.lineTo(x*W,y*H):g.moveTo(x*W,y*H));g.closePath();g.fillStyle="rgba(0,0,0,.42)";g.fill("evenodd");
+  g.beginPath();hull.forEach(([x,y],k)=>k?g.lineTo(x*W,y*H):g.moveTo(x*W,y*H));g.closePath();g.strokeStyle="rgba(255,255,255,.7)";g.setLineDash([6,4]);g.lineWidth=1.5;g.stroke();g.setLineDash([]);
+  // Сетка — во всём кадре, но вне точек бледнее
+  const iso=(F,step,col)=>{let lo=Infinity,hi=-Infinity;F.forEach(r=>r.forEach(v=>{if(v<lo)lo=v;if(v>hi)hi=v}));
+    g.strokeStyle=col;g.lineWidth=1.6;g.beginPath();
+    for(let L=Math.ceil(lo/step)*step;L<=hi;L+=step){
+      for(let j=0;j<NY;j++)for(let i=0;i<NX;i++){
+        const c=[[i,j,F[j][i]],[i+1,j,F[j][i+1]],[i+1,j+1,F[j+1][i+1]],[i,j+1,F[j+1][i]]],xs=[];
+        for(let k=0;k<4;k++){const a=c[k],b=c[(k+1)%4];if((a[2]-L)*(b[2]-L)<0){const u=(L-a[2])/(b[2]-a[2]);xs.push([(a[0]+(b[0]-a[0])*u)/NX*W,(a[1]+(b[1]-a[1])*u)/NY*H])}}
+        if(xs.length>=2){g.moveTo(xs[0][0],xs[0][1]);g.lineTo(xs[1][0],xs[1][1])}
+        if(xs.length===4){g.moveTo(xs[2][0],xs[2][1]);g.lineTo(xs[3][0],xs[3][1])}
+      }
+    }
+    g.stroke()};
+  g.save();g.beginPath();hull.forEach(([x,y],k)=>k?g.lineTo(x*W,y*H):g.moveTo(x*W,y*H));g.closePath();g.clip();
+  iso(P,sp,"rgba(80,200,255,.95)");iso(T,st,"rgba(255,206,84,.95)");g.restore();
+  g.globalAlpha=.3;iso(P,sp,"rgba(80,200,255,1)");iso(T,st,"rgba(255,206,84,1)");g.globalAlpha=1;
+  g.restore();
+}
+function ttDotsDraw(g,W,H,pts,bad){
+  pts.forEach((q,i)=>{const x=q.x*W,y=q.y*H,b=bad.includes(i);g.beginPath();g.arc(x,y,11,0,7);g.fillStyle=b?"#d97706":"#0a6cff";g.fill();g.lineWidth=2;g.strokeStyle="#fff";g.stroke();
+    g.fillStyle="#fff";g.font="bold 12px sans-serif";g.textAlign="center";g.textBaseline="middle";g.fillText(String(i+1),x,y+.5)});
+  g.textBaseline="alphabetic";
+}
+// Кадры раздела рисуются, пока они на экране: обзорные (с сеткой) и кадр PTZ в калибровке. Если кадр PTZ вверху вкладки
+// не крутит симуляцию (видео не идёт или вкладка прокручена), шаг симуляции делает этот цикл
+let ttLast=0;
+function ttTick(now){
+  const cs=document.querySelectorAll("#main canvas[data-tt-ov],#main canvas[data-tt-thumb],#main canvas[data-tt-ptz]");
+  if(!cs.length){ttLast=0;setTimeout(()=>requestAnimationFrame(ttTick),500);return}
+  const dt=ttLast?Math.min(.1,(now-ttLast)/1000):0;ttLast=now;
+  try{
+    cs.forEach(c=>{
+      const g=c.getContext("2d"),W=c.width,H=c.height;
+      if(c.dataset.ttPtz){const id=c.dataset.ttPtz,n=find(id)?.n;if(!n)return;const s=cvSimOf(id);
+        const top=lv?.id===id&&lv.stub&&lv.state==="live"&&!!liveEl?.srcObject&&!!document.querySelector("#main canvas[data-cv-sim]:not([hidden])");
+        if(!top)cvSimStep(id,s,dt);cvSimDraw(c,n,s,now);return}
+      const cam=c.dataset.ttOv||c.dataset.ttThumb,n=find(cam)?.n||{name:""};
+      cvSimDraw(c,n,ttOvView(cam),now);
+      const ptz=find(c.dataset.ttPtzid)?.n,o=c.dataset.ttOv?cvCalib?.o:ptz&&ttOf(ptz).ovs.find(x=>x.cam===cam);if(!o)return;
+      if((c.dataset.ttThumb||ttGridOn)&&o.pts.length>=TT_MIN)ttGridDraw(g,W,H,o.pts);
+      if(c.dataset.ttThumb)ttDotsDraw(g,W,H,o.pts,ttCheck(o.pts).bad);
+    });
+  }finally{requestAnimationFrame(ttTick)}
+}
+requestAnimationFrame(ttTick);
 // План карточки: строки «Слежение…» рядом со строками туров
 function ttPlanRows(n,b,out){
   if(!b?.tt)return;
   const st=ttOf(n),w=b.tt,ml=v=>i18n((TT_MODES.find(x=>x[0]===v)||[,v])[1]);
   if(w.mode!==st.mode)out.push({node:n,stub:"tt",label:i18n("Слежение: режим"),fromT:ml(w.mode),toT:ml(st.mode)});
   if(w.freq!==st.freq)out.push({node:n,stub:"tt",label:i18n("Слежение: время на одном объекте"),fromT:`${w.freq} ${i18n("с")}`,toT:`${st.freq} ${i18n("с")}`});
-  const was=new Map(w.ovs.map(o=>[o.cam,o])),now=new Map(st.ovs.map(o=>[o.cam,o])),lb=c=>`${i18n("Обзорная камера")} «${find(c)?.n?.name||c}»`;
+  const was=new Map(w.ovs.map(o=>[o.cam,o])),now=new Map(st.ovs.map(o=>[o.cam,o])),lb=c=>`${i18n("Обзорная камера")} «${find(c)?.n?.name||c}»`,np=k=>`${k} ${i18n(plural(k,"точка|точки|точек"))}`;
   now.forEach((o,c)=>{const p=was.get(c);
-    if(!p)out.push({node:n,stub:"tt",label:lb(c),fromT:"—",toT:`${i18n("консоль привяжет")}, ${o.pts.length} ${i18n(plural(o.pts.length,"точка|точки|точек"))}`});
-    else if(JSON.stringify(p.pts)!==JSON.stringify(o.pts))out.push({node:n,stub:"tt",label:`${lb(c)}: ${i18n("калибровка")}`,fromT:`${p.pts.length} ${i18n(plural(p.pts.length,"точка|точки|точек"))}`,toT:`${o.pts.length} ${i18n(plural(o.pts.length,"точка|точки|точек"))}`})});
-  was.forEach((o,c)=>{if(!now.has(c))out.push({node:n,stub:"tt",label:lb(c),fromT:`${o.pts.length} ${i18n(plural(o.pts.length,"точка|точки|точек"))}`,toT:i18n("консоль отвяжет")})});
+    if(!p)out.push({node:n,stub:"tt",label:lb(c),fromT:"—",toT:`${i18n("консоль привяжет")}, ${np(o.pts.length)}`});
+    else if(JSON.stringify(p.pts)!==JSON.stringify(o.pts))out.push({node:n,stub:"tt",label:`${lb(c)}: ${i18n("калибровка")}`,fromT:np(p.pts.length),toT:np(o.pts.length)})});
+  was.forEach((o,c)=>{if(!now.has(c))out.push({node:n,stub:"tt",label:lb(c),fromT:np(o.pts.length),toT:i18n("консоль отвяжет")})});
 }
 // ── Параметры потоков ─────────────────────────────────────────────────────
 // «Параметры потоков» — как другие блоки вкладок: значения текстом, «Изменить» открывает поля, «Добавить в план» закрывает.
@@ -21286,7 +21401,7 @@ function lanTabOpen(n){
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
 function form(n){
-  if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+ruleUsesFor(n)))}</div>`;
+  if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+(tab==="vid"?ttSecHtml(n):"")+ruleUsesFor(n)))}</div>`;
   if(n.type==="ipsrv"&&!isSchemaNode(n))return`<div class="cs-cq">${ipsModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?ruleUsesFor(n):""))}</div>`;
   return tab==="topo"&&(n.type==="domain"||n.type==="server")?g7Html(n):formBase(n)+ruleUsesFor(n)}
 // Переключатель карточки: вид меняется сразу, значение уходит с «Применить»
