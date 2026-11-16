@@ -20407,16 +20407,17 @@ function ttLicHtml(n){
 // ── Маска приватности камеры (прототип 72, пробел E1 против Axxon One): области на кадре ──
 // ЗАГЛУШКА: в контракте 0.13.0 у камеры нет маски приватности (поле mask есть только у детектора). Сохранённые
 // области живут в памяти страницы (pmSaved) до перезагрузки. Области — в долях кадра, как зоны детектора.
-// Правка идёт в черновик pm.draft; «Сохранить маску» переносит его в pmSaved, «Отменить правки» его сбрасывает
+// Правка идёт в черновик камеры pmDrafts (свой у каждой камеры: переход на другую камеру его не теряет); pm — только
+// инструмент, выбор и рисование на кадре одной камеры. «Сохранить маску» переносит черновик в pmSaved, «Отменить правки» его сбрасывает
 const PM_PMAX=64,PM_C="#fbbf24";
-const pmSaved=new Map(),pmShots=new Map();
-let pm={id:null,draft:null,tool:null,poly:null,rect:null,sel:null,view:false};
+const pmSaved=new Map(),pmShots=new Map(),pmDrafts=new Map();
+let pm={id:null,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};
 function pmNode(id){return find(id)?.n||null}
 function pmCur(n){return pm.id===n.id?pm:{tool:null,poly:null,rect:null,sel:null,view:false}}
-function pmAreas(n){return pm.id===n.id&&pm.draft?pm.draft:(pmSaved.get(n.id)||[])}
-function pmDirty(n){return pm.id===n.id&&!!pm.draft&&JSON.stringify(pm.draft)!==JSON.stringify(pmSaved.get(n.id)||[])}
-function pmFocus(n){if(pm.id!==n.id)pm={id:n.id,draft:null,tool:null,poly:null,rect:null,sel:null,view:false};return pm}
-function pmEdit(n){pmFocus(n);if(!pm.draft)pm.draft=JSON.parse(JSON.stringify(pmSaved.get(n.id)||[]));return pm.draft}
+function pmAreas(n){return pmDrafts.get(n.id)||pmSaved.get(n.id)||[]}
+function pmDirty(n){return pmDrafts.has(n.id)&&JSON.stringify(pmDrafts.get(n.id))!==JSON.stringify(pmSaved.get(n.id)||[])}
+function pmFocus(n){if(pm.id!==n.id)pm={id:n.id,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};return pm}
+function pmEdit(n){pmFocus(n);if(!pmDrafts.has(n.id))pmDrafts.set(n.id,JSON.parse(JSON.stringify(pmSaved.get(n.id)||[])));return pmDrafts.get(n.id)}
 // Вид маски задаёт опция домена sec.mask: мозаика или чёрная заливка
 function pmDomain(n){return domains.find(x=>x.id===nodeDomainId(n))||null}
 function pmLook(n){
@@ -20462,7 +20463,7 @@ function pmHint(n){
   if(c.tool==="poly")return"Щёлкнуть по кадру, чтобы поставить первую точку области.";
   if(c.tool==="rect"&&c.rect)return"Щёлкнуть противоположный угол. Esc отменяет прямоугольник.";
   if(c.tool==="rect")return"Протянуть мышью по кадру. Или щёлкнуть один угол, потом противоположный угол.";
-  if(c.pt)return"Щёлкнуть по кадру, чтобы поставить туда выбранную точку. Esc отменяет выбор точки.";
+  if(c.pt)return"Щёлкнуть по кадру, чтобы поставить туда выбранную точку. Delete убирает точку, Esc отменяет выбор точки.";
   if(c.sel)return"Чтобы сдвинуть точку, тянуть её или щёлкнуть её, потом новое место. Чтобы добавить точку, щёлкнуть «+» на стороне. Чтобы убрать точку, щёлкнуть её правой кнопкой. Стрелки сдвигают область, Delete убирает её.";
   if(pmAreas(n).length)return"Щёлкнуть область, чтобы изменить её. Чтобы добавить область, выбрать «Многоугольник» или «Прямоугольник».";
   return"Выбрать «Многоугольник» или «Прямоугольник» и закрыть на кадре то, что операторы не должны видеть: монитор, окно, пульт.";
@@ -20499,25 +20500,27 @@ function pmRepaint(n){
   b.innerHTML=pmBodyHtml(n);
   const s=document.querySelector("#main [data-pm-sum]");if(s)s.textContent=pmSum(n);
   b.closest("[data-sec]")?.setAttribute("data-cs-sum",pmSum(n));
-  pmHoverBind(n);
   if(had)pmStageEl()?.focus({preventScroll:true});
 }
 // Сторона к курсору у многоугольника и второй угол прямоугольника — по движению мыши над кадром
-function pmHoverBind(n){
-  const st=pmStageEl();if(!st||st._pm)return;st._pm=true;
-  st.addEventListener("mousemove",e=>{const m=pmNode(st.dataset.pmStage);if(!m||pm.id!==m.id||(!pm.poly&&!pm.rect)||pm.drag)return;const q=dwXY(st,e);if(!q)return;if(pm.poly)pm.poly.q=q;else pm.rect.q=q;pmPaintGeo(m)});
-  st.addEventListener("mouseleave",()=>{if(pm.poly){pm.poly.q=null;const m=pmNode(st.dataset.pmStage);if(m)pmPaintGeo(m)}});
-}
+// Один слушатель на документ: кадр после любой перерисовки (paint, pmRepaint) работает без своей привязки
+document.addEventListener("mousemove",e=>{
+  if((!pm.poly&&!pm.rect)||pm.drag)return;
+  const st=e.target.closest?.("[data-pm-stage]"),m=pmNode(pm.id);if(!m)return;
+  const q=st&&st.dataset.pmStage===pm.id?dwXY(st,e):null,r=pm.poly||pm.rect;
+  if(!q&&!r.q)return;
+  r.q=q;pmPaintGeo(m);
+});
 // Как поиск по настройкам: раздел «Опции», страница «Безопасность», опция sec.mask подсвечена
 function pmOptGo(){goApp("sys");sys="sec";settingHighlight="sec.mask";paint()}
 function pmTool(id,t){const n=pmNode(id);if(!n)return;pmFocus(n);pm.pt=null;pm.tool=pm.tool===t?null:t;pm.poly=null;pm.rect=null;pm.view=false;if(pm.tool)pm.sel=null;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
-function pmView(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=!pm.view;pm.tool=null;pm.poly=null;pm.rect=null;pm.sel=null;pmRepaint(n)}
+function pmView(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=!pm.view;pm.tool=null;pm.poly=null;pm.rect=null;pm.sel=null;pm.pt=null;pmRepaint(n)}
 function pmSel(id,aid){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=false;pm.tool=null;pm.poly=null;pm.rect=null;pm.pt=null;pm.sel=pm.sel===aid?null:aid;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
-function pmDel(id,aid){const n=pmNode(id);if(!n)return;const a=pmEdit(n),i=a.findIndex(x=>x.id===aid);if(i<0)return;a.splice(i,1);if(pm.sel===aid)pm.sel=null;pmRepaint(n)}
-function pmClear(id){const n=pmNode(id);if(!n)return;pmEdit(n).length=0;pm.sel=null;pmRepaint(n)}
-function pmSave(id){const n=pmNode(id);if(!n||!pmDirty(n))return;const k=pm.draft.length;pmSaved.set(n.id,JSON.parse(JSON.stringify(pm.draft)));pm.draft=null;pm.sel=null;pmRepaint(n);
-  toast(k?`${i18n("Маска приватности сохранена")}: ${k} ${i18n(plural(k,"область|области|областей"))}`:i18n("Маска приватности снята"))}
-function pmCancel(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.draft=null;pm.sel=null;pm.poly=null;pm.rect=null;pmRepaint(n)}
+function pmDel(id,aid){const n=pmNode(id);if(!n)return;const a=pmEdit(n),i=a.findIndex(x=>x.id===aid);if(i<0)return;a.splice(i,1);if(pm.sel===aid)pm.sel=null;if(pm.pt?.a===aid)pm.pt=null;pmRepaint(n)}
+function pmClear(id){const n=pmNode(id);if(!n)return;pmEdit(n).length=0;pm.sel=null;pm.pt=null;pmRepaint(n)}
+function pmSave(id){const n=pmNode(id);if(!n||!pmDirty(n))return;const d=pmDrafts.get(n.id),k=d.length;pmSaved.set(n.id,JSON.parse(JSON.stringify(d)));pmDrafts.delete(n.id);pmFocus(n);pm.sel=null;pm.pt=null;pmRepaint(n);
+  toast(k?`${i18n("Консоль сохранила маску приватности")}: ${k} ${i18n(plural(k,"область|области|областей"))}`:i18n("Консоль сняла маску приватности"))}
+function pmCancel(id){const n=pmNode(id);if(!n)return;pmFocus(n);pmDrafts.delete(n.id);pm.sel=null;pm.pt=null;pm.poly=null;pm.rect=null;pmRepaint(n)}
 function pmShot(id){const n=pmNode(id);if(!n)return;pmShots.set(n.id,Date.now());pmRepaint(n)}
 function pmAdd(n,pts){
   const a=pmEdit(n),k=a.reduce((m,x)=>Math.max(m,x.n),0)+1,z={id:"m"+(Date.now()%1e7)+"_"+k,n:k,pts:pts.map(p=>p.slice())};
@@ -20540,7 +20543,9 @@ function pmRectEnd(n,a,b){
 }
 function pmDown(id,st,e){
   const n=pmNode(id);if(!n||e.button)return;
-  pmFocus(n);pmHoverBind(n);
+  pmFocus(n);
+  // preventDefault ниже не даёт кадру фокус: ставим его сами, иначе стрелки и Delete уходят дереву
+  (pmStageEl()||st).focus({preventScroll:true});
   if(pm.view)return;
   const p0=dwXY(st,e);if(!p0)return;
   const t=e.target,h=t.dataset?.h,b=t.dataset?.b,mid=t.closest?.("[data-m]")?.dataset.m;
@@ -20556,7 +20561,7 @@ function pmDown(id,st,e){
   }else if(mid){
     e.preventDefault();
     const[aid,i]=mid.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
-    const j=+i+1;a.pts.splice(j,0,p0);move=q=>{a.pts[j]=q};
+    const j=+i+1;a.pts.splice(j,0,p0);pm.pt=null;move=q=>{a.pts[j]=q};
   }else if(h){
     e.preventDefault();
     const[aid,i]=h.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
@@ -20566,7 +20571,7 @@ function pmDown(id,st,e){
   }else if(b){
     e.preventDefault();
     const a=pmEdit(n).find(x=>x.id===b);if(!a)return;
-    if(pm.sel!==b){pm.sel=b;pmRepaint(n)}
+    if(pm.sel!==b){pm.sel=b;pm.pt=null;pmRepaint(n)}
     const orig=a.pts.map(p=>p.slice());
     move=q=>{const dx=q[0]-p0[0],dy=q[1]-p0[1];orig.forEach((p,i)=>{a.pts[i]=[+Math.min(1,Math.max(0,p[0]+dx)).toFixed(4),+Math.min(1,Math.max(0,p[1]+dy)).toFixed(4)]})};
   }else{
@@ -20589,19 +20594,26 @@ function pmCtx(id,st,e){
   const h=e.target.dataset?.h;if(!h)return;
   const[aid,i]=h.split(":"),a=pmEdit(n).find(x=>x.id===aid);if(!a)return;
   if(a.pts.length<=3){toast(i18n("В области должно быть не меньше 3 точек"));return}
-  a.pts.splice(+i,1);pmRepaint(n);
+  a.pts.splice(+i,1);pm.pt=null;pmRepaint(n);
 }
 function pmKey(id,e){
-  const n=pmNode(id);if(!n)return;pmFocus(n);
-  const k=e.key,stop=()=>{e.preventDefault();e.stopPropagation()};
+  const n=pmNode(id);if(!n)return;
+  const k=e.key,stop=()=>{e.preventDefault();e.stopPropagation()},arrow=/^Arrow/.test(k);
+  // Стрелки на кадре не уходят дереву: иначе они переключают камеру и бросают начатую область
+  if(arrow)stop();
+  if(pm.id!==n.id)return;
   if(k==="Escape"&&pm.pt){stop();pm.pt=null;pmRepaint(n);return}
   if(k==="Escape"&&(pm.poly||pm.rect||pm.tool)){stop();pm.poly=null;pm.rect=null;pm.tool=null;pmRepaint(n);return}
   if(k==="Enter"&&pm.poly){stop();pmPolyClose(n);return}
   if(k==="Backspace"&&pm.poly){stop();pm.poly.pts.pop();if(!pm.poly.pts.length)pm.poly=null;pmPaintGeo(n);return}
+  // Delete: выбрана точка — убрать точку (не меньше 3), иначе — выбранную область
+  const pa=pm.pt&&pmAreas(n).find(x=>x.id===pm.pt.a);
+  if((k==="Delete"||k==="Backspace")&&pa){stop();
+    if(pa.pts.length<=3){toast(i18n("В области должно быть не меньше 3 точек"));return}
+    pmEdit(n).find(x=>x.id===pa.id).pts.splice(pm.pt.i,1);pm.pt=null;pmRepaint(n);return}
   const a=pm.sel&&pmAreas(n).find(x=>x.id===pm.sel);if(!a)return;
   if(k==="Delete"||k==="Backspace"){stop();pmDel(id,a.id);return}
   const d=e.shiftKey?.05:.01,v={ArrowLeft:[-d,0],ArrowRight:[d,0],ArrowUp:[0,-d],ArrowDown:[0,d]}[k];if(!v)return;
-  stop();
   const z=pmEdit(n).find(x=>x.id===a.id),xs=z.pts.map(p=>p[0]),ys=z.pts.map(p=>p[1]);
   const dx=Math.min(Math.max(v[0],-Math.min(...xs)),1-Math.max(...xs)),dy=Math.min(Math.max(v[1],-Math.min(...ys)),1-Math.max(...ys));
   z.pts=z.pts.map(p=>[+(p[0]+dx).toFixed(4),+(p[1]+dy).toFixed(4)]);pmRepaint(n);
