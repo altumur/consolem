@@ -21362,7 +21362,7 @@ function srvVerHtml(n){
       <p class="sub" style="margin-top:10px">${escHtml(lc.text)}${lc.domId?` <button class="lk" ${go}>${i18n("Лицензии домена")}</button>`:""}${lc.keyId&&licPageOn()?` <button class="lk" ${onEv("click",["licGoAll",`${lc.domId}`,`${lc.keyId}`])}>${i18n("Все ключи и домены")}</button>`:""}</p>
       <p class="sub">${i18n("Drivers Pack и DetectorPack обновляет установщик на самом сервере. Консоль их не обновляет.")}</p>`);
 }
-// ── Журнал сервера: уровень до перезапуска и очистка (ЗАГЛУШКА прототипа 68: в контракте 0.12.0 этого нет) ──
+// ── Журнал сервера: уровень до перезапуска и очистка (ЗАГЛУШКА прототипа 68: в контракте 0.12.0 этого нет, запрос api/requests/2026-11-16-101827Z-mockup-server-log-level-request.md) ──
 // Axxon One (Lexiro 568876): уровень журнала меняют на время — до перезапуска сервера; после перезапуска
 // сервер берёт уровень из утилиты управления журналами. Кнопка «Очистить» удаляет все журналы сервера.
 // Здесь уровень и размер журналов живут в памяти страницы (SRV_LOG), на сервер ничего не уходит.
@@ -21379,49 +21379,66 @@ function srvLog(n){
   if(!s){const h=srvVerHash(n.id);s={level:SRV_LOG_BASE,files:12+h%40,mb:180+h%1700,oldest:1+h%29,cleared:""};SRV_LOG.set(n.id,s)}
   return s;
 }
-function srvLogSize(mb){return mb>=1024?`${(mb/1024).toFixed(1).replace(".",",")} ${i18n("ГБ")}`:`${mb} ${i18n("МБ")}`}
+function srvLogSize(mb){const en=uiLang==="en";return mb>=1024?`${(mb/1024).toFixed(1).replace(".",en?".":",")} ${i18n("ГБ")}`:`${mb} ${i18n("МБ")}`}
+function srvLogQ(s){return uiLang==="en"?`“${s}”`:`«${s}»`}
 function srvLogHtml(n){
   const s=srvLog(n),off=n.online===false,tmp=s.level!==SRV_LOG_BASE;
   const dis=off?`disabled title="${escHtml(i18n("Нет связи с сервером"))}"`:"";
   const opts=SRV_LOG_LEVELS.map(([v])=>`<option value="${v}" ${s.level===v?"selected":""}>${v}${v===SRV_LOG_BASE?` · ${escHtml(i18n("после перезапуска"))}`:""}</option>`).join("");
   const what=(SRV_LOG_LEVELS.find(x=>x[0]===s.level)||[])[1]||"";
-  const note=off?`<div class="nt" data-log-note>${i18n("Нет связи с сервером. Уровень журнала и очистку можно изменить, когда сервер на связи.")}</div>`
-    :tmp?`<div class="nt" role="status" data-log-note>${i18n("Сервер пишет журнал на уровне")} <b>${s.level}</b> ${i18n("до перезапуска. После перезапуска сервер вернётся к уровню")} <b>${SRV_LOG_BASE}</b>.${s.level==="TRACE"||s.level==="DEBUG"?` ${i18n("На этом уровне журнал быстро растёт и занимает диск.")}`:""} <button type="button" class="lk" ${onEv("click",["srvLogSet",`${n.id}`,SRV_LOG_BASE])}>${i18n("Вернуть")} ${SRV_LOG_BASE}</button></div>`
-    :"";
+  // Нет связи — своё примечание, но временный уровень не прячем: он всё ещё действует до перезапуска
+  const offNote=off?`<div class="nt" data-log-off>${i18n("Нет связи с сервером. Изменить уровень журнала и очистить журналы можно, когда связь вернётся.")}</div>`:"";
+  const tmpNote=tmp?`<div class="nt" role="status" data-log-note>${i18n("Сервер пишет журнал на уровне")} <b>${s.level}</b> ${i18n("до перезапуска. После перезапуска сервер вернётся к уровню")} <b>${SRV_LOG_BASE}</b>.${s.level==="TRACE"||s.level==="DEBUG"?` ${i18n("На этом уровне журнал быстро растёт и занимает диск.")}`:""}${off?"":` <button type="button" class="lk" ${onEv("click",["srvLogSet",`${n.id}`,SRV_LOG_BASE])}>${i18n("Вернуть уровень")} ${SRV_LOG_BASE}</button>`}</div>`:"";
   return card("Журнал сервера",
-    `${note}
+    `${offNote}${tmpNote}
     <div class="g"><div data-log-level><label>${i18n("Уровень журнала")}</label><select ${dis} ${onEv("change",["srvLogSet",`${n.id}`,onEv.value])}>${opts}</select><div class="bk-hint" data-log-what>${i18n(what)}</div></div></div>
     <div class="mx" style="margin-top:10px">
       <div class="mc"><span>${i18n("Размер журналов")}</span><b>${s.mb?srvLogSize(s.mb):i18n("пусто")}</b></div>
       <div class="mc"><span>${i18n("Файлов журнала")}</span><b>${s.files}</b></div>
       <div class="mc"><span>${i18n("Самая старая запись")}</span><b>${s.files?`${s.oldest} ${i18n(plural(s.oldest,"день|дня|дней"))} ${i18n("назад")}`:"—"}</b></div>
     </div>
-    <div class="ln" style="margin-top:10px"><button type="button" class="btn s" data-log-clear ${off||!s.files?`disabled title="${escHtml(i18n(off?"Нет связи с сервером":"Журналов нет"))}"`:""} ${onEv("click",["srvLogClear",`${n.id}`])}>${i18n("Очистить журналы сервера…")}</button>${s.cleared?` <span class="sub">${i18n("Очищено")}: ${escHtml(s.cleared)}</span>`:""}</div>
-    <p class="sub" style="margin-top:10px">${i18n("Сервер меняет уровень сразу. Уровень действует до перезапуска сервера. Постоянный уровень задают в утилите управления журналами на самом сервере.")}</p>
-    <p class="sub">${i18n("Старые журналы сервер удаляет сам по сроку хранения.")} <button type="button" class="lk" ${onEv("click",["srvLogGoKeep"])}>${i18n("Срок хранения системного журнала")}</button></p>`);
+    <div class="ln" style="margin-top:10px"><button type="button" class="btn s" data-log-clear ${off||!s.files?`disabled title="${escHtml(i18n(off?"Нет связи с сервером":"Журналов нет"))}"`:""} ${onEv("click",["srvLogClear",`${n.id}`])}>${i18n("Очистить журналы сервера…")}</button>${s.cleared?` <span class="sub">${i18n("Консоль очистила журналы в")} ${escHtml(s.cleared)}</span>`:""}</div>
+    <p class="sub" style="margin-top:10px">${i18n("Сервер меняет уровень сразу. Уровень действует до перезапуска сервера.")} ${i18n("Чтобы задать постоянный уровень, открыть утилиту управления журналами на самом сервере.")}</p>
+    <p class="sub">${i18n("Старые журналы сервер удаляет сам по сроку хранения.")} <button type="button" class="lk" ${onEv("click",["srvLogGoKeep",`${n.id}`])}>${i18n("Срок хранения системного журнала")}</button></p>`);
 }
 function srvLogSet(id,v){
   const f=find(id);if(!f)return;const s=srvLog(f.n);if(s.level===v)return;
+  const hadFocus=document.activeElement?.closest?.("[data-log-level]");
   s.level=v;paint();
+  if(hadFocus)document.querySelector("#main [data-log-level] select")?.focus();   // стрелки клавиатуры идут дальше по списку
   toast(v===SRV_LOG_BASE?`${i18n("Сервер вернулся к уровню журнала")} ${v}`:`${i18n("Сервер пишет журнал на уровне")} ${v} ${i18n("до перезапуска")}`);
 }
 function srvLogClear(id){
   const f=find(id);if(!f)return;const n=f.n,s=srvLog(n);
   askConfirm("Очистить журналы сервера?",
-    `${i18n("Пропадут")}: ${s.files} ${i18n(plural(s.files,"файл|файла|файлов"))} ${i18n("журнала сервера")} «${locName(n)}», ${srvLogSize(s.mb)}. ${i18n("Останутся: события и тревоги домена, записи архива и настройки сервера. Уровень журнала не изменится.")}`,
+    `${i18n("Консоль удалит")} ${s.files} ${i18n(plural(s.files,"файл|файла|файлов"))} ${i18n("журнала сервера")} ${srvLogQ(locName(n))}, ${srvLogSize(s.mb)}. ${i18n("Консоль не тронет события и тревоги домена, записи архива и настройки сервера. Уровень журнала останется прежним.")}`,
     "Консоль не сможет вернуть журналы после отсчёта.","Очистить",()=>srvLogClearRun(id),
     {rawMsg:true,typeCount:s.files,countLabel:"Чтобы подтвердить, ввести число файлов журнала"});
 }
+// Отсчёт очистки: свой срок у каждого сервера (ключ srvlog:<id>), пауза при наведении на тост.
+// Конец отсчёта считает срок, а не тост: тост на паузе или второй тост не теряют очистку.
+const SRV_LOG_CLR=new Map();   // id → {left, t0, timer, tick}
 function srvLogClearRun(id){
-  let done=false;
-  const go=()=>{if(done)return;done=true;const f=find(id);if(!f)return;const s=srvLog(f.n);
-    s.files=0;s.mb=0;s.cleared=new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});paint();toast("Журналы сервера очищены")};
-  toastAction("srvlog",i18n("Консоль очистит журналы сервера после отсчёта"),i18n("Отменить"),()=>{done=true;toast("Очистка отменена")},10000);
-  setTimeout(()=>{if(document.getElementById("ttu-srvlog")||done)return;go()},10500);
+  const key="srvlog:"+id,ms=10000;
+  if(SRV_LOG_CLR.has(id))return;
+  const c={left:ms,t0:Date.now(),timer:null,tick:null};SRV_LOG_CLR.set(id,c);
+  const stop=()=>{clearTimeout(c.timer);clearInterval(c.tick);c.timer=null;SRV_LOG_CLR.delete(id)};
+  const show=()=>{const el=document.querySelector(`#ttu-${CSS.escape(key)} .ttu-left`);if(el)el.textContent=Math.max(0,Math.ceil((c.timer?c.left-(Date.now()-c.t0):c.left)/1000))};
+  const fire=()=>{stop();removeToastAction(key);const f=find(id);
+    if(!f||f.n.online===false){toast("Нет связи с сервером. Консоль не очистила журналы сервера");return}
+    const s=srvLog(f.n);s.files=0;s.mb=0;s.cleared=new Date().toLocaleTimeString(uiLang==="en"?"en-GB":"ru-RU",{hour:"2-digit",minute:"2-digit"});
+    paint();toast("Консоль очистила журналы сервера")};
+  const run=()=>{if(c.timer||!SRV_LOG_CLR.has(id))return;c.t0=Date.now();c.timer=setTimeout(fire,c.left)};
+  const pause=()=>{if(!c.timer)return;clearTimeout(c.timer);c.timer=null;c.left-=Date.now()-c.t0;show()};
+  toastAction(key,i18n("Консоль очистит журналы сервера после отсчёта"),i18n("Отменить"),()=>{stop();toast("Консоль не очистила журналы сервера")},null,{pause,resume:run,danger:true,ms});
+  run();c.tick=setInterval(show,250);show();
 }
-function srvLogGoKeep(){
-  navMark();goApp("sys");sys="keep";tab="gen";paint();
-  accFlash(()=>[...document.querySelectorAll('#main .op-row[data-set="keep.sysLogDays"]')]);
+function srvLogGoKeep(id){
+  const d=domainOf(id);
+  navMark();goApp("sys");sys="keep";tab="gen";
+  if(d)domainFilter=d.id;
+  renderDomainMenu();paint();
+  accFlash(()=>[...document.querySelectorAll('#main .op-row[data-set="keep.sysLogDays"], #main .hd h1, #main h1, [data-go="opt:keep"]')].filter((e,i,a)=>a.indexOf(e)===i));
 }
 // Лицензия домена: карточка домена и карточка сервера берут тот же ключ, что и раздел «Опции» → «Лицензии»
 // (licKeys, licData). Поэтому запас лицензий в трёх местах один и тот же.
