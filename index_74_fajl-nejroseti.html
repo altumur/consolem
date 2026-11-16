@@ -3282,15 +3282,12 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 .dw-play .btn{display:inline-grid;place-items:center;padding:4px 8px}
 .dw-play .sub{margin:0}
 .dw-play b{font-variant-numeric:tabular-nums}
-.nn-var{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin:0 0 10px;padding:6px 8px;border:1px dashed var(--ln);border-radius:8px}.nn-var .dw-seg{flex-wrap:wrap;max-width:100%}
 .nn-sel{max-width:100%;field-sizing:content;min-width:16em}
 .nn-path{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;align-items:center}.nn-path .nn-path-in{flex:1 1 16em;width:auto;min-width:0;font-family:var(--mono,monospace);font-size:12px}
 .nn-err{margin:6px 0 8px}.nn-sw .dw-swl{justify-content:flex-start;color:var(--tx);font-size:13px}
 .nn-card{border:1px solid var(--ln);border-radius:8px;padding:8px 10px;margin:6px 0 10px;background:var(--p2)}
 .nn-card-h{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:6px}.nn-card-h .sub{font-family:var(--mono,monospace);font-size:11px}
 .nn-dl{display:grid;grid-template-columns:max-content 1fr;gap:3px 12px;margin:0;font-size:12px}.nn-dl dt{color:var(--tx2,var(--mu))}.nn-dl dd{margin:0}
-.nn-add{border:1px solid var(--ln);border-radius:8px;padding:8px 10px;margin-top:8px;display:flex;flex-direction:column;gap:6px}
-.nn-add-f{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.nn-add-f>span{min-width:7em;color:var(--tx2,var(--mu));font-size:12px}.nn-ver{width:5em}
 .dw-seg{display:inline-flex;border:1px solid var(--ln);border-radius:7px;overflow:hidden;flex:none}
 .dw-seg button{border:0;background:var(--p2);padding:4px 10px;font-size:12px;white-space:nowrap}
 .dw-seg button+button{border-left:1px solid var(--ln)}
@@ -16228,8 +16225,7 @@ function dwArcHtml(d,k,c){
 // ── Файл нейросети (прототип 74; ЗАГЛУШКА: в контракте 0.13.0 полей нет, данные живут в памяти страницы) ──
 // Нейросетевой трекер: стандартная нейросеть (сервер подбирает её по процессору) или свой файл *.ann на сервере детектора.
 // Трекер объектов: нейрофильтр — свой файл обязателен, стандартного файла у нейрофильтра нет (как в Axxon One).
-// Три варианта выбора файла для обсуждения: A — список файлов, которые сервер нашёл в папке моделей; B — путь вручную
-// с проверкой на сервере; C — библиотека моделей домена. Переключатель вариантов есть только в прототипе.
+// Выбор файла: список файлов, которые сервер нашёл в папке моделей, и путь вручную с проверкой на сервере.
 const NN_DIR="/opt/AxxonSoft/DetectorPack/NeuroSDK";
 const NN_PROC=[["cpu","CPU"],["gpu","GPU NVIDIA"],["npu","NPU Intel"]];
 // Стандартная нейросеть, как «Detection neural network» в Axxon One: что ищет; файл сервер подбирает по процессору
@@ -16242,15 +16238,7 @@ const NN_FILES=[
   {name:"parking_cars_v1.ann",slot:"net",size:"38 МБ",date:"21.07.2026",cls:"Машина",proc:["cpu","gpu"],inp:"512 × 512"},
   {name:"moving_filter_v2.ann",slot:"flt",size:"12 МБ",date:"30.08.2026",cls:"Человек, машина",proc:["cpu","gpu","npu"],inp:"224 × 224"},
   {name:"moving_filter_night_v1.ann",slot:"flt",size:"12 МБ",date:"11.06.2026",cls:"Человек, машина (ночь)",proc:["gpu"],inp:"224 × 224"}];
-// Библиотека моделей домена (вариант C): модель — имя, версия, файл; на каких серверах файл уже лежит
-const NN_LIB=[
-  {id:"m1",name:"Люди сверху",ver:"3",file:"people_topview_v3.ann",on:["*"]},
-  {id:"m2",name:"Склад: люди и погрузчики",ver:"2",file:"warehouse_forklift_v2.ann",on:[]},
-  {id:"m3",name:"Парковка: машины",ver:"1",file:"parking_cars_v1.ann",on:["*"]},
-  {id:"m4",name:"Нейрофильтр движения",ver:"2",file:"moving_filter_v2.ann",on:["*"]},
-  {id:"m5",name:"Нейрофильтр движения: ночь",ver:"1",file:"moving_filter_night_v1.ann",on:[]}];
-const nn={v:(new URLSearchParams(location.search).get("nnv")||"a").toLowerCase(),draft:{},saved:{},chk:{},add:null,scan:{}};
-if(!"abc".includes(nn.v)||nn.v.length!==1)nn.v="a";
+const nn={draft:{},saved:{},chk:{},scan:{}};
 const nnSlotOf=k=>k==="neural"?"net":k==="tracker"?"flt":null;
 const nnFile=name=>NN_FILES.find(f=>f.name===name);
 const nnBase=p=>String(p||"").split(/[\\/]/).pop();
@@ -16289,9 +16277,8 @@ function nnSet(id,path,v){
   const c=nnD(id),ks=path.split(".");let o=c;ks.slice(0,-1).forEach(x=>o=o[x]);o[ks[ks.length-1]]=v;
   gear();
 }
-function nnVar(v){nn.v=v;nn.add=null;const u=new URL(location.href);u.searchParams.set("nnv",v);history.replaceState(null,"",u);gear()}
 function nnProc(id,p){nnSet(id,"proc",p)}
-// Вариант A: выбор из списка. Значение: std — стандартная, @path — указать путь, иначе имя файла в папке моделей
+// Выбор из списка. Значение: std — стандартная, @path — указать путь, иначе имя файла в папке моделей
 function nnPickA(id,slot,v){
   const c=nnD(id),x=c[slot];
   if(v==="std"){x.src="std";x.file=""}
@@ -16300,8 +16287,8 @@ function nnPickA(id,slot,v){
   delete nn.chk[id];gear();
 }
 function nnScan(id){nn.scan[id]=Date.now();toast("Сервер обновил список файлов в папке моделей. Заглушка: список не изменился.");gear()}
-// Вариант B и путь вручную: поле пути и «Проверить файл». Проверка — заглушка: файл есть, если он в NN_FILES
-function nnPath(id,slot,v){const x=nnD(id)[slot];x.path=v;x.file=v.trim();if(nn.v==="b"&&slot==="net")x.src="file";delete nn.chk[id]}
+// Путь вручную: поле пути и «Проверить файл». Проверка — заглушка: файл есть, если он в NN_FILES
+function nnPath(id,slot,v){const x=nnD(id)[slot];x.path=v;x.file=v.trim();delete nn.chk[id]}
 function nnCheck(id,slot,d){
   const x=nnD(id)[slot],p=x.file;let r;
   if(!p)r={bad:"Ввести путь к файлу на сервере."};
@@ -16309,24 +16296,6 @@ function nnCheck(id,slot,d){
   else if(!nnFile(nnBase(p)))r={bad:`${i18n("Сервер")} «${nnSrv(detNodeOf(id))}» ${i18n("не нашёл файл. Проверить путь. Файл должен лежать на сервере детектора, а не на этом компьютере.")}`};
   else r={ok:true};
   nn.chk[id]=r;gear();
-}
-function nnSrcB(id,v){const x=nnD(id).net;x.src=v;if(v==="std")x.file="";else x.file=x.path||"";delete nn.chk[id];gear()}
-// Вариант C: библиотека моделей домена
-function nnPickC(id,slot,v){
-  const x=nnD(id)[slot],m=NN_LIB.find(e=>e.id===v);
-  if(v==="std"||!m){x.src="std";x.file="";x.lib=""}else{x.src="lib";x.lib=m.id;x.file=`${NN_DIR}/${m.file}`}
-  gear();
-}
-function nnAddOpen(){nn.add=nn.add?null:{name:"",ver:"1",file:""};gear()}
-function nnAddSet(k,v){if(nn.add)nn.add[k]=v}
-function nnAddFile(el){if(nn.add)nn.add.file=el?.files?.[0]?.name||""}
-function nnAddSave(id,slot){
-  const a=nn.add;if(!a)return;
-  if(!a.name.trim()||!a.file){toast("Ввести имя модели и выбрать файл *.ann");return}
-  if(!/\.ann$/i.test(a.file)){toast("Файл должен быть в формате *.ann");return}
-  const m={id:"m"+(NN_LIB.length+1),name:a.name.trim(),ver:a.ver||"1",file:a.file,on:[]};
-  NN_LIB.push(m);if(!nnFile(a.file))NN_FILES.push({name:a.file,slot,size:"—",date:"—",cls:i18n("сервер прочитает после загрузки"),proc:["cpu","gpu","npu"],inp:"—"});
-  nn.add=null;nnPickC(id,slot,m.id);toast(`${i18n("Консоль добавила модель")} «${m.name}» ${i18n("в библиотеку. Заглушка: файл не загружен.")}`);
 }
 // Карточка выбранного файла: что распознаёт, на каком процессоре работает, размер входа, размер файла и дата
 function nnCardHtml(d,slot,c){
@@ -16337,7 +16306,7 @@ function nnCardHtml(d,slot,c){
     <dl class="nn-dl"><dt>${i18n("Файл")}</dt><dd>${nnStdFile(k[0],c.proc)} <span class="sub">${i18n("сервер подбирает файл по процессору")}</span></dd><dt>${i18n("Объекты")}</dt><dd>${i18n(k[2])}</dd></dl></div>`}
   if(!x.file)return"";
   const f=nnFile(nnBase(x.file));
-  if(!f)return(nn.v==="b"||x.src==="path")&&!nn.chk[d.id]?.ok?"":"";
+  if(!f)return"";
   const dir=x.file.slice(0,x.file.length-f.name.length).replace(/\/$/,"")||NN_DIR;
   return`<div class="nn-card"><div class="nn-card-h">${lu("file-text",14)}<b>${escHtml(f.name)}</b><span class="sub">${escHtml(dir)}</span></div>
     <dl class="nn-dl"><dt>${i18n("Объекты")}</dt><dd>${escHtml(i18n(f.cls))}</dd><dt>${i18n("Процессор")}</dt><dd>${f.proc.map(nnProcName).join(", ")}</dd><dt>${i18n("Вход нейросети")}</dt><dd>${f.inp}</dd><dt>${i18n("Файл")}</dt><dd>${f.size} · ${f.date}</dd></dl></div>`;
@@ -16357,55 +16326,27 @@ function nnPathHtml(id,slot,x,d){
     ${r?.bad?`<div class="nt err nn-err" role="alert">${escHtml(i18n(r.bad))}</div>`:r?.ok?`<div class="nt ok nn-err" role="status">${i18n("Сервер нашёл файл.")}</div>`:""}
     ${dwHelp(`${i18n("Путь к файлу *.ann на сервере")} «${nnSrv(d)}». ${i18n("Обычно файлы лежат в папке")} ${NN_DIR}.`)}`;
 }
-// Вариант A: список файлов в папке моделей сервера
-function nnFieldA(d,slot,c){
+// Список файлов в папке моделей сервера и путь вручную
+function nnField(d,slot,c){
   const id=`${d.id}`,x=c[slot],L=NN_FILES.filter(f=>f.slot===slot);
   const cur=slot==="net"&&x.src==="std"?"std":x.src==="path"?"@path":nnBase(x.file)||"";
   const opts=(slot==="net"?`<option value="std"${cur==="std"?" selected":""}>${i18n("Стандартная нейросеть — подбирает сервер")}</option>`:`<option value=""${cur?"":" selected"}>${i18n("Выберите файл…")}</option>`)
     +`<optgroup label="${escHtml(`${i18n("Файлы в папке моделей сервера")} «${nnSrv(d)}»`)}">${L.map(f=>`<option value="${escHtml(f.name)}"${cur===f.name?" selected":""}>${escHtml(f.name)} — ${escHtml(i18n(f.cls))}</option>`).join("")}</optgroup>`
     +`<option value="@path"${cur==="@path"?" selected":""}>${i18n("Указать путь вручную…")}</option>`;
   return`<div class="dw-f"><label>${i18n(slot==="net"?"Файл нейросети":"Файл нейрофильтра")}</label><select class="nn-sel" ${onEv("change",["nnPickA",id,slot,onEv.value])}>${opts}</select>
-    ${x.src==="path"?nnPathHtml(id,slot,x,d):""}
-    <p class="sub dw-help nn-scan">${i18n("Сервер показывает файлы *.ann из папки")} ${NN_DIR}. ${i18n("Чтобы добавить свой файл, положить его в эту папку на сервере.")} ${i18n("Свой файл можно указать только у сервера на Linux.")} <button type="button" class="lk" ${onEv("click",["nnScan",id])}>${i18n("Обновить список")}</button></p></div>`;
-}
-// Вариант B: как в Axxon One — стандартная нейросеть или путь к своему файлу, с проверкой на сервере
-function nnFieldB(d,slot,c){
-  const id=`${d.id}`,x=c[slot];
-  const radio=slot==="net"?`<span class="dw-seg">${[["std","Стандартная нейросеть"],["file","Свой файл"]].map(([v,l])=>`<button type="button" class="${(x.src==="std")===(v==="std")?"on":""}" ${onEv("click",["nnSrcB",id,v])}>${i18n(l)}</button>`).join("")}</span>`:"";
-  return`<div class="dw-f"><label>${i18n(slot==="net"?"Нейросеть":"Файл нейрофильтра")}</label>${radio}${slot==="flt"||x.src!=="std"?nnPathHtml(id,slot,x,d):""}</div>`;
-}
-// Вариант C: библиотека моделей домена — модель с именем и версией; файл консоль кладёт на сервер сама
-function nnFieldC(d,slot,c){
-  const id=`${d.id}`,x=c[slot],L=NN_LIB.filter(m=>nnFile(m.file)?.slot===slot);
-  const cur=slot==="net"&&x.src==="std"?"std":x.lib||"";
-  const opts=(slot==="net"?`<option value="std"${cur==="std"?" selected":""}>${i18n("Стандартная нейросеть — подбирает сервер")}</option>`:`<option value=""${cur?"":" selected"}>${i18n("Выберите модель…")}</option>`)
-    +L.map(m=>`<option value="${m.id}"${cur===m.id?" selected":""}>${escHtml(m.name)} · ${i18n("версия")} ${escHtml(m.ver)}</option>`).join("");
-  const m=NN_LIB.find(e=>e.id===x.lib&&x.src==="lib");
-  const where=m?`<p class="sub dw-help">${m.on.length?`${i18n("Файл модели уже есть на сервере")} «${nnSrv(d)}».`:`${i18n("Файла модели нет на сервере")} «${nnSrv(d)}». ${i18n("Консоль скопирует файл на сервер после «Применить».")}`}</p>`:"";
-  const a=nn.add;
-  const add=a?`<div class="nn-add"><b>${i18n("Добавить модель в библиотеку")}</b>
-      <label class="nn-add-f"><span>${i18n("Файл *.ann")}</span><input type="file" accept=".ann" ${onEv("change",["nnAddFile",onEv.el])}></label>
-      <label class="nn-add-f"><span>${i18n("Имя модели")}</span><input type="text" class="dw-txt" value="${escHtml(a.name)}" ${onEv("input",["nnAddSet","name",onEv.value])}></label>
-      <label class="nn-add-f"><span>${i18n("Версия")}</span><input type="text" class="dw-txt nn-ver" value="${escHtml(a.ver)}" ${onEv("input",["nnAddSet","ver",onEv.value])}></label>
-      ${dwHelp("Консоль загрузит файл в библиотеку домена. Модель из библиотеки можно выбрать у любого детектора домена.")}
-      <div class="dw-row"><button type="button" class="btn s pri" ${onEv("click",["nnAddSave",id,slot])}>${i18n("Добавить")}</button><button type="button" class="btn s" ${onEv("click",["nnAddOpen"])}>${i18n("Отменить")}</button></div></div>`
-    :`<div class="dw-row"><button type="button" class="btn s" ${onEv("click",["nnAddOpen"])}>${lu("plus",14)}${i18n("Добавить модель в библиотеку")}…</button></div>`;
-  return`<div class="dw-f"><label>${i18n(slot==="net"?"Модель":"Модель нейрофильтра")}</label><select class="nn-sel" ${onEv("change",["nnPickC",id,slot,onEv.value])}>${opts}</select>${where}${add}</div>`;
-}
-function nnVarHtml(){
-  return`<div class="nn-var" data-plan-stub><span class="sub">${i18n("Вариант (только в прототипе)")}</span><span class="dw-seg">${[["a","A. Файлы","A. Файлы на сервере"],["b","B. Путь","B. Путь и проверка"],["c","C. Библиотека","C. Библиотека моделей"]].map(([v,l,t])=>`<button type="button" class="${nn.v===v?"on":""}" aria-pressed="${nn.v===v}" title="${i18n(t)}" ${onEv("click",["nnVar",v])}>${i18n(l)}</button>`).join("")}</span></div>`;
+    ${x.src==="path"?nnPathHtml(id,slot,x,d):`<p class="sub dw-help nn-scan">${i18n("Сервер показывает файлы *.ann из папки")} ${NN_DIR}. ${i18n("Чтобы добавить свой файл, положить его в эту папку на сервере.")} ${i18n("Свой файл можно указать только у сервера на Linux.")} <button type="button" class="lk" ${onEv("click",["nnScan",id])}>${i18n("Обновить список")}</button></p>`}</div>`;
 }
 function nnSecHtml(d,k){
   const slot=nnSlotOf(k);if(!slot)return"";
   const id=`${d.id}`,c=nnD(d.id),x=c[slot];
-  const field=nn.v==="b"?nnFieldB(d,slot,c):nn.v==="c"?nnFieldC(d,slot,c):nnFieldA(d,slot,c);
+  const field=nnField(d,slot,c);
   const stub=`<p class="sub" data-plan-stub>${i18n("Заглушка: в контракте 0.13.0 нет полей для файла нейросети. Выбор живёт в странице.")}</p>`;
   if(slot==="flt"){
     const sw=`<div class="dw-f nn-sw"><label class="dw-swl"><span class="sw ${x.on?"on":""}" role="switch" aria-checked="${x.on}" ${onEv("click",["nnSet",id,"flt.on",!x.on])}></span>${i18n("Включить нейрофильтр")}</label>
       ${dwHelp("Нейрофильтр проверяет каждый трек нейросетью и отбрасывает ложные: тени, листву, блики. У нейрофильтра нет стандартного файла: нужен свой файл.")}</div>`;
-    return dwSec("Нейрофильтр",nnVarHtml()+sw+(x.on?field+nnErrHtml(d,k)+nnCardHtml(d,slot,c)+nnProcHtml(id,c):"")+stub,"",` data-nn-sec`);
+    return dwSec("Нейрофильтр",sw+(x.on?field+nnErrHtml(d,k)+nnCardHtml(d,slot,c)+nnProcHtml(id,c):"")+stub,"",` data-nn-sec`);
   }
-  return dwSec("Нейросеть",nnVarHtml()+field+nnErrHtml(d,k)+nnCardHtml(d,slot,c)+nnProcHtml(id,c)+stub,"",` data-nn-sec`);
+  return dwSec("Нейросеть",field+nnErrHtml(d,k)+nnCardHtml(d,slot,c)+nnProcHtml(id,c)+stub,"",` data-nn-sec`);
 }
 // ── Панель настроек ──
 function dwSec(title,body,x="",attr=""){return`<section class="dw-sec"${attr}><h4>${i18n(title)}${x}</h4>${body}</section>`}
