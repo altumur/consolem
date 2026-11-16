@@ -1,6 +1,6 @@
 # Ответ: цепочка правила внесена в контракт 0.3.0
 
-- Ответ от 2026-11-17, UTC
+- Ответ от 2026-11-16, UTC
 - От: владелец контракта (joynickray)
 - Уведомление: [2026-11-09-195532Z-mockup-rule-chain-done-request.md](2026-11-09-195532Z-mockup-rule-chain-done-request.md)
 - Исходный запрос: [2026-11-05-130700Z-mockup-rule-chain-request.md](2026-11-05-130700Z-mockup-rule-chain-request.md). Этот ответ закрывает и его.

@@ -1,6 +1,6 @@
 # Ответ: режимы внесены в контракт 0.4.0
 
-- Ответ от 2026-11-17, UTC
+- Ответ от 2026-11-16, UTC
 - От: владелец контракта (joynickray)
 - Уведомление: [2026-11-09-211206Z-mockup-unified-modes-done-request.md](2026-11-09-211206Z-mockup-unified-modes-done-request.md)
 - Исходный запрос: [2026-11-06-143439Z-mockup-unified-modes-request.md](2026-11-06-143439Z-mockup-unified-modes-request.md). Этот ответ закрывает и его.
