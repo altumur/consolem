@@ -260,7 +260,7 @@
 
 ## Что добавлено в 0.13.0
 
-По просьбе пользователя команды mockup (Maxim Kabenin): прототип 69 (`index_69_zapis-treka-i-maski.html`) закрывает пробел C11 против Axxon One — запись треков и маски детектора. В Axxon One у детектора движения и трекеров это параметры «Record mask to archive», «Record objects tracking», «Motion mask», «Object tracking», «Track lifespan»; поиск в архиве находит объекты, только если детектор пишет треки или маску.
+По просьбе пользователя команды mockup (Maxim Kabenin): прототип 69 (`index_69_zapis-treka-i-maski.html`) закрывает пробел C11 против Axxon One — запись треков и маски детектора. В Axxon One у детектора движения и трекеров это параметры «Record mask to archive», «Record objects tracking», «Motion mask», «Object tracking», «Track lifespan»; поиск в архиве находит объекты, только если детектор пишет треки (сервер Axxon One ищет по трекам в базе VMDA; записанная маска нужна для показа на кадре архива).
 
 - **Новые необязательные свойства `det`** (и `vms.detector/1`), все `boolean`: `recordMask` (писать маску движения в архив; `motion`), `recordTracks` (писать треки объектов в метаданные архива; `motion` и трекеры), `showMask` (показывать маску движения на кадре; `motion`), `showTracks` (показывать рамки и пути объектов), `showTrackLifespan` (показывать над рамкой число секунд с момента, когда детектор нашёл объект; действует при `showTracks: true`).
 - **Нет поля — умолчание Axxon One:** `recordMask`, `recordTracks`, `showMask` — `true`; `showTracks`, `showTrackLifespan` — `false`. Старый клиент полей не шлёт и ничего не теряет. `null` снимает поле — снова умолчание. У вида детектора, где поле не действует, сервер его хранит и не судит.

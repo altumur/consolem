@@ -16097,7 +16097,7 @@ function dwCmpStripHtml(d,C){
 function dwDur(sec){sec=Math.floor(sec);return sec<60?`${sec} ${i18n("с")}`:`${Math.floor(sec/60)} ${i18n("мин")}${sec%60?` ${sec%60} ${i18n("с")}`:""}`}
 // ── Архив и показ: запись маски и треков, показ на кадре (контракт 0.13.0) ──
 // Как в Axxon One: Record mask to archive, Record objects tracking, Motion mask, Object tracking, Track lifespan.
-// Свойства det: recordMask, recordTracks, showMask, showTracks, showTrackLifespan. Поиск в архиве ищет только по записанным метаданным
+// Свойства det: recordMask, recordTracks, showMask, showTracks, showTrackLifespan. Поиск в архиве (VMDA) ищет только по записанным трекам; записанную маску клиент показывает на кадре архива
 const DW_ARC_K=new Set(["motion","tracker","neural"]);
 // [свойство, подпись, только у движения, умолчание — нет поля]
 const DW_ARC_F=[["recordMask","Записывать маску движения",1,true],["recordTracks","Записывать треки объектов",0,true],["showMask","Показывать маску движения",1,true],["showTracks","Показывать треки объектов",0,false],["showTrackLifespan","Показывать время жизни трека в секундах",0,false]];
@@ -16131,9 +16131,9 @@ function dwArcGoKeep(id){
 }
 function dwArcHtml(d,k,c){
   if(!DW_ARC_K.has(k)||!dwArcHas(d,"recordTracks"))return"";
-  const m=k==="motion"&&dwArcHas(d,"recordMask"),a=c.arc,noRec=!a.recordTracks&&!(m&&a.recordMask);
-  const rec=dwArcSw(d.id,c,"recordMask","Быстрый поиск по движению в архиве ищет по этой маске.")+dwArcSw(d.id,c,"recordTracks","Поиск в архиве по объектам ищет по этим трекам. Сервер разбирает видео, поэтому нагрузка на сервер растёт.");
-  const warn=noRec?`<div class="nt dw-arc-nt" role="status">${i18n("Детектор не записывает метаданные. Поиск в архиве не найдёт объекты этой камеры.")}</div>`:"";
+  const m=k==="motion"&&dwArcHas(d,"recordMask"),a=c.arc,noRec=!a.recordTracks;
+  const rec=dwArcSw(d.id,c,"recordMask","Сервер записывает маску движения в архив. Оператор видит сетку маски при просмотре архива.")+dwArcSw(d.id,c,"recordTracks","Поиск в архиве по объектам ищет по этим трекам. Сервер разбирает видео, поэтому нагрузка на сервер растёт.");
+  const warn=noRec?`<div class="nt dw-arc-nt" role="status">${i18n("Детектор не записывает треки. Поиск в архиве не найдёт объекты этой камеры.")}</div>`:"";
   const keep=`<p class="sub dw-arc-keep">${i18n("Сервер хранит метаданные")}: <b>${escHtml(dwArcDays(d))}</b>. ${i18n("Срок задаёт домен.")} <button type="button" class="lk" ${onEv("click",["dwArcGoKeep",`${d.id}`])}>${i18n("Срок хранения метаданных")}</button></p>`;
   const show=dwArcSw(d.id,c,"showMask","Оператор видит сетку на кадре. Зелёная клетка показывает движение без сработки. Красная клетка показывает сработку.")
     +dwArcSw(d.id,c,"showTracks","Оператор видит рамку объекта и линию его пути. Эта линия называется трек.")
@@ -36696,7 +36696,7 @@ function bulkArcHtml(nodes){
     const part=has.length<nodes.length?`<div class="bk-hint${en.length>1?" bk-mixed":""}">${i18n("есть у")} ${has.length} ${i18n("из")} ${nodes.length} (${i18n(k==="recordMask"||k==="showMask"?"детекторы движения":"детекторы движения и трекеры")}): ${en.map(([v,c])=>en.length>1?`${escHtml(v)} ×${c}`:escHtml(v)).join(" · ")}</div>`:null;
     return bkSelect(l,"arc:"+k,[["on",i18n("Включить")],["off",i18n("Выключить")]],en,part)}).join("");
   return card("Архив и показ",`<div class="g">${f}</div>
-    <p class="sub" style="margin:8px 0 0">${i18n("Поиск в архиве находит объекты только по трекам и маске в архиве. Запись треков нагружает сервер, потому что сервер разбирает видео каждой камеры.")}</p>`);
+    <p class="sub" style="margin:8px 0 0">${i18n("Поиск в архиве находит объекты только по трекам в архиве. Запись треков нагружает сервер, потому что сервер разбирает видео каждой камеры.")}</p>`);
 }
 function bulkGenHtml(nodes,allCams){
   const miss=[],kinds=bulkKinds(nodes),one=kinds.length===1?kinds[0][0]:null;
