@@ -173,6 +173,7 @@ UiCheck(async ({ ok, until }) => {
   const link = [...main().querySelectorAll(".pm-who button")].find((b) => b.textContent.includes("Маска приватности"));
   ok(!!link, "в блоке «Кто и где видит маску» есть ссылка на опцию");
   ok(!main().querySelector(".pm-who").textContent.includes("Web Client"), "предупреждения о Web Client в разделе нет");
+  ok(!ACC_FEAT_NOTE.ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE.includes("Web Client"), "предупреждения о Web Client в подсказке права нет");
   link.click();
   ok(await until(() => sys === "sec" && main().querySelector('[data-set="sec.mask"].set-flash')), "ссылка открыла «Безопасность», опция «Маска приватности» подсвечена");
 
