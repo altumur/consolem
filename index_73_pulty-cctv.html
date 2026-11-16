@@ -3528,6 +3528,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-73.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -30643,9 +30644,13 @@ function kbModel(d){return KB_MODELS.find(m=>m.id===d.model)}
 function kbDef(d){
   if(d.kind==="pc")return Object.fromEntries(KB_ACTS.filter(a=>a[3]).map(a=>[a[0],a[3]]));
   const m=kbModel(d);if(!m)return{};
-  const src=m.id==="ch"?KB_CH_DEF:KB_PANEL_DEF;
-  return Object.fromEntries(Object.entries(src).filter(([,b])=>m.btn.includes(b)||m.id==="axis").map(([a,b])=>[a,m.id==="axis"?b:(m.btn.includes(b)?b:"")]).filter(([,b])=>b));
+  if(m.id==="ch")return{...KB_CH_DEF};
+  // Набор Axis на другой модели: K1…K6 — первые шесть кнопок без цифр (F1…F6, Win, Ch); ALT и Jog есть только у Axis
+  const fk=m.btn.filter(b=>!/^[0-9*#]$/.test(b)),kx=["K1","K2","K3","K4","K5","K6"];
+  const tr=b=>m.btn.includes(b)?b:kx.includes(b)?fk[kx.indexOf(b)]||"":"";
+  return Object.fromEntries(Object.entries(KB_PANEL_DEF).map(([a,b])=>[a,tr(b)]).filter(([,b])=>b));
 }
+function kbName(d){return d.kind==="pc"?i18n(d.n):d.n}
 function kbOf(d){if(!kbMap.has(d.id))kbMap.set(d.id,kbDef(d));return kbMap.get(d.id)}
 function kbFixedAct(d,a){return!!a[4]&&d.kind==="pc"}
 function kbSrvName(d){const s=servers[d.srvIx||0];return s?locName(s):i18n("Сервер")}
@@ -30663,14 +30668,14 @@ function kbDevRow(d){
   const sub=d.kind==="pc"?i18n("Всегда есть"):d.st==="off"?`${i18n("Последний раз на связи")} ${escHtml(d.seen||"—")}`:`${escHtml(m?m.n:"")}`;
   return`<button type="button" class="kb-dev ${on?"on":""}" aria-pressed="${on}" ${onEv("click",["kbPick",d.id])}>
     <span class="kb-dev-ic">${lu(d.kind==="pc"?"keyboard":"move",16)}</span>
-    <span class="kb-dev-t"><b>${escHtml(d.n)}</b><small>${kbConnText(d)} · ${sub}</small></span>
-    <span class="kb-dev-r">${kbStChip(d)}${m&&m.fixed?`<small>${i18n("Кнопки не меняются")}</small>`:`<small>${ch?`${i18n("Изменено")}: ${ch}`:i18n("Как по умолчанию")}</small>`}</span></button>`;
+    <span class="kb-dev-t"><b>${escHtml(kbName(d))}</b><small>${kbConnText(d)} · ${sub}</small></span>
+    <span class="kb-dev-r">${kbStChip(d)}${m&&m.fixed?`<small>${i18n("Axxon One не меняет кнопки")}</small>`:`<small>${ch?`${i18n("Изменено")}: ${ch}`:i18n("Как по умолчанию")}</small>`}</span></button>`;
 }
 function kbConflicts(d,act,key){
   // Что мешает назначить key действию act: в той же функции — переназначить; с «Общими» — нельзя
   const cur=kbOf(d),a=KB_ACTS.find(x=>x[0]===act),out={same:null,glob:null,other:[]};
   KB_ACTS.forEach(b=>{if(b[0]===act||cur[b[0]]!==key)return;
-    if(b[1]===a[1])out.same=b;else if(b[1]==="glob"||a[1]==="glob")out.glob=b;else out.other.push(b)});
+    if(kbFixedAct(d,b))out.fixed=b;else if(b[1]===a[1])out.same=b;else if(b[1]==="glob"||a[1]==="glob")out.glob=b;else out.other.push(b)});
   return out;
 }
 function kbFnName(id){return i18n((KB_FN.find(f=>f[0]===id)||["",""])[1])}
@@ -30680,7 +30685,7 @@ function kbRow(d,a,fixedAll){
   let keyCell;
   if(cap)keyCell=`<div class="kb-capbox"><span class="kb-cap" role="status">${lu("keyboard",14)}${i18n(d.kind==="pc"?"Нажать клавишу…":"Нажать кнопку…")}</span>
     ${kbPickList(d)}<button type="button" class="kb-ib" title="${escHtml(i18n("Отменить (Esc)"))}" aria-label="${escHtml(i18n("Отменить"))}" ${onEv("click",["kbCapStop"])}>${lu("x",14)}</button></div>`;
-  else keyCell=`${k?`<kbd class="kb-key">${escHtml(k)}</kbd>`:`<span class="sub">${i18n("Не назначена")}</span>`}${fx?`<span class="kb-lock" title="${escHtml(i18n(fixedAll?"Кнопки этого пульта задал производитель. Axxon One их не меняет.":"Эту клавишу Axxon One не меняет."))}">${lu("lock",12)}</span>`:""}`;
+  else keyCell=`${k?`<kbd class="kb-key">${escHtml(i18n(k))}</kbd>`:`<span class="sub">${i18n("Не назначена")}</span>`}${fx?`<span class="kb-lock" title="${escHtml(i18n(fixedAll?"Кнопки этого пульта задал производитель. Axxon One их не меняет.":"Эту клавишу Axxon One не меняет."))}">${lu("lock",12)}</span>`:""}`;
   const conf=kbConf&&kbConf.act===a[0]?kbConfHtml(d,a):"";
   const hit=kbHit&&kbHit.act===a[0]?" kb-hit":"";
   const subh=KB_SUB[a[0]]&&KB_ACTS.find(x=>x[0]===a[0])[1]===kbFn?`<tr class="kb-sub"><td colspan="3">${i18n(KB_SUB[a[0]])}</td></tr>`:"";
@@ -30699,7 +30704,7 @@ function kbPickList(d){
 function kbPickKey(v){if(v&&kbCap)kbAssign(kbCap,v)}
 function kbConfHtml(d,a){
   const c=kbConf,b=KB_ACTS.find(x=>x[0]===c.with);
-  if(c.kind==="glob")return`<tr class="kb-conf"><td colspan="3"><div class="nt bk-warn" role="alert">${lu("triangle-alert")} <span>${i18n("Кнопка")} <kbd class="kb-key">${escHtml(c.key)}</kbd> ${i18n("уже у действия")} «${i18n(b[2])}» (${kbFnName(b[1])}). ${i18n("Кнопку из «Общих» нельзя назначить в другой функции. Выбрать другую кнопку.")}</span>
+  if(c.kind==="glob"||c.kind==="fixed")return`<tr class="kb-conf"><td colspan="3"><div class="nt bk-warn" role="alert">${lu("triangle-alert")} <span>${i18n("Кнопка")} <kbd class="kb-key">${escHtml(c.key)}</kbd> ${i18n("уже у действия")} «${i18n(b[2])}» (${kbFnName(b[1])}). ${i18n(c.kind==="fixed"?"Эту клавишу Axxon One не меняет. Выбрать другую клавишу.":a[1]==="glob"?"Действие из функции «Общие» работает во всех функциях, поэтому ему нельзя назначить кнопку другой функции. Выбрать другую кнопку.":"Кнопку из функции «Общие» нельзя назначить в другой функции. Выбрать другую кнопку.")}</span>
     <button type="button" class="btn s" ${onEv("click",["kbCapStart",a[0]])}>${i18n("Нажать другую")}</button><button type="button" class="lk lk-act" ${onEv("click",["kbConfClose"])}>${i18n("Отменить")}</button></div></td></tr>`;
   if(c.kind==="mod")return`<tr class="kb-conf"><td colspan="3"><div class="nt bk-warn" role="alert">${lu("triangle-alert")} <span>${i18n("Букву и цифру на клавиатуре назначить вместе с Ctrl, Alt или Shift. Иначе клавиша сработает, когда оператор вводит текст.")}</span>
     <button type="button" class="btn s" ${onEv("click",["kbCapStart",a[0]])}>${i18n("Нажать снова")}</button><button type="button" class="lk lk-act" ${onEv("click",["kbConfClose"])}>${i18n("Отменить")}</button></div></td></tr>`;
@@ -30714,7 +30719,7 @@ function kbPanelPic(d){
   const off=d.st!=="on";
   return`<div class="kb-pic ${off?"kb-pic-off":""}"><div class="kb-pic-hd">${lu("move",14)}<b>${escHtml(m.n)}</b></div>
     <div class="kb-joy" aria-hidden="true"><span></span></div><div class="kb-pbs">${keys}</div>
-    <p class="sub kb-pic-ln" role="status">${off?i18n("Пульт не подключён. Подключить пульт, чтобы проверить кнопки."):kbHit?`${i18n("Нажата")} <kbd class="kb-key">${escHtml(kbHit.key)}</kbd> → ${kbHit.acts.length?kbHit.acts.map(a=>`«${i18n(a[2])}»`).join(", "):i18n("ничего не назначено")}`:i18n(kbCap?"Нажать кнопку, чтобы назначить её.":"Проверка: нажать кнопку на пульте. Консоль подсветит кнопку и её действие.")}</p>
+    <p class="sub kb-pic-ln" role="status">${off?i18n("Пульт не подключён. Подключить пульт, чтобы проверить кнопки."):kbHit?`${i18n("Нажата")} <kbd class="kb-key">${escHtml(kbHit.key)}</kbd> → ${kbHit.acts.length?kbHit.acts.map(a=>`«${i18n(a[2])}»`).join(", "):i18n("нет действия")}`:i18n(kbCap?"Нажать кнопку, чтобы назначить её.":"Проверка: нажать кнопку на пульте. Консоль подсветит кнопку и её действие.")}</p>
     <p class="sub kb-stub">${i18n("Макет: щелчок по кнопке на картинке — нажатие кнопки на пульте.")}</p></div>`;
 }
 function kbUI(o){
@@ -30724,13 +30729,13 @@ function kbUI(o){
   body+=card("Пульты",`<div class="kb-devs"><div class="kb-grp">${i18n("К этому компьютеру")}</div>${hid.map(kbDevRow).join("")}
     <div class="kb-grp">${i18n("К серверу, драйвером Axxon One")}</div>${drv.length?drv.map(kbDevRow).join(""):`<p class="sub">${i18n("Пультов на серверах нет.")}</p>`}</div>
     <div class="kb-acts"><button type="button" class="btn s pri" ${onEv("click",["kbAdd"])}>${lu("plus",14)}${i18n("Подключить пульт…")}</button>
-      <span class="sub">${i18n("Поддерживаются")}: Axis T8310, Dahua NKB1000, Pelco KBD5000, Videotec DCZ, Hikvision DS-1005KI…DS-1600KI, UNIVIEW KB-1100, CH VM-Desktop.</span></div>`);
+      <span class="sub">${i18n("Консоль поддерживает")}: Axis T8310, Dahua NKB1000, Pelco KBD5000, Videotec DCZ, Hikvision DS-1005KI…DS-1600KI, UNIVIEW KB-1100, CH VM-Desktop.</span></div>`);
   const fnActs=KB_ACTS.filter(a=>a[1]===kbFn),rows=fnActs.filter(a=>!q||matchesText(q,i18n(a[2]),kbOf(d)[a[0]]||""));
   const tabs=KB_FN.map(([id,n])=>{const c=KB_ACTS.filter(a=>a[1]===id&&kbOf(d)[a[0]]).length;
     return`<button type="button" class="tab ${id===kbFn?"on":""}" role="tab" aria-selected="${id===kbFn}" ${onEv("click",["kbFnPick",id])}>${i18n(n)} <span class="sub">${c}</span></button>`}).join("");
-  const axes=d.kind==="pc"?"":KB_AXES.map(([a,k])=>`<tr class="kb-tr"><td class="kb-a">${i18n(a)}</td><td class="kb-k" colspan="2"><span class="kb-axis">${i18n(k)}</span><span class="kb-lock" title="${escHtml(i18n("Ось джойстика работает всегда. Чувствительность — в «Управлении PTZ»."))}">${lu("lock",12)}</span></td></tr>`).join("");
+  const axes=d.kind==="pc"?"":KB_AXES.map(([a,k])=>`<tr class="kb-tr"><td class="kb-a">${i18n(a)}</td><td class="kb-k" colspan="2"><span class="kb-axis">${i18n(k)}</span><span class="kb-lock" title="${escHtml(i18n("Ось джойстика работает всегда. Чувствительность задают на странице «Управление PTZ»."))}">${lu("lock",12)}</span></td></tr>`).join("");
   const note=fixedAll?`<div class="op-where">${lu("lock")}<span>${i18n("Кнопки этого пульта задал производитель. Axxon One их не меняет: таблица показывает, что делает каждая кнопка.")}</span></div>`
-    :`<p class="sub kb-rule">${i18n("Кнопка из «Общих» работает везде, поэтому её нельзя назначить в другой функции. В других функциях одна кнопка может делать разное: например, в «Живом видео» и в «Архиве».")}</p>`;
+    :`<p class="sub kb-rule">${i18n("Кнопка из функции «Общие» работает во всех функциях, поэтому её нельзя назначить в другой функции. В других функциях одна кнопка может делать разные действия: например, в функциях «Живое видео» и «Архив».")}</p>`;
   const tbl=`<table class="kb-tbl"><colgroup><col><col class="kb-ck"><col class="kb-cx"></colgroup>
     <thead><tr><th>${i18n("Действие")}</th><th>${i18n(d.kind==="pc"?"Клавиша":"Кнопка")}</th><th></th></tr></thead>
     <tbody>${kbFn==="live"?axes:""}${rows.map(a=>kbRow(d,a,fixedAll)).join("")}</tbody></table>
@@ -30739,35 +30744,43 @@ function kbUI(o){
   const foot=fixedAll?"":`<div class="kb-foot"><button type="button" class="lk lk-act" ${ch?"":"disabled"} ${onEv("click",["kbResetAll"])}>${lu("rotate-ccw",12)}${i18n("Вернуть все кнопки по умолчанию")}${ch?` (${ch})`:""}</button></div>`;
   const pic=d.kind==="pc"?"":kbPanelPic(d);
   const mdl=d.kind==="pc"?"":`<div class="kb-mdl"><label class="cl-f"><span>${i18n("Модель")}</span><select ${onEv("change",["kbModelSet",onEv.value])}>${KB_MODELS.filter(x=>d.conn==="hid"?x.hid:x.drv).map(x=>`<option value="${x.id}" ${x.id===d.model?"selected":""}>${escHtml(x.n)}</option>`).join("")}</select></label>
-    <span class="sub">${i18n(d.conn==="hid"?"Компьютер видит Dahua NKB1000 и Hikvision DS-1005KI одинаково. Если модель не та, выбрать модель вручную.":"Модель задали при подключении к серверу.")}</span>
+    <span class="sub">${i18n(d.conn==="hid"?"Компьютер видит Dahua NKB1000 и Hikvision DS-1005KI одинаково. Если модель не та, выбрать модель вручную.":"Модель задали, когда подключили пульт к серверу.")}</span>
     ${d.conn==="hid"?"":`<button type="button" class="lk lk-act" ${onEv("click",["kbGoSrv"])}>${lu("server",12)}${i18n("Сервер")} «${escHtml(kbSrvName(d))}»</button>`}
     <button type="button" class="lk lk-act kb-del" ${onEv("click",["kbDel"])}>${i18n("Отключить пульт…")}</button></div>`;
-  body+=card(`${i18n("Назначение кнопок")} — ${escHtml(d.n)}`,`${mdl}${note}<div class="tabs kb-tabs" role="tablist">${tabs}</div>
+  body+=card(`${i18n("Назначение кнопок")} — ${escHtml(kbName(d))}`,`${mdl}${note}<div class="tabs kb-tabs" role="tablist">${tabs}</div>
     <div class="kb-cq"><div class="kb-wrap ${pic?"kb-wrap-pic":""}"><div class="kb-main">${tbl}${foot}</div>${pic}</div></div>`);
   optPaint(o,body);
 }
-function kbModelSet(v){const d=kbDevs.find(x=>x.id===kbSel);if(!d||d.model===v)return;d.model=v;kbMap.delete(d.id);kbHit=null;kbRepaint();toast(`${i18n("Модель")}: ${kbModel(d).n}`)}
+function kbStateReset(){kbCap=null;kbCapOff();kbConf=null;kbHit=null}
+function kbModelSet(v){const d=kbDevs.find(x=>x.id===kbSel);if(!d||d.model===v)return;d.model=v;kbMap.delete(d.id);kbStateReset();kbRepaint();toast(`${i18n("Модель")}: ${kbModel(d).n}`)}
 function kbGoSrv(){const d=kbDevs.find(x=>x.id===kbSel),s=servers[d.srvIx||0];if(s)openNode(s.id,{app:"hw",tab:"gen"})}
 function kbDel(){
   const d=kbDevs.find(x=>x.id===kbSel);if(!d||d.kind==="pc")return;
+  kbStateReset();kbRepaint();
   const html=`<div class="lw-cf lw-cf-lost"><b>${i18n("Пропадёт")}</b><ul><li>${i18n("пульт в списке пультов")}</li><li>${i18n("назначения его кнопок")}</li></ul></div>
     <div class="lw-cf"><b>${i18n("Останется")}</b><ul><li>${i18n("клавиатура компьютера и её клавиши")}</li><li>${i18n("другие пульты")}</li></ul></div>`;
   askConfirm(`${i18n("Отключить пульт")} «${d.n}»?`,html,"",i18n("Отключить"),()=>{
     const i=kbDevs.indexOf(d);kbDevs.splice(i,1);const keep=kbMap.get(d.id);kbMap.delete(d.id);kbSel="kb";kbRepaint();
-    toastAction("kbdel",`«${d.n}» ${i18n("отключён")}`,i18n("Отменить"),()=>{kbDevs.splice(i,0,d);if(keep)kbMap.set(d.id,keep);kbSel=d.id;kbRepaint();toast(i18n("Пульт снова в списке"))},10000);
-  },{html:true,rawTitle:true,typeCount:1});
+    toastAction("kbdel",`${i18n("Консоль отключила пульт")} «${d.n}»`,i18n("Отменить"),()=>{kbDevs.splice(i,0,d);if(keep)kbMap.set(d.id,keep);kbSel=d.id;kbRepaint();toast(i18n("Пульт снова в списке"))},10000);
+  },{html:true,rawTitle:true,typeCount:1,countLabel:"Чтобы подтвердить, ввести число пультов"});
 }
 function kbRepaint(){if(app==="sys"&&sys==="keys")sysUI()}
-function kbPick(id){kbSel=id;kbCap=null;kbConf=null;kbHit=null;kbRepaint()}
-function kbFnPick(id){kbFn=id;kbCap=null;kbConf=null;kbRepaint()}
+function kbPick(id){kbSel=id;kbStateReset();kbRepaint()}
+function kbFnPick(id){kbFn=id;kbStateReset();kbRepaint()}
 function kbKeyName(e){
   const map={" ":"Space",ArrowLeft:"←",ArrowRight:"→",ArrowUp:"↑",ArrowDown:"↓",Escape:"Esc",PageUp:"PgUp",PageDown:"PgDn"};
   if(["Control","Alt","Shift","Meta"].includes(e.key))return null;
-  let k=map[e.key]||(e.code.startsWith("Numpad")?"Num"+({NumpadAdd:"+",NumpadSubtract:"−",NumpadMultiply:"*"}[e.code]||e.key):e.key.length===1?e.key.toUpperCase():e.key);
+  // Буква и цифра — по e.code: на macOS Alt+L даёт e.key «¬», а Shift+1 — «!»
+  const lc=/^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code||"");
+  let k=lc?(lc[1]||lc[2]):map[e.key]||(e.code.startsWith("Numpad")?"Num"+({NumpadAdd:"+",NumpadSubtract:"−",NumpadMultiply:"*"}[e.code]||e.key):e.key.length===1?e.key.toUpperCase():e.key);
   return[e.ctrlKey&&"Ctrl",e.altKey&&"Alt",e.shiftKey&&"Shift",k].filter(Boolean).join("+");
 }
 function kbOnKey(e){
   if(!kbCap)return;const d=kbDevs.find(x=>x.id===kbSel);
+  // Ушли со страницы или открыт диалог — захват кончился
+  if(app!=="sys"||sys!=="keys"||!d||document.getElementById("confirm")?.classList.contains("open")){kbCap=null;kbCapOff();return}
+  // Клавиши списка «или выбрать…» (поиск, стрелки, Enter, Esc) принадлежат списку
+  if(cbx||e.target.closest?.(".cbx,.kb-pick"))return;
   if(e.key==="Escape"&&!e.ctrlKey&&!e.altKey&&!e.shiftKey){e.preventDefault();e.stopPropagation();kbCapStop();return}
   if(d.kind!=="pc")return; // пульт: кнопки приходят с пульта (в макете — щелчок по картинке)
   const k=kbKeyName(e);if(!k)return;e.preventDefault();e.stopPropagation();
@@ -30783,6 +30796,7 @@ function kbCapStart(act){
 function kbCapStop(){kbCap=null;kbCapOff();kbRepaint()}
 function kbAssign(act,key){
   const d=kbDevs.find(x=>x.id===kbSel),c=kbConflicts(d,act,key);kbCap=null;kbCapOff();
+  if(c.fixed){kbConf={act,kind:"fixed",key,with:c.fixed[0]};kbRepaint();return}
   if(c.glob){kbConf={act,kind:"glob",key,with:c.glob[0]};kbRepaint();return}
   if(c.same){kbConf={act,kind:"same",key,with:c.same[0]};kbRepaint();return}
   kbOf(d)[act]=key;kbConf=null;kbRepaint();kbFlashRow(act);
@@ -30791,10 +30805,12 @@ function kbAssign(act,key){
 function kbConfMove(){const d=kbDevs.find(x=>x.id===kbSel),c=kbConf;if(!c)return;const cur=kbOf(d);delete cur[c.with];cur[c.act]=c.key;kbConf=null;kbRepaint();kbFlashRow(c.act)}
 function kbConfClose(){kbConf=null;kbRepaint()}
 function kbClear(act){const d=kbDevs.find(x=>x.id===kbSel);delete kbOf(d)[act];kbRepaint()}
-function kbReset(act){const d=kbDevs.find(x=>x.id===kbSel),def=kbDef(d)[act];if(def)kbOf(d)[act]=def;else delete kbOf(d)[act];kbRepaint();kbFlashRow(act)}
+// «Вернуть» идёт тем же путём, что назначение: кнопку по умолчанию могло занять другое действие
+function kbReset(act){const d=kbDevs.find(x=>x.id===kbSel),def=kbDef(d)[act];if(def){kbAssign(act,def);return}delete kbOf(d)[act];kbStateReset();kbRepaint();kbFlashRow(act)}
 function kbResetAll(){
   const d=kbDevs.find(x=>x.id===kbSel),n=kbChanged(d);if(!n)return;
-  askConfirm(`${i18n("Вернуть кнопки по умолчанию?")}`,`<p>${i18n("Пульт")} «${escHtml(d.n)}»: ${i18n("изменено кнопок")} — ${n}. ${i18n("Консоль вернёт назначения во всех функциях.")}</p>`,"",i18n("Вернуть"),()=>{kbMap.delete(d.id);kbRepaint();toast(i18n("Кнопки как по умолчанию"))},{html:true,rawTitle:true});
+  kbStateReset();kbRepaint();
+  askConfirm(`${i18n("Вернуть кнопки по умолчанию?")}`,`<p>${i18n(d.kind==="pc"?"Клавиатура":"Пульт")} «${escHtml(kbName(d))}»: ${i18n("изменено кнопок")} — ${n}. ${i18n("Консоль вернёт назначения во всех функциях.")}</p>`,"",i18n("Вернуть"),()=>{kbMap.delete(d.id);kbRepaint();toast(i18n("Кнопки как по умолчанию"))},{html:true,rawTitle:true});
 }
 function kbFlashRow(act){requestAnimationFrame(()=>{const r=document.querySelector(`.kb-tr[data-kb-act="${act}"]`);if(r){r.classList.remove("acc-flash");void r.offsetWidth;r.classList.add("acc-flash")}})}
 function kbPress(b){
@@ -30802,11 +30818,12 @@ function kbPress(b){
   if(kbCap){kbAssign(kbCap,b);return}
   const cur=kbOf(d),acts=KB_ACTS.filter(a=>cur[a[0]]===b);
   kbHit={key:b,acts,act:(acts.find(a=>a[1]===kbFn)||{})[0]};
-  if(acts.length&&!acts.some(a=>a[1]===kbFn))kbFn=acts[0][1];
+  if(acts.length&&!acts.some(a=>a[1]===kbFn)){kbFn=acts[0][1];kbConf=null}
   if(acts.length)kbHit.act=(acts.find(a=>a[1]===kbFn)||acts[0])[0];
   kbRepaint();if(kbHit.act)kbFlashRow(kbHit.act);
 }
 function kbAdd(){
+  kbStateReset();kbRepaint();
   const srvOpts=servers.map((s,i)=>`<option value="${i}">${escHtml(locName(s))}</option>`).join("");
   const mOpts=KB_MODELS.map(m=>`<option value="${m.id}">${escHtml(m.n)}</option>`).join("");
   const html=`<div class="kb-add">
@@ -30833,7 +30850,7 @@ function kbAddOk(){
   const d={id:"p"+(++kbSeq),model:m.id,n:m.n.replace(/ \(.*\)$/,""),conn:way,st:"wait"};
   if(way==="drv"){d.srvIx=+document.getElementById("kbAddSrv").value||0;d.port=document.getElementById("kbAddPort").value}
   kbDevs.push(d);kbSel=d.id;kbFn="glob";kbHit=null;kbRepaint();
-  setTimeout(()=>{d.st="on";d.since=new Date().toLocaleDateString("ru-RU");toast(`«${d.n}» ${i18n("подключён")}`);kbRepaint()},way==="hid"?900:1500);
+  setTimeout(()=>{if(!kbDevs.includes(d))return;d.st="on";d.since=new Date().toLocaleDateString("ru-RU");toast(`${i18n("Консоль подключила пульт")} «${d.n}»`);kbRepaint()},way==="hid"?900:1500);
 }
 
 // ── Лицензии по ключам — ЗАГЛУШКА (запрос api/requests/2026-11-06-094022Z-…, пп. 1–3, 5 и уточнения) ──

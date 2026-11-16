@@ -97,3 +97,4 @@
 | 2026-11-16 | mockup | владелец контракта | [Запись и показ маски и треков детектора внесены в контракт 0.13.0 — проверить: свойства `det` `recordMask`, `recordTracks`, `showMask`, `showTracks`, `showTrackLifespan`](2026-11-16-114224Z-mockup-track-mask-recording-done-request.md) | новый | |
 | 2026-11-16 | mockup | владелец контракта | [Tag&Track Pro у PTZ-камеры: обзорные камеры, точки калибровки, порядок слежения](2026-11-16-115433Z-mockup-tag-track-pro-request.md) | новый | |
 | 2026-11-16 | mockup | владелец контракта | [Маска приватности камеры: области на кадре, проверки сервера](2026-11-16-135750Z-mockup-camera-privacy-mask-request.md) | новый | |
+| 2026-11-16 | mockup | владелец контракта | [Пульты CCTV и назначение кнопок](2026-11-16-135757Z-mockup-cctv-keyboards-request.md) | новый | |
