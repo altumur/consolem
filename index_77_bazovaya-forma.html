@@ -1034,7 +1034,7 @@ html[data-theme="light"] .cp.done{border-color:var(--one-success-icon);color:var
 .lst-bar .lst-add{flex:0 0 auto;width:auto;field-sizing:content;max-width:100%}
 .cam-conn .cam-conn-full{grid-column:1/-1}
 .cs-cq{container-type:inline-size}
-.tabs-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.tabs-row>.form-sw{margin-left:auto}.tabs-row>.tabs{flex:0 1 auto;min-width:0}
+.tabs-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.nt.base-head{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}.nt.base-head>span{flex:1 1 280px}.tabs-row>.tabs{flex:0 1 auto;min-width:0}
 .cs-hint{display:block;margin-top:3px}
 .cs-hide{display:none!important}
 .cs-ro :is(input:not([type=checkbox]):not([type=radio]),select,textarea):disabled{opacity:1;color:var(--tx);background:transparent;border-color:transparent;box-shadow:none;appearance:none;-webkit-appearance:none;padding-left:0;cursor:default}
@@ -5348,8 +5348,9 @@ async function unitActRun(){
 }
 // ── Базовая форма у ручного экрана: все свойства вида по схеме (прототип 77) ──
 // У объекта две формы. Своя — ручной экран под вид (камера, сервер, касса…). Базовая — форма по схеме вида: все свойства,
-// с проверкой сервера (POST /units/validate), как у незнакомого вида. Переключатель «Своя форма / Все свойства» — в строке
-// вкладок; выбор консоль помнит у вида до перезагрузки, ссылка — #node=<id>&form=all.
+// с проверкой сервера (POST /units/validate), как у незнакомого вида. Базовая форма нужна редко (интеграторам, видам
+// плагинов), поэтому её открывает пункт «Все параметры» в меню «Ещё», а не кнопка на экране. Выбор консоль помнит у вида
+// до перезагрузки, ссылка — #node=<id>&form=all.
 // Профили (GET /kinds → profiles[]) перечисляют свойства с известным смыслом — их показывает своя форма. Что в схеме вида
 // сверх объединения Profile.properties всех его implements, базовая форма отмечает «сверх профиля»
 const KIND_PROFILES=new Map();
@@ -5372,22 +5373,18 @@ const formAllByKind=new Map();
 function cardFormAll(n){return hasBaseForm(n)&&formAllByKind.get(tabMemKey(n))===true}
 function formAllSet(v){
   const n=find(sel)?.n;if(!n||!hasBaseForm(n))return;
-  if(!v&&baseChanged(n).length){toast("Сначала применить или сбросить изменения в «Все свойства»");return}
+  if(!v&&baseChanged(n).length){toast(FORM_BACK_WHY);return}
   formAllByKind.set(tabMemKey(n),!!v);
   tab=tabKeep(n);gear();
 }
-function formSwKey(e){
-  if(e.key!=="ArrowLeft"&&e.key!=="ArrowRight")return;
-  e.preventDefault();const n=find(sel)?.n;if(n)formAllSet(!cardFormAll(n));
-  document.querySelector('.form-sw button[aria-checked="true"]')?.focus();
-}
-function formSwHtml(n){
+// Пункт меню «Ещё» (и меню строки дерева): «Все параметры» открывает базовую форму, «Вернуться к настройке» — свою.
+// Пока в базовой форме есть неприменённые изменения, вернуться нельзя: пункт называет причину
+const FORM_BACK_WHY="Сначала применить или сбросить изменения";
+function formAllCtxItem(n,act){
   if(!hasBaseForm(n))return"";
-  const all=cardFormAll(n),lock=all&&baseChanged(n).length;
-  const t=lock?` disabled title="${escHtml(i18n("В «Все свойства» есть неприменённые изменения. Чтобы открыть свою форму, применить или сбросить их"))}"`:"";
-  return`<span class="tt-seg form-sw" role="radiogroup" aria-label="${escHtml(i18n("Форма карточки"))}" data-form-sw ${onEv("keydown",["formSwKey",onEv.event])}>`+
-    `<button type="button" role="radio" aria-checked="${!all}" tabindex="${all?-1:0}" data-form="own"${t} ${onEv("click",["formAllSet",false])}>${i18n("Своя форма")}</button>`+
-    `<button type="button" role="radio" aria-checked="${all}" tabindex="${all?0:-1}" data-form="all" title="${escHtml(i18n("Все свойства вида по его схеме, с проверкой сервера"))}" ${onEv("click",["formAllSet",true])}>${i18n("Все свойства")}</button></span>`;
+  if(!cardFormAll(n)||sel!==n.id)return tctxItem(i18n("Все параметры"),act("formAllSet",true),`<span class="tctx-ic">${lu("list",14)}</span>`);
+  const why=baseChanged(n).length?FORM_BACK_WHY:"";
+  return tctxItem(tctxWhy(i18n("Вернуться к настройке"),why),act("formAllSet",false),`<span class="tctx-ic">${lu("arrow-left",14)}</span>`,!!why);
 }
 // Значения сервера: все свойства схемы вида
 function xpropsServer(n){
@@ -5439,11 +5436,10 @@ function baseFormHtml(n,tabId){
   });
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
   const nameH=first?(kindCan(kind,"rename")?`<div><label>${i18n("Имя")}</label><input type="text" data-sf-name value="${escHtml(n.name??"")}"${err.name?` class="bad sf-bad" title="${escHtml(err.name)}"`:""} ${onEv("input",["schemaName",onEv.el])}></div>`:fldRo("Имя",locName(n))):"";
-  let out="";
-  if(first){
-    out+=`<div class="nt" data-base-head>${i18n("Вид")}: <b>${escHtml(kindText(kind))}</b>. ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra.size?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}</div>`;
-  }
-  if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В своей форме есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
+  const back=baseChanged(n).length;
+  let out=`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(kind))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra.size?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
+    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+  if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
   let lead=nameH;
   if(!groups.size)groups.set(i18n(SF_GROUP),[]);
   groups.forEach((fs,g)=>{
@@ -9557,7 +9553,7 @@ function mainHd(cr,title,sub,tabs,act="",inCrumb=false,tabsEnd=""){
   const single=!!cr&&inCrumb;
   return`<div class="hd">${cr&&!single?`<div class="cr">${cr}</div>`:""}
   <div class="hd-act">${single?`<div class="cr hd-cr">${cr}</div>`:`<h1 class="hd-ti">${title}</h1>`}${act}</div>
-  ${sub?`<p class="sub">${i18n(sub)}</p>`:""}${tabs?(t=>tabsEnd?`<div class="tabs-row">${t}${tabsEnd}</div>`:t)(`<div class="tabs" ${/role="tab"/.test(tabs)?'role="tablist"':""}>${tabs}</div>`):tabsEnd?`<div class="tabs-row">${tabsEnd}</div>`:""}</div>`;
+  ${sub?`<p class="sub">${i18n(sub)}</p>`:""}${tabs?(t=>tabsEnd?`<div class="tabs-row">${t}${tabsEnd}</div>`:t)(`<div class="tabs" ${/role="tab"/.test(tabs)?'role="tablist"':""}>${tabs}</div>`):""}</div>`;
 }
 // Имя для конца пути: короткое имя и название, без значка — он и так в дереве.
 function crumbTitle(n){
@@ -11699,6 +11695,7 @@ function openTreeCtx(n,xy){
       if(canRenameShort(n))edit.push(tctxItem(i18n("Изменить короткое имя"),act("ctxRename",id,"short")));
     }
     if(n.type==="camera")edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
+    {const fa=formAllCtxItem(n,act);if(fa)edit.push(fa)}
     // Сброс к умолчаниям модели и загрузка настроек с устройства (Axxon One: Reset). Недоступный пункт называет причину
     if(n.type==="camera"&&!isSchemaNode(n)){
       const rw=camResetWhy(n),lw=camLoadWhy(n);
@@ -12719,7 +12716,7 @@ function gear(){
   xpropsEnsure(n);
   cardEnsureBase(n);
   const all=cardFormAll(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true,formSwHtml(n))+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(!all&&tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
 }
