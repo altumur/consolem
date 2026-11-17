@@ -543,11 +543,22 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(1);
   ruleOpen(R1);
   ruleEdit((x) => { x.name = "Черновик при перечитывании"; });
-  const was = r(R1);
+  const was = r(R1), node0 = schById(sdel.id);
+  // Отметку проверяем всё время, а не один раз после перечитывания: при медленной связи (--latency 300) перечитывание
+  // длится дольше отсчёта (12 с против 10), и к его концу расписание уже удалено. Ни в какой момент расписание
+  // не должно оказаться без отметки, а удалённое — вернуться со старым списком
+  let lost = false, reloadedPend = false, goneAt = 0;
+  const watch = () => {
+    const s = schById(sdel.id);
+    if (s && !s._pend) lost = true;
+    if (s && s !== node0) reloadedPend = true;
+    if (!s && !goneAt) goneAt = Date.now();
+  };
   apiOnEvent({ type: "stream.reset" });
-  ok(await until(() => r(R1) !== was), "всё перечитано");
+  ok(await until(() => (watch(), r(R1) !== was)), "всё перечитано");
+  watch();
   ok(ruleDraft && ruleDraft.id === R1 && r(R1).name === "Черновик при перечитывании" && ruleDiff().length === 1, "черновик правила на месте");
-  ok(schById(sdel.id)?._pend, "расписание по-прежнему ждёт удаления");
-  ok(await until(() => !schById(sdel.id), 30000), "по истечении отсчёта удалено");
+  ok(!lost && (reloadedPend || (goneAt && !schById(sdel.id))), `расписание ждёт удаления и после перечитывания: ${reloadedPend ? "перечитано с отметкой" : goneAt ? "отсчёт кончился раньше перечитывания, удалённое не вернулось" : "перечитывание его не коснулось"}${lost ? ", но отметка пропадала" : ""}`);
+  ok(await until(() => (watch(), !schById(sdel.id)), 30000) && !lost, "по истечении отсчёта удалено");
   ruleRestore(); paint();
 });

@@ -63,6 +63,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   }
   // Камеры сервера без связи — исключены, на сервер не уходят
   const off = devicePool.filter((n) => n.type === "camera" && !online(n)).slice(0, 2);
+  // Прошлая операция правила cams[1]; кэш узнаёт новую версию после её конца (hwTouched перечитывает объект).
+  // При медленной связи это чтение идёт и после bq.finished: дождаться его, иначе план уйдёт со старой версией
+  const v1 = (await uiRec(cams[1].id)).version;
+  ok(await until(() => hwVer.get(cams[1].id) === v1), "кэш знает версию после прошлой операции: " + hwVer.get(cams[1].id) + " / " + v1);
   treeSel.clear();
   [cams[1], ...off].forEach((c) => treeSel.add(c.id));
   bulkRun(bulkChanges({ pre: "7" }));
