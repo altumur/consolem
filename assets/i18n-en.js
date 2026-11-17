@@ -4250,4 +4250,7 @@ window.I18N_EN={
 "Консоль не включит детекторы лиц":"The console will not turn on face detectors",
 "Детекторы лиц TV и лиц VA не работают вместе.":"TV and VA face detectors do not work together.",
 "Консоль не включит выбранные детекторы лиц. Детекторы лиц TV и лиц VA не работают вместе.":"The console will not turn on the selected face detectors. TV and VA face detectors do not work together.",
+// Страница плагина (контракт 0.16.0)
+"Страница плагина":"Plugin page",
+"Сервер прислал адрес, который консоль не открывает":"The server sent an address that the console does not open",
 };

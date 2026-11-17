@@ -8993,6 +8993,35 @@
       "description": "Произвольные метки для группировки контроллеров",
       "x-ui-order": 7,
       "x-ui-widget": "multiselect"
+     },
+     "password": {
+      "x-label": {
+       "key": "security_controller.param.password",
+       "text": "Пароль контроллера",
+       "lang": "ru"
+      },
+      "type": "string",
+      "writeOnly": true,
+      "description": "Пароль, по которому плагин входит в контроллер",
+      "x-ui-order": 8
+     },
+     "pluginRevision": {
+      "type": "string",
+      "x-hidden": true,
+      "description": "Служебная метка плагина: форма поле не рисует"
+     }
+    }
+   },
+   "statusSchema": {
+    "type": "object",
+    "properties": {
+     "armed": {
+      "type": "boolean",
+      "x-label": {
+       "key": "security_controller.status.armed",
+       "text": "Под охраной",
+       "lang": "ru"
+      }
      }
     }
    },
@@ -9034,7 +9063,8 @@
       "text": "На связи",
       "lang": "ru"
      },
-     "severity": "info"
+     "severity": "info",
+     "alarm": false
     },
     {
      "id": "OFFLINE",
@@ -9043,7 +9073,8 @@
       "text": "Нет связи",
       "lang": "ru"
      },
-     "severity": "error"
+     "severity": "error",
+     "alarm": false
     }
    ],
    "setupUi": {
@@ -9169,9 +9200,7 @@
     }
    ],
    "setupUi": {
-    "url": "stub://plugin/security_controller/setup",
     "kinds": [
-     "security_controller/CONTROLLER",
      "security_controller/SENSOR"
     ],
     "mode": "tab"
@@ -28776,7 +28805,8 @@
     "enum_tags": [
      "cam",
      "sensor"
-    ]
+    ],
+    "pluginRevision": "r12"
    },
    "status": {
     "link": "online",
@@ -28810,7 +28840,18 @@
     "zone": "Склад"
    },
    "status": {
-    "link": "online"
+    "link": "online",
+    "conditions": [
+     {
+      "type": "Ready",
+      "status": "false",
+      "reason": "Unfit",
+      "message": "Датчик не отвечает в зоне «Склад»",
+      "fields": [
+       "/properties/zone"
+      ]
+     }
+    ]
    }
   },
   {
@@ -52365,6 +52406,7 @@
     "getExportFileLink",
     "getCreatable",
     "getUnitSchema",
+    "openUnitSetupUi",
     "validateUnits"
    ],
    "features": [

@@ -4981,8 +4981,9 @@ const schemaErrs=new Map();
 function schemaOf(n){return n?n._schemaOwn||KINDS.get(nodeKind(n))?.schema||null:null}
 function sfType(p){const t=Array.isArray(p.type)?p.type.find(x=>x!=="null"):p.type;return t||(p.enum?"string":"")}
 function sfNullable(p){return Array.isArray(p.type)&&p.type.includes("null")}
+// Поля формы по порядку x-ui-order. Поле с x-hidden форма не рисует: сервер его отдаёт, а правка без него значение не меняет
 function sfEntries(schema){
-  return Object.entries(schema?.properties||{}).sort(([a,x],[b,y])=>(x["x-ui-order"]??1e9)-(y["x-ui-order"]??1e9)||(a<b?-1:a>b?1:0));
+  return Object.entries(schema?.properties||{}).filter(([,p])=>!p?.["x-hidden"]).sort(([a,x],[b,y])=>(x["x-ui-order"]??1e9)-(y["x-ui-order"]??1e9)||(a<b?-1:a>b?1:0));
 }
 function sfRef(p){return p["x-ref"]||p.items?.["x-ref"]||null}
 // Виджет поля: объявленный в схеме, иначе по типу; null — показать нечем
@@ -5152,14 +5153,26 @@ function schemaTabs(n){
   if(!labels.length)labels.push(i18n(SF_MAIN));
   return labels.map((l,i)=>[i?"sf"+i:"gen",l]);
 }
-// «Страница плагина»: setupUi {url, kinds, mode}. mode tab — ссылка в новую вкладку с ?type=&id=&lang=
+// «Страница плагина»: setupUi {url?, kinds, mode}. mode tab — новая вкладка. Ссылка — только с отметкой setupUi в
+// Unit.capabilities (у человека есть право edit). Есть url — постоянный адрес с ?type=&id=&lang=; нет url — адрес на одно
+// открытие из POST /units/{uid}/setup-ui
 function schemaPluginLink(n){
   const kind=nodeKind(n),su=KINDS.get(kind)?.setupUi;
-  if(!su||!su.url||(su.mode&&su.mode!=="tab")||(su.kinds&&!su.kinds.includes(kind)))return"";
+  if(!su||(su.mode&&su.mode!=="tab")||(su.kinds&&!su.kinds.includes(kind))||!(n._caps||[]).includes("setupUi"))return"";
+  if(!su.url)return`<button type="button" class="btn s" data-plugin ${onEv("click",["schemaPluginOpen",n.id])}>${lu("external-link")}${i18n("Страница плагина")}</button>`;
   const url=String(su.url);
   if(/^\s*(javascript|data|vbscript):/i.test(url))return"";
   const q=new URLSearchParams({type:kind,id:n.id,lang:uiLang}).toString();
   return`<a class="btn s" data-plugin href="${escHtml(url+(url.includes("?")?"&":"?")+q)}" target="_blank" rel="noopener">${lu("external-link")}${i18n("Страница плагина")}</a>`;
+}
+// Вкладку открывают сразу, по клику: после ответа сервера браузер её уже не откроет. Адрес приходит позже
+async function schemaPluginOpen(id){
+  const w=window.open("about:blank","_blank");
+  if(w)w.opener=null;
+  let r;
+  try{r=await API.post(`/units/${encodeURIComponent(id)}/setup-ui`,{})}catch(e){if(w)w.close();toast(problemText(e));return}
+  if(/^\s*(javascript|data|vbscript):/i.test(String(r.url))){if(w)w.close();toast(i18n("Сервер прислал адрес, который консоль не открывает"));return}
+  if(w)w.location.href=r.url;else window.open(r.url,"_blank","noopener");
 }
 function schemaHeadHtml(n,k){
   const o=k?.origin||{},from=o.plugin?`${i18n("плагин")} ${escHtml(o.plugin)}${o.pluginVersion?" "+escHtml(o.pluginVersion):""}`:"";
@@ -5170,7 +5183,8 @@ function schemaHeadHtml(n,k){
 function schemaStateHtml(n){
   const st=n._st||{},obs=st.observed||{},rows=[];
   if(st.link)rows.push([i18n("Связь"),i18n(st.link==="online"?"на связи":st.link==="offline"?"нет связи":st.link)]);
-  Object.entries(obs).forEach(([k,v])=>rows.push([k,typeof v==="boolean"?(v?i18n("да"):i18n("нет")):typeof v==="object"?JSON.stringify(v):String(v)]));
+  const ss=KINDS.get(nodeKind(n))?.statusSchema?.properties||{};
+  Object.entries(obs).forEach(([k,v])=>rows.push([propLabel(ss[k],k),typeof v==="boolean"?(v?i18n("да"):i18n("нет")):typeof v==="object"?JSON.stringify(v):String(v)]));
   (st.conditions||[]).forEach(c=>rows.push([c.type||c.code||"",c.message||c.status||""]));
   if(!rows.length)return"";
   return`<div class="card" data-schema-state><div class="ch">${i18n("Состояние")}</div><div class="cb">${rows.map(([k,v])=>`<div class="ln"><span class="sub">${escHtml(k)}</span><b>${escHtml(v)}</b></div>`).join("")}</div></div>`;

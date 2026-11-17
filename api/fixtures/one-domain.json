@@ -27320,6 +27320,7 @@
     "getExportFileLink",
     "getCreatable",
     "getUnitSchema",
+    "openUnitSetupUi",
     "validateUnits"
    ],
    "features": [

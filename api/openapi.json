@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.15.0",
+    "version": "0.16.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -5291,6 +5291,9 @@
             "headers": {
               "ETag": {
                 "$ref": "#/components/headers/ETag"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
               }
             }
           },
@@ -5299,6 +5302,9 @@
             "headers": {
               "ETag": {
                 "$ref": "#/components/headers/ETag"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
               }
             }
           },
@@ -5327,6 +5333,15 @@
               "type": "string"
             },
             "description": "Код вида. Код с «/» передаётся закодированным: security_controller%2FCONTROLLER"
+          },
+          {
+            "name": "If-None-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "ETag прошлого ответа"
           }
         ],
         "responses": {
@@ -5342,6 +5357,20 @@
             "headers": {
               "ETag": {
                 "$ref": "#/components/headers/ETag"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
+              }
+            }
+          },
+          "304": {
+            "description": "Не изменилось",
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              },
+              "Vary": {
+                "$ref": "#/components/headers/Vary"
               }
             }
           },
@@ -5354,7 +5383,8 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
-        }
+        },
+        "description": "ETag — хэш описаний, как у GET /kinds. If-None-Match с ним же — 304"
       }
     },
     "/kinds/{kind}/actions/{action}": {
@@ -7595,6 +7625,51 @@
         }
       }
     },
+    "/units/{uid}/setup-ui": {
+      "post": {
+        "operationId": "openUnitSetupUi",
+        "tags": [
+          "units"
+        ],
+        "summary": "Адрес страницы плагина",
+        "description": "Сервер выдаёт адрес страницы плагина (UnitKind.setupUi) для одного открытия: в адресе — объект, язык и разовый ключ. Нужно право edit класса доступа вида; нет права — 403. У вида нет setupUi или setupUi.kinds не называет вид объекта — 404. Отметка setupUi в Unit.capabilities говорит, что путь ответит 200",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "uid объекта"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupUiLink"
+                }
+              }
+            }
+          },
+          "403": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
     "/units/validate": {
       "post": {
         "operationId": "validateUnits",
@@ -7704,6 +7779,12 @@
     "headers": {
       "ETag": {
         "description": "Версия записи в кавычках: \"v3k\". Непрозрачна: только сравнение на равенство. Возвращается в If-Match при изменении",
+        "schema": {
+          "type": "string"
+        }
+      },
+      "Vary": {
+        "description": "Accept-Language: ответ зависит от языка запроса (подписи text). Кэш хранит ответ отдельно для каждого языка",
         "schema": {
           "type": "string"
         }
@@ -17417,7 +17498,7 @@
           },
           "lang": {
             "type": "string",
-            "description": "Язык text: ru, en… У w2c всегда ru, у NGP — язык Accept-Language"
+            "description": "Язык text: ru, en… Сервер отдаёт text на языке Accept-Language, если перевод есть, иначе английский текст с lang: en"
           }
         }
       },
@@ -17425,7 +17506,7 @@
         "type": "object",
         "properties": {},
         "additionalProperties": true,
-        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
+        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-hidden (форма поле не рисует; сервер отдаёт поле в properties, PATCH без поля его не меняет), x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
       },
       "AccessClass": {
         "type": "object",
@@ -17680,7 +17761,7 @@
         "properties": {
           "kind": {
             "type": "string",
-            "description": "Код вида: camera, archive.local, security_controller/CONTROLLER…"
+            "description": "Код вида: camera, archive.local, security_controller/CONTROLLER… Код — непустая строка. Знак «/» допустим, в пути клиент кодирует его как %2F. Клиент код не разбирает: вид плагина он узнаёт по origin.plugin"
           },
           "origin": {
             "type": "object",
@@ -17754,6 +17835,10 @@
           "schema": {
             "$ref": "#/components/schemas/JsonSchema"
           },
+          "statusSchema": {
+            "$ref": "#/components/schemas/JsonSchema",
+            "description": "Необязательная схема status.observed: типы и подписи (x-label) наблюдаемых полей, как schema для properties. Клиент берёт из неё подписи. Профиль называет только имена полей (status в описании профиля)"
+          },
           "schemaPerUnit": {
             "type": "boolean",
             "description": "Схема зависит от объекта: GET /units/{uid}/schema. Например, у камеры набор параметров задаёт её драйвер"
@@ -17782,19 +17867,19 @@
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "url",
               "mode"
             ],
             "properties": {
               "url": {
                 "type": "string",
-                "description": "Абсолютный адрес страницы плагина; параметры ?type=&id=&lang= добавляет клиент"
+                "description": "Постоянный адрес страницы плагина; параметры ?type=&id=&lang= добавляет клиент. Нет url — клиент на каждое открытие берёт адрес из POST /units/{uid}/setup-ui"
               },
               "kinds": {
                 "type": "array",
                 "items": {
                   "type": "string"
-                }
+                },
+                "description": "Виды, у объектов которых есть страница. Нет поля — только этот вид"
               },
               "mode": {
                 "type": "string",
@@ -17805,7 +17890,7 @@
                 "description": "tab — ссылка в новой вкладке; iframe — потом"
               }
             },
-            "description": "Необязательная страница плагина рядом с формой по схеме"
+            "description": "Необязательная страница плагина рядом с формой по схеме. Страница открывается на другом происхождении (origin), чем консоль: она не получает куки и токен консоли и не обращается к /api/* консоли. Ссылку на страницу интерфейс показывает, только когда в Unit.capabilities объекта есть setupUi"
           },
           "createParents": {
             "type": "array",
@@ -17962,7 +18047,27 @@
           "since": {
             "type": "string",
             "format": "date-time"
+          },
+          "message": {
+            "type": "string",
+            "description": "Текст плагина или драйвера о причине. Клиент показывает его как есть, без перевода"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Поля, к которым относится причина: JSON Pointer в теле объекта (/properties/ip_address). Форма подсвечивает эти поля"
           }
+        },
+        "example": {
+          "type": "Ready",
+          "status": "false",
+          "reason": "Unfit",
+          "message": "Контроллер не отвечает по адресу 192.168.1.90",
+          "fields": [
+            "/properties/ip_address"
+          ]
         }
       },
       "UnitStatus": {
@@ -18130,7 +18235,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Что можно с объектом сейчас, с учётом прав и состояния: rename, delete, move, action:ARM…"
+            "description": "Что можно с объектом сейчас, с учётом прав и состояния: rename, delete, move, action:ARM…; setupUi — пользователь может открыть страницу плагина (право edit, UnitKind.setupUi). Незнакомое значение клиент пропускает"
           },
           "hasChildren": {
             "type": "boolean"
@@ -19182,6 +19287,26 @@
             "maximum": 65535
           }
         }
+      },
+      "SetupUiLink": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "url",
+          "expiresAt"
+        ],
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "Адрес страницы плагина для одного открытия. Клиент открывает его как есть и ничего к нему не дописывает"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "До этого времени адрес открывает страницу. Потом клиент просит новый адрес"
+          }
+        },
+        "description": "Адрес страницы плагина на одно открытие (POST /units/{uid}/setup-ui)"
       }
     }
   }

@@ -54,12 +54,14 @@
 
 Сейчас описание приводит только примеры: «camera, archive.local, security_controller/CONTROLLER…».
 
+## Что сделано
+
+Владелец внёс пп. 1–4 и 6 в контракт 0.16.0 (`api/README.md`, «Что добавлено в 0.16.0» и «Ломающие изменения в 0.16.0»; `api/BACKEND.md`, «Плагины (0.16.0)»). Тесты — `tests/api-units.js`: «Кэш описаний 0.16.0…», «Страница плагина 0.16.0…», «Плагин 0.16.0…».
+
+Из п. 5 в той же правке сделаны данные пп. 5.2 и 5.3: у `security_controller/CONTROLLER` секрет `password`, скрытое поле `pluginRevision` и `statusSchema`, у событий `ONLINE` и `OFFLINE` — `alarm: false`. Сверх запроса у `security_controller/SENSOR` `setupUi` без `url`: так в наборе есть оба способа открыть страницу. У «Датчик окна» условие `Ready: false` с `message` и `fields`.
+
+`index.html`: ссылка «Страница плагина» видна только с отметкой `setupUi`; без `url` кнопка берёт адрес у сервера. Форма пропускает поля `x-hidden`, «Состояние» берёт подписи из `statusSchema`.
+
 ## Чего пока нет
 
-- Пути `POST /units/{uid}/setup-ui` нет, `setupUi.url` ещё обязателен.
-- Отметки `setupUi` в `Unit.capabilities` и строки о происхождении страницы нет (пп. 1.3, 1.4).
-- `UnitCondition` без `message` и `fields`. `UnitKind.statusSchema` нет (п. 2).
-- `x-hidden` нет (п. 3).
-- `Vary` и `304` у `GET /kinds/{kind}` нет. Описание `Text.lang` старое (п. 4).
-- Вида экземпляра и новых полей `security_controller` в `demo.json` нет (п. 5).
-- Описание `UnitKind.kind` без грамматики имени (п. 6).
+- Вида экземпляра `security_controller` (п. 5.1). Его делает mockup, без уведомления.

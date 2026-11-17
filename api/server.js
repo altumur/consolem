@@ -2761,8 +2761,34 @@
     // Описания видов: ETag — хэш описаний; тот же ETag в If-None-Match — 304 без тела
     function kindsList(headers) {
       const tag = kinds.etag();
-      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag } };
-      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag } };
+      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
+      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag, Vary: "Accept-Language" } };
+    }
+    // Один вид: ETag — тот же хэш описаний, что у списка
+    function kindOne(code, headers) {
+      const k = kinds.get(code);
+      if (!k) return notFound(`Вид ${code}`);
+      const tag = kinds.etag();
+      if (parseMatch((headers || {})["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
+      return { status: 200, body: clone(k), headers: { ETag: tag, Vary: "Accept-Language" } };
+    }
+    // Страница плагина (UnitKind.setupUi) у объекта: описание вида называет вид объекта (kinds; нет поля — только свой вид)
+    const setupUiOf = (u) => {
+      const su = (kinds.get(u.kind) || {}).setupUi;
+      return su && (!su.kinds || su.kinds.includes(u.kind)) ? su : null;
+    };
+    // Адрес на одно открытие: постоянный url вида (или адрес заглушки стенда) с объектом, языком и разовым ключом t
+    let setupUiSeq = 0;
+    function setupUiLink(u, headers) {
+      const su = setupUiOf(u);
+      if (!su) return notFound("Страница плагина у вида");
+      const denied = rightProblem(u, { level: "edit" }, "Странице плагина нужен уровень edit");
+      if (denied) return denied;
+      const base = su.url || `stub://plugin/${encodeURIComponent(((kinds.get(u.kind) || {}).origin || {}).plugin || u.kind)}/setup`;
+      const lang = String((headers || {})["accept-language"] || "ru").split(/[,;-]/)[0].trim().toLowerCase() || "ru";
+      const token = `${(++setupUiSeq).toString(36)}${now().toString(36)}`;
+      const q = new URLSearchParams({ type: u.kind, id: u.uid, lang, t: token }).toString();
+      return { status: 200, body: { url: base + (base.includes("?") ? "&" : "?") + q, expiresAt: iso(now() + 5 * 60000) } };
     }
     // Секреты старых путей сервер держит отдельно (secrets): пароль устройства и тома, секрет облачного тома
     const keptSecrets = (u) => {
@@ -2813,6 +2839,8 @@
       if (Array.isArray(u.writable)) out.writable = u.writable.slice();
       if (u.status && Object.keys(u.status).length) out.status = clone(u.status);
       out.hasChildren = unitHasChildren(u); // как в дереве: потоки и документы дочерними не считаются
+      // Что можно сейчас (capabilities): стенд ставит только setupUi — страница плагина есть и у человека есть право edit
+      if (setupUiOf(u) && !rightProblem(u, { level: "edit" }, "")) out.capabilities = ["setupUi"];
       // Вычисляемое профилем (status.observed): итог круга домена, держатель тома
       hooksOf(u.kind).forEach((h) => h.view && h.view(out, pctx));
       return Object.assign(out, extra || {});
@@ -4198,10 +4226,7 @@
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
       /* ----- Ядро: виды и объекты ----- */
       ["GET", "/kinds", (p, q, body, headers) => kindsList(headers)],
-      ["GET", "/kinds/{kind}", (p) => {
-        const k = kinds.get(p.kind);
-        return k ? { status: 200, body: clone(k), headers: { ETag: kinds.etag() } } : notFound(`Вид ${p.kind}`);
-      }],
+      ["GET", "/kinds/{kind}", (p, q, body, headers) => kindOne(p.kind, headers)],
       ["GET", "/units", (p, q) => unitsPage(q)],
       ["GET", "/units/{uid}", (p) => {
         const u = store.get(p.uid);
@@ -4213,6 +4238,10 @@
         const k = kinds.get(u.kind);
         if (!k || !k.schemaPerUnit) return problem(422, "NOT_SUPPORTED", "Схема своя только у объектов вида со schemaPerUnit: у остальных — схема вида, GET /kinds/{kind}");
         return { status: 200, body: kinds.unitSchema(u.kind, u.properties), headers: { ETag: `"${u.version}"` } };
+      }],
+      ["POST", "/units/{uid}/setup-ui", (p, q, body, headers) => {
+        const u = store.get(p.uid);
+        return u ? setupUiLink(u, headers) : notFound("Объект");
       }],
       ["GET", "/units/{uid}/creatable", (p) => {
         const u = store.get(p.uid);
