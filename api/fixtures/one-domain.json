@@ -3471,6 +3471,26 @@
      "ends": true,
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3482,6 +3502,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3493,6 +3533,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3504,6 +3564,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3515,6 +3595,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3526,6 +3626,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3551,6 +3671,21 @@
       "properties": {
        "template": {
         "type": "string"
+       },
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
        }
       }
      },

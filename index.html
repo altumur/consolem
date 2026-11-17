@@ -23186,6 +23186,9 @@ function ruleCatFromKinds(){
     const x=evs.get(k.kind),ps=x?.desc.params?.properties||{};
     k.kinds=x?x.kinds:[];k.devTypes=x?types(x.kinds):k.devTypes0;
     k.match.forEach(m=>{if(!m.dyn)m.opts=ps[m.id]?.enum||[]});
+    // Поле-детектор из описания события (params.detector с x-ref на детекторы) — выбор детектора камеры
+    Object.entries(ps).filter(([id,p])=>ruleIsDetRef(p)&&!k.match.some(m=>m.id===id)).forEach(([id,p])=>k.match.push({id,label:propLabel(p,id),opts:[],pre:propLabel(p,id),dyn:ruleDetOf(k.kind),det:true,fromKind:true}));
+    k.match=k.match.filter(m=>!m.fromKind||ruleIsDetRef(ps[m.id]));
   });
   const names=p=>p["x-enum-labels"]?{names:Object.fromEntries(Object.entries(p["x-enum-labels"]).map(([v,t])=>[v,textOf(t)]))}:{};
   evs.forEach((x,code)=>{
@@ -23193,7 +23196,7 @@ function ruleCatFromKinds(){
     if(TRIGGER_KINDS.some(k=>!k.stray&&k.kind===code))return;
     TRIGGER_KINDS.push({sub:"unit",kind:code,gen:true,label:lb,unitLabel:kindText(x.kinds[0]),kinds:x.kinds,devTypes:types(x.kinds),
       ends:!!x.desc.ends,endsWord:lb.toLowerCase(),endsOf:lb.toLowerCase(),
-      match:Object.entries(x.desc.params?.properties||{}).map(([id,p])=>({id,label:propLabel(p,id),opts:p.enum||[],pre:propLabel(p,id),...names(p)}))});
+      match:Object.entries(x.desc.params?.properties||{}).map(([id,p])=>({id,label:propLabel(p,id),opts:p.enum||[],pre:propLabel(p,id),...names(p),...(ruleIsDetRef(p)?{dyn:ruleDetOf(code),det:true}:{})}))});
   });
   ACTION_KINDS.forEach(k=>{
     if(!k.unit||k.stray)return;
@@ -23252,7 +23255,7 @@ async function ruleTypesNeed(dt){
 // Цели правил: устройства, на которые они ссылаются, должны быть в кэше
 function ruleDeviceIds(x,out){
   if(Array.isArray(x))x.forEach(v=>ruleDeviceIds(v,out));
-  else if(x&&typeof x==="object"){if(x.uid&&!x.area)out.add(x.uid);Object.values(x).forEach(v=>ruleDeviceIds(v,out))}
+  else if(x&&typeof x==="object"){if(x.uid&&!x.area)out.add(x.uid);if(typeof x.match?.detector==="string")out.add(x.match.detector);Object.values(x).forEach(v=>ruleDeviceIds(v,out))}
   return out;
 }
 function ruleIdxGet(){
@@ -23476,7 +23479,7 @@ function ruleBroken(r){return ruleRefItems(r).filter(it=>refBroken(it.ref)).map(
 
 // ── Человеческие подписи ──
 const RULE_DAYS=["пн","вт","ср","чт","пт","сб","вс"];
-function matchOptLabel(m,v){return m.dyn?(m.dyn(null).find(x=>x[0]===v)||[v,v])[1]:m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
+function matchOptLabel(m,v){if(m.det){const n=find(v)?.n;return n?locName(n):v}return m.dyn?(m.dyn(null).find(x=>x[0]===v)||[v,v])[1]:m.names?i18n(m.names[v]||v):`${i18n(m.pre)} ${v}`}
 // Вид вне перечня: варианты — из того, что умеют камеры (detectorOptions)
 // Текст источника: варианты — слова выбранного источника; цель не выбрана — слова всех
 function ruleLabelToggle(x){ruleEdit(r=>{r.labels=listToggled(r.labels,x)})}
@@ -23502,6 +23505,19 @@ function ruleDetOthers(){
   walkAll(n=>{(n.detectorOptions||[]).filter(o=>!DET_TRIG_OWN.includes(o.kind)).forEach(o=>out.set(o.template,o.name))});
   return[...out];
 }
+// Один детектор в событии камеры (match.detector, с 0.18.0): детекторы этого вида у выбранной камеры; камера не выбрана —
+// все загруженные детекторы вида, с именем камеры. ref === null — подпись выбранного (matchOptLabel): только имя детектора,
+// камеру подпись события называет сама
+function ruleDetOf(code){return ref=>{
+  const one=ref?refNode(ref):null,out=[];
+  walkAll(n=>{
+    if(n.type!=="det"||DET_KIND_CODE[n.kind]!==code)return;
+    const cam=find(n.id)?.p;if(one&&cam?.id!==one.id)return;
+    out.push([n.id,one||ref===null?locName(n):`${cam?locName(cam)+" · ":""}${locName(n)}`]);
+  });
+  return out;
+}}
+const ruleIsDetRef=p=>(p?.["x-ref"]?.implements||[]).includes("vms.detector/1");
 function ruleDetServerKinds(){return refDetKinds.filter(k=>k!=="other"&&!DET_TRIG_OWN.includes(k)).map(k=>[k,detKindRu(k)])}
 function matchPhrase(k,match){
   return k.match.filter(m=>(match||{})[m.id]).map(m=>matchOptLabel(m,match[m.id])).join(" ");
@@ -23510,8 +23526,11 @@ function matchPhrase(k,match){
 function matchKey(match){return JSON.stringify(Object.entries(match||{}).filter(([,v])=>v!==""&&v!=null).sort())}
 function triggerLabel(t){
   const k=triggerKind(t),m=matchPhrase(k,t.match);
-  // «Другой вид» с уточнением называем уточнением: «Детектор: оставленный предмет»
-  if(t.sub==="det"&&t.kind==="other"&&m)return[`${i18n("Детектор")}: ${m.toLowerCase()}`,t.ref?refLabel(t.ref,k.devTypes,"when"):""].filter(Boolean).join(" · ");
+  // «Другой вид» с уточнением называем уточнением: «Детектор: оставленный предмет»; детектор (match.detector) — своим именем после камеры
+  if(t.sub==="det"&&t.kind==="other"&&m){
+    const dk={...k,match:k.match.filter(x=>x.det)},ok={...k,match:k.match.filter(x=>!x.det)},mo=matchPhrase(ok,t.match),md=matchPhrase(dk,t.match);
+    if(mo)return[`${i18n("Детектор")}: ${mo.toLowerCase()}`,t.ref?refLabel(t.ref,k.devTypes,"when"):"",md].filter(Boolean).join(" · ");
+  }
   return[i18n(k.label),t.ref?refLabel(t.ref,k.devTypes,"when"):"",m].filter(Boolean).join(" · ");
 }
 // Событие без устройства: в трассе устройство — отдельная ссылка.
@@ -24498,7 +24517,11 @@ function rulePickDone(){
 function rulePickSet(ref){
   const pk=rulePk;if(!pk)return;
   closeBulkModal();rulePk=null;
-  ruleEdit(r=>{const it=ruleSlotItemOf(r,pk.slot,pk.i);if(it)it.ref=ref});
+  ruleEdit(r=>{const it=ruleSlotItemOf(r,pk.slot,pk.i);if(it){it.ref=ref;ruleDetPrune(it,ruleSlotKind(pk.slot,it))}});
+}
+// Детектор события (match.detector) должен быть детектором выбранной камеры: сменили камеру — чужой детектор снимается
+function ruleDetPrune(it,k){
+  (k?.match||[]).filter(m=>m.det&&it.match?.[m.id]).forEach(m=>{if(!m.dyn(it.ref).some(x=>x[0]===it.match[m.id]))delete it.match[m.id]});
 }
 // Состав набора в карточке правила: только чтение, правка — через окно выбора.
 function ruleCompOpen(slot,i){
@@ -24684,7 +24707,7 @@ function setTriggerExtra(i,text){const t=curRule().when[i],m=matchExtraParse(tri
 function setWevExtra(ps,text){ruleEdit(r=>{const c=ruleThenAt(r,ps);if(!c||!c.ev)return;const m=matchExtraParse(triggerKind(c.ev),c.ev.match,text);if(m)c.ev.match=m})}
 // Уточнения события («Вход №», «Состояние»): on(id) — обработчик выбора.
 function matchSelsHtml(k,match,on,ref){
-  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&m.off?`${i18n(m.label)}: ${i18n("любой")}`:k.gen&&m.label!==m.id?`${i18n(m.label)}: ${i18n("любое")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
+  return k.match.filter(m=>!m.off?.(match||{})).map(m=>`<div class="rl-f">${selHtml([["",m.dyn&&(m.off||m.det)?`${i18n(m.label)}: ${i18n("любой")}`:k.gen&&m.label!==m.id?`${i18n(m.label)}: ${i18n("любое")}`:""+i18n("любое")]].concat(m.dyn?m.dyn(ref):m.opts.map(o=>[o,m.names?matchOptLabel(m,o):`${i18n(m.pre).replace(/^./,c=>c.toUpperCase())} ${o}`])),(match||{})[m.id]||"",on(m.id),m.pre||m.id)}</div>`).join("");
 }
 // ── «При условии» ──
 function condRowHtml(c,i){
@@ -25211,7 +25234,8 @@ function raTrig(n){return n.type==="det"?detTrig(DET_KIND_CODE[n.kind]||"motion"
 function raCands(){
   const want=ra.trig,q=ra.q.trim().toLowerCase();
   return rules.filter(r=>r.start==="event"&&(!q||r.name.toLowerCase().includes(q))).flatMap(r=>{
-    const i=r.when.findIndex(t=>t.sub==="det"&&(!want||(t.kind===want.kind&&Object.entries(want.match).every(([k,v])=>t.match?.[k]===v))));
+    // Событие одного детектора (match.detector) другой камере не подходит
+    const i=r.when.findIndex(t=>t.sub==="det"&&!t.match?.detector&&(!want||(t.kind===want.kind&&Object.entries(want.match).every(([k,v])=>t.match?.[k]===v))));
     if(i<0)return[];
     const t=r.when[i];
     return[{r,i,t,has:ruleRefCovers(t.ref,ra.cam.id,triggerKind(t).devTypes),fromEv:t.ref==="$src"}];

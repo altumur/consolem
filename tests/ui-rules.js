@@ -47,6 +47,27 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ok(!rules.some((x) => x.name === "Флаги событий"), "черновик проверки снят");
   }
 
+  // Один детектор в событии камеры (params.detector, с 0.18.0): выбор детекторов этого вида у камеры, подпись — имя детектора
+  {
+    const CAM = "30000013-0000-4000-8000-000000000000";
+    const mk = TRIGGER_KINDS.find((x) => x.kind === "motion"), ab = TRIGGER_KINDS.find((x) => x.kind === "abandoned");
+    ok(mk.match.some((m) => m.id === "detector" && m.det) && ab?.match.some((m) => m.id === "detector" && m.det), "у движения и оставленного предмета — уточнение «Детектор» из описания события");
+    const own = ruleDetOf("motion")(CAM);
+    ok(own.length > 1 && own.every(([id]) => find(id)?.p?.id === CAM && DET_KIND_CODE[find(id).n.kind] === "motion"), "камера выбрана: только её детекторы движения — " + own.map((x) => x[1]).join(", "));
+    ruleNewOpen(); rnw.tpl = ""; ruleNewCreate();
+    ruleEdit((x) => { delete x._auto; x.name = "Один детектор"; x.start = "event"; x.when = [{ sub: mk.sub, kind: mk.kind, ref: CAM, match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
+    paint();
+    const sel = [...document.querySelectorAll("#main .rl-row select")].find((s) => [...s.options].some((o) => o.textContent === "Детектор: любой"));
+    ok(sel && sel.options.length === own.length + 1, "в строке события — «Детектор: любой» и детекторы камеры");
+    setTriggerField(0, "detector", own[1][0]);
+    ok(curRule().when[0].match.detector === own[1][0] && triggerLabel(curRule().when[0]).endsWith(" · " + own[1][1]), "выбор пишет match.detector, подпись события называет детектор: " + triggerLabel(curRule().when[0]));
+    const other = allNodes().find((n) => n.type === "camera" && n.id !== CAM);
+    const it = { ...curRule().when[0], match: { ...curRule().when[0].match }, ref: other.id };
+    ruleDetPrune(it, mk);
+    ok(!("detector" in it.match), "сменили камеру — детектор прежней камеры снят");
+    ruleRestore(); paint();
+  }
+
   // Правило по описаниям видов: событие ALARM датчика security_controller → команда ARM контроллера. Списки формы —
   // события и команды видов (/kinds events, actions с ruleAction), подписи — из описаний, параметры команды — формой
   // по её params; на сервер — {source:"unit", kinds, event} и {type:"unitAction", action, params}, цели — {uid}

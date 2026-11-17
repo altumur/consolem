@@ -1488,15 +1488,31 @@
         return Object.assign({}, t, { include: t.include.filter((x) => !hit.includes(x)), exclude: t.exclude.filter((x) => !names.has(x)),
           gone: [...t.gone, ...hit.map((x) => names.get(x.uid))] });
       };
+      // С 0.18.0: событие одного детектора (match.detector) — удалённый детектор уходит в gone цели этого события
+      const byDetector = (t) => {
+        const d = t && t.match && t.match.detector;
+        if (!d || !names.has(d)) return;
+        delete t.match.detector;
+        // Камеру события удалили вместе с детектором: в gone идёт только камера (её запишет fix цели)
+        if (t.target && t.target.include.some((x) => !x.area && names.has(x.uid))) return;
+        const g = t.target || { include: [], exclude: [], gone: [], fromEvent: false };
+        t.target = Object.assign({}, g, { gone: [...g.gone, names.get(d)] });
+      };
+      const eachEvent = (c) => {
+        c.triggers.forEach(byDetector);
+        const walk = (l) => l.forEach((a) => { if (a.event) byDetector(a.event); walk(a.yes || []); walk(a.no || []); });
+        walk(c.steps || []);
+      };
       db.rules.forEach((r) => {
         const was = JSON.stringify(r);
+        eachEvent(r);
         eachTarget(r, fix);
         if (JSON.stringify(r) === was) return;
         bump(r);
         runsStop(r.id);
         changed("rule", r);
       });
-      db.ruleVersions.forEach((v) => eachTarget(v.rule, fix));
+      db.ruleVersions.forEach((v) => { eachEvent(v.rule); eachTarget(v.rule, fix); });
     }
     // Версия истории: что стало после изменения. undo убирает версию, которую отменяет, если она последняя
     // was — кто и когда менял правило и с какого дня оно «в наблюдении» до этой правки. «Отменить»
@@ -5475,13 +5491,26 @@
           }
           // Событие объекта из описания его вида (UnitKind.events): запускает включённые правила с этим одним событием,
           // уточнение правила (match) — подмножество полей события, сравнение строгое. Шаги-команды объектов выполняются
+          // С 0.18.0: deviceId — детектор (профиль vms.detector/1) под камерой: событие поднимает камера, код события — eventId
+          // или detectorKind детектора, сервер сам пишет в match поле detector (uid детектора), у other — и template встроенного
           if (body.type === "unit.event") {
-            const u = store.get(body.deviceId);
+            let u = store.get(body.deviceId), eventId = body.eventId;
             if (!u) return notFound("Объект");
-            if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === body.eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${body.eventId}`, { field: "eventId" });
-            const match = clone(body.match || {}), ev = { source: "unit", event: body.eventId, match, deviceId: u.uid, at: iso(now()) };
+            const match = clone(body.match || {});
+            // Событие, которое вид детектора объявил сам, остаётся его событием
+            if (kinds.profileOf(u.kind, "vms.detector/1") && !((kinds.get(u.kind) || {}).events || []).some((e) => e.id === eventId)) {
+              const cam = u.parentId ? store.get(u.parentId) : null;
+              if (!cam || !kinds.profileOf(cam.kind, "vms.camera/1")) return problem(422, "VALIDATION_FAILED", "Детектор не под камерой", { field: "deviceId" });
+              if (eventId && eventId !== props(u).detectorKind) return problem(422, "VALIDATION_FAILED", `Детектор вида ${props(u).detectorKind} не поднимает событие ${eventId}`, { field: "eventId" });
+              eventId = props(u).detectorKind;
+              match.detector = u.uid;
+              if (eventId === "other" && props(u).template && !("template" in match)) match.template = props(u).template;
+              u = cam;
+            }
+            if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${eventId}`, { field: "eventId" });
+            const ev = { source: "unit", event: eventId, match, deviceId: u.uid, at: iso(now()) };
             const fits = (t) => Object.entries(t.match || {}).every(([k, v]) => k in match && JSON.stringify(match[k]) === JSON.stringify(v));
-            db.rules.filter((r) => ruleHears(r, (t) => engine.hears(t, body.eventId, u.uid) && fits(t)))
+            db.rules.filter((r) => ruleHears(r, (t) => engine.hears(t, eventId, u.uid) && fits(t)))
               .forEach((r) => fireDo(ruleStart(r, { via: "event", events: [ev], src: [u.uid] })));
             return { status: 200, body: { applied: true } };
           }
