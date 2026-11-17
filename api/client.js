@@ -76,7 +76,9 @@
   }
 
   function create(opts) {
-    const copy = (v) => (v === undefined || v === null ? v : JSON.parse(JSON.stringify(v)));
+    // Файл (Blob, ArrayBuffer, байты) идёт как есть: это тело POST /files, а не JSON
+    const isBinary = (v) => (typeof Blob !== "undefined" && v instanceof Blob) || v instanceof ArrayBuffer || ArrayBuffer.isView(v);
+    const copy = (v) => (v === undefined || v === null || isBinary(v) ? v : JSON.parse(JSON.stringify(v)));
     const latency = Math.max(0, Number(opts.latency) || 0);
     const later = (value) => (latency ? new Promise((resolve) => setTimeout(() => resolve(value), latency)) : value);
 
@@ -85,8 +87,8 @@
       const raw = (method, path, body, headers) =>
         fetch(base + path, {
           method,
-          headers: Object.assign(body === undefined ? {} : { "Content-Type": "application/json" }, headers || {}),
-          body: body === undefined ? undefined : JSON.stringify(body),
+          headers: Object.assign(body === undefined || isBinary(body) ? {} : { "Content-Type": "application/json" }, headers || {}),
+          body: body === undefined ? undefined : isBinary(body) ? body : JSON.stringify(body),
           credentials: "include",
         }).then(async (res) => {
           if (res.status === 401 && opts.onUnauthorized) opts.onUnauthorized();

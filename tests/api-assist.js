@@ -513,5 +513,53 @@
     }
   }, NEED);
 
+  /* ----- Файлы (0.19.0): POST /files, fileIds хода ----- */
+  const file = (text, type) => new Blob([text], { type });
+  const upload = (env, blob, name, type) => env.call("POST", `/files${name ? `?name=${encodeURIComponent(name)}` : ""}`, blob, { "Content-Type": type || blob.type });
+
+  test("Файлы 0.19.0: POST /files — тело как есть, 201 {id, name, type, size, expiresAt}; пределы reference.limits — 413, 415, пустое тело — 422", async () => {
+    const env = await makeEnv();
+    const lim = (await env.ok("GET", "/reference")).limits;
+    assert.ok(lim.fileMaxBytes > 0 && lim.filesPerTurnMax >= 1 && Array.isArray(lim.fileTypes) && lim.fileTypes.includes("text/plain"), "пределы в reference.limits");
+    const res = await upload(env, file("строка лога\n", "text/plain"), "журнал камеры.txt");
+    assert.status(res, 201, null, "файл принят");
+    assert.eq([res.body.name, res.body.type, res.body.size], ["журнал камеры.txt", "text/plain", new Blob(["строка лога\n"]).size], "имя, тип, размер");
+    assert.ok(res.body.id && !Number.isNaN(Date.parse(res.body.expiresAt)), "id и срок");
+    const other = await upload(env, file("{}", "application/json"));
+    assert.eq([other.status, other.body.name], [201, "file"], "без name — имя file");
+    assert.ok(other.body.id !== res.body.id, "у каждого файла свой id");
+    const big = await upload(env, new Blob([new Uint8Array(lim.fileMaxBytes + 1)], { type: "text/plain" }));
+    assert.status(big, 413, "FILE_TOO_LARGE", "больше fileMaxBytes");
+    assert.eq([big.body.field, big.body.params.limit], ["file", lim.fileMaxBytes], "field и предел");
+    const odd = await upload(env, file("MZ", "application/x-msdownload"));
+    assert.status(odd, 415, "FILE_TYPE_NOT_ALLOWED", "тип не из fileTypes");
+    assert.eq(odd.body.field, "file", "field");
+    const empty = await upload(env, new Blob([], { type: "text/plain" }));
+    assert.status(empty, 422, "VALIDATION_FAILED", "пустое тело");
+    assert.eq(empty.body.field, "file", "field пустого тела");
+  }, { needs: ["uploadFile", "getReference"] });
+
+  test("Файлы 0.19.0: fileIds хода — свой файл принят; неизвестный id и больше filesPerTurnMax — 422, срок вышел — 410 FILE_EXPIRED", async () => {
+    const env = await makeEnv();
+    const lim = (await env.ok("GET", "/reference")).limits;
+    const f = (await upload(env, file("кадр", "text/plain"), "кадр.txt")).body;
+    const got = await env.stream("/assist/turns", { text: "что на этом файле?", fileIds: [f.id] });
+    assert.ok(got.length && ["answer", "plan", "found", "refused", "question"].includes(got[got.length - 1].type), "ход с файлом идёт как обычно");
+    const bad = await env.call("POST", "/assist/turns", { text: "что тут?", fileIds: ["no-such-file"] });
+    assert.status(bad, 422, "VALIDATION_FAILED", "неизвестный id");
+    assert.eq(bad.body.field, "fileIds", "field");
+    const many = [];
+    for (let i = 0; i <= lim.filesPerTurnMax; i++) many.push((await upload(env, file(`часть ${i}`, "text/plain"))).body.id);
+    const over = await env.call("POST", "/assist/turns", { text: "что тут?", fileIds: many });
+    assert.status(over, 422, "VALIDATION_FAILED", "больше filesPerTurnMax");
+    assert.eq(over.body.field, "fileIds", "field");
+    if (!env.frozen) return "срок — только с остановленными часами";
+    const g = (await upload(env, file("старое", "text/plain"))).body;
+    await env.advance(Math.ceil((Date.parse(g.expiresAt) - env.now) / 1000) + 1);
+    const late = await env.call("POST", "/assist/turns", { text: "что тут?", fileIds: [g.id] });
+    assert.status(late, 410, "FILE_EXPIRED", "срок вышел");
+    assert.eq(late.body.field, "fileIds", "field");
+  }, { needs: ["uploadFile", "assistTurn", "getReference"] });
+
   ApiTest.loaded("api-assist.js");
 })();

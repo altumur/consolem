@@ -27392,7 +27392,17 @@
    "selectMax": 500,
    "watchMax": 200,
    "scanPartsMax": 8,
-   "scenariosMax": 1000
+   "scenariosMax": 1000,
+   "fileMaxBytes": 10485760,
+   "filesPerTurnMax": 5,
+   "fileTypes": [
+    "image/png",
+    "image/jpeg",
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/json"
+   ]
   },
   "capabilities": {
    "operations": [
@@ -27445,6 +27455,7 @@
     "listJournalFacets",
     "exportJournal",
     "listJournalKinds",
+    "uploadFile",
     "stream",
     "deleteObjects",
     "applyAccess",

@@ -487,6 +487,8 @@
 
     let db = null;
     let me = null;
+    // Загруженные файлы (POST /files): id → {id, name, type, size, data, owner, expiresAt (мс), claimed}. Только в памяти
+    let files = new Map(), fileSeq = 0;
     // Склад объектов, описания видов и старые таблицы над складом — собираются в load()
     let kinds = null, store = null, legacy = null, kindList = null;
     // Состояние хуков профилей (итоги круга домена…): сбрасывается в load()
@@ -596,6 +598,7 @@
       ruleRuns = [];
       prompts = [];
       secrets = new Map();
+      files = new Map();
       ops = new Map();
       redoStack = [];
       expWork = new Map();
@@ -921,7 +924,7 @@
        живое видео, разговор) того же пользователя по тому же пути за 30 с — одна запись; остальные — каждая.
        Секреты не попадают в журнал: ключи с паролем, токеном, заголовками — «••••», в адресе — без имени и пароля,
        в тексте — «Authorization: ••••» */
-    const AUDIT_SKIP = new Set(["assistTurn", "putStreamWatch", "validateUnits", "checkExport", "testRule"]);
+    const AUDIT_SKIP = new Set(["assistTurn", "uploadFile", "putStreamWatch", "validateUnits", "checkExport", "testRule"]);
     const AUDIT_SAME_MS = 30000;
     const AUDIT_SAME_OPS = new Set(["putUnitPtz", "deleteUnitPtz", "startUnitLive", "moveUnitLive", "startUnitTalk"]);
     const AUDIT_HIDE = /pass(word)?|secret|token|apikey|api_key|private|credential|authorization|cookie|headers/i;
@@ -2775,6 +2778,35 @@
     /* ----- Ядро: виды и объекты склада ----- */
 
     // Описания видов: ETag — хэш описаний; тот же ETag в If-None-Match — 304 без тела
+    // Файл — одним телом: Blob во вкладке, байты по HTTP (serve_api.mjs, петля). Тип — Content-Type запроса
+    const FILE_TTL_MS = 60 * 60000;
+    function fileUpload(q, body, headers) {
+      const lim = db.reference.limits || {};
+      const size = body == null ? 0 : body.size != null ? body.size : body.byteLength != null ? body.byteLength : 0;
+      const type = String(headers["content-type"] || (body && body.type) || "").split(";")[0].trim().toLowerCase();
+      if (!size || typeof body !== "object" || Object.getPrototypeOf(body) === Object.prototype) return problem(422, "VALIDATION_FAILED", "Нет файла: тело запроса пустое или JSON", { field: "file" });
+      if (lim.fileMaxBytes && size > lim.fileMaxBytes) return problem(413, "FILE_TOO_LARGE", `Файл больше ${lim.fileMaxBytes} байт`, { field: "file", params: { limit: lim.fileMaxBytes, size } });
+      if (lim.fileTypes && !lim.fileTypes.includes(type)) return problem(415, "FILE_TYPE_NOT_ALLOWED", `Тип ${type || "без типа"} не принимается`, { field: "file", params: { type, types: lim.fileTypes.slice() } });
+      const name = String(q.name || "file").slice(0, 255) || "file";
+      const id = `f${(++fileSeq).toString(36)}${now().toString(36)}`;
+      const f = { id, name, type, size, data: body, owner: me, expiresAt: now() + FILE_TTL_MS, claimed: false };
+      files.set(id, f);
+      return { status: 201, body: fileOut(f) };
+    }
+    const fileOut = (f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, expiresAt: iso(f.expiresAt) });
+    // Файлы хода: только свои, срок не вышел (забранный файл срока не имеет). Ошибка — Problem, иначе null.
+    // Стенд помнит файл и после срока, чтобы ответить 410, а не «такого нет»
+    function fileIdsProblem(ids) {
+      if (ids === undefined) return null;
+      const lim = db.reference.limits || {};
+      if (lim.filesPerTurnMax != null && ids.length > lim.filesPerTurnMax) return problem(422, "VALIDATION_FAILED", `Файлов в ходе больше ${lim.filesPerTurnMax}`, { field: "fileIds", params: { limit: lim.filesPerTurnMax } });
+      for (const id of ids) {
+        const f = files.get(id);
+        if (!f || f.owner !== me) return problem(422, "VALIDATION_FAILED", "Такого файла нет", { field: "fileIds", params: { id } });
+        if (!f.claimed && f.expiresAt <= now()) return problem(410, "FILE_EXPIRED", "Срок файла вышел: загрузить файл заново", { field: "fileIds", params: { id } });
+      }
+      return null;
+    }
     function kindsList(headers) {
       const tag = kinds.etag();
       if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
@@ -5231,7 +5263,8 @@
       ],
       // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
       // клиент отдаёт их по одному, петля пишет строками data:
-      ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
+      ["POST", "/files", (p, q, body, headers) => fileUpload(q, body, headers)],
+      ["POST", "/assist/turns", (p, q, body) => fileIdsProblem(body.fileIds) || { status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } }],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
         const c = clients.get(p.clientId);

@@ -155,7 +155,9 @@
   // Тело запроса против requestBody операции: список расхождений, пустой — подходит
   function requestProblems(spec, method, path, body) {
     const found = operationOf(spec, method, path);
-    const schema = found && found.op.requestBody && found.op.requestBody.content["application/json"].schema;
+    // Тело не JSON (файл POST /files: content */*) — схемы для проверки нет
+    const json = found && found.op.requestBody && found.op.requestBody.content["application/json"];
+    const schema = json && json.schema;
     return schema ? check(spec, schema, body === undefined ? {} : body, "body", []) : [];
   }
 
