@@ -1017,13 +1017,14 @@
     if (units().some((u) => u.properties && u.properties.subtype)) assert.ok(seen > 0, "в обходе есть узел с подвидом");
   }, { needs: ["getTreeChildren"] });
 
-  test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — не триггеры; other и segment.lost — не тревоги", async () => {
+  test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — триггеры (с 0.17.0); other и segment.lost — не тревоги", async () => {
     const env = await makeEnv();
     const events = (await env.ok("GET", "/kinds/camera")).events;
     assert.eq(events.slice(0, 9).map((e) => e.id), ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "other", "segment.lost"], "порядок событий камеры: прежние первыми");
     assert.ok(["device.lost", "tamper", "plate.list", "alarm.closed", "rec.lost", "arm.off", "ptz.failed"].every((id) => events.some((e) => e.id === id)), "события цепочки правила объявлены");
     const flags = (e) => [e.rule !== false, e.alarm !== false];
-    events.forEach((e) => assert.eq(flags(e), [!["abandoned", "disappeared", "crowd"].includes(e.id), !["other", "segment.lost"].includes(e.id)], `флаги ${e.id}`));
+    events.forEach((e) => assert.eq(flags(e)[1], !["other", "segment.lost"].includes(e.id), `alarm ${e.id}`));
+    ["abandoned", "disappeared", "crowd"].forEach((id) => assert.eq(flags(events.find((e) => e.id === id))[0], true, `rule ${id}`));
     const s = await env.ok("GET", "/settings");
     const tag = { "If-Match": `"${s.version}"` };
     const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["other"] } }, tag);

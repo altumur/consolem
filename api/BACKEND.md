@@ -434,6 +434,7 @@ const raw = (method, path, body, headers) =>
 | `preRecordSec` | integer | «Предзапись, с»: Предзапись основного архива (archiveId), с. Строки extraArchives без своего preRecordSec берут это значение |
 | `presetMax` | integer | Предел номера пресета (только чтение) |
 | `presets` | массив object | Сохранённые номера. Имя пустое — пресет сохранён без подписи, форма показывает его номером. Имя оператора старше имени драйвера (только чтение) |
+| `privacyMasks` | массив `{points}`, до 16; `points` — от 3 до 64 точек `[x, y]` в долях кадра 0–1 | С 0.17.0. Маска приватности: области на кадре. Нарушение пределов — `422 VALIDATION_FAILED`, `field` на области (`/properties/privacyMasks/0/points`). Маску видят пользователи без права `ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE`: право снимает её и в живом видео, и в архиве. Архив сервер хранит без маски, маску накладывают при показе; выгрузку без права сервер делает с маской (`ExportGrant.privacyForced`). Маска привязана к кадру, а не к положению PTZ. Нет поля — маски нет |
 | `ptz` | boolean | Камера поворачивается. PTZ — свойство камеры, своей записи нет (только чтение) |
 | `recordDetectorIds` | массив string — uid (vms.detector/1) | «Запись по детекторам»: Детекторы, по которым пишется (recordMode=motion) |
 | `recordMode` | string: `none`, `always`, `motion`, `sched`, `replica`, `backup` | «Когда писать»: Режим записи. replica — забирать записи без постоянного потока. backup — живой поток только на время сбоя основной записи: только в extraArchives, на архиве, где это значение есть в recordModes его вида |
@@ -542,7 +543,7 @@ const raw = (method, path, body, headers) =>
 | `stream` | string | Поток записи камеры или поток, по которому считает детектор: streamId потока камеры (объект stream) |
 | `template` | string | det с builtin: true: шаблон из detectorOptions камеры. Задаётся при создании (не меняется после создания) |
 | `zone` | object | Зона детектора, у встроенного и серверного. Нет поля — вся картинка |
-| `analyticsKind` | string: `tracker`, `neural` | С 0.12.0. Вид детектора вне перечня `detectorKind`; действует только при `detectorKind: other` |
+| `analyticsKind` | string: `tracker`, `neural`; с 0.17.0 ещё `meta`, `faceTV`, `faceVA`, `faceVL` | С 0.12.0. Вид детектора вне перечня `detectorKind`; действует только при `detectorKind: other`. С 0.17.0: `meta` — мета-детектор, `faceVA`, `faceVL`, `faceTV` — детекторы лиц из пакетов распознавания лиц; `faceTV` — старый DetectorPack, с 3.11.1 его заменил детектор лиц VA |
 | `extraZones` | массив `{type: in\|ex, points}` | С 0.12.0. Зоны сверх `zone`: `in` — ещё зоны детектирования, `ex` — зоны исключения |
 | `direction` | string: `ab`, `ba`, `both` | С 0.12.0. Для линии. Нет поля — `both` |
 | `objectSize` | object `{min, max}`, пары `[ширина, высота]` в долях кадра | С 0.12.0. Нет поля или части — без ограничения |
@@ -564,6 +565,9 @@ const raw = (method, path, body, headers) =>
 | `cameraPosition` | string: `wall`, `ceiling` | С 0.15.0. Трекеры: положение камеры; на потолке смещение поддетекторов по X и Y, на стене — по X. Нет поля — `wall` |
 | `similarSearch`, `similarTrackSec`, `minTriggers` | boolean, integer 0–3600, integer 2–100 | С 0.15.0. Нейросетевой трекер: поиск похожих (нет поля — `false`), время обработки похожих треков в секундах (нет поля — 0), срабатываний до трека (нет поля — 6) |
 | `scanWindow` | object `{width, height, stepWidth?, stepHeight?}`, пиксели 1–10000 | С 0.15.0. Сканирующее окно нейросетевых детекторов. Шаг больше окна — `422 VALIDATION_FAILED`, `field: /properties/scanWindow/stepWidth` (`stepHeight`), `params.reason: "stepAboveWindow"`. Нет шага — шаг равен окну, нет поля — режим выключен |
+| `metaQueries` | массив string, до 3, каждая до 200 знаков | С 0.17.0. Мета-детектор: текстовые описания сцены на любом языке. Без непустого запроса мета-детектор не создаёт событий |
+| `metaThreshold`, `metaFrames`, `metaFps` | number 0.05–100, integer 10–100, number 0.016–100 | С 0.17.0. Мета-детектор: совпадение с запросом не ниже, % (нет поля — 20); кадров подряд (нет поля — 15); кадров в секунду (нет поля — 1) |
+| `metaSearch`, `metaSkipSimilar`, `metaDiff` | boolean, boolean, integer 0–100 | С 0.17.0. Мета-детектор: сохранять текстовые описания кадров для поиска в архиве (нет поля — `false`); не сохранять описание похожего кадра (нет поля — `true`); порог отличия от предыдущего кадра, % (нет поля — 25) |
 
 #### `vms.subdetector/1` — Поддетектор (с 0.12.0)
 

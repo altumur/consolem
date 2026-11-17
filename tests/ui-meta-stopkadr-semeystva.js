@@ -5,7 +5,9 @@
    Детекторы лиц TV и VA: плашка о конфликте, переключатель и групповое «Включить» не включают детектор лиц TV.
    Мастер «Добавить детекторы»: виды аналитики, причина у недоступного семейства, «мешает» у камеры, стоп-кадр
    на шаге «Зоны» ставит видео на паузу, «Скрыть зону» недоступна во время рисования.
-   Данные — заглушка (в контракте 0.13.0 видов meta, faceTV, faceVA нет; запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md).
+   Данные — с сервера: виды аналитики meta, faceTV, faceVA, faceVL и поля meta… вида det (контракт 0.17.0); «Применить» окна
+   отправляет поля meta… на сервер. Несовместимые семейства — пока таблица страницы (DET_AK_CLASH, пп. 5–6 запроса
+   api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md).
    На странице без мета-детектора (старые копии) сценарий только отмечает, что проверять нечего.
    Запуск: python3 tools/check_ui.py tests/ui-meta-stopkadr-semeystva.js */
 UiCheck(async ({ ok, until, sleep }) => {
@@ -48,6 +50,14 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(R().querySelector(".mq-sub.off"), "сохранение описаний выключено: вложенные настройки недоступны");
   ok(R().querySelector(".mq-row input").value === "Упавший человек у полки", "перерисовка окна сохранила запрос");
   metaSet(META, "metaSearch", "");
+  // План и «Применить»: поля meta… уходят на сервер шагом patch детектора
+  ok(dwDiffRows(find(META).n).some((r) => r.keys[0] === "meta" && r.label === "Что искать"), "правка запросов — строка «Что искать» в плане");
+  ok(/Не применено/.test(document.getElementById("cardFoot")?.textContent || ""), "полоса «Не применено» появилась без перерисовки окна");
+  const st = dwSteps(find(META).n, []);
+  const pp = st?.items.find((x) => x.uid === META && x.patch)?.patch.properties || {};
+  ok(JSON.stringify(pp.metaQueries) === JSON.stringify(["Упавший человек у полки"]) && pp.metaFrames === 100 && !("metaSearch" in pp), "шаг patch: запросы без пустых строк и изменённые поля, неизменённых нет");
+  dwApply(META);
+  ok(await until(() => !META_DRAFT[META] && find(META)?.n.metaFrames === 100 && JSON.stringify(unitProps.get(META)?.metaQueries) === JSON.stringify(["Упавший человек у полки"]), 8000), "«Применить»: сервер сохранил поля meta…, черновик снят");
   // У мета-детектора нет зон и стоп-кадра
   ok(!main().querySelector(".dw-tools button") && !main().querySelector(".dw-frz"), "у мета-детектора нет кнопок зон и стоп-кадра");
 
@@ -84,6 +94,7 @@ UiCheck(async ({ ok, until, sleep }) => {
   ok(detAkOn("meta") && !detAkOn("нет-такого"), "вид аналитики есть, только если схема det его знает");
   ok(row(/^Мета-детектор$/) && !row(/^Мета-детектор$/).classList.contains("dc-off"), "вид «Мета-детектор» доступен");
   ok(row(/^Лица TV$/)?.classList.contains("dc-off") && /Нельзя вместе с «Лица VA»/.test(row(/^Лица TV$/).textContent), "«Лица TV» недоступен, причина видна в строке");
+  ok(row(/^Лица VL$/)?.classList.contains("dc-off") && /Нельзя вместе с «Лица VA»/.test(row(/^Лица VL$/).textContent), "«Лица VL» недоступен: в системе работает детектор лиц VA");
   const cam = detCams().find((c) => c.id === "30000013-0000-4000-8000-000000000000");
   ok(dcWhy(cam, "a:faceVA") === i18n("уже есть"), "у камеры с детектором лиц VA — «уже есть»");
   dcItemToggle("a:meta", true);

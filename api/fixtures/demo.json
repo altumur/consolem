@@ -3044,6 +3044,41 @@
       "description": "configMode: template. Копируются разрешение и частота кадров потоков, сами потоки, firmware. Адрес, логин, пароль, имя, записи, папки, детекторы, norm — нет. Другая модель или нет камеры — 422 VALIDATION_FAILED, field: templateId",
       "x-immutable": true,
       "x-transient": true
+     },
+     "privacyMasks": {
+      "x-label": {
+       "key": "field.privacyMasks",
+       "text": "Маска приватности",
+       "lang": "ru"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "points"
+       ],
+       "properties": {
+        "points": {
+         "type": "array",
+         "minItems": 3,
+         "maxItems": 64,
+         "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1
+          }
+         },
+         "description": "Вершины многоугольника: [x, y] в долях кадра, 0 — левый или верхний край, 1 — правый или нижний"
+        }
+       }
+      },
+      "description": "С 0.17.0. Области маски приватности на кадре камеры: до 16 многоугольников, у каждого от 3 до 64 вершин. Маска закрывает области в живом видео и в архиве для тех, у кого нет права ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE (reference.access.features). Это право снимает маску и в живом видео, и в архиве. Сервер хранит архив без маски: маску накладывают при показе. Маска привязана к кадру, а не к положению PTZ. Нет поля или пустой список — маски нет"
      }
     }
    },
@@ -3903,7 +3938,6 @@
       "text": "Оставленный предмет",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -3915,7 +3949,6 @@
       "text": "Исчезновение предмета",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -3927,7 +3960,6 @@
       "text": "Скопление людей",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -5642,7 +5674,11 @@
       "type": "string",
       "enum": [
        "tracker",
-       "neural"
+       "neural",
+       "meta",
+       "faceTV",
+       "faceVA",
+       "faceVL"
       ],
       "x-enum-labels": {
        "tracker": {
@@ -5654,9 +5690,29 @@
         "key": "enum.analyticsKind.neural",
         "text": "Нейросетевой трекер",
         "lang": "ru"
+       },
+       "meta": {
+        "key": "enum.analyticsKind.meta",
+        "text": "Мета-детектор",
+        "lang": "ru"
+       },
+       "faceTV": {
+        "key": "enum.analyticsKind.faceTV",
+        "text": "Лица TV",
+        "lang": "ru"
+       },
+       "faceVA": {
+        "key": "enum.analyticsKind.faceVA",
+        "text": "Лица VA",
+        "lang": "ru"
+       },
+       "faceVL": {
+        "key": "enum.analyticsKind.faceVL",
+        "text": "Лица VL",
+        "lang": "ru"
        }
       },
-      "description": "С 0.12.0. Вид детектора вне перечня detectorKind; действует только при detectorKind: other. Незнакомое значение клиент показывает как other"
+      "description": "С 0.12.0. Вид детектора вне перечня detectorKind; действует только при detectorKind: other. Незнакомое значение клиент показывает как other. С 0.17.0: meta — мета-детектор (поля meta…); faceVA, faceVL, faceTV — детекторы лиц из пакетов распознавания лиц VA, VL и TV. faceTV — старый DetectorPack: с DetectorPack 3.11.1 его заменил детектор лиц VA"
      },
      "builtin": {
       "type": "boolean",
@@ -6325,6 +6381,84 @@
       ],
       "additionalProperties": false,
       "description": "Зона детектора, у встроенного и серверного. Нет поля — вся картинка"
+     },
+     "metaQueries": {
+      "x-label": {
+       "key": "field.metaQueries",
+       "text": "Запросы",
+       "lang": "ru"
+      },
+      "type": "array",
+      "maxItems": 3,
+      "items": {
+       "type": "string",
+       "maxLength": 200
+      },
+      "description": "С 0.17.0. meta: до трёх текстовых описаний сцены, каждое до 200 знаков. Сервер принимает запрос на любом языке. Мета-детектор без непустого запроса не создаёт событий"
+     },
+     "metaThreshold": {
+      "x-label": {
+       "key": "field.metaThreshold",
+       "text": "Совпадение с запросом не ниже",
+       "lang": "ru"
+      },
+      "type": "number",
+      "minimum": 0.05,
+      "maximum": 100,
+      "description": "С 0.17.0. meta: насколько кадр должен совпасть с запросом, в процентах. Слабые совпадения детектор пропускает. Нет поля — 20",
+      "x-ui-unit": "%"
+     },
+     "metaFrames": {
+      "x-label": {
+       "key": "field.metaFrames",
+       "text": "Совпадение подряд не меньше",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 100,
+      "description": "С 0.17.0. meta: детектор срабатывает, когда столько кадров подряд совпадают с запросом. Нет поля — 15"
+     },
+     "metaFps": {
+      "x-label": {
+       "key": "field.metaFps",
+       "text": "Детектор проверяет, кадров в секунду",
+       "lang": "ru"
+      },
+      "type": "number",
+      "minimum": 0.016,
+      "maximum": 100,
+      "description": "С 0.17.0. meta: сколько кадров в секунду детектор сравнивает с запросом. Нет поля — 1"
+     },
+     "metaSearch": {
+      "x-label": {
+       "key": "field.metaSearch",
+       "text": "Сохранять описания кадров",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.17.0. meta: сервер сохраняет текстовые описания кадров для поиска в архиве, даже по запросу, которого нет в metaQueries. Какие кадры пропускать, задают metaSkipSimilar и metaDiff. Нет поля — false"
+     },
+     "metaSkipSimilar": {
+      "x-label": {
+       "key": "field.metaSkipSimilar",
+       "text": "Пропускать похожие кадры",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.17.0. meta, при metaSearch: сервер не сохраняет описание кадра, если кадр похож на предыдущий (порог — metaDiff). Нет поля — true"
+     },
+     "metaDiff": {
+      "x-label": {
+       "key": "field.metaDiff",
+       "text": "Кадр отличается от предыдущего больше чем на",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100,
+      "x-ui-unit": "%",
+      "description": "С 0.17.0. meta, при metaSearch и metaSkipSimilar: насколько кадр должен отличаться от предыдущего, чтобы сервер сохранил его описание, в процентах. Нет поля — 25"
      }
     }
    }
@@ -10359,6 +10493,7 @@
     "preRecordSec",
     "presetMax",
     "presets",
+    "privacyMasks",
     "ptz",
     "recordDetectorIds",
     "recordMode",
@@ -10482,13 +10617,20 @@
     "confidence",
     "crowdHoldSec",
     "crowdMin",
-    "detectUnattendedObjects",
     "detectorKind",
+    "detectUnattendedObjects",
     "direction",
     "enabled",
     "extraZones",
     "humanSize",
     "labels",
+    "metaDiff",
+    "metaFps",
+    "metaFrames",
+    "metaQueries",
+    "metaSearch",
+    "metaSkipSimilar",
+    "metaThreshold",
     "minDurationSec",
     "minTriggers",
     "objectSize",
@@ -15559,7 +15701,29 @@
       ]
      }
     ],
-    "replicaFrom": null
+    "replicaFrom": null,
+    "privacyMasks": [
+     {
+      "points": [
+       [
+        0.62,
+        0.08
+       ],
+       [
+        0.94,
+        0.08
+       ],
+       [
+        0.94,
+        0.42
+       ],
+       [
+        0.62,
+        0.42
+       ]
+      ]
+     }
+    ]
    },
    "status": {
     "link": "online",
@@ -23058,6 +23222,23 @@
    }
   },
   {
+   "uid": "30000043-0072-4000-8000-000000000003",
+   "kind": "det",
+   "parentId": "30000043-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Лица TV",
+   "version": "1",
+   "properties": {
+    "builtin": false,
+    "detectorKind": "other",
+    "enabled": false,
+    "analyticsKind": "faceTV"
+   },
+   "status": {
+    "link": "online"
+   }
+  },
+  {
    "uid": "30000044-0001-4000-8000-000000000000",
    "kind": "stream",
    "parentId": "30000044-0000-4000-8000-000000000000",
@@ -23090,6 +23271,33 @@
     "codec": "H.264",
     "width": 640,
     "height": 360
+   },
+   "status": {
+    "link": "online"
+   }
+  },
+  {
+   "uid": "30000044-0072-4000-8000-000000000001",
+   "kind": "det",
+   "parentId": "30000044-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Мета-детектор",
+   "version": "1",
+   "properties": {
+    "builtin": false,
+    "detectorKind": "other",
+    "enabled": true,
+    "analyticsKind": "meta",
+    "metaQueries": [
+     "Fallen human",
+     "Human carrying a box near the shelf"
+    ],
+    "metaThreshold": 20,
+    "metaFrames": 15,
+    "metaFps": 1,
+    "metaSearch": true,
+    "metaSkipSimilar": true,
+    "metaDiff": 25
    },
    "status": {
     "link": "online"
@@ -29044,6 +29252,23 @@
     "slot": 2,
     "channelType": "audio",
     "enabled": false
+   }
+  },
+  {
+   "uid": "30000013-0072-4000-8000-000000000002",
+   "kind": "det",
+   "parentId": "30000013-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Лица VA",
+   "version": "1",
+   "properties": {
+    "builtin": false,
+    "detectorKind": "other",
+    "enabled": true,
+    "analyticsKind": "faceVA"
+   },
+   "status": {
+    "link": "online"
    }
   },
   {

@@ -69,7 +69,9 @@ DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", 
   # Контракт 0.13.0: запись и показ маски и треков — в профиле «один домен» их тоже нет
   "recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan",
   # Контракт 0.15.0: свойства детектора по отчёту о пробелах против Axxon One
-  "detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow"]}
+  "detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow",
+  # Контракт 0.17.0: поля мета-детектора (без analyticsKind им не к чему относиться)
+  "metaQueries", "metaThreshold", "metaFrames", "metaFps", "metaSearch", "metaSkipSimilar", "metaDiff"]}
 # Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)

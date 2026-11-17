@@ -2687,6 +2687,41 @@
       "description": "configMode: template. Копируются разрешение и частота кадров потоков, сами потоки, firmware. Адрес, логин, пароль, имя, записи, папки, детекторы, norm — нет. Другая модель или нет камеры — 422 VALIDATION_FAILED, field: templateId",
       "x-immutable": true,
       "x-transient": true
+     },
+     "privacyMasks": {
+      "x-label": {
+       "key": "field.privacyMasks",
+       "text": "Маска приватности",
+       "lang": "ru"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "points"
+       ],
+       "properties": {
+        "points": {
+         "type": "array",
+         "minItems": 3,
+         "maxItems": 64,
+         "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1
+          }
+         },
+         "description": "Вершины многоугольника: [x, y] в долях кадра, 0 — левый или верхний край, 1 — правый или нижний"
+        }
+       }
+      },
+      "description": "С 0.17.0. Области маски приватности на кадре камеры: до 16 многоугольников, у каждого от 3 до 64 вершин. Маска закрывает области в живом видео и в архиве для тех, у кого нет права ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE (reference.access.features). Это право снимает маску и в живом видео, и в архиве. Сервер хранит архив без маски: маску накладывают при показе. Маска привязана к кадру, а не к положению PTZ. Нет поля или пустой список — маски нет"
      }
     }
    },
@@ -3456,7 +3491,6 @@
       "text": "Оставленный предмет",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -3468,7 +3502,6 @@
       "text": "Исчезновение предмета",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -3480,7 +3513,6 @@
       "text": "Скопление людей",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
      }
@@ -6082,6 +6114,7 @@
     "preRecordSec",
     "presetMax",
     "presets",
+    "privacyMasks",
     "ptz",
     "recordDetectorIds",
     "recordMode",
@@ -9545,6 +9578,28 @@
       "sensitivityMax": 90,
       "conflicts": [
        "tmpl.tamper"
+      ]
+     }
+    ],
+    "privacyMasks": [
+     {
+      "points": [
+       [
+        0.62,
+        0.08
+       ],
+       [
+        0.94,
+        0.08
+       ],
+       [
+        0.94,
+        0.42
+       ],
+       [
+        0.62,
+        0.42
+       ]
       ]
      }
     ]

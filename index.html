@@ -3370,7 +3370,6 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 .pm-who{display:block;margin:0 0 10px}
 .pm-who ul{margin:0;padding-left:18px}
 .pm-who li{margin:3px 0}
-.pm-stub{display:flex;gap:6px;align-items:flex-start;margin:0 0 10px;font-size:12px}
 .pm-acts{display:flex;gap:8px;flex-wrap:wrap}
 @media (prefers-reduced-motion:reduce){.pm-row{transition:none}}
 .dw-tx{font:600 3.2px Inter,sans-serif;fill:#fff;paint-order:stroke;stroke:rgba(0,0,0,.7);stroke-width:.7px;pointer-events:none}
@@ -4274,29 +4273,6 @@ function apiUnauthorized(){
   if(login)location.assign(new URL(login,location.href).href);
   else setTimeout(()=>toast(i18n("Сессия истекла — войдите снова")),0);
 }
-// ── Мета-детектор и детекторы лиц: заглушка данных ──
-// ЗАГЛУШКА (запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md): в контракте 0.13.0 нет вида аналитики meta, faceTV, faceVA и полей мета-детектора. Страница дописывает их
-// в схему вида det встроенного набора и кладёт три детектора, чтобы окно и мастер работали через встроенный сервер.
-// Убрать, когда контракт получит эти поля
-(()=>{
-  const all=window.CONSOLEM_FIXTURES;if(!all)return;
-  const lab=(key,text)=>({key,text,lang:"ru"});
-  Object.values(all).forEach(fx=>{
-    const k=(fx.kinds||[]).find(x=>x.kind==="det");if(!k||!k.schema?.properties?.analyticsKind)return;
-    const P=k.schema.properties,ak=P.analyticsKind;
-    ak.enum=[...new Set([...ak.enum,"meta","faceTV","faceVA"])];
-    ak["x-enum-labels"]=Object.assign(ak["x-enum-labels"]||{},{meta:lab("enum.analyticsKind.meta","Мета-детектор"),faceTV:lab("enum.analyticsKind.faceTV","Лица TV"),faceVA:lab("enum.analyticsKind.faceVA","Лица VA")});
-    Object.assign(P,{metaQueries:{type:"array",maxItems:3,items:{type:"string",maxLength:200}},metaThreshold:{type:"number",minimum:0.05,maximum:100},
-      metaFrames:{type:"integer",minimum:10,maximum:100},metaFps:{type:"number",minimum:0.016,maximum:100},
-      metaSearch:{type:"boolean"},metaSkipSimilar:{type:"boolean"},metaDiff:{type:"integer",minimum:0,maximum:100}});
-    if(fx!==all.demo)return;
-    const cam=uid=>(fx.units||[]).find(u=>u.uid===uid);
-    const mk=(uid,parentId,name,props)=>{const c=cam(parentId);if(!c||cam(uid))return;fx.units.push({uid,kind:"det",parentId,domainId:c.domainId,name,version:"1",properties:Object.assign({builtin:false,detectorKind:"other",enabled:true},props),status:{link:"online"}})};
-    mk("30000044-0072-4000-8000-000000000001","30000044-0000-4000-8000-000000000000","Мета-детектор",{analyticsKind:"meta",metaQueries:["Fallen human","Human carrying a box near the shelf"],metaThreshold:20,metaFrames:15,metaFps:1,metaSearch:true,metaSkipSimilar:true,metaDiff:25});
-    mk("30000013-0072-4000-8000-000000000002","30000013-0000-4000-8000-000000000000","Лица VA",{analyticsKind:"faceVA"});
-    mk("30000043-0072-4000-8000-000000000003","30000043-0000-4000-8000-000000000000","Лица TV",{analyticsKind:"faceTV",enabled:false});
-  });
-})();
 const API=(()=>{
   const q=new URLSearchParams(location.search),latency=+q.get("latency")||0;
   // Учебный режим (раздел «Обучение») — всегда на встроенном сервере: настоящая система в нём не участвует.
@@ -4563,12 +4539,13 @@ const GB=1024**3,TB=1024**4;
 function bytesText(b){return b%TB===0?`${b/TB} ТБ`:`${Math.round(b/GB)} ГБ`}
 const DET_KIND_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",other:"Другой"};
 const DET_KIND_CODE=Object.fromEntries(Object.entries(DET_KIND_RU).map(([k,v])=>[v,k]));
-// ЗАГЛУШКА (запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md, пп. 4–6): серверные виды аналитики вне detectorKind и семейства, которые нельзя сочетать.
-// В Axxon One в системе стоит только один пакет распознавания лиц, поэтому лица TV и лица VA не работают вместе
-const DET_AK={meta:"Мета-детектор",faceTV:"Лица TV",faceVA:"Лица VA"};
+// Серверные виды аналитики вне detectorKind (analyticsKind вида det, с 0.17.0): мета-детектор и детекторы лиц.
+// ЗАГЛУШКА (запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md, пп. 5–6): семейства, которые нельзя сочетать.
+// Пакеты распознавания лиц TV, VA и VL не работают вместе. Пока сервер не отказывает (409 BUSY, reason: incompatible), таблица — здесь
+const DET_AK={meta:"Мета-детектор",faceTV:"Лица TV",faceVA:"Лица VA",faceVL:"Лица VL"};
 // Вид аналитики есть в мастере, только если схема вида det на сервере знает это значение analyticsKind
 function detAkOn(ak){return !!DET_AK[ak]&&(kindProps("det").analyticsKind?.enum||[]).includes(ak)}
-const DET_AK_CLASH={faceTV:["faceVA"],faceVA:["faceTV"]};
+const DET_AK_CLASH={faceTV:["faceVA","faceVL"],faceVA:["faceTV","faceVL"],faceVL:["faceTV","faceVA"]};
 // Детекторы другого семейства в системе: включённые, кроме самого детектора
 function detAkClash(ak,selfId,withOff){
   const bad=DET_AK_CLASH[ak];if(!bad)return[];
@@ -16799,6 +16776,7 @@ function dwDiffRows(d){
   if(c.hold!==s.hold)row(["hold"],"Группа стоит дольше",`${s.hold} ${i18n("с")}`,`${c.hold} ${i18n("с")}`);
   if(c.stay!==s.stay)row(["stay"],"Предмет лежит дольше",`${s.stay} ${i18n("с")}`,`${c.stay} ${i18n("с")}`);
   nnDiffRows(d,dwKindOf(d),row);
+  if(dwKindOf(d)==="meta")metaDiffRows(d,row);
   if(c.arc&&s.arc)DW_ARC_F.forEach(([f,l])=>{if(dwArcHas(d,f)&&c.arc[f]!==s.arc[f])row(["arc"],l,i18n(s.arc[f]?"вкл":"выкл"),i18n(c.arc[f]?"вкл":"выкл"))});
   if(ne(c.subs,s.subs)){
     const was=new Map(s.subs.map(x=>[x.id,x]));
@@ -16843,6 +16821,7 @@ function dwSteps(n,cr){
   // Свойства детектора: что отличается от сохранённых. Зоны уходят вместе: zone — первая зона, extraZones — остальные
   const np=dwDetProps(c,k),pp=dwPropsPatch(np,dwDetProps(s,k));
   if("zone" in pp||"extraZones" in pp){pp.zone=np.zone;if("extraZones" in np)pp.extraZones=np.extraZones}
+  if(k==="meta")Object.assign(pp,metaPatch(n));
   const items=[],names=[],made=[];
   // Поля карточки (имя, «Включён», метки, вид…) идут тем же шагом patch
   const ci=cr.length?cardApiItems(n,cr):[];
@@ -16901,20 +16880,51 @@ function dwApply(id){
   // «Отменить» удаления поддетектора из черновика после «Применить» уже не к месту: откат — «Отменить» операции
   removeToastAction("dwsub");
   const targets=[...new Set([id,...st.items.map(opTarget)])].filter(x=>hwVer.has(x));
-  apiQueue([{label:`«${locName(n)}»: ${rows.length} ${plural(rows.length,"изменение|изменения|изменений")}`,ops}],`«${locName(n)}»`,{undo:true,afterOk:()=>{dw.ap[id]={T:T0,prev};nn.saved[id]=nnSnap}},
+  apiQueue([{label:`«${locName(n)}»: ${rows.length} ${plural(rows.length,"изменение|изменения|изменений")}`,ops}],`«${locName(n)}»`,{undo:true,afterOk:()=>{dw.ap[id]={T:T0,prev};nn.saved[id]=nnSnap;metaDrop(id)}},
     ()=>API.post("/operations",{idempotencyKey:opKey(),items:st.items,expectedVersions:Object.fromEntries(targets.map(x=>[x,hwVer.get(x)]))}),ops);
   if(bq&&bq!==q0)dw.sent[id]={q:bq,draft,base:prev,made:st.made};
   gear();
 }
 // ── Мета-детектор (C28) ──
-// ЗАГЛУШКА (запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md, пп. 1–3): значения живут в памяти страницы (META_DRAFT) поверх полей объекта; «Применить» их не отправляет
+// Поля meta… вида det (с 0.17.0). Правка идёт в черновик META_DRAFT; «Применить» окна детектора отправляет её
+// тем же шагом patch, что и остальные настройки детектора (dwDiffRows, dwSteps). Нет поля — умолчание META_DEF
 const META_DRAFT={};
 const META_DEF={metaQueries:["","",""],metaThreshold:20,metaFrames:15,metaFps:1,metaSearch:false,metaSkipSimilar:true,metaDiff:25};
-function metaOf(d){
-  if(!META_DRAFT[d.id]){const m={};Object.keys(META_DEF).forEach(k=>m[k]=d[k]!==undefined?JSON.parse(JSON.stringify(d[k])):JSON.parse(JSON.stringify(META_DEF[k])));while(m.metaQueries.length<3)m.metaQueries.push("");META_DRAFT[d.id]=m}
-  return META_DRAFT[d.id];
+// Сохранённые значения: поля узла (devNode копирует свойства объекта), три строки запроса
+function metaSaved(d){const m={};Object.keys(META_DEF).forEach(k=>m[k]=JSON.parse(JSON.stringify(d[k]!==undefined&&d[k]!==null?d[k]:META_DEF[k])));m.metaQueries=m.metaQueries.slice(0,3);while(m.metaQueries.length<3)m.metaQueries.push("");return m}
+// META_BASE — сохранённые значения, от которых начат черновик. Чужая правка поля, которое здесь не трогали, приходит
+// в черновик (как dwRebase у других детекторов): иначе «Применить» вернуло бы прежнее значение
+const META_BASE={};
+function metaRebase(d){
+  const m=META_DRAFT[d.id],b=META_BASE[d.id],s=metaSaved(d);if(!m)return;
+  Object.keys(META_DEF).forEach(k=>{if(b&&JSON.stringify(m[k])===JSON.stringify(b[k]))m[k]=JSON.parse(JSON.stringify(s[k]))});
+  META_BASE[d.id]=s;
 }
-function metaQ(id,i,v){const m=metaOf(detNodeOf(id));m.metaQueries[+i]=v;metaQPaint(id)}
+function metaDrop(id){delete META_DRAFT[id];delete META_BASE[id]}
+function metaOf(d){if(!META_DRAFT[d.id])return metaSaved(d);metaRebase(d);return META_DRAFT[d.id]}
+function metaEdit(d){if(!META_DRAFT[d.id]){META_DRAFT[d.id]=metaSaved(d);META_BASE[d.id]=metaSaved(d)}else metaRebase(d);return META_DRAFT[d.id]}
+// Запросы на сервер — без пустых строк
+const metaQs=m=>m.metaQueries.map(x=>x.trim()).filter(Boolean);
+// Что отличается от сохранённого: {поле: значение для patch}
+function metaPatch(d){
+  if(!META_DRAFT[d.id])return{};
+  metaRebase(d);
+  const c=META_DRAFT[d.id],s=metaSaved(d),out={};
+  Object.keys(META_DEF).forEach(k=>{
+    if(k==="metaQueries"){const a=metaQs(c);if(JSON.stringify(a)!==JSON.stringify(metaQs(s)))out[k]=a;return}
+    if(c[k]!==s[k])out[k]=c[k];
+  });
+  return out;
+}
+// Подписи — как в окне (metaPanelHtml)
+const META_LBL={metaQueries:"Что искать",metaThreshold:"Совпадение с запросом не ниже",metaFrames:"Совпадение подряд не меньше",metaFps:"Детектор проверяет",metaSearch:"Сохранять описания кадров",metaSkipSimilar:"Пропускать похожие кадры",metaDiff:"Кадр отличается от предыдущего больше чем на"};
+const META_UNIT={metaFrames:"кадров",metaFps:"кадров в секунду"};
+function metaVal(k,v){return k==="metaQueries"?(v.length?v.map(x=>`«${x}»`).join(", "):"—"):typeof v==="boolean"?i18n(v?"вкл":"выкл"):k==="metaThreshold"||k==="metaDiff"?`${v}%`:META_UNIT[k]?`${v} ${i18n(META_UNIT[k])}`:String(v)}
+function metaDiffRows(d,row){
+  const p=metaPatch(d),s=metaSaved(d);
+  Object.keys(p).forEach(k=>row(["meta"],META_LBL[k],metaVal(k,k==="metaQueries"?metaQs(s):s[k]),metaVal(k,p[k])));
+}
+function metaQ(id,i,v){const m=metaEdit(detNodeOf(id));m.metaQueries[+i]=v;metaQPaint(id);cardFootRefresh()}
 // Ввод не перерисовывает окно: фокус остаётся в поле, меняются только счётчик и предупреждения
 function metaQPaint(id){
   const m=metaOf(detNodeOf(id)),box=document.querySelector("[data-meta-q]");if(!box)return;
@@ -16925,8 +16935,8 @@ function metaQPaint(id){
 // Границы полей — как в Axxon One (документ lexiro 292352). Значение вне границ не принимается; при уходе из поля
 // консоль ставит ближайшую границу
 const META_LIM={metaThreshold:[0.05,100],metaFrames:[10,100],metaFps:[0.016,100],metaDiff:[0,100]};
-function metaFix(id,key,el){const m=metaOf(detNodeOf(id)),[a,b]=META_LIM[key];let v=+el.value;if(!Number.isFinite(v)||el.value==="")v=m[key];v=Math.min(b,Math.max(a,v));if(key==="metaFrames")v=Math.round(v);m[key]=v;el.value=v}
-function metaSet(id,key,v){const m=metaOf(detNodeOf(id));if(typeof META_DEF[key]==="boolean")m[key]=!m[key];else{v=+v;const L=META_LIM[key];if(Number.isFinite(v)&&(!L||v>=L[0]&&v<=L[1]))m[key]=key==="metaThreshold"?Math.round(v*100)/100:v}if(typeof META_DEF[key]==="boolean")gear();else{const o=document.querySelector(`[data-meta-out="${key}"]`);if(o)o.textContent=m[key]+(key==="metaThreshold"||key==="metaDiff"?"%":"")}}
+function metaFix(id,key,el){const m=metaEdit(detNodeOf(id)),[a,b]=META_LIM[key];let v=+el.value;if(!Number.isFinite(v)||el.value==="")v=m[key];v=Math.min(b,Math.max(a,v));if(key==="metaFrames")v=Math.round(v);m[key]=v;el.value=v;cardFootRefresh()}
+function metaSet(id,key,v){const m=metaEdit(detNodeOf(id));if(typeof META_DEF[key]==="boolean")m[key]=!m[key];else{v=+v;const L=META_LIM[key];if(Number.isFinite(v)&&(!L||v>=L[0]&&v<=L[1]))m[key]=key==="metaThreshold"?Math.round(v*100)/100:v}if(typeof META_DEF[key]==="boolean")gear();else{const o=document.querySelector(`[data-meta-out="${key}"]`);if(o)o.textContent=m[key]+(key==="metaThreshold"||key==="metaDiff"?"%":"");cardFootRefresh()}}
 function metaSw(id,m,key,label,help,dis){
   const on=!!m[key];
   return`<div class="dw-f dw-arc-f${dis?" dis":""}"><label class="dw-swl"><span class="sw ${on?"on":""}${dis?" dis":""}" role="switch" aria-checked="${on}" aria-label="${i18n(label)}" ${dis?`aria-disabled="true"`:onEv("click",["metaSet",id,key,""])}></span>${i18n(label)}</label>${help?dwHelp(help):""}</div>`;
@@ -16956,7 +16966,7 @@ function metaPanelHtml(d){
     +metaNum(id,m,"metaFps","Детектор проверяет",0.016,100,"any","кадров в секунду","Чем больше кадров, тем больше нагрузка на сервер."));
   const off=!m.metaSearch;
   const search=dwSec("Поиск по описаниям кадров",
-    metaSw(id,m,"metaSearch","Сохранять описания кадров","Сервер сохранит текстовое описание кадра, если кадр отличается от предыдущего. Потом в архиве можно найти кадр по тексту, даже по запросу, которого здесь нет.")
+    metaSw(id,m,"metaSearch","Сохранять описания кадров","Сервер сохранит текстовые описания кадров. Потом в архиве можно найти кадр по тексту, даже по запросу, которого здесь нет. Какие кадры пропускать, задают настройки ниже.")
     +`<div class="mq-sub${off?" off":""}">`+metaSw(id,m,"metaSkipSimilar","Пропускать похожие кадры","Сервер не сохранит описание кадра, если кадр похож на предыдущий.",off)
     +(off||!m.metaSkipSimilar?"":metaRange(id,m,"metaDiff","Кадр отличается от предыдущего больше чем на",0,100,1,"%","Чем больше значение, тем меньше описаний сохранит сервер."))+`</div>`);
   return what+when+search;
@@ -17163,7 +17173,7 @@ function dwLand(){
   // Поддетектор по ссылке может прийти раньше своих свойств (dwSubsEnsure): вспышка ждёт, пока строка появится
   if(dw.subFlash&&dw.subSel){const el=r.querySelector(`[data-dw-sub="${CSS.escape(dw.subSel)}"]`);if(el||dwLoaded.has(sel))dw.subFlash=false;if(el){el.scrollIntoView({block:"nearest"});el.classList.remove("acc-flash");void el.offsetWidth;el.classList.add("acc-flash")}}
 }
-function dwRevert(id){if(dw.sent[id])return;nnRevert(id);const d=detNodeOf(id);dw.cfg[id]=dwClone(dwSaved(d));if(dwCardRows(d).length)cardRestore();gear();toast("Консоль сбросила изменения")}
+function dwRevert(id){if(dw.sent[id])return;nnRevert(id);metaDrop(id);const d=detNodeOf(id);dw.cfg[id]=dwClone(dwSaved(d));if(dwCardRows(d).length)cardRestore();gear();toast("Консоль сбросила изменения")}
 // Рисование и правка на кадре: инструмент — протяжкой; без инструмента — точки и фигуры тянутся мышью
 function dwXY(st,e){const r=st.getBoundingClientRect();if(!r.width||!r.height)return null;return[+Math.min(1,Math.max(0,(e.clientX-r.left)/r.width)).toFixed(4),+Math.min(1,Math.max(0,(e.clientY-r.top)/r.height)).toFixed(4)]}
 function dwDown(st,e){
@@ -18132,7 +18142,7 @@ function renderDetCreate(){
   const secWhat=()=>{
     // Виды аналитики (C28, C29). Семейство, которое мешает работающему в системе или выбранному здесь, недоступно
     const akOff=ak=>{const cl=detAkClash(ak);if(cl.length)return detAkClashText(ak,cl);const hit=Object.keys(DET_AK_CLASH).find(x=>x!==ak&&dc.items.has("a:"+x)&&(DET_AK_CLASH[ak]||[]).includes(x));return hit?`${i18n("Нельзя вместе с")} «${i18n(DET_AK[hit])}»`:""};
-    const akSmall={meta:"Ищет сцену по текстовому описанию",faceTV:"Пакет распознавания лиц TV",faceVA:"Пакет распознавания лиц VA"};
+    const akSmall={meta:"Ищет сцену по текстовому описанию",faceTV:"Пакет распознавания лиц TV",faceVA:"Пакет распознавания лиц VA",faceVL:"Пакет распознавания лиц VL"};
     const srvItems=[...DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",lockWhy("s:"+k))),...(DET_TYPES.length?Object.keys(DET_AK).filter(detAkOn):[]).map(ak=>{const off=akOff(ak)||lockWhy("a:"+ak);return dcItemRow("a:"+ak,i18n(DET_AK[ak]),akOff(ak)||i18n(akSmall[ak]),"","",off)})];
     const noSrv=`<p class="sub">${i18n("Сервер не сообщил виды детекторов.")}</p>`;
     const camItems=tpl.map(t=>{const m=[...t.models];return dcItemRow(t.key,t.o.name,lock?"":`${t.cams} ${i18n(plural(t.cams,"камера умеет|камеры умеют|камер умеют"))}${m.length?" · "+m.slice(0,2).join(", ")+(m.length>2?` +${m.length-2}`:""):""}`,"","",clash(t.key)||lockWhy(t.key))});
@@ -20902,20 +20912,25 @@ function ttLicHtml(n){
   const used=[...ttState].filter(([id,s])=>find(id)&&s.mode!=="off"&&ttReady(s).length).length,total=k.f.tnt[1];
   return`<p class="sub tt-lic">${lu("lock",13)}${i18n("Лицензии Tag-n-Track")}: ${i18n("занято")} ${used} ${i18n("из")} ${total}</p>`;
 }
-// ── Маска приватности камеры: области на кадре (ЗАГЛУШКА: в контракте 0.13.0 маски приватности камеры нет) ──
-// ЗАГЛУШКА: в контракте 0.13.0 у камеры нет маски приватности (поле mask есть только у детектора). Сохранённые
-// области живут в памяти страницы (pmSaved) до перезагрузки. Области — в долях кадра, как зоны детектора.
-// Правка идёт в черновик камеры pmDrafts (свой у каждой камеры: переход на другую камеру его не теряет); pm — только
-// инструмент, выбор и рисование на кадре одной камеры. «Сохранить маску» переносит черновик в pmSaved, «Отменить правки» его сбрасывает
-const PM_PMAX=64,PM_C="#fbbf24";
-const pmSaved=new Map(),pmShots=new Map(),pmDrafts=new Map();
+// ── Маска приватности камеры: области на кадре ──
+// Сохранённые области — свойство камеры privacyMasks (с 0.17.0): [{points:[[x,y],…]}], в долях кадра, как зоны детектора.
+// Пределы (число областей и точек) — из схемы вида camera. Правка идёт в черновик камеры pmDrafts (свой у каждой камеры:
+// переход на другую камеру его не теряет); pm — только инструмент, выбор и рисование на кадре одной камеры.
+// «Сохранить маску» отправляет черновик на сервер (PATCH /units/{uid}), «Отменить правки» его сбрасывает
+const PM_C="#fbbf24";
+const pmShots=new Map(),pmDrafts=new Map(),pmSending=new Set();
+function pmSchema(){return kindProps("camera").privacyMasks||null}
+function pmMaxPts(){return pmSchema()?.items?.properties?.points?.maxItems||64}
+function pmMaxAreas(){return pmSchema()?.maxItems||16}
+// Области с сервера: номер и id — по порядку в списке, поэтому черновик сравнивается с сохранённым по JSON
+function pmSavedOf(n){return(unitProps.get(n.id)?.privacyMasks||[]).map((m,i)=>({id:"s"+i,n:i+1,pts:(m.points||[]).map(p=>p.slice())}))}
 let pm={id:null,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};
 function pmNode(id){return find(id)?.n||null}
 function pmCur(n){return pm.id===n.id?pm:{tool:null,poly:null,rect:null,sel:null,view:false}}
-function pmAreas(n){return pmDrafts.get(n.id)||pmSaved.get(n.id)||[]}
-function pmDirty(n){return pmDrafts.has(n.id)&&JSON.stringify(pmDrafts.get(n.id))!==JSON.stringify(pmSaved.get(n.id)||[])}
+function pmAreas(n){return pmDrafts.get(n.id)||pmSavedOf(n)}
+function pmDirty(n){return pmDrafts.has(n.id)&&JSON.stringify(pmDrafts.get(n.id).map(a=>a.pts))!==JSON.stringify(pmSavedOf(n).map(a=>a.pts))}
 function pmFocus(n){if(pm.id!==n.id)pm={id:n.id,tool:null,poly:null,rect:null,sel:null,pt:null,view:false};return pm}
-function pmEdit(n){pmFocus(n);if(!pmDrafts.has(n.id))pmDrafts.set(n.id,JSON.parse(JSON.stringify(pmSaved.get(n.id)||[])));return pmDrafts.get(n.id)}
+function pmEdit(n){pmFocus(n);if(!pmDrafts.has(n.id))pmDrafts.set(n.id,pmSavedOf(n));return pmDrafts.get(n.id)}
 // Вид маски задаёт опция домена sec.mask: мозаика или чёрная заливка
 function pmDomain(n){return domains.find(x=>x.id===nodeDomainId(n))||null}
 function pmLook(n){
@@ -20950,9 +20965,10 @@ function pmBodyHtml(n){
       <li>${i18n("Маску видят пользователи, у роли которых нет права «Просмотр видео без масок приватности».")}</li>
       <li>${i18n("Вид маски задаёт опция домена")}${d?` «${escHtml(locName(d))}»`:""}: <b>${pmLookText(n)}</b>. <button type="button" class="lk" ${onEv("click",["pmOptGo"])}>${i18n("Открыть опцию «Маска приватности»")}</button></li>
     </ul></div>`;
-  const stub=`<p class="sub pm-stub">${lu("triangle-alert")} ${i18n("Заглушка: в контракте 0.13.0 у камеры нет маски приватности. Консоль хранит области в памяти страницы до перезагрузки.")}</p>`;
-  const acts=`<div class="pm-acts"><button type="button" class="btn pri" ${dirty?"":"disabled"} ${onEv("click",["pmSave",n.id])}>${i18n("Сохранить маску")}</button><button type="button" class="btn" ${dirty?"":"disabled"} ${onEv("click",["pmCancel",n.id])}>${i18n("Отменить правки")}</button></div>`;
-  return`<div class="pm-grid"><div class="pm-left">${tools}${stage}${under}</div><div class="pm-right">${list}${who}${stub}${acts}</div></div>`;
+  // Сервер без свойства privacyMasks маску не хранит: сохранить нечего. Пока запрос идёт, второй не уходит
+  const can=!!pmSchema(),busy=pmSending.has(n.id);
+  const acts=`${can?"":`<p class="sub pm-none">${i18n("Сервер не хранит маску приватности камеры. Сохранить маску нельзя.")}</p>`}<div class="pm-acts"><button type="button" class="btn pri" ${dirty&&can&&!busy?"":"disabled"} ${onEv("click",["pmSave",n.id])}>${i18n("Сохранить маску")}</button><button type="button" class="btn" ${dirty?"":"disabled"} ${onEv("click",["pmCancel",n.id])}>${i18n("Отменить правки")}</button></div>`;
+  return`<div class="pm-grid"><div class="pm-left">${tools}${stage}${under}</div><div class="pm-right">${list}${who}${acts}</div></div>`;
 }
 function pmHint(n){
   const c=pmCur(n);
@@ -20978,7 +20994,7 @@ function pmGeoSvg(n){
     const top=a.pts.reduce((m,p)=>p[1]<m[1]||(p[1]===m[1]&&p[0]<m[0])?p:m,a.pts[0]);
     h+=`<text class="dw-tx" x="${(top[0]*DW_X+1.5).toFixed(1)}" y="${(top[1]*DW_Y+4).toFixed(1)}">${escHtml(pmName(a))}</text>`;
     if(c.tool)return;
-    if(on&&a.pts.length<PM_PMAX)a.pts.forEach((p,i)=>{const q=a.pts[(i+1)%a.pts.length],x=(p[0]+q[0])/2*DW_X,y=(p[1]+q[1])/2*DW_Y;
+    if(on&&a.pts.length<pmMaxPts())a.pts.forEach((p,i)=>{const q=a.pts[(i+1)%a.pts.length],x=(p[0]+q[0])/2*DW_X,y=(p[1]+q[1])/2*DW_Y;
       h+=`<g class="dw-mid" data-m="${a.id}:${i}" style="--c:${PM_C}"><title>${i18n("Добавить точку: щёлкнуть или тянуть")}</title><circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="1.3"/><path d="M${(x-.75).toFixed(2)} ${y.toFixed(2)}h1.5M${x.toFixed(2)} ${(y-.75).toFixed(2)}v1.5"/></g>`});
     if(on)a.pts.forEach((p,i)=>h+=`<circle class="dw-hd${c.pt&&c.pt.a===a.id&&c.pt.i===i?" on":""}" data-h="${a.id}:${i}" cx="${(p[0]*DW_X).toFixed(1)}" cy="${(p[1]*DW_Y).toFixed(1)}" r="1.7" style="--c:${PM_C}"><title>${i18n("Точка")} ${i+1}. ${i18n("Правый щелчок убирает точку.")}</title></circle>`);
   });
@@ -21016,11 +21032,22 @@ function pmView(id){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=!pm.view;
 function pmSel(id,aid){const n=pmNode(id);if(!n)return;pmFocus(n);pm.view=false;pm.tool=null;pm.poly=null;pm.rect=null;pm.pt=null;pm.sel=pm.sel===aid?null:aid;pmRepaint(n);pmStageEl()?.focus({preventScroll:true})}
 function pmDel(id,aid){const n=pmNode(id);if(!n)return;const a=pmEdit(n),i=a.findIndex(x=>x.id===aid);if(i<0)return;a.splice(i,1);if(pm.sel===aid)pm.sel=null;if(pm.pt?.a===aid)pm.pt=null;pmRepaint(n)}
 function pmClear(id){const n=pmNode(id);if(!n)return;pmEdit(n).length=0;pm.sel=null;pm.pt=null;pmRepaint(n)}
-function pmSave(id){const n=pmNode(id);if(!n||!pmDirty(n))return;const d=pmDrafts.get(n.id),k=d.length;pmSaved.set(n.id,JSON.parse(JSON.stringify(d)));pmDrafts.delete(n.id);pmFocus(n);pm.sel=null;pm.pt=null;pmRepaint(n);
-  toast(k?`${i18n("Консоль сохранила маску приватности")}: ${k} ${i18n(plural(k,"область|области|областей"))}`:i18n("Консоль сняла маску приватности"))}
+// Ответ приходит позже: черновик снимается, только если после «Сохранить маску» его не правили; перерисовка — только
+// если на экране всё ещё эта камера
+function pmSave(id){const n=pmNode(id);if(!n||!pmDirty(n)||!pmSchema()||pmSending.has(id))return;
+  const d=pmDrafts.get(n.id),k=d.length,sent=JSON.stringify(d.map(a=>a.pts));
+  const here=()=>{const m=pmNode(id);if(m&&sel===id&&pm.id===id){pm.sel=null;pm.pt=null;pmRepaint(m)}};
+  pmSending.add(id);here();
+  API.patch(`/units/${n.id}`,{properties:{privacyMasks:d.map(a=>({points:a.pts.map(p=>p.slice())}))}},hwVer.get(n.id)).then(u=>{
+    pmSending.delete(id);hwApplyUnit(u);
+    const cur=pmDrafts.get(id);if(cur&&JSON.stringify(cur.map(a=>a.pts))===sent)pmDrafts.delete(id);
+    here();
+    toast(k?`${i18n("Консоль сохранила маску приватности")}: ${k} ${i18n(plural(k,"область|области|областей"))}`:i18n("Консоль сняла маску приватности"));
+  }).catch(e=>{pmSending.delete(id);if(problemKept(e))keptNote(id);here();toast(`${i18n("Консоль не сохранила маску приватности")}. ${problemText(e,n)}`)})}
 function pmCancel(id){const n=pmNode(id);if(!n)return;pmFocus(n);pmDrafts.delete(n.id);pm.sel=null;pm.pt=null;pm.poly=null;pm.rect=null;pmRepaint(n)}
 function pmShot(id){const n=pmNode(id);if(!n)return;pmShots.set(n.id,Date.now());pmRepaint(n)}
 function pmAdd(n,pts){
+  if(pmEdit(n).length>=pmMaxAreas()){pm.poly=null;pm.rect=null;pm.tool=null;pmRepaint(n);toast(`${i18n("В маске не больше")} ${pmMaxAreas()} ${i18n(plural(pmMaxAreas(),"область|области|областей"))}`);return}
   const a=pmEdit(n),k=a.reduce((m,x)=>Math.max(m,x.n),0)+1,z={id:"m"+(Date.now()%1e7)+"_"+k,n:k,pts:pts.map(p=>p.slice())};
   a.push(z);pm.sel=z.id;pm.tool=null;pm.poly=null;pm.rect=null;pmRepaint(n);
 }
@@ -21030,7 +21057,7 @@ function pmPolyClick(n,p){
   const P=pm.poly.pts;
   if(P.length>=3&&!pmFar(p,P[0],3)){pmPolyClose(n);return}
   if(!pmFar(p,P[P.length-1],1))return;   // второй щелчок двойного щелчка
-  if(P.length>=PM_PMAX){toast(`${i18n("В области не больше")} ${PM_PMAX} ${i18n("точек")}`);return}
+  if(P.length>=pmMaxPts()){toast(`${i18n("В области не больше")} ${pmMaxPts()} ${i18n("точек")}`);return}
   P.push(p);pmPaintGeo(n);
 }
 function pmPolyClose(n){if(!pm.poly)return;if(pm.poly.pts.length<3){toast(i18n("В области должно быть не меньше 3 точек"));return}pmAdd(n,pm.poly.pts)}
@@ -23137,8 +23164,8 @@ function ruleActAdd(){return actDeclared(ACT_ADD)?ACT_ADD:ACTION_KINDS.find(actD
 // (ruleOnly — команда только для правил: здесь она и предлагается). Известному коду — ручной пункт (подписи и поля, как
 // были), его виды и devTypes — кто объявил код. Незнакомому — пункт из описания: подпись label, уточнения — params события,
 // поля команды — форма по ActionDescriptor.params (ruleParamsHtml). Строится заново с описаниями видов (kinds.changed).
-// Флаги события (EventDescriptor, нет поля — true): rule:false — не триггер правила (у камеры abandoned, disappeared,
-// crowd), alarm:false — не в «Что считать тревогой» (other, segment.lost). Порядок — как отдаёт сервер
+// Флаги события (EventDescriptor, нет поля — true): rule:false — не триггер правила (с 0.17.0 у abandoned, disappeared,
+// crowd камеры его нет), alarm:false — не в «Что считать тревогой» (other, segment.lost). Порядок — как отдаёт сервер
 function ruleCatFromKinds(){
   const evs=new Map(),acts=new Map(),alarms=new Set();
   KINDS.forEach((k,kind)=>{

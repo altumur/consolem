@@ -21,13 +21,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/нет в этой системе/.test(ruleOutOfCat({ start: "event", when: [], cond: [], then: [] })), "способ запуска вне каталога — видно");
   Object.assign(RULE_REF, wasRef);
 
-  // Флаги событий (EventDescriptor.rule, alarm; нет поля — true): триггеры правил — без rule:false (abandoned, disappeared,
-  // crowd у камеры), «Что считать тревогой» — без alarm:false (other, segment.lost). Порядок — как в GET /kinds
+  // Флаги событий (EventDescriptor.rule, alarm; нет поля — true): триггеры правил — без rule:false (с 0.17.0 у событий
+  // камеры его нет: abandoned, disappeared, crowd — триггеры), «Что считать тревогой» — без alarm:false (other, segment.lost). Порядок — как в GET /kinds
   {
     const evs = (await API.get("/kinds")).items.flatMap((k) => k.events || []);
     const uniq = (l) => [...new Set(l)];
     const noRule = uniq(evs.filter((e) => e.rule === false).map((e) => e.id)), noAlarm = uniq(evs.filter((e) => e.alarm === false).map((e) => e.id));
-    ok(["abandoned", "disappeared", "crowd"].every((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
+    ok(!["abandoned", "disappeared", "crowd"].some((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
     const alarmWant = uniq(evs.filter((e) => e.alarm !== false).map((e) => e.id));
     ok(JSON.stringify(refEvents) === JSON.stringify(alarmWant), "тревожные виды — без alarm:false, порядок сервера: " + refEvents.join());
     const baseEv = ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "io.input", "text", "unit"];
@@ -42,7 +42,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ruleEdit((x) => { delete x._auto; x.name = "Флаги событий"; x.start = "event"; const k0 = ruleTrigAdd(); x.when = [{ sub: k0.sub, kind: k0.kind, ref: "", match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
     paint();
     const evSel = document.querySelector('select[aria-label^="Вид события "]'), opts = evSel ? [...evSel.options].map((o) => o.textContent) : [];
-    ok(opts.length && !opts.some((t) => /Оставленный предмет|Исчезновение предмета|Скопление людей/.test(t)) && opts.includes("Детектор: другой вид") && opts.includes("Пропал сегмент записи"), "в списке событий правила нет событий rule:false: " + opts.join(" | "));
+    ok(opts.length && ["Оставленный предмет", "Исчезновение предмета", "Скопление людей", "Детектор: другой вид", "Пропал сегмент записи"].every((t) => opts.includes(t)), "в списке событий правила — события детекторов камеры, с 0.17.0 и оставленный предмет, исчезновение, скопление: " + opts.join(" | "));
     ruleRestore(); paint();
     ok(!rules.some((x) => x.name === "Флаги событий"), "черновик проверки снят");
   }

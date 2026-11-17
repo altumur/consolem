@@ -158,6 +158,16 @@
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
   });
 
+  test("Пробный запуск: поля из уточнения нет в событии — не совпало (event.other), как в запуске правил", async () => {
+    const env = await makeEnv();
+    const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: { detectorKind: "motion" } };
+    const made = await env.ok("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] }));
+    const run = (match) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "unit", event: "motion", deviceId: cam.id, match }], at: null, branches: {}, log: false });
+    const without = (await run({})).checks;
+    assert.ok(!without.some((c) => c.code === "event.came") && without.some((c) => c.code === "event.other"), "без detectorKind — event.other: " + JSON.stringify(without.map((c) => c.code)));
+    assert.ok((await run({ detectorKind: "motion" })).checks.some((c) => c.code === "event.came"), "с полем — совпало");
+  });
+
   /* ----- Действия детектора ----- */
 
   const detect = (over, target) => act("detect", target || dev(cam.id), Object.assign({ detectorKind: "motion", minutes: 10 }, over));

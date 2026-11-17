@@ -766,7 +766,8 @@
       const used = new Set(), out = [];
       const any = r.whenLogic === "any" && r.triggers.length > 1;
       const fits = (tk, e) => e.source === tk.source && e.event === tk.event && covers(tk.target, e.deviceId, trigKinds(tk)) &&
-        Object.entries(tk.match || {}).every(([m, v]) => v === "" || v == null || (e.match || {})[m] === undefined || (e.match || {})[m] === v);
+        // Поля нет в событии — не совпало (RuleTrigger.match), как в запуске правил (server.js, fits)
+        Object.entries(tk.match || {}).every(([m, v]) => v === "" || v == null || (e.match || {})[m] === v);
       // any: каждое событие примеряется ко всем событиям правила; подошло любое — проверка пройдена, прочие события не лишние
       if (any) {
         const done = [];
