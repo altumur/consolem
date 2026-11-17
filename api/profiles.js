@@ -1252,7 +1252,7 @@
       return !!o && ((own.conflicts || []).includes(o.template) || (o.conflicts || []).includes(own.template));
     }) || null;
   }
-  const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
+  const conflictParams = (x) => ({ reason: "incompatible", with: [x.id] }); // с 0.22.0 массив, как у akParams
   // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind) — reference.analyticsConflicts. Охват — сервер расчёта:
   // пакет распознавания лиц ставят на компьютер сервера. Сервер детектора — свой serverId или сервер камеры
   const akOf = (p) => (p && !p.builtin && p.detectorKind === "other" ? p.analyticsKind : null);

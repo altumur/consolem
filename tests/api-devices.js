@@ -419,7 +419,7 @@
     const face = await addDet(env, c, "Лица", { builtin: true, template: "tmpl.face", detectorKind: "other", enabled: false });
     const res = await props(env, face, { enabled: true });
     field(res, "BUSY", P("enabled"), "вместе нельзя", 409);
-    assert.eq([res.body.params.reason, res.body.params.with], ["incompatible", t.uid], "причина и с кем");
+    assert.eq([res.body.params.reason, res.body.params.with], ["incompatible", [t.uid]], "причина и с кем (с 0.22.0 — массив)");
     const op = await env.runOperation({ idempotencyKey: key(), items: [{ uid: face.uid, patch: { properties: { enabled: true } } }], expectedVersions: { [face.uid]: face.version } });
     assert.eq([op.items[0].code, op.items[0].params.reason], ["BUSY", "incompatible"], "по шагу");
     const off = await env.ok("PATCH", U(t.uid), { properties: { enabled: false } }, v(t));
