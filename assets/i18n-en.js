@@ -1,4 +1,15 @@
 window.I18N_EN={
+// Базовая форма у ручного экрана (из прототипа 77)
+"Все параметры":"All parameters",
+"Вернуться к настройке":"Back to settings",
+"Сначала применить или сбросить изменения":"First apply or reset the changes",
+"Все параметры вида":"All parameters of the kind",
+"Режим для опытных.":"Mode for experienced users.",
+"Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.":"Here are all properties of the kind from its schema. The server checks the change before the plan.",
+"Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.":"The “beyond the profile” label marks the properties that are not in the profile of the kind.",
+"В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.":"The settings have changes that are not applied. Here the properties are read-only. To edit them here, apply or reset the changes.",
+"сверх профиля":"beyond the profile",
+"Имя меняют в настройке":"Change the name in the settings",
 // ONVIF-сервер и вкладка «Веб, RTSP, ONVIF» (из прототипа 75)
 "ONVIF-сервер":"ONVIF server",
 "Порт ONVIF-сервера":"ONVIF server port",

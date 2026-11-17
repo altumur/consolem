@@ -1034,7 +1034,7 @@ html[data-theme="light"] .cp.done{border-color:var(--one-success-icon);color:var
 .lst-bar .lst-add{flex:0 0 auto;width:auto;field-sizing:content;max-width:100%}
 .cam-conn .cam-conn-full{grid-column:1/-1}
 .cs-cq{container-type:inline-size}
-.tabs-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.tabs-row>.tabs{flex:0 1 auto;min-width:0}
+.tabs-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px}.nt.base-head{display:flex;align-items:center;gap:8px 12px;flex-wrap:wrap}.nt.base-head>span{flex:1 1 280px}.tabs-row>.tabs{flex:0 1 auto;min-width:0}
 .cs-hint{display:block;margin-top:3px}
 .cs-hide{display:none!important}
 .cs-ro :is(input:not([type=checkbox]):not([type=radio]),select,textarea):disabled{opacity:1;color:var(--tx);background:transparent;border-color:transparent;box-shadow:none;appearance:none;-webkit-appearance:none;padding-left:0;cursor:default}
@@ -4401,14 +4401,19 @@ function textOf(t){
   return i18n(t.text||t.key||"");
 }
 const SCREEN_OF_PROFILE={"vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
-  "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream"};
-// Экраны, написанные руками. Устройства без своего профиля (регистратор, канал, СКУД, службы) — по коду вида
+  "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage","vms.talk/1":"spk"};
+// Экраны, написанные руками. Экран выбирает профиль вида (implements), а не код вида: вид плагина с профилем получает тот
+// же экран. По коду вида — только экраны без своего профиля в контракте (регистратор, канал, микрофон, датчик, реле,
+// экспорт, почта, SMS) и СКУД: профиль vms.acs/1 общий у четырёх экранов (из прототипа 77)
 const HAND_SCREENS=new Set(["domain","server","folder","archive","vol","stream","camera","ipsrv","channel","mic","spk","sensor","relay","storage","det",
   "eventsrc","acfa","acfa_sensor","acfa_lock","acfa_fence","export","email","sms"]);
 // Инфраструктура: у неё свои списки в кэше (домены, серверы, папки, хранилища, тома); потоки — внутри камеры
 const INFRA_SCREENS=new Set(["domain","server","folder","archive","vol","stream"]);
 function screenType(kind){
-  const p=(KINDS.get(kind)?.implements||[]).find(x=>SCREEN_OF_PROFILE[x]);
+  // Своя страница плагина (setupUi) — своя форма вида: ручной экран профиля ей не нужен (из прототипа 77)
+  if(KINDS.get(kind)?.setupUi)return kind;
+  // Порядок — по SCREEN_OF_PROFILE, а не по implements вида: камера с динамиком (vms.talk/1) остаётся камерой
+  const im=KINDS.get(kind)?.implements||[],p=Object.keys(SCREEN_OF_PROFILE).find(x=>im.includes(x));
   if(p)return SCREEN_OF_PROFILE[p];
   // Описания нет (или ещё не прочитано): хранилище и том узнаются по коду — это старые записи потока, не каталог
   if(!KINDS.has(kind)&&String(kind).startsWith("archive."))return"archive";
@@ -5054,6 +5059,7 @@ function sfFieldHtml(scope,owner,f,p,v,o={}){
   if(o.inh)notes.push(`${i18n("унаследовано")}: ${escHtml(i18n({unit:"от объекта",domain:"от домена",default:"по умолчанию"}[o.inh.from]||o.inh.from))}`);
   if(p["x-bound-to"]){const b=o.schema?.properties?.[p["x-bound-to"]];notes.push(`${i18n("смена сбросит")} «${escHtml(propLabel(b,p["x-bound-to"]))}»`)}
   if(p["x-ui-advanced"])notes.push(i18n("для опытных"));
+  if(o.only)notes.push(`<span data-only-here>${i18n("сверх профиля")}</span>`);
   const hint=notes.length?`<small class="sub">${notes.join(" · ")}</small>`:"";
   const w=sfWidget(p),t=sfType(p);
   if(o.ro){
@@ -5101,7 +5107,7 @@ function sfParse(p,el){
 // Куда пишет поле: свойства узла (черновик карточки), значения мастера, параметры команды
 function sfTarget(scope,owner){
   if(scope==="card"){const n=find(owner)?.n;return n?{schema:schemaOf(n),vals:n.props||(n.props={})}:null}
-  if(scope==="xcard"){const n=find(owner)?.n;return n?{schema:KINDS.get(nodeKind(n))?.schema,vals:n.xprops||(n.xprops=xpropsServer(n))}:null}
+  if(scope==="xcard"){const n=find(owner)?.n;return n?{schema:KINDS.get(nodeKind(n))?.schema,vals:xpropsVals(n)}:null}
   if(scope==="drv")return drvTarget(owner);
   if(scope==="wiz")return swd?{schema:swdSchema(),vals:swd.props}:null;
   if(scope==="act")return actd?{schema:actd.desc.params,vals:actd.params}:null;
@@ -5341,12 +5347,15 @@ async function unitActRun(){
     toast(`${lb}: ${problemText(e)}`);
   }
 }
-// ── «Дополнительно» у ручного экрана: свойства вида сверх его профилей ──────
-// Профили (GET /kinds → profiles[]) перечисляют свойства с известным смыслом — их показывает ручной экран. Что в схеме
-// вида сверх объединения Profile.properties всех его implements, — вкладка «Дополнительно» формой по схеме. Вид только
-// с незнакомыми профилями (или без профилей) вкладки не получает: «сверх» не от чего считать
+// ── Базовая форма у ручного экрана: все свойства вида по схеме (из прототипа 77) ──
+// У объекта две формы. Своя — ручной экран под вид (камера, сервер, касса…). Базовая — форма по схеме вида: все свойства,
+// с проверкой сервера (POST /units/validate), как у незнакомого вида. Базовая форма нужна редко (интеграторам, видам
+// плагинов), поэтому её открывает пункт «Все параметры» в меню «Ещё», а не кнопка на экране. Выбор консоль помнит у вида
+// до перезагрузки, ссылка — #node=<id>&form=all.
+// Профили (GET /kinds → profiles[]) перечисляют свойства с известным смыслом — их показывает своя форма. Что в схеме вида
+// сверх объединения Profile.properties всех его implements, базовая форма отмечает «сверх профиля»
 const KIND_PROFILES=new Map();
-// Свойства объектов, как их отдал сервер (полный Unit): значения вкладки «Дополнительно»
+// Свойства объектов, как их отдал сервер (полный Unit): значения базовой формы
 const unitProps=new Map();
 function kindExtraProps(kind){
   const k=KINDS.get(kind),known=(k?.implements||[]).filter(id=>KIND_PROFILES.has(id));
@@ -5355,30 +5364,108 @@ function kindExtraProps(kind){
   return sfEntries(k.schema).map(([f])=>f).filter(f=>!pp.has(f));
 }
 function nodeExtraProps(n){return n&&!isSchemaNode(n)?kindExtraProps(nodeKind(n)):[]}
+// Базовая форма есть у объекта с ручным экраном, у вида которого есть схема со свойствами
+function hasBaseForm(n){
+  if(!n||isSchemaNode(n)||n._row)return false;
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties;
+  return!!ps&&Object.keys(ps).length>0;
+}
+const formAllByKind=new Map();
+function cardFormAll(n){return hasBaseForm(n)&&formAllByKind.get(tabMemKey(n))===true}
+// Строка перечня без полной записи: вид известен, форма откроется после чтения записи
+function kindHasBase(n){const ps=KINDS.get(nodeKind(n))?.schema?.properties;return!!n&&!isSchemaNode(n)&&!!ps&&Object.keys(ps).length>0}
+function formAllSet(v){
+  const n=find(sel)?.n;if(!n)return;
+  if(n._row&&kindHasBase(n)){formAllByKind.set(tabMemKey(n),!!v);gear();return}
+  if(!hasBaseForm(n))return;
+  if(!v&&baseChanged(n).length){toast(FORM_BACK_WHY);return}
+  formAllByKind.set(tabMemKey(n),!!v);
+  tab=tabKeep(n);gear();
+}
+// Пункт меню «Ещё» (и меню строки дерева): «Все параметры» открывает базовую форму, «Вернуться к настройке» — свою.
+// Пока в базовой форме есть неприменённые изменения, вернуться нельзя: пункт называет причину
+const FORM_BACK_WHY="Сначала применить или сбросить изменения";
+function formAllCtxItem(n,act){
+  if(!(n._row?kindHasBase(n):hasBaseForm(n)))return"";
+  if(!cardFormAll(n)||sel!==n.id)return tctxItem(i18n("Все параметры"),act("formAllSet",true),`<span class="tctx-ic">${lu("list",14)}</span>`);
+  const why=baseChanged(n).length?FORM_BACK_WHY:"";
+  return tctxItem(tctxWhy(i18n("Вернуться к настройке"),why),act("formAllSet",false),`<span class="tctx-ic">${lu("arrow-left",14)}</span>`,!!why);
+}
+// Значения сервера: все свойства схемы вида
 function xpropsServer(n){
-  const all=unitProps.get(n.id)||{},out={};
-  nodeExtraProps(n).forEach(f=>{if(f in all)out[f]=cardClone({v:all[f]}).v});
+  const all=unitProps.get(n.id)||{},out={},ps=KINDS.get(nodeKind(n))?.schema?.properties||{};
+  Object.keys(ps).forEach(f=>{if(f in all)out[f]=cardClone({v:all[f]}).v});
   return out;
 }
-// Черновик вкладки живёт в n.xprops: снимок «до» снимается вместе с узлом
-function xpropsEnsure(n){if(nodeExtraProps(n).length&&!("xprops"in n))n.xprops=xpropsServer(n)}
-function schemaExtraHtml(n){
-  const kind=nodeKind(n),schema=KINDS.get(kind)?.schema,names=new Set(nodeExtraProps(n)),groups=new Map();
-  sfEntries(schema).forEach(([f,p])=>{if(!names.has(f))return;const g=sfGroup(p);(groups.get(g)||groups.set(g,[]).get(g)).push([f,p])});
-  const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=n.xprops||xpropsServer(n);
-  let out=`<div class="nt" data-schema-extra>${i18n("Свойства вида")} «${escHtml(kindText(kind))}» ${i18n("сверх его профилей")}: ${i18n("ручной экран не показывает их")}.</div>`;
-  groups.forEach((fs,g)=>{
+// Черновик базовой формы — n.xprops: только изменённые свойства (null — свойство сняли). Снимок «до»
+// снимается вместе с узлом, поэтому «Сбросить» возвращает пустой черновик. Новый черновик карточки начинается с пустого
+function xpropsEnsure(n){
+  if(!hasBaseForm(n))return;
+  if(!cardDraft||cardDraft.id!==n.id||!n.xprops)n.xprops={};
+}
+// Поле пишет в черновик, а читает черновик поверх значений сервера
+function xpropsVals(n){
+  const d=n.xprops||(n.xprops={}),srv=xpropsServer(n);
+  return new Proxy(d,{
+    get:(t,f)=>typeof f==="string"&&Object.prototype.hasOwnProperty.call(t,f)?t[f]:srv[f],
+    set:(t,f,v)=>{t[f]=v;return true},
+    // Значение на сервере есть — null его снимает; нет (секрет, пустое поле) — ключ уходит из черновика
+    deleteProperty:(t,f)=>{if(srv[f]===undefined)delete t[f];else t[f]=null;return true}
+  });
+}
+// Свойства, которые изменили в базовой форме. Своя форма может показывать то же свойство (у кассы — и свойства сверх
+// профиля), поэтому неприменённые изменения живут в одной форме: другая форма их ждёт
+function baseChanged(n){
+  if(!n?.xprops)return[];
+  const srv=xpropsServer(n);
+  return Object.keys(n.xprops).filter(f=>JSON.stringify(n.xprops[f])!==JSON.stringify(srv[f]));
+}
+// Изменения своей формы (кроме имени и папок: имя базовая форма только показывает, папки — не свойство схемы)
+function ownDraftRows(n){
+  if(!cardDraft||cardDraft.id!==n.id)return[];
+  return cardDiff().filter(r=>r.key!=="xprops"&&r.key!=="name"&&r.prop!=="name"&&!r.folders);
+}
+// Имя пишут экраны по-разному (поле карточки, правка домена), поэтому его меняют только в настройке
+function baseNameHtml(n){
+  const v=editVal(n.id,"name",cardFldVal("Имя",n.name));
+  return`<div><label>${i18n("Имя")}</label><input type="text" value="${escHtml(v??"")}" readonly disabled data-base-name><small class="sub">${i18n("Имя меняют в настройке")}</small></div>`;
+}
+function baseTabs(n){
+  const labels=[];
+  sfEntries(KINDS.get(nodeKind(n))?.schema).forEach(([,p])=>{if(p["x-transient"])return;const l=sfTab(p);if(!labels.includes(l))labels.push(l)});
+  if(!labels.length)labels.push(i18n(SF_MAIN));
+  return labels.map((l,i)=>[i?"sf"+i:"gen",l]);
+}
+function baseFormHtml(n,tabId){
+  const kind=nodeKind(n),k=KINDS.get(kind),schema=k?.schema;
+  const tabs=baseTabs(n),cur=(tabs.find(([id])=>id===tabId)||tabs[0])[1],first=cur===tabs[0][1];
+  const extra=new Set(nodeExtraProps(n)),own=ownDraftRows(n).length,groups=new Map();
+  sfEntries(schema).forEach(([f,p])=>{
     // Разовое при создании (x-transient) после создания не хранится и не правится
-    const body=fs.map(([f,p])=>sfFieldHtml("xcard",n.id,f,p,vals[f],{ro:!!n.derived||sfReadOnly(p)||!!p["x-transient"],err:err[f],req:req.has(f),schema})).join("");
-    out+=`<div class="card" data-schema-card><div class="ch">${escHtml(g)}</div><div class="cb"><div class="g">${body}</div></div></div>`;
+    if(p["x-transient"]||sfTab(p)!==cur)return;
+    const g=sfGroup(p);(groups.get(g)||groups.set(g,[]).get(g)).push([f,p]);
+  });
+  const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
+  const nameH=first?baseNameHtml(n):"";
+  const back=baseChanged(n).length;
+  let out=`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(kind))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra.size?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
+    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+  if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
+  let lead=nameH;
+  if(!groups.size)groups.set(i18n(SF_GROUP),[]);
+  groups.forEach((fs,g)=>{
+    const body=fs.map(([f,p])=>sfFieldHtml("xcard",n.id,f,p,vals[f],{ro:!!n.derived||sfReadOnly(p)||!!own,err:err[f],req:req.has(f),schema,only:extra.has(f)})).join("");
+    out+=`<div class="card" data-schema-card><div class="ch">${escHtml(g)}</div><div class="cb"><div class="g">${lead}${body||(lead?"":`<span class="sub">${i18n("Полей нет")}</span>`)}</div></div></div>`;
+    lead="";
   });
   return out;
 }
+// План: строка на изменённое свойство; «было» — значение сервера
 function schemaDiffX(live,snap,owner,out){
-  const a=live.xprops||{},b=snap.xprops||xpropsServer(live),ps=KINDS.get(nodeKind(live))?.schema?.properties||{};
-  new Set([...Object.keys(b),...Object.keys(a)]).forEach(f=>{
-    if(JSON.stringify(a[f])===JSON.stringify(b[f]))return;
-    const p=ps[f]||{},from=b[f]===undefined?undefined:cardClone({v:b[f]}).v,to=a[f]===undefined?undefined:cardClone({v:a[f]}).v;
+  const a=live.xprops||{},srv=xpropsServer(live),ps=KINDS.get(nodeKind(live))?.schema?.properties||{};
+  Object.keys(a).forEach(f=>{
+    if(JSON.stringify(a[f])===JSON.stringify(srv[f]))return;
+    const p=ps[f]||{},from=srv[f]===undefined?undefined:cardClone({v:srv[f]}).v,to=a[f]===undefined?undefined:cardClone({v:a[f]}).v;
     out.push({node:live,key:"xprops",schemaProp:f,from,to,label:(live!==owner?`«${locName(live)}»: `:"")+propLabel(p,f),fromT:sfText(p,from),toT:sfText(p,to)});
   });
 }
@@ -7721,6 +7808,9 @@ function cardPlan(){
   // Объект по схеме вида: сервер сначала проверяет правку, план открывается без ошибок
   const n=find(cardDraft.id).n;
   if(isSchemaNode(n)&&can("validateUnits")){schemaValidate(n,d).then(ok=>{if(ok&&cardDraft&&cardDraft.id===n.id)cardPlanOpen()});return}
+  // Правка базовой формы ручного экрана: та же проверка сервера, только по свойствам схемы (из прототипа 77)
+  const xd=d.filter(r=>r.key==="xprops"&&r.node===n);
+  if(xd.length&&can("validateUnits")){schemaValidate(n,xd).then(ok=>{if(ok&&cardDraft&&cardDraft.id===n.id)cardPlanOpen()});return}
   cardPlanOpen();
 }
 function cardPlanOpen(){
@@ -8399,6 +8489,7 @@ function applyDeepLink(){
   if(sl&&SLICE_GROUPS[sl]){slice=sl;syncViews()}
   const g=p.get("group");
   if(g&&sliceGroups().includes(g)&&sliceGroups().includes("folder"))setGroupAll(g);
+  {const fn=find(id)?.n;if(fn&&p.get("form"))formAllByKind.set(tabMemKey(fn),p.get("form")==="all")}
   openNode(id,{app:"hw",tab:p.get("tab")||"gen"});
   return true;
 }
@@ -11615,6 +11706,7 @@ function openTreeCtx(n,xy){
       if(canRenameShort(n))edit.push(tctxItem(i18n("Изменить короткое имя"),act("ctxRename",id,"short")));
     }
     if(n.type==="camera")edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
+    {const fa=formAllCtxItem(n,act);if(fa)edit.push(fa)}
     // Сброс к умолчаниям модели и загрузка настроек с устройства (Axxon One: Reset). Недоступный пункт называет причину
     if(n.type==="camera"&&!isSchemaNode(n)){
       const rw=camResetWhy(n),lw=camLoadWhy(n);
@@ -12536,8 +12628,9 @@ function learnUI(){
 
 function tabsFor(n){
   if(isSchemaNode(n))return schemaTabs(n);
-  const t=tabsForHand(n);
-  return t.length&&nodeExtraProps(n).length?t.concat([["extra","Дополнительно"]]):t;
+  // Базовая форма — вкладки по x-ui-tab схемы вида, как у незнакомого вида
+  if(cardFormAll(n))return baseTabs(n);
+  return tabsForHand(n);
 }
 function tabsForHand(n){
   if(archScope(n))return edgeOn()?[["stor","Хранилища"],["edges","Встроенные хранилища"],["gen","Общие"]]:[["stor","Хранилища"],["gen","Общие"]];
@@ -12580,12 +12673,14 @@ function tabsForHand(n){
 const tabMemByType=new Map();
 let tabMemLast=null;
 function tabMemKey(n){return n?nodeKind(n)||n.type:null}
+// Вкладки базовой формы помнятся отдельно: выбор в ней не стирает вкладку настройки (из прототипа 77)
+function tabMemKeyF(n){return n?(cardFormAll(n)?"all:":"")+tabMemKey(n):null}
 function tabGo(id){
   tab=id;
   const n=find(sel)?.n,t=n&&tabsFor(n).find(([k])=>k===id);
   const m={id,label:t?t[1]:null};
   tabMemLast=m;
-  if(n&&t)tabMemByType.set(tabMemKey(n),m);
+  if(n&&t)tabMemByType.set(tabMemKeyF(n),m);
   gear();
 }
 // Первая вкладка без смены запомненной (пункт «Изменить выбранные» в меню дерева)
@@ -12599,7 +12694,7 @@ function tabMemPick(n,m){
   return t?t[0]:null;
 }
 // Вкладка, выбранная у типа объекта (без последней выбранной вообще)
-function tabTypeKeep(n){return tabMemPick(n,tabMemByType.get(tabMemKey(n)))}
+function tabTypeKeep(n){return tabMemPick(n,tabMemByType.get(tabMemKeyF(n)))}
 function tabKeep(n){
   if(!n)return"gen";
   return tabTypeKeep(n)||tabMemPick(n,tabMemLast)||"gen";
@@ -12633,9 +12728,10 @@ function gear(){
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   xpropsEnsure(n);
   cardEnsureBase(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${form(n)}</div>`+cardFootHtml());
+  const all=cardFormAll(n);
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
-  if(tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
+  if(!all&&tab==="topo"&&(n.type==="domain"||n.type==="server"))g7Start(n);else if(G7.raf)g7Stop();
 }
 // Таблица строится по папке (раздел «Устройства») либо по серверу (службы)
 function tableNode(){
@@ -22176,7 +22272,6 @@ function archEncToggle(el,id){archSet(id,"enc",!el.classList.contains("on"))}
 function archAdmitsToggle(el,id){const a=archById(id);if(!a)return;if(el.classList.contains("on"))a.admits=false;else delete a.admits;setD(true);gear()}
 function formBase(n){
   if(isSchemaNode(n))return schemaFormHtml(n,tab);
-  if(tab==="extra"&&nodeExtraProps(n).length)return schemaExtraHtml(n);
   if(lanTabOpen(n)&&n.type!=="archive"&&n.type!=="domain")return lanCardHtml(n);
   if(n.type==="found")return foundCardHtml(n.domainId);
   if(n.type==="founddev")return foundDeviceCardHtml(n);
