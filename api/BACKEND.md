@@ -548,6 +548,13 @@ const raw = (method, path, body, headers) =>
 | `showMask` | boolean | С 0.13.0. Движение: клиент рисует маску движения на кадре. Нет поля — `true` |
 | `showTracks` | boolean | С 0.13.0. Движение и трекеры: клиент рисует рамки и пути объектов. Нет поля — `false` |
 | `showTrackLifespan` | boolean | С 0.13.0. Клиент пишет над рамкой число секунд жизни трека; действует при `showTracks: true`. Нет поля — `false` |
+| `zone`, `extraZones` (с 0.15.0) | — | `zone.shape: polyline` — ломаная из 2–64 точек, не замкнута; `direction` действует по каждому отрезку. У `zone` и элемента `extraZones`: `name` (до 64 знаков), `description` (до 256), `frontEdge` (номер передней стороны многоугольника: отрезок от точки с этим номером к следующей; номер не меньше числа точек — `422 VALIDATION_FAILED`, `field: /properties/zone/frontEdge` или `/properties/extraZones/<i>/frontEdge`, `params.reason: "frontEdge"`), `crossing` (`in`, `out`, `both`: срабатывание на пересечении границы многоугольника; нет поля — зона остаётся областью) |
+| `detectUnattendedObjects` | boolean | С 0.15.0. Трекер: искать оставленные предметы для поддетекторов `abandoned`. Нет поля — поиск идёт, если есть поддетектор `abandoned`; `false` — выключен |
+| `humanSize` | `[ширина, высота]` в долях кадра | С 0.15.0. Размер среднего человека для калибровки. Нет поля — без калибровки |
+| `speedCalibArea` | 4 точки `[x, y]` | С 0.15.0. Распознавание ТС: четырёхугольник калибровки скорости. Нет поля — скорость не оценивается |
+| `cameraPosition` | string: `wall`, `ceiling` | С 0.15.0. Трекеры: положение камеры; на потолке смещение поддетекторов по X и Y, на стене — по X. Нет поля — `wall` |
+| `similarSearch`, `similarTrackSec`, `minTriggers` | boolean, integer 0–3600, integer 2–100 | С 0.15.0. Нейросетевой трекер: поиск похожих (нет поля — `false`), время обработки похожих треков в секундах (нет поля — 0), срабатываний до трека (нет поля — 6) |
+| `scanWindow` | object `{width, height, stepWidth?, stepHeight?}`, пиксели 1–10000 | С 0.15.0. Сканирующее окно нейросетевых детекторов. Шаг больше окна — `422 VALIDATION_FAILED`, `field: /properties/scanWindow/stepWidth` (`stepHeight`), `params.reason: "stepAboveWindow"`. Нет шага — шаг равен окну, нет поля — режим выключен |
 
 #### `vms.subdetector/1` — Поддетектор (с 0.12.0)
 
@@ -555,11 +562,11 @@ const raw = (method, path, body, headers) =>
 
 | Свойство | Тип | Смысл |
 |---|---|---|
-| `subdetectorKind` | string: `line`, `enter`, `exit`, `dwell`, `stop`, `move`, `multi`, `a2a`, `abandoned`, `mask` | Вид поддетектора (не меняется после создания). Незнакомое значение клиент показывает кодом, только чтение |
+| `subdetectorKind` | string: `line`, `enter`, `exit`, `dwell`, `stop`, `move`, `multi`, `a2a`, `abandoned`, `mask`, `stripe` (с 0.15.0) | Вид поддетектора (не меняется после создания). Незнакомое значение клиент показывает кодом, только чтение |
 | `enabled` | boolean | Нет поля — включён |
-| `zone` | object `{shape, points}` | Обязательна. `line` — только `shape: line`; остальные виды — `rect` или `polygon` |
+| `zone` | object `{shape, points}` | Обязательна. `line` и `stripe` — `shape: line` или (с 0.15.0) `polyline`; остальные виды — `rect` или `polygon`. Свойства зоны 0.15.0 — как у детектора |
 | `zoneTo` | object `{points}` | Только `a2a`: вторая область (многоугольник) |
-| `direction` | string: `ab`, `ba`, `both` | Для `line`. Нет поля — `both` |
+| `direction` | string: `ab`, `ba`, `both` | Для `line` и `stripe`, нет поля — `both`. С 0.15.0 и для `a2a`: `ab` — из `zone` в `zoneTo`, `ba` — обратно, `both` — в обе стороны; нет поля — `ab` |
 | `timeMode` | string: `gt`, `lt`, `eq` | `dwell`, `stop`, `abandoned`. Нет поля — `gt` |
 | `timeSec` | integer 0–172800 | Время в области. `stop`, `abandoned` — не меньше 1 |
 | `minObjects` | integer 1–100 | `multi` |
@@ -567,12 +574,18 @@ const raw = (method, path, body, headers) =>
 | `speed` | object `{min, max}`, integer 0–500 | `move`. Единица условная, с Axxon One не сверялась |
 | `offset` | object `{x, y}`, integer 1–40 | Смещение, % рамки объекта |
 | `group` | object `{count, waitSec}` | Нет поля — без группы |
+| `objectSize` | как у детектора | С 0.15.0. Свой размер объекта; `min` выше `max` — `reason: "minAboveMax"`. Нет поля — размер детектора |
+| `extraZones` | как у детектора | С 0.15.0. `in` — ещё области (несколько областей подсчёта у `multi`), `ex` — свои исключения вдобавок к исключениям детектора |
+| `lostObjectType` | string: `left`, `taken`, `any` | С 0.15.0. `abandoned`: оставленный, унесённый или любой предмет. Нет поля — `left` |
+| `showLine` | boolean | С 0.15.0. `line`, `stripe`: клиент рисует линию. Нет поля — `true` |
+| `width` | number 0–100, % ширины кадра | С 0.15.0. `stripe`: ширина полосы вокруг линии. Нет поля — 5 |
+| `maxObjects`, `rangeMode`, `cooldownSec`, `confirmFrames` | integer 1–100, string `in`/`out`, integer 1–10000, integer 1–20 | С 0.15.0. `multi`: конец диапазона (меньше `minObjects` — `422 VALIDATION_FAILED`, `field: /properties/minObjects`, `reason: "minAboveMax"`; нет поля — без верхней границы), тревога в диапазоне или вне его (нет поля — `in`), пауза между событиями в секундах (нет поля — 1), кадров подряд (нет поля — 1) |
 
 Правила сервера:
 - Создание: родитель должен принимать поддетекторы, иначе `422 NOT_SUPPORTED`, `field: /parentId`, `params.reason: "noSubdetectors"`. Родитель из той же строки `POST /units` судится по его свойствам. `abandoned` — только под `tracker` (`422 NOT_SUPPORTED`, `field: /properties/subdetectorKind`).
 - Правка: сервер снова проверяет только правило `abandoned` (только под `tracker`) и только если правка называет `subdetectorKind`. Принимает ли родитель поддетекторы, в правке сервер не проверяет. Вид родителя сменили после создания (старый клиент поставил `detectorKind: motion` трекеру) — поддетектор остаётся, имя, включение и настройки правятся.
 - Фигура: `line` — `zone.shape: line`, остальные виды — `rect` или `polygon` (`422 VALIDATION_FAILED`, `field: /properties/zone`, `params.reason: "shape"`); `a2a` требует `zoneTo`, остальные виды — нет (`field: /properties/zoneTo`, `params.reason` — `required` или `unexpected`); `stop` и `abandoned` — `timeSec` не меньше 1 (`reason: "required"`); `speed.min` выше `speed.max` — `reason: "minAboveMax"`. При правке судится запись после слияния.
-- Размер объекта поддетектор берёт у детектора: `objectSize` у него — `422 additionalProperties`.
+- Размер объекта поддетектор берёт у детектора, если у него нет своего `objectSize` (с 0.15.0; раньше — `422 additionalProperties`).
 - Хук не берёт блокировку родителя (`ctx.lockedProblem` без `ctx.held` отказал бы шагам операции плана с тем же детектором): план «правка детектора, создание, правка и удаление поддетекторов» проходит шагами одной операции в любом порядке.
 - Удаление детектора удаляет поддетекторы с ним (`entity.deleted` на каждый); `hasChildren` у детектора с поддетекторами — `true`, раскладка `detectors` показывает их под детектором.
 

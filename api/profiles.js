@@ -1217,9 +1217,24 @@
   function zoneProblem(z, ctx) {
     if (!z) return null;
     const n = z.points.length;
-    const fits = (z.shape === "polygon" ? n >= 3 : n === 2) && z.points.every((p) => p.length === 2 && p.every((v) => v >= 0 && v <= 1));
-    return fits ? null : ctx.problem(422, "VALIDATION_FAILED", "Зона: rect и line — две точки, polygon — от трёх, доли от 0 до 1", { field: "zone" });
+    // С 0.15.0: polyline — ломаная из 2–64 точек
+    const fits = (z.shape === "polygon" ? n >= 3 : z.shape === "polyline" ? n >= 2 && n <= 64 : n === 2) && z.points.every((p) => p.length === 2 && p.every((v) => v >= 0 && v <= 1));
+    return fits ? null : ctx.problem(422, "VALIDATION_FAILED", "Зона: rect и line — две точки, polygon — от трёх, polyline — от двух до 64, доли от 0 до 1", { field: "zone" });
   }
+  // С 0.15.0: передняя сторона зоны (frontEdge) — номер отрезка, он меньше числа точек. Зоны записи целиком: zone и extraZones.
+  // {field, params} или null
+  const frontEdgeErr = (whole) => {
+    const bad = (at) => ({ field: `/properties/${at}/frontEdge`, params: { reason: "frontEdge" } });
+    const over = (z) => z && typeof z.frontEdge === "number" && Array.isArray(z.points) && z.frontEdge >= z.points.length;
+    if (over(whole.zone)) return bad("zone");
+    const i = (whole.extraZones || []).findIndex(over);
+    return i >= 0 ? bad(`extraZones/${i}`) : null;
+  };
+  // С 0.15.0: шаг сканирующего окна не больше окна
+  const scanErr = (w) => {
+    const side = w && [["stepWidth", "width"], ["stepHeight", "height"]].find(([st, sz]) => typeof w[st] === "number" && w[st] > w[sz]);
+    return side ? { field: `/properties/scanWindow/${side[0]}`, params: { reason: "stepAboveWindow" } } : null;
+  };
   // Чувствительность — своя у детектора; настройки нет — и поля нет
   function sensProblem(d, value, cam, ctx) {
     const o = detOption(d, cam, ctx);
@@ -1248,13 +1263,14 @@
   // действует только при detectorKind: other; сервер не отказывает и не сбрасывает его, когда старый клиент меняет detectorKind
   const settingsErr = (whole, set) => {
     if (!whole) return null;
-    const bad = rangeErr(whole, "objectSize") || rangeErr(whole, "plateWidth");
+    const bad = rangeErr(whole, "objectSize") || rangeErr(whole, "plateWidth") || frontEdgeErr(whole) || scanErr(whole.scanWindow);
     if (bad) return bad;
     return set.analyticsKind != null && whole.detectorKind !== "other" ? { field: "/properties/analyticsKind", params: { reason: "notOther" } } : null;
   };
   const settingsProblem = (whole, set, ctx) => {
     const e = settingsErr(whole, set);
-    return e ? ctx.problem(422, "VALIDATION_FAILED", e.field.endsWith("/min") ? "Наименьшее значение выше наибольшего" : "Вид аналитики задают только при detectorKind: other", e) : null;
+    const text = { minAboveMax: "Наименьшее значение выше наибольшего", frontEdge: "Передняя сторона: номер меньше числа точек зоны", stepAboveWindow: "Шаг окна больше самого окна" };
+    return e ? ctx.problem(422, "VALIDATION_FAILED", text[e.params.reason] || "Вид аналитики задают только при detectorKind: other", e) : null;
   };
   const detProblem = (rec, patch, ctx) => (rec.type === "det" ? zoneProblem(patch.zone, ctx) || sensProblem(rec, patch.sensitivity, null, ctx) : null);
   // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
@@ -1305,13 +1321,20 @@
   function subProblem(p, host, ctx) {
     const bad = (code, field, extra) => ctx.problem(422, code, extra.message, { field, params: extra.params });
     if (host !== undefined && p.subdetectorKind === "abandoned" && host !== "tracker") return bad("NOT_SUPPORTED", "/properties/subdetectorKind", { message: "Оставленный предмет есть только у трекера объектов" });
-    const shape = (p.zone || {}).shape, wantLine = p.subdetectorKind === "line";
-    if (wantLine ? shape !== "line" : shape === "line") return bad("VALIDATION_FAILED", "/properties/zone", { message: wantLine ? "Для линии нужна зона line" : "Нужна зона rect или polygon", params: { reason: "shape" } });
+    // line и stripe (с 0.15.0) — линия: line или polyline; остальные виды — область rect или polygon
+    const shape = (p.zone || {}).shape, wantLine = p.subdetectorKind === "line" || p.subdetectorKind === "stripe", isLine = shape === "line" || shape === "polyline";
+    if (wantLine !== isLine) return bad("VALIDATION_FAILED", "/properties/zone", { message: wantLine ? "Для линии нужна зона line или polyline" : "Нужна зона rect или polygon", params: { reason: "shape" } });
     const z = zoneProblem(p.zone, ctx);
     if (z) return z;
     if ((p.subdetectorKind === "a2a") !== (p.zoneTo != null)) return bad("VALIDATION_FAILED", "/properties/zoneTo", { message: "Вторая зона нужна только для перехода из области в область", params: { reason: p.zoneTo != null ? "unexpected" : "required" } });
     if (["stop", "abandoned"].includes(p.subdetectorKind) && !(p.timeSec >= 1)) return bad("VALIDATION_FAILED", "/properties/timeSec", { message: "Время — не меньше 1 секунды", params: { reason: "required" } });
     if (p.speed && aboveMax(p.speed.min, p.speed.max)) return bad("VALIDATION_FAILED", "/properties/speed/min", { message: "Наименьшая скорость выше наибольшей", params: { reason: "minAboveMax" } });
+    // С 0.15.0: свой размер объекта, диапазон числа объектов у multi, передняя сторона зон
+    const size = rangeErr(p, "objectSize");
+    if (size) return bad("VALIDATION_FAILED", size.field, { message: "Наименьшее значение выше наибольшего", params: size.params });
+    if (aboveMax(p.minObjects, p.maxObjects)) return bad("VALIDATION_FAILED", "/properties/minObjects", { message: "Объектов не меньше — выше, чем объектов не больше", params: { reason: "minAboveMax" } });
+    const fe = frontEdgeErr(p);
+    if (fe) return bad("VALIDATION_FAILED", fe.field, { message: "Передняя сторона: номер меньше числа точек зоны", params: fe.params });
     return null;
   }
   const subdetector = {

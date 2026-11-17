@@ -614,7 +614,7 @@
     field(await props(env, en2, { zone: { shape: "line", points: [[0.1, 0.1], [0.9, 0.9]] } }), "VALIDATION_FAILED", P("zone"), "правила формы — как раньше");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
 
-  test("Поддетектор: геометрия по виду (line — line, a2a — rect/polygon и zoneTo, остальные — rect/polygon); speed min выше max — 422; objectSize — additionalProperties; subdetectorKind не меняется", async () => {
+  test("Поддетектор: геометрия по виду (line — line, a2a — rect/polygon и zoneTo, остальные — rect/polygon); speed min выше max — 422; subdetectorKind не меняется", async () => {
     const env = await makeEnv();
     const t = await addDet(env, camU, "Трекер", { detectorKind: "other", analyticsKind: "tracker" });
     const line = { shape: "line", points: [[0.1, 0.1], [0.9, 0.9]] };
@@ -635,14 +635,67 @@
     field(await props(env, mv, { speed: { min: 200 } }), "VALIDATION_FAILED", P("speed/min"), "правка: min выше сохранённого max");
     field(await props(env, ln, { zone: { shape: "polygon", points: TRI } }), "VALIDATION_FAILED", P("zone"), "правка: линия стала областью");
     field(await props(env, a2a, { zoneTo: null }), "VALIDATION_FAILED", P("zoneTo"), "правка: a2a без zoneTo");
-    const sz = await props(env, mv, { objectSize: { min: [0.1, 0.1] } });
-    assert.status(sz, 422, "VALIDATION_FAILED", "objectSize у поддетектора");
-    assert.eq([sz.body.field, sz.body.params.keyword], [P("objectSize"), "additionalProperties"], "размер берётся у детектора");
     const kind = await props(env, mv, { subdetectorKind: "stop" });
     assert.status(kind, 422, "VALIDATION_FAILED", "subdetectorKind не меняется");
     const ren = await env.ok("PATCH", U(mv.uid), { name: "Новое имя", properties: { enabled: false, timeMode: "lt", timeSec: 7 } }, v(mv));
     assert.eq([ren.name, ren.properties.enabled, ren.properties.timeMode, ren.properties.timeSec], ["Новое имя", false, "lt", 7], "имя, enabled и время правятся");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
+
+  /* ===== Свойства детектора и поддетектора (контракт 0.15.0) ===== */
+
+  // prop:det.scanWindow и prop:subdet.lostObjectType в needs — знак, что сервер знает 0.15.0: без них тест пропускается
+  test("Свойства детектора и поддетектора 0.15.0: без полей — как раньше; новые сохраняются; null снимает; frontEdge и шаг окна проверяются", async () => {
+    const env = await makeEnv();
+    const NEW = ["detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow"];
+    const t = await addDet(env, camU, "Трекер 0.15", { detectorKind: "other", analyticsKind: "tracker", sensitivity: 60 });
+    assert.eq(NEW.filter((n) => n in t.properties), [], "без полей — ключей нет");
+    const good = { detectUnattendedObjects: false, humanSize: [0.05, 0.2], speedCalibArea: [[0.1, 0.6], [0.9, 0.6], [0.8, 0.9], [0.2, 0.9]], cameraPosition: "ceiling",
+      similarSearch: true, similarTrackSec: 4, minTriggers: 4, scanWindow: { width: 640, height: 480, stepWidth: 320 } };
+    const ok = await env.ok("PATCH", U(t.uid), { properties: good }, v(t));
+    assert.eq(NEW.map((n) => ok.properties[n]), NEW.map((n) => good[n]), "сохранены");
+    field(await props(env, ok, { cameraPosition: "floor" }), "VALIDATION_FAILED", P("cameraPosition"), "незнакомое положение");
+    field(await props(env, ok, { speedCalibArea: good.speedCalibArea.slice(0, 3) }), "VALIDATION_FAILED", P("speedCalibArea"), "три точки");
+    field(await props(env, ok, { minTriggers: 1 }), "VALIDATION_FAILED", P("minTriggers"), "меньше двух");
+    const step = await props(env, ok, { scanWindow: { width: 100, height: 100, stepWidth: null, stepHeight: 200 } });
+    field(step, "VALIDATION_FAILED", P("scanWindow/stepHeight"), "шаг выше окна");
+    assert.eq(step.body.params.reason, "stepAboveWindow", "reason шага");
+    // Зоны: ломаная, название, передняя сторона, пересечение границы
+    const poly = { shape: "polyline", points: [[0.1, 0.5], [0.4, 0.4], [0.7, 0.6], [0.9, 0.5]], name: "Забор" };
+    const zoned = await env.ok("PATCH", U(ok.uid), { properties: { zone: poly, direction: "ab", extraZones: [{ type: "in", points: TRI, name: "Касса", description: "У входа", frontEdge: 2, crossing: "in" }] } }, v(ok));
+    assert.eq([zoned.properties.zone, zoned.properties.extraZones[0].frontEdge, zoned.properties.extraZones[0].crossing], [poly, 2, "in"], "ломаная и свойства зоны сохранены");
+    const fe = await props(env, zoned, { extraZones: [{ type: "in", points: TRI, frontEdge: 3 }] });
+    field(fe, "VALIDATION_FAILED", P("extraZones/0/frontEdge"), "сторона за числом точек");
+    assert.eq(fe.body.params.reason, "frontEdge", "reason frontEdge");
+    field(await props(env, zoned, { zone: { shape: "polygon", points: TRI, frontEdge: 5 } }), "VALIDATION_FAILED", P("zone/frontEdge"), "и у zone");
+    const long = { shape: "polyline", points: Array.from({ length: 65 }, (_, i) => [i / 100, 0.5]) };
+    field(await props(env, zoned, { zone: long }), "VALIDATION_FAILED", P("zone"), "ломаная из 65 точек");
+    const gone = await env.ok("PATCH", U(zoned.uid), { properties: Object.fromEntries(NEW.map((n) => [n, null])) }, v(zoned));
+    assert.eq(NEW.filter((n) => n in gone.properties), [], "null снимает");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.scanWindow"] });
+
+  test("Поддетектор 0.15.0: stripe — линия или ломаная; свой objectSize; диапазон multi; lostObjectType; свои extraZones; direction у a2a", async () => {
+    const env = await makeEnv();
+    const t = await addDet(env, camU, "Трекер 0.15", { detectorKind: "other", analyticsKind: "tracker" });
+    const poly = { shape: "polyline", points: [[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]] };
+    const st = await addSub(env, t, "stripe", { zone: poly, width: 7.5, showLine: false, direction: "ba" });
+    assert.eq([st.properties.subdetectorKind, st.properties.width, st.properties.showLine, st.properties.zone.shape], ["stripe", 7.5, false, "polyline"], "полоса на ломаной");
+    const ln = await addSub(env, t, "line", { zone: poly });
+    assert.eq(ln.properties.zone.shape, "polyline", "линия — тоже ломаной");
+    assert.eq(await failedOf(env, sub(t, "stripe", { zone: { shape: "polygon", points: TRI } })), [["VALIDATION_FAILED", P("zone")]], "полоса: нужна линия");
+    assert.eq(await failedOf(env, sub(t, "enter", { zone: poly })), [["VALIDATION_FAILED", P("zone")]], "область: ломаную нельзя");
+    const ab = await addSub(env, t, "abandoned", { timeSec: 10, lostObjectType: "taken", objectSize: { min: [0.01, 0.01], max: [0.2, 0.2] },
+      extraZones: [{ type: "ex", points: TRI }] });
+    assert.eq([ab.properties.lostObjectType, ab.properties.objectSize.max, ab.properties.extraZones.length], ["taken", [0.2, 0.2], 1], "свой размер и исключения");
+    field(await props(env, ab, { objectSize: { min: [0.5, 0.5], max: [0.1, 0.1] } }), "VALIDATION_FAILED", P("objectSize/min"), "размер: min выше max");
+    field(await props(env, ab, { lostObjectType: "lost" }), "VALIDATION_FAILED", P("lostObjectType"), "незнакомый тип");
+    const mu = await addSub(env, t, "multi", { minObjects: 2, maxObjects: 10, rangeMode: "out", cooldownSec: 5, confirmFrames: 3, extraZones: [{ type: "in", points: TRI }] });
+    assert.eq([mu.properties.maxObjects, mu.properties.rangeMode, mu.properties.cooldownSec, mu.properties.confirmFrames], [10, "out", 5, 3], "диапазон multi");
+    const rng = await props(env, mu, { maxObjects: 1 });
+    field(rng, "VALIDATION_FAILED", P("minObjects"), "конец ниже начала");
+    assert.eq(rng.body.params.reason, "minAboveMax", "reason диапазона");
+    const a2a = await addSub(env, t, "a2a", { zoneTo: { points: [[0.6, 0.6], [0.9, 0.6], [0.9, 0.9]] }, direction: "both" });
+    assert.eq(a2a.properties.direction, "both", "направление между зонами");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet", "prop:subdet.lostObjectType"] });
 
   test("Поддетектор: правка без If-Match — 428, чужая версия — 412 с current", async () => {
     const env = await makeEnv();

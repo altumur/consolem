@@ -67,7 +67,9 @@ PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", 
 PLUGIN_KINDS += ["subdet"]
 DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec",
   # Контракт 0.13.0: запись и показ маски и треков — в профиле «один домен» их тоже нет
-  "recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan"]}
+  "recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan",
+  # Контракт 0.15.0: свойства детектора по отчёту о пробелах против Axxon One
+  "detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow"]}
 # Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)

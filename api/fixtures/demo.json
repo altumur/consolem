@@ -5662,6 +5662,31 @@
       "type": "boolean",
       "description": "Детектор работает на камере. Заводит оператор, потока на сервер не требует"
      },
+     "cameraPosition": {
+      "x-label": {
+       "key": "field.cameraPosition",
+       "text": "Положение камеры",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "wall",
+       "ceiling"
+      ],
+      "x-enum-labels": {
+       "wall": {
+        "key": "enum.cameraPosition.wall",
+        "text": "На стене",
+        "lang": "ru"
+       },
+       "ceiling": {
+        "key": "enum.cameraPosition.ceiling",
+        "text": "На потолке",
+        "lang": "ru"
+       }
+      },
+      "description": "С 0.15.0. Трекеры: как висит камера. От него зависит смещение поддетекторов (offset): на потолке — по X и Y, на стене — по X. Нет поля — wall"
+     },
      "classes": {
       "x-label": {
        "key": "field.classes",
@@ -5713,6 +5738,15 @@
       "minimum": 2,
       "maximum": 50,
       "description": "С 0.12.0. crowd. Нет поля — умолчание детектора (4)"
+     },
+     "detectUnattendedObjects": {
+      "x-label": {
+       "key": "field.detectUnattendedObjects",
+       "text": "Искать оставленные предметы",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.15.0. Трекер объектов (analyticsKind: tracker): трекер ищет оставленные и унесённые предметы для поддетекторов abandoned. Нет поля — как раньше: поиск идёт, если под трекером есть поддетектор abandoned. false — поиск выключен, поддетекторы abandoned не срабатывают"
      },
      "detectorKind": {
       "x-label": {
@@ -5798,7 +5832,7 @@
         "lang": "ru"
        }
       },
-      "description": "С 0.12.0. Для zone.shape line. A — сторона, где (p1−p0)×(x−p0) < 0 (кадр, y вниз). Нет поля — both, как раньше"
+      "description": "С 0.12.0. Для zone.shape line и (с 0.15.0) polyline. A — сторона, где (p1−p0)×(x−p0) < 0 (кадр, y вниз); у ломаной — по каждому отрезку. Нет поля — both, как раньше"
      },
      "enabled": {
       "x-label": {
@@ -5845,10 +5879,88 @@
            "maximum": 1
           }
          }
+        },
+        "name": {
+         "x-label": {
+          "key": "field.zoneName",
+          "text": "Название",
+          "lang": "ru"
+         },
+         "type": "string",
+         "maxLength": 64,
+         "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+        },
+        "description": {
+         "x-label": {
+          "key": "field.zoneDescription",
+          "text": "Описание",
+          "lang": "ru"
+         },
+         "type": "string",
+         "maxLength": 256,
+         "description": "С 0.15.0. Нет поля — без описания"
+        },
+        "frontEdge": {
+         "x-label": {
+          "key": "field.frontEdge",
+          "text": "Передняя сторона",
+          "lang": "ru"
+         },
+         "type": "integer",
+         "minimum": 0,
+         "maximum": 63,
+         "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+        },
+        "crossing": {
+         "x-label": {
+          "key": "field.crossing",
+          "text": "Пересечение границы",
+          "lang": "ru"
+         },
+         "type": "string",
+         "enum": [
+          "in",
+          "out",
+          "both"
+         ],
+         "x-enum-labels": {
+          "in": {
+           "key": "enum.crossing.in",
+           "text": "Внутрь",
+           "lang": "ru"
+          },
+          "out": {
+           "key": "enum.crossing.out",
+           "text": "Наружу",
+           "lang": "ru"
+          },
+          "both": {
+           "key": "enum.crossing.both",
+           "text": "В обе стороны",
+           "lang": "ru"
+          }
+         },
+         "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
         }
        }
       },
-      "description": "С 0.12.0. Зоны сверх zone: in — ещё зоны детектирования, ex — зоны исключения (многоугольники). Область детектирования — zone (rect или polygon) и все in, из неё вырезаны ex. Нет поля — только zone, как раньше"
+      "description": "С 0.12.0. Зоны сверх zone: in — ещё зоны детектирования, ex — зоны исключения (многоугольники). Область детектирования — zone (rect или polygon) и все in, из неё вырезаны ex. Нет поля — только zone, как раньше. С 0.15.0 у зоны есть name, description, frontEdge и crossing, как у zone"
+     },
+     "humanSize": {
+      "x-label": {
+       "key": "field.humanSize",
+       "text": "Размер человека",
+       "lang": "ru"
+      },
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+       "type": "number",
+       "exclusiveMinimum": 0,
+       "maximum": 1
+      },
+      "description": "С 0.15.0. Калибровка: [ширина, высота] среднего человека в долях кадра. Клиент задаёт его прямоугольником на кадре. Нет поля — без калибровки"
      },
      "labels": {
       "x-label": {
@@ -5872,6 +5984,17 @@
       "minimum": 0,
       "maximum": 30,
       "description": "С 0.12.0. motion. Нет поля — 0"
+     },
+     "minTriggers": {
+      "x-label": {
+       "key": "field.minTriggers",
+       "text": "Срабатываний до трека",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 100,
+      "description": "С 0.15.0. Нейросетевой трекер: сколько раз подряд объект должен найтись, чтобы трекер завёл трек. Нет поля — 6"
      },
      "objectSize": {
       "x-label": {
@@ -5947,7 +6070,43 @@
        "lang": "ru"
       },
       "type": "boolean",
-      "description": "С 0.13.0. motion, трекеры (analyticsKind): сервер пишет треки объектов в метаданные архива; по ним ищет поиск в архиве. Сервер разбирает видео, нагрузка растёт. Нет поля — true. Срок хранения — keep.metaDays домена"
+      "description": "С 0.13.0. motion, трекеры (analyticsKind) и (с 0.15.0) любой серверный детектор, у которого есть треки объектов (поза, драка и другие семейства): сервер пишет треки объектов в метаданные архива; по ним ищет поиск в архиве. Сервер разбирает видео, нагрузка растёт. Нет поля — true. Срок хранения — keep.metaDays домена"
+     },
+     "scanWindow": {
+      "x-label": {
+       "key": "field.scanWindow",
+       "text": "Сканирующее окно",
+       "lang": "ru"
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "width",
+       "height"
+      ],
+      "properties": {
+       "width": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000
+       },
+       "height": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000
+       },
+       "stepWidth": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000
+       },
+       "stepHeight": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 10000
+       }
+      },
+      "description": "С 0.15.0. Нейросетевые детекторы: сервер разбирает кадр окнами этого размера (пиксели), чтобы найти мелкие и дальние объекты. Шаг окна не больше окна, иначе 422 VALIDATION_FAILED, field: /properties/scanWindow/stepWidth (stepHeight), params.reason: stepAboveWindow. Нет шага — шаг равен окну. Нет поля — режим выключен"
      },
      "sensitivity": {
       "x-label": {
@@ -6000,6 +6159,48 @@
       "type": "boolean",
       "description": "С 0.13.0. motion, трекеры: клиент рисует рамки и пути объектов на кадре. Нет поля — false"
      },
+     "similarSearch": {
+      "x-label": {
+       "key": "field.similarSearch",
+       "text": "Поиск похожих",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.15.0. Нейросетевой трекер (analyticsKind: neural): трекер собирает признаки людей для поиска похожих и для мультикамерного трекера. Нагрузка на сервер растёт. Нет поля — false"
+     },
+     "similarTrackSec": {
+      "x-label": {
+       "key": "field.similarTrackSec",
+       "text": "Время обработки похожих треков",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3600,
+      "x-ui-unit": "с",
+      "description": "С 0.15.0. Нейросетевой трекер: сколько секунд трекер собирает признаки трека. Нет поля — 0"
+     },
+     "speedCalibArea": {
+      "x-label": {
+       "key": "field.speedCalibArea",
+       "text": "Область калибровки скорости",
+       "lang": "ru"
+      },
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+       "type": "array",
+       "minItems": 2,
+       "maxItems": 2,
+       "items": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+       }
+      },
+      "description": "С 0.15.0. Распознавание ТС: четырёхугольник на дороге (4 точки [x, y] в долях кадра), по которому сервер оценивает скорость. Нет поля — скорость не оценивается"
+     },
      "stillSec": {
       "x-label": {
        "key": "field.stillSec",
@@ -6038,9 +6239,10 @@
         "enum": [
          "rect",
          "polygon",
-         "line"
+         "line",
+         "polyline"
         ],
-        "description": "rect, line — две точки, polygon — от трёх. Иначе 422 VALIDATION_FAILED, field: zone"
+        "description": "rect, line — две точки, polygon — от трёх, polyline (с 0.15.0) — ломаная из 2–64 точек, не замкнута. Иначе 422 VALIDATION_FAILED, field: zone"
        },
        "points": {
         "type": "array",
@@ -6053,6 +6255,68 @@
           "maximum": 1
          }
         }
+       },
+       "name": {
+        "x-label": {
+         "key": "field.zoneName",
+         "text": "Название",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 64,
+        "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+       },
+       "description": {
+        "x-label": {
+         "key": "field.zoneDescription",
+         "text": "Описание",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 256,
+        "description": "С 0.15.0. Нет поля — без описания"
+       },
+       "frontEdge": {
+        "x-label": {
+         "key": "field.frontEdge",
+         "text": "Передняя сторона",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 63,
+        "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+       },
+       "crossing": {
+        "x-label": {
+         "key": "field.crossing",
+         "text": "Пересечение границы",
+         "lang": "ru"
+        },
+        "type": "string",
+        "enum": [
+         "in",
+         "out",
+         "both"
+        ],
+        "x-enum-labels": {
+         "in": {
+          "key": "enum.crossing.in",
+          "text": "Внутрь",
+          "lang": "ru"
+         },
+         "out": {
+          "key": "enum.crossing.out",
+          "text": "Наружу",
+          "lang": "ru"
+         },
+         "both": {
+          "key": "enum.crossing.both",
+          "text": "В обе стороны",
+          "lang": "ru"
+         }
+        },
+        "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
        }
       },
       "required": [
@@ -6129,6 +6393,29 @@
       },
       "description": "Нет поля — все классы. Незнакомый код клиент пропускает"
      },
+     "confirmFrames": {
+      "x-label": {
+       "key": "field.confirmFrames",
+       "text": "Кадров подряд",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 20,
+      "description": "С 0.15.0. multi: столько кадров подряд число объектов должно держаться, чтобы поддетектор сработал. Нет поля — 1"
+     },
+     "cooldownSec": {
+      "x-label": {
+       "key": "field.cooldownSec",
+       "text": "Пауза между событиями",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10000,
+      "x-ui-unit": "с",
+      "description": "С 0.15.0. multi: не чаще одного события за столько секунд. Нет поля — 1"
+     },
      "direction": {
       "x-label": {
        "key": "field.direction",
@@ -6158,7 +6445,7 @@
         "lang": "ru"
        }
       },
-      "description": "Для line. Нет поля — both"
+      "description": "Для line, stripe и (с 0.15.0) a2a. У line и stripe — сторона пересечения, нет поля — both. У a2a: ab — из zone в zoneTo, ba — из zoneTo в zone, both — в обе стороны; нет поля — ab, как раньше"
      },
      "enabled": {
       "x-label": {
@@ -6168,6 +6455,110 @@
       },
       "type": "boolean",
       "description": "Нет поля — включён"
+     },
+     "extraZones": {
+      "x-label": {
+       "key": "field.extraZones",
+       "text": "Дополнительные зоны",
+       "lang": "ru"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "type",
+        "points"
+       ],
+       "properties": {
+        "type": {
+         "type": "string",
+         "enum": [
+          "in",
+          "ex"
+         ]
+        },
+        "points": {
+         "type": "array",
+         "minItems": 3,
+         "maxItems": 64,
+         "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1
+          }
+         }
+        },
+        "name": {
+         "x-label": {
+          "key": "field.zoneName",
+          "text": "Название",
+          "lang": "ru"
+         },
+         "type": "string",
+         "maxLength": 64,
+         "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+        },
+        "description": {
+         "x-label": {
+          "key": "field.zoneDescription",
+          "text": "Описание",
+          "lang": "ru"
+         },
+         "type": "string",
+         "maxLength": 256,
+         "description": "С 0.15.0. Нет поля — без описания"
+        },
+        "frontEdge": {
+         "x-label": {
+          "key": "field.frontEdge",
+          "text": "Передняя сторона",
+          "lang": "ru"
+         },
+         "type": "integer",
+         "minimum": 0,
+         "maximum": 63,
+         "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+        },
+        "crossing": {
+         "x-label": {
+          "key": "field.crossing",
+          "text": "Пересечение границы",
+          "lang": "ru"
+         },
+         "type": "string",
+         "enum": [
+          "in",
+          "out",
+          "both"
+         ],
+         "x-enum-labels": {
+          "in": {
+           "key": "enum.crossing.in",
+           "text": "Внутрь",
+           "lang": "ru"
+          },
+          "out": {
+           "key": "enum.crossing.out",
+           "text": "Наружу",
+           "lang": "ru"
+          },
+          "both": {
+           "key": "enum.crossing.both",
+           "text": "В обе стороны",
+           "lang": "ru"
+          }
+         },
+         "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
+        }
+       }
+      },
+      "description": "С 0.15.0. Зоны поддетектора сверх zone: in — ещё области (например, несколько областей подсчёта у multi), ex — зоны исключения поддетектора, вдобавок к исключениям детектора. Нет поля — только zone и исключения детектора, как раньше"
      },
      "group": {
       "x-label": {
@@ -6194,6 +6585,48 @@
       },
       "description": "Нет поля — без группы"
      },
+     "lostObjectType": {
+      "x-label": {
+       "key": "field.lostObjectType",
+       "text": "Что искать",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "left",
+       "taken",
+       "any"
+      ],
+      "x-enum-labels": {
+       "left": {
+        "key": "enum.lostObjectType.left",
+        "text": "Оставленный предмет",
+        "lang": "ru"
+       },
+       "taken": {
+        "key": "enum.lostObjectType.taken",
+        "text": "Унесённый предмет",
+        "lang": "ru"
+       },
+       "any": {
+        "key": "enum.lostObjectType.any",
+        "text": "Оставленный или унесённый",
+        "lang": "ru"
+       }
+      },
+      "description": "С 0.15.0. abandoned. Нет поля — left, как раньше"
+     },
+     "maxObjects": {
+      "x-label": {
+       "key": "field.maxObjects",
+       "text": "Объектов не больше",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "С 0.15.0. multi: конец диапазона числа объектов. Меньше minObjects — 422 VALIDATION_FAILED, field: /properties/minObjects, params.reason: minAboveMax. Нет поля — без верхней границы, как раньше"
+     },
      "minObjects": {
       "x-label": {
        "key": "field.minObjects",
@@ -6203,7 +6636,39 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 100,
-      "description": "multi"
+      "description": "multi. С 0.15.0 — начало диапазона числа объектов (см. maxObjects, rangeMode)"
+     },
+     "objectSize": {
+      "x-label": {
+       "key": "field.objectSize",
+       "text": "Размер объекта",
+       "lang": "ru"
+      },
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+       "min": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+         "type": "number",
+         "minimum": 0,
+         "maximum": 1
+        }
+       },
+       "max": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "items": {
+         "type": "number",
+         "minimum": 0,
+         "maximum": 1
+        }
+       }
+      },
+      "description": "С 0.15.0. Свой размер объекта поддетектора: [ширина, высота] в долях кадра. Нет поля — размер детектора, как раньше"
      },
      "offset": {
       "x-label": {
@@ -6226,6 +6691,40 @@
        }
       },
       "description": "% рамки объекта"
+     },
+     "rangeMode": {
+      "x-label": {
+       "key": "field.rangeMode",
+       "text": "Тревога, когда число",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "in",
+       "out"
+      ],
+      "x-enum-labels": {
+       "in": {
+        "key": "enum.rangeMode.in",
+        "text": "в диапазоне",
+        "lang": "ru"
+       },
+       "out": {
+        "key": "enum.rangeMode.out",
+        "text": "вне диапазона",
+        "lang": "ru"
+       }
+      },
+      "description": "С 0.15.0. multi: поддетектор срабатывает, когда число объектов в диапазоне minObjects–maxObjects или вне его. Нет поля — in, как раньше"
+     },
+     "showLine": {
+      "x-label": {
+       "key": "field.showLine",
+       "text": "Показывать линию",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "description": "С 0.15.0. line, stripe: клиент рисует линию поддетектора на кадре. Нет поля — true"
      },
      "speed": {
       "x-label": {
@@ -6266,7 +6765,8 @@
        "multi",
        "a2a",
        "abandoned",
-       "mask"
+       "mask",
+       "stripe"
       ],
       "x-immutable": true,
       "x-enum-labels": {
@@ -6319,6 +6819,11 @@
         "key": "enum.subdetectorKind.mask",
         "text": "Маскирование треков",
         "lang": "ru"
+       },
+       "stripe": {
+        "key": "enum.subdetectorKind.stripe",
+        "text": "Пересечение полосы",
+        "lang": "ru"
        }
       },
       "description": "Незнакомое значение клиент показывает кодом, только чтение"
@@ -6364,6 +6869,18 @@
       "minimum": 0,
       "maximum": 172800
      },
+     "width": {
+      "x-label": {
+       "key": "field.stripeWidth",
+       "text": "Ширина полосы",
+       "lang": "ru"
+      },
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "x-ui-unit": "%",
+      "description": "С 0.15.0. stripe: ширина полосы вокруг линии zone, % ширины кадра. Нет поля — 5"
+     },
      "zone": {
       "x-label": {
        "key": "field.zone",
@@ -6377,9 +6894,10 @@
         "enum": [
          "rect",
          "polygon",
-         "line"
+         "line",
+         "polyline"
         ],
-        "description": "rect, line — две точки, polygon — от трёх. Иначе 422 VALIDATION_FAILED, field: zone"
+        "description": "rect, line — две точки, polygon — от трёх, polyline (с 0.15.0) — ломаная из 2–64 точек, не замкнута. Иначе 422 VALIDATION_FAILED, field: zone"
        },
        "points": {
         "type": "array",
@@ -6392,6 +6910,68 @@
           "maximum": 1
          }
         }
+       },
+       "name": {
+        "x-label": {
+         "key": "field.zoneName",
+         "text": "Название",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 64,
+        "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+       },
+       "description": {
+        "x-label": {
+         "key": "field.zoneDescription",
+         "text": "Описание",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 256,
+        "description": "С 0.15.0. Нет поля — без описания"
+       },
+       "frontEdge": {
+        "x-label": {
+         "key": "field.frontEdge",
+         "text": "Передняя сторона",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 63,
+        "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+       },
+       "crossing": {
+        "x-label": {
+         "key": "field.crossing",
+         "text": "Пересечение границы",
+         "lang": "ru"
+        },
+        "type": "string",
+        "enum": [
+         "in",
+         "out",
+         "both"
+        ],
+        "x-enum-labels": {
+         "in": {
+          "key": "enum.crossing.in",
+          "text": "Внутрь",
+          "lang": "ru"
+         },
+         "out": {
+          "key": "enum.crossing.out",
+          "text": "Наружу",
+          "lang": "ru"
+         },
+         "both": {
+          "key": "enum.crossing.both",
+          "text": "В обе стороны",
+          "lang": "ru"
+         }
+        },
+        "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
        }
       },
       "required": [
@@ -9868,26 +10448,34 @@
     "alarmKinds",
     "analyticsKind",
     "builtin",
+    "cameraPosition",
     "classes",
     "confidence",
     "crowdHoldSec",
     "crowdMin",
+    "detectUnattendedObjects",
     "detectorKind",
     "direction",
     "enabled",
     "extraZones",
+    "humanSize",
     "labels",
     "minDurationSec",
+    "minTriggers",
     "objectSize",
     "params",
     "plateWidth",
     "recordMask",
     "recordTracks",
+    "scanWindow",
     "sensitivity",
     "serverId",
     "showMask",
     "showTrackLifespan",
     "showTracks",
+    "similarSearch",
+    "similarTrackSec",
+    "speedCalibArea",
     "stillSec",
     "stream",
     "template",
@@ -10062,15 +10650,24 @@
    },
    "properties": [
     "classes",
+    "confirmFrames",
+    "cooldownSec",
     "direction",
     "enabled",
+    "extraZones",
     "group",
+    "lostObjectType",
+    "maxObjects",
     "minObjects",
+    "objectSize",
     "offset",
+    "rangeMode",
+    "showLine",
     "speed",
     "subdetectorKind",
     "timeMode",
     "timeSec",
+    "width",
     "zone",
     "zoneTo"
    ]

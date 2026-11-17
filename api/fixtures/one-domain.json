@@ -4485,9 +4485,10 @@
         "enum": [
          "rect",
          "polygon",
-         "line"
+         "line",
+         "polyline"
         ],
-        "description": "rect, line — две точки, polygon — от трёх. Иначе 422 VALIDATION_FAILED, field: zone"
+        "description": "rect, line — две точки, polygon — от трёх, polyline (с 0.15.0) — ломаная из 2–64 точек, не замкнута. Иначе 422 VALIDATION_FAILED, field: zone"
        },
        "points": {
         "type": "array",
@@ -4500,6 +4501,68 @@
           "maximum": 1
          }
         }
+       },
+       "name": {
+        "x-label": {
+         "key": "field.zoneName",
+         "text": "Название",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 64,
+        "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+       },
+       "description": {
+        "x-label": {
+         "key": "field.zoneDescription",
+         "text": "Описание",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 256,
+        "description": "С 0.15.0. Нет поля — без описания"
+       },
+       "frontEdge": {
+        "x-label": {
+         "key": "field.frontEdge",
+         "text": "Передняя сторона",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 63,
+        "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+       },
+       "crossing": {
+        "x-label": {
+         "key": "field.crossing",
+         "text": "Пересечение границы",
+         "lang": "ru"
+        },
+        "type": "string",
+        "enum": [
+         "in",
+         "out",
+         "both"
+        ],
+        "x-enum-labels": {
+         "in": {
+          "key": "enum.crossing.in",
+          "text": "Внутрь",
+          "lang": "ru"
+         },
+         "out": {
+          "key": "enum.crossing.out",
+          "text": "Наружу",
+          "lang": "ru"
+         },
+         "both": {
+          "key": "enum.crossing.both",
+          "text": "В обе стороны",
+          "lang": "ru"
+         }
+        },
+        "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
        }
       },
       "required": [
