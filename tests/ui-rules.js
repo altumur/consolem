@@ -416,7 +416,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     paint();
     ok(rowLabels().join().includes("Если,или") && !!document.querySelectorAll(".rl-chips.rl-logic")[1], "условия: «Если», «или» и свой переключатель");
     ruleApply();
-    ok(await until(() => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id))), "сохранено");
+    // Сбор фактов для редкого сбоя под нагрузкой (самопроверка против стенда): не сохранилось за 20 с — медленно или совсем нет
+    const savedOr = () => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id));
+    const saved = await until(savedOr);
+    const late = saved || (await until(savedOr, 60000));
+    ok(saved, "сохранено" + (saved ? "" : `: за 20 с нет, ещё через 60 с — ${late ? "сохранилось (медленно)" : "нет"}; правило в списке: ${rules.some((x) => x.name === "Цепочка: или")}; тост: ${document.getElementById("tt")?.textContent || "нет"}`));
     const sv = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: или").id);
     ok(sv.whenLogic === "any" && sv.windowSec === 0 && sv.condLogic === "any" && sv.triggers.length === 2 && sv.conditions.length === 2, "на сервере: whenLogic any, condLogic any, окна нет");
     ok(!(sv.labels || []).some((l) => /^__/.test(l)) && !JSON.stringify(sv).includes("_stub"), "меток-заглушек и _stub в теле нет");

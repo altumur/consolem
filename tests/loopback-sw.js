@@ -49,6 +49,9 @@ async function answer(request, path) {
     return new Response(res.body.map((m) => `data: ${JSON.stringify(m)}\n\n`).join(""), { status: res.status, headers: out });
   }
   if (res.status === 204 || res.body === null || res.body === undefined) return new Response(null, { status: res.status, headers: out });
+  // Файл (выгрузка журнала, text/csv) — тело как есть, со своим типом, как у tools/serve_api.mjs
+  const type = out.get("Content-Type") || "";
+  if (res.status < 400 && type && !/json/.test(type) && typeof res.body === "string") return new Response(res.body, { status: res.status, headers: out });
   out.set("Content-Type", res.status >= 400 ? "application/problem+json" : "application/json");
   return new Response(JSON.stringify(res.body), { status: res.status, headers: out });
 }

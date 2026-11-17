@@ -72,7 +72,9 @@ const MID_PAUSE_MS = 400;
 // Отрезок между двумя опросами (~0,1 с) — работа шага, если поток занят в нём больше WORK_SHARE сверх простоя и
 // разметка в нём менялась не раз (дорисовка порциями), или занят больше WORK_FULL (счёт без разметки). Фон слабее
 // (события потока, таймеры заглушки) и CSS-анимация без правки разметки (вспышка «пришли сюда» на большом дереве без
-// GPU занимает до 45 % потока, но кадры идут) — не работа
+// GPU занимает до 45 % потока, но кадры идут) — не работа. Не работа и отрезок без правки разметки, где поток занят
+// не скриптом, раскладкой и стилями страницы: это сборка мусора V8 (на large через ~3 с после «Отметить всё»
+// освобождает ~28 МБ и занимает поток на ~0,2 с — без проверки шаг вырастал со 140 мс до 3,2 с)
 const WORK_SHARE = 0.3, WORK_FULL = 0.8;
 
 // ── Параметры ──────────────────────────────────────────────────────────────
@@ -379,7 +381,8 @@ const INSTR = `(() => {
   const P = (window.__perf = { lt: [], loaf: [], frames: [], srv: [], act: 0, t0: 0, lt0: 0, reqs: 0, reqs0: 0, keys: [], log: [], err: null,
     mutTree: 0, mutMain: 0, mark: 0, muts: [], exp: null, okAt: 0, why: "", typing: null, inputs: 0, delivered: new Map(), self: 0 });
   const touch = (t) => { if (t > P.act) P.act = t; };
-  const obs = (type, arr) => { try { new PerformanceObserver((l) => l.getEntries().forEach((e) => { arr.push([e.startTime, e.duration]); touch(e.startTime + e.duration); })).observe({ type, buffered: true }); } catch (e) {} };
+  // Долгий кадр без скриптов страницы (сборка мусора V8) — не работа шага: он не двигает P.act, конец шага
+  const obs = (type, arr) => { try { new PerformanceObserver((l) => l.getEntries().forEach((e) => { arr.push([e.startTime, e.duration]); if (type !== "long-animation-frame" || e.scripts?.length) touch(e.startTime + e.duration); })).observe({ type, buffered: true }); } catch (e) {} };
   obs("longtask", P.lt);
   obs("long-animation-frame", P.loaf);
   new MutationObserver((list) => {
@@ -627,9 +630,12 @@ async function ev(s, expr, ms) {
   return r.result.value;
 }
 // Занятость главного потока страницы с начала, мс (сумма всех задач, не только долгих)
+// Заодно s.pageMs — время скриптов, раскладки и стилей страницы: в TaskDuration есть ещё сборка мусора и отрисовка
 async function taskMs(s, ms) {
   const r = await send(s, "Performance.getMetrics", {}, ms);
-  return 1000 * (r.metrics.find((m) => m.name === "TaskDuration")?.value || 0);
+  const g = (n) => 1000 * (r.metrics.find((m) => m.name === n)?.value || 0);
+  s.pageMs = g("ScriptDuration") + g("LayoutDuration") + g("RecalcStyleDuration");
+  return g("TaskDuration");
 }
 async function close(s) {
   if (!s || s.closed) return;
@@ -676,7 +682,7 @@ async function quiet(s, deadline, needOk, all = []) {
     const td = await taskMs(s, deadline - Date.now());
     last = p;
     hist.push([p.now, td, p.self]);
-    all.push([p.now, td, p.self]);
+    all.push([p.now, td, p.self, s.pageMs]);
     while (hist.length > 2 && hist[1][0] <= p.now - QUIET_MS) hist.shift();
     const span = p.now - hist[0][0], busy = td - hist[0][1] - (p.self - hist[0][2]) - s.idleRate * span;
     last.busy = Math.round(busy);
@@ -778,7 +784,7 @@ async function runStep(s, st, measure) {
       await ev(s, `__perf.watch(${JSON.stringify(expectCode(st.expect))})`, t - Date.now());
       await exec(s, st.act, t);
     }
-    const samples = [[td0.now, td0.td, td0.self]];
+    const samples = [[td0.now, td0.td, td0.self, td0.page]];
     await quiet(s, t, true, samples);
     if (measure) {
       res = await ev(s, `__perf.end(${await lastWork(s, samples, t)})`, t - Date.now());
@@ -810,14 +816,16 @@ async function runStep(s, st, measure) {
 // Последняя работа до «тихо»: последний отрезок между опросами, где шла работа (WORK_SHARE, WORK_FULL). Внутри него
 // конец работы — последнее изменение разметки, а если разметка не менялась — конец отрезка. Так время шага охватывает
 // и работу, порезанную на короткие задачи или отложенную таймером: она длинных задач не даёт. Первый отрезок (от
-// действия до первого опроса) — всегда работа: в нём само действие
+// действия до первого опроса) — всегда работа: в нём само действие. Отрезок без правки разметки, где занят поток не
+// страницей (скрипт, раскладка, стили; сборка мусора — нет), не работа
 async function lastWork(s, samples, deadline) {
   for (let i = samples.length - 1; i > 0; i--) {
-    const [a, tdA, selfA] = samples[i - 1], [b, tdB, selfB] = samples[i];
+    const [a, tdA, selfA, pageA] = samples[i - 1], [b, tdB, selfB, pageB] = samples[i];
     const busy = tdB - tdA - (selfB - selfA) - s.idleRate * (b - a);
     if (busy <= WORK_SHARE * (b - a)) continue;
     const [n, last] = await ev(s, `__perf.lastMut(${a},${b})`, deadline - Date.now());
     if (i > 1 && n < 2 && busy <= WORK_FULL * (b - a)) continue;
+    if (i > 1 && !n && pageA != null && pageB - pageA - (selfB - selfA) <= WORK_SHARE * (b - a)) continue;
     return last || b;
   }
   return 0;
@@ -837,7 +845,7 @@ function busyUntil(s, samples, start, endAt) {
 // Точка отсчёта занятости: TaskDuration и своё время замера сейчас
 async function busyMark(s, ms) {
   const p = await ev(s, "({self:__perf.self,now:performance.now()})", ms);
-  return { td: await taskMs(s, ms), self: p.self, now: p.now };
+  return { td: await taskMs(s, ms), self: p.self, now: p.now, page: s.pageMs };
 }
 // Простой страницы: занятость потока за 1 с без действий (кадры, таймер заглушки) — вычитается из занятости шага
 async function idleRate(s) {

@@ -265,7 +265,9 @@ UiCheck(async ({ ok, until }) => {
   // Весь путь в этой же вкладке: рабочий адрес с assist, fixture и своим параметром → предупреждение → показ без них → выход на тот же адрес
   const wq = `fixture=demo&assist=${encodeURIComponent("https://svc.example.test")}&latency=0&keep=1`;
   const wf = open(wq, false);
-  ok(await until(() => wf.contentWindow?.appReady && wf.contentWindow.learnPlay, 60000), "рабочая страница открылась");
+  // appReady — обещание, оно истинно сразу. Темы заводит assets/tour-demos.js, последний скрипт страницы: под нагрузкой
+  // запуск приложения кончается раньше, чем он выполнился. Ждать конца запуска и тем, иначе learnPlay не найдёт главу
+  ok(await until(() => wf.contentWindow?.appReadyDone && wf.contentWindow.learnPlay && wf.contentWindow.Tour?.find(T0.id), 60000), "рабочая страница открылась");
   const ww = () => wf.contentWindow, wd = () => wf.contentDocument;
   const searchWas = ww().location.search;
   ww().learnPlay(T0.id, T0.chapters[1].id);

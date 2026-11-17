@@ -306,7 +306,11 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   pt("pointerup", cx + 100);
   ok(!lv.drag && lv.pb, "отпустили: запись с момента под головой");
   const c1 = lv.tl.vc;
-  ok(c1 <= c0 - 100 / br.width * z + 2000, "момент под головой — тот, куда утащили");
+  // Под моментом записи нет — плеер берёт ближайшую запись после него (vwSeekTo). Записи набора идут по времени суток,
+  // поэтому в одни часы точка попадает в запись, в другие — в пропуск
+  const dragTo = c0 - 100 / br.width * z, spans = lv.tl.spans || [];
+  const inRec = spans.some((x) => x.startMs <= dragTo && dragTo < x.endMs), next = spans.find((x) => x.startMs > dragTo && !x.fenced);
+  ok(inRec || !next ? c1 <= dragTo + 2000 : Math.abs(c1 - next.startMs) < 2000, `момент под головой — тот, куда утащили (${inRec ? "в записи" : next ? "в пропуске: начало следующей записи" : "после записи"})`);
   await until(() => lv.pb?.piece);
   await until(() => !lv.tl.busy);
   await sleep(500);
