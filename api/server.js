@@ -2807,6 +2807,127 @@
       }
       return null;
     }
+    /* ----- Лицензии: ключи (/licenses/keys) и счётчики (/licenses) ----- */
+    // Ключ в наборе: {id, serial, product, expiresAt, state (active | mismatch), stateText, features: [{code, label, total,
+    // domains: [{domainId, used, limit, observedAt}]}], domainIds, fileId?, version}. used пула — сумма доменов; срок
+    // решает состояние на часах стенда: вышел — expired, 30 дней и меньше — expiring
+    const licenseKeys = () => db.licenseKeys || (db.licenseKeys = []);
+    const LIC_WARN_MS = 30 * 86400000;
+    function keyOut(k) {
+      const left = k.expiresAt == null ? Infinity : Date.parse(k.expiresAt) - now();
+      const state = k.state === "mismatch" ? "mismatch" : left <= 0 ? "expired" : left <= LIC_WARN_MS ? "expiring" : "active";
+      const online = (id) => { const d = store.get(id); return !d || !d.status || d.status.link !== "offline"; };
+      const out = { id: k.id, serial: k.serial, product: k.product, expiresAt: k.expiresAt == null ? null : k.expiresAt, state, stateText: k.stateText == null ? null : k.stateText,
+        features: k.features.map((f) => Object.assign({ code: f.code }, f.label ? { label: clone(f.label) } : {}, {
+          used: f.domains.reduce((s, d) => s + d.used, 0), total: f.total == null ? null : f.total,
+          domains: f.domains.map((d) => ({ domainId: d.domainId, used: d.used, limit: d.limit == null ? null : d.limit, observedAt: online(d.domainId) ? iso(now()) : d.observedAt || iso(now()) })) })),
+        domainIds: k.domainIds.slice(), version: k.version };
+      if (k.fileId) out.fileId = k.fileId;
+      return out;
+    }
+    const keyChanged = (k, reason) => send("license.changed", Object.assign({ kind: "licenseKey", entityId: k.id }, reason === "removed" ? {} : { version: k.version }, { payload: { reason } }));
+    // Кто занимает функцию в домене: камеры — объекты с профилем vms.camera/1, СКУД — виды класса доступа acfa. Стенд
+    // берёт первых по uid, сколько занято в домене (used): настоящая система знает владельцев сама
+    const LIC_OWNERS = {
+      cameras: (u) => kinds.profileOf(u.kind, "vms.camera/1"),
+      acfa: (u) => kinds.accessClass(u.kind) === "acfa",
+    };
+    const OWNERS_MAX = 100;
+    function licensesList(q) {
+      if (q.domainId === undefined) {
+        if (!db.licenseKeys) return items(clone(db.licenses || []));
+        // Вся система — сумма ключей по коду функции; null (без предела) у одного ключа — без предела у суммы
+        const sum = new Map();
+        licenseKeys().map(keyOut).forEach((k) => k.features.forEach((f) => {
+          const s = sum.get(f.code) || sum.set(f.code, Object.assign({ kind: f.code }, f.label ? { label: f.label } : {}, { used: 0, total: 0 })).get(f.code);
+          s.used += f.used;
+          s.total = s.total == null || f.total == null ? null : s.total + f.total;
+        }));
+        return items([...sum.values()]);
+      }
+      const dom = store.get(q.domainId);
+      if (!dom || dom.kind !== "domain") return notFound("Домен");
+      const k = licenseKeys().find((x) => x.domainIds.includes(q.domainId));
+      if (!k) return items([]);
+      return items(k.features.map((f) => {
+        const d = f.domains.find((x) => x.domainId === q.domainId) || { used: 0, limit: null };
+        const test = LIC_OWNERS[f.code];
+        const all = test ? [...store.all()].filter((u) => u.domainId === q.domainId && test(u)).map((u) => u.uid).sort().slice(0, d.used) : [];
+        return Object.assign({ kind: f.code }, f.label ? { label: clone(f.label) } : {}, { used: d.used, total: d.limit != null ? d.limit : f.total == null ? null : f.total,
+          owners: all.slice(0, OWNERS_MAX), ownersTotal: all.length });
+      }));
+    }
+    // Что стенд «прочёл» из ключа: серийный номер с DEMO — демо на 30 дней, иначе professional на год; 32 камеры и 4 точки СКУД
+    function keyRead(serial) {
+      const demo = /DEMO/i.test(serial);
+      return { product: demo ? "demo" : "professional", expiresAt: iso(now() + (demo ? 30 : 365) * 86400000), state: "active", stateText: null,
+        features: [{ code: "cameras", label: { key: "license.cameras", text: "Камеры", lang: "ru" }, total: demo ? 4 : 32, domains: [] },
+          { code: "acfa", label: { key: "license.acfa", text: "Точки СКУД", lang: "ru" }, total: demo ? 0 : 4, domains: [] }] };
+    }
+    function keyCreate(body) {
+      const bySerial = body.serial !== undefined, byFile = body.fileId !== undefined;
+      if (bySerial === byFile) return problem(422, "VALIDATION_FAILED", "Нужно одно из двух: серийный номер или файл ключа", { field: bySerial ? "fileId" : "serial" });
+      let serial = bySerial ? String(body.serial).trim() : null, f = null;
+      if (bySerial && !serial) return problem(422, "VALIDATION_FAILED", "Серийный номер пустой", { field: "serial" });
+      if (byFile) {
+        f = files.get(body.fileId);
+        if (!f || f.owner !== me) return problem(422, "VALIDATION_FAILED", "Такого файла нет", { field: "fileId" });
+        if (!f.claimed && f.expiresAt <= now()) return problem(410, "FILE_EXPIRED", "Срок файла вышел: загрузить файл заново", { field: "fileId" });
+        if (licenseKeys().some((k) => k.fileId === f.id)) return problem(409, "IDENTIFIER_TAKEN", "Этот файл уже ключ", { field: "fileId" });
+        serial = `FILE-${f.name.replace(/\.[^.]*$/, "").toUpperCase()}`;
+      }
+      if (licenseKeys().some((k) => k.serial === serial)) return problem(409, "IDENTIFIER_TAKEN", "Ключ с этим серийным номером уже есть", { field: bySerial ? "serial" : "fileId", params: { serial } });
+      const k = Object.assign({ id: `lk-${(licenseKeys().length + 1).toString(36)}${now().toString(36)}`, serial }, keyRead(serial), { domainIds: [], version: newVersion() });
+      if (f) {
+        // Ключ сослался на файл: сервер забирает файл себе, срок больше не действует
+        f.claimed = true;
+        k.fileId = f.id;
+      }
+      licenseKeys().push(k);
+      keyChanged(k, "added");
+      return one(keyOut(k), 201);
+    }
+    function keyPatch(id, body, headers) {
+      const k = licenseKeys().find((x) => x.id === id);
+      if (!k) return notFound("Ключ лицензии");
+      const bad = precondition(k, headers);
+      if (bad) return bad;
+      const doms = body.domainIds !== undefined ? body.domainIds : k.domainIds;
+      const at = doms.findIndex((d, i) => { const u = store.get(d); return !u || u.kind !== "domain" || doms.indexOf(d) !== i; });
+      if (at >= 0) return problem(422, "VALIDATION_FAILED", "Такого домена нет или он назван дважды", { field: `domainIds.${at}` });
+      const lat = (body.limits || []).findIndex((l) => !doms.includes(l.domainId) || !k.features.some((f) => f.code === l.feature));
+      if (lat >= 0) return problem(422, "VALIDATION_FAILED", "Лимит — только домену ключа и функции ключа", { field: `limits.${lat}` });
+      // Домен с другого ключа уходит с него в том же вызове
+      licenseKeys().filter((x) => x !== k && x.domainIds.some((d) => doms.includes(d))).forEach((x) => {
+        x.domainIds = x.domainIds.filter((d) => !doms.includes(d));
+        x.features.forEach((f) => (f.domains = f.domains.filter((d) => !doms.includes(d.domainId))));
+        x.version = newVersion();
+        keyChanged(x, "changed");
+      });
+      k.domainIds = doms.slice();
+      k.features.forEach((f) => {
+        f.domains = doms.map((d) => f.domains.find((x) => x.domainId === d) || { domainId: d, used: 0, limit: null, observedAt: iso(now()) });
+      });
+      (body.limits || []).forEach((l) => {
+        const d = k.features.find((f) => f.code === l.feature).domains.find((x) => x.domainId === l.domainId);
+        d.limit = l.limit;
+      });
+      k.version = newVersion();
+      keyChanged(k, "changed");
+      return one(keyOut(k));
+    }
+    function keyDelete(id, headers) {
+      const k = licenseKeys().find((x) => x.id === id);
+      if (!k) return notFound("Ключ лицензии");
+      const bad = precondition(k, headers);
+      if (bad) return bad;
+      db.licenseKeys = licenseKeys().filter((x) => x !== k);
+      // Файл ключа снова временный: ключ можно вернуть тем же fileId, пока не вышел новый срок
+      const f = k.fileId && files.get(k.fileId);
+      if (f) Object.assign(f, { claimed: false, expiresAt: now() + FILE_TTL_MS });
+      keyChanged(k, "removed");
+      return { status: 204, body: null };
+    }
     function kindsList(headers) {
       const tag = kinds.etag();
       if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
@@ -5138,7 +5259,15 @@
         return pageList(q, `access/roles/${p.id}/objects`, rows, (x) => x.objectId, clone);
       }],
       ["GET", "/settings", () => one(clone(db.settings))],
-      ["GET", "/licenses", () => items(clone(db.licenses))],
+      ["GET", "/licenses", (p, q) => licensesList(q)],
+      ["GET", "/licenses/keys", () => items(licenseKeys().map(keyOut))],
+      ["POST", "/licenses/keys", (p, q, body) => keyCreate(body)],
+      ["GET", "/licenses/keys/{id}", (p) => {
+        const k = licenseKeys().find((x) => x.id === p.id);
+        return k ? one(keyOut(k)) : notFound("Ключ лицензии");
+      }],
+      ["PATCH", "/licenses/keys/{id}", (p, q, body, headers) => keyPatch(p.id, body, headers)],
+      ["DELETE", "/licenses/keys/{id}", (p, q, body, headers) => keyDelete(p.id, headers)],
       [
         "GET",
         "/journal",

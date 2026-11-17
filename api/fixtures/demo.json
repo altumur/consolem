@@ -37,7 +37,8 @@
        "lang": "ru"
       },
       "type": "string",
-      "description": "Лицензия домена; пусто — общая"
+      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
+      "deprecated": true
      }
     }
    }
@@ -50221,6 +50222,99 @@
    "total": 10
   }
  ],
+ "licenseKeys": [
+  {
+   "id": "lk-1",
+   "serial": "AX-PRO-2026-0001",
+   "product": "professional",
+   "expiresAt": "2027-12-02T00:00:00Z",
+   "state": "active",
+   "stateText": null,
+   "features": [
+    {
+     "code": "cameras",
+     "label": {
+      "key": "license.cameras",
+      "text": "Камеры",
+      "lang": "ru"
+     },
+     "used": 36,
+     "total": 48,
+     "domains": [
+      {
+       "domainId": "10000001-0000-4000-8000-000000000000",
+       "used": 24,
+       "limit": null
+      },
+      {
+       "domainId": "10000002-0000-4000-8000-000000000000",
+       "used": 12,
+       "limit": 16
+      }
+     ]
+    },
+    {
+     "code": "acfa",
+     "label": {
+      "key": "license.acfa",
+      "text": "Точки СКУД",
+      "lang": "ru"
+     },
+     "used": 3,
+     "total": 10,
+     "domains": [
+      {
+       "domainId": "10000001-0000-4000-8000-000000000000",
+       "used": 3,
+       "limit": null
+      },
+      {
+       "domainId": "10000002-0000-4000-8000-000000000000",
+       "used": 0,
+       "limit": 2
+      }
+     ]
+    }
+   ],
+   "domainIds": [
+    "10000001-0000-4000-8000-000000000000",
+    "10000002-0000-4000-8000-000000000000"
+   ],
+   "version": "1"
+  },
+  {
+   "id": "lk-2",
+   "serial": "AX-STA-2026-0002",
+   "product": "start",
+   "expiresAt": "2026-11-18T00:00:00Z",
+   "state": "active",
+   "stateText": null,
+   "features": [
+    {
+     "code": "cameras",
+     "label": {
+      "key": "license.cameras",
+      "text": "Камеры",
+      "lang": "ru"
+     },
+     "used": 12,
+     "total": 16,
+     "domains": [
+      {
+       "domainId": "10000004-0000-4000-8000-000000000000",
+       "used": 12,
+       "limit": null,
+       "observedAt": "2026-10-29T07:40:00Z"
+      }
+     ]
+    }
+   ],
+   "domainIds": [
+    "10000004-0000-4000-8000-000000000000"
+   ],
+   "version": "1"
+  }
+ ],
  "journal": [
   {
    "id": "c0000001-0000-4000-8000-000000000000",
@@ -52701,6 +52795,11 @@
     "getSettings",
     "patchSettings",
     "listLicenses",
+    "listLicenseKeys",
+    "createLicenseKey",
+    "getLicenseKey",
+    "patchLicenseKey",
+    "deleteLicenseKey",
     "listJournal",
     "listJournalFacets",
     "exportJournal",

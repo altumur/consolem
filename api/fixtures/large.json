@@ -33,7 +33,8 @@
        "lang": "ru"
       },
       "type": "string",
-      "description": "Лицензия домена; пусто — общая"
+      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
+      "deprecated": true
      }
     }
    }
@@ -15131,6 +15132,7 @@
   }
  },
  "licenses": [],
+ "licenseKeys": [],
  "journal": [],
  "reference": {
   "deviceModels": [

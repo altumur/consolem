@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.19.0",
+    "version": "0.20.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -2464,6 +2464,277 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        },
+        "description": "Без domainId — счётчики всей системы (сумма ключей). С domainId — счётчики домена: used в домене, total — лимит домена или пул ключа, owners и ownersTotal. Домен без ключа — пустой список. Нет такого домена — 404",
+        "parameters": [
+          {
+            "name": "domainId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Счётчики одного домена"
+          }
+        ]
+      }
+    },
+    "/licenses/keys": {
+      "get": {
+        "operationId": "listLicenseKeys",
+        "tags": [
+          "settings"
+        ],
+        "summary": "Ключи лицензий",
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "items"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/LicenseKey"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "createLicenseKey",
+        "tags": [
+          "settings"
+        ],
+        "summary": "Добавить ключ",
+        "description": "Серийный номер или файл ключа (fileId из POST /files; сервер забирает файл себе). В ответе — что сервер прочёл из ключа: product, expiresAt, features[].total; доменов у нового ключа нет. Ни одного или оба поля — 422; файла нет — 422, field: fileId; срок файла вышел — 410 FILE_EXPIRED; ключ с тем же serial уже есть — 409 IDENTIFIER_TAKEN. Событие license.changed, запись журнала аудита",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LicenseKeyCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Ключ добавлен",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseKey"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "409": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "410": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/licenses/keys/{id}": {
+      "get": {
+        "operationId": "getLicenseKey",
+        "tags": [
+          "settings"
+        ],
+        "summary": "Ключ лицензии",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "id ключа"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseKey"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchLicenseKey",
+        "tags": [
+          "settings"
+        ],
+        "summary": "Домены и лимиты ключа",
+        "description": "domainIds и limits одним вызовом. Домен с другого ключа сервер снимает с прежнего ключа; у того ключа новая версия и своё событие license.changed. Неизвестный домен — 422, field: domainIds.<номер>; лимит домена не из domainIds или функции не из features — 422, field: limits.<номер>",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "id ключа"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Версия ключа из ETag. Нет — 428, не совпала — 412"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LicenseKeyPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LicenseKey"
+                }
+              }
+            },
+            "headers": {
+              "ETag": {
+                "$ref": "#/components/headers/ETag"
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "422": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteLicenseKey",
+        "tags": [
+          "settings"
+        ],
+        "summary": "Снять ключ",
+        "description": "Домены ключа остаются без ключа; их устройства и настройки сервер не трогает. Снятие сервер не откладывает. Файл ключа снова становится временным (новый срок — как у загрузки): вернуть ключ — POST /licenses/keys с тем же fileId или serial, затем PATCH с прежними доменами и лимитами. Событие license.changed",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "id ключа"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Версия ключа из ETag. Нет — 428, не совпала — 412"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Снят"
+          },
+          "404": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "412": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "428": {
+            "$ref": "#/components/responses/Problem"
           },
           "401": {
             "$ref": "#/components/responses/Problem"
@@ -9516,16 +9787,33 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "cameras",
-              "acfa"
-            ]
+            "description": "Код функции лицензии: cameras, acfa, faceSearch, lpr, tagTrackPro… Список открыт: незнакомый код клиент показывает подписью label или как есть"
           },
           "used": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Занято. С domainId — в этом домене"
           },
           "total": {
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Всего; null — без предела. С domainId — лимит домена, если он задан, иначе пул ключа"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text",
+            "description": "Подпись функции на языке Accept-Language"
+          },
+          "owners": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Только с domainId: uid объектов, которые используют функцию в домене. Длинный список сервер отдаёт частью: всего — ownersTotal"
+          },
+          "ownersTotal": {
+            "type": "integer",
+            "description": "Только с domainId: сколько объектов используют функцию в домене"
           }
         },
         "additionalProperties": false,
@@ -9533,7 +9821,8 @@
           "kind",
           "used",
           "total"
-        ]
+        ],
+        "description": "Счётчик функции лицензии. Без domainId — по всей системе (сумма ключей), с domainId — по одному домену"
       },
       "JournalEvent": {
         "type": "object",
@@ -10359,7 +10648,8 @@
               "kinds.changed",
               "export.progress",
               "export.finished",
-              "replication.changed"
+              "replication.changed",
+              "license.changed"
             ],
             "x-enum-descriptions": {
               "stream.reset": "Пропущенное не дослать (Last-Event-ID слишком старый): клиент перечитывает то, что есть у него в кэше. Весь перечень не читается никогда",
@@ -10379,7 +10669,8 @@
               "kinds.changed": "Описания видов изменились: payload.kinds — коды. Подсказка, а не гарантия: после stream.reset клиент сам перечитывает GET /kinds с If-None-Match",
               "export.progress": "Ход выгрузки: kind=exportJob, entityId — задание, payload — progress и part. Только автору",
               "export.finished": "Выгрузка закончилась: kind=exportJob, payload — state и files. Только автору",
-              "replication.changed": "Изменилось состояние репликации встроенного хранилища (профиль vms.edge/1): kind=storage, entityId — хранилище, payload — state (общее состояние), cameraId (у регистратора — камера, чьё состояние изменилось), gap (новый или изменённый пропуск: from, to, result). Приходит при смене state и при новом или закрытом пропуске; клиент перечитывает объект (status.observed.replicationStatus)"
+              "replication.changed": "Изменилось состояние репликации встроенного хранилища (профиль vms.edge/1): kind=storage, entityId — хранилище, payload — state (общее состояние), cameraId (у регистратора — камера, чьё состояние изменилось), gap (новый или изменённый пропуск: from, to, result). Приходит при смене state и при новом или закрытом пропуске; клиент перечитывает объект (status.observed.replicationStatus)",
+              "license.changed": "Ключ лицензии добавлен, изменён или снят, или изменились его счётчики: kind=licenseKey, entityId — ключ, version — новая версия (у снятого нет), payload.reason — added, changed, removed, counters. Страница лицензий перечитывает GET /licenses/keys"
             }
           },
           "at": {
@@ -19446,6 +19737,210 @@
           }
         },
         "description": "Загруженный файл. Он временный: сервер удаляет его после expiresAt. Если объект, опция или запись сослались на id файла (фон выгрузки, ключ лицензии), сервер забирает файл себе: срок больше не действует, файл живёт, пока на него ссылаются. Ход ассистента файл себе не забирает. Файл видит и называет только тот, кто его загрузил"
+      },
+      "LicenseKeyDomain": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "domainId",
+          "used",
+          "limit"
+        ],
+        "properties": {
+          "domainId": {
+            "type": "string"
+          },
+          "used": {
+            "type": "integer",
+            "description": "Сколько домен взял из пула"
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Потолок домена, а не резерв: свободное сверх лимита берут другие домены. null — без ограничения. Сумма лимитов может быть больше пула. Новый лимит ниже занятого: сервер не включает новые функции домена сверх лимита, работающие работают до перезапуска, после перезапуска — только в пределах лимита"
+          },
+          "observedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Когда сервер последний раз получил данные домена. Нет связи с доменом — интерфейс пишет «данные на <время>»"
+          }
+        }
+      },
+      "LicenseKeyFeature": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "code",
+          "used",
+          "total",
+          "domains"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Код функции, как License.kind"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "used": {
+            "type": "integer",
+            "description": "Занято во всём пуле ключа"
+          },
+          "total": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Пул ключа; null — без предела"
+          },
+          "domains": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LicenseKeyDomain"
+            },
+            "description": "Разбивка по доменам ключа"
+          }
+        }
+      },
+      "LicenseKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "serial",
+          "product",
+          "expiresAt",
+          "state",
+          "features",
+          "domainIds",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "serial": {
+            "type": "string",
+            "description": "Серийный номер ключа"
+          },
+          "product": {
+            "type": "string",
+            "description": "Тип: demo, free, start, professional, enterprise, unified… Список открыт"
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "Срок действия; null — без срока"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "active",
+              "expiring",
+              "expired",
+              "mismatch"
+            ],
+            "description": "expiring — осталось 30 дней и меньше; mismatch — ключ не совпал с компьютером"
+          },
+          "stateText": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Текст сервера о состоянии, как есть (Computer/key HID mismatch)"
+          },
+          "features": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LicenseKeyFeature"
+            }
+          },
+          "domainIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Домены ключа: они берут лицензии из общего пула. Домен без ключа — тот, которого не называет ни один ключ"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "Файл ключа (POST /files), если ключ добавлен файлом: сервер забрал файл себе"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "description": "Ключ лицензии. Действует на один домен или на несколько"
+      },
+      "LicenseKeyCreate": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "serial": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Серийный номер: сервер активирует ключ по нему"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "Файл ключа из POST /files"
+          }
+        },
+        "description": "Ровно одно из двух: serial или fileId"
+      },
+      "LicenseKeyLimit": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "domainId",
+          "feature",
+          "limit"
+        ],
+        "properties": {
+          "domainId": {
+            "type": "string"
+          },
+          "feature": {
+            "type": "string",
+            "description": "Код функции ключа"
+          },
+          "limit": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "null — снять лимит"
+          }
+        }
+      },
+      "LicenseKeyPatch": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "domainIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Домены ключа целиком. Домен, который был на другом ключе, сервер снимает с прежнего ключа в том же вызове. Снятый домен теряет свои лимиты"
+          },
+          "limits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LicenseKeyLimit"
+            },
+            "description": "Лимиты доменов; домен — из domainIds после правки, функция — из features ключа"
+          }
+        },
+        "description": "Назначить домены и лимиты одним вызовом. Отмена снятия — тот же PATCH с прежними доменами и лимитами"
       }
     }
   }

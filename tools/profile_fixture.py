@@ -76,7 +76,7 @@ DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", 
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
 RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]
-MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
+MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
 FEATURES = ["exportVideo", "exportFrame", "exportLiveFrame", "exportArea", "exportMultiCamera", "exportMultiPeriod", "exportSingleFile", "exportTranscode", "exportTitles", "exportAudio", "exportPassword"]
 # Поиск в журнале (контракт 0.8.0): q, списки и «скрыть», счётчики по полям
@@ -245,6 +245,7 @@ def build(demo):
     fx["archiveWatches"] = []
     fx["archiveScans"] = [x for x in fx["archiveScans"] if x["deviceId"] in kept and x["archiveId"] in aids]
     fx["licenses"] = []
+    fx["licenseKeys"] = []
     fx["network"] = []
     fx["discovery"] = []
 

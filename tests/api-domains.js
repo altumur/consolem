@@ -331,5 +331,104 @@
     assert.status(await env.call("POST", `${U(inDomain.id)}/move`, { parentId: d2.id, params: { domainId: d2.id } }, { "If-Match": now }), 422, "VALIDATION_FAILED", "domainId — только при исключении");
   }, { needs: ["moveUnit", "revertOperation", "implements:vms.server/1", "cap:domain:create"] });
 
+  /* ----- Лицензии 0.20.0: ключи /licenses/keys, счётчики домена, событие license.changed ----- */
+  const KEYS = "/licenses/keys", K = (id) => `${KEYS}/${encodeURIComponent(id)}`;
+  const domainUids = async (env) => (await units(env, "kind=domain")).map((u) => u.uid);
+
+  test("Лицензии 0.20.0: ключи — пул, домены, лимиты, observedAt; /licenses — сумма ключей, с domainId — счётчики домена с owners", async () => {
+    const env = await makeEnv();
+    const keys = await env.list(KEYS);
+    assert.ok(keys.length > 0, "ключи есть");
+    const doms = await domainUids(env);
+    for (const k of keys) {
+      assert.ok(["active", "expiring", "expired", "mismatch"].includes(k.state), `состояние ключа ${k.serial}`);
+      const one = await env.call("GET", K(k.id));
+      assert.eq([one.status, one.headers.etag, one.body], [200, `"${k.version}"`, k], "ключ по id — как в списке, ETag — версия");
+      for (const f of k.features) {
+        assert.eq(f.used, f.domains.reduce((s, d) => s + d.used, 0), `${k.serial} ${f.code}: занято в пуле — сумма доменов`);
+        assert.eq(f.domains.map((d) => d.domainId), k.domainIds, `${k.serial} ${f.code}: разбивка по доменам ключа`);
+        assert.ok(f.domains.every((d) => !Number.isNaN(Date.parse(d.observedAt))), "observedAt у каждого домена");
+      }
+    }
+    const named = keys.flatMap((k) => k.domainIds);
+    assert.eq(named.length, new Set(named).size, "домен — не больше чем на одном ключе");
+    // Вся система — сумма ключей по коду функции
+    const sys = await env.list("/licenses");
+    for (const l of sys) {
+      const fs = keys.flatMap((k) => k.features.filter((f) => f.code === l.kind));
+      assert.eq([l.used, l.total], [fs.reduce((s, f) => s + f.used, 0), fs.some((f) => f.total == null) ? null : fs.reduce((s, f) => s + f.total, 0)], `система: ${l.kind}`);
+      assert.ok(!("owners" in l), "без domainId владельцев нет");
+    }
+    // Домен ключа: занято в домене, всего — лимит или пул, владельцы
+    const k = keys.find((x) => x.features.some((f) => f.domains.some((d) => d.limit != null)));
+    const f = k.features.find((x) => x.domains.some((d) => d.limit != null)), d = f.domains.find((x) => x.limit != null);
+    const mine = (await env.list(`/licenses?domainId=${d.domainId}`)).find((x) => x.kind === f.code);
+    assert.eq([mine.used, mine.total], [d.used, d.limit], "домен с лимитом: total — лимит");
+    assert.ok(mine.owners.length <= mine.ownersTotal && mine.owners.every((uid) => typeof uid === "string"), "owners — uid, не больше ownersTotal");
+    for (const uid of mine.owners.slice(0, 3)) assert.eq((await env.ok("GET", U(uid))).domainId, d.domainId, "владелец — объект этого домена");
+    const free = doms.find((x) => !named.includes(x));
+    if (free) assert.eq(await env.list(`/licenses?domainId=${free}`), [], "домен без ключа — пустой список");
+    assert.status(await env.call("GET", `/licenses?domainId=${UNKNOWN_DOMAIN}`), 404, "NOT_FOUND", "нет домена");
+    assert.status(await env.call("GET", K("нет-ключа")), 404, "NOT_FOUND", "нет ключа");
+  }, { needs: ["listLicenseKeys", "getLicenseKey", "listLicenses", "getUnit"] });
+
+  test("Лицензии 0.20.0: добавить ключ номером и файлом, назначить домены и лимиты одним PATCH (домен уходит с прежнего ключа), снять ключ; license.changed", async () => {
+    const env = await makeEnv();
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => seen.push(m));
+    await ApiTest.settle();
+    const before = await env.list(KEYS);
+    const res = await env.call("POST", KEYS, { serial: "AX-PRO-TEST-0100" });
+    assert.status(res, 201, null, "ключ по номеру");
+    const k = res.body;
+    assert.eq([k.serial, k.domainIds, res.headers.etag], ["AX-PRO-TEST-0100", [], `"${k.version}"`], "номер, доменов нет, ETag");
+    assert.ok(k.product && k.features.length && k.features.every((f) => f.used === 0 && f.domains.length === 0), "что сервер прочёл из ключа");
+    assert.status(await env.call("POST", KEYS, { serial: "AX-PRO-TEST-0100" }), 409, "IDENTIFIER_TAKEN", "тот же номер");
+    assert.status(await env.call("POST", KEYS, {}), 422, "VALIDATION_FAILED", "ни номера, ни файла");
+    assert.status(await env.call("POST", KEYS, { serial: "X", fileId: "y" }), 422, "VALIDATION_FAILED", "и номер, и файл");
+    assert.status(await env.call("POST", KEYS, { fileId: "нет-файла" }), 422, "VALIDATION_FAILED", "файла нет");
+    // Домен с другого ключа и новый лимит — одним вызовом
+    const old = before.find((x) => x.domainIds.length > 1);
+    const moved = old.domainIds[old.domainIds.length - 1], f0 = k.features[0].code;
+    assert.status(await env.call("PATCH", K(k.id), { domainIds: [moved] }), 428, "PRECONDITION_REQUIRED", "без If-Match");
+    assert.status(await env.call("PATCH", K(k.id), { domainIds: [moved] }, { "If-Match": '"old"' }), 412, "VERSION_MISMATCH", "чужая версия");
+    const bad = await env.call("PATCH", K(k.id), { domainIds: [moved], limits: [{ domainId: UNKNOWN_DOMAIN, feature: f0, limit: 1 }] }, v(k));
+    assert.eq([bad.status, bad.body.field], [422, "limits.0"], "лимит не своему домену");
+    assert.eq((await env.call("PATCH", K(k.id), { domainIds: [UNKNOWN_DOMAIN] }, v(k))).body.field, "domainIds.0", "нет домена");
+    const k2 = await env.ok("PATCH", K(k.id), { domainIds: [moved], limits: [{ domainId: moved, feature: f0, limit: 5 }] }, v(k));
+    assert.eq([k2.domainIds, k2.features[0].domains.map((d) => [d.domainId, d.limit])], [[moved], [[moved, 5]]], "домен и лимит");
+    const was = await env.ok("GET", K(old.id));
+    assert.ok(!was.domainIds.includes(moved) && was.version !== old.version, "прежний ключ отдал домен, версия новая");
+    assert.ok(was.features.every((f) => f.domains.every((d) => d.domainId !== moved)), "в разбивке прежнего ключа домена нет");
+    // Файл ключа: сервер забирает файл себе; ключ снят — файл снова временный, ключ можно вернуть тем же fileId
+    if (ApiTest.can("uploadFile")) {
+      const file = (await env.ok("POST", "/files?name=ключ.lic", new Blob(["KEY"], { type: "text/plain" }), { "Content-Type": "text/plain" }));
+      const fk = (await env.call("POST", KEYS, { fileId: file.id }));
+      assert.status(fk, 201, null, "ключ из файла");
+      assert.eq(fk.body.fileId, file.id, "ключ называет файл");
+      assert.status(await env.call("POST", KEYS, { fileId: file.id }), 409, "IDENTIFIER_TAKEN", "тот же файл второй раз");
+      if (env.frozen) {
+        await env.advance(Math.ceil((Date.parse(file.expiresAt) - env.now) / 1000) + 60);
+        assert.status(await env.call("GET", K(fk.body.id)), 200, null, "срок файла прошёл, ключ на месте");
+      }
+      assert.status(await env.call("DELETE", K(fk.body.id), undefined, v(fk.body)), 204, null, "ключ из файла снят");
+      assert.status(await env.call("POST", KEYS, { fileId: file.id }), 201, null, "вернуть ключ тем же файлом");
+    }
+    assert.status(await env.call("DELETE", K(k.id)), 428, "PRECONDITION_REQUIRED", "снять без If-Match");
+    assert.status(await env.call("DELETE", K(k.id), undefined, v(k2)), 204, null, "ключ снят");
+    assert.status(await env.call("GET", K(k.id)), 404, "NOT_FOUND", "ключа нет");
+    assert.eq(await env.list(`/licenses?domainId=${moved}`), [], "домен остался без ключа");
+    await ApiTest.settle();
+    stop();
+    const ev = seen.filter((m) => m.type === "license.changed");
+    assert.ok(ev.some((m) => m.entityId === k.id && m.payload.reason === "added"), "событие: добавлен");
+    assert.ok(ev.some((m) => m.entityId === old.id && m.payload.reason === "changed" && m.version), "событие: прежний ключ отдал домен");
+    assert.ok(ev.some((m) => m.entityId === k.id && m.payload.reason === "removed" && !m.version), "событие: снят, без версии");
+    if ((ApiTest.caps().features || []).includes("journalAudit")) {
+      const audit = await env.list("/journal?limit=1000&category=audit");
+      assert.ok(["createLicenseKey", "patchLicenseKey", "deleteLicenseKey"].every((op) => audit.some((j) => j.kind === `api.${op}`)), "журнал аудита: добавить, назначить, снять");
+    }
+  }, { needs: ["listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "listLicenses", "listUnits"] });
+
   ApiTest.loaded("api-domains.js");
 })();
