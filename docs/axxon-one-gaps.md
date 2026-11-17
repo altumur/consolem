@@ -240,8 +240,11 @@ https://ndm234234.github.io/consolem/docs/axxon-one-gaps.html
   (`audit/verdict/critic-re-4.json`): 5 функций стали «есть», 5 — «частично». У двух функций остался пробел, а их
   прежний пункт закрыт, поэтому отчёт получил `F386` (мета-детектор: нет режима работы, язык запроса) и `F387`
   (встроенный детектор против серверного детектора той же камеры). Сборщик знает закрытые пункты по списку `CLOSED` в
-  `audit/tools/build_report.py`. Не проверено: детектор лиц VI может быть кодовым именем VA (функция `det-307`, пункты
-  `C5`, `C18`); `BASE` остался на `5f5894d`, другие пункты с `1d07dbf` не сверяли.
+  `audit/tools/build_report.py`. Детектор лиц VI — отдельный детектор, не кодовое имя VA (проверено по `axxonnext.detectorpack`
+  на `7156c268`): свои папки `Detectors/VIFaceDetector` и `Detectors/VaFaceDetector`, обе в `Detectors/CMakeLists.txt`,
+  свои имена «Детектор лиц VI» и «Face detector VA», свои лицензии `FaceTracker_vi` и `FaceTracker_va`, свой установщик
+  `Installer/windows/VIFaceRecognition`. Документация Axxon One 3.0 детектор лиц VI не описывает. Функция `det-307`
+  осталась «нет» (пункты `C5`, `C18`). `BASE` остался на `5f5894d`, другие пункты с `1d07dbf` не сверяли.
 - Правка отчёта руками (не сборщиком) живёт до следующей сборки: перед сборкой перенеси её в `audit/verdict/txtc-*.json`
   (пункты `F`) или в `audit/tools/apply_old.py` (прежние пункты и `WAIT`).
 - Тексты `missing` пунктов `F` переписаны по `docs/TEXTS.md` и проверены критиком. Сборщик берёт их из
