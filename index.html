@@ -23915,7 +23915,9 @@ function rulePlan(){
     `<button type="button" class="btn" ${onEv("click",["closeBulkModal"])}>${i18n("Назад")}</button><button type="button" class="btn pri" id="rpApply" ${block||ask.length?"disabled":""} ${onEv("click",["closeBulkModal"],["ruleApply"])}>${i18n("Применить")} (${d.length})</button>`,"bbox-wide");
 }
 function ruleApply(){
-  const d=ruleDraft;if(!d||ruleSaving)return;
+  const d=ruleDraft;if(!d)return;
+  // Прошлое «Применить» ещё идёт (ответ, привязка расписания, история): нажатие не теряется — консоль выполнит его следом
+  if(ruleSaving){ruleApplyNext=true;return}
   const r=rules.find(x=>x.id===d.id);if(!r)return;
   if(rulePendingIds().has(r.id)){toast("Консоль удалит правило после отсчёта. Изменения не сохранятся");return}
   if(r.on&&ruleIssues(r).length){toast("Правило с ошибкой нельзя применить включённым. Исправить ошибку или выключить правило");return}
@@ -23924,7 +23926,8 @@ function ruleApply(){
   // «Применить» — правило целиком: новое — POST, прежнее — PUT с версией. Кэш и экран меняет ответ
   ruleSaving=true;
   (wasNew?API.post("/rules",body):API.put(`/rules/${r.id}`,body,autoVer.get(r.id))).then(async x=>{
-    ruleDraft=null;
+    // Пока шёл ответ, могли открыть черновик другого правила: закрыть только свой
+    if(ruleDraft===d)ruleDraft=null;
     const tmpId=r.id;
     ruleSet(x,r.id);
     if(wasNew)await schOwnerBind(tmpId,x.id);
@@ -23938,9 +23941,9 @@ function ruleApply(){
         :API.put(`/rules/${x.id}`,Object.assign(ruleBody(snap),{historyNote:{code:"undo",params:{number:hv}}}),autoVer.get(x.id)).then(y=>{ruleSet(y);return ruleHistLoad(y.id)});
       back.then(()=>{paint();toast("Изменение отменено")}).catch(e=>toast(problemText(e)));
     },10000);
-  }).catch(e=>{toast(problemText(e));paint()}).finally(()=>{ruleSaving=false});
+  }).catch(e=>{toast(problemText(e));paint()}).finally(()=>{ruleSaving=false;if(ruleApplyNext){ruleApplyNext=false;ruleApply()}});
 }
-let ruleSaving=false
+let ruleSaving=false,ruleApplyNext=false
 // Ушли с правила, не применив правки, — спрашиваем, а не теряем молча.
 function ruleLeaveAsk(go,onStay){
   const r=rules.find(x=>x.id===ruleDraft.id),d=ruleDiff();

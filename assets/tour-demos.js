@@ -656,11 +656,13 @@ Tour.add({
     const hrow = (re) => byText("#asstBlock .asst-hrow", re);
     // Заглушка отвечает сразу. Показ придерживает ответ, чтобы было видно, что ход живёт без панели.
     // Показ закончился (сбой, «Попробовать самому»): курсора показа нет, поэтому ответ уходит и заглушка возвращается
-    const real = API.stream, gates = [];
-    let watch = 0;
-    const free = () => { clearInterval(watch); API.stream = real; gates.splice(0).forEach((r) => r()); };
+    // API.stream берётся при показе, а не при загрузке файла: каталог глав (tools/learn_catalog.mjs) читает файл без страницы и без API
+    let real = null, watch = 0;
+    const gates = [];
+    const free = () => { clearInterval(watch); if (real) API.stream = real; real = null; gates.splice(0).forEach((r) => r()); };
     const hold = () => {
-      API.stream = (...args) => new Promise((r) => gates.push(r)).then(() => real.apply(API, args));
+      const orig = real || (real = API.stream);
+      API.stream = (...args) => new Promise((r) => gates.push(r)).then(() => orig.apply(API, args));
       clearInterval(watch);
       watch = setInterval(() => { if (!document.querySelector(".tour-cur")) free(); }, 500);
     };

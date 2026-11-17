@@ -415,7 +415,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ruleEdit((x) => { x.cond = [{ kind: "armed", ref: CAM2, val: true }, { kind: "armed", ref: CAM2, val: false }]; x.condAny = true; });
     paint();
     ok(rowLabels().join().includes("Если,или") && !!document.querySelectorAll(".rl-chips.rl-logic")[1], "условия: «Если», «или» и свой переключатель");
+    // Прошлое сохранение ещё идёт (медленная сеть, нагрузка): нажатие не теряется, а ждёт в очереди
+    const savingBefore = ruleSaving;
     ruleApply();
+    if (savingBefore) ok(ruleApplyNext, "«Применить» во время прошлого сохранения — в очереди");
     // Сбор фактов для редкого сбоя под нагрузкой (самопроверка против стенда): не сохранилось за 20 с — медленно или совсем нет
     const savedOr = () => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id));
     const saved = await until(savedOr);

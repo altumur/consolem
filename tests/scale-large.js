@@ -1,6 +1,6 @@
 /* Стенд большого домена: 250 000 камер, 500 серверов (large) или 1 000 000 камер, 2 000 серверов в 4 доменах (xl). Запуск —
    tools/check_scale.py [--fixture xl], страница с ?fixture=large или ?fixture=xl; числа — из stand.large набора.
-   Старт формы: не больше 15 запросов, ни одного ответа больше 1 МБ, ни один перечень не прочитан до конца.
+   Старт формы: не больше 16 запросов, ни одного ответа больше 1 МБ, ни один перечень не прочитан до конца.
    Дальше — то, что оператор делает на таком домене: каждый шаг в тех же пределах ответа. */
 window.UI_RAW_CACHE = true;
 UiCheck(async ({ ok, until }) => {
@@ -15,7 +15,7 @@ UiCheck(async ({ ok, until }) => {
   const sizeOk = (from) => trace.slice(from).every((x) => x.bytes <= MB);
   const big = (from) => Math.max(0, ...trace.slice(from).map((x) => x.bytes));
   // Старт
-  // Вопросы операторам — шестнадцатый запрос: он отложен за старт и в 15 не входит. Отложен ли на деле, проверено порядком:
+  // Вопросы операторам — семнадцатый запрос: он отложен за старт и в 16 не входит. Отложен ли на деле, проверено порядком:
   // после последнего чтения дерева, которого старт дожидается. К этому моменту сценарий может и опоздать, поэтому он не считается
   const PROMPTS = "/rule-prompts", startTrace = trace.filter((x) => x.path !== PROMPTS);
   const start = startTrace.length;
@@ -29,20 +29,21 @@ UiCheck(async ({ ok, until }) => {
   const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };
   const infra = (path) => { const q = unitsQ(path), im = q ? (q.get("implements") || "").split(",") : []; return !!q && [...q.keys()].every((k) => ["implements", "limit", "cursor"].includes(k)) && im.every((p) => p === "vms.domain/1" || p === "vms.server/1") && !!im[0]; };
-  // Старт не растёт с объёмом: 15 запросов. Сверх них — только продолжения перечня доменов и серверов (он читается
+  // Старт не растёт с объёмом: 16 запросов (с 0.4.0 в них два запроса режимов — /modes и /modes/current: кнопке режима
+  // в шапке нужны список и текущий режим сразу). Сверх них — только продолжения перечня доменов и серверов (он читается
   // целиком, как /servers базы, страницами по pageMax): на xl 2 004 строки (4 домена и 2 000 серверов) — три страницы
   // вместо одной. Растёт с числом серверов всего набора, домены добавляют по строке
   const infraMore = startTrace.filter((x) => infra(x.path) && unitsQ(x.path).has("cursor")).length;
   const infraWant = Math.ceil((L.servers + domains.length) / LIM.pageMax) - 1;
   // Доменов больше одного (xl): на старте раскрыты все, у каждого — страница ветки (/tree/children) и папки этой страницы,
   // которых нет в первой странице перечня папок, — чтением по ids (сервер больше idsMax в запросе не примет). Это растёт
-  // с числом доменов, а не с объёмом: в 15 входит ветка одного домена, ветки остальных и дочитывание папок по ids идут
-  // сверх, не больше двух чтений на домен. На одном домене (large) поблажки нет: старт — 15 запросов, как всегда
+  // с числом доменов, а не с объёмом: в 16 входит ветка одного домена, ветки остальных и дочитывание папок по ids идут
+  // сверх, не больше двух чтений на домен. На одном домене (large) поблажки нет: старт — 16 запросов, как всегда
   const idsRead = (x) => { const q = unitsQ(x.path); return !!q && q.has("ids"); };
   const branchReads = startTrace.filter((x) => /^\/tree\/children/.test(x.path) || idsRead(x)).length;
   const extra = D > 1 ? Math.max(0, branchReads - 1) : 0;
   const own = start - infraMore - extra;
-  ok(own <= 15 && (D === 1 || branchReads <= 2 * domains.length) && infraMore === infraWant, `старт: ${own} запросов, не больше 15; ещё ${infraMore} страниц серверов (их ${L.servers}, pageMax ${LIM.pageMax}) и ${extra} чтений веток доменов и их папок (доменов ${domains.length}): ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
+  ok(own <= 16 && (D === 1 || branchReads <= 2 * domains.length) && infraMore === infraWant, `старт: ${own} запросов, не больше 16; ещё ${infraMore} страниц серверов (их ${L.servers}, pageMax ${LIM.pageMax}) и ${extra} чтений веток доменов и их папок (доменов ${domains.length}): ` + startTrace.map((x) => x.path.split("?")[0]).join(" "));
   // Детекторы для среза «Детекторы» база читает на старте (detLoad: /devices?type=det до selectMax строк). В ядре — по профилю
   // vms.detector/1 из индекса вида: на стенде детекторов нет, ответ пуст — это конец пустого перечня, а не перечень домена
   const detEmpty = (x) => { const q = unitsQ(x.path); return !!q && q.get("implements") === "vms.detector/1" && x.empty; };
