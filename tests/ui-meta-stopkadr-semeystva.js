@@ -6,8 +6,8 @@
    Мастер «Добавить детекторы»: виды аналитики, причина у недоступного семейства, «мешает» у камеры, стоп-кадр
    на шаге «Зоны» ставит видео на паузу, «Скрыть зону» недоступна во время рисования.
    Данные — с сервера: виды аналитики meta, faceTV, faceVA, faceVL и поля meta… вида det (контракт 0.17.0); «Применить» окна
-   отправляет поля meta… на сервер. Несовместимые семейства — пока таблица страницы (DET_AK_CLASH, пп. 5–6 запроса
-   api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md).
+   отправляет поля meta… на сервер. Несовместимые семейства — из справочника (reference.analyticsConflicts, контракт 0.21.0),
+   охват — сервер детектора.
    На странице без мета-детектора (старые копии) сценарий только отмечает, что проверять нечего.
    Запуск: python3 tools/check_ui.py tests/ui-meta-stopkadr-semeystva.js */
 UiCheck(async ({ ok, until, sleep }) => {
@@ -93,10 +93,14 @@ UiCheck(async ({ ok, until, sleep }) => {
   const row = (re) => [...box().querySelectorAll(".cp-det")].find((l) => re.test(l.querySelector(".cp-det-nm")?.firstChild?.textContent || ""));
   ok(detAkOn("meta") && !detAkOn("нет-такого"), "вид аналитики есть, только если схема det его знает");
   ok(row(/^Мета-детектор$/) && !row(/^Мета-детектор$/).classList.contains("dc-off"), "вид «Мета-детектор» доступен");
-  ok(row(/^Лица TV$/)?.classList.contains("dc-off") && /Нельзя вместе с «Лица VA»/.test(row(/^Лица TV$/).textContent), "«Лица TV» недоступен, причина видна в строке");
-  ok(row(/^Лица VL$/)?.classList.contains("dc-off") && /Нельзя вместе с «Лица VA»/.test(row(/^Лица VL$/).textContent), "«Лица VL» недоступен: в системе работает детектор лиц VA");
+  ok(DET_AK_CLASH.faceTV?.includes("faceVA") && DET_AK_CLASH.faceVL?.includes("faceVA"), "таблица несовместимости — из справочника, в обе стороны");
+  ok(row(/^Лица TV$/) && !row(/^Лица TV$/).classList.contains("dc-off"), "«Лица TV» в списке видов доступен: мешает только на сервере камеры");
   const cam = detCams().find((c) => c.id === "30000013-0000-4000-8000-000000000000");
   ok(dcWhy(cam, "a:faceVA") === i18n("уже есть"), "у камеры с детектором лиц VA — «уже есть»");
+  const near = detCams().find((c) => c.id !== cam.id && detSrvOf(c) === detSrvOf(cam) && !camDetectors(c).some((d) => d.analyticsKind));
+  const far = detCams().find((c) => detSrvOf(c) && detSrvOf(c) !== detSrvOf(cam) && !detAkClash("faceTV", null, false, detSrvOf(c)).length);
+  ok(near && /мешает «Лица VA»/.test(dcWhy(near, "a:faceTV") || ""), "камера того же сервера: «Лица TV» — «мешает «Лица VA»»");
+  ok(far && dcWhy(far, "a:faceTV") == null, "камера другого сервера: «Лица TV» подходит");
   dcItemToggle("a:meta", true);
   dcCamToggle(cam.id, true);
   dcStepGo(dcSteps().findIndex((x) => x.k === "zones"));

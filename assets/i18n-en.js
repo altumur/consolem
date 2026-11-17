@@ -4199,6 +4199,10 @@ window.I18N_EN={
 "Чтобы подтвердить, ввести число пультов":"To confirm, type the number of CCTV keyboards",
 // Мета-детектор, стоп-кадр при рисовании зоны, несовместимые семейства детекторов лиц (C28, CX3, C29)
 "в системе уже работает":"the system already runs",
+"на сервере уже работает":"the server already runs",
+"На компьютер сервера можно установить только один пакет распознавания лиц. Поэтому на одном сервере детекторы":"A server computer can have only one face recognition pack. So on one server the detectors",
+"Детекторы лиц разных пакетов не работают вместе на одном сервере.":"Face detectors from different packs do not work together on one server.",
+"Консоль не включит выбранные детекторы лиц. Детекторы лиц разных пакетов не работают вместе на одном сервере.":"The console will not turn on the selected face detectors. Face detectors from different packs do not work together on one server.",
 "Консоль не включит детектор":"The console will not turn on the detector",
 "Запрос":"Query",
 "Детектор сравнивает кадр с текстом. Детектор сработает, когда кадр совпадёт с одним из запросов. Запрос можно написать на любом языке.":"The detector compares the frame with the text. The detector triggers when the frame matches one of the queries. You can write a query in any language.",

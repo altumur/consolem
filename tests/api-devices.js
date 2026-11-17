@@ -427,6 +427,55 @@
     assert.eq((await env.ok("PATCH", U(face.uid), { properties: { enabled: true } }, v(face))).properties.enabled, true, "теперь можно");
   }, { needs: ["createUnits", "patchUnit", "kind:det"] });
 
+  test("Несовместимые виды серверных детекторов (с 0.21.0): reference.analyticsConflicts; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    const tv = (ref.analyticsConflicts || []).find((c) => c.analyticsKind === "faceTV");
+    assert.ok(tv && tv.conflicts.includes("faceVA"), "лица TV и VA — в справочнике");
+    const FACE = ["faceTV", "faceVA", "faceVL"];
+    // Чистый стенд: включённые детекторы лиц из набора выключены
+    for (const d of (await env.pages("/units?kind=det&limit=1000")).filter((u) => FACE.includes(u.properties.analyticsKind) && u.properties.enabled !== false)) {
+      await env.ok("PATCH", U(d.uid), { properties: { enabled: false } }, v(d));
+    }
+    const up = new Set(FX.servers.filter((x) => x.allocated && x.online).map((x) => x.id));
+    const cams = (await env.pages("/units?kind=camera&limit=1000")).filter((u) => up.has(u.properties.serverId) && u.status.link === "online");
+    const a = cams[0], same = cams.find((u) => u !== a && u.properties.serverId === a.properties.serverId), other = cams.find((u) => u.properties.serverId !== a.properties.serverId);
+    assert.ok(same && other, "две камеры одного сервера и камера другого");
+    const face = (ak, extra) => Object.assign({ detectorKind: "other", analyticsKind: ak }, extra);
+    const va = await addDet(env, a, "Лица VA", face("faceVA"));
+    // Создание включённого рядом с включённым несовместимым
+    const res = await create(env, det(same, "Лица TV", face("faceTV")));
+    assert.eq(res.failed.map((x) => [x.code, x.field]), [["BUSY", P("analyticsKind")]], "создать нельзя");
+    assert.eq([res.failed[0].params.reason, res.failed[0].params.with], ["incompatible", [va.uid]], "причина и кто мешает");
+    // Выключенный создаётся, включить нельзя: запрос и шаг операции
+    const tvOff = await addDet(env, same, "Лица TV", face("faceTV", { enabled: false }));
+    const on = await props(env, tvOff, { enabled: true });
+    field(on, "BUSY", P("enabled"), "включить нельзя", 409);
+    assert.eq([on.body.params.reason, on.body.params.with], ["incompatible", [va.uid]], "включение: причина и кто мешает");
+    const op = await env.runOperation({ idempotencyKey: key(), items: [{ uid: tvOff.uid, patch: { properties: { enabled: true } } }], expectedVersions: { [tvOff.uid]: tvOff.version } });
+    assert.eq([op.items[0].code, op.items[0].params.reason, op.items[0].params.with], ["BUSY", "incompatible", [va.uid]], "по шагу");
+    // Смена вида включённого детектора на несовместимый
+    const meta = await addDet(env, same, "Мета", face("meta"));
+    field(await props(env, meta, { analyticsKind: "faceVL" }), "BUSY", P("analyticsKind"), "сменить вид нельзя", 409);
+    // Новая камера с детектором в той же строке: сервер — serverId камеры
+    const kid = (ak) => ({ kind: "det", name: "Лица", properties: face(ak) });
+    const fresh = await create(env, newCam({ ip: "10.9.9.31", serverId: a.properties.serverId }, { children: [kid("faceTV")] }));
+    assert.eq([fresh.failed.map((x) => x.code), (fresh.failed[0] || {}).params], [["BUSY"], { reason: "incompatible", with: [va.uid] }], "новая камера того же сервера: детектор лиц TV не заводится");
+    // Два несовместимых детектора в одной строке новой камеры: второй не заводится, with пуст — у соседа ещё нет uid
+    const pair = await create(env, newCam({ ip: "10.9.9.32", serverId: other.properties.serverId }, { children: [kid("faceVL"), kid("faceTV")] }));
+    assert.eq([pair.failed.map((x) => x.code), ((pair.failed[0] || {}).params || {}).with], [["BUSY"], []], "два пакета в одной строке");
+    // На другом сервере пакет свой
+    const far = await addDet(env, other, "Лица TV", face("faceTV"));
+    assert.eq(far.properties.enabled !== false, true, "на другом сервере — можно");
+    // Перенос камеры на сервер, где работает другой пакет
+    const moved = await props(env, other, { serverId: a.properties.serverId });
+    field(moved, "BUSY", P("serverId"), "камеру с детектором лиц TV не перенести к детектору лиц VA", 409);
+    assert.eq(moved.body.params.with, [va.uid], "перенос: кто мешает");
+    // Выключили мешающий — теперь можно
+    await env.ok("PATCH", U(va.uid), { properties: { enabled: false } }, v(va));
+    assert.eq((await env.ok("PATCH", U(tvOff.uid), { properties: { enabled: true } }, v(tvOff))).properties.enabled, true, "мешающий выключен — включили");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.analyticsKind"] });
+
   test("Зона: rect, polygon, line в долях кадра, неверная — 422 field: /properties/zone; два детектора одного вида; stream и params серверного", async () => {
     const env = await makeEnv();
     const c = await optsCam(env);

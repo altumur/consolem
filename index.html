@@ -4540,20 +4540,29 @@ function bytesText(b){return b%TB===0?`${b/TB} ТБ`:`${Math.round(b/GB)} ГБ`}
 const DET_KIND_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",other:"Другой"};
 const DET_KIND_CODE=Object.fromEntries(Object.entries(DET_KIND_RU).map(([k,v])=>[v,k]));
 // Серверные виды аналитики вне detectorKind (analyticsKind вида det, с 0.17.0): мета-детектор и детекторы лиц.
-// ЗАГЛУШКА (запрос api/requests/2026-11-16-142236Z-mockup-meta-detector-face-families-request.md, пп. 5–6): семейства, которые нельзя сочетать.
-// Пакеты распознавания лиц TV, VA и VL не работают вместе. Пока сервер не отказывает (409 BUSY, reason: incompatible), таблица — здесь
+// Несовместимые виды (с 0.21.0) — reference.analyticsConflicts: пакеты распознавания лиц TV, VA и VL не работают вместе
+// на одном сервере. Сервер отказывает сам (409 BUSY, reason: incompatible); консоль заранее показывает причину
 const DET_AK={meta:"Мета-детектор",faceTV:"Лица TV",faceVA:"Лица VA",faceVL:"Лица VL"};
 // Вид аналитики есть в мастере, только если схема вида det на сервере знает это значение analyticsKind
 function detAkOn(ak){return !!DET_AK[ak]&&(kindProps("det").analyticsKind?.enum||[]).includes(ak)}
-const DET_AK_CLASH={faceTV:["faceVA","faceVL"],faceVA:["faceTV","faceVL"],faceVL:["faceTV","faceVA"]};
-// Детекторы другого семейства в системе: включённые, кроме самого детектора
-function detAkClash(ak,selfId,withOff){
+// Вид → несовместимые виды, в обе стороны. Заполняет autoRef из справочника
+let DET_AK_CLASH={};
+function detAkClashSet(list){
+  const m={};
+  (list||[]).forEach(c=>(c.conflicts||[]).forEach(x=>{(m[c.analyticsKind]??=new Set()).add(x);(m[x]??=new Set()).add(c.analyticsKind)}));
+  DET_AK_CLASH=Object.fromEntries(Object.entries(m).map(([k,v])=>[k,[...v]]));
+}
+// Сервер расчёта детектора: свой serverId или сервер камеры
+function detSrvOf(n){return n?.srvId||srv(n?.id)?.id||null}
+// Детекторы несовместимого вида на том же сервере: включённые, кроме самого детектора. sid — сервер; без него — сервер детектора selfId
+function detAkClash(ak,selfId,withOff,sid){
   const bad=DET_AK_CLASH[ak];if(!bad)return[];
-  return allNodes().filter(n=>n.type==="det"&&n.id!==selfId&&bad.includes(n.analyticsKind)&&(withOff||n.enabled!==false));
+  const at=sid||detSrvOf(selfId&&find(selfId)?.n);if(!at)return[];
+  return allNodes().filter(n=>n.type==="det"&&n.id!==selfId&&bad.includes(n.analyticsKind)&&(withOff||n.enabled!==false)&&detSrvOf(n)===at);
 }
 function detAkClashText(ak,list){
   const other=DET_AK[list[0].analyticsKind];
-  return`${i18n("Нельзя вместе с")} «${i18n(other)}»: ${i18n("в системе уже работает")} ${list.length} ${i18n(plural(list.length,"детектор|детектора|детекторов"))}`;
+  return`${i18n("Нельзя вместе с")} «${i18n(other)}»: ${i18n("на сервере уже работает")} ${list.length} ${i18n(plural(list.length,"детектор|детектора|детекторов"))}`;
 }
 const EMAIL_MODE_RU={axxonnet:"Облачный AxxonNet",smtp:"SMTP сервер"};
 const EMAIL_MODE_CODE={"AxxonNet":"axxonnet","Облачный AxxonNet":"axxonnet","SMTP сервер":"smtp"};
@@ -6084,7 +6093,7 @@ function problemText(e,n){
     LICENSE_EXCEEDED:i18n("лицензия превышена, поэтому камера останется выключенной"),
     DEVICE_OFFLINE:i18n("устройство не отвечает. Проверить сеть и учётные данные"),
     VERSION_MISMATCH:n&&KEPT_WAIT.has(n.id)?i18n("предыдущее изменение камеры ещё не применено. Подождать и повторить"):i18n("объект изменился. Открыть его снова"),
-    BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find((e.problem?.params||e.params).with)?.n||{name:"—"})}»`:i18n("консоль выполняет групповую операцию над объектом"),
+    BUSY:(e?.problem?.params||e?.params)?.reason==="incompatible"?`${i18n("несовместим с включённым детектором")} «${locName(find([].concat((e.problem?.params||e.params).with)[0])?.n||{name:"—"})}»`:i18n("консоль выполняет групповую операцию над объектом"),
     NAME_REQUIRED:i18n("Укажите имя"),
     SCHEDULE_OVERLAP:umOverlapProblem(e),
     // Входа может и не быть: у камеры за NAT и у кластера без адреса ссылки нет, обещать её нельзя
@@ -6717,6 +6726,7 @@ function autoRef(ref){
   if(ref.recordModes?.length)refRecModes=ref.recordModes;
 
   refLabels=ref.serverLabels||[];refDetKinds=ref.detectorKinds||[];
+  detAkClashSet(ref.analyticsConflicts);
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
   (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
@@ -16978,7 +16988,7 @@ function faceClashHtml(d){
   const links=all.map(x=>{const cam=find(x.id)?.p;return`<button type="button" class="lk" ${onEv("click",["pick",`${x.id}`])}>${escHtml(locName(x))}${cam?` · ${escHtml(locName(cam))}`:""}</button>${x.enabled===false?` <span class="sub">(${i18n("выключен")})</span>`:""}`}).join(", ");
   const other=i18n(DET_AK[all[0].analyticsKind]),mine=i18n(DET_AK[d.analyticsKind]);
   const head=me&&on.length?i18n("Детекторы не работают вместе"):!me&&on.length?i18n("Детектор нельзя включить"):i18n("Второй детектор нельзя включить");
-  const body=`${i18n("В системе можно установить только один пакет распознавания лиц. Поэтому детекторы")} «${mine}» ${i18n("и")} «${other}» ${i18n("не работают вместе.")}`;
+  const body=`${i18n("На компьютер сервера можно установить только один пакет распознавания лиц. Поэтому на одном сервере детекторы")} «${mine}» ${i18n("и")} «${other}» ${i18n("не работают вместе.")}`;
   const fix=!me&&on.length?`${i18n("Чтобы включить этот детектор, сначала выключить или удалить детекторы")} «${other}».`:me&&on.length?`${i18n("Оставить одно семейство: выключить или удалить детекторы")} «${other}» ${i18n("или этот детектор.")}`:`${i18n("Детектор")} «${other}» ${i18n("сейчас не работает. Консоль не даст включить его, пока работает этот детектор.")}`;
   return`<div class="nt bk-warn fam-nt" role="status"><b>${head}</b><p>${body}</p><p>${fix}</p><p>${i18n("Детекторы")} «${other}»: ${links}</p></div>`;
 }
@@ -17888,7 +17898,7 @@ function dcWhy(cam,key){
   if(key.startsWith("a:")){
     const ak=key.slice(2);
     if(own.some(d=>d.analyticsKind===ak))return i18n("уже есть");
-    const cl=detAkClash(ak);
+    const cl=detAkClash(ak,null,false,detSrvOf(cam));
     return cl.length?`${i18n("мешает")} «${i18n(DET_AK[cl[0].analyticsKind])}»`:null;
   }
   const tp=key.slice(2),o=(cam.detectorOptions||[]).find(x=>x.template===tp);
@@ -18140,8 +18150,8 @@ function renderDetCreate(){
   const steps=dcSteps(),st=steps[Math.min(dc.step,steps.length-1)],last=dc.step>=steps.length-1;
   const okStep=x=>x.k==="what"?dc.items.size>0:x.k==="cams"?total>0:x.k==="rule"?dcRuleOk(gs):true;
   const secWhat=()=>{
-    // Виды аналитики (C28, C29). Семейство, которое мешает работающему в системе или выбранному здесь, недоступно
-    const akOff=ak=>{const cl=detAkClash(ak);if(cl.length)return detAkClashText(ak,cl);const hit=Object.keys(DET_AK_CLASH).find(x=>x!==ak&&dc.items.has("a:"+x)&&(DET_AK_CLASH[ak]||[]).includes(x));return hit?`${i18n("Нельзя вместе с")} «${i18n(DET_AK[hit])}»`:""};
+    // Виды аналитики (C28, C29). Семейство, которое мешает выбранному здесь или работающему на сервере камеры из «Добавить к камере», недоступно; у остальных камер причина — в шаге камер (dcWhy)
+    const akOff=ak=>{const cl=lock?detAkClash(ak,null,false,detSrvOf(lock)):[];if(cl.length)return detAkClashText(ak,cl);const hit=Object.keys(DET_AK_CLASH).find(x=>x!==ak&&dc.items.has("a:"+x)&&(DET_AK_CLASH[ak]||[]).includes(x));return hit?`${i18n("Нельзя вместе с")} «${i18n(DET_AK[hit])}»`:""};
     const akSmall={meta:"Ищет сцену по текстовому описанию",faceTV:"Пакет распознавания лиц TV",faceVA:"Пакет распознавания лиц VA",faceVL:"Пакет распознавания лиц VL"};
     const srvItems=[...DET_TYPES.map(k=>dcItemRow("s:"+k,i18n(k),"","","",lockWhy("s:"+k))),...(DET_TYPES.length?Object.keys(DET_AK).filter(detAkOn):[]).map(ak=>{const off=akOff(ak)||lockWhy("a:"+ak);return dcItemRow("a:"+ak,i18n(DET_AK[ak]),akOff(ak)||i18n(akSmall[ak]),"","",off)})];
     const noSrv=`<p class="sub">${i18n("Сервер не сообщил виды детекторов.")}</p>`;
@@ -38532,11 +38542,11 @@ function bulkChanges(draft,nodesIn){
   if(d.enabled){
     const want=d.enabled==="on";
     // C29: детектор, которому мешает семейство в системе или в том же выборе, не включается
-    const fam=want?nodes.filter(n=>n.type==="det"&&n.enabled===false&&DET_AK_CLASH[n.analyticsKind]&&(detAkClash(n.analyticsKind,n.id).length||nodes.some(x=>x!==n&&DET_AK_CLASH[n.analyticsKind].includes(x.analyticsKind)))):[];
+    const fam=want?nodes.filter(n=>n.type==="det"&&n.enabled===false&&DET_AK_CLASH[n.analyticsKind]&&(detAkClash(n.analyticsKind,n.id).length||nodes.some(x=>x!==n&&DET_AK_CLASH[n.analyticsKind].includes(x.analyticsKind)&&detSrvOf(n)&&detSrvOf(x)===detSrvOf(n)))):[];
     bulkFamSkip=fam.length;
     const ops=nodes.filter(n=>bulkCanToggle(n)&&(n.enabled!==false)!==want&&!fam.includes(n)).map(n=>{const prev=n.enabled;return mkOp(n,want?"Включить":"Выключить",want?"enable":"disable",()=>{n.enabled=want},null,()=>{n.enabled=prev})});
     const lic=want?ops.filter(o=>o.n.licenseExceeded).length:0;
-    const famNote=fam.length?`${i18n("Консоль не включит детекторы лиц")}: ${fam.length}. ${i18n("Детекторы лиц TV и лиц VA не работают вместе.")}`:"";
+    const famNote=fam.length?`${i18n("Консоль не включит детекторы лиц")}: ${fam.length}. ${i18n("Детекторы лиц разных пакетов не работают вместе на одном сервере.")}`:"";
     step("enabled",want?"Включить":"Выключить",ops,[lic?`${i18n("лицензия")}: ${lic} ${i18n(plural(lic,"камера|камеры|камер"))} ${i18n("сверх лимита не включатся")}`:"",famNote].filter(Boolean).join(" · "));
   }
   if(d.user||d.pass)step("creds","Учётные данные",nodes.filter(canCreds).map(n=>Object.assign(mkOp(n,"Учётные данные","creds",()=>{if(d.user)n.user=d.user;if(d.pass)n.pass="•".repeat(8)}),
@@ -38650,7 +38660,7 @@ let bulkFamSkip=0;
 function bulkQuick(v){
   bulkFamSkip=0;
   const ch=bulkChanges({enabled:v});
-  if(!ch.length){toast(v==="on"&&bulkFamSkip?"Консоль не включит выбранные детекторы лиц. Детекторы лиц TV и лиц VA не работают вместе.":v==="on"?"Все выбранные уже включены":"Все выбранные уже выключены");return}
+  if(!ch.length){toast(v==="on"&&bulkFamSkip?"Консоль не включит выбранные детекторы лиц. Детекторы лиц разных пакетов не работают вместе на одном сервере.":v==="on"?"Все выбранные уже включены":"Все выбранные уже выключены");return}
   bulkPlanOf(ch);
 }
 function bulkQuickFolder(fid){

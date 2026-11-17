@@ -203,6 +203,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // Несовместимый: отказ сказан своими словами
   const clash = problemText({ problem: { code: "BUSY", params: { reason: "incompatible", with: line.id } } });
   ok(/несовместим/.test(clash), "несовместимый детектор: " + clash);
+  // С 0.21.0: несовместимый вид серверного детектора — with массивом
+  const many = problemText({ problem: { code: "BUSY", params: { reason: "incompatible", with: [line.id] } } });
+  ok(many === clash, "with массивом — тот же текст: " + many);
   ok(TRIGGER_KINDS.some((k) => k.kind === "other") && ruleDetOthers().some((x) => x[1] === "Вскрытие корпуса"), "другой вид выбирается в правиле по имени шаблона");
 
   // Карта камеры w2c: меньший объём — со вторым подтверждением

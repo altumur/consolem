@@ -5848,7 +5848,7 @@
         "lang": "ru"
        }
       },
-      "description": "С 0.12.0. Вид детектора вне перечня detectorKind; действует только при detectorKind: other. Незнакомое значение клиент показывает как other. С 0.17.0: meta — мета-детектор (поля meta…); faceVA, faceVL, faceTV — детекторы лиц из пакетов распознавания лиц VA, VL и TV. faceTV — старый DetectorPack: с DetectorPack 3.11.1 его заменил детектор лиц VA"
+      "description": "С 0.12.0. Вид детектора вне перечня detectorKind; действует только при detectorKind: other. Незнакомое значение клиент показывает как other. С 0.17.0: meta — мета-детектор (поля meta…); faceVA, faceVL, faceTV — детекторы лиц из пакетов распознавания лиц VA, VL и TV. faceTV — старый DetectorPack: с DetectorPack 3.11.1 его заменил детектор лиц VA. С 0.21.0: детекторы лиц разных пакетов (faceTV, faceVA, faceVL) не работают вместе на одном сервере — reference.analyticsConflicts; включить такой детектор рядом с включённым несовместимым — 409 BUSY, params.reason: incompatible"
      },
      "builtin": {
       "type": "boolean",
@@ -52941,6 +52941,21 @@
    "disappeared",
    "crowd",
    "lpr"
+  ],
+  "analyticsConflicts": [
+   {
+    "analyticsKind": "faceTV",
+    "conflicts": [
+     "faceVA",
+     "faceVL"
+    ]
+   },
+   {
+    "analyticsKind": "faceVA",
+    "conflicts": [
+     "faceVL"
+    ]
+   }
   ],
   "export": {
    "formats": [

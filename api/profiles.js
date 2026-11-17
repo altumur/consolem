@@ -1086,7 +1086,7 @@
     // камеры (ctx.plan — правки этого и следующих шагов): режим и источник в разных шагах — одна запись
     beforeSet(u, patch, whole, ctx) {
       const rec = recOf(u, ctx), set = flat(patch);
-      const bad = addressProblem(rec, set, ctx) || videoProblem(rec, set, ctx) || recordingProblem(rec, ctx.plan ? flat(ctx.plan) : set, ctx);
+      const bad = addressProblem(rec, set, ctx) || videoProblem(rec, set, ctx) || recordingProblem(rec, ctx.plan ? flat(ctx.plan) : set, ctx) || moveClash(rec, set, ctx);
       // Правка приводится к виду записи (patch — копия зовущего): поля сервера в строках записи остаются
       if (!bad && patch.properties && patch.properties.extraArchives) patch.properties.extraArchives = keepRows(rec, { extraArchives: patch.properties.extraArchives }).extraArchives;
       return bad;
@@ -1253,6 +1253,28 @@
     }) || null;
   }
   const conflictParams = (x) => ({ reason: "incompatible", with: x.id });
+  // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind) — reference.analyticsConflicts. Охват — сервер расчёта:
+  // пакет распознавания лиц ставят на компьютер сервера. Сервер детектора — свой serverId или сервер камеры
+  const akOf = (p) => (p && !p.builtin && p.detectorKind === "other" ? p.analyticsKind : null);
+  const akBad = (a, b, ctx) => (ctx.db.reference.analyticsConflicts || []).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
+  const detServerId = (p, cam, ctx) => (p.serverId ? p.serverId : ((cam ? serverOf(cam, ctx) : serverOf(p, ctx)) || {}).id || null);
+  // Включённые детекторы несовместимого вида на том же сервере. p — свойства детектора целиком (с parentId), self — его uid.
+  // sid — сервер, если он известен иначе (новая камера той же строки, перенос камеры); skip(x) — кого не считать
+  function akClash(p, self, cam, ctx, sid, skip) {
+    const ak = akOf(p), srv = ak && (sid || detServerId(p, cam, ctx));
+    if (!srv) return [];
+    return ctx.db.devices.filter((x) => x.type === "det" && x.id !== self && x.enabled !== false && !(skip && skip(x)) && akOf(x) && akBad(ak, akOf(x), ctx) && detServerId(x, null, ctx) === srv);
+  }
+  const akParams = (list) => ({ reason: "incompatible", with: list.map((x) => x.id).filter(Boolean) });
+  // Новый детектор: склад и, у новой камеры, соседние детекторы той же строки (у них ещё нет uid: with пуст)
+  function freshClash(spec, cam, fresh, ctx) {
+    const p = Object.assign({}, spec, { parentId: cam ? cam.id : undefined });
+    if (!fresh) return akClash(p, null, cam, ctx);
+    const sid = spec.serverId || (fresh.properties || {}).serverId;
+    const kin = (fresh.rows || []).filter((r) => r.kind === "det" && (r.properties || {}).enabled !== false && akOf(r.properties) && akOf(p) && akBad(akOf(p), akOf(r.properties), ctx));
+    const out = sid ? akClash(p, null, null, ctx, sid) : [];
+    return out.length || !kin.length ? out : kin.map(() => ({}));
+  }
   // С 0.12.0: пара min/max — меньшее не выше большего. objectSize — [ширина, высота], plateWidth — число. {field, params} или null
   const aboveMax = (lo, hi) => (Array.isArray(lo) ? Array.isArray(hi) && lo.some((v, i) => v > hi[i]) : typeof lo === "number" && typeof hi === "number" && lo > hi);
   const rangeErr = (obj, name) => {
@@ -1274,16 +1296,29 @@
   };
   const detProblem = (rec, patch, ctx) => (rec.type === "det" ? zoneProblem(patch.zone, ctx) || sensProblem(rec, patch.sensitivity, null, ctx) : null);
   // Включение несовместимого: в запросе — 409, в групповой операции — fail шага
-  function clashProblem(rec, patch, ctx) {
+  function clashProblem(rec, patch, ctx, whole) {
     const x = rec.type === "det" && patch.enabled === true && rec.enabled === false ? conflictWith(rec, null, ctx) : null;
-    return x ? ctx.problem(409, "BUSY", "Детектор несовместим с включённым на этом канале", { field: "enabled", params: conflictParams(x) }) : null;
+    if (x) return ctx.problem(409, "BUSY", "Детектор несовместим с включённым на этом канале", { field: "enabled", params: conflictParams(x) });
+    return familyProblem(rec, patch, whole, ctx);
+  }
+  // С 0.21.0: включение, вид или сервер включённого детектора — и на сервере уже работает детектор несовместимого вида
+  function familyProblem(rec, patch, whole, ctx) {
+    if (rec.type !== "det" || !whole) return null;
+    const on = whole.enabled !== false;
+    const field = patch.enabled === true && rec.enabled === false ? "enabled" : ["analyticsKind", "detectorKind", "serverId"].find((k) => k in patch && patch[k] !== rec[k]);
+    if (!on || !field) return null;
+    const list = akClash(Object.assign({}, whole, { parentId: rec.parentId, builtin: rec.builtin }), rec.id, null, ctx);
+    return list.length ? ctx.problem(409, "BUSY", "На сервере уже работает детектор несовместимого вида", { field, params: akParams(list) }) : null;
   }
   // Новый детектор: шаблон из того, что умеет камера. cam — запись родителя, если она уже есть. {code, field} или null
-  function detCreateProblem(spec, cam, ctx) {
+  // fresh — новый родитель из той же строки POST /units: сервер — его serverId, соседи — уже проверенные строки (fresh.rows)
+  function detCreateProblem(spec, cam, ctx, fresh) {
     if (spec.type !== "det") return null;
     if (zoneProblem(spec.zone, ctx)) return { code: "VALIDATION_FAILED", field: "zone" };
     const ne = settingsErr(spec, spec);
     if (ne) return Object.assign({ code: "VALIDATION_FAILED" }, ne);
+    const fam = spec.enabled !== false ? freshClash(spec, cam, fresh, ctx) : [];
+    if (fam.length) return { code: "BUSY", field: "analyticsKind", params: akParams(fam) };
     if (!spec.builtin || !cam) return null;
     if (!cam.detectorOptions) return { code: "NOT_SUPPORTED", field: "builtin" };
     if (!detOption(spec, cam, ctx)) return { code: "VALIDATION_FAILED", field: "template" };
@@ -1293,19 +1328,31 @@
     return null;
   }
 
+  // С 0.21.0: камеру переносят на другой сервер (serverId) — её включённые серверные детекторы не должны встретить там несовместимые
+  function moveClash(rec, set, ctx) {
+    if (!set.serverId || set.serverId === rec.serverId) return null;
+    const mine = ctx.db.devices.filter((x) => x.type === "det" && x.parentId === rec.id && x.enabled !== false && !x.serverId && akOf(x));
+    for (const d of mine) {
+      const list = akClash(d, d.id, null, ctx, set.serverId, (x) => x.parentId === rec.id && !x.serverId);
+      if (list.length) return ctx.problem(409, "BUSY", "На сервере уже работает детектор несовместимого вида", { field: "serverId", params: akParams(list) });
+    }
+    return null;
+  }
+
   const detector = {
-    detOption, zoneProblem, sensProblem, conflictWith, conflictParams, detProblem, clashProblem, createProblem: detCreateProblem,
+    detOption, zoneProblem, sensProblem, conflictWith, conflictParams, akClash, akParams, detProblem, clashProblem, createProblem: detCreateProblem,
     beforeCreate(u, parent, ctx) {
       const s = specOf(u);
-      const bad = detCreateProblem(s, parent && !parent.fresh ? recOf(parent, ctx) : null, ctx);
-      if (bad) return ctx.problem(bad.code === "BUSY" ? 409 : 422, bad.code, "Детектор этой камеры так не заводится", bad.params ? { field: bad.field, params: bad.params } : { field: bad.field });
+      const bad = detCreateProblem(s, parent && !parent.fresh ? recOf(parent, ctx) : null, ctx, parent && parent.fresh ? parent : null);
+      const text = bad && bad.field === "analyticsKind" ? "На сервере уже работает детектор несовместимого вида" : "Детектор этой камеры так не заводится";
+      if (bad) return ctx.problem(bad.code === "BUSY" ? 409 : 422, bad.code, text, bad.params ? { field: bad.field, params: bad.params } : { field: bad.field });
       // Серверный детектор без меток считает на сервере с GPU
       if (!s.builtin && !("labels" in props(u))) props(u).labels = ["gpu"];
       return null;
     },
     beforeSet(u, patch, whole, ctx) {
       const rec = recOf(u, ctx), set = flat(patch);
-      return detProblem(rec, set, ctx) || settingsProblem(whole, set, ctx) || clashProblem(rec, set, ctx);
+      return detProblem(rec, set, ctx) || settingsProblem(whole, set, ctx) || clashProblem(rec, set, ctx, whole);
     },
     // Поддетекторы (с 0.12.0) уходят с детектором — как строки незнакомых видов под камерой; тоже без отката, как удаление детектора
     dependents: (u, ctx) => ({ remove: cameraRows(u, ctx), detach: [] }),

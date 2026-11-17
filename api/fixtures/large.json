@@ -17226,6 +17226,21 @@
    "crowd",
    "lpr"
   ],
+  "analyticsConflicts": [
+   {
+    "analyticsKind": "faceTV",
+    "conflicts": [
+     "faceVA",
+     "faceVL"
+    ]
+   },
+   {
+    "analyticsKind": "faceVA",
+    "conflicts": [
+     "faceVL"
+    ]
+   }
+  ],
   "export": {
    "formats": [
     {
