@@ -1570,8 +1570,30 @@
       const walk = (l) => l.some((a) => (hit = bad(a)) || walk(a.yes || []) || walk(a.no || []));
       return walk(c.steps) ? problem(422, "VALIDATION_FAILED", `Поле ${hit[0]} — не того типа, что в описании команды`, { field: "steps", params: { keyword: "type", param: hit[0] } }) : null;
     }
+    // С 0.23.0: match.detector события правила — объект профиля vms.detector/1; цель события — одна камера, тогда детектор — её.
+    // Цель — группа, несколько камер или из события: проверяем только первое. Удалённый позже детектор правило не роняет: rulesGone
+    function detectorProblem(c) {
+      const bad = (msg, d) => problem(422, "VALIDATION_FAILED", msg, { field: "match.detector", params: { uid: d } });
+      const check = (t) => {
+        const d = t && t.match && t.match.detector;
+        if (d == null) return null;
+        const u = typeof d === "string" ? store.get(d) : null;
+        if (!u || !kinds.profileOf(u.kind, "vms.detector/1")) return bad(`Детектора ${d} нет`, d);
+        const inc = ((t.target || {}).include || []).filter((x) => !x.area);
+        const cam = inc.length === 1 && !(t.target.include || []).some((x) => x.area) && !t.target.fromEvent ? store.get(inc[0].uid) : null;
+        if (cam && kinds.profileOf(cam.kind, "vms.camera/1") && u.parentId !== cam.uid) return bad(`Детектор «${u.name}» стоит на другой камере`, d);
+        return null;
+      };
+      let hit = null;
+      (c.triggers || []).some((t) => (hit = check(t)));
+      const walk = (l) => (l || []).some((a) => (a.event && (hit = check(a.event))) || walk(a.yes) || walk(a.no));
+      if (!hit) walk(c.steps);
+      return hit;
+    }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
+      const det = detectorProblem(c);
+      if (det) return det;
       if (c.runAsRoleId && !db.access.roles.some((x) => x.id === c.runAsRoleId)) return problem(422, "VALIDATION_FAILED", `Роли ${c.runAsRoleId} нет`, { field: "runAsRoleId" });
       const typed = stepTypeProblem(c);
       if (typed) return typed;

@@ -1070,5 +1070,27 @@
     assert.eq([t2.match, t2.target.gone], [{}, [cam.name]], "в gone — только камера");
   }, { needs: ["kind:camera", "kind:det", "deleteUnit"] });
 
+  test("Один детектор в правиле (с 0.23.0): match.detector при сохранении — не детектор или детектор другой камеры — 422 VALIDATION_FAILED, field match.detector", async () => {
+    const env = await makeEnv();
+    const dets = (await env.pages("/units?kind=det&limit=1000")).filter((u) => u.properties?.detectorKind === "motion");
+    const [d1] = dets;
+    const camId = d1.parentId;
+    const other = (await env.pages("/units?kind=camera&limit=1000")).find((u) => u.uid !== camId);
+    assert.ok(other, "в наборе есть вторая камера");
+    const bad = async (rule, what) => {
+      const r = await env.call("POST", "/rules", rule);
+      assert.status(r, 422, "VALIDATION_FAILED", what);
+      assert.eq(r.body.field, "match.detector", what + ": field");
+    };
+    await bad(onEvent({ triggers: [trig("motion", camId, { detector: "00000000-0000-4000-8000-000000000000" })] }), "нет такого объекта");
+    await bad(onEvent({ triggers: [trig("motion", camId, { detector: camId })] }), "объект не детектор");
+    await bad(onEvent({ triggers: [trig("motion", other.uid, { detector: d1.uid })] }), "детектор другой камеры");
+    const ok = await env.ok("POST", "/rules", onEvent({ triggers: [trig("motion", camId, { detector: d1.uid })] }));
+    assert.eq(ok.triggers[0].match.detector, d1.uid, "детектор своей камеры — правило сохранено");
+    const r = await env.ok("GET", `/rules/${ok.id}`);
+    const put = await env.call("PUT", `/rules/${ok.id}`, Object.assign({}, r, { triggers: [trig("motion", other.uid, { detector: d1.uid })] }), { "If-Match": `"${r.version}"` });
+    assert.status(put, 422, "VALIDATION_FAILED", "PUT: детектор другой камеры");
+  }, { needs: ["kind:camera", "kind:det"] });
+
   ApiTest.loaded("api-automation.js");
 })();
