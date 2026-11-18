@@ -42,6 +42,28 @@ def profile_name(pid):
     return pid.rsplit("/", 1)[0]
 
 
+def file_name(pid):
+    """Имя файла профиля. Старшая версия 1 — «vms.camera/1» → «vms.camera.json»;
+    старшая N ≥ 2 лежит рядом со старой — «vms.camera/2» → «vms.camera.2.json»."""
+    major = major_of(pid)
+    return profile_name(pid) + (".json" if major == 1 else f".{major}.json")
+
+
+_FILE_MAJOR = re.compile(r"^(.+)\.([0-9]+)\.json$")
+
+
+def id_of_file(name):
+    """Имя файла → id, который в нём ожидают: «vms.camera.json» → «vms.camera/1», «vms.camera.2.json» →
+    «vms.camera/2». Не файл профиля (не .json) — None. «<имя>.1.json» тоже даёт «/1», но file_name для него
+    иное имя, и profile_problems отклонит такой файл."""
+    if not name.endswith(".json"):
+        return None
+    m = _FILE_MAJOR.match(name)
+    if m:
+        return f"{m.group(1)}/{m.group(2)}"
+    return f"{name[:-5]}/1"
+
+
 def load_profiles(api_dir):
     """Все *.json папки <api_dir>/profiles по имени файла; в каждом документе ключ _file — имя файла.
     Нет папки — пустой список. Сломанный файл — ValueError с его именем."""
@@ -123,8 +145,8 @@ def profile_problems(doc):
             out.append(f"id {pid!r}: нужно <имя>/<старшая версия>, например vms.camera/1")
         else:
             major = major_of(pid)
-            if "_file" in doc and doc["_file"] != profile_name(pid) + ".json":
-                out.append(f"имя файла {doc['_file']}: для {pid} нужно {profile_name(pid)}.json")
+            if "_file" in doc and doc["_file"] != file_name(pid):
+                out.append(f"имя файла {doc['_file']}: для {pid} нужно {file_name(pid)}")
     version = None
     if "version" in doc:
         version = _ver(doc["version"])
@@ -268,6 +290,11 @@ def type_text(schema):
     return text
 
 
+def table_name(pid):
+    """Имя таблицы профиля: «vms.camera/1» → «vms.camera.md», «vms.camera/2» → «vms.camera.2.md»."""
+    return file_name(pid)[:-len(".json")] + ".md"
+
+
 def _cell(s):
     return str(s).replace("|", "\\|").replace("\n", " ")
 
@@ -285,7 +312,7 @@ def render_md(doc, kinds):
     """Таблица профиля для людей: api/profiles/<имя>.md."""
     pid = doc["id"]
     uses = doc.get("uses") or []
-    lines = [f"<!-- Собрано tools/build_api.py из api/profiles/{profile_name(pid)}.json — руками не править -->",
+    lines = [f"<!-- Собрано tools/build_api.py из api/profiles/{file_name(pid)} — руками не править -->",
              f"# `{pid}` — {doc['label']}", "",
              f"Версия {doc['version']} · ведёт: {doc['owner']} · смотрят правку: {', '.join(doc['reviewers'])}", "",
              "Использует: " + (", ".join(f"`{u['id']}` с {u['version']}" for u in uses) if uses else "—"), ""]
@@ -392,12 +419,16 @@ def history_problems(cur, base):
     if cm < bm:
         return [f"профиль {pid}: старшая версия {cm} меньше, чем в origin/main ({bm})"]
     if cm > bm:
-        return []
+        return [f"профиль {pid}: в origin/main файл был {profile_name(pid)}/{bm}, а здесь в нём {pid}; старшую версию кладут рядом: "
+                f"{file_name(pid)}, а {file_name(base['id'])} остаётся"]
     cv, bv = parse_version(cur["version"]), parse_version(base["version"])
     if cv < bv:
         return [f"профиль {pid}: версия {cur['version']} ниже, чем в origin/main ({base['version']})"]
     grew = cv > bv
     out = []
+    key = lambda d: sorted(json.dumps(u, sort_keys=True) for u in d.get("uses") or [])
+    if key(cur) != key(base) and not grew:
+        out.append(f"профиль {pid}: uses изменён без новой младшей версии (в origin/main {base['version']})")
     for section in ("properties", "status"):
         old, new = base.get(section) or {}, cur.get(section) or {}
         for name, f in old.items():
@@ -423,6 +454,12 @@ def history_problems(cur, base):
         if a not in old_apis and not grew:
             out.append(f"профиль {pid}: новый путь {a} без новой младшей версии (в origin/main {base['version']})")
     return out
+
+
+def removed_file_problems(base_names, cur_names):
+    """Файл профиля есть в origin/main, а теперь его нет: снят профиль, а значит, снята старшая версия."""
+    return [f"файл профиля {n} есть в origin/main, а здесь его нет: снять старшую — запрос к reviewers"
+            for n in sorted(set(base_names) - set(cur_names))]
 
 
 def _refs(schema, found):

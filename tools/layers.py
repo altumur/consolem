@@ -17,6 +17,8 @@ import json
 import os
 import re
 
+import profile_files
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 LAYER_EXTRA = ("video", "vms")
@@ -85,8 +87,9 @@ def _load(rel):
 
 
 def profile_file(pid, api_dir="api"):
-    """«vms.camera/1» → «<api_dir>/profiles/vms.camera.json» (файл профиля — без номера версии)."""
-    return f"{api_dir}/profiles/{pid.split('/')[0]}.json"
+    """«vms.camera/1» → «<api_dir>/profiles/vms.camera.json»; старшая N ≥ 2 лежит рядом:
+    «vms.camera/2» → «<api_dir>/profiles/vms.camera.2.json» (profile_files.file_name)."""
+    return f"{api_dir}/profiles/{profile_files.file_name(pid)}"
 
 
 def profile_ids(api_dir="api"):
@@ -623,7 +626,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
             pid = own.get("id") if isinstance(own, dict) and isinstance(own.get("id"), str) else None
             if pid is None:
                 ids = [p["id"] for p in (new_of(f"{api_dir}/fixtures/demo.json").get("profiles") or []) if isinstance(p, dict) and "id" in p]
-                pid = next((i for i in ids if i.split("/")[0] == prof.group(1)), prof.group(1) + "/1")
+                pid = next((i for i in ids if profile_files.file_name(i) == prof.group(1) + ".json"), profile_files.id_of_file(prof.group(1) + ".json"))
             _add(lay, pid, rel)
             _add(file_lay, pid, rel)
         elif rel.startswith(f"{api_dir}/profiles/"):

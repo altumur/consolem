@@ -1013,6 +1013,9 @@ def check_profile_files(rep, spec, fixtures):
                 except ValueError:
                     base = None
                 problems += [f"{d['_file']}: {t}" for t in profile_files.history_problems(d, base)]
+            listing = layers.git_out(ROOT, "ls-tree", "--name-only", mb, f"{API}/profiles/") or ""
+            base_names = [os.path.basename(x) for x in listing.split("\n") if x.endswith(".json")]
+            problems += profile_files.removed_file_problems(base_names, [d["_file"] for d in docs])
             rep.check(name, problems)
     rep.check("Профили: зависимости uses есть и не младше", profile_files.uses_problems(docs))
 

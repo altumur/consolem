@@ -47,14 +47,14 @@ def render_demo():
 
 
 def render_profile_tables():
-    """Таблицы профилей для людей: {путь: текст} для каждого api/profiles/<имя>.json (profile_files.render_md).
+    """Таблицы профилей для людей: {путь: текст} для каждого api/profiles/<имя>.json и <имя>.<N>.json (profile_files.render_md).
     Виды — коды видов demo.json с этим профилем в implements."""
     with open(os.path.join(ROOT, f"{API}/fixtures/demo.json"), encoding="utf-8") as f:
         kinds = json.load(f)["kinds"]
     out = {}
     for d in profile_files.load_profiles(os.path.join(ROOT, API)):
         codes = [k["kind"] for k in kinds if d["id"] in (k.get("implements") or [])]
-        out[f"{API}/profiles/{profile_files.profile_name(d['id'])}.md"] = profile_files.render_md(d, codes)
+        out[f"{API}/profiles/{profile_files.table_name(d['id'])}"] = profile_files.render_md(d, codes)
     return out
 
 

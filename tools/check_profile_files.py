@@ -195,7 +195,8 @@ def profile(pid, version, uses=()):
             "uses": list(uses), "properties": {}, "changes": [{"version": version, "what": "Профиль создан."}]}
 
 
-from profile_files import fixture_profile_problems, history_problems, kind_problems, type_fits, uses_problems  # noqa: E402
+from profile_files import (file_name, fixture_profile_problems, history_problems, kind_problems, removed_file_problems,  # noqa: E402
+                           table_name, type_fits, uses_problems)
 
 cam = {"kind": "camera", "implements": ["vms.camera/1"], "schema": {"type": "object", "properties": {"archiveId": {"type": ["string", "null"], "x-ref": {"implements": ["vms.archive/1"]}}}}}
 ok(kind_problems([GOOD], [cam]) == [], "вид несёт поле того же типа")
@@ -242,7 +243,7 @@ ok(says(history_problems(add_prop(GOOD, "noiseReduction", since="1.5"), base), "
 ok(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.6"), "1.6"), base) == [], "новое поле с версией 1.6")
 ok(says(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.5"), "1.6"), base), "since"), "since нового поля — не новее версии в origin/main")
 ok(says(history_problems(drop_prop(GOOD, "privacyMasks"), base), "privacyMasks"), "поле снято в той же старшей")
-ok(history_problems(as_major2(drop_prop(GOOD, "privacyMasks")), base) == [], "поле снято в vms.camera/2")
+ok(history_problems(as_major2(drop_prop(GOOD, "privacyMasks")), None) == [], "поле снято в vms.camera/2 (новый файл рядом)")
 ok(says(history_problems(prop_type(GOOD, "archiveId", "string"), base), "archiveId"), "тип поменялся в той же старшей")
 ok(says(history_problems(bump(GOOD, "1.4"), base), "1.4"), "версия ниже, чем в origin/main")
 ok(says(history_problems(prop_since(GOOD, "archiveId", "1.3"), base), "archiveId"), "since старого поля поменялся")
@@ -260,6 +261,32 @@ ok(says(uses_problems([dict(GOOD, uses=[]), arch]), "x-ref"), "x-ref на про
 det = profile("vms.detector/1", "1.0", uses=[{"id": "vms.camera/1", "version": "1.0"}])
 cam2 = dict(GOOD, uses=GOOD["uses"] + [{"id": "vms.detector/1", "version": "1.0"}])
 ok(uses_problems([cam2, arch, det]) == [], "взаимные зависимости разрешены")
+
+# I1: старшая версия N>=2 лежит рядом со старой, в <имя>.<N>.json; файл <имя>.json — всегда старшая 1
+ok(file_name("vms.camera/1") == "vms.camera.json" and file_name("vms.camera/2") == "vms.camera.2.json", "имя файла: /1 — <имя>.json, /N — <имя>.<N>.json")
+ok(profile_problems(dict(as_major2(GOOD), _file="vms.camera.2.json")) == [], "I1: /2 в vms.camera.2.json проходит")
+ok(says(profile_problems(dict(as_major2(GOOD), _file="vms.camera.json")), "имя файла"), "I1: /2 в файле /1 — ошибка имени")
+ok(says(profile_problems(dict(GOOD, _file="vms.camera.1.json")), "имя файла"), "I1: /1 в vms.camera.1.json — ошибка имени")
+ok(history_problems(dict(as_major2(GOOD), _file="vms.camera.2.json"), None) == [], "I1: /2 рядом с /1 — файл новый, проходит")
+ok(says(history_problems(as_major2(GOOD), base), "рядом"), "I1: /2 вместо /1 в том же файле — «старшую версию кладут рядом»")
+ok(says(history_problems(as_major2(GOOD), base), "vms.camera.2.json"), "I1: подсказка называет vms.camera.2.json")
+ok(removed_file_problems(["vms.camera.json", "vms.camera.2.json"], ["vms.camera.json", "vms.camera.2.json"]) == [], "I1: все файлы базы на месте")
+ok(says(removed_file_problems(["vms.camera.json", "vms.pos.json"], ["vms.pos.json"]), "запрос к reviewers"), "I1: файл базы пропал — «снять старшую — запрос к reviewers»")
+ok(removed_file_problems(["vms.pos.json"], ["vms.pos.json", "vms.camera.json"]) == [], "I1: новый файл — не пропажа")
+with tempfile.TemporaryDirectory() as _t:
+    os.makedirs(os.path.join(_t, "profiles"))
+    for _n, _d in (("vms.camera.json", GOOD), ("vms.camera.2.json", as_major2(GOOD))):
+        with open(os.path.join(_t, "profiles", _n), "w", encoding="utf-8") as _f:
+            json.dump({k: v for k, v in _d.items() if k != "_file"}, _f)
+    _ids = [d["id"] for d in load_profiles(_t)]
+    ok(sorted(_ids) == ["vms.camera/1", "vms.camera/2"], "I1: load_profiles читает обе формы имени")
+ok("из api/profiles/vms.camera.2.json" in render_md(as_major2(GOOD), ["camera"]), "I1: шапка таблицы /2 называет vms.camera.2.json")
+ok(table_name("vms.camera/1") == "vms.camera.md" and table_name("vms.camera/2") == "vms.camera.2.md", "I1: таблица /1 — <имя>.md, /N — <имя>.<N>.md")
+
+# M6: uses поменялся при той же версии — нужна новая младшая
+ok(says(history_problems(dict(GOOD, uses=[]), base), "uses"), "M6: uses изменён без новой младшей версии")
+ok(history_problems(bump(dict(GOOD, uses=[]), "1.6"), base) == [], "M6: uses изменён с новой младшей версией")
+ok(history_problems(dict(GOOD, uses=[dict(u) for u in reversed(GOOD["uses"])]), base) == [], "M6: тот же uses — без замечаний")
 
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)

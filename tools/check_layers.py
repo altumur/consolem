@@ -91,6 +91,8 @@ ok("vms.camera/1" in layers.profile_ids(), "profile_ids: профиль из dem
 ok(set(layers.LAYER_EXTRA) == {"video", "vms"} and not (set(layers.LAYER_EXTRA) & layers.profile_ids()), "LAYER_EXTRA: video и vms — не профили")
 ok(layers.profile_file("vms.camera/1") == "api/profiles/vms.camera.json", "profile_file: vms.camera/1")
 ok(layers.profile_file("vms.camera/1", "x/api") == "x/api/profiles/vms.camera.json", "profile_file: свой каталог API")
+ok(layers.profile_file("vms.camera/2") == "api/profiles/vms.camera.2.json", "I1: profile_file: vms.camera/2 — vms.camera.2.json")
+ok(layers.owner_of("vms.camera/2") == layers.DEFAULT_OWNER and layers.reviewers_of("vms.camera/2") == layers.DEFAULT_REVIEWERS, "I1: файла vms.camera.2.json нет — владелец и проверяющие по умолчанию")
 ok(layers.owner_of("vms.nope/1") == layers.DEFAULT_OWNER == "mockup", "owner_of: файла профиля нет — mockup")
 ok(layers.reviewers_of("vms.nope/1") == layers.DEFAULT_REVIEWERS == ["w2c"], "reviewers_of: файла профиля нет — w2c")
 ok(layers.reviewers_of("vms.nope/1") is not layers.DEFAULT_REVIEWERS, "reviewers_of: отдаёт копию, а не общий список")
@@ -428,6 +430,10 @@ else:
         wr = classify("HEAD", tmp)
         ok(not any("README" in k or "notes" in k for k in wr["layers"]), "I2: README.md и notes.txt — не профили")
         ok("vms.zed/2" in wr["layers"], "I2: id профиля — из поля id файла")
+        write(tmp, "api/profiles/vms.cam2.2.json", json.dumps({"owner": "mockup"}))
+        ok("vms.cam2/2" in classify("HEAD", tmp)["layers"], "I1: vms.cam2.2.json без id — vms.cam2/2")
+        write(tmp, "api/profiles/vms.camx.2.json", json.dumps({"id": "vms.camx/2", "owner": "mockup", "reviewers": ["w2c"]}))
+        ok("vms.camx/2" in classify("HEAD", tmp)["layers"], "I1: vms.camx.2.json — слой vms.camx/2")
         write(tmp, "api/profiles/vms.noid.json", json.dumps({"owner": "mockup"}))
         ok("vms.noid/1" in classify("HEAD", tmp)["layers"], "I2: в файле нет id — <имя>/1")
         write(tmp, "api/profiles/vms.bad.json", "{не json")
@@ -510,7 +516,17 @@ class Rep:
         self.checks.append((name, items))
 
 
-_api, _cls = check_api.API, layers.classify
+# M10: check_api.check_profile_files — копия API, нет git или ссылки дают INFO по строке «версия», а не FAIL
+_api, _cls, _mb = check_api.API, layers.classify, layers.merge_base
+try:
+    check_api.API = "api"
+    layers.merge_base = lambda *a, **k: None
+    r = Rep()
+    check_api.check_profile_files(r, {}, {})
+    ok(any("версия" in t and "пропущена" in t for t in r.infos) and not any("версия" in n for n, _ in r.fails)
+       and not any("версия" in n for n, _ in r.checks), "M10: нет git или ссылки — INFO «сверка пропущена», а не FAIL")
+finally:
+    layers.merge_base = _mb
 try:
     check_api.API = "api-copy"
     r = Rep()
