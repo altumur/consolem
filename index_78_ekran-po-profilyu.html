@@ -4605,7 +4605,7 @@ let refWritable=null;
 // Что раньше отдавал справочник, а теперь — описания видов: виды хранилищ (UnitKind x-archive у видов vms.archive/1),
 // типы хранения (перечень storage их схем), виды детектора (перечень detectorKind у видов vms.detector/1)
 function kindsRefApply(){
-  const arch=[...KINDS.values()].filter(k=>screenType(k.kind)==="archive"&&k["x-archive"]);
+  const arch=[...KINDS.values()].filter(k=>handScreen(k.kind)==="archive"&&k["x-archive"]);
   if(arch.length){
     refArchKinds=arch.map(k=>Object.assign({},k["x-archive"],{kind:String(k.kind).replace(/^archive\./,"")}));
     const st=[...new Set(arch.flatMap(k=>k.schema?.properties?.storage?.enum||[]))];
@@ -4620,7 +4620,7 @@ function kindsRefApply(){
   DET_TRIG_OWN=refDetKinds.filter(k=>k!=="other"&&[...KINDS.values()].some(x=>(x.events||[]).some(e=>e.id===k&&e.rule!==false)));
 }
 function kindsApply(){
-  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k)));
+  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(handScreen(k)));
   CAPS.deviceTypes=new Set(dev.filter(k=>!refDeviceTypes||refDeviceTypes.has(k)||isSchemaKind(k)));
   // Кого находит сервер: вид бывает под родителем, под которым его не создают. Единица СКУД: создаётся под СКУД, не в корне
   const acs=new Set([...KINDS.values()].filter(k=>(k.implements||[]).includes("vms.acs/1")).map(k=>k.kind));
@@ -4641,10 +4641,10 @@ function kindsApply(){
   // В правку и в создание идёт и неизменяемое (x-immutable задаётся при создании), и разовое (x-transient)
   const into=(set,kinds)=>{set.clear();set.add("name");kinds.forEach(kind=>Object.entries(kindProps(kind)).forEach(([x,p])=>{if(!p.readOnly)set.add(x)}))};
   into(DEVICE_PATCH,dev.filter(k=>handScreen(k)&&!INFRA_SCREENS.has(handScreen(k))));
-  into(SERVER_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="server"));
-  into(DOMAIN_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="domain"));
-  into(ARCHIVE_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="archive"));
-  into(VOLUME_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="vol"));
+  into(SERVER_PATCH,[...KINDS.keys()].filter(k=>handScreen(k)==="server"));
+  into(DOMAIN_PATCH,[...KINDS.keys()].filter(k=>handScreen(k)==="domain"));
+  into(ARCHIVE_PATCH,[...KINDS.keys()].filter(k=>handScreen(k)==="archive"));
+  into(VOLUME_PATCH,[...KINDS.keys()].filter(k=>handScreen(k)==="vol"));
   // enabled у устройства — свойство схемы; у тома тоже. folderIds — папки шагом folders
   // Поиск: поля x-search всех видов с подписями из схем — к полям экрана
   const seen=new Set(SEARCH_FIELDS_BASE.map(([k])=>k).concat(["uid","identifier"]));
@@ -4979,7 +4979,7 @@ async function hwStreamsGet(id){
   out.forEach(u=>hwVer.set(u.uid,u.version));
   return out.sort((a,b)=>a.uid<b.uid?-1:1).map(streamRec);
 }
-function hasStreams(kind){return(KINDS.get(kind)?.children||[]).some(k=>screenType(k)==="stream")}
+function hasStreams(kind){return(KINDS.get(kind)?.children||[]).some(k=>handScreen(k)==="stream")}
 function hwSetStreams(id,list){
   const n=find(id)?.n;if(!n)return;
   const base=cardBase&&cardBase.id===id?cardBase.snap:null;
@@ -5712,7 +5712,7 @@ async function hwRead(){
     return out;
   };
   const[ds,fl,ar,vl]=await Promise.all([whole(),page("vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
-  const of=t=>ds.filter(u=>screenType(u.kind)===t).map(unitRec);
+  const of=t=>ds.filter(u=>handScreen(u.kind)===t).map(unitRec);
   return{domains:of("domain"),servers:of("server"),folders:fl,archives:ar,volumes:vl};
 }
 function hwPut(L){
@@ -5826,7 +5826,7 @@ function hwAddDevices(list,flds){
 function hwAddUnits(list){
   list.forEach(u=>{
     if(find(u.uid))return;
-    const t=screenType(u.kind);
+    const t=handScreen(u.kind);
     if(INFRA_SCREENS.has(t)){hwAddRow(u);return}
     hwVer.set(u.uid,u.version);
     const n=unitNode(u),r=unitRec(u);
@@ -5903,7 +5903,7 @@ function treeKeepQ(id){
 // Записи в кэш; q — их принёс поиск (метка _q у новых)
 function hwAddFound(items,q=true){hwAddQ=q;try{items.forEach(hwAddRow)}finally{hwAddQ=false}}
 function hwAddRow(u){
-  const t=screenType(u.kind);
+  const t=handScreen(u.kind);
   if(INFRA_SCREENS.has(t)){
     if(t==="server"&&!servers.some(x=>x.id===u.uid))hwApplyServer(unitRec(u));
     else if(t==="folder")folderAdd([unitRec(u)]);
@@ -6135,7 +6135,7 @@ function hwApplyFolder(r){
 const HW_EVENT_OLD=new Set(["device","folder","server","domain","archive","volume"]);
 function hwEventKind(kind){return HW_EVENT_OLD.has(kind)||KINDS.has(kind)}
 // Событие об устройстве или объекте вида без своего списка (не инфраструктура)
-function hwEventDevice(kind){return kind==="device"||(!HW_EVENT_OLD.has(kind)&&!INFRA_SCREENS.has(screenType(kind)))}
+function hwEventDevice(kind){return kind==="device"||(!HW_EVENT_OLD.has(kind)&&!INFRA_SCREENS.has(handScreen(kind)))}
 // Чужая запись появилась или пропала — кэш «Оборудования» перечитывается целиком
 // (своя уже в кэше: ответ сервера приходит раньше события)
 // По сети событие о своей новой записи может обогнать ответ на запрос: перед
@@ -6184,9 +6184,9 @@ function apiOnEvent(m){
   if(AUTO_KINDS.has(m.kind)){autoEvent(m);return}
   if(!hwEventKind(m.kind))return;
   // Поддетектор или детектор изменился: открытое окно подхватит это в ближайший кадр (dwPaintObj)
-  if(screenType(m.kind)==="det"||isSubdetKind(m.kind))dw.shown=-1;
+  if(handScreen(m.kind)==="det"||isSubdetKind(m.kind))dw.shown=-1;
   // Поток камеры: свой объект, в кэше — строкой камеры. Камеру называет объект потока; удалённый — уже не назовёт
-  if(screenType(m.kind)==="stream"){
+  if(handScreen(m.kind)==="stream"){
     if(m.type==="entity.deleted"){if(find(sel)?.n.streams)hwStreamsRead(sel);return}
     API.get(`/units/${m.entityId}`).then(u=>hwStreamsRead(u.parentId)).catch(()=>{});
     return;
@@ -6198,7 +6198,7 @@ function apiOnEvent(m){
     return;
   }
   if(m.type==="entity.deleted"&&dev&&hwVer.has(m.entityId)){hwRemoveDevice(m.entityId);renderTreeSoon();if(sel===m.entityId)paintTreeSoon();return}
-  if(m.type==="entity.deleted"&&screenType(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTreeSoon();if(own)paintTreeSoon();return}
+  if(m.type==="entity.deleted"&&handScreen(m.kind)==="folder"&&hwVer.has(m.entityId)){const own=sel===m.entityId;hwRemoveFolder(m.entityId);renderTreeSoon();if(own)paintTreeSoon();return}
   // Устройства нет в кэше — читать нечего: кэш неполный, перечитывание целиком отменено
   if(dev&&m.type!=="entity.changed")return;
   if(m.type==="entity.created"||m.type==="entity.deleted"){if((m.type==="entity.created")!==hwVer.has(m.entityId))hwReloadSoon(m);return}
@@ -7601,7 +7601,7 @@ async function serversAssign(list){
   const done=[],got=ok.length?await unitsByIds(ok):[];
   got.forEach(u=>{
     hwVer.set(u.uid,u.version);
-    if(screenType(u.kind)==="server")done.push(unitRec(u));else{hwAddUnits([u]);hwReloadSoon()}
+    if(handScreen(u.kind)==="server")done.push(unitRec(u));else{hwAddUnits([u]);hwReloadSoon()}
   });
   // Коробка принята камерой: строка итога — запись сервера в домене приёма, как база; камера — в кэш, списки — перечитать
   if(made.size){
@@ -8856,7 +8856,7 @@ function goNet(q,waited=0){
     goNetT=0;goNetQ=q;
     try{
       // Только устройства, как /devices базы: инфраструктура (хранилища, тома, серверы, папки) не делит с ними 20 мест
-      const kind=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k))).join(",");
+      const kind=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(handScreen(k))).join(",");
       if(!kind)return;
       const r=await API.get("/units",{q,kind,limit:20});
       if(!r.items.length)return;
@@ -10410,8 +10410,8 @@ function treeUnread(id){
 function treeCount(id){const b=treeBr.get(treeLayout()+"|"+id);return b&&b.count!=null&&!hasActiveFilters()?b.count:null}
 async function treeAdd(items,parent,layout){
   // Объекты узлов: устройства и объекты видов без своего списка (у инфраструктуры — свои списки)
-  const rows=items.map(x=>x.uid?rowTrim(x):x.unit||x.row?treeUnit(x):null).filter(u=>u&&!INFRA_SCREENS.has(screenType(u.kind))).map(u=>Object.assign(u,{id:u.uid}));
-  const missing=items.filter(x=>screenType(x.kind)==="folder"&&!folderById(x.id));
+  const rows=items.map(x=>x.uid?rowTrim(x):x.unit||x.row?treeUnit(x):null).filter(u=>u&&!INFRA_SCREENS.has(handScreen(u.kind))).map(u=>Object.assign(u,{id:u.uid}));
+  const missing=items.filter(x=>handScreen(x.kind)==="folder"&&!folderById(x.id));
   // Папок ветки нет в кэше (перечень папок при старте — первой страницей): одним запросом по ids, а не запросом на
   // папку — страница корня домена на large и xl это 100–200 папок. Чей родитель не нашёлся — по одной, с цепочкой
   if(missing.length){
@@ -10428,7 +10428,7 @@ async function treeAdd(items,parent,layout){
   if(parent.startsWith("norec:"))rows.forEach(r=>{const n=find(r.id)?.n;if(n)n._nr=true});
   // Строку и папку прочитала ветка — они в дереве и без поиска
   rows.forEach(r=>{const n=find(r.id)?.n;if(n)delete n._q});
-  items.forEach(x=>{if(screenType(x.kind)==="folder"){const fd=folderById(x.id);if(fd)delete fd._q}});
+  items.forEach(x=>{if(handScreen(x.kind)==="folder"){const fd=folderById(x.id);if(fd)delete fd._q}});
   if(rows.length){remakeAcfa();treeMatchCache.clear();searchMatchCache.clear()}
 }
 // Папка и хранилище по чужому id: родитель читается раньше
@@ -10441,7 +10441,7 @@ async function folderEnsure(id,q=false){
 async function archEnsure(id){if(!archById(id))archAdd(unitRec(await API.get(`/units/${id}`)))}
 // Ветка дерева: узлы GET /tree/children. Виртуальные группы «Без папки» и «Без записи» — отбором GET /units
 async function treeRead(layout,id,cursor){
-  const viaFilter=(q)=>API.get("/units",Object.assign(q,{cursor})).then(r=>({items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind))),nextCursor:r.nextCursor}));
+  const viaFilter=(q)=>API.get("/units",Object.assign(q,{cursor})).then(r=>({items:r.items.filter(u=>!INFRA_SCREENS.has(handScreen(u.kind))),nextCursor:r.nextCursor}));
   if(id.startsWith("nofolder:"))return viaFilter({domainId:id.slice(9),noFolder:true});
   // Службы — по видам их экранов: отбора type у /units нет, без kind пришёл бы весь домен
   if(id.startsWith("svcs:"))return viaFilter({domainId:id.slice(5),kind:[...SVC_TYPES].flatMap(kindsOfScreen).join(",")});
@@ -10450,7 +10450,7 @@ async function treeRead(layout,id,cursor){
 }
 // Узел дерева приходит с видом объекта (camera, archive.local, security_controller/CONTROLLER…): экран узла — по виду
 function treeNodesKind(r){
-  return Object.assign({},r,{items:r.items.map(x=>{const t=screenType(x.kind);return t==="archive"||t==="folder"||t==="server"||t==="domain"?Object.assign({},x,{kind:t}):x})});
+  return Object.assign({},r,{items:r.items.map(x=>{const t=handScreen(x.kind);return t==="archive"||t==="folder"||t==="server"||t==="domain"?Object.assign({},x,{kind:t}):x})});
 }
 // Одна страница ветки. Пустая страница с живым nextCursor законна: читаем дальше, пока не наберётся или не кончится
 async function treeLoad(layout,id){
@@ -10868,14 +10868,14 @@ function asstFilterQuery(f){
 // Камеры — без одних служб: срез решает по месту в дереве (замок под камерой — в «Камерах»), чужое отсеивает filtSeen
 function filtSliceKinds(){
   // Поддетектор — строка под детектором в дереве и раздел окна детектора: срез его отдельным объектом не считает
-  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(screenType(k))&&!(KINDS.get(k).implements||[]).includes("vms.subdetector/1"));
+  const dev=[...KINDS.keys()].filter(k=>!INFRA_SCREENS.has(handScreen(k))&&!(KINDS.get(k).implements||[]).includes("vms.subdetector/1"));
   if(slice==="det"){
     if(!qval())return kindsOfScreen("det");
     // Камера, найденная по тексту, показывает свои детекторы: текст ищем и по камерам
     return statusFilts.size?[...kindsOfScreen("det"),...kindsOfScreen("camera")]:dev;
   }
   if(slice==="acfa")return[...new Set(TF_ACFA.flatMap(([t])=>kindsOfScreen(t)))];
-  if(slice==="cam"){const not=new Set(TF_SVC.map(([t])=>t));return dev.filter(k=>!not.has(screenType(k)))}
+  if(slice==="cam"){const not=new Set(TF_SVC.map(([t])=>t));return dev.filter(k=>!not.has(handScreen(k)))}
   return dev;
 }
 // Сколько из прочитанного покажет срез: по этому числу дерево или плоский список, а не по всем ответам сервера
@@ -10912,7 +10912,7 @@ async function filtWave(run){
       if(page++){await taskYield();if(run!==fs)return}
       let r;
       // Поиск и фильтры дерева — без инфраструктуры (у неё свои списки); отбор ассистента — как отобран, любого вида
-      try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind)))})}
+      try{r=await API.get("/units",filtParams(run));if(!run.filter)r=Object.assign(r,{items:r.items.filter(u=>!INFRA_SCREENS.has(handScreen(u.kind)))})}
       catch(e){if(e?.problem?.code!=="INVALID_CURSOR"||!run.cursor)throw e;run.cursor=null;continue}
       if(run!==fs)return;
       await hwEnsure(r.items.map(x=>x.parentId),true);
@@ -10949,13 +10949,13 @@ async function filtPaths(run,ids,layout=treeLayout()){
   for(const x of res.items){
     run.paths.set(x.id,(x.chains[0]||[]).slice(0,-1).map(s=>s.name).join(" / "));
     // TreePathStep.kind — код вида (как TreeNode.kind): папка — вид экрана «папка», объект в ней — любой не инфраструктурный
-    for(const c of x.chains)for(const s of c)if(screenType(s.kind)==="folder"){
+    for(const c of x.chains)for(const s of c)if(handScreen(s.kind)==="folder"){
       // Цепочку принёс поиск (у прохода отбора есть key), а не чтение среза
       await folderEnsure(s.id,!!run.key).catch(()=>{});
       const f=folderById(s.id),top=c[c.findIndex(y=>y===s)+1];
-      if(f&&top&&!INFRA_SCREENS.has(screenType(top.kind))&&!f.items.includes(top.id)){f.items.push(top.id);if(run.key)(f._qi||(f._qi=new Set())).add(top.id)}
+      if(f&&top&&!INFRA_SCREENS.has(handScreen(top.kind))&&!f.items.includes(top.id)){f.items.push(top.id);if(run.key)(f._qi||(f._qi=new Set())).add(top.id)}
     }
-    if(layout==="folders"&&x.chains.every(c=>!c.some(s=>screenType(s.kind)==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
+    if(layout==="folders"&&x.chains.every(c=>!c.some(s=>handScreen(s.kind)==="folder"))){const n=find(x.id)?.n;if(n&&!n.parentId)n._nf=true}
   }
 }
 // Пока набранное в поиске ждёт паузы, волна прежнего текста дописывает кэш, но дерево под прежний текст не
@@ -18867,7 +18867,7 @@ let talk=null;
 // Дети камеры читаются один раз на закладку: в кэше дерева их нет, пока ветку не раскрыли
 function viewKidsLoad(v){
   if(!can("listUnits"))return;
-  API.get("/units",{parentId:v.id,limit:200}).then(r=>{if(lv===v){v.kids=r.items.filter(u=>!INFRA_SCREENS.has(screenType(u.kind))).map(unitRec);viewFill()}}).catch(()=>{});
+  API.get("/units",{parentId:v.id,limit:200}).then(r=>{if(lv===v){v.kids=r.items.filter(u=>!INFRA_SCREENS.has(handScreen(u.kind))).map(unitRec);viewFill()}}).catch(()=>{});
 }
 // Динамик — первый по списку дочерних, как в базе (её строки /devices?parentId канала не несли)
 function talkSpk(v){return can("startUnitTalk")?(v?.kids||[]).filter(d=>handOf(d,"spk")&&d.online!==false&&d.enabled!==false)[0]||null:null}
@@ -19101,7 +19101,7 @@ function holdsMore(){
 // (recordModes), ни режимов хранилища сервера (archiveModes, serverWide), камеры не принимает (admits:false) — туда
 // уходят только удержания. Не код archive.incidents: такой вид может прийти и от плагина. Описаний нет — прежний код
 function archHoldKinds(){
-  const ks=[...KINDS.values()].filter(k=>{const x=k["x-archive"];return screenType(k.kind)==="archive"&&x&&x.admits===false&&!x.serverWide
+  const ks=[...KINDS.values()].filter(k=>{const x=k["x-archive"];return handScreen(k.kind)==="archive"&&x&&x.admits===false&&!x.serverWide
     &&!(x.recordModes||[]).length&&!(x.archiveModes||[]).length}).map(k=>k.kind);
   return ks.length?ks:["archive.incidents"];
 }
@@ -34577,7 +34577,7 @@ function createArchive(){
   const rec=anFoundOn()?an.vol.rec:null;
   unitsCreate([archiveToUnit(anArchive())]).then(units=>{
   wzDrop("arch");
-  const au=units.find(u=>screenType(u.kind)==="archive");
+  const au=units.find(u=>handScreen(u.kind)==="archive");
   const a=archById(au.uid)||archNode(unitRec(au));
   if(!arch.includes(a)){arch.push(a);hwIdxDrop()}
   units.filter(u=>u!==au).forEach(u=>{if(!volById(u.uid)){a.vols.push(volNode(unitRec(u)));hwIdxDrop()}});
