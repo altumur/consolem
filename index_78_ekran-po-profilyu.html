@@ -4362,9 +4362,8 @@ function capsApply(){
 // ── Виды объектов: GET /kinds ──────────────────────────────────────────────
 // Каталоги «Оборудования» — подписи видов, значки, кто под кем создаётся, кого находит сервер, что правится, поля поиска
 // и чипы фильтра — приходят описаниями видов (UnitKind), а не таблицами интерфейса. Ручной экран (карточка камеры,
-// хранилища, сервера…) выбирается по профилю вида: SCREEN_OF_PROFILE; у вида без такого профиля тип узла — код вида,
-// и ручной экран есть только у видов, для которых он написан (HAND_SCREENS). Остальное — форма по схеме вида
-// (schemaFormHtml). Описания перечитываются по kinds.changed и после stream.reset — с If-None-Match.
+// хранилища, сервера…) выбирается по профилю вида (screenFor, ступени — у SCREEN_OF_PROFILE); вид с кодом экрана, но без
+// его профиля, получает форму по схеме вида (schemaFormHtml), тип его узла — код вида. Описания перечитываются по kinds.changed и после stream.reset — с If-None-Match.
 const KINDS=new Map();
 let kindsEtag=null;
 // Подпись с сервера — Text {key,text,lang}: сначала ключ в словаре интерфейса, затем text (у словаря на русском — i18n)
@@ -4376,26 +4375,53 @@ function textOf(t){
   if(k)return k[uiLang]||k.ru||t.text||"";
   return i18n(t.text||t.key||"");
 }
+// Экран вида — по трём ступеням (screenFor). Ступень 1 — своя страница подсистемы (screenPageStep; тело заменит часть 05,
+// до неё вид с setupUi получает форму по схеме). Ступень 2 — ручной экран по профилю вида (handScreenOf): первый ключ
+// SCREEN_OF_PROFILE по порядку таблицы (не по порядку implements), который вид объявил. Профиль сравнивается точно, со
+// старшей версией: незнакомая vms.camera/2 не совпадает ни с одним ключом. Значение — экран; массив — неоднозначный
+// профиль (vms.acs/1 у четырёх экранов СКУД): экран — код вида, если он в массиве, иначе профиль пропускается. Профиль
+// не подошёл — по коду только экраны без своего профиля (CODE_SCREENS). Описания вида нет (listKinds не объявлен, /kinds
+// не прочитан, событие потока раньше /kinds) — экран по коду, как прежде. Ступень 3 — форма по схеме вида
 const SCREEN_OF_PROFILE={"vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
-  "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage","vms.talk/1":"spk"};
-// Экраны, написанные руками. Экран выбирает профиль вида (implements), а не код вида: вид плагина с профилем получает тот
-// же экран. По коду вида — только экраны без своего профиля в контракте (регистратор, канал, микрофон, датчик, реле,
-// экспорт, почта, SMS) и СКУД: профиль vms.acs/1 общий у четырёх экранов (из прототипа 77)
-const HAND_SCREENS=new Set(["domain","server","folder","archive","vol","stream","camera","ipsrv","channel","mic","spk","sensor","relay","storage","det",
-  "eventsrc","acfa","acfa_sensor","acfa_lock","acfa_fence","export","email","sms"]);
+  "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage",
+  "vms.acs/1":["acfa","acfa_sensor","acfa_lock","acfa_fence"],"vms.talk/1":"spk"};
+// Экраны без своего профиля в контракте: регистратор, канал, микрофон, датчик, реле, экспорт, почта, SMS — только по коду
+const CODE_SCREENS=new Set(["ipsrv","channel","mic","sensor","relay","export","email","sms"]);
+// Экраны, написанные руками: экраны без профиля и все экраны SCREEN_OF_PROFILE
+const HAND_SCREENS=new Set([...CODE_SCREENS,...Object.values(SCREEN_OF_PROFILE).flat()]);
+// Профили, которые знает интерфейс: профили экранов и вторичные (живое видео, PTZ, шкала, веб-сервер, поддетектор)
+const PROFILES_KNOWN=new Set([...Object.keys(SCREEN_OF_PROFILE),"vms.live/1","vms.ptz/1","vms.timeline/1","vms.webserver/1","vms.subdetector/1"]);
 // Инфраструктура: у неё свои списки в кэше (домены, серверы, папки, хранилища, тома); потоки — внутри камеры
 const INFRA_SCREENS=new Set(["domain","server","folder","archive","vol","stream"]);
-function screenType(kind){
-  // Своя страница плагина (setupUi) — своя форма вида: ручной экран профиля ей не нужен (из прототипа 77)
-  if(KINDS.get(kind)?.setupUi)return kind;
-  // Порядок — по SCREEN_OF_PROFILE, а не по implements вида: камера с динамиком (vms.talk/1) остаётся камерой
-  const im=KINDS.get(kind)?.implements||[],p=Object.keys(SCREEN_OF_PROFILE).find(x=>im.includes(x));
-  if(p)return SCREEN_OF_PROFILE[p];
-  // Описания нет (или ещё не прочитано): хранилище и том узнаются по коду — это старые записи потока, не каталог
-  if(!KINDS.has(kind)&&String(kind).startsWith("archive."))return"archive";
-  if(!KINDS.has(kind)&&kind==="volume")return"vol";
-  return kind;
+// Ступень 1: "page" — своя страница подсистемы, "schema" — форма по схеме, null — дальше ступени 2 и 3
+function screenPageStep(kind){return KINDS.get(kind)?.setupUi?"schema":null}
+// Ступень 2: ручной экран вида или null
+function handScreenOf(kind){
+  const k=KINDS.get(kind);
+  if(!k){
+    // Описания нет (или ещё не прочитано): хранилище и том узнаются по коду — это старые записи потока, не каталог
+    if(String(kind).startsWith("archive."))return"archive";
+    if(kind==="volume")return"vol";
+    return HAND_SCREENS.has(kind)?kind:null;
+  }
+  const im=k.implements||[];
+  for(const[p,t]of Object.entries(SCREEN_OF_PROFILE)){
+    if(!im.includes(p))continue;
+    if(!Array.isArray(t))return t;
+    if(t.includes(kind))return kind;
+  }
+  return CODE_SCREENS.has(kind)?kind:null;
 }
+function screenFor(kind){
+  const st=screenPageStep(kind);
+  if(st)return st;
+  const t=handScreenOf(kind);
+  return t?"hand:"+t:"schema";
+}
+// Экран узла: ступень 1 тип узла не меняет — у вида с ручным экраном и страницей узел остаётся ручным (вкладка «Доступ»)
+function handScreen(kind){return screenPageStep(kind)==="schema"?null:handScreenOf(kind)}
+// Тип узла: ручной экран, иначе код вида
+function screenType(kind){return handScreen(kind)||kind}
 // Обратно: виды, которым достался этот экран (камера — все виды с профилем vms.camera/1, а не код camera).
 // Отбор GET /units?kind= по экрану — этими видами; описаний нет — код экрана как есть (прежний путь)
 function kindsOfScreen(t){
@@ -4412,7 +4438,7 @@ function wizKind(code){
   return i>0&&!KINDS.size?code.slice(0,i):code;
 }
 // Узел по схеме вида: ручного экрана у вида нет
-function isSchemaKind(kind){return!HAND_SCREENS.has(screenType(kind))}
+function isSchemaKind(kind){return!handScreen(kind)}
 function isSchemaNode(n){return!!n&&!!n._schema}
 // Код вида узла кэша: у ручных экранов тип узла — имя экрана
 function nodeKind(n){
@@ -4423,8 +4449,13 @@ function nodeKind(n){
   return n.type;
 }
 function kindCan(kind,cap){return(KINDS.get(kind)?.capabilities||[]).includes(cap)}
-// Подпись вида: незнакомый — из /kinds, известный — словарь экрана (LB), иначе из /kinds, иначе код
-function kindText(kind){const t=screenType(kind);return HAND_SCREENS.has(t)&&LB[t]?i18n(LB[t]):KINDS.has(kind)?textOf(KINDS.get(kind).label):String(kind)}
+// Подпись вида: словарь экрана (LB) — виду с кодом экрана, виду без описания и хранилищу (archive.*); вид плагина на
+// ручном экране и вид формы по схеме — label из /kinds; иначе код
+function kindText(kind){
+  const t=handScreen(kind);
+  if(t&&LB[t]&&(kind===t||!KINDS.has(kind)||t==="archive"))return i18n(LB[t]);
+  return KINDS.has(kind)?textOf(KINDS.get(kind).label):String(kind);
+}
 // Поле схемы вида: подпись x-label, иначе имя
 function propLabel(p,name){return p&&p["x-label"]?textOf(p["x-label"]):name}
 function kindProps(kind){return KINDS.get(kind)?.schema?.properties||{}}
@@ -4444,12 +4475,91 @@ async function kindsLoad(){
 let kindsBusy=null;
 function kindsChanged(){
   if(kindsBusy)return kindsBusy;
-  kindsBusy=kindsLoad().then(changed=>{
+  kindsBusy=kindsLoad().then(async changed=>{
     if(!changed)return;
+    await kindsRescreen();
     treeMatchCache.clear();searchMatchCache.clear();
     if(app==="hw"){renderTreeSoon();gear()}
   }).catch(()=>{}).finally(()=>{kindsBusy=null});
   return kindsBusy;
+}
+// Описание вида сменило экран (профиль сняли или добавили): узлы кэша этого вида строятся заново строками перечня, полную
+// запись консоль читает, когда карточку откроют. Открытую карточку консоль читает сразу. Её неприменённая правка
+// переходит в черновик нового экрана по именам свойств схемы; что новый экран не принимает (поле без свойства в схеме,
+// папки, потоки), консоль сбрасывает и говорит об этом тостом
+async function kindsRescreen(){
+  const moved=[];
+  walkAll(n=>{
+    const kind=nodeKind(n);if(!kind||!KINDS.has(kind))return;
+    const was=isSchemaNode(n)?null:n.type,want=handScreen(kind);
+    if(was===want||INFRA_SCREENS.has(was)||INFRA_SCREENS.has(want))return;
+    moved.push([n,kind,want]);
+  });
+  if(!moved.length)return;
+  const open=app==="hw"&&moved.find(([n])=>n.id===sel);
+  const carry=open&&cardDraft&&cardDraft.id===sel?draftCarry(open[0],open[1]):null;
+  if(open&&cardDraft&&cardDraft.id===sel)cardRestore();
+  moved.forEach(([n,kind,want])=>nodeRescreen(n,kind,want));
+  hwIdxDrop();remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
+  if(!open)return;
+  const n=await hwFull(sel).catch(()=>null);
+  if(!n||!carry)return;
+  cardBase={id:n.id,snap:cardClone(n),folders:cardFolders(n.id)};
+  const hand=!isSchemaNode(n);
+  Object.entries(carry.props).forEach(([f,v])=>{
+    if(!hand)(n.props||(n.props={}))[f]=v;
+    else if(f in DEV_FLD)(n._f||(n._f={}))[DEV_FLD[f]]=String(v);
+    else n[DEV_KEY[f]||f]=v;
+  });
+  if("name" in carry)n.name=carry.name;
+  if("name" in carry||Object.keys(carry.props).length)setD(true);
+  if(carry.lost)toast(`${i18n("Неприменённые изменения сброшены")}: «${locName(n)}»`);
+}
+// Узел на месте становится строкой перечня нового экрана: ссылки дерева, папок и выборки на него остаются
+function nodeRescreen(n,kind,want){
+  const f=find(n.id);
+  const u={uid:n.id,kind,name:n.name,parentId:f?.p?.id||null,domainId:nodeDomainId(n),_brief:true,
+    status:{link:n.online===false?"offline":"online"},properties:n.enabled===false?{enabled:false}:{}};
+  const fresh=want?devNode(unitRec(rowTrim(u))):schemaNode(u);
+  if(want&&kind!==want)fresh._kind=kind;
+  const kids=n.devices,more=n._more,q=n._q;
+  Object.keys(n).forEach(k=>delete n[k]);
+  Object.assign(n,fresh,{_row:true});
+  if(kids)n.devices=kids;
+  if(more||(kids&&!kids.length&&fresh.devices))n._more=true;
+  if(q)n._q=true;
+}
+// Неприменённая правка открытой карточки — по именам свойств схемы вида: {name?, props:{свойство:значение}, lost}.
+// lost — правки, которых нет среди свойств схемы (их новый экран не примет)
+function draftCarry(n,kind){
+  const snap=cardDraft.snap,ps=kindProps(kind),out={props:{},lost:0};
+  let carried=0;
+  const put=(f,v)=>{
+    if(f==="name"){out.name=v;carried++;return}
+    const p=ps[f];
+    if(!p||p.readOnly){out.lost++;return}
+    if((p.type==="number"||p.type==="integer")&&typeof v==="string"&&v.trim()!==""&&!isNaN(+v))v=+v;
+    if(p.enum&&!p.enum.includes(v)){out.lost++;return}
+    out.props[f]=v;carried++;
+  };
+  const differs=(a,b)=>JSON.stringify(a)!==JSON.stringify(b);
+  if(isSchemaNode(n)){
+    if(differs(n.name,snap.name))put("name",n.name);
+    const np=n.props||{},bp=snap.props||{};
+    new Set([...Object.keys(np),...Object.keys(bp)]).forEach(f=>{if(differs(np[f],bp[f]))put(f,np[f])});
+  }else{
+    new Set([...Object.keys(n),...Object.keys(snap)]).forEach(k=>{
+      if(k==="devices"||CARD_SKIP.has(k)||k.startsWith("_")||!differs(n[k],snap[k]))return;
+      if(k==="xprops"){Object.entries(n.xprops||{}).forEach(([f,v])=>put(f,v));return}
+      put(k==="name"?"name":DEV_API[k]||k,n[k]);
+    });
+    const fNow=n._f||{},fWas=snap._f||{};
+    new Set([...Object.keys(fNow),...Object.keys(fWas)]).forEach(l=>{if(differs(fNow[l],fWas[l]))put(DEV_FLD_API[l]||l,fNow[l])});
+    Object.entries(cardDraft.fields||{}).forEach(([l,x])=>{const p=CARD_FLD_PROP[l];if(p)put(p==="name"?"name":DEV_API[p]||p,x.to);else out.lost++});
+  }
+  // Папки, потоки, дочерние: строки плана, которых нет среди свойств
+  if(cardDiff().length>carried+out.lost)out.lost++;
+  return out;
 }
 // Виды устройств из справочника: набор профиля (one-domain) пока несёт все виды, сужает их capabilities.deviceTypes, пока он есть
 let refDeviceTypes=null;
@@ -4487,13 +4597,14 @@ function kindsApply(){
     CAPS.writable[kind]=Object.keys(props).filter(x=>!props[x].readOnly&&!props[x]["x-immutable"]&&!props[x]["x-transient"]).concat(kindCan(kind,"rename")?["name"]:[]);
     if(refWritable&&refWritable[kind])CAPS.writable[kind]=CAPS.writable[kind].filter(x=>refWritable[kind].includes(x));
     const t=screenType(kind);
-    if(!HAND_SCREENS.has(t))LB[kind]=textOf(k.label);
+    // Словарь экрана (LB.camera) не переписывается: камера без профиля камеры — форма по схеме, но подпись экрана нужна другим
+    if(!handScreen(kind)&&!HAND_SCREENS.has(kind))LB[kind]=textOf(k.label);
     if((k.children||[]).length&&!INFRA_SCREENS.has(t))DEV_WITH_KIDS.add(t);
   });
   // Что уходит правкой: свойства схем видов (кроме readOnly), а не схемы *Patch контракта
   // В правку и в создание идёт и неизменяемое (x-immutable задаётся при создании), и разовое (x-transient)
   const into=(set,kinds)=>{set.clear();set.add("name");kinds.forEach(kind=>Object.entries(kindProps(kind)).forEach(([x,p])=>{if(!p.readOnly)set.add(x)}))};
-  into(DEVICE_PATCH,dev.filter(k=>HAND_SCREENS.has(screenType(k))&&!INFRA_SCREENS.has(screenType(k))));
+  into(DEVICE_PATCH,dev.filter(k=>handScreen(k)&&!INFRA_SCREENS.has(handScreen(k))));
   into(SERVER_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="server"));
   into(DOMAIN_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="domain"));
   into(ARCHIVE_PATCH,[...KINDS.keys()].filter(k=>screenType(k)==="archive"));
@@ -4686,17 +4797,14 @@ function schemaNode(u){
   if((KINDS.get(u.kind)?.children||[]).length||u.hasChildren)n.devices=[];
   return n;
 }
+// Узел ручного экрана хранит вид объекта (_kind), если вид — не код экрана: вид плагина с vms.server/1 читает свою схему
 function unitNode(u){
-  const t=screenType(u.kind);
-  if(!HAND_SCREENS.has(t))return schemaNode(u);
+  const t=handScreen(u.kind);
+  if(!t)return schemaNode(u);
   const r=unitRec(u);
-  if(t==="domain")return domNode(r);
-  if(t==="server")return srvNode(r);
-  if(t==="folder")return folderNode(r);
-  if(t==="archive")return archNode(r);
-  if(t==="vol")return volNode(r);
-  const n=devNode(r);
-  if(u.kind!==t)n._kind=u.kind;
+  const n=t==="domain"?domNode(r):t==="server"?srvNode(r):t==="folder"?folderNode(r):t==="archive"?archNode(r):t==="vol"?volNode(r):devNode(r);
+  // Хранилище и том узнают вид по своему полю (archive.<kind>, volume): _kind — только если вид другой
+  if(u.kind!==t&&nodeKind(n)!==u.kind)n._kind=u.kind;
   return n;
 }
 // Узел дерева (TreeNode) → объект: краткий Unit узла, строка row — пока сервер её отдаёт (у строки — сервер, включение,
@@ -4709,8 +4817,8 @@ function unitNode(u){
 // Инфраструктура (сервер, папка, хранилище, том) и вид без ручного экрана — как есть
 const ROW_PROPS=["enabled","serverId","subtype"];
 function rowTrim(u){
-  const t=screenType(u.kind);
-  if(!HAND_SCREENS.has(t)||INFRA_SCREENS.has(t))return u;
+  const t=handScreen(u.kind);
+  if(!t||INFRA_SCREENS.has(t))return u;
   const p=u.properties||{},props={},obs=u.status?.observed||{},seen={};
   ROW_PROPS.forEach(k=>{if(k in p)props[k]=p[k]});
   if(obs.fault)seen.fault=obs.fault;
@@ -4787,8 +4895,8 @@ function opItems(items){return items.map(opItem)}
 const opTarget=x=>x.uid||x.targetId;
 // Объект пришёл с сервера (ответ, событие): узел меняется на месте
 function hwApplyUnit(u){
-  const t=screenType(u.kind);
-  if(!HAND_SCREENS.has(t))return hwApplySchema(u);
+  const t=handScreen(u.kind);
+  if(!t)return hwApplySchema(u);
   if(t==="stream")return hwStreamsRead(u.parentId);
   const r=unitRec(u);
   if(t==="domain")return hwApplyDomain(r);
@@ -5589,7 +5697,8 @@ function cardKeepAfter(k){
 function hwFresh(n,fresh,keep){
   const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
   new Set([...Object.keys(n),...Object.keys(fresh)]).forEach(k=>{
-    if(keep.has(k))return;
+    // Вид узла (_kind) ставит сборщик узла по объекту, запись экрана его не несёт: без него вид плагина стал бы кодом экрана
+    if(keep.has(k)||k==="_kind")return;
     const touched=!!base&&JSON.stringify(n[k])!==JSON.stringify(base[k]);
     const v=k in fresh?cardClone({v:fresh[k]}).v:undefined;
     if(base){if(v===undefined)delete base[k];else base[k]=cardClone({v}).v}
@@ -5759,8 +5868,8 @@ function hwAddRow(u){
   const row=Object.assign({},r);
   ["fault","serverId","parentId"].forEach(k=>{if(row[k]==null)delete row[k]});
   if(!row.licenseExceeded)delete row.licenseExceeded;
-  const n=HAND_SCREENS.has(t)?devNode(row):schemaNode(u);
-  if(HAND_SCREENS.has(t)&&u.kind!==t)n._kind=u.kind;
+  const hand=handScreen(u.kind),n=hand?devNode(row):schemaNode(u);
+  if(hand&&u.kind!==hand)n._kind=u.kind;
   n._row=true;if(r.hasChildren)n._more=true;if(hwAddQ)n._q=true;
   hwVer.set(r.id,r.version);
   if(r.parentId){const p=find(r.parentId)?.n;if(!p)return null;(p.devices||(p.devices=[])).push(n);hwIdxAdd(n,p)}
@@ -39279,7 +39388,7 @@ function asstField(uid,ptr){
 }
 // Вид с ручным экраном (он есть в базе) — поле кодом и значения как пришли, как в базе (recordMode: none → always).
 // Незнакомый вид — подписями его схемы: x-label поля, x-enum-labels значения
-const asstCoded=uid=>{const k=asstUnitKind(uid);return!k||HAND_SCREENS.has(screenType(k))};
+const asstCoded=uid=>{const k=asstUnitKind(uid);return!k||!!handScreen(k)};
 function asstFieldText(uid,ptr){const f=asstField(uid,ptr);return!f?String(ptr):asstCoded(uid)?f.name:f.top?(ASST_TOP[f.name]?i18n(ASST_TOP[f.name]):f.name):propLabel(f.p,f.name)}
 function asstValText(uid,ptr,v){const p=asstCoded(uid)?null:asstField(uid,ptr)?.p;return p?.["x-enum-labels"]&&v!=null&&typeof v!=="object"?sfEnumText(p,v):asstVal(v)}
 // Команда отбора (found.action) — подписью из описания вида отобранного
