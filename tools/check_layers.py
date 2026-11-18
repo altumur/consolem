@@ -268,5 +268,157 @@ else:
     ok(any("9.9.0" in p for p in vp(README, TABLE, "9.9.0", IDS)), "case_current_version_missing")
     ok(any("0.99.0" in p for p in vp(README, add_row(TABLE, "0.99.0", "механизм"), CUR, IDS)), "строка версии, которой нет в README")
 
+# ── слои правки против origin/main ──
+
+import contextlib  # noqa: E402
+import io  # noqa: E402
+import subprocess  # noqa: E402
+import tempfile  # noqa: E402
+
+# временные репозитории лежат не у владельца репозитория проекта: git без этого отказывает («dubious ownership»)
+os.environ.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="safe.directory", GIT_CONFIG_VALUE_0="*",
+                  GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t", GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+classify, classify_specs, classify_fixture = layers.classify, layers.classify_specs, layers.classify_fixture
+changed_files, version_problems = layers.changed_files, layers.version_problems
+
+with open(os.path.join(ROOT, "api", "fixtures", "demo.json"), encoding="utf-8") as f:
+    FX = json.load(f)
+
+
+def write(root, rel, text):
+    path = os.path.join(root, rel)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text)
+
+
+def git(root, *args):
+    return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=True).stdout
+
+
+def new_repo(root):
+    git(root, "init", "-q", "-b", "main")
+    write(root, "api/openapi.json", json.dumps(SPEC))
+    write(root, "api/fixtures/demo.json", json.dumps(FX))
+    git(root, "add", "-A")
+    git(root, "commit", "-q", "-m", "первый")
+
+
+def add_schema(spec, name):
+    s = copy.deepcopy(spec)
+    s["components"]["schemas"][name] = {"type": "object", "properties": {"a": {"type": "string"}}}
+    return s
+
+
+def touch_schema(spec, name):
+    s = copy.deepcopy(spec)
+    s["components"]["schemas"][name].setdefault("properties", {})["zzzProbe"] = {"type": "string"}
+    return s
+
+
+def set_description(spec, name, text):
+    s = copy.deepcopy(spec)
+    s["components"]["schemas"][name]["description"] = text
+    return s
+
+
+def add_profile_prop(fx, pid, kind, prop):
+    f = copy.deepcopy(fx)
+    next(p for p in f["profiles"] if p["id"] == pid)["properties"].append(prop)
+    next(k for k in f["kinds"] if k["kind"] == kind)["schema"]["properties"][prop] = {"type": "string"}
+    return f
+
+
+def add_kind_prop(fx, kind, prop):
+    f = copy.deepcopy(fx)
+    next(k for k in f["kinds"] if k["kind"] == kind)["schema"]["properties"][prop] = {"type": "string"}
+    return f
+
+
+def touch_reference(fx, key):
+    f = copy.deepcopy(fx)
+    v = f["reference"][key]
+    if isinstance(v, list):
+        v.append("проба")
+    else:
+        v["zzzProbe"] = 1
+    return f
+
+
+def run_cli(*args):
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = layers.main(list(args))
+    return code, buf.getvalue()
+
+
+with tempfile.TemporaryDirectory() as tmp:
+    new_repo(tmp)
+    ok(classify(base="no-such-ref", root=tmp) is None, "case_no_git: нет ссылки — None")
+    with tempfile.TemporaryDirectory() as bare:
+        ok(classify(base="HEAD", root=bare) is None, "case_no_git: нет репозитория — None")
+    write(tmp, "api/profiles/vms.test.json", "{}")
+    ok("api/profiles/vms.test.json" in (changed_files("HEAD", tmp) or []), "case_untracked: новый файл виден")
+    ok("api/profiles/vms.test.json" not in (changed_files("HEAD", tmp, "HEAD") or []), "case_untracked: у коммита head новых файлов нет")
+    os.remove(os.path.join(tmp, "api/profiles/vms.test.json"))
+    # case_merge_base: ветка up ушла вперёд правкой openapi.json, своя правка — только demo.json
+    git(tmp, "branch", "up")
+    git(tmp, "checkout", "-q", "up")
+    write(tmp, "api/openapi.json", json.dumps(touch_schema(SPEC, "Unit")))
+    git(tmp, "commit", "-q", "-am", "чужая правка")
+    git(tmp, "checkout", "-q", "main")
+    write(tmp, "api/fixtures/demo.json", json.dumps(touch_reference(FX, "deviceModels")))
+    git(tmp, "commit", "-q", "-am", "своя правка")
+    ok("api/openapi.json" not in changed_files("up", tmp) and "api/fixtures/demo.json" in changed_files("up", tmp),
+       "case_merge_base: чужая правка не своя")
+    cls = classify("up", tmp)
+    ok(cls is not None and cls["mechanism"] == [] and "vms" in cls["layers"], "case_merge_base: слои считаются от общего предка")
+    # правка рабочей копии, которой нет в коммитах: новая общая схема без новой версии
+    write(tmp, "api/openapi.json", json.dumps(add_schema(SPEC, "Foo")))
+    w = classify("HEAD", tmp)
+    ok(w is not None and any("+ схема Foo" in m for m in w["mechanism"]), "рабочая копия: новая общая схема — механизм")
+    ok(any("без новой версии" in p for p in version_problems(w, False)), "рабочая копия: V1 без новой версии")
+
+old = base()
+c = classify_specs(old, add_schema(old, "Foo"), old)
+ok("+ схема Foo" in " ".join(c["mechanism"]), "новая общая схема — механизм")
+ok(POS in classify_specs(old, touch_schema(old, "PosRawLine"), old)["layers"], "схема кассы — vms.pos/1")
+c = classify_specs(old, set_description(old, "Unit", "новое описание"), old)
+ok(c["mechanism"] == [] and c["descriptions"], "case_description_only: только описания")
+ok(version_problems({**c, "version": ("V", "V")}, True) == [], "case_description_only: без версии можно")
+x = copy.deepcopy(old)
+x["components"]["schemas"]["Unit"]["x-layer"] = POS
+c = classify_specs(old, x, x)
+ok(c["mechanism"] == [] and c["layers"] == {} and c["marks"] == ["схема Unit"], "правка только x-layer — не механизм и не слой")
+m = classify_specs(old, add_schema(old, "Foo"), old)
+ok(any("без новой версии" in p for p in version_problems({**m, "version": ("V", "V")}, False)), "V1: механизм без версии")
+ok(version_problems({**m, "version": ("0.1.0", "0.2.0")}, False) == [], "V1: версия поднята — можно")
+spec = base()
+f = classify_fixture(FX, add_profile_prop(FX, "vms.camera/1", "camera", "noiseReduction"), spec, "api")
+ok("vms.camera/1" in f["layers"], "поле профиля камеры — vms.camera/1")
+ok(any("zzz" in s for s in classify_fixture(FX, add_kind_prop(FX, "camera", "zzz"), spec, "api")["kinds"]), "поле вне профиля — только вид")
+ok("vms" in classify_fixture(FX, touch_reference(FX, "deviceModels"), spec, "api")["layers"], "справочник моделей — vms")
+ok(classify_fixture(FX, touch_reference(FX, "ruleActions"), spec, "api")["stand"], "справочник без пометки — стенд")
+ok(any("version в файле профиля" in p for p in version_problems({**f, "mechanism": [], "version": ("0.1.0", "0.2.0")}, True)),
+   "V2: данные профиля подняли версию контракта")
+ok(version_problems({**f, "mechanism": [], "version": ("0.1.0", "0.2.0")}, False) == [], "V2 до части 02 молчит")
+ok(version_problems({"mechanism": [], "layers": {}, "version": ("0.1.0", "0.2.0")}, True) == [], "V2: только документы — можно")
+
+# история репозитория: в мелком клоне этих коммитов нет — SKIP, а не FAIL
+for sha, what, check in (
+        ("ed44f5a", "0.5.0 — vms.pos/1", lambda r: "vms.pos/1" in r["layers"]),
+        ("60ea7f1", "0.8.0 — механизм", lambda r: any("/journal/facets" in s for s in r["mechanism"]))):
+    r = classify(f"{sha}~1", head=sha)
+    if r is None:
+        skip(f"история: {what} — коммита {sha} нет в клоне")
+    else:
+        ok(check(r), f"история: {what}")
+
+# командная строка
+code, out = run_cli("--base", "HEAD", "--head", "HEAD")
+ok(code == 0 and "нет правок" in out, "CLI: HEAD против HEAD — нет правок")
+code, out = run_cli("--base", "no-such-ref")
+ok(code == 0 and "пропущен" in out, "CLI: нет ссылки — пропуск, код 0")
+
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)

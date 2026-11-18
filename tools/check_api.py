@@ -988,6 +988,32 @@ def check_versions_by_layer(rep, spec):
     rep.check(name, problems, f"текущая версия {spec['info']['version']}")
 
 
+def check_layer_diff(rep, spec):
+    """Слои правки против origin/main (tools/layers.py): какие слои задела правка, кого уведомить; механизм без новой версии — отказ."""
+    name = "Слои правки против origin/main"
+    if API != "api":
+        rep.info(f"{name}: {API} — копия папки API, сверка с git пропущена")
+        return
+    try:
+        cls = layers.classify("origin/main", ROOT, API)
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail(name, [str(e)])
+        return
+    if cls is None:
+        rep.info(f"{name}: нет git или origin/main, пропуск")
+        return
+    folder = os.path.join(ROOT, API, "profiles")
+    active = os.path.isdir(folder) and any(n.endswith(".json") for n in os.listdir(folder))
+    old, new = cls["version"]
+    rep.info(f"{name}: файлов {len(cls['files'])}, версия {old} → {new}, механизм {len(cls['mechanism'])}, "
+             f"описаний {len(cls['descriptions'])}, пометок {len(cls['marks'])}")
+    for layer, items in cls["layers"].items():
+        rep.info(f"{name}: слой {layer} — {len(items)}")
+    for who, what in cls["notify"].items():
+        rep.info(f"{name}: уведомить {who} ({', '.join(what)})")
+    rep.check(name, layers.version_problems(cls, active))
+
+
 def check_backend_doc(rep, spec):
     doc = read(f"{API}/BACKEND.md")
     if doc is None:
@@ -1105,6 +1131,7 @@ def main():
     check_versions_by_layer(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)
+    check_layer_diff(rep, spec)
     if "--lint" in sys.argv[1:]:
         res = subprocess.run(["npx", "-y", "@redocly/cli@1.34.0", "lint", os.path.join(ROOT, API, "openapi.json")],
                              capture_output=True, text=True, cwd=ROOT)

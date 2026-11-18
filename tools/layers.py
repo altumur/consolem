@@ -289,3 +289,408 @@ def versions_table_problems(readme, table_md, current, ids):
             else:
                 problems.append(f"версия {ver}: слой «{tok}» — нужно «механизм» или значение x-layer в обратных кавычках")
     return problems
+
+
+# ── слои правки против origin/main ──
+# Классификатор читает git: чем рабочая папка (или коммит head) отличается от общего предка с base.
+# Чистые функции classify_specs и classify_fixture работают с уже прочитанными словарями.
+
+import subprocess
+import sys
+
+MECHANISM_FILES = ("api/server.js", "api/units.js", "api/kinds.js", "api/rule-engine.js", "api/contract.js", "api/client.js")
+GENERATED = ("api/openapi.js", "api/fixture.js", "api/fixtures/one-domain.json", "api/fixtures/large.json", "api/fixtures/xl.json")
+OWNER_ADDRESS = "владелец контракта"
+SUBSYSTEM_NOTE = "api/profiles.js — назови профиль в уведомлении"
+_TEXT_KEYS = ("description", "summary", "example", "examples")
+_METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "trace")
+_TOKEN = re.compile(r"\.([^.\[\]{}|]+)|(\[\])|(\{\})|\|(\d+)")
+
+
+def _git(root, *args):
+    """Вывод git (без перевода строки в конце) или None, если git нет или команда не прошла."""
+    try:
+        res = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, encoding="utf-8")
+    except OSError:
+        return None
+    return res.stdout if res.returncode == 0 else None
+
+
+def _merge_base(base, root, head):
+    out = _git(root, "merge-base", head or "HEAD", base)
+    return out.strip() if out and out.strip() else None
+
+
+def changed_files(base, root, head=None):
+    """Файлы, которые правка меняет против общего предка head (или HEAD) и base. Без head — ещё новые файлы
+    api/ и tests/, которых нет в git. None — нет git или ссылки."""
+    mb = _merge_base(base, root, head)
+    if mb is None:
+        return None
+    args = ["diff", "--name-only", mb] + ([head] if head else [])
+    out = _git(root, *args)
+    if out is None:
+        return None
+    files = [l for l in out.splitlines() if l]
+    if not head:
+        extra = _git(root, "ls-files", "--others", "--exclude-standard", "api", "tests")
+        files += [l for l in (extra or "").splitlines() if l and l not in files]
+    return files
+
+
+def _json_at(root, rev, rel):
+    """JSON файла в коммите rev; {} — файла там нет или он не читается."""
+    out = _git(root, "show", f"{rev}:{rel}")
+    try:
+        return json.loads(out) if out else {}
+    except ValueError:
+        return {}
+
+
+def _json_work(root, rel):
+    path = os.path.join(root, rel)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return {}
+
+
+def _strip(node, names=False, keys=_TEXT_KEYS):
+    """Копия без ключей keys (по умолчанию description, summary, example, examples). names — node это перечень
+    properties: его ключи — имена полей."""
+    if isinstance(node, dict):
+        return {k: _strip(v, k == "properties" and not names and isinstance(v, dict), keys) for k, v in node.items()
+                if names or k not in keys}
+    if isinstance(node, list):
+        return [_strip(v, False, keys) for v in node]
+    return node
+
+
+def _nox(node):
+    """Копия без пометок x-layer."""
+    return _strip(node, False, ("x-layer",))
+
+
+def _node_at(schema, path):
+    """Узел схемы по пути поля (leak_marks: .имя, [] — items, {} — additionalProperties, |N — вариант); None — нет."""
+    node = schema
+    for m in _TOKEN.finditer(path):
+        if not isinstance(node, dict):
+            return None
+        name, items, addl, var = m.groups()
+        if name is not None:
+            node = (node.get("properties") or {}).get(name)
+        elif items:
+            node = node.get("items")
+        elif addl:
+            node = node.get("additionalProperties")
+        else:
+            variants = [v for k in _VARIANTS for v in (node.get(k) or [])]
+            node = variants[int(var)] if int(var) < len(variants) else None
+    return node
+
+
+def _without(schema, paths):
+    """Копия схемы, где узлы по путям paths заменены пустыми."""
+    out = copy_deep(schema)
+    for p in paths:
+        ms = list(_TOKEN.finditer(p))
+        parent = _node_at(out, p[:ms[-1].start()]) if len(ms) > 1 else out
+        if not isinstance(parent, dict) or not ms:
+            continue
+        name, items, addl, var = ms[-1].groups()
+        if name is not None and name in (parent.get("properties") or {}):
+            parent["properties"][name] = {}
+        elif items and "items" in parent:
+            parent["items"] = {}
+        elif addl and "additionalProperties" in parent:
+            parent["additionalProperties"] = {}
+    return out
+
+
+def copy_deep(x):
+    return json.loads(json.dumps(x))
+
+
+def _add(bucket, key, text):
+    bucket.setdefault(key, [])
+    if text not in bucket[key]:
+        bucket[key].append(text)
+
+
+def classify_specs(old, new, marks):
+    """Две версии api/openapi.json → {"mechanism": [...], "layers": {слой: [...]}, "descriptions": [...]}.
+    marks — спецификация, по которой ищут x-layer. Схема или путь с пометкой — слой пометки; без неё — механизм;
+    изменились только описания и примеры — descriptions."""
+    mech, lay, desc, marked = [], {}, [], []
+    leaks = leak_marks(marks)
+
+    def put(layer, text):
+        if layer:
+            _add(lay, layer, text)
+        elif text not in mech:
+            mech.append(text)
+
+    osch = (old.get("components") or {}).get("schemas") or {}
+    nsch = (new.get("components") or {}).get("schemas") or {}
+    for name in sorted(set(osch) | set(nsch)):
+        a, b = osch.get(name), nsch.get(name)
+        layer = layer_of_schema(marks, name)
+        if a is None or b is None:
+            put(layer, f"{'+' if a is None else '-'} схема {name}")
+            continue
+        if a == b:
+            continue
+        if _nox(a) == _nox(b):
+            marked.append(f"схема {name}")
+            continue
+        mine = sorted(p for p in leaks if p.split(".")[0] == name and p.startswith(name + "."))
+        rest_a, rest_b = (_without(a, [p[len(name):] for p in mine]), _without(b, [p[len(name):] for p in mine])) if mine else (a, b)
+        for p in mine:
+            fa, fb = _node_at(a, p[len(name):]), _node_at(b, p[len(name):])
+            if fa != fb:
+                if _nox(fa) == _nox(fb):
+                    marked.append(f"поле {p}")
+                elif _strip(fa) == _strip(fb):
+                    desc.append(f"поле {p}")
+                else:
+                    _add(lay, leaks[p], f"~ поле {p}")
+        if rest_a == rest_b:
+            continue
+        if _strip(rest_a) == _strip(rest_b):
+            desc.append(f"схема {name}")
+        else:
+            put(layer, f"~ схема {name}")
+
+    opaths, npaths = old.get("paths") or {}, new.get("paths") or {}
+    for path in sorted(set(opaths) | set(npaths)):
+        a, b = opaths.get(path), npaths.get(path)
+        layer = layer_of_path(marks, path)
+        if a is None or b is None:
+            put(layer, f"{'+' if a is None else '-'} путь {path}")
+        elif a != b:
+            if _nox(a) == _nox(b):
+                marked.append(f"путь {path}")
+            elif _strip(a) == _strip(b):
+                desc.append(f"путь {path}")
+            else:
+                put(layer, f"~ путь {path}")
+
+    oc, nc = old.get("components") or {}, new.get("components") or {}
+    for group in sorted((set(oc) | set(nc)) - {"schemas"}):
+        if oc.get(group) != nc.get(group):
+            if _strip(oc.get(group)) == _strip(nc.get(group)):
+                desc.append(f"components.{group}")
+            else:
+                put(None, f"~ components.{group}")
+    skip = {"paths", "components", "info"}
+    for key in sorted((set(old) | set(new)) - skip):
+        if old.get(key) != new.get(key):
+            put(None, f"~ {key}")
+    oi, ni = dict(old.get("info") or {}), dict(new.get("info") or {})
+    for i in (oi, ni):
+        i.pop("version", None)
+    if oi != ni:
+        if _strip(oi) == _strip(ni):
+            desc.append("info")
+        else:
+            put(None, "~ info")
+    return {"mechanism": mech, "layers": lay, "descriptions": desc, "marks": marked}
+
+
+def _by(items, key):
+    return {x[key]: x for x in items if isinstance(x, dict) and key in x} if isinstance(items, list) else {}
+
+
+def classify_fixture(old, new, spec, api_dir):
+    """Две версии api/fixtures/demo.json → {"layers": {...}, "kinds": [...], "stand": [...]}.
+    Свойство вида, которое есть в properties или status профиля из implements, — слой профиля; иначе — только вид.
+    Справочник — слой пометки Reference.<ключ> в spec; без пометки и прочие разделы — стенд."""
+    lay, kinds, stand = {}, [], []
+    profs = {**_by(old.get("profiles"), "id"), **_by(new.get("profiles"), "id")}
+    for pid in sorted(set(_by(old.get("profiles"), "id")) | set(_by(new.get("profiles"), "id"))):
+        if _by(old.get("profiles"), "id").get(pid) != _by(new.get("profiles"), "id").get(pid):
+            _add(lay, pid, f"профиль {pid}")
+    ok_, nk = _by(old.get("kinds"), "kind"), _by(new.get("kinds"), "kind")
+    if not isinstance(old.get("kinds", []), list) or not isinstance(new.get("kinds", []), list):
+        if old.get("kinds") != new.get("kinds"):
+            kinds.append("kinds: другой формат")
+    for kind in sorted(set(ok_) | set(nk)):
+        a, b = ok_.get(kind), nk.get(kind)
+        if a == b:
+            continue
+        if a is None or b is None:
+            kinds.append(f"{'+' if a is None else '-'} вид {kind}")
+            continue
+        implements = list(dict.fromkeys((b.get("implements") or []) + (a.get("implements") or [])))
+        pa = (a.get("schema") or {}).get("properties") or {}
+        pb = (b.get("schema") or {}).get("properties") or {}
+        for prop in sorted(set(pa) | set(pb)):
+            if pa.get(prop) == pb.get(prop):
+                continue
+            owners = [pid for pid in implements if prop in (profs.get(pid, {}).get("properties") or []) + (profs.get(pid, {}).get("status") or [])]
+            if owners:
+                for pid in owners:
+                    _add(lay, pid, f"вид {kind}: свойство {prop}")
+            else:
+                kinds.append(f"вид {kind}: свойство {prop} — вне профилей")
+        rest = [k for k in sorted(set(a) | set(b)) if k != "schema" and a.get(k) != b.get(k)]
+        if (_strip({k: v for k, v in a.items() if k != "schema"}) != _strip({k: v for k, v in b.items() if k != "schema"})):
+            kinds.append(f"вид {kind}: {', '.join(rest)}")
+        sa = {k: v for k, v in (a.get("schema") or {}).items() if k != "properties"}
+        sb = {k: v for k, v in (b.get("schema") or {}).items() if k != "properties"}
+        if _strip(sa) != _strip(sb):
+            kinds.append(f"вид {kind}: schema")
+    leaks = leak_marks(spec)
+    oref, nref = old.get("reference") or {}, new.get("reference") or {}
+    for key in sorted(set(oref) | set(nref)):
+        a, b = oref.get(key), nref.get(key)
+        if a == b:
+            continue
+        sub = [p for p in leaks if p.startswith(f"Reference.{key}.")]
+        if f"Reference.{key}" in leaks:
+            _add(lay, leaks[f"Reference.{key}"], f"справочник {key}")
+        elif sub and isinstance(a, dict) and isinstance(b, dict):
+            for s in sorted(set(a) | set(b)):
+                if a.get(s) != b.get(s):
+                    layer = leaks.get(f"Reference.{key}.{s}")
+                    if layer:
+                        _add(lay, layer, f"справочник {key}.{s}")
+                    else:
+                        stand.append(f"справочник {key}.{s} — данные справочника механизма")
+        else:
+            stand.append(f"справочник {key} — данные справочника механизма")
+    for key in sorted((set(old) | set(new)) - {"kinds", "profiles", "reference"}):
+        if old.get(key) != new.get(key):
+            stand.append(f"раздел {key}")
+    return {"layers": lay, "kinds": kinds, "stand": stand}
+
+
+def _merge(dst, src):
+    for k, v in src.items():
+        for t in v:
+            _add(dst, k, t)
+
+
+def _notify(mechanism, lay, api_dir):
+    out = {}
+    if mechanism:
+        _add(out, OWNER_ADDRESS, "механизм")
+    for layer in lay:
+        if "/" in layer:
+            for who in reviewers_of(layer, api_dir):
+                _add(out, who, layer)
+        else:
+            _add(out, OWNER_ADDRESS, layer)
+    return out
+
+
+def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
+    """Слои правки: рабочая папка (или head) против общего предка с base. None — нет git или ссылки.
+    Ответ: base (sha общего предка), files, mechanism, layers, kinds, stand, descriptions, marks (схемы и пути,
+    где изменился только x-layer), version, notify."""
+    files = changed_files(base, root, head)
+    if files is None:
+        return None
+    mb = _merge_base(base, root, head)
+    new_of = (lambda rel: _json_at(root, head, rel)) if head else (lambda rel: _json_work(root, rel))
+    mechanism, lay, kinds, stand, desc, marks_only = [], {}, [], [], [], []
+    version = (None, None)
+    skip = set(GENERATED)
+    for rel in files:
+        if rel in skip or rel.startswith("api/requests/"):
+            continue
+        prof = re.fullmatch(rf"{re.escape(api_dir)}/profiles/([^/]+)\.(json|md)", rel)
+        if prof:
+            ids = [p["id"] for p in (new_of(f"{api_dir}/fixtures/demo.json").get("profiles") or []) if isinstance(p, dict) and "id" in p]
+            pid = next((i for i in ids if i.split("/")[0] == prof.group(1)), prof.group(1) + "/1")
+            _add(lay, pid, rel)
+        elif rel in MECHANISM_FILES:
+            mechanism.append(rel)
+        elif rel == "api/profiles.js":
+            _add(lay, "подсистема", SUBSYSTEM_NOTE)
+        elif rel == f"{api_dir}/openapi.json":
+            old, new = _json_at(root, mb, rel), new_of(rel)
+            version = ((old.get("info") or {}).get("version"), (new.get("info") or {}).get("version"))
+            marks = copy_deep(_json_work(root, rel) or new)
+            msch = marks.setdefault("components", {}).setdefault("schemas", {})
+            for n, sch in ((new.get("components") or {}).get("schemas") or {}).items():
+                if isinstance(sch, dict) and "x-layer" in sch:
+                    msch.setdefault(n, {})["x-layer"] = sch["x-layer"]
+            for p, item in (new.get("paths") or {}).items():
+                if isinstance(item, dict) and "x-layer" in item:
+                    marks.setdefault("paths", {}).setdefault(p, {})["x-layer"] = item["x-layer"]
+            c = classify_specs(old, new, marks)
+            mechanism += [m for m in c["mechanism"] if m not in mechanism]
+            _merge(lay, c["layers"])
+            desc += c["descriptions"]
+            marks_only += c["marks"]
+        elif rel == f"{api_dir}/fixtures/demo.json":
+            spec = _json_work(root, f"{api_dir}/openapi.json") or {}
+            c = classify_fixture(_json_at(root, mb, rel), new_of(rel), spec, api_dir)
+            _merge(lay, c["layers"])
+            kinds += c["kinds"]
+            stand += c["stand"]
+    return {"base": mb, "files": files, "mechanism": mechanism, "layers": lay, "kinds": kinds, "stand": stand,
+            "descriptions": desc, "marks": marks_only, "version": version, "notify": _notify(mechanism, lay, os.path.join(root, api_dir))}
+
+
+def version_problems(cls, profiles_active):
+    """V1: механизм изменён, а версия контракта та же. V2 (только при profiles_active): версию подняла
+    правка подсистемы без механизма — у подсистемы своя версия в файле профиля."""
+    old, new = cls.get("version") or (None, None)
+    same = old == new
+    mech, lay = cls.get("mechanism") or [], cls.get("layers") or {}
+    out = []
+    if mech and same:
+        out.append(f"механизм изменён без новой версии контракта: {'; '.join(mech)}")
+    if profiles_active and not same and lay and not mech:
+        out.append(f"версию контракта подняла правка подсистемы ({', '.join(lay)}): у неё своя версия — version в файле профиля")
+    return out
+
+
+def format_report(cls):
+    lines = [f"общий предок {cls['base'][:10]}, файлов: {len(cls['files'])}, версия контракта: {cls['version'][0]} → {cls['version'][1]}"]
+    for title, items in (("механизм", cls["mechanism"]), ("вид вне профилей", cls["kinds"]), ("стенд", cls["stand"]),
+                         ("только описания", cls["descriptions"])):
+        if items:
+            lines.append(f"{title}: {len(items)}")
+            lines += [f"  {s}" for s in items]
+    if cls["marks"]:
+        lines.append(f"только пометки x-layer: {len(cls['marks'])}")
+    for layer, items in cls["layers"].items():
+        lines.append(f"слой {layer}: {len(items)}")
+        lines += [f"  {s}" for s in items]
+    for who, what in cls["notify"].items():
+        lines.append(f"уведомить {who}: {', '.join(what)}")
+    return "\n".join(lines)
+
+
+def main(argv=None):
+    """python3 tools/layers.py [--base REF] [--head REF] [--api DIR]: печатает разбор и адресатов; код 1 — version_problems."""
+    argv = list(sys.argv[1:] if argv is None else argv)
+    opts = {"--base": "origin/main", "--head": None, "--api": "api"}
+    while argv:
+        k = argv.pop(0)
+        if k not in opts or not argv:
+            print(f"неизвестный параметр {k}; можно --base REF, --head REF, --api DIR")
+            return 2
+        opts[k] = argv.pop(0)
+    cls = classify(opts["--base"], ROOT, opts["--api"], opts["--head"])
+    if cls is None:
+        print(f"нет git или ссылки {opts['--base']} — разбор пропущен")
+        return 0
+    if not cls["files"]:
+        print("нет правок")
+        return 0
+    print(format_report(cls))
+    active = os.path.isdir(_abs(f"{opts['--api']}/profiles")) and any(n.endswith(".json") for n in os.listdir(_abs(f"{opts['--api']}/profiles")))
+    problems = version_problems(cls, active)
+    for p in problems:
+        print("ОТКАЗ " + p)
+    return 1 if problems else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
