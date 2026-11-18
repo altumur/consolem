@@ -159,6 +159,9 @@ function pcovPerturb(schema, value, ctx) {
   return r;
 }
 
+// Время — HH:MM: только полное время, не часть адреса с портом или числа (перед ним нет цифры, точки, двоеточия)
+function pcovMask(x) { return String(x).replace(/(?<![\d.:])\d\d:\d\d(:\d\d)?(?![\d:])/g, "HH:MM"); }
+
 // Снимок вида: разметка #main и открытого окна без style, время — HH:MM, значения полей ввода дописаны
 function pcovSnap(view) {
   const roots = [document.getElementById("main"), ...document.querySelectorAll(".confirm.on, .mask.on")].filter(Boolean);
@@ -168,7 +171,7 @@ function pcovSnap(view) {
     const c = r.cloneNode(true);
     c.removeAttribute("style");
     c.querySelectorAll("[style]").forEach((el) => el.removeAttribute("style"));
-    parts.push(c.outerHTML.replace(/\d\d:\d\d(:\d\d)?/g, "HH:MM"), JSON.stringify(vals).replace(/\d\d:\d\d(:\d\d)?/g, "HH:MM"));
+    parts.push(pcovMask(c.outerHTML), pcovMask(JSON.stringify(vals)));
   });
   return parts.join("\n");
 }
@@ -317,6 +320,22 @@ async function pcovRefs(kinds) {
 }
 const pcovCtx = { refs: (r) => pcovRefCache.get(JSON.stringify(r)) || [] };
 
+// Профиль вида, в прогоне которого идут все поля схемы и «сверх профиля» — ровно один на вид: профиль, который выбирает
+// экран (первый ключ SCREEN_OF_PROFILE, как в handScreenOf), иначе первый знакомый профиль implements (экран по коду,
+// поддетектор); вид без профилей — null
+function pcovExtraOwner(kind) {
+  const im = KINDS.get(kind)?.implements || [], hs = handScreenOf(kind);
+  for (const [p, t] of Object.entries(SCREEN_OF_PROFILE)) if (im.includes(p) && hs && [].concat(t).includes(hs)) return p;
+  return im.find((id) => KIND_PROFILES.has(id)) || null;
+}
+// Поля прогона профиля на виде: [имя, где] — свойства и состояние профиля; у владельца (pcovExtraOwner) — и все поля схемы
+function pcovNames(profileId, kind) {
+  const prof = KIND_PROFILES.get(profileId), own = profileProps(prof), status = prof?.status || [];
+  let names = [...own.map((f) => [f, "properties"]), ...status.map((f) => [f, "status"])];
+  if (pcovExtraOwner(kind) === profileId) names = names.concat(Object.keys(kindProps(kind)).filter((f) => !own.includes(f)).map((f) => [f, "properties"]));
+  return names;
+}
+
 // Отчёт профиля: {id, version, kinds:[{kind, screen, units, views, fields, coverage}], summary:{keep, remove, add, untested}}.
 // opts: units — объектов на вид; objects — объекты вместо чтения с сервера (самопроверка); fields — только эти поля
 async function pcovRun(profileId, opts) {
@@ -326,7 +345,6 @@ async function pcovRun(profileId, opts) {
   const rep = { id: profileId, version: prof?.version || null, kinds: [], summary: { keep: [], remove: [], add: [], untested: [] } };
   if (!prof) { rep.note = "профиля нет в GET /kinds"; return rep; }
   const own = profileProps(prof), status = prof.status || [];
-  const screenProfile = profileId in SCREEN_OF_PROFILE;
   const kinds = profileKinds(profileId);
   await pcovRefs(kinds);
   goApp("hw");
@@ -340,8 +358,7 @@ async function pcovRun(profileId, opts) {
       const ps = kindProps(k);
       // Поля всех знакомых профилей вида: «сверх профиля» — только то, чего нет ни в одном
       const known = new Set((KINDS.get(k)?.implements || []).filter((id) => KIND_PROFILES.has(id)).flatMap((id) => profileProps(KIND_PROFILES.get(id))));
-      let names = [...own.map((f) => [f, "properties"]), ...status.map((f) => [f, "status"])];
-      if (screenProfile) names = names.concat(Object.keys(ps).filter((f) => !own.includes(f)).map((f) => [f, "properties"]));
+      let names = pcovNames(profileId, k);
       if (opts.fields) names = names.filter(([f]) => opts.fields.includes(f));
       const fields = {};
       names.forEach(([f, where]) => {
@@ -349,14 +366,18 @@ async function pcovRun(profileId, opts) {
         if (where === "status") fields[f].status = true;
         if (!fields[f].inProfile && known.has(f)) fields[f].otherProfile = true;
       });
-      const entry = { kind: k, screen: screenFor(k), units: [], views: [], fields };
+      const entry = { kind: k, screen: screenFor(k), units: [], views: [], fields, extra: pcovExtraOwner(k) === profileId };
       const viewNames = new Set();
       for (const base of pcovChoose(pool, k, N)) {
         // Строка перечня без полной записи — дочитать, как при клике (hwFull только для строк: домен, папка и том — не строки)
-        await hwEnsure([base.parentId, base.uid].filter((id) => id && !find(id) && !isSubdetKind(k))).catch(() => {});
-        for (const id of [base.parentId, base.uid]) if (id && find(id)?.n?._row) await hwFull(id).catch(() => {});
+        // Чтение не удалось — причина у полей, которые этот объект не проверил
+        const loadErr = [];
+        await hwEnsure([base.parentId, base.uid].filter((id) => id && !find(id) && !isSubdetKind(k))).catch((e) => loadErr.push("hwEnsure: " + (e?.message || problemText?.(e) || e)));
+        for (const id of [base.parentId, base.uid]) if (id && find(id)?.n?._row) await hwFull(id).catch((e) => loadErr.push(`hwFull ${id}: ` + (e?.message || problemText?.(e) || e)));
         const views = await pcovViews(base);
-        if (!views.length) continue;
+        const noteLoad = (why) => Object.values(fields).forEach((x) => { if (!x.tried) x.why = why; });
+        if (!views.length) { if (loadErr.length) noteLoad("объект не прочитан: " + loadErr.join("; ")); continue; }
+        if (loadErr.length) entry.loadErrors = (entry.loadErrors || []).concat(loadErr);
         await pcovApply(base);
         entry.units.push(base.uid);
         // Снимки без возмущения: два подряд должны совпасть, иначе вид неустойчив и выходит из прогона
@@ -378,20 +399,31 @@ async function pcovRun(profileId, opts) {
           delete fields[f].absent;
           const r = pcovPerturb(fld.schema || { type: pcovKindOf(fld.value) }, fld.value, pcovCtx);
           if (!r.ok) { if (!fields[f].tried) fields[f].why = r.why; continue; }
+          const diff = new Map();
+          let crash = null, fail = null, at = null;
+          try { await pcovApply(pcovSet(base, f, fld.where, r.value)); }
+          catch (e) { fail = "ошибка прогона при применении: " + (e?.message || e); }
+          if (!fail)
+            for (const v of live) {
+              at = v.key;
+              try { await pcovShow(v); } catch (e) { crash = `${v.key}: ${e?.message || e}`; break; }
+              const sn = pcovSnap(v);
+              if (sn !== snap0.get(v)) diff.set(v, sn);
+            }
+          try { await pcovApply(base); } catch (e) { fail = fail || "ошибка прогона при возврате: " + (e?.message || e); }
+          // Применение упало — поле не проверено, причина в why; экран упал при показе — значит, читает поле: «показано»
+          if (fail) {
+            if (!fields[f].tried) fields[f].why = fail;
+            fields[f].error = fail;
+            for (const v of live) { try { await pcovShow(v); } catch (e) {} snap0.set(v, pcovSnap(v)); }
+            continue;
+          }
           fields[f].tried = true;
           delete fields[f].why;
-          const diff = new Map();
-          let crash = null, at = null;
-          try {
-            await pcovApply(pcovSet(base, f, fld.where, r.value));
-            for (const v of live) { at = v.key; await pcovShow(v); const sn = pcovSnap(v); if (sn !== snap0.get(v)) diff.set(v, sn); }
-          } catch (e) { crash = `${at || "применение"}: ${e.message || e}`; }
-          await pcovApply(base);
-          // Экран упал на новом значении — значит, читает поле: «показано» с причиной; снимки «до» — заново
           if (crash) {
-            Object.assign(fields[f], { shown: true, error: crash });
-            fields[f].views = [...new Set([...(fields[f].views || []), (at || "?") + " (ошибка экрана)"])];
-            for (const v of live) { await pcovShow(v); snap0.set(v, pcovSnap(v)); }
+            Object.assign(fields[f], { shown: true, error: "ошибка экрана: " + crash });
+            fields[f].views = [...new Set([...(fields[f].views || []), at + " (ошибка экрана)"])];
+            for (const v of live) { try { await pcovShow(v); } catch (e) {} snap0.set(v, pcovSnap(v)); }
             continue;
           }
           // Отличие сверяется со снимком сразу после возврата: вкладка, которая меняется сама (журнал, сработки), иначе
@@ -404,12 +436,15 @@ async function pcovRun(profileId, opts) {
             if (sn === s0) continue;
             // Вторая проба на этом виде: вкладка, что меняется со временем (простой плеера, лента событий), не совпадёт
             // с возмущением дважды
-            await pcovApply(pcovSet(base, f, fld.where, r.value));
-            await pcovShow(v);
-            const sn2 = pcovSnap(v);
+            let sn2, s02;
+            try {
+              await pcovApply(pcovSet(base, f, fld.where, r.value));
+              await pcovShow(v);
+              sn2 = pcovSnap(v);
+            } catch (e) { sn2 = "ошибка экрана: " + (e?.message || e); fields[f].error = fields[f].error || `ошибка экрана: ${v.key}: ${e?.message || e}`; }
             await pcovApply(base);
             await pcovShow(v);
-            const s02 = pcovSnap(v);
+            s02 = pcovSnap(v);
             snap0.set(v, s02);
             if (sn2 === s02) continue;
             hit.push(v.key);
@@ -439,8 +474,8 @@ async function pcovRun(profileId, opts) {
   S.keep = all.filter(shownAny);
   S.untested = all.filter((f) => !triedAny(f) && !(f in keepOk));
   S.remove = all.filter((f) => !shownAny(f) && triedAny(f) && !(f in keepOk));
-  // «Сверх профиля» — у профиля, который выбирает экран; вторичные (live, ptz, …) его не повторяют
-  if (screenProfile) S.add = [...new Set(rep.kinds.flatMap((k) => Object.keys(k.fields).filter((f) => {
+  // «Сверх профиля» — один раз на вид, в прогоне его владельца (pcovExtraOwner); остальные профили вида его не повторяют
+  S.add = [...new Set(rep.kinds.filter((k) => k.extra).flatMap((k) => Object.keys(k.fields).filter((f) => {
     const x = k.fields[f];
     return x.shown && !x.inProfile && !x.otherProfile && !(f in extraOk);
   })))];
@@ -457,6 +492,54 @@ async function pcovSelfcheck(ok) {
   ok(P({ type: "string", format: "ipv4" }, "10.0.0.1").value === "10.0.0.2" && P({ type: "string", maxLength: 3 }, "abc").value.length === 3, "адрес и строка в границах");
   ok(P({ type: "array", minItems: 1, items: { type: "string" } }, ["x"]).value.length === 2 && P({ type: "array", items: { type: "string" } }, ["x", "y"]).value.length === 1, "массив: убрать или добавить элемент");
   ok(P({ type: ["string", "null"], "x-ref": { implements: ["vms.archive/1"] } }, archA).value === archB, "ссылка — на другой объект нужного профиля");
+
+  // Снимок: маска — только у полного времени; адрес с портом и число с двоеточием остаются
+  const M = (x) => (typeof pcovMask === "function" ? pcovMask(x) : x);
+  ok(M("в 12:30:05 и 08:00") === "в HH:MM и HH:MM" && M("10.0.0.12:8080") === "10.0.0.12:8080" && M("1:80, 192.168.1.21:80") === "1:80, 192.168.1.21:80",
+    "маска времени не прячет адрес с портом: " + M("10.0.0.12:8080"));
+
+  // «Сверх профиля» и все поля схемы — ровно у одного профиля вида: у профиля, который выбирает экран, иначе у первого
+  // профиля implements (экран по коду: громкоговоритель vms.talk/1)
+  {
+    const own = typeof pcovExtraOwner === "function" ? pcovExtraOwner : () => null;
+    const names = typeof pcovNames === "function" ? pcovNames : () => [];
+    const camPos = Object.assign(pcovClone(KINDS.get("camera")), { kind: "acme.campos", implements: ["vms.pos/1", "vms.camera/1"] });
+    const spk = KINDS.get("spk"), spkWas = spk.schema;
+    KINDS.set("acme.campos", camPos);
+    spk.schema = Object.assign({}, spkWas, { properties: Object.assign({}, spkWas.properties, { covProbe: { type: "string" } }) });
+    try {
+      ok(own("acme.campos") === "vms.camera/1" && own("camera") === "vms.camera/1" && own("spk") === "vms.talk/1" && own("subdet") === "vms.subdetector/1" && own("mic") === null,
+        "владелец «сверх профиля»: " + ["acme.campos", "camera", "spk", "subdet", "mic"].map((k) => k + "→" + own(k)).join(", "));
+      const posN = names("vms.pos/1", "acme.campos").map(([f]) => f), posOwn = profileProps(KIND_PROFILES.get("vms.pos/1"));
+      ok(posN.length > 0 && posN.every((f) => posOwn.includes(f) || (KIND_PROFILES.get("vms.pos/1").status || []).includes(f)),
+        "камера с кассой в прогоне vms.pos/1 — только поля кассы, без полей схемы камеры");
+      ok(names("vms.talk/1", "spk").some(([f]) => f === "covProbe") && names("vms.camera/1", "acme.campos").some(([f]) => f === "covProbe") === false && names("vms.camera/1", "acme.campos").length > 0,
+        "громкоговоритель (экран по коду) — поля схемы в прогоне vms.talk/1");
+    } finally {
+      KINDS.delete("acme.campos");
+      spk.schema = spkWas;
+    }
+  }
+
+  // Ошибка: исключение при показе вида — поле показано (экран читает поле), исключение при применении — ошибка прогона,
+  // а не «показано»
+  {
+    const cam0 = await API.get(`/units/${(await uiUnitsAll({ kind: "camera" })).sort((a, b) => (a.uid < b.uid ? -1 : 1))[0].uid}`);
+    const perturbed = () => String(hwVer.get(cam0.uid) || "").endsWith("~pcov");
+    const realApply = hwApplyUnit, realGear = gear;
+    let showRep = null, applyRep = null;
+    try {
+      gear = function () { if (perturbed() && sel === cam0.uid) throw new Error("проба показа"); return realGear.apply(this, arguments); };
+      showRep = (await pcovRun("vms.camera/1", { units: 1, fields: ["short"], objects: [cam0] })).kinds[0];
+    } finally { gear = realGear; await pcovApply(cam0); }
+    try {
+      hwApplyUnit = function (u) { if (String(u.version).endsWith("~pcov")) throw new Error("проба применения"); return realApply.apply(this, arguments); };
+      applyRep = (await pcovRun("vms.camera/1", { units: 1, fields: ["short"], objects: [cam0] })).kinds[0];
+    } finally { hwApplyUnit = realApply; await pcovApply(cam0); }
+    ok(showRep?.fields.short.shown === true && /проба показа/.test(showRep.fields.short.error || ""), "исключение при показе — показано, с ошибкой экрана: " + JSON.stringify(showRep?.fields.short));
+    ok(applyRep?.fields.short.shown === false && applyRep.fields.short.tried === false && /проба применения/.test(applyRep.fields.short.why || ""),
+      "исключение при применении — не «показано», причина в why: " + JSON.stringify(applyRep?.fields.short));
+  }
 
   // Камера набора; в схему вида camera на время самопроверки добавлено covHidden:{type:"string"}, у объекта covHidden:"a".
   // Поле «Видео» — ptz (поворот и пресеты), а не fps из плана: к/с камеры карточка не показывает. Узел камеры держит его

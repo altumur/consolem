@@ -40,6 +40,9 @@ ALLOW = os.path.join(ROOT, "tools", "profile_coverage.allow.json")
 NEEDS = ("screenFor", "handScreenFields", "screenCoverage", "profileProps", "profileKinds", "hwApplyUnit")
 
 
+UNITS_HINT = "прогон не уложился в срок, уменьшите --units или проверьте профили по одному (--profile)"
+
+
 class Stop(Exception):
     """Инструмент не может работать: понятная причина вместо трассировки."""
 
@@ -97,8 +100,11 @@ def fixture_profiles(fixture):
     path = os.path.join(ROOT, "api", "fixtures", fixture + ".json")
     if not os.path.exists(path):
         raise Stop(f"нет набора {os.path.relpath(path, ROOT)}")
-    with open(path, encoding="utf-8") as f:
-        return [p["id"] for p in json.load(f).get("profiles", []) if isinstance(p, dict) and "id" in p]
+    try:
+        with open(path, encoding="utf-8") as f:
+            return [p["id"] for p in json.load(f).get("profiles", []) if isinstance(p, dict) and "id" in p]
+    except (OSError, ValueError, AttributeError) as e:
+        raise Stop(f"{os.path.relpath(path, ROOT)}: не прочитать профили набора ({e})")
 
 
 def status_schemas(pid):
@@ -106,8 +112,11 @@ def status_schemas(pid):
     path = os.path.join(ROOT, "api", "profiles", profile_files.file_name(pid))
     if not os.path.exists(path):
         return {}
-    with open(path, encoding="utf-8") as f:
-        st = json.load(f).get("status") or {}
+    try:
+        with open(path, encoding="utf-8") as f:
+            st = json.load(f).get("status") or {}
+    except (OSError, ValueError, AttributeError) as e:
+        raise Stop(f"{os.path.relpath(path, ROOT)}: не прочитать файл профиля ({e})")
     return {k: (v.get("schema") if isinstance(v, dict) else None) for k, v in st.items()} if isinstance(st, dict) else {}
 
 
@@ -137,11 +146,13 @@ def run_page(query, data):
         with open(path, "w", encoding="utf-8") as f:
             f.write("window.PCOV_DATA=" + json.dumps(data, ensure_ascii=False).replace("</", "<\\/") + ";\n" + code)
         try:
-            return check_ui.run(path, query)
+            lines = check_ui.run(path, query)
         except subprocess.TimeoutExpired:
-            return ["FAIL  страница не уложилась в срок check_ui.run: уменьшите --units"]
+            return ["FAIL  страница не уложилась в срок check_ui.run (300 с): " + UNITS_HINT]
         except FileNotFoundError as e:
             raise Stop(f"не запустился Chrome: {e}")
+        # Виртуальный срок Chrome кончился раньше сценария — та же причина, что и настоящий срок
+        return [x + ": " + UNITS_HINT if x == "FAIL  сценарий не дошёл до конца" else x for x in lines]
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
@@ -158,6 +169,11 @@ def kind_line(prof, k):
     s += " · сверх профиля на экране: " + (", ".join(extra) or "—")
     if untried:
         s += " · не проверены: " + ", ".join(f"{f} ({fields[f].get('why', '?')})" for f in untried)
+    errs = [f"{f}: {r['error']}" for f, r in fields.items() if r.get("error")]
+    if errs:
+        s += " · ошибки: " + "; ".join(errs)
+    if k.get("loadErrors"):
+        s += " · не прочитано: " + "; ".join(k["loadErrors"])
     bad = [v for v in k.get("views", []) if " " in v]
     if bad:
         s += " · неустойчивые виды: " + ", ".join(bad)
@@ -181,6 +197,8 @@ def main():
             raise Stop("--units: целое число от 1")
         page_check()
         allow = load_allow()
+        if json_out and not os.access(os.path.dirname(os.path.abspath(json_out)), os.W_OK):
+            raise Stop(f"--json {json_out}: в папку {os.path.dirname(os.path.abspath(json_out))} нельзя писать")
         if selfcheck:
             lines = run_page(f"?pcov=selfcheck&fixture={fixture}" + ("&debug=1" if debug else ""), {"allow": {}, "status": {}})
             bad = [x for x in lines if not x.startswith("PASS")]
@@ -214,7 +232,10 @@ def main():
         rep = None
         for x in lines:
             if x.startswith("PASS  COVERAGE "):
-                rep = json.loads(x[len("PASS  COVERAGE "):])
+                try:
+                    rep = json.loads(x[len("PASS  COVERAGE "):])
+                except ValueError as e:
+                    lines.append(f"FAIL  отчёт страницы — не JSON ({e})")
         bad = [x for x in lines if not x.startswith("PASS")]
         print(f"== {pid} ({time.time() - t0:.0f} с)")
         for x in bad:
@@ -234,8 +255,13 @@ def main():
         if check and (sm["remove"] or sm["add"] or sm["untested"]):
             failed += 1
     if json_out:
-        with open(json_out, "w", encoding="utf-8") as f:
-            json.dump(report, f, ensure_ascii=False, indent=1)
+        try:
+            with open(json_out, "w", encoding="utf-8") as f:
+                json.dump(report, f, ensure_ascii=False, indent=1)
+        except OSError as e:
+            print(f"profile_coverage: --json {json_out}: не записать ({e})")
+            print("RESULT fail")
+            return 2
         print(f"отчёт: {json_out}")
     print(f"RESULT {'fail' if failed else 'pass'}")
     return 1 if failed else 0
