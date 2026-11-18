@@ -198,6 +198,26 @@ UiCheck(async ({ ok, until }) => {
     });
   }
 
+  // ── В. Поля своего экрана и счёт покрытия ──
+  {
+    const sameSet = (a, b) => { const A = new Set(a), B = new Set(b); return A.size === a.length && A.size === B.size && [...B].every((x) => A.has(x)); };
+    const likeV = Object.assign(clone(like), { schema: clone(like.schema) });
+    likeV.schema.properties.covProbe = { type: "string", "x-label": { text: "Проба", lang: "ru" } };
+    await withKinds([likeV, cam2, campos, acs], async () => {
+      const camProfiles = ["vms.camera/1", "vms.live/1", "vms.ptz/1", "vms.timeline/1"].flatMap((id) => profileProps(KIND_PROFILES.get(id)));
+      ok(sameSet(handScreenFields("camera"), camProfiles), "поля экрана камеры — профили камеры, видео, PTZ и шкалы: ");
+      ok(!handScreenFields("acme.campos").includes("overlays") && handScreenFields("acme.campos").includes("fps"), "экран камеры не считает поля кассы своими");
+      ok(handScreenFields("test.camera2").length === 0, "у вида с vms.camera/2 полей ручного экрана нет");
+      ok(handScreenFields("acfa_lock").length > 0 && profileProps(KIND_PROFILES.get("vms.acs/1")).every((f) => handScreenFields("acfa_lock").includes(f)), "поля vms.acs/1 — у экрана СКУД, чей код входит в массив");
+      ok(handScreenFields("acme.acs").length === 0, "вид СКУД с чужим кодом — экрана нет, полей нет");
+      const c = screenCoverage("test.camera-like", handScreenFields("test.camera-like"));
+      ok(c.total === Object.keys(likeV.schema.properties).length && c.missing.includes("covProbe") && c.unknown.length === 0 && c.shown.length === c.total - c.missing.length, "счёт покрытия: всего, показаны, не показаны");
+      ok(screenCoverage("camera", ["fps", "nope"]).unknown.join() === "nope", "поле, которого нет в схеме, — отдельно");
+      ok(kindExtraProps("test.camera-like").includes("covProbe") && !kindExtraProps("acme.campos").includes("fps"), "«сверх профиля» — по полям своего экрана");
+      ok(profileProps({ properties: ["a", "b"] }).join() === "a,b" && profileProps({ properties: { a: {}, b: {} } }).join() === "a,b" && profileProps({}).length === 0, "имена профиля — из массива или из объекта (часть 02)");
+    });
+  }
+
   // ── Г. Профиль снят с вида при открытой карточке ──
   // Открыта карточка камеры с неприменённой правкой; PUT /test/kinds/camera без vms.camera/1 → kinds.changed. Карточка без
   // перезагрузки становится формой по схеме, правка переходит в черновик формы по схеме. Поле, которого в новой схеме нет
