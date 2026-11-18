@@ -188,12 +188,35 @@
   const key = () => `test-${Date.now().toString(36)}-${++keySeq}`;
 
   // needs — что тесту нужно от системы: operationId, "type:<вид устройства>", "feature:<возможность>",
-  // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы. Чего нет — тест
-  // пропускается (SKIP) и не считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units)
-  function test(name, fn, opts) {
-    const src = document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "";
-    tests.push({ name, fn, needs: (opts && opts.needs) || [], file: src });
+  // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы,
+  // "profile:<id>[@M.m]" — профиль объявлен (и его версия не младше M.m). Чего нет — тест пропускается (SKIP) и не
+  // считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units).
+  // layer — чью договорённость проверяет тест: "mechanism", "video" или "profile:<id>"; без него — слой файла (fileLayer).
+  // Слой профиля добавляет в needs условие profile:<id> (с @since, если задан since)
+  const scriptFile = () => (document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "");
+  const fileLayers = {};
+  // Слой по умолчанию для тестов файла; один вызов на файл, до первого test()
+  function fileLayer(layer) {
+    const file = scriptFile();
+    if (Object.prototype.hasOwnProperty.call(fileLayers, file)) throw new Error("fileLayer: слой файла уже задан");
+    fileLayers[file] = layer;
   }
+  function test(name, fn, opts) {
+    const file = scriptFile();
+    const layer = (opts && opts.layer) || fileLayers[file] || null;
+    const since = (opts && opts.since) || null;
+    const needs = ((opts && opts.needs) || []).slice();
+    const parsed = layer && ConsolemTestLayers.parseLayer(layer);
+    if (parsed && parsed.type === "profile") {
+      const cond = since ? `${layer}@${since}` : layer;
+      if (!needs.includes(cond)) needs.push(cond);
+    }
+    tests.push({ name, fn, needs, file, layer, since });
+  }
+  // Реестр тестов без запуска: needs — уже с условием profile:
+  const registry = () => tests.map(({ name, file, layer, since, needs }) => ({ name, file, layer, since, needs: needs.slice() }));
+  // Профили системы (GET /kinds) — строятся после чтения видов
+  let DECLARED = new Map();
   // Вид, с которым тест может работать: система его объявила (GET /kinds), и объект этого вида можно завести (create) или он
   // есть в наборе. Вид, объявленный только ради каталога правил (профиль «один домен»: события датчика, источника, единиц
   // СКУД и выход реле, а объектов нет и завести их нельзя), тестам объектов не годится
@@ -229,6 +252,7 @@
         const x = KINDS && KINDS.items.find((i) => i.kind === k);
         return !x || !usableKind(k) || !(((x.schema || {}).properties || {})[f]);
       }
+      if (n.startsWith("profile:")) return !!ConsolemTestLayers.profileLack(n, DECLARED);
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
       return !CAPS.operations.includes(n);
     });
@@ -288,6 +312,7 @@
       const kinds = await api.raw("GET", "/kinds");
       KINDS = kinds.status === 200 ? kinds.body : null;
     }
+    DECLARED = ConsolemTestLayers.declaredProfiles(KINDS, usableKind);
     const undeclared = allOps().filter((op) => !op.test && !CAPS.operations.includes(op.id));
     lines.push(`INFO  Возможности: операций ${CAPS.operations.length}, видов ${KINDS ? KINDS.items.length : 0}, необязательных ${CAPS.features.length}${undeclared.length ? `; не поддержаны: ${undeclared.map((o) => o.id).join(", ")}` : ""}`);
     // Файлы тестов загрузились целиком: каждый в конце объявляет себя (loaded)
@@ -298,6 +323,7 @@
       lines.push(`FAIL  Файлы тестов загрузились — ${broken.join("; ")}`);
     } else lines.push(`PASS  Файлы тестов загрузились — ${files.length}`);
     const only = params.get("only");
+    lines.push(`INFO  Тестов без слоя: ${tests.filter((t) => !t.layer).length}`);
     let skipped = 0;
     // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида), — покрытие их не требует
     const waived = new Set();
@@ -306,8 +332,10 @@
       const missing = lacks(t.needs);
       if (missing.length) {
         skipped += 1;
-        if (missing.some((n) => /^(kind|implements|under|cap):/.test(n))) t.needs.forEach((n) => waived.add(n));
-        lines.push(`SKIP  ${t.name} — система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`);
+        if (missing.some((n) => /^(kind|implements|under|cap|profile):/.test(n))) t.needs.forEach((n) => waived.add(n));
+        // Не хватило условия profile: — причина из profileLack, иначе прежнее «система не умеет»
+        const lack = missing.find((n) => n.startsWith("profile:"));
+        lines.push(`SKIP  ${t.name} — ${lack ? ConsolemTestLayers.profileLack(lack, DECLARED) : `система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`}`);
         continue;
       }
       try {
@@ -369,5 +397,5 @@
     });
   const settle = () => new Promise((r) => setTimeout(r, apiBase ? 400 : 20));
 
-  window.ApiTest = { test, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };
+  window.ApiTest = { test, fileLayer, registry, layers: ConsolemTestLayers, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };
 })();

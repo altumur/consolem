@@ -7,8 +7,11 @@
 """
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 failed = 0
@@ -95,8 +98,77 @@ def check_functions():
            + ("" if have == want else f"; ждали {json.dumps(want, ensure_ascii=False)[:90]}"))
 
 
+ZZ_FILE = """(() => {
+  ApiTest.fileLayer("profile:vms.camera/1");
+  ApiTest.test("слой: от файла", async () => {}, { needs: ["patchUnit"] });
+  ApiTest.test("слой: свой", async () => {}, { layer: "mechanism" });
+  ApiTest.test("слой: since", async () => {}, { since: "1.3" });
+  ApiTest.loaded("api-zz-layers.js");
+})();
+"""
+# Сквозные проверки отчёта: строки PASS/FAIL без теста за ними
+CROSS = ("Файлы тестов загрузились", "Ответы соответствуют openapi.json", "Неподдержанные операции отвечают 404 NO_ROUTE",
+         "Каждая объявленная операция покрыта тестами")
+
+
+def registry(tests_dir=None):
+    cmd = ["node", os.path.join(ROOT, "tools", "api_tests_registry.mjs")] + (["--tests", tests_dir] if tests_dir else [])
+    res = subprocess.run(cmd, capture_output=True, text=True, timeout=120, cwd=ROOT)
+    if res.returncode != 0:
+        return None, (res.stderr.strip().splitlines() or [f"код {res.returncode}"])[-1]
+    return json.loads(res.stdout), None
+
+
+def check_registry():
+    copy = tempfile.mkdtemp(prefix=".tests-layers-", dir=ROOT)
+    try:
+        for name in os.listdir(os.path.join(ROOT, "tests")):
+            src = os.path.join(ROOT, "tests", name)
+            if os.path.isfile(src):
+                shutil.copy(src, copy)
+        with open(os.path.join(copy, "api-zz-layers.js"), "w", encoding="utf-8") as f:
+            f.write(ZZ_FILE)
+        page = os.path.join(copy, "api.html")
+        text = open(page, encoding="utf-8").read()
+        text = text.replace("<script>\n      ApiTest.run();", '<script src="api-zz-layers.js"></script>\n    <script>\n      ApiTest.run();', 1)
+        open(page, "w", encoding="utf-8").write(text)
+        reg, err = registry(copy)
+        ok(reg is not None, "Реестр копии tests/ печатается" + (f": {err}" if err else ""))
+        if reg is None:
+            return
+        by = {t["name"]: t for t in reg["tests"]}
+        ok(reg["files"].get("api-zz-layers.js") == "profile:vms.camera/1", "files: слой файла api-zz-layers.js")
+        a, b, c = by.get("слой: от файла"), by.get("слой: свой"), by.get("слой: since")
+        ok(bool(a) and a["layer"] == "profile:vms.camera/1" and a["needs"] == ["patchUnit", "profile:vms.camera/1"] and a["file"] == "api-zz-layers",
+           f"тест без своего слоя берёт слой файла и условие profile: в конец needs: {a}")
+        ok(bool(b) and b["layer"] == "mechanism" and not any(n.startswith("profile:") for n in b["needs"]), f"тест со своим слоем: {b}")
+        ok(bool(c) and c["since"] == "1.3" and "profile:vms.camera/1@1.3" in c["needs"] and "profile:vms.camera/1" not in c["needs"], f"since: условие profile:<id>@<since>: {c}")
+        real, _ = registry()
+        ok(real is not None and len(reg["tests"]) == len(real["tests"]) + 3, "в копии на три теста больше, чем в настоящей папке")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+
+
+def check_registry_count():
+    reg, err = registry()
+    ok(reg is not None, "Реестр tests/ печатается" + (f": {err}" if err else ""))
+    if reg is None:
+        return
+    res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "run_api_tests.py")], capture_output=True, text=True, timeout=400, cwd=ROOT)
+    lines = [l for l in res.stdout.splitlines() if re.match(r"(PASS|FAIL|SKIP)  ", l)]
+    own = [l for l in lines if not any(l[6:].startswith(c) for c in CROSS)]
+    ok(len(lines) - len(own) == len(CROSS), f"в отчёте все {len(CROSS)} сквозные проверки: {len(lines) - len(own)}")
+    ok(len(reg["tests"]) == len(own), f"тестов в реестре столько же, сколько строк PASS/FAIL/SKIP тестов в отчёте: {len(reg['tests'])} и {len(own)}")
+    m = re.search(r"INFO  Тестов без слоя: (\d+)", res.stdout)
+    # Пока файлы тестов не расставили слои (задача 3), без слоя — все
+    nolayer = sum(1 for t in reg["tests"] if not t["layer"])
+    ok(bool(m) and int(m.group(1)) == nolayer, f"INFO Тестов без слоя: {m.group(1) if m else 'нет строки'} — в реестре {nolayer}")
+
+
 def main():
     check_functions()
+    check_registry()
+    check_registry_count()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0
 
