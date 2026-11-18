@@ -233,16 +233,97 @@ def check_undeclared():
         ok(any(l.startswith("FAIL  ") and msg in l for l in out.splitlines()) and "RESULT fail" in out,
            "встроенный сервер: FAIL «тест вызвал операцию listLicenses, которую система не объявила»: " + repr((out.strip().splitlines() or [""])[-3:]))
         out = run_tool(["run_api_tests.py", "--tests", copy] + only + ["защита: адрес вне контракта"])
-        ok(any(l.startswith("PASS  защита: адрес вне контракта") for l in out.splitlines()) and "RESULT pass" in out,
+        ok(any(l.startswith("PASS  [механизм] защита: адрес вне контракта") for l in out.splitlines()) and "RESULT pass" in out,
            "адрес вне контракта по-прежнему отвечает 404 NO_ROUTE: " + repr((out.strip().splitlines() or [""])[-3:]))
     finally:
         shutil.rmtree(copy, ignore_errors=True)
     copy = guard_copy(True)
     try:
         out = run_tool(["check_stand.py", "--tests", copy, "--fixture", "one-domain", "--clock", "real"])
-        want = "SKIP  защита: необъявленная операция — система не объявила операцию listLicenses; тест не назвал её в needs"
+        want = "SKIP  [механизм] защита: необъявленная операция — система не объявила операцию listLicenses; тест не назвал её в needs"
         ok(want in out, "стенд бэкенда: SKIP «система не объявила операцию listLicenses»" + ("" if want in out else f": {out[-600:]!r}"))
-        ok("FAIL  защита" not in out and "Unhandled" not in out, "стенд бэкенда: тестов защиты без FAIL")
+        ok("FAIL  [механизм] защита" not in out and "Unhandled" not in out, "стенд бэкенда: тестов защиты без FAIL")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+
+
+def test_lines(out):
+    """Строки тестов отчёта: PASS/FAIL/SKIP без сквозных проверок."""
+    return [l for l in out.splitlines() if re.match(r"(PASS|FAIL|SKIP)  ", l) and not any(l[6:].startswith(c) for c in CROSS)]
+
+
+def check_totals(out, what):
+    """Итог «все N прошли, пропущено K» сходится со строками PASS и SKIP отчёта (с отбором слоёв — тоже)."""
+    lines = [l for l in out.splitlines() if re.match(r"(PASS|FAIL|SKIP)  ", l)]
+    passed = sum(1 for l in lines if l.startswith("PASS"))
+    skipped = sum(1 for l in lines if l.startswith("SKIP"))
+    m = re.search(r"Тесты API: все (\d+) прошли(?:, пропущено (\d+))?", out)
+    ok(bool(m) and int(m.group(1)) == passed and int(m.group(2) or 0) == skipped,
+       f"{what}: итог сходится со строками (PASS {passed}, SKIP {skipped}): {m.group(0) if m else 'нет итога'}")
+
+
+def check_report():
+    print("-- Отчёт")
+    reg, err = registry()
+    ok(reg is not None, "Реестр tests/ печатается" + (f": {err}" if err else ""))
+    if reg is None:
+        return
+    count = {}
+    for t in reg["tests"]:
+        count[t["layer"]] = count.get(t["layer"], 0) + 1
+    # 1. Профиль, которого нет в наборе: все его тесты пропущены, строка LAYER называет число
+    out = run_tool(["run_api_tests.py", "--fixture", "one-domain", "--layer", "profile:vms.edge/1"])
+    own = test_lines(out)
+    n = count["profile:vms.edge/1"]
+    ok("RESULT pass" in out and len(own) == n and all(l.startswith("SKIP  [vms.edge/1] ") and l.endswith("— профиль vms.edge/1 не объявлен") for l in own),
+       f"--layer profile:vms.edge/1 на one-domain: {len(own)} из {n} тестов пропущены с причиной «не объявлен»")
+    ok(f"LAYER vms.edge/1 — не объявлен, пропущено {n}" in out.splitlines(), "строка «LAYER vms.edge/1 — не объявлен, пропущено N»")
+    ok("INFO  Покрытие операций проверяется только при полном прогоне" in out.splitlines(), "при отборе слоёв покрытие не проверяется, вместо него INFO")
+    check_totals(out, "--layer profile:vms.edge/1")
+    # 2-3. Неверный слой
+    out = run_tool(["run_api_tests.py", "--layer", "profile:vms.nosuch/1"])
+    ok("RESULT fail" in out and "FAIL  Отбор слоёв — нет тестов слоя profile:vms.nosuch/1" in out.splitlines(), "--layer без тестов у слоя: FAIL «нет тестов слоя»")
+    out = run_tool(["run_api_tests.py", "--layer", "Mechanism"])
+    ok("RESULT fail" in out and "FAIL  Отбор слоёв — неизвестный слой «Mechanism»" in out.splitlines(), "--layer Mechanism: FAIL «неизвестный слой»")
+    # 4. Отбор слоя вместе с отбором теста: строки LAYER печатаются и при only
+    name = "Чтение: каждая коллекция отдаёт столько записей, сколько в эталонном наборе"
+    out = run_tool(["run_api_tests.py", "--layer", "mechanism", "--only", name])
+    ls = out.splitlines()
+    ok(any(l.startswith("PASS  [механизм] " + name) for l in ls) and "LAYER механизм — прошли 1, не прошли 0, пропущено 0" in ls and "RESULT pass" in ls,
+       "--layer mechanism --only «…»: PASS с меткой, LAYER механизм — прошли 1")
+    out = run_tool(["run_api_tests.py", "--only", name])
+    ok("LAYER механизм — прошли 1, не прошли 0, пропущено 0" in out.splitlines(), "--only без --layer тоже печатает строки LAYER")
+    # 5. Отбор слоя: только его тесты и верный итог
+    out = run_tool(["run_api_tests.py", "--layer", "mechanism"])
+    own = test_lines(out)
+    ok("RESULT pass" in out and len(own) == count["mechanism"] and all(l[6:].startswith("[механизм] ") for l in own),
+       f"--layer mechanism: только тесты механизма, {len(own)} из {count['mechanism']}")
+    check_totals(out, "--layer mechanism")
+    out = run_tool(["run_api_tests.py", "--layer", "profile:vms.camera/1,video"])
+    own = test_lines(out)
+    ok("RESULT pass" in out and len(own) == count["profile:vms.camera/1"] + count["video"] and {l[6:].split("]")[0] for l in own} == {"[vms.camera/1", "[API видео"},
+       f"--layer profile:vms.camera/1,video: тесты двух слоёв, {len(own)}")
+    check_totals(out, "--layer profile:vms.camera/1,video")
+    # 6. Полный прогон: строки LAYER у механизма, профилей и API видео, итог тот же
+    out = run_tool(["run_api_tests.py"])
+    ls = [l for l in out.splitlines() if l.startswith("LAYER ")]
+    profiles = sorted(k for k in count if k.startswith("profile:"))
+    want = ["LAYER механизм "] + [f"LAYER {k[8:]} " for k in profiles] + ["LAYER API видео "]
+    ok(len(ls) == len(want) and all(a.startswith(b) for a, b in zip(ls, want)), f"полный прогон: строки LAYER в порядке механизм, профили по id, API видео ({len(ls)} из {len(want)})")
+    ok(not any("не объявлен" in l for l in ls), "на demo ни один слой не «не объявлен»")
+    ok(all(re.fullmatch(r"LAYER [^ ]+ 1\.0 — прошли \d+, не прошли 0, пропущено 0", l) for l in ls[1:-1]), "профили: версия и счётчики")
+    check_totals(out, "полный прогон demo")
+    out = run_tool(["run_api_tests.py", "--fixture", "one-domain"])
+    ls = out.splitlines()
+    ok(all(any(l.startswith(f"LAYER {p} — не объявлен, пропущено ") for l in ls) for p in ("vms.edge/1", "vms.subdetector/1")), "one-domain: «не объявлен» у vms.edge/1 и vms.subdetector/1")
+    check_totals(out, "полный прогон one-domain")
+    # 7. Защита задачи 4 стоит в слое механизма, слои на стенде отбираются
+    copy = guard_copy(True)
+    try:
+        out = run_tool(["run_api_tests.py", "--tests", copy, "--fixture", "one-domain", "--layer", "mechanism"])
+        ok(any(l.startswith("FAIL  [механизм] защита:") for l in out.splitlines()), "встроенный сервер: FAIL с меткой «[механизм] защита:»")
+        out = run_tool(["check_stand.py", "--tests", copy, "--fixture", "one-domain", "--clock", "real", "--layer", "mechanism"])
+        ok("RESULT pass" in out and "LAYER механизм" in out and "Макет ?selftest" not in out, "check_stand.py принимает --layer: отбор дошёл до страницы, строка LAYER в отчёте")
     finally:
         shutil.rmtree(copy, ignore_errors=True)
 
@@ -253,6 +334,7 @@ def main():
     check_registry_count()
     check_marking()
     check_undeclared()
+    check_report()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0
 
