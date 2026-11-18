@@ -24,10 +24,10 @@
   const edge = of("edge");
   const backup = of("backup");
   const incidents = of("incidents");
-  const local = FX.archives.find((a) => a.kind === "local" && a.serverId === backup.serverId);
+  const local = FX.archives.find((a) => a.kind === "local" && a.serverId === (backup || {}).serverId);
   const camOn = (sid) => FX.devices.find((d) => d.type === "camera" && d.serverId === sid && !d.extraArchives);
-  const cam = camOn(backup.serverId);
-  const edgeCam = camOn(edge.serverId);
+  const cam = backup && camOn(backup.serverId);
+  const edgeCam = edge && camOn(edge.serverId);
   const emptySrv = FX.servers.find((s) => s.allocated && s.online && !FX.archives.some((a) => a.kind === "edge" && a.serverId === s.id) && s.disks.some((d) => !d.system && !FX.volumes.some((x) => x.disk === d.disk && FX.archives.some((a) => a.id === x.archiveId && a.serverId === s.id))));
   const freeDisk = (s) => s.disks.find((d) => !d.system && !FX.volumes.some((x) => x.disk === d.disk && FX.archives.some((a) => a.id === x.archiveId && a.serverId === s.id))).disk;
   // Карта сервера строкой UnitCreate: хранилище archive.edge под сервером, первый том — дочерний той же строки
@@ -43,7 +43,7 @@
   const get = (env, uid) => env.ok("GET", U(uid));
   // Виды хранилищ и детекторов — в описаниях видов: x-archive видов archive.<вид>, перечень detectorKind вида det
   const archiveKind = (kind) => (FX.kinds.find((k) => k.kind === `archive.${kind}`) || {})["x-archive"];
-  const DET_KINDS = (((FX.kinds.find((k) => k.kind === "det") || {}).schema || {}).properties || {}).detectorKind.enum;
+  const DET_KINDS = ((((FX.kinds.find((k) => k.kind === "det") || {}).schema || {}).properties || {}).detectorKind || {}).enum;
   // Потоки камеры — дочерние объекты вида stream, основной — первый
   const streams = async (env, uid) => (await env.list(`/units?parentId=${uid}&kind=stream`)).sort((a, b) => (a.uid < b.uid ? -1 : 1)).map((s) => s.properties.streamId);
   const lastOp = async (env) => (await env.ok("GET", "/operations")).items[0];
@@ -389,7 +389,7 @@
     const res = await env.ok("PATCH", "/settings", { values: { "events.retentionDays": 30 } }, v(s));
     assert.eq(res.values["events.retentionDays"], 30, "записано");
     assert.status(await env.call("PATCH", "/settings", { values: { "alarms.retentionDays": -1 } }, v(res)), 422, "VALIDATION_FAILED");
-  });
+  }, { needs: ["getSettings", "patchSettings"] });
 
   // Обход и скан
   const watched = FX.archiveWatches?.[0];
@@ -448,7 +448,7 @@
     field(await env.call("POST", "/archive-scans", { ...span, detectorKind: "tape" }), "VALIDATION_FAILED", "detectorKind", "нет такого вида");
     assert.status(await env.call("DELETE", `/archive-scans/${x.id}`), 204);
     assert.status(await env.call("DELETE", `/archive-scans/${x.id}`), 404, "NOT_FOUND");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Запись камеры w2c: приёмник — PUT /units/{uid}/recording-target, ответ — объект; снять; сервера нет — 422; вид без vms.camera/1 — /kind", async () => {
     const d1 = FX.domains[0];

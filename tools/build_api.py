@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Собрать раздел profiles в api/fixtures/demo.json, затем таблицы api/profiles/*.md, наборы, api/openapi.js и api/fixture.js.
 
-Источник раздела profiles — файлы api/profiles/*.json (формат — tools/profile_files.py): demo.json правят руками
-во всём, кроме этого раздела. Наборы one-domain, large, xl собирает tools/profile_fixture.py из demo.json.
+Источник раздела profiles — файлы api/profiles/*.json (формат — tools/profile_files.py): demo.json и agents.json правят руками
+во всём, кроме этого раздела (у agents — только профили, которые называют его виды). Наборы one-domain, large, xl собирает tools/profile_fixture.py из demo.json.
 
 Страница прототипа и тесты открываются и с диска (file://), а там fetch JSON не
 работает. Поэтому контракт и наборы подключаются обычным <script>: window.CONSOLEM_OPENAPI,
@@ -24,7 +24,9 @@ import profile_files
 
 API = cli_paths.opt("api", "api")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-FIXTURES = ["demo", "one-domain", "large"]
+FIXTURES = ["demo", "one-domain", "large", "agents"]
+# Наборы, чей раздел profiles собирается из файлов api/profiles/*.json: только профили, которые объявляют виды набора
+PROFILE_FIXTURES = ["demo", "agents"]
 # Наборы-наложения: в файле "$base" (имя целого набора) и поля поверх него. В fixture.js — Object.assign поверх базы,
 # а не вторая копия: xl — тот же large с другими числами stand.large (tools/profile_fixture.py)
 OVERLAYS = ["xl"]
@@ -35,15 +37,30 @@ def compact(rel):
         return json.dumps(json.load(f), ensure_ascii=False, separators=(",", ":"))
 
 
-def render_demo():
-    """Текст demo.json: файл как есть, раздел profiles — из api/profiles/*.json (profile_wire)."""
-    path = os.path.join(ROOT, f"{API}/fixtures/demo.json")
+def render_fixture_profiles(name):
+    """Текст набора из PROFILE_FIXTURES: файл как есть, раздел profiles — из api/profiles/*.json (profile_wire).
+    У demo — все профили; у остальных — только те, которые называют виды набора в implements, а uses — только из них."""
+    path = os.path.join(ROOT, f"{API}/fixtures/{name}.json")
     with open(path, encoding="utf-8") as f:
         fx = json.load(f)
     docs = profile_files.load_profiles(os.path.join(ROOT, API))
-    if docs:
-        fx["profiles"] = [profile_files.profile_wire(d) for d in docs]
+    if docs and name != "demo":
+        used = {p for k in fx.get("kinds") or [] for p in k.get("implements") or []}
+        docs = [d for d in docs if d["id"] in used]
+    if docs or name != "demo":
+        wires = [profile_files.profile_wire(d) for d in docs]
+        present = {w["id"] for w in wires}
+        for w in wires:
+            if "uses" in w:
+                w["uses"] = [u for u in w["uses"] if u["id"] in present]
+                if not w["uses"]:
+                    del w["uses"]
+        fx["profiles"] = wires
     return json.dumps(fx, ensure_ascii=False, indent=1) + "\n"
+
+
+def render_demo():
+    return render_fixture_profiles("demo")
 
 
 def render_profile_tables():
@@ -98,6 +115,7 @@ def render_fixtures():
 
 # Порядок важен: demo.json ← профили, затем наборы из demo.json (profile_fixture.py), затем openapi.js и fixture.js
 TARGETS = [(f"{API}/profiles/*.json", f"{API}/fixtures/demo.json", render_demo, "раздел profiles отстал от api/profiles/"),
+           (f"{API}/profiles/*.json", f"{API}/fixtures/agents.json", lambda: render_fixture_profiles("agents"), "раздел profiles отстал от api/profiles/"),
            (None, None, None, None),  # наборы one-domain, large, xl — profile_fixture.py (в --check не запускается)
            (f"{API}/openapi.json", f"{API}/openapi.js", render_openapi, None),
            (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures, None)]

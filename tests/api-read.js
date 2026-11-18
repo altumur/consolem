@@ -25,7 +25,7 @@
       sizes.push(`${table} ${list.length}`);
     }
     return sizes.join(", ");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Чтение одной записи: тело как в списке, версия в ETag", async () => {
     const env = await makeEnv();
@@ -36,7 +36,7 @@
       assert.eq(res.body, first, `${table}: запись`);
       assert.eq(res.headers.etag, `"${first.version}"`, `${table}: ETag`);
     }
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Нет записи — 404 NOT_FOUND; нет операции — 404 NO_ROUTE", async () => {
     const env = await makeEnv();
@@ -85,7 +85,7 @@
       const det = await env.ok("GET", "/kinds/det");
       assert.ok(!JSON.stringify(det.schema.properties.detectorKind.enum).match(/[а-яё]/i), "виды детекторов — кодами");
     }
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Возможности системы: объявлены в справочниках, как в наборе; обязательный минимум есть", async () => {
     const env = await makeEnv();
@@ -128,7 +128,7 @@
       notes.push("archiveEncryption");
     }
     return notes.length ? `проверено: ${notes.join(", ")}` : "система поддерживает всё — проверять нечего";
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Права, опции, лицензии: снимок с версией в ETag", async () => {
     const env = await makeEnv();
@@ -141,7 +141,7 @@
     assert.eq(st.headers.etag, `"${st.body.version}"`, "ETag опций");
     assert.eq(st.body.values["sec.2fa"], "off", "значения опций — кодами");
     if (ApiTest.can("listLicenses")) assert.eq((await env.list("/licenses")).map((l) => l.kind), FX.licenses.map((l) => l.kind), "лицензии");
-  });
+  }, { needs: ["getSettings"] });
 
   test("Журнал: новые первыми, фильтр по категории", async () => {
     const env = await makeEnv();
@@ -153,7 +153,7 @@
     const alarms = await env.list("/journal?category=alarm");
     assert.ok(alarms.length && alarms.every((e) => e.category === "alarm"), "только тревоги");
     assert.eq(alarms.length, all.filter((e) => e.category === "alarm").length, "все тревоги");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Срабатывания правила: только этого правила, новые первыми", async () => {
     const env = await makeEnv();
@@ -187,7 +187,7 @@
     assert.eq((await env.ok("GET", "/me")).login, other.login, "кто");
     assert.status(await env.call("POST", "/test/reset", { fixture: "demo", actAs: "no-such-login" }), 404, "NOT_FOUND", "нет такого логина");
     assert.status(await env.call("POST", "/test/reset", { fixture: "other" }), 422, "VALIDATION_FAILED", "нет такого набора — не по контракту");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Стенд: часы стоят и идут только по /test/clock; назад — нельзя", async () => {
     const env = await makeEnv();
@@ -219,7 +219,7 @@
     await ApiTest.settle();
     stop();
     assert.ok(seen.filter((m) => m.type === "entity.changed").length >= 2, `в потоке — изменения записи: ${seen.length}`);
-  });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Журнал: отбор по устройству, подсистеме, времени, limit; truncated и withheldCount", async () => {
     const env = await makeEnv();

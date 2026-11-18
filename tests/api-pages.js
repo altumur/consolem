@@ -62,7 +62,7 @@
     const ids = a.items.concat(rest).map((f) => f.uid);
     assert.eq(new Set(ids).size, ids.length, "без повторов");
     assert.ok(FX.folders.every((f) => ids.includes(f.id)), "ни одна не потеряна");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Страницы: отбор только по implements — по индексу вида, страницы полные, порядок прежний; kind — проход, как type у /devices", async () => {
     const env = await makeEnv();
@@ -96,7 +96,7 @@
     const wantA = archAll.filter((u) => u.kind === "archive.incidents").map((u) => u.uid);
     assert.ok(wantA.length >= 1 && arch.items.length === 1 && arch.items[0].kind === "archive.incidents", "kind+domainId: полная страница с хранилищем");
     assert.eq((await env.pages(`/units?kind=archive.incidents,camera&domainId=${did}&limit=3`)).filter((u) => u.kind === "archive.incidents").map((u) => u.uid), wantA, "kind+domainId: несколько видов, обход курсором");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Поиск q без fields — как /devices?q= базы: имя, короткое имя, номер, адрес, производитель, модель; часть uid не ищется", async () => {
     const env = await makeEnv();
@@ -113,7 +113,7 @@
     // Весь uid — находится, match.field — uid
     const one = FX.devices.find((d) => d.type === "camera");
     assert.eq((await allPages(env, q("/units", { q: one.id }), 200)).map((u) => [u.uid, u.match.field]), [[one.id, "uid"]], "uid целиком");
-  }, { needs: ["listUnits"] });
+  }, { needs: ["listUnits", "kind:camera"] });
 
   test("Объекты: total только без фильтра, папки объекта — Unit.folders по uid", async () => {
     const env = await makeEnv();
@@ -122,7 +122,7 @@
     const inFolder = FX.folders.find((f) => f.deviceIds.length);
     assert.ok((await env.ok("GET", `/units/${inFolder.deviceIds[0]}`)).folders.includes(inFolder.id), "folders");
     assert.ok(!("total" in (await env.ok("GET", q("/units", { q: "а" })))), "с фильтром total нет");
-  });
+  }, { needs: ["kind:camera"] });
 
   // Обход отбора страницами: найденное, число запросов, пустые страницы с nextCursor
   async function walk(env, params, limit) {
@@ -153,7 +153,7 @@
     const small = await walk(env, { q: "1" }, 7);
     assert.eq(small.found, all.found, "limit 7: те же объекты в том же порядке");
     if (!ApiTest.external) assert.ok(small.sizes.slice(0, -1).every((x) => x === 7), `встроенный сервер: страницы полные, кроме последней: ${small.sizes.join(" ")}`);
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Объекты: бэкенд вправе страницу не дописывать — пустая страница с nextCursor законна, обход находит всё", async () => {
     // Образец порядка — с дописыванием; makeEnv сбрасывает стенд, поэтому сначала он
@@ -169,14 +169,14 @@
     }
     const sparse = await walk(env, { q: "1" }, 7);
     assert.eq(sparse.found, all.found, "те же объекты в том же порядке, что и с дописыванием");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Объекты: status и kind — ИЛИ внутри себя", async () => {
     const env = await makeEnv();
     const both = await env.pages(q("/units", { status: "off,license", kind: "camera,ipsrv" }));
     const off = (u) => u.properties.enabled === false || ((u.status || {}).observed || {}).licenseExceeded === true;
     assert.ok(both.length && both.every((u) => ["camera", "ipsrv"].includes(u.kind) && off(u)), "status и kind — это ИЛИ внутри себя");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Объекты: один член — порядок по имени; ids — до idsMax; папка — постоянная цена, скрытое не показывается", async () => {
     const hidden = FX.folders.find((f) => f.deviceIds.length > 2);
@@ -194,7 +194,7 @@
     assert.eq(shown.length, hidden.deviceIds.length - 2, "без права view не показаны");
     const arch = FX.archives[0].id;
     assert.ok((await env.pages(q("/units", { archiveId: arch }))).every((u) => u.properties.archiveId === arch || (u.properties.extraArchives || []).some((x) => x.archiveId === arch)), "хранилище");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Камера-кластер: без сервера и родителя, hasChildren — «может быть»; в дереве — под доменом", async () => {
     const env = await makeEnv({ fixturePatch: { devices: FX.devices.map((d) => (d.type === "camera" && !d.parentId && d.name === "Главный вход" ? noServer(d) : d)) } });
@@ -204,7 +204,7 @@
     const tree = await env.pages(q("/tree/children", { layout: "servers", parentId: cam.domainId }));
     assert.ok(tree.some((n) => n.id === cam.id && n.kind === "camera"), "под доменом");
     assert.ok(!(await env.pages(q("/tree/children", { layout: "detectors", parentId: cam.domainId }))).some((n) => n.id === cam.id), "в detectors сводного списка нет");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("/objects/delete: version — Unit.version, правка любого поля её двигает; предел selectMax", async () => {
     const pick = FX.devices.filter((d) => d.type === "camera" && !d.parentId && d.archiveId).slice(0, 2);
@@ -217,7 +217,7 @@
     assert.eq((await del(pick[1].id, was.version)).failed[0].code, "VERSION_MISMATCH", "правка свойства останавливает");
     const items = Array.from({ length: 501 }, (x, i) => ({ id: FX.devices[i % FX.devices.length].id, version: "1" }));
     assert.status(await env.call("POST", "/objects/delete", { idempotencyKey: ApiTest.key(), items }), 422, "VALIDATION_FAILED", "больше selectMax");
-  }, { needs: ["deleteObjects", "patchUnit"] });
+  }, { needs: ["deleteObjects", "patchUnit", "kind:camera"] });
 
   test("Дерево: верхний уровень, дети, порядок, parentCount, узла нет — 404", async () => {
     const env = await makeEnv();
@@ -241,7 +241,7 @@
     assert.status(await env.call("GET", q("/tree/children", { layout: "другая" })), 422, "VALIDATION_FAILED");
     const a = FX.archives.find((x) => FX.volumes.some((v) => v.archiveId === x.id));
     assert.ok((await env.pages(q("/tree/children", { layout: "archives", parentId: a.id }))).every((n) => n.kind === "volume"), "тома");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Дерево: цепочки от корня; камера в нескольких папках — несколько; до idsMax", async () => {
     const env = await makeEnv();
@@ -254,7 +254,7 @@
     assert.ok(srv.items[0].chains[0].some((x) => x.kind === "server") || !twice.serverId, "через сервер");
     assert.eq((await env.ok("GET", q("/tree/paths", { layout: "servers", ids: "нет" }))).items, [], "нет объекта — нет строки");
     assert.status(await env.call("GET", q("/tree/paths", { layout: "servers", ids: Array(201).fill(twice.id).join(",") })), 422, "VALIDATION_FAILED");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Папка: состав — шаги folders (Unit.folders) одной операции, откат папок — fail NOT_SUPPORTED, предел selectMax", async () => {
     const env = await makeEnv();
@@ -285,7 +285,7 @@
     assert.eq(big.body.field, "items", "поле");
     assert.status(await ops(() => ({ uid: add.id, patch: { folders: [f.id] } })), 422, "VALIDATION_FAILED", "шагов patch {folders} больше selectMax");
     assert.status(await ops((i) => ({ uid: add.id, patch: { name: `Имя ${i}` } })), 202, null, "шагов patch не по папкам больше selectMax — проходит");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Домен: status.observed.stateSummary — числа не пересекаются, выключенные вне total, отставание на круг, unread, нет круга — нет поля", async () => {
     const env = await makeEnv();
@@ -313,7 +313,7 @@
     assert.eq((await summary(part)).unread, 3, "unread");
     const none = await makeEnv({ fixturePatch: { stand: { summaryOff: true } } });
     assert.eq(await summary(none), undefined, "круг не прошёл — поля нет");
-  });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Поток: stream.hello первым, события устройств — только по наблюдению и детям, tree.changed, предел watchMax", async () => {
     const env = await makeEnv();
@@ -345,7 +345,7 @@
     await ApiTest.settle();
     assert.ok(seen.some((m) => m.type === "entity.changed" && m.entityId === cam.id), "дети наблюдаемого");
     stop();
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Поток: PUT не тому экземпляру — 404, новый поток держит список из запроса открытия, предел watch", async () => {
     const env = await makeEnv();
@@ -375,7 +375,7 @@
     assert.ok(dev.includes(cam.id) && !dev.includes(other.id), "список из запроса работает без PUT");
     assert.status(await env.call("PUT", `/stream/${hellos[1]}/watch`, { ids: [other.id] }), 204);
     stop();
-  });
+  }, { needs: ["kind:camera", "testStreamElsewhere"] });
 
   test("Права: снимок без людей, перечни страницами, объекты роли, apply изменениями, чужая правка — 412", async () => {
     const env = await makeEnv();
@@ -396,7 +396,7 @@
     assert.status(await env.call("POST", "/access/apply", { version: acc.version, changes: [], history: [], cellHistory: [] }), 412, "VERSION_MISMATCH", "чужая правка");
     assert.eq((await env.pages(q("/access/users", { q: "Изменён" }))).map((x) => x.id), [target.id], "записано");
     assert.ok((await env.pages("/access/users")).length === FX.access.users.length, "остальные на месте");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Поиск в сети: страницы у candidates", async () => {
     const env = await makeEnv();
@@ -412,7 +412,7 @@
     const all = await env.pages(`/rules/${f.ruleId}/fires`);
     assert.eq(all.length, FX.ruleFires.filter((x) => x.ruleId === f.ruleId).length, "все");
     assert.ok((await env.ok("GET", `/rules/${f.ruleId}/fires?limit=1`)).items.length === 1, "одна");
-  });
+  }, { needs: ["kind:camera"] });
   const SCEN = ["getScenarios", "putScenarios", "getScenariosStatus"];
   const scen = (over) => {
     const cams = FX.devices.filter((d) => d.type === "camera" && d.domainId === did);

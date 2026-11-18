@@ -18,7 +18,7 @@
   const act = (action, target, params) => ({ type: "unitAction", action, target, params: params || {} });
   const with_ = (a, params) => Object.assign({}, a, { params: Object.assign({}, a.params, params) });
   const at_ = (a, target) => Object.assign({}, a, { target });
-  const step = act("record", dev(cam.id), { duration: "min", minutes: 5 });
+  const step = act("record", dev(cam && cam.id), { duration: "min", minutes: 5 });
   const blank = (over) => Object.assign({
     name: "Проверка", enabled: true, logOnly: false, logOnlySince: null, start: "manual", runMode: "manual", operatorMenu: false, ratePerMinute: 6, windowSec: 0,
     runAt: null, repeat: "skip", triggers: [], conditions: [], steps: [step],
@@ -42,7 +42,7 @@
     assert.ok(!("ruleTriggers" in r) && !("eventKinds" in r) && r.ruleActions.every((a) => !("deviceTypes" in a)), "событий и действий устройств в справочнике нет");
     const camera = await env.ok("GET", "/kinds/camera");
     assert.ok(camera.events.some((e) => e.id === "motion" && e.ends) && camera.actions.some((a) => a.id === "record" && a.ruleAction && a.ruleOnly), "у камеры: события и действия правил");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Каталог: включённое вне каталога — 422 NOT_SUPPORTED с полем и причиной, выключенное хранится и читается", async () => {
     const env = await makeEnv({ fixturePatch: noAction("preset") });
@@ -58,7 +58,7 @@
     assert.eq(up.failed.map((x) => x.code), ["NOT_SUPPORTED"], "включить группой нельзя");
     const put = await env.call("PUT", `/rules/${read.id}`, body(read, { enabled: true }), etag(read));
     assert.status(put, 422, "NOT_SUPPORTED", "включить правкой нельзя");
-  });
+  }, { needs: ["kind:camera", "putRule", "updateRules"] });
 
   test("Каталог: уже включённое вне каталога не запускается — 409 NOT_RUNNABLE, причина кодом", async () => {
     const r = FX.rules.find((x) => x.enabled && x.steps.some((s) => s.action));
@@ -92,7 +92,7 @@
     await say({ steps: [with_(step, { duration: "event" })] }, "steps", "action.fieldNotDeclared");
     await say({ steps: [with_(step, { afterSec: 5 })] }, "steps", "action.fieldNotDeclared");
     assert.status(await env.call("POST", "/rules", blank()), 201, null, "объявленное сохраняется");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Каталог: событие и условие вне справочника — поле раздела", async () => {
     const env = await makeEnv({ fixturePatch: {
@@ -106,7 +106,7 @@
     const b = await env.call("POST", "/rules", blank({ conditions: [{ kind: "online", target: dev(cam.id) }] }));
     assert.status(b, 422, "NOT_SUPPORTED");
     assert.eq([b.body.field, issue(b)], ["conditions", "cond.notDeclared"], "условие");
-  });
+  }, { needs: ["kind:camera"] });
 
   /* ----- Поля правила ----- */
 
@@ -123,7 +123,7 @@
     }
     const h = await env.list(`/rules/${made.id}/versions`);
     assert.eq(h[h.length - 1].rule.validForSec, 120, "в истории");
-  });
+  }, { needs: ["kind:camera", "putRule", "listRuleVersions"] });
 
   test("Правило: состояние от сервера — следит, отказано, не годится, не проверено; у выключенного нет; в версию не входит", async () => {
     const env = await makeEnv();
@@ -138,7 +138,7 @@
     assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: true }), 200);
     const list = await env.list("/rules");
     assert.eq(list.find((r) => r.id === on.id).status.state, "watching", "в списке — тоже");
-  });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Правило: не годится — пресета нет на камере", async () => {
     const dev0 = FX.devices.find((d) => d.type === "camera" && d.presetMax && d.online);
@@ -157,7 +157,7 @@
     const run = (value) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "unit", event: "motion", deviceId: cam.id, match: { pass: value } }], at: null, branches: {}, log: false });
     assert.ok((await run(3)).checks.some((c) => c.code === "event.came"), "число совпало");
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
-  });
+  }, { needs: ["kind:camera", "testRule"] });
 
   test("Пробный запуск: поля из уточнения нет в событии — не совпало (event.other), как в запуске правил", async () => {
     const env = await makeEnv();
@@ -167,7 +167,7 @@
     const without = (await run({})).checks;
     assert.ok(!without.some((c) => c.code === "event.came") && without.some((c) => c.code === "event.other"), "без detectorKind — event.other: " + JSON.stringify(without.map((c) => c.code)));
     assert.ok((await run({ detectorKind: "motion" })).checks.some((c) => c.code === "event.came"), "с полем — совпало");
-  });
+  }, { needs: ["kind:camera", "testRule"] });
 
   /* ----- Действия детектора ----- */
 
@@ -185,7 +185,7 @@
     assert.eq([made.steps[1].params.beforeSec, made.steps[1].params.afterSec, made.steps[0].params.params], [30, 90, "{\"limit\":3}"], "поля");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq(f.steps.map((s) => [s.action.action, s.state]), [["detect", "ok"], ["scan", "ok"]], "трасса");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Детектор на время и проверка архива: границы и пустое окно — 422 RULE_INVALID, выключенное хранится", async () => {
     const env = await makeEnv();
@@ -198,7 +198,7 @@
     assert.status(win, 422, "RULE_INVALID");
     assert.eq(issue(win), "action.scanWindow", "окно");
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [scan({ beforeSec: 0, afterSec: 0 })] })), 201, null, "незаконченное выключенное");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Проверка архива: камере без записи нечего проверять — шаг не выполнен, правило не годится", async () => {
     const c = FX.devices.find((d) => d.type === "camera" && d.online && d.enabled && !d.archiveId && !(d.extraArchives || []).length);
@@ -213,7 +213,7 @@
   /* ----- Цели и права ----- */
 
   const roleOf = (fn) => FX.access.roles.find(fn);
-  const guard = FX.access.users.find((u) => u.login === "olga"), guardRole = guard.roleIds[0];
+  const guard = FX.access.users.find((u) => u.login === "olga"), guardRole = guard && guard.roleIds[0];
 
   test("Цели: новое устройство в области входит в правило само, новой версии нет", async () => {
     const f = FX.folders.find((x) => x.deviceIds.some((id) => (FX.devices.find((d) => d.id === id) || {}).type === "camera"));
@@ -241,7 +241,7 @@
     assert.status(await env.call("PUT", `/rules/${r.id}`, body(r, { name: "Чужое" }), etag(r)), 403, "PERMISSION_DENIED", "правка правила с чужой камерой");
     const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: {} };
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] })), 403, "PERMISSION_DENIED", "и у выключенного, и в событии");
-  });
+  }, { needs: ["kind:camera", "putRule"] });
 
   test("Права: своё право годится, умолчание роли и точечное исключение", async () => {
     const own = roleOf((x) => x.id === guardRole);
@@ -250,7 +250,7 @@
     const env = await makeEnv({ actAs: guard.login });
     const res = await env.call("POST", "/rules", blank({ enabled: false, steps: [at_(step, dev(id))] }));
     assert.status(res, 201, null, "камера, где у роли FULL");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Права: роль запуска ограничивает выполнение; автор выбирает любую роль; нет роли — 422", async () => {
     const env = await makeEnv();
@@ -298,7 +298,7 @@
     await ApiTest.settle();
     stop();
     assert.eq(seen.map((m) => [m.type, m.entityId, m.payload.fireId, m.payload.roleId]), [["prompt.opened", p.id, f.id, guardRole]], "поток");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: первый ответ считается — ветка идёт, запись запуска та же, вопрос закрыт, повтор — 409", async () => {
     const env = await envWith({ steps: [ask()] });
@@ -323,7 +323,7 @@
     const closed = seen.find((m) => m.type === "prompt.closed");
     assert.eq([closed.entityId, closed.payload.reason, closed.payload.answer, closed.payload.by], [p.id, "answered", "yes", guard.login], "prompt.closed");
     assert.ok(seen.some((m) => m.type === "entity.changed" && m.kind === "ruleFire" && m.entityId === f.id && m.payload.ruleId === base.id), "запуск изменился — событие");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: ответ «нет» — ветка «нет», «да» пропущена", async () => {
     const env = await envWith({ steps: [ask({ yes: [], no: [rec(cam.id)] })] });
@@ -332,7 +332,7 @@
     assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "no" }), 202);
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.some((s) => s.path === "0.yes" && s.skip), now.steps.filter((s) => s.action).length], ["ok", true, 1], "ветка");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: чужая роль — 403, canAnswer false; не тот вид ответа — 422, вопрос открыт; нет вопроса — 404", async () => {
     const env = await envWith({ steps: [ask()] }, other);
@@ -351,7 +351,7 @@
     assert.eq(kind.body.field, "answer", "поле");
     assert.status(await own.call("POST", `/rule-prompts/${q.id}/answer`, { answer: "maybe" }), 422, "VALIDATION_FAILED", "не из списка");
     assert.eq((await own.list("/rule-prompts")).length, 1, "вопрос открыт");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: срок вышел — ветка default, вопрос закрыт, ответ после срока не действует", async () => {
     const env = await envWith({ steps: [ask({ sec: 30, default: "yes" })] });
@@ -372,7 +372,7 @@
     await ApiTest.settle();
     stop();
     assert.eq(seen.filter((m) => m.type === "prompt.closed").map((m) => m.payload.reason), ["expired"], "причина");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Вопрос: шаг за шагом — второй вопрос после первого, вложенный в ветку", async () => {
     const env = await envWith({ steps: [ask({ yes: [ask({ text: "Ещё раз?", yes: [rec(cam.id)] })] }), step] });
@@ -384,7 +384,7 @@
     await env.ok("POST", `/rule-prompts/${q.id}/answer`, { answer: "yes" });
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 2], "дошло до конца: и следующий шаг");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   test("Вопрос: «Только журнал» никого не спрашивает: срок, ветка default, действий нет; пробный запуск вопросов не открывает", async () => {
     const env = await envWith({ logOnly: true, steps: [ask()] });
@@ -400,7 +400,7 @@
     assert.eq(now.result, "watch", "только журнал");
     assert.ok(JSON.stringify(now.steps).includes("ask.noAnswer"), "в трассе — без ответа, веткой default");
     assert.ok(now.steps.filter((s) => s.action).every((s) => s.state === "would"), "действия не исполнены");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera", "testRule"] });
 
   test("Эскалация: «Только журнал» никого не спрашивает и кончается сроком последнего уровня", async () => {
     const env = await envWith({ logOnly: true, steps: [escalate(), step] });
@@ -411,7 +411,7 @@
     assert.eq((await fireOf(env, f.id)).result, "waiting", "ждёт дальше");
     await env.advance(10 * 60 + 1);
     assert.eq((await fireOf(env, f.id)).result, "watch", "кончилась сроком");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera"] });
 
   test("Вопрос: роль без строк грантов не видна — canAnswer ложь, 403; закрытый вопрос после ухода из памяти — 404", async () => {
     const roles = FX.access.roles.map((r) => (r.id === guardRole ? Object.assign({}, r, { folderAccess: {}, objectAccess: {} }) : r));
@@ -427,7 +427,7 @@
     assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 409, "NOT_RUNNABLE", "кончился, имя в памяти");
     await live.advance(86400);
     assert.status(await live.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "имя ушло");
-  }, { needs: PROMPTS.concat("clock") });
+  }, { needs: [...PROMPTS.concat("clock"), "kind:camera"] });
 
   test("Эскалация: уровни по сроку, прежний остаётся открыт, ack на любом останавливает, уровень в трассе", async () => {
     const env = await envWith({ steps: [escalate(), step] });
@@ -447,7 +447,7 @@
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.filter((s) => s.action).length], ["ok", 1], "пошёл дальше");
     assert.ok(now.steps.some((s) => s.label && s.label.code === "esc.ack" && s.label.params.login === guard.login), "кто квитировал");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Эскалация: никто не квитировал — конец последнего уровня, запуск идёт дальше", async () => {
     const env = await envWith({ steps: [escalate({ levels: [{ roleId: guardRole, via: "client", waitMin: 1 }, { roleId: guardRole, via: "client", waitMin: 0 }] }), step] });
@@ -456,7 +456,7 @@
     assert.eq(await env.list("/rule-prompts"), [], "закрыто");
     const now = await fireOf(env, f.id);
     assert.eq([now.result, now.steps.some((s) => s.label && s.label.code === "esc.none")], ["ok", true], "итог");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera"] });
 
   test("Эскалация: stop: reset — конец события останавливает, вопросы закрываются с reason: reset", async () => {
     const sensor = FX.devices.find((d) => d.type === "sensor");
@@ -516,7 +516,7 @@
     const r2 = await env.ok("GET", `/rules/${base.id}`);
     await env.ok("POST", "/rules/update", { idempotencyKey: ApiTest.key(), items: [{ ruleId: r2.id, version: r2.version, set: { mute: { until: new Date(env.now + 3600000).toISOString().replace(/\.\d+Z$/, "Z"), reason: "" } } }] });
     assert.eq((await env.list("/rule-prompts")).length, 1, "приглушение запуск не снимает");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera", "putRule", "updateRules"] });
 
   test("Ход: repeat — skip пропускает, restart снимает прежний, queue идёт следом, сверх 16 — как skip", async () => {
     let env = await envWith({ repeat: "skip", steps: [ask()] });
@@ -540,7 +540,7 @@
     assert.eq([y.fireId, (await fireOf(env, first.id)).result], [second.id, "ok"], "очередь пошла концом прежнего");
     for (let i = 0; i < 15; i++) assert.eq((await run(env)).result, i < 15 ? "waiting" : "skip", "место в очереди");
     assert.eq((await run(env)).result, "skip", "сверх 16 — как skip");
-  }, { needs: PROMPTS });
+  }, { needs: [...PROMPTS, "kind:camera"] });
 
   /* ----- Домен ----- */
 
@@ -553,7 +553,7 @@
     const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["нет такого"] } }, etag(done));
     assert.status(bad, 422, "VALIDATION_FAILED");
     assert.eq(bad.body.field, "alarms.domain", "поле");
-  });
+  }, { needs: ["kind:camera", "getSettings", "patchSettings"] });
 
   test("Правило на несколько доменов: только объявленные шаги, прочее — 422 NOT_SUPPORTED, field: steps; сервер выбирает домен", async () => {
     const cams = (d) => FX.devices.filter((x) => x.type === "camera" && x.domainId === d.id);
@@ -615,7 +615,7 @@
     assert.ok(second.checks.every((c) => c.ok) && second.checks.some((c) => c.code === "event.came" && c.params.trigger.event === "linecross") && !second.checks.some((c) => c.code === "event.other"), "пробный запуск any: подошло событие второго триггера");
     const all = await test(onEvent({ triggers: t2, windowSec: 30 }));
     assert.ok(all.checks.some((c) => c.code === "event.missing" && !c.ok), "пробный запуск all: второго события нет");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testRule"] });
 
   test("«Или» между условиями: condLogic any — достаточно одного, all — нужны все; ни одно не выполнено — запуск пропущен", async () => {
     const env = await makeEnv();
@@ -664,7 +664,7 @@
       f = await env.ok("POST", `/rules/${r2.id}/run`, { idempotencyKey: ApiTest.key() });
       assert.eq(f.steps[0].note.code, "check.yes", "камера пишет — проверка record проходит");
     }
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "testRule", "testEvent"] });
 
   test("Шаг check: цель, вид и глубина проверяются — 422 RULE_INVALID у включённого, выключенное хранится", async () => {
     const env = await makeEnv();
@@ -713,7 +713,7 @@
     assert.status(await env.call("POST", "/rules", blank({ steps: [{ control: "abort" }] })), 422, "RULE_INVALID", "в правиле должно быть действие");
     f = await env.ok("POST", `/rules/${only.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq(f.steps.length, 1, "после abort в списке верхнего уровня — ничего");
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "testEvent"] });
 
   test("Расписание с интервалом: runAt.everyMin запускает правило по часам, randomShift сдвигает запуск в своём интервале", async () => {
     const env = await makeEnv();
@@ -775,7 +775,7 @@
       assert.status(await unitEvent(env, vol.uid, "volume.error"), 200);
       assert.eq((await fireList(env, r.id)).length, w + 1, "ошибка тома запускает правило на томе");
     }
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testEvent"] });
 
   test("Новые команды и действия: export, replicate, ptz.tour, program, service, play, push, client.* — объявлены, проверяются, пишутся в журнал запуска", async () => {
     const env = await makeEnv();
@@ -829,7 +829,7 @@
     assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 202);
     const now = await fireOf(env, f.id);
     assert.eq([now.steps[0].note.code, now.steps.filter((s) => s.action).map((s) => s.path)], ["check.yes", ["0.yes.0"]], "запись запуска сохранила прежнюю ветку, хотя камера уже без связи");
-  }, { needs: [...PROMPTS, "clock"] });
+  }, { needs: [...PROMPTS, "clock", "kind:camera", "testEvent"] });
 
   test("Расписание с интервалом: выключенное правило не догоняет пропущенное, /test/reset очищает память", async () => {
     const env = await makeEnv();
@@ -843,7 +843,7 @@
     assert.eq((await fireList(env, r.id)).length, n, "включили — пропущенные за 5 часов запуски не выполнены");
     await env.advance(2 * 3600);
     assert.ok((await fireList(env, r.id)).length - n >= 1 && (await fireList(env, r.id)).length - n <= 2, "дальше правило идёт по часам");
-  }, { needs: ["kind:camera", "clock"] });
+  }, { needs: ["kind:camera", "clock", "updateRules"] });
 
   test("Что система не объявила в reference.ruleFeatures, того включённое правило не получает: 422 NOT_SUPPORTED", async () => {
     const t2 = [trig("motion", camA.id), trig("linecross", camA.id)];
@@ -867,7 +867,7 @@
     const res = await env.call("POST", "/rules/test", { ruleId: null, rule: blank({ enabled: false, steps: [step, check("armed", null)] }), events: [], at: null, branches: {}, log: false });
     assert.status(res, 422, "RULE_INVALID");
     assert.eq(issue(res), "control.noTarget", "причина");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "testRule"] });
 
 
   /* ----- Режим — одно понятие (0.4.0) ----- */
@@ -985,7 +985,7 @@
     const other = M.items[2].id;
     const put = await env.ok("PUT", "/modes", { items: M.items.slice().reverse(), otherwise: other }, { "If-Match": `"${M.version}"` });
     assert.eq([put.items[0].id, put.otherwise], [M.items[M.items.length - 1].id, other], "порядок и otherwise записаны");
-  });
+  }, { needs: ["kind:camera", "listMaintenanceWindows", "createMaintenanceWindow", "getMaintenanceWindow", "putMaintenanceWindow", "deleteMaintenanceWindow"] });
 
 
   test("Запись режима без off (прежний клиент) оставляет прежний off; три минуты пересечения не пропускаются; сутки часов дают события смены", async () => {
@@ -1022,7 +1022,7 @@
     await ApiTest.settle();
     stop();
     assert.ok(seen.filter((p) => p.source === "schedule").length >= 2, "смены по расписанию за сутки: " + JSON.stringify(seen));
-  }, { needs: ["clock"] });
+  }, { needs: ["clock", "kind:camera"] });
 
   test("Окно обслуживания (устарело) выключило правило: RuleStatus off с windowId", async () => {
     const env = await makeEnv();
@@ -1033,7 +1033,7 @@
     const st = (await env.ok("GET", `/rules/${r.id}`)).status;
     assert.eq([st.state, st.windowId], ["off", w.window.id], "причина — окно");
     assert.ok(/Окно/.test(st.reason), "причина словами: " + st.reason);
-  });
+  }, { needs: ["kind:camera", "listMaintenanceWindows", "createMaintenanceWindow", "getMaintenanceWindow", "putMaintenanceWindow", "deleteMaintenanceWindow"] });
 
   test("Один детектор в правиле (с 0.18.0): событие детектора несёт match.detector; правило с ним ловит свой детектор, без него — любой; удалённый детектор — в target.gone", async () => {
     const env = await makeEnv();
@@ -1095,7 +1095,7 @@
     const r = await env.ok("GET", `/rules/${ok.id}`);
     const put = await env.call("PUT", `/rules/${ok.id}`, Object.assign({}, r, { triggers: [trig("motion", other.uid, { detector: d1.uid })] }), { "If-Match": `"${r.version}"` });
     assert.status(put, 422, "VALIDATION_FAILED", "PUT: детектор другой камеры");
-  }, { needs: ["kind:camera", "kind:det"] });
+  }, { needs: ["kind:camera", "kind:det", "putRule"] });
 
   ApiTest.loaded("api-automation.js");
 })();

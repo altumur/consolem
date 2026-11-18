@@ -14,11 +14,11 @@
   const byName = (name, type) => FX.devices.find((d) => d.name === name && (!type || d.type === type));
   // Камера сервера без связи и камера с превышенной лицензией — из набора (в системе без лицензий её нет)
   const offlineServer = FX.servers.find((s) => !s.online && s.allocated);
-  const camOffline = FX.devices.find((d) => d.type === "camera" && d.serverId === offlineServer.id);
+  const camOffline = offlineServer && FX.devices.find((d) => d.type === "camera" && d.serverId === offlineServer.id);
   const camLicense = FX.devices.find((d) => d.type === "camera" && d.licenseExceeded);
   const cam = byName("Главный вход", "camera");
   const folderOf = (id) => FX.folders.filter((f) => f.deviceIds.includes(id)).map((f) => f.id);
-  const otherFolder = FX.folders.find((f) => f.domainId === cam.domainId && !f.deviceIds.includes(cam.id));
+  const otherFolder = cam && FX.folders.find((f) => f.domainId === cam.domainId && !f.deviceIds.includes(cam.id));
   const plan = (items, versions) => ({ idempotencyKey: key(), items, expectedVersions: versions });
   const U = (uid) => `/units/${uid}`;
   const at = (version) => ({ "If-Match": `"${version}"` });
@@ -280,7 +280,7 @@
     assert.eq(cancelled.items[cancelled.items.length - 1].state, "cancel", "шаг cam отменён");
     const d = await env.ok("PATCH", U(cam.id), { properties: { short: "1h" } }, h);
     assert.eq(d.properties.short, "1h", "после отмены правка проходит");
-  }, { needs: ["patchUnit", "deleteUnit", "deleteObjects", "kind:camera"] });
+  }, { needs: ["patchUnit", "deleteUnit", "deleteObjects", "kind:camera", "cancelOperation"] });
 
   test("Операция: папку, в которую ещё не выполненный шаг кладёт объект, удалить нельзя — 409 BUSY; переименовать можно", async () => {
     const env = await makeEnv();
@@ -298,7 +298,7 @@
     assert.eq(renamed.name, folder.name + " 2", "переименование проходит");
     await env.ok("POST", `/operations/${res.id}/cancel`);
     assert.status(await env.call("DELETE", U(folder.id), undefined, at(renamed.version)), 204, null, "после отмены — удаляется");
-  }, { needs: ["patchUnit", "deleteUnit", "kind:folder", "kind:camera"] });
+  }, { needs: ["patchUnit", "deleteUnit", "kind:folder", "kind:camera", "cancelOperation"] });
 
   test("Операция: частичный успех — сервер без связи и превышенная лицензия дают fail с кодом, остальное выполняется", async () => {
     const env = await makeEnv();
@@ -336,7 +336,7 @@
     assert.ok(cancelled.cancelled > 0 && cancelled.ok >= paused.done && cancelled.ok + cancelled.failed + cancelled.cancelled === cancelled.total, `выполненное осталось, оставшееся отменено: ok ${cancelled.ok}, cancel ${cancelled.cancelled}`);
     if (env.frozen) assert.ok(cancelled.ok > paused.done, "после «продолжить» шаги шли");
     assert.status(await env.call("POST", `/operations/${res.id}/cancel`), 409, "BUSY", "уже завершена");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "pauseOperation", "resumeOperation", "cancelOperation"] });
 
   test("Операция: «Повторить неудачные» — новая операция только с неудачными шагами", async () => {
     const env = await makeEnv();
@@ -350,7 +350,7 @@
     assert.eq((await env.finished(res.body.id)).items[0].code, "SERVER_OFFLINE", "сервер всё ещё без связи");
     const clean = await env.runOperation(plan([props(cam.id, { short: "1g" })], { [cam.id]: (await env.ok("GET", U(cam.id))).version }));
     assert.status(await env.call("POST", `/operations/${clean.id}/retry-failed`), 409, "BUSY", "неудачных нет");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "retryFailedOperation"] });
 
   test("Операция: «Отменить» — объекты возвращаются к «до» обратной операцией, второй раз нельзя", async () => {
     const env = await makeEnv();
@@ -611,7 +611,7 @@
     // Без связи камера настроек не сообщит
     assert.status(await env.call("POST", "/test/events", { type: "device.signal", deviceId: cam.id, online: false }), 200);
     assert.status(await env.call("POST", `${U(cam.id)}/actions/readConfig`, {}), 409, "DEVICE_OFFLINE", "readConfig без связи");
-  }, { needs: ["runUnitAction", "kind:camera", "action:camera/defaults", "action:camera/readConfig"] });
+  }, { needs: ["runUnitAction", "kind:camera", "action:camera/defaults", "action:camera/readConfig", "testEvent"] });
 
   ApiTest.loaded("api-hardware.js");
 })();

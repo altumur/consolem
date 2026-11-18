@@ -4,7 +4,7 @@
    досылка по Last-Event-ID) и CORS для страницы с диска (Origin: null) — так, как это описано в
    api/BACKEND.md. Часы идут по-настоящему, пока их не остановит /test/reset.
 
-   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl] [--api DIR] [--tests DIR] [--host ADDR] [--page]   (порт по умолчанию 8787, адрес — 127.0.0.1;
+   Запуск из корня репозитория:  node tools/serve_api.mjs [порт] [--fixture one-domain|large|xl|agents] [--api DIR] [--tests DIR] [--host ADDR] [--page]   (порт по умолчанию 8787, адрес — 127.0.0.1;
    --page — и страницы репозитория на том же порту: http://<адрес>:<порт>/ открывает index.html с этим API)
    Затем: index.html?api=http://127.0.0.1:8787  или  tests/api.html?api=http://127.0.0.1:8787
    ASSIST_BRIDGE_URL=http://127.0.0.1:18600 — ход ассистента идёт в мост Пилота (настоящая модель), без
@@ -31,7 +31,7 @@ require(`${API_DIR}/contract.js`);
 // Реестр видов, склад и хуки профилей: server.js найдёт их и сам, но порядок подключения — как на странице
 for (const f of ["kinds.js", "units.js", "profiles.js"]) require(`${API_DIR}/${f}`);
 require(`${API_DIR}/server.js`);
-const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`) };
+const fixtures = { demo: require(`${API_DIR}/fixtures/demo.json`), "one-domain": require(`${API_DIR}/fixtures/one-domain.json`), large: require(`${API_DIR}/fixtures/large.json`), agents: require(`${API_DIR}/fixtures/agents.json`) };
 // Наборы-наложения (tools/profile_fixture.py): "$base" — целый набор, остальные поля — поверх него, как в api/fixture.js
 // (tools/build_api.py): объекты сливаются по ключам, так что новый ключ базы (например, в stand) не теряется
 const deepMerge = (base, over) =>

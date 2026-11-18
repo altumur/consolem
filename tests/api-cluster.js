@@ -179,7 +179,7 @@
     assert.eq(op.items.map((x) => [x.state, x.code]), [["fail", "SERVER_OFFLINE"]], "шаг folders");
     const res = await env.ok("POST", "/units", { idempotencyKey: ApiTest.key(), items: [{ kind: "camera", name: "Новая", domainId: d1.id, parentId: null, folders: [f.id], properties: { rtspUrl: "rtsp://10.0.0.9/1" } }] });
     assert.eq(res.failed.map((x) => [x.code, x.field]), [["SERVER_OFFLINE", "/folders"]], "создание с папкой");
-  }, { needs: ["patchUnit", "deleteUnit", "createOperation", "createUnits", "implements:vms.folder/1"] });
+  }, { needs: ["patchUnit", "deleteUnit", "createOperation", "createUnits", "implements:vms.folder/1", "kind:camera", "testEvent"] });
 
   test("Папки — не запись на сервер устройства: шаги folders и patch {folders}, PATCH {folders} при молчащем сервере проходят, как состав папки в базе", async () => {
     const env = await makeEnv();
@@ -206,7 +206,7 @@
     const p = await env.call("PATCH", `/units/${u.uid}`, { folders: toggle(u.folders) }, { "If-Match": `"${u.version}"` });
     assert.status(p, 200, null, "PATCH {folders}");
     assert.status(await env.call("PATCH", `/units/${u.uid}`, { name: "Другое имя" }, { "If-Match": p.headers.etag }), 409, "SERVER_OFFLINE", "имя — запись на сервер");
-  }, { needs: ["createOperation", "patchUnit", "implements:vms.folder/1"] });
+  }, { needs: ["createOperation", "patchUnit", "implements:vms.folder/1", "kind:camera"] });
 
   ApiTest.loaded("api-cluster.js");
 })();

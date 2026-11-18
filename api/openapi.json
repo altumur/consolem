@@ -10813,9 +10813,10 @@
               "demo",
               "one-domain",
               "large",
-              "xl"
+              "xl",
+              "agents"
             ],
-            "description": "Набор: demo — эталонный, весь контракт (api/fixtures/demo.json); one-domain — профиль «один домен, камеры и детекторы, хранилища, правила, пользователи» (api/fixtures/one-domain.json); large — большой домен, 250 000 камер и 500 серверов (api/fixtures/large.json, записи считает стенд из чисел stand.large); xl — тот же large с 1 000 000 камер, 2 000 серверов, 1 200 папок (api/fixtures/xl.json — наложение на large). large и xl — для замеров формы на большом домене, бэкенду их уметь не обязательно. Стенд, который не умеет набор, отвечает 404 NOT_FOUND"
+            "description": "Набор: demo — эталонный, весь контракт (api/fixtures/demo.json); one-domain — профиль «один домен, камеры и детекторы, хранилища, правила, пользователи» (api/fixtures/one-domain.json); large — большой домен, 250 000 камер и 500 серверов (api/fixtures/large.json, записи считает стенд из чисел stand.large); xl — тот же large с 1 000 000 камер, 2 000 серверов, 1 200 папок (api/fixtures/xl.json — наложение на large). large и xl — для замеров формы на большом домене, бэкенду их уметь не обязательно; agents — система без видео: оркестратор агентов, только операции механизма (api/fixtures/agents.json). Стенд, который не умеет набор, отвечает 404 NOT_FOUND"
           },
           "fixturePatch": {
             "type": "object",

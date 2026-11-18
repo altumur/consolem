@@ -283,6 +283,9 @@
       }
       if (n.startsWith("profile:")) return !!ConsolemTestLayers.profileLack(n, DECLARED);
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
+      // Служебные операции стенда (testEvent, testStreamElsewhere) в capabilities не входят: у стенда они есть всегда, а в needs
+      // их называют ради покрытия — тест, который не шёл (нет вида), освобождает и их
+      if (allOps().some((o) => o.test && o.id === n)) return false;
       return !CAPS.operations.includes(n);
     });
   }
@@ -381,14 +384,14 @@
     };
     const mark = (t) => `[${ConsolemTestLayers.layerTitle(t.layer)}] `;
     let skipped = 0;
-    // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида), — покрытие их не требует
+    // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида, профиля или возможности), — покрытие их не требует
     const waived = new Set();
     for (const t of selected) {
       const missing = lacks(t.needs);
       if (missing.length) {
         skipped += 1;
         stat(t).skip += 1;
-        if (missing.some((n) => /^(kind|implements|under|cap|profile):/.test(n))) t.needs.forEach((n) => waived.add(n));
+        if (missing.some((n) => /^(kind|implements|under|cap|profile|feature):/.test(n))) t.needs.forEach((n) => waived.add(n));
         // Не хватило условия profile: — причина из profileLack, иначе прежнее «система не умеет»
         const lack = missing.find((n) => n.startsWith("profile:"));
         lines.push(`SKIP  ${mark(t)}${t.name} — ${lack ? ConsolemTestLayers.profileLack(lack, DECLARED) : `система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`}`);

@@ -254,7 +254,7 @@
       assert.ok(!(await units(env, `folderId=${f.id}`)).some((u) => u.uid === mine.uid), "шаг своего устройства не применён");
     }
     assert.eq(await deviceCount(env), FX.devices.length, "устройства на месте");
-  }, { needs: ["patchUnit", "createOperation", "implements:vms.folder/1"] });
+  }, { needs: ["patchUnit", "createOperation", "implements:vms.folder/1", "kind:camera"] });
 
   test("Папка: удалить вместе с подпапками, устройства остаются; без версии — 428", async () => {
     const env = await makeEnv();
@@ -265,7 +265,7 @@
     assert.ok(!left.includes(rootFolder.id) && kids.every((k) => !left.includes(k)), "папка и подпапки удалены");
     assert.eq(await deviceCount(env), FX.devices.length, "устройства на месте");
     assert.status(await env.call("DELETE", U(rootFolder.id), undefined, v(rootFolder)), 404, "NOT_FOUND", "второй раз");
-  }, { needs: ["deleteUnit", "implements:vms.folder/1"] });
+  }, { needs: ["deleteUnit", "implements:vms.folder/1", "kind:camera"] });
 
   test("Метки сервера: PATCH, попадают в reference.serverLabels; детектор просит метку, сервера нет — faultText", async () => {
     const env = await makeEnv();

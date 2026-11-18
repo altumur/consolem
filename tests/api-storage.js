@@ -16,10 +16,10 @@
     new Set(FX.volumes.filter((x) => FX.archives.some((a) => a.id === x.archiveId && a.kind === "local" && a.serverId === sid)).map((x) => x.disk));
   // Сервер, у которого свободных дисков хватит на три тома
   const srv = FX.servers.find((s) => s.allocated && s.online && s.disks.filter((d) => !d.system && !usedDisks(s.id).has(d.disk)).length >= 3);
-  const freeDisks = srv.disks.filter((d) => !d.system && !usedDisks(srv.id).has(d.disk)).map((d) => d.disk);
-  const localArch = FX.archives.find((a) => a.kind === "local" && a.serverId === srv.id) || null;
+  const freeDisks = !srv ? [] : srv.disks.filter((d) => !d.system && !usedDisks(srv.id).has(d.disk)).map((d) => d.disk);
+  const localArch = srv && FX.archives.find((a) => a.kind === "local" && a.serverId === srv.id) || null;
   const offlineArch = FX.archives.find((a) => a.serverId && !FX.servers.find((s) => s.id === a.serverId).online);
-  const otherDomain = FX.domains.find((d) => d.id !== srv.domainId);
+  const otherDomain = srv && FX.domains.find((d) => d.id !== srv.domainId);
   // Шифрование — необязательная возможность: без неё хранилища создаются нешифрованными
   const enc = () => ApiTest.can("feature:archiveEncryption");
   // Том строкой UnitCreate: под хранилищем той же строки или под parentId

@@ -26,7 +26,7 @@
       assert.status(await env.call("GET", `/units/${id}`), 404, "NOT_FOUND", `${table} ${id}`);
     }
     assert.status(await env.call("GET", `/units/${cam.id}`), 200, null, "устаревшая версия — не тронут");
-  }, { needs: ["deleteObjects", "getKind"] });
+  }, { needs: ["deleteObjects", "getKind", "kind:camera"] });
 
   test("Групповое удаление: хранилище — камеры переходят на следующее или перестают писать, как у одиночного", async () => {
     const env = await makeEnv();
@@ -36,7 +36,7 @@
     assert.eq(res.done, [a.id], "удалено");
     assert.eq((await env.ok("GET", `/units/${c.id}`)).properties.archiveId, null, "камера не пишет в удалённое");
     assert.eq((await env.list(`/units?kind=volume&parentId=${a.id}`)).length, 0, "тома удалены");
-  }, { needs: ["deleteObjects"] });
+  }, { needs: ["deleteObjects", "kind:camera"] });
 
   test("Правка выборки: включить, учётные данные, папка, детектор — одной операцией, «Отменить» возвращает всё", async () => {
     const env = await makeEnv();
@@ -56,7 +56,7 @@
     assert.eq(done.items.filter((x) => x.state === "fail").every((x) => x.code === "NOT_SUPPORTED"), true, "причина шага");
     const kids = (await env.list(`/units?parentId=${cams[0].id}&kind=det`)).filter((d) => d.properties.detectorKind === "linecross" && d.name === "Пересечение линии");
     assert.eq(kids.length, 0, "созданные детекторы удалены");
-  }, { needs: ["createOperation", "revertOperation"] });
+  }, { needs: ["createOperation", "revertOperation", "kind:camera"] });
 
   ApiTest.loaded("api-bulk.js");
 })();

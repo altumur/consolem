@@ -319,7 +319,7 @@
     assert.eq((await env.pages(`/units?${query({ q: cam.name, fields: "vendor" })}`)).length, 0, "имя не ищется, если его нет в fields");
     const two = await env.pages(`/units?${query({ q: cam.name, fields: "vendor,name" })}`);
     assert.ok(two.some((u) => u.uid === cam.uid && u.match.field === "name"), "fields через запятую");
-  }, { needs: ["listUnits"] });
+  }, { needs: ["listUnits", "kind:camera"] });
 
   test("/units?q= не ищет по свойству без x-search", async () => {
     const env = await makeEnv();
@@ -496,7 +496,7 @@
     }
     assert.ok(n >= 3, `проверено видов: ${n}`);
     return `видов ${n}`;
-  }, { needs: ["patchUnit"] });
+  }, { needs: ["patchUnit", "kind:camera"] });
 
   test("x-immutable после создания — 422", async () => {
     const env = await makeEnv();
@@ -881,7 +881,7 @@
     // Камера (vms.camera/1 — хук есть) пишется ядром
     const cam = ofKind("camera").find((u) => !u.parentId);
     assert.status(await patch(env, cam.uid, { name: "Камера ядром" }), 200, null, "камера — путями ядра");
-  }, { needs: ["patchUnit", "deleteUnit", "createUnits"] });
+  }, { needs: ["patchUnit", "deleteUnit", "createUnits", "kind:camera"] });
 
   test("откат POST /units снимает созданное вместе с детьми; индексы parentId и kind чистые", async () => {
     const env = await makeEnv();
@@ -1014,7 +1014,7 @@
       const own = list.items.filter((k) => (k.implements || []).includes(p.id));
       (p.properties || []).forEach((n) => assert.ok(!own.length || own.some((k) => n in ((k.schema || {}).properties || {})), `${p.id}: ${n} нет ни у одного вида`));
     });
-  }, { needs: ["listKinds"] });
+  }, { needs: ["listKinds", "kind:camera"] });
 
   test("hasChildren объекта: потоки дочерними не считаются, дочерние объекты — считаются; как в узле дерева", async () => {
     const env = await makeEnv();
@@ -1060,6 +1060,17 @@
     const ok = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["crowd"] } }, tag);
     assert.status(ok, 200, null, "crowd — тревога");
   }, { needs: ["listKinds", "getKind", "patchSettings"] });
+
+  test("Набор без VMS: виды без профилей vms.* сверх области и папки, дерево папок, команда агента", async () => {
+    const env = await makeEnv();
+    const kinds = (await env.ok("GET", "/kinds")).items;
+    assert.ok(kinds.every((k) => (k.implements || []).every((p) => ["vms.domain/1", "vms.folder/1", "core.domain/1", "core.folder/1"].includes(p))), "сверх области и папки профилей нет");
+    const top = await env.pages("/tree/children?layout=folders");
+    assert.eq(top.length, 1, "одна область");
+    assert.ok((await env.pages(`/tree/children?layout=folders&parentId=${top[0].id}`)).every((n) => n.kind === "folder"), "под областью — папки");
+    const agent = (await env.ok("GET", "/units?kind=agent.agent")).items[0];
+    assert.status(await env.call("POST", `/units/${agent.uid}/actions/check`, { params: {} }), 200);
+  }, { needs: ["listKinds", "getTreeChildren", "runUnitAction", "kind:agent.agent"], layer: "mechanism" });
 
   ApiTest.loaded("api-units.js");
 })();

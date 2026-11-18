@@ -533,7 +533,7 @@
 
   /* ===== Настройки детектора и поддетекторы (контракт 0.12.0) ===== */
 
-  const camU = { uid: cam.id };
+  const camU = { uid: cam && cam.id };
   const NEW_DET = ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec"];
   const TRI = [[0.2, 0.2], [0.5, 0.2], [0.5, 0.5]];
   const tracker = (c, name, over) => det(c, name || "Трекер", Object.assign({ detectorKind: "other", analyticsKind: "tracker", sensitivity: 60 }, over));
@@ -1247,7 +1247,7 @@
     const x = await env.ok("PATCH", U(c.uid), { properties: { extraArchives: [{ archiveId: a.id, recordMode: "always", labels: ["archive"] }] } }, v(res));
     assert.eq(x.properties.extraArchives[0].labels, ["archive"], "метка строки записи");
     field(await props(env, x, { recordState: "ok" }), "VALIDATION_FAILED", P("recordState"), "состояние — status.observed, не свойство");
-  }, { needs: ["patchUnit", "kind:camera"] });
+  }, { needs: ["patchUnit", "kind:camera", "testEvent"] });
 
   ApiTest.loaded("api-devices.js");
 })();

@@ -31,7 +31,7 @@
     assert.ok(res.body.version !== r1.version && res.headers.etag === `"${res.body.version}"`, "версия изменилась, в ETag");
     const h = await env.list(`/rules/${r1.id}/versions`), was = FX.ruleVersions.filter((v) => v.ruleId === r1.id);
     assert.eq([h.length, h[h.length - 1].number, h[h.length - 1].rule.name], [was.length + 1, was[was.length - 1].number + 1, "Ночь — вход"], "версия истории");
-  });
+  }, { needs: ["kind:camera", "putRule", "listRuleVersions"] });
 
   test("Правило: выключенное сохраняется незаконченным; включённое с ошибкой — 422 RULE_INVALID; 428, 412, 404, 422", async () => {
     const env = await makeEnv();
@@ -59,7 +59,7 @@
     assert.eq([del.done, del.failed.map((x) => x.code)], [[r.id], ["VERSION_MISMATCH"]], "частичный успех");
     assert.status(await env.call("GET", `/rules/${r.id}`), 404, "NOT_FOUND");
     assert.status(await env.call("GET", `/rules/${r.id}/versions`), 404, "NOT_FOUND", "история — вместе с правилом");
-  });
+  }, { needs: ["kind:camera", "listRuleVersions"] });
 
   test("Правила группой: состояние и приглушение — частичный успех, «Только журнал» с даты, версия истории за смену состояния", async () => {
     const env = await makeEnv();
@@ -78,7 +78,7 @@
     assert.eq((await env.list(`/rules/${r2.id}/versions`)).length, FX.ruleVersions.filter((v) => v.ruleId === r2.id).length, "приглушение версии не пишет");
     const off = await env.ok("POST", "/rules/update", { idempotencyKey: key(), items: [{ ruleId: r1.id, version: a.version, set: { enabled: false } }] });
     assert.eq([off.done[0].enabled, off.done[0].logOnly], [false, true], "выключено, «Только журнал» остался отмеченным");
-  });
+  }, { needs: ["kind:camera", "updateRules", "listRuleVersions"] });
 
   test("Версия правила не возвращается: «Отменить» и «Вернуть версию» — новая метка; истечение приглушения версию не меняет", async () => {
     const env = await makeEnv();
@@ -100,7 +100,7 @@
     const m = (await env.ok("POST", "/rules/update", { idempotencyKey: key(), items: [{ ruleId: r1.id, version: c.version, set: { mute: { until, reason: "" } } }] })).done[0];
     await env.advance(120);
     assert.eq((await env.ok("GET", `/rules/${r1.id}`)).version, m.version, "приглушение истекло — версия та же");
-  });
+  }, { needs: ["kind:camera", "putRule", "updateRules", "listRuleVersions"] });
 
   test("«Отменить» — как не было: «Изменено» и «в наблюдении с» прежние, версия записи — новая", async () => {
     const env = await makeEnv();
@@ -120,7 +120,7 @@
     const back = (await env.ok("POST", "/rules/update", { idempotencyKey: key(), items: [{ ruleId: w.id, version: on.version, set: { enabled: true, logOnly: true },
       historyNote: { code: "undo", params: { number: hw[hw.length - 1].number, state: true } } }] })).done[0];
     assert.eq([back.logOnlySince, back.changedAt, back.changedBy], [w.logOnlySince, w.changedAt, w.changedBy], "«Отменить» — «в наблюдении» с прежней даты");
-  });
+  }, { needs: ["kind:camera", "putRule", "updateRules", "listRuleVersions"] });
 
   test("Расписание «только здесь» у правила: владелец — правило, удаляется вместе с ним; владельца нет — 422", async () => {
     const env = await makeEnv();
@@ -134,7 +134,7 @@
     const cur = await env.ok("PUT", `/rules/${r.id}`, body(r, { conditions: [{ kind: "time", scheduleId: s.body.id }] }), etag(r));
     await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: [{ id: r.id, version: cur.version }] });
     assert.status(await env.call("GET", `/schedules/${s.body.id}`), 404, "NOT_FOUND", "своё расписание — вместе с правилом");
-  });
+  }, { needs: ["kind:camera", "putRule"] });
 
   test("Порядок правил: всё или ничего — 412, если хоть одна версия не та", async () => {
     const env = await makeEnv();
@@ -144,7 +144,7 @@
     const res = await env.ok("POST", "/rules/reorder", { items });
     assert.eq(res.items.map((r) => r.order), [5, 1], "новый порядок");
     assert.ok(res.items[0].version !== r1.version, "версия изменилась");
-  });
+  }, { needs: ["kind:camera", "reorderRules"] });
 
   test("Запустить сейчас: трасса кодами — события, проверки, шаги по устройствам; запуск — в журнале; выключенное — 409", async () => {
     const env = await makeEnv();
@@ -159,7 +159,7 @@
     const no = await env.call("POST", `/rules/${off.id}/run`, { idempotencyKey: key() });
     assert.status(no, 409, "NOT_RUNNABLE");
     assert.eq(no.body.params.reason.code, "off", "почему — кодом");
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Пробный запуск: черновик на выбранных событиях — проверки событий и условий, ничего не выполняет; log — в журнал", async () => {
     const env = await makeEnv();
@@ -177,7 +177,7 @@
     await env.ok("POST", "/rules/test", { ruleId: r1.id, rule: body(r1), events: ev, at: null, branches: {}, log: true });
     assert.eq((await env.list(`/rules/${r1.id}/fires`)).length, FX.ruleFires.filter((x) => x.ruleId === r1.id).length + 1, "log — в журнале");
     assert.status(await env.call("POST", "/rules/test", { ruleId: null, rule: blank(), events: [], at: null, branches: {}, log: true }), 422, "VALIDATION_FAILED", "черновик нового — не в журнал");
-  });
+  }, { needs: ["kind:camera", "testRule"] });
 
   test("Повторить невыполненное: только отказавшие шаги, на нынешних устройствах; нечего повторять — 409", async () => {
     const env = await makeEnv();
@@ -192,7 +192,7 @@
     const ok = fires.find((x) => !failed(x));
     if (ok) assert.status(await env.call("POST", `/rules/${r1.id}/fires/${ok.id}/retry`, { idempotencyKey: key() }), 409, "NOT_RUNNABLE", "нечего повторять");
     assert.status(await env.call("POST", `/rules/${r1.id}/fires/d0009999-0000-4000-8000-000000000000/retry`, { idempotencyKey: key() }), 404, "NOT_FOUND");
-  });
+  }, { needs: ["kind:camera", "retryRuleFire"] });
 
   test("Удалили устройство — в правилах оно остаётся удалённым по имени: новая версия правила, история поправлена", async () => {
     const env = await makeEnv();
@@ -204,7 +204,7 @@
     assert.ok(r.version !== r1.version, "версия правила новая");
     const h = await env.list(`/rules/${r1.id}/versions`);
     assert.ok(!JSON.stringify(h).includes(gone), "в версиях истории — тоже по имени");
-  });
+  }, { needs: ["kind:camera", "listRuleVersions"] });
 
   test("Расписания: создать, сохранить, удалить — где использовалось, переходит на «Никогда»; встроенные — 409 BUILTIN", async () => {
     const env = await makeEnv();
@@ -259,7 +259,7 @@
     const back = await env.ok("POST", "/modes/current", { modeId: null, until: null });
     assert.eq(back.manual, null, "по расписаниям");
     assert.status(await env.call("POST", "/modes/current", { modeId: "f0008888-0003-4000-8000-000000000000", until: null }), 404, "NOT_FOUND");
-  });
+  }, { needs: ["kind:camera", "putRule"] });
 
   test("Окна обслуживания: создать вместе со своим расписанием, сохранить, удалить — своё расписание уходит с окном", async () => {
     const env = await makeEnv();
@@ -276,7 +276,7 @@
     assert.status(await env.call("DELETE", `/maintenance-windows/${w.id}`, undefined, { "If-Match": `"${put.version}"` }), 204);
     assert.status(await env.call("GET", `/schedules/${schedule.id}`), 404, "NOT_FOUND", "расписание окна — тоже");
     assert.eq((await env.list("/maintenance-windows")).length, FX.maintenanceWindows.length, "остальные на месте");
-  });
+  }, { needs: ["kind:camera", "listMaintenanceWindows", "createMaintenanceWindow", "getMaintenanceWindow", "putMaintenanceWindow", "deleteMaintenanceWindow"] });
 
   test("Опции: изменить часть — остальное на месте, версия +1; чужой ключ и значение не из списка — 422", async () => {
     const env = await makeEnv();
@@ -288,7 +288,7 @@
     assert.status(await env.call("PATCH", "/settings", { values: { "sec.2fa": "always" } }, { "If-Match": `"${res.body.version}"` }), 422, "VALIDATION_FAILED");
     assert.status(await env.call("PATCH", "/settings", { values: { "ui.theme": "dark" } }, { "If-Match": `"${res.body.version}"` }), 422, "VALIDATION_FAILED");
     assert.status(await env.call("PATCH", "/settings", { values: {} }), 428, "PRECONDITION_REQUIRED");
-  });
+  }, { needs: ["getSettings", "patchSettings"] });
 
   test("Правило: номер входа и выхода — из записи, расхождение с полем правила — 422 RULE_INVALID", async () => {
     const env = await makeEnv();

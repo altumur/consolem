@@ -783,6 +783,20 @@ def check_units(rep, spec, fx, label="Эталонный набор"):
     rep.check(f"{label}: ссылки правил, прав, обходов, удержаний, отметок — на объекты склада", problems)
 
 
+def check_agents_mechanism(rep, spec, fx):
+    """Набор agents (система не из мира VMS): объявлены только операции механизма — пути без x-layer; виды — без профилей слоёв,
+    кроме области и папки."""
+    op_layer = {}
+    for path, item in spec["paths"].items():
+        for method, o in item.items():
+            if method in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", []):
+                op_layer[o["operationId"]] = layers.layer_of_path(spec, path)
+    problems = [f"agents: операция {op} — слоя {op_layer[op]}" for op in fx["reference"]["capabilities"]["operations"] if op_layer.get(op) is not None]
+    allowed = {"vms.domain/1", "vms.folder/1", "core.domain/1", "core.folder/1"}
+    problems += [f"agents: вид {k['kind']} объявляет профиль {p}" for k in fx.get("kinds", []) for p in k.get("implements") or [] if p not in allowed]
+    rep.check("agents: только операции механизма", problems, f"операций {len(fx['reference']['capabilities']['operations'])}")
+
+
 def check_capabilities(rep, spec, fixtures):
     """Возможности системы в наборах: из контракта; эталонный — весь контракт; данные набора не
     противоречат объявленному (нет устройств неподдержанных видов, шифрования без archiveEncryption…)."""
@@ -1284,15 +1298,19 @@ def main():
     fx = with_tables(load(f"{API}/fixtures/demo.json"))
     profile = with_tables(load(f"{API}/fixtures/one-domain.json"))
     large = with_tables(load(f"{API}/fixtures/large.json"))
+    agents = with_tables(load(f"{API}/fixtures/agents.json"))
     check_contract(rep, spec)
     check_fixture(rep, spec, fx)
     check_fixture(rep, spec, profile, "Набор one-domain")
     check_fixture(rep, spec, large, "Набор large")
+    check_fixture(rep, spec, agents, "Набор agents")
     check_units(rep, spec, fx)
     check_units(rep, spec, profile, "Набор one-domain")
     check_units(rep, spec, large, "Набор large")
-    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
-    check_profile_files(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
+    check_units(rep, spec, agents, "Набор agents")
+    check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
+    check_agents_mechanism(rep, spec, agents)
+    check_profile_files(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--check", "--api", API], capture_output=True, text=True)
     rep.check("one-domain.json собран из нынешнего demo.json", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_api.py"), "--check", "--api", API], capture_output=True, text=True)
