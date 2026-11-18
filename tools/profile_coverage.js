@@ -340,7 +340,7 @@ function pcovNames(profileId, kind) {
 // opts: units — объектов на вид; objects — объекты вместо чтения с сервера (самопроверка); fields — только эти поля
 async function pcovRun(profileId, opts) {
   opts = opts || {};
-  const N = opts.units || 2, prof = KIND_PROFILES.get(profileId);
+  const N = opts.units || 3, prof = KIND_PROFILES.get(profileId);
   const allow = opts.allow || PCOV.allow || {}, keepOk = allow.keep || {}, extraOk = allow.extra || {};
   const rep = { id: profileId, version: prof?.version || null, kinds: [], summary: { keep: [], remove: [], add: [], untested: [] } };
   if (!prof) { rep.note = "профиля нет в GET /kinds"; return rep; }

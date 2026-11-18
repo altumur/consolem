@@ -10,7 +10,7 @@
 Запуск из корня репозитория:
   python3 tools/profile_coverage.py                         все профили набора, отчёт по видам
   python3 tools/profile_coverage.py --profile vms.camera/1  один профиль (можно несколько: --profile A B)
-  python3 tools/profile_coverage.py --units 3               объектов на вид (по умолчанию 2)
+  python3 tools/profile_coverage.py --units 3               объектов на вид (по умолчанию 3)
   python3 tools/profile_coverage.py --fixture large         набор (по умолчанию demo)
   python3 tools/profile_coverage.py --json FILE             весь отчёт в JSON
   python3 tools/profile_coverage.py --debug                 в JSON — где снимки разошлись (diff у поля, unstable у вида)
@@ -184,7 +184,7 @@ def main():
     args = sys.argv[1:]
     try:
         fixture = take_one(args, "--fixture", "demo")
-        units = take_one(args, "--units", "2")
+        units = take_one(args, "--units", "3")
         json_out = take_one(args, "--json", None)
         only = take_list(args, "--profile")
         check = "--check" in args
