@@ -21,7 +21,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   open(CAM.off, "io");
   ok(await until(() => [...main().querySelectorAll(".pf-nm")].some((b) => /хранилище/i.test(b.textContent))), "«Периферия» камеры показывает её встроенное хранилище");
   API.get = getWas;
-  ok(gets.some((g) => /kind.*storage/.test(g) && g.includes(CAM.off)) && !gets.some((g) => /kind.*storage/.test(g) && !g.includes("parentId")), "прочитано хранилище этой камеры (parentId), а не все хранилища: " + gets.filter((g) => /storage/.test(g)).join(" | "));
+  // Встроенные хранилища — по коду storage или по профилю vms.edge/1 (прототип 78)
+  const EDGE_Q = /kind.*storage|implements.*vms\.edge/;
+  ok(gets.some((g) => EDGE_Q.test(g) && g.includes(CAM.off)) && !gets.some((g) => EDGE_Q.test(g) && !g.includes("parentId")), "прочитано хранилище этой камеры (parentId), а не все хранилища: " + gets.filter((g) => /storage/.test(g)).join(" | "));
   await edgeLoadAll();
   ok(await until(() => edgeLoad?.done), "встроенные хранилища загружены одним перечнем");
   const st = (uid) => find(uid).n;

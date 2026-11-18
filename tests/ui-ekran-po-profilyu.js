@@ -124,6 +124,69 @@ UiCheck(async ({ ok, until }) => {
   await reopen(camU.uid);
   ok(!isSchemaNode(find(camU.uid)?.n) && nodeKind(find(camU.uid)?.n) === "camera" && !!main().querySelector(".cs-cq"), "камера снова под своим кодом — экран камеры");
 
+  // ── Б. Ручной экран читает свой вид, а не вид с кодом экрана ──
+  // Вид плагина на экране камеры: своя схема (маска приватности до трёх областей, своё свойство covProbe); касса плагина —
+  // свои умолчания; команды, создание и чтение по профилю — по всем видам экрана, а не по коду
+  {
+    const likeB = Object.assign(clone(like), { schema: clone(like.schema) });
+    likeB.schema.properties.privacyMasks = Object.assign(clone(likeB.schema.properties.privacyMasks || {}), { maxItems: 3 });
+    likeB.schema.properties.covProbe = { type: "string", "x-label": { text: "Проба", lang: "ru" } };
+    const pos = Object.assign(kindOf("eventsrc"), { kind: "acme.pos" });
+    pos.schema.properties.baudRate = Object.assign({}, pos.schema.properties.baudRate, { default: 19200 });
+    const srvNoProbe = Object.assign(kindOf("server"), { actions: (kindOf("server").actions || []).filter((a) => a.id !== "probe") });
+    const srvProbe = Object.assign(kindOf("server"), { kind: "acme.srv" });
+    const edge = Object.assign(kindOf("storage"), { kind: "acme.edge" });
+    const storageNoEdge = Object.assign(kindOf("storage"), { implements: kindOf("storage").implements.filter((p) => p !== "vms.edge/1") });
+    const sub = Object.assign(kindOf("subdet"), { kind: "acme.subdet" });
+    const domMake = Object.assign(kindOf("domain"), { kind: "acme.dom" });
+    const domNoCreate = Object.assign(kindOf("domain"), { capabilities: kindOf("domain").capabilities.filter((c) => c !== "create") });
+    const evU = (await API.get("/units", { kind: "eventsrc", limit: 1 })).items[0];
+    const evFull = await API.get(`/units/${evU.uid}`);
+    const camNode = unitNode(camFull), evNode = unitNode(evFull);
+    await withKinds([likeB, pos], async () => {
+      const likeNode = unitNode(Object.assign(clone(camFull), { kind: "test.camera-like" }));
+      const posNode = unitNode(Object.assign(clone(evFull), { kind: "acme.pos" }));
+      ok(pmSchema(likeNode)?.maxItems === 3 && pmSchema(camNode)?.maxItems === 16, "маска приватности — по схеме вида узла");
+      ok(posDef(posNode, "baudRate") === 19200 && posDef(evNode, "baudRate") === 9600, "касса читает умолчания своего вида");
+      const likeNodeWithProbe = Object.assign(likeNode, { covProbe: "x" });
+      const u = nodeToUnit(likeNodeWithProbe);
+      ok(u.kind === "test.camera-like" && u.properties.covProbe === "x", "новый объект — со своим видом и полями своей схемы: " + JSON.stringify({ kind: u.kind, covProbe: u.properties.covProbe }));
+    });
+    await withKinds([srvNoProbe, srvProbe], async () => {
+      ok(typeof screenActionOn === "function" && screenActionOn("server", "probe") === true, "опрос адресов: команду объявил вид плагина с vms.server/1");
+    });
+    await withKinds([srvNoProbe], async () => {
+      ok(typeof screenActionOn === "function" && screenActionOn("server", "probe") === false, "ни один вид экрана сервера не объявил probe");
+    });
+    await withKinds([edge, storageNoEdge], async () => {
+      ok(edgeOn() === true, "встроенное хранилище — по vms.edge/1, а не по коду storage");
+      const wasLoad = edgeLoad;
+      window.CONSOLEM_TRACE = [];
+      edgeLoad = null;
+      edgeLoadAll();
+      await until(() => edgeLoad?.done);
+      const trace = window.CONSOLEM_TRACE;
+      delete window.CONSOLEM_TRACE;
+      if (wasLoad?.done) edgeLoad = wasLoad;
+      ok(trace.some((t) => /implements=vms\.edge%2F1|implements=vms.edge\/1/.test(t.path)) && !trace.some((t) => /kind=storage/.test(t.path)),
+        "встроенные хранилища читаются по профилю: " + trace.filter((t) => /^\/units\?/.test(t.path)).map((t) => t.path).join(" "));
+    });
+    {
+      const savedSub = KINDS.get("subdet");
+      KINDS.delete("subdet");
+      try {
+        await withKinds([sub], async () => ok(dwSubsOk() === true, "поддетекторы — по vms.subdetector/1 с create"));
+      } finally {
+        KINDS.set("subdet", savedSub);
+        kindsApply();
+      }
+    }
+    await withKinds([domMake, domNoCreate], async () => {
+      ok(kindsLike("domain").includes("acme.dom") && canCreateKind("domain") && typeof kindToCreate === "function" && kindToCreate("domain", null) === "acme.dom",
+        "создать домен — видом, который умеет create");
+    });
+  }
+
   // ── Г. Профиль снят с вида при открытой карточке ──
   // Открыта карточка камеры с неприменённой правкой; PUT /test/kinds/camera без vms.camera/1 → kinds.changed. Карточка без
   // перезагрузки становится формой по схеме, правка переходит в черновик формы по схеме. Поле, которого в новой схеме нет
@@ -177,6 +240,18 @@ UiCheck(async ({ ok, until }) => {
     ok(/^Описание вида изменилось, поэтому консоль показывает «Камера после смены вида» другим экраном\. Консоль не перенесла изменения полей «Короткое имя», потому что на новом экране этих полей нет\. Остальные изменения консоль перенесла\.$/.test(note),
       "уведомление называет причину и поле, которое консоль не перенесла: «" + (note || toasts.join(" | ")) + "»");
     ok(!HAND_MENU.test(menuText(n1)), "меню строки камеры формы по схеме — без пунктов ручного экрана камеры");
+    // Узел формы по схеме с кодом camera — не камера ручного экрана: не считается камерой без записи, в срезе «Детекторы»
+    // не предлагает «Добавить детекторы…», не IP-устройство
+    ok(!unrecordedCameras().some((x) => x.id === camU.uid), "камера формы по схеме не считается камерой без записи");
+    {
+      const wasSlice = slice;
+      slice = "det";
+      try {
+        const items = (rcSliceItems(n1) || []).flat().join("");
+        ok(!/Добавить детекторы…/.test(items), "срез «Детекторы»: у камеры формы по схеме нет «Добавить детекторы…»");
+      } finally { slice = wasSlice; }
+    }
+    ok(!devIsIp(n1), "камера формы по схеме — не IP-устройство (devIsIp)");
   } finally {
     await camPut(camK);
   }
