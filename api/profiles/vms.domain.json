@@ -6,7 +6,20 @@
  "reviewers": [
   "w2c"
  ],
- "uses": [],
+ "uses": [
+  {
+   "id": "vms.archive/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.edge/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.server/1",
+   "version": "1.0"
+  }
+ ],
  "properties": {
   "license": {
    "schema": {

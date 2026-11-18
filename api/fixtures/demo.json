@@ -10586,6 +10586,24 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.server/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.volume/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "admits",
     "encrypted",
@@ -10610,6 +10628,30 @@
     },
     {
      "id": "vms.detector/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.ptz/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.stream/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.talk/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.timeline/1",
      "version": "1.0"
     }
    ],
@@ -10685,6 +10727,20 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.subdetector/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "alarmKinds",
     "analyticsKind",
@@ -10738,6 +10794,20 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.server/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "license"
    ]
@@ -10804,6 +10874,10 @@
     {
      "id": "vms.camera/1",
      "version": "1.0"
+    },
+    {
+     "id": "vms.live/1",
+     "version": "1.0"
     }
    ],
    "properties": [
@@ -10866,6 +10940,20 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.edge/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.webserver/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "allocated",
     "dns",
@@ -10892,6 +10980,12 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "codec",
     "fps",
@@ -10976,6 +11070,16 @@
     "lang": "ru"
    },
    "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.server/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "account",
     "bucket",

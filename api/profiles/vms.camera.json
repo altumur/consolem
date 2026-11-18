@@ -14,6 +14,30 @@
   {
    "id": "vms.detector/1",
    "version": "1.0"
+  },
+  {
+   "id": "vms.edge/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.live/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.ptz/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.stream/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.talk/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.timeline/1",
+   "version": "1.0"
   }
  ],
  "properties": {

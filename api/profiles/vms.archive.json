@@ -6,7 +6,24 @@
  "reviewers": [
   "w2c"
  ],
- "uses": [],
+ "uses": [
+  {
+   "id": "vms.camera/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.edge/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.server/1",
+   "version": "1.0"
+  },
+  {
+   "id": "vms.volume/1",
+   "version": "1.0"
+  }
+ ],
  "properties": {
   "admits": {
    "schema": {

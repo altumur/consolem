@@ -10,6 +10,10 @@
   {
    "id": "vms.camera/1",
    "version": "1.0"
+  },
+  {
+   "id": "vms.live/1",
+   "version": "1.0"
   }
  ],
  "properties": {
