@@ -470,7 +470,11 @@
     if (uncovered.length) {
       failed += 1;
       lines.push(`FAIL  Каждая объявленная операция покрыта тестами — без тестов: ${uncovered.join(", ")}`);
-    } else lines.push(`PASS  Каждая объявленная операция покрыта тестами — ${ops.length - NOT_COVERED.length} операций${NOT_COVERED.length ? `, исключения: ${NOT_COVERED.join(", ")}` : ""}`);
+    } else {
+      // Операции, которых не вызвал ни один прошедший тест: их освободили пропущенные тесты (нет вида, профиля, возможности)
+      const waivedOnly = ops.filter((op) => !called.has(op) && !NOT_COVERED.includes(op));
+      lines.push(`PASS  Каждая объявленная операция покрыта тестами — ${ops.length - NOT_COVERED.length} операций${NOT_COVERED.length ? `, исключения: ${NOT_COVERED.join(", ")}` : ""}; только по освобождению пропущенным тестом: ${waivedOnly.length}${waivedOnly.length ? ` (${waivedOnly.join(", ")})` : ""}`);
+    }
     cross += 1;
     const total = selected.length - skipped + cross;
     const skip = skipped ? `, пропущено ${skipped} — система этого не умеет` : "";

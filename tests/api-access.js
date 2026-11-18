@@ -73,7 +73,7 @@
     const res = await apply(env, d, { body: { dryRun: true } });
     assert.eq([res.status, res.body.applied, res.body.access], [200, false, null], "только проверено");
     assert.eq((await env.access()).roles[1].name, A.roles[1].name, "ничего не записано");
-  }, { needs: ["kind:camera"] });
+  });
 
   test("Права: повторы имён и логинов (без учёта регистра) — 409; ссылка в никуда — 422", async () => {
     const env = await makeEnv();
@@ -89,7 +89,7 @@
     d = draft();
     d.groups[0].memberIds.push("9fff9999-0000-4000-8000-000000000000");
     assert.status(await apply(env, d), 422, "VALIDATION_FAILED", "нет пользователя");
-  }, { needs: ["kind:camera"] });
+  });
 
   test("Права: защита от самоблокировки — без администраторов и без себя нельзя", async () => {
     const env = await makeEnv();

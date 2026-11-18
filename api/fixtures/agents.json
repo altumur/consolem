@@ -211,7 +211,8 @@
    "capabilities": [
     "create",
     "rename",
-    "delete"
+    "delete",
+    "move"
    ],
    "access": {
     "class": "agent",
@@ -403,6 +404,22 @@
      "ruleAction": true,
      "right": {
       "level": "run"
+     },
+     "scope": [
+      "unit",
+      "kind"
+     ],
+     "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+       "ok"
+      ],
+      "properties": {
+       "ok": {
+        "type": "boolean"
+       }
+      }
      }
     }
    ],
@@ -875,7 +892,12 @@
      ],
      "event": "failed",
      "target": {
-      "include": [],
+      "include": [
+       {
+        "area": "domain",
+        "uid": "10000001-0000-4000-8000-000000000000"
+       }
+      ],
       "exclude": [],
       "gone": [],
       "fromEvent": false
@@ -1606,6 +1628,34 @@
     "kindAccess": {
      "agent": "edit"
     }
+   },
+   {
+    "id": "80000002-0000-4000-8000-000000000000",
+    "name": "Оператор агентов",
+    "comment": "Следит за запусками",
+    "loginSchedule": 0,
+    "supervision": {
+     "roleId": null,
+     "login": false,
+     "export": false
+    },
+    "global": {
+     "unr": false,
+     "feat": [
+      "WEB_UI_LOGIN"
+     ],
+     "ur": "NO",
+     "map": "VIEW",
+     "alert": "FULL",
+     "bm": "PROTECT",
+     "depth": 0,
+     "restr": {}
+    },
+    "folderAccess": {},
+    "objectAccess": {},
+    "kindAccess": {
+     "agent": "run"
+    }
    }
   ],
   "users": [
@@ -1626,9 +1676,41 @@
     "catalogId": null,
     "hasPassword": true,
     "passwordByAdmin": true
+   },
+   {
+    "id": "90000002-0000-4000-8000-000000000000",
+    "login": "operator",
+    "name": "Оператор",
+    "email": "operator@agents.local",
+    "enabled": true,
+    "roleIds": [
+     "80000002-0000-4000-8000-000000000000"
+    ],
+    "roleUntil": {},
+    "lastLoginDate": "2026-10-28",
+    "expiresDate": null,
+    "webSessions": 0,
+    "mobileSessions": 0,
+    "catalogId": null,
+    "hasPassword": true,
+    "passwordByAdmin": true
    }
   ],
-  "groups": [],
+  "groups": [
+   {
+    "id": "a0000001-0000-4000-8000-000000000000",
+    "name": "Смена агентов",
+    "comment": "Операторы запусков",
+    "roleIds": [
+     "80000002-0000-4000-8000-000000000000"
+    ],
+    "rolesUntil": null,
+    "memberIds": [
+     "90000002-0000-4000-8000-000000000000"
+    ],
+    "source": null
+   }
+  ],
   "catalogs": [],
   "history": [],
   "cellHistory": []
@@ -1644,10 +1726,7 @@
    "sec.pwdage": 90,
    "sec.2fa": "off",
    "mail.smtp": "smtp.local",
-   "mail.hook": "https://…",
-   "events.retentionDays": 90,
-   "alarms.retentionDays": 365,
-   "alarms.domain": []
+   "mail.hook": "https://…"
   }
  },
  "licenses": [],
@@ -1662,6 +1741,317 @@
    "kind": "audit",
    "occurredAt": "2026-10-28T17:47:00Z",
    "fields": {},
+   "actor": "admin"
+  },
+  {
+   "id": "c0000002-0000-4000-8000-000000000000",
+   "at": "2026-10-28T17:24:00Z",
+   "category": "alarm",
+   "text": "Агент упал · Агент поддержки",
+   "source": "agent",
+   "kind": "failed",
+   "occurredAt": "2026-10-28T17:24:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000003-0000-4000-8000-000000000000",
+   "at": "2026-10-28T16:50:00Z",
+   "category": "alarm",
+   "text": "Агент упал · Агент отчётов",
+   "source": "agent",
+   "kind": "failed",
+   "occurredAt": "2026-10-28T16:50:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000004-0000-4000-8000-000000000000",
+   "at": "2026-10-28T16:10:00Z",
+   "category": "info",
+   "text": "Конвейер закончил · Обработка обращения",
+   "source": "agent",
+   "kind": "finished",
+   "occurredAt": "2026-10-28T16:10:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000031-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000005-0000-4000-8000-000000000000",
+   "at": "2026-10-28T15:30:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-28T15:30:00Z",
+   "fields": {
+    "ip": "10.20.1.9"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000006-0000-4000-8000-000000000000",
+   "at": "2026-10-28T15:00:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-28T15:00:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000027-0000-4000-8000-000000000000",
+   "at": "2026-10-27T17:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T17:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000013-0000-4000-8000-000000000000",
+   "at": "2026-10-27T17:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T17:10:00Z",
+   "fields": {
+    "ip": "10.20.1.18"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000026-0000-4000-8000-000000000000",
+   "at": "2026-10-27T16:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T16:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000012-0000-4000-8000-000000000000",
+   "at": "2026-10-27T16:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T16:10:00Z",
+   "fields": {
+    "ip": "10.20.1.17"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000025-0000-4000-8000-000000000000",
+   "at": "2026-10-27T15:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T15:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000011-0000-4000-8000-000000000000",
+   "at": "2026-10-27T15:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T15:10:00Z",
+   "fields": {
+    "ip": "10.20.1.16"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000024-0000-4000-8000-000000000000",
+   "at": "2026-10-27T14:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T14:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c0000010-0000-4000-8000-000000000000",
+   "at": "2026-10-27T14:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T14:10:00Z",
+   "fields": {
+    "ip": "10.20.1.15"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000023-0000-4000-8000-000000000000",
+   "at": "2026-10-27T13:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T13:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000f-0000-4000-8000-000000000000",
+   "at": "2026-10-27T13:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T13:10:00Z",
+   "fields": {
+    "ip": "10.20.1.14"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000022-0000-4000-8000-000000000000",
+   "at": "2026-10-27T12:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T12:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000e-0000-4000-8000-000000000000",
+   "at": "2026-10-27T12:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T12:10:00Z",
+   "fields": {
+    "ip": "10.20.1.13"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000021-0000-4000-8000-000000000000",
+   "at": "2026-10-27T11:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T11:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000d-0000-4000-8000-000000000000",
+   "at": "2026-10-27T11:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T11:10:00Z",
+   "fields": {
+    "ip": "10.20.1.12"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c0000020-0000-4000-8000-000000000000",
+   "at": "2026-10-27T10:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент без модели",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T10:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000023-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000c-0000-4000-8000-000000000000",
+   "at": "2026-10-27T10:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент без модели»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T10:10:00Z",
+   "fields": {
+    "ip": "10.20.1.11"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c000001f-0000-4000-8000-000000000000",
+   "at": "2026-10-27T09:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент отчётов",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T09:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000022-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000b-0000-4000-8000-000000000000",
+   "at": "2026-10-27T09:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент отчётов»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T09:10:00Z",
+   "fields": {
+    "ip": "10.20.1.10"
+   },
+   "actor": "admin"
+  },
+  {
+   "id": "c000001e-0000-4000-8000-000000000000",
+   "at": "2026-10-27T08:40:00Z",
+   "category": "info",
+   "text": "Агент закончил · Агент поддержки",
+   "source": "agent",
+   "kind": "done",
+   "occurredAt": "2026-10-27T08:40:00Z",
+   "fields": {},
+   "actor": "система",
+   "deviceId": "30000021-0000-4000-8000-000000000000"
+  },
+  {
+   "id": "c000000a-0000-4000-8000-000000000000",
+   "at": "2026-10-27T08:10:00Z",
+   "category": "audit",
+   "text": "Изменён агент «Агент поддержки»",
+   "source": "backend",
+   "kind": "audit",
+   "occurredAt": "2026-10-27T08:10:00Z",
+   "fields": {
+    "ip": "10.20.1.9"
+   },
    "actor": "admin"
   }
  ],
@@ -1728,7 +2118,15 @@
     "target": true
    }
   ],
-  "ruleControls": [],
+  "ruleControls": [
+   {
+    "control": "ask",
+    "branches": [
+     "yes",
+     "no"
+    ]
+   }
+  ],
   "ruleFeatures": [],
   "layouts": [],
   "monitors": [],
@@ -1911,7 +2309,10 @@
     "openUnitSetupUi",
     "validateUnits"
    ],
-   "features": []
+   "features": [
+    "journalSearch",
+    "journalAudit"
+   ]
   },
   "serverLabels": [],
   "ruleStarts": [
@@ -1932,11 +2333,5 @@
  "archiveWatches": [],
  "archiveScans": [],
  "relays": [],
- "stand": {
-  "journal": {
-   "count": 50,
-   "days": 30,
-   "seed": 20261110
-  }
- }
+ "stand": {}
 }

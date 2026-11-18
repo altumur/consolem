@@ -147,7 +147,7 @@
     const on = await env.ok("POST", "/rules", blank({ steps: [act("preset", dev(dev0.id), { preset: dev0.presetMax + 1 })] }));
     assert.eq(on.status.state, "unfit", "не годится");
     assert.ok(on.status.reason.includes(String(dev0.presetMax + 1)), "причина: " + on.status.reason);
-  });
+  }, { needs: ["kind:camera"] });
 
   test("Правило: уточнение события открыто — любой ключ, тип значения сохраняется, сравнение строгое", async () => {
     const env = await makeEnv();
@@ -208,7 +208,7 @@
     assert.eq(made.status.state, "unfit", "не годится");
     const f = await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() });
     assert.eq([f.steps[0].state, f.steps[0].reason.code, f.result], ["fail", "target.noRecord", "fail"], "шаг");
-  });
+  }, { needs: ["kind:camera"] });
 
   /* ----- Цели и права ----- */
 
@@ -226,7 +226,7 @@
     await env.ok("PATCH", `/units/${other.id}`, { folders: (u.folders || []).concat(f.id) }, { "If-Match": `"${u.version}"` });
     const n1 = (await env.ok("POST", `/rules/${made.id}/run`, { idempotencyKey: ApiTest.key() })).steps.length;
     assert.eq([n1, (await env.ok("GET", `/rules/${made.id}`)).version], [n0 + 1, made.version], "шаг на новую камеру, версия та же");
-  }, { needs: ["patchUnit"] });
+  }, { needs: ["kind:camera", "patchUnit"] });
 
   test("Права: автор отвечает за всё, что называет правило; нет права — 403, ничего не записано", async () => {
     const env = await makeEnv({ actAs: guard.login });

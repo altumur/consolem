@@ -162,7 +162,7 @@
     assert.ok(kinds.some((k) => k.id === "api.patchUnit" && k.level === "audit"), "вид записи — в каталоге");
     const mine = await env.list(`/journal?limit=1000&actor=${encodeURIComponent(me.login)}&kind=api.patchUnit`);
     assert.ok(mine.some((e) => e.id === top.id), "отбор по автору находит запись");
-  }, { needs: ["feature:journalSearch", "feature:journalAudit", "listJournal", "patchUnit"] });
+  }, { needs: ["feature:journalSearch", "feature:journalAudit", "listJournal", "patchUnit", "kind:camera"] });
 
   test("Журнал: аудит — секреты не попадают в запись и в CSV; каждое удаление — своя запись с именем (0.9.0)", async () => {
     const env = await makeEnv();

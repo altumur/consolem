@@ -153,7 +153,7 @@
     const alarms = await env.list("/journal?category=alarm");
     assert.ok(alarms.length && alarms.every((e) => e.category === "alarm"), "только тревоги");
     assert.eq(alarms.length, all.filter((e) => e.category === "alarm").length, "все тревоги");
-  }, { needs: ["kind:camera"] });
+  });
 
   test("Срабатывания правила: только этого правила, новые первыми", async () => {
     const env = await makeEnv();
@@ -187,7 +187,7 @@
     assert.eq((await env.ok("GET", "/me")).login, other.login, "кто");
     assert.status(await env.call("POST", "/test/reset", { fixture: "demo", actAs: "no-such-login" }), 404, "NOT_FOUND", "нет такого логина");
     assert.status(await env.call("POST", "/test/reset", { fixture: "other" }), 422, "VALIDATION_FAILED", "нет такого набора — не по контракту");
-  }, { needs: ["kind:camera"] });
+  });
 
   test("Стенд: часы стоят и идут только по /test/clock; назад — нельзя", async () => {
     const env = await makeEnv();
