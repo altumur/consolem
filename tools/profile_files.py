@@ -301,3 +301,152 @@ def render_md(doc, kinds):
         what = row["what"] + (f" Снято: {', '.join(f'`{r}`' for r in row['removed'])}." if row.get("removed") else "")
         lines.append(f"| {row['version']} | {_cell(what)} |")
     return "\n".join(lines) + "\n"
+
+
+# ── Проверки профилей 1–3: чистые функции, git не трогают ──
+def type_fits(kind_schema, profile_schema):
+    """Тип поля вида вмещается в тип поля профиля: типы вида ⊆ типов профиля,
+    у массива то же для items, x-ref равны."""
+    kt, ki, kr = type_sig(kind_schema)
+    pt, pi, pr = type_sig(profile_schema)
+    if not kt <= pt or kr != pr:
+        return False
+    if ki is not None and pi is not None:
+        return type_fits(kind_schema["items"], profile_schema["items"])
+    return True
+
+
+def kind_problems(docs, kinds):
+    """Проверка 1: у каждого вида с профилем из docs в implements каждое поле профиля,
+    которое есть в схеме вида, проходит type_fits. Есть ли поле хоть у одного вида — смотрит check_units."""
+    by_id = {d["id"]: d for d in docs}
+    out = []
+    for kind in kinds:
+        props = (kind.get("schema") or {}).get("properties") or {}
+        for pid in kind.get("implements") or []:
+            doc = by_id.get(pid)
+            if not doc:
+                continue
+            for name, field in (doc.get("properties") or {}).items():
+                if name not in props:
+                    continue
+                ksig, psig = type_sig(props[name]), type_sig(field["schema"])
+                if not type_fits(props[name], field["schema"]):
+                    what = "x-ref не тот" if ksig[2] != psig[2] else "тип шире, чем в профиле"
+                    out.append(f"вид {kind['kind']}, профиль {pid}, поле {name}: {what} "
+                               f"(у вида {type_text(props[name])}, у профиля {type_text(field['schema'])})")
+    return out
+
+
+def fixture_profile_problems(fixture_profiles, docs, whole):
+    """Профили набора против файлов. whole (эталонный набор): запись равна profile_wire(файла), id те же.
+    Иначе: id есть среди файлов, version та же, properties, status, apis — подмножества."""
+    by_id = {d["id"]: d for d in docs}
+    out = []
+    ids = set()
+    for rec in fixture_profiles:
+        pid = rec.get("id")
+        ids.add(pid)
+        doc = by_id.get(pid)
+        if doc is None:
+            out.append(f"профиль {pid} набора: файла профиля нет")
+            continue
+        wire = profile_wire(doc)
+        if whole:
+            if rec != wire:
+                diff = sorted(k for k in set(rec) | set(wire) if rec.get(k) != wire.get(k))
+                out.append(f"профиль {pid} эталона не равен файлу {doc.get('_file', '')}: отличаются {', '.join(diff)}")
+            continue
+        if rec.get("version") != wire["version"]:
+            out.append(f"профиль {pid} набора: version {rec.get('version')}, в файле {wire['version']}")
+        for key in ("properties", "status", "apis"):
+            extra = sorted(set(rec.get(key) or []) - set(wire.get(key) or []))
+            if extra:
+                out.append(f"профиль {pid} набора: в {key} лишнее {', '.join(extra)}, в файле этого нет")
+    if whole:
+        for pid in sorted(set(by_id) - ids):
+            out.append(f"профиль {pid} есть в файлах, а в эталоне его нет")
+    return out
+
+
+def history_problems(cur, base):
+    """Проверка 2: файл против того же файла в origin/main (base; None — профиль новый).
+    При одной старшей версии: версия не ниже; у старого поля тот же тип и since; снятое поле или путь —
+    ошибка; новое поле или путь требует новой младшей версии, а since нового поля — новее версии в base."""
+    if base is None:
+        return []
+    pid = cur["id"]
+    cm, bm = major_of(cur["id"]), major_of(base["id"])
+    if cm < bm:
+        return [f"профиль {pid}: старшая версия {cm} меньше, чем в origin/main ({bm})"]
+    if cm > bm:
+        return []
+    cv, bv = parse_version(cur["version"]), parse_version(base["version"])
+    if cv < bv:
+        return [f"профиль {pid}: версия {cur['version']} ниже, чем в origin/main ({base['version']})"]
+    grew = cv > bv
+    out = []
+    for section in ("properties", "status"):
+        old, new = base.get(section) or {}, cur.get(section) or {}
+        for name, f in old.items():
+            if name not in new:
+                out.append(f"профиль {pid}: поле {name} ({section}) снято при той же старшей версии; снимать можно только в {profile_name(pid)}/{cm + 1}")
+                continue
+            if type_sig(new[name]["schema"]) != type_sig(f["schema"]):
+                out.append(f"профиль {pid}: у поля {name} поменялся тип при той же старшей версии")
+            if new[name]["since"] != f["since"]:
+                out.append(f"профиль {pid}: у поля {name} поменялся since ({f['since']} → {new[name]['since']})")
+        for name, f in new.items():
+            if name in old:
+                continue
+            if not grew:
+                out.append(f"профиль {pid}: новое поле {name} без новой младшей версии (в origin/main {base['version']})")
+            elif _ver(f.get("since")) is not None and _ver(f["since"]) <= bv:
+                out.append(f"профиль {pid}: since {f['since']} у нового поля {name} не новее версии в origin/main ({base['version']})")
+    old_apis, new_apis = base.get("apis") or [], cur.get("apis") or []
+    for a in old_apis:
+        if a not in new_apis:
+            out.append(f"профиль {pid}: путь {a} снят при той же старшей версии")
+    for a in new_apis:
+        if a not in old_apis and not grew:
+            out.append(f"профиль {pid}: новый путь {a} без новой младшей версии (в origin/main {base['version']})")
+    return out
+
+
+def _refs(schema, found):
+    ref = schema.get("x-ref")
+    if isinstance(ref, dict):
+        found.update(ref.get("implements") or [])
+    if isinstance(schema.get("items"), dict):
+        _refs(schema["items"], found)
+    for sub in (schema.get("properties") or {}).values():
+        if isinstance(sub, dict):
+            _refs(sub, found)
+
+
+def uses_problems(docs):
+    """Проверка 3: каждая зависимость из uses — файл с тем же id и версией не ниже указанной;
+    каждый x-ref.implements в полях профиля, кроме своего id, назван в uses."""
+    by_id = {d["id"]: d for d in docs}
+    out = []
+    for doc in docs:
+        pid = doc["id"]
+        used = {u["id"] for u in doc.get("uses") or []}
+        for u in doc.get("uses") or []:
+            uid = u["id"]
+            dep = by_id.get(uid)
+            if dep is None:
+                others = sorted(i for i in by_id if profile_name(i) == profile_name(uid))
+                if others:
+                    out.append(f"профиль {pid}: зависимость {uid}, а есть только {', '.join(others)} — проверить зависимых")
+                else:
+                    out.append(f"профиль {pid}: зависимость {uid} — файла профиля нет")
+            elif parse_version(dep["version"]) < parse_version(u["version"]):
+                out.append(f"профиль {pid}: зависимость {uid} с {u['version']}, а в файле {dep['version']}")
+        for section in ("properties", "status"):
+            for name, f in (doc.get(section) or {}).items():
+                refs = set()
+                _refs(f["schema"], refs)
+                for r in sorted(refs - used - {pid}):
+                    out.append(f"профиль {pid}, поле {name}: x-ref на {r}, а в uses строки для него нет")
+    return out

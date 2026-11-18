@@ -141,5 +141,105 @@ with tempfile.TemporaryDirectory() as d:
     ok(named, "load_profiles: сломанный JSON — ValueError с именем файла")
     ok(load_profiles(os.path.join(d, "nope")) == [], "load_profiles: нет папки — пустой список")
 
+# ── Проверки профилей 1–3: чистые функции (Н5: у kind_problems нет параметра whole) ──
+def with_prop(kind, name, schema):
+    k = copy.deepcopy(kind)
+    k["schema"]["properties"][name] = schema
+    return k
+
+
+def prop_type(doc, name, t):
+    d = copy.deepcopy(doc)
+    d["properties"][name]["schema"]["type"] = t
+    return d
+
+
+def prop_since(doc, name, since):
+    d = copy.deepcopy(doc)
+    d["properties"][name]["since"] = since
+    return d
+
+
+def add_prop(doc, name, since):
+    d = copy.deepcopy(doc)
+    d["properties"][name] = {"schema": {"type": "string"}, "meaning": "Новое поле.", "since": since}
+    return d
+
+
+def drop_prop(doc, name):
+    d = copy.deepcopy(doc)
+    del d["properties"][name]
+    return d
+
+
+def bump(doc, version):
+    d = copy.deepcopy(doc)
+    d["version"] = version
+    d["changes"].insert(0, {"version": version, "what": "Правка."})
+    return d
+
+
+def as_major2(doc):
+    d = copy.deepcopy(doc)
+    d["id"] = profile_name(d["id"]) + "/2"
+    d["version"] = "2.0"
+    for sec in ("properties", "status"):
+        for f in d.get(sec, {}).values():
+            f["since"] = "2.0"
+    d["changes"] = [{"version": "2.0", "what": "Новая старшая версия."}]
+    return d
+
+
+def profile(pid, version, uses=()):
+    return {"id": pid, "version": version, "label": "Профиль", "owner": "mockup", "reviewers": ["w2c"],
+            "uses": list(uses), "properties": {}, "changes": [{"version": version, "what": "Профиль создан."}]}
+
+
+from profile_files import fixture_profile_problems, history_problems, kind_problems, type_fits, uses_problems  # noqa: E402
+
+cam = {"kind": "camera", "implements": ["vms.camera/1"], "schema": {"type": "object", "properties": {"archiveId": {"type": ["string", "null"], "x-ref": {"implements": ["vms.archive/1"]}}}}}
+ok(kind_problems([GOOD], [cam]) == [], "вид несёт поле того же типа")
+ok(says(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": "integer"})]), "archiveId"), "другой тип — ошибка")
+ok(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": "null", "x-ref": {"implements": ["vms.archive/1"]}})]) == [], "вид сужает тип")
+ok(says(kind_problems([prop_type(GOOD, "archiveId", "string")], [cam]), "archiveId"), "вид расширяет тип — ошибка")
+ok(says(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": ["string", "null"], "x-ref": {"implements": ["vms.camera/1"]}})]), "x-ref"), "ссылка на другой профиль — ошибка")
+ok(kind_problems([GOOD], [dict(cam, implements=["vms.other/1"], schema={"type": "object", "properties": {"archiveId": {"type": "integer"}}})]) == [], "вид без этого профиля не проверяется")
+ok(type_fits({"type": "array", "items": {"type": "string"}}, {"type": "array", "items": {"type": ["string", "null"]}})
+   and not type_fits({"type": "array", "items": {"type": "integer"}}, {"type": "array", "items": {"type": "string"}}), "type_fits: у массива сравниваются items")
+ok(fixture_profile_problems([profile_wire(GOOD)], [GOOD], whole=True) == [], "эталон — запись как из файла")
+ok(says(fixture_profile_problems([dict(profile_wire(GOOD), version="1.4")], [GOOD], whole=True), "vms.camera/1"), "эталон отстал от файла")
+ok(says(fixture_profile_problems([], [GOOD], whole=True), "vms.camera/1"), "эталон без профиля из файла")
+part = dict(profile_wire(GOOD), properties=["archiveId"])
+ok(fixture_profile_problems([part], [GOOD], whole=False) == [], "набор с частью полей")
+ok(says(fixture_profile_problems([dict(part, properties=["archiveId", "fps"])], [GOOD], whole=False), "fps"), "лишнее имя — ошибка")
+ok(says(fixture_profile_problems([dict(part, version="1.4")], [GOOD], whole=False), "version"), "другая версия — ошибка")
+ok(says(fixture_profile_problems([dict(part, id="vms.nope/1")], [GOOD], whole=False), "vms.nope/1"), "профиля нет среди файлов")
+
+base = GOOD
+ok(history_problems(GOOD, None) == [], "нового профиля в origin/main нет")
+ok(history_problems(GOOD, base) == [], "без правок")
+ok(says(history_problems(add_prop(GOOD, "noiseReduction", since="1.5"), base), "noiseReduction"), "новое поле без новой младшей версии")
+ok(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.6"), "1.6"), base) == [], "новое поле с версией 1.6")
+ok(says(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.5"), "1.6"), base), "since"), "since нового поля — не новее версии в origin/main")
+ok(says(history_problems(drop_prop(GOOD, "privacyMasks"), base), "privacyMasks"), "поле снято в той же старшей")
+ok(history_problems(as_major2(drop_prop(GOOD, "privacyMasks")), base) == [], "поле снято в vms.camera/2")
+ok(says(history_problems(prop_type(GOOD, "archiveId", "string"), base), "archiveId"), "тип поменялся в той же старшей")
+ok(says(history_problems(bump(GOOD, "1.4"), base), "1.4"), "версия ниже, чем в origin/main")
+ok(says(history_problems(prop_since(GOOD, "archiveId", "1.3"), base), "archiveId"), "since старого поля поменялся")
+ok(says(history_problems(dict(GOOD, apis=["recording-target"]), base), "recording-days"), "путь снят в той же старшей")
+ok(says(history_problems(dict(GOOD, apis=["recording-target", "recording-days", "x"]), base), "x"), "новый путь без новой младшей версии")
+ok(says(history_problems(dict(GOOD, id="vms.camera/0"), dict(GOOD)), "старш"), "старшая версия уменьшилась")
+
+arch = profile("vms.archive/1", "1.2")
+pos = profile("vms.pos/1", "1.0", uses=[{"id": "vms.camera/1", "version": "1.5"}])
+ok(uses_problems([GOOD, arch, pos]) == [], "зависимости есть, версии не ниже")
+ok(says(uses_problems([GOOD, arch, dict(pos, uses=[{"id": "vms.camera/1", "version": "1.6"}])]), "1.6"), "зависимость младше указанной")
+ok(says(uses_problems([as_major2(GOOD), arch, pos]), "vms.camera/2"), "у зависимости новая старшая — касса задета")
+ok(says(uses_problems([GOOD, pos]), "vms.archive/1"), "зависимости нет среди профилей")
+ok(says(uses_problems([dict(GOOD, uses=[]), arch]), "x-ref"), "x-ref на профиль без строки в uses")
+det = profile("vms.detector/1", "1.0", uses=[{"id": "vms.camera/1", "version": "1.0"}])
+cam2 = dict(GOOD, uses=GOOD["uses"] + [{"id": "vms.detector/1", "version": "1.0"}])
+ok(uses_problems([cam2, arch, det]) == [], "взаимные зависимости разрешены")
+
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)
