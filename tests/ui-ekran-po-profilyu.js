@@ -388,6 +388,12 @@ UiCheck(async ({ ok, until }) => {
         hwAddUnits([copyU(sid2, "Созданный сервер формы по схеме")]);
         const n2 = find(sid2)?.n;
         ok(!!n2 && isSchemaNode(n2) && !asHandSrv(sid2), "ответ POST /units (hwAddUnits): сервер без vms.server/1 — узел формы по схеме, не сервер экрана");
+        // Запись узла (unitRec): форма записи — по ручному экрану, а не по коду вида: родитель и «есть дочерние» не теряются
+        const sid3 = "2fffffff-0000-4000-8000-0000000000ac";
+        const r = unitRec(Object.assign(copyU(sid3, "Запись формы по схеме"), { parentId: "2fffffff-0000-4000-8000-0000000000ad", hasChildren: true }));
+        unitProps.delete(sid3);
+        ok(r.type === "server" && r.parentId === "2fffffff-0000-4000-8000-0000000000ad" && r.hasChildren === true,
+          "unitRec: сервер без vms.server/1 — запись формы по схеме с parentId и hasChildren, а не запись экрана сервера: " + JSON.stringify({ type: r.type, parentId: r.parentId, hasChildren: r.hasChildren }));
       } finally {
         API.get = realGet;
         slice = wasSlice;
