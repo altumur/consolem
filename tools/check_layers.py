@@ -198,5 +198,36 @@ s = base()
 s["paths"][POS_PATH]["get"]["responses"]["200"]["description"] = "vms.camera/1 в описании пути — это не поле схемы"
 ok(problems(s) == problems(base()), "описание операции S5 не трогает")
 
+# ── не строка в x-layer ──
+s = base()
+s["components"]["schemas"]["PosRawLine"]["x-layer"] = ["vms"]
+try:
+    got = problems(s)
+except TypeError as e:
+    got = [f"TypeError {e}"]
+ok(any("PosRawLine" in p and "x-layer" in p and "нет такого профиля" in p for p in got), "S2: x-layer не строка — отказ, а не исключение")
+s = base()
+s["paths"]["/units"]["get"]["x-layer"] = ["vms"]
+ok(any("/units" in p and "x-layer только" in p for p in problems(s)), "S1: x-layer не строка в операции")
+s = base()
+s["components"]["schemas"]["Unit"]["properties"]["x-layer"] = {"type": "string"}
+ok(problems(s) == problems(base()), "поле с именем x-layer — не пометка")
+
+# ── сломанный файл профиля ──
+import tempfile
+with tempfile.TemporaryDirectory() as tmp:
+    os.makedirs(os.path.join(tmp, "profiles"))
+    with open(os.path.join(tmp, "profiles", "vms.test.json"), "w", encoding="utf-8") as f:
+        f.write("{ не json")
+    for what, fn in (("profile_ids", lambda: layers.profile_ids(tmp)), ("owner_of", lambda: layers.owner_of("vms.test/1", tmp)),
+                     ("reviewers_of", lambda: layers.reviewers_of("vms.test/1", tmp))):
+        try:
+            fn()
+            raised = False
+        except ValueError as e:
+            raised = "vms.test.json" in str(e)
+        ok(raised, f"{what}: сломанный файл профиля — ValueError с именем файла")
+ok(layers.owner_of("vms.nope/1") == "mockup", "owner_of: нет файла — умолчание")
+
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)

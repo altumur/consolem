@@ -958,7 +958,11 @@ def check_core_field(rep, spec):
 
 def check_layers(rep, spec):
     """Граница слоёв: правила S1–S5 в tools/layers.py."""
-    problems = layers.static_problems(spec, layers.profile_ids(API))
+    try:
+        problems = layers.static_problems(spec, layers.profile_ids(API))
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail("Граница слоёв: поля подсистем в общих схемах", [str(e)])
+        return
     schemas = [n for n in spec["components"]["schemas"] if layers.layer_of_schema(spec, n)]
     paths = [p for p in spec["paths"] if layers.layer_of_path(spec, p)]
     leaks = layers.leak_marks(spec)

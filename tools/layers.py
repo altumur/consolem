@@ -73,11 +73,15 @@ def _abs(rel):
 
 
 def _load(rel):
-    try:
-        with open(_abs(rel), encoding="utf-8") as f:
-            return json.load(f)
-    except (OSError, ValueError):
+    """JSON-файл; None — файла нет. Сломанный файл — ValueError с его именем: молчаливое умолчание скрыло бы ошибку."""
+    path = _abs(rel)
+    if not os.path.exists(path):
         return None
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except ValueError as e:
+        raise ValueError(f"{rel}: не читается как JSON — {e}") from e
 
 
 def profile_file(pid, api_dir="api"):
@@ -146,15 +150,15 @@ class _Scan:
         self.leaks = {}           # путь поля → слой (пометки внутри непомеченных схем)
         self.mentions = set()     # пути полей, в описании которых есть id профиля
         self.problems = []
-        self._mark(spec, spec)
+        self._mark(spec)
 
     def _value(self, where, node):
         self.allowed.add(id(node))
         v = node["x-layer"]
-        if v not in self.valid:
+        if not isinstance(v, str) or v not in self.valid:
             self.problems.append(f"{where}: x-layer {v} — нет такого профиля")
 
-    def _mark(self, spec, _):
+    def _mark(self, spec):
         for name, schema in self.schemas.items():
             if not isinstance(schema, dict):
                 continue
@@ -222,13 +226,13 @@ def leak_marks(spec):
     return dict(_scan(spec, set()).leaks)
 
 
-def _unplaced(node, where, allowed, out):
-    """S1: любой x-layer (строка) вне допустимых мест."""
+def _unplaced(node, where, allowed, out, names=False):
+    """S1: любой x-layer (какого угодно типа) вне допустимых мест. names — node это перечень properties: его ключи — имена полей."""
     if isinstance(node, dict):
-        if isinstance(node.get("x-layer"), str) and id(node) not in allowed:
+        if not names and "x-layer" in node and id(node) not in allowed:
             out.append(f"{where}: x-layer только у схемы, пути или поля общей схемы")
         for k, v in node.items():
-            _unplaced(v, f"{where}.{k}" if where else k, allowed, out)
+            _unplaced(v, f"{where}.{k}" if where else k, allowed, out, names=(k == "properties" and isinstance(v, dict) and not names))
     elif isinstance(node, list):
         for i, v in enumerate(node):
             _unplaced(v, f"{where}[{i}]", allowed, out)
