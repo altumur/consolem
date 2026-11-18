@@ -61,6 +61,22 @@
   }
 
   class Failure extends Error {}
+  // Тест вызвал операцию, которой нет в capabilities.operations, и не назвал её в needs. Служебные вызовы harness
+  // (поток watch, /test/…, /reference, /kinds) идут через raw мимо защиты: ловится только то, что делает тест
+  class Undeclared extends Error {
+    constructor(op) {
+      super(op);
+      this.op = op;
+    }
+  }
+  function guard(method, path) {
+    const op = CAPS && ConsolemTestLayers.undeclaredOperation(spec, CAPS, method, path);
+    if (op) throw new Undeclared(op);
+  }
+  async function guarded(method, path, body, headers) {
+    guard(method, path);
+    return raw(method, path, body, headers);
+  }
   const fmt = (v) => JSON.stringify(v);
   const assert = {
     ok(cond, msg) {
@@ -93,15 +109,16 @@
     const env = {
       frozen,
       now: Date.parse(reset.body.now),
-      call: (method, path, body, headers) => raw(method, path, body, headers),
+      call: (method, path, body, headers) => guarded(method, path, body, headers),
       async ok(method, path, body, headers) {
-        const res = await raw(method, path, body, headers);
+        const res = await guarded(method, path, body, headers);
         if (res.status >= 400) throw new Failure(`${method} ${path} → ${res.status} ${res.body && res.body.code} ${res.body && res.body.message}`);
         return res.body;
       },
       // Поток ответа на POST: сообщения по порядку; каждое сверяется со схемой
       async stream(path, body) {
         const got = [];
+        guard("POST", path);
         await api.stream(path, body, (m) => {
           got.push(m);
           recorded.push({ method: "POST", template: path, status: 200, body: m, kind: "sse" });
@@ -136,7 +153,7 @@
       },
       // Версия записи для If-Match — из ETag свежего чтения, как у клиента, который только что её открыл
       async etag(path) {
-        const res = await raw("GET", path);
+        const res = await guarded("GET", path);
         if (res.status !== 200) throw new Failure(`GET ${path} → ${res.status}`);
         if (!res.headers.etag) throw new Failure(`GET ${path}: нет заголовка ETag`);
         return res.headers.etag;
@@ -145,7 +162,7 @@
       // остановленных часах: тест, который его вызывает, объявляет needs: ["clock"] или проверяет env.frozen
       async advance(sec) {
         if (!frozen) throw new Failure("часы идут по-настоящему: /test/clock не вызывается — тесту нужно needs: [\"clock\"]");
-        const res = await raw("POST", "/test/clock", { advanceSec: sec });
+        const res = await guarded("POST", "/test/clock", { advanceSec: sec });
         if (res.status !== 200) throw new Failure(`POST /test/clock → ${res.status}`);
         env.now = Date.parse(res.body.now);
         return res.body.fired;
@@ -176,7 +193,7 @@
         }, `операция ${id} завершилась`, maxSec),
       // Операция до конца: запустить и дождаться
       async runOperation(body) {
-        const res = await raw("POST", "/operations", body);
+        const res = await guarded("POST", "/operations", body);
         assert.status(res, 202, null, "POST /operations");
         return env.finished(res.body.id, 100);
       },
@@ -346,6 +363,19 @@
         const note = await t.fn();
         lines.push(`PASS  ${t.name}${note ? ` — ${note}` : ""}`);
       } catch (err) {
+        if (err instanceof Undeclared) {
+          if (!apiBase || apiBase === "loopback") {
+            // Встроенный сервер объявляет всё, что умеет: необъявленный вызов — ошибка теста
+            failed += 1;
+            lines.push(`FAIL  ${t.name} — тест вызвал операцию ${err.op}, которую система не объявила; назвать её в needs`);
+          } else {
+            // Стенд бэкенда умеет не всё: тест пропускается, как при нехватке needs
+            skipped += 1;
+            t.needs.forEach((n) => waived.add(n));
+            lines.push(`SKIP  ${t.name} — система не объявила операцию ${err.op}; тест не назвал её в needs`);
+          }
+          continue;
+        }
         failed += 1;
         lines.push(`FAIL  ${t.name} — ${err instanceof Failure ? err.message : err && err.stack ? err.stack.split("\n").slice(0, 2).join(" ") : JSON.stringify(err)}`);
       }

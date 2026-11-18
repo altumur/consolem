@@ -185,11 +185,74 @@ def check_marking():
         ok(got == want, f"образец раскладки: {file}{' «' + prefix + '…»' if prefix else ''} → {sorted(got)}")
 
 
+GUARD_FILE = """(() => {
+  ApiTest.fileLayer("mechanism");
+  ApiTest.test("защита: необъявленная операция", async () => {
+    const env = await ApiTest.makeEnv();
+    await env.ok("GET", "/licenses");
+  });
+  ApiTest.test("защита: адрес вне контракта", async () => {
+    const env = await ApiTest.makeEnv();
+    const res = await env.call("GET", "/no-such-thing");
+    if (res.status !== 404 || res.body.code !== "NO_ROUTE") throw new Error("ждали 404 NO_ROUTE, пришло " + res.status);
+  });
+  ApiTest.loaded("api-zz-guard.js");
+})();
+"""
+
+
+def guard_copy(minimal):
+    copy = tempfile.mkdtemp(prefix=".tests-guard-", dir=ROOT)
+    for name in os.listdir(os.path.join(ROOT, "tests")):
+        src = os.path.join(ROOT, "tests", name)
+        if os.path.isfile(src):
+            shutil.copy(src, copy)
+    with open(os.path.join(copy, "api-zz-guard.js"), "w", encoding="utf-8") as f:
+        f.write(GUARD_FILE)
+    page = os.path.join(copy, "api.html")
+    text = open(page, encoding="utf-8").read()
+    if minimal:  # только механизм и защита: прогон на стенде короткий, и его отчёт виден целиком
+        text = re.sub(r'    <script src="api-(?!zz)[a-z]+\.js"></script>\n', "", text)
+    text = text.replace("<script>\n      ApiTest.run();", '<script src="api-zz-guard.js"></script>\n    <script>\n      ApiTest.run();', 1)
+    open(page, "w", encoding="utf-8").write(text)
+    return copy
+
+
+def run_tool(args):
+    res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", args[0])] + args[1:], capture_output=True, text=True, timeout=600, cwd=ROOT)
+    return res.stdout
+
+
+def check_undeclared():
+    print("-- Необъявленная операция")
+    msg = "защита: необъявленная операция — тест вызвал операцию listLicenses, которую система не объявила; назвать её в needs"
+    only = ["--fixture", "one-domain", "--only"]
+    copy = guard_copy(False)
+    try:
+        out = run_tool(["run_api_tests.py", "--tests", copy] + only + ["защита: необъявленная операция"])
+        ok(any(l.startswith("FAIL  ") and msg in l for l in out.splitlines()) and "RESULT fail" in out,
+           "встроенный сервер: FAIL «тест вызвал операцию listLicenses, которую система не объявила»: " + repr((out.strip().splitlines() or [""])[-3:]))
+        out = run_tool(["run_api_tests.py", "--tests", copy] + only + ["защита: адрес вне контракта"])
+        ok(any(l.startswith("PASS  защита: адрес вне контракта") for l in out.splitlines()) and "RESULT pass" in out,
+           "адрес вне контракта по-прежнему отвечает 404 NO_ROUTE: " + repr((out.strip().splitlines() or [""])[-3:]))
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    copy = guard_copy(True)
+    try:
+        out = run_tool(["check_stand.py", "--tests", copy, "--fixture", "one-domain", "--clock", "real"])
+        want = "SKIP  защита: необъявленная операция — система не объявила операцию listLicenses; тест не назвал её в needs"
+        ok(want in out, "стенд бэкенда: SKIP «система не объявила операцию listLicenses»" + ("" if want in out else f": {out[-600:]!r}"))
+        ok("FAIL  защита" not in out and "Unhandled" not in out, "стенд бэкенда: тестов защиты без FAIL")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+
+
 def main():
     check_functions()
     check_registry()
     check_registry_count()
     check_marking()
+    check_undeclared()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0
 
