@@ -4467,12 +4467,14 @@ function nodeProps(n){return kindProps(nodeKind(n))}
 function profileKinds(id){return[...KINDS.keys()].filter(k=>(KINDS.get(k).implements||[]).includes(id))}
 // Узел ручного экрана камеры: узел формы по схеме с кодом camera (вид без vms.camera/1) — не камера этого экрана
 function handCam(n){return!!n&&n.type==="camera"&&!n._schema}
+// Тип узла в списке типов экранов (массив или Set); камера — только узел ручного экрана камеры (handCam)
+function typeIn(n,list){return!!n&&(list.has?list.has(n.type):list.includes(n.type))&&(n.type!=="camera"||handCam(n))}
 // Вид для нового объекта (POST /units): из видов того же ручного экрана — тот, что умеет create под таким родителем
-// (createParents; null — корень). Вид с кодом экрана — первым, если подходит; ни один не подошёл — сам код. Поддетектор
+// (createParents; null — корень; нет поля — вид создают только дочерней строкой нового родителя). Вид с кодом экрана — первым, если подходит; ни один не подошёл — сам код. Поддетектор
 // ручного экрана не имеет: его виды — по профилю (CREATE_PROFILE)
 const CREATE_PROFILE={subdet:"vms.subdetector/1"};
 function kindToCreate(code,parentKind){
-  const pk=parentKind??null,ok=k=>kindCan(k,"create")&&(KINDS.get(k).createParents||[null]).includes(pk);
+  const pk=parentKind??null,ok=k=>kindCan(k,"create")&&(KINDS.get(k).createParents||[]).includes(pk);
   const ks=CREATE_PROFILE[code]?[code,...profileKinds(CREATE_PROFILE[code])]:kindsLike(code);
   if(ks.includes(code)&&KINDS.has(code)&&ok(code))return code;
   return ks.find(k=>KINDS.has(k)&&ok(k))||code;
@@ -6728,7 +6730,7 @@ function ruleRefItems(r){
 function ruleStepDevices(it,src){
   const kd=actionKind(it),ok=kd.devTypes;
   if(!ok.length)return kd.via?[find(kd.via)?.n].filter(Boolean):[];   // действие без устройства; письмо идёт через оповещатель
-  if(it.ref==="$src")return(src||[]).map(id=>find(id)?.n).filter(n=>n&&ok.includes(n.type));
+  if(it.ref==="$src")return(src||[]).map(id=>find(id)?.n).filter(n=>typeIn(n,ok));
   if(refIsGroup(it.ref))return refNodes(it.ref,ok);
   return[refNode(it.ref)].filter(Boolean);
 }
@@ -8129,7 +8131,7 @@ function addContext(){
     parent=null;
   }else if(n&&n.type!=="unalloc"){
     server=srv(n.id);domain=server?domainOf(server.id):null;
-    if(["camera","channel"].includes(n.type)||(n.type==="ipsrv"&&n.subtype!=="nvr")||["acfa","acfa_lock"].includes(n.type))parent=n;
+    if(typeIn(n,["camera","channel"])||(n.type==="ipsrv"&&n.subtype!=="nvr")||["acfa","acfa_lock"].includes(n.type))parent=n;
   }
   return{node:n,domain,server,parent,view:tview};
 }
@@ -23637,7 +23639,7 @@ function refFits(ref,devTypes,slot){
   if(ref==="$src")return slot==="then";
   return refParts(ref).inc.every(t=>{
     if(t.startsWith("gone:")||refIsArea(t))return true;
-    const n=find(t)?.n;return!n||devTypes.includes(n.type);
+    const n=find(t)?.n;return!n||typeIn(n,devTypes);
   });
 }
 // «Устройство из события» имеет смысл, только если в «Если» есть событие
@@ -24607,7 +24609,7 @@ function rulePkDevShown(t){
 // «@edge» в типах пункта — только камеры со встроенным хранилищем (своим или регистратора): остальным камерам нечего реплицировать.
 // Метка живёт только в окне выбора (rulePk.dt)
 function ruleDtReal(dt){return dt.filter(t=>t[0]!=="@")}
-function ruleDtHit(n,dt){return dt.includes(n.type)&&(!dt.includes("@edge")||!!recEdge(n))}
+function ruleDtHit(n,dt){return typeIn(n,dt)&&(!dt.includes("@edge")||!!recEdge(n))}
 // Окно выбора камер для репликации: действие «Начать репликацию» и событие правила, где репликация берёт «устройство из события»
 function ruleSrcReplicates(r){return!!r&&edgeRepActs(r.then).some(a=>a.ref==="$src")}
 function ruleEdgeOnly(slot,it){return slot==="then"?it.action==="replicate":slot==="when"&&ruleSrcReplicates(curRule())&&triggerKind(it).devTypes.includes("camera")}
@@ -25247,7 +25249,7 @@ const RULE_LOGKIND=[
 function ruleLogKind(text){const h=RULE_LOGKIND.find(([re])=>re.test(text));return h?h[1]:null}
 function ruleLogDevice(text){
   let hit=null;
-  walkAll(n=>{if(!hit&&["camera","sensor","acfa_sensor"].includes(n.type)&&locName(n).length>2&&text.includes(locName(n)))hit=n});
+  walkAll(n=>{if(!hit&&typeIn(n,["camera","sensor","acfa_sensor"])&&locName(n).length>2&&text.includes(locName(n)))hit=n});
   return hit;
 }
 function ruleCheckCands(r){
@@ -25272,7 +25274,7 @@ function ruleCheckDevSel(tk,kd,cur,j){
 }
 function ruleCheckDevs(k){
   const out=[],seen=new Set();
-  walkAll(n=>{if(k.devTypes.includes(n.type)&&!seen.has(n.id)){seen.add(n.id);out.push(n)}});
+  walkAll(n=>{if(typeIn(n,k.devTypes)&&!seen.has(n.id)){seen.add(n.id);out.push(n)}});
   return out;
 }
 function ruleCheckOpen(){
@@ -25291,7 +25293,7 @@ function ruleCheckSet(k,v){
 function ruleCheckBr(key,v){rck.br=rck.br||{};rck.br[key]=v;ruleCheckRender()}
 function ruleCheckRow(j,k,v){
   const w=rck.rows[j];
-  if(k==="kind"){w.kind=+v;const kd=TRIGGER_KINDS[w.kind],n=find(w.ref)?.n;if(n&&!kd.devTypes.includes(n.type))w.ref=""}
+  if(k==="kind"){w.kind=+v;const kd=TRIGGER_KINDS[w.kind],n=find(w.ref)?.n;if(n&&!typeIn(n,kd.devTypes))w.ref=""}
   else w.ref=v;
   ruleCheckRender();
 }
@@ -25446,7 +25448,7 @@ function raApply(){
 }
 // Карточка нужна там, где устройство бывает событием или действием, и только на первой вкладке («Подключение»).
 function ruleUsesFor(n){
-  if(app!=="hw"||!["camera","sensor","relay","acfa_sensor","det"].includes(n.type)||lanTabOpen(n))return"";
+  if(app!=="hw"||!typeIn(n,["camera","sensor","relay","acfa_sensor","det"])||lanTabOpen(n))return"";
   if(n.type==="det")return"";// у детектора правила — разделом в столбце настроек (dwPanelHtml): карточка делится на две половины
   const tabs=tabsFor(n);
   if(tabs.length&&tab!==tabs[0][0])return"";
@@ -25466,7 +25468,7 @@ function ruleAudit(){return ruleMemo("audit",ruleAuditBuild)}
 // «Тот же объект»: устройство, на котором висят и реле, и вход (регистратор, СКУД, камера).
 function ruleHostId(n){
   const a=ruleAncestors(n);
-  const h=a.slice(1).find(x=>["ipsrv","acfa","camera"].includes(x.type));
+  const h=a.slice(1).find(x=>typeIn(x,["ipsrv","acfa","camera"]));
   return h?h.id:(a[1]||n).id;
 }
 function ruleAuditBuild(){
@@ -33143,7 +33145,7 @@ function toggleDeviceFieldsPop(e){
   renderDeviceWizard();
 }
 function configuredDevices(){
-  const out=[];domains.forEach(d=>d.servers.forEach(s=>walk(n=>{if(["camera","ipsrv","eventsrc","acfa"].includes(n.type))out.push(n)},s.devices,s)));return out;
+  const out=[];domains.forEach(d=>d.servers.forEach(s=>walk(n=>{if(typeIn(n,["camera","ipsrv","eventsrc","acfa"]))out.push(n)},s.devices,s)));return out;
 }
 function exactDeviceDuplicate(r){
   return configuredDevices().some(n=>n.ip===r.ip&&+(n.port||80)===+(r.port||80)&&n.mac&&r.mac&&n.mac.toLowerCase()===r.mac.toLowerCase());
@@ -35123,7 +35125,7 @@ function identifierTaken(server,value,excludeNodeId){
   if(!id||!server)return false;
   let taken=false;
   walk(n=>{
-    if(!["camera","ipsrv","eventsrc","acfa"].includes(n.type)||n.id===excludeNodeId)return;
+    if(!typeIn(n,["camera","ipsrv","eventsrc","acfa"])||n.id===excludeNodeId)return;
     if(deviceIdentifierValue(n)===id)taken=true;
   },server.devices||[],server);
   return taken;
@@ -35143,7 +35145,7 @@ function identifierConflict(list,server){
 function nextDeviceIdentifier(server){
   let max=0;
   walk(n=>{
-    if(["camera","ipsrv","eventsrc","acfa"].includes(n.type)){
+    if(typeIn(n,["camera","ipsrv","eventsrc","acfa"])){
       const v=+(deviceIdentifierValue(n)||0);
       if(v>max)max=v;
     }
@@ -36827,7 +36829,7 @@ function planRecRulesCreate(rows,done){
     const top=d.devices[0];
     if(planRowChannels(rows[d.index])<2)return[top];
     const n=top&&find(top.id)?.n;
-    return n?.type==="ipsrv"?(n.devices||[]).filter(c=>c.type==="camera"):[top];
+    return n?.type==="ipsrv"?(n.devices||[]).filter(handCam):[top];
   })
     .filter(d=>{const n=d&&find(d.id)?.n;return d&&!(n&&camRecMotionRules(n).length)});   // папку или сервер камеры уже пишет правило — второе не нужно
   if(!cams.length||!camRecRuleOk())return;
@@ -37314,7 +37316,7 @@ function parentOpts(type){
   const cp=KINDS.get(type)?.createParents,out=[];
   walkAll(d=>{
     if(nodeDomainId(d)!==wizd.domain)return;
-    if(cp?cp.includes(nodeKind(d)):type==="acfa"?d.type==="acfa":type==="relay"?ACS_TYPES.has(d.type):["acfa","camera","ipsrv"].includes(d.type))out.push(d);
+    if(cp?cp.includes(nodeKind(d)):type==="acfa"?d.type==="acfa":type==="relay"?ACS_TYPES.has(d.type):typeIn(d,["acfa","camera","ipsrv"]))out.push(d);
   });
   return out;
 }
@@ -38364,7 +38366,7 @@ function bulkScopeHtml(all){
 }
 // Что умеет объект — из этого собирается пересечение для «Все».
 const CREDS_TYPES=new Set(["camera","ipsrv","acfa","eventsrc"]);
-function canCreds(n){return CREDS_TYPES.has(n.type)}
+function canCreds(n){return typeIn(n,CREDS_TYPES)}
 function canFolder(n){return devicePool.includes(n)||(handCam(n)&&!!ipsrvOwnerNode(n))}
 // Параметры типа: у начинки — из справочника, у служб и детекторов — свои. Схема — вида узла n; без узла — вида с кодом
 // экрана
