@@ -66,7 +66,8 @@
   },
   "enabled": {
    "schema": {
-    "type": "boolean"
+    "type": "boolean",
+    "readOnly": true
    },
    "meaning": "«Включено»",
    "since": "1.1"
@@ -88,7 +89,8 @@
   },
   "short": {
    "schema": {
-    "type": "string"
+    "type": "string",
+    "readOnly": true
    },
    "meaning": "«Короткое имя»: Номер для показа в дереве («3.3.1»)",
    "since": "1.1"
