@@ -34,6 +34,7 @@
 | 0.22.0 | `params.with` в `409 BUSY`. Ломающая правка | `vms.detector/1` | `params.with` в `409 BUSY` |
 | 0.23.0 | Проверка `match.detector` при сохранении правила | `vms.detector/1` | `RuleTrigger.match.detector` |
 | 0.24.0 | Слои контракта: расширение `x-layer` у схем, путей и полей подсистем | механизм | `x-layer` |
+| 0.25.0 | Профили в файлах: `version` и `uses` у `Profile` | механизм | `Profile.version`, `Profile.uses`, `ProfileUse`, `api/profiles/` |
 
 ## Как дополнять
 

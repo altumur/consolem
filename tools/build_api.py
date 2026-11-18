@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Собрать api/openapi.js и api/fixture.js из api/openapi.json и наборов api/fixtures/*.json.
+"""Собрать раздел profiles в api/fixtures/demo.json, затем наборы, api/openapi.js и api/fixture.js.
+
+Источник раздела profiles — файлы api/profiles/*.json (формат — tools/profile_files.py): demo.json правят руками
+во всём, кроме этого раздела. Наборы one-domain, large, xl собирает tools/profile_fixture.py из demo.json.
 
 Страница прототипа и тесты открываются и с диска (file://), а там fetch JSON не
 работает. Поэтому контракт и наборы подключаются обычным <script>: window.CONSOLEM_OPENAPI,
@@ -13,9 +16,11 @@ window.CONSOLEM_FIXTURES (набор по имени) и window.CONSOLEM_FIXTURE
 """
 import json
 import os
+import subprocess
 import sys
 
 import cli_paths
+import profile_files
 
 API = cli_paths.opt("api", "api")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,6 +33,17 @@ OVERLAYS = ["xl"]
 def compact(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as f:
         return json.dumps(json.load(f), ensure_ascii=False, separators=(",", ":"))
+
+
+def render_demo():
+    """Текст demo.json: файл как есть, раздел profiles — из api/profiles/*.json (profile_wire)."""
+    path = os.path.join(ROOT, f"{API}/fixtures/demo.json")
+    with open(path, encoding="utf-8") as f:
+        fx = json.load(f)
+    docs = profile_files.load_profiles(os.path.join(ROOT, API))
+    if docs:
+        fx["profiles"] = [profile_files.profile_wire(d) for d in docs]
+    return json.dumps(fx, ensure_ascii=False, indent=1) + "\n"
 
 
 def render_openapi():
@@ -61,13 +77,25 @@ def render_fixtures():
             + "window.CONSOLEM_FIXTURE=window.CONSOLEM_FIXTURES.demo;\n")
 
 
-TARGETS = [(f"{API}/openapi.json", f"{API}/openapi.js", render_openapi), (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures)]
+# Порядок важен: demo.json ← профили, затем наборы из demo.json (profile_fixture.py), затем openapi.js и fixture.js
+TARGETS = [(f"{API}/profiles/*.json", f"{API}/fixtures/demo.json", render_demo, "раздел profiles отстал от api/profiles/"),
+           (None, None, None, None),  # наборы one-domain, large, xl — profile_fixture.py (в --check не запускается)
+           (f"{API}/openapi.json", f"{API}/openapi.js", render_openapi, None),
+           (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures, None)]
 
 
 def main():
     check = "--check" in sys.argv[1:]
     stale = []
-    for src, dst, render in TARGETS:
+    for src, dst, render, why in TARGETS:
+        if src is None:
+            if not check:
+                res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--api", API], text=True, capture_output=True)
+                sys.stdout.write(res.stdout)
+                if res.returncode:
+                    sys.stderr.write(res.stderr)
+                    return res.returncode
+            continue
         text = render()
         path = os.path.join(ROOT, dst)
         if check:
@@ -77,7 +105,7 @@ def main():
                         continue
             except FileNotFoundError:
                 pass
-            stale.append(f"{dst} отстал от {src}")
+            stale.append(f"{dst}: {why}" if why else f"{dst} отстал от {src}")
         else:
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)

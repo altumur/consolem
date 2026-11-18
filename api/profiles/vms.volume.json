@@ -1,0 +1,229 @@
+{
+ "id": "vms.volume/1",
+ "version": "1.0",
+ "label": "Том",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {
+  "account": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Учётная запись»",
+   "since": "1.0"
+  },
+  "bucket": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Корзина»",
+   "since": "1.0"
+  },
+  "confirmShrinkBytes": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0,
+    "x-transient": true
+   },
+   "meaning": "Второе подтверждение уменьшения: равно новому sizeBytes. Меньшая квота без него — 422 VALIDATION_FAILED, field: sizeBytes. Не хранится (не хранится)",
+   "since": "1.0"
+  },
+  "dir": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Папка»",
+   "since": "1.0"
+  },
+  "disk": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Диск»",
+   "since": "1.0"
+  },
+  "enabled": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "«Включено»: false — том выключен, состояние off. Поля нет — включён",
+   "since": "1.0"
+  },
+  "endpoint": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Адрес»",
+   "since": "1.0"
+  },
+  "file": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Файл»",
+   "since": "1.0"
+  },
+  "host": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Сервер»",
+   "since": "1.0"
+  },
+  "keyId": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Ключ доступа»",
+   "since": "1.0"
+  },
+  "login": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Имя пользователя»: Учётная запись NAS",
+   "since": "1.0"
+  },
+  "mode": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "part",
+     "file",
+     "dir"
+    ]
+   },
+   "meaning": "«Режим»",
+   "since": "1.0"
+  },
+  "password": {
+   "schema": {
+    "type": "string",
+    "writeOnly": true
+   },
+   "meaning": "«Пароль» (секрет (`writeOnly`))",
+   "since": "1.0"
+  },
+  "path": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Путь»",
+   "since": "1.0"
+  },
+  "port": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "«Порт»",
+   "since": "1.0"
+  },
+  "proto": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "http",
+     "https"
+    ]
+   },
+   "meaning": "«Протокол»",
+   "since": "1.0"
+  },
+  "region": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Регион»",
+   "since": "1.0"
+  },
+  "secret": {
+   "schema": {
+    "type": "string",
+    "writeOnly": true
+   },
+   "meaning": "«Секретный ключ» (секрет (`writeOnly`))",
+   "since": "1.0"
+  },
+  "sizeBytes": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "«Объём»",
+   "since": "1.0"
+  },
+  "state": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "ready",
+     "format",
+     "open",
+     "off",
+     "maint",
+     "broken",
+     "unfmt",
+     "error"
+    ],
+    "readOnly": true
+   },
+   "meaning": "«Состояние» (только чтение)",
+   "since": "1.0"
+  },
+  "style": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "path",
+     "vhost"
+    ]
+   },
+   "meaning": "«Вид адреса»",
+   "since": "1.0"
+  }
+ },
+ "status": {
+  "incidentsAtRisk": {
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "meaning": "том `incidents`: метки удержаний под угрозой перезаписи",
+   "since": "1.0"
+  },
+  "incidentsLost": {
+   "schema": {
+    "type": "object",
+    "additionalProperties": {
+     "type": "integer"
+    }
+   },
+   "meaning": "том `incidents`: удержанное и потом перезаписанное кольцом",
+   "since": "1.0"
+  },
+  "shrinkPendingBytes": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "объявленная меньшая квота, которую ещё не подтвердили (`confirmShrinkBytes`)",
+   "since": "1.0"
+  },
+  "usedPercent": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "заполненность тома, %",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

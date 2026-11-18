@@ -1,0 +1,166 @@
+{
+ "id": "vms.server/1",
+ "version": "1.0",
+ "label": "Сервер",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {
+  "allocated": {
+   "schema": {
+    "type": "boolean",
+    "readOnly": true
+   },
+   "meaning": "«Распределён»: False — сервер найден в сети домена, но ещё не добавлен («Нераспределённые») (только чтение)",
+   "since": "1.0"
+  },
+  "dns": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "DNS",
+   "since": "1.0"
+  },
+  "gateway": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "Шлюз",
+   "since": "1.0"
+  },
+  "ip": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«IP»",
+   "since": "1.0"
+  },
+  "labels": {
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "string"
+    }
+   },
+   "meaning": "Метки сервера: по ним размещаются камеры, детекторы, записи, правила",
+   "since": "1.0"
+  },
+  "netmask": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "Маска сети",
+   "since": "1.0"
+  },
+  "port": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "«Порт»",
+   "since": "1.0"
+  },
+  "role": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "primary",
+     "node",
+     "standby"
+    ]
+   },
+   "meaning": "«Роль»: Основной, узел, резервный",
+   "since": "1.0"
+  }
+ },
+ "status": {
+  "class": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "server",
+     "camera"
+    ]
+   },
+   "meaning": "чем представился стучащийся в домен: сервер или камера; человек подтверждает это при приёме",
+   "since": "1.0"
+  },
+  "disks": {
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "properties": {
+      "disk": {
+       "type": "string"
+      },
+      "sizeBytes": {
+       "type": "integer"
+      },
+      "system": {
+       "type": "boolean"
+      }
+     }
+    }
+   },
+   "meaning": "диски сервера: на них ставятся тома локальных хранилищ",
+   "since": "1.0"
+  },
+  "fingerprint": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "отпечаток стучащегося сервера: администратор сверяет его перед приёмом (`move` с `params.fingerprint`)",
+   "since": "1.0"
+  },
+  "gpu": {
+   "schema": {
+    "type": [
+     "object",
+     "null"
+    ],
+    "properties": {
+     "model": {
+      "type": "string"
+     },
+     "memoryBytes": {
+      "type": "integer"
+     },
+     "load": {
+      "type": "number"
+     }
+    }
+   },
+   "meaning": "видеокарта сервера: для серверных детекторов, метка `gpu`",
+   "since": "1.0"
+  },
+  "telemetry": {
+   "schema": {
+    "type": "object",
+    "properties": {
+     "cpu": {
+      "type": "number"
+     },
+     "ram": {
+      "type": "number"
+     },
+     "net": {
+      "type": "number"
+     },
+     "disk": {
+      "type": "number"
+     }
+    }
+   },
+   "meaning": "нагрузка сервера: процессор, память, сеть, диск",
+   "since": "1.0"
+  }
+ },
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

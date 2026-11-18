@@ -204,6 +204,9 @@ ok(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": "null", "x-ref": 
 ok(says(kind_problems([prop_type(GOOD, "archiveId", "string")], [cam]), "archiveId"), "вид расширяет тип — ошибка")
 ok(says(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": ["string", "null"], "x-ref": {"implements": ["vms.camera/1"]}})]), "x-ref"), "ссылка на другой профиль — ошибка")
 ok(kind_problems([GOOD], [dict(cam, implements=["vms.other/1"], schema={"type": "object", "properties": {"archiveId": {"type": "integer"}}})]) == [], "вид без этого профиля не проверяется")
+# Набор без целевых видов ссылки (one-domain без mic) снимает x-ref и ставит readOnly: поле остаётся тем же по типу
+ok(type_fits({"type": "string", "readOnly": True}, {"type": "string", "x-ref": {"kinds": ["mic"]}})
+   and not type_fits({"type": "string"}, {"type": "string", "x-ref": {"kinds": ["mic"]}}), "type_fits: вид без x-ref принимается, только если поле только для чтения")
 ok(type_fits({"type": "array", "items": {"type": "string"}}, {"type": "array", "items": {"type": ["string", "null"]}})
    and not type_fits({"type": "array", "items": {"type": "integer"}}, {"type": "array", "items": {"type": "string"}}), "type_fits: у массива сравниваются items")
 ok(fixture_profile_problems([profile_wire(GOOD)], [GOOD], whole=True) == [], "эталон — запись как из файла")

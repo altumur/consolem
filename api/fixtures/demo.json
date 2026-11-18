@@ -10552,49 +10552,48 @@
  ],
  "profiles": [
   {
-   "id": "vms.domain/1",
+   "id": "vms.acs/1",
    "label": {
-    "key": "profile.vms.domain/1",
-    "text": "Домен",
+    "key": "profile.vms.acs/1",
+    "text": "Единица СКУД с командами",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
-    "license"
-   ]
-  },
-  {
-   "id": "vms.server/1",
-   "label": {
-    "key": "profile.vms.server/1",
-    "text": "Сервер",
-    "lang": "ru"
-   },
-   "properties": [
-    "allocated",
-    "dns",
-    "gateway",
+    "enabled",
+    "identifier",
     "ip",
-    "labels",
-    "netmask",
+    "login",
+    "model",
+    "operations",
+    "password",
+    "path",
     "port",
-    "role"
+    "properties",
+    "short",
+    "unitOptions",
+    "vendor"
    ],
    "status": [
-    "class",
-    "disks",
-    "fingerprint",
-    "gpu",
-    "telemetry"
+    "fault"
    ]
   },
   {
-   "id": "vms.folder/1",
+   "id": "vms.archive/1",
    "label": {
-    "key": "profile.vms.folder/1",
-    "text": "Папка",
+    "key": "profile.vms.archive/1",
+    "text": "Хранилище",
     "lang": "ru"
    },
-   "properties": []
+   "version": "1.0",
+   "properties": [
+    "admits",
+    "encrypted",
+    "provider",
+    "recordMode",
+    "retentionDays",
+    "storage"
+   ]
   },
   {
    "id": "vms.camera/1",
@@ -10603,6 +10602,17 @@
     "text": "Камера",
     "lang": "ru"
    },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.detector/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "alarmKinds",
     "archiveId",
@@ -10668,82 +10678,13 @@
    ]
   },
   {
-   "id": "vms.archive/1",
-   "label": {
-    "key": "profile.vms.archive/1",
-    "text": "Хранилище",
-    "lang": "ru"
-   },
-   "properties": [
-    "admits",
-    "encrypted",
-    "provider",
-    "recordMode",
-    "retentionDays",
-    "storage"
-   ]
-  },
-  {
-   "id": "vms.volume/1",
-   "label": {
-    "key": "profile.vms.volume/1",
-    "text": "Том",
-    "lang": "ru"
-   },
-   "properties": [
-    "account",
-    "bucket",
-    "confirmShrinkBytes",
-    "dir",
-    "disk",
-    "enabled",
-    "endpoint",
-    "file",
-    "host",
-    "keyId",
-    "login",
-    "mode",
-    "password",
-    "path",
-    "port",
-    "proto",
-    "region",
-    "secret",
-    "sizeBytes",
-    "state",
-    "style"
-   ],
-   "status": [
-    "incidentsAtRisk",
-    "incidentsLost",
-    "shrinkPendingBytes",
-    "usedPercent"
-   ]
-  },
-  {
-   "id": "vms.stream/1",
-   "label": {
-    "key": "profile.vms.stream/1",
-    "text": "Поток",
-    "lang": "ru"
-   },
-   "properties": [
-    "codec",
-    "fps",
-    "height",
-    "res",
-    "resOptions",
-    "streamId",
-    "width"
-   ]
-  },
-  {
    "id": "vms.detector/1",
    "label": {
     "key": "profile.vms.detector/1",
     "text": "Детектор",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
     "alarmKinds",
     "analyticsKind",
@@ -10790,30 +10731,53 @@
    ]
   },
   {
-   "id": "vms.acs/1",
+   "id": "vms.domain/1",
    "label": {
-    "key": "profile.vms.acs/1",
-    "text": "Единица СКУД с командами",
+    "key": "profile.vms.domain/1",
+    "text": "Домен",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
-    "enabled",
-    "identifier",
-    "ip",
-    "login",
-    "model",
-    "operations",
-    "password",
-    "path",
-    "port",
-    "properties",
-    "short",
-    "unitOptions",
-    "vendor"
+    "license"
+   ]
+  },
+  {
+   "id": "vms.edge/1",
+   "label": {
+    "key": "profile.vms.edge/1",
+    "text": "Встроенное хранилище устройства",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.archive/1",
+     "version": "1.0"
+    },
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    }
+   ],
+   "properties": [
+    "replication"
    ],
    "status": [
-    "fault"
+    "replicationStatus",
+    "mediaOk",
+    "profileG"
    ]
+  },
+  {
+   "id": "vms.folder/1",
+   "label": {
+    "key": "profile.vms.folder/1",
+    "text": "Папка",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": []
   },
   {
    "id": "vms.live/1",
@@ -10822,58 +10786,10 @@
     "text": "Живое видео",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [],
    "apis": [
     "live"
-   ]
-  },
-  {
-   "id": "vms.ptz/1",
-   "label": {
-    "key": "profile.vms.ptz/1",
-    "text": "PTZ",
-    "lang": "ru"
-   },
-   "properties": [
-    "ptz",
-    "presets",
-    "presetMax"
-   ],
-   "apis": [
-    "ptz",
-    "presets/{n}"
-   ]
-  },
-  {
-   "id": "vms.talk/1",
-   "label": {
-    "key": "profile.vms.talk/1",
-    "text": "Разговор",
-    "lang": "ru"
-   },
-   "properties": [
-    "channel",
-    "enabled",
-    "short"
-   ],
-   "apis": [
-    "talk"
-   ]
-  },
-  {
-   "id": "vms.timeline/1",
-   "label": {
-    "key": "profile.vms.timeline/1",
-    "text": "Архив: шкала и записи",
-    "lang": "ru"
-   },
-   "properties": [],
-   "apis": [
-    "timeline",
-    "playback",
-    "holds",
-    "bookmarks",
-    "archive-fetch"
    ]
   },
   {
@@ -10883,6 +10799,13 @@
     "text": "Источник событий (касса)",
     "lang": "ru"
    },
+   "version": "1.0",
+   "uses": [
+    {
+     "id": "vms.camera/1",
+     "version": "1.0"
+    }
+   ],
    "properties": [
     "overlays",
     "cameraId",
@@ -10918,34 +10841,65 @@
    ]
   },
   {
-   "id": "vms.edge/1",
+   "id": "vms.ptz/1",
    "label": {
-    "key": "profile.vms.edge/1",
-    "text": "Встроенное хранилище устройства",
+    "key": "profile.vms.ptz/1",
+    "text": "PTZ",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
-    "replication"
+    "ptz",
+    "presets",
+    "presetMax"
    ],
-   "status": [
-    "replicationStatus",
-    "mediaOk",
-    "profileG"
+   "apis": [
+    "ptz",
+    "presets/{n}"
    ]
   },
   {
-   "id": "vms.webserver/1",
+   "id": "vms.server/1",
    "label": {
-    "key": "profile.vms.webserver/1",
-    "text": "Веб-сервер и RTSP-сервер",
+    "key": "profile.vms.server/1",
+    "text": "Сервер",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
-    "webServer"
+    "allocated",
+    "dns",
+    "gateway",
+    "ip",
+    "labels",
+    "netmask",
+    "port",
+    "role"
    ],
    "status": [
-    "webCertificate",
-    "webReservedPorts"
+    "class",
+    "disks",
+    "fingerprint",
+    "gpu",
+    "telemetry"
+   ]
+  },
+  {
+   "id": "vms.stream/1",
+   "label": {
+    "key": "profile.vms.stream/1",
+    "text": "Поток",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "codec",
+    "fps",
+    "height",
+    "res",
+    "resOptions",
+    "streamId",
+    "width"
    ]
   },
   {
@@ -10955,6 +10909,7 @@
     "text": "Поддетектор",
     "lang": "ru"
    },
+   "version": "1.0",
    "properties": [
     "classes",
     "confirmFrames",
@@ -10977,6 +10932,94 @@
     "width",
     "zone",
     "zoneTo"
+   ]
+  },
+  {
+   "id": "vms.talk/1",
+   "label": {
+    "key": "profile.vms.talk/1",
+    "text": "Разговор",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "channel",
+    "enabled",
+    "short"
+   ],
+   "apis": [
+    "talk"
+   ]
+  },
+  {
+   "id": "vms.timeline/1",
+   "label": {
+    "key": "profile.vms.timeline/1",
+    "text": "Архив: шкала и записи",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "timeline",
+    "playback",
+    "holds",
+    "bookmarks",
+    "archive-fetch"
+   ]
+  },
+  {
+   "id": "vms.volume/1",
+   "label": {
+    "key": "profile.vms.volume/1",
+    "text": "Том",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "account",
+    "bucket",
+    "confirmShrinkBytes",
+    "dir",
+    "disk",
+    "enabled",
+    "endpoint",
+    "file",
+    "host",
+    "keyId",
+    "login",
+    "mode",
+    "password",
+    "path",
+    "port",
+    "proto",
+    "region",
+    "secret",
+    "sizeBytes",
+    "state",
+    "style"
+   ],
+   "status": [
+    "incidentsAtRisk",
+    "incidentsLost",
+    "shrinkPendingBytes",
+    "usedPercent"
+   ]
+  },
+  {
+   "id": "vms.webserver/1",
+   "label": {
+    "key": "profile.vms.webserver/1",
+    "text": "Веб-сервер и RTSP-сервер",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [
+    "webServer"
+   ],
+   "status": [
+    "webCertificate",
+    "webReservedPorts"
    ]
   }
  ],

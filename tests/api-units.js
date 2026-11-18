@@ -73,6 +73,32 @@
     return `видов ${res.body.items.length}`;
   }, { needs: ["listKinds", "getKind"] });
 
+  // Сравнение «M.m» числами: 1.10 новее 1.9
+  const cmp = (a, b) => {
+    const [a1, a2] = a.split(".").map(Number), [b1, b2] = b.split(".").map(Number);
+    return a1 - b1 || a2 - b2;
+  };
+
+  test("Профили 0.25.0: version и uses в GET /kinds — M.m своей старшей, зависимость не младше указанной", async () => {
+    const env = await makeEnv();
+    const profiles = (await env.ok("GET", "/kinds")).profiles || [];
+    const VER = /^[0-9]+\.[0-9]+$/, ID = /^[A-Za-z0-9_.-]+\/[0-9]+$/;
+    const byId = new Map(profiles.map((p) => [p.id, p]));
+    profiles.forEach((p) => {
+      if (p.version !== undefined) assert.ok(VER.test(p.version) && Number(p.version.split(".")[0]) === Number(p.id.split("/")[1]), `${p.id}: version ${p.version} — M.m своей старшей`);
+      (p.uses || []).forEach((u) => {
+        assert.ok(ID.test(u.id) && VER.test(u.version) && u.id !== p.id, `${p.id}: uses ${JSON.stringify(u)}`);
+        const dep = byId.get(u.id);
+        if (dep && dep.version) assert.ok(cmp(dep.version, u.version) >= 0, `${p.id} использует ${u.id} ${u.version}, сервер отдаёт ${dep.version}`);
+      });
+    });
+    // Встроенный сервер отдаёт профили набора как есть: version и uses те же, что в наборе (иначе тест прошёл бы и без полей)
+    const fx = new Map((FX.profiles || []).map((p) => [p.id, p]));
+    profiles.forEach((p) => assert.ok((fx.get(p.id) || {}).version, `${p.id}: набор несёт version (профили собирают из api/profiles/)`));
+    profiles.forEach((p) => assert.eq({ version: p.version, uses: p.uses }, { version: (fx.get(p.id) || {}).version, uses: (fx.get(p.id) || {}).uses }, `${p.id}: version и uses — как в наборе`));
+    return `профилей ${profiles.length}, с версией ${profiles.filter((p) => p.version).length}`;
+  }, { needs: ["listKinds"] });
+
   test("Кэш описаний 0.16.0: Vary: Accept-Language у /kinds и /kinds/{kind}; у вида If-None-Match — 304", async () => {
     const env = await makeEnv();
     const list = await env.call("GET", "/kinds");

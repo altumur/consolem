@@ -306,10 +306,12 @@ def render_md(doc, kinds):
 # ── Проверки профилей 1–3: чистые функции, git не трогают ──
 def type_fits(kind_schema, profile_schema):
     """Тип поля вида вмещается в тип поля профиля: типы вида ⊆ типов профиля,
-    у массива то же для items, x-ref равны."""
+    у массива то же для items, x-ref равны. Исключение: набор без целевых видов ссылки снимает x-ref и ставит
+    readOnly (one-domain без mic) — такое поле принимается."""
     kt, ki, kr = type_sig(kind_schema)
     pt, pi, pr = type_sig(profile_schema)
-    if not kt <= pt or kr != pr:
+    cut = kr is None and pr is not None and kind_schema.get("readOnly") is True
+    if not kt <= pt or (kr != pr and not cut):
         return False
     if ki is not None and pi is not None:
         return type_fits(kind_schema["items"], profile_schema["items"])

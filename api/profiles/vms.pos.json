@@ -1,0 +1,379 @@
+{
+ "id": "vms.pos/1",
+ "version": "1.0",
+ "label": "Источник событий (касса)",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [
+  {
+   "id": "vms.camera/1",
+   "version": "1.0"
+  }
+ ],
+ "properties": {
+  "overlays": {
+   "schema": {
+    "type": "array",
+    "maxItems": 16,
+    "items": {
+     "type": "object",
+     "properties": {
+      "cameraId": {
+       "type": "string",
+       "format": "uuid",
+       "x-ref": {
+        "implements": [
+         "vms.camera/1"
+        ]
+       }
+      },
+      "area": {
+       "type": "object",
+       "properties": {
+        "x": {
+         "type": "number",
+         "minimum": 0,
+         "maximum": 1
+        },
+        "y": {
+         "type": "number",
+         "minimum": 0,
+         "maximum": 1
+        },
+        "w": {
+         "type": "number",
+         "maximum": 1
+        },
+        "h": {
+         "type": "number",
+         "maximum": 1
+        }
+       },
+       "required": [
+        "x",
+        "y",
+        "w",
+        "h"
+       ],
+       "additionalProperties": false
+      }
+     },
+     "required": [
+      "cameraId",
+      "area"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "meaning": "Камеры титров и зона на каждой: `{cameraId, area: {x, y, w, h}}`, доли кадра 0–1, `x + w ≤ 1`, `y + h ≤ 1`; не больше 16, камера один раз. Заменяет `cameraId`",
+   "since": "1.0"
+  },
+  "cameraId": {
+   "schema": {
+    "type": [
+     "string",
+     "null"
+    ],
+    "format": "uuid",
+    "x-ref": {
+     "implements": [
+      "vms.camera/1"
+     ]
+    }
+   },
+   "meaning": "**Устарело.** Первая камера `overlays`. Правка одного `cameraId` заменяет первую камеру списка (зона остаётся), `null` очищает список; правка с обоими полями — действует `overlays`",
+   "since": "1.0"
+  },
+  "overlayDelayMs": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0
+   },
+   "meaning": "Титры источника событий: задержка показа, мс",
+   "since": "1.0"
+  },
+  "overlayDurationSec": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0
+   },
+   "meaning": "Титры источника событий: сколько держать чек на экране после последней строки, с. 0 (и поле без значения) — держать до следующей строки; если касса молчала больше 10 секунд, новая строка начинает экран заново (как Display duration = 0 в Axxon One)",
+   "since": "1.0"
+  },
+  "overlayFont": {
+   "schema": {
+    "type": "string",
+    "maxLength": 64
+   },
+   "meaning": "Вид титров: имя шрифта",
+   "since": "1.0"
+  },
+  "overlayFontSize": {
+   "schema": {
+    "type": "integer",
+    "minimum": 6,
+    "maximum": 72
+   },
+   "meaning": "Вид титров: размер шрифта, пункты",
+   "since": "1.0"
+  },
+  "overlayColor": {
+   "schema": {
+    "type": "string",
+    "pattern": "^#[0-9a-fA-F]{6}$"
+   },
+   "meaning": "Вид титров: цвет текста, #rrggbb",
+   "since": "1.0"
+  },
+  "overlayBg": {
+   "schema": {
+    "type": "string",
+    "pattern": "^#[0-9a-fA-F]{6}$"
+   },
+   "meaning": "Вид титров: цвет фона, #rrggbb",
+   "since": "1.0"
+  },
+  "overlayBgTransparency": {
+   "schema": {
+    "type": "integer",
+    "minimum": 0,
+    "maximum": 100
+   },
+   "meaning": "Вид титров: прозрачность фона, % (0 — сплошной фон, 100 — без фона)",
+   "since": "1.0"
+  },
+  "receiptStartWords": {
+   "schema": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 128
+    }
+   },
+   "meaning": "Слова начала чека: строка со словом начинает чек. Сравнение посимвольно, регистр — по ignoreCase. Без слов начала и конца сервер не делит строки на чеки и поиск по чекам в архиве не работает",
+   "since": "1.0"
+  },
+  "receiptEndWords": {
+   "schema": {
+    "type": "array",
+    "maxItems": 32,
+    "items": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 128
+    }
+   },
+   "meaning": "Слова конца чека: строка со словом заканчивает чек. При receiptSplit = none сервер их не проверяет",
+   "since": "1.0"
+  },
+  "receiptSplit": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "skip",
+     "none"
+    ]
+   },
+   "meaning": "Как делить строки на чеки (Repeats processing в Axxon One): skip — по словам начала и конца; none — только по словам начала, слова конца сервер не проверяет",
+   "since": "1.0"
+  },
+  "ignoreCase": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Не учитывать регистр слов начала и конца чека",
+   "since": "1.0"
+  },
+  "billsOnly": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Показывать в титрах только строки между словами начала и конца чека",
+   "since": "1.0"
+  },
+  "eraseOnEnd": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Убирать строки с экрана после конца чека",
+   "since": "1.0"
+  },
+  "words": {
+   "schema": {
+    "type": "array",
+    "items": {
+     "type": "object",
+     "properties": {
+      "msg": {
+       "type": "string"
+      },
+      "color": {
+       "type": "string"
+      },
+      "bg": {
+       "type": "string"
+      },
+      "caseSensitive": {
+       "type": "boolean"
+      },
+      "wholeLine": {
+       "type": "boolean"
+      },
+      "bgEnabled": {
+       "type": "boolean"
+      }
+     },
+     "required": [
+      "msg"
+     ],
+     "additionalProperties": false
+    }
+   },
+   "meaning": "Подсветка: `msg`, `color`, `bg` и флажки `caseSensitive`, `wholeLine` (вся строка), `bgEnabled`",
+   "since": "1.0"
+  },
+  "protocol": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "tcp",
+     "udp",
+     "rs232"
+    ]
+   },
+   "meaning": "Приём данных: протокол. rs232 требует comPort и baudRate; comPort, baudRate, parity и udpMaxPacket в одной правке с другим протоколом — 422 VALIDATION_FAILED. Когда правка меняет протокол и не называет эти поля, сервер сам снимает поля прежнего протокола (RS-232 или UDP). ip и port нужны tcp и udp",
+   "since": "1.0"
+  },
+  "comPort": {
+   "schema": {
+    "type": "string",
+    "minLength": 1,
+    "maxLength": 64
+   },
+   "meaning": "RS-232: COM-порт (COM1, /dev/ttyS0). Только при protocol = rs232",
+   "since": "1.0"
+  },
+  "baudRate": {
+   "schema": {
+    "type": "integer",
+    "enum": [
+     300,
+     600,
+     1200,
+     2400,
+     4800,
+     9600,
+     14400,
+     19200,
+     38400,
+     56000,
+     57600,
+     115200,
+     128000
+    ]
+   },
+   "meaning": "RS-232: скорость, бит/с. Только при protocol = rs232",
+   "since": "1.0"
+  },
+  "parity": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "none",
+     "even",
+     "odd"
+    ]
+   },
+   "meaning": "RS-232: чётность. Только при protocol = rs232",
+   "since": "1.0"
+  },
+  "udpMaxPacket": {
+   "schema": {
+    "type": "integer",
+    "minimum": 1,
+    "maximum": 65535
+   },
+   "meaning": "UDP: наибольший пакет, байт. Только при protocol = udp",
+   "since": "1.0"
+  },
+  "encoding": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "auto",
+     "utf8",
+     "dos2win"
+    ]
+   },
+   "meaning": "Кодировка данных кассы: auto — Windows-1251, utf8, dos2win — DOS (CP866)",
+   "since": "1.0"
+  },
+  "terminalType": {
+   "schema": {
+    "type": "string",
+    "maxLength": 64
+   },
+   "meaning": "Тип терминала из списка драйвера (POSLegacy): XML PROTOCOL, SUPERMAG UKM, ALOHA… Список зависит от vendor; на стенде значение хранится без проверки по списку драйвера",
+   "since": "1.0"
+  },
+  "parserFile": {
+   "schema": {
+    "type": "string",
+    "pattern": "^.+\\.(txt|prl)$",
+    "maxLength": 260
+   },
+   "meaning": "Файл шаблона разбора данных на сервере: .txt — парсер XML, .prl — парсер POS. На стенде — заглушка: имя хранится, файл не читается и данные им не разбираются",
+   "since": "1.0"
+  },
+  "processing": {
+   "schema": {
+    "type": "string",
+    "enum": [
+     "line",
+     "event",
+     "json"
+    ]
+   },
+   "meaning": "Разбор данных: построчно, по событию или JSON. На стенде — заглушка: значение хранится, данные не разбираются",
+   "since": "1.0"
+  },
+  "timeoutMs": {
+   "schema": {
+    "type": "integer",
+    "minimum": 10,
+    "maximum": 3000
+   },
+   "meaning": "Разбор данных: таймаут, мс",
+   "since": "1.0"
+  },
+  "timeOffsetMs": {
+   "schema": {
+    "type": "integer",
+    "minimum": -5000,
+    "maximum": 5000
+   },
+   "meaning": "Разбор данных: сдвиг времени титров, мс (отрицательный — раньше)",
+   "since": "1.0"
+  },
+  "retalix": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "Касса Retalix (драйвер POSLegacy)",
+   "since": "1.0"
+  }
+ },
+ "apis": [
+  "pos/raw"
+ ],
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}

@@ -23,9 +23,12 @@
 9. Граница слоёв (tools/layers.py): x-layer стоит только у схемы, пути или поля общей схемы; значение — профиль, video или vms;
    общие схемы и пути не ссылаются на схемы подсистем; поля подсистем в общих схемах названы в KNOWN_LEAKS;
    id профиля в описании поля общей схемы — пометка поля или пример из EXAMPLE_MENTIONS.
+10. Профили в файлах api/profiles/*.json (tools/profile_files.py): формат файлов; раздел profiles наборов — из файлов;
+   виды несут поля профиля того же типа, status объектов — по схеме профиля; версия профиля против --profiles-base
+   (по умолчанию origin/main; без git — пропуск); зависимости uses есть и не младше.
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
-Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE]
+Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
 (--page — прототип вместо index.html; --api — копия папки API вместо api; в документе выше пути даны для умолчаний)
 Код выхода 1, если что-то не прошло.
 """
@@ -38,6 +41,7 @@ import sys
 import cli_paths
 import generic_legacy
 import layers
+import profile_files
 
 API = cli_paths.opt("api", "api")
 PROTOTYPE = cli_paths.opt("page", "index.html")
@@ -956,6 +960,63 @@ def check_core_field(rep, spec):
     rep.check("Пути ядра: field отказа в описаниях — JSON Pointer", problems, f"{n} упоминаний")
 
 
+PROFILES_BASE = cli_paths.opt("profiles-base", "origin/main")
+
+
+def check_profile_files(rep, spec, fixtures):
+    """Профили в файлах api/profiles/*.json (tools/profile_files.py): формат; раздел profiles наборов — из файлов;
+    виды несут поля профиля того же типа, status объектов — по схеме профиля; версия против PROFILES_BASE; зависимости uses."""
+    folder = os.path.join(ROOT, API, profile_files.PROFILES_DIR)
+    if not os.path.isdir(folder):
+        rep.fail("Профили api/profiles/: файлы по формату", [f"нет папки {API}/profiles"])
+        return
+    try:
+        docs = profile_files.load_profiles(os.path.join(ROOT, API))
+    except ValueError as e:
+        rep.fail("Профили api/profiles/: файлы по формату", [str(e)])
+        return
+    problems = [f"{d['_file']}: {t}" for d in docs for t in profile_files.profile_problems(d)]
+    rep.check("Профили api/profiles/: файлы по формату", problems, f"файлов {len(docs)}")
+    problems = []
+    for name, fx in fixtures.items():
+        problems += [f"набор {name}: {t}" for t in profile_files.fixture_profile_problems(fx.get("profiles") or [], docs, name == "demo")]
+    rep.check("Профили: раздел profiles наборов — из файлов", problems)
+    problems = []
+    for name, fx in fixtures.items():
+        problems += [f"набор {name}: {t}" for t in profile_files.kind_problems(docs, fx.get("kinds") or [])]
+    # status.observed объектов эталонного набора — по схеме профиля (имя состояния → schema)
+    demo = fixtures.get("demo") or {}
+    kinds = {k["kind"]: k for k in demo.get("kinds") or []}
+    schemas = {d["id"]: {n: f["schema"] for n, f in (d.get("status") or {}).items()} for d in docs}
+    for u in demo.get("units") or []:
+        obs = (u.get("status") or {}).get("observed") or {}
+        for pid in (kinds.get(u.get("kind")) or {}).get("implements") or []:
+            for n, sch in (schemas.get(pid) or {}).items():
+                if n in obs:
+                    out = []
+                    validate(spec, sch, obs[n], f"{u['uid']} status.observed.{n}", out)
+                    problems += [f"набор demo: {pid}: {t}" for t in out]
+    rep.check("Профили: виды несут поля профиля того же типа; status объектов — по схеме профиля", problems)
+    name = f"Профили: версия против {PROFILES_BASE}"
+    if API != "api":
+        rep.info(f"{name}: {API} — копия папки API, сверка с git пропущена")
+    else:
+        mb = layers._merge_base(PROFILES_BASE, ROOT, None)
+        if mb is None:
+            rep.info(f"{name}: нет git или {PROFILES_BASE}, сверка пропущена")
+        else:
+            problems = []
+            for d in docs:
+                text = layers._git(ROOT, "show", f"{mb}:{API}/profiles/{d['_file']}")
+                try:
+                    base = json.loads(text) if text else None
+                except ValueError:
+                    base = None
+                problems += [f"{d['_file']}: {t}" for t in profile_files.history_problems(d, base)]
+            rep.check(name, problems)
+    rep.check("Профили: зависимости uses есть и не младше", profile_files.uses_problems(docs))
+
+
 def check_layers(rep, spec):
     """Граница слоёв: правила S1–S5 в tools/layers.py."""
     try:
@@ -1125,6 +1186,7 @@ def main():
     check_units(rep, spec, profile, "Набор one-domain")
     check_units(rep, spec, large, "Набор large")
     check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
+    check_profile_files(rep, spec, {"demo": fx, "one-domain": profile, "large": large})
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--check", "--api", API], capture_output=True, text=True)
     rep.check("one-domain.json собран из нынешнего demo.json", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "build_api.py"), "--check", "--api", API], capture_output=True, text=True)

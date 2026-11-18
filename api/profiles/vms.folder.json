@@ -1,0 +1,17 @@
+{
+ "id": "vms.folder/1",
+ "version": "1.0",
+ "label": "Папка",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {},
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
+  }
+ ]
+}
