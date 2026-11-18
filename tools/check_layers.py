@@ -397,6 +397,45 @@ else:
         w = classify("HEAD", tmp)
         ok(w is not None and any("+ схема Foo" in m for m in w["mechanism"]), "рабочая копия: новая общая схема — механизм")
         ok(any("без новой версии" in p for p in version_problems(w, False)), "рабочая копия: V1 без новой версии")
+        # I1: правка пути профиля в openapi.json — правка механизма-файла: версия контракта нужна всегда
+        git(tmp, "checkout", "-q", "--", "api/openapi.json")
+        pp = copy.deepcopy(SPEC)
+        pp["paths"][POS_PATH]["get"]["responses"]["418"] = {"description": "проба"}
+        write(tmp, "api/openapi.json", json.dumps(pp))
+        wp = classify("HEAD", tmp)
+        ok(POS in wp["contract_layers"] and wp["file_layers"] == {}, "I1: правка пути профиля — contract_layers, не file_layers")
+        ok(any("без новой версии" in p for p in version_problems(wp, False)), "I1: путь профиля без новой версии — V1")
+        ok(any("без новой версии" in p for p in version_problems(wp, True)), "I1: V1 и при profiles_active")
+        pp["info"]["version"] = "99.0.0"
+        write(tmp, "api/openapi.json", json.dumps(pp))
+        wp = classify("HEAD", tmp)
+        ok(version_problems(wp, True) == [] and version_problems(wp, False) == [], "I1: путь профиля с новой версией — ни V1, ни V2")
+        ok(any(POS in who or who == layers.OWNER_ADDRESS or "/" not in who for who in wp["notify"]) and wp["notify"], "I1: уведомление есть")
+        git(tmp, "checkout", "-q", "--", "api/openapi.json")
+        # I2: README.md и не-json в api/profiles/ — не профиль; id берётся из файла
+        write(tmp, "api/profiles/README.md", "# профили")
+        write(tmp, "api/profiles/notes.txt", "x")
+        write(tmp, "api/profiles/vms.zed.json", json.dumps({"id": "vms.zed/2", "owner": "mockup"}))
+        wr = classify("HEAD", tmp)
+        ok(not any("README" in k or "notes" in k for k in wr["layers"]), "I2: README.md и notes.txt — не профили")
+        ok("vms.zed/2" in wr["layers"], "I2: id профиля — из поля id файла")
+        write(tmp, "api/profiles/vms.noid.json", json.dumps({"owner": "mockup"}))
+        ok("vms.noid/1" in classify("HEAD", tmp)["layers"], "I2: в файле нет id — <имя>/1")
+        write(tmp, "api/profiles/vms.bad.json", "{не json")
+        try:
+            classify("HEAD", tmp)
+            bad = False
+        except ValueError:
+            bad = True  # check_api ловит ValueError и пишет FAIL с именем файла
+        ok(bad, "I2: файл профиля не читается — ValueError с именем файла")
+        ok(set(wr["file_layers"]) == set(wr["layers"]), "I2: файлы профилей — file_layers")
+        for rel in ("README.md", "notes.txt", "vms.zed.json", "vms.bad.json", "vms.noid.json"):
+            os.remove(os.path.join(tmp, "api/profiles", rel))
+        # M7: незнакомый файл api/fixtures/ — стенд, а не молчание
+        write(tmp, "api/fixtures/agents.json", "{}")
+        wa = classify("HEAD", tmp)
+        ok(any("agents.json" in s for s in wa["stand"]), "M7: api/fixtures/agents.json — стенд с именем файла")
+        os.remove(os.path.join(tmp, "api/fixtures/agents.json"))
 
 
 old = base()
@@ -443,6 +482,38 @@ ok(any("version в файле профиля" in p for p in version_problems({**
    "V2: данные профиля подняли версию контракта")
 ok(version_problems({**f, "mechanism": [], "version": ("0.1.0", "0.2.0")}, False) == [], "V2 до части 02 молчит")
 ok(version_problems({"mechanism": [], "layers": {}, "version": ("0.1.0", "0.2.0")}, True) == [], "V2: только документы — можно")
+
+# M1: check_api.check_layer_diff — копия API и отсутствие git дают INFO, а не FAIL
+import check_api  # noqa: E402
+
+
+class Rep:
+    def __init__(self):
+        self.infos, self.fails, self.checks = [], [], []
+
+    def info(self, t):
+        self.infos.append(t)
+
+    def fail(self, name, items):
+        self.fails.append((name, items))
+
+    def check(self, name, items, *a):
+        self.checks.append((name, items))
+
+
+_api, _cls = check_api.API, layers.classify
+try:
+    check_api.API = "api-copy"
+    r = Rep()
+    check_api.check_layer_diff(r, {})
+    ok(r.infos and not r.fails and not r.checks, "M1: --api не api — INFO, сверка пропущена")
+    check_api.API = "api"
+    layers.classify = lambda *a, **k: None
+    r = Rep()
+    check_api.check_layer_diff(r, {})
+    ok(r.infos and "пропуск" in r.infos[0] and not r.fails and not r.checks, "M1: нет git или origin/main — INFO, не FAIL")
+finally:
+    check_api.API, layers.classify = _api, _cls
 
 # история репозитория: в мелком клоне этих коммитов нет — SKIP, а не FAIL
 for sha, what, check in (

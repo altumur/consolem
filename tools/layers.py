@@ -599,7 +599,9 @@ def _notify(mechanism, lay, api_dir, marks=()):
 
 def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
     """Слои правки: рабочая папка (или head) против общего предка с base. None — нет git или ссылки.
-    Ответ: base (sha общего предка), files, mechanism, layers, kinds, stand, descriptions, marks (схемы и пути,
+    Ответ: base (sha общего предка), files, mechanism, layers (все слои правки), contract_layers (слои, которые
+    задела правка openapi.json: ей нужна новая версия контракта), file_layers (слои из остальных файлов:
+    профили, demo.json, profiles.js: у них своя версия), kinds, stand, descriptions, marks (схемы и пути,
     где изменился только x-layer), version, notify."""
     files = changed_files(base, root, head)
     if files is None:
@@ -607,20 +609,29 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
     mb = _merge_base(base, root, head)
     new_of = (lambda rel: _json_at(root, head, rel)) if head else (lambda rel: _json_work(root, rel))
     mechanism, lay, kinds, stand, desc, marks_only = [], {}, [], [], [], []
+    contract_lay, file_lay = {}, {}  # слои из правок openapi.json; слои из остальных файлов (профили, demo.json, profiles.js)
     version = (None, None)
     skip = set(GENERATED)
     for rel in files:
         if rel in skip or rel.startswith("api/requests/"):
             continue
-        prof = re.fullmatch(rf"{re.escape(api_dir)}/profiles/([^/]+)\.(json|md)", rel)
-        if prof:
-            ids = [p["id"] for p in (new_of(f"{api_dir}/fixtures/demo.json").get("profiles") or []) if isinstance(p, dict) and "id" in p]
-            pid = next((i for i in ids if i.split("/")[0] == prof.group(1)), prof.group(1) + "/1")
+        prof = re.fullmatch(rf"{re.escape(api_dir)}/profiles/([^/]+)\.json", rel)
+        if prof and prof.group(1).upper() != "README":
+            # id профиля — поле id его файла; нет файла или он не читается — demo.json; иначе <имя>/1
+            own = new_of(rel)
+            pid = own.get("id") if isinstance(own, dict) and isinstance(own.get("id"), str) else None
+            if pid is None:
+                ids = [p["id"] for p in (new_of(f"{api_dir}/fixtures/demo.json").get("profiles") or []) if isinstance(p, dict) and "id" in p]
+                pid = next((i for i in ids if i.split("/")[0] == prof.group(1)), prof.group(1) + "/1")
             _add(lay, pid, rel)
+            _add(file_lay, pid, rel)
+        elif rel.startswith(f"{api_dir}/profiles/"):
+            continue  # README.md и прочее, что не файл профиля
         elif rel in MECHANISM_FILES:
             mechanism.append(rel)
         elif rel == "api/profiles.js":
             _add(lay, "подсистема", SUBSYSTEM_NOTE)
+            _add(file_lay, "подсистема", SUBSYSTEM_NOTE)
         elif rel == f"{api_dir}/openapi.json":
             old, new = _json_at(root, mb, rel), new_of(rel)
             version = ((old.get("info") or {}).get("version"), (new.get("info") or {}).get("version"))
@@ -635,28 +646,37 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
             c = classify_specs(old, new, marks)
             mechanism += [m for m in c["mechanism"] if m not in mechanism]
             _merge(lay, c["layers"])
+            _merge(contract_lay, c["layers"])
             desc += c["descriptions"]
             marks_only += c["marks"]
         elif rel == f"{api_dir}/fixtures/demo.json":
             spec = _json_work(root, f"{api_dir}/openapi.json") or {}
             c = classify_fixture(_json_at(root, mb, rel), new_of(rel), spec, api_dir)
             _merge(lay, c["layers"])
+            _merge(file_lay, c["layers"])
             kinds += c["kinds"]
             stand += c["stand"]
-    return {"base": mb, "files": files, "mechanism": mechanism, "layers": lay, "kinds": kinds, "stand": stand,
+        elif rel.startswith(f"{api_dir}/fixtures/") and rel.endswith(".json"):
+            stand.append(f"файл {rel} — набор стенда, слой не определён")
+    return {"base": mb, "files": files, "mechanism": mechanism, "layers": lay, "contract_layers": contract_lay,
+            "file_layers": file_lay, "kinds": kinds, "stand": stand,
             "descriptions": desc, "marks": marks_only, "version": version, "notify": _notify(mechanism, lay, os.path.join(root, api_dir), marks_only)}
 
 
 def version_problems(cls, profiles_active):
-    """V1: механизм изменён, а версия контракта та же. V2 (только при profiles_active): версию подняла
-    правка подсистемы без механизма — у подсистемы своя версия в файле профиля."""
+    """V1: механизм или openapi.json (путь, схема профиля) изменён, а версия контракта та же. V2 (только при
+    profiles_active): версию контракта подняла правка подсистемы вне openapi.json (файл профиля, demo.json)
+    без механизма и без правки openapi.json — у подсистемы своя версия в файле профиля."""
     old, new = cls.get("version") or (None, None)
     same = old == new
-    mech, lay = cls.get("mechanism") or [], cls.get("layers") or {}
+    mech, contract = cls.get("mechanism") or [], cls.get("contract_layers") or {}
+    lay = cls["file_layers"] if "file_layers" in cls else (cls.get("layers") or {})
     out = []
     if mech and same:
         out.append(f"механизм изменён без новой версии контракта: {'; '.join(mech)}")
-    if profiles_active and not same and lay and not mech:
+    if contract and same:
+        out.append(f"openapi.json изменён без новой версии контракта (слой {', '.join(contract)}): правка пути или схемы профиля поднимает версию контракта")
+    if profiles_active and not same and lay and not mech and not contract:
         out.append(f"версию контракта подняла правка подсистемы ({', '.join(lay)}): у неё своя версия — version в файле профиля")
     return out
 
