@@ -3588,6 +3588,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-78.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -4425,7 +4426,8 @@ function screenType(kind){return handScreen(kind)||kind}
 // Обратно: виды, которым достался этот экран (камера — все виды с профилем vms.camera/1, а не код camera).
 // Отбор GET /units?kind= по экрану — этими видами; описаний нет — код экрана как есть (прежний путь)
 function kindsOfScreen(t){
-  const ks=[...KINDS.keys()].filter(k=>screenType(k)===t);
+  // По ручному экрану, а не по типу узла: код camera без vms.camera/1 — форма по схеме, а не вид экрана камеры
+  const ks=[...KINDS.keys()].filter(k=>handScreen(k)===t);
   return ks.length?ks:[t];
 }
 // Код мастера → вид: «ipsrv-nvr» — вид ipsrv с подвидом nvr из x-ui-category. Отрезается только объявленный подвид:
@@ -4477,33 +4479,40 @@ function kindsChanged(){
   if(kindsBusy)return kindsBusy;
   kindsBusy=kindsLoad().then(async changed=>{
     if(!changed)return;
-    await kindsRescreen();
+    // Сбой пересборки узлов не прячется: в консоль браузера, как сторож индекса
+    const note=await kindsRescreen().catch(e=>{console.error("kindsRescreen",e);return null});
     treeMatchCache.clear();searchMatchCache.clear();
     if(app==="hw"){renderTreeSoon();gear()}
+    // Уведомление — после чтения записи открытой карточки: иначе отказ этого чтения закрыл бы его своим
+    if(note)(sel&&find(sel)?.n?._row?hwFull(sel).catch(()=>{}):Promise.resolve()).finally(()=>toast(note));
   }).catch(()=>{}).finally(()=>{kindsBusy=null});
   return kindsBusy;
 }
 // Описание вида сменило экран (профиль сняли или добавили): узлы кэша этого вида строятся заново строками перечня, полную
 // запись консоль читает, когда карточку откроют. Открытую карточку консоль читает сразу. Её неприменённая правка
-// переходит в черновик нового экрана по именам свойств схемы; что новый экран не принимает (поле без свойства в схеме,
-// папки, потоки), консоль сбрасывает и говорит об этом тостом
+// переходит в черновик нового экрана по именам свойств схемы. Что новый экран не принимает (поле без свойства в схеме,
+// папки, потоки) или что консоль не смогла перенести (запись не прочиталась), уведомление называет по полям.
+// Возвращает текст уведомления или null
 async function kindsRescreen(){
   const moved=[];
   walkAll(n=>{
     const kind=nodeKind(n);if(!kind||!KINDS.has(kind))return;
     const was=isSchemaNode(n)?null:n.type,want=handScreen(kind);
+    // Инфраструктура (домен, сервер, папка, хранилище, том) пропускается в обе стороны нарочно: у неё свои списки в кэше,
+    // и смена её экрана вступает в силу после перезагрузки страницы
     if(was===want||INFRA_SCREENS.has(was)||INFRA_SCREENS.has(want))return;
     moved.push([n,kind,want]);
   });
-  if(!moved.length)return;
+  if(!moved.length)return null;
   const open=app==="hw"&&moved.find(([n])=>n.id===sel);
   const carry=open&&cardDraft&&cardDraft.id===sel?draftCarry(open[0],open[1]):null;
-  if(open&&cardDraft&&cardDraft.id===sel)cardRestore();
+  if(carry)cardRestore();
   moved.forEach(([n,kind,want])=>nodeRescreen(n,kind,want));
   hwIdxDrop();remakeAcfa();treeMatchCache.clear();searchMatchCache.clear();
-  if(!open)return;
-  const n=await hwFull(sel).catch(()=>null);
-  if(!n||!carry)return;
+  if(!open)return null;
+  const n=await hwFull(open[0].id).catch(e=>{console.error("kindsRescreen: hwFull",e);return null});
+  if(!carry)return null;
+  if(!n)return rescreenNote(open[0],[...carry.carried,...carry.dropped],[],true);
   cardBase={id:n.id,snap:cardClone(n),folders:cardFolders(n.id)};
   const hand=!isSchemaNode(n);
   Object.entries(carry.props).forEach(([f,v])=>{
@@ -4512,8 +4521,17 @@ async function kindsRescreen(){
     else n[DEV_KEY[f]||f]=v;
   });
   if("name" in carry)n.name=carry.name;
-  if("name" in carry||Object.keys(carry.props).length)setD(true);
-  if(carry.lost)toast(`${i18n("Неприменённые изменения сброшены")}: «${locName(n)}»`);
+  if(carry.carried.length)setD(true);
+  return rescreenNote(n,carry.dropped,carry.carried,false);
+}
+// Уведомление о смене экрана открытой карточки: какие поля консоль не перенесла и почему. Поля перенесли все — null
+function rescreenNote(n,dropped,carried,unread){
+  if(!dropped.length)return null;
+  const q=x=>uiLang==="ru"?`«${x}»`:`“${x}”`;
+  return`${i18n("Описание вида изменилось, поэтому консоль показывает")} ${q(locName(n))} ${i18n("другим экраном.")} `+
+    (unread?`${i18n("Консоль не прочитала запись объекта.")} ${i18n("Консоль не перенесла изменения полей")} ${dropped.map(q).join(", ")}.`
+      :`${i18n("Консоль не перенесла изменения полей")} ${dropped.map(q).join(", ")}, ${i18n("потому что на новом экране этих полей нет.")}`)+
+    (carried.length?` ${i18n("Остальные изменения консоль перенесла.")}`:"");
 }
 // Узел на месте становится строкой перечня нового экрана: ссылки дерева, папок и выборки на него остаются
 function nodeRescreen(n,kind,want){
@@ -4529,36 +4547,29 @@ function nodeRescreen(n,kind,want){
   if(more||(kids&&!kids.length&&fresh.devices))n._more=true;
   if(q)n._q=true;
 }
-// Неприменённая правка открытой карточки — по именам свойств схемы вида: {name?, props:{свойство:значение}, lost}.
-// lost — правки, которых нет среди свойств схемы (их новый экран не примет)
+// Неприменённая правка открытой карточки — по строкам плана (cardDiff), по именам свойств схемы вида kind:
+// {name?, props:{свойство:значение}, carried:[подписи], dropped:[подписи]}. dropped — строки, которых нет среди свойств
+// схемы (поле, папки, потоки, дочерние): их новый экран не примет
 function draftCarry(n,kind){
-  const snap=cardDraft.snap,ps=kindProps(kind),out={props:{},lost:0};
-  let carried=0;
-  const put=(f,v)=>{
-    if(f==="name"){out.name=v;carried++;return}
-    const p=ps[f];
-    if(!p||p.readOnly){out.lost++;return}
+  const ps=kindProps(kind),out={props:{},carried:[],dropped:[]};
+  const put=(f,v,label)=>{
+    if(f==="name"){out.name=v;out.carried.push(label);return}
+    const p=f?ps[f]:null;
+    if(!p||p.readOnly||v===undefined){out.dropped.push(label);return}
     if((p.type==="number"||p.type==="integer")&&typeof v==="string"&&v.trim()!==""&&!isNaN(+v))v=+v;
-    if(p.enum&&!p.enum.includes(v)){out.lost++;return}
-    out.props[f]=v;carried++;
+    if(p.enum&&!p.enum.includes(v)){out.dropped.push(label);return}
+    out.props[f]=v;out.carried.push(label);
   };
-  const differs=(a,b)=>JSON.stringify(a)!==JSON.stringify(b);
-  if(isSchemaNode(n)){
-    if(differs(n.name,snap.name))put("name",n.name);
-    const np=n.props||{},bp=snap.props||{};
-    new Set([...Object.keys(np),...Object.keys(bp)]).forEach(f=>{if(differs(np[f],bp[f]))put(f,np[f])});
-  }else{
-    new Set([...Object.keys(n),...Object.keys(snap)]).forEach(k=>{
-      if(k==="devices"||CARD_SKIP.has(k)||k.startsWith("_")||!differs(n[k],snap[k]))return;
-      if(k==="xprops"){Object.entries(n.xprops||{}).forEach(([f,v])=>put(f,v));return}
-      put(k==="name"?"name":DEV_API[k]||k,n[k]);
-    });
-    const fNow=n._f||{},fWas=snap._f||{};
-    new Set([...Object.keys(fNow),...Object.keys(fWas)]).forEach(l=>{if(differs(fNow[l],fWas[l]))put(DEV_FLD_API[l]||l,fNow[l])});
-    Object.entries(cardDraft.fields||{}).forEach(([l,x])=>{const p=CARD_FLD_PROP[l];if(p)put(p==="name"?"name":DEV_API[p]||p,x.to);else out.lost++});
-  }
-  // Папки, потоки, дочерние: строки плана, которых нет среди свойств
-  if(cardDiff().length>carried+out.lost)out.lost++;
+  const api=k=>k==="name"?"name":DEV_API[k]||k;
+  cardDiff().forEach(r=>{
+    if(r.node!==n||r.add||r.folders)return out.dropped.push(r.label);
+    if(r.schemaProp)return put(r.schemaProp,r.to,r.label);
+    if(r.fld)return put(r.prop?api(r.prop):null,r.to,r.label);
+    if(r.edit)return put(api(r.prop),r.to,r.label);
+    if(r.key&&!["streams","props","xprops"].includes(r.key))return put(api(r.key),r.to,r.label);
+    out.dropped.push(r.label);
+  });
+  out.dropped=[...new Set(out.dropped)];
   return out;
 }
 // Виды устройств из справочника: набор профиля (one-domain) пока несёт все виды, сужает их capabilities.deviceTypes, пока он есть
@@ -11797,8 +11808,9 @@ function openTreeCtx(n,xy){
       add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
       add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
     }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
-    if(WIZ.acfa&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
-    if(n.type==="camera")add.push(tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen",id],tctxPlusIcon()));
+    if(WIZ.acfa&&!isSchemaNode(n)&&["acfa","acfa_lock","camera","ipsrv"].includes(n.type))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
+    // Пункты экрана камеры — только у узла ручного экрана: камера без vms.camera/1 — форма по схеме
+    if(n.type==="camera"&&!isSchemaNode(n))add.push(tctxItem(i18n("Добавить детекторы…"),["rcRun","detCreateOpen",id],tctxPlusIcon()));
     groups.push(add);
 
     const edit=[];
@@ -11815,7 +11827,7 @@ function openTreeCtx(n,xy){
       if(canRename)edit.push(tctxItem(i18n("Переименовать"),act("ctxRename",id)));
       if(canRenameShort(n))edit.push(tctxItem(i18n("Изменить короткое имя"),act("ctxRename",id,"short")));
     }
-    if(n.type==="camera")edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
+    if(n.type==="camera"&&!isSchemaNode(n))edit.push(tctxItem(i18n("Применить настройки к другим…"),act("openCopyDialog",id),`<span class="tctx-ic">${SEL_IC}</span>`));
     {const fa=formAllCtxItem(n,act);if(fa)edit.push(fa)}
     // Сброс к умолчаниям модели и загрузка настроек с устройства (Axxon One: Reset). Недоступный пункт называет причину
     if(n.type==="camera"&&!isSchemaNode(n)){
