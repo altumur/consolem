@@ -1,7 +1,8 @@
 /* Сценарий интерфейса: экран по профилю (часть 07 переделки по слоям). Ручной экран выбирается по профилю вида
    (implements), а не по коду вида: ступень 1 — своя страница (screenPageStep, до части 05 — форма по схеме у вида с
    setupUi), ступень 2 — ручной экран по SCREEN_OF_PROFILE (handScreenOf), ступень 3 — форма по схеме. Раздел А — выбор
-   экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed). Виды теста ставятся в KINDS на время
+   экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed); Г2 — то же у других кодов ручных экранов
+   (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей. Виды теста ставятся в KINDS на время
    проверки и снимаются в finally с kindsApply(). Запуск — tools/check_ui.py --page index_78_ekran-po-profilyu.html. */
 UiCheck(async ({ ok, until }) => {
   if (typeof screenFor !== "function") { ok(true, "на странице нет screenFor: проверять нечего"); return; }
@@ -228,21 +229,24 @@ UiCheck(async ({ ok, until }) => {
   delete noCam.schema.properties.short;
   // Стенд с testSupport меняет описание сам (PUT /test/kinds) и шлёт kinds.changed; без служебных операций новое описание
   // отдаёт перехваченный GET /kinds, событие приходит тем же apiOnEvent (приём ui-access.js)
+  // Возвращает обработку kinds.changed: следующее описание консоль читает уже после прежнего
   let rawW = null;
-  const camPut = async (def, tag) => {
+  const kindPut = async (code, def, orig, tag) => {
     if (rawW) { API.raw = rawW; rawW = null; }
-    const put = await API.raw("PUT", "/test/kinds/camera", def);
-    if (put.status < 300) return;
-    if (def === camK) { apiOnEvent({ type: "kinds.changed", kinds: ["camera"] }); return; }
+    const put = await API.raw("PUT", `/test/kinds/${code}`, def);
+    if (put.status < 300) return kindsBusy;
+    if (def === orig) { apiOnEvent({ type: "kinds.changed", kinds: [code] }); return kindsBusy; }
     rawW = API.raw;
     const real = rawW;
     API.raw = function (method, path, body, headers) {
       if (method !== "GET" || path !== "/kinds") return real.call(this, method, path, body, headers);
       return real.call(this, method, path, body).then((r) => Object.assign({}, r, { status: 200, headers: Object.assign({}, r.headers, { etag: `"${tag}"` }),
-        body: Object.assign({}, r.body, { items: r.body.items.map((k) => (k.kind === "camera" ? def : k)) }) }));
+        body: Object.assign({}, r.body, { items: r.body.items.map((k) => (k.kind === code ? def : k)) }) }));
     };
-    apiOnEvent({ type: "kinds.changed", kinds: ["camera"] });
+    apiOnEvent({ type: "kinds.changed", kinds: [code] });
+    return kindsBusy;
   };
+  const camPut = (def, tag) => kindPut("camera", def, camK, tag);
   // Уведомления живут 2 с: сценарий собирает все, что консоль показала
   const toasts = [];
   const toastTick = setInterval(() => { const t = document.getElementById("tt")?.textContent; if (t && toasts[toasts.length - 1] !== t) toasts.push(t); }, 20);
@@ -322,4 +326,70 @@ UiCheck(async ({ ok, until }) => {
     if (cardDraft) { cardRestore(); gear(); }
   }
   clearInterval(toastTick);
+
+  // ── Г2. Другие коды ручных экранов: узел формы по схеме — не узел этого экрана ──
+  // Правило handCam — для всех кодов (handOf, typeIn): узел формы по схеме, у которого код вида совпал с кодом ручного
+  // экрана, ведёт себя как узел любого другого вида без ручного экрана — без пунктов меню, срезов и списков экрана
+  {
+    // Замок без vms.acs/1: kinds.changed пересобирает узлы замков формой по схеме (как камеру в разделе Г)
+    const lockK = kindOf("acfa_lock");
+    let lockId = null;
+    walkAll((n) => { if (!lockId && n.type === "acfa_lock" && !isSchemaNode(n)) lockId = n.id; });
+    ok(!!lockId && ruleDtHit(find(lockId).n, ["acfa_lock"]), "замок ручного экрана — единица СКУД правил (ruleDtHit)");
+    try {
+      await kindPut("acfa_lock", Object.assign(clone(lockK), { implements: lockK.implements.filter((p) => p !== "vms.acs/1") }), lockK, "ui-ekran-no-acs");
+      ok(await until(() => isSchemaNode(find(lockId)?.n)), "замок без vms.acs/1 — форма по схеме");
+      const n = find(lockId).n;
+      ok(!/Добавить единицу СКУД|Все параметры/.test(menuText(n)), "меню строки замка формы по схеме — без пунктов ручного экрана: «" + menuText(n) + "»");
+      ok(!ruleDtHit(n, ["acfa_lock"]) && !ruleUniverse(["acfa_lock"]).some((x) => x.id === lockId), "замок формы по схеме — не единица СКУД правил (ruleDtHit, ruleUniverse)");
+      ok(!typeIn(n, ACS_TYPES) && !typeIn(n, ["acfa_lock"]) && typeIn(find(lockId).p, ACS_TYPES), "typeIn: замок формы по схеме — не в списке экранов СКУД, его родитель — в списке");
+    } finally {
+      await kindPut("acfa_lock", lockK, lockK);
+    }
+    ok(await until(() => { const n = find(lockId)?.n; return !!n && !isSchemaNode(n) && n.type === "acfa_lock"; }), "описание замка вернулось — снова экран замка");
+
+    // Сервер без vms.server/1. Инфраструктуру kinds.changed не пересобирает (её экран меняется после перезагрузки), поэтому
+    // узел формы по схеме вида server — копия сервера набора с другим uid в корне дерева, как объект, который пришёл строкой
+    const srvK = kindOf("server"), srv0 = servers.find((s) => domainOf(s.id) && !isUnallocated(s.id));
+    const srvU = await API.get(`/units/${srv0.id}`);
+    const sid = "2fffffff-0000-4000-8000-0000000000aa", dom = domainOf(srv0.id);
+    await withKinds([Object.assign(clone(srvK), { implements: srvK.implements.filter((p) => p !== "vms.server/1") })], async () => {
+      const n = schemaNode(Object.assign(clone(srvU), { uid: sid, parentId: null, name: "Сервер формы по схеме" }));
+      devicePool.push(n); DEVICE_DOMAIN[sid] = dom.id; hwIdxDrop();
+      const wasSlice = slice;
+      try {
+        ok(isSchemaNode(find(sid)?.n) && n.type === "server" && !typeIn(n, ["server"]), "сервер без vms.server/1 — узел формы по схеме, не узел экрана сервера (typeIn)");
+        const m = menuText(n);
+        ok(!/Исключить из домена|Добавить службу|Создать хранилище…|Добавить устройства…/.test(m), "меню строки сервера формы по схеме — без пунктов ручного экрана сервера: «" + m + "»");
+        slice = "det";
+        ok(!/Добавить детекторы…/.test((rcSliceItems(n) || []).flat().join("")), "срез «Детекторы»: сервер формы по схеме не предлагает «Добавить детекторы…»");
+        slice = "arch";
+        ok(rcSliceItems(n) === null && !archStaysInSlice(n), "срез «Хранилища»: сервер формы по схеме — без пунктов и строки сервера");
+        slice = wasSlice;
+        ok(!bulkSolo(n) && !typeIn(n, BULK_SOLO) && typeIn(srv0, BULK_SOLO), "групповая правка: сервер формы по схеме — не одиночный объект экрана сервера (bulkSolo)");
+        ok(treeCountVal(n, 7) === 0 && treeCountVal(srv0, 7) === 7, "число в строке дерева: сервер формы по схеме не считает устройства, как сервер экрана (treeCountVal)");
+      } finally {
+        slice = wasSlice;
+        devicePool.splice(devicePool.indexOf(n), 1); delete DEVICE_DOMAIN[sid]; hwIdxDrop();
+      }
+    });
+  }
+
+  // ── Г3. Вкладка «Репликация» (vms.edge/1) на значении состояния без ожидаемых полей ──
+  // replicationStatus по схеме профиля — {type:"object"}: инструмент покрытия строит {}. Вкладка не падает
+  {
+    let st = null;
+    walkAll((n) => { if (!st && n.type === "storage" && !isSchemaNode(n)) st = n; });
+    if (!st) ok(true, "в наборе нет встроенного хранилища: вкладку «Репликация» проверять не на чем");
+    else {
+      const was = st.replicationStatus;
+      for (const v of [{}, { cameras: {}, gaps: {} }, { state: "nope" }]) {
+        st.replicationStatus = v;
+        let html = "", err = "";
+        try { html = edgeRepScreenHtml(st); } catch (e) { err = e.message; }
+        ok(!err && typeof html === "string" && html.length > 0, "вкладка «Репликация» на replicationStatus " + JSON.stringify(v) + " — без исключения" + (err ? ": " + err : ""));
+      }
+      st.replicationStatus = was;
+    }
+  }
 });
