@@ -4,7 +4,7 @@
 
 Кому: владелец контракта, mockup
 
-**Статус: новый**
+**Статус: в работе**
 
 Это ответ на документы папки [`docs/contract-layers/`](../../docs/contract-layers/README.md):
 
