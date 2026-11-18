@@ -1004,9 +1004,12 @@ def check_layer_diff(rep, spec):
         return
     folder = os.path.join(ROOT, API, "profiles")
     active = os.path.isdir(folder) and any(n.endswith(".json") for n in os.listdir(folder))
-    old, new = cls["version"]
-    rep.info(f"{name}: файлов {len(cls['files'])}, версия {old} → {new}, механизм {len(cls['mechanism'])}, "
+    rep.info(f"{name}: файлов {len(cls['files'])}, {layers.version_text(cls)}, механизм {len(cls['mechanism'])}, "
              f"описаний {len(cls['descriptions'])}, пометок {len(cls['marks'])}")
+    for text in cls["marks"][:5]:
+        rep.info(f"{name}: пометка x-layer изменена у {text}")
+    if len(cls["marks"]) > 5:
+        rep.info(f"{name}: … и ещё {len(cls['marks']) - 5} пометок x-layer")
     for layer, items in cls["layers"].items():
         rep.info(f"{name}: слой {layer} — {len(items)}")
     for who, what in cls["notify"].items():

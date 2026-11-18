@@ -293,7 +293,10 @@ def write(root, rel, text):
 
 
 def git(root, *args):
-    return subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, check=True).stdout
+    """git во временном репозитории: без GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE из окружения, без подписи и хуков."""
+    env = {k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE")}
+    return subprocess.run(["git", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=/dev/null", "-C", root, *args],
+                          capture_output=True, text=True, check=True, env=env).stdout
 
 
 def new_repo(root):
@@ -352,32 +355,49 @@ def run_cli(*args):
     return code, buf.getvalue()
 
 
-with tempfile.TemporaryDirectory() as tmp:
-    new_repo(tmp)
-    ok(classify(base="no-such-ref", root=tmp) is None, "case_no_git: нет ссылки — None")
-    with tempfile.TemporaryDirectory() as bare:
-        ok(classify(base="HEAD", root=bare) is None, "case_no_git: нет репозитория — None")
-    write(tmp, "api/profiles/vms.test.json", "{}")
-    ok("api/profiles/vms.test.json" in (changed_files("HEAD", tmp) or []), "case_untracked: новый файл виден")
-    ok("api/profiles/vms.test.json" not in (changed_files("HEAD", tmp, "HEAD") or []), "case_untracked: у коммита head новых файлов нет")
-    os.remove(os.path.join(tmp, "api/profiles/vms.test.json"))
-    # case_merge_base: ветка up ушла вперёд правкой openapi.json, своя правка — только demo.json
-    git(tmp, "branch", "up")
-    git(tmp, "checkout", "-q", "up")
-    write(tmp, "api/openapi.json", json.dumps(touch_schema(SPEC, "Unit")))
-    git(tmp, "commit", "-q", "-am", "чужая правка")
-    git(tmp, "checkout", "-q", "main")
-    write(tmp, "api/fixtures/demo.json", json.dumps(touch_reference(FX, "deviceModels")))
-    git(tmp, "commit", "-q", "-am", "своя правка")
-    ok("api/openapi.json" not in changed_files("up", tmp) and "api/fixtures/demo.json" in changed_files("up", tmp),
-       "case_merge_base: чужая правка не своя")
-    cls = classify("up", tmp)
-    ok(cls is not None and cls["mechanism"] == [] and "vms" in cls["layers"], "case_merge_base: слои считаются от общего предка")
-    # правка рабочей копии, которой нет в коммитах: новая общая схема без новой версии
-    write(tmp, "api/openapi.json", json.dumps(add_schema(SPEC, "Foo")))
-    w = classify("HEAD", tmp)
-    ok(w is not None and any("+ схема Foo" in m for m in w["mechanism"]), "рабочая копия: новая общая схема — механизм")
-    ok(any("без новой версии" in p for p in version_problems(w, False)), "рабочая копия: V1 без новой версии")
+def git_available():
+    try:
+        subprocess.run(["git", "--version"], capture_output=True, check=True)
+        return True
+    except (OSError, subprocess.CalledProcessError):
+        return False
+
+
+if not git_available():
+    skip("случаи с временным репозиторием — git не найден")
+else:
+    with tempfile.TemporaryDirectory() as tmp:
+        new_repo(tmp)
+        ok(classify(base="no-such-ref", root=tmp) is None, "case_no_git: нет ссылки — None")
+        with tempfile.TemporaryDirectory() as bare:
+            ok(classify(base="HEAD", root=bare) is None, "case_no_git: нет репозитория — None")
+        write(tmp, "api/profiles/vms.test.json", "{}")
+        ok("api/profiles/vms.test.json" in (changed_files("HEAD", tmp) or []), "case_untracked: новый файл виден")
+        ok("api/profiles/vms.test.json" not in (changed_files("HEAD", tmp, "HEAD") or []), "case_untracked: у коммита head новых файлов нет")
+        os.remove(os.path.join(tmp, "api/profiles/vms.test.json"))
+        # case_merge_base: ветка up ушла вперёд правкой openapi.json, своя правка — только demo.json
+        git(tmp, "branch", "up")
+        git(tmp, "checkout", "-q", "up")
+        write(tmp, "api/openapi.json", json.dumps(touch_schema(SPEC, "Unit")))
+        git(tmp, "commit", "-q", "-am", "чужая правка")
+        git(tmp, "checkout", "-q", "main")
+        write(tmp, "api/fixtures/demo.json", json.dumps(touch_reference(FX, "deviceModels")))
+        git(tmp, "commit", "-q", "-am", "своя правка")
+        ok("api/openapi.json" not in changed_files("up", tmp) and "api/fixtures/demo.json" in changed_files("up", tmp),
+           "case_merge_base: чужая правка не своя")
+        cls = classify("up", tmp)
+        ok(cls is not None and cls["mechanism"] == [] and "vms" in cls["layers"], "case_merge_base: слои считаются от общего предка")
+        # правка рабочей копии, которой нет в коммитах: новая общая схема без новой версии
+        marked = copy.deepcopy(SPEC)
+        marked["components"]["schemas"]["Unit"]["x-layer"] = POS
+        write(tmp, "api/openapi.json", json.dumps(marked))
+        mw = classify("HEAD", tmp)
+        ok(mw["marks"] == ["схема Unit"] and mw["notify"].get(layers.OWNER_ADDRESS) == ["пометки"], "x-layer: адресат — владелец контракта, слой «пометки»")
+        write(tmp, "api/openapi.json", json.dumps(add_schema(SPEC, "Foo")))
+        w = classify("HEAD", tmp)
+        ok(w is not None and any("+ схема Foo" in m for m in w["mechanism"]), "рабочая копия: новая общая схема — механизм")
+        ok(any("без новой версии" in p for p in version_problems(w, False)), "рабочая копия: V1 без новой версии")
+
 
 old = base()
 c = classify_specs(old, add_schema(old, "Foo"), old)
@@ -390,6 +410,26 @@ x = copy.deepcopy(old)
 x["components"]["schemas"]["Unit"]["x-layer"] = POS
 c = classify_specs(old, x, x)
 ok(c["mechanism"] == [] and c["layers"] == {} and c["marks"] == ["схема Unit"], "правка только x-layer — не механизм и не слой")
+# снятое — слой по старой спецификации: сначала новая, потом старая, потом рабочая
+gone = copy.deepcopy(old)
+del gone["components"]["schemas"]["PosRawLine"]
+c = classify_specs(old, gone, gone)
+ok(c["mechanism"] == [] and any("PosRawLine" in t for t in c["layers"].get(POS, [])), "снятая схема кассы — vms.pos/1")
+gone = copy.deepcopy(old)
+del gone["paths"][POS_PATH]
+c = classify_specs(old, gone, gone)
+ok(c["mechanism"] == [] and any(POS_PATH in t for t in c["layers"].get(POS, [])), "снятый путь с пометкой — слой пометки")
+gone = copy.deepcopy(old)
+del gone["components"]["schemas"]["AssistEvent"]["properties"]["export"]
+c = classify_specs(old, gone, gone)
+ok(c["mechanism"] == [] and any("AssistEvent.export" in t for t in c["layers"].get("video", [])), "снятое поле подсистемы — слой video")
+# правка только x-layer: список в разборе, адресат — владелец контракта, версия не нужна
+mk = {**c, "mechanism": [], "layers": {}, "kinds": [], "stand": [], "descriptions": [], "marks": ["схема Unit"],
+      "version": ("V", "V"), "files": ["api/openapi.json"], "base": "0" * 40, "notify": {}}
+ok("схема Unit" in layers.format_report(mk), "x-layer: схема названа в разборе")
+ok(version_problems(mk, True) == [], "x-layer: версия не нужна")
+ok("None" not in layers.format_report({**mk, "version": (None, None)}) and "версия не менялась" in layers.format_report({**mk, "version": (None, None)}),
+   "разбор без правки openapi.json не пишет None")
 m = classify_specs(old, add_schema(old, "Foo"), old)
 ok(any("без новой версии" in p for p in version_problems({**m, "version": ("V", "V")}, False)), "V1: механизм без версии")
 ok(version_problems({**m, "version": ("0.1.0", "0.2.0")}, False) == [], "V1: версия поднята — можно")

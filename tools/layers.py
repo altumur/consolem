@@ -400,11 +400,12 @@ def _without(schema, paths):
         if not isinstance(parent, dict) or not ms:
             continue
         name, items, addl, var = ms[-1].groups()
-        if name is not None and name in (parent.get("properties") or {}):
-            parent["properties"][name] = {}
-        elif items and "items" in parent:
+        # узел заменяем и там, где его нет: снятое поле не должно считаться правкой остальной схемы
+        if name is not None:
+            parent.setdefault("properties", {})[name] = {}
+        elif items:
             parent["items"] = {}
-        elif addl and "additionalProperties" in parent:
+        elif addl:
             parent["additionalProperties"] = {}
     return out
 
@@ -424,7 +425,15 @@ def classify_specs(old, new, marks):
     marks — спецификация, по которой ищут x-layer. Схема или путь с пометкой — слой пометки; без неё — механизм;
     изменились только описания и примеры — descriptions."""
     mech, lay, desc, marked = [], {}, [], []
-    leaks = leak_marks(marks)
+    # слой снятого имени есть только в старой спецификации: ищем в новой, потом в старой, потом в рабочей
+    order = (new, old, marks)
+    leaks = {**leak_marks(marks), **leak_marks(old), **leak_marks(new)}
+
+    def of_schema(name):
+        return next((l for l in (layer_of_schema(sp, name) for sp in order) if l), None)
+
+    def of_path(path):
+        return next((l for l in (layer_of_path(sp, path) for sp in order) if l), None)
 
     def put(layer, text):
         if layer:
@@ -436,7 +445,7 @@ def classify_specs(old, new, marks):
     nsch = (new.get("components") or {}).get("schemas") or {}
     for name in sorted(set(osch) | set(nsch)):
         a, b = osch.get(name), nsch.get(name)
-        layer = layer_of_schema(marks, name)
+        layer = of_schema(name)
         if a is None or b is None:
             put(layer, f"{'+' if a is None else '-'} схема {name}")
             continue
@@ -466,7 +475,7 @@ def classify_specs(old, new, marks):
     opaths, npaths = old.get("paths") or {}, new.get("paths") or {}
     for path in sorted(set(opaths) | set(npaths)):
         a, b = opaths.get(path), npaths.get(path)
-        layer = layer_of_path(marks, path)
+        layer = of_path(path)
         if a is None or b is None:
             put(layer, f"{'+' if a is None else '-'} путь {path}")
         elif a != b:
@@ -573,8 +582,10 @@ def _merge(dst, src):
             _add(dst, k, t)
 
 
-def _notify(mechanism, lay, api_dir):
+def _notify(mechanism, lay, api_dir, marks=()):
     out = {}
+    if marks:
+        _add(out, OWNER_ADDRESS, "пометки")
     if mechanism:
         _add(out, OWNER_ADDRESS, "механизм")
     for layer in lay:
@@ -633,7 +644,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
             kinds += c["kinds"]
             stand += c["stand"]
     return {"base": mb, "files": files, "mechanism": mechanism, "layers": lay, "kinds": kinds, "stand": stand,
-            "descriptions": desc, "marks": marks_only, "version": version, "notify": _notify(mechanism, lay, os.path.join(root, api_dir))}
+            "descriptions": desc, "marks": marks_only, "version": version, "notify": _notify(mechanism, lay, os.path.join(root, api_dir), marks_only)}
 
 
 def version_problems(cls, profiles_active):
@@ -650,8 +661,15 @@ def version_problems(cls, profiles_active):
     return out
 
 
+def version_text(cls):
+    old, new = cls.get("version") or (None, None)
+    if old is None or new is None or old == new:
+        return "версия не менялась"
+    return f"версия контракта: {old} → {new}"
+
+
 def format_report(cls):
-    lines = [f"общий предок {cls['base'][:10]}, файлов: {len(cls['files'])}, версия контракта: {cls['version'][0]} → {cls['version'][1]}"]
+    lines = [f"общий предок {cls['base'][:10]}, файлов: {len(cls['files'])}, {version_text(cls)}"]
     for title, items in (("механизм", cls["mechanism"]), ("вид вне профилей", cls["kinds"]), ("стенд", cls["stand"]),
                          ("только описания", cls["descriptions"])):
         if items:
@@ -659,6 +677,7 @@ def format_report(cls):
             lines += [f"  {s}" for s in items]
     if cls["marks"]:
         lines.append(f"только пометки x-layer: {len(cls['marks'])}")
+        lines += [f"  {s}" for s in cls["marks"]]
     for layer, items in cls["layers"].items():
         lines.append(f"слой {layer}: {len(items)}")
         lines += [f"  {s}" for s in items]
