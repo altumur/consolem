@@ -35,6 +35,7 @@
 | 0.23.0 | Проверка `match.detector` при сохранении правила | `vms.detector/1` | `RuleTrigger.match.detector` |
 | 0.24.0 | Слои контракта: расширение `x-layer` у схем, путей и полей подсистем | механизм | `x-layer` |
 | 0.25.0 | Профили в файлах: `version` и `uses` у `Profile` | механизм | `Profile.version`, `Profile.uses`, `ProfileUse`, `api/profiles/` |
+| 0.26.0 | Раскладки дерева объявляет система: `GET /kinds` → `layouts`. Ломающая правка: у `layout` снят `enum` | механизм | `TreeLayout`, `PlaceRule`, `KindSelector`, `TreeGroup`, `KindsList.layouts`, `TreeNode.group`, `StreamMessage.layout`, параметр `layout` у `/tree/children` и `/tree/paths` |
 
 ## Как дополнять
 

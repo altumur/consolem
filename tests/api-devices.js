@@ -877,7 +877,7 @@
       const flat = (await env.pages(`/tree/children?layout=${layout}&parentId=${cam.id}&limit=1000`)).find((x) => x.id === plain.uid);
       assert.eq(flat && flat.hasChildren, false, `${layout}: у детектора без детей их нет`);
     }
-  }, { needs: ["createUnits", "kind:det", "kind:subdet", "getTreeChildren"] });
+  }, { needs: ["createUnits", "kind:det", "kind:subdet", "getTreeChildren", "layout:detectors", "layout:servers"] });
 
   test("Правило по subdet.triggered (kinds: [subdet]) проходит проверку; событие не тревога и не в «Что считать тревогой»", async () => {
     const env = await makeEnv();

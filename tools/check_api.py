@@ -44,6 +44,7 @@ import sys
 import cli_paths
 import generic_legacy
 import layers
+import mechanism
 import profile_files
 
 API = cli_paths.opt("api", "api")
@@ -308,9 +309,13 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     # modeManual — режим, включённый вручную ({ modeId, until } или null): состояние стенда, ответ — GET /modes/current
     if fx.get("modeManual") is not None:
         validate(spec, {"$ref": "#/components/schemas/ModeCurrentWrite"}, fx["modeManual"], "modeManual", problems)
+    # layouts — раскладки дерева (GET /kinds → layouts): записи по схеме TreeLayout, согласие с видами — check_mechanism
+    for i, rec in enumerate(fx.get("layouts") or []):
+        validate(spec, {"$ref": "#/components/schemas/TreeLayout"}, rec, f"layouts[{i}]", problems)
+        total += 1
     # kinds, profiles, units — описания видов, профили, объекты склада: их проверяет check_units
     known = set(collections) | set(singles) | set(generic_legacy.OLD_TABLES) | {"access", "$comment", "version", "capturedAt", "timezone", "me", "network", "discovery", "modeManual", "stand", "scenarioDocs", "relays",
-                                                "kinds", "profiles", "units"}
+                                                "kinds", "profiles", "units", "layouts"}
     problems += [f"раздел {k} не описан в check_api.py" for k in fx if k not in known]
     rep.check(f"{label} соответствует схемам контракта", problems, f"{total} записей + access, settings, reference")
 
@@ -1052,6 +1057,15 @@ def check_layers(rep, spec):
               f"{len(schemas)} схем, {len(paths)} путей подсистем, {len(leaks)} полей подсистем в общих схемах")
 
 
+def check_mechanism(rep, spec, fixtures):
+    """Механизм без VMS (tools/mechanism.py): раскладки наборов сходятся с их видами (L1–L7), описания дерева — без слов VMS (B5)."""
+    problems = [p for name, fx in fixtures.items() for p in mechanism.layout_problems(fx, name)]
+    rep.check("Раскладки дерева в наборах: объявления сходятся с видами", problems,
+              ", ".join(f"{name}: {len(fx.get('layouts') or [])}" for name, fx in fixtures.items()))
+    rep.check("Граница механизма: без VMS в общих описаниях", mechanism.border_problems(spec),
+              f"схем {len(mechanism.TREE_SCHEMAS)} и пути {mechanism.TREE_PATH_PREFIX}*")
+
+
 def check_versions_by_layer(rep, spec):
     """Таблица docs/contract-layers/versions-by-layer.md: строка у каждой версии README и у текущей, слои знакомые."""
     name = "Версии контракта по слоям"
@@ -1320,6 +1334,7 @@ def main():
     check_test_layers(rep)
     check_core_field(rep, spec)
     check_layers(rep, spec)
+    check_mechanism(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     check_versions_by_layer(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)

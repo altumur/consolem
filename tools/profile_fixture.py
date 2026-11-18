@@ -332,11 +332,49 @@ def build(demo):
                 if not p["uses"]:
                     del p["uses"]
 
+    # Раскладки дерева — как у demo, без видов и профилей, которых у системы нет (tools/mechanism.py, L5)
+    if "layouts" in fx:
+        fx["layouts"] = profile_layouts(fx["layouts"], fx["kinds"], fx.get("profiles") or [])
+
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
     # Только возможности, которые знает контракт (Feature)
     caps["features"] = [f for f in FEATURES if f in contract_features()]
     return fx
+
+
+def profile_layouts(layouts, kinds, profiles):
+    """Раскладки набора: из селекторов уходят коды видов и профили, которых набор не объявил. Селектор, который от этого
+    опустел, значил бы «любой вид»: правило с ним уходит, show и hide — тоже."""
+    codes = {k["kind"] for k in kinds}
+    have = {p["id"] for p in profiles} | {i for k in kinds for i in k.get("implements", [])}
+
+    def cut(sel):
+        out = {}
+        if sel.get("kinds"):
+            out["kinds"] = [c for c in sel["kinds"] if c in codes]
+        if sel.get("implements"):
+            out["implements"] = [i for i in sel["implements"] if i in have]
+        out = {k: v for k, v in out.items() if v}
+        return out or None
+
+    for lay in layouts:
+        for key in ("show", "hide"):
+            if key in lay:
+                lay[key] = cut(lay[key])
+                if lay[key] is None:
+                    del lay[key]
+        rules = []
+        for rule in lay["place"]:
+            gone = False
+            for key in ("what", "ref"):
+                if key in rule:
+                    rule[key] = cut(rule[key])
+                    gone = gone or rule[key] is None
+            if not gone:
+                rules.append(rule)
+        lay["place"] = rules
+    return layouts
 
 
 def contract_features():

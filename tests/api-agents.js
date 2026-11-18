@@ -158,7 +158,7 @@
     assert.status(await env.call("GET", U(tools[0].uid)), 404, "NOT_FOUND");
     const gone = await env.ok("POST", "/objects/delete", { idempotencyKey: key(), items: tools.slice(1).map((t) => ({ id: t.uid, version: t.version })) });
     assert.eq(gone.done.length, 2, "группой удалены два инструмента");
-  }, { needs: [AGENT, STEP, PIPE, "validateUnits", "moveUnit", "runKindAction", "getCreatable", "getUnitSchema", "openUnitSetupUi", "getTreePaths", "deleteUnit", "deleteObjects"] });
+  }, { needs: [AGENT, STEP, PIPE, "validateUnits", "moveUnit", "runKindAction", "getCreatable", "getUnitSchema", "openUnitSetupUi", "getTreePaths", "deleteUnit", "deleteObjects", "layout:folders"] });
 
   ApiTest.loaded("api-agents.js");
 })();

@@ -206,6 +206,7 @@
 
   // needs — что тесту нужно от системы: operationId, "type:<вид устройства>", "feature:<возможность>",
   // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы,
+  // "layout:<id>" — система объявила раскладку дерева (GET /kinds → layouts),
   // "profile:<id>[@M.m]" — профиль объявлен (и его версия не младше M.m). Чего нет — тест пропускается (SKIP) и не
   // считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units).
   // layer — чью договорённость проверяет тест: "mechanism", "video" или "profile:<id>"; без него — слой файла (fileLayer).
@@ -283,6 +284,8 @@
       }
       if (n.startsWith("profile:")) return !!ConsolemTestLayers.profileLack(n, DECLARED);
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
+      // layout:<id> — раскладку дерева объявила система (GET /kinds → layouts): тесты раскладок VMS на системе без них — SKIP
+      if (n.startsWith("layout:")) return !KINDS || !(KINDS.layouts || []).some((l) => l.id === n.slice(7));
       // Служебные операции стенда (testEvent, testStreamElsewhere) в capabilities не входят: у стенда они есть всегда, а в needs
       // их называют ради покрытия — тест, который не шёл (нет вида), освобождает и их
       if (allOps().some((o) => o.test && o.id === n)) return false;

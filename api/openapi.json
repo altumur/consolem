@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.25.0",
+    "version": "0.26.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -4594,7 +4594,7 @@
           "hardware"
         ],
         "summary": "Дети узла дерева, страницами",
-        "description": "Без parentId — верхний уровень. Порядок детей — по имени внутри одного члена; на верхнем уровне и в папках порядок сервера: неизменный между страницами, не алфавитный. Камера-кластер в раскладке servers лежит под доменом: serverId в виде нет. Её детекторы видны только при раскрытии, сводного списка по домену в detectors нет. Под детектором раскладка detectors показывает и его поддетекторы (вид subdet, с 0.12.0). Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
+        "description": "Без parentId — верхний уровень. Где лежит объект, решают правила раскладки (TreeLayout.place). Порядок детей: у области, группы и папки — по номеру правила, затем порядок бэкенда: неизменный между страницами, не алфавитный; у остальных узлов — по номеру правила, затем по имени. Общее правило страницы: limit, cursor, ответ {items, nextCursor?, total?}, пустые items при живом nextCursor законны.",
         "parameters": [
           {
             "name": "layout",
@@ -4602,14 +4602,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "folders",
-                "servers",
-                "archives",
-                "detectors"
-              ]
+              "pattern": "^[a-z][A-Za-z0-9_.-]*$"
             },
-            "description": "Раскладка"
+            "description": "Код раскладки из GET /kinds → layouts. Другой — 422 VALIDATION_FAILED, field: layout"
           },
           {
             "name": "parentId",
@@ -4705,14 +4700,9 @@
             "required": true,
             "schema": {
               "type": "string",
-              "enum": [
-                "folders",
-                "servers",
-                "archives",
-                "detectors"
-              ]
+              "pattern": "^[a-z][A-Za-z0-9_.-]*$"
             },
-            "description": "Раскладка"
+            "description": "Код раскладки из GET /kinds → layouts. Другой — 422 VALIDATION_FAILED, field: layout"
           },
           {
             "name": "ids",
@@ -10743,7 +10733,7 @@
               "prompt.opened": "Открыт вопрос оператору: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, roleId, level. Клиент перечитывает GET /rule-prompts",
               "prompt.closed": "Вопрос закрыт: kind=rulePrompt, entityId — вопрос, payload — ruleId, fireId, step, reason: answered, expired, reset, stopped; при answered ещё answer и by — кто ответил",
               "stream.hello": "Первое сообщение потока: clientId — для PUT /stream/{clientId}/watch",
-              "tree.changed": "Ветка изменилась вне наблюдения: layout, parentIds. Частота постоянная и не зависит от размера домена. Клиент перечитывает эти ветки, если они у него загружены",
+              "tree.changed": "Ветка изменилась вне наблюдения: layout, parentIds. Приходит по каждой раскладке из GET /kinds → layouts; незнакомую раскладку клиент пропускает. Частота постоянная и не зависит от размера домена. Клиент перечитывает эти ветки, если они у него загружены",
               "journal.event": "Новая запись журнала об устройстве: entityId — устройство, payload — JournalEvent. Наблюдающим устройство, его родителя или камеру, к которой привязан источник событий: лента и титры закладки «Просмотр»",
               "kinds.changed": "Описания видов изменились: payload.kinds — коды. Подсказка, а не гарантия: после stream.reset клиент сам перечитывает GET /kinds с If-None-Match",
               "export.progress": "Ход выгрузки: kind=exportJob, entityId — задание, payload — progress и part. Только автору",
@@ -10781,12 +10771,8 @@
           },
           "layout": {
             "type": "string",
-            "enum": [
-              "folders",
-              "servers",
-              "archives",
-              "detectors"
-            ]
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "tree.changed: код раскладки из GET /kinds → layouts. Незнакомую раскладку клиент пропускает"
           },
           "parentIds": {
             "type": "array",
@@ -15561,15 +15547,15 @@
           "parentId",
           "hasChildren"
         ],
-        "description": "Узел дерева. Счётчиков у узлов нет. Объект узла — краткий (unit): строка дерева берёт из него имя, вид, связь, выключенность, сервер, сбой",
+        "description": "Узел дерева. Счётчиков у узлов нет. Объект узла — краткий (unit): строка дерева берёт из него имя, вид, связь, выключенность, сбой. Узел группы раскладки (group: true) объекта за собой не имеет",
         "properties": {
           "id": {
             "type": "string",
-            "description": "id записи; у нераспределённых unalloc:<domainId>"
+            "description": "id записи; у узла группы — <id группы>:<uid области> (TreeLayout.groups)"
           },
           "kind": {
             "type": "string",
-            "description": "Вид объекта из GET /kinds (unalloc — виртуальный узел нераспределённых серверов). Незнакомый вид клиент показывает с общим значком"
+            "description": "Код вида из GET /kinds; у узла группы — код группы раскладки (TreeLayout.groups). Незнакомый вид клиент показывает с общим значком"
           },
           "name": {
             "type": "string"
@@ -15582,6 +15568,10 @@
           },
           "hasChildren": {
             "type": "boolean"
+          },
+          "group": {
+            "type": "boolean",
+            "description": "true: виртуальный узел группы, объекта за ним нет"
           },
           "icon": {
             "type": "string"
@@ -15616,7 +15606,7 @@
                 "$ref": "#/components/schemas/TreePathStep"
               }
             },
-            "description": "Цепочки от корня (домен) до объекта, у объекта любого вида: по parentId, у корня домена — по раскладке (папки объекта, хранилища записи, сервер). Объект в нескольких папках — несколько цепочек"
+            "description": "Цепочки от корня (область) до объекта, у объекта любого вида: по parentId, а у корня области — по правилам раскладки (TreeLayout.place: папки объекта, цель ссылки). Объект в нескольких папках — несколько цепочек. Шага группы в цепочке нет"
           }
         }
       },
@@ -15634,10 +15624,159 @@
           },
           "kind": {
             "type": "string",
-            "description": "Вид объекта шага — код из GET /kinds (UnitKind.kind), как TreeNode.kind: domain, folder, server, archive.local, volume, camera, security_controller/CONTROLLER… Перечень открыт: незнакомый вид клиент показывает с общим значком"
+            "description": "Вид объекта шага — код из GET /kinds (UnitKind.kind), как TreeNode.kind: domain, folder, agent.model, security_controller/CONTROLLER… Перечень открыт: незнакомый вид клиент показывает с общим значком"
           },
           "name": {
             "type": "string"
+          }
+        }
+      },
+      "TreeLayout": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "place"
+        ],
+        "description": "Раскладка дерева, которую объявила система (GET /kinds → layouts). Раскладка — список правил «где лежит объект»: первое подходящее правило решает место объекта. Порядок раскладок в списке — порядок кнопок срезов. folders — раскладка механизма (папки); свои раскладки система называет с префиксом системы (agent.models). Незнакомые поля клиент пропускает",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "Код раскладки: параметр layout у GET /tree/children и GET /tree/paths, поле layout у tree.changed"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "hint": {
+            "$ref": "#/components/schemas/Text"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Значок кнопки среза. Незнакомый клиент заменяет общим"
+          },
+          "place": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "$ref": "#/components/schemas/PlaceRule"
+            },
+            "description": "Правила места по порядку: первое подходящее решает, где объект лежит. Не подошло ни одно — объекта в раскладке нет. Объект вида с shape: document в дереве не бывает никогда"
+          },
+          "show": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Объект виден, если подходит сам или у него в этой раскладке есть подходящий потомок. Нет поля — видны все"
+          },
+          "hide": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Объекты этих видов не видны вместе со своим поддеревом"
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeGroup"
+            },
+            "description": "Виртуальные узлы под областью. Правило by: group кладёт объект в такой узел"
+          }
+        }
+      },
+      "PlaceRule": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "by"
+        ],
+        "description": "Правило места объекта в раскладке. Правило подходит, если подходят what, root и where и правило даёт место: у folders у объекта есть папки, у ref есть значение ссылки, у parent у дочернего объекта есть родитель",
+        "properties": {
+          "what": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Каким видам правило годится. Нет поля — любому виду"
+          },
+          "root": {
+            "type": "boolean",
+            "description": "true — только корни (parentId: null), false — только дочерние объекты. Нет поля — все"
+          },
+          "where": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "property",
+              "equals"
+            ],
+            "description": "Значение свойства объекта (Unit.properties)",
+            "properties": {
+              "property": {
+                "type": "string"
+              },
+              "equals": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              }
+            }
+          },
+          "by": {
+            "type": "string",
+            "enum": [
+              "area",
+              "parent",
+              "folders",
+              "ref",
+              "group",
+              "none"
+            ],
+            "description": "Где лежит объект. area — прямо под областью объекта (Unit.domainId). parent — под parentId, корень — под областью. folders — под каждой папкой из Unit.folders. ref — под объектом, на который ссылается первое свойство вида с x-ref, подходящим под ref; значение из status.observed под тем же именем главнее значения из properties. group — под узлом группы. none — объекта в раскладке нет"
+          },
+          "ref": {
+            "$ref": "#/components/schemas/KindSelector",
+            "description": "Для by: ref — обязательно: на объекты каких видов ведёт ссылка"
+          },
+          "group": {
+            "type": "string",
+            "description": "Для by: group — обязательно: id группы из TreeLayout.groups"
+          }
+        }
+      },
+      "KindSelector": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Отбор видов, как x-ref: вид подходит, если его код есть в kinds или он объявил профиль из implements. Пустой отбор — любой вид",
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Коды видов (UnitKind.kind)"
+          },
+          "implements": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Профили (UnitKind.implements)"
+          }
+        }
+      },
+      "TreeGroup": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label"
+        ],
+        "description": "Виртуальный узел раскладки под областью. Узел группы в GET /tree/children: id — <id группы>:<uid области>, kind — id группы, name — label.text, parentId — uid области, hasChildren: true, group: true. В GET /tree/paths шага группы нет: шаг — всегда объект",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text"
           }
         }
       },
@@ -19198,6 +19337,13 @@
               "$ref": "#/components/schemas/Profile"
             },
             "description": "Профили набора. Источник каждого — файл профиля api/profiles/<имя>.json; у записи версия (version) и зависимости (uses)"
+          },
+          "layouts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TreeLayout"
+            },
+            "description": "Раскладки дерева, которые объявила система (с 0.26.0). Порядок — порядок кнопок срезов. Поле пока необязательное: бэкенд без него — клиент показывает прежние раскладки по операциям"
           }
         }
       },

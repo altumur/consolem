@@ -11134,6 +11134,226 @@
    ]
   }
  ],
+ "layouts": [
+  {
+   "id": "folders",
+   "label": {
+    "key": "layout.folders",
+    "text": "По папкам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.folders.hint",
+    "text": "Домен → папки → объекты",
+    "lang": "ru"
+   },
+   "icon": "folder",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.folder/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.folder/1"
+      ]
+     },
+     "by": "parent"
+    },
+    {
+     "by": "folders"
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ],
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   }
+  },
+  {
+   "id": "servers",
+   "label": {
+    "key": "layout.servers",
+    "text": "По серверам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.servers.hint",
+    "text": "Домен → серверы → камеры, хранилища и службы",
+    "lang": "ru"
+   },
+   "icon": "server",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "by": "group",
+     "group": "unalloc"
+    },
+    {
+     "root": true,
+     "by": "ref",
+     "ref": {
+      "implements": [
+       "vms.server/1"
+      ]
+     }
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.folder/1",
+       "vms.archive/1",
+       "vms.volume/1"
+      ],
+      "kinds": [
+       "export",
+       "email",
+       "sms"
+      ]
+     },
+     "by": "none"
+    },
+    {
+     "root": true,
+     "by": "area"
+    },
+    {
+     "by": "parent"
+    }
+   ],
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   },
+   "groups": [
+    {
+     "id": "unalloc",
+     "label": {
+      "key": "layout.servers.unalloc",
+      "text": "Нераспределённые серверы",
+      "lang": "ru"
+     }
+    }
+   ]
+  },
+  {
+   "id": "archives",
+   "label": {
+    "key": "layout.archives",
+    "text": "Хранилища",
+    "lang": "ru"
+   },
+   "icon": "archive",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.archive/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.archive/1",
+       "vms.volume/1"
+      ]
+     },
+     "root": false,
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "detectors",
+   "label": {
+    "key": "layout.detectors",
+    "text": "Детекторы",
+    "lang": "ru"
+   },
+   "icon": "det",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.server/1"
+      ]
+     },
+     "where": {
+      "property": "allocated",
+      "equals": true
+     },
+     "by": "area"
+    },
+    {
+     "root": true,
+     "by": "ref",
+     "ref": {
+      "implements": [
+       "vms.server/1"
+      ]
+     }
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ],
+   "show": {
+    "implements": [
+     "vms.server/1",
+     "vms.detector/1",
+     "vms.subdetector/1"
+    ]
+   },
+   "hide": {
+    "implements": [
+     "vms.stream/1"
+    ]
+   }
+  }
+ ],
  "units": [
   {
    "uid": "10000001-0000-4000-8000-000000000000",

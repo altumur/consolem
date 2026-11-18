@@ -267,7 +267,7 @@
     sensors.forEach((n) => check(n, "контроллер"));
     const archives = await env.pages(`/tree/children?layout=archives&parentId=${server.id}`);
     archives.forEach((n) => assert.ok(n.kind.startsWith("archive.") && n.implements.includes("vms.archive/1"), `хранилище ${n.name} — вид archive.*`));
-  }, { needs: ["getTreeChildren", "listKinds"] });
+  }, { needs: ["getTreeChildren", "listKinds", "layout:servers", "layout:archives"] });
 
   test("/units/{uid}/creatable под контроллером — только SENSOR", async () => {
     const env = await makeEnv();
@@ -569,7 +569,7 @@
     assert.eq(back.body.parentId, a.uid, "снова под родителем");
     const ctrl = ofKind(CONTROLLER)[0];
     invalid(await env.call("POST", `/units/${ctrl.uid}/move`, { parentId: null }, { "If-Match": await env.etag(unitPath(ctrl.uid)) }), "/parentId", null, "у вида нет move в capabilities", "NOT_SUPPORTED");
-  }, { needs: ["moveUnit"] });
+  }, { needs: ["moveUnit", "layout:servers"] });
 
   test("действие instant ARM — 200 result, status.observed.armed, событие", async () => {
     const env = await makeEnv();
@@ -971,7 +971,7 @@
     // У вида без этих полей их нет и в кратком объекте
     const dom = (await env.ok("GET", "/tree/children?layout=servers")).items[0];
     assert.ok(!("enabled" in ((dom.unit || {}).brief || {})) && !((dom.unit.status || {}).observed), "у домена — ни enabled, ни observed");
-  }, { needs: ["getTreeChildren", "kind:camera"] });
+  }, { needs: ["getTreeChildren", "kind:camera", "layout:servers"] });
 
   test("Команда вида без объекта: scope kind — POST /kinds/{kind}/actions/{id}; probe камеры, регистратора, сервера, check хранилища", async () => {
     const env = await makeEnv();
@@ -1026,7 +1026,7 @@
     assert.eq((await env.ok("GET", `/units/${withDevices.uid}`)).hasChildren, true, "есть дочерние объекты — шеврон");
     const node = (await env.pages(`/tree/children?layout=servers&parentId=${dom1()}`)).find((n) => n.id === onlyStreams.parentId);
     if (node) assert.eq(node.hasChildren, true, "узел сервера с камерами");
-  }, { needs: ["getUnit", "kind:camera"] });
+  }, { needs: ["getUnit", "kind:camera", "layout:servers"] });
 
   test("UnitBrief.subtype — как DeviceRow.subtype: подвид объекта в узле дерева, нет свойства — нет поля", async () => {
     const env = await makeEnv();
@@ -1042,7 +1042,7 @@
       else assert.ok(!("subtype" in n.unit), `у узла ${n.id} нет подвида — нет и поля`);
     });
     if (units().some((u) => u.properties && u.properties.subtype)) assert.ok(seen > 0, "в обходе есть узел с подвидом");
-  }, { needs: ["getTreeChildren"] });
+  }, { needs: ["getTreeChildren", "layout:servers"] });
 
   test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — триггеры (с 0.17.0); other и segment.lost — не тревоги", async () => {
     const env = await makeEnv();
@@ -1070,7 +1070,7 @@
     assert.ok((await env.pages(`/tree/children?layout=folders&parentId=${top[0].id}`)).every((n) => n.kind === "folder"), "под областью — папки");
     const agent = (await env.ok("GET", "/units?kind=agent.agent")).items[0];
     assert.status(await env.call("POST", `/units/${agent.uid}/actions/check`, { params: {} }), 200);
-  }, { needs: ["listKinds", "getTreeChildren", "runUnitAction", "kind:agent.agent"], layer: "mechanism" });
+  }, { needs: ["listKinds", "getTreeChildren", "runUnitAction", "kind:agent.agent", "layout:folders"], layer: "mechanism" });
 
   ApiTest.loaded("api-units.js");
 })();

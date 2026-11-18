@@ -2630,7 +2630,9 @@
     // Дерево — по складу: дети узла — из индексов (родитель, папка, ссылка на сервер), без прохода всех объектов.
     // Узел — объект склада: вид, значок и профили из описания вида, краткий объект (UnitBrief). Потоки камеры и документы
     // домена (shape: document) — не узлы
-    const LAYOUTS = ["folders", "servers", "archives", "detectors"];
+    // Раскладки объявляет система: раздел layouts набора (GET /kinds → layouts). Код раскладки проверяется по ним;
+    // дерево по объявленным правилам строит общий движок, пока — прежний код по коду раскладки
+    const layoutDeclared = (id) => typeof id === "string" && (db.layouts || []).some((l) => l.id === id);
     const unallocOf = (id) => (String(id).startsWith("unalloc:") ? id.slice(8) : null);
     const SERVICE = new Set(["export", "email", "sms"]);
     const isArchive = (u) => tableOf(u.kind) === "archives";
@@ -2735,7 +2737,7 @@
       return (layout === "detectors" ? kids.filter((x) => isDetector(x) || isSubdetector(x)) : kids).map((x) => [name(1, x), lazy(x, parentId)]);
     }
     function treeChildren(q) {
-      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      if (!layoutDeclared(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
       const rows = treeKids(q.layout, q.parentId);
       if (!rows) return notFound("Узел");
       return pageList(q, "tree", rows, (x) => x[0], (x) => (typeof x[1] === "function" ? x[1]() : x[1]), q.parentId ? { parentCount: rows.length } : {});
@@ -2791,7 +2793,7 @@
       return srv ? [chainOf(srv).concat(line)] : plain;
     }
     function treePaths(q) {
-      if (!LAYOUTS.includes(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      if (!layoutDeclared(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
       const ids = String(q.ids || "").split(",").filter(Boolean);
       if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
       return { status: 200, body: { items: ids.map((id) => ({ id, chains: treeChains(q.layout, id) })).filter((x) => x.chains.length) } };
@@ -2950,16 +2952,23 @@
       keyChanged(k, "removed");
       return { status: 204, body: null };
     }
-    function kindsList(headers) {
-      const tag = kinds.etag();
-      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
-      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag, Vary: "Accept-Language" } };
+    // ETag /kinds — хэш описаний и профилей (kinds.etag) и раскладок набора: другая раскладка — другой тег
+    function kindsTag() {
+      const base = kinds.etag();
+      return db.layouts ? `${base.slice(0, -1)}-${hashOf(JSON.stringify(db.layouts)).toString(36)}"` : base;
     }
-    // Один вид: ETag — тот же хэш описаний, что у списка
+    function kindsList(headers) {
+      const tag = kindsTag();
+      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
+      const body = { items: clone(kinds.list()), profiles: clone(kinds.profiles()) };
+      if (db.layouts) body.layouts = clone(db.layouts);
+      return { status: 200, body, headers: { ETag: tag, Vary: "Accept-Language" } };
+    }
+    // Один вид: ETag — тот же тег, что у списка
     function kindOne(code, headers) {
       const k = kinds.get(code);
       if (!k) return notFound(`Вид ${code}`);
-      const tag = kinds.etag();
+      const tag = kindsTag();
       if (parseMatch((headers || {})["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
       return { status: 200, body: clone(k), headers: { ETag: tag, Vary: "Accept-Language" } };
     }

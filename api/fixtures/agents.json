@@ -632,6 +632,115 @@
    "properties": []
   }
  ],
+ "layouts": [
+  {
+   "id": "folders",
+   "label": {
+    "key": "layout.folders",
+    "text": "По папкам",
+    "lang": "ru"
+   },
+   "hint": {
+    "key": "layout.folders.hint",
+    "text": "Домен → папки → объекты",
+    "lang": "ru"
+   },
+   "icon": "folder",
+   "place": [
+    {
+     "what": {
+      "implements": [
+       "vms.folder/1"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "implements": [
+       "vms.folder/1"
+      ]
+     },
+     "by": "parent"
+    },
+    {
+     "by": "folders"
+    },
+    {
+     "root": false,
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "agent.pipelines",
+   "label": {
+    "key": "layout.agent.pipelines",
+    "text": "Конвейеры",
+    "lang": "ru"
+   },
+   "place": [
+    {
+     "what": {
+      "kinds": [
+       "agent.pipeline"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.step"
+      ]
+     },
+     "by": "parent"
+    }
+   ]
+  },
+  {
+   "id": "agent.models",
+   "label": {
+    "key": "layout.agent.models",
+    "text": "По моделям",
+    "lang": "ru"
+   },
+   "place": [
+    {
+     "what": {
+      "kinds": [
+       "agent.model"
+      ]
+     },
+     "root": true,
+     "by": "area"
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.agent"
+      ]
+     },
+     "by": "ref",
+     "ref": {
+      "kinds": [
+       "agent.model"
+      ]
+     }
+    },
+    {
+     "what": {
+      "kinds": [
+       "agent.agent"
+      ]
+     },
+     "by": "area"
+    }
+   ]
+  }
+ ],
  "units": [
   {
    "uid": "10000001-0000-4000-8000-000000000000",

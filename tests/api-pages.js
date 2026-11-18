@@ -204,7 +204,7 @@
     const tree = await env.pages(q("/tree/children", { layout: "servers", parentId: cam.domainId }));
     assert.ok(tree.some((n) => n.id === cam.id && n.kind === "camera"), "под доменом");
     assert.ok(!(await env.pages(q("/tree/children", { layout: "detectors", parentId: cam.domainId }))).some((n) => n.id === cam.id), "в detectors сводного списка нет");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "layout:servers", "layout:detectors"] });
 
   test("/objects/delete: version — Unit.version, правка любого поля её двигает; предел selectMax", async () => {
     const pick = FX.devices.filter((d) => d.type === "camera" && !d.parentId && d.archiveId).slice(0, 2);
@@ -218,6 +218,23 @@
     const items = Array.from({ length: 501 }, (x, i) => ({ id: FX.devices[i % FX.devices.length].id, version: "1" }));
     assert.status(await env.call("POST", "/objects/delete", { idempotencyKey: ApiTest.key(), items }), 422, "VALIDATION_FAILED", "больше selectMax");
   }, { needs: ["deleteObjects", "patchUnit", "kind:camera"] });
+
+  test("Раскладки: GET /kinds отдаёт layouts — id уникальны, у каждой label и place; раскладка не из списка — 422", async () => {
+    const env = await makeEnv();
+    const { layouts } = await env.ok("GET", "/kinds");
+    assert.ok(Array.isArray(layouts) && layouts.length > 0, "layouts — непустой массив");
+    const ids = layouts.map((l) => l.id);
+    assert.eq(new Set(ids).size, ids.length, "id уникальны");
+    layouts.forEach((l) => assert.ok(l.label && l.label.text && Array.isArray(l.place) && l.place.length > 0, `${l.id}: label.text и place`));
+    for (const [path, op] of [["/tree/children", "getTreeChildren"], ["/tree/paths?ids=x", "getTreePaths"]]) {
+      if (!ApiTest.can(op)) continue;
+      const res = await env.call("GET", q(path, { layout: "нет" }));
+      assert.status(res, 422, "VALIDATION_FAILED", `${path}: раскладка не из списка`);
+      assert.eq(res.body.field, "layout", `${path}: field — layout`);
+    }
+    const expect = { demo: ["folders", "servers", "archives", "detectors"], agents: ["folders", "agent.pipelines", "agent.models"] }[ApiTest.fixtureName];
+    if (expect) assert.eq(ids, expect, `раскладки набора ${ApiTest.fixtureName}`);
+  }, { needs: ["listKinds", "getTreeChildren"], layer: "mechanism" });
 
   test("Дерево: верхний уровень, дети, порядок, parentCount, узла нет — 404", async () => {
     const env = await makeEnv();
@@ -241,7 +258,7 @@
     assert.status(await env.call("GET", q("/tree/children", { layout: "другая" })), 422, "VALIDATION_FAILED");
     const a = FX.archives.find((x) => FX.volumes.some((v) => v.archiveId === x.id));
     assert.ok((await env.pages(q("/tree/children", { layout: "archives", parentId: a.id }))).every((n) => n.kind === "volume"), "тома");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "layout:servers", "layout:folders", "layout:archives"] });
 
   test("Дерево: цепочки от корня; камера в нескольких папках — несколько; до idsMax", async () => {
     const env = await makeEnv();
@@ -254,7 +271,7 @@
     assert.ok(srv.items[0].chains[0].some((x) => x.kind === "server") || !twice.serverId, "через сервер");
     assert.eq((await env.ok("GET", q("/tree/paths", { layout: "servers", ids: "нет" }))).items, [], "нет объекта — нет строки");
     assert.status(await env.call("GET", q("/tree/paths", { layout: "servers", ids: Array(201).fill(twice.id).join(",") })), 422, "VALIDATION_FAILED");
-  }, { needs: ["kind:camera"] });
+  }, { needs: ["kind:camera", "layout:folders", "layout:servers"] });
 
   test("Папка: состав — шаги folders (Unit.folders) одной операции, откат папок — fail NOT_SUPPORTED, предел selectMax", async () => {
     const env = await makeEnv();
