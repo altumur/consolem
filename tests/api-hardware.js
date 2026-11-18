@@ -2,7 +2,18 @@
    Пути ядра: правка объекта — PATCH /units/{uid} (name, folders, properties), шаги плана — по uid (patch, folders, createUnit).
    Чужая правка мимо стопки отката — только от системы: событие стенда device.lost снимает пропавший детектор из записи камер. */
 (() => {
-  const { test, makeEnv, assert, key, FX } = ApiTest;
+  ApiTest.fileLayer("mechanism");
+  const { test: addTest, makeEnv, assert, key, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["Маска приватности камеры", "profile:vms.camera/1"],
+    ["Команды камеры defaults и readConfig", "profile:vms.camera/1"],
+    ["Мета-детектор", "profile:vms.detector/1"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const byName = (name, type) => FX.devices.find((d) => d.name === name && (!type || d.type === type));
   // Камера сервера без связи и камера с превышенной лицензией — из набора (в системе без лицензий её нет)

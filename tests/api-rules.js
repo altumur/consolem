@@ -1,6 +1,7 @@
 /* Тесты API: правила автоматизации (история версий, запуски, пробный запуск, повтор), расписания, особые дни,
    режимы объекта, окна обслуживания; опции. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, key } = ApiTest;
   const FX = ApiTest.FX;
   const rule = (name) => FX.rules.find((r) => r.name === name);

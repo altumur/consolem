@@ -3,6 +3,7 @@
    Модель: камера заказа — объект по uid (ExportCamera.uid, ExportPart.uid, ExportFile.uid), вид — с профилем vms.camera/1;
    сутки с записью — предметный путь /units/{uid}/recording-days. Ошибки заказа — с field, JSON Pointer по телу. */
 (() => {
+  ApiTest.fileLayer("video");
   const { test, makeEnv, assert, FX, key } = ApiTest;
   const H = 3600000;
   const iso = (ms) => new Date(ms).toISOString();

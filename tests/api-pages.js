@@ -1,6 +1,7 @@
 /* Тесты API: страницы и дерево по запросу. Общее правило страницы на каждом перечне, фильтры /units, краткий объект,
    дерево, папки, поток с наблюдением, итог домена, предел выбора. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, FX } = ApiTest;
   const did = FX.domains[0].id;
   const noServer = ({ serverId, ...d }) => d;

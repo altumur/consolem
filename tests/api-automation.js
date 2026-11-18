@@ -2,6 +2,7 @@
    actions с ruleAction; остальное — reference.rule*), поля правила, действия детектора, права при записи правила, ход с
    ответом оператора, правила на несколько доменов. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert } = ApiTest;
   const FX = ApiTest.FX;
   const ref = FX.reference;

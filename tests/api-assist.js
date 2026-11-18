@@ -1,7 +1,16 @@
 /* Тесты API: ассистент — ход разговора потоком, вопрос, план, отказ, ошибка, секрет. Мир ассистента — объекты (Unit)
    и описания видов (UnitKind): шаг плана — {uid, version, patch} как PATCH /units/{uid}, отбор — фильтры GET /units. */
 (() => {
-  const { test, makeEnv, assert } = ApiTest;
+  ApiTest.fileLayer("mechanism");
+  const { test: addTest, makeEnv, assert } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["План выгрузки", "video"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const NEED = { needs: ["assistTurn"] };
   const types = (got) => got.map((m) => m.type).join(",");
   const CTRL = "security_controller/CONTROLLER";

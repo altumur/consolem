@@ -3,7 +3,24 @@
    камеры w2c — camera и storage; запись камеры — её свойства (properties), состояние записи — status.observed. Поле отказа —
    JSON Pointer (/properties/<имя>). Обход и скан архива — свои пути (/archive-watches, /archive-scans), камера — по uid. */
 (() => {
-  const { test, makeEnv, assert, key, FX, fixtureName } = ApiTest;
+  ApiTest.fileLayer("profile:vms.camera/1");
+  const { test: addTest, makeEnv, assert, key, FX, fixtureName } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["Виды:", "profile:vms.archive/1"],
+    ["Карта сервера:", "profile:vms.archive/1"],
+    ["Том:", "profile:vms.volume/1"],
+    ["Карта камеры w2c:", "profile:vms.edge/1"],
+    ["Скан и обход", "video"],
+    ["Обход архива", "video"],
+    ["Скан архива", "video"],
+    ["Запись камеры w2c: приёмник", "video"],
+    ["Настройки: сроки", "mechanism"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const GB = 1024 ** 3;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;

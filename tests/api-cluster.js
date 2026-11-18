@@ -1,6 +1,19 @@
 /* Тесты API: домен шире кластера, запрос 2026-11-01-182545Z пп. 7–11, 13, 16, 17 и дополнение пп. 4, 5. */
 (() => {
-  const { test, makeEnv, assert, FX } = ApiTest;
+  ApiTest.fileLayer("profile:vms.camera/1");
+  const { test: addTest, makeEnv, assert, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["Приём в домен", "profile:vms.server/1"],
+    ["Приём шагом move", "profile:vms.server/1"],
+    ["Папки без связи", "profile:vms.folder/1"],
+    ["Папки — не запись", "profile:vms.folder/1"],
+    ["Правка при молчащем сервере", "mechanism"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const d1 = FX.domains[0];
   const cam = FX.devices.find((d) => d.type === "camera" && !d.parentId && d.serverId && d.online && d.domainId === d1.id);
   const w2c = (over) => Object.assign({ id: "39999999-0000-4000-8000-000000000000", type: "camera", parentId: null, domainId: d1.id, name: "Камера w2c", online: true, enabled: true, direct: false, writableFields: ["name", "enabled"], ptz: true, version: "1" }, over);

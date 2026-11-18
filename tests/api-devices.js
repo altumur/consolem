@@ -4,7 +4,49 @@
    команды — /units/{uid}/actions/… (probe, output, команды единиц СКУД), живое видео и PTZ — /units/{uid}/live, ptz, presets.
    Поле отказа — JSON Pointer. */
 (() => {
-  const { test, makeEnv, assert, key, FX } = ApiTest;
+  ApiTest.fileLayer("profile:vms.camera/1");
+  const { test: addTest, makeEnv, assert, key, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["Добавить:", "mechanism"],
+    ["Добавить из найденного", "mechanism"],
+    ["Удалить камеру: строки незнакомых видов", "mechanism"],
+    ["Детектор из карточки камеры", "mechanism"],
+    ["Профиль при добавлении", "mechanism"],
+    ["Поиск в сети", "mechanism"],
+    ["Схемы видов:", "mechanism"],
+    ["Потоки:", "profile:vms.stream/1"],
+    ["Разрешение:", "profile:vms.stream/1"],
+    ["Живое видео", "video"],
+    ["Переразместить", "video"],
+    ["Пресеты", "video"],
+    ["Аренда PTZ", "video"],
+    ["Поддетектор", "profile:vms.subdetector/1"],
+    ["Удаление детектора удаляет поддетекторы", "profile:vms.subdetector/1"],
+    ["План одной операцией", "profile:vms.subdetector/1"],
+    ["/tree/children: у трекера", "profile:vms.subdetector/1"],
+    ["Правило по subdet.triggered", "profile:vms.subdetector/1"],
+    ["Встроенный детектор", "profile:vms.detector/1"],
+    ["Несовместимые", "profile:vms.detector/1"],
+    ["Зона:", "profile:vms.detector/1"],
+    ["Детектор без полей", "profile:vms.detector/1"],
+    ["objectSize", "profile:vms.detector/1"],
+    ["extraZones", "profile:vms.detector/1"],
+    ["direction", "profile:vms.detector/1"],
+    ["recordMask", "profile:vms.detector/1"],
+    ["analyticsKind", "profile:vms.detector/1"],
+    ["Свойства детектора и поддетектора", "profile:vms.detector/1"],
+    ["Источник:", "profile:vms.pos/1"],
+    ["Правило: событие text", "profile:vms.pos/1"],
+    ["Единица СКУД", "profile:vms.acs/1"],
+    ["Реле: в СКУД", "profile:vms.acs/1"],
+    ["Команда единицы", "profile:vms.acs/1"],
+    ["Правило: действие unit", "profile:vms.acs/1"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const d1 = FX.domains[0];
   const folder = FX.folders.find((f) => f.domainId === d1.id && !f.parentId);
   const cam = FX.devices.find((d) => d.type === "camera" && d.name === "Главный вход");

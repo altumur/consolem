@@ -1,7 +1,18 @@
 /* Тесты API: «Оборудование» — домены, серверы, папки. Пути ядра (/units): смысл — хуки профилей vms.domain/1,
    vms.server/1, vms.folder/1. */
 (() => {
-  const { test, makeEnv, assert, key, FX } = ApiTest;
+  ApiTest.fileLayer("profile:vms.server/1");
+  const { test: addTest, makeEnv, assert, key, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["Домен:", "profile:vms.domain/1"],
+    ["Папка:", "profile:vms.folder/1"],
+    ["Лицензии", "mechanism"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const UNKNOWN_DOMAIN = "10009999-0000-4000-8000-000000000000";
   const [d1, d2] = FX.domains;
   const unalloc = FX.servers.find((s) => !s.allocated && s.domainId === d1.id && s.class !== "camera");

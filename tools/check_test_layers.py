@@ -108,7 +108,7 @@ ZZ_FILE = """(() => {
 """
 # Сквозные проверки отчёта: строки PASS/FAIL без теста за ними
 CROSS = ("Файлы тестов загрузились", "Ответы соответствуют openapi.json", "Неподдержанные операции отвечают 404 NO_ROUTE",
-         "Каждая объявленная операция покрыта тестами")
+         "Каждая объявленная операция покрыта тестами", "У каждого теста есть слой")
 
 
 def registry(tests_dir=None):
@@ -159,16 +159,37 @@ def check_registry_count():
     own = [l for l in lines if not any(l[6:].startswith(c) for c in CROSS)]
     ok(len(lines) - len(own) == len(CROSS), f"в отчёте все {len(CROSS)} сквозные проверки: {len(lines) - len(own)}")
     ok(len(reg["tests"]) == len(own), f"тестов в реестре столько же, сколько строк PASS/FAIL/SKIP тестов в отчёте: {len(reg['tests'])} и {len(own)}")
-    m = re.search(r"INFO  Тестов без слоя: (\d+)", res.stdout)
-    # Пока файлы тестов не расставили слои (задача 3), без слоя — все
+    m = re.search(r"(PASS|FAIL)  У каждого теста есть слой — (.*)", res.stdout)
     nolayer = sum(1 for t in reg["tests"] if not t["layer"])
-    ok(bool(m) and int(m.group(1)) == nolayer, f"INFO Тестов без слоя: {m.group(1) if m else 'нет строки'} — в реестре {nolayer}")
+    ok(bool(m) and (m.group(1) == "FAIL") == bool(nolayer), f"сквозная проверка «У каждого теста есть слой»: {m.group(0) if m else 'нет строки'}; без слоя в реестре {nolayer}")
+
+
+def check_marking():
+    print("-- Разметка")
+    reg, err = registry()
+    ok(reg is not None, "Реестр tests/ печатается" + (f": {err}" if err else ""))
+    if reg is None:
+        return
+    form = re.compile(r"(mechanism|video|profile:[A-Za-z0-9_.-]+/[0-9]+)")
+    bad = [t["name"] for t in reg["tests"] if not t["layer"] or not form.fullmatch(t["layer"])]
+    ok(not bad, f"у каждого из {len(reg['tests'])} тестов слой верной формы" + (f"; без слоя: {'; '.join(bad[:5])}" if bad else ""))
+    nofile = [f for f in sorted(os.listdir(os.path.join(ROOT, "tests"))) if re.match(r"api-.+\.js$", f) and not reg["files"].get(f)]
+    ok(not nofile, "у каждого файла api-*.js задан слой" + (f"; без слоя: {', '.join(nofile)}" if nofile else ""))
+
+    def layers_of(file, prefix=None):
+        return {t["layer"] for t in reg["tests"] if t["file"] == file and (prefix is None or t["name"].startswith(prefix))}
+    samples = [("api-view", "Реле: команда output", {"mechanism"}), ("api-devices", "Поддетектор: под трекером", {"profile:vms.subdetector/1"}),
+               ("api-domains", "Папка: создать", {"profile:vms.folder/1"}), ("api-export", None, {"video"}), ("api-units", None, {"mechanism"})]
+    for file, prefix, want in samples:
+        got = layers_of(file, prefix)
+        ok(got == want, f"образец раскладки: {file}{' «' + prefix + '…»' if prefix else ''} → {sorted(got)}")
 
 
 def main():
     check_functions()
     check_registry()
     check_registry_count()
+    check_marking()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0
 

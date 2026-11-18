@@ -1,6 +1,15 @@
 /* Тесты API: права — применение черновика пакетом, проверки, защита от самоблокировки, синхронизация каталога. */
 (() => {
-  const { test, makeEnv, assert, FX } = ApiTest;
+  ApiTest.fileLayer("mechanism");
+  const { test: addTest, makeEnv, assert, FX } = ApiTest;
+  // Слой теста по началу имени; остальные тесты файла идут в слое файла
+  const LAYER_BY_PREFIX = [
+    ["PTZ — как в базе", "video"],
+  ];
+  const test = (name, fn, opts) => {
+    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
+    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+  };
   const A = FX.access;
   const meId = FX.me.userId;
   const draft = () => {

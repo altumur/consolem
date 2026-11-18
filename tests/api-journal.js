@@ -1,6 +1,7 @@
 /* Тесты API: поиск в журнале (0.8.0, возможность journalSearch) — текст, списки и «скрыть», группа и автор,
    страница вокруг записи, счётчики по полям, каталог видов. Записи — набора и стенда (stand.journal), если он есть. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, FX } = ApiTest;
   const LEVELS = ["alarm", "error", "audit", "info", "service"];
   const levelOf = (e) => (LEVELS.includes(e.level) ? e.level : e.category === "audit" ? "audit" : e.category === "alarm" ? "alarm" : "info");

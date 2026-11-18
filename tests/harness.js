@@ -323,7 +323,11 @@
       lines.push(`FAIL  Файлы тестов загрузились — ${broken.join("; ")}`);
     } else lines.push(`PASS  Файлы тестов загрузились — ${files.length}`);
     const only = params.get("only");
-    lines.push(`INFO  Тестов без слоя: ${tests.filter((t) => !t.layer).length}`);
+    const unlayered = tests.filter((t) => !t.layer || !ConsolemTestLayers.parseLayer(t.layer)).map((t) => t.name);
+    if (unlayered.length) {
+      failed += 1;
+      lines.push(`FAIL  У каждого теста есть слой — без слоя: ${unlayered.join("; ")}`);
+    } else lines.push(`PASS  У каждого теста есть слой — ${tests.length} тестов`);
     let skipped = 0;
     // Операции из needs пропущенных тестов: тест не шёл, потому что системе нечего показать (нет вида), — покрытие их не требует
     const waived = new Set();
@@ -373,7 +377,7 @@
       failed += 1;
       lines.push(`FAIL  Каждая объявленная операция покрыта тестами — без тестов: ${uncovered.join(", ")}`);
     } else lines.push(`PASS  Каждая объявленная операция покрыта тестами — ${ops.length - NOT_COVERED.length} операций${NOT_COVERED.length ? `, исключения: ${NOT_COVERED.join(", ")}` : ""}`);
-    const total = tests.length - skipped + 4;
+    const total = tests.length - skipped + 5;
     const skip = skipped ? `, пропущено ${skipped} — система этого не умеет` : "";
     finish(lines, failed ? `Тесты API: ${failed} из ${total} не прошли${skip}` : `Тесты API: все ${total} прошли${skip}`, failed);
   }

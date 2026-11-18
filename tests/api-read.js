@@ -1,5 +1,6 @@
 /* Тесты API: чтение всех разделов, ошибки адресов, служебные операции стенда. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, FX } = ApiTest;
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const DAY = 86400000;

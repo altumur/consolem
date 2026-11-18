@@ -1,5 +1,6 @@
 /* Тесты API: групповые операции над выборкой и групповое удаление. */
 (() => {
+  ApiTest.fileLayer("mechanism");
   const { test, makeEnv, assert, key, FX } = ApiTest;
   // Родитель с дочерним: регистратор с каналом или камера с детектором — что есть в наборе
   const nvr = FX.devices.find((d) => !d.parentId && FX.devices.some((x) => x.parentId === d.id));
