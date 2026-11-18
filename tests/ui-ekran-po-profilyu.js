@@ -349,28 +349,49 @@ UiCheck(async ({ ok, until }) => {
     ok(await until(() => { const n = find(lockId)?.n; return !!n && !isSchemaNode(n) && n.type === "acfa_lock"; }), "описание замка вернулось — снова экран замка");
 
     // Сервер без vms.server/1. Инфраструктуру kinds.changed не пересобирает (её экран меняется после перезагрузки), поэтому
-    // узел формы по схеме вида server — копия сервера набора с другим uid в корне дерева, как объект, который пришёл строкой
+    // проверка идёт путями прихода объекта: вход по чужому id (hwEnsure → GET /units?ids=) и ответ POST /units
+    // (hwAddUnits). Объект — копия сервера набора с другим uid: его отдаёт перехваченный GET /units?ids=
     const srvK = kindOf("server"), srv0 = servers.find((s) => domainOf(s.id) && !isUnallocated(s.id));
-    const srvU = await API.get(`/units/${srv0.id}`);
-    const sid = "2fffffff-0000-4000-8000-0000000000aa", dom = domainOf(srv0.id);
+    const srvU = await API.get(`/units/${srv0.id}`), dom = domainOf(srv0.id);
+    const copyU = (uid, name) => Object.assign(clone(srvU), { uid, parentId: null, domainId: dom.id, name, version: srvU.version });
+    const drop = (uid) => {
+      const i = devicePool.findIndex((x) => x.id === uid); if (i >= 0) devicePool.splice(i, 1);
+      const k = servers.findIndex((x) => x.id === uid); if (k >= 0) servers.splice(k, 1);
+      domains.forEach((d) => ["servers", "unallocServers"].forEach((f) => { const a = d[f] || [], m = a.findIndex((x) => x.id === uid); if (m >= 0) a.splice(m, 1); }));
+      delete DEVICE_DOMAIN[uid]; hwVer.delete(uid); hwIdxDrop();
+    };
+    const asHandSrv = (uid) => servers.some((x) => x.id === uid) || domains.some((d) => (d.servers || []).some((x) => x.id === uid));
+    const sid = "2fffffff-0000-4000-8000-0000000000aa", sid2 = "2fffffff-0000-4000-8000-0000000000ab";
+    const realGet = API.get;
     await withKinds([Object.assign(clone(srvK), { implements: srvK.implements.filter((p) => p !== "vms.server/1") })], async () => {
-      const n = schemaNode(Object.assign(clone(srvU), { uid: sid, parentId: null, name: "Сервер формы по схеме" }));
-      devicePool.push(n); DEVICE_DOMAIN[sid] = dom.id; hwIdxDrop();
       const wasSlice = slice;
+      API.get = function (path, params) {
+        if (path === "/units" && params && String(params.ids || "").split(",").includes(sid)) return Promise.resolve({ items: [copyU(sid, "Сервер формы по схеме")] });
+        return realGet.call(this, path, params);
+      };
       try {
-        ok(isSchemaNode(find(sid)?.n) && n.type === "server" && !typeIn(n, ["server"]), "сервер без vms.server/1 — узел формы по схеме, не узел экрана сервера (typeIn)");
-        const m = menuText(n);
-        ok(!/Исключить из домена|Добавить службу|Создать хранилище…|Добавить устройства…/.test(m), "меню строки сервера формы по схеме — без пунктов ручного экрана сервера: «" + m + "»");
-        slice = "det";
-        ok(!/Добавить детекторы…/.test((rcSliceItems(n) || []).flat().join("")), "срез «Детекторы»: сервер формы по схеме не предлагает «Добавить детекторы…»");
-        slice = "arch";
-        ok(rcSliceItems(n) === null && !archStaysInSlice(n), "срез «Хранилища»: сервер формы по схеме — без пунктов и строки сервера");
-        slice = wasSlice;
-        ok(!bulkSolo(n) && !typeIn(n, BULK_SOLO) && typeIn(srv0, BULK_SOLO), "групповая правка: сервер формы по схеме — не одиночный объект экрана сервера (bulkSolo)");
-        ok(treeCountVal(n, 7) === 0 && treeCountVal(srv0, 7) === 7, "число в строке дерева: сервер формы по схеме не считает устройства, как сервер экрана (treeCountVal)");
+        await hwEnsure([sid]);
+        const n = find(sid)?.n;
+        ok(!!n && isSchemaNode(n) && n.type === "server" && !typeIn(n, ["server"]) && !asHandSrv(sid),
+          "вход по чужому id (hwEnsure): сервер без vms.server/1 — узел формы по схеме, не сервер экрана в servers и domain.servers");
+        if (n) {
+          const m = menuText(n);
+          ok(!/Исключить из домена|Добавить службу|Создать хранилище…|Добавить устройства…/.test(m), "меню строки сервера формы по схеме — без пунктов ручного экрана сервера: «" + m + "»");
+          slice = "det";
+          ok(!/Добавить детекторы…/.test((rcSliceItems(n) || []).flat().join("")), "срез «Детекторы»: сервер формы по схеме не предлагает «Добавить детекторы…»");
+          slice = "arch";
+          ok(rcSliceItems(n) === null && !archStaysInSlice(n), "срез «Хранилища»: сервер формы по схеме — без пунктов и строки сервера");
+          slice = wasSlice;
+          ok(!bulkSolo(n) && typeIn(srv0, BULK_SOLO), "групповая правка: сервер формы по схеме — не одиночный объект экрана сервера (bulkSolo)");
+          ok(treeCountVal(n, 7) === 0 && treeCountVal(srv0, 7) === 7, "число в строке дерева: сервер формы по схеме не считает устройства, как сервер экрана (treeCountVal)");
+        }
+        hwAddUnits([copyU(sid2, "Созданный сервер формы по схеме")]);
+        const n2 = find(sid2)?.n;
+        ok(!!n2 && isSchemaNode(n2) && !asHandSrv(sid2), "ответ POST /units (hwAddUnits): сервер без vms.server/1 — узел формы по схеме, не сервер экрана");
       } finally {
+        API.get = realGet;
         slice = wasSlice;
-        devicePool.splice(devicePool.indexOf(n), 1); delete DEVICE_DOMAIN[sid]; hwIdxDrop();
+        drop(sid); drop(sid2);
       }
     });
   }
@@ -380,14 +401,15 @@ UiCheck(async ({ ok, until }) => {
   {
     let st = null;
     walkAll((n) => { if (!st && n.type === "storage" && !isSchemaNode(n)) st = n; });
-    if (!st) ok(true, "в наборе нет встроенного хранилища: вкладку «Репликация» проверять не на чем");
+    if (!st) ok(false, "в наборе нет встроенного хранилища: вкладку «Репликация» проверить не на чем");
     else {
       const was = st.replicationStatus;
       for (const v of [{}, { cameras: {}, gaps: {} }, { state: "nope" }]) {
         st.replicationStatus = v;
         let html = "", err = "";
         try { html = edgeRepScreenHtml(st); } catch (e) { err = e.message; }
-        ok(!err && typeof html === "string" && html.length > 0, "вкладка «Репликация» на replicationStatus " + JSON.stringify(v) + " — без исключения" + (err ? ": " + err : ""));
+        const chip = /<span class="er-st\s*">—<\/span>/.test(html);
+        ok(!err && chip && edgeStat(st)?.label === "—", "вкладка «Репликация» на replicationStatus " + JSON.stringify(v) + " — без исключения, состояние «—»" + (err ? ": " + err : chip ? "" : ": нет «—» в состоянии"));
       }
       st.replicationStatus = was;
     }
