@@ -4509,7 +4509,7 @@ function kindsChanged(){
     if(app==="hw"){renderTreeSoon();gear()}
     // Уведомление — после чтения записи открытой карточки: иначе отказ этого чтения закрыл бы его своим
     if(note)(sel&&find(sel)?.n?._row?hwFull(sel).catch(e=>console.error("kindsChanged: hwFull",e)):Promise.resolve()).finally(()=>toast(note));
-  }).catch(()=>{}).finally(()=>{kindsBusy=null});
+  }).catch(e=>console.error("kindsChanged: kindsLoad",e)).finally(()=>{kindsBusy=null});
   return kindsBusy;
 }
 // Описание вида сменило экран (профиль сняли или добавили): узлы кэша этого вида строятся заново строками перечня, полную
