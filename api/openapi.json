@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.23.0",
+    "version": "0.24.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -159,7 +159,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/reference": {
       "get": {
@@ -772,7 +773,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/rules": {
       "get": {
@@ -3940,7 +3942,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/stream-accounts/{name}": {
       "patch": {
@@ -4024,7 +4027,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/stream-accounts/{name}/password": {
       "post": {
@@ -4065,7 +4069,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/archive-watches": {
       "get": {
@@ -4190,7 +4195,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-watches/{id}": {
       "patch": {
@@ -4319,7 +4325,8 @@
           }
         },
         "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-scans": {
       "get": {
@@ -4444,7 +4451,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/archive-scans/{id}": {
       "delete": {
@@ -4482,7 +4490,8 @@
           }
         },
         "description": "Создание требует edit на камеру, правка и снятие — admin: иначе 403 PERMISSION_DENIED"
-      }
+      },
+      "x-layer": "video"
     },
     "/rule-prompts": {
       "get": {
@@ -5346,7 +5355,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/domains/{domainId}/scenarios/status": {
       "get": {
@@ -5400,7 +5410,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/domains/{domainId}/relays": {
       "get": {
@@ -5453,7 +5464,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/domains/{domainId}/relays/{name}": {
       "get": {
@@ -5502,7 +5514,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms"
     },
     "/test/stream-elsewhere": {
       "post": {
@@ -5557,7 +5570,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/holds/{holdId}/verify": {
       "post": {
@@ -5604,7 +5618,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/kinds": {
       "get": {
@@ -6499,7 +6514,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.live/1"
     },
     "/units/{uid}/talk": {
       "post": {
@@ -6553,7 +6569,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.talk/1"
     },
     "/units/{uid}/timeline": {
       "get": {
@@ -6638,7 +6655,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/playback": {
       "get": {
@@ -6702,7 +6720,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/holds": {
       "get": {
@@ -6833,7 +6852,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/bookmarks": {
       "get": {
@@ -6980,7 +7000,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/archive-fetch": {
       "post": {
@@ -7041,7 +7062,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.timeline/1"
     },
     "/units/{uid}/ptz": {
       "put": {
@@ -7132,7 +7154,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.ptz/1"
     },
     "/units/{uid}/presets/{n}": {
       "put": {
@@ -7264,7 +7287,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.ptz/1"
     },
     "/units/{uid}/recording-target": {
       "put": {
@@ -7322,7 +7346,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.camera/1"
     },
     "/units/{uid}/recording-days": {
       "get": {
@@ -7385,7 +7410,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.camera/1"
     },
     "/units/{uid}/pos/raw": {
       "get": {
@@ -7442,7 +7468,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "vms.pos/1"
     },
     "/exports/check": {
       "post": {
@@ -7483,7 +7510,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports": {
       "get": {
@@ -7609,7 +7637,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}": {
       "get": {
@@ -7689,7 +7718,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/cancel": {
       "post": {
@@ -7737,7 +7767,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/retry-failed": {
       "post": {
@@ -7823,7 +7854,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/exports/{exportId}/files/{fileId}/link": {
       "post": {
@@ -7879,7 +7911,8 @@
             "$ref": "#/components/responses/Problem"
           }
         }
-      }
+      },
+      "x-layer": "video"
     },
     "/units/{uid}/creatable": {
       "get": {
@@ -8288,7 +8321,8 @@
               "detector": {
                 "type": "string",
                 "format": "uuid",
-                "description": "С 0.18.0. Один детектор: uid объекта профиля vms.detector/1, событие которого ловит правило; нет поля — любой детектор этого вида. С 0.23.0 сервер проверяет при сохранении правила (POST /rules, PUT /rules/{id}): объекта нет или он не детектор, а при цели события из одной камеры — детектор стоит на другой камере — 422 VALIDATION_FAILED, field: match.detector, params.uid. Детектор удалили позже — сервер убирает поле и ставит имя детектора в target.gone"
+                "description": "С 0.18.0. Один детектор: uid объекта профиля vms.detector/1, событие которого ловит правило; нет поля — любой детектор этого вида. С 0.23.0 сервер проверяет при сохранении правила (POST /rules, PUT /rules/{id}): объекта нет или он не детектор, а при цели события из одной камеры — детектор стоит на другой камере — 422 VALIDATION_FAILED, field: match.detector, params.uid. Детектор удалили позже — сервер убирает поле и ставит имя детектора в target.gone",
+                "x-layer": "vms.detector/1"
               }
             },
             "additionalProperties": true,
@@ -9021,7 +9055,8 @@
           "model",
           "support"
         ],
-        "description": "Устройство, найденное поиском в сети домена"
+        "description": "Устройство, найденное поиском в сети домена",
+        "x-layer": "vms"
       },
       "Discovery": {
         "type": "object",
@@ -9081,7 +9116,8 @@
           "progress",
           "candidates"
         ],
-        "description": "Поиск устройств в сети домена: последний или идущий"
+        "description": "Поиск устройств в сети домена: последний или идущий",
+        "x-layer": "vms"
       },
       "RoleGlobal": {
         "type": "object",
@@ -9990,25 +10026,29 @@
                 "models"
               ]
             },
-            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками"
+            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками",
+            "x-layer": "vms"
           },
           "serviceTypes": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "x-layer": "vms"
           },
           "supportLevels": {
             "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "x-layer": "vms"
           },
           "recordModes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RecordMode"
-            }
+            },
+            "x-layer": "vms.camera/1"
           },
           "cloudProviders": {
             "type": "array",
@@ -10030,7 +10070,8 @@
                 "id",
                 "regions"
               ]
-            }
+            },
+            "x-layer": "vms.archive/1"
           },
           "ruleActions": {
             "type": "array",
@@ -10278,10 +10319,12 @@
             "type": "object",
             "properties": {
               "ipScanMax": {
-                "type": "integer"
+                "type": "integer",
+                "x-layer": "vms"
               },
               "defaultServerPort": {
-                "type": "integer"
+                "type": "integer",
+                "x-layer": "vms.server/1"
               },
               "pageMax": {
                 "type": "integer",
@@ -10421,7 +10464,8 @@
                 "name"
               ]
             },
-            "description": "Раскладки клиента — для «Открыть раскладку»"
+            "description": "Раскладки клиента — для «Открыть раскладку»",
+            "x-layer": "vms"
           },
           "monitors": {
             "type": "array",
@@ -10442,14 +10486,16 @@
                 "name"
               ]
             },
-            "description": "Мониторы видеостены — для «Показать на видеостене»"
+            "description": "Мониторы видеостены — для «Показать на видеостене»",
+            "x-layer": "vms"
           },
           "serverLabels": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "description": "Известные метки серверов: то, что можно выбрать"
+            "description": "Известные метки серверов: то, что можно выбрать",
+            "x-layer": "vms.server/1"
           },
           "ruleStarts": {
             "type": "array",
@@ -10506,7 +10552,8 @@
             "items": {
               "type": "string"
             },
-            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире"
+            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире",
+            "x-layer": "vms"
           },
           "analyticsConflicts": {
             "type": "array",
@@ -10531,11 +10578,13 @@
                   "description": "Виды, которые не работают с этим на одном сервере"
                 }
               }
-            }
+            },
+            "x-layer": "vms.detector/1"
           },
           "export": {
             "$ref": "#/components/schemas/ExportReference",
-            "description": "Выгрузка: есть, если система объявила createExport"
+            "description": "Выгрузка: есть, если система объявила createExport",
+            "x-layer": "video"
           }
         },
         "additionalProperties": false,
@@ -10877,7 +10926,8 @@
               "edge.gap",
               "edge.check",
               "edge.fail"
-            ]
+            ],
+            "x-layer": "vms"
           },
           "deviceId": {
             "type": "string",
@@ -10945,7 +10995,8 @@
             "description": "scenario.outcome: имя сценария"
           },
           "status": {
-            "$ref": "#/components/schemas/ScenarioStatus"
+            "$ref": "#/components/schemas/ScenarioStatus",
+            "x-layer": "vms"
           },
           "event": {
             "type": "object",
@@ -10955,7 +11006,8 @@
           },
           "eventId": {
             "type": "string",
-            "description": "unit.event: код события из UnitKind.events. С 0.18.0 deviceId может быть детектором (профиль vms.detector/1) под камерой: событие поднимает камера, eventId — detectorKind детектора или его нет (другое — 422 VALIDATION_FAILED, field: eventId; событие, которое объявил сам вид детектора, остаётся событием детектора); сервер пишет в match поле detector (uid детектора), у other — и template встроенного детектора. Детектор не под камерой — 422 VALIDATION_FAILED, field: deviceId"
+            "description": "unit.event: код события из UnitKind.events. С 0.18.0 deviceId может быть детектором (профиль vms.detector/1) под камерой: событие поднимает камера, eventId — detectorKind детектора или его нет (другое — 422 VALIDATION_FAILED, field: eventId; событие, которое объявил сам вид детектора, остаётся событием детектора); сервер пишет в match поле detector (uid детектора), у other — и template встроенного детектора. Детектор не под камерой — 422 VALIDATION_FAILED, field: deviceId",
+            "x-layer": "vms"
           },
           "match": {
             "type": "object",
@@ -14252,7 +14304,8 @@
           },
           "export": {
             "$ref": "#/components/schemas/AssistExport",
-            "description": "План выгрузки: тело POST /exports/check и POST /exports. Ход ничего не пишет: форма открывает окно выгрузки, проверяет заказ, пароль и супервизора вводит человек. Бывает, только если объявлен createExport"
+            "description": "План выгрузки: тело POST /exports/check и POST /exports. Ход ничего не пишет: форма открывает окно выгрузки, проверяет заказ, пароль и супервизора вводит человек. Бывает, только если объявлен createExport",
+            "x-layer": "video"
           },
           "ids": {
             "type": "array",
@@ -14356,7 +14409,8 @@
             "type": "string",
             "description": "Выбранный поток: DeviceStream.id этой камеры"
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "LiveResult": {
         "type": "object",
@@ -14384,7 +14438,8 @@
             "type": "string",
             "description": "Через какой шлюз идёт видео: подпись для оператора"
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "DetectorZone": {
         "type": "object",
@@ -14416,7 +14471,8 @@
             },
             "description": "Точки [x, y], доли кадра от 0 до 1"
           }
-        }
+        },
+        "x-layer": "vms.detector/1"
       },
       "PresetWrite": {
         "type": "object",
@@ -14427,7 +14483,8 @@
             "description": "Только имя. Записи нет — создаётся, есть — имя заменяется, пустое снимает подпись, запись остаётся"
           }
         },
-        "description": "Без name — запомнить нынешнее положение камеры, записи нет — создаётся с пустым именем. С name, пустым тоже, — только имя: положение не меняется никогда"
+        "description": "Без name — запомнить нынешнее положение камеры, записи нет — создаётся с пустым именем. С name, пустым тоже, — только имя: положение не меняется никогда",
+        "x-layer": "vms.ptz/1"
       },
       "PtzMove": {
         "type": "object",
@@ -14463,7 +14520,8 @@
             "maximum": 5,
             "description": "Срок аренды, с. Нет продления — камера останавливается сама"
           }
-        }
+        },
+        "x-layer": "vms.ptz/1"
       },
       "PtzLease": {
         "type": "object",
@@ -14476,7 +14534,8 @@
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "x-layer": "vms.ptz/1"
       },
       "StreamAccount": {
         "type": "object",
@@ -14502,7 +14561,8 @@
             "type": "string",
             "description": "Кем"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountCreate": {
         "type": "object",
@@ -14514,7 +14574,8 @@
           "name": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountPatch": {
         "type": "object",
@@ -14526,7 +14587,8 @@
           "disabled": {
             "type": "boolean"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "StreamAccountSecret": {
         "type": "object",
@@ -14543,7 +14605,8 @@
             "type": "string",
             "description": "Показывается один раз"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ArchiveWatch": {
         "type": "object",
@@ -14672,7 +14735,8 @@
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveWatchCreate": {
         "type": "object",
@@ -14764,7 +14828,8 @@
             },
             "description": "Где работает: метки серверов из reference.serverLabels"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveWatchPatch": {
         "type": "object",
@@ -14845,7 +14910,8 @@
             },
             "description": "Где работает: метки серверов из reference.serverLabels"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScanResult": {
         "type": "object",
@@ -14889,7 +14955,8 @@
             "type": "string",
             "description": "Почему не вышло"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScan": {
         "type": "object",
@@ -14987,7 +15054,8 @@
             "pattern": "^[!#-~]+$",
             "description": "Версия записи — непрозрачная метка: клиент сравнивает её только на равенство и возвращает в If-Match, не разбирая и не упорядочивая. Уходит в ETag (в кавычках). Сервер обязан: менять её при любом изменении того, что видно в записи (в том числе любой из частей, из которых запись собрана); никогда не возвращать прежнее значение той же записи; не менять её без изменений (чтение, связь, нагрузка). Символы — печатные ASCII без пробела и кавычек"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveScanCreate": {
         "type": "object",
@@ -15051,7 +15119,8 @@
             },
             "description": "Где работает: метки серверов из reference.serverLabels"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "AccessUserWrite": {
         "type": "object",
@@ -15393,14 +15462,16 @@
             "enum": [
               true
             ],
-            "description": "Только без записи (профиль vms.camera/1)"
+            "description": "Только без записи (профиль vms.camera/1)",
+            "x-layer": "vms.camera/1"
           },
           "noDetector": {
             "type": [
               "boolean",
               "string"
             ],
-            "description": "true — без детекторов; код вида детектора (перечень свойства detectorKind видов профиля vms.detector/1) — без детектора этого вида"
+            "description": "true — без детекторов; код вида детектора (перечень свойства detectorKind видов профиля vms.detector/1) — без детектора этого вида",
+            "x-layer": "vms.detector/1"
           }
         }
       },
@@ -15825,7 +15896,8 @@
             "type": "string",
             "description": "Вид события камеры: из reference.scenarioKinds"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ScenarioThen": {
         "type": "object",
@@ -15862,7 +15934,8 @@
             "maximum": 600,
             "description": "Срок просьбы, умолчание 30"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "Scenario": {
         "type": "object",
@@ -15894,7 +15967,8 @@
             "type": "boolean",
             "description": "Нет поля — включён"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ScenarioDoc": {
         "type": "object",
@@ -15915,7 +15989,8 @@
               "$ref": "#/components/schemas/Scenario"
             }
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ScenarioDocWrite": {
         "type": "object",
@@ -15930,7 +16005,8 @@
               "$ref": "#/components/schemas/Scenario"
             }
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "ScenarioStatus": {
         "type": "object",
@@ -15999,7 +16075,8 @@
             "type": "integer",
             "minimum": 0
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "RelayMember": {
         "type": "object",
@@ -16011,7 +16088,8 @@
           "name": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "Relay": {
         "type": "object",
@@ -16031,7 +16109,8 @@
             },
             "description": "Имена членов за ретранслятором по возрастанию, до 5000"
           }
-        }
+        },
+        "x-layer": "vms"
       },
       "RecordingTargetRequest": {
         "type": "object",
@@ -16057,7 +16136,8 @@
             },
             "description": "Дополнительные приёмники, без основного, порядок значимый. Копия — это кластер: на кластер один сервер. Повтор, несуществующий сервер, два сервера одного кластера, сервер кластера основного приёмника — 422 VALIDATION_FAILED, field: copies. Пусто — копий нет"
           }
-        }
+        },
+        "x-layer": "vms.camera/1"
       },
       "AssistWorld": {
         "type": "object",
@@ -16166,7 +16246,8 @@
               "outside": "Извне: шлюз с публичным адресом"
             }
           }
-        }
+        },
+        "x-layer": "vms.live/1"
       },
       "TalkResult": {
         "type": "object",
@@ -16192,7 +16273,8 @@
           "gateway": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.talk/1"
       },
       "TimelineSpan": {
         "type": "object",
@@ -16255,7 +16337,8 @@
             "type": "boolean",
             "description": "Отсечённая эпоха: играет, если выбрана сама или момент не покрыт другими; кадры — дубль, не порча"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "TimelineUnavailable": {
         "type": "object",
@@ -16313,7 +16396,8 @@
             },
             "description": "Что не ответило: архив не утрачен, лента может быть неполной"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "PlaybackResult": {
         "type": "object",
@@ -16346,7 +16430,8 @@
             "type": "string",
             "description": "Какой спан выбран: без spanId в запросе его выбрал сервер"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldState": {
         "type": "object",
@@ -16366,7 +16451,8 @@
           "why": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Hold": {
         "type": "object",
@@ -16428,7 +16514,8 @@
               "$ref": "#/components/schemas/HoldState"
             }
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldCreate": {
         "type": "object",
@@ -16456,7 +16543,8 @@
             },
             "description": "Записи, не тома"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldPage": {
         "type": "object",
@@ -16474,7 +16562,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "HoldVerifyResult": {
         "type": "object",
@@ -16516,7 +16605,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Bookmark": {
         "type": "object",
@@ -16569,7 +16659,8 @@
             "format": "date-time",
             "description": "Конец отрезка: только у span"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "BookmarkCreate": {
         "type": "object",
@@ -16602,7 +16693,8 @@
             "format": "date-time",
             "description": "span: конец отрезка, позже occurred; нет или не позже — 422 VALIDATION_FAILED, field: /to"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "BookmarkPage": {
         "type": "object",
@@ -16620,7 +16712,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "ExportArea": {
         "type": "object",
@@ -16653,7 +16746,8 @@
             "minimum": 0,
             "maximum": 1
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCamera": {
         "type": "object",
@@ -16673,7 +16767,8 @@
           "area": {
             "$ref": "#/components/schemas/ExportArea"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPeriod": {
         "type": "object",
@@ -16692,7 +16787,8 @@
             "format": "date-time",
             "description": "Конец не позже начала — 422 VALIDATION_FAILED, field: /periods/i/to"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportQuality": {
         "type": "object",
@@ -16725,7 +16821,8 @@
             "minimum": 1,
             "description": "Ускорение: время в файле сжимается в speed раз"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportTitles": {
         "type": "object",
@@ -16801,7 +16898,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCreate": {
         "type": "object",
@@ -16974,7 +17072,8 @@
           "titles": {
             "$ref": "#/components/schemas/ExportTitles"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "AssistExport": {
         "type": "object",
@@ -17120,7 +17219,8 @@
           "titles": {
             "$ref": "#/components/schemas/ExportTitles"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportCheck": {
         "type": "object",
@@ -17205,7 +17305,8 @@
             },
             "description": "В каких отрезках у какой камеры записи нет совсем (номера в заказе)"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPart": {
         "type": "object",
@@ -17278,7 +17379,8 @@
             "type": "boolean",
             "description": "В отрезке дыры: отдано то, что есть"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportFile": {
         "type": "object",
@@ -17316,7 +17418,8 @@
             "format": "date-time",
             "description": "Файл удаляется по сроку, потом ссылка — 410 EXPORT_EXPIRED"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "Export": {
         "type": "object",
@@ -17438,7 +17541,8 @@
             "type": "string",
             "format": "uuid"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportPage": {
         "type": "object",
@@ -17456,7 +17560,8 @@
           "nextCursor": {
             "type": "string"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportFileLink": {
         "type": "object",
@@ -17474,7 +17579,8 @@
             "type": "string",
             "format": "date-time"
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ExportGrant": {
         "type": "object",
@@ -17544,7 +17650,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "RecordingDays": {
         "type": "object",
@@ -17582,7 +17689,8 @@
             },
             "description": "Что не ответило: дней может быть больше"
           }
-        }
+        },
+        "x-layer": "vms.camera/1"
       },
       "ExportReference": {
         "type": "object",
@@ -17830,7 +17938,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "video"
       },
       "ArchiveFetchRequest": {
         "type": "object",
@@ -17857,7 +17966,8 @@
             "type": "boolean",
             "description": "Только пропуски встроенного хранилища (vms.edge/1): сервер заказывает забор пропусков камеры внутри периода, просьбы «закрепить» не подаёт и квоту на человека не тратит; accepted 0. Нет поля — false"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "ArchiveFetchResult": {
         "type": "object",
@@ -17902,7 +18012,8 @@
             "minimum": 0,
             "description": "Сколько пропусков встроенного хранилища камеры или регистратора внутри периода сервер заказал к забору (vms.edge/1). Не зависит от квоты на человека: refused о них не говорит. Нет встроенного хранилища или пропусков — 0"
           }
-        }
+        },
+        "x-layer": "vms.timeline/1"
       },
       "Text": {
         "type": "object",
@@ -18409,7 +18520,8 @@
                 "type": "boolean",
                 "description": "false — хранилище этого вида записи камер не принимает никогда: его свойство admits всегда false"
               }
-            }
+            },
+            "x-layer": "vms.archive/1"
           },
           "x-ui-category": {
             "type": "array",
@@ -18517,11 +18629,13 @@
               "replicaLagSec": {
                 "type": "integer",
                 "minimum": 0,
-                "description": "Камера (vms.camera/1) в режиме replica: на сколько секунд архив отстаёт от источника. Нет значения — сервер не знает"
+                "description": "Камера (vms.camera/1) в режиме replica: на сколько секунд архив отстаёт от источника. Нет значения — сервер не знает",
+                "x-layer": "vms.camera/1"
               },
               "replicationStatus": {
                 "$ref": "#/components/schemas/EdgeReplicationStatus",
-                "description": "Встроенное хранилище (vms.edge/1): состояние репликации"
+                "description": "Встроенное хранилище (vms.edge/1): состояние репликации",
+                "x-layer": "vms.edge/1"
               },
               "mediaOk": {
                 "type": "boolean",
@@ -18540,11 +18654,13 @@
                     "type": "null"
                   }
                 ],
-                "description": "Сервер (vms.webserver/1): сертификат HTTPS; null — сертификата нет"
+                "description": "Сервер (vms.webserver/1): сертификат HTTPS; null — сертификата нет",
+                "x-layer": "vms.webserver/1"
               },
               "webReservedPorts": {
                 "$ref": "#/components/schemas/WebReservedPorts",
-                "description": "Сервер (vms.webserver/1): порты видео для браузера"
+                "description": "Сервер (vms.webserver/1): порты видео для браузера",
+                "x-layer": "vms.webserver/1"
               }
             },
             "additionalProperties": true,
@@ -18926,7 +19042,8 @@
             "type": "object",
             "properties": {},
             "additionalProperties": true,
-            "description": "Параметры переноса по профилю вида. vms.server/1: parentId — домен приёма, null — исключить: в свой домен или в домен params.domainId (только при null; домена нет — 404 NOT_FOUND); fingerprint — отпечаток, который видел администратор (не тот — 409 FINGERPRINT_MISMATCH). Перенос сервера — в стопке отката: откат возвращает его в прежний домен в прежнем состоянии (распределён или нет). Приём камеры w2c (сервер становится объектом camera) назад не вернуть"
+            "description": "Параметры переноса по профилю вида. vms.server/1: parentId — домен приёма, null — исключить: в свой домен или в домен params.domainId (только при null; домена нет — 404 NOT_FOUND); fingerprint — отпечаток, который видел администратор (не тот — 409 FINGERPRINT_MISMATCH). Перенос сервера — в стопке отката: откат возвращает его в прежний домен в прежнем состоянии (распределён или нет). Приём камеры w2c (сервер становится объектом camera) назад не вернуть",
+            "x-layer": "vms.server/1"
           }
         }
       },
@@ -19274,7 +19391,8 @@
             }
           }
         },
-        "description": "Последние сырые строки источника событий, от старых к новым"
+        "description": "Последние сырые строки источника событий, от старых к новым",
+        "x-layer": "vms.pos/1"
       },
       "PosRawLine": {
         "type": "object",
@@ -19293,7 +19411,8 @@
             "type": "string",
             "description": "Строка как есть, без перевода строки в конце"
           }
-        }
+        },
+        "x-layer": "vms.pos/1"
       },
       "EdgeReplicationStatus": {
         "type": "object",
@@ -19408,7 +19527,8 @@
               }
             }
           }
-        }
+        },
+        "x-layer": "vms.edge/1"
       },
       "EdgeReplicationGap": {
         "type": "object",
@@ -19442,7 +19562,8 @@
             ],
             "description": "queued — сервер ещё не забрал; done — забрал; lost — устройство записало поверх раньше, чем сервер забрал: минут нет нигде"
           }
-        }
+        },
+        "x-layer": "vms.edge/1"
       },
       "JournalLevel": {
         "type": "string",
@@ -19621,7 +19742,8 @@
             "default": 8554,
             "description": "Порт RTSP через HTTP (туннель RTSP over HTTP)"
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "WebCertificate": {
         "type": "object",
@@ -19689,7 +19811,8 @@
             "format": "date-time",
             "description": "Когда сервер принял сертификат"
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "WebReservedPorts": {
         "type": "object",
@@ -19710,7 +19833,8 @@
             "minimum": 1,
             "maximum": 65535
           }
-        }
+        },
+        "x-layer": "vms.webserver/1"
       },
       "SetupUiLink": {
         "type": "object",

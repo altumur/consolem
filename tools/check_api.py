@@ -20,6 +20,9 @@
 7. Числа в api/BACKEND.md (сколько операций и служебных) совпадают с контрактом.
 8. Ломающие изменения против контракта старого макета (git show 47d1310:api/openapi.json) названы в api/README.md;
    без git или без этого коммита в истории — пропуск с пометкой.
+9. Граница слоёв (tools/layers.py): x-layer стоит только у схемы, пути или поля общей схемы; значение — профиль, video или vms;
+   общие схемы и пути не ссылаются на схемы подсистем; поля подсистем в общих схемах названы в KNOWN_LEAKS;
+   id профиля в описании поля общей схемы — пометка поля или пример из EXAMPLE_MENTIONS.
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE]
@@ -34,6 +37,7 @@ import sys
 
 import cli_paths
 import generic_legacy
+import layers
 
 API = cli_paths.opt("api", "api")
 PROTOTYPE = cli_paths.opt("page", "index.html")
@@ -952,6 +956,16 @@ def check_core_field(rep, spec):
     rep.check("Пути ядра: field отказа в описаниях — JSON Pointer", problems, f"{n} упоминаний")
 
 
+def check_layers(rep, spec):
+    """Граница слоёв: правила S1–S5 в tools/layers.py."""
+    problems = layers.static_problems(spec, layers.profile_ids(API))
+    schemas = [n for n in spec["components"]["schemas"] if layers.layer_of_schema(spec, n)]
+    paths = [p for p in spec["paths"] if layers.layer_of_path(spec, p)]
+    leaks = layers.leak_marks(spec)
+    rep.check("Граница слоёв: поля подсистем в общих схемах", problems,
+              f"{len(schemas)} схем, {len(paths)} путей подсистем, {len(leaks)} полей подсистем в общих схемах")
+
+
 def check_backend_doc(rep, spec):
     doc = read(f"{API}/BACKEND.md")
     if doc is None:
@@ -1065,6 +1079,7 @@ def main():
     check_prototype(rep)
     check_server(rep, spec)
     check_core_field(rep, spec)
+    check_layers(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)
     if "--lint" in sys.argv[1:]:
