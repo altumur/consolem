@@ -26,6 +26,9 @@
 10. Профили в файлах api/profiles/*.json (tools/profile_files.py): формат файлов; раздел profiles наборов — из файлов;
    виды несут поля профиля того же типа, status объектов — по схеме профиля; версия профиля против --profiles-base
    (по умолчанию origin/main; без git — пропуск); зависимости uses есть и не младше.
+11. Слой у каждого теста API (node tools/api_tests_registry.mjs): слой — mechanism, video или profile:<id> с файлом в api/profiles/;
+   since — только у теста профиля, вида M.m, старшая цифра как в /N, не старше версии профиля; INFO — тесты механизма на видах набора
+   и профили без тестов. Тесты — --tests DIR (по умолчанию tests).
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
@@ -45,6 +48,7 @@ import profile_files
 
 API = cli_paths.opt("api", "api")
 PROTOTYPE = cli_paths.opt("page", "index.html")
+TESTS = cli_paths.opt("tests", "tests")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 METHODS = ("get", "post", "put", "patch", "delete")
 
@@ -1172,6 +1176,105 @@ def check_breaking_doc(rep, spec):
               f"операций старого контракта снято {len(ops(base) - ops(spec))}, схем снято {len(set(sa) - set(sb))}")
 
 
+LAYER_FORM = re.compile(r"^(mechanism|video|profile:[A-Za-z0-9_.-]+/[0-9]+)$")
+SINCE_FORM = re.compile(r"^[0-9]+\.[0-9]+$")
+# условия needs, которые связывают тест с видом или профилем набора (часть 04 переносит такие тесты в слой профиля)
+KIND_NEEDS = ("kind:", "type:", "prop:", "cap:", "under:", "implements:")
+
+
+def check_test_layers(rep, tests=TESTS, api=API):
+    """У каждого теста API есть слой верной формы; слой профиля — id из файла api/profiles/; since — по версии профиля.
+    Реестр тестов — tools/api_tests_registry.mjs (без запуска тестов). Разбор id и версии — profile_files, путь — layers."""
+    name = "Слой у каждого теста API"
+    res = subprocess.run(["node", os.path.join(ROOT, "tools", "api_tests_registry.mjs"), "--api", api, "--tests", tests],
+                         capture_output=True, text=True, cwd=ROOT)
+    if res.returncode != 0:
+        rep.fail(name, ["реестр тестов не напечатан: " + (res.stderr.strip() or f"код {res.returncode}")])
+        return
+    reg = json.loads(res.stdout)
+    problems = []
+    versions = {}  # id профиля → версия из файла (None — файла нет или он не читается)
+
+    def profile_version(pid):
+        if pid not in versions:
+            path = os.path.join(ROOT, layers.profile_file(pid, api))
+            try:
+                doc = json.load(open(path, encoding="utf-8"))
+            except (OSError, ValueError):
+                doc = None
+            versions[pid] = doc if isinstance(doc, dict) and doc.get("id") == pid else None
+            if doc is None:
+                versions[pid] = "no-file"
+        return versions[pid]
+
+    count = {"mechanism": 0, "video": 0}
+    profiles_used = set()
+    for file, layer in sorted(reg["files"].items()):
+        if not layer:
+            problems.append(f"{file}: у файла нет слоя (ApiTest.fileLayer)")
+    for t in reg["tests"]:
+        where = f"{t['file']}.js «{t['name'][:60]}»"
+        layer, since = t["layer"], t["since"]
+        if not layer:
+            problems.append(f"{where}: тест без слоя")
+            continue
+        if not LAYER_FORM.match(layer):
+            problems.append(f"{where}: неизвестный слой «{layer}» (mechanism, video или profile:<id>/N)")
+            continue
+        if layer in count:
+            count[layer] += 1
+            if since is not None:
+                problems.append(f"{where}: since — только у теста профиля, а слой — {layer}")
+            continue
+        pid = layer[len("profile:"):]
+        profiles_used.add(pid)
+        doc = profile_version(pid)
+        if doc == "no-file" or doc is None:
+            fname = layers.profile_file(pid, api)
+            problems.append(f"{where}: нет файла профиля {fname}" if doc == "no-file" else f"{where}: id в {layers.profile_file(pid, api)} не {pid}")
+            continue
+        if since is None:
+            continue
+        try:
+            sv = profile_files.parse_version(since)
+        except ValueError:
+            problems.append(f"{where}: since — вида M.m, а не «{since}»")
+            continue
+        if sv[0] != profile_files.major_of(pid):
+            problems.append(f"{where}: старшая версия since не совпадает с /{profile_files.major_of(pid)}: «{since}»")
+        try:
+            cur = profile_files.parse_version(doc.get("version"))
+        except ValueError:
+            problems.append(f"{where}: в {layers.profile_file(pid, api)} version не вида M.m")
+            continue
+        if sv > cur:
+            problems.append(f"{where}: since «{since}» старше версии профиля {doc.get('version')}")
+    profile_tests = sum(1 for t in reg["tests"] if t["layer"] and t["layer"].startswith("profile:"))
+    note = f"механизм {count['mechanism']}, API видео {count['video']}, профилей {len(profiles_used)} ({profile_tests} тестов)"
+    rep.check(name, problems, note)
+    if problems:
+        return
+    known = {}
+    for t in reg["tests"]:
+        if t["layer"] != "mechanism":
+            continue
+        hits = [n for n in t["needs"] if n.startswith(KIND_NEEDS) and not n.split(":", 1)[1].startswith("test.")]
+        if hits:
+            known[t["file"] + ".js"] = known.get(t["file"] + ".js", 0) + 1
+    if known:
+        rep.info(f"Тесты механизма на видах набора: {sum(known.values())} — "
+                 + ", ".join(f"{f}: {n}" for f, n in sorted(known.items())))
+    tested = set(profiles_used)
+    for t in reg["tests"]:
+        tested.update(n[len("implements:"):] for n in t["needs"] if n.startswith("implements:"))
+    folder = os.path.join(ROOT, api, "profiles")
+    names = sorted(os.listdir(folder)) if os.path.isdir(folder) else []
+    ids = [i for i in (profile_files.id_of_file(n) for n in names) if i]
+    untested = [i for i in ids if i not in tested]
+    if untested:
+        rep.info("Профили без тестов: " + ", ".join(untested))
+
+
 def main():
     rep = Report()
     spec = load(f"{API}/openapi.json")
@@ -1196,6 +1299,7 @@ def main():
     rep.check("openapi.js и fixture.js собраны из нынешних JSON", [l for l in res.stdout.splitlines() if l] if res.returncode else [])
     check_prototype(rep)
     check_server(rep, spec)
+    check_test_layers(rep)
     check_core_field(rep, spec)
     check_layers(rep, spec)
     check_versions_by_layer(rep, spec)

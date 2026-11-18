@@ -328,6 +328,79 @@ def check_report():
         shutil.rmtree(copy, ignore_errors=True)
 
 
+class Collect:
+    """Report для check_api.check_test_layers: собирает строки, а не печатает."""
+
+    def __init__(self):
+        self.lines = []
+
+    def ok(self, name, note=""):
+        self.lines.append(("PASS", name, note))
+
+    def fail(self, name, problems):
+        self.lines.append(("FAIL", name, "\n".join(problems)))
+
+    def info(self, text):
+        self.lines.append(("INFO", text, ""))
+
+    def check(self, name, problems, note=""):
+        self.fail(name, problems) if problems else self.ok(name, note)
+
+
+def sub_file(copy, name, old, new):
+    path = os.path.join(copy, name)
+    text = open(path, encoding="utf-8").read()
+    assert old in text, f"{name}: нет текста для порчи: {old}"
+    open(path, "w", encoding="utf-8").write(text.replace(old, new, 1))
+
+
+def add_file(copy, body):
+    with open(os.path.join(copy, "api-zz-spoil.js"), "w", encoding="utf-8") as f:
+        f.write("(() => {\n" + body + '\n  ApiTest.loaded("api-zz-spoil.js");\n})();\n')
+    sub_file(copy, "api.html", "<script>\n      ApiTest.run();", '<script src="api-zz-spoil.js"></script>\n    <script>\n      ApiTest.run();')
+
+
+def spoil_zz(layer, since):
+    return (f'  ApiTest.test("порча: слой {layer} since {since}", async () => {{}}, {{ layer: "{layer}", since: "{since}" }});')
+
+
+# Порча копии tests/: (что портим, правка копии, слова в отказе)
+SPOILS = [
+    ("убран fileLayer из api-bulk.js", lambda c: sub_file(c, "api-bulk.js", 'ApiTest.fileLayer("mechanism");', ""), ("без слоя", "api-bulk.js")),
+    ("layer: Mechanism у теста api-view.js", lambda c: sub_file(c, "api-view.js", '["Реле: команда output", "mechanism"]', '["Реле: команда output", "Mechanism"]'), ("неизвестный слой",)),
+    ("профиль без файла", lambda c: sub_file(c, "api-export.js", 'ApiTest.fileLayer("video");', 'ApiTest.fileLayer("profile:vms.nosuch/1");'),
+     ("нет файла профиля api/profiles/vms.nosuch.json",)),
+    ("since у слоя механизма", lambda c: add_file(c, spoil_zz("mechanism", "1.0")), ("since — только у теста профиля",)),
+    ("since не вида M.m", lambda c: add_file(c, spoil_zz("profile:vms.camera/1", "1.x")), ("since — вида M.m",)),
+    ("since старше версии профиля", lambda c: add_file(c, spoil_zz("profile:vms.camera/1", "99.0")), ("старше версии профиля",)),
+    ("старшая цифра since не совпадает", lambda c: add_file(c, spoil_zz("profile:vms.camera/1", "2.0")), ("старшая версия since не совпадает с /1",)),
+]
+
+
+def check_spoiled():
+    print("-- Порча")
+    import check_api
+    rep = Collect()
+    check_api.check_test_layers(rep)
+    mine = [l for l in rep.lines if l[1] == "Слой у каждого теста API"]
+    ok(len(mine) == 1 and mine[0][0] == "PASS", f"настоящая папка tests/: PASS Слой у каждого теста API — {mine}")
+    for what, spoil, words in SPOILS:
+        copy = tempfile.mkdtemp(prefix=".tests-spoil-", dir=ROOT)
+        try:
+            for name in os.listdir(os.path.join(ROOT, "tests")):
+                src = os.path.join(ROOT, "tests", name)
+                if os.path.isfile(src):
+                    shutil.copy(src, copy)
+            spoil(copy)
+            rep = Collect()
+            check_api.check_test_layers(rep, tests=copy)
+            mine = [l for l in rep.lines if l[1] == "Слой у каждого теста API"]
+            text = mine[0][2] if mine else ""
+            ok(bool(mine) and mine[0][0] == "FAIL" and all(w in text for w in words), f"порча «{what}» → FAIL со словами {list(words)}" + ("" if mine and mine[0][0] == "FAIL" else f"; получено {mine}"))
+        finally:
+            shutil.rmtree(copy, ignore_errors=True)
+
+
 def main():
     check_functions()
     check_registry()
@@ -335,6 +408,7 @@ def main():
     check_marking()
     check_undeclared()
     check_report()
+    check_spoiled()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0
 
