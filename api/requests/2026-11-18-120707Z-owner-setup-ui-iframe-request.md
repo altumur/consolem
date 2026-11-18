@@ -4,7 +4,7 @@
 
 Кому: w2c
 
-**Статус: новый**
+**Статус: отвечен** — [ответ w2c, 2026-11-18](2026-11-18-120707Z-owner-setup-ui-iframe-response.md)
 
 Основа — [описание решения «Своя страница настроек подсистемы в consolem»](../../docs/contract-layers/2026-11-18-setup-ui-iframe-design.md)
 и ответ на вашу позицию по слоям ([2026-11-18-114831Z-w2c-contract-layers-response.md](2026-11-18-114831Z-w2c-contract-layers-response.md)).
