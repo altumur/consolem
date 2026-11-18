@@ -5508,11 +5508,30 @@ async function unitActRun(){
 const KIND_PROFILES=new Map();
 // Свойства объектов, как их отдал сервер (полный Unit): значения базовой формы
 const unitProps=new Map();
+// Имена свойств профиля: GET /kinds отдаёт список имён, файл профиля — объект (часть 02)
+function profileProps(p){const x=p?.properties;return Array.isArray(x)?x.slice():x&&typeof x==="object"?Object.keys(x):[]}
+// Поля своего экрана: объединение свойств знакомых профилей вида, без профилей, которые выбрали бы другой экран
+// (у вида с vms.camera/1 и vms.pos/1 поля кассы — не поля экрана камеры). Массив у ключа — «экран вида входит в массив»
+function handScreenFields(kind){
+  const hs=handScreenOf(kind),im=KINDS.get(kind)?.implements||[];
+  if(!hs)return[];
+  const out=[];
+  im.forEach(id=>{
+    if(!PROFILES_KNOWN.has(id)||!KIND_PROFILES.has(id))return;
+    const t=SCREEN_OF_PROFILE[id];
+    if(t!==undefined&&(Array.isArray(t)?!t.includes(hs):t!==hs))return;
+    profileProps(KIND_PROFILES.get(id)).forEach(f=>{if(!out.includes(f))out.push(f)});
+  });
+  return out;
+}
+// Покрытие схемы вида полями own: всего, показаны, не показаны, лишние (нет в схеме); порядок — как в схеме
+function screenCoverage(kind,own){
+  const names=sfEntries(KINDS.get(kind)?.schema).map(([f])=>f),has=new Set(own||[]),sc=new Set(names);
+  return{total:names.length,shown:names.filter(f=>has.has(f)),missing:names.filter(f=>!has.has(f)),unknown:[...has].filter(f=>!sc.has(f))};
+}
 function kindExtraProps(kind){
-  const k=KINDS.get(kind),known=(k?.implements||[]).filter(id=>KIND_PROFILES.has(id));
-  if(!known.length)return[];
-  const pp=new Set(known.flatMap(id=>KIND_PROFILES.get(id).properties||[]));
-  return sfEntries(k.schema).map(([f])=>f).filter(f=>!pp.has(f));
+  const known=(KINDS.get(kind)?.implements||[]).some(id=>PROFILES_KNOWN.has(id)&&KIND_PROFILES.has(id));
+  return known?screenCoverage(kind,handScreenFields(kind)).missing:[];
 }
 function nodeExtraProps(n){return n&&!isSchemaNode(n)?kindExtraProps(nodeKind(n)):[]}
 // Базовая форма есть у объекта с ручным экраном, у вида которого есть схема со свойствами
