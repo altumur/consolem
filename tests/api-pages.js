@@ -236,6 +236,21 @@
     if (expect) assert.eq(ids, expect, `раскладки набора ${ApiTest.fixtureName}`);
   }, { needs: ["listKinds", "getTreeChildren"], layer: "mechanism" });
 
+  test("Раскладки: другая раскладка — другой ETag у GET /kinds и GET /kinds/{kind}, прежний If-None-Match — 200", async () => {
+    const env = await makeEnv();
+    const res = await env.call("GET", "/kinds");
+    const tag = res.headers.etag;
+    const kind = res.body.items[0].kind;
+    const one = (await env.call("GET", `/kinds/${encodeURIComponent(kind)}`)).headers.etag;
+    const layouts = res.body.layouts.map((l, i) => (i ? l : Object.assign({}, l, { label: Object.assign({}, l.label, { text: l.label.text + " (другая)" }) })));
+    const env2 = await makeEnv({ fixturePatch: { layouts } });
+    const res2 = await env2.call("GET", "/kinds");
+    assert.eq(res2.body.layouts[0].label.text, layouts[0].label.text, "стенд отдаёт изменённую раскладку");
+    assert.ok(res2.headers.etag && res2.headers.etag !== tag, "ETag списка изменился");
+    assert.ok((await env2.call("GET", `/kinds/${encodeURIComponent(kind)}`)).headers.etag !== one, "ETag вида изменился");
+    assert.status(await env2.call("GET", "/kinds", undefined, { "If-None-Match": tag }), 200, null, "прежний ETag — описания целиком");
+  }, { needs: ["listKinds", "getKind", "getTreeChildren"], layer: "mechanism" });
+
   test("Дерево: верхний уровень, дети, порядок, parentCount, узла нет — 404", async () => {
     const env = await makeEnv();
     const top = await env.pages(q("/tree/children", { layout: "servers" }));

@@ -311,7 +311,13 @@ def check_report():
     want = ["LAYER механизм "] + [f"LAYER {k[8:]} " for k in profiles] + ["LAYER API видео "]
     ok(len(ls) == len(want) and all(a.startswith(b) for a, b in zip(ls, want)), f"полный прогон: строки LAYER в порядке механизм, профили по id, API видео ({len(ls)} из {len(want)})")
     ok(not any("не объявлен" in l for l in ls), "на demo ни один слой не «не объявлен»")
-    ok(all(re.fullmatch(r"LAYER [^ ]+ 1\.0 — прошли \d+, не прошли 0, пропущено 0", l) for l in ls[1:-1]), "профили: версия и счётчики")
+    # Версия в строке LAYER — младшая версия файла профиля (api/profiles/*.json), а не зашитая 1.0: профиль растёт
+    sys.path.insert(0, os.path.join(ROOT, "tools"))
+    import profile_files
+    versions = {d["id"]: d["version"] for d in profile_files.load_profiles(os.path.join(ROOT, "api"))}
+    rows = [re.fullmatch(r"LAYER ([^ ]+) (\d+\.\d+) — прошли \d+, не прошли 0, пропущено 0", l) for l in ls[1:-1]]
+    bad = [l for l, m in zip(ls[1:-1], rows) if not m or versions.get(m.group(1)) != m.group(2)]
+    ok(not bad, "профили: версия из файла профиля и счётчики" + (": " + "; ".join(bad) if bad else ""))
     check_totals(out, "полный прогон demo")
     out = run_tool(["run_api_tests.py", "--fixture", "one-domain"])
     ls = out.splitlines()
