@@ -4806,15 +4806,16 @@ function volNode(r){
 // hasSecret, папки → folderIds; у хранилища serverId ↔ parentId, у тома archiveId ↔ parentId. Версия — в hwVer.
 function unitRec(u){
   if(!u._brief&&u.properties)unitProps.set(u.uid,u.properties);
-  const t=screenType(u.kind),p=u.properties||{},obs=u.status?.observed||{},sec=u.secrets||{};
+  // Форма записи — по ручному экрану (handScreen), а не по коду: сервер или папка без своего профиля — запись формы по схеме
+  const h=handScreen(u.kind),t=h||u.kind,p=u.properties||{},obs=u.status?.observed||{},sec=u.secrets||{};
   const link=u.status&&"link" in u.status?{online:u.status.link==="online"}:{};
   const ver={version:u.version};
-  if(t==="domain")return{id:u.uid,name:u.name,...p,...link,...obs,...ver};
-  if(t==="server")return{id:u.uid,name:u.name,domainId:u.domainId,...p,...link,...obs,...ver};
-  if(t==="folder")return{id:u.uid,name:u.name,domainId:u.domainId,parentId:u.parentId||null,...ver};
-  if(t==="archive")return{id:u.uid,name:u.name,kind:String(u.kind).replace(/^archive\./,""),...p,serverId:u.parentId||null,domainId:u.parentId?null:u.domainId,...ver};
-  if(t==="vol")return{id:u.uid,archiveId:u.parentId,name:u.name,...p,...link,...obs,...(sec.password?{hasPassword:true}:{}),...(sec.secret?{hasSecret:true}:{}),...ver};
-  if(t==="stream")return streamRec(u);
+  if(h==="domain")return{id:u.uid,name:u.name,...p,...link,...obs,...ver};
+  if(h==="server")return{id:u.uid,name:u.name,domainId:u.domainId,...p,...link,...obs,...ver};
+  if(h==="folder")return{id:u.uid,name:u.name,domainId:u.domainId,parentId:u.parentId||null,...ver};
+  if(h==="archive")return{id:u.uid,name:u.name,kind:String(u.kind).replace(/^archive\./,""),...p,serverId:u.parentId||null,domainId:u.parentId?null:u.domainId,...ver};
+  if(h==="vol")return{id:u.uid,archiveId:u.parentId,name:u.name,...p,...link,...obs,...(sec.password?{hasPassword:true}:{}),...(sec.secret?{hasSecret:true}:{}),...ver};
+  if(h==="stream")return streamRec(u);
   // Unit.writable — что правится у этого объекта сейчас (нет поля — решает схема вида, CAPS.writable)
   return Object.assign({id:u.uid,type:t,parentId:u.parentId||null,domainId:u.domainId,name:u.name},link,p,obs,sec.password?{hasPassword:true}:{},ver,
     Array.isArray(u.writable)?{writableFields:u.writable.slice()}:{},
