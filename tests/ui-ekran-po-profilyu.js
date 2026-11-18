@@ -83,6 +83,11 @@ UiCheck(async ({ ok, until }) => {
         `виды экрана камеры — без кода camera с implements [${im.join()}]: ` + kindsOfScreen("camera").join());
     });
   }
+  // Список дочерних у узла формы по схеме — по описанию вида (children) и hasChildren, а не по DEV_WITH_KIDS экрана камеры
+  await withKinds([Object.assign(kindOf("camera"), { implements: [], children: [] })], async () => {
+    const n = unitNode(Object.assign(clone(camFull), { hasChildren: false }));
+    ok(isSchemaNode(n) && n.devices === undefined, "камера формы по схеме без дочерних в описании — без списка дочерних (DEV_WITH_KIDS — только ручной экран)");
+  });
   // Описаний нет (listKinds не объявлен, /kinds не прочитан): встроенные экраны — по коду, как прежде
   {
     const saved = new Map(KINDS);
@@ -185,6 +190,12 @@ UiCheck(async ({ ok, until }) => {
       ok(kindsLike("domain").includes("acme.dom") && canCreateKind("domain") && typeof kindToCreate === "function" && kindToCreate("domain", null) === "acme.dom",
         "создать домен — видом, который умеет create");
     });
+    // Нет createParents — под существующим объектом и в корне оператор вид не создаёт (контракт, UnitKind.createParents)
+    const domNoParents = Object.assign(clone(domMake), { createParents: undefined });
+    delete domNoParents.createParents;
+    await withKinds([domNoParents, domNoCreate], async () => {
+      ok(kindToCreate("domain", null) === "domain", "вид без createParents не создают в корне: " + kindToCreate("domain", null));
+    });
   }
 
   // ── Г. Профиль снят с вида при открытой карточке ──
@@ -252,6 +263,10 @@ UiCheck(async ({ ok, until }) => {
       } finally { slice = wasSlice; }
     }
     ok(!devIsIp(n1), "камера формы по схеме — не IP-устройство (devIsIp)");
+    // Камера в списке типов (Set, includes): шаг учётных данных групповой правки, устройства правил, родитель мастера
+    ok(!canCreds(n1), "камера формы по схеме — без шага учётных данных групповой правки (canCreds)");
+    ok(!ruleDtHit(n1, ["camera"]) && !ruleUniverse(["camera"]).some((x) => x.id === camU.uid), "камера формы по схеме — не камера правил (ruleDtHit, ruleUniverse)");
+    ok(!configuredDevices().some((x) => x.id === camU.uid), "камера формы по схеме — не в списке заведённых IP-устройств мастера (configuredDevices)");
   } finally {
     await camPut(camK);
   }
