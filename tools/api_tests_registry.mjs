@@ -23,17 +23,14 @@ const srcs = [...page.matchAll(/<script\s+src="([^"]+)"/g)].map((m) => m[1]);
 globalThis.location = { search: "", href: `file://${TESTS_DIR}/api.html`, protocol: "file:" };
 globalThis.document = { currentScript: null, scripts: [], getElementById: () => null, documentElement: { dataset: {} } };
 
-const files = {};
+const names = [];
 let broken = null;
 for (const src of srcs) {
   const name = src.split("/").pop();
   const file = src.startsWith("../api/") ? path.join(API_DIR, src.slice(7)) : path.join(TESTS_DIR, src);
   const isTest = /^api-.+\.js$/.test(name) && !src.startsWith("../api/");
   document.currentScript = isTest ? { getAttribute: () => name } : null;
-  // Слой файла запоминается на проходе: наружу ApiTest его не отдаёт
-  if (isTest) files[name] = null;
-  if (isTest && !ApiTest.__fileLayer) ApiTest.__fileLayer = ApiTest.fileLayer;
-  if (isTest) ApiTest.fileLayer = (layer) => { ApiTest.__fileLayer(layer); files[name] = layer; };
+  if (isTest) names.push(name);
   try {
     require(file);
   } catch (err) {
@@ -43,4 +40,7 @@ for (const src of srcs) {
   }
 }
 if (broken) process.exit(1);
-process.stdout.write(JSON.stringify({ files, tests: ApiTest.registry() }));
+const reg = ApiTest.registry();
+const files = {};
+for (const name of names) files[name] = reg.files[name.replace(/\.js$/, "")] ?? null;
+process.stdout.write(JSON.stringify({ files, tests: reg.tests }));

@@ -5,15 +5,11 @@
    (edge.gap, edge.check, edge.fail). Забор шагом правила — команда камеры replicate; руками — POST /units/{uid}/archive-fetch. */
 (() => {
   ApiTest.fileLayer("profile:vms.edge/1");
-  const { test: addTest, makeEnv, assert, FX } = ApiTest;
+  const { makeEnv, assert, FX } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
-  const LAYER_BY_PREFIX = [
+  const test = ApiTest.prefixLayers([
     ["Ручной забор периода", "video"],
-  ];
-  const test = (name, fn, opts) => {
-    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
-    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
-  };
+  ]);
   const id = (n) => `${n}-0000-4000-8000-000000000000`;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;

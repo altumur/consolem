@@ -3,16 +3,12 @@
    vms.talk/1, vms.timeline/1; реле — команда output (/units/{uid}/actions/output). */
 (() => {
   ApiTest.fileLayer("video");
-  const { test: addTest, makeEnv, assert, FX } = ApiTest;
+  const { makeEnv, assert, FX } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
-  const LAYER_BY_PREFIX = [
+  const test = ApiTest.prefixLayers([
     ["Реле: команда output", "mechanism"],
     ["Журнал камеры", "mechanism"],
-  ];
-  const test = (name, fn, opts) => {
-    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
-    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
-  };
+  ]);
   const cam = FX.devices.find((d) => d.type === "camera" && d.archiveId && d.online && d.serverId);
   const spk = FX.devices.find((d) => d.type === "spk");
   const relay = FX.devices.find((d) => d.type === "relay");

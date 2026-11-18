@@ -401,6 +401,76 @@ def check_spoiled():
             shutil.rmtree(copy, ignore_errors=True)
 
 
+PREFIX_FILE = """(() => {
+  ApiTest.fileLayer("profile:vms.camera/1");
+  const test = ApiTest.prefixLayers([["пф: ", "video"]]);
+  test("пф: по префиксу", async () => {});
+  test("пф: тот же слой явно", async () => {}, { layer: "video" });
+  test("другой: свой слой", async () => {}, { layer: "mechanism" });
+  test("другой: слой файла", async () => {});
+  ApiTest.loaded("api-zz-prefix.js");
+})();
+"""
+CONFLICT_FILE = """(() => {
+  ApiTest.fileLayer("mechanism");
+  const test = ApiTest.prefixLayers([["пф: ", "video"]]);
+  test("пф: конфликт слоёв", async () => {}, { layer: "mechanism" });
+  ApiTest.loaded("api-zz-prefix.js");
+})();
+"""
+SINCE_FILE = """(() => {
+  ApiTest.fileLayer("profile:vms.camera/1");
+  ApiTest.test("слой: версия выше объявленной", async () => {}, { since: "1.99" });
+  ApiTest.loaded("api-zz-since.js");
+})();
+"""
+
+
+def zz_copy(name, body):
+    copy = tempfile.mkdtemp(prefix=".tests-zz-", dir=ROOT)
+    for f in os.listdir(os.path.join(ROOT, "tests")):
+        src = os.path.join(ROOT, "tests", f)
+        if os.path.isfile(src):
+            shutil.copy(src, copy)
+    with open(os.path.join(copy, name), "w", encoding="utf-8") as f:
+        f.write(body)
+    sub_file(copy, "api.html", "<script>\n      ApiTest.run();", f'<script src="{name}"></script>\n    <script>\n      ApiTest.run();')
+    return copy
+
+
+def check_fixwave():
+    print("-- Таблица префиксов, строки LAYER, итог отбора")
+    copy = zz_copy("api-zz-prefix.js", PREFIX_FILE)
+    try:
+        reg, err = registry(copy)
+        ok(reg is not None, "prefixLayers: файл с таблицей префиксов загрузился" + (f": {err}" if err else ""))
+        if reg:
+            by = {t["name"]: t["layer"] for t in reg["tests"]}
+            want = {"пф: по префиксу": "video", "пф: тот же слой явно": "video", "другой: свой слой": "mechanism", "другой: слой файла": "profile:vms.camera/1"}
+            ok({k: by.get(k) for k in want} == want, f"prefixLayers: префикс, явный слой и слой файла: {({k: by.get(k) for k in want})}")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    copy = zz_copy("api-zz-prefix.js", CONFLICT_FILE)
+    try:
+        reg, err = registry(copy)
+        ok(reg is None and "пф: конфликт слоёв" in (err or ""), f"prefixLayers: явный слой против префикса — ошибка загрузки с именем теста: {err}")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    # Профиль объявлен, но тесты пропущены по since: строка LAYER — не «не объявлен»
+    copy = zz_copy("api-zz-since.js", SINCE_FILE)
+    try:
+        out = run_tool(["run_api_tests.py", "--tests", copy, "--layer", "profile:vms.camera/1", "--only", "слой: версия выше объявленной"])
+        ls = [l for l in out.splitlines() if l.startswith("LAYER vms.camera/1")]
+        ok(len(ls) == 1 and "не объявлен" not in ls[0] and "пропущено 1" in ls[0], f"профиль объявлен, тест пропущен по since: строка LAYER без «не объявлен»: {ls}")
+    finally:
+        shutil.rmtree(copy, ignore_errors=True)
+    # Итог отбора: неизвестный слой и слой без тестов называются по-разному
+    out = run_tool(["run_api_tests.py", "--layer", "profile:vms.nosuch/1"])
+    ok("Тесты API не запущены: слой без тестов" in out.splitlines(), "--layer без тестов у слоя: итог «слой без тестов»")
+    out = run_tool(["run_api_tests.py", "--layer", "Mechanism"])
+    ok("Тесты API не запущены: неизвестный слой" in out.splitlines(), "--layer Mechanism: итог «неизвестный слой»")
+
+
 def main():
     check_functions()
     check_registry()
@@ -408,6 +478,7 @@ def main():
     check_marking()
     check_undeclared()
     check_report()
+    check_fixwave()
     check_spoiled()
     print("RESULT " + ("fail" if failed else "pass"))
     return 1 if failed else 0

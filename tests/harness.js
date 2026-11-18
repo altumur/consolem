@@ -230,8 +230,20 @@
     }
     tests.push({ name, fn, needs, file, layer, since });
   }
-  // Реестр тестов без запуска: needs — уже с условием profile:
-  const registry = () => tests.map(({ name, file, layer, since, needs }) => ({ name, file, layer, since, needs: needs.slice() }));
+  // test с таблицей префиксов [[начало имени, слой]…]: слой теста — по началу имени; остальные — слой файла.
+  // Явный opts.layer сильнее префикса; если оба есть и различаются — ошибка при загрузке файла (имя теста в тексте)
+  function prefixLayers(table) {
+    return (name, fn, opts) => {
+      const hit = table.find(([prefix]) => name.startsWith(prefix));
+      if (hit && opts && opts.layer && opts.layer !== hit[1]) throw new Error(`prefixLayers: у теста «${name}» слой ${opts.layer} расходится со слоем ${hit[1]} по префиксу «${hit[0]}»`);
+      test(name, fn, hit && !(opts && opts.layer) ? Object.assign({}, opts, { layer: hit[1] }) : opts);
+    };
+  }
+  // Реестр тестов без запуска: needs — уже с условием profile:; files — слой каждого файла (null — не задан)
+  const registry = () => ({
+    files: Object.assign({}, fileLayers),
+    tests: tests.map(({ name, file, layer, since, needs }) => ({ name, file, layer, since, needs: needs.slice() })),
+  });
   // Профили системы (GET /kinds) — строятся после чтения видов
   let DECLARED = new Map();
   // Вид, с которым тест может работать: система его объявила (GET /kinds), и объект этого вида можно завести (create) или он
@@ -358,13 +370,13 @@
     const empty = bad === undefined ? wanted.find((x) => !tests.some((t) => t.layer === x)) : undefined;
     if (bad !== undefined || empty !== undefined) {
       lines.push(bad !== undefined ? `FAIL  Отбор слоёв — неизвестный слой «${bad}»` : `FAIL  Отбор слоёв — нет тестов слоя ${empty}`);
-      return finish(lines, [], "Тесты API не запущены: неизвестный слой", true);
+      return finish(lines, [], `Тесты API не запущены: ${bad !== undefined ? "неизвестный слой" : "слой без тестов"}`, true);
     }
     // Тесты вне отбора не идут и строк не дают; ?only= и ?layer= действуют вместе
     const selected = tests.filter((t) => (!only || t.name === only || t.file === only) && (!wanted.length || wanted.includes(t.layer)));
     const stats = new Map();
     const stat = (t) => {
-      if (!stats.has(t.layer)) stats.set(t.layer, { pass: 0, fail: 0, skip: 0, lacking: 0 });
+      if (!stats.has(t.layer)) stats.set(t.layer, { pass: 0, fail: 0, skip: 0 });
       return stats.get(t.layer);
     };
     const mark = (t) => `[${ConsolemTestLayers.layerTitle(t.layer)}] `;
@@ -379,7 +391,6 @@
         if (missing.some((n) => /^(kind|implements|under|cap|profile):/.test(n))) t.needs.forEach((n) => waived.add(n));
         // Не хватило условия profile: — причина из profileLack, иначе прежнее «система не умеет»
         const lack = missing.find((n) => n.startsWith("profile:"));
-        if (lack) stat(t).lacking += 1;
         lines.push(`SKIP  ${mark(t)}${t.name} — ${lack ? ConsolemTestLayers.profileLack(lack, DECLARED) : `система не умеет: ${missing.map((n) => (n === "clock" ? "остановленные часы" : n)).join(", ")}`}`);
         continue;
       }
@@ -415,7 +426,7 @@
       const st = stats.get(l);
       const parsed = ConsolemTestLayers.parseLayer(l);
       const title = ConsolemTestLayers.layerTitle(l);
-      if (parsed.type === "profile" && (!DECLARED.has(parsed.profile) || (!st.pass && !st.fail && st.lacking === st.skip))) {
+      if (parsed.type === "profile" && !DECLARED.has(parsed.profile)) {
         layerLines.push(`LAYER ${title} — не объявлен, пропущено ${st.skip}`);
         return;
       }
@@ -477,10 +488,11 @@
   // Поток для теста. watch — какие устройства наблюдать: их события приходят только наблюдающим
   const subscribeForTest = (fn, watch) =>
     api.subscribe((m) => {
+      // PUT watch идёт через api.raw, мимо защиты, намеренно: так же ходит поток самого harness
       if (m.type === "stream.hello" && watch) api.raw("PUT", `/stream/${m.clientId}/watch`, { ids: watch });
       fn(m);
     });
   const settle = () => new Promise((r) => setTimeout(r, apiBase ? 400 : 20));
 
-  window.ApiTest = { test, fileLayer, registry, layers: ConsolemTestLayers, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };
+  window.ApiTest = { test, prefixLayers, fileLayer, registry, layers: ConsolemTestLayers, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase) };
 })();

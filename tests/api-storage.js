@@ -1,15 +1,13 @@
 /* Тесты API: хранилища и тома. Пути ядра (/units): смысл — хуки профилей vms.archive/1 и vms.volume/1. */
 (() => {
   ApiTest.fileLayer("profile:vms.archive/1");
-  const { test: addTest, makeEnv, assert, key, FX } = ApiTest;
+  const { makeEnv, assert, key, FX } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
-  const LAYER_BY_PREFIX = [
-    ["Том", "profile:vms.volume/1"],
-  ];
-  const test = (name, fn, opts) => {
-    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
-    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
-  };
+  const test = ApiTest.prefixLayers([
+    ["Том:", "profile:vms.volume/1"],
+    ["Том только", "profile:vms.volume/1"],
+    ["Том во время", "profile:vms.volume/1"],
+  ]);
   const GB = 1024 ** 3;
   const v = (rec) => ({ "If-Match": `"${rec.version}"` });
   const U = (uid) => `/units/${uid}`;

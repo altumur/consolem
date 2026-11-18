@@ -5,9 +5,9 @@
    Поле отказа — JSON Pointer. */
 (() => {
   ApiTest.fileLayer("profile:vms.camera/1");
-  const { test: addTest, makeEnv, assert, key, FX } = ApiTest;
+  const { makeEnv, assert, key, FX } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
-  const LAYER_BY_PREFIX = [
+  const test = ApiTest.prefixLayers([
     ["Добавить:", "mechanism"],
     ["Добавить из найденного", "mechanism"],
     ["Удалить камеру: строки незнакомых видов", "mechanism"],
@@ -42,11 +42,7 @@
     ["Реле: в СКУД", "profile:vms.acs/1"],
     ["Команда единицы", "profile:vms.acs/1"],
     ["Правило: действие unit", "profile:vms.acs/1"],
-  ];
-  const test = (name, fn, opts) => {
-    const hit = LAYER_BY_PREFIX.find(([prefix]) => name.startsWith(prefix));
-    addTest(name, fn, hit ? Object.assign({}, opts, { layer: hit[1] }) : opts);
-  };
+  ]);
   const d1 = FX.domains[0];
   const folder = FX.folders.find((f) => f.domainId === d1.id && !f.parentId);
   const cam = FX.devices.find((d) => d.type === "camera" && d.name === "Главный вход");

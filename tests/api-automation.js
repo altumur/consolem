@@ -492,7 +492,11 @@
       await ApiTest.settle();
       stop();
       assert.eq(seen, ["stopped"], "причина");
-      const fires = await env.list(`/rules/${base.id}/fires`).catch(() => null);
+      // Журнал запусков — необязательная операция: тест называет её в needs, но на системе без неё прогон идёт дальше
+      // Удалённого правила нет — журнал отвечает 404 NOT_FOUND; другой ответ — ошибка
+      const probe = ApiTest.can("listRuleFires") ? await env.call("GET", `/rules/${base.id}/fires?limit=1000`) : null;
+      if (probe && probe.status !== 200) assert.status(probe, 404, "NOT_FOUND", "журнал удалённого правила");
+      const fires = probe && probe.status === 200 ? await env.list(`/rules/${base.id}/fires`) : null;
       if (fires) assert.ok(fires.find((x) => x.id === f.id).result !== "waiting", "запуск снят");
       assert.status(await env.call("POST", `/rule-prompts/${p.id}/answer`, { answer: "yes" }), 404, "NOT_FOUND", "снятый запуск — 404");
       return p;
