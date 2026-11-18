@@ -78,6 +78,10 @@ UiCheck(async ({ ok, until }) => {
       ok(screenFor("camera") === "schema" && isSchemaKind("camera") && isSchemaNode(unitNode(camFull)),
         `код camera с implements [${im.join()}] — форма по схеме, а не экран по коду; узел объекта — узел формы по схеме`);
     });
+    await withKinds([like, Object.assign(kindOf("camera"), { implements: im })], async () => {
+      ok(kindsOfScreen("camera").includes("test.camera-like") && !kindsOfScreen("camera").includes("camera"),
+        `виды экрана камеры — без кода camera с implements [${im.join()}]: ` + kindsOfScreen("camera").join());
+    });
   }
   // Описаний нет (listKinds не объявлен, /kinds не прочитан): встроенные экраны — по коду, как прежде
   {
@@ -122,9 +126,12 @@ UiCheck(async ({ ok, until }) => {
 
   // ── Г. Профиль снят с вида при открытой карточке ──
   // Открыта карточка камеры с неприменённой правкой; PUT /test/kinds/camera без vms.camera/1 → kinds.changed. Карточка без
-  // перезагрузки становится формой по схеме, правка переносится в черновик формы по схеме. Обратный PUT — снова экран камеры
+  // перезагрузки становится формой по схеме, правка переходит в черновик формы по схеме. Поле, которого в новой схеме нет
+  // (короткое имя), консоль называет в уведомлении. Обратный PUT — снова экран камеры
   const camK = kindOf("camera");
-  const NEW_IP = "10.77.0.7", NEW_NAME = "Камера после смены вида";
+  const NEW_IP = "10.77.0.7", NEW_NAME = "Камера после смены вида", NEW_SHORT = "КПС";
+  const noCam = Object.assign(clone(camK), { implements: camK.implements.filter((p) => p !== "vms.camera/1") });
+  delete noCam.schema.properties.short;
   // Стенд с testSupport меняет описание сам (PUT /test/kinds) и шлёт kinds.changed; без служебных операций новое описание
   // отдаёт перехваченный GET /kinds, событие приходит тем же apiOnEvent (приём ui-access.js)
   let rawW = null;
@@ -142,13 +149,21 @@ UiCheck(async ({ ok, until }) => {
     };
     apiOnEvent({ type: "kinds.changed", kinds: ["camera"] });
   };
+  // Уведомления живут 2 с: сценарий собирает все, что консоль показала
+  const toasts = [];
+  const toastTick = setInterval(() => { const t = document.getElementById("tt")?.textContent; if (t && toasts[toasts.length - 1] !== t) toasts.push(t); }, 20);
+  const menuText = (n) => { openTreeCtx(n, { x: 10, y: 10 }); const t = document.getElementById("tctx").textContent; closeTreeCtx(); return t; };
+  const HAND_MENU = /Добавить детекторы…|Применить настройки к другим…/;
   try {
+    ok(HAND_MENU.test(menuText(find(camU.uid).n)), "меню строки камеры — пункты ручного экрана камеры");
     const n0 = find(camU.uid).n;
     n0.ip = NEW_IP;
     n0.name = NEW_NAME;
+    n0.short = NEW_SHORT;
     setD(true);
-    ok(cardDraft?.id === camU.uid && cardDiff().length >= 2, "черновик камеры: " + cardDiff().map((r) => r.label).join(", "));
-    await camPut(Object.assign(clone(camK), { implements: camK.implements.filter((p) => p !== "vms.camera/1") }), "ui-ekran-no-camera");
+    ok(cardDraft?.id === camU.uid && cardDiff().length >= 3, "черновик камеры: " + cardDiff().map((r) => r.label).join(", "));
+    toasts.length = 0;
+    await camPut(noCam, "ui-ekran-no-camera");
     const became = await until(() => {
       const n = find(camU.uid)?.n;
       return !!n && isSchemaNode(n) && !n._row && sel === camU.uid && !!main().querySelector("[data-schema-card]");
@@ -157,6 +172,11 @@ UiCheck(async ({ ok, until }) => {
     ok(became, "kinds.changed: открытая карточка камеры без перезагрузки стала формой по схеме");
     ok(!!n1 && n1.props?.ip === NEW_IP && n1.name === NEW_NAME && cardDraft?.id === camU.uid && cardDiff().length >= 2,
       "неприменённая правка перенесена в форму по схеме: " + (n1 ? `ip ${n1.props?.ip}, имя «${n1.name}»` : "нет узла"));
+    await until(() => toasts.some((t) => /Короткое имя/.test(t)), 3000);
+    const note = toasts.find((t) => /Описание вида изменилось/.test(t)) || "";
+    ok(/^Описание вида изменилось, поэтому консоль показывает «Камера после смены вида» другим экраном\. Консоль не перенесла изменения полей «Короткое имя», потому что на новом экране этих полей нет\. Остальные изменения консоль перенесла\.$/.test(note),
+      "уведомление называет причину и поле, которое консоль не перенесла: «" + (note || toasts.join(" | ")) + "»");
+    ok(!HAND_MENU.test(menuText(n1)), "меню строки камеры формы по схеме — без пунктов ручного экрана камеры");
   } finally {
     await camPut(camK);
   }
@@ -167,4 +187,29 @@ UiCheck(async ({ ok, until }) => {
   const n3 = find(camU.uid)?.n;
   ok(back && n3.ip === NEW_IP && n3.name === NEW_NAME, "профиль вернулся — снова экран камеры, правка цела: " + (n3 ? `ip ${n3.ip}` : "нет узла"));
   if (cardDraft) { cardRestore(); gear(); }
+
+  // Полную запись прочитать не удалось: консоль не теряет правку молча, а называет все поля, которые не перенесла
+  {
+    const realGet = API.get;
+    try {
+      find(camU.uid).n.ip = NEW_IP;
+      setD(true);
+      toasts.length = 0;
+      API.get = function (path, params) {
+        if (path === `/units/${camU.uid}`) return Promise.reject({ status: 503, problem: { code: "SERVER_OFFLINE", message: "нет связи" } });
+        return realGet.call(this, path, params);
+      };
+      await camPut(noCam, "ui-ekran-no-camera-2");
+      const seen = await until(() => toasts.some((t) => /Консоль не прочитала/.test(t)));
+      const t = toasts.find((x) => /Консоль не прочитала/.test(x)) || toasts.join(" | ");
+      ok(seen && /Консоль не перенесла изменения полей «IP»/.test(t) && !/Остальные изменения/.test(t),
+        "запись не прочиталась — уведомление называет все поля правки: «" + t + "»");
+    } finally {
+      API.get = realGet;
+      await camPut(camK);
+    }
+    ok(await until(() => { const n = find(camU.uid)?.n; return !!n && !isSchemaNode(n) && n.type === "camera"; }), "описание камеры вернулось — снова экран камеры");
+    if (cardDraft) { cardRestore(); gear(); }
+  }
+  clearInterval(toastTick);
 });
