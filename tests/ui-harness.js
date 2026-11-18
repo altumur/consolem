@@ -85,7 +85,8 @@ const uiUnitsAll = async (q) => {
   } while (cursor);
   return out;
 };
-const uiIsDevice = (u) => { const t = screenType(u.kind); return HAND_SCREENS.has(t) && !INFRA_SCREENS.has(t); };
+// Ручной экран — по isSchemaKind, а не по HAND_SCREENS: вид с кодом экрана без своего профиля — форма по схеме (часть 07)
+const uiIsDevice = (u) => !isSchemaKind(u.kind) && !INFRA_SCREENS.has(screenType(u.kind));
 window.uiUnitsAll = uiUnitsAll;
 window.uiIsDevice = uiIsDevice;
 /* Запись объекта плоско, для сверки с кэшем экранов: свойства и наблюдаемое сверху, id ↔ uid, type ↔ вид, online ↔
