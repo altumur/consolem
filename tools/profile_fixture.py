@@ -324,6 +324,13 @@ def build(demo):
         for p in fx["profiles"]:
             if p["id"] == "vms.detector/1":
                 p["properties"] = [n for n in p["properties"] if n not in DROP_PROPS["det"]]
+        # Зависимости — только от профилей, которые остались в наборе
+        ids = {p["id"] for p in fx["profiles"]}
+        for p in fx["profiles"]:
+            if "uses" in p:
+                p["uses"] = [u for u in p["uses"] if u["id"] in ids]
+                if not p["uses"]:
+                    del p["uses"]
 
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
