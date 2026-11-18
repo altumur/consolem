@@ -10,8 +10,9 @@
 ## Как читать решения
 
 - **оставить** — прогон увидел поле на экране.
-- **оставить: <причина>** — прогон поле не увидел, но код его читает: экран показывает поле только при условии, поле читает другой экран, движок правил или поиск. Причина записана в `keep` файла `tools/profile_coverage.allow.json`.
-- **снять** — прогон поле не увидел, и проверка по коду не нашла его в функциях экрана, в движке правил (`api/rule-engine.js`), в условиях правил (`reference.ruleConditions` набора `demo`) и в поиске (`x-search`). Задача 7 снимает поле младшей версией профиля с записью `changes[].removed` (решение О2). Поле остаётся в схеме вида, и интерфейс показывает его в «Все параметры».
+- **оставить: <причина>** — прогон поле не увидел, но код его читает: экран показывает поле только при условии, поле читает другой экран, движок правил или поиск. Причину содержит раздел `keep` файла `tools/profile_coverage.allow.json`.
+- **оставить: правило сервера / тест профиля** — экран поле не читает, но его использует правило сервера своего профиля (`api/profiles.js`) или тест API слоя этого профиля (`tests/api-*.js`, слой `profile:<id>`). Снятие из профиля оставило бы правило и тест без обещания в профиле. Столбец «проверка по коду» называет функцию или тест.
+- **снять** — прогон поле не увидел, и проверка по коду не нашла его в функциях экрана, в движке правил (`api/rule-engine.js`), в условиях правил (`reference.ruleConditions` набора `demo`) в поиске (`x-search`), в правилах сервера `api/profiles.js` и в тестах API слоя профиля. Задача 7 снимает поле младшей версией профиля с записью `changes[].removed` (решение О2). Поле остаётся в схеме вида, и интерфейс показывает его в «Все параметры».
 - **добавить** — экран показывает поле, а ни в одном знакомом профиле вида его нет. Задача 7 добавляет поле в младшей версии с `since` этой версии.
 
 Столбец «проверка по коду» для полей, которые прогон увидел, пишет «прогон: показано». Для остальных он называет функции из `python3 tools/outline.py index.html <поле>` и итог поиска в `api/rule-engine.js` и `api/fixtures/demo.json`.
@@ -22,8 +23,8 @@
 |---|---|---|---|---|
 | `vms.acs/1` | 11 | 3 | 0 | 1.0 → 1.1 |
 | `vms.archive/1` | 6 | 0 | 0 | 1.0 (без изменений) |
-| `vms.camera/1` | 54 | 1 | 0 | 1.0 → 1.1 |
-| `vms.detector/1` | 34 | 8 | 0 | 1.0 → 1.1 |
+| `vms.camera/1` | 55 | 0 | 0 | 1.0 (без изменений) |
+| `vms.detector/1` | 42 | 0 | 0 | 1.0 (без изменений) |
 | `vms.domain/1` | 1 | 0 | 0 | 1.0 (без изменений) |
 | `vms.edge/1` | 4 | 0 | 3 | 1.0 → 1.1 |
 | `vms.folder/1` | 0 | 0 | 0 | 1.0 (без изменений) |
@@ -31,21 +32,17 @@
 | `vms.pos/1` | 28 | 0 | 7 | 1.0 → 1.1 |
 | `vms.ptz/1` | 3 | 0 | 0 | 1.0 (без изменений) |
 | `vms.server/1` | 13 | 0 | 0 | 1.0 (без изменений) |
-| `vms.stream/1` | 5 | 2 | 0 | 1.0 → 1.1 |
-| `vms.subdetector/1` | 12 | 9 | 0 | 1.0 → 1.1 |
+| `vms.stream/1` | 7 | 0 | 0 | 1.0 (без изменений) |
+| `vms.subdetector/1` | 21 | 0 | 0 | 1.0 (без изменений) |
 | `vms.talk/1` | 3 | 0 | 0 | 1.0 (без изменений) |
 | `vms.timeline/1` | 0 | 0 | 0 | 1.0 (без изменений) |
 | `vms.volume/1` | 25 | 0 | 0 | 1.0 (без изменений) |
 | `vms.webserver/1` | 3 | 0 | 0 | 1.0 (без изменений) |
-| Всего | 202 | 23 | 10 | 7 профилей получают младшую версию |
+| Всего | 222 | 3 | 10 | 3 профиля получают младшую версию |
 
 Снять (задача 7, `changes[].removed`):
 
 - `vms.acs/1`: `login`, `password`, `port`.
-- `vms.camera/1`: `detectorKinds`.
-- `vms.detector/1`: `cameraPosition`, `detectUnattendedObjects`, `humanSize`, `minTriggers`, `scanWindow`, `similarSearch`, `similarTrackSec`, `speedCalibArea`.
-- `vms.stream/1`: `height`, `width`.
-- `vms.subdetector/1`: `confirmFrames`, `cooldownSec`, `extraZones`, `lostObjectType`, `maxObjects`, `objectSize`, `rangeMode`, `showLine`, `width`.
 
 Добавить (задача 7, `since` новой версии):
 
@@ -70,12 +67,14 @@
 - `vms.camera/1` `firmware`: вкладка «Подключение» показывает «Прошивка», но это заглушка драйвера (`camDrvSchema0`) с постоянным значением, свойство объекта она не читает. Решение — оставить: поле на экране есть, а заглушку заменит ответ на запрос о параметрах драйвера. Если владелец решит, что заглушка не считается, поле можно снять в той же младшей версии.
 - `vms.camera/1` `lat`, `lon`, `azimuth`, `rtspUrl`, `configMode`, `templateId`: карточка камеры их не показывает, но их показывают таблица камер, мастер добавления и выгрузка CSV. Это тоже ручные экраны камеры, поэтому поля остаются.
 - `vms.acs/1` `identifier`: карточка ACFA поле не показывает, но у вида `acfa` поле с `x-search`, и поиск находит контроллер по номеру. Решение — оставить по правилу плана «нужно поиску». `login`, `password`, `port` карточка и мастер ACFA не показывают (мастер спрашивает только имя и IP), поэтому их решение — снять.
+- `vms.detector/1` (8 полей контракта 0.15.0: `cameraPosition`, `detectUnattendedObjects`, `humanSize`, `minTriggers`, `scanWindow`, `similarSearch`, `similarTrackSec`, `speedCalibArea`), `vms.subdetector/1` (`confirmFrames`, `cooldownSec`, `extraZones`, `lostObjectType`, `maxObjects`, `objectSize`, `rangeMode`, `showLine`, `width`) и `vms.stream/1` (`width`, `height`): окна детектора и поддетектора и вкладка «Видео» эти поля не показывают. Но их проверяют тесты слоя профиля (`tests/api-devices.js`: «Свойства детектора и поддетектора 0.15.0», «Поддетектор 0.15.0…», «Потоки: …»), а часть из них — правила сервера (`scanErr`, `frontEdgeErr`, `rangeErr`, `aboveMax` для `minObjects` и `maxObjects`, `afterSet` потока). По правилу «правило сервера / тест профиля» поля остаются. Когда экран начнёт их показывать, профиль уже готов.
+- `vms.camera/1` `detectorKinds`: экран камеры поле не читает. Это поле состояния, и другого места в контракте у него нет: в схемах видов его нет, сервер его заполняет, `check_api.py` называет его в `PROFILE_STATUS_EXTRA`. Снятие из профиля оставило бы поле вне контракта. Решение — оставить.
 - `vms.volume/1` `enabled`: карточка тома рисует переключатель «Том включён» по `enabled` (`volNode`, ветка `vol` в `formBase`), а прогон правку не увидел. Решение — оставить. Задача 7 должна разобрать, почему прогон не видит переключатель (возможно, объект тома доходит до карточки другим путём, а не через `hwApplyUnit`).
-- Поля в двух профилях вида: `ptz`, `presets`, `presetMax` есть и в `vms.camera/1`, и в `vms.ptz/1`. По открытому вопросу 5 они остаются в обоих профилях. В таблицах они отмечены.
+- Поля в двух профилях вида: `ptz`, `presets`, `presetMax` есть и в `vms.camera/1`, и в `vms.ptz/1`. По открытому вопросу 5 они остаются в обоих профилях. Таблицы обоих профилей говорят об этом в столбце «решение».
 
 ## Для задачи 7: схема `replicationStatus`
 
-У `vms.edge/1` поле состояния `replicationStatus` описано схемой `{"type": "object"}` без внутренних полей, а вкладка «Репликация» читает `state`, `lagSec`, `timeLeftSec`, `lastTransferAt`, `nextTransferAt`, `bytesToday`, `gaps`, а у регистратора `cameras[]` (`cameraId`, `state`, `excluded`, `lastTransferAt`, `nextTransferAt`, `gaps`). Смысл этих полей уже записан в `meaning`. Задача 7 должна дать полю точную схему: `properties` с этими именами.
+У `vms.edge/1` поле состояния `replicationStatus` имеет схему `{"type": "object"}` без внутренних полей, а вкладка «Репликация» читает `state`, `lagSec`, `timeLeftSec`, `lastTransferAt`, `nextTransferAt`, `bytesToday`, `gaps`, а у регистратора `cameras[]` (`cameraId`, `state`, `excluded`, `lastTransferAt`, `nextTransferAt`, `gaps`). Смысл этих полей уже объясняет `meaning`. Задача 7 должна дать полю точную схему: `properties` с этими именами.
 
 Это добавление, а не ломающая правка, при двух условиях. Первое: схема не получает `required` и `additionalProperties: false`, тогда бэкенд, который уже отдаёт эти поля по `meaning`, остаётся верным. Второе: тип поля не меняется. Проверка версий (`tools/profile_files.py`, `history_problems` → `type_sig`) сравнивает только тип, `items` и `x-ref`, а внутренние `properties` объекта не сравнивает. Поэтому `check_api.py` примет такую правку в младшей версии `vms.edge/1` (1.1, вместе с добавленными полями). По `api/profiles/README.md` («Версии») правка, которая не переименовывает поле и не меняет его тип, идёт младшей версией.
 
@@ -83,20 +82,20 @@
 
 После переноса причин в `tools/profile_coverage.allow.json` команда `python3 tools/profile_coverage.py --check` должна кончаться `RESULT fail`, и в `remove` и `add` должны остаться только поля с решением «снять» и «добавить».
 
-`--check` без `--units` берёт по два объекта вида. Первый запуск так показал ещё 9 полей, которые прогон с `--units 3` видит только на третьем объекте: `recordScheduleId` камеры, `classes`, `confidence`, `labels` детектора, `direction`, `zone` поддетектора, `file`, `login` тома. Это поля экрана, их решение — «оставить». Чтобы обычный `--check` после задачи 7 проходил, у них есть строка в `allow.keep` с этой причиной. Второй запуск `--check` дал ровно 33 поля: 23 «снять» и 10 «добавить», как в отчёте. Хвост второго запуска:
+`--check` берёт по три объекта вида (`--units 3` по умолчанию, как в прогоне сверки; правка инструмента и `api/TESTS.md`, раздел 12). С двумя объектами прогон не видел 9 полей, которые экран показывает только на третьем объекте набора, поэтому умолчание стало 3. Запуск `--check` дал ровно 13 полей: 3 «снять» и 10 «добавить», как в отчёте (сверку сделал скрипт). Хвост запуска:
 
 ```
-== vms.acs/1 (10 с)
+== vms.acs/1 (12 с)
    итог: keep: enabled, ip, model, operations, path, short, vendor · remove: login, password, port · add: — · untested: —
-== vms.archive/1 (8 с)
+== vms.archive/1 (7 с)
    итог: keep: admits, encrypted, recordMode, retentionDays, storage · remove: — · add: — · untested: —
 == vms.camera/1 (48 с)
-   итог: keep: alarmKinds, archiveId, audioDeviceId, enabled, identifier, ip, labels, login, mac, minDepthDays, model, port, preRecordSec, presetMax, presets, privacyMasks, ptz, recordMode, replicaFrom, retentionDays, serverId, short, stream, vendor, disabledByRuleId, faultText, licenseExceeded, recordReason, recordState · remove: detectorKinds · add: — · untested: —
-== vms.detector/1 (59 с)
-   итог: keep: analyticsKind, builtin, detectorKind, enabled, minDurationSec, params, recordMask, recordTracks, sensitivity, showTrackLifespan, showTracks, stream, zone · remove: cameraPosition, detectUnattendedObjects, humanSize, minTriggers, scanWindow, similarSearch, similarTrackSec, speedCalibArea · add: — · untested: —
+   итог: keep: alarmKinds, archiveId, audioDeviceId, enabled, identifier, ip, labels, login, mac, minDepthDays, model, port, preRecordSec, presetMax, presets, privacyMasks, ptz, recordMode, recordScheduleId, replicaFrom, retentionDays, serverId, short, stream, vendor, disabledByRuleId, faultText, licenseExceeded, recordReason, recordState · remove: — · add: — · untested: —
+== vms.detector/1 (68 с)
+   итог: keep: analyticsKind, builtin, classes, confidence, detectorKind, enabled, labels, minDurationSec, params, recordMask, recordTracks, sensitivity, showTrackLifespan, showTracks, stream, zone · remove: — · add: — · untested: —
 == vms.domain/1 (3 с)
    итог: keep: license · remove: — · add: — · untested: —
-== vms.edge/1 (12 с)
+== vms.edge/1 (16 с)
    итог: keep: replication, replicationStatus, mediaOk, profileG · remove: — · add: enabled, recordMode, short · untested: —
 == vms.folder/1 (3 с)
    итог: keep: — · remove: — · add: — · untested: —
@@ -108,16 +107,16 @@
    итог: keep: ptz, presets, presetMax · remove: — · add: — · untested: —
 == vms.server/1 (4 с)
    итог: keep: allocated, dns, gateway, ip, labels, netmask, port, role, gpu, telemetry · remove: — · add: — · untested: —
-== vms.stream/1 (12 с)
-   итог: keep: codec, fps, res, streamId · remove: height, width · add: — · untested: —
+== vms.stream/1 (13 с)
+   итог: keep: codec, fps, res, streamId · remove: — · add: — · untested: —
 == vms.subdetector/1 (5 с)
-   итог: keep: classes, enabled, group, subdetectorKind, timeMode, timeSec · remove: confirmFrames, cooldownSec, extraZones, lostObjectType, maxObjects, objectSize, rangeMode, showLine, width · add: — · untested: —
+   итог: keep: classes, direction, enabled, group, subdetectorKind, timeMode, timeSec, zone · remove: — · add: — · untested: —
 == vms.talk/1 (6 с)
    итог: keep: channel, enabled, short · remove: — · add: — · untested: —
 == vms.timeline/1 (4 с)
    итог: keep: — · remove: — · add: — · untested: —
-== vms.volume/1 (15 с)
-   итог: keep: dir, disk, mode, sizeBytes, state, shrinkPendingBytes, usedPercent · remove: — · add: — · untested: —
+== vms.volume/1 (19 с)
+   итог: keep: dir, disk, file, login, mode, sizeBytes, state, shrinkPendingBytes, usedPercent · remove: — · add: — · untested: —
 == vms.webserver/1 (3 с)
    итог: keep: webServer, webCertificate, webReservedPorts · remove: — · add: — · untested: —
 RESULT fail
@@ -159,7 +158,7 @@ RESULT fail
 
 ## `vms.camera/1` — Камера
 
-Итог: оставить 54, снять 1, добавить 0. Версия: 1.0 → 1.1.
+Итог: оставить 55, снять 0, добавить 0. Версия: 1.0 (без изменений).
 
 | поле | в профиле | на экране (вкладки) | проверка по коду | решение |
 |---|---|---|---|---|
@@ -192,7 +191,7 @@ RESULT fail
 | `ptz` | да | camera: «Просмотр», camera: «Видео» | прогон: показано | оставить: поле есть и в vms.ptz/1, оставить в обоих (открытый вопрос 5) |
 | `recordDetectorIds` | да | — (не показано) | `DEV_KEY` (`recDets`), `camRecMotionDets`: вкладка «Архив», запись по детекторам | оставить: показано только при записи по детекторам: вкладка «Архив», список детекторов записи |
 | `recordMode` | да | camera: «Архив» | прогон: показано | оставить |
-| `recordScheduleId` | да | camera: «Архив» | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `recordScheduleId` | да | camera: «Архив» | прогон: показано | оставить |
 | `replicaFrom` | да | camera: «Архив» | прогон: показано | оставить |
 | `res` | да | — (не показано) | `bulkVidHtml`: групповая карточка камер, раздел «Видео»; копирование настроек видео. Карточка одной камеры показывает разрешение потоков | оставить: нужно групповой карточке камер (раздел «Видео») и копированию настроек видео; карточка одной камеры показывает разрешение потоков |
 | `resOptions` | да | — (не показано) | `cvStreamColHtml` (список разрешений первого потока, если у потока своего нет), `bulkVidHtml` (общий список выбранных камер) | оставить: показано только в правке первого потока без своего списка и в групповой карточке камер |
@@ -207,7 +206,7 @@ RESULT fail
 | `videoChannel` | да | — (не показано) | `ipsChanHtml`, `ipsrvCameraVideoChannel` (`DEV_KEY`: `vch`): вкладка «Каналы» регистратора | оставить: показано только у камеры регистратора: вкладка регистратора «Каналы» |
 | `archiveJobs` (состояние) | да | — (не показано) | `rwCardsHtml`: при `archiveJobs: false` вкладка «Архив» пишет «Скан и обход недоступны» | оставить: показано только при false: вкладка «Архив», карточка «Скан и обход» |
 | `armed` (состояние) | да | — (не показано) | `api/rule-engine.js`: условие правила `armed` (`reference.ruleConditions`, `implements: vms.camera/1`), проверка `armed` в шагах; в `index.html` — `condBody`, `ruleCondCheck` | оставить: нужно движку правил: условие armed (reference.ruleConditions) читает это поле камеры |
-| `detectorKinds` (состояние) | да | — (не показано) | `outline.py`: в `index.html` только `autoRef` (справочник `reference.detectorKinds`, другое поле); экран камеры поле не читает; движок правил, поиск и `ruleConditions` поле не читают (`api/profiles.js` его только заполняет) | снять |
+| `detectorKinds` (состояние) | да | — (не показано) | `outline.py`: экран камеры поле не читает. Поле состояния есть только в профиле: в схемах видов `api/openapi.json` его нет (grep — 0), сервер его заполняет (`api/profiles.js` ~878, `api/server.js` ~93, список наблюдаемых полей), `tools/check_api.py` ~518 (`PROFILE_STATUS_EXTRA`) его называет | оставить: поле состояния, другого места в контракте нет: сервер заполняет его (api/profiles.js, api/server.js), check_api.py называет его в PROFILE_STATUS_EXTRA |
 | `direct` (состояние) | да | — (не показано) | `liveGo`, `cvPtzHtml`, пресеты и туры: при `direct: false` экран пишет «Камера за NAT» и выключает поворот | оставить: показано только при false: «Камера за NAT» в «Просмотре» и на «Видео» |
 | `disabledByRuleAt` (состояние) | да | — (не показано) | `api/rule-engine.js` (история набора: камера выключена правилом с этого времени); `ruleOffNow` в `index.html` | оставить: нужно движку правил: время, с которого правило выключило камеру |
 | `disabledByRuleId` (состояние) | да | camera: «Просмотр», camera: «Подключение», camera: «Видео», camera: «Архив», camera: «Детекторы», camera: «Периферия», camera: «Доступ» | прогон: показано | оставить |
@@ -221,25 +220,25 @@ RESULT fail
 
 ## `vms.detector/1` — Детектор
 
-Итог: оставить 34, снять 8, добавить 0. Версия: 1.0 → 1.1.
+Итог: оставить 42, снять 0, добавить 0. Версия: 1.0 (без изменений).
 
 | поле | в профиле | на экране (вкладки) | проверка по коду | решение |
 |---|---|---|---|---|
 | `alarmKinds` | да | — (не показано) | `detFieldsHtml`: окно детектора, «Дополнительно» → «Что считать тревогой» (чипы из справочника событий) | оставить: окно детектора, «Дополнительно»: чипы показывают только события из справочника; прогон менял значение на событие вне справочника |
 | `analyticsKind` | да | det: окно, camera: «Детекторы» | прогон: показано | оставить |
 | `builtin` | да | det: окно, camera: «Детекторы» | прогон: показано | оставить |
-| `cameraPosition` | да | — (не показано) | `outline.py` нашёл только `panomorphCameraPosition` в `camDrvSchema0` (другое поле камеры); окно детектора поле не читает; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `classes` | да | det: окно | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
-| `confidence` | да | det: окно | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `cameraPosition` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «незнакомое положение» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
+| `classes` | да | det: окно | прогон: показано | оставить |
+| `confidence` | да | det: окно | прогон: показано | оставить |
 | `crowdHoldSec` | да | — (не показано) | `dwFromUnit`, `dwPanelHtml`: «Дольше» в условиях детектора толпы | оставить: показано только у детектора толпы (crowd): «Условия срабатывания» |
 | `crowdMin` | да | — (не показано) | `dwFromUnit`, `dwPanelHtml`: «Людей в зоне не меньше» | оставить: показано только у детектора толпы (crowd): «Условия срабатывания» |
 | `detectorKind` | да | det: окно, camera: «Детекторы» | прогон: показано | оставить |
-| `detectUnattendedObjects` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `detectUnattendedObjects` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «сохранены», «null снимает» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
 | `direction` | да | — (не показано) | `dwFromUnit`, `dwPanelHtml` (`dwDirHtml`): «Направление» у пересечения линии | оставить: показано только у детектора пересечения линии (linecross) |
 | `enabled` | да | det: окно, camera: «Детекторы» | прогон: показано | оставить |
 | `extraZones` | да | — (не показано) | `dwFromUnit`, `dwAreasHtml`, `dwToolsHtml`: зоны исключения в окне детектора | оставить: показано, только если схема вида разрешает extraZones: кнопка и список зон исключения |
-| `humanSize` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `labels` | да | det: окно | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `humanSize` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «сохранены», «null снимает» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
+| `labels` | да | det: окно | прогон: показано | оставить |
 | `metaDiff` | да | — (не показано) | `metaPanelHtml`, `metaDiffRows`: панель мета-детектора | оставить: показано только у мета-детектора: панель «Мета-детектор» |
 | `metaFps` | да | — (не показано) | `metaPanelHtml` (`META_DEF`, `META_LBL`) | оставить: показано только у мета-детектора: панель «Мета-детектор» |
 | `metaFrames` | да | — (не показано) | `metaPanelHtml`, `metaFix` | оставить: показано только у мета-детектора: панель «Мета-детектор» |
@@ -248,21 +247,21 @@ RESULT fail
 | `metaSkipSimilar` | да | — (не показано) | `metaPanelHtml` | оставить: показано только у мета-детектора: панель «Мета-детектор» |
 | `metaThreshold` | да | — (не показано) | `metaPanelHtml`, `metaSet` | оставить: показано только у мета-детектора: панель «Мета-детектор» |
 | `minDurationSec` | да | det: окно | прогон: показано | оставить |
-| `minTriggers` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `minTriggers` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «меньше двух» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
 | `objectSize` | да | — (не показано) | `dwFromUnit`, `dwSizeSec`: «Размер объекта» у детекторов из `DW_SIZE` | оставить: показано только у детекторов с размером объекта (DW_SIZE) |
 | `params` | да | det: окно | прогон: показано | оставить |
 | `plateWidth` | да | — (не показано) | `dwFromUnit`, `dwPanelHtml`: «Ширина номера» | оставить: показано только у распознавания номеров (lpr) |
 | `recordMask` | да | det: окно | прогон: показано | оставить |
 | `recordTracks` | да | det: окно | прогон: показано | оставить |
-| `scanWindow` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; в `api/rule-engine.js` есть только ключ сообщения `action.scanWindow` (окно действия scan), а не поле детектора; поиск и `ruleConditions` поле не читают | снять |
+| `scanWindow` | да | — (не показано) | `outline.py`: 0 мест в `index.html`. Правило сервера: `scanErr` → `stepAboveWindow` (`api/profiles.js` ~1233-1236, ~1288); тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «шаг выше окна» | оставить: правило сервера и тест профиля: scanErr (stepAboveWindow, api/profiles.js) и тест «Свойства детектора и поддетектора 0.15.0» |
 | `sensitivity` | да | det: окно | прогон: показано | оставить |
 | `serverId` | да | — (не показано) | `detServerId`, `detSrvOf`, `detAkClash`: заметка о сервере расчёта в окне детектора и проверка несовместимых детекторов лиц; `api/rule-engine.js` берёт сервер объекта из `serverId` | оставить: нужно окну детектора (сервер расчёта, несовместимые детекторы лиц на сервере) и движку правил (сервер объекта) |
 | `showMask` | да | — (не показано) | `dwArcHtml` (`DW_ARC_F`): «Показывать маску движения» в разделе «Архив и показ» | оставить: показано только у детектора движения: «Архив и показ» |
 | `showTrackLifespan` | да | det: окно | прогон: показано | оставить |
 | `showTracks` | да | det: окно | прогон: показано | оставить |
-| `similarSearch` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `similarTrackSec` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `speedCalibArea` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `similarSearch` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «сохранены», «null снимает» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
+| `similarTrackSec` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «сохранены», «null снимает» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
+| `speedCalibArea` | да | — (не показано) | `outline.py`: экран поле не читает. тест профиля «Свойства детектора и поддетектора 0.15.0» (`tests/api-devices.js`, слой `profile:vms.detector/1`): «три точки» | оставить: тест профиля: «Свойства детектора и поддетектора 0.15.0» (tests/api-devices.js) проверяет поле |
 | `stillSec` | да | — (не показано) | `dwFromUnit`, `dwPanelHtml`: «Предмет лежит без движения дольше» | оставить: показано только у детектора оставленных предметов (abandoned) |
 | `stream` | да | det: окно | прогон: показано | оставить |
 | `template` | да | — (не показано) | `detOption`, `detFieldsHtml`, `detPlace`: шаблон встроенного детектора («Размещение» в окне нового детектора) | оставить: показано только в окне нового детектора: «Размещение» (встроенный детектор камеры) |
@@ -376,44 +375,44 @@ RESULT fail
 
 ## `vms.stream/1` — Поток
 
-Итог: оставить 5, снять 2, добавить 0. Версия: 1.0 → 1.1.
+Итог: оставить 7, снять 0, добавить 0. Версия: 1.0 (без изменений).
 
 | поле | в профиле | на экране (вкладки) | проверка по коду | решение |
 |---|---|---|---|---|
 | `codec` | да | camera: «Видео» | прогон: показано | оставить |
 | `fps` | да | camera: «Видео» | прогон: показано | оставить |
-| `height` | да | — (не показано) | `outline.py`: только CSS и размеры элементов страницы (`style.height`); поток читает разрешение из `res`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `height` | да | — (не показано) | `outline.py`: экран поле не читает. Правило сервера: `afterSet` потока считает `width` и `height` из `res` (`api/profiles.js` ~1187-1193, `sizeOf`); тест профиля «Потоки: добавить, изменить, удалить…» (`tests/api-devices.js`, слой `profile:vms.stream/1`): «поток с размером» | оставить: правило сервера и тест профиля: afterSet потока считает размер из res (api/profiles.js), тест «Потоки: …» проверяет поле |
 | `res` | да | camera: «Просмотр», camera: «Видео» | прогон: показано | оставить |
 | `resOptions` | да | — (не показано) | `cvStreamColHtml`: список разрешений в правке потока | оставить: показано только в правке потока на вкладке «Видео»: список разрешений |
 | `streamId` | да | camera: «Просмотр», camera: «Видео», camera: «Архив» | прогон: показано | оставить |
-| `width` | да | — (не показано) | `outline.py`: только CSS и размеры элементов страницы (`style.width`); поток читает разрешение из `res`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `width` | да | — (не показано) | `outline.py`: экран поле не читает. Правило сервера: `afterSet` потока считает `width` и `height` из `res` (`api/profiles.js` ~1187-1193, `sizeOf`); тест профиля «Потоки: добавить, изменить, удалить…» (`tests/api-devices.js`, слой `profile:vms.stream/1`): «поток с размером» | оставить: правило сервера и тест профиля: afterSet потока считает размер из res (api/profiles.js), тест «Потоки: …» проверяет поле |
 
 ## `vms.subdetector/1` — Поддетектор
 
-Итог: оставить 12, снять 9, добавить 0. Версия: 1.0 → 1.1.
+Итог: оставить 21, снять 0, добавить 0. Версия: 1.0 (без изменений).
 
 | поле | в профиле | на экране (вкладки) | проверка по коду | решение |
 |---|---|---|---|---|
 | `classes` | да | det: окно | прогон: показано | оставить |
-| `confirmFrames` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `cooldownSec` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `direction` | да | det: окно | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `confirmFrames` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверка «диапазон multi» | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
+| `cooldownSec` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверка «диапазон multi» | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
+| `direction` | да | det: окно | прогон: показано | оставить |
 | `enabled` | да | det: окно | прогон: показано | оставить |
-| `extraZones` | да | — (не показано) | `outline.py`: только окно детектора (`dwFromUnit`, `dwAreasHtml`), поле детектора; поддетектор (`dwSubFromUnit`, `dwSubProps`, `dwSubBodyHtml`) его не читает | снять |
+| `extraZones` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): правило сервера `frontEdgeErr` (`api/profiles.js` ~1226-1231, ~1380-1384) и проверка «свой размер и исключения» | оставить: правило сервера и тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле вместе с правилом сервера в api/profiles.js |
 | `group` | да | det: окно | прогон: показано | оставить |
-| `lostObjectType` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `maxObjects` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `lostObjectType` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверки «свой размер и исключения», «незнакомый тип» | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
+| `maxObjects` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): правило сервера `aboveMax(p.minObjects, p.maxObjects)` → `minAboveMax` (`api/profiles.js` ~1382, вместе с `minObjects`) и проверки «диапазон multi», «конец ниже начала» | оставить: правило сервера и тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле вместе с правилом сервера в api/profiles.js |
 | `minObjects` | да | — (не показано) | `dwSubFromUnit`, `dwSubProps`, `dwSubBodyHtml`: «Объектов в области не меньше» | оставить: показано только у поддетектора multi |
-| `objectSize` | да | — (не показано) | `outline.py`: только окно детектора (`dwFromUnit`, `dwSizeSec`), поле детектора; поддетектор его не читает | снять |
+| `objectSize` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): правило сервера `rangeErr(p, "objectSize")` (`api/profiles.js` ~1380) и проверка «размер: min выше max» | оставить: правило сервера и тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле вместе с правилом сервера в api/profiles.js |
 | `offset` | да | — (не показано) | `dwSubFromUnit`, `dwSubBodyHtml`: «Смещение по X и Y» в «Дополнительно» | оставить: окно поддетектора, «Дополнительно» (кроме mask): смещение рамки |
-| `rangeMode` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `showLine` | да | — (не показано) | `outline.py`: 0 мест в `index.html`; движок правил, поиск и `ruleConditions` поле не читают | снять |
+| `rangeMode` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверка «диапазон multi» (вместе с maxObjects) | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
+| `showLine` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверка «полоса на ломаной» | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
 | `speed` | да | — (не показано) | `dwSubFromUnit`, `dwSubBodyHtml`: «Скорость объекта» в «Дополнительно» | оставить: окно поддетектора, «Дополнительно» (кроме mask): скорость объекта |
 | `subdetectorKind` | да | det: окно | прогон: показано | оставить |
 | `timeMode` | да | det: окно | прогон: показано | оставить |
 | `timeSec` | да | det: окно | прогон: показано | оставить |
-| `width` | да | — (не показано) | `outline.py`: только CSS и размеры элементов страницы; поддетектор поле не читает; движок правил, поиск и `ruleConditions` поле не читают | снять |
-| `zone` | да | det: окно | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `width` | да | — (не показано) | `outline.py`: окно поддетектора поле не читает. тест профиля «Поддетектор 0.15.0: stripe…» (`tests/api-devices.js`, слой `profile:vms.subdetector/1`): проверка «полоса на ломаной» (ширина полосы) | оставить: тест профиля: тест «Поддетектор 0.15.0» (tests/api-devices.js) проверяет поле |
+| `zone` | да | det: окно | прогон: показано | оставить |
 | `zoneTo` | да | — (не показано) | `dwSubFromUnit`, `dwSubProps`: вторая область у поддетектора a2a | оставить: показано только у поддетектора a2a: вторая область |
 
 ## `vms.talk/1` — Разговор
@@ -445,10 +444,10 @@ RESULT fail
 | `disk` | да | vol: окно, archive: «Хранилище» | прогон: показано | оставить |
 | `enabled` | да | — (не показано) | `volNode`, карточка тома (`formBase`, ветка vol): переключатель «Том включён» по `enabled` | оставить: карточка тома показывает переключатель «Том включён»; прогон правку не увидел, причину разобрать в задаче 7 |
 | `endpoint` | да | — (не показано) | `volFieldsHtml`: «Endpoint» и «Bucket endpoint» у тома S3 и MinIO | оставить: показано только у тома облачного хранилища S3 или MinIO; в наборе demo нет archive.cloud |
-| `file` | да | archive: «Хранилище» | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `file` | да | archive: «Хранилище» | прогон: показано | оставить |
 | `host` | да | — (не показано) | `volFieldsHtml`: «Хост» у тома MinIO | оставить: показано только у тома MinIO; в наборе demo нет archive.cloud |
 | `keyId` | да | — (не показано) | `volFieldsHtml`: «Access key ID» у облачного тома | оставить: показано только у тома облачного хранилища; в наборе demo нет archive.cloud |
-| `login` | да | vol: окно, archive: «Хранилище» | прогон: показано только на третьем объекте вида (`--units 3`); для `--units 2` — строка в `allow.keep` | оставить |
+| `login` | да | vol: окно, archive: «Хранилище» | прогон: показано | оставить |
 | `mode` | да | vol: окно, archive: «Хранилище» | прогон: показано | оставить |
 | `password` | да | — (не показано) | `volFieldsHtml`: «Пароль» у тома сетевого хранилища; секрет (`writeOnly`) | оставить: секрет: карточка тома сетевого хранилища показывает пустое поле пароля и пишет новый пароль |
 | `path` | да | — (не показано) | `volFieldsHtml`: «Путь в бакете» у облачного тома | оставить: показано только у тома облачного хранилища; в наборе demo нет archive.cloud |
