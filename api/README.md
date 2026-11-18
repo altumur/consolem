@@ -47,7 +47,7 @@
 | `server.js` | Встроенный сервер: маршруты, операции, поток событий и групповые операции на своих часах, предметные API — поверх `kinds.js`, `units.js`, `profiles.js` |
 | `kinds.js` | `window.ConsolemKinds`: реестр описаний видов, ETag (хэш описаний), родители и `creatable`, проверка `properties` по схеме вида с указателями (`/properties/…`), класс доступа |
 | `units.js` | `window.ConsolemUnits`: склад `Unit` с индексами по `uid`, `parentId`, `kind`, `domainId`, ссылкам `x-ref` и папкам; страницы по курсору |
-| `profiles/*.json` | Профили стандартных видов, по файлу на профиль: версия, хозяин, зависимости, поля с типом и смыслом. Источник раздела `profiles` в `demo.json` (его собирает `python3 tools/build_api.py`) |
+| `profiles/*.json` | Профили стандартных видов, по файлу на профиль: версия, хозяин, зависимости, поля с типом и смыслом. Источник раздела `profiles` в `demo.json` и таблиц `profiles/<имя>.md` для людей (их собирает `python3 tools/build_api.py`); правила — [`profiles/README.md`](profiles/README.md) |
 | `profiles.js` | `window.ConsolemProfiles`: хуки профилей — смысл, который из схемы не вывести (запись камеры и хранилища, каскады, детекторы, PTZ, тома); контракт хука — [BACKEND.md, «Хуки профилей»](BACKEND.md#хуки-профилей) |
 | `plugins/` | Исходники незнакомых видов набора: манифест и переводы `security_controller` (psim), по ним заведены виды `security_controller/*` в `demo.json`; инструменты их не читают |
 | `rule-engine.js` | Движок «Автоматизации» встроенного сервера: действует ли расписание, какой режим объекта, что сделает правило при запуске (трасса кодами), проверка правила. Им же посчитаны демо-запуски набора |
@@ -190,25 +190,13 @@
 
 ### Профили
 
-Профиль публикует контракт (`GET /kinds` → `profiles`, схема `Profile`); вид объявляет `implements`. Ручной экран привязан к профилю, а не к виду; незнакомый профиль клиент пропускает. Профиль — это имена свойств (`properties`), имена наблюдаемого (`status.observed`) и предметные пути (`apis`), а тип и смысл каждого имени фиксирует сам профиль: вид, объявивший профиль, несёт свойство под тем же именем, того же типа и с тем же смыслом. **Эталон схемы вида** — `GET /kinds/{kind}` эталонного набора (`camera`, `archive.local`, `volume`…), **полный перечень стандартных профилей** со свойствами, типами и смыслом — [BACKEND.md, «Стандартные профили»](BACKEND.md#стандартные-профили). Кратко:
+Профиль публикует контракт (`GET /kinds` → `profiles`, схема `Profile`); вид объявляет `implements`. Ручной экран привязан к профилю, а не к виду. Профиль — это имена свойств (`properties`), имена наблюдаемого (`status.observed`) и предметные пути (`apis`), а тип и смысл каждого имени фиксирует сам профиль: вид, объявивший профиль, несёт свойство под тем же именем, того же типа и с тем же смыслом. **Эталон схемы вида** — `GET /kinds/{kind}` эталонного набора (`camera`, `archive.local`, `volume`…). Каждый профиль лежит в файле [`api/profiles/<имя>.json`](profiles/README.md) (источник истины), таблица для людей — `api/profiles/<имя>.md`; их собирает `tools/build_api.py`. Правила файла, версий и зависимостей — [`api/profiles/README.md`](profiles/README.md).
 
-| Профиль | Свойства (`properties`) | Наблюдаемое (`status`) |
-|---|---|---|
-| `vms.domain/1` | `license` | — |
-| `vms.server/1` | `allocated`, `ip`, `port`, `role`, `labels`, `netmask`, `gateway`, `dns` | `class`, `disks`, `fingerprint`, `gpu`, `telemetry` |
-| `vms.folder/1` | — (состав — `Unit.folders` у членов) | — |
-| `vms.camera/1` | подключение (`ip`, `port`, `login`, `password`, `vendor`, `model`, `firmware`, `mac`, `rtspUrl`, `videoChannel`), номер (`identifier`, `short`), запись (`archiveId`, `recordMode`, `extraArchives`, `retentionDays`, `minDepthDays`, `preRecordSec`, `recordScheduleId`, `replicaFrom`, `recordDetectorIds`, `audioDeviceId`), изображение (`res`, `resOptions`, `fps`, `codec`, `stream`), PTZ, `detectorOptions`, `serverId`, `enabled`, `alarmKinds`, `labels`, положение, `unitOptions` | `fault`, `faultText`, `licenseExceeded`, `recordState`, `recordReason`, `recordingTarget`, `replicaLagSec`, `armed`, `archiveJobs`, `direct`, `detectorKinds`, `disabledByRuleId`, `disabledByRuleAt` |
-| `vms.archive/1` | `storage`, `recordMode`, `retentionDays`, `encrypted`, `admits`, `provider` | — |
-| `vms.volume/1` | `disk`, `mode`, `dir`, `sizeBytes`, `state`, `enabled`, `file`, адрес и учётные данные сетевого и облачного | `usedPercent`, `shrinkPendingBytes`, `incidentsAtRisk`, `incidentsLost` |
-| `vms.stream/1` | `streamId`, `res`, `resOptions`, `fps`, `codec`, `width`, `height` | — |
-| `vms.detector/1` | `detectorKind`, `sensitivity`, `zone`, `stream`, `params`, `labels`, `alarmKinds`, `builtin`, `template`, `serverId`, `enabled`, с 0.12.0 `analyticsKind`, `extraZones`, `direction`, `objectSize`, `classes`, `confidence`, `minDurationSec`, `plateWidth`, `crowdMin`, `crowdHoldSec`, `stillSec`, с 0.13.0 `recordMask`, `recordTracks`, `showMask`, `showTracks`, `showTrackLifespan` | — |
-| `vms.subdetector/1` (с 0.12.0) | `subdetectorKind`, `enabled`, `zone`, `zoneTo`, `direction`, `timeMode`, `timeSec`, `minObjects`, `classes`, `speed`, `offset`, `group` | — |
-| `vms.acs/1` | подключение, `identifier`, `short`, `path`, `model`, `operations` (команды единицы), `properties` (настройки единицы СКУД — свойство с таким именем), `unitOptions`, `enabled` | `fault` |
-| `vms.live/1`, `vms.timeline/1` | — | возможность предметных API: живое видео; шкала и записи |
-| `vms.ptz/1`, `vms.talk/1` | `ptz`, `presets`, `presetMax`; `channel`, `enabled`, `short` | возможность предметных API: PTZ; разговор |
-| `vms.pos/1` | `overlays`, `cameraId` (устарело), `overlayDelayMs`, `overlayDurationSec`, вид титров, разбор чека, `words`, приём и разбор данных | возможность предметного API: сырые строки от кассы |
-| `vms.webserver/1` | `webServer` {`enabled`, `httpPort`, `httpsPort`, `urlPrefix`, `cors`, `recompress`, `rtspPort`, `rtspHttpPort`} | `webCertificate` (сертификат HTTPS без ключа), `webReservedPorts` (порты видео для браузера) |
-| `vms.edge/1` | `replication` {`mode`, `archiveId`, `speedLimitMbps`, `excludedCameras`} | `replicationStatus` (состояние, пропуски, состояние каждой камеры регистратора), `mediaOk`, `profileG` |
+**Клиент и незнакомая версия.** Сервер отдаёт профиль с младшей версией (`version`), а вид пишет в `implements` только старшую (`vms.camera/1`).
+
+1. Версия выше, чем знает клиент (`1.7` при известной `1.5`): особый экран работает, новые поля клиент показывает в «Все параметры».
+2. Версия ниже (`1.4` при известной `1.5`): особый экран не показывает поля, которых в `1.4` нет.
+3. Незнакомая старшая версия (`vms.camera/2` без `vms.camera/1`): клиент пропускает профиль и открывает объект формой по схеме.
 
 ### Виды набора
 

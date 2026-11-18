@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Собрать раздел profiles в api/fixtures/demo.json, затем наборы, api/openapi.js и api/fixture.js.
+"""Собрать раздел profiles в api/fixtures/demo.json, затем таблицы api/profiles/*.md, наборы, api/openapi.js и api/fixture.js.
 
 Источник раздела profiles — файлы api/profiles/*.json (формат — tools/profile_files.py): demo.json правят руками
 во всём, кроме этого раздела. Наборы one-domain, large, xl собирает tools/profile_fixture.py из demo.json.
@@ -44,6 +44,25 @@ def render_demo():
     if docs:
         fx["profiles"] = [profile_files.profile_wire(d) for d in docs]
     return json.dumps(fx, ensure_ascii=False, indent=1) + "\n"
+
+
+def render_profile_tables():
+    """Таблицы профилей для людей: {путь: текст} для каждого api/profiles/<имя>.json (profile_files.render_md).
+    Виды — коды видов demo.json с этим профилем в implements."""
+    with open(os.path.join(ROOT, f"{API}/fixtures/demo.json"), encoding="utf-8") as f:
+        kinds = json.load(f)["kinds"]
+    out = {}
+    for d in profile_files.load_profiles(os.path.join(ROOT, API)):
+        codes = [k["kind"] for k in kinds if d["id"] in (k.get("implements") or [])]
+        out[f"{API}/profiles/{profile_files.profile_name(d['id'])}.md"] = profile_files.render_md(d, codes)
+    return out
+
+
+def stray_tables(expected):
+    """Файлы api/profiles/*.md, которым не отвечает файл профиля (README.md — рукописный, его не считаем)."""
+    folder = os.path.join(ROOT, API, "profiles")
+    names = sorted(n for n in os.listdir(folder) if n.endswith(".md") and n != "README.md") if os.path.isdir(folder) else []
+    return [f"{API}/profiles/{n}" for n in names if f"{API}/profiles/{n}" not in expected]
 
 
 def render_openapi():
@@ -110,6 +129,28 @@ def main():
             with open(path, "w", encoding="utf-8") as f:
                 f.write(text)
             print(f"{dst} ← {src}")
+    tables = render_profile_tables()
+    for dst, text in tables.items():
+        path = os.path.join(ROOT, dst)
+        src = dst[:-3] + ".json"
+        if check:
+            try:
+                with open(path, encoding="utf-8") as f:
+                    if f.read() == text:
+                        continue
+            except FileNotFoundError:
+                pass
+            stale.append(f"{dst} отстал от {os.path.basename(src)}")
+        else:
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text)
+            print(f"{dst} ← {src}")
+    for dst in stray_tables(tables):
+        if check:
+            stale.append(f"{dst} — нет файла {os.path.basename(dst)[:-3]}.json")
+        else:
+            os.remove(os.path.join(ROOT, dst))
+            print(f"{dst} удалён: нет файла {os.path.basename(dst)[:-3]}.json")
     if stale:
         print("\n".join(stale) + "\nСоберите: python3 tools/build_api.py")
         return 1

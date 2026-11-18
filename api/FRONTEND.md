@@ -87,7 +87,7 @@
 | мастер добавления (`WIZ`, `canAdd`), кто под кем (`needsParent`, `parentOpts`) | `parents`, `createParents`, `GET /units/{uid}/creatable` |
 | иконки, «есть дочерние» | `icon`, `Unit.hasChildren` |
 | что система умеет с видом (`canCreateKind`, `canDeleteKind`), что правится | `UnitKind.capabilities`, `Unit.writable`, `readOnly` в схеме |
-| ручной экран | **профиль** вида (`implements`): `vms.camera/1` → карточка камеры, `vms.archive/1` → хранилища; у незнакомого вида тип узла — код вида |
+| ручной экран | **профиль** вида (`implements`): `vms.camera/1` → карточка камеры, `vms.archive/1` → хранилища; у незнакомого вида тип узла — код вида. Незнакомая старшая версия (`vms.camera/2` без `vms.camera/1`) — форма по схеме. Младшую `version` клиент не сравнивает: поле показывает, если оно есть в схеме вида. Профили — [`api/profiles/`](profiles/README.md) |
 
 Шов между кэшем интерфейса и API — две функции: `unitNode(u, kind)` превращает `Unit` в узел кэша, `nodeToUnit` — узел в тело запроса. Всё остальное (дерево, карточки, мастера) работает с узлами как раньше. Правка идёт `PATCH /units/{uid}` или шагом `set {uid, patch}` операции; создание — `POST /units`, удаление — `DELETE`/`POST /objects/delete` по `uid`.
 
