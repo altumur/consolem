@@ -1,6 +1,6 @@
 {
  "id": "vms.acs/1",
- "version": "1.0",
+ "version": "1.1",
  "label": "Единица СКУД с командами",
  "owner": "mockup",
  "reviewers": [
@@ -29,13 +29,6 @@
    "meaning": "«IP»: Адрес. У eventsrc — адрес сервера или имя кассы, у драйвера, что подключается сам, — адрес кассы; 0.0.0.0 и :: — 422 VALIDATION_FAILED, field: ip",
    "since": "1.0"
   },
-  "login": {
-   "schema": {
-    "type": "string"
-   },
-   "meaning": "«Имя пользователя»",
-   "since": "1.0"
-  },
   "model": {
    "schema": {
     "type": "string"
@@ -54,26 +47,11 @@
    "meaning": "У единицы: команды. POST /units/{uid}/actions/{action}, действие unitAction в правиле (только чтение)",
    "since": "1.0"
   },
-  "password": {
-   "schema": {
-    "type": "string",
-    "writeOnly": true
-   },
-   "meaning": "«Пароль»: Новый пароль; в ответах его нет (секрет (`writeOnly`))",
-   "since": "1.0"
-  },
   "path": {
    "schema": {
     "type": "string"
    },
    "meaning": "«Путь»: Папка агента экспорта; адрес единицы СКУД в системе СКУД",
-   "since": "1.0"
-  },
-  "port": {
-   "schema": {
-    "type": "integer"
-   },
-   "meaning": "«Порт»",
    "since": "1.0"
   },
   "properties": {
@@ -198,6 +176,15 @@
   }
  },
  "changes": [
+  {
+   "version": "1.1",
+   "what": "Профиль по особому экрану: сняты login, password, port — карточка и мастер СКУД их не показывают, поля остаются в схеме вида и в «Все параметры». Отчёт: docs/contract-layers/2026-11-19-profili-po-ekranam.md.",
+   "removed": [
+    "login",
+    "password",
+    "port"
+   ]
+  },
   {
    "version": "1.0",
    "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"

@@ -1008,7 +1008,7 @@
     const has = (id, names) => assert.eq(names.filter((n) => !prof[id].includes(n)), [], `${id}: нет свойств`);
     has("vms.archive/1", ["recordMode"]);
     has("vms.talk/1", ["channel", "enabled", "short"]);
-    has("vms.acs/1", ["identifier", "ip", "login", "password", "port", "unitOptions", "vendor", "operations", "properties"]);
+    has("vms.acs/1", ["identifier", "ip", "unitOptions", "vendor", "operations", "properties"]);
     // Свойство профиля есть хотя бы у одного вида, который профиль реализует
     list.profiles.forEach((p) => {
       const own = list.items.filter((k) => (k.implements || []).includes(p.id));

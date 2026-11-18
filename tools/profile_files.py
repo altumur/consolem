@@ -410,8 +410,8 @@ def fixture_profile_problems(fixture_profiles, docs, whole):
 
 def history_problems(cur, base):
     """Проверка 2: файл против того же файла в origin/main (base; None — профиль новый).
-    При одной старшей версии: версия не ниже; у старого поля тот же тип и since; снятое поле или путь —
-    ошибка; новое поле или путь требует новой младшей версии, а since нового поля — новее версии в base."""
+    При одной старшей версии: версия не ниже; у старого поля тот же тип и since; поле можно снять только
+    младшей версией с записью removed в changes (решение О2), путь снять нельзя; новое поле или путь требует новой младшей версии, а since нового поля — новее версии в base."""
     if base is None:
         return []
     pid = cur["id"]
@@ -429,11 +429,20 @@ def history_problems(cur, base):
     key = lambda d: sorted(json.dumps(u, sort_keys=True) for u in d.get("uses") or [])
     if key(cur) != key(base) and not grew:
         out.append(f"профиль {pid}: uses изменён без новой младшей версии (в origin/main {base['version']})")
+    removed = {r for row in cur.get("changes") or [] if row.get("version") == cur["version"] for r in row.get("removed") or []}
+    for name in sorted(removed):
+        if name in (cur.get("properties") or {}) or name in (cur.get("status") or {}):
+            out.append(f"профиль {pid}: поле {name} названо в removed, а осталось в профиле")
     for section in ("properties", "status"):
         old, new = base.get(section) or {}, cur.get(section) or {}
         for name, f in old.items():
             if name not in new:
-                out.append(f"профиль {pid}: поле {name} ({section}) снято при той же старшей версии; снимать можно только в {profile_name(pid)}/{cm + 1}")
+                if name in removed and grew:
+                    continue
+                if name in removed:
+                    out.append(f"профиль {pid}: поле {name} ({section}) снято без новой младшей версии (в origin/main {base['version']})")
+                else:
+                    out.append(f"профиль {pid}: поле {name} ({section}) снято без записи removed в changes с версией файла {cur['version']}")
                 continue
             if type_sig(new[name]["schema"]) != type_sig(f["schema"]):
                 out.append(f"профиль {pid}: у поля {name} поменялся тип при той же старшей версии")

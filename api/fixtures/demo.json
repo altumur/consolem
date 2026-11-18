@@ -10558,17 +10558,14 @@
     "text": "Единица СКУД с командами",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "properties": [
     "enabled",
     "identifier",
     "ip",
-    "login",
     "model",
     "operations",
-    "password",
     "path",
-    "port",
     "properties",
     "short",
     "unitOptions",
@@ -10819,7 +10816,7 @@
     "text": "Встроенное хранилище устройства",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "uses": [
     {
      "id": "vms.archive/1",
@@ -10831,7 +10828,10 @@
     }
    ],
    "properties": [
-    "replication"
+    "replication",
+    "enabled",
+    "recordMode",
+    "short"
    ],
    "status": [
     "replicationStatus",
@@ -10869,7 +10869,7 @@
     "text": "Источник событий (касса)",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "uses": [
     {
      "id": "vms.camera/1",
@@ -10908,7 +10908,14 @@
     "processing",
     "timeoutMs",
     "timeOffsetMs",
-    "retalix"
+    "retalix",
+    "enabled",
+    "ip",
+    "model",
+    "port",
+    "short",
+    "vendor",
+    "serverId"
    ],
    "apis": [
     "pos/raw"

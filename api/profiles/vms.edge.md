@@ -1,7 +1,7 @@
 <!-- Собрано tools/build_api.py из api/profiles/vms.edge.json — руками не править -->
 # `vms.edge/1` — Встроенное хранилище устройства
 
-Версия 1.0 · ведёт: mockup · смотрят правку: w2c
+Версия 1.1 · ведёт: mockup · смотрят правку: w2c
 
 Использует: `vms.archive/1` с 1.0, `vms.camera/1` с 1.0
 
@@ -12,6 +12,9 @@
 | Свойство | Тип | Смысл | С версии |
 |---|---|---|---|
 | `replication` | object | Настройка репликации в архив сервера. `mode`: `off` — сервер сам не забирает (правила с `replicate` и ручной забор работают), `all` — забирает все записи и не держит живой поток. `archiveId` — хранилище сервера (вид с `replica` в `recordModes`); для `all` нужно, нет значения — хранилище записи камеры, нет и его — `422 VALIDATION_FAILED`, `/properties/replication`. `speedLimitMbps` — 0…1000, 0 без предела. `excludedCameras` — только у регистратора, камеры этого регистратора. Правка частичная | 1.0 |
+| `enabled` | boolean | «Включено» | 1.1 |
+| `recordMode` | string: `none`, `always`, `motion`, `sched`, `replica`, `backup` | «Когда писать»: Режим записи. replica — забирать записи без постоянного потока. backup — живой поток только на время сбоя основной записи: только в extraArchives, на архиве, где это значение есть в recordModes его вида | 1.1 |
+| `short` | string | «Короткое имя»: Номер для показа в дереве («3.3.1») | 1.1 |
 
 ## Состояние (`status.observed`)
 
@@ -25,4 +28,5 @@
 
 | Версия | Что |
 |---|---|
+| 1.1 | Профиль по особому экрану: добавлены enabled, recordMode, short — вкладка «Хранилище» их показывает. У replicationStatus описаны внутренние поля (properties без required и без additionalProperties:false, тип поля не менялся). Отчёт: docs/contract-layers/2026-11-19-profili-po-ekranam.md. |
 | 1.0 | Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …» |

@@ -242,7 +242,18 @@ ok(history_problems(GOOD, base) == [], "без правок")
 ok(says(history_problems(add_prop(GOOD, "noiseReduction", since="1.5"), base), "noiseReduction"), "новое поле без новой младшей версии")
 ok(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.6"), "1.6"), base) == [], "новое поле с версией 1.6")
 ok(says(history_problems(bump(add_prop(GOOD, "noiseReduction", since="1.5"), "1.6"), base), "since"), "since нового поля — не новее версии в origin/main")
-ok(says(history_problems(drop_prop(GOOD, "privacyMasks"), base), "privacyMasks"), "поле снято в той же старшей")
+ok(says(history_problems(drop_prop(GOOD, "privacyMasks"), base), "privacyMasks"), "О2 (а): поле снято без removed")
+ok(says(history_problems(drop_prop(GOOD, "privacyMasks"), base), "без записи removed"), "О2 (а): сообщение называет removed")
+def with_removed(doc, version, names):
+    d = bump(doc, version)
+    d["changes"] = [{"version": version, "what": "Поле снято.", "removed": names}] + d["changes"]
+    return d
+ok(history_problems(with_removed(drop_prop(GOOD, "privacyMasks"), "1.6", ["privacyMasks"]), base) == [], "О2 (б): снято, версия выше, removed — проходит")
+ok(says(history_problems(with_removed(GOOD, "1.6", ["privacyMasks"]), base), "осталось в профиле"), "О2 (в): в removed, а поле осталось")
+ok(says(history_problems(with_removed(drop_prop(GOOD, "privacyMasks"), GOOD["version"], ["privacyMasks"]), base), "новой младшей версии"), "О2 (г): removed без подъёма версии")
+other = with_removed(drop_prop(GOOD, "privacyMasks"), "1.6", ["privacyMasks"])
+other["changes"][0]["version"] = "1.5"
+ok(says(history_problems(other, base), "без записи removed"), "О2: запись removed не с версией файла — поле снято без записи")
 ok(history_problems(as_major2(drop_prop(GOOD, "privacyMasks")), None) == [], "поле снято в vms.camera/2 (новый файл рядом)")
 ok(says(history_problems(prop_type(GOOD, "archiveId", "string"), base), "archiveId"), "тип поменялся в той же старшей")
 ok(says(history_problems(bump(GOOD, "1.4"), base), "1.4"), "версия ниже, чем в origin/main")

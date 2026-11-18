@@ -1,6 +1,6 @@
 {
  "id": "vms.pos/1",
- "version": "1.0",
+ "version": "1.1",
  "label": "Источник событий (касса)",
  "owner": "mockup",
  "reviewers": [
@@ -369,12 +369,71 @@
    },
    "meaning": "Касса Retalix (драйвер POSLegacy)",
    "since": "1.0"
+  },
+  "enabled": {
+   "schema": {
+    "type": "boolean"
+   },
+   "meaning": "«Включено»",
+   "since": "1.1"
+  },
+  "ip": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«IP»: Адрес. У eventsrc — адрес сервера или имя кассы, у драйвера, что подключается сам, — адрес кассы; 0.0.0.0 и :: — 422 VALIDATION_FAILED, field: ip",
+   "since": "1.1"
+  },
+  "model": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "Модель. У единицы СКУД — шаблон из unitOptions: задаётся при создании, правка — 422 NOT_SUPPORTED, field: model",
+   "since": "1.1"
+  },
+  "port": {
+   "schema": {
+    "type": "integer"
+   },
+   "meaning": "«Порт»",
+   "since": "1.1"
+  },
+  "short": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Короткое имя»: Номер для показа в дереве («3.3.1»)",
+   "since": "1.1"
+  },
+  "vendor": {
+   "schema": {
+    "type": "string"
+   },
+   "meaning": "«Производитель»",
+   "since": "1.1"
+  },
+  "serverId": {
+   "schema": {
+    "type": "string",
+    "format": "uuid",
+    "x-ref": {
+     "kinds": [
+      "server"
+     ]
+    }
+   },
+   "meaning": "Сервер: к которому подключены камера и регистратор (выводится из хранилища записи), сервер расчёта детектора, сервер службы. У eventsrc — запись: без него сервер выбирает система и предупреждает в faultText, переноса при падении нет",
+   "since": "1.1"
   }
  },
  "apis": [
   "pos/raw"
  ],
  "changes": [
+  {
+   "version": "1.1",
+   "what": "Профиль по особому экрану: добавлены enabled, ip, model, port, serverId, short, vendor — карточка кассы их показывает. Отчёт: docs/contract-layers/2026-11-19-profili-po-ekranam.md."
+  },
   {
    "version": "1.0",
    "what": "Профиль перенесён в файл из api/fixtures/demo.json и api/BACKEND.md, контракт 0.25.0. Поля до переноса — с 1.0; когда какое поле появилось в контракте — api/README.md, «Что добавлено в …»"
