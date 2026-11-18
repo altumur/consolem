@@ -21,7 +21,7 @@
 | mockup | Maxim Kabenin, Maxim |
 | w2c | Murat Altuev |
 
-Запрос о профиле подсистемы пишут owner профиля (поле `owner` в `api/profiles/<имя>.json`). Уведомление о правке профиля пишут его reviewers (поле `reviewers` в файле профиля). Слой правки и адресатов называет `python3 tools/layers.py`.
+Запрос о профиле подсистемы адресуют owner профиля (поле `owner` в файле профиля). Уведомление о правке профиля адресуют его reviewers (поле `reviewers` в файле профиля). Слой правки и адресатов называет `python3 tools/layers.py`.
 
 ## Ответ
 
