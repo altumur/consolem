@@ -307,7 +307,7 @@ _METHODS = ("get", "put", "post", "delete", "patch", "options", "head", "trace")
 _TOKEN = re.compile(r"\.([^.\[\]{}|]+)|(\[\])|(\{\})|\|(\d+)")
 
 
-def _git(root, *args):
+def git_out(root, *args):
     """Вывод git (без перевода строки в конце) или None, если git нет или команда не прошла."""
     try:
         res = subprocess.run(["git", "-C", root, *args], capture_output=True, text=True, encoding="utf-8")
@@ -316,31 +316,31 @@ def _git(root, *args):
     return res.stdout if res.returncode == 0 else None
 
 
-def _merge_base(base, root, head):
-    out = _git(root, "merge-base", head or "HEAD", base)
+def merge_base(base, root, head):
+    out = git_out(root, "merge-base", head or "HEAD", base)
     return out.strip() if out and out.strip() else None
 
 
 def changed_files(base, root, head=None):
     """Файлы, которые правка меняет против общего предка head (или HEAD) и base. Без head — ещё новые файлы
     api/ и tests/, которых нет в git. None — нет git или ссылки."""
-    mb = _merge_base(base, root, head)
+    mb = merge_base(base, root, head)
     if mb is None:
         return None
     args = ["diff", "--name-only", mb] + ([head] if head else [])
-    out = _git(root, *args)
+    out = git_out(root, *args)
     if out is None:
         return None
     files = [l for l in out.splitlines() if l]
     if not head:
-        extra = _git(root, "ls-files", "--others", "--exclude-standard", "api", "tests")
+        extra = git_out(root, "ls-files", "--others", "--exclude-standard", "api", "tests")
         files += [l for l in (extra or "").splitlines() if l and l not in files]
     return files
 
 
 def _json_at(root, rev, rel):
     """JSON файла в коммите rev; {} — файла там нет или он не читается."""
-    out = _git(root, "show", f"{rev}:{rel}")
+    out = git_out(root, "show", f"{rev}:{rel}")
     try:
         return json.loads(out) if out else {}
     except ValueError:
@@ -606,7 +606,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
     files = changed_files(base, root, head)
     if files is None:
         return None
-    mb = _merge_base(base, root, head)
+    mb = merge_base(base, root, head)
     new_of = (lambda rel: _json_at(root, head, rel)) if head else (lambda rel: _json_work(root, rel))
     mechanism, lay, kinds, stand, desc, marks_only = [], {}, [], [], [], []
     contract_mech = []  # механизм из правок openapi.json: ему нужна новая версия контракта

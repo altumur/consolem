@@ -204,19 +204,36 @@ ok(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": "null", "x-ref": 
 ok(says(kind_problems([prop_type(GOOD, "archiveId", "string")], [cam]), "archiveId"), "вид расширяет тип — ошибка")
 ok(says(kind_problems([GOOD], [with_prop(cam, "archiveId", {"type": ["string", "null"], "x-ref": {"implements": ["vms.camera/1"]}})]), "x-ref"), "ссылка на другой профиль — ошибка")
 ok(kind_problems([GOOD], [dict(cam, implements=["vms.other/1"], schema={"type": "object", "properties": {"archiveId": {"type": "integer"}}})]) == [], "вид без этого профиля не проверяется")
-# Набор без целевых видов ссылки (one-domain без mic) снимает x-ref и ставит readOnly: поле остаётся тем же по типу
-ok(type_fits({"type": "string", "readOnly": True}, {"type": "string", "x-ref": {"kinds": ["mic"]}})
-   and not type_fits({"type": "string"}, {"type": "string", "x-ref": {"kinds": ["mic"]}}), "type_fits: вид без x-ref принимается, только если поле только для чтения")
+# Набор без целевых видов ссылки (one-domain без mic) снимает x-ref и ставит readOnly (profile_fixture.gone_ref):
+# только для ссылки по kinds, чьих видов в наборе нет, и только в наборе, не в эталоне
+mic = {"type": "string", "x-ref": {"kinds": ["mic"]}}
+mic_cam = dict(cam, schema={"type": "object", "properties": {"audioDeviceId": {"type": "string", "readOnly": True}}})
+mic_doc = copy.deepcopy(GOOD)
+mic_doc["properties"]["audioDeviceId"] = {"schema": mic, "meaning": "Микрофон.", "since": "1.0"}
+ok(kind_problems([mic_doc], [mic_cam], cut_refs=True, kind_codes={"camera"}) == [], "набор без вида mic: ссылка снята, поле readOnly — можно")
+ok(says(kind_problems([mic_doc], [mic_cam], cut_refs=False, kind_codes={"camera"}), "x-ref"), "эталон снятую ссылку не прощает")
+ok(says(kind_problems([mic_doc], [mic_cam], cut_refs=True, kind_codes={"camera", "mic"}), "x-ref"), "вид mic в наборе есть, а ссылку сняли — ошибка")
+ok(says(kind_problems([mic_doc], [with_prop(mic_cam, "audioDeviceId", {"type": "string"})], cut_refs=True, kind_codes={"camera"}), "x-ref"), "ссылку сняли без readOnly — ошибка")
+imp_cam = with_prop(cam, "archiveId", {"type": ["string", "null"], "readOnly": True})
+ok(says(kind_problems([GOOD], [imp_cam], cut_refs=True, kind_codes={"camera"}), "x-ref"), "ссылку по implements сняли и поставили readOnly — ошибка")
 ok(type_fits({"type": "array", "items": {"type": "string"}}, {"type": "array", "items": {"type": ["string", "null"]}})
    and not type_fits({"type": "array", "items": {"type": "integer"}}, {"type": "array", "items": {"type": "string"}}), "type_fits: у массива сравниваются items")
 ok(fixture_profile_problems([profile_wire(GOOD)], [GOOD], whole=True) == [], "эталон — запись как из файла")
 ok(says(fixture_profile_problems([dict(profile_wire(GOOD), version="1.4")], [GOOD], whole=True), "vms.camera/1"), "эталон отстал от файла")
 ok(says(fixture_profile_problems([], [GOOD], whole=True), "vms.camera/1"), "эталон без профиля из файла")
-part = dict(profile_wire(GOOD), properties=["archiveId"])
+part = dict(profile_wire(GOOD), properties=["archiveId"], uses=[])  # в наборе нет vms.archive/1
 ok(fixture_profile_problems([part], [GOOD], whole=False) == [], "набор с частью полей")
 ok(says(fixture_profile_problems([dict(part, properties=["archiveId", "fps"])], [GOOD], whole=False), "fps"), "лишнее имя — ошибка")
 ok(says(fixture_profile_problems([dict(part, version="1.4")], [GOOD], whole=False), "version"), "другая версия — ошибка")
 ok(says(fixture_profile_problems([dict(part, id="vms.nope/1")], [GOOD], whole=False), "vms.nope/1"), "профиля нет среди файлов")
+arch0 = profile("vms.archive/1", "1.2")
+withu = dict(part, uses=profile_wire(GOOD)["uses"])  # в наборе есть vms.archive/1
+ok(fixture_profile_problems([withu, profile_wire(arch0)], [GOOD, arch0], whole=False) == [], "набор: uses как в файле")
+ok(says(fixture_profile_problems([dict(withu, uses=[]), profile_wire(arch0)], [GOOD, arch0], whole=False), "uses"), "набор: uses меньше, чем в файле — ошибка")
+ok(says(fixture_profile_problems([dict(part, uses=[{"id": "vms.pos/1", "version": "1.0"}])], [GOOD], whole=False), "uses"), "набор: лишний uses — ошибка")
+ok(fixture_profile_problems([dict(part, uses=[])], [GOOD], whole=False) == [], "набор без профиля из uses: зависимость на отсутствующий профиль в записи не нужна")
+ok(says(fixture_profile_problems([withu], [GOOD], whole=False), "uses"), "набор без профиля из uses, а запись его называет — ошибка")
+ok(says(fixture_profile_problems([dict(part, label={"key": "profile.vms.camera/1", "text": "Другое", "lang": "ru"})], [GOOD], whole=False), "label"), "набор: другая подпись — ошибка")
 
 base = GOOD
 ok(history_problems(GOOD, None) == [], "нового профиля в origin/main нет")

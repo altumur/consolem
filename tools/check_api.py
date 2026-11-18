@@ -983,7 +983,7 @@ def check_profile_files(rep, spec, fixtures):
     rep.check("Профили: раздел profiles наборов — из файлов", problems)
     problems = []
     for name, fx in fixtures.items():
-        problems += [f"набор {name}: {t}" for t in profile_files.kind_problems(docs, fx.get("kinds") or [])]
+        problems += [f"набор {name}: {t}" for t in profile_files.kind_problems(docs, fx.get("kinds") or [], name != "demo", {k["kind"] for k in fx.get("kinds") or []})]
     # status.observed объектов эталонного набора — по схеме профиля (имя состояния → schema)
     demo = fixtures.get("demo") or {}
     kinds = {k["kind"]: k for k in demo.get("kinds") or []}
@@ -1001,13 +1001,13 @@ def check_profile_files(rep, spec, fixtures):
     if API != "api":
         rep.info(f"{name}: {API} — копия папки API, сверка с git пропущена")
     else:
-        mb = layers._merge_base(PROFILES_BASE, ROOT, None)
+        mb = layers.merge_base(PROFILES_BASE, ROOT, None)
         if mb is None:
             rep.info(f"{name}: нет git или {PROFILES_BASE}, сверка пропущена")
         else:
             problems = []
             for d in docs:
-                text = layers._git(ROOT, "show", f"{mb}:{API}/profiles/{d['_file']}")
+                text = layers.git_out(ROOT, "show", f"{mb}:{API}/profiles/{d['_file']}")
                 try:
                     base = json.loads(text) if text else None
                 except ValueError:

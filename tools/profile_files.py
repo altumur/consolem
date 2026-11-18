@@ -304,23 +304,24 @@ def render_md(doc, kinds):
 
 
 # ── Проверки профилей 1–3: чистые функции, git не трогают ──
-def type_fits(kind_schema, profile_schema):
+def type_fits(kind_schema, profile_schema, cut=False):
     """Тип поля вида вмещается в тип поля профиля: типы вида ⊆ типов профиля,
-    у массива то же для items, x-ref равны. Исключение: набор без целевых видов ссылки снимает x-ref и ставит
-    readOnly (one-domain без mic) — такое поле принимается."""
+    у массива то же для items, x-ref равны. cut — набор без целевых видов ссылки снял x-ref
+    и поставил readOnly (profile_fixture.gone_ref): такое поле принимается."""
     kt, ki, kr = type_sig(kind_schema)
     pt, pi, pr = type_sig(profile_schema)
-    cut = kr is None and pr is not None and kind_schema.get("readOnly") is True
-    if not kt <= pt or (kr != pr and not cut):
+    gone = cut and kr is None and pr is not None and not pr[0] and kind_schema.get("readOnly") is True
+    if not kt <= pt or (kr != pr and not gone):
         return False
     if ki is not None and pi is not None:
-        return type_fits(kind_schema["items"], profile_schema["items"])
+        return type_fits(kind_schema["items"], profile_schema["items"], cut)
     return True
 
 
-def kind_problems(docs, kinds):
+def kind_problems(docs, kinds, cut_refs=False, kind_codes=()):
     """Проверка 1: у каждого вида с профилем из docs в implements каждое поле профиля,
-    которое есть в схеме вида, проходит type_fits. Есть ли поле хоть у одного вида — смотрит check_units."""
+    которое есть в схеме вида, проходит type_fits. cut_refs (наборы, кроме эталона): ссылку по kinds,
+    чьих видов нет среди kind_codes, набор мог снять (type_fits, cut). Есть ли поле хоть у одного вида — смотрит check_units."""
     by_id = {d["id"]: d for d in docs}
     out = []
     for kind in kinds:
@@ -333,7 +334,9 @@ def kind_problems(docs, kinds):
                 if name not in props:
                     continue
                 ksig, psig = type_sig(props[name]), type_sig(field["schema"])
-                if not type_fits(props[name], field["schema"]):
+                _, _, pref = psig
+                cut = bool(cut_refs and pref and not pref[0] and pref[1] and not set(pref[1]) & set(kind_codes))
+                if not type_fits(props[name], field["schema"], cut):
                     what = "x-ref не тот" if ksig[2] != psig[2] else "тип шире, чем в профиле"
                     out.append(f"вид {kind['kind']}, профиль {pid}, поле {name}: {what} "
                                f"(у вида {type_text(props[name])}, у профиля {type_text(field['schema'])})")
@@ -342,10 +345,12 @@ def kind_problems(docs, kinds):
 
 def fixture_profile_problems(fixture_profiles, docs, whole):
     """Профили набора против файлов. whole (эталонный набор): запись равна profile_wire(файла), id те же.
-    Иначе: id есть среди файлов, version та же, properties, status, apis — подмножества."""
+    Иначе: id есть среди файлов, version и label те же, uses — как в файле, но только профили, что есть в наборе,
+    properties, status, apis — подмножества."""
     by_id = {d["id"]: d for d in docs}
     out = []
     ids = set()
+    present = {r.get("id") for r in fixture_profiles}
     for rec in fixture_profiles:
         pid = rec.get("id")
         ids.add(pid)
@@ -361,6 +366,11 @@ def fixture_profile_problems(fixture_profiles, docs, whole):
             continue
         if rec.get("version") != wire["version"]:
             out.append(f"профиль {pid} набора: version {rec.get('version')}, в файле {wire['version']}")
+        if rec.get("label") != wire["label"]:
+            out.append(f"профиль {pid} набора: label {rec.get('label')}, в файле {wire['label']}")
+        want = [u for u in wire.get("uses") or [] if u["id"] in present]
+        if (rec.get("uses") or []) != want:
+            out.append(f"профиль {pid} набора: uses {rec.get('uses') or []}, по файлу и профилям набора {want}")
         for key in ("properties", "status", "apis"):
             extra = sorted(set(rec.get(key) or []) - set(wire.get(key) or []))
             if extra:
