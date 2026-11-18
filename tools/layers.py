@@ -252,3 +252,40 @@ def static_problems(spec, ids):
     for path in sorted(set(EXAMPLE_MENTIONS) - scan.mentions):
         out.append(f"{path}: в EXAMPLE_MENTIONS, а id профиля в описании нет — убери из EXAMPLE_MENTIONS")
     return out
+
+
+# ── таблица версий по слоям ──
+
+_VERSION = r"\d+\.\d+\.\d+"
+_README_VERSION = re.compile(rf"^## (?:Что добавлено|Ломающие изменения) в ({_VERSION})\s*$", re.M)
+_ROW = re.compile(rf"^\|\s*({_VERSION})\s*\|(.*)$", re.M)
+
+
+def versions_table_problems(readme, table_md, current, ids):
+    """Таблица docs/contract-layers/versions-by-layer.md: строка у каждой версии README и у текущей,
+    в столбце «Слой» — «механизм» или значение x-layer в обратных кавычках (id профиля из ids, video, vms)."""
+    problems = []
+    want = set(_README_VERSION.findall(readme)) | {current}
+    rows = {}
+    for m in _ROW.finditer(table_md):
+        ver, cells = m.group(1), [c.strip() for c in m.group(2).split("|")]
+        if ver in rows:
+            problems.append(f"версия {ver}: строка есть дважды")
+        if len(cells) < 3:
+            problems.append(f"версия {ver}: в строке меньше четырёх столбцов")
+            continue
+        rows[ver] = cells[1]
+    for ver in sorted(want - rows.keys(), key=lambda v: [int(x) for x in v.split(".")]):
+        problems.append(f"версия {ver}: нет строки в таблице версий по слоям")
+    for ver in sorted(rows.keys() - want, key=lambda v: [int(x) for x in v.split(".")]):
+        problems.append(f"версия {ver}: строка есть, а раздела в api/README.md и текущей версии с таким номером нет")
+    for ver, layer in rows.items():
+        for tok in (t.strip() for t in layer.split(";")):
+            val = tok[1:-1] if len(tok) > 2 and tok.startswith("`") and tok.endswith("`") else None
+            if tok == "механизм" or val in LAYER_EXTRA or val in ids:
+                continue
+            if val is not None:
+                problems.append(f"версия {ver}: слой `{val}` — нет такого профиля, video и vms")
+            else:
+                problems.append(f"версия {ver}: слой «{tok}» — нужно «механизм» или значение x-layer в обратных кавычках")
+    return problems

@@ -970,6 +970,24 @@ def check_layers(rep, spec):
               f"{len(schemas)} схем, {len(paths)} путей подсистем, {len(leaks)} полей подсистем в общих схемах")
 
 
+def check_versions_by_layer(rep, spec):
+    """Таблица docs/contract-layers/versions-by-layer.md: строка у каждой версии README и у текущей, слои знакомые."""
+    name = "Версии контракта по слоям"
+    path = os.path.join(ROOT, "docs", "contract-layers", "versions-by-layer.md")  # от корня репозитория, не от --api
+    if not os.path.exists(path):
+        rep.fail(name, ["нет файла docs/contract-layers/versions-by-layer.md"])
+        return
+    with open(path, encoding="utf-8") as f:
+        table = f.read()
+    try:
+        ids = layers.profile_ids(API)
+    except ValueError as e:  # сломанный файл профиля
+        rep.fail(name, [str(e)])
+        return
+    problems = layers.versions_table_problems(read(f"{API}/README.md") or "", table, spec["info"]["version"], ids)
+    rep.check(name, problems, f"текущая версия {spec['info']['version']}")
+
+
 def check_backend_doc(rep, spec):
     doc = read(f"{API}/BACKEND.md")
     if doc is None:
@@ -1084,6 +1102,7 @@ def main():
     check_server(rep, spec)
     check_core_field(rep, spec)
     check_layers(rep, spec)
+    check_versions_by_layer(rep, spec)
     check_backend_doc(rep, spec)
     check_breaking_doc(rep, spec)
     if "--lint" in sys.argv[1:]:

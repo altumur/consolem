@@ -229,5 +229,44 @@ with tempfile.TemporaryDirectory() as tmp:
         ok(raised, f"{what}: сломанный файл профиля — ValueError с именем файла")
 ok(layers.owner_of("vms.nope/1") == "mockup", "owner_of: нет файла — умолчание")
 
+# ── таблица версий по слоям ──
+TABLE_FILE = os.path.join(ROOT, "docs", "contract-layers", "versions-by-layer.md")
+with open(os.path.join(ROOT, "api", "README.md"), encoding="utf-8") as f:
+    README = f.read()
+CUR = SPEC["info"]["version"]
+
+
+def drop_row(table, ver):
+    return "\n".join(l for l in table.split("\n") if not l.startswith(f"| {ver} |"))
+
+
+def set_layer(table, ver, layer):
+    out = []
+    for l in table.split("\n"):
+        if l.startswith(f"| {ver} |"):
+            cells = l.split(" | ")
+            cells[2] = layer
+            l = " | ".join(cells)
+        out.append(l)
+    return "\n".join(out)
+
+
+def add_row(table, ver, layer):
+    return table.rstrip("\n") + f"\n| {ver} | проба | {layer} | проба |\n"
+
+
+if not os.path.exists(TABLE_FILE):
+    ok(False, "нет файла docs/contract-layers/versions-by-layer.md")
+else:
+    with open(TABLE_FILE, encoding="utf-8") as f:
+        TABLE = f.read()
+    vp = layers.versions_table_problems
+    ok(vp(README, TABLE, CUR, IDS) == [], "живая таблица версий цела")
+    ok(any("0.12.0" in p for p in vp(README, drop_row(TABLE, "0.12.0"), CUR, IDS)), "нет строки версии")
+    ok(any("механизмы" in p for p in vp(README, set_layer(TABLE, "0.8.0", "механизмы"), CUR, IDS)), "незнакомое слово в слое")
+    ok(any("vms.nope/1" in p for p in vp(README, set_layer(TABLE, "0.5.0", "`vms.nope/1`"), CUR, IDS)), "незнакомый профиль в слое")
+    ok(any("9.9.0" in p for p in vp(README, TABLE, "9.9.0", IDS)), "case_current_version_missing")
+    ok(any("0.99.0" in p for p in vp(README, add_row(TABLE, "0.99.0", "механизм"), CUR, IDS)), "строка версии, которой нет в README")
+
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)
