@@ -3,7 +3,8 @@
    setupUi), ступень 2 — ручной экран по SCREEN_OF_PROFILE (handScreenOf), ступень 3 — форма по схеме. Раздел А — выбор
    экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed); Г2 — то же у других кодов ручных экранов
    (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей. Виды теста ставятся в KINDS на время
-   проверки и снимаются в finally с kindsApply(). Запуск — tools/check_ui.py --page index_78_ekran-po-profilyu.html. */
+   проверки и снимаются в finally с kindsApply(). Сценарий пришёл с прототипом 78 (index_78_ekran-po-profilyu.html, удалён), теперь проверяет index.html.
+   Охрана screenFor — для прототипов, скопированных с index.html до переноса. */
 UiCheck(async ({ ok, until }) => {
   if (typeof screenFor !== "function") { ok(true, "на странице нет screenFor: проверять нечего"); return; }
   const main = () => document.getElementById("main");

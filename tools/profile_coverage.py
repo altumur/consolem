@@ -36,7 +36,7 @@ import profile_files
 ROOT = check_ui.ROOT
 SCRIPT = os.path.join(ROOT, "tools", "profile_coverage.js")
 ALLOW = os.path.join(ROOT, "tools", "profile_coverage.allow.json")
-# Функции страницы, без которых прогон невозможен (часть 07: прототип 78, index.html после переноса)
+# Функции страницы, без которых прогон невозможен (часть 07: index.html и прототипы, скопированные с него после переноса прототипа 78)
 NEEDS = ("screenFor", "handScreenFields", "screenCoverage", "profileProps", "profileKinds", "hwApplyUnit")
 
 
@@ -129,7 +129,7 @@ def page_check():
     miss = [n for n in NEEDS if f"function {n}(" not in text]
     if miss:
         raise Stop(f"на странице {check_ui.PAGE} нет {', '.join(miss)}: инструмент работает на странице с экраном по профилю "
-                   "(часть 07: прототип index_78_ekran-po-profilyu.html или index.html после переноса)")
+                   "(часть 07: index.html или прототип, скопированный с него после переноса)")
     if not os.path.exists(SCRIPT):
         raise Stop(f"нет {os.path.relpath(SCRIPT, ROOT)}")
     if not (shutil.which("google-chrome") or shutil.which("chromium")):

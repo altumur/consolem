@@ -1,4 +1,11 @@
 window.I18N_EN={
+// Смена экрана открытой карточки по kinds.changed (из прототипа 78)
+"Описание вида изменилось, поэтому консоль показывает":"The kind description changed, so the console shows",
+"другим экраном.":"on a different screen.",
+"Консоль не перенесла изменения полей":"The console did not move the changes of the fields",
+"потому что на новом экране этих полей нет.":"because the new screen does not have these fields.",
+"Остальные изменения консоль перенесла.":"The console moved the other changes.",
+"Консоль не прочитала запись объекта.":"The console did not read the object record.",
 // Базовая форма у ручного экрана (из прототипа 77)
 "Все параметры":"All parameters",
 "Вернуться к настройке":"Back to settings",
