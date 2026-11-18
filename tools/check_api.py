@@ -1014,6 +1014,8 @@ def check_layer_diff(rep, spec):
         rep.info(f"{name}: слой {layer} — {len(items)}")
     for who, what in cls["notify"].items():
         rep.info(f"{name}: уведомить {who} ({', '.join(what)})")
+    for note in layers.version_notes(cls):
+        rep.info(f"{name}: {note}")
     rep.check(name, layers.version_problems(cls, active))
 
 

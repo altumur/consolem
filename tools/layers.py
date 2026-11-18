@@ -609,6 +609,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
     mb = _merge_base(base, root, head)
     new_of = (lambda rel: _json_at(root, head, rel)) if head else (lambda rel: _json_work(root, rel))
     mechanism, lay, kinds, stand, desc, marks_only = [], {}, [], [], [], []
+    contract_mech = []  # механизм из правок openapi.json: ему нужна новая версия контракта
     contract_lay, file_lay = {}, {}  # слои из правок openapi.json; слои из остальных файлов (профили, demo.json, profiles.js)
     version = (None, None)
     skip = set(GENERATED)
@@ -645,6 +646,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
                     marks.setdefault("paths", {}).setdefault(p, {})["x-layer"] = item["x-layer"]
             c = classify_specs(old, new, marks)
             mechanism += [m for m in c["mechanism"] if m not in mechanism]
+            contract_mech += c["mechanism"]
             _merge(lay, c["layers"])
             _merge(contract_lay, c["layers"])
             desc += c["descriptions"]
@@ -659,6 +661,7 @@ def classify(base="origin/main", root=ROOT, api_dir="api", head=None):
         elif rel.startswith(f"{api_dir}/fixtures/") and rel.endswith(".json"):
             stand.append(f"файл {rel} — набор стенда, слой не определён")
     return {"base": mb, "files": files, "mechanism": mechanism, "layers": lay, "contract_layers": contract_lay,
+            "contract_mechanism": contract_mech,
             "file_layers": file_lay, "kinds": kinds, "stand": stand,
             "descriptions": desc, "marks": marks_only, "version": version, "notify": _notify(mechanism, lay, os.path.join(root, api_dir), marks_only)}
 
@@ -669,16 +672,27 @@ def version_problems(cls, profiles_active):
     без механизма и без правки openapi.json — у подсистемы своя версия в файле профиля."""
     old, new = cls.get("version") or (None, None)
     same = old == new
-    mech, contract = cls.get("mechanism") or [], cls.get("contract_layers") or {}
+    mech = cls["contract_mechanism"] if "contract_mechanism" in cls else (cls.get("mechanism") or [])
+    contract = cls.get("contract_layers") or {}
     lay = cls["file_layers"] if "file_layers" in cls else (cls.get("layers") or {})
     out = []
     if mech and same:
         out.append(f"механизм изменён без новой версии контракта: {'; '.join(mech)}")
     if contract and same:
         out.append(f"openapi.json изменён без новой версии контракта (слой {', '.join(contract)}): правка пути или схемы профиля поднимает версию контракта")
-    if profiles_active and not same and lay and not mech and not contract:
+    if profiles_active and not same and lay and not (cls.get("mechanism") or mech) and not contract:
         out.append(f"версию контракта подняла правка подсистемы ({', '.join(lay)}): у неё своя версия — version в файле профиля")
     return out
+
+
+def version_notes(cls):
+    """Строки INFO: правка файлов механизма (server.js…) без правки openapi.json и без новой версии — не отказ
+    (решение владельца 2026-11-18), владелец контракта получает уведомление."""
+    old, new = cls.get("version") or (None, None)
+    files = [m for m in cls.get("mechanism") or [] if m in MECHANISM_FILES]
+    if files and old == new:
+        return [f"правка файлов механизма без правки openapi.json — версия контракта не нужна: {', '.join(files)}"]
+    return []
 
 
 def version_text(cls):
@@ -726,6 +740,8 @@ def main(argv=None):
     print(format_report(cls))
     active = os.path.isdir(_abs(f"{opts['--api']}/profiles")) and any(n.endswith(".json") for n in os.listdir(_abs(f"{opts['--api']}/profiles")))
     problems = version_problems(cls, active)
+    for n in version_notes(cls):
+        print("INFO " + n)
     for p in problems:
         print("ОТКАЗ " + p)
     return 1 if problems else 0

@@ -21,7 +21,7 @@
 | mockup | Maxim Kabenin, Maxim |
 | w2c | Murat Altuev |
 
-Запрос о профиле подсистемы адресован owner профиля (поле `owner` в `api/profiles/<имя>.json`, пока файла нет — mockup). Уведомление о правке профиля адресовано его reviewers (пока файла нет — w2c). Слой правки и адресатов называет `python3 tools/layers.py`.
+Запрос о профиле подсистемы пишут owner профиля (поле `owner` в `api/profiles/<имя>.json`, пока файла нет — mockup). Уведомление о правке профиля пишут его reviewers (пока файла нет — w2c). Слой правки и адресатов называет `python3 tools/layers.py`.
 
 ## Ответ
 

@@ -412,6 +412,14 @@ else:
         ok(version_problems(wp, True) == [] and version_problems(wp, False) == [], "I1: путь профиля с новой версией — ни V1, ни V2")
         ok(any(POS in who or who == layers.OWNER_ADDRESS or "/" not in who for who in wp["notify"]) and wp["notify"], "I1: уведомление есть")
         git(tmp, "checkout", "-q", "--", "api/openapi.json")
+        # решение владельца 2026-11-18: правка server.js без openapi.json — версия не нужна, уведомление владельцу
+        git(tmp, "checkout", "-q", "--", "api/openapi.json")
+        write(tmp, "api/server.js", "// проба\n")
+        ws = classify("HEAD", tmp)
+        ok("api/server.js" in ws["mechanism"] and ws["notify"].get(layers.OWNER_ADDRESS) == ["механизм"], "server.js без openapi.json: механизм, уведомление владельцу")
+        ok(version_problems(ws, True) == [] and version_problems(ws, False) == [], "server.js без openapi.json: версия не нужна, V1 молчит")
+        ok(any("server.js" in n for n in layers.version_notes(ws)), "server.js без openapi.json: строка INFO о том, что версия не менялась")
+        os.remove(os.path.join(tmp, "api/server.js"))
         # I2: README.md и не-json в api/profiles/ — не профиль; id берётся из файла
         write(tmp, "api/profiles/README.md", "# профили")
         write(tmp, "api/profiles/notes.txt", "x")
