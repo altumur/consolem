@@ -130,6 +130,9 @@
         const secret = s["x-bound-to"];
         if (secret && opts.old && !same && !(secret in body)) first.push({ field: `${AT}/${esc(secret)}`, code: "VALIDATION_FAILED", params: { keyword: "x-bound-to", field: name } });
       });
+      // Вид со schemaPerUnit: правка — ещё и по схеме объекта, решённой по слитому целому. Так действуют ветки if и части allOf,
+      // которые первый проход (partial) не решает: readOnly в ветке, enum и пределы своей модели
+      if (!first.length && k.schemaPerUnit && C) first.push(...C.validate(unitSchema(kind, mergePatch(old, body)), body, AT, { dir: "write", partial: true }));
       if (first.length) return first;
       const kept = new Set((opts.secrets || []).filter((n) => body[n] !== null).map((n) => `${AT}/${esc(n)}`));
       return C ? C.validate(schema, mergePatch(old, body), AT, {}).filter((e) => !(e.params && e.params.keyword === "required" && kept.has(e.field))) : [];

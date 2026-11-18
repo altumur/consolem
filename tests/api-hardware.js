@@ -69,6 +69,53 @@
     assert.eq((await env.ok("GET", U(cam.id))).version, cam.version, "версия не изменилась");
   }, { needs: ["patchUnit", "kind:camera"] });
 
+  test("Маска приватности камеры (privacyMasks, с 0.17.0): 3–64 точки, доли кадра 0–1, не больше 16 областей; null убирает маску", async () => {
+    const env = await makeEnv();
+    const h = at(cam.version);
+    const sq = [[0.1, 0.1], [0.3, 0.1], [0.3, 0.3], [0.1, 0.3]];
+    const bad = async (masks, field, msg) => {
+      const r = await env.call("PATCH", U(cam.id), { properties: { privacyMasks: masks } }, h);
+      assert.status(r, 422, "VALIDATION_FAILED", msg);
+      assert.eq(r.body.field, field, `${msg}: field`);
+    };
+    await bad([{ points: sq.slice(0, 2) }], "/properties/privacyMasks/0/points", "две точки — мало");
+    await bad([{ points: Array.from({ length: 65 }, (_, i) => [i / 100, 0.5]) }], "/properties/privacyMasks/0/points", "65 точек — много");
+    await bad([{ points: sq }, { points: [[0.1, 0.1], [1.2, 0.1], [0.3, 0.3]] }], "/properties/privacyMasks/1/points/1/0", "x больше 1");
+    await bad(Array.from({ length: 17 }, () => ({ points: sq })), "/properties/privacyMasks", "17 областей — много");
+    await bad([{ points: sq, look: "black" }], "/properties/privacyMasks/0/look", "чужое поле области");
+    assert.eq((await env.ok("GET", U(cam.id))).version, cam.version, "отказ ничего не меняет");
+    const masks = Array.from({ length: 16 }, () => ({ points: sq }));
+    let u = await env.ok("PATCH", U(cam.id), { properties: { privacyMasks: masks } }, h);
+    assert.eq(u.properties.privacyMasks, masks, "16 областей сервер хранит как есть");
+    u = await env.ok("PATCH", U(cam.id), { properties: { privacyMasks: null } }, at(u.version));
+    assert.ok(!("privacyMasks" in u.properties), "null убирает маску");
+  }, { needs: ["patchUnit", "kind:camera", "prop:camera.privacyMasks"] });
+
+  test("Мета-детектор (analyticsKind: meta, с 0.17.0): до трёх запросов до 200 знаков, пределы полей meta…", async () => {
+    const env = await makeEnv();
+    const kinds = await env.ok("GET", "/kinds");
+    const det = (kinds.items || kinds).find((k) => k.kind === "det");
+    ["meta", "faceTV", "faceVA", "faceVL"].forEach((v) => assert.ok(det.schema.properties.analyticsKind.enum.includes(v), `analyticsKind: ${v}`));
+    const meta = (await env.pages("/units?kind=det&limit=1000")).find((u) => u.properties?.analyticsKind === "meta");
+    assert.ok(meta, "в наборе есть мета-детектор");
+    const full = await env.ok("GET", U(meta.uid));
+    const h = at(full.version);
+    const bad = async (p, field, msg) => {
+      const r = await env.call("PATCH", U(meta.uid), { properties: p }, h);
+      assert.status(r, 422, "VALIDATION_FAILED", msg);
+      assert.eq(r.body.field, field, `${msg}: field`);
+    };
+    await bad({ metaQueries: ["a", "b", "c", "d"] }, "/properties/metaQueries", "четыре запроса");
+    await bad({ metaQueries: ["x".repeat(201)] }, "/properties/metaQueries/0", "запрос длиннее 200 знаков");
+    await bad({ metaThreshold: 0.01 }, "/properties/metaThreshold", "порог ниже 0.05");
+    await bad({ metaFrames: 9 }, "/properties/metaFrames", "меньше 10 кадров");
+    await bad({ metaFps: 0.01 }, "/properties/metaFps", "меньше 0.016 к/с");
+    await bad({ metaDiff: 101 }, "/properties/metaDiff", "отличие больше 100");
+    const u = await env.ok("PATCH", U(meta.uid), { properties: { metaQueries: ["Упавший человек"], metaThreshold: 35.5, metaFrames: 10, metaFps: 0.5, metaSearch: false, metaSkipSimilar: false, metaDiff: 0 } }, h);
+    assert.eq(u.properties.metaQueries, ["Упавший человек"], "запрос сохранён");
+    assert.eq([u.properties.metaThreshold, u.properties.metaFrames, u.properties.metaFps, u.properties.metaDiff], [35.5, 10, 0.5, 0], "числа сохранены");
+  }, { needs: ["patchUnit", "kind:det", "prop:det.metaQueries"] });
+
   test("Устройство: null убирает поле; пароль — секрет: не возвращается, только secrets; логин читается", async () => {
     const env = await makeEnv();
     let d = await env.ok("PATCH", U(cam.id), { properties: { identifier: null, login: "admin", password: "s3cret" } }, at(cam.version));

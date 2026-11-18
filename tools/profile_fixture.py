@@ -65,12 +65,18 @@ PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", 
 # Контракт 0.12.0: поддетекторы (вид subdet) и новые настройки детектора. Система объявляет, что поддерживает, схемой вида:
 # в профиле «один домен» вида subdet нет, у det нет и этих свойств, а трекеры (analyticsKind) не заводятся — как у w2c без них
 PLUGIN_KINDS += ["subdet"]
-DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec"]}
+DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", "classes", "confidence", "minDurationSec", "plateWidth", "crowdMin", "crowdHoldSec", "stillSec",
+  # Контракт 0.13.0: запись и показ маски и треков — в профиле «один домен» их тоже нет
+  "recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan",
+  # Контракт 0.15.0: свойства детектора по отчёту о пробелах против Axxon One
+  "detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow",
+  # Контракт 0.17.0: поля мета-детектора (без analyticsKind им не к чему относиться)
+  "metaQueries", "metaThreshold", "metaFrames", "metaFps", "metaSearch", "metaSkipSimilar", "metaDiff"]}
 # Виды, чьи события и действия правил система профиля объявляет, хотя объектов этих видов у неё нет (вход датчика io.input,
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
 RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]
-MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
+MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
 FEATURES = ["exportVideo", "exportFrame", "exportLiveFrame", "exportArea", "exportMultiCamera", "exportMultiPeriod", "exportSingleFile", "exportTranscode", "exportTitles", "exportAudio", "exportPassword"]
 # Поиск в журнале (контракт 0.8.0): q, списки и «скрыть», счётчики по полям
@@ -239,6 +245,7 @@ def build(demo):
     fx["archiveWatches"] = []
     fx["archiveScans"] = [x for x in fx["archiveScans"] if x["deviceId"] in kept and x["archiveId"] in aids]
     fx["licenses"] = []
+    fx["licenseKeys"] = []
     fx["network"] = []
     fx["discovery"] = []
 

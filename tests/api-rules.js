@@ -394,17 +394,21 @@
     assert.status(await as({ relay: "MANAGE", cam: "FULL" }), 201, null, "FULL по умолчанию роли");
   }, { needs: ["kind:relay"] });
 
-  test("Событие с rule:false (abandoned камеры) триггером правила не берут; с rule по умолчанию (motion) — берут", async () => {
+  test("События детекторов камеры abandoned, disappeared, crowd — триггеры правила (с 0.17.0, rule:false снят)", async () => {
     const env = await makeEnv();
     const ev = (await env.ok("GET", "/kinds/camera")).events;
-    assert.ok(ev.find((e) => e.id === "abandoned").rule === false && ev.find((e) => e.id === "motion").rule !== false, "флаги в описании вида");
+    ["abandoned", "disappeared", "crowd"].forEach((id) => assert.ok(ev.find((e) => e.id === id) && ev.find((e) => e.id === id).rule !== false, id + ": не снято с правил"));
     const trig = (event) => [{ source: "unit", kinds: ["camera"], event, target: dev(cam.id), match: {} }];
     const steps = [{ type: "unitAction", action: "alarm", target: dev(cam.id), params: {} }];
-    const no = await env.call("POST", "/rules", blank({ name: "Брошенный предмет", enabled: true, start: "event", triggers: trig("abandoned"), steps }));
-    assert.status(no, 422, null, "rule:false — отказ");
-    assert.eq(no.body.field, "triggers", "поле");
-    const yes = await env.call("POST", "/rules", blank({ name: "Движение", enabled: true, start: "event", triggers: trig("motion"), steps }));
-    assert.ok(!(yes.body.field === "triggers"), "motion триггер принят: " + JSON.stringify(yes.body).slice(0, 160));
+    assert.status(await env.call("POST", "/rules", blank({ name: "Брошенный предмет", enabled: true, start: "event", triggers: trig("abandoned"), steps })), 201, null, "abandoned — триггер");
+    // Механизм rule:false остаётся: событие с этой отметкой включённое правило не берёт, выключенное хранится
+    const desc = await env.ok("GET", "/kinds/camera");
+    desc.events.find((e) => e.id === "silent").rule = false;
+    assert.status(await env.call("PUT", "/test/kinds/camera", desc), 200, null, "стенд отметил silent rule:false");
+    const off = await env.call("POST", "/rules", blank({ name: "Тишина", enabled: true, start: "event", triggers: trig("silent"), steps }));
+    assert.status(off, 422, "NOT_SUPPORTED", "событие rule:false — не триггер");
+    assert.eq(off.body.field, "triggers", "field — раздел triggers");
+    assert.status(await env.call("POST", "/rules", blank({ name: "Тишина", enabled: false, start: "event", triggers: trig("silent"), steps })), 201, null, "выключенное правило хранится как есть");
   }, { needs: ["kind:camera"] });
 
   ApiTest.loaded("api-rules.js");

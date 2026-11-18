@@ -487,6 +487,8 @@
 
     let db = null;
     let me = null;
+    // Загруженные файлы (POST /files): id → {id, name, type, size, data, owner, expiresAt (мс), claimed}. Только в памяти
+    let files = new Map(), fileSeq = 0;
     // Склад объектов, описания видов и старые таблицы над складом — собираются в load()
     let kinds = null, store = null, legacy = null, kindList = null;
     // Состояние хуков профилей (итоги круга домена…): сбрасывается в load()
@@ -596,6 +598,7 @@
       ruleRuns = [];
       prompts = [];
       secrets = new Map();
+      files = new Map();
       ops = new Map();
       redoStack = [];
       expWork = new Map();
@@ -921,7 +924,7 @@
        живое видео, разговор) того же пользователя по тому же пути за 30 с — одна запись; остальные — каждая.
        Секреты не попадают в журнал: ключи с паролем, токеном, заголовками — «••••», в адресе — без имени и пароля,
        в тексте — «Authorization: ••••» */
-    const AUDIT_SKIP = new Set(["assistTurn", "putStreamWatch", "validateUnits", "checkExport", "testRule"]);
+    const AUDIT_SKIP = new Set(["assistTurn", "uploadFile", "putStreamWatch", "validateUnits", "checkExport", "testRule"]);
     const AUDIT_SAME_MS = 30000;
     const AUDIT_SAME_OPS = new Set(["putUnitPtz", "deleteUnitPtz", "startUnitLive", "moveUnitLive", "startUnitTalk"]);
     const AUDIT_HIDE = /pass(word)?|secret|token|apikey|api_key|private|credential|authorization|cookie|headers/i;
@@ -1488,15 +1491,31 @@
         return Object.assign({}, t, { include: t.include.filter((x) => !hit.includes(x)), exclude: t.exclude.filter((x) => !names.has(x)),
           gone: [...t.gone, ...hit.map((x) => names.get(x.uid))] });
       };
+      // С 0.18.0: событие одного детектора (match.detector) — удалённый детектор уходит в gone цели этого события
+      const byDetector = (t) => {
+        const d = t && t.match && t.match.detector;
+        if (!d || !names.has(d)) return;
+        delete t.match.detector;
+        // Камеру события удалили вместе с детектором: в gone идёт только камера (её запишет fix цели)
+        if (t.target && t.target.include.some((x) => !x.area && names.has(x.uid))) return;
+        const g = t.target || { include: [], exclude: [], gone: [], fromEvent: false };
+        t.target = Object.assign({}, g, { gone: [...g.gone, names.get(d)] });
+      };
+      const eachEvent = (c) => {
+        c.triggers.forEach(byDetector);
+        const walk = (l) => l.forEach((a) => { if (a.event) byDetector(a.event); walk(a.yes || []); walk(a.no || []); });
+        walk(c.steps || []);
+      };
       db.rules.forEach((r) => {
         const was = JSON.stringify(r);
+        eachEvent(r);
         eachTarget(r, fix);
         if (JSON.stringify(r) === was) return;
         bump(r);
         runsStop(r.id);
         changed("rule", r);
       });
-      db.ruleVersions.forEach((v) => eachTarget(v.rule, fix));
+      db.ruleVersions.forEach((v) => { eachEvent(v.rule); eachTarget(v.rule, fix); });
     }
     // Версия истории: что стало после изменения. undo убирает версию, которую отменяет, если она последняя
     // was — кто и когда менял правило и с какого дня оно «в наблюдении» до этой правки. «Отменить»
@@ -1551,8 +1570,30 @@
       const walk = (l) => l.some((a) => (hit = bad(a)) || walk(a.yes || []) || walk(a.no || []));
       return walk(c.steps) ? problem(422, "VALIDATION_FAILED", `Поле ${hit[0]} — не того типа, что в описании команды`, { field: "steps", params: { keyword: "type", param: hit[0] } }) : null;
     }
+    // С 0.23.0: match.detector события правила — объект профиля vms.detector/1; цель события — одна камера, тогда детектор — её.
+    // Цель — группа, несколько камер или из события: проверяем только первое. Удалённый позже детектор правило не роняет: rulesGone
+    function detectorProblem(c) {
+      const bad = (msg, d) => problem(422, "VALIDATION_FAILED", msg, { field: "match.detector", params: { uid: d } });
+      const check = (t) => {
+        const d = t && t.match && t.match.detector;
+        if (d == null) return null;
+        const u = typeof d === "string" ? store.get(d) : null;
+        if (!u || !kinds.profileOf(u.kind, "vms.detector/1")) return bad(`Детектора ${d} нет`, d);
+        const inc = ((t.target || {}).include || []).filter((x) => !x.area);
+        const cam = inc.length === 1 && !(t.target.include || []).some((x) => x.area) && !t.target.fromEvent ? store.get(inc[0].uid) : null;
+        if (cam && kinds.profileOf(cam.kind, "vms.camera/1") && u.parentId !== cam.uid) return bad(`Детектор «${u.name}» стоит на другой камере`, d);
+        return null;
+      };
+      let hit = null;
+      (c.triggers || []).some((t) => (hit = check(t)));
+      const walk = (l) => (l || []).some((a) => (a.event && (hit = check(a.event))) || walk(a.yes) || walk(a.no));
+      if (!hit) walk(c.steps);
+      return hit;
+    }
     function ruleProblem(c) {
       if (!String(c.name || "").trim()) return problem(422, "NAME_REQUIRED", "Укажите название правила", { field: "name" });
+      const det = detectorProblem(c);
+      if (det) return det;
       if (c.runAsRoleId && !db.access.roles.some((x) => x.id === c.runAsRoleId)) return problem(422, "VALIDATION_FAILED", `Роли ${c.runAsRoleId} нет`, { field: "runAsRoleId" });
       const typed = stepTypeProblem(c);
       if (typed) return typed;
@@ -2759,10 +2800,186 @@
     /* ----- Ядро: виды и объекты склада ----- */
 
     // Описания видов: ETag — хэш описаний; тот же ETag в If-None-Match — 304 без тела
+    // Файл — одним телом: Blob во вкладке, байты по HTTP (serve_api.mjs, петля). Тип — Content-Type запроса
+    const FILE_TTL_MS = 60 * 60000;
+    function fileUpload(q, body, headers) {
+      const lim = db.reference.limits || {};
+      const size = body == null ? 0 : body.size != null ? body.size : body.byteLength != null ? body.byteLength : 0;
+      const type = String(headers["content-type"] || (body && body.type) || "").split(";")[0].trim().toLowerCase();
+      if (!size || typeof body !== "object" || Object.getPrototypeOf(body) === Object.prototype) return problem(422, "VALIDATION_FAILED", "Нет файла: тело запроса пустое или JSON", { field: "file" });
+      if (lim.fileMaxBytes && size > lim.fileMaxBytes) return problem(413, "FILE_TOO_LARGE", `Файл больше ${lim.fileMaxBytes} байт`, { field: "file", params: { limit: lim.fileMaxBytes, size } });
+      if (lim.fileTypes && !lim.fileTypes.includes(type)) return problem(415, "FILE_TYPE_NOT_ALLOWED", `Тип ${type || "без типа"} не принимается`, { field: "file", params: { type, types: lim.fileTypes.slice() } });
+      const name = String(q.name || "file").slice(0, 255) || "file";
+      const id = `f${(++fileSeq).toString(36)}${now().toString(36)}`;
+      const f = { id, name, type, size, data: body, owner: me, expiresAt: now() + FILE_TTL_MS, claimed: false };
+      files.set(id, f);
+      return { status: 201, body: fileOut(f) };
+    }
+    const fileOut = (f) => ({ id: f.id, name: f.name, type: f.type, size: f.size, expiresAt: iso(f.expiresAt) });
+    // Файлы хода: только свои, срок не вышел (забранный файл срока не имеет). Ошибка — Problem, иначе null.
+    // Стенд помнит файл и после срока, чтобы ответить 410, а не «такого нет»
+    function fileIdsProblem(ids) {
+      if (ids === undefined) return null;
+      const lim = db.reference.limits || {};
+      if (lim.filesPerTurnMax != null && ids.length > lim.filesPerTurnMax) return problem(422, "VALIDATION_FAILED", `Файлов в ходе больше ${lim.filesPerTurnMax}`, { field: "fileIds", params: { limit: lim.filesPerTurnMax } });
+      for (const id of ids) {
+        const f = files.get(id);
+        if (!f || f.owner !== me) return problem(422, "VALIDATION_FAILED", "Такого файла нет", { field: "fileIds", params: { id } });
+        if (!f.claimed && f.expiresAt <= now()) return problem(410, "FILE_EXPIRED", "Срок файла вышел: загрузить файл заново", { field: "fileIds", params: { id } });
+      }
+      return null;
+    }
+    /* ----- Лицензии: ключи (/licenses/keys) и счётчики (/licenses) ----- */
+    // Ключ в наборе: {id, serial, product, expiresAt, state (active | mismatch), stateText, features: [{code, label, total,
+    // domains: [{domainId, used, limit, observedAt}]}], domainIds, fileId?, version}. used пула — сумма доменов; срок
+    // решает состояние на часах стенда: вышел — expired, 30 дней и меньше — expiring
+    const licenseKeys = () => db.licenseKeys || (db.licenseKeys = []);
+    const LIC_WARN_MS = 30 * 86400000;
+    function keyOut(k) {
+      const left = k.expiresAt == null ? Infinity : Date.parse(k.expiresAt) - now();
+      const state = k.state === "mismatch" ? "mismatch" : left <= 0 ? "expired" : left <= LIC_WARN_MS ? "expiring" : "active";
+      const online = (id) => { const d = store.get(id); return !d || !d.status || d.status.link !== "offline"; };
+      const out = { id: k.id, serial: k.serial, product: k.product, expiresAt: k.expiresAt == null ? null : k.expiresAt, state, stateText: k.stateText == null ? null : k.stateText,
+        features: k.features.map((f) => Object.assign({ code: f.code }, f.label ? { label: clone(f.label) } : {}, {
+          used: f.domains.reduce((s, d) => s + d.used, 0), total: f.total == null ? null : f.total,
+          domains: f.domains.map((d) => ({ domainId: d.domainId, used: d.used, limit: d.limit == null ? null : d.limit, observedAt: online(d.domainId) ? iso(now()) : d.observedAt || iso(now()) })) })),
+        domainIds: k.domainIds.slice(), version: k.version };
+      if (k.fileId) out.fileId = k.fileId;
+      return out;
+    }
+    const keyChanged = (k, reason) => send("license.changed", Object.assign({ kind: "licenseKey", entityId: k.id }, reason === "removed" ? {} : { version: k.version }, { payload: { reason } }));
+    // Кто занимает функцию в домене: камеры — объекты с профилем vms.camera/1, СКУД — виды класса доступа acfa. Стенд
+    // берёт первых по uid, сколько занято в домене (used): настоящая система знает владельцев сама
+    const LIC_OWNERS = {
+      cameras: (u) => kinds.profileOf(u.kind, "vms.camera/1"),
+      acfa: (u) => kinds.accessClass(u.kind) === "acfa",
+    };
+    const OWNERS_MAX = 100;
+    function licensesList(q) {
+      if (q.domainId === undefined) {
+        if (!db.licenseKeys) return items(clone(db.licenses || []));
+        // Вся система — сумма ключей по коду функции; null (без предела) у одного ключа — без предела у суммы
+        const sum = new Map();
+        licenseKeys().map(keyOut).forEach((k) => k.features.forEach((f) => {
+          const s = sum.get(f.code) || sum.set(f.code, Object.assign({ kind: f.code }, f.label ? { label: f.label } : {}, { used: 0, total: 0 })).get(f.code);
+          s.used += f.used;
+          s.total = s.total == null || f.total == null ? null : s.total + f.total;
+        }));
+        return items([...sum.values()]);
+      }
+      const dom = store.get(q.domainId);
+      if (!dom || dom.kind !== "domain") return notFound("Домен");
+      const k = licenseKeys().find((x) => x.domainIds.includes(q.domainId));
+      if (!k) return items([]);
+      return items(k.features.map((f) => {
+        const d = f.domains.find((x) => x.domainId === q.domainId) || { used: 0, limit: null };
+        const test = LIC_OWNERS[f.code];
+        const all = test ? [...store.all()].filter((u) => u.domainId === q.domainId && test(u)).map((u) => u.uid).sort().slice(0, d.used) : [];
+        return Object.assign({ kind: f.code }, f.label ? { label: clone(f.label) } : {}, { used: d.used, total: d.limit != null ? d.limit : f.total == null ? null : f.total,
+          owners: all.slice(0, OWNERS_MAX), ownersTotal: all.length });
+      }));
+    }
+    // Что стенд «прочёл» из ключа: серийный номер с DEMO — демо на 30 дней, иначе professional на год; 32 камеры и 4 точки СКУД
+    function keyRead(serial) {
+      const demo = /DEMO/i.test(serial);
+      return { product: demo ? "demo" : "professional", expiresAt: iso(now() + (demo ? 30 : 365) * 86400000), state: "active", stateText: null,
+        features: [{ code: "cameras", label: { key: "license.cameras", text: "Камеры", lang: "ru" }, total: demo ? 4 : 32, domains: [] },
+          { code: "acfa", label: { key: "license.acfa", text: "Точки СКУД", lang: "ru" }, total: demo ? 0 : 4, domains: [] }] };
+    }
+    function keyCreate(body) {
+      const bySerial = body.serial !== undefined, byFile = body.fileId !== undefined;
+      if (bySerial === byFile) return problem(422, "VALIDATION_FAILED", "Нужно одно из двух: серийный номер или файл ключа", { field: bySerial ? "fileId" : "serial" });
+      let serial = bySerial ? String(body.serial).trim() : null, f = null;
+      if (bySerial && !serial) return problem(422, "VALIDATION_FAILED", "Серийный номер пустой", { field: "serial" });
+      if (byFile) {
+        f = files.get(body.fileId);
+        if (!f || f.owner !== me) return problem(422, "VALIDATION_FAILED", "Такого файла нет", { field: "fileId" });
+        if (!f.claimed && f.expiresAt <= now()) return problem(410, "FILE_EXPIRED", "Срок файла вышел: загрузить файл заново", { field: "fileId" });
+        if (licenseKeys().some((k) => k.fileId === f.id)) return problem(409, "IDENTIFIER_TAKEN", "Этот файл уже ключ", { field: "fileId" });
+        serial = `FILE-${f.name.replace(/\.[^.]*$/, "").toUpperCase()}`;
+      }
+      if (licenseKeys().some((k) => k.serial === serial)) return problem(409, "IDENTIFIER_TAKEN", "Ключ с этим серийным номером уже есть", { field: bySerial ? "serial" : "fileId", params: { serial } });
+      const k = Object.assign({ id: `lk-${(licenseKeys().length + 1).toString(36)}${now().toString(36)}`, serial }, keyRead(serial), { domainIds: [], version: newVersion() });
+      if (f) {
+        // Ключ сослался на файл: сервер забирает файл себе, срок больше не действует
+        f.claimed = true;
+        k.fileId = f.id;
+      }
+      licenseKeys().push(k);
+      keyChanged(k, "added");
+      return one(keyOut(k), 201);
+    }
+    function keyPatch(id, body, headers) {
+      const k = licenseKeys().find((x) => x.id === id);
+      if (!k) return notFound("Ключ лицензии");
+      const bad = precondition(k, headers);
+      if (bad) return bad;
+      const doms = body.domainIds !== undefined ? body.domainIds : k.domainIds;
+      const at = doms.findIndex((d, i) => { const u = store.get(d); return !u || u.kind !== "domain" || doms.indexOf(d) !== i; });
+      if (at >= 0) return problem(422, "VALIDATION_FAILED", "Такого домена нет или он назван дважды", { field: `domainIds.${at}` });
+      const lat = (body.limits || []).findIndex((l) => !doms.includes(l.domainId) || !k.features.some((f) => f.code === l.feature));
+      if (lat >= 0) return problem(422, "VALIDATION_FAILED", "Лимит — только домену ключа и функции ключа", { field: `limits.${lat}` });
+      // Домен с другого ключа уходит с него в том же вызове
+      licenseKeys().filter((x) => x !== k && x.domainIds.some((d) => doms.includes(d))).forEach((x) => {
+        x.domainIds = x.domainIds.filter((d) => !doms.includes(d));
+        x.features.forEach((f) => (f.domains = f.domains.filter((d) => !doms.includes(d.domainId))));
+        x.version = newVersion();
+        keyChanged(x, "changed");
+      });
+      k.domainIds = doms.slice();
+      k.features.forEach((f) => {
+        f.domains = doms.map((d) => f.domains.find((x) => x.domainId === d) || { domainId: d, used: 0, limit: null, observedAt: iso(now()) });
+      });
+      (body.limits || []).forEach((l) => {
+        const d = k.features.find((f) => f.code === l.feature).domains.find((x) => x.domainId === l.domainId);
+        d.limit = l.limit;
+      });
+      k.version = newVersion();
+      keyChanged(k, "changed");
+      return one(keyOut(k));
+    }
+    function keyDelete(id, headers) {
+      const k = licenseKeys().find((x) => x.id === id);
+      if (!k) return notFound("Ключ лицензии");
+      const bad = precondition(k, headers);
+      if (bad) return bad;
+      db.licenseKeys = licenseKeys().filter((x) => x !== k);
+      // Файл ключа снова временный: ключ можно вернуть тем же fileId, пока не вышел новый срок
+      const f = k.fileId && files.get(k.fileId);
+      if (f) Object.assign(f, { claimed: false, expiresAt: now() + FILE_TTL_MS });
+      keyChanged(k, "removed");
+      return { status: 204, body: null };
+    }
     function kindsList(headers) {
       const tag = kinds.etag();
-      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag } };
-      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag } };
+      if (parseMatch(headers["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
+      return { status: 200, body: { items: clone(kinds.list()), profiles: clone(kinds.profiles()) }, headers: { ETag: tag, Vary: "Accept-Language" } };
+    }
+    // Один вид: ETag — тот же хэш описаний, что у списка
+    function kindOne(code, headers) {
+      const k = kinds.get(code);
+      if (!k) return notFound(`Вид ${code}`);
+      const tag = kinds.etag();
+      if (parseMatch((headers || {})["if-none-match"]) === parseMatch(tag)) return { status: 304, body: null, headers: { ETag: tag, Vary: "Accept-Language" } };
+      return { status: 200, body: clone(k), headers: { ETag: tag, Vary: "Accept-Language" } };
+    }
+    // Страница плагина (UnitKind.setupUi) у объекта: описание вида называет вид объекта (kinds; нет поля — только свой вид)
+    const setupUiOf = (u) => {
+      const su = (kinds.get(u.kind) || {}).setupUi;
+      return su && (!su.kinds || su.kinds.includes(u.kind)) ? su : null;
+    };
+    // Адрес на одно открытие: постоянный url вида (или адрес заглушки стенда) с объектом, языком и разовым ключом t
+    let setupUiSeq = 0;
+    function setupUiLink(u, headers) {
+      const su = setupUiOf(u);
+      if (!su) return notFound("Страница плагина у вида");
+      const denied = rightProblem(u, { level: "edit" }, "Странице плагина нужен уровень edit");
+      if (denied) return denied;
+      const base = su.url || `stub://plugin/${encodeURIComponent(((kinds.get(u.kind) || {}).origin || {}).plugin || u.kind)}/setup`;
+      const lang = String((headers || {})["accept-language"] || "ru").split(/[,;-]/)[0].trim().toLowerCase() || "ru";
+      const token = `${(++setupUiSeq).toString(36)}${now().toString(36)}`;
+      const q = new URLSearchParams({ type: u.kind, id: u.uid, lang, t: token }).toString();
+      return { status: 200, body: { url: base + (base.includes("?") ? "&" : "?") + q, expiresAt: iso(now() + 5 * 60000) } };
     }
     // Секреты старых путей сервер держит отдельно (secrets): пароль устройства и тома, секрет облачного тома
     const keptSecrets = (u) => {
@@ -2813,6 +3030,8 @@
       if (Array.isArray(u.writable)) out.writable = u.writable.slice();
       if (u.status && Object.keys(u.status).length) out.status = clone(u.status);
       out.hasChildren = unitHasChildren(u); // как в дереве: потоки и документы дочерними не считаются
+      // Что можно сейчас (capabilities): стенд ставит только setupUi — страница плагина есть и у человека есть право edit
+      if (setupUiOf(u) && !rightProblem(u, { level: "edit" }, "")) out.capabilities = ["setupUi"];
       // Вычисляемое профилем (status.observed): итог круга домена, держатель тома
       hooksOf(u.kind).forEach((h) => h.view && h.view(out, pctx));
       return Object.assign(out, extra || {});
@@ -4198,10 +4417,7 @@
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
       /* ----- Ядро: виды и объекты ----- */
       ["GET", "/kinds", (p, q, body, headers) => kindsList(headers)],
-      ["GET", "/kinds/{kind}", (p) => {
-        const k = kinds.get(p.kind);
-        return k ? { status: 200, body: clone(k), headers: { ETag: kinds.etag() } } : notFound(`Вид ${p.kind}`);
-      }],
+      ["GET", "/kinds/{kind}", (p, q, body, headers) => kindOne(p.kind, headers)],
       ["GET", "/units", (p, q) => unitsPage(q)],
       ["GET", "/units/{uid}", (p) => {
         const u = store.get(p.uid);
@@ -4213,6 +4429,10 @@
         const k = kinds.get(u.kind);
         if (!k || !k.schemaPerUnit) return problem(422, "NOT_SUPPORTED", "Схема своя только у объектов вида со schemaPerUnit: у остальных — схема вида, GET /kinds/{kind}");
         return { status: 200, body: kinds.unitSchema(u.kind, u.properties), headers: { ETag: `"${u.version}"` } };
+      }],
+      ["POST", "/units/{uid}/setup-ui", (p, q, body, headers) => {
+        const u = store.get(p.uid);
+        return u ? setupUiLink(u, headers) : notFound("Объект");
       }],
       ["GET", "/units/{uid}/creatable", (p) => {
         const u = store.get(p.uid);
@@ -5061,7 +5281,15 @@
         return pageList(q, `access/roles/${p.id}/objects`, rows, (x) => x.objectId, clone);
       }],
       ["GET", "/settings", () => one(clone(db.settings))],
-      ["GET", "/licenses", () => items(clone(db.licenses))],
+      ["GET", "/licenses", (p, q) => licensesList(q)],
+      ["GET", "/licenses/keys", () => items(licenseKeys().map(keyOut))],
+      ["POST", "/licenses/keys", (p, q, body) => keyCreate(body)],
+      ["GET", "/licenses/keys/{id}", (p) => {
+        const k = licenseKeys().find((x) => x.id === p.id);
+        return k ? one(keyOut(k)) : notFound("Ключ лицензии");
+      }],
+      ["PATCH", "/licenses/keys/{id}", (p, q, body, headers) => keyPatch(p.id, body, headers)],
+      ["DELETE", "/licenses/keys/{id}", (p, q, body, headers) => keyDelete(p.id, headers)],
       [
         "GET",
         "/journal",
@@ -5186,7 +5414,8 @@
       ],
       // Ассистент — заглушка с записанными ходами: модели у встроенного сервера нет. Поток — массивом сообщений,
       // клиент отдаёт их по одному, петля пишет строками data:
-      ["POST", "/assist/turns", (p, q, body) => ({ status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } })],
+      ["POST", "/files", (p, q, body, headers) => fileUpload(q, body, headers)],
+      ["POST", "/assist/turns", (p, q, body) => fileIdsProblem(body.fileIds) || { status: 200, body: assistStub(body), headers: { "Content-Type": "text/event-stream" } }],
       // Поток встроенного сервера — subscribe(); по HTTP его отдаёт петля (tests/loopback-sw.js) или бэкенд
       ["PUT", "/stream/{clientId}/watch", (p, q, body) => {
         const c = clients.get(p.clientId);
@@ -5446,13 +5675,26 @@
           }
           // Событие объекта из описания его вида (UnitKind.events): запускает включённые правила с этим одним событием,
           // уточнение правила (match) — подмножество полей события, сравнение строгое. Шаги-команды объектов выполняются
+          // С 0.18.0: deviceId — детектор (профиль vms.detector/1) под камерой: событие поднимает камера, код события — eventId
+          // или detectorKind детектора, сервер сам пишет в match поле detector (uid детектора), у other — и template встроенного
           if (body.type === "unit.event") {
-            const u = store.get(body.deviceId);
+            let u = store.get(body.deviceId), eventId = body.eventId;
             if (!u) return notFound("Объект");
-            if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === body.eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${body.eventId}`, { field: "eventId" });
-            const match = clone(body.match || {}), ev = { source: "unit", event: body.eventId, match, deviceId: u.uid, at: iso(now()) };
+            const match = clone(body.match || {});
+            // Событие, которое вид детектора объявил сам, остаётся его событием
+            if (kinds.profileOf(u.kind, "vms.detector/1") && !((kinds.get(u.kind) || {}).events || []).some((e) => e.id === eventId)) {
+              const cam = u.parentId ? store.get(u.parentId) : null;
+              if (!cam || !kinds.profileOf(cam.kind, "vms.camera/1")) return problem(422, "VALIDATION_FAILED", "Детектор не под камерой", { field: "deviceId" });
+              if (eventId && eventId !== props(u).detectorKind) return problem(422, "VALIDATION_FAILED", `Детектор вида ${props(u).detectorKind} не поднимает событие ${eventId}`, { field: "eventId" });
+              eventId = props(u).detectorKind;
+              match.detector = u.uid;
+              if (eventId === "other" && props(u).template && !("template" in match)) match.template = props(u).template;
+              u = cam;
+            }
+            if (!((kinds.get(u.kind) || {}).events || []).some((e) => e.id === eventId)) return problem(422, "VALIDATION_FAILED", `У вида ${u.kind} нет события ${eventId}`, { field: "eventId" });
+            const ev = { source: "unit", event: eventId, match, deviceId: u.uid, at: iso(now()) };
             const fits = (t) => Object.entries(t.match || {}).every(([k, v]) => k in match && JSON.stringify(match[k]) === JSON.stringify(v));
-            db.rules.filter((r) => ruleHears(r, (t) => engine.hears(t, body.eventId, u.uid) && fits(t)))
+            db.rules.filter((r) => ruleHears(r, (t) => engine.hears(t, eventId, u.uid) && fits(t)))
               .forEach((r) => fireDo(ruleStart(r, { via: "event", events: [ev], src: [u.uid] })));
             return { status: 200, body: { applied: true } };
           }

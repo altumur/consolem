@@ -158,6 +158,16 @@
     assert.ok(!(await run("3")).checks.some((c) => c.code === "event.came"), "строка — другое значение");
   });
 
+  test("Пробный запуск: поля из уточнения нет в событии — не совпало (event.other), как в запуске правил", async () => {
+    const env = await makeEnv();
+    const tr = { source: "unit", kinds: ["camera"], event: "motion", target: dev(cam.id), match: { detectorKind: "motion" } };
+    const made = await env.ok("POST", "/rules", blank({ enabled: false, start: "event", runMode: "always", triggers: [tr] }));
+    const run = (match) => env.ok("POST", "/rules/test", { ruleId: null, rule: body(made), events: [{ source: "unit", event: "motion", deviceId: cam.id, match }], at: null, branches: {}, log: false });
+    const without = (await run({})).checks;
+    assert.ok(!without.some((c) => c.code === "event.came") && without.some((c) => c.code === "event.other"), "без detectorKind — event.other: " + JSON.stringify(without.map((c) => c.code)));
+    assert.ok((await run({ detectorKind: "motion" })).checks.some((c) => c.code === "event.came"), "с полем — совпало");
+  });
+
   /* ----- Действия детектора ----- */
 
   const detect = (over, target) => act("detect", target || dev(cam.id), Object.assign({ detectorKind: "motion", minutes: 10 }, over));
@@ -1019,6 +1029,68 @@
     assert.eq([st.state, st.windowId], ["off", w.window.id], "причина — окно");
     assert.ok(/Окно/.test(st.reason), "причина словами: " + st.reason);
   });
+
+  test("Один детектор в правиле (с 0.18.0): событие детектора несёт match.detector; правило с ним ловит свой детектор, без него — любой; удалённый детектор — в target.gone", async () => {
+    const env = await makeEnv();
+    const ev = (await env.ok("GET", "/kinds/camera")).events.find((e) => e.id === "motion");
+    assert.eq(ev.params?.properties?.detector?.["x-ref"], { implements: ["vms.detector/1"] }, "params.detector у motion с x-ref на детекторы");
+    // Камера с двумя детекторами движения
+    const dets = (await env.pages("/units?kind=det&limit=1000")).filter((u) => u.properties?.detectorKind === "motion");
+    const camId = [...new Set(dets.map((u) => u.parentId))].find((p) => dets.filter((u) => u.parentId === p).length > 1);
+    assert.ok(camId, "в наборе есть камера с двумя детекторами движения");
+    const [d1, d2] = dets.filter((u) => u.parentId === camId);
+    const one = await env.ok("POST", "/rules", onEvent({ triggers: [trig("motion", camId, { detector: d1.uid })] }));
+    const any = await env.ok("POST", "/rules", onEvent({ triggers: [trig("motion", camId)] }));
+    const n1 = (await fireList(env, one.id)).length, nA = (await fireList(env, any.id)).length;
+    assert.status(await unitEvent(env, d2.uid), 200, null, "второй детектор поднял событие");
+    assert.eq([(await fireList(env, one.id)).length, (await fireList(env, any.id)).length], [n1, nA + 1], "второй детектор: правило первого молчит, правило без detector сработало");
+    assert.status(await unitEvent(env, d1.uid), 200, null, "первый детектор поднял событие");
+    const f1 = await fireList(env, one.id);
+    assert.eq(f1.length, n1 + 1, "первый детектор: его правило сработало");
+    const got = f1.find((f) => (f.events || []).some((e) => e.match?.detector === d1.uid)) || f1[f1.length - 1];
+    assert.eq(got.events[0].match.detector, d1.uid, "в событии запуска — detector: uid детектора, его заполнил сервер");
+    assert.eq((await fireList(env, any.id)).length, nA + 2, "правило без detector ловит любой детектор");
+    const wrong = await unitEvent(env, d1.uid, "linecross");
+    assert.status(wrong, 422, "VALIDATION_FAILED", "детектор движения не поднимает linecross");
+    assert.eq(wrong.body.field, "eventId", "field — eventId");
+    // Удалили детектор — правило с его uid получает его в gone
+    const del = await env.call("DELETE", `/units/${d1.uid}`, undefined, { "If-Match": `"${(await env.ok("GET", `/units/${d1.uid}`)).version}"` });
+    assert.ok([200, 202, 204].includes(del.status), "детектор удалён: " + del.status);
+    await ApiTest.settle();
+    const after = await env.ok("GET", `/rules/${one.id}`);
+    assert.ok(!("detector" in after.triggers[0].match) && after.triggers[0].target.gone.includes(d1.name), "удалённый детектор — в target.gone по имени: " + JSON.stringify(after.triggers[0]));
+    assert.eq((await env.ok("GET", `/rules/${any.id}`)).triggers[0].target.gone, [], "правило без detector не задето");
+    // Камеру удалили вместе с её детекторами: в gone — только камера, без лишнего имени детектора
+    const two = await env.ok("POST", "/rules", onEvent({ triggers: [trig("motion", camId, { detector: d2.uid })] }));
+    const cam = await env.ok("GET", `/units/${camId}`);
+    const delCam = await env.call("DELETE", `/units/${camId}`, undefined, { "If-Match": `"${cam.version}"` });
+    assert.ok([200, 202, 204].includes(delCam.status), "камера удалена: " + delCam.status);
+    await ApiTest.settle();
+    const t2 = (await env.ok("GET", `/rules/${two.id}`)).triggers[0];
+    assert.eq([t2.match, t2.target.gone], [{}, [cam.name]], "в gone — только камера");
+  }, { needs: ["kind:camera", "kind:det", "deleteUnit"] });
+
+  test("Один детектор в правиле (с 0.23.0): match.detector при сохранении — не детектор или детектор другой камеры — 422 VALIDATION_FAILED, field match.detector", async () => {
+    const env = await makeEnv();
+    const dets = (await env.pages("/units?kind=det&limit=1000")).filter((u) => u.properties?.detectorKind === "motion");
+    const [d1] = dets;
+    const camId = d1.parentId;
+    const other = (await env.pages("/units?kind=camera&limit=1000")).find((u) => u.uid !== camId);
+    assert.ok(other, "в наборе есть вторая камера");
+    const bad = async (rule, what) => {
+      const r = await env.call("POST", "/rules", rule);
+      assert.status(r, 422, "VALIDATION_FAILED", what);
+      assert.eq(r.body.field, "match.detector", what + ": field");
+    };
+    await bad(onEvent({ triggers: [trig("motion", camId, { detector: "00000000-0000-4000-8000-000000000000" })] }), "нет такого объекта");
+    await bad(onEvent({ triggers: [trig("motion", camId, { detector: camId })] }), "объект не детектор");
+    await bad(onEvent({ triggers: [trig("motion", other.uid, { detector: d1.uid })] }), "детектор другой камеры");
+    const ok = await env.ok("POST", "/rules", onEvent({ triggers: [trig("motion", camId, { detector: d1.uid })] }));
+    assert.eq(ok.triggers[0].match.detector, d1.uid, "детектор своей камеры — правило сохранено");
+    const r = await env.ok("GET", `/rules/${ok.id}`);
+    const put = await env.call("PUT", `/rules/${ok.id}`, Object.assign({}, r, { triggers: [trig("motion", other.uid, { detector: d1.uid })] }), { "If-Match": `"${r.version}"` });
+    assert.status(put, 422, "VALIDATION_FAILED", "PUT: детектор другой камеры");
+  }, { needs: ["kind:camera", "kind:det"] });
 
   ApiTest.loaded("api-automation.js");
 })();

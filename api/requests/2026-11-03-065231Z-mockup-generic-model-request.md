@@ -3,7 +3,7 @@
 - Дата: 2026-11-03
 - Команда: `mockup`
 - Коммит контракта: `9818b3b` (последняя правка `api/openapi.json`; репозиторий на `43c6f71`)
-- Статус: новый
+- Статус: отвечен · [ответ от 2026-11-03](2026-11-03-065231Z-mockup-generic-model-response.md)
 - Задание: [`prompts/api-generic-model.md`](../../prompts/api-generic-model.md)
 - Приложения (инвентарь, метамодели, варианты, прецеденты со ссылками, наброски схем, сценарии, расхождения, самопроверка): [`2026-11-03-065231Z-mockup-generic-model-analysis.md`](2026-11-03-065231Z-mockup-generic-model-analysis.md)
 

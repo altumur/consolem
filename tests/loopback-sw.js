@@ -40,13 +40,18 @@ async function answer(request, path) {
   }
   const headers = {};
   request.headers.forEach((value, name) => (headers[name] = value));
-  const text = await request.text();
-  const res = server.handle(request.method, path, text ? JSON.parse(text) : undefined, headers);
+  // Файл POST /files — байтами, как пришёл, какого бы типа он ни был (и JSON тоже); остальное — JSON
+  const bytes = new Uint8Array(await request.arrayBuffer());
+  const text = request.method === "POST" && path.split("?")[0] === "/files" ? null : new TextDecoder().decode(bytes);
+  const res = server.handle(request.method, path, text === null ? (bytes.length ? bytes : undefined) : text ? JSON.parse(text) : undefined, headers);
   const out = new Headers(res.headers || {});
   if (out.get("Content-Type") === "text/event-stream") {
     return new Response(res.body.map((m) => `data: ${JSON.stringify(m)}\n\n`).join(""), { status: res.status, headers: out });
   }
   if (res.status === 204 || res.body === null || res.body === undefined) return new Response(null, { status: res.status, headers: out });
+  // Файл (выгрузка журнала, text/csv) — тело как есть, со своим типом, как у tools/serve_api.mjs
+  const type = out.get("Content-Type") || "";
+  if (res.status < 400 && type && !/json/.test(type) && typeof res.body === "string") return new Response(res.body, { status: res.status, headers: out });
   out.set("Content-Type", res.status >= 400 ? "application/problem+json" : "application/json");
   return new Response(JSON.stringify(res.body), { status: res.status, headers: out });
 }

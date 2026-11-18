@@ -33,7 +33,8 @@
        "lang": "ru"
       },
       "type": "string",
-      "description": "Лицензия домена; пусто — общая"
+      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
+      "deprecated": true
      }
     }
    }
@@ -2687,6 +2688,41 @@
       "description": "configMode: template. Копируются разрешение и частота кадров потоков, сами потоки, firmware. Адрес, логин, пароль, имя, записи, папки, детекторы, norm — нет. Другая модель или нет камеры — 422 VALIDATION_FAILED, field: templateId",
       "x-immutable": true,
       "x-transient": true
+     },
+     "privacyMasks": {
+      "x-label": {
+       "key": "field.privacyMasks",
+       "text": "Маска приватности",
+       "lang": "ru"
+      },
+      "type": "array",
+      "maxItems": 16,
+      "items": {
+       "type": "object",
+       "additionalProperties": false,
+       "required": [
+        "points"
+       ],
+       "properties": {
+        "points": {
+         "type": "array",
+         "minItems": 3,
+         "maxItems": 64,
+         "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+           "type": "number",
+           "minimum": 0,
+           "maximum": 1
+          }
+         },
+         "description": "Вершины многоугольника: [x, y] в долях кадра, 0 — левый или верхний край, 1 — правый или нижний"
+        }
+       }
+      },
+      "description": "С 0.17.0. Области маски приватности на кадре камеры: до 16 многоугольников, у каждого от 3 до 64 вершин. Маска закрывает области в живом видео и в архиве для тех, у кого нет права ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE (reference.access.features). Это право снимает маску и в живом видео, и в архиве. Сервер хранит архив без маски: маску накладывают при показе. Маска привязана к кадру, а не к положению PTZ. Нет поля или пустой список — маски нет"
      }
     }
    },
@@ -3436,6 +3472,26 @@
      "ends": true,
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3447,6 +3503,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3456,9 +3532,28 @@
       "text": "Оставленный предмет",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3468,9 +3563,28 @@
       "text": "Исчезновение предмета",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3480,9 +3594,28 @@
       "text": "Скопление людей",
       "lang": "ru"
      },
-     "rule": false,
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3494,6 +3627,26 @@
      },
      "right": {
       "level": "FULL"
+     },
+     "params": {
+      "type": "object",
+      "properties": {
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
+       }
+      }
      }
     },
     {
@@ -3519,6 +3672,21 @@
       "properties": {
        "template": {
         "type": "string"
+       },
+       "detector": {
+        "type": "string",
+        "format": "uuid",
+        "x-ref": {
+         "implements": [
+          "vms.detector/1"
+         ]
+        },
+        "x-label": {
+         "key": "field.detector",
+         "text": "Детектор",
+         "lang": "ru"
+        },
+        "description": "С 0.18.0. uid детектора камеры (вид с профилем vms.detector/1), который поднял событие. Заполняет сервер. Правило с match.detector ловит только этот детектор; без него — любой детектор этого вида на камере. Детектор удалили — правило получает его в target.gone"
        }
       }
      },
@@ -4485,9 +4653,10 @@
         "enum": [
          "rect",
          "polygon",
-         "line"
+         "line",
+         "polyline"
         ],
-        "description": "rect, line — две точки, polygon — от трёх. Иначе 422 VALIDATION_FAILED, field: zone"
+        "description": "rect, line — две точки, polygon — от трёх, polyline (с 0.15.0) — ломаная из 2–64 точек, не замкнута. Иначе 422 VALIDATION_FAILED, field: zone"
        },
        "points": {
         "type": "array",
@@ -4500,6 +4669,68 @@
           "maximum": 1
          }
         }
+       },
+       "name": {
+        "x-label": {
+         "key": "field.zoneName",
+         "text": "Название",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 64,
+        "description": "С 0.15.0. Название зоны или подпись линии на кадре. Нет поля — без названия"
+       },
+       "description": {
+        "x-label": {
+         "key": "field.zoneDescription",
+         "text": "Описание",
+         "lang": "ru"
+        },
+        "type": "string",
+        "maxLength": 256,
+        "description": "С 0.15.0. Нет поля — без описания"
+       },
+       "frontEdge": {
+        "x-label": {
+         "key": "field.frontEdge",
+         "text": "Передняя сторона",
+         "lang": "ru"
+        },
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 63,
+        "description": "С 0.15.0. Только polygon: номер передней стороны — отрезок от точки с этим номером к следующей (последняя — к первой). Номер не меньше числа точек — 422 VALIDATION_FAILED, params.reason: frontEdge. Нет поля — у зоны нет передней стороны"
+       },
+       "crossing": {
+        "x-label": {
+         "key": "field.crossing",
+         "text": "Пересечение границы",
+         "lang": "ru"
+        },
+        "type": "string",
+        "enum": [
+         "in",
+         "out",
+         "both"
+        ],
+        "x-enum-labels": {
+         "in": {
+          "key": "enum.crossing.in",
+          "text": "Внутрь",
+          "lang": "ru"
+         },
+         "out": {
+          "key": "enum.crossing.out",
+          "text": "Наружу",
+          "lang": "ru"
+         },
+         "both": {
+          "key": "enum.crossing.both",
+          "text": "В обе стороны",
+          "lang": "ru"
+         }
+        },
+        "description": "С 0.15.0. Только polygon: детектор срабатывает, когда объект пересекает границу зоны в этом направлении. Нет поля — как раньше: зона — область, границу детектор не судит"
        }
       },
       "required": [
@@ -6019,6 +6250,7 @@
     "preRecordSec",
     "presetMax",
     "presets",
+    "privacyMasks",
     "ptz",
     "recordDetectorIds",
     "recordMode",
@@ -9482,6 +9714,28 @@
       "sensitivityMax": 90,
       "conflicts": [
        "tmpl.tamper"
+      ]
+     }
+    ],
+    "privacyMasks": [
+     {
+      "points": [
+       [
+        0.62,
+        0.08
+       ],
+       [
+        0.94,
+        0.08
+       ],
+       [
+        0.94,
+        0.42
+       ],
+       [
+        0.62,
+        0.42
+       ]
       ]
      }
     ]
@@ -25010,6 +25264,7 @@
   }
  },
  "licenses": [],
+ "licenseKeys": [],
  "journal": [
   {
    "id": "c0000004-0000-4000-8000-000000000000",
@@ -25027,6 +25282,7 @@
   {
    "id": "c0000005-0000-4000-8000-000000000000",
    "at": "2026-10-28T17:24:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Движение · Главный вход в нерабочее время",
    "source": "cam",
@@ -25038,6 +25294,7 @@
   {
    "id": "c0000006-0000-4000-8000-000000000000",
    "at": "2026-10-28T17:01:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Сервер — Цех: синхронизация времени",
    "source": "cam",
@@ -25061,6 +25318,7 @@
   {
    "id": "c0000008-0000-4000-8000-000000000000",
    "at": "2026-10-28T16:15:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Нет связи с «Сервер — КПП»",
    "source": "cam",
@@ -25071,6 +25329,7 @@
   {
    "id": "c0000009-0000-4000-8000-000000000000",
    "at": "2026-10-28T15:52:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Экспорт завершён: 00:04:12",
    "source": "cam",
@@ -25094,6 +25353,7 @@
   {
    "id": "c0000011-0000-4000-8000-000000000000",
    "at": "2026-10-28T15:06:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Пересечение линии · Периметр 2",
    "source": "cam",
@@ -25105,6 +25365,7 @@
   {
    "id": "c0000012-0000-4000-8000-000000000000",
    "at": "2026-10-28T14:43:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Обновлена прошивка Dahua NVR",
    "source": "cam",
@@ -25115,6 +25376,7 @@
   {
    "id": "c0000014-0000-4000-8000-000000000000",
    "at": "2026-10-28T13:57:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Лицензия превышена: Переговорная",
    "source": "cam",
@@ -25126,6 +25388,7 @@
   {
    "id": "c0000015-0000-4000-8000-000000000000",
    "at": "2026-10-28T13:34:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Сетевой архив — NAS: 37% занято",
    "source": "cam",
@@ -25149,6 +25412,7 @@
   {
    "id": "c0000017-0000-4000-8000-000000000000",
    "at": "2026-10-28T12:48:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Оставленный предмет · Парковка",
    "source": "cam",
@@ -25160,6 +25424,7 @@
   {
    "id": "c0000018-0000-4000-8000-000000000000",
    "at": "2026-10-28T12:25:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Резервное копирование конфигурации",
    "source": "cam",
@@ -25183,6 +25448,7 @@
   {
    "id": "c0000020-0000-4000-8000-000000000000",
    "at": "2026-10-28T11:39:00Z",
+   "actor": "система",
    "category": "alarm",
    "text": "Дверь склада · open вне графика",
    "source": "cam",
@@ -25207,6 +25473,7 @@
   {
    "id": "c0000024-0000-4000-8000-000000000000",
    "at": "2026-10-28T10:07:00Z",
+   "actor": "система",
    "category": "info",
    "text": "Диск D: 68% — в пределах нормы",
    "source": "cam",
@@ -27127,7 +27394,17 @@
    "selectMax": 500,
    "watchMax": 200,
    "scanPartsMax": 8,
-   "scenariosMax": 1000
+   "scenariosMax": 1000,
+   "fileMaxBytes": 10485760,
+   "filesPerTurnMax": 5,
+   "fileTypes": [
+    "image/png",
+    "image/jpeg",
+    "application/pdf",
+    "text/plain",
+    "text/csv",
+    "application/json"
+   ]
   },
   "capabilities": {
    "operations": [
@@ -27180,6 +27457,7 @@
     "listJournalFacets",
     "exportJournal",
     "listJournalKinds",
+    "uploadFile",
     "stream",
     "deleteObjects",
     "applyAccess",
@@ -27245,6 +27523,7 @@
     "getExportFileLink",
     "getCreatable",
     "getUnitSchema",
+    "openUnitSetupUi",
     "validateUnits"
    ],
    "features": [
@@ -27292,6 +27571,21 @@
    "disappeared",
    "crowd",
    "lpr"
+  ],
+  "analyticsConflicts": [
+   {
+    "analyticsKind": "faceTV",
+    "conflicts": [
+     "faceVA",
+     "faceVL"
+    ]
+   },
+   {
+    "analyticsKind": "faceVA",
+    "conflicts": [
+     "faceVL"
+    ]
+   }
   ],
   "export": {
    "formats": [

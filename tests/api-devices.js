@@ -419,13 +419,62 @@
     const face = await addDet(env, c, "Лица", { builtin: true, template: "tmpl.face", detectorKind: "other", enabled: false });
     const res = await props(env, face, { enabled: true });
     field(res, "BUSY", P("enabled"), "вместе нельзя", 409);
-    assert.eq([res.body.params.reason, res.body.params.with], ["incompatible", t.uid], "причина и с кем");
+    assert.eq([res.body.params.reason, res.body.params.with], ["incompatible", [t.uid]], "причина и с кем (с 0.22.0 — массив)");
     const op = await env.runOperation({ idempotencyKey: key(), items: [{ uid: face.uid, patch: { properties: { enabled: true } } }], expectedVersions: { [face.uid]: face.version } });
     assert.eq([op.items[0].code, op.items[0].params.reason], ["BUSY", "incompatible"], "по шагу");
     const off = await env.ok("PATCH", U(t.uid), { properties: { enabled: false } }, v(t));
     assert.eq(off.properties.enabled, false, "выключили первый");
     assert.eq((await env.ok("PATCH", U(face.uid), { properties: { enabled: true } }, v(face))).properties.enabled, true, "теперь можно");
   }, { needs: ["createUnits", "patchUnit", "kind:det"] });
+
+  test("Несовместимые виды серверных детекторов (с 0.21.0): reference.analyticsConflicts; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    const tv = (ref.analyticsConflicts || []).find((c) => c.analyticsKind === "faceTV");
+    assert.ok(tv && tv.conflicts.includes("faceVA"), "лица TV и VA — в справочнике");
+    const FACE = ["faceTV", "faceVA", "faceVL"];
+    // Чистый стенд: включённые детекторы лиц из набора выключены
+    for (const d of (await env.pages("/units?kind=det&limit=1000")).filter((u) => FACE.includes(u.properties.analyticsKind) && u.properties.enabled !== false)) {
+      await env.ok("PATCH", U(d.uid), { properties: { enabled: false } }, v(d));
+    }
+    const up = new Set(FX.servers.filter((x) => x.allocated && x.online).map((x) => x.id));
+    const cams = (await env.pages("/units?kind=camera&limit=1000")).filter((u) => up.has(u.properties.serverId) && u.status.link === "online");
+    const a = cams[0], same = cams.find((u) => u !== a && u.properties.serverId === a.properties.serverId), other = cams.find((u) => u.properties.serverId !== a.properties.serverId);
+    assert.ok(same && other, "две камеры одного сервера и камера другого");
+    const face = (ak, extra) => Object.assign({ detectorKind: "other", analyticsKind: ak }, extra);
+    const va = await addDet(env, a, "Лица VA", face("faceVA"));
+    // Создание включённого рядом с включённым несовместимым
+    const res = await create(env, det(same, "Лица TV", face("faceTV")));
+    assert.eq(res.failed.map((x) => [x.code, x.field]), [["BUSY", P("analyticsKind")]], "создать нельзя");
+    assert.eq([res.failed[0].params.reason, res.failed[0].params.with], ["incompatible", [va.uid]], "причина и кто мешает");
+    // Выключенный создаётся, включить нельзя: запрос и шаг операции
+    const tvOff = await addDet(env, same, "Лица TV", face("faceTV", { enabled: false }));
+    const on = await props(env, tvOff, { enabled: true });
+    field(on, "BUSY", P("enabled"), "включить нельзя", 409);
+    assert.eq([on.body.params.reason, on.body.params.with], ["incompatible", [va.uid]], "включение: причина и кто мешает");
+    const op = await env.runOperation({ idempotencyKey: key(), items: [{ uid: tvOff.uid, patch: { properties: { enabled: true } } }], expectedVersions: { [tvOff.uid]: tvOff.version } });
+    assert.eq([op.items[0].code, op.items[0].params.reason, op.items[0].params.with], ["BUSY", "incompatible", [va.uid]], "по шагу");
+    // Смена вида включённого детектора на несовместимый
+    const meta = await addDet(env, same, "Мета", face("meta"));
+    field(await props(env, meta, { analyticsKind: "faceVL" }), "BUSY", P("analyticsKind"), "сменить вид нельзя", 409);
+    // Новая камера с детектором в той же строке: сервер — serverId камеры
+    const kid = (ak) => ({ kind: "det", name: "Лица", properties: face(ak) });
+    const fresh = await create(env, newCam({ ip: "10.9.9.31", serverId: a.properties.serverId }, { children: [kid("faceTV")] }));
+    assert.eq([fresh.failed.map((x) => x.code), (fresh.failed[0] || {}).params], [["BUSY"], { reason: "incompatible", with: [va.uid] }], "новая камера того же сервера: детектор лиц TV не заводится");
+    // Два несовместимых детектора в одной строке новой камеры: второй не заводится, with пуст — у соседа ещё нет uid
+    const pair = await create(env, newCam({ ip: "10.9.9.32", serverId: other.properties.serverId }, { children: [kid("faceVL"), kid("faceTV")] }));
+    assert.eq([pair.failed.map((x) => x.code), ((pair.failed[0] || {}).params || {}).with], [["BUSY"], []], "два пакета в одной строке");
+    // На другом сервере пакет свой
+    const far = await addDet(env, other, "Лица TV", face("faceTV"));
+    assert.eq(far.properties.enabled !== false, true, "на другом сервере — можно");
+    // Перенос камеры на сервер, где работает другой пакет
+    const moved = await props(env, other, { serverId: a.properties.serverId });
+    field(moved, "BUSY", P("serverId"), "камеру с детектором лиц TV не перенести к детектору лиц VA", 409);
+    assert.eq(moved.body.params.with, [va.uid], "перенос: кто мешает");
+    // Выключили мешающий — теперь можно
+    await env.ok("PATCH", U(va.uid), { properties: { enabled: false } }, v(va));
+    assert.eq((await env.ok("PATCH", U(tvOff.uid), { properties: { enabled: true } }, v(tvOff))).properties.enabled, true, "мешающий выключен — включили");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.analyticsKind"] });
 
   test("Зона: rect, polygon, line в долях кадра, неверная — 422 field: /properties/zone; два детектора одного вида; stream и params серверного", async () => {
     const env = await makeEnv();
@@ -529,6 +578,28 @@
     assert.eq(Object.keys(good).map((n) => ok.properties[n]), Object.values(good), "верные сохранены");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
 
+  // prop:det.recordTracks в needs — знак, что сервер знает 0.13.0: без него этих свойств det нет, и тест пропускается
+  test("recordMask, recordTracks, showMask, showTracks, showTrackLifespan (0.13.0): нет поля — нет ключа; true и false сохраняются; не boolean — 422 type; null снимает", async () => {
+    const env = await makeEnv();
+    const REC = ["recordMask", "recordTracks", "showMask", "showTracks", "showTrackLifespan"];
+    const d = await addDet(env, camU, "Запись и показ", { detectorKind: "motion", sensitivity: 10 });
+    assert.eq(REC.filter((n) => n in d.properties), [], "без полей — ключей нет: действуют умолчания");
+    for (const n of REC) {
+      const res = await props(env, d, { [n]: "yes" });
+      field(res, "VALIDATION_FAILED", P(n), `${n}: строка`);
+      assert.eq(res.body.params.keyword, "type", `${n}: слово схемы`);
+    }
+    const good = { recordMask: false, recordTracks: false, showMask: false, showTracks: true, showTrackLifespan: true };
+    const ok = await env.ok("PATCH", U(d.uid), { properties: good }, v(d));
+    assert.eq(REC.map((n) => ok.properties[n]), REC.map((n) => good[n]), "сохранены");
+    const again = await get(env, d.uid);
+    assert.eq(REC.map((n) => again.properties[n]), REC.map((n) => good[n]), "и при чтении");
+    const gone = await env.ok("PATCH", U(d.uid), { properties: Object.fromEntries(REC.map((n) => [n, null])) }, v(again));
+    assert.eq(REC.filter((n) => n in gone.properties), [], "null снимает: снова умолчания");
+    const tr = await addDet(env, camU, "Трекер с записью", { detectorKind: "other", analyticsKind: "tracker", sensitivity: 60, recordTracks: false, showTracks: true });
+    assert.eq([tr.properties.recordTracks, tr.properties.showTracks], [false, true], "и при создании");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.recordTracks"] });
+
   // kind:subdet в needs — знак, что сервер знает 0.12.0: без него этих свойств det нет, и тест пропускается
   test("analyticsKind: только при detectorKind other — иначе 422; detectorKind: motion у трекера проходит, поле остаётся без действия", async () => {
     const env = await makeEnv();
@@ -592,7 +663,7 @@
     field(await props(env, en2, { zone: { shape: "line", points: [[0.1, 0.1], [0.9, 0.9]] } }), "VALIDATION_FAILED", P("zone"), "правила формы — как раньше");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
 
-  test("Поддетектор: геометрия по виду (line — line, a2a — rect/polygon и zoneTo, остальные — rect/polygon); speed min выше max — 422; objectSize — additionalProperties; subdetectorKind не меняется", async () => {
+  test("Поддетектор: геометрия по виду (line — line, a2a — rect/polygon и zoneTo, остальные — rect/polygon); speed min выше max — 422; subdetectorKind не меняется", async () => {
     const env = await makeEnv();
     const t = await addDet(env, camU, "Трекер", { detectorKind: "other", analyticsKind: "tracker" });
     const line = { shape: "line", points: [[0.1, 0.1], [0.9, 0.9]] };
@@ -613,14 +684,67 @@
     field(await props(env, mv, { speed: { min: 200 } }), "VALIDATION_FAILED", P("speed/min"), "правка: min выше сохранённого max");
     field(await props(env, ln, { zone: { shape: "polygon", points: TRI } }), "VALIDATION_FAILED", P("zone"), "правка: линия стала областью");
     field(await props(env, a2a, { zoneTo: null }), "VALIDATION_FAILED", P("zoneTo"), "правка: a2a без zoneTo");
-    const sz = await props(env, mv, { objectSize: { min: [0.1, 0.1] } });
-    assert.status(sz, 422, "VALIDATION_FAILED", "objectSize у поддетектора");
-    assert.eq([sz.body.field, sz.body.params.keyword], [P("objectSize"), "additionalProperties"], "размер берётся у детектора");
     const kind = await props(env, mv, { subdetectorKind: "stop" });
     assert.status(kind, 422, "VALIDATION_FAILED", "subdetectorKind не меняется");
     const ren = await env.ok("PATCH", U(mv.uid), { name: "Новое имя", properties: { enabled: false, timeMode: "lt", timeSec: 7 } }, v(mv));
     assert.eq([ren.name, ren.properties.enabled, ren.properties.timeMode, ren.properties.timeSec], ["Новое имя", false, "lt", 7], "имя, enabled и время правятся");
   }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet"] });
+
+  /* ===== Свойства детектора и поддетектора (контракт 0.15.0) ===== */
+
+  // prop:det.scanWindow и prop:subdet.lostObjectType в needs — знак, что сервер знает 0.15.0: без них тест пропускается
+  test("Свойства детектора и поддетектора 0.15.0: без полей — как раньше; новые сохраняются; null снимает; frontEdge и шаг окна проверяются", async () => {
+    const env = await makeEnv();
+    const NEW = ["detectUnattendedObjects", "humanSize", "speedCalibArea", "cameraPosition", "similarSearch", "similarTrackSec", "minTriggers", "scanWindow"];
+    const t = await addDet(env, camU, "Трекер 0.15", { detectorKind: "other", analyticsKind: "tracker", sensitivity: 60 });
+    assert.eq(NEW.filter((n) => n in t.properties), [], "без полей — ключей нет");
+    const good = { detectUnattendedObjects: false, humanSize: [0.05, 0.2], speedCalibArea: [[0.1, 0.6], [0.9, 0.6], [0.8, 0.9], [0.2, 0.9]], cameraPosition: "ceiling",
+      similarSearch: true, similarTrackSec: 4, minTriggers: 4, scanWindow: { width: 640, height: 480, stepWidth: 320 } };
+    const ok = await env.ok("PATCH", U(t.uid), { properties: good }, v(t));
+    assert.eq(NEW.map((n) => ok.properties[n]), NEW.map((n) => good[n]), "сохранены");
+    field(await props(env, ok, { cameraPosition: "floor" }), "VALIDATION_FAILED", P("cameraPosition"), "незнакомое положение");
+    field(await props(env, ok, { speedCalibArea: good.speedCalibArea.slice(0, 3) }), "VALIDATION_FAILED", P("speedCalibArea"), "три точки");
+    field(await props(env, ok, { minTriggers: 1 }), "VALIDATION_FAILED", P("minTriggers"), "меньше двух");
+    const step = await props(env, ok, { scanWindow: { width: 100, height: 100, stepWidth: null, stepHeight: 200 } });
+    field(step, "VALIDATION_FAILED", P("scanWindow/stepHeight"), "шаг выше окна");
+    assert.eq(step.body.params.reason, "stepAboveWindow", "reason шага");
+    // Зоны: ломаная, название, передняя сторона, пересечение границы
+    const poly = { shape: "polyline", points: [[0.1, 0.5], [0.4, 0.4], [0.7, 0.6], [0.9, 0.5]], name: "Забор" };
+    const zoned = await env.ok("PATCH", U(ok.uid), { properties: { zone: poly, direction: "ab", extraZones: [{ type: "in", points: TRI, name: "Касса", description: "У входа", frontEdge: 2, crossing: "in" }] } }, v(ok));
+    assert.eq([zoned.properties.zone, zoned.properties.extraZones[0].frontEdge, zoned.properties.extraZones[0].crossing], [poly, 2, "in"], "ломаная и свойства зоны сохранены");
+    const fe = await props(env, zoned, { extraZones: [{ type: "in", points: TRI, frontEdge: 3 }] });
+    field(fe, "VALIDATION_FAILED", P("extraZones/0/frontEdge"), "сторона за числом точек");
+    assert.eq(fe.body.params.reason, "frontEdge", "reason frontEdge");
+    field(await props(env, zoned, { zone: { shape: "polygon", points: TRI, frontEdge: 5 } }), "VALIDATION_FAILED", P("zone/frontEdge"), "и у zone");
+    const long = { shape: "polyline", points: Array.from({ length: 65 }, (_, i) => [i / 100, 0.5]) };
+    field(await props(env, zoned, { zone: long }), "VALIDATION_FAILED", P("zone"), "ломаная из 65 точек");
+    const gone = await env.ok("PATCH", U(zoned.uid), { properties: Object.fromEntries(NEW.map((n) => [n, null])) }, v(zoned));
+    assert.eq(NEW.filter((n) => n in gone.properties), [], "null снимает");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "prop:det.scanWindow"] });
+
+  test("Поддетектор 0.15.0: stripe — линия или ломаная; свой objectSize; диапазон multi; lostObjectType; свои extraZones; direction у a2a", async () => {
+    const env = await makeEnv();
+    const t = await addDet(env, camU, "Трекер 0.15", { detectorKind: "other", analyticsKind: "tracker" });
+    const poly = { shape: "polyline", points: [[0.1, 0.5], [0.5, 0.4], [0.9, 0.5]] };
+    const st = await addSub(env, t, "stripe", { zone: poly, width: 7.5, showLine: false, direction: "ba" });
+    assert.eq([st.properties.subdetectorKind, st.properties.width, st.properties.showLine, st.properties.zone.shape], ["stripe", 7.5, false, "polyline"], "полоса на ломаной");
+    const ln = await addSub(env, t, "line", { zone: poly });
+    assert.eq(ln.properties.zone.shape, "polyline", "линия — тоже ломаной");
+    assert.eq(await failedOf(env, sub(t, "stripe", { zone: { shape: "polygon", points: TRI } })), [["VALIDATION_FAILED", P("zone")]], "полоса: нужна линия");
+    assert.eq(await failedOf(env, sub(t, "enter", { zone: poly })), [["VALIDATION_FAILED", P("zone")]], "область: ломаную нельзя");
+    const ab = await addSub(env, t, "abandoned", { timeSec: 10, lostObjectType: "taken", objectSize: { min: [0.01, 0.01], max: [0.2, 0.2] },
+      extraZones: [{ type: "ex", points: TRI }] });
+    assert.eq([ab.properties.lostObjectType, ab.properties.objectSize.max, ab.properties.extraZones.length], ["taken", [0.2, 0.2], 1], "свой размер и исключения");
+    field(await props(env, ab, { objectSize: { min: [0.5, 0.5], max: [0.1, 0.1] } }), "VALIDATION_FAILED", P("objectSize/min"), "размер: min выше max");
+    field(await props(env, ab, { lostObjectType: "lost" }), "VALIDATION_FAILED", P("lostObjectType"), "незнакомый тип");
+    const mu = await addSub(env, t, "multi", { minObjects: 2, maxObjects: 10, rangeMode: "out", cooldownSec: 5, confirmFrames: 3, extraZones: [{ type: "in", points: TRI }] });
+    assert.eq([mu.properties.maxObjects, mu.properties.rangeMode, mu.properties.cooldownSec, mu.properties.confirmFrames], [10, "out", 5, 3], "диапазон multi");
+    const rng = await props(env, mu, { maxObjects: 1 });
+    field(rng, "VALIDATION_FAILED", P("minObjects"), "конец ниже начала");
+    assert.eq(rng.body.params.reason, "minAboveMax", "reason диапазона");
+    const a2a = await addSub(env, t, "a2a", { zoneTo: { points: [[0.6, 0.6], [0.9, 0.6], [0.9, 0.9]] }, direction: "both" });
+    assert.eq(a2a.properties.direction, "both", "направление между зонами");
+  }, { needs: ["createUnits", "patchUnit", "kind:det", "kind:subdet", "prop:subdet.lostObjectType"] });
 
   test("Поддетектор: правка без If-Match — 428, чужая версия — 412 с current", async () => {
     const env = await makeEnv();

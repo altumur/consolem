@@ -54,7 +54,10 @@ UiCheck(async ({ ok, until, sleep }) => {
   refuse = 503;
   pick(cams[2].id);
   watchSoon();
-  ok(await until(() => puts.length === 4), "PUT ушёл");
+  // Сбор фактов для редкого сбоя под нагрузкой (самопроверка против стенда): нет PUT за 20 с — медленно или совсем нет
+  const putOk = await until(() => puts.length === 4);
+  const putLate = putOk || (await until(() => puts.length >= 4, 60000));
+  ok(putOk, "PUT ушёл" + (putOk ? "" : `: за 20 с нет, ещё через 60 с — ${putLate ? "ушёл (медленно)" : "нет"}; PUT всего: ${puts.length}`));
   await sleep(100);
   ok(!reopened && streamClient === client1, "отказ не 404 поток не переоткрывает");
 

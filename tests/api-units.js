@@ -73,6 +73,62 @@
     return `видов ${res.body.items.length}`;
   }, { needs: ["listKinds", "getKind"] });
 
+  test("Кэш описаний 0.16.0: Vary: Accept-Language у /kinds и /kinds/{kind}; у вида If-None-Match — 304", async () => {
+    const env = await makeEnv();
+    const list = await env.call("GET", "/kinds");
+    const one = await env.call("GET", kindPath(CONTROLLER));
+    assert.eq([list.headers.vary, one.headers.vary], ["Accept-Language", "Accept-Language"], "Vary у списка и у вида");
+    const again = await env.call("GET", kindPath(CONTROLLER), undefined, { "If-None-Match": one.headers.etag });
+    assert.status(again, 304, null, "вид с тем же ETag");
+    assert.eq([again.headers.etag, again.headers.vary], [one.headers.etag, "Accept-Language"], "в 304 — тот же ETag и Vary");
+    assert.status(await env.call("GET", kindPath(CONTROLLER), undefined, { "If-None-Match": '"other"' }), 200, null, "чужой ETag — описание целиком");
+  }, { needs: ["listKinds", "getKind"] });
+
+  test("Страница плагина 0.16.0: POST /units/{uid}/setup-ui — адрес на одно открытие; отметка setupUi в capabilities; 404 и 403", async () => {
+    const env = await makeEnv();
+    const ctl = ofKind(CONTROLLER)[0], sensor = ofKind(SENSOR)[0];
+    const a = await env.ok("POST", `/units/${ctl.uid}/setup-ui`, {}, { "Accept-Language": "en-US,en;q=0.9" });
+    const url = new URL(a.url.replace(/^stub:/, "http:"));
+    assert.ok(a.url.startsWith(kindOf(CONTROLLER).setupUi.url + "?"), `постоянный адрес вида с параметрами: ${a.url}`);
+    assert.eq([url.searchParams.get("type"), url.searchParams.get("id"), url.searchParams.get("lang")], [CONTROLLER, ctl.uid, "en"], "вид, объект, язык из Accept-Language");
+    assert.ok(url.searchParams.get("t"), "разовый ключ t");
+    assert.ok(!Number.isNaN(Date.parse(a.expiresAt)), "срок адреса — дата и время");
+    const b = await env.ok("POST", `/units/${ctl.uid}/setup-ui`, {});
+    assert.ok(new URL(b.url.replace(/^stub:/, "http:")).searchParams.get("t") !== url.searchParams.get("t"), "второе открытие — новый ключ");
+    // Вид без постоянного url: адрес — только из этого пути
+    assert.ok(!kindOf(SENSOR).setupUi.url, "у датчика setupUi без url");
+    assert.ok((await env.ok("POST", `/units/${sensor.uid}/setup-ui`, {})).url.includes(`id=${sensor.uid}`), "датчик: адрес с объектом");
+    assert.ok(((await env.ok("GET", unitPath(ctl.uid))).capabilities || []).includes("setupUi"), "у контроллера отметка setupUi");
+    const cam = ofKind("camera")[0];
+    assert.ok(!((await env.ok("GET", unitPath(cam.uid))).capabilities || []).includes("setupUi"), "у камеры страницы плагина нет");
+    assert.status(await env.call("POST", `/units/${cam.uid}/setup-ui`, {}), 404, "NOT_FOUND", "вид без setupUi");
+    assert.status(await env.call("POST", `/units/${UNKNOWN}/setup-ui`, {}), 404, "NOT_FOUND", "нет объекта");
+    // Без права edit на класс вида: отметки нет, путь — 403 с нужным правом
+    const viewer = await makeEnv({ actAs: "elena" });
+    assert.ok(!((await viewer.ok("GET", unitPath(ctl.uid))).capabilities || []).includes("setupUi"), "без права edit отметки нет");
+    const denied = await viewer.call("POST", `/units/${ctl.uid}/setup-ui`, {});
+    assert.status(denied, 403, "PERMISSION_DENIED", "без права edit");
+    assert.eq(denied.body.params.right.level, "edit", "нужен уровень edit");
+  }, { needs: ["openUnitSetupUi", "getUnit"] });
+
+  test("Плагин 0.16.0: x-hidden — поле в properties, правка без него значение не меняет; statusSchema; message и fields в условии", async () => {
+    const env = await makeEnv();
+    const k = kindOf(CONTROLLER), ctl = ofKind(CONTROLLER)[0];
+    const hidden = Object.keys(k.schema.properties).filter((n) => k.schema.properties[n]["x-hidden"]);
+    assert.ok(hidden.length, "у контроллера есть поле x-hidden");
+    const before = await env.ok("GET", unitPath(ctl.uid));
+    assert.ok(hidden.every((n) => n in before.properties), "поле x-hidden сервер отдаёт");
+    assert.status(await patch(env, ctl.uid, { properties: { mode: "manual" } }), 200, null, "правка без скрытого поля");
+    const after = await env.ok("GET", unitPath(ctl.uid));
+    assert.eq(hidden.map((n) => after.properties[n]), hidden.map((n) => before.properties[n]), "скрытое поле не изменилось");
+    assert.ok(k.statusSchema && Object.values(k.statusSchema.properties || {}).every((p) => p["x-label"]), "statusSchema с подписями");
+    const sensor = (await env.pages(`/units?kind=${encodeURIComponent(SENSOR)}&limit=1000`)).find((u) => ((u.status || {}).conditions || []).some((c) => c.message));
+    assert.ok(sensor, "у датчика условие с message");
+    const c = sensor.status.conditions.find((x) => x.message);
+    assert.ok(Array.isArray(c.fields) && c.fields.every((f) => f.startsWith("/properties/")), "fields — JSON Pointer в теле объекта");
+    assert.eq(kindOf(CONTROLLER).events.filter((e) => ["ONLINE", "OFFLINE"].includes(e.id)).map((e) => e.alarm), [false, false], "связь — не тревога");
+  }, { needs: ["getUnit", "patchUnit", "listUnits"] });
+
   test("/units?kind=security_controller/CONTROLLER — объекты набора", async () => {
     const env = await makeEnv();
     const got = await env.pages(`/units?${query({ kind: CONTROLLER })}`);
@@ -777,6 +833,8 @@
     const sa2 = await env.ok("GET", `/units/${a.uid}/schema`);
     assert.eq([sa2.allOf, (sa2.required || []).includes("bufferMs"), (sa2.required || []).includes("model")], [undefined, true, true], "вложенное allOf решено, required слиты с верхним");
     invalid(await patch(env, a.uid, { properties: { bufferMs: 5000 } }), "/properties/bufferMs", "maximum", "tp-100: буфер больше 3000 мс");
+    // 0.16.0: правка — по схеме объекта, поэтому readOnly ветки действует
+    invalid(await patch(env, b.uid, { properties: { bufferMs: 500 } }), "/properties/bufferMs", "readOnly", "tp-200: буфер только для чтения");
     assert.status(await patch(env, a.uid, { properties: { bufferMs: 500 } }), 200, null, "tp-100: буфер в пределах");
   }, { needs: ["getUnitSchema", "patchUnit"] });
 
@@ -959,13 +1017,14 @@
     if (units().some((u) => u.properties && u.properties.subtype)) assert.ok(seen > 0, "в обходе есть узел с подвидом");
   }, { needs: ["getTreeChildren"] });
 
-  test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — не триггеры; other и segment.lost — не тревоги", async () => {
+  test("EventDescriptor.rule и alarm: по умолчанию true; abandoned, disappeared, crowd — триггеры (с 0.17.0); other и segment.lost — не тревоги", async () => {
     const env = await makeEnv();
     const events = (await env.ok("GET", "/kinds/camera")).events;
     assert.eq(events.slice(0, 9).map((e) => e.id), ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "other", "segment.lost"], "порядок событий камеры: прежние первыми");
     assert.ok(["device.lost", "tamper", "plate.list", "alarm.closed", "rec.lost", "arm.off", "ptz.failed"].every((id) => events.some((e) => e.id === id)), "события цепочки правила объявлены");
     const flags = (e) => [e.rule !== false, e.alarm !== false];
-    events.forEach((e) => assert.eq(flags(e), [!["abandoned", "disappeared", "crowd"].includes(e.id), !["other", "segment.lost"].includes(e.id)], `флаги ${e.id}`));
+    events.forEach((e) => assert.eq(flags(e)[1], !["other", "segment.lost"].includes(e.id), `alarm ${e.id}`));
+    ["abandoned", "disappeared", "crowd"].forEach((id) => assert.eq(flags(events.find((e) => e.id === id))[0], true, `rule ${id}`));
     const s = await env.ok("GET", "/settings");
     const tag = { "If-Match": `"${s.version}"` };
     const bad = await env.call("PATCH", "/settings", { values: { "alarms.domain": ["other"] } }, tag);

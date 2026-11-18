@@ -188,7 +188,7 @@
   const key = () => `test-${Date.now().toString(36)}-${++keySeq}`;
 
   // needs — что тесту нужно от системы: operationId, "type:<вид устройства>", "feature:<возможность>",
-  // "kind:<вид объекта>", "implements:<профиль>" (по GET /kinds), "clock" — остановленные часы. Чего нет — тест
+  // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы. Чего нет — тест
   // пропускается (SKIP) и не считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units)
   function test(name, fn, opts) {
     const src = document.currentScript ? (document.currentScript.getAttribute("src") || "").split("/").pop().replace(/\.js$/, "") : "";
@@ -222,6 +222,13 @@
       if (n.startsWith("under:")) return !KINDS || !KINDS.items.some((k) => k.kind === n.slice(6) && (k.createParents || []).length);
       // class:<класс> — класс доступа, который объявляет хоть один вид (access.class или access.also[].class): в профиле «один домен» нет tel
       if (n.startsWith("class:")) return !KINDS || !KINDS.items.some((k) => k.access && [k.access.class].concat((k.access.also || []).map((x) => x.class)).includes(n.slice(6)));
+      // prop:<вид>.<свойство> — свойство есть в схеме вида (GET /kinds): свойства, добавленные позже (запись треков det с 0.13.0),
+      // у системы без них — SKIP, а не провал
+      if (n.startsWith("prop:")) {
+        const [k, f] = n.slice(5).split(".");
+        const x = KINDS && KINDS.items.find((i) => i.kind === k);
+        return !x || !usableKind(k) || !(((x.schema || {}).properties || {})[f]);
+      }
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
       return !CAPS.operations.includes(n);
     });

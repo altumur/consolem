@@ -38,13 +38,34 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(await until(() => main().querySelector(".er-types .er-t.on")?.textContent.includes("Выключена")), "выбранный тип сменился на экране");
   edgeSet(S.all, "type", "all");
   ok(await until(() => st(S.all).replication?.mode === "all") && await camMode(CAM.all) === "replica", "«Забирать всё»: mode all, камере сервер поставил replica");
+  // Прореживание при «Забирать всё»: итог, сводка хранилища и «Вручную» называют его
+  edgeSkipSet(S.all, "key");
+  ok(await until(() => /записи в .*Прореживание кадров: только опорные кадры/.test(main().querySelector("[data-edge-summary]")?.textContent || "")) && !/все записи в/.test(main().querySelector("[data-edge-summary]").textContent), "«Забирать всё» с прореживанием: итог называет его вместо «все записи»");
+  ok(/Только опорные кадры/.test(main().querySelector(".es-mc")?.textContent || "") && /Прореживание кадров: только опорные кадры/.test(text()), "прореживание в сводке хранилища и в «Вручную»");
+  edgeSkipSet(S.all, "none");
+  ok(await until(() => !main().querySelector(".es-mc") && /все записи в/.test(main().querySelector("[data-edge-summary]")?.textContent || "")), "все кадры: «все записи в», без пометки в сводке");
   // Предел скорости
   edgeSet(S.all, "speed", "40");
   ok(await until(() => st(S.all).replication?.speedLimitMbps === 40) && (await srv(S.all)).replication.speedLimitMbps === 40, "предел скорости сохранён на сервере");
 
-  // Хранилище без репликации: ждёт правила; проверки для типа «Выключена» не показаны
+  // Хранилище без постоянной репликации: ждёт правила. Проверки носителя видны всегда: правила и «Забрать период» тоже берут записи
   open(S.off);
-  ok(/Выключена/.test(main().querySelector(".er-types .er-t.on")?.textContent || "") && !main().querySelector(".er-checks"), "тип «Выключена»: проверок носителя нет");
+  ok(/Выключена/.test(main().querySelector(".er-types .er-t.on")?.textContent || "") && main().querySelectorAll(".er-checks .er-ck").length === 2, "тип «Выключена»: проверки носителя видны в «Что забирать»");
+  ok(main().querySelector(".es-dep")?.disabled && /действуют только на неё/.test(text()), "тип «Выключена»: «Куда забирать» и предел скорости недоступны, причина названа");
+  // Порядок вкладки: сначала общее для всех способов, затем способы
+  const heads = [...main().querySelectorAll(".card > .ch")].map((h) => h.firstChild?.textContent || h.textContent);
+  ok(heads.join("|").startsWith("Встроенное хранилище|Что забирать|Постоянная репликация|Репликация по правилам|Вручную|Состояние репликации"), "порядок: хранилище, «Что забирать», постоянная, по правилам, вручную, состояние — " + heads.join(" | "));
+  ok(/Настройка действует на все способы ниже/.test(text()) && main().querySelectorAll(".es-scope .es-chip").length === 3 && main().querySelectorAll(".es-where tbody tr").length === 3, "«Что забирать»: охват — три способа, у каждого своё место записей");
+  // Прореживание кадров (заглушка до контракта): действует на все способы и видно в итогах
+  ok(main().querySelectorAll("#esSel option").length === 7 && document.getElementById("esSel").value === "none", "семь значений прореживания, по умолчанию все кадры");
+  edgeSkipSet(S.off, "key");
+  ok(await until(() => document.getElementById("esSel")?.value === "key"), "выбраны только опорные кадры");
+  ok(/только опорные кадры/.test(main().querySelector("[data-edge-summary]")?.textContent || "") && /только опорные кадры/.test(main().querySelector(".er-rules")?.textContent || "") && main().querySelectorAll(".es-strip .es-k").length === 120, "прореживание видно в итоге постоянной репликации, в правилах и на полосе");
+  edgePullAsk(S.off);
+  ok(/Прореживание кадров: только опорные кадры/.test(document.getElementById("confirm").textContent), "окно «Забрать период» называет прореживание");
+  closeConfirm();
+  edgeSkipSet(S.off, "none");
+  ok(await until(() => document.getElementById("esSel")?.value === "none") && !/Прореживание кадров:/.test(main().querySelector("[data-edge-summary]")?.textContent || ""), "все кадры: итоги ничего не добавляют");
   ok(/ждёт запуска/.test(text()) && /в очереди/.test(text()) && /сервер забрал/.test(text()), "пропуск в очереди ждёт правила, прежний забран");
   // Тип «Забирать всё» с хранилища без выбранного архива: консоль берёт архив камеры
   edgeSet(S.off, "type", "all");
@@ -182,7 +203,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   if (CSS.supports("selector(::details-content)")) {
     open(S.all);
     const adv = main().querySelector(".er-adv");
-    ok(adv && /block-size/.test(getComputedStyle(adv, "::details-content").transitionProperty), "«Дополнительно» раскрывается плавно (высота анимируется)");
+    ok(adv && /block-size/.test(getComputedStyle(adv, "::details-content").transitionProperty), "«Предел скорости» раскрывается плавно (высота анимируется)");
   } else ok(true, "браузер не знает ::details-content: раскрытие без анимации");
   // Ручной забор: просьба с edgeOnly; отказ по камере называет её; групповая настройка считает отказы
   const pcalls = [], postWas2 = API.post;

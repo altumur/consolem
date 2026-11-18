@@ -269,7 +269,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
         "domains": "Domain", "servers": "Server", "devices": "Device", "folders": "Folder",
         "archives": "Archive", "volumes": "Volume", "rules": "Rule", "ruleFires": "RuleFire", "ruleVersions": "RuleVersion",
         "schedules": "Schedule", "dayGroups": "DayGroup", "maintenanceWindows": "MaintenanceWindow",
-        "licenses": "License", "journal": "JournalEvent", "streamAccounts": "StreamAccount", "archiveWatches": "ArchiveWatch", "archiveScans": "ArchiveScan",
+        "licenses": "License", "licenseKeys": "LicenseKey", "journal": "JournalEvent", "streamAccounts": "StreamAccount", "archiveWatches": "ArchiveWatch", "archiveScans": "ArchiveScan",
     }
     singles = {"settings": "Settings", "reference": "Reference", "modes": "Modes"}
     problems = []
@@ -1010,7 +1010,8 @@ def schema_removed(a, b, path):
 
 def check_breaking_doc(rep, spec):
     """Контракт против контракта старого макета (git show 47d1310:api/openapi.json): каждая операция старого контракта, которой
-    в нынешнем нет, и каждая снятая или изменённая (состав полей, перечень) схема названы в разделе README BREAKING_TITLE."""
+    в нынешнем нет, и каждая снятая или изменённая (состав полей, перечень) схема названы в разделе README BREAKING_TITLE или в разделе
+    «Ломающие изменения в X.Y.Z» (снятое после 0.2.0)."""
     base = old_contract()
     if base is None:
         rep.info(f"{BREAKING_TITLE}: контракта {':'.join(OLD_CONTRACT)} не прочитать (нет git или коммита в истории) — сверка пропущена")
@@ -1021,7 +1022,9 @@ def check_breaking_doc(rep, spec):
         rep.fail(f"{BREAKING_TITLE} — в README", [f"нет раздела «## {BREAKING_TITLE}»"])
         return
     text = m.group(1)
-    named = set(re.findall(r"`([^`]+)`", text))
+    # Позже снятое или изменённое владелец называет в своём разделе «Ломающие изменения в X.Y.Z»: старый раздел не дополняют
+    later = "".join(re.findall(r"^## Ломающие изменения в \d+\.\d+\.\d+\n(.*?)(?=^## )", doc, re.S | re.M))
+    named = set(re.findall(r"`([^`]+)`", text + later))
     def ops(d):
         return {o["operationId"] for item in d["paths"].values() for k, o in item.items() if k in METHODS}
     problems = [f"операция старого контракта {o} — нет в разделе" for o in sorted(ops(base) - ops(spec)) if o not in named]

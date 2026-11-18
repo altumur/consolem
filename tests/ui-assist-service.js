@@ -447,7 +447,9 @@ UiCheck(async ({ ok, until }) => {
   open();
   answer = sse({ type: "plan", summary: "Камеры: 1", context: "b1:ip", items: [Object.assign(planItem(cam, { ip: "10.0.0.9", enabled: false }), { changes: [] })] });
   say("смени адрес камеры");
-  ok(await until(() => el("asstPlanNote") && el("asstPlanLost")), "план с полем вне карточки");
+  // Пометка появляется сразу, а черновик карточки — после чтения записей объектов плана (asstPickSet → loaded):
+  // при медленной связи это на запрос позже. Ждать черновик этого плана
+  ok(await until(() => el("asstPlanNote") && el("asstPlanLost") && asst.plan && bulkDraft.planOf === asst.plan), "план с полем вне карточки");
   ok(/\bip\b/.test(el("asstPlanLost").textContent) && !el("asstPlanLost").textContent.includes("/properties/") && !bulkDraft.plan.ip && bulkDraft.plan.enabled?.[cam.uid] === "off", "ip назван кодом поля, как в базе, не указателем, и в черновик не лёг, «Включено» — лёг: " + el("asstPlanLost").textContent.slice(0, 120));
   ok(!el("asstApply"), "обхода карточки нет");
   // Разные значения по объектам: поле — «— разные —», раскладка плана под полем, каждому объекту уходит своё

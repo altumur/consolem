@@ -21,13 +21,13 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(/нет в этой системе/.test(ruleOutOfCat({ start: "event", when: [], cond: [], then: [] })), "способ запуска вне каталога — видно");
   Object.assign(RULE_REF, wasRef);
 
-  // Флаги событий (EventDescriptor.rule, alarm; нет поля — true): триггеры правил — без rule:false (abandoned, disappeared,
-  // crowd у камеры), «Что считать тревогой» — без alarm:false (other, segment.lost). Порядок — как в GET /kinds
+  // Флаги событий (EventDescriptor.rule, alarm; нет поля — true): триггеры правил — без rule:false (с 0.17.0 у событий
+  // камеры его нет: abandoned, disappeared, crowd — триггеры), «Что считать тревогой» — без alarm:false (other, segment.lost). Порядок — как в GET /kinds
   {
     const evs = (await API.get("/kinds")).items.flatMap((k) => k.events || []);
     const uniq = (l) => [...new Set(l)];
     const noRule = uniq(evs.filter((e) => e.rule === false).map((e) => e.id)), noAlarm = uniq(evs.filter((e) => e.alarm === false).map((e) => e.id));
-    ok(["abandoned", "disappeared", "crowd"].every((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
+    ok(!["abandoned", "disappeared", "crowd"].some((x) => noRule.includes(x)) && ["other", "segment.lost"].every((x) => noAlarm.includes(x)), "сервер объявил флаги: rule:false — " + noRule.join() + ", alarm:false — " + noAlarm.join());
     const alarmWant = uniq(evs.filter((e) => e.alarm !== false).map((e) => e.id));
     ok(JSON.stringify(refEvents) === JSON.stringify(alarmWant), "тревожные виды — без alarm:false, порядок сервера: " + refEvents.join());
     const baseEv = ["motion", "linecross", "abandoned", "disappeared", "crowd", "lpr", "silent", "io.input", "text", "unit"];
@@ -42,9 +42,30 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ruleEdit((x) => { delete x._auto; x.name = "Флаги событий"; x.start = "event"; const k0 = ruleTrigAdd(); x.when = [{ sub: k0.sub, kind: k0.kind, ref: "", match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
     paint();
     const evSel = document.querySelector('select[aria-label^="Вид события "]'), opts = evSel ? [...evSel.options].map((o) => o.textContent) : [];
-    ok(opts.length && !opts.some((t) => /Оставленный предмет|Исчезновение предмета|Скопление людей/.test(t)) && opts.includes("Детектор: другой вид") && opts.includes("Пропал сегмент записи"), "в списке событий правила нет событий rule:false: " + opts.join(" | "));
+    ok(opts.length && ["Оставленный предмет", "Исчезновение предмета", "Скопление людей", "Детектор: другой вид", "Пропал сегмент записи"].every((t) => opts.includes(t)), "в списке событий правила — события детекторов камеры, с 0.17.0 и оставленный предмет, исчезновение, скопление: " + opts.join(" | "));
     ruleRestore(); paint();
     ok(!rules.some((x) => x.name === "Флаги событий"), "черновик проверки снят");
+  }
+
+  // Один детектор в событии камеры (params.detector, с 0.18.0): выбор детекторов этого вида у камеры, подпись — имя детектора
+  {
+    const CAM = "30000013-0000-4000-8000-000000000000";
+    const mk = TRIGGER_KINDS.find((x) => x.kind === "motion"), ab = TRIGGER_KINDS.find((x) => x.kind === "abandoned");
+    ok(mk.match.some((m) => m.id === "detector" && m.det) && ab?.match.some((m) => m.id === "detector" && m.det), "у движения и оставленного предмета — уточнение «Детектор» из описания события");
+    const own = ruleDetOf("motion")(CAM);
+    ok(own.length > 1 && own.every(([id]) => find(id)?.p?.id === CAM && DET_KIND_CODE[find(id).n.kind] === "motion"), "камера выбрана: только её детекторы движения — " + own.map((x) => x[1]).join(", "));
+    ruleNewOpen(); rnw.tpl = ""; ruleNewCreate();
+    ruleEdit((x) => { delete x._auto; x.name = "Один детектор"; x.start = "event"; x.when = [{ sub: mk.sub, kind: mk.kind, ref: CAM, match: {} }]; x.then = [ruleNewAct(ACT_ADD, null, x)]; });
+    paint();
+    const sel = [...document.querySelectorAll("#main .rl-row select")].find((s) => [...s.options].some((o) => o.textContent === "Детектор: любой"));
+    ok(sel && sel.options.length === own.length + 1, "в строке события — «Детектор: любой» и детекторы камеры");
+    setTriggerField(0, "detector", own[1][0]);
+    ok(curRule().when[0].match.detector === own[1][0] && triggerLabel(curRule().when[0]).endsWith(" · " + own[1][1]), "выбор пишет match.detector, подпись события называет детектор: " + triggerLabel(curRule().when[0]));
+    const other = allNodes().find((n) => n.type === "camera" && n.id !== CAM);
+    const it = { ...curRule().when[0], match: { ...curRule().when[0].match }, ref: other.id };
+    ruleDetPrune(it, mk);
+    ok(!("detector" in it.match), "сменили камеру — детектор прежней камеры снят");
+    ruleRestore(); paint();
   }
 
   // Правило по описаниям видов: событие ALARM датчика security_controller → команда ARM контроллера. Списки формы —
@@ -394,8 +415,15 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     ruleEdit((x) => { x.cond = [{ kind: "armed", ref: CAM2, val: true }, { kind: "armed", ref: CAM2, val: false }]; x.condAny = true; });
     paint();
     ok(rowLabels().join().includes("Если,или") && !!document.querySelectorAll(".rl-chips.rl-logic")[1], "условия: «Если», «или» и свой переключатель");
+    // Прошлое сохранение ещё идёт (медленная сеть, нагрузка): нажатие не теряется, а ждёт в очереди
+    const savingBefore = ruleSaving;
     ruleApply();
-    ok(await until(() => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id))), "сохранено");
+    if (savingBefore) ok(ruleApplyNext, "«Применить» во время прошлого сохранения — в очереди");
+    // Сбор фактов для редкого сбоя под нагрузкой (самопроверка против стенда): не сохранилось за 20 с — медленно или совсем нет
+    const savedOr = () => rules.some((x) => x.name === "Цепочка: или" && autoVer.has(x.id));
+    const saved = await until(savedOr);
+    const late = saved || (await until(savedOr, 60000));
+    ok(saved, "сохранено" + (saved ? "" : `: за 20 с нет, ещё через 60 с — ${late ? "сохранилось (медленно)" : "нет"}; правило в списке: ${rules.some((x) => x.name === "Цепочка: или")}; тост: ${document.getElementById("tt")?.textContent || "нет"}`));
     const sv = await API.get("/rules/" + rules.find((x) => x.name === "Цепочка: или").id);
     ok(sv.whenLogic === "any" && sv.windowSec === 0 && sv.condLogic === "any" && sv.triggers.length === 2 && sv.conditions.length === 2, "на сервере: whenLogic any, condLogic any, окна нет");
     ok(!(sv.labels || []).some((l) => /^__/.test(l)) && !JSON.stringify(sv).includes("_stub"), "меток-заглушек и _stub в теле нет");
@@ -515,11 +543,22 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   await confirmWith(1);
   ruleOpen(R1);
   ruleEdit((x) => { x.name = "Черновик при перечитывании"; });
-  const was = r(R1);
+  const was = r(R1), node0 = schById(sdel.id);
+  // Отметку проверяем всё время, а не один раз после перечитывания: при медленной связи (--latency 300) перечитывание
+  // длится дольше отсчёта (12 с против 10), и к его концу расписание уже удалено. Ни в какой момент расписание
+  // не должно оказаться без отметки, а удалённое — вернуться со старым списком
+  let lost = false, reloadedPend = false, goneAt = 0;
+  const watch = () => {
+    const s = schById(sdel.id);
+    if (s && !s._pend) lost = true;
+    if (s && s !== node0) reloadedPend = true;
+    if (!s && !goneAt) goneAt = Date.now();
+  };
   apiOnEvent({ type: "stream.reset" });
-  ok(await until(() => r(R1) !== was), "всё перечитано");
+  ok(await until(() => (watch(), r(R1) !== was)), "всё перечитано");
+  watch();
   ok(ruleDraft && ruleDraft.id === R1 && r(R1).name === "Черновик при перечитывании" && ruleDiff().length === 1, "черновик правила на месте");
-  ok(schById(sdel.id)?._pend, "расписание по-прежнему ждёт удаления");
-  ok(await until(() => !schById(sdel.id), 30000), "по истечении отсчёта удалено");
+  ok(!lost && (reloadedPend || (goneAt && !schById(sdel.id))), `расписание ждёт удаления и после перечитывания: ${reloadedPend ? "перечитано с отметкой" : goneAt ? "отсчёт кончился раньше перечитывания, удалённое не вернулось" : "перечитывание его не коснулось"}${lost ? ", но отметка пропадала" : ""}`);
+  ok(await until(() => (watch(), !schById(sdel.id)), 30000) && !lost, "по истечении отсчёта удалено");
   ruleRestore(); paint();
 });

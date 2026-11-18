@@ -656,11 +656,13 @@ Tour.add({
     const hrow = (re) => byText("#asstBlock .asst-hrow", re);
     // Заглушка отвечает сразу. Показ придерживает ответ, чтобы было видно, что ход живёт без панели.
     // Показ закончился (сбой, «Попробовать самому»): курсора показа нет, поэтому ответ уходит и заглушка возвращается
-    const real = API.stream, gates = [];
-    let watch = 0;
-    const free = () => { clearInterval(watch); API.stream = real; gates.splice(0).forEach((r) => r()); };
+    // API.stream берётся при показе, а не при загрузке файла: каталог глав (tools/learn_catalog.mjs) читает файл без страницы и без API
+    let real = null, watch = 0;
+    const gates = [];
+    const free = () => { clearInterval(watch); if (real) API.stream = real; real = null; gates.splice(0).forEach((r) => r()); };
     const hold = () => {
-      API.stream = (...args) => new Promise((r) => gates.push(r)).then(() => real.apply(API, args));
+      const orig = real || (real = API.stream);
+      API.stream = (...args) => new Promise((r) => gates.push(r)).then(() => orig.apply(API, args));
       clearInterval(watch);
       watch = setInterval(() => { if (!document.querySelector(".tour-cur")) free(); }, 500);
     };
@@ -786,6 +788,114 @@ Tour.add({
     { say: "Итог: общий вид у сервера показывает состояние всех хранилищ, страница хранилища настраивает одну камеру, а правило забирает пропуски само." },
   ];
     return steps;
+  })(),
+});
+
+// ── Tag&Track Pro: настройка с нуля (адрес ?tour=tag-track&all&demo&play) ──
+// PTZ «Запасной вход» начинает без обзорных камер. Курсор жмёт настоящие кнопки раздела; поворот PTZ к месту на полу
+// делает симуляция стенда (так оператор поворачивает камеру стрелками), нажатие на обзорный кадр — настоящее событие мыши.
+Tour.add({
+  id: "tag-track",
+  title: "Как настроить Tag&Track Pro",
+  why: "PTZ-камера сама поворачивается к объектам, которые видит обзорная камера. Для этого обзорную камеру привязывают точками калибровки.",
+  steps: (() => {
+    const PTZ = "30000041-0000-4000-8000-000000000000", OV = /^Вахта$/;
+    const PTS = [[.16, .6], [.5, .56], [.84, .6], [.22, .86], [.52, .9], [.82, .84]];
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const q = (sel) => () => document.querySelector(sel);
+    const byText = (sel, re) => () => [...document.querySelectorAll(sel)].find((e) => re.test(e.textContent.trim()));
+    const ovId = () => allNodes().find((n) => OV.test(n.name))?.id;
+    const toSec = () => document.querySelector("#main .tt-sec")?.scrollIntoView({ block: "start" });
+    // Повернуть PTZ на место точки i: плавно (виден поворот) или сразу. Ход — таймером, не циклом кадров: у вкладки в фоне
+    // кадров почти нет, а точка должна записать нужное положение
+    const aim = async (i, now) => {
+      const a = ttOvAngle(ttOvView(ovId()), ...PTS[i]), s = cvSimOf(PTZ), p0 = s.p, t0 = s.t, z0 = s.z, dp = cvSimWrap(a.p - p0);
+      s.go = null;
+      if (!now) for (let k = 1; k < 24; k++) { const u = k / 24, e = u * u * (3 - 2 * u); Object.assign(s, { p: (p0 + dp * e + 360) % 360, t: t0 + (a.t - t0) * e, z: z0 + (2.4 - z0) * e }); await wait(45); }
+      Object.assign(s, { p: a.p, t: a.t, z: 2.4, go: null });
+    };
+    // Клик курсора по метке (el.click() без координат) страница поймала бы раньше метки: ловим его на window в фазе
+    // перехвата и отдаём кадру настоящий клик с координатами места. Обработчик ставит первая метка, а не загрузка файла:
+    // tools/learn_catalog.mjs читает этот файл без DOM
+    let hooked = false;
+    const hook = () => {
+      if (hooked) return;
+      hooked = true;
+      window.addEventListener("click", (e) => {
+        const m = e.target?.closest?.(".tt-demo-spot"), f = m?.parentElement;
+        if (!m || !f) return;
+        e.stopImmediatePropagation(); e.preventDefault();
+        const r = f.getBoundingClientRect();
+        f.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: r.left + +m.dataset.x * r.width, clientY: r.top + +m.dataset.y * r.height }));
+      }, true);
+    };
+    // Место точки i на обзорном кадре: метка под курсором, нажатие на неё — клик по кадру в этой точке
+    const spot = (i) => () => {
+      const f = document.querySelector("#main .tt-ov-f:not(.test)");
+      if (!f) return null;
+      hook();
+      let m = f.querySelector(".tt-demo-spot");
+      if (!m) {
+        m = document.createElement("span");
+        m.className = "tt-demo-spot";
+        m.style.cssText = "position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border-radius:50%";
+        f.append(m);
+      }
+      [m.dataset.x, m.dataset.y] = PTS[i];
+      m.style.left = PTS[i][0] * 100 + "%";
+      m.style.top = PTS[i][1] * 100 + "%";
+      return m;
+    };
+    const card = () => document.querySelector(`#main [data-tt-ov-row="${CSS.escape(ovId() || "")}"]`);
+    return [
+      { ch: { id: "ov", title: "Обзорная камера", why: "Выбрать камеру, которая видит всю зону и находит объекты." },
+        say: "Tag&Track Pro настраивают у PTZ-камеры: вкладка «Видео», раздел «Слежение Tag&Track Pro» сразу после «Поворотного устройства».",
+        before: async () => {
+          goApp("hw"); pick(PTZ, { tab: "vid" });
+          // Дерево приходит частями: ждём, пока обзорная камера попадёт в список кандидатов, и рисуем раздел заново
+          for (let k = 0; k < 100 && !(document.querySelector("#main .tt-sec") && ovId()); k++) await wait(50);
+          const n = find(PTZ)?.n; if (n) ttRepaint(n);
+          toSec();
+        },
+        at: q("#main .tt-sec > .ch") },
+      { say: "Сейчас слежение выключено. Чтобы PTZ-камера следила за объектами, ей нужна обзорная камера.",
+        before: toSec, at: q('#main [data-cv-fk="tt-mode"]') },
+      { say: "Обзорная камера — неподвижная камера с широким углом. Её детектор с трекером находит объекты. Выбираем её в этом списке.",
+        at: q("#main [data-tt-add]"), act: "click" },
+      { say: "Список длинный, поэтому в нём есть поиск. Вводим имя камеры.", at: q(".cbx-q"), act: "type", text: "Вахта" },
+      { say: "Выбираем камеру «Вахта». Консоль сразу открывает калибровку.", at: byText(".cbx-o", /^Вахта$/), act: "click" },
+      { ch: { id: "calib", title: "Калибровка", why: "Показать консоли одни и те же места на полу в двух кадрах." },
+        say: "Слева кадр PTZ-камеры, справа кадр обзорной. Точка калибровки — одно и то же место на полу в обоих кадрах.",
+        before: () => document.querySelector("#main .tt-ed")?.scrollIntoView({ block: "start" }), at: q("#main .tt-two") },
+      { say: "Сначала PTZ-камеру поворачивают стрелками или перетаскиванием по кадру. Центр кадра, перекрестие, ставят на заметное место на полу.",
+        before: () => aim(0), at: q("#main .tt-ptz-f .tt-cross") },
+      { say: "Потом нажимают то же место на обзорном кадре. Консоль записывает пару: место в кадре и положение PTZ.",
+        at: spot(0), act: "click" },
+      { say: "Точка 1 появилась на кадре и в таблице под кадрами.", at: q('#main [data-tt-pt="0"]') },
+      { say: "Вторая точка — так же. Поворачиваем PTZ на другое место.", before: () => aim(1), at: q("#main .tt-ptz-f .tt-cross") },
+      { say: "И нажимаем это место на обзорном кадре.", at: spot(1), act: "click" },
+      { say: "Ещё четыре точки ставим по всей зоне, у дальнего края тоже. Точки на одной линии не подходят: консоль предупредит.",
+        before: async () => { for (let i = 2; i < PTS.length; i++) { await aim(i, true); spot(i)()?.click(); await wait(60); } },
+        at: q("#main .tt-meter") },
+      { say: "Шесть точек — минимум, лучше от шести до десяти. В таблице видна погрешность каждой точки: большая погрешность значит, что точку навели мимо.",
+        at: q("#main .tt-tbl") },
+      { say: "Калибровку проверяют. После «Проверить» консоль поворачивает PTZ-камеру к месту, которое нажали на обзорном кадре.",
+        at: byText("#main .tt-seg button", /Проверить/), act: "click" },
+      { say: "Нажимаем точку 2. PTZ-камера поворачивается туда, куда ведёт калибровка.",
+        at: () => document.querySelectorAll("#main .tt-ov-f.test .tt-pt")[1], act: "click" },
+      { say: "Центр кадра PTZ стоит на том же месте, что и точка 2. Калибровка верна.",
+        before: () => wait(1500), at: q("#main .tt-ptz-f .tt-cross") },
+      { say: "Калибровку добавляем в план карточки.", at: byText("#main .tt-ed button", /^Добавить в план$/), act: "click" },
+      { ch: { id: "mode", title: "Порядок слежения", why: "Решить, как PTZ-камера выбирает объект и сколько смотрит на него." },
+        say: "У обзорной камеры есть привязка: на карточке кадр с точками, число точек, погрешность и отметка «калибровку проверили».",
+        before: () => card()?.scrollIntoView({ block: "center" }), at: card },
+      { say: "Консоль выбрала порядок «Приоритет оператора»: камера следит за всеми объектами по очереди. Если оператор выбрал трек, камера следит только за ним.",
+        before: toSec, at: q('#main [data-cv-fk="tt-mode"]') },
+      { say: "«Время на одном объекте» — столько секунд камера смотрит на объект, потом переходит к следующему.",
+        at: q('#main [data-cv-fk="tt-freq"]') },
+      { say: "Каждая PTZ-камера со слежением занимает одну лицензию Tag-n-Track из ключа домена.", at: q("#main .tt-lic") },
+      { say: "Итог: обзорная камера находит объекты, точки калибровки связывают два кадра, PTZ-камера поворачивается к объекту сама. Правки в плане карточки: их сохраняет «Применить»." },
+    ];
   })(),
 });
 

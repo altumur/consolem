@@ -138,7 +138,7 @@ function cors(req, res) {
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, If-Match, If-None-Match, Last-Event-ID");
-  res.setHeader("Access-Control-Expose-Headers", "ETag, Location, Retry-After, Content-Disposition");
+  res.setHeader("Access-Control-Expose-Headers", "ETag, Location, Retry-After, Content-Disposition, Vary");
   res.setHeader("Vary", "Origin");
 }
 
@@ -150,9 +150,12 @@ http
     if (servePage(req, res)) return;
     // API консоли — под /backend/api/
     if (webui && req.url.startsWith("/backend/api/")) req.url = req.url.slice("/backend/api".length);
+    const chunks = [];
     let raw = "";
-    req.on("data", (c) => (raw += c));
+    req.on("data", (c) => chunks.push(c));
     req.on("end", () => {
+      const bytes = Buffer.concat(chunks);
+      raw = bytes.toString("utf8");
       if (req.method === "POST" && req.url.startsWith("/__csp")) {
         let r = {};
         try {
@@ -183,8 +186,10 @@ http
       }
       if (BRIDGE && req.method === "POST" && req.url.split("?")[0] === "/assist/turns") return assistBridge(raw, res);
       let body;
+      // Файл POST /files — байтами, как пришёл, какого бы типа он ни был (и JSON тоже); остальное — JSON
+      const isFile = req.method === "POST" && req.url.split("?")[0] === "/files";
       try {
-        body = raw ? JSON.parse(raw) : undefined;
+        body = !raw ? undefined : isFile ? new Uint8Array(bytes) : JSON.parse(raw);
       } catch (e) {
         res.writeHead(400, { "Content-Type": "application/problem+json" });
         return res.end(JSON.stringify({ code: "VALIDATION_FAILED", message: "Тело — не JSON" }));
