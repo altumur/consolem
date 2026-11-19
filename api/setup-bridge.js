@@ -14,6 +14,7 @@
        subscribe({entityIds?, kinds?, types?}, onEvent(message)) → Promise<() => void> — функция отписки; отказ consolem
          (BUSY, VALIDATION_FAILED) или хост без subscribe — обещание отклонено, у ошибки поле problem.
        navigate(uid, tab?) → Promise<{id, ok, status, problem?}> — удачный переход ответа не получает: рамку закрыли.
+         uid не строка или пустой — VALIDATION_FAILED с field "/uid" сразу, без сообщения.
        confirm({title, text, lose?, keep?, count?, okLabel?}) → Promise<boolean> — true, если человек подтвердил.
        У navigate и confirm срока ответа нет: отвечает человек.
      SetupBridge.merge(base, patch) — JSON Merge Patch (RFC 7396); SetupBridge.diff(base, next) → patch. */
@@ -88,7 +89,7 @@
     const host = hostOrigin(o.origin);
     if (!host) {
       const why = o.origin
-        ? `SetupBridge: connect({origin: ${JSON.stringify(String(o.origin))}}) — не происхождение http или https. Передать происхождение consolem, например "https://console.example"`
+        ? `SetupBridge: значение connect({origin: ${JSON.stringify(String(o.origin))}}) не происхождение http или https. Передать происхождение consolem, например "https://console.example".`
         : "SetupBridge: происхождение consolem неизвестно (нет location.ancestorOrigins и document.referrer). Передать его в connect({origin})";
       console.error(why);
       return Promise.reject(new Error(why));
@@ -137,10 +138,10 @@
       function call(op, args) {
         const a = isObj(args) ? args : {};
         const id = "c" + ++callSeq;
-        if (!session.bridge) return Promise.resolve(refuse(id, "NOT_SUPPORTED", "consolem — хост шага 1: моста нет"));
+        if (!session.bridge) return Promise.resolve(refuse(id, "NOT_SUPPORTED", "consolem работает как хост шага 1, поэтому моста нет."));
         return new Promise((resolve) => {
           const timer = setTimeout(() => {
-            if (pending.delete(id)) resolve(refuse(id, "UPSTREAM_UNAVAILABLE", "consolem не ответил за 30 секунд"));
+            if (pending.delete(id)) resolve(refuse(id, "UPSTREAM_UNAVAILABLE", "consolem не ответил за 30 секунд."));
           }, CALL_MS);
           pending.set(id, (r) => { clearTimeout(timer); resolve(r); });
           const msg = { type: "call", id, op: String(op) };
@@ -153,7 +154,7 @@
       function ask(type, fields) {
         const id = type[0] + ++callSeq;
         const msgs = session.bridge && Array.isArray(session.host.bridge.messages) ? session.host.bridge.messages : [];
-        if (msgs.indexOf(type) < 0) return Promise.resolve(refuse(id, "NOT_SUPPORTED", `consolem не принимает ${type}`));
+        if (msgs.indexOf(type) < 0) return Promise.resolve(refuse(id, "NOT_SUPPORTED", `consolem не принимает сообщение ${type}.`));
         return new Promise((resolve) => {
           pending.set(id, resolve);
           send({ type, id, ...fields });
@@ -166,7 +167,7 @@
         ["entityIds", "kinds", "types"].forEach((k) => { if (strs(f[k])) fields[k] = f[k].slice(); });
         return ask("subscribe", fields).then((r) => {
           if (!r.ok) {
-            const e = new Error(`SetupBridge: subscribe — ${r.problem && r.problem.code}`);
+            const e = new Error(`SetupBridge: consolem отказал в подписке, код ${r.problem && r.problem.code}.`);
             e.problem = r.problem;
             throw e;
           }
@@ -182,7 +183,13 @@
         });
       }
       function navigate(uid, tab) {
-        const fields = { uid: String(uid) };
+        // uid не строка или пустой: библиотека отказывает сама и ничего не отправляет
+        if (typeof uid !== "string" || !uid) {
+          const r = refuse("n" + ++callSeq, "VALIDATION_FAILED", "Методу navigate нужен uid объекта строкой.");
+          r.problem.field = "/uid";
+          return Promise.resolve(r);
+        }
+        const fields = { uid };
         if (typeof tab === "string" && tab) fields.tab = tab;
         return ask("navigate", fields);
       }

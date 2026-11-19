@@ -523,6 +523,13 @@ async function run() {
     sent = [];
     s.navigate("u3");
     if (!sent[0] || "tab" in sent[0][0]) fail("18 navigate без вкладки", `отправлено ${JSON.stringify(sent)}`);
+    // uid не строка или пустой — отказ на месте, без сообщения
+    sent = [];
+    const navBad = [];
+    for (const u of [undefined, 5, ""]) s.navigate(u).then((r) => navBad.push(r));
+    await tick();
+    if (sent.length || navBad.length !== 3 || !navBad.every((r) => r.ok === false && r.status === 0 && r.problem.code === "VALIDATION_FAILED" && r.problem.field === "/uid"))
+      fail("18 navigate без uid", `отправлено ${JSON.stringify(sent)}, ответы ${JSON.stringify(navBad)}`);
     // confirm: поля по схеме, итог — boolean
     sent = [];
     let yes = null, no = null;
