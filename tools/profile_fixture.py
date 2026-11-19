@@ -265,7 +265,7 @@ def build(demo):
     ref["ruleActions"] = [a for a in ref["ruleActions"] if a["action"] not in ACTIONS_OFF]
     for a in ref["ruleActions"]:
         if a["action"] == "record":
-            a["fields"] = [dict(f, options=["min"]) if f["id"] == "duration" else f for f in a["fields"] if f["id"] != "afterSec"]
+            a["fields"] = [dict(f, schema={"type": "string", "enum": ["min"]}) if f["id"] == "duration" else f for f in a["fields"] if f["id"] != "afterSec"]
     # Права: система объявляет меньше, как w2c: без вида tel, без MON_PROT и DEV, без части функций,
     # запретов, плагинов и каталогов. Значений, которых система не знает, в ролях не остаётся
     acc = ref["access"]
@@ -493,8 +493,10 @@ def kinds_access(kinds, levels):
                 del e["right"]
 
 
-# Пределы стенда (с 0.30.0): их отдают Discovery.ipScanMax и ScenarioDoc.maxItems; large и xl пишут stand заново — копия из demo
-STAND_LIMITS = ("ipScanMax", "scenariosMax")
+# Данные стенда, которые отдают пути профилей: пределы (Discovery.ipScanMax, ScenarioDoc.maxItems, с 0.30.0), виды событий
+# сценариев (ScenarioDoc.kinds) и справочник выгрузки (GET /exports/reference) — с 0.32.0 их нет в reference. large и xl пишут
+# stand заново — копия из demo
+STAND_LIMITS = ("ipScanMax", "scenariosMax", "scenarioKinds", "exportReference")
 
 
 def stand_limits(demo):

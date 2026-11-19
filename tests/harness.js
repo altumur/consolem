@@ -506,8 +506,7 @@
       fn(m);
     });
   const settle = () => new Promise((r) => setTimeout(r, apiBase ? 400 : 20));
-  // Профили механизма: область системы и папка (с 0.28.0). Тесты называют их этими константами, а не vms.domain/1, vms.folder/1:
-  // те устарели и снимаются следующей ломающей версией контракта
+  // Профили механизма: область системы и папка (с 0.28.0; vms.domain/1, vms.folder/1 сняты в 0.32.0)
   const AREA = "core.domain/1", FOLDER = "core.folder/1";
 
   window.ApiTest = { test, prefixLayers, fileLayer, registry, layers: ConsolemTestLayers, loaded, run, makeEnv, assert, key, subscribeForTest, settle, FX, spec, can, caps: () => CAPS, frozen, fixtureName, external: Boolean(apiBase), AREA, FOLDER };

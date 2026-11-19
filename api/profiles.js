@@ -31,8 +31,7 @@
      check, ctx) → boolean | undefined — шаг check правила: прошла проверка или нет, undefined — проверка не этого профиля.
      unit — запись движка правил (api/rule-engine.js, recOf): свойства и status.observed полями, id, type — вид; ctx — {units};
    - RULE_ACTIONS (не хук: список рядом с HOOKS) — действия профилей без объекта для движка правил: {source, action, fields —
-     обязательные поля, tpl? — поля-шаблоны}; RULE_CHECKS — проверки профилей, которые движок исполняет, когда система не
-     объявила reference.ruleChecks;
+     обязательные поля, tpl? — поля-шаблоны}. Проверки шага check система объявляет в reference.ruleChecks (обязательно с 0.32.0);
    - остальное в хуке — общий код старого и нового пути (nameProblem, assign, check, format…). */
 (() => {
   const GB = 1024 ** 3;
@@ -49,7 +48,7 @@
   const trimmed = (v) => String(v == null ? "" : v).trim();
   const isProblem = (r) => !!r && typeof r.status === "number" && !!r.body;
 
-  /* ===== core.domain/1 — область системы (домен); до снятия вид объявляет рядом и vms.domain/1 ===== */
+  /* ===== core.domain/1 — область системы (домен) ===== */
 
   function domainNameProblem(name, exceptId, ctx) {
     const v = trimmed(name);
@@ -180,8 +179,8 @@
   }
   // Опрос адресов: отвечает ли адрес — у встроенного сервера по хешу адреса, так же, как в макете на константах
   function probe(targets, ctx) {
-    // Предел адресов — число стенда (stand.ipScanMax, с 0.30.0 его отдаёт Discovery.ipScanMax); прежнее место — reference.limits
-    const max = ctx.db.stand.ipScanMax !== undefined ? ctx.db.stand.ipScanMax : ctx.db.reference.limits.ipScanMax;
+    // Предел адресов — число стенда (stand.ipScanMax, с 0.30.0 его отдаёт Discovery.ipScanMax)
+    const max = ctx.db.stand.ipScanMax;
     if (targets.length > max) return ctx.problem(422, "IP_RANGE_TOO_LARGE", `За раз — не больше ${max} адресов`, { params: { max } });
     const hash = (s) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0);
     const items = targets.map(({ ip, port }) => {
@@ -254,7 +253,7 @@
     },
   };
 
-  /* ===== core.folder/1 — папка; до снятия вид объявляет рядом и vms.folder/1 ===== */
+  /* ===== core.folder/1 — папка ===== */
 
   // Папки ведёт администратор, и только при связи с центром домена
   function folderProblem(domainId, ctx) {
@@ -718,10 +717,23 @@
 
   /* ----- Определить модель и реле ----- */
 
+  // Модели производителя — из описаний видов (с 0.30.0; reference.deviceModels снят в 0.32.0): allOf {if: {vendor: {const}},
+  // then: {model: {examples}}}. Вид без схемы или без allOf моделей не даёт
+  function vendorModels(vendor, ctx) {
+    const out = [];
+    for (const k of ctx.kinds.list()) {
+      for (const x of ((k && k.schema) || {}).allOf || []) {
+        const v = ((((x || {}).if || {}).properties || {}).vendor || {}).const;
+        const m = ((((x || {}).then || {}).properties || {}).model || {}).examples;
+        if (v === vendor && Array.isArray(m)) m.forEach((y) => { if (!out.includes(y)) out.push(y); });
+      }
+    }
+    return out;
+  }
   // Модель «сообщает» устройство; у встроенного сервера — по сумме чисел адреса, как в макете. Драйверу нужен вход: стенд
   // с stand.probeNeedsLogin без логина модели не называет
   function probeModel(body, ctx) {
-    const models = (ctx.db.reference.deviceModels.find((m) => m.vendor === body.vendor) || {}).models || [];
+    const models = body && body.vendor ? vendorModels(body.vendor, ctx) : [];
     if (!models.length || (ctx.db.stand.probeNeedsLogin && !(body.login && body.password))) return { model: null };
     const sum = String(body.ip).split(".").reduce((s, x) => s + (Number(x) || 0), 0);
     return { model: models[Math.abs(sum) % models.length] };
@@ -1293,12 +1305,11 @@
   const conflictParams = (x) => ({ reason: "incompatible", with: [x.id] }); // с 0.22.0 массив, как у akParams
   // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind). Охват — сервер расчёта: пакет распознавания лиц ставят
   // на компьютер сервера. Сервер детектора — свой serverId или сервер камеры. С 0.30.0 список — x-conflicts {значение: [значения]}
-  // у свойства analyticsKind вида детектора (расширение vms.detector/1); у вида без x-conflicts — устаревший reference.analyticsConflicts
+  // у свойства analyticsKind вида детектора (расширение vms.detector/1); у вида без x-conflicts несовместимых нет
   const akOf = (p) => (p && !p.builtin && p.detectorKind === "other" ? p.analyticsKind : null);
   const akConflicts = (ctx) => {
     const ak = (((ctx.kinds.get("det") || {}).schema || {}).properties || {}).analyticsKind || {};
-    if (ak["x-conflicts"]) return Object.entries(ak["x-conflicts"]).map(([analyticsKind, conflicts]) => ({ analyticsKind, conflicts }));
-    return ctx.db.reference.analyticsConflicts || [];
+    return Object.entries(ak["x-conflicts"] || {}).map(([analyticsKind, conflicts]) => ({ analyticsKind, conflicts }));
   };
   const akBad = (a, b, ctx) => akConflicts(ctx).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
   const detServerId = (p, cam, ctx) => (p.serverId ? p.serverId : ((cam ? serverOf(cam, ctx) : serverOf(p, ctx)) || {}).id || null);
@@ -2295,10 +2306,6 @@
     "vms.webserver/1": webserver,
   };
 
-  // Устаревший профиль → профиль, который его заменил: хук один на оба. Вид, который объявил оба (demo до снятия), получает хук
-  // один раз; вид только со старым профилем (бэкенд не перешёл) — хук нового. Снимаются вместе со старыми профилями следующей ломающей версией контракта
-  const SUCCESSOR = { "vms.domain/1": "core.domain/1", "vms.folder/1": "core.folder/1" };
-
   // Действия правил без объекта из мира VMS (клиент консоли: раскладка, звук, голос, вид, программа) — движку правил
   // (api/rule-engine.js, world.ruleActions): fields — обязательные поля шага. Каталог системы — reference.ruleActions
   const RULE_ACTIONS = [
@@ -2308,15 +2315,9 @@
     { source: "client", action: "view", fields: ["view", "roleId"] },
     { source: "client", action: "program", fields: ["path", "roleId"] },
   ];
-  // Проверки шага check профилей — когда система не объявила reference.ruleChecks (до следующей ломающей версии контракта)
-  const RULE_CHECKS = [
-    { what: "record", implements: ["vms.camera/1"], depth: true },
-    { what: "safe", implements: ["vms.camera/1"], depth: true },
-    { what: "armed", implements: ["vms.camera/1"] },
-  ];
 
   // DEVICE — хуки всех видов таблицы devices: сервер зовёт их первыми, затем хуки профилей вида
-  const api = { HOOKS, SUCCESSOR, DEVICE: device, RULE_ACTIONS, RULE_CHECKS, flat, isProblem };
+  const api = { HOOKS, DEVICE: device, RULE_ACTIONS, flat, isProblem };
   if (typeof window !== "undefined") window.ConsolemProfiles = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

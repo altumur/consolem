@@ -344,9 +344,9 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     day_groups = own("dayGroup", fx["dayGroups"])
     modes = own("mode", fx["modes"]["items"])
     windows = own("window", fx["maintenanceWindows"])
-    # Раскладки клиента и мониторы: устаревшие ключи reference (с 0.31.0 необязательны) и enum полей действий
-    layouts = dict(own("layout", fx["reference"].get("layouts", [])), **{v: None for v in rule_field_enum(fx, "layoutId")})
-    monitors = dict(own("monitor", fx["reference"].get("monitors", [])), **{v: None for v in rule_field_enum(fx, "monitorId")})
+    # Раскладки клиента и мониторы: enum полей действий (reference.layouts и monitors сняты в 0.32.0)
+    layouts = {v: None for v in rule_field_enum(fx, "layoutId")}
+    monitors = {v: None for v in rule_field_enum(fx, "monitorId")}
     network = own("candidate", fx["network"])
     roles = own("role", acc["roles"])
     users = own("user", acc["users"])
@@ -814,8 +814,7 @@ def rule_field_enum(fx, field):
 
 def check_rule_catalog(rep, spec, fixtures):
     """Каталог правил (с 0.31.0): schema полей действий — в подмножестве схем видов; ruleChecks без повторов, implements —
-    объявленные профили; areaLayouts — объявленные области и раскладки набора. Пока устаревшие reference.layouts и monitors
-    есть, enum полей layoutId и monitorId — те же id, подписи — те же имена."""
+    объявленные профили; areaLayouts — объявленные области и раскладки набора."""
     problems = []
     for name, fx in fixtures.items():
         ref = fx["reference"]
@@ -836,13 +835,6 @@ def check_rule_catalog(rep, spec, fixtures):
                 problems.append(f"{name}: areaLayouts {area} — области нет в ruleTargets.areas")
             if lay not in lays:
                 problems.append(f"{name}: areaLayouts {area} — раскладки {lay} нет в layouts")
-        for key, field in (("layouts", "layoutId"), ("monitors", "monitorId")):
-            if key not in ref:
-                continue
-            ids = sorted(x["id"] for x in ref[key])
-            enum = sorted(set(rule_field_enum(fx, field)))
-            if enum and enum != ids:
-                problems.append(f"{name}: enum поля {field} — не те id, что reference.{key}")
     rep.check("Каталог правил: schema полей действий, ruleChecks, areaLayouts", problems,
               ", ".join(f"{n}: проверок {len(fx['reference'].get('ruleChecks', []))}" for n, fx in fixtures.items()))
 
@@ -1004,7 +996,7 @@ def check_server(rep, spec):
 # Перечни таблицы контракта: у каждого limit и cursor, ответ {items, nextCursor?, total?} — и так же ведёт себя сервер.
 # Перечни объектов — /units, предметные API — по uid
 PAGED = ["/units", "/journal", "/operations", "/rules/{ruleId}/fires", "/archive-watches", "/archive-scans",
-         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/domains/{domainId}/discovery",
+         "/access/users", "/access/groups", "/access/history", "/access/cell-history", "/access/roles/{roleId}/objects", "/tree/children", "/units/{uid}/discovery",
          "/units/{uid}/timeline", "/units/{uid}/holds", "/units/{uid}/bookmarks"]
 
 

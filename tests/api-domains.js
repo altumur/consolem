@@ -5,8 +5,6 @@
   const { makeEnv, assert, key, FX, AREA, FOLDER } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
   const test = ApiTest.prefixLayers([
-    // Лицензия домена — поле vms.domain/1 (устарело в 0.20.0): тест остаётся в слое профиля и уходит вместе с ним
-    ["Домен: задать лицензию", "profile:vms.domain/1"],
     // Область и папка — профили механизма core.domain/1, core.folder/1 (с 0.28.0): их тесты — механизм
     ["Домен:", "mechanism"],
     ["Папка:", "mechanism"],
@@ -83,30 +81,17 @@
     assert.status(await env.call("PATCH", U(d1.id), { name: "x" }, v(d1)), 412, "VERSION_MISMATCH");
   }, { needs: ["patchUnit", `implements:${AREA}`, "cap:domain:rename"] });
 
-  test("Домен: задать лицензию — PATCH properties.license", async () => {
-    const env = await makeEnv();
-    const res = await env.call("PATCH", U(d1.id), { properties: { license: "LIC-1" } }, v(d1));
-    assert.status(res, 200);
-    assert.eq(res.body.properties.license, "LIC-1", "лицензия записана");
-    assert.ok(res.body.version !== d1.version, "версия изменилась");
-  }, { needs: ["patchUnit", "implements:vms.domain/1"] });
-
-  // Бэкенд, который ещё не перешёл на профили механизма: вид объявляет только устаревшие vms.domain/1, vms.folder/1.
-  // Сервер узнаёт по ним область и папку, хуки те же (хук области — своё удаление с переносом), запись разрешена
-  test("Область системы: вид только с устаревшими vms.domain/1 и vms.folder/1 — те же область, папка и хуки", async () => {
+  // Область и папку сервер узнаёт только по профилям механизма core.domain/1, core.folder/1 (с 0.32.0): профили vms.domain/1,
+  // vms.folder/1 сняты. Вид, который объявил только их, для сервера не область и не папка: верх дерева без его объектов
+  test("Область системы: вид только со снятыми vms.domain/1 и vms.folder/1 — не область и не папка", async () => {
     const old = { domain: ["vms.domain/1"], folder: ["vms.folder/1"] };
     const kinds = FX.kinds.map((k) => (old[k.kind] ? Object.assign({}, k, { implements: old[k.kind] }) : k));
     const env = await makeEnv({ fixturePatch: { kinds } });
-    const got = (await env.ok("GET", "/kinds")).items;
-    assert.eq(got.filter((k) => (k.implements || []).some((p) => p === AREA || p === FOLDER)).map((k) => k.kind), [], "core.* не объявляет ни один вид");
     const top = await env.pages("/tree/children?layout=folders&limit=1000");
-    assert.eq(top.map((n) => n.id).sort(), FX.domains.map((d) => d.id).sort(), "верх дерева — области");
-    const f = await made(env, { kind: "folder", name: "Папка моста", domainId: d1.id, properties: {} });
-    assert.eq([f.domainId, f.parentId], [d1.id, null], "папка создана в области");
-    assert.eq(await refused(env, { kind: "folder", name: " ", domainId: d1.id, properties: {} }), [["NAME_REQUIRED", "/name"]], "без имени — отказ хука");
-    const res = await env.call("DELETE", U(d1.id), undefined, v(d1));
-    assert.status(res, 422, "DOMAIN_NOT_EMPTY", "хук области: непустую без moveTo не удалить");
-  }, { needs: ["listKinds", "getTreeChildren", "createUnits", "deleteUnit", "implements:vms.domain/1", "implements:vms.folder/1", "cap:domain:delete"], layer: "mechanism" });
+    const ids = new Set(FX.domains.map((d) => d.id));
+    assert.eq(top.filter((n) => ids.has(n.id)).map((n) => n.id), [], "верх дерева — без объектов вида со снятым vms.domain/1");
+    assert.eq((await env.pages(`/units?implements=${AREA}&limit=1000`)).length, 0, `объектов с ${AREA} нет`);
+  }, { needs: ["listKinds", "getTreeChildren", "listUnits"], layer: "mechanism" });
 
   test("Домен: удалить с переносом — серверы нераспределённые в целевом, папки, устройства, хранилища и найденное — там же", async () => {
     const env = await makeEnv();
@@ -195,7 +180,9 @@
     const fresh = items.slice(2);
     assert.ok(fresh.some((x) => x.status === "dead") && fresh.some((x) => x.status === "found" && !x.serverId), "новые: часть отвечает, часть нет");
     assert.eq((await probe(targets)).body.result.items, items, "ответ повторяется");
-    const many = Array.from({ length: FX.reference.limits.ipScanMax + 1 }, (_, i) => ({ ip: `10.78.${i >> 8}.${i & 255}`, port: 20111 }));
+    // Предел адресов — Discovery.ipScanMax области (с 0.30.0); система без поиска в сети — предел стенда
+    const max = ApiTest.can("getDiscovery") ? (await env.ok("GET", `${U(inDomain.domainId)}/discovery`)).ipScanMax : FX.stand.ipScanMax;
+    const many = Array.from({ length: max + 1 }, (_, i) => ({ ip: `10.78.${i >> 8}.${i & 255}`, port: 20111 }));
     assert.status(await probe(many), 422, "IP_RANGE_TOO_LARGE");
   }, { needs: ["runUnitAction", "implements:vms.server/1"] });
 
@@ -316,12 +303,11 @@
     assert.status(await env.call("DELETE", U(rootFolder.id), undefined, v(rootFolder)), 404, "NOT_FOUND", "второй раз");
   }, { needs: ["deleteUnit", `implements:${FOLDER}`, "kind:camera"] });
 
-  test("Метки сервера: PATCH, попадают в reference.serverLabels; детектор просит метку, сервера нет — faultText", async () => {
+  test("Метки сервера: PATCH; детектор просит метку, сервера нет — faultText", async () => {
     const env = await makeEnv();
     const s = FX.servers.find((x) => x.allocated && x.online);
     const res = await env.ok("PATCH", U(s.id), { properties: { labels: ["hall"] } }, v(s));
     assert.eq(res.properties.labels, ["hall"], "метка на сервере");
-    assert.ok((await env.ok("GET", "/reference")).serverLabels.includes("hall"), "в справочнике");
     const c = FX.devices.find((d) => d.type === "camera" && d.domainId === s.domainId);
     const det = await made(env, { kind: "det", name: "Метка", domainId: c.domainId, parentId: c.id, properties: { detectorKind: "motion", labels: ["нет-такой"] } });
     assert.ok(/нет-такой/.test(((det.status || {}).observed || {}).faultText || ""), "причина словами");
@@ -329,7 +315,7 @@
     assert.eq(auto.properties.labels, ["gpu"], "по умолчанию просит gpu");
   }, { needs: ["patchUnit", "createUnits", "implements:vms.server/1", "kind:det"] });
 
-  // Ретрансляторы — путь профиля vms.relays/1 у объекта области (с 0.29.0; прежний путь /domains/{id}/relays устарел)
+  // Ретрансляторы — путь профиля vms.relays/1 у объекта области (с 0.29.0; прежний путь /domains/{id}/relays снят в 0.32.0)
   test("Ретрансляторы: список домена и кто за ретранслятором — GET /units/{uid}/relays", async () => {
     const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
     if (!d) return "ретрансляторов в наборе нет";
@@ -382,44 +368,6 @@
       assert.status(await env.call("GET", `${U(UNKNOWN_DOMAIN)}/relays`), 404, "NOT_FOUND", "ретрансляторы: объекта нет");
     }
   }, { needs: ["getScenarios", "implements:vms.scenarios/1", "kind:camera"], layer: "profile:vms.scenarios/1" });
-
-  // Прежние пути /domains/{domainId}/… устарели в 0.29.0 и работают до следующей ломающей версии: ответ как у нового пути
-  test("Устаревшие пути домена: ответ как у нового пути — поиск в сети", async () => {
-    const env = await makeEnv();
-    const did = FX.discovery[0].domainId;
-    assert.eq(await env.ok("GET", `/domains/${did}/discovery`), await env.ok("GET", `${U(did)}/discovery`), "GET");
-    // Ответ POST и DELETE — без полей страницы (total, nextCursor): их сравниваем с GET нового пути без них
-    const whole = async () => {
-      const { total, nextCursor, ...rest } = await env.ok("GET", `${U(did)}/discovery`);
-      return rest;
-    };
-    const started = await env.call("POST", `/domains/${did}/discovery`);
-    assert.status(started, 202);
-    assert.eq(started.body, await whole(), "POST начал поиск нового пути");
-    const stopped = await env.ok("DELETE", `/domains/${did}/discovery`);
-    assert.eq([stopped.state, stopped], ["stopped", await whole()], "DELETE остановил поиск нового пути");
-  }, { needs: ["getDomainDiscovery", "getDiscovery", "startDomainDiscovery", "stopDomainDiscovery"], layer: "profile:vms.discovery/1" });
-
-  test("Устаревшие пути домена: ответ как у нового пути — сценарии", async () => {
-    const env = await makeEnv();
-    const did = d1.id;
-    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
-    assert.eq(doc, await env.ok("GET", `${U(did)}/scenarios`), "GET");
-    assert.eq(await env.ok("GET", `/domains/${did}/scenarios/status`), await env.ok("GET", `${U(did)}/scenarios/status`), "GET status");
-    const put = await env.call("PUT", `/domains/${did}/scenarios`, { items: doc.items }, { "If-Match": `"${doc.version}"` });
-    assert.status(put, 200);
-    assert.eq(put.body, await env.ok("GET", `${U(did)}/scenarios`), "PUT записал документ нового пути");
-  }, { needs: ["getDomainScenarios", "getScenarios", "putDomainScenarios", "getDomainScenariosStatus", "getScenariosStatus"], layer: "profile:vms.scenarios/1" });
-
-  test("Устаревшие пути домена: ответ как у нового пути — ретрансляторы", async () => {
-    const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
-    if (!d) return "ретрансляторов в наборе нет";
-    const env = await makeEnv();
-    const list = await env.ok("GET", `/domains/${d.id}/relays`);
-    assert.eq(list, await env.ok("GET", `${U(d.id)}/relays`), "GET");
-    const name = encodeURIComponent(list.items[0].name);
-    assert.eq(await env.ok("GET", `/domains/${d.id}/relays/${name}`), await env.ok("GET", `${U(d.id)}/relays/${name}`), "GET одного");
-  }, { needs: ["listDomainRelays", "listRelays", "getDomainRelay", "getRelay"], layer: "profile:vms.relays/1" });
 
   test("Сервер между доменами: откат переноса возвращает в исходный домен и состояние; исключить в другой домен — params.domainId", async () => {
     const env = await makeEnv();

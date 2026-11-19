@@ -387,12 +387,12 @@ else:
         write(tmp, "api/openapi.json", json.dumps(touch_schema(SPEC, "Unit")))
         git(tmp, "commit", "-q", "-am", "чужая правка")
         git(tmp, "checkout", "-q", "main")
-        write(tmp, "api/fixtures/demo.json", json.dumps(touch_reference(FX, "deviceModels")))
+        write(tmp, "api/fixtures/demo.json", json.dumps(add_profile_prop(FX, "vms.camera/1", "camera", "noiseReduction")))
         git(tmp, "commit", "-q", "-am", "своя правка")
         ok("api/openapi.json" not in changed_files("up", tmp) and "api/fixtures/demo.json" in changed_files("up", tmp),
            "case_merge_base: чужая правка не своя")
         cls = classify("up", tmp)
-        ok(cls is not None and cls["mechanism"] == [] and "vms" in cls["layers"], "case_merge_base: слои считаются от общего предка")
+        ok(cls is not None and cls["mechanism"] == [] and "vms.camera/1" in cls["layers"], "case_merge_base: слои считаются от общего предка")
         # правка рабочей копии, которой нет в коммитах: новая общая схема без новой версии
         marked = copy.deepcopy(SPEC)
         marked["components"]["schemas"]["Unit"]["x-layer"] = POS
@@ -494,7 +494,12 @@ spec = base()
 f = classify_fixture(FX, add_profile_prop(FX, "vms.camera/1", "camera", "noiseReduction"), spec, "api")
 ok("vms.camera/1" in f["layers"], "поле профиля камеры — vms.camera/1")
 ok(any("zzz" in s for s in classify_fixture(FX, add_kind_prop(FX, "camera", "zzz"), spec, "api")["kinds"]), "поле вне профиля — только вид")
-ok("vms" in classify_fixture(FX, touch_reference(FX, "deviceModels"), spec, "api")["layers"], "справочник моделей — vms")
+# Справочников VMS в reference нет с 0.32.0: ключ с пометкой x-layer — на копии контракта и набора
+marked = copy.deepcopy(spec)
+marked["components"]["schemas"]["Reference"]["properties"]["zzzVms"] = {"type": "array", "x-layer": "vms"}
+fx_marked = copy.deepcopy(FX)
+fx_marked["reference"]["zzzVms"] = []
+ok("vms" in classify_fixture(fx_marked, touch_reference(fx_marked, "zzzVms"), marked, "api")["layers"], "справочник с пометкой x-layer vms — vms")
 ok(classify_fixture(FX, touch_reference(FX, "ruleActions"), spec, "api")["stand"], "справочник без пометки — стенд")
 ok(any("version в файле профиля" in p for p in version_problems({**f, "mechanism": [], "version": ("0.1.0", "0.2.0")}, True)),
    "V2: данные профиля подняли версию контракта")

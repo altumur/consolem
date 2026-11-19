@@ -249,11 +249,11 @@ UiCheck(async ({ ok, until }) => {
   await new Promise((r) => setTimeout(r, 300));
   ok(!btns().some((t) => /Добавить в папку|Добавить устройства/.test(t)), "у папки нет «Добавить в папку»: " + btns().filter((t) => /Добавить/.test(t)).join(" | "));
 
-  // Справочники VMS и каталог правил — из описаний видов и каталога справочника (контракт 0.30.0, 0.31.0). У оркестратора
-  // устаревших ключей нет: списков VMS нет, а редактор правил предлагает только объявленное — HTTP-запрос, запуск
+  // Справочники VMS и каталог правил — из описаний видов и каталога справочника (контракт 0.30.0, 0.31.0; ключи reference
+  // сняты в 0.32.0). У оркестратора их нет: списков VMS нет, а редактор правил предлагает только объявленное — HTTP-запрос, запуск
   // правила и команды видов, без «Открыть раскладку». Страница со старым autoRef(ref) — проверять нечего
   if (typeof autoRef !== "function" || autoRef.length < 2) { ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего"); return; }
-  autoRef(stripDeprecatedRef(REF_LAST), KINDS);
+  autoRef(REF_LAST, KINDS);
   try {
     const vmsLists = { DEVICE_MODELS: Object.keys(DEVICE_MODELS), refLabels, DET_AK_CLASH: Object.keys(DET_AK_CLASH), RULE_LAYOUTS, RULE_MONS, refScenKinds: refScenKinds || [], REF_LAYOUT: [...REF_LAYOUT], REF_MONITOR: [...REF_MONITOR] };
     const full = Object.entries(vmsLists).filter(([, v]) => v.length).map(([k]) => k);

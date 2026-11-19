@@ -134,14 +134,3 @@ window.uiAccess = async () => {
   return Object.assign(a, { users, groups, history });
 };
 window.uiFolderIds = async (id) => (await uiUnitsAll({ folderId: id })).filter(uiIsDevice).map((u) => u.uid);
-/* Справочник без ключей, устаревших в контракте 0.30.0 и 0.31.0: списки VMS ушли в описания видов (examples, allOf, enum,
-   x-conflicts), в ответы путей профилей (ScenarioDoc.kinds, Discovery.ipScanMax, GET /exports/reference) и в schema полей
-   действий правил. Сценарий проверяет, что страница читает их из новых мест. Копия: справочник страницы не меняется */
-window.stripDeprecatedRef = (ref) => {
-  const out = JSON.parse(JSON.stringify(ref || {}));
-  ["deviceModels", "serviceTypes", "supportLevels", "recordModes", "cloudProviders", "serverLabels", "scenarioKinds", "analyticsConflicts", "export", "layouts", "monitors"].forEach((k) => delete out[k]);
-  if (out.limits) ["ipScanMax", "defaultServerPort", "scenariosMax"].forEach((k) => delete out.limits[k]);
-  // RuleActionField.options устарело: у поля со schema остаётся schema
-  (out.ruleActions || []).forEach((a) => (a.fields || []).forEach((f) => { if (f.schema) delete f.options; }));
-  return out;
-};

@@ -43,16 +43,14 @@
     assert.ok(!no.allowed && no.passwordRequired && !no.devices[0].archive, "запрет и пароль по политике");
     const many = Array.from({ length: (FX.reference.limits.idsMax || 200) + 1 }, () => cam.id).join(",");
     assert.status(await env.call("GET", `/me/export?ids=${many}`), 422, "VALIDATION_FAILED");
-    const ref = (await env.ok("GET", "/reference")).export;
-    assert.ok(ref && ref.formats.some((f) => f.id === "mkv") && ref.limits.maxCameras > 0, "справочник выгрузки");
   }, { needs: ["getExportGrant", "getReference"] });
 
-  // С 0.30.0 справочник окна выгрузки — свой путь API видео; reference.export устарел и до снятия отдаёт то же
-  test("Справочник выгрузки: GET /exports/reference — то же, что reference.export", async () => {
+  // С 0.30.0 справочник окна выгрузки — свой путь API видео; reference.export снят в 0.32.0
+  test("Справочник выгрузки: GET /exports/reference — форматы и пределы; в reference его нет", async () => {
     const env = await makeEnv();
     const own = await env.ok("GET", "/exports/reference");
     assert.ok(own.formats.some((f) => f.id === "mkv") && own.limits.maxCameras > 0, "форматы и пределы");
-    if (ApiTest.can("getReference")) assert.eq(own, (await env.ok("GET", "/reference")).export, "то же, что reference.export");
+    if (ApiTest.can("getReference")) assert.ok(!("export" in (await env.ok("GET", "/reference"))), "reference.export снят");
     return `форматов ${own.formats.length}`;
   }, { needs: ["getExportReference"] });
 
@@ -132,7 +130,7 @@
     assert.status(await env.call("POST", `/exports/${x.id}/files/нет/link`), 404, "NOT_FOUND");
     // Срок файлов — сутки: дождаться его можно только на остановленных часах
     if (!env.frozen) return;
-    await env.advance((FX.reference.export.limits.keepSec || 86400) + 1);
+    await env.advance(((await env.ok("GET", "/exports/reference")).limits.keepSec || 86400) + 1);
     const gone = await env.ok("GET", `/exports/${x.id}`);
     assert.eq([gone.state, gone.files], ["expired", []], "файлы удалены по сроку");
     assert.status(await env.call("POST", `/exports/${x.id}/files/${end.files[0].id}/link`), 410, "EXPORT_EXPIRED");
@@ -169,7 +167,7 @@
     assert.status(await env.call("DELETE", `/exports/${x.id}`), 204);
     assert.status(await env.call("GET", `/exports/${x.id}`), 404, "NOT_FOUND");
     assert.status(await env.call("DELETE", `/exports/${x.id}`), 404, "NOT_FOUND");
-    const L = FX.reference.export.limits;
+    const L = (await env.ok("GET", "/exports/reference")).limits;
     const many = await env.call("POST", "/exports", video(env, { cameras: Array.from({ length: L.maxCameras + 1 }, () => ({ uid: cam.id })) }));
     refused(many, 422, "LIMIT_EXCEEDED", "/cameras", "камер сверх предела");
     assert.eq(many.body.params, { limit: "maxCameras", max: L.maxCameras }, "какой предел");

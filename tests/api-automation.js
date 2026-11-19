@@ -123,7 +123,7 @@
   // Действие без объекта механизма (net.http) и правило из шагов. Система, которая его не объявила, получает его в
   // каталоге на прогон (withHttp)
   const http = (over) => Object.assign({ source: "net", action: "http", url: "http://example.invalid/hook" }, over || {});
-  const HTTP_DECL = { source: "net", action: "http", fields: [{ id: "method", options: ["GET", "POST", "PUT", "DELETE"], optional: true }, { id: "url" }] };
+  const HTTP_DECL = { source: "net", action: "http", fields: [{ id: "method", optional: true, schema: { type: "string", enum: ["GET", "POST", "PUT", "DELETE"] } }, { id: "url" }] };
   const withHttp = (acts) => (acts.some((a) => a.source === "net" && a.action === "http") ? acts : acts.concat(HTTP_DECL));
   const sysRule = (steps) => blank({ steps });
   // Все узлы ветки под nodeId в раскладке layout (GET /tree/children вглубь; узел группы — шаг пути, не объект)
@@ -159,7 +159,7 @@
   }, { needs: ["createRule"] });
 
   test("Поле действия по schema: значение вне enum — action.fieldNotDeclared", async () => {
-    // net.http.method — только schema (enum), без устаревшего options
+    // net.http.method — значения задаёт schema (enum; options снято в 0.32.0)
     const acts = withHttp(ref.ruleActions).map((a) => (a.source === "net" && a.action === "http"
       ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "method").concat({ id: "method", optional: true, schema: { type: "string", enum: ["GET", "POST"] } }) }) : a));
     const env = await makeEnv({ fixturePatch: { reference: { ruleActions: acts } } });
@@ -831,7 +831,8 @@
     const tooDeep = await env.call("POST", "/rules", blank({ steps: [step, check("safe", dev(camA.id), [], [], { depthSec: 86401 })] }));
     assert.status(tooDeep, 422, "VALIDATION_FAILED", "глубина больше суток — граница схемы");
     await bad(check("armed", { include: [], exclude: [], gone: [], fromEvent: true }), "control.noEventDevice", "объекта из события нет");
-    assert.status(await env.call("POST", "/rules", blank({ steps: [check("fresh", dev(camA.id))] })), 422, "VALIDATION_FAILED", "вид проверки вне перечня");
+    // Код проверки — открытая строка (с 0.32.0): необъявленный в reference.ruleChecks — 422 NOT_SUPPORTED, control.notDeclared
+    assert.status(await env.call("POST", "/rules", blank({ steps: [check("fresh", dev(camA.id))] })), 422, "NOT_SUPPORTED", "вид проверки вне каталога ruleChecks");
     assert.status(await env.call("POST", "/rules", blank({ steps: [step, check("armed", dev(camA.id))] })), 201, null, "armed без глубины");
     assert.status(await env.call("POST", "/rules", blank({ enabled: false, steps: [check("record", null)] })), 201, null, "выключенное хранится");
     const noCtl = makeEnv({ fixturePatch: { reference: { ruleControls: ref.ruleControls.filter((c) => c.control !== "check") } } });

@@ -406,7 +406,7 @@
   // по uid объекта, как ExportCamera; ход ничего не пишет, тело годится для POST /exports/check как есть
   test("План выгрузки: «выгрузи», «кадр», «живой кадр» — plan с export, камеры по uid; маска — refused; без камер — вопрос; без createExport плана нет", async () => {
     const env = await makeEnv();
-    const ref = (await env.ok("GET", "/reference")).export;
+    const ref = await env.ok("GET", "/exports/reference");
     const cams = await env.pages("/units?implements=vms.camera/1&limit=1000");
     const room = "Переговорная", main = cams.find((u) => u.name === room);
     const fmtOf = (kind) => ref.formats.find((f) => f.kind === kind).id;

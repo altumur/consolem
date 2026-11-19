@@ -507,12 +507,10 @@
     /* Хуки профилей (profiles.js) и то, что они видят у сервера: склад, описания видов, старые таблицы и общие помощники старых
        путей. Помощники — обёртки: сами функции объявлены ниже, хук зовёт их, когда сервер уже собран */
     const HOOKS = Profiles.HOOKS;
-    // Хук профиля; устаревший профиль (vms.domain/1, vms.folder/1) — хук профиля, который его заменил (SUCCESSOR)
-    const profileHook = (p) => HOOKS[p] || HOOKS[(Profiles.SUCCESSOR || {})[p]];
     const hFolder = HOOKS["core.folder/1"];
-    // Область и папку сервер узнаёт по профилю (core.domain/1, core.folder/1; до снятия — и vms.domain/1, vms.folder/1), а не по коду вида
-    const isArea = (kind) => kinds.profileOf(kind, "core.domain/1") || kinds.profileOf(kind, "vms.domain/1");
-    const isFolder = (kind) => kinds.profileOf(kind, "core.folder/1") || kinds.profileOf(kind, "vms.folder/1");
+    // Область и папку сервер узнаёт по профилю механизма (core.domain/1, core.folder/1), а не по коду вида
+    const isArea = (kind) => kinds.profileOf(kind, "core.domain/1");
+    const isFolder = (kind) => kinds.profileOf(kind, "core.folder/1");
     const hDevice = Profiles.DEVICE, hCamera = HOOKS["vms.camera/1"], hStream = HOOKS["vms.stream/1"], hDetector = HOOKS["vms.detector/1"], hAcs = HOOKS["vms.acs/1"];
     const hLive = HOOKS["vms.live/1"], hPtz = HOOKS["vms.ptz/1"], hTalk = HOOKS["vms.talk/1"], hTimeline = HOOKS["vms.timeline/1"], hPos = HOOKS["vms.pos/1"], hEdge = HOOKS["vms.edge/1"];
     const pctx = {
@@ -573,7 +571,7 @@
     // Хуки вида — по его профилям (implements), только те, что сервер знает. У устройств (таблица devices) первыми — общие
     // хуки устройства (DEVICE: система, папки, ссылки, сервер-исполнитель, удаление), затем — профилей
     const hooksOf = (kind) => {
-      const own = [...new Set(((kinds.get(kind) || {}).implements || []).map(profileHook).filter(Boolean))];
+      const own = [...new Set(((kinds.get(kind) || {}).implements || []).map((p) => HOOKS[p]).filter(Boolean))];
       return tableOf(kind) === "devices" && kinds.get(kind) ? [hDevice].concat(own) : own;
     };
     // Что уходит и что меняется с объектом — по всем его хукам (dependents): у камеры — дочерние, строки незнакомых видов
@@ -675,7 +673,7 @@
       tz: () => db.timezone, store: () => store, kinds: () => kindList || (kindList = kinds.list()),
       rules: () => db.rules, schedules: () => db.schedules, dayGroups: () => db.dayGroups, modes: () => db.modes, manualMode: () => db.modeManual,
       windows: () => db.maintenanceWindows, roles: () => db.access.roles, users: () => db.access.users,
-      reference: () => db.reference, hooks: (kind) => hooksOf(kind), ruleActions: () => Profiles.RULE_ACTIONS || [], ruleChecks: () => Profiles.RULE_CHECKS || [],
+      reference: () => db.reference, hooks: (kind) => hooksOf(kind), ruleActions: () => Profiles.RULE_ACTIONS || [],
       layoutDescendants: (id, uid, limit) => {
         const l = layoutOf(id);
         return l ? layoutDescendants(l, uid, limit) : null;
@@ -2314,10 +2312,10 @@
       delete c.domainIds;
       return c;
     }
-    // С 0.30.0 ответ поиска называет предел адресов одного поиска (ipScanMax): число стенда, прежнее место — reference.limits
+    // С 0.30.0 ответ поиска называет предел адресов одного поиска (ipScanMax): число стенда (stand.ipScanMax)
     function discoveryView(domainId) {
       const d = db.discovery.find((x) => x.domainId === domainId);
-      const ipScanMax = db.stand.ipScanMax !== undefined ? db.stand.ipScanMax : (db.reference.limits || {}).ipScanMax;
+      const ipScanMax = db.stand.ipScanMax;
       if (!d) return { domainId, state: "idle", progress: 0, startedAt: null, finishedAt: null, candidates: [], ipScanMax };
       return { domainId, state: d.state, progress: d.progress, startedAt: d.startedAt || null, finishedAt: d.finishedAt || null, candidates: d.candidateIds.map(candidate), ipScanMax };
     }
@@ -2538,10 +2536,12 @@
       db.scenarioDocs = db.scenarioDocs || {};
       return db.scenarioDocs[id] || (db.scenarioDocs[id] = { version: newVersion(), items: [] });
     }
-    // Предел стенда: число из stand (с 0.30.0), прежнее место — reference.limits (устарело, набор держит то же значение)
-    const standMax = (name) => (db.stand[name] !== undefined ? db.stand[name] : (db.reference.limits || {})[name]);
+    // Предел стенда — число из stand (с 0.30.0)
+    const standMax = (name) => db.stand[name];
+    // Виды событий сценария — данные стенда (stand.scenarioKinds, с 0.32.0; прежде — reference.scenarioKinds)
+    const scenarioKinds = () => db.stand.scenarioKinds || [];
     // Ответ документа: с 0.30.0 — ещё виды событий сценария (kinds) и предел (maxItems); в хранимом документе их нет
-    const scenarioView = (doc) => Object.assign(clone(doc), { kinds: (db.reference.scenarioKinds || []).slice(), maxItems: standMax("scenariosMax") });
+    const scenarioView = (doc) => Object.assign(clone(doc), { kinds: scenarioKinds().slice(), maxItems: standMax("scenariosMax") });
     function scenarioProblem(list) {
       const max = standMax("scenariosMax");
       if (list.length > max) return problem(422, "VALIDATION_FAILED", `Сценариев не больше ${max}`, { field: "items" });
@@ -2555,7 +2555,7 @@
         const cam = (id) => { const d = byId("devices", id); return d && d.type === "camera"; };
         if (!cam(x.when.deviceId)) return problem(422, "VALIDATION_FAILED", "Триггер — камера", { field: `${at}.when.deviceId` });
         if (!cam(x.then.deviceId)) return problem(422, "VALIDATION_FAILED", "Цель — камера", { field: `${at}.then.deviceId` });
-        if ((db.reference.scenarioKinds || []).length && !db.reference.scenarioKinds.includes(x.when.kind)) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: `${at}.when.kind` });
+        if (scenarioKinds().length && !scenarioKinds().includes(x.when.kind)) return problem(422, "VALIDATION_FAILED", "Такого вида события нет", { field: `${at}.when.kind` });
         const preset = x.then.action === "preset";
         if ("n" in x.then && "port" in x.then) return problem(422, "VALIDATION_FAILED", "Или пресет, или выход", { field: `${at}.then` });
         if (preset ? !("n" in x.then) : !("port" in x.then)) return problem(422, "VALIDATION_FAILED", preset ? "Нужен номер пресета" : "Нужен номер выхода", { field: `${at}.then` });
@@ -2743,7 +2743,7 @@
       return node;
     }
     // Дети узла P — кандидаты только из индексов склада, место каждого кандидата проверяет placeOf:
-    //   P = null — области (виды с core.domain/1 или vms.domain/1); P = "<группа>:<область>" — корни области в этой группе;
+    //   P = null — области (виды с core.domain/1); P = "<группа>:<область>" — корни области в этой группе;
     //   P — область: её корни (byParent(null, P)) и узлы групп, в которые попал хоть один корень;
     //   P — папка: byFolder(P) ∪ byParent(P); другой объект: byParent(P) ∪ byRef(P).
     // Ребёнок c узла P: P есть среди мест placeOf(L, c) и c виден (layoutVisible). Проход по всем объектам запрещён
@@ -3446,7 +3446,7 @@
     const coreKind = (kind) => {
       const k = kinds.get(kind);
       if (!k) return false;
-      return (k.implements || []).filter((p) => String(p).startsWith("vms.")).every((p) => !!profileHook(p));
+      return (k.implements || []).filter((p) => String(p).startsWith("vms.")).every((p) => !!HOOKS[p]);
     };
     // Правка только папок (Unit.folders): у устройства её пишет ядро уже сейчас — членство ведёт профиль папки
     const foldersOnly = (patch) => !!patch && patch.folders !== undefined && Object.keys(patch).every((k) => k === "folders");
@@ -4311,7 +4311,8 @@
        Как api/server.js базы, но камера — объект по uid, вид которого реализует vms.camera/1; записи камеры — шкала хука
        vms.timeline/1 (profiles.js). Не камера — 422 NOT_SUPPORTED, нет объекта — 404, field — /cameras/i */
     const expAll = () => db.exports || (db.exports = []);
-    const expRef = () => db.reference.export;
+    // Справочник окна выгрузки — данные стенда (stand.exportReference, с 0.32.0; прежде — reference.export)
+    const expRef = () => db.stand.exportReference;
     // Права человека: стенд правит их через stand.exportGrant (тесты), по умолчанию можно всё и без пароля
     const expGrant = () => Object.assign({ allowed: true, passwordRequired: false, privacyForced: false, supervisorRequired: false, watermark: false, depthHours: 0 }, db.stand.exportGrant || {});
     const expSupervisor = () => Object.assign({ login: "supervisor", password: "supervisor" }, db.stand.exportSupervisor || {});
@@ -4533,7 +4534,7 @@
     }
     // ── Пути области: поиск в сети, сценарии между камерами, ретрансляторы ──
     // С 0.29.0 — пути профилей /units/{uid}/… (vms.discovery/1, vms.scenarios/1, vms.relays/1): uid — объект области, вид
-    // которого объявил профиль. Прежние пути /domains/{id}/… устарели и зовут те же обработчики (p.id — uid области)
+    // которого объявил профиль (p.id — uid области). Прежние пути /domains/{id}/… сняты в 0.32.0
     const AREA_API = {
       relays: (p) => (byId("domains", p.id) ? items(Object.keys((db.relays || {})[p.id] || {}).sort().map((name) => ({ name }))) : notFound("Домен")),
       relay: (p) => {
@@ -4606,12 +4607,8 @@
           return { status: 200, body: { userId: u.id, login: u.login, name: u.name, serverTime: iso(now()), timezone: db.timezone } };
         },
       ],
-      ["GET", "/reference", () => {
-        const ref = clone(db.reference);
-        ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
-        return { status: 200, body: ref };
-      }],
-      // Пути области: профили vms.discovery/1, vms.scenarios/1, vms.relays/1; /domains/{id}/… — устарели в 0.29.0
+      ["GET", "/reference", () => ({ status: 200, body: clone(db.reference) })],
+      // Пути области: профили vms.discovery/1, vms.scenarios/1, vms.relays/1 (с 0.29.0)
       areaRoute("GET", "/units/{uid}/discovery", "vms.discovery/1", "discovery"),
       areaRoute("POST", "/units/{uid}/discovery", "vms.discovery/1", "startDiscovery"),
       areaRoute("DELETE", "/units/{uid}/discovery", "vms.discovery/1", "stopDiscovery"),
@@ -4620,14 +4617,6 @@
       areaRoute("GET", "/units/{uid}/scenarios/status", "vms.scenarios/1", "scenariosStatus"),
       areaRoute("GET", "/units/{uid}/relays", "vms.relays/1", "relays"),
       areaRoute("GET", "/units/{uid}/relays/{name}", "vms.relays/1", "relay"),
-      ["GET", "/domains/{id}/discovery", AREA_API.discovery],
-      ["POST", "/domains/{id}/discovery", AREA_API.startDiscovery],
-      ["DELETE", "/domains/{id}/discovery", AREA_API.stopDiscovery],
-      ["GET", "/domains/{id}/scenarios", AREA_API.scenarios],
-      ["PUT", "/domains/{id}/scenarios", AREA_API.putScenarios],
-      ["GET", "/domains/{id}/scenarios/status", AREA_API.scenariosStatus],
-      ["GET", "/domains/{id}/relays", AREA_API.relays],
-      ["GET", "/domains/{id}/relays/{name}", AREA_API.relay],
       ["GET", "/tree/children", (p, q) => treeChildren(q)],
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
       /* ----- Ядро: виды и объекты ----- */
@@ -4873,7 +4862,7 @@
           return { status: 202, body: clone(x), headers: { Location: `/exports/${x.id}` } };
         },
       ],
-      // Справочник окна выгрузки (с 0.30.0; прежнее место — reference.export). Литерал раньше /exports/{id}: иначе его поймал бы шаблон
+      // Справочник окна выгрузки (с 0.30.0; данные стенда — stand.exportReference). Литерал раньше /exports/{id}: иначе его поймал бы шаблон
       ["GET", "/exports/reference", () => (expRef() ? { status: 200, body: clone(expRef()) } : notFound("Справочник выгрузки"))],
       ["GET", "/exports/{id}", (p) => { const x = expFind(p.id); return x ? { status: 200, body: clone(x) } : notFound("Выгрузка"); }],
       [

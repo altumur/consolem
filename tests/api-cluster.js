@@ -112,7 +112,9 @@
   test("Определение модели: логин и пароль необязательны, без них система вправе не назвать", async () => {
     const env = await makeEnv({ fixturePatch: { stand: { probeNeedsLogin: true } } });
     // Производитель, у которого модели есть: у первого в наборе список пуст, и «с входом» модель не назвать
-    const vendor = FX.reference.deviceModels.find((m) => m.models.length).vendor;
+    const part = ((await env.ok("GET", "/kinds/camera")).schema.allOf || []).find((x) => x.if && x.if.properties && x.if.properties.vendor
+      && x.then && x.then.properties && x.then.properties.model && (x.then.properties.model.examples || []).length);
+    const vendor = part.if.properties.vendor.const;
     // Камеры ещё нет: команда вида (scope kind) — POST /kinds/camera/actions/probe
     const probe = async (params) => (await env.ok("POST", "/kinds/camera/actions/probe", { params })).result;
     assert.eq((await probe({ ip: "10.1.1.1", port: 80, vendor })).model, null, "без входа");

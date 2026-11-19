@@ -4104,7 +4104,7 @@ const WIZ={
   acfa:{view:"acfa",label:"ACFA-устройства",types:[["acfa","ACFA-устройство","СКУД или пожарная защита"],["acfa_sensor","Датчик ACFA","Внутри ACFA-устройства"],["acfa_lock","Замок","Внутри ACFA-устройства"],["acfa_fence","Шлейф","Внутри ACFA-устройства"],["relay","Реле","Внутри замка или ACFA-устройства"]]},
   svc:{view:"sys",label:"Службы",types:[["email","Email-оповещатель","Для правил автоматизации"],["sms","SMS-оповещатель","Для правил автоматизации"],["export","Агент экспорта","Экспорт по правилу"]]}
 };
-// Производители и модели — reference.deviceModels: список от сервера, может быть пуст и бывает на тысячи строк
+// Производители и модели — из описаний видов (autoRefLists): список от сервера, может быть пуст и бывает на тысячи строк
 const DEVICE_MODELS={};
 const DEVICE_STATUS_LABELS={ok:"Полностью поддерживается",manual:"Требует ручной настройки",bad:"Работа не гарантируется"};
 const DEV_VIEW_MODES=[
@@ -4437,7 +4437,7 @@ async function capsLoad(){
   // Системе без /kinds остаются виды устройств справочника; с /kinds каталоги — из описаний видов (kindsApply)
   refDeviceTypes=c.deviceTypes?new Set(c.deviceTypes):null;refWritable=c.writableFields||null;
   CAPS.deviceTypes=new Set(c.deviceTypes||[]);CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
-  expRefReset(ref);
+  expRefReset();
   await kindsLoad();
   capsApply();
 }
@@ -4490,8 +4490,8 @@ function textOf(t){
 // не подошёл — по коду только экраны без своего профиля (CODE_SCREENS). Описания вида нет (listKinds не объявлен, /kinds
 // не прочитан, событие потока раньше /kinds) — экран по коду, как прежде. Ступень 3 — форма по схеме вида
 // Область системы и папка — профили механизма core.domain/1 и core.folder/1 (контракт 0.28.0) идут первыми; vms.domain/1
-// и vms.folder/1 устарели, но старый бэкенд объявляет только их — экран тот же
-const SCREEN_OF_PROFILE={"core.domain/1":"domain","core.folder/1":"folder","vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
+// и vms.folder/1 сняты в контракте 0.32.0
+const SCREEN_OF_PROFILE={"core.domain/1":"domain","core.folder/1":"folder","vms.server/1":"server","vms.archive/1":"archive","vms.volume/1":"vol",
   "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage",
   "vms.acs/1":["acfa","acfa_sensor","acfa_lock","acfa_fence"],"vms.talk/1":"spk"};
 // Экраны без своего профиля в контракте: регистратор, канал, микрофон, датчик, реле, экспорт, почта, SMS — только по коду
@@ -4798,7 +4798,7 @@ function bytesText(b){return b%TB===0?`${b/TB} ТБ`:`${Math.round(b/GB)} ГБ`}
 const DET_KIND_RU={motion:"Движение",linecross:"Пересечение линии",abandoned:"Оставленный предмет",disappeared:"Исчезновение предмета",crowd:"Скопление людей",lpr:"Номер",other:"Другой"};
 const DET_KIND_CODE=Object.fromEntries(Object.entries(DET_KIND_RU).map(([k,v])=>[v,k]));
 // Серверные виды аналитики вне detectorKind (analyticsKind вида det, с 0.17.0): мета-детектор и детекторы лиц.
-// Несовместимые виды (с 0.21.0) — reference.analyticsConflicts: пакеты распознавания лиц TV, VA и VL не работают вместе
+// Несовместимые виды (с 0.21.0) — x-conflicts у analyticsKind вида детектора: пакеты распознавания лиц TV, VA и VL не работают вместе
 // на одном сервере. Сервер отказывает сам (409 BUSY, reason: incompatible); консоль заранее показывает причину
 const DET_AK={meta:"Мета-детектор",faceTV:"Лица TV",faceVA:"Лица VA",faceVL:"Лица VL"};
 // Вид аналитики есть в мастере, только если схема вида детектора на сервере знает это значение analyticsKind
@@ -5212,7 +5212,7 @@ function kindActionOn(kind,id){return can("runKindAction")&&(KINDS.get(kind)?.ac
 // Завести и удалить объект вида: операция системы (createUnits, deleteUnit) и возможность вида (UnitKind.capabilities
 // create, delete) — у любого вида того же ручного экрана (kindsLike). Профиль системы сужает виды описаниями, а не
 // кодами операций.
-// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с core.domain/1 или vms.domain/1); вид формы по схеме и
+// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с core.domain/1); вид формы по схеме и
 // описаний нет — сам вид
 function kindsLike(kind){const t=KINDS.size?handScreen(kind):null;return t?kindsOfScreen(t):[kind]}
 function canCreateKind(kind){return can("createUnits")&&(!KINDS.size||kindsLike(kind).some(k=>kindCan(k,"create")))}
@@ -5820,10 +5820,10 @@ async function hwRead(){
   // Домены и серверы — в порядке ответа, как /domains и /servers базы: принятый в домен сервер — последним и после перечитывания
   const whole=async()=>{
     const out=[];let cursor=null;
-    do{const r=await API.get("/units",{implements:"core.domain/1,vms.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
+    do{const r=await API.get("/units",{implements:"core.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
     return out;
   };
-  const[ds,fl,ar,vl]=await Promise.all([whole(),page("core.folder/1,vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
+  const[ds,fl,ar,vl]=await Promise.all([whole(),page("core.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
   const of=t=>ds.filter(u=>handScreen(u.kind)===t).map(unitRec);
   return{domains:of("domain"),servers:of("server"),folders:fl,archives:ar,volumes:vl};
 }
@@ -7069,7 +7069,7 @@ function autoRef(ref,kinds){
 // Справочники VMS — из описаний видов.
 // Списки, которые раньше отдавал GET /reference, приходят из описаний видов (контракт 0.30.0) и из schema полей
 // действий правил (0.31.0). Устаревший ключ справочника читается, только если нового места нет: старый бэкенд
-function refFieldOpts(f){return f?.schema?.enum||f?.schema?.items?.enum||f?.options||[]}
+function refFieldOpts(f){return f?.schema?.enum||f?.schema?.items?.enum||[]}
 // Подпись значения enum: x-enum-labels — текст как есть (имя раскладки или монитора — данные правила, не перевод)
 function refEnumName(p,v){const t=p?.["x-enum-labels"]?.[v];return t==null?String(v):typeof t==="string"?t:t.text||String(v)}
 function autoRefLists(ref,kinds){
@@ -7085,42 +7085,39 @@ function autoRefLists(ref,kinds){
     });
   });
   Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
-  if(Object.keys(models).length)Object.assign(DEVICE_MODELS,models);
-  else(ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
+  Object.assign(DEVICE_MODELS,models);
   // Режимы записи камеры: enum recordMode видов vms.camera/1
   const rec=[...new Set(ks.filter(k=>im(k,"vms.camera/1")).flatMap(k=>props(k).recordMode?.enum||[]))];
-  if(rec.length)refRecModes=rec;else if(ref.recordModes?.length)refRecModes=ref.recordModes;
+  if(rec.length)refRecModes=rec;
   // Метки серверов: examples у labels.items видов vms.server/1
   const lb=[...new Set(ks.filter(k=>im(k,"vms.server/1")).flatMap(k=>props(k).labels?.items?.examples||[]))];
-  refLabels=lb.length?lb:ref.serverLabels||[];
+  refLabels=lb;
   // Несовместимые виды аналитики: x-conflicts {значение: [значения]} у analyticsKind видов детектора
   const cf=ks.map(k=>props(k).analyticsKind?.["x-conflicts"]).filter(Boolean);
-  detAkClashSet(cf.length?cf.flatMap(x=>Object.entries(x).map(([analyticsKind,conflicts])=>({analyticsKind,conflicts}))):ref.analyticsConflicts);
-  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad); до него — устаревший ключ, если он есть.
-  // Без ключа значение остаётся: новое чтение /kinds не стирает виды, прочитанные из документа
-  if(ref.scenarioKinds)refScenKinds=ref.scenarioKinds;
+  detAkClashSet(cf.flatMap(x=>Object.entries(x).map(([analyticsKind,conflicts])=>({analyticsKind,conflicts}))));
+  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad): новое чтение /kinds их не стирает
   // Раскладки и мониторы правил: enum и x-enum-labels в schema поля layoutId действия client.layout и параметра
   // monitorId команды объекта (camera.wall). Имя — в правиле, id — на сервере
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
   const fieldOf=(id)=>(ref.ruleActions||[]).flatMap(a=>a.fields||[]).find(f=>f.id===id&&f.schema?.enum);
   const pairs=p=>p?.enum?p.enum.map(v=>({id:v,name:refEnumName(p,v)})):null;
-  const lay=pairs(fieldOf("layoutId")?.schema)||ref.layouts||[];
+  const lay=pairs(fieldOf("layoutId")?.schema)||[];
   const monP=ks.flatMap(k=>(k.actions||[]).map(a=>a.params?.properties?.monitorId)).find(p=>p?.enum)||fieldOf("monitorId")?.schema;
-  const mon=pairs(monP)||ref.monitors||[];
+  const mon=pairs(monP)||[];
   lay.forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
   mon.forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
 }
-// Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции — устаревший reference.export
+// Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции справочника не даёт (reference.export снят в 0.32.0)
 // Справочник выгрузки читается при первом заходе в «Экспорт» (expRefEnsure), а не на старте: старт на большом домене —
-// не больше 16 запросов (tests/scale-large.js). Система без getExportReference — устаревший reference.export сразу, без запроса
+// не больше 16 запросов (tests/scale-large.js). Система без getExportReference — справочника нет сразу, без запроса
 let expRefP=null,expRefDone=false;
-function expRefReset(ref){
-  expRefP=null;expRefDone=!can("getExportReference");EXP_REF=expRefDone?ref?.export||null:null;
+function expRefReset(){
+  expRefP=null;expRefDone=!can("getExportReference");EXP_REF=null;
   if(!expRefDone&&app==="exp")expRefEnsure();
 }
 function expRefEnsure(){
   if(expRefDone)return Promise.resolve();
-  return expRefP||(expRefP=expRefLoad(REF_LAST).then(()=>{expRefDone=true;expRefFill(expD);if(app==="exp")paint()}));
+  return expRefP||(expRefP=expRefLoad().then(()=>{expRefDone=true;expRefFill(expD);if(app==="exp")paint()}));
 }
 // Заказ, начатый до ответа справочника, получает его умолчания: предел файла и первый шрифт, если их не меняли
 const expNoRef=new WeakSet();
@@ -7131,8 +7128,8 @@ function expRefFill(d){
   if(d.adv.maxmb===4000&&L.maxFileMbDefault)d.adv.maxmb=L.maxFileMbDefault;
   if(!d.adv.font&&f0)d.adv.font=`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`;
 }
-async function expRefLoad(ref){
-  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return ref?.export||null}):ref?.export||null;
+async function expRefLoad(){
+  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return null}):null;
 }
 // Цель: {include, exclude, gone, fromEvent} ↔ строка раздела («c1», «set:a,b,-c», «folder:…», «gone:имя», «$src»).
 // Элемент include — объект {uid} или область {area: folder|server|domain, uid}
@@ -19525,7 +19522,7 @@ function holdVerify(id){
 // Состав — окно экспорта монитора (one-psim-monitor): «Основное» и пять необязательных разделов — «Качество видео»,
 // «Специальные опции», «Выделение», «Конфиденциальность», «Титры»; вид — как у вкладок карточки consolem. Раздел на
 // рельсе, а не вкладка камеры: в выгрузке несколько камер. Из карточки камеры («Просмотр», «Отметки») он открывается
-// с выбранной камерой. Списки — из reference.export, необязательное скрыто по export* в capabilities.features; ошибки
+// с выбранной камерой. Списки — из GET /exports/reference, необязательное скрыто по export* в capabilities.features; ошибки
 // сервер отдаёт с field — JSON Pointer по телу, они встают у своих полей, а вкладка с ошибкой помечена точкой.
 // Модель: камера заказа, части и права — по uid объекта; дни с записью — предметный путь /units/{uid}/recording-days
 let EXP_REF=null,expSel="new",expRows=null,expGrantV=null,expD=null,expChk=null,expChkSeq=0,expChkT=0,expPick=null,expPickSeq=0,expDays={},expDets={},expCrop=null;
@@ -33778,7 +33775,7 @@ function lanArchFixed(){
   return lanIsArch(n)?n:null;
 }
 const REC_MODES_ALL=[["none","Нет"],["always","Всегда"],["motion","По движению"],["sched","По расписанию"],["replica","Репликация"],["backup","Резерв при сбое"]];
-// Что система умеет — reference.recordModes; backup бывает только в строке дополнительного архива
+// Что система умеет — enum recordMode видов камеры (autoRefLists); backup бывает только в строке дополнительного архива
 let refRecModes=REC_MODES_ALL.map(x=>x[0]);
 function recModes(){return REC_MODES_ALL.filter(([v])=>v!=="backup"&&refRecModes.includes(v))}
 function recModesOf(a){const m=archSpec(a).recordModes;return REC_MODES_ALL.filter(([v])=>m.includes(v)&&refRecModes.includes(v))}

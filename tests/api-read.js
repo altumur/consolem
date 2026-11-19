@@ -92,8 +92,6 @@
   test("Справочники: коды, без подписей", async () => {
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
-    assert.eq(ref.recordModes, ["none", "always", "motion", "sched", "replica", "backup"], "режимы записи");
-    assert.ok(ref.deviceModels.some((v) => v.vendor === "Hikvision"), "модели по производителям");
     // Справочники видов — в описаниях видов: в reference их нет
     const moved = ["deviceKinds", "deviceParams", "ipServerSubtypes", "detectorKinds", "archiveKinds", "storageTypes", "volumeStates", "unitOptions"];
     assert.eq(moved.filter((k) => k in ref), [], "справочники видов — в /kinds");
@@ -104,46 +102,59 @@
     }
   }, { needs: ["kind:camera"] });
 
-  // Справочники VMS переехали в описания видов (с 0.30.0); ключи reference устарели и до снятия отдают те же значения
-  const sameSet = (a, b, msg) => assert.eq([...new Set(a || [])].sort(), [...new Set(b || [])].sort(), msg);
-  test("Справочники в видах: модели — examples у vendor и model, метки сервера — examples, порт сервера — default; те же значения, что в reference", async () => {
+  // Справочник механизма (с 0.32.0): ключи reference и reference.limits — только механизма (tools/mechanism.py, B3 и B4).
+  // Справочники VMS — в описаниях видов и в ответах путей профилей; ruleChecks обязательно
+  const REFERENCE_KEYS = ["ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
+    "ruleCrossDomainActions", "access", "limits", "capabilities"];
+  const LIMIT_KEYS = ["pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes"];
+  test("Справочник механизма: ключи reference и reference.limits — только механизма, ruleChecks есть", async () => {
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");
+    assert.eq(Object.keys(ref).filter((k) => !REFERENCE_KEYS.includes(k)), [], "ключи reference вне механизма");
+    assert.eq(Object.keys(ref.limits || {}).filter((k) => !LIMIT_KEYS.includes(k)), [], "ключи reference.limits вне механизма");
+    assert.ok(Array.isArray(ref.ruleChecks), "reference.ruleChecks — массив");
+    return `ключей ${Object.keys(ref).length}, пределов ${Object.keys(ref.limits || {}).length}`;
+  }, { needs: ["getReference"] });
+
+  // Справочники VMS — в описаниях видов (с 0.30.0): производители и модели, метки серверов, порт сервера
+  test("Справочники в видах: модели — examples у vendor и allOf по vendor, метки сервера — examples, порт сервера — default", async () => {
+    const env = await makeEnv();
     const all = (await env.ok("GET", "/kinds")).items;
     const of = (p) => all.filter((k) => (k.implements || []).includes(p));
-    const models = (ref.deviceModels || []).filter((m) => m.models.length);
+    let models = 0;
     for (const k of of("vms.camera/1")) {
       const pr = k.schema.properties;
-      sameSet(pr.vendor && pr.vendor.examples, (ref.deviceModels || []).map((m) => m.vendor), `${k.kind}: vendor.examples — производители`);
-      for (const m of models) {
-        const part = (k.schema.allOf || []).find((x) => x.if && x.if.properties && x.if.properties.vendor && x.if.properties.vendor.const === m.vendor);
-        assert.ok(part, `${k.kind}: allOf с if vendor = ${m.vendor}`);
-        assert.eq(part.then.properties.model.examples, m.models, `${k.kind}: модели ${m.vendor}`);
+      const vendors = (pr.vendor && pr.vendor.examples) || [];
+      assert.ok(vendors.length > 0, `${k.kind}: vendor.examples — производители`);
+      for (const part of (k.schema.allOf || []).filter((x) => x.if && x.if.properties && x.if.properties.vendor)) {
+        const v = part.if.properties.vendor.const, m = part.then && part.then.properties && part.then.properties.model;
+        assert.ok(vendors.includes(v), `${k.kind}: модели ${v} — производитель из examples`);
+        assert.ok(m && Array.isArray(m.examples) && m.examples.length > 0, `${k.kind}: модели ${v} — then.model.examples`);
+        models++;
       }
     }
     for (const k of of("vms.server/1")) {
       const pr = k.schema.properties;
-      sameSet(pr.labels.items.examples, ref.serverLabels, `${k.kind}: labels.items.examples — метки серверов`);
-      assert.eq(pr.port.default, ref.limits.defaultServerPort, `${k.kind}: port.default — порт сервера`);
+      assert.ok(Array.isArray(pr.labels.items.examples), `${k.kind}: labels.items.examples — метки серверов`);
+      assert.ok(Number.isInteger(pr.port.default), `${k.kind}: port.default — порт сервера`);
     }
-    return `производителей ${(ref.deviceModels || []).length}, с моделями ${models.length}`;
+    return `видов камеры ${of("vms.camera/1").length}, производителей с моделями ${models}`;
   }, { needs: ["listKinds", "implements:vms.camera/1", "implements:vms.server/1"] });
 
-  test("Сценарии: kinds и maxItems у документа сценариев — те же, что в reference", async () => {
+  test("Сценарии: kinds и maxItems у документа сценариев — виды событий и предел, в ответе PUT те же", async () => {
     const env = await makeEnv();
-    const ref = await env.ok("GET", "/reference");
     const did = FX.domains[0].id;
     const doc = await env.ok("GET", `/units/${did}/scenarios`);
-    assert.eq([doc.kinds, doc.maxItems], [ref.scenarioKinds, ref.limits.scenariosMax], "GET: виды событий и предел");
+    assert.ok(Array.isArray(doc.kinds) && doc.kinds.length > 0 && doc.kinds.every((k) => typeof k === "string"), "GET: виды событий — коды");
+    assert.ok(Number.isInteger(doc.maxItems) && doc.maxItems >= doc.items.length, "GET: предел не меньше числа сценариев");
     const put = await env.ok("PUT", `/units/${did}/scenarios`, { items: doc.items }, { "If-Match": `"${doc.version}"` });
-    assert.eq([put.kinds, put.maxItems], [ref.scenarioKinds, ref.limits.scenariosMax], "PUT: то же в ответе");
+    assert.eq([put.kinds, put.maxItems], [doc.kinds, doc.maxItems], "PUT: то же в ответе");
   }, { needs: ["getScenarios", "putScenarios", "implements:vms.scenarios/1"], layer: "profile:vms.scenarios/1" });
 
-  test("Поиск в сети: ipScanMax у документа поиска — тот же, что в reference", async () => {
+  test("Поиск в сети: ipScanMax у документа поиска — предел адресов одного поиска", async () => {
     const env = await makeEnv();
-    const ref = await env.ok("GET", "/reference");
     const d = await env.ok("GET", `/units/${FX.domains[0].id}/discovery`);
-    assert.eq(d.ipScanMax, ref.limits.ipScanMax, "предел адресов одного поиска");
+    assert.ok(Number.isInteger(d.ipScanMax) && d.ipScanMax > 0, "предел адресов одного поиска");
   }, { needs: ["getDiscovery", "implements:vms.discovery/1"], layer: "profile:vms.discovery/1" });
 
   test("Возможности системы: объявлены в справочниках, как в наборе; обязательный минимум есть", async () => {

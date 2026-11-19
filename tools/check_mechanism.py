@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Самопроверка tools/mechanism.py: раскладки дерева в наборах (L1–L7), разделы приложения (S1–S4) и граница механизма (B5).
+"""Самопроверка tools/mechanism.py: раскладки дерева в наборах (L1–L7), разделы приложения (S1–S4) и граница механизма (B1–B5).
 
 Каждый случай — копия живого набора или контракта с одной порчей: проверка обязана её назвать. Живые наборы
 и живой контракт обязаны проходить без отказов.
@@ -15,7 +15,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from mechanism import SECTION_OPS, VMS_WORDS, border_problems, layout_problems, section_problems  # noqa: E402
+from mechanism import LIMIT_KEYS, REFERENCE_KEYS, SECTION_OPS, VMS_WORDS, border_problems, layout_problems, section_problems  # noqa: E402
 
 failed = 0
 
@@ -126,8 +126,30 @@ ok(any("Capabilities.sections" in p and "архив" in p for p in border_proble
 x = dup(demo); del x["reference"]["capabilities"]["sections"]
 ok(any("sections" in p for p in section_problems(x, "demo")), "S4: у demo нет поля sections")
 ok(VMS_WORDS == ("камер", "сервер", "видео", "архив", "детектор", "хранилищ", "VMS"), "B5: список слов VMS")
+
+# B1–B4 (0.32.0): механизм без путей домена, без enum у кодов каталога правил, Reference и Reference.limits — только механизм
+s = dup(spec); s["paths"]["/domains/x"] = {"get": {"operationId": "x"}}
+ok(any(p.startswith("/domains/x:") and "B1" in p for p in border_problems(s)), "B1: путь /domains/…")
+s = dup(spec); s["components"]["schemas"]["RuleCheck"]["properties"]["what"]["enum"] = ["online", "record"]
+ok(any("RuleCheck.what" in p and "B2" in p for p in border_problems(s)), "B2: enum у RuleCheck.what")
+s = dup(spec); s["components"]["schemas"]["RuleCondition"]["properties"]["kind"]["enum"] = ["time"]
+ok(any("RuleCondition.kind" in p and "B2" in p for p in border_problems(s)), "B2: enum у RuleCondition.kind")
+s = dup(spec); s["components"]["schemas"]["RuleTarget"]["properties"]["include"]["items"]["properties"]["area"]["enum"] = ["folder"]
+ok(any("RuleTarget.include[].area" in p and "B2" in p for p in border_problems(s)), "B2: enum у RuleTarget.include[].area")
+s = dup(spec); s["components"]["schemas"]["Reference"]["properties"]["ruleTargets"]["properties"]["areas"]["items"]["enum"] = ["folder"]
+ok(any("Reference.ruleTargets.areas" in p and "B2" in p for p in border_problems(s)), "B2: enum у Reference.ruleTargets.areas[]")
+s = dup(spec); s["paths"]["/tree/children"]["get"]["parameters"][0]["schema"]["enum"] = ["folders"]
+ok(any("/tree/children" in p and "layout" in p and "B2" in p for p in border_problems(s)), "B2: enum у параметра layout")
+s = dup(spec); s["components"]["schemas"]["Reference"]["properties"]["recordModes"] = {"type": "array"}
+ok(any("Reference.recordModes" in p and "B3" in p for p in border_problems(s)), "B3: Reference.recordModes")
+s = dup(spec); s["components"]["schemas"]["Reference"]["properties"]["limits"]["properties"]["ipScanMax"] = {"type": "integer"}
+ok(any("Reference.limits.ipScanMax" in p and "B4" in p for p in border_problems(s)), "B4: Reference.limits.ipScanMax")
+ok(REFERENCE_KEYS == ("ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
+                      "ruleCrossDomainActions", "access", "limits", "capabilities"), "B3: ключи Reference механизма")
+ok(LIMIT_KEYS == ("pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes"), "B4: ключи Reference.limits механизма")
+
 got = border_problems(spec)
-ok(got == [], "живой контракт: B5 цела" + ("" if not got else ": " + "; ".join(got)))
+ok(got == [], "живой контракт: граница цела (B1–B5)" + ("" if not got else ": " + "; ".join(got)))
 
 print(f"RESULT {'fail' if failed else 'pass'}")
 sys.exit(1 if failed else 0)

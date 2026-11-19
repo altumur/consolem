@@ -129,7 +129,9 @@
     const env = await makeEnv();
     const probe = async (uid, params) => (await env.ok("POST", `${U(uid)}/actions/probe`, { params })).result;
     const m = await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Axis" });
-    assert.ok(FX.reference.deviceModels.find((x) => x.vendor === "Axis").models.includes(m.model), `модель Axis: ${m.model}`);
+    // Модели производителя — allOf вида камеры: if vendor = Axis → then model.examples (с 0.30.0)
+    const axis = ((await env.ok("GET", "/kinds/camera")).schema.allOf || []).find((x) => x.if && x.if.properties && x.if.properties.vendor && x.if.properties.vendor.const === "Axis");
+    assert.ok(axis && axis.then.properties.model.examples.includes(m.model), `модель Axis: ${m.model}`);
     assert.eq(await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Axis" }), m, "повторяется");
     assert.eq((await probe(cam.id, { ip: "10.1.2.3", port: 80, vendor: "Noname" })).model, null, "неизвестный");
     const nvr = FX.devices.find((d) => d.type === "ipsrv" && d.online !== false);
@@ -466,28 +468,27 @@
   }, { needs: ["createUnits", "patchUnit", "kind:det"] });
 
   // С 0.30.0 несовместимые виды — x-conflicts {значение: [значения]} у свойства analyticsKind вида (расширение vms.detector/1);
-  // reference.analyticsConflicts устарел и до снятия отдаёт то же. Связь двусторонняя: сравниваем пары без порядка
-  test("Несовместимые детекторы: x-conflicts у analyticsKind — то же, что reference.analyticsConflicts", async () => {
+  // reference.analyticsConflicts снят в 0.32.0. Связь двусторонняя: у всех видов детектора — те же пары без порядка
+  test("Несовместимые детекторы: x-conflicts у analyticsKind — значения analyticsKind, у видов детектора те же пары", async () => {
     const env = await makeEnv();
-    const ref = await env.ok("GET", "/reference");
     const pairs = (list) => [...new Set(list.flatMap(([a, cs]) => cs.map((b) => [a, b].sort().join("|"))))].sort();
-    const want = pairs((ref.analyticsConflicts || []).map((c) => [c.analyticsKind, c.conflicts || []]));
     const dets = (await env.ok("GET", "/kinds")).items.filter((k) => (k.implements || []).includes("vms.detector/1"));
+    let want = null;
     for (const k of dets) {
       const ak = k.schema.properties.analyticsKind;
-      if (!ak) continue;
-      const xc = ak["x-conflicts"] || {};
+      if (!ak || !ak["x-conflicts"]) continue;
+      const xc = ak["x-conflicts"];
+      if (want === null) want = pairs(Object.entries(xc));
       assert.eq(pairs(Object.entries(xc)), want, `${k.kind}: x-conflicts — те же пары`);
       Object.entries(xc).forEach(([a, cs]) => [a, ...cs].forEach((x) => assert.ok(ak.enum.includes(x), `${k.kind}: ${x} — значение analyticsKind`)));
     }
-    return `пар ${want.length}`;
+    return `пар ${(want || []).length}`;
   }, { needs: ["listKinds", "implements:vms.detector/1"] });
 
-  test("Несовместимые виды серверных детекторов (с 0.21.0): reference.analyticsConflicts; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
+  test("Несовместимые виды серверных детекторов (с 0.21.0): x-conflicts у analyticsKind; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
     const env = await makeEnv();
-    const ref = await env.ok("GET", "/reference");
-    const tv = (ref.analyticsConflicts || []).find((c) => c.analyticsKind === "faceTV");
-    assert.ok(tv && tv.conflicts.includes("faceVA"), "лица TV и VA — в справочнике");
+    const xc = (((await env.ok("GET", "/kinds/det")).schema.properties.analyticsKind || {})["x-conflicts"]) || {};
+    assert.ok((xc.faceTV || []).includes("faceVA") || (xc.faceVA || []).includes("faceTV"), "лица TV и VA — в x-conflicts");
     const FACE = ["faceTV", "faceVA", "faceVL"];
     // Чистый стенд: включённые детекторы лиц из набора выключены
     for (const d of (await env.pages("/units?kind=det&limit=1000")).filter((u) => FACE.includes(u.properties.analyticsKind) && u.properties.enabled !== false)) {
@@ -1259,8 +1260,9 @@
     const c = (await env.pages("/units?kind=camera&limit=1000")).find((u) => u.properties.archiveId);
     const res = await env.ok("PATCH", U(c.uid), { properties: { labels: ["gpu"], alarmKinds: ["motion"] } }, v(c));
     assert.eq([res.properties.labels, res.properties.alarmKinds], [["gpu"], ["motion"]], "камера");
-    const ref = await env.ok("GET", "/reference");
-    assert.ok((await env.ok("GET", "/kinds/camera")).events.some((e) => e.id === "motion") && ref.serverLabels.length > 0, "варианты: события вида, метки — справочник");
+    const srv = (await env.ok("GET", "/kinds")).items.find((k) => (k.implements || []).includes("vms.server/1"));
+    const labels = srv ? (((srv.schema.properties.labels || {}).items || {}).examples || []) : [];
+    assert.ok((await env.ok("GET", "/kinds/camera")).events.some((e) => e.id === "motion") && labels.length > 0, "варианты: события вида, метки — examples у labels сервера");
     const a = FX.archives.find((x) => x.id !== c.properties.archiveId);
     const x = await env.ok("PATCH", U(c.uid), { properties: { extraArchives: [{ archiveId: a.id, recordMode: "always", labels: ["archive"] }] } }, v(res));
     assert.eq(x.properties.extraArchives[0].labels, ["archive"], "метка строки записи");

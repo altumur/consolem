@@ -11,15 +11,14 @@
    нет строки — область целиком. В коде — только механизм (с 0.31.0): условия time, mode, online, проверка online, действия
    ntf.*, net.http, rule.runrule, ход выполнения. Условия и проверки профилей судят хуки профилей объекта
    (world.hooks(вид) → ruleCondition, ruleCheck: api/profiles.js), действия профилей без объекта — world.ruleActions()
-   (Profiles.RULE_ACTIONS: client.*), их проверки без каталога reference.ruleChecks — world.ruleChecks().
+   (Profiles.RULE_ACTIONS: client.*). Проверки шага check — только из каталога reference.ruleChecks (обязательно с 0.32.0).
    Время — в часовом поясе системы: «стенные» даты — объекты Date, у которых UTC-поля равны местному времени системы.
    Трасса запуска — кодами: { code, params }. Подписи по кодам собирает интерфейс.
 
    create(world): world — доступ к данным сервера: store() — склад объектов (api/units.js: get, byKind, byFolder,
    byParent, byRef), kinds() — описания видов, rules(), schedules(), dayGroups(), modes() → { items, otherwise }, (в режиме off: { all, ruleIds }; otherwise — устарело, может быть null),
    manualMode() → { modeId, until } | null, windows(), roles(), users(), tz — часовой пояс системы (строка или функция);
-   reference() — справочник системы (каталог правил); hooks(вид) — хуки профилей вида; ruleActions(), ruleChecks() — действия
-   и проверки профилей; layoutDescendants(id раскладки, uid, limit) — объекты под узлом в раскладке или null (раскладки нет).
+   reference() — справочник системы (каталог правил); hooks(вид) — хуки профилей вида; ruleActions() — действия профилей; layoutDescendants(id раскладки, uid, limit) — объекты под узлом в раскладке или null (раскладки нет).
    Чего в world нет — того нет: без hooks условия и проверки профилей не выполняются. */
 (() => {
   const RULE_CHAIN_MAX = 5;
@@ -54,8 +53,8 @@
     { control: "after", branches: [] },
     { control: "abort", branches: [] },
   ];
-  // Что проверяет шаг check: механизм — связь объекта. Проверки профилей — каталог reference.ruleChecks, а без него —
-  // world.ruleChecks(); судят их хуки ruleCheck профилей объекта
+  // Что проверяет шаг check: механизм — связь объекта (online). Что исполняет система — каталог reference.ruleChecks
+  // (обязательно с 0.32.0): необъявленную проверку движок не исполняет; проверки профилей судят хуки ruleCheck профилей объекта
   const CHECKS = [{ what: "online" }];
   const UNIT_ACTION = "unitAction";
   const isUnitAction = (a) => !!a && a.type === UNIT_ACTION;
@@ -284,8 +283,8 @@
     // Условие: механизма или из каталога системы (ruleConditions: implements, target); незнакомое — без цели
     const condKind = (c) => CONDITIONS.find((k) => k.kind === c.kind) || (ref().ruleConditions || []).find((k) => k.kind === c.kind) || { kind: c.kind };
     const condKinds = (c) => (condKind(c).implements ? implementers(condKind(c).implements) : ruleKinds());
-    // Проверка шага check: каталог системы (ruleChecks), без него — проверка механизма и проверки профилей (world.ruleChecks)
-    const checksKnown = () => ref().ruleChecks || [...CHECKS, ...((world.ruleChecks && world.ruleChecks()) || [])];
+    // Проверка шага check: только каталог системы (ruleChecks)
+    const checksKnown = () => ref().ruleChecks || [];
     const checkDesc = (c) => checksKnown().find((k) => k.what === c.what) || null;
     // Виды шага check: по implements проверки, нет его — любой объект правил
     const checkKinds = (c) => ((checkDesc(c) || {}).implements ? implementers(checkDesc(c).implements) : ruleKinds());
@@ -670,8 +669,8 @@
       const stepBad = (a) => {
         if (a.control) {
           if (!ref.ruleControls.some((k) => k.control === a.control)) return bad("steps", "control.notDeclared", { control: a.control });
-          // Проверка шага check — из каталога ruleChecks (с 0.31.0); нет каталога — прежние проверки (controlIssue)
-          if (a.control === "check" && ref.ruleChecks && !ref.ruleChecks.some((k) => k.what === a.what)) return bad("steps", "control.notDeclared", { control: a.control, what: a.what });
+          // Проверка шага check — из каталога ruleChecks (с 0.31.0, обязательно с 0.32.0)
+          if (a.control === "check" && !(ref.ruleChecks || []).some((k) => k.what === a.what)) return bad("steps", "control.notDeclared", { control: a.control, what: a.what });
           return a.event ? eventBad(a.event, "steps") : a.control === "check" ? targetBad(a.target, "steps") : null;
         }
         if (isUnitAction(a)) {
@@ -1050,13 +1049,13 @@
     // Хуки и действия профилей — встроенного сервера (api/profiles.js), если он рядом; раскладок у набора без сервера нет:
     // область цели — целиком
     const P = typeof window !== "undefined" && window.ConsolemProfiles ? window.ConsolemProfiles : typeof require === "function" ? require("./profiles.js") : null;
-    const hook = (p) => (P ? P.HOOKS[p] || P.HOOKS[(P.SUCCESSOR || {})[p]] : null);
+    const hook = (p) => (P ? P.HOOKS[p] : null);
     const hooks = (kind) => [...new Set(((db().kinds.find((k) => k.kind === kind) || {}).implements || []).map(hook).filter(Boolean))];
     return create({
       tz: () => db().timezone, store, kinds: () => db().kinds,
       rules: () => db().rules, schedules: () => db().schedules, dayGroups: () => db().dayGroups, modes: () => db().modes, manualMode: () => db().modeManual,
       windows: () => db().maintenanceWindows, roles: () => db().access.roles, users: () => db().access.users,
-      reference: () => db().reference, hooks, ruleActions: () => (P ? P.RULE_ACTIONS : []), ruleChecks: () => (P ? P.RULE_CHECKS : []),
+      reference: () => db().reference, hooks, ruleActions: () => (P ? P.RULE_ACTIONS : []),
     });
   }
   const api = { create, forDb, TRIGGERS, CONDITIONS, ACTIONS, CONTROLS, CHECKS };

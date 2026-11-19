@@ -3,9 +3,12 @@
 
 - layout_problems(fx, name) — раскладки дерева набора (KindsList.layouts, раздел layouts набора), правила L1–L7;
 - section_problems(fx, name) — разделы приложения набора (reference.capabilities.sections), правила S1–S4;
-- border_problems(spec) — описания схем и путей дерева и полей области (Unit.domainId, UnitBrief.domainId) без слов VMS (правило B5).
+- border_problems(spec) — граница механизма (с 0.32.0): B1 нет путей /domains/…; B2 нет enum у кодов раскладки и каталога правил;
+  B3 ключи Reference — только механизма (REFERENCE_KEYS); B4 ключи Reference.limits — только механизма (LIMIT_KEYS); B5 описания
+  схем и путей дерева и полей области (Unit.domainId, UnitBrief.domainId) без слов VMS.
 
-Пустой список — проверка прошла. Строки отказа: «<набор>: раскладка <id>: …», «<схема или путь>: в описании механизма «<слово>»».
+Пустой список — проверка прошла. Строки отказа: «<набор>: раскладка <id>: …», «<схема или путь>: в описании механизма «<слово>»»,
+«<путь или поле>: B1…B4 …».
 Вызывает tools/check_api.py; самопроверка — tools/check_mechanism.py.
 """
 
@@ -19,6 +22,16 @@ TREE_PATH_PREFIX = "/tree/"
 # B5: поля общих схем, которые называют область системы (core.domain/1)
 AREA_FIELDS = ("Unit.domainId", "UnitBrief.domainId")
 _TEXT_KEYS = ("description", "summary")
+# B1: пути области системы — пути профилей /units/{uid}/… (с 0.29.0); пути /domains/… сняты в 0.32.0
+AREA_PATH_PREFIX = "/domains/"
+# B2: коды, которые система объявляет данными (раскладки — KindsList.layouts, каталог правил — reference.rule*): открытая строка
+OPEN_CODES = (("RuleCondition", ("kind",)), ("RuleCheck", ("what",)), ("RuleTarget", ("include", "[]", "area")),
+              ("Reference", ("ruleTargets", "areas", "[]")))
+LAYOUT_PATHS = ("/tree/children", "/tree/paths")
+# B3, B4: ключи справочника механизма; справочники VMS — в описаниях видов и в ответах путей профилей (с 0.32.0)
+REFERENCE_KEYS = ("ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
+                  "ruleCrossDomainActions", "access", "limits", "capabilities")
+LIMIT_KEYS = ("pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes")
 
 
 # ── раскладки дерева в наборе ──
@@ -150,8 +163,41 @@ def _texts(node, where):
             yield from _texts(v, where)
 
 
+def _field(schema, steps):
+    """Узел поля схемы по шагам: имя — свойство из properties, «[]» — items. Нет узла — None."""
+    node = schema
+    for step in steps:
+        if not isinstance(node, dict):
+            return None
+        node = node.get("items") if step == "[]" else (node.get("properties") or {}).get(step)
+    return node if isinstance(node, dict) else None
+
+
+def _border_shape(spec):
+    """B1–B4: пути и схемы механизма без частей VMS."""
+    schemas = (spec.get("components") or {}).get("schemas") or {}
+    paths = spec.get("paths") or {}
+    out = [f"{p}: B1 путь области системы /domains/… — путь профиля /units/{{uid}}/…" for p in paths if p.startswith(AREA_PATH_PREFIX)]
+    for name, steps in OPEN_CODES:
+        node = _field(schemas.get(name) or {}, steps)
+        if node is not None and "enum" in node:
+            where = name + "".join("[]" if s == "[]" else "." + s for s in steps)
+            out.append(f"{where}: B2 enum у кода, который объявляет система, — открытая строка")
+    for p in LAYOUT_PATHS:
+        for op in ((paths.get(p) or {}).values()):
+            for prm in (op.get("parameters") or []) if isinstance(op, dict) else []:
+                if prm.get("name") == "layout" and "enum" in (prm.get("schema") or {}):
+                    out.append(f"{p}: B2 enum у параметра layout — открытая строка (KindsList.layouts)")
+    ref = (schemas.get("Reference") or {}).get("properties") or {}
+    out += [f"Reference.{k}: B3 ключ справочника не механизма (REFERENCE_KEYS)" for k in ref if k not in REFERENCE_KEYS]
+    lim = ((ref.get("limits") or {}).get("properties")) or {}
+    out += [f"Reference.limits.{k}: B4 предел не механизма (LIMIT_KEYS)" for k in lim if k not in LIMIT_KEYS]
+    return out
+
+
 def border_problems(spec):
-    """B5: описания схем дерева (TREE_SCHEMAS) и операций путей /tree/* без слов VMS_WORDS, регистр не важен."""
+    """Граница механизма: B1–B4 (_border_shape) и B5 — описания схем дерева (TREE_SCHEMAS) и операций путей /tree/* без
+    слов VMS_WORDS, регистр не важен."""
     schemas = (spec.get("components") or {}).get("schemas") or {}
     places = [(n, schemas[n]) for n in TREE_SCHEMAS if n in schemas]
     # Capabilities в целом слов VMS не избегает; B5 — только описание поля sections
@@ -165,7 +211,7 @@ def border_problems(spec):
         if node:
             places.append((name, node))
     places += [(p, item) for p, item in (spec.get("paths") or {}).items() if p.startswith(TREE_PATH_PREFIX)]
-    out = []
+    out = _border_shape(spec)
     for name, node in places:
         for where, text in _texts(node, name):
             low = text.lower()

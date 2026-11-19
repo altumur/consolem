@@ -57,7 +57,7 @@
     // Эталонный набор — шесть видов с «Облачным» (запрос mockup 2026-11-03), профиль как у w2c — пять, cloud не объявляется
     const kinds = ["backup", "edge", "incidents", "local", "network"].concat(fixtureName === "demo" ? ["cloud"] : []).map((k) => `archive.${k}`).sort();
     assert.eq(archives.map((x) => x.kind).sort(), kinds, fixtureName === "demo" ? "шесть видов с cloud" : "пять видов, cloud не объявляется");
-    assert.ok(ref.recordModes.includes("backup"), "значение backup в reference.recordModes");
+    assert.ok(archives.some((k) => k["x-archive"].recordModes.includes("backup")), "значение backup — в x-archive.recordModes вида хранилища");
     assert.eq(await refused(env, card({}, { kind: "archive.tape" })), [["NOT_SUPPORTED", "/kind"]], "вид вне списка");
     // Проверка тома — команда check вида хранилища; у edge её нет
     assert.status(await env.call("POST", `${U(edge.id)}/actions/check`, { params: { volume: { name: "x", disk: "D:", sizeBytes: GB } } }), 404, "NOT_FOUND", "у edge проверки нет");

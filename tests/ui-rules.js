@@ -8,10 +8,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const undo = (prefix) => [...document.querySelectorAll(".ttu")].reverse().find((e) => e.id.startsWith("ttu-" + prefix))?.querySelector(".ttu-act");
   goApp("rules");
 
-  // Справочники VMS и каталог правил — из новых мест (контракт 0.30.0, 0.31.0): производители и модели, режимы записи,
-  // метки серверов, несовместимые детекторы — из описаний видов; раскладки и мониторы — из schema полей действий;
-  // виды событий сценариев — из ScenarioDoc.kinds; справочник выгрузки — GET /exports/reference. Справочник без
-  // устаревших ключей даёт те же списки в том же порядке. Страница со старым autoRef(ref) — проверять нечего
+  // Справочники VMS и каталог правил — только из новых мест (ключи reference сняты в контракте 0.32.0): производители и модели,
+  // режимы записи, метки серверов, несовместимые детекторы — из описаний видов; раскладки и мониторы — из schema полей действий;
+  // виды событий сценариев — из ScenarioDoc.kinds; справочник выгрузки — GET /exports/reference. Старый бэкенд, который ещё
+  // отдаёт снятые ключи, списков не меняет. Страница со старым autoRef(ref) — проверять нечего
   if (typeof autoRef !== "function" || autoRef.length < 2) ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего");
   else {
     const snap = () => JSON.stringify({ models: DEVICE_MODELS, rec: refRecModes, labels: refLabels, clash: DET_AK_CLASH, lay: RULE_LAYOUTS, mons: RULE_MONS, layId: [...REF_LAYOUT], monId: [...REF_MONITOR] });
@@ -19,24 +19,26 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     const full = snap(), nModels = Object.keys(DEVICE_MODELS).length, rec = refRecModes.join(), lays = RULE_LAYOUTS.join(), mons = RULE_MONS.join();
     const oldScen = { did: SCEN.did, doc: SCEN.doc }, oldExp = EXP_REF;
     try {
-      // Документ сценариев ещё не прочитан: видов событий нет, справочник без scenarioKinds их не даёт
+      ok(nModels > 0 && rec && lays && mons, `списки из видов и полей действий: производителей ${nModels}, режимов записи ${rec}, раскладок ${lays}, мониторов ${mons}`);
+      // Справочник со снятыми ключами (старый бэкенд): страница их не читает
       refScenKinds = null;
-      autoRef(stripDeprecatedRef(REF_LAST), KINDS);
-      ok(nModels > 0 && Object.keys(DEVICE_MODELS).length === nModels, `производители без reference.deviceModels — из examples и allOf видов: ${Object.keys(DEVICE_MODELS).length} из ${nModels}`);
-      ok(rec && refRecModes.join() === rec, "режимы записи без reference.recordModes — enum recordMode вида camera: " + refRecModes.join());
-      ok(lays && RULE_LAYOUTS.join() === lays, "раскладки правил без reference.layouts — schema поля layoutId: " + RULE_LAYOUTS.join());
-      ok(mons && RULE_MONS.join() === mons, "мониторы без reference.monitors — enum и x-enum-labels monitorId команды wall: " + RULE_MONS.join());
-      ok(snap() === full, "все списки без устаревших ключей — те же и в том же порядке (метки серверов, несовместимые детекторы, id раскладок и мониторов)");
-      ok(!refScenKinds || !refScenKinds.length, "виды событий сценариев без reference.scenarioKinds — до чтения документа сценариев их нет");
+      const stale = Object.assign(JSON.parse(JSON.stringify(REF_LAST)), { deviceModels: [{ vendor: "Снятый", models: ["X"] }], recordModes: ["снятый"],
+        serverLabels: ["снятая"], analyticsConflicts: [{ analyticsKind: "снятый", conflicts: ["другой"] }], scenarioKinds: ["снятый"],
+        layouts: [{ id: "l-old", name: "Снятая" }], monitors: [{ id: "m-old", name: "Снятый" }], export: { formats: [] } });
+      autoRef(stale, KINDS);
+      ok(snap() === full, "снятые ключи reference списков не меняют (модели, режимы записи, метки, несовместимые детекторы, раскладки, мониторы)");
+      ok(!refScenKinds || !refScenKinds.length, "виды событий сценариев не из reference.scenarioKinds — до чтения документа сценариев их нет");
+      ok(refFieldOpts({ id: "attach", options: ["none", "snapshot"] }).length === 0, "поле действия без schema: снятое options не читается");
       await scenLoad(domains[0].id);
-      ok((refScenKinds || []).join() === (REF_LAST.scenarioKinds || []).join() && refScenKinds.length > 0, "виды событий сценариев — ScenarioDoc.kinds: " + (refScenKinds || []).join());
+      ok((refScenKinds || []).length > 0 && (refScenKinds || []).join() === (SCEN.doc?.kinds || []).join(), "виды событий сценариев — ScenarioDoc.kinds: " + (refScenKinds || []).join());
       // Новое чтение /kinds перечитывает списки (kindsApply → autoRefLists): виды из документа сценариев остаются
       const scenKinds = (refScenKinds || []).join();
-      autoRef(stripDeprecatedRef(REF_LAST), KINDS);
+      autoRef(REF_LAST, KINDS);
       ok(scenKinds && (refScenKinds || []).join() === scenKinds, "виды событий сценариев из документа переживают перечитывание справочника: " + (refScenKinds || []).join());
       EXP_REF = null;
-      await expRefLoad(stripDeprecatedRef(REF_LAST));
-      ok(JSON.stringify(EXP_REF) === JSON.stringify(REF_LAST.export), "справочник выгрузки без reference.export — GET /exports/reference: форматов " + (EXP_REF?.formats || []).length);
+      await expRefLoad();
+      const own = await API.get("/exports/reference");
+      ok(JSON.stringify(EXP_REF) === JSON.stringify(own) && (EXP_REF?.formats || []).length > 0, "справочник выгрузки — GET /exports/reference, не reference.export: форматов " + (EXP_REF?.formats || []).length);
       // Область цели «сервер» — ветка раскладки areaLayouts.server под этим сервером, а не сервер архива камеры
       const lay = RULE_REF.targets?.areaLayouts?.server;
       ok(lay === "servers", "область сервера — раскладка из ruleTargets.areaLayouts: " + lay);

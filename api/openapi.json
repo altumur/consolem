@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.31.0",
+    "version": "0.32.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -629,155 +629,6 @@
           }
         }
       }
-    },
-    "/domains/{domainId}/discovery": {
-      "get": {
-        "operationId": "getDomainDiscovery",
-        "deprecated": true,
-        "tags": [
-          "discovery"
-        ],
-        "summary": "Поиск устройств в сети домена: состояние и найденное",
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Discovery"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 1000
-            },
-            "description": "Сколько строк на странице, по умолчанию 200"
-          },
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "nextCursor прошлой страницы как есть. Просроченный или чужой — 422 INVALID_CURSOR, читать с начала"
-          }
-        ],
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/discovery (getDiscovery), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nСтраницы у candidates: limit, cursor. Форма читает только в окне поиска."
-      },
-      "post": {
-        "operationId": "startDomainDiscovery",
-        "deprecated": true,
-        "tags": [
-          "discovery"
-        ],
-        "summary": "Запустить поиск устройств в сети домена",
-        "description": "Устарело в 0.29.0: путь профиля POST /units/{uid}/discovery (startDiscovery), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nНайденное приходит в поток по одному (discovery.progress), конец — discovery.finished. Новый поиск заменяет итог прежнего. Уже идёт — 409 BUSY Поиск идёт на всех серверах кластера, через который вошли: устройство сети другого кластера находится входом через него. Один поиск на домен, второй — 409 BUSY. Заводских логина и пароля система не подбирает: login, password у кандидата пусты. support: ok значит «драйвер есть», а не «вошли». progress — доля времени поиска.",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "202": {
-            "description": "Начат",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Discovery"
-                }
-              }
-            }
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "delete": {
-        "operationId": "stopDomainDiscovery",
-        "deprecated": true,
-        "tags": [
-          "discovery"
-        ],
-        "summary": "Остановить поиск",
-        "description": "Устарело в 0.29.0: путь профиля DELETE /units/{uid}/discovery (stopDiscovery), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nНайденное до остановки остаётся",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Discovery"
-                }
-              }
-            }
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "x-layer": "vms"
     },
     "/units/{uid}/discovery": {
       "get": {
@@ -5379,135 +5230,6 @@
         }
       }
     },
-    "/domains/{domainId}/scenarios": {
-      "get": {
-        "operationId": "getDomainScenarios",
-        "deprecated": true,
-        "tags": [
-          "automation"
-        ],
-        "summary": "Документ сценариев между камерами",
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/scenarios (getScenarios), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nОдин документ на домен, целиком, до maxItems документа (прежнее место — reference.limits.scenariosMax). Не Rule, вне отката, истории версий нет",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScenarioDoc"
-                }
-              }
-            },
-            "headers": {
-              "ETag": {
-                "$ref": "#/components/headers/ETag"
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "put": {
-        "operationId": "putDomainScenarios",
-        "deprecated": true,
-        "tags": [
-          "automation"
-        ],
-        "summary": "Записать документ сценариев целиком",
-        "description": "Устарело в 0.29.0: путь профиля PUT /units/{uid}/scenarios (putScenarios), ответ тот же; только field отказа у нового пути — JSON Pointer (/items/0/name), а здесь — items[0].name. Путь работает до следующей ломающей версии контракта.\n\nIf-Match — версия документа. Чужая правка — 412 VERSION_MISMATCH, без admin домена — 403, без связи с доменом — 409 SERVER_OFFLINE. Повтор имени — 409 NAME_TAKEN. Форма: 422 VALIDATION_FAILED, field: items[i].…: n и port вместе, цель не камера, срок вне границ. Что умеет цель, форма не судит: это отказ цели, он виден в состоянии",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "If-Match",
-            "in": "header",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Версия документа"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ScenarioDocWrite"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScenarioDoc"
-                }
-              }
-            },
-            "headers": {
-              "ETag": {
-                "$ref": "#/components/headers/ETag"
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "403": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "409": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "412": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "422": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "428": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "x-layer": "vms"
-    },
     "/units/{uid}/scenarios": {
       "get": {
         "operationId": "getScenarios",
@@ -5515,7 +5237,7 @@
           "automation"
         ],
         "summary": "Документ сценариев между камерами",
-        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nОдин документ на домен, целиком, до maxItems документа (прежнее место — reference.limits.scenariosMax). Не Rule, вне отката, истории версий нет",
+        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nОдин документ на домен, целиком, до maxItems документа. Не Rule, вне отката, истории версий нет",
         "parameters": [
           {
             "name": "uid",
@@ -5638,62 +5360,6 @@
       },
       "x-layer": "vms.scenarios/1"
     },
-    "/domains/{domainId}/scenarios/status": {
-      "get": {
-        "operationId": "getDomainScenariosStatus",
-        "deprecated": true,
-        "tags": [
-          "automation"
-        ],
-        "summary": "Состояние сценариев из пульса исполнителя",
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/scenarios/status (getScenariosStatus), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nТолько чтение, версию документа не двигает",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "items"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/ScenarioStatus"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        }
-      },
-      "x-layer": "vms"
-    },
     "/units/{uid}/scenarios/status": {
       "get": {
         "operationId": "getScenariosStatus",
@@ -5752,62 +5418,6 @@
       },
       "x-layer": "vms.scenarios/1"
     },
-    "/domains/{domainId}/relays": {
-      "get": {
-        "operationId": "listDomainRelays",
-        "deprecated": true,
-        "tags": [
-          "hardware"
-        ],
-        "summary": "Ретрансляторы домена",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "items"
-                  ],
-                  "properties": {
-                    "items": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/RelayMember"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/relays (listRelays), ответ тот же. Путь работает до следующей ломающей версии контракта."
-      },
-      "x-layer": "vms"
-    },
     "/units/{uid}/relays": {
       "get": {
         "operationId": "listRelays",
@@ -5865,58 +5475,6 @@
         "description": "Предметный API объекта по uid (профиль vms.relays/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.relays/1 — 422 NOT_SUPPORTED, field /kind."
       },
       "x-layer": "vms.relays/1"
-    },
-    "/domains/{domainId}/relays/{name}": {
-      "get": {
-        "operationId": "getDomainRelay",
-        "deprecated": true,
-        "tags": [
-          "hardware"
-        ],
-        "summary": "Кто за ретранслятором",
-        "parameters": [
-          {
-            "name": "domainId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          },
-          {
-            "name": "name",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Готово",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Relay"
-                }
-              }
-            }
-          },
-          "401": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "404": {
-            "$ref": "#/components/responses/Problem"
-          },
-          "default": {
-            "$ref": "#/components/responses/Problem"
-          }
-        },
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/relays/{name} (getRelay), ответ тот же. Путь работает до следующей ломающей версии контракта."
-      },
-      "x-layer": "vms"
     },
     "/units/{uid}/relays/{name}": {
       "get": {
@@ -8102,7 +7660,7 @@
           "export"
         ],
         "summary": "Справочник окна выгрузки",
-        "description": "С 0.30.0. Форматы, кодеки, ступени сжатия, разрешения, поля титров, шрифты, режимы приватности, места сохранения и пределы окна выгрузки (ExportReference): чего нет в справочнике, того нет в окне. Прежнее место — reference.export (устарело в 0.30.0, до снятия отдаёт то же). Путь API видео: есть у системы, которая объявила createExport",
+        "description": "С 0.30.0. Форматы, кодеки, ступени сжатия, разрешения, поля титров, шрифты, режимы приватности, места сохранения и пределы окна выгрузки (ExportReference): чего нет в справочнике, того нет в окне. Путь API видео: есть у системы, которая объявила createExport",
         "responses": {
           "200": {
             "description": "Готово",
@@ -9597,7 +9155,7 @@
             "type": "integer",
             "minimum": 1,
             "readOnly": true,
-            "description": "С 0.30.0. Сколько адресов самое большее проверяет один поиск в сети области. Нет поля — клиент берёт устаревший reference.limits.ipScanMax"
+            "description": "С 0.30.0, обязательно с 0.32.0. Сколько адресов самое большее проверяет один поиск в сети области"
           }
         },
         "additionalProperties": false,
@@ -9605,7 +9163,8 @@
           "domainId",
           "state",
           "progress",
-          "candidates"
+          "candidates",
+          "ipScanMax"
         ],
         "description": "Поиск устройств в сети домена: последний или идущий",
         "x-layer": "vms.discovery/1"
@@ -10496,83 +10055,6 @@
       "Reference": {
         "type": "object",
         "properties": {
-          "deviceModels": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "vendor": {
-                  "type": "string"
-                },
-                "models": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "vendor",
-                "models"
-              ]
-            },
-            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками. Устарело в 0.30.0: замена — examples у свойства vendor видов камер и регистраторов, модели производителя — allOf: if {vendor: {const}} → then {model: {examples}}. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
-            "x-layer": "vms",
-            "deprecated": true
-          },
-          "serviceTypes": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "x-layer": "vms",
-            "deprecated": true,
-            "description": "Устарело в 0.30.0: замена — ничем: интерфейс их не читает. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
-          },
-          "supportLevels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "x-layer": "vms",
-            "deprecated": true,
-            "description": "Устарело в 0.30.0: замена — ничем: интерфейс их не читает. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
-          },
-          "recordModes": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/RecordMode"
-            },
-            "x-layer": "vms.camera/1",
-            "deprecated": true,
-            "description": "Устарело в 0.30.0: замена — enum свойства recordMode вида, у хранилища — x-archive.recordModes. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
-          },
-          "cloudProviders": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "regions": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  }
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "regions"
-              ]
-            },
-            "x-layer": "vms.archive/1",
-            "deprecated": true,
-            "description": "Устарело в 0.30.0: замена — enum свойства provider вида облачного хранилища. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
-          },
           "ruleActions": {
             "type": "array",
             "items": {
@@ -10800,18 +10282,6 @@
           "limits": {
             "type": "object",
             "properties": {
-              "ipScanMax": {
-                "type": "integer",
-                "x-layer": "vms",
-                "deprecated": true,
-                "description": "Устарело в 0.30.0: замена — Discovery.ipScanMax в ответе GET /units/{uid}/discovery. До снятия сервер отдаёт то же; поле необязательное"
-              },
-              "defaultServerPort": {
-                "type": "integer",
-                "x-layer": "vms.server/1",
-                "deprecated": true,
-                "description": "Устарело в 0.30.0: замена — default у свойства port вида сервера. До снятия сервер отдаёт то же; поле необязательное"
-              },
               "pageMax": {
                 "type": "integer",
                 "description": "Наибольший limit страницы"
@@ -10831,11 +10301,6 @@
               "scanPartsMax": {
                 "type": "integer",
                 "description": "Сколько разделов вида запрос ограниченного прохода (фильтр /units без члена) смотрит самое меньшее, если страница не набралась раньше. Дальше сервер вправе дописывать страницу до limit или до своего бюджета времени (рекомендация — ~100–200 мс) и только тогда отдать nextCursor; пустая страница с nextCursor законна. Значение на замер: форма его не вшивает и на него не опирается"
-              },
-              "scenariosMax": {
-                "type": "integer",
-                "description": "Сценариев в документе домена. Устарело в 0.30.0: замена — ScenarioDoc.maxItems в ответе GET /units/{uid}/scenarios. До снятия сервер отдаёт то же; поле необязательное",
-                "deprecated": true
               },
               "fileMaxBytes": {
                 "type": "integer",
@@ -10929,61 +10394,6 @@
             },
             "description": "Что из логики и расписания правила исполняет система: whenAny — Rule.whenLogic: any, condAny — Rule.condLogic: any, every — Rule.runAt.everyMin и randomShift. Чего нет в списке, того форма не предлагает; включённое правило с этим — 422 NOT_SUPPORTED, params.issue.code rule.featureNotDeclared, params.issue.params.feature. Нет поля — ничего из перечисленного не исполняется"
           },
-          "layouts": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "name"
-              ]
-            },
-            "description": "Устарело в 0.31.0: id и подписи раскладок клиента — schema поля layoutId действия client.layout (RuleActionField.schema: enum и x-enum-labels). Раскладки клиента — для «Открыть раскладку»",
-            "x-layer": "vms",
-            "deprecated": true
-          },
-          "monitors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "name": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": false,
-              "required": [
-                "id",
-                "name"
-              ]
-            },
-            "description": "Устарело в 0.31.0: id и подписи мониторов — схема параметра monitorId команды wall вида (UnitKind.actions[].params: enum и x-enum-labels). Мониторы видеостены — для «Показать на видеостене»",
-            "x-layer": "vms",
-            "deprecated": true
-          },
-          "serverLabels": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Известные метки серверов: то, что можно выбрать. Устарело в 0.30.0: замена — examples у labels.items вида сервера. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
-            "x-layer": "vms.server/1",
-            "deprecated": true
-          },
           "ruleStarts": {
             "type": "array",
             "items": {
@@ -11008,12 +10418,7 @@
               "areas": {
                 "type": "array",
                 "items": {
-                  "type": "string",
-                  "enum": [
-                    "folder",
-                    "server",
-                    "domain"
-                  ]
+                  "type": "string"
                 },
                 "description": "Какие области бывают в RuleTarget.include ({area, uid}); объект {uid} — всегда"
               },
@@ -11041,51 +10446,9 @@
             },
             "description": "Что исполняет правило с целями из нескольких доменов: виды действий. Другой шаг в таком включённом правиле — 422 NOT_SUPPORTED, field: steps, params.issue: rule.crossDomain. Поля нет — ограничения нет"
           },
-          "scenarioKinds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире. Устарело в 0.30.0: замена — ScenarioDoc.kinds в ответе GET /units/{uid}/scenarios. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
-            "x-layer": "vms",
-            "deprecated": true
-          },
-          "analyticsConflicts": {
-            "type": "array",
-            "description": "С 0.21.0. Несовместимые виды серверных детекторов (analyticsKind вида det при detectorKind: other), по образцу detectorOptions[].conflicts встроенных. Охват — сервер расчёта детектора (свой serverId детектора или сервер камеры): пакет распознавания лиц ставят на компьютер сервера, один на компьютер. Связь двусторонняя: достаточно строки у одного из видов. Сервер не создаёт и не включает детектор, если на том же сервере включён детектор несовместимого вида, не меняет analyticsKind, detectorKind или serverId включённого детектора на такой и не переносит туда камеру (её serverId) с включённым детектором: 409 BUSY, params {reason: incompatible, with: [uid мешающих детекторов]}; field — enabled при включении, analyticsKind при создании, иначе изменённое поле (у переноса камеры — serverId). Новая камера с дочерними детекторами в одной строке POST /units: сервер — serverId камеры, соседние строки тоже считаются (у них нет uid — with пуст). Шаг операции — fail BUSY с теми же params. Нет ключа или пусто — несовместимых видов нет. Устарело в 0.30.0: замена — x-conflicts {значение: [значения]} у свойства analyticsKind вида детектора (профиль vms.detector/1). До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
-            "items": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "analyticsKind",
-                "conflicts"
-              ],
-              "properties": {
-                "analyticsKind": {
-                  "type": "string",
-                  "description": "Вид серверного детектора — значение analyticsKind"
-                },
-                "conflicts": {
-                  "type": "array",
-                  "items": {
-                    "type": "string"
-                  },
-                  "description": "Виды, которые не работают с этим на одном сервере"
-                }
-              }
-            },
-            "x-layer": "vms.detector/1",
-            "deprecated": true
-          },
-          "export": {
-            "$ref": "#/components/schemas/ExportReference",
-            "description": "Выгрузка: есть, если система объявила createExport. Устарело в 0.30.0: замена — GET /exports/reference (getExportReference). До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
-            "x-layer": "video",
-            "deprecated": true
-          },
           "ruleChecks": {
             "type": "array",
-            "description": "С 0.31.0. Что проверяет шаг check (RuleCheck.what), который исполняет система. Что не объявлено, форма не предлагает; включённое правило с другой проверкой — 422 NOT_SUPPORTED, field steps, params.issue: {code: control.notDeclared, params: {control: check, what}}. Нет поля — система исполняет прежние проверки record, safe, armed, online (так до следующей ломающей версии контракта, потом поле обязательно)",
+            "description": "С 0.31.0. Что проверяет шаг check (RuleCheck.what), который исполняет система. Что не объявлено, форма не предлагает; включённое правило с другой проверкой — 422 NOT_SUPPORTED, field steps, params.issue: {code: control.notDeclared, params: {control: check, what}}. С 0.32.0 поле обязательно: проверки, которых система не объявила, движок не исполняет",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -11122,7 +10485,8 @@
           "ruleConditions",
           "ruleControls",
           "ruleStarts",
-          "ruleTargets"
+          "ruleTargets",
+          "ruleChecks"
         ]
       },
       "Feature": {
@@ -11221,7 +10585,8 @@
         "additionalProperties": false,
         "required": [
           "operations",
-          "features"
+          "features",
+          "sections"
         ],
         "description": "Что умеет эта система. Контракт один для всех систем, но система может поддерживать его часть: интерфейс прячет неподдержанное, тесты API его пропускают, покрытие считается по объявленному. Объявленное обязано работать по контракту целиком",
         "properties": {
@@ -12622,11 +11987,6 @@
               "properties": {
                 "area": {
                   "type": "string",
-                  "enum": [
-                    "folder",
-                    "server",
-                    "domain"
-                  ],
                   "description": "Код области из каталога reference.ruleTargets.areas; нет поля — объект. Что входит в область — reference.ruleTargets.areaLayouts"
                 },
                 "uid": {
@@ -12670,13 +12030,6 @@
         "properties": {
           "kind": {
             "type": "string",
-            "enum": [
-              "time",
-              "mode",
-              "armed",
-              "recording",
-              "online"
-            ],
             "description": "Код условия из каталога reference.ruleConditions. Механизм — time, mode, online; остальные (armed, recording) — условия профилей, их объявляет система в ruleConditions с implements. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
           },
           "scheduleId": {
@@ -16673,7 +16026,9 @@
         "additionalProperties": false,
         "required": [
           "version",
-          "items"
+          "items",
+          "kinds",
+          "maxItems"
         ],
         "description": "Документ сценариев домена, целиком: конфликт правок разных сценариев — 412, это предел",
         "properties": {
@@ -16693,13 +16048,13 @@
               "type": "string"
             },
             "readOnly": true,
-            "description": "С 0.30.0. Виды событий камеры, которые система берёт в сценарий (ScenarioWhen.kind). Отдельный список: события вида камеры (UnitKind.events) шире. Нет поля — клиент берёт устаревший reference.scenarioKinds"
+            "description": "С 0.30.0, обязательно с 0.32.0. Виды событий камеры, которые система берёт в сценарий (ScenarioWhen.kind). Отдельный список: события вида камеры (UnitKind.events) шире."
           },
           "maxItems": {
             "type": "integer",
             "minimum": 0,
             "readOnly": true,
-            "description": "С 0.30.0. Сколько сценариев в документе самое большее: больше в PUT — 422 VALIDATION_FAILED, field: /items. Нет поля — клиент берёт устаревший reference.limits.scenariosMax"
+            "description": "С 0.30.0, обязательно с 0.32.0. Сколько сценариев в документе самое большее: больше в PUT — 422 VALIDATION_FAILED, field: /items."
           }
         },
         "x-layer": "vms.scenarios/1"
@@ -19895,7 +19250,8 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "items"
+          "items",
+          "layouts"
         ],
         "properties": {
           "items": {
@@ -19916,7 +19272,7 @@
             "items": {
               "$ref": "#/components/schemas/TreeLayout"
             },
-            "description": "Раскладки дерева, которые объявила система (с 0.26.0). Порядок — порядок кнопок срезов. Поле пока необязательное: бэкенд без него — клиент показывает прежние раскладки по операциям"
+            "description": "Раскладки дерева, которые объявила система (с 0.26.0, обязательно с 0.32.0). Порядок — порядок кнопок срезов. Система без дерева (нет getTreeChildren) отдаёт пустой список"
           }
         }
       },
@@ -20045,12 +19401,6 @@
           },
           "what": {
             "type": "string",
-            "enum": [
-              "record",
-              "safe",
-              "armed",
-              "online"
-            ],
             "description": "Код проверки из каталога reference.ruleChecks (с 0.31.0). Механизм — online (объект на связи). Остальные — проверки профилей: система объявляет их в ruleChecks с implements (у VMS — record: запись идёт, safe: запись защищена, armed: объект на охране)"
           },
           "target": {
@@ -20857,7 +20207,7 @@
         "required": [
           "id"
         ],
-        "description": "Поле действия правила без объекта (Reference.ruleActions[].fields). Значение поля — в шаге правила под именем id. С 0.31.0 значения поля задаёт schema: значение вне её enum у включённого правила — 422 NOT_SUPPORTED, params.issue.code action.fieldNotDeclared. Без schema значения судятся по options, как раньше",
+        "description": "Поле действия правила без объекта (Reference.ruleActions[].fields). Значение поля — в шаге правила под именем id. С 0.31.0 значения поля задаёт schema: значение вне её enum у включённого правила — 422 NOT_SUPPORTED, params.issue.code action.fieldNotDeclared. Нет schema — значение поля любое (options снято в 0.32.0)",
         "properties": {
           "id": {
             "type": "string",
@@ -20867,17 +20217,9 @@
             "type": "boolean",
             "description": "Поле можно не заполнять. Нет — поле обязательно"
           },
-          "options": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
-            "deprecated": true,
-            "description": "Устарело в 0.31.0: значения поля — schema (enum). Работает как раньше: без schema значение судится по options"
-          },
           "schema": {
             "$ref": "#/components/schemas/JsonSchema",
-            "description": "С 0.31.0. Схема значения поля — то же подмножество, что у схем видов: enum — допустимые значения, x-enum-labels — их подписи (Text). Так система отдаёт значения, которые знает только она (id раскладок клиента у client.layout). Есть schema — options не читаются"
+            "description": "С 0.31.0. Схема значения поля — то же подмножество, что у схем видов: enum — допустимые значения, x-enum-labels — их подписи (Text). Так система отдаёт значения, которые знает только она (id раскладок клиента у client.layout)."
           }
         }
       }

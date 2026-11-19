@@ -2159,26 +2159,32 @@
     "fields": [
      {
       "id": "method",
-      "options": [
-       "GET",
-       "POST",
-       "PUT",
-       "DELETE"
-      ],
-      "optional": true
+      "optional": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE"
+       ]
+      }
      },
      {
       "id": "url"
      },
      {
       "id": "auth",
-      "options": [
-       "none",
-       "basic",
-       "digest",
-       "bearer"
-      ],
-      "optional": true
+      "optional": true,
+      "schema": {
+       "type": "string",
+       "enum": [
+        "none",
+        "basic",
+        "digest",
+        "bearer"
+       ]
+      }
      },
      {
       "id": "headers",

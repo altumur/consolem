@@ -37,9 +37,9 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(!/Форматировать|Выгрузить записи/.test(main().textContent), "кнопок без операций нет");
   ok(!/IP-устройство с хранилищем/.test(deviceManualHtmlSafe()), "пункта «IP-устройство с хранилищем» нет");
 
-  // Производители и модели — из справочника, своё вводится руками; адрес — rtspUrl
-  const ref = await API.get("/reference");
-  ok(Object.keys(DEVICE_MODELS).length === ref.deviceModels.length, "модели из reference.deviceModels");
+  // Производители и модели — из описаний видов (examples у vendor вида камеры), своё вводится руками; адрес — rtspUrl
+  const vendors = KINDS.get("camera")?.schema?.properties?.vendor?.examples || [];
+  ok(vendors.length > 0 && vendors.every((v) => v in DEVICE_MODELS), "модели из examples у vendor вида камеры: производителей " + vendors.length);
   wizd = initDeviceWizard(addContext());
   ok(/data-ck="updateManual\|model"/.test(deviceManualHtml()) && !/<label>RTSP/.test(deviceManualHtml()), "модель с подсказками, отдельного поля RTSP в ручном добавлении нет");
   const manualVendor = wizd.manual.vendor;

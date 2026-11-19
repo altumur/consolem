@@ -179,8 +179,8 @@ def check_marking():
     def layers_of(file, prefix=None):
         return {t["layer"] for t in reg["tests"] if t["file"] == file and (prefix is None or t["name"].startswith(prefix))}
     samples = [("api-view", "Реле: команда output", {"mechanism"}), ("api-devices", "Поддетектор: под трекером", {"profile:vms.subdetector/1"}),
-               ("api-domains", "Папка: создать", {"mechanism"}), ("api-domains", "Домен: переименовать", {"mechanism"}), ("api-domains", "Домен: задать лицензию", {"profile:vms.domain/1"}), ("api-devices", "Поиск в сети", {"profile:vms.discovery/1"}),
-               ("api-domains", "Ретрансляторы:", {"profile:vms.relays/1"}), ("api-domains", "Устаревшие пути домена", {"profile:vms.discovery/1", "profile:vms.scenarios/1", "profile:vms.relays/1"}), ("api-export", None, {"video"}), ("api-units", None, {"mechanism"})]
+               ("api-domains", "Папка: создать", {"mechanism"}), ("api-domains", "Домен: переименовать", {"mechanism"}), ("api-devices", "Поиск в сети", {"profile:vms.discovery/1"}),
+               ("api-domains", "Ретрансляторы:", {"profile:vms.relays/1"}), ("api-export", None, {"video"}), ("api-units", None, {"mechanism"})]
     for file, prefix, want in samples:
         got = layers_of(file, prefix)
         ok(got == want, f"образец раскладки: {file}{' «' + prefix + '…»' if prefix else ''} → {sorted(got)}")

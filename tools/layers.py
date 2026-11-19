@@ -5,7 +5,8 @@
 Слой пишется расширением x-layer:
   - у схемы components.schemas.<Имя> целиком;
   - у пути paths.<путь> целиком;
-  - у поля общей (непомеченной) схемы — в KNOWN_LEAKS, пока часть 04 не вынесет поле в схему вида.
+  - у поля общей (непомеченной) схемы — в KNOWN_LEAKS, пока поле не вынесут в схему вида (часть 04 вынесла справочники
+    reference; остальное — после части 04, решение владельца).
 Значение — id профиля из набора (vms.pos/1…), «video» (просмотр, архив, выгрузка — будущий API видео)
 или «vms» (часть VMS без своего профиля). Нет пометки — механизм.
 
@@ -30,31 +31,18 @@ DEFAULT_REVIEWERS = ["w2c"]
 # а в схему вида.
 KNOWN_LEAKS = {
     "AssistEvent.export": "API видео",
-    "AssistFoundFilter.noDetector": "часть 04",
-    "AssistFoundFilter.noRecord": "часть 04",
-    "Reference.analyticsConflicts": "часть 04",
-    "Reference.cloudProviders": "часть 04",
-    "Reference.deviceModels": "часть 04",
-    "Reference.export": "API видео",
-    "Reference.layouts": "часть 04",
-    "Reference.limits.defaultServerPort": "часть 04",
-    "Reference.limits.ipScanMax": "часть 04",
-    "Reference.monitors": "часть 04",
-    "Reference.recordModes": "часть 04",
-    "Reference.scenarioKinds": "часть 04",
-    "Reference.serverLabels": "часть 04",
-    "Reference.serviceTypes": "часть 04",
-    "Reference.supportLevels": "часть 04",
-    "RuleTrigger.match.detector": "часть 04",
-    "TestEventRequest.eventId": "часть 04",
-    "TestEventRequest.status": "часть 04",
-    "TestEventRequest.type": "часть 04",
-    "UnitKind.x-archive": "часть 04",
-    "UnitMoveRequest.params": "часть 04",
-    "UnitStatus.observed.replicaLagSec": "часть 04",
-    "UnitStatus.observed.replicationStatus": "часть 04",
-    "UnitStatus.observed.webCertificate": "часть 04",
-    "UnitStatus.observed.webReservedPorts": "часть 04",
+    "AssistFoundFilter.noDetector": "после части 04",
+    "AssistFoundFilter.noRecord": "после части 04",
+    "RuleTrigger.match.detector": "после части 04",
+    "TestEventRequest.eventId": "после части 04",
+    "TestEventRequest.status": "после части 04",
+    "TestEventRequest.type": "после части 04",
+    "UnitKind.x-archive": "после части 04",
+    "UnitMoveRequest.params": "после части 04",
+    "UnitStatus.observed.replicaLagSec": "после части 04",
+    "UnitStatus.observed.replicationStatus": "после части 04",
+    "UnitStatus.observed.webCertificate": "после части 04",
+    "UnitStatus.observed.webReservedPorts": "после части 04",
 }
 
 # Поля общих схем, где id профиля в описании — пример, а не поле подсистемы: путь поля → почему.
