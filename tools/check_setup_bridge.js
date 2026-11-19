@@ -1,8 +1,8 @@
 /* Проверка библиотеки страницы api/setup-bridge.js по протоколу setup/1 (api/SETUP-UI.md): tools/check_api.py читает
    отсюда JSON со списком отказов (пустой — всё хорошо). Окно поддельное: parent.postMessage пишет [сообщение, адресат],
    addEventListener("message") копит обработчики, location.ancestorOrigins, document.referrer и ResizeObserver — свои
-   в каждом сценарии. Каждое отправленное сообщение сверяется со схемой своего type в api/setup-ui.schema.json
-   (ConsolemContract.check) и должно идти к consolem (x-direction: toHost). */
+   в каждом сценарии. PARENT.postMessage сверяет каждое отправленное сообщение со схемой своего type в
+   api/setup-ui.schema.json (ConsolemContract.check): сообщение должно идти к consolem (x-direction: toHost). */
 global.window = global;
 // Папка API — первый аргумент (по умолчанию api): node tools/check_setup_bridge.js [DIR]
 const API = require("path").resolve(__dirname, "..", process.argv[2] || "api");
@@ -14,7 +14,22 @@ const fail = (where, text) => bad.push(`${where}: ${text}`);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // ── Поддельное окно ──
-const PARENT = { postMessage: (msg, target) => sent.push([JSON.parse(JSON.stringify(msg)), target]) };
+// Каждое сообщение библиотеки — по схеме своего type, направление toHost. Проверка — в момент отправки
+let posted = 0;
+function audit(msg) {
+  const where = `сообщение ${++posted} ${JSON.stringify(msg).slice(0, 120)}`;
+  const def = schema.$defs[msg && msg.type];
+  if (!def || !def["x-direction"]) return fail(where, "нет в схеме");
+  if (def["x-direction"] !== "toHost") fail(where, `${msg.type} идёт странице, а не consolem`);
+  window.ConsolemContract.check(shape, def, msg, `${where}: ${msg.type}`, bad);
+}
+const PARENT = {
+  postMessage: (msg, target) => {
+    const m = JSON.parse(JSON.stringify(msg));
+    audit(m);
+    sent.push([m, target]);
+  },
+};
 const STRANGER = { postMessage() {} };
 let sent = [], listeners = [], observers = [];
 global.parent = PARENT;
@@ -58,19 +73,6 @@ const INIT = (over = {}) => ({
   host: { proto: "setup/1", apply: "button" }, ...over,
 });
 
-// Сообщение библиотеки — по схеме своего type, направление toHost
-const checked = new Set();
-function audit(where) {
-  sent.forEach(([msg], i) => {
-    const key = `${where}#${i}`;
-    if (checked.has(key)) return;
-    checked.add(key);
-    const def = schema.$defs[msg && msg.type];
-    if (!def || !def["x-direction"]) return fail(where, `сообщение ${JSON.stringify(msg)} — нет в схеме`);
-    if (def["x-direction"] !== "toHost") fail(where, `сообщение ${msg.type} идёт странице, а не consolem`);
-    window.ConsolemContract.check(shape, def, msg, `${where}: ${msg.type}`, bad);
-  });
-}
 const types = () => sent.map(([m]) => m.type);
 
 // Сценарий: подключиться и получить init (или не получить)
@@ -92,7 +94,6 @@ async function run() {
   B.connect({ fields: ["/properties/code_length"] });
   if (!same(sent, [[{ proto: "setup/1", type: "ready", fields: ["/properties/code_length"] }, "https://console.example"]]))
     fail("1 ready", `отправлено ${JSON.stringify(sent)}`);
-  audit("1");
 
   // 2 init из чужого окна или с чужого происхождения — обещание не сбылось
   for (const [label, from] of [["чужое окно", { source: STRANGER }], ["чужое происхождение", { origin: "https://evil.example" }]]) {
@@ -123,19 +124,16 @@ async function run() {
   if (s.change({ beep: false }) !== true) fail("4 change", "change вернул не true");
   if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "change", patch: { beep: false } }])) fail("4 change", `отправлено ${JSON.stringify(sent)}`);
   if (!same(s.draft, { beep: false })) fail("4 change", `draft ${JSON.stringify(s.draft)}`);
-  audit("4a");
   sent = [];
   post({ proto: "setup/1", type: "flush", seq: 7 });
   if (flushCalls !== 1) fail("4 flush", `onFlush вызван ${flushCalls} раз`);
   if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "flushed", seq: 7 }])) fail("4 flush", `отправлено ${JSON.stringify(sent)}`);
-  audit("4b");
   // ввод не отправлен до flush: onFlush отдаёт его — сначала change, потом flushed
   sent = [];
   s.pending = { beep: false, code_length: 8 };
   post({ proto: "setup/1", type: "flush", seq: 8 });
   if (!same(types(), ["change", "flushed"])) fail("4 flush с вводом", `отправлено ${JSON.stringify(types())}`);
   else if (!same(sent[0][0].patch, s.pending) || sent[1][0].seq !== 8) fail("4 flush с вводом", `отправлено ${JSON.stringify(sent)}`);
-  audit("4c");
   // onFlush возвращает черновик: библиотека сама отправляет change, если он отличается от отправленного
   env();
   let back = { beep: true };
@@ -146,7 +144,6 @@ async function run() {
   sent = [];
   post({ proto: "setup/1", type: "flush", seq: 2 });
   if (!same(types(), ["flushed"])) fail("4 flush без новой правки", `отправлено ${JSON.stringify(types())}`);
-  audit("4d");
 
   // 5 только просмотр
   env();
@@ -261,7 +258,6 @@ async function run() {
     observers[0].fn([]);
     if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "height", px: 300 }])) fail("9 autoHeight короче", `отправлено ${JSON.stringify(sent)}`);
   }
-  audit("9");
   env();
   ({ session: s } = await connected({ autoHeight: false }));
   if (observers.length) fail("9 autoHeight:false", "ResizeObserver создан");
@@ -303,7 +299,6 @@ async function run() {
     { proto: "setup/1", type: "invalid", fields: ["/properties/display_text"], message: "Текст длиннее 16 знаков" },
     { proto: "setup/1", type: "invalid", fields: [] },
   ])) fail("11 invalid", `отправлено ${JSON.stringify(sent)}`);
-  audit("11");
 
   // 12 merge и diff
   const m = B.merge({ a: 1, b: { c: 1 } }, { b: { c: null }, d: 2 });
@@ -323,13 +318,69 @@ async function run() {
     if (!same(d, want)) fail("12 diff", `diff(${JSON.stringify(a)}, ${JSON.stringify(b)}) = ${JSON.stringify(d)}, ждали ${JSON.stringify(want)}`);
     if (!same(B.merge(a, d), b)) fail("12 diff", `merge(base, diff) ≠ next для ${JSON.stringify(b)}`);
   }
-  audit("конец");
+  // ключ из Object.prototype — тоже свой ключ: снятый toString — null, новый constructor — значение
+  const dp = B.diff({ toString: 1 }, { constructor: 2 });
+  if (!same(dp, { toString: null, constructor: 2 })) fail("12 diff hasOwnProperty", `diff = ${JSON.stringify(dp)}, ждали {"toString":null,"constructor":2}`);
+  // __proto__ из JSON не меняет прототип ни в merge, ни в diff
+  const evil = JSON.parse('{"__proto__": {"polluted": 1}, "a": 1}');
+  for (const [label, r] of [["merge", B.merge({}, evil)], ["diff", B.diff({}, evil)]]) {
+    if (Object.getPrototypeOf(r) !== Object.prototype || "polluted" in r || ({}).polluted !== undefined)
+      fail(`12 ${label} __proto__`, "прототип результата изменился");
+    if (!same(r, { a: 1 })) fail(`12 ${label} __proto__`, `результат ${JSON.stringify(r)}`);
+  }
+
+  // 14 flush: onFlush с исключением, seq не по схеме, только просмотр, черновик от consolem
+  env();
+  ({ session: s } = await connected({ autoHeight: false, onFlush: () => { throw new Error("сбой страницы"); } }));
+  sent = [];
+  try { post({ proto: "setup/1", type: "flush", seq: 3 }); } catch (e) { fail("14 onFlush бросил", `исключение ушло наружу: ${e.message}`); }
+  if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "flushed", seq: 3 }])) fail("14 onFlush бросил", `отправлено ${JSON.stringify(sent)}`);
+  if (!consoleErrors.some((t) => t.includes("сбой страницы"))) fail("14 onFlush бросил", "ошибки нет в консоли");
+  env();
+  let flushes = 0;
+  ({ session: s } = await connected({ autoHeight: false, onFlush: () => { flushes++; } }));
+  sent = [];
+  for (const seq of ["7", 1.5, 0, -1, null, undefined, true]) post({ proto: "setup/1", type: "flush", seq });
+  if (sent.length || flushes) fail("14 seq не целое от 1", `onFlush ${flushes} раз, отправлено ${JSON.stringify(sent)}`);
+  env();
+  ({ session: s } = await connected({ autoHeight: false, onFlush: () => ({ beep: false }) }, INIT({ readOnly: true })));
+  sent = [];
+  post({ proto: "setup/1", type: "flush", seq: 1 });
+  if (!same(types(), ["flushed"])) fail("14 flush при readOnly", `отправлено ${JSON.stringify(types())}`);
+  env();
+  ({ session: s } = await connected({ autoHeight: false, onFlush: () => ({ backlight: "high" }) }));
+  post({ proto: "setup/1", type: "draft", patch: { backlight: "high" } });
+  sent = [];
+  post({ proto: "setup/1", type: "flush", seq: 1 });
+  if (!same(types(), ["flushed"])) fail("14 flush после draft", `черновик ушёл обратно: ${JSON.stringify(types())}`);
+
+  // 15 opts.origin: путь отрезан, "*" и непрозрачное — отказ
+  env({ ancestors: [] });
+  ({ session: s } = await connected({ origin: "https://console.example/app/index.html" }));
+  if (!sent[0] || sent[0][1] !== "https://console.example") fail("15 opts.origin с путём", `ready ${JSON.stringify(sent[0])}`);
+  if (!s) fail("15 opts.origin с путём", "init не принят");
+  for (const origin of ["*", "null", "не адрес"]) {
+    env();
+    let res = "ждёт";
+    B.connect({ origin }).then(() => (res = "сбылся"), () => (res = "отказ"));
+    post(INIT());
+    await tick();
+    if (res !== "отказ") fail(`15 opts.origin ${origin}`, `connect: ${res}`);
+    if (sent.length) fail(`15 opts.origin ${origin}`, `отправлено ${JSON.stringify(sent)}`);
+    if (!consoleErrors.length) fail(`15 opts.origin ${origin}`, "в консоли нет причины");
+  }
+  // своё происхождение непрозрачное, но consolem известен (https): init с "null" не принят
+  env({ page: "null" });
+  ({ session: s } = await connected({}, INIT(), { origin: "null" }));
+  if (s) fail("15 непрозрачная страница, известный consolem", "init с origin null принят");
+  if (!sent[0] || sent[0][1] !== "https://console.example") fail("15 непрозрачная страница, известный consolem", `ready ${JSON.stringify(sent[0])}`);
 
   page13();
 }
 
 // 13 тестовая страница стенда api/plugins/security_controller/setup/ (SETUP-UI.md, «Чего страница не делает»): код только
-// в файлах — setup-bridge.js и page.js, без <script> без src и атрибутов on…; без fetch, XMLHttpRequest, WebSocket и /api/:
+// в файлах — setup-bridge.js и page.js, без <script> без src и атрибутов on…, в page.js без .onX =, setAttribute("on…")
+// и innerHTML; без fetch, XMLHttpRequest, WebSocket и /api/:
 // данные страница берёт из init. ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
 // lock_after_tries: на нём проверяют строку покрытия и ошибки «не на странице»
 function page13() {
@@ -353,6 +404,16 @@ function page13() {
     if (on) fail("13 страница", `${f}: атрибут on… в разметке — ${on[0].slice(-40)}`);
     for (const word of ["fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "/api/"])
       if (t.includes(word)) fail("13 страница", `${f}: ${word} — страница стенда работает без запросов, данные — из init`);
+  }
+  // page.js: обработчики — только addEventListener, разметка — без innerHTML (образец для автора страницы)
+  const js = text["page.js"].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  for (const [re, why] of [
+    [/\.on[a-z]+\s*=(?!=)/i, "обработчик свойством .onX = — нужен addEventListener"],
+    [/setAttribute\(\s*["'`]on/i, "атрибут on… через setAttribute — нужен addEventListener"],
+    [/\b(inner|outer)HTML\b|insertAdjacentHTML/, "разметка строкой (innerHTML) — нужны textContent и элементы"],
+  ]) {
+    const hit = js.match(re);
+    if (hit) fail("13 page.js", `${why}: ${hit[0]}`);
   }
   // page.js на поддельном окне: SetupBridge.connect только запоминает opts, документ отвечает на всё пустышкой
   const blank = new Proxy(function () {}, {

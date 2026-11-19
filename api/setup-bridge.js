@@ -15,43 +15,52 @@
   const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
   const copy = (v) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+  const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
+  // Ключ __proto__ из JSON менял бы прототип результата: merge и diff его пропускают
+  const keys = (o) => Object.keys(o).filter((k) => k !== "__proto__");
 
   // RFC 7396: null снимает ключ, объект сливается рекурсивно, всё остальное (и массив) заменяет целиком. base не меняется
   function merge(base, patch) {
     if (!isObj(patch)) return copy(patch);
     const out = isObj(base) ? copy(base) : {};
-    Object.keys(patch).forEach((k) => {
+    keys(patch).forEach((k) => {
       if (patch[k] === null) delete out[k];
       else out[k] = merge(out[k], patch[k]);
     });
     return out;
   }
 
-  // Правка от base к next: снятый ключ — null, вложенные объекты — рекурсивно, массивы и прочее — целиком. merge(base, diff) = next
+  // Правка от base к next: снятый ключ — null, вложенные объекты — рекурсивно, массивы и прочее — целиком.
+  // merge(base, diff(base, next)) = next, если в next нет значений null: null в правке снимает ключ
   function diff(base, next) {
     const out = {};
     const a = isObj(base) ? base : {};
     const b = isObj(next) ? next : {};
-    Object.keys(a).forEach((k) => {
-      if (!(k in b)) out[k] = null;
+    keys(a).forEach((k) => {
+      if (!has(b, k)) out[k] = null;
     });
-    Object.keys(b).forEach((k) => {
-      if (isObj(a[k]) && isObj(b[k])) {
+    keys(b).forEach((k) => {
+      if (has(a, k) && isObj(a[k]) && isObj(b[k])) {
         const d = diff(a[k], b[k]);
         if (Object.keys(d).length) out[k] = d;
-      } else if (!(k in a) || !same(a[k], b[k])) out[k] = copy(b[k]);
+      } else if (!has(a, k) || !same(a[k], b[k])) out[k] = copy(b[k]);
     });
     return out;
   }
 
-  // Происхождение consolem: opts.origin, иначе location.ancestorOrigins[0], иначе происхождение document.referrer.
+  // Происхождение consolem: opts.origin (через new URL(…).origin; "*" и непрозрачное — отказ), иначе location.ancestorOrigins[0], иначе происхождение document.referrer.
   // Известное — отправка и приём только на него. Непрозрачное или неизвестное ("null", "file://", пусто) — правило стенда
   // из SETUP-UI.md, «Адрес и рамка» (отправка с "*", приём с "null" и "file://"), но только у страницы с диска
   // (location.protocol "file:") или с непрозрачным своим происхождением (window.origin "null", рамка без allow-same-origin).
   // Настоящая страница без происхождения consolem (Firefox без ancestorOrigins и no-referrer) — отказ: null
   function hostOrigin(explicit) {
     const loc = window.location || {};
-    let origin = explicit ? String(explicit) : "";
+    if (explicit) {
+      let origin = "";
+      try { origin = new URL(String(explicit)).origin; } catch (e) { origin = ""; }
+      return origin && origin !== "null" ? { target: origin, accept: [origin] } : null;
+    }
+    let origin = "";
     if (!origin && loc.ancestorOrigins && loc.ancestorOrigins.length) origin = String(loc.ancestorOrigins[0]);
     if (!origin) {
       const ref = (window.document && window.document.referrer) || "";
@@ -69,7 +78,9 @@
     const o = opts || {};
     const host = hostOrigin(o.origin);
     if (!host) {
-      const why = "SetupBridge: происхождение consolem неизвестно (нет location.ancestorOrigins и document.referrer). Передать его в connect({origin})";
+      const why = o.origin
+        ? `SetupBridge: connect({origin: ${JSON.stringify(String(o.origin))}}) — не происхождение http или https. Передать происхождение consolem, например "https://console.example"`
+        : "SetupBridge: происхождение consolem неизвестно (нет location.ancestorOrigins и document.referrer). Передать его в connect({origin})";
       console.error(why);
       return Promise.reject(new Error(why));
     }
@@ -155,11 +166,19 @@
           session.theme = m.theme;
           if (o.onTheme) o.onTheme(m.theme);
         },
-        // onFlush отдаёт неотправленный ввод синхронно: зовёт session.change или возвращает черновик. Затем flushed
+        // onFlush отдаёт неотправленный ввод синхронно: зовёт session.change или возвращает черновик. Затем flushed,
+        // даже если onFlush бросил исключение: иначе consolem ждёт ответа 2 секунды. flush с seq не по схеме
+        // (не целое число от 1) библиотека пропускает
         flush(m) {
-          const back = o.onFlush ? o.onFlush() : undefined;
-          if (isObj(back) && !session.readOnly && !same(back, sentDraft)) sendChange(back);
-          send({ type: "flushed", seq: m.seq });
+          if (!Number.isInteger(m.seq) || m.seq < 1) return;
+          try {
+            const back = o.onFlush ? o.onFlush() : undefined;
+            if (isObj(back) && !session.readOnly && !same(back, sentDraft)) sendChange(back);
+          } catch (e) {
+            console.error("SetupBridge: onFlush бросил исключение, библиотека всё равно отправляет flushed", e);
+          } finally {
+            send({ type: "flushed", seq: m.seq });
+          }
         },
       };
 
