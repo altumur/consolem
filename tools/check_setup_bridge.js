@@ -315,6 +315,59 @@ async function run() {
     if (!same(B.merge(a, d), b)) fail("12 diff", `merge(base, diff) ≠ next для ${JSON.stringify(b)}`);
   }
   audit("конец");
+
+  page13();
+}
+
+// 13 тестовая страница стенда api/plugins/security_controller/setup/ (SETUP-UI.md, «Чего страница не делает»): код только
+// в файлах — setup-bridge.js и page.js, без <script> без src и атрибутов on…; без fetch, XMLHttpRequest, WebSocket и /api/:
+// данные страница берёт из init. ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
+// lock_after_tries: на нём проверяют строку покрытия и ошибки «не на странице»
+function page13() {
+  const fs = require("fs"), path = require("path"), vm = require("vm");
+  const rel = "plugins/security_controller/setup";
+  const dir = path.join(API, rel);
+  const text = {};
+  for (const f of ["index.html", "page.js", "page.css"]) {
+    const p = path.join(dir, f);
+    if (!fs.existsSync(p)) fail("13 страница", `api/${rel}/${f} нет`);
+    else text[f] = fs.readFileSync(p, "utf8");
+  }
+  if (!text["index.html"] || !text["page.js"]) return;
+  const html = text["index.html"].replace(/<!--[\s\S]*?-->/g, "");
+  const tags = html.match(/<script\b[^>]*>/gi) || [];
+  const srcs = tags.map((t) => (t.match(/\ssrc\s*=\s*["']([^"']+)["']/i) || [])[1]);
+  if (srcs.some((s) => !s)) fail("13 страница", "index.html: <script> без src — код только в файлах");
+  if (!same(srcs, ["../../../setup-bridge.js", "page.js"])) fail("13 страница", `index.html: скрипты ${JSON.stringify(srcs)}, ждали ../../../setup-bridge.js и page.js`);
+  for (const [f, t] of Object.entries(text)) {
+    const on = t.match(/<[^>]*\son[a-z]+\s*=/i);
+    if (on) fail("13 страница", `${f}: атрибут on… в разметке — ${on[0].slice(-40)}`);
+    for (const word of ["fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "/api/"])
+      if (t.includes(word)) fail("13 страница", `${f}: ${word} — страница стенда работает без запросов, данные — из init`);
+  }
+  // page.js на поддельном окне: SetupBridge.connect только запоминает opts, документ отвечает на всё пустышкой
+  const blank = new Proxy(function () {}, {
+    get: (t, k) => (k === Symbol.iterator ? function* () {} : k === Symbol.toPrimitive ? () => "" : k === "then" ? undefined : blank),
+    apply: () => blank,
+    construct: () => blank,
+    set: () => true,
+  });
+  const calls = [];
+  const ctx = {
+    console: { log() {}, warn() {}, error() {} }, URLSearchParams, URL, JSON, Math, Number, String, Object, Array, Set, Map, Promise,
+    setTimeout: () => 0, clearTimeout() {}, document: blank, navigator: { language: "ru" }, parent: {},
+    location: { search: "?lang=ru", protocol: "file:", href: "file:///x/index.html" },
+    SetupBridge: { proto: "setup/1", connect: (o) => { calls.push(o); return new Promise(() => {}); }, merge: window.SetupBridge.merge, diff: window.SetupBridge.diff },
+  };
+  ctx.window = ctx;
+  try { vm.runInNewContext(text["page.js"], ctx, { filename: "page.js" }); } catch (e) { return fail("13 page.js", `исключение ${e.message}`); }
+  if (calls.length !== 1) return fail("13 page.js", `SetupBridge.connect вызван ${calls.length} раз`);
+  const demo = require(API + "/fixtures/demo.json");
+  const keypad = (demo.kinds || []).find((k) => k.kind === "security_controller/KEYPAD");
+  if (!keypad) return fail("13 page.js", "в demo.json нет вида security_controller/KEYPAD");
+  const want = Object.keys(keypad.schema.properties).filter((k) => k !== "lock_after_tries").map((k) => `/properties/${k}`);
+  const got = calls[0] && calls[0].fields;
+  if (!same(got, want)) fail("13 page.js", `ready.fields ${JSON.stringify(got)}, ждали ${JSON.stringify(want)}`);
 }
 
 run().then(() => console.log(JSON.stringify(bad)), (e) => console.log(JSON.stringify([...bad, `исключение: ${e && e.stack}`])));

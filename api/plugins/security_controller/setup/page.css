@@ -1,0 +1,43 @@
+/* Тестовая страница стенда для security_controller/KEYPAD. Цвета — токены консоли --one-… из сообщения theme
+   (page.js кладёт их в :root); значения ниже — тёмная тема, пока init не пришёл. */
+:root {
+  --one-canvas: #14161a;
+  --one-surface: #1b1e23;
+  --one-surface-muted: #23272e;
+  --one-fg: #e6e8eb;
+  --one-fg-muted: #9aa1ab;
+  --one-border: #30353d;
+  --one-border-strong: #474e58;
+  --one-accent: #3d8bfd;
+  --one-accent-on: #ffffff;
+  --one-danger: #f0564b;
+  --one-focus-ring: #3d8bfd;
+  --one-control-bg: #23272e;
+  --one-control-hover: #2b3038;
+  --one-radius-control: 4px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--one-surface); color: var(--one-fg); font: 13px/1.4 system-ui, sans-serif; }
+body { padding: 12px 16px 16px; }
+.status, .readonly { margin: 0 0 12px; color: var(--one-fg-muted); }
+.readonly { padding: 6px 10px; border: 1px solid var(--one-border); border-radius: var(--one-radius-control); background: var(--one-surface-muted); }
+.error-box { margin: 0 0 12px; padding: 6px 10px; border: 1px solid var(--one-danger); border-radius: var(--one-radius-control); color: var(--one-danger); white-space: pre-line; }
+.tabs { display: flex; gap: 4px; margin-bottom: 12px; border-bottom: 1px solid var(--one-border); }
+.tabs button { padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--one-fg-muted); font: inherit; cursor: pointer; white-space: nowrap; }
+.tabs button:hover { color: var(--one-fg); }
+.tabs button[aria-selected="true"] { color: var(--one-fg); border-bottom-color: var(--one-accent); }
+.field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; max-width: 360px; }
+.field label { color: var(--one-fg); }
+.field-check label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.hint { margin: 0; color: var(--one-fg-muted); font-size: 12px; }
+input[type="number"], input[type="text"], select {
+  height: 32px; padding: 0 8px; border: 1px solid var(--one-border-strong); border-radius: var(--one-radius-control);
+  background: var(--one-control-bg); color: var(--one-fg); font: inherit;
+}
+input[type="number"]:hover, input[type="text"]:hover, select:hover { background: var(--one-control-hover); }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--one-focus-ring); outline-offset: 1px; }
+input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
+.field.bad input, .field.bad select { border-color: var(--one-danger); }
+.msg { margin: 0; color: var(--one-danger); font-size: 12px; }

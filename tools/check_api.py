@@ -1149,7 +1149,7 @@ def check_setup_ui(rep, spec):
         problems = res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
     except ValueError:
         problems = [f"check_setup_bridge.js: не JSON — {res.stdout.strip()[-200:]}"]
-    rep.check(name, problems, "13 сценариев")
+    rep.check(name, problems, "14 сценариев")
 
 
 def check_core_field(rep, spec):
