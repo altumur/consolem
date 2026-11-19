@@ -104,6 +104,16 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       "getUnit {uid: \"../test/reset\"} — 404, путь закодирован, запроса к /test/reset нет");
     r = await call("getUnit", { uid: "x?y" });
     ok(r.status === 404 && trace("GET", "/units/x%3Fy").length === 1, "getUnit {uid: \"x?y\"} — 404, знак вопроса закодирован");
+    // «.» и «..» encodeURIComponent не кодирует, а fetch настоящего бэкенда сворачивает их: POST /units/./actions/.. — это POST /units/
+    window.CONSOLEM_TRACE.length = 0;
+    r = await call("runUnitAction", { uid: ".", action: ".." });
+    const rDot = await call("getUnit", { uid: ".." });
+    ok(code(r) === "VALIDATION_FAILED" && r.status === 0 && r.problem.field === "/params/uid" && code(rDot) === "VALIDATION_FAILED" && rDot.problem.field === "/params/uid" &&
+      !window.CONSOLEM_TRACE.length && valid(r), "параметр пути «.» и «..» — VALIDATION_FAILED с полем, без запроса");
+    // У команды с idempotencyKey тело — объект: иначе команда ушла бы без ключа
+    window.CONSOLEM_TRACE.length = 0;
+    r = await call("runUnitAction", { uid: CTRL, action: "ARM" }, "x");
+    ok(code(r) === "VALIDATION_FAILED" && r.problem.field === "/body" && !window.CONSOLEM_TRACE.length, "команда с телом не объектом — VALIDATION_FAILED /body, без запроса");
 
     // Параметры по описанию операции
     window.CONSOLEM_TRACE.length = 0;

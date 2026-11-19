@@ -6803,7 +6803,7 @@ const BRIDGE_TEXT={
   VALIDATION_FAILED:"Параметр не подходит к описанию операции.",
   PERMISSION_DENIED:"Страница открыта только для просмотра, поэтому консоль не принимает шаги черновика.",
   BUSY:"Страница отправила больше вызовов, чем разрешает предел.",
-  CANCELLED:"Пользователь отказался в диалоге консоли.",
+  CANCELLED:"Человек отказался в диалоге консоли.",
   UPSTREAM_UNAVAILABLE:"Нет связи с сервером.",
 };
 // Карта operationId → {api, method, path, bridge, pathNames, query, body} из описаний API. api — чьё описание:
@@ -6868,7 +6868,8 @@ function bridgeRequest(op,params,body){
   Object.keys(p).forEach(k=>{if(!d.pathNames.includes(k)&&!d.query.has(k))throw bad("/params/"+k)});
   const path=d.path.replace(/\{([^}]+)\}/g,(_,n)=>{
     const v=p[n];
-    if(!scalar(v)||String(v)==="")throw bad("/params/"+n);
+    // «.» и «..» encodeURIComponent оставляет как есть, а fetch сворачивает их в другой путь: /units/./actions/.. — это /units/
+    if(!scalar(v)||String(v)===""||String(v)==="."||String(v)==="..")throw bad("/params/"+n);
     return encodeURIComponent(String(v));
   });
   const qs=[];
@@ -6881,7 +6882,9 @@ function bridgeRequest(op,params,body){
     qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
   });
   let b=d.body?body:undefined;
-  if(BRIDGE_KEYED.has(op)&&(b===undefined||b&&typeof b==="object"&&!Array.isArray(b))){
+  // Команда с idempotencyKey: тело — объект или нет тела, иначе команда ушла бы без ключа
+  if(BRIDGE_KEYED.has(op)){
+    if(b!==undefined&&!(b&&typeof b==="object"&&!Array.isArray(b)))throw bad("/body");
     b=b?{...b}:{};
     if(!b.idempotencyKey)b.idempotencyKey=opKey();
   }

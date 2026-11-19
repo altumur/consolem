@@ -5,7 +5,7 @@ Object.assign(window.I18N_EN,{
   "Параметр не подходит к описанию операции.":"The parameter does not match the operation description.",
   "Страница открыта только для просмотра, поэтому консоль не принимает шаги черновика.":"The page is view-only, so the console does not accept draft steps.",
   "Страница отправила больше вызовов, чем разрешает предел.":"The page sent more calls than the limit allows.",
-  "Пользователь отказался в диалоге консоли.":"The user refused in the console dialog.",
+  "Человек отказался в диалоге консоли.":"The person refused in the console dialog.",
   "Нет связи с сервером.":"There is no connection to the server.",
   "Консоль пока не принимает шаги черновика от страницы.":"The console does not accept draft steps from the page yet.",
   // Диалог команды с ActionDescriptor.confirm (ключи карточки, в assets/i18n-en.js английского нет)
