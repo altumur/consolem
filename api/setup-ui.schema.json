@@ -162,7 +162,7 @@
     },
     "applied": {
       "type": "object",
-      "description": "«Применить» прошло: новый объект, черновик пуст. На шаге 2 — и итог шагов моста",
+      "description": "«Применить» прошло: новый объект, черновик пуст. На шаге 2 — и итог шагов моста; если сервер отказал операции с шагами моста, у шагов state fail, а черновик остаётся",
       "x-direction": "toPage",
       "x-step": 1,
       "additionalProperties": false,
@@ -559,12 +559,12 @@
         },
         "ok": {
           "type": "boolean",
-          "description": "true — запрос удался (2xx) или шаг принят в черновик"
+          "description": "true — запрос удался (2xx) или consolem положил шаг в черновик"
         },
         "status": {
           "type": "integer",
           "minimum": 0,
-          "description": "HTTP-статус ответа сервера; 202 — шаг принят в черновик; 0 — отказ моста без запроса"
+          "description": "HTTP-статус ответа сервера; 202 — consolem положил шаг в черновик; 0 — отказ моста без запроса"
         },
         "body": {
           "description": "Необязательно: тело ответа сервера как есть; у шага черновика — {drafted: true, step}"
@@ -580,7 +580,7 @@
     },
     "subscribe": {
       "type": "object",
-      "description": "Шаг 2: пересылать странице события потока по объектам или видам. Ответ — result с body.sub",
+      "description": "Шаг 2: пересылать странице события потока по объектам или видам. Ответ — result с body.sub, номер подписки равен id",
       "x-direction": "toHost",
       "x-step": 2,
       "additionalProperties": false,
@@ -708,7 +708,7 @@
     },
     "navigate": {
       "type": "object",
-      "description": "Шаг 2: перейти к объекту в consolem. Удачный переход ответа не получает: рамка закрыта",
+      "description": "Шаг 2: перейти к объекту в consolem. Удачный переход ответа не получает: consolem закрыл рамку",
       "x-direction": "toHost",
       "x-step": 2,
       "additionalProperties": false,
@@ -985,7 +985,7 @@
               "draft"
             ]
           },
-          "description": "operationId → x-bridge: только размеченные операции, которые система объявила; при readOnly — без draft"
+          "description": "operationId → x-bridge: только операции с разметкой x-bridge, которые система объявила; при readOnly — без draft"
         },
         "messages": {
           "type": "array",
