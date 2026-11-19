@@ -20,7 +20,9 @@ let sent = [], listeners = [], observers = [];
 global.parent = PARENT;
 global.addEventListener = (type, fn) => { if (type === "message") listeners.push(fn); };
 global.removeEventListener = (type, fn) => { listeners = listeners.filter((f) => f !== fn); };
-global.document = { referrer: "", documentElement: { scrollHeight: 0 } };
+global.document = { referrer: "", documentElement: { scrollHeight: 0 }, body: { bottom: 0, mb: "0px", getBoundingClientRect() { return { top: 0, bottom: this.bottom, height: this.bottom }; } } };
+global.getComputedStyle = (el) => ({ marginBottom: el.mb || "0px" });
+global.scrollY = 0;
 global.location = { ancestorOrigins: [], href: "https://door.example/setup/index.html" };
 global.ResizeObserver = class {
   constructor(fn) { this.fn = fn; observers.push(this); }
@@ -43,6 +45,7 @@ function env({ ancestors = ["https://console.example"], referrer = "", page = "h
   global.origin = PAGES[page].origin;
   document.referrer = referrer;
   document.documentElement.scrollHeight = 0;
+  document.body.bottom = 0; document.body.mb = "0px"; global.scrollY = 0;
 }
 const post = (data, { origin = "https://console.example", source = PARENT } = {}) =>
   listeners.slice().forEach((fn) => fn({ data, origin, source }));
@@ -247,10 +250,16 @@ async function run() {
   sent = [];
   if (observers.length !== 1) fail("9 autoHeight", `ResizeObserver создан ${observers.length} раз`);
   else {
-    document.documentElement.scrollHeight = 612;
+    document.body.bottom = 600; document.body.mb = "12px";
     observers[0].fn([]);
     observers[0].fn([]);
     if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "height", px: 612 }])) fail("9 autoHeight", `отправлено ${JSON.stringify(sent)}`);
+    // Содержимое стало короче: высота — по содержимому (body), а не documentElement.scrollHeight, который не меньше рамки
+    sent = [];
+    document.documentElement.scrollHeight = 612;
+    document.body.bottom = 288;
+    observers[0].fn([]);
+    if (!same(sent.map(([m]) => m), [{ proto: "setup/1", type: "height", px: 300 }])) fail("9 autoHeight короче", `отправлено ${JSON.stringify(sent)}`);
   }
   audit("9");
   env();

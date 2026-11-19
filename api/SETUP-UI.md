@@ -171,7 +171,7 @@ input.onchange = () => session.change(SetupBridge.diff(session.unit.properties, 
 - `origin` — происхождение consolem, если автор знает его заранее. Оно главнее `ancestorOrigins` и `referrer`;
 - `onDraft(patch)`, `onApplied(unit)`, `onErrors(problem)`, `onRevert(unit)`, `onTheme(theme)` — сообщения `draft`, `applied`, `errors`, `revert`, `theme`;
 - `onFlush()` — consolem собирается применить правку. Страница отдаёт неотправленный ввод синхронно: вызывает `session.change(…)` или возвращает черновик. Если возвращённый черновик отличается от отправленного, библиотека отправляет `change`. Затем библиотека отправляет `flushed` с тем же `seq`;
-- `autoHeight` — по умолчанию `true`: `ResizeObserver` на `document.documentElement` отправляет `height` со значением `scrollHeight`. Одно значение два раза подряд библиотека не отправляет.
+- `autoHeight` — по умолчанию `true`: `ResizeObserver` на `document.body` отправляет `height` с высотой содержимого: низ `body` плюс его нижнее поле. Значение `documentElement.scrollHeight` не меньше высоты рамки, поэтому библиотека его не берёт: иначе рамка не становится ниже. Одно значение два раза подряд библиотека не отправляет.
 
 **`Session`** — объект после `init`:
 

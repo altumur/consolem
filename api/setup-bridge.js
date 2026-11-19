@@ -91,11 +91,21 @@
         lastPx = v;
         send({ type: "height", px: v });
       }
+      // Высота содержимого: низ body с его нижним полем. documentElement.scrollHeight не меньше высоты рамки,
+      // поэтому по нему рамка только растёт. Без body — scrollHeight
+      function contentHeight() {
+        const doc = window.document;
+        const body = doc && doc.body;
+        if (!body || typeof body.getBoundingClientRect !== "function") return doc.documentElement.scrollHeight;
+        const mb = parseFloat((window.getComputedStyle ? window.getComputedStyle(body).marginBottom : "") || "0") || 0;
+        return Math.ceil(body.getBoundingClientRect().bottom + (window.scrollY || 0) + mb);
+      }
       function startAutoHeight() {
         const R = window.ResizeObserver;
-        const root = window.document && window.document.documentElement;
+        const doc = window.document;
+        const root = doc && (doc.body || doc.documentElement);
         if (!R || !root) return;
-        new R(() => sendHeight(root.scrollHeight)).observe(root);
+        new R(() => sendHeight(contentHeight())).observe(root);
       }
       function onInit(m) {
         session = {
