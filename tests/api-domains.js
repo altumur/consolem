@@ -102,6 +102,8 @@
     const ids = new Set(FX.domains.map((d) => d.id));
     assert.eq(top.filter((n) => ids.has(n.id)).map((n) => n.id), [], "верх дерева — без объектов вида со снятым vms.domain/1");
     assert.eq((await env.pages(`/units?implements=${AREA}&limit=1000`)).length, 0, `объектов с ${AREA} нет`);
+    // Вид папки объявил только снятый vms.folder/1 — его объекты для сервера не папки
+    assert.eq((await env.pages(`/units?implements=${FOLDER}&limit=1000`)).length, 0, `объектов с ${FOLDER} нет`);
   }, { needs: ["listKinds", "getTreeChildren", "listUnits"], layer: "mechanism" });
 
   test("Домен: удалить с переносом — серверы нераспределённые в целевом, папки, устройства, хранилища и найденное — там же", async () => {

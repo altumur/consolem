@@ -28,7 +28,8 @@ AREA_PATH_PREFIX = "/domains/"
 OPEN_CODES = (("RuleCondition", ("kind",)), ("RuleCheck", ("what",)), ("RuleTarget", ("include", "[]", "area")),
               ("Reference", ("ruleTargets", "areas", "[]")))
 LAYOUT_PATHS = ("/tree/children", "/tree/paths")
-# B3, B4: ключи справочника механизма; справочники VMS — в описаниях видов и в ответах путей профилей (с 0.32.0)
+# B3, B4: ключи справочника механизма; справочники VMS — в описаниях видов и в ответах путей профилей (с 0.32.0). Те же
+# списки — REFERENCE_KEYS и LIMIT_KEYS в tests/api-read.js (тест «Справочник механизма…»): меняя один, поменять и другой
 REFERENCE_KEYS = ("ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
                   "ruleCrossDomainActions", "access", "limits", "capabilities")
 LIMIT_KEYS = ("pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes")

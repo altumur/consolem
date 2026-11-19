@@ -103,7 +103,8 @@
   }, { needs: ["kind:camera"] });
 
   // Справочник механизма (с 0.32.0): ключи reference и reference.limits — только механизма (tools/mechanism.py, B3 и B4).
-  // Справочники VMS — в описаниях видов и в ответах путей профилей; ruleChecks обязательно
+  // Справочники VMS — в описаниях видов и в ответах путей профилей; ruleChecks обязательно. Те же списки — REFERENCE_KEYS и
+  // LIMIT_KEYS в tools/mechanism.py: меняя один, поменять и другой
   const REFERENCE_KEYS = ["ruleActions", "ruleConditions", "ruleChecks", "ruleControls", "ruleFeatures", "ruleStarts", "ruleTargets",
     "ruleCrossDomainActions", "access", "limits", "capabilities"];
   const LIMIT_KEYS = ["pageMax", "idsMax", "selectMax", "watchMax", "scanPartsMax", "fileMaxBytes", "filesPerTurnMax", "fileTypes"];
