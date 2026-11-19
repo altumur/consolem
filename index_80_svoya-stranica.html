@@ -5669,14 +5669,17 @@ function hasBaseForm(n){
   const ps=KINDS.get(nodeKind(n))?.schema?.properties;
   return!!ps&&Object.keys(ps).length>0;
 }
+// «Все параметры» есть у ручного экрана с базовой формой и у объекта по схеме со своей страницей: там это форма по схеме
+// на том же черновике n.props, что у страницы
+function hasAllForm(n){return hasBaseForm(n)||(!!n&&isSchemaNode(n)&&suiOn(n))}
 const formAllByKind=new Map();
-function cardFormAll(n){return hasBaseForm(n)&&formAllByKind.get(tabMemKey(n))===true}
+function cardFormAll(n){return hasAllForm(n)&&formAllByKind.get(tabMemKey(n))===true}
 // Строка перечня без полной записи: вид известен, форма откроется после чтения записи
 function kindHasBase(n){const ps=KINDS.get(nodeKind(n))?.schema?.properties;return!!n&&!isSchemaNode(n)&&!!ps&&Object.keys(ps).length>0}
 function formAllSet(v){
   const n=find(sel)?.n;if(!n)return;
   if(n._row&&kindHasBase(n)){formAllByKind.set(tabMemKey(n),!!v);gear();return}
-  if(!hasBaseForm(n))return;
+  if(!hasAllForm(n))return;
   if(!v&&baseChanged(n).length){toast(FORM_BACK_WHY);return}
   formAllByKind.set(tabMemKey(n),!!v);
   tab=tabKeep(n);gear();
@@ -5685,7 +5688,7 @@ function formAllSet(v){
 // Пока в базовой форме есть неприменённые изменения, вернуться нельзя: пункт называет причину
 const FORM_BACK_WHY="Сначала применить или сбросить изменения";
 function formAllCtxItem(n,act){
-  if(!(n._row?kindHasBase(n):hasBaseForm(n)))return"";
+  if(!(n._row?kindHasBase(n):hasAllForm(n)))return"";
   if(!cardFormAll(n)||sel!==n.id)return tctxItem(i18n("Все параметры"),act("formAllSet",true),`<span class="tctx-ic">${lu("list",14)}</span>`);
   const why=baseChanged(n).length?FORM_BACK_WHY:"";
   return tctxItem(tctxWhy(i18n("Вернуться к настройке"),why),act("formAllSet",false),`<span class="tctx-ic">${lu("arrow-left",14)}</span>`,!!why);
@@ -5735,7 +5738,16 @@ function baseTabs(n){
   if(!labels.length)labels.push(i18n(SF_MAIN));
   return labels.map((l,i)=>[i?"sf"+i:"gen",l]);
 }
+// Строка над «Все параметры»: что это за форма и «Вернуться к настройке». Пока в базовой форме ручного экрана есть
+// неприменённые изменения, вернуться нельзя (у объекта по схеме черновик общий со страницей, запрета нет)
+function baseHeadHtml(n,first,extra){
+  const back=baseChanged(n).length;
+  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
+    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+}
 function baseFormHtml(n,tabId){
+  // Объект по схеме со своей страницей: форма по схеме на n.props — черновик тот же, что у страницы
+  if(isSchemaNode(n)){const tabs=schemaTabs(n);return baseHeadHtml(n,(tabs.find(([id])=>id===tabId)||tabs[0])[0]===tabs[0][0],false)+schemaFormHtml(n,tabId)}
   const kind=nodeKind(n),k=KINDS.get(kind),schema=k?.schema;
   const tabs=baseTabs(n),cur=(tabs.find(([id])=>id===tabId)||tabs[0])[1],first=cur===tabs[0][1];
   const extra=new Set(nodeExtraProps(n)),own=ownDraftRows(n).length,groups=new Map();
@@ -5746,9 +5758,7 @@ function baseFormHtml(n,tabId){
   });
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
   const nameH=first?baseNameHtml(n):"";
-  const back=baseChanged(n).length;
-  let out=`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(kind))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra.size?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
-    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+  let out=baseHeadHtml(n,first,extra.size>0);
   if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
   let lead=nameH;
   if(!groups.size)groups.set(i18n(SF_GROUP),[]);
@@ -6491,6 +6501,8 @@ function suiPlace(){
   const dock=document.getElementById("suiDock");if(!dock)return;
   const slot=suiFrame?.el?document.querySelector("#main [data-sui-slot]"):null;
   if(suiRoEl!==slot){suiRo?.disconnect();suiRo=null;suiRoEl=slot;if(slot&&window.ResizeObserver){suiRo=new ResizeObserver(()=>suiPlace());suiRo.observe(slot)}}
+  // Места нет (другая вкладка, «Все параметры»): док скрыт, рамка в нём жива
+  dock.hidden=!slot;
   if(!slot){dock.classList.add("sui-off");return}
   const r=slot.getBoundingClientRect(),v=slot.closest(".sc")?.getBoundingClientRect()||r;
   // Высота — целевая (suiFrame.h), а не текущая: место и док меняют высоту одним переходом CSS

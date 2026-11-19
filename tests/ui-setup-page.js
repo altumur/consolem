@@ -238,6 +238,27 @@ UiCheck(async ({ ok, until, sleep }) => {
         ok(await until(() => suiFrame?.state === "ready" && lastOf("init").lang === "ru", 15000), "язык обратно — init с lang ru");
         cardReset();
         await until(() => !cardDiff().length);
+
+        // «Все параметры» (задача 8): у объекта по схеме — форма по схеме на том же черновике n.props
+        {
+          const sf = (name) => main().querySelector(`[data-sf="${name}"]`);
+          const type = (el, v) => { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
+          const elA = suiFrame.el;
+          fromPage({ type: "change", patch: { display_text: "А" } });
+          formAllSet(true);
+          ok(await until(() => !!main().querySelector("[data-schema-card]")) && sf("display_text")?.value === "А" && document.getElementById("suiDock").hidden && suiFrame?.el === elA && elA.isConnected,
+            "«Все параметры»: форма по схеме с правкой страницы, рамка скрыта, но жива");
+          ok(!!main().querySelector("[data-base-head]") && !main().querySelector("[data-base-head] [data-form-back][disabled]") && !slot() &&
+            JSON.stringify(tabsFor(un())) === JSON.stringify(schemaTabs(un())), "«Все параметры»: строка «Вернуться к настройке» без запрета, вкладки формы по схеме");
+          ok(!un().xprops && cardDiff().length === 1, "у объекта по схеме нет xprops, строка черновика одна");
+          type(sf("display_text"), "Б");
+          formAllSet(false);
+          ok(await until(() => sent.at(-1).type === "draft") && sent.at(-1).patch.display_text === "Б" && valid(sent.at(-1)), "вернулись — странице draft с правкой формы");
+          ok(await until(() => !!slot() && !document.getElementById("suiDock").hidden) && suiFrame?.el === elA, "вернулись — то же место и та же рамка");
+          ok(/Все параметры/.test(formAllCtxItem(un(), (f, v) => ["x"]) || ""), "пункт «Все параметры» в «Ещё» у страницы");
+          cardReset();
+          await until(() => !cardDiff().length && sent.at(-1).type === "revert");
+        }
       } finally {
         console.warn = realWarn;
       }
@@ -299,6 +320,12 @@ UiCheck(async ({ ok, until, sleep }) => {
       ok(await until(() => !slot() && !!document.querySelector("#suiDock.sui-off")) && suiFrame?.el === elc && elc.isConnected, "вкладка «Доступ»: рамка скрыта, но жива");
       tabGo("gen");
       ok(await until(() => !!slot() && !document.querySelector("#suiDock.sui-off")) && suiFrame?.el === elc, "назад на «Настройка» — та же рамка");
+      // «Все параметры» у ручного экрана со страницей — базовая форма ручного экрана на n.xprops (задача 8, RF4)
+      formAllSet(true);
+      ok(await until(() => !!main().querySelector("[data-base-head]") && !slot()) && JSON.stringify(tabsFor(cn)) === JSON.stringify(baseTabs(cn)) &&
+        document.getElementById("suiDock").hidden && suiFrame?.el === elc && elc.isConnected, "камера: «Все параметры» — базовая форма ручного экрана, рамка скрыта, но жива");
+      formAllSet(false);
+      ok(await until(() => !!slot() && !document.getElementById("suiDock").hidden) && suiFrame?.el === elc, "камера: назад к странице — та же рамка");
       // Незнакомая версия протокола (Review Focus 4): не страница, вкладки ручного экрана
       const su = KINDS.get("camera").setupUi;
       KINDS.get("camera").setupUi = { mode: "iframe", protocol: "setup/9", url: SUI_TEST_PAGE };
