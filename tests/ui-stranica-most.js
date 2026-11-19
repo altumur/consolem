@@ -446,9 +446,10 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => sent.slice(sentAt4).some((m) => m.type === "revert" && Array.isArray(m.steps) && !m.steps.length), 3000) && !cardDiff().length, "«Сбросить» — revert со steps [], черновик пуст");
     // Только просмотр — шаги draft закрыты
     suiFrame.readOnly = true;
+    // Без запроса — без записи: чтения (GET) идут и сами — по http ветки дерева и запросы самой страницы приходят в это время
     window.CONSOLEM_TRACE.length = 0;
     r = await call("patchUnit", { uid: S1 }, { name: "Нельзя" });
-    ok(code(r) === "PERMISSION_DENIED" && r.status === 0 && r.problem.params?.readOnly === true && !cardDiff().length && !window.CONSOLEM_TRACE.length, "только просмотр: patchUnit — PERMISSION_DENIED, без запроса и строки");
+    ok(code(r) === "PERMISSION_DENIED" && r.status === 0 && r.problem.params?.readOnly === true && !cardDiff().length && !window.CONSOLEM_TRACE.some((t) => t.method !== "GET"), "только просмотр: patchUnit — PERMISSION_DENIED, без запроса и строки");
     suiFrame.readOnly = false;
 
     // ── Задача 5: подписка на поток, переход со вспышкой, подтверждение consolem ──
@@ -795,6 +796,8 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       const role = { ...x, objectAccess: await objectAccessOf(x.id) };
       return x.id === viewRole?.id ? { ...role, kindAccess: { ...x.kindAccess, security_controller: "view" } } : role;
     }));
+    // Отсчёт сообщений — до сброса: по http событие test.reset приходит раньше ответа, и consolem открывает рамку заново ещё до него
+    const sentR = sent.length;
     const rs = await realRaw("POST", "/test/reset", { fixture: "demo", freezeClock: false, actAs: "elena", fixturePatch: { access: { roles: patched } } });
     const onStand = rs.status === 200;
     resetBack = onStand;
@@ -816,10 +819,11 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       restoreHost = restoreDenied;
     }
     ok(onStand || rs.body?.code === "TEST_SUPPORT_OFF", "вход elena: " + (onStand ? "стенд, набор с view на security_controller" : "встроенный сервер, ответы для elena — перехватом"));
-    const sentR = sent.length;
     suiRetry();
     pick(SUI_UNIT, { force: true, tab: "gen" });
-    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready && suiFrame.readOnly, 15000), "страница стенда открыта только для просмотра");
+    // Ждать рамку, которой ушёл init: рамка, открытая перечитыванием после test.reset, становится ready раньше, чем объект
+    // снова в кэше, и init не получает (по http это видно, встроенный сервер /test/reset не держит)
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready && suiFrame.readOnly && sent.slice(sentR).some((m) => m.type === "init" && m.readOnly === true), 15000), "страница стенда открыта только для просмотра");
     const initR = sent.slice(sentR).filter((m) => m.type === "init").pop();
     ok(initR?.readOnly === true && !!initR.host.bridge && !Object.values(initR.host.bridge.ops).includes("draft") && initR.host.bridge.ops.runUnitAction === "act",
       "init.readOnly, в init.host.bridge.ops нет draft, команда есть");
