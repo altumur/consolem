@@ -19,6 +19,8 @@ UiCheck(async ({ ok, until, confirmWith }) => {
     const full = snap(), nModels = Object.keys(DEVICE_MODELS).length, rec = refRecModes.join(), lays = RULE_LAYOUTS.join(), mons = RULE_MONS.join();
     const oldScen = { did: SCEN.did, doc: SCEN.doc }, oldExp = EXP_REF;
     try {
+      // Документ сценариев ещё не прочитан: видов событий нет, справочник без scenarioKinds их не даёт
+      refScenKinds = null;
       autoRef(stripDeprecatedRef(REF_LAST), KINDS);
       ok(nModels > 0 && Object.keys(DEVICE_MODELS).length === nModels, `производители без reference.deviceModels — из examples и allOf видов: ${Object.keys(DEVICE_MODELS).length} из ${nModels}`);
       ok(rec && refRecModes.join() === rec, "режимы записи без reference.recordModes — enum recordMode вида camera: " + refRecModes.join());
@@ -28,6 +30,10 @@ UiCheck(async ({ ok, until, confirmWith }) => {
       ok(!refScenKinds || !refScenKinds.length, "виды событий сценариев без reference.scenarioKinds — до чтения документа сценариев их нет");
       await scenLoad(domains[0].id);
       ok((refScenKinds || []).join() === (REF_LAST.scenarioKinds || []).join() && refScenKinds.length > 0, "виды событий сценариев — ScenarioDoc.kinds: " + (refScenKinds || []).join());
+      // Новое чтение /kinds перечитывает списки (kindsApply → autoRefLists): виды из документа сценариев остаются
+      const scenKinds = (refScenKinds || []).join();
+      autoRef(stripDeprecatedRef(REF_LAST), KINDS);
+      ok(scenKinds && (refScenKinds || []).join() === scenKinds, "виды событий сценариев из документа переживают перечитывание справочника: " + (refScenKinds || []).join());
       EXP_REF = null;
       await expRefLoad(stripDeprecatedRef(REF_LAST));
       ok(JSON.stringify(EXP_REF) === JSON.stringify(REF_LAST.export), "справочник выгрузки без reference.export — GET /exports/reference: форматов " + (EXP_REF?.formats || []).length);

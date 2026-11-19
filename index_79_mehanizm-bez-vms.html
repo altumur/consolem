@@ -7096,8 +7096,9 @@ function autoRefLists(ref,kinds){
   // Несовместимые виды аналитики: x-conflicts {значение: [значения]} у analyticsKind видов детектора
   const cf=ks.map(k=>props(k).analyticsKind?.["x-conflicts"]).filter(Boolean);
   detAkClashSet(cf.length?cf.flatMap(x=>Object.entries(x).map(([analyticsKind,conflicts])=>({analyticsKind,conflicts}))):ref.analyticsConflicts);
-  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad); до него — устаревший ключ, если он есть
-  refScenKinds=ref.scenarioKinds||null;
+  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad); до него — устаревший ключ, если он есть.
+  // Без ключа значение остаётся: новое чтение /kinds не стирает виды, прочитанные из документа
+  if(ref.scenarioKinds)refScenKinds=ref.scenarioKinds;
   // Раскладки и мониторы правил: enum и x-enum-labels в schema поля layoutId действия client.layout и параметра
   // monitorId команды объекта (camera.wall). Имя — в правиле, id — на сервере
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
@@ -7111,7 +7112,7 @@ function autoRefLists(ref,kinds){
 }
 // Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции — устаревший reference.export
 async function expRefLoad(ref){
-  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(()=>ref?.export||null):ref?.export||null;
+  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return ref?.export||null}):ref?.export||null;
 }
 // Цель: {include, exclude, gone, fromEvent} ↔ строка раздела («c1», «set:a,b,-c», «folder:…», «gone:имя», «$src»).
 // Элемент include — объект {uid} или область {area: folder|server|domain, uid}
