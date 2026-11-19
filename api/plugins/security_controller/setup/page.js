@@ -396,9 +396,27 @@
     paintFound();
     return { sub: true, r };
   }
+  // События поиска приходят часто (progress на каждый адрес), а найденное страница читает не чаще раза за FOUND_READ_MS:
+  // события копятся, одно чтение идёт в конце промежутка. Последнее событие не теряется: после него чтение тоже будет.
+  // foundWait получает каждое событие после чтения, которое его учло
+  const FOUND_READ_MS = 500;
+  let foundTimer = null;
+  let foundMsgs = [];
+  function foundSoon() {
+    if (foundTimer || !foundMsgs.length) return;
+    foundTimer = setTimeout(async () => {
+      const ms = foundMsgs;
+      foundMsgs = [];
+      await readFound();
+      foundTimer = null;
+      ms.forEach((x) => { if (B.foundWait) B.foundWait(x); });
+      foundSoon();
+    }, FOUND_READ_MS);
+  }
   function foundEvent(m) {
     if (m.type === "discovery.finished") stopListening();
-    readFound().then(() => { if (B.foundWait) B.foundWait(m); });
+    foundMsgs.push(m);
+    foundSoon();
   }
   async function stopFound() {
     const r = await call("blk-found", "stopDiscovery", { params: { uid: B.domainId } });

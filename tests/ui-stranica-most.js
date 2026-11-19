@@ -715,7 +715,14 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       `тестовая страница, прогон ${name}: ${steps.filter((s) => !s.ok).map((s) => s.step + " " + (s.detail || "")).join(", ") || (steps.length ? "все шаги" : "шагов нет")}`);
     const stepOf = (steps, name) => steps.find((s) => s.step === name) || {};
     const yes = () => confirmWith(1);
-    for (const name of ["read", "discovery"]) runOk(name, await run(name));
+    runOk("read", await run("read"));
+    // Итоговая волна: страница читает найденное по событиям поиска не на каждое событие, а не чаще раза за промежуток
+    window.CONSOLEM_TRACE.length = 0;
+    const discAt = sent.length;
+    runOk("discovery", await run("discovery"));
+    const discEvs = sent.slice(discAt).filter((m) => m.type === "event" && /^discovery\./.test(m.message.type)).length;
+    const discGets = window.CONSOLEM_TRACE.filter((t) => t.method === "GET" && /^\/units\/[^/]+\/discovery$/.test(t.path)).length;
+    ok(discEvs >= 6 && discGets < discEvs / 2, `страница читает найденное реже событий поиска: событий ${discEvs}, чтений ${discGets}`);
     // draft: «Добавить» и «Удалить» датчика — шаги черновика консоли, строки помечены
     const sentD = sent.length;
     const dsteps = await run("draft", yes);
