@@ -9,6 +9,26 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const refAtStart = !can("getExportReference") || !EXP_REF;
   goApp("exp");
   ok(refAtStart && await until(() => !!EXP_REF?.formats?.length), "справочник выгрузки прочитан при заходе в «Экспорт», а не на старте: форматов " + (EXP_REF?.formats || []).length);
+  // Справочник сброшен во время чтения (expRefReset — новое чтение /reference): ответ старого чтения справочник не ставит.
+  // Заказ, начатый до ответа, получает умолчания справочника, и консоль сразу проверяет его заново (expCheckSoon)
+  if (can("getExportReference")) {
+    const wasD = expD, realCheck = window.expCheckSoon;
+    let checks = 0;
+    goApp("hw");
+    expRefReset();
+    expD = expDraftNew({ cams: [cam.id] });
+    window.expCheckSoon = function () { checks++; return realCheck.apply(this, arguments); };
+    try {
+      const first = expRefEnsure();
+      expRefReset();
+      await first;
+      ok(!expRefDone && EXP_REF === null, "сброс во время чтения: ответ старого чтения справочник не ставит: " + expRefDone);
+      await expRefEnsure();
+      ok(expRefDone && !!EXP_REF?.formats?.length, "новое чтение ставит справочник");
+      ok(checks > 0, "умолчания справочника легли в заказ — консоль проверяет заказ заново: " + checks);
+    } finally { window.expCheckSoon = realCheck; expD = wasD; }
+    goApp("exp");
+  }
   await expLoad();
   expSel = job.id;
   paint();

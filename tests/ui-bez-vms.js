@@ -194,6 +194,19 @@ UiCheck(async ({ ok, until }) => {
     } finally { history.replaceState(null, "", location.pathname + location.search + hash); CAPS_SECTIONS = declared; setApp("hw"); }
     ok(app === "hw", "разделы вернулись: " + app);
   }
+  // Переходы в «Автоматизацию» и «Экспорт» проверяют ответ setApp: раздел не объявлен — ни правило, ни мастер, ни вкладка
+  // не меняются
+  {
+    const declared = CAPS_SECTIONS, was = { rule, tab };
+    CAPS_SECTIONS = [{ id: "objects" }, { id: "journal" }];
+    try {
+      setApp("hw");
+      hdModeGo(); ok(app === "hw" && rule === was.rule && tab === was.tab, "hdModeGo без «Автоматизации» — на месте: " + [app, rule, tab].join());
+      ruleGoRule((rules[0] || {}).id || "overview"); ok(app === "hw" && rule === was.rule && tab === was.tab, "ruleGoRule без «Автоматизации» — на месте: " + [app, rule, tab].join());
+      camRecSchOpen("x"); ok(app === "hw" && rule === was.rule, "camRecSchOpen без «Автоматизации» — на месте: " + [app, rule].join());
+      ruleFromLog("движение"); ok(app === "hw" && !document.querySelector("#bmodal.open"), "ruleFromLog без «Автоматизации» — мастер не открыт");
+    } finally { closeBulkModal(); CAPS_SECTIONS = declared; setApp("hw"); }
+  }
   ok(appLabel("hw") === "Агенты" && appLabel("rules") === "Автоматизация", "подпись раздела — label системы, без него — подпись консоли");
   {
     const noEn = [...CAPS_SECTIONS.map((s) => s.label?.text), ...TREE_LAYOUTS.flatMap((l) => [l.label?.text, l.hint?.text]), ...[...KINDS.values()].map((k) => k.label?.text)].filter((t) => t && !(window.I18N_EN || {})[t]);

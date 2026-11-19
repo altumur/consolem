@@ -7115,9 +7115,20 @@ function expRefReset(){
   expRefP=null;expRefDone=!can("getExportReference");EXP_REF=null;
   if(!expRefDone&&app==="exp")expRefEnsure();
 }
+// Ответ чтения, которое сбросил expRefReset (новое чтение /reference), справочник не ставит: ставит только последнее чтение.
+// Заказ, начатый до ответа, получает умолчания справочника, и консоль проверяет его заново
 function expRefEnsure(){
   if(expRefDone)return Promise.resolve();
-  return expRefP||(expRefP=expRefLoad().then(()=>{expRefDone=true;expRefFill(expD);if(app==="exp")paint()}));
+  if(expRefP)return expRefP;
+  const p=expRefP=expRefLoad().then(ref=>{
+    if(expRefP!==p)return;
+    EXP_REF=ref;expRefDone=true;
+    const filled=!!expD&&expNoRef.has(expD);
+    expRefFill(expD);
+    if(app==="exp")paint();
+    if(filled)expCheckSoon();
+  });
+  return p;
 }
 // Заказ, начатый до ответа справочника, получает его умолчания: предел файла и первый шрифт, если их не меняли
 const expNoRef=new WeakSet();
@@ -7128,8 +7139,9 @@ function expRefFill(d){
   if(d.adv.maxmb===4000&&L.maxFileMbDefault)d.adv.maxmb=L.maxFileMbDefault;
   if(!d.adv.font&&f0)d.adv.font=`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`;
 }
+// Справочник выгрузки с сервера: ответ — справочник или null; ставит его expRefEnsure
 async function expRefLoad(){
-  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return null}):null;
+  return can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return null}):null;
 }
 // Цель: {include, exclude, gone, fromEvent} ↔ строка раздела («c1», «set:a,b,-c», «folder:…», «gone:имя», «$src»).
 // Элемент include — объект {uid} или область {area: folder|server|domain, uid}
@@ -8826,9 +8838,9 @@ function jumpTo(id){
 function openNode(id,opts={}){
   const f=find(id);
   if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))openNode(id,opts)}).catch(()=>{});return}
+  if(opts.app&&opts.app!==app&&!appVisible(opts.app))return;   // раздел не объявлен — к объекту не идём, о черновике не спрашиваем
   // Переход из поиска к устройству уводит из «Автоматизации»: черновик правила не теряем молча.
   if(app==="rules"&&(opts.app||app)!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>openNode(id,opts)))return;
-  if(opts.app&&opts.app!==app&&!appVisible(opts.app))return;   // раздел не объявлен — к объекту не идём
   selCtx=null;
   app=opts.app||app||"hw";
   tab=opts.tab||archSliceTab(f.n)||tabKeep(f.n);
@@ -13071,7 +13083,7 @@ function learnToggle(tid){if(learnOpen.has(tid))learnOpen.delete(tid);else learn
 // Переход по ссылке моргает на месте прихода: заголовок и строка дерева
 function learnLink(id){
   navMark();
-  if(app!=="learn")setApp("learn");
+  if(app!=="learn"&&!setApp("learn"))return;
   learnSelect(id);
   accFlash(()=>[document.querySelector(".hd h1"),document.querySelector("#tree .n.on")].filter(Boolean));
 }
@@ -18262,7 +18274,7 @@ const WZD={
     show:()=>planHeadOpen(),work:s=>s.rows.length+s.links.length>0,
     where:()=>[1,DEV_STEPS.length,DEV_STEPS[1].t],sum:s=>`${i18n("в плане")} ${s.rows.length+s.links.length}`},
   arch:{t:"Новое хранилище",lost:"Консоль не сохранит выбранный вид и настройки хранилища.",
-    get:()=>an,set:s=>{an=s;if(s.needKey&&!s.vol?.secret&&!s.vol?.pass)s.step=Math.min(s.step||0,2)},hide:()=>{an=null;closeBulkModal()},show:()=>{if(app!=="hw")setApp("hw");renderArchNew()},
+    get:()=>an,set:s=>{an=s;if(s.needKey&&!s.vol?.secret&&!s.vol?.pass)s.step=Math.min(s.step||0,2)},hide:()=>{an=null;closeBulkModal()},show:()=>{if(app!=="hw"&&!setApp("hw"))return;renderArchNew()},
     pack:s=>({...s,needKey:!!(s.vol?.secret||s.vol?.pass)}),
     work:s=>!!(s.step||s.name.trim()),
     where:s=>[s.step||0,AN_STEPS.length,AN_STEPS[s.step||0].t],sum:s=>escHtml(s.name.trim()||i18n(archKindName(s.kind)))},
@@ -18280,7 +18292,7 @@ const WZD={
     where:s=>[s.step,ACC_CT.length,ACC_CT[s.step][1]],sum:s=>escHtml(s.n.trim())},
   // Короткие мастера. Сохраняем при закрытии и при уходе со страницы
   rule:{t:"Новое правило",lost:"Консоль не сохранит выбранный запуск и шаблон.",drop:"Не создавать",
-    get:()=>document.querySelector("#bmodal.open [data-rnw]")?rnw:null,set:s=>{rnw={...s,back:null}},hide:()=>closeBulkModal(),show:()=>{if(app!=="rules")setApp("rules");ruleNewRender()},
+    get:()=>document.querySelector("#bmodal.open [data-rnw]")?rnw:null,set:s=>{rnw={...s,back:null}},hide:()=>closeBulkModal(),show:()=>{if(app!=="rules"&&!setApp("rules"))return;ruleNewRender()},
     work:s=>!!(s.step||s.tpl||s.preset||s.start!==ruleNewStartDef()),
     where:s=>[s.step||0,RULE_NEW_STEPS.length,RULE_NEW_STEPS[s.step||0].t],sum:s=>escHtml(i18n((RULE_STARTS.find(([id])=>id===s.start)||[])[1]||""))},
   accUg:{t:"Новая группа пользователей",lost:"Консоль не сохранит название и описание группы.",drop:"Не создавать",
@@ -18294,7 +18306,7 @@ const WZD={
     where:s=>[s.step,ACC_CG.length,ACC_CG[s.step][1]],sum:s=>escHtml(s.name.trim())},
   obj:{t:"Добавление объекта",lost:"Консоль не сохранит выбранный тип и параметры.",drop:"Не создавать",
     get:()=>{if(!wizOpen()||!wizd||wizd.mode==="server-add"||wizd.mode==="device-add")return null;wizObjGrab();wizd.step=ws;return wizd},
-    set:s=>{s.drawn=0;s.resumed=true;if(s.parentId&&!find(s.parentId))s.parentId=null;wizd=s},hide:()=>closeWizard(),show:s=>{if(app!=="hw")setApp("hw");ws=s.step||1;wizObjShow()},
+    set:s=>{s.drawn=0;s.resumed=true;if(s.parentId&&!find(s.parentId))s.parentId=null;wizd=s},hide:()=>closeWizard(),show:s=>{if(app!=="hw"&&!setApp("hw"))return;ws=s.step||1;wizObjShow()},
     work:s=>!!s.mode,
     pack:s=>({from:s.from,unit:s.unit,mode:s.mode,cat:s.cat,lockedCat:s.lockedCat,type:s.type,view:s.view,domain:s.domain,server:s.server,folder:s.folder,parentId:s.parentId,step:s.step,vals:s.vals}),
     where:s=>[(s.step||1)-1,OBJ_STEPS.length,OBJ_STEPS[(s.step||1)-1].t],sum:s=>escHtml(i18n(WIZ[s.cat]?.types.find(t=>t[0]===s.type)?.[1]||""))},
@@ -19594,7 +19606,7 @@ function expBody(d){
 function expOpen(o){
   if(!expRefDone){expRefEnsure().then(()=>expOpen(o));return}   // заказ — с умолчаниями справочника
   expD=expDraftNew(o||{});expSel="new";expChk=null;expPick=null;
-  if(app!=="exp")setApp("exp");else paint();
+  if(app!=="exp"){if(!setApp("exp"))return}else paint();
   expGrantLoad().then(expRepaint);expCheckSoon();
 }
 function expNew(){expOpen({})}
@@ -20030,7 +20042,7 @@ function expDraftOf(r,from){
 function expFromAssist(r){
   if(!r)return;
   expD=expDraftOf(r,i18n("ассистент"));expSel="new";expChk=null;expPick=null;
-  if(app!=="exp")setApp("exp");else paint();
+  if(app!=="exp"){if(!setApp("exp"))return}else paint();
   expGrantLoad().then(expRepaint);expCheckSoon();
 }
 // Удаление — с вводом числа и отсчётом в тосте (правила интерфейса): до конца отсчёта на сервере ничего не уходит
@@ -25832,7 +25844,7 @@ function ruleUsesFor(n){
 }
 // Переход из «Оборудования» к правилу: раздел открывается без собственной вспышки (ruleQuiet), подсветит ruleOpen.
 function ruleGoRule(id){
-  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  if(!ruleGoApp())return;
   ruleOpen(id,true);
 }
 
@@ -27306,7 +27318,7 @@ function hdModeMenu(ev){
   addSplitMenu.from=btn;   // Esc и выбор пункта возвращают фокус на кнопку
   menu.querySelector("button:not(:disabled)")?.focus();
 }
-function hdModeGo(){if(app!=="rules")setApp("rules");ruleOpen("modes",true)}
+function hdModeGo(){if(app!=="rules"&&!setApp("rules"))return;ruleOpen("modes",true)}
 
 // ── В меню оператора ──
 function ruleMenuHtml(r){
@@ -27733,10 +27745,12 @@ function rulePresetFor(n){
   return null;
 }
 let ruleQuiet=false;
+// Переход в «Автоматизацию» без ссылочной вспышки; false — раздел не открылся (не объявлен, черновик ждёт ответа)
+function ruleGoApp(){ruleQuiet=true;const ok=setApp("rules");ruleQuiet=false;return ok}
 function ruleFromDevice(id){
   const p=rulePresetFor(find(id)?.n);if(!p)return;
   closeTreeCtx();
-  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  if(!ruleGoApp())return;
   ruleNewOpen(p);
 }
 // Журнал не знает устройства, только текст: событие угадываем по нему, ref выберут в карточке.
@@ -27745,7 +27759,7 @@ function ruleFromLog(text){
   const w=/open|разомкн|дверь/i.test(t)?{sub:"vms",kind:"io.input",ref:"",match:{value:"active"}}
     :/пересечение/i.test(t)?{sub:"det",kind:"linecross",ref:"",match:{}}
     :{sub:"det",kind:"motion",ref:"",match:{}};
-  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  if(!ruleGoApp())return;
   ruleNewOpen({start:"event",when:[w],note:`Консоль выбрала событие по тексту. Проверить: «${t}».`});
 }
 // Переход по ссылке из карточки, а не по рейке и дереву — как hwFromLink в «Оборудовании».
@@ -33927,7 +33941,7 @@ function camRecAddHtml(n){
   return b.length?`<div class="ca-when-add" data-cam-rec-add>${b.join("")}</div>`:"";
 }
 // Переход к расписанию в «Автоматизации»: раздел открывается без своей вспышки, подсветит ruleOpen
-function camRecSchOpen(id){ruleQuiet=true;setApp("rules");ruleQuiet=false;ruleOpen("sch:"+id,true)}
+function camRecSchOpen(id){if(!ruleGoApp())return;ruleOpen("sch:"+id,true)}
 // Новое правило с записью этой камеры: шаблон «Движение — запись» (камера в событии) или пустое правило с действием «Записывать»
 function camRecRuleNew(id,tpl){
   const n=find(id)?.n;if(!n||!can("createRule"))return;
@@ -33937,7 +33951,7 @@ function camRecRuleNew(id,tpl){
     preset={start:t.start,tpl,back,when:[it],note:"Консоль подставила камеру в событие правила."}}
   else{const st=startDeclared("event")?"event":ruleNewStartDef();
     preset={start:st,back,then:[st==="event"?{sub:"rec",action:"record",ref,dur:"event",after:10}:{sub:"rec",action:"record",ref,dur:"min",minutes:10}],note:"Консоль подставила камеру."}}
-  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  if(!ruleGoApp())return;
   ruleNewOpen(preset);
 }
 // Сервер объявил действие «Записывать» (контракт: возможности правил)
@@ -34146,11 +34160,11 @@ function edgeRuleNew(id,tpl){
   const st=find(id)?.n,d=EDGE_RULE_TPL.find(x=>x.tpl===tpl),t=RULE_TPL.find(x=>x.id===tpl);if(!st||!d||!t||!edgeTplOk(tpl))return;
   const ref=refMake(edgeCams(st).map(c=>c.id),[]),b=t.make();
   const it=ruleClone((d.slot==="when"?b.when:b.then)[0]);it.ref=ref;
-  ruleQuiet=true;setApp("rules");ruleQuiet=false;
+  if(!ruleGoApp())return;
   const back={id,tab:"rep"};
   ruleNewOpen(ref?{start:t.start,tpl,back,[d.slot]:[it],note:"Консоль подставила камеры встроенного хранилища."}:{start:t.start,tpl,back});
 }
-function edgeRulesGo(){const tpl=EDGE_RULE_TPL.map(d=>d.tpl).find(edgeTplOk);ruleQuiet=true;setApp("rules");ruleQuiet=false;ruleNewOpen(tpl?{start:RULE_TPL.find(x=>x.id===tpl).start,tpl}:null)}
+function edgeRulesGo(){const tpl=EDGE_RULE_TPL.map(d=>d.tpl).find(edgeTplOk);if(!ruleGoApp())return;ruleNewOpen(tpl?{start:RULE_TPL.find(x=>x.id===tpl).start,tpl}:null)}
 // Блок «Репликация по правилам»: сноска, правила этого хранилища и шаблоны
 function edgeRulesHtml(st){
   const w=edgeWord(st),id=st.id;

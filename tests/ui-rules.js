@@ -35,8 +35,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
       const scenKinds = (refScenKinds || []).join();
       autoRef(REF_LAST, KINDS);
       ok(scenKinds && (refScenKinds || []).join() === scenKinds, "виды событий сценариев из документа переживают перечитывание справочника: " + (refScenKinds || []).join());
-      EXP_REF = null;
-      await expRefLoad();
+      EXP_REF = await expRefLoad();
       const own = await API.get("/exports/reference");
       ok(JSON.stringify(EXP_REF) === JSON.stringify(own) && (EXP_REF?.formats || []).length > 0, "справочник выгрузки — GET /exports/reference, не reference.export: форматов " + (EXP_REF?.formats || []).length);
       // Область цели «сервер» — ветка раскладки areaLayouts.server под этим сервером, а не сервер архива камеры
