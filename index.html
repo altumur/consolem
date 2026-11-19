@@ -7068,7 +7068,7 @@ function autoRef(ref,kinds){
 }
 // Справочники VMS — из описаний видов.
 // Списки, которые раньше отдавал GET /reference, приходят из описаний видов (контракт 0.30.0) и из schema полей
-// действий правил (0.31.0). Устаревший ключ справочника читается, только если нового места нет: старый бэкенд
+// действий правил (0.31.0). Ключи справочника, снятые в 0.32.0, консоль не читает
 function refFieldOpts(f){return f?.schema?.enum||f?.schema?.items?.enum||[]}
 // Подпись значения enum: x-enum-labels — текст как есть (имя раскладки или монитора — данные правила, не перевод)
 function refEnumName(p,v){const t=p?.["x-enum-labels"]?.[v];return t==null?String(v):typeof t==="string"?t:t.text||String(v)}
@@ -7961,7 +7961,7 @@ function domainFolderInfo(did){
   return{text:`${n}+`,title:`${i18n("Консоль прочитала пока")} ${n} ${i18n(plural(n,"папку|папки|папок"))}. ${i18n("Их может быть больше.")}`};
 }
 function canDeleteDomain(){return domains.length>1}
-// Перенос содержимого удаляемого домена делает сервер (DELETE /domains/{id}?moveTo=):
+// Перенос содержимого удаляемого домена делает сервер (DELETE /units/{uid}?moveTo=):
 // серверы становятся нераспределёнными в выбранном домене, папки, устройства и
 // сетевые архивы меняют домен.
 function deleteDomain(id){
@@ -23403,7 +23403,8 @@ function startDeclared(id){return!RULE_REF.starts||RULE_REF.starts.includes(id==
 function srcDeclared(){return!RULE_REF.targets||RULE_REF.targets.fromEvent}
 function ruleAreaOff(kind){return!!RULE_REF.targets&&!(RULE_REF.targets.areas||RULE_REF.targets.kinds||[]).includes(kind)}
 // Поле действия в справочнике: запись, null — поля нет, undefined — справочник о действии молчит. У команды объекта —
-// свойство её ActionDescriptor.params ({id, options: enum}); команду не объявил ни один вид — описания молчат
+// свойство её ActionDescriptor.params (options — варианты консоли из enum свойства, не поле контракта); команду не объявил
+// ни один вид — описания молчат
 function ruleRefField(k,id){
   if(k.unit){
     if(!k.kinds?.length)return undefined;
@@ -23412,7 +23413,7 @@ function ruleRefField(k,id){
   }
   const a=RULE_REF.actions&&RULE_REF.actions.find(x=>x.source===k.sub&&x.action===k.action);
   if(!a)return undefined;
-  // Варианты поля — enum его schema (контракт 0.31.0), без schema — устаревшие options
+  // Варианты поля — enum его schema (контракт 0.31.0); без schema вариантов нет, значение любое (options снято в 0.32.0)
   const f=a.fields.find(f=>f.id===(ACT_OUT[id]||id));
   return f?Object.assign({},f,{options:refFieldOpts(f)}):null;
 }
