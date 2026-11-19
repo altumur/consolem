@@ -37,6 +37,7 @@
 | 0.25.0 | Профили в файлах: `version` и `uses` у `Profile` | механизм | `Profile.version`, `Profile.uses`, `ProfileUse`, `api/profiles/` |
 | 0.26.0 | Раскладки дерева объявляет система: `GET /kinds` → `layouts`. Ломающая правка: у `layout` снят `enum` | механизм | `TreeLayout`, `PlaceRule`, `KindSelector`, `TreeGroup`, `KindsList.layouts`, `TreeNode.group`, `StreamMessage.layout`, параметр `layout` у `/tree/children` и `/tree/paths` |
 | 0.27.0 | Разделы приложения объявляет система: `capabilities.sections` | механизм | `AppSection`, `Capabilities.sections` |
+| 0.28.0 | Область системы и папка — профили механизма; `vms.domain/1`, `vms.folder/1` устарели | механизм; `core.domain/1`; `core.folder/1` | `api/profiles/core.domain.json`, `api/profiles/core.folder.json`, описания `Unit.domainId`, `UnitBrief.domainId` |
 
 ## Как дополнять
 

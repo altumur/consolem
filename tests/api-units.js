@@ -1064,7 +1064,7 @@
   test("Набор без VMS: виды без профилей vms.* сверх области и папки, дерево папок, команда агента", async () => {
     const env = await makeEnv();
     const kinds = (await env.ok("GET", "/kinds")).items;
-    assert.ok(kinds.every((k) => (k.implements || []).every((p) => ["vms.domain/1", "vms.folder/1", "core.domain/1", "core.folder/1"].includes(p))), "сверх области и папки профилей нет");
+    assert.ok(kinds.every((k) => (k.implements || []).every((p) => [ApiTest.AREA, ApiTest.FOLDER].includes(p))), "сверх области и папки профилей нет");
     const top = await env.pages("/tree/children?layout=folders");
     assert.eq(top.length, 1, "одна область");
     assert.ok((await env.pages(`/tree/children?layout=folders&parentId=${top[0].id}`)).every((n) => n.kind === "folder"), "под областью — папки");

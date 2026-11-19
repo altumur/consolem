@@ -498,7 +498,12 @@
     /* Хуки профилей (profiles.js) и то, что они видят у сервера: склад, описания видов, старые таблицы и общие помощники старых
        путей. Помощники — обёртки: сами функции объявлены ниже, хук зовёт их, когда сервер уже собран */
     const HOOKS = Profiles.HOOKS;
-    const hFolder = HOOKS["vms.folder/1"];
+    // Хук профиля; устаревший профиль (vms.domain/1, vms.folder/1) — хук профиля, который его заменил (SUCCESSOR)
+    const profileHook = (p) => HOOKS[p] || HOOKS[(Profiles.SUCCESSOR || {})[p]];
+    const hFolder = HOOKS["core.folder/1"];
+    // Область и папку сервер узнаёт по профилю (core.domain/1, core.folder/1; до снятия — и vms.domain/1, vms.folder/1), а не по коду вида
+    const isArea = (kind) => kinds.profileOf(kind, "core.domain/1") || kinds.profileOf(kind, "vms.domain/1");
+    const isFolder = (kind) => kinds.profileOf(kind, "core.folder/1") || kinds.profileOf(kind, "vms.folder/1");
     const hDevice = Profiles.DEVICE, hCamera = HOOKS["vms.camera/1"], hStream = HOOKS["vms.stream/1"], hDetector = HOOKS["vms.detector/1"], hAcs = HOOKS["vms.acs/1"];
     const hLive = HOOKS["vms.live/1"], hPtz = HOOKS["vms.ptz/1"], hTalk = HOOKS["vms.talk/1"], hTimeline = HOOKS["vms.timeline/1"], hPos = HOOKS["vms.pos/1"], hEdge = HOOKS["vms.edge/1"];
     const pctx = {
@@ -559,7 +564,7 @@
     // Хуки вида — по его профилям (implements), только те, что сервер знает. У устройств (таблица devices) первыми — общие
     // хуки устройства (DEVICE: система, папки, ссылки, сервер-исполнитель, удаление), затем — профилей
     const hooksOf = (kind) => {
-      const own = ((kinds.get(kind) || {}).implements || []).map((p) => HOOKS[p]).filter(Boolean);
+      const own = [...new Set(((kinds.get(kind) || {}).implements || []).map(profileHook).filter(Boolean))];
       return tableOf(kind) === "devices" && kinds.get(kind) ? [hDevice].concat(own) : own;
     };
     // Что уходит и что меняется с объектом — по всем его хукам (dependents): у камеры — дочерние, строки незнакомых видов
@@ -2628,10 +2633,8 @@
     // Дерево — по складу, одним общим движком по раскладкам, которые объявила система (раздел layouts набора, GET /kinds →
     // layouts). Раскладка — данные: правила place («где лежит объект»), show, hide, groups (TreeLayout). Узел — объект склада:
     // вид, значок и профили из описания вида, краткий объект (UnitBrief); документы (shape: document) — не узлы никогда.
-    // Область и папку движок узнаёт по профилю (core.domain/1, core.folder/1; до снятия — и vms.domain/1, vms.folder/1)
+    // Область и папку движок узнаёт по профилю: isArea, isFolder (у хуков, выше)
     const layoutOf = (id) => (typeof id === "string" && (db.layouts || []).find((l) => l.id === id)) || null;
-    const isArea = (kind) => kinds.profileOf(kind, "core.domain/1") || kinds.profileOf(kind, "vms.domain/1");
-    const isFolder = (kind) => kinds.profileOf(kind, "core.folder/1") || kinds.profileOf(kind, "vms.folder/1");
     const areaUnits = () => kinds.list().filter((k) => isArea(k.kind)).flatMap((k) => store.byKind(k.kind));
     // Отбор видов (KindSelector), как x-ref: код вида в kinds или профиль из implements; пустой — любой вид.
     // Ответ запомнен на описание вида: новое описание (kinds.put) — новый объект, и ответ считается заново
@@ -3412,15 +3415,15 @@
 
     /* Пути ядра пишут объект по описанию его вида: схема (readOnly, writeOnly, x-immutable, x-bound-to, x-unique), родители
        (parents, createParents), capabilities, actions, events. Смысл сверх описания — у хуков профилей (profiles.js): домен,
-       сервер, папка, хранилище, том (vms.domain/1, vms.server/1, vms.folder/1, vms.archive/1, vms.volume/1), устройства — общие
+       сервер, папка, хранилище, том (core.domain/1, vms.server/1, core.folder/1, vms.archive/1, vms.volume/1), устройства — общие
        хуки DEVICE и профили vms.camera/1, vms.stream/1, vms.detector/1, vms.acs/1. Пишутся виды с описанием, у которых каждый
-       профиль vms.* сервер знает (хук есть). Остальным — 422 NOT_SUPPORTED, field /kind. Объект вида без описания читается, но не пишется. Ошибки — {code, field, params}: field — JSON Pointer в теле
+       профиль vms.* сервер знает (хук есть; у устаревшего — хук его замены). Остальным — 422 NOT_SUPPORTED, field /kind. Объект вида без описания читается, но не пишется. Ошибки — {code, field, params}: field — JSON Pointer в теле
        запроса (у строки POST /units — в строке); ошибку хука (field старого пути) переводит pointerOf.
        Секреты (writeOnly) хранятся отдельно от объекта, как пароли старых путей (secrets): в объекте — только secrets[имя]. */
     const coreKind = (kind) => {
       const k = kinds.get(kind);
       if (!k) return false;
-      return (k.implements || []).filter((p) => String(p).startsWith("vms.")).every((p) => !!HOOKS[p]);
+      return (k.implements || []).filter((p) => String(p).startsWith("vms.")).every((p) => !!profileHook(p));
     };
     // Правка только папок (Unit.folders): у устройства её пишет ядро уже сейчас — членство ведёт профиль папки
     const foldersOnly = (patch) => !!patch && patch.folders !== undefined && Object.keys(patch).every((k) => k === "folders");
@@ -3511,7 +3514,7 @@
       return bad >= 0 ? [err("VALIDATION_FAILED", `${at}/folders/${bad}`, { keyword: "x-ref" })] : [];
     }
     // Новые папки объекта: по описанию вида (foldersErrs) и по смыслу профиля папки — центр домена на связи, запись в папки
-    // входит (хук vms.folder/1). Сверяются папки, которые меняются: добавленные и убранные
+    // входит (хук core.folder/1). Сверяются папки, которые меняются: добавленные и убранные
     function folderChangeErrs(u, folders) {
       // Вид без папок: и пустой набор — не про него
       if (!capOf(u.kind, "folders")) return [err("NOT_SUPPORTED", "/folders", { capability: "folders" })];
@@ -3670,7 +3673,7 @@
       if (!capOf(spec.kind, "create") && !(withParent && kinds.profileOf(spec.kind, "vms.volume/1"))) return [err("NOT_SUPPORTED", `${at}/kind`, { kind: spec.kind, capability: "create" })];
       if (!withParent && !(k.createParents || []).includes(pk)) return [(k.parents || []).includes(pk) ? err("NOT_SUPPORTED", `${at}/kind`, { kind: spec.kind, parentKind: pk }) : err("PARENT_MISMATCH", `${at}/parentId`, { kind: spec.kind, parentKind: pk })];
       // Домен — сам себе корень: domainId у него нет
-      const selfRoot = kinds.profileOf(spec.kind, "vms.domain/1");
+      const selfRoot = isArea(spec.kind);
       const domainId = selfRoot ? null : par ? par.domainId : spec.domainId;
       if (selfRoot) {
         if (spec.domainId) return [err("VALIDATION_FAILED", `${at}/domainId`, { keyword: "const", value: null })];
@@ -3718,7 +3721,7 @@
     // Умолчания и поля нового объекта — хуки профиля (beforeCreate), после создания — afterSet(unit, null). uid — с цифрой
     // своей таблицы (домен 1…, сервер 2…), у видов без таблицы — как у устройств
     function unitMake(spec, parent) {
-      const domainId = kinds.profileOf(spec.kind, "vms.domain/1") ? null : parent ? parent.domainId : spec.domainId;
+      const domainId = isArea(spec.kind) ? null : parent ? parent.domainId : spec.domainId;
       const u = unitDraft(spec, parent, domainId);
       hooksOf(spec.kind).forEach((h) => h.beforeCreate && h.beforeCreate(u, parent, pctx));
       // uid — с цифрой своей таблицы; у потока — по камере (хук newUid)
@@ -4217,7 +4220,7 @@
     // Мгновенный шаг (patch, folders, move: без команды устройству, удаления и создания) — у операции с wait выполняется
     // в самом запросе, как быстрые записи базы (/devices/update, /folders/{id}/devices, /servers/assign)
     const unitStepInstant = (r) => r.patch !== undefined || r.folders !== undefined || r.move !== undefined;
-    /* ----- Домен: итог круга — хук vms.domain/1 (в ядре — status.observed.stateSummary) ----- */
+    /* ----- Домен: итог круга — хук core.domain/1 (в ядре — status.observed.stateSummary) ----- */
 
     /* ----- Большой набор ----- */
 
@@ -4890,7 +4893,7 @@
             // Объект склада — по uid, как DELETE /units/{uid}: вид со своим удалением (хук remove) — по хуку, в стопке шаг, который
             // назад не вернуть; остальные — каскадом ядра, откат возвращает их. Серверы и домены так не удаляют — NOT_FOUND
             const u = store.get(x.id);
-            if (u && (kinds.profileOf(u.kind, "vms.server/1") || kinds.profileOf(u.kind, "vms.domain/1"))) return failed.push({ id: x.id, code: "NOT_FOUND" });
+            if (u && (kinds.profileOf(u.kind, "vms.server/1") || isArea(u.kind))) return failed.push({ id: x.id, code: "NOT_FOUND" });
             if (u) {
               if (u.version !== x.version) return failed.push({ id: x.id, code: "VERSION_MISMATCH" });
               const errs = unitDeleteErrs(u);
@@ -6072,17 +6075,17 @@
         }
       }
       if (eatRe(/без папк\S*|вне папок/)) add(8, "папка: нет", { noFolder: true });
-      // Папка и домен — объекты профилей vms.folder/1, vms.domain/1 по имени в просьбе, самое длинное
-      const named = (profile) => [...store.all()].filter((u) => kinds.profileOf(u.kind, profile) && u.name && rest.includes(assistNorm(u.name))).sort((a, b) => b.name.length - a.name.length)[0];
+      // Папка и домен — объекты профилей механизма (isFolder, isArea) по имени в просьбе, самое длинное
+      const named = (is) => [...store.all()].filter((u) => is(u.kind) && u.name && rest.includes(assistNorm(u.name))).sort((a, b) => b.name.length - a.name.length)[0];
       if (/папк/.test(rest)) {
-        const folder = named("vms.folder/1");
+        const folder = named(isFolder);
         if (folder) {
           add(6, `папка: ${folder.name}`, null, (u) => (u.folders || []).includes(folder.uid));
           rest = rest.replace(assistNorm(folder.name), " ").replace(/\S*папк\S*/g, " ");
         }
       }
       if (/домен/.test(rest)) {
-        const domain = named("vms.domain/1");
+        const domain = named(isArea);
         if (domain) {
           add(7, `домен: ${domain.name}`, { domainId: domain.uid });
           rest = rest.replace(assistNorm(domain.name), " ").replace(/\S*домен\S*/g, " ");

@@ -1,12 +1,15 @@
-/* Тесты API: «Оборудование» — домены, серверы, папки. Пути ядра (/units): смысл — хуки профилей vms.domain/1,
-   vms.server/1, vms.folder/1. */
+/* Тесты API: «Оборудование» — домены, серверы, папки. Пути ядра (/units): смысл — хуки профилей механизма core.domain/1
+   (область системы), core.folder/1 (папка) и профиля vms.server/1. */
 (() => {
   ApiTest.fileLayer("profile:vms.server/1");
-  const { makeEnv, assert, key, FX } = ApiTest;
+  const { makeEnv, assert, key, FX, AREA, FOLDER } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
   const test = ApiTest.prefixLayers([
-    ["Домен:", "profile:vms.domain/1"],
-    ["Папка:", "profile:vms.folder/1"],
+    // Лицензия домена — поле vms.domain/1 (устарело в 0.20.0): тест остаётся в слое профиля и уходит вместе с ним
+    ["Домен: переименовать и задать лицензию", "profile:vms.domain/1"],
+    // Область и папка — профили механизма core.domain/1, core.folder/1 (с 0.28.0): их тесты — механизм
+    ["Домен:", "mechanism"],
+    ["Папка:", "mechanism"],
     ["Лицензии", "mechanism"],
   ]);
   const UNKNOWN_DOMAIN = "10009999-0000-4000-8000-000000000000";
@@ -33,6 +36,27 @@
   const move = (env, rec, parentId, params) => env.call("POST", `${U(rec.id)}/move`, Object.assign({ parentId }, params ? { params } : {}), v(rec));
 
   /* ===== Домены ===== */
+
+  // Область системы (домен) — часть системы, у которой свои объекты, права и лицензии. У VMS это домен, у оркестратора агентов —
+  // рабочее пространство. Бэкенд узнаёт область по профилю core.domain/1, а не по коду вида
+  test("Область системы: вид области объявляет core.domain/1; области — верх дерева в каждой раскладке", async () => {
+    const env = await makeEnv();
+    const { items, layouts } = await env.ok("GET", "/kinds");
+    const areaKinds = items.filter((k) => (k.implements || []).includes(AREA)).map((k) => k.kind);
+    assert.ok(areaKinds.length > 0, `вид с ${AREA} есть`);
+    const areas = (await env.pages(`/units?implements=${AREA}&limit=1000`)).map((u) => u.uid).sort();
+    assert.ok(areas.length > 0, "объекты области есть");
+    for (const l of layouts || []) {
+      const top = await env.pages(`/tree/children?layout=${encodeURIComponent(l.id)}&limit=1000`);
+      assert.eq(top.map((n) => n.id).sort(), areas, `${l.id}: верх дерева — ровно области`);
+      assert.ok(top.every((n) => areaKinds.includes(n.kind)), `${l.id}: вид узла верха — вид области`);
+    }
+    if (ApiTest.fixtureName === "agents") {
+      const old = items.filter((k) => (k.implements || []).some((p) => p === "vms.domain/1" || p === "vms.folder/1")).map((k) => k.kind);
+      assert.eq(old, [], "agents: vms.domain/1 и vms.folder/1 не объявляет ни один вид");
+    }
+    return `видов области ${areaKinds.length}, раскладок ${(layouts || []).length}`;
+  }, { needs: ["listKinds", "listUnits", "getTreeChildren"], layer: "mechanism" });
 
   test("Домен: создать — 200, имя занято (без учёта регистра) — NAME_TAKEN, пустое — NAME_REQUIRED", async () => {
     const env = await makeEnv();
@@ -194,11 +218,11 @@
     assert.status(res, 422, "NOT_SUPPORTED", "в папках только устройства");
     assert.eq([res.body.field, res.body.params.targetId], ["/items/1/folders", inDomain.id], "указатель и объект шага");
     assert.eq((await env.ok("GET", U(inDomain.id))).version, sv, "ничего не применено");
-  }, { needs: ["createOperation", "implements:vms.server/1", "implements:vms.domain/1"] });
+  }, { needs: ["createOperation", "implements:vms.server/1", `implements:${AREA}`] });
 
   test("Порядок доменов и серверов по профилю — как /domains и /servers базы: порядок таблицы, принятый и исключённый сервер — последним", async () => {
     const env = await makeEnv();
-    const list = async () => (await env.pages("/units?implements=vms.domain/1,vms.server/1&limit=1000")).map((u) => u.uid);
+    const list = async () => (await env.pages(`/units?implements=${AREA},vms.server/1&limit=1000`)).map((u) => u.uid);
     const hidden = new Set(FX.stand && FX.stand.hiddenIds || []);
     assert.eq(await list(), FX.domains.map((d) => d.id).concat(FX.servers.map((s) => s.id)).filter((id) => !hidden.has(id)), "сначала домены, потом серверы — в порядке набора");
     const s = await env.ok("GET", U(unalloc.id));
@@ -212,7 +236,7 @@
     assert.eq(out.items[0].state, "ok", "исключён");
     now = await list();
     assert.eq(now.slice(-2), [unalloc.id, inDomain.id], "исключённый — тоже последним, как в базе");
-  }, { needs: ["createOperation", "implements:vms.server/1", "implements:vms.domain/1"] });
+  }, { needs: ["createOperation", "implements:vms.server/1", `implements:${AREA}`] });
 
   /* ===== Папки ===== */
 
@@ -224,7 +248,7 @@
     if (d2) assert.eq(await refused(env, { kind: "folder", name: "x", domainId: d2.id, parentId: root.uid, properties: {} }), [["VALIDATION_FAILED", "/domainId"]], "родитель в другом домене");
     assert.eq(await refused(env, { kind: "folder", name: " ", domainId: d1.id, properties: {} }), [["NAME_REQUIRED", "/name"]], "без имени");
     assert.eq(await refused(env, { kind: "folder", name: "x", domainId: UNKNOWN_DOMAIN, properties: {} }), [["VALIDATION_FAILED", "/domainId"]], "домена нет");
-  }, { needs: ["createUnits", "implements:vms.folder/1"] });
+  }, { needs: ["createUnits", `implements:${FOLDER}`] });
 
   test("Папка: переименовать, очистить, задать состав (Unit.folders); устройство чужого домена — отказ", async () => {
     const env = await makeEnv();
@@ -254,7 +278,7 @@
       assert.ok(!(await units(env, `folderId=${f.id}`)).some((u) => u.uid === mine.uid), "шаг своего устройства не применён");
     }
     assert.eq(await deviceCount(env), FX.devices.length, "устройства на месте");
-  }, { needs: ["patchUnit", "createOperation", "implements:vms.folder/1", "kind:camera"] });
+  }, { needs: ["patchUnit", "createOperation", `implements:${FOLDER}`, "kind:camera"] });
 
   test("Папка: удалить вместе с подпапками, устройства остаются; без версии — 428", async () => {
     const env = await makeEnv();
@@ -265,7 +289,7 @@
     assert.ok(!left.includes(rootFolder.id) && kids.every((k) => !left.includes(k)), "папка и подпапки удалены");
     assert.eq(await deviceCount(env), FX.devices.length, "устройства на месте");
     assert.status(await env.call("DELETE", U(rootFolder.id), undefined, v(rootFolder)), 404, "NOT_FOUND", "второй раз");
-  }, { needs: ["deleteUnit", "implements:vms.folder/1", "kind:camera"] });
+  }, { needs: ["deleteUnit", `implements:${FOLDER}`, "kind:camera"] });
 
   test("Метки сервера: PATCH, попадают в reference.serverLabels; детектор просит метку, сервера нет — faultText", async () => {
     const env = await makeEnv();

@@ -2,7 +2,7 @@
    дерево, папки, поток с наблюдением, итог домена, предел выбора. */
 (() => {
   ApiTest.fileLayer("mechanism");
-  const { test, makeEnv, assert, FX } = ApiTest;
+  const { test, makeEnv, assert, FX, FOLDER } = ApiTest;
   const did = FX.domains[0].id;
   const noServer = ({ serverId, ...d }) => d;
   const q = (path, params) => path + (path.includes("?") ? "&" : "?") + new URLSearchParams(params).toString();
@@ -66,7 +66,7 @@
 
   test("Страницы: отбор только по implements — по индексу вида, страницы полные, порядок прежний; kind — проход, как type у /devices", async () => {
     const env = await makeEnv();
-    for (const filter of ["implements=vms.camera/1", "implements=vms.camera/1,vms.folder/1", `implements=vms.camera/1&domainId=${did}`]) {
+    for (const filter of ["implements=vms.camera/1", `implements=vms.camera/1,${FOLDER}`, `implements=vms.camera/1&domainId=${did}`]) {
       const whole = await env.pages(`/units?${filter}&limit=1000`);
       assert.ok(whole.length > 6, `${filter}: строк больше страницы`);
       const sizes = [];
@@ -420,7 +420,7 @@
   test("Домен: status.observed.stateSummary — числа не пересекаются, выключенные вне total, отставание на круг, unread, нет круга — нет поля", async () => {
     const env = await makeEnv();
     const cams = FX.devices.filter((d) => d.domainId === did && d.type === "camera");
-    // Итог круга — вычисляемое хуком vms.domain/1: у объекта домена в status.observed
+    // Итог круга — вычисляемое хуком core.domain/1: у объекта домена в status.observed
     const summary = async (e) => ((await e.ok("GET", `/units/${did}`)).status.observed || {}).stateSummary;
     const s = await summary(env);
     assert.eq(s.total, cams.filter((d) => d.enabled !== false).length, "выключенные вне total");

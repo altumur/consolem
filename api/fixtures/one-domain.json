@@ -17,6 +17,7 @@
    ],
    "createParents": [],
    "implements": [
+    "core.domain/1",
     "vms.domain/1"
    ],
    "capabilities": [
@@ -826,6 +827,7 @@
     "folder"
    ],
    "implements": [
+    "core.folder/1",
     "vms.folder/1"
    ],
    "capabilities": [
@@ -6173,6 +6175,26 @@
  ],
  "profiles": [
   {
+   "id": "core.domain/1",
+   "label": {
+    "key": "profile.core.domain/1",
+    "text": "Область системы",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": []
+  },
+  {
+   "id": "core.folder/1",
+   "label": {
+    "key": "profile.core.folder/1",
+    "text": "Папка",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": []
+  },
+  {
    "id": "vms.acs/1",
    "label": {
     "key": "profile.vms.acs/1",
@@ -6376,7 +6398,7 @@
     "text": "Домен",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "uses": [
     {
      "id": "vms.archive/1",
@@ -6432,7 +6454,7 @@
     "text": "Папка",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "properties": []
   },
   {
@@ -6706,7 +6728,7 @@
     {
      "what": {
       "implements": [
-       "vms.folder/1"
+       "core.folder/1"
       ]
      },
      "root": true,
@@ -6715,7 +6737,7 @@
     {
      "what": {
       "implements": [
-       "vms.folder/1"
+       "core.folder/1"
       ]
      },
      "by": "parent"
@@ -6781,7 +6803,7 @@
     {
      "what": {
       "implements": [
-       "vms.folder/1",
+       "core.folder/1",
        "vms.archive/1",
        "vms.volume/1"
       ]

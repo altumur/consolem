@@ -66,7 +66,8 @@ EXAMPLE_MENTIONS = {
     "UnitKind.apiRights": "id профиля в описании — пример значения",
 }
 
-_PROFILE_MENTION = re.compile(r"\bvms\.[a-z][a-z0-9]*/\d+")
+# id профиля в описании: профили подсистемы vms.* и профили механизма core.* (с 0.28.0: core.domain/1, core.folder/1)
+_PROFILE_MENTION = re.compile(r"\b(?:vms|core)\.[a-z][a-z0-9]*/\d+")
 _VARIANTS = ("anyOf", "oneOf", "allOf")
 
 

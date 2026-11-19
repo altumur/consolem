@@ -3,7 +3,7 @@
 
 - layout_problems(fx, name) — раскладки дерева набора (KindsList.layouts, раздел layouts набора), правила L1–L7;
 - section_problems(fx, name) — разделы приложения набора (reference.capabilities.sections), правила S1–S4;
-- border_problems(spec) — описания схем и путей дерева без слов VMS (правило B5).
+- border_problems(spec) — описания схем и путей дерева и полей области (Unit.domainId, UnitBrief.domainId) без слов VMS (правило B5).
 
 Пустой список — проверка прошла. Строки отказа: «<набор>: раскладка <id>: …», «<схема или путь>: в описании механизма «<слово>»».
 Вызывает tools/check_api.py; самопроверка — tools/check_mechanism.py.
@@ -16,6 +16,8 @@ VMS_WORDS = ("камер", "сервер", "видео", "архив", "дете
 # B5: схемы механизма дерева и пути /tree/*, в описаниях которых нет слов VMS
 TREE_SCHEMAS = ("TreeLayout", "PlaceRule", "KindSelector", "TreeGroup", "TreeNode", "TreePath", "TreePathStep", "KindsList", "AppSection")
 TREE_PATH_PREFIX = "/tree/"
+# B5: поля общих схем, которые называют область системы (core.domain/1)
+AREA_FIELDS = ("Unit.domainId", "UnitBrief.domainId")
 _TEXT_KEYS = ("description", "summary")
 
 
@@ -156,6 +158,12 @@ def border_problems(spec):
     sec = (((schemas.get("Capabilities") or {}).get("properties") or {}).get("sections"))
     if sec:
         places.append(("Capabilities.sections", sec))
+    # Область системы (core.domain/1, с 0.28.0): Unit и UnitBrief в целом слов VMS не избегают; B5 — только поле domainId
+    for name in AREA_FIELDS:
+        sch, field = name.split(".")
+        node = (((schemas.get(sch) or {}).get("properties") or {}).get(field))
+        if node:
+            places.append((name, node))
     places += [(p, item) for p, item in (spec.get("paths") or {}).items() if p.startswith(TREE_PATH_PREFIX)]
     out = []
     for name, node in places:

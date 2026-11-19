@@ -42,7 +42,7 @@
   const trimmed = (v) => String(v == null ? "" : v).trim();
   const isProblem = (r) => !!r && typeof r.status === "number" && !!r.body;
 
-  /* ===== vms.domain/1 — домен ===== */
+  /* ===== core.domain/1 — область системы (домен); до снятия вид объявляет рядом и vms.domain/1 ===== */
 
   function domainNameProblem(name, exceptId, ctx) {
     const v = trimmed(name);
@@ -246,7 +246,7 @@
     },
   };
 
-  /* ===== vms.folder/1 — папка ===== */
+  /* ===== core.folder/1 — папка; до снятия вид объявляет рядом и vms.folder/1 ===== */
 
   // Папки ведёт администратор, и только при связи с центром домена
   function folderProblem(domainId, ctx) {
@@ -2245,14 +2245,18 @@
   };
 
   const HOOKS = {
-    "vms.domain/1": domain, "vms.server/1": server, "vms.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
+    "core.domain/1": domain, "vms.server/1": server, "core.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
     "vms.camera/1": camera, "vms.stream/1": stream, "vms.detector/1": detector, "vms.subdetector/1": subdetector, "vms.acs/1": acs,
     "vms.live/1": live, "vms.ptz/1": ptz, "vms.talk/1": talk, "vms.timeline/1": timeline, "vms.pos/1": pos, "vms.edge/1": edge,
     "vms.webserver/1": webserver,
   };
 
+  // Устаревший профиль → профиль, который его заменил: хук один на оба. Вид, который объявил оба (demo до снятия), получает хук
+  // один раз; вид только со старым профилем (бэкенд не перешёл) — хук нового. Снимаются вместе со старыми профилями (задача 15 части 04)
+  const SUCCESSOR = { "vms.domain/1": "core.domain/1", "vms.folder/1": "core.folder/1" };
+
   // DEVICE — хуки всех видов таблицы devices: сервер зовёт их первыми, затем хуки профилей вида
-  const api = { HOOKS, DEVICE: device, flat, isProblem };
+  const api = { HOOKS, SUCCESSOR, DEVICE: device, flat, isProblem };
   if (typeof window !== "undefined") window.ConsolemProfiles = api;
   if (typeof module !== "undefined") module.exports = api;
 })();

@@ -1,5 +1,5 @@
 {
- "$comment": "Набор системы не из мира VMS: оркестратор агентов. Правится руками; раздел profiles собирает tools/build_api.py. Виды домена и папки — общие с demo (область системы и папка); остальные — виды агентов без профилей. Что умеет система — reference.capabilities: операции механизма без видео, лицензий, ассистента и каталогов",
+ "$comment": "Набор системы не из мира VMS: оркестратор агентов. Правится руками; раздел profiles собирает tools/build_api.py. Виды домена и папки — общие с demo, но объявляют только профили механизма core.domain/1 (область системы — рабочее пространство) и core.folder/1 (папка); остальные — виды агентов без профилей. Что умеет система — reference.capabilities: операции механизма без видео, лицензий, ассистента и каталогов",
  "version": 1,
  "capturedAt": "2026-10-29T09:00:00Z",
  "timezone": "Europe/Moscow",
@@ -17,7 +17,7 @@
    ],
    "createParents": [],
    "implements": [
-    "vms.domain/1"
+    "core.domain/1"
    ],
    "capabilities": [
     "rename"
@@ -25,18 +25,7 @@
    "schema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {
-     "license": {
-      "x-label": {
-       "key": "field.license",
-       "text": "Лицензия",
-       "lang": "ru"
-      },
-      "type": "string",
-      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
-      "deprecated": true
-     }
-    }
+    "properties": {}
    }
   },
   {
@@ -59,7 +48,7 @@
     "folder"
    ],
    "implements": [
-    "vms.folder/1"
+    "core.folder/1"
    ],
    "capabilities": [
     "create",
@@ -610,21 +599,19 @@
  ],
  "profiles": [
   {
-   "id": "vms.domain/1",
+   "id": "core.domain/1",
    "label": {
-    "key": "profile.vms.domain/1",
-    "text": "Домен",
+    "key": "profile.core.domain/1",
+    "text": "Область системы",
     "lang": "ru"
    },
    "version": "1.0",
-   "properties": [
-    "license"
-   ]
+   "properties": []
   },
   {
-   "id": "vms.folder/1",
+   "id": "core.folder/1",
    "label": {
-    "key": "profile.vms.folder/1",
+    "key": "profile.core.folder/1",
     "text": "Папка",
     "lang": "ru"
    },
@@ -650,7 +637,7 @@
     {
      "what": {
       "implements": [
-       "vms.folder/1"
+       "core.folder/1"
       ]
      },
      "root": true,
@@ -659,7 +646,7 @@
     {
      "what": {
       "implements": [
-       "vms.folder/1"
+       "core.folder/1"
       ]
      },
      "by": "parent"

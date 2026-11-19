@@ -790,14 +790,14 @@ def check_units(rep, spec, fx, label="Эталонный набор"):
 
 def check_agents_mechanism(rep, spec, fx):
     """Набор agents (система не из мира VMS): объявлены только операции механизма — пути без x-layer; виды — без профилей слоёв,
-    кроме области и папки."""
+    кроме профилей механизма core.domain/1 (область) и core.folder/1 (папка)."""
     op_layer = {}
     for path, item in spec["paths"].items():
         for method, o in item.items():
             if method in ("get", "post", "put", "patch", "delete") and "test-support" not in o.get("tags", []):
                 op_layer[o["operationId"]] = layers.layer_of_path(spec, path)
     problems = [f"agents: операция {op} — слоя {op_layer[op]}" for op in fx["reference"]["capabilities"]["operations"] if op_layer.get(op) is not None]
-    allowed = {"vms.domain/1", "vms.folder/1", "core.domain/1", "core.folder/1"}
+    allowed = {"core.domain/1", "core.folder/1"}
     problems += [f"agents: вид {k['kind']} объявляет профиль {p}" for k in fx.get("kinds", []) for p in k.get("implements") or [] if p not in allowed]
     rep.check("agents: только операции механизма", problems, f"операций {len(fx['reference']['capabilities']['operations'])}")
 
@@ -835,7 +835,7 @@ def check_capabilities(rep, spec, fixtures):
             problems.append(f"{name}: лицензии без listLicenses")
         if "getDiscovery" not in ops and (fx["discovery"] or fx["network"]):
             problems.append(f"{name}: итоги поиска без getDiscovery")
-        if not creates("vms.domain/1") and len(fx["domains"]) > 1:
+        if not creates("core.domain/1") and len(fx["domains"]) > 1:
             problems.append(f"{name}: доменов {len(fx['domains'])} без create у вида домена")
     # Шаги ожидания оператора объявляются только вместе с дверью ответа
     for name, fx in fixtures.items():

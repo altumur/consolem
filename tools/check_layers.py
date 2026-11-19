@@ -182,6 +182,9 @@ ok(any("Unit.foo" in p and "vms.camera/1" in p for p in problems(s)), "S5: пр�
 s = base()
 s["components"]["schemas"]["Unit"]["properties"]["foo"] = {"type": "string", "description": "Поле vms.camera/1", "x-layer": "vms.camera/1"}
 ok(not any("в описании" in p and "Unit.foo" in p for p in problems(s)), "S5: помеченное поле описание не проверяет")
+s = base()
+s["components"]["schemas"]["Unit"]["properties"]["foo"] = {"type": "string", "description": "Поле core.domain/1"}
+ok(any("Unit.foo" in p and "core.domain/1" in p for p in problems(s)), "S5: профиль механизма core.* в описании")
 saved_ex = dict(layers.EXAMPLE_MENTIONS)
 try:
     s = base()

@@ -1,13 +1,13 @@
 /* Тесты API: чтение всех разделов, ошибки адресов, служебные операции стенда. */
 (() => {
   ApiTest.fileLayer("mechanism");
-  const { test, makeEnv, assert, FX } = ApiTest;
+  const { test, makeEnv, assert, FX, AREA, FOLDER } = ApiTest;
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const DAY = 86400000;
   // Разделы набора → где их читают: объекты — в /units (по профилю; устройства — по видам устройств), правила — своим путём
   const DEVICE_KINDS = [...new Set(FX.devices.map((d) => d.type))].sort();
-  const TABLES = [["domains", "/units?implements=vms.domain/1"], ["servers", "/units?implements=vms.server/1"], ["devices", `/units?kind=${DEVICE_KINDS.join(",")}`],
-    ["folders", "/units?implements=vms.folder/1"], ["archives", "/units?implements=vms.archive/1"], ["volumes", "/units?implements=vms.volume/1"], ["rules", "/rules"]];
+  const TABLES = [["domains", `/units?implements=${AREA}`], ["servers", "/units?implements=vms.server/1"], ["devices", `/units?kind=${DEVICE_KINDS.join(",")}`],
+    ["folders", `/units?implements=${FOLDER}`], ["archives", "/units?implements=vms.archive/1"], ["volumes", "/units?implements=vms.volume/1"], ["rules", "/rules"]];
   const idOf = (r) => r.uid || r.id;
   // Журнал стенда: встроенный сервер добавляет к записям набора stand.journal.count своих (0.8.0); бэкенд без них — только набор
   const JOURNAL_SIZES = [FX.journal.length, FX.journal.length + ((FX.stand && FX.stand.journal && FX.stand.journal.count) || 0)];

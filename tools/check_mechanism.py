@@ -116,6 +116,9 @@ s = dup(spec); s["paths"]["/tree/paths"]["get"]["description"] += " и хран�
 ok(any("/tree/paths" in p and "хранилищ" in p for p in border_problems(s)), "B5: слово VMS в описании пути /tree/*")
 s = dup(spec); s["paths"]["/tree/children"]["get"]["parameters"][0]["description"] += " VMS"
 ok(any("/tree/children" in p and "VMS" in p for p in border_problems(s)), "B5: слово VMS в параметре пути")
+for sch in ("Unit", "UnitBrief"):
+    s = dup(spec); s["components"]["schemas"][sch]["properties"]["domainId"]["description"] = "Область системы (домен) сервера"
+    ok(any(f"{sch}.domainId" in p and "сервер" in p for p in border_problems(s)), f"B5: слово VMS в {sch}.domainId")
 s = dup(spec); s["components"]["schemas"]["AppSection"]["description"] += " Камеры"
 ok(any("AppSection" in p and "камер" in p for p in border_problems(s)), "B5: слово VMS в AppSection")
 s = dup(spec); s["components"]["schemas"]["Capabilities"]["properties"]["sections"]["description"] += " и архив"

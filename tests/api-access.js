@@ -1,7 +1,7 @@
 /* Тесты API: права — применение черновика пакетом, проверки, защита от самоблокировки, синхронизация каталога. */
 (() => {
   ApiTest.fileLayer("mechanism");
-  const { makeEnv, assert, FX } = ApiTest;
+  const { makeEnv, assert, FX, FOLDER } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
   const test = ApiTest.prefixLayers([
     ["PTZ — как в базе", "video"],
@@ -318,7 +318,7 @@
       assert.eq(op.items.map((x) => [x.state, x.code]), [["fail", "PERMISSION_DENIED"]], `состав папки: шаг ${item.folders ? "folders" : "patch {folders}"}`);
     }
     assert.eq((await env.ok("GET", `/units/${dev.uid}`)).folders, dev.folders, "папки объекта на месте");
-  }, { needs: ["createUnits", "patchUnit", "deleteUnit", "createOperation", "implements:vms.folder/1", "kind:camera"] });
+  }, { needs: ["createUnits", "patchUnit", "deleteUnit", "createOperation", `implements:${FOLDER}`, "kind:camera"] });
 
   test("Учётки потоков: доступ к камерам через Access; ссылки проверяются; удаление учётки, камеры и папки убирает доступ", async () => {
     const env = await makeEnv();

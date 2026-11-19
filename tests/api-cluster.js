@@ -1,13 +1,14 @@
 /* Тесты API: домен шире кластера, запрос 2026-11-01-182545Z пп. 7–11, 13, 16, 17 и дополнение пп. 4, 5. */
 (() => {
   ApiTest.fileLayer("profile:vms.camera/1");
-  const { makeEnv, assert, FX } = ApiTest;
+  const { makeEnv, assert, FX, FOLDER } = ApiTest;
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
   const test = ApiTest.prefixLayers([
     ["Приём в домен", "profile:vms.server/1"],
     ["Приём шагом move", "profile:vms.server/1"],
-    ["Папки без связи", "profile:vms.folder/1"],
-    ["Папки — не запись", "profile:vms.folder/1"],
+    // Папка — профиль механизма core.folder/1 (с 0.28.0): её тесты — механизм
+    ["Папки без связи", "mechanism"],
+    ["Папки — не запись", "mechanism"],
     ["Правка при молчащем сервере", "mechanism"],
   ]);
   const d1 = FX.domains[0];
@@ -179,7 +180,7 @@
     assert.eq(op.items.map((x) => [x.state, x.code]), [["fail", "SERVER_OFFLINE"]], "шаг folders");
     const res = await env.ok("POST", "/units", { idempotencyKey: ApiTest.key(), items: [{ kind: "camera", name: "Новая", domainId: d1.id, parentId: null, folders: [f.id], properties: { rtspUrl: "rtsp://10.0.0.9/1" } }] });
     assert.eq(res.failed.map((x) => [x.code, x.field]), [["SERVER_OFFLINE", "/folders"]], "создание с папкой");
-  }, { needs: ["patchUnit", "deleteUnit", "createOperation", "createUnits", "implements:vms.folder/1", "kind:camera", "testEvent"] });
+  }, { needs: ["patchUnit", "deleteUnit", "createOperation", "createUnits", `implements:${FOLDER}`, "kind:camera", "testEvent"] });
 
   test("Папки — не запись на сервер устройства: шаги folders и patch {folders}, PATCH {folders} при молчащем сервере проходят, как состав папки в базе", async () => {
     const env = await makeEnv();
@@ -206,7 +207,7 @@
     const p = await env.call("PATCH", `/units/${u.uid}`, { folders: toggle(u.folders) }, { "If-Match": `"${u.version}"` });
     assert.status(p, 200, null, "PATCH {folders}");
     assert.status(await env.call("PATCH", `/units/${u.uid}`, { name: "Другое имя" }, { "If-Match": p.headers.etag }), 409, "SERVER_OFFLINE", "имя — запись на сервер");
-  }, { needs: ["createOperation", "patchUnit", "implements:vms.folder/1", "kind:camera"] });
+  }, { needs: ["createOperation", "patchUnit", `implements:${FOLDER}`, "kind:camera"] });
 
   ApiTest.loaded("api-cluster.js");
 })();
