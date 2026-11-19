@@ -561,6 +561,38 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => !!replyOf("cr8"), 3000) && code(replyOf("cr8")) === "BUSY", "снова три отказа — BUSY");
     await sleep(10100);
     ok((await refuse("cr9"))?.body?.confirmed === false, "через 10 с вопрос снова открыт");
+    // Итоговая волна, I2: счёт отказов один на все диалоги рамки — подтверждение команды, удаление, переход с черновиком
+    // и вопрос страницы. После трёх отказов подряд пауза одна: все четыре получают BUSY без диалога
+    await touchPage();
+    const refuseCall = async (op, params) => {
+      const id = "t" + ++seq;
+      pageSend({ type: "call", id, op, params });
+      if (!(await until(dlgOpen, 5000))) return null;
+      document.getElementById("confirmCancel").click();
+      await until(() => !!replyOf(id), 5000);
+      return replyOf(id);
+    };
+    const noAct = await refuseCall("runUnitAction", { uid: VOL, action: "format" });
+    const noDel = await refuseCall("deleteUnit", { uid: S3 });
+    pageSend({ type: "change", patch: { display_text: "Счёт" } });
+    ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст: переход спросит пользователя");
+    pageSend({ type: "navigate", id: "nm1", uid: cam });
+    const navAsked = await until(dlgOpen, 5000);
+    if (navAsked) document.getElementById("confirmCancel").click();
+    ok(code(noAct) === "CANCELLED" && code(noDel) === "CANCELLED" && navAsked && await until(() => code(replyOf("nm1")) === "CANCELLED", 3000) && sel === SUI_UNIT,
+      "отказы в трёх разных диалогах: команда, удаление, переход — CANCELLED");
+    window.CONSOLEM_TRACE.length = 0;
+    pageSend({ type: "confirm", id: "cm1", title: "После пауз", text: "Вопрос" });
+    const muteAct = await call("runUnitAction", { uid: VOL, action: "format" });
+    const muteDel = await call("deleteUnit", { uid: S3 });
+    pageSend({ type: "navigate", id: "nm2", uid: cam });
+    ok(await until(() => !!replyOf("cm1") && !!replyOf("nm2"), 5000) && [replyOf("cm1"), muteAct, muteDel, replyOf("nm2")].every((x) => code(x) === "BUSY" && x.status === 0 && valid(x)) &&
+      !dlgOpen() && sel === SUI_UNIT && !trace("POST", `/units/${VOL}/actions/`).length && !cardDiff().some((x) => x.bridge),
+      "после трёх отказов в разных диалогах — одна пауза: confirm, команда, удаление и переход получают BUSY без диалога — " +
+      JSON.stringify([replyOf("cm1"), muteAct, muteDel, replyOf("nm2")].map(code)));
+    cardReset();
+    await touchPage();
+    ok(!cardDiff().length && !(suiFrame.askMute > Date.now()), "черновик пуст, пользователь перешёл на страницу — пауза снята");
     // Один navigate в полёте: второй, пока первый ждёт ответа, — BUSY
     pageSend({ type: "change", patch: { display_text: "Полёт" } });
     ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст, переход спросит пользователя");

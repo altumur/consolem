@@ -6916,16 +6916,18 @@ function bridgeDrop(f){
 }
 // Окно подтверждения consolem открыто — по любой причине: свой диалог consolem, cardLeaveAsk, вопрос страницы
 function bridgeDlgOpen(){return!!document.getElementById("confirm")?.classList.contains("open")}
-// Диалог консоли для вызова страницы → Promise<true | false | "busy" | "gone">. true — пользователь подтвердил, false —
-// отказался. Окно подтверждения одно на всю консоль: открытый диалог consolem страница не подменяет ("busy", диалог не
-// открыт); если другой диалог consolem занял окно (askConfirm заменил обратные вызовы) или окно закрылось — "gone"
+// Диалог консоли для вызова страницы → Promise<true | false | "busy" | "muted" | "gone">. true — пользователь подтвердил,
+// false — отказался. Окно подтверждения одно на всю консоль: открытый диалог consolem страница не подменяет ("busy", диалог
+// не открыт); вопросы рамки на паузе после отказов ("muted", bridgeMuted); если другой диалог consolem занял окно
+// (askConfirm заменил обратные вызовы) или окно закрылось — "gone". Ответ пользователя идёт в счёт отказов рамки (bridgeAskCount)
 function bridgeAsk(f,title,msg,okLabel,opts){
   if(bridgeDlgOpen())return Promise.resolve("busy");
+  if(bridgeMuted(f))return Promise.resolve("muted");
   return new Promise(res=>{
     const box=document.getElementById("confirm");
     let done=false,mo=null;
     const a={mine:null};
-    const end=v=>{if(done)return;done=true;mo?.disconnect();if(f.bridgeAsk===a)f.bridgeAsk=null;res(v)};
+    const end=v=>{if(done)return;done=true;mo?.disconnect();if(f.bridgeAsk===a)f.bridgeAsk=null;bridgeAskCount(f,v);res(v)};
     askConfirm(title,msg,"",okLabel,()=>end(true),{...opts,onCancel:()=>end(false)});
     a.mine=confirmOkCb;f.bridgeAsk=a;
     mo=new MutationObserver(()=>{if(confirmOkCb!==a.mine||!box.classList.contains("open"))end("gone")});
@@ -6973,7 +6975,7 @@ async function bridgeCall(msg,f=suiFrame){
       const lb=textOf(x.a.label)||x.a.id;
       const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,
         x.a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
-      if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+      if(yes==="busy"||yes==="muted")return bridgeFail(id,0,"BUSY",{message:i18n(yes==="busy"?BRIDGE_TEXT2.DIALOG:BRIDGE_TEXT2.MUTED)});
       if(yes!==true)return bridgeFail(id,0,"CANCELLED");
     }
     // Рамка закрылась, пока консоль читала вид объекта: команду консоль не запускает
@@ -7127,7 +7129,7 @@ async function bridgeDraft(msg,f){
   if(dels.length){
     if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
     const yes=await bridgeDeleteAsk(f,dels);
-    if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+    if(yes==="busy"||yes==="muted")return bridgeFail(id,0,"BUSY",{message:i18n(yes==="busy"?BRIDGE_TEXT2.DIALOG:BRIDGE_TEXT2.MUTED)});
     if(yes!==true)return bridgeFail(id,0,"CANCELLED");
   }
   // Карточка объекта страницы открыта: шаг — в её черновик
@@ -7154,6 +7156,7 @@ async function bridgeDraft(msg,f){
 // Число для ввода — число объектов, его считает consolem
 async function bridgeDeleteAsk(f,units){
   if(bridgeDlgOpen())return"busy";
+  if(bridgeMuted(f))return"muted";
   const N=units.length;
   const li=units.slice(0,10).map(u=>`<li>«${escHtml(bridgeName(u))}» — ${escHtml(bridgeKindLabel(u.kind))}</li>`).join("")+(N>10?`<li>${i18n("и ещё")} ${N-10}</li>`:"");
   // Вложенные объекты сервер удаляет вместе с объектом: их число — по прямым потомкам (GET /units?parentId), до 20 объектов
@@ -7255,8 +7258,17 @@ const BRIDGE_TEXT2={
 // Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
 const BRIDGE_SUB_LIST_MAX=32,BRIDGE_SUB_STR_MAX=200;
 // Поток вопросов: после BRIDGE_CONFIRM_NO отказов подряд consolem не показывает вопросы рамки BRIDGE_CONFIRM_MUTE мс
-// или до того, как пользователь перейдёт на страницу (фокус ушёл в рамку)
+// или до того, как пользователь перейдёт на страницу (фокус ушёл в рамку). Счёт один на все диалоги рамки: вопрос
+// страницы (confirm), подтверждение команды act, удаление шага draft и вопрос «Изменения не применены» перед navigate
 const BRIDGE_CONFIRM_NO=3,BRIDGE_CONFIRM_MUTE=10000;
+function bridgeMuted(f){return(f?.askMute||0)>Date.now()}
+// Ответ пользователя в диалоге рамки: подтверждение счёт обнуляет, отказ считается; диалог, который занял consolem
+// ("gone"), и диалог, который не открылся, не считаются
+function bridgeAskCount(f,v){
+  if(!f)return;
+  if(v===true)f.askNo=0;
+  else if(v===false&&(f.askNo=(f.askNo||0)+1)>=BRIDGE_CONFIRM_NO){f.askNo=0;f.askMute=Date.now()+BRIDGE_CONFIRM_MUTE}
+}
 const bridgeStrs=v=>Array.isArray(v)&&v.every(x=>typeof x==="string");
 // Объекты подписок для наблюдения: только те, что consolem знает (hwVer)
 function bridgeWatchIds(){
@@ -7348,8 +7360,11 @@ async function bridgeNavigate(msg,f=suiFrame){
       try{pick(uid,{...(tb?{tab:tb}:{}),force:true,csOk:true})}finally{hwJumpFlash=false}
       res(null);
     };
-    if(cardDraft&&cardDiff().length)cardLeaveAsk(go,()=>res(bridgeFail(id,0,"CANCELLED")));
-    else go();
+    if(!(cardDraft&&cardDiff().length)){go();return}
+    // Вопрос «Изменения не применены» — диалог рамки: открытый диалог consolem он не подменяет, пауза и счёт отказов — общие
+    if(bridgeDlgOpen()){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)}));return}
+    if(bridgeMuted(f)){res(bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.MUTED)}));return}
+    cardLeaveAsk(()=>{bridgeAskCount(f,true);go()},()=>{bridgeAskCount(f,false);res(bridgeFail(id,0,"CANCELLED"))});
   });
 }
 // confirm → Promise<true | false | "busy" | "gone"> (bridgeAsk): диалог consolem. Строку «Спрашивает страница вида «…»» consolem
@@ -7406,17 +7421,15 @@ SUI_ON.confirm=function(d){
   const busy=m=>bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(m)}));
   if(bridgeConfirmOpen||f.bridgeAsk){busy(BRIDGE_TEXT2.CONFIRM);return}
   if(bridgeDlgOpen()){busy(BRIDGE_TEXT2.DIALOG);return}
-  if((f.confirmMute||0)>Date.now()){busy(BRIDGE_TEXT2.MUTED);return}
+  if(bridgeMuted(f)){busy(BRIDGE_TEXT2.MUTED);return}
+  // Счёт отказов ведёт bridgeAsk (bridgeAskCount)
   bridgeConfirm(d,f).then(v=>{
-    if(v==="busy"){busy(BRIDGE_TEXT2.DIALOG);return}
-    // Отказ пользователя считается; подтверждение счёт обнуляет; диалог, который занял consolem, не считается
-    if(v===true)f.confirmNo=0;
-    else if(v===false&&(f.confirmNo=(f.confirmNo||0)+1)>=BRIDGE_CONFIRM_NO){f.confirmNo=0;f.confirmMute=Date.now()+BRIDGE_CONFIRM_MUTE}
+    if(v==="busy"||v==="muted"){busy(v==="busy"?BRIDGE_TEXT2.DIALOG:BRIDGE_TEXT2.MUTED);return}
     bridgePost(f,"result",{id:d.id,ok:true,status:200,body:{confirmed:v===true}});
   });
 };
 // Пользователь перешёл на страницу (фокус ушёл в рамку): счёт отказов и пауза вопросов сняты
-function bridgeConfirmUnmute(){const f=suiFrame;if(f&&f.el&&document.activeElement===f.el){f.confirmNo=0;f.confirmMute=0}}
+function bridgeConfirmUnmute(){const f=suiFrame;if(f&&f.el&&document.activeElement===f.el){f.askNo=0;f.askMute=0}}
 window.addEventListener("blur",()=>{bridgeConfirmUnmute();setTimeout(bridgeConfirmUnmute,0)});
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
