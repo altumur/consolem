@@ -4197,6 +4197,12 @@ async function layBranch(lay,id){
   }
   return treeBr.get(lay+"|"+id)||null;
 }
+// Дочитать ветку родителя, пока в ней не встретится объект: страница за страницей, затем узлы групп этой ветки
+async function layReach(lay,pid,id){
+  let b=await layBranch(lay,pid);
+  while(b&&!layNode(lay,id)&&!b.done&&!b.failed&&b.cursor){await treeLoad(lay,pid);b=await layBranch(lay,pid)}
+  if(!layNode(lay,id))for(const g of(treeBr.get(lay+"|"+pid)?.items||[]).filter(x=>x.group)){await layReach(lay,g.id,id);if(layNode(lay,id))break}
+}
 // Узлы над объектом в прочитанных ветках раскладки: от родителя до области
 function layUp(lay,id){const out=[],seen=new Set();for(let p=layNode(lay,id)?.parentId;p&&!seen.has(p);p=layNode(lay,p)?.parentId){seen.add(p);out.push(p)}return out}
 // Место объекта в раскладке: узлы, которые надо раскрыть; null — объекта в раскладке нет. Ветка родителя не дочитана или не
@@ -4209,7 +4215,7 @@ async function layPlace(lay,id){
   // Ветки цепочки — по порядку: стрелку узла даёт ветка его родителя. Ветку может уже читать перерисовка — её ждём
   for(const x of c.slice(0,-1))await layBranch(lay,x.id);
   const pid=c[c.length-2].id;
-  if(!layNode(lay,id))for(const g of(treeBr.get(lay+"|"+pid)?.items||[]).filter(x=>x.group))await layBranch(lay,g.id);
+  await layReach(lay,pid,id);
   if(layNode(lay,id))return layUp(lay,id);
   const b=treeBr.get(lay+"|"+pid);
   return b&&b.done&&!b.failed?null:c.slice(0,-1).map(x=>x.id);
@@ -8666,7 +8672,8 @@ function revealSearch(has){
   // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
   const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);html=treeHtmlNow();return treeHtmlHas(html,sel)};
   // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
-  const hit=[slice,...slicesFor(TREE_LAYOUTS)].some(s=>[...sliceGroupsOf(s)].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
+  // Своя раскладка, где узла цели нет, — не перебирается: её место знает только сервер (layExpand), ответ тут не ждут
+  const hit=[slice,...slicesFor(TREE_LAYOUTS)].some(s=>!(isLaySlice(s)&&s!==was&&!layNode(s.slice(4),sel))&&[...sliceGroupsOf(s)].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
     const gw=groupBy[s];
     slice=s;groupBy[s]=g;syncViews();
     if(look()){if(sliceGroupsOf(s).includes("folder"))setGroupAll(g);return true}
@@ -10949,6 +10956,7 @@ const PICK_SLICES=["all","cam","acfa","det"];
 function filtOn(){return app==="hw"&&PICK_SLICES.includes(slice)&&(!!treeQ.trim()||!!typeFilts.size||!!statusFilts.size||!!asstPick)}
 function filtKeyNow(){return filtOn()?JSON.stringify([treeQ.trim().toLowerCase(),[...typeFilts].sort(),[...statusFilts].sort(),domainFilter,slice,group(),asstPick?.key||""]):""}
 function filtSync(){
+  layFindSync();
   const key=filtKeyNow();
   if(key===(fs?.key||""))return;
   // Отбор ассистента: список готов, дочитываются записи и цепочки. До idsMax — дерево, больше — плоский список страницами
@@ -11112,6 +11120,7 @@ function filtHint(){
     const cut=p.truncated?` · ${i18n("показаны первые")} ${p.ids.length}${p.total!=null?` ${i18n("из")} ${p.total}`:""}`:"";
     return`${i18n("Отобрано ассистентом:")} ${fs.hits.size}${cut}${fs.done?"":` · ${i18n("загружено")} ${fs.at}`}`;
   }
+  if(isLaySlice()&&layFs)return layFs.failed||layFs.cut&&layFs.done?`${i18n("Найдено не всё:")} ${layFs.hits.size}`:layFs.done?`${i18n("Найдено:")} ${layFs.hits.size}`:`${i18n("Ищем дальше, уже")} ${layFs.hits.size}`;
   if(!fs)return hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
   if(fs.failed)return`${i18n("Найдено не всё:")} ${filtHitCount()}`;
   return fs.done?`${i18n("Найдено:")} ${filtHitCount()}`:`${i18n("Ищем дальше, уже")} ${filtHitCount()}`;
@@ -11286,7 +11295,7 @@ function panelHeadHtmlRun(){
   const ids=slicesFor(TREE_LAYOUTS),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${escHtml(id)}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${escHtml(sliceLabel(id))}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
   return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
     ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
-  </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
+  </div><span class="ph-tail">${ids.length?sliceBtn(ids[ids.length-1],true):""}<span class="ph-fold">
     <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders||group()==="folder"?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
     <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
@@ -12388,21 +12397,26 @@ function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
   const h=isLaySlice()?treeLay():slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  // Своя раскладка ищет сама (layFind): пока ищет — «Ищем дальше…», а не «Ничего не найдено»
+  if(isLaySlice()&&layFs&&!layFs.done)return h+`<div class="n n-more" style="--l:0"><span class="tw"></span><span class="nm sub">${i18n("Ищем дальше…")}</span></div>`;
   return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
 }
 // ── Дерево своей раскладки системы: узлы GET /tree/children ─────────────────
 // Срез lay:<id>: область → узлы раскладки в порядке сервера. Узел объекта — строка объекта кэша (карточка, меню), узел
 // группы — строка, которая только раскрывается. Поиск сужает прочитанные строки: строка видна, если совпала она или
 // прочитанный потомок
-function treeLay(){const lay=treeLayout();return scopedDomains().map(d=>layDomRow(d,lay)).join("")}
-function layHit(lay,x,q,seen=new Set()){
-  if(!q||matchesText(q,x.name))return true;
+// Отбор сверяется до сборки строк: снятый поиск не рисуется по прежним находкам
+function treeLay(){layFindSync();const lay=treeLayout();return scopedDomains().map(d=>layDomRow(d,lay)).join("")}
+// С поиском или статусом строка видна, если она — найденный объект (layFs.hits) или над ним в прочитанных ветках
+function layHit(lay,x,seen=new Set()){
+  if(!layFs)return true;
+  if(layFs.hits.has(x.id))return true;
   if(seen.has(x.id))return false;seen.add(x.id);
-  return(treeBr.get(lay+"|"+x.id)?.items||[]).some(y=>layHit(lay,y,q,seen));
+  return(treeBr.get(lay+"|"+x.id)?.items||[]).some(y=>layHit(lay,y,seen));
 }
 function layDomRow(d,lay){
   const q=qval(),kids=layKidsHtml(d.id,lay,1,q);
-  if(q&&!matchesSearch(d,q)&&!kids)return"";
+  if(layFs&&!kids&&!(q&&!statusFilts.size&&matchesSearch(d,q)))return"";
   const op=open.has(d.id)||autoExpand();
   let h=`<div class="n srv ${sel===d.id?"on":""}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",true)}>
     ${treeChevron(d.id,"dom",true,op)}
@@ -12412,8 +12426,8 @@ function layDomRow(d,lay){
 }
 function layKidsHtml(pid,lay,l,q){return(treeBr.get(lay+"|"+pid)?.items||[]).map(x=>layRowHtml(x,lay,l,q)).join("")}
 function layRowHtml(x,lay,l,q){
-  if(q&&!layHit(lay,x,q))return"";
-  const has=!!x.hasChildren,op=has&&(open.has(x.id)||autoExpand()&&!!q),kids=op?layKidsHtml(x.id,lay,l+1,q)+treeMoreRow(x.id,l+1):"";
+  if(!layHit(lay,x))return"";
+  const has=!!x.hasChildren,op=has&&(open.has(x.id)||!!layFs),kids=op?layKidsHtml(x.id,lay,l+1,q)+treeMoreRow(x.id,l+1):"";
   const n=x.group?null:find(x.id)?.n;
   let h;
   if(!n)h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(x.id,"dom",has)} ${onEv("click",["toggleDom",x.id,onEv.event])}>
@@ -12421,6 +12435,69 @@ function layRowHtml(x,lay,l,q){
   else h=`<div class="n ${sel===n.id?"on":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",has)}>
     ${treeChevron(n.id,"node",has,op)}${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeTail({acts:n.id})}</div>`;
   return h+kids;
+}
+// Поиск и статус в своей раскладке: сервер ищет объекты видов раскладки (GET /units: q, status, kind), их места —
+// GET /tree/paths, ветки цепочек дочитываются (layReach). Строки — найденное и путь к нему, а не только прочитанное раньше.
+// Статус с причиной («nosignal:auth») сервер не различает: найденное проверяет ещё matchesStatus. Найдено больше LAY_FIND_MAX —
+// «Найдено не всё»
+let layFs=null;
+const LAY_FIND_MAX=500;
+// Виды, которые раскладка раскладывает; null — любой вид (правило без what)
+function layKinds(l){
+  const out=new Set();
+  for(const r of l?.place||[]){
+    if(r.by==="none")continue;
+    const w=r.what;
+    if(!w||!(w.kinds||[]).length&&!(w.implements||[]).length)return null;
+    (w.kinds||[]).forEach(k=>out.add(k));
+    (w.implements||[]).forEach(pr=>KINDS.forEach((k,code)=>{if((k.implements||[]).includes(pr))out.add(code)}));
+  }
+  return[...out];
+}
+function layFsKey(){
+  if(app!=="hw"||!isLaySlice()||!qval()&&!statusFilts.size)return"";
+  return JSON.stringify([treeQ.trim().toLowerCase(),[...statusFilts].sort(),domainFilter,slice]);
+}
+function layFindSync(){
+  const key=layFsKey();
+  if(key===(layFs?.key||""))return;
+  layFs=key?{key,lay:treeLayout(),hits:new Set(),done:false,cut:false,failed:false}:null;
+  if(layFs)layFind(layFs);
+}
+async function layFind(run){
+  const live=()=>layFs===run,paint=()=>{if(live()&&app==="hw"){renderTreeSoon();const h=document.getElementById("filtHint");if(h)h.textContent=filtHint()}};
+  try{
+    const kinds=layKinds(sliceLayoutOf());
+    if(kinds&&!kinds.length){run.done=true;paint();return}
+    const qp={limit:LIM.pageMax};
+    if(qval())qp.q=treeQ.trim();
+    if(kinds)qp.kind=kinds.join(",");
+    if(statusFilts.size)qp.status=[...new Set([...statusFilts].map(x=>{const st=x.split(":")[0];return st==="on"?"run":st}))].join(",");
+    if(domainFilter)qp.domainId=domainFilter;
+    let cursor=null;const found=[];
+    do{
+      const r=await API.get("/units",Object.assign({},qp,{cursor}));
+      if(!live())return;
+      r.items.forEach(u=>{if(!INFRA_SCREENS.has(handScreen(u.kind))||!handScreen(u.kind))found.push(u)});
+      cursor=r.nextCursor||null;
+    }while(cursor&&found.length<LAY_FIND_MAX);
+    run.cut=!!cursor;
+    for(let i=0;i<found.length;i+=LIM.idsMax){
+      const part=found.slice(i,i+LIM.idsMax);
+      const res=await API.get("/tree/paths",{layout:run.lay,ids:part.map(u=>u.uid).join(",")});
+      if(!live())return;
+      for(const x of res.items||[]){
+        const c=x.chains?.[0];if(!c||c.length<2)continue;
+        for(const st of c.slice(0,-1)){await layBranch(run.lay,st.id);if(!live())return}
+        await layReach(run.lay,c[c.length-2].id,x.id);
+        if(!live())return;
+        const n=find(x.id)?.n;
+        if(layNode(run.lay,x.id)&&(!n||matchesStatus(n)))run.hits.add(x.id);
+      }
+      paint();
+    }
+  }catch(e){run.failed=true}
+  run.done=true;paint();
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
