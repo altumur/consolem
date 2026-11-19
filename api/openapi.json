@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.33.0",
+    "version": "0.34.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -165,6 +165,7 @@
     "/reference": {
       "get": {
         "operationId": "getReference",
+        "x-bridge": "read",
         "tags": [
           "reference"
         ],
@@ -193,6 +194,7 @@
     "/operations": {
       "get": {
         "operationId": "listOperations",
+        "x-bridge": "read",
         "tags": [
           "operations"
         ],
@@ -257,6 +259,7 @@
       },
       "post": {
         "operationId": "createOperation",
+        "x-bridge": "draft",
         "tags": [
           "operations"
         ],
@@ -320,6 +323,7 @@
     "/operations/{operationId}": {
       "get": {
         "operationId": "getOperation",
+        "x-bridge": "read",
         "tags": [
           "operations"
         ],
@@ -453,6 +457,7 @@
     "/operations/{operationId}/cancel": {
       "post": {
         "operationId": "cancelOperation",
+        "x-bridge": "act",
         "tags": [
           "operations"
         ],
@@ -633,6 +638,7 @@
     "/units/{uid}/discovery": {
       "get": {
         "operationId": "getDiscovery",
+        "x-bridge": "read",
         "tags": [
           "discovery"
         ],
@@ -696,6 +702,7 @@
       },
       "post": {
         "operationId": "startDiscovery",
+        "x-bridge": "act",
         "tags": [
           "discovery"
         ],
@@ -742,6 +749,7 @@
       },
       "delete": {
         "operationId": "stopDiscovery",
+        "x-bridge": "act",
         "tags": [
           "discovery"
         ],
@@ -788,6 +796,7 @@
     "/rules": {
       "get": {
         "operationId": "listRules",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -874,6 +883,7 @@
     "/rules/{ruleId}": {
       "get": {
         "operationId": "getRule",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1394,6 +1404,7 @@
     "/schedules": {
       "get": {
         "operationId": "listSchedules",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1476,6 +1487,7 @@
     "/schedules/{scheduleId}": {
       "get": {
         "operationId": "getSchedule",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1902,6 +1914,7 @@
     "/modes": {
       "get": {
         "operationId": "getModes",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -1998,6 +2011,7 @@
     "/modes/current": {
       "get": {
         "operationId": "getModeCurrent",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -2357,6 +2371,7 @@
     "/settings": {
       "get": {
         "operationId": "getSettings",
+        "x-bridge": "read",
         "tags": [
           "settings"
         ],
@@ -2449,6 +2464,7 @@
     "/licenses": {
       "get": {
         "operationId": "listLicenses",
+        "x-bridge": "read",
         "tags": [
           "settings"
         ],
@@ -2759,6 +2775,7 @@
     "/journal": {
       "get": {
         "operationId": "listJournal",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -2997,6 +3014,7 @@
     "/journal/facets": {
       "get": {
         "operationId": "listJournalFacets",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -3390,6 +3408,7 @@
     "/journal/kinds": {
       "get": {
         "operationId": "listJournalKinds",
+        "x-bridge": "read",
         "tags": [
           "journal"
         ],
@@ -3430,6 +3449,7 @@
     "/files": {
       "post": {
         "operationId": "uploadFile",
+        "x-bridge": "act",
         "tags": [
           "files"
         ],
@@ -3721,6 +3741,7 @@
     "/objects/delete": {
       "post": {
         "operationId": "deleteObjects",
+        "x-bridge": "draft",
         "tags": [
           "hardware"
         ],
@@ -4599,6 +4620,7 @@
     "/tree/children": {
       "get": {
         "operationId": "getTreeChildren",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
@@ -4697,6 +4719,7 @@
     "/tree/paths": {
       "get": {
         "operationId": "getTreePaths",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
@@ -5233,6 +5256,7 @@
     "/units/{uid}/scenarios": {
       "get": {
         "operationId": "getScenarios",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -5363,6 +5387,7 @@
     "/units/{uid}/scenarios/status": {
       "get": {
         "operationId": "getScenariosStatus",
+        "x-bridge": "read",
         "tags": [
           "automation"
         ],
@@ -5421,6 +5446,7 @@
     "/units/{uid}/relays": {
       "get": {
         "operationId": "listRelays",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
@@ -5479,6 +5505,7 @@
     "/units/{uid}/relays/{name}": {
       "get": {
         "operationId": "getRelay",
+        "x-bridge": "read",
         "tags": [
           "hardware"
         ],
@@ -5637,6 +5664,7 @@
     "/kinds": {
       "get": {
         "operationId": "listKinds",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -5695,6 +5723,7 @@
     "/kinds/{kind}": {
       "get": {
         "operationId": "getKind",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -5765,6 +5794,7 @@
     "/kinds/{kind}/actions/{action}": {
       "post": {
         "operationId": "runKindAction",
+        "x-bridge": "act",
         "tags": [
           "units"
         ],
@@ -5831,6 +5861,7 @@
     "/units": {
       "get": {
         "operationId": "listUnits",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -6036,6 +6067,7 @@
       },
       "post": {
         "operationId": "createUnits",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6077,6 +6109,7 @@
     "/units/{uid}": {
       "get": {
         "operationId": "getUnit",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -6121,6 +6154,7 @@
       },
       "patch": {
         "operationId": "patchUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6197,6 +6231,7 @@
       },
       "delete": {
         "operationId": "deleteUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6262,6 +6297,7 @@
     "/units/{uid}/move": {
       "post": {
         "operationId": "moveUnit",
+        "x-bridge": "draft",
         "tags": [
           "units"
         ],
@@ -6340,6 +6376,7 @@
     "/units/{uid}/actions/{action}": {
       "post": {
         "operationId": "runUnitAction",
+        "x-bridge": "act",
         "tags": [
           "units"
         ],
@@ -7429,6 +7466,7 @@
     "/units/{uid}/pos/raw": {
       "get": {
         "operationId": "listUnitPosRaw",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -7959,6 +7997,7 @@
     "/units/{uid}/creatable": {
       "get": {
         "operationId": "getCreatable",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -8000,6 +8039,7 @@
     "/units/{uid}/schema": {
       "get": {
         "operationId": "getUnitSchema",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -8095,6 +8135,7 @@
     "/units/validate": {
       "post": {
         "operationId": "validateUnits",
+        "x-bridge": "read",
         "tags": [
           "units"
         ],
@@ -18534,7 +18575,7 @@
                 "description": "Происхождение страницы после перенаправлений двери и прокси, если оно другое, чем у адреса. Клиент принимает сообщения только с него. Нет поля — происхождение адреса"
               }
             },
-            "description": "Своя страница подсистемы. mode: iframe — страница внутри карточки по протоколу setup/1 (api/SETUP-UI.md), правку записывает клиент; mode: tab — ссылка в новой вкладке, страница пишет сама. Какой экран видит человек: есть страница iframe — она, иначе ручной экран по профилю, иначе форма по схеме. Страница открывается на другом происхождении (origin), чем консоль: она не получает куки и токен консоли и не обращается к /api/* консоли. Ссылку на страницу интерфейс показывает, только когда в Unit.capabilities объекта есть setupUi"
+            "description": "Своя страница подсистемы. mode: iframe — страница внутри карточки по протоколу setup/1 (api/SETUP-UI.md), правку записывает клиент. Шаг 2: мост к механизму — api/SETUP-UI.md: страница вызывает операции с x-bridge через consolem; mode: tab — ссылка в новой вкладке, страница пишет сама. Какой экран видит человек: есть страница iframe — она, иначе ручной экран по профилю, иначе форма по схеме. Страница открывается на другом происхождении (origin), чем консоль: она не получает куки и токен консоли и не обращается к /api/* консоли. Ссылку на страницу интерфейс показывает, только когда в Unit.capabilities объекта есть setupUi"
           },
           "createParents": {
             "type": "array",

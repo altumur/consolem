@@ -32,12 +32,16 @@
 12. Протокол своей страницы setup/1: api/setup-ui.schema.json — ключевые слова из разрешённого списка, ссылки в $defs, у сообщений
    x-direction, proto и type, примеры проходят схему; таблицы «Сообщения» api/SETUP-UI.md — те же сообщения и направления;
    problem и problemError — поля Problem и ProblemError контракта; описание setupUi ссылается на api/SETUP-UI.md.
+13. Мост страницы подсистемы: у каждой операции api/openapi.json (и api/*.openapi.json, api/profiles/*.openapi.json) — x-bridge
+   (read, act, draft) или причина в BRIDGE_CLOSED; read — только GET или BRIDGE_READ_POST, draft — только BRIDGE_DRAFT;
+   без x-bridge у /test/*, test-support и deprecated; в BRIDGE_CLOSED — только операции описаний.
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
 (--page — прототип вместо index.html; --api — копия папки API вместо api; в документе выше пути даны для умолчаний)
 Код выхода 1, если что-то не прошло.
 """
+import glob
 import json
 import os
 import re
@@ -274,6 +278,118 @@ def check_contract(rep, spec):
     keywords(spec["components"]["schemas"], "#/components/schemas")
     rep.check("Контракт: OpenAPI 3.1, operationId, теги, ссылки $ref", problems, f"{len(seen)} операций, {len(schemas)} схем")
     return seen
+
+
+# ===== 1а. Мост страницы подсистемы (x-bridge) =====
+# Что своя страница подсистемы (setupUi.mode: iframe) может вызвать через consolem, api/SETUP-UI.md, «Шаг 2: мост к механизму».
+# read — consolem выполняет сразу; act — выполняет сразу, команда видна в журнале; draft — кладёт шаг в черновик карточки,
+# выполняет по «Применить». Нет x-bridge — мост отказывает (NOT_SUPPORTED), и тогда причина — строкой в BRIDGE_CLOSED:
+# новую операцию проверка не пропустит, пока о ней не решили.
+BRIDGE_VALUES = ("read", "act", "draft")
+BRIDGE_DRAFT = {"patchUnit", "createUnits", "deleteUnit", "moveUnit", "deleteObjects", "createOperation"}
+BRIDGE_READ_POST = {"validateUnits"}
+_ACCESS = "права и сеанс — вкладка «Доступ» у consolem своя"
+_AUTOMATION = "запись автоматизации — редактор правил, расписаний и режимов у consolem свой"
+_VIDEO = "работа оператора с видео и архивом, а не настройка объекта"
+_EXPORT = "выгрузка — работа оператора, рамка не сохраняет файлы"
+_LIVE = "живое видео — после отдельного API видео (решение О5)"
+_SYSTEM = "настройки системы и ключи — запись вне склада объектов"
+_STORAGE = "хранилище, а не объект страницы"
+_OLD = "устарела"
+_TEST = "служебная операция стенда (test-support) — никогда"
+_REDO = "откат и повтор ведёт consolem: тост «Отменить», журнал операций"
+BRIDGE_CLOSED = {
+    "getMe": _ACCESS, "getAccess": _ACCESS, "applyAccess": _ACCESS, "syncCatalog": _ACCESS,
+    "listAccessUsers": _ACCESS, "listAccessGroups": _ACCESS, "listAccessHistory": _ACCESS, "listAccessCellHistory": _ACCESS,
+    "listRoleObjects": _ACCESS, "listStreamAccounts": _ACCESS, "createStreamAccount": _ACCESS, "patchStreamAccount": _ACCESS,
+    "deleteStreamAccount": _ACCESS, "resetStreamAccountPassword": _ACCESS,
+    "revertOperation": _REDO, "redoOperation": _REDO, "retryFailedOperation": _REDO,
+    "pauseOperation": _OLD, "resumeOperation": _OLD,
+    "listMaintenanceWindows": _OLD, "createMaintenanceWindow": _OLD, "getMaintenanceWindow": _OLD,
+    "putMaintenanceWindow": _OLD, "deleteMaintenanceWindow": _OLD,
+    "openUnitSetupUi": "адрес страницы берёт сам consolem",
+    "patchSettings": _SYSTEM, "listLicenseKeys": _SYSTEM, "getLicenseKey": _SYSTEM, "createLicenseKey": _SYSTEM,
+    "patchLicenseKey": _SYSTEM, "deleteLicenseKey": _SYSTEM,
+    "exportJournal": "файл журнала — рамка не сохраняет файлы",
+    "createRule": _AUTOMATION, "putRule": _AUTOMATION, "updateRules": _AUTOMATION, "reorderRules": _AUTOMATION,
+    "listRuleFires": _AUTOMATION, "listRuleVersions": _AUTOMATION, "testRule": _AUTOMATION, "runRule": _AUTOMATION,
+    "retryRuleFire": _AUTOMATION, "createSchedule": _AUTOMATION, "putSchedule": _AUTOMATION, "deleteSchedule": _AUTOMATION,
+    "listDayGroups": _AUTOMATION, "createDayGroup": _AUTOMATION, "getDayGroup": _AUTOMATION, "putDayGroup": _AUTOMATION,
+    "deleteDayGroup": _AUTOMATION, "putModes": _AUTOMATION, "setModeCurrent": _AUTOMATION,
+    "listRulePrompts": "работа оператора — ответ на вопрос правила", "answerRulePrompt": "работа оператора — ответ на вопрос правила",
+    "putScenarios": "документ сценариев правит consolem",
+    "startUnitLive": _LIVE, "moveUnitLive": _LIVE,
+    "startUnitTalk": _VIDEO, "getUnitTimeline": _VIDEO, "getUnitPlayback": _VIDEO, "listUnitHolds": _VIDEO,
+    "createUnitHold": _VIDEO, "deleteHold": _VIDEO, "verifyHold": _VIDEO, "listUnitBookmarks": _VIDEO,
+    "createUnitBookmark": _VIDEO, "fetchUnitArchive": _VIDEO, "putUnitPtz": _VIDEO, "deleteUnitPtz": _VIDEO,
+    "putUnitPreset": _VIDEO, "deleteUnitPreset": _VIDEO, "getUnitRecordingDays": _VIDEO,
+    "putUnitRecordingTarget": "запись настройки мимо черновика карточки",
+    "getExportGrant": _EXPORT, "getExportReference": _EXPORT, "checkExport": _EXPORT, "listExports": _EXPORT,
+    "createExport": _EXPORT, "getExport": _EXPORT, "deleteExport": _EXPORT, "cancelExport": _EXPORT,
+    "retryExport": _EXPORT, "getExportFileLink": _EXPORT,
+    "listArchiveWatches": _STORAGE, "createArchiveWatch": _STORAGE, "patchArchiveWatch": _STORAGE, "deleteArchiveWatch": _STORAGE,
+    "listArchiveScans": _STORAGE, "createArchiveScan": _STORAGE, "deleteArchiveScan": _STORAGE,
+    "stream": "поток — вместо него сообщение subscribe", "putStreamWatch": "поток — вместо него сообщение subscribe",
+    "assistTurn": "ассистент — служебное",
+    "testReset": _TEST, "testClock": _TEST, "testEvent": _TEST, "testStreamElsewhere": _TEST, "testPutKind": _TEST,
+}
+
+
+def bridge_specs():
+    """Описания, чьи операции размечает x-bridge: api/openapi.json и, если появятся, api/*.openapi.json и api/profiles/*.openapi.json."""
+    out = [(f"{API}/openapi.json", load(f"{API}/openapi.json"))]
+    for pat in (f"{API}/*.openapi.json", f"{API}/profiles/*.openapi.json"):
+        for p in sorted(glob.glob(os.path.join(ROOT, pat))):
+            out.append((os.path.relpath(p, ROOT), load(os.path.relpath(p, ROOT))))
+    return out
+
+
+def bridge_problems(specs, closed=None, draft=None, read_post=None):
+    """Отказы разметки x-bridge и счёт {read, act, draft, closed} по описаниям specs: [(имя, описание)]."""
+    closed = BRIDGE_CLOSED if closed is None else closed
+    draft = BRIDGE_DRAFT if draft is None else draft
+    read_post = BRIDGE_READ_POST if read_post is None else read_post
+    problems, count, seen = [], {"read": 0, "act": 0, "draft": 0, "closed": 0}, set()
+    for name, spec in specs:
+        for path, item in spec.get("paths", {}).items():
+            for method in METHODS:
+                op = item.get(method)
+                if not isinstance(op, dict):
+                    continue
+                oid = op.get("operationId") or f"{method.upper()} {path}"
+                where = f"{name}: {oid}"
+                seen.add(oid)
+                has = "x-bridge" in op
+                val = op.get("x-bridge")
+                test = path.startswith("/test/") or "test-support" in (op.get("tags") or [])
+                if not has:
+                    if oid in closed:
+                        count["closed"] += 1
+                    else:
+                        problems.append(f"{where}: нет x-bridge и нет в BRIDGE_CLOSED")
+                    continue
+                if oid in closed:
+                    problems.append(f"{where}: есть x-bridge и строка в BRIDGE_CLOSED — нужно одно")
+                if test:
+                    problems.append(f"{where}: x-bridge у служебной операции (/test/*, test-support)")
+                if op.get("deprecated"):
+                    problems.append(f"{where}: x-bridge у устаревшей операции")
+                if val not in BRIDGE_VALUES:
+                    problems.append(f"{where}: x-bridge {val!r} — не из {', '.join(BRIDGE_VALUES)}")
+                    continue
+                if val == "read" and method != "get" and oid not in read_post:
+                    problems.append(f"{where}: read у {method.upper()} — только GET или BRIDGE_READ_POST")
+                if val == "draft" and oid not in draft:
+                    problems.append(f"{where}: draft — только операции BRIDGE_DRAFT")
+                count[val] += 1
+    problems += [f"BRIDGE_CLOSED: {oid} — такой операции нет ни в одном описании" for oid in sorted(set(closed) - seen)]
+    return problems, count
+
+
+def check_bridge(rep, specs):
+    problems, c = bridge_problems(specs)
+    rep.check("Мост страницы: x-bridge у каждой операции или причина в BRIDGE_CLOSED", problems,
+              f"read {c['read']}, act {c['act']}, draft {c['draft']}, закрыто {c['closed']}")
 
 
 # ===== 2. Эталонный набор =====
@@ -1559,6 +1675,7 @@ def main():
     large = with_tables(load(f"{API}/fixtures/large.json"))
     agents = with_tables(load(f"{API}/fixtures/agents.json"))
     check_contract(rep, spec)
+    check_bridge(rep, bridge_specs())
     check_fixture(rep, spec, fx)
     check_fixture(rep, spec, profile, "Набор one-domain")
     check_fixture(rep, spec, large, "Набор large")
