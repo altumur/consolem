@@ -43,12 +43,15 @@
     const env = await makeEnv();
     const r1 = agentRule();
     const agent = (await ofKind(env, "agent.agent"))[0];
+    // Режим по расписанию зависит от часа прогона (у agents «Рабочее время» в будни 08:00–20:00 выключает это правило):
+    // на час теста — вручную «Обычная работа» (modeId null), она правил не выключает
+    await env.ok("POST", "/modes/current", { modeId: null, until: new Date(env.now + 3600e3).toISOString() });
     assert.status(await failed(env, agent.uid), 200);
     const fire = await env.until(async () => (await env.list(`/rules/${r1.id}/fires`))[0], "запуск правила");
     assert.eq([fire.result, fire.steps.filter((s) => s.action).length], ["ok", 1], "действие start выполнено");
     assert.status(await env.call("POST", `/rules/${r1.id}/fires/${fire.id}/retry`, { idempotencyKey: key() }), 409, "NOT_RUNNABLE", "нечего повторять");
     assert.status(await env.call("POST", "/test/stream-elsewhere"), 204);
-  }, { needs: [AGENT, "retryRuleFire", "listRuleFires", "testEvent", "testStreamElsewhere"] });
+  }, { needs: [AGENT, "retryRuleFire", "listRuleFires", "testEvent", "testStreamElsewhere", "setModeCurrent"] });
 
   test("Агенты: вопрос оператору — запуск ждёт, ответ «да» открывает ветку", async () => {
     const env = await makeEnv();
