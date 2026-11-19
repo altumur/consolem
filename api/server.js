@@ -670,7 +670,7 @@
     };
     // Движок правил — на складе объектов и описаниях видов. Список видов — тот же, пока его не сменило новое описание (onPut).
     // Каталог — reference системы; условия и проверки профилей — хуки вида (hooksOf), действия профилей — Profiles.RULE_ACTIONS;
-    // область цели — ветка раскладки (layoutDescendants, раздел «Дерево»)
+    // область цели — вся ветка раскладки (layoutDescendants без предела, раздел «Дерево»)
     const engine = Engine.create({
       tz: () => db.timezone, store: () => store, kinds: () => kindList || (kindList = kinds.list()),
       rules: () => db.rules, schedules: () => db.schedules, dayGroups: () => db.dayGroups, modes: () => db.modes, manualMode: () => db.modeManual,
@@ -2888,8 +2888,9 @@
       });
       return rows;
     }
-    // Объекты под узлом в раскладке (область цели правила): вширь, не больше limit
+    // Объекты под узлом в раскладке (область цели правила): вширь, не больше limit; без limit — вся ветка
     function layoutDescendants(layout, nodeId, limit) {
+      if (limit == null) limit = Infinity;
       const out = [], seen = new Set(), queue = [nodeId];
       while (queue.length && out.length < limit) {
         const at = queue.shift();

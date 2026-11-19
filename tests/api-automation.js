@@ -227,6 +227,39 @@
     for (const a of agents) assert.eq(await hears(env, t, a.uid), inBranch.has(a.uid), `событие агента «${a.name}»`);
   }, { needs: ["testRule", "kind:agent.agent", "layout:folders", "listUnits", "getTreeChildren"] });
 
+  test("Область цели целиком: предел selectMax область не урезает — шаг доходит до каждого объекта ветки, с раскладкой и без", async () => {
+    const env0 = await makeEnv();
+    const on = (await env0.ok("GET", "/reference")).ruleTargets;
+    const kinds = (await env0.ok("GET", "/kinds")).items;
+    const actOf = (kind) => ((kinds.find((k) => k.kind === kind) || {}).actions || []).find((a) => a.ruleAction);
+    // Область с раскладкой (сервер, иначе первая из areaLayouts) — узел с самой большой веткой среди объектов этой области
+    const al = on.areaLayouts || {};
+    const [code, lay] = al.server ? ["server", al.server] : Object.entries(al)[0] || [];
+    assert.ok(code, "система объявила раскладку области");
+    const homes = await env0.list(`/units?kind=${encodeURIComponent(code)}&limit=50`);
+    let best = null;
+    for (const h of homes.slice(0, 8)) {
+      const b = (await branch(env0, lay, h.uid)).filter((n) => actOf(n.kind));
+      if (!best || b.length > best.b.length) best = { h, b };
+    }
+    // Самый частый в ветке вид с действием правил: шаг — его действие на всю область
+    const count = {};
+    best.b.forEach((n) => (count[n.kind] = (count[n.kind] || 0) + 1));
+    const kind = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+    const want = best.b.filter((n) => n.kind === kind).map((n) => n.id).sort();
+    assert.ok(want.length > 2, `в ветке больше двух объектов вида ${kind}: ${want.length}`);
+    const run = async (env) => {
+      const r = sysRule([{ type: "unitAction", action: actOf(kind).id, target: area(code, best.h.uid), params: {} }]);
+      const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: Object.assign(r, { enabled: false }), events: [], at: null, branches: {}, log: false });
+      return f.steps.filter((s) => !s.control && s.deviceId).map((s) => s.deviceId).filter((id) => want.includes(id)).sort();
+    };
+    const limits = { selectMax: 2 };
+    assert.eq(await run(await makeEnv({ fixturePatch: { reference: { limits } } })), want, `область ${code} по раскладке ${lay}: selectMax 2 — все объекты ветки`);
+    // Без строки areaLayouts — область целиком: тоже без предела
+    const whole = await run(await makeEnv({ fixturePatch: { reference: { limits, ruleTargets: { areaLayouts: { [code]: null } } } } }));
+    assert.ok(whole.length > 2, `область ${code} целиком: selectMax 2 — не урезана (${whole.length} из ${want.length})`);
+  }, { needs: ["testRule", "layout:servers", "listUnits", "getTreeChildren"] });
+
   /* ----- Поля правила ----- */
 
   test("Правило: годность действия — 30 по умолчанию, 10–600, вне границ — 422", async () => {

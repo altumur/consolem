@@ -2310,8 +2310,8 @@
   ];
   // Проверки шага check профилей — когда система не объявила reference.ruleChecks (до следующей ломающей версии контракта)
   const RULE_CHECKS = [
-    { what: "record", implements: ["vms.camera/1"] },
-    { what: "safe", implements: ["vms.camera/1"] },
+    { what: "record", implements: ["vms.camera/1"], depth: true },
+    { what: "safe", implements: ["vms.camera/1"], depth: true },
     { what: "armed", implements: ["vms.camera/1"] },
   ];
 

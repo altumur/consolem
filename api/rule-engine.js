@@ -324,29 +324,28 @@
       return out;
     }
     // Область целиком (у области нет раскладки в ruleTargets.areaLayouts): всё под объектом — дочерние, объекты в папке,
-    // объекты со ссылкой на него — и так вглубь, не больше limit
-    function underAll(uid, limit) {
-      const out = new Map(), queue = [uid], seen = new Set([uid]);
-      while (queue.length && out.size < limit) {
+    // объекты со ссылкой на него — и так вглубь. Предела нет: правило доходит до каждого объекта области
+    function underAll(uid) {
+      const out = [], queue = [uid], seen = new Set([uid]);
+      while (queue.length) {
         const at = queue.shift();
         for (const u of [...store().byParent(at), ...store().byFolder(at), ...(store().byRef ? store().byRef(at) : [])]) {
           if (seen.has(u.uid)) continue;
           seen.add(u.uid);
-          out.set(u.uid, recOf(u));
+          out.push(u);
           queue.push(u.uid);
-          if (out.size >= limit) break;
         }
       }
       return out;
     }
-    // Объекты области {area, uid}: раскладка из ruleTargets.areaLayouts — объекты под узлом uid в ней (как /tree/children
-    // вглубь); нет раскладки — область целиком, у области системы (домена) — все её объекты. Не больше limits.selectMax
-    function areaDevs(area, uid) {
-      const r = ref(), limit = ((r.limits || {}).selectMax) || 500;
-      const lay = ((r.ruleTargets || {}).areaLayouts || {})[area];
-      const got = lay && world.layoutDescendants ? world.layoutDescendants(lay, uid, limit) : null;
-      if (got) return new Map(got.map((u) => [u.uid, recOf(u)]));
-      return underAll(uid, limit);
+    // Объекты видов kinds в области {area, uid}: раскладка из ruleTargets.areaLayouts — вся ветка узла uid в ней (как
+    // /tree/children вглубь); нет раскладки — область целиком. Предела (limits.selectMax) у области нет: обходится вся ветка,
+    // вид отбирается на обходе, запись движка строится только для подошедших
+    function areaDevs(area, uid, kinds) {
+      const lay = ((ref().ruleTargets || {}).areaLayouts || {})[area];
+      const got = (lay && world.layoutDescendants ? world.layoutDescendants(lay, uid, Infinity) : null) || underAll(uid);
+      const ok = new Set(kinds);
+      return got.filter((u) => ok.has(u.kind)).map(recOf);
     }
     // Цель → строки-элементы, как их сортирует интерфейс: объект — uid, область — вид:uid, удалённое — gone:имя
     const toks = (t) => (t ? [...t.include.map((x) => (x.area ? `${x.area}:${x.uid}` : x.uid)), ...t.gone.map((g) => "gone:" + g)].sort() : []);
@@ -359,7 +358,7 @@
       if (k === "gone" || !tok) return [];
       const lay = ((ref().ruleTargets || {}).areaLayouts || {})[k];
       if (k === "domain" && !lay) return all().filter((n) => n.domainId === v);
-      if (k) return [...areaDevs(k, v).values()].filter((n) => kinds.includes(n.type));
+      if (k) return areaDevs(k, v, kinds);
       const n = devById(tok);
       return n ? [n] : [];
     }
@@ -619,7 +618,8 @@
         const kinds = checkKinds(c);
         if (c.target.fromEvent && !srcOk(r, kinds)) return msg("control.noEventDevice", { control: c.control });
         if (isGroup(c.target) && !broken(c.target) && !nodes(c.target, kinds).length) return msg("control.areaEmpty", { control: c.control });
-        if ((c.what === "record" || c.what === "safe") && !(c.depthSec >= 1 && c.depthSec <= 86400)) return msg("control.depth", { control: c.control });
+        // Глубина depthSec нужна проверке, у которой в каталоге depth: true (у VMS — record, safe)
+        if ((checkDesc(c) || {}).depth && !(c.depthSec >= 1 && c.depthSec <= 86400)) return msg("control.depth", { control: c.control });
         return null;
       }
       if (c.control === "waitEvent") {

@@ -28136,13 +28136,15 @@
     "what": "record",
     "implements": [
      "vms.camera/1"
-    ]
+    ],
+    "depth": true
    },
    {
     "what": "safe",
     "implements": [
      "vms.camera/1"
-    ]
+    ],
+    "depth": true
    },
    {
     "what": "armed",
