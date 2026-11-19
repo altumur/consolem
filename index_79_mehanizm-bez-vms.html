@@ -4137,8 +4137,105 @@ function setGroupAll(g){
   const on=g==="folder";
   Object.keys(groupBy).forEach(s=>{groupBy[s]=on?"folder":s==="det"?"kind":"server"});
 }
-function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
+function sliceGroups(){return sliceGroupsOf(slice)}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
+// ── Раскладки дерева от системы ──────────────────────────────────────────
+// Раскладки дерева объявляет система: GET /kinds → layouts (TreeLayout). TREE_LAYOUTS — они в порядке объявления; null —
+// система их не прислала (бэкенд до контракта 0.26.0): у него прежние четыре раскладки и прежние шесть срезов.
+// Срез экрана виден, если система объявила хоть одну его раскладку (SLICE_LAYOUTS); «Камеры» и «ОПС/СКД» при объявленных
+// раскладках — ещё и вид этого среза (x-ui-category.view). Группировка среза — только по объявленной раскладке (GROUP_LAYOUT):
+// одна осталась — кнопка «Папки» неактивна. Своя раскладка системы (не из четырёх) — срез lay:<id>: подпись, значок и
+// подсказка — от системы, группировка одна (layout), дерево — узлы GET /tree/children этой раскладки (treeLay)
+let TREE_LAYOUTS=null;
+const LAYOUTS_BASE=["folders","servers","archives","detectors"];
+const SLICE_LAYOUTS={all:["folders","servers"],cam:["folders","servers"],acfa:["folders","servers"],srv:["servers"],arch:["archives"],det:["detectors"]};
+const SLICE_VIEW={cam:"cam",acfa:"acfa"};
+const GROUP_LAYOUT={folder:"folders",server:"servers",kind:"detectors"};
+function layoutsHave(layouts,id){return layouts===null?LAYOUTS_BASE.includes(id):(layouts||[]).some(l=>l?.id===id)}
+function layoutDeclared(id){return layoutsHave(TREE_LAYOUTS,id)}
+function kindsViewHas(view){for(const k of KINDS.values())if((k["x-ui-category"]||[]).some(c=>c?.view===view))return true;return false}
+function slicesFor(layouts){
+  const base=Object.keys(SLICE_LAYOUTS).filter(s=>SLICE_LAYOUTS[s].some(id=>layoutsHave(layouts,id))&&(layouts===null||!SLICE_VIEW[s]||kindsViewHas(SLICE_VIEW[s])));
+  return[...base,...(layouts||[]).filter(l=>l?.id&&!LAYOUTS_BASE.includes(l.id)).map(l=>"lay:"+l.id)];
+}
+function isLaySlice(s=slice){return String(s).startsWith("lay:")}
+function sliceLayoutOf(s=slice){return isLaySlice(s)&&TREE_LAYOUTS?TREE_LAYOUTS.find(l=>"lay:"+l.id===s)||null:null}
+function sliceShown(s){return slicesFor(TREE_LAYOUTS).includes(s)}
+function sliceLabel(s){const l=sliceLayoutOf(s);return l?textOf(l.label)||l.id:SLICE[s]||""}
+function sliceIcon(s){const l=sliceLayoutOf(s);return l?l.icon||"folder":SLICE_IC[s]}
+function sliceGroupsOf(s){
+  const all=SLICE_GROUPS[s]||["folder"],g=all.filter(x=>!GROUP_LAYOUT[x]||layoutDeclared(GROUP_LAYOUT[x]));
+  return g.length?g:all;
+}
+// Раскладки пришли (kindsLoad): срез lay:<id> — по одному на свою раскладку. Срез, которого больше нет, уходит на первый
+// видимый. Итог — сменился ли набор срезов: шапку дерева тогда рисуют заново
+let slicesSig="";
+function layoutsApply(layouts){
+  TREE_LAYOUTS=Array.isArray(layouts)?layouts.filter(l=>l&&typeof l.id==="string"):null;
+  Object.keys(SLICE_GROUPS).forEach(s=>{if(isLaySlice(s))delete SLICE_GROUPS[s]});
+  (TREE_LAYOUTS||[]).forEach(l=>{if(!LAYOUTS_BASE.includes(l.id))SLICE_GROUPS["lay:"+l.id]=["layout"]});
+  const shown=slicesFor(TREE_LAYOUTS);
+  if(!shown.includes(slice)&&shown.length){slice=shown[0];syncViews()}
+  const sig=shown.join()+"|"+(TREE_LAYOUTS||[]).map(l=>textOf(l.label)+"/"+textOf(l.hint)+"/"+(l.icon||"")).join();
+  const changed=sig!==slicesSig;slicesSig=sig;
+  return changed;
+}
+// Узлы своих раскладок (TreeNode): у объекта — по ним стрелка, у узла группы (group: true) — своя строка
+const layNodes=new Map();
+function layNode(layout,id){return layNodes.get(layout+"|"+id)||null}
+// Переход к объекту в своей раскладке раскрывает его место: по прочитанным веткам (parentId узла — место в раскладке), иначе
+// по GET /tree/paths и чтению веток цепочки (layPlace). Объект вне раскладки сервер ставит под областью или родителем, но в
+// ветке его нет: тогда layMiss (раскладка|id), и переход (reveal, revealSearch) ищет место в других своих раскладках, затем
+// в остальных срезах (layElsewhere). Смена среза (treeOpenRestore) срез не меняет: открытый объект остаётся открытым без
+// строки. Шага группы в цепочке нет: группы ветки родителя читаются, если объекта нет среди её узлов
+let layMiss=null;
+async function layBranch(lay,id){
+  for(let i=0;i<800;i++){
+    const b=treeBr.get(lay+"|"+id);
+    if(b&&!b.busy)return b;
+    if(b)await new Promise(r=>setTimeout(r,25));else await treeLoad(lay,id);
+  }
+  return treeBr.get(lay+"|"+id)||null;
+}
+// Узлы над объектом в прочитанных ветках раскладки: от родителя до области
+function layUp(lay,id){const out=[],seen=new Set();for(let p=layNode(lay,id)?.parentId;p&&!seen.has(p);p=layNode(lay,p)?.parentId){seen.add(p);out.push(p)}return out}
+// Место объекта в раскладке: узлы, которые надо раскрыть; null — объекта в раскладке нет. Ветка родителя не дочитана или не
+// прочиталась — узлы цепочки: объект, может быть, на следующей странице
+async function layPlace(lay,id){
+  if(layNode(lay,id))return layUp(lay,id);
+  const r=await API.get("/tree/paths",{layout:lay,ids:id});
+  const c=r.items?.find(x=>x.id===id)?.chains?.[0];
+  if(!c||c.length<2)return null;
+  // Ветки цепочки — по порядку: стрелку узла даёт ветка его родителя. Ветку может уже читать перерисовка — её ждём
+  for(const x of c.slice(0,-1))await layBranch(lay,x.id);
+  const pid=c[c.length-2].id;
+  if(!layNode(lay,id))for(const g of(treeBr.get(lay+"|"+pid)?.items||[]).filter(x=>x.group))await layBranch(lay,g.id);
+  if(layNode(lay,id))return layUp(lay,id);
+  const b=treeBr.get(lay+"|"+pid);
+  return b&&b.done&&!b.failed?null:c.slice(0,-1).map(x=>x.id);
+}
+function layExpand(id,reveal=false){
+  const lay=treeLayout();
+  if(layMiss===lay+"|"+id||domains.some(d=>d.id===id))return;
+  if(layNode(lay,id)){layUp(lay,id).forEach(p=>open.add(p));return}
+  if(!can("getTreePaths"))return;
+  const gone=()=>treeLayout()!==lay||sel!==id||app!=="hw";
+  layPlace(lay,id).then(async up=>{
+    if(gone())return;
+    if(up){up.forEach(p=>open.add(p));revealAt=Date.now();renderTreeSoon();return}
+    layMiss=lay+"|"+id;
+    if(reveal)await layElsewhere(id,lay);
+  }).catch(()=>{});
+}
+async function layElsewhere(id,from){
+  for(const l of TREE_LAYOUTS||[]){
+    if(LAYOUTS_BASE.includes(l.id)||l.id===from)continue;
+    const up=await layPlace(l.id,id).catch(()=>undefined);
+    if(sel!==id||app!=="hw"||treeLayout()!==from)return;
+    if(up){setSlice("lay:"+l.id);up.forEach(p=>open.add(p));revealAt=Date.now();renderTree();revealSel();return}
+  }
+  revealSel();
+}
 // Старые оси остаются производными: их читает половина кода, и переписывать
 // её ради переименования значило бы менять работающее без причины.
 // По умолчанию дерево занимает 30% окна. Границы ограничивают ширину панели,
@@ -4494,11 +4591,12 @@ async function kindsLoad(){
   KINDS.clear();(r.body.items||[]).forEach(k=>KINDS.set(k.kind,k));
   KIND_PROFILES.clear();(r.body.profiles||[]).forEach(p=>{if(p?.id)KIND_PROFILES.set(p.id,p)});
   kindsApply();
+  kindsSlicesChanged=layoutsApply(r.body.layouts);
   return true;
 }
 // Описания видов поменялись (плагин поставили или обновили): каталоги заново, открытая карточка — перерисовкой.
 // Черновик живёт в объекте кэша и снимке «до», описания вида в нём нет — он не теряется
-let kindsBusy=null;
+let kindsBusy=null,kindsSlicesChanged=false;
 function kindsChanged(){
   if(kindsBusy)return kindsBusy;
   kindsBusy=kindsLoad().then(async changed=>{
@@ -4506,7 +4604,8 @@ function kindsChanged(){
     // Сбой пересборки узлов не прячется: в консоль браузера, как сторож индекса
     const note=await kindsRescreen().catch(e=>{console.error("kindsRescreen",e);return null});
     treeMatchCache.clear();searchMatchCache.clear();
-    if(app==="hw"){renderTreeSoon();gear()}
+    // Сменились срезы (раскладку добавили, сняли или переименовали) — шапка дерева заново, вместе с деревом
+    if(app==="hw"){if(kindsSlicesChanged){treeReset();aside()}else renderTreeSoon();gear()}
     // Уведомление — после чтения записи открытой карточки: иначе отказ этого чтения закрыл бы его своим
     if(note)(sel&&find(sel)?.n?._row?hwFull(sel).catch(e=>console.error("kindsChanged: hwFull",e)):Promise.resolve()).finally(()=>toast(note));
   }).catch(e=>console.error("kindsChanged: kindsLoad",e)).finally(()=>{kindsBusy=null});
@@ -8476,6 +8575,7 @@ function prepareSliceBranches(){
 }
 function addCtx(){return srv(sel)}
 function expandTo(id,ctx){
+  if(isLaySlice()){layExpand(id);return}
   let f=find(id);if(!f)return;
   let p=f.p?find(f.p.id):null;
   // Серверный детектор виден под GPU, а не под камерой на сервере: её не раскрываем. Встроенный — под камерой
@@ -8555,6 +8655,8 @@ function revealSel(done){
 // панель, aside), "miss" — строки нет нигде, срез прежний
 function revealSearch(has){
   if(has(sel)||hasActiveFilters()||slice==="arch"&&archStaysInSlice(find(sel)?.n))return null;
+  // Своя раскладка: место цели — в ней (layExpand). Срезы перебираются, только если в этой раскладке объекта нет (layMiss: раскладка|id)
+  if(isLaySlice()&&layMiss!==treeLayout()+"|"+sel){layExpand(sel,true);treeHtmlKeep(treeHtmlNow());return"miss"}
   // Папки устройства называет только полная запись: пока её нет, «не в папке» ещё ничего не значит и «Папки» не трогаем
   const id=sel,node=find(id)?.n;
   if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return"wait"}
@@ -8564,10 +8666,10 @@ function revealSearch(has){
   // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
   const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);html=treeHtmlNow();return treeHtmlHas(html,sel)};
   // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
-  const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
+  const hit=[slice,...slicesFor(TREE_LAYOUTS)].some(s=>[...sliceGroupsOf(s)].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
     const gw=groupBy[s];
     slice=s;groupBy[s]=g;syncViews();
-    if(look()){if(SLICE_GROUPS[s].includes("folder"))setGroupAll(g);return true}
+    if(look()){if(sliceGroupsOf(s).includes("folder"))setGroupAll(g);return true}
     groupBy[s]=gw;return false;
   }));
   if(!hit){slice=was;syncViews();look()}
@@ -8662,7 +8764,7 @@ function applyDeepLink(){
   // Новые ссылки: #node=…&slice=…&group=…&tab=…; старые (app=dev|srvs&view=…)
   // читаются тем же кодом — адрес, разосланный коллегам, не должен протухать.
   const sl=normSlice(p.get("slice")||({dev:"cam",srvs:"srv"}[p.get("app")||""])||(p.get("view")==="sys"?"srv":p.get("view"))||null);
-  if(sl&&SLICE_GROUPS[sl]){slice=sl;syncViews()}
+  if(sl&&SLICE_GROUPS[sl]&&sliceShown(sl)){slice=sl;syncViews()}
   const g=p.get("group");
   if(g&&sliceGroups().includes(g)&&sliceGroups().includes("folder"))setGroupAll(g);
   {const fn=find(id)?.n;if(fn&&p.get("form"))formAllByKind.set(tabMemKey(fn),p.get("form")==="all")}
@@ -8677,7 +8779,7 @@ function registerJumpSource(fn){jumpSources.push(fn)}
 let goSel=0,goHits=[],goNav=false;
 registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",
   go(){goApp(a.id)}})));
-registerJumpSource(()=>Object.entries(SLICE_SW).map(([id,l])=>({kind:"Срез",title:i18n(l),sub:SLICE[id],icon:SLICE_IC[id],
+registerJumpSource(()=>slicesFor(TREE_LAYOUTS).map(id=>({kind:"Срез",title:SLICE_SW[id]?i18n(SLICE_SW[id]):sliceLabel(id),sub:sliceLabel(id),icon:sliceIcon(id),
   go(){goApp("hw");setSlice(id)}})));
 registerJumpSource(()=>sysOpts.map(o=>({kind:"Опции",title:o.n,sub:i18n("Страница опций"),icon:"svcs",goId:"opt:"+o.id,
   go(){goApp("sys");sys=o.id;paint()}})));
@@ -8703,7 +8805,7 @@ registerJumpSource(()=>{                          // закладки выбра
     go(){goApp("hw");tab=id;paint()}}));
 });
 registerJumpSource(()=>favs.map((f,i)=>({  // избранное — тоже цели перехода
-  kind:"Избранное",title:f.name,sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),
+  kind:"Избранное",title:f.name,sub:find(f.id)?sliceLabel(f.slice):i18n("удалён"),
   icon:f.type||"camera",goId:f.id,go(){goFav(i)}})));
 registerJumpSource(()=>{                          // объекты дерева
   // То, что уже в избранном, не двоится: ярлык ведёт точнее.
@@ -8875,7 +8977,7 @@ function goSearch(v){
   if(!q){                                         // просто клик — недавнее и разделы
     // Избранное первым: это то, куда возвращаются чаще всего.
     const fav=favs.slice(0,6).map((f,i)=>({kind:"Избранное",title:f.name,
-      sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
+      sub:find(f.id)?sliceLabel(f.slice):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
     const favIds=new Set(favs.map(f=>f.id));
     const rec=recent.filter(id=>!favIds.has(id)).map(id=>{const f=find(id);return f?jumpNodeTarget(f.n):null}).filter(Boolean).slice(0,6);
     const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
@@ -9513,7 +9615,7 @@ function countFiltered(){
 }
 function filterTags(){
   const tags=[];
-  [...typeFilts].forEach(id=>{const lab=(TYPE_FILTERS[slice].find(x=>x[0]===id)||[])[1]||id;tags.push({id:"type:"+id,label:i18n(lab)})});
+  [...typeFilts].forEach(id=>{const lab=((TYPE_FILTERS[slice]||[]).find(x=>x[0]===id)||[])[1]||id;tags.push({id:"type:"+id,label:i18n(lab)})});
   if(asstPick)tags.unshift({id:"asst",label:asstPickLabel()});
   if(strictIdSearch)tags.push({id:"strict-id",label:i18n("Фильтр строго по id")});
   else [...searchFields].forEach(id=>tags.push({id:"field:"+id,label:i18n(FIELD_LABELS[id]||id)}));
@@ -10104,7 +10206,7 @@ function favRowHtml(f,i){
   const gone=!n;
   const label=n?locName(n):f.name;
   // Удалённый объект не исчезает молча: ярлык остаётся и говорит об этом.
-  const sub=gone?i18n("удалён"):(SLICE_SW[f.slice]||"");
+  const sub=gone?i18n("удалён"):(SLICE_SW[f.slice]||sliceLabel(f.slice));
   return`<div class="n fav-row ${gone?"gone":""} ${!gone&&sel===f.id?"on":""}" ${onEv("click",["goFav",i])} title="${escHtml(label)}">
     <span class="tw"></span>${ic(gone?"camera":(n.type||"camera"))}<span class="nm">${escHtml(label)}</span>
     <span class="n-meta"><span class="fav-sub">${escHtml(sub)}</span><span class="n-cnt"></span><span class="n-tail"></span><button type="button" class="n-fav on" tabindex="-1" title="${i18n("Убрать из избранного")}" ${onEv("click",onEv.stop,["removeFav",i])}>${gone?lu("x"):STAR_ON}</button><span class="n-menu"></span></span></div>`;
@@ -10113,7 +10215,7 @@ function goFav(i){
   const f=favs[i];if(!f)return;
   if(!find(f.id)){toast("Объект удалён. Ярлык можно убрать");return}
   goApp("hw");
-  if(f.slice&&f.slice!==slice&&SLICE[f.slice])setSlice(f.slice);
+  if(f.slice&&f.slice!==slice&&SLICE_GROUPS[f.slice])setSlice(f.slice);
   // Статус переживает смену среза, но ярлык ведёт к объекту: если статус его прячет, снимаем, как при переходе из поиска
   if(!matchesStatus(find(f.id).n)){
     statusFilts.clear();applyFiltersFromState();aside();
@@ -10388,9 +10490,11 @@ function treePaint(){const treeEl=document.getElementById("tree");if(!treeEl){ru
 // Отрисовка идёт по кэшу, как раньше. Открытая ветка, которую ещё не читали, читается страницей и дорисовывается:
 // open меняют десятки мест, поэтому чтение решается здесь, после отрисовки, а не у каждого. Сервер отдаёт порядок сам.
 const treeBr=new Map();
-function treeLayout(){return slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
-function treeReset(){treeBr.clear();treeSkelAt.clear();sliceReads.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
+function treeLayout(){return isLaySlice()?slice.slice(4):slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
+function treeReset(){treeBr.clear();layNodes.clear();treeSkelAt.clear();sliceReads.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
 function treeOpenable(id,layout){
+  // Своя раскладка системы: область и узел со стрелкой (hasChildren) — по узлам её веток
+  if(isLaySlice())return layout===treeLayout()&&(domains.some(d=>d.id===id)||!!layNode(layout,id)?.hasChildren);
   if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
   // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
   if(id.startsWith("nofolder:"))return layout==="folders";
@@ -10467,6 +10571,7 @@ async function treeLoad(layout,id){
       await treeSkelHold(key);
       if(treeBr.get(key)!==b)return;
       await treeAdd(r.items,id,layout);
+      if(!LAYOUTS_BASE.includes(layout)){b.items=(b.items||[]).concat(r.items);r.items.forEach(x=>layNodes.set(layout+"|"+x.id,x))}
       if(r.parentCount!=null)b.count=r.parentCount;
       b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
       if(b.done||r.items.length)break;
@@ -11081,7 +11186,7 @@ function pickStatus(id){
 // (sliceCountsAll): условие и проход те же, что у sliceCount, совпадение с запросом — одно на объект
 let sliceCountMemo=null;
 function sliceCountsAll(ids){
-  ids=ids.filter(id=>id!=="srv");// «Серверы» — по перечню серверов (sliceSrvCount), без прохода кэша
+  ids=ids.filter(id=>id!=="srv"&&!isLaySlice(id));// «Серверы» — по перечню серверов (sliceSrvCount), без прохода кэша
   const q=qval(),prev=slice,out=new Map(ids.map(id=>[id,0]));
   const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
   try{
@@ -11146,6 +11251,8 @@ function sliceEstimate(id){
 // - дочитано (найдено до конца) — число.
 // wide — оценка: место под неё у кнопки есть всегда (невидимый двойник), кнопка не прыгает, когда поиск сняли
 function sliceCountInfo(id){
+  // Своя раскладка: числа нет (узлы читаются по веткам), подсказка — от системы
+  if(isLaySlice(id)){const l=sliceLayoutOf(id);return{text:"",wide:"",title:textOf(l?.hint)||sliceLabel(id)}}
   // Двойник — число без поиска: кнопка не сужается, пока идёт поиск, и соседи не ездят (как у оценки)
   if(id==="srv"){const N=sliceNum(sliceCount(id));return{text:N,wide:sliceNum(servers.filter(matchesDomain).length),title:`${i18n("Серверов")}: ${N}`}}
   const n=sliceCount(id),dom=sliceDomOnly(),f=hasActiveFilters()&&!dom,full=sliceAllRead(id)||f&&sliceFoundAll(id),N=sliceNum(n);
@@ -11168,18 +11275,19 @@ function sliceCntPaint(btn){
   if(btn.title!==k.title)btn.title=k.title;
 }
 function sliceCntsPaint(btns){withSliceCounts(btns.map(b=>b.dataset.slice),()=>btns.forEach(sliceCntPaint))}
-function panelHeadHtml(){return withSliceCounts(Object.keys(SLICE),panelHeadHtmlRun)}
+function panelHeadHtml(){return withSliceCounts(slicesFor(TREE_LAYOUTS),panelHeadHtmlRun)}
 function panelHeadHtmlRun(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
   // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
-  const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
+  // Одна объявленная раскладка у среза — переключать нечего: кнопка неактивна и называет эту раскладку
+  const canFolders=sliceGroups().includes("folder")&&sliceGroups().length>1,foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
   // «Показать в дереве» работает только с открытым объектом: без него кнопка неактивна и говорит, чего ждёт
   const revealable=!!sel&&!!find(sel);
-  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
+  const ids=slicesFor(TREE_LAYOUTS),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${escHtml(id)}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${escHtml(sliceLabel(id))}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
   return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
     ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
   </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
-    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
+    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders||group()==="folder"?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
     <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
     <button type="button" class="ph-tool" id="treeRevealBtn" ${revealable?"":"disabled"} title="${i18n(revealable?"Показать открытый объект в дереве":"Сначала открыть объект")}" aria-label="${i18n("Показать открытый объект в дереве")}" ${onEv("click",["treeReveal"])}>${TREE_IC.here}</button>
@@ -11283,7 +11391,7 @@ function setSlice(v){
   // Неизвестный срез молча оставлял дерево в полусостоянии: чипов пять, активен
   // ни один. Такой вызов приходит только из старой ссылки — игнорируем.
   v=normSlice(v);
-  if(!SLICE_GROUPS[v]||slice===v)return;
+  if(!SLICE_GROUPS[v]||slice===v||!sliceShown(v))return;
   treeOpenSave();
   // Вкладку, которую задал прежний срез («Архив» в «Хранилищах», «Детекторы» в «Детекторах»), а не человек, не переносим
   const prevSel=sel,prevN=find(sel)?.n,tabForced=!!prevN&&(tab===archSliceTab(prevN)||(slice==="det"&&handCam(prevN)&&tab==="det"));
@@ -11319,6 +11427,8 @@ function setGroup(g){
 function keepSelectionInSlice(){
   const f=find(sel);
   if(slice==="arch"){archKeepSel(f);return}
+  // Своя раскладка: открытый объект остаётся открытым, даже если его строки в ней нет
+  if(isLaySlice()){if(!f)sel=domains[0]?.id||sel;return}
   const KEEP=["domain","unalloc","server","folder","archive","vol","norec","nofolder","gpu","found","founddev","det"];
   if(f&&(typeIn(f.n,KEEP)||selfInView(f.n)))return;
   const hit=firstMatching();
@@ -12277,8 +12387,40 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
-  const h=slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  const h=isLaySlice()?treeLay():slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
   return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
+}
+// ── Дерево своей раскладки системы: узлы GET /tree/children ─────────────────
+// Срез lay:<id>: область → узлы раскладки в порядке сервера. Узел объекта — строка объекта кэша (карточка, меню), узел
+// группы — строка, которая только раскрывается. Поиск сужает прочитанные строки: строка видна, если совпала она или
+// прочитанный потомок
+function treeLay(){const lay=treeLayout();return scopedDomains().map(d=>layDomRow(d,lay)).join("")}
+function layHit(lay,x,q,seen=new Set()){
+  if(!q||matchesText(q,x.name))return true;
+  if(seen.has(x.id))return false;seen.add(x.id);
+  return(treeBr.get(lay+"|"+x.id)?.items||[]).some(y=>layHit(lay,y,q,seen));
+}
+function layDomRow(d,lay){
+  const q=qval(),kids=layKidsHtml(d.id,lay,1,q);
+  if(q&&!matchesSearch(d,q)&&!kids)return"";
+  const op=open.has(d.id)||autoExpand();
+  let h=`<div class="n srv ${sel===d.id?"on":""}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",true)}>
+    ${treeChevron(d.id,"dom",true,op)}
+    ${treeRowIcon(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(treeCount(d.id)),acts:d.id})}</div>`;
+  if(op)h+=kids+treeMoreRow(d.id,1);
+  return h;
+}
+function layKidsHtml(pid,lay,l,q){return(treeBr.get(lay+"|"+pid)?.items||[]).map(x=>layRowHtml(x,lay,l,q)).join("")}
+function layRowHtml(x,lay,l,q){
+  if(q&&!layHit(lay,x,q))return"";
+  const has=!!x.hasChildren,op=has&&(open.has(x.id)||autoExpand()&&!!q),kids=op?layKidsHtml(x.id,lay,l+1,q)+treeMoreRow(x.id,l+1):"";
+  const n=x.group?null:find(x.id)?.n;
+  let h;
+  if(!n)h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(x.id,"dom",has)} ${onEv("click",["toggleDom",x.id,onEv.event])}>
+    ${treeChevron(x.id,"dom",has,op)}${ict(!x.group&&/^[\w.-]+$/.test(x.icon||x.kind||"")?x.icon||x.kind:"folder")}<span class="nm">${hlText(x.name||"",q)}</span>${treeTail({})}</div>`;
+  else h=`<div class="n ${sel===n.id?"on":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",has)}>
+    ${treeChevron(n.id,"node",has,op)}${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeTail({acts:n.id})}</div>`;
+  return h+kids;
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
