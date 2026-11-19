@@ -158,4 +158,41 @@ UiCheck(async ({ ok, until }) => {
     ok(await until(() => w()?.appReady && w().eval("slice") === "lay:agent.models" && !!f.contentDocument.querySelector(`#tree .n.on[data-pick="${AGENT}"]`), 60000), "ссылка со срезом lay:agent.models открывает срез и строку агента: " + (w()?.appReady ? w().eval("slice") : ""));
   } finally { f.remove(); }
   setSlice("all");
+
+  // Разделы приложения объявляет система: GET /reference → capabilities.sections. Без поля — прежние разделы по операциям
+  if (typeof appsFor !== "function") { ok(true, "разделов от системы на этой странице нет: проверять нечего"); return; }
+  goApp("hw");
+  // Старый бэкенд без sections: рельс — прежние разделы по операциям (appsShown при CAPS_SECTIONS = null)
+  {
+    const declared = CAPS_SECTIONS;
+    CAPS_SECTIONS = null;
+    let old;
+    try { old = appsShown().map((a) => a.id).join(); } finally { CAPS_SECTIONS = declared; }
+    ok(appsFor(null, can).join() === old && /^hw,rules,acc,sys,log(,learn)?$/.test(old), "без sections — прежние разделы: " + old);
+  }
+  ok(appsFor(CAPS_SECTIONS, can).join() === "hw,rules,acc,log", "разделы agents: " + appsFor(CAPS_SECTIONS, can).join());
+  ok(appsFor([{ id: "automation" }], () => false).length === 0, "раздел без своих операций не виден");
+  ok(appsFor([{ id: "unknown.section" }, { id: "access" }], can).join() === "acc", "незнакомый код раздела пропущен");
+  paint();
+  const rail = [...document.querySelectorAll("#rail .asw")].map((b) => b.textContent.trim());
+  ok(rail.join() === "Агенты,Автоматизация,Права,Журнал", "рельс: " + rail.join());
+  ok(!/Оборудование|Экспорт|Опции|Обучение/.test(document.getElementById("rail").textContent), "разделов VMS на рельсе нет");
+  goApp("sys"); ok(app === "hw", "необъявленный раздел не открывается: " + app);
+  ok(appLabel("hw") === "Агенты" && appLabel("rules") === "Автоматизация", "подпись раздела — label системы, без него — подпись консоли");
+  ok(/^Агенты/.test(navTitle()), "заголовок раздела — подпись системы: " + navTitle());
+  await until(() => chip("all"));
+  ok(chip("all")?.textContent.includes("Агенты"), "срез «все» — подписью раздела: " + chip("all")?.textContent);
+  // Страницы «Опций» — по видам и операциям системы
+  ok(typeof sysPageShown === "function" && !sysPageShown({ id: "ptz" }) && !sysPageShown({ id: "export" }) && sysPageShown({ id: "ntp" }), "страницы «Опций» VMS на agents не видны, общие — видны");
+  ok(!sysOpts.some((o) => ["keys", "ptz", "cloud", "maps", "alarm", "export", "lic"].includes(o.id)), "sysOpts без страниц VMS: " + sysOpts.map((o) => o.id).join());
+  // Система объявила пустой список разделов: рельс пуст, рабочая область это говорит
+  {
+    const declared = CAPS_SECTIONS;
+    CAPS_SECTIONS = [];
+    try {
+      paint();
+      ok(!document.querySelector("#rail .asw") && /Система не объявила ни одного раздела/.test(document.getElementById("main").textContent), "sections: [] — разделов нет, текст в рабочей области");
+    } finally { CAPS_SECTIONS = declared; paint(); }
+    ok(document.querySelectorAll("#rail .asw").length === 4, "разделы вернулись");
+  }
 });
