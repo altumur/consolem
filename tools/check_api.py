@@ -1058,10 +1058,13 @@ def check_layers(rep, spec):
 
 
 def check_mechanism(rep, spec, fixtures):
-    """Механизм без VMS (tools/mechanism.py): раскладки наборов сходятся с их видами (L1–L7), описания дерева — без слов VMS (B5)."""
+    """Механизм без VMS (tools/mechanism.py): раскладки наборов сходятся с их видами (L1–L7), разделы приложения (S1–S4), описания дерева — без слов VMS (B5)."""
     problems = [p for name, fx in fixtures.items() for p in mechanism.layout_problems(fx, name)]
     rep.check("Раскладки дерева в наборах: объявления сходятся с видами", problems,
               ", ".join(f"{name}: {len(fx.get('layouts') or [])}" for name, fx in fixtures.items()))
+    problems = [p for name, fx in fixtures.items() for p in mechanism.section_problems(fx, name)]
+    rep.check("Разделы приложения в наборах: объявлены с операциями, demo — все коды", problems,
+              ", ".join(f"{name}: {len(((fx.get('reference') or {}).get('capabilities') or {}).get('sections') or [])}" for name, fx in fixtures.items()))
     rep.check("Граница механизма: без VMS в общих описаниях", mechanism.border_problems(spec),
               f"схем {len(mechanism.TREE_SCHEMAS)} и пути {mechanism.TREE_PATH_PREFIX}*")
 

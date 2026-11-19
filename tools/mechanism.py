@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Проверки механизма контракта: раскладки дерева в наборах и граница механизма без слов VMS.
+"""Проверки механизма контракта: раскладки дерева и разделы приложения в наборах, граница механизма без слов VMS.
 
 - layout_problems(fx, name) — раскладки дерева набора (KindsList.layouts, раздел layouts набора), правила L1–L7;
+- section_problems(fx, name) — разделы приложения набора (reference.capabilities.sections), правила S1–S4;
 - border_problems(spec) — описания схем и путей дерева без слов VMS (правило B5).
 
 Пустой список — проверка прошла. Строки отказа: «<набор>: раскладка <id>: …», «<схема или путь>: в описании механизма «<слово>»».
 Вызывает tools/check_api.py; самопроверка — tools/check_mechanism.py.
 """
+
+import re
 
 VMS_WORDS = ("камер", "сервер", "видео", "архив", "детектор", "хранилищ", "VMS")
 
@@ -89,6 +92,44 @@ def layout_problems(fx, name="набор"):
     return out
 
 
+# ── разделы приложения в наборе ──
+
+# Код раздела → операции, без которых раздел показать нельзя. Порядок — порядок рельса. Раздел «vms.export» — слой VMS
+SECTION_OPS = {
+    "objects": ["listKinds", "listUnits", "getTreeChildren"],
+    "automation": ["listRules"],
+    "access": ["getAccess"],
+    "journal": ["listJournal"],
+    "settings": ["getSettings"],
+    "vms.export": ["listExports"],
+}
+SECTION_ID = re.compile(r"^[a-z][A-Za-z0-9_.-]*$")
+
+
+def section_problems(fx, name="набор"):
+    """Разделы набора (reference.capabilities.sections): S1 id уникальны; S2 у раздела из SECTION_OPS объявлены все его
+    операции; S3 id по шаблону; S4 demo объявляет все коды SECTION_OPS. Нет поля sections — проверять нечего (клиент выводит
+    разделы из операций)."""
+    caps = (fx.get("reference") or {}).get("capabilities") or {}
+    if "sections" not in caps:
+        return []
+    ops = set(caps.get("operations") or [])
+    out, seen = [], set()
+    for sec in caps["sections"]:
+        sid = sec.get("id")
+        if sid in seen:
+            out.append(f"{name}: раздел {sid}: повтор id")
+        seen.add(sid)
+        if not isinstance(sid, str) or not SECTION_ID.match(sid):
+            out.append(f"{name}: раздел {sid}: id не по шаблону {SECTION_ID.pattern}")
+        lack = [o for o in SECTION_OPS.get(sid, []) if o not in ops]
+        if lack:
+            out.append(f"{name}: раздел {sid} без операций {', '.join(lack)}")
+    if name == "demo":
+        out += [f"{name}: нет раздела {code} (demo объявляет все коды SECTION_OPS)" for code in SECTION_OPS if code not in seen]
+    return out
+
+
 # ── граница механизма: без слов VMS ──
 
 def _texts(node, where):
@@ -131,6 +172,7 @@ if __name__ == "__main__":
         problems = border_problems(json.load(f))
     for n in ("demo", "one-domain", "large", "agents"):
         with open(os.path.join(root, "api", "fixtures", f"{n}.json"), encoding="utf-8") as f:
-            problems += layout_problems(json.load(f), n)
+            fxn = json.load(f)
+        problems += layout_problems(fxn, n) + section_problems(fxn, n)
     print("\n".join(problems) or "ok")
     sys.exit(1 if problems else 0)

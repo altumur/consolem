@@ -34,6 +34,7 @@ import sys
 
 import cli_paths
 import generic_legacy
+from mechanism import SECTION_OPS
 
 API = cli_paths.opt("api", "api")
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -340,6 +341,9 @@ def build(demo):
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
     # Только возможности, которые знает контракт (Feature)
     caps["features"] = [f for f in FEATURES if f in contract_features()]
+    # Разделы приложения — как у demo, без тех, чьих операций у системы нет (tools/mechanism.py, S2)
+    if "sections" in caps:
+        caps["sections"] = [x for x in caps["sections"] if all(o in caps["operations"] for o in SECTION_OPS.get(x["id"], []))]
     return fx
 
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Самопроверка tools/mechanism.py: раскладки дерева в наборах (L1–L7) и граница механизма (B5).
+"""Самопроверка tools/mechanism.py: раскладки дерева в наборах (L1–L7), разделы приложения (S1–S4) и граница механизма (B5).
 
 Каждый случай — копия живого набора или контракта с одной порчей: проверка обязана её назвать. Живые наборы
 и живой контракт обязаны проходить без отказов.
@@ -15,7 +15,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "tools"))
-from mechanism import VMS_WORDS, border_problems, layout_problems  # noqa: E402
+from mechanism import SECTION_OPS, VMS_WORDS, border_problems, layout_problems, section_problems  # noqa: E402
 
 failed = 0
 
@@ -87,6 +87,26 @@ ok(layout_problems(x) == [], "L7: без getTreeChildren раскладки не
 x = dup(demo); servers(x)["place"][1]["group"] = "нет"
 got = layout_problems(x, "one-domain")
 ok(got and all(p.startswith("one-domain: раскладка servers: ") for p in got), "отказ называет набор и раскладку")
+
+live = section_problems(demo, "demo") + section_problems(agents, "agents")
+ok(live == [], "живые наборы: разделы целы" + ("" if not live else ": " + "; ".join(live)))
+for name in ("one-domain", "large"):
+    got = section_problems(load(f"api/fixtures/{name}.json"), name)
+    ok(got == [], f"собранный набор {name}: разделы целы" + ("" if not got else ": " + "; ".join(got)))
+x = dup(demo); x["reference"]["capabilities"]["sections"].append({"id": "objects"})
+ok(any("objects" in p and "повтор" in p for p in section_problems(x, "demo")), "S1: повтор id раздела")
+x = dup(agents); x["reference"]["capabilities"]["operations"].remove("listRules")
+got = section_problems(x, "agents")
+ok(any("automation" in p and "listRules" in p and p.startswith("agents: раздел automation без операций") for p in got), "S2: раздел без своей операции")
+x = dup(demo); x["reference"]["capabilities"]["sections"].append({"id": "Bad id"})
+ok(any("Bad id" in p for p in section_problems(x, "demo")), "S3: id не по шаблону")
+x = dup(demo); x["reference"]["capabilities"]["sections"] = [s_ for s_ in x["reference"]["capabilities"]["sections"] if s_["id"] != "vms.export"]
+ok(any("vms.export" in p and "demo" in p for p in section_problems(x, "demo")), "S4: demo без раздела vms.export")
+x = dup(demo); x["reference"]["capabilities"]["sections"].append({"id": "незнакомый"})
+ok(not any("незнакомый" in p and "без операций" in p for p in section_problems(x, "demo")), "S2: незнакомый код не судится по операциям")
+x = dup(demo); del x["reference"]["capabilities"]["sections"]
+ok(section_problems(x, "agents") == [], "нет поля sections — клиент выводит разделы сам")
+ok(SECTION_OPS["vms.export"] == ["listExports"] and list(SECTION_OPS)[:5] == ["objects", "automation", "access", "journal", "settings"], "SECTION_OPS: таблица кодов")
 
 s = dup(spec); s["components"]["schemas"]["TreeLayout"]["description"] += " Камеры"
 ok(any("TreeLayout" in p and "камер" in p for p in border_problems(s)), "B5: слово VMS в механизме")

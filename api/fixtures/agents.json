@@ -2421,6 +2421,25 @@
    "features": [
     "journalSearch",
     "journalAudit"
+   ],
+   "sections": [
+    {
+     "id": "objects",
+     "label": {
+      "key": "section.agent.objects",
+      "text": "Агенты",
+      "lang": "ru"
+     }
+    },
+    {
+     "id": "automation"
+    },
+    {
+     "id": "access"
+    },
+    {
+     "id": "journal"
+    }
    ]
   },
   "serverLabels": [],

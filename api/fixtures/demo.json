@@ -53284,6 +53284,26 @@
     "exportCloud",
     "journalSearch",
     "journalAudit"
+   ],
+   "sections": [
+    {
+     "id": "objects"
+    },
+    {
+     "id": "automation"
+    },
+    {
+     "id": "access"
+    },
+    {
+     "id": "journal"
+    },
+    {
+     "id": "settings"
+    },
+    {
+     "id": "vms.export"
+    }
    ]
   },
   "serverLabels": [

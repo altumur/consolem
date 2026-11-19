@@ -27,6 +27,23 @@
     return sizes.join(", ");
   }, { needs: ["kind:camera"] });
 
+  // Разделы приложения: код → операции, без которых раздел не показать (копия SECTION_OPS из tools/mechanism.py)
+  const SECTION_OPS = { objects: ["listKinds", "listUnits", "getTreeChildren"], automation: ["listRules"], access: ["getAccess"],
+    journal: ["listJournal"], settings: ["getSettings"], "vms.export": ["listExports"] };
+
+  test("Разделы 0.27.0: capabilities.sections — коды уникальны, у раздела механизма объявлены его операции", async () => {
+    const env = await makeEnv();
+    const caps = (await env.ok("GET", "/reference")).capabilities;
+    assert.ok(Array.isArray(caps.sections), "capabilities.sections — массив");
+    const ids = caps.sections.map((s) => s.id);
+    assert.eq(new Set(ids).size, ids.length, "коды разделов уникальны");
+    ids.forEach((id) => assert.ok(/^[a-z][A-Za-z0-9_.-]*$/.test(id), `${id}: код по шаблону`));
+    for (const id of ids) {
+      for (const op of SECTION_OPS[id] || []) assert.ok(caps.operations.includes(op), `раздел ${id}: операция ${op} объявлена`);
+    }
+    return `разделов ${ids.length}: ${ids.join(", ")}`;
+  }, { needs: ["getReference"], layer: "mechanism" });
+
   test("Чтение одной записи: тело как в списке, версия в ETag", async () => {
     const env = await makeEnv();
     for (const [table, path] of TABLES) {

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.26.0",
+    "version": "0.27.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -10665,6 +10665,29 @@
           "journalAudit": "Аудит в журнале (с 0.9.0): у каждой записи actor (логин или «система»); каждое изменение через API с ответом 2xx — запись level audit, kind api.<operationId>, с fields.ip, operation, method, path и «было → стало»; в ответе GET /journal — prevCursor и offset. Без неё клиент не ждёт ни автора у каждой записи, ни записей аудита, ни prevCursor"
         }
       },
+      "AppSection": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "description": "Раздел приложения, который система показывает в консоли. Код из таблицы в описании Capabilities.sections — известный раздел; незнакомый код клиент пропускает",
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z][A-Za-z0-9_.-]*$",
+            "description": "Код раздела"
+          },
+          "label": {
+            "$ref": "#/components/schemas/Text",
+            "description": "Подпись раздела на рельсе: заменяет подпись консоли"
+          },
+          "icon": {
+            "type": "string",
+            "description": "Имя значка раздела: заменяет значок консоли. Незнакомое имя клиент заменяет значком по умолчанию"
+          }
+        }
+      },
       "Capabilities": {
         "type": "object",
         "additionalProperties": false,
@@ -10687,6 +10710,13 @@
               "$ref": "#/components/schemas/Feature"
             },
             "description": "Необязательные возможности, которые есть. Незнакомый код клиент пропускает"
+          },
+          "sections": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AppSection"
+            },
+            "description": "Разделы приложения, которые система показывает в консоли, в порядке рельса. Раздел можно объявлять, только если система выполняет его операции. Код → нужные операции: objects — listKinds, listUnits, getTreeChildren; automation — listRules; access — getAccess; journal — listJournal; settings — getSettings. Незнакомый код клиент пропускает. Нет поля — клиент выводит разделы из операций, как до 0.27.0"
           }
         }
       },
