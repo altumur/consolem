@@ -226,4 +226,26 @@ UiCheck(async ({ ok, until }) => {
   ok(await until(() => sel === fld.id), "карточка папки открыта");
   await new Promise((r) => setTimeout(r, 300));
   ok(!btns().some((t) => /Добавить в папку|Добавить устройства/.test(t)), "у папки нет «Добавить в папку»: " + btns().filter((t) => /Добавить/.test(t)).join(" | "));
+
+  // Справочники VMS и каталог правил — из описаний видов и каталога справочника (контракт 0.30.0, 0.31.0). У оркестратора
+  // устаревших ключей нет: списков VMS нет, а редактор правил предлагает только объявленное — HTTP-запрос, запуск
+  // правила и команды видов, без «Открыть раскладку». Страница со старым autoRef(ref) — проверять нечего
+  if (typeof autoRef !== "function" || autoRef.length < 2) { ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего"); return; }
+  autoRef(stripDeprecatedRef(REF_LAST), KINDS);
+  try {
+    const vmsLists = { DEVICE_MODELS: Object.keys(DEVICE_MODELS), refLabels, DET_AK_CLASH: Object.keys(DET_AK_CLASH), RULE_LAYOUTS, RULE_MONS, refScenKinds: refScenKinds || [], REF_LAYOUT: [...REF_LAYOUT], REF_MONITOR: [...REF_MONITOR] };
+    const full = Object.entries(vmsLists).filter(([, v]) => v.length).map(([k]) => k);
+    ok(!full.length && !EXP_REF, "списки VMS на agents пусты: " + (full.join() || "все") + (EXP_REF ? ", EXP_REF" : ""));
+    const offered = ACTION_KINDS.filter(actDeclared);
+    const has = (sub, action) => offered.some((k) => k.sub === sub && k.action === action);
+    ok(has("net", "http") && has("rule", "runrule"), "редактор правил предлагает net.http и rule.runrule: " + offered.map((k) => `${k.sub}.${k.action}`).join());
+    ok(offered.some((k) => k.unit && k.gen && (k.kinds || []).includes("agent.agent")), "и команды объектов (unitAction) — из описаний видов: " + offered.filter((k) => k.unit).map((k) => k.action).join());
+    ok(!has("client", "layout") && !offered.some((k) => k.sub === "client"), "«Открыть раскладку» и действия клиента VMS не предлагаются");
+    const sel = stepKindSel({ sub: "net", action: "http" }, "0", 0, 1);
+    ok(!sel.includes(i18n("Открыть раскладку")) && !sel.includes(i18n("Показать на видеостене")), "в списке вида пункта нет «Открыть раскладку» и видеостены");
+    ok(!ruleAreaOff("folder") && !ruleAreaOff("domain") && ruleAreaOff("server"), "области цели — ruleTargets.areas: папка и рабочее пространство, сервера нет");
+    // Строка условия в трассе: код хука профиля notSupported и незнакомый код — не «камера … на охране»
+    const why = fireWhy({ code: "cond.devices", params: { items: [{ deviceId: AGENT, code: "notSupported" }, { deviceId: AGENT, code: "agent.busy" }] } }, {});
+    ok(!/охран/.test(why) && /не проверяет это условие/.test(why) && /agent\.busy/.test(why) && /Агент поддержки/.test(why), "cond.devices: notSupported — своим текстом, незнакомый код — как есть: " + why);
+  } finally { autoRef(REF_LAST, KINDS); }
 });

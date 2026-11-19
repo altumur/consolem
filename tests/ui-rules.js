@@ -8,6 +8,58 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   const undo = (prefix) => [...document.querySelectorAll(".ttu")].reverse().find((e) => e.id.startsWith("ttu-" + prefix))?.querySelector(".ttu-act");
   goApp("rules");
 
+  // Справочники VMS и каталог правил — из новых мест (контракт 0.30.0, 0.31.0): производители и модели, режимы записи,
+  // метки серверов, несовместимые детекторы — из описаний видов; раскладки и мониторы — из schema полей действий;
+  // виды событий сценариев — из ScenarioDoc.kinds; справочник выгрузки — GET /exports/reference. Справочник без
+  // устаревших ключей даёт те же списки в том же порядке. Страница со старым autoRef(ref) — проверять нечего
+  if (typeof autoRef !== "function" || autoRef.length < 2) ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего");
+  else {
+    const snap = () => JSON.stringify({ models: DEVICE_MODELS, rec: refRecModes, labels: refLabels, clash: DET_AK_CLASH, lay: RULE_LAYOUTS, mons: RULE_MONS, layId: [...REF_LAYOUT], monId: [...REF_MONITOR] });
+    autoRef(REF_LAST, KINDS);
+    const full = snap(), nModels = Object.keys(DEVICE_MODELS).length, rec = refRecModes.join(), lays = RULE_LAYOUTS.join(), mons = RULE_MONS.join();
+    const oldScen = { did: SCEN.did, doc: SCEN.doc }, oldExp = EXP_REF;
+    try {
+      autoRef(stripDeprecatedRef(REF_LAST), KINDS);
+      ok(nModels > 0 && Object.keys(DEVICE_MODELS).length === nModels, `производители без reference.deviceModels — из examples и allOf видов: ${Object.keys(DEVICE_MODELS).length} из ${nModels}`);
+      ok(rec && refRecModes.join() === rec, "режимы записи без reference.recordModes — enum recordMode вида camera: " + refRecModes.join());
+      ok(lays && RULE_LAYOUTS.join() === lays, "раскладки правил без reference.layouts — schema поля layoutId: " + RULE_LAYOUTS.join());
+      ok(mons && RULE_MONS.join() === mons, "мониторы без reference.monitors — enum и x-enum-labels monitorId команды wall: " + RULE_MONS.join());
+      ok(snap() === full, "все списки без устаревших ключей — те же и в том же порядке (метки серверов, несовместимые детекторы, id раскладок и мониторов)");
+      ok(!refScenKinds || !refScenKinds.length, "виды событий сценариев без reference.scenarioKinds — до чтения документа сценариев их нет");
+      await scenLoad(domains[0].id);
+      ok((refScenKinds || []).join() === (REF_LAST.scenarioKinds || []).join() && refScenKinds.length > 0, "виды событий сценариев — ScenarioDoc.kinds: " + (refScenKinds || []).join());
+      EXP_REF = null;
+      await expRefLoad(stripDeprecatedRef(REF_LAST));
+      ok(JSON.stringify(EXP_REF) === JSON.stringify(REF_LAST.export), "справочник выгрузки без reference.export — GET /exports/reference: форматов " + (EXP_REF?.formats || []).length);
+      // Область цели «сервер» — ветка раскладки areaLayouts.server под этим сервером, а не сервер архива камеры
+      const lay = RULE_REF.targets?.areaLayouts?.server;
+      ok(lay === "servers", "область сервера — раскладка из ruleTargets.areaLayouts: " + lay);
+      const branch = async (id) => {
+        const out = [], queue = [id];
+        while (queue.length) {
+          const at = queue.shift();
+          let cursor = null;
+          do {
+            const r = await API.get("/tree/children", { layout: lay, parentId: at, limit: 1000, cursor });
+            r.items.forEach((n) => { if (!n.group && n.kind === "camera") out.push(n.id); if (n.hasChildren) queue.push(n.id); });
+            cursor = r.nextCursor || null;
+          } while (cursor);
+        }
+        return out.sort();
+      };
+      const diff = [];
+      for (const s of servers) {
+        const want = (await branch(s.id)).join(), got = ruleTokNodes("server:" + s.id, ["camera"]).map((n) => n.id).sort().join();
+        if (want !== got) diff.push(`${locName(s)}: ветка ${want.split(",").filter(Boolean).length}, форма ${got.split(",").filter(Boolean).length}`);
+      }
+      ok(servers.length > 0 && !diff.length, "камеры области сервера в форме — те же, что ветка раскладки servers: " + (diff.join("; ") || "серверов проверено: " + servers.length));
+    } finally {
+      autoRef(REF_LAST, KINDS);
+      EXP_REF = oldExp; SCEN.did = oldScen.did; SCEN.doc = oldScen.doc;
+    }
+    ok(snap() === full, "справочник вернулся");
+  }
+
   // Каталог — из справочника: незнакомый вид не подменяется, необъявленное не предлагается, в правиле — видно
   const strayT = triggerKind({ sub: "acs", kind: "pass" }), strayA = actionKind({ sub: "vms", action: "bell", ref: "x" });
   ok(strayT.label === "acs/pass" && strayA.label === "vms/bell", "незнакомый вид — с подписью-кодом: " + strayT.label + ", " + strayA.label);
