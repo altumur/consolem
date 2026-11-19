@@ -16,7 +16,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   scenSave();
   ok(await until(() => SCEN.doc.items.length === 1 && !SCEN.edit), "записан документ");
   ok(rules.length === n0, "в правилах записи нет");
-  const srv = await API.get(`/domains/${SCEN.did}/scenarios`);
+  const srv = await API.get(`/units/${SCEN.did}/scenarios`);
   ok(srv.items[0].then.n === 3 && srv.items[0].when.deviceId === cams[0].id, "на сервере: deviceId, пресет");
   ok(/нет данных от исполнителя/.test(document.getElementById("main").textContent), "пульса нет — словами");
   // Пульс исполнителя на странице не подделать: состояние задаётся как ответ двери, сам ответ проверяет tests/api-pages.js
@@ -30,7 +30,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   scenCancel();
   // Чужая правка: 412 — перечитать и сказать, что изменилось
   const base = SCEN.doc;
-  await API.put(`/domains/${SCEN.did}/scenarios`, { items: [Object.assign({}, srv.items[0], { name: "Чужое" })] }, base.version);
+  await API.put(`/units/${SCEN.did}/scenarios`, { items: [Object.assign({}, srv.items[0], { name: "Чужое" })] }, base.version);
   ok(await until(() => SCEN.doc.items[0].name === "Чужое"), "чужая правка пришла потоком");
   SCEN.doc = base;
   scenEdit(0);
