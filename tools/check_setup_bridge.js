@@ -542,6 +542,12 @@ async function run() {
     post({ proto: "setup/1", type: "result", id: cm2 && cm2.id, ok: false, status: 0, problem: { code: "BUSY", message: "занято" } });
     await tick();
     if (yes !== true || no !== false) fail("18 confirm", `итоги ${yes} ${no}`);
+    // confirm без заголовка — отказ на месте: false, сообщения нет (схема: title не короче 1 знака)
+    sent = [];
+    const noTitle = [];
+    for (const o of [{ text: "Х" }, { title: "", text: "Х" }, undefined]) s.confirm(o).then((v) => noTitle.push(v));
+    await tick();
+    if (sent.length || noTitle.length !== 3 || !noTitle.every((v) => v === false)) fail("18 confirm без заголовка", `отправлено ${JSON.stringify(sent)}, итоги ${JSON.stringify(noTitle)}`);
   }
   env();
   ({ session: s } = await connected({ autoHeight: false }));

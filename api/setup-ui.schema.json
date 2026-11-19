@@ -610,23 +610,28 @@
         "entityIds": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
-          "description": "Необязательно: uid объектов; consolem добавляет их в наблюдение потока"
+          "description": "Необязательно: uid объектов; consolem добавляет их в наблюдение потока. Не больше limits.watch из init.host.bridge: число задаёт consolem, поэтому схема его не фиксирует; строка — не длиннее 200 знаков"
         },
         "kinds": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
-          "description": "Необязательно: виды объектов"
+          "description": "Необязательно: виды объектов из /kinds (UnitKind.kind), не больше 32, каждая строка — не длиннее 200 знаков; другой вид — VALIDATION_FAILED /kinds",
+          "maxItems": 32
         },
         "types": {
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "maxLength": 200
           },
-          "description": "Необязательно: типы сообщений потока (entity.changed…); нет поля — все"
+          "description": "Необязательно: типы сообщений потока (entity.changed…); нет поля — все. Не больше 32, каждая строка — не длиннее 200 знаков",
+          "maxItems": 32
         }
       }
     },
@@ -780,7 +785,8 @@
         },
         "title": {
           "type": "string",
-          "description": "Заголовок; consolem показывает его текстом"
+          "description": "Заголовок; consolem показывает его текстом",
+          "minLength": 1
         },
         "text": {
           "type": "string",
@@ -807,7 +813,8 @@
         },
         "okLabel": {
           "type": "string",
-          "description": "Необязательно: подпись кнопки подтверждения"
+          "description": "Необязательно: подпись кнопки подтверждения",
+          "minLength": 1
         }
       }
     },

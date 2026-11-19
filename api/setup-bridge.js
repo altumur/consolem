@@ -16,6 +16,7 @@
        navigate(uid, tab?) → Promise<{id, ok, status, problem?}> — удачный переход ответа не получает: рамку закрыли.
          uid не строка или пустой — VALIDATION_FAILED с field "/uid" сразу, без сообщения.
        confirm({title, text, lose?, keep?, count?, okLabel?}) → Promise<boolean> — true, если человек подтвердил.
+         Без title (не строка или пустой) — false сразу, без сообщения.
        У navigate и confirm срока ответа нет: отвечает человек.
      SetupBridge.merge(base, patch) — JSON Merge Patch (RFC 7396); SetupBridge.diff(base, next) → patch. */
 (() => {
@@ -195,7 +196,12 @@
       }
       function confirm(opts) {
         const c = isObj(opts) ? opts : {};
-        const fields = { title: String(c.title || ""), text: String(c.text || "") };
+        // Без заголовка consolem вопрос не покажет (схема: title не короче 1 знака): отказ на месте, сообщения нет
+        if (typeof c.title !== "string" || !c.title) {
+          console.warn("SetupBridge: методу confirm нужен заголовок title строкой.");
+          return Promise.resolve(false);
+        }
+        const fields = { title: c.title, text: String(c.text || "") };
         if (strs(c.lose)) fields.lose = c.lose.slice();
         if (strs(c.keep)) fields.keep = c.keep.slice();
         if (Number.isInteger(c.count) && c.count >= 1) fields.count = c.count;
