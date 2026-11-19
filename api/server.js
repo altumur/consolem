@@ -3124,18 +3124,25 @@
       const su = (kinds.get(u.kind) || {}).setupUi;
       return su && (!su.kinds || su.kinds.includes(u.kind)) ? su : null;
     };
-    // Адрес на одно открытие: постоянный url вида (или адрес заглушки стенда) с объектом, языком и разовым ключом t
+    // Право на страницу по setupUi.mode: страница в карточке (iframe) — view, правку пишет клиент своим правом; tab — edit
+    const setupUiLevel = (su) => (su.mode === "iframe" ? "view" : "edit");
+    // Адрес на одно открытие: постоянный url вида (или адрес стенда) с объектом, языком и разовым ключом t.
+    // Стенд без url: у iframe — относительный адрес тестовой страницы плагина, у tab — заглушка stub://
     let setupUiSeq = 0;
     function setupUiLink(u, headers) {
       const su = setupUiOf(u);
       if (!su) return notFound("Страница плагина у вида");
-      const denied = rightProblem(u, { level: "edit" }, "Странице плагина нужен уровень edit");
+      const iframe = su.mode === "iframe";
+      const denied = rightProblem(u, { level: setupUiLevel(su) }, iframe ? "Странице подсистемы нужен уровень view" : "Странице плагина нужен уровень edit");
       if (denied) return denied;
-      const base = su.url || `stub://plugin/${encodeURIComponent(((kinds.get(u.kind) || {}).origin || {}).plugin || u.kind)}/setup`;
+      const plugin = encodeURIComponent(((kinds.get(u.kind) || {}).origin || {}).plugin || u.kind);
+      const base = su.url || (iframe ? `api/plugins/${plugin}/setup/index.html` : `stub://plugin/${plugin}/setup`);
       const lang = String((headers || {})["accept-language"] || "ru").split(/[,;-]/)[0].trim().toLowerCase() || "ru";
       const token = `${(++setupUiSeq).toString(36)}${now().toString(36)}`;
       const q = new URLSearchParams({ type: u.kind, id: u.uid, lang, t: token }).toString();
-      return { status: 200, body: { url: base + (base.includes("?") ? "&" : "?") + q, expiresAt: iso(now() + 5 * 60000) } };
+      const body = { url: base + (base.includes("?") ? "&" : "?") + q, expiresAt: iso(now() + 5 * 60000) };
+      if (iframe) body.readOnly = !!rightProblem(u, { level: "edit" }, "");
+      return { status: 200, body };
     }
     // Секреты старых путей сервер держит отдельно (secrets): пароль устройства и тома, секрет облачного тома
     const keptSecrets = (u) => {
@@ -3186,8 +3193,9 @@
       if (Array.isArray(u.writable)) out.writable = u.writable.slice();
       if (u.status && Object.keys(u.status).length) out.status = clone(u.status);
       out.hasChildren = unitHasKids(u); // как в дереве: скрытое раскладкой (потоки) и документы дочерними не считаются
-      // Что можно сейчас (capabilities): стенд ставит только setupUi — страница плагина есть и у человека есть право edit
-      if (setupUiOf(u) && !rightProblem(u, { level: "edit" }, "")) out.capabilities = ["setupUi"];
+      // Что можно сейчас (capabilities): стенд ставит только setupUi — страница есть и у человека есть её право (setupUiLevel)
+      const su = setupUiOf(u);
+      if (su && !rightProblem(u, { level: setupUiLevel(su) }, "")) out.capabilities = ["setupUi"];
       // Вычисляемое профилем (status.observed): итог круга домена, держатель тома
       hooksOf(u.kind).forEach((h) => h.view && h.view(out, pctx));
       return Object.assign(out, extra || {});

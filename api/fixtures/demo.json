@@ -10456,7 +10456,8 @@
     null
    ],
    "children": [
-    "security_controller/SENSOR"
+    "security_controller/SENSOR",
+    "security_controller/KEYPAD"
    ],
    "implements": [],
    "capabilities": [
@@ -10833,6 +10834,132 @@
      "security_controller/SENSOR"
     ],
     "mode": "tab"
+   }
+  },
+  {
+   "kind": "security_controller/KEYPAD",
+   "origin": {
+    "system": "ngp",
+    "plugin": "security_controller",
+    "pluginVersion": "1.0.0"
+   },
+   "label": {
+    "key": "security_controller.object.keypad",
+    "text": "Клавиатура",
+    "lang": "ru"
+   },
+   "icon": "security_controller.keypad",
+   "parents": [
+    "security_controller/CONTROLLER"
+   ],
+   "createParents": [],
+   "implements": [],
+   "capabilities": [
+    "rename",
+    "delete",
+    "folders"
+   ],
+   "access": {
+    "class": "security_controller",
+    "label": {
+     "key": "access.security_controller",
+     "text": "Охранные контроллеры",
+     "lang": "ru"
+    },
+    "levels": [
+     "view",
+     "edit",
+     "admin"
+    ]
+   },
+   "schema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "code_length": {
+      "x-label": {
+       "key": "security_controller.param.code_length",
+       "text": "Длина кода",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 4,
+      "maximum": 8,
+      "default": 4,
+      "x-ui-order": 1
+     },
+     "display_text": {
+      "x-label": {
+       "key": "security_controller.param.display_text",
+       "text": "Текст на экране",
+       "lang": "ru"
+      },
+      "type": "string",
+      "maxLength": 32,
+      "x-ui-order": 2
+     },
+     "backlight": {
+      "x-label": {
+       "key": "security_controller.param.backlight",
+       "text": "Подсветка",
+       "lang": "ru"
+      },
+      "type": "string",
+      "enum": [
+       "off",
+       "low",
+       "high"
+      ],
+      "x-enum-labels": {
+       "off": {
+        "key": "security_controller.backlight.off",
+        "text": "Выключена",
+        "lang": "ru"
+       },
+       "low": {
+        "key": "security_controller.backlight.low",
+        "text": "Слабая",
+        "lang": "ru"
+       },
+       "high": {
+        "key": "security_controller.backlight.high",
+        "text": "Яркая",
+        "lang": "ru"
+       }
+      },
+      "x-ui-order": 3
+     },
+     "beep": {
+      "x-label": {
+       "key": "security_controller.param.beep",
+       "text": "Звук нажатия",
+       "lang": "ru"
+      },
+      "type": "boolean",
+      "x-ui-widget": "switch",
+      "x-ui-order": 4
+     },
+     "lock_after_tries": {
+      "x-label": {
+       "key": "security_controller.param.lock_after_tries",
+       "text": "Блокировать после попыток",
+       "lang": "ru"
+      },
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "x-ui-order": 5
+     }
+    }
+   },
+   "actions": [],
+   "events": [],
+   "setupUi": {
+    "mode": "iframe",
+    "protocol": "setup/1",
+    "kinds": [
+     "security_controller/KEYPAD"
+    ]
    }
   },
   {
@@ -30984,6 +31111,24 @@
    },
    "status": {
     "link": "offline"
+   }
+  },
+  {
+   "uid": "30000306-0000-4000-8000-000000000000",
+   "kind": "security_controller/KEYPAD",
+   "parentId": "30000294-0000-4000-8000-000000000000",
+   "domainId": "10000001-0000-4000-8000-000000000000",
+   "name": "Клавиатура у входа",
+   "version": "1",
+   "properties": {
+    "code_length": 6,
+    "display_text": "Ввести код",
+    "backlight": "low",
+    "beep": true,
+    "lock_after_tries": 5
+   },
+   "status": {
+    "link": "online"
    }
   },
   {

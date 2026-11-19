@@ -6,7 +6,7 @@
   // Виды плагинов и тестовые виды есть не в каждой системе (профиль «один домен» их не объявляет): тест, где вид назван
   // (литерал или CONTROLLER, SENSOR), получает needs "kind:<вид>" сам и без вида пропускается
   const PLUGIN_NEEDS = [[/CONTROLLER/, "kind:security_controller/CONTROLLER"], [/\bSENSOR\b|security_controller\/SENSOR/, "kind:security_controller/SENSOR"], [/test\.unknown|\bT\b|\bt[12]\(\)/, "kind:test.unknown"],
-    [/test\.perunit|\bPER\b/, "kind:test.perunit"], [/w2c\.example\/rows|\bROWS\b/, "kind:w2c.example/rows"], [/domain\.shared|\bDOC\b/, "kind:domain.shared"]];
+    [/test\.perunit|\bPER\b/, "kind:test.perunit"], [/w2c\.example\/rows|\bROWS\b/, "kind:w2c.example/rows"], [/domain\.shared|\bDOC\b/, "kind:domain.shared"], [/KEYPAD/, "kind:security_controller/KEYPAD"]];
   const test = (name, fn, opts) => {
     const text = name + String(fn), needs = ((opts && opts.needs) || []).slice();
     PLUGIN_NEEDS.forEach(([re, need]) => re.test(text) && !needs.includes(need) && needs.push(need));
@@ -15,6 +15,7 @@
   const UNKNOWN = "30009999-0000-4000-8000-000000000000";
   const CONTROLLER = "security_controller/CONTROLLER";
   const SENSOR = "security_controller/SENSOR";
+  const KEYPAD = "security_controller/KEYPAD";
   const kindPath = (kind) => `/kinds/${encodeURIComponent(kind)}`;
   const units = () => FX.units || [];
   const kindOf = (code) => (FX.kinds || []).find((k) => k.kind === code);
@@ -136,6 +137,38 @@
     const denied = await viewer.call("POST", `/units/${ctl.uid}/setup-ui`, {});
     assert.status(denied, 403, "PERMISSION_DENIED", "без права edit");
     assert.eq(denied.body.params.right.level, "edit", "нужен уровень edit");
+  }, { needs: ["openUnitSetupUi", "getUnit"] });
+
+  // Человек с одной ролью поверх «Аудитора»: класс security_controller на уровне level (null — класса в роли нет), как asRole в api-access.js
+  const VIEW_ROLE = "8fff0003-0000-4000-8000-000000000003", VIEW_USER = "9fff0004-0000-4000-8000-000000000004";
+  const asView = (level) => {
+    const A = FX.access, meId = FX.me.userId;
+    const base = A.roles.find((r) => !r.global.unr && !Object.keys(r.folderAccess).length);
+    const role = Object.assign(JSON.parse(JSON.stringify(base)), { id: VIEW_ROLE, name: "Проверка страницы", kindAccess: level ? { security_controller: level } : {} });
+    const user = Object.assign(JSON.parse(JSON.stringify(A.users.find((u) => u.id !== meId))), { id: VIEW_USER, login: "setup-ui-check", name: "Проверка страницы", roleIds: [VIEW_ROLE], roleUntil: {}, enabled: true, expiresDate: null });
+    return makeEnv({ actAs: user.login, fixturePatch: { access: { roles: A.roles.concat([role]), users: A.users.concat([user]) } } });
+  };
+
+  test("Своя страница подсистемы 0.33.0: mode iframe — адрес по праву view, readOnly, относительный адрес страницы стенда; mode tab — по-прежнему edit", async () => {
+    const env = await makeEnv();
+    const kp = ofKind(KEYPAD)[0], ctl = ofKind(CONTROLLER)[0];
+    assert.eq(kindOf(KEYPAD).setupUi, { mode: "iframe", protocol: "setup/1", kinds: [KEYPAD] }, "setupUi вида: iframe, setup/1");
+    const a = await env.ok("POST", `/units/${kp.uid}/setup-ui`, {});
+    assert.ok(a.url.startsWith("api/plugins/security_controller/setup/index.html?"), "стенд: относительный адрес тестовой страницы: " + a.url);
+    const q = new URL(a.url, "http://x/").searchParams;
+    assert.eq([q.get("type"), q.get("id"), !!q.get("t")], [KEYPAD, kp.uid, true], "вид, объект, разовый ключ");
+    assert.eq([a.readOnly, "origin" in a], [false, false], "право edit — readOnly false; стенд не перенаправляет — origin нет");
+    assert.ok(((await env.ok("GET", unitPath(kp.uid))).capabilities || []).includes("setupUi"), "отметка setupUi у клавиатуры");
+    const view = await asView("view");
+    assert.ok(((await view.ok("GET", unitPath(kp.uid))).capabilities || []).includes("setupUi"), "по праву view отметка есть");
+    assert.eq((await view.ok("POST", `/units/${kp.uid}/setup-ui`, {})).readOnly, true, "по праву view — readOnly true");
+    const tab = await view.call("POST", `/units/${ctl.uid}/setup-ui`, {});
+    assert.status(tab, 403, "PERMISSION_DENIED", "mode tab по праву view — по-прежнему 403");
+    assert.eq(tab.body.params.right.level, "edit", "mode tab: нужен edit");
+    const none = await asView(null);
+    const no = await none.call("POST", `/units/${kp.uid}/setup-ui`, {});
+    assert.status(no, 403, "PERMISSION_DENIED", "без права на класс — 403");
+    assert.eq(no.body.params.right.level, "view", "mode iframe: нужен view");
   }, { needs: ["openUnitSetupUi", "getUnit"] });
 
   test("Плагин 0.16.0: x-hidden — поле в properties, правка без него значение не меняет; statusSchema; message и fields в условии", async () => {
