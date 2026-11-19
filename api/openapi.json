@@ -8054,7 +8054,7 @@
           "units"
         ],
         "summary": "Адрес страницы плагина",
-        "description": "Сервер выдаёт адрес страницы плагина (UnitKind.setupUi) для одного открытия: в адресе — объект, язык и разовый ключ. Нужное право класса доступа вида зависит от setupUi.mode: у iframe — view (readOnly в ответе — нет права edit), у tab — edit; нет права — 403. У mode: iframe клиент берёт адрес этим путём и при постоянном url. У вида нет setupUi или setupUi.kinds не называет вид объекта — 404. Отметка setupUi в Unit.capabilities говорит, что путь ответит 200",
+        "description": "Бэкенд выдаёт адрес страницы плагина (UnitKind.setupUi) для одного открытия: в адресе — объект, язык и разовый ключ. Нужное право класса доступа вида зависит от setupUi.mode: у iframe — view (readOnly в ответе — нет права edit), у tab — edit; нет права — 403. У mode: iframe клиент берёт адрес этим путём и при постоянном url. У вида нет setupUi или setupUi.kinds не называет вид объекта — 404. Отметка setupUi в Unit.capabilities говорит, что путь ответит 200",
         "parameters": [
           {
             "name": "uid",

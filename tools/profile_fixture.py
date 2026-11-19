@@ -62,7 +62,7 @@ DEVICE_TYPES = ["camera", "det"]
 KIND_MISSING = {"domain": ["create", "delete"], "volume": ["create", "delete"]}
 KIND_ONLY_WITH_PARENT = ["volume"]
 # Виды плагинов и тестовые виды: в профиле «один домен» их нет — система объявляет только свои (тесты с needs "kind:…" пропускаются)
-PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
+PLUGIN_KINDS = ["security_controller/CONTROLLER", "security_controller/SENSOR", "security_controller/KEYPAD", "test.unknown", "test.perunit", "w2c.example/rows", "domain.shared"]
 # Контракт 0.12.0: поддетекторы (вид subdet) и новые настройки детектора. Система объявляет, что поддерживает, схемой вида:
 # в профиле «один домен» вида subdet нет, у det нет и этих свойств, а трекеры (analyticsKind) не заводятся — как у w2c без них
 PLUGIN_KINDS += ["subdet"]
