@@ -565,7 +565,14 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       [replyOf("cf6"), busyAct, busyDel].every(valid) && dlgOpen() && document.getElementById("confirmTitle").textContent === "Свой вопрос" &&
       !trace("POST", `/units/${VOL}/actions/`).length && !cardDiff().some((x) => x.bridge),
       "открыт диалог consolem — confirm, команда format и deleteUnit получают BUSY, диалог consolem цел");
+    // Итоговая волна, I2: переход с черновиком при открытом диалоге consolem — тоже BUSY, вопрос «Изменения не применены» не подменяет диалог
+    pageSend({ type: "change", patch: { display_text: "Поверх" } });
+    ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст");
+    pageSend({ type: "navigate", id: "nb1", uid: cams[0] });
+    ok(await until(() => !!replyOf("nb1"), 5000) && code(replyOf("nb1")) === "BUSY" && valid(replyOf("nb1")) && sel === SUI_UNIT &&
+      document.getElementById("confirmTitle").textContent === "Свой вопрос", "navigate с черновиком при открытом диалоге consolem — BUSY, диалог consolem цел");
     closeConfirm();
+    cardReset();
     // Волна 06, п. 3: после трёх отказов подряд вопросы страницы — BUSY на 10 с или до действия пользователя на странице
     const refuse = async (id) => {
       pageSend({ type: "confirm", id, title: "Вопрос " + id, text: "Вопрос" });
