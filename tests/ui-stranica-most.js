@@ -779,7 +779,22 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     const roles = (await realRaw("GET", "/access")).body?.roles || [];
     const viewRole = roles.find((x) => x.id === "80000006-0000-4000-8000-000000000000");
     ok(!!viewRole && !viewRole.kindAccess?.security_controller, "роль «Только просмотр» без класса security_controller");
-    const patched = roles.map((x) => (x === viewRole ? { ...x, kindAccess: { ...x.kindAccess, security_controller: "view" } } : x));
+    // Роль набора — не роль ответа GET /access: там вместо objectAccess только objectAccessCount. Права на объекты —
+    // из GET /access/roles/{id}/objects, иначе набор получил бы роли без objectAccess
+    const objectAccessOf = async (id) => {
+      const out = {};
+      let cursor = null;
+      do {
+        const r = (await realRaw("GET", `/access/roles/${id}/objects` + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""))).body || {};
+        (r.items || []).forEach((o) => (out[o.objectId] = o.levels));
+        cursor = r.nextCursor || null;
+      } while (cursor);
+      return out;
+    };
+    const patched = await Promise.all(roles.map(async ({ objectAccessCount, ...x }) => {
+      const role = { ...x, objectAccess: await objectAccessOf(x.id) };
+      return x.id === viewRole?.id ? { ...role, kindAccess: { ...x.kindAccess, security_controller: "view" } } : role;
+    }));
     const rs = await realRaw("POST", "/test/reset", { fixture: "demo", freezeClock: false, actAs: "elena", fixturePatch: { access: { roles: patched } } });
     const onStand = rs.status === 200;
     resetBack = onStand;
