@@ -188,7 +188,10 @@ input.addEventListener("change", () => session.change(SetupBridge.diff(session.u
 - `draft` — последний черновик, который страница отправила или получила. После `applied` и `revert` черновик становится `{}`, после `draft` черновик становится `patch`;
 - `change(patch)` отправляет `change` с черновиком целиком и возвращает `true`. При `readOnly` библиотека ничего не отправляет и возвращает `false`;
 - `invalid(fields, message?)` отправляет `invalid`. Пустой список снимает запрет;
-- `height(px)` отправляет `height`: целое число от 0.
+- `height(px)` отправляет `height`: целое число от 0;
+- шаг 2: `bridge` — `true`, если в `init.host` есть `bridge`;
+- шаг 2: `can(op)` возвращает разметку операции из `init.host.bridge.ops` (`"read"`, `"act"`, `"draft"`) или `null`, если операции там нет;
+- шаг 2: `call(op, {params?, body?})` отправляет `call` и возвращает `Promise` с ответом `{id, ok, status, body?, problem?, etag?}`. Обещание не отклоняется. Номер `id` выбирает библиотека, ответ она сопоставляет по `id`, а ответ с чужим `id` пропускает. Если consolem не ответил за 30 секунд, обещание сбывается с `ok: false`, `status: 0`, `problem.code: "UPSTREAM_UNAVAILABLE"`. У хоста шага 1 (`bridge` — `false`) библиотека ничего не отправляет и сразу отвечает `problem.code: "NOT_SUPPORTED"`.
 
 **`SetupBridge.merge(base, patch)`** применяет JSON Merge Patch (RFC 7396) и возвращает новый объект: `null` снимает ключ, вложенный объект сливается, массив заменяется целиком. `base` не меняется. **`SetupBridge.diff(base, next)`** даёт правку от `base` к `next`: снятый ключ — `null`, вложенные объекты — рекурсивно, массивы — целиком. Если в `next` нет значений `null`, `merge(base, diff(base, next))` равно `next`. Значение `null` в правке снимает ключ, поэтому `null` из `next` после `merge` пропадает. Обе функции смотрят только на свои ключи объекта и пропускают ключ `__proto__`.
 

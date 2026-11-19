@@ -9,6 +9,8 @@
      SetupBridge.connect({fields, origin, onDraft, onApplied, onErrors, onRevert, onTheme, onFlush, autoHeight}) → Promise<Session>
        отправляет ready сразу, обещание сбывается на init от consolem.
      Session: init, host, unit, readOnly, theme, draft; change(patch) → boolean; invalid(fields, message?); height(px).
+     Шаг 2 (мост к механизму): bridge — есть ли init.host.bridge; can(op) → "read" | "act" | "draft" | null;
+       call(op, {params, body}) → Promise<{id, ok, status, body?, problem?, etag?}> — не бросает, срок ответа 30 с.
      SetupBridge.merge(base, patch) — JSON Merge Patch (RFC 7396); SetupBridge.diff(base, next) → patch. */
 (() => {
   const PROTO = "setup/1";
@@ -18,6 +20,8 @@
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
   // Ключ __proto__ из JSON менял бы прототип результата: merge и diff его пропускают
   const keys = (o) => Object.keys(o).filter((k) => k !== "__proto__");
+  // Шаг 2: срок ответа consolem на call
+  const CALL_MS = 30000;
 
   // RFC 7396: null снимает ключ, объект сливается рекурсивно, всё остальное (и массив) заменяет целиком. base не меняется
   function merge(base, patch) {
@@ -88,6 +92,9 @@
     let session = null;
     let sentDraft = null; // последний черновик, который ушёл consolem или пришёл от него
     let lastPx = null;
+    // Шаг 2: вызовы без ответа по id; номер id — свой счётчик библиотеки
+    const pending = new Map();
+    let callSeq = 0;
 
     return new Promise((resolve) => {
       function sendChange(patch) {
@@ -118,7 +125,25 @@
         if (!R || !root) return;
         new R(() => sendHeight(contentHeight())).observe(root);
       }
+      // Отказ без ответа consolem: тот же вид, что result
+      const refuse = (id, code, message) => ({ id, ok: false, status: 0, problem: { code, message } });
+      function call(op, args) {
+        const a = isObj(args) ? args : {};
+        const id = "c" + ++callSeq;
+        if (!session.bridge) return Promise.resolve(refuse(id, "NOT_SUPPORTED", "consolem — хост шага 1: моста нет"));
+        return new Promise((resolve) => {
+          const timer = setTimeout(() => {
+            if (pending.delete(id)) resolve(refuse(id, "UPSTREAM_UNAVAILABLE", "consolem не ответил за 30 секунд"));
+          }, CALL_MS);
+          pending.set(id, (r) => { clearTimeout(timer); resolve(r); });
+          const msg = { type: "call", id, op: String(op) };
+          if (isObj(a.params)) msg.params = copy(a.params);
+          if (a.body !== undefined) msg.body = copy(a.body);
+          send(msg);
+        });
+      }
       function onInit(m) {
+        const bridge = isObj(m.host) && isObj(m.host.bridge) && isObj(m.host.bridge.ops) ? m.host.bridge : null;
         session = {
           init: m,
           host: m.host,
@@ -137,6 +162,12 @@
             send(msg);
           },
           height: sendHeight,
+          bridge: !!bridge,
+          can(op) {
+            const v = bridge && has(bridge.ops, op) ? bridge.ops[op] : null;
+            return v === "read" || v === "act" || v === "draft" ? v : null;
+          },
+          call,
         };
         sentDraft = session.draft;
         if (o.autoHeight !== false) startAutoHeight();
@@ -161,6 +192,15 @@
         },
         errors(m) {
           if (o.onErrors) o.onErrors(m.problem);
+        },
+        // Шаг 2: ответ на call — по id; чужой или поздний id пропускается
+        result(m) {
+          const done = typeof m.id === "string" && pending.get(m.id);
+          if (!done) return;
+          pending.delete(m.id);
+          const r = {};
+          keys(m).forEach((k) => { if (k !== "proto" && k !== "type") r[k] = m[k]; });
+          done(r);
         },
         theme(m) {
           session.theme = m.theme;

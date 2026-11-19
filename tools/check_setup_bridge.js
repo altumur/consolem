@@ -393,6 +393,79 @@ async function run() {
   if (s) fail("15 непрозрачная страница, известный consolem", "init с origin null принят");
   if (!sent[0] || sent[0][1] !== "https://console.example") fail("15 непрозрачная страница, известный consolem", `ready ${JSON.stringify(sent[0])}`);
 
+  // 16 шаг 2: session.call — id по своему счётчику, ответ по id, чужой id пропущен, срок 30 с
+  scene("16");
+  const BRIDGE = { ops: { getUnit: "read", runUnitAction: "act", patchUnit: "draft" }, messages: ["call", "subscribe", "unsubscribe", "navigate", "confirm"], limits: { calls: 8, subscriptions: 16, watch: 199 } };
+  env();
+  ({ session: s } = await connected({ autoHeight: false }, INIT({ host: { proto: "setup/1", apply: "button", bridge: BRIDGE } })));
+  if (!s || typeof s.call !== "function") fail("16 call", "у session нет call");
+  else {
+    sent = [];
+    const got = [];
+    s.call("getUnit", { params: { uid: "u1" } }).then((r) => got.push(["a", r]));
+    s.call("runUnitAction", { params: { uid: "u1", action: "ARM" }, body: { idempotencyKey: "k" } }).then((r) => got.push(["b", r]));
+    const calls = sent.map(([m]) => m);
+    if (calls.length !== 2 || calls.some((m) => m.type !== "call") || calls[0].id === calls[1].id || !same(calls[0].params, { uid: "u1" }) || calls[0].op !== "getUnit" || "body" in calls[0] || !same(calls[1].body, { idempotencyKey: "k" }))
+      fail("16 call", `отправлено ${JSON.stringify(calls)}`);
+    const [ia, ib] = calls.map((m) => m.id);
+    post({ proto: "setup/1", type: "result", id: "чужой", ok: true, status: 200, body: {} });
+    post({ proto: "setup/1", type: "result", id: ib, ok: false, status: 0, problem: { code: "CANCELLED", message: "нет" } });
+    post({ proto: "setup/1", type: "result", id: ia, ok: true, status: 200, body: { uid: "u1" }, etag: '"3"' }, { source: STRANGER });
+    await tick();
+    if (got.length !== 1 || got[0][0] !== "b" || got[0][1].problem.code !== "CANCELLED" || got[0][1].id !== ib || "proto" in got[0][1] || "type" in got[0][1])
+      fail("16 result по id", `ответы ${JSON.stringify(got)}`);
+    post({ proto: "setup/1", type: "result", id: ia, ok: true, status: 200, body: { uid: "u1" }, etag: '"3"' });
+    post({ proto: "setup/1", type: "result", id: ia, ok: true, status: 200, body: { uid: "второй раз" } });
+    await tick();
+    if (got.length !== 2 || got[1][0] !== "a" || !same(got[1][1], { id: ia, ok: true, status: 200, body: { uid: "u1" }, etag: '"3"' }))
+      fail("16 result по id", `ответы ${JSON.stringify(got)}`);
+    // Срок ответа 30 с: поддельный setTimeout ловит таймер библиотеки
+    const realSetTimeout = global.setTimeout, timers = [];
+    global.setTimeout = (fn, ms) => (ms >= 30000 ? (timers.push([fn, ms]), timers.length) : realSetTimeout(fn, ms));
+    let late = null;
+    sent = [];
+    s.call("getUnit", { params: { uid: "u2" } }).then((r) => (late = r));
+    global.setTimeout = realSetTimeout;
+    const lateId = sent[0] && sent[0][0].id;
+    if (timers.length !== 1 || timers[0][1] !== 30000) fail("16 срок", `таймеры ${JSON.stringify(timers.map((t) => t[1]))}`);
+    else {
+      timers[0][0]();
+      await tick();
+      if (!late || late.ok !== false || late.status !== 0 || !late.problem || late.problem.code !== "UPSTREAM_UNAVAILABLE" || late.id !== lateId)
+        fail("16 срок", `ответ ${JSON.stringify(late)}`);
+      post({ proto: "setup/1", type: "result", id: lateId, ok: true, status: 200, body: {} });
+      await tick();
+      if (late.ok !== false) fail("16 срок", "поздний ответ изменил итог");
+    }
+    // call не бросает: кривые аргументы — тоже сообщение по схеме
+    sent = [];
+    let odd = null;
+    try { s.call("getUnit").then((r) => (odd = r)); } catch (e) { fail("16 call без параметров", `исключение ${e.message}`); }
+    if (!sent.length || "params" in sent[0][0]) fail("16 call без параметров", `отправлено ${JSON.stringify(sent)}`);
+    // Ответ снимает таймер срока: иначе Node ждал бы его 30 с
+    if (sent.length) post({ proto: "setup/1", type: "result", id: sent[0][0].id, ok: false, status: 0, problem: { code: "VALIDATION_FAILED", message: "нет uid", field: "/params/uid" } });
+    await tick();
+    if (!odd || odd.problem.field !== "/params/uid") fail("16 call без параметров", `ответ ${JSON.stringify(odd)}`);
+  }
+
+  // 17 шаг 2: can и bridge; хост шага 1 — call без сообщения, NOT_SUPPORTED
+  scene("17");
+  env();
+  ({ session: s } = await connected({ autoHeight: false }, INIT({ host: { proto: "setup/1", apply: "button", bridge: BRIDGE } })));
+  if (!s || s.bridge !== true || s.can("getUnit") !== "read" || s.can("patchUnit") !== "draft" || s.can("testReset") !== null || s.can("toString") !== null)
+    fail("17 can с мостом", `bridge ${s && s.bridge}, can ${s && typeof s.can === "function" ? [s.can("getUnit"), s.can("testReset"), s.can("toString")] : "нет"}`);
+  env();
+  ({ session: s } = await connected({ autoHeight: false }));
+  if (!s || s.bridge !== false || typeof s.can !== "function" || s.can("getUnit") !== null) fail("17 хост шага 1", `bridge ${s && s.bridge}`);
+  else {
+    sent = [];
+    let r1 = null;
+    s.call("getUnit", { params: { uid: "u1" } }).then((r) => (r1 = r));
+    await tick();
+    if (sent.length) fail("17 хост шага 1", `call отправил ${JSON.stringify(sent)}`);
+    if (!r1 || r1.ok !== false || r1.status !== 0 || r1.problem.code !== "NOT_SUPPORTED") fail("17 хост шага 1", `ответ ${JSON.stringify(r1)}`);
+  }
+
   await page13();
 }
 
