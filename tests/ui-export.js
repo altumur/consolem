@@ -12,8 +12,14 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Справочник сброшен во время чтения (expRefReset — новое чтение /reference): ответ старого чтения справочник не ставит.
   // Заказ, начатый до ответа, получает умолчания справочника, и консоль сразу проверяет его заново (expCheckSoon)
   if (can("getExportReference")) {
-    const wasD = expD, realCheck = window.expCheckSoon;
+    const wasD = expD, realCheck = window.expCheckSoon, realGet = API.get;
     let checks = 0;
+    // Предел файла в справочнике — не 4000 (умолчание формы без справочника): иначе не видно, лёг ли он в заказ
+    const MB = 2500;
+    API.get = function (path, ...rest) {
+      const p = realGet.call(this, path, ...rest);
+      return path === "/exports/reference" ? p.then((x) => x && Object.assign({}, x, { limits: Object.assign({}, x.limits, { maxFileMbDefault: MB }) })) : p;
+    };
     goApp("hw");
     expRefReset();
     expD = expDraftNew({ cams: [cam.id] });
@@ -28,12 +34,13 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       ok(expRefDone && !!EXP_REF?.formats?.length, "новое чтение ставит справочник");
       // Умолчания справочника — предел файла и первый шрифт (размер — второй из sizes, иначе первый), как в expRefFill
       const L = EXP_REF.limits || {}, f0 = EXP_REF.fonts?.[0];
-      const want = { maxmb: L.maxFileMbDefault || 4000, font: f0 ? `${f0.id}|${f0.sizes[1] ?? f0.sizes[0]}` : "" };
-      ok(before.maxmb === 4000 && before.font === "" && !!L.maxFileMbDefault && !!f0, "заказ до ответа — без умолчаний справочника, в справочнике они есть: " + JSON.stringify(before) + ", maxFileMbDefault " + L.maxFileMbDefault + ", шрифтов " + (EXP_REF.fonts || []).length);
+      const want = { maxmb: MB, font: f0 ? `${f0.id}|${f0.sizes[1] ?? f0.sizes[0]}` : "" };
+      ok(before.maxmb === 4000 && before.font === "" && L.maxFileMbDefault === MB && !!f0, "заказ до ответа — без умолчаний справочника, в справочнике они есть: " + JSON.stringify(before) + ", maxFileMbDefault " + L.maxFileMbDefault + ", шрифтов " + (EXP_REF.fonts || []).length);
       ok(expD === draft && draft.adv.maxmb === want.maxmb && draft.adv.font === want.font, "умолчания справочника легли в заказ: " + JSON.stringify({ maxmb: draft.adv.maxmb, font: draft.adv.font }) + ", ждём " + JSON.stringify(want));
       ok(checks > 0, "консоль проверяет заказ заново после умолчаний справочника: " + checks);
-    } finally { window.expCheckSoon = realCheck; expD = wasD; }
+    } finally { window.expCheckSoon = realCheck; expD = wasD; API.get = realGet; expRefReset(); }
     goApp("exp");
+    await expRefEnsure();
   }
   await expLoad();
   expSel = job.id;
