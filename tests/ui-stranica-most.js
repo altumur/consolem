@@ -454,8 +454,8 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     pageSend({ type: "unsubscribe", sub: "s2" });
     ok(await until(() => !watchIds().includes(cam), 2000) && !bridgeSubs.has("s2"), "unsubscribe s2 — камеры нет в watchIds()");
     // Пределы: 16 подписок, объекты — не больше watchMax − 1
-    for (let i = 2; i <= 16; i++) await subscribe("k" + i, { kinds: ["test.kind" + i] });
-    r = await subscribe("k17", { kinds: ["test.kind17"] });
+    for (let i = 2; i <= 16; i++) await subscribe("k" + i, { kinds: [SENSOR] });
+    r = await subscribe("k17", { kinds: [SENSOR] });
     ok(bridgeSubs.size === 16 && code(r) === "BUSY" && r.status === 0 && valid(r), "16 подписок есть — 17-я BUSY");
     for (let i = 2; i <= 16; i++) pageSend({ type: "unsubscribe", sub: "k" + i });
     ok(bridgeSubs.size === 1, "подписки сняты, осталась s1");
@@ -472,6 +472,12 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ];
     ok(sizeBad.every(([x, fl]) => code(x) === "VALIDATION_FAILED" && x.problem.field === fl && valid(x)) && bridgeSubs.size === 1,
       "33 вида, 33 типа, строка длиннее 200 знаков — VALIDATION_FAILED с полем — " + JSON.stringify(sizeBad.map(([x]) => x.problem)));
+    // Итоговая волна, I3: в kinds — только виды объектов, которые consolem знает (KINDS). Сообщения поиска, вопросов
+    // правил, операций и выгрузки (kind discovery, rulePrompt, operation, exportJob) по kinds не приходят
+    const kindBad = [];
+    for (const k of ["discovery", "rulePrompt", "operation", "exportJob", "test.kind2"]) kindBad.push(await subscribe("kb-" + k, { kinds: [SENSOR, k] }));
+    ok(kindBad.every((x) => code(x) === "VALIDATION_FAILED" && x.status === 0 && x.problem.field === "/kinds" && valid(x)) && bridgeSubs.size === 1,
+      "kinds не вида объекта — VALIDATION_FAILED /kinds, подписки нет — " + JSON.stringify(kindBad.map((x) => code(x) + " " + (x.problem && x.problem.field))));
     // Объект, которого нет или которого пользователь не видит, — NOT_FOUND /entityIds; в наблюдение он не попадает
     window.CONSOLEM_TRACE.length = 0;
     r = await subscribe("nf", { entityIds: [cam, "30009999-0000-4000-8000-000000000000"] });

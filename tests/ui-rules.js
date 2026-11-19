@@ -1,7 +1,7 @@
 /* Сценарии интерфейса: «Автоматизация» через API — правка правила и «Отменить», новое правило, состояние и
    приглушение группой, порядок, удаление с отсчётом, «Запустить», пробный запуск, история версий, режим
    вручную, расписание, группа особых дней, режим. Запуск — tools/check_ui.py. */
-UiCheck(async ({ ok, until, confirmWith }) => {
+UiCheck(async ({ ok, until, confirmWith, absent }) => {
   const R1 = "70000001-0000-4000-8000-000000000000";   // «Охрана входа ночью»
   const R2 = "70000002-0000-4000-8000-000000000000";   // «Сирена по двери»
   const r = (id) => rules.find((x) => x.id === id);
@@ -12,7 +12,7 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   // режимы записи, метки серверов, несовместимые детекторы — из описаний видов; раскладки и мониторы — из schema полей действий;
   // виды событий сценариев — из ScenarioDoc.kinds; справочник выгрузки — GET /exports/reference. Старый бэкенд, который ещё
   // отдаёт снятые ключи, списков не меняет. Страница со старым autoRef(ref) — проверять нечего
-  if (typeof autoRef !== "function" || autoRef.length < 2) ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего");
+  if (typeof autoRef !== "function" || autoRef.length < 2) absent("справочников из описаний видов (autoRef(ref, kinds))");
   else {
     const snap = () => JSON.stringify({ models: DEVICE_MODELS, rec: refRecModes, labels: refLabels, clash: DET_AK_CLASH, lay: RULE_LAYOUTS, mons: RULE_MONS, layId: [...REF_LAYOUT], monId: [...REF_MONITOR] });
     autoRef(REF_LAST, KINDS);

@@ -4,9 +4,9 @@
    экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed); Г2 — то же у других кодов ручных экранов
    (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей. Виды теста ставятся в KINDS на время
    проверки и снимаются в finally с kindsApply(). Сценарий пришёл с прототипом 78 (index_78_ekran-po-profilyu.html, удалён), теперь проверяет index.html.
-   Охрана screenFor — для прототипов, скопированных с index.html до переноса. */
-UiCheck(async ({ ok, until }) => {
-  if (typeof screenFor !== "function") { ok(true, "на странице нет screenFor: проверять нечего"); return; }
+   Охрана screenFor — для прототипов, скопированных с index.html до переноса; на index.html она — сбой (absent). */
+UiCheck(async ({ ok, until, absent }) => {
+  if (typeof screenFor !== "function") { absent("screenFor"); return; }
   const main = () => document.getElementById("main");
   const clone = (x) => JSON.parse(JSON.stringify(x));
   // Описания на время проверки: прежние возвращаются, новые снимаются

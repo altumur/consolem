@@ -259,7 +259,7 @@ consolem права не пересчитывает. Отказ сервера (
 | `code` | Когда |
 |---|---|
 | `NOT_SUPPORTED` | у операции нет `x-bridge`; система не объявила операцию в `capabilities.operations`; шаг не выражается шагом операции |
-| `VALIDATION_FAILED` | нет параметра пути или параметр незнакомый: `field: "/params/<имя>"`; тело шага `draft` не по схеме, например `UnitCreate` без `kind` или без `properties`: `field: "/body/…"`; поля `subscribe` за пределами (раздел «Подписка на поток») |
+| `VALIDATION_FAILED` | нет параметра пути или параметр незнакомый: `field: "/params/<имя>"`; тело шага `draft` не по схеме, например `UnitCreate` без `kind` или без `properties`: `field: "/body/…"`; поля `subscribe` за пределами или в `kinds` не вид объекта (раздел «Подписка на поток») |
 | `PERMISSION_DENIED` | шаг `draft` у страницы с `readOnly: true`: `params: {readOnly: true}` |
 | `NOT_SUPPORTED` (свой объект) | `deleteUnit` и `moveUnit` своего `uid` страницы, а также шаги `delete` и `move` своего `uid` в `deleteObjects` и `createOperation`: страница не удаляет и не переносит свой объект. `field` называет параметр или шаг |
 | `BUSY` | вызовов или подписок больше предела; объектов во всех подписках больше `limits.watch`; второй `confirm`, пока первый открыт; открыт любой диалог consolem; второй `navigate`, пока первый не кончился; диалоги рамки на паузе после трёх отказов подряд в любых её диалогах (раздел «Подтверждение») |
@@ -317,6 +317,7 @@ consolem превращает вызов `draft` в шаг `OperationItemRequest
 Страница отправляет `subscribe {id, entityIds?, kinds?, types?}`. consolem отвечает `result {id, ok: true, status: 200, body: {sub}}`. Номер подписки `sub` равен `id` из `subscribe`. Затем consolem пересылает странице каждое подходящее сообщение потока как `event {sub, message}`, где `message` — `StreamMessage` как есть.
 
 - Сообщение подходит, если его `entityId` есть в `entityIds` или его `kind` есть в `kinds`. Если `types` задан, тип сообщения тоже должен быть в `types`.
+- В `kinds` страница называет только виды объектов, которые consolem знает из `/kinds` (`UnitKind.kind`). Другое значение, например `discovery`, `rulePrompt`, `operation` или `exportJob` из поля `kind` сообщения потока, даёт `VALIDATION_FAILED` с `field: "/kinds"`, и consolem не открывает подписку. Такие сообщения страница получает по `entityIds`: например, события поиска в сети приходят подписке с `uid` домена.
 - Подписка по `kinds` получает только те сообщения этих видов, которые и так приходят в поток consolem. Объекты этих видов consolem в наблюдение не добавляет. Сервер присылает события объекта только тому, кто его наблюдает, поэтому событие объекта, которого consolem не наблюдает, не придёт. Чтобы получать события объекта, страница называет его в `entityIds`.
 - Объекты из `entityIds` пользователь должен видеть. consolem ищет их у сервера (`GET /units?ids=…`). Если объекта нет или пользователь не видит его, consolem отвечает `NOT_FOUND` с `field: "/entityIds"` и не открывает подписку.
 - Сообщения `stream.reset` и `test.reset` consolem пересылает всем подпискам.

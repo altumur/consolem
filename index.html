@@ -7253,6 +7253,7 @@ const BRIDGE_TEXT2={
   MUTED:"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.",
   NAV:"Консоль ещё не закончила прошлый переход страницы.",
   OWN:"Страница не удаляет и не переносит свой объект.",
+  KINDS:"Подписка по видам принимает только виды объектов, которые знает консоль.",
   ACT:"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.",
 };
 // Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
@@ -7277,7 +7278,7 @@ function bridgeWatchIds(){
   return[...out];
 }
 // subscribe → Promise<BridgeResult | null>. Поле не список строк, объектов больше limits.watch, видов или типов больше
-// BRIDGE_SUB_LIST_MAX, строка длиннее BRIDGE_SUB_STR_MAX — VALIDATION_FAILED. Сверх BRIDGE_SUBS_MAX подписок или сверх
+// BRIDGE_SUB_LIST_MAX, строка длиннее BRIDGE_SUB_STR_MAX, в kinds не вид объекта из KINDS — VALIDATION_FAILED. Сверх BRIDGE_SUBS_MAX подписок или сверх
 // watchMax − 1 объектов во всех подписках — BUSY. Объект, которого нет или которого пользователь не видит (hwEnsure его не
 // нашёл), — NOT_FOUND /entityIds. Объекты отказа в наблюдение не попадают. Подписка с тем же id заменяет прежнюю.
 // null — рамка закрылась, пока consolem спрашивал сервер
@@ -7287,6 +7288,8 @@ async function bridgeSubscribe(msg,f=suiFrame){
     const v=msg[k];
     if(v!==undefined&&(!bridgeStrs(v)||v.length>(k==="entityIds"?W:BRIDGE_SUB_LIST_MAX)||v.some(x=>x.length>BRIDGE_SUB_STR_MAX)))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/"+k});
   }
+  // kinds — только виды объектов из /kinds: сообщения поиска, вопросов правил, операций и выгрузки по kinds не идут
+  if(msg.kinds&&msg.kinds.some(k=>!KINDS.has(k)))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/kinds",message:i18n(BRIDGE_TEXT2.KINDS)});
   const ids=new Set(msg.entityIds||[]);
   // Пределы — до запроса и после него: пока consolem ждал сервер, рамка могла открыть другие подписки
   const over=()=>{

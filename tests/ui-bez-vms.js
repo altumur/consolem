@@ -3,9 +3,9 @@
    серверов, хранилищ и детекторов, поэтому их кнопок нет, а свои раскладки (agent.pipelines, agent.models) — срезы lay:<id>.
    Сервер без layouts (старый бэкенд) — прежние шесть срезов: slicesFor(null). Набор — FIXTURE_OF в tests/selftest.js.
    Сценарий пришёл с прототипом 79 (index_79_mehanizm-bez-vms.html, удалён), теперь проверяет index.html.
-   Охрана slicesFor — для прототипов, скопированных с index.html до переноса. */
-UiCheck(async ({ ok, until }) => {
-  if (typeof slicesFor !== "function") { ok(true, "срезов от раскладок на этой странице нет: проверять нечего"); return; }
+   Охрана slicesFor, appsFor и autoRef — для прототипов, скопированных с index.html до переноса; на index.html она — сбой (absent). */
+UiCheck(async ({ ok, until, absent }) => {
+  if (typeof slicesFor !== "function") { absent("срезов от раскладок (slicesFor)"); return; }
   const tree = () => document.getElementById("tree");
   const treeRowsText = () => tree()?.textContent || "";
   const row = (id) => tree()?.querySelector(`.n[data-pick="${id}"]`);
@@ -161,7 +161,7 @@ UiCheck(async ({ ok, until }) => {
   setSlice("all");
 
   // Разделы приложения объявляет система: GET /reference → capabilities.sections. Без поля — прежние разделы по операциям
-  if (typeof appsFor !== "function") { ok(true, "разделов от системы на этой странице нет: проверять нечего"); return; }
+  if (typeof appsFor !== "function") { absent("разделов от системы (appsFor)"); return; }
   goApp("hw");
   // Старый бэкенд без sections: рельс — прежние разделы по операциям (appsShown при CAPS_SECTIONS = null)
   {
@@ -265,7 +265,7 @@ UiCheck(async ({ ok, until }) => {
   // Справочники VMS и каталог правил — из описаний видов и каталога справочника (контракт 0.30.0, 0.31.0; ключи reference
   // сняты в 0.32.0). У оркестратора их нет: списков VMS нет, а редактор правил предлагает только объявленное — HTTP-запрос, запуск
   // правила и команды видов, без «Открыть раскладку». Страница со старым autoRef(ref) — проверять нечего
-  if (typeof autoRef !== "function" || autoRef.length < 2) { ok(true, "справочники из описаний видов на этой странице не читаются: проверять нечего"); return; }
+  if (typeof autoRef !== "function" || autoRef.length < 2) { absent("справочников из описаний видов (autoRef(ref, kinds))"); return; }
   autoRef(REF_LAST, KINDS);
   try {
     const vmsLists = { DEVICE_MODELS: Object.keys(DEVICE_MODELS), refLabels, DET_AK_CLASH: Object.keys(DET_AK_CLASH), RULE_LAYOUTS, RULE_MONS, refScenKinds: refScenKinds || [], REF_LAYOUT: [...REF_LAYOUT], REF_MONITOR: [...REF_MONITOR] };
