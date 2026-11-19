@@ -43,3 +43,25 @@ input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px s
 input:disabled, select:disabled { opacity: .6; cursor: not-allowed; }
 .field.bad input, .field.bad select { border-color: var(--one-danger); }
 .msg { margin: 0; color: var(--one-danger); font-size: 12px; }
+.bridge { margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--one-border); }
+.bridge h2 { margin: 0 0 12px; font-size: 14px; font-weight: 600; }
+.block { margin-bottom: 16px; max-width: 560px; }
+.block h3 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.block .msg:not([hidden]) { margin-top: 6px; }
+.block .msg.done { color: var(--one-fg-muted); }
+.rows { margin: 6px 0; padding: 0; list-style: none; }
+.rows li { display: flex; align-items: center; gap: 8px; min-height: 28px; padding: 2px 0; border-bottom: 1px solid var(--one-border); white-space: nowrap; }
+.rows li .name { overflow: hidden; text-overflow: ellipsis; }
+.rows li .sub { color: var(--one-fg-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+.rows li .end { margin-left: auto; display: flex; gap: 6px; align-items: center; }
+.rows li.drafted-delete .name { text-decoration: line-through; color: var(--one-fg-muted); }
+.chip { padding: 0 6px; border: 1px solid var(--one-accent); border-radius: 10px; color: var(--one-accent); font-size: 11px; line-height: 18px; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.acts button, .rows button {
+  height: 28px; padding: 0 10px; border: 1px solid var(--one-border-strong); border-radius: var(--one-radius-control);
+  background: var(--one-control-bg); color: var(--one-fg); font: inherit; cursor: pointer; white-space: nowrap;
+}
+.acts button:hover, .rows button:hover { background: var(--one-control-hover); }
+.rows button.link { height: auto; padding: 0; border: 0; background: none; color: var(--one-accent); text-align: left; overflow: hidden; text-overflow: ellipsis; }
+.rows button.link:hover { background: none; text-decoration: underline; }
+button:disabled { opacity: .6; cursor: not-allowed; }

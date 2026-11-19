@@ -555,7 +555,7 @@ async function run() {
 // 13 тестовая страница стенда api/plugins/security_controller/setup/ (SETUP-UI.md, «Чего страница не делает»): код только
 // в файлах — setup-bridge.js и page.js, без <script> без src и атрибутов on…, в page.js без .onX =, setAttribute("on…")
 // и innerHTML; без fetch, XMLHttpRequest, WebSocket и /api/:
-// данные страница берёт из init. ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
+// данные страница берёт из init и через мост consolem (шаг 2). ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
 // lock_after_tries: на нём проверяют строку покрытия и ошибки «не на странице»
 async function page13() {
   scene("13");
@@ -578,7 +578,7 @@ async function page13() {
     const on = t.match(/<[^>]*\son[a-z]+\s*=/i);
     if (on) fail("13 страница", `${f}: атрибут on… в разметке — ${on[0].slice(-40)}`);
     for (const word of ["fetch(", "XMLHttpRequest", "WebSocket", "EventSource", "/api/"])
-      if (t.includes(word)) fail("13 страница", `${f}: ${word} — страница стенда работает без запросов, данные — из init`);
+      if (t.includes(word)) fail("13 страница", `${f}: ${word} — страница стенда работает без своих запросов, данные — из init и через мост`);
   }
   // page.js: обработчики — только addEventListener, разметка — без innerHTML (образец для автора страницы)
   const js = text["page.js"].replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");

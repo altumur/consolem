@@ -1,8 +1,9 @@
 <!DOCTYPE html>
 <!-- Тестовая страница стенда: своя страница подсистемы для вида security_controller/KEYPAD (setupUi.mode: iframe).
      Протокол setup/1 — api/SETUP-UI.md, библиотека — api/setup-bridge.js. Код только в page.js: без встроенного
-     <script> и без атрибутов on… (CSP script-src 'self'). Запросов страница не делает: данные приходят в init.
-     Тексты пишет page.js по init.lang; текст ниже виден, пока init не пришёл. -->
+     <script> и без атрибутов on… (CSP script-src 'self'). Своих запросов страница не делает: поля приходят в init,
+     блоки шага 2 (section#bridge) читают и меняют объекты через мост consolem. Хост шага 1 моста не даёт: тогда блоки
+     скрыты. Тексты пишет page.js по init.lang; текст ниже виден, пока init не пришёл. -->
 <html lang="ru">
 <head>
 <meta charset="utf-8">
@@ -47,6 +48,43 @@
     </div>
     <div class="field field-check" data-field="beep">
       <label><input id="f-beep" type="checkbox"> <span data-t="beep"></span></label>
+      <p class="msg" hidden></p>
+    </div>
+  </section>
+  <section id="bridge" class="bridge" hidden>
+    <h2 id="b-title"></h2>
+    <p id="b-error" class="error-box" hidden></p>
+    <div class="block" id="blk-cams">
+      <h3 data-t="cams"></h3>
+      <p class="hint" data-t="cams_hint"></p>
+      <ul id="cams" class="rows"></ul>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-found">
+      <h3 data-t="found"></h3>
+      <p id="found-state" class="hint"></p>
+      <ul id="found" class="rows"></ul>
+      <div class="acts">
+        <button type="button" id="found-start" data-t="found_start"></button>
+        <button type="button" id="found-stop" data-t="found_stop"></button>
+      </div>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-kids">
+      <h3 data-t="kids"></h3>
+      <p class="hint" data-t="kids_hint"></p>
+      <ul id="kids" class="rows"></ul>
+      <div class="acts">
+        <button type="button" id="kid-add" data-t="kid_add"></button>
+      </div>
+      <p class="msg" hidden></p>
+    </div>
+    <div class="block" id="blk-cmd">
+      <h3 data-t="cmd"></h3>
+      <p id="cmd-state" class="hint"></p>
+      <div class="acts">
+        <button type="button" id="cmd-arm" data-t="cmd_arm"></button>
+      </div>
       <p class="msg" hidden></p>
     </div>
   </section>
