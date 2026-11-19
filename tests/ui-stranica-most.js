@@ -162,6 +162,9 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     pageSend({ type: "call", id: idF, op: "runUnitAction", params: { uid: VOL, action: "format" } });
     ok(await until(dlgOpen, 5000) && !document.getElementById("confirmCountInp") && document.getElementById("confirmTitle").textContent.includes("Форматировать") &&
       !replyOf(idF), "команда format с confirm: диалог consolem открыт, ответа ещё нет");
+    // Итоговая волна: строку «Спрашивает страница вида…» consolem ставит и в подтверждение команды
+    const askerLine = () => document.getElementById("confirmAsker")?.textContent || "";
+    ok(askerLine() === `Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}».`, "в подтверждении команды — строка «Спрашивает страница вида…»: " + askerLine());
     document.getElementById("confirmCancel").click();
     ok(await until(() => !!replyOf(idF), 5000) && code(replyOf(idF)) === "CANCELLED" && replyOf(idF).status === 0 && valid(replyOf(idF)) && !trace("POST", `/units/${VOL}/actions/`).length,
       "отказ в диалоге — CANCELLED, status 0, запроса нет");
@@ -305,6 +308,31 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     const ownMove = await call("moveUnit", { uid: SUI_UNIT }, { parentId: null });
     ok([ownDel, ownMove].every((x) => code(x) === "NOT_SUPPORTED" && x.status === 0 && x.problem.field === "/params/uid" && valid(x)) && !dlgOpen() && !window.CONSOLEM_TRACE.length,
       "deleteUnit и moveUnit своего uid — NOT_SUPPORTED /params/uid, без диалога и без запроса");
+    // Итоговая волна: шаг folders своего uid — тоже NOT_SUPPORTED: свой объект страница меняет только через change
+    window.CONSOLEM_TRACE.length = 0;
+    const ownFold = await call("createOperation", undefined, { items: [{ uid: S1, patch: { name: "Мост 1" } }, { uid: SUI_UNIT, folders: [] }] });
+    ok(code(ownFold) === "NOT_SUPPORTED" && ownFold.status === 0 && ownFold.problem.field === "/body/items/1/uid" && valid(ownFold) && !window.CONSOLEM_TRACE.length,
+      "createOperation с шагом folders своего uid — NOT_SUPPORTED /body/items/1/uid, без запроса — " + JSON.stringify(ownFold.problem));
+    // Итоговая волна: повтор одного id в deleteObjects и в шагах delete createOperation — один объект: число для ввода 1
+    const dupAsk = async (op, body) => {
+      const id = "t" + ++seq;
+      pageSend({ type: "call", id, op, body });
+      if (!(await until(() => dlgOpen() && !!document.getElementById("confirmCountInp"), 5000))) return null;
+      const inp = document.getElementById("confirmCountInp");
+      inp.value = "2"; inp.dispatchEvent(new Event("input"));
+      const off2 = document.getElementById("confirmOk").disabled;
+      inp.value = "1"; inp.dispatchEvent(new Event("input"));
+      const on1 = !document.getElementById("confirmOk").disabled;
+      const one = document.getElementById("confirmMsg").textContent.includes("просит удалить объект.");
+      document.getElementById("confirmCancel").click();
+      await until(() => !!replyOf(id), 5000);
+      return { off2, on1, one, asker: askerLine(), r: replyOf(id) };
+    };
+    const vS3 = (await realRaw("GET", `/units/${S3}`)).body.version;
+    const dupO = await dupAsk("deleteObjects", { items: [{ id: S3, version: vS3 }, { id: S3, version: vS3 }] });
+    const dupC = await dupAsk("createOperation", { items: [{ uid: S3, delete: true }, { uid: S3, delete: true }] });
+    ok([dupO, dupC].every((x) => x && x.off2 && x.on1 && x.one && code(x.r) === "CANCELLED"),
+      "повтор id в deleteObjects и createOperation — один объект: число 2 не подходит, 1 подходит — " + JSON.stringify([dupO, dupC].map((x) => x && [x.off2, x.on1, x.one])));
     // Удаление — диалог консоли с вводом числа
     const nDraft = () => cardDiff().filter((x) => x.bridge).length;
     const idD = "t" + ++seq;
@@ -312,6 +340,7 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => dlgOpen() && !!document.getElementById("confirmCountInp"), 5000) && document.getElementById("confirmOk").disabled &&
       document.getElementById("confirmMsg").textContent.includes("Датчик ворот") && document.getElementById("confirmMsg").textContent.includes("«Применить»") && !replyOf(idD),
       "deleteUnit: диалог консоли с полем числа и именем объекта, «Удалить» неактивна, ответа ещё нет");
+    ok(askerLine() === `Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}».`, "в диалоге удаления — строка «Спрашивает страница вида…»: " + askerLine());
     // Волна 06, пп. 8 и 11: один объект — единственное число; что останется — полным предложением; число вложенных — без двоеточия
     const delT = document.getElementById("confirmMsg").textContent;
     ok(delT.includes("просит удалить объект.") && delT.includes("Останутся другие объекты домена и другие шаги черновика.") && !delT.includes("Останется:") &&
@@ -633,7 +662,13 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       ok(await until(() => !!replyOf("n01"), 5000) && replyOf("n01").ok === true && tab === ownTab, `navigate к своему объекту на вкладку «${ownTab}» — ответ ok пришёл, вкладка сменилась`);
       pick(SUI_UNIT, { force: true, tab: "gen" });
       ok(await until(() => sel === SUI_UNIT && tab === "gen" && suiFrame?.ready, 15000), "снова вкладка страницы");
-    } else ok(true, "у объекта страницы одна вкладка");
+    } else {
+      // У объекта страницы одна вкладка: вкладка, которой у объекта нет, — карточка остаётся на своей вкладке, рамка та же
+      const fT = suiFrame;
+      pageSend({ type: "navigate", id: "n01", uid: SUI_UNIT, tab: "acc" });
+      ok(await until(() => !!replyOf("n01"), 5000) && replyOf("n01").ok === true && tab === "gen" && suiFrame === fT && !fT.bridgeOff,
+        "navigate к своему объекту на вкладку, которой у него нет, — ok, вкладка и рамка прежние");
+    }
     pageSend({ type: "change", patch: { display_text: "Переход" } });
     ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст");
     pageSend({ type: "navigate", id: "n1", uid: cam });

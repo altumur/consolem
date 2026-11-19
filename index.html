@@ -6973,8 +6973,9 @@ async function bridgeCall(msg,f=suiFrame){
     if(x?.a.confirm){
       if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
       const lb=textOf(x.a.label)||x.a.id;
-      const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,
-        x.a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
+      const o={rawTitle:true,rawMsg:true,asker:bridgeAsker(f)};
+      if(x.a.confirm.typeCount){o.typeCount=1;o.countLabel="Чтобы подтвердить, ввести число объектов команды"}
+      const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,o);
       if(yes==="busy"||yes==="muted")return bridgeFail(id,0,"BUSY",{message:i18n(yes==="busy"?BRIDGE_TEXT2.DIALOG:BRIDGE_TEXT2.MUTED)});
       if(yes!==true)return bridgeFail(id,0,"CANCELLED");
     }
@@ -7078,7 +7079,9 @@ async function bridgeDraft(msg,f){
   else if(op==="deleteUnit")raw.push({item:{uid:String(p.uid),delete:true}});
   else if(op==="deleteObjects"){
     if(!obj(b)||!list)return bad("/body/items");
-    for(const[i,x]of list.entries()){if(!obj(x)||!okUid(x.id))return bad(`/body/items/${i}/id`);raw.push({item:{uid:x.id,delete:true},store:true,own:`/body/items/${i}/id`})}
+    // Повтор id — один шаг: число в диалоге — число разных объектов
+    const seen=new Set();
+    for(const[i,x]of list.entries()){if(!obj(x)||!okUid(x.id))return bad(`/body/items/${i}/id`);if(seen.has(x.id))continue;seen.add(x.id);raw.push({item:{uid:x.id,delete:true},store:true,own:`/body/items/${i}/id`})}
   }
   else if(op==="moveUnit"){
     if(!obj(b)||!(b.parentId===null||okUid(b.parentId)))return bad("/body/parentId");
@@ -7100,6 +7103,8 @@ async function bridgeDraft(msg,f){
       if(k==="createUnit"){const bf=bridgeUnitCreateBad(x.createUnit,`/body/items/${i}/createUnit`,true);if(bf)return bad(bf)}
       if(k==="folders"&&!(Array.isArray(x.folders)&&x.folders.every(okUid)))return bad(`/body/items/${i}/folders`);
       if(k==="move"&&!(x.move===null||okUid(x.move)))return bad(`/body/items/${i}/move`);
+      // Повтор delete одного uid — один шаг: число в диалоге — число разных объектов
+      if(k==="delete"&&raw.some(r=>r.item.delete&&r.item.uid===x.uid))continue;
       raw.push({item:cardClone(x),own:`/body/items/${i}/uid`});
     }
   }
@@ -7108,6 +7113,8 @@ async function bridgeDraft(msg,f){
   for(const r of raw)if(r.item.patch&&r.item.uid===f.uid)return bad(r.own||"/params/uid");
   // Свой объект страница не удаляет и не переносит: карточка и рамка держатся на нём
   for(const r of raw)if((r.item.delete||r.item.move!==undefined)&&r.item.uid===f.uid)return bridgeFail(id,0,"NOT_SUPPORTED",{field:r.own||"/params/uid",message:i18n(BRIDGE_TEXT2.OWN)});
+  // Папки своего объекта — тоже правка своего объекта: шаг folders своего uid — NOT_SUPPORTED
+  for(const r of raw)if(r.item.folders!==undefined&&r.item.uid===f.uid)return bridgeFail(id,0,"NOT_SUPPORTED",{field:r.own||"/params/uid",message:i18n(BRIDGE_TEXT2.FOLDERS)});
   // Объекты шагов — с сервера в момент вызова: версия шага, имя и вид для подписи. Объект шага createUnit — родитель, ему
   // версия не нужна
   const units=new Map();
@@ -7178,7 +7185,7 @@ async function bridgeDeleteAsk(f,units){
     <p>${i18n("Пропадёт")}:</p><ul class="bk-del">${li}</ul><p>${escHtml(kidLine)}</p>
     <p>${i18n("Останутся другие объекты домена и другие шаги черновика.")}</p>
     <p>${i18n(N===1?"Консоль удалит объект по кнопке «Применить». До этого объект останется на сервере.":"Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.")}</p>`;
-  return bridgeAsk(f,N===1?"Удалить объект?":"Удалить объекты?",html,"Удалить",{html:true,typeCount:N});
+  return bridgeAsk(f,N===1?"Удалить объект?":"Удалить объекты?",html,"Удалить",{html:true,typeCount:N,asker:bridgeAsker(f)});
 }
 // Строки плана: шаг моста — строка черновика карточки (вызов в конце cardDiff)
 function bridgeDraftRows(n,out){
@@ -7253,6 +7260,7 @@ const BRIDGE_TEXT2={
   MUTED:"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.",
   NAV:"Консоль ещё не закончила прошлый переход страницы.",
   OWN:"Страница не удаляет и не переносит свой объект.",
+  FOLDERS:"Страница не меняет папки своего объекта шагом моста.",
   KINDS:"Подписка по видам принимает только виды объектов, которые знает консоль.",
   ACT:"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.",
 };
@@ -7380,11 +7388,13 @@ function bridgeConfirm(msg,f=suiFrame){
     return`<p>${i18n(head)}:</p><ul class="bk-del">${li}</ul>`;
   };
   const html=`<p style="white-space:pre-wrap">${escHtml(msg.text)}</p>${list("Пропадёт",msg.lose)}${list("Останется",msg.keep)}`;
-  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel,asker:bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)})};
+  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel,asker:bridgeAsker(f)};
   if(msg.count!==undefined){opts.typeCount=msg.count;opts.countLabel="Чтобы подтвердить, ввести число"}
   bridgeConfirmOpen=true;
   return bridgeAsk(f,msg.title,html,msg.okLabel||"Подтвердить",opts).finally(()=>{bridgeConfirmOpen=false});
 }
+// Строка шапки любого диалога рамки: кто спрашивает. Её ставит consolem, а не страница
+function bridgeAsker(f){return bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)})}
 // Проверка сообщения confirm: поля по схеме; не так — VALIDATION_FAILED с полем
 function bridgeConfirmBad(d){
   if(typeof d.title!=="string"||!d.title)return"/title";
