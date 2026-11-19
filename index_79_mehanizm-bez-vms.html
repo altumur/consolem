@@ -3588,6 +3588,7 @@ body.dw-resizing,body.dw-resizing *{cursor:col-resize!important;user-select:none
 <!-- ONE PSIM: мост по ONE.PSIM.PrototypeKit, подключён после стилей прототипа -->
 <link rel="stylesheet" href="assets/one-psim/bridge.css">
 <script src="assets/i18n-en.js"></script>
+<script src="assets/i18n-en-79.js"></script>
 <!-- API: контракт, эталонный набор, встроенный сервер и клиент (api/README.md) -->
 <script src="api/openapi.js"></script>
 <script src="api/fixture.js"></script>
@@ -4161,7 +4162,7 @@ function slicesFor(layouts){
 function isLaySlice(s=slice){return String(s).startsWith("lay:")}
 function sliceLayoutOf(s=slice){return isLaySlice(s)&&TREE_LAYOUTS?TREE_LAYOUTS.find(l=>"lay:"+l.id===s)||null:null}
 function sliceShown(s){return slicesFor(TREE_LAYOUTS).includes(s)}
-function sliceLabel(s){const l=sliceLayoutOf(s);return l?textOf(l.label)||l.id:SLICE[s]||""}
+function sliceLabel(s){const l=sliceLayoutOf(s);return l?textOf(l.label)||l.id:s==="all"?textOf(appSectionOf("hw")?.label)||SLICE.all:SLICE[s]||""}
 function sliceIcon(s){const l=sliceLayoutOf(s);return l?l.icon||"folder":SLICE_IC[s]}
 function sliceGroupsOf(s){
   const all=SLICE_GROUPS[s]||["folder"],g=all.filter(x=>!GROUP_LAYOUT[x]||layoutDeclared(GROUP_LAYOUT[x]));
@@ -4340,7 +4341,7 @@ function syncLocalePack(){
   Object.assign(SVIEW,en?SVIEW_EN:SVIEW_RU);
   Object.assign(SVIEW_SW,en?SVIEW_SW_EN:SVIEW_SW_RU);
   STATUS_FILTERS.length=0;(en?STATUS_FILTERS_EN:STATUS_FILTERS_RU).forEach(x=>STATUS_FILTERS.push(x));
-  sysOpts.forEach((o,i)=>{o.n=(en?sysOptsEN:sysOptsRU)[i].n;});
+  sysOpts.forEach(o=>{o.n=((en?sysOptsEN:sysOptsRU).find(x=>x.id===o.id)||o).n});
   logCats.forEach((c,i)=>{c.n=(en?logCatsEN:logCatsRU)[i].n;});
 }
 function setUiLang(v){
@@ -4431,6 +4432,7 @@ async function capsLoad(){
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.features=new Set(c.features);
+  CAPS_SECTIONS=Array.isArray(c.sections)?c.sections:null;
   // Системе без /kinds остаются виды устройств справочника; с /kinds каталоги — из описаний видов (kindsApply)
   refDeviceTypes=c.deviceTypes?new Set(c.deviceTypes):null;refWritable=c.writableFields||null;
   CAPS.deviceTypes=new Set(c.deviceTypes||[]);CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
@@ -4450,7 +4452,7 @@ function capsApply(){
     });
   }
   Object.keys(WIZ).forEach(k=>{WIZ[k].types=WIZ[k].types.filter(t=>canAdd(t[0],k==="acfa"));if(!WIZ[k].types.length)delete WIZ[k]});
-  if(!can("listLicenses"))sysOpts.splice(0,sysOpts.length,...sysOpts.filter(o=>o.id!=="lic"));
+  sysOptsApply();
   const spec=window.CONSOLEM_OPENAPI,needs=[];
   if(spec)Object.values(spec.paths).forEach(item=>Object.values(item).forEach(o=>{if(o&&o.operationId&&!can(o.operationId))needs.push(o.operationId)}));
   // Команды вида без объекта: кнопка видна, если вид её объявил (scope ∋ kind) и система исполняет runKindAction
@@ -6966,9 +6968,8 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 // Разделы, которых нет: система их не объявила, а права могут быть закрыты конкретному человеку (403)
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
-function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():a.id==="learn"?learnShown():true);
-}
+// Разделы на рельсе: что система объявила (appsFor), записи APPS_LIST
+function appsShown(){return appsFor(CAPS_SECTIONS,can).map(id=>APPS_LIST.find(a=>a.id===id))}
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
   // 403 — раздела нет. Другой отказ (без связи с доменом это штатно) запуск не роняет: раздел говорит, что права недоступны, и спросит снова при заходе
@@ -6977,6 +6978,7 @@ async function appLoad(){
   sysTz=me.timezone||sysTz;ACC_ME=me.login;promptClock(me.serverTime);
   accSetSnapshot(accSkeleton(acc));accLast=accSkeleton(acc);
   settingsApply(st);
+  appEnsureShown();
 }
 // Журнал и лицензии при старте не нужны: читаются при заходе в раздел
 let logLoaded=null,licLoaded=null;
@@ -6989,6 +6991,42 @@ function journalLoad(){
 function licLoad(){
   if(licLoaded)return licLoaded;
   return licLoaded=Promise.resolve(can("listLicenses")?API.get("/licenses"):{items:[]}).then(l=>{licenses=l.items},()=>{licLoaded=null});
+}
+// ── Разделы приложения от системы ──────────────────────────────────────────
+// Разделы рельса объявляет система: GET /reference → capabilities.sections (AppSection {id, label?, icon?}, контракт 0.27.0),
+// в порядке рельса. APP_SECTION — раздел консоли → код раздела у системы. Раздел виден, если система его объявила и
+// прежнее условие раздела верно (operations, 403 на права). Незнакомый код консоль пропускает: экрана для него нет.
+// CAPS_SECTIONS === null — система поля не прислала (бэкенд до 0.27.0): разделы по операциям, как раньше.
+// «Обучение» система не объявляет: это раздел макета, главы — про демо VMS, поэтому раздел виден только рядом с камерами.
+// Страницы «Опций» — по видам и операциям системы (SYS_PAGE_NEEDS): implements:<профиль> — есть вид этого профиля
+// (система без GET /kinds — страница видна, как раньше), op:<операция> — система её выполняет.
+let CAPS_SECTIONS=null;
+const APP_SECTION={hw:"objects",rules:"automation",acc:"access",log:"journal",sys:"settings",exp:"vms.export"};
+function appOn(id,c){
+  return id==="rules"?c("listRules"):id==="acc"?c("getAccess")&&!accDenied:id==="log"?c("listJournal"):id==="exp"?c("createExport")||c("listExports"):id==="learn"?learnShown():true;
+}
+function appsFor(sections,c){
+  if(sections==null)return APPS_LIST.map(a=>a.id).filter(id=>appOn(id,c));
+  const appOf=Object.fromEntries(Object.entries(APP_SECTION).map(([a,code])=>[code,a])),out=[];
+  sections.forEach(s=>{const a=appOf[s?.id];if(a&&!out.includes(a)&&appOn(a,c))out.push(a)});
+  if(learnShown()&&profileKinds("vms.camera/1").length)out.push("learn");
+  return out;
+}
+function appSectionOf(id){return(CAPS_SECTIONS||[]).find(s=>s?.id===APP_SECTION[id])||null}
+function appLabel(id){return textOf(appSectionOf(id)?.label)||i18n(APPS_LIST.find(a=>a.id===id)?.label||id)}
+function appVisible(id){return appsFor(CAPS_SECTIONS,can).includes(id)}
+// Открытый раздел система не объявила (appLoad, apiReload) — открыт первый видимый
+function appEnsureShown(){const ids=appsFor(CAPS_SECTIONS,can);if(ids.length&&!ids.includes(app))app=ids[0]}
+function appsNoneUI(){paintMain(`<div class="nt" role="status" data-apps-none>${i18n("Система не объявила ни одного раздела.")}</div>`)}
+const SYS_PAGE_NEEDS={keys:["implements:vms.ptz/1"],ptz:["implements:vms.ptz/1"],cloud:["implements:vms.camera/1"],maps:["implements:vms.camera/1"],
+  alarm:["implements:vms.camera/1"],export:["op:listExports"],lic:["op:listLicenses"]};
+function sysPageShown(o){
+  return(SYS_PAGE_NEEDS[o?.id]||[]).every(n=>n.startsWith("implements:")?!KINDS.size||profileKinds(n.slice(11)).length>0:n.startsWith("op:")?can(n.slice(3)):true);
+}
+function sysOptsApply(){
+  const en=uiLang==="en";
+  sysOpts.splice(0,sysOpts.length,...sysOptsRU.filter(sysPageShown).map(o=>({...o,n:((en?sysOptsEN:sysOptsRU).find(x=>x.id===o.id)||o).n})));
+  if(!sysOpts.some(o=>o.id===sys)&&sysOpts.length)sys=sysOpts[0].id;
 }
 // ── «Автоматизация» — с сервера ───────────────────────────────────────────
 // Правила с историей и запусками, расписания, особые дни, режимы объекта, окна обслуживания читаются через
@@ -8784,7 +8822,7 @@ function applyDeepLink(){
 const jumpSources=[];
 function registerJumpSource(fn){jumpSources.push(fn)}
 let goSel=0,goHits=[],goNav=false;
-registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",
+registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:appLabel(a.id),sub:i18n("Раздел консоли"),icon:"svcs",
   go(){goApp(a.id)}})));
 registerJumpSource(()=>slicesFor(TREE_LAYOUTS).map(id=>({kind:"Срез",title:SLICE_SW[id]?i18n(SLICE_SW[id]):sliceLabel(id),sub:sliceLabel(id),icon:sliceIcon(id),
   go(){goApp("hw");setSlice(id)}})));
@@ -8987,7 +9025,7 @@ function goSearch(v){
       sub:find(f.id)?sliceLabel(f.slice):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
     const favIds=new Set(favs.map(f=>f.id));
     const rec=recent.filter(id=>!favIds.has(id)).map(id=>{const f=find(id);return f?jumpNodeTarget(f.n):null}).filter(Boolean).slice(0,6);
-    const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
+    const apps=appsShown().map(a=>({kind:"Раздел",title:appLabel(a.id),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
     goHits=[...fav,...rec,...apps];
     let i=0;
     const sect=(head,list)=>list.length?`<div class="gohead">${head}</div>`+list.map(t=>goRowHtml(t,i++,"")).join(""):"";
@@ -9240,7 +9278,8 @@ function setApp(a){
   // Ссылка из другого раздела («Автоматизация» в карточке детектора) — место прихода моргает.
   if(a==="rules"&&was!=="rules"&&typeof ruleFromLink==="function"&&ruleFromLink())ruleFlashLanding();
 }
-function goApp(a){setApp(a)}
+// Раздел, которого система не объявила, не открывается: ни ссылкой, ни поиском по разделам
+function goApp(a){if(appVisible(a==="dev"||a==="srvs"?"hw":a))setApp(a)}
 // Что читается при заходе в раздел. Раздел рисуется сразу, данные дописываются
 function sectionLoad(a){
   const again=()=>{if(app===a)paint()};
@@ -9966,7 +10005,7 @@ function renderDomainMenu(){
 }
 function appSwitchHtml(){
   return appsShown().map(a=>
-    `<button type="button" class="asw ${app===a.id?"on":""}" data-a="${a.id}" role="tab" aria-selected="${app===a.id?"true":"false"}" title="${i18n(a.label)}" ${onEv("click",["goApp",`${a.id}`])}>${ic(a.ic)}<span class="asw-lb">${i18n(a.label)}</span></button>`
+    `<button type="button" class="asw ${app===a.id?"on":""}" data-a="${a.id}" role="tab" aria-selected="${app===a.id?"true":"false"}" title="${escHtml(appLabel(a.id))}" ${onEv("click",["goApp",`${a.id}`])}>${ic(a.ic)}<span class="asw-lb">${escHtml(appLabel(a.id))}</span></button>`
   ).join("");
 }
 // Рельс можно спрятать — место уходит дереву и рабочей области. Выбор помнится
@@ -37706,7 +37745,7 @@ let paintTreeLater=false;
 function paintTreeSoon(){paintTreeLater=true;try{paint()}finally{paintTreeLater=false}}
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else if(paintTreeLater)renderTreeSoon();else renderTree();syncDomainChrome();renderFavs();hdModePaint();
   const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI,learn:learnUI};
-  (ui[app]||gear)();
+  (appsShown().length?ui[app]||gear:appsNoneUI)();
   pjaHdSync();
   syncHeaderLoad();
 }
@@ -37746,7 +37785,7 @@ function navLoc(){
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
 function navTitle(){
-  const sec=i18n(APPS_LIST.find(a=>a.id===app)?.label||app);
+  const sec=appLabel(app);
   let t="";
   if(app==="hw"&&bulkActive()&&!bulkPeek)t=`${i18n("Выборка")} (${bulkSelNodes().length})`;
   else if(app==="hw"){const n=find(sel)?.n;t=n?locName(n):""}
