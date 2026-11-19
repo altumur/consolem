@@ -4487,7 +4487,9 @@ function textOf(t){
 // профиль (vms.acs/1 у четырёх экранов СКУД): экран — код вида, если он в массиве, иначе профиль пропускается. Профиль
 // не подошёл — по коду только экраны без своего профиля (CODE_SCREENS). Описания вида нет (listKinds не объявлен, /kinds
 // не прочитан, событие потока раньше /kinds) — экран по коду, как прежде. Ступень 3 — форма по схеме вида
-const SCREEN_OF_PROFILE={"vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
+// Область системы и папка — профили механизма core.domain/1 и core.folder/1 (контракт 0.28.0) идут первыми; vms.domain/1
+// и vms.folder/1 устарели, но старый бэкенд объявляет только их — экран тот же
+const SCREEN_OF_PROFILE={"core.domain/1":"domain","core.folder/1":"folder","vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
   "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage",
   "vms.acs/1":["acfa","acfa_sensor","acfa_lock","acfa_fence"],"vms.talk/1":"spk"};
 // Экраны без своего профиля в контракте: регистратор, канал, микрофон, датчик, реле, экспорт, почта, SMS — только по коду
@@ -5207,7 +5209,7 @@ function kindActionOn(kind,id){return can("runKindAction")&&(KINDS.get(kind)?.ac
 // Завести и удалить объект вида: операция системы (createUnits, deleteUnit) и возможность вида (UnitKind.capabilities
 // create, delete) — у любого вида того же ручного экрана (kindsLike). Профиль системы сужает виды описаниями, а не
 // кодами операций.
-// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с vms.domain/1); вид формы по схеме и
+// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с core.domain/1 или vms.domain/1); вид формы по схеме и
 // описаний нет — сам вид
 function kindsLike(kind){const t=KINDS.size?handScreen(kind):null;return t?kindsOfScreen(t):[kind]}
 function canCreateKind(kind){return can("createUnits")&&(!KINDS.size||kindsLike(kind).some(k=>kindCan(k,"create")))}
@@ -5815,10 +5817,10 @@ async function hwRead(){
   // Домены и серверы — в порядке ответа, как /domains и /servers базы: принятый в домен сервер — последним и после перечитывания
   const whole=async()=>{
     const out=[];let cursor=null;
-    do{const r=await API.get("/units",{implements:"vms.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
+    do{const r=await API.get("/units",{implements:"core.domain/1,vms.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
     return out;
   };
-  const[ds,fl,ar,vl]=await Promise.all([whole(),page("vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
+  const[ds,fl,ar,vl]=await Promise.all([whole(),page("core.folder/1,vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
   const of=t=>ds.filter(u=>handScreen(u.kind)===t).map(unitRec);
   return{domains:of("domain"),servers:of("server"),folders:fl,archives:ar,volumes:vl};
 }
@@ -7020,9 +7022,16 @@ function appEnsureShown(){const ids=appsFor(CAPS_SECTIONS,can);if(ids.length&&!i
 function appsNoneUI(){paintMain(`<div class="nt" role="status" data-apps-none>${i18n("Система не объявила ни одного раздела.")}</div>`)}
 const SYS_PAGE_NEEDS={keys:["implements:vms.ptz/1"],ptz:["implements:vms.ptz/1"],cloud:["implements:vms.camera/1"],maps:["implements:vms.camera/1"],
   alarm:["implements:vms.camera/1"],export:["op:listExports"],lic:["op:listLicenses"]};
-function sysPageShown(o){
-  return(SYS_PAGE_NEEDS[o?.id]||[]).every(n=>n.startsWith("implements:")?!KINDS.size||profileKinds(n.slice(11)).length>0:n.startsWith("op:")?can(n.slice(3)):true);
+// Условия показа: implements:<профиль> — есть вид с профилем, view:<срез> — есть вид с x-ui-category.view, op:<операция> —
+// система её исполняет. Описаний видов нет (старый бэкенд, /kinds не прочитан) — условия по видам верны
+function needsMet(needs){
+  return(needs||[]).every(n=>n.startsWith("implements:")?!KINDS.size||profileKinds(n.slice(11)).length>0:
+    n.startsWith("view:")?!KINDS.size||kindsViewHas(n.slice(5)):n.startsWith("op:")?can(n.slice(3)):true);
 }
+function sysPageShown(o){return needsMet(SYS_PAGE_NEEDS[o?.id])}
+// Вкладки карточки области системы: вкладка видна, если условия верны. У оркестратора нет камер и серверов VMS, поэтому
+// у рабочего пространства только «Папки» и «Общие»
+const DOMAIN_TAB_NEEDS={cams:["view:cam"],srvs:["implements:vms.server/1"],lic:["op:listLicenses"],topo:["implements:vms.server/1"]};
 function sysOptsApply(){
   const en=uiLang==="en";
   sysOpts.splice(0,sysOpts.length,...sysOptsRU.filter(sysPageShown).map(o=>({...o,n:((en?sysOptsEN:sysOptsRU).find(x=>x.id===o.id)||o).n})));
@@ -10836,8 +10845,8 @@ function g7DomainOf(n){return handOf(n,"domain")?n:domainOf(n.id)||domainById(un
 async function g7RelaysLoad(d){
   if(G7.relays.has(d.id)||!can("listRelays"))return;
   G7.relays.set(d.id,new Map());
-  const via=new Map(),list=(await API.get(`/domains/${d.id}/relays`)).items;
-  for(const r of list)if(can("getRelay"))(await API.get(`/domains/${d.id}/relays/${encodeURIComponent(r.name)}`)).members.forEach(m=>via.set(m,r.name));
+  const via=new Map(),list=(await API.get(`/units/${d.id}/relays`)).items;
+  for(const r of list)if(can("getRelay"))(await API.get(`/units/${d.id}/relays/${encodeURIComponent(r.name)}`)).members.forEach(m=>via.set(m,r.name));
   G7.relays.set(d.id,via);
   if(G7.root&&document.getElementById("g7c"))g7Start(G7.root);
 }
@@ -12317,7 +12326,7 @@ function foundNode(did){return{id:foundId(did),type:"found",name:"Найденн
 function foundAll(did){return found[did]||[]}
 function foundPending(did){return foundAll(did).filter(r=>!r.added)}
 function foundRowById(did,rid){return foundAll(did).find(r=>r.id===rid)||null}
-// Итог последнего поиска в сети по доменам — с сервера (GET /domains/{id}/discovery)
+// Итог последнего поиска в сети по доменам — с сервера (GET /units/{uid}/discovery)
 // Что человек ввёл в строке «Найденных» (имя, логин, пароль…), при перечитывании остаётся
 const FOUND_KEEP=["added","addedId","user","pass","name","short","identifier","arch","group","record","lat","lon","azimuth"];
 let foundSeeded=false;
@@ -12337,12 +12346,12 @@ function seedFound(disc){
 }
 // Кандидат поиска (API) → строка, как её показывают мастер и вкладка «Сеть»
 function candRow(c){return{id:c.id,name:c.name,ip:c.ip,port:c.port,mac:c.mac,vendor:c.vendor,model:c.model,status:c.support,user:c.login||"",pass:c.password||"",type:c.type}}
-// Поиск в сети домена идёт на сервере (POST /domains/{id}/discovery), находки
+// Поиск в сети домена идёт на сервере (POST /units/{uid}/discovery), находки
 // приходят событиями: их слушают мастер и вкладка «Сеть» своего домена
 function discStart(did){
-  return API.post(`/domains/${did}/discovery`).catch(e=>{
+  return API.post(`/units/${did}/discovery`).catch(e=>{
     // Уже идёт (запустил другой администратор или вкладка) — подхватываем его
-    if(e?.problem?.code==="BUSY")return API.get(`/domains/${did}/discovery`);
+    if(e?.problem?.code==="BUSY")return API.get(`/units/${did}/discovery`);
     throw e;
   });
 }
@@ -13069,7 +13078,7 @@ function tabsFor(n){
 }
 function tabsForHand(n){
   if(archScope(n))return edgeOn()?[["stor","Хранилища"],["edges","Встроенные хранилища"],["gen","Общие"]]:[["stor","Хранилища"],["gen","Общие"]];
-  if(handOf(n,"domain"))return[["flds","Папки"],["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
+  if(handOf(n,"domain"))return[["flds","Папки"],["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]].filter(([id])=>needsMet(DOMAIN_TAB_NEEDS[id]));
   if(n.type==="unalloc")return[];
   if(handOf(n,"server")&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
   if(handOf(n,"server"))return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],webHas(n)?[["web","Веб, RTSP, ONVIF"]]:[],[["topo","Топология"]]);
@@ -15423,7 +15432,7 @@ async function discLoad(did){
   discRead.add(did);
   const whole={domainId:did,candidates:[]};
   let cursor=null;
-  do{const r=await API.get(`/domains/${did}/discovery`,{cursor,limit:LIM.pageMax});whole.candidates.push(...r.candidates);cursor=r.nextCursor||null}while(cursor);
+  do{const r=await API.get(`/units/${did}/discovery`,{cursor,limit:LIM.pageMax});whole.candidates.push(...r.candidates);cursor=r.nextCursor||null}while(cursor);
   seedFound([whole]);
   if(wizd&&wizd.foundDomain===did&&wizd.devState==="done"){wizd.devResults=foundAll(did);if(app==="hw")gear()}
 }
@@ -25973,7 +25982,7 @@ const SCEN={did:null,doc:null,status:[],edit:null,note:"",found:{when:[],then:[]
 function scenDid(){return SCEN.did||domainFilter||domains[0]?.id}
 async function scenLoad(did){
   SCEN.did=did||scenDid();
-  const[doc,st]=await Promise.all([API.get(`/domains/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/domains/${SCEN.did}/scenarios/status`):{items:[]}]);
+  const[doc,st]=await Promise.all([API.get(`/units/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/units/${SCEN.did}/scenarios/status`):{items:[]}]);
   SCEN.doc=doc;SCEN.status=st.items;
   await hwEnsure(doc.items.flatMap(x=>[x.when.deviceId,x.then.deviceId]));
   if(app==="rules"&&rule==="between")paint();
@@ -26048,7 +26057,7 @@ function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[]
 // правкой, и запись по свежей версии молча затёрла бы чужое
 async function scenWrite(items,after,base=SCEN.doc){
   try{
-    SCEN.doc=await API.put(`/domains/${SCEN.did}/scenarios`,{items},base.version);
+    SCEN.doc=await API.put(`/units/${SCEN.did}/scenarios`,{items},base.version);
     SCEN.note="";after&&after();paint();
   }catch(e){
     if(e?.problem?.code!=="VERSION_MISMATCH"){toast(problemText(e));return}
@@ -33373,7 +33382,7 @@ function abortDeviceSearch(){
   if(wizd.devState!=="searching")return;
   stopDeviceSearch();
   wizd.devState="done";
-  if(wizd.searchDomain)API.del(`/domains/${wizd.searchDomain}/discovery`).catch(()=>{});
+  if(wizd.searchDomain)API.del(`/units/${wizd.searchDomain}/discovery`).catch(()=>{});
   renderDeviceWizard();
 }
 function deviceArchiveWarning(){

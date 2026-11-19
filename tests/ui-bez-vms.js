@@ -195,4 +195,16 @@ UiCheck(async ({ ok, until }) => {
     } finally { CAPS_SECTIONS = declared; paint(); }
     ok(document.querySelectorAll("#rail .asw").length === 4, "разделы вернулись");
   }
+
+  // Карточка рабочего пространства: область найдена по core.domain/1, вкладки VMS (устройства, серверы, лицензии,
+  // топология) — только при условиях DOMAIN_TAB_NEEDS, а на agents их нет
+  goApp("hw");
+  ok(domains.length > 0 && handOf(domains[0], "domain") && (KINDS.get(nodeKind(domains[0]))?.implements || []).includes("core.domain/1"), "область — по core.domain/1: " + domains.map((d) => nodeKind(d)).join());
+  pick(domains[0].id);
+  ok(await until(() => sel === domains[0].id && !!document.querySelector("#main .tabs, #main .hd")), "карточка рабочего пространства открыта");
+  const domTabs = tabsFor(find(domains[0].id).n).map(([id]) => id);
+  ok(domTabs.every((id) => ["flds", "gen"].includes(id)), "вкладки области — только папки и общие: " + domTabs.join());
+  const vmsTabs = /Серверы|Устройства|Лицензии|Топология/;
+  ok(!vmsTabs.test(document.getElementById("rail").textContent), "на рельсе нет вкладок VMS");
+  ok(!vmsTabs.test(document.querySelector("#main .tabs")?.textContent || ""), "в шапке карточки нет вкладок VMS: " + (document.querySelector("#main .tabs")?.textContent || ""));
 });
