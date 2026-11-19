@@ -20,6 +20,7 @@
 - **Обязательные поля.** `KindsList.layouts`, `Capabilities.sections`, `Reference.ruleChecks`; у путей профилей — `Discovery.ipScanMax`, `ScenarioDoc.kinds`, `ScenarioDoc.maxItems`.
 - **Открытые строки вместо `enum`.** `RuleCondition.kind`, `RuleCheck.what`, `RuleTarget.include[].area`, `Reference.ruleTargets.areas[]`. Код вне каталога у включённого правила — `422 NOT_SUPPORTED` с `params.issue`, а не `422 VALIDATION_FAILED`.
 - **`RuleActionField.options` снято.** Значения поля действия — `schema` с `enum`.
+- **Свойство `license` у вида области снято.** Оно устарело в 0.20.0 и держалось профилем `vms.domain/1`. Профиль `core.domain/1` его не знает, и стенд отвечает на `PATCH` с ним `422 VALIDATION_FAILED`. Ключ лицензии и его домены — в `GET /licenses/keys` (`domainIds`).
 - **`Feature` не менялся.** Коды VMS в `capabilities.features` остаются (наше решение О3: открытая строка, коды — в профилях, отдельной правкой).
 
 Границу проверяет `tools/mechanism.py` (правила B1–B5, самопроверка — `python3 tools/check_mechanism.py`): путей `/domains/…` нет, у кодов каталога нет `enum`, ключи `Reference` и `Reference.limits` — только механизма, в описаниях схем дерева нет слов VMS.
