@@ -3,6 +3,9 @@
    страницы сценарий отправляет сам: MessageEvent с source — окно рамки и с её происхождением, как от страницы.
    Задача 3: вызов операций read и act (call → result) по разметке x-bridge контракта, init.host.bridge, пределы,
    подтверждение команды с ActionDescriptor.confirm, ответ только той рамке, что спросила.
+   Задача 4: черновик моста — patchUnit, createUnits, deleteUnit (диалог с вводом числа), deleteObjects, moveUnit,
+   createOperation; «Применить» одной POST /operations вместе с правкой страницы, applied со steps, откат, конфликт версий
+   (версия шага — с момента вызова), «Сбросить» — revert со steps [].
    Мост шага 2 есть в прототипе 81 (index_81_stranica-podsistemy-most.html); на странице без моста проверять нечего. */
 UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Прототип узнаём по имени его файла английских текстов: check_ui.py и самопроверка открывают страницу под другим именем
@@ -59,6 +62,10 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const code = (r) => r && r.problem && r.problem.code;
   const dlgOpen = () => document.getElementById("confirm").classList.contains("open");
   const opsBackup = new Set(CAPS.operations);
+  // Задача 4: возврат API.post — в finally
+  let restorePost = null;
+  // Ждать условия, которое проверяет сервер (until ждёт только синхронное условие)
+  const untilA = async (fn, ms = 10000) => { for (let i = 0; i < ms / 100; i++) { try { if (await fn()) return true; } catch (e) {} await sleep(100); } return false; };
   try {
     // Разметка — из x-bridge контракта
     ok(BRIDGE_OPS.get("getUnit").bridge === "read" && BRIDGE_OPS.get("runUnitAction").bridge === "act" && BRIDGE_OPS.get("patchUnit").bridge === "draft",
@@ -201,11 +208,132 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => !dlgOpen(), 3000) && !replyOf("stale3") && !trace("POST", `/units/${VOL}/actions/`).length, "рамка закрылась — диалог её команды закрыт без ответа и без запроса");
     ok(await until(() => suiFrame?.ready, 15000), "рамка снова готова");
 
+    // ── Задача 4: черновик моста — правка, создание, перенос и удаление объектов одной операцией ──
+    // Датчики: S1 и S3 — у контроллера клавиатуры, S2 — у второго контроллера (P2)
+    const S1 = "30000296-0000-4000-8000-000000000000", S3 = "30000297-0000-4000-8000-000000000000";
+    const S2 = "30000298-0000-4000-8000-000000000000";
+    const SENSOR = "security_controller/SENSOR";
+    // Перенос: у датчика набора нет move, а demo.json не меняем, и служебных операций у встроенного сервера страницы нет.
+    // Поэтому переносит объект вида с move — «Незнакомый объект 2» (test.unknown) из-под ODD в корень домена
+    const ODD2 = "30000300-0000-4000-8000-000000000000";
+    ok(sel === SUI_UNIT && suiFrame?.ready && !cardDiff().length, "карточка клавиатуры открыта, черновик пуст");
+    // Тело POST /operations: cardApply зовёт API.post, а не API.raw (P10)
+    const realPost2 = API.post;
+    const opBodies = [];
+    API.post = function (path, data, headers) { if (path === "/operations") opBodies.push(JSON.parse(JSON.stringify(data))); return realPost2.call(this, path, data, headers); };
+    restorePost = () => { API.post = realPost2; };
+    const v0 = {};
+    for (const id of [S1, S2, ODD2]) v0[id] = (await realRaw("GET", `/units/${id}`)).body.version;
+
+    window.CONSOLEM_TRACE.length = 0;
+    const r1 = await call("patchUnit", { uid: S1 }, { name: "Мост 1" });
+    ok(r1.ok === true && r1.status === 202 && r1.body?.drafted === true && Number.isInteger(r1.body.step) && valid(r1) &&
+      !trace("PATCH", "/units").length && !trace("POST", "/operations").length, "patchUnit датчика — 202, drafted, step; на сервер ничего не ушло");
+    ok(cardDiff().some((x) => x.bridge?.step === r1.body.step && x.label.includes("Датчик двери")), "шаг моста — строка черновика карточки с именем объекта");
+    ok(await until(() => sent.some((m) => m.type === "draft" && (m.steps || []).some((s) => s.step === r1.body.step && s.op === "patchUnit")), 3000) &&
+      valid(sent.filter((m) => m.type === "draft").pop()), "странице ушёл draft со steps");
+    r = await call("patchUnit", { uid: SUI_UNIT }, { name: "Своё" });
+    ok(code(r) === "VALIDATION_FAILED" && r.problem.field === "/params/uid" && r.status === 0, "patchUnit своего uid — VALIDATION_FAILED /params/uid: своё — через change");
+    const rc = await call("createUnits", undefined, { items: [{ kind: SENSOR, parentId: CTRL, name: "Мост новый", properties: { zone: "Мост" } }] });
+    ok(rc.ok && rc.status === 202 && rc.body.drafted, "createUnits под контроллером — drafted");
+    r = await call("createUnits", undefined, { items: [{ kind: SENSOR, name: "Без родителя" }] });
+    ok(code(r) === "NOT_SUPPORTED" && r.status === 0, "createUnits без parentId — NOT_SUPPORTED");
+    // Удаление — диалог консоли с вводом числа
+    const nDraft = () => cardDiff().filter((x) => x.bridge).length;
+    const idD = "t" + ++seq;
+    pageSend({ type: "call", id: idD, op: "deleteUnit", params: { uid: S2 } });
+    ok(await until(() => dlgOpen() && !!document.getElementById("confirmCountInp"), 5000) && document.getElementById("confirmOk").disabled &&
+      document.getElementById("confirmMsg").textContent.includes("Датчик ворот") && document.getElementById("confirmMsg").textContent.includes("«Применить»") && !replyOf(idD),
+      "deleteUnit: диалог консоли с полем числа и именем объекта, «Удалить» неактивна, ответа ещё нет");
+    const inp = document.getElementById("confirmCountInp");
+    inp.value = "2"; inp.dispatchEvent(new Event("input"));
+    const off2 = document.getElementById("confirmOk").disabled;
+    inp.value = "1"; inp.dispatchEvent(new Event("input"));
+    ok(off2 && !document.getElementById("confirmOk").disabled, "число 2 — «Удалить» неактивна, число 1 — активна");
+    await confirmWith(1);
+    ok(await until(() => !!replyOf(idD), 5000) && replyOf(idD).status === 202 && replyOf(idD).body.drafted && !trace("DELETE", "/units").length, "подтвердил — шаг удаления в черновике, запроса нет");
+    const before = nDraft();
+    const idX = "t" + ++seq;
+    pageSend({ type: "call", id: idX, op: "deleteUnit", params: { uid: S3 } });
+    ok(await until(dlgOpen, 5000), "второй диалог удаления открыт");
+    document.getElementById("confirmCancel").click();
+    ok(await until(() => !!replyOf(idX), 5000) && code(replyOf(idX)) === "CANCELLED" && replyOf(idX).status === 0 && nDraft() === before, "отказ в диалоге — CANCELLED, строк черновика столько же");
+    const rule = ((await realRaw("GET", "/rules")).body?.items || [])[0];
+    r = await call("deleteObjects", undefined, { items: [{ id: rule?.id || "нет-правила", version: "1" }] });
+    ok(!!rule && code(r) === "NOT_SUPPORTED" && !dlgOpen(), "deleteObjects с id правила — NOT_SUPPORTED без диалога");
+    r = await call("createOperation", undefined, { items: [{ uid: CTRL, action: "ARM" }] });
+    ok(code(r) === "NOT_SUPPORTED", "createOperation с шагом action — NOT_SUPPORTED");
+    r = await call("moveUnit", { uid: ODD2 }, { parentId: null });
+    ok(r.ok && r.status === 202 && r.body.drafted && cardDiff().some((x) => x.bridge && x.label.includes("Незнакомый объект 2")), "moveUnit в корень домена — drafted, подпись называет объект");
+    // Своя правка страницы и план
+    pageSend({ type: "change", patch: { display_text: "Мост" } });
+    ok(await until(() => cardDiff().some((x) => !x.bridge), 3000) && nDraft() === 4, "правка страницы и 4 шага моста — в одном черновике");
+    cardPlan();
+    ok(await until(() => document.getElementById("bmodal")?.classList.contains("open"), 5000), "план открыт");
+    const planText = document.getElementById("bmodal").textContent;
+    ok(["Изменить «Датчик двери»", "Добавить:", "«Мост новый»", "Удалить «Датчик ворот»", "Перенести «Незнакомый объект 2»"].every((t) => planText.includes(t)), "в плане строки моста с подписями");
+    closeBulkModal();
+    window.CONSOLEM_TRACE.length = 0;
+    const sentAt = sent.length;
+    cardApply();
+    ok(await until(() => trace("POST", "/operations").length >= 1, 5000) && trace("POST", "/operations").filter((t) => t.path === "/operations").length === 1, "«Применить» — одна POST /operations");
+    const ob = opBodies[opBodies.length - 1] || {};
+    ok((ob.items || []).length === 5 && ob.items[0].uid === SUI_UNIT && ob.items[1].uid === S1 && ob.items[1].patch?.name === "Мост 1" && ob.items[2].createUnit?.name === "Мост новый" &&
+      ob.items[3].uid === S2 && ob.items[3].delete === true && ob.items[4].uid === ODD2 && ob.items[4].move === null &&
+      [S1, S2, ODD2].every((id) => ob.expectedVersions?.[id] === v0[id]), "тело: правка страницы и 4 шага моста; expectedVersions — версии S1, S2, ODD2 — " + JSON.stringify(ob).slice(0, 300));
+    const applied = () => sent.slice(sentAt).find((m) => m.type === "applied" && Array.isArray(m.steps));
+    ok(await until(applied, 10000) && valid(applied()) && applied().steps.length === 4 && applied().steps.every((s) => s.state === "ok") &&
+      !!applied().steps.find((s) => s.step === rc.body.step)?.createdId &&
+      !sent.slice(sentAt).some((m) => m.type === "revert"), "applied: 4 шага ok, у createUnit — createdId, revert перед ним нет — " + JSON.stringify(applied()?.steps));
+    const madeId = applied()?.steps.find((s) => s.createdId)?.createdId;
+    const g = async (id) => realRaw("GET", `/units/${id}`);
+    ok((await g(S1)).body.name === "Мост 1" && (await g(madeId)).status === 200 && (await g(S2)).status === 404 && (await g(ODD2)).body.parentId == null && !cardDiff().length,
+      "на сервере: S1 переименован, новый есть, S2 нет, ODD2 в корне; черновик пуст");
+    const undo = await until(() => document.querySelector("#ttu-undo .ttu-act"), 3000) && document.querySelector("#ttu-undo .ttu-act");
+    ok(!!undo, "уведомление с «Отменить»");
+    undo?.click();
+    // Откат идёт шагами по одному: ждать, пока вернутся все четыре
+    ok(await untilA(async () => (await g(S2)).status === 200 && (await g(madeId)).status === 404 && (await g(S1)).body.name !== "Мост 1" && (await g(ODD2)).body.parentId === ODD),
+      "«Отменить» — откат: S2 снова есть, нового нет, S1 с прежним именем, ODD2 снова под ODD");
+    // Откат — своя операция над объектом страницы: пока она идёт, «Применить» консоль не начнёт
+    ok(await until(() => (!bq || bq.finished) && !busyHit(SUI_UNIT), 10000), "откат закончен, объект страницы свободен");
+    // Черновик только из шагов моста: applied приходит, хотя свой объект не изменился (P5)
+    const sentAt2 = sent.length;
+    r = await call("patchUnit", { uid: S3 }, { name: "Мост 3" });
+    cardApply();
+    const applied2 = () => sent.slice(sentAt2).find((m) => m.type === "applied" && Array.isArray(m.steps));
+    ok(await until(applied2, 10000) && applied2().steps.length === 1 && applied2().steps[0].state === "ok" && (await g(S3)).body.name === "Мост 3", "черновик из одного шага моста — applied со steps");
+    await until(() => !bq || bq.finished, 5000);
+    // Версия шага — в момент вызова (P6): чужая правка между вызовом и «Применить» даёт конфликт версий, даже если поток
+    // уже принёс консоли новую версию
+    if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
+    const vS1 = (await g(S1)).body.version;
+    r = await call("patchUnit", { uid: S1 }, { name: "Конфликт" });
+    const foreign = await API.patch(`/units/${S1}`, { name: "Чужое" }, vS1);
+    hwVer.set(S1, foreign.version);
+    const sentAt3 = sent.length;
+    cardApply();
+    const applied3 = () => sent.slice(sentAt3).find((m) => m.type === "applied" && Array.isArray(m.steps));
+    ok(await until(applied3, 10000) && valid(applied3()) && applied3().steps.every((s) => s.state === "fail" && s.code === "VERSION_MISMATCH") && opBodies[opBodies.length - 1].expectedVersions[S1] === vS1,
+      "чужая правка — 412: applied со state fail и VERSION_MISMATCH; версия шага — до чужой правки — " + JSON.stringify(applied3()));
+    ok((await g(S1)).body.name === "Чужое" && cardDiff().some((x) => x.bridge) && !sent.slice(sentAt3).some((m) => m.type === "revert"), "чужая правка не затёрта; черновик и шаг остались, revert нет");
+    if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
+    const sentAt4 = sent.length;
+    cardReset();
+    ok(await until(() => sent.slice(sentAt4).some((m) => m.type === "revert" && Array.isArray(m.steps) && !m.steps.length), 3000) && !cardDiff().length, "«Сбросить» — revert со steps [], черновик пуст");
+    // Только просмотр — шаги draft закрыты
+    suiFrame.readOnly = true;
+    window.CONSOLEM_TRACE.length = 0;
+    r = await call("patchUnit", { uid: S1 }, { name: "Нельзя" });
+    ok(code(r) === "PERMISSION_DENIED" && r.status === 0 && r.problem.params?.readOnly === true && !cardDiff().length && !window.CONSOLEM_TRACE.length, "только просмотр: patchUnit — PERMISSION_DENIED, без запроса и строки");
+    suiFrame.readOnly = false;
+
     // Все ответы — по схеме
     const results = sent.filter((m) => m.type === "result");
     const badRes = results.filter((m) => !valid(m));
     ok(!badRes.length, "все result по схеме (" + results.length + ") — " + JSON.stringify(badRes.slice(0, 1).map(errsOf)));
   } finally {
+    if (restorePost) restorePost();
     API.raw = realRaw;
     suiPost = realPost;
     gate = null;
