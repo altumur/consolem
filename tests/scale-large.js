@@ -27,7 +27,7 @@ UiCheck(async ({ ok, until }) => {
   // член parentId с профилем хранилища или тома (в базе /archives?serverId=, /volumes?archiveId=). Домены и серверы
   // читаются целиком, как /domains и /servers в базе (их там нет в LISTS): GET /units только по профилям области (AREA), vms.server/1.
   // Область и папка — профили механизма core.domain/1, core.folder/1 (с 0.28.0); index.html пока спрашивает устаревшие vms.domain/1,
-  // vms.folder/1 — сценарий принимает оба, пока они не сняты (задача 15 части 04)
+  // vms.folder/1 — сценарий принимает оба, пока их не снимет следующая ломающая версия контракта
   const AREA = ["core.domain/1", "vms.domain/1"], FOLDER = ["core.folder/1", "vms.folder/1"];
   const unitsQ = (path) => (path.startsWith("/units?") ? new URLSearchParams(path.slice(7)) : null);
   const oneMember = (path) => { const q = unitsQ(path); return !!q && q.has("parentId") && /^vms\.(archive|volume)\/1$/.test(q.get("implements") || ""); };

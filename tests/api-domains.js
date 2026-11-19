@@ -6,7 +6,7 @@
   // Слой теста по началу имени; остальные тесты файла идут в слое файла
   const test = ApiTest.prefixLayers([
     // Лицензия домена — поле vms.domain/1 (устарело в 0.20.0): тест остаётся в слое профиля и уходит вместе с ним
-    ["Домен: переименовать и задать лицензию", "profile:vms.domain/1"],
+    ["Домен: задать лицензию", "profile:vms.domain/1"],
     // Область и папка — профили механизма core.domain/1, core.folder/1 (с 0.28.0): их тесты — механизм
     ["Домен:", "mechanism"],
     ["Папка:", "mechanism"],
@@ -68,11 +68,11 @@
     assert.eq(await refused(env, { kind: "domain", name: "  ", properties: {} }), [["NAME_REQUIRED", "/name"]], "имя пустое");
   }, { needs: ["createUnits", "cap:domain:create"] });
 
-  test("Домен: переименовать и задать лицензию — PATCH с версией; чужое имя — 409", async () => {
+  test("Домен: переименовать — PATCH с версией; чужое имя — 409, без версии — 428, старая версия — 412", async () => {
     const env = await makeEnv();
-    const res = await env.call("PATCH", U(d1.id), { name: "Центральный", properties: { license: "LIC-1" } }, v(d1));
+    const res = await env.call("PATCH", U(d1.id), { name: "Центральный" }, v(d1));
     assert.status(res, 200);
-    assert.eq([res.body.name, res.body.properties.license], ["Центральный", "LIC-1"], "изменено");
+    assert.eq(res.body.name, "Центральный", "имя изменено");
     assert.ok(res.body.version !== d1.version, "версия изменилась");
     if (d2) {
       const taken = await env.call("PATCH", U(d1.id), { name: d2.name }, { "If-Match": res.headers.etag });
@@ -81,7 +81,32 @@
     }
     assert.status(await env.call("PATCH", U(d1.id), { name: "x" }), 428, "PRECONDITION_REQUIRED");
     assert.status(await env.call("PATCH", U(d1.id), { name: "x" }, v(d1)), 412, "VERSION_MISMATCH");
+  }, { needs: ["patchUnit", `implements:${AREA}`, "cap:domain:rename"] });
+
+  test("Домен: задать лицензию — PATCH properties.license", async () => {
+    const env = await makeEnv();
+    const res = await env.call("PATCH", U(d1.id), { properties: { license: "LIC-1" } }, v(d1));
+    assert.status(res, 200);
+    assert.eq(res.body.properties.license, "LIC-1", "лицензия записана");
+    assert.ok(res.body.version !== d1.version, "версия изменилась");
   }, { needs: ["patchUnit", "implements:vms.domain/1"] });
+
+  // Бэкенд, который ещё не перешёл на профили механизма: вид объявляет только устаревшие vms.domain/1, vms.folder/1.
+  // Сервер узнаёт по ним область и папку, хуки те же (хук области — своё удаление с переносом), запись разрешена
+  test("Область системы: вид только с устаревшими vms.domain/1 и vms.folder/1 — те же область, папка и хуки", async () => {
+    const old = { domain: ["vms.domain/1"], folder: ["vms.folder/1"] };
+    const kinds = FX.kinds.map((k) => (old[k.kind] ? Object.assign({}, k, { implements: old[k.kind] }) : k));
+    const env = await makeEnv({ fixturePatch: { kinds } });
+    const got = (await env.ok("GET", "/kinds")).items;
+    assert.eq(got.filter((k) => (k.implements || []).some((p) => p === AREA || p === FOLDER)).map((k) => k.kind), [], "core.* не объявляет ни один вид");
+    const top = await env.pages("/tree/children?layout=folders&limit=1000");
+    assert.eq(top.map((n) => n.id).sort(), FX.domains.map((d) => d.id).sort(), "верх дерева — области");
+    const f = await made(env, { kind: "folder", name: "Папка моста", domainId: d1.id, properties: {} });
+    assert.eq([f.domainId, f.parentId], [d1.id, null], "папка создана в области");
+    assert.eq(await refused(env, { kind: "folder", name: " ", domainId: d1.id, properties: {} }), [["NAME_REQUIRED", "/name"]], "без имени — отказ хука");
+    const res = await env.call("DELETE", U(d1.id), undefined, v(d1));
+    assert.status(res, 422, "DOMAIN_NOT_EMPTY", "хук области: непустую без moveTo не удалить");
+  }, { needs: ["listKinds", "getTreeChildren", "createUnits", "deleteUnit", "implements:vms.domain/1", "implements:vms.folder/1", "cap:domain:delete"], layer: "mechanism" });
 
   test("Домен: удалить с переносом — серверы нераспределённые в целевом, папки, устройства, хранилища и найденное — там же", async () => {
     const env = await makeEnv();

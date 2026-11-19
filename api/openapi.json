@@ -9822,14 +9822,14 @@
           },
           "used": {
             "type": "integer",
-            "description": "Занято. С domainId — в этом домене"
+            "description": "Занято. С domainId — в этой области системы (домене)"
           },
           "total": {
             "type": [
               "integer",
               "null"
             ],
-            "description": "Всего; null — без предела. С domainId — лимит домена, если он задан, иначе пул ключа"
+            "description": "Всего; null — без предела. С domainId — лимит области системы (домена), если он задан, иначе пул ключа"
           },
           "label": {
             "$ref": "#/components/schemas/Text",
@@ -9840,11 +9840,11 @@
             "items": {
               "type": "string"
             },
-            "description": "Только с domainId: uid объектов, которые используют функцию в домене. Длинный список сервер отдаёт частью: всего — ownersTotal"
+            "description": "Только с domainId: uid объектов, которые используют функцию в области системы (домене). Длинный список сервер отдаёт частью: всего — ownersTotal"
           },
           "ownersTotal": {
             "type": "integer",
-            "description": "Только с domainId: сколько объектов используют функцию в домене"
+            "description": "Только с domainId: сколько объектов используют функцию в области системы (домене)"
           }
         },
         "additionalProperties": false,
