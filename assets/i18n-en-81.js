@@ -24,4 +24,12 @@ Object.assign(window.I18N_EN,{
   "другие объекты и шаги черновика.":"other objects and draft steps.",
   "Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.":"The console deletes them when you click “Apply”. Until then, the objects stay on the server.",
   "Консоль не может отправить эту правку и шаги страницы одной операцией.":"The console cannot send this change and the page steps in one operation.",
+  // Мост шага 2 (задача 5): подписка, переход, подтверждение страницы
+  "Страница открыла больше подписок, чем разрешает предел.":"The page opened more subscriptions than the limit allows.",
+  "В подписках страницы больше объектов, чем разрешает предел.":"The page subscriptions have more objects than the limit allows.",
+  "Консоль уже показывает вопрос страницы.":"The console already shows a question from the page.",
+  "Объекта нет, или у пользователя нет права его видеть.":"The object does not exist, or the user has no right to see it.",
+  "Спрашивает страница вида «{вид}».":"The page of the “{вид}” kind asks.",
+  "Чтобы подтвердить, ввести число":"To confirm, enter the number",
+  "Подтвердить":"Confirm",
 });

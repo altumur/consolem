@@ -5,7 +5,10 @@
    подтверждение команды с ActionDescriptor.confirm, ответ только той рамке, что спросила.
    Задача 4: черновик моста — patchUnit, createUnits, deleteUnit (диалог с вводом числа), deleteObjects, moveUnit,
    createOperation; «Применить» одной POST /operations вместе с правкой страницы, applied со steps, откат, конфликт версий
-   (версия шага — с момента вызова), «Сбросить» — revert со steps [].
+   (версия шага — с момента вызова, чужая правка пришла потоком по подписке), «Сбросить» — revert со steps [].
+   Задача 5: подписка на поток (subscribe, event, unsubscribe, пределы, stream.reset), подтверждение страницы (confirm:
+   текст — текстом, строка о странице вида, ввод числа, BUSY), переход (navigate: NOT_FOUND, свой объект, черновик —
+   CANCELLED, удачный переход со вспышкой без ответа), закрытие рамки снимает подписки и диалог.
    Мост шага 2 есть в прототипе 81 (index_81_stranica-podsistemy-most.html); на странице без моста проверять нечего. */
 UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Прототип узнаём по имени его файла английских текстов: check_ui.py и самопроверка открывают страницу под другим именем
@@ -307,10 +310,17 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     // Версия шага — в момент вызова (P6): чужая правка между вызовом и «Применить» даёт конфликт версий, даже если поток
     // уже принёс консоли новую версию
     if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
+    // Страница подписана на S1: чужая правка приходит потоком, и hwVer консоли становится новым сам
+    const subV = "v" + ++seq;
+    pageSend({ type: "subscribe", id: subV, entityIds: [S1] });
+    ok(await until(() => replyOf(subV)?.ok === true, 5000) && await until(() => watchLast.split(",").includes(S1), 5000), "подписка на S1: S1 в наблюдении потока");
     const vS1 = (await g(S1)).body.version;
     r = await call("patchUnit", { uid: S1 }, { name: "Конфликт" });
-    const foreign = await API.patch(`/units/${S1}`, { name: "Чужое" }, vS1);
-    hwVer.set(S1, foreign.version);
+    const sentAtE = sent.length;
+    const foreign = (await realRaw("PATCH", `/units/${S1}`, { name: "Чужое" }, { "If-Match": `"${vS1}"` })).body;
+    ok(await until(() => sent.slice(sentAtE).some((m) => m.type === "event" && m.sub === subV && m.message.entityId === S1) && hwVer.get(S1) === foreign.version, 5000),
+      "чужая правка S1 пришла потоком: event подписки, hwVer консоли — новая версия");
+    pageSend({ type: "unsubscribe", sub: subV });
     const sentAt3 = sent.length;
     cardApply();
     const applied3 = () => sent.slice(sentAt3).find((m) => m.type === "applied" && Array.isArray(m.steps));
@@ -327,6 +337,99 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     r = await call("patchUnit", { uid: S1 }, { name: "Нельзя" });
     ok(code(r) === "PERMISSION_DENIED" && r.status === 0 && r.problem.params?.readOnly === true && !cardDiff().length && !window.CONSOLEM_TRACE.length, "только просмотр: patchUnit — PERMISSION_DENIED, без запроса и строки");
     suiFrame.readOnly = false;
+
+    // ── Задача 5: подписка на поток, переход со вспышкой, подтверждение consolem ──
+    ok(["call", "subscribe", "unsubscribe", "navigate", "confirm"].every((t) => bridgeHostInfo(false).messages.includes(t)), "init.host.bridge.messages называет все сообщения шага 2");
+    const subscribe = async (id, f) => { pageSend({ type: "subscribe", id, ...f }); await until(() => !!replyOf(id), 5000); return replyOf(id) || { id, none: true }; };
+    // Домен с поиском в сети (профиль vms.discovery/1): первый, у которого getDiscovery через мост отвечает 200
+    let domainId = null;
+    for (const d of domains) { if ((await call("getDiscovery", { uid: d.id })).ok) { domainId = d.id; break; } }
+    ok(!!domainId, "домен с поиском в сети найден: " + domainId);
+    const cam = cams[0], cam2 = cams[1];
+    r = await subscribe("s1", { entityIds: [domainId], types: ["discovery.progress", "discovery.finished"] });
+    ok(r.ok === true && r.status === 200 && r.body?.sub === "s1" && valid(r), "subscribe s1 — result ok, body.sub равен id — " + JSON.stringify(r));
+    const evAt = sent.length;
+    r = await call("startDiscovery", { uid: domainId });
+    ok(r.ok && r.status === 202, "startDiscovery домена через мост — 202: " + r.status);
+    const evs = () => sent.slice(evAt).filter((m) => m.type === "event");
+    ok(await until(() => evs().some((m) => m.sub === "s1" && m.message.type === "discovery.finished"), 30000), "event s1 с discovery.finished пришёл");
+    ok(evs().every((m) => m.sub === "s1" && m.message.entityId === domainId && ["discovery.progress", "discovery.finished"].includes(m.message.type)) && evs().every(valid),
+      "в s1 только события поиска домена, по схеме — " + JSON.stringify(evs().map((m) => m.message.type + ":" + m.message.entityId).slice(0, 4)));
+    r = await subscribe("s2", { entityIds: [cam] });
+    ok(r.ok && watchIds().includes(cam), "subscribe s2 с камерой — камера в watchIds()");
+    pageSend({ type: "unsubscribe", sub: "s2" });
+    ok(await until(() => !watchIds().includes(cam), 2000) && !bridgeSubs.has("s2"), "unsubscribe s2 — камеры нет в watchIds()");
+    // Пределы: 16 подписок, объекты — не больше watchMax − 1
+    for (let i = 2; i <= 16; i++) await subscribe("k" + i, { kinds: ["test.kind" + i] });
+    r = await subscribe("k17", { kinds: ["test.kind17"] });
+    ok(bridgeSubs.size === 16 && code(r) === "BUSY" && r.status === 0 && valid(r), "16 подписок есть — 17-я BUSY");
+    for (let i = 2; i <= 16; i++) pageSend({ type: "unsubscribe", sub: "k" + i });
+    ok(bridgeSubs.size === 1, "подписки сняты, осталась s1");
+    r = await subscribe("big", { entityIds: Array.from({ length: LIM.watchMax }, (_, i) => "w" + i) });
+    ok(code(r) === "BUSY" && !bridgeSubs.has("big") && !watchIds().includes("w0"), "объектов больше watchMax − 1 — BUSY, в наблюдение не попали");
+    r = await subscribe("bad", { entityIds: "x" });
+    ok(code(r) === "VALIDATION_FAILED" && r.problem.field === "/entityIds", "entityIds не список — VALIDATION_FAILED /entityIds");
+    // stream.reset — всем подпискам
+    await subscribe("s3", { entityIds: [cam] });
+    const rsAt = sent.length;
+    bridgeOnEvent({ id: "0", type: "stream.reset", at: new Date().toISOString() });
+    ok(["s1", "s3"].every((s) => sent.slice(rsAt).some((m) => m.type === "event" && m.sub === s && m.message.type === "stream.reset")), "stream.reset — event у каждой подписки");
+
+    // confirm: текст страницы — текстом, строка о странице, ввод числа
+    pageSend({ type: "confirm", id: "c1", title: "Поставить на охрану", text: "<img src=x>", lose: ["Тревоги датчиков"], keep: ["<b>Камеры</b>"], count: 2, okLabel: "Поставить" });
+    ok(await until(dlgOpen, 5000) && !document.querySelector("#confirm img") && !document.querySelector("#confirmMsg b") && document.getElementById("confirmMsg").textContent.includes("<img src=x>"), "текст страницы — текстом");
+    const msgT = document.getElementById("confirmMsg").textContent;
+    ok(msgT.includes(`Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}»`) && msgT.includes("Тревоги датчиков") && msgT.includes("<b>Камеры</b>") &&
+      document.getElementById("confirmTitle").textContent === "Поставить на охрану" && document.getElementById("confirmOk").textContent === "Поставить" &&
+      !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled && !replyOf("c1"),
+      "в диалоге строка о странице вида, списки, заголовок и кнопка страницы, поле числа; ответа ещё нет");
+    pageSend({ type: "confirm", id: "c2", title: "Ещё", text: "Ещё" });
+    ok(await until(() => !!replyOf("c2"), 3000) && code(replyOf("c2")) === "BUSY" && valid(replyOf("c2")), "второй confirm, пока открыт первый, — BUSY");
+    await confirmWith(2);
+    ok(await until(() => !!replyOf("c1"), 3000) && replyOf("c1").ok === true && replyOf("c1").status === 200 && replyOf("c1").body?.confirmed === true && valid(replyOf("c1")), "confirmWith(2) — confirmed: true");
+    pageSend({ type: "confirm", id: "c3", title: "Снять с охраны", text: "Снять?" });
+    ok(await until(dlgOpen, 3000) && !document.getElementById("confirmCountInp"), "confirm без count — без поля числа");
+    document.getElementById("confirmCancel").click();
+    ok(await until(() => !!replyOf("c3"), 3000) && replyOf("c3").ok === true && replyOf("c3").body?.confirmed === false, "отмена — confirmed: false");
+    // Свой диалог consolem закрыл диалог страницы — confirmed: false
+    pageSend({ type: "confirm", id: "c4", title: "Вопрос", text: "Вопрос" });
+    ok(await until(dlgOpen, 3000), "диалог c4 открыт");
+    askConfirm("Свой вопрос", "Свой", "", "Да", () => {});
+    ok(await until(() => !!replyOf("c4"), 3000) && replyOf("c4").body?.confirmed === false, "диалог страницы занял свой диалог consolem — confirmed: false");
+    closeConfirm();
+    // Рамка закрылась при открытом confirm: диалог закрыт без ответа, подписки сняты
+    pageSend({ type: "confirm", id: "c5", title: "Вопрос", text: "Вопрос" });
+    ok(await until(dlgOpen, 3000) && watchIds().includes(cam), "диалог c5 открыт, камера s3 в наблюдении");
+    suiClose();
+    await sleep(100);
+    ok(!dlgOpen() && !replyOf("c5") && bridgeSubs.size === 0 && !watchIds().includes(cam) && !bridgeConfirmOpen, "suiClose: диалог закрыт без ответа, подписок нет, камеры нет в watchIds()");
+    gear();
+    ok(await until(() => suiFrame?.ready, 15000), "рамка снова готова");
+
+    // navigate
+    pageSend({ type: "navigate", id: "n0", uid: "30009999-0000-4000-8000-000000000000" });
+    ok(await until(() => !!replyOf("n0"), 5000) && code(replyOf("n0")) === "NOT_FOUND" && replyOf("n0").status === 0 && valid(replyOf("n0")), "navigate к объекту, которого нет, — NOT_FOUND");
+    pageSend({ type: "navigate", id: "n00", uid: SUI_UNIT, tab: "gen" });
+    ok(await until(() => !!replyOf("n00"), 5000) && replyOf("n00").ok === true && sel === SUI_UNIT && suiFrame?.ready, "navigate к своему объекту — ok, карточка та же");
+    pageSend({ type: "change", patch: { display_text: "Переход" } });
+    ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст");
+    pageSend({ type: "navigate", id: "n1", uid: cam });
+    ok(await until(() => dlgOpen() && document.getElementById("confirmTitle").textContent.includes("Изменения не применены"), 5000) && !replyOf("n1"), "navigate с черновиком — диалог «Изменения не применены»");
+    document.getElementById("confirmCancel").click();
+    ok(await until(() => !!replyOf("n1"), 3000) && code(replyOf("n1")) === "CANCELLED" && sel === SUI_UNIT && cardDiff().length > 0, "«Остаться» — CANCELLED, карточка прежняя");
+    cardReset();
+    ok(await until(() => !cardDiff().length, 3000), "черновик пуст");
+    await subscribe("s4", { entityIds: [cam2] });
+    const f2 = suiFrame, navAt = sent.length;
+    pageSend({ type: "navigate", id: "n2", uid: cam, tab: "acc" });
+    ok(await until(() => sel === cam && tab === "acc", 5000), "navigate к камере на вкладку «Доступ»");
+    // У карточки камеры нет h1: заголовок — последний шаг пути (.cr-cur). Моргают он, активная вкладка и строка дерева
+    ok(await until(() => document.querySelector(".hd h1.acc-flash, .hd .cr-cur.acc-flash") && document.querySelector(".hd .tabs .tab.on.acc-flash") && document.querySelector("#tree .n.on.acc-flash"), 3000),
+      "переход по ссылке из страницы моргает заголовком, вкладкой и строкой дерева");
+    await sleep(100);
+    ok(!sent.slice(navAt).some((m) => m.type === "result" && m.id === "n2") && suiFrame !== f2 && f2.bridgeOff === true && bridgeSubs.size === 0, "удачный переход — ответа нет, рамка закрыта, подписок нет");
+    pick(SUI_UNIT, { force: true, tab: "gen" });
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready, 15000), "вернулись к странице стенда");
 
     // Все ответы — по схеме
     const results = sent.filter((m) => m.type === "result");

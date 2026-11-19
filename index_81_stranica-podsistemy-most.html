@@ -6298,6 +6298,7 @@ function hwReloadSoon(m){
 // Поток событий: изменения (свои и чужие), ход операций. Запись перечитывается
 // по id; если поток потерян — весь кэш заново.
 function apiOnEvent(m){
+  bridgeOnEvent(m);
   if(m.at)promptClock(m.at);
   if(m.kind==="rulePrompt"){promptEvent(m);return}
   if(m.type==="stream.hello"){
@@ -6705,7 +6706,7 @@ function suiQueueDone(q){
   const f=suiFrame;if(!f||f.applyQ!==q)return;
   f.applyQ=null;
   // Шаг 2: черновик с шагами моста — свой итог (bridgeQueueDone)
-  if(q.bridgeSteps?.length){bridgeQueueDone(f,q);return}
+  if(q.bridgeSteps?.length){bridgeQueueDone(f,q).catch(e=>{console.warn("setup/1: итог «Применить» с шагами моста",e);if(f.applying)f.applying=null});return}
   const bad=q.fail+q.steps.reduce((k,s)=>k+s.ops.filter(o=>o.state==="cancel").length,0);
   if(bad){f.applying=null;suiSync();return}
   // Объект не прочитан — applied уйдёт с тем, что уже лежит в кэше; ошибку видно в консоли
@@ -6907,6 +6908,7 @@ function bridgePost(f,type,data){if(bridgeLive(f))suiPost(type,data)}
 function bridgeDrop(f){
   if(!f)return;
   f.bridgeOff=true;
+  bridgeSubsDrop(f);
   const a=f.bridgeAsk;f.bridgeAsk=null;
   if(a&&confirmOkCb===a.mine&&document.getElementById("confirm")?.classList.contains("open"))closeConfirm();
 }
@@ -7193,6 +7195,142 @@ async function bridgeQueueDone(f,q){
   f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft={};f.pageSteps=[];
   if(sel===f.uid&&app==="hw")gear();else suiReconcile(n);
 }
+// Подписка на поток, переход и подтверждение (задача 5, api/SETUP-UI.md: «Подписка на поток», «Переход», «Подтверждение»).
+// bridgeSubs: sub → {f, entityIds: Set, kinds: Set, types: Set | null}; sub равен id сообщения subscribe. Объекты из
+// entityIds попадают в наблюдение потока (watchIds → bridgeWatchIds). Рамка закрылась — bridgeDrop снимает её подписки
+let bridgeSubs=new Map(),bridgeConfirmOpen=false;
+const BRIDGE_RESET=new Set(["stream.reset","test.reset"]);
+// Тексты отказов шага 2, у которых общий текст кода не подходит
+const BRIDGE_TEXT2={
+  SUBS:"Страница открыла больше подписок, чем разрешает предел.",
+  WATCH:"В подписках страницы больше объектов, чем разрешает предел.",
+  CONFIRM:"Консоль уже показывает вопрос страницы.",
+  NOT_FOUND:"Объекта нет, или у пользователя нет права его видеть.",
+};
+const bridgeStrs=v=>Array.isArray(v)&&v.every(x=>typeof x==="string");
+function bridgeWatchIds(){
+  const out=new Set();
+  bridgeSubs.forEach(s=>s.entityIds.forEach(id=>out.add(id)));
+  return[...out];
+}
+// subscribe → BridgeResult. Сверх BRIDGE_SUBS_MAX подписок или сверх watchMax − 1 объектов во всех подписках — BUSY,
+// объекты в наблюдение не попадают. Подписка с тем же id заменяет прежнюю
+function bridgeSubscribe(msg,f=suiFrame){
+  const id=msg.id;
+  for(const k of ["entityIds","kinds","types"])if(msg[k]!==undefined&&!bridgeStrs(msg[k]))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/"+k});
+  const others=[...bridgeSubs].filter(([k])=>k!==id);
+  if(others.length>=BRIDGE_SUBS_MAX)return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.SUBS)});
+  const ids=new Set(msg.entityIds||[]),all=new Set(ids);
+  others.forEach(([,s])=>s.entityIds.forEach(x=>all.add(x)));
+  if(all.size>Math.max(0,LIM.watchMax-1))return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.WATCH)});
+  bridgeSubs.set(id,{f,entityIds:ids,kinds:new Set(msg.kinds||[]),types:msg.types?new Set(msg.types):null});
+  watchSoon();
+  return{id,ok:true,status:200,body:{sub:id}};
+}
+// unsubscribe — без ответа; чужую подписку (другой рамки) не снимает
+function bridgeUnsubscribe(msg,f=suiFrame){
+  const s=bridgeSubs.get(msg.sub);
+  if(!s||s.f!==f)return;
+  bridgeSubs.delete(msg.sub);
+  watchSoon();
+}
+// Подписки рамки сняты, их объекты ушли из наблюдения
+function bridgeSubsDrop(f){
+  let hit=false;
+  bridgeSubs.forEach((s,k)=>{if(s.f===f){bridgeSubs.delete(k);hit=true}});
+  if(hit)watchSoon();
+}
+// Первая строка apiOnEvent: подходящим подпискам — event {sub, message}. stream.reset и test.reset — всем
+function bridgeOnEvent(m){
+  if(!bridgeSubs.size||!m||typeof m.type!=="string")return;
+  const all=BRIDGE_RESET.has(m.type);
+  bridgeSubs.forEach((s,sub)=>{
+    if(!all&&!(s.entityIds.has(m.entityId)||s.kinds.has(m.kind)))return;
+    if(!all&&s.types&&!s.types.has(m.type))return;
+    bridgePost(s.f,"event",{sub,message:m});
+  });
+}
+// navigate → Promise<BridgeResult | null>. null — удачный переход: карточка другая, рамка закрыта, ответа нет.
+// Переход — по правилу «Моргание при переходе по ссылке»: hwJumpFlash вокруг pick, вспышку даёт hwFlashLanding.
+// Черновик не пуст — сначала cardLeaveAsk; «Остаться» — CANCELLED. Вопрос о блоках драйвера (csLeaveAsk) мост не задаёт
+async function bridgeNavigate(msg,f=suiFrame){
+  const id=msg.id,uid=msg.uid;
+  if(typeof uid!=="string"||!uid||uid.includes(":"))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/uid"});
+  if(msg.tab!==undefined&&typeof msg.tab!=="string")return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/tab"});
+  try{await hwEnsure([uid])}
+  catch(e){if(!e||!e.status)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+  if(!bridgeLive(f))return null;
+  const n=find(uid)?.n;
+  if(!n)return bridgeFail(id,0,"NOT_FOUND",{message:i18n(BRIDGE_TEXT2.NOT_FOUND)});
+  // Вкладка, которой у объекта нет, — карточка открывается на своей вкладке
+  const tb=msg.tab&&tabsFor(n).some(([t])=>t===msg.tab)?msg.tab:undefined;
+  if(uid===f.uid){
+    if(tb&&tb!==tab){goTab(tb);hwFlashLanding()}
+    return{id,ok:true,status:200};
+  }
+  return new Promise(res=>{
+    const go=()=>{
+      if(!bridgeLive(f)){res(null);return}
+      if(!goApp("hw")){res(bridgeFail(id,0,"CANCELLED"));return}
+      hwJumpFlash=true;
+      try{pick(uid,{...(tb?{tab:tb}:{}),force:true,csOk:true})}finally{hwJumpFlash=false}
+      res(null);
+    };
+    if(cardDraft&&cardDiff().length)cardLeaveAsk(go,()=>res(bridgeFail(id,0,"CANCELLED")));
+    else go();
+  });
+}
+// confirm → Promise<boolean>: диалог consolem. Строка «Спрашивает страница вида «…»», списки «Пропадёт» и «Останется»
+// consolem строит сам; каждая строка страницы проходит escHtml, заголовок и кнопка — текстом. count — ввод числа.
+// Свой диалог consolem занял окно — false (bridgeAsk); рамка закрылась — диалог закрыт, ответа нет (bridgeDrop)
+function bridgeConfirm(msg,f=suiFrame){
+  const list=(head,xs)=>{
+    if(!xs||!xs.length)return"";
+    const li=xs.slice(0,10).map(x=>`<li>${escHtml(x)}</li>`).join("")+(xs.length>10?`<li>${i18n("и ещё")} ${xs.length-10}</li>`:"");
+    return`<p>${i18n(head)}:</p><ul class="bk-del">${li}</ul>`;
+  };
+  const html=`<p class="sub">${escHtml(bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)}))}</p>
+    <p style="white-space:pre-wrap">${escHtml(msg.text)}</p>${list("Пропадёт",msg.lose)}${list("Останется",msg.keep)}`;
+  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel};
+  if(msg.count!==undefined){opts.typeCount=msg.count;opts.countLabel="Чтобы подтвердить, ввести число"}
+  bridgeConfirmOpen=true;
+  return bridgeAsk(f,msg.title,html,msg.okLabel||"Подтвердить",opts).finally(()=>{bridgeConfirmOpen=false});
+}
+// Проверка сообщения confirm: поля по схеме; не так — VALIDATION_FAILED с полем
+function bridgeConfirmBad(d){
+  if(typeof d.title!=="string"||!d.title)return"/title";
+  if(typeof d.text!=="string")return"/text";
+  if(d.lose!==undefined&&!bridgeStrs(d.lose))return"/lose";
+  if(d.keep!==undefined&&!bridgeStrs(d.keep))return"/keep";
+  if(d.count!==undefined&&!(Number.isInteger(d.count)&&d.count>=1))return"/count";
+  if(d.okLabel!==undefined&&(typeof d.okLabel!=="string"||!d.okLabel))return"/okLabel";
+  return null;
+}
+// Обработчики шага 2 — после ready, ответ — рамке, что спросила
+SUI_ON.subscribe=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  bridgePost(f,"result",bridgeSubscribe(d,f));
+};
+SUI_ON.unsubscribe=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.sub!=="string")return;
+  bridgeUnsubscribe(d,f);
+};
+SUI_ON.navigate=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  bridgeNavigate(d,f).catch(e=>{console.warn("setup/1: navigate",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{if(r)bridgePost(f,"result",r)});
+};
+SUI_ON.confirm=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  const bad=bridgeConfirmBad(d);
+  if(bad){bridgePost(f,"result",bridgeFail(d.id,0,"VALIDATION_FAILED",{field:bad}));return}
+  // Второй вопрос, пока открыт первый (или диалог удаления и команды этой рамки), — BUSY
+  if(bridgeConfirmOpen||f.bridgeAsk){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.CONFIRM)}));return}
+  bridgeConfirm(d,f).then(v=>bridgePost(f,"result",{id:d.id,ok:true,status:200,body:{confirmed:v}}));
+};
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -10062,7 +10200,7 @@ function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
   const msgEl=document.getElementById("confirmMsg");
   if(opts.html)msgEl.innerHTML=msg;else msgEl.textContent=opts.rawMsg?msg:i18n(msg);
   document.getElementById("confirmWarn").textContent=warn?i18n(warn):"";
-  document.getElementById("confirmOk").textContent=i18n(okLabel||"Удалить");
+  document.getElementById("confirmOk").textContent=opts.rawOk?okLabel:i18n(okLabel||"Удалить");
   document.getElementById("confirmCancel").textContent=i18n(opts.cancelLabel||"Отменить");
   confirmOkCb=onOk;confirmCancelCb=opts.onCancel||null;
   // Удаление подтверждают числом: сколько объектов удалится. Кнопку не нажать
@@ -11671,6 +11809,8 @@ let apiStream=null,streamClient=null,watchLast="",watchQ=false,watchOpened="",wa
 function watchIds(){
   const out=[];
   if(sel&&hwVer.has(sel))out.push(sel);
+  // Объекты подписок страницы подсистемы (мост шага 2): их не больше watchMax − 1, место для sel остаётся
+  bridgeWatchIds().forEach(id=>{if(!out.includes(id))out.push(id)});
   [...open].reverse().forEach(id=>{const s=String(id);const k=s.slice(s.lastIndexOf("|")+1);if(hwVer.has(k)&&!out.includes(k))out.push(k)});
   return out.slice(0,LIM.watchMax);
 }
