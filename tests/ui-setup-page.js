@@ -145,6 +145,33 @@ UiCheck(async ({ ok, until, sleep }) => {
     ok(valid(thMsg) && thMsg.theme.mode === (th === "light" ? "dark" : "light") && typeof thMsg.theme.tokens["--one-accent"] === "string" && thMsg.theme.tokens["--one-accent"].length > 0,
       "смена темы — сообщение theme с токенами --one-…");
 
+    // ready, когда объекта нет в кэше (по http так бывает после test.reset: поток перечитывает данные, а рамка уже
+    // открыта): консоль читает объект GET /units/{uid} и шлёт init. Чтение не удалось — сбой с причиной.
+    // Объект прячется от find только на время ready: потом карточка его снова видит
+    {
+      const realFind = find, realGet = API.get;
+      const hidden = (fn) => { find = (id, ...r) => (id === SUI_UNIT ? undefined : realFind(id, ...r)); try { fn(); } finally { find = realFind; } };
+      const isUnit = (p) => typeof p === "string" && p.split("?")[0] === "/units/" + encodeURIComponent(SUI_UNIT);
+      const reads = [];
+      API.get = function (p, ...r) { if (isUnit(p)) reads.push(p); return realGet.call(this, p, ...r); };
+      const inits0 = sent.filter((m) => m.type === "init").length;
+      hidden(() => fromPage({ type: "ready", fields: suiFrame.fields }));
+      ok(await until(() => sent.filter((m) => m.type === "init").length === inits0 + 1), "ready без объекта в кэше: init уходит после чтения объекта");
+      const i2 = sent.filter((m) => m.type === "init").pop();
+      ok(reads.length === 1 && valid(i2) && i2.uid === SUI_UNIT && i2.kind === SUI_KIND && i2.unit.version === hwVer.get(SUI_UNIT) && suiFrame.state === "ready",
+        "init после GET /units/{uid}: по схеме, тот же объект и версия — " + JSON.stringify({ reads: reads.length, errs: errsOf(i2) }));
+      API.get = function (p, ...r) { if (isUnit(p)) return Promise.reject({ problem: { code: "SERVER_OFFLINE" } }); return realGet.call(this, p, ...r); };
+      const inits1 = sent.filter((m) => m.type === "init").length;
+      hidden(() => fromPage({ type: "ready", fields: suiFrame.fields }));
+      ok(await until(() => suiFrame?.state === "failed" && !!suiFrame.why) && sent.filter((m) => m.type === "init").length === inits1,
+        "чтение объекта не удалось — сбой с причиной «" + (suiFrame?.why || "") + "», init не ушёл");
+      API.get = realGet;
+      ok(await until(() => !!main().querySelector("[data-sui-fail]")), "карточка называет сбой и предлагает загрузить страницу снова");
+      suiRetry();
+      ok(await until(() => suiFrame?.state === "ready" && !!slot() && sent.filter((m) => m.type === "init").length === inits1 + 1, 15000), "«Загрузить страницу снова» — страница снова готова, init ушёл");
+      fromPage({ type: "height", px: 437 });
+    }
+
     // ── Правка и «Применить» (задача 7): change, invalid, flush, applied, errors, revert, readOnly ──
     {
       const un = () => find(SUI_UNIT).n;

@@ -6632,6 +6632,25 @@ function suiDraftOf(n){
   return suiDiff(base.xprops||{},n.xprops||{});
 }
 function suiInitMsg(n){return{uid:n.id,kind:nodeKind(n),lang:uiLang,theme:suiTheme(),readOnly:!!suiFrame?.readOnly,unit:suiUnitOf(n),draft:suiDraftOf(n),host:suiHostInfo()}}
+function suiInitSend(n){const f=suiFrame,m=suiInitMsg(n);suiPost("init",m);f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft=m.draft}
+// ready пришёл, а полной записи объекта в кэше нет (по http — после test.reset или stream.reset, пока данные
+// перечитываются): объект — из GET /units/{uid}. Ответ для другой рамки (gen) — пропуск. Узел за это время пришёл
+// в кэш — init из него, как обычно; нет — из ответа сервера, черновика у такого объекта нет. Чтение не удалось — сбой
+// с причиной: карточка покажет её и «Загрузить страницу снова»
+async function suiInitLoad(f){
+  const gen=f.gen,live=()=>suiFrame===f&&f.gen===gen&&f.ready;
+  let u;
+  try{u=await API.get(`/units/${encodeURIComponent(f.uid)}`)}
+  catch(e){if(live())suiFail(problemText(e));return}
+  if(!live())return;
+  const n=find(f.uid)?.n;
+  if(n&&!n._row)return suiInitSend(n);
+  u=u||{};
+  const unit={uid:f.uid,kind:u.kind||f.kind,name:String(u.name??""),version:String(u.version??""),properties:cardClone(u.properties||{})};
+  if(u.status)unit.status=cardClone(u.status);
+  suiPost("init",{uid:f.uid,kind:unit.kind,lang:uiLang,theme:suiTheme(),readOnly:!!f.readOnly,unit,draft:{},host:suiHostInfo()});
+  f.unitVersion=u.version??null;f.pageDraft={};
+}
 // JSON Merge Patch (RFC 7396): null снимает ключ, объект сливается по ключам, остальное заменяет целиком. base не меняется
 function suiMerge(base,patch){
   const obj=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
@@ -6765,7 +6784,7 @@ const SUI_ON={
     f.state="ready";f.ready=true;
     f.fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"&&x.startsWith("/properties/")):null;
     const n=find(f.uid)?.n;
-    if(n){const m=suiInitMsg(n);suiPost("init",m);f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft=m.draft}
+    if(n&&!n._row)suiInitSend(n);else suiInitLoad(f);
     if(suiCardNode()?.id===f.uid)gear();else suiPlace();
   },
   // Правка страницы — весь черновик. Только просмотр — пропуск (Review Focus 5)
