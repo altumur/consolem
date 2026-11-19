@@ -22927,7 +22927,7 @@ function formBase(n){
       card("Действия",`<div class="dom-acts">
         ${onSrv?`<button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>`:""}
         <button type="button" class="btn s" ${onEv("click",["goTab","flds"],["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>
-        ${canDomainArch()&&needsMet(["implements:vms.archive/1"])?archCreateBtn(n):""}
+        ${needsMet(["implements:vms.archive/1"])?archCreateBtn(n):""}
         <span style="flex:1"></span>
         <button type="button" class="btn s" data-needs="kind:domain/create" ${onEv("click",["addDomain"])}>${lu("plus")}${i18n("Домен")}</button>
         <button type="button" class="btn s danger" data-needs="kind:domain/delete" ${onEv("click",["deleteDomain",`${n.id}`])} ${canDeleteDomain()?"":"disabled title=\""+i18n("Последний домен удалить нельзя")+"\""}>${i18n("Удалить домен")}</button>
