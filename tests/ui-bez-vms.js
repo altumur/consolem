@@ -207,4 +207,23 @@ UiCheck(async ({ ok, until }) => {
   const vmsTabs = /Серверы|Устройства|Лицензии|Топология/;
   ok(!vmsTabs.test(document.getElementById("rail").textContent), "на рельсе нет вкладок VMS");
   ok(!vmsTabs.test(document.querySelector("#main .tabs")?.textContent || ""), "в шапке карточки нет вкладок VMS: " + (document.querySelector("#main .tabs")?.textContent || ""));
+  // «Общие» области: имя и папки остаются, плиток серверов, устройств и лицензий VMS нет, кнопок их добавления нет
+  goTab("gen");
+  const mainText = () => document.getElementById("main").textContent;
+  ok(await until(() => /Папок/.test(mainText())), "«Общие» области: плитка «Папок» на месте");
+  const vmsTiles = /Серверов|Нераспределённых|Служб на серверах|Сетевых хранилищ|Устройств|Лицензии камер|Лицензий камер|Ключ домена|Серийный номер лицензии/;
+  ok(!vmsTiles.test(mainText()), "в «Общих» нет плиток и полей VMS: " + (mainText().match(vmsTiles) || [""])[0]);
+  const btns = () => [...document.querySelectorAll("#main button")].map((b) => b.textContent.trim());
+  ok(!btns().some((t) => /^Серверы$|Добавить устройства|Добавить серверы|Создать хранилище/.test(t)), "кнопок добавления серверов, устройств, хранилищ нет: " + btns().filter((t) => /Сервер|Добавить|хранилищ/.test(t)).join(" | "));
+  ok(!canInspectorAdd(domains[0]) && addSplitItems(domains[0]).length === 0, "у области нет «Добавить серверы» и пунктов «Серверы…»");
+  // Меню строки области и папки — без пунктов VMS
+  const ctxText = (n) => { openTreeCtx(n, { x: 10, y: 10 }); const t = document.getElementById("tctx").textContent; closeTreeCtx(); return t; };
+  const domCtx = ctxText(domains[0]);
+  ok(!/Добавить устройства|Добавить серверы/.test(domCtx) && /Создать папку/.test(domCtx), "меню области — без устройств и серверов: " + domCtx);
+  const fld = folders.find((x) => x.domainId === domains[0].id) || folders[0];
+  ok(!!fld && !/Добавить устройства/.test(ctxText(fld)), "меню папки — без «Добавить устройства»");
+  pick(fld.id);
+  ok(await until(() => sel === fld.id), "карточка папки открыта");
+  await new Promise((r) => setTimeout(r, 300));
+  ok(!btns().some((t) => /Добавить в папку|Добавить устройства/.test(t)), "у папки нет «Добавить в папку»: " + btns().filter((t) => /Добавить/.test(t)).join(" | "));
 });
