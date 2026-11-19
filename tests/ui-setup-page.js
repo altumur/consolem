@@ -81,9 +81,10 @@ UiCheck(async ({ ok, until, sleep }) => {
       "стенд: sandbox «" + (fr && fr.getAttribute("sandbox")) + "», адрес тестовой страницы, рамка вне карточки");
     ok(await until(() => suiFrame?.state === "ready", 15000), "страница прислала ready");
     const init = sent.find((m) => m.type === "init");
-    ok(valid(init) && JSON.stringify(init.host) === '{"proto":"setup/1","apply":"button"}' && init.readOnly === false && init.unit.version === hwVer.get(SUI_UNIT) &&
+    // host — по полям (P7 части 06): у хоста шага 2 есть ещё bridge, его проверяет tests/ui-stranica-most.js
+    ok(valid(init) && init.host.proto === "setup/1" && init.host.apply === "button" && init.readOnly === false && init.unit.version === hwVer.get(SUI_UNIT) &&
       JSON.stringify(init.draft) === "{}" && init.uid === SUI_UNIT && init.kind === SUI_KIND && init.lang === uiLang && init.unit.properties.code_length === 6,
-      "init: по схеме, host шага 1 без bridge, readOnly false, версия объекта — " + JSON.stringify(errsOf(init)));
+      "init: по схеме, host с proto и apply, readOnly false, версия объекта — " + JSON.stringify(errsOf(init)));
     ok(JSON.stringify(suiFrame.fields) === JSON.stringify(["/properties/code_length", "/properties/display_text", "/properties/backlight", "/properties/beep"]), "ready.fields — четыре поля");
     // Высота: под check_ui в рамке не идут кадры (ResizeObserver и requestAnimationFrame молчат), поэтому height
     // приходит событием от окна рамки, как от страницы

@@ -6581,7 +6581,7 @@ async function suiOpen(n){
 }
 function suiClose(){
   clearTimeout(suiTimer);suiTimer=0;
-  if(suiFrame){suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
+  if(suiFrame){bridgeDrop(suiFrame);suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
   suiFrame=null;
   suiPlace();
 }
@@ -6589,6 +6589,7 @@ function suiClose(){
 function suiFail(why){
   if(!suiFrame)return;
   clearTimeout(suiTimer);suiTimer=0;
+  bridgeDrop(suiFrame);
   suiFrame.el?.remove();
   Object.assign(suiFrame,{el:null,win:null,state:"failed",ready:false,why:String(why||"")});
   suiPlace();
@@ -6601,7 +6602,8 @@ function suiPost(type,data){
   const f=suiFrame;if(!f?.win)return;
   try{f.win.postMessage({proto:SUI_PROTO,type,...data},f.star?"*":f.origin)}catch(e){console.warn("suiPost",e)}
 }
-function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY}}
+// host шага 2: bridge — мост к механизму (раздел ниже)
+function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY,bridge:bridgeHostInfo(!!suiFrame?.readOnly)}}
 function suiTheme(){
   const cs=getComputedStyle(document.documentElement),tokens={};
   SUI_THEME_TOKENS.forEach(t=>{const v=cs.getPropertyValue(t).trim();if(v)tokens[t]=v});
@@ -6786,6 +6788,194 @@ function suiOnMessage(e){
   SUI_ON[d.type](d);
 }
 window.addEventListener("message",suiOnMessage);
+// ── Своя страница подсистемы: мост к механизму (шаг 2) ──
+// Шаг 2 (api/SETUP-UI.md, «Шаг 2: мост к механизму»): страница просит консоль выполнить операцию контракта, call → result.
+// Что открыто, говорит разметка x-bridge операции в api/openapi.json: read и act консоль выполняет сразу своим токеном
+// и с правами человека, draft — шаг черновика. Нет разметки — NOT_SUPPORTED. Права консоль не пересчитывает: отказ
+// сервера уходит странице как есть. Ответ уходит только той рамке, что спросила (bridgePost); рамка закрылась или
+// не загрузилась — ответа нет, диалог её команды закрыт (bridgeDrop из suiClose и suiFail)
+const BRIDGE_CALLS_MAX=8,BRIDGE_SUBS_MAX=16,BRIDGE_MESSAGES=["call","subscribe","unsubscribe","navigate","confirm"];
+// Команды, которым консоль даёт idempotencyKey, если страница его не дала
+const BRIDGE_KEYED=new Set(["runUnitAction","runKindAction","startDiscovery"]);
+// Тексты отказа моста (problem.message) по коду
+const BRIDGE_TEXT={
+  NOT_SUPPORTED:"Консоль не выполняет эту операцию для страницы.",
+  VALIDATION_FAILED:"Параметр не подходит к описанию операции.",
+  PERMISSION_DENIED:"Страница открыта только для просмотра, поэтому консоль не принимает шаги черновика.",
+  BUSY:"Страница отправила больше вызовов, чем разрешает предел.",
+  CANCELLED:"Пользователь отказался в диалоге консоли.",
+  UPSTREAM_UNAVAILABLE:"Нет связи с сервером.",
+};
+// Карта operationId → {api, method, path, bridge, pathNames, query, body} из описаний API. api — чьё описание:
+// config (api/openapi.json) или video (когда у API видео появится своё описание). Пути /test/* моста не получают никогда
+function bridgeOpsBuild(specs){
+  const out=new Map();
+  (specs||[]).forEach(({api,spec})=>{
+    Object.entries(spec?.paths||{}).forEach(([path,item])=>{
+      if(!item||typeof item!=="object")return;
+      const common=Array.isArray(item.parameters)?item.parameters:[];
+      ["get","put","post","patch","delete"].forEach(m=>{
+        const o=item[m];
+        if(!o||typeof o!=="object"||typeof o.operationId!=="string")return;
+        const ps=[...common,...(Array.isArray(o.parameters)?o.parameters:[])].filter(p=>p&&typeof p.name==="string");
+        const b=o["x-bridge"];
+        out.set(o.operationId,{api,method:m.toUpperCase(),path,bridge:!path.startsWith("/test/")&&["read","act","draft"].includes(b)?b:null,
+          pathNames:ps.filter(p=>p.in==="path").map(p=>p.name),query:new Set(ps.filter(p=>p.in==="query").map(p=>p.name)),body:!!o.requestBody});
+      });
+    });
+  });
+  return out;
+}
+let BRIDGE_OPS=bridgeOpsBuild([{api:"config",spec:window.CONSOLEM_OPENAPI}]);
+// Операции для init.host.bridge.ops: размеченные и объявленные системой (can); только просмотр — без draft
+function bridgeOpsShown(readOnly){
+  const out={};
+  BRIDGE_OPS.forEach((d,op)=>{if(d.bridge&&can(op)&&!(readOnly&&d.bridge==="draft"))out[op]=d.bridge});
+  return out;
+}
+// init.host.bridge: сообщения — только те, что консоль уже принимает (SUI_ON). Предел объектов подписок — на одно место
+// меньше предела наблюдения потока: это место занимает открытый объект
+function bridgeHostInfo(readOnly){
+  return{ops:bridgeOpsShown(readOnly),messages:BRIDGE_MESSAGES.filter(t=>typeof SUI_ON[t]==="function"),
+    limits:{calls:BRIDGE_CALLS_MAX,subscriptions:BRIDGE_SUBS_MAX,watch:Math.max(0,LIM.watchMax-1)}};
+}
+// Отказ: status 0 — отказ самого моста без запроса. extra — field, params, message
+function bridgeFail(id,status,code,extra){
+  const x=extra||{},problem={code,message:String(x.message||i18n(BRIDGE_TEXT[code]||BRIDGE_TEXT.NOT_SUPPORTED))};
+  if(typeof x.field==="string")problem.field=x.field;
+  if(x.params&&typeof x.params==="object")problem.params=x.params;
+  return{id,ok:false,status,problem};
+}
+// Problem сервера — странице в форме Problem: code, message, field?, params?, current?, errors[]?
+function bridgeProblem(b,status){
+  const p=b&&typeof b==="object"&&!Array.isArray(b)?b:{};
+  const out={code:String(p.code||(status===404?"NOT_FOUND":"INTERNAL")),message:String(p.message||"")};
+  if(typeof p.field==="string")out.field=p.field;
+  const obj=v=>!!v&&typeof v==="object"&&!Array.isArray(v);
+  if(obj(p.params))out.params=cardClone(p.params);
+  if(obj(p.current))out.current=cardClone(p.current);
+  if(Array.isArray(p.errors))out.errors=p.errors.filter(obj).map(e=>{const x={code:String(e.code||"VALIDATION_FAILED")};if(typeof e.field==="string")x.field=e.field;if(obj(e.params))x.params=cardClone(e.params);return x});
+  return out;
+}
+// Запрос по описанию операции. Параметр пути — encodeURIComponent: "../test/reset" не ведёт на другой путь. Остальные
+// параметры — только объявленные in: query; список — через запятую. Нет параметра пути или параметр незнакомый —
+// исключение {code: "VALIDATION_FAILED", field: "/params/<имя>"}
+function bridgeRequest(op,params,body){
+  const d=BRIDGE_OPS.get(op),p=params==null?{}:params;
+  const bad=field=>({code:"VALIDATION_FAILED",field});
+  if(typeof p!=="object"||Array.isArray(p))throw bad("/params");
+  const scalar=v=>typeof v==="string"||typeof v==="number"&&isFinite(v)||typeof v==="boolean";
+  Object.keys(p).forEach(k=>{if(!d.pathNames.includes(k)&&!d.query.has(k))throw bad("/params/"+k)});
+  const path=d.path.replace(/\{([^}]+)\}/g,(_,n)=>{
+    const v=p[n];
+    if(!scalar(v)||String(v)==="")throw bad("/params/"+n);
+    return encodeURIComponent(String(v));
+  });
+  const qs=[];
+  Object.keys(p).forEach(k=>{
+    if(!d.query.has(k))return;
+    let v=p[k];
+    if(v===undefined||v===null||v==="")return;
+    if(Array.isArray(v)){if(!v.every(scalar))throw bad("/params/"+k);v=v.join(",")}
+    else if(!scalar(v))throw bad("/params/"+k);
+    qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  });
+  let b=d.body?body:undefined;
+  if(BRIDGE_KEYED.has(op)&&(b===undefined||b&&typeof b==="object"&&!Array.isArray(b))){
+    b=b?{...b}:{};
+    if(!b.idempotencyKey)b.idempotencyKey=opKey();
+  }
+  if(b===undefined&&d.method!=="GET"&&d.method!=="DELETE")b={};
+  return{method:d.method,path:path+(qs.length?"?"+qs.join("&"):""),body:b,headers:undefined};
+}
+// Рамка ещё та, что спросила: тот же suiFrame, окно есть, мост рамки не снят
+function bridgeLive(f){return!!f&&suiFrame===f&&!!f.win&&!f.bridgeOff}
+// Отправка странице, которая спросила; другой или закрытой рамке — ничего
+function bridgePost(f,type,data){if(bridgeLive(f))suiPost(type,data)}
+// Рамка закрылась или не загрузилась: её ответы больше не уходят, диалог её команды закрыт без ответа
+function bridgeDrop(f){
+  if(!f)return;
+  f.bridgeOff=true;
+  const a=f.bridgeAsk;f.bridgeAsk=null;
+  if(a&&confirmOkCb===a.mine&&document.getElementById("confirm")?.classList.contains("open"))closeConfirm();
+}
+// Диалог консоли для вызова страницы → Promise<boolean>. Окно подтверждения одно на всю консоль: если другой диалог
+// консоли занял его (askConfirm заменил обратные вызовы) или окно закрылось, ответ — «нет»
+function bridgeAsk(f,title,msg,okLabel,opts){
+  return new Promise(res=>{
+    const box=document.getElementById("confirm");
+    let done=false,mo=null;
+    const a={mine:null};
+    const end=v=>{if(done)return;done=true;mo?.disconnect();if(f.bridgeAsk===a)f.bridgeAsk=null;res(v)};
+    askConfirm(title,msg,"",okLabel,()=>end(true),{...opts,onCancel:()=>end(false)});
+    a.mine=confirmOkCb;f.bridgeAsk=a;
+    mo=new MutationObserver(()=>{if(confirmOkCb!==a.mine||!box.classList.contains("open"))end(false)});
+    mo.observe(box,{attributes:true,childList:true,subtree:true,characterData:true});
+  });
+}
+// Команда вызова act и подпись её объекта: у runUnitAction — по виду объекта (кэш, иначе GET /units/{uid}),
+// у runKindAction — по виду из параметров. Не нашлась — null: тогда отвечает сервер
+async function bridgeActDesc(op,p){
+  if(op==="runKindAction"){
+    const k=KINDS.get(String(p.kind));
+    const a=(k?.actions||[]).find(x=>x.id===String(p.action));
+    return a?{a,name:textOf(k.label)||String(p.kind)}:null;
+  }
+  if(op!=="runUnitAction")return null;
+  const uid=String(p.uid),n=find(uid)?.n;
+  let kind=n?nodeKind(n):null,name=n?locName(n):"";
+  if(!kind){
+    const r=await API.raw("GET",`/units/${encodeURIComponent(uid)}`).catch(()=>null);
+    if(r&&r.status===200&&r.body){kind=r.body.kind;name=String(r.body.name??"")}
+  }
+  const a=kind?(KINDS.get(kind)?.actions||[]).find(x=>x.id===String(p.action)):null;
+  return a?{a,name}:null;
+}
+// Вызов страницы → BridgeResult. Порядок проверок: операция известна → есть x-bridge → система объявила её (can) →
+// draft → параметры → у команды с ActionDescriptor.confirm — диалог консоли, как в карточке → запрос.
+// API.raw берётся в момент вызова, без сохранённой ссылки
+async function bridgeCall(msg,f=suiFrame){
+  const id=msg.id,op=msg.op;
+  const d=typeof op==="string"?BRIDGE_OPS.get(op):null;
+  if(!d||!d.bridge||!can(op))return bridgeFail(id,0,"NOT_SUPPORTED");
+  if(d.bridge==="draft"){
+    if(f?.readOnly)return bridgeFail(id,0,"PERMISSION_DENIED",{params:{readOnly:true}});
+    return bridgeFail(id,0,"NOT_SUPPORTED",{message:i18n("Консоль пока не принимает шаги черновика от страницы.")});
+  }
+  let rq;
+  try{rq=bridgeRequest(op,msg.params,msg.body)}
+  catch(e){if(e&&e.code)return bridgeFail(id,0,e.code,{field:e.field});throw e}
+  if(d.bridge==="act"){
+    const x=await bridgeActDesc(op,msg.params||{});
+    if(x?.a.confirm){
+      if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
+      const lb=textOf(x.a.label)||x.a.id;
+      const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,
+        x.a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
+      if(!yes)return bridgeFail(id,0,"CANCELLED");
+    }
+    // Рамка закрылась, пока консоль читала вид объекта: команду консоль не запускает
+    if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
+  }
+  let res;
+  try{res=await API.raw(rq.method,rq.path,rq.body,rq.headers)}
+  catch(e){return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+  if(!res||typeof res.status!=="number"||res.status===0)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE");
+  const out={id,ok:res.status>=200&&res.status<300,status:res.status};
+  if(res.status>=400)out.problem=bridgeProblem(res.body,res.status);
+  else if(res.body!==undefined&&res.body!==null)out.body=res.body;
+  const et=res.headers?.etag;
+  if(typeof et==="string"&&et)out.etag=et;
+  return out;
+}
+// call: после ready; не больше BRIDGE_CALLS_MAX вызовов рамки в работе, сверх — BUSY сразу. Ответ — рамке, что спросила
+SUI_ON.call=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  if((f.bridgeCalls||0)>=BRIDGE_CALLS_MAX){suiPost("result",bridgeFail(d.id,0,"BUSY"));return}
+  f.bridgeCalls=(f.bridgeCalls||0)+1;
+  bridgeCall(d,f).catch(e=>{console.warn("setup/1: call",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{f.bridgeCalls--;bridgePost(f,"result",r)});
+};
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
