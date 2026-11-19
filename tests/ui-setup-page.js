@@ -259,6 +259,73 @@ UiCheck(async ({ ok, until, sleep }) => {
           cardReset();
           await until(() => !cardDiff().length && sent.at(-1).type === "revert");
         }
+
+        // Режим сравнения (задача 9): переключатель «Свой / Общие» и строка покрытия полей. Он есть только в прототипе 80
+        // (решение владельца О6), в index.html его не переносят. Прототип 80 узнаём по его файлу английских текстов
+        if (!!document.querySelector('script[src$="i18n-en-80.js"]') || typeof cmpSet === "function") {
+          const cover = () => main().querySelector("[data-cover]");
+          try {
+            const c = suiCoverOf(un());
+            ok(JSON.stringify(c.missing) === '["lock_after_tries"]' && !c.extra.length && /4 из 5/.test(cover()?.textContent || ""),
+              "покрытие страницы: 4 из 5, не показан lock_after_tries — " + JSON.stringify(c) + " / " + (cover()?.textContent || "нет строки"));
+            // Раскрытие списка «Нет на своём экране»: строка остаётся, список виден, aria-expanded
+            const tg = cover()?.querySelector("[data-cover-toggle]");
+            tg?.click();
+            ok(!!tg && cover()?.classList.contains("open") && tg.getAttribute("aria-expanded") === "true" && /lock_after_tries|Блокировать после попыток/.test(cover().querySelector("[data-cover-list]")?.textContent || ""),
+              "раскрытие: список полей, которых нет на своём экране");
+            suiCoverToggle();
+            ok(!cover()?.classList.contains("open"), "второе нажатие сворачивает список");
+            suiFrame.fields = ["/properties/code_length", "/properties/nope"]; gear();
+            ok(JSON.stringify(suiCoverOf(un()).extra) === '["nope"]' && /ошибка описания/.test(main().textContent) && !!cover()?.querySelector("[data-cover-extra]"), "поле вне схемы — отдельной строкой");
+            suiFrame.fields = null; gear();
+            ok(suiCoverOf(un()).own === null && /Страница не сообщила свои поля/.test(main().textContent), "без ready.fields — строка об этом");
+            suiFrame.fields = ["/properties/code_length", "/properties/display_text", "/properties/backlight", "/properties/beep"]; gear();
+            // Переключатель — справа перед «Ещё», только у объекта со своим экраном
+            const tuu = (await API.get("/units", { kind: "test.unknown", limit: 1 })).items[0];
+            ok(!!tuu, "есть объект test.unknown");
+            const sw = main().querySelector("[data-cmp]"), more = [...main().querySelectorAll("button[aria-haspopup=menu]")].pop();
+            ok(!!sw && sw.getAttribute("role") === "radiogroup" && !!more && !!(sw.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING) && sw.nextElementSibling === more,
+              "переключатель «Свой / Общие» стоит перед «Ещё»");
+            ok(sw.querySelector('[aria-checked="true"]')?.textContent === i18n("Свой"), "по умолчанию — «Свой»");
+            const elC = suiFrame.el;
+            cmpSet(true);
+            ok(localStorage.getItem("consolem.cmpGeneral") === "1" && cmpGeneral === true && await until(() => !!main().querySelector("[data-schema-card]")) && !slot() &&
+              document.getElementById("suiDock").hidden && suiFrame?.el === elC, "«Общие» — форма по схеме, рамка скрыта, выбор запомнен");
+            ok(/4 из 5/.test(cover()?.textContent || "") && main().querySelector('[data-cmp] [aria-checked="true"]')?.textContent === i18n("Общие"), "«Общие»: строка покрытия над формой, отмечено «Общие»");
+            // «Вернуться к настройке» в режиме «Общие» возвращает «Свой»
+            formAllSet(false);
+            ok(cmpGeneral === false && localStorage.getItem("consolem.cmpGeneral") === "0" && await until(() => !!slot()), "«Вернуться к настройке» — снова «Свой»");
+            cmpSet(true);
+            await until(() => !slot());
+            // Камера — ручной экран: покрытие по профилям вида; «Общие» перекрывает выбор «Все параметры» у вида
+            await open(cam);
+            await hwFull(cam).catch(() => {});
+            gear();
+            const cn = find(cam).n;
+            ok(JSON.stringify(suiCoverOf(cn).missing) === JSON.stringify(kindExtraProps("camera")) && JSON.stringify(suiCoverOf(cn).own) === JSON.stringify(handScreenFields("camera")),
+              "покрытие ручного экрана — по профилям вида");
+            ok(cardFormAll(cn) === true && await until(() => !!main().querySelector("[data-base-head]")) && !!cover(), "камера в режиме «Общие» — базовая форма и строка покрытия");
+            // Правка базовой формы: «Свой» не включается, уведомление называет причину
+            const f0 = Object.keys(KINDS.get("camera").schema.properties)[0];
+            cn.xprops = { [f0]: { cmpTest: 1 } };
+            cmpSet(false);
+            ok(cmpGeneral === true && localStorage.getItem("consolem.cmpGeneral") === "1" && (document.getElementById("tt")?.textContent || "").includes(i18n(FORM_BACK_WHY)),
+              "правка в базовой форме — «Свой» не включается, уведомление «" + i18n(FORM_BACK_WHY) + "»");
+            cn.xprops = {}; cardReset();
+            await open(tuu.uid);
+            ok(await until(() => !!main().querySelector("[data-schema-card]")) && !cmpSwitchHtml(find(tuu.uid).n) && !main().querySelector("[data-cmp]") && !cover(),
+              "переключатель и строка покрытия — только у объекта со своим экраном");
+            // Выбор держится после перезагрузки: значение при старте — из localStorage
+            ok(localStorage.getItem(CMP_KEY) === "1", "выбор лежит в localStorage под ключом " + CMP_KEY);
+            cmpSet(false);
+            ok(localStorage.getItem("consolem.cmpGeneral") === "0" && !cardFormAll(cn) && !cardFormAll(un()), "«Свой» — снова свой экран и страница");
+          } finally {
+            if (typeof cmpSet === "function") cmpGeneral = false;
+            localStorage.removeItem("consolem.cmpGeneral");
+          }
+          await open(SUI_UNIT);
+          ok(await until(() => suiFrame?.state === "ready" && !!slot(), 15000), "назад к «Клавиатуре»: страница прислала ready");
+        } else ok(true, "режима сравнения на этой странице нет");
       } finally {
         console.warn = realWarn;
       }

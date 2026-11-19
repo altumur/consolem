@@ -644,6 +644,16 @@ td.fl-nm>.fl-nm-ic{display:inline-flex;vertical-align:middle;margin-right:8px}
 .sui-dock.sui-wait{opacity:0;pointer-events:none}
 .sui-dock iframe{display:block;width:100%;height:100%;border:0;border-radius:8px;background:transparent}
 @media (prefers-reduced-motion:reduce){.sui-slot,.sui-dock{transition:none}}
+/* Режим сравнения (только прототип 80): переключатель «Свой / Общие» и строка покрытия полей. Список раскрывается
+   плавно и не меняет ширину строки: строки ниже съезжают, prefers-reduced-motion отключает движение */
+.rl-seg.cmp-sw button{white-space:nowrap}
+.nt.cmp-cover{display:grid;grid-template-columns:auto minmax(0,1fr)}.nt.cmp-cover::before{align-self:center}.nt.cmp-cover>*{grid-column:2}
+.nt.cmp-cover .cmp-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px}.nt.cmp-cover .cmp-row>span{flex:1 1 280px}
+.cmp-tg{white-space:nowrap}.cmp-chev{display:inline-block;margin-right:4px;transition:transform .2s ease}.cmp-cover.open .cmp-chev{transform:rotate(90deg)}
+.cmp-list{display:grid;grid-template-rows:0fr;transition:grid-template-rows .2s ease}.cmp-cover.open .cmp-list{grid-template-rows:1fr}
+.cmp-list>div{min-height:0;overflow:hidden;visibility:hidden;transition:visibility 0s .2s}.cmp-cover.open .cmp-list>div{visibility:visible;transition:visibility 0s}
+.cmp-cover ul{margin:6px 0 0;padding-left:20px}.cmp-extra{margin-top:8px;color:var(--one-danger-text)}
+@media (prefers-reduced-motion:reduce){.cmp-list,.cmp-list>div,.cmp-chev{transition:none}}
 .ptz-pad{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
 .live-note{position:absolute;left:8px;bottom:6px;max-width:calc(100% - 16px);font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .live-note:empty{display:none}
@@ -5673,13 +5683,16 @@ function hasBaseForm(n){
 // на том же черновике n.props, что у страницы
 function hasAllForm(n){return hasBaseForm(n)||(!!n&&isSchemaNode(n)&&suiOn(n))}
 const formAllByKind=new Map();
-function cardFormAll(n){return hasAllForm(n)&&formAllByKind.get(tabMemKey(n))===true}
+// Режим сравнения: «Общие» (cmpGeneral) открывает «Все параметры» у всех видов, поверх выбора у вида
+function cardFormAll(n){return hasAllForm(n)&&(cmpGeneral||formAllByKind.get(tabMemKey(n))===true)}
 // Строка перечня без полной записи: вид известен, форма откроется после чтения записи
 function kindHasBase(n){const ps=KINDS.get(nodeKind(n))?.schema?.properties;return!!n&&!isSchemaNode(n)&&!!ps&&Object.keys(ps).length>0}
 function formAllSet(v){
   const n=find(sel)?.n;if(!n)return;
   if(n._row&&kindHasBase(n)){formAllByKind.set(tabMemKey(n),!!v);gear();return}
   if(!hasAllForm(n))return;
+  // Режим сравнения: из «Общие» «Вернуться к настройке» включает «Свой»
+  if(!v&&cmpGeneral){cmpSet(false);return}
   if(!v&&baseChanged(n).length){toast(FORM_BACK_WHY);return}
   formAllByKind.set(tabMemKey(n),!!v);
   tab=tabKeep(n);gear();
@@ -6752,6 +6765,78 @@ function suiOnMessage(e){
   SUI_ON[d.type](d);
 }
 window.addEventListener("message",suiOnMessage);
+// ── Режим сравнения: свой экран и общие настройки ──
+// Только прототип 80 (решение владельца О6): в index.html раздел не переносят. Вне раздела режим задевает три места,
+// у каждого пометка «режим сравнения»: cardFormAll (cmpGeneral), formAllSet (возврат из «Общие»), gear (cmpSwitchHtml
+// перед «Ещё» и suiCoverHtml над экраном). CSS — блок .cmp-… рядом с .sui-slot.
+// Переключатель «Свой / Общие» в шапке карточки: «Общие» открывает «Все параметры» у каждого объекта со своим экраном
+// (ручной экран или своя страница). Выбор консоль помнит в localStorage. Строка покрытия над экраном говорит, сколько
+// полей схемы вида показывает свой экран (у страницы — ready.fields, у ручного экрана — поля его профилей)
+const CMP_KEY="consolem.cmpGeneral";
+let cmpGeneral=(()=>{try{return localStorage.getItem(CMP_KEY)==="1"}catch(e){return false}})();
+let cmpCoverOpen=false;
+// Переключение меняет экран только там, где он и правда меняется. Неприменённая правка ручного экрана или его базовой
+// формы держит экран: другая форма её не показывает (FORM_BACK_WHY)
+function cmpSet(v){
+  v=!!v;
+  const n=find(sel)?.n;
+  if(n&&hasBaseForm(n)){
+    const now=cardFormAll(n),next=v||formAllByKind.get(tabMemKey(n))===true;
+    if(now!==next&&(baseChanged(n).length||ownDraftRows(n).length)){toast(FORM_BACK_WHY);return}
+  }
+  cmpGeneral=v;
+  try{localStorage.setItem(CMP_KEY,v?"1":"0")}catch(e){}
+  if(n)tab=tabKeep(n);
+  gear();
+}
+function cmpSwitchHtml(n){
+  if(!hasAllForm(n))return"";
+  const b=(v,l)=>`<button type="button" role="radio" aria-checked="${cmpGeneral===v}" class="${cmpGeneral===v?"on":""}" ${onEv("click",["cmpSet",v])}>${i18n(l)}</button>`;
+  return`<div class="rl-seg cmp-sw" role="radiogroup" aria-label="${i18n("Какой экран показать")}" data-cmp>${b(false,"Свой")}${b(true,"Общие")}</div>`;
+}
+// Покрытие полей вида своим экраном (P10: тот же счёт, что screenCoverage части 07). own — имена полей своего экрана:
+// у страницы — из ready.fields (null, если страница их не прислала), у ручного экрана — поля его знакомых профилей
+// (null, если знакомых профилей нет). schema — поля формы по схеме, missing — нет на своём экране, extra — нет в схеме
+function suiCoverOf(n){
+  const kind=nodeKind(n);
+  let own=null;
+  if(suiOn(n)){
+    const f=suiFrame&&suiFrame.uid===n.id?suiFrame.fields:null;
+    if(Array.isArray(f))own=[...new Set(f.map(x=>x.slice("/properties/".length).split("/")[0].replace(/~1/g,"/").replace(/~0/g,"~")).filter(Boolean))];
+  }else if((KINDS.get(kind)?.implements||[]).some(id=>PROFILES_KNOWN.has(id)&&KIND_PROFILES.has(id)))own=handScreenFields(kind);
+  const c=screenCoverage(kind,own||[]),schema=sfEntries(KINDS.get(kind)?.schema).map(([f])=>f);
+  return{own,schema,missing:own?c.missing:[],extra:own?c.unknown:[]};
+}
+// Строка покрытия над экраном, в обоих положениях переключателя. Список «Нет на своём экране» раскрывается плавно
+// (grid-template-rows), строки ниже съезжают, а док рамки идёт за местом (suiCoverFollow)
+function suiCoverHtml(n){
+  if(!hasAllForm(n))return"";
+  const page=suiOn(n);
+  if(page&&!(suiFrame&&suiFrame.uid===n.id&&suiFrame.state==="ready"))return"";
+  const c=suiCoverOf(n);
+  if(c.own===null)return page?`<div class="nt cmp-cover" data-cover>${i18n("Страница не сообщила свои поля")}.</div>`:"";
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties||{};
+  const li=f=>`<li>${ps[f]?`${escHtml(propLabel(ps[f],f))} <code>${escHtml(f)}</code>`:`<code>${escHtml(f)}</code>`}</li>`;
+  const shown=c.schema.length-c.missing.length;
+  const tg=c.missing.length?`<button type="button" class="btn s cmp-tg" data-cover-toggle aria-expanded="${cmpCoverOpen}" ${onEv("click",["suiCoverToggle"])}><span class="cmp-chev" aria-hidden="true">▸</span>${i18n("Нет на своём экране")}: ${c.missing.length}</button>`:"";
+  const list=c.missing.length?`<div class="cmp-list" data-cover-list><div><ul>${c.missing.map(li).join("")}</ul></div></div>`:"";
+  const extra=c.extra.length?`<div class="cmp-extra" data-cover-extra>${i18n("Свой экран называет поля, которых нет в схеме вида. Это ошибка описания вида.")}<ul>${c.extra.map(li).join("")}</ul></div>`:"";
+  return`<div class="nt cmp-cover${cmpCoverOpen?" open":""}" data-cover><div class="cmp-row"><span>${i18n("Свой экран показывает")} ${shown} ${i18n("из")} ${c.schema.length} ${i18n("полей вида")}.</span>${tg}</div>${list}${extra}</div>`;
+}
+function suiCoverToggle(){
+  cmpCoverOpen=!cmpCoverOpen;
+  const el=document.querySelector("#main [data-cover]");if(!el)return;
+  el.classList.toggle("open",cmpCoverOpen);
+  el.querySelector("[data-cover-toggle]")?.setAttribute("aria-expanded",String(cmpCoverOpen));
+  suiCoverFollow();
+}
+// Пока список раскрывается, место рамки съезжает: док идёт за ним каждый кадр и ещё раз после перехода
+function suiCoverFollow(){
+  const t0=performance.now();
+  const step=()=>{suiPlace();if(performance.now()-t0<260)requestAnimationFrame(step)};
+  requestAnimationFrame(step);
+  setTimeout(suiPlace,260);
+}
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -13587,12 +13672,12 @@ function gear(){
   const tabsH=tabs.map(([id,x])=>`<button class="tab ${tab===id?"on":""}" data-tab="${id}" ${onEv("click",["tabGo",id])}>${i18n(x)}${csOpen.has(id)?`<span class="tab-dot" role="img" title="${i18n("На этой вкладке вы не закончили правку блока")}" aria-label="${i18n("На этой вкладке вы не закончили правку блока")}"></span>`:""}</button>`).join("");
   // Слева направо — вход добавления устройств (он один, остальное — стрелкой рядом);
   // дальше собственные действия объекта, а звезда последней и без подписи.
-  const addBtn=(handOf(n,"folder")?folderAddBtn():slice==="arch"?archCreateBtn(n)+(n.type==="archive"||n.type==="vol"?inspectorAddBtn(n):""):(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+schemaRootBtn(n)+bulkCopyBtn(n)+detDeleteBtn(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn();
+  const addBtn=(handOf(n,"folder")?folderAddBtn():slice==="arch"?archCreateBtn(n)+(n.type==="archive"||n.type==="vol"?inspectorAddBtn(n):""):(lanHost(n)||n.type==="found")?addSplitBtn(n):inspectorAddBtn(n))+schemaRootBtn(n)+bulkCopyBtn(n)+detDeleteBtn(n)+cmpSwitchHtml(n)+cardMoreBtn(n)+favCardBtn(n)+fullCardBtn(); // cmpSwitchHtml — режим сравнения
   const scClass=n.type==="unalloc"?"sc sc-unalloc":"sc";
   xpropsEnsure(n);
   cardEnsureBase(n);
   const all=cardFormAll(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml():""}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml():""}${suiCoverHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(!all&&tab==="topo"&&(handOf(n,"domain")||handOf(n,"server")))g7Start(n);else if(G7.raf)g7Stop();
 }
