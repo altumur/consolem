@@ -8,6 +8,11 @@ UiCheck(async ({ ok, until, confirmWith }) => {
   ok(pool0 < all, `кэш неполный: ${pool0} из ${all}`);
   ok(await until(() => /≈/.test(document.querySelector('#aside [data-slice="all"] .ph-cnt')?.textContent || "")), "число без фильтра — со знаком ≈");
   ok(treeBr.has(treeLayout() + "|" + d.id), "открытый домен прочитан");
+  // Срезы от раскладок системы (прототип 79): demo объявляет четыре прежние раскладки — прежние шесть кнопок срезов
+  if (typeof slicesFor === "function") {
+    const ids = [...document.querySelectorAll("#aside .ph-choice[data-slice]")].map((b) => b.dataset.slice).join();
+    ok(slicesFor(TREE_LAYOUTS).join() === "all,cam,acfa,srv,arch,det" && ids === "all,cam,acfa,srv,arch,det", "demo: прежние шесть срезов от объявленных раскладок: " + ids);
+  }
   // Сервер раскрывается по запросу, версия в кэше — из строки
   setGroup("server");
   const s =d.servers.find((x) => !treeBr.has("servers|" + x.id));
