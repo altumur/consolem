@@ -4952,7 +4952,8 @@ function unitRec(u){
   return Object.assign({id:u.uid,type:t,parentId:u.parentId||null,domainId:u.domainId,name:u.name},link,p,obs,sec.password?{hasPassword:true}:{},ver,
     Array.isArray(u.writable)?{writableFields:u.writable.slice()}:{},
     // Что можно сейчас (Unit.capabilities): отметка setupUi включает свою страницу подсистемы и у ручного экрана
-    !u._brief&&Array.isArray(u.capabilities)?{_caps:u.capabilities.slice()}:{},
+    // Полный Unit без capabilities — отметок нет: прежняя отметка не остаётся
+    !u._brief?{_caps:Array.isArray(u.capabilities)?u.capabilities.slice():[]}:{},
     u._brief?{}:{folderIds:u.folders||[]},u.hasChildren!=null?{hasChildren:!!u.hasChildren}:{});
 }
 // Поток камеры — дочерний объект вида stream; в записи камеры — строка streams[] с кодом потока
@@ -4969,7 +4970,7 @@ function schemaNode(u){
   if(u.status)n._st=cardClone(u.status);
   if(u.secrets)n._sec=Object.assign({},u.secrets);
   if(u.inherited)n._inh=cardClone(u.inherited);
-  if(u.capabilities)n._caps=u.capabilities.slice();
+  if(!u._brief)n._caps=Array.isArray(u.capabilities)?u.capabilities.slice():[];
   if((KINDS.get(u.kind)?.children||[]).length||u.hasChildren)n.devices=[];
   return n;
 }
@@ -6496,9 +6497,11 @@ function suiCardHtml(n){
   const ro=f?.readOnly?`<div class="nt" data-sui-ro>${i18n("У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.")}</div>`:"";
   return schemaHeadHtml(n,KINDS.get(nodeKind(n)))+ro+`<div class="sui-slot" data-sui-slot style="height:${h}px">${wait}</div>`+suiErrsHtml(f)+unitActionsHtml(n)+schemaStateHtml(n)+ruleUsesFor(n);
 }
-function suiFailHtml(){
+// Ручной экран при сбое показывает свои вкладки, объект по схеме — форму по схеме вида
+function suiFailHtml(n){
   const why=suiFrame?.why||"";
-  return`<div class="nt err" data-sui-fail><div>${i18n("Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.")}</div>${why?`<div>${i18n("Причина")}: ${escHtml(why)}</div>`:""}<div style="margin-top:8px"><button type="button" class="btn s" data-sui-retry ${onEv("click",["suiRetry"])}>${i18n("Загрузить страницу снова")}</button></div></div>`;
+  const what=isSchemaNode(n)?"Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.":"Страница подсистемы недоступна, поэтому консоль показывает обычные вкладки объекта.";
+  return`<div class="nt err" data-sui-fail><div>${i18n(what)}</div>${why?`<div>${i18n("Причина")}: ${escHtml(why)}</div>`:""}<div style="margin-top:8px"><button type="button" class="btn s" data-sui-retry ${onEv("click",["suiRetry"])}>${i18n("Загрузить страницу снова")}</button></div></div>`;
 }
 // Док рамки: создаётся один раз, вне #main. Прокрутка карточки и смена размера окна двигают док вместе с местом
 function suiDock(){
@@ -6514,13 +6517,17 @@ function suiPlace(){
   const dock=document.getElementById("suiDock");if(!dock)return;
   const slot=suiFrame?.el?document.querySelector("#main [data-sui-slot]"):null;
   if(suiRoEl!==slot){suiRo?.disconnect();suiRo=null;suiRoEl=slot;if(slot&&window.ResizeObserver){suiRo=new ResizeObserver(()=>suiPlace());suiRo.observe(slot)}}
-  // Места нет (другая вкладка, «Все параметры»): док скрыт, рамка в нём жива
-  dock.hidden=!slot;
-  if(!slot){dock.classList.add("sui-off");return}
+  // Места нет (другая вкладка, «Все параметры»): док скрыт (visibility hidden, высота 0), рамка в нём жива. Не display none:
+  // в скрытой так рамке страница не теряет раскладку и высоту, и после возврата док снова берёт высоту suiFrame.h
+  if(!slot){dock.classList.add("sui-off");dock.style.height="0px";return}
   const r=slot.getBoundingClientRect(),v=slot.closest(".sc")?.getBoundingClientRect()||r;
   // Высота — целевая (suiFrame.h), а не текущая: место и док меняют высоту одним переходом CSS
   const h=suiFrame.h??SUI_H0;
+  // Возврат из скрытого дока: высота — сразу, без перехода от 0
+  const back=dock.style.height==="0px";
+  if(back)dock.style.transition="none";
   Object.assign(dock.style,{left:r.left+"px",top:r.top+"px",width:r.width+"px",height:h+"px"});
+  if(back){void dock.offsetHeight;dock.style.transition=""}
   const t=Math.max(0,v.top-r.top),b=Math.max(0,r.top+h-v.bottom),l=Math.max(0,v.left-r.left),rt=Math.max(0,r.right-v.right);
   dock.style.clipPath=`inset(${t}px ${rt}px ${b}px ${l}px)`;
   dock.classList.toggle("sui-off",t+b>=h||l+rt>=r.width);
@@ -6605,24 +6612,15 @@ function suiUnitOf(n){
   if(n._st)u.status=cardClone(n._st);
   return u;
 }
-// JSON Merge Patch от a к b: снятый ключ — null, вложенные объекты — по ключам, массивы — целиком
-function suiDiff(a,b){
-  const out={},obj=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
-  Object.keys(a||{}).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(b||{},k))out[k]=null});
-  Object.keys(b||{}).forEach(k=>{
-    const x=a?.[k],y=b[k];
-    if(JSON.stringify(x)===JSON.stringify(y))return;
-    if(obj(x)&&obj(y)){const d=suiDiff(x,y);if(Object.keys(d).length)out[k]=d}
-    else out[k]=cardClone({v:y}).v;
-  });
-  return out;
-}
+// JSON Merge Patch от a к b — тот же помощник, что у детекторов (dwPropsPatch(now, was)), значения — копией
+function suiDiff(a,b){return cardClone(dwPropsPatch(b||{},a||{}))}
 // Черновик карточки как правка к unit.properties: у объекта по схеме — n.props, у ручного экрана — n.xprops
 function suiDraftOf(n){
   const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
   if(!base)return{};
   if(isSchemaNode(n))return suiDiff(base.props||{},n.props||{});
-  return base.xprops&&n.xprops?suiDiff(base.xprops,n.xprops):{};
+  // Снимок «до» мог быть снят до первого xpropsEnsure: тогда черновик «до» пуст
+  return suiDiff(base.xprops||{},n.xprops||{});
 }
 function suiInitMsg(n){return{uid:n.id,kind:nodeKind(n),lang:uiLang,theme:suiTheme(),readOnly:!!suiFrame?.readOnly,unit:suiUnitOf(n),draft:suiDraftOf(n),host:suiHostInfo()}}
 // JSON Merge Patch (RFC 7396): null снимает ключ, объект сливается по ключам, остальное заменяет целиком. base не меняется
@@ -6655,7 +6653,8 @@ function suiDraftApply(n,patch){
   const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
   if(isSchemaNode(n))n.props=suiMerge(base?.props||{},clean);
   else n.xprops={...clean};
-  if(suiFrame)suiFrame.errs=null;
+  // Новая правка — старые ошибки сервера к ней не относятся: список уходит и с экрана
+  if(suiFrame){suiFrame.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
   setD(true);
   cardFootRefresh();
   if(suiFrame)suiFrame.pageDraft=suiDraftOf(n);
@@ -6692,13 +6691,15 @@ function suiErrsHtml(f){
   if(!f?.errs?.length)return"";
   return`<div class="nt err" data-sui-errs><div>${i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")}</div><ul>${f.errs.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul><button type="button" class="btn s" ${onEv("click",["formAllSet",true])}>${i18n("Все параметры")}</button></div>`;
 }
-// Конец очереди «Применить» этой рамки: без отказов — объект с сервера и applied, с отказами — revert (через suiReconcile)
+// Конец очереди «Применить» этой рамки: без отказов — объект с сервера и applied. С отказами — сверка suiReconcile:
+// черновик остался, поэтому странице уходит draft (часть правки уже записана) или ничего; отказ показывает отчёт очереди
 function suiQueueDone(q){
   const f=suiFrame;if(!f||f.applyQ!==q)return;
   f.applyQ=null;
   const bad=q.fail+q.steps.reduce((k,s)=>k+s.ops.filter(o=>o.state==="cancel").length,0);
   if(bad){f.applying=null;suiSync();return}
-  API.get(`/units/${encodeURIComponent(f.uid)}`).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}).catch(()=>{}).then(()=>{
+  // Объект не прочитан — applied уйдёт с тем, что уже лежит в кэше; ошибку видно в консоли
+  API.get(`/units/${encodeURIComponent(f.uid)}`).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}).catch(e=>console.warn(`setup/1: GET /units/${f.uid} после «Применить» не прошёл`,e)).then(()=>{
     if(suiFrame!==f)return;
     f.applying="ok";suiSync();
   });
@@ -6712,16 +6713,31 @@ function suiReconcile(n){
   // Черновик пуст — ошибки сервера к нему больше не относятся
   if(empty&&f.errs){f.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
   if(ver!==f.unitVersion){
-    if(f.applying==="ok"){f.applying=null;suiPost("applied",{unit:suiUnitOf(n)})}
-    else if(empty)suiPost("revert",{unit:suiUnitOf(n)});
+    if(f.applying==="ok"){f.applying=null;suiPost("applied",{unit:suiUnitOf(n)});f.invalid=null}
+    else if(empty)suiRevert(n);
     else{if(!same){suiPost("draft",{patch:draft});f.pageDraft=draft}return}
     f.unitVersion=ver;f.pageDraft={};
     return;
   }
+  // Версия та же: «Применить» ничего не записал (сервер вернул ту же версию), поэтому applied не уходит, а отметка
+  // applying снимается. Страница держит свой ввод, черновик консоли его повторяет
   f.applying=null;
   if(same)return;
-  if(empty)suiPost("revert",{unit:suiUnitOf(n)});else suiPost("draft",{patch:draft});
+  if(empty)suiRevert(n);else suiPost("draft",{patch:draft});
   f.pageDraft=draft;
+}
+// revert: страница показывает unit заново, поэтому её ошибка ввода больше не держит «Показать план»
+function suiRevert(n){
+  const f=suiFrame;if(!f)return;
+  suiPost("revert",{unit:suiUnitOf(n)});
+  f.invalid=null;
+}
+// «Сбросить» в карточке со страницей: revert странице всегда, даже если консоль ещё не получила её ввод (только invalid)
+function suiResetPage(){
+  const f=suiFrame,n=f&&f.uid===sel?find(sel)?.n:null;
+  if(!n||!f.ready||f.applying==="run")return;
+  suiRevert(n);
+  f.pageDraft={};f.unitVersion=hwVer.get(n.id)??null;f.errs=null;
 }
 // Сообщения страницы по type; шаг 2 — свои (часть 06)
 const SUI_ON={
@@ -6791,8 +6807,17 @@ function cmpSet(v){
 }
 function cmpSwitchHtml(n){
   if(!hasAllForm(n))return"";
-  const b=(v,l)=>`<button type="button" role="radio" aria-checked="${cmpGeneral===v}" class="${cmpGeneral===v?"on":""}" ${onEv("click",["cmpSet",v])}>${i18n(l)}</button>`;
-  return`<div class="rl-seg cmp-sw" role="radiogroup" aria-label="${i18n("Какой экран показать")}" data-cmp>${b(false,"Свой")}${b(true,"Общие")}</div>`;
+  const b=(v,l)=>`<button type="button" role="radio" aria-checked="${cmpGeneral===v}" tabindex="${cmpGeneral===v?0:-1}" class="${cmpGeneral===v?"on":""}" ${onEv("click",["cmpSet",v])}>${i18n(l)}</button>`;
+  return`<div class="rl-seg cmp-sw" role="radiogroup" aria-label="${i18n("Какой экран показать")}" data-cmp ${onEv("keydown",["cmpSegKey",onEv.event])}>${b(false,"Свой")}${b(true,"Общие")}</div>`;
+}
+// Стрелки в переключателе (radiogroup): любая стрелка выбирает другое положение, фокус — на отмеченной кнопке
+function cmpSegKey(e){
+  if(!["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key))return;
+  // Стрелки на документе ходят по дереву: здесь они только меняют положение переключателя
+  e.preventDefault();e.stopPropagation();
+  const v=e.key==="ArrowRight"||e.key==="ArrowDown";
+  if(v!==cmpGeneral)cmpSet(v);
+  document.querySelector('#main [data-cmp] [aria-checked="true"]')?.focus();
 }
 // Покрытие полей вида своим экраном (P10: тот же счёт, что screenCoverage части 07). own — имена полей своего экрана:
 // у страницы — из ready.fields (null, если страница их не прислала), у ручного экрана — поля его знакомых профилей
@@ -8596,7 +8621,7 @@ function cardRestore(){
   cardDraft=null;cardBase=null;dirty=false;
   treeMatchCache.clear();searchMatchCache.clear();
 }
-function cardReset(){cardRestore();paint();toast("Изменения сброшены")}
+function cardReset(){cardRestore();suiResetPage();paint();toast("Изменения сброшены")}
 function cardLeaveAsk(go){
   const n=find(cardDraft.id)?.n,d=cardDiff();
   askConfirm("Изменения не применены",`<p>${i18n("У")} «${escHtml(locName(n||{}))}» ${d.length} ${i18n(plural(d.length,"неприменённое изменение|неприменённых изменения|неприменённых изменений"))}.</p><ul class="bk-del">${d.slice(0,5).map(r=>`<li>${escHtml(r.label)}: ${escHtml(r.fromT)} → <b>${escHtml(r.toT)}</b></li>`).join("")}</ul>`,
@@ -13677,7 +13702,7 @@ function gear(){
   xpropsEnsure(n);
   cardEnsureBase(n);
   const all=cardFormAll(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml():""}${suiCoverHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml(n):""}${tab===tabs[0]?.[0]?suiCoverHtml(n):""}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(!all&&tab==="topo"&&(handOf(n,"domain")||handOf(n,"server")))g7Start(n);else if(G7.raf)g7Stop();
 }
@@ -16912,12 +16937,15 @@ function dwSubProps(s,k){
   return o;
 }
 // Что изменилось: свойство из новой модели, которое отличается от сохранённой, или null — убрать. Merge Patch
-// Вложенный объект (objectSize, plateWidth, speed…) сливается по ключам: убранный ключ уходит как null, массив заменяется целиком
+// Вложенный объект (objectSize, plateWidth, speed…) сливается по ключам: убранный ключ уходит как null, массив заменяется целиком.
+// Тот же помощник считает правку своей страницы подсистемы (suiDiff)
 function dwPropsPatch(now,was){
-  const out={},ne=(a,b)=>JSON.stringify(a)!==JSON.stringify(b),obj=x=>x!==null&&typeof x==="object"&&!Array.isArray(x);
+  const out={},ne=(a,b)=>JSON.stringify(a)!==JSON.stringify(b),obj=x=>x!==null&&typeof x==="object"&&!Array.isArray(x),own=(o,f)=>Object.prototype.hasOwnProperty.call(o,f);
   new Set([...Object.keys(now),...Object.keys(was)]).forEach(f=>{
     if(!ne(now[f],was[f]))return;
-    out[f]=!(f in now)||now[f]===undefined?null:obj(now[f])&&obj(was[f])?dwPropsPatch(now[f],was[f]):now[f];
+    if(!own(now,f)||now[f]===undefined){out[f]=null;return}
+    if(obj(now[f])&&obj(was[f])){const d=dwPropsPatch(now[f],was[f]);if(Object.keys(d).length)out[f]=d;return}
+    out[f]=now[f];
   });
   return out;
 }

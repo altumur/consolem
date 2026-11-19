@@ -42,7 +42,13 @@ UiCheck(async ({ ok, until, sleep }) => {
     return until(() => sel === uid && !!find(uid)?.n && !find(uid).n._row);
   };
   const cams = (await API.get("/units", { kind: "camera", limit: 5 })).items;
-  const cam = cams[0].uid, cam2 = (cams[1] || cams[0]).uid;
+  // Вторая камера — объект, на который карточка уходит со страницы. Нет её — проверки ухода пропущены с причиной
+  const cam = cams[0].uid, cam2 = cams[1] ? cams[1].uid : null;
+  // Заметка — не проверка: она не входит в число PASS, а только пишется в консоль
+  const note = (m) => console.info("ЗАМЕТКА ui-setup-page: " + m);
+  // Док рамки скрыт, а рамка в нём жива: visibility hidden и высота 0, а не display none (рамка без кадров не знает свою высоту)
+  const dockOff = () => { const d = document.getElementById("suiDock"); return !!d && !d.hidden && getComputedStyle(d).visibility === "hidden" && d.style.height === "0px"; };
+  const dockOn = () => { const d = document.getElementById("suiDock"); return !!d && !d.hidden && !d.classList.contains("sui-off"); };
   try {
     // Ступень 1 (P2): вид стенда — страница; незнакомая версия протокола и mode: tab — не страница
     ok(screenFor(SUI_KIND) === "page" && screenPageStep(SUI_KIND) === "page" && screenPageStep("security_controller/CONTROLLER") === null && screenPageStep("camera") === null,
@@ -100,7 +106,7 @@ UiCheck(async ({ ok, until, sleep }) => {
       x.onload = () => res(!!x.responseText); x.onerror = () => res(false);
       try { x.open("GET", new URL("api/setup-ui.schema.js", document.baseURI).href); x.send(); } catch (e) { res(false); }
     });
-    if (fileAccess) ok(true, "ЗАМЕТКА: браузер дал файлам общий доступ (--allow-file-access-from-files), страница с диска " + (reach ? "достаёт" : "не достаёт") + " до consolem — это только стенд");
+    if (fileAccess) note("браузер дал файлам общий доступ (--allow-file-access-from-files), страница с диска " + (reach ? "достаёт" : "не достаёт") + " до consolem. Это только стенд, поэтому сценарий изоляцию не проверяет");
     else ok(!reach, "страница в рамке не достаёт до window.parent.document");
 
     // Перерисовка не трогает рамку (Review Focus 1): gear, paint, событие чужого объекта
@@ -159,6 +165,8 @@ UiCheck(async ({ ok, until, sleep }) => {
         cardPlan();
         ok(await until(() => sent.filter((m) => m.type === "flush").length === flushes + 1) && valid(lastOf("flush")) && await until(bm), "план: сначала flush, страница ответила flushed, план открыт");
         ok(/Текст на экране/.test(document.getElementById("bmodal").textContent), "в плане — строка «Текст на экране»");
+        // Страница сообщила ошибку ввода, пока открыт план: applied снимает её (страница показывает записанное)
+        fromPage({ type: "invalid", fields: ["/properties/display_text"] });
         document.querySelector("#bmodal .btn.pri").click();
         ok(await until(() => !!lastOf("applied")), "applied после «Применить»");
         const ap = lastOf("applied");
@@ -167,6 +175,7 @@ UiCheck(async ({ ok, until, sleep }) => {
           "сервер записал, странице — новый unit, черновик пуст — " + JSON.stringify(errsOf(ap)));
         await sleep(300);
         ok(sent.at(-1).type === "applied" && suiFrame.applying === null, "после applied — ни revert, ни draft");
+        ok(suiFrame.invalid === null, "applied снимает ошибку ввода страницы");
         ok(!pageDoc() || await until(() => pageDoc().getElementById("f-display_text").value === "Код, пожалуйста"), "страница стенда показывает записанный текст");
 
         // Страница стенда сама: ввод — change и invalid (код 4–8 цифр); исправленный ввод снимает запрет
@@ -181,7 +190,7 @@ UiCheck(async ({ ok, until, sleep }) => {
           pageInput("f-code_length", "6");
           pageInput("f-display_text", "Код, пожалуйста");
           ok(await until(() => !cardDiff().length && suiFrame.invalid === null && document.getElementById("cardFoot")?.hidden === true), "страница: ввод исправлен — invalid пуст, черновик пуст");
-        } else ok(true, "ЗАМЕТКА: документ страницы недоступен, ввод на странице не проверен");
+        } else note("документ страницы недоступен, ввод на странице не проверен");
 
         // 422: поле на странице — только странице
         fromPage({ type: "change", patch: { code_length: 12 } });
@@ -198,7 +207,12 @@ UiCheck(async ({ ok, until, sleep }) => {
           "ошибка поля вне страницы — списком под рамкой");
         ok(!!main().querySelector("[data-sui-errs] button") && main().querySelector("[data-sui-errs]").textContent.includes(i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")), "в списке — причина и «Все параметры»");
         ok(!pageDoc() || await until(() => /lock_after_tries/.test(pageDoc().getElementById("error").textContent)), "страница стенда показала ошибку поля, которого у неё нет");
+        // Новая правка страницы снимает список ошибок сервера и на экране, а не только в модели
+        fromPage({ type: "change", patch: { lock_after_tries: 98 } });
+        ok(!suiFrame.errs && !main().querySelector("[data-sui-errs]"), "правка страницы убирает список ошибок сервера с экрана");
+        fromPage({ type: "invalid", fields: ["/properties/code_length"] });
         cardReset();
+        ok(suiFrame.invalid === null && !document.querySelector("#cardFoot button.pri[disabled]"), "«Сбросить» снимает ошибку ввода страницы");
         ok(await until(() => sent.at(-1).type === "revert") && valid(sent.at(-1)) && sent.at(-1).unit.properties.lock_after_tries !== 99, "«Сбросить» — revert");
         ok(!main().querySelector("[data-sui-errs]"), "после «Сбросить» списка ошибок нет");
 
@@ -211,11 +225,13 @@ UiCheck(async ({ ok, until, sleep }) => {
 
         // Чужая правка при пустом черновике — revert с новой версией
         const before = hwVer.get(SUI_UNIT);
+        fromPage({ type: "invalid", fields: ["/properties/beep"] });
         const pr = await API.raw("PATCH", `/units/${SUI_UNIT}`, { properties: { beep: false } }, { "If-Match": `"${before}"` });
         await hwFull(SUI_UNIT).catch(() => {});
         paint();
         ok(pr.status < 300 && hwVer.get(SUI_UNIT) !== before && await until(() => sent.at(-1).type === "revert" && sent.at(-1).unit.version === hwVer.get(SUI_UNIT) && sent.at(-1).unit.properties.beep === false),
           "объект изменился на сервере, черновик пуст — revert с новым unit");
+        ok(suiFrame.invalid === null, "revert снимает ошибку ввода страницы");
 
         // flush без ответа: страница молчит — уведомление через 2 с, план всё равно открыт
         const spy = suiPost;
@@ -227,6 +243,17 @@ UiCheck(async ({ ok, until, sleep }) => {
         closeBulkModal();
         cardReset();
         await until(() => sent.at(-1).type === "revert");
+
+        // Конец очереди без отказов, но GET /units/{uid} не прошёл: ошибка — в консоль, а не молча
+        {
+          const q = { fail: 0, steps: [] }, g = API.get;
+          suiFrame.applyQ = q;
+          API.get = function (path, params) { return path === `/units/${SUI_UNIT}` ? Promise.reject({ status: 503, problem: { code: "UNAVAILABLE", message: "нет связи" } }) : g.call(this, path, params); };
+          try {
+            suiQueueDone(q);
+            ok(await until(() => warns.some((w) => /GET \/units/.test(w))) && await until(() => suiFrame.applying === null), "GET объекта после «Применить» не прошёл — предупреждение в консоли");
+          } finally { API.get = g; }
+        }
 
         // Язык: новая рамка, новый init с lang "en", черновик прежний
         fromPage({ type: "change", patch: { beep: !un().props.beep } });
@@ -243,18 +270,24 @@ UiCheck(async ({ ok, until, sleep }) => {
         {
           const sf = (name) => main().querySelector(`[data-sf="${name}"]`);
           const type = (el, v) => { el.value = v; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
-          const elA = suiFrame.el;
+          const elA = suiFrame.el, hA = suiFrame.h ?? SUI_H0;
           fromPage({ type: "change", patch: { display_text: "А" } });
           formAllSet(true);
-          ok(await until(() => !!main().querySelector("[data-schema-card]")) && sf("display_text")?.value === "А" && document.getElementById("suiDock").hidden && suiFrame?.el === elA && elA.isConnected,
-            "«Все параметры»: форма по схеме с правкой страницы, рамка скрыта, но жива");
+          ok(await until(() => !!main().querySelector("[data-schema-card]")) && sf("display_text")?.value === "А" && dockOff() && suiFrame?.el === elA && elA.isConnected,
+            "«Все параметры»: форма по схеме с правкой страницы, рамка скрыта (visibility hidden, высота 0), но жива");
           ok(!!main().querySelector("[data-base-head]") && !main().querySelector("[data-base-head] [data-form-back][disabled]") && !slot() &&
             JSON.stringify(tabsFor(un())) === JSON.stringify(schemaTabs(un())), "«Все параметры»: строка «Вернуться к настройке» без запрета, вкладки формы по схеме");
           ok(!un().xprops && cardDiff().length === 1, "у объекта по схеме нет xprops, строка черновика одна");
+          // Ввод в форме перерисовку не зовёт: правку формы странице отдаёт сверка после возврата, одним draft
+          const nSent = sent.length;
           type(sf("display_text"), "Б");
           formAllSet(false);
           ok(await until(() => sent.at(-1).type === "draft") && sent.at(-1).patch.display_text === "Б" && valid(sent.at(-1)), "вернулись — странице draft с правкой формы");
-          ok(await until(() => !!slot() && !document.getElementById("suiDock").hidden) && suiFrame?.el === elA, "вернулись — то же место и та же рамка");
+          ok(await until(() => !!slot() && dockOn()) && suiFrame?.el === elA, "вернулись — то же место и та же рамка");
+          const dk = document.getElementById("suiDock");
+          ok(parseInt(dk.style.height) === hA && parseInt(slot().style.height) === hA && await until(() => Math.round(dk.getBoundingClientRect().height) === hA), "вернулись — высота места и рамки прежняя: " + hA + " px, док " + dk.style.height);
+          await sleep(300);
+          ok(JSON.stringify(sent.slice(nSent).map((m) => m.type)) === '["draft"]', "вернулись — странице ушёл только этот draft: " + JSON.stringify(sent.slice(nSent).map((m) => m.type)));
           ok(/Все параметры/.test(formAllCtxItem(un(), (f, v) => ["x"]) || ""), "пункт «Все параметры» в «Ещё» у страницы");
           cardReset();
           await until(() => !cardDiff().length && sent.at(-1).type === "revert");
@@ -286,11 +319,16 @@ UiCheck(async ({ ok, until, sleep }) => {
             const sw = main().querySelector("[data-cmp]"), more = [...main().querySelectorAll("button[aria-haspopup=menu]")].pop();
             ok(!!sw && sw.getAttribute("role") === "radiogroup" && !!more && !!(sw.compareDocumentPosition(more) & Node.DOCUMENT_POSITION_FOLLOWING) && sw.nextElementSibling === more,
               "переключатель «Свой / Общие» стоит перед «Ещё»");
-            ok(sw.querySelector('[aria-checked="true"]')?.textContent === i18n("Свой"), "по умолчанию — «Свой»");
+            ok(sw.querySelector('[aria-checked="true"]')?.textContent === i18n("Свой") && sw.querySelector('[aria-checked="true"]').tabIndex === 0 && sw.querySelector('[aria-checked="false"]').tabIndex === -1, "по умолчанию — «Свой», в порядке Tab только отмеченная кнопка");
+            // Стрелки в переключателе (role radiogroup): вправо — «Общие», влево — «Свой», фокус на отмеченной кнопке
+            sw.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
+            ok(await until(() => cmpGeneral === true && !slot() && document.activeElement?.getAttribute("aria-checked") === "true" && document.activeElement.textContent === i18n("Общие")), "стрелка вправо — «Общие», фокус на ней");
+            main().querySelector("[data-cmp]").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+            ok(await until(() => cmpGeneral === false && !!slot() && document.activeElement?.textContent === i18n("Свой")), "стрелка влево — «Свой»");
             const elC = suiFrame.el;
             cmpSet(true);
             ok(localStorage.getItem("consolem.cmpGeneral") === "1" && cmpGeneral === true && await until(() => !!main().querySelector("[data-schema-card]")) && !slot() &&
-              document.getElementById("suiDock").hidden && suiFrame?.el === elC, "«Общие» — форма по схеме, рамка скрыта, выбор запомнен");
+              dockOff() && suiFrame?.el === elC, "«Общие» — форма по схеме, рамка скрыта, выбор запомнен");
             ok(/4 из 5/.test(cover()?.textContent || "") && main().querySelector('[data-cmp] [aria-checked="true"]')?.textContent === i18n("Общие"), "«Общие»: строка покрытия над формой, отмечено «Общие»");
             // «Вернуться к настройке» в режиме «Общие» возвращает «Свой»
             formAllSet(false);
@@ -312,6 +350,17 @@ UiCheck(async ({ ok, until, sleep }) => {
             ok(cmpGeneral === true && localStorage.getItem("consolem.cmpGeneral") === "1" && (document.getElementById("tt")?.textContent || "").includes(i18n(FORM_BACK_WHY)),
               "правка в базовой форме — «Свой» не включается, уведомление «" + i18n(FORM_BACK_WHY) + "»");
             cn.xprops = {}; cardReset();
+            // Строка покрытия у ручного экрана — только на первой вкладке
+            cmpSet(false);
+            {
+              const ts = tabsFor(cn);
+              tabGo(ts[0][0]);
+              ok(ts.length > 1 && await until(() => tab === ts[0][0] && !!cover()), "камера «Свой», первая вкладка («" + ts[0][1] + "») — строка покрытия есть");
+              tabGo(ts[1][0]);
+              ok(await until(() => tab === ts[1][0] && !!main().querySelector("[data-cmp]")) && !cover(), "вторая вкладка («" + ts[1][1] + "») — строки покрытия нет");
+              tabGo(ts[0][0]);
+            }
+            cmpSet(true);
             await open(tuu.uid);
             ok(await until(() => !!main().querySelector("[data-schema-card]")) && !cmpSwitchHtml(find(tuu.uid).n) && !main().querySelector("[data-cmp]") && !cover(),
               "переключатель и строка покрытия — только у объекта со своим экраном");
@@ -390,9 +439,51 @@ UiCheck(async ({ ok, until, sleep }) => {
       // «Все параметры» у ручного экрана со страницей — базовая форма ручного экрана на n.xprops (задача 8, RF4)
       formAllSet(true);
       ok(await until(() => !!main().querySelector("[data-base-head]") && !slot()) && JSON.stringify(tabsFor(cn)) === JSON.stringify(baseTabs(cn)) &&
-        document.getElementById("suiDock").hidden && suiFrame?.el === elc && elc.isConnected, "камера: «Все параметры» — базовая форма ручного экрана, рамка скрыта, но жива");
+        dockOff() && suiFrame?.el === elc && elc.isConnected, "камера: «Все параметры» — базовая форма ручного экрана, рамка скрыта, но жива");
       formAllSet(false);
-      ok(await until(() => !!slot() && !document.getElementById("suiDock").hidden) && suiFrame?.el === elc, "камера: назад к странице — та же рамка");
+      ok(await until(() => !!slot() && dockOn()) && suiFrame?.el === elc, "камера: назад к странице — та же рамка");
+      // Правка страницы ручного экрана: change → черновик n.xprops → план → «Применить» → applied с записанным значением
+      {
+        const fpage = (d) => window.dispatchEvent(new MessageEvent("message", { data: { proto: "setup/1", ...d }, origin: suiFrame.star ? "null" : suiFrame.origin, source: suiFrame.win }));
+        const bm = () => document.getElementById("bmodal").classList.contains("open");
+        const az0 = unitProps.get(cam)?.azimuth ?? null, az = az0 === 123 ? 124 : 123;
+        fpage({ type: "change", patch: { azimuth: az } });
+        ok(cn.xprops?.azimuth === az && JSON.stringify(suiDraftOf(cn)) === JSON.stringify({ azimuth: az }) && cardDiff().some((r) => r.key === "xprops" && r.schemaProp === "azimuth"), "камера: change — черновик n.xprops и строка плана — " + JSON.stringify(suiDraftOf(cn)));
+        // Страница стенда знает только поля KEYPAD: на flush она отдала бы свой черновик без azimuth. Поэтому flushed — от сценария
+        const spyC = suiPost;
+        suiPost = (t, d) => { if (t === "flush") { sent.push({ proto: "setup/1", type: t, ...d }); setTimeout(() => fpage({ type: "flushed", seq: d.seq }), 0); return; } return spyC(t, d); };
+        cardPlan();
+        suiPost = spyC;
+        ok(await until(bm), "камера: план открыт");
+        document.querySelector("#bmodal .btn.pri").click();
+        const apC = () => sent.filter((m) => m.type === "applied" && m.unit?.uid === cam).pop();
+        ok(await until(() => !!apC()) && valid(apC()) && apC().unit.properties.azimuth === az && (await API.get(`/units/${cam}`)).properties.azimuth === az && !cardDiff().length,
+          "камера: «Применить» — сервер записал, странице applied с новым значением");
+        // Вернуть значение набора
+        const v = hwVer.get(cam);
+        await API.raw("PATCH", `/units/${cam}`, { properties: { azimuth: az0 } }, { "If-Match": `"${v}"` });
+        await hwFull(cam).catch(() => {});
+        paint();
+      }
+      // Сбой страницы у ручного экрана: текст не говорит о форме по схеме, пользователь видит вкладки камеры
+      suiFail("проверка");
+      tabGo(tabsFor(cn)[0][0]);
+      ok(await until(() => !!main().querySelector("[data-sui-fail]")) && !/по схеме вида/.test(main().querySelector("[data-sui-fail]").textContent) &&
+        main().querySelector("[data-sui-fail]").textContent.includes(i18n("Страница подсистемы недоступна, поэтому консоль показывает обычные вкладки объекта.")) && tabsFor(cn).some(([id]) => id === "vid"),
+        "камера: сбой страницы — текст без «по схеме вида», вкладки камеры");
+      suiRetry();
+      ok(await until(() => suiFrame?.uid === cam && suiFrame.state === "ready", 15000), "камера: страница снова прислала ready");
+      // Полный Unit без capabilities снимает отметку setupUi (_caps)
+      {
+        const full = clone(await API.get(`/units/${cam}`));
+        delete full.capabilities;
+        hwApplyUnit(full);
+        ok(!(find(cam).n._caps || []).includes("setupUi") && !suiOn(find(cam).n), "полный Unit без capabilities — отметки setupUi нет");
+        hwApplyUnit(await API.get(`/units/${cam}`));
+        ok((find(cam).n._caps || []).includes("setupUi"), "полный Unit с capabilities — отметка вернулась");
+        gear();
+        await until(() => suiFrame?.uid === cam && suiFrame.state === "ready", 15000);
+      }
       // Незнакомая версия протокола (Review Focus 4): не страница, вкладки ручного экрана
       const su = KINDS.get("camera").setupUi;
       KINDS.get("camera").setupUi = { mode: "iframe", protocol: "setup/9", url: SUI_TEST_PAGE };
@@ -414,55 +505,59 @@ UiCheck(async ({ ok, until, sleep }) => {
     await open(ctrl.uid);
     ok(await until(() => !!main().querySelector("[data-plugin]") && !slot() && !!main().querySelector("[data-schema-card]")), "mode: tab — ссылка «Страница плагина», форма по схеме");
 
-    // Поздний адрес (Review Focus 3): A → B → A. Первый ответ POST /setup-ui (метка 1) приходит через 800 мс, когда открыта
-    // уже вторая загрузка того же объекта (метка 2). Он не создаёт вторую рамку и не меняет адрес текущей
-    {
-      let calls = 0;
-      const link = (mark) => ({ url: `${SUI_TEST_PAGE}?type=${encodeURIComponent(SUI_KIND)}&id=${SUI_UNIT}&lang=${uiLang}&t=late${mark}`, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false });
-      stubSetup(() => (++calls === 1 ? sleep(800).then(() => link(1)) : Promise.resolve(link(2))));
+    // Уход со страницы на вторую камеру: поздний адрес, зависший POST, страница не ответила. Без второй камеры — пропуск
+    if (!cam2) note("в наборе одна камера: проверки ухода со страницы пропущены");
+    else {
+      // Поздний адрес (Review Focus 3): A → B → A. Первый ответ POST /setup-ui (метка 1) приходит через 800 мс, когда открыта
+      // уже вторая загрузка того же объекта (метка 2). Он не создаёт вторую рамку и не меняет адрес текущей
+      {
+        let calls = 0;
+        const link = (mark) => ({ url: `${SUI_TEST_PAGE}?type=${encodeURIComponent(SUI_KIND)}&id=${SUI_UNIT}&lang=${uiLang}&t=late${mark}`, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false });
+        stubSetup(() => (++calls === 1 ? sleep(800).then(() => link(1)) : Promise.resolve(link(2))));
+        await open(SUI_UNIT);
+        ok(await until(() => !!slot()) && /загружает страницу подсистемы/.test(slot().textContent) && !dockFrame(), "до ready место пишет, что консоль загружает страницу");
+        pick(cam2, { force: true, tab: "gen" });
+        ok(await until(() => suiFrame === null), "другой объект: рамки нет");
+        await open(SUI_UNIT);
+        ok(await until(() => !!dockFrame() && /[?&]t=late2\b/.test(dockFrame().src)), "вторая загрузка: рамка с меткой 2");
+        await sleep(1200);
+        const frames = document.querySelectorAll("#suiDock iframe");
+        ok(calls === 2 && frames.length === 1 && /[?&]t=late2\b/.test(frames[0].src) && suiFrame?.gen === suiGen,
+          `поздний адрес: одна рамка, метка 2, gen текущий — рамок ${frames.length}, src ${frames[0]?.src.replace(/^.*\?/, "?")}`);
+        unstub();
+        pick(cam2, { force: true, tab: "gen" });
+        await until(() => suiFrame === null);
+      }
+
+      // Адрес не пришёл: POST /setup-ui завис — срок ready идёт с запроса, через 10 с сбой, а не вечная загрузка
+      stubSetup(() => new Promise(() => {}));
       await open(SUI_UNIT);
-      ok(await until(() => !!slot()) && /загружает страницу подсистемы/.test(slot().textContent) && !dockFrame(), "до ready место пишет, что консоль загружает страницу");
-      pick(cam2, { force: true, tab: "gen" });
-      ok(await until(() => suiFrame === null), "другой объект: рамки нет");
-      await open(SUI_UNIT);
-      ok(await until(() => !!dockFrame() && /[?&]t=late2\b/.test(dockFrame().src)), "вторая загрузка: рамка с меткой 2");
-      await sleep(1200);
-      const frames = document.querySelectorAll("#suiDock iframe");
-      ok(calls === 2 && frames.length === 1 && /[?&]t=late2\b/.test(frames[0].src) && suiFrame?.gen === suiGen,
-        `поздний адрес: одна рамка, метка 2, gen текущий — рамок ${frames.length}, src ${frames[0]?.src.replace(/^.*\?/, "?")}`);
+      ok(await until(() => suiFrame?.state === "failed", 15000) && await until(() => !!main().querySelector("[data-sui-fail]")) && !dockFrame(), "POST /setup-ui завис — через 10 с сбой с причиной");
       unstub();
       pick(cam2, { force: true, tab: "gen" });
       await until(() => suiFrame === null);
+
+      // Страница не ответила: адрес без страницы → нет ready за 10 с → причина и форма по схеме
+      stubSetup(() => Promise.resolve({ url: "api/plugins/security_controller/langs/ru.json", expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
+      await open(SUI_UNIT);
+      ok(await until(() => suiFrame?.state === "failed", 15000) && await until(() => /не ответила за 10 секунд/.test(main().textContent)) && !!main().querySelector("[data-schema-card]") &&
+        !!main().querySelector("[data-sui-fail]") && !!main().querySelector("[data-sui-retry]") && !dockFrame(),
+        "нет ready за 10 с — текст с причиной и форма по схеме");
+      ok(JSON.stringify(tabsFor(find(SUI_UNIT).n)) === JSON.stringify(schemaTabs(find(SUI_UNIT).n)), "сбой: вкладки формы по схеме");
+      // Сервер отказал: причина — текст ответа
+      const rej = { status: 500, problem: { code: "INTERNAL", message: "Дверь не ответила" } };
+      stubSetup(() => Promise.reject(rej));
+      suiRetry();
+      ok(await until(() => suiFrame?.state === "failed" && main().querySelector("[data-sui-fail]")?.textContent.includes(problemText(rej))), "500 на POST /setup-ui — сбой, в тексте причина ответа: " + problemText(rej));
+      // Адрес — javascript: → не открывается
+      stubSetup(() => Promise.resolve({ url: "javascript:alert(1)", expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
+      suiRetry();
+      ok(await until(() => suiFrame?.state === "failed") && !dockFrame(), "адрес javascript: — сбой, рамки нет");
+      unstub();
+      // «Загрузить страницу снова» берёт новый адрес
+      main().querySelector("[data-sui-retry]").click();
+      ok(await until(() => suiFrame?.state === "ready", 15000) && !!dockFrame() && !!slot(), "«Загрузить страницу снова» — страница прислала ready");
     }
-
-    // Адрес не пришёл: POST /setup-ui завис — срок ready идёт с запроса, через 10 с сбой, а не вечная загрузка
-    stubSetup(() => new Promise(() => {}));
-    await open(SUI_UNIT);
-    ok(await until(() => suiFrame?.state === "failed", 15000) && await until(() => !!main().querySelector("[data-sui-fail]")) && !dockFrame(), "POST /setup-ui завис — через 10 с сбой с причиной");
-    unstub();
-    pick(cam2, { force: true, tab: "gen" });
-    await until(() => suiFrame === null);
-
-    // Страница не ответила: адрес без страницы → нет ready за 10 с → причина и форма по схеме
-    stubSetup(() => Promise.resolve({ url: "api/plugins/security_controller/langs/ru.json", expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
-    await open(SUI_UNIT);
-    ok(await until(() => suiFrame?.state === "failed", 15000) && await until(() => /не ответила за 10 секунд/.test(main().textContent)) && !!main().querySelector("[data-schema-card]") &&
-      !!main().querySelector("[data-sui-fail]") && !!main().querySelector("[data-sui-retry]") && !dockFrame(),
-      "нет ready за 10 с — текст с причиной и форма по схеме");
-    ok(JSON.stringify(tabsFor(find(SUI_UNIT).n)) === JSON.stringify(schemaTabs(find(SUI_UNIT).n)), "сбой: вкладки формы по схеме");
-    // Сервер отказал: причина — текст ответа
-    const rej = { status: 500, problem: { code: "INTERNAL", message: "Дверь не ответила" } };
-    stubSetup(() => Promise.reject(rej));
-    suiRetry();
-    ok(await until(() => suiFrame?.state === "failed" && main().querySelector("[data-sui-fail]")?.textContent.includes(problemText(rej))), "500 на POST /setup-ui — сбой, в тексте причина ответа: " + problemText(rej));
-    // Адрес — javascript: → не открывается
-    stubSetup(() => Promise.resolve({ url: "javascript:alert(1)", expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
-    suiRetry();
-    ok(await until(() => suiFrame?.state === "failed") && !dockFrame(), "адрес javascript: — сбой, рамки нет");
-    unstub();
-    // «Загрузить страницу снова» берёт новый адрес
-    main().querySelector("[data-sui-retry]").click();
-    ok(await until(() => suiFrame?.state === "ready", 15000) && !!dockFrame() && !!slot(), "«Загрузить страницу снова» — страница прислала ready");
 
     // Уход на другой объект: рамка убрана
     await open(cam);
