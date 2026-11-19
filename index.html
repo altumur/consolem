@@ -635,6 +635,15 @@ td.fl-nm>.fl-nm-ic{display:inline-flex;vertical-align:middle;margin-right:8px}
 .nt{padding:10px;background:var(--one-info-bg);border:1px solid var(--one-info-icon);border-radius:8px;color:var(--x-link);margin-bottom:12px;font-size:12px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
+/* Своя страница подсистемы: место в карточке и док рамки вне #main (раздел «Своя страница подсистемы: рамка и протокол setup/1»).
+   Высота места меняется плавно; док ниже меню и модальных окон (z-index от 19) */
+.sui-slot{box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-height:80px;margin-bottom:12px;border:1px solid var(--one-border);border-radius:8px;transition:height .2s ease}
+.sui-dock{position:fixed;left:0;top:0;width:0;height:0;z-index:5;transition:height .2s ease}
+.sui-dock.sui-off{visibility:hidden;pointer-events:none}
+/* Пока страница грузится, рамка прозрачна, а не скрыта: скрытой рамке браузер не даёт кадров, и страница не узнает свою высоту */
+.sui-dock.sui-wait{opacity:0;pointer-events:none}
+.sui-dock iframe{display:block;width:100%;height:100%;border:0;border-radius:8px;background:transparent}
+@media (prefers-reduced-motion:reduce){.sui-slot,.sui-dock{transition:none}}
 .ptz-pad{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
 .live-note{position:absolute;left:8px;bottom:6px;max-width:calc(100% - 16px);font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .live-note:empty{display:none}
@@ -4502,8 +4511,9 @@ const HAND_SCREENS=new Set([...CODE_SCREENS,...Object.values(SCREEN_OF_PROFILE).
 const PROFILES_KNOWN=new Set([...Object.keys(SCREEN_OF_PROFILE),"vms.live/1","vms.ptz/1","vms.timeline/1","vms.webserver/1","vms.subdetector/1"]);
 // Инфраструктура: у неё свои списки в кэше (домены, серверы, папки, хранилища, тома); потоки — внутри камеры
 const INFRA_SCREENS=new Set(["domain","server","folder","archive","vol","stream"]);
-// Ступень 1: "page" — своя страница подсистемы, "schema" — форма по схеме, null — дальше ступени 2 и 3
-function screenPageStep(kind){return KINDS.get(kind)?.setupUi?"schema":null}
+// Ступень 1: "page" — своя страница подсистемы (setupUi.mode: iframe, знакомая версия протокола, вид в setupUi.kinds),
+// null — дальше ступени 2 и 3. mode: tab — не страница: ссылка «Страница плагина» в форме по схеме
+function screenPageStep(kind){const su=KINDS.get(kind)?.setupUi;return su&&su.mode==="iframe"&&(su.protocol||"setup/1")===SUI_PROTO&&(!su.kinds||su.kinds.includes(kind))?"page":null}
 // Ступень 2: ручной экран вида или null
 function handScreenOf(kind){
   const k=KINDS.get(kind);
@@ -4930,6 +4940,9 @@ function unitRec(u){
   // Unit.writable — что правится у этого объекта сейчас (нет поля — решает схема вида, CAPS.writable)
   return Object.assign({id:u.uid,type:t,parentId:u.parentId||null,domainId:u.domainId,name:u.name},link,p,obs,sec.password?{hasPassword:true}:{},ver,
     Array.isArray(u.writable)?{writableFields:u.writable.slice()}:{},
+    // Что можно сейчас (Unit.capabilities): отметка setupUi включает свою страницу подсистемы и у ручного экрана
+    // Полный Unit без capabilities — отметок нет: прежняя отметка не остаётся
+    !u._brief?{_caps:Array.isArray(u.capabilities)?u.capabilities.slice():[]}:{},
     u._brief?{}:{folderIds:u.folders||[]},u.hasChildren!=null?{hasChildren:!!u.hasChildren}:{});
 }
 // Поток камеры — дочерний объект вида stream; в записи камеры — строка streams[] с кодом потока
@@ -4946,7 +4959,7 @@ function schemaNode(u){
   if(u.status)n._st=cardClone(u.status);
   if(u.secrets)n._sec=Object.assign({},u.secrets);
   if(u.inherited)n._inh=cardClone(u.inherited);
-  if(u.capabilities)n._caps=u.capabilities.slice();
+  if(!u._brief)n._caps=Array.isArray(u.capabilities)?u.capabilities.slice():[];
   if((KINDS.get(u.kind)?.children||[]).length||u.hasChildren)n.devices=[];
   return n;
 }
@@ -5483,10 +5496,11 @@ async function schemaValidate(n,d){
   let r;
   try{r=await API.post("/units/validate",{items:[{uid:n.id,patch}]})}catch(e){toast(problemText(e));return false}
   const errs=(r.items||[]).flatMap(x=>x.errors||[]);
-  if(!errs.length){schemaErrs.delete(n.id);return true}
+  if(!errs.length){schemaErrs.delete(n.id);if(suiFrame?.uid===n.id)suiFrame.errs=null;return true}
   const map={},schema=schemaOf(n);
   errs.forEach(e=>{const f=sfPointer(e.field);if(!(f in map))map[f]=sfErrText(schema,e)});
   schemaErrs.set(n.id,map);
+  if(suiFrame?.uid===n.id)suiErrors(n,{code:"VALIDATION_FAILED",message:i18n("Сервер не примет правку"),errors:errs});
   if(sel===n.id&&app==="hw")gear();
   toast(`${i18n("Сервер не примет правку")} — ${Object.values(map)[0]}`);
   return false;
@@ -5655,14 +5669,17 @@ function hasBaseForm(n){
   const ps=KINDS.get(nodeKind(n))?.schema?.properties;
   return!!ps&&Object.keys(ps).length>0;
 }
+// «Все параметры» есть у ручного экрана с базовой формой и у объекта по схеме со своей страницей: там это форма по схеме
+// на том же черновике n.props, что у страницы
+function hasAllForm(n){return hasBaseForm(n)||(!!n&&isSchemaNode(n)&&suiOn(n))}
 const formAllByKind=new Map();
-function cardFormAll(n){return hasBaseForm(n)&&formAllByKind.get(tabMemKey(n))===true}
+function cardFormAll(n){return hasAllForm(n)&&formAllByKind.get(tabMemKey(n))===true}
 // Строка перечня без полной записи: вид известен, форма откроется после чтения записи
 function kindHasBase(n){const ps=KINDS.get(nodeKind(n))?.schema?.properties;return!!n&&!isSchemaNode(n)&&!!ps&&Object.keys(ps).length>0}
 function formAllSet(v){
   const n=find(sel)?.n;if(!n)return;
   if(n._row&&kindHasBase(n)){formAllByKind.set(tabMemKey(n),!!v);gear();return}
-  if(!hasBaseForm(n))return;
+  if(!hasAllForm(n))return;
   if(!v&&baseChanged(n).length){toast(FORM_BACK_WHY);return}
   formAllByKind.set(tabMemKey(n),!!v);
   tab=tabKeep(n);gear();
@@ -5671,7 +5688,7 @@ function formAllSet(v){
 // Пока в базовой форме есть неприменённые изменения, вернуться нельзя: пункт называет причину
 const FORM_BACK_WHY="Сначала применить или сбросить изменения";
 function formAllCtxItem(n,act){
-  if(!(n._row?kindHasBase(n):hasBaseForm(n)))return"";
+  if(!(n._row?kindHasBase(n):hasAllForm(n)))return"";
   if(!cardFormAll(n)||sel!==n.id)return tctxItem(i18n("Все параметры"),act("formAllSet",true),`<span class="tctx-ic">${lu("list",14)}</span>`);
   const why=baseChanged(n).length?FORM_BACK_WHY:"";
   return tctxItem(tctxWhy(i18n("Вернуться к настройке"),why),act("formAllSet",false),`<span class="tctx-ic">${lu("arrow-left",14)}</span>`,!!why);
@@ -5721,7 +5738,16 @@ function baseTabs(n){
   if(!labels.length)labels.push(i18n(SF_MAIN));
   return labels.map((l,i)=>[i?"sf"+i:"gen",l]);
 }
+// Строка над «Все параметры»: что это за форма и «Вернуться к настройке». Пока в базовой форме ручного экрана есть
+// неприменённые изменения, вернуться нельзя (у объекта по схеме черновик общий со страницей, запрета нет)
+function baseHeadHtml(n,first,extra){
+  const back=baseChanged(n).length;
+  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
+    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+}
 function baseFormHtml(n,tabId){
+  // Объект по схеме со своей страницей: форма по схеме на n.props — черновик тот же, что у страницы
+  if(isSchemaNode(n)){const tabs=schemaTabs(n);return baseHeadHtml(n,(tabs.find(([id])=>id===tabId)||tabs[0])[0]===tabs[0][0],false)+schemaFormHtml(n,tabId)}
   const kind=nodeKind(n),k=KINDS.get(kind),schema=k?.schema;
   const tabs=baseTabs(n),cur=(tabs.find(([id])=>id===tabId)||tabs[0])[1],first=cur===tabs[0][1];
   const extra=new Set(nodeExtraProps(n)),own=ownDraftRows(n).length,groups=new Map();
@@ -5732,9 +5758,7 @@ function baseFormHtml(n,tabId){
   });
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
   const nameH=first?baseNameHtml(n):"";
-  const back=baseChanged(n).length;
-  let out=`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(kind))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra.size?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}`:""}</span>`+
-    `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
+  let out=baseHeadHtml(n,first,extra.size>0);
   if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
   let lead=nameH;
   if(!groups.size)groups.set(i18n(SF_GROUP),[]);
@@ -6426,6 +6450,323 @@ function permText(p){
   }
   return i18n("Нет прав на это действие");
 }
+// ── Своя страница подсистемы: рамка и протокол setup/1 ──
+// Вид с setupUi.mode: iframe показывает в карточке свою страницу подсистемы (api/SETUP-UI.md, шаг 1). Страница заменяет
+// вкладки вида, вкладки механизма (SUI_MECH_TABS) остаются. Одна рамка на страницу консоли живёт в постоянном #suiDock
+// (position: fixed) вне #main: перенос iframe в DOM перезагружает его, поэтому перерисовка карточки рамку не трогает.
+// В карточке — только место [data-sui-slot] нужной высоты; suiPlace() ставит док поверх места и обрезает его по видимой
+// части прокрутки. Нет места (вкладка «Доступ», «Все параметры») — док скрыт, рамка жива, пока открыт тот же объект.
+// Правило стенда (не протокол): адрес на происхождении консоли или оба адреса file: — star: отправка с "*", приём с "null".
+// Рамка на http того же происхождения — без allow-same-origin; консоль с диска даёт allow-same-origin, иначе Chrome
+// не загружает скрипты страницы с диска
+const SUI_PROTO="setup/1",SUI_READY_MS=10000,SUI_FLUSH_MS=2000,SUI_APPLY="button",SUI_MECH_TABS=new Set(["acc"]);
+const SUI_THEME_TOKENS=["--one-canvas","--one-surface","--one-surface-muted","--one-fg","--one-fg-muted","--one-border","--one-border-strong","--one-accent","--one-accent-on","--one-danger","--one-focus-ring","--one-control-bg","--one-control-hover","--one-radius-control"];
+// Высота места до первого height и пределы значения height (правило консоли, не протокола)
+const SUI_H0=320,SUI_HMIN=80,SUI_HMAX=20000;
+let suiFrame=null,suiGen=0,suiTimer=0,suiRo=null,suiRoEl=null;
+// Описание страницы вида узла: ступень 1 (screenPageStep) дала "page"
+function suiKindOf(n){const k=nodeKind(n);return n&&screenPageStep(k)==="page"?KINDS.get(k).setupUi:null}
+// Страница у этого объекта: вид со страницей, отметка setupUi в Unit.capabilities (право view), полная запись
+function suiOn(n){return!!n&&!n._row&&!!suiKindOf(n)&&(n._caps||[]).includes("setupUi")}
+// Страница этого объекта не загрузилась: карточка показывает причину и форму по схеме. Рамка другого объекта — «ещё нет»
+function suiFailed(n){return!!n&&!!suiFrame&&suiFrame.uid===n.id&&suiFrame.state==="failed"}
+// Карточка показывает страницу: страница есть, не сбой, не «Все параметры»
+function suiPage(n){return suiOn(n)&&!suiFailed(n)&&!cardFormAll(n)}
+// Узел открытой карточки «Оборудования»; выборка и список детекторов — не карточка
+function suiCardNode(){
+  if(!["hw","dev","srvs"].includes(app)||(bulkActive()&&!bulkPeek)||detListOn())return null;
+  return find(sel)?.n||null;
+}
+function suiCardHtml(n){
+  const f=suiFrame&&suiFrame.uid===n.id?suiFrame:null,h=f?.h??SUI_H0;
+  const wait=f?.ready?"":`<span class="sub">${i18n("Консоль загружает страницу подсистемы…")}</span>`;
+  const ro=f?.readOnly?`<div class="nt" data-sui-ro>${i18n("У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.")}</div>`:"";
+  return schemaHeadHtml(n,KINDS.get(nodeKind(n)))+ro+`<div class="sui-slot" data-sui-slot style="height:${h}px">${wait}</div>`+suiErrsHtml(f)+unitActionsHtml(n)+schemaStateHtml(n)+ruleUsesFor(n);
+}
+// Ручной экран при сбое показывает свои вкладки, объект по схеме — форму по схеме вида
+function suiFailHtml(n){
+  const why=suiFrame?.why||"";
+  const what=isSchemaNode(n)?"Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.":"Страница подсистемы недоступна, поэтому консоль показывает обычные вкладки объекта.";
+  return`<div class="nt err" data-sui-fail><div>${i18n(what)}</div>${why?`<div>${i18n("Причина")}: ${escHtml(why)}</div>`:""}<div style="margin-top:8px"><button type="button" class="btn s" data-sui-retry ${onEv("click",["suiRetry"])}>${i18n("Загрузить страницу снова")}</button></div></div>`;
+}
+// Док рамки: создаётся один раз, вне #main. Прокрутка карточки и смена размера окна двигают док вместе с местом
+function suiDock(){
+  let d=document.getElementById("suiDock");
+  if(d)return d;
+  d=document.createElement("div");d.id="suiDock";d.className="sui-dock sui-off";
+  document.body.appendChild(d);
+  document.getElementById("main")?.addEventListener("scroll",suiPlace,true);
+  window.addEventListener("resize",suiPlace);
+  return d;
+}
+function suiPlace(){
+  const dock=document.getElementById("suiDock");if(!dock)return;
+  const slot=suiFrame?.el?document.querySelector("#main [data-sui-slot]"):null;
+  if(suiRoEl!==slot){suiRo?.disconnect();suiRo=null;suiRoEl=slot;if(slot&&window.ResizeObserver){suiRo=new ResizeObserver(()=>suiPlace());suiRo.observe(slot)}}
+  // Места нет (другая вкладка, «Все параметры»): док скрыт (visibility hidden, высота 0), рамка в нём жива. Не display none:
+  // в скрытой так рамке страница не теряет раскладку и высоту, и после возврата док снова берёт высоту suiFrame.h
+  if(!slot){dock.classList.add("sui-off");dock.style.height="0px";return}
+  const r=slot.getBoundingClientRect(),v=slot.closest(".sc")?.getBoundingClientRect()||r;
+  // Высота — целевая (suiFrame.h), а не текущая: место и док меняют высоту одним переходом CSS
+  const h=suiFrame.h??SUI_H0;
+  // Возврат из скрытого дока: высота — сразу, без перехода от 0
+  const back=dock.style.height==="0px";
+  if(back)dock.style.transition="none";
+  Object.assign(dock.style,{left:r.left+"px",top:r.top+"px",width:r.width+"px",height:h+"px"});
+  if(back){void dock.offsetHeight;dock.style.transition=""}
+  const t=Math.max(0,v.top-r.top),b=Math.max(0,r.top+h-v.bottom),l=Math.max(0,v.left-r.left),rt=Math.max(0,r.right-v.right);
+  dock.style.clipPath=`inset(${t}px ${rt}px ${b}px ${l}px)`;
+  dock.classList.toggle("sui-off",t+b>=h||l+rt>=r.width);
+  dock.classList.toggle("sui-wait",!suiFrame.ready);
+}
+// После каждой paintMain: страницы нет — рамку убрать; другой объект или язык — открыть заново; потом место
+function suiSync(){
+  const n=suiCardNode();
+  if(!suiOn(n)){if(suiFrame)suiClose();return}
+  if(suiFrame&&(suiFrame.uid!==n.id||suiFrame.lang!==uiLang))suiClose();
+  if(!suiFrame)suiOpen(n);
+  suiPlace();
+  suiReconcile(n);
+}
+// Происхождение строкой (https://host:port); не адрес — null
+function suiOriginOf(s){try{return new URL(String(s)).origin}catch(e){return null}}
+// Адрес страницы — всегда из POST /units/{uid}/setup-ui: бэкенд дописывает объект, язык и разовый ключ. Ответ для
+// прежнего объекта (другой sel или устаревший gen) — пропуск: рамки у нового объекта он не создаёт
+async function suiOpen(n){
+  const su=suiKindOf(n),uid=n.id,gen=++suiGen;
+  suiFrame={uid,kind:nodeKind(n),el:null,win:null,url:null,origin:null,star:false,lang:uiLang,state:"loading",ready:false,why:null,readOnly:false,
+    fields:null,invalid:null,pageDraft:{},unitVersion:hwVer.get(uid)??null,seq:0,flushWait:new Map(),applying:null,applyQ:null,gen,h:null};
+  const live=()=>!!suiFrame&&suiFrame.gen===gen&&sel===uid;
+  // Срок ready считается с запроса адреса: зависший POST /setup-ui тоже кончается сбоем, а не вечной загрузкой
+  clearTimeout(suiTimer);
+  suiTimer=setTimeout(()=>{if(suiFrame&&suiFrame.gen===gen&&!suiFrame.ready)suiFail(i18n("Страница не ответила за 10 секунд"))},SUI_READY_MS);
+  let link;
+  try{link=await API.post(`/units/${encodeURIComponent(uid)}/setup-ui`,{})}
+  catch(e){if(live())suiFail(problemText(e));return}
+  if(!live())return;
+  const raw=link&&typeof link.url==="string"?link.url.trim():"",bad=i18n("Сервер прислал адрес, который консоль не открывает");
+  if(!raw)return suiFail(i18n("Сервер не выдал адрес страницы"));
+  if(/^(javascript|data|vbscript):/i.test(raw))return suiFail(bad);
+  let url;try{url=new URL(raw,document.baseURI)}catch(e){return suiFail(bad)}
+  if(!/^(https?|file):$/.test(url.protocol))return suiFail(bad);
+  const fileHere=location.protocol==="file:";
+  const star=(url.protocol==="file:"&&fileHere)||(url.origin!=="null"&&url.origin===location.origin);
+  const origin=suiOriginOf(link.origin||su?.origin||url.href);
+  if(!star&&(!origin||origin==="null"))return suiFail(bad);
+  Object.assign(suiFrame,{url:url.href,origin,star,readOnly:!!link.readOnly});
+  const el=document.createElement("iframe");
+  el.setAttribute("sandbox",star&&!fileHere?"allow-scripts allow-forms":"allow-scripts allow-forms allow-same-origin");
+  el.title=i18n("Страница подсистемы");
+  el.src=url.href;
+  suiDock().appendChild(el);
+  suiFrame.el=el;suiFrame.win=el.contentWindow;
+  suiPlace();
+}
+function suiClose(){
+  clearTimeout(suiTimer);suiTimer=0;
+  if(suiFrame){suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
+  suiFrame=null;
+  suiPlace();
+}
+// Сбой: рамку убрать, причину запомнить; карточка покажет форму по схеме и «Загрузить страницу снова»
+function suiFail(why){
+  if(!suiFrame)return;
+  clearTimeout(suiTimer);suiTimer=0;
+  suiFrame.el?.remove();
+  Object.assign(suiFrame,{el:null,win:null,state:"failed",ready:false,why:String(why||"")});
+  suiPlace();
+  if(suiCardNode()?.id===suiFrame.uid)gear();
+}
+// Новый адрес и новая загрузка: suiSync после gear() открывает страницу заново
+function suiRetry(){suiClose();gear()}
+// Единственная отправка странице: только окну рамки и только на её происхождение (у стенда — "*")
+function suiPost(type,data){
+  const f=suiFrame;if(!f?.win)return;
+  try{f.win.postMessage({proto:SUI_PROTO,type,...data},f.star?"*":f.origin)}catch(e){console.warn("suiPost",e)}
+}
+function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY}}
+function suiTheme(){
+  const cs=getComputedStyle(document.documentElement),tokens={};
+  SUI_THEME_TOKENS.forEach(t=>{const v=cs.getPropertyValue(t).trim();if(v)tokens[t]=v});
+  return{mode:document.documentElement.dataset.theme==="light"?"light":"dark",tokens};
+}
+// Объект для страницы: у объекта по схеме свойства — снимок «до» черновика, у ручного экрана — как их отдал сервер
+function suiUnitOf(n){
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  const props=isSchemaNode(n)?(base?.props||n.props||{}):(unitProps.get(n.id)||{});
+  const u={uid:n.id,kind:nodeKind(n),name:String(n.name??""),version:String(hwVer.get(n.id)??""),properties:cardClone(props)};
+  if(n._st)u.status=cardClone(n._st);
+  return u;
+}
+// JSON Merge Patch от a к b — тот же помощник, что у детекторов (dwPropsPatch(now, was)), значения — копией
+function suiDiff(a,b){return cardClone(dwPropsPatch(b||{},a||{}))}
+// Черновик карточки как правка к unit.properties: у объекта по схеме — n.props, у ручного экрана — n.xprops
+function suiDraftOf(n){
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  if(!base)return{};
+  if(isSchemaNode(n))return suiDiff(base.props||{},n.props||{});
+  // Снимок «до» мог быть снят до первого xpropsEnsure: тогда черновик «до» пуст
+  return suiDiff(base.xprops||{},n.xprops||{});
+}
+function suiInitMsg(n){return{uid:n.id,kind:nodeKind(n),lang:uiLang,theme:suiTheme(),readOnly:!!suiFrame?.readOnly,unit:suiUnitOf(n),draft:suiDraftOf(n),host:suiHostInfo()}}
+// JSON Merge Patch (RFC 7396): null снимает ключ, объект сливается по ключам, остальное заменяет целиком. base не меняется
+function suiMerge(base,patch){
+  const obj=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
+  if(!obj(patch))return cardClone({v:patch}).v;
+  const out=obj(base)?cardClone(base):{};
+  Object.keys(patch).forEach(k=>{if(patch[k]===null)delete out[k];else out[k]=suiMerge(out[k],patch[k])});
+  return out;
+}
+// Правка от base к next — как SetupBridge.diff
+function suiPatch(base,next){return suiDiff(base||{},next||{})}
+// Ключи правки, которые консоль не берёт (Р10): нет в схеме вида, readOnly, x-transient. console.warn — один раз на ключ
+const suiWarned=new Set();
+function suiDraftClean(n,patch){
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties||{},out={};
+  Object.keys(patch).forEach(k=>{
+    const p=Object.prototype.hasOwnProperty.call(ps,k)?ps[k]:null;
+    const why=!p?"нет в схеме вида":p.readOnly?"readOnly":p["x-transient"]?"x-transient":"";
+    if(!why){out[k]=cardClone({v:patch[k]}).v;return}
+    const key=nodeKind(n)+"/"+k;
+    if(!suiWarned.has(key)){suiWarned.add(key);console.warn(`setup/1: консоль не берёт поле «${k}» из правки страницы: ${why}`)}
+  });
+  return out;
+}
+// Правка страницы — в черновик карточки: у объекта по схеме n.props = снимок + правка, у ручного экрана n.xprops = правка
+function suiDraftApply(n,patch){
+  const clean=suiDraftClean(n,patch);
+  cardEnsureBase(n);
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  if(isSchemaNode(n))n.props=suiMerge(base?.props||{},clean);
+  else n.xprops={...clean};
+  // Новая правка — старые ошибки сервера к ней не относятся: список уходит и с экрана
+  if(suiFrame){suiFrame.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
+  setD(true);
+  cardFootRefresh();
+  if(suiFrame)suiFrame.pageDraft=suiDraftOf(n);
+}
+// Перед планом: страница отдаёт неотправленный ввод (flush → flushed). Нет ответа за SUI_FLUSH_MS — план по тому, что пришло
+function suiFlush(){
+  const f=suiFrame;if(!f?.win)return Promise.resolve(false);
+  const seq=++f.seq;
+  return new Promise(res=>{
+    const t=setTimeout(()=>{if(f.flushWait.delete(seq)){toast("Страница не ответила за 2 секунды. Консоль применит изменения, которые страница прислала раньше.");res(false)}},SUI_FLUSH_MS);
+    f.flushWait.set(seq,ok=>{clearTimeout(t);f.flushWait.delete(seq);res(ok)});
+    suiPost("flush",{seq});
+  });
+}
+// Причина, по которой «Показать план» неактивна; пусто — можно
+function suiFootBlock(){
+  const f=suiFrame;
+  if(f&&f.uid===sel&&f.ready&&f.invalid)return i18n("Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице.");
+  return"";
+}
+// Сервер отказал: Problem — странице; ошибки полей, которых страница не показывает, — список под местом
+function suiErrors(n,problem){
+  const f=suiFrame;if(!f||f.uid!==n.id)return;
+  const errors=(problem.errors||[]).map(e=>{const x={code:String(e.code||"VALIDATION_FAILED")};if(typeof e.field==="string")x.field=e.field;if(e.params&&typeof e.params==="object")x.params=e.params;return x});
+  const pr={code:String(problem.code||"VALIDATION_FAILED"),message:String(problem.message||"")};
+  if(typeof problem.field==="string")pr.field=problem.field;
+  if(errors.length)pr.errors=errors;
+  suiPost("errors",{problem:pr});
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties||{},seen=new Set();
+  f.errs=errors.filter(e=>e.field&&!(f.fields||[]).includes(e.field)).map(e=>sfPointer(e.field)).filter(k=>!seen.has(k)&&seen.add(k)).map(k=>propLabel(ps[k],k));
+  if(!f.errs.length)f.errs=null;
+}
+function suiErrsHtml(f){
+  if(!f?.errs?.length)return"";
+  return`<div class="nt err" data-sui-errs><div>${i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")}</div><ul>${f.errs.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul><button type="button" class="btn s" ${onEv("click",["formAllSet",true])}>${i18n("Все параметры")}</button></div>`;
+}
+// Конец очереди «Применить» этой рамки: без отказов — объект с сервера и applied. С отказами — сверка suiReconcile:
+// черновик остался, поэтому странице уходит draft (часть правки уже записана) или ничего; отказ показывает отчёт очереди
+function suiQueueDone(q){
+  const f=suiFrame;if(!f||f.applyQ!==q)return;
+  f.applyQ=null;
+  const bad=q.fail+q.steps.reduce((k,s)=>k+s.ops.filter(o=>o.state==="cancel").length,0);
+  if(bad){f.applying=null;suiSync();return}
+  // Объект не прочитан — applied уйдёт с тем, что уже лежит в кэше; ошибку видно в консоли
+  API.get(`/units/${encodeURIComponent(f.uid)}`).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}).catch(e=>console.warn(`setup/1: GET /units/${f.uid} после «Применить» не прошёл`,e)).then(()=>{
+    if(suiFrame!==f)return;
+    f.applying="ok";suiSync();
+  });
+}
+// Сверка после перерисовки (Р9): своё «Применить» — applied; объект изменился, черновик пуст — revert;
+// черновик изменили вне страницы — draft, опустел — revert. Пока очередь «Применить» идёт — ждать
+function suiReconcile(n){
+  const f=suiFrame;
+  if(!f||f.uid!==n.id||!f.ready||f.applying==="run")return;
+  const ver=hwVer.get(n.id)??null,draft=suiDraftOf(n),empty=!Object.keys(draft).length,same=JSON.stringify(draft)===JSON.stringify(f.pageDraft||{});
+  // Черновик пуст — ошибки сервера к нему больше не относятся
+  if(empty&&f.errs){f.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
+  if(ver!==f.unitVersion){
+    if(f.applying==="ok"){f.applying=null;suiPost("applied",{unit:suiUnitOf(n)});f.invalid=null}
+    else if(empty)suiRevert(n);
+    else{if(!same){suiPost("draft",{patch:draft});f.pageDraft=draft}return}
+    f.unitVersion=ver;f.pageDraft={};
+    return;
+  }
+  // Версия та же: «Применить» ничего не записал (сервер вернул ту же версию), поэтому applied не уходит, а отметка
+  // applying снимается. Страница держит свой ввод, черновик консоли его повторяет
+  f.applying=null;
+  if(same)return;
+  if(empty)suiRevert(n);else suiPost("draft",{patch:draft});
+  f.pageDraft=draft;
+}
+// revert: страница показывает unit заново, поэтому её ошибка ввода больше не держит «Показать план»
+function suiRevert(n){
+  const f=suiFrame;if(!f)return;
+  suiPost("revert",{unit:suiUnitOf(n)});
+  f.invalid=null;
+}
+// «Сбросить» в карточке со страницей: revert странице всегда, даже если консоль ещё не получила её ввод (только invalid)
+function suiResetPage(){
+  const f=suiFrame,n=f&&f.uid===sel?find(sel)?.n:null;
+  if(!n||!f.ready||f.applying==="run")return;
+  suiRevert(n);
+  f.pageDraft={};f.unitVersion=hwVer.get(n.id)??null;f.errs=null;
+}
+// Сообщения страницы по type; шаг 2 — свои (часть 06)
+const SUI_ON={
+  ready(d){
+    const f=suiFrame;
+    clearTimeout(suiTimer);suiTimer=0;
+    f.state="ready";f.ready=true;
+    f.fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"&&x.startsWith("/properties/")):null;
+    const n=find(f.uid)?.n;
+    if(n){const m=suiInitMsg(n);suiPost("init",m);f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft=m.draft}
+    if(suiCardNode()?.id===f.uid)gear();else suiPlace();
+  },
+  // Правка страницы — весь черновик. Только просмотр — пропуск (Review Focus 5)
+  change(d){
+    const f=suiFrame;
+    if(!f.ready||f.readOnly||!d.patch||typeof d.patch!=="object"||Array.isArray(d.patch))return;
+    const n=find(f.uid)?.n;if(!n||n._row)return;
+    suiDraftApply(n,d.patch);
+  },
+  invalid(d){
+    const f=suiFrame;
+    const fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"):[];
+    f.invalid=fields.length?{fields,message:typeof d.message==="string"?d.message:""}:null;
+    cardFootRefresh();
+  },
+  flushed(d){suiFrame.flushWait.get(d.seq)?.(true)},
+  height(d){
+    if(typeof d.px!=="number"||!isFinite(d.px))return;
+    const h=Math.round(Math.min(SUI_HMAX,Math.max(SUI_HMIN,d.px)));
+    suiFrame.h=h;
+    const s=document.querySelector("#main [data-sui-slot]");if(s)s.style.height=h+"px";
+    suiPlace();
+  },
+};
+// Приём: только от окна рамки, только с её происхождения (у стенда — "null"), только proto setup/1; незнакомое — пропуск
+function suiOnMessage(e){
+  const f=suiFrame;
+  if(!f||!f.win||e.source!==f.win||e.origin!==(f.star?"null":f.origin))return;
+  const d=e.data;
+  if(!d||typeof d!=="object"||d.proto!==SUI_PROTO||!Object.prototype.hasOwnProperty.call(SUI_ON,d.type))return;
+  SUI_ON[d.type](d);
+}
+window.addEventListener("message",suiOnMessage);
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -8185,7 +8526,7 @@ function cardRestore(){
   cardDraft=null;cardBase=null;dirty=false;
   treeMatchCache.clear();searchMatchCache.clear();
 }
-function cardReset(){cardRestore();paint();toast("Изменения сброшены")}
+function cardReset(){cardRestore();suiResetPage();paint();toast("Изменения сброшены")}
 function cardLeaveAsk(go){
   const n=find(cardDraft.id)?.n,d=cardDiff();
   askConfirm("Изменения не применены",`<p>${i18n("У")} «${escHtml(locName(n||{}))}» ${d.length} ${i18n(plural(d.length,"неприменённое изменение|неприменённых изменения|неприменённых изменений"))}.</p><ul class="bk-del">${d.slice(0,5).map(r=>`<li>${escHtml(r.label)}: ${escHtml(r.fromT)} → <b>${escHtml(r.toT)}</b></li>`).join("")}</ul>`,
@@ -8194,16 +8535,20 @@ function cardLeaveAsk(go){
 function cardFootHtml(){
   if(typeof dwFootHtml==="function"){const x=dwFootHtml();if(x)return x}
   const d=cardDraft&&cardDraft.id===sel?cardDiff():[];
-  if(!d.length)return`<div id="cardFoot" hidden></div>`;
+  if(!d.length||(suiFrame?.readOnly&&suiFrame.uid===sel))return`<div id="cardFoot" hidden></div>`;
+  const sb=suiFootBlock();
   return`<div class="main-actions bk-foot card-foot" id="cardFoot"><span class="sub bk-foot-text">${i18n("Не применено")}: <b>${d.length}</b> ${i18n(plural(d.length,"изменение|изменения|изменений"))} — ${escHtml(d.slice(0,2).map(r=>r.label).join(", "))}${d.length>2?"…":""}</span><span class="tfoot-gap"></span>
     <button type="button" class="btn s" ${onEv("click",["cardReset"])}>${i18n("Сбросить")}</button>
-    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Консоль выполняет групповую операцию над объектом":"Консоль выполняет групповую операцию. План можно применить после конца операции")}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
+    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Консоль выполняет групповую операцию над объектом":"Консоль выполняет групповую операцию. План можно применить после конца операции")}"`:sb?`disabled title="${escHtml(sb)}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
 }
 function cardFootRefresh(){
   const el=document.getElementById("cardFoot");if(el)el.outerHTML=cardFootHtml();
   decorateTreeSel();
 }
-function cardPlan(){
+function cardPlan(flushed){
+  // Своя страница подсистемы: сначала страница отдаёт неотправленный ввод, ошибка ввода на странице закрывает план
+  if(flushed!==true&&cardDraft&&suiFrame?.uid===cardDraft.id&&suiFrame.ready&&!suiFrame.readOnly){suiFlush().then(()=>cardPlan(true));return}
+  {const sb=suiFootBlock();if(sb){toast(sb);return}}
   const d=cardDiff();if(!d.length){toast("Нечего применять");return}
   if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(busyRefuse(cardDraft.id))return;
@@ -8265,6 +8610,7 @@ function cardApply(ok){
     // Только заглушки и отдельные запросы: операции на сервере нет, «Отменить» после применения тоже
     apiQueue([step],`«${locName(n)}»`,{undo:!!items.length,afterCalls,afterOk},
       items.length?()=>API.post("/operations",{idempotencyKey:opKey(),items:opItems(items),expectedVersions:Object.fromEntries(targets.map(x=>[x,hwVer.get(x)]))}):null,apiOps);
+    if(suiFrame?.uid===n.id&&bq&&!bq.finished){suiFrame.applying="run";suiFrame.applyQ=bq}
     paint();
     return;
   }
@@ -9414,6 +9760,7 @@ function setTheme(v){
   document.documentElement.dataset.theme=v==="light"?"light":"dark";
   try{localStorage.setItem("kit-theme",v==="light"?"light":"dark")}catch(e){}
   const sel=document.getElementById("themeSel");if(sel)sel.value=v==="light"?"light":"dark";
+  if(suiFrame?.ready)suiPost("theme",{theme:suiTheme()});
 }
 function contextServer(){
   const f=find(sel);if(!f)return null;
@@ -10446,6 +10793,7 @@ function paintMain(html){
   if(host)paintInto(host,html,mainKey(),mainSeen);
   bulkScopeFlip(snap);tsFixInd(host);
   liveSync();
+  suiSync();
   navRecord();
   fitCrumbs();
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
@@ -13155,6 +13503,8 @@ function learnUI(){
 // treeLog — в разделе «Журнал: экран, панель слева и поле в шапке»
 
 function tabsFor(n){
+  // Своя страница подсистемы заменяет вкладки вида, вкладки механизма остаются (у объекта по схеме их нет)
+  if(suiPage(n))return[["gen","Настройка"]].concat(isSchemaNode(n)?[]:tabsForHand(n).filter(([id])=>SUI_MECH_TABS.has(id)));
   if(isSchemaNode(n))return schemaTabs(n);
   // Базовая форма — вкладки по x-ui-tab схемы вида, как у незнакомого вида
   if(cardFormAll(n))return baseTabs(n);
@@ -13257,7 +13607,7 @@ function gear(){
   xpropsEnsure(n);
   cardEnsureBase(n);
   const all=cardFormAll(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml(n):""}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(!all&&tab==="topo"&&(handOf(n,"domain")||handOf(n,"server")))g7Start(n);else if(G7.raf)g7Stop();
 }
@@ -16492,12 +16842,15 @@ function dwSubProps(s,k){
   return o;
 }
 // Что изменилось: свойство из новой модели, которое отличается от сохранённой, или null — убрать. Merge Patch
-// Вложенный объект (objectSize, plateWidth, speed…) сливается по ключам: убранный ключ уходит как null, массив заменяется целиком
+// Вложенный объект (objectSize, plateWidth, speed…) сливается по ключам: убранный ключ уходит как null, массив заменяется целиком.
+// Тот же помощник считает правку своей страницы подсистемы (suiDiff)
 function dwPropsPatch(now,was){
-  const out={},ne=(a,b)=>JSON.stringify(a)!==JSON.stringify(b),obj=x=>x!==null&&typeof x==="object"&&!Array.isArray(x);
+  const out={},ne=(a,b)=>JSON.stringify(a)!==JSON.stringify(b),obj=x=>x!==null&&typeof x==="object"&&!Array.isArray(x),own=(o,f)=>Object.prototype.hasOwnProperty.call(o,f);
   new Set([...Object.keys(now),...Object.keys(was)]).forEach(f=>{
     if(!ne(now[f],was[f]))return;
-    out[f]=!(f in now)||now[f]===undefined?null:obj(now[f])&&obj(was[f])?dwPropsPatch(now[f],was[f]):now[f];
+    if(!own(now,f)||now[f]===undefined){out[f]=null;return}
+    if(obj(now[f])&&obj(was[f])){const d=dwPropsPatch(now[f],was[f]);if(Object.keys(d).length)out[f]=d;return}
+    out[f]=now[f];
   });
   return out;
 }
@@ -22849,6 +23202,7 @@ function lanTabOpen(n){
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
 function form(n){
+  if(suiPage(n)&&tab==="gen")return suiCardHtml(n);
   if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+(tab==="vid"?pmSecHtml(n)+ttSecHtml(n):"")+ruleUsesFor(n)))}</div>`;
   if(handOf(n,"ipsrv")&&!isSchemaNode(n))return`<div class="cs-cq">${ipsModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?ruleUsesFor(n):""))}</div>`;
   return tab==="topo"&&(handOf(n,"domain")||handOf(n,"server"))?g7Html(n):formBase(n)+ruleUsesFor(n)}
@@ -40825,6 +41179,8 @@ function queueFinish(){
   bq.steps.forEach(s=>s.ops.forEach(o=>{if(!o.done){o.done=true;o.state="cancel";o.msg=i18n("отменено до выполнения")}}));
   treeMatchCache.clear();searchMatchCache.clear();
   paint();renderRailStatus();
+  // Своя страница подсистемы: итог «Применить» — странице (ответ сервера приходит позже, ниже ветки с return)
+  suiQueueDone(bq);
   const bad=bq.fail+bq.steps.reduce((n,s)=>n+s.ops.filter(o=>o.state==="cancel").length,0);
   // Шаг после очереди (правило записи): только когда все шаги прошли
   if(bq.afterOk&&!bad){const f=bq.afterOk;bq.afterOk=null;f()}
