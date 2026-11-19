@@ -292,6 +292,7 @@
 | `Reference.layouts`, `Reference.monitors` | `RuleActionField.schema` поля `layoutId` действия `client.layout` (`enum` + `x-enum-labels`); `x-enum-labels` у параметра `monitorId` команды `wall` вида камеры (с 0.31.0) | id и подписи — из `schema` и `x-enum-labels` | заполнить `schema` полей действий |
 | `Reference.serviceTypes`, `Reference.supportLevels` | нигде: клиент их не читал | — | не отдавать |
 | `RuleActionField.options` | `RuleActionField.schema` (`enum`; с 0.31.0) | значения поля — из `schema`; нет `schema` — значение любое | у каждого поля со списком значений — `schema` с `enum` |
+| Свойство `license` вида домена (устарело с 0.20.0, жило в `vms.domain/1`) | ключи лицензий `License.*`: `GET /licenses/keys`, домены ключа — `domainIds` (с 0.20.0) | серийный номер и ключ домена — из ключей лицензий; поле `license` не читать и не писать | не отдавать `license` в схеме вида домена и в `properties`; `PATCH` с ним — `422 VALIDATION_FAILED` |
 
 **Обязательно с 0.32.0.**
 

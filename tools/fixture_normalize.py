@@ -187,7 +187,7 @@ def normalize(raw, captured_at):
     # ===== Оборудование =====
 
     out["domains"] = [
-        {"id": ids("domain", d["id"]), "name": d["name"], "license": d.get("license") or "", "online": d.get("online", True) is not False, "version": 1}
+        {"id": ids("domain", d["id"]), "name": d["name"], "online": d.get("online", True) is not False, "version": 1}
         for d in raw["domains"]
     ]
     allocated = {sid for d in raw["domains"] for sid in d["servers"]}

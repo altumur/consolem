@@ -147,7 +147,6 @@
       u.name = trimmed(u.name);
       u.parentId = null;
       u.domainId = null;
-      if (props(u).license === undefined) props(u).license = "";
       statusOf(u).link = "online";
       return null;
     },

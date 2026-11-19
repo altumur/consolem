@@ -66,6 +66,17 @@
     assert.eq(await refused(env, { kind: "domain", name: "  ", properties: {} }), [["NAME_REQUIRED", "/name"]], "имя пустое");
   }, { needs: ["createUnits", "cap:domain:create"] });
 
+  // Свойство license жило в vms.domain/1 и снято с ним в 0.32.0: лицензии домена — License.* (/licenses, /licenses/keys)
+  test("Домен: свойства license нет (снято в 0.32.0) — ни в схеме вида, ни у нового домена; PATCH license — 422", async () => {
+    const env = await makeEnv();
+    const kind = (await env.list("/kinds")).find((k) => k.kind === "domain");
+    assert.eq(Object.keys((kind.schema && kind.schema.properties) || {}).includes("license"), false, "в схеме вида нет license");
+    const d = await made(env, { kind: "domain", name: "Домен без лицензии", properties: {} });
+    assert.eq("license" in ((await env.ok("GET", U(d.uid))).properties || {}), false, "у нового домена нет license");
+    const res = await env.call("PATCH", U(d.uid), { properties: { license: "LIC-1" } }, { "If-Match": `"${d.version}"` });
+    assert.status(res, 422, "VALIDATION_FAILED");
+  }, { needs: ["listKinds", "createUnits", "patchUnit", "cap:domain:create"] });
+
   test("Домен: переименовать — PATCH с версией; чужое имя — 409, без версии — 428, старая версия — 412", async () => {
     const env = await makeEnv();
     const res = await env.call("PATCH", U(d1.id), { name: "Центральный" }, v(d1));
@@ -214,11 +225,11 @@
     const env = await makeEnv();
     const op = await env.runOperation({ idempotencyKey: key(), items: [
       { uid: inDomain.id, patch: { name: "Сервер — план" } },
-      { uid: d1.id, patch: { properties: { license: "LIC-2" } } },
+      { uid: d1.id, patch: { name: "Домен — план" } },
       { uid: offlineServer.id, patch: { name: "не примется" } },
     ], expectedVersions: { [inDomain.id]: inDomain.version, [d1.id]: d1.version, [offlineServer.id]: offlineServer.version } });
     assert.eq(op.items.map((x) => [x.state, x.code]), [["ok", null], ["ok", null], ["fail", "SERVER_OFFLINE"]], "по шагам");
-    assert.eq((await env.ok("GET", U(d1.id))).properties.license, "LIC-2", "домен");
+    assert.eq((await env.ok("GET", U(d1.id))).name, "Домен — план", "домен");
     // Смысл профиля судит шаг при выполнении: занятое имя домена — отказ шага. Папки сервера — как шаг folderIds базы: в
     // папках только устройства, отказ до запуска всей операции
     const sv = (await env.ok("GET", U(inDomain.id))).version;

@@ -32,18 +32,7 @@
    "schema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {
-     "license": {
-      "x-label": {
-       "key": "field.license",
-       "text": "Лицензия",
-       "lang": "ru"
-      },
-      "type": "string",
-      "description": "Устарело в 0.20.0: ключ лицензии — GET /licenses/keys, домены ключа — domainIds. Сервер принимает поле как раньше",
-      "deprecated": true
-     }
-    }
+    "properties": {}
    }
   },
   {
@@ -12757,9 +12746,7 @@
    "domainId": null,
    "name": "Домен 1",
    "version": "1",
-   "properties": {
-    "license": ""
-   },
+   "properties": {},
    "status": {
     "link": "online"
    }
@@ -12771,9 +12758,7 @@
    "domainId": null,
    "name": "Домен 2",
    "version": "1",
-   "properties": {
-    "license": ""
-   },
+   "properties": {},
    "status": {
     "link": "online"
    }
@@ -12785,9 +12770,7 @@
    "domainId": null,
    "name": "Домен 3",
    "version": "1",
-   "properties": {
-    "license": ""
-   },
+   "properties": {},
    "status": {
     "link": "online"
    }
@@ -12799,9 +12782,7 @@
    "domainId": null,
    "name": "Домен 4",
    "version": "1",
-   "properties": {
-    "license": ""
-   },
+   "properties": {},
    "status": {
     "link": "offline"
    }

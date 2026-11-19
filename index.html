@@ -4937,7 +4937,7 @@ function streamRec(u){
   const p=Object.assign({},u.properties||{}),id=p.streamId;delete p.streamId;
   return Object.assign({id,name:u.name},p,u.status&&"link" in u.status?{online:u.status.link==="online"}:{},{uid:u.uid});
 }
-function domNode(r){return{id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,summary:r.stateSummary||null,servers:[],unallocServers:[]}}
+function domNode(r){return{id:r.id,type:"domain",name:r.name,online:r.online,summary:r.stateSummary||null,servers:[],unallocServers:[]}}
 // Узел вида без ручного экрана: свойства — в props (правятся формой по схеме), наблюдаемое и секреты — служебными полями
 function schemaNode(u){
   const n={id:u.uid,type:screenType(u.kind),_kind:u.kind,_schema:true,name:u.name,online:u.status?.link!=="offline",props:cardClone(u.properties||{})};
@@ -5917,7 +5917,7 @@ function hwApplyServer(r){
 }
 function hwApplyDomain(r){
   const d=domainById(r.id);if(!d)return;
-  d.name=r.name;d.license=r.license;d.online=r.online;d.summary=r.stateSummary||null;
+  d.name=r.name;d.online=r.online;d.summary=r.stateSummary||null;
   hwVer.set(r.id,r.version);
 }
 // Созданные устройства (ответ сервера): родитель первым, дочерние — за ним
@@ -7915,7 +7915,7 @@ function freeDomainName(){
 function createDomain(r){
   // Уже пришёл с перечитанным кэшем (событие обогнало ответ)
   if(domainById(r.id)){hwVer.set(r.id,r.version);return domainById(r.id)}
-  const d={id:r.id,type:"domain",name:r.name,license:r.license,online:r.online,servers:[],unallocServers:[]};
+  const d={id:r.id,type:"domain",name:r.name,online:r.online,servers:[],unallocServers:[]};
   domains.push(d);hwIdxDrop();found[d.id]=[];hwVer.set(r.id,r.version);
   open.add(d.id);
   treeMatchCache.clear();searchMatchCache.clear();
@@ -22955,9 +22955,8 @@ function formBase(n){
   if(handOf(n,"domain")){
     if(tab==="flds")return folderCardHtml(flHolder(n.id));
     if(tab==="cams")return lanCardHtml(n);
-    // Ключ найден — его серийный номер уже в карточке ключа, второе поле номера только путало бы
-    if(tab==="lic")return domLicHtml(n)+(licOfDomain(n)&&!licOfDomain(n).none?"":card("Лицензии",`<div class="g">${fldEdit("Серийный номер лицензии",n.id,"license",n.license||"")}</div>
-      <p class="sub">Лицензии выдаются на домен (кластер) и расходуются устройствами независимо от того, на каком сервере ведётся запись.</p>`))+
+    // Ключ лицензии и его серийный номер — в карточке ключа (License.*): свойство домена license снято в 0.32.0
+    if(tab==="lic")return domLicHtml(n)+(licOfDomain(n)&&!licOfDomain(n).none?"":card("Лицензии",`<p class="sub">Лицензии выдаются на домен (кластер) и расходуются устройствами независимо от того, на каком сервере ведётся запись.</p>`))+
       listCard({
         key:"lic:"+n.id,
         title:"Серверы домена",
@@ -22991,7 +22990,7 @@ function formBase(n){
     // Заголовок блока — подпись вида области (у VMS «Домен», у оркестратора «Рабочее пространство»)
     const areaLabel=KINDS.get(nodeKind(n))?.label;
     return card(areaLabel?textOf(areaLabel):"Домен",`${bdg(n)}
-      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${onLic?fldEdit("Серийный номер лицензии",n.id,"license",n.license||""):""}</div>
+      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}</div>
       <div class="mx" style="margin-top:10px">
         ${onSrv?`<button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
         <button type="button" class="mc" ${onEv("click",["pick",`${unallocId(n.id)}`])}><span>${i18n("Нераспределённых")}</span><b>${unN}</b></button>
