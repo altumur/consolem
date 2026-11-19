@@ -8811,6 +8811,7 @@ function openNode(id,opts={}){
   if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))openNode(id,opts)}).catch(()=>{});return}
   // Переход из поиска к устройству уводит из «Автоматизации»: черновик правила не теряем молча.
   if(app==="rules"&&(opts.app||app)!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>openNode(id,opts)))return;
+  if(opts.app&&opts.app!==app&&!appVisible(opts.app))return;   // раздел не объявлен — к объекту не идём
   selCtx=null;
   app=opts.app||app||"hw";
   tab=opts.tab||archSliceTab(f.n)||tabKeep(f.n);
@@ -8859,7 +8860,7 @@ function applyDeepLink(){
   const raw=location.hash.replace(/^#/,"");
   if(!raw)return false;
   const p=new URLSearchParams(raw),id=p.get("node");
-  const op=p.get("opt");if(op&&sysOpts.some(o=>o.id===op)){goApp("sys");sys=op;paint();return true}
+  const op=p.get("opt");if(op&&sysOpts.some(o=>o.id===op)){if(goApp("sys")){sys=op;paint()}return true}
   if(!id)return false;
   if(!find(id)){hwEnsure([id]).then(()=>{if(find(id))applyDeepLink()}).catch(()=>{});return false}
   // Новые ссылки: #node=…&slice=…&group=…&tab=…; старые (app=dev|srvs&view=…)
@@ -9316,9 +9317,15 @@ function setD(v){
   }
 }
 const appSel={dev:null,srvs:"d1"};
+// Раздел, которого система не объявила (appVisible), не открывается ни одним путём: ссылкой, поиском, переходом к объекту.
+// Ответ — открыт ли раздел: false — не объявлен или ждёт ответа о черновике правила
 function setApp(a){
+  if(!appVisible(a==="dev"||a==="srvs"?"hw":a)){
+    if(!appVisible(app)){appEnsureShown();paint()}   // открытый раздел тоже скрыт (403 на права) — к первому видимому
+    return false;
+  }
   // Черновик правила не теряем молча: уйти из «Автоматизации» можно только ответив.
-  if(app==="rules"&&a!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>setApp(a)))return;
+  if(app==="rules"&&a!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>setApp(a)))return false;
   const was=app;
   domainPop=false;
   if(a==="dev"||a==="srvs"){                 // старые адреса разделов
@@ -9333,9 +9340,10 @@ function setApp(a){
   paint();
   // Ссылка из другого раздела («Автоматизация» в карточке детектора) — место прихода моргает.
   if(a==="rules"&&was!=="rules"&&typeof ruleFromLink==="function"&&ruleFromLink())ruleFlashLanding();
+  return true;
 }
-// Раздел, которого система не объявила, не открывается: ни ссылкой, ни поиском по разделам
-function goApp(a){if(appVisible(a==="dev"||a==="srvs"?"hw":a))setApp(a)}
+// Переход в раздел по ссылке и поиску по разделам: охрана — в setApp
+function goApp(a){return setApp(a)}
 // Что читается при заходе в раздел. Раздел рисуется сразу, данные дописываются
 function sectionLoad(a){
   const again=()=>{if(app===a)paint()};
@@ -18318,7 +18326,7 @@ function dcResume(){
   if(busyIds().size){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(app!=="hw"){
     if(app==="rules"&&ruleDiffLive().length){toast("Сначала применить или сбросить изменения правила");return}
-    setApp("hw");
+    if(!setApp("hw"))return;
   }
   if(!dc){const x=dcPeek();if(!x)return;dc={...x,items:new Set(x.items),cams:new Set(x.cams),more:new Set(),ready:false}}
   dc.min=false;dcDock();
@@ -22960,7 +22968,9 @@ function formBase(n){
     const fldN=domainFolderInfo(n.id),devN=domainDeviceCount(n);
     // Плитки и кнопки VMS — по тем же условиям, что вкладки области (DOMAIN_TAB_NEEDS): у оркестратора их нет
     const onSrv=needsMet(DOMAIN_TAB_NEEDS.srvs),onCam=needsMet(DOMAIN_TAB_NEEDS.cams),onLic=needsMet(DOMAIN_TAB_NEEDS.lic);
-    return card("Домен",`${bdg(n)}
+    // Заголовок блока — подпись вида области (у VMS «Домен», у оркестратора «Рабочее пространство»)
+    const areaLabel=KINDS.get(nodeKind(n))?.label;
+    return card(areaLabel?textOf(areaLabel):"Домен",`${bdg(n)}
       <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${onLic?fldEdit("Серийный номер лицензии",n.id,"license",n.license||""):""}</div>
       <div class="mx" style="margin-top:10px">
         ${onSrv?`<button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
@@ -24477,7 +24487,8 @@ function ruleOpen(id,flash){
 function ruleGoDevice(id){
   if(dcCustom())dcMin();
   if(ruleGuard(()=>ruleGoDevice(id)))return;
-  setApp("hw");hwJumpFlash=true;pick(id);hwJumpFlash=false;
+  if(!setApp("hw"))return;
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
 }
 
 // ── Создание ──
@@ -24595,7 +24606,7 @@ function ruleNewRender(){
   // Мастер открыт с готовым шаблоном — прокрутить к нему, иначе выбор скрыт под прокруткой
   if(rnw.reveal&&st.k==="tpl"){rnw.reveal=false;setTimeout(()=>document.querySelector("#bmBody .rl-opt.on")?.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}),320)}
 }
-function ruleNewReturn(b){if(!find(b.id))return;setApp("hw");hwJumpFlash=true;pick(b.id,{tab:b.tab});hwJumpFlash=false}
+function ruleNewReturn(b){if(!find(b.id)||!setApp("hw"))return;hwJumpFlash=true;pick(b.id,{tab:b.tab});hwJumpFlash=false}
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
 // Монотонный счётчик: номер правила не переиспользуется, даже если прежнее удалено
@@ -25547,7 +25558,8 @@ function ruleTraceToggle(k){
 function ruleGoArchive(id,t){
   if(ruleGuard(()=>ruleGoArchive(id,t)))return;
   const n=find(id)?.n;if(!n)return;
-  setApp("hw");hwJumpFlash=true;pick(id);hwJumpFlash=false;
+  if(!setApp("hw"))return;
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
   if(sel!==id)return;             // переход не состоялся (другой вопрос, блокировка) — вкладку и тост не показываем
   tab="rec";paint();              // вкладку подсветит вспышка, запущенная pick
   toast(`${i18n("Архив камеры")} «${locName(n)}» ${i18n("на")} ${t}`);
@@ -37308,7 +37320,7 @@ function planOpen(t){
 function planHeadOpen(){
   if(document.getElementById("wiz").classList.contains("open"))return;
   if(app==="rules"&&ruleGuard(planHeadOpen))return;
-  if(app!=="hw")setApp("hw");
+  if(app!=="hw"&&!setApp("hw"))return;
   planOpen();
   // Пришли за планом: сразу к нему
   if(addPlan.rows.length||addPlan.links.length){wizd.planStep=1;renderDeviceWizard()}

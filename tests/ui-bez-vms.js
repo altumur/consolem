@@ -178,7 +178,26 @@ UiCheck(async ({ ok, until }) => {
   ok(rail.join() === "Агенты,Автоматизация,Права,Журнал", "рельс: " + rail.join());
   ok(!/Оборудование|Экспорт|Опции|Обучение/.test(document.getElementById("rail").textContent), "разделов VMS на рельсе нет");
   goApp("sys"); ok(app === "hw", "необъявленный раздел не открывается: " + app);
+  // Внутренние переходы идут через ту же охрану: система без objects и settings — ни переход к объекту, ни ссылка
+  // #opt=…, ни прямой setApp не открывают скрытый раздел
+  {
+    const declared = CAPS_SECTIONS, hash = location.hash;
+    CAPS_SECTIONS = [{ id: "automation" }, { id: "journal" }];
+    try {
+      setApp("rules");
+      openNode(AGENT, { app: "hw" }); ok(app === "rules", "openNode не открывает необъявленный раздел: " + app);
+      setApp("hw"); ok(app === "rules", "setApp не открывает необъявленный раздел: " + app);
+      ruleGoDevice(AGENT); ok(app === "rules", "переход к объекту из правила не открывает необъявленный раздел: " + app);
+      history.replaceState(null, "", location.pathname + location.search + "#opt=ntp");
+      applyDeepLink(); ok(app === "rules", "ссылка #opt= не открывает необъявленные «Опции»: " + app);
+    } finally { history.replaceState(null, "", location.pathname + location.search + hash); CAPS_SECTIONS = declared; setApp("hw"); }
+    ok(app === "hw", "разделы вернулись: " + app);
+  }
   ok(appLabel("hw") === "Агенты" && appLabel("rules") === "Автоматизация", "подпись раздела — label системы, без него — подпись консоли");
+  {
+    const noEn = [...CAPS_SECTIONS.map((s) => s.label?.text), ...TREE_LAYOUTS.flatMap((l) => [l.label?.text, l.hint?.text]), ...[...KINDS.values()].map((k) => k.label?.text)].filter((t) => t && !(window.I18N_EN || {})[t]);
+    ok(!noEn.length, "подписи разделов, раскладок и видов agents — с английским: " + ([...new Set(noEn)].join(" | ") || "все"));
+  }
   ok(/^Агенты/.test(navTitle()), "заголовок раздела — подпись системы: " + navTitle());
   await until(() => chip("all"));
   ok(chip("all")?.textContent.includes("Агенты"), "срез «все» — подписью раздела: " + chip("all")?.textContent);
@@ -211,6 +230,8 @@ UiCheck(async ({ ok, until }) => {
   goTab("gen");
   const mainText = () => document.getElementById("main").textContent;
   ok(await until(() => /Папок/.test(mainText())), "«Общие» области: плитка «Папок» на месте");
+  const cardHeads = [...document.querySelectorAll("#main .card .ch")].map((h) => h.textContent.trim());
+  ok(cardHeads.includes("Рабочее пространство") && !cardHeads.includes("Домен"), "блок области — подписью вида, а не «Домен»: " + cardHeads.join(" | "));
   const vmsTiles = /Серверов|Нераспределённых|Служб на серверах|Сетевых хранилищ|Устройств|Лицензии камер|Лицензий камер|Ключ домена|Серийный номер лицензии/;
   ok(!vmsTiles.test(mainText()), "в «Общих» нет плиток и полей VMS: " + (mainText().match(vmsTiles) || [""])[0]);
   const btns = () => [...document.querySelectorAll("#main button")].map((b) => b.textContent.trim());
