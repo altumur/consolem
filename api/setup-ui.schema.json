@@ -163,7 +163,7 @@
     },
     "errors": {
       "type": "object",
-      "description": "Сервер отверг правку: Problem как есть",
+      "description": "Бэкенд отверг правку в POST /units/validate: Problem как есть. Отказ POST /operations странице не приходит",
       "x-direction": "toPage",
       "x-step": 1,
       "additionalProperties": false,
@@ -192,7 +192,7 @@
     },
     "revert": {
       "type": "object",
-      "description": "Объект на сервере изменился или черновик опустел по действию consolem: страница показывает unit, черновик пуст",
+      "description": "Объект у бэкенда изменился или черновик опустел по действию consolem: страница показывает unit, черновик пуст",
       "x-direction": "toPage",
       "x-step": 1,
       "additionalProperties": false,
@@ -449,7 +449,7 @@
         "version",
         "properties"
       ],
-      "description": "Объект, как его отдаёт GET /units/{uid}: только эти поля",
+      "description": "Часть Unit из GET /units/{uid}: только эти поля",
       "properties": {
         "uid": {
           "type": "string"
@@ -702,10 +702,10 @@
       "theme": {
         "mode": "light",
         "tokens": {
-          "--one-canvas": "#0f1115",
-          "--one-fg": "#e6e8eb",
-          "--one-accent": "#3b82f6",
-          "--one-radius-control": "6px"
+          "--one-canvas": "#F7F7F7",
+          "--one-fg": "#212228",
+          "--one-accent": "#0070E4",
+          "--one-radius-control": "4px"
         }
       }
     },
