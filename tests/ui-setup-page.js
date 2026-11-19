@@ -182,7 +182,7 @@ UiCheck(async ({ ok, until, sleep }) => {
       API.get = realGet;
       if (put.status < 300) await API.raw("PUT", "/test/kinds/camera", camWas);
       else { stubKind(camWas, "ui-setup-page-back"); apiOnEvent({ type: "kinds.changed", kinds: ["camera"] }); }
-      await until(() => !KINDS.get("camera")?.setupUi);
+      ok(await until(() => !KINDS.get("camera")?.setupUi), "камера: описание вида вернулось без setupUi");
       API.raw = realRaw;
       await hwFull(cam).catch(() => {});
     }
@@ -191,14 +191,34 @@ UiCheck(async ({ ok, until, sleep }) => {
     await open(ctrl.uid);
     ok(await until(() => !!main().querySelector("[data-plugin]") && !slot() && !!main().querySelector("[data-schema-card]")), "mode: tab — ссылка «Страница плагина», форма по схеме");
 
-    // Поздний адрес (Review Focus 3): ответ для прежнего объекта не создаёт рамку у нового
-    stubSetup((p, real) => sleep(500).then(real));
+    // Поздний адрес (Review Focus 3): A → B → A. Первый ответ POST /setup-ui (метка 1) приходит через 800 мс, когда открыта
+    // уже вторая загрузка того же объекта (метка 2). Он не создаёт вторую рамку и не меняет адрес текущей
+    {
+      let calls = 0;
+      const link = (mark) => ({ url: `${SUI_TEST_PAGE}?type=${encodeURIComponent(SUI_KIND)}&id=${SUI_UNIT}&lang=${uiLang}&t=late${mark}`, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false });
+      stubSetup(() => (++calls === 1 ? sleep(800).then(() => link(1)) : Promise.resolve(link(2))));
+      await open(SUI_UNIT);
+      ok(await until(() => !!slot()) && /загружает страницу подсистемы/.test(slot().textContent) && !dockFrame(), "до ready место пишет, что консоль загружает страницу");
+      pick(cam2, { force: true, tab: "gen" });
+      ok(await until(() => suiFrame === null), "другой объект: рамки нет");
+      await open(SUI_UNIT);
+      ok(await until(() => !!dockFrame() && /[?&]t=late2\b/.test(dockFrame().src)), "вторая загрузка: рамка с меткой 2");
+      await sleep(1200);
+      const frames = document.querySelectorAll("#suiDock iframe");
+      ok(calls === 2 && frames.length === 1 && /[?&]t=late2\b/.test(frames[0].src) && suiFrame?.gen === suiGen,
+        `поздний адрес: одна рамка, метка 2, gen текущий — рамок ${frames.length}, src ${frames[0]?.src.replace(/^.*\?/, "?")}`);
+      unstub();
+      pick(cam2, { force: true, tab: "gen" });
+      await until(() => suiFrame === null);
+    }
+
+    // Адрес не пришёл: POST /setup-ui завис — срок ready идёт с запроса, через 10 с сбой, а не вечная загрузка
+    stubSetup(() => new Promise(() => {}));
     await open(SUI_UNIT);
-    ok(await until(() => !!slot()) && /загружает страницу подсистемы/.test(slot().textContent) && !dockFrame(), "до ready место пишет, что консоль загружает страницу");
-    pick(cam2, { force: true, tab: "gen" });
-    await sleep(1000);
-    ok(suiFrame === null && !dockFrame(), "поздний адрес: рамки нет у другого объекта");
+    ok(await until(() => suiFrame?.state === "failed", 15000) && await until(() => !!main().querySelector("[data-sui-fail]")) && !dockFrame(), "POST /setup-ui завис — через 10 с сбой с причиной");
     unstub();
+    pick(cam2, { force: true, tab: "gen" });
+    await until(() => suiFrame === null);
 
     // Страница не ответила: адрес без страницы → нет ready за 10 с → причина и форма по схеме
     stubSetup(() => Promise.resolve({ url: "api/plugins/security_controller/langs/ru.json", expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));

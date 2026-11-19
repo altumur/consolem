@@ -6516,6 +6516,9 @@ async function suiOpen(n){
   suiFrame={uid,kind:nodeKind(n),el:null,win:null,url:null,origin:null,star:false,lang:uiLang,state:"loading",ready:false,why:null,readOnly:false,
     fields:null,invalid:null,pageDraft:{},unitVersion:hwVer.get(uid)??null,seq:0,flushWait:new Map(),applying:null,applyQ:null,gen,h:null};
   const live=()=>!!suiFrame&&suiFrame.gen===gen&&sel===uid;
+  // Срок ready считается с запроса адреса: зависший POST /setup-ui тоже кончается сбоем, а не вечной загрузкой
+  clearTimeout(suiTimer);
+  suiTimer=setTimeout(()=>{if(suiFrame&&suiFrame.gen===gen&&!suiFrame.ready)suiFail(i18n("Страница не ответила за 10 секунд"))},SUI_READY_MS);
   let link;
   try{link=await API.post(`/units/${encodeURIComponent(uid)}/setup-ui`,{})}
   catch(e){if(live())suiFail(problemText(e));return}
@@ -6536,8 +6539,6 @@ async function suiOpen(n){
   el.src=url.href;
   suiDock().appendChild(el);
   suiFrame.el=el;suiFrame.win=el.contentWindow;
-  clearTimeout(suiTimer);
-  suiTimer=setTimeout(()=>{if(suiFrame&&suiFrame.gen===gen&&!suiFrame.ready)suiFail(i18n("Страница не ответила за 10 секунд"))},SUI_READY_MS);
   suiPlace();
 }
 function suiClose(){
