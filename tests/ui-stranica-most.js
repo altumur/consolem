@@ -248,6 +248,22 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(rc.ok && rc.status === 202 && rc.body.drafted, "createUnits под контроллером — drafted");
     r = await call("createUnits", undefined, { items: [{ kind: SENSOR, name: "Без родителя" }] });
     ok(code(r) === "NOT_SUPPORTED" && r.status === 0, "createUnits без parentId — NOT_SUPPORTED");
+    // Волна 06, п. 14: тело UnitCreate consolem проверяет при вызове, а не только при «Применить»
+    window.CONSOLEM_TRACE.length = 0;
+    const cuBad = [
+      [await call("createUnits", undefined, { items: [{ parentId: CTRL, name: "Без вида", properties: {} }] }), "/body/items/0/kind"],
+      [await call("createUnits", undefined, { items: [{ kind: SENSOR, parentId: CTRL, name: "Без свойств" }] }), "/body/items/0/properties"],
+      [await call("createUnits", undefined, { items: [{ kind: SENSOR, parentId: CTRL, properties: {} }, { kind: SENSOR, parentId: CTRL, name: 5, properties: {} }] }), "/body/items/1/name"],
+      [await call("createUnits", undefined, { items: [{ kind: SENSOR, parentId: CTRL, properties: [] }] }), "/body/items/0/properties"],
+    ];
+    ok(cuBad.every(([x, fl]) => code(x) === "VALIDATION_FAILED" && x.status === 0 && x.problem.field === fl && valid(x)) && !window.CONSOLEM_TRACE.length &&
+      !cardDiff().some((x) => x.bridge && x.label.includes("Без")), "createUnits с телом не по UnitCreate — VALIDATION_FAILED с полем при вызове, без запроса и строки — " + JSON.stringify(cuBad.map(([x]) => x.problem)));
+    // Волна 06, п. 10: свой объект страница не удаляет и не переносит
+    window.CONSOLEM_TRACE.length = 0;
+    const ownDel = await call("deleteUnit", { uid: SUI_UNIT });
+    const ownMove = await call("moveUnit", { uid: SUI_UNIT }, { parentId: null });
+    ok([ownDel, ownMove].every((x) => code(x) === "NOT_SUPPORTED" && x.status === 0 && x.problem.field === "/params/uid" && valid(x)) && !dlgOpen() && !window.CONSOLEM_TRACE.length,
+      "deleteUnit и moveUnit своего uid — NOT_SUPPORTED /params/uid, без диалога и без запроса");
     // Удаление — диалог консоли с вводом числа
     const nDraft = () => cardDiff().filter((x) => x.bridge).length;
     const idD = "t" + ++seq;
@@ -255,6 +271,10 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => dlgOpen() && !!document.getElementById("confirmCountInp"), 5000) && document.getElementById("confirmOk").disabled &&
       document.getElementById("confirmMsg").textContent.includes("Датчик ворот") && document.getElementById("confirmMsg").textContent.includes("«Применить»") && !replyOf(idD),
       "deleteUnit: диалог консоли с полем числа и именем объекта, «Удалить» неактивна, ответа ещё нет");
+    // Волна 06, пп. 8 и 11: один объект — единственное число; что останется — полным предложением; число вложенных — без двоеточия
+    const delT = document.getElementById("confirmMsg").textContent;
+    ok(delT.includes("просит удалить объект.") && delT.includes("Останутся другие объекты домена и другие шаги черновика.") && !delT.includes("Останется:") &&
+      !/вложенные объекты: \d/.test(delT), "диалог удаления одного объекта: «просит удалить объект», что останется — полным предложением — " + delT.replace(/\s+/g, " ").slice(0, 300));
     const inp = document.getElementById("confirmCountInp");
     inp.value = "2"; inp.dispatchEvent(new Event("input"));
     const off2 = document.getElementById("confirmOk").disabled;
@@ -314,6 +334,22 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     const applied2 = () => sent.slice(sentAt2).find((m) => m.type === "applied" && Array.isArray(m.steps));
     ok(await until(applied2, 10000) && applied2().steps.length === 1 && applied2().steps[0].state === "ok" && (await g(S3)).body.name === "Мост 3", "черновик из одного шага моста — applied со steps");
     await until(() => !bq || bq.finished, 5000);
+    // Волна 06, п. 9: итог операции не прочитан (GET /operations/{id} после очереди не прошёл) — шаги fail UPSTREAM_UNAVAILABLE
+    if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
+    const realGet = API.get;
+    API.get = function (path, ...rest) {
+      if (String(path).startsWith("/operations/") && suiFrame && !suiFrame.applyQ) return Promise.reject(Object.assign(new Error("нет связи"), { status: 0 }));
+      return realGet.call(this, path, ...rest);
+    };
+    const sentAtG = sent.length;
+    try {
+      r = await call("patchUnit", { uid: S3 }, { name: "Мост 3б" });
+      cardApply();
+      const appliedG = () => sent.slice(sentAtG).find((m) => m.type === "applied" && Array.isArray(m.steps));
+      ok(await until(appliedG, 10000) && valid(appliedG()) && appliedG().steps.length === 1 && appliedG().steps[0].state === "fail" && appliedG().steps[0].code === "UPSTREAM_UNAVAILABLE",
+        "GET /operations/{id} после «Применить» не прошёл — шаг fail UPSTREAM_UNAVAILABLE, а не cancel — " + JSON.stringify(appliedG()?.steps));
+    } finally { API.get = realGet; }
+    await until(() => !bq || bq.finished, 5000);
     // Версия шага — в момент вызова (P6): чужая правка между вызовом и «Применить» даёт конфликт версий, даже если поток
     // уже принёс консоли новую версию
     if (document.getElementById("bmodal")?.classList.contains("open")) closeBulkModal();
@@ -364,6 +400,16 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
       "в s1 только события поиска домена, по схеме — " + JSON.stringify(evs().map((m) => m.message.type + ":" + m.message.entityId).slice(0, 4)));
     r = await subscribe("s2", { entityIds: [cam] });
     ok(r.ok && watchIds().includes(cam), "subscribe s2 с камерой — камера в watchIds()");
+    // Волна 06, п. 5: правка камеры, пока s1 есть, приходит в s2 и не приходит в s1
+    ok(await until(() => watchLast.split(",").includes(cam), 5000), "камера в наблюдении потока");
+    const camAt = sent.length, camV = (await realRaw("GET", `/units/${cam}`)).body.version;
+    const camName = (await realRaw("GET", `/units/${cam}`)).body.name;
+    const camP = await realRaw("PATCH", `/units/${cam}`, { name: camName + " " }, { "If-Match": `"${camV}"` });
+    const camEvs = () => sent.slice(camAt).filter((m) => m.type === "event" && m.message.entityId === cam);
+    ok(camP.status === 200 && await until(() => camEvs().some((m) => m.sub === "s2"), 5000) && !camEvs().some((m) => m.sub === "s1"),
+      "правка камеры пришла в s2 и не пришла в s1 — " + JSON.stringify(camEvs().map((m) => m.sub + ":" + m.message.type)));
+    const camV2 = (await realRaw("GET", `/units/${cam}`)).body.version;
+    await realRaw("PATCH", `/units/${cam}`, { name: camName }, { "If-Match": `"${camV2}"` });
     pageSend({ type: "unsubscribe", sub: "s2" });
     ok(await until(() => !watchIds().includes(cam), 2000) && !bridgeSubs.has("s2"), "unsubscribe s2 — камеры нет в watchIds()");
     // Пределы: 16 подписок, объекты — не больше watchMax − 1
@@ -372,10 +418,36 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(bridgeSubs.size === 16 && code(r) === "BUSY" && r.status === 0 && valid(r), "16 подписок есть — 17-я BUSY");
     for (let i = 2; i <= 16; i++) pageSend({ type: "unsubscribe", sub: "k" + i });
     ok(bridgeSubs.size === 1, "подписки сняты, осталась s1");
+    // Волна 06, п. 2: в одной подписке объектов не больше limits.watch, видов и типов не больше 32, строка — до 200 знаков
     r = await subscribe("big", { entityIds: Array.from({ length: LIM.watchMax }, (_, i) => "w" + i) });
-    ok(code(r) === "BUSY" && !bridgeSubs.has("big") && !watchIds().includes("w0"), "объектов больше watchMax − 1 — BUSY, в наблюдение не попали");
+    ok(code(r) === "VALIDATION_FAILED" && r.problem.field === "/entityIds" && !bridgeSubs.has("big") && !watchIds().includes("w0"), "объектов в подписке больше limits.watch — VALIDATION_FAILED /entityIds, в наблюдение не попали");
     r = await subscribe("bad", { entityIds: "x" });
     ok(code(r) === "VALIDATION_FAILED" && r.problem.field === "/entityIds", "entityIds не список — VALIDATION_FAILED /entityIds");
+    const sizeBad = [
+      [await subscribe("bk", { kinds: Array.from({ length: 33 }, (_, i) => "k" + i) }), "/kinds"],
+      [await subscribe("bt", { types: Array.from({ length: 33 }, (_, i) => "t" + i) }), "/types"],
+      [await subscribe("bs", { kinds: ["k".repeat(201)] }), "/kinds"],
+      [await subscribe("be", { entityIds: ["e".repeat(201)] }), "/entityIds"],
+    ];
+    ok(sizeBad.every(([x, fl]) => code(x) === "VALIDATION_FAILED" && x.problem.field === fl && valid(x)) && bridgeSubs.size === 1,
+      "33 вида, 33 типа, строка длиннее 200 знаков — VALIDATION_FAILED с полем — " + JSON.stringify(sizeBad.map(([x]) => x.problem)));
+    // Объект, которого нет или которого пользователь не видит, — NOT_FOUND /entityIds; в наблюдение он не попадает
+    window.CONSOLEM_TRACE.length = 0;
+    r = await subscribe("nf", { entityIds: [cam, "30009999-0000-4000-8000-000000000000"] });
+    ok(code(r) === "NOT_FOUND" && r.status === 0 && r.problem.field === "/entityIds" && valid(r) && !bridgeSubs.has("nf") && trace("GET", "/units").length >= 1,
+      "subscribe с объектом, которого нет, — consolem спросил сервер, NOT_FOUND /entityIds");
+    bridgeSubs.set("fake", { f: suiFrame, entityIds: new Set(["нет-такого"]), kinds: new Set(), types: null });
+    ok(!bridgeWatchIds().includes("нет-такого"), "в наблюдение идут только объекты, которые consolem знает (hwVer)");
+    bridgeSubs.delete("fake");
+    // Предел объектов во всех подписках: при watchMax 3 места два, одно занимает домен s1
+    const wm = LIM.watchMax;
+    LIM.watchMax = 3;
+    try {
+      const w1 = await subscribe("w1", { entityIds: [cam] });
+      const w2 = await subscribe("w2", { entityIds: [cam2] });
+      ok(w1.ok && code(w2) === "BUSY" && w2.status === 0 && !bridgeSubs.has("w2"), "объектов во всех подписках больше limits.watch — BUSY");
+    } finally { LIM.watchMax = wm; }
+    pageSend({ type: "unsubscribe", sub: "w1" });
     // stream.reset — всем подпискам
     await subscribe("s3", { entityIds: [cam] });
     const rsAt = sent.length;
@@ -386,7 +458,11 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     pageSend({ type: "confirm", id: "cf1", title: "Поставить на охрану", text: "<img src=x>", lose: ["Тревоги датчиков"], keep: ["<b>Камеры</b>"], count: 2, okLabel: "Поставить" });
     ok(await until(dlgOpen, 5000) && !document.querySelector("#confirm img") && !document.querySelector("#confirmMsg b") && document.getElementById("confirmMsg").textContent.includes("<img src=x>"), "текст страницы — текстом");
     const msgT = document.getElementById("confirmMsg").textContent;
-    ok(msgT.includes(`Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}»`) && msgT.includes("Тревоги датчиков") && msgT.includes("<b>Камеры</b>") &&
+    // Волна 06, п. 6: строка о странице — в шапке над заголовком страницы, а не в тексте
+    const asker = document.getElementById("confirmAsker"), cTitle = document.getElementById("confirmTitle");
+    ok(!!asker && asker.textContent === `Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}».` && !!(asker.compareDocumentPosition(cTitle) & Node.DOCUMENT_POSITION_FOLLOWING) &&
+      !document.getElementById("confirmMsg").contains(asker) && !msgT.includes("Спрашивает страница"), "строка «Спрашивает страница вида…» — над заголовком, вне текста страницы");
+    ok(msgT.includes("Тревоги датчиков") && msgT.includes("<b>Камеры</b>") &&
       document.getElementById("confirmTitle").textContent === "Поставить на охрану" && document.getElementById("confirmOk").textContent === "Поставить" &&
       !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled && !replyOf("cf1"),
       "в диалоге строка о странице вида, списки, заголовок и кнопка страницы, поле числа; ответа ещё нет");
@@ -403,7 +479,58 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(dlgOpen, 3000), "диалог c4 открыт");
     askConfirm("Свой вопрос", "Свой", "", "Да", () => {});
     ok(await until(() => !!replyOf("cf4"), 3000) && replyOf("cf4").body?.confirmed === false, "диалог страницы занял свой диалог consolem — confirmed: false");
+    ok(!document.getElementById("confirmAsker") && document.getElementById("confirmTitle").textContent === "Свой вопрос", "в своём диалоге consolem строки о странице нет");
+    // Волна 06, п. 1: открытый диалог consolem страница не подменяет — ни confirm, ни команда с подтверждением, ни удаление
+    window.CONSOLEM_TRACE.length = 0;
+    pageSend({ type: "confirm", id: "cf6", title: "Подмена", text: "Подмена" });
+    const busyAct = await call("runUnitAction", { uid: VOL, action: "format" });
+    const busyDel = await call("deleteUnit", { uid: S3 });
+    ok(await until(() => !!replyOf("cf6"), 3000) && code(replyOf("cf6")) === "BUSY" && code(busyAct) === "BUSY" && code(busyDel) === "BUSY" &&
+      [replyOf("cf6"), busyAct, busyDel].every(valid) && dlgOpen() && document.getElementById("confirmTitle").textContent === "Свой вопрос" &&
+      !trace("POST", `/units/${VOL}/actions/`).length && !cardDiff().some((x) => x.bridge),
+      "открыт диалог consolem — confirm, команда format и deleteUnit получают BUSY, диалог consolem цел");
     closeConfirm();
+    // Волна 06, п. 3: после трёх отказов подряд вопросы страницы — BUSY на 10 с или до действия пользователя на странице
+    const refuse = async (id) => {
+      pageSend({ type: "confirm", id, title: "Вопрос " + id, text: "Вопрос" });
+      if (!(await until(dlgOpen, 3000))) return null;
+      document.getElementById("confirmCancel").click();
+      await until(() => !!replyOf(id), 3000);
+      return replyOf(id);
+    };
+    // Счёт отказов начинается заново, когда пользователь переходит на страницу (фокус уходит в рамку). Потом фокус
+    // возвращается в consolem: иначе каждое blur окна снова снимало бы счёт
+    const touchPage = async () => {
+      suiFrame.el.focus();
+      window.dispatchEvent(new Event("blur"));
+      await sleep(50);
+      suiFrame.el.blur();
+      window.focus();
+      await sleep(50);
+    };
+    await touchPage();
+    const nos = [await refuse("cr1"), await refuse("cr2"), await refuse("cr3")];
+    ok(nos.every((x) => x && x.ok && x.body.confirmed === false), "три отказа подряд — confirmed: false");
+    pageSend({ type: "confirm", id: "cr4", title: "Четвёртый", text: "Вопрос" });
+    ok(await until(() => !!replyOf("cr4"), 3000) && code(replyOf("cr4")) === "BUSY" && valid(replyOf("cr4")) && !dlgOpen(), "четвёртый вопрос после трёх отказов — BUSY без диалога");
+    await touchPage();
+    ok((await refuse("cr5"))?.body?.confirmed === false, "пользователь перешёл на страницу — вопрос снова открыт");
+    await refuse("cr6"); await refuse("cr7");
+    pageSend({ type: "confirm", id: "cr8", title: "Ещё", text: "Вопрос" });
+    ok(await until(() => !!replyOf("cr8"), 3000) && code(replyOf("cr8")) === "BUSY", "снова три отказа — BUSY");
+    await sleep(10100);
+    ok((await refuse("cr9"))?.body?.confirmed === false, "через 10 с вопрос снова открыт");
+    // Один navigate в полёте: второй, пока первый ждёт ответа, — BUSY
+    pageSend({ type: "change", patch: { display_text: "Полёт" } });
+    ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст, переход спросит пользователя");
+    pageSend({ type: "navigate", id: "nf1", uid: cam });
+    ok(await until(dlgOpen, 5000), "первый переход ждёт ответа пользователя");
+    pageSend({ type: "navigate", id: "nf2", uid: cam2 });
+    ok(await until(() => !!replyOf("nf2"), 3000) && code(replyOf("nf2")) === "BUSY" && valid(replyOf("nf2")) && !replyOf("nf1"), "второй navigate в полёте — BUSY");
+    document.getElementById("confirmCancel").click();
+    ok(await until(() => code(replyOf("nf1")) === "CANCELLED", 3000) && sel === SUI_UNIT, "первый переход — CANCELLED");
+    cardReset();
+    ok(await until(() => !cardDiff().length, 3000), "черновик снова пуст");
     // Рамка закрылась при открытом confirm: диалог закрыт без ответа, подписки сняты
     pageSend({ type: "confirm", id: "cf5", title: "Вопрос", text: "Вопрос" });
     ok(await until(dlgOpen, 3000) && watchIds().includes(cam), "диалог c5 открыт, камера s3 в наблюдении");
@@ -418,6 +545,16 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(await until(() => !!replyOf("n0"), 5000) && code(replyOf("n0")) === "NOT_FOUND" && replyOf("n0").status === 0 && valid(replyOf("n0")), "navigate к объекту, которого нет, — NOT_FOUND");
     pageSend({ type: "navigate", id: "n00", uid: SUI_UNIT, tab: "gen" });
     ok(await until(() => !!replyOf("n00"), 5000) && replyOf("n00").ok === true && sel === SUI_UNIT && suiFrame?.ready, "navigate к своему объекту — ok, карточка та же");
+    // Волна 06, п. 4: тот же объект и та же вкладка — место всё равно моргает
+    ok(await until(() => document.querySelector(".hd .tabs .tab.on.acc-flash") && document.querySelector("#tree .n.on.acc-flash"), 3000), "navigate к своему объекту на ту же вкладку — вкладка и строка дерева моргают");
+    // Своя вкладка другая: ответ уходит до того, как consolem сменит вкладку и закроет рамку
+    const ownTab = tabsFor(find(SUI_UNIT).n).map(([t]) => t).find((t) => t !== "gen");
+    if (ownTab) {
+      pageSend({ type: "navigate", id: "n01", uid: SUI_UNIT, tab: ownTab });
+      ok(await until(() => !!replyOf("n01"), 5000) && replyOf("n01").ok === true && tab === ownTab, `navigate к своему объекту на вкладку «${ownTab}» — ответ ok пришёл, вкладка сменилась`);
+      pick(SUI_UNIT, { force: true, tab: "gen" });
+      ok(await until(() => sel === SUI_UNIT && tab === "gen" && suiFrame?.ready, 15000), "снова вкладка страницы");
+    } else ok(true, "у объекта страницы одна вкладка");
     pageSend({ type: "change", patch: { display_text: "Переход" } });
     ok(await until(() => cardDiff().length > 0, 3000), "черновик не пуст");
     pageSend({ type: "navigate", id: "n1", uid: cam });

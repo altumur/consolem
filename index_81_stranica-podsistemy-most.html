@@ -1726,6 +1726,9 @@ fieldset.rl-tags{border:0;padding:0;min-width:0;margin-top:6px}.rl-tags>legend{d
 .confirm.open{display:grid}
 .cbox{width:min(420px,92vw);background:var(--p);border:1px solid var(--ln);border-radius:12px;overflow:hidden;box-shadow:0 16px 48px #0008}
 .chead{padding:14px 16px;border-bottom:1px solid var(--ln);font-weight:600;font-size:14px}
+/* Чей вопрос: строка над заголовком диалога (вопрос страницы подсистемы, мост шага 2). Её ставит consolem, а не страница */
+.chead-asker{padding:10px 16px 0;font-size:12px;color:var(--mu)}
+.chead-asker+.chead{padding-top:4px}
 .cbody{padding:16px;font-size:13px;line-height:1.5;color:var(--tx)}
 #confirmMsg p{margin:0 0 10px}#confirmMsg p:last-child{margin:0}
 .confirm-opt{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--mu);cursor:pointer;user-select:none}
@@ -6912,9 +6915,13 @@ function bridgeDrop(f){
   const a=f.bridgeAsk;f.bridgeAsk=null;
   if(a&&confirmOkCb===a.mine&&document.getElementById("confirm")?.classList.contains("open"))closeConfirm();
 }
-// Диалог консоли для вызова страницы → Promise<boolean>. Окно подтверждения одно на всю консоль: если другой диалог
-// консоли занял его (askConfirm заменил обратные вызовы) или окно закрылось, ответ — «нет»
+// Окно подтверждения consolem открыто — по любой причине: свой диалог consolem, cardLeaveAsk, вопрос страницы
+function bridgeDlgOpen(){return!!document.getElementById("confirm")?.classList.contains("open")}
+// Диалог консоли для вызова страницы → Promise<true | false | "busy" | "gone">. true — пользователь подтвердил, false —
+// отказался. Окно подтверждения одно на всю консоль: открытый диалог consolem страница не подменяет ("busy", диалог не
+// открыт); если другой диалог consolem занял окно (askConfirm заменил обратные вызовы) или окно закрылось — "gone"
 function bridgeAsk(f,title,msg,okLabel,opts){
+  if(bridgeDlgOpen())return Promise.resolve("busy");
   return new Promise(res=>{
     const box=document.getElementById("confirm");
     let done=false,mo=null;
@@ -6922,7 +6929,7 @@ function bridgeAsk(f,title,msg,okLabel,opts){
     const end=v=>{if(done)return;done=true;mo?.disconnect();if(f.bridgeAsk===a)f.bridgeAsk=null;res(v)};
     askConfirm(title,msg,"",okLabel,()=>end(true),{...opts,onCancel:()=>end(false)});
     a.mine=confirmOkCb;f.bridgeAsk=a;
-    mo=new MutationObserver(()=>{if(confirmOkCb!==a.mine||!box.classList.contains("open"))end(false)});
+    mo=new MutationObserver(()=>{if(confirmOkCb!==a.mine||!box.classList.contains("open"))end("gone")});
     mo.observe(box,{attributes:true,childList:true,subtree:true,characterData:true});
   });
 }
@@ -6962,7 +6969,8 @@ async function bridgeCall(msg,f=suiFrame){
       const lb=textOf(x.a.label)||x.a.id;
       const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,
         x.a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
-      if(!yes)return bridgeFail(id,0,"CANCELLED");
+      if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+      if(yes!==true)return bridgeFail(id,0,"CANCELLED");
     }
     // Рамка закрылась, пока консоль читала вид объекта: команду консоль не запускает
     if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
@@ -7025,6 +7033,18 @@ async function bridgeDestName(id,u,parentId){
   const r=await bridgeUnitGet(id,pid);
   return r.fail?r:{name:bridgeName(r.unit)};
 }
+// Тело UnitCreate по схеме контракта: kind — строка, properties — объект, name — строка, других ключей нет. Не так —
+// указатель поля отказа. inOp — createUnit шага операции: родитель там — uid шага, а не parentId
+const BRIDGE_CREATE_KEYS=new Set(["kind","parentId","name","domainId","folders","properties","candidateId","children"]);
+function bridgeUnitCreateBad(x,at,inOp){
+  if(typeof x.kind!=="string"||!x.kind)return at+"/kind";
+  if(!x.properties||typeof x.properties!=="object"||Array.isArray(x.properties))return at+"/properties";
+  if(x.name!==undefined&&typeof x.name!=="string")return at+"/name";
+  if(x.folders!==undefined&&!bridgeStrs(x.folders))return at+"/folders";
+  if(x.children!==undefined&&!Array.isArray(x.children))return at+"/children";
+  const extra=Object.keys(x).find(k=>!BRIDGE_CREATE_KEYS.has(k)||inOp&&k==="parentId");
+  return extra?at+"/"+extra:null;
+}
 // Вызов draft → BridgeResult. Шаги — по таблице «Как шаг draft ложится на шаг операции» (api/SETUP-UI.md)
 async function bridgeDraft(msg,f){
   const id=msg.id,op=msg.op;
@@ -7041,12 +7061,18 @@ async function bridgeDraft(msg,f){
   if(op==="patchUnit"){if(!obj(b))return bad("/body");raw.push({item:{uid:String(p.uid),patch:cardClone(b)},own:"/params/uid"})}
   else if(op==="createUnits"){
     if(!obj(b)||!list)return bad("/body/items");
-    for(const[i,x]of list.entries()){if(!obj(x))return bad(`/body/items/${i}`);if(!okUid(x.parentId))return no();raw.push({item:{uid:x.parentId,createUnit:cardClone(x)}})}
+    for(const[i,x]of list.entries()){
+      if(!obj(x))return bad(`/body/items/${i}`);
+      if(!okUid(x.parentId))return no();
+      // Тело UnitCreate — при вызове: иначе отказ пришёл бы только при «Применить», всей операции
+      const bf=bridgeUnitCreateBad(x,`/body/items/${i}`);if(bf)return bad(bf);
+      raw.push({item:{uid:x.parentId,createUnit:cardClone(x)}});
+    }
   }
   else if(op==="deleteUnit")raw.push({item:{uid:String(p.uid),delete:true}});
   else if(op==="deleteObjects"){
     if(!obj(b)||!list)return bad("/body/items");
-    for(const[i,x]of list.entries()){if(!obj(x)||!okUid(x.id))return bad(`/body/items/${i}/id`);raw.push({item:{uid:x.id,delete:true},store:true})}
+    for(const[i,x]of list.entries()){if(!obj(x)||!okUid(x.id))return bad(`/body/items/${i}/id`);raw.push({item:{uid:x.id,delete:true},store:true,own:`/body/items/${i}/id`})}
   }
   else if(op==="moveUnit"){
     if(!obj(b)||!(b.parentId===null||okUid(b.parentId)))return bad("/body/parentId");
@@ -7065,6 +7091,7 @@ async function bridgeDraft(msg,f){
       const k=ks[0];
       if(k==="delete"&&x.delete!==true)return no();
       if((k==="patch"||k==="createUnit")&&!obj(x[k]))return bad(`/body/items/${i}/${k}`);
+      if(k==="createUnit"){const bf=bridgeUnitCreateBad(x.createUnit,`/body/items/${i}/createUnit`,true);if(bf)return bad(bf)}
       if(k==="folders"&&!(Array.isArray(x.folders)&&x.folders.every(okUid)))return bad(`/body/items/${i}/folders`);
       if(k==="move"&&!(x.move===null||okUid(x.move)))return bad(`/body/items/${i}/move`);
       raw.push({item:cardClone(x),own:`/body/items/${i}/uid`});
@@ -7073,6 +7100,8 @@ async function bridgeDraft(msg,f){
   else return no();
   // Свой объект страница меняет через change, а не шагом моста
   for(const r of raw)if(r.item.patch&&r.item.uid===f.uid)return bad(r.own||"/params/uid");
+  // Свой объект страница не удаляет и не переносит: карточка и рамка держатся на нём
+  for(const r of raw)if((r.item.delete||r.item.move!==undefined)&&r.item.uid===f.uid)return bridgeFail(id,0,"NOT_SUPPORTED",{field:r.own||"/params/uid",message:i18n(BRIDGE_TEXT2.OWN)});
   // Объекты шагов — с сервера в момент вызова: версия шага, имя и вид для подписи. Объект шага createUnit — родитель, ему
   // версия не нужна
   const units=new Map();
@@ -7093,7 +7122,9 @@ async function bridgeDraft(msg,f){
   const dels=raw.filter(r=>r.item.delete).map(r=>units.get(r.item.uid));
   if(dels.length){
     if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
-    if(!await bridgeDeleteAsk(f,dels))return bridgeFail(id,0,"CANCELLED");
+    const yes=await bridgeDeleteAsk(f,dels);
+    if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+    if(yes!==true)return bridgeFail(id,0,"CANCELLED");
   }
   // Карточка объекта страницы открыта: шаг — в её черновик
   const n=find(f.uid)?.n;
@@ -7118,6 +7149,7 @@ async function bridgeDraft(msg,f){
 // Диалог удаления consolem → Promise<boolean>: что пропадёт (до 10 имён и «и ещё N»), вложенные объекты, что останется.
 // Число для ввода — число объектов, его считает consolem
 async function bridgeDeleteAsk(f,units){
+  if(bridgeDlgOpen())return"busy";
   const N=units.length;
   const li=units.slice(0,10).map(u=>`<li>«${escHtml(bridgeName(u))}» — ${escHtml(bridgeKindLabel(u.kind))}</li>`).join("")+(N>10?`<li>${i18n("и ещё")} ${N-10}</li>`:"");
   // Вложенные объекты сервер удаляет вместе с объектом: их число — по прямым потомкам (GET /units?parentId), до 20 объектов
@@ -7132,11 +7164,13 @@ async function bridgeDeleteAsk(f,units){
     }
   }
   if(!bridgeLive(f))return false;
-  const kidLine=kids===null?i18n("Вместе с ними консоль удалит вложенные объекты."):kids?bridgeT("Вместе с ними консоль удалит вложенные объекты: {n}.",{n:kids}):i18n("Вложенных объектов нет.");
-  const html=`<p>${escHtml(bridgeT("Страница вида «{вид}» просит удалить объекты.",{вид:bridgeKindLabel(f.kind)}))}</p>
+  // Число — только прямых потомков: глубже consolem не считает, и текст говорит об этом
+  const kidLine=kids===null?i18n("Консоль удалит и все вложенные объекты."):kids?bridgeT("Консоль удалит и все вложенные объекты. Консоль посчитала только первый уровень вложенности, там {n} {объектов}.",{n:kids,объектов:i18n(plural(kids,"объект|объекта|объектов"))}):i18n("Вложенных объектов нет.");
+  const ask=N===1?"Страница вида «{вид}» просит удалить объект.":"Страница вида «{вид}» просит удалить объекты.";
+  const html=`<p>${escHtml(bridgeT(ask,{вид:bridgeKindLabel(f.kind)}))}</p>
     <p>${i18n("Пропадёт")}:</p><ul class="bk-del">${li}</ul><p>${escHtml(kidLine)}</p>
-    <p>${i18n("Останется")}: ${i18n("другие объекты и шаги черновика.")}</p>
-    <p>${i18n("Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.")}</p>`;
+    <p>${i18n("Останутся другие объекты домена и другие шаги черновика.")}</p>
+    <p>${i18n(N===1?"Консоль удалит объект по кнопке «Применить». До этого объект останется на сервере.":"Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.")}</p>`;
   return bridgeAsk(f,N===1?"Удалить объект?":"Удалить объекты?",html,"Удалить",{html:true,typeCount:N});
 }
 // Строки плана: шаг моста — строка черновика карточки (вызов в конце cardDiff)
@@ -7156,7 +7190,9 @@ function bridgeVersions(){
 function bridgeStepsOf(n){return cardDraft&&cardDraft.id===n.id?(cardDraft.bridge||[]).map(s=>({step:s.step,op:s.op,label:s.label})):[]}
 // Итог шагов моста по операции: op.items[index], смещение — число шагов карточки перед шагами моста
 function bridgeAppliedSteps(op,q){
-  const its=op?.items||[];
+  // Итог операции consolem не прочитал: что с шагами, неизвестно — fail UPSTREAM_UNAVAILABLE, а не cancel
+  if(!op)return q.bridgeSteps.map(s=>({step:s.step,state:"fail",code:"UPSTREAM_UNAVAILABLE"}));
+  const its=op.items||[];
   return q.bridgeSteps.map((s,i)=>{
     const it=its.find(x=>x.index===q.bridgeAt+i);
     const o={step:s.step,state:it&&(it.state==="ok"||it.state==="fail")?it.state:"cancel"};
@@ -7206,23 +7242,51 @@ const BRIDGE_TEXT2={
   WATCH:"В подписках страницы больше объектов, чем разрешает предел.",
   CONFIRM:"Консоль уже показывает вопрос страницы.",
   NOT_FOUND:"Объекта нет, или у пользователя нет права его видеть.",
+  DIALOG:"Консоль уже показывает другой диалог, поэтому не открывает этот вопрос.",
+  MUTED:"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.",
+  NAV:"Консоль ещё не закончила прошлый переход страницы.",
+  OWN:"Страница не удаляет и не переносит свой объект.",
 };
+// Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
+const BRIDGE_SUB_LIST_MAX=32,BRIDGE_SUB_STR_MAX=200;
+// Поток вопросов: после BRIDGE_CONFIRM_NO отказов подряд consolem не показывает вопросы рамки BRIDGE_CONFIRM_MUTE мс
+// или до того, как пользователь перейдёт на страницу (фокус ушёл в рамку)
+const BRIDGE_CONFIRM_NO=3,BRIDGE_CONFIRM_MUTE=10000;
 const bridgeStrs=v=>Array.isArray(v)&&v.every(x=>typeof x==="string");
+// Объекты подписок для наблюдения: только те, что consolem знает (hwVer)
 function bridgeWatchIds(){
   const out=new Set();
-  bridgeSubs.forEach(s=>s.entityIds.forEach(id=>out.add(id)));
+  bridgeSubs.forEach(s=>s.entityIds.forEach(id=>{if(hwVer.has(id))out.add(id)}));
   return[...out];
 }
-// subscribe → BridgeResult. Сверх BRIDGE_SUBS_MAX подписок или сверх watchMax − 1 объектов во всех подписках — BUSY,
-// объекты в наблюдение не попадают. Подписка с тем же id заменяет прежнюю
-function bridgeSubscribe(msg,f=suiFrame){
-  const id=msg.id;
-  for(const k of ["entityIds","kinds","types"])if(msg[k]!==undefined&&!bridgeStrs(msg[k]))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/"+k});
-  const others=[...bridgeSubs].filter(([k])=>k!==id);
-  if(others.length>=BRIDGE_SUBS_MAX)return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.SUBS)});
-  const ids=new Set(msg.entityIds||[]),all=new Set(ids);
-  others.forEach(([,s])=>s.entityIds.forEach(x=>all.add(x)));
-  if(all.size>Math.max(0,LIM.watchMax-1))return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.WATCH)});
+// subscribe → Promise<BridgeResult | null>. Поле не список строк, объектов больше limits.watch, видов или типов больше
+// BRIDGE_SUB_LIST_MAX, строка длиннее BRIDGE_SUB_STR_MAX — VALIDATION_FAILED. Сверх BRIDGE_SUBS_MAX подписок или сверх
+// watchMax − 1 объектов во всех подписках — BUSY. Объект, которого нет или которого пользователь не видит (hwEnsure его не
+// нашёл), — NOT_FOUND /entityIds. Объекты отказа в наблюдение не попадают. Подписка с тем же id заменяет прежнюю.
+// null — рамка закрылась, пока consolem спрашивал сервер
+async function bridgeSubscribe(msg,f=suiFrame){
+  const id=msg.id,W=Math.max(0,LIM.watchMax-1);
+  for(const k of ["entityIds","kinds","types"]){
+    const v=msg[k];
+    if(v!==undefined&&(!bridgeStrs(v)||v.length>(k==="entityIds"?W:BRIDGE_SUB_LIST_MAX)||v.some(x=>x.length>BRIDGE_SUB_STR_MAX)))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/"+k});
+  }
+  const ids=new Set(msg.entityIds||[]);
+  // Пределы — до запроса и после него: пока consolem ждал сервер, рамка могла открыть другие подписки
+  const over=()=>{
+    const others=[...bridgeSubs].filter(([k])=>k!==id);
+    if(others.length>=BRIDGE_SUBS_MAX)return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.SUBS)});
+    const all=new Set(ids);
+    others.forEach(([,s])=>s.entityIds.forEach(x=>all.add(x)));
+    return all.size>Math.max(0,LIM.watchMax-1)?bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.WATCH)}):null;
+  };
+  let no=over();if(no)return no;
+  if(ids.size){
+    try{await hwEnsure([...ids])}
+    catch(e){if(!e||!e.status)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+    if(!bridgeLive(f))return null;
+    if([...ids].some(x=>!find(x)))return bridgeFail(id,0,"NOT_FOUND",{field:"/entityIds",message:i18n(BRIDGE_TEXT2.NOT_FOUND)});
+    no=over();if(no)return no;
+  }
   bridgeSubs.set(id,{f,entityIds:ids,kinds:new Set(msg.kinds||[]),types:msg.types?new Set(msg.types):null});
   watchSoon();
   return{id,ok:true,status:200,body:{sub:id}};
@@ -7264,9 +7328,12 @@ async function bridgeNavigate(msg,f=suiFrame){
   if(!n)return bridgeFail(id,0,"NOT_FOUND",{message:i18n(BRIDGE_TEXT2.NOT_FOUND)});
   // Вкладка, которой у объекта нет, — карточка открывается на своей вкладке
   const tb=msg.tab&&tabsFor(n).some(([t])=>t===msg.tab)?msg.tab:undefined;
+  // Свой объект: место моргает и на той же вкладке. Другая вкладка закроет рамку, поэтому ответ уходит до смены вкладки
   if(uid===f.uid){
-    if(tb&&tb!==tab){goTab(tb);hwFlashLanding()}
-    return{id,ok:true,status:200};
+    const r={id,ok:true,status:200};
+    if(tb&&tb!==tab){bridgePost(f,"result",r);goTab(tb);hwFlashLanding();return null}
+    hwFlashLanding();
+    return r;
   }
   return new Promise(res=>{
     const go=()=>{
@@ -7280,8 +7347,8 @@ async function bridgeNavigate(msg,f=suiFrame){
     else go();
   });
 }
-// confirm → Promise<boolean>: диалог consolem. Строка «Спрашивает страница вида «…»», списки «Пропадёт» и «Останется»
-// consolem строит сам; каждая строка страницы проходит escHtml, заголовок и кнопка — текстом. count — ввод числа.
+// confirm → Promise<true | false | "busy" | "gone"> (bridgeAsk): диалог consolem. Строку «Спрашивает страница вида «…»» consolem
+// ставит в шапку над заголовком страницы (opts.asker), списки «Пропадёт» и «Останется» consolem строит сам; каждая строка страницы проходит escHtml, заголовок и кнопка — текстом. count — ввод числа.
 // Свой диалог consolem занял окно — false (bridgeAsk); рамка закрылась — диалог закрыт, ответа нет (bridgeDrop)
 function bridgeConfirm(msg,f=suiFrame){
   const list=(head,xs)=>{
@@ -7289,9 +7356,8 @@ function bridgeConfirm(msg,f=suiFrame){
     const li=xs.slice(0,10).map(x=>`<li>${escHtml(x)}</li>`).join("")+(xs.length>10?`<li>${i18n("и ещё")} ${xs.length-10}</li>`:"");
     return`<p>${i18n(head)}:</p><ul class="bk-del">${li}</ul>`;
   };
-  const html=`<p class="sub">${escHtml(bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)}))}</p>
-    <p style="white-space:pre-wrap">${escHtml(msg.text)}</p>${list("Пропадёт",msg.lose)}${list("Останется",msg.keep)}`;
-  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel};
+  const html=`<p style="white-space:pre-wrap">${escHtml(msg.text)}</p>${list("Пропадёт",msg.lose)}${list("Останется",msg.keep)}`;
+  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel,asker:bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)})};
   if(msg.count!==undefined){opts.typeCount=msg.count;opts.countLabel="Чтобы подтвердить, ввести число"}
   bridgeConfirmOpen=true;
   return bridgeAsk(f,msg.title,html,msg.okLabel||"Подтвердить",opts).finally(()=>{bridgeConfirmOpen=false});
@@ -7310,27 +7376,43 @@ function bridgeConfirmBad(d){
 SUI_ON.subscribe=function(d){
   const f=suiFrame;
   if(!f.ready||typeof d.id!=="string"||!d.id)return;
-  bridgePost(f,"result",bridgeSubscribe(d,f));
+  bridgeSubscribe(d,f).catch(e=>{console.warn("setup/1: subscribe",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{if(r)bridgePost(f,"result",r)});
 };
 SUI_ON.unsubscribe=function(d){
   const f=suiFrame;
   if(!f.ready||typeof d.sub!=="string")return;
   bridgeUnsubscribe(d,f);
 };
+// Один navigate рамки в полёте: второй, пока первый ждёт сервер или ответ пользователя, — BUSY
 SUI_ON.navigate=function(d){
   const f=suiFrame;
   if(!f.ready||typeof d.id!=="string"||!d.id)return;
-  bridgeNavigate(d,f).catch(e=>{console.warn("setup/1: navigate",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{if(r)bridgePost(f,"result",r)});
+  if(f.bridgeNav){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.NAV)}));return}
+  f.bridgeNav=true;
+  bridgeNavigate(d,f).catch(e=>{console.warn("setup/1: navigate",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{f.bridgeNav=false;if(r)bridgePost(f,"result",r)});
 };
 SUI_ON.confirm=function(d){
   const f=suiFrame;
   if(!f.ready||typeof d.id!=="string"||!d.id)return;
   const bad=bridgeConfirmBad(d);
   if(bad){bridgePost(f,"result",bridgeFail(d.id,0,"VALIDATION_FAILED",{field:bad}));return}
-  // Второй вопрос, пока открыт первый (или диалог удаления и команды этой рамки), — BUSY
-  if(bridgeConfirmOpen||f.bridgeAsk){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.CONFIRM)}));return}
-  bridgeConfirm(d,f).then(v=>bridgePost(f,"result",{id:d.id,ok:true,status:200,body:{confirmed:v}}));
+  // Второй вопрос, пока открыт первый (или диалог удаления и команды этой рамки), — BUSY. Открытый диалог consolem
+  // (cardLeaveAsk, удаление, свой вопрос) вопрос страницы не подменяет — тоже BUSY
+  const busy=m=>bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(m)}));
+  if(bridgeConfirmOpen||f.bridgeAsk){busy(BRIDGE_TEXT2.CONFIRM);return}
+  if(bridgeDlgOpen()){busy(BRIDGE_TEXT2.DIALOG);return}
+  if((f.confirmMute||0)>Date.now()){busy(BRIDGE_TEXT2.MUTED);return}
+  bridgeConfirm(d,f).then(v=>{
+    if(v==="busy"){busy(BRIDGE_TEXT2.DIALOG);return}
+    // Отказ пользователя считается; подтверждение счёт обнуляет; диалог, который занял consolem, не считается
+    if(v===true)f.confirmNo=0;
+    else if(v===false&&(f.confirmNo=(f.confirmNo||0)+1)>=BRIDGE_CONFIRM_NO){f.confirmNo=0;f.confirmMute=Date.now()+BRIDGE_CONFIRM_MUTE}
+    bridgePost(f,"result",{id:d.id,ok:true,status:200,body:{confirmed:v===true}});
+  });
 };
+// Пользователь перешёл на страницу (фокус ушёл в рамку): счёт отказов и пауза вопросов сняты
+function bridgeConfirmUnmute(){const f=suiFrame;if(f&&f.el&&document.activeElement===f.el){f.confirmNo=0;f.confirmMute=0}}
+window.addEventListener("blur",()=>{bridgeConfirmUnmute();setTimeout(bridgeConfirmUnmute,0)});
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -10197,6 +10279,12 @@ function closeConfirm(){
 function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
   ipsFa=null;                    // окно поверх: состояние диалога папки регистратора сюда не переходит
   document.getElementById("confirmTitle").textContent=opts.rawTitle?title:i18n(title);
+  // asker — чей вопрос, строкой над заголовком (вопрос страницы подсистемы): страница не выдаст свой вопрос за вопрос consolem
+  document.getElementById("confirmAsker")?.remove();
+  if(opts.asker){
+    const a=document.createElement("div");a.id="confirmAsker";a.className="chead-asker";a.textContent=opts.asker;
+    document.getElementById("confirmTitle").before(a);
+  }
   const msgEl=document.getElementById("confirmMsg");
   if(opts.html)msgEl.innerHTML=msg;else msgEl.textContent=opts.rawMsg?msg:i18n(msg);
   document.getElementById("confirmWarn").textContent=warn?i18n(warn):"";
