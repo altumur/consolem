@@ -39,6 +39,27 @@
     },
     {
       "$ref": "#/$defs/flushed"
+    },
+    {
+      "$ref": "#/$defs/call"
+    },
+    {
+      "$ref": "#/$defs/result"
+    },
+    {
+      "$ref": "#/$defs/subscribe"
+    },
+    {
+      "$ref": "#/$defs/unsubscribe"
+    },
+    {
+      "$ref": "#/$defs/event"
+    },
+    {
+      "$ref": "#/$defs/navigate"
+    },
+    {
+      "$ref": "#/$defs/confirm"
     }
   ],
   "$defs": {
@@ -129,12 +150,19 @@
         },
         "patch": {
           "$ref": "#/$defs/mergePatch"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bridgeStep"
+          },
+          "description": "Шаг 2, необязательно: шаги моста в черновике"
         }
       }
     },
     "applied": {
       "type": "object",
-      "description": "«Применить» прошло: новый объект, черновик пуст",
+      "description": "«Применить» прошло: новый объект, черновик пуст. На шаге 2 — и итог шагов моста",
       "x-direction": "toPage",
       "x-step": 1,
       "additionalProperties": false,
@@ -158,6 +186,13 @@
         },
         "unit": {
           "$ref": "#/$defs/unit"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bridgeStepResult"
+          },
+          "description": "Шаг 2, необязательно: итог шагов моста"
         }
       }
     },
@@ -216,6 +251,13 @@
         },
         "unit": {
           "$ref": "#/$defs/unit"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bridgeStep"
+          },
+          "description": "Шаг 2, необязательно: шаги моста в черновике — после revert список пуст"
         }
       }
     },
@@ -439,6 +481,336 @@
         }
       }
     },
+    "call": {
+      "type": "object",
+      "description": "Шаг 2: страница просит consolem выполнить операцию контракта с x-bridge. Ответ — result с тем же id",
+      "x-direction": "toHost",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "id",
+        "op"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "call"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер вызова, который выбирает страница; result повторяет его"
+        },
+        "op": {
+          "type": "string",
+          "minLength": 1,
+          "description": "operationId из api/openapi.json"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Необязательно: параметры пути и запроса по именам из описания операции. consolem кодирует значение пути (encodeURIComponent)"
+        },
+        "body": {
+          "description": "Необязательно: тело запроса по схеме операции"
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "description": "Шаг 2: ответ на call, subscribe, navigate или confirm. status 0 — отказ самого моста, без запроса к серверу",
+      "x-direction": "toPage",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "id",
+        "ok",
+        "status"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "result"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер вызова, который выбирает страница; result повторяет его"
+        },
+        "ok": {
+          "type": "boolean",
+          "description": "true — запрос удался (2xx) или шаг принят в черновик"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "HTTP-статус ответа сервера; 202 — шаг принят в черновик; 0 — отказ моста без запроса"
+        },
+        "body": {
+          "description": "Необязательно: тело ответа сервера как есть; у шага черновика — {drafted: true, step}"
+        },
+        "problem": {
+          "$ref": "#/$defs/problem"
+        },
+        "etag": {
+          "type": "string",
+          "description": "Необязательно: заголовок ETag ответа сервера"
+        }
+      }
+    },
+    "subscribe": {
+      "type": "object",
+      "description": "Шаг 2: пересылать странице события потока по объектам или видам. Ответ — result с body.sub",
+      "x-direction": "toHost",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "id"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "subscribe"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер вызова, который выбирает страница; result повторяет его"
+        },
+        "entityIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Необязательно: uid объектов; consolem добавляет их в наблюдение потока"
+        },
+        "kinds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Необязательно: виды объектов"
+        },
+        "types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Необязательно: типы сообщений потока (entity.changed…); нет поля — все"
+        }
+      }
+    },
+    "unsubscribe": {
+      "type": "object",
+      "description": "Шаг 2: снять подписку. Ответа нет",
+      "x-direction": "toHost",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "sub"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "unsubscribe"
+          ]
+        },
+        "sub": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер подписки из result.body.sub"
+        }
+      }
+    },
+    "event": {
+      "type": "object",
+      "description": "Шаг 2: сообщение потока по подписке страницы",
+      "x-direction": "toPage",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "sub",
+        "message"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "event"
+          ]
+        },
+        "sub": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер подписки"
+        },
+        "message": {
+          "type": "object",
+          "additionalProperties": true,
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "type": "string"
+            }
+          },
+          "description": "StreamMessage потока как есть"
+        }
+      }
+    },
+    "navigate": {
+      "type": "object",
+      "description": "Шаг 2: перейти к объекту в consolem. Удачный переход ответа не получает: рамка закрыта",
+      "x-direction": "toHost",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "id",
+        "uid"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "navigate"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер вызова, который выбирает страница; result повторяет его"
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "description": "uid объекта"
+        },
+        "tab": {
+          "type": "string",
+          "description": "Необязательно: вкладка карточки"
+        }
+      }
+    },
+    "confirm": {
+      "type": "object",
+      "description": "Шаг 2: показать подтверждение consolem. Ответ — result с body.confirmed",
+      "x-direction": "toHost",
+      "x-step": 2,
+      "additionalProperties": false,
+      "required": [
+        "proto",
+        "type",
+        "id",
+        "title",
+        "text"
+      ],
+      "properties": {
+        "proto": {
+          "type": "string",
+          "enum": [
+            "setup/1"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "confirm"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Номер вызова, который выбирает страница; result повторяет его"
+        },
+        "title": {
+          "type": "string",
+          "description": "Заголовок; consolem показывает его текстом"
+        },
+        "text": {
+          "type": "string",
+          "description": "Текст вопроса; consolem показывает его текстом"
+        },
+        "lose": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Необязательно: что пропадёт"
+        },
+        "keep": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Необязательно: что останется"
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Необязательно: число, которое человек вводит для подтверждения"
+        },
+        "okLabel": {
+          "type": "string",
+          "description": "Необязательно: подпись кнопки подтверждения"
+        }
+      }
+    },
     "unit": {
       "type": "object",
       "additionalProperties": false,
@@ -508,7 +880,7 @@
         "proto",
         "apply"
       ],
-      "description": "Что умеет consolem. Шаг 1 — ровно proto и apply; поле bridge появится на шаге 2",
+      "description": "Что умеет consolem: proto и apply; bridge — шаг 2 (нет поля — хост шага 1)",
       "properties": {
         "proto": {
           "type": "string",
@@ -523,6 +895,9 @@
             "leave"
           ],
           "description": "button — человек нажимает «Применить»; leave — consolem применяет правку при уходе с карточки"
+        },
+        "bridge": {
+          "$ref": "#/$defs/hostBridge"
         }
       }
     },
@@ -587,6 +962,129 @@
         "params": {
           "type": "object",
           "additionalProperties": true
+        }
+      }
+    },
+    "hostBridge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ops",
+        "messages",
+        "limits"
+      ],
+      "description": "Шаг 2: что страница может вызывать через consolem. Нет поля host.bridge — хост шага 1",
+      "properties": {
+        "ops": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": [
+              "read",
+              "act",
+              "draft"
+            ]
+          },
+          "description": "operationId → x-bridge: только размеченные операции, которые система объявила; при readOnly — без draft"
+        },
+        "messages": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "call",
+              "subscribe",
+              "unsubscribe",
+              "navigate",
+              "confirm"
+            ]
+          },
+          "description": "Сообщения шага 2, которые принимает consolem"
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "calls",
+            "subscriptions",
+            "watch"
+          ],
+          "description": "Пределы моста",
+          "properties": {
+            "calls": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Вызовов в работе одновременно"
+            },
+            "subscriptions": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Подписок одновременно"
+            },
+            "watch": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Объектов во всех подписках"
+            }
+          }
+        }
+      }
+    },
+    "bridgeStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "op",
+        "label"
+      ],
+      "description": "Шаг 2: шаг моста в черновике consolem",
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Номер шага; result.body.step при call"
+        },
+        "op": {
+          "type": "string",
+          "description": "operationId вызова"
+        },
+        "label": {
+          "type": "string",
+          "description": "Подпись шага в плане consolem"
+        }
+      }
+    },
+    "bridgeStepResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "step",
+        "state"
+      ],
+      "description": "Шаг 2: итог шага моста после «Применить» — по OperationItem",
+      "properties": {
+        "step": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Номер шага из черновика"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "ok",
+            "fail",
+            "cancel"
+          ],
+          "description": "Итог шага"
+        },
+        "code": {
+          "type": "string",
+          "description": "Необязательно: ProblemCode, почему шаг не выполнен"
+        },
+        "createdId": {
+          "type": "string",
+          "description": "Необязательно: объект, который создал шаг"
         }
       }
     }
@@ -750,6 +1248,257 @@
       "proto": "setup/1",
       "type": "flushed",
       "seq": 1
+    },
+    {
+      "proto": "setup/1",
+      "type": "init",
+      "uid": "30000306-0000-4000-8000-000000000000",
+      "kind": "security_controller/KEYPAD",
+      "lang": "ru",
+      "theme": {
+        "mode": "dark",
+        "tokens": {
+          "--one-canvas": "#0f1115",
+          "--one-fg": "#e6e8eb",
+          "--one-accent": "#3b82f6",
+          "--one-radius-control": "6px"
+        }
+      },
+      "readOnly": false,
+      "unit": {
+        "uid": "30000306-0000-4000-8000-000000000000",
+        "kind": "security_controller/KEYPAD",
+        "name": "Клавиатура у входа",
+        "version": "1",
+        "properties": {
+          "code_length": 6,
+          "display_text": "Ввести код",
+          "backlight": "low",
+          "beep": true,
+          "lock_after_tries": 5
+        },
+        "status": {
+          "link": "online"
+        }
+      },
+      "draft": {},
+      "host": {
+        "proto": "setup/1",
+        "apply": "button",
+        "bridge": {
+          "ops": {
+            "getUnit": "read",
+            "listUnits": "read",
+            "getDiscovery": "read",
+            "runUnitAction": "act",
+            "createUnits": "draft",
+            "deleteUnit": "draft"
+          },
+          "messages": [
+            "call",
+            "subscribe",
+            "unsubscribe",
+            "navigate",
+            "confirm"
+          ],
+          "limits": {
+            "calls": 8,
+            "subscriptions": 16,
+            "watch": 199
+          }
+        }
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "draft",
+      "patch": {},
+      "steps": [
+        {
+          "step": 1,
+          "op": "createUnits",
+          "label": "Создать «Датчик 3»"
+        },
+        {
+          "step": 2,
+          "op": "deleteUnit",
+          "label": "Удалить «Датчик окна»"
+        }
+      ]
+    },
+    {
+      "proto": "setup/1",
+      "type": "applied",
+      "unit": {
+        "uid": "30000306-0000-4000-8000-000000000000",
+        "kind": "security_controller/KEYPAD",
+        "name": "Клавиатура у входа",
+        "version": "2",
+        "properties": {
+          "code_length": 8,
+          "display_text": "Ввести код",
+          "backlight": "low",
+          "beep": true,
+          "lock_after_tries": 5
+        },
+        "status": {
+          "link": "online"
+        }
+      },
+      "steps": [
+        {
+          "step": 1,
+          "state": "ok",
+          "createdId": "30000307-0000-4000-8000-000000000000"
+        },
+        {
+          "step": 2,
+          "state": "fail",
+          "code": "VERSION_MISMATCH"
+        }
+      ]
+    },
+    {
+      "proto": "setup/1",
+      "type": "revert",
+      "unit": {
+        "uid": "30000306-0000-4000-8000-000000000000",
+        "kind": "security_controller/KEYPAD",
+        "name": "Клавиатура у входа",
+        "version": "1",
+        "properties": {
+          "code_length": 6,
+          "display_text": "Ввести код",
+          "backlight": "low",
+          "beep": true,
+          "lock_after_tries": 5
+        },
+        "status": {
+          "link": "online"
+        }
+      },
+      "steps": []
+    },
+    {
+      "proto": "setup/1",
+      "type": "call",
+      "id": "1",
+      "op": "getUnit",
+      "params": {
+        "uid": "30000294-0000-4000-8000-000000000000"
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "call",
+      "id": "2",
+      "op": "createUnits",
+      "body": {
+        "items": [
+          {
+            "kind": "security_controller/SENSOR",
+            "parentId": "30000294-0000-4000-8000-000000000000",
+            "name": "Датчик 3",
+            "properties": {
+              "zone": "Склад"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "result",
+      "id": "1",
+      "ok": true,
+      "status": 200,
+      "body": {
+        "uid": "30000294-0000-4000-8000-000000000000",
+        "kind": "security_controller/CONTROLLER",
+        "name": "Контроллер охраны — вход"
+      },
+      "etag": "\"1\""
+    },
+    {
+      "proto": "setup/1",
+      "type": "result",
+      "id": "2",
+      "ok": true,
+      "status": 202,
+      "body": {
+        "drafted": true,
+        "step": 1
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "result",
+      "id": "3",
+      "ok": false,
+      "status": 0,
+      "problem": {
+        "code": "PERMISSION_DENIED",
+        "message": "Только просмотр: черновик закрыт",
+        "params": {
+          "readOnly": true
+        }
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "result",
+      "id": "4",
+      "ok": false,
+      "status": 0,
+      "problem": {
+        "code": "CANCELLED",
+        "message": "Человек отказался"
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "subscribe",
+      "id": "5",
+      "entityIds": [
+        "30000296-0000-4000-8000-000000000000"
+      ],
+      "types": [
+        "entity.changed"
+      ]
+    },
+    {
+      "proto": "setup/1",
+      "type": "unsubscribe",
+      "sub": "5"
+    },
+    {
+      "proto": "setup/1",
+      "type": "event",
+      "sub": "5",
+      "message": {
+        "type": "entity.changed",
+        "entityId": "30000296-0000-4000-8000-000000000000",
+        "kind": "security_controller/SENSOR",
+        "version": "2"
+      }
+    },
+    {
+      "proto": "setup/1",
+      "type": "navigate",
+      "id": "6",
+      "uid": "30000013-0000-4000-8000-000000000000",
+      "tab": "main"
+    },
+    {
+      "proto": "setup/1",
+      "type": "confirm",
+      "id": "7",
+      "title": "Поставить на охрану",
+      "text": "Контроллер включит охрану всех датчиков.",
+      "keep": [
+        "Настройки датчиков"
+      ],
+      "okLabel": "Поставить"
     }
   ]
 }
