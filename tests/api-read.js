@@ -29,7 +29,7 @@
 
   // Разделы приложения: код → операции, без которых раздел не показать (копия SECTION_OPS из tools/mechanism.py)
   const SECTION_OPS = { objects: ["listKinds", "listUnits", "getTreeChildren"], automation: ["listRules"], access: ["getAccess"],
-    journal: ["listJournal"], settings: ["getSettings"], "vms.export": ["listExports"] };
+    settings: ["getSettings"], "vms.export": ["listExports"], journal: ["listJournal"] };
 
   test("Разделы: capabilities.sections — коды уникальны, у раздела механизма объявлены его операции", async () => {
     const env = await makeEnv();

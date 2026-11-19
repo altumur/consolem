@@ -106,7 +106,7 @@ x = dup(demo); x["reference"]["capabilities"]["sections"].append({"id": "нез�
 ok(not any("незнакомый" in p and "без операций" in p for p in section_problems(x, "demo")), "S2: незнакомый код не судится по операциям")
 x = dup(demo); del x["reference"]["capabilities"]["sections"]
 ok(section_problems(x, "agents") == [], "нет поля sections — клиент выводит разделы сам")
-ok(SECTION_OPS["vms.export"] == ["listExports"] and list(SECTION_OPS)[:5] == ["objects", "automation", "access", "journal", "settings"], "SECTION_OPS: таблица кодов")
+ok(SECTION_OPS["vms.export"] == ["listExports"] and list(SECTION_OPS) == ["objects", "automation", "access", "settings", "vms.export", "journal"], "SECTION_OPS: таблица кодов")
 
 s = dup(spec); s["components"]["schemas"]["TreeLayout"]["description"] += " Камеры"
 ok(any("TreeLayout" in p and "камер" in p for p in border_problems(s)), "B5: слово VMS в механизме")

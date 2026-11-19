@@ -27915,13 +27915,13 @@
      "id": "access"
     },
     {
-     "id": "journal"
-    },
-    {
      "id": "settings"
     },
     {
      "id": "vms.export"
+    },
+    {
+     "id": "journal"
     }
    ]
   },

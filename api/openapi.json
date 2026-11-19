@@ -10716,7 +10716,7 @@
             "items": {
               "$ref": "#/components/schemas/AppSection"
             },
-            "description": "Разделы приложения, которые система показывает в консоли, в порядке рельса. Раздел можно объявлять, только если система выполняет его операции. Код → нужные операции: objects — listKinds, listUnits, getTreeChildren; automation — listRules; access — getAccess; journal — listJournal; settings — getSettings. Незнакомый код клиент пропускает. Нет поля — клиент выводит разделы из операций, как до 0.27.0"
+            "description": "Разделы приложения, которые система показывает в консоли, в порядке рельса. Раздел можно объявлять, только если система выполняет его операции. Код → нужные операции: objects — listKinds, listUnits, getTreeChildren; automation — listRules; access — getAccess; settings — getSettings; journal — listJournal. Незнакомый код клиент пропускает. Нет поля — клиент выводит разделы из операций, как до 0.27.0"
           }
         }
       },

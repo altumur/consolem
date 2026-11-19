@@ -99,9 +99,9 @@ SECTION_OPS = {
     "objects": ["listKinds", "listUnits", "getTreeChildren"],
     "automation": ["listRules"],
     "access": ["getAccess"],
-    "journal": ["listJournal"],
     "settings": ["getSettings"],
     "vms.export": ["listExports"],
+    "journal": ["listJournal"],
 }
 SECTION_ID = re.compile(r"^[a-z][A-Za-z0-9_.-]*$")
 

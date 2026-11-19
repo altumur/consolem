@@ -463,9 +463,9 @@ hasChildren             ⇔ область или группа; иначе ху�
 | `objects` | механизм | `listKinds`, `listUnits`, `getTreeChildren` | оборудование (объекты и дерево) |
 | `automation` | механизм | `listRules` | правила |
 | `access` | механизм | `getAccess` | права |
-| `journal` | механизм | `listJournal` | журнал |
 | `settings` | механизм | `getSettings` | настройки системы |
 | `vms.export` | VMS (уйдёт в API видео) | `listExports` | экспорт |
+| `journal` | механизм | `listJournal` | журнал |
 
 Раздел «Обучение» система не объявляет: это раздел самого макета. `tools/check_api.py` сверяет наборы с таблицей (`SECTION_OPS` в `tools/mechanism.py`): у объявленного раздела есть все его операции, `id` уникальны, `demo` объявляет все коды. Тест API ждёт раздел условием `section:<id>` в `needs`.
 
