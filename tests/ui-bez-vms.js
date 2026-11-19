@@ -2,7 +2,8 @@
    из мира VMS. Срезы дерева идут от раскладок, которые объявила система (GET /kinds → layouts): у оркестратора нет камер,
    серверов, хранилищ и детекторов, поэтому их кнопок нет, а свои раскладки (agent.pipelines, agent.models) — срезы lay:<id>.
    Сервер без layouts (старый бэкенд) — прежние шесть срезов: slicesFor(null). Набор — FIXTURE_OF в tests/selftest.js.
-   Сценарий пришёл с прототипом 79 (index_79_mehanizm-bez-vms.html). Охрана slicesFor — для страниц без срезов от раскладок. */
+   Сценарий пришёл с прототипом 79 (index_79_mehanizm-bez-vms.html, удалён), теперь проверяет index.html.
+   Охрана slicesFor — для прототипов, скопированных с index.html до переноса. */
 UiCheck(async ({ ok, until }) => {
   if (typeof slicesFor !== "function") { ok(true, "срезов от раскладок на этой странице нет: проверять нечего"); return; }
   const tree = () => document.getElementById("tree");

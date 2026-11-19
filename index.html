@@ -4137,8 +4137,111 @@ function setGroupAll(g){
   const on=g==="folder";
   Object.keys(groupBy).forEach(s=>{groupBy[s]=on?"folder":s==="det"?"kind":"server"});
 }
-function sliceGroups(){return SLICE_GROUPS[slice]||["folder"]}
+function sliceGroups(){return sliceGroupsOf(slice)}
 function group(){const g=groupBy[slice];return sliceGroups().includes(g)?g:sliceGroups()[0]}
+// ── Раскладки дерева от системы ──────────────────────────────────────────
+// Раскладки дерева объявляет система: GET /kinds → layouts (TreeLayout). TREE_LAYOUTS — они в порядке объявления; null —
+// система их не прислала (бэкенд до контракта 0.26.0): у него прежние четыре раскладки и прежние шесть срезов.
+// Срез экрана виден, если система объявила хоть одну его раскладку (SLICE_LAYOUTS); «Камеры» и «ОПС/СКД» при объявленных
+// раскладках — ещё и вид этого среза (x-ui-category.view). Группировка среза — только по объявленной раскладке (GROUP_LAYOUT):
+// одна осталась — кнопка «Папки» неактивна. Своя раскладка системы (не из четырёх) — срез lay:<id>: подпись, значок и
+// подсказка — от системы, группировка одна (layout), дерево — узлы GET /tree/children этой раскладки (treeLay)
+let TREE_LAYOUTS=null;
+const LAYOUTS_BASE=["folders","servers","archives","detectors"];
+const SLICE_LAYOUTS={all:["folders","servers"],cam:["folders","servers"],acfa:["folders","servers"],srv:["servers"],arch:["archives"],det:["detectors"]};
+const SLICE_VIEW={cam:"cam",acfa:"acfa"};
+const GROUP_LAYOUT={folder:"folders",server:"servers",kind:"detectors"};
+function layoutsHave(layouts,id){return layouts===null?LAYOUTS_BASE.includes(id):(layouts||[]).some(l=>l?.id===id)}
+function layoutDeclared(id){return layoutsHave(TREE_LAYOUTS,id)}
+function kindsViewHas(view){for(const k of KINDS.values())if((k["x-ui-category"]||[]).some(c=>c?.view===view))return true;return false}
+function slicesFor(layouts){
+  const base=Object.keys(SLICE_LAYOUTS).filter(s=>SLICE_LAYOUTS[s].some(id=>layoutsHave(layouts,id))&&(layouts===null||!SLICE_VIEW[s]||kindsViewHas(SLICE_VIEW[s])));
+  return[...base,...(layouts||[]).filter(l=>l?.id&&!LAYOUTS_BASE.includes(l.id)).map(l=>"lay:"+l.id)];
+}
+function isLaySlice(s=slice){return String(s).startsWith("lay:")}
+function sliceLayoutOf(s=slice){return isLaySlice(s)&&TREE_LAYOUTS?TREE_LAYOUTS.find(l=>"lay:"+l.id===s)||null:null}
+function sliceShown(s){return slicesFor(TREE_LAYOUTS).includes(s)}
+function sliceLabel(s){const l=sliceLayoutOf(s);return l?textOf(l.label)||l.id:s==="all"?textOf(appSectionOf("hw")?.label)||SLICE.all:SLICE[s]||""}
+function sliceIcon(s){const l=sliceLayoutOf(s);return l?l.icon||"folder":SLICE_IC[s]}
+function sliceGroupsOf(s){
+  const all=SLICE_GROUPS[s]||["folder"],g=all.filter(x=>!GROUP_LAYOUT[x]||layoutDeclared(GROUP_LAYOUT[x]));
+  return g.length?g:all;
+}
+// Раскладки пришли (kindsLoad): срез lay:<id> — по одному на свою раскладку. Срез, которого больше нет, уходит на первый
+// видимый. Итог — сменился ли набор срезов: шапку дерева тогда рисуют заново
+let slicesSig="";
+function layoutsApply(layouts){
+  TREE_LAYOUTS=Array.isArray(layouts)?layouts.filter(l=>l&&typeof l.id==="string"):null;
+  Object.keys(SLICE_GROUPS).forEach(s=>{if(isLaySlice(s))delete SLICE_GROUPS[s]});
+  (TREE_LAYOUTS||[]).forEach(l=>{if(!LAYOUTS_BASE.includes(l.id))SLICE_GROUPS["lay:"+l.id]=["layout"]});
+  const shown=slicesFor(TREE_LAYOUTS);
+  if(!shown.includes(slice)&&shown.length){slice=shown[0];syncViews()}
+  const sig=shown.join()+"|"+(TREE_LAYOUTS||[]).map(l=>textOf(l.label)+"/"+textOf(l.hint)+"/"+(l.icon||"")).join();
+  const changed=sig!==slicesSig;slicesSig=sig;
+  return changed;
+}
+// Узлы своих раскладок (TreeNode): у объекта — по ним стрелка, у узла группы (group: true) — своя строка
+const layNodes=new Map();
+function layNode(layout,id){return layNodes.get(layout+"|"+id)||null}
+// Переход к объекту в своей раскладке раскрывает его место: по прочитанным веткам (parentId узла — место в раскладке), иначе
+// по GET /tree/paths и чтению веток цепочки (layPlace). Объект вне раскладки сервер ставит под областью или родителем, но в
+// ветке его нет: тогда layMiss (раскладка|id), и переход (reveal, revealSearch) ищет место в других своих раскладках, затем
+// в остальных срезах (layElsewhere). Смена среза (treeOpenRestore) срез не меняет: открытый объект остаётся открытым без
+// строки. Шага группы в цепочке нет: группы ветки родителя читаются, если объекта нет среди её узлов
+let layMiss=null;
+async function layBranch(lay,id){
+  for(let i=0;i<800;i++){
+    const b=treeBr.get(lay+"|"+id);
+    if(b&&!b.busy)return b;
+    if(b)await new Promise(r=>setTimeout(r,25));else await treeLoad(lay,id);
+  }
+  return treeBr.get(lay+"|"+id)||null;
+}
+// Дочитать ветку родителя, пока в ней не встретится объект: страница за страницей, затем узлы групп этой ветки
+async function layReach(lay,pid,id){
+  let b=await layBranch(lay,pid);
+  while(b&&!layNode(lay,id)&&!b.done&&!b.failed&&b.cursor){await treeLoad(lay,pid);b=await layBranch(lay,pid)}
+  if(!layNode(lay,id))for(const g of(treeBr.get(lay+"|"+pid)?.items||[]).filter(x=>x.group)){await layReach(lay,g.id,id);if(layNode(lay,id))break}
+}
+// Узлы над объектом в прочитанных ветках раскладки: от родителя до области
+function layUp(lay,id){const out=[],seen=new Set();for(let p=layNode(lay,id)?.parentId;p&&!seen.has(p);p=layNode(lay,p)?.parentId){seen.add(p);out.push(p)}return out}
+// Место объекта в раскладке: узлы, которые надо раскрыть; null — объекта в раскладке нет. Ветка родителя не дочитана или не
+// прочиталась — узлы цепочки: объект, может быть, на следующей странице
+async function layPlace(lay,id){
+  if(layNode(lay,id))return layUp(lay,id);
+  const r=await API.get("/tree/paths",{layout:lay,ids:id});
+  const c=r.items?.find(x=>x.id===id)?.chains?.[0];
+  if(!c||c.length<2)return null;
+  // Ветки цепочки — по порядку: стрелку узла даёт ветка его родителя. Ветку может уже читать перерисовка — её ждём
+  for(const x of c.slice(0,-1))await layBranch(lay,x.id);
+  const pid=c[c.length-2].id;
+  await layReach(lay,pid,id);
+  if(layNode(lay,id))return layUp(lay,id);
+  const b=treeBr.get(lay+"|"+pid);
+  return b&&b.done&&!b.failed?null:c.slice(0,-1).map(x=>x.id);
+}
+function layExpand(id,reveal=false){
+  const lay=treeLayout();
+  if(layMiss===lay+"|"+id||domains.some(d=>d.id===id))return;
+  if(layNode(lay,id)){layUp(lay,id).forEach(p=>open.add(p));return}
+  if(!can("getTreePaths"))return;
+  const gone=()=>treeLayout()!==lay||sel!==id||app!=="hw";
+  layPlace(lay,id).then(async up=>{
+    if(gone())return;
+    if(up){up.forEach(p=>open.add(p));revealAt=Date.now();renderTreeSoon();return}
+    layMiss=lay+"|"+id;
+    if(reveal)await layElsewhere(id,lay);
+  }).catch(()=>{});
+}
+async function layElsewhere(id,from){
+  for(const l of TREE_LAYOUTS||[]){
+    if(LAYOUTS_BASE.includes(l.id)||l.id===from)continue;
+    const up=await layPlace(l.id,id).catch(()=>undefined);
+    if(sel!==id||app!=="hw"||treeLayout()!==from)return;
+    if(up){setSlice("lay:"+l.id);up.forEach(p=>open.add(p));revealAt=Date.now();renderTree();revealSel();return}
+  }
+  revealSel();
+}
 // Старые оси остаются производными: их читает половина кода, и переписывать
 // её ради переименования значило бы менять работающее без причины.
 // По умолчанию дерево занимает 30% окна. Границы ограничивают ширину панели,
@@ -4237,7 +4340,7 @@ function syncLocalePack(){
   Object.assign(SVIEW,en?SVIEW_EN:SVIEW_RU);
   Object.assign(SVIEW_SW,en?SVIEW_SW_EN:SVIEW_SW_RU);
   STATUS_FILTERS.length=0;(en?STATUS_FILTERS_EN:STATUS_FILTERS_RU).forEach(x=>STATUS_FILTERS.push(x));
-  sysOpts.forEach((o,i)=>{o.n=(en?sysOptsEN:sysOptsRU)[i].n;});
+  sysOpts.forEach(o=>{o.n=((en?sysOptsEN:sysOptsRU).find(x=>x.id===o.id)||o).n});
   logCats.forEach((c,i)=>{c.n=(en?logCatsEN:logCatsRU)[i].n;});
 }
 function setUiLang(v){
@@ -4321,16 +4424,20 @@ function can(need){
   if(need.startsWith("feature:"))return CAPS.features.has(need.slice(8));
   return CAPS.operations.has(need);
 }
+// Последний справочник GET /reference: списки, которые пришли из описаний видов, перечитываются по нему и после GET /kinds
+let REF_LAST=null;
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
+  REF_LAST=ref;
   Object.assign(LIM,ref.limits);
-  EXP_REF=ref.export||null;
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.features=new Set(c.features);
+  CAPS_SECTIONS=Array.isArray(c.sections)?c.sections:null;
   // Системе без /kinds остаются виды устройств справочника; с /kinds каталоги — из описаний видов (kindsApply)
   refDeviceTypes=c.deviceTypes?new Set(c.deviceTypes):null;refWritable=c.writableFields||null;
   CAPS.deviceTypes=new Set(c.deviceTypes||[]);CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
+  expRefReset(ref);
   await kindsLoad();
   capsApply();
 }
@@ -4347,7 +4454,7 @@ function capsApply(){
     });
   }
   Object.keys(WIZ).forEach(k=>{WIZ[k].types=WIZ[k].types.filter(t=>canAdd(t[0],k==="acfa"));if(!WIZ[k].types.length)delete WIZ[k]});
-  if(!can("listLicenses"))sysOpts.splice(0,sysOpts.length,...sysOpts.filter(o=>o.id!=="lic"));
+  sysOptsApply();
   const spec=window.CONSOLEM_OPENAPI,needs=[];
   if(spec)Object.values(spec.paths).forEach(item=>Object.values(item).forEach(o=>{if(o&&o.operationId&&!can(o.operationId))needs.push(o.operationId)}));
   // Команды вида без объекта: кнопка видна, если вид её объявил (scope ∋ kind) и система исполняет runKindAction
@@ -4382,7 +4489,9 @@ function textOf(t){
 // профиль (vms.acs/1 у четырёх экранов СКУД): экран — код вида, если он в массиве, иначе профиль пропускается. Профиль
 // не подошёл — по коду только экраны без своего профиля (CODE_SCREENS). Описания вида нет (listKinds не объявлен, /kinds
 // не прочитан, событие потока раньше /kinds) — экран по коду, как прежде. Ступень 3 — форма по схеме вида
-const SCREEN_OF_PROFILE={"vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
+// Область системы и папка — профили механизма core.domain/1 и core.folder/1 (контракт 0.28.0) идут первыми; vms.domain/1
+// и vms.folder/1 устарели, но старый бэкенд объявляет только их — экран тот же
+const SCREEN_OF_PROFILE={"core.domain/1":"domain","core.folder/1":"folder","vms.domain/1":"domain","vms.server/1":"server","vms.folder/1":"folder","vms.archive/1":"archive","vms.volume/1":"vol",
   "vms.camera/1":"camera","vms.detector/1":"det","vms.stream/1":"stream","vms.pos/1":"eventsrc","vms.edge/1":"storage",
   "vms.acs/1":["acfa","acfa_sensor","acfa_lock","acfa_fence"],"vms.talk/1":"spk"};
 // Экраны без своего профиля в контракте: регистратор, канал, микрофон, датчик, реле, экспорт, почта, SMS — только по коду
@@ -4494,11 +4603,12 @@ async function kindsLoad(){
   KINDS.clear();(r.body.items||[]).forEach(k=>KINDS.set(k.kind,k));
   KIND_PROFILES.clear();(r.body.profiles||[]).forEach(p=>{if(p?.id)KIND_PROFILES.set(p.id,p)});
   kindsApply();
+  kindsSlicesChanged=layoutsApply(r.body.layouts);
   return true;
 }
 // Описания видов поменялись (плагин поставили или обновили): каталоги заново, открытая карточка — перерисовкой.
 // Черновик живёт в объекте кэша и снимке «до», описания вида в нём нет — он не теряется
-let kindsBusy=null;
+let kindsBusy=null,kindsSlicesChanged=false;
 function kindsChanged(){
   if(kindsBusy)return kindsBusy;
   kindsBusy=kindsLoad().then(async changed=>{
@@ -4506,7 +4616,8 @@ function kindsChanged(){
     // Сбой пересборки узлов не прячется: в консоль браузера, как сторож индекса
     const note=await kindsRescreen().catch(e=>{console.error("kindsRescreen",e);return null});
     treeMatchCache.clear();searchMatchCache.clear();
-    if(app==="hw"){renderTreeSoon();gear()}
+    // Сменились срезы (раскладку добавили, сняли или переименовали) — шапка дерева заново, вместе с деревом
+    if(app==="hw"){if(kindsSlicesChanged){treeReset();aside()}else renderTreeSoon();gear()}
     // Уведомление — после чтения записи открытой карточки: иначе отказ этого чтения закрыл бы его своим
     if(note)(sel&&find(sel)?.n?._row?hwFull(sel).catch(e=>console.error("kindsChanged: hwFull",e)):Promise.resolve()).finally(()=>toast(note));
   }).catch(e=>console.error("kindsChanged: kindsLoad",e)).finally(()=>{kindsBusy=null});
@@ -4657,6 +4768,7 @@ function kindsApply(){
   ["all","cam"].forEach(s=>{TYPE_FILTERS[s]=TYPE_FILTERS_BASE[s].concat(chips)});
   ruleCatFromKinds();accClassesFromKinds();
   kindsRefApply();
+  if(REF_LAST)autoRefLists(REF_LAST,KINDS);
 }
 // Поле поиска экрана → параметр fields= у GET /units
 // «ID» экрана — номер устройства (identifier)
@@ -5100,7 +5212,7 @@ function kindActionOn(kind,id){return can("runKindAction")&&(KINDS.get(kind)?.ac
 // Завести и удалить объект вида: операция системы (createUnits, deleteUnit) и возможность вида (UnitKind.capabilities
 // create, delete) — у любого вида того же ручного экрана (kindsLike). Профиль системы сужает виды описаниями, а не
 // кодами операций.
-// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с vms.domain/1); вид формы по схеме и
+// Виды того же ручного экрана (хранилище — все archive.*, домен — и вид плагина с core.domain/1 или vms.domain/1); вид формы по схеме и
 // описаний нет — сам вид
 function kindsLike(kind){const t=KINDS.size?handScreen(kind):null;return t?kindsOfScreen(t):[kind]}
 function canCreateKind(kind){return can("createUnits")&&(!KINDS.size||kindsLike(kind).some(k=>kindCan(k,"create")))}
@@ -5708,10 +5820,10 @@ async function hwRead(){
   // Домены и серверы — в порядке ответа, как /domains и /servers базы: принятый в домен сервер — последним и после перечитывания
   const whole=async()=>{
     const out=[];let cursor=null;
-    do{const r=await API.get("/units",{implements:"vms.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
+    do{const r=await API.get("/units",{implements:"core.domain/1,vms.domain/1,vms.server/1",limit:LIM.pageMax,cursor});out.push(...r.items);cursor=r.nextCursor||null}while(cursor);
     return out;
   };
-  const[ds,fl,ar,vl]=await Promise.all([whole(),page("vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
+  const[ds,fl,ar,vl]=await Promise.all([whole(),page("core.folder/1,vms.folder/1","folders"),page("vms.archive/1","archives"),page("vms.volume/1","volumes")]);
   const of=t=>ds.filter(u=>handScreen(u.kind)===t).map(unitRec);
   return{domains:of("domain"),servers:of("server"),folders:fl,archives:ar,volumes:vl};
 }
@@ -6861,9 +6973,8 @@ const LOG_KIND_RU={audit:"Аудит",alarm:"Тревога",info:"Инфо"};
 // Разделы, которых нет: система их не объявила, а права могут быть закрыты конкретному человеку (403)
 let accDenied=false,accDown=false,accRetrying=false;
 const ACC_EMPTY={version:"0",roles:[],users:[],groups:[],catalogs:[],history:[],cellHistory:[]};
-function appsShown(){
-  return APPS_LIST.filter(a=>a.id==="rules"?can("listRules"):a.id==="acc"?can("getAccess")&&!accDenied:a.id==="log"?can("listJournal"):a.id==="exp"?expShown():a.id==="learn"?learnShown():true);
-}
+// Разделы на рельсе: что система объявила (appsFor), записи APPS_LIST
+function appsShown(){return appsFor(CAPS_SECTIONS,can).map(id=>APPS_LIST.find(a=>a.id===id))}
 async function appLoad(){
   const get=(op,path,empty)=>can(op)?API.get(path):empty;
   // 403 — раздела нет. Другой отказ (без связи с доменом это штатно) запуск не роняет: раздел говорит, что права недоступны, и спросит снова при заходе
@@ -6872,6 +6983,7 @@ async function appLoad(){
   sysTz=me.timezone||sysTz;ACC_ME=me.login;promptClock(me.serverTime);
   accSetSnapshot(accSkeleton(acc));accLast=accSkeleton(acc);
   settingsApply(st);
+  appEnsureShown();
 }
 // Журнал и лицензии при старте не нужны: читаются при заходе в раздел
 let logLoaded=null,licLoaded=null;
@@ -6885,6 +6997,49 @@ function licLoad(){
   if(licLoaded)return licLoaded;
   return licLoaded=Promise.resolve(can("listLicenses")?API.get("/licenses"):{items:[]}).then(l=>{licenses=l.items},()=>{licLoaded=null});
 }
+// ── Разделы приложения от системы ──────────────────────────────────────────
+// Разделы рельса объявляет система: GET /reference → capabilities.sections (AppSection {id, label?, icon?}, контракт 0.27.0),
+// в порядке рельса. APP_SECTION — раздел консоли → код раздела у системы. Раздел виден, если система его объявила и
+// прежнее условие раздела верно (operations, 403 на права). Незнакомый код консоль пропускает: экрана для него нет.
+// CAPS_SECTIONS === null — система поля не прислала (бэкенд до 0.27.0): разделы по операциям, как раньше.
+// «Обучение» система не объявляет: это раздел макета, главы — про демо VMS, поэтому раздел виден только рядом с камерами.
+// Страницы «Опций» — по видам и операциям системы (SYS_PAGE_NEEDS): implements:<профиль> — есть вид этого профиля
+// (система без GET /kinds — страница видна, как раньше), op:<операция> — система её выполняет.
+let CAPS_SECTIONS=null;
+const APP_SECTION={hw:"objects",rules:"automation",acc:"access",log:"journal",sys:"settings",exp:"vms.export"};
+function appOn(id,c){
+  return id==="rules"?c("listRules"):id==="acc"?c("getAccess")&&!accDenied:id==="log"?c("listJournal"):id==="exp"?c("createExport")||c("listExports"):id==="learn"?learnShown():true;
+}
+function appsFor(sections,c){
+  if(sections==null)return APPS_LIST.map(a=>a.id).filter(id=>appOn(id,c));
+  const appOf=Object.fromEntries(Object.entries(APP_SECTION).map(([a,code])=>[code,a])),out=[];
+  sections.forEach(s=>{const a=appOf[s?.id];if(a&&!out.includes(a)&&appOn(a,c))out.push(a)});
+  if(learnShown()&&profileKinds("vms.camera/1").length)out.push("learn");
+  return out;
+}
+function appSectionOf(id){return(CAPS_SECTIONS||[]).find(s=>s?.id===APP_SECTION[id])||null}
+function appLabel(id){return textOf(appSectionOf(id)?.label)||i18n(APPS_LIST.find(a=>a.id===id)?.label||id)}
+function appVisible(id){return appsFor(CAPS_SECTIONS,can).includes(id)}
+// Открытый раздел система не объявила (appLoad, apiReload) — открыт первый видимый
+function appEnsureShown(){const ids=appsFor(CAPS_SECTIONS,can);if(ids.length&&!ids.includes(app))app=ids[0]}
+function appsNoneUI(){paintMain(`<div class="nt" role="status" data-apps-none>${i18n("Система не объявила ни одного раздела.")}</div>`)}
+const SYS_PAGE_NEEDS={keys:["implements:vms.ptz/1"],ptz:["implements:vms.ptz/1"],cloud:["implements:vms.camera/1"],maps:["implements:vms.camera/1"],
+  alarm:["implements:vms.camera/1"],export:["op:listExports"],lic:["op:listLicenses"]};
+// Условия показа: implements:<профиль> — есть вид с профилем, view:<срез> — есть вид с x-ui-category.view, op:<операция> —
+// система её исполняет. Описаний видов нет (старый бэкенд, /kinds не прочитан) — условия по видам верны
+function needsMet(needs){
+  return(needs||[]).every(n=>n.startsWith("implements:")?!KINDS.size||profileKinds(n.slice(11)).length>0:
+    n.startsWith("view:")?!KINDS.size||kindsViewHas(n.slice(5)):n.startsWith("op:")?can(n.slice(3)):true);
+}
+function sysPageShown(o){return needsMet(SYS_PAGE_NEEDS[o?.id])}
+// Вкладки карточки области системы: вкладка видна, если условия верны. У оркестратора нет камер и серверов VMS, поэтому
+// у рабочего пространства только «Папки» и «Общие»
+const DOMAIN_TAB_NEEDS={cams:["view:cam"],srvs:["implements:vms.server/1"],lic:["op:listLicenses"],topo:["implements:vms.server/1"]};
+function sysOptsApply(){
+  const en=uiLang==="en";
+  sysOpts.splice(0,sysOpts.length,...sysOptsRU.filter(sysPageShown).map(o=>({...o,n:((en?sysOptsEN:sysOptsRU).find(x=>x.id===o.id)||o).n})));
+  if(!sysOpts.some(o=>o.id===sys)&&sysOpts.length)sys=sysOpts[0].id;
+}
 // ── «Автоматизация» — с сервера ───────────────────────────────────────────
 // Правила с историей и запусками, расписания, особые дни, режимы объекта, окна обслуживания читаются через
 // API и переводятся в структуры, по которым рисует раздел. Меняет их только ответ сервера или событие потока;
@@ -6894,28 +7049,90 @@ const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objec
 // Типы хранения — что система умеет, из справочника; подпись — своя
 let refStorage=ARCH_STORAGE.map(x=>x[0]),refLabels=[],refEvents=[],refDetKinds=[],DET_TYPES=[],DET_TRIG_OWN=[],refRuleCross=null;
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
-function autoRef(ref){
+function autoRef(ref,kinds){
+  kinds=kinds||KINDS;
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   if(ref.archiveKinds?.length)refArchKinds=ref.archiveKinds;
-  if(ref.recordModes?.length)refRecModes=ref.recordModes;
-
-  refLabels=ref.serverLabels||[];refDetKinds=ref.detectorKinds||[];
-  detAkClashSet(ref.analyticsConflicts);
-  Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
-  (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
+  // Виды детектора с /kinds даёт kindsRefApply: справочник их не стирает
+  if(ref.detectorKinds)refDetKinds=ref.detectorKinds;
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
   // сервер, подписи — по коду, незнакомый код показывается как есть
   refRuleCross=ref.ruleCrossDomainActions||null;
-  refScenKinds=ref.scenarioKinds||null;
   // События и команды объектов — из описаний видов (ruleCatFromKinds), справочник — только действия системы (ruleActions)
   Object.assign(RULE_REF,{starts:ref.ruleStarts||null,actions:ref.ruleActions||null,conds:ref.ruleConditions||null,ctls:ref.ruleControls||null,targets:ref.ruleTargets||null,features:ref.ruleFeatures||[]});
   (ref.ruleActions||[]).forEach(a=>{
     const k=actionKind({sub:a.source,action:a.action});
-    if(k.stray){k.devTypes=a.deviceTypes;k.fields=a.fields.map(f=>({id:f.id==="target"?"ref":ACT_IN[f.id]||f.id,label:f.id==="target"?"Устройство":f.id,...(f.optional?{req:false}:{}),...(f.options?.length?{opts:f.options}:{})}))}
+    if(k.stray){k.devTypes=a.deviceTypes;k.fields=a.fields.map(f=>({id:f.id==="target"?"ref":ACT_IN[f.id]||f.id,label:f.id==="target"?"Устройство":f.id,...(f.optional?{req:false}:{}),...(refFieldOpts(f).length?{opts:refFieldOpts(f)}:{})}))}
   });
+  autoRefLists(ref,kinds);
+}
+// Справочники VMS — из описаний видов.
+// Списки, которые раньше отдавал GET /reference, приходят из описаний видов (контракт 0.30.0) и из schema полей
+// действий правил (0.31.0). Устаревший ключ справочника читается, только если нового места нет: старый бэкенд
+function refFieldOpts(f){return f?.schema?.enum||f?.schema?.items?.enum||f?.options||[]}
+// Подпись значения enum: x-enum-labels — текст как есть (имя раскладки или монитора — данные правила, не перевод)
+function refEnumName(p,v){const t=p?.["x-enum-labels"]?.[v];return t==null?String(v):typeof t==="string"?t:t.text||String(v)}
+function autoRefLists(ref,kinds){
+  const ks=[...kinds.values()],im=(k,id)=>(k.implements||[]).includes(id),props=k=>k.schema?.properties||{};
+  // Производители и модели: examples у vendor, модели — allOf {if: {vendor: {const}}, then: {model: {examples}}}
+  const models={};
+  ks.forEach(k=>{
+    (props(k).vendor?.examples||[]).forEach(v=>{models[v]??=[]});
+    (k.schema?.allOf||[]).forEach(x=>{
+      const v=x.if?.properties?.vendor?.const,m=x.then?.properties?.model?.examples;
+      if(v==null||!Array.isArray(m))return;
+      models[v]??=[];m.forEach(y=>{if(!models[v].includes(y))models[v].push(y)});
+    });
+  });
+  Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
+  if(Object.keys(models).length)Object.assign(DEVICE_MODELS,models);
+  else(ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
+  // Режимы записи камеры: enum recordMode видов vms.camera/1
+  const rec=[...new Set(ks.filter(k=>im(k,"vms.camera/1")).flatMap(k=>props(k).recordMode?.enum||[]))];
+  if(rec.length)refRecModes=rec;else if(ref.recordModes?.length)refRecModes=ref.recordModes;
+  // Метки серверов: examples у labels.items видов vms.server/1
+  const lb=[...new Set(ks.filter(k=>im(k,"vms.server/1")).flatMap(k=>props(k).labels?.items?.examples||[]))];
+  refLabels=lb.length?lb:ref.serverLabels||[];
+  // Несовместимые виды аналитики: x-conflicts {значение: [значения]} у analyticsKind видов детектора
+  const cf=ks.map(k=>props(k).analyticsKind?.["x-conflicts"]).filter(Boolean);
+  detAkClashSet(cf.length?cf.flatMap(x=>Object.entries(x).map(([analyticsKind,conflicts])=>({analyticsKind,conflicts}))):ref.analyticsConflicts);
+  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad); до него — устаревший ключ, если он есть.
+  // Без ключа значение остаётся: новое чтение /kinds не стирает виды, прочитанные из документа
+  if(ref.scenarioKinds)refScenKinds=ref.scenarioKinds;
+  // Раскладки и мониторы правил: enum и x-enum-labels в schema поля layoutId действия client.layout и параметра
+  // monitorId команды объекта (camera.wall). Имя — в правиле, id — на сервере
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
-  (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
-  (ref.monitors||[]).forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
+  const fieldOf=(id)=>(ref.ruleActions||[]).flatMap(a=>a.fields||[]).find(f=>f.id===id&&f.schema?.enum);
+  const pairs=p=>p?.enum?p.enum.map(v=>({id:v,name:refEnumName(p,v)})):null;
+  const lay=pairs(fieldOf("layoutId")?.schema)||ref.layouts||[];
+  const monP=ks.flatMap(k=>(k.actions||[]).map(a=>a.params?.properties?.monitorId)).find(p=>p?.enum)||fieldOf("monitorId")?.schema;
+  const mon=pairs(monP)||ref.monitors||[];
+  lay.forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
+  mon.forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
+}
+// Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции — устаревший reference.export
+// Справочник выгрузки читается при первом заходе в «Экспорт» (expRefEnsure), а не на старте: старт на большом домене —
+// не больше 16 запросов (tests/scale-large.js). Система без getExportReference — устаревший reference.export сразу, без запроса
+let expRefP=null,expRefDone=false;
+function expRefReset(ref){
+  expRefP=null;expRefDone=!can("getExportReference");EXP_REF=expRefDone?ref?.export||null:null;
+  if(!expRefDone&&app==="exp")expRefEnsure();
+}
+function expRefEnsure(){
+  if(expRefDone)return Promise.resolve();
+  return expRefP||(expRefP=expRefLoad(REF_LAST).then(()=>{expRefDone=true;expRefFill(expD);if(app==="exp")paint()}));
+}
+// Заказ, начатый до ответа справочника, получает его умолчания: предел файла и первый шрифт, если их не меняли
+const expNoRef=new WeakSet();
+function expRefFill(d){
+  if(!d||!expNoRef.has(d)||!EXP_REF)return;
+  expNoRef.delete(d);
+  const L=EXP_REF.limits||{},f0=EXP_REF.fonts?.[0];
+  if(d.adv.maxmb===4000&&L.maxFileMbDefault)d.adv.maxmb=L.maxFileMbDefault;
+  if(!d.adv.font&&f0)d.adv.font=`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`;
+}
+async function expRefLoad(ref){
+  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return ref?.export||null}):ref?.export||null;
 }
 // Цель: {include, exclude, gone, fromEvent} ↔ строка раздела («c1», «set:a,b,-c», «folder:…», «gone:имя», «$src»).
 // Элемент include — объект {uid} или область {area: folder|server|domain, uid}
@@ -7130,8 +7347,10 @@ function fireWhy(m,ctx){
   if(m.code==="cond.time"){const x=sysParts(p.at);return fail(`${i18n("сейчас")} ${ruleDaysText([x.dow])} ${x.hm} — ${i18n("вне расписания")}`)}
   if(m.code==="cond.mode")return i18n("Скрытое условие режима не выполнено");
   if(m.code==="cond.devices"){
+    // Код строки — от хука профиля (ruleCondition): незнакомый код показывается как есть, а не как охрана камеры
     const one=x=>x.code==="offline"?`${nm(x.viaId)}: ${i18n("без связи")}`:x.code==="notRecording"?`${i18n("камера")} «${nm(x.deviceId)}» ${i18n("не пишет в архив")}`
-      :`${i18n("камера")} «${nm(x.deviceId)}» ${i18n(x.code==="disarmed"?"снята с охраны":"на охране")}`;
+      :x.code==="disarmed"||x.code==="armed"?`${i18n("камера")} «${nm(x.deviceId)}» ${i18n(x.code==="disarmed"?"снята с охраны":"на охране")}`
+      :x.code==="notSupported"?`«${nm(x.deviceId)}»: ${i18n("система не проверяет это условие у этого объекта")}`:`«${nm(x.deviceId)}»: ${x.code}`;
     return fail(p.items.map(one).join("; ")+(p.more?`; ${i18n("и ещё")} ${p.more}`:""));
   }
   if(/^target\./.test(m.code))return fail(i18n(STEP_WHY[m.code]||""));
@@ -8476,6 +8695,7 @@ function prepareSliceBranches(){
 }
 function addCtx(){return srv(sel)}
 function expandTo(id,ctx){
+  if(isLaySlice()){layExpand(id);return}
   let f=find(id);if(!f)return;
   let p=f.p?find(f.p.id):null;
   // Серверный детектор виден под GPU, а не под камерой на сервере: её не раскрываем. Встроенный — под камерой
@@ -8555,6 +8775,8 @@ function revealSel(done){
 // панель, aside), "miss" — строки нет нигде, срез прежний
 function revealSearch(has){
   if(has(sel)||hasActiveFilters()||slice==="arch"&&archStaysInSlice(find(sel)?.n))return null;
+  // Своя раскладка: место цели — в ней (layExpand). Срезы перебираются, только если в этой раскладке объекта нет (layMiss: раскладка|id)
+  if(isLaySlice()&&layMiss!==treeLayout()+"|"+sel){layExpand(sel,true);treeHtmlKeep(treeHtmlNow());return"miss"}
   // Папки устройства называет только полная запись: пока её нет, «не в папке» ещё ничего не значит и «Папки» не трогаем
   const id=sel,node=find(id)?.n;
   if(group()==="folder"&&node?._row&&!node._nf&&!foldersOfDevice(id).length){hwFull(id).then(()=>{if(sel===id&&app==="hw")revealSel()}).catch(()=>{});return"wait"}
@@ -8564,10 +8786,11 @@ function revealSearch(has){
   // Поиск строки перебирает срезы: перебор в память раскрытия не пишем, раскрытие цели — поверх памяти своего среза
   const look=()=>{treeOpenAllShown=true;treeOpenFollow();treeOpenAllShown=false;treeMatchCache.clear();searchMatchCache.clear();expandTo(sel);archSliceOpen(find(sel)?.n);html=treeHtmlNow();return treeHtmlHas(html,sel)};
   // Сначала текущая раскладка: «Папки» меняются, только если иначе строки не найти
-  const hit=[slice,...Object.keys(SLICE_GROUPS)].some(s=>[...SLICE_GROUPS[s]].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
+  // Своя раскладка, где узла цели нет, — не перебирается: её место знает только сервер (layExpand), ответ тут не ждут
+  const hit=[slice,...slicesFor(TREE_LAYOUTS)].some(s=>!(isLaySlice(s)&&s!==was&&!layNode(s.slice(4),sel))&&[...sliceGroupsOf(s)].sort((a,b)=>(b===pref)-(a===pref)).some(g=>{
     const gw=groupBy[s];
     slice=s;groupBy[s]=g;syncViews();
-    if(look()){if(SLICE_GROUPS[s].includes("folder"))setGroupAll(g);return true}
+    if(look()){if(sliceGroupsOf(s).includes("folder"))setGroupAll(g);return true}
     groupBy[s]=gw;return false;
   }));
   if(!hit){slice=was;syncViews();look()}
@@ -8608,6 +8831,7 @@ function openNode(id,opts={}){
   if(!f){if(typeof id==="string"&&!id.includes(":"))hwEnsure([id]).then(()=>{if(find(id))openNode(id,opts)}).catch(()=>{});return}
   // Переход из поиска к устройству уводит из «Автоматизации»: черновик правила не теряем молча.
   if(app==="rules"&&(opts.app||app)!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>openNode(id,opts)))return;
+  if(opts.app&&opts.app!==app&&!appVisible(opts.app))return;   // раздел не объявлен — к объекту не идём
   selCtx=null;
   app=opts.app||app||"hw";
   tab=opts.tab||archSliceTab(f.n)||tabKeep(f.n);
@@ -8656,13 +8880,13 @@ function applyDeepLink(){
   const raw=location.hash.replace(/^#/,"");
   if(!raw)return false;
   const p=new URLSearchParams(raw),id=p.get("node");
-  const op=p.get("opt");if(op&&sysOpts.some(o=>o.id===op)){goApp("sys");sys=op;paint();return true}
+  const op=p.get("opt");if(op&&sysOpts.some(o=>o.id===op)){if(goApp("sys")){sys=op;paint()}return true}
   if(!id)return false;
   if(!find(id)){hwEnsure([id]).then(()=>{if(find(id))applyDeepLink()}).catch(()=>{});return false}
   // Новые ссылки: #node=…&slice=…&group=…&tab=…; старые (app=dev|srvs&view=…)
   // читаются тем же кодом — адрес, разосланный коллегам, не должен протухать.
   const sl=normSlice(p.get("slice")||({dev:"cam",srvs:"srv"}[p.get("app")||""])||(p.get("view")==="sys"?"srv":p.get("view"))||null);
-  if(sl&&SLICE_GROUPS[sl]){slice=sl;syncViews()}
+  if(sl&&SLICE_GROUPS[sl]&&sliceShown(sl)){slice=sl;syncViews()}
   const g=p.get("group");
   if(g&&sliceGroups().includes(g)&&sliceGroups().includes("folder"))setGroupAll(g);
   {const fn=find(id)?.n;if(fn&&p.get("form"))formAllByKind.set(tabMemKey(fn),p.get("form")==="all")}
@@ -8675,9 +8899,9 @@ function applyDeepLink(){
 const jumpSources=[];
 function registerJumpSource(fn){jumpSources.push(fn)}
 let goSel=0,goHits=[],goNav=false;
-registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",
+registerJumpSource(()=>appsShown().map(a=>({kind:"Раздел",title:appLabel(a.id),sub:i18n("Раздел консоли"),icon:"svcs",
   go(){goApp(a.id)}})));
-registerJumpSource(()=>Object.entries(SLICE_SW).map(([id,l])=>({kind:"Срез",title:i18n(l),sub:SLICE[id],icon:SLICE_IC[id],
+registerJumpSource(()=>slicesFor(TREE_LAYOUTS).map(id=>({kind:"Срез",title:SLICE_SW[id]?i18n(SLICE_SW[id]):sliceLabel(id),sub:sliceLabel(id),icon:sliceIcon(id),
   go(){goApp("hw");setSlice(id)}})));
 registerJumpSource(()=>sysOpts.map(o=>({kind:"Опции",title:o.n,sub:i18n("Страница опций"),icon:"svcs",goId:"opt:"+o.id,
   go(){goApp("sys");sys=o.id;paint()}})));
@@ -8703,7 +8927,7 @@ registerJumpSource(()=>{                          // закладки выбра
     go(){goApp("hw");tab=id;paint()}}));
 });
 registerJumpSource(()=>favs.map((f,i)=>({  // избранное — тоже цели перехода
-  kind:"Избранное",title:f.name,sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),
+  kind:"Избранное",title:f.name,sub:find(f.id)?sliceLabel(f.slice):i18n("удалён"),
   icon:f.type||"camera",goId:f.id,go(){goFav(i)}})));
 registerJumpSource(()=>{                          // объекты дерева
   // То, что уже в избранном, не двоится: ярлык ведёт точнее.
@@ -8875,10 +9099,10 @@ function goSearch(v){
   if(!q){                                         // просто клик — недавнее и разделы
     // Избранное первым: это то, куда возвращаются чаще всего.
     const fav=favs.slice(0,6).map((f,i)=>({kind:"Избранное",title:f.name,
-      sub:find(f.id)?(SLICE[f.slice]||""):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
+      sub:find(f.id)?sliceLabel(f.slice):i18n("удалён"),icon:f.type||"camera",go(){goFav(i)}}));
     const favIds=new Set(favs.map(f=>f.id));
     const rec=recent.filter(id=>!favIds.has(id)).map(id=>{const f=find(id);return f?jumpNodeTarget(f.n):null}).filter(Boolean).slice(0,6);
-    const apps=appsShown().map(a=>({kind:"Раздел",title:i18n(a.label),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
+    const apps=appsShown().map(a=>({kind:"Раздел",title:appLabel(a.id),sub:i18n("Раздел консоли"),icon:"svcs",go(){goApp(a.id)}}));
     goHits=[...fav,...rec,...apps];
     let i=0;
     const sect=(head,list)=>list.length?`<div class="gohead">${head}</div>`+list.map(t=>goRowHtml(t,i++,"")).join(""):"";
@@ -9113,9 +9337,15 @@ function setD(v){
   }
 }
 const appSel={dev:null,srvs:"d1"};
+// Раздел, которого система не объявила (appVisible), не открывается ни одним путём: ссылкой, поиском, переходом к объекту.
+// Ответ — открыт ли раздел: false — не объявлен или ждёт ответа о черновике правила
 function setApp(a){
+  if(!appVisible(a==="dev"||a==="srvs"?"hw":a)){
+    if(!appVisible(app)){appEnsureShown();paint()}   // открытый раздел тоже скрыт (403 на права) — к первому видимому
+    return false;
+  }
   // Черновик правила не теряем молча: уйти из «Автоматизации» можно только ответив.
-  if(app==="rules"&&a!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>setApp(a)))return;
+  if(app==="rules"&&a!=="rules"&&typeof ruleGuard==="function"&&ruleGuard(()=>setApp(a)))return false;
   const was=app;
   domainPop=false;
   if(a==="dev"||a==="srvs"){                 // старые адреса разделов
@@ -9130,8 +9360,10 @@ function setApp(a){
   paint();
   // Ссылка из другого раздела («Автоматизация» в карточке детектора) — место прихода моргает.
   if(a==="rules"&&was!=="rules"&&typeof ruleFromLink==="function"&&ruleFromLink())ruleFlashLanding();
+  return true;
 }
-function goApp(a){setApp(a)}
+// Переход в раздел по ссылке и поиску по разделам: охрана — в setApp
+function goApp(a){return setApp(a)}
 // Что читается при заходе в раздел. Раздел рисуется сразу, данные дописываются
 function sectionLoad(a){
   const again=()=>{if(app===a)paint()};
@@ -9141,7 +9373,7 @@ function sectionLoad(a){
   if(a==="log"&&pjRes)pjRes.key=null;
   if(a==="sys"&&!licLoaded)licLoad().then(again);
   if(a==="acc"&&!accShown)accLoad().then(again);
-  if(a==="exp")expLoad().then(again);
+  if(a==="exp")Promise.all([expLoad(),expRefEnsure()]).then(again);
 }
 function toggleUserMenu(e){
   e.stopPropagation();
@@ -9513,7 +9745,7 @@ function countFiltered(){
 }
 function filterTags(){
   const tags=[];
-  [...typeFilts].forEach(id=>{const lab=(TYPE_FILTERS[slice].find(x=>x[0]===id)||[])[1]||id;tags.push({id:"type:"+id,label:i18n(lab)})});
+  [...typeFilts].forEach(id=>{const lab=((TYPE_FILTERS[slice]||[]).find(x=>x[0]===id)||[])[1]||id;tags.push({id:"type:"+id,label:i18n(lab)})});
   if(asstPick)tags.unshift({id:"asst",label:asstPickLabel()});
   if(strictIdSearch)tags.push({id:"strict-id",label:i18n("Фильтр строго по id")});
   else [...searchFields].forEach(id=>tags.push({id:"field:"+id,label:i18n(FIELD_LABELS[id]||id)}));
@@ -9857,7 +10089,7 @@ function renderDomainMenu(){
 }
 function appSwitchHtml(){
   return appsShown().map(a=>
-    `<button type="button" class="asw ${app===a.id?"on":""}" data-a="${a.id}" role="tab" aria-selected="${app===a.id?"true":"false"}" title="${i18n(a.label)}" ${onEv("click",["goApp",`${a.id}`])}>${ic(a.ic)}<span class="asw-lb">${i18n(a.label)}</span></button>`
+    `<button type="button" class="asw ${app===a.id?"on":""}" data-a="${a.id}" role="tab" aria-selected="${app===a.id?"true":"false"}" title="${escHtml(appLabel(a.id))}" ${onEv("click",["goApp",`${a.id}`])}>${ic(a.ic)}<span class="asw-lb">${escHtml(appLabel(a.id))}</span></button>`
   ).join("");
 }
 // Рельс можно спрятать — место уходит дереву и рабочей области. Выбор помнится
@@ -10104,7 +10336,7 @@ function favRowHtml(f,i){
   const gone=!n;
   const label=n?locName(n):f.name;
   // Удалённый объект не исчезает молча: ярлык остаётся и говорит об этом.
-  const sub=gone?i18n("удалён"):(SLICE_SW[f.slice]||"");
+  const sub=gone?i18n("удалён"):(SLICE_SW[f.slice]||sliceLabel(f.slice));
   return`<div class="n fav-row ${gone?"gone":""} ${!gone&&sel===f.id?"on":""}" ${onEv("click",["goFav",i])} title="${escHtml(label)}">
     <span class="tw"></span>${ic(gone?"camera":(n.type||"camera"))}<span class="nm">${escHtml(label)}</span>
     <span class="n-meta"><span class="fav-sub">${escHtml(sub)}</span><span class="n-cnt"></span><span class="n-tail"></span><button type="button" class="n-fav on" tabindex="-1" title="${i18n("Убрать из избранного")}" ${onEv("click",onEv.stop,["removeFav",i])}>${gone?lu("x"):STAR_ON}</button><span class="n-menu"></span></span></div>`;
@@ -10113,7 +10345,7 @@ function goFav(i){
   const f=favs[i];if(!f)return;
   if(!find(f.id)){toast("Объект удалён. Ярлык можно убрать");return}
   goApp("hw");
-  if(f.slice&&f.slice!==slice&&SLICE[f.slice])setSlice(f.slice);
+  if(f.slice&&f.slice!==slice&&SLICE_GROUPS[f.slice])setSlice(f.slice);
   // Статус переживает смену среза, но ярлык ведёт к объекту: если статус его прячет, снимаем, как при переходе из поиска
   if(!matchesStatus(find(f.id).n)){
     statusFilts.clear();applyFiltersFromState();aside();
@@ -10388,9 +10620,11 @@ function treePaint(){const treeEl=document.getElementById("tree");if(!treeEl){ru
 // Отрисовка идёт по кэшу, как раньше. Открытая ветка, которую ещё не читали, читается страницей и дорисовывается:
 // open меняют десятки мест, поэтому чтение решается здесь, после отрисовки, а не у каждого. Сервер отдаёт порядок сам.
 const treeBr=new Map();
-function treeLayout(){return slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
-function treeReset(){treeBr.clear();treeSkelAt.clear();sliceReads.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
+function treeLayout(){return isLaySlice()?slice.slice(4):slice==="arch"?"archives":slice==="det"?(group()==="folder"?"folders":"detectors"):group()==="server"?"servers":"folders"}
+function treeReset(){treeBr.clear();layNodes.clear();treeSkelAt.clear();sliceReads.clear();fs=null;archUnlinkedAsked.clear();archDomRead.clear();archDomDoneSet.clear();archTblTried.clear()}
 function treeOpenable(id,layout){
+  // Своя раскладка системы: область и узел со стрелкой (hasChildren) — по узлам её веток
+  if(isLaySlice())return layout===treeLayout()&&(domains.some(d=>d.id===id)||!!layNode(layout,id)?.hasChildren);
   if(id.startsWith("unalloc:"))return false;// нераспределённые — из /servers, он целиком
   // Виртуальные группы: на сервере их нет, стрелка ведёт на /devices с отбором волнами
   if(id.startsWith("nofolder:"))return layout==="folders";
@@ -10467,6 +10701,7 @@ async function treeLoad(layout,id){
       await treeSkelHold(key);
       if(treeBr.get(key)!==b)return;
       await treeAdd(r.items,id,layout);
+      if(!LAYOUTS_BASE.includes(layout)){b.items=(b.items||[]).concat(r.items);r.items.forEach(x=>layNodes.set(layout+"|"+x.id,x))}
       if(r.parentCount!=null)b.count=r.parentCount;
       b.cursor=r.nextCursor||null;b.done=!r.nextCursor;
       if(b.done||r.items.length)break;
@@ -10685,8 +10920,8 @@ function g7DomainOf(n){return handOf(n,"domain")?n:domainOf(n.id)||domainById(un
 async function g7RelaysLoad(d){
   if(G7.relays.has(d.id)||!can("listRelays"))return;
   G7.relays.set(d.id,new Map());
-  const via=new Map(),list=(await API.get(`/domains/${d.id}/relays`)).items;
-  for(const r of list)if(can("getRelay"))(await API.get(`/domains/${d.id}/relays/${encodeURIComponent(r.name)}`)).members.forEach(m=>via.set(m,r.name));
+  const via=new Map(),list=(await API.get(`/units/${d.id}/relays`)).items;
+  for(const r of list)if(can("getRelay"))(await API.get(`/units/${d.id}/relays/${encodeURIComponent(r.name)}`)).members.forEach(m=>via.set(m,r.name));
   G7.relays.set(d.id,via);
   if(G7.root&&document.getElementById("g7c"))g7Start(G7.root);
 }
@@ -10844,6 +11079,7 @@ const PICK_SLICES=["all","cam","acfa","det"];
 function filtOn(){return app==="hw"&&PICK_SLICES.includes(slice)&&(!!treeQ.trim()||!!typeFilts.size||!!statusFilts.size||!!asstPick)}
 function filtKeyNow(){return filtOn()?JSON.stringify([treeQ.trim().toLowerCase(),[...typeFilts].sort(),[...statusFilts].sort(),domainFilter,slice,group(),asstPick?.key||""]):""}
 function filtSync(){
+  layFindSync();
   const key=filtKeyNow();
   if(key===(fs?.key||""))return;
   // Отбор ассистента: список готов, дочитываются записи и цепочки. До idsMax — дерево, больше — плоский список страницами
@@ -11007,6 +11243,7 @@ function filtHint(){
     const cut=p.truncated?` · ${i18n("показаны первые")} ${p.ids.length}${p.total!=null?` ${i18n("из")} ${p.total}`:""}`:"";
     return`${i18n("Отобрано ассистентом:")} ${fs.hits.size}${cut}${fs.done?"":` · ${i18n("загружено")} ${fs.at}`}`;
   }
+  if(isLaySlice()&&layFs)return layFs.failed||layFs.cut&&layFs.done?`${i18n("Найдено не всё:")} ${layFs.hits.size}`:layFs.done?`${i18n("Найдено:")} ${layFs.hits.size}`:`${i18n("Ищем дальше, уже")} ${layFs.hits.size}`;
   if(!fs)return hasActiveFilters()?`${i18n("Найдено:")} ${countFiltered()}`:"";
   if(fs.failed)return`${i18n("Найдено не всё:")} ${filtHitCount()}`;
   return fs.done?`${i18n("Найдено:")} ${filtHitCount()}`:`${i18n("Ищем дальше, уже")} ${filtHitCount()}`;
@@ -11081,7 +11318,7 @@ function pickStatus(id){
 // (sliceCountsAll): условие и проход те же, что у sliceCount, совпадение с запросом — одно на объект
 let sliceCountMemo=null;
 function sliceCountsAll(ids){
-  ids=ids.filter(id=>id!=="srv");// «Серверы» — по перечню серверов (sliceSrvCount), без прохода кэша
+  ids=ids.filter(id=>id!=="srv"&&!isLaySlice(id));// «Серверы» — по перечню серверов (sliceSrvCount), без прохода кэша
   const q=qval(),prev=slice,out=new Map(ids.map(id=>[id,0]));
   const visit=(x,p,only)=>{let m;for(const id of only){slice=id;if(id==="det"?detSliceHit(x,p,q):sliceCounts(x,id)&&(m===undefined?(m=matchesSearch(x,q)):m))out.set(id,out.get(id)+1)}};
   try{
@@ -11146,6 +11383,8 @@ function sliceEstimate(id){
 // - дочитано (найдено до конца) — число.
 // wide — оценка: место под неё у кнопки есть всегда (невидимый двойник), кнопка не прыгает, когда поиск сняли
 function sliceCountInfo(id){
+  // Своя раскладка: числа нет (узлы читаются по веткам), подсказка — от системы
+  if(isLaySlice(id)){const l=sliceLayoutOf(id);return{text:"",wide:"",title:textOf(l?.hint)||sliceLabel(id)}}
   // Двойник — число без поиска: кнопка не сужается, пока идёт поиск, и соседи не ездят (как у оценки)
   if(id==="srv"){const N=sliceNum(sliceCount(id));return{text:N,wide:sliceNum(servers.filter(matchesDomain).length),title:`${i18n("Серверов")}: ${N}`}}
   const n=sliceCount(id),dom=sliceDomOnly(),f=hasActiveFilters()&&!dom,full=sliceAllRead(id)||f&&sliceFoundAll(id),N=sliceNum(n);
@@ -11168,18 +11407,19 @@ function sliceCntPaint(btn){
   if(btn.title!==k.title)btn.title=k.title;
 }
 function sliceCntsPaint(btns){withSliceCounts(btns.map(b=>b.dataset.slice),()=>btns.forEach(sliceCntPaint))}
-function panelHeadHtml(){return withSliceCounts(Object.keys(SLICE),panelHeadHtmlRun)}
+function panelHeadHtml(){return withSliceCounts(slicesFor(TREE_LAYOUTS),panelHeadHtmlRun)}
 function panelHeadHtmlRun(){
   if(!detLoadState&&domains.length)setTimeout(detLoad);
   // В «Серверах» и «Хранилищах» кнопка неактивна, но показывает положение, которое ждёт возврата
-  const canFolders=sliceGroups().includes("folder"),foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
+  // Одна объявленная раскладка у среза — переключать нечего: кнопка неактивна и называет эту раскладку
+  const canFolders=sliceGroups().includes("folder")&&sliceGroups().length>1,foldersOn=(canFolders?group():groupBy.cam)==="folder",st=curStatus();
   // «Показать в дереве» работает только с открытым объектом: без него кнопка неактивна и говорит, чего ждёт
   const revealable=!!sel&&!!find(sel);
-  const ids=Object.keys(SLICE),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${id}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${SLICE[id]}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
+  const ids=slicesFor(TREE_LAYOUTS),sliceBtn=(id,last)=>{const k=sliceCountInfo(id);return`<button type="button" class="ph-choice ${slice===id?"on":""}" ${last?'id="phSliceLast"':""} data-slice="${escHtml(id)}" aria-pressed="${slice===id}" title="${escHtml(k.title)}" ${onEv("click",["setSlice",`${id}`])}><span>${escHtml(sliceLabel(id))}</span><span class="ph-cnt"${sliceCntAttr(k)}>${k.text}</span></button>`};
   return`<div class="ph"><div class="ph-row"><div class="ph-slices" role="group" aria-label="${i18n("Срез дерева")}" aria-owns="phSliceLast">
     ${ids.slice(0,-1).map(id=>sliceBtn(id)).join("")}
-  </div><span class="ph-tail">${sliceBtn(ids[ids.length-1],true)}<span class="ph-fold">
-    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
+  </div><span class="ph-tail">${ids.length?sliceBtn(ids[ids.length-1],true):""}<span class="ph-fold">
+    <button type="button" class="ph-choice ${foldersOn?"on":""}" id="viewBtn" aria-pressed="${foldersOn}" ${canFolders?"":"disabled"} title="${canFolders||group()==="folder"?`${i18n("Группировка")}: ${GROUP_HINT[group()]}`:i18n("В этом срезе нет папок")}" ${onEv("click",["toggleFolders"])}>${IC.folder}<span>${i18n("Папки")}</span></button>
     <button type="button" class="ph-choice ph-status ${filtPop||st?"on":""}" id="filtBtn" aria-haspopup="menu" aria-controls="filtPop" aria-expanded="${filtPop}" title="${statusLabel(st)}" ${onEv("click",["toggleFiltPop",onEv.event])}><span class="st-dot st-${(st||"all").split(":")[0]}" aria-hidden="true"></span><span class="ph-status-label">${statusLabel(st)}</span><span class="ph-chevron" aria-hidden="true"><svg class="btn-chev" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5.5 7.75 4.5 4.5 4.5-4.5"/></svg></span></button>
     <button type="button" class="ph-tool" id="treeCollapseBtn" title="${i18n("Свернуть всё")}" aria-label="${i18n("Свернуть всё")}" ${onEv("click",["treeCollapseAll"])}>${TREE_IC.shut}</button>
     <button type="button" class="ph-tool" id="treeRevealBtn" ${revealable?"":"disabled"} title="${i18n(revealable?"Показать открытый объект в дереве":"Сначала открыть объект")}" aria-label="${i18n("Показать открытый объект в дереве")}" ${onEv("click",["treeReveal"])}>${TREE_IC.here}</button>
@@ -11283,7 +11523,7 @@ function setSlice(v){
   // Неизвестный срез молча оставлял дерево в полусостоянии: чипов пять, активен
   // ни один. Такой вызов приходит только из старой ссылки — игнорируем.
   v=normSlice(v);
-  if(!SLICE_GROUPS[v]||slice===v)return;
+  if(!SLICE_GROUPS[v]||slice===v||!sliceShown(v))return;
   treeOpenSave();
   // Вкладку, которую задал прежний срез («Архив» в «Хранилищах», «Детекторы» в «Детекторах»), а не человек, не переносим
   const prevSel=sel,prevN=find(sel)?.n,tabForced=!!prevN&&(tab===archSliceTab(prevN)||(slice==="det"&&handCam(prevN)&&tab==="det"));
@@ -11319,6 +11559,8 @@ function setGroup(g){
 function keepSelectionInSlice(){
   const f=find(sel);
   if(slice==="arch"){archKeepSel(f);return}
+  // Своя раскладка: открытый объект остаётся открытым, даже если его строки в ней нет
+  if(isLaySlice()){if(!f)sel=domains[0]?.id||sel;return}
   const KEEP=["domain","unalloc","server","folder","archive","vol","norec","nofolder","gpu","found","founddev","det"];
   if(f&&(typeIn(f.n,KEEP)||selfInView(f.n)))return;
   const hit=firstMatching();
@@ -11594,7 +11836,7 @@ function addTreeLabel(n){
 }
 function canInspectorAdd(n){
   if(!n||n.type==="unalloc"||handOf(n,"det"))return false;
-  if(handOf(n,"domain"))return true;
+  if(handOf(n,"domain"))return needsMet(DOMAIN_TAB_NEEDS.srvs);
   if(handOf(n,"server"))return !isUnallocated(n.id);
   // У папки, архива и панели найденных заведение разложено на отдельные
   // кнопки рядом — общий «Добавить устройство» там больше не нужен.
@@ -11851,8 +12093,8 @@ function openTreeCtx(n,xy){
       if(canCreateKind("volume"))add.push(tctxItem(i18n("Добавить том"),act("addVolume",id),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"domain")){
-      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
-      add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",id),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.cams))add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.srvs))add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",id),tctxPlusIcon()));
       add.push(tctxItem(i18n("Создать папку"),act("addSubfolder",null,id),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"server")&&!isUnallocated(id)){
@@ -11860,7 +12102,7 @@ function openTreeCtx(n,xy){
       if(WIZ.svc)add.push(tctxItem(addTreeLabel(n),act("openW","svc"),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"folder")){
-      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.cams))add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
       add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
     }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
     if(WIZ.acfa&&typeIn(n,["acfa","acfa_lock","camera","ipsrv"]))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
@@ -12159,7 +12401,7 @@ function foundNode(did){return{id:foundId(did),type:"found",name:"Найденн
 function foundAll(did){return found[did]||[]}
 function foundPending(did){return foundAll(did).filter(r=>!r.added)}
 function foundRowById(did,rid){return foundAll(did).find(r=>r.id===rid)||null}
-// Итог последнего поиска в сети по доменам — с сервера (GET /domains/{id}/discovery)
+// Итог последнего поиска в сети по доменам — с сервера (GET /units/{uid}/discovery)
 // Что человек ввёл в строке «Найденных» (имя, логин, пароль…), при перечитывании остаётся
 const FOUND_KEEP=["added","addedId","user","pass","name","short","identifier","arch","group","record","lat","lon","azimuth"];
 let foundSeeded=false;
@@ -12179,12 +12421,12 @@ function seedFound(disc){
 }
 // Кандидат поиска (API) → строка, как её показывают мастер и вкладка «Сеть»
 function candRow(c){return{id:c.id,name:c.name,ip:c.ip,port:c.port,mac:c.mac,vendor:c.vendor,model:c.model,status:c.support,user:c.login||"",pass:c.password||"",type:c.type}}
-// Поиск в сети домена идёт на сервере (POST /domains/{id}/discovery), находки
+// Поиск в сети домена идёт на сервере (POST /units/{uid}/discovery), находки
 // приходят событиями: их слушают мастер и вкладка «Сеть» своего домена
 function discStart(did){
-  return API.post(`/domains/${did}/discovery`).catch(e=>{
+  return API.post(`/units/${did}/discovery`).catch(e=>{
     // Уже идёт (запустил другой администратор или вкладка) — подхватываем его
-    if(e?.problem?.code==="BUSY")return API.get(`/domains/${did}/discovery`);
+    if(e?.problem?.code==="BUSY")return API.get(`/units/${did}/discovery`);
     throw e;
   });
 }
@@ -12277,8 +12519,108 @@ function treeDev(){return scopedDomains().map(d=>dfrow(d)).join("")}
 function treeHw(){
   if(fs&&fs.flat)return treeFlat();
   prepareSliceBranches();
-  const h=slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  const h=isLaySlice()?treeLay():slice==="arch"?treeArchives():slice==="det"?treeDetectors():group()==="server"?treeServers():treeDev();
+  // Своя раскладка ищет сама (layFind): пока ищет — «Ищем дальше…», а не «Ничего не найдено»
+  if(isLaySlice()&&layFs&&!layFs.done)return h+`<div class="n n-more" style="--l:0"><span class="tw"></span><span class="nm sub">${i18n("Ищем дальше…")}</span></div>`;
   return h||(hasActiveFilters()&&(!fs||fs.done)?`<div class="sc sub">${i18n("Ничего не найдено")}</div>`:"");
+}
+// ── Дерево своей раскладки системы: узлы GET /tree/children ─────────────────
+// Срез lay:<id>: область → узлы раскладки в порядке сервера. Узел объекта — строка объекта кэша (карточка, меню), узел
+// группы — строка, которая только раскрывается. Поиск сужает прочитанные строки: строка видна, если совпала она или
+// прочитанный потомок
+// Отбор сверяется до сборки строк: снятый поиск не рисуется по прежним находкам
+function treeLay(){layFindSync();const lay=treeLayout();return scopedDomains().map(d=>layDomRow(d,lay)).join("")}
+// С поиском или статусом строка видна, если она — найденный объект (layFs.hits) или над ним в прочитанных ветках
+function layHit(lay,x,seen=new Set()){
+  if(!layFs)return true;
+  if(layFs.hits.has(x.id))return true;
+  if(seen.has(x.id))return false;seen.add(x.id);
+  return(treeBr.get(lay+"|"+x.id)?.items||[]).some(y=>layHit(lay,y,seen));
+}
+function layDomRow(d,lay){
+  const q=qval(),kids=layKidsHtml(d.id,lay,1,q);
+  if(layFs&&!kids&&!(q&&!statusFilts.size&&matchesSearch(d,q)))return"";
+  const op=open.has(d.id)||autoExpand();
+  let h=`<div class="n srv ${sel===d.id?"on":""}${treeRenameId===d.id?" renaming":""}"${treeRowPick(d.id)}${treeCtxAttr(d.id)}${treeExpandMeta(d.id,"dom",true)}>
+    ${treeChevron(d.id,"dom",true,op)}
+    ${treeRowIcon(d)}<span class="nm">${treeNameCell(d,q)}</span>${treeTail({cnt:treeCntHtml(treeCount(d.id)),acts:d.id})}</div>`;
+  if(op)h+=kids+treeMoreRow(d.id,1);
+  return h;
+}
+function layKidsHtml(pid,lay,l,q){return(treeBr.get(lay+"|"+pid)?.items||[]).map(x=>layRowHtml(x,lay,l,q)).join("")}
+function layRowHtml(x,lay,l,q){
+  if(!layHit(lay,x))return"";
+  const has=!!x.hasChildren,op=has&&(open.has(x.id)||!!layFs),kids=op?layKidsHtml(x.id,lay,l+1,q)+treeMoreRow(x.id,l+1):"";
+  const n=x.group?null:find(x.id)?.n;
+  let h;
+  if(!n)h=`<div class="n srv fld" style="--l:${l}"${treeExpandMeta(x.id,"dom",has)} ${onEv("click",["toggleDom",x.id,onEv.event])}>
+    ${treeChevron(x.id,"dom",has,op)}${ict(!x.group&&/^[\w.-]+$/.test(x.icon||x.kind||"")?x.icon||x.kind:"folder")}<span class="nm">${hlText(x.name||"",q)}</span>${treeTail({})}</div>`;
+  else h=`<div class="n ${sel===n.id?"on":""}${treeRenameId===n.id?" renaming":""}" style="--l:${l}"${treeRowPick(n.id)}${treeCtxAttr(n.id)}${treeExpandMeta(n.id,"node",has)}>
+    ${treeChevron(n.id,"node",has,op)}${treeRowIcon(n)}<span class="nm">${treeNameCell(n,q)}</span>${treeTail({acts:n.id})}</div>`;
+  return h+kids;
+}
+// Поиск и статус в своей раскладке: сервер ищет объекты видов раскладки (GET /units: q, status, kind), их места —
+// GET /tree/paths, ветки цепочек дочитываются (layReach). Строки — найденное и путь к нему, а не только прочитанное раньше.
+// Статус с причиной («nosignal:auth») сервер не различает: найденное проверяет ещё matchesStatus. Найдено больше LAY_FIND_MAX —
+// «Найдено не всё»
+let layFs=null;
+const LAY_FIND_MAX=500;
+// Виды, которые раскладка раскладывает; null — любой вид (правило без what)
+function layKinds(l){
+  const out=new Set();
+  for(const r of l?.place||[]){
+    if(r.by==="none")continue;
+    const w=r.what;
+    if(!w||!(w.kinds||[]).length&&!(w.implements||[]).length)return null;
+    (w.kinds||[]).forEach(k=>out.add(k));
+    (w.implements||[]).forEach(pr=>KINDS.forEach((k,code)=>{if((k.implements||[]).includes(pr))out.add(code)}));
+  }
+  return[...out];
+}
+function layFsKey(){
+  if(app!=="hw"||!isLaySlice()||!qval()&&!statusFilts.size)return"";
+  return JSON.stringify([treeQ.trim().toLowerCase(),[...statusFilts].sort(),domainFilter,slice]);
+}
+function layFindSync(){
+  const key=layFsKey();
+  if(key===(layFs?.key||""))return;
+  layFs=key?{key,lay:treeLayout(),hits:new Set(),done:false,cut:false,failed:false}:null;
+  if(layFs)layFind(layFs);
+}
+async function layFind(run){
+  const live=()=>layFs===run,paint=()=>{if(live()&&app==="hw"){renderTreeSoon();const h=document.getElementById("filtHint");if(h)h.textContent=filtHint()}};
+  try{
+    const kinds=layKinds(sliceLayoutOf());
+    if(kinds&&!kinds.length){run.done=true;paint();return}
+    const qp={limit:LIM.pageMax};
+    if(qval())qp.q=treeQ.trim();
+    if(kinds)qp.kind=kinds.join(",");
+    if(statusFilts.size)qp.status=[...new Set([...statusFilts].map(x=>{const st=x.split(":")[0];return st==="on"?"run":st}))].join(",");
+    if(domainFilter)qp.domainId=domainFilter;
+    let cursor=null;const found=[];
+    do{
+      const r=await API.get("/units",Object.assign({},qp,{cursor}));
+      if(!live())return;
+      r.items.forEach(u=>{if(!INFRA_SCREENS.has(handScreen(u.kind))||!handScreen(u.kind))found.push(u)});
+      cursor=r.nextCursor||null;
+    }while(cursor&&found.length<LAY_FIND_MAX);
+    run.cut=!!cursor;
+    for(let i=0;i<found.length;i+=LIM.idsMax){
+      const part=found.slice(i,i+LIM.idsMax);
+      const res=await API.get("/tree/paths",{layout:run.lay,ids:part.map(u=>u.uid).join(",")});
+      if(!live())return;
+      for(const x of res.items||[]){
+        const c=x.chains?.[0];if(!c||c.length<2)continue;
+        for(const st of c.slice(0,-1)){await layBranch(run.lay,st.id);if(!live())return}
+        await layReach(run.lay,c[c.length-2].id,x.id);
+        if(!live())return;
+        const n=find(x.id)?.n;
+        if(layNode(run.lay,x.id)&&(!n||matchesStatus(n)))run.hits.add(x.id);
+      }
+      paint();
+    }
+  }catch(e){run.failed=true}
+  run.done=true;paint();
 }
 // ── Дерево «Сервера» ──────────────────────────────────────────────────────
 // Режим «Камеры»: домен → сервер → NVR / камеры, которые на него пишутся.
@@ -12811,7 +13153,7 @@ function tabsFor(n){
 }
 function tabsForHand(n){
   if(archScope(n))return edgeOn()?[["stor","Хранилища"],["edges","Встроенные хранилища"],["gen","Общие"]]:[["stor","Хранилища"],["gen","Общие"]];
-  if(handOf(n,"domain"))return[["flds","Папки"],["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]];
+  if(handOf(n,"domain"))return[["flds","Папки"],["gen","Общие"],["cams","Устройства"],["srvs","Серверы"],["lic","Лицензии"],["topo","Топология"]].filter(([id])=>needsMet(DOMAIN_TAB_NEEDS[id]));
   if(n.type==="unalloc")return[];
   if(handOf(n,"server")&&isUnallocated(n.id))return[["gen","Общие"],["topo","Топология"]];
   if(handOf(n,"server"))return[["gen","Общие"],["cams","Устройства"],["svc","Службы"],["disk","Хранилище"]].concat(can("feature:serverNetwork")?[["net","Сеть"]]:[],webHas(n)?[["web","Веб, RTSP, ONVIF"]]:[],[["topo","Топология"]]);
@@ -15165,7 +15507,7 @@ async function discLoad(did){
   discRead.add(did);
   const whole={domainId:did,candidates:[]};
   let cursor=null;
-  do{const r=await API.get(`/domains/${did}/discovery`,{cursor,limit:LIM.pageMax});whole.candidates.push(...r.candidates);cursor=r.nextCursor||null}while(cursor);
+  do{const r=await API.get(`/units/${did}/discovery`,{cursor,limit:LIM.pageMax});whole.candidates.push(...r.candidates);cursor=r.nextCursor||null}while(cursor);
   seedFound([whole]);
   if(wizd&&wizd.foundDomain===did&&wizd.devState==="done"){wizd.devResults=foundAll(did);if(app==="hw")gear()}
 }
@@ -15515,7 +15857,7 @@ function folderCardHtml(f){
   if(f.type==="nofolder"&&!f.items.length&&!more)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена находятся в папках")}</b></div></div>`;
   if(handOf(f,"folder")&&fl.draft==null&&!more&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
       <p class="sub">${i18n("Добавить сюда устройства: найденные в сети, добавленные по адресу или из файла, или уже добавленные в систему.")}</p>
-      <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
+      <div class="fl-empty-act">${folderAddBtn()}<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
   const scope=flScope(f,items),found=flFound(f,scope);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
   if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr&&flFocusFree()){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
@@ -18004,7 +18346,7 @@ function dcResume(){
   if(busyIds().size){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(app!=="hw"){
     if(app==="rules"&&ruleDiffLive().length){toast("Сначала применить или сбросить изменения правила");return}
-    setApp("hw");
+    if(!setApp("hw"))return;
   }
   if(!dc){const x=dcPeek();if(!x)return;dc={...x,items:new Set(x.items),cams:new Set(x.cams),more:new Set(),ready:false}}
   dc.min=false;dcDock();
@@ -19203,9 +19545,11 @@ const EXP_DEF={codec:"source",compression:"default",resolution:"source",fps:1,pl
 function expDraftNew(o={}){
   const now=Date.now(),L=EXP_REF?.limits||{},f0=EXP_REF?.fonts?.[0];
   const adv=Object.assign({},EXP_DEF,{maxmb:L.maxFileMbDefault||4000,font:f0?`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`:"",tracks:[],titles:EXP_DEF.titles.slice()});
-  return{entry:o.entry||"archive",from:o.from||"",cams:(o.cams||[]).map(id=>({id,area:null})),
+  const d={entry:o.entry||"archive",from:o.from||"",cams:(o.cams||[]).map(id=>({id,area:null})),
     periods:o.periods||[{from:now-10*60e3,to:now-5*60e3}],format:o.format||(o.entry==="live"?"jpg":"mkv"),single:true,name:"",nameSet:false,password:"",comment:o.comment||"",
     supLogin:"",supPwd:"",bookmarkId:o.bookmarkId||null,bookmarkNote:o.bookmarkNote||"",adv,tab:"main"};
+  if(!expRefDone)expNoRef.add(d);
+  return d;
 }
 const expFmt=d=>(EXP_REF?.formats||[]).find(f=>f.id===d.format)||null;
 const expFrame=d=>expFmt(d)?.kind==="frame";
@@ -19251,6 +19595,7 @@ function expBody(d){
 }
 // Открыть раздел с заказом: из карточки камеры, из отметки, с кнопки на рельсе
 function expOpen(o){
+  if(!expRefDone){expRefEnsure().then(()=>expOpen(o));return}   // заказ — с умолчаниями справочника
   expD=expDraftNew(o||{});expSel="new";expChk=null;expPick=null;
   if(app!=="exp")setApp("exp");else paint();
   expGrantLoad().then(expRepaint);expCheckSoon();
@@ -22644,21 +22989,25 @@ function formBase(n){
     const hw=n.servers.reduce((a,s)=>a+(s.devices||[]).filter(x=>!handOf(x,"det")).length,0);// службы серверов домена
     const unN=(n.unallocServers||[]).length,arcN=domainArchives(n.id).length;
     const fldN=domainFolderInfo(n.id),devN=domainDeviceCount(n);
-    return card("Домен",`${bdg(n)}
-      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${fldEdit("Серийный номер лицензии",n.id,"license",n.license||"")}</div>
+    // Плитки и кнопки VMS — по тем же условиям, что вкладки области (DOMAIN_TAB_NEEDS): у оркестратора их нет
+    const onSrv=needsMet(DOMAIN_TAB_NEEDS.srvs),onCam=needsMet(DOMAIN_TAB_NEEDS.cams),onLic=needsMet(DOMAIN_TAB_NEEDS.lic);
+    // Заголовок блока — подпись вида области (у VMS «Домен», у оркестратора «Рабочее пространство»)
+    const areaLabel=KINDS.get(nodeKind(n))?.label;
+    return card(areaLabel?textOf(areaLabel):"Домен",`${bdg(n)}
+      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${onLic?fldEdit("Серийный номер лицензии",n.id,"license",n.license||""):""}</div>
       <div class="mx" style="margin-top:10px">
-        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
+        ${onSrv?`<button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
         <button type="button" class="mc" ${onEv("click",["pick",`${unallocId(n.id)}`])}><span>${i18n("Нераспределённых")}</span><b>${unN}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Служб на серверах")}</span><b>${hw}</b></button>
-        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Сетевых хранилищ")}</span><b>${arcN}</b></button>
+        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Сетевых хранилищ")}</span><b>${arcN}</b></button>`:""}
         <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}${fldN.title?` title="${escHtml(fldN.title)}"`:""}><span>${i18n("Папок")}</span><b>${fldN.text}</b></button>
-        <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>
-        ${domLicTiles(n)}
+        ${onCam?`<button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>`:""}
+        ${onLic?domLicTiles(n):""}
       </div>`)+
       card("Действия",`<div class="dom-acts">
-        <button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>
+        ${onSrv?`<button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>`:""}
         <button type="button" class="btn s" ${onEv("click",["goTab","flds"],["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>
-        ${archCreateBtn(n)}
+        ${needsMet(["implements:vms.archive/1"])?archCreateBtn(n):""}
         <span style="flex:1"></span>
         <button type="button" class="btn s" data-needs="kind:domain/create" ${onEv("click",["addDomain"])}>${lu("plus")}${i18n("Домен")}</button>
         <button type="button" class="btn s danger" data-needs="kind:domain/delete" ${onEv("click",["deleteDomain",`${n.id}`])} ${canDeleteDomain()?"":"disabled title=\""+i18n("Последний домен удалить нельзя")+"\""}>${i18n("Удалить домен")}</button>
@@ -23066,7 +23415,10 @@ function ruleRefField(k,id){
     return p?{id:name,options:p.enum||p.items?.enum||[]}:null;
   }
   const a=RULE_REF.actions&&RULE_REF.actions.find(x=>x.source===k.sub&&x.action===k.action);
-  return a?a.fields.find(f=>f.id===(ACT_OUT[id]||id))||null:undefined;
+  if(!a)return undefined;
+  // Варианты поля — enum его schema (контракт 0.31.0), без schema — устаревшие options
+  const f=a.fields.find(f=>f.id===(ACT_OUT[id]||id));
+  return f?Object.assign({},f,{options:refFieldOpts(f)}):null;
 }
 // Необязательного поля нет в справочнике — его нет и в форме, если в правиле оно не заполнено раньше
 // «Куда» у репликации — по умолчанию архив из настройки встроенного хранилища
@@ -23110,7 +23462,7 @@ function ruleOutOfCat(r){
       const rf=ruleRefField(k,f.id),v=a[f.id]??"";
       if(v===""||rf===undefined)continue;
       if(rf===null&&(f.req===false||/необязательно/.test(f.label)))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
-      if(rf&&rf.options?.length&&!rf.options.includes(f.id==="dur"?v:f.id==="mon"?REF_MONITOR.get(v)||v:v))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
+      if(rf&&rf.options?.length&&!rf.options.includes(f.id==="dur"?v:f.id==="mon"?REF_MONITOR.get(v)||v:f.id==="layout"?REF_LAYOUT.get(v)||v:v))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
     }
     const p=a.ref?tgt(a.ref):"";if(p)return p;
   }
@@ -23477,18 +23829,21 @@ function ruleDevDom(n){
 }
 // Сервер устройства — по тем же правилам, что srv(), но по снимку: у камеры и регистратора —
 // их сервер, у прочих — через архив записи, у служб — владелец.
-function ruleDevSrv(n){
-  const m=ruleIdxGet().srv;
-  if(!m.has(n.id)){
+// Область сервера по раскладке (ruleTargets.areaLayouts.server, контракт 0.31.0) — ветка этой раскладки под сервером:
+// объект под сервером или камера сервера. Сервер архива записи в ветку не входит; старый бэкенд без areaLayouts — входит.
+// area — сервер для области цели; без него — сервер, под которым форма группирует устройства
+function ruleDevSrv(n,area){
+  const byArch=!area||!RULE_REF.targets?.areaLayouts,m=ruleIdxGet().srv,key=byArch?n.id:"a|"+n.id;
+  if(!m.has(key)){
     let sid="";
     for(const x of ruleAncestors(n)){
       if(handOf(x,"server")){sid=x.id;break}
       if(x.srvId&&(handCam(x)||handOf(x,"ipsrv"))&&servers.some(s=>s.id===x.srvId)){sid=x.srvId;break}
-      if(x.arch&&x.rec&&x.rec!=="none"){const a=arch.find(y=>y.id===x.arch);if(a&&servers.some(s=>s.id===a.server)){sid=a.server;break}}
+      if(byArch&&x.arch&&x.rec&&x.rec!=="none"){const a=arch.find(y=>y.id===x.arch);if(a&&servers.some(s=>s.id===a.server)){sid=a.server;break}}
     }
-    m.set(n.id,sid);
+    m.set(key,sid);
   }
-  return m.get(n.id);
+  return m.get(key);
 }
 function ruleUniverse(dt){
   return ruleMemo("u|"+dt.join(),()=>{
@@ -23526,7 +23881,7 @@ function ruleTokNodes(tok,dt){
   return ruleMemo("t|"+tok+"|"+dt.join(),()=>{
     const i=tok.indexOf(":"),k=i<0?"":tok.slice(0,i),v=tok.slice(i+1);
     if(k==="folder")return[...ruleFolderDevs(v).values()].filter(n=>ruleDtHit(n,dt));
-    if(k==="server")return ruleUniverse(dt).filter(n=>ruleDevSrv(n)===v);
+    if(k==="server")return ruleUniverse(dt).filter(n=>ruleDevSrv(n,true)===v);
     if(k==="domain")return ruleUniverse(dt).filter(n=>ruleDevDom(n)===v);
     if(k==="gone"||tok==="$src"||!tok)return[];
     const n=ruleNodeById(tok);return n?[n]:[];
@@ -24155,7 +24510,8 @@ function ruleOpen(id,flash){
 function ruleGoDevice(id){
   if(dcCustom())dcMin();
   if(ruleGuard(()=>ruleGoDevice(id)))return;
-  setApp("hw");hwJumpFlash=true;pick(id);hwJumpFlash=false;
+  if(!setApp("hw"))return;
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
 }
 
 // ── Создание ──
@@ -24273,7 +24629,7 @@ function ruleNewRender(){
   // Мастер открыт с готовым шаблоном — прокрутить к нему, иначе выбор скрыт под прокруткой
   if(rnw.reveal&&st.k==="tpl"){rnw.reveal=false;setTimeout(()=>document.querySelector("#bmBody .rl-opt.on")?.scrollIntoView({block:"center",behavior:matchMedia("(prefers-reduced-motion: reduce)").matches?"auto":"smooth"}),320)}
 }
-function ruleNewReturn(b){if(!find(b.id))return;setApp("hw");hwJumpFlash=true;pick(b.id,{tab:b.tab});hwJumpFlash=false}
+function ruleNewReturn(b){if(!find(b.id)||!setApp("hw"))return;hwJumpFlash=true;pick(b.id,{tab:b.tab});hwJumpFlash=false}
 const RULE_NEW_STEPS=[{k:"start",t:"Как запускается"},{k:"tpl",t:"С чего начать"}];
 function ruleNewGo(i){rnw.step=+i;ruleNewRender()}
 // Монотонный счётчик: номер правила не переиспользуется, даже если прежнее удалено
@@ -25225,7 +25581,8 @@ function ruleTraceToggle(k){
 function ruleGoArchive(id,t){
   if(ruleGuard(()=>ruleGoArchive(id,t)))return;
   const n=find(id)?.n;if(!n)return;
-  setApp("hw");hwJumpFlash=true;pick(id);hwJumpFlash=false;
+  if(!setApp("hw"))return;
+  hwJumpFlash=true;pick(id);hwJumpFlash=false;
   if(sel!==id)return;             // переход не состоялся (другой вопрос, блокировка) — вкладку и тост не показываем
   tab="rec";paint();              // вкладку подсветит вспышка, запущенная pick
   toast(`${i18n("Архив камеры")} «${locName(n)}» ${i18n("на")} ${t}`);
@@ -25715,8 +26072,10 @@ const SCEN={did:null,doc:null,status:[],edit:null,note:"",found:{when:[],then:[]
 function scenDid(){return SCEN.did||domainFilter||domains[0]?.id}
 async function scenLoad(did){
   SCEN.did=did||scenDid();
-  const[doc,st]=await Promise.all([API.get(`/domains/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/domains/${SCEN.did}/scenarios/status`):{items:[]}]);
+  const[doc,st]=await Promise.all([API.get(`/units/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/units/${SCEN.did}/scenarios/status`):{items:[]}]);
   SCEN.doc=doc;SCEN.status=st.items;
+  // Виды событий сценариев — из документа (ScenarioDoc.kinds); старый бэкенд без поля — справочник
+  if(Array.isArray(doc.kinds))refScenKinds=doc.kinds;
   await hwEnsure(doc.items.flatMap(x=>[x.when.deviceId,x.then.deviceId]));
   if(app==="rules"&&rule==="between")paint();
 }
@@ -25790,7 +26149,8 @@ function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[]
 // правкой, и запись по свежей версии молча затёрла бы чужое
 async function scenWrite(items,after,base=SCEN.doc){
   try{
-    SCEN.doc=await API.put(`/domains/${SCEN.did}/scenarios`,{items},base.version);
+    SCEN.doc=await API.put(`/units/${SCEN.did}/scenarios`,{items},base.version);
+    if(Array.isArray(SCEN.doc?.kinds))refScenKinds=SCEN.doc.kinds;
     SCEN.note="";after&&after();paint();
   }catch(e){
     if(e?.problem?.code!=="VERSION_MISMATCH"){toast(problemText(e));return}
@@ -33115,7 +33475,7 @@ function abortDeviceSearch(){
   if(wizd.devState!=="searching")return;
   stopDeviceSearch();
   wizd.devState="done";
-  if(wizd.searchDomain)API.del(`/domains/${wizd.searchDomain}/discovery`).catch(()=>{});
+  if(wizd.searchDomain)API.del(`/units/${wizd.searchDomain}/discovery`).catch(()=>{});
   renderDeviceWizard();
 }
 function deviceArchiveWarning(){
@@ -36983,16 +37343,16 @@ function planOpen(t){
 function planHeadOpen(){
   if(document.getElementById("wiz").classList.contains("open"))return;
   if(app==="rules"&&ruleGuard(planHeadOpen))return;
-  if(app!=="hw")setApp("hw");
+  if(app!=="hw"&&!setApp("hw"))return;
   planOpen();
   // Пришли за планом: сразу к нему
   if(addPlan.rows.length||addPlan.links.length){wizd.planStep=1;renderDeviceWizard()}
 }
-function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
+function folderAddBtn(){return!needsMet(DOMAIN_TAB_NEEDS.cams)?"":`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
 function addSplitItems(n){
   const items=[];
   if(handOf(n,"domain")){
-    items.push(["Серверы…",`openAddServers('${n.id}')`]);
+    if(needsMet(DOMAIN_TAB_NEEDS.srvs))items.push(["Серверы…",`openAddServers('${n.id}')`]);
     if(canCreateKind("archive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
   }
   if(handOf(n,"server")&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
@@ -37004,6 +37364,8 @@ function addSplitBtn(n){
   if(!lanHost(n)&&n?.type!=="found")return"";
   const lb=`${lu("plus")}${i18n("Добавить устройства")}`;
   const items=addSplitItems(n);
+  // Устройств VMS система не знает (DOMAIN_TAB_NEEDS.cams): «Добавить устройства» нет, остальное — меню «Добавить другое»
+  if(!needsMet(DOMAIN_TAB_NEEDS.cams))return items.length?`<button type="button" class="btn s" aria-haspopup="menu" aria-expanded="false" ${onEv("click",["addSplitMenu",onEv.event,`${n.id}`])}>${lu("plus")}${i18n("Добавить другое")}</button>`:"";
   if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
   return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
     `<button type="button" class="btn s btn-split-arrow" aria-haspopup="menu" aria-expanded="false" aria-label="${i18n("Добавить другое")}" title="${i18n("Добавить другое")}" ${onEv("click",["addSplitMenu",onEv.event,`${n.id}`])}>${CHEV_BTN}</button></span>`;
@@ -37487,7 +37849,7 @@ let paintTreeLater=false;
 function paintTreeSoon(){paintTreeLater=true;try{paint()}finally{paintTreeLater=false}}
 function paint(){ruleIdxDrop();renderRail();syncGoInput();if(_lastApp!==app){aside();_lastApp=app}else if(paintTreeLater)renderTreeSoon();else renderTree();syncDomainChrome();renderFavs();hdModePaint();
   const ui={hw:gear,dev:gear,srvs:gear,rules:rulesUI,acc:accUI,sys:sysUI,log:logUI,exp:expUI,learn:learnUI};
-  (ui[app]||gear)();
+  (appsShown().length?ui[app]||gear:appsNoneUI)();
   pjaHdSync();
   syncHeaderLoad();
 }
@@ -37527,7 +37889,7 @@ function navLoc(){
 }
 function navKey(loc){const{tab,ruleTab,accTab,bsel,sel,...rest}=loc;return JSON.stringify({...rest,sel:loc.bulk?"":sel})}
 function navTitle(){
-  const sec=i18n(APPS_LIST.find(a=>a.id===app)?.label||app);
+  const sec=appLabel(app);
   let t="";
   if(app==="hw"&&bulkActive()&&!bulkPeek)t=`${i18n("Выборка")} (${bulkSelNodes().length})`;
   else if(app==="hw"){const n=find(sel)?.n;t=n?locName(n):""}
