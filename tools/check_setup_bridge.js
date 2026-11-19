@@ -1,5 +1,5 @@
 /* Проверка библиотеки страницы api/setup-bridge.js по протоколу setup/1 (api/SETUP-UI.md): tools/check_api.py читает
-   отсюда JSON со списком отказов (пустой — всё хорошо). Окно поддельное: parent.postMessage пишет [сообщение, адресат],
+   отсюда JSON {"problems": [отказы], "scenarios": N} (пустой список — всё хорошо). Окно поддельное: parent.postMessage пишет [сообщение, адресат],
    addEventListener("message") копит обработчики, location.ancestorOrigins, document.referrer и ResizeObserver — свои
    в каждом сценарии. PARENT.postMessage сверяет каждое отправленное сообщение со схемой своего type в
    api/setup-ui.schema.json (ConsolemContract.check): сообщение должно идти к consolem (x-direction: toHost). */
@@ -11,6 +11,9 @@ const schema = require(API + "/setup-ui.schema.json");
 const shape = { components: { schemas: schema.$defs } };
 const bad = [];
 const fail = (where, text) => bad.push(`${where}: ${text}`);
+// Сценарии, которые прошёл прогон: их число check_api.py печатает в итоге
+const scenes = new Set();
+const scene = (n) => scenes.add(n);
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // ── Поддельное окно ──
@@ -90,12 +93,14 @@ async function run() {
   const B = window.SetupBridge;
 
   // 1 connect шлёт ready сразу, на происхождение consolem
+  scene("1");
   env();
   B.connect({ fields: ["/properties/code_length"] });
   if (!same(sent, [[{ proto: "setup/1", type: "ready", fields: ["/properties/code_length"] }, "https://console.example"]]))
     fail("1 ready", `отправлено ${JSON.stringify(sent)}`);
 
   // 2 init из чужого окна или с чужого происхождения — обещание не сбылось
+  scene("2");
   for (const [label, from] of [["чужое окно", { source: STRANGER }], ["чужое происхождение", { origin: "https://evil.example" }]]) {
     env();
     const { session } = await connected({}, INIT(), from);
@@ -103,6 +108,7 @@ async function run() {
   }
 
   // 3 верный init
+  scene("3");
   env();
   let init = INIT();
   let { session: s } = await connected({}, init);
@@ -116,6 +122,7 @@ async function run() {
   }
 
   // 4 change и flush
+  scene("4");
   env();
   let flushCalls = 0, sess4 = null;
   ({ session: s } = await connected({ autoHeight: false, onFlush: () => { flushCalls++; if (sess4.pending) sess4.change(sess4.pending); } }));
@@ -146,6 +153,7 @@ async function run() {
   if (!same(types(), ["flushed"])) fail("4 flush без новой правки", `отправлено ${JSON.stringify(types())}`);
 
   // 5 только просмотр
+  scene("5");
   env();
   ({ session: s } = await connected({ autoHeight: false }, INIT({ readOnly: true })));
   sent = [];
@@ -154,6 +162,7 @@ async function run() {
   if (sent.length) fail("5 readOnly", `отправлено ${JSON.stringify(sent)}`);
 
   // 6 незнакомый type и другая версия протокола — без исключения и без вызовов
+  scene("6");
   env();
   let calls = 0;
   const count = () => calls++;
@@ -178,6 +187,7 @@ async function run() {
 
   // 7 непрозрачное происхождение (правило стенда): отправка с "*", приём с "null" и "file://" —
   // только у страницы с диска или с непрозрачным своим происхождением
+  scene("7");
   for (const [anc, page] of [["null", "null"], ["file://", "file"], ["null", "file"]]) {
     for (const origin of ["null", "file://"]) {
       env({ ancestors: [anc], page });
@@ -202,6 +212,7 @@ async function run() {
   }
   // 7б настоящая страница (https) без происхождения consolem: нет ancestorOrigins (Firefox) и referrer (no-referrer),
   // или предок непрозрачный. Правила стенда нет: connect отказывает, сообщений нет, причина — в консоли
+  scene("7б");
   for (const [label, o] of [["нет ancestorOrigins и referrer", { referrer: "" }], ["предок null", { ancestors: ["null"] }], ["предок file://", { ancestors: ["file://"] }]]) {
     env(o);
     if (!o.ancestors) delete location.ancestorOrigins;
@@ -229,6 +240,7 @@ async function run() {
   if (s) fail("7 известное происхождение", "init с origin null принят");
 
   // 8 ancestorOrigins нет — происхождение из referrer
+  scene("8");
   env({ referrer: "https://console.example/x" });
   delete location.ancestorOrigins;
   ({ session: s } = await connected({}));
@@ -239,6 +251,7 @@ async function run() {
   if (!sent[0] || sent[0][1] !== "https://console.example") fail("8 пустой ancestorOrigins", `ready ${JSON.stringify(sent[0])}`);
 
   // 9 высота: вручную и ResizeObserver, одно значение два раза подряд — одно сообщение
+  scene("9");
   env();
   ({ session: s } = await connected({}));
   sent = [];
@@ -263,6 +276,7 @@ async function run() {
   if (observers.length) fail("9 autoHeight:false", "ResizeObserver создан");
 
   // 10 errors, applied, revert, draft, theme
+  scene("10");
   env();
   const seen = [];
   ({ session: s } = await connected({
@@ -290,6 +304,7 @@ async function run() {
   if (!same(seen.pop(), ["theme", theme])) fail("10 theme", "onTheme не получил theme");
 
   // 11 invalid
+  scene("11");
   env();
   ({ session: s } = await connected({ autoHeight: false }));
   sent = [];
@@ -301,6 +316,7 @@ async function run() {
   ])) fail("11 invalid", `отправлено ${JSON.stringify(sent)}`);
 
   // 12 merge и diff
+  scene("12");
   const m = B.merge({ a: 1, b: { c: 1 } }, { b: { c: null }, d: 2 });
   if (!same(m, { a: 1, b: {}, d: 2 })) fail("12 merge", JSON.stringify(m));
   const base = { a: 1, b: { c: 1 } };
@@ -330,6 +346,7 @@ async function run() {
   }
 
   // 14 flush: onFlush с исключением, seq не по схеме, только просмотр, черновик от consolem
+  scene("14");
   env();
   ({ session: s } = await connected({ autoHeight: false, onFlush: () => { throw new Error("сбой страницы"); } }));
   sent = [];
@@ -355,6 +372,7 @@ async function run() {
   if (!same(types(), ["flushed"])) fail("14 flush после draft", `черновик ушёл обратно: ${JSON.stringify(types())}`);
 
   // 15 opts.origin: путь отрезан, "*" и непрозрачное — отказ
+  scene("15");
   env({ ancestors: [] });
   ({ session: s } = await connected({ origin: "https://console.example/app/index.html" }));
   if (!sent[0] || sent[0][1] !== "https://console.example") fail("15 opts.origin с путём", `ready ${JSON.stringify(sent[0])}`);
@@ -384,6 +402,7 @@ async function run() {
 // данные страница берёт из init. ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
 // lock_after_tries: на нём проверяют строку покрытия и ошибки «не на странице»
 function page13() {
+  scene("13");
   const fs = require("fs"), path = require("path"), vm = require("vm");
   const rel = "plugins/security_controller/setup";
   const dir = path.join(API, rel);
@@ -440,4 +459,6 @@ function page13() {
   if (!same(got, want)) fail("13 page.js", `ready.fields ${JSON.stringify(got)}, ждали ${JSON.stringify(want)}`);
 }
 
-run().then(() => console.log(JSON.stringify(bad)), (e) => console.log(JSON.stringify([...bad, `исключение: ${e && e.stack}`])));
+// Вывод для check_api.py: {"problems": […], "scenarios": N}
+const report = (problems) => console.log(JSON.stringify({ problems, scenarios: scenes.size }));
+run().then(() => report(bad), (e) => report([...bad, `исключение: ${e && e.stack}`]));

@@ -1030,62 +1030,92 @@ SETUP_UI_DIRECTIONS = {"toPage": "→ страница", "toHost": "→ consolem
 
 
 def setup_ui_problems(spec, schema, doc):
-    """Расхождения схемы сообщений setup/1 с собой, с описанием SETUP-UI.md и с Problem контракта (список строк)."""
+    """Расхождения схемы сообщений setup/1 с собой, с описанием SETUP-UI.md и с Problem контракта (список строк).
+    Кривой вход (не тот тип у $defs, properties, oneOf, x-step…) — отказ строкой, а не исключение."""
+    if not isinstance(schema, dict):
+        return ["#: схема — не объект"], 0
     problems = []
-    defs = schema.get("$defs") or {}
+    defs = schema.get("$defs")
+    if not isinstance(defs, dict):
+        problems.append("#/$defs: не объект")
+        defs = {}
     bad_refs = []
+    obj = lambda v: v if isinstance(v, dict) else {}
 
     def walk(node, where):
         if not isinstance(node, dict):
             problems.append(f"{where}: схема — не объект")
             return
-        problems.extend(f"{where}: {k} — вне разрешённых ключевых слов" for k in sorted(node) if k not in SETUP_UI_KEYWORDS)
+        problems.extend(f"{where}: {k} — вне разрешённых ключевых слов" for k in sorted(map(str, node)) if k not in SETUP_UI_KEYWORDS)
         ref = node.get("$ref")
         if ref is not None and not (isinstance(ref, str) and re.fullmatch(r"#/\$defs/\w+", ref) and ref.split("/")[-1] in defs):
             bad_refs.append(ref)
             problems.append(f"{where}: ссылка {ref} — только на #/$defs/<имя> этого файла")
         for key in ("properties", "$defs"):
-            for name, sub in (node.get(key) or {}).items():
-                walk(sub, f"{where}/{key}/{name}")
+            sub = node.get(key)
+            if sub is not None and not isinstance(sub, dict):
+                problems.append(f"{where}/{key}: не объект")
+                continue
+            for name, one in (sub or {}).items():
+                walk(one, f"{where}/{key}/{name}")
         for key in ("items", "additionalProperties"):
             if isinstance(node.get(key), dict):
                 walk(node[key], f"{where}/{key}")
+            elif key in node and not isinstance(node[key], bool):
+                problems.append(f"{where}/{key}: не схема и не true/false")
         for key in ("oneOf", "anyOf"):
-            for i, sub in enumerate(node.get(key) or []):
-                walk(sub, f"{where}/{key}/{i}")
+            sub = node.get(key)
+            if sub is not None and not isinstance(sub, list):
+                problems.append(f"{where}/{key}: не список")
+                continue
+            for i, one in enumerate(sub or []):
+                walk(one, f"{where}/{key}/{i}")
+        for key in ("required", "enum"):
+            if key in node and not isinstance(node[key], list):
+                problems.append(f"{where}/{key}: не список")
 
     walk(schema, "#")
     # Сообщения — $defs с x-direction; корень перечисляет в oneOf ровно их
     messages = {n: d for n, d in defs.items() if isinstance(d, dict) and "x-direction" in d}
-    listed = {(s or {}).get("$ref", "").split("/")[-1] for s in schema.get("oneOf") or []}
+    one_of = schema.get("oneOf") if isinstance(schema.get("oneOf"), list) else []
+    listed = {s["$ref"].split("/")[-1] for s in one_of if isinstance(s, dict) and isinstance(s.get("$ref"), str)}
     problems.extend(f"#/oneOf: нет сообщения {n}" for n in sorted(set(messages) - listed))
     problems.extend(f"#/oneOf: {n} — не сообщение (у $defs нет x-direction)" for n in sorted(listed - set(messages)))
     for name, d in messages.items():
         where = f"#/$defs/{name}"
-        if d["x-direction"] not in SETUP_UI_DIRECTIONS:
+        if not isinstance(d["x-direction"], str) or d["x-direction"] not in SETUP_UI_DIRECTIONS:
             problems.append(f"{where}: x-direction {d['x-direction']!r} — не toPage и не toHost")
-        if not isinstance(d.get("x-step"), int):
-            problems.append(f"{where}: нет x-step")
-        if not {"proto", "type"} <= set(d.get("required") or []):
+        step = d.get("x-step")
+        if not isinstance(step, int) or isinstance(step, bool):
+            problems.append(f"{where}: x-step {step!r} — нужно целое число" if "x-step" in d else f"{where}: нет x-step")
+        required = d.get("required") if isinstance(d.get("required"), list) else []
+        if not {"proto", "type"} <= {r for r in required if isinstance(r, str)}:
             problems.append(f"{where}: proto и type не в required")
-        props = d.get("properties") or {}
-        if (props.get("proto") or {}).get("enum") != ["setup/1"]:
+        props = obj(d.get("properties"))
+        if obj(props.get("proto")).get("enum") != ["setup/1"]:
             problems.append(f"{where}: proto — не enum [\"setup/1\"]")
-        if (props.get("type") or {}).get("enum") != [name]:
+        if obj(props.get("type")).get("enum") != [name]:
             problems.append(f"{where}: type — не enum [\"{name}\"]")
         if d.get("additionalProperties") is not False:
             problems.append(f"{where}: нет additionalProperties: false")
     # Примеры: у каждого сообщения есть, каждый проходит схему своего type (с битой ссылкой схему не прогнать)
     shape = {"components": {"schemas": defs}}
     seen = set()
-    for i, ex in enumerate(schema.get("examples") or []):
+    examples = schema.get("examples", [])
+    if not isinstance(examples, list):
+        problems.append("#/examples: не список")
+        examples = []
+    for i, ex in enumerate(examples):
         t = ex.get("type") if isinstance(ex, dict) else None
-        if t not in messages:
+        if not isinstance(t, str) or t not in messages:
             problems.append(f"#/examples/{i}: нет сообщения type {t!r}")
             continue
         seen.add(t)
         if not bad_refs:
-            validate(shape, messages[t], ex, f"#/examples/{i} ({t})", problems)
+            try:
+                validate(shape, messages[t], ex, f"#/examples/{i} ({t})", problems)
+            except Exception as e:  # кривая схема сообщения: причина уже в problems выше, пример не прогнать
+                problems.append(f"#/examples/{i} ({t}): схему не прогнать — {type(e).__name__}: {e}")
     problems.extend(f"#/$defs/{n}: нет примера в examples" for n in sorted(set(messages) - seen))
     # Таблицы «Сообщения» описания: строка на сообщение, направление — по заголовку таблицы
     sec = re.search(r"^## Сообщения\s*$(.*?)(?=^## )", doc + "\n## ", re.S | re.M)
@@ -1119,10 +1149,11 @@ def setup_ui_problems(spec, schema, doc):
         if not isinstance(a, dict):
             problems.append(f"#/$defs/{mine}: нет копии {theirs}")
             continue
-        if set(a.get("properties") or {}) != set(b.get("properties") or {}):
-            problems.append(f"#/$defs/{mine}: поля {sorted(a.get('properties') or {})} — у {theirs} {sorted(b.get('properties') or {})}")
-        if sorted(a.get("required") or []) != sorted(b.get("required") or []):
-            problems.append(f"#/$defs/{mine}: required {sorted(a.get('required') or [])} — у {theirs} {sorted(b.get('required') or [])}")
+        if set(obj(a.get("properties"))) != set(b.get("properties") or {}):
+            problems.append(f"#/$defs/{mine}: поля {sorted(obj(a.get('properties')))} — у {theirs} {sorted(b.get('properties') or {})}")
+        req = sorted(map(str, a.get("required") if isinstance(a.get("required"), list) else []))
+        if req != sorted(b.get("required") or []):
+            problems.append(f"#/$defs/{mine}: required {req} — у {theirs} {sorted(b.get('required') or [])}")
     setup = schemas.get("UnitKind", {}).get("properties", {}).get("setupUi", {})
     if "api/SETUP-UI.md" not in setup.get("description", ""):
         problems.append("openapi.json: в описании UnitKind.setupUi нет ссылки на api/SETUP-UI.md")
@@ -1144,12 +1175,28 @@ def check_setup_ui(rep, spec):
     name = "Библиотека страницы setup-bridge.js: протокол setup/1"
     if read(f"{API}/setup-bridge.js") is None:
         return rep.fail(name, [f"{API}/setup-bridge.js нет"])
-    res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_setup_bridge.js"), API], capture_output=True, text=True, cwd=ROOT)
+    problems, note = setup_bridge_run()
+    rep.check(name, problems, note)
+
+
+def setup_bridge_run():
+    """Прогон tools/check_setup_bridge.js в Node → (отказы, итог). Скрипт печатает {"problems": […], "scenarios": N}.
+    Нет node, выход не 0 или вывод не тот — отказ строкой, а не исключение."""
     try:
-        problems = res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
+        res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_setup_bridge.js"), API], capture_output=True, text=True, cwd=ROOT)
+    except OSError as e:
+        return [f"node не запустился: {e}"], ""
+    if res.returncode:
+        return res.stderr.strip().splitlines()[-3:] or [f"check_setup_bridge.js: exit code {res.returncode}"], ""
+    try:
+        out = json.loads(res.stdout)
     except ValueError:
-        problems = [f"check_setup_bridge.js: не JSON — {res.stdout.strip()[-200:]}"]
-    rep.check(name, problems, "14 сценариев")
+        return [f"check_setup_bridge.js: не JSON — {res.stdout.strip()[-200:]}"], ""
+    problems = out.get("problems") if isinstance(out, dict) else None
+    count = out.get("scenarios") if isinstance(out, dict) else None
+    if not isinstance(problems, list) or not isinstance(count, int) or isinstance(count, bool):
+        return [f"check_setup_bridge.js: вывод не {{problems: […], scenarios: N}} — {res.stdout.strip()[-200:]}"], ""
+    return [str(p) for p in problems], f"сценариев {count}"
 
 
 def check_core_field(rep, spec):
