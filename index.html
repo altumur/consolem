@@ -5500,7 +5500,13 @@ async function schemaValidate(n,d){
   const map={},schema=schemaOf(n);
   errs.forEach(e=>{const f=sfPointer(e.field);if(!(f in map))map[f]=sfErrText(schema,e)});
   schemaErrs.set(n.id,map);
-  if(suiFrame?.uid===n.id)suiErrors(n,{code:"VALIDATION_FAILED",message:i18n("Сервер не примет правку"),errors:errs});
+  // Problem для страницы — как у сервера (errsProblem): первая ошибка — в code, field и params, все — в errors
+  if(suiFrame?.uid===n.id){
+    const e0=errs[0]||{},pr={code:e0.code||"VALIDATION_FAILED",message:i18n("Сервер не примет правку"),errors:errs};
+    if(typeof e0.field==="string")pr.field=e0.field;
+    if(e0.params)pr.params=e0.params;
+    suiErrors(n,pr);
+  }
   if(sel===n.id&&app==="hw")gear();
   toast(`${i18n("Сервер не примет правку")} — ${Object.values(map)[0]}`);
   return false;
@@ -6456,7 +6462,8 @@ function permText(p){
 // (position: fixed) вне #main: перенос iframe в DOM перезагружает его, поэтому перерисовка карточки рамку не трогает.
 // В карточке — только место [data-sui-slot] нужной высоты; suiPlace() ставит док поверх места и обрезает его по видимой
 // части прокрутки. Нет места (вкладка «Доступ», «Все параметры») — док скрыт, рамка жива, пока открыт тот же объект.
-// Правило стенда (не протокол): адрес на происхождении консоли или оба адреса file: — star: отправка с "*", приём с "null".
+// Правило стенда (не протокол): тестовая страница стенда — относительный адрес или адрес под api/plugins/ на происхождении
+// консоли (или оба адреса file:) — star: отправка с "*", приём с "null". Другой адрес на происхождении консоли — сбой.
 // Рамка на http того же происхождения — без allow-same-origin; консоль с диска даёт allow-same-origin, иначе Chrome
 // не загружает скрипты страницы с диска
 const SUI_PROTO="setup/1",SUI_READY_MS=10000,SUI_FLUSH_MS=2000,SUI_APPLY="button",SUI_MECH_TABS=new Set(["acc"]);
@@ -6549,9 +6556,18 @@ async function suiOpen(n){
   if(/^(javascript|data|vbscript):/i.test(raw))return suiFail(bad);
   let url;try{url=new URL(raw,document.baseURI)}catch(e){return suiFail(bad)}
   if(!/^(https?|file):$/.test(url.protocol))return suiFail(bad);
+  // Правило стенда — только для тестовой страницы стенда: относительный адрес или адрес под api/plugins/ на происхождении
+  // консоли (у консоли с диска — на диске). Другой адрес на происхождении консоли или подсказка origin, равная ему, — сбой:
+  // такая страница в рамке с allow-same-origin получила бы доступ к консоли
   const fileHere=location.protocol==="file:";
-  const star=(url.protocol==="file:"&&fileHere)||(url.origin!=="null"&&url.origin===location.origin);
-  const origin=suiOriginOf(link.origin||su?.origin||url.href);
+  const here=u=>u.protocol==="file:"?fileHere:(u.origin!=="null"&&u.origin===location.origin);
+  const rel=!/^([a-z][a-z0-9+.-]*:|\/\/)/i.test(raw);
+  const star=here(url)&&(rel||url.href.startsWith(new URL("api/plugins/",document.baseURI).href));
+  const hint=link.origin||su?.origin||"";
+  let hintHere=false;
+  if(hint){try{hintHere=here(new URL(String(hint)))}catch(e){}}
+  if(!star&&(here(url)||hintHere))return suiFail(i18n("У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу."));
+  const origin=suiOriginOf(hint||url.href);
   if(!star&&(!origin||origin==="null"))return suiFail(bad);
   Object.assign(suiFrame,{url:url.href,origin,star,readOnly:!!link.readOnly});
   const el=document.createElement("iframe");
@@ -6667,6 +6683,8 @@ function suiErrors(n,problem){
   const errors=(problem.errors||[]).map(e=>{const x={code:String(e.code||"VALIDATION_FAILED")};if(typeof e.field==="string")x.field=e.field;if(e.params&&typeof e.params==="object")x.params=e.params;return x});
   const pr={code:String(problem.code||"VALIDATION_FAILED"),message:String(problem.message||"")};
   if(typeof problem.field==="string")pr.field=problem.field;
+  if(problem.params&&typeof problem.params==="object"&&!Array.isArray(problem.params))pr.params=cardClone(problem.params);
+  if(problem.current&&typeof problem.current==="object"&&!Array.isArray(problem.current))pr.current=cardClone(problem.current);
   if(errors.length)pr.errors=errors;
   suiPost("errors",{problem:pr});
   const ps=KINDS.get(nodeKind(n))?.schema?.properties||{},seen=new Set();

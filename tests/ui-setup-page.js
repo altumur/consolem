@@ -7,7 +7,14 @@
    Страница: index.html (из прототипа 80). Режим сравнения есть только в прототипе index_80_svoya-stranica.html:
    его шаги идут только там. На странице без своей страницы подсистемы сценарию проверять нечего. */
 UiCheck(async ({ ok, until, sleep }) => {
-  if (typeof suiOn !== "function") { ok(true, "своей страницы подсистемы на этой странице нет: проверять нечего"); return; }
+  // Своя страница подсистемы есть в index.html (из прототипа 80): на нём её отсутствие — отказ. Пропуск — только у прототипа
+  // без этой функции. Прототип узнаём по имени его файла английских текстов (assets/i18n-en-NN.js): check_ui.py и
+  // самопроверка открывают страницу под другим именем
+  const protoFile = [...document.querySelectorAll("script[src]")].map((x) => x.getAttribute("src")).find((x) => /i18n-en-\d+\.js$/.test(x));
+  if (typeof suiOn !== "function") {
+    ok(!!protoFile, protoFile ? "своей страницы подсистемы в прототипе (" + protoFile + ") нет: проверять нечего" : "своей страницы подсистемы нет, а в index.html она должна быть");
+    return;
+  }
   const SUI_KIND = "security_controller/KEYPAD";
   const SUI_UNIT = "30000306-0000-4000-8000-000000000000";
   const SUI_TEST_PAGE = "api/plugins/security_controller/setup/index.html";
@@ -199,6 +206,12 @@ UiCheck(async ({ ok, until, sleep }) => {
         ok(await until(() => !!lastOf("errors")) && !bm(), "422 — errors странице, плана нет");
         const er = lastOf("errors");
         ok(valid(er) && er.problem.errors.some((e) => e.field === "/properties/code_length") && !main().querySelector("[data-sui-errs]"), "ошибка поля страницы — только странице — " + JSON.stringify(errsOf(er)));
+        // Problem — как у сервера (errsProblem): первая ошибка — в code, field и params, все — в errors с их params
+        {
+          const e0 = er.problem.errors[0] || {};
+          ok(!!e0.params && er.problem.code === e0.code && er.problem.field === e0.field && JSON.stringify(er.problem.params) === JSON.stringify(e0.params),
+            "errors: первая ошибка — в code, field и params Problem — " + JSON.stringify(er.problem));
+        }
         ok(!pageDoc() || await until(() => pageDoc().querySelector('[data-field="code_length"]').classList.contains("bad")), "страница стенда отметила поле «Длина кода»");
         // 422: поле не на странице — список под местом с «Все параметры»
         const ers = sent.filter((m) => m.type === "errors").length;
@@ -375,7 +388,7 @@ UiCheck(async ({ ok, until, sleep }) => {
           }
           await open(SUI_UNIT);
           ok(await until(() => suiFrame?.state === "ready" && !!slot(), 15000), "назад к «Клавиатуре»: страница прислала ready");
-        } else ok(true, "режима сравнения на этой странице нет");
+        } else ok(!document.querySelector("[data-cmp],[data-cover]") && typeof cmpSet === "undefined" && typeof suiCoverOf === "undefined", "режима сравнения на этой странице нет: ни переключателя, ни строки покрытия, ни cmpSet");
       } finally {
         console.warn = realWarn;
       }
@@ -505,6 +518,25 @@ UiCheck(async ({ ok, until, sleep }) => {
     const ctrl = (await API.get("/units", { kind: "security_controller/CONTROLLER", limit: 1 })).items[0];
     await open(ctrl.uid);
     ok(await until(() => !!main().querySelector("[data-plugin]") && !slot() && !!main().querySelector("[data-schema-card]")), "mode: tab — ссылка «Страница плагина», форма по схеме");
+
+    // Правило стенда — только для тестовой страницы стенда: относительный адрес или адрес под api/plugins/ на происхождении
+    // консоли (у консоли с диска — на диске). Другой адрес на происхождении консоли и подсказка origin, равная происхождению
+    // консоли, при чужом адресе — сбой с причиной, рамки нет
+    {
+      const SAME = i18n("У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.");
+      const sameFail = () => suiFrame?.uid === SUI_UNIT && suiFrame.state === "failed" && suiFrame.why === SAME && !dockFrame();
+      const elsewhere = new URL("tools/setup-page.html", document.baseURI).href;
+      stubSetup(() => Promise.resolve({ url: elsewhere, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
+      await open(SUI_UNIT);
+      ok(await until(sameFail, 3000), "адрес на происхождении консоли вне api/plugins/ — сбой «то же происхождение»: " + JSON.stringify(suiFrame && { state: suiFrame.state, why: suiFrame.why }));
+      const hintHere = location.protocol === "file:" ? "file://" : location.origin;
+      stubSetup(() => Promise.resolve({ url: "https://pages.example/setup/index.html", origin: hintHere, expiresAt: new Date(Date.now() + 300000).toISOString(), readOnly: false }));
+      suiRetry();
+      ok(await until(sameFail, 3000), "подсказка origin — происхождение консоли, адрес чужой — сбой «то же происхождение»: " + JSON.stringify(suiFrame && { state: suiFrame.state, why: suiFrame.why }));
+      unstub();
+      await open(ctrl.uid);
+      await until(() => suiFrame === null);
+    }
 
     // Уход со страницы на вторую камеру: поздний адрес, зависший POST, страница не ответила. Без второй камеры — пропуск
     if (!cam2) note("в наборе одна камера: проверки ухода со страницы пропущены");

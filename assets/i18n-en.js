@@ -4294,4 +4294,7 @@ window.I18N_EN={
 "Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице.":"The page found an input error. To show the plan, correct the error on the page.",
 "Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».":"The server does not accept fields that are not on the page. To correct them, open “All parameters”.",
 "У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.":"You have only the view right, so the console does not apply changes on the page.",
+"У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.":"The subsystem page has the same origin as the console, so the console does not open the page.",
+// Проверка правки сервером до плана (форма по схеме, своя страница подсистемы)
+"Сервер не примет правку":"The server does not accept the change",
 };
