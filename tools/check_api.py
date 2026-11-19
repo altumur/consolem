@@ -29,6 +29,9 @@
 11. Слой у каждого теста API (node tools/api_tests_registry.mjs): слой — mechanism, video или profile:<id> с файлом в api/profiles/;
    since — только у теста профиля, вида M.m, старшая цифра как в /N, не старше версии профиля; INFO — тесты механизма на видах набора
    и профили без тестов. Тесты — --tests DIR (по умолчанию tests).
+12. Протокол своей страницы setup/1: api/setup-ui.schema.json — ключевые слова из разрешённого списка, ссылки в $defs, у сообщений
+   x-direction, proto и type, примеры проходят схему; таблицы «Сообщения» api/SETUP-UI.md — те же сообщения и направления;
+   problem и problemError — поля Problem и ProblemError контракта; описание setupUi ссылается на api/SETUP-UI.md.
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
@@ -1017,6 +1020,128 @@ def check_pages(rep, spec):
     rep.check("Общее правило страницы: каждый перечень, пустая страница, обе формы version", problems, f"{len(PAGED)} перечней")
 
 
+# ===== Протокол своей страницы setup/1 (api/SETUP-UI.md, api/setup-ui.schema.json) =====
+# Разрешённые ключевые слова схемы сообщений: то, что понимают validate выше и ConsolemContract.check (api/contract.js),
+# плюс служебные слова корня и $defs. Список разрешённый, а не запретный: незнакомое слово — отказ, а не молчаливый пропуск
+SETUP_UI_KEYWORDS = {"type", "properties", "required", "additionalProperties", "items", "enum", "$ref", "oneOf", "anyOf", "format",
+                     "minimum", "maximum", "pattern", "minLength", "minItems", "description",
+                     "$schema", "$id", "$defs", "title", "examples", "x-direction", "x-step"}
+SETUP_UI_DIRECTIONS = {"toPage": "→ страница", "toHost": "→ consolem"}
+
+
+def setup_ui_problems(spec, schema, doc):
+    """Расхождения схемы сообщений setup/1 с собой, с описанием SETUP-UI.md и с Problem контракта (список строк)."""
+    problems = []
+    defs = schema.get("$defs") or {}
+    bad_refs = []
+
+    def walk(node, where):
+        if not isinstance(node, dict):
+            problems.append(f"{where}: схема — не объект")
+            return
+        problems.extend(f"{where}: {k} — вне разрешённых ключевых слов" for k in sorted(node) if k not in SETUP_UI_KEYWORDS)
+        ref = node.get("$ref")
+        if ref is not None and not (isinstance(ref, str) and re.fullmatch(r"#/\$defs/\w+", ref) and ref.split("/")[-1] in defs):
+            bad_refs.append(ref)
+            problems.append(f"{where}: ссылка {ref} — только на #/$defs/<имя> этого файла")
+        for key in ("properties", "$defs"):
+            for name, sub in (node.get(key) or {}).items():
+                walk(sub, f"{where}/{key}/{name}")
+        for key in ("items", "additionalProperties"):
+            if isinstance(node.get(key), dict):
+                walk(node[key], f"{where}/{key}")
+        for key in ("oneOf", "anyOf"):
+            for i, sub in enumerate(node.get(key) or []):
+                walk(sub, f"{where}/{key}/{i}")
+
+    walk(schema, "#")
+    # Сообщения — $defs с x-direction; корень перечисляет в oneOf ровно их
+    messages = {n: d for n, d in defs.items() if isinstance(d, dict) and "x-direction" in d}
+    listed = {(s or {}).get("$ref", "").split("/")[-1] for s in schema.get("oneOf") or []}
+    problems.extend(f"#/oneOf: нет сообщения {n}" for n in sorted(set(messages) - listed))
+    problems.extend(f"#/oneOf: {n} — не сообщение (у $defs нет x-direction)" for n in sorted(listed - set(messages)))
+    for name, d in messages.items():
+        where = f"#/$defs/{name}"
+        if d["x-direction"] not in SETUP_UI_DIRECTIONS:
+            problems.append(f"{where}: x-direction {d['x-direction']!r} — не toPage и не toHost")
+        if not isinstance(d.get("x-step"), int):
+            problems.append(f"{where}: нет x-step")
+        if not {"proto", "type"} <= set(d.get("required") or []):
+            problems.append(f"{where}: proto и type не в required")
+        props = d.get("properties") or {}
+        if (props.get("proto") or {}).get("enum") != ["setup/1"]:
+            problems.append(f"{where}: proto — не enum [\"setup/1\"]")
+        if (props.get("type") or {}).get("enum") != [name]:
+            problems.append(f"{where}: type — не enum [\"{name}\"]")
+        if d.get("additionalProperties") is not False:
+            problems.append(f"{where}: нет additionalProperties: false")
+    # Примеры: у каждого сообщения есть, каждый проходит схему своего type (с битой ссылкой схему не прогнать)
+    shape = {"components": {"schemas": defs}}
+    seen = set()
+    for i, ex in enumerate(schema.get("examples") or []):
+        t = ex.get("type") if isinstance(ex, dict) else None
+        if t not in messages:
+            problems.append(f"#/examples/{i}: нет сообщения type {t!r}")
+            continue
+        seen.add(t)
+        if not bad_refs:
+            validate(shape, messages[t], ex, f"#/examples/{i} ({t})", problems)
+    problems.extend(f"#/$defs/{n}: нет примера в examples" for n in sorted(set(messages) - seen))
+    # Таблицы «Сообщения» описания: строка на сообщение, направление — по заголовку таблицы
+    sec = re.search(r"^## Сообщения\s*$(.*?)(?=^## )", doc + "\n## ", re.S | re.M)
+    rows = {}
+    if not sec:
+        problems.append("SETUP-UI.md: нет раздела «## Сообщения»")
+    else:
+        direction = None
+        for line in sec.group(1).splitlines():
+            if line.startswith("### "):
+                direction = next((k for k, v in SETUP_UI_DIRECTIONS.items() if v in line), None)
+                if direction is None:
+                    problems.append(f"SETUP-UI.md: «{line[4:]}» — заголовок таблицы без «→ страница» или «→ consolem»")
+                continue
+            m = re.match(r"\|\s*`(\w+)`\s*\|\s*([^|]*)\|", line)
+            if not m or m.group(2).strip() == "Когда":  # строка заголовка таблицы
+                continue
+            if m.group(1) in rows:
+                problems.append(f"SETUP-UI.md: сообщение {m.group(1)} — в таблицах дважды")
+            rows[m.group(1)] = direction
+    for n, direction in rows.items():
+        if n not in messages:
+            problems.append(f"SETUP-UI.md: сообщение {n} — нет в $defs")
+        elif messages[n]["x-direction"] != direction:
+            problems.append(f"SETUP-UI.md: сообщение {n} — в таблице {direction}, в схеме {messages[n]['x-direction']}")
+    problems.extend(f"SETUP-UI.md: сообщения {n} нет в таблицах «Сообщения»" for n in sorted(set(messages) - set(rows)) if sec)
+    # problem и problemError — копии Problem и ProblemError контракта
+    schemas = spec["components"]["schemas"]
+    for mine, theirs in (("problem", "Problem"), ("problemError", "ProblemError")):
+        a, b = defs.get(mine), schemas.get(theirs) or {}
+        if not isinstance(a, dict):
+            problems.append(f"#/$defs/{mine}: нет копии {theirs}")
+            continue
+        if set(a.get("properties") or {}) != set(b.get("properties") or {}):
+            problems.append(f"#/$defs/{mine}: поля {sorted(a.get('properties') or {})} — у {theirs} {sorted(b.get('properties') or {})}")
+        if sorted(a.get("required") or []) != sorted(b.get("required") or []):
+            problems.append(f"#/$defs/{mine}: required {sorted(a.get('required') or [])} — у {theirs} {sorted(b.get('required') or [])}")
+    setup = schemas.get("UnitKind", {}).get("properties", {}).get("setupUi", {})
+    if "api/SETUP-UI.md" not in setup.get("description", ""):
+        problems.append("openapi.json: в описании UnitKind.setupUi нет ссылки на api/SETUP-UI.md")
+    return problems, len(messages)
+
+
+def check_setup_ui(rep, spec):
+    name = "Протокол страницы setup/1: схема сообщений, примеры, описание"
+    missing = [f"файла {API}/{f} нет" for f in ("setup-ui.schema.json", "SETUP-UI.md") if read(f"{API}/{f}") is None]
+    if missing:
+        return rep.check(name, missing)
+    try:
+        schema = json.loads(read(f"{API}/setup-ui.schema.json"))
+    except ValueError as e:
+        return rep.check(name, [f"{API}/setup-ui.schema.json: не JSON — {e}"])
+    problems, n = setup_ui_problems(spec, schema, read(f"{API}/SETUP-UI.md"))
+    rep.check(name, problems, f"{n} сообщений")
+
+
 def check_core_field(rep, spec):
     # Пути ядра (/kinds…, /units…): field отказа в описаниях — только JSON Pointer (запрос w2c 2026-11-05-100905Z)
     problems, n = [], 0
@@ -1397,6 +1522,7 @@ def main():
     check_server(rep, spec)
     check_test_layers(rep)
     check_core_field(rep, spec)
+    check_setup_ui(rep, spec)
     check_layers(rep, spec)
     check_mechanism(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     check_versions_by_layer(rep, spec)

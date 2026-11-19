@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Собрать раздел profiles в api/fixtures/demo.json, затем таблицы api/profiles/*.md, наборы, api/openapi.js и api/fixture.js.
+"""Собрать раздел profiles в api/fixtures/demo.json, затем таблицы api/profiles/*.md, наборы, api/openapi.js, api/fixture.js
+и api/setup-ui.schema.js (схема сообщений своей страницы подсистемы).
 
 Источник раздела profiles — файлы api/profiles/*.json (формат — tools/profile_files.py): demo.json и agents.json правят руками
 во всём, кроме этого раздела (у agents — только профили, которые называют его виды). Наборы one-domain, large, xl собирает tools/profile_fixture.py из demo.json.
@@ -86,6 +87,12 @@ def render_openapi():
     return f"/* Собрано tools/build_api.py из {API}/openapi.json — руками не править */\nwindow.CONSOLEM_OPENAPI={compact(f'{API}/openapi.json')};\n"
 
 
+def render_setup_ui_schema():
+    """Схема сообщений протокола setup/1 для сценариев интерфейса: с file:// JSON через fetch не загрузить (api/SETUP-UI.md)."""
+    return (f"/* Собрано tools/build_api.py из {API}/setup-ui.schema.json — руками не править */\n"
+            f"window.CONSOLEM_SETUP_UI_SCHEMA={compact(f'{API}/setup-ui.schema.json')};\n")
+
+
 def deep_merge(base, over):
     """Поля наложения поверх базы: объекты сливаются по ключам (новый ключ базы не теряется), остальное заменяется."""
     if not isinstance(base, dict) or not isinstance(over, dict):
@@ -113,12 +120,14 @@ def render_fixtures():
             + "window.CONSOLEM_FIXTURE=window.CONSOLEM_FIXTURES.demo;\n")
 
 
-# Порядок важен: demo.json ← профили, затем наборы из demo.json (profile_fixture.py), затем openapi.js и fixture.js
+# Порядок важен: demo.json ← профили, затем наборы из demo.json (profile_fixture.py), затем openapi.js и fixture.js;
+# схема сообщений setup/1 от остального не зависит — последней
 TARGETS = [(f"{API}/profiles/*.json", f"{API}/fixtures/demo.json", render_demo, "раздел profiles отстал от api/profiles/"),
            (f"{API}/profiles/*.json", f"{API}/fixtures/agents.json", lambda: render_fixture_profiles("agents"), "раздел profiles отстал от api/profiles/"),
            (None, None, None, None),  # наборы one-domain, large, xl — profile_fixture.py (в --check не запускается)
            (f"{API}/openapi.json", f"{API}/openapi.js", render_openapi, None),
-           (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures, None)]
+           (f"{API}/fixtures/*.json", f"{API}/fixture.js", render_fixtures, None),
+           (f"{API}/setup-ui.schema.json", f"{API}/setup-ui.schema.js", render_setup_ui_schema, None)]
 
 
 def main():
