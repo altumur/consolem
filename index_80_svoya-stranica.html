@@ -635,6 +635,15 @@ td.fl-nm>.fl-nm-ic{display:inline-flex;vertical-align:middle;margin-right:8px}
 .nt{padding:10px;background:var(--one-info-bg);border:1px solid var(--one-info-icon);border-radius:8px;color:var(--x-link);margin-bottom:12px;font-size:12px}
 .nt.err{background:var(--one-danger-bg);border-color:var(--one-danger);color:var(--one-danger-text)}
 .nt.ok{background:var(--one-success-bg);border-color:var(--one-success-icon);color:var(--one-success-text)}
+/* Своя страница подсистемы: место в карточке и док рамки вне #main (раздел «Своя страница подсистемы: рамка и протокол setup/1»).
+   Высота места меняется плавно; док ниже меню и модальных окон (z-index от 19) */
+.sui-slot{box-sizing:border-box;display:flex;align-items:center;justify-content:center;min-height:80px;margin-bottom:12px;border:1px solid var(--one-border);border-radius:8px;transition:height .2s ease}
+.sui-dock{position:fixed;left:0;top:0;width:0;height:0;z-index:5;transition:height .2s ease}
+.sui-dock.sui-off{visibility:hidden;pointer-events:none}
+/* Пока страница грузится, рамка прозрачна, а не скрыта: скрытой рамке браузер не даёт кадров, и страница не узнает свою высоту */
+.sui-dock.sui-wait{opacity:0;pointer-events:none}
+.sui-dock iframe{display:block;width:100%;height:100%;border:0;border-radius:8px;background:transparent}
+@media (prefers-reduced-motion:reduce){.sui-slot,.sui-dock{transition:none}}
 .ptz-pad{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px}.live-frame{overflow:hidden;user-select:none}.zone-svg{position:absolute;inset:0;width:100%;height:100%}.zone-svg.on{cursor:crosshair}.live-scene{position:absolute;inset:0;width:100%;height:100%}
 .live-note{position:absolute;left:8px;bottom:6px;max-width:calc(100% - 16px);font-size:11px;color:#dfe5ec;background:#0009;padding:1px 6px;border-radius:4px;pointer-events:none}
 .live-note:empty{display:none}
@@ -4503,8 +4512,9 @@ const HAND_SCREENS=new Set([...CODE_SCREENS,...Object.values(SCREEN_OF_PROFILE).
 const PROFILES_KNOWN=new Set([...Object.keys(SCREEN_OF_PROFILE),"vms.live/1","vms.ptz/1","vms.timeline/1","vms.webserver/1","vms.subdetector/1"]);
 // Инфраструктура: у неё свои списки в кэше (домены, серверы, папки, хранилища, тома); потоки — внутри камеры
 const INFRA_SCREENS=new Set(["domain","server","folder","archive","vol","stream"]);
-// Ступень 1: "page" — своя страница подсистемы, "schema" — форма по схеме, null — дальше ступени 2 и 3
-function screenPageStep(kind){return KINDS.get(kind)?.setupUi?"schema":null}
+// Ступень 1: "page" — своя страница подсистемы (setupUi.mode: iframe, знакомая версия протокола, вид в setupUi.kinds),
+// null — дальше ступени 2 и 3. mode: tab — не страница: ссылка «Страница плагина» в форме по схеме
+function screenPageStep(kind){const su=KINDS.get(kind)?.setupUi;return su&&su.mode==="iframe"&&(su.protocol||"setup/1")===SUI_PROTO&&(!su.kinds||su.kinds.includes(kind))?"page":null}
 // Ступень 2: ручной экран вида или null
 function handScreenOf(kind){
   const k=KINDS.get(kind);
@@ -4931,6 +4941,8 @@ function unitRec(u){
   // Unit.writable — что правится у этого объекта сейчас (нет поля — решает схема вида, CAPS.writable)
   return Object.assign({id:u.uid,type:t,parentId:u.parentId||null,domainId:u.domainId,name:u.name},link,p,obs,sec.password?{hasPassword:true}:{},ver,
     Array.isArray(u.writable)?{writableFields:u.writable.slice()}:{},
+    // Что можно сейчас (Unit.capabilities): отметка setupUi включает свою страницу подсистемы и у ручного экрана
+    !u._brief&&Array.isArray(u.capabilities)?{_caps:u.capabilities.slice()}:{},
     u._brief?{}:{folderIds:u.folders||[]},u.hasChildren!=null?{hasChildren:!!u.hasChildren}:{});
 }
 // Поток камеры — дочерний объект вида stream; в записи камеры — строка streams[] с кодом потока
@@ -6427,6 +6439,190 @@ function permText(p){
   }
   return i18n("Нет прав на это действие");
 }
+// ── Своя страница подсистемы: рамка и протокол setup/1 ──
+// Вид с setupUi.mode: iframe показывает в карточке свою страницу подсистемы (api/SETUP-UI.md, шаг 1). Страница заменяет
+// вкладки вида, вкладки механизма (SUI_MECH_TABS) остаются. Одна рамка на страницу консоли живёт в постоянном #suiDock
+// (position: fixed) вне #main: перенос iframe в DOM перезагружает его, поэтому перерисовка карточки рамку не трогает.
+// В карточке — только место [data-sui-slot] нужной высоты; suiPlace() ставит док поверх места и обрезает его по видимой
+// части прокрутки. Нет места (вкладка «Доступ», «Все параметры») — док скрыт, рамка жива, пока открыт тот же объект.
+// Правило стенда (не протокол): адрес на происхождении консоли или оба адреса file: — star: отправка с "*", приём с "null".
+// Рамка на http того же происхождения — без allow-same-origin; консоль с диска даёт allow-same-origin, иначе Chrome
+// не загружает скрипты страницы с диска
+const SUI_PROTO="setup/1",SUI_READY_MS=10000,SUI_FLUSH_MS=2000,SUI_APPLY="button",SUI_MECH_TABS=new Set(["acc"]);
+const SUI_THEME_TOKENS=["--one-canvas","--one-surface","--one-surface-muted","--one-fg","--one-fg-muted","--one-border","--one-border-strong","--one-accent","--one-accent-on","--one-danger","--one-focus-ring","--one-control-bg","--one-control-hover","--one-radius-control"];
+// Высота места до первого height и пределы значения height (правило консоли, не протокола)
+const SUI_H0=320,SUI_HMIN=80,SUI_HMAX=20000;
+let suiFrame=null,suiGen=0,suiTimer=0,suiRo=null,suiRoEl=null;
+// Описание страницы вида узла: ступень 1 (screenPageStep) дала "page"
+function suiKindOf(n){const k=nodeKind(n);return n&&screenPageStep(k)==="page"?KINDS.get(k).setupUi:null}
+// Страница у этого объекта: вид со страницей, отметка setupUi в Unit.capabilities (право view), полная запись
+function suiOn(n){return!!n&&!n._row&&!!suiKindOf(n)&&(n._caps||[]).includes("setupUi")}
+// Страница этого объекта не загрузилась: карточка показывает причину и форму по схеме. Рамка другого объекта — «ещё нет»
+function suiFailed(n){return!!n&&!!suiFrame&&suiFrame.uid===n.id&&suiFrame.state==="failed"}
+// Карточка показывает страницу: страница есть, не сбой, не «Все параметры»
+function suiPage(n){return suiOn(n)&&!suiFailed(n)&&!cardFormAll(n)}
+// Узел открытой карточки «Оборудования»; выборка и список детекторов — не карточка
+function suiCardNode(){
+  if(!["hw","dev","srvs"].includes(app)||(bulkActive()&&!bulkPeek)||detListOn())return null;
+  return find(sel)?.n||null;
+}
+function suiCardHtml(n){
+  const f=suiFrame&&suiFrame.uid===n.id?suiFrame:null,h=f?.h??SUI_H0;
+  const wait=f?.ready?"":`<span class="sub">${i18n("Консоль загружает страницу подсистемы…")}</span>`;
+  return schemaHeadHtml(n,KINDS.get(nodeKind(n)))+`<div class="sui-slot" data-sui-slot style="height:${h}px">${wait}</div><div data-sui-errs></div>`+unitActionsHtml(n)+schemaStateHtml(n)+ruleUsesFor(n);
+}
+function suiFailHtml(){
+  const why=suiFrame?.why||"";
+  return`<div class="nt err" data-sui-fail><div>${i18n("Страница подсистемы недоступна, поэтому консоль показывает все параметры по схеме вида.")}</div>${why?`<div>${i18n("Причина")}: ${escHtml(why)}</div>`:""}<div style="margin-top:8px"><button type="button" class="btn s" data-sui-retry ${onEv("click",["suiRetry"])}>${i18n("Загрузить страницу снова")}</button></div></div>`;
+}
+// Док рамки: создаётся один раз, вне #main. Прокрутка карточки и смена размера окна двигают док вместе с местом
+function suiDock(){
+  let d=document.getElementById("suiDock");
+  if(d)return d;
+  d=document.createElement("div");d.id="suiDock";d.className="sui-dock sui-off";
+  document.body.appendChild(d);
+  document.getElementById("main")?.addEventListener("scroll",suiPlace,true);
+  window.addEventListener("resize",suiPlace);
+  return d;
+}
+function suiPlace(){
+  const dock=document.getElementById("suiDock");if(!dock)return;
+  const slot=suiFrame?.el?document.querySelector("#main [data-sui-slot]"):null;
+  if(suiRoEl!==slot){suiRo?.disconnect();suiRo=null;suiRoEl=slot;if(slot&&window.ResizeObserver){suiRo=new ResizeObserver(()=>suiPlace());suiRo.observe(slot)}}
+  if(!slot){dock.classList.add("sui-off");return}
+  const r=slot.getBoundingClientRect(),v=slot.closest(".sc")?.getBoundingClientRect()||r;
+  // Высота — целевая (suiFrame.h), а не текущая: место и док меняют высоту одним переходом CSS
+  const h=suiFrame.h??SUI_H0;
+  Object.assign(dock.style,{left:r.left+"px",top:r.top+"px",width:r.width+"px",height:h+"px"});
+  const t=Math.max(0,v.top-r.top),b=Math.max(0,r.top+h-v.bottom),l=Math.max(0,v.left-r.left),rt=Math.max(0,r.right-v.right);
+  dock.style.clipPath=`inset(${t}px ${rt}px ${b}px ${l}px)`;
+  dock.classList.toggle("sui-off",t+b>=h||l+rt>=r.width);
+  dock.classList.toggle("sui-wait",!suiFrame.ready);
+}
+// После каждой paintMain: страницы нет — рамку убрать; другой объект или язык — открыть заново; потом место
+function suiSync(){
+  const n=suiCardNode();
+  if(!suiOn(n)){if(suiFrame)suiClose();return}
+  if(suiFrame&&(suiFrame.uid!==n.id||suiFrame.lang!==uiLang))suiClose();
+  if(!suiFrame)suiOpen(n);
+  suiPlace();
+}
+// Происхождение строкой (https://host:port); не адрес — null
+function suiOriginOf(s){try{return new URL(String(s)).origin}catch(e){return null}}
+// Адрес страницы — всегда из POST /units/{uid}/setup-ui: бэкенд дописывает объект, язык и разовый ключ. Ответ для
+// прежнего объекта (другой sel или устаревший gen) — пропуск: рамки у нового объекта он не создаёт
+async function suiOpen(n){
+  const su=suiKindOf(n),uid=n.id,gen=++suiGen;
+  suiFrame={uid,kind:nodeKind(n),el:null,win:null,url:null,origin:null,star:false,lang:uiLang,state:"loading",ready:false,why:null,readOnly:false,
+    fields:null,invalid:null,pageDraft:{},unitVersion:hwVer.get(uid)??null,seq:0,flushWait:new Map(),applying:null,applyQ:null,gen,h:null};
+  const live=()=>!!suiFrame&&suiFrame.gen===gen&&sel===uid;
+  let link;
+  try{link=await API.post(`/units/${encodeURIComponent(uid)}/setup-ui`,{})}
+  catch(e){if(live())suiFail(problemText(e));return}
+  if(!live())return;
+  const raw=link&&typeof link.url==="string"?link.url.trim():"",bad=i18n("Сервер прислал адрес, который консоль не открывает");
+  if(!raw)return suiFail(i18n("Сервер не выдал адрес страницы"));
+  if(/^(javascript|data|vbscript):/i.test(raw))return suiFail(bad);
+  let url;try{url=new URL(raw,document.baseURI)}catch(e){return suiFail(bad)}
+  if(!/^(https?|file):$/.test(url.protocol))return suiFail(bad);
+  const fileHere=location.protocol==="file:";
+  const star=(url.protocol==="file:"&&fileHere)||(url.origin!=="null"&&url.origin===location.origin);
+  const origin=suiOriginOf(link.origin||su?.origin||url.href);
+  if(!star&&(!origin||origin==="null"))return suiFail(bad);
+  Object.assign(suiFrame,{url:url.href,origin,star,readOnly:!!link.readOnly});
+  const el=document.createElement("iframe");
+  el.setAttribute("sandbox",star&&!fileHere?"allow-scripts allow-forms":"allow-scripts allow-forms allow-same-origin");
+  el.title=i18n("Страница подсистемы");
+  el.src=url.href;
+  suiDock().appendChild(el);
+  suiFrame.el=el;suiFrame.win=el.contentWindow;
+  clearTimeout(suiTimer);
+  suiTimer=setTimeout(()=>{if(suiFrame&&suiFrame.gen===gen&&!suiFrame.ready)suiFail(i18n("Страница не ответила за 10 секунд"))},SUI_READY_MS);
+  suiPlace();
+}
+function suiClose(){
+  clearTimeout(suiTimer);suiTimer=0;
+  if(suiFrame){suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
+  suiFrame=null;
+  suiPlace();
+}
+// Сбой: рамку убрать, причину запомнить; карточка покажет форму по схеме и «Загрузить страницу снова»
+function suiFail(why){
+  if(!suiFrame)return;
+  clearTimeout(suiTimer);suiTimer=0;
+  suiFrame.el?.remove();
+  Object.assign(suiFrame,{el:null,win:null,state:"failed",ready:false,why:String(why||"")});
+  suiPlace();
+  if(suiCardNode()?.id===suiFrame.uid)gear();
+}
+// Новый адрес и новая загрузка: suiSync после gear() открывает страницу заново
+function suiRetry(){suiClose();gear()}
+// Единственная отправка странице: только окну рамки и только на её происхождение (у стенда — "*")
+function suiPost(type,data){
+  const f=suiFrame;if(!f?.win)return;
+  try{f.win.postMessage({proto:SUI_PROTO,type,...data},f.star?"*":f.origin)}catch(e){console.warn("suiPost",e)}
+}
+function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY}}
+function suiTheme(){
+  const cs=getComputedStyle(document.documentElement),tokens={};
+  SUI_THEME_TOKENS.forEach(t=>{const v=cs.getPropertyValue(t).trim();if(v)tokens[t]=v});
+  return{mode:document.documentElement.dataset.theme==="light"?"light":"dark",tokens};
+}
+// Объект для страницы: у объекта по схеме свойства — снимок «до» черновика, у ручного экрана — как их отдал сервер
+function suiUnitOf(n){
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  const props=isSchemaNode(n)?(base?.props||n.props||{}):(unitProps.get(n.id)||{});
+  const u={uid:n.id,kind:nodeKind(n),name:String(n.name??""),version:String(hwVer.get(n.id)??""),properties:cardClone(props)};
+  if(n._st)u.status=cardClone(n._st);
+  return u;
+}
+// JSON Merge Patch от a к b: снятый ключ — null, вложенные объекты — по ключам, массивы — целиком
+function suiDiff(a,b){
+  const out={},obj=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
+  Object.keys(a||{}).forEach(k=>{if(!Object.prototype.hasOwnProperty.call(b||{},k))out[k]=null});
+  Object.keys(b||{}).forEach(k=>{
+    const x=a?.[k],y=b[k];
+    if(JSON.stringify(x)===JSON.stringify(y))return;
+    if(obj(x)&&obj(y)){const d=suiDiff(x,y);if(Object.keys(d).length)out[k]=d}
+    else out[k]=cardClone({v:y}).v;
+  });
+  return out;
+}
+// Черновик карточки как правка к unit.properties: у объекта по схеме — n.props, у ручного экрана — n.xprops
+function suiDraftOf(n){
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  if(!base)return{};
+  if(isSchemaNode(n))return suiDiff(base.props||{},n.props||{});
+  return base.xprops&&n.xprops?suiDiff(base.xprops,n.xprops):{};
+}
+function suiInitMsg(n){return{uid:n.id,kind:nodeKind(n),lang:uiLang,theme:suiTheme(),readOnly:!!suiFrame?.readOnly,unit:suiUnitOf(n),draft:suiDraftOf(n),host:suiHostInfo()}}
+// Сообщения страницы по type; change, invalid и flushed добавит «Применить» (задача 7), шаг 2 — свои (часть 06)
+const SUI_ON={
+  ready(d){
+    const f=suiFrame;
+    clearTimeout(suiTimer);suiTimer=0;
+    f.state="ready";f.ready=true;
+    f.fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"&&x.startsWith("/properties/")):null;
+    const n=find(f.uid)?.n;if(n)suiPost("init",suiInitMsg(n));
+    if(suiCardNode()?.id===f.uid)gear();else suiPlace();
+  },
+  height(d){
+    if(typeof d.px!=="number"||!isFinite(d.px))return;
+    const h=Math.round(Math.min(SUI_HMAX,Math.max(SUI_HMIN,d.px)));
+    suiFrame.h=h;
+    const s=document.querySelector("#main [data-sui-slot]");if(s)s.style.height=h+"px";
+    suiPlace();
+  },
+};
+// Приём: только от окна рамки, только с её происхождения (у стенда — "null"), только proto setup/1; незнакомое — пропуск
+function suiOnMessage(e){
+  const f=suiFrame;
+  if(!f||!f.win||e.source!==f.win||e.origin!==(f.star?"null":f.origin))return;
+  const d=e.data;
+  if(!d||typeof d!=="object"||d.proto!==SUI_PROTO||!Object.prototype.hasOwnProperty.call(SUI_ON,d.type))return;
+  SUI_ON[d.type](d);
+}
+window.addEventListener("message",suiOnMessage);
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -9415,6 +9611,7 @@ function setTheme(v){
   document.documentElement.dataset.theme=v==="light"?"light":"dark";
   try{localStorage.setItem("kit-theme",v==="light"?"light":"dark")}catch(e){}
   const sel=document.getElementById("themeSel");if(sel)sel.value=v==="light"?"light":"dark";
+  if(suiFrame?.ready)suiPost("theme",{theme:suiTheme()});
 }
 function contextServer(){
   const f=find(sel);if(!f)return null;
@@ -10447,6 +10644,7 @@ function paintMain(html){
   if(host)paintInto(host,html,mainKey(),mainSeen);
   bulkScopeFlip(snap);tsFixInd(host);
   liveSync();
+  suiSync();
   navRecord();
   fitCrumbs();
   if(host&&!host._crumbsRo&&window.ResizeObserver){host._crumbsRo=new ResizeObserver(()=>fitCrumbs());host._crumbsRo.observe(host)}
@@ -13156,6 +13354,8 @@ function learnUI(){
 // treeLog — в разделе «Журнал: экран, панель слева и поле в шапке»
 
 function tabsFor(n){
+  // Своя страница подсистемы заменяет вкладки вида, вкладки механизма остаются (у объекта по схеме их нет)
+  if(suiPage(n))return[["gen","Настройка"]].concat(isSchemaNode(n)?[]:tabsForHand(n).filter(([id])=>SUI_MECH_TABS.has(id)));
   if(isSchemaNode(n))return schemaTabs(n);
   // Базовая форма — вкладки по x-ui-tab схемы вида, как у незнакомого вида
   if(cardFormAll(n))return baseTabs(n);
@@ -13258,7 +13458,7 @@ function gear(){
   xpropsEnsure(n);
   cardEnsureBase(n);
   const all=cardFormAll(n);
-  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
+  paintMain(mainHd(flUpBtn(n)+bulkPeekCrumbHtml()+crumbsHtml(sel),objectTitle(n),"",tabsH,addBtn,true)+`<div class="${scClass}">${hiddenByFilterNoteHtml()}${tab==="stor"?"":objectStatusNotesHtml(n)}${!all&&suiFailed(n)&&tab===tabs[0]?.[0]?suiFailHtml():""}${all?baseFormHtml(n,tab):form(n)}</div>`+cardFootHtml());
   if(n.type==="found")renderDeviceWizard();  // панель живёт в разметке, которую только что вставили
   if(!all&&tab==="topo"&&(handOf(n,"domain")||handOf(n,"server")))g7Start(n);else if(G7.raf)g7Stop();
 }
@@ -22850,6 +23050,7 @@ function lanTabOpen(n){
 }
 // Карточки устройства плюс «Правила автоматизации»: где оно используется, видно, не заходя в раздел правил.
 function form(n){
+  if(suiPage(n)&&tab==="gen")return suiCardHtml(n);
   if(n.type==="camera"&&!isSchemaNode(n))return`<div class="cs-cq">${csModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?"":drvSecsHtml(n,tab)+(tab==="vid"?pmSecHtml(n)+ttSecHtml(n):"")+ruleUsesFor(n)))}</div>`;
   if(handOf(n,"ipsrv")&&!isSchemaNode(n))return`<div class="cs-cq">${ipsModeLine(n,tab)}${csTabWrap(n,formBase(n)+(tab==="gen"?ruleUsesFor(n):""))}</div>`;
   return tab==="topo"&&(handOf(n,"domain")||handOf(n,"server"))?g7Html(n):formBase(n)+ruleUsesFor(n)}
