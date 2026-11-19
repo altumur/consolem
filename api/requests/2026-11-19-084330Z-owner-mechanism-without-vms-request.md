@@ -56,7 +56,7 @@ python3 tools/run_api_tests.py --fixture agents
 python3 tools/run_api_tests.py --fixture agents --layer mechanism
 ```
 
-Оба прогона — без `FAIL`. В первом проходят 65 тестов, во втором (только механизм) — 64; остальные пропущены с причиной (`kind:camera` и другие условия `needs`). Макет на этом наборе: https://ndm234234.github.io/consolem/index.html?fixture=agents (ссылка заработает после push).
+Оба прогона — без `FAIL`. В первом проходят 66 тестов, во втором (только механизм) — 65; остальные пропущены с причиной (`kind:camera` и другие условия `needs`). Макет на этом наборе: https://ndm234234.github.io/consolem/index.html?fixture=agents (ссылка заработает после push).
 
 ## 5. Запрос о раскладках и разделах
 
