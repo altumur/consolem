@@ -108,6 +108,125 @@
     assert.eq([b.body.field, issue(b)], ["conditions", "cond.notDeclared"], "условие");
   }, { needs: ["kind:camera"] });
 
+  /* ----- Каталог правил без VMS (с 0.31.0): проверки — reference.ruleChecks, поля действий — по schema, область цели — по
+     раскладке ruleTargets.areaLayouts. Виды и объекты — из самой системы (GET /kinds, GET /units), а не из кодов VMS ----- */
+
+  // Объект правил системы: первый объект вида с событиями правил (или с действиями правил, если events = false)
+  async function ruleUnit(env, events) {
+    const ks = (await env.ok("GET", "/kinds")).items.filter((k) => (events === false ? (k.actions || []).some((a) => a.ruleAction) : (k.events || []).some((e) => e.rule !== false)));
+    for (const k of ks) {
+      const l = await env.list(`/units?kind=${encodeURIComponent(k.kind)}&limit=1`);
+      if (l.length) return l[0];
+    }
+    return null;
+  }
+  // Действие без объекта механизма (net.http) и правило из шагов. Система, которая его не объявила, получает его в
+  // каталоге на прогон (withHttp)
+  const http = (over) => Object.assign({ source: "net", action: "http", url: "http://example.invalid/hook" }, over || {});
+  const HTTP_DECL = { source: "net", action: "http", fields: [{ id: "method", options: ["GET", "POST", "PUT", "DELETE"], optional: true }, { id: "url" }] };
+  const withHttp = (acts) => (acts.some((a) => a.source === "net" && a.action === "http") ? acts : acts.concat(HTTP_DECL));
+  const sysRule = (steps) => blank({ steps });
+  // Все узлы ветки под nodeId в раскладке layout (GET /tree/children вглубь; узел группы — шаг пути, не объект)
+  async function branch(env, layout, nodeId) {
+    const out = [], queue = [nodeId];
+    while (queue.length) {
+      const at = queue.shift();
+      for (const n of await env.list(`/tree/children?layout=${encodeURIComponent(layout)}&parentId=${at}&limit=1000`)) {
+        if (!n.group) out.push(n);
+        if (n.hasChildren) queue.push(n.id);
+      }
+    }
+    return out;
+  }
+  // Задевает ли событие объекта uid правило с этой целью: пробный запуск с одним событием — event.came или нет
+  async function hears(env, trigger, uid) {
+    const r = blank({ enabled: false, start: "event", runMode: "always", triggers: [trigger], steps: [http()] });
+    const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: r, events: [{ source: "unit", event: trigger.event, match: {}, deviceId: uid }], at: null, branches: {}, log: false });
+    return f.checks.some((c) => c.code === "event.came");
+  }
+
+  test("Каталог правил: проверка не из ruleChecks — 422 NOT_SUPPORTED control.notDeclared", async () => {
+    const ctl = ref.ruleControls.some((c) => c.control === "check") ? ref.ruleControls : ref.ruleControls.concat({ control: "check", branches: ["yes", "no"] });
+    const env = await makeEnv({ fixturePatch: { reference: { ruleControls: ctl, ruleChecks: [{ what: "online" }], ruleActions: withHttp(ref.ruleActions) } } });
+    const u = await ruleUnit(env);
+    assert.ok(u, "у системы есть объект правил");
+    const ck = (what, over) => Object.assign({ control: "check", what, target: dev(u.uid), yes: [], no: [] }, over || {});
+    const bad = await env.call("POST", "/rules", sysRule([http(), ck("armed")]));
+    assert.status(bad, 422, "NOT_SUPPORTED", "armed нет в ruleChecks");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params], ["steps", "control.notDeclared", { control: "check", what: "armed" }], "шаг и причина");
+    assert.status(await env.call("POST", "/rules", sysRule([http(), ck("online")])), 201, null, "online объявлена — правило сохраняется");
+    assert.status(await env.call("POST", "/rules", Object.assign(sysRule([http(), ck("armed")]), { enabled: false })), 201, null, "выключенное хранится");
+  }, { needs: ["createRule"] });
+
+  test("Поле действия по schema: значение вне enum — action.fieldNotDeclared", async () => {
+    // net.http.method — только schema (enum), без устаревшего options
+    const acts = withHttp(ref.ruleActions).map((a) => (a.source === "net" && a.action === "http"
+      ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "method").concat({ id: "method", optional: true, schema: { type: "string", enum: ["GET", "POST"] } }) }) : a));
+    const env = await makeEnv({ fixturePatch: { reference: { ruleActions: acts } } });
+    const bad = await env.call("POST", "/rules", sysRule([http({ method: "PUT" })]));
+    assert.status(bad, 422, "NOT_SUPPORTED", "PUT вне enum");
+    assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.field], ["steps", "action.fieldNotDeclared", "method"], "поле");
+    assert.status(await env.call("POST", "/rules", sysRule([http({ method: "POST" })])), 201, null, "значение из enum");
+    // Раскладка клиента: id раскладок — enum у schema поля layoutId (у системы, которая объявила client.layout)
+    const lay = ref.ruleActions.find((a) => a.source === "client" && a.action === "layout");
+    const f = lay && lay.fields.find((x) => x.id === "layoutId" && x.schema && x.schema.enum);
+    if (!f) return;
+    const env2 = await makeEnv();
+    const role = FX.access.roles[0].id;
+    const one = (layoutId) => sysRule([{ source: "client", action: "layout", layoutId, roleId: role }]);
+    const no = await env2.call("POST", "/rules", one("00000000-0000-4000-8000-000000000000"));
+    assert.status(no, 422, "NOT_SUPPORTED", "раскладки нет в enum");
+    assert.eq([issue(no), no.body.params.issue.params.field], ["action.fieldNotDeclared", "layoutId"], "поле layoutId");
+    assert.status(await env2.call("POST", "/rules", one(f.schema.enum[0])), 201, null, "раскладка из enum");
+    assert.ok(f.schema["x-enum-labels"] && f.schema["x-enum-labels"][f.schema.enum[0]], "подпись раскладки — x-enum-labels");
+  }, { needs: ["createRule"] });
+
+  test("Область цели по раскладке: {area: server} задевает те же объекты, что /tree/children servers под этим сервером", async () => {
+    const env = await makeEnv();
+    // Область сервера — его ветка в раскладке ruleTargets.areaLayouts.server (у demo — servers)
+    const lay = ((await env.ok("GET", "/reference")).ruleTargets.areaLayouts || {}).server || "servers";
+    const kinds = (await env.ok("GET", "/kinds")).items;
+    const evOf = (kind) => ((kinds.find((k) => k.kind === kind) || {}).events || []).find((e) => e.rule !== false);
+    // Сервер с самой большой веткой
+    let best = null;
+    for (const s of FX.servers.filter((x) => x.domainId === FX.domains[0].id).slice(0, 6)) {
+      const b = await branch(env, lay, s.id);
+      if (!best || b.length > best.b.length) best = { s, b };
+    }
+    const inBranch = new Set(best.b.map((n) => n.id));
+    // Объекты домена с событиями правил: из ветки и вне её, до 6 каждого вида
+    const tried = [];
+    for (const k of kinds.filter((x) => evOf(x.kind))) {
+      const us = (await env.list(`/units?kind=${encodeURIComponent(k.kind)}&limit=1000`)).filter((u) => u.domainId === best.s.domainId);
+      tried.push(...us.filter((u) => inBranch.has(u.uid)).slice(0, 6), ...us.filter((u) => !inBranch.has(u.uid)).slice(0, 6));
+    }
+    const got = [], want = [];
+    for (const u of tried) {
+      const t = { source: "unit", kinds: [u.kind], event: evOf(u.kind).id, target: area("server", best.s.id), match: {} };
+      if (await hears(env, t, u.uid)) got.push(u.uid);
+      if (inBranch.has(u.uid)) want.push(u.uid);
+    }
+    assert.ok(want.length > 0, "в ветке сервера есть объекты с событиями");
+    assert.eq(got.sort(), want.sort(), `объекты с событием, которые задевает область сервера «${best.s.name}», — ветка раскладки servers`);
+  }, { needs: ["testRule", "layout:servers", "listUnits", "getTreeChildren"] });
+
+  test("Область папки у оркестратора: правило на папку задевает агентов папки", async () => {
+    const env = await makeEnv();
+    const lay = ((await env.ok("GET", "/reference")).ruleTargets.areaLayouts || {}).folder || "folders";
+    const agents = await env.list("/units?kind=agent.agent&limit=1000");
+    const fid = agents.map((a) => (a.folders || [])[0]).find(Boolean);
+    assert.ok(fid, "агент в папке");
+    const inBranch = new Set((await branch(env, lay, fid)).map((n) => n.id));
+    const r = sysRule([{ type: "unitAction", action: "start", target: area("folder", fid), params: {} }]);
+    const f = await env.ok("POST", "/rules/test", { ruleId: null, rule: Object.assign(r, { enabled: false }), events: [], at: null, branches: {}, log: false });
+    const got = f.steps.filter((s) => !s.control && s.deviceId).map((s) => s.deviceId).sort();
+    const want = agents.filter((a) => inBranch.has(a.uid)).map((a) => a.uid).sort();
+    assert.ok(want.length > 0, "в папке есть агенты");
+    assert.eq(got, want, "шаг на агентов папки — ветка раскладки папок");
+    const t = { source: "unit", kinds: ["agent.agent"], event: "failed", target: area("folder", fid), match: {} };
+    for (const a of agents) assert.eq(await hears(env, t, a.uid), inBranch.has(a.uid), `событие агента «${a.name}»`);
+  }, { needs: ["testRule", "kind:agent.agent", "layout:folders", "listUnits", "getTreeChildren"] });
+
   /* ----- Поля правила ----- */
 
   test("Правило: годность действия — 30 по умолчанию, 10–600, вне границ — 422", async () => {

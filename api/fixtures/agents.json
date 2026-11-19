@@ -2209,6 +2209,11 @@
     "target": true
    }
   ],
+  "ruleChecks": [
+   {
+    "what": "online"
+   }
+  ],
   "ruleControls": [
    {
     "control": "ask",
@@ -2219,8 +2224,6 @@
    }
   ],
   "ruleFeatures": [],
-  "layouts": [],
-  "monitors": [],
   "access": {
    "features": [
     "WEB_UI_LOGIN",
@@ -2430,7 +2433,10 @@
     "folder",
     "domain"
    ],
-   "fromEvent": true
+   "fromEvent": true,
+   "areaLayouts": {
+    "folder": "folders"
+   }
   }
  },
  "streamAccounts": [],

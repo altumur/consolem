@@ -17783,6 +17783,29 @@
     "target": true
    }
   ],
+  "ruleChecks": [
+   {
+    "what": "record",
+    "implements": [
+     "vms.camera/1"
+    ]
+   },
+   {
+    "what": "safe",
+    "implements": [
+     "vms.camera/1"
+    ]
+   },
+   {
+    "what": "armed",
+    "implements": [
+     "vms.camera/1"
+    ]
+   },
+   {
+    "what": "online"
+   }
+  ],
   "ruleControls": [
    {
     "control": "wait",
@@ -18343,6 +18366,10 @@
    "areaRight": {
     "class": "cam",
     "level": "FULL"
+   },
+   "areaLayouts": {
+    "folder": "folders",
+    "server": "servers"
    }
   },
   "scenarioKinds": [

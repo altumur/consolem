@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.30.0",
+    "version": "0.31.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -10587,25 +10587,7 @@
                 "fields": {
                   "type": "array",
                   "items": {
-                    "type": "object",
-                    "properties": {
-                      "id": {
-                        "type": "string"
-                      },
-                      "options": {
-                        "type": "array",
-                        "items": {
-                          "type": "string"
-                        }
-                      },
-                      "optional": {
-                        "type": "boolean"
-                      }
-                    },
-                    "additionalProperties": false,
-                    "required": [
-                      "id"
-                    ]
+                    "$ref": "#/components/schemas/RuleActionField"
                   }
                 }
               },
@@ -10616,7 +10598,7 @@
                 "fields"
               ]
             },
-            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия: у поля options — его значения. С 0.3.0: ntf.push, client.sound, client.voice, client.view, client.program; поля attach (email, push), auth, headers, body (http)"
+            "description": "Каталог «Автоматизации» — то, что система исполняет: вместе с командами и событиями видов (UnitKind.actions с ruleAction, UnitKind.events), ruleConditions, ruleControls, ruleStarts, ruleTargets объявляет, что она умеет. Здесь — действия системы, не объекта: раскладка, почта, Telegram, HTTP, другое правило. Форма предлагает только объявленное. Включённое правило вне каталога — 422 NOT_SUPPORTED, field — раздел (start, triggers, conditions, steps), params.issue — что именно: {code, params}, коды rule.startNotDeclared, trigger.notDeclared, cond.notDeclared, action.notDeclared, action.fieldNotDeclared, control.notDeclared, target.notDeclared. В /rules/update — элемент failed с этим кодом. Запуск такого правила — 409 NOT_RUNNABLE. Выключенное правило хранится как есть: такое правило форма показывает, а не теряет. fields — поля действия (RuleActionField): значения поля — его schema (с 0.31.0; раньше — options). С 0.3.0: ntf.push, client.sound, client.voice, client.view, client.program; поля attach (email, push), auth, headers, body (http)"
           },
           "access": {
             "type": "object",
@@ -10966,8 +10948,9 @@
                 "name"
               ]
             },
-            "description": "Раскладки клиента — для «Открыть раскладку»",
-            "x-layer": "vms"
+            "description": "Устарело в 0.31.0: id и подписи раскладок клиента — schema поля layoutId действия client.layout (RuleActionField.schema: enum и x-enum-labels). Раскладки клиента — для «Открыть раскладку»",
+            "x-layer": "vms",
+            "deprecated": true
           },
           "monitors": {
             "type": "array",
@@ -10988,8 +10971,9 @@
                 "name"
               ]
             },
-            "description": "Мониторы видеостены — для «Показать на видеостене»",
-            "x-layer": "vms"
+            "description": "Устарело в 0.31.0: id и подписи мониторов — схема параметра monitorId команды wall вида (UnitKind.actions[].params: enum и x-enum-labels). Мониторы видеостены — для «Показать на видеостене»",
+            "x-layer": "vms",
+            "deprecated": true
           },
           "serverLabels": {
             "type": "array",
@@ -11040,6 +11024,13 @@
               "areaRight": {
                 "$ref": "#/components/schemas/Right",
                 "description": "Право назвать область (папку, сервер, домен) в цели правила: уровень класса на самой папке или домене (folderAccess по uid), иначе Role.kindAccess; у сервера — только kindAccess. Нет поля — область правом не судится"
+              },
+              "areaLayouts": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "С 0.31.0. Что входит в область цели: {код области: id раскладки} (TreeLayout.id из GET /kinds → layouts). Область {area, uid} — объекты под узлом uid в этой раскладке, как их отдаёт /tree/children вглубь. Нет строки для области — область целиком: всё, что лежит под объектом uid (дочерние, объекты в папке, объекты со ссылкой на него), а у области системы — все её объекты"
               }
             }
           },
@@ -11091,6 +11082,30 @@
             "description": "Выгрузка: есть, если система объявила createExport. Устарело в 0.30.0: замена — GET /exports/reference (getExportReference). До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
             "x-layer": "video",
             "deprecated": true
+          },
+          "ruleChecks": {
+            "type": "array",
+            "description": "С 0.31.0. Что проверяет шаг check (RuleCheck.what), который исполняет система. Что не объявлено, форма не предлагает; включённое правило с другой проверкой — 422 NOT_SUPPORTED, field steps, params.issue: {code: control.notDeclared, params: {control: check, what}}. Нет поля — система исполняет прежние проверки record, safe, armed, online (так до следующей ломающей версии контракта, потом поле обязательно)",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "what"
+              ],
+              "properties": {
+                "what": {
+                  "type": "string",
+                  "description": "Код проверки (RuleCheck.what)"
+                },
+                "implements": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  },
+                  "description": "Цель — объекты с этими профилями (UnitKind.implements). Нет поля — любой объект правил"
+                }
+              }
+            }
           }
         },
         "additionalProperties": false,
@@ -11102,8 +11117,6 @@
           "capabilities",
           "ruleConditions",
           "ruleControls",
-          "layouts",
-          "monitors",
           "ruleStarts",
           "ruleTargets"
         ]
@@ -12610,7 +12623,7 @@
                     "server",
                     "domain"
                   ],
-                  "description": "Область; нет поля — объект"
+                  "description": "Код области из каталога reference.ruleTargets.areas; нет поля — объект. Что входит в область — reference.ruleTargets.areaLayouts"
                 },
                 "uid": {
                   "type": "string",
@@ -12660,7 +12673,7 @@
               "recording",
               "online"
             ],
-            "description": "Справочник ruleConditions. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
+            "description": "Код условия из каталога reference.ruleConditions. Механизм — time, mode, online; остальные (armed, recording) — условия профилей, их объявляет система в ruleConditions с implements. mode — устарело в 0.4.0: связь правила с режимом задаёт режим (ObjectMode.off), а не правило. Интерфейс 0.4.0 условие не показывает"
           },
           "scheduleId": {
             "type": "string",
@@ -20034,7 +20047,7 @@
               "armed",
               "online"
             ],
-            "description": "Что проверить: record — камера пишет в архив, safe — запись защищена, armed — камера на охране, online — устройство на связи"
+            "description": "Код проверки из каталога reference.ruleChecks (с 0.31.0). Механизм — online (объект на связи). Остальные — проверки профилей: система объявляет их в ruleChecks с implements (у VMS — record: запись идёт, safe: запись защищена, armed: объект на охране)"
           },
           "target": {
             "anyOf": [
@@ -20833,6 +20846,36 @@
           }
         },
         "description": "Назначить домены и лимиты одним вызовом. Отмена снятия — тот же PATCH с прежними доменами и лимитами"
+      },
+      "RuleActionField": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "description": "Поле действия правила без объекта (Reference.ruleActions[].fields). Значение поля — в шаге правила под именем id. С 0.31.0 значения поля задаёт schema: значение вне её enum у включённого правила — 422 NOT_SUPPORTED, params.issue.code action.fieldNotDeclared. Без schema значения судятся по options, как раньше",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Имя поля в шаге правила (RuleStep)"
+          },
+          "optional": {
+            "type": "boolean",
+            "description": "Поле можно не заполнять. Нет — поле обязательно"
+          },
+          "options": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "deprecated": true,
+            "description": "Устарело в 0.31.0: значения поля — schema (enum). Работает как раньше: без schema значение судится по options"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/JsonSchema",
+            "description": "С 0.31.0. Схема значения поля — то же подмножество, что у схем видов: enum — допустимые значения, x-enum-labels — их подписи (Text). Так система отдаёт значения, которые знает только она (id раскладок клиента у client.layout). Есть schema — options не читаются"
+          }
+        }
       }
     }
   }

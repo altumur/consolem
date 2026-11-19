@@ -400,6 +400,8 @@ hasChildren             ⇔ область или группа; иначе ху�
 | `executor(unit, ctx)` | сервер-исполнитель шага операции | сервер камеры, держатель тома |
 | `actions[id](unit, params, ctx)` | команда: `{result}`, `{operation: {until, free?}}` или `Problem`; `free` — операция объект не держит | `probe`, `check`, `format`, `output`, `ARM` |
 | `treeHasChildren(unit, ctx)` | `true` — у узла дерева «может быть» дети; `undefined` — решает движок раскладок | камера-кластер |
+| `ruleCondition(kind, unit, cond, ctx)` (с 0.31.0) | условие правила на объекте: `null` — выполнено, `{code}` — нет и почему (строка `cond.devices`), `undefined` — условие не этого профиля. `unit` — запись движка правил: свойства и `status.observed` полями, `id`, `type` — вид; `ctx` — `{units}` | камера: `armed`, `recording` |
+| `ruleCheck(what, unit, check, ctx)` (с 0.31.0) | шаг `check` правила: `true` — прошла, `false` — нет, `undefined` — проверка не этого профиля | камера: `record`, `safe`, `armed` |
 
 Поведение и коды ошибок у известных видов — те же, что в старом макете; разделы выше описаны путями и полями этого контракта. Что чем заменено против контракта старого макета — [README, «Ломающие изменения против контракта старого макета (до 0.2.0, коммит 47d1310)»](README.md#ломающие-изменения-против-контракта-старого-макета-до-020-коммит-47d1310).
 
@@ -438,7 +440,19 @@ hasChildren             ⇔ область или группа; иначе ху�
 | `readOnly`, `Unit.writable` | что у объекта правится: поле `readOnly` в схеме вида заполняет сервер; `Unit.writable` — что правится у этого объекта сейчас (карта камеры w2c, камера-кластер) | `readOnly` в теле, в том числе `null`, — `422 VALIDATION_FAILED`, `params.keyword: readOnly`; поле вне `Unit.writable` — `422 NOT_SUPPORTED` с `field`. Интерфейс показывает такие поля только для чтения |
 | `features` | необязательные настройки (`Feature`): `serverRoles` — роль сервера, `serverNetwork` — маска, шлюз, DNS сервера, `archiveEncryption` — шифрование хранилища, `assist` — ассистент (вместе с операцией `assistTurn`). Части прав: `accessCatalogs` — каталоги, `accessSupervision` — правка `Role.supervision` (надзор над выгрузкой от неё не зависит), `accessLoginSchedule` — расписание входа, `accessSessions` — лимиты сессий, `accessDepth` — глубина архива, `accessRestrictions` — запреты, `accessUserRights` — выбор `ur`; без неё `ur` следует за функцией: `ALL` при `USERS_RIGHTS_SETUP`, иначе `NO` | поле есть в записи, но изменить его нельзя: `422 NOT_SUPPORTED` с `field`. Часть прав без возможности: интерфейс прячет поле, значение не по умолчанию в `POST /access/apply` — тот же отказ, `field` — путь поля (`global.depth`, `supervision`), `params.id` — запись |
 
-**Каталог «Автоматизации»** объявляется данными, а не списком операций: события — `UnitKind.events` видов (`rule: false` — не триггер), действия объектов — `UnitKind.actions` с `ruleAction`, действия системы — `reference.ruleActions`, а ещё `ruleConditions`, `ruleControls`, `ruleStarts`, `ruleTargets` — это то, что система исполняет. У поля действия `options` — его значения, поля нет в `fields` — у действия его нет: запись только на минуты — `duration` с `options: ["min"]` и без `afterSec`. Форма предлагает только объявленное.
+**Каталог «Автоматизации»** объявляется данными, а не списком операций: события — `UnitKind.events` видов (`rule: false` — не триггер), действия объектов — `UnitKind.actions` с `ruleAction`, действия системы — `reference.ruleActions`, а ещё `ruleConditions`, `ruleChecks` (с 0.31.0), `ruleControls`, `ruleStarts`, `ruleTargets` — это то, что система исполняет. Значения поля действия системы — `schema` поля (`RuleActionField`, с 0.31.0: `enum` и подписи `x-enum-labels`), без `schema` — устаревшее `options`; у параметра команды вида — `enum` его схемы. Поля нет в `fields` (в `params` команды) — у действия его нет: запись только на минуты — `duration` с `enum: ["min"]` и без `afterSec`. Форма предлагает только объявленное.
+
+**Каталог правил без VMS (с 0.31.0).** Механизм правил — условия `time`, `mode`, `online`, проверка `online`, действия `ntf.*`, `net.http`, `rule.runrule` и ход выполнения. Всё остальное система объявляет каталогом и судит смыслом своих профилей:
+
+| Что | Где объявлено | Кто судит на встроенном сервере |
+|---|---|---|
+| условие профиля (`armed`, `recording` у VMS) | `ruleConditions [{kind, implements, target}]` | хук `ruleCondition` профиля объекта цели (`vms.camera/1`) |
+| проверка шага `check` профиля (`record`, `safe`, `armed`) | `ruleChecks [{what, implements}]`; нет поля — прежние четыре проверки | хук `ruleCheck` профиля объекта цели (`vms.camera/1`) |
+| действие профиля без объекта (`client.*`: раскладка, звук, голос, вид, программа) | `ruleActions` с полями `RuleActionField` | список `Profiles.RULE_ACTIONS` (обязательные поля шага) |
+| значения, которые знает только система (id раскладок клиента, мониторов) | `schema` поля действия (`enum`, `x-enum-labels`), `enum` параметра команды | движок сверяет значение с `enum` |
+| что в области цели `{area, uid}` | `ruleTargets.areaLayouts {код области: id раскладки}` | объекты под узлом `uid` в раскладке (`layoutDescendants`, не больше `limits.selectMax`); нет строки — область целиком: дочерние, объекты в папке, объекты со ссылкой на `uid`, у области системы — все её объекты |
+
+Бэкенду: объявить `ruleChecks` и `areaLayouts` (до следующей ломающей версии без них работают прежние проверки и прежний смысл областей); значения полей действий отдавать в `schema`, а пока клиенты читают `options` и `reference.layouts`, `monitors` — и там, с теми же значениями. Область сервера у `demo` — ветка раскладки «По серверам»: тома и хранилища сервера в неё не входят. Система без VMS (набор `agents`) объявляет только механизм: `ruleChecks: [{what: online}]`, `areaLayouts: {folder: folders}`.
 
 | Что вне каталога | Ответ |
 |---|---|

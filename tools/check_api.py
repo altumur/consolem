@@ -344,8 +344,9 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
     day_groups = own("dayGroup", fx["dayGroups"])
     modes = own("mode", fx["modes"]["items"])
     windows = own("window", fx["maintenanceWindows"])
-    layouts = own("layout", fx["reference"]["layouts"])
-    monitors = own("monitor", fx["reference"]["monitors"])
+    # Раскладки клиента и мониторы: устаревшие ключи reference (с 0.31.0 необязательны) и enum полей действий
+    layouts = dict(own("layout", fx["reference"].get("layouts", [])), **{v: None for v in rule_field_enum(fx, "layoutId")})
+    monitors = dict(own("monitor", fx["reference"].get("monitors", [])), **{v: None for v in rule_field_enum(fx, "monitorId")})
     network = own("candidate", fx["network"])
     roles = own("role", acc["roles"])
     users = own("user", acc["users"])
@@ -798,6 +799,54 @@ def check_units(rep, spec, fx, label="Эталонный набор"):
     rep.check(f"{label}: ссылки правил, прав, обходов, удержаний, отметок — на объекты склада", problems)
 
 
+def rule_field_enum(fx, field):
+    """Значения поля шага правила из каталога (с 0.31.0): enum у schema поля действия без объекта (reference.ruleActions)
+    и у параметра команды правила вида (UnitKind.actions[].params)."""
+    out = []
+    for a in fx["reference"].get("ruleActions", []):
+        out += [v for f in a.get("fields", []) if f.get("id") == field for v in (f.get("schema") or {}).get("enum", [])]
+    for k in fx.get("kinds", []):
+        for a in k.get("actions") or []:
+            if a.get("ruleAction"):
+                out += ((((a.get("params") or {}).get("properties") or {}).get(field)) or {}).get("enum", [])
+    return out
+
+
+def check_rule_catalog(rep, spec, fixtures):
+    """Каталог правил (с 0.31.0): schema полей действий — в подмножестве схем видов; ruleChecks без повторов, implements —
+    объявленные профили; areaLayouts — объявленные области и раскладки набора. Пока устаревшие reference.layouts и monitors
+    есть, enum полей layoutId и monitorId — те же id, подписи — те же имена."""
+    problems = []
+    for name, fx in fixtures.items():
+        ref = fx["reference"]
+        kinds = {k["kind"] for k in fx.get("kinds", [])}
+        profiles = {p for k in fx.get("kinds", []) for p in k.get("implements") or []}
+        for a in ref.get("ruleActions", []):
+            for f in a.get("fields", []):
+                if "schema" in f:
+                    kind_schema_problems(spec, f["schema"], f"{name}: ruleActions {a['source']}.{a['action']}.{f['id']}", kinds, profiles, problems)
+        whats = [c["what"] for c in ref.get("ruleChecks", [])]
+        problems += [f"{name}: ruleChecks {w} — повтор" for w in set(whats) if whats.count(w) > 1]
+        for c in ref.get("ruleChecks", []) + ref.get("ruleConditions", []):
+            problems += [f"{name}: {c.get('what') or c.get('kind')} — профиль {p} не объявлен видами" for p in c.get("implements") or [] if p not in profiles]
+        on = ref.get("ruleTargets") or {}
+        lays = {l["id"] for l in fx.get("layouts") or []}
+        for area, lay in (on.get("areaLayouts") or {}).items():
+            if area not in on.get("areas", []):
+                problems.append(f"{name}: areaLayouts {area} — области нет в ruleTargets.areas")
+            if lay not in lays:
+                problems.append(f"{name}: areaLayouts {area} — раскладки {lay} нет в layouts")
+        for key, field in (("layouts", "layoutId"), ("monitors", "monitorId")):
+            if key not in ref:
+                continue
+            ids = sorted(x["id"] for x in ref[key])
+            enum = sorted(set(rule_field_enum(fx, field)))
+            if enum and enum != ids:
+                problems.append(f"{name}: enum поля {field} — не те id, что reference.{key}")
+    rep.check("Каталог правил: schema полей действий, ruleChecks, areaLayouts", problems,
+              ", ".join(f"{n}: проверок {len(fx['reference'].get('ruleChecks', []))}" for n, fx in fixtures.items()))
+
+
 def check_agents_mechanism(rep, spec, fx):
     """Набор agents (система не из мира VMS): объявлены только операции механизма — пути без x-layer; виды — без профилей слоёв,
     кроме профилей механизма core.domain/1 (область) и core.folder/1 (папка)."""
@@ -815,6 +864,9 @@ def check_agents_mechanism(rep, spec, fx):
     old_limits = [k for k, s in ref_props["limits"]["properties"].items() if s.get("deprecated") and s.get("x-layer")]
     problems += [f"agents: reference.{k} — справочник VMS" for k in old if k in fx["reference"]]
     problems += [f"agents: reference.limits.{k} — предел VMS" for k in old_limits if k in fx["reference"].get("limits", {})]
+    # Каталог правил (с 0.31.0): условия и проверки — механизма или профилей механизма
+    for c in fx["reference"].get("ruleConditions", []) + fx["reference"].get("ruleChecks", []):
+        problems += [f"agents: правило {c.get('kind') or c.get('what')} — профиль {p}" for p in c.get("implements") or [] if p not in allowed]
     rep.check("agents: только операции механизма", problems, f"операций {len(fx['reference']['capabilities']['operations'])}")
 
 
@@ -1343,6 +1395,7 @@ def main():
     check_units(rep, spec, agents, "Набор agents")
     check_capabilities(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     check_agents_mechanism(rep, spec, agents)
+    check_rule_catalog(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     check_profile_files(rep, spec, {"demo": fx, "one-domain": profile, "large": large, "agents": agents})
     res = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "profile_fixture.py"), "--check", "--api", API], capture_output=True, text=True)
     rep.check("one-domain.json собран из нынешнего demo.json", [l for l in res.stdout.splitlines() if l] if res.returncode else [])

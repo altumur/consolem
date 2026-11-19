@@ -668,11 +668,18 @@
       seq[k] = (seq[k] || 0) + 1;
       return `${first}${String(seq[k]).padStart(7, "0")}-${sub || "0000"}-4000-8000-000000000000`;
     };
-    // Движок правил — на складе объектов и описаниях видов. Список видов — тот же, пока его не сменило новое описание (onPut)
+    // Движок правил — на складе объектов и описаниях видов. Список видов — тот же, пока его не сменило новое описание (onPut).
+    // Каталог — reference системы; условия и проверки профилей — хуки вида (hooksOf), действия профилей — Profiles.RULE_ACTIONS;
+    // область цели — ветка раскладки (layoutDescendants, раздел «Дерево»)
     const engine = Engine.create({
       tz: () => db.timezone, store: () => store, kinds: () => kindList || (kindList = kinds.list()),
       rules: () => db.rules, schedules: () => db.schedules, dayGroups: () => db.dayGroups, modes: () => db.modes, manualMode: () => db.modeManual,
       windows: () => db.maintenanceWindows, roles: () => db.access.roles, users: () => db.access.users,
+      reference: () => db.reference, hooks: (kind) => hooksOf(kind), ruleActions: () => Profiles.RULE_ACTIONS || [], ruleChecks: () => Profiles.RULE_CHECKS || [],
+      layoutDescendants: (id, uid, limit) => {
+        const l = layoutOf(id);
+        return l ? layoutDescendants(l, uid, limit) : null;
+      },
     });
     let lastMode;   // ключ «режим|источник» на прошлом шаге часов; undefined — ещё не считали
     // Записи старых таблиц — по складу: объект по uid и его запись-представление, если он из этой таблицы

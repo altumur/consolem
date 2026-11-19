@@ -26,6 +26,13 @@
    - fixed — свойства, правку которых откат не возвращает;
    - treeHasChildren(unit, ctx) → true | undefined — стрелка узла дерева: true — у узла «может быть» дети (камера-кластер),
      undefined — решает движок раскладок по детям;
+   - ruleCondition(kind, unit, cond, ctx) → {code} | null | undefined (с 0.31.0) — условие правила kind на объекте: null —
+     выполнено, {code} — нет и почему (код строки cond.devices), undefined — условие не этого профиля. ruleCheck(what, unit,
+     check, ctx) → boolean | undefined — шаг check правила: прошла проверка или нет, undefined — проверка не этого профиля.
+     unit — запись движка правил (api/rule-engine.js, recOf): свойства и status.observed полями, id, type — вид; ctx — {units};
+   - RULE_ACTIONS (не хук: список рядом с HOOKS) — действия профилей без объекта для движка правил: {source, action, fields —
+     обязательные поля, tpl? — поля-шаблоны}; RULE_CHECKS — проверки профилей, которые движок исполняет, когда система не
+     объявила reference.ruleChecks;
    - остальное в хуке — общий код старого и нового пути (nameProblem, assign, check, format…). */
 (() => {
   const GB = 1024 ** 3;
@@ -1038,7 +1045,32 @@
     return out;
   }
 
+  // Правила (с 0.31.0): условия armed, recording и проверки record, safe, armed судит профиль камеры, а не движок правил.
+  // Запись идёт: настроено хранилище и режим не none; пишет сейчас — по recordState (нет поля — не опровергнуто)
+  const ruleRecording = (n) => !!n.archiveId && !!n.recordMode && n.recordMode !== "none";
+  const ruleRecordsNow = (n) => n.recordState === undefined || n.recordState === "running";
+  // Защищённая запись на встроенном сервере: архив камеры зашифрован (другой метки защиты у склада нет)
+  const ruleArchiveSafe = (n, ctx) => {
+    const a = n.archiveId ? ctx.units.get(n.archiveId) : null;
+    return !!a && !!(a.properties || {}).encrypted;
+  };
+  function cameraRuleCondition(kind, n, cond) {
+    if (kind === "armed") {
+      const val = cond.value !== false;
+      return !!n.armed === val ? null : { code: val ? "disarmed" : "armed" };
+    }
+    if (kind === "recording") return ruleRecording(n) ? null : { code: "notRecording" };
+    return undefined;
+  }
+  function cameraRuleCheck(what, n, check, ctx) {
+    if (what === "record") return ruleRecording(n) && ruleRecordsNow(n);
+    if (what === "safe") return ruleRecording(n) && ruleRecordsNow(n) && ruleArchiveSafe(n, ctx);
+    if (what === "armed") return !!n.armed;
+    return undefined;
+  }
+
   const camera = {
+    ruleCondition: cameraRuleCondition, ruleCheck: cameraRuleCheck,
     RECORD_FIELDS, SOURCE_GONE, recordingProblem, cardProblem, serverWideRows, serverWideChanged, replicaView, detKindsOf, hasBuiltIn,
     archiveRowOf, hasAddress, addressProblem, profileProblem, applyProfile, mainStream, setTarget, keepRows, writes: archiveWrites,
     // Ответ ядра: строки архива на весь сервер (readOnly) — в properties.extraArchives, состояние записи и виды детекторов —
@@ -2267,8 +2299,24 @@
   // один раз; вид только со старым профилем (бэкенд не перешёл) — хук нового. Снимаются вместе со старыми профилями следующей ломающей версией контракта
   const SUCCESSOR = { "vms.domain/1": "core.domain/1", "vms.folder/1": "core.folder/1" };
 
+  // Действия правил без объекта из мира VMS (клиент консоли: раскладка, звук, голос, вид, программа) — движку правил
+  // (api/rule-engine.js, world.ruleActions): fields — обязательные поля шага. Каталог системы — reference.ruleActions
+  const RULE_ACTIONS = [
+    { source: "client", action: "layout", fields: ["layoutId", "roleId"] },
+    { source: "client", action: "sound", fields: ["file", "roleId"] },
+    { source: "client", action: "voice", fields: ["roleId"] },
+    { source: "client", action: "view", fields: ["view", "roleId"] },
+    { source: "client", action: "program", fields: ["path", "roleId"] },
+  ];
+  // Проверки шага check профилей — когда система не объявила reference.ruleChecks (до следующей ломающей версии контракта)
+  const RULE_CHECKS = [
+    { what: "record", implements: ["vms.camera/1"] },
+    { what: "safe", implements: ["vms.camera/1"] },
+    { what: "armed", implements: ["vms.camera/1"] },
+  ];
+
   // DEVICE — хуки всех видов таблицы devices: сервер зовёт их первыми, затем хуки профилей вида
-  const api = { HOOKS, SUCCESSOR, DEVICE: device, flat, isProblem };
+  const api = { HOOKS, SUCCESSOR, DEVICE: device, RULE_ACTIONS, RULE_CHECKS, flat, isProblem };
   if (typeof window !== "undefined") window.ConsolemProfiles = api;
   if (typeof module !== "undefined") module.exports = api;
 })();
