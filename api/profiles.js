@@ -24,6 +24,8 @@
      (камера w2c — новая запись); moveBack(unit, ctx) → {parentId, params} — как вернуть объект туда, где он сейчас: откат переноса;
    - actions[id] с scope kind (POST /kinds/{kind}/actions/{id}) зовутся без объекта: unit — черновик {uid: null, kind};
    - fixed — свойства, правку которых откат не возвращает;
+   - treeHasChildren(unit, ctx) → true | undefined — стрелка узла дерева: true — у узла «может быть» дети (камера-кластер),
+     undefined — решает движок раскладок по детям;
    - остальное в хуке — общий код старого и нового пути (nameProblem, assign, check, format…). */
 (() => {
   const GB = 1024 ** 3;
@@ -1056,6 +1058,9 @@
       out.status = Object.assign({}, out.status, { observed: obs });
       return out;
     },
+    // Узел дерева: камера-кластер (без родителя и сервера) — сама себе член домена, её дети приходят от её серверов:
+    // у узла «может быть» дети. Остальное решает движок дерева (undefined)
+    treeHasChildren: (u) => (!u.parentId && !(u.properties || {}).serverId ? true : undefined),
     // Камере без регистратора нужен адрес; запись — по правилам вида хранилища; профиль при добавлении (x-transient)
     beforeCreate(u, parent, ctx) {
       const s = specOf(u);

@@ -630,7 +630,6 @@
       if (db.stand.large) expandLarge(db.stand.large);
       unitPartsWarm();
       treePending = {};
-      viewStamp++;
       searches = new Map();
       syncing = new Map();
       answered.clear();
@@ -1103,11 +1102,10 @@
     function send(type, fields) {
       const message = Object.assign({ id: String(++seqEvent), type, at: iso(now()) }, fields || {});
       if (message.kind === "device" || DEVICE_TYPES.has(message.kind)) {
-        viewStamp++;
         const rec = byId("devices", message.entityId);
         const near = rec ? nearOf(rec) : goneNear.get(message.entityId) || [message.entityId];
         Object.defineProperty(message, "near", { value: near, enumerable: false });
-        treeTouch(rec, near);
+        if (rec) treeTouch(store.get(rec.id), null);
       }
       if (message.type === "journal.event") {
         const rec = byId("devices", message.entityId);
@@ -1117,18 +1115,31 @@
       if (history.length > STREAM_DEPTH) history.shift();
       clients.forEach((c) => setTimeout(() => wants(c, message) && c.fn(clone(message)), 0));
     }
-    // Ветка изменилась: tree.changed копится и уходит одним сообщением на раскладку, частота от размера домена не зависит
+    // Ветка изменилась: tree.changed копится и уходит одним сообщением на раскладку, частота от размера домена не зависит.
+    // treeTouch(after, before) — объект после правки и до неё (до — зовут прежде, чем его менять): по каждой объявленной
+    // раскладке в tree.changed идут его места (placeOf), у места-группы — и область, а у раскладки с show — и места
+    // родителя: видимость родителя зависит от детей
     let treePending = {};
     let treeSentAt = 0;
     const TREE_EVERY_MS = 1000;
-    function treeTouch(rec, near) {
-      const add = (layout, id) => id && (treePending[layout] = treePending[layout] || new Set()).add(id);
-      if (!rec) near.slice(1).forEach((id) => { add("servers", id); add("folders", id); });
-      else {
-        add("servers", rec.parentId || rec.serverId || rec.domainId);
-        foldersOf(rec.id).forEach((f) => add("folders", f));
-        if (!rec.parentId && !foldersOf(rec.id).length) add("folders", rec.domainId);
-      }
+    function treeTouch(after, before) {
+      (db.layouts || []).forEach((layout) => {
+        const add = (id) => id && (treePending[layout.id] || (treePending[layout.id] = new Set())).add(id);
+        const addAt = (at) => {
+          add(at);
+          const g = groupAt(layout, at);
+          if (g) add(g.area.uid);
+        };
+        [after, before].forEach((u) => {
+          const p = u && placeOf(layout, u);
+          if (!p) return;
+          p.at.forEach((at) => {
+            addAt(at);
+            const up = layout.show && !groupAt(layout, at) ? placeOf(layout, store.get(at)) : null;
+            if (up) up.at.forEach(addAt);
+          });
+        });
+      });
     }
     function treeFlush() {
       const layouts = Object.keys(treePending);
@@ -1321,7 +1332,7 @@
       const rows = dependentsOf(store.get(id)).remove.filter((x) => !gone.has(x) && store.has(x) && tableOf(store.get(x).kind) !== "devices");
       // Вид удалённого — до удаления: на путях ядра событие несёт его (camera, det)
       const kindOf = new Map([...gone].map((x) => [x, (store.get(x) || {}).kind]));
-      gone.forEach((x) => { const d = byId("devices", x); if (d) goneNear.set(x, nearOf(d)); });
+      gone.forEach((x) => { const d = byId("devices", x); if (d) { goneNear.set(x, nearOf(d)); treeTouch(null, store.get(x)); } });
       db.devices.filter((d) => d.parentId === id && !gone.has(d.id)).forEach((c) => {
         c.parentId = null;
         bump(c);
@@ -2609,39 +2620,60 @@
       if (after > 0) body.nextCursor = cursorMake(scope, chunk[chunk.length - 1][0], cur.exp);
       return { status: 200, body };
     }
-    /* ----- Камера-кластер, дочерние устройства ----- */
+    /* ----- Запись камеры ----- */
 
-    // Камера-кластер: сама себе член домена, в виде нет ни сервера, ни родителя
-    const isClusterCam = (d) => d.type === "camera" && !d.parentId && !d.serverId;
-    // Дочерние записи устройств — индекс, который строится заново, когда меняется состав (viewStamp)
-    let viewStamp = 0, viewMade = -1, viewKids = new Map();
-    function viewIndex() {
-      if (viewMade === viewStamp) return;
-      viewMade = viewStamp;
-      viewKids = new Map();
-      db.devices.forEach((d) => {
-        if (d.parentId) (viewKids.get(d.parentId) || viewKids.set(d.parentId, []).get(d.parentId)).push(d);
-      });
-    }
-    const kidsOf = (id) => (viewIndex(), viewKids.get(id) || []);
     const recording = (d) => (!!d.archiveId && !!d.recordMode && d.recordMode !== "none") || (d.extraArchives || []).some((x) => x.recordMode && x.recordMode !== "none");
     /* ----- Дерево ----- */
 
-    // Дерево — по складу: дети узла — из индексов (родитель, папка, ссылка на сервер), без прохода всех объектов.
-    // Узел — объект склада: вид, значок и профили из описания вида, краткий объект (UnitBrief). Потоки камеры и документы
-    // домена (shape: document) — не узлы
-    // Раскладки объявляет система: раздел layouts набора (GET /kinds → layouts). Код раскладки проверяется по ним;
-    // дерево по объявленным правилам строит общий движок, пока — прежний код по коду раскладки
-    const layoutDeclared = (id) => typeof id === "string" && (db.layouts || []).some((l) => l.id === id);
-    const unallocOf = (id) => (String(id).startsWith("unalloc:") ? id.slice(8) : null);
-    const SERVICE = new Set(["export", "email", "sms"]);
-    const isArchive = (u) => tableOf(u.kind) === "archives";
-    const inTree = (u) => u.kind !== "stream" && (kinds.get(u.kind) || {}).shape !== "document";
+    // Дерево — по складу, одним общим движком по раскладкам, которые объявила система (раздел layouts набора, GET /kinds →
+    // layouts). Раскладка — данные: правила place («где лежит объект»), show, hide, groups (TreeLayout). Узел — объект склада:
+    // вид, значок и профили из описания вида, краткий объект (UnitBrief); документы (shape: document) — не узлы никогда.
+    // Область и папку движок узнаёт по профилю (core.domain/1, core.folder/1; до снятия — и vms.domain/1, vms.folder/1)
+    const layoutOf = (id) => (typeof id === "string" && (db.layouts || []).find((l) => l.id === id)) || null;
+    const isArea = (kind) => kinds.profileOf(kind, "core.domain/1") || kinds.profileOf(kind, "vms.domain/1");
+    const isFolder = (kind) => kinds.profileOf(kind, "core.folder/1") || kinds.profileOf(kind, "vms.folder/1");
+    const areaUnits = () => kinds.list().filter((k) => isArea(k.kind)).flatMap((k) => store.byKind(k.kind));
+    // Отбор видов (KindSelector), как x-ref: код вида в kinds или профиль из implements; пустой — любой вид.
+    // Ответ запомнен на описание вида: новое описание (kinds.put) — новый объект, и ответ считается заново
+    const selMemo = new WeakMap();
+    function selects(sel, kind) {
+      const k = kinds.get(kind);
+      let m = selMemo.get(sel);
+      if (!m) selMemo.set(sel, (m = new WeakMap()));
+      if (k && m.has(k)) return m.get(k);
+      const ks = sel.kinds || [], im = sel.implements || [];
+      const yes = (!ks.length && !im.length) || ks.includes(kind) || im.some((p) => kinds.profileOf(kind, p));
+      if (k) m.set(k, yes);
+      return yes;
+    }
+    // Свойства вида с x-ref, которые ведут на объекты отбора sel (правило by: ref), — по порядку схемы, раз на описание
+    const refMemo = new WeakMap();
+    function refPropsOf(sel, kind) {
+      const k = kinds.get(kind);
+      if (!k) return [];
+      let m = refMemo.get(sel);
+      if (!m) refMemo.set(sel, (m = new WeakMap()));
+      if (m.has(k)) return m.get(k);
+      const p = (k.schema || {}).properties || {};
+      const leads = (ref) => (ref.kinds || []).some((x) => selects(sel, x)) || (ref.implements || []).some((x) => (sel.implements || []).includes(x) || kinds.list().some((d) => (d.implements || []).includes(x) && selects(sel, d.kind)));
+      const names = Object.keys(p).filter((n) => p[n] && p[n]["x-ref"] && leads(p[n]["x-ref"]));
+      m.set(k, names);
+      return names;
+    }
+    // Цель ссылки: первое свойство с значением; status.observed под тем же именем главнее properties. Цели нет — места нет
+    function refTarget(sel, u, names) {
+      if (!names.length) return null;
+      const obs = (u.status && u.status.observed) || {};
+      for (const n of names) {
+        const v = typeof obs[n] === "string" ? obs[n] : props(u)[n];
+        if (typeof v !== "string" || !v) continue;
+        const t = store.get(v);
+        return t && selects(sel, t.kind) ? v : null;
+      }
+      return null;
+    }
     const props = (u) => u.properties || {};
-    const ofKind = (kind, domainId) => store.byKind(kind).filter((u) => u.domainId === domainId);
-    const archivesOf = (pred) => kinds.list().filter((k) => tableOf(k.kind) === "archives").flatMap((k) => store.byKind(k.kind)).filter(pred);
     const isDetector = (u) => kinds.profileOf(u.kind, "vms.detector/1");
-    const isSubdetector = (u) => kinds.profileOf(u.kind, "vms.subdetector/1");
     // Сервер размещения объекта: status.observed.serverId или свойство вида с x-ref на сервер (имена — раз на описание)
     const toServer = (ref) => (ref.kinds || []).includes("server") || (ref.implements || []).includes("vms.server/1");
     const serverProps = new WeakMap();
@@ -2677,126 +2709,217 @@
       if (Object.keys(seen).length) out.status = Object.assign(out.status || {}, { observed: seen });
       return out;
     }
-    const treeChildrenOf = (u) => store.byParent(u.uid).filter(inTree);
-    function unitHasChildren(u) {
-      if (u.kind === "domain") return true;
-      if (u.kind === "folder") return store.byFolder(u.uid).length > 0 || store.byParent(u.uid).some((x) => x.kind === "folder");
-      if (isArchive(u)) return store.byParent(u.uid).some((x) => x.kind === "volume");
-      // Устройство: дочерние записи устройства; камера-кластер — «может быть» (дети приходят от её серверов)
-      if (tableOf(u.kind) === "devices" && (isClusterCam(legacy.view(u)) || kidsOf(u.uid).length > 0)) return true;
-      return treeChildrenOf(u).length > 0;
-    }
     function unitNode(u, parentId, hasChildren) {
       const k = kinds.get(u.kind);
-      const node = { id: u.uid, kind: u.kind, name: u.name, parentId, hasChildren: hasChildren === undefined ? unitHasChildren(u) : hasChildren };
+      const node = { id: u.uid, kind: u.kind, name: u.name, parentId, hasChildren };
       if (k && k.icon) node.icon = k.icon;
       node.implements = k ? (k.implements || []).slice() : [];
       node.unit = unitBrief(u);
       return node;
     }
-    // Узел позже: строка устройства считается только для страницы, которую отдают
-    const lazy = (u, parentId, hasChildren) => () => unitNode(u, parentId, hasChildren);
-    const camHasDets = (u) => store.byParent(u.uid).some(isDetector);
-    // Дети узла: [ключ порядка, узел]. Ключ решает порядок: на верхнем уровне и в папках — разделы, в члене — имя
-    function treeKids(layout, parentId) {
-      const k = (group, id) => `${group}:${partKey(id)}`;
-      const name = (group, u) => `${group}:${u.name} ${u.uid}`;
-      if (!parentId) return store.byKind("domain").map((d) => [k(1, d.uid), unitNode(d, null, true)]);
-      const un = unallocOf(parentId);
-      if (un) return ofKind("server", un).filter((s) => !props(s).allocated).map((s) => [k(1, s.uid), unitNode(s, parentId, false)]);
-      const u = store.get(parentId);
+    // Дети узла P — кандидаты только из индексов склада, место каждого кандидата проверяет placeOf:
+    //   P = null — области (виды с core.domain/1 или vms.domain/1); P = "<группа>:<область>" — корни области в этой группе;
+    //   P — область: её корни (byParent(null, P)) и узлы групп, в которые попал хоть один корень;
+    //   P — папка: byFolder(P) ∪ byParent(P); другой объект: byParent(P) ∪ byRef(P).
+    // Ребёнок c узла P: P есть среди мест placeOf(L, c) и c виден (layoutVisible). Проход по всем объектам запрещён
+    // Списки кандидатов: дешёвый первым — проверка «есть ли ребёнок» до второго часто не доходит
+    const candLists = (p) =>
+      isArea(p.kind) ? [() => store.byParent(null, p.uid)] : isFolder(p.kind) ? [() => store.byFolder(p.uid), () => store.byParent(p.uid)] : [() => store.byParent(p.uid), () => store.byRef(p.uid)];
+    const treeCands = (p) => candLists(p).map((f) => f()).reduce(union);
+    const someCand = (p, fn) => candLists(p).some((f) => f().some(fn));
+    function union(a, b) {
+      if (!b.length) return a;
+      if (!a.length) return b;
+      const seen = new Set(a.map((x) => x.uid));
+      return a.concat(b.filter((x) => !seen.has(x.uid)));
+    }
+    // Узел группы: "<id группы>:<uid области>" — группа объявлена раскладкой, область есть
+    function groupAt(layout, id) {
+      const i = typeof id === "string" ? id.indexOf(":") : -1;
+      if (i < 1) return null;
+      const g = (layout.groups || []).find((x) => x.id === id.slice(0, i));
+      const area = g && store.get(id.slice(i + 1));
+      return area && isArea(area.kind) ? { group: g, area } : null;
+    }
+    // Правила раскладки, которые годятся виду (what), свойства-ссылки правил by: ref и скрыт ли вид (hide) — раз на раскладку
+    // и описание вида: новое описание вида (kinds.put) — новый объект, план считается заново
+    const planMemo = new WeakMap();
+    function planOf(layout, kind) {
+      const k = kinds.get(kind);
+      let m = planMemo.get(layout);
+      if (!m) planMemo.set(layout, (m = new Map()));
+      const was = m.get(kind);
+      if (was && was.k === k) return was.plan;
+      const hidden = !!layout.hide && selects(layout.hide, kind);
+      const plan = {
+        hidden,
+        // Места нет никогда: область, документ, скрытый вид
+        none: hidden || isArea(kind) || isDocument(kind),
+        rules: (layout.place || []).map((r, i) => ({ r, i, names: r.by === "ref" && r.ref ? refPropsOf(r.ref, kind) : null })).filter((x) => !x.r.what || selects(x.r.what, kind)),
+      };
+      m.set(kind, { k, plan });
+      return plan;
+    }
+    // Где объект лежит: первое подходящее правило place — {rule: номер, by, at: места}; место — uid узла-родителя или
+    // "<группа>:<uid области>". null — объекта в раскладке нет: не подошло ни одно правило, подошло by: none, вид скрыт
+    // (hide), это область или документ
+    const own = (id) => (id && store.has(id) ? [id] : null);
+    function placeOf(layout, u, known) {
       if (!u) return null;
-      if (u.kind === "domain") {
-        if (layout === "folders") return ofKind("folder", u.uid).filter((f) => !f.parentId).map((f) => [k(1, f.uid), unitNode(f, parentId)]);
-        const servers = ofKind("server", u.uid);
-        const out = servers.filter((s) => props(s).allocated).map((s) => [k(1, s.uid), unitNode(s, parentId, true)]);
-        if (layout === "servers" && servers.some((s) => !props(s).allocated)) out.push(["2", { id: `unalloc:${u.uid}`, kind: "unalloc", name: "Нераспределённые серверы", parentId, hasChildren: true }]);
-        if (layout === "archives") archivesOf((a) => !a.parentId && a.domainId === u.uid).forEach((a) => out.push([k(3, a.uid), unitNode(a, parentId)]));
-        // Корни домена без сервера размещения: камеры-кластеры, регистраторы, СКУД, объекты незнакомых видов. Детекторы
-        // камеры-кластера видны только при её раскрытии: сводного списка в detectors у них нет
-        if (layout === "servers")
-          store.byParent(null, u.uid).forEach((x) => {
-            if (!inTree(x) || ["server", "folder", "domain", "volume"].includes(x.kind) || isArchive(x) || SERVICE.has(x.kind) || serverOfUnit(x)) return;
-            out.push([k(4, x.uid), lazy(x, parentId)]);
-          });
-        return out;
+      const plan = known || planOf(layout, u.kind);
+      if (plan.none) return null;
+      for (const { r, i, names } of plan.rules) {
+        if ((r.root === true && u.parentId) || (r.root === false && !u.parentId)) continue;
+        if (r.where) {
+          const v = props(u)[r.where.property];
+          if ((v === undefined ? null : v) !== r.where.equals) continue;
+        }
+        let at = null;
+        if (r.by === "none") return null;
+        if (r.by === "area") at = own(u.domainId);
+        else if (r.by === "parent") at = u.parentId ? own(u.parentId) : own(u.domainId);
+        else if (r.by === "folders") {
+          const f = (u.folders || []).filter((x) => store.has(x));
+          at = f.length ? f : null;
+        } else if (r.by === "ref") at = names ? own(refTarget(r.ref, u, names)) : null;
+        else if (r.by === "group") at = u.domainId && store.has(u.domainId) && (layout.groups || []).some((g) => g.id === r.group) ? [`${r.group}:${u.domainId}`] : null;
+        if (at) return { rule: i, by: r.by, at };
       }
-      if (u.kind === "server") {
-        if (layout === "archives") return store.byParent(u.uid).filter(isArchive).map((a) => [name(1, a), unitNode(a, parentId)]);
-        const placed = store.byRef(u.uid).filter((x) => !x.parentId && inTree(x) && serverOfUnit(x) === u.uid);
-        return (layout === "detectors" ? placed.filter(camHasDets) : placed).map((x) => [name(1, x), lazy(x, parentId)]);
+      return null;
+    }
+    // Какие корни могут лечь прямо под область (by: area, group, parent у корня): виды из what. null — любой вид
+    // (у такого правила нет what): тогда кандидаты — все корни области
+    function areaKindsOf(layout) {
+      const rules = (layout.place || []).filter((r) => r.root !== false && (r.by === "area" || r.by === "group" || r.by === "parent"));
+      if (rules.some((r) => !r.what)) return null;
+      return kinds.list().map((k) => k.kind).filter((kind) => rules.some((r) => selects(r.what, kind)));
+    }
+    function areaRoots(layout, areaId) {
+      const ks = areaKindsOf(layout);
+      if (!ks) return store.byParent(null, areaId);
+      return ks.flatMap((kind) => store.byKind(kind).filter((u) => !u.parentId && u.domainId === areaId));
+    }
+    // Объект виден: его вид и предки по parentId не скрыты (hide), и нет show, или он подходит под show, или под show подходит
+    // его ребёнок в этой раскладке (на один уровень вниз: обхода поддерева нет)
+    function layoutVisible(layout, u) {
+      if (layout.hide) for (let x = u, n = 0; x && n < 32; x = x.parentId ? store.get(x.parentId) : null, n++) if (planOf(layout, x.kind).hidden) return false;
+      if (!layout.show || selects(layout.show, u.kind)) return true;
+      return someCand(u, (c) => selects(layout.show, c.kind) && placedUnder(layout, c, u.uid));
+    }
+    const placedUnder = (layout, c, at) => {
+      const p = placeOf(layout, c);
+      return !!p && p.at.includes(at);
+    };
+    // Есть ли у узла видимый ребёнок: до первого
+    const layoutHasKids = (layout, u) => someCand(u, (c) => placedUnder(layout, c, u.uid) && layoutVisible(layout, c));
+    // Стрелка узла: область и группа — всегда; камера-кластер и подобные — по хуку профиля treeHasChildren (true — «может быть»)
+    function nodeHasKids(layout, u) {
+      if (isArea(u.kind) || hooksOf(u.kind).some((h) => h.treeHasChildren && h.treeHasChildren(u, pctx) === true)) return true;
+      return layoutHasKids(layout, u);
+    }
+    // Есть ли дети вне раскладки (Unit.hasChildren у /units): как в дереве, хоть в одной объявленной раскладке
+    const unitHasKids = (u) => isArea(u.kind) || hooksOf(u.kind).some((h) => h.treeHasChildren && h.treeHasChildren(u, pctx) === true) || (db.layouts || []).some((l) => layoutHasKids(l, u));
+    // Дети узла: [{key, unit}] или [{key, group}]; null — узла нет. Ключ решает порядок: номер правила, затем у области,
+    // группы и папки — порядок сервера (partKey), у остальных узлов — имя
+    const RULE_PREFIX = Array.from({ length: 1000 }, (x, i) => `${String(i).padStart(3, "0")}:`);
+    const ruleKey = (rule, tail) => RULE_PREFIX[rule] + tail;
+    function kidRows(layout, parentId) {
+      if (!parentId) return areaUnits().map((a) => [ruleKey(0, partKey(a.uid)), a]);
+      const g = groupAt(layout, parentId);
+      const p = g ? null : store.get(parentId);
+      if (!g && !p) return null;
+      const area = !!p && isArea(p.kind), ordered = !p || area || isFolder(p.kind);
+      const out = [], groups = new Map();
+      const cands = g ? areaRoots(layout, g.area.uid) : area ? areaRoots(layout, parentId) : treeCands(p);
+      // План вида — на этот проход: у корней области вид один и тот же у сотен тысяч объектов
+      const plans = new Map();
+      for (const c of cands) {
+        let plan = plans.get(c.kind);
+        if (!plan) plans.set(c.kind, (plan = planOf(layout, c.kind)));
+        const at = placeOf(layout, c, plan);
+        if (!at) continue;
+        const inGroup = area && at.by === "group" && at.at[0] === `${layout.place[at.rule].group}:${parentId}`;
+        if (!inGroup && !at.at.includes(parentId)) continue;
+        // Корень без show виден: вид уже проверил placeOf (hide), предков нет
+        if ((layout.show || c.parentId) && !layoutVisible(layout, c)) continue;
+        if (!inGroup) out.push([ruleKey(at.rule, ordered ? partKey(c.uid) : `${c.name} ${c.uid}`), c]);
+        else if (!groups.has(at.at[0])) groups.set(at.at[0], [ruleKey(at.rule, ""), (layout.groups || []).find((x) => x.id === layout.place[at.rule].group)]);
       }
-      if (u.kind === "folder") {
-        const subs = store.byParent(u.uid).filter((f) => f.kind === "folder").map((f) => [k(1, f.uid), unitNode(f, parentId)]);
-        const members = store.byFolder(u.uid).filter(inTree);
-        return subs.concat((layout === "detectors" ? members.filter((x) => kinds.profileOf(x.kind, "vms.camera/1")) : members).map((x) => [k(2, x.uid), lazy(x, parentId)]));
+      groups.forEach((x) => out.push(x));
+      return out;
+    }
+    // Дети узла для /tree/children: [ключ порядка, узел или функция узла] — узел объекта считается, только когда страницу отдают.
+    // Строки kidRows: [ключ, объект склада] или [ключ, группа раскладки]
+    const isGroupRow = (x) => !x.uid;
+    function layoutKids(layout, parentId) {
+      const rows = kidRows(layout, parentId);
+      if (!rows) return null;
+      const pid = parentId || null;
+      rows.forEach((r) => {
+        const x = r[1];
+        r[1] = isGroupRow(x)
+          ? { id: `${x.id}:${parentId}`, kind: x.id, name: (x.label && x.label.text) || x.id, parentId, hasChildren: true, group: true }
+          : () => unitNode(x, pid, nodeHasKids(layout, x));
+      });
+      return rows;
+    }
+    // Объекты под узлом в раскладке (область цели правила): вширь, не больше limit
+    function layoutDescendants(layout, nodeId, limit) {
+      const out = [], seen = new Set(), queue = [nodeId];
+      while (queue.length && out.length < limit) {
+        const at = queue.shift();
+        for (const [, x] of kidRows(layout, at) || []) {
+          if (isGroupRow(x)) { queue.push(`${x.id}:${at}`); continue; }
+          if (seen.has(x.uid)) continue;
+          seen.add(x.uid);
+          out.push(x);
+          if (out.length >= limit) break;
+          queue.push(x.uid);
+        }
       }
-      if (isArchive(u)) return store.byParent(u.uid).filter((v) => v.kind === "volume").map((v) => [name(1, v), unitNode(v, parentId, false)]);
-      if (u.kind === "volume") return [];
-      const kids = treeChildrenOf(u);
-      return (layout === "detectors" ? kids.filter((x) => isDetector(x) || isSubdetector(x)) : kids).map((x) => [name(1, x), lazy(x, parentId)]);
+      return out;
     }
     function treeChildren(q) {
-      if (!layoutDeclared(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
-      const rows = treeKids(q.layout, q.parentId);
+      const layout = layoutOf(q.layout);
+      if (!layout) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const rows = layoutKids(layout, q.parentId);
       if (!rows) return notFound("Узел");
       return pageList(q, "tree", rows, (x) => x[0], (x) => (typeof x[1] === "function" ? x[1]() : x[1]), q.parentId ? { parentCount: rows.length } : {});
     }
     // Хранилища, в которые пишет объект: кандидаты — его ссылки (индекс), запись — как у старых путей (archiveWrites)
     const writesInto = (u, archiveId) =>
       tableOf(u.kind) === "devices" ? archiveWrites(legacy.view(u), archiveId) : kinds.refsOf(u).some((r) => r.uid === archiveId);
-    // Цепочки от корня: шаг — {id, kind, name}, kind — вид объекта (TreePathStep.kind — код вида, как TreeNode.kind). Путь —
-    // по parentId до корня, у корня без родителя — его домен; таблицы старых видов не участвуют, так что путь есть у любого
-    // вида склада. Объект вне ветки домена (камера, контроллер — корень домена) кладётся по раскладке: в папках — под каждой
-    // своей папкой (Unit.folders), в хранилищах — под хранилищами, куда пишет, в серверах — под сервером записи
-    function treeChains(layout, id) {
+    // Цепочки от корня: шаг — {id, kind, name}, kind — вид объекта (TreePathStep.kind, как TreeNode.kind). Цепочка идёт по местам
+    // раскладки (placeOf): объект в нескольких папках — несколько цепочек; шага группы нет — шаг всегда объект. Объект вне
+    // раскладки (скрытый поток, хранилище в «По папкам») — под цепочками своего родителя, корень — под своей областью
+    function layoutChains(layout, uid) {
       const step = (x) => ({ id: x.uid, kind: x.kind, name: x.name });
-      const domainStep = (domainId) => {
-        const d = domainId && store.get(domainId);
-        return d && kinds.profileOf(d.kind, "vms.domain/1") ? [step(d)] : [];
-      };
-      // Цепочка объекта по parentId: от корня (домен — сам; корень без родителя — с доменом впереди) до объекта
-      const upChain = (x) => {
-        const line = [];
-        const seen = new Set();
-        let top = x;
-        for (;;) {
-          line.unshift(step(top));
-          seen.add(top.uid);
-          const par = top.parentId ? store.get(top.parentId) : null;
-          if (!par || seen.has(par.uid)) break;
-          top = par;
+      const up = (x, seen) => {
+        if (isArea(x.kind)) return [[step(x)]];
+        if (seen.has(x.uid)) return [];
+        const next = new Set(seen).add(x.uid);
+        const p = placeOf(layout, x);
+        const homes = p ? p.at.map((at) => { const g = groupAt(layout, at); return g ? g.area : store.get(at); }).filter(Boolean) : [];
+        const out = [];
+        homes.forEach((t) => up(t, next).forEach((c) => out.push(c.concat(step(x)))));
+        if (out.length) return out;
+        const par = x.parentId ? store.get(x.parentId) : null;
+        if (par) {
+          const above = up(par, next);
+          if (above.length) return above.map((c) => c.concat(step(x)));
         }
-        const rooted = !!kinds.profileOf(top.kind, "vms.domain/1");
-        return { line, top, rooted };
+        const area = x.domainId ? store.get(x.domainId) : null;
+        return [(area && isArea(area.kind) ? [step(area)] : []).concat(step(x))];
       };
-      const chainOf = (x) => {
-        const c = upChain(x);
-        return c.rooted ? c.line : domainStep(c.top.domainId).concat(c.line);
-      };
-      const u = store.get(id);
-      if (!u) return [];
-      const { line, top, rooted } = upChain(u);
-      // Ветка домена (серверы, хранилища, тома) и сами папки — путь по parentId при любой раскладке
-      if (rooted || kinds.profileOf(top.kind, "vms.folder/1") || tableOf(top.kind) === "servers" || isArchive(top)) return [rooted ? line : domainStep(top.domainId).concat(line)];
-      const plain = [domainStep(top.domainId).concat(line)];
-      if (layout === "folders") {
-        const homes = foldersOf(top.uid).map((x) => store.get(x)).filter(Boolean);
-        return homes.length ? homes.map((h) => chainOf(h).concat(line)) : plain;
-      }
-      if (layout === "archives") {
-        const order = (a) => db.archives.indexOf(legacy.view(a));
-        const rows = [...new Set(kinds.refsOf(top).map((r) => r.uid))].map((x) => store.get(x)).filter((a) => a && isArchive(a) && writesInto(top, a.uid)).sort((a, b) => order(a) - order(b));
-        return rows.length ? rows.map((a) => chainOf(a).concat(line)) : plain;
-      }
-      const srv = serverOfUnit(top) && store.get(serverOfUnit(top));
-      return srv ? [chainOf(srv).concat(line)] : plain;
+      const u = store.get(uid);
+      return u ? up(u, new Set()) : [];
     }
     function treePaths(q) {
-      if (!layoutDeclared(q.layout)) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
+      const layout = layoutOf(q.layout);
+      if (!layout) return problem(422, "VALIDATION_FAILED", "Нет такой раскладки", { field: "layout" });
       const ids = String(q.ids || "").split(",").filter(Boolean);
       if (ids.length > db.reference.limits.idsMax) return problem(422, "VALIDATION_FAILED", "Больше, чем idsMax", { field: "ids" });
-      return { status: 200, body: { items: ids.map((id) => ({ id, chains: treeChains(q.layout, id) })).filter((x) => x.chains.length) } };
+      return { status: 200, body: { items: ids.map((id) => ({ id, chains: layoutChains(layout, id) })).filter((x) => x.chains.length) } };
     }
 
     /* ----- Ядро: виды и объекты склада ----- */
@@ -3038,7 +3161,7 @@
       // Что правится у объекта сейчас (уже, чем схема вида): карта камеры w2c, обычное встроенное хранилище, камера w2c
       if (Array.isArray(u.writable)) out.writable = u.writable.slice();
       if (u.status && Object.keys(u.status).length) out.status = clone(u.status);
-      out.hasChildren = unitHasChildren(u); // как в дереве: потоки и документы дочерними не считаются
+      out.hasChildren = unitHasKids(u); // как в дереве: скрытое раскладкой (потоки) и документы дочерними не считаются
       // Что можно сейчас (capabilities): стенд ставит только setupUi — страница плагина есть и у человека есть право edit
       if (setupUiOf(u) && !rightProblem(u, { level: "edit" }, "")) out.capabilities = ["setupUi"];
       // Вычисляемое профилем (status.observed): итог круга домена, держатель тома
@@ -3359,12 +3482,8 @@
       for (let i = 0; i < out.length; i++) store.byParent(out[i].uid).forEach((c) => out.push(c));
       return out;
     }
-    // Ветка изменилась: tree.changed — как у устройств (treeTouch)
-    function unitTreeTouch(u) {
-      const add = (layout, id) => id && (treePending[layout] = treePending[layout] || new Set()).add(id);
-      add("servers", u.parentId || u.domainId);
-      (u.folders || []).forEach((f) => add("folders", f));
-    }
+    // Ветка изменилась: места объекта в каждой раскладке — в tree.changed (treeTouch)
+    const unitTreeTouch = (u) => treeTouch(u, null);
     // Версия из If-Match: нет — 428, не та — 412 с объектом, над объектом идёт операция — 409 BUSY
     function unitPrecondition(u, headers) {
       const v = parseMatch(headers["if-match"]);
@@ -3466,6 +3585,7 @@
     const touchesSecret = (u, patch) => !!patch.properties && kinds.secretNames(u.kind).some((n) => n in patch.properties);
     // Правка: возвращает обратную правку. Версия, «ещё не применилось» и событие — unitChanged
     function applyUnitPatch(u, patch) {
+      treeTouch(null, u); // прежние места — до правки: папки, родитель и ссылки могут смениться
       const before = {};
       if (patch.name !== undefined) {
         before.name = u.name;

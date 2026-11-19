@@ -251,6 +251,104 @@
     assert.status(await env2.call("GET", "/kinds", undefined, { "If-None-Match": tag }), 200, null, "прежний ETag — описания целиком");
   }, { needs: ["listKinds", "getKind", "getTreeChildren"], layer: "mechanism" });
 
+  // Дети узла в раскладке: все страницы /tree/children
+  const treeKidsOf = (env, layout, parentId) => env.pages(q("/tree/children", Object.assign({ layout }, parentId ? { parentId } : {})));
+
+  test("Раскладки: путь /tree/paths сходится с /tree/children у каждой объявленной раскладки; узел группы — group: true", async () => {
+    const env = await makeEnv();
+    const { layouts } = await env.ok("GET", "/kinds");
+    for (const L of layouts) {
+      const groups = new Set((L.groups || []).map((g) => g.id));
+      const pairs = []; // [узел, ближайший узел-объект над ним в дереве или null]
+      const top = await treeKidsOf(env, L.id, null);
+      top.forEach((n) => pairs.push([n, null]));
+      for (const area of top.slice(0, 5)) {
+        const objs = [];
+        for (const n of await treeKidsOf(env, L.id, area.id)) {
+          if (!n.unit) {
+            assert.eq([n.group, groups.has(n.kind), n.id, n.parentId, n.hasChildren], [true, true, `${n.kind}:${area.id}`, area.id, true], `${L.id}: узел группы ${n.id}`);
+            (await treeKidsOf(env, L.id, n.id)).forEach((c) => { pairs.push([c, area.id]); objs.push(c); });
+          } else {
+            assert.ok(!n.group, `${L.id}: узел объекта ${n.id} — не группа`);
+            pairs.push([n, area.id]);
+            objs.push(n);
+          }
+        }
+        for (const n of objs.filter((x) => x.hasChildren).slice(0, 10)) (await treeKidsOf(env, L.id, n.id)).forEach((c) => pairs.push([c, n.id]));
+      }
+      const ids = [...new Set(pairs.map(([n]) => n.id))];
+      const chains = new Map();
+      for (let i = 0; i < ids.length; i += 100) {
+        const res = await env.ok("GET", q("/tree/paths", { layout: L.id, ids: ids.slice(i, i + 100).join(",") }));
+        res.items.forEach((x) => chains.set(x.id, x.chains));
+      }
+      pairs.forEach(([n, above]) => {
+        const got = chains.get(n.id) || [];
+        assert.ok(got.some((c) => c[c.length - 1].id === n.id && (above === null || c.some((s) => s.id === above))), `${L.id}: путь ${n.name} (${n.id}) через ${above}`);
+      });
+    }
+  }, { needs: ["listKinds", "getTreeChildren", "getTreePaths"], layer: "mechanism" });
+
+  test("Раскладка по ссылке: агент под своей моделью, без модели — под областью, правка модели — tree.changed по обоим местам", async () => {
+    const env = await makeEnv();
+    const L = "agent.models";
+    const { layouts } = await env.ok("GET", "/kinds");
+    const agents = await env.pages(q("/units", { kind: "agent.agent" }));
+    const models = await env.pages(q("/units", { kind: "agent.model" }));
+    assert.ok(models.length >= 2, "две модели");
+    const idsOf = (list) => list.map((n) => n.id).sort();
+    for (const m of models) assert.eq(idsOf(await treeKidsOf(env, L, m.uid)), agents.filter((a) => a.properties.modelId === m.uid).map((a) => a.uid).sort(), `дети модели ${m.name}`);
+    for (const a of agents.filter((x) => x.properties.modelId == null)) assert.ok((await treeKidsOf(env, L, a.domainId)).some((n) => n.id === a.uid), `${a.name} без модели — под областью`);
+    const [A, B] = models;
+    const ag = agents.find((a) => a.properties.modelId === A.uid);
+    assert.ok(ag, "агент модели A");
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((m) => seen.push(m), []);
+    await ApiTest.settle();
+    const patch = async (modelId) => env.ok("PATCH", `/units/${ag.uid}`, { properties: { modelId } }, { "If-Match": await env.etag(`/units/${ag.uid}`) });
+    await patch(B.uid);
+    await env.wait(1);
+    await env.ok("GET", "/me");
+    await ApiTest.settle();
+    const tree = seen.filter((m) => m.type === "tree.changed");
+    const at = new Set(tree.filter((m) => m.layout === L).flatMap((m) => m.parentIds));
+    assert.ok(at.has(A.uid) && at.has(B.uid), `tree.changed ${L}: прежнее и новое место — ${[...at].join(", ")}`);
+    const declared = new Set(layouts.map((l) => l.id));
+    assert.ok(tree.every((m) => declared.has(m.layout)), `tree.changed — только по объявленным раскладкам: ${[...new Set(tree.map((m) => m.layout))].join(", ")}`);
+    assert.ok((await treeKidsOf(env, L, B.uid)).some((n) => n.id === ag.uid) && !(await treeKidsOf(env, L, A.uid)).some((n) => n.id === ag.uid), "агент — под новой моделью");
+    await patch(null);
+    assert.ok((await treeKidsOf(env, L, ag.domainId)).some((n) => n.id === ag.uid), "без модели — под областью");
+    stop();
+  }, { needs: ["patchUnit", "layout:agent.models", "kind:agent.agent"], layer: "mechanism" });
+
+  test("Раскладка show и hide: в detectors видны только камеры с детекторами, потоков нет ни в одной раскладке", async () => {
+    const env = await makeEnv();
+    const { layouts } = await env.ok("GET", "/kinds");
+    const det = (n) => (n.implements || []).some((p) => p === "vms.detector/1" || p === "vms.subdetector/1");
+    let cams = 0;
+    for (const area of await treeKidsOf(env, "detectors", null)) for (const s of (await treeKidsOf(env, "detectors", area.id)).filter((n) => n.unit)) {
+      for (const n of await treeKidsOf(env, "detectors", s.id)) {
+        if (!(n.implements || []).includes("vms.camera/1")) continue;
+        cams++;
+        assert.ok((await treeKidsOf(env, "detectors", n.id)).some(det), `${n.name}: под камерой есть детектор`);
+      }
+    }
+    assert.ok(cams > 0, "камеры в detectors есть");
+    // Поток — ребёнок камеры: обойти каждую раскладку на три уровня вниз, не больше 300 раскрытий
+    for (const L of layouts) {
+      let level = await treeKidsOf(env, L.id, null), opened = 0;
+      for (let depth = 0; depth < 4 && level.length; depth++) {
+        level.forEach((n) => assert.ok(n.kind !== "stream" && !(n.implements || []).includes("vms.stream/1"), `${L.id}: поток ${n.id} в дереве`));
+        const next = [];
+        for (const n of level.filter((x) => x.hasChildren)) {
+          if (++opened > 300) break;
+          next.push(...(await treeKidsOf(env, L.id, n.id)));
+        }
+        level = next;
+      }
+    }
+  }, { needs: ["getTreeChildren", "layout:detectors", "implements:vms.detector/1"], layer: "mechanism" });
+
   test("Дерево: верхний уровень, дети, порядок, parentCount, узла нет — 404", async () => {
     const env = await makeEnv();
     const top = await env.pages(q("/tree/children", { layout: "servers" }));
