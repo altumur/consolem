@@ -482,7 +482,11 @@
       assert.eq(pairs(Object.entries(xc)), want, `${k.kind}: x-conflicts — те же пары`);
       Object.entries(xc).forEach(([a, cs]) => [a, ...cs].forEach((x) => assert.ok(ak.enum.includes(x), `${k.kind}: ${x} — значение analyticsKind`)));
     }
-    return `пар ${(want || []).length}`;
+    // x-conflicts необязательно: система без несовместимых видов (набор one-domain) его не объявляет. Тест тогда ничего
+    // не проверяет и говорит об этом в строке PASS
+    if (want === null) return `x-conflicts нет ни у одного из ${dets.length} видов детектора — проверять нечего`;
+    assert.ok(want.length > 0, "x-conflicts объявлено — в нём есть пары");
+    return `пар ${want.length}`;
   }, { needs: ["listKinds", "implements:vms.detector/1"] });
 
   test("Несовместимые виды серверных детекторов (с 0.21.0): x-conflicts у analyticsKind; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
