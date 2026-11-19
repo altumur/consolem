@@ -281,8 +281,8 @@ async function run() {
   const seen = [];
   ({ session: s } = await connected({
     autoHeight: false,
-    onErrors: (p) => seen.push(["errors", p]), onApplied: (u) => seen.push(["applied", u]),
-    onRevert: (u) => seen.push(["revert", u]), onDraft: (p) => seen.push(["draft", p]), onTheme: (t) => seen.push(["theme", t]),
+    onErrors: (p) => seen.push(["errors", p]), onApplied: (u, st) => seen.push(st === undefined ? ["applied", u] : ["applied", u, st]),
+    onRevert: (u) => seen.push(["revert", u]), onDraft: (p, st) => seen.push(st === undefined ? ["draft", p] : ["draft", p, st]), onTheme: (t) => seen.push(["theme", t]),
   }));
   const problem = schema.examples.find((e) => e.type === "errors").problem;
   post({ proto: "setup/1", type: "errors", problem });
@@ -295,6 +295,15 @@ async function run() {
   post({ proto: "setup/1", type: "draft", patch: { backlight: "high" } });
   if (!same(seen.pop(), ["draft", { backlight: "high" }])) fail("10 draft", "onDraft не получил patch");
   if (!same(s.draft, { backlight: "high" })) fail("10 draft", `draft ${JSON.stringify(s.draft)}`);
+  // Шаг 2: steps у draft и applied — вторым аргументом onDraft и onApplied
+  const dsteps = [{ step: 1, op: "patchUnit", label: "Изменить «Датчик»" }];
+  post({ proto: "setup/1", type: "draft", patch: { backlight: "high" }, steps: dsteps });
+  if (!same(seen.pop(), ["draft", { backlight: "high" }, dsteps])) fail("10 draft steps", "onDraft не получил steps");
+  const asteps = [{ step: 1, state: "ok" }];
+  post({ proto: "setup/1", type: "applied", unit: unit2, steps: asteps });
+  if (!same(seen.pop(), ["applied", unit2, asteps])) fail("10 applied steps", "onApplied не получил steps");
+  post({ proto: "setup/1", type: "draft", patch: { backlight: "high" } });
+  seen.pop();
   const unit3 = { ...UNIT, version: "3" };
   post({ proto: "setup/1", type: "revert", unit: unit3 });
   if (!same(seen.pop(), ["revert", unit3])) fail("10 revert", "onRevert не получил unit");

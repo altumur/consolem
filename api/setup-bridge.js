@@ -178,12 +178,14 @@
         draft(m) {
           session.draft = isObj(m.patch) ? m.patch : {};
           sentDraft = session.draft;
-          if (o.onDraft) o.onDraft(session.draft);
+          // Шаг 2: steps — шаги моста в черновике consolem, вторым аргументом
+          if (o.onDraft) Array.isArray(m.steps) ? o.onDraft(session.draft, m.steps) : o.onDraft(session.draft);
         },
         applied(m) {
           session.unit = m.unit;
           session.draft = sentDraft = {};
-          if (o.onApplied) o.onApplied(m.unit);
+          // Шаг 2: steps — итог шагов моста, вторым аргументом
+          if (o.onApplied) Array.isArray(m.steps) ? o.onApplied(m.unit, m.steps) : o.onApplied(m.unit);
         },
         revert(m) {
           session.unit = m.unit;
