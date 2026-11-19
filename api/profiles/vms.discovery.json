@@ -1,0 +1,20 @@
+{
+ "id": "vms.discovery/1",
+ "version": "1.0",
+ "label": "Поиск устройств в сети области",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {},
+ "apis": [
+  "discovery"
+ ],
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Новый профиль, контракт 0.29.0: путь профиля /units/{uid}/discovery (GET, POST, DELETE — getDiscovery, startDiscovery, stopDiscovery) у объекта области (у VMS — домен) вместо пути /domains/{domainId}/discovery. Свойств нет: профиль объявляет только путь"
+  }
+ ]
+}

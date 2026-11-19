@@ -77,7 +77,7 @@ DROP_PROPS = {"det": ["analyticsKind", "extraZones", "direction", "objectSize", 
 # текст источника, событие и команда единицы СКУД, выход реле) — редактор правил их предлагает. Каталог правил — из описаний
 # видов, поэтому описания остаются, но завести такой объект нельзя: без create и createParents, без x-ui-category (в мастере их нет)
 RULE_ONLY_KINDS = ["sensor", "relay", "eventsrc", "acfa", "acfa_sensor", "acfa_lock", "acfa_fence"]
-MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "syncCatalog"]
+MISSING = ["startTalk", "listArchiveWatches", "createArchiveWatch", "patchArchiveWatch", "deleteArchiveWatch", "runDeviceOperation", "assistTurn", "createDomain", "deleteDomain", "createVolume", "deleteVolume", "listLicenses", "listLicenseKeys", "createLicenseKey", "getLicenseKey", "patchLicenseKey", "deleteLicenseKey", "getDiscovery", "startDiscovery", "stopDiscovery", "getDomainDiscovery", "startDomainDiscovery", "stopDomainDiscovery", "syncCatalog"]
 # Выгрузка первой генерации VMS (ADR-0117 § 8, доп. (1) п. 3): треки, маска, плеер, облако, титры событий — позже
 FEATURES = ["exportVideo", "exportFrame", "exportLiveFrame", "exportArea", "exportMultiCamera", "exportMultiPeriod", "exportSingleFile", "exportTranscode", "exportTitles", "exportAudio", "exportPassword"]
 # Поиск в журнале (контракт 0.8.0): q, списки и «скрыть», счётчики по полям
@@ -339,6 +339,11 @@ def build(demo):
 
     caps = ref["capabilities"]
     caps["operations"] = [o for o in caps["operations"] if o not in MISSING]
+    # Профиль путей снимается с вида, если ни одной операции его путей у системы нет (у «одного домена» нет vms.discovery/1)
+    no_paths = {pid for pid, ops in contract_profile_ops().items() if not any(o in caps["operations"] for o in ops)}
+    for k in fx["kinds"]:
+        if "implements" in k:
+            k["implements"] = [i for i in k["implements"] if i not in no_paths]
     # Только возможности, которые знает контракт (Feature)
     caps["features"] = [f for f in FEATURES if f in contract_features()]
     # Разделы приложения — как у demo, без тех, чьих операций у системы нет (tools/mechanism.py, S2)
@@ -379,6 +384,18 @@ def profile_layouts(layouts, kinds, profiles):
                 rules.append(rule)
         lay["place"] = rules
     return layouts
+
+
+def contract_profile_ops():
+    """Профиль → operationId путей контракта с x-layer этого профиля ({API}/openapi.json)."""
+    with open(os.path.join(ROOT, API, "openapi.json"), encoding="utf-8") as f:
+        paths = json.load(f)["paths"]
+    out = {}
+    for item in paths.values():
+        layer = item.get("x-layer")
+        if layer and "/" in layer:
+            out.setdefault(layer, []).extend(op["operationId"] for m, op in item.items() if isinstance(op, dict) and "operationId" in op)
+    return out
 
 
 def contract_features():

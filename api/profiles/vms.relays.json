@@ -1,0 +1,21 @@
+{
+ "id": "vms.relays/1",
+ "version": "1.0",
+ "label": "Ретрансляторы",
+ "owner": "mockup",
+ "reviewers": [
+  "w2c"
+ ],
+ "uses": [],
+ "properties": {},
+ "apis": [
+  "relays",
+  "relays/{name}"
+ ],
+ "changes": [
+  {
+   "version": "1.0",
+   "what": "Новый профиль, контракт 0.29.0: пути профиля /units/{uid}/relays (GET — listRelays) и /units/{uid}/relays/{name} (GET — getRelay) у объекта области (у VMS — домен) вместо путей /domains/{domainId}/relays…. Свойств нет: профиль объявляет только пути"
+  }
+ ]
+}

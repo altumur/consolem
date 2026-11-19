@@ -4508,6 +4508,71 @@
       });
       return out;
     }
+    // ── Пути области: поиск в сети, сценарии между камерами, ретрансляторы ──
+    // С 0.29.0 — пути профилей /units/{uid}/… (vms.discovery/1, vms.scenarios/1, vms.relays/1): uid — объект области, вид
+    // которого объявил профиль. Прежние пути /domains/{id}/… устарели и зовут те же обработчики (p.id — uid области)
+    const AREA_API = {
+      relays: (p) => (byId("domains", p.id) ? items(Object.keys((db.relays || {})[p.id] || {}).sort().map((name) => ({ name }))) : notFound("Домен")),
+      relay: (p) => {
+        const r = byId("domains", p.id) && ((db.relays || {})[p.id] || {})[p.name];
+        return r ? { status: 200, body: { name: p.name, members: r.slice().sort() } } : notFound("Ретранслятор");
+      },
+      scenarios: (p) => (byId("domains", p.id) ? one(clone(scenarioDoc(p.id))) : notFound("Домен")),
+      putScenarios: (p, q, body, headers) => {
+        const dom = byId("domains", p.id);
+        if (!dom) return notFound("Домен");
+        if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Документ ведёт администратор домена");
+        const doc = scenarioDoc(p.id);
+        const bad = precondition(doc, headers) || (dom.online === false ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null) || scenarioProblem(body.items);
+        if (bad) return bad;
+        doc.items = clone(body.items);
+        bump(doc);
+        send("entity.changed", { kind: "scenarios", entityId: p.id, version: doc.version });
+        return one(clone(doc));
+      },
+      scenariosStatus: (p) => {
+        if (!byId("domains", p.id)) return notFound("Домен");
+        const doc = scenarioDoc(p.id), st = (db.scenarioStatus || {})[p.id] || {};
+        return items(doc.items.filter((x) => st[x.name]).map((x) => clone(st[x.name])));
+      },
+      startDiscovery: (p) => {
+        if (!byId("domains", p.id)) return notFound("Домен");
+        const job = discoveryOf(p.id);
+        if (job.state === "searching") return problem(409, "BUSY", "Поиск в сети домена уже идёт");
+        // Новый поиск заменяет итог прежнего: найденное появляется по одному, как при настоящем опросе
+        Object.assign(job, { state: "searching", progress: 0, startedAt: iso(now()), finishedAt: null, candidateIds: [] });
+        // Первая находка — сразу, следующие — раз в 140 мс
+        searches.set(p.id, { queue: db.network.filter((c) => c.domainIds.includes(p.id)).map((c) => c.id), total: 0, nextAt: now() });
+        searches.get(p.id).total = searches.get(p.id).queue.length;
+        if (!searches.get(p.id).total) finishDiscovery(p.id, "done");
+        else tickDiscovery([]);
+        return { status: 202, body: discoveryView(p.id) };
+      },
+      stopDiscovery: (p) => {
+        if (!byId("domains", p.id)) return notFound("Домен");
+        if (searches.has(p.id)) finishDiscovery(p.id, "stopped");
+        return { status: 200, body: discoveryView(p.id) };
+      },
+      discovery: (p, q) => {
+        if (!byId("domains", p.id)) return notFound("Домен");
+        const whole = discoveryView(p.id);
+        // Поиск отдаёт находки в своём порядке: номер находки
+        const res = pageList(q, `discovery:${p.id}`, whole.candidates, (c) => String(whole.candidates.indexOf(c)).padStart(8, "0"), (c) => c, { total: whole.candidates.length });
+        if (res.status !== 200) return res;
+        return { status: 200, body: Object.assign(whole, res.body, { candidates: res.body.items, items: undefined }) };
+      },
+    };
+    // Путь профиля области: объекта нет — 404, вид не объявил профиль — 422 NOT_SUPPORTED (field /kind); дальше — прежний обработчик.
+    // field отказа на пути ядра — JSON Pointer в теле: items[0].name → /items/0/name
+    const areaApi = (profile, name) => (p, q, body, headers) => {
+      const u = store.get(p.uid);
+      if (!u) return notFound("Объект");
+      if (!kinds.profileOf(u.kind, profile)) return problem(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует ${profile}`, { field: "/kind", params: { kind: u.kind, profile } });
+      const res = AREA_API[name](Object.assign({}, p, { id: p.uid }), q, body, headers);
+      const f = res && res.status >= 400 && res.body ? res.body.field : undefined;
+      if (typeof f !== "string" || f.startsWith("/")) return res;
+      return { status: res.status, body: Object.assign({}, res.body, { field: "/" + f.replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean).join("/") }) };
+    };
     const ROUTES = [
       [
         "GET",
@@ -4522,29 +4587,23 @@
         ref.serverLabels = [...new Set((ref.serverLabels || []).concat(db.servers.flatMap((s) => s.labels || [])))];
         return { status: 200, body: ref };
       }],
-      ["GET", "/domains/{id}/relays", (p) => (byId("domains", p.id) ? items(Object.keys((db.relays || {})[p.id] || {}).sort().map((name) => ({ name }))) : notFound("Домен"))],
-      ["GET", "/domains/{id}/relays/{name}", (p) => {
-        const r = byId("domains", p.id) && ((db.relays || {})[p.id] || {})[p.name];
-        return r ? { status: 200, body: { name: p.name, members: r.slice().sort() } } : notFound("Ретранслятор");
-      }],
-      ["GET", "/domains/{id}/scenarios", (p) => (byId("domains", p.id) ? one(clone(scenarioDoc(p.id))) : notFound("Домен"))],
-      ["PUT", "/domains/{id}/scenarios", (p, q, body, headers) => {
-        const dom = byId("domains", p.id);
-        if (!dom) return notFound("Домен");
-        if (!holdsAdmin(db.access, me)) return problem(403, "PERMISSION_DENIED", "Документ ведёт администратор домена");
-        const doc = scenarioDoc(p.id);
-        const bad = precondition(doc, headers) || (dom.online === false ? problem(409, "SERVER_OFFLINE", "Нет связи с доменом") : null) || scenarioProblem(body.items);
-        if (bad) return bad;
-        doc.items = clone(body.items);
-        bump(doc);
-        send("entity.changed", { kind: "scenarios", entityId: p.id, version: doc.version });
-        return one(clone(doc));
-      }],
-      ["GET", "/domains/{id}/scenarios/status", (p) => {
-        if (!byId("domains", p.id)) return notFound("Домен");
-        const doc = scenarioDoc(p.id), st = (db.scenarioStatus || {})[p.id] || {};
-        return items(doc.items.filter((x) => st[x.name]).map((x) => clone(st[x.name])));
-      }],
+      // Пути области: профили vms.discovery/1, vms.scenarios/1, vms.relays/1; /domains/{id}/… — устарели в 0.29.0
+      ["GET", "/units/{uid}/discovery", areaApi("vms.discovery/1", "discovery")],
+      ["POST", "/units/{uid}/discovery", areaApi("vms.discovery/1", "startDiscovery")],
+      ["DELETE", "/units/{uid}/discovery", areaApi("vms.discovery/1", "stopDiscovery")],
+      ["GET", "/units/{uid}/scenarios", areaApi("vms.scenarios/1", "scenarios")],
+      ["PUT", "/units/{uid}/scenarios", areaApi("vms.scenarios/1", "putScenarios")],
+      ["GET", "/units/{uid}/scenarios/status", areaApi("vms.scenarios/1", "scenariosStatus")],
+      ["GET", "/units/{uid}/relays", areaApi("vms.relays/1", "relays")],
+      ["GET", "/units/{uid}/relays/{name}", areaApi("vms.relays/1", "relay")],
+      ["GET", "/domains/{id}/discovery", AREA_API.discovery],
+      ["POST", "/domains/{id}/discovery", AREA_API.startDiscovery],
+      ["DELETE", "/domains/{id}/discovery", AREA_API.stopDiscovery],
+      ["GET", "/domains/{id}/scenarios", AREA_API.scenarios],
+      ["PUT", "/domains/{id}/scenarios", AREA_API.putScenarios],
+      ["GET", "/domains/{id}/scenarios/status", AREA_API.scenariosStatus],
+      ["GET", "/domains/{id}/relays", AREA_API.relays],
+      ["GET", "/domains/{id}/relays/{name}", AREA_API.relay],
       ["GET", "/tree/children", (p, q) => treeChildren(q)],
       ["GET", "/tree/paths", (p, q) => treePaths(q)],
       /* ----- Ядро: виды и объекты ----- */
@@ -4854,33 +4913,6 @@
           return { status: 200, body: { url: `stub://export/${x.id}/${f.id}/${encodeURIComponent(f.name)}?t=stub-${newVersion()}`, expiresAt: iso(now() + expRef().limits.linkTtlSec * 1000) } };
         },
       ],
-      /* ----- Домен: поиск устройств (discovery); объекты домена — пути ядра /units ----- */
-      [
-        "POST",
-        "/domains/{id}/discovery",
-        (p) => {
-          if (!byId("domains", p.id)) return notFound("Домен");
-          const job = discoveryOf(p.id);
-          if (job.state === "searching") return problem(409, "BUSY", "Поиск в сети домена уже идёт");
-          // Новый поиск заменяет итог прежнего: найденное появляется по одному, как при настоящем опросе
-          Object.assign(job, { state: "searching", progress: 0, startedAt: iso(now()), finishedAt: null, candidateIds: [] });
-          // Первая находка — сразу, следующие — раз в 140 мс
-          searches.set(p.id, { queue: db.network.filter((c) => c.domainIds.includes(p.id)).map((c) => c.id), total: 0, nextAt: now() });
-          searches.get(p.id).total = searches.get(p.id).queue.length;
-          if (!searches.get(p.id).total) finishDiscovery(p.id, "done");
-          else tickDiscovery([]);
-          return { status: 202, body: discoveryView(p.id) };
-        },
-      ],
-      [
-        "DELETE",
-        "/domains/{id}/discovery",
-        (p) => {
-          if (!byId("domains", p.id)) return notFound("Домен");
-          if (searches.has(p.id)) finishDiscovery(p.id, "stopped");
-          return { status: 200, body: discoveryView(p.id) };
-        },
-      ],
       [
         "POST",
         "/objects/delete",
@@ -5037,18 +5069,6 @@
           bump(db.access);
           send("entity.changed", { kind: "access", version: db.access.version });
           return { status: 202, body: clone(c) };
-        },
-      ],
-      [
-        "GET",
-        "/domains/{id}/discovery",
-        (p, q) => {
-          if (!byId("domains", p.id)) return notFound("Домен");
-          const whole = discoveryView(p.id);
-          // Поиск отдаёт находки в своём порядке: номер находки
-          const res = pageList(q, `discovery:${p.id}`, whole.candidates, (c) => String(whole.candidates.indexOf(c)).padStart(8, "0"), (c) => c, { total: whole.candidates.length });
-          if (res.status !== 200) return res;
-          return { status: 200, body: Object.assign(whole, res.body, { candidates: res.body.items, items: undefined }) };
         },
       ],
       [

@@ -531,10 +531,10 @@
   test("Поиск в сети: страницы у candidates", async () => {
     const env = await makeEnv();
     const did2 = FX.discovery[0].domainId;
-    const res = await env.ok("GET", `/domains/${did2}/discovery?limit=1`);
+    const res = await env.ok("GET", `/units/${did2}/discovery?limit=1`);
     assert.ok(res.candidates.length <= 1 && res.total >= res.candidates.length, "страница");
-    if (res.total > 1) assert.eq((await env.ok("GET", `/domains/${did2}/discovery?limit=1&cursor=${encodeURIComponent(res.nextCursor)}`)).candidates.length, 1, "вторая");
-  }, { needs: ["getDiscovery"] });
+    if (res.total > 1) assert.eq((await env.ok("GET", `/units/${did2}/discovery?limit=1&cursor=${encodeURIComponent(res.nextCursor)}`)).candidates.length, 1, "вторая");
+  }, { needs: ["getDiscovery"], layer: "profile:vms.discovery/1" });
 
   test("Запуски правила: страницы", async () => {
     const env = await makeEnv();
@@ -550,39 +550,41 @@
   };
   test("Документ V/07.5: чтение, запись целиком, версия, 412 на чужую правку, отказы формы, состояние из пульса", async () => {
     const env = await makeEnv();
-    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
+    const doc = await env.ok("GET", `/units/${did}/scenarios`);
     assert.eq(doc.items, [], "пусто");
-    const put = (items, version) => env.call("PUT", `/domains/${did}/scenarios`, { items }, { "If-Match": `"${version}"` });
+    const put = (items, version) => env.call("PUT", `/units/${did}/scenarios`, { items }, { "If-Match": `"${version}"` });
     const one = await put([scen()], doc.version);
     assert.status(one, 200);
     assert.ok(one.body.version !== doc.version && one.headers.etag === `"${one.body.version}"`, "новая версия в ETag");
     assert.status(await put([scen()], doc.version), 412, "VERSION_MISMATCH", "чужая правка");
-    assert.status(await env.call("PUT", `/domains/${did}/scenarios`, { items: [] }), 428, "PRECONDITION_REQUIRED");
+    assert.status(await env.call("PUT", `/units/${did}/scenarios`, { items: [] }), 428, "PRECONDITION_REQUIRED");
     const v = one.body.version;
-    assert.status(await put([scen(), scen()], v), 409, "NAME_TAKEN", "повтор имени");
+    const twice = await put([scen(), scen()], v);
+    assert.status(twice, 409, "NAME_TAKEN", "повтор имени");
+    assert.eq(twice.body.field, "/items/1/name", "field — JSON Pointer в теле");
     assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "preset", n: 1, port: 2 } })], v), 422, "VALIDATION_FAILED", "n и port вместе");
     assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "output" } })], v), 422, "VALIDATION_FAILED", "нет номера");
     const notCam = FX.devices.find((d) => d.type !== "camera");
     assert.status(await put([scen({ then: { deviceId: notCam.id, action: "preset", n: 1 } })], v), 422, "VALIDATION_FAILED", "цель не камера");
     assert.status(await put([scen({ when: { deviceId: scen().when.deviceId, kind: "нет" } })], v), 422, "VALIDATION_FAILED", "нет такого вида");
     assert.status(await put([scen({ then: { deviceId: scen().then.deviceId, action: "preset", n: 1, validForSec: 5 } })], v), 422, "VALIDATION_FAILED", "срок вне границ");
-    assert.eq((await env.ok("GET", `/domains/${did}/scenarios/status`)).items, [], "в пульсе нет — строки нет");
+    assert.eq((await env.ok("GET", `/units/${did}/scenarios/status`)).items, [], "в пульсе нет — строки нет");
     const status = { name: "Ворота — двор", phase: "running", asked: 2, outcomes: { performed: 1, refused: 1, expired: 0, unknown: 0 } };
     await env.ok("POST", "/test/events", { type: "scenario.outcome", domainId: did, name: status.name, status });
-    assert.eq((await env.ok("GET", `/domains/${did}/scenarios/status`)).items[0].asked, 2, "состояние");
-    assert.eq((await env.ok("GET", `/domains/${did}/scenarios`)).version, v, "состояние версию не двигает");
+    assert.eq((await env.ok("GET", `/units/${did}/scenarios/status`)).items[0].asked, 2, "состояние");
+    assert.eq((await env.ok("GET", `/units/${did}/scenarios`)).version, v, "состояние версию не двигает");
     assert.eq((await env.pages("/operations")).length, 0, "вне отката, /operations не пишется");
-  }, { needs: SCEN });
+  }, { needs: SCEN, layer: "profile:vms.scenarios/1" });
   test("Документ V/07.5: без admin домена — 403, без связи с доменом — 409", async () => {
     const adm = FX.access.roles.find((r) => r.global.unr);
     const reader = FX.access.users.find((u) => u.enabled && !u.roleIds.includes(adm.id) && !FX.access.groups.some((g) => g.memberIds.includes(u.id) && g.roleIds.includes(adm.id)));
     const env = await makeEnv({ actAs: reader.login });
-    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
-    assert.status(await env.call("PUT", `/domains/${did}/scenarios`, { items: [] }, { "If-Match": `"${doc.version}"` }), 403, "PERMISSION_DENIED");
+    const doc = await env.ok("GET", `/units/${did}/scenarios`);
+    assert.status(await env.call("PUT", `/units/${did}/scenarios`, { items: [] }, { "If-Match": `"${doc.version}"` }), 403, "PERMISSION_DENIED");
     const off = await makeEnv({ fixturePatch: { domains: FX.domains.map((d) => (d.id === did ? Object.assign({}, d, { online: false }) : d)) } });
-    const dd = await off.ok("GET", `/domains/${did}/scenarios`);
-    assert.status(await off.call("PUT", `/domains/${did}/scenarios`, { items: [] }, { "If-Match": `"${dd.version}"` }), 409, "SERVER_OFFLINE");
-  }, { needs: SCEN });
+    const dd = await off.ok("GET", `/units/${did}/scenarios`);
+    assert.status(await off.call("PUT", `/units/${did}/scenarios`, { items: [] }, { "If-Match": `"${dd.version}"` }), 409, "SERVER_OFFLINE");
+  }, { needs: SCEN, layer: "profile:vms.scenarios/1" });
 
   ApiTest.loaded("api-pages.js");
 })();

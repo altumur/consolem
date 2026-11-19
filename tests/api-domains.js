@@ -123,8 +123,8 @@
     assert.eq([moved.length, moved.every((s) => !s.properties.allocated)], [before.servers, true], "серверы — нераспределённые в целевом");
     assert.eq((await units(env, `kind=folder&domainId=${d1.id}`)).length, 0, "папок старого домена нет");
     assert.eq((await units(env, `domainId=${d1.id}`)).length, 0, "устройств, хранилищ и прочего старого домена нет");
-    if (ApiTest.can("getDiscovery")) {
-      const disc = await env.ok("GET", `/domains/${d2.id}/discovery`);
+    if (ApiTest.can("getDiscovery") && ApiTest.can("implements:vms.discovery/1")) {
+      const disc = await env.ok("GET", `${U(d2.id)}/discovery`);
       const old = FX.discovery.find((x) => x.domainId === d1.id).candidateIds;
       assert.ok(old.every((c) => disc.candidates.some((x) => x.id === c)), "найденное поиском перенесено");
     }
@@ -329,15 +329,22 @@
     assert.eq(auto.properties.labels, ["gpu"], "по умолчанию просит gpu");
   }, { needs: ["patchUnit", "createUnits", "implements:vms.server/1", "kind:det"] });
 
-  test("Домен: потеря связи — только свой кластер, чужое не удалено, stream.reset; ретрансляторы", async () => {
+  // Ретрансляторы — путь профиля vms.relays/1 у объекта области (с 0.29.0; прежний путь /domains/{id}/relays устарел)
+  test("Ретрансляторы: список домена и кто за ретранслятором — GET /units/{uid}/relays", async () => {
     const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
     if (!d) return "ретрансляторов в наборе нет";
     const env = await makeEnv();
-    const relays = (await env.ok("GET", `/domains/${d.id}/relays`)).items;
+    const relays = (await env.ok("GET", `${U(d.id)}/relays`)).items;
     assert.ok(relays.length > 0, "ретранслятор есть");
-    const one = await env.ok("GET", `/domains/${d.id}/relays/${encodeURIComponent(relays[0].name)}`);
+    const one = await env.ok("GET", `${U(d.id)}/relays/${encodeURIComponent(relays[0].name)}`);
     assert.eq(one.members, one.members.slice().sort(), "имена по возрастанию");
-    assert.status(await env.call("GET", `/domains/${d.id}/relays/нет`), 404, "NOT_FOUND");
+    assert.status(await env.call("GET", `${U(d.id)}/relays/нет`), 404, "NOT_FOUND");
+  }, { needs: ["listRelays", "getRelay"], layer: "profile:vms.relays/1" });
+
+  test("Домен: потеря связи — только свой кластер, чужое не удалено, stream.reset", async () => {
+    const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
+    if (!d) return "ретрансляторов в наборе нет";
+    const env = await makeEnv();
     // Без связи с доменом сервер входа видит только свой кластер
     const servers = () => units(env, "implements=vms.server/1");
     const all = await servers();
@@ -354,7 +361,65 @@
     await env.ok("POST", "/test/events", { type: "domain.link", domainId: d.id, online: true });
     assert.eq((await servers()).length, all.length, "связь вернулась");
     stop();
-  }, { needs: ["listRelays", "getRelay"] });
+  }, { needs: ["listUnits", "implements:vms.server/1"] });
+
+  /* ===== Пути профилей области: поиск в сети, сценарии, ретрансляторы (с 0.29.0) ===== */
+
+  // uid — объект области, вид которого объявил профиль; объект другого вида — 422 NOT_SUPPORTED, объекта нет — 404
+  test("Пути профилей: объект без профиля — 422 NOT_SUPPORTED, объекта нет — 404", async () => {
+    const env = await makeEnv();
+    const cam = FX.devices.find((x) => x.type === "camera");
+    const notArea = await env.call("GET", `${U(cam.id)}/scenarios`);
+    assert.status(notArea, 422, "NOT_SUPPORTED", "камера — не объект с vms.scenarios/1");
+    assert.eq(notArea.body.field, "/kind", "field — вид объекта");
+    assert.status(await env.call("GET", `${U(UNKNOWN_DOMAIN)}/scenarios`), 404, "NOT_FOUND", "объекта нет");
+    if (ApiTest.can("getDiscovery") && ApiTest.can("implements:vms.discovery/1")) {
+      assert.status(await env.call("GET", `${U(cam.id)}/discovery`), 422, "NOT_SUPPORTED", "поиск у камеры");
+      assert.status(await env.call("GET", `${U(UNKNOWN_DOMAIN)}/discovery`), 404, "NOT_FOUND", "поиск: объекта нет");
+    }
+    if (ApiTest.can("listRelays") && ApiTest.can("implements:vms.relays/1")) {
+      assert.status(await env.call("GET", `${U(cam.id)}/relays`), 422, "NOT_SUPPORTED", "ретрансляторы у камеры");
+      assert.status(await env.call("GET", `${U(UNKNOWN_DOMAIN)}/relays`), 404, "NOT_FOUND", "ретрансляторы: объекта нет");
+    }
+  }, { needs: ["getScenarios", "implements:vms.scenarios/1", "kind:camera"], layer: "profile:vms.scenarios/1" });
+
+  // Прежние пути /domains/{domainId}/… устарели в 0.29.0 и работают до следующей ломающей версии: ответ как у нового пути
+  test("Устаревшие пути домена: ответ как у нового пути — поиск в сети", async () => {
+    const env = await makeEnv();
+    const did = FX.discovery[0].domainId;
+    assert.eq(await env.ok("GET", `/domains/${did}/discovery`), await env.ok("GET", `${U(did)}/discovery`), "GET");
+    // Ответ POST и DELETE — без полей страницы (total, nextCursor): их сравниваем с GET нового пути без них
+    const whole = async () => {
+      const { total, nextCursor, ...rest } = await env.ok("GET", `${U(did)}/discovery`);
+      return rest;
+    };
+    const started = await env.call("POST", `/domains/${did}/discovery`);
+    assert.status(started, 202);
+    assert.eq(started.body, await whole(), "POST начал поиск нового пути");
+    const stopped = await env.ok("DELETE", `/domains/${did}/discovery`);
+    assert.eq([stopped.state, stopped], ["stopped", await whole()], "DELETE остановил поиск нового пути");
+  }, { needs: ["getDomainDiscovery", "getDiscovery", "startDomainDiscovery", "stopDomainDiscovery"], layer: "profile:vms.discovery/1" });
+
+  test("Устаревшие пути домена: ответ как у нового пути — сценарии", async () => {
+    const env = await makeEnv();
+    const did = d1.id;
+    const doc = await env.ok("GET", `/domains/${did}/scenarios`);
+    assert.eq(doc, await env.ok("GET", `${U(did)}/scenarios`), "GET");
+    assert.eq(await env.ok("GET", `/domains/${did}/scenarios/status`), await env.ok("GET", `${U(did)}/scenarios/status`), "GET status");
+    const put = await env.call("PUT", `/domains/${did}/scenarios`, { items: doc.items }, { "If-Match": `"${doc.version}"` });
+    assert.status(put, 200);
+    assert.eq(put.body, await env.ok("GET", `${U(did)}/scenarios`), "PUT записал документ нового пути");
+  }, { needs: ["getDomainScenarios", "getScenarios", "putDomainScenarios", "getDomainScenariosStatus", "getScenariosStatus"], layer: "profile:vms.scenarios/1" });
+
+  test("Устаревшие пути домена: ответ как у нового пути — ретрансляторы", async () => {
+    const d = FX.domains.find((x) => FX.relays && FX.relays[x.id]);
+    if (!d) return "ретрансляторов в наборе нет";
+    const env = await makeEnv();
+    const list = await env.ok("GET", `/domains/${d.id}/relays`);
+    assert.eq(list, await env.ok("GET", `${U(d.id)}/relays`), "GET");
+    const name = encodeURIComponent(list.items[0].name);
+    assert.eq(await env.ok("GET", `/domains/${d.id}/relays/${name}`), await env.ok("GET", `${U(d.id)}/relays/${name}`), "GET одного");
+  }, { needs: ["listDomainRelays", "listRelays", "getDomainRelay", "getRelay"], layer: "profile:vms.relays/1" });
 
   test("Сервер между доменами: откат переноса возвращает в исходный домен и состояние; исключить в другой домен — params.domainId", async () => {
     const env = await makeEnv();

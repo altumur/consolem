@@ -13,7 +13,7 @@
     ["Удалить камеру: строки незнакомых видов", "mechanism"],
     ["Детектор из карточки камеры", "mechanism"],
     ["Профиль при добавлении", "mechanism"],
-    ["Поиск в сети", "mechanism"],
+    ["Поиск в сети", "profile:vms.discovery/1"],
     ["Схемы видов:", "mechanism"],
     ["Потоки:", "profile:vms.stream/1"],
     ["Разрешение:", "profile:vms.stream/1"],
@@ -120,10 +120,10 @@
     const disc = FX.discovery[0];
     const c = FX.network.find((x) => x.id === disc.candidateIds[0]);
     const [u] = await made(env, newCam({ ip: c.ip, mac: c.mac }, { domainId: disc.domainId, candidateId: c.id }));
-    const now = await env.ok("GET", `/domains/${disc.domainId}/discovery`);
+    const now = await env.ok("GET", `/units/${disc.domainId}/discovery`);
     assert.ok(!now.candidates.some((x) => x.id === c.id), "добавленное — не в найденных");
     assert.eq(u.properties.mac, c.mac, "MAC из поиска сохранён");
-  }, { needs: ["getDiscovery", "createUnits"] });
+  }, { needs: ["getDiscovery", "createUnits", "implements:vms.discovery/1"] });
 
   test("Определить модель: команда probe камеры и регистратора; повторяется; неизвестный производитель — null", async () => {
     const env = await makeEnv();
@@ -199,22 +199,22 @@
     const seen = [];
     const stop = ApiTest.subscribeForTest((m) => m.kind === "discovery" && m.entityId === did && seen.push(m.type));
     await ApiTest.settle();
-    const res = await env.call("POST", `/domains/${did}/discovery`);
+    const res = await env.call("POST", `/units/${did}/discovery`);
     assert.status(res, 202);
     assert.eq([res.body.state, res.body.candidates.map((c) => c.id)], ["searching", expect.slice(0, 1)], "начат, прежний итог сброшен, первая находка — сразу");
-    assert.status(await env.call("POST", `/domains/${did}/discovery`), 409, "BUSY");
+    assert.status(await env.call("POST", `/units/${did}/discovery`), 409, "BUSY");
     const done = await env.until(async () => {
-      const x = await env.ok("GET", `/domains/${did}/discovery`);
+      const x = await env.ok("GET", `/units/${did}/discovery`);
       return x.state === "done" && x;
     }, "поиск закончился");
     assert.eq([done.state, done.progress, done.candidates.map((c) => c.id)], ["done", 100, expect], "найдено всё, по порядку");
     await ApiTest.settle();
     stop();
     assert.eq([seen.filter((t) => t === "discovery.progress").length, seen.filter((t) => t === "discovery.finished").length], [expect.length, 1], "в потоке");
-    await env.ok("POST", `/domains/${did}/discovery`);
-    const stopped = await env.ok("DELETE", `/domains/${did}/discovery`);
+    await env.ok("POST", `/units/${did}/discovery`);
+    const stopped = await env.ok("DELETE", `/units/${did}/discovery`);
     assert.eq(stopped.state, "stopped", "остановлен");
-    assert.status(await env.call("DELETE", "/domains/10009999-0000-4000-8000-000000000000/discovery"), 404, "NOT_FOUND");
+    assert.status(await env.call("DELETE", "/units/10009999-0000-4000-8000-000000000000/discovery"), 404, "NOT_FOUND");
   }, { needs: ["startDiscovery", "getDiscovery", "stopDiscovery"] });
 
   /* ===== Виды, которые находит сервер ===== */

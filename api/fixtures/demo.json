@@ -20,7 +20,10 @@
    ],
    "implements": [
     "core.domain/1",
-    "vms.domain/1"
+    "vms.domain/1",
+    "vms.discovery/1",
+    "vms.scenarios/1",
+    "vms.relays/1"
    ],
    "capabilities": [
     "create",
@@ -10806,6 +10809,19 @@
    ]
   },
   {
+   "id": "vms.discovery/1",
+   "label": {
+    "key": "profile.vms.discovery/1",
+    "text": "Поиск устройств в сети области",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "discovery"
+   ]
+  },
+  {
    "id": "vms.domain/1",
    "label": {
     "key": "profile.vms.domain/1",
@@ -10959,6 +10975,34 @@
    "apis": [
     "ptz",
     "presets/{n}"
+   ]
+  },
+  {
+   "id": "vms.relays/1",
+   "label": {
+    "key": "profile.vms.relays/1",
+    "text": "Ретрансляторы",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "relays",
+    "relays/{name}"
+   ]
+  },
+  {
+   "id": "vms.scenarios/1",
+   "label": {
+    "key": "profile.vms.scenarios/1",
+    "text": "Сценарии между камерами",
+    "lang": "ru"
+   },
+   "version": "1.0",
+   "properties": [],
+   "apis": [
+    "scenarios",
+    "scenarios/status"
    ]
   },
   {
@@ -53154,6 +53198,9 @@
     "retryFailedOperation",
     "revertOperation",
     "redoOperation",
+    "getDomainDiscovery",
+    "startDomainDiscovery",
+    "stopDomainDiscovery",
     "getDiscovery",
     "startDiscovery",
     "stopDiscovery",
@@ -53228,10 +53275,15 @@
     "listAccessCellHistory",
     "listRoleObjects",
     "putStreamWatch",
+    "getDomainScenarios",
+    "putDomainScenarios",
     "getScenarios",
     "putScenarios",
+    "getDomainScenariosStatus",
     "getScenariosStatus",
+    "listDomainRelays",
     "listRelays",
+    "getDomainRelay",
     "getRelay",
     "deleteHold",
     "verifyHold",

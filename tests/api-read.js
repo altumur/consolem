@@ -60,7 +60,7 @@
     for (const [table, path] of TABLES) {
       assert.status(await env.call("GET", one(path, UNKNOWN)), 404, "NOT_FOUND", table);
     }
-    if (ApiTest.can("getDiscovery")) assert.status(await env.call("GET", `/domains/${UNKNOWN}/discovery`), 404, "NOT_FOUND", "поиск в неизвестном домене");
+    if (ApiTest.can("getDiscovery")) assert.status(await env.call("GET", `/units/${UNKNOWN}/discovery`), 404, "NOT_FOUND", "поиск у неизвестного объекта");
     assert.status(await env.call("GET", `/rules/${UNKNOWN}/fires`), 404, "NOT_FOUND", "срабатывания неизвестного правила");
     assert.status(await env.call("GET", "/no-such-thing"), 404, "NO_ROUTE");
   });
@@ -183,13 +183,13 @@
   test("Поиск в сети: последний итог домена — найденные устройства; домен без поиска — idle", async () => {
     const env = await makeEnv();
     const known = FX.discovery[0];
-    const d = await env.ok("GET", `/domains/${known.domainId}/discovery`);
+    const d = await env.ok("GET", `/units/${known.domainId}/discovery`);
     assert.eq(d.state, "done", "состояние");
     assert.eq(d.candidates.map((c) => c.id), known.candidateIds, "найденные");
     const silent = FX.domains.find((x) => !FX.discovery.some((y) => y.domainId === x.id));
-    const idle = await env.ok("GET", `/domains/${silent.id}/discovery`);
+    const idle = await env.ok("GET", `/units/${silent.id}/discovery`);
     assert.eq([idle.state, idle.candidates.length], ["idle", 0], "без поиска");
-  }, { needs: ["getDiscovery"] });
+  }, { needs: ["getDiscovery"], layer: "profile:vms.discovery/1" });
 
   test("Стенд: fixturePatch меняет набор только на этот прогон", async () => {
     const env = await makeEnv({ fixturePatch: { timezone: "UTC" } });

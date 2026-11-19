@@ -2244,7 +2244,12 @@
     },
   };
 
+  // Профили путей области (с 0.29.0): поиск в сети, сценарии между камерами, ретрансляторы. Пути /units/{uid}/discovery,
+  // /scenarios, /relays зовут обработчики области в server.js (AREA_API); хуков записи объекта у этих профилей нет
+  const discovery = {}, scenarios = {}, relays = {};
+
   const HOOKS = {
+    "vms.discovery/1": discovery, "vms.scenarios/1": scenarios, "vms.relays/1": relays,
     "core.domain/1": domain, "vms.server/1": server, "core.folder/1": folder, "vms.archive/1": archive, "vms.volume/1": volume,
     "vms.camera/1": camera, "vms.stream/1": stream, "vms.detector/1": detector, "vms.subdetector/1": subdetector, "vms.acs/1": acs,
     "vms.live/1": live, "vms.ptz/1": ptz, "vms.talk/1": talk, "vms.timeline/1": timeline, "vms.pos/1": pos, "vms.edge/1": edge,

@@ -38,6 +38,7 @@
 | 0.26.0 | Раскладки дерева объявляет система: `GET /kinds` → `layouts`. Ломающая правка: у `layout` снят `enum` | механизм | `TreeLayout`, `PlaceRule`, `KindSelector`, `TreeGroup`, `KindsList.layouts`, `TreeNode.group`, `StreamMessage.layout`, параметр `layout` у `/tree/children` и `/tree/paths` |
 | 0.27.0 | Разделы приложения объявляет система: `capabilities.sections` | механизм | `AppSection`, `Capabilities.sections` |
 | 0.28.0 | Область системы и папка — профили механизма; `vms.domain/1`, `vms.folder/1` устарели | механизм; `core.domain/1`; `core.folder/1` | `api/profiles/core.domain.json`, `api/profiles/core.folder.json`, описания `Unit.domainId`, `UnitBrief.domainId` |
+| 0.29.0 | Поиск в сети, сценарии между камерами и ретрансляторы — пути профилей `/units/{uid}/…`; пути `/domains/{domainId}/…` устарели. Есть ломающая правка: `operationId` перешли на новые пути | `vms.discovery/1`; `vms.scenarios/1`; `vms.relays/1`; `vms` | `/units/{uid}/discovery`, `/units/{uid}/scenarios…`, `/units/{uid}/relays…`, `Discovery*`, `Scenario*`, `Relay*`, `api/profiles/vms.discovery.json`, `vms.scenarios.json`, `vms.relays.json` |
 
 ## Как дополнять
 
