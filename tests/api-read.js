@@ -252,6 +252,14 @@
     assert.eq((await again.ok("GET", "/me")).timezone, FX.timezone, "следующий сброс — исходный набор");
   });
 
+  test("Стенд: роль в fixturePatch без objectAccess (как в ответе GET /access) — 422, набор прежний", async () => {
+    const env = await makeEnv();
+    const roles = (await env.ok("GET", "/access")).roles;
+    assert.eq(roles.every((r) => !("objectAccess" in r)), true, "в ответе GET /access роль без objectAccess");
+    assert.status(await env.call("POST", "/test/reset", { fixture: "demo", fixturePatch: { access: { roles } } }), 422, "VALIDATION_FAILED", "роль ответа, а не набора");
+    assert.eq((await env.ok("GET", "/access")).roles.length, FX.access.roles.length, "набор после отказа прежний");
+  });
+
   test("Стенд: actAs — прогон от имени другого администратора", async () => {
     const other = FX.access.users.find((u) => u.id !== FX.me.userId && u.enabled);
     const env = await makeEnv({ actAs: other.login });

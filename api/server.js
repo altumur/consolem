@@ -5765,7 +5765,11 @@
           if (!base) return problem(404, "NOT_FOUND", `Набора ${body.fixture} нет`);
           // Часы останавливаются: время в тестах идёт только по /test/clock
           clock.frozenAt = body.freezeClock === false ? null : realNow() + clock.offset;
-          load(body.fixturePatch ? mergePatch(base, body.fixturePatch) : base);
+          const next = body.fixturePatch ? mergePatch(base, body.fixturePatch) : base;
+          // Роль набора — со всеми таблицами прав (не роль ответа GET /access с objectAccessCount): иначе проверка прав упала бы
+          const badRole = ((next.access || {}).roles || []).find((r) => ["global", "folderAccess", "objectAccess", "kindAccess"].some((k) => !r || !r[k] || typeof r[k] !== "object"));
+          if (badRole) return problem(422, "VALIDATION_FAILED", `Роль ${badRole && badRole.id} в fixturePatch — без global, folderAccess, objectAccess или kindAccess: роль набора, а не ответа GET /access`);
+          load(next);
           if (body.actAs) {
             const u = db.access.users.find((x) => x.login === body.actAs);
             if (!u) return problem(404, "NOT_FOUND", `Пользователя ${body.actAs} нет`);
