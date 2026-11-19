@@ -47,6 +47,15 @@
     assert.ok(ref && ref.formats.some((f) => f.id === "mkv") && ref.limits.maxCameras > 0, "справочник выгрузки");
   }, { needs: ["getExportGrant", "getReference"] });
 
+  // С 0.30.0 справочник окна выгрузки — свой путь API видео; reference.export устарел и до снятия отдаёт то же
+  test("Справочник выгрузки: GET /exports/reference — то же, что reference.export", async () => {
+    const env = await makeEnv();
+    const own = await env.ok("GET", "/exports/reference");
+    assert.ok(own.formats.some((f) => f.id === "mkv") && own.limits.maxCameras > 0, "форматы и пределы");
+    if (ApiTest.can("getReference")) assert.eq(own, (await env.ok("GET", "/reference")).export, "то же, что reference.export");
+    return `форматов ${own.formats.length}`;
+  }, { needs: ["getExportReference"] });
+
   test("Сутки с записью: /units/{uid}/recording-days — 31 сутки, окно дат; не камера — /kind; нет объекта — 404; конец раньше начала — /to", async () => {
     const env = await makeEnv();
     const r = await env.ok("GET", `/units/${cam.id}/recording-days`);

@@ -2152,11 +2152,6 @@
   }
  ],
  "reference": {
-  "deviceModels": [],
-  "serviceTypes": [],
-  "supportLevels": [],
-  "recordModes": [],
-  "cloudProviders": [],
   "ruleActions": [
    {
     "source": "net",
@@ -2309,14 +2304,11 @@
    "joins": []
   },
   "limits": {
-   "ipScanMax": 1024,
-   "defaultServerPort": 20111,
    "pageMax": 1000,
    "idsMax": 200,
    "selectMax": 500,
    "watchMax": 200,
    "scanPartsMax": 8,
-   "scenariosMax": 1000,
    "fileMaxBytes": 10485760,
    "filesPerTurnMax": 5,
    "fileTypes": [
@@ -2429,7 +2421,6 @@
     }
    ]
   },
-  "serverLabels": [],
   "ruleStarts": [
    "event",
    "manual"
@@ -2440,9 +2431,7 @@
     "domain"
    ],
    "fromEvent": true
-  },
-  "scenarioKinds": [],
-  "analyticsConflicts": []
+  }
  },
  "streamAccounts": [],
  "archiveWatches": [],

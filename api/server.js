@@ -2307,10 +2307,12 @@
       delete c.domainIds;
       return c;
     }
+    // С 0.30.0 ответ поиска называет предел адресов одного поиска (ipScanMax): число стенда, прежнее место — reference.limits
     function discoveryView(domainId) {
       const d = db.discovery.find((x) => x.domainId === domainId);
-      if (!d) return { domainId, state: "idle", progress: 0, startedAt: null, finishedAt: null, candidates: [] };
-      return { domainId, state: d.state, progress: d.progress, startedAt: d.startedAt || null, finishedAt: d.finishedAt || null, candidates: d.candidateIds.map(candidate) };
+      const ipScanMax = db.stand.ipScanMax !== undefined ? db.stand.ipScanMax : (db.reference.limits || {}).ipScanMax;
+      if (!d) return { domainId, state: "idle", progress: 0, startedAt: null, finishedAt: null, candidates: [], ipScanMax };
+      return { domainId, state: d.state, progress: d.progress, startedAt: d.startedAt || null, finishedAt: d.finishedAt || null, candidates: d.candidateIds.map(candidate), ipScanMax };
     }
     function finishDiscovery(domainId, state) {
       searches.delete(domainId);
@@ -2529,8 +2531,12 @@
       db.scenarioDocs = db.scenarioDocs || {};
       return db.scenarioDocs[id] || (db.scenarioDocs[id] = { version: newVersion(), items: [] });
     }
+    // Предел стенда: число из stand (с 0.30.0), прежнее место — reference.limits (устарело, набор держит то же значение)
+    const standMax = (name) => (db.stand[name] !== undefined ? db.stand[name] : (db.reference.limits || {})[name]);
+    // Ответ документа: с 0.30.0 — ещё виды событий сценария (kinds) и предел (maxItems); в хранимом документе их нет
+    const scenarioView = (doc) => Object.assign(clone(doc), { kinds: (db.reference.scenarioKinds || []).slice(), maxItems: standMax("scenariosMax") });
     function scenarioProblem(list) {
-      const max = db.reference.limits.scenariosMax;
+      const max = standMax("scenariosMax");
       if (list.length > max) return problem(422, "VALIDATION_FAILED", `Сценариев не больше ${max}`, { field: "items" });
       const names = new Set();
       for (let i = 0; i < list.length; i++) {
@@ -4526,7 +4532,7 @@
         const r = byId("domains", p.id) && ((db.relays || {})[p.id] || {})[p.name];
         return r ? { status: 200, body: { name: p.name, members: r.slice().sort() } } : notFound("Ретранслятор");
       },
-      scenarios: (p) => (byId("domains", p.id) ? one(clone(scenarioDoc(p.id))) : notFound("Домен")),
+      scenarios: (p) => (byId("domains", p.id) ? one(scenarioView(scenarioDoc(p.id))) : notFound("Домен")),
       putScenarios: (p, q, body, headers) => {
         const dom = byId("domains", p.id);
         if (!dom) return notFound("Домен");
@@ -4537,7 +4543,7 @@
         doc.items = clone(body.items);
         bump(doc);
         send("entity.changed", { kind: "scenarios", entityId: p.id, version: doc.version });
-        return one(clone(doc));
+        return one(scenarioView(doc));
       },
       scenariosStatus: (p) => {
         if (!byId("domains", p.id)) return notFound("Домен");
@@ -4859,6 +4865,8 @@
           return { status: 202, body: clone(x), headers: { Location: `/exports/${x.id}` } };
         },
       ],
+      // Справочник окна выгрузки (с 0.30.0; прежнее место — reference.export). Литерал раньше /exports/{id}: иначе его поймал бы шаблон
+      ["GET", "/exports/reference", () => (expRef() ? { status: 200, body: clone(expRef()) } : notFound("Справочник выгрузки"))],
       ["GET", "/exports/{id}", (p) => { const x = expFind(p.id); return x ? { status: 200, body: clone(x) } : notFound("Выгрузка"); }],
       [
         "DELETE",

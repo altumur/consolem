@@ -493,13 +493,21 @@ def kinds_access(kinds, levels):
                 del e["right"]
 
 
+# Пределы стенда (с 0.30.0): их отдают Discovery.ipScanMax и ScenarioDoc.maxItems; large и xl пишут stand заново — копия из demo
+STAND_LIMITS = ("ipScanMax", "scenariosMax")
+
+
+def stand_limits(demo):
+    return {k: demo["stand"][k] for k in STAND_LIMITS if k in demo.get("stand", {})}
+
+
 def build_large(demo):
     fx = build(demo)
     fx["$comment"] = (
         "Стенд большого домена: 250 000 камер, 500 серверов. Записи считает заглушка из stand.large при загрузке, "
         "в файле только числа. Собран tools/profile_fixture.py из demo.json, руками не правится."
     )
-    fx["stand"] = {"large": LARGE, "journal": JOURNAL}
+    fx["stand"] = {"large": LARGE, "journal": JOURNAL, **stand_limits(demo)}
     # В отличие от «одного домена» у большого стенда есть ассистент: check_perf меряет поиск вместе с ним (шаг gq-enter-asst).
     # Операция и функция встают на свои места по порядку demo
     caps, dcaps = fx["reference"]["capabilities"], demo["reference"]["capabilities"]
@@ -537,7 +545,7 @@ def via_units(build_fx):
     return run
 
 
-def build_xl():
+def build_xl(demo):
     """Наложение поверх large: только числа стенда. Остальное — из large (tools/build_api.py, tools/serve_api.mjs)."""
     return {
         "$comment": (
@@ -546,7 +554,7 @@ def build_xl():
             "Наложение: целый набор — large и поверх него эти поля. Собран tools/profile_fixture.py, руками не правится."
         ),
         "$base": "large",
-        "stand": {"large": XL, "journal": JOURNAL},
+        "stand": {"large": XL, "journal": JOURNAL, **stand_limits(demo)},
     }
 
 
@@ -558,7 +566,7 @@ def main():
     with open(os.path.join(ROOT, SRC), encoding="utf-8") as f:
         demo = json.load(f)
     code = 0
-    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo))), (OUT_XL, build_xl())):
+    for out, fx in ((OUT, via_units(build)(copy.deepcopy(demo))), (OUT_LARGE, via_units(build_large)(copy.deepcopy(demo))), (OUT_XL, build_xl(demo))):
         text = render(fx)
         path = os.path.join(ROOT, out)
         if "--check" in sys.argv[1:]:

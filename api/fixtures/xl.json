@@ -22,6 +22,8 @@
    "count": 200000,
    "days": 30,
    "seed": 20261110
-  }
+  },
+  "ipScanMax": 1024,
+  "scenariosMax": 1000
  }
 }

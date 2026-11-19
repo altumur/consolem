@@ -512,7 +512,7 @@ def check_fixture(rep, spec, fx, label="Эталонный набор"):
 # Незнакомый x-* клиент пропускает, поэтому он не ошибка; незнакомое ключевое слово без x- — ошибка
 KIND_KEYWORDS = {"type", "enum", "const", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum", "minLength", "maxLength", "pattern", "format",
                  "items", "minItems", "maxItems", "required", "default", "readOnly", "writeOnly", "if", "then", "else", "dependentSchemas",
-                 "description", "title", "properties", "additionalProperties", "deprecated"}
+                 "description", "title", "properties", "additionalProperties", "deprecated", "allOf", "examples"}
 KIND_TYPES = {"string", "integer", "number", "boolean", "array", "object", "null"}
 KIND_FLAGS = ("x-search", "x-immutable", "x-unique", "x-ui-filter", "x-ui-advanced")
 UUID_ANY = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-4000-8000-[0-9a-f]{12}")
@@ -552,6 +552,16 @@ def kind_schema_problems(spec, node, where, kinds, profiles, out):
     for key in ("items", "if", "then", "else"):
         if key in node:
             kind_schema_problems(spec, node[key], f"{where}/{key}", kinds, profiles, out)
+    # allOf — независимые условия: каждая часть — своё if/then/else (описание JsonSchema)
+    if "allOf" in node:
+        if not isinstance(node["allOf"], list):
+            out.append(f"{where}: allOf — не список")
+        else:
+            for i, part in enumerate(node["allOf"]):
+                kind_schema_problems(spec, part, f"{where}/allOf/{i}", kinds, profiles, out)
+    # examples — подсказки значений (с 0.30.0): список; сервер по ним не проверяет
+    if "examples" in node and not isinstance(node["examples"], list):
+        out.append(f"{where}: examples — не список")
     if isinstance(node.get("additionalProperties"), dict):
         kind_schema_problems(spec, node["additionalProperties"], f"{where}/additionalProperties", kinds, profiles, out)
     # Расширения
@@ -799,6 +809,12 @@ def check_agents_mechanism(rep, spec, fx):
     problems = [f"agents: операция {op} — слоя {op_layer[op]}" for op in fx["reference"]["capabilities"]["operations"] if op_layer.get(op) is not None]
     allowed = {"core.domain/1", "core.folder/1"}
     problems += [f"agents: вид {k['kind']} объявляет профиль {p}" for k in fx.get("kinds", []) for p in k.get("implements") or [] if p not in allowed]
+    # Устаревшие справочники VMS в Reference (с 0.30.0 необязательны): у системы без VMS их нет
+    ref_props = spec["components"]["schemas"]["Reference"]["properties"]
+    old = [k for k, s in ref_props.items() if s.get("deprecated") and s.get("x-layer")]
+    old_limits = [k for k, s in ref_props["limits"]["properties"].items() if s.get("deprecated") and s.get("x-layer")]
+    problems += [f"agents: reference.{k} — справочник VMS" for k in old if k in fx["reference"]]
+    problems += [f"agents: reference.limits.{k} — предел VMS" for k in old_limits if k in fx["reference"].get("limits", {})]
     rep.check("agents: только операции механизма", problems, f"операций {len(fx['reference']['capabilities']['operations'])}")
 
 

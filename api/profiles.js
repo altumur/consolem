@@ -173,7 +173,8 @@
   }
   // Опрос адресов: отвечает ли адрес — у встроенного сервера по хешу адреса, так же, как в макете на константах
   function probe(targets, ctx) {
-    const max = ctx.db.reference.limits.ipScanMax;
+    // Предел адресов — число стенда (stand.ipScanMax, с 0.30.0 его отдаёт Discovery.ipScanMax); прежнее место — reference.limits
+    const max = ctx.db.stand.ipScanMax !== undefined ? ctx.db.stand.ipScanMax : ctx.db.reference.limits.ipScanMax;
     if (targets.length > max) return ctx.problem(422, "IP_RANGE_TOO_LARGE", `За раз — не больше ${max} адресов`, { params: { max } });
     const hash = (s) => [...s].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0);
     const items = targets.map(({ ip, port }) => {
@@ -1258,10 +1259,16 @@
     }) || null;
   }
   const conflictParams = (x) => ({ reason: "incompatible", with: [x.id] }); // с 0.22.0 массив, как у akParams
-  // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind) — reference.analyticsConflicts. Охват — сервер расчёта:
-  // пакет распознавания лиц ставят на компьютер сервера. Сервер детектора — свой serverId или сервер камеры
+  // С 0.21.0: несовместимые виды серверных детекторов (analyticsKind). Охват — сервер расчёта: пакет распознавания лиц ставят
+  // на компьютер сервера. Сервер детектора — свой serverId или сервер камеры. С 0.30.0 список — x-conflicts {значение: [значения]}
+  // у свойства analyticsKind вида детектора (расширение vms.detector/1); у вида без x-conflicts — устаревший reference.analyticsConflicts
   const akOf = (p) => (p && !p.builtin && p.detectorKind === "other" ? p.analyticsKind : null);
-  const akBad = (a, b, ctx) => (ctx.db.reference.analyticsConflicts || []).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
+  const akConflicts = (ctx) => {
+    const ak = (((ctx.kinds.get("det") || {}).schema || {}).properties || {}).analyticsKind || {};
+    if (ak["x-conflicts"]) return Object.entries(ak["x-conflicts"]).map(([analyticsKind, conflicts]) => ({ analyticsKind, conflicts }));
+    return ctx.db.reference.analyticsConflicts || [];
+  };
+  const akBad = (a, b, ctx) => akConflicts(ctx).some((c) => (c.analyticsKind === a && (c.conflicts || []).includes(b)) || (c.analyticsKind === b && (c.conflicts || []).includes(a)));
   const detServerId = (p, cam, ctx) => (p.serverId ? p.serverId : ((cam ? serverOf(cam, ctx) : serverOf(p, ctx)) || {}).id || null);
   // Включённые детекторы несовместимого вида на том же сервере. p — свойства детектора целиком (с parentId), self — его uid.
   // sid — сервер, если он известен иначе (новая камера той же строки, перенос камеры); skip(x) — кого не считать

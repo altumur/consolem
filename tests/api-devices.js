@@ -465,6 +465,24 @@
     assert.eq((await env.ok("PATCH", U(face.uid), { properties: { enabled: true } }, v(face))).properties.enabled, true, "теперь можно");
   }, { needs: ["createUnits", "patchUnit", "kind:det"] });
 
+  // С 0.30.0 несовместимые виды — x-conflicts {значение: [значения]} у свойства analyticsKind вида (расширение vms.detector/1);
+  // reference.analyticsConflicts устарел и до снятия отдаёт то же. Связь двусторонняя: сравниваем пары без порядка
+  test("Несовместимые детекторы: x-conflicts у analyticsKind — то же, что reference.analyticsConflicts", async () => {
+    const env = await makeEnv();
+    const ref = await env.ok("GET", "/reference");
+    const pairs = (list) => [...new Set(list.flatMap(([a, cs]) => cs.map((b) => [a, b].sort().join("|"))))].sort();
+    const want = pairs((ref.analyticsConflicts || []).map((c) => [c.analyticsKind, c.conflicts || []]));
+    const dets = (await env.ok("GET", "/kinds")).items.filter((k) => (k.implements || []).includes("vms.detector/1"));
+    for (const k of dets) {
+      const ak = k.schema.properties.analyticsKind;
+      if (!ak) continue;
+      const xc = ak["x-conflicts"] || {};
+      assert.eq(pairs(Object.entries(xc)), want, `${k.kind}: x-conflicts — те же пары`);
+      Object.entries(xc).forEach(([a, cs]) => [a, ...cs].forEach((x) => assert.ok(ak.enum.includes(x), `${k.kind}: ${x} — значение analyticsKind`)));
+    }
+    return `пар ${want.length}`;
+  }, { needs: ["listKinds", "implements:vms.detector/1"] });
+
   test("Несовместимые виды серверных детекторов (с 0.21.0): reference.analyticsConflicts; на одном сервере — 409 BUSY, params.with — массив; на другом сервере — можно", async () => {
     const env = await makeEnv();
     const ref = await env.ok("GET", "/reference");

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Конфигуратор — API",
-    "version": "0.29.0",
+    "version": "0.30.0",
     "description": "Контракт конфигуратора: всё, что интерфейс читает и меняет. Источник истины: встроенный сервер прототипа (api/server.js) и бэкенд отвечают по нему. Договорённости — api/README.md: версии записей (ETag / If-Match, 428, 412), ошибки application/problem+json с машинным code, групповые операции с частичным успехом и idempotencyKey, поток событий SSE. Система может поддерживать не весь контракт: что она умеет — GET /reference → capabilities; остальные операции отвечают 404 NO_ROUTE, неподдержанные виды устройств и настройки — 422 NOT_SUPPORTED. Операции с тегом test-support есть только на тестовом стенде. Форма работает с одним адресом входа, другой — только если этот недоступен. Список операций, откат и память idempotencyKey у каждого адреса свои: после 5xx и смены адреса запись сперва перечитывается. Версия одной записи на разных адресах может отличаться: 412 и перечитывание. У изменений чужого кластера at — время, когда их увидели.",
     "license": {
       "name": "Внутренний документ",
@@ -5387,7 +5387,7 @@
           "automation"
         ],
         "summary": "Документ сценариев между камерами",
-        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/scenarios (getScenarios), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nОдин документ на домен, целиком, до limits.scenariosMax. Не Rule, вне отката, истории версий нет",
+        "description": "Устарело в 0.29.0: путь профиля GET /units/{uid}/scenarios (getScenarios), ответ тот же. Путь работает до следующей ломающей версии контракта.\n\nОдин документ на домен, целиком, до maxItems документа (прежнее место — reference.limits.scenariosMax). Не Rule, вне отката, истории версий нет",
         "parameters": [
           {
             "name": "domainId",
@@ -5515,7 +5515,7 @@
           "automation"
         ],
         "summary": "Документ сценариев между камерами",
-        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nОдин документ на домен, целиком, до limits.scenariosMax. Не Rule, вне отката, истории версий нет",
+        "description": "Предметный API объекта по uid (профиль vms.scenarios/1): объект области, у VMS — домен. Нет объекта — 404; вид объекта не реализует vms.scenarios/1 — 422 NOT_SUPPORTED, field /kind.\n\nОдин документ на домен, целиком, до maxItems документа (прежнее место — reference.limits.scenariosMax). Не Rule, вне отката, истории версий нет",
         "parameters": [
           {
             "name": "uid",
@@ -8095,6 +8095,35 @@
       },
       "x-layer": "video"
     },
+    "/exports/reference": {
+      "get": {
+        "operationId": "getExportReference",
+        "tags": [
+          "export"
+        ],
+        "summary": "Справочник окна выгрузки",
+        "description": "С 0.30.0. Форматы, кодеки, ступени сжатия, разрешения, поля титров, шрифты, режимы приватности, места сохранения и пределы окна выгрузки (ExportReference): чего нет в справочнике, того нет в окне. Прежнее место — reference.export (устарело в 0.30.0, до снятия отдаёт то же). Путь API видео: есть у системы, которая объявила createExport",
+        "responses": {
+          "200": {
+            "description": "Готово",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportReference"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Problem"
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "x-layer": "video"
+    },
     "/exports/{exportId}": {
       "get": {
         "operationId": "getExport",
@@ -9167,7 +9196,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -9563,6 +9592,12 @@
             "type": "integer",
             "minimum": 0,
             "description": "Сколько найдено всего"
+          },
+          "ipScanMax": {
+            "type": "integer",
+            "minimum": 1,
+            "readOnly": true,
+            "description": "С 0.30.0. Сколько адресов самое большее проверяет один поиск в сети области. Нет поля — клиент берёт устаревший reference.limits.ipScanMax"
           }
         },
         "additionalProperties": false,
@@ -10482,29 +10517,36 @@
                 "models"
               ]
             },
-            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками",
-            "x-layer": "vms"
+            "description": "Производители и модели: сервер наполняет из описаний драйверов, список бывает пуст и бывает на несколько тысяч строк. Форма предлагает из него и принимает ввод руками. Устарело в 0.30.0: замена — examples у свойства vendor видов камер и регистраторов, модели производителя — allOf: if {vendor: {const}} → then {model: {examples}}. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
+            "x-layer": "vms",
+            "deprecated": true
           },
           "serviceTypes": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "x-layer": "vms"
+            "x-layer": "vms",
+            "deprecated": true,
+            "description": "Устарело в 0.30.0: замена — ничем: интерфейс их не читает. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
           },
           "supportLevels": {
             "type": "array",
             "items": {
               "type": "string"
             },
-            "x-layer": "vms"
+            "x-layer": "vms",
+            "deprecated": true,
+            "description": "Устарело в 0.30.0: замена — ничем: интерфейс их не читает. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
           },
           "recordModes": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/RecordMode"
             },
-            "x-layer": "vms.camera/1"
+            "x-layer": "vms.camera/1",
+            "deprecated": true,
+            "description": "Устарело в 0.30.0: замена — enum свойства recordMode вида, у хранилища — x-archive.recordModes. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
           },
           "cloudProviders": {
             "type": "array",
@@ -10527,7 +10569,9 @@
                 "regions"
               ]
             },
-            "x-layer": "vms.archive/1"
+            "x-layer": "vms.archive/1",
+            "deprecated": true,
+            "description": "Устарело в 0.30.0: замена — enum свойства provider вида облачного хранилища. До снятия сервер отдаёт то же, что в новом месте; поле необязательное"
           },
           "ruleActions": {
             "type": "array",
@@ -10776,11 +10820,15 @@
             "properties": {
               "ipScanMax": {
                 "type": "integer",
-                "x-layer": "vms"
+                "x-layer": "vms",
+                "deprecated": true,
+                "description": "Устарело в 0.30.0: замена — Discovery.ipScanMax в ответе GET /units/{uid}/discovery. До снятия сервер отдаёт то же; поле необязательное"
               },
               "defaultServerPort": {
                 "type": "integer",
-                "x-layer": "vms.server/1"
+                "x-layer": "vms.server/1",
+                "deprecated": true,
+                "description": "Устарело в 0.30.0: замена — default у свойства port вида сервера. До снятия сервер отдаёт то же; поле необязательное"
               },
               "pageMax": {
                 "type": "integer",
@@ -10804,7 +10852,8 @@
               },
               "scenariosMax": {
                 "type": "integer",
-                "description": "Сценариев в документе домена"
+                "description": "Сценариев в документе домена. Устарело в 0.30.0: замена — ScenarioDoc.maxItems в ответе GET /units/{uid}/scenarios. До снятия сервер отдаёт то же; поле необязательное",
+                "deprecated": true
               },
               "fileMaxBytes": {
                 "type": "integer",
@@ -10826,14 +10875,11 @@
             },
             "additionalProperties": false,
             "required": [
-              "ipScanMax",
-              "defaultServerPort",
               "pageMax",
               "idsMax",
               "selectMax",
               "watchMax",
-              "scanPartsMax",
-              "scenariosMax"
+              "scanPartsMax"
             ]
           },
           "capabilities": {
@@ -10950,8 +10996,9 @@
             "items": {
               "type": "string"
             },
-            "description": "Известные метки серверов: то, что можно выбрать",
-            "x-layer": "vms.server/1"
+            "description": "Известные метки серверов: то, что можно выбрать. Устарело в 0.30.0: замена — examples у labels.items вида сервера. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
+            "x-layer": "vms.server/1",
+            "deprecated": true
           },
           "ruleStarts": {
             "type": "array",
@@ -11008,12 +11055,13 @@
             "items": {
               "type": "string"
             },
-            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире",
-            "x-layer": "vms"
+            "description": "Виды событий камеры для сценариев между камерами. Отдельный список: события вида камеры (UnitKind.events) шире. Устарело в 0.30.0: замена — ScenarioDoc.kinds в ответе GET /units/{uid}/scenarios. До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
+            "x-layer": "vms",
+            "deprecated": true
           },
           "analyticsConflicts": {
             "type": "array",
-            "description": "С 0.21.0. Несовместимые виды серверных детекторов (analyticsKind вида det при detectorKind: other), по образцу detectorOptions[].conflicts встроенных. Охват — сервер расчёта детектора (свой serverId детектора или сервер камеры): пакет распознавания лиц ставят на компьютер сервера, один на компьютер. Связь двусторонняя: достаточно строки у одного из видов. Сервер не создаёт и не включает детектор, если на том же сервере включён детектор несовместимого вида, не меняет analyticsKind, detectorKind или serverId включённого детектора на такой и не переносит туда камеру (её serverId) с включённым детектором: 409 BUSY, params {reason: incompatible, with: [uid мешающих детекторов]}; field — enabled при включении, analyticsKind при создании, иначе изменённое поле (у переноса камеры — serverId). Новая камера с дочерними детекторами в одной строке POST /units: сервер — serverId камеры, соседние строки тоже считаются (у них нет uid — with пуст). Шаг операции — fail BUSY с теми же params. Нет ключа или пусто — несовместимых видов нет",
+            "description": "С 0.21.0. Несовместимые виды серверных детекторов (analyticsKind вида det при detectorKind: other), по образцу detectorOptions[].conflicts встроенных. Охват — сервер расчёта детектора (свой serverId детектора или сервер камеры): пакет распознавания лиц ставят на компьютер сервера, один на компьютер. Связь двусторонняя: достаточно строки у одного из видов. Сервер не создаёт и не включает детектор, если на том же сервере включён детектор несовместимого вида, не меняет analyticsKind, detectorKind или serverId включённого детектора на такой и не переносит туда камеру (её serverId) с включённым детектором: 409 BUSY, params {reason: incompatible, with: [uid мешающих детекторов]}; field — enabled при включении, analyticsKind при создании, иначе изменённое поле (у переноса камеры — serverId). Новая камера с дочерними детекторами в одной строке POST /units: сервер — serverId камеры, соседние строки тоже считаются (у них нет uid — with пуст). Шаг операции — fail BUSY с теми же params. Нет ключа или пусто — несовместимых видов нет. Устарело в 0.30.0: замена — x-conflicts {значение: [значения]} у свойства analyticsKind вида детектора (профиль vms.detector/1). До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
             "items": {
               "type": "object",
               "additionalProperties": false,
@@ -11035,22 +11083,19 @@
                 }
               }
             },
-            "x-layer": "vms.detector/1"
+            "x-layer": "vms.detector/1",
+            "deprecated": true
           },
           "export": {
             "$ref": "#/components/schemas/ExportReference",
-            "description": "Выгрузка: есть, если система объявила createExport",
-            "x-layer": "video"
+            "description": "Выгрузка: есть, если система объявила createExport. Устарело в 0.30.0: замена — GET /exports/reference (getExportReference). До снятия сервер отдаёт то же, что в новом месте; поле необязательное",
+            "x-layer": "video",
+            "deprecated": true
           }
         },
         "additionalProperties": false,
         "description": "Справочники: коды и строение. Подписи к кодам — в интерфейсе",
         "required": [
-          "deviceModels",
-          "serviceTypes",
-          "supportLevels",
-          "recordModes",
-          "cloudProviders",
           "ruleActions",
           "access",
           "limits",
@@ -11914,7 +11959,7 @@
           "SERVER_OFFLINE": "Сервер без связи: изменение не применено (409, или по объекту в групповой операции). С params: {targetId, kept} — не отказ: правка принята, хранится и применится с периодом камеры, kept — её имя, откатить её нельзя. Повтор той же правки новую не заводит, другая правка до применения первой — 412 VERSION_MISMATCH",
           "DEVICE_OFFLINE": "Устройство без связи: команда не дошла (409, или по объекту в групповой операции). Встроенный сервер так отказывает живому видео и PTZ; учётные данные и видео к устройству без связи применяет — см. api/BACKEND.md",
           "LICENSE_EXCEEDED": "Лицензия превышена (по объекту в групповой операции)",
-          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, или несовместимого вида серверного детектора на том же сервере (reference.analyticsConflicts, с 0.21.0) — params.reason: incompatible, params.with — массив uid мешающих детекторов (с 0.22.0 и у встроенных; до 0.22.0 у встроенных была строка); у соседней строки той же новой камеры uid ещё нет — массив пуст",
+          "BUSY": "Над объектом выполняется другая операция: пока групповая операция не завершена, её объекты не меняют ни новая операция, ни правка, ни удаление (409, какой объект — в params.targetId; в пакетных — по объекту). Ещё: включение детектора, несовместимого с уже включённым на том же канале, или несовместимого вида серверного детектора на том же сервере (x-conflicts у analyticsKind вида детектора, с 0.30.0; до того — reference.analyticsConflicts, с 0.21.0) — params.reason: incompatible, params.with — массив uid мешающих детекторов (с 0.22.0 и у встроенных; до 0.22.0 у встроенных была строка); у соседней строки той же новой камеры uid ещё нет — массив пуст",
           "LOGIN_TAKEN": "Логин уже занят (409)",
           "PASSWORD_POLICY": "Пароль не соответствует политике reference.access.passwordPolicy (422, field: password)",
           "SELF_LOCKOUT": "Изменение оставит систему без включённого бессрочного администратора или лишит вас входа (409). Администратор со сроком учётной записи, назначения или ролей группы последним не считается",
@@ -12215,7 +12260,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -13031,7 +13076,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -13260,7 +13305,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
           },
           "validForSec": {
             "type": "integer",
@@ -15198,7 +15243,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           },
           "through": {
             "type": [
@@ -15309,7 +15354,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
         },
         "x-layer": "video"
@@ -15391,7 +15436,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
         },
         "x-layer": "video"
@@ -15511,7 +15556,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           },
           "state": {
             "type": "string",
@@ -15600,7 +15645,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Где работает: метки серверов из reference.serverLabels"
+            "description": "Где работает: метки серверов (examples у labels.items вида сервера)"
           }
         },
         "x-layer": "video"
@@ -16530,7 +16575,7 @@
           },
           "kind": {
             "type": "string",
-            "description": "Вид события камеры: из reference.scenarioKinds"
+            "description": "Вид события камеры: из kinds документа сценариев (ScenarioDoc.kinds)"
           }
         },
         "x-layer": "vms.scenarios/1"
@@ -16624,6 +16669,20 @@
             "items": {
               "$ref": "#/components/schemas/Scenario"
             }
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "readOnly": true,
+            "description": "С 0.30.0. Виды событий камеры, которые система берёт в сценарий (ScenarioWhen.kind). Отдельный список: события вида камеры (UnitKind.events) шире. Нет поля — клиент берёт устаревший reference.scenarioKinds"
+          },
+          "maxItems": {
+            "type": "integer",
+            "minimum": 0,
+            "readOnly": true,
+            "description": "С 0.30.0. Сколько сценариев в документе самое большее: больше в PUT — 422 VALIDATION_FAILED, field: /items. Нет поля — клиент берёт устаревший reference.limits.scenariosMax"
           }
         },
         "x-layer": "vms.scenarios/1"
@@ -17433,15 +17492,15 @@
         "properties": {
           "codec": {
             "type": "string",
-            "description": "Из reference.export.formats[].codecs; source — как в архиве, без перекодирования"
+            "description": "Из GET /exports/reference → formats[].codecs; source — как в архиве, без перекодирования"
           },
           "compression": {
             "type": "string",
-            "description": "Ступень из reference.export.compression"
+            "description": "Ступень из GET /exports/reference → compression"
           },
           "resolution": {
             "type": "string",
-            "description": "Из reference.export.resolutions; source — как у камеры"
+            "description": "Из GET /exports/reference → resolutions; source — как у камеры"
           },
           "fpsDivisor": {
             "type": "integer",
@@ -17470,7 +17529,7 @@
             "items": {
               "type": "string"
             },
-            "description": "Из reference.export.titleFields"
+            "description": "Из GET /exports/reference → titleFields"
           },
           "font": {
             "type": "object",
@@ -17600,7 +17659,7 @@
           },
           "format": {
             "type": "string",
-            "description": "id из reference.export.formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
+            "description": "id из GET /exports/reference → formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
           },
           "singleFile": {
             "type": "boolean",
@@ -17770,7 +17829,7 @@
           },
           "format": {
             "type": "string",
-            "description": "id из reference.export.formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
+            "description": "id из GET /exports/reference → formats; вид формата не совпал с mode — 422 NOT_SUPPORTED, field: /format"
           },
           "singleFile": {
             "type": "boolean",
@@ -18677,7 +18736,7 @@
         "type": "object",
         "properties": {},
         "additionalProperties": true,
-        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-hidden (форма поле не рисует; сервер отдаёт поле в properties, PATCH без поля его не меняет), x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
+        "description": "JSON Schema 2020-12 (подмножество): type, enum, const, minimum/maximum, exclusiveMinimum, minLength/maxLength, pattern, items, minItems/maxItems, required, default, readOnly, writeOnly (секрет), if/then/else, allOf (независимые условия: каждая часть — своё if/then/else), dependentSchemas, description, title, examples (с 0.30.0: подсказки значений — форма предлагает их и принимает ввод руками; сервер по ним не проверяет), deprecated (аннотация: поле устарело, в описании — чем заменить; сервер принимает его как раньше). Расширения: x-hidden (форма поле не рисует; сервер отдаёт поле в properties, PATCH без поля его не меняет), x-search (поле участвует в поиске q), x-immutable (нельзя менять после создания), x-inherit {merge} (значение наследуется: объект → домен → умолчание), x-unique (уникально среди объектов; судит только сервер), x-ref {kinds, implements, scope, onDelete: clear | keep} (ссылка на объект: uid или массив uid; onDelete — что с ней, когда цель удалили: clear, по умолчанию, — ссылка снимается, keep — остаётся висеть, её состояние считает профиль), x-bound-to (смена этого поля требует заново задать указанный секрет), x-rights {scope: group | cluster} (правка требует прав шире объекта), x-enum-labels {значение: Text}, x-label (Text), x-ui-group, x-ui-tab, x-ui-order, x-ui-unit, x-ui-widget (text, textarea, number, switch, select, multiselect, ref, password, file, polygon, line, mask, point, schedule), x-ui-filter, x-ui-advanced. Ещё у поля: x-transient (только проверка и разовый выбор: значение идёт в запросе, сервер его судит, но не хранит и не отдаёт — confirmShrinkBytes тома, configMode и templateId камеры при добавлении; без него поле хранилось бы как обычное), x-template (строка — шаблон с подстановками {…} события правила: интерфейс предлагает подстановки; без него — простая строка), x-dev (параметр самого устройства, например драйвера камеры: бэкенд записывает его в устройство, только когда объект передаёт свои настройки устройству; иначе значение сообщает устройство, и интерфейс показывает поле только для чтения; без него — поле консоли, правится всегда). Незнакомое ключевое слово или x-* клиент пропускает; поле незнакомого типа показывает только для чтения"
       },
       "AccessClass": {
         "type": "object",

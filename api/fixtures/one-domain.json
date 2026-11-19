@@ -94,7 +94,8 @@
        "text": "Порт",
        "lang": "ru"
       },
-      "type": "integer"
+      "type": "integer",
+      "default": 20111
      },
      "role": {
       "x-label": {
@@ -162,7 +163,12 @@
       },
       "type": "array",
       "items": {
-       "type": "string"
+       "type": "string",
+       "examples": [
+        "gpu",
+        "edge",
+        "archive"
+       ]
       },
       "description": "Метки сервера: по ним размещаются камеры, детекторы, записи, правила"
      },
@@ -2170,7 +2176,7 @@
         },
         "labels": {
          "type": "array",
-         "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт",
+         "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт",
          "items": {
           "type": "string"
          }
@@ -2274,7 +2280,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+      "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
      },
      "lat": {
       "x-label": {
@@ -2664,7 +2670,357 @@
        "lang": "ru"
       },
       "type": "string",
-      "x-search": true
+      "x-search": true,
+      "examples": [
+       "360Vision",
+       "3S",
+       "Abron",
+       "ABUS",
+       "ACTi",
+       "Acumen",
+       "Adino",
+       "Advantech",
+       "Aebell",
+       "AEVision",
+       "AGRG",
+       "AiMobile",
+       "Alinking",
+       "AlphaOTM",
+       "Amatek",
+       "AMG",
+       "Ampleye B.V.",
+       "AMTK",
+       "Andy",
+       "Arecont Vision",
+       "ARH",
+       "Arlotto",
+       "Asoni",
+       "ASTR",
+       "Astra",
+       "Astrohn",
+       "Aver",
+       "AverDVR",
+       "Avgit",
+       "AVIGILON",
+       "AVIGILON generic",
+       "AVIOSYS",
+       "AVTech",
+       "AVTS",
+       "Avycon",
+       "Axis",
+       "AxyCam",
+       "Balter",
+       "Basler",
+       "BCS",
+       "BestDigital",
+       "BestDVR",
+       "BestNVR",
+       "Beward",
+       "BikInform",
+       "BlacklineSafety",
+       "BOLID",
+       "Bolin Technology",
+       "Bosch",
+       "Bosch Generic",
+       "Brickcom",
+       "BSP",
+       "Byterg",
+       "Cametron",
+       "Canon",
+       "CaptureDevice",
+       "Cellinx",
+       "CERTIS",
+       "Cisco",
+       "CloudClient",
+       "CNB",
+       "Commax",
+       "Commax Complex Server",
+       "Commax generic",
+       "Commbox",
+       "ComOnyx",
+       "Compotrol",
+       "Corwus",
+       "CP Plus",
+       "D-Link",
+       "Dahua",
+       "DahuaDSS",
+       "DahuaNetSDK",
+       "DahuaSDK",
+       "Digiever",
+       "DiGieyes",
+       "DigitalWatchdog",
+       "DSSL",
+       "Dynacolor",
+       "EasyN",
+       "ECHD",
+       "Eneo",
+       "EPI",
+       "Ericsson",
+       "Etrovision",
+       "Etz",
+       "EverFocus",
+       "Everview",
+       "EVG",
+       "eVidence",
+       "EVS",
+       "FFMPEG",
+       "FINE",
+       "FineCCTV",
+       "FlexWatch",
+       "Flir",
+       "FlirAXSeries",
+       "G4S",
+       "GAI-Tronics",
+       "Ganz",
+       "GBT28181",
+       "Geovision",
+       "GFE",
+       "GIGA",
+       "GIT",
+       "Glosav",
+       "Grandstream",
+       "Grundig",
+       "Grundig CVion",
+       "Grundig SMART Line",
+       "Gunnebo",
+       "Hanwha Techwin",
+       "Hanwha Techwin generic",
+       "HawkEye",
+       "HikCentralPro",
+       "HikConnect",
+       "Hikvision",
+       "HiWatch",
+       "Holowits",
+       "Homeland Safety Systems",
+       "Honeywell",
+       "HttpListener",
+       "Huawei",
+       "HuaweiIVS",
+       "Hunda",
+       "Hunt",
+       "IDIS",
+       "iFlow",
+       "IMOU",
+       "Inaxsys Legend",
+       "Inaxsys STORM",
+       "IndigoVision",
+       "Infiniti",
+       "Infinity",
+       "Infinova",
+       "Infralan",
+       "InHot",
+       "InMotion",
+       "Intel",
+       "Intelbras",
+       "Intellico",
+       "Intelliko",
+       "Interop",
+       "Intralogic Solutions",
+       "InVid",
+       "IOBoard",
+       "IPDROM",
+       "IPDROM generic",
+       "IPS",
+       "IPTRONIC",
+       "IPux",
+       "IPV Halo Smart Sensors",
+       "IPVideo Corporation",
+       "IQeye",
+       "IRLab",
+       "iZett",
+       "J2000IP",
+       "Jasamarga",
+       "Jassun",
+       "Jovision",
+       "JVC",
+       "JVC NVR",
+       "K-New",
+       "KernelChip",
+       "KONEKT",
+       "LegacySDK",
+       "Legrand",
+       "Lesohranitel",
+       "LevelOne",
+       "LG",
+       "Li-Lin",
+       "LILIN",
+       "Linceo",
+       "Live Eye",
+       "Logitech",
+       "LTS",
+       "LTS Platinum",
+       "LTV",
+       "Luminys Basic",
+       "Luminys generic",
+       "LuminysSDK",
+       "Luna",
+       "Mago",
+       "Mango",
+       "March",
+       "Master",
+       "Mediatronix",
+       "MeritLilin",
+       "Messoa",
+       "MicroDigital",
+       "Milesight",
+       "MilesightToF",
+       "Mitsubishi",
+       "Mobotix",
+       "MOXA",
+       "Naziraty",
+       "NexusIP",
+       "NIC Tehnologii",
+       "NicTechGeneric",
+       "Nikiret",
+       "Novicam",
+       "Novus",
+       "Olvia",
+       "OlviaFTP",
+       "OMNY",
+       "OncamGrandeye",
+       "ONVIF 2.X",
+       "ONVIF generic",
+       "Optelecom",
+       "OTN Systems",
+       "Panasonic",
+       "Panasonic generic",
+       "Partizan",
+       "Patronus Laboratories Corporation",
+       "Pelco",
+       "Perfect-4",
+       "Pinetron",
+       "Pixeye",
+       "Pixord",
+       "Planet",
+       "POSLegacy",
+       "PosXml",
+       "PRESENTCO",
+       "Probe",
+       "Probe Digital",
+       "PROENG",
+       "Promelit",
+       "Provision",
+       "PSIA",
+       "Q-cam",
+       "QNAP",
+       "REDLINE",
+       "RIVA",
+       "ROKA",
+       "Rostec",
+       "RS",
+       "RTP stream device",
+       "RTSP",
+       "Rubetek",
+       "RVi",
+       "Samsung",
+       "SamsungTW",
+       "Santec",
+       "Sanyo",
+       "SCS",
+       "SEEnergy",
+       "Selea",
+       "SenstarSymphony",
+       "Sentry360",
+       "Sentryway",
+       "SenturianServerGeneric",
+       "SERVICE TELEMATIKA",
+       "SerVision",
+       "Sieza",
+       "SightlineApplications",
+       "SimpleIP",
+       "Singtel",
+       "Sinkross",
+       "SIP",
+       "SIP and RTSP",
+       "SIP Device",
+       "SIP with RTSP",
+       "SIP with Video",
+       "Smartec",
+       "SMAVID",
+       "SNR",
+       "Sony",
+       "Sophus",
+       "Spark",
+       "Spezvision",
+       "Sprut",
+       "ST",
+       "StarDot",
+       "Stkomplex",
+       "STORM",
+       "StreamLabs",
+       "Stretch",
+       "Sunell",
+       "Sunkwang",
+       "Svplus",
+       "Takex",
+       "Tamron",
+       "Tantos",
+       "Targa Systems",
+       "TARGET",
+       "Tattile",
+       "TBK",
+       "TcpListener",
+       "Teb",
+       "Techpro Security",
+       "Tecnosens",
+       "TEDD",
+       "TeleEye",
+       "Tiandy",
+       "Tibbo",
+       "Tibet",
+       "TrendNet",
+       "Trezor",
+       "True IP",
+       "TruVision",
+       "TVHelp",
+       "TVT",
+       "Tyco",
+       "Typhoon",
+       "UDP",
+       "Uniarch",
+       "Uniview",
+       "V1netIP",
+       "Vandi",
+       "Veilux",
+       "Verint",
+       "Vesta",
+       "Video Intelligent",
+       "Videosec",
+       "Videotec",
+       "ViDigi",
+       "Vido",
+       "VidoNet",
+       "Vigilate",
+       "Virtual",
+       "Virtual bench",
+       "Virtual Generic",
+       "Visiocom",
+       "Vision",
+       "VisionTek",
+       "VisioWave",
+       "VisualGate",
+       "Visualint",
+       "VITEK",
+       "Vivotek",
+       "VivotekNVR",
+       "VMsistemos",
+       "VniiaRadiation",
+       "VWEB",
+       "WatchNET",
+       "Webgate",
+       "WebPlayer",
+       "Witson",
+       "WuT",
+       "Xenics",
+       "XeronVision",
+       "Y-cam",
+       "Youngkook",
+       "Yuan",
+       "Yudor",
+       "Zavio",
+       "Zenosys",
+       "Zet"
+      ]
      },
      "videoChannel": {
       "x-label": {
@@ -2728,7 +3084,324 @@
       },
       "description": "С 0.17.0. Области маски приватности на кадре камеры: до 16 многоугольников, у каждого от 3 до 64 вершин. Маска закрывает области в живом видео и в архиве для тех, у кого нет права ALLOW_SHOW_PRIVACY_VIDEO_IN_ARCHIVE (reference.access.features). Это право снимает маску и в живом видео, и в архиве. Сервер хранит архив без маски: маску накладывают при показе. Маска привязана к кадру, а не к положению PTZ. Нет поля или пустой список — маски нет"
      }
-    }
+    },
+    "allOf": [
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Axis"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "P3245-LV",
+          "M3067-P",
+          "A1001",
+          "Q1656"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Bosch"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "NBN-73023",
+          "FLEXIDOME IP 3000i",
+          "AUTODOME IP 5000i"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Canon"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "VB-R11",
+          "VB-H47",
+          "VB-M641VE"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Dahua"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "IPC-HFW5241",
+          "IPC-HFW5831",
+          "NVR5216"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Grundig"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "GD-CI-AP4746P"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Hikvision"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "DS-2CD2143G2",
+          "DS-2CD2347G2",
+          "DS-2DE7220IW-AE"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "IDIS"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "DC-S3538HRX",
+          "DC-S3583HRX"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "ONVIF generic"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Panasonic"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "WV-S1131",
+          "WV-SFN631L"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Sony"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "SNC-VB632D",
+          "SNC-EM632RC"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Uniview"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "IPC322LR3",
+          "IPC3615SB-ADF28KM-I0"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Virtual"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "Virtual IP server",
+          "TestDevice",
+          "generic"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Vivotek"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "generic",
+          "FD9387-HTV",
+          "IB9387-HT"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "if": {
+       "properties": {
+        "vendor": {
+         "const": "Zet"
+        }
+       },
+       "required": [
+        "vendor"
+       ]
+      },
+      "then": {
+       "properties": {
+        "model": {
+         "examples": [
+          "HR-FD2030C"
+         ]
+        }
+       }
+      }
+     }
+    ]
    },
    "actions": [
     {
@@ -4600,7 +5273,7 @@
       "items": {
        "type": "string"
       },
-      "description": "Где работает: метки серверов из reference.serverLabels. Сервер без метки запись не возьмёт"
+      "description": "Где работает: метки серверов (examples у labels.items вида сервера). Сервер без метки запись не возьмёт"
      },
      "params": {
       "type": "string",
@@ -6368,7 +7041,7 @@
     "text": "Детектор",
     "lang": "ru"
    },
-   "version": "1.0",
+   "version": "1.1",
    "uses": [
     {
      "id": "vms.camera/1",
@@ -27949,6 +28622,7 @@
     "checkExport",
     "listExports",
     "createExport",
+    "getExportReference",
     "getExport",
     "deleteExport",
     "cancelExport",
@@ -28312,6 +28986,8 @@
    "30000013-0001-4000-8000-000000000000": {
     "fps": 15
    }
-  }
+  },
+  "ipScanMax": 1024,
+  "scenariosMax": 1000
  }
 }

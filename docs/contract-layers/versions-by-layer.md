@@ -39,6 +39,7 @@
 | 0.27.0 | Разделы приложения объявляет система: `capabilities.sections` | механизм | `AppSection`, `Capabilities.sections` |
 | 0.28.0 | Область системы и папка — профили механизма; `vms.domain/1`, `vms.folder/1` устарели | механизм; `core.domain/1`; `core.folder/1` | `api/profiles/core.domain.json`, `api/profiles/core.folder.json`, описания `Unit.domainId`, `UnitBrief.domainId` |
 | 0.29.0 | Поиск в сети, сценарии между камерами и ретрансляторы — пути профилей `/units/{uid}/…`; пути `/domains/{domainId}/…` устарели. Есть ломающая правка: `operationId` перешли на новые пути | `vms.discovery/1`; `vms.scenarios/1`; `vms.relays/1`; `vms` | `/units/{uid}/discovery`, `/units/{uid}/scenarios…`, `/units/{uid}/relays…`, `Discovery*`, `Scenario*`, `Relay*`, `api/profiles/vms.discovery.json`, `vms.scenarios.json`, `vms.relays.json` |
+| 0.30.0 | Справочники VMS — в описания видов и ответы путей своих слоёв; ключи `Reference` устарели и вышли из `required` (для клиента — ломающая правка). Механизм — `examples` в подмножестве схемы вида и устаревшие ключи `Reference` | механизм; `vms.detector/1`; `vms.scenarios/1`; `vms.discovery/1`; `video` | `/exports/reference`, `ScenarioDoc.kinds`, `ScenarioDoc.maxItems`, `Discovery.ipScanMax`, `Reference.*` (deprecated), `JsonSchema`, `api/profiles/vms.detector.json` |
 
 ## Как дополнять
 
