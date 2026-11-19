@@ -125,6 +125,15 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   go.click();
   ok(await until(() => dwPtab() === "det" && main().querySelector("[data-dw-size-sec]")), "кнопка открыла вкладку «Детектор» с разделом размера");
   ok(await until(() => main().querySelector("[data-dw-size-sec].acc-flash, [data-dw-size-sec] .acc-flash, .acc-flash")), "раздел моргнул");
+  // Перерисовка окна заменяет раздел (по http — после чтения записи детектора по событию потока): вспышка переходит
+  // на новый элемент, а не пропадает
+  {
+    const sec0 = main().querySelector("[data-dw-size-sec]");
+    mainSeen.html = null;
+    gear();
+    const sec1 = main().querySelector("[data-dw-size-sec]");
+    ok(!!sec1 && sec1 !== sec0 && sec1.classList.contains("acc-flash"), "раздел моргает и после перерисовки окна");
+  }
 
   // Дерево: детектор раскрывается до поддетекторов
   setSlice("det");
