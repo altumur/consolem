@@ -49,14 +49,14 @@
 
 ## 4. Набор `agents` — образец системы без VMS
 
-Набор `api/fixtures/agents.json` («оркестратор агентов») объявляет только механизм: виды `agent.*`, область «Рабочее пространство» (`core.domain/1`), папки (`core.folder/1`), раскладки `folders`, `agent.pipelines`, `agent.models`, четыре раздела, каталог правил механизма. Справочников VMS, профилей `vms.*` и путей слоёв `video` и `vms` у него нет. Тесты на нём:
+Набор `api/fixtures/agents.json` («оркестратор агентов») объявляет только механизм: виды `agent.*`, область «Рабочее пространство» (`core.domain/1`), папки (`core.folder/1`), раскладки `folders`, `agent.pipelines`, `agent.models`, четыре раздела, каталог правил механизма. Это часть того, что объявляет платформа в п. 2, а не всё: раздела `settings` нет, из условий есть `time` и `online`, но нет `mode`, из действий есть `net.http` и `rule.runrule`, но нет `ntf.*`. Система объявляет только то, что умеет. Справочников VMS, профилей `vms.*` и путей слоёв `video` и `vms` у него нет. Тесты на нём:
 
 ```
 python3 tools/run_api_tests.py --fixture agents
 python3 tools/run_api_tests.py --fixture agents --layer mechanism
 ```
 
-Оба прогона — без `FAIL`: 64 теста проходят, остальные пропущены с причиной (`kind:camera` и другие условия `needs`). Макет на этом наборе: https://ndm234234.github.io/consolem/index.html?fixture=agents (ссылка заработает после push).
+Оба прогона — без `FAIL`. В первом проходят 65 тестов, во втором (только механизм) — 64; остальные пропущены с причиной (`kind:camera` и другие условия `needs`). Макет на этом наборе: https://ndm234234.github.io/consolem/index.html?fixture=agents (ссылка заработает после push).
 
 ## 5. Запрос о раскладках и разделах
 
