@@ -9518,7 +9518,8 @@
         "properties": {
           "domainId": {
             "type": "string",
-            "format": "uuid"
+            "format": "uuid",
+            "description": "Область поиска. Имя поля прежнее; на пути профиля GET /units/{uid}/discovery значение — uid объекта области (тот же uid, что в адресе)"
           },
           "state": {
             "type": "string",

@@ -534,6 +534,13 @@
     const res = await env.ok("GET", `/units/${did2}/discovery?limit=1`);
     assert.ok(res.candidates.length <= 1 && res.total >= res.candidates.length, "страница");
     if (res.total > 1) assert.eq((await env.ok("GET", `/units/${did2}/discovery?limit=1&cursor=${encodeURIComponent(res.nextCursor)}`)).candidates.length, 1, "вторая");
+    // Параметр адреса — не тело: field отказа остаётся именем параметра, как у GET /units
+    const bad = await env.call("GET", `/units/${did2}/discovery?cursor=bad`);
+    assert.status(bad, 422, "INVALID_CURSOR", "чужой курсор");
+    assert.eq(bad.body.field, "cursor", "field курсора — имя параметра");
+    const zero = await env.call("GET", `/units/${did2}/discovery?limit=0`);
+    assert.status(zero, 422, null, "limit вне границ");
+    assert.eq(zero.body.field, "limit", "field limit — имя параметра");
   }, { needs: ["getDiscovery"], layer: "profile:vms.discovery/1" });
 
   test("Запуски правила: страницы", async () => {

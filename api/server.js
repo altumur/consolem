@@ -467,6 +467,15 @@
       Object.entries(SPEC.paths).forEach(([path, item]) =>
         Object.entries(item).forEach(([m, o]) => o && o.operationId && (OPERATION[`${m.toUpperCase()} ${shape(path)}`] = o.operationId))
       );
+    // Параметры адреса (in: query) операции по методу и шаблону пути: их field отказа остаётся именем, а не JSON Pointer
+    const QUERY_PARAMS = {};
+    if (SPEC)
+      Object.entries(SPEC.paths).forEach(([path, item]) =>
+        Object.entries(item).forEach(([m, o]) => {
+          if (!o || !o.operationId) return;
+          QUERY_PARAMS[`${m.toUpperCase()} ${shape(path)}`] = new Set((o.parameters || []).filter((x) => x && x.in === "query").map((x) => x.name));
+        })
+      );
     // Подпись операции для записи аудита — summary контракта; методы, которые меняют систему, — для каталога видов журнала
     const OP_SUMMARY = new Map(), OP_WRITES = [];
     if (SPEC)
@@ -4563,16 +4572,17 @@
       },
     };
     // Путь профиля области: объекта нет — 404, вид не объявил профиль — 422 NOT_SUPPORTED (field /kind); дальше — прежний обработчик.
-    // field отказа на пути ядра — JSON Pointer в теле: items[0].name → /items/0/name
-    const areaApi = (profile, name) => (p, q, body, headers) => {
+    // field отказа по телу — JSON Pointer (items[0].name → /items/0/name); по параметру адреса (cursor, limit) — имя, как у GET /units.
+    // Ответ — маршрут целиком: метод и шаблон нужны, чтобы найти параметры адреса операции в контракте
+    const areaRoute = (method, template, profile, name) => [method, template, (p, q, body, headers) => {
       const u = store.get(p.uid);
       if (!u) return notFound("Объект");
       if (!kinds.profileOf(u.kind, profile)) return problem(422, "NOT_SUPPORTED", `Вид ${u.kind} не реализует ${profile}`, { field: "/kind", params: { kind: u.kind, profile } });
       const res = AREA_API[name](Object.assign({}, p, { id: p.uid }), q, body, headers);
       const f = res && res.status >= 400 && res.body ? res.body.field : undefined;
-      if (typeof f !== "string" || f.startsWith("/")) return res;
+      if (typeof f !== "string" || f.startsWith("/") || (QUERY_PARAMS[`${method} ${shape(template)}`] || new Set()).has(f)) return res;
       return { status: res.status, body: Object.assign({}, res.body, { field: "/" + f.replace(/\[(\d+)\]/g, ".$1").split(".").filter(Boolean).join("/") }) };
-    };
+    }];
     const ROUTES = [
       [
         "GET",
@@ -4588,14 +4598,14 @@
         return { status: 200, body: ref };
       }],
       // Пути области: профили vms.discovery/1, vms.scenarios/1, vms.relays/1; /domains/{id}/… — устарели в 0.29.0
-      ["GET", "/units/{uid}/discovery", areaApi("vms.discovery/1", "discovery")],
-      ["POST", "/units/{uid}/discovery", areaApi("vms.discovery/1", "startDiscovery")],
-      ["DELETE", "/units/{uid}/discovery", areaApi("vms.discovery/1", "stopDiscovery")],
-      ["GET", "/units/{uid}/scenarios", areaApi("vms.scenarios/1", "scenarios")],
-      ["PUT", "/units/{uid}/scenarios", areaApi("vms.scenarios/1", "putScenarios")],
-      ["GET", "/units/{uid}/scenarios/status", areaApi("vms.scenarios/1", "scenariosStatus")],
-      ["GET", "/units/{uid}/relays", areaApi("vms.relays/1", "relays")],
-      ["GET", "/units/{uid}/relays/{name}", areaApi("vms.relays/1", "relay")],
+      areaRoute("GET", "/units/{uid}/discovery", "vms.discovery/1", "discovery"),
+      areaRoute("POST", "/units/{uid}/discovery", "vms.discovery/1", "startDiscovery"),
+      areaRoute("DELETE", "/units/{uid}/discovery", "vms.discovery/1", "stopDiscovery"),
+      areaRoute("GET", "/units/{uid}/scenarios", "vms.scenarios/1", "scenarios"),
+      areaRoute("PUT", "/units/{uid}/scenarios", "vms.scenarios/1", "putScenarios"),
+      areaRoute("GET", "/units/{uid}/scenarios/status", "vms.scenarios/1", "scenariosStatus"),
+      areaRoute("GET", "/units/{uid}/relays", "vms.relays/1", "relays"),
+      areaRoute("GET", "/units/{uid}/relays/{name}", "vms.relays/1", "relay"),
       ["GET", "/domains/{id}/discovery", AREA_API.discovery],
       ["POST", "/domains/{id}/discovery", AREA_API.startDiscovery],
       ["DELETE", "/domains/{id}/discovery", AREA_API.stopDiscovery],
