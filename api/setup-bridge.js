@@ -1,6 +1,6 @@
 /* Библиотека для автора своей страницы подсистемы (UnitKind.setupUi.mode: iframe). Страница подключает файл
    обычным <script src="setup-bridge.js">, без сборки и зависимостей, и получает window.SetupBridge. Протокол setup/1
-   описан в api/SETUP-UI.md, сообщения — в api/setup-ui.schema.json; проверка — tools/check_setup_bridge.js
+   описывает api/SETUP-UI.md, сообщения — api/setup-ui.schema.json. Библиотеку проверяет tools/check_setup_bridge.js
    (python3 tools/check_api.py).
 
    Страница пишет настройки объекта только через session.change(черновик): правку записывает consolem своим
