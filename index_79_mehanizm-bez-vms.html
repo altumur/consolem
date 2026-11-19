@@ -11761,7 +11761,7 @@ function addTreeLabel(n){
 }
 function canInspectorAdd(n){
   if(!n||n.type==="unalloc"||handOf(n,"det"))return false;
-  if(handOf(n,"domain"))return true;
+  if(handOf(n,"domain"))return needsMet(DOMAIN_TAB_NEEDS.srvs);
   if(handOf(n,"server"))return !isUnallocated(n.id);
   // У папки, архива и панели найденных заведение разложено на отдельные
   // кнопки рядом — общий «Добавить устройство» там больше не нужен.
@@ -12018,8 +12018,8 @@ function openTreeCtx(n,xy){
       if(canCreateKind("volume"))add.push(tctxItem(i18n("Добавить том"),act("addVolume",id),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"domain")){
-      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
-      add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",id),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.cams))add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.srvs))add.push(tctxItem(i18n("Добавить серверы…"),act("openAddServers",id),tctxPlusIcon()));
       add.push(tctxItem(i18n("Создать папку"),act("addSubfolder",null,id),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"server")&&!isUnallocated(id)){
@@ -12027,7 +12027,7 @@ function openTreeCtx(n,xy){
       if(WIZ.svc)add.push(tctxItem(addTreeLabel(n),act("openW","svc"),tctxPlusIcon()));
       if(canCreateKind("archive"))add.push(tctxItem(i18n("Создать хранилище…"),act("addArchive",id),tctxPlusIcon()));
     }else if(handOf(n,"folder")){
-      add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
+      if(needsMet(DOMAIN_TAB_NEEDS.cams))add.push(tctxItem(i18n("Добавить устройства…"),act("planOpen"),tctxPlusIcon()));
       add.push(tctxItem(i18n("Создать подпапку"),act("addSubfolder",id),tctxPlusIcon()));
     }else if(canTreeCtxAdd(n))add.push(tctxItem(addTreeLabel(n),act("openW"),tctxPlusIcon()));
     if(WIZ.acfa&&typeIn(n,["acfa","acfa_lock","camera","ipsrv"]))add.push(tctxItem(i18n("Добавить единицу СКУД"),act("openW","unit"),tctxPlusIcon()));
@@ -15782,7 +15782,7 @@ function folderCardHtml(f){
   if(f.type==="nofolder"&&!f.items.length&&!more)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("Все устройства домена находятся в папках")}</b></div></div>`;
   if(handOf(f,"folder")&&fl.draft==null&&!more&&!(f.folders||[]).length&&!(f.items||[]).length)return`<div class="card" id="flCard"><div class="cb fl-empty"><span class="fl-empty-ic">${lu("folder-open",28)}</span><b>${i18n("В папке пока ничего нет")}</b>
       <p class="sub">${i18n("Добавить сюда устройства: найденные в сети, добавленные по адресу или из файла, или уже добавленные в систему.")}</p>
-      <div class="fl-empty-act"><button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button><button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
+      <div class="fl-empty-act">${folderAddBtn()}<button type="button" class="btn s fl-add-folder" ${onEv("click",["flNewFolder"])}>${lu("plus")}${i18n("Подпапка")}</button></div></div></div>${hint}`;
   const scope=flScope(f,items),found=flFound(f,scope);
   // Вернулись на уровень выше: строка, из которой вышли, должна быть на экране, даже если она на другой странице
   if(fl.jump){const i=found.findIndex(it=>it.n.id===fl.cur);if(i>=0){pageNo[key]=Math.floor(i/pageSize)+1;fl.jump=false;requestAnimationFrame(()=>{const tr=document.querySelector("#flCard tr.fl-r.on");if(tr&&flFocusFree()){tr.scrollIntoView({block:"nearest"});tr.focus({preventScroll:true})}})}}
@@ -22911,21 +22911,23 @@ function formBase(n){
     const hw=n.servers.reduce((a,s)=>a+(s.devices||[]).filter(x=>!handOf(x,"det")).length,0);// службы серверов домена
     const unN=(n.unallocServers||[]).length,arcN=domainArchives(n.id).length;
     const fldN=domainFolderInfo(n.id),devN=domainDeviceCount(n);
+    // Плитки и кнопки VMS — по тем же условиям, что вкладки области (DOMAIN_TAB_NEEDS): у оркестратора их нет
+    const onSrv=needsMet(DOMAIN_TAB_NEEDS.srvs),onCam=needsMet(DOMAIN_TAB_NEEDS.cams),onLic=needsMet(DOMAIN_TAB_NEEDS.lic);
     return card("Домен",`${bdg(n)}
-      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${fldEdit("Серийный номер лицензии",n.id,"license",n.license||"")}</div>
+      <div class="g" style="margin-top:10px">${fldEdit("Имя",n.id,"name",locName(n))}${onLic?fldEdit("Серийный номер лицензии",n.id,"license",n.license||""):""}</div>
       <div class="mx" style="margin-top:10px">
-        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
+        ${onSrv?`<button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Серверов")}</span><b>${n.servers.length}</b></button>
         <button type="button" class="mc" ${onEv("click",["pick",`${unallocId(n.id)}`])}><span>${i18n("Нераспределённых")}</span><b>${unN}</b></button>
         <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Служб на серверах")}</span><b>${hw}</b></button>
-        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Сетевых хранилищ")}</span><b>${arcN}</b></button>
+        <button type="button" class="mc" ${onEv("click",["goTab","srvs"])}><span>${i18n("Сетевых хранилищ")}</span><b>${arcN}</b></button>`:""}
         <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}${fldN.title?` title="${escHtml(fldN.title)}"`:""}><span>${i18n("Папок")}</span><b>${fldN.text}</b></button>
-        <button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>
-        ${domLicTiles(n)}
+        ${onCam?`<button type="button" class="mc" ${onEv("click",["setSlice","cam"],["setGroup","folder"],["pick",`${n.id}`])}><span>${i18n("Устройств")}</span><b>${devN}</b></button>`:""}
+        ${onLic?domLicTiles(n):""}
       </div>`)+
       card("Действия",`<div class="dom-acts">
-        <button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>
+        ${onSrv?`<button type="button" class="btn s" ${onEv("click",["openAddServers",`${n.id}`])}>${lu("plus")}${i18n("Серверы")}</button>`:""}
         <button type="button" class="btn s" ${onEv("click",["goTab","flds"],["flNewFolder"])}>${lu("plus")}${i18n("Папка")}</button>
-        ${archCreateBtn(n)}
+        ${canDomainArch()&&needsMet(["implements:vms.archive/1"])?archCreateBtn(n):""}
         <span style="flex:1"></span>
         <button type="button" class="btn s" data-needs="kind:domain/create" ${onEv("click",["addDomain"])}>${lu("plus")}${i18n("Домен")}</button>
         <button type="button" class="btn s danger" data-needs="kind:domain/delete" ${onEv("click",["deleteDomain",`${n.id}`])} ${canDeleteDomain()?"":"disabled title=\""+i18n("Последний домен удалить нельзя")+"\""}>${i18n("Удалить домен")}</button>
@@ -37255,11 +37257,11 @@ function planHeadOpen(){
   // Пришли за планом: сразу к нему
   if(addPlan.rows.length||addPlan.links.length){wizd.planStep=1;renderDeviceWizard()}
 }
-function folderAddBtn(){return`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
+function folderAddBtn(){return!needsMet(DOMAIN_TAB_NEEDS.cams)?"":`<button type="button" class="btn pri s" ${onEv("click",["planOpen"])}>${lu("plus")}${i18n("Добавить в папку")}</button>`}
 function addSplitItems(n){
   const items=[];
   if(handOf(n,"domain")){
-    items.push(["Серверы…",`openAddServers('${n.id}')`]);
+    if(needsMet(DOMAIN_TAB_NEEDS.srvs))items.push(["Серверы…",`openAddServers('${n.id}')`]);
     if(canCreateKind("archive"))items.push(["Хранилище…",`addArchive('${n.id}')`]);
   }
   if(handOf(n,"server")&&WIZ.svc)items.push(["Службу…","openW('svc')"]);
@@ -37271,6 +37273,8 @@ function addSplitBtn(n){
   if(!lanHost(n)&&n?.type!=="found")return"";
   const lb=`${lu("plus")}${i18n("Добавить устройства")}`;
   const items=addSplitItems(n);
+  // Устройств VMS система не знает (DOMAIN_TAB_NEEDS.cams): «Добавить устройства» нет, остальное — меню «Добавить другое»
+  if(!needsMet(DOMAIN_TAB_NEEDS.cams))return items.length?`<button type="button" class="btn s" aria-haspopup="menu" aria-expanded="false" ${onEv("click",["addSplitMenu",onEv.event,`${n.id}`])}>${lu("plus")}${i18n("Добавить другое")}</button>`:"";
   if(!items.length)return`<button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`;
   return`<span class="btn-split"><button type="button" class="btn s" ${onEv("click",["planOpen"])}>${lb}</button>`+
     `<button type="button" class="btn s btn-split-arrow" aria-haspopup="menu" aria-expanded="false" aria-label="${i18n("Добавить другое")}" title="${i18n("Добавить другое")}" ${onEv("click",["addSplitMenu",onEv.event,`${n.id}`])}>${CHEV_BTN}</button></span>`;
