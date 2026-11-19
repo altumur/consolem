@@ -6839,14 +6839,14 @@ function suiCoverHtml(n){
   const page=suiOn(n);
   if(page&&!(suiFrame&&suiFrame.uid===n.id&&suiFrame.state==="ready"))return"";
   const c=suiCoverOf(n);
-  if(c.own===null)return page?`<div class="nt cmp-cover" data-cover>${i18n("Страница не сообщила свои поля")}.</div>`:"";
+  if(c.own===null)return page?`<div class="nt cmp-cover" data-cover>${i18n("Страница не сообщила свои поля.")}</div>`:"";
   const ps=KINDS.get(nodeKind(n))?.schema?.properties||{};
   const li=f=>`<li>${ps[f]?`${escHtml(propLabel(ps[f],f))} <code>${escHtml(f)}</code>`:`<code>${escHtml(f)}</code>`}</li>`;
   const shown=c.schema.length-c.missing.length;
   const tg=c.missing.length?`<button type="button" class="btn s cmp-tg" data-cover-toggle aria-expanded="${cmpCoverOpen}" ${onEv("click",["suiCoverToggle"])}><span class="cmp-chev" aria-hidden="true">▸</span>${i18n("Нет на своём экране")}: ${c.missing.length}</button>`:"";
   const list=c.missing.length?`<div class="cmp-list" data-cover-list><div><ul>${c.missing.map(li).join("")}</ul></div></div>`:"";
   const extra=c.extra.length?`<div class="cmp-extra" data-cover-extra>${i18n("Свой экран называет поля, которых нет в схеме вида. Это ошибка описания вида.")}<ul>${c.extra.map(li).join("")}</ul></div>`:"";
-  return`<div class="nt cmp-cover${cmpCoverOpen?" open":""}" data-cover><div class="cmp-row"><span>${i18n("Свой экран показывает")} ${shown} ${i18n("из")} ${c.schema.length} ${i18n("полей вида")}.</span>${tg}</div>${list}${extra}</div>`;
+  return`<div class="nt cmp-cover${cmpCoverOpen?" open":""}" data-cover><div class="cmp-row"><span>${i18n("Свой экран показывает полей вида: {n} из {m}.").replace("{n}",shown).replace("{m}",c.schema.length)}</span>${tg}</div>${list}${extra}</div>`;
 }
 function suiCoverToggle(){
   cmpCoverOpen=!cmpCoverOpen;

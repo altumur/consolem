@@ -13,9 +13,8 @@ Object.assign(window.I18N_EN,{
 "У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.":"You have only the view right, so the console does not apply changes on the page.",
 "Свой":"Own",
 "Какой экран показать":"Screen to show",
-"Свой экран показывает":"The own screen shows",
-"полей вида":"fields of the kind",
+"Свой экран показывает полей вида: {n} из {m}.":"The own screen shows fields of the kind: {n} of {m}.",
 "Нет на своём экране":"Not on the own screen",
 "Свой экран называет поля, которых нет в схеме вида. Это ошибка описания вида.":"The own screen names fields that are not in the kind schema. This is an error in the kind description.",
-"Страница не сообщила свои поля":"The page did not report its fields",
+"Страница не сообщила свои поля.":"The page did not report its fields.",
 });

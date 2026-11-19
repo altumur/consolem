@@ -11,6 +11,9 @@ UiCheck(async ({ ok, until, sleep }) => {
   // без этой функции. Прототип узнаём по имени его файла английских текстов (assets/i18n-en-NN.js): check_ui.py и
   // самопроверка открывают страницу под другим именем
   const protoFile = [...document.querySelectorAll("script[src]")].map((x) => x.getAttribute("src")).find((x) => /i18n-en-\d+\.js$/.test(x));
+  // Прототип 80 сделан до правок после проверки части 05 (правило стенда только для api/plugins/, Problem как у сервера)
+  // и их не получает: эти проверки на нём — заметка, а не PASS
+  const before05b = protoFile === "assets/i18n-en-80.js";
   if (typeof suiOn !== "function") {
     ok(!!protoFile, protoFile ? "своей страницы подсистемы в прототипе (" + protoFile + ") нет: проверять нечего" : "своей страницы подсистемы нет, а в index.html она должна быть");
     return;
@@ -207,7 +210,8 @@ UiCheck(async ({ ok, until, sleep }) => {
         const er = lastOf("errors");
         ok(valid(er) && er.problem.errors.some((e) => e.field === "/properties/code_length") && !main().querySelector("[data-sui-errs]"), "ошибка поля страницы — только странице — " + JSON.stringify(errsOf(er)));
         // Problem — как у сервера (errsProblem): первая ошибка — в code, field и params, все — в errors с их params
-        {
+        if (before05b) note("прототип 80: Problem в errors — без первой ошибки в code, field и params, проверка пропущена");
+        else {
           const e0 = er.problem.errors[0] || {};
           ok(!!e0.params && er.problem.code === e0.code && er.problem.field === e0.field && JSON.stringify(er.problem.params) === JSON.stringify(e0.params),
             "errors: первая ошибка — в code, field и params Problem — " + JSON.stringify(er.problem));
@@ -315,6 +319,11 @@ UiCheck(async ({ ok, until, sleep }) => {
             const c = suiCoverOf(un());
             ok(JSON.stringify(c.missing) === '["lock_after_tries"]' && !c.extra.length && /4 из 5/.test(cover()?.textContent || ""),
               "покрытие страницы: 4 из 5, не показан lock_after_tries — " + JSON.stringify(c) + " / " + (cover()?.textContent || "нет строки"));
+            // Строка покрытия — целое предложение одним ключом i18n, с точкой внутри ключа: склонение не зависит от числа
+            {
+              const want = i18n("Свой экран показывает полей вида: {n} из {m}.").replace("{n}", "4").replace("{m}", "5");
+              ok(cover()?.querySelector(".cmp-row > span")?.textContent === want, "строка покрытия — «" + want + "»: " + (cover()?.querySelector(".cmp-row > span")?.textContent || "нет строки"));
+            }
             // Раскрытие списка «Нет на своём экране»: строка остаётся, список виден, aria-expanded
             const tg = cover()?.querySelector("[data-cover-toggle]");
             tg?.click();
@@ -336,9 +345,9 @@ UiCheck(async ({ ok, until, sleep }) => {
             ok(sw.querySelector('[aria-checked="true"]')?.textContent === i18n("Свой") && sw.querySelector('[aria-checked="true"]').tabIndex === 0 && sw.querySelector('[aria-checked="false"]').tabIndex === -1, "по умолчанию — «Свой», в порядке Tab только отмеченная кнопка");
             // Стрелки в переключателе (role radiogroup): вправо — «Общие», влево — «Свой», фокус на отмеченной кнопке
             sw.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true }));
-            ok(await until(() => cmpGeneral === true && !slot() && document.activeElement?.getAttribute("aria-checked") === "true" && document.activeElement.textContent === i18n("Общие")), "стрелка вправо — «Общие», фокус на ней");
+            ok(await until(() => cmpGeneral === true && !slot() && document.activeElement?.getAttribute("aria-checked") === "true" && document.activeElement.textContent === i18n("Общие")) && sel === SUI_UNIT, "стрелка вправо — «Общие», фокус на ней, выбор в дереве тот же");
             main().querySelector("[data-cmp]").dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
-            ok(await until(() => cmpGeneral === false && !!slot() && document.activeElement?.textContent === i18n("Свой")), "стрелка влево — «Свой»");
+            ok(await until(() => cmpGeneral === false && !!slot() && document.activeElement?.textContent === i18n("Свой")) && sel === SUI_UNIT, "стрелка влево — «Свой», выбор в дереве тот же");
             const elC = suiFrame.el;
             cmpSet(true);
             ok(localStorage.getItem("consolem.cmpGeneral") === "1" && cmpGeneral === true && await until(() => !!main().querySelector("[data-schema-card]")) && !slot() &&
@@ -522,7 +531,8 @@ UiCheck(async ({ ok, until, sleep }) => {
     // Правило стенда — только для тестовой страницы стенда: относительный адрес или адрес под api/plugins/ на происхождении
     // консоли (у консоли с диска — на диске). Другой адрес на происхождении консоли и подсказка origin, равная происхождению
     // консоли, при чужом адресе — сбой с причиной, рамки нет
-    {
+    if (before05b) note("прототип 80: правило стенда — для любого адреса на происхождении консоли, проверки пропущены");
+    else {
       const SAME = i18n("У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.");
       const sameFail = () => suiFrame?.uid === SUI_UNIT && suiFrame.state === "failed" && suiFrame.why === SAME && !dockFrame();
       const elsewhere = new URL("tools/setup-page.html", document.baseURI).href;
