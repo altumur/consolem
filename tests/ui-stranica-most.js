@@ -192,6 +192,23 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     r = await actUnread({ status: 404, body: { code: "NOT_FOUND", message: "нет объекта" } });
     ok(r.ok === false && r.status === 404 && code(r) === "NOT_FOUND" && valid(r) && !dlgOpen() && !actPosts(VOL),
       "act: GET /units/{uid} ответил 404 — ответ сервера странице как есть, без команды" + ": " + r.status + " " + code(r) + ", команд " + actPosts(VOL));
+    // Итоговая волна, I1: команды нет в описании вида (вид незнаком или кэш устарел) — consolem не знает, есть ли у неё
+    // подтверждение, и команду не отправляет: UPSTREAM_UNAVAILABLE со status 0, без диалога и без запроса
+    const kindPosts = (k) => bodies.filter((b) => b.method === "POST" && b.path.startsWith(`/kinds/${encodeURIComponent(k)}/actions/`)).length;
+    bodies.length = 0;
+    const actGone = [
+      await call("runKindAction", { kind: "no.such/KIND", action: "check" }),
+      await call("runKindAction", { kind: "archive.network", action: "noSuchAction" }),
+      await call("runUnitAction", { uid: CTRL, action: "NO_SUCH_ACTION" }),
+    ];
+    ok(actGone.every((x) => code(x) === "UPSTREAM_UNAVAILABLE" && x.status === 0 && valid(x)) && !dlgOpen() &&
+      !kindPosts("no.such/KIND") && !kindPosts("archive.network") && !actPosts(CTRL),
+      "act: команды нет в описании вида — UPSTREAM_UNAVAILABLE, status 0, без диалога и без запроса — " +
+      JSON.stringify(actGone.map((x) => x.status + " " + code(x))) + ", команд " + [kindPosts("no.such/KIND"), kindPosts("archive.network"), actPosts(CTRL)]);
+    // Команда вида, которую consolem знает, уходит
+    bodies.length = 0;
+    r = await call("runKindAction", { kind: "archive.network", action: "check" });
+    ok(r.status > 0 && kindPosts("archive.network") === 1, "runKindAction знакомой команды вида — запрос ушёл, ответ сервера странице: " + r.status);
 
     // Система не объявила операцию — NOT_SUPPORTED, и в ops её нет
     CAPS.operations.delete("listLicenses");

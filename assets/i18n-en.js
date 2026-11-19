@@ -4334,6 +4334,8 @@ window.I18N_EN={
 "Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.":"The user refused three times in a row, so the console does not show questions from the page for 10 seconds.",
 "Консоль ещё не закончила прошлый переход страницы.":"The console has not finished the previous navigation of the page.",
 "Страница не удаляет и не переносит свой объект.":"The page does not delete or move its own object.",
+// Мост шага 2, итоговая волна: команда вне описания вида, папки своего объекта, виды подписки
+"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.":"The console does not know this command of the object kind, so it does not know if the command needs a confirmation. The console did not send the command.",
 "Чтобы подтвердить, ввести число":"To confirm, enter the number",
 "Подтвердить":"Confirm",
 };

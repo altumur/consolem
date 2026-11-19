@@ -6933,13 +6933,15 @@ function bridgeAsk(f,title,msg,okLabel,opts){
   });
 }
 // Команда вызова act и подпись её объекта: у runUnitAction — по виду объекта (кэш, иначе GET /units/{uid}),
-// у runKindAction — по виду из параметров. Не нашлась — null: тогда отвечает сервер. Вид объекта не прочитан или
-// consolem его не знает — {fail}: подтверждение неизвестно, и команда не уходит (fail closed)
+// у runKindAction — по виду из параметров. У других операций act (поиск в сети) — null: подтверждения у них нет.
+// Вид объекта не прочитан, вид незнаком или команды нет в описании вида (кэш устарел) — {fail}: consolem не знает,
+// есть ли у команды подтверждение, и команда не уходит (fail closed)
 async function bridgeActDesc(op,p,id){
+  const gone=()=>({fail:bridgeFail(id,0,"UPSTREAM_UNAVAILABLE",{message:i18n(BRIDGE_TEXT2.ACT)})});
   if(op==="runKindAction"){
     const k=KINDS.get(String(p.kind));
     const a=(k?.actions||[]).find(x=>x.id===String(p.action));
-    return a?{a,name:textOf(k.label)||String(p.kind)}:null;
+    return a?{a,name:textOf(k.label)||String(p.kind)}:gone();
   }
   if(op!=="runUnitAction")return null;
   const uid=String(p.uid),n=find(uid)?.n;
@@ -6949,9 +6951,8 @@ async function bridgeActDesc(op,p,id){
     if(r.fail)return r;
     kind=r.unit.kind;name=String(r.unit.name??"");
   }
-  if(!KINDS.has(kind))return{fail:bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")};
-  const a=(KINDS.get(kind).actions||[]).find(x=>x.id===String(p.action));
-  return a?{a,name}:null;
+  const a=(KINDS.get(kind)?.actions||[]).find(x=>x.id===String(p.action));
+  return a?{a,name}:gone();
 }
 // Вызов страницы → BridgeResult. Порядок проверок: операция известна → есть x-bridge → система объявила её (can) →
 // draft → параметры → у команды с ActionDescriptor.confirm — диалог консоли, как в карточке → запрос.
@@ -7249,6 +7250,7 @@ const BRIDGE_TEXT2={
   MUTED:"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.",
   NAV:"Консоль ещё не закончила прошлый переход страницы.",
   OWN:"Страница не удаляет и не переносит свой объект.",
+  ACT:"Консоль не знает эту команду вида объекта, поэтому не знает, нужно ли подтверждение. Консоль не отправила команду.",
 };
 // Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
 const BRIDGE_SUB_LIST_MAX=32,BRIDGE_SUB_STR_MAX=200;
