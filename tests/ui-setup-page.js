@@ -11,9 +11,6 @@ UiCheck(async ({ ok, until, sleep }) => {
   // без этой функции. Прототип узнаём по имени его файла английских текстов (assets/i18n-en-NN.js): check_ui.py и
   // самопроверка открывают страницу под другим именем
   const protoFile = [...document.querySelectorAll("script[src]")].map((x) => x.getAttribute("src")).find((x) => /i18n-en-\d+\.js$/.test(x));
-  // Прототип 80 сделан до правок после проверки части 05 (правило стенда только для api/plugins/, Problem как у сервера)
-  // и их не получает: эти проверки на нём — заметка, а не PASS
-  const before05b = protoFile === "assets/i18n-en-80.js";
   if (typeof suiOn !== "function") {
     ok(!!protoFile, protoFile ? "своей страницы подсистемы в прототипе (" + protoFile + ") нет: проверять нечего" : "своей страницы подсистемы нет, а в index.html она должна быть");
     return;
@@ -211,8 +208,7 @@ UiCheck(async ({ ok, until, sleep }) => {
         const er = lastOf("errors");
         ok(valid(er) && er.problem.errors.some((e) => e.field === "/properties/code_length") && !main().querySelector("[data-sui-errs]"), "ошибка поля страницы — только странице — " + JSON.stringify(errsOf(er)));
         // Problem — как у сервера (errsProblem): первая ошибка — в code, field и params, все — в errors с их params
-        if (before05b) note("прототип 80: Problem в errors — без первой ошибки в code, field и params, проверка пропущена");
-        else {
+        {
           const e0 = er.problem.errors[0] || {};
           ok(!!e0.params && er.problem.code === e0.code && er.problem.field === e0.field && JSON.stringify(er.problem.params) === JSON.stringify(e0.params),
             "errors: первая ошибка — в code, field и params Problem — " + JSON.stringify(er.problem));
@@ -532,8 +528,7 @@ UiCheck(async ({ ok, until, sleep }) => {
     // Правило стенда — только для тестовой страницы стенда: относительный адрес или адрес под api/plugins/ на происхождении
     // консоли (у консоли с диска — на диске). Другой адрес на происхождении консоли и подсказка origin, равная происхождению
     // консоли, при чужом адресе — сбой с причиной, рамки нет
-    if (before05b) note("прототип 80: правило стенда — для любого адреса на происхождении консоли, проверки пропущены");
-    else {
+    {
       const SAME = i18n("У страницы подсистемы то же происхождение, что у консоли, поэтому консоль не открывает страницу.");
       const sameFail = () => suiFrame?.uid === SUI_UNIT && suiFrame.state === "failed" && suiFrame.why === SAME && !dockFrame();
       const elsewhere = new URL("tools/setup-page.html", document.baseURI).href;
