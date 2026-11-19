@@ -2838,12 +2838,10 @@
     // Есть ли у узла видимый ребёнок: до первого
     const layoutHasKids = (layout, u) => someCand(u, (c) => placedUnder(layout, c, u.uid) && layoutVisible(layout, c));
     // Стрелка узла: область и группа — всегда; камера-кластер и подобные — по хуку профиля treeHasChildren (true — «может быть»)
-    function nodeHasKids(layout, u) {
-      if (isArea(u.kind) || hooksOf(u.kind).some((h) => h.treeHasChildren && h.treeHasChildren(u, pctx) === true)) return true;
-      return layoutHasKids(layout, u);
-    }
+    const hookHasKids = (u) => isArea(u.kind) || hooksOf(u.kind).some((h) => h.treeHasChildren && h.treeHasChildren(u, pctx) === true);
+    const nodeHasKids = (layout, u) => hookHasKids(u) || layoutHasKids(layout, u);
     // Есть ли дети вне раскладки (Unit.hasChildren у /units): как в дереве, хоть в одной объявленной раскладке
-    const unitHasKids = (u) => isArea(u.kind) || hooksOf(u.kind).some((h) => h.treeHasChildren && h.treeHasChildren(u, pctx) === true) || (db.layouts || []).some((l) => layoutHasKids(l, u));
+    const unitHasKids = (u) => hookHasKids(u) || (db.layouts || []).some((l) => layoutHasKids(l, u));
     // Дети узла: [{key, unit}] или [{key, group}]; null — узла нет. Ключ решает порядок: номер правила, затем у области,
     // группы и папки — порядок сервера (partKey), у остальных узлов — имя
     const RULE_PREFIX = Array.from({ length: 1000 }, (x, i) => `${String(i).padStart(3, "0")}:`);
@@ -3811,6 +3809,8 @@
         const names = [...new Set(kinds.refsOf(u).filter((r) => gone.has(r.uid)).map((r) => r.name))];
         const schema = (kinds.get(u.kind).schema || {}).properties || {};
         const before = {};
+        // Объект до правки — для tree.changed: снятая ссылка меняет место в раскладке by: ref
+        const was = { uid: u.uid, kind: u.kind, parentId: u.parentId, domainId: u.domainId, folders: u.folders, status: u.status, properties: Object.assign({}, u.properties) };
         names.forEach((n) => {
           const v = refStrip(schema[n], props(u)[n], gone);
           // onDelete: "keep" — значение то же: свойство не трогается
@@ -3831,6 +3831,7 @@
         if (!Object.keys(before).length) return;
         store.reindex(u.uid);
         bump(u);
+        treeTouch(u, was);
         send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version });
         out.push({ uid: u.uid, properties: before, version: u.version });
       }));
@@ -3851,9 +3852,11 @@
       (list || []).forEach((r) => {
         const u = store.get(r.uid);
         if (!u || u.version !== r.version) return;
+        const was = { uid: u.uid, kind: u.kind, parentId: u.parentId, domainId: u.domainId, folders: u.folders, status: u.status, properties: Object.assign({}, u.properties) };
         Object.entries(r.properties).forEach(([n, v]) => (u.properties[n] = clone(v)));
         store.reindex(u.uid);
         bump(u);
+        treeTouch(u, was);
         send("entity.changed", { kind: u.kind, entityId: u.uid, version: u.version });
       });
     }

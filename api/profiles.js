@@ -1103,8 +1103,9 @@
       return out;
     },
     // Узел дерева: камера-кластер (без родителя и сервера) — сама себе член домена, её дети приходят от её серверов:
-    // у узла «может быть» дети. Остальное решает движок дерева (undefined)
-    treeHasChildren: (u) => (!u.parentId && !(u.properties || {}).serverId ? true : undefined),
+    // у узла «может быть» дети. Сервер — свойство serverId или status.observed.serverId (камера w2c). Остальное решает
+    // движок дерева (undefined)
+    treeHasChildren: (u) => (!u.parentId && !(u.properties || {}).serverId && !((u.status || {}).observed || {}).serverId ? true : undefined),
     // Камере без регистратора нужен адрес; запись — по правилам вида хранилища; профиль при добавлении (x-transient)
     beforeCreate(u, parent, ctx) {
       const s = specOf(u);

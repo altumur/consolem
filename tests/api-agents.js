@@ -163,5 +163,32 @@
     assert.eq(gone.done.length, 2, "группой удалены два инструмента");
   }, { needs: [AGENT, STEP, PIPE, "validateUnits", "moveUnit", "runKindAction", "getCreatable", "getUnitSchema", "openUnitSetupUi", "getTreePaths", "deleteUnit", "deleteObjects", "layout:folders"] });
 
+  // Удаление снимает ссылки x-ref на удалённое (refsCleanup): объект со снятой ссылкой меняет место в раскладке by: ref —
+  // tree.changed несёт и его новое место (здесь — группа «без модели», а не область, где лежала модель)
+  test("Агенты: удалили модель — у агента снята ссылка, tree.changed по его новому месту в раскладке по ссылке", async () => {
+    const L = "agent.models";
+    const kinds = await ApiTest.makeEnv().then((e) => e.ok("GET", "/kinds"));
+    const lay = kinds.layouts.find((l) => l.id === L);
+    const place = lay.place.map((r) => (r.by === "area" && r.what && r.what.kinds && r.what.kinds.includes("agent.agent") ? { what: r.what, by: "group", group: "nomodel" } : r));
+    const layouts = kinds.layouts.map((l) => (l.id === L ? Object.assign({}, l, { place, groups: [{ id: "nomodel", label: { key: "layout.test.nomodel", text: "Без модели", lang: "ru" } }] }) : l));
+    const env = await makeEnv({ fixturePatch: { layouts } });
+    const agents = await env.pages("/units?kind=agent.agent&limit=1000");
+    const models = await env.pages("/units?kind=agent.model&limit=1000");
+    const m = models.find((x) => agents.some((a) => a.properties.modelId === x.uid));
+    assert.ok(m, "модель с агентом");
+    const ag = agents.find((a) => a.properties.modelId === m.uid);
+    const seen = [];
+    const stop = ApiTest.subscribeForTest((x) => seen.push(x), []);
+    await ApiTest.settle();
+    assert.status(await env.call("DELETE", U(m.uid), undefined, etag(m)), 204, null, "модель удалена");
+    await env.wait(1);
+    await env.ok("GET", "/me");
+    await ApiTest.settle();
+    stop();
+    assert.eq((await env.ok("GET", U(ag.uid))).properties.modelId, null, "ссылка агента снята");
+    const at = new Set(seen.filter((x) => x.type === "tree.changed" && x.layout === L).flatMap((x) => x.parentIds));
+    assert.ok(at.has(`nomodel:${ag.domainId}`), `tree.changed ${L}: новое место агента — ${[...at].join(", ")}`);
+  }, { needs: [AGENT, MODEL, "listKinds", "deleteUnit", "getTreeChildren"] });
+
   ApiTest.loaded("api-agents.js");
 })();

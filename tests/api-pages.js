@@ -206,6 +206,20 @@
     assert.ok(!(await env.pages(q("/tree/children", { layout: "detectors", parentId: cam.domainId }))).some((n) => n.id === cam.id), "в detectors сводного списка нет");
   }, { needs: ["kind:camera", "layout:servers", "layout:detectors"] });
 
+  // Сервер размещения приходит и в status.observed.serverId (камера w2c): такая камера не кластер — стрелка как у камеры со
+  // свойством serverId
+  test("Камера-кластер: сервер в status.observed.serverId — не кластер, hasChildren как у камеры со свойством serverId", async () => {
+    // Камера сервера без детей: у неё стрелки нет
+    const plain = (await (await makeEnv()).pages(q("/units", { kind: "camera" }))).find((u) => !u.parentId && typeof u.properties.serverId === "string" && u.hasChildren === false);
+    assert.ok(plain, "камера сервера без детей в наборе");
+    const cam = FX.units.find((u) => u.uid === plain.uid);
+    const { serverId, ...rest } = cam.properties;
+    const moved = Object.assign({}, cam, { properties: rest, status: Object.assign({}, cam.status, { observed: Object.assign({}, (cam.status || {}).observed, { serverId }) }) });
+    const env = await makeEnv({ fixturePatch: { units: FX.units.map((u) => (u.uid === cam.uid ? moved : u)) } });
+    const [u] = (await env.ok("GET", q("/units", { ids: cam.uid }))).items;
+    assert.eq([u.properties.serverId === undefined, u.hasChildren], [true, false], "hasChildren");
+  }, { needs: ["kind:camera"], layer: "profile:vms.camera/1" });
+
   test("/objects/delete: version — Unit.version, правка любого поля её двигает; предел selectMax", async () => {
     const pick = FX.devices.filter((d) => d.type === "camera" && !d.parentId && d.archiveId).slice(0, 2);
     const off = pick.map((d) => d.id);
