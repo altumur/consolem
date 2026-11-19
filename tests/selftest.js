@@ -33,7 +33,10 @@
   if (one) {
     window.UI_CHECK_NAME = one;
     const fail = (m) => window.parent.postMessage({ uiCheck: true, name: one, log: [`FAIL  ${m}`] }, "*");
-    load("tests/ui-harness.js")
+    // Сверка схем (ConsolemContract) — у сценариев, которые сверяют сообщения со схемой. В сборке WebUI встроенного
+    // сервера и api/contract.js нет: файл даёт стенд (tools/serve_api.mjs --webui), только для сценариев
+    (typeof ConsolemContract === "undefined" ? load("api/contract.js") : Promise.resolve())
+      .then(() => load("tests/ui-harness.js"))
       .then(() => load(`tests/${one}`))
       // Ошибка разбора сценария не мешает onload: UiCheck просто не вызван
       .then(() => window.UI_CHECK_STARTED || fail("сценарий не запустился: ошибка в его тексте"))

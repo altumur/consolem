@@ -302,7 +302,9 @@ UiCheck(async ({ ok, until, sleep }) => {
           const dk = document.getElementById("suiDock");
           ok(parseInt(dk.style.height) === hA && parseInt(slot().style.height) === hA && await until(() => Math.round(dk.getBoundingClientRect().height) === hA), "вернулись — высота места и рамки прежняя: " + hA + " px, док " + dk.style.height);
           await sleep(300);
-          ok(JSON.stringify(sent.slice(nSent).map((m) => m.type)) === '["draft"]', "вернулись — странице ушёл только этот draft: " + JSON.stringify(sent.slice(nSent).map((m) => m.type)));
+          // result — ответ моста на запрос самой страницы (её блоки шага 2 читают объекты сами, по http — успевают), не сверка
+          const sentNow = sent.slice(nSent).map((m) => m.type).filter((t) => t !== "result");
+          ok(JSON.stringify(sentNow) === '["draft"]', "вернулись — странице ушёл только этот draft: " + JSON.stringify(sentNow));
           ok(/Все параметры/.test(formAllCtxItem(un(), (f, v) => ["x"]) || ""), "пункт «Все параметры» в «Ещё» у страницы");
           cardReset();
           await until(() => !cardDiff().length && sent.at(-1).type === "revert");

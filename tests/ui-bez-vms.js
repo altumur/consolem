@@ -156,7 +156,9 @@ UiCheck(async ({ ok, until, absent }) => {
   document.body.appendChild(f);
   try {
     const w = () => f.contentWindow;
-    ok(await until(() => w()?.appReady && w().eval("slice") === "lay:agent.models" && !!f.contentDocument.querySelector(`#tree .n.on[data-pick="${AGENT}"]`), 60000), "ссылка со срезом lay:agent.models открывает срез и строку агента: " + (w()?.appReady ? w().eval("slice") : ""));
+    // Срез копии — по нажатой кнопке среза в шапке дерева, без eval: консоль VMS отдаёт страницу под CSP без unsafe-eval
+    const frameSlice = () => f.contentDocument?.querySelector('#aside .ph-choice[data-slice][aria-pressed="true"]')?.dataset.slice || "";
+    ok(await until(() => w()?.appReady && frameSlice() === "lay:agent.models" && !!f.contentDocument.querySelector(`#tree .n.on[data-pick="${AGENT}"]`), 60000), "ссылка со срезом lay:agent.models открывает срез и строку агента: " + frameSlice());
   } finally { f.remove(); }
   setSlice("all");
 

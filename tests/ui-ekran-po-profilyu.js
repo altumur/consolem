@@ -28,6 +28,8 @@ UiCheck(async ({ ok, until, absent }) => {
       return realGet.call(this, path, params).then((r) => {
         if (path === `/units/${uid}`) return as(r);
         if (path === "/units" && r && Array.isArray(r.items)) return Object.assign({}, r, { items: r.items.map(as) });
+        // Ветка дерева тоже несёт вид строки: иначе дочитанная ветка вернула бы узел с прежним видом
+        if (path === "/tree/children" && r && Array.isArray(r.items)) return Object.assign({}, r, { items: r.items.map((x) => (x && x.id === uid ? Object.assign({}, x, { kind }, x.unit ? { unit: Object.assign({}, x.unit, { kind }) } : {}) : x)) });
         return r;
       });
     };
@@ -35,7 +37,10 @@ UiCheck(async ({ ok, until, absent }) => {
     finally { API.get = realGet; }
   };
   // Узел заново из ответа сервера: из кэша убран, pick читает строку и полную запись
+  // Ветки дерева, которые ещё читаются, дочитываются до удаления узла: по HTTP ответ ветки приходит позже и вернул бы
+  // узел из ответа, прочитанного до подмены вида (на встроенном сервере ответ успевает раньше)
   const reopen = async (uid) => {
+    await until(() => ![...treeBr.values()].some((b) => b.busy), 10000);
     hwRemoveDevice(uid);
     pick(uid, { force: true, tab: "gen" });
     return until(() => sel === uid && find(uid) && !find(uid).n._row && !!main().querySelector(".cs-cq, [data-schema-card]"));

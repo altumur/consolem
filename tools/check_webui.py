@@ -8,7 +8,8 @@
 стенда по одному (как check_stand.py), адрес API берёт из <meta name="consolem-api">. Не прошло, если:
   - в самой сборке есть встроенный код (это проверяет и build_webui.py);
   - хоть один сценарий не прошёл, отчёт не пришёл;
-  - браузер сообщил о нарушении политики (CSP-VIOLATION: заблокированный скрипт, атрибут on…, eval).
+  - браузер сообщил о нарушении политики (CSP-VIOLATION: заблокированный скрипт, атрибут on…, eval);
+  - встроенный сервер стенда бросил исключение (STAND-ERROR: стенд ответил 500 и работает дальше).
 
 Запуск из корня репозитория:  python3 tools/check_webui.py
                               python3 tools/check_webui.py --without-learn   сборка без раздела «Обучение»
@@ -78,7 +79,8 @@ def main():
         reader.join(5)
         shutil.rmtree(tmp, ignore_errors=True)
     csp = sorted({l for l in lines if l.startswith("CSP-VIOLATION")})
-    report = [l for l in lines if not l.startswith(("CSP-VIOLATION", "Стенд:"))]
+    stand_err = [l for l in lines if l.startswith("STAND-ERROR")]
+    report = [l for l in lines if not l.startswith(("CSP-VIOLATION", "STAND-ERROR", "Стенд:"))]
     passed = bool(report) and report[-1].strip() == "RESULT pass"
     # Строки FAIL: многострочные подписи сценариев не вытесняют их из хвоста
     for l in [l for l in report if l.startswith("FAIL")] + report[-2:]:
@@ -87,8 +89,10 @@ def main():
         print(f"отчёт самопроверки не пришёл за {WAIT_SEC} с: {selftest_missing(''.join(log))}")
     for l in csp[:20]:
         print(l)
-    ok = passed and not csp
-    print(f"== Сборка под CSP консоли против стенда: самопроверка {'pass' if passed else 'fail'}, нарушений политики {len(csp)} ({time.time() - started:.0f} с)")
+    for l in stand_err[:20]:
+        print(l)
+    ok = passed and not csp and not stand_err
+    print(f"== Сборка под CSP консоли против стенда: самопроверка {'pass' if passed else 'fail'}, нарушений политики {len(csp)}, исключений стенда {len(stand_err)} ({time.time() - started:.0f} с)")
     print(f"RESULT {'pass' if ok else 'fail'}")
     return 0 if ok else 1
 
