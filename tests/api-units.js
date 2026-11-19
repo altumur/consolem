@@ -706,6 +706,39 @@
     assert.eq([row.kind, row.parentId, row.properties.slot], [ROWS, owner, 5], "строка таблицы — под камерой-хозяином");
   }, { needs: ["createOperation", "getOperation"] });
 
+  // Мост страницы подсистемы (api/SETUP-UI.md, «Шаг 2»): шаги draft страницы consolem отправляет при «Применить» одной
+  // POST /operations. Объекты — контроллер клавиатуры KEYPAD (страница стенда) и его датчики, второй контроллер и его датчик
+  test("Мост 0.34.0: черновик страницы — одна операция: patch, createUnit, move и delete по разным объектам; откат возвращает всё", async () => {
+    const keypad = ofKind(KEYPAD)[0];
+    const ctrl = units().find((u) => u.uid === keypad.parentId);
+    const [s1, s2] = ofKind(SENSOR).filter((x) => x.parentId === ctrl.uid);
+    const s1b = ofKind(SENSOR).find((x) => x.parentId && x.parentId !== ctrl.uid);
+    const ctrl2 = units().find((u) => u.uid === s1b.parentId);
+    assert.ok(s1 && s2 && ctrl2.kind === CONTROLLER, "в наборе: два датчика у контроллера клавиатуры и второй контроллер с датчиком");
+    // У датчика набора нет move (demo.json не меняем: на нём стоят экраны и проверки): перенос даёт виду только этот тест
+    const kinds = FX.kinds.map((k) => (k.kind === SENSOR ? Object.assign(copy(k), { capabilities: k.capabilities.concat("move") }) : k));
+    const env = await makeEnv({ fixturePatch: { kinds } });
+    const items = [{ uid: s1.uid, patch: { name: "Мост 1" } }, { uid: ctrl.uid, createUnit: { kind: SENSOR, name: "Мост новый", properties: { zone: "Мост" } } },
+      { uid: s2.uid, move: ctrl2.uid }, { uid: s1b.uid, delete: true }];
+    const res = await env.call("POST", "/operations", { idempotencyKey: ApiTest.key(), items, expectedVersions: { [s1.uid]: s1.version, [s2.uid]: s2.version, [s1b.uid]: s1b.version }, wait: false });
+    assert.status(res, 202, null, "POST /operations");
+    const op = await env.finished(res.body.id);
+    assert.eq(op.items.map((x) => [x.state, x.code || null]), [["ok", null], ["ok", null], ["ok", null], ["ok", null]], "все шаги выполнены");
+    const madeId = op.items[1].createdId;
+    assert.ok(madeId, "у шага createUnit — createdId");
+    assert.eq((await env.ok("GET", unitPath(s1.uid))).name, "Мост 1", "датчик переименован");
+    const made = await env.ok("GET", unitPath(madeId));
+    assert.eq([made.kind, made.parentId, made.name], [SENSOR, ctrl.uid, "Мост новый"], "датчик создан под контроллером");
+    assert.eq((await env.ok("GET", unitPath(s2.uid))).parentId, ctrl2.uid, "датчик перенесён ко второму контроллеру");
+    assert.status(await env.call("GET", unitPath(s1b.uid)), 404, "NOT_FOUND", "датчик второго контроллера удалён");
+    const undo = await env.finished((await env.ok("POST", `/operations/${op.id}/revert`, {})).id);
+    assert.ok(undo.items.every((x) => x.state === "ok"), "откат: все шаги — ok");
+    assert.eq((await env.ok("GET", unitPath(s1.uid))).name, s1.name, "имя вернулось");
+    assert.status(await env.call("GET", unitPath(madeId)), 404, "NOT_FOUND", "созданного нет");
+    assert.eq((await env.ok("GET", unitPath(s2.uid))).parentId, ctrl.uid, "датчик вернулся к контроллеру клавиатуры");
+    assert.eq((await env.ok("GET", unitPath(s1b.uid))).parentId, ctrl2.uid, "удалённый датчик вернулся");
+  }, { needs: ["createOperation", "getOperation", "revertOperation"] });
+
   test("validate не пишет", async () => {
     const env = await makeEnv();
     const u = t1();
