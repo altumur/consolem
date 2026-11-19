@@ -689,8 +689,8 @@
         }
         const k = ref.ruleActions.find((x) => x.source === a.source && x.action === a.action);
         if (!k) return bad("steps", "action.notDeclared", { action: a.action });
-        // Значение поля: по schema поля (enum, с 0.31.0), без schema — по устаревшему options
-        const outOf = (f, v) => (f.schema ? Array.isArray(f.schema.enum) && !f.schema.enum.includes(v) : (f.options || []).length > 0 && !f.options.includes(v));
+        // Значение поля: по enum его schema (с 0.31.0); поле без schema принимает любое значение (options снято в 0.32.0)
+        const outOf = (f, v) => !!f.schema && Array.isArray(f.schema.enum) && !f.schema.enum.includes(v);
         const value = k.fields.find((f) => a[f.id] != null && a[f.id] !== "" && outOf(f, a[f.id]));
         if (value) return bad("steps", "action.fieldNotDeclared", { action: a.action, field: value.id });
         const extra = FIELDS_OPTIONAL.find((f) => a[f] && !k.fields.some((x) => x.id === f));

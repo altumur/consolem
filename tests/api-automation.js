@@ -181,6 +181,14 @@
     assert.ok(f.schema["x-enum-labels"] && f.schema["x-enum-labels"][f.schema.enum[0]], "подпись раскладки — x-enum-labels");
   }, { needs: ["createRule"] });
 
+  // options снято в 0.32.0: поле без schema принимает любое значение, даже если бэкенд по старинке прислал options
+  test("Поле действия без schema: значение любое, снятое options не ограничивает", async () => {
+    const acts = withHttp(ref.ruleActions).map((a) => (a.source === "net" && a.action === "http"
+      ? Object.assign({}, a, { fields: a.fields.filter((f) => f.id !== "method").concat({ id: "method", optional: true, options: ["GET", "POST"] }) }) : a));
+    const env = await makeEnv({ fixturePatch: { reference: { ruleActions: acts } } });
+    assert.status(await env.call("POST", "/rules", sysRule([http({ method: "PUT" })])), 201, null, "PUT вне снятого options — правило сохраняется");
+  }, { needs: ["createRule"] });
+
   test("Область цели по раскладке: {area: server} задевает те же объекты, что /tree/children servers под этим сервером", async () => {
     const env = await makeEnv();
     // Область сервера — его ветка в раскладке ruleTargets.areaLayouts.server (у demo — servers)
