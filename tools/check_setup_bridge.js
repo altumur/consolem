@@ -393,7 +393,7 @@ async function run() {
   if (s) fail("15 непрозрачная страница, известный consolem", "init с origin null принят");
   if (!sent[0] || sent[0][1] !== "https://console.example") fail("15 непрозрачная страница, известный consolem", `ready ${JSON.stringify(sent[0])}`);
 
-  page13();
+  await page13();
 }
 
 // 13 тестовая страница стенда api/plugins/security_controller/setup/ (SETUP-UI.md, «Чего страница не делает»): код только
@@ -401,7 +401,7 @@ async function run() {
 // и innerHTML; без fetch, XMLHttpRequest, WebSocket и /api/:
 // данные страница берёт из init. ready.fields из page.js — поля схемы security_controller/KEYPAD в demo.json, кроме
 // lock_after_tries: на нём проверяют строку покрытия и ошибки «не на странице»
-function page13() {
+async function page13() {
   scene("13");
   const fs = require("fs"), path = require("path"), vm = require("vm");
   const rel = "plugins/security_controller/setup";
@@ -457,6 +457,115 @@ function page13() {
   const want = Object.keys(keypad.schema.properties).filter((k) => k !== "lock_after_tries").map((k) => `/properties/${k}`);
   const got = calls[0] && calls[0].fields;
   if (!same(got, want)) fail("13 page.js", `ready.fields ${JSON.stringify(got)}, ждали ${JSON.stringify(want)}`);
+  await page13errors(text["index.html"], text["page.js"]);
+}
+
+// ── Маленький DOM для page.js: разбор index.html, простые селекторы (тег, #id, .класс, [атрибут], [атрибут="…"],
+// потомок через пробел, список через запятую) и те свойства элементов, которые трогает page.js ──
+function miniDom(html) {
+  const VOID = new Set(["input", "meta", "link", "br", "img", "hr"]);
+  const make = (tag, attrs, parent) => {
+    const el = {
+      tagName: tag.toUpperCase(), attrs, parent, children: [], listeners: {}, style: { setProperty() {} },
+      classList: null, textContent: "", value: "", checked: false, disabled: false, type: attrs.type || "",
+      get id() { return this.attrs.id || ""; },
+      get hidden() { return "hidden" in this.attrs; },
+      set hidden(v) { if (v) this.attrs.hidden = ""; else delete this.attrs.hidden; },
+      getAttribute(k) { return k in this.attrs ? this.attrs[k] : null; },
+      setAttribute(k, v) { this.attrs[k] = String(v); },
+      addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); },
+      querySelector(sel) { return this.querySelectorAll(sel)[0] || null; },
+      querySelectorAll(sel) { return all(this).filter((e) => e !== this && matches(e, sel, this)); },
+      closest(sel) { for (let e = this; e; e = e.parent) if (e.tagName && matches(e, sel)) return e; return null; },
+    };
+    const cls = () => new Set((el.attrs.class || "").split(/\s+/).filter(Boolean));
+    el.classList = {
+      contains: (c) => cls().has(c),
+      toggle(c, on) { const s = cls(); const want = on === undefined ? !s.has(c) : !!on; if (want) s.add(c); else s.delete(c); el.attrs.class = [...s].join(" "); return want; },
+    };
+    return el;
+  };
+  const all = (root) => root.children.flatMap((c) => [c, ...all(c)]);
+  function one(el, part) {
+    const m = part.match(/^([a-z0-9]*)((?:[#.][\w-]+|\[[\w-]+(?:="[^"]*")?\])*)$/i);
+    if (!m) throw new Error(`селектор ${part} — маленький DOM его не знает`);
+    if (m[1] && el.tagName !== m[1].toUpperCase()) return false;
+    for (const [, kind, name, val] of m[2].matchAll(/([#.]|\[)([\w-]+)(?:="([^"]*)")?\]?/g)) {
+      if (kind === "#" && el.attrs.id !== name) return false;
+      if (kind === "." && !el.classList.contains(name)) return false;
+      if (kind === "[" && (!(name in el.attrs) || (val !== undefined && el.attrs[name] !== val))) return false;
+    }
+    return true;
+  }
+  function matches(el, sel, scope) {
+    return sel.split(",").some((group) => {
+      const parts = group.trim().split(/\s+/);
+      if (!one(el, parts[parts.length - 1])) return false;
+      let i = parts.length - 2;
+      for (let e = el.parent; e && e !== scope && i >= 0; e = e.parent) if (e.tagName && one(e, parts[i])) i--;
+      return i < 0;
+    });
+  }
+  const root = make("#root", {}, null);
+  const body = html.replace(/<!--[\s\S]*?-->/g, "").replace(/^[\s\S]*?<body[^>]*>/i, "").replace(/<\/body>[\s\S]*$/i, "");
+  let at = root;
+  for (const [, close, tag, rest] of body.matchAll(/<(\/?)([a-z0-9]+)([^>]*)>/gi)) {
+    if (close) { if (at.parent) at = at.parent; continue; }
+    const attrs = {};
+    for (const [, k, v] of rest.matchAll(/([\w-]+)(?:\s*=\s*"([^"]*)")?/g)) attrs[k] = v === undefined ? "" : v;
+    const el = make(tag.toLowerCase(), attrs, at);
+    at.children.push(el);
+    if (!VOID.has(tag.toLowerCase()) && tag.toLowerCase() !== "script") at = el;
+  }
+  const docEl = make("html", {}, null);
+  return {
+    title: "", documentElement: docEl,
+    getElementById: (id) => all(root).find((e) => e.attrs.id === id) || null,
+    querySelector: (sel) => root.querySelector(sel),
+    querySelectorAll: (sel) => root.querySelectorAll(sel),
+  };
+}
+
+// 13 ошибки consolem на тестовой странице: ошибка поля на скрытой вкладке отмечает кнопку вкладки;
+// в поле ошибок над формой — подпись поля, а не указатель, если страница знает подпись
+async function page13errors(html, js) {
+  const vm = require("vm");
+  const doc = miniDom(html);
+  let opts = null;
+  const session = {
+    init: { lang: "ru" }, readOnly: false, theme: null, draft: {},
+    unit: { properties: { code_length: 6, display_text: "Код", backlight: "low", beep: true, lock_after_tries: 5 } },
+    change() { return true; }, invalid() {},
+  };
+  const ctx = {
+    console: { log() {}, warn() {}, error() {} }, URLSearchParams, URL, JSON, Math, Number, String, Object, Array, Set, Map, Promise,
+    setTimeout: () => 0, clearTimeout() {}, document: doc, navigator: { language: "ru" }, parent: {},
+    location: { search: "?lang=ru", protocol: "file:", href: "file:///x/index.html" },
+    SetupBridge: { proto: "setup/1", connect: (o) => { opts = o; return Promise.resolve(session); }, merge: window.SetupBridge.merge, diff: window.SetupBridge.diff },
+  };
+  ctx.window = ctx;
+  try { vm.runInNewContext(js, ctx, { filename: "page.js" }); } catch (e) { return fail("13 ошибки на странице", `исключение ${e.message}`); }
+  await tick();
+  if (!opts || !opts.onErrors) return fail("13 ошибки на странице", "connect без onErrors");
+  const tab = (name) => doc.querySelector(`[data-tab="${name}"]`);
+  const box = doc.getElementById("error");
+  const panel = doc.querySelector('[data-panel="screen"]');
+  if (!panel || !panel.hidden) return fail("13 ошибки на странице", "вкладка «Экран» не скрыта при старте — случай не проверить");
+  try {
+    opts.onErrors({ code: "VALIDATION_FAILED", message: "Ошибка", errors: [
+      { code: "VALIDATION_FAILED", field: "/properties/display_text", message: "Текст длиннее 32 знаков" },
+      { code: "VALIDATION_FAILED", field: "/properties/lock_after_tries", message: "Больше 10" },
+      { code: "VALIDATION_FAILED", field: "/properties/zzz", message: "Нет поля" },
+    ] });
+  } catch (e) { return fail("13 ошибки на странице", `исключение ${e.message}`); }
+  if (!tab("screen").classList.contains("bad")) fail("13 ошибки на странице", "ошибка поля на скрытой вкладке «Экран» не отметила кнопку вкладки");
+  if (tab("code").classList.contains("bad")) fail("13 ошибки на странице", "кнопка вкладки «Код» отмечена без ошибки на ней");
+  if (!box.textContent.includes("Блокировать после попыток")) fail("13 ошибки на странице", `в поле ошибок нет подписи поля: ${JSON.stringify(box.textContent)}`);
+  if (box.textContent.includes("/properties/lock_after_tries")) fail("13 ошибки на странице", `в поле ошибок указатель, хотя подпись известна: ${JSON.stringify(box.textContent)}`);
+  if (!box.textContent.includes("/properties/zzz")) fail("13 ошибки на странице", `поле без подписи — нет указателя: ${JSON.stringify(box.textContent)}`);
+  opts.onErrors({ code: "VALIDATION_FAILED", message: "Ошибка", field: "/properties/code_length" });
+  if (tab("screen").classList.contains("bad") || !tab("code").classList.contains("bad"))
+    fail("13 ошибки на странице", "новые ошибки не сняли отметку прежней вкладки или не отметили свою");
 }
 
 // Вывод для check_api.py: {"problems": […], "scenarios": N}

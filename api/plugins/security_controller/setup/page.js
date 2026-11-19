@@ -7,6 +7,9 @@
 (() => {
   const FIELDS = ["code_length", "display_text", "backlight", "beep"];
   const READY_FIELDS = FIELDS.map((k) => `/properties/${k}`);
+  // Подписи полей, которые знает страница: поля на странице и lock_after_tries (его страница не показывает,
+  // но называет подписью в списке ошибок)
+  const LABELS = new Set([...FIELDS, "lock_after_tries"]);
   const TEXT = {
     ru: {
       title: "Клавиатура",
@@ -26,6 +29,7 @@
       backlight_low: "Слабая",
       backlight_high: "Яркая",
       beep: "Звук нажатия",
+      lock_after_tries: "Блокировать после попыток",
       bad_code_length: "Указать длину кода от 4 до 8 цифр.",
       bad_display_text: "Текст длиннее 32 знаков. Сократить текст.",
       invalid: "Страница нашла ошибки в полях. Исправить поля, отмеченные красным.",
@@ -49,6 +53,7 @@
       backlight_low: "Low",
       backlight_high: "High",
       beep: "Key sound",
+      lock_after_tries: "Lock after failed tries",
       bad_code_length: "Enter a code length from 4 to 8 digits.",
       bad_display_text: "The text is longer than 32 characters. Make the text shorter.",
       invalid: "The page found errors in the fields. Correct the fields with a red border.",
@@ -131,6 +136,14 @@
     f.classList.toggle("bad", !!text);
     msg.textContent = text || "";
     msg.hidden = !text;
+    markTabs();
+  }
+  // Кнопка вкладки с ошибкой в поле отмечена: так человек видит ошибку и на скрытой вкладке
+  function markTabs() {
+    document.querySelectorAll("[data-tab]").forEach((b) => {
+      const panel = document.querySelector(`[data-panel="${b.getAttribute("data-tab")}"]`);
+      b.classList.toggle("bad", !!(panel && panel.querySelector(".field.bad")));
+    });
   }
   function sendInvalid(bad) {
     const fields = Object.keys(bad).map((k) => `/properties/${k}`);
@@ -168,7 +181,9 @@
     list.forEach((er) => {
       const k = String((er && er.field) || "").replace(/^\/properties\//, "");
       if (FIELDS.indexOf(k) >= 0) mark(k, er.message || T.other);
-      else rest.push(er && er.field ? `${er.message || T.other} (${er.field})` : (er && er.message) || T.other);
+      // Поля нет на странице: подпись, если страница её знает, иначе указатель
+      else if (er && er.field) rest.push(`${er.message || T.other} (${LABELS.has(k) && T[k] ? T[k] : er.field})`);
+      else rest.push((er && er.message) || T.other);
     });
     if (rest.length) error(rest.join("\n"));
   }

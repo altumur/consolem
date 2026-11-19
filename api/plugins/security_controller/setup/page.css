@@ -28,6 +28,8 @@ body { padding: 12px 16px 16px; }
 .tabs button { padding: 6px 12px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--one-fg-muted); font: inherit; cursor: pointer; white-space: nowrap; }
 .tabs button:hover { color: var(--one-fg); }
 .tabs button[aria-selected="true"] { color: var(--one-fg); border-bottom-color: var(--one-accent); }
+.tabs button.bad, .tabs button.bad[aria-selected="true"] { color: var(--one-danger); }
+.tabs button.bad::after { content: " •"; }
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; max-width: 360px; }
 .field label { color: var(--one-fg); }
 .field-check label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
