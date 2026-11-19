@@ -4425,10 +4425,12 @@ function can(need){
   if(need.startsWith("feature:"))return CAPS.features.has(need.slice(8));
   return CAPS.operations.has(need);
 }
+// Последний справочник GET /reference: списки, которые пришли из описаний видов, перечитываются по нему и после GET /kinds
+let REF_LAST=null;
 async function capsLoad(){
   const ref=await API.get("/reference"),c=ref.capabilities;
+  REF_LAST=ref;
   Object.assign(LIM,ref.limits);
-  EXP_REF=ref.export||null;
   autoRef(ref);
   accRefApply(ref.access);
   CAPS.operations=new Set(c.operations);CAPS.features=new Set(c.features);
@@ -4436,7 +4438,7 @@ async function capsLoad(){
   // Системе без /kinds остаются виды устройств справочника; с /kinds каталоги — из описаний видов (kindsApply)
   refDeviceTypes=c.deviceTypes?new Set(c.deviceTypes):null;refWritable=c.writableFields||null;
   CAPS.deviceTypes=new Set(c.deviceTypes||[]);CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
-  await kindsLoad();
+  await Promise.all([kindsLoad(),expRefLoad(ref)]);
   capsApply();
 }
 function capsApply(){
@@ -4766,6 +4768,7 @@ function kindsApply(){
   ["all","cam"].forEach(s=>{TYPE_FILTERS[s]=TYPE_FILTERS_BASE[s].concat(chips)});
   ruleCatFromKinds();accClassesFromKinds();
   kindsRefApply();
+  if(REF_LAST)autoRefLists(REF_LAST,KINDS);
 }
 // Поле поиска экрана → параметр fields= у GET /units
 // «ID» экрана — номер устройства (identifier)
@@ -7046,28 +7049,69 @@ const AUTO_KINDS=new Set(["rule","ruleFire","schedule","dayGroup","modes","objec
 // Типы хранения — что система умеет, из справочника; подпись — своя
 let refStorage=ARCH_STORAGE.map(x=>x[0]),refLabels=[],refEvents=[],refDetKinds=[],DET_TYPES=[],DET_TRIG_OWN=[],refRuleCross=null;
 function archStorages(){return ARCH_STORAGE.filter(x=>refStorage.includes(x[0]))}
-function autoRef(ref){
+function autoRef(ref,kinds){
+  kinds=kinds||KINDS;
   if(ref.storageTypes?.length)refStorage=ref.storageTypes;
   if(ref.archiveKinds?.length)refArchKinds=ref.archiveKinds;
-  if(ref.recordModes?.length)refRecModes=ref.recordModes;
-
-  refLabels=ref.serverLabels||[];refDetKinds=ref.detectorKinds||[];
-  detAkClashSet(ref.analyticsConflicts);
-  Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
-  (ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
+  // Виды детектора с /kinds даёт kindsRefApply: справочник их не стирает
+  if(ref.detectorKinds)refDetKinds=ref.detectorKinds;
   // Каталог «Автоматизации» — из справочника: что объявлено, то форма и предлагает. Варианты уточнения отдаёт
   // сервер, подписи — по коду, незнакомый код показывается как есть
   refRuleCross=ref.ruleCrossDomainActions||null;
-  refScenKinds=ref.scenarioKinds||null;
   // События и команды объектов — из описаний видов (ruleCatFromKinds), справочник — только действия системы (ruleActions)
   Object.assign(RULE_REF,{starts:ref.ruleStarts||null,actions:ref.ruleActions||null,conds:ref.ruleConditions||null,ctls:ref.ruleControls||null,targets:ref.ruleTargets||null,features:ref.ruleFeatures||[]});
   (ref.ruleActions||[]).forEach(a=>{
     const k=actionKind({sub:a.source,action:a.action});
-    if(k.stray){k.devTypes=a.deviceTypes;k.fields=a.fields.map(f=>({id:f.id==="target"?"ref":ACT_IN[f.id]||f.id,label:f.id==="target"?"Устройство":f.id,...(f.optional?{req:false}:{}),...(f.options?.length?{opts:f.options}:{})}))}
+    if(k.stray){k.devTypes=a.deviceTypes;k.fields=a.fields.map(f=>({id:f.id==="target"?"ref":ACT_IN[f.id]||f.id,label:f.id==="target"?"Устройство":f.id,...(f.optional?{req:false}:{}),...(refFieldOpts(f).length?{opts:refFieldOpts(f)}:{})}))}
   });
+  autoRefLists(ref,kinds);
+}
+// Справочники VMS — из описаний видов.
+// Списки, которые раньше отдавал GET /reference, приходят из описаний видов (контракт 0.30.0) и из schema полей
+// действий правил (0.31.0). Устаревший ключ справочника читается, только если нового места нет: старый бэкенд
+function refFieldOpts(f){return f?.schema?.enum||f?.schema?.items?.enum||f?.options||[]}
+// Подпись значения enum: x-enum-labels — текст как есть (имя раскладки или монитора — данные правила, не перевод)
+function refEnumName(p,v){const t=p?.["x-enum-labels"]?.[v];return t==null?String(v):typeof t==="string"?t:t.text||String(v)}
+function autoRefLists(ref,kinds){
+  const ks=[...kinds.values()],im=(k,id)=>(k.implements||[]).includes(id),props=k=>k.schema?.properties||{};
+  // Производители и модели: examples у vendor, модели — allOf {if: {vendor: {const}}, then: {model: {examples}}}
+  const models={};
+  ks.forEach(k=>{
+    (props(k).vendor?.examples||[]).forEach(v=>{models[v]??=[]});
+    (k.schema?.allOf||[]).forEach(x=>{
+      const v=x.if?.properties?.vendor?.const,m=x.then?.properties?.model?.examples;
+      if(v==null||!Array.isArray(m))return;
+      models[v]??=[];m.forEach(y=>{if(!models[v].includes(y))models[v].push(y)});
+    });
+  });
+  Object.keys(DEVICE_MODELS).forEach(k=>delete DEVICE_MODELS[k]);
+  if(Object.keys(models).length)Object.assign(DEVICE_MODELS,models);
+  else(ref.deviceModels||[]).forEach(x=>{DEVICE_MODELS[x.vendor]=x.models});
+  // Режимы записи камеры: enum recordMode видов vms.camera/1
+  const rec=[...new Set(ks.filter(k=>im(k,"vms.camera/1")).flatMap(k=>props(k).recordMode?.enum||[]))];
+  if(rec.length)refRecModes=rec;else if(ref.recordModes?.length)refRecModes=ref.recordModes;
+  // Метки серверов: examples у labels.items видов vms.server/1
+  const lb=[...new Set(ks.filter(k=>im(k,"vms.server/1")).flatMap(k=>props(k).labels?.items?.examples||[]))];
+  refLabels=lb.length?lb:ref.serverLabels||[];
+  // Несовместимые виды аналитики: x-conflicts {значение: [значения]} у analyticsKind видов детектора
+  const cf=ks.map(k=>props(k).analyticsKind?.["x-conflicts"]).filter(Boolean);
+  detAkClashSet(cf.length?cf.flatMap(x=>Object.entries(x).map(([analyticsKind,conflicts])=>({analyticsKind,conflicts}))):ref.analyticsConflicts);
+  // Виды событий сценариев — ScenarioDoc.kinds при чтении документа (scenLoad); до него — устаревший ключ, если он есть
+  refScenKinds=ref.scenarioKinds||null;
+  // Раскладки и мониторы правил: enum и x-enum-labels в schema поля layoutId действия client.layout и параметра
+  // monitorId команды объекта (camera.wall). Имя — в правиле, id — на сервере
   RULE_LAYOUTS.length=0;RULE_MONS.length=0;REF_LAYOUT.clear();REF_MONITOR.clear();
-  (ref.layouts||[]).forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
-  (ref.monitors||[]).forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
+  const fieldOf=(id)=>(ref.ruleActions||[]).flatMap(a=>a.fields||[]).find(f=>f.id===id&&f.schema?.enum);
+  const pairs=p=>p?.enum?p.enum.map(v=>({id:v,name:refEnumName(p,v)})):null;
+  const lay=pairs(fieldOf("layoutId")?.schema)||ref.layouts||[];
+  const monP=ks.flatMap(k=>(k.actions||[]).map(a=>a.params?.properties?.monitorId)).find(p=>p?.enum)||fieldOf("monitorId")?.schema;
+  const mon=pairs(monP)||ref.monitors||[];
+  lay.forEach(x=>{RULE_LAYOUTS.push(x.name);REF_LAYOUT.set(x.name,x.id);REF_LAYOUT.set(x.id,x.name)});
+  mon.forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
+}
+// Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции — устаревший reference.export
+async function expRefLoad(ref){
+  EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(()=>ref?.export||null):ref?.export||null;
 }
 // Цель: {include, exclude, gone, fromEvent} ↔ строка раздела («c1», «set:a,b,-c», «folder:…», «gone:имя», «$src»).
 // Элемент include — объект {uid} или область {area: folder|server|domain, uid}
@@ -7282,8 +7326,10 @@ function fireWhy(m,ctx){
   if(m.code==="cond.time"){const x=sysParts(p.at);return fail(`${i18n("сейчас")} ${ruleDaysText([x.dow])} ${x.hm} — ${i18n("вне расписания")}`)}
   if(m.code==="cond.mode")return i18n("Скрытое условие режима не выполнено");
   if(m.code==="cond.devices"){
+    // Код строки — от хука профиля (ruleCondition): незнакомый код показывается как есть, а не как охрана камеры
     const one=x=>x.code==="offline"?`${nm(x.viaId)}: ${i18n("без связи")}`:x.code==="notRecording"?`${i18n("камера")} «${nm(x.deviceId)}» ${i18n("не пишет в архив")}`
-      :`${i18n("камера")} «${nm(x.deviceId)}» ${i18n(x.code==="disarmed"?"снята с охраны":"на охране")}`;
+      :x.code==="disarmed"||x.code==="armed"?`${i18n("камера")} «${nm(x.deviceId)}» ${i18n(x.code==="disarmed"?"снята с охраны":"на охране")}`
+      :x.code==="notSupported"?`«${nm(x.deviceId)}»: ${i18n("система не проверяет это условие у этого объекта")}`:`«${nm(x.deviceId)}»: ${x.code}`;
     return fail(p.items.map(one).join("; ")+(p.more?`; ${i18n("и ещё")} ${p.more}`:""));
   }
   if(/^target\./.test(m.code))return fail(i18n(STEP_WHY[m.code]||""));
@@ -23335,7 +23381,10 @@ function ruleRefField(k,id){
     return p?{id:name,options:p.enum||p.items?.enum||[]}:null;
   }
   const a=RULE_REF.actions&&RULE_REF.actions.find(x=>x.source===k.sub&&x.action===k.action);
-  return a?a.fields.find(f=>f.id===(ACT_OUT[id]||id))||null:undefined;
+  if(!a)return undefined;
+  // Варианты поля — enum его schema (контракт 0.31.0), без schema — устаревшие options
+  const f=a.fields.find(f=>f.id===(ACT_OUT[id]||id));
+  return f?Object.assign({},f,{options:refFieldOpts(f)}):null;
 }
 // Необязательного поля нет в справочнике — его нет и в форме, если в правиле оно не заполнено раньше
 // «Куда» у репликации — по умолчанию архив из настройки встроенного хранилища
@@ -23379,7 +23428,7 @@ function ruleOutOfCat(r){
       const rf=ruleRefField(k,f.id),v=a[f.id]??"";
       if(v===""||rf===undefined)continue;
       if(rf===null&&(f.req===false||/необязательно/.test(f.label)))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
-      if(rf&&rf.options?.length&&!rf.options.includes(f.id==="dur"?v:f.id==="mon"?REF_MONITOR.get(v)||v:v))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
+      if(rf&&rf.options?.length&&!rf.options.includes(f.id==="dur"?v:f.id==="mon"?REF_MONITOR.get(v)||v:f.id==="layout"?REF_LAYOUT.get(v)||v:v))return off(`${i18n(k.short||k.label)} · ${i18n(f.label)}`);
     }
     const p=a.ref?tgt(a.ref):"";if(p)return p;
   }
@@ -23746,18 +23795,21 @@ function ruleDevDom(n){
 }
 // Сервер устройства — по тем же правилам, что srv(), но по снимку: у камеры и регистратора —
 // их сервер, у прочих — через архив записи, у служб — владелец.
-function ruleDevSrv(n){
-  const m=ruleIdxGet().srv;
-  if(!m.has(n.id)){
+// Область сервера по раскладке (ruleTargets.areaLayouts.server, контракт 0.31.0) — ветка этой раскладки под сервером:
+// объект под сервером или камера сервера. Сервер архива записи в ветку не входит; старый бэкенд без areaLayouts — входит.
+// area — сервер для области цели; без него — сервер, под которым форма группирует устройства
+function ruleDevSrv(n,area){
+  const byArch=!area||!RULE_REF.targets?.areaLayouts,m=ruleIdxGet().srv,key=byArch?n.id:"a|"+n.id;
+  if(!m.has(key)){
     let sid="";
     for(const x of ruleAncestors(n)){
       if(handOf(x,"server")){sid=x.id;break}
       if(x.srvId&&(handCam(x)||handOf(x,"ipsrv"))&&servers.some(s=>s.id===x.srvId)){sid=x.srvId;break}
-      if(x.arch&&x.rec&&x.rec!=="none"){const a=arch.find(y=>y.id===x.arch);if(a&&servers.some(s=>s.id===a.server)){sid=a.server;break}}
+      if(byArch&&x.arch&&x.rec&&x.rec!=="none"){const a=arch.find(y=>y.id===x.arch);if(a&&servers.some(s=>s.id===a.server)){sid=a.server;break}}
     }
-    m.set(n.id,sid);
+    m.set(key,sid);
   }
-  return m.get(n.id);
+  return m.get(key);
 }
 function ruleUniverse(dt){
   return ruleMemo("u|"+dt.join(),()=>{
@@ -23795,7 +23847,7 @@ function ruleTokNodes(tok,dt){
   return ruleMemo("t|"+tok+"|"+dt.join(),()=>{
     const i=tok.indexOf(":"),k=i<0?"":tok.slice(0,i),v=tok.slice(i+1);
     if(k==="folder")return[...ruleFolderDevs(v).values()].filter(n=>ruleDtHit(n,dt));
-    if(k==="server")return ruleUniverse(dt).filter(n=>ruleDevSrv(n)===v);
+    if(k==="server")return ruleUniverse(dt).filter(n=>ruleDevSrv(n,true)===v);
     if(k==="domain")return ruleUniverse(dt).filter(n=>ruleDevDom(n)===v);
     if(k==="gone"||tok==="$src"||!tok)return[];
     const n=ruleNodeById(tok);return n?[n]:[];
@@ -25986,6 +26038,8 @@ async function scenLoad(did){
   SCEN.did=did||scenDid();
   const[doc,st]=await Promise.all([API.get(`/units/${SCEN.did}/scenarios`),can("getScenariosStatus")?API.get(`/units/${SCEN.did}/scenarios/status`):{items:[]}]);
   SCEN.doc=doc;SCEN.status=st.items;
+  // Виды событий сценариев — из документа (ScenarioDoc.kinds); старый бэкенд без поля — справочник
+  if(Array.isArray(doc.kinds))refScenKinds=doc.kinds;
   await hwEnsure(doc.items.flatMap(x=>[x.when.deviceId,x.then.deviceId]));
   if(app==="rules"&&rule==="between")paint();
 }
@@ -26060,6 +26114,7 @@ function scenCamSet(side,id){SCEN.edit.row[side].deviceId=id;SCEN.found[side]=[]
 async function scenWrite(items,after,base=SCEN.doc){
   try{
     SCEN.doc=await API.put(`/units/${SCEN.did}/scenarios`,{items},base.version);
+    if(Array.isArray(SCEN.doc?.kinds))refScenKinds=SCEN.doc.kinds;
     SCEN.note="";after&&after();paint();
   }catch(e){
     if(e?.problem?.code!=="VERSION_MISMATCH"){toast(problemText(e));return}
