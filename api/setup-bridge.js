@@ -11,6 +11,11 @@
      Session: init, host, unit, readOnly, theme, draft; change(patch) → boolean; invalid(fields, message?); height(px).
      Шаг 2 (мост к механизму): bridge — есть ли init.host.bridge; can(op) → "read" | "act" | "draft" | null;
        call(op, {params, body}) → Promise<{id, ok, status, body?, problem?, etag?}> — не бросает, срок ответа 30 с.
+       subscribe({entityIds?, kinds?, types?}, onEvent(message)) → Promise<() => void> — функция отписки; отказ consolem
+         (BUSY, VALIDATION_FAILED) или хост без subscribe — обещание отклонено, у ошибки поле problem.
+       navigate(uid, tab?) → Promise<{id, ok, status, problem?}> — удачный переход ответа не получает: рамку закрыли.
+       confirm({title, text, lose?, keep?, count?, okLabel?}) → Promise<boolean> — true, если человек подтвердил.
+       У navigate и confirm срока ответа нет: отвечает человек.
      SetupBridge.merge(base, patch) — JSON Merge Patch (RFC 7396); SetupBridge.diff(base, next) → patch. */
 (() => {
   const PROTO = "setup/1";
@@ -95,6 +100,8 @@
     // Шаг 2: вызовы без ответа по id; номер id — свой счётчик библиотеки
     const pending = new Map();
     let callSeq = 0;
+    // Шаг 2: подписки — sub → onEvent
+    const subs = new Map();
 
     return new Promise((resolve) => {
       function sendChange(patch) {
@@ -142,6 +149,52 @@
           send(msg);
         });
       }
+      // Сообщение шага 2 без срока ответа: navigate, confirm, subscribe. Хост не принимает type — отказ без сообщения
+      function ask(type, fields) {
+        const id = type[0] + ++callSeq;
+        const msgs = session.bridge && Array.isArray(session.host.bridge.messages) ? session.host.bridge.messages : [];
+        if (msgs.indexOf(type) < 0) return Promise.resolve(refuse(id, "NOT_SUPPORTED", `consolem не принимает ${type}`));
+        return new Promise((resolve) => {
+          pending.set(id, resolve);
+          send({ type, id, ...fields });
+        });
+      }
+      const strs = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
+      function subscribe(filter, onEvent) {
+        const f = isObj(filter) ? filter : {};
+        const fields = {};
+        ["entityIds", "kinds", "types"].forEach((k) => { if (strs(f[k])) fields[k] = f[k].slice(); });
+        return ask("subscribe", fields).then((r) => {
+          if (!r.ok) {
+            const e = new Error(`SetupBridge: subscribe — ${r.problem && r.problem.code}`);
+            e.problem = r.problem;
+            throw e;
+          }
+          const sub = r.body && typeof r.body.sub === "string" ? r.body.sub : r.id;
+          subs.set(sub, typeof onEvent === "function" ? onEvent : () => {});
+          let on = true;
+          return () => {
+            if (!on) return;
+            on = false;
+            subs.delete(sub);
+            send({ type: "unsubscribe", sub });
+          };
+        });
+      }
+      function navigate(uid, tab) {
+        const fields = { uid: String(uid) };
+        if (typeof tab === "string" && tab) fields.tab = tab;
+        return ask("navigate", fields);
+      }
+      function confirm(opts) {
+        const c = isObj(opts) ? opts : {};
+        const fields = { title: String(c.title || ""), text: String(c.text || "") };
+        if (strs(c.lose)) fields.lose = c.lose.slice();
+        if (strs(c.keep)) fields.keep = c.keep.slice();
+        if (Number.isInteger(c.count) && c.count >= 1) fields.count = c.count;
+        if (typeof c.okLabel === "string" && c.okLabel) fields.okLabel = c.okLabel;
+        return ask("confirm", fields).then((r) => r.ok === true && !!r.body && r.body.confirmed === true);
+      }
       function onInit(m) {
         const bridge = isObj(m.host) && isObj(m.host.bridge) && isObj(m.host.bridge.ops) ? m.host.bridge : null;
         session = {
@@ -168,6 +221,9 @@
             return v === "read" || v === "act" || v === "draft" ? v : null;
           },
           call,
+          subscribe,
+          navigate,
+          confirm,
         };
         sentDraft = session.draft;
         if (o.autoHeight !== false) startAutoHeight();
@@ -203,6 +259,11 @@
           const r = {};
           keys(m).forEach((k) => { if (k !== "proto" && k !== "type") r[k] = m[k]; });
           done(r);
+        },
+        // Шаг 2: событие потока по подписке; чужой или снятый sub пропускается
+        event(m) {
+          const fn = typeof m.sub === "string" && subs.get(m.sub);
+          if (fn && isObj(m.message)) fn(m.message);
         },
         theme(m) {
           session.theme = m.theme;

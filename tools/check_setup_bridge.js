@@ -475,6 +475,80 @@ async function run() {
     if (!r1 || r1.ok !== false || r1.status !== 0 || r1.problem.code !== "NOT_SUPPORTED") fail("17 хост шага 1", `ответ ${JSON.stringify(r1)}`);
   }
 
+  // 18 шаг 2: subscribe — result, event по sub, отписка шлёт unsubscribe; отказ — обещание отклонено с problem;
+  // navigate и confirm — сообщения по схеме, ответ по id; хост шага 1 — без сообщений
+  scene("18");
+  env();
+  ({ session: s } = await connected({ autoHeight: false }, INIT({ host: { proto: "setup/1", apply: "button", bridge: BRIDGE } })));
+  if (!s || typeof s.subscribe !== "function" || typeof s.navigate !== "function" || typeof s.confirm !== "function")
+    fail("18 методы", `subscribe ${s && typeof s.subscribe}, navigate ${s && typeof s.navigate}, confirm ${s && typeof s.confirm}`);
+  else {
+    sent = [];
+    const evs = [];
+    let off = null;
+    s.subscribe({ entityIds: ["u1"], types: ["entity.changed"], junk: 1 }, (m) => evs.push(m)).then((f) => (off = f));
+    const sub = sent[0] && sent[0][0];
+    if (!sub || sub.type !== "subscribe" || !same(sub.entityIds, ["u1"]) || !same(sub.types, ["entity.changed"]) || "kinds" in sub || "junk" in sub)
+      fail("18 subscribe", `отправлено ${JSON.stringify(sent)}`);
+    post({ proto: "setup/1", type: "event", sub: sub && sub.id, message: { type: "entity.changed", entityId: "u1" } });
+    post({ proto: "setup/1", type: "result", id: sub && sub.id, ok: true, status: 200, body: { sub: sub && sub.id } });
+    await tick();
+    if (typeof off !== "function") fail("18 subscribe", "обещание не дало функцию отписки");
+    post({ proto: "setup/1", type: "event", sub: sub && sub.id, message: { type: "entity.changed", entityId: "u1" } });
+    post({ proto: "setup/1", type: "event", sub: "чужая", message: { type: "entity.changed", entityId: "u2" } });
+    await tick();
+    if (evs.length !== 1 || evs[0].entityId !== "u1") fail("18 event", `события ${JSON.stringify(evs)}`);
+    sent = [];
+    if (off) { off(); off(); }
+    if (sent.length !== 1 || sent[0][0].type !== "unsubscribe" || sent[0][0].sub !== (sub && sub.id)) fail("18 отписка", `отправлено ${JSON.stringify(sent)}`);
+    post({ proto: "setup/1", type: "event", sub: sub && sub.id, message: { type: "entity.changed", entityId: "u1" } });
+    await tick();
+    if (evs.length !== 1) fail("18 отписка", "событие после отписки дошло");
+    // Отказ (BUSY) — обещание отклонено, ошибка несёт problem
+    sent = [];
+    let why = null;
+    s.subscribe({ kinds: ["k"] }, () => {}).then(() => (why = "сбылось"), (e) => (why = e));
+    post({ proto: "setup/1", type: "result", id: sent[0] && sent[0][0].id, ok: false, status: 0, problem: { code: "BUSY", message: "предел" } });
+    await tick();
+    if (!why || !why.problem || why.problem.code !== "BUSY") fail("18 отказ подписки", `итог ${why && (why.message || why)}`);
+    // navigate: ответ только при отказе или на тот же объект
+    sent = [];
+    let nav = null;
+    s.navigate("u2", "acc").then((r) => (nav = r));
+    const nm = sent[0] && sent[0][0];
+    if (!nm || nm.type !== "navigate" || nm.uid !== "u2" || nm.tab !== "acc") fail("18 navigate", `отправлено ${JSON.stringify(sent)}`);
+    post({ proto: "setup/1", type: "result", id: nm && nm.id, ok: false, status: 0, problem: { code: "CANCELLED", message: "нет" } });
+    await tick();
+    if (!nav || nav.problem.code !== "CANCELLED") fail("18 navigate", `ответ ${JSON.stringify(nav)}`);
+    sent = [];
+    s.navigate("u3");
+    if (!sent[0] || "tab" in sent[0][0]) fail("18 navigate без вкладки", `отправлено ${JSON.stringify(sent)}`);
+    // confirm: поля по схеме, итог — boolean
+    sent = [];
+    let yes = null, no = null;
+    s.confirm({ title: "Т", text: "Х", lose: ["a"], count: 2, extra: 1 }).then((v) => (yes = v));
+    const cm = sent[0] && sent[0][0];
+    if (!cm || cm.type !== "confirm" || cm.title !== "Т" || cm.count !== 2 || !same(cm.lose, ["a"]) || "keep" in cm || "extra" in cm) fail("18 confirm", `отправлено ${JSON.stringify(sent)}`);
+    post({ proto: "setup/1", type: "result", id: cm && cm.id, ok: true, status: 200, body: { confirmed: true } });
+    s.confirm({ title: "Т", text: "Х" }).then((v) => (no = v));
+    const cm2 = sent[1] && sent[1][0];
+    post({ proto: "setup/1", type: "result", id: cm2 && cm2.id, ok: false, status: 0, problem: { code: "BUSY", message: "занято" } });
+    await tick();
+    if (yes !== true || no !== false) fail("18 confirm", `итоги ${yes} ${no}`);
+  }
+  env();
+  ({ session: s } = await connected({ autoHeight: false }));
+  if (s && typeof s.subscribe === "function") {
+    sent = [];
+    let why = null, nav = null, c = null;
+    s.subscribe({ kinds: ["k"] }, () => {}).catch((e) => (why = e));
+    s.navigate("u1").then((r) => (nav = r));
+    s.confirm({ title: "Т", text: "Х" }).then((v) => (c = v));
+    await tick();
+    if (sent.length || !why || why.problem.code !== "NOT_SUPPORTED" || !nav || nav.problem.code !== "NOT_SUPPORTED" || c !== false)
+      fail("18 хост шага 1", `отправлено ${JSON.stringify(sent)}, итоги ${why && why.problem && why.problem.code} ${JSON.stringify(nav)} ${c}`);
+  }
+
   await page13();
 }
 
