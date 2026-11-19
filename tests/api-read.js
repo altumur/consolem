@@ -31,7 +31,7 @@
   const SECTION_OPS = { objects: ["listKinds", "listUnits", "getTreeChildren"], automation: ["listRules"], access: ["getAccess"],
     journal: ["listJournal"], settings: ["getSettings"], "vms.export": ["listExports"] };
 
-  test("Разделы 0.27.0: capabilities.sections — коды уникальны, у раздела механизма объявлены его операции", async () => {
+  test("Разделы: capabilities.sections — коды уникальны, у раздела механизма объявлены его операции", async () => {
     const env = await makeEnv();
     const caps = (await env.ok("GET", "/reference")).capabilities;
     assert.ok(Array.isArray(caps.sections), "capabilities.sections — массив");

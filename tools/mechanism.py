@@ -14,7 +14,7 @@ import re
 VMS_WORDS = ("камер", "сервер", "видео", "архив", "детектор", "хранилищ", "VMS")
 
 # B5: схемы механизма дерева и пути /tree/*, в описаниях которых нет слов VMS
-TREE_SCHEMAS = ("TreeLayout", "PlaceRule", "KindSelector", "TreeGroup", "TreeNode", "TreePath", "TreePathStep", "KindsList")
+TREE_SCHEMAS = ("TreeLayout", "PlaceRule", "KindSelector", "TreeGroup", "TreeNode", "TreePath", "TreePathStep", "KindsList", "AppSection")
 TREE_PATH_PREFIX = "/tree/"
 _TEXT_KEYS = ("description", "summary")
 
@@ -112,7 +112,7 @@ def section_problems(fx, name="набор"):
     разделы из операций)."""
     caps = (fx.get("reference") or {}).get("capabilities") or {}
     if "sections" not in caps:
-        return []
+        return [f"{name}: нет поля sections (demo объявляет все коды SECTION_OPS)"] if name == "demo" else []
     ops = set(caps.get("operations") or [])
     out, seen = [], set()
     for sec in caps["sections"]:
@@ -152,6 +152,10 @@ def border_problems(spec):
     """B5: описания схем дерева (TREE_SCHEMAS) и операций путей /tree/* без слов VMS_WORDS, регистр не важен."""
     schemas = (spec.get("components") or {}).get("schemas") or {}
     places = [(n, schemas[n]) for n in TREE_SCHEMAS if n in schemas]
+    # Capabilities в целом слов VMS не избегает; B5 — только описание поля sections
+    sec = (((schemas.get("Capabilities") or {}).get("properties") or {}).get("sections"))
+    if sec:
+        places.append(("Capabilities.sections", sec))
     places += [(p, item) for p, item in (spec.get("paths") or {}).items() if p.startswith(TREE_PATH_PREFIX)]
     out = []
     for name, node in places:

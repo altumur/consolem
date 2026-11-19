@@ -273,7 +273,7 @@
 
 - **`Capabilities.sections`** — список `AppSection {id, label?, icon?}`. Поле пока необязательное: бэкенд без него работает как раньше, клиент выводит разделы из операций. Код `vms.export` — раздел слоя VMS (операция `listExports`), он уйдёт в API видео.
 - **Наборы.** `demo` (и собранные `one-domain`, `large`) объявляют `objects`, `automation`, `access`, `journal`, `settings`, `vms.export`; собранные наборы — без разделов, чьих операций нет. `agents` объявляет `objects` (подпись «Агенты»), `automation`, `access`, `journal`.
-- **Тесты и проверки.** Тест `tests/api-read.js` «Разделы 0.27.0: capabilities.sections…»; условие `section:<id>` в `needs` (`tests/harness.js`). `python3 tools/check_api.py` — строка «Разделы приложения в наборах» (`section_problems` в `tools/mechanism.py`, правила S1–S4, таблица `SECTION_OPS`); самопроверка — `python3 tools/check_mechanism.py`.
+- **Тесты и проверки.** Тест `tests/api-read.js` «Разделы: capabilities.sections…»; условие `section:<id>` в `needs` (`tests/harness.js`). `python3 tools/check_api.py` — строка «Разделы приложения в наборах» (`section_problems` в `tools/mechanism.py`, правила S1–S4, таблица `SECTION_OPS`); самопроверка — `python3 tools/check_mechanism.py`.
 
 ## Что добавлено в 0.26.0
 

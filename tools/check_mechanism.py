@@ -116,6 +116,12 @@ s = dup(spec); s["paths"]["/tree/paths"]["get"]["description"] += " и хран�
 ok(any("/tree/paths" in p and "хранилищ" in p for p in border_problems(s)), "B5: слово VMS в описании пути /tree/*")
 s = dup(spec); s["paths"]["/tree/children"]["get"]["parameters"][0]["description"] += " VMS"
 ok(any("/tree/children" in p and "VMS" in p for p in border_problems(s)), "B5: слово VMS в параметре пути")
+s = dup(spec); s["components"]["schemas"]["AppSection"]["description"] += " Камеры"
+ok(any("AppSection" in p and "камер" in p for p in border_problems(s)), "B5: слово VMS в AppSection")
+s = dup(spec); s["components"]["schemas"]["Capabilities"]["properties"]["sections"]["description"] += " и архив"
+ok(any("Capabilities.sections" in p and "архив" in p for p in border_problems(s)), "B5: слово VMS в Capabilities.sections")
+x = dup(demo); del x["reference"]["capabilities"]["sections"]
+ok(any("sections" in p for p in section_problems(x, "demo")), "S4: у demo нет поля sections")
 ok(VMS_WORDS == ("камер", "сервер", "видео", "архив", "детектор", "хранилищ", "VMS"), "B5: список слов VMS")
 got = border_problems(spec)
 ok(got == [], "живой контракт: B5 цела" + ("" if not got else ": " + "; ".join(got)))
