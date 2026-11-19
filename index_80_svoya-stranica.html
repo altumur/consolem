@@ -5496,10 +5496,11 @@ async function schemaValidate(n,d){
   let r;
   try{r=await API.post("/units/validate",{items:[{uid:n.id,patch}]})}catch(e){toast(problemText(e));return false}
   const errs=(r.items||[]).flatMap(x=>x.errors||[]);
-  if(!errs.length){schemaErrs.delete(n.id);return true}
+  if(!errs.length){schemaErrs.delete(n.id);if(suiFrame?.uid===n.id)suiFrame.errs=null;return true}
   const map={},schema=schemaOf(n);
   errs.forEach(e=>{const f=sfPointer(e.field);if(!(f in map))map[f]=sfErrText(schema,e)});
   schemaErrs.set(n.id,map);
+  if(suiFrame?.uid===n.id)suiErrors(n,{code:"VALIDATION_FAILED",message:i18n("Сервер не примет правку"),errors:errs});
   if(sel===n.id&&app==="hw")gear();
   toast(`${i18n("Сервер не примет правку")} — ${Object.values(map)[0]}`);
   return false;
@@ -6469,7 +6470,8 @@ function suiCardNode(){
 function suiCardHtml(n){
   const f=suiFrame&&suiFrame.uid===n.id?suiFrame:null,h=f?.h??SUI_H0;
   const wait=f?.ready?"":`<span class="sub">${i18n("Консоль загружает страницу подсистемы…")}</span>`;
-  return schemaHeadHtml(n,KINDS.get(nodeKind(n)))+`<div class="sui-slot" data-sui-slot style="height:${h}px">${wait}</div><div data-sui-errs></div>`+unitActionsHtml(n)+schemaStateHtml(n)+ruleUsesFor(n);
+  const ro=f?.readOnly?`<div class="nt" data-sui-ro>${i18n("У вас есть только право на просмотр, поэтому консоль не применит изменения на странице.")}</div>`:"";
+  return schemaHeadHtml(n,KINDS.get(nodeKind(n)))+ro+`<div class="sui-slot" data-sui-slot style="height:${h}px">${wait}</div>`+suiErrsHtml(f)+unitActionsHtml(n)+schemaStateHtml(n)+ruleUsesFor(n);
 }
 function suiFailHtml(){
   const why=suiFrame?.why||"";
@@ -6506,6 +6508,7 @@ function suiSync(){
   if(suiFrame&&(suiFrame.uid!==n.id||suiFrame.lang!==uiLang))suiClose();
   if(!suiFrame)suiOpen(n);
   suiPlace();
+  suiReconcile(n);
 }
 // Происхождение строкой (https://host:port); не адрес — null
 function suiOriginOf(s){try{return new URL(String(s)).origin}catch(e){return null}}
@@ -6597,16 +6600,129 @@ function suiDraftOf(n){
   return base.xprops&&n.xprops?suiDiff(base.xprops,n.xprops):{};
 }
 function suiInitMsg(n){return{uid:n.id,kind:nodeKind(n),lang:uiLang,theme:suiTheme(),readOnly:!!suiFrame?.readOnly,unit:suiUnitOf(n),draft:suiDraftOf(n),host:suiHostInfo()}}
-// Сообщения страницы по type; change, invalid и flushed добавит «Применить» (задача 7), шаг 2 — свои (часть 06)
+// JSON Merge Patch (RFC 7396): null снимает ключ, объект сливается по ключам, остальное заменяет целиком. base не меняется
+function suiMerge(base,patch){
+  const obj=x=>!!x&&typeof x==="object"&&!Array.isArray(x);
+  if(!obj(patch))return cardClone({v:patch}).v;
+  const out=obj(base)?cardClone(base):{};
+  Object.keys(patch).forEach(k=>{if(patch[k]===null)delete out[k];else out[k]=suiMerge(out[k],patch[k])});
+  return out;
+}
+// Правка от base к next — как SetupBridge.diff
+function suiPatch(base,next){return suiDiff(base||{},next||{})}
+// Ключи правки, которые консоль не берёт (Р10): нет в схеме вида, readOnly, x-transient. console.warn — один раз на ключ
+const suiWarned=new Set();
+function suiDraftClean(n,patch){
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties||{},out={};
+  Object.keys(patch).forEach(k=>{
+    const p=Object.prototype.hasOwnProperty.call(ps,k)?ps[k]:null;
+    const why=!p?"нет в схеме вида":p.readOnly?"readOnly":p["x-transient"]?"x-transient":"";
+    if(!why){out[k]=cardClone({v:patch[k]}).v;return}
+    const key=nodeKind(n)+"/"+k;
+    if(!suiWarned.has(key)){suiWarned.add(key);console.warn(`setup/1: консоль не берёт поле «${k}» из правки страницы: ${why}`)}
+  });
+  return out;
+}
+// Правка страницы — в черновик карточки: у объекта по схеме n.props = снимок + правка, у ручного экрана n.xprops = правка
+function suiDraftApply(n,patch){
+  const clean=suiDraftClean(n,patch);
+  cardEnsureBase(n);
+  const base=cardBase&&cardBase.id===n.id?cardBase.snap:null;
+  if(isSchemaNode(n))n.props=suiMerge(base?.props||{},clean);
+  else n.xprops={...clean};
+  if(suiFrame)suiFrame.errs=null;
+  setD(true);
+  cardFootRefresh();
+  if(suiFrame)suiFrame.pageDraft=suiDraftOf(n);
+}
+// Перед планом: страница отдаёт неотправленный ввод (flush → flushed). Нет ответа за SUI_FLUSH_MS — план по тому, что пришло
+function suiFlush(){
+  const f=suiFrame;if(!f?.win)return Promise.resolve(false);
+  const seq=++f.seq;
+  return new Promise(res=>{
+    const t=setTimeout(()=>{if(f.flushWait.delete(seq)){toast("Страница не ответила за 2 секунды. Консоль применит изменения, которые страница прислала раньше.");res(false)}},SUI_FLUSH_MS);
+    f.flushWait.set(seq,ok=>{clearTimeout(t);f.flushWait.delete(seq);res(ok)});
+    suiPost("flush",{seq});
+  });
+}
+// Причина, по которой «Показать план» неактивна; пусто — можно
+function suiFootBlock(){
+  const f=suiFrame;
+  if(f&&f.uid===sel&&f.ready&&f.invalid)return i18n("Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице.");
+  return"";
+}
+// Сервер отказал: Problem — странице; ошибки полей, которых страница не показывает, — список под местом
+function suiErrors(n,problem){
+  const f=suiFrame;if(!f||f.uid!==n.id)return;
+  const errors=(problem.errors||[]).map(e=>{const x={code:String(e.code||"VALIDATION_FAILED")};if(typeof e.field==="string")x.field=e.field;if(e.params&&typeof e.params==="object")x.params=e.params;return x});
+  const pr={code:String(problem.code||"VALIDATION_FAILED"),message:String(problem.message||"")};
+  if(typeof problem.field==="string")pr.field=problem.field;
+  if(errors.length)pr.errors=errors;
+  suiPost("errors",{problem:pr});
+  const ps=KINDS.get(nodeKind(n))?.schema?.properties||{},seen=new Set();
+  f.errs=errors.filter(e=>e.field&&!(f.fields||[]).includes(e.field)).map(e=>sfPointer(e.field)).filter(k=>!seen.has(k)&&seen.add(k)).map(k=>propLabel(ps[k],k));
+  if(!f.errs.length)f.errs=null;
+}
+function suiErrsHtml(f){
+  if(!f?.errs?.length)return"";
+  return`<div class="nt err" data-sui-errs><div>${i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")}</div><ul>${f.errs.map(x=>`<li>${escHtml(x)}</li>`).join("")}</ul><button type="button" class="btn s" ${onEv("click",["formAllSet",true])}>${i18n("Все параметры")}</button></div>`;
+}
+// Конец очереди «Применить» этой рамки: без отказов — объект с сервера и applied, с отказами — revert (через suiReconcile)
+function suiQueueDone(q){
+  const f=suiFrame;if(!f||f.applyQ!==q)return;
+  f.applyQ=null;
+  const bad=q.fail+q.steps.reduce((k,s)=>k+s.ops.filter(o=>o.state==="cancel").length,0);
+  if(bad){f.applying=null;suiSync();return}
+  API.get(`/units/${encodeURIComponent(f.uid)}`).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}).catch(()=>{}).then(()=>{
+    if(suiFrame!==f)return;
+    f.applying="ok";suiSync();
+  });
+}
+// Сверка после перерисовки (Р9): своё «Применить» — applied; объект изменился, черновик пуст — revert;
+// черновик изменили вне страницы — draft, опустел — revert. Пока очередь «Применить» идёт — ждать
+function suiReconcile(n){
+  const f=suiFrame;
+  if(!f||f.uid!==n.id||!f.ready||f.applying==="run")return;
+  const ver=hwVer.get(n.id)??null,draft=suiDraftOf(n),empty=!Object.keys(draft).length,same=JSON.stringify(draft)===JSON.stringify(f.pageDraft||{});
+  // Черновик пуст — ошибки сервера к нему больше не относятся
+  if(empty&&f.errs){f.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
+  if(ver!==f.unitVersion){
+    if(f.applying==="ok"){f.applying=null;suiPost("applied",{unit:suiUnitOf(n)})}
+    else if(empty)suiPost("revert",{unit:suiUnitOf(n)});
+    else{if(!same){suiPost("draft",{patch:draft});f.pageDraft=draft}return}
+    f.unitVersion=ver;f.pageDraft={};
+    return;
+  }
+  f.applying=null;
+  if(same)return;
+  if(empty)suiPost("revert",{unit:suiUnitOf(n)});else suiPost("draft",{patch:draft});
+  f.pageDraft=draft;
+}
+// Сообщения страницы по type; шаг 2 — свои (часть 06)
 const SUI_ON={
   ready(d){
     const f=suiFrame;
     clearTimeout(suiTimer);suiTimer=0;
     f.state="ready";f.ready=true;
     f.fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"&&x.startsWith("/properties/")):null;
-    const n=find(f.uid)?.n;if(n)suiPost("init",suiInitMsg(n));
+    const n=find(f.uid)?.n;
+    if(n){const m=suiInitMsg(n);suiPost("init",m);f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft=m.draft}
     if(suiCardNode()?.id===f.uid)gear();else suiPlace();
   },
+  // Правка страницы — весь черновик. Только просмотр — пропуск (Review Focus 5)
+  change(d){
+    const f=suiFrame;
+    if(!f.ready||f.readOnly||!d.patch||typeof d.patch!=="object"||Array.isArray(d.patch))return;
+    const n=find(f.uid)?.n;if(!n||n._row)return;
+    suiDraftApply(n,d.patch);
+  },
+  invalid(d){
+    const f=suiFrame;
+    const fields=Array.isArray(d.fields)?d.fields.filter(x=>typeof x==="string"):[];
+    f.invalid=fields.length?{fields,message:typeof d.message==="string"?d.message:""}:null;
+    cardFootRefresh();
+  },
+  flushed(d){suiFrame.flushWait.get(d.seq)?.(true)},
   height(d){
     if(typeof d.px!=="number"||!isFinite(d.px))return;
     const h=Math.round(Math.min(SUI_HMAX,Math.max(SUI_HMIN,d.px)));
@@ -8392,16 +8508,20 @@ function cardLeaveAsk(go){
 function cardFootHtml(){
   if(typeof dwFootHtml==="function"){const x=dwFootHtml();if(x)return x}
   const d=cardDraft&&cardDraft.id===sel?cardDiff():[];
-  if(!d.length)return`<div id="cardFoot" hidden></div>`;
+  if(!d.length||(suiFrame?.readOnly&&suiFrame.uid===sel))return`<div id="cardFoot" hidden></div>`;
+  const sb=suiFootBlock();
   return`<div class="main-actions bk-foot card-foot" id="cardFoot"><span class="sub bk-foot-text">${i18n("Не применено")}: <b>${d.length}</b> ${i18n(plural(d.length,"изменение|изменения|изменений"))} — ${escHtml(d.slice(0,2).map(r=>r.label).join(", "))}${d.length>2?"…":""}</span><span class="tfoot-gap"></span>
     <button type="button" class="btn s" ${onEv("click",["cardReset"])}>${i18n("Сбросить")}</button>
-    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Консоль выполняет групповую операцию над объектом":"Консоль выполняет групповую операцию. План можно применить после конца операции")}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
+    <button type="button" class="btn s pri" ${(bq&&!bq.finished)||busyIds().has(sel)?`disabled title="${i18n(busyIds().has(sel)?"Консоль выполняет групповую операцию над объектом":"Консоль выполняет групповую операцию. План можно применить после конца операции")}"`:sb?`disabled title="${escHtml(sb)}"`:""} ${onEv("click",["cardPlan"])}>${i18n("Показать план")} (${d.length})</button></div>`;
 }
 function cardFootRefresh(){
   const el=document.getElementById("cardFoot");if(el)el.outerHTML=cardFootHtml();
   decorateTreeSel();
 }
-function cardPlan(){
+function cardPlan(flushed){
+  // Своя страница подсистемы: сначала страница отдаёт неотправленный ввод, ошибка ввода на странице закрывает план
+  if(flushed!==true&&cardDraft&&suiFrame?.uid===cardDraft.id&&suiFrame.ready&&!suiFrame.readOnly){suiFlush().then(()=>cardPlan(true));return}
+  {const sb=suiFootBlock();if(sb){toast(sb);return}}
   const d=cardDiff();if(!d.length){toast("Нечего применять");return}
   if(bq&&!bq.finished){toast("Групповая операция ещё не закончена. Подождать её конца");return}
   if(busyRefuse(cardDraft.id))return;
@@ -8463,6 +8583,7 @@ function cardApply(ok){
     // Только заглушки и отдельные запросы: операции на сервере нет, «Отменить» после применения тоже
     apiQueue([step],`«${locName(n)}»`,{undo:!!items.length,afterCalls,afterOk},
       items.length?()=>API.post("/operations",{idempotencyKey:opKey(),items:opItems(items),expectedVersions:Object.fromEntries(targets.map(x=>[x,hwVer.get(x)]))}):null,apiOps);
+    if(suiFrame?.uid===n.id&&bq&&!bq.finished){suiFrame.applying="run";suiFrame.applyQ=bq}
     paint();
     return;
   }
@@ -41028,6 +41149,8 @@ function queueFinish(){
   bq.steps.forEach(s=>s.ops.forEach(o=>{if(!o.done){o.done=true;o.state="cancel";o.msg=i18n("отменено до выполнения")}}));
   treeMatchCache.clear();searchMatchCache.clear();
   paint();renderRailStatus();
+  // Своя страница подсистемы: итог «Применить» — странице (ответ сервера приходит позже, ниже ветки с return)
+  suiQueueDone(bq);
   const bad=bq.fail+bq.steps.reduce((n,s)=>n+s.ops.filter(o=>o.state==="cancel").length,0);
   // Шаг после очереди (правило записи): только когда все шаги прошли
   if(bq.afterOk&&!bad){const f=bq.afterOk;bq.afterOk=null;f()}

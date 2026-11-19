@@ -3,6 +3,7 @@
    (ступень 1), рамка вне разметки карточки, ready и init по схеме api/setup-ui.schema.json, высота по сообщению height,
    перерисовка не трогает рамку, ручной экран со страницей (камера) оставляет вкладку механизма «Доступ», незнакомая
    версия протокола и mode: tab — не страница, поздний адрес, страница не загрузилась и «Загрузить страницу снова».
+   Правка и «Применить»: change в черновике карточки, invalid, flush перед планом, applied, errors, revert, draft, только просмотр.
    Прототип: index_80_svoya-stranica.html. На странице без своей страницы подсистемы сценарию проверять нечего. */
 UiCheck(async ({ ok, until, sleep }) => {
   if (typeof suiOn !== "function") { ok(true, "своей страницы подсистемы на этой странице нет: проверять нечего"); return; }
@@ -128,6 +129,134 @@ UiCheck(async ({ ok, until, sleep }) => {
     setTheme(th);
     ok(valid(thMsg) && thMsg.theme.mode === (th === "light" ? "dark" : "light") && typeof thMsg.theme.tokens["--one-accent"] === "string" && thMsg.theme.tokens["--one-accent"].length > 0,
       "смена темы — сообщение theme с токенами --one-…");
+
+    // ── Правка и «Применить» (задача 7): change, invalid, flush, applied, errors, revert, readOnly ──
+    {
+      const un = () => find(SUI_UNIT).n;
+      const bm = () => document.getElementById("bmodal").classList.contains("open");
+      const lastOf = (t) => sent.filter((m) => m.type === t).pop();
+      // Документ страницы стенда: под check_ui (--allow-file-access-from-files) он доступен, иначе проверки по странице — пропуск
+      const pageDoc = () => { try { return suiFrame?.el?.contentDocument || null; } catch (e) { return null; } };
+      const pageInput = (id, v) => { const d = pageDoc(), el = d && d.getElementById(id); if (!el) return false; el.value = v; el.dispatchEvent(new d.defaultView.Event("input")); return true; };
+      const warns = [], realWarn = console.warn;
+      console.warn = (...a) => { warns.push(a.join(" ")); return realWarn.apply(console, a); };
+      try {
+        fromPage({ type: "change", patch: { display_text: "Код, пожалуйста" } });
+        ok(cardDiff().length === 1 && un().props.display_text === "Код, пожалуйста" && !!document.querySelector("#cardFoot:not([hidden])"), "change — строка черновика, подвал виден");
+        // Review Focus 5: ключ вне схемы — не в черновик, console.warn один раз на ключ
+        fromPage({ type: "change", patch: { display_text: "Код, пожалуйста", nope: 1 } });
+        fromPage({ type: "change", patch: { display_text: "Код, пожалуйста", nope: 2 } });
+        ok(cardDiff().length === 1 && !("nope" in un().props) && warns.filter((w) => /«nope»/.test(w)).length === 1, "ключ вне схемы не попадает в черновик, предупреждение одно");
+        // Review Focus 2: сообщение не от рамки
+        window.dispatchEvent(new MessageEvent("message", { data: { proto: "setup/1", type: "change", patch: { beep: false } }, origin: "null", source: window }));
+        ok(un().props.beep === true && cardDiff().length === 1, "сообщение не от рамки пропущено");
+        fromPage({ type: "invalid", fields: ["/properties/display_text"], message: "x" });
+        const dis = document.querySelector("#cardFoot button.pri[disabled]");
+        ok(!!dis && dis.title === i18n("Страница нашла ошибку ввода. Чтобы показать план, исправить ошибку на странице."), "invalid — «Показать план» неактивна, подсказка называет причину");
+        fromPage({ type: "invalid", fields: [] });
+        ok(!!document.querySelector("#cardFoot button.pri") && !document.querySelector("#cardFoot button.pri[disabled]"), "пустой invalid снимает запрет");
+        const flushes = sent.filter((m) => m.type === "flush").length;
+        cardPlan();
+        ok(await until(() => sent.filter((m) => m.type === "flush").length === flushes + 1) && valid(lastOf("flush")) && await until(bm), "план: сначала flush, страница ответила flushed, план открыт");
+        ok(/Текст на экране/.test(document.getElementById("bmodal").textContent), "в плане — строка «Текст на экране»");
+        document.querySelector("#bmodal .btn.pri").click();
+        ok(await until(() => !!lastOf("applied")), "applied после «Применить»");
+        const ap = lastOf("applied");
+        ok(valid(ap) && ap.unit.properties.display_text === "Код, пожалуйста" && ap.unit.version === hwVer.get(SUI_UNIT) &&
+          (await API.get(`/units/${SUI_UNIT}`)).properties.display_text === "Код, пожалуйста" && !cardDiff().length,
+          "сервер записал, странице — новый unit, черновик пуст — " + JSON.stringify(errsOf(ap)));
+        await sleep(300);
+        ok(sent.at(-1).type === "applied" && suiFrame.applying === null, "после applied — ни revert, ни draft");
+        ok(!pageDoc() || await until(() => pageDoc().getElementById("f-display_text").value === "Код, пожалуйста"), "страница стенда показывает записанный текст");
+
+        // Страница стенда сама: ввод — change и invalid (код 4–8 цифр); исправленный ввод снимает запрет
+        if (pageDoc()) {
+          pageInput("f-code_length", "12");
+          ok(await until(() => un().props.code_length === 12 && !!document.querySelector("#cardFoot button.pri[disabled]")), "страница: длина кода 12 — change и invalid, «Показать план» неактивна");
+          pageInput("f-display_text", "x".repeat(33));
+          ok(await until(() => JSON.stringify(suiFrame.invalid?.fields) === JSON.stringify(["/properties/code_length", "/properties/display_text"])), "страница: текст длиннее 32 знаков — второе поле в invalid");
+          cardPlan();
+          await sleep(300);
+          ok(!bm() && /ошибку ввода/.test(document.getElementById("tt")?.textContent || ""), "invalid — «Показать план» называет причину и не открывает план");
+          pageInput("f-code_length", "6");
+          pageInput("f-display_text", "Код, пожалуйста");
+          ok(await until(() => !cardDiff().length && suiFrame.invalid === null && document.getElementById("cardFoot")?.hidden === true), "страница: ввод исправлен — invalid пуст, черновик пуст");
+        } else ok(true, "ЗАМЕТКА: документ страницы недоступен, ввод на странице не проверен");
+
+        // 422: поле на странице — только странице
+        fromPage({ type: "change", patch: { code_length: 12 } });
+        cardPlan();
+        ok(await until(() => !!lastOf("errors")) && !bm(), "422 — errors странице, плана нет");
+        const er = lastOf("errors");
+        ok(valid(er) && er.problem.errors.some((e) => e.field === "/properties/code_length") && !main().querySelector("[data-sui-errs]"), "ошибка поля страницы — только странице — " + JSON.stringify(errsOf(er)));
+        ok(!pageDoc() || await until(() => pageDoc().querySelector('[data-field="code_length"]').classList.contains("bad")), "страница стенда отметила поле «Длина кода»");
+        // 422: поле не на странице — список под местом с «Все параметры»
+        const ers = sent.filter((m) => m.type === "errors").length;
+        fromPage({ type: "change", patch: { lock_after_tries: 99 } });
+        cardPlan();
+        ok(await until(() => /Блокировать после попыток/.test(main().querySelector("[data-sui-errs]")?.textContent || "")) && sent.filter((m) => m.type === "errors").length === ers + 1,
+          "ошибка поля вне страницы — списком под рамкой");
+        ok(!!main().querySelector("[data-sui-errs] button") && main().querySelector("[data-sui-errs]").textContent.includes(i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")), "в списке — причина и «Все параметры»");
+        ok(!pageDoc() || await until(() => /lock_after_tries/.test(pageDoc().getElementById("error").textContent)), "страница стенда показала ошибку поля, которого у неё нет");
+        cardReset();
+        ok(await until(() => sent.at(-1).type === "revert") && valid(sent.at(-1)) && sent.at(-1).unit.properties.lock_after_tries !== 99, "«Сбросить» — revert");
+        ok(!main().querySelector("[data-sui-errs]"), "после «Сбросить» списка ошибок нет");
+
+        // «Все параметры» меняет черновик — странице draft
+        fromPage({ type: "change", patch: {} });
+        un().props.backlight = "high"; setD(true); paint();
+        ok(await until(() => sent.at(-1).type === "draft") && valid(sent.at(-1)) && sent.at(-1).patch.backlight === "high", "черновик изменили вне страницы — draft");
+        cardReset();
+        ok(await until(() => sent.at(-1).type === "revert"), "черновик опустел по «Сбросить» — revert");
+
+        // Чужая правка при пустом черновике — revert с новой версией
+        const before = hwVer.get(SUI_UNIT);
+        const pr = await API.raw("PATCH", `/units/${SUI_UNIT}`, { properties: { beep: false } }, { "If-Match": `"${before}"` });
+        await hwFull(SUI_UNIT).catch(() => {});
+        paint();
+        ok(pr.status < 300 && hwVer.get(SUI_UNIT) !== before && await until(() => sent.at(-1).type === "revert" && sent.at(-1).unit.version === hwVer.get(SUI_UNIT) && sent.at(-1).unit.properties.beep === false),
+          "объект изменился на сервере, черновик пуст — revert с новым unit");
+
+        // flush без ответа: страница молчит — уведомление через 2 с, план всё равно открыт
+        const spy = suiPost;
+        suiPost = (t, d) => { if (t === "flush") { sent.push({ proto: "setup/1", type: t, ...d }); return; } return spy(t, d); };
+        fromPage({ type: "change", patch: { display_text: "Без ответа" } });
+        cardPlan();
+        ok(await until(() => /не ответила за 2 секунды/.test(document.getElementById("tt")?.textContent || ""), 6000) && await until(bm), "нет flushed за 2 с — уведомление, план всё равно открыт");
+        suiPost = spy;
+        closeBulkModal();
+        cardReset();
+        await until(() => sent.at(-1).type === "revert");
+
+        // Язык: новая рамка, новый init с lang "en", черновик прежний
+        fromPage({ type: "change", patch: { beep: !un().props.beep } });
+        const want = clone(suiDraftOf(un())), elL = suiFrame.el;
+        setUiLang("en");
+        ok(await until(() => suiFrame?.el && suiFrame.el !== elL && suiFrame.state === "ready", 15000) && lastOf("init").lang === "en" && JSON.stringify(lastOf("init").draft) === JSON.stringify(want),
+          "смена языка — новая рамка, init с lang en и прежним черновиком");
+        setUiLang("ru");
+        ok(await until(() => suiFrame?.state === "ready" && lastOf("init").lang === "ru", 15000), "язык обратно — init с lang ru");
+        cardReset();
+        await until(() => !cardDiff().length);
+      } finally {
+        console.warn = realWarn;
+      }
+
+      // Только просмотр: SetupUiLink.readOnly true — init.readOnly, строка о праве, change не принят, подвала нет
+      stubSetup((p, real) => real().then((r) => Object.assign({}, r, { readOnly: true })));
+      suiClose(); gear();
+      ok(await until(() => suiFrame?.state === "ready" && lastOf("init")?.readOnly === true, 15000) && !!main().querySelector("[data-sui-ro]") &&
+        main().querySelector("[data-sui-ro]").textContent === i18n("У вас есть только право на просмотр, поэтому консоль не применит изменения на странице."), "readOnly — init.readOnly true, строка о праве");
+      unstub();
+      ok(!pageDoc() || await until(() => !pageDoc().getElementById("readonly").hidden && pageDoc().getElementById("f-beep").disabled), "страница стенда: «Только просмотр», поля закрыты");
+      fromPage({ type: "change", patch: { beep: false } });
+      ok(!cardDiff().length && document.getElementById("cardFoot")?.hidden === true, "readOnly — change не принят, подвала нет");
+      un().props.display_text = "ro"; setD(true); cardFootRefresh();
+      ok(document.getElementById("cardFoot")?.hidden === true, "readOnly — подвала нет и при черновике");
+      cardReset();
+      suiClose(); gear();
+      ok(await until(() => suiFrame?.state === "ready" && lastOf("init")?.readOnly === false, 15000), "обычное право — init.readOnly false");
+    }
 
     // Ручной экран со страницей (P3, RF4): камера с setupUi.mode: iframe — «Настройка» и вкладка механизма «Доступ».
     // Стенд с testSupport меняет описание сам (PUT /test/kinds) и шлёт kinds.changed. Встроенный сервер страницы служебных
