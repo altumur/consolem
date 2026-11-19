@@ -33,8 +33,9 @@
    x-direction, proto и type, примеры проходят схему; таблицы «Сообщения» api/SETUP-UI.md — те же сообщения и направления;
    problem и problemError — поля Problem и ProblemError контракта; описание setupUi ссылается на api/SETUP-UI.md.
 13. Мост страницы подсистемы: у каждой операции api/openapi.json (и api/*.openapi.json, api/profiles/*.openapi.json) — x-bridge
-   (read, act, draft) или причина в BRIDGE_CLOSED; read — только GET или BRIDGE_READ_POST, draft — только BRIDGE_DRAFT;
-   без x-bridge у /test/*, test-support и deprecated; в BRIDGE_CLOSED — только операции описаний.
+   (read, act, draft) или причина в BRIDGE_CLOSED; read — только GET или BRIDGE_READ_POST, act — только BRIDGE_ACT, draft — только
+   BRIDGE_DRAFT; без x-bridge у /test, /test/*, test-support и deprecated; в BRIDGE_CLOSED — только операции описаний; кривое
+   описание (paths не объект, путь не объект) — отказ строкой; поддельные описания проверяют саму проверку (bridge_selfcheck).
 С --lint дополнительно: npx @redocly/cli lint api/openapi.json.
 
 Запуск из корня репозитория: python3 tools/check_api.py [--lint] [--api DIR] [--page FILE] [--profiles-base REF]
@@ -288,12 +289,14 @@ def check_contract(rep, spec):
 BRIDGE_VALUES = ("read", "act", "draft")
 BRIDGE_DRAFT = {"patchUnit", "createUnits", "deleteUnit", "moveUnit", "deleteObjects", "createOperation"}
 BRIDGE_READ_POST = {"validateUnits"}
+# act — только команды объекта и долгая работа, которую карточка consolem тоже запускает сразу
+BRIDGE_ACT = {"runUnitAction", "runKindAction", "cancelOperation", "startDiscovery", "stopDiscovery", "uploadFile"}
 _ACCESS = "права и сеанс — вкладка «Доступ» у consolem своя"
-_AUTOMATION = "запись автоматизации — редактор правил, расписаний и режимов у consolem свой"
+_AUTOMATION = "автоматизация — редактор правил, расписаний и режимов у consolem свой, и чтение, и запись"
 _VIDEO = "работа оператора с видео и архивом, а не настройка объекта"
 _EXPORT = "выгрузка — работа оператора, рамка не сохраняет файлы"
 _LIVE = "живое видео — после отдельного API видео (решение О5)"
-_SYSTEM = "настройки системы и ключи — запись вне склада объектов"
+_SYSTEM = "настройки системы и ключи — вне склада объектов, и чтение, и запись"
 _STORAGE = "хранилище, а не объект страницы"
 _OLD = "устарела"
 _TEST = "служебная операция стенда (test-support) — никогда"
@@ -308,7 +311,7 @@ BRIDGE_CLOSED = {
     "listMaintenanceWindows": _OLD, "createMaintenanceWindow": _OLD, "getMaintenanceWindow": _OLD,
     "putMaintenanceWindow": _OLD, "deleteMaintenanceWindow": _OLD,
     "openUnitSetupUi": "адрес страницы берёт сам consolem",
-    "patchSettings": _SYSTEM, "listLicenseKeys": _SYSTEM, "getLicenseKey": _SYSTEM, "createLicenseKey": _SYSTEM,
+    "getSettings": _SYSTEM, "patchSettings": _SYSTEM, "listLicenseKeys": _SYSTEM, "getLicenseKey": _SYSTEM, "createLicenseKey": _SYSTEM,
     "patchLicenseKey": _SYSTEM, "deleteLicenseKey": _SYSTEM,
     "exportJournal": "файл журнала — рамка не сохраняет файлы",
     "createRule": _AUTOMATION, "putRule": _AUTOMATION, "updateRules": _AUTOMATION, "reorderRules": _AUTOMATION,
@@ -324,7 +327,7 @@ BRIDGE_CLOSED = {
     "createUnitBookmark": _VIDEO, "fetchUnitArchive": _VIDEO, "putUnitPtz": _VIDEO, "deleteUnitPtz": _VIDEO,
     "putUnitPreset": _VIDEO, "deleteUnitPreset": _VIDEO, "getUnitRecordingDays": _VIDEO,
     "putUnitRecordingTarget": "запись настройки мимо черновика карточки",
-    "getExportGrant": _EXPORT, "getExportReference": _EXPORT, "checkExport": _EXPORT, "listExports": _EXPORT,
+    "getExportGrant": _EXPORT, "getExportReference": "выгрузка — работа оператора, а не настройка объекта", "checkExport": _EXPORT, "listExports": _EXPORT,
     "createExport": _EXPORT, "getExport": _EXPORT, "deleteExport": _EXPORT, "cancelExport": _EXPORT,
     "retryExport": _EXPORT, "getExportFileLink": _EXPORT,
     "listArchiveWatches": _STORAGE, "createArchiveWatch": _STORAGE, "patchArchiveWatch": _STORAGE, "deleteArchiveWatch": _STORAGE,
@@ -344,14 +347,26 @@ def bridge_specs():
     return out
 
 
-def bridge_problems(specs, closed=None, draft=None, read_post=None):
-    """Отказы разметки x-bridge и счёт {read, act, draft, closed} по описаниям specs: [(имя, описание)]."""
+def bridge_problems(specs, closed=None, draft=None, read_post=None, act=None):
+    """Отказы разметки x-bridge и счёт {read, act, draft, closed} по описаниям specs: [(имя, описание)].
+    Кривой ввод (описание или путь не объект, paths: null) — строка отказа, а не сбой проверки."""
     closed = BRIDGE_CLOSED if closed is None else closed
     draft = BRIDGE_DRAFT if draft is None else draft
     read_post = BRIDGE_READ_POST if read_post is None else read_post
+    act = BRIDGE_ACT if act is None else act
     problems, count, seen = [], {"read": 0, "act": 0, "draft": 0, "closed": 0}, set()
     for name, spec in specs:
-        for path, item in spec.get("paths", {}).items():
+        if not isinstance(spec, dict):
+            problems.append(f"{name}: описание не объект")
+            continue
+        paths = spec.get("paths") or {}
+        if not isinstance(paths, dict):
+            problems.append(f"{name}: paths не объект")
+            continue
+        for path, item in paths.items():
+            if not isinstance(item, dict):
+                problems.append(f"{name}: {path}: не объект")
+                continue
             for method in METHODS:
                 op = item.get(method)
                 if not isinstance(op, dict):
@@ -361,7 +376,8 @@ def bridge_problems(specs, closed=None, draft=None, read_post=None):
                 seen.add(oid)
                 has = "x-bridge" in op
                 val = op.get("x-bridge")
-                test = path.startswith("/test/") or "test-support" in (op.get("tags") or [])
+                tags = op.get("tags") if isinstance(op.get("tags"), list) else []
+                test = path == "/test" or path.startswith("/test/") or "test-support" in tags
                 if not has:
                     if oid in closed:
                         count["closed"] += 1
@@ -381,13 +397,39 @@ def bridge_problems(specs, closed=None, draft=None, read_post=None):
                     problems.append(f"{where}: read у {method.upper()} — только GET или BRIDGE_READ_POST")
                 if val == "draft" and oid not in draft:
                     problems.append(f"{where}: draft — только операции BRIDGE_DRAFT")
+                if val == "act" and oid not in act:
+                    problems.append(f"{where}: act — только операции BRIDGE_ACT")
                 count[val] += 1
     problems += [f"BRIDGE_CLOSED: {oid} — такой операции нет ни в одном описании" for oid in sorted(set(closed) - seen)]
     return problems, count
 
 
+def bridge_selfcheck():
+    """Проверка самой проверки: поддельные описания, на которых bridge_problems обязана отказать, и кривой ввод."""
+    out = []
+    cases = [
+        ("act вне BRIDGE_ACT", {"paths": {"/x": {"post": {"operationId": "doX", "x-bridge": "act"}}}}, "act — только операции BRIDGE_ACT"),
+        ("путь /test без косой черты", {"paths": {"/test": {"post": {"operationId": "poke", "x-bridge": "act"}}}}, "служебной операции"),
+        ("paths: null", {"paths": None}, None),
+        ("описание не объект", None, "описание не объект"),
+        ("путь не объект", {"paths": {"/y": None}}, "/y: не объект"),
+    ]
+    for title, spec, want in cases:
+        try:
+            got, _ = bridge_problems([("поддельное", spec)], closed={}, draft=set(), read_post=set(), act=set())
+        except Exception as e:  # noqa: BLE001 — любой сбой на кривом вводе и есть отказ
+            out.append(f"проверка моста на «{title}» упала: {type(e).__name__}: {e}")
+            continue
+        if want and not any(want in g for g in got):
+            out.append(f"проверка моста не отказала на «{title}»: {got}")
+        if not want and got:
+            out.append(f"проверка моста отказала на «{title}» без причины: {got}")
+    return out
+
+
 def check_bridge(rep, specs):
     problems, c = bridge_problems(specs)
+    problems = bridge_selfcheck() + problems
     rep.check("Мост страницы: x-bridge у каждой операции или причина в BRIDGE_CLOSED", problems,
               f"read {c['read']}, act {c['act']}, draft {c['draft']}, закрыто {c['closed']}")
 

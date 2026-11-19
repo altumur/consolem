@@ -61,7 +61,7 @@
       return origin && origin !== "null" ? { target: origin, accept: [origin] } : null;
     }
     let origin = "";
-    if (!origin && loc.ancestorOrigins && loc.ancestorOrigins.length) origin = String(loc.ancestorOrigins[0]);
+    if (loc.ancestorOrigins && loc.ancestorOrigins.length) origin = String(loc.ancestorOrigins[0]);
     if (!origin) {
       const ref = (window.document && window.document.referrer) || "";
       if (/^file:/i.test(ref)) origin = "file://";
