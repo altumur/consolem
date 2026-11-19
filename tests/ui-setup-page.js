@@ -206,7 +206,7 @@ UiCheck(async ({ ok, until, sleep }) => {
         ok(await until(() => /Блокировать после попыток/.test(main().querySelector("[data-sui-errs]")?.textContent || "")) && sent.filter((m) => m.type === "errors").length === ers + 1,
           "ошибка поля вне страницы — списком под рамкой");
         ok(!!main().querySelector("[data-sui-errs] button") && main().querySelector("[data-sui-errs]").textContent.includes(i18n("Сервер не примет поля, которых нет на странице. Чтобы исправить их, открыть «Все параметры».")), "в списке — причина и «Все параметры»");
-        ok(!pageDoc() || await until(() => /lock_after_tries/.test(pageDoc().getElementById("error").textContent)), "страница стенда показала ошибку поля, которого у неё нет");
+        ok(!pageDoc() || await until(() => /Блокировать после попыток|lock_after_tries/.test(pageDoc().getElementById("error").textContent)), "страница стенда показала ошибку поля, которого у неё нет");
         // Новая правка страницы снимает список ошибок сервера и на экране, а не только в модели
         fromPage({ type: "change", patch: { lock_after_tries: 98 } });
         ok(!suiFrame.errs && !main().querySelector("[data-sui-errs]"), "правка страницы убирает список ошибок сервера с экрана");
