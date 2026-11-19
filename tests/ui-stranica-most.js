@@ -38,9 +38,12 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Подмена API.raw: мост берёт API.raw в момент вызова (P10). gate — задержать ответ сервера; bodies — тела запросов
   const realRaw = API.raw;
   let gate = null;
+  // readAs = {path, res}: ответ res вместо GET path (чтение вида перед командой act)
+  let readAs = null;
   const bodies = [];
   API.raw = function (method, path, body, headers) {
     bodies.push({ method, path, body });
+    if (readAs && method === "GET" && path === readAs.path) return Promise.resolve({ headers: {}, ...readAs.res });
     const go = () => realRaw.call(this, method, path, body, headers);
     return gate ? gate.then(go) : go();
   };
@@ -168,6 +171,26 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     await confirmWith(1);
     ok(await until(() => !!replyOf(idC), 5000) && replyOf(idC).ok === true && replyOf(idC).status >= 200 && replyOf(idC).status < 300 && trace("POST", `/units/${ODD}/actions/calibrate`).length === 1,
       "число введено — команда ушла, ответ сервера странице: " + (replyOf(idC) && replyOf(idC).status));
+    // act, вид объекта не прочитан: consolem не знает, есть ли у команды подтверждение, и команду не отправляет (fail closed).
+    // Объекта нет в кэше (find подменён), GET /units/{uid} подменён ответом readAs
+    const realFind = find;
+    const actPosts = (uid) => bodies.filter((b) => b.method === "POST" && b.path.startsWith(`/units/${uid}/actions/`)).length;
+    const actUnread = async (res) => {
+      find = (id) => (id === VOL ? null : realFind(id));
+      readAs = { path: `/units/${VOL}`, res };
+      bodies.length = 0;
+      try { return await call("runUnitAction", { uid: VOL, action: "format" }); }
+      finally { find = realFind; readAs = null; }
+    };
+    r = await actUnread({ status: 0 });
+    ok(code(r) === "UPSTREAM_UNAVAILABLE" && r.status === 0 && valid(r) && !dlgOpen() && !actPosts(VOL),
+      "act: GET /units/{uid} не прошёл — UPSTREAM_UNAVAILABLE, status 0, без диалога и без команды" + ": " + r.status + " " + code(r) + ", команд " + actPosts(VOL));
+    r = await actUnread({ status: 200, body: { uid: VOL, kind: "no.such/KIND", name: "x" } });
+    ok(code(r) === "UPSTREAM_UNAVAILABLE" && r.status === 0 && !dlgOpen() && !actPosts(VOL),
+      "act: вид объекта consolem не знает — UPSTREAM_UNAVAILABLE без команды" + ": " + r.status + " " + code(r) + ", команд " + actPosts(VOL));
+    r = await actUnread({ status: 404, body: { code: "NOT_FOUND", message: "нет объекта" } });
+    ok(r.ok === false && r.status === 404 && code(r) === "NOT_FOUND" && valid(r) && !dlgOpen() && !actPosts(VOL),
+      "act: GET /units/{uid} ответил 404 — ответ сервера странице как есть, без команды" + ": " + r.status + " " + code(r) + ", команд " + actPosts(VOL));
 
     // Система не объявила операцию — NOT_SUPPORTED, и в ops её нет
     CAPS.operations.delete("listLicenses");

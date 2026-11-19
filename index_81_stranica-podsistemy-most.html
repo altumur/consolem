@@ -6934,8 +6934,9 @@ function bridgeAsk(f,title,msg,okLabel,opts){
   });
 }
 // Команда вызова act и подпись её объекта: у runUnitAction — по виду объекта (кэш, иначе GET /units/{uid}),
-// у runKindAction — по виду из параметров. Не нашлась — null: тогда отвечает сервер
-async function bridgeActDesc(op,p){
+// у runKindAction — по виду из параметров. Не нашлась — null: тогда отвечает сервер. Вид объекта не прочитан или
+// consolem его не знает — {fail}: подтверждение неизвестно, и команда не уходит (fail closed)
+async function bridgeActDesc(op,p,id){
   if(op==="runKindAction"){
     const k=KINDS.get(String(p.kind));
     const a=(k?.actions||[]).find(x=>x.id===String(p.action));
@@ -6945,10 +6946,12 @@ async function bridgeActDesc(op,p){
   const uid=String(p.uid),n=find(uid)?.n;
   let kind=n?nodeKind(n):null,name=n?locName(n):"";
   if(!kind){
-    const r=await API.raw("GET",`/units/${encodeURIComponent(uid)}`).catch(()=>null);
-    if(r&&r.status===200&&r.body){kind=r.body.kind;name=String(r.body.name??"")}
+    const r=await bridgeUnitGet(id,uid);
+    if(r.fail)return r;
+    kind=r.unit.kind;name=String(r.unit.name??"");
   }
-  const a=kind?(KINDS.get(kind)?.actions||[]).find(x=>x.id===String(p.action)):null;
+  if(!KINDS.has(kind))return{fail:bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")};
+  const a=(KINDS.get(kind).actions||[]).find(x=>x.id===String(p.action));
   return a?{a,name}:null;
 }
 // Вызов страницы → BridgeResult. Порядок проверок: операция известна → есть x-bridge → система объявила её (can) →
@@ -6963,7 +6966,8 @@ async function bridgeCall(msg,f=suiFrame){
   try{rq=bridgeRequest(op,msg.params,msg.body)}
   catch(e){if(e&&e.code)return bridgeFail(id,0,e.code,{field:e.field});throw e}
   if(d.bridge==="act"){
-    const x=await bridgeActDesc(op,msg.params||{});
+    const x=await bridgeActDesc(op,msg.params||{},id);
+    if(x?.fail)return x.fail;
     if(x?.a.confirm){
       if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
       const lb=textOf(x.a.label)||x.a.id;
