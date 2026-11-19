@@ -1140,6 +1140,16 @@ def check_setup_ui(rep, spec):
         return rep.check(name, [f"{API}/setup-ui.schema.json: не JSON — {e}"])
     problems, n = setup_ui_problems(spec, schema, read(f"{API}/SETUP-UI.md"))
     rep.check(name, problems, f"{n} сообщений")
+    # Библиотека автора страницы: протокол в Node на поддельном окне, каждое её сообщение — по схеме (tools/check_setup_bridge.js)
+    name = "Библиотека страницы setup-bridge.js: протокол setup/1"
+    if read(f"{API}/setup-bridge.js") is None:
+        return rep.fail(name, [f"{API}/setup-bridge.js нет"])
+    res = subprocess.run(["node", os.path.join(ROOT, "tools", "check_setup_bridge.js"), API], capture_output=True, text=True, cwd=ROOT)
+    try:
+        problems = res.stderr.strip().splitlines()[-3:] if res.returncode else json.loads(res.stdout)
+    except ValueError:
+        problems = [f"check_setup_bridge.js: не JSON — {res.stdout.strip()[-200:]}"]
+    rep.check(name, problems, "13 сценариев")
 
 
 def check_core_field(rep, spec):

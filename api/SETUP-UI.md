@@ -49,7 +49,8 @@
 
 - consolem отправляет сообщения с `"*"` и принимает их с происхождения `"null"`;
 - страница принимает сообщения consolem с происхождения `"null"` или `"file://"`. Chrome для страницы с диска называет происхождение родителя `"file://"`, а не `"null"`. Так бывает, когда consolem открыт с диска, например под `tools/check_ui.py`;
-- проверку `source === window.parent` страница не снимает.
+- проверку `source === window.parent` страница не снимает;
+- правило стенда действует, только когда страница сама открыта с диска (`location.protocol` — `file:`) или её своё происхождение непрозрачно (`"null"`). Если настоящая страница не знает происхождения consolem (в Firefox нет `ancestorOrigins`, а `Referrer-Policy: no-referrer` убирает `referrer`), страница не переходит на правило стенда: автор передаёт происхождение явно, иначе страница не подключается и пишет причину в консоль.
 
 Это правило нужно только стенду. Настоящая страница приходит с другого происхождения, и правило к ней не относится.
 
@@ -132,7 +133,56 @@ consolem ждёт `ready` 10 секунд. Если сервер не выдал
 
 ## Библиотека `setup-bridge.js`
 
-Автор страницы сможет взять готовую библиотеку `api/setup-bridge.js`. Она будет отправлять `ready`, принимать `init`, проверять `source` и происхождение, считать черновик, отвечать на `flush` и сообщать высоту. Файла библиотеки пока нет. Её описание появится в этом разделе вместе с файлом.
+Автор страницы может взять готовую библиотеку [`setup-bridge.js`](setup-bridge.js). Она отправляет `ready`, принимает `init`, проверяет `source` и происхождение, хранит черновик, отвечает на `flush` и сообщает высоту. Сообщения библиотеки точно повторяют схему: `python3 tools/check_api.py` прогоняет библиотеку в Node (`tools/check_setup_bridge.js`) и сверяет каждое её сообщение с `setup-ui.schema.json`.
+
+**Как подключить.** Положить файл рядом со страницей и подключить обычным тегом, без сборки и зависимостей:
+
+```html
+<script src="setup-bridge.js"></script>
+<script src="page.js"></script>
+```
+
+```js
+SetupBridge.connect({
+  fields: ["/properties/code_length", "/properties/beep"],
+  onRevert: (unit) => show(unit.properties),
+  onApplied: (unit) => show(unit.properties),
+  onDraft: (patch) => show(SetupBridge.merge(session.unit.properties, patch)),
+  onErrors: (problem) => mark(problem.errors || []),
+  onTheme: (theme) => paintTheme(theme),
+}).then((s) => {
+  session = s;
+  paintTheme(s.theme);
+  show(SetupBridge.merge(s.unit.properties, s.draft));
+});
+// на каждый ввод — весь черновик
+input.onchange = () => session.change(SetupBridge.diff(session.unit.properties, readForm()));
+```
+
+**`SetupBridge.connect(opts)` → `Promise<Session>`.** Библиотека сразу отправляет `ready` (с `opts.fields`, если они есть). Обещание сбывается, когда приходит `init`. Поля `opts`, все необязательные:
+
+- `fields` — указатели полей, которые показывает страница;
+- `origin` — происхождение consolem, если автор знает его заранее. Оно главнее `ancestorOrigins` и `referrer`;
+- `onDraft(patch)`, `onApplied(unit)`, `onErrors(problem)`, `onRevert(unit)`, `onTheme(theme)` — сообщения `draft`, `applied`, `errors`, `revert`, `theme`;
+- `onFlush()` — consolem собирается применить правку. Страница отдаёт неотправленный ввод синхронно: вызывает `session.change(…)` или возвращает черновик. Если возвращённый черновик отличается от отправленного, библиотека отправляет `change`. Затем библиотека отправляет `flushed` с тем же `seq`;
+- `autoHeight` — по умолчанию `true`: `ResizeObserver` на `document.documentElement` отправляет `height` со значением `scrollHeight`. Одно значение два раза подряд библиотека не отправляет.
+
+**`Session`** — объект после `init`:
+
+- `init` — сообщение `init` целиком; `host`, `readOnly`, `theme` — его поля; `unit` — последний объект из `init`, `applied` или `revert`;
+- `draft` — последний черновик, который страница отправила или получила. На `applied` и `revert` черновик становится `{}`, на `draft` — `patch`;
+- `change(patch)` отправляет `change` с черновиком целиком и возвращает `true`. При `readOnly` библиотека ничего не отправляет и возвращает `false`;
+- `invalid(fields, message?)` отправляет `invalid`. Пустой список снимает запрет;
+- `height(px)` отправляет `height`: целое число от 0.
+
+**`SetupBridge.merge(base, patch)`** применяет JSON Merge Patch (RFC 7396) и возвращает новый объект: `null` снимает ключ, вложенный объект сливается, массив заменяется целиком. `base` не меняется. **`SetupBridge.diff(base, next)`** даёт правку от `base` к `next`: снятый ключ — `null`, вложенные объекты — рекурсивно, массивы — целиком. Всегда `merge(base, diff(base, next))` равно `next`.
+
+**Происхождение consolem** библиотека берёт из `opts.origin`, иначе из `location.ancestorOrigins[0]`, иначе из `document.referrer`. Библиотека принимает только сообщения от `window.parent` с `proto: "setup/1"`. Незнакомый `type` библиотека пропускает. Известное происхождение: отправка и приём — только на него. Происхождение непрозрачное (`"null"`, `"file://"`) или неизвестное:
+
+- страница открыта с диска или её своё происхождение `"null"` — правило стенда из раздела «Адрес и рамка»: отправка с `"*"`, приём с `"null"` и `"file://"`;
+- иначе `connect` отказывает (обещание отклонено), библиотека ничего не отправляет и пишет причину в консоль. Тогда автор передаёт `opts.origin`.
+
+Библиотека настройки не пишет. Всё, что меняет `properties`, идёт через `session.change` и «Применить» consolem.
 
 ## Шаг 2
 
