@@ -14,13 +14,14 @@
    Прогоны read, discovery, draft («Применить» — одна POST /operations, applied.steps у страницы), confirm, navigate
    (переход со вспышкой), nobridge (хост шага 1: блоки шага 2 скрыты, change работает) и denied (вход только с
    просмотром: 403 сервера у команды и PERMISSION_DENIED моста у черновика).
-   Мост шага 2 есть в прототипе 81 (index_81_stranica-podsistemy-most.html); на странице без моста проверять нечего. */
+   Мост шага 2 есть в index.html (перенесён из прототипа 81). В прототипе, сделанном до переноса (у него свой
+   assets/i18n-en-NN.js), моста может не быть: там проверять нечего. */
 UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Прототип узнаём по имени его файла английских текстов: check_ui.py и самопроверка открывают страницу под другим именем
   const protoFile = [...document.querySelectorAll("script[src]")].map((x) => x.getAttribute("src")).find((x) => /i18n-en-\d+\.js$/.test(x));
   if (typeof bridgeCall !== "function") {
-    // В прототипе 81 мост должен быть: его отсутствие там — отказ
-    ok(protoFile !== "assets/i18n-en-81.js", protoFile === "assets/i18n-en-81.js" ? "в прототипе 81 нет моста шага 2 (bridgeCall)" : "на этой странице моста шага 2 нет");
+    // В index.html мост должен быть: его отсутствие там — отказ
+    ok(!!protoFile, protoFile ? "на этой странице моста шага 2 нет" : "в index.html нет моста шага 2 (bridgeCall)");
     return;
   }
   const SUI_UNIT = "30000306-0000-4000-8000-000000000000"; // «Клавиатура у входа», security_controller/KEYPAD

@@ -1726,6 +1726,9 @@ fieldset.rl-tags{border:0;padding:0;min-width:0;margin-top:6px}.rl-tags>legend{d
 .confirm.open{display:grid}
 .cbox{width:min(420px,92vw);background:var(--p);border:1px solid var(--ln);border-radius:12px;overflow:hidden;box-shadow:0 16px 48px #0008}
 .chead{padding:14px 16px;border-bottom:1px solid var(--ln);font-weight:600;font-size:14px}
+/* Чей вопрос: строка над заголовком диалога (вопрос страницы подсистемы, мост шага 2). Её ставит consolem, а не страница */
+.chead-asker{padding:10px 16px 0;font-size:12px;color:var(--mu)}
+.chead-asker+.chead{padding-top:4px}
 .cbody{padding:16px;font-size:13px;line-height:1.5;color:var(--tx)}
 #confirmMsg p{margin:0 0 10px}#confirmMsg p:last-child{margin:0}
 .confirm-opt{display:flex;align-items:center;gap:8px;margin-top:12px;font-size:12px;color:var(--mu);cursor:pointer;user-select:none}
@@ -5488,7 +5491,8 @@ function schemaDiff(live,snap,owner,out){
 // Проверка правки сервером до плана: ошибки — на поля формы, план не открывается
 async function schemaValidate(n,d){
   const patch={};
-  (cardApiItems(n,d)||[]).forEach(x=>{
+  // Шаги моста — правка других объектов: в проверку своего объекта не идут
+  (cardApiItems(n,d.filter(r=>!r.bridge))||[]).forEach(x=>{
     if(x.patch?.name!=null)patch.name=x.patch.name;
     if(x.patch?.properties)Object.assign(patch.properties||(patch.properties={}),x.patch.properties);
   });
@@ -6296,6 +6300,7 @@ function hwReloadSoon(m){
 // Поток событий: изменения (свои и чужие), ход операций. Запись перечитывается
 // по id; если поток потерян — весь кэш заново.
 function apiOnEvent(m){
+  bridgeOnEvent(m);
   if(m.at)promptClock(m.at);
   if(m.kind==="rulePrompt"){promptEvent(m);return}
   if(m.type==="stream.hello"){
@@ -6580,7 +6585,7 @@ async function suiOpen(n){
 }
 function suiClose(){
   clearTimeout(suiTimer);suiTimer=0;
-  if(suiFrame){suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
+  if(suiFrame){bridgeDrop(suiFrame);suiFrame.el?.remove();suiFrame.flushWait.forEach(r=>r(false))}
   suiFrame=null;
   suiPlace();
 }
@@ -6588,6 +6593,7 @@ function suiClose(){
 function suiFail(why){
   if(!suiFrame)return;
   clearTimeout(suiTimer);suiTimer=0;
+  bridgeDrop(suiFrame);
   suiFrame.el?.remove();
   Object.assign(suiFrame,{el:null,win:null,state:"failed",ready:false,why:String(why||"")});
   suiPlace();
@@ -6600,7 +6606,8 @@ function suiPost(type,data){
   const f=suiFrame;if(!f?.win)return;
   try{f.win.postMessage({proto:SUI_PROTO,type,...data},f.star?"*":f.origin)}catch(e){console.warn("suiPost",e)}
 }
-function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY}}
+// host шага 2: bridge — мост к механизму (раздел ниже)
+function suiHostInfo(){return{proto:SUI_PROTO,apply:SUI_APPLY,bridge:bridgeHostInfo(!!suiFrame?.readOnly)}}
 function suiTheme(){
   const cs=getComputedStyle(document.documentElement),tokens={};
   SUI_THEME_TOKENS.forEach(t=>{const v=cs.getPropertyValue(t).trim();if(v)tokens[t]=v});
@@ -6700,6 +6707,8 @@ function suiErrsHtml(f){
 function suiQueueDone(q){
   const f=suiFrame;if(!f||f.applyQ!==q)return;
   f.applyQ=null;
+  // Шаг 2: черновик с шагами моста — свой итог (bridgeQueueDone)
+  if(q.bridgeSteps?.length){bridgeQueueDone(f,q).catch(e=>{console.warn("setup/1: итог «Применить» с шагами моста",e);if(f.applying)f.applying=null});return}
   const bad=q.fail+q.steps.reduce((k,s)=>k+s.ops.filter(o=>o.state==="cancel").length,0);
   if(bad){f.applying=null;suiSync();return}
   // Объект не прочитан — applied уйдёт с тем, что уже лежит в кэше; ошибку видно в консоли
@@ -6713,13 +6722,17 @@ function suiQueueDone(q){
 function suiReconcile(n){
   const f=suiFrame;
   if(!f||f.uid!==n.id||!f.ready||f.applying==="run")return;
-  const ver=hwVer.get(n.id)??null,draft=suiDraftOf(n),empty=!Object.keys(draft).length,same=JSON.stringify(draft)===JSON.stringify(f.pageDraft||{});
+  // Шаг 2: шаги моста — часть черновика: draft несёт их в steps, пустой черновик — без правки и без шагов
+  const steps=bridgeStepsOf(n);
+  const ver=hwVer.get(n.id)??null,draft=suiDraftOf(n),empty=!Object.keys(draft).length&&!steps.length,
+    same=JSON.stringify(draft)===JSON.stringify(f.pageDraft||{})&&JSON.stringify(steps)===JSON.stringify(f.pageSteps||[]);
+  const sendDraft=()=>{suiPost("draft",steps.length||f.pageSteps?.length?{patch:draft,steps}:{patch:draft});f.pageSteps=steps};
   // Черновик пуст — ошибки сервера к нему больше не относятся
   if(empty&&f.errs){f.errs=null;document.querySelector("#main [data-sui-errs]")?.remove()}
   if(ver!==f.unitVersion){
     if(f.applying==="ok"){f.applying=null;suiPost("applied",{unit:suiUnitOf(n)});f.invalid=null}
     else if(empty)suiRevert(n);
-    else{if(!same){suiPost("draft",{patch:draft});f.pageDraft=draft}return}
+    else{if(!same){sendDraft();f.pageDraft=draft}return}
     f.unitVersion=ver;f.pageDraft={};
     return;
   }
@@ -6727,14 +6740,15 @@ function suiReconcile(n){
   // applying снимается. Страница держит свой ввод, черновик консоли его повторяет
   f.applying=null;
   if(same)return;
-  if(empty)suiRevert(n);else suiPost("draft",{patch:draft});
+  if(empty)suiRevert(n);else sendDraft();
   f.pageDraft=draft;
 }
 // revert: страница показывает unit заново, поэтому её ошибка ввода больше не держит «Показать план»
 function suiRevert(n){
   const f=suiFrame;if(!f)return;
-  suiPost("revert",{unit:suiUnitOf(n)});
-  f.invalid=null;
+  // Шаг 2: черновик пуст — шагов моста тоже нет
+  suiPost("revert",{unit:suiUnitOf(n),steps:[]});
+  f.invalid=null;f.pageSteps=[];
 }
 // «Сбросить» в карточке со страницей: revert странице всегда, даже если консоль ещё не получила её ввод (только invalid)
 function suiResetPage(){
@@ -6785,6 +6799,623 @@ function suiOnMessage(e){
   SUI_ON[d.type](d);
 }
 window.addEventListener("message",suiOnMessage);
+// ── Своя страница подсистемы: мост к механизму (шаг 2) ──
+// Шаг 2 (api/SETUP-UI.md, «Шаг 2: мост к механизму»): страница просит консоль выполнить операцию контракта, call → result.
+// Что открыто, говорит разметка x-bridge операции в api/openapi.json: read и act консоль выполняет сразу своим токеном
+// и с правами человека, draft — шаг черновика. Нет разметки — NOT_SUPPORTED. Права консоль не пересчитывает: отказ
+// сервера уходит странице как есть. Ответ уходит только той рамке, что спросила (bridgePost); рамка закрылась или
+// не загрузилась — ответа нет, диалог её команды закрыт (bridgeDrop из suiClose и suiFail)
+const BRIDGE_CALLS_MAX=8,BRIDGE_SUBS_MAX=16,BRIDGE_MESSAGES=["call","subscribe","unsubscribe","navigate","confirm"];
+// Команды, которым консоль даёт idempotencyKey, если страница его не дала
+const BRIDGE_KEYED=new Set(["runUnitAction","runKindAction","startDiscovery"]);
+// Тексты отказа моста (problem.message) по коду
+const BRIDGE_TEXT={
+  NOT_SUPPORTED:"Консоль не выполняет эту операцию для страницы.",
+  VALIDATION_FAILED:"Параметр не подходит к описанию операции.",
+  PERMISSION_DENIED:"Страница открыта только для просмотра, поэтому консоль не принимает шаги черновика.",
+  BUSY:"Страница отправила больше вызовов, чем разрешает предел.",
+  CANCELLED:"Пользователь отказался в диалоге консоли.",
+  UPSTREAM_UNAVAILABLE:"Нет связи с сервером.",
+};
+// Карта operationId → {api, method, path, bridge, pathNames, query, body} из описаний API. api — чьё описание:
+// config (api/openapi.json) или video (когда у API видео появится своё описание). Пути /test/* моста не получают никогда
+function bridgeOpsBuild(specs){
+  const out=new Map();
+  (specs||[]).forEach(({api,spec})=>{
+    Object.entries(spec?.paths||{}).forEach(([path,item])=>{
+      if(!item||typeof item!=="object")return;
+      const common=Array.isArray(item.parameters)?item.parameters:[];
+      ["get","put","post","patch","delete"].forEach(m=>{
+        const o=item[m];
+        if(!o||typeof o!=="object"||typeof o.operationId!=="string")return;
+        const ps=[...common,...(Array.isArray(o.parameters)?o.parameters:[])].filter(p=>p&&typeof p.name==="string");
+        const b=o["x-bridge"];
+        out.set(o.operationId,{api,method:m.toUpperCase(),path,bridge:!path.startsWith("/test/")&&["read","act","draft"].includes(b)?b:null,
+          pathNames:ps.filter(p=>p.in==="path").map(p=>p.name),query:new Set(ps.filter(p=>p.in==="query").map(p=>p.name)),body:!!o.requestBody});
+      });
+    });
+  });
+  return out;
+}
+let BRIDGE_OPS=bridgeOpsBuild([{api:"config",spec:window.CONSOLEM_OPENAPI}]);
+// Операции для init.host.bridge.ops: размеченные и объявленные системой (can); только просмотр — без draft
+function bridgeOpsShown(readOnly){
+  const out={};
+  BRIDGE_OPS.forEach((d,op)=>{if(d.bridge&&can(op)&&!(readOnly&&d.bridge==="draft"))out[op]=d.bridge});
+  return out;
+}
+// init.host.bridge: сообщения — только те, что консоль уже принимает (SUI_ON). Предел объектов подписок — на одно место
+// меньше предела наблюдения потока: это место занимает открытый объект
+function bridgeHostInfo(readOnly){
+  return{ops:bridgeOpsShown(readOnly),messages:BRIDGE_MESSAGES.filter(t=>typeof SUI_ON[t]==="function"),
+    limits:{calls:BRIDGE_CALLS_MAX,subscriptions:BRIDGE_SUBS_MAX,watch:Math.max(0,LIM.watchMax-1)}};
+}
+// Отказ: status 0 — отказ самого моста без запроса. extra — field, params, message
+function bridgeFail(id,status,code,extra){
+  const x=extra||{},problem={code,message:String(x.message||i18n(BRIDGE_TEXT[code]||BRIDGE_TEXT.NOT_SUPPORTED))};
+  if(typeof x.field==="string")problem.field=x.field;
+  if(x.params&&typeof x.params==="object")problem.params=x.params;
+  return{id,ok:false,status,problem};
+}
+// Problem сервера — странице в форме Problem: code, message, field?, params?, current?, errors[]?
+function bridgeProblem(b,status){
+  const p=b&&typeof b==="object"&&!Array.isArray(b)?b:{};
+  const out={code:String(p.code||(status===404?"NOT_FOUND":"INTERNAL")),message:String(p.message||"")};
+  if(typeof p.field==="string")out.field=p.field;
+  const obj=v=>!!v&&typeof v==="object"&&!Array.isArray(v);
+  if(obj(p.params))out.params=cardClone(p.params);
+  if(obj(p.current))out.current=cardClone(p.current);
+  if(Array.isArray(p.errors))out.errors=p.errors.filter(obj).map(e=>{const x={code:String(e.code||"VALIDATION_FAILED")};if(typeof e.field==="string")x.field=e.field;if(obj(e.params))x.params=cardClone(e.params);return x});
+  return out;
+}
+// Запрос по описанию операции. Параметр пути — encodeURIComponent: "../test/reset" не ведёт на другой путь. Остальные
+// параметры — только объявленные in: query; список — через запятую. Нет параметра пути или параметр незнакомый —
+// исключение {code: "VALIDATION_FAILED", field: "/params/<имя>"}
+function bridgeRequest(op,params,body){
+  const d=BRIDGE_OPS.get(op),p=params==null?{}:params;
+  const bad=field=>({code:"VALIDATION_FAILED",field});
+  if(typeof p!=="object"||Array.isArray(p))throw bad("/params");
+  const scalar=v=>typeof v==="string"||typeof v==="number"&&isFinite(v)||typeof v==="boolean";
+  Object.keys(p).forEach(k=>{if(!d.pathNames.includes(k)&&!d.query.has(k))throw bad("/params/"+k)});
+  const path=d.path.replace(/\{([^}]+)\}/g,(_,n)=>{
+    const v=p[n];
+    // «.» и «..» encodeURIComponent оставляет как есть, а fetch сворачивает их в другой путь: /units/./actions/.. — это /units/
+    if(!scalar(v)||String(v)===""||String(v)==="."||String(v)==="..")throw bad("/params/"+n);
+    return encodeURIComponent(String(v));
+  });
+  const qs=[];
+  Object.keys(p).forEach(k=>{
+    if(!d.query.has(k))return;
+    let v=p[k];
+    if(v===undefined||v===null||v==="")return;
+    if(Array.isArray(v)){if(!v.every(scalar))throw bad("/params/"+k);v=v.join(",")}
+    else if(!scalar(v))throw bad("/params/"+k);
+    qs.push(`${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`);
+  });
+  let b=d.body?body:undefined;
+  // Команда с idempotencyKey: тело — объект или нет тела, иначе команда ушла бы без ключа
+  if(BRIDGE_KEYED.has(op)){
+    if(b!==undefined&&!(b&&typeof b==="object"&&!Array.isArray(b)))throw bad("/body");
+    b=b?{...b}:{};
+    if(!b.idempotencyKey)b.idempotencyKey=opKey();
+  }
+  if(b===undefined&&d.method!=="GET"&&d.method!=="DELETE")b={};
+  return{method:d.method,path:path+(qs.length?"?"+qs.join("&"):""),body:b,headers:undefined};
+}
+// Рамка ещё та, что спросила: тот же suiFrame, окно есть, мост рамки не снят
+function bridgeLive(f){return!!f&&suiFrame===f&&!!f.win&&!f.bridgeOff}
+// Отправка странице, которая спросила; другой или закрытой рамке — ничего
+function bridgePost(f,type,data){if(bridgeLive(f))suiPost(type,data)}
+// Рамка закрылась или не загрузилась: её ответы больше не уходят, диалог её команды закрыт без ответа
+function bridgeDrop(f){
+  if(!f)return;
+  f.bridgeOff=true;
+  bridgeSubsDrop(f);
+  const a=f.bridgeAsk;f.bridgeAsk=null;
+  if(a&&confirmOkCb===a.mine&&document.getElementById("confirm")?.classList.contains("open"))closeConfirm();
+}
+// Окно подтверждения consolem открыто — по любой причине: свой диалог consolem, cardLeaveAsk, вопрос страницы
+function bridgeDlgOpen(){return!!document.getElementById("confirm")?.classList.contains("open")}
+// Диалог консоли для вызова страницы → Promise<true | false | "busy" | "gone">. true — пользователь подтвердил, false —
+// отказался. Окно подтверждения одно на всю консоль: открытый диалог consolem страница не подменяет ("busy", диалог не
+// открыт); если другой диалог consolem занял окно (askConfirm заменил обратные вызовы) или окно закрылось — "gone"
+function bridgeAsk(f,title,msg,okLabel,opts){
+  if(bridgeDlgOpen())return Promise.resolve("busy");
+  return new Promise(res=>{
+    const box=document.getElementById("confirm");
+    let done=false,mo=null;
+    const a={mine:null};
+    const end=v=>{if(done)return;done=true;mo?.disconnect();if(f.bridgeAsk===a)f.bridgeAsk=null;res(v)};
+    askConfirm(title,msg,"",okLabel,()=>end(true),{...opts,onCancel:()=>end(false)});
+    a.mine=confirmOkCb;f.bridgeAsk=a;
+    mo=new MutationObserver(()=>{if(confirmOkCb!==a.mine||!box.classList.contains("open"))end("gone")});
+    mo.observe(box,{attributes:true,childList:true,subtree:true,characterData:true});
+  });
+}
+// Команда вызова act и подпись её объекта: у runUnitAction — по виду объекта (кэш, иначе GET /units/{uid}),
+// у runKindAction — по виду из параметров. Не нашлась — null: тогда отвечает сервер. Вид объекта не прочитан или
+// consolem его не знает — {fail}: подтверждение неизвестно, и команда не уходит (fail closed)
+async function bridgeActDesc(op,p,id){
+  if(op==="runKindAction"){
+    const k=KINDS.get(String(p.kind));
+    const a=(k?.actions||[]).find(x=>x.id===String(p.action));
+    return a?{a,name:textOf(k.label)||String(p.kind)}:null;
+  }
+  if(op!=="runUnitAction")return null;
+  const uid=String(p.uid),n=find(uid)?.n;
+  let kind=n?nodeKind(n):null,name=n?locName(n):"";
+  if(!kind){
+    const r=await bridgeUnitGet(id,uid);
+    if(r.fail)return r;
+    kind=r.unit.kind;name=String(r.unit.name??"");
+  }
+  if(!KINDS.has(kind))return{fail:bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")};
+  const a=(KINDS.get(kind).actions||[]).find(x=>x.id===String(p.action));
+  return a?{a,name}:null;
+}
+// Вызов страницы → BridgeResult. Порядок проверок: операция известна → есть x-bridge → система объявила её (can) →
+// draft → параметры → у команды с ActionDescriptor.confirm — диалог консоли, как в карточке → запрос.
+// API.raw берётся в момент вызова, без сохранённой ссылки
+async function bridgeCall(msg,f=suiFrame){
+  const id=msg.id,op=msg.op;
+  const d=typeof op==="string"?BRIDGE_OPS.get(op):null;
+  if(!d||!d.bridge||!can(op))return bridgeFail(id,0,"NOT_SUPPORTED");
+  if(d.bridge==="draft")return bridgeDraft(msg,f);
+  let rq;
+  try{rq=bridgeRequest(op,msg.params,msg.body)}
+  catch(e){if(e&&e.code)return bridgeFail(id,0,e.code,{field:e.field});throw e}
+  if(d.bridge==="act"){
+    const x=await bridgeActDesc(op,msg.params||{},id);
+    if(x?.fail)return x.fail;
+    if(x?.a.confirm){
+      if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
+      const lb=textOf(x.a.label)||x.a.id;
+      const yes=await bridgeAsk(f,`${lb} — «${x.name}»?`,textOf(x.a.confirm.text)||i18n("Выполнить команду?"),lb,
+        x.a.confirm.typeCount?{typeCount:1,countLabel:"Чтобы подтвердить, ввести число объектов команды",rawTitle:true,rawMsg:true}:{rawTitle:true,rawMsg:true});
+      if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+      if(yes!==true)return bridgeFail(id,0,"CANCELLED");
+    }
+    // Рамка закрылась, пока консоль читала вид объекта: команду консоль не запускает
+    if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
+  }
+  let res;
+  try{res=await API.raw(rq.method,rq.path,rq.body,rq.headers)}
+  catch(e){return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+  if(!res||typeof res.status!=="number"||res.status===0)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE");
+  const out={id,ok:res.status>=200&&res.status<300,status:res.status};
+  if(res.status>=400)out.problem=bridgeProblem(res.body,res.status);
+  else if(res.body!==undefined&&res.body!==null)out.body=res.body;
+  const et=res.headers?.etag;
+  if(typeof et==="string"&&et)out.etag=et;
+  return out;
+}
+// call: после ready; не больше BRIDGE_CALLS_MAX вызовов рамки в работе, сверх — BUSY сразу. Ответ — рамке, что спросила
+SUI_ON.call=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  if((f.bridgeCalls||0)>=BRIDGE_CALLS_MAX){suiPost("result",bridgeFail(d.id,0,"BUSY"));return}
+  f.bridgeCalls=(f.bridgeCalls||0)+1;
+  bridgeCall(d,f).catch(e=>{console.warn("setup/1: call",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{f.bridgeCalls--;bridgePost(f,"result",r)});
+};
+// Черновик моста (задача 4): вызов draft — шаг OperationItemRequest в черновике карточки (cardDraft.bridge: BridgeStep[]).
+// BridgeStep = {step, op, item, uid, version?, label, toT}. «Применить» отправляет шаги моста после правки страницы той же
+// POST /operations (cardApiItems), версии шагов — с момента вызова и главнее hwVer (bridgeVersions). Удаление consolem
+// подтверждает своим диалогом с вводом числа (bridgeDeleteAsk); число считает consolem
+const BRIDGE_STEP_KEYS=["patch","createUnit","delete","move","folders"];
+// Подпись по ключу i18n с подстановками {имя}, {вид}, {родитель}, {n}
+function bridgeT(key,vars){return String(i18n(key)).replace(/\{([^}]+)\}/g,(m,k)=>vars&&k in vars?String(vars[k]):m)}
+function bridgeKindLabel(kind){return textOf(KINDS.get(kind)?.label)||String(kind||"")}
+function bridgeName(u){return textOf(u?.name)||String(u?.uid||"")}
+// Шаг меняет сам объект — ему нужна версия (как unitStepNeedsVersion сервера)
+function bridgeNeedsVersion(it){return it.patch!==undefined||it.delete!==undefined||it.folders!==undefined||it.move!==undefined}
+// Объект шага с сервера в момент вызова: версия, имя, вид. Не прочитан — ответ сервера странице как есть
+async function bridgeUnitGet(id,uid){
+  const res=await API.raw("GET",`/units/${encodeURIComponent(uid)}`).catch(()=>null);
+  if(!res||typeof res.status!=="number"||res.status===0)return{fail:bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")};
+  if(res.status!==200||!res.body)return{fail:{id,ok:false,status:res.status,problem:bridgeProblem(res.body,res.status)}};
+  return{unit:res.body};
+}
+// Подпись и «станет» шага для плана
+function bridgeStepText(it,u,dest){
+  const nm=u?bridgeName(u):String(it.uid);
+  if(it.createUnit)return{label:bridgeT("Добавить: {вид} «{имя}»",{вид:bridgeKindLabel(it.createUnit.kind),имя:textOf(it.createUnit.name)||"—"}),toT:i18n("будет добавлен")};
+  if(it.delete)return{label:bridgeT("Удалить «{имя}»",{имя:nm}),toT:i18n("будет удалён")};
+  if(it.move!==undefined)return{label:bridgeT("Перенести «{имя}» в «{родитель}»",{имя:nm,родитель:dest}),toT:`«${dest}»`};
+  if(it.folders)return{label:bridgeT("Папки «{имя}»",{имя:nm}),toT:`${it.folders.length} ${i18n(plural(it.folders.length,"папка|папки|папок"))}`};
+  const ps=KINDS.get(u?.kind)?.schema?.properties||{},out=[];
+  if(it.patch.name!=null)out.push(`${i18n("Имя")}: «${it.patch.name}»`);
+  Object.keys(it.patch.properties||{}).forEach(k=>out.push(propLabel(ps[k],k)));
+  if(it.patch.folders)out.push(i18n("Папки"));
+  return{label:bridgeT("Изменить «{имя}»",{имя:nm}),toT:out.join(", ")||"—"};
+}
+// Имя родителя для подписи переноса: родитель из кэша или с сервера; null — корень домена объекта (имя домена)
+async function bridgeDestName(id,u,parentId){
+  const pid=parentId===null?u.domainId:parentId;
+  if(!pid)return{name:"—"};
+  const c=find(pid)?.n;if(c)return{name:locName(c)};
+  const r=await bridgeUnitGet(id,pid);
+  return r.fail?r:{name:bridgeName(r.unit)};
+}
+// Тело UnitCreate по схеме контракта: kind — строка, properties — объект, name — строка, других ключей нет. Не так —
+// указатель поля отказа. inOp — createUnit шага операции: родитель там — uid шага, а не parentId
+const BRIDGE_CREATE_KEYS=new Set(["kind","parentId","name","domainId","folders","properties","candidateId","children"]);
+function bridgeUnitCreateBad(x,at,inOp){
+  if(typeof x.kind!=="string"||!x.kind)return at+"/kind";
+  if(!x.properties||typeof x.properties!=="object"||Array.isArray(x.properties))return at+"/properties";
+  if(x.name!==undefined&&typeof x.name!=="string")return at+"/name";
+  if(x.folders!==undefined&&!bridgeStrs(x.folders))return at+"/folders";
+  if(x.children!==undefined&&!Array.isArray(x.children))return at+"/children";
+  const extra=Object.keys(x).find(k=>!BRIDGE_CREATE_KEYS.has(k)||inOp&&k==="parentId");
+  return extra?at+"/"+extra:null;
+}
+// Вызов draft → BridgeResult. Шаги — по таблице «Как шаг draft ложится на шаг операции» (api/SETUP-UI.md)
+async function bridgeDraft(msg,f){
+  const id=msg.id,op=msg.op;
+  if(f?.readOnly)return bridgeFail(id,0,"PERMISSION_DENIED",{params:{readOnly:true}});
+  try{bridgeRequest(op,msg.params,msg.body)}
+  catch(e){if(e&&e.code)return bridgeFail(id,0,e.code,{field:e.field});throw e}
+  const p=msg.params||{},b=msg.body,obj=v=>!!v&&typeof v==="object"&&!Array.isArray(v);
+  const bad=field=>bridgeFail(id,0,"VALIDATION_FAILED",{field}),no=()=>bridgeFail(id,0,"NOT_SUPPORTED");
+  // uid шага: не пустой и не «.» или «..» (bridgeRequest)
+  const okUid=v=>typeof v==="string"&&v!==""&&v!=="."&&v!=="..";
+  const list=b&&Array.isArray(b.items)&&b.items.length?b.items:null;
+  // raw: [{item, own?: поле отказа для patch своего uid, store?: id должен быть объектом склада}]
+  const raw=[];
+  if(op==="patchUnit"){if(!obj(b))return bad("/body");raw.push({item:{uid:String(p.uid),patch:cardClone(b)},own:"/params/uid"})}
+  else if(op==="createUnits"){
+    if(!obj(b)||!list)return bad("/body/items");
+    for(const[i,x]of list.entries()){
+      if(!obj(x))return bad(`/body/items/${i}`);
+      if(!okUid(x.parentId))return no();
+      // Тело UnitCreate — при вызове: иначе отказ пришёл бы только при «Применить», всей операции
+      const bf=bridgeUnitCreateBad(x,`/body/items/${i}`);if(bf)return bad(bf);
+      raw.push({item:{uid:x.parentId,createUnit:cardClone(x)}});
+    }
+  }
+  else if(op==="deleteUnit")raw.push({item:{uid:String(p.uid),delete:true}});
+  else if(op==="deleteObjects"){
+    if(!obj(b)||!list)return bad("/body/items");
+    for(const[i,x]of list.entries()){if(!obj(x)||!okUid(x.id))return bad(`/body/items/${i}/id`);raw.push({item:{uid:x.id,delete:true},store:true,own:`/body/items/${i}/id`})}
+  }
+  else if(op==="moveUnit"){
+    if(!obj(b)||!(b.parentId===null||okUid(b.parentId)))return bad("/body/parentId");
+    const it={uid:String(p.uid),move:b.parentId};
+    if(obj(b.params)&&Object.keys(b.params).length)it.params=cardClone(b.params);
+    raw.push({item:it});
+  }
+  else if(op==="createOperation"){
+    if(!obj(b)||!list)return bad("/body/items");
+    for(const[i,x]of list.entries()){
+      if(!obj(x)||!okUid(x.uid))return bad(`/body/items/${i}/uid`);
+      // Команда — не шаг черновика: её страница зовёт runUnitAction (act)
+      if(x.action!==undefined)return no();
+      const ks=BRIDGE_STEP_KEYS.filter(k=>x[k]!==undefined);
+      if(ks.length!==1||Object.keys(x).some(k=>k!=="uid"&&!BRIDGE_STEP_KEYS.includes(k)&&!(k==="params"&&ks[0]==="move")))return no();
+      const k=ks[0];
+      if(k==="delete"&&x.delete!==true)return no();
+      if((k==="patch"||k==="createUnit")&&!obj(x[k]))return bad(`/body/items/${i}/${k}`);
+      if(k==="createUnit"){const bf=bridgeUnitCreateBad(x.createUnit,`/body/items/${i}/createUnit`,true);if(bf)return bad(bf)}
+      if(k==="folders"&&!(Array.isArray(x.folders)&&x.folders.every(okUid)))return bad(`/body/items/${i}/folders`);
+      if(k==="move"&&!(x.move===null||okUid(x.move)))return bad(`/body/items/${i}/move`);
+      raw.push({item:cardClone(x),own:`/body/items/${i}/uid`});
+    }
+  }
+  else return no();
+  // Свой объект страница меняет через change, а не шагом моста
+  for(const r of raw)if(r.item.patch&&r.item.uid===f.uid)return bad(r.own||"/params/uid");
+  // Свой объект страница не удаляет и не переносит: карточка и рамка держатся на нём
+  for(const r of raw)if((r.item.delete||r.item.move!==undefined)&&r.item.uid===f.uid)return bridgeFail(id,0,"NOT_SUPPORTED",{field:r.own||"/params/uid",message:i18n(BRIDGE_TEXT2.OWN)});
+  // Объекты шагов — с сервера в момент вызова: версия шага, имя и вид для подписи. Объект шага createUnit — родитель, ему
+  // версия не нужна
+  const units=new Map();
+  for(const r of raw){
+    const it=r.item;
+    if(it.createUnit||units.has(it.uid))continue;
+    const g=await bridgeUnitGet(id,it.uid);
+    if(g.fail)return r.store&&g.fail.status===404?no():g.fail;
+    units.set(it.uid,g.unit);
+  }
+  const texts=[];
+  for(const r of raw){
+    const it=r.item,u=units.get(it.uid);
+    let dest="";
+    if(it.move!==undefined){const x=await bridgeDestName(id,u,it.move);if(x.fail)return x.fail;dest=x.name}
+    texts.push(bridgeStepText(it,u,dest));
+  }
+  const dels=raw.filter(r=>r.item.delete).map(r=>units.get(r.item.uid));
+  if(dels.length){
+    if(!bridgeLive(f))return bridgeFail(id,0,"CANCELLED");
+    const yes=await bridgeDeleteAsk(f,dels);
+    if(yes==="busy")return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.DIALOG)});
+    if(yes!==true)return bridgeFail(id,0,"CANCELLED");
+  }
+  // Карточка объекта страницы открыта: шаг — в её черновик
+  const n=find(f.uid)?.n;
+  if(!bridgeLive(f)||!n||n._row||sel!==f.uid||app!=="hw")return bridgeFail(id,0,"CANCELLED");
+  cardEnsureBase(n);setD(true);
+  if(!cardDraft||cardDraft.id!==n.id)return no();
+  const steps=cardDraft.bridge||(cardDraft.bridge=[]);
+  const made=raw.map((r,i)=>{
+    const it=r.item,u=units.get(it.uid),step=cardDraft.bridgeSeq=(cardDraft.bridgeSeq||0)+1;
+    const s={step,op,item:it,uid:it.uid,label:texts[i].label,toT:texts[i].toT};
+    if(u&&bridgeNeedsVersion(it))s.version=u.version;
+    steps.push(s);
+    return s;
+  });
+  cardFootRefresh();
+  // draft {patch, steps} — странице после result
+  setTimeout(()=>{if(bridgeLive(f)){const m=find(f.uid)?.n;if(m)suiReconcile(m)}},0);
+  const body={drafted:true,step:made[0].step};
+  if(made.length>1)body.steps=made.map(s=>s.step);
+  return{id,ok:true,status:202,body};
+}
+// Диалог удаления consolem → Promise<boolean>: что пропадёт (до 10 имён и «и ещё N»), вложенные объекты, что останется.
+// Число для ввода — число объектов, его считает consolem
+async function bridgeDeleteAsk(f,units){
+  if(bridgeDlgOpen())return"busy";
+  const N=units.length;
+  const li=units.slice(0,10).map(u=>`<li>«${escHtml(bridgeName(u))}» — ${escHtml(bridgeKindLabel(u.kind))}</li>`).join("")+(N>10?`<li>${i18n("и ещё")} ${N-10}</li>`:"");
+  // Вложенные объекты сервер удаляет вместе с объектом: их число — по прямым потомкам (GET /units?parentId), до 20 объектов
+  let kids=null;
+  if(N<=20){
+    kids=0;
+    for(const u of units){
+      const r=await API.raw("GET",`/units?parentId=${encodeURIComponent(u.uid)}&limit=1`).catch(()=>null);
+      const t=r&&r.status===200&&r.body?(typeof r.body.total==="number"?r.body.total:!r.body.nextCursor?(r.body.items||[]).length:null):null;
+      if(t===null){kids=null;break}
+      kids+=t;
+    }
+  }
+  if(!bridgeLive(f))return false;
+  // Число — только прямых потомков: глубже consolem не считает, и текст говорит об этом
+  const kidLine=kids===null?i18n("Консоль удалит и все вложенные объекты."):kids?bridgeT("Консоль удалит и все вложенные объекты. Консоль посчитала только первый уровень вложенности, там {n} {объектов}.",{n:kids,объектов:i18n(plural(kids,"объект|объекта|объектов"))}):i18n("Вложенных объектов нет.");
+  const ask=N===1?"Страница вида «{вид}» просит удалить объект.":"Страница вида «{вид}» просит удалить объекты.";
+  const html=`<p>${escHtml(bridgeT(ask,{вид:bridgeKindLabel(f.kind)}))}</p>
+    <p>${i18n("Пропадёт")}:</p><ul class="bk-del">${li}</ul><p>${escHtml(kidLine)}</p>
+    <p>${i18n("Останутся другие объекты домена и другие шаги черновика.")}</p>
+    <p>${i18n(N===1?"Консоль удалит объект по кнопке «Применить». До этого объект останется на сервере.":"Консоль удалит их по кнопке «Применить». До этого объекты останутся на сервере.")}</p>`;
+  return bridgeAsk(f,N===1?"Удалить объект?":"Удалить объекты?",html,"Удалить",{html:true,typeCount:N});
+}
+// Строки плана: шаг моста — строка черновика карточки (вызов в конце cardDiff)
+function bridgeDraftRows(n,out){
+  if(!cardDraft||cardDraft.id!==n.id)return;
+  (cardDraft.bridge||[]).forEach(s=>out.push({node:n,bridge:s,label:s.label,fromT:"—",toT:s.toT}));
+}
+// Шаги моста для POST /operations — после шагов карточки
+function bridgeApiItems(rows){return(rows||[]).filter(r=>r.bridge).map(r=>cardClone(r.bridge.item))}
+// Версии шагов моста: с момента вызова, первая по объекту. Главнее hwVer (поток мог принести чужую правку)
+function bridgeVersions(){
+  const out={};
+  (cardDraft?.bridge||[]).forEach(s=>{if(s.version!==undefined&&!(s.uid in out))out[s.uid]=s.version});
+  return out;
+}
+// Шаги моста для сообщений draft: [{step, op, label}]
+function bridgeStepsOf(n){return cardDraft&&cardDraft.id===n.id?(cardDraft.bridge||[]).map(s=>({step:s.step,op:s.op,label:s.label})):[]}
+// Итог шагов моста по операции: op.items[index], смещение — число шагов карточки перед шагами моста
+function bridgeAppliedSteps(op,q){
+  // Итог операции consolem не прочитал: что с шагами, неизвестно — fail UPSTREAM_UNAVAILABLE, а не cancel
+  if(!op)return q.bridgeSteps.map(s=>({step:s.step,state:"fail",code:"UPSTREAM_UNAVAILABLE"}));
+  const its=op.items||[];
+  return q.bridgeSteps.map((s,i)=>{
+    const it=its.find(x=>x.index===q.bridgeAt+i);
+    const o={step:s.step,state:it&&(it.state==="ok"||it.state==="fail")?it.state:"cancel"};
+    if(it?.code)o.code=String(it.code);
+    if(it?.createdId)o.createdId=String(it.createdId);
+    return o;
+  });
+}
+// Конец «Применить» с шагами моста (P5): applied {unit, steps} уходит всегда, даже если свой объект не изменился.
+// Сервер отказал всей операции (412, 422…): у шагов state fail и code отказа, черновик и шаги возвращаются в карточку,
+// revert нет (api/SETUP-UI.md, «Применить» с шагами моста)
+async function bridgeQueueDone(f,q){
+  const whole=typeof q.api!=="string"||q.api==="pending";
+  let steps;
+  if(whole){
+    const e=q.apiErr,code=String(e?.problem?.code||e?.code||"UPSTREAM_UNAVAILABLE");
+    steps=q.bridgeSteps.map(s=>({step:s.step,state:"fail",code}));
+    const n=find(f.uid)?.n;
+    if(n&&!n._row&&sel===n.id&&app==="hw"&&(!cardDraft||cardDraft.id===n.id)){
+      if(Object.keys(q.bridgeRedo||{}).length)suiDraftApply(n,q.bridgeRedo);else{cardEnsureBase(n);setD(true)}
+      if(cardDraft&&cardDraft.id===n.id){
+        cardDraft.bridge=[...(cardDraft.bridge||[]),...q.bridgeSteps];
+        cardDraft.bridgeSeq=Math.max(cardDraft.bridgeSeq||0,...q.bridgeSteps.map(s=>s.step));
+      }
+    }
+  }else{
+    const op=await API.get(`/operations/${encodeURIComponent(q.api)}`).catch(e=>{console.warn(`setup/1: GET /operations/${q.api} после «Применить» не прошёл`,e);return null});
+    steps=bridgeAppliedSteps(op,q);
+    await API.get(`/units/${encodeURIComponent(f.uid)}`).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}).catch(e=>console.warn(`setup/1: GET /units/${f.uid} после «Применить» не прошёл`,e));
+  }
+  if(!bridgeLive(f))return;
+  const n=find(f.uid)?.n;if(!n)return;
+  f.applying=null;f.invalid=null;
+  suiPost("applied",{unit:suiUnitOf(n),steps});
+  // Библиотека после applied считает черновик пустым: остался черновик — его покажет draft (suiReconcile)
+  f.unitVersion=hwVer.get(f.uid)??null;f.pageDraft={};f.pageSteps=[];
+  if(sel===f.uid&&app==="hw")gear();else suiReconcile(n);
+}
+// Подписка на поток, переход и подтверждение (задача 5, api/SETUP-UI.md: «Подписка на поток», «Переход», «Подтверждение»).
+// bridgeSubs: sub → {f, entityIds: Set, kinds: Set, types: Set | null}; sub равен id сообщения subscribe. Объекты из
+// entityIds попадают в наблюдение потока (watchIds → bridgeWatchIds). Рамка закрылась — bridgeDrop снимает её подписки
+let bridgeSubs=new Map(),bridgeConfirmOpen=false;
+const BRIDGE_RESET=new Set(["stream.reset","test.reset"]);
+// Тексты отказов шага 2, у которых общий текст кода не подходит
+const BRIDGE_TEXT2={
+  SUBS:"Страница открыла больше подписок, чем разрешает предел.",
+  WATCH:"В подписках страницы больше объектов, чем разрешает предел.",
+  CONFIRM:"Консоль уже показывает вопрос страницы.",
+  NOT_FOUND:"Объекта нет, или у пользователя нет права его видеть.",
+  DIALOG:"Консоль уже показывает другой диалог, поэтому не открывает этот вопрос.",
+  MUTED:"Пользователь отказался три раза подряд, поэтому консоль не показывает вопросы страницы 10 секунд.",
+  NAV:"Консоль ещё не закончила прошлый переход страницы.",
+  OWN:"Страница не удаляет и не переносит свой объект.",
+};
+// Пределы сообщения subscribe: видов и типов в одной подписке, длина строки
+const BRIDGE_SUB_LIST_MAX=32,BRIDGE_SUB_STR_MAX=200;
+// Поток вопросов: после BRIDGE_CONFIRM_NO отказов подряд consolem не показывает вопросы рамки BRIDGE_CONFIRM_MUTE мс
+// или до того, как пользователь перейдёт на страницу (фокус ушёл в рамку)
+const BRIDGE_CONFIRM_NO=3,BRIDGE_CONFIRM_MUTE=10000;
+const bridgeStrs=v=>Array.isArray(v)&&v.every(x=>typeof x==="string");
+// Объекты подписок для наблюдения: только те, что consolem знает (hwVer)
+function bridgeWatchIds(){
+  const out=new Set();
+  bridgeSubs.forEach(s=>s.entityIds.forEach(id=>{if(hwVer.has(id))out.add(id)}));
+  return[...out];
+}
+// subscribe → Promise<BridgeResult | null>. Поле не список строк, объектов больше limits.watch, видов или типов больше
+// BRIDGE_SUB_LIST_MAX, строка длиннее BRIDGE_SUB_STR_MAX — VALIDATION_FAILED. Сверх BRIDGE_SUBS_MAX подписок или сверх
+// watchMax − 1 объектов во всех подписках — BUSY. Объект, которого нет или которого пользователь не видит (hwEnsure его не
+// нашёл), — NOT_FOUND /entityIds. Объекты отказа в наблюдение не попадают. Подписка с тем же id заменяет прежнюю.
+// null — рамка закрылась, пока consolem спрашивал сервер
+async function bridgeSubscribe(msg,f=suiFrame){
+  const id=msg.id,W=Math.max(0,LIM.watchMax-1);
+  for(const k of ["entityIds","kinds","types"]){
+    const v=msg[k];
+    if(v!==undefined&&(!bridgeStrs(v)||v.length>(k==="entityIds"?W:BRIDGE_SUB_LIST_MAX)||v.some(x=>x.length>BRIDGE_SUB_STR_MAX)))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/"+k});
+  }
+  const ids=new Set(msg.entityIds||[]);
+  // Пределы — до запроса и после него: пока consolem ждал сервер, рамка могла открыть другие подписки
+  const over=()=>{
+    const others=[...bridgeSubs].filter(([k])=>k!==id);
+    if(others.length>=BRIDGE_SUBS_MAX)return bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.SUBS)});
+    const all=new Set(ids);
+    others.forEach(([,s])=>s.entityIds.forEach(x=>all.add(x)));
+    return all.size>Math.max(0,LIM.watchMax-1)?bridgeFail(id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.WATCH)}):null;
+  };
+  let no=over();if(no)return no;
+  if(ids.size){
+    try{await hwEnsure([...ids])}
+    catch(e){if(!e||!e.status)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+    if(!bridgeLive(f))return null;
+    if([...ids].some(x=>!find(x)))return bridgeFail(id,0,"NOT_FOUND",{field:"/entityIds",message:i18n(BRIDGE_TEXT2.NOT_FOUND)});
+    no=over();if(no)return no;
+  }
+  bridgeSubs.set(id,{f,entityIds:ids,kinds:new Set(msg.kinds||[]),types:msg.types?new Set(msg.types):null});
+  watchSoon();
+  return{id,ok:true,status:200,body:{sub:id}};
+}
+// unsubscribe — без ответа; чужую подписку (другой рамки) не снимает
+function bridgeUnsubscribe(msg,f=suiFrame){
+  const s=bridgeSubs.get(msg.sub);
+  if(!s||s.f!==f)return;
+  bridgeSubs.delete(msg.sub);
+  watchSoon();
+}
+// Подписки рамки сняты, их объекты ушли из наблюдения
+function bridgeSubsDrop(f){
+  let hit=false;
+  bridgeSubs.forEach((s,k)=>{if(s.f===f){bridgeSubs.delete(k);hit=true}});
+  if(hit)watchSoon();
+}
+// Первая строка apiOnEvent: подходящим подпискам — event {sub, message}. stream.reset и test.reset — всем
+function bridgeOnEvent(m){
+  if(!bridgeSubs.size||!m||typeof m.type!=="string")return;
+  const all=BRIDGE_RESET.has(m.type);
+  bridgeSubs.forEach((s,sub)=>{
+    if(!all&&!(s.entityIds.has(m.entityId)||s.kinds.has(m.kind)))return;
+    if(!all&&s.types&&!s.types.has(m.type))return;
+    bridgePost(s.f,"event",{sub,message:m});
+  });
+}
+// navigate → Promise<BridgeResult | null>. null — удачный переход: карточка другая, рамка закрыта, ответа нет.
+// Переход — по правилу «Моргание при переходе по ссылке»: hwJumpFlash вокруг pick, вспышку даёт hwFlashLanding.
+// Черновик не пуст — сначала cardLeaveAsk; «Остаться» — CANCELLED. Вопрос о блоках драйвера (csLeaveAsk) мост не задаёт
+async function bridgeNavigate(msg,f=suiFrame){
+  const id=msg.id,uid=msg.uid;
+  if(typeof uid!=="string"||!uid||uid.includes(":"))return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/uid"});
+  if(msg.tab!==undefined&&typeof msg.tab!=="string")return bridgeFail(id,0,"VALIDATION_FAILED",{field:"/tab"});
+  try{await hwEnsure([uid])}
+  catch(e){if(!e||!e.status)return bridgeFail(id,0,"UPSTREAM_UNAVAILABLE")}
+  if(!bridgeLive(f))return null;
+  const n=find(uid)?.n;
+  if(!n)return bridgeFail(id,0,"NOT_FOUND",{message:i18n(BRIDGE_TEXT2.NOT_FOUND)});
+  // Вкладка, которой у объекта нет, — карточка открывается на своей вкладке
+  const tb=msg.tab&&tabsFor(n).some(([t])=>t===msg.tab)?msg.tab:undefined;
+  // Свой объект: место моргает и на той же вкладке. Другая вкладка закроет рамку, поэтому ответ уходит до смены вкладки
+  if(uid===f.uid){
+    const r={id,ok:true,status:200};
+    if(tb&&tb!==tab){bridgePost(f,"result",r);goTab(tb);hwFlashLanding();return null}
+    hwFlashLanding();
+    return r;
+  }
+  return new Promise(res=>{
+    const go=()=>{
+      if(!bridgeLive(f)){res(null);return}
+      if(!goApp("hw")){res(bridgeFail(id,0,"CANCELLED"));return}
+      hwJumpFlash=true;
+      try{pick(uid,{...(tb?{tab:tb}:{}),force:true,csOk:true})}finally{hwJumpFlash=false}
+      res(null);
+    };
+    if(cardDraft&&cardDiff().length)cardLeaveAsk(go,()=>res(bridgeFail(id,0,"CANCELLED")));
+    else go();
+  });
+}
+// confirm → Promise<true | false | "busy" | "gone"> (bridgeAsk): диалог consolem. Строку «Спрашивает страница вида «…»» consolem
+// ставит в шапку над заголовком страницы (opts.asker), списки «Пропадёт» и «Останется» consolem строит сам; каждая строка страницы проходит escHtml, заголовок и кнопка — текстом. count — ввод числа.
+// Свой диалог consolem занял окно — false (bridgeAsk); рамка закрылась — диалог закрыт, ответа нет (bridgeDrop)
+function bridgeConfirm(msg,f=suiFrame){
+  const list=(head,xs)=>{
+    if(!xs||!xs.length)return"";
+    const li=xs.slice(0,10).map(x=>`<li>${escHtml(x)}</li>`).join("")+(xs.length>10?`<li>${i18n("и ещё")} ${xs.length-10}</li>`:"");
+    return`<p>${i18n(head)}:</p><ul class="bk-del">${li}</ul>`;
+  };
+  const html=`<p style="white-space:pre-wrap">${escHtml(msg.text)}</p>${list("Пропадёт",msg.lose)}${list("Останется",msg.keep)}`;
+  const opts={html:true,rawTitle:true,rawOk:!!msg.okLabel,asker:bridgeT("Спрашивает страница вида «{вид}».",{вид:bridgeKindLabel(f.kind)})};
+  if(msg.count!==undefined){opts.typeCount=msg.count;opts.countLabel="Чтобы подтвердить, ввести число"}
+  bridgeConfirmOpen=true;
+  return bridgeAsk(f,msg.title,html,msg.okLabel||"Подтвердить",opts).finally(()=>{bridgeConfirmOpen=false});
+}
+// Проверка сообщения confirm: поля по схеме; не так — VALIDATION_FAILED с полем
+function bridgeConfirmBad(d){
+  if(typeof d.title!=="string"||!d.title)return"/title";
+  if(typeof d.text!=="string")return"/text";
+  if(d.lose!==undefined&&!bridgeStrs(d.lose))return"/lose";
+  if(d.keep!==undefined&&!bridgeStrs(d.keep))return"/keep";
+  if(d.count!==undefined&&!(Number.isInteger(d.count)&&d.count>=1))return"/count";
+  if(d.okLabel!==undefined&&(typeof d.okLabel!=="string"||!d.okLabel))return"/okLabel";
+  return null;
+}
+// Обработчики шага 2 — после ready, ответ — рамке, что спросила
+SUI_ON.subscribe=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  bridgeSubscribe(d,f).catch(e=>{console.warn("setup/1: subscribe",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{if(r)bridgePost(f,"result",r)});
+};
+SUI_ON.unsubscribe=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.sub!=="string")return;
+  bridgeUnsubscribe(d,f);
+};
+// Один navigate рамки в полёте: второй, пока первый ждёт сервер или ответ пользователя, — BUSY
+SUI_ON.navigate=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  if(f.bridgeNav){bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(BRIDGE_TEXT2.NAV)}));return}
+  f.bridgeNav=true;
+  bridgeNavigate(d,f).catch(e=>{console.warn("setup/1: navigate",e);return bridgeFail(d.id,0,"UPSTREAM_UNAVAILABLE")}).then(r=>{f.bridgeNav=false;if(r)bridgePost(f,"result",r)});
+};
+SUI_ON.confirm=function(d){
+  const f=suiFrame;
+  if(!f.ready||typeof d.id!=="string"||!d.id)return;
+  const bad=bridgeConfirmBad(d);
+  if(bad){bridgePost(f,"result",bridgeFail(d.id,0,"VALIDATION_FAILED",{field:bad}));return}
+  // Второй вопрос, пока открыт первый (или диалог удаления и команды этой рамки), — BUSY. Открытый диалог consolem
+  // (cardLeaveAsk, удаление, свой вопрос) вопрос страницы не подменяет — тоже BUSY
+  const busy=m=>bridgePost(f,"result",bridgeFail(d.id,0,"BUSY",{message:i18n(m)}));
+  if(bridgeConfirmOpen||f.bridgeAsk){busy(BRIDGE_TEXT2.CONFIRM);return}
+  if(bridgeDlgOpen()){busy(BRIDGE_TEXT2.DIALOG);return}
+  if((f.confirmMute||0)>Date.now()){busy(BRIDGE_TEXT2.MUTED);return}
+  bridgeConfirm(d,f).then(v=>{
+    if(v==="busy"){busy(BRIDGE_TEXT2.DIALOG);return}
+    // Отказ пользователя считается; подтверждение счёт обнуляет; диалог, который занял consolem, не считается
+    if(v===true)f.confirmNo=0;
+    else if(v===false&&(f.confirmNo=(f.confirmNo||0)+1)>=BRIDGE_CONFIRM_NO){f.confirmNo=0;f.confirmMute=Date.now()+BRIDGE_CONFIRM_MUTE}
+    bridgePost(f,"result",{id:d.id,ok:true,status:200,body:{confirmed:v===true}});
+  });
+};
+// Пользователь перешёл на страницу (фокус ушёл в рамку): счёт отказов и пауза вопросов сняты
+function bridgeConfirmUnmute(){const f=suiFrame;if(f&&f.el&&document.activeElement===f.el){f.confirmNo=0;f.confirmMute=0}}
+window.addEventListener("blur",()=>{bridgeConfirmUnmute();setTimeout(bridgeConfirmUnmute,0)});
 // ── Модель w2c ─────────────────────────────────────────────────────────────
 // Устройства не принадлежат серверу: они лежат в общем пуле и раскладываются
 // по папкам физического расположения (раздел «Устройства»). Один объект может
@@ -8520,6 +9151,8 @@ function cardDiff(){
   camPlanRows(n,out);
   webPlanRows(n,out);
   camRecRulePlanRows(n,out);
+  // Своя страница подсистемы, шаг 2: шаги моста — последние строки
+  bridgeDraftRows(n,out);
   return out;
 }
 // Вернуть объект к снимку «до»: по ключам, начинку — по id, добавленное — убрать.
@@ -8545,10 +9178,11 @@ function cardRestore(){
   treeMatchCache.clear();searchMatchCache.clear();
 }
 function cardReset(){cardRestore();suiResetPage();paint();toast("Изменения сброшены")}
-function cardLeaveAsk(go){
+// onStay — человек остался на карточке («Остаться» или закрыл окно)
+function cardLeaveAsk(go,onStay){
   const n=find(cardDraft.id)?.n,d=cardDiff();
   askConfirm("Изменения не применены",`<p>${i18n("У")} «${escHtml(locName(n||{}))}» ${d.length} ${i18n(plural(d.length,"неприменённое изменение|неприменённых изменения|неприменённых изменений"))}.</p><ul class="bk-del">${d.slice(0,5).map(r=>`<li>${escHtml(r.label)}: ${escHtml(r.fromT)} → <b>${escHtml(r.toT)}</b></li>`).join("")}</ul>`,
-    "",i18n("Сбросить и перейти"),()=>{cardRestore();go()},{html:true,cancelLabel:"Остаться"});
+    "",i18n("Сбросить и перейти"),()=>{cardRestore();go()},{html:true,cancelLabel:"Остаться",onCancel:onStay});
 }
 function cardFootHtml(){
   if(typeof dwFootHtml==="function"){const x=dwFootHtml();if(x)return x}
@@ -8608,6 +9242,9 @@ function cardApply(ok){
   // Не шаги операции: заглушки (остаются как есть) и отдельные запросы — «Сервер записи» и потоки (camCallRun)
   const isLoc=r=>!!r.stub||camCallOf(r)||webCallOf(r),api=d.filter(r=>!isLoc(r)),loc=d.filter(isLoc);
   const items=cardApiItems(n,api);
+  // Шаги моста (своя страница подсистемы, шаг 2): их версии — с момента вызова, правка страницы — на случай отказа операции
+  const bsteps=(cardDraft.bridge||[]).slice(),bv=bridgeVersions(),bRedo=bsteps.length&&suiFrame?.uid===n.id?suiDraftOf(n):{};
+  if(bsteps.length&&!items){toast("Консоль не может отправить эту правку и шаги страницы одной операцией.");return}
   // Меньший объём тома или карты камеры стирает старое: без второго слова сервер откажет
   const less=(items||[]).filter(x=>x.set?.sizeBytes!=null&&(volById(x.targetId)||find(x.targetId)?.n)?.bytes>x.set.sizeBytes);
   if(less.length&&!ok){
@@ -8616,19 +9253,27 @@ function cardApply(ok){
   }
   less.forEach(x=>{x.set.confirmShrinkBytes=x.set.sizeBytes});
   if(items){
+    // Своя страница подсистемы: «Применить» идёт с этой минуты. Иначе перерисовка между cardRestore и очередью
+    // (startQueue → gear) увидела бы пустой черновик и отправила странице revert
+    const suiF=suiFrame?.uid===n.id?suiFrame:null;
+    if(suiF)suiF.applying="run";
     camPlanCommit(n.id);cardRestore();
     const label=r=>r.add||r.streamAdd||r.streamDel?r.label:`${r.label}: ${r.toT}`;
     // Заглушки и отдельные запросы — шаги с o.call: очередь выполняет их до операции (apiQueue). Заглушка — сразу «выполнено»
     const mk=r=>({...mkOp(r.node||n,label(r),r.folders?"folder":"param"),state:"wait",msg:"",done:false,tempId:r.add?.id,
       call:r.stub?()=>Promise.resolve():webCallOf(r)?()=>webCallRun(n,r):isLoc(r)?()=>camCallRun(n,r):undefined});
     const apiOps=api.map(mk),locOps=loc.map(mk),step={label:`«${locName(n)}»: ${all.length} ${plural(all.length,"изменение|изменения|изменений")}`,ops:[...locOps,...apiOps]};
-    const streams=loc.some(r=>r.streamSet||r.streamAdd||r.streamDel),targets=[...new Set(items.map(opTarget))];
+    const streams=loc.some(r=>r.streamSet||r.streamAdd||r.streamDel),targets=[...new Set(items.slice(0,items.length-bsteps.length).map(opTarget))];
     // Правка основного потока меняет версию камеры: после потоков камера перечитывается, версии для операции — свежие
     const afterCalls=streams?()=>hwStreamsRead(n.id).then(()=>API.get(`/units/${n.id}`)).then(u=>{hwApplyUnit(u);hwVer.set(u.uid,u.version)}):null;
     // Только заглушки и отдельные запросы: операции на сервере нет, «Отменить» после применения тоже
     apiQueue([step],`«${locName(n)}»`,{undo:!!items.length,afterCalls,afterOk},
-      items.length?()=>API.post("/operations",{idempotencyKey:opKey(),items:opItems(items),expectedVersions:Object.fromEntries(targets.map(x=>[x,hwVer.get(x)]))}):null,apiOps);
-    if(suiFrame?.uid===n.id&&bq&&!bq.finished){suiFrame.applying="run";suiFrame.applyQ=bq}
+      items.length?()=>API.post("/operations",{idempotencyKey:opKey(),items:opItems(items),expectedVersions:{...Object.fromEntries(targets.map(x=>[x,hwVer.get(x)])),...bv}}):null,apiOps);
+    if(suiF&&suiFrame===suiF&&!(bq&&!bq.finished))suiF.applying=null;
+    if(suiFrame?.uid===n.id&&bq&&!bq.finished){
+      suiFrame.applying="run";suiFrame.applyQ=bq;
+      if(bsteps.length)Object.assign(bq,{bridgeSteps:bsteps,bridgeAt:items.length-bsteps.length,bridgeRedo:bRedo});
+    }
     paint();
     return;
   }
@@ -9637,10 +10282,16 @@ function closeConfirm(){
 function askConfirm(title,msg,warn,okLabel,onOk,opts={}){
   ipsFa=null;                    // окно поверх: состояние диалога папки регистратора сюда не переходит
   document.getElementById("confirmTitle").textContent=opts.rawTitle?title:i18n(title);
+  // asker — чей вопрос, строкой над заголовком (вопрос страницы подсистемы): страница не выдаст свой вопрос за вопрос consolem
+  document.getElementById("confirmAsker")?.remove();
+  if(opts.asker){
+    const a=document.createElement("div");a.id="confirmAsker";a.className="chead-asker";a.textContent=opts.asker;
+    document.getElementById("confirmTitle").before(a);
+  }
   const msgEl=document.getElementById("confirmMsg");
   if(opts.html)msgEl.innerHTML=msg;else msgEl.textContent=opts.rawMsg?msg:i18n(msg);
   document.getElementById("confirmWarn").textContent=warn?i18n(warn):"";
-  document.getElementById("confirmOk").textContent=i18n(okLabel||"Удалить");
+  document.getElementById("confirmOk").textContent=opts.rawOk?okLabel:i18n(okLabel||"Удалить");
   document.getElementById("confirmCancel").textContent=i18n(opts.cancelLabel||"Отменить");
   confirmOkCb=onOk;confirmCancelCb=opts.onCancel||null;
   // Удаление подтверждают числом: сколько объектов удалится. Кнопку не нажать
@@ -11249,6 +11900,8 @@ let apiStream=null,streamClient=null,watchLast="",watchQ=false,watchOpened="",wa
 function watchIds(){
   const out=[];
   if(sel&&hwVer.has(sel))out.push(sel);
+  // Объекты подписок страницы подсистемы (мост шага 2): их не больше watchMax − 1, место для sel остаётся
+  bridgeWatchIds().forEach(id=>{if(!out.includes(id))out.push(id)});
   [...open].reverse().forEach(id=>{const s=String(id);const k=s.slice(s.lastIndexOf("|")+1);if(hwVer.has(k)&&!out.includes(k))out.push(k)});
   return out.slice(0,LIM.watchMax);
 }
@@ -41036,7 +41689,14 @@ function keyToApi(node,key,v){
   if(!DEVICE_PATCH.has(k))return null;
   return{[k]:apiVal(k,v)};
 }
+// Шаги операции «Применить»: строки карточки, затем шаги моста страницы (r.bridge) — в конце, без проверок строк карточки
 function cardApiItems(n,d){
+  const own=d.filter(r=>!r.bridge),br=bridgeApiItems(d);
+  if(!br.length)return cardApiItemsOwn(n,d);
+  const items=own.length?cardApiItemsOwn(n,own):[];
+  return items?[...items,...br]:null;
+}
+function cardApiItemsOwn(n,d){
   if(!isApiTarget(n))return null;
   const items=[];
   if(isSchemaNode(n)){
@@ -41118,7 +41778,7 @@ function apiQueueCall(q,call){
   opEarly=[];
   call().then(op=>{q.api=op.id;const early=opEarly;opEarly=[];early.forEach(opOnEvent);if(q.cancelled&&!q.finished&&bq===q)apiQueueOp("cancel").catch(e=>toast(problemText(e)))}).catch(e=>{
     // Сервер не принял операцию целиком (план устарел, объект занят, ошибка в поле): ни один шаг не выполнен
-    const msg=problemText(e);
+    const msg=problemText(e);q.apiErr=e;
     q.steps.forEach(s=>s.ops.forEach(o=>{if(!o.done){o.state="fail";o.msg=msg;o.done=true;q.fail++;q.done++}}));
     if(bq===q)queueFinish();
   });

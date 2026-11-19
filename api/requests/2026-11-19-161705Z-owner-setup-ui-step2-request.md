@@ -29,7 +29,8 @@
   - `read` — consolem выполняет вызов сразу. Это 28 операций: `GET` и `validateUnits`;
   - `act` — consolem выполняет вызов сразу, и команду видно в журнале. Это 6 операций: `runUnitAction`, `runKindAction`,
     `cancelOperation`, `startDiscovery`, `stopDiscovery`, `uploadFile`. Если у команды есть `ActionDescriptor.confirm`, consolem
-    сначала показывает свой диалог подтверждения;
+    сначала показывает свой диалог подтверждения. Если consolem не смог прочитать вид объекта, он не знает о подтверждении и
+    команду не отправляет: ответ `status: 0`, `UPSTREAM_UNAVAILABLE`;
   - `draft` — consolem кладёт шаг в свой черновик и выполняет его по «Применить» одной `POST /operations` вместе с правкой самой
     страницы. Это 6 операций: `patchUnit`, `createUnits`, `deleteUnit`, `moveUnit`, `deleteObjects`, `createOperation`. Удаление
     consolem подтверждает своим диалогом с вводом числа, и число считает consolem, а не страница;
@@ -78,8 +79,9 @@ consolem с правами человека, а consolem права не пер�
 ## 4. Библиотека `setup-bridge.js` с методами шага 2
 
 **Что в контракте.** Библиотека для автора страницы [`api/setup-bridge.js`](../setup-bridge.js) получает методы шага 2:
-`session.call`, `session.can`, `session.subscribe`, `session.navigate`, `session.confirm`. Методы приходят в той же работе, что и
-сторона consolem (прототип 81, затем перенос в основной макет). Тестовая страница стенда
+`session.bridge` (есть ли мост у хоста), `session.can`, `session.call`, `session.subscribe` (обещание сбывается функцией отписки),
+`session.navigate`, `session.confirm`. Методы пришли в той же работе, что и сторона consolem: она уже в основном макете
+`index.html`. Тестовая страница стенда
 [`api/plugins/security_controller/setup/`](../plugins/security_controller/setup/index.html) показывает на них сложный экран: камеры по
 ссылкам, найденное в сети области, дочерние объекты в черновике, команду вида с подтверждением.
 
