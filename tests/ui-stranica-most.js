@@ -9,6 +9,11 @@
    Задача 5: подписка на поток (subscribe, event, unsubscribe, пределы, stream.reset), подтверждение страницы (confirm:
    текст — текстом, строка о странице вида, ввод числа, BUSY), переход (navigate: NOT_FOUND, свой объект, черновик —
    CANCELLED, удачный переход со вспышкой без ответа), закрытие рамки снимает подписки и диалог.
+   Задача 6: полный цикл на самой тестовой странице — её «сложный» экран по контроллеру клавиатуры (P2). Прогон #run=<имя>
+   в адресе рамки: страница сама проходит шаги и шлёт x-run {run, step, ok, detail} (вне протокола, хост пропускает).
+   Прогоны read, discovery, draft («Применить» — одна POST /operations, applied.steps у страницы), confirm, navigate
+   (переход со вспышкой), nobridge (хост шага 1: блоки шага 2 скрыты, change работает) и denied (вход только с
+   просмотром: 403 сервера у команды и PERMISSION_DENIED моста у черновика).
    Мост шага 2 есть в прототипе 81 (index_81_stranica-podsistemy-most.html); на странице без моста проверять нечего. */
 UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   // Прототип узнаём по имени его файла английских текстов: check_ui.py и самопроверка открывают страницу под другим именем
@@ -67,6 +72,8 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
   const opsBackup = new Set(CAPS.operations);
   // Задача 4: возврат API.post — в finally
   let restorePost = null;
+  // Задача 6: обёртка suiHostInfo, приём x-run и сброс набора с другим пользователем — вернуть в finally
+  let restoreHost = null, onXRun = null, resetBack = false;
   // Ждать условия, которое проверяет сервер (until ждёт только синхронное условие)
   const untilA = async (fn, ms = 10000) => { for (let i = 0; i < ms / 100; i++) { try { if (await fn()) return true; } catch (e) {} await sleep(100); } return false; };
   try {
@@ -376,33 +383,33 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     ok(["s1", "s3"].every((s) => sent.slice(rsAt).some((m) => m.type === "event" && m.sub === s && m.message.type === "stream.reset")), "stream.reset — event у каждой подписки");
 
     // confirm: текст страницы — текстом, строка о странице, ввод числа
-    pageSend({ type: "confirm", id: "c1", title: "Поставить на охрану", text: "<img src=x>", lose: ["Тревоги датчиков"], keep: ["<b>Камеры</b>"], count: 2, okLabel: "Поставить" });
+    pageSend({ type: "confirm", id: "cf1", title: "Поставить на охрану", text: "<img src=x>", lose: ["Тревоги датчиков"], keep: ["<b>Камеры</b>"], count: 2, okLabel: "Поставить" });
     ok(await until(dlgOpen, 5000) && !document.querySelector("#confirm img") && !document.querySelector("#confirmMsg b") && document.getElementById("confirmMsg").textContent.includes("<img src=x>"), "текст страницы — текстом");
     const msgT = document.getElementById("confirmMsg").textContent;
     ok(msgT.includes(`Спрашивает страница вида «${bridgeKindLabel(suiFrame.kind)}»`) && msgT.includes("Тревоги датчиков") && msgT.includes("<b>Камеры</b>") &&
       document.getElementById("confirmTitle").textContent === "Поставить на охрану" && document.getElementById("confirmOk").textContent === "Поставить" &&
-      !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled && !replyOf("c1"),
+      !!document.getElementById("confirmCountInp") && document.getElementById("confirmOk").disabled && !replyOf("cf1"),
       "в диалоге строка о странице вида, списки, заголовок и кнопка страницы, поле числа; ответа ещё нет");
-    pageSend({ type: "confirm", id: "c2", title: "Ещё", text: "Ещё" });
-    ok(await until(() => !!replyOf("c2"), 3000) && code(replyOf("c2")) === "BUSY" && valid(replyOf("c2")), "второй confirm, пока открыт первый, — BUSY");
+    pageSend({ type: "confirm", id: "cf2", title: "Ещё", text: "Ещё" });
+    ok(await until(() => !!replyOf("cf2"), 3000) && code(replyOf("cf2")) === "BUSY" && valid(replyOf("cf2")), "второй confirm, пока открыт первый, — BUSY");
     await confirmWith(2);
-    ok(await until(() => !!replyOf("c1"), 3000) && replyOf("c1").ok === true && replyOf("c1").status === 200 && replyOf("c1").body?.confirmed === true && valid(replyOf("c1")), "confirmWith(2) — confirmed: true");
-    pageSend({ type: "confirm", id: "c3", title: "Снять с охраны", text: "Снять?" });
+    ok(await until(() => !!replyOf("cf1"), 3000) && replyOf("cf1").ok === true && replyOf("cf1").status === 200 && replyOf("cf1").body?.confirmed === true && valid(replyOf("cf1")), "confirmWith(2) — confirmed: true");
+    pageSend({ type: "confirm", id: "cf3", title: "Снять с охраны", text: "Снять?" });
     ok(await until(dlgOpen, 3000) && !document.getElementById("confirmCountInp"), "confirm без count — без поля числа");
     document.getElementById("confirmCancel").click();
-    ok(await until(() => !!replyOf("c3"), 3000) && replyOf("c3").ok === true && replyOf("c3").body?.confirmed === false, "отмена — confirmed: false");
+    ok(await until(() => !!replyOf("cf3"), 3000) && replyOf("cf3").ok === true && replyOf("cf3").body?.confirmed === false, "отмена — confirmed: false");
     // Свой диалог consolem закрыл диалог страницы — confirmed: false
-    pageSend({ type: "confirm", id: "c4", title: "Вопрос", text: "Вопрос" });
+    pageSend({ type: "confirm", id: "cf4", title: "Вопрос", text: "Вопрос" });
     ok(await until(dlgOpen, 3000), "диалог c4 открыт");
     askConfirm("Свой вопрос", "Свой", "", "Да", () => {});
-    ok(await until(() => !!replyOf("c4"), 3000) && replyOf("c4").body?.confirmed === false, "диалог страницы занял свой диалог consolem — confirmed: false");
+    ok(await until(() => !!replyOf("cf4"), 3000) && replyOf("cf4").body?.confirmed === false, "диалог страницы занял свой диалог consolem — confirmed: false");
     closeConfirm();
     // Рамка закрылась при открытом confirm: диалог закрыт без ответа, подписки сняты
-    pageSend({ type: "confirm", id: "c5", title: "Вопрос", text: "Вопрос" });
+    pageSend({ type: "confirm", id: "cf5", title: "Вопрос", text: "Вопрос" });
     ok(await until(dlgOpen, 3000) && watchIds().includes(cam), "диалог c5 открыт, камера s3 в наблюдении");
     suiClose();
     await sleep(100);
-    ok(!dlgOpen() && !replyOf("c5") && bridgeSubs.size === 0 && !watchIds().includes(cam) && !bridgeConfirmOpen, "suiClose: диалог закрыт без ответа, подписок нет, камеры нет в watchIds()");
+    ok(!dlgOpen() && !replyOf("cf5") && bridgeSubs.size === 0 && !watchIds().includes(cam) && !bridgeConfirmOpen, "suiClose: диалог закрыт без ответа, подписок нет, камеры нет в watchIds()");
     gear();
     ok(await until(() => suiFrame?.ready, 15000), "рамка снова готова");
 
@@ -431,11 +438,137 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
     pick(SUI_UNIT, { force: true, tab: "gen" });
     ok(await until(() => sel === SUI_UNIT && suiFrame?.ready, 15000), "вернулись к странице стенда");
 
+
+    // ── Задача 6: тестовая страница «сложного» экрана — полный цикл через саму страницу ──
+    // Встроенный сервер страницы служебных операций /test/* не держит, поэтому набор не сбрасывается: прогоны идут
+    // по тому, что оставили прошлые части сценария
+    pick(SUI_UNIT, { force: true, tab: "gen" });
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready && !cardDiff().length, 15000), "страница стенда открыта, черновик пуст");
+    // x-run — от окна рамки; хост его пропускает (SUI_ON его не знает)
+    const xruns = [];
+    onXRun = (e) => { const d = e.data; if (d && d.proto === "setup/1" && d.type === "x-run" && suiFrame && e.source === suiFrame.win) xruns.push(d); };
+    window.addEventListener("message", onXRun);
+    ok(!("x-run" in SUI_ON), "x-run вне протокола: у хоста нет обработчика");
+    // Прогон: адрес рамки без # и #run=<имя>; шаги — до done. answer — ответ на диалог консоли, пока идёт прогон
+    const run = async (name, answer) => {
+      const at = xruns.length;
+      const f = suiFrame;
+      f.el.src = f.url.split("#")[0] + "#run=" + name;
+      const mine = () => xruns.slice(at).filter((m) => m.run === name);
+      // Первый шаг — за 5 с: страница без прогонов не тратит срок сценария
+      const step = () => { if (answer && dlgOpen()) answer(); return mine().length > 0; };
+      if (await until(step, 5000)) await until(() => step() && mine().some((m) => m.step === "done"), 40000);
+      return mine();
+    };
+    const runOk = (name, steps) => ok(steps.length > 1 && steps.some((s) => s.step === "done") && steps.every((s) => s.ok),
+      `тестовая страница, прогон ${name}: ${steps.filter((s) => !s.ok).map((s) => s.step + " " + (s.detail || "")).join(", ") || (steps.length ? "все шаги" : "шагов нет")}`);
+    const stepOf = (steps, name) => steps.find((s) => s.step === name) || {};
+    const yes = () => confirmWith(1);
+    for (const name of ["read", "discovery"]) runOk(name, await run(name));
+    // draft: «Добавить» и «Удалить» датчика — шаги черновика консоли, строки помечены
+    const sentD = sent.length;
+    const dsteps = await run("draft", yes);
+    runOk("draft", dsteps);
+    ok(cardDiff().filter((x) => x.bridge).length === 2 && sent.slice(sentD).some((m) => m.type === "draft" && (m.steps || []).length === 2),
+      "после прогона draft в черновике консоли 2 шага страницы, странице ушёл draft со steps");
+    cardPlan();
+    ok(await until(() => document.getElementById("bmodal")?.classList.contains("open"), 5000), "план черновика открыт");
+    closeBulkModal();
+    window.CONSOLEM_TRACE.length = 0;
+    const xAt = xruns.length;
+    cardApply();
+    ok(await until(() => trace("POST", "/operations").length >= 1, 5000) && trace("POST", "/operations").filter((t) => t.path === "/operations").length === 1, "«Применить» — одна POST /operations");
+    const pApplied = () => xruns.slice(xAt).find((m) => m.run === "draft" && m.step === "applied");
+    ok(await until(pApplied, 10000) && pApplied().ok, "страница получила applied.steps и показала итог: " + JSON.stringify(pApplied()));
+    await until(() => !bq || bq.finished, 5000);
+    // confirm: подтверждение страницы, затем команда ARM контроллера
+    window.CONSOLEM_TRACE.length = 0;
+    runOk("confirm", await run("confirm", yes));
+    ok(trace("POST", `/units/${CTRL}/actions/ARM`).length === 1 && (await realRaw("GET", `/units/${CTRL}`)).body.status?.observed?.armed === true, "команда ARM ушла один раз, контроллер на охране");
+    // navigate: щелчок по камере в блоке «Камеры» — переход со вспышкой
+    const nsteps = await run("navigate");
+    runOk("navigate", nsteps);
+    const navTo = stepOf(nsteps, "navigate").detail;
+    ok(await until(() => sel === navTo && cams.includes(navTo), 5000), "переход к первой камере контроллера: " + navTo);
+    ok(await until(() => document.querySelector(".hd h1.acc-flash, .hd .cr-cur.acc-flash") && document.querySelector("#tree .n.on.acc-flash"), 3000), "переход из страницы моргает заголовком и строкой дерева");
+    // nobridge: хост шага 1 (init.host без bridge) — блоки шага 2 скрыты, change шага 1 работает
+    const realHost = suiHostInfo;
+    suiHostInfo = () => { const h = realHost(); delete h.bridge; return h; };
+    restoreHost = () => { suiHostInfo = realHost; };
+    const sentN = sent.length;
+    pick(SUI_UNIT, { force: true, tab: "gen" });
+    suiRetry();
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready, 15000), "страница стенда на хосте шага 1 открыта");
+    const initN = sent.slice(sentN).find((m) => m.type === "init");
+    ok(!!initN && !("bridge" in initN.host) && valid(initN), "init.host без bridge");
+    const bsteps = await run("nobridge");
+    runOk("nobridge", bsteps);
+    ok(await until(() => cardDiff().some((x) => !x.bridge), 3000) && !cardDiff().some((x) => x.bridge), "change шага 1 дошёл: строка правки страницы в черновике, шагов моста нет");
+    cardReset();
+    restoreHost();
+    restoreHost = null;
+    // Права: вход только с просмотром. У роли «Только просмотр» (elena) класса security_controller нет, и страница не
+    // откроется вовсе (403). Стенд с testSupport: набор заново, роль получает view правкой набора на этот прогон (P17),
+    // demo.json не меняется. Встроенный сервер страницы /test/reset не держит: тогда ответы сервера для elena —
+    // перехватом (адрес страницы с readOnly, 403 команды с тем же Problem), как в tests/ui-access.js
+    const roles = (await realRaw("GET", "/access")).body?.roles || [];
+    const viewRole = roles.find((x) => x.id === "80000006-0000-4000-8000-000000000000");
+    ok(!!viewRole && !viewRole.kindAccess?.security_controller, "роль «Только просмотр» без класса security_controller");
+    const patched = roles.map((x) => (x === viewRole ? { ...x, kindAccess: { ...x.kindAccess, security_controller: "view" } } : x));
+    const rs = await realRaw("POST", "/test/reset", { fixture: "demo", freezeClock: false, actAs: "elena", fixturePatch: { access: { roles: patched } } });
+    const onStand = rs.status === 200;
+    resetBack = onStand;
+    let restoreDenied = null;
+    if (!onStand) {
+      const post0 = API.post, raw0 = API.raw;
+      API.post = function (path, data, headers) {
+        const r = post0.call(this, path, data, headers);
+        return path === `/units/${SUI_UNIT}/setup-ui` ? r.then((x) => ({ ...x, readOnly: true })) : r;
+      };
+      API.raw = function (method, path, body, headers) {
+        if (method === "POST" && path === `/units/${CTRL}/actions/ARM`) {
+          bodies.push({ method, path, body });
+          return Promise.resolve({ status: 403, headers: {}, body: { code: "PERMISSION_DENIED", message: "Команде ARM нужен уровень edit", params: { right: { class: "security_controller", level: "edit" } } } });
+        }
+        return raw0.call(this, method, path, body, headers);
+      };
+      restoreDenied = () => { API.post = post0; API.raw = raw0; };
+      restoreHost = restoreDenied;
+    }
+    ok(onStand || rs.body?.code === "TEST_SUPPORT_OFF", "вход elena: " + (onStand ? "стенд, набор с view на security_controller" : "встроенный сервер, ответы для elena — перехватом"));
+    const sentR = sent.length;
+    suiRetry();
+    pick(SUI_UNIT, { force: true, tab: "gen" });
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready && suiFrame.readOnly, 15000), "страница стенда открыта только для просмотра");
+    const initR = sent.slice(sentR).filter((m) => m.type === "init").pop();
+    ok(initR?.readOnly === true && !!initR.host.bridge && !Object.values(initR.host.bridge.ops).includes("draft") && initR.host.bridge.ops.runUnitAction === "act",
+      "init.readOnly, в init.host.bridge.ops нет draft, команда есть");
+    window.CONSOLEM_TRACE.length = 0;
+    bodies.length = 0;
+    const dn = await run("denied");
+    runOk("denied", dn);
+    const act = stepOf(dn, "act"), drf = stepOf(dn, "draft");
+    ok(/status 403/.test(act.detail || "") && /PERMISSION_DENIED/.test(act.detail || "") && bodies.filter((x) => x.path === `/units/${CTRL}/actions/ARM`).length === 1,
+      "runUnitAction — ответ сервера 403 PERMISSION_DENIED дошёл до страницы: " + act.detail);
+    ok(/status 0/.test(drf.detail || "") && /PERMISSION_DENIED/.test(drf.detail || "") && !trace("POST", "/operations").length && !cardDiff().length,
+      "createUnits — PERMISSION_DENIED моста со status 0, без запроса и без строки черновика: " + drf.detail);
+    if (restoreDenied) { restoreDenied(); restoreHost = null; }
+    if (onStand) {
+      ok((await realRaw("POST", "/test/reset", { fixture: "demo", freezeClock: false })).status === 200, "набор demo с прежним входом");
+      resetBack = false;
+    }
+    suiRetry();
+    pick(SUI_UNIT, { force: true, tab: "gen" });
+    ok(await until(() => sel === SUI_UNIT && suiFrame?.ready && !suiFrame.readOnly, 15000), "страница стенда снова с правом правки");
+
     // Все ответы — по схеме
     const results = sent.filter((m) => m.type === "result");
     const badRes = results.filter((m) => !valid(m));
     ok(!badRes.length, "все result по схеме (" + results.length + ") — " + JSON.stringify(badRes.slice(0, 1).map(errsOf)));
   } finally {
+    if (restoreHost) restoreHost();
+    if (onXRun) window.removeEventListener("message", onXRun);
+    if (resetBack) await realRaw("POST", "/test/reset", { fixture: "demo", freezeClock: false });
     if (restorePost) restorePost();
     API.raw = realRaw;
     suiPost = realPost;
