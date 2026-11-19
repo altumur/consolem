@@ -29,6 +29,8 @@
   let CAPS = null;
   // Виды и профили системы — из GET /kinds (если система его объявила): для needs "kind:<вид>", "implements:<профиль>"
   let KINDS = null;
+  // Справочник системы — GET /reference: для needs "ruleAction:<source>.<action>"
+  let REF = null;
 
   let api = null;
   async function connect() {
@@ -208,6 +210,7 @@
   // "kind:<вид объекта>", "implements:<профиль>", "prop:<вид>.<свойство>" (по GET /kinds), "clock" — остановленные часы,
   // "layout:<id>" — система объявила раскладку дерева (GET /kinds → layouts),
   // "section:<id>" — система объявила раздел приложения (GET /reference → capabilities.sections; поля нет — раздела нет),
+  // "ruleAction:<source>.<action>" — действие правила есть в каталоге системы (GET /reference → ruleActions),
   // "profile:<id>[@M.m]" — профиль объявлен (и его версия не младше M.m). Чего нет — тест пропускается (SKIP) и не
   // считается провалом. file — файл теста: ?only= отбирает и по имени теста, и по файлу (api-units).
   // layer — чью договорённость проверяет тест: "mechanism", "video" или "profile:<id>"; без него — слой файла (fileLayer).
@@ -287,6 +290,12 @@
       if (n.startsWith("implements:")) return !KINDS || !KINDS.items.some((k) => (k.implements || []).includes(n.slice(11)) && usableKind(k.kind));
       // layout:<id> — раскладку дерева объявила система (GET /kinds → layouts): тесты раскладок VMS на системе без них — SKIP
       if (n.startsWith("layout:")) return !KINDS || !(KINDS.layouts || []).some((l) => l.id === n.slice(7));
+      // ruleAction:<source>.<action> — действие правила есть в каталоге системы (GET /reference → ruleActions): раскладки клиента
+      // client.layout на системе без них — SKIP
+      if (n.startsWith("ruleAction:")) {
+        const [src, act] = n.slice(11).split(".");
+        return !REF || !(REF.ruleActions || []).some((a) => a.source === src && a.action === act);
+      }
       // section:<id> — раздел приложения объявила система (capabilities.sections): без объявления тест пропускается
       if (n.startsWith("section:")) return !((CAPS.sections || []).some((x) => x.id === n.slice(8)));
       // Служебные операции стенда (testEvent, testStreamElsewhere) в capabilities не входят: у стенда они есть всегда, а в needs
@@ -346,6 +355,7 @@
     }
     const ref = await api.raw("GET", "/reference");
     CAPS = ref.status === 200 && ref.body && ref.body.capabilities;
+    REF = ref.status === 200 ? ref.body : null;
     if (!CAPS) {
       lines.push(`FAIL  Система объявляет возможности — GET /reference → ${ref.status}, нет capabilities`);
       return finish(lines, [], "Тесты API не запущены: неизвестно, что умеет система", true);

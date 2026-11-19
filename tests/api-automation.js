@@ -167,10 +167,13 @@
     assert.status(bad, 422, "NOT_SUPPORTED", "PUT вне enum");
     assert.eq([bad.body.field, issue(bad), bad.body.params.issue.params.field], ["steps", "action.fieldNotDeclared", "method"], "поле");
     assert.status(await env.call("POST", "/rules", sysRule([http({ method: "POST" })])), 201, null, "значение из enum");
-    // Раскладка клиента: id раскладок — enum у schema поля layoutId (у системы, которая объявила client.layout)
+  }, { needs: ["createRule"] });
+
+  // Раскладка клиента: id раскладок — enum у schema поля layoutId. Система без client.layout — SKIP по needs, а не пустой PASS
+  test("Поле действия по schema: раскладка клиента вне enum у layoutId — action.fieldNotDeclared", async () => {
     const lay = ref.ruleActions.find((a) => a.source === "client" && a.action === "layout");
-    const f = lay && lay.fields.find((x) => x.id === "layoutId" && x.schema && x.schema.enum);
-    if (!f) return;
+    const f = lay && lay.fields.find((x) => x.id === "layoutId");
+    assert.ok(f && f.schema && Array.isArray(f.schema.enum) && f.schema.enum.length, "у client.layout поле layoutId с непустым schema.enum");
     const env2 = await makeEnv();
     const role = FX.access.roles[0].id;
     const one = (layoutId) => sysRule([{ source: "client", action: "layout", layoutId, roleId: role }]);
@@ -179,7 +182,7 @@
     assert.eq([issue(no), no.body.params.issue.params.field], ["action.fieldNotDeclared", "layoutId"], "поле layoutId");
     assert.status(await env2.call("POST", "/rules", one(f.schema.enum[0])), 201, null, "раскладка из enum");
     assert.ok(f.schema["x-enum-labels"] && f.schema["x-enum-labels"][f.schema.enum[0]], "подпись раскладки — x-enum-labels");
-  }, { needs: ["createRule"] });
+  }, { needs: ["createRule", "ruleAction:client.layout"] });
 
   // options снято в 0.32.0: поле без schema принимает любое значение, даже если бэкенд по старинке прислал options
   test("Поле действия без schema: значение любое, снятое options не ограничивает", async () => {
