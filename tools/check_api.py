@@ -190,6 +190,8 @@ def validate(spec, schema, value, where, out):
             out.append(f"{where}: {value!r} не подходит под {schema['pattern']}")
         if "minLength" in schema and len(value) < schema["minLength"]:
             out.append(f"{where}: короче {schema['minLength']}")
+        if "maxLength" in schema and len(value) > schema["maxLength"]:
+            out.append(f"{where}: длиннее {schema['maxLength']}")
     if k in ("integer", "number"):
         if "minimum" in schema and value < schema["minimum"]:
             out.append(f"{where}: {value} меньше {schema['minimum']}")
@@ -197,6 +199,8 @@ def validate(spec, schema, value, where, out):
             out.append(f"{where}: {value} больше {schema['maximum']}")
     if k == "array" and "minItems" in schema and len(value) < schema["minItems"]:
         out.append(f"{where}: меньше {schema['minItems']} элементов")
+    if k == "array" and "maxItems" in schema and len(value) > schema["maxItems"]:
+        out.append(f"{where}: больше {schema['maxItems']} элементов")
     if k == "array" and "items" in schema:
         for i, item in enumerate(value):
             validate(spec, schema["items"], item, f"{where}[{i}]", out)
@@ -1182,7 +1186,7 @@ def check_pages(rep, spec):
 # Разрешённые ключевые слова схемы сообщений: то, что понимают validate выше и ConsolemContract.check (api/contract.js),
 # плюс служебные слова корня и $defs. Список разрешённый, а не запретный: незнакомое слово — отказ, а не молчаливый пропуск
 SETUP_UI_KEYWORDS = {"type", "properties", "required", "additionalProperties", "items", "enum", "$ref", "oneOf", "anyOf", "format",
-                     "minimum", "maximum", "pattern", "minLength", "minItems", "description",
+                     "minimum", "maximum", "pattern", "minLength", "maxLength", "minItems", "maxItems", "description",
                      "$schema", "$id", "$defs", "title", "examples", "x-direction", "x-step"}
 SETUP_UI_DIRECTIONS = {"toPage": "→ страница", "toHost": "→ consolem"}
 
