@@ -5,7 +5,10 @@ UiCheck(async ({ ok, until, sleep, confirmWith }) => {
 
   // Удаление выгрузки: на время отсчёта задание помечено в дереве, «Удалить» закрыта, повторный вызов не запускает второй таймер
   const job = await API.post("/exports", { mode: "frame", source: "live", cameras: [{ uid: cam.id }], format: "jpg" });
+  // Справочник выгрузки — не на старте (старт большого домена — 16 запросов), а при первом заходе в «Экспорт»
+  const refAtStart = !can("getExportReference") || !EXP_REF;
   goApp("exp");
+  ok(refAtStart && await until(() => !!EXP_REF?.formats?.length), "справочник выгрузки прочитан при заходе в «Экспорт», а не на старте: форматов " + (EXP_REF?.formats || []).length);
   await expLoad();
   expSel = job.id;
   paint();

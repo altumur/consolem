@@ -4438,7 +4438,8 @@ async function capsLoad(){
   // Системе без /kinds остаются виды устройств справочника; с /kinds каталоги — из описаний видов (kindsApply)
   refDeviceTypes=c.deviceTypes?new Set(c.deviceTypes):null;refWritable=c.writableFields||null;
   CAPS.deviceTypes=new Set(c.deviceTypes||[]);CAPS.found=new Set(c.foundDeviceTypes||[]);CAPS.units=new Set(c.unitTypes||[]);CAPS.writable=c.writableFields||{};
-  await Promise.all([kindsLoad(),expRefLoad(ref)]);
+  expRefReset(ref);
+  await kindsLoad();
   capsApply();
 }
 function capsApply(){
@@ -7111,6 +7112,26 @@ function autoRefLists(ref,kinds){
   mon.forEach(x=>{RULE_MONS.push(x.name);REF_MONITOR.set(x.name,x.id);REF_MONITOR.set(x.id,x.name)});
 }
 // Справочник выгрузки: GET /exports/reference (контракт 0.30.0); система без этой операции — устаревший reference.export
+// Справочник выгрузки читается при первом заходе в «Экспорт» (expRefEnsure), а не на старте: старт на большом домене —
+// не больше 16 запросов (tests/scale-large.js). Система без getExportReference — устаревший reference.export сразу, без запроса
+let expRefP=null,expRefDone=false;
+function expRefReset(ref){
+  expRefP=null;expRefDone=!can("getExportReference");EXP_REF=expRefDone?ref?.export||null:null;
+  if(!expRefDone&&app==="exp")expRefEnsure();
+}
+function expRefEnsure(){
+  if(expRefDone)return Promise.resolve();
+  return expRefP||(expRefP=expRefLoad(REF_LAST).then(()=>{expRefDone=true;expRefFill(expD);if(app==="exp")paint()}));
+}
+// Заказ, начатый до ответа справочника, получает его умолчания: предел файла и первый шрифт, если их не меняли
+const expNoRef=new WeakSet();
+function expRefFill(d){
+  if(!d||!expNoRef.has(d)||!EXP_REF)return;
+  expNoRef.delete(d);
+  const L=EXP_REF.limits||{},f0=EXP_REF.fonts?.[0];
+  if(d.adv.maxmb===4000&&L.maxFileMbDefault)d.adv.maxmb=L.maxFileMbDefault;
+  if(!d.adv.font&&f0)d.adv.font=`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`;
+}
 async function expRefLoad(ref){
   EXP_REF=can("getExportReference")?await API.get("/exports/reference").catch(e=>{console.error("expRefLoad",e);return ref?.export||null}):ref?.export||null;
 }
@@ -9353,7 +9374,7 @@ function sectionLoad(a){
   if(a==="log"&&pjRes)pjRes.key=null;
   if(a==="sys"&&!licLoaded)licLoad().then(again);
   if(a==="acc"&&!accShown)accLoad().then(again);
-  if(a==="exp")expLoad().then(again);
+  if(a==="exp")Promise.all([expLoad(),expRefEnsure()]).then(again);
 }
 function toggleUserMenu(e){
   e.stopPropagation();
@@ -19525,9 +19546,11 @@ const EXP_DEF={codec:"source",compression:"default",resolution:"source",fps:1,pl
 function expDraftNew(o={}){
   const now=Date.now(),L=EXP_REF?.limits||{},f0=EXP_REF?.fonts?.[0];
   const adv=Object.assign({},EXP_DEF,{maxmb:L.maxFileMbDefault||4000,font:f0?`${f0.id}|${f0.sizes[1]??f0.sizes[0]}`:"",tracks:[],titles:EXP_DEF.titles.slice()});
-  return{entry:o.entry||"archive",from:o.from||"",cams:(o.cams||[]).map(id=>({id,area:null})),
+  const d={entry:o.entry||"archive",from:o.from||"",cams:(o.cams||[]).map(id=>({id,area:null})),
     periods:o.periods||[{from:now-10*60e3,to:now-5*60e3}],format:o.format||(o.entry==="live"?"jpg":"mkv"),single:true,name:"",nameSet:false,password:"",comment:o.comment||"",
     supLogin:"",supPwd:"",bookmarkId:o.bookmarkId||null,bookmarkNote:o.bookmarkNote||"",adv,tab:"main"};
+  if(!expRefDone)expNoRef.add(d);
+  return d;
 }
 const expFmt=d=>(EXP_REF?.formats||[]).find(f=>f.id===d.format)||null;
 const expFrame=d=>expFmt(d)?.kind==="frame";
@@ -19573,6 +19596,7 @@ function expBody(d){
 }
 // Открыть раздел с заказом: из карточки камеры, из отметки, с кнопки на рельсе
 function expOpen(o){
+  if(!expRefDone){expRefEnsure().then(()=>expOpen(o));return}   // заказ — с умолчаниями справочника
   expD=expDraftNew(o||{});expSel="new";expChk=null;expPick=null;
   if(app!=="exp")setApp("exp");else paint();
   expGrantLoad().then(expRepaint);expCheckSoon();
