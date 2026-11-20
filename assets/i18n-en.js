@@ -28,6 +28,8 @@ window.I18N_EN={
 "Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.":"The “beyond the profile” label marks the properties that are not in the profile of the kind.",
 "В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.":"The settings have changes that are not applied. Here the properties are read-only. To edit them here, apply or reset the changes.",
 "сверх профиля":"beyond the profile",
+"новое в версии профиля":"new in profile version",
+"Метка «новое в версии профиля» стоит у свойств, которые сервер добавил в профиль после версии, которую знает консоль. Настройка эти свойства не показывает.":"The “new in profile version” label marks the properties that the server added to the profile after the version that the console knows. The settings screen does not show these properties.",
 "Имя меняют в настройке":"Change the name in the settings",
 // ONVIF-сервер и вкладка «Веб, RTSP, ONVIF» (из прототипа 75)
 "ONVIF-сервер":"ONVIF server",

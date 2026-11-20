@@ -2,7 +2,7 @@
    (implements), а не по коду вида: ступень 1 — своя страница (screenPageStep, до части 05 — форма по схеме у вида с
    setupUi), ступень 2 — ручной экран по SCREEN_OF_PROFILE (handScreenOf), ступень 3 — форма по схеме. Раздел А — выбор
    экрана; раздел Г — профиль снят с вида при открытой карточке (kinds.changed); Г2 — то же у других кодов ручных экранов
-   (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей. Виды теста ставятся в KINDS на время
+   (замок, сервер); Г3 — вкладка «Репликация» на состоянии без ожидаемых полей; Д — версия профиля от сервера (прототип 82). Виды теста ставятся в KINDS на время
    проверки и снимаются в finally с kindsApply(). Сценарий пришёл с прототипом 78 (index_78_ekran-po-profilyu.html, удалён), теперь проверяет index.html.
    Охрана screenFor — для прототипов, скопированных с index.html до переноса; на index.html она — сбой (absent). */
 UiCheck(async ({ ok, until, absent }) => {
@@ -450,6 +450,63 @@ UiCheck(async ({ ok, until, absent }) => {
         ok(!err && chip && edgeStat(st)?.label === "—", "вкладка «Репликация» на replicationStatus " + JSON.stringify(v) + " — без исключения, состояние «—»" + (err ? ": " + err : chip ? "" : ": нет «—» в состоянии"));
       }
       st.replicationStatus = was;
+    }
+  }
+
+  // ── Д. Версия профиля от сервера (запрос 154325Z, п. 5; из прототипа 82) ──
+  // Консоль знает профили набора demo (api/fixture.js). Сервер новее — поле, которого консоль не знает, не входит в поля
+  // своего экрана, «Все параметры» отмечают его «новое в версии профиля». Сервер той же версии с лишним полем, версия не по
+  // формату, поле другого знакомого профиля экрана — без метки «новое»
+  if (typeof profileKnown !== "function") absent("profileKnown");
+  else {
+    let cam = null;
+    walkAll((n) => { if (!cam && handCam(n) && !isSchemaNode(n) && !n._row) cam = n; });
+    if (!cam) ok(false, "в наборе нет камеры с полной записью: версию профиля проверить не на чем");
+    else {
+      const K = KINDS.get("camera"), schemaWas = K.schema, wasProf = new Map(KIND_PROFILES);
+      const fieldsWas = handScreenFields("camera").slice().sort().join();
+      const withProf = (id, ch) => { const w = KIND_PROFILES.get(id); KIND_PROFILES.set(id, Object.assign({}, w, ch, { properties: ch.properties ? ch.properties(profileProps(w)) : w.properties })); };
+      const formAll = () => baseTabs(cam).map(([id]) => baseFormHtml(cam, id)).join("");
+      const rowOf = (html, f) => { const d = document.createElement("div"); d.innerHTML = html; return d.querySelector(`[data-sf="${f}"]`)?.parentElement || null; };
+      try {
+        K.schema = JSON.parse(JSON.stringify(schemaWas));
+        K.schema.properties.pvNew = { type: "string", title: "pvNew" };
+        // 1. Сервер новее: 1.7 с полем pvNew
+        withProf("vms.camera/1", { version: "1.7", properties: (ps) => ps.concat("pvNew") });
+        ok(profileServerNewer("vms.camera/1") && JSON.stringify(kindNewerProps("camera")) === '{"pvNew":"1.7"}', "сервер 1.7 новее консоли: kindNewerProps — pvNew с версией 1.7: " + JSON.stringify(kindNewerProps("camera")));
+        ok(handScreenFields("camera").slice().sort().join() === fieldsWas, "поля своего экрана не изменились: pvNew консоль не знает");
+        let html = formAll(), row = rowOf(html, "pvNew");
+        ok(!!row && /новое в версии профиля 1\.7/.test(row.querySelector("[data-prof-newer]")?.textContent || "") && !row.querySelector("[data-only-here]"),
+          "«Все параметры»: у pvNew метка «новое в версии профиля 1.7», без «сверх профиля»");
+        ok(/Метка «новое в версии профиля» стоит у свойств/.test(html), "шапка «Все параметры» объясняет метку «новое в версии профиля»");
+        // 2. Сервер той же версии с лишним полем — не «новое», а «сверх профиля», как раньше
+        KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v));
+        withProf("vms.camera/1", { version: profileVer(profileKnown("vms.camera/1")), properties: (ps) => ps.concat("pvNew") });
+        html = formAll(); row = rowOf(html, "pvNew");
+        ok(JSON.stringify(kindNewerProps("camera")) === "{}" && !!row?.querySelector("[data-only-here]") && !row.querySelector("[data-prof-newer]"),
+          "сервер той же версии с лишним полем: pvNew — «сверх профиля», без «новое в версии профиля»");
+        // 3. Версия не по формату — не новее
+        KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v));
+        withProf("vms.camera/1", { version: "1.7.2", properties: (ps) => ps.concat("pvNew") });
+        ok(profileVer(KIND_PROFILES.get("vms.camera/1")) === null && JSON.stringify(kindNewerProps("camera")) === "{}", "версия «1.7.2» не по формату: сервер не новее, меток «новое» нет");
+        // 4. Поле другого знакомого профиля экрана: fps есть у vms.camera/1, новый vms.ptz/1 его приносит — экран fps показывает
+        KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v));
+        if (profileProps(profileKnown("vms.camera/1")).includes("fps") && KIND_PROFILES.has("vms.ptz/1")) {
+          withProf("vms.ptz/1", { version: "1.9", properties: (ps) => ps.concat("fps") });
+          ok(handScreenFields("camera").includes("fps") && !("fps" in kindNewerProps("camera")), "fps приносит vms.camera/1: новый vms.ptz/1 с fps не даёт метки «новое»");
+        }
+        // 5. Сервер без поля знакомой версии: поле не входит в поля своего экрана
+        KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v));
+        const one = profileProps(KIND_PROFILES.get("vms.camera/1")).find((f) => !profileProps(KIND_PROFILES.get("vms.stream/1")).includes(f) && !profileProps(KIND_PROFILES.get("vms.ptz/1")).includes(f));
+        withProf("vms.camera/1", { properties: (ps) => ps.filter((f) => f !== one) });
+        ok(!!one && !handScreenFields("camera").includes(one), `сервер без поля ${one}: поле не входит в поля своего экрана`);
+        // 6. Профиль без version — M.0
+        ok(profileVer({ id: "vms.camera/2" }) === "2.0" && profileVer({ id: "vms.camera/1", version: 2 }) === null, "без version — M.0 из id; число вместо строки — не по формату");
+      } finally {
+        KIND_PROFILES.clear(); wasProf.forEach((v, k) => KIND_PROFILES.set(k, v));
+        K.schema = schemaWas;
+      }
+      ok(handScreenFields("camera").slice().sort().join() === fieldsWas && JSON.stringify(kindNewerProps("camera")) === "{}", "после проверки: поля экрана камеры как до неё, меток «новое» нет");
     }
   }
 });
