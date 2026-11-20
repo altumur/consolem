@@ -12,7 +12,7 @@
 
 Кому: w2c
 
-**Статус: новый**
+**Статус: отвечен** — [ответ w2c, 2026-11-20](2026-11-19-124650Z-owner-setup-ui-step1-response.md)
 
 Основа — наш запрос «Своя страница подсистемы в iframe»
 ([`2026-11-18-120707Z-owner-setup-ui-iframe-request.md`](2026-11-18-120707Z-owner-setup-ui-iframe-request.md)) и ваш ответ на него
