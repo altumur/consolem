@@ -23439,6 +23439,9 @@ function posFmt(k,v){
   return null;
 }
 // Схема — вида узла: касса плагина с vms.pos/1 читает свои умолчания и перечни
+// Чек делится только по словам начала (receiptSplit none). Поля нет в версии сервера (правило 2) — умолчание сервера: по
+// словам начала и конца
+function posByStart(n){return posVal(n,"receiptSplit")==="none"&&!nodeFieldOff(n,"receiptSplit")}
 function posDef(n,k){return nodeProps(n)[k]?.default}
 function posVal(n,k){return n[k]!==undefined?n[k]:posDef(n,k)}
 // Камеры титров: список overlays; у системы без него — одна камера из cameraId (n.camera)
@@ -23522,7 +23525,7 @@ function posHas(line,w,cs){return cs?line.includes(w):line.toLowerCase().include
 function posBounds(n,lines){
   const cs=posVal(n,"ignoreCase")===false,find1=(ws,from)=>lines.findIndex((t,i)=>i>=from&&ws.some(w=>w&&posHas(t,w,cs)));
   const start=n.receiptStartWords||[],end=n.receiptEndWords||[];
-  const s=start.length?find1(start,0):-1,e=end.length&&posVal(n,"receiptSplit")!=="none"?find1(end,Math.max(0,s)):-1;
+  const s=start.length?find1(start,0):-1,e=end.length&&!posByStart(n)?find1(end,Math.max(0,s)):-1;
   return{s,e};
 }
 function posLines(n,lines){
@@ -23573,7 +23576,7 @@ function posFrameHtml(n){
 }
 function posCamsHtml(n){
   const list=posOverlays(n),cur=posCur(n),free=list.length<(posMulti(n)?16:1)?overlayCameras(n).filter(c=>!list.some(o=>o.cameraId===c.id)):[];
-  return`<div class="pos-cams">${list.map(o=>{const c=o.cameraId,cn=find(c)?.n;return`<span class="pos-cam${c===cur?" on":""}"><button type="button" class="pos-cam-b" ${onEv("click",["posCamPick",`${n.id}`,c])}>${escHtml(cn?locName(cn):c)}</button><button type="button" class="pos-cam-x" aria-label="${i18n("Убрать камеру")}" title="${i18n("Убрать камеру")}" ${onEv("click",["posCamDel",`${n.id}`,c])}>×</button></span>`}).join("")}
+  return`<div class="pos-cams"${pfa(n,posMulti(n)?"overlays":"cameraId")}>${list.map(o=>{const c=o.cameraId,cn=find(c)?.n;return`<span class="pos-cam${c===cur?" on":""}"><button type="button" class="pos-cam-b" ${onEv("click",["posCamPick",`${n.id}`,c])}>${escHtml(cn?locName(cn):c)}</button><button type="button" class="pos-cam-x" aria-label="${i18n("Убрать камеру")}" title="${i18n("Убрать камеру")}" ${onEv("click",["posCamDel",`${n.id}`,c])}>×</button></span>`}).join("")}
     ${free.length?`<select class="pos-cam-add" aria-label="${i18n("Добавить камеру")}" ${onEv("change",["posCamAdd",`${n.id}`,onEv.value])}><option value="">${i18n("+ Камера")}</option>${free.map(c=>`<option value="${escHtml(c.id)}">${escHtml(locName(c))}</option>`).join("")}</select>`:""}</div>`;
 }
 function posPreviewCard(n){
@@ -23621,20 +23624,21 @@ function posMergeProto(out,n){
   g.forEach(r=>{if(r!==first)out.splice(out.indexOf(r),1)});
 }
 function posTog(id,k){const n=find(id)?.n;if(!n)return;n[k]=!posVal(n,k);setD(true);gear()}
-function posChk(id,n,k,label,hint=""){return`<label class="chk pos-chk"><input type="checkbox" ${posVal(n,k)?"checked":""} ${onEv("change",["posTog",`${id}`,k])}> ${i18n(label)}${hint?`<span class="sub">${i18n(hint)}</span>`:""}</label>`}
+// Поля кассы по ключу k: метка правила 2 версии профиля (pfa) — у всех полей posChk, posSel и posNum сразу
+function posChk(id,n,k,label,hint=""){return`<label class="chk pos-chk"${pfa(n,k)}><input type="checkbox" ${posVal(n,k)?"checked":""} ${onEv("change",["posTog",`${id}`,k])}> ${i18n(label)}${hint?`<span class="sub">${i18n(hint)}</span>`:""}</label>`}
 function posSel(id,k,label,opts,cur){
-  return`<div><label>${i18n(label)}</label><select ${onEv("change",["posSet",`${id}`,k,onEv.value])}>${opts.map(o=>{const[v,t]=Array.isArray(o)?o:[o,o];return`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${i18n(t)}</option>`}).join("")}</select></div>`;
+  return`<div${pfa(find(id)?.n,k)}><label>${i18n(label)}</label><select ${onEv("change",["posSet",`${id}`,k,onEv.value])}>${opts.map(o=>{const[v,t]=Array.isArray(o)?o:[o,o];return`<option value="${escHtml(v)}" ${String(v)===String(cur)?"selected":""}>${i18n(t)}</option>`}).join("")}</select></div>`;
 }
 function posNum(id,n,k,label){
   const p=nodeProps(n)[k]||{},v=posVal(n,k);
-  return`<div><label>${i18n(label)}</label><input type="number" value="${escHtml(v??"")}" ${p.minimum!=null?`min="${p.minimum}"`:""} ${p.maximum!=null?`max="${p.maximum}"`:""} ${onEv("change",["posSet",`${id}`,k,onEv.value])}></div>`;
+  return`<div${pfa(n,k)}><label>${i18n(label)}</label><input type="number" value="${escHtml(v??"")}" ${p.minimum!=null?`min="${p.minimum}"`:""} ${p.maximum!=null?`max="${p.maximum}"`:""} ${onEv("change",["posSet",`${id}`,k,onEv.value])}></div>`;
 }
 function posLookCard(n){
   const font=posVal(n,"overlayFont"),fonts=POS_FONTS.includes(font)?POS_FONTS:[font,...POS_FONTS],clear=posVal(n,"overlayBgTransparency");
   return card("Вид титров",`<div class="g">${posSel(n.id,"overlayFont","Шрифт",fonts,font)}${posNum(n.id,n,"overlayFontSize","Размер, пт")}
-    <div><label>${i18n("Цвет текста")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayColor")))}" ${onEv("change",["posSet",`${n.id}`,"overlayColor",onEv.value])}></div>
-    <div><label>${i18n("Цвет фона")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayBg")))}" ${onEv("change",["posSet",`${n.id}`,"overlayBg",onEv.value])}></div>
-    <div class="pos-range"><label>${i18n("Прозрачность фона")}: ${escHtml(clear)} %</label><input type="range" min="0" max="100" step="5" value="${escHtml(clear)}" ${onEv("input",["posClear",`${n.id}`,onEv.el])} ${onEv("change",["posSet",`${n.id}`,"overlayBgTransparency",onEv.value])}></div></div>`);
+    <div${pfa(n,"overlayColor")}><label>${i18n("Цвет текста")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayColor")))}" ${onEv("change",["posSet",`${n.id}`,"overlayColor",onEv.value])}></div>
+    <div${pfa(n,"overlayBg")}><label>${i18n("Цвет фона")}</label><input type="color" value="${escHtml(colorFull(posVal(n,"overlayBg")))}" ${onEv("change",["posSet",`${n.id}`,"overlayBg",onEv.value])}></div>
+    <div class="pos-range"${pfa(n,"overlayBgTransparency")}><label>${i18n("Прозрачность фона")}: ${escHtml(clear)} %</label><input type="range" min="0" max="100" step="5" value="${escHtml(clear)}" ${onEv("input",["posClear",`${n.id}`,onEv.el])} ${onEv("change",["posSet",`${n.id}`,"overlayBgTransparency",onEv.value])}></div></div>`);
 }
 function posClear(id,el){
   const n=find(id)?.n;if(!n)return;
@@ -23658,7 +23662,7 @@ function posListAdd(id,k,v,focus=true){
 function posListDel(id,k,i){const n=find(id)?.n;if(!n)return;const l=(n[k]||[]).filter((w,j)=>j!==i);if(l.length)n[k]=l;else delete n[k];setD(true);gear()}
 function posBillCard(n){
   const lines=posRawLines(n),{s,e}=posBounds(n,lines),start=n.receiptStartWords||[],end=n.receiptEndWords||[];
-  const byStart=posVal(n,"receiptSplit")==="none";
+  const byStart=posByStart(n);
   const warn=byStart&&!start.length?`<div class="nt">${i18n("Нет слов начала чека. Без них сервер не делит строки на чеки, и поиск по чекам в архиве не работает.")}</div>`
     :!start.length||!end.length&&!byStart?`<div class="nt">${i18n("Нет слов начала или конца чека. Без них сервер не делит строки на чеки, и поиск по чекам в архиве не работает.")}</div>`
     :!lines.length?""
@@ -23666,16 +23670,16 @@ function posBillCard(n){
     :e<0&&!byStart?`<div class="nt">${i18n("В последних строках от кассы нет слова конца чека. Проверить написание: сервер сравнивает слова посимвольно.")}</div>`
     :`<p class="sub pos-ok">${i18n("Пример: консоль взяла строки {from}–{to} из {total} как чек.").replace("{from}",s+1).replace("{to}",e<0?lines.length:e+1).replace("{total}",lines.length)}</p>`;
   return card("Чек",`<div class="pos-wide">${posSel(n.id,"receiptSplit","Как делить строки на чеки",[["skip","По словам начала и конца"],["none","Только по словам начала"]],posVal(n,"receiptSplit"))}</div>
-    <div class="pos-two"><div data-pos-list="receiptStartWords"><label class="sub">${i18n("Слова начала чека")}</label>${posListHtml(n,"receiptStartWords","Слово и Enter")}</div>
-      <div data-pos-list="receiptEndWords"><label class="sub">${i18n("Слова конца чека")}</label>${posListHtml(n,"receiptEndWords","Слово и Enter",byStart)}</div></div>
+    <div class="pos-two"><div data-pos-list="receiptStartWords"${pfa(n,"receiptStartWords")}><label class="sub">${i18n("Слова начала чека")}</label>${posListHtml(n,"receiptStartWords","Слово и Enter")}</div>
+      <div data-pos-list="receiptEndWords"${pfa(n,"receiptEndWords")}><label class="sub">${i18n("Слова конца чека")}</label>${posListHtml(n,"receiptEndWords","Слово и Enter",byStart)}</div></div>
     ${byStart?`<p class="sub">${i18n("Новый чек начинается со слова начала. Слова конца сервер не проверяет.")}</p>`:""}
     ${warn}
     <div class="pos-chks">${posChk(n.id,n,"ignoreCase","Не учитывать регистр слов начала и конца")}
       ${posChk(n.id,n,"billsOnly","Показывать только строки чека","Строки между словами начала и конца")}
       ${posChk(n.id,n,"eraseOnEnd","Убирать строки после конца чека")}</div>`);
 }
-function posShowCard(){
-  return card("Показ чека",`<div class="g">${fld("Задержка, мс","","number")}</div>${posDurHtml()}`);
+function posShowCard(n){
+  return card("Показ чека",`<div class="g">${pfw(n,"overlayDelayMs",fld("Задержка, мс","","number"))}</div>${pfw(n,"overlayDurationSec",posDurHtml())}`);
 }
 function posWordsCard(n){
   const ws=n.words||[];
@@ -23704,7 +23708,7 @@ function posRawUse(id,i,k){
     wordsEdit(id,l=>l.concat({msg:t,color:"#ff4444",bg:"#000000"}));toast(`${i18n("Консоль добавила слово в подсветку")}: «${t}»`);return;
   }
   const key=k==="start"?"receiptStartWords":"receiptEndWords";
-  if(k==="end"&&posVal(n,"receiptSplit")==="none")return;
+  if(k==="end"&&posByStart(n))return;
   if((n[key]||[]).includes(t)){toast(`${i18n("Слово уже есть в списке")}: «${t}»`);return}
   if((n[key]||[]).length>=32){toast(i18n("В списке уже 32 слова. Удалить слово из списка, чтобы добавить новое."));return}
   n[key]=(n[key]||[]).concat(t);setD(true);gear();toast(`${i18n(k==="start"?"Консоль добавила слово начала чека":"Консоль добавила слово конца чека")}: «${t}»`);
@@ -23719,7 +23723,7 @@ function posRawCard(n){
     :i18n("Строк от кассы пока нет. Проверить адрес, порт и протокол на вкладке «Подключение».");
   return card("Строки от кассы",`<p class="sub" data-pos-raw-head role="status">${head} ${refresh}</p>
     <div class="pos-raw">${items.map((x,i)=>`<div class="pos-raw-ln${i===s?" is-s":""}${i===end?" is-e":""}" data-raw="${i}"><time>${clockText(x.at,true)}</time><span class="pos-raw-t">${escHtml(x.text)}</span>
-      <span class="pos-raw-acts">${[["start","Начало чека"],...(posVal(n,"receiptSplit")==="none"?[]:[["end","Конец чека"]]),["word","Подсветить"]].map(([k,l])=>`<button type="button" class="btn s" ${onEv("mousedown",onEv.prevent,["posRawSel",onEv.el])} ${onEv("click",["posRawUse",`${n.id}`,i,k])}>${i18n(l)}</button>`).join("")}</span></div>`).join("")}</div>
+      <span class="pos-raw-acts">${[["start","Начало чека"],...(posByStart(n)?[]:[["end","Конец чека"]]),["word","Подсветить"]].map(([k,l])=>`<button type="button" class="btn s" ${onEv("mousedown",onEv.prevent,["posRawSel",onEv.el])} ${onEv("click",["posRawUse",`${n.id}`,i,k])}>${i18n(l)}</button>`).join("")}</span></div>`).join("")}</div>
     <p class="sub">${i18n("Выделить слово в строке и нажать кнопку. Без выделения кнопка берёт строку целиком. Так слово совпадёт с тем, что передаёт касса, вплоть до символа.")}</p>`);
 }
 // Левая колонка (кадр) прилипает к верху и не выше видимой области прокрутки: иначе её низ виден только в конце правой
@@ -23734,7 +23738,7 @@ function posTitlesHtml(n){
   setTimeout(posColFit,0);
   // Другой источник, чем в прошлый раз: строки читаются заново, у того же — берутся из кэша, обновляет «Обновить»
   posRawLoad(n.id,posRawLast!==n.id);posRawLast=n.id;
-  return`<div class="pos-grid"><div class="pos-l">${posPreviewCard(n)}</div><div class="pos-r">${posLookCard(n)}${posBillCard(n)}${posShowCard()}${posWordsCard(n)}${posRawCard(n)}</div></div>`;
+  return`<div class="pos-grid"><div class="pos-l">${posPreviewCard(n)}</div><div class="pos-r">${posLookCard(n)}${posBillCard(n)}${posShowCard(n)}${pfw(n,"words",posWordsCard(n))}${posRawCard(n)}</div></div>`;
 }
 // Подключение: драйвер, приём данных, кодировка; разбор — в «Дополнительно». Поля POSLegacy — только у него
 function posDriverSet(el){cardFld(el);gear()}
@@ -23747,15 +23751,15 @@ function posConnHtml(n){
   const udp=proto==="udp"?posNum(n.id,n,"udpMaxPacket","Наибольший пакет, байт"):"";
   const enc=posSel(n.id,"encoding","Кодировка",["auto","dos2win","utf8"].map(k=>[k,POS_ENUM_RU.encoding[k]]),posVal(n,"encoding"));
   const terms=n.terminalType&&!POS_TERMINALS.includes(n.terminalType)?[n.terminalType,...POS_TERMINALS]:POS_TERMINALS;
-  return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g pos-g" style="margin-top:10px">${fld("Имя",n.name)}${drvSel}${fld("Модель",n.model)}
-      ${proto==="rs232"?"":fld("Адрес кассы или сервера",n.ip)}${proto==="rs232"?"":fld("Порт",n.port,"number")}${sourceServerHtml(n)}${fldRo("MAC",n.mac||"—")}</div>
+  return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g pos-g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"vendor",drvSel)}${pfw(n,"model",fld("Модель",n.model))}
+      ${proto==="rs232"?"":pfw(n,"ip",fld("Адрес кассы или сервера",n.ip))}${proto==="rs232"?"":pfw(n,"port",fld("Порт",n.port,"number"))}${pfw(n,"serverId",sourceServerHtml(n))}${fldRo("MAC",n.mac||"—")}</div>
       <p class="sub">${i18n("Получает события от внешних систем (POS, кассы). Источник работает на одном сервере. Если сервер не работает, источник не переходит на другой сервер. Адрес — адрес сервера или имя кассы, не 0.0.0.0.")}</p>
-      ${drv==="PosXml"?"":`<div class="nt">${i18n("Без PosXml источник не работает на сервере с Linux, а отчёты по чекам недоступны.")}</div>`}`)
+      ${drv==="PosXml"||nodeFieldOff(n,"vendor")?"":`<div class="nt">${i18n("Без PosXml источник не работает на сервере с Linux, а отчёты по чекам недоступны.")}</div>`}`)
     +card("Приём данных",`<div class="g pos-g">${posSel(n.id,"protocol","Протокол",["tcp","udp","rs232"].map(k=>[k,POS_ENUM_RU.protocol[k]]),proto)}${com}${udp}${enc}</div>
       <details class="pos-adv"${posAdvOpen.has(n.id)?" open":""}><summary ${onEv("click",["posAdvTog",`${n.id}`,onEv.el])}>${i18n("Дополнительно: разбор данных")}</summary>
         <div class="g pos-g" style="margin-top:8px">
           ${legacy?posSel(n.id,"terminalType","Тип терминала",[["","Нет"],...terms.map(t=>[t,t])],n.terminalType||""):""}
-          <div><label>${i18n("Файл парсера")}</label><input value="${escHtml(n.parserFile||"")}" placeholder="pos_kassa.prl" ${onEv("change",["posSet",`${n.id}`,"parserFile",onEv.value])}></div>
+          <div${pfa(n,"parserFile")}><label>${i18n("Файл парсера")}</label><input value="${escHtml(n.parserFile||"")}" placeholder="pos_kassa.prl" ${onEv("change",["posSet",`${n.id}`,"parserFile",onEv.value])}></div>
           ${posSel(n.id,"processing","Обработка строк",["line","event","json"].map(k=>[k,POS_ENUM_RU.processing[k]]),posVal(n,"processing"))}
           ${posNum(n.id,n,"timeoutMs","Таймаут, мс")}
           ${posNum(n.id,n,"timeOffsetMs","Сдвиг времени, мс")}
@@ -23790,9 +23794,9 @@ function unitCardHtml(n){
   const props=(o?.properties||[]).map(p=>{const v=(n.properties||{})[p.key]??p.default??p.options?.[0]??"";
     return`<div><label>${escHtml(p.key)}</label>${p.options?`<select ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>${p.options.map(x=>`<option value="${escHtml(x)}" ${x===v?"selected":""}>${escHtml(x)}</option>`).join("")}</select>`:`<input type="number" value="${escHtml(v)}" ${onEv("change",["unitPropSet",`${n.id}`,`${p.key}`,onEv.value])}>`}</div>`}).join("");
   const ops=(n.operations||[]).map(x=>`<button type="button" class="btn s" data-unit-op="${escHtml(x)}" ${off?"disabled":""} ${onEv("click",["unitRun",`${n.id}`,`${x}`])}>${escHtml(unitOpLabel(x))}</button>`).join("");
-  return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Адрес","path",n.path||"")}${fldRo("Шаблон",o?.name||n.model||"—")}</div>
+  return card(LB[n.type],`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${devFld(n,"Имя","name",n.name)}${devFld(n,"Адрес","path",n.path||"")}${pfw(n,"model",fldRo("Шаблон",o?.name||n.model||"—"))}</div>
     ${props?`<div class="g" style="margin-top:10px">${props}</div>`:""}
-    ${ops?`<p class="sub">${i18n("Команды — для проверки настройки")}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${ops}</div>`:""}`)+childListCard(n,{title:"Дочерние"});
+    ${ops?`<div${pfa(n,"operations")}><p class="sub">${i18n("Команды — для проверки настройки")}</p><div style="display:flex;gap:6px;flex-wrap:wrap">${ops}</div></div>`:""}`)+childListCard(n,{title:"Дочерние"});
 }
 function unitPropSet(id,k,v){const n=find(id)?.n;if(!n)return;n.properties={...(n.properties||{}),[k]:v===""||Number.isNaN(Number(v))?v:Number(v)};setD(true)}
 function unitRun(id,op){
@@ -24440,9 +24444,9 @@ function formBase(n){
     if(tab==="kids"){const types=["acfa","acfa_sensor","acfa_lock","acfa_fence"];
       return types.map(tp=>childListCard(n,{key:tp,title:tp==="acfa"?"Контроллеры":LB[tp],filter:d=>d.type===tp,empty:"Подобъектов этого типа нет",head:tp==="acfa"?unitAddBtn():""})).join("")+
         `<p class="sub">ACFA-устройства (пожарная защита, СКУД): датчики, замки, шлейфы и другие подобъекты с собственной иерархией.</p>`}
-    if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Адрес",n.path||"")}</div>
+    if(nested)return card("Контроллер",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"path",fld("Адрес",n.path||""))}</div>
       <p class="sub">${i18n("Контроллер работает через родительское устройство. У контроллера нет своего подключения.")}</p>`);
-    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Производитель",n.vendor)}${fld("Модель",n.model)}${fld("IP",n.ip)}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
+    return card("Подключение",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${pfw(n,"vendor",fld("Производитель",n.vendor))}${pfw(n,"model",fld("Модель",n.model))}${pfw(n,"ip",fld("IP",n.ip))}${fldRo("MAC",n.mac||"—")}</div>`)+deviceFoldersCardHtml(n)}
   if(handOf(n,"export"))return card("Экспорт видео",`${bdg(n)}${enabledToggleHtml(n)}<div class="g" style="margin-top:10px">${fld("Имя",n.name)}${fld("Папка",n.path)}${sl("Формат",["MP4","AVI"],n.format)}</div>
     <p class="sub">Используется в правилах автоматизации: при срабатывании экспортирует фрагмент в указанную папку на сервере.</p>`);
   if(handOf(n,"email")){
