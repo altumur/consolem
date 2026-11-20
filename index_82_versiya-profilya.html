@@ -5655,32 +5655,41 @@ function profileProps(p){const x=p?.properties;return Array.isArray(x)?x.slice()
 // написаны её ручные экраны: раздел profiles набора demo в api/fixture.js (его собирает tools/build_api.py из
 // api/profiles/*.json). Сервер присылает свою младшую версию в GET /kinds → profiles[].version и поля этой версии.
 // Поля своего экрана — пересечение двух списков. Поле версии сервера, которого консоль не знает (сервер новее), экран не
-// берёт: его показывает «Все параметры» с меткой «новое в профиле» (правило 1). Поле, которого нет в версии сервера
-// (сервер старше), экран тоже не берёт (правило 2). Профиль, которого консоль не знает, — как раньше: поля сервера
+// берёт: его показывает «Все параметры» с меткой «новое в версии профиля» (правило 1). Поле, которого нет в версии
+// сервера (сервер старше), экран тоже не берёт (правило 2). Профиль, которого консоль не знает, — как раньше: поля сервера
 let profKnownMap=null;
 function profileKnown(id){
   if(!profKnownMap){profKnownMap=new Map();(window.CONSOLEM_FIXTURES?.demo?.profiles||[]).forEach(p=>{if(p?.id)profKnownMap.set(p.id,p)})}
   return profKnownMap.get(id)||null;
 }
-// Младшая версия «M.m»; сервер без version — M.0, где M — старшая версия из id
+// Младшая версия «M.m»; без version — M.0, где M — старшая версия из id; версия не по формату — null
 function profileVer(p){
-  const v=p?.version;if(typeof v==="string"&&/^\d+\.\d+$/.test(v))return v;
+  const v=p?.version;
+  if(v!==undefined&&v!==null)return typeof v==="string"&&/^\d+\.\d+$/.test(v)?v:null;
   const m=/\/(\d+)$/.exec(p?.id||"");return(m?m[1]:"1")+".0";
 }
 function profileVerCmp(a,b){const[x1,y1]=a.split(".").map(Number),[x2,y2]=b.split(".").map(Number);return x1-x2||y1-y2}
+// Сервер новее консоли: его младшая версия выше знакомой. Версия не по формату — не новее
+function profileServerNewer(id){
+  const vs=profileVer(KIND_PROFILES.get(id)),vk=profileVer(profileKnown(id));
+  return!!vs&&!!vk&&profileVerCmp(vs,vk)>0;
+}
 function profileScreenProps(id){
   const sp=profileProps(KIND_PROFILES.get(id)),kn=profileKnown(id);
   if(!kn)return sp;
   const k=new Set(profileProps(kn));return sp.filter(f=>k.has(f));
 }
-// Поля версии сервера, которых консоль не знает: {поле: версия сервера}
+// Поля версии сервера, которых консоль не знает, когда сервер новее: {поле: версия сервера}. Сервер той же или старшей
+// версии с лишним полем (поле снято в знакомой версии, как login у vms.acs/1 1.1) — не «новое»: «сверх профиля», как раньше
 function profileNewerProps(id){
-  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn)return{};
+  const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn||!profileServerNewer(id))return{};
   const k=new Set(profileProps(kn)),v=profileVer(srv),out={};
   profileProps(srv).forEach(f=>{if(!k.has(f))out[f]=v});
   return out;
 }
-// Поля знакомой версии, которых нет у сервера (сервер старше): их своему экрану показывать нельзя (правило 2, срез 2)
+// Поля знакомой версии, которых нет у сервера (сервер старше): их своему экрану показывать нельзя (правило 2). Заготовка
+// среза 2: вызовов пока нет. Наборы large, xl и one-domain отдают vms.detector/1 1.1 с 11 полями из 42 — срез 2 должен
+// смотреть и на версию, а не только на список
 function profileOlderMissing(id){
   const srv=KIND_PROFILES.get(id),kn=profileKnown(id);if(!srv||!kn)return[];
   const s=new Set(profileProps(srv));return profileProps(kn).filter(f=>!s.has(f));
@@ -5719,6 +5728,8 @@ function kindNewerProps(kind){
     if(t!==undefined&&(Array.isArray(t)?!t.includes(hs):t!==hs))return;
     Object.entries(profileNewerProps(id)).forEach(([f,v])=>{if(!(f in out))out[f]=v});
   });
+  // Поле, которое приносит другой знакомый профиль экрана (fps у vms.camera/1 и vms.stream/1), экран показывает: не «новое»
+  handScreenFields(kind).forEach(f=>{delete out[f]});
   return out;
 }
 function nodeNewerProps(n){return n&&!isSchemaNode(n)?kindNewerProps(nodeKind(n)):{}}
@@ -5801,7 +5812,7 @@ function baseTabs(n){
 // неприменённые изменения, вернуться нельзя (у объекта по схеме черновик общий со страницей, запрета нет)
 function baseHeadHtml(n,first,extra,newer){
   const back=baseChanged(n).length;
-  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}${newer?` ${i18n("Метка «новое в версии профиля» стоит у свойств, которые сервер добавил в профиль после версии, которую знает консоль. Особый экран эти свойства не показывает.")}`:""}`:""}</span>`+
+  return`<div class="nt base-head" data-base-head><span>${i18n("Все параметры вида")} «${escHtml(kindText(nodeKind(n)))}». ${i18n("Режим для опытных.")}${first?` ${i18n("Здесь все свойства вида по его схеме. Сервер проверяет правку до плана.")}${extra?` ${i18n("Метка «сверх профиля» стоит у свойств, которых нет в профиле вида.")}`:""}${newer?` ${i18n("Метка «новое в версии профиля» стоит у свойств, которые сервер добавил в профиль после версии, которую знает консоль. Настройка эти свойства не показывает.")}`:""}`:""}</span>`+
     `<button type="button" class="btn s" data-form-back${back?` disabled title="${escHtml(i18n(FORM_BACK_WHY))}"`:""} ${onEv("click",["formAllSet",false])}>${lu("arrow-left",14)}${i18n("Вернуться к настройке")}</button></div>`;
 }
 function baseFormHtml(n,tabId){
@@ -5817,7 +5828,7 @@ function baseFormHtml(n,tabId){
   });
   const err=schemaErrs.get(n.id)||{},req=new Set(schema?.required||[]),vals=xpropsVals(n);
   const nameH=first?baseNameHtml(n):"";
-  let out=baseHeadHtml(n,first,extra.size>0,Object.keys(newer).length>0);
+  let out=baseHeadHtml(n,first,extra.size>0,Object.keys(newer).some(f=>schema?.properties?.[f]&&!schema.properties[f]["x-transient"]));
   if(own)out+=`<div class="nt bk-warn" data-base-lock>${lu("lock",13)} ${i18n("В настройке есть неприменённые изменения. Здесь свойства только для просмотра. Чтобы править их здесь, применить или сбросить изменения.")}</div>`;
   let lead=nameH;
   if(!groups.size)groups.set(i18n(SF_GROUP),[]);
