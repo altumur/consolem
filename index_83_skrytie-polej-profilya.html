@@ -7882,12 +7882,18 @@ function volLabelOf(a,v){
 }
 function volDesc(v){
   const a=archById(v.archId),k=archAddr(a);
-  if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
-  if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
-  // Правило 2 версии профиля: размещение (mode), диск и размер, которых нет в версии сервера, строка пропускает
-  const off=f=>kindFieldOff("volume",f),sz=off("sizeBytes")?"":v.size,dk=off("disk")?"":v.disk;
-  if(off("mode")||off("disk")&&v.mode!=="file")return[dk,sz].filter(Boolean).join(" · ");
-  return v.mode==="file"?[`${i18n("файл")}`,sz].filter(Boolean).join(" "):[v.mode==="dir"?`${i18n("папка на")} ${dk}`:`${i18n("раздел")} ${dk} ${i18n("целиком")}`,sz].filter(Boolean).join(" · ");
+  // Правило 2 версии профиля: поля, которых нет в версии сервера (размер, пользователь, размещение, диск), строка
+  // пропускает. Без скрытых полей строка та же, что в index.html
+  if(!profHideSet.size){
+    if(k==="bucket")return`${cloudLabel(a.provider)}${v.region?" · "+v.region:""} · ${v.size}`;
+    if(k==="nas")return`${i18n("файл")} ${v.size} · ${v.user||i18n("без пользователя")}`;
+    return v.mode==="file"?`${i18n("файл")} ${v.size}`:v.mode==="dir"?`${i18n("папка на")} ${v.disk} · ${v.size}`:`${i18n("раздел")} ${v.disk} ${i18n("целиком")} · ${v.size}`;
+  }
+  const off=f=>kindFieldOff("volume",f),sz=off("sizeBytes")?"":v.size,dk=off("disk")?"":v.disk,j=xs=>xs.filter(Boolean).join(" · ");
+  if(k==="bucket")return j([cloudLabel(a.provider),off("region")?"":v.region,sz]);
+  if(k==="nas")return j([[i18n("файл"),sz].filter(Boolean).join(" "),off("login")?"":v.user||i18n("без пользователя")]);
+  if(off("mode")||off("disk")&&v.mode!=="file")return j([dk,sz]);
+  return v.mode==="file"?[i18n("файл"),sz].filter(Boolean).join(" "):j([v.mode==="dir"?`${i18n("папка на")} ${dk}`:`${i18n("раздел")} ${dk} ${i18n("целиком")}`,sz]);
 }
 function volStateText(v){
   // Правило 2 версии профиля: без поля state — нет и состояния, без usedPercent — состояние без доли
@@ -9744,7 +9750,8 @@ function nodeStatus(n){
   // Правило 2 версии профиля: поля состояния нет в версии сервера — оно не меняет состояние объекта на экране
   const ruleOff=isCam&&!!n.ruleOff&&!nodeFieldOff(n,"disabledByRuleId");
   const license=isCam&&!!n.licenseExceeded&&!nodeFieldOff(n,"licenseExceeded");
-  const on=n.enabled!==false&&!ruleOff&&!license;
+  // Поля enabled нет в версии сервера — объект считается включённым: так его показывает сервер без поля
+  const on=(n.enabled!==false||nodeFieldOff(n,"enabled"))&&!ruleOff&&!license;
   const off=!on&&!license;
   const signal=n.online!==false;
   return{on,off,ruleOff,nosignal:on&&!signal,license};
@@ -10749,7 +10756,7 @@ function serverLoadHtml(s){
     <div class="mc"><span>${i18n("ОЗУ")}</span><b>${v(s.ram??s.cpu??0)}</b></div>
     <div class="mc"><span>${i18n("Сеть")}</span><b>${v(s.net??0)}</b></div>
     <div class="mc"><span>${i18n("Диск")}</span><b>${v(s.disk??0)}</b></div>
-  </div>${offline?`<p class="sub">${i18n("Нет связи с сервером. Показатели недоступны.")}</p>`:""}`;
+  </div>${offline?`<p class="sub"${pfa(s,"telemetry")}>${i18n("Нет связи с сервером. Показатели недоступны.")}</p>`:""}`;
 }
 // Запрос один на все разделы — тот, что набран в шапке.
 // Отбор ассистента сужает дерево, как запрос: дерево фильтрует по q. Пустой запрос при отборе — метка, а не слово
@@ -14219,7 +14226,7 @@ function archTrouble(a){return archVols(a).some(v=>v.state==="error"||v.online==
 function archStateHtml(a){
   if(archTrouble(a))return`<span class="pf-st bad">${i18n("Ошибка тома")}</span>`;
   if(archVols(a).some(v=>v.state==="maint"))return`<span class="pf-st off">${i18n("Обслуживание")}</span>`;
-  if(a.admits===false)return`<span class="pf-st off" title="${i18n("Консоль не привязывает сюда новые камеры")}">${i18n("Не принимает")}</span>`;
+  if(a.admits===false&&!nodeFieldOff(a,"admits"))return`<span class="pf-st off" title="${i18n("Консоль не привязывает сюда новые камеры")}">${i18n("Не принимает")}</span>`;
   return`<span class="pf-st ok">${i18n("Работает")}</span>`;
 }
 function archOwnerCell(a,n){
@@ -14836,7 +14843,7 @@ function periphCardHtml(n){
   }).join("");
   return card("Периферия",`${scope}
     <div class="pf-bar">${bar}</div>
-    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c"${shown.length&&shown.every(d=>nodeFieldOff(d,"enabled"))?` data-prof-off hidden`:""}>${i18n("Вкл.")}</th></tr>${rows}</table>
+    <table class="pf-tbl"><tr><th class="pf-c"><input type="checkbox" ${allOn?"checked":""} ${shown.length?"":"disabled"} ${onEv("change",["periphAll",`${n.id}`,onEv.checked])} aria-label="${i18n(on?"Выбрать все показанные":"Выбрать все")}"></th><th>${i18n("Имя")}</th><th>${i18n("Тип")}</th><th>${i18n("Состояние")}</th><th class="pf-c"${shown.length&&new Set(shown.map(nodeKind)).size===1?pfa(shown[0],"enabled"):shown.length&&shown.every(d=>nodeFieldOff(d,"enabled"))?` data-prof-off hidden`:""}>${i18n("Вкл.")}</th></tr>${rows}</table>
     <p class="sub" style="margin-top:8px">${i18n("Флажок камеры в дереве не отмечает её периферию. Чтобы изменить её вместе с периферией других камер, нажать «Отметить в дереве».")}</p>`,
     `<span class="sub" style="font-weight:400">${items.length}</span>`);
 }
@@ -17589,7 +17596,7 @@ function detZoneCardHtml(cam,d){
 function detFieldsHtml(cam,d,nameLb,noSensFld){
   const opt=detOption(cam,d),draft=!hwVer.has(d.id),opts=cam?.detectorOptions||[];
   const place=draft&&opts.length?`<div><label>${i18n("Размещение")}</label><select ${onEv("change",["detPlace",`${cam.id}`,`${d.id}`,onEv.value])}><option value="" ${d.template?"":"selected"}>${i18n("Серверный")}</option>${opts.map(o=>`<option value="${escHtml(o.template)}" ${o.template===d.template?"selected":""}>${escHtml(i18n("Встроенный"))}: ${escHtml(o.name)}</option>`).join("")}</select></div>`
-    :fldRo("Размещение",i18n(d.builtin?"Встроенный":"Серверный"));
+    :pfw(d,"builtin",fldRo("Размещение",i18n(d.builtin?"Встроенный":"Серверный")));
   const kind=d.builtin?fldRo("Тип",detKindText(d,cam)):sl("Тип",DET_TYPES,d.kind||DET_TYPES[0]);
   const noSens=!!opt&&opt.sensitivityMin==null;
   const sens=noSens||noSensFld?"":pfw(d,"sensitivity",fld(opt?`Чувствительность`:"Чувствительность",d.sens||""));
@@ -18116,6 +18123,7 @@ function dwSceneInner(){
     <rect x="13" y="38" width="3" height="18" fill="#5b4632"/><ellipse cx="14.5" cy="34" rx="12" ry="11" fill="#3f6b45"/><ellipse cx="9" cy="40" rx="7" ry="6" fill="#4c7d52"/><ellipse cx="20" cy="29" rx="7" ry="6" fill="#4c7d52"/>`;
 }
 const dwP=([x,y])=>`${(x*DW_X).toFixed(1)},${(y*DW_Y).toFixed(1)}`;
+// dir "off" — направления нет в версии сервера (правило 2 версии профиля): только линия, без стрелки и сторон A и B
 function dwLineSvg(l,dir,id,col,name){
   const[a,b]=l.map(([x,y])=>[x*DW_X,y*DW_Y]),dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy)||1,nx=-dy/L,ny=dx/L;
   const m=[(a[0]+b[0])/2,(a[1]+b[1])/2],s=7,p0=[m[0]-nx*s,m[1]-ny*s],p1=[m[0]+nx*s,m[1]+ny*s];
@@ -18123,7 +18131,7 @@ function dwLineSvg(l,dir,id,col,name){
   const arr=dir==="ba"?head(p1,p0):dir==="both"?head(p0,p1)+head(p1,p0):head(p0,p1);
   const lb=(p,t)=>`<text class="dw-tx" x="${(p[0]+(p===p0?-nx:nx)*3).toFixed(1)}" y="${(p[1]+(p===p0?-ny:ny)*3+1).toFixed(1)}" text-anchor="middle">${t}</text>`;
   return`<line class="dw-l" data-b="${id}" x1="${a[0]}" y1="${a[1]}" x2="${b[0]}" y2="${b[1]}" stroke="${col}"/>
-    <line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${col}" stroke-width=".9" stroke-dasharray="1.5 1"/>${arr}${lb(p0,"A")}${lb(p1,"B")}
+    ${dir==="off"?"":`<line x1="${p0[0]}" y1="${p0[1]}" x2="${p1[0]}" y2="${p1[1]}" stroke="${col}" stroke-width=".9" stroke-dasharray="1.5 1"/>${arr}${lb(p0,"A")}${lb(p1,"B")}`}
     ${name?`<text class="dw-tx" x="${(b[0]+1.5).toFixed(1)}" y="${(b[1]-1).toFixed(1)}">${escHtml(name)}</text>`:""}
     ${dw.tool?"":[a,b].map((p,i)=>`<circle class="dw-hd" data-h="${id}:${i}" cx="${p[0]}" cy="${p[1]}" r="1.7" style="--c:${col}"/>`).join("")}`;
 }
@@ -18148,7 +18156,9 @@ function dwPolySvg(){
 function dwGeoSvg(d){
   const k=dwKindOf(d);if(k==="other")return"";
   const c=dwC(d);let h="";
-  c.areas.forEach(a=>{
+  // Правило 2 версии профиля: зону детектора, зону и направление поддетектора, которых нет в версии сервера, кадр не рисует
+  const zOff=nodeFieldOff(d,"zone"),sOff=(x,f)=>{if(!profHideSet.size)return false;const u=dwSubUnits(d).find(y=>y.id===x.id);return kindFieldOff(u?nodeKind(u):"subdet",f)};
+  if(!zOff)c.areas.forEach(a=>{
     const ex=a.type==="ex";
     h+=`<polygon class="dw-a${ex?" ex":""}${dw.sel===a.id?" sel":""}" data-b="area:${a.id}" points="${a.pts.map(dwP).join(" ")}"/>`;
     const top=a.pts.reduce((m,p)=>p[1]<m[1]||(p[1]===m[1]&&p[0]<m[0])?p:m,a.pts[0]);
@@ -18156,16 +18166,16 @@ function dwGeoSvg(d){
     const col=ex?"var(--dw-ex)":"var(--dw-in)";
     if(!dw.tool){if(dw.sel===a.id)h+=dwMidSvg(a.pts,`area:${a.id}`,col);a.pts.forEach((p,i)=>h+=dwHdSvg(`area:${a.id}`,i,p,col,1.7))}
   });
-  if(c.line)h+=dwLineSvg(c.line,c.dir,"line","var(--dw-ln)");
+  if(c.line&&!zOff)h+=dwLineSvg(c.line,c.dir,"line","var(--dw-ln)");
   if(dw.poly)h+=dwPolySvg();
   const subSel=c.subs.some(s=>s.id===dw.subSel)?dw.subSel:null;
   if(DW_SUBP.has(k))c.subs.forEach((s,i)=>{
-    if(!s.on)return;
+    if(!s.on||sOff(s,"zone"))return;
     const col=DW_SUBC[i%DW_SUBC.length],on=subSel===s.id,hd=!dw.tool&&(on||!subSel);
     const cls=`dw-sa${s.kind==="mask"?" mask":""}${on?" sel":subSel?" dim":""}`;
     const poly=(pts,b,lb)=>{h+=`<polygon class="${cls}${dw.sel===`${b}:${s.id}`?" zf":""}" data-b="${b}:${s.id}" points="${pts.map(dwP).join(" ")}" style="--c:${col}"/><text class="dw-tx" x="${(pts[0][0]*DW_X+1).toFixed(1)}" y="${(pts[0][1]*DW_Y-1.2).toFixed(1)}" style="fill:${col}">${escHtml(lb)}</text>`;
       if(hd){if(dw.sel===`${b}:${s.id}`)h+=dwMidSvg(pts,`${b}:${s.id}`,col);pts.forEach((p,j)=>h+=dwHdSvg(`${b}:${s.id}`,j,p,col,1.5))}};
-    if(s.kind==="line")h+=dwLineSvg(s.line,s.dir,`subl:${s.id}`,col,s.name);
+    if(s.kind==="line")h+=dwLineSvg(s.line,sOff(s,"direction")?"off":s.dir,`subl:${s.id}`,col,s.name);
     else{poly(s.area.pts,"sub",s.kind==="a2a"?`1 · ${s.name}`:s.name);if(s.kind==="a2a")poly(s.area2.pts,"sub2","2")}
   });
   if(dw.lay.size&&DW_SIZE.has(k))["min","max"].forEach(m=>{
@@ -22406,7 +22416,7 @@ function cvJoyKey(id){
 let cvSideTab="pre";
 function cvPresetsHtml(n){
   if(cvTourEdit?.id===n.id)return`<section class="cv-sec cv-pre cv-ed">${cvTourEditorHtml(n,cvTourEdit.t)}</section>`;
-  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideTab==="tours"?cvToursHtml(n):pfw(n,"presets",cvPresetListHtml(n))}</div></section>`;
+  return`<section class="cv-sec cv-pre">${cvSideTabsHtml(n)}<div class="cv-tab-body" data-cv-tab-body>${cvSideTab==="tours"?cvToursHtml(n):cvPresetListHtml(n)}</div></section>`;
 }
 function cvSideTabsHtml(n){
   const st=cvToursOf(n),run=st.run,pl=presetRows(n).length;
@@ -22449,8 +22459,10 @@ function cvPresetListHtml(n){
       <input value="${escHtml(p.name)}" placeholder="${escHtml(`${i18n("Пресет")} ${p.n}`)}" aria-label="${i18n("Имя пресета")} ${p.n}" ${onEv("change",["presetName",`${n.id}`,p.n,onEv.value])}>
       <button type="button" class="btn s btn-icon" data-preset-save ${off?"disabled":""} title="${escHtml(nat?i18n("Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение"):i18n("Записать в этот пресет нынешнее положение камеры"))}" aria-label="${i18n("Записать нынешнее положение")} ${p.n}" ${onEv("click",["cvPresetOverwrite",`${n.id}`,p.n])}>${lu("crosshair",14)}</button>
       <button type="button" class="btn s btn-icon" title="${i18n("Удалить пресет")}" aria-label="${i18n("Удалить пресет")} ${p.n}" ${onEv("click",["presetDel",`${n.id}`,p.n])}>${lu("trash",14)}</button></li>`).join("");
-  return`${nat?`<p class="sub cv-nat" data-preset-nat>${i18n("Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно")}</p>`:""}${list.length?`<ul class="cv-pl" data-cv-pl data-keep-scroll>${rows}</ul>`:`<p class="sub cv-pl-empty">${i18n("Пресетов нет. Повернуть камеру и запомнить положение")}</p>`}
-    <div class="cv-pre-add"><input data-cv-newname placeholder="${escHtml(full?i18n("Все номера заняты"):`${i18n("Пресет")} ${presetFree(n)}`)}" aria-label="${i18n("Имя нового пресета")}" ${full||off?"disabled":""} ${onEv("keydown",[".key","Enter"],["cvPresetNew",`${n.id}`])}>
+  // Правило 2 версии профиля: метка presets на каждом верхнем элементе списка — список рисуют и карточка, и смена вкладки
+  const pf=pfa(n,"presets");
+  return`${nat?`<p class="sub cv-nat" data-preset-nat${pf}>${i18n("Камера за NAT. Связи с ней нет, поэтому отсюда нельзя двигать камеру и запоминать положение. Подпись пресета можно")}</p>`:""}${list.length?`<ul class="cv-pl" data-cv-pl data-keep-scroll${pf}>${rows}</ul>`:`<p class="sub cv-pl-empty"${pf}>${i18n("Пресетов нет. Повернуть камеру и запомнить положение")}</p>`}
+    <div class="cv-pre-add"${pf}><input data-cv-newname placeholder="${escHtml(full?i18n("Все номера заняты"):`${i18n("Пресет")} ${presetFree(n)}`)}" aria-label="${i18n("Имя нового пресета")}" ${full||off?"disabled":""} ${onEv("keydown",[".key","Enter"],["cvPresetNew",`${n.id}`])}>
       <button type="button" class="btn s pri" data-cv-preset-new ${full||off?"disabled":""} title="${escHtml(full?i18n("Все номера заняты"):nat?i18n("Камера за NAT. Связи с ней нет, поэтому здесь нельзя запомнить положение"):i18n("Запомнить нынешнее положение камеры под следующим свободным номером"))}" ${onEv("click",["cvPresetNew",`${n.id}`])}>${lu("plus",14)}${i18n("Запомнить")}</button></div>`;
 }
 // ── Туры (ЗАГЛУШКА: в контракте туров нет) ─────────────────────
@@ -35940,8 +35952,8 @@ const CLOUD_REGIONS={s3:["eu-central-1","eu-west-1","us-east-1","us-west-1","ap-
 // Локальное объектное — папка на диске; блочное — раздел целиком или файл
 // в папке. Размер — числом в гигабайтах.
 function volFieldsHtml(a,v,set){
-  // Правило 2 версии профиля: метка поля тома по ключу (dir, disk, mode, размер — sizeBytes)
-  const vf=key=>pfa("volume",key==="gb"?"sizeBytes":key);
+  // Правило 2 версии профиля: метка поля тома по ключу (размер — sizeBytes, пользователь — login, пароль — password)
+  const vf=key=>pfa("volume",{gb:"sizeBytes",user:"login",pass:"password"}[key]||key);
   const k=archAddr(a),inp=(label,key,type,hint,ph)=>`<div${vf(key)}><label>${i18n(label)}</label><input type="${type||"text"}" value="${escHtml(v[key]??"")}" ${ph?`placeholder="${escHtml(ph)}"`:""} ${onEv("input",[...set,key,onEv.value,true])}>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
   const sel=(label,key,opts,hint)=>`<div${vf(key)}><label>${i18n(label)}</label><select ${onEv("change",[...set,key,onEv.value])}>${opts.map(([val,l,dis])=>`<option value="${escHtml(val)}" ${String(v[key])===String(val)?"selected":""} ${dis?"disabled":""}>${escHtml(l)}</option>`).join("")}</select>${hint?`<div class="bk-hint">${hint}</div>`:""}</div>`;
   const gb=(label,hint)=>`<div${vf("gb")}><label>${i18n(label)}</label><div class="gb-in"><input type="number" min="1" step="1" value="${gbOf(v.size)||""}" ${onEv("input",[...set,"gb",onEv.value,true])}><span>${i18n("ГБ")}</span></div>${hint?`<div class="bk-hint">${i18n(hint)}</div>`:""}</div>`;
@@ -36245,7 +36257,7 @@ function anNasPath(){anFoundDefault();renderArchNew()}
 // Шаг «Первый том», вариант «Том с записями»
 function anFoundHtml(a,addr){
   if(addr==="nas"){
-    const v=an.vol,inp=(l,k,t,h)=>`<div><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(v[k]??"")}" ${onEv("input",["anSet",k,onEv.value,true])} ${k==="disk"?onEv("change",["anNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
+    const v=an.vol,inp=(l,k,t,h)=>`<div${k==="user"||k==="pass"?pfa("volume",k==="user"?"login":"password"):""}><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(v[k]??"")}" ${onEv("input",["anSet",k,onEv.value,true])} ${k==="disk"?onEv("change",["anNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
     const list=protoFoundNas(v.disk);
     return`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","папка, где лежат файлы томов .afs")}${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>
       <div class="an-vol-h">${i18n("Файлы томов в папке")}<span class="sub">${list.length} ${i18n(plural(list.length,"файл|файла|файлов"))}</span></div>
@@ -36377,7 +36389,7 @@ function avPaint(){
   if(av.src==="new")body+=d?`<div class="nt ok an-found-note">${i18n("Сервер создаст том")}: <b>${escHtml(volLabelOf(a,d))}</b> · ${escHtml(volDesc(Object.assign({archId:a.id},d)))}. ${i18n("Чтобы изменить место и размер, открыть карточку тома.")}</div>`
     :`<div class="nt err an-found-note">${i18n("На сервере нет свободных дисков. На каждом диске уже есть том этого хранилища или раздел другого.")}</div>`;
   else if(nas){
-    const inp=(l,k,t,h)=>`<div><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(av.nas[k]??"")}" ${onEv("input",["avNas",k,onEv.value])} ${k==="disk"?onEv("change",["avNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
+    const inp=(l,k,t,h)=>`<div${k==="user"||k==="pass"?pfa("volume",k==="user"?"login":"password"):""}><label>${i18n(l)}</label><input type="${t||"text"}" value="${escHtml(av.nas[k]??"")}" ${onEv("input",["avNas",k,onEv.value])} ${k==="disk"?onEv("change",["avNasPath"]):""}>${h?`<div class="bk-hint">${i18n(h)}</div>`:""}</div>`;
     const list=avList(a);
     body+=`<div class="g" style="margin-top:10px">${inp("Путь к папке","disk","text","папка, где лежат файлы томов .afs")}${inp("Пользователь","user","text","домен\\имя или компьютер\\имя")}${inp("Пароль","pass","password")}</div>
       <div class="an-vol-h">${i18n("Файлы томов в папке")}<span class="sub">${list.length} ${i18n(plural(list.length,"файл|файла|файлов"))}</span></div>

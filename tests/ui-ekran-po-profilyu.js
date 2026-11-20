@@ -538,7 +538,9 @@ UiCheck(async ({ ok, until, sleep, absent }) => {
         // 2. Сервер младшей версии без ip и vendor: метки скрыты, nodeFieldOff — true, другие поля видны
         setPos(older, ["ip", "vendor"]);
         ok(profileServerOlder("vms.pos/1") && JSON.stringify(profileOlderMissing("vms.pos/1").sort()) === '["ip","vendor"]', `сервер ${older}: profileOlderMissing — ip и vendor: ` + JSON.stringify(profileOlderMissing("vms.pos/1")));
-        ok(tagged("ip").every((e) => e.hidden && getComputedStyle(e).display === "none") && tagged("vendor").every((e) => e.hidden), `сервер ${older}: поля ip и vendor на открытой карточке скрыты`);
+        ok(tagged("ip").length > 0 && tagged("vendor").length > 0 && tagged("ip").every((e) => e.hidden && getComputedStyle(e).display === "none") && tagged("vendor").every((e) => e.hidden), `сервер ${older}: поля ip и vendor на открытой карточке скрыты`);
+        // Узел формы по схеме того же вида правило 2 не трогает: форму рисует схема сервера
+        ok(isSchemaNode(Object.assign({}, pos, { _schema: true })) && !nodeFieldOff(Object.assign({}, pos, { _schema: true }), "ip") && nodeFieldOff(pos, "ip"), "узел формы по схеме: nodeFieldOff — нет, у узла ручного экрана — да");
         ok(nodeFieldOff(pos, "ip") && !nodeFieldOff(pos, "port") && tagged("port").every((e) => !e.hidden), "nodeFieldOff: ip — да, port — нет; port виден");
         // 3. Карточка, нарисованная заново, сразу без полей
         pick(pos.id, { force: true, tab: "gen" });
@@ -557,7 +559,10 @@ UiCheck(async ({ ok, until, sleep, absent }) => {
         // 6. Сервер снова той же версии: hidden снят
         setPos(older, ["ip"]);
         restore();
-        ok(profHideSet.size === 0 && tagged("ip").every((e) => !e.hidden), "сервер снова той же версии: поле ip снова видно");
+        ok(profHideSet.size === 0 && tagged("ip").length > 0 && tagged("ip").every((e) => !e.hidden), "сервер снова той же версии: поле ip на открытой карточке снова видно");
+        pick(pos.id, { force: true, tab: "gen" });
+        await until(() => sel === pos.id && tagged("port").length > 0, 10000);
+        ok(tagged("ip").length > 0 && tagged("ip").every((e) => !e.hidden), "карточка нарисована заново после возврата версии: поле ip видно");
       } finally {
         restore();
       }
