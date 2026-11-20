@@ -295,7 +295,7 @@
 
 ## Что добавлено в 0.35.0
 
-Правку сделал владелец контракта (joynickray) по ревью «бэкенд w2c с 0.2.0 на 0.34.0» и ревью безопасности моста 2026-11-20. Слои — механизм (описания `Feature`, договорённости) и `vms.camera/1` (`AreaStateSummary`). Уведомление w2c — `requests/2026-11-20-…-owner-review-0-35-done-request.md`.
+Правку сделал владелец контракта (joynickray) по ревью «бэкенд w2c с 0.2.0 на 0.34.0» и ревью безопасности моста 2026-11-20. Слои — механизм (описания `Feature`, договорённости) и `vms.camera/1` (`AreaStateSummary`). Уведомление w2c — [`requests/2026-11-20-125835Z-owner-review-0-35-done-request.md`](requests/2026-11-20-125835Z-owner-review-0-35-done-request.md).
 
 - **`AreaStateSummary`** (`x-layer: vms.camera/1`): итог круга состояний камер области — `status.observed.stateSummary` у объекта области (`core.domain/1`) `{total, offline, silent, at, unread?}`. Поле отдаёт система, которая объявила `vms.camera/1`; система без вида камер его не отдаёт. Раньше поле было только у встроенного сервера, а тест требовал его в слое механизма. Тест «Домен: status.observed.stateSummary…» (`tests/api-pages.js`) перешёл в слой `profile:vms.camera/1`. Встроенный сервер на наборе `agents` поле больше не отдаёт.
 - **Устаревшие операции механизма необязательны.** Пауза и возобновление операции (`pauseOperation`, `resumeOperation`) и окна обслуживания (`listMaintenanceWindows` и ещё четыре) устарели в 0.4.0. Новый бэкенд их может не объявлять в `capabilities.operations`. Тогда тесты их пропускают, `index.html` их не зовёт, а ассистент кладёт в снимок пустой список окон (`AssistWorld.maintenanceWindows`). Бэкенд, который их объявил, делает их по контракту.
